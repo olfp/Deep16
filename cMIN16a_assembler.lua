@@ -1,5 +1,5 @@
 -- cMIN16a_assembler.lua
--- cMIN-16a Assembler Implementation in Lua - KORRIGIERT
+-- cMIN-16a Assembler Implementation in Lua - ENDGÜLTIG KORRIGIERT
 
 local Assembler = {}
 Assembler.__index = Assembler
@@ -198,12 +198,20 @@ function Assembler:encode_alu(mnemonic, operands)
         table.remove(operands, #operands)
     end
     
+    -- Entscheidung Register vs Immediate Mode
     if #operands == 2 then
-        -- Register mode - R3 ist ein Register, nicht evaluieren!
-        src_val = self:parse_register(operands[2])
-        i_flag = 0
+        -- Register mode - prüfe ob zweiter Operand ein Register ist
+        if self:is_register(operands[2]) then
+            src_val = self:parse_register(operands[2])
+            i_flag = 0
+        else
+            -- Es ist ein Immediate
+            src_val = self:evaluate_expression(operands[2])
+            if src_val < 0 or src_val > 15 then error("ALU Immediate muss 0-15 sein") end
+            i_flag = 1
+        end
     else
-        -- Immediate mode - hier wird evaluiert
+        -- Immediate mode mit explizitem Wert
         src_val = self:evaluate_expression(operands[2])
         if src_val < 0 or src_val > 15 then error("ALU Immediate muss 0-15 sein") end
         i_flag = 1
@@ -270,9 +278,6 @@ function Assembler:parse_instruction(line)
         table.insert(operands, op)
     end
     
-    -- Debug-Ausgabe
-    print(string.format("Parsing: %s %s", mnemonic, table.concat(operands, ", ")))
-    
     if mnemonic == "LDI" then 
         return self:encode_ldi(operands)
     elseif mnemonic == "LSI" then 
@@ -302,14 +307,10 @@ function Assembler:assemble_file(filename)
     local source = file:read("*a")
     file:close()
     
-    print("Starte Preprocessing...")
     -- PREPROCESS: .equ Direktiven zuerst verarbeiten
     source = self:preprocess_equ_directives(source)
     
-    print("Starte Pass1...")
     self:pass1(source)
-    
-    print("Starte Pass2...")
     self:pass2(source)
     
     return self.output
@@ -328,7 +329,6 @@ function Assembler:pass1(source)
                 local label, rest = line:match("^([%w_]+):%s*(.*)$")
                 if label then
                     self.labels[label] = self.address
-                    print(string.format("Label definiert: %s = 0x%04X", label, self.address))
                     line = rest
                 end
                 if line and line ~= "" then
@@ -383,14 +383,11 @@ function Assembler:process_directive(line, is_pass1)
     args = args:gsub("^%s+", ""):gsub("%s+$", "")
     
     if directive == "ORG" then
-        local new_addr = self:evaluate_expression(args)
-        self.address = new_addr
-        print(string.format("ORG auf 0x%04X", new_addr))
+        self.address = self:evaluate_expression(args)
     elseif directive == "DW" then
         if not is_pass1 then
             for value in args:gmatch("%S+") do
-                local num = self:evaluate_expression(value)
-                table.insert(self.output, num)
+                table.insert(self.output, self:evaluate_expression(value))
                 self.address = self.address + 1
             end
         else
