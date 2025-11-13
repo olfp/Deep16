@@ -1,5 +1,3 @@
-Ich erstelle Ihnen eine komplette cMIN-16a Dokumentation als PDF. Hier ist die vollständige Spezifikation:
-
 # cMIN-16a Architecture Specification
 ## A 16-bit RISC Processor
 
