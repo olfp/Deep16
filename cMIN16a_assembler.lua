@@ -50,6 +50,10 @@ function Assembler.new()
     return self
 end
 
+function Assembler:is_register(str)
+    return str:match("^[Rr]%d+$") or str:upper() == "PC" or str:upper() == "LR" or str:upper() == "SP"
+end
+
 function Assembler:parse_register(reg_str)
     if reg_str:upper():match("^R(%d+)$") then
         local reg_num = tonumber(reg_str:match("^R(%d+)$"))
@@ -66,6 +70,11 @@ end
 function Assembler:evaluate_expression(expr)
     if expr == nil or expr == "" then return 0 end
     expr = expr:gsub("%s+", "")
+    
+    -- Prüfe ob es ein Register ist (dann nicht evaluieren)
+    if self:is_register(expr) then
+        error("Kann Register nicht als Zahl evaluieren: " .. expr)
+    end
     
     -- Direkte Zahl
     local num = tonumber(expr)
@@ -126,7 +135,6 @@ function Assembler:preprocess_equ_directives(source)
 end
 
 function Assembler:process_equ_directive(line)
-    -- Unterstützt beide Formate: .equ SYMBOL VALUE und SYMBOL = VALUE
     local symbol, value
     
     if line:match("^%.equ") then
@@ -191,9 +199,11 @@ function Assembler:encode_alu(mnemonic, operands)
     end
     
     if #operands == 2 then
+        -- Register mode
         src_val = self:parse_register(operands[2])
         i_flag = 0
     else
+        -- Immediate mode
         src_val = self:evaluate_expression(operands[2])
         if src_val < 0 or src_val > 15 then error("ALU Immediate muss 0-15 sein") end
         i_flag = 1
@@ -260,14 +270,27 @@ function Assembler:parse_instruction(line)
         table.insert(operands, op)
     end
     
-    if mnemonic == "LDI" then return self:encode_ldi(operands)
-    elseif mnemonic == "LSI" then return self:encode_lsi(operands)
-    elseif mnemonic == "LD" or mnemonic == "ST" then return self:encode_ldst(mnemonic, operands)
-    elseif mnemonic == "MOV" then return self:encode_mov(operands)
-    elseif mnemonic == "SHIFT" then return self:encode_shift(operands)
-    elseif jump_types[mnemonic] then return self:encode_jmp(mnemonic, operands)
-    elseif alu_ops[mnemonic] then return self:encode_alu(mnemonic, operands)
-    else error("Unbekannter Befehl: " .. mnemonic) end
+    if mnemonic == "LDI" then 
+        return self:encode_ldi(operands)
+    elseif mnemonic == "LSI" then 
+        return self:encode_lsi(operands)
+    elseif mnemonic == "LD" or mnemonic == "ST" then 
+        return self:encode_ldst(mnemonic, operands)
+    elseif mnemonic == "MOV" then 
+        return self:encode_mov(operands)
+    elseif mnemonic == "SHIFT" then 
+        return self:encode_shift(operands)
+    elseif mnemonic == "JMP" or mnemonic == "JZ" or mnemonic == "JNZ" or
+           mnemonic == "JC" or mnemonic == "JNC" or mnemonic == "JN" or
+           mnemonic == "JNN" or mnemonic == "JRL" then
+        return self:encode_jmp(mnemonic, operands)
+    elseif mnemonic == "ADD" or mnemonic == "SUB" or mnemonic == "AND" or
+           mnemonic == "OR" or mnemonic == "XOR" or mnemonic == "MUL" or
+           mnemonic == "DIV" then
+        return self:encode_alu(mnemonic, operands)
+    else 
+        error("Unbekannter Befehl: " .. mnemonic) 
+    end
 end
 
 function Assembler:assemble_file(filename)
@@ -366,10 +389,6 @@ function Assembler:process_directive(line, is_pass1)
         end
     end
 end
-
--- Globale Variablen für die Parser-Funktionen
-local jump_types = {JMP=true, JZ=true, JNZ=true, JC=true, JNC=true, JN=true, JNN=true, JRL=true}
-local alu_ops = {ADD=true, SUB=true, AND=true, OR=true, XOR=true, MUL=true, DIV=true}
 
 function main()
     if #arg ~= 1 then
