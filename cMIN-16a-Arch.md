@@ -1,5 +1,3 @@
-Perfekt! Hier ist die überarbeitete cMIN-16a Architecture Specification mit den neuen Befehlen und korrigierten SMV-Mnemonics:
-
 # cMIN-16a Architecture Specification v2.5 (Milestone 1r3)
 ## 16-bit RISC Processor with Shadow Registers and Segmented Memory
 
