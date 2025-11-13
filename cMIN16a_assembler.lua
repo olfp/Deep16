@@ -1,10 +1,10 @@
 -- cMIN16a_assembler.lua
--- cMIN-16a Assembler Implementation in Lua - VOLLSTÄNDIGE VERSION
+-- cMIN-16a Assembler Implementation for Milestone 1r3
 
 local Assembler = {}
 Assembler.__index = Assembler
 
--- Opcode-Definitionen
+-- Opcode-Definitionen für Milestone 1r3
 local OPCODES = {
     LDI = 0x0000,
     LD = 0x8000,
@@ -31,14 +31,34 @@ local OPCODES = {
     CLR = 0xFC00,
     MVS = 0x3F00,
     SMV = 0x3FC0,
+    SWB = 0x7F80,  -- 11-bit Opcode: 11111111110 + S=0
+    INV = 0x7F90,  -- 11-bit Opcode: 11111111110 + S=1 + Rx=0
+    LJMP = 0xFF80,
     NOP = 0xFFF0,
     HLT = 0xFFF2,
     SWI = 0xFFF4,
     RETI = 0xFFF6
 }
 
-local SEGMENTS = { DS = 0, CS = 1, SS = 2, ES = 3 }
-local SHIFT_TYPES = { SL = 0, SR = 1, SRA = 2, ROT = 3 }
+-- Shift Type Mapping für kompakte Form
+local SHIFT_TYPES = { 
+    SL = 0, SLC = 0, 
+    SR = 1, SRC = 1,
+    SRA = 2, SAC = 2,
+    ROR = 3, ROC = 3
+}
+
+-- Segment Register Codes
+local SEGMENTS = { CS = 0, DS = 1, SS = 2, ES = 3 }
+
+-- SMV Source Codes
+local SMV_SOURCES = { 
+    -- Normal Mode (S=0) und ISR Mode (S=1) mapping
+    ["APC"] = 0, ["PC"] = 0,
+    ["APSW"] = 1, ["PSW"] = 1, 
+    ["PSW"] = 2, ["APSW"] = 2,
+    ["ACS"] = 3, ["CS"] = 3
+}
 
 function Assembler.new()
     local self = setmetatable({}, Assembler)
@@ -186,6 +206,8 @@ function Assembler:evaluate_expression_direct(expr)
     error("Ungültiger Ausdruck: " .. expr)
 end
 
+-- ENCODING FUNKTIONEN
+
 function Assembler:encode_ldi(operands)
     if #operands ~= 1 then error("LDI benötigt einen Operand") end
     local imm = self:evaluate_expression(operands[1])
@@ -241,6 +263,11 @@ function Assembler:encode_alu(mnemonic, operands)
         table.remove(operands, #operands)
     end
     
+    -- Für MUL/DIV: Rd muss gerade sein
+    if (mnemonic == "MUL" or mnemonic == "DIV") and (rd % 2 ~= 0) then
+        error(mnemonic .. " benötigt ein gerades Register (R0, R2, R4, ..., R14)")
+    end
+    
     -- Entscheidung Register vs Immediate Mode
     if self:is_register(operands[2]) then
         -- Register mode
@@ -258,15 +285,21 @@ function Assembler:encode_alu(mnemonic, operands)
 end
 
 function Assembler:encode_shift(operands)
-    if #operands < 3 then error("SHIFT benötigt Rd, Typ, Count") end
+    if #operands < 2 then error("Shift benötigt Rd, Count") end
     
-    local rd = self:parse_register(operands[1])
-    local shift_type = SHIFT_TYPES[operands[2]:upper()] or error("Ungültiger Shift-Typ")
-    local count = self:evaluate_expression(operands[3])
-    if count == nil then error("SHIFT Count erwartet Immediate") end
+    local mnemonic = operands[1]:upper()
+    local rd = self:parse_register(operands[2])
+    local count = 0
+    
+    if #operands >= 3 then
+        count = self:evaluate_expression(operands[3])
+        if count == nil then error("Shift Count erwartet Immediate") end
+    end
+    
     if count < 0 or count > 7 then error("Shift-Count muss 0-7 sein") end
     
-    local c_flag = (#operands >= 4 and operands[4]:upper() == "C=1") and 1 or 0
+    local shift_type = SHIFT_TYPES[mnemonic] or error("Ungültiger Shift-Typ: " .. mnemonic)
+    local c_flag = (mnemonic:match("C$")) and 1 or 0
     
     return 0xCE00 | (rd << 8) | (c_flag << 7) | (shift_type << 5) | count
 end
@@ -308,8 +341,6 @@ function Assembler:encode_jmp(mnemonic, operands)
     end
 end
 
--- NEUE ENCODING-FUNKTIONEN
-
 function Assembler:encode_mvs(operands)
     if #operands ~= 2 then error("MVS benötigt zwei Operanden") end
     
@@ -331,7 +362,6 @@ function Assembler:encode_mvs(operands)
     end
     
     -- Opcode: 111111110 (9 Bit) + D (1 Bit) + Rd (4 Bit) + Seg (2 Bit)
-    -- Basis-Opcode ist 0x3F00 (entspricht 1111111100000000 in den oberen 9 Bits)
     local instruction = 0x3F00 | (d_bit << 8) | (rd << 4) | seg
     return instruction
 end
@@ -339,24 +369,28 @@ end
 function Assembler:encode_smv(operands)
     if #operands ~= 2 then error("SMV benötigt zwei Operanden") end
     
-    local src_codes = { 
-        ["PC'"] = 0, ["PSW'"] = 1, ["PSW"] = 2,
-        ["PC"] = 0, ["PSW"] = 1, ["PSW'"] = 2  -- Alternative Schreibweisen
-    }
-    
-    local src_str = operands[1]
+    local src_str = operands[1]:upper()
     local dst_str = operands[2]
     
-    local src_val = src_codes[src_str]
+    local src_val = SMV_SOURCES[src_str]
     if not src_val then
-        error("Ungültige Quelle für SMV: " .. src_str .. " (erlaubt: PC, PC', PSW, PSW')")
+        error("Ungültige Quelle für SMV: " .. src_str .. " (erlaubt: APC, APSW, PSW, ACS, PC, CS)")
     end
     
     local dst_reg = self:parse_register(dst_str)
     
     -- Opcode: 1111111110 (10 Bit) + SRC (2 Bit) + DST (4 Bit)
-    -- Basis-Opcode ist 0x3FC0 (entspricht 111111111000000 in den oberen 10 Bits)
     return 0x3FC0 | (src_val << 4) | dst_reg
+end
+
+function Assembler:encode_swb_inv(mnemonic, operands)
+    if #operands ~= 1 then error(mnemonic .. " benötigt Rx") end
+    
+    local rx = self:parse_register(operands[1])
+    local s_bit = (mnemonic == "INV") and 1 or 0
+    
+    -- Opcode: 11111111110 (11 Bit) + S (1 Bit) + Rx (4 Bit)
+    return 0x7F80 | (s_bit << 4) | rx
 end
 
 function Assembler:encode_setclr(mnemonic, operands)
@@ -372,6 +406,15 @@ function Assembler:encode_setclr(mnemonic, operands)
     return 0xFC00 | (s_bit << 8) | bitmask
 end
 
+function Assembler:encode_ljmp(operands)
+    if #operands ~= 1 then error("LJMP benötigt Rs") end
+    
+    local rs = self:parse_register(operands[1])
+    
+    -- Opcode: 111111111110 (12 Bit) + Rs (4 Bit)
+    return 0xFF80 | rs
+end
+
 function Assembler:encode_sys(mnemonic, operands)
     local sys_ops = {
         NOP = 0x0, HLT = 0x1, SWI = 0x2, RETI = 0x3
@@ -383,7 +426,7 @@ function Assembler:encode_sys(mnemonic, operands)
     return 0xFFF0 | op_val
 end
 
--- ERWEITERTE parse_instruction FUNKTION
+-- HAUPTPARSER FÜR ALLE BEFEHLE
 
 function Assembler:parse_instruction(line)
     local mnemonic, operands_str = line:match("^(%S+)%s*(.*)$")
@@ -395,7 +438,26 @@ function Assembler:parse_instruction(line)
         table.insert(operands, op)
     end
     
-    if mnemonic == "LDI" then 
+    -- ALU Operationen
+    if mnemonic == "ADD" or mnemonic == "SUB" or mnemonic == "AND" or
+       mnemonic == "OR" or mnemonic == "XOR" or mnemonic == "MUL" or
+       mnemonic == "DIV" then
+        return self:encode_alu(mnemonic, operands)
+    
+    -- Shift Operationen (kompakte Form)
+    elseif mnemonic == "SL" or mnemonic == "SLC" or mnemonic == "SR" or
+           mnemonic == "SRC" or mnemonic == "SRA" or mnemonic == "SAC" or
+           mnemonic == "ROR" or mnemonic == "ROC" then
+        return self:encode_shift({mnemonic, unpack(operands)})
+    
+    -- Sprungoperationen
+    elseif mnemonic == "JMP" or mnemonic == "JZ" or mnemonic == "JNZ" or
+           mnemonic == "JC" or mnemonic == "JNC" or mnemonic == "JN" or
+           mnemonic == "JNN" or mnemonic == "JRL" then
+        return self:encode_jmp(mnemonic, operands)
+    
+    -- Datenoperationen
+    elseif mnemonic == "LDI" then 
         return self:encode_ldi(operands)
     elseif mnemonic == "LSI" then 
         return self:encode_lsi(operands)
@@ -403,31 +465,31 @@ function Assembler:parse_instruction(line)
         return self:encode_ldst(mnemonic, operands)
     elseif mnemonic == "MOV" then 
         return self:encode_mov(operands)
-    elseif mnemonic == "SHIFT" then 
-        return self:encode_shift(operands)
-    elseif mnemonic == "JMP" or mnemonic == "JZ" or mnemonic == "JNZ" or
-           mnemonic == "JC" or mnemonic == "JNC" or mnemonic == "JN" or
-           mnemonic == "JNN" or mnemonic == "JRL" then
-        return self:encode_jmp(mnemonic, operands)
-    elseif mnemonic == "ADD" or mnemonic == "SUB" or mnemonic == "AND" or
-           mnemonic == "OR" or mnemonic == "XOR" or mnemonic == "MUL" or
-           mnemonic == "DIV" then
-        return self:encode_alu(mnemonic, operands)
-    -- NEUE BEFEHLE:
+    
+    -- Segment- und Spezialoperationen
     elseif mnemonic == "MVS" then
         return self:encode_mvs(operands)
     elseif mnemonic == "SMV" then
         return self:encode_smv(operands)
+    elseif mnemonic == "LJMP" then
+        return self:encode_ljmp(operands)
+    
+    -- Neue SWB/INV Befehle
+    elseif mnemonic == "SWB" or mnemonic == "INV" then
+        return self:encode_swb_inv(mnemonic, operands)
+    
+    -- Flag- und Systemoperationen
     elseif mnemonic == "SET" or mnemonic == "CLR" then
         return self:encode_setclr(mnemonic, operands)
     elseif mnemonic == "NOP" or mnemonic == "HLT" or mnemonic == "SWI" or mnemonic == "RETI" then
         return self:encode_sys(mnemonic, operands)
+    
     else 
         error("Unbekannter Befehl: " .. mnemonic) 
     end
 end
 
--- RESTLICHE FUNKTIONEN UNVERÄNDERT
+-- RESTLICHE FUNKTIONEN
 
 function Assembler:assemble_file(filename)
     local file = io.open(filename, "r")
@@ -533,6 +595,9 @@ function main()
     end
     
     local assembler = Assembler.new()
+    print("cMIN-16a Assembler (Milestone 1r3)")
+    print("===================================")
+    
     local success, machine_code = pcall(function() 
         return assembler:assemble_file(arg[1]) 
     end)
@@ -542,7 +607,8 @@ function main()
         os.exit(1)
     end
     
-    print("cMIN-16a Machine Code:")
+    print("\nAssemblierung erfolgreich!")
+    print("Maschinencode:")
     for i, code in ipairs(machine_code) do
         print(string.format("%04X: %04X", i-1, code))
     end
