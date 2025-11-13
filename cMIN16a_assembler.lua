@@ -1,5 +1,5 @@
 -- cMIN16a_assembler.lua
--- cMIN-16a Assembler Implementation in Lua
+-- cMIN-16a Assembler Implementation in Lua - KORRIGIERT
 
 local Assembler = {}
 Assembler.__index = Assembler
@@ -75,22 +75,62 @@ function Assembler:parse_register(reg_str)
 end
 
 function Assembler:evaluate_expression(expr)
-    -- Einfacher Expression-Parser
-    -- Ersetze Symbole
+    -- Verbesserter Expression-Parser
+    if expr == nil or expr == "" then return 0 end
+    
+    -- Entferne Leerzeichen
+    expr = expr:gsub("%s+", "")
+    
+    -- Prüfe ob es eine Zahl ist
+    local num = tonumber(expr)
+    if num then return num end
+    
+    -- Prüfe ob es eine Hex-Zahl ist
+    if expr:match("^0x[%x]+$") then
+        return tonumber(expr, 16)
+    end
+    
+    -- Prüfe ob es ein Symbol ist
+    if self.symbol_table[expr] then
+        return self.symbol_table[expr]
+    end
+    
+    -- Prüfe ob es ein Label ist
+    if self.labels[expr] then
+        return self.labels[expr]
+    end
+    
+    -- Versuche mathematischen Ausdruck
+    local processed_expr = expr
+    
+    -- Ersetze alle Symbole
     for symbol, value in pairs(self.symbol_table) do
-        expr = expr:gsub(symbol, tostring(value))
+        processed_expr = processed_expr:gsub(symbol, tostring(value))
+    end
+    
+    -- Ersetze alle Labels
+    for label, value in pairs(self.labels) do
+        processed_expr = processed_expr:gsub(label, tostring(value))
     end
     
     -- Ersetze Hex-Notation
-    expr = expr:gsub("0x(%x+)", function(x) return tonumber(x, 16) end)
+    processed_expr = processed_expr:gsub("0x(%x+)", function(x) 
+        return tostring(tonumber(x, 16)) 
+    end)
     
-    -- Einfache Auswertung (Achtung: eval() in Lua ist komplexer)
-    -- Für Produktionscode sollte man einen richtigen Parser verwenden
-    local success, result = pcall(load("return " .. expr))
-    if success then
+    -- Einfache Auswertung (nur +, -, *, /)
+    local success, result = pcall(function()
+        -- Sicherheits-Check: Nur erlaubte Zeichen
+        if processed_expr:match("[^%d%+%-%*%/%(%)]") then
+            error("Ungültige Zeichen im Ausdruck")
+        end
+        return load("return " .. processed_expr)()
+    end)
+    
+    if success and result then
         return math.floor(result)
     else
-        error("Ungültiger Ausdruck: " .. expr)
+        error("Ungültiger Ausdruck: " .. expr .. " (verarbeitet: " .. processed_expr .. ")")
     end
 end
 
@@ -108,9 +148,35 @@ function Assembler:encode_ldi(operands)
     return immediate  -- Opcode 0 ist implizit
 end
 
+function Assembler:encode_lsi(operands)
+    -- [11110][Rd4][imm7]
+    if #operands ~= 2 then
+        error("LSI benötigt Rd, imm7")
+    end
+    
+    local rd = self:parse_register(operands[1])
+    local imm = self:evaluate_expression(operands[2])
+    
+    -- Sign-extend check
+    if imm < -64 or imm > 63 then
+        error("LSI Immediate muss zwischen -64 und 63 sein: " .. imm)
+    end
+    
+    -- Konvertiere zu 7-bit signed
+    if imm < 0 then
+        imm = 128 + imm  -- 2er-Komplement für 7-bit
+    end
+    
+    local opcode = 0xF000  -- Basis-Opcode 11110
+    opcode = opcode | (rd << 7)
+    opcode = opcode | (imm & 0x7F)
+    
+    return opcode
+end
+
 function Assembler:encode_ldst(mnemonic, operands)
     -- [10][L/S][Seg2][Rd4][Base4][offset2]
-    if #operands ~= 4 then
+    if #operands ~= 2 then
         error(mnemonic .. " benötigt Rd, [Seg:Base,offset]")
     end
     
@@ -276,18 +342,22 @@ function Assembler:encode_jmp(mnemonic, operands)
     else
         -- PC-relative Sprung
         local offset = self:evaluate_expression(target)
-        if offset < -256 or offset > 255 then
-            error("Sprung-Offset zu groß: " .. offset)
+        
+        -- Berechne relativen Offset von aktueller Adresse
+        local relative_offset = offset - (self.address + 1)
+        
+        if relative_offset < -128 or relative_offset > 127 then
+            error("Sprung-Offset zu groß von Adresse " .. self.address .. ": " .. relative_offset)
         end
         
         -- Konvertiere zu 8-bit signed
-        if offset < 0 then
-            offset = 256 + offset
+        if relative_offset < 0 then
+            relative_offset = 256 + relative_offset
         end
         
         local opcode = 0xE000  -- Basis-Opcode 1110
         opcode = opcode | (type_val << 8)
-        opcode = opcode | (offset & 0xFF)
+        opcode = opcode | (relative_offset & 0xFF)
         
         return opcode
     end
@@ -308,6 +378,8 @@ function Assembler:parse_instruction(line, line_num)
     -- Encode basierend auf Mnemonic
     if mnemonic == "LDI" then
         return self:encode_ldi(operands)
+    elseif mnemonic == "LSI" then
+        return self:encode_lsi(operands)
     elseif mnemonic == "LD" or mnemonic == "ST" then
         return self:encode_ldst(mnemonic, operands)
     elseif mnemonic == "MOV" then
@@ -348,7 +420,7 @@ function Assembler:pass1(source)
     self.labels = {}
     
     for line_num, line in ipairs(self:split_lines(source)) do
-        line = line:gsub(";.*", ""):gsub("%s+$", "")  -- Remove comments and trailing whitespace
+        line = self:clean_line(line)
         
         if line ~= "" then
             -- Handle Direktiven
@@ -375,7 +447,7 @@ function Assembler:pass2(source)
     self.output = {}
     
     for line_num, line in ipairs(self:split_lines(source)) do
-        line = line:gsub(";.*", ""):gsub("%s+$", "")
+        line = self:clean_line(line)
         
         if line ~= "" then
             -- Handle Direktiven
@@ -400,6 +472,11 @@ function Assembler:pass2(source)
     end
 end
 
+function Assembler:clean_line(line)
+    -- Remove comments and trailing whitespace
+    return line:gsub(";.*", ""):gsub("%s+$", ""):gsub("^%s+", "")
+end
+
 function Assembler:split_lines(text)
     local lines = {}
     for line in text:gmatch("[^\r\n]+") do
@@ -410,14 +487,17 @@ end
 
 function Assembler:process_directive(line, line_num, is_pass1)
     local directive, args = line:match("^%.(%S+)%s*(.*)$")
+    if not directive then return end
+    
     directive = directive:upper()
+    args = args:gsub("^%s+", ""):gsub("%s+$", "")
     
     if directive == "ORG" then
-        local address = tonumber(args:match("0x(%x+)")) or tonumber(args)
+        local address = self:evaluate_expression(args)
         if address then
             self.address = address
         end
-    elseif directive == "EQU" then
+    elseif directive == "EQU" or directive == "=" then
         local symbol, value = args:match("^(%S+)%s+(.+)$")
         if symbol and value then
             self.symbol_table[symbol] = self:evaluate_expression(value)
