@@ -1,5 +1,5 @@
 -- cMIN16a_assembler.lua
--- cMIN-16a Assembler Implementation in Lua - ENDGÜLTIG KORRIGIERT
+-- cMIN-16a Assembler Implementation in Lua - NEUER ANSATZ
 
 local Assembler = {}
 Assembler.__index = Assembler
@@ -73,7 +73,7 @@ function Assembler:evaluate_expression(expr)
     
     -- Prüfe ob es ein Register ist (dann nicht evaluieren)
     if self:is_register(expr) then
-        error("Kann Register nicht als Zahl evaluieren: " .. expr)
+        return nil -- Signal dass es ein Register ist
     end
     
     -- Direkte Zahl
@@ -144,14 +144,52 @@ function Assembler:process_equ_directive(line)
     end
     
     if symbol and value then
-        self.symbol_table[symbol] = self:evaluate_expression(value)
-        print(string.format("Symbol definiert: %s = %d (0x%04X)", symbol, self.symbol_table[symbol], self.symbol_table[symbol]))
+        -- Für .equ verwenden wir evaluate_expression aber ohne Register-Check
+        local num_value = self:evaluate_expression_direct(value)
+        self.symbol_table[symbol] = num_value
+        print(string.format("Symbol definiert: %s = %d (0x%04X)", symbol, num_value, num_value))
     end
+end
+
+-- Separate Funktion für .equ die Register ignoriert
+function Assembler:evaluate_expression_direct(expr)
+    if expr == nil or expr == "" then return 0 end
+    expr = expr:gsub("%s+", "")
+    
+    -- Direkte Zahl
+    local num = tonumber(expr)
+    if num then return num end
+    
+    -- Hex-Zahl
+    if expr:match("^0x[%x]+$") then
+        return tonumber(expr, 16)
+    end
+    
+    -- Symbol
+    if self.symbol_table[expr] then
+        return self.symbol_table[expr]
+    end
+    
+    -- Mathematischer Ausdruck
+    local processed = expr
+    for sym, val in pairs(self.symbol_table) do
+        processed = processed:gsub(sym, tostring(val))
+    end
+    
+    processed = processed:gsub("0x(%x+)", function(x) return tostring(tonumber(x, 16)) end)
+    
+    local success, result = pcall(function()
+        return load("return " .. processed)()
+    end)
+    
+    if success then return math.floor(result) end
+    error("Ungültiger Ausdruck: " .. expr)
 end
 
 function Assembler:encode_ldi(operands)
     if #operands ~= 1 then error("LDI benötigt einen Operand") end
     local imm = self:evaluate_expression(operands[1])
+    if imm == nil then error("LDI erwartet Immediate, nicht Register") end
     if imm < 0 or imm > 0x7FFF then error("LDI Immediate zu groß") end
     return imm
 end
@@ -160,6 +198,7 @@ function Assembler:encode_lsi(operands)
     if #operands ~= 2 then error("LSI benötigt Rd, imm7") end
     local rd = self:parse_register(operands[1])
     local imm = self:evaluate_expression(operands[2])
+    if imm == nil then error("LSI erwartet Immediate, nicht Register") end
     if imm < -64 or imm > 63 then error("LSI Immediate außerhalb -64..63") end
     if imm < 0 then imm = 128 + imm end
     return 0xF000 | (rd << 7) | (imm & 0x7F)
@@ -175,7 +214,11 @@ function Assembler:encode_ldst(mnemonic, operands)
     
     local seg_code = SEGMENTS[seg:upper()] or error("Ungültiges Segment")
     local base_reg = self:parse_register(base)
-    local offset_val = offset and self:evaluate_expression(offset) or 0
+    local offset_val = 0
+    if offset then
+        offset_val = self:evaluate_expression(offset)
+        if offset_val == nil then error("Offset erwartet Immediate, nicht Register") end
+    end
     if offset_val < 0 or offset_val > 3 then error("Offset muss 0-3 sein") end
     
     local opcode = 0x8000 | ((mnemonic == "ST" and 1 or 0) << 13)
@@ -199,20 +242,14 @@ function Assembler:encode_alu(mnemonic, operands)
     end
     
     -- Entscheidung Register vs Immediate Mode
-    if #operands == 2 then
-        -- Register mode - prüfe ob zweiter Operand ein Register ist
-        if self:is_register(operands[2]) then
-            src_val = self:parse_register(operands[2])
-            i_flag = 0
-        else
-            -- Es ist ein Immediate
-            src_val = self:evaluate_expression(operands[2])
-            if src_val < 0 or src_val > 15 then error("ALU Immediate muss 0-15 sein") end
-            i_flag = 1
-        end
+    if self:is_register(operands[2]) then
+        -- Register mode
+        src_val = self:parse_register(operands[2])
+        i_flag = 0
     else
-        -- Immediate mode mit explizitem Wert
+        -- Immediate mode
         src_val = self:evaluate_expression(operands[2])
+        if src_val == nil then error(mnemonic .. " erwartet Register oder Immediate") end
         if src_val < 0 or src_val > 15 then error("ALU Immediate muss 0-15 sein") end
         i_flag = 1
     end
@@ -226,6 +263,7 @@ function Assembler:encode_shift(operands)
     local rd = self:parse_register(operands[1])
     local shift_type = SHIFT_TYPES[operands[2]:upper()] or error("Ungültiger Shift-Typ")
     local count = self:evaluate_expression(operands[3])
+    if count == nil then error("SHIFT Count erwartet Immediate") end
     if count < 0 or count > 7 then error("Shift-Count muss 0-7 sein") end
     
     local c_flag = (#operands >= 4 and operands[4]:upper() == "C=1") and 1 or 0
@@ -239,6 +277,7 @@ function Assembler:encode_mov(operands)
     local rd = self:parse_register(operands[1])
     local rs = self:parse_register(operands[2])
     local imm = self:evaluate_expression(operands[3])
+    if imm == nil then error("MOV Immediate erwartet Zahl") end
     if imm < 0 or imm > 3 then error("MOV Immediate muss 0-3 sein") end
     
     return 0xF800 | (rd << 6) | (rs << 2) | imm
@@ -254,6 +293,7 @@ function Assembler:encode_jmp(mnemonic, operands)
         return 0xEE00 | (self:parse_register(operands[1]) << 4)
     else
         local target = self:evaluate_expression(operands[1])
+        if target == nil then error("Sprungziel erwartet Label oder Adresse") end
         local relative_offset = target - (self.address + 1)
         
         if relative_offset < -128 or relative_offset > 127 then
@@ -383,11 +423,11 @@ function Assembler:process_directive(line, is_pass1)
     args = args:gsub("^%s+", ""):gsub("%s+$", "")
     
     if directive == "ORG" then
-        self.address = self:evaluate_expression(args)
+        self.address = self:evaluate_expression_direct(args)
     elseif directive == "DW" then
         if not is_pass1 then
             for value in args:gmatch("%S+") do
-                table.insert(self.output, self:evaluate_expression(value))
+                table.insert(self.output, self:evaluate_expression_direct(value))
                 self.address = self.address + 1
             end
         else
