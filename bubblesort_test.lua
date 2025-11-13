@@ -48,6 +48,7 @@ bubblesort:
     ; Initialisierung
     LSI R1, ARRAY_SIZE  ; n = ARRAY_SIZE
     LSI R5, 1           ; swapped = true
+    LDI DATA_BASE       ; R0 = Basisadresse
     
 outer_loop:
     ; swapped = false
@@ -62,11 +63,14 @@ inner_loop:
     SUB R3, R3, R2      ; R3 = n - i
     SUB R3, R3, 1       ; R3 = n - i - 1
     
-    ; arr[j] laden
-    MOV R4, R0, R3      ; R4 = base + j
+    ; arr[j] laden - R4 = base + j
+    MOV R4, R0, 0       ; R4 = base
+    ADD R4, R4, R3      ; R4 = base + j (statt MOV R4, R0, R3)
     LD R6, [DS:R4, 0]   ; R6 = arr[j]
     
-    ; arr[j+1] laden  
+    ; arr[j+1] laden - R4 = base + j + 1  
+    MOV R4, R0, 0       ; R4 = base
+    ADD R4, R4, R3      ; R4 = base + j
     ADD R4, R4, 1       ; R4 = base + j + 1
     LD R4, [DS:R4, 0]   ; R4 = arr[j+1]
     
@@ -75,10 +79,16 @@ inner_loop:
     JN no_swap          ; Wenn negativ, keine Vertauschung
     
     ; Swap arr[j] und arr[j+1]
-    MOV R4, R0, R3      ; R4 = base + j
-    ST R4, [DS:R4, 0]   ; arr[j] = arr[j+1]
-    ADD R4, R4, 1       ; R4 = base + j + 1  
-    ST R6, [DS:R4, 0]   ; arr[j+1] = arr[j]
+    ; Zuerst arr[j+1] = arr[j] speichern
+    MOV R7, R0, 0       ; R7 = base
+    ADD R7, R7, R3      ; R7 = base + j
+    ADD R7, R7, 1       ; R7 = base + j + 1
+    ST R6, [DS:R7, 0]   ; arr[j+1] = arr[j]
+    
+    ; Dann arr[j] = arr[j+1] speichern
+    MOV R7, R0, 0       ; R7 = base
+    ADD R7, R7, R3      ; R7 = base + j
+    ST R4, [DS:R7, 0]   ; arr[j] = arr[j+1]
     
     ; swapped = true
     LSI R5, 1
@@ -116,16 +126,19 @@ verify_sorted:
     ST R2, [SS:SP, -2]
     ST R3, [SS:SP, -3]
     
+    LDI DATA_BASE       ; R0 = Basisadresse
     ; i = 0
     LSI R1, 0
     
 verify_loop:
     ; arr[i] laden
-    MOV R2, R0, R1      ; R2 = base + i
+    MOV R2, R0, 0       ; R2 = base
+    ADD R2, R2, R1      ; R2 = base + i (statt MOV R2, R0, R1)
     LD R2, [DS:R2, 0]   ; R2 = arr[i]
     
     ; arr[i+1] laden
-    MOV R3, R0, R1      ; R3 = base + i
+    MOV R3, R0, 0       ; R3 = base
+    ADD R3, R3, R1      ; R3 = base + i
     ADD R3, R3, 1       ; R3 = base + i + 1
     LD R3, [DS:R3, 0]   ; R3 = arr[i+1]
     
@@ -142,7 +155,6 @@ not_error:
     ADD R1, R1, 1
     
     ; i < ARRAY_SIZE - 1 ?
-    MOV R2, R0, 0       ; Temporär
     LSI R2, ARRAY_SIZE
     SUB R2, R2, 1       ; ARRAY_SIZE - 1
     SUB R0, R1, R2, w=0 ; Compare i - (size-1)
