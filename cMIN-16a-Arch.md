@@ -1,5 +1,5 @@
-# cMIN-16a Architecture Specification v2.1
-## A 16-bit RISC Processor with Shadow Registers
+# cMIN-16a Architecture Specification v2.3 (Milestone 1r1)
+## 16-bit RISC Processor with Shadow Registers and Segmented Memory
 
 ---
 
@@ -28,10 +28,11 @@ cMIN-16a is a 16-bit RISC processor with:
 
 ### Key Features
 - All instructions exactly 16 bits
-- 16 user-visible registers + PC/PSW shadow registers
+- 16 user-visible registers + PC/PSW/CS shadow registers
 - Hardware-assisted interrupt context switching
 - 4 segment registers for memory management
 - Compact encoding with variable-length opcodes
+- Register-pair operations for MUL/DIV
 
 ---
 
@@ -53,15 +54,16 @@ cMIN-16a is a 16-bit RISC processor with:
 | PSW      | Processor Status Word (Flags) |
 | PC'      | Program Counter Shadow |
 | PSW'     | Processor Status Word Shadow |
+| CS'      | Code Segment Shadow |
 
 ### 2.3 Segment Registers
 
-| Register | Purpose |
-|----------|---------|
-| DS       | Data Segment |
-| CS       | Code Segment |
-| SS       | Stack Segment |
-| ES       | Extra Segment |
+| Register | Code | Purpose |
+|----------|------|---------|
+| CS       | 00   | Code Segment |
+| DS       | 01   | Data Segment |
+| SS       | 10   | Stack Segment |
+| ES       | 11   | Extra Segment |
 
 ### 2.4 Processor Status Word (PSW)
 
@@ -87,13 +89,16 @@ cMIN-16a is a 16-bit RISC processor with:
 **On Interrupt:**
 - `PC' ← PC` (Save current PC to shadow)
 - `PSW' ← PSW` (Save current PSW to shadow)  
+- `CS' ← CS` (Save current CS to shadow)
 - `PC ← interrupt_vector`
+- `CS ← interrupt_cs` (from interrupt vector table)
 - `PSW.I ← 0` (Disable interrupts)
 - `PSW.S ← 1` (Enter ISR mode)
 
 **On RETI:**
 - `PC ← PC'` (Restore PC from shadow)
 - `PSW ← PSW'` (Restore PSW from shadow)
+- `CS ← CS'` (Restore CS from shadow)
 - `PSW.I ← 1` (Enable interrupts)
 - `PSW.S ← 0` (Leave ISR mode)
 
@@ -110,7 +115,7 @@ cMIN-16a is a 16-bit RISC processor with:
 | 00 | SMV DST, PC' | `DST ← PC'` |
 | 01 | SMV DST, PSW' | `DST ← PSW'` |
 | 10 | SMV DST, PSW | `DST ← PSW` |
-| 11 | reserved | |
+| 11 | SMV DST, CS' | `DST ← CS'` |
 
 **ISR Mode (S=1):**
 | SRC2 | Mnemonic | Effect |
@@ -118,7 +123,7 @@ cMIN-16a is a 16-bit RISC processor with:
 | 00 | SMV DST, PC | `DST ← PC` |
 | 01 | SMV DST, PSW | `DST ← PSW` |
 | 10 | SMV DST, PSW' | `DST ← PSW'` |
-| 11 | reserved | |
+| 11 | SMV DST, CS | `DST ← CS` |
 
 ---
 
@@ -136,7 +141,8 @@ cMIN-16a is a 16-bit RISC processor with:
 | 111110 | MOV | `[111110][Rd][Rs][imm2]` | Move with offset |
 | 1111110 | SET/CLR | `[1111110][S/C][bitmask8]` | Set/Clear flags |
 | 111111110 | MVS | `[111111110][D][Rd][Seg]` | Move to/from segment |
-| 1111111110 | **SMV** | `[1111111110][SRC][DST]` | **Special move** |
+| 1111111110 | SMV | `[1111111110][SRC][DST]` | Special move |
+| 111111111110 | LJMP | `[111111111110][Rs]` | Long Jump between segments |
 | 1111111111110 | SYS | `[1111111111110][op]` | System operations |
 
 ---
@@ -212,14 +218,22 @@ cMIN-16a is a 16-bit RISC processor with:
 ```
 **Context-dependent access to shadow/normal registers**
 
-### 5.11 SYS - System Operations
+### 5.11 LJMP - Long Jump
+```
+[111111111110][Rs4]
+```
+**Effect**: 
+- `CS ← Mem[Rs]` (Load new Code Segment)
+- `PC ← Mem[Rs+1]` (Load new Program Counter address)
+
+### 5.12 SYS - System Operations
 ```
 [1111111111110][op3]
 ```
 - 000: NOP
 - 001: HLT  
 - 010: SWI
-- 011: **RETI** (Return from interrupt)
+- 011: RETI (Return from interrupt)
 - 100-111: Reserved
 
 ---
@@ -228,18 +242,30 @@ cMIN-16a is a 16-bit RISC processor with:
 
 ### 6.1 ALU Operation Codes
 
-| op | Mnemonic | Description | Flags |
-|----|----------|-------------|-------|
-| 000 | ADD | Addition | N,Z,V,C |
-| 001 | SUB | Subtraction | N,Z,V,C |
-| 010 | AND | Logical AND | N,Z |
-| 011 | OR | Logical OR | N,Z |
-| 100 | XOR | Logical XOR | N,Z |
-| 101 | MUL | Multiplication | N,Z |
-| 110 | DIV | Division | N,Z |
-| **111** | **SHIFT** | **Shift operations** | **N,Z,C** |
+| op | Mnemonic | Description | Flags | Register-Paar |
+|----|----------|-------------|-------|---------------|
+| 000 | ADD | Addition | N,Z,V,C | - |
+| 001 | SUB | Subtraction | N,Z,V,C | - |
+| 010 | AND | Logical AND | N,Z | - |
+| 011 | OR | Logical OR | N,Z | - |
+| 100 | XOR | Logical XOR | N,Z | - |
+| 101 | MUL | Multiplication | N,Z | **Rd (even) + Rd+1** |
+| 110 | DIV | Division | N,Z | **Rd (even) + Rd+1** |
+| 111 | SHIFT | Shift operations | N,Z,C | - |
 
-### 6.2 Shift Operations (when op=111)
+### 6.2 MUL/DIV Register-Paar Konvention
+
+**Für MUL und DIV wird immer ein gerades Register (Rd) angegeben:**
+- **Rd muss gerade sein** (0, 2, 4, ..., 14)
+- **Ergebnis wird in Register-Paar Rd:Rd+1 gespeichert**
+
+**Beispiele:**
+- `MUL R0, R4` → Ergebnis in **R0:R1** (32-bit)
+- `MUL R2, R5` → Ergebnis in **R2:R3**  
+- `DIV R4, R3` → Ergebnis in **R4:R5**
+- `DIV R14, R2` → Ergebnis in **R14:R15**
+
+### 6.3 Shift Operations (when op=111)
 
 **Format:** `[110][111][Rd4][C1][T2][count3]`
 
@@ -257,7 +283,7 @@ cMIN-16a is a 16-bit RISC processor with:
 
 **Count (count3):** Shift distance 0-7
 
-### 6.3 Condition Codes for JMP
+### 6.4 Condition Codes for JMP
 
 | type | Mnemonic | Condition | Flags |
 |------|----------|-----------|-------|
@@ -296,7 +322,29 @@ less_than:
     JRL R14
 ```
 
-### 7.2 Shift Operations
+### 7.2 MUL/DIV with Register Pairs
+```assembly
+; 32-bit Multiplication
+LDI 0x1234
+MOV R2, R0, 0      ; R2 = 0x1234 (high)
+LSI R3, 0x5678     ; R3 = 0x5678 (low) 
+LDI 0x1000
+MOV R4, R0, 0      ; R4 = 0x1000
+
+; R2:R3 * R4 = R0:R1 (64-bit result)
+MUL R0, R4         ; R0:R1 = R2:R3 * R4
+
+; 32-bit Division  
+LDI 0x12345678
+MOV R2, R0, 0      ; R2 = 0x1234 (high)
+LSI R3, 0x5678     ; R3 = 0x5678 (low)
+LSI R5, 100        ; R5 = 100
+
+; R2:R3 / R5 = R4:R5 (Quotient: R4:R5, Rest: ?)
+DIV R4, R5         ; R4:R5 = R2:R3 / R5
+```
+
+### 7.3 Shift Operations
 ```assembly
 ; Basic shifts without carry
 SHIFT R1, SL, 3, C=0    ; R1 = R1 << 3
@@ -307,27 +355,16 @@ SHIFT R4, ROT, 4, C=0   ; R4 = R4 rot>> 4
 ; Shifts with carry inclusion
 SHIFT R1, SL, 2, C=1    ; R1 = (R1 << 2) | (C << 0)
 SHIFT R2, SR, 3, C=1    ; R2 = (R2 >> 3) | (C << 15)
-
-; Multi-byte shift operations
-SHIFT R1, SL, 7, C=0    ; R1 << 7
-SHIFT R1, SL, 3, C=0    ; R1 << 3 (total << 10)
-
-; Shift loops for larger distances
-LSI R5, 15              ; Large shift distance
-big_shift:
-    SHIFT R6, SL, 1, C=0
-    SUB R5, R5, 1, w=0
-    JNZ big_shift
 ```
 
-### 7.3 Advanced Interrupt Handling with SMV
+### 7.4 Advanced Interrupt Handling with SMV
 ```assembly
 ; Interrupt Vector Table
 .org 0x0008
     JMP advanced_irq_handler
 
 advanced_irq_handler:
-    ; AUTO: PC'=original PC, PSW'=original PSW, S=1, I=0
+    ; AUTO: PC'=original PC, PSW'=original PSW, CS'=original CS, S=1, I=0
     
     ; Complete context save
     ST R1, [SS:SP, -1]
@@ -338,7 +375,7 @@ advanced_irq_handler:
     ST R3, [SS:SP, -3]
     SMV R4, PSW      ; R4 = original PSW (before interrupt)  
     ST R4, [SS:SP, -4]
-    SMV R5, PSW'     ; R5 = shadow PSW (for debug)
+    SMV R5, CS       ; R5 = original CS (before interrupt)
     ST R5, [SS:SP, -5]
     
     ; Complex ISR logic with full context awareness
@@ -351,34 +388,35 @@ advanced_irq_handler:
     LD R2, [SS:SP, -2]
     LD R1, [SS:SP, -1]
     
-    RETI  ; Auto: PC=PC', PSW=PSW', I=1, S=0
+    RETI  ; Auto: PC=PC', PSW=PSW', CS=CS', I=1, S=0
 ```
 
-### 7.4 Debugging and System Analysis
+### 7.5 Cross-Segment Jumps with LJMP
 ```assembly
-; Debug routine to examine system state
-debug_system:
-    ; Examine shadow registers (normal mode)
-    SMV R1, PC'      ; R1 = last saved PC (from previous interrupt)
-    SMV R2, PSW'     ; R2 = last saved PSW
-    SMV R3, PSW      ; R3 = current PSW
-    
-    ; Check if we're in ISR mode
-    AND R0, R3, 0x20, w=0  ; Test S flag
-    JNZ in_isr_mode
-    
-    ; Normal mode debug output
-    ; ...
-    JRL R14
+; Long Jump between Code Segments
+.org 0x1000  ; Segment CS=1
+    LDI jump_table
+    MOV R2, R0, 0     ; R2 points to Jump-Table
+    LJMP R2           ; Switch to CS=2, PC=0x2000
 
-in_isr_mode:
-    ; ISR mode debug - different register access
-    SMV R4, PC       ; R4 = normal PC (interrupted code)
-    SMV R5, PSW      ; R5 = normal PSW (interrupted state)
-    ; ...
+.org 0x0000  ; Segment CS=2  
+    ; Code in new segment...
+    LDI return_table
+    MOV R3, R0, 0
+    LJMP R3           ; Return to original segment
+
+; Jump-Tables in Data-Segment
+.org 0x3000  ; DS=3
+jump_table:
+    .dw 2             ; New CS
+    .dw 0x0000        ; New PC (start of CS=2)
+
+return_table:
+    .dw 1             ; Original CS  
+    .dw 0x1002        ; Return address
 ```
 
-### 7.5 Memory Management
+### 7.6 Memory Management
 ```assembly
 ; Segment setup and memory access
 LDI 0x1000
@@ -400,7 +438,7 @@ loop:
     JNZ loop
 ```
 
-### 7.6 Flag Manipulation
+### 7.7 Flag Manipulation
 ```assembly
 ; Interrupt control and flag management
 CLR 0x10          ; Disable interrupts
@@ -421,14 +459,14 @@ CLR 0x07          ; Clear N,Z,V flags
 
 ## 8. Interrupt Handling
 
-### 8.1 Interrupt Vectors
+### 8.1 Extended Interrupt Vector Table
 
-| Address | Purpose |
-|---------|---------|
-| 0x0000 | Reset |
-| 0x0004 | Software Interrupt (SWI) |
-| 0x0008 | Hardware Interrupt |
-| 0x000C | Exception |
+| Address | CS:PC | Purpose |
+|---------|-------|---------|
+| 0x0000:0000 | CS=0, PC=0x0000 | Reset |
+| 0x0000:0004 | CS=0, PC=0x0010 | Software Interrupt (SWI) |
+| 0x0000:0008 | CS=0, PC=0x0020 | Hardware Interrupt |
+| 0x0000:000C | CS=0, PC=0x0030 | Exception |
 
 ### 8.2 Simple Interrupt Handler
 ```assembly
@@ -443,17 +481,6 @@ simple_irq:
     LD R2, [SS:SP, -2]
     LD R1, [SS:SP, -1]
     RETI  ; Auto context restore
-```
-
-### 8.3 Nested Interrupt Considerations
-```assembly
-nested_irq_handler:
-    ; In ISR (S=1), another interrupt occurs
-    ; AUTO: New PC' = current PC, new PSW' = current PSW
-    ; Can use SMV to access previous interrupt state
-    SMV R6, PSW'     ; R6 = PSW from first interrupt
-    ; Handle nested interrupt
-    RETI  ; Returns to first ISR, which can then RETI to main
 ```
 
 ---
@@ -499,25 +526,30 @@ I_FLAG  = 0x20  ; Interrupt enable flag
 - `SMV Rd, PC'` - Read shadow PC (from last interrupt)
 - `SMV Rd, PSW'` - Read shadow PSW (from last interrupt)
 - `SMV Rd, PSW` - Read current PSW
+- `SMV Rd, CS'` - Read shadow CS (from last interrupt)
 
 ### ISR Mode (S=1):
 - `SMV Rd, PC` - Read normal PC (interrupted code)
 - `SMV Rd, PSW` - Read normal PSW (interrupted state)  
 - `SMV Rd, PSW'` - Read shadow PSW (previous interrupt context)
+- `SMV Rd, CS` - Read normal CS (interrupted segment)
 
-## Appendix C: Shift Operation Reference
+## Appendix C: Register Pair Reference
 
-### Shift Types:
-- **SL**: Shift Left - Fill with zeros from right
-- **SR**: Shift Right Logical - Fill with zeros from left  
-- **SRA**: Shift Right Arithmetic - Sign extend from left
-- **ROT**: Rotate Right - Circular shift
+### Available Register Pairs:
+- **R0:R1** - Frequently for operation results
+- **R2:R3** - General 32-bit values  
+- **R4:R5** - General 32-bit values
+- **R6:R7** - General 32-bit values
+- **R8:R9** - General 32-bit values
+- **R10:R11** - General 32-bit values
+- **R12:R13** - General 32-bit values  
+- **R14:R15** - Link Register & Program Counter pair (use with caution)
 
-### Carry Flag Usage:
-- **C=0**: Normal shift operation
-- **C=1**: Include carry flag in least/most significant bit
-
-### Count Range: 0-7 positions
+### Invalid MUL/DIV Operations:
+- `MUL R1, R2` → **Error!** R1 is odd
+- `DIV R15, R0` → **Error!** R15 is odd
+- `MUL R3, R4` → **Error!** R3 is odd
 
 ## Appendix D: Performance Characteristics
 
@@ -527,7 +559,8 @@ I_FLAG  = 0x20  ; Interrupt enable flag
 - **Load-Use Stall**: 1 cycle
 - **Interrupt Latency**: 3 cycles (with auto context save)
 - **Shift Operations**: 1 cycle (all types)
+- **MUL/DIV Operations**: 4-8 cycles (depending on operands)
 
 ---
 
-*cMIN-16a Architecture Specification v2.1 - Complete with Corrected Shift Operations*
+*cMIN-16a Architecture Specification v2.3 (Milestone 1r1) - Complete with corrected MUL/DIV register pairs and CS shadow register*
