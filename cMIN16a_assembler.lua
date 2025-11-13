@@ -1,5 +1,5 @@
 -- cMIN16a_assembler.lua
--- cMIN-16a Assembler Implementation in Lua - NEUER ANSATZ
+-- cMIN-16a Assembler Implementation in Lua - VOLLSTÄNDIGE VERSION
 
 local Assembler = {}
 Assembler.__index = Assembler
@@ -308,6 +308,83 @@ function Assembler:encode_jmp(mnemonic, operands)
     end
 end
 
+-- NEUE ENCODING-FUNKTIONEN
+
+function Assembler:encode_mvs(operands)
+    if #operands ~= 2 then error("MVS benötigt zwei Operanden") end
+    
+    local d_bit, rd, seg
+    
+    -- Prüfe ob erste Operand ein Segment-Register ist
+    if SEGMENTS[operands[1]:upper()] then
+        -- Format: MVS DS, R0  (Schreiben in Segment)
+        d_bit = 1
+        seg = SEGMENTS[operands[1]:upper()]
+        rd = self:parse_register(operands[2])
+    elseif SEGMENTS[operands[2]:upper()] then
+        -- Format: MVS R1, CS  (Lesen aus Segment)  
+        d_bit = 0
+        rd = self:parse_register(operands[1])
+        seg = SEGMENTS[operands[2]:upper()]
+    else
+        error("MVS erwartet ein Segment und ein Register")
+    end
+    
+    -- Opcode: 111111110 (9 Bit) + D (1 Bit) + Rd (4 Bit) + Seg (2 Bit)
+    -- Basis-Opcode ist 0x3F00 (entspricht 1111111100000000 in den oberen 9 Bits)
+    local instruction = 0x3F00 | (d_bit << 8) | (rd << 4) | seg
+    return instruction
+end
+
+function Assembler:encode_smv(operands)
+    if #operands ~= 2 then error("SMV benötigt zwei Operanden") end
+    
+    local src_codes = { 
+        ["PC'"] = 0, ["PSW'"] = 1, ["PSW"] = 2,
+        ["PC"] = 0, ["PSW"] = 1, ["PSW'"] = 2  -- Alternative Schreibweisen
+    }
+    
+    local src_str = operands[1]
+    local dst_str = operands[2]
+    
+    local src_val = src_codes[src_str]
+    if not src_val then
+        error("Ungültige Quelle für SMV: " .. src_str .. " (erlaubt: PC, PC', PSW, PSW')")
+    end
+    
+    local dst_reg = self:parse_register(dst_str)
+    
+    -- Opcode: 1111111110 (10 Bit) + SRC (2 Bit) + DST (4 Bit)
+    -- Basis-Opcode ist 0x3FC0 (entspricht 111111111000000 in den oberen 10 Bits)
+    return 0x3FC0 | (src_val << 4) | dst_reg
+end
+
+function Assembler:encode_setclr(mnemonic, operands)
+    if #operands ~= 1 then error(mnemonic .. " benötigt Bitmask") end
+    
+    local bitmask = self:evaluate_expression(operands[1])
+    if bitmask == nil then error(mnemonic .. " erwartet Bitmask") end
+    if bitmask < 0 or bitmask > 0xFF then error("Bitmask muss 0-255 sein") end
+    
+    local s_bit = (mnemonic == "SET") and 1 or 0
+    
+    -- Opcode: 1111110 (7 Bit) + S/C (1 Bit) + bitmask (8 Bit)
+    return 0xFC00 | (s_bit << 8) | bitmask
+end
+
+function Assembler:encode_sys(mnemonic, operands)
+    local sys_ops = {
+        NOP = 0x0, HLT = 0x1, SWI = 0x2, RETI = 0x3
+    }
+    
+    local op_val = sys_ops[mnemonic] or error("Unbekannte System-Operation: " .. mnemonic)
+    
+    -- Opcode: 1111111111110 (13 Bit) + op (3 Bit)
+    return 0xFFF0 | op_val
+end
+
+-- ERWEITERTE parse_instruction FUNKTION
+
 function Assembler:parse_instruction(line)
     local mnemonic, operands_str = line:match("^(%S+)%s*(.*)$")
     if not mnemonic then return nil end
@@ -336,10 +413,21 @@ function Assembler:parse_instruction(line)
            mnemonic == "OR" or mnemonic == "XOR" or mnemonic == "MUL" or
            mnemonic == "DIV" then
         return self:encode_alu(mnemonic, operands)
+    -- NEUE BEFEHLE:
+    elseif mnemonic == "MVS" then
+        return self:encode_mvs(operands)
+    elseif mnemonic == "SMV" then
+        return self:encode_smv(operands)
+    elseif mnemonic == "SET" or mnemonic == "CLR" then
+        return self:encode_setclr(mnemonic, operands)
+    elseif mnemonic == "NOP" or mnemonic == "HLT" or mnemonic == "SWI" or mnemonic == "RETI" then
+        return self:encode_sys(mnemonic, operands)
     else 
         error("Unbekannter Befehl: " .. mnemonic) 
     end
 end
+
+-- RESTLICHE FUNKTIONEN UNVERÄNDERT
 
 function Assembler:assemble_file(filename)
     local file = io.open(filename, "r")
