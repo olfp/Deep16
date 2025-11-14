@@ -1,0 +1,20 @@
+DEEP16 PROJECT CONTINUATION - MILESTONE 3pre1
+
+CONTEXT:
+- Architecture: Deep16 v3.2 (16-bit RISC, segmented memory, shadow registers)
+- Current: Simulator runs but has missing instruction decoding
+- Known issues: Infinite loop in bubble sort, array not sorting
+- Next: Complete simulator, fix control flow, implement ALU ops
+
+FILES TO CONTINUE WORK ON:
+1. deep16_simulator.lua - needs complete instruction decoding
+2. as-deep16.lua - working assembler  
+3. bubble_sort.asm - test program
+4. Architecture spec defines all instructions
+
+SPECIFIC TODOs:
+- Decode instructions: 0x5A5A, 0x4105, 0x5B05, 0xB060
+- Fix JMP relative addressing
+- Implement MUL, DIV, SHIFT operations
+- Fix the "shift encoding issue" noted earlier
+- Get bubble sort actually working
