@@ -18,7 +18,7 @@ start:
     
     ; Einfache Kontrollfluss
     JMP skip
-    LSI R6, 99     ; Wird übersprungen
+    LSI R6, 9      ; Wird übersprungen
     
 skip:
     LSI R6, 6      ; R6 = 6
