@@ -1,6 +1,6 @@
 -- as-deep16.lua
 -- Deep16 Assembler Implementation for Milestone 1r6
--- CORRECTED VERSION with directive processing fix
+-- FINAL VERSION with full register alias support
 
 local Assembler = {}
 Assembler.__index = Assembler
@@ -25,9 +25,9 @@ local OPCODES = {
     JNC = 0xE800,
     JN = 0xEA00,
     JNN = 0xEC00,
-    LSI = 0xEE00,  -- JMP type3=111 with LSI format
+    LSI = 0xEE00,
     MOV = 0xF800,
-    LDS = 0xF000,  -- 11110 opcode
+    LDS = 0xF000,
     STS = 0xF000,
     SET = 0xFC00,
     CLR = 0xFC00,
@@ -35,7 +35,7 @@ local OPCODES = {
     SMV = 0x3FC0,
     SWB = 0x7F80,
     INV = 0x7F90,
-    NEG = 0xFF80,  -- 111111111110 opcode
+    NEG = 0xFF80,
     NOP = 0xFFF0,
     HLT = 0xFFF2,
     SWI = 0xFFF4,
@@ -53,7 +53,7 @@ local SHIFT_TYPES = {
 -- Segment Register Codes
 local SEGMENTS = { CS = 0, DS = 1, SS = 2, ES = 3 }
 
--- SMV Source Codes (korrigiert für konsistente Semantik)
+-- SMV Source Codes
 local SMV_SOURCES = { 
     ["APC"] = 0, ["PC"] = 0,
     ["APSW"] = 1, ["PSW"] = 2
@@ -169,9 +169,9 @@ function Assembler:preprocess_equ_directives(source)
     local other_lines = {}
     
     for _, line in ipairs(lines) do
-        line = self:clean_line(line)
-        if line:match("^%.equ%s+") or line:match("^[%w_]+%s*=%s*") then
-            self:process_equ_directive(line)
+        local cleaned_line = self:clean_line(line)
+        if cleaned_line:match("^%.equ%s+") or cleaned_line:match("^[%w_]+%s*=%s*") then
+            self:process_equ_directive(cleaned_line)
         else
             table.insert(other_lines, line)
         end
@@ -192,49 +192,34 @@ function Assembler:process_equ_directive(line)
     if symbol and value then
         local num_value = self:evaluate_expression_direct(value)
         self.symbol_table[symbol] = num_value
-        print(string.format("Symbol definiert: %s = %d (0x%04X)", symbol, num_value, num_value))
     end
 end
 
 function Assembler:evaluate_expression_direct(expr)
     if expr == nil or expr == "" then return 0 end
-    
-    -- Entferne alle Leerzeichen
     expr = expr:gsub("%s+", "")
-    
-    -- Debug-Ausgabe
-    print("DEBUG evaluate_expression_direct: '" .. expr .. "'")
     
     -- Direkte Dezimalzahl
     local num = tonumber(expr)
-    if num then 
-        print("DEBUG: Direkte Zahl: " .. num)
-        return num 
-    end
+    if num then return num end
     
     -- Hex-Zahl (0x...)
     if expr:match("^0x[%x]+$") then
-        local hex_val = tonumber(expr, 16)
-        print("DEBUG: Hex-Zahl: " .. expr .. " = " .. hex_val)
-        return hex_val
+        return tonumber(expr, 16)
     end
     
     -- Binär-Zahl (0b...)
     if expr:match("^0b[01]+$") then
-        local bin_val = tonumber(expr:sub(3), 2)
-        print("DEBUG: Binär-Zahl: " .. expr .. " = " .. bin_val)
-        return bin_val
+        return tonumber(expr:sub(3), 2)
     end
     
     -- Symbol (bereits definiert)
     if self.symbol_table[expr] then
-        print("DEBUG: Symbol: " .. expr .. " = " .. self.symbol_table[expr])
         return self.symbol_table[expr]
     end
     
     -- Label (bereits definiert)
     if self.labels[expr] then
-        print("DEBUG: Label: " .. expr .. " = " .. self.labels[expr])
         return self.labels[expr]
     end
     
@@ -259,9 +244,6 @@ function Assembler:evaluate_expression_direct(expr)
         return tostring(tonumber(x, 2)) 
     end)
     
-    -- Debug-Ausgabe des verarbeiteten Ausdrucks
-    print("DEBUG: Verarbeiteter Ausdruck: '" .. processed .. "'")
-    
     -- Prüfe ob der Ausdruck nur gültige Zeichen enthält
     if processed:match("[^%d%+%-%*%/%(%)]") then
         error("Ungültige Zeichen im Ausdruck: '" .. processed .. "'")
@@ -273,12 +255,10 @@ function Assembler:evaluate_expression_direct(expr)
     end)
     
     if success then 
-        local final_result = math.floor(result)
-        print("DEBUG: Auswertung erfolgreich: " .. final_result)
-        return final_result
+        return math.floor(result)
     end
     
-    error("Ungültiger Ausdruck: '" .. expr .. "' (verarbeitet: '" .. processed .. "')")
+    error("Ungültiger Ausdruck: '" .. expr .. "'")
 end
 
 -- ENCODING FUNKTIONEN
@@ -305,7 +285,6 @@ function Assembler:encode_ldst(mnemonic, operands)
     
     local d_bit = (mnemonic == "ST") and 1 or 0
     
-    -- Format: [10][d1][Rd4][Rb4][offset5]
     return 0x8000 | (d_bit << 13) | (rd << 9) | (rb << 5) | offset
 end
 
@@ -326,11 +305,9 @@ function Assembler:encode_alu(mnemonic, operands)
     
     -- Entscheidung Register vs Immediate Mode
     if #operands >= 2 and self:is_register(operands[2]) then
-        -- Register mode
         src_val = self:parse_register(operands[2])
         i_flag = 0
     else
-        -- Immediate mode
         src_val = self:evaluate_expression(operands[2])
         if src_val == nil then error(mnemonic .. " erwartet Register oder Immediate") end
         if src_val < 0 or src_val > 15 then error("ALU Immediate muss 0-15 sein") end
@@ -381,10 +358,9 @@ function Assembler:encode_jmp(mnemonic, operands)
     end
     
     if relative_offset < 0 then
-        relative_offset = 512 + relative_offset  -- 9-bit signed
+        relative_offset = 512 + relative_offset
     end
     
-    -- Format: [1110][type3][target9]
     return 0xE000 | (type_val << 9) | (relative_offset & 0x1FF)
 end
 
@@ -397,10 +373,9 @@ function Assembler:encode_lsi(operands)
     if imm < -16 or imm > 15 then error("LSI Immediate außerhalb -16..15") end
     
     if imm < 0 then
-        imm = 32 + imm  -- 5-bit signed
+        imm = 32 + imm
     end
     
-    -- Format: [1110][111][Rd4][imm5]
     return 0xE000 | (0x7 << 9) | (rd << 5) | (imm & 0x1F)
 end
 
@@ -414,7 +389,6 @@ function Assembler:encode_lds_sts(mnemonic, operands)
     local seg_code = SEGMENTS[seg_str] or error("Ungültiges Segment: " .. seg_str)
     local d_bit = (mnemonic == "STS") and 1 or 0
     
-    -- Format: [11110][d1][seg2][Rd4][Rs4]
     return 0xF000 | (d_bit << 11) | (seg_code << 9) | (rd << 5) | rs
 end
 
@@ -435,14 +409,11 @@ function Assembler:encode_mvs(operands)
     
     local d_bit, rd, seg
     
-    -- Prüfe ob erste Operand ein Segment-Register ist
     if SEGMENTS[operands[1]:upper()] then
-        -- Format: MVS DS, R0  (Schreiben in Segment)
         d_bit = 1
         seg = SEGMENTS[operands[1]:upper()]
         rd = self:parse_register(operands[2])
     elseif SEGMENTS[operands[2]:upper()] then
-        -- Format: MVS R1, CS  (Lesen aus Segment)  
         d_bit = 0
         rd = self:parse_register(operands[1])
         seg = SEGMENTS[operands[2]:upper()]
@@ -466,7 +437,6 @@ function Assembler:encode_smv(operands)
     
     local dst_reg = self:parse_register(dst_str)
     
-    -- Format: [1111111110][src2][dst4]
     return 0x3FC0 | (src_val << 4) | dst_reg
 end
 
@@ -475,7 +445,6 @@ function Assembler:encode_ljmp(operands)
     
     local rs = self:parse_register(operands[1])
     
-    -- LJMP ist jetzt SMV mit src2=11
     return 0x3FC0 | (0x3 << 4) | rs
 end
 
@@ -518,7 +487,7 @@ function Assembler:encode_sys(mnemonic, operands)
     return 0xFFF0 | op_val
 end
 
--- HAUPTPARSER FÜR ALLE BEFEHLE (CORRECTED VERSION)
+-- HAUPTPARSER FÜR ALLE BEFEHLE
 
 function Assembler:parse_instruction(line)
     local mnemonic, operands_str = line:match("^(%S+)%s*(.*)$")
@@ -527,7 +496,6 @@ function Assembler:parse_instruction(line)
     mnemonic = mnemonic:upper()
     local operands = {}
     
-    -- Normale Operanden-Verarbeitung für alle Befehle
     for op in operands_str:gmatch("[^,%s]+") do
         table.insert(operands, op)
     end
@@ -544,7 +512,7 @@ function Assembler:parse_instruction(line)
            mnemonic == "ROR" or mnemonic == "ROC" then
         return self:encode_shift({mnemonic, unpack(operands)})
     
-    -- LSI muss VOR den Sprungoperationen kommen (gleiches Opcode-Präfix 1110)
+    -- LSI muss VOR den Sprungoperationen kommen
     elseif mnemonic == "LSI" then
         return self:encode_lsi(operands)
     
@@ -597,9 +565,7 @@ function Assembler:assemble_file(filename)
     local source = file:read("*a")
     file:close()
     
-    -- PREPROCESS: .equ Direktiven zuerst verarbeiten
     source = self:preprocess_equ_directives(source)
-    
     self:pass1(source)
     self:pass2(source)
     
@@ -654,9 +620,7 @@ function Assembler:pass2(source)
 end
 
 function Assembler:clean_line(line)
-    -- Remove comments and trim whitespace
-    local cleaned = line:gsub(";.*", ""):gsub("%s+$", ""):gsub("^%s+", "")
-    return cleaned
+    return line:gsub(";.*", ""):gsub("%s+$", ""):gsub("^%s+", "")
 end
 
 function Assembler:split_lines(text)
@@ -674,18 +638,12 @@ function Assembler:process_directive(line, is_pass1)
     directive = directive:upper()
     args = args:gsub("^%s+", ""):gsub("%s+$", "")
     
-    print(string.format("DEBUG: Processing directive .%s with args '%s'", directive, args))
-    
     if directive == "ORG" then
-        local addr = self:evaluate_expression_direct(args)
-        print(string.format("DEBUG: ORG directive: '%s' -> %d (0x%04X)", args, addr, addr))
-        self.address = addr
+        self.address = self:evaluate_expression_direct(args)
     elseif directive == "DW" then
         if not is_pass1 then
             for value in args:gmatch("%S+") do
-                local num_value = self:evaluate_expression_direct(value)
-                print(string.format("DEBUG: DW value: '%s' -> %d (0x%04X)", value, num_value, num_value))
-                table.insert(self.output, num_value)
+                table.insert(self.output, self:evaluate_expression_direct(value))
                 self.address = self.address + 1
             end
         else
@@ -693,8 +651,6 @@ function Assembler:process_directive(line, is_pass1)
                 self.address = self.address + 1
             end
         end
-    else
-        print(string.format("DEBUG: Unsupported directive: .%s", directive))
     end
 end
 
@@ -705,8 +661,8 @@ function main()
     end
     
     local assembler = Assembler.new()
-    print("Deep16 Assembler (Milestone 1r6) - CORRECTED VERSION")
-    print("===================================================")
+    print("Deep16 Assembler (Milestone 1r6) - Final Version")
+    print("================================================")
     
     local success, machine_code = pcall(function() 
         return assembler:assemble_file(arg[1]) 
