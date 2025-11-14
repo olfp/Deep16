@@ -7,7 +7,7 @@ start:
     ; Einfache Arithmetik
     LDI 42         ; R0 = 42
     MOV R1, R0, 0  ; R1 = 42
-    LSI R2, 10     ; R2 = 10
+    LSI R2, 10     ; R2 = 10 (within -16..15 range)
     
     ADD R3, R1, R2 ; R3 = 52
     SUB R4, R3, 5  ; R4 = 47
@@ -18,10 +18,10 @@ start:
     
     ; Einfache Kontrollfluss
     JMP skip
-    LSI R6, 9      ; Wird übersprungen
+    LSI R6, 15     ; Wird übersprungen (15 is max positive for LSI)
     
 skip:
-    LSI R6, 6      ; R6 = 6
+    LSI R6, -16    ; R6 = -16 (min negative for LSI)
     
     ; Zahlmanipulation
     LDI 0x00FF
