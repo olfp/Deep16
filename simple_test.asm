@@ -1,5 +1,5 @@
 ; simple_test.asm
-; Minimaler Testfall - OHNE ECKIGE KLAMMERN
+; Korrekter Testfall für Deep16
 
 .org 0x0000
 
@@ -12,7 +12,7 @@ start:
     ADD R3, R1, R2 ; R3 = 52
     SUB R4, R3, 5  ; R4 = 47
     
-    ; Einfache Speicherzugriffe - NEUE SYNTAX OHNE []
+    ; Einfache Speicherzugriffe - KORREKTE SYNTAX
     ST R3, SP, 0   ; Store to stack
     LD R5, SP, 0   ; Load from stack
     
