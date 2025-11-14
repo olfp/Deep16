@@ -146,15 +146,20 @@ Deep16 is a 16-bit RISC processor with:
 | 00 | SMV DST, APC | `DST ← PC'` (Shadow PC) |
 | 01 | SMV DST, APSW | `DST ← PSW'` (Shadow PSW) |
 | 10 | SMV DST, PSW | `DST ← PSW` (Normal PSW) |
-| 11 | **LJMP** | `PC ← DST`, `CS ← DST+1` |
+| 11 | **LJMP** | `PC ← Mem[DST]`, `CS ← Mem[DST+1]` |
 
 **ISR Mode (S=1):**
 | SRC2 | Mnemonic | Effect |
 |------|----------|--------|
 | 00 | SMV DST, PC | `DST ← PC` (Normal PC) |
-| 01 | SMV DST, PSW | `DST ← PSW` (Shadow PSW) |
-| 10 | SMV DST, APSW | `DST ← PSW'` (Normal PSW) |
-| 11 | **LJMP** | `PC ← DST`, `CS ← DST+1` |
+| 01 | SMV DST, APSW | `DST ← PSW'` (Normal PSW) |
+| 10 | SMV DST, PSW | `DST ← PSW` (Shadow PSW) |
+| 11 | **LJMP** | `PC ← Mem[DST]`, `CS ← Mem[DST+1]` |
+
+**Consistent Logic:**
+- **APC/APSW** always access the **alternate** (inactive) registers
+- **PC/PSW** always access the **current active** registers  
+- **LJMP** functionality is identical in both modes
 
 ---
 
@@ -392,33 +397,33 @@ Bits: [1111111111110][ op3 ]
 
 ## 7. Programming Examples
 
-### 7.1 Basic Arithmetic (Korrigiert)
+### 7.1 Basic Arithmetic
 ```assembly
 ; Initialize registers
 LDI 100        ; R0 = 100
 MOV R1, R0, 0  ; R1 = 100
 LSI R2, -5     ; R2 = -5
 
-; Arithmetic operations - nur 2 Operanden!
+; Arithmetic operations
 ADD R3, R1, R2     ; R3 = 100 + (-5) = 95
 SUB R4, R3, 50     ; R4 = 95 - 50 = 45
 
-; Vergleich (nur Flags setzen)
-SUB R0, R3, 50, w=0 ; Compare R3 with 50 (flags only)
+; Comparison (flags only)
+SUB R0, R3, 50, w=0 ; Compare R3 with 50
 
 ; 32-bit multiplication
-MUL R4, 10, i=1    ; R4:R5 = R4 × 10, Rd muss gerade sein!
+MUL R4, 10, i=1    ; R4:R5 = R4 × 10
 
 ; Two's complement with new NEG instruction
 NEG R2             ; R2 = -R2 (Two's complement)
 ```
 
-### 7.2 Memory Access (Korrigiert)
+### 7.2 Memory Access
 ```assembly
-; Setup stack register (SR=13 für SP)
+; Setup stack register (SR=13 for SP)
 SET 0x064D     ; Set SR=13 (SP), DS=0
 
-; Stack operations using implicit segment - kein explizites Segment!
+; Stack operations using implicit segment
 LD R1, [SP, 0]     ; Load from stack (SS:SP + 0)
 ST R2, [SP, 1]     ; Store to stack (SS:SP + 1) 
 LD R3, [SP, 31]    ; Load from stack (SS:SP + 31)
@@ -427,12 +432,12 @@ LD R3, [SP, 31]    ; Load from stack (SS:SP + 31)
 LD R4, [R7, 0]     ; Load from data segment (DS:R7 + 0)
 ST R5, [R8, 15]    ; Store to data segment (DS:R8 + 15)
 
-; Explizites Segment mit LDS/STS
-LDS R6, SS, SP     ; Load from stack segment (explizit)
-STS R7, ES, R9     ; Store to extra segment (explizit)
+; Explicit segment with LDS/STS
+LDS R6, SS, SP     ; Load from stack segment (explicit)
+STS R7, ES, R9     ; Store to extra segment (explicit)
 ```
 
-### 7.3 Control Flow with new LJMP
+### 7.3 Control Flow
 ```assembly
 ; Function call
 MOV LR, PC, 2      ; Save return address in Link Register
@@ -441,7 +446,7 @@ JMP function       ; Call function
 function:
     ; Function code
     ADD R1, R1, 1
-    MOV PC, LR      ; Return using MOV (kein JRL mehr!)
+    MOV PC, LR      ; Return using MOV
 
 ; Long jump between segments
 LDI jump_table
@@ -483,6 +488,33 @@ make_positive:
     NEG R2         ; R2 = 42
 done:
     ; R2 contains absolute value
+```
+
+### 7.5 Interrupt Handling
+```assembly
+; Interrupt handler in segment 0
+.org 0x0020
+irq_handler:
+    ; AUTO: Switched to Shadow View
+    
+    ; Save context using stack
+    ST R1, [SP, 0]
+    ST R2, [SP, 1]
+    
+    ; Examine pre-interrupt state
+    SMV R3, PC       ; Get interrupted PC (normal PC)
+    ST R3, [SP, 2]
+    SMV R4, APSW     ; Get interrupted PSW (normal PSW)
+    ST R4, [SP, 3]
+    
+    ; Interrupt processing
+    ; ...
+    
+    ; Restore context
+    LD R2, [SP, 1]
+    LD R1, [SP, 0]
+    
+    RETI             ; Return to Normal View
 ```
 
 ---
@@ -539,10 +571,10 @@ Physical_Word_Address = (Segment << 4) + Effective_Address
 - **If Rb = ER**: Use Extra Segment (ES) 
 - **Otherwise**: Use Data Segment (DS)
 
-**Typische Konfiguration:**
-- **SR = 13** (SP = Stack Pointer) → Stack-Zugriffe über SS
-- **ER = 12** (FP = Frame Pointer) → Extra-Zugriffe über ES
-- **Andere Register** → Data-Zugriffe über DS
+**Typical Configuration:**
+- **SR = 13** (SP = Stack Pointer) → Stack access via SS
+- **ER = 12** (FP = Frame Pointer) → Extra access via ES
+- **Other registers** → Data access via DS
 
 ---
 
@@ -576,4 +608,4 @@ Physical_Word_Address = (Segment << 4) + Effective_Address
 
 ---
 
-*Deep16 Architecture Specification v3.2 (Milestone 1r6) - Complete with NEG instruction and optimized instruction encoding*
+*Deep16 Architecture Specification v3.2 (Milestone 1r6) - Complete with corrected SMV semantics and NEG instruction*
