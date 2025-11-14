@@ -118,17 +118,18 @@ Deep16 is a 16-bit RISC processor with:
 
 ---
 
-## 3. Shadow Register System
+# 3. Shadow Register System
 
-### 3.1 Access Switching with Automatic Context Save
+## 3.1 Access Switching with Automatic Context Save
 
 **Hardware Implementation:**
 - **Two complete sets** of physical registers (PC, PSW, CS) 
 - **S-flag in PSW** controls whether "Normal" or "Shadow" view is accessed
-- **Automatic PSW copying** on interrupt entry/exit
-- **No manual bit syncing** required
+- **Automatic PSW copying** on interrupt entry
+- **Hardware-managed view switching** on RETI
+- **No software management** of view switching required
 
-### 3.2 Automatic Context Switching
+## 3.2 Automatic Context Switching
 
 **On Interrupt:**
 - `PSW' ← PSW` (Copy entire PSW to shadow - automatic context save)
@@ -138,16 +139,28 @@ Deep16 is a 16-bit RISC processor with:
 - `PC ← interrupt_vector` (Jump to ISR)
 
 **On RETI:**
-- `PSW ← PSW'` (Restore original PSW from shadow - automatic context restore)
 - Hardware automatically switches back to normal register view
+- **No register copying** - PSW' remains unchanged
+- **No PSW modification** - S-bit switching is implicit in RETI execution
+- **Complete context preservation** - both views remain intact
 
-### Benefits of This Approach:
-- ✅ **Complete context isolation**: Normal and interrupt contexts fully separated
-- ✅ **Automatic state preservation**: No manual register saving required
-- ✅ **Zero overhead**: Hardware handles all context switching
-- ✅ **Simpler programming**: Interrupt handlers start with clean state
+## 3.3 Context Behavior
 
-### 3.3 SMV Instruction - Special Move
+**Normal Mode (PSW.S=0):**
+- Access **PC, PSW, CS** = normal registers
+- Access **APC, APSW, ACS** = shadow registers (interrupt context)
+
+**Shadow Mode (PSW.S=1):**
+- Access **PC, PSW, CS** = shadow registers (interrupt context)  
+- Access **APC, APSW, ACS** = normal registers (pre-interrupt context)
+
+**Key Properties:**
+- **PSW modifications in ISR** affect shadow PSW only
+- **Normal PSW** remains untouched during interrupts
+- **PSW'** preserves exact pre-interrupt state for debugging
+- **RETI** performs pure view switching without data movement
+
+## 3.4 SMV Instruction - Special Move
 
 **Consistent Logic (regardless of S flag):**
 - **APC/APSW/ACS** always access the **alternate** (inactive) registers
@@ -159,6 +172,62 @@ Deep16 is a 16-bit RISC processor with:
 | 01 | SMV DST, APSW | `DST ← alternate_PSW` |
 | 10 | SMV DST, PSW | `DST ← current_PSW` |
 | 11 | SMV DST, ACS | `DST ← alternate_CS` |
+
+## 3.5 Programming Examples
+
+**Minimal Interrupt Handler:**
+```assembly
+irq_handler:
+    ; Hardware has automatically:
+    ; - PSW' = original PSW (pre-interrupt state)
+    ; - Switched to shadow view (PSW.S=1 in shadow context)
+    ; - PSW.I = 0 (interrupts disabled in shadow context)
+    
+    ; Handler runs in shadow context:
+    SET 0x3           ; Set Carry flag (modifies shadow PSW)
+    CLR 0x1           ; Clear Zero flag (modifies shadow PSW)
+    
+    ; Examine pre-interrupt state:
+    SMV R1, APSW      ; R1 = normal PSW (pre-interrupt)
+    SMV R2, APC       ; R2 = normal PC (interrupted address)
+    SMV R3, ACS       ; R3 = normal CS (interrupted segment)
+    
+    ; ... process interrupt ...
+    
+    RETI              ; Hardware automatically:
+                      ; - Switches back to normal view
+                      ; - PSW' unchanged (preserves pre-interrupt state)
+                      ; - Normal PSW unchanged (preserves pre-interrupt state)
+```
+
+**Context Inspection:**
+```assembly
+; In normal mode, examine shadow (interrupt) context
+SMV R4, APSW       ; R4 = shadow PSW (interrupt context)
+SMV R5, APC        ; R5 = shadow PC (interrupt context)
+
+; In interrupt mode, examine normal (pre-interrupt) context  
+SMV R6, PSW        ; R6 = current PSW (shadow context)
+SMV R7, APC        ; R7 = normal PC (pre-interrupt context)
+```
+
+**Interrupt State Preservation:**
+```assembly
+; After RETI, both contexts are preserved:
+; - Normal PSW: Original pre-interrupt state
+; - Shadow PSW: Modified interrupt state (for debugging)
+; - PSW': Original pre-interrupt state (copy)
+```
+
+## 3.6 Benefits
+
+1. **Complete Isolation**: Normal and interrupt contexts fully separated
+2. **Zero Overhead**: Hardware handles all context switching
+3. **Full Debugging**: Both contexts preserved for inspection
+4. **Predictable**: No side effects from RETI execution
+5. **Simple Programming**: No manual context management required
+
+The shadow register system provides hardware-assisted interrupt handling with complete context preservation and zero software overhead for basic context switching.
 
 ---
 
