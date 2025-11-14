@@ -1,43 +1,46 @@
 Deep16 Project Status Document
 
-Milestone 1r10 - Architecture Finalized
+Milestone 1r11 - Instruction Set Finalized
 
 ---
 
 📊 Current Status Overview
 
-Project Phase: Architecture Complete, Ready for Implementation
-Current Milestone: 1r10 (Architecture Final)
-Next Milestone: 3 (Simulator & Toolchain Completion)
-Architecture Version: 1r10 (v3.4)
+Project Phase: Architecture Complete & Finalized
+Current Milestone: 1r11 (Instruction Set Complete)
+Next Milestone: 3 (Simulator & Toolchain Implementation)
+Architecture Version: 1r11 (v3.5)
 Last Updated: Current Session
 
 ---
 
-🎉 MILESTONE 1r10 ACHIEVED - ARCHITECTURE FINALIZED!
+🎉 MILESTONE 1r11 ACHIEVED - INSTRUCTION SET FINALIZED!
 
-✅ Major Improvements in 1r10:
+✅ Revolutionary Improvements in 1r11:
 
-1. Clean PSW Layout
+1. Complete Instruction Set Reorganization
 
-· 🆕 ER/DE/SR/DS moved to high byte (bits 8-17)
-· 🆕 Bits 6-7 reserved for future expansion
-· 🆕 Logical grouping: Standard flags low, segment control high
-· 🆕 Easy masking: PSW & 0x00FF = flags, PSW >> 8 = segment control
+· 🆕 Single-Operand category (renamed from single-register)
+· 🆕 LSI gets dedicated 7-bit opcode - no more JMP conflict!
+· 🆕 JMP space cleaned - type3=111 now available for future use
+· 🆕 SET/CLR as single-operand ops with immediate flag specification
+· 🆕 PSW control instructions: SRS, SRD, ERS, ERD
 
-2. Enhanced Context Switching
+2. Elimination of All Encoding Conflicts
 
-· 🆕 Automatic PSW copying on interrupt entry/exit
-· 🆕 No manual S-bit syncing required
-· 🆕 Complete isolation between normal and interrupt contexts
-· 🆕 Simpler programming for interrupt handlers
+· ❌ No more LSI/JMP sharing
+· ❌ No more LJMP/SMV conflict
+· ❌ No more magic PSW bit manipulation
+· ✅ Every instruction has clean, dedicated encoding
 
-3. Instruction Set Refinements
+3. Intuitive PSW Control
 
-· ✅ Single-register ops consolidated under 8-bit opcode
-· ✅ JML instruction (clean long jump encoding)
-· ✅ SMV dedicated space without LJMP conflict
-· ✅ 12 free slots for future expansion
+· 🆕 SRS Rx - Stack Register Single (SR=Rx, DS=0)
+· 🆕 SRD Rx - Stack Register Dual (SR=Rx, DS=1)
+· 🆕 ERS Rx - Extra Register Single (ER=Rx, DE=0)
+· 🆕 ERD Rx - Extra Register Dual (ER=Rx, DE=1)
+· 🆕 SET imm4 - Set specific flag bit
+· 🆕 CLR imm4 - Clear specific flag bit
 
 ---
 
@@ -46,189 +49,212 @@ Last Updated: Current Session
 ✅ COMPLETED & FINALIZED
 
 Component Status Version Notes
-Architecture Spec ✅ FINAL v3.4 Milestone 1r10 No further changes anticipated
-Instruction Set ✅ FINAL Complete encoding All kludges eliminated
-PSW Layout ✅ FINAL Clean bit assignment Reserved expansion space
+Architecture Spec ✅ FINAL v3.5 Milestone 1r11 No further changes expected
+Instruction Set ✅ FINAL Complete encoding All conflicts resolved
+PSW Layout ✅ FINAL Clean bit assignment Intuitive control ops
 Memory Model ✅ FINAL Segmented addressing Dual register access
-Interrupt System ✅ FINAL Automatic context switching Zero-overhead
+Encoding Scheme ✅ FINAL No conflicts Logical grouping
 
-🔴 REQUIRES UPDATES FOR 1r10
+🔴 REQUIRES MAJOR UPDATES FOR 1r11
 
-Component Update Required Priority Effort
-Assembler New PSW layout, JML, single-reg ops 🔴 HIGH Medium
-Simulator Instruction decoding, PSW handling 🔴 HIGH Large
-Documentation Update examples, PSW usage 🟡 MEDIUM Small
-Bubble Sort LJMP → JML rename 🟡 MEDIUM Minimal
+Component Update Required Priority Impact
+Assembler Complete instruction overhaul 🔴 CRITICAL Major
+Simulator New instruction decoding 🔴 CRITICAL Major
+Documentation All examples updated 🟡 HIGH Medium
+Test Programs LJMP→JML, SET/CLR changes 🟡 HIGH Medium
 
-🚧 DEVELOPMENT BLOCKED
+🚧 DEVELOPMENT READY
 
-Component Status Blocked By
-Simulator Core 🟡 Partial 1r10 instruction updates
-Toolchain 🔴 Incomplete Assembler/simulator updates
-Testing 🔴 Blocked Working simulator needed
+Component Status Next Action
+Architecture ✅ STABLE Implementation only
+Instruction Set ✅ COMPLETE Toolchain support
+Encoding ✅ CONFLICT-FREE Decoder implementation
 
 ---
 
 🔧 Technical Summary
 
-PSW Bit Assignment (Final)
+Final Opcode Hierarchy
 
 ```
-Bits 0-5:  N, Z, V, C, S, I  (Standard flags)
-Bits 6-7:  Reserved
-Bits 8-11: SR[3:0] (Stack Register)
-Bit 12:    DS (Dual stack registers)  
-Bits 13-16: ER[3:0] (Extra Register)
-Bit 17:    DE (Dual extra registers)
+0....... .......: LDI          (1-bit + 15)
+10...... ......: LD/ST        (2-bit + 14)  
+110..... .....: ALU          (3-bit + 13)
+1110.... .....: JMP          (4-bit + 12)
+1111110. .....: LSI          (7-bit + 9)     ← NEW!
+11110... .....: LDS/STS      (5-bit + 11)
+111110.. .....: MOV          (6-bit + 10)
+11111110 ....: SINGLE-OP     (8-bit + 8)     ← RENAMED & EXPANDED
+111111110 ...: MVS           (9-bit + 7)
+1111111110 ..: SMV           (10-bit + 6)
+1111111111110: SYS           (13-bit + 3)
 ```
 
-Key Instruction Changes
+Single-Operand Operations (Final)
 
-· LJMP → JML (clean encoding in single-reg ops)
-· Single-register ops: JML, SWB, INV, NEG under 11111110
-· SMV: Dedicated space without LJMP conflict
-· MUL/DIV: Corrected documentation (always register operands)
+```
+0000: JML Rx    (Jump Long)
+0001: SWB Rx    (Swap Bytes)
+0010: INV Rx    (Invert)
+0011: NEG Rx    (Two's complement)
+0100: SRS Rx    (Stack Register Single)
+0101: SRD Rx    (Stack Register Dual)
+0110: ERS Rx    (Extra Register Single) 
+0111: ERD Rx    (Extra Register Dual)
+1000: SET imm4  (Set flag bit)
+1001: CLR imm4  (Clear flag bit)
+1010-1111: Reserved
+```
 
-Memory Access Model (Final)
+SET/CLR Flag Encoding
 
-· SR=13, DS=1: SP and FP both access SS (dual registers)
-· ER=11, DE=0: R11 accesses ES (single register)
-· R0: Always uses DS (special case)
-· Clean segment determination logic
+```
+SET 0x0: Set N    CLR 0x8: Clear N
+SET 0x1: Set Z    CLR 0x9: Clear Z
+SET 0x2: Set V    CLR 0xA: Clear V
+SET 0x3: Set C    CLR 0xB: Clear C
+SET 0x4: Set S    CLR 0xC: Clear S
+SET 0x5: Set I    CLR 0xD: Clear I
+```
 
 ---
 
 📁 Project Files Summary
 
-File Purpose 1r10 Status Action Required
-deep16_architecture_v3_4.md CPU specification ✅ UPDATED None
-as-deep16.lua Assembler 🔴 NEEDS UPDATE High priority
+File Purpose 1r11 Status Action Required
+deep16_architecture_v3_5.md CPU specification ✅ UPDATED None
+as-deep16.lua Assembler 🔴 MAJOR UPDATE Complete rewrite
 deep16_analyzer.lua Binary analysis ✅ Compatible None
-deep16_simulator.lua CPU emulator 🔴 NEEDS UPDATE High priority
-bubble_sort.asm Test program 🟡 Minor updates LJMP→JML rename
-assembler_manual.md Documentation 🔴 NEEDS UPDATE PSW examples
+deep16_simulator.lua CPU emulator 🔴 MAJOR UPDATE Complete rewrite
+bubble_sort.asm Test program 🔴 UPDATE NEEDED Instruction changes
+assembler_manual.md Documentation 🔴 UPDATE NEEDED New instructions
 project_status.md This file ✅ UPDATED None
 
 ---
 
-🎯 Milestone 3 Roadmap (Simulator & Toolchain)
+🎯 Milestone 3 Roadmap (Implementation)
 
-PHASE 1: Toolchain Updates (1-2 sessions)
+PHASE 1: Assembler Rewrite (2-3 sessions)
 
-· Update assembler for 1r10 instruction set
-· Implement new PSW bit layout in assembler
-· Add JML instruction (replaces LJMP)
-· Update single-register opcode encoding
-· Verify assembler produces correct binaries
+· Implement new instruction encoding tables
+· Add single-operand instruction support
+· Update SET/CLR with immediate flag specification
+· Add PSW control instructions (SRS, SRD, ERS, ERD)
+· Update LSI to new 7-bit encoding
+· Verify all instructions assemble correctly
 
-PHASE 2: Simulator Core (2-3 sessions)
+PHASE 2: Simulator Core Rewrite (3-4 sessions)
 
-· Complete instruction decoding for all ops
-· Implement new PSW handling in simulator
-· Add automatic context switching logic
-· Fix control flow (JMP/JML instructions)
+· Complete instruction decoding for new encoding
+· Implement single-operand instruction execution
+· Add PSW control instruction handling
+· Fix LSI decoding in new location
 · Complete ALU operation implementation
+· Implement automatic context switching
 
-PHASE 3: System Validation (1-2 sessions)
+PHASE 3: System Integration (2 sessions)
 
-· Get bubble sort working end-to-end
-· Verify all instructions execute correctly
-· Test interrupt handling with auto context switch
-· Validate segment access rules
-· Performance benchmarking
+· Update bubble sort with new instructions
+· Test end-to-end assembly and execution
+· Verify PSW segment control works
+· Validate interrupt handling
+· Performance testing
 
-PHASE 4: Documentation & Examples (1 session)
+PHASE 4: Validation & Documentation (1-2 sessions)
 
-· Update all examples for 1r10
-· Create PSW configuration guide
-· Document interrupt handling patterns
-· Create performance tuning guide
+· Comprehensive instruction test suite
+· Update all documentation and examples
+· Create migration guide from previous versions
+· Final verification
 
 ---
 
 🔄 Immediate Next Session Priorities
 
-CRITICAL PATH:
+CRITICAL PATH FOR MILESTONE 3:
 
-1. Update assembler to support 1r10 instructions
-2. Update simulator with new instruction decoding
-3. Fix bubble sort to use new JML instruction
+1. Rewrite assembler for new instruction set
+2. Update test programs with new instructions
+3. Begin simulator decoder for new encoding
 
-KNOWN ISSUES TO RESOLVE:
+MIGRATION CHANGES:
 
-· Unknown instructions: 0x5A5A, 0x4105, 0x5B05, 0xB060
-· Infinite loop in bubble sort execution
-· Control flow issues in simulator
-· PSW segment access not implemented
+· LJMP Rx → JML Rx
+· LSI Rd, imm5 → same mnemonic, new encoding
+· SET bitmask → SET imm4 / CLR imm4
+· New: SRS Rx, SRD Rx, ERS Rx, ERD Rx
 
 ---
 
 🚀 CONTINUATION PROMPT FOR NEXT SESSION
 
 ```
-DEEP16 PROJECT CONTINUATION - MILESTONE 1r10 → MILESTONE 3
+DEEP16 PROJECT CONTINUATION - MILESTONE 1r11 → MILESTONE 3
 
-ARCHITECTURE FINALIZED! Milestone 1r10 complete:
-- Clean PSW layout: ER/DE/SR/DS in high byte, bits 6-7 reserved
-- Automatic context switching: PSW copied to PSW' on interrupts
-- Consolidated single-register operations under 8-bit opcode
-- JML instruction (renamed from LJMP) with clean encoding
-- All instruction encoding kludges eliminated
+BREAKING: MILESTONE 1r11 COMPLETE - INSTRUCTION SET FINALIZED!
+- Complete instruction reorganization - NO MORE ENCODING CONFLICTS!
+- Single-operand category: JML, SWB, INV, NEG, SRS, SRD, ERS, ERD, SET, CLR
+- LSI moved to clean 7-bit encoding (no JMP conflict)
+- SET/CLR now take immediate flag specifiers
+- PSW control: SRS/SRD/ERS/ERD for intuitive segment configuration
 
-IMMEDIATE TASK: Update toolchain for 1r10
-1. Update assembler (as-deep16.lua):
-   - New PSW bit layout (SET/CLR instructions)
-   - JML instruction (replaces LJMP) 
-   - Single-register ops in new encoding
-2. Update simulator instruction decoding
-3. Fix bubble sort (LJMP → JML)
+IMMEDIATE TASK: MAJOR TOOLCHAIN REWRITE
+1. Complete assembler rewrite for new instruction set
+2. Update all test programs (bubble_sort.asm)
+3. Begin simulator decoder implementation
 
-CURRENT BLOCKERS (carried forward):
-- Unknown instructions in simulator
-- Infinite loop in bubble sort  
-- Control flow issues
+KEY CHANGES:
+- LSI: New encoding [1111110][Rd][imm5]
+- JMP: Clean space (type3=111 available)
+- Single-operand: 10 instructions consolidated
+- SET/CLR: Now SET imm4 / CLR imm4
 
-NEXT: Let's start with updating the assembler to support the final 1r10 instruction set!
+NEXT: Let's start with the assembler rewrite to support the final conflict-free instruction set!
 ```
 
 ---
 
-📊 Resource Allocation & Planning
+📊 Development Priority Stack
 
-Development Priority Stack
-
-1. 🔴 CRITICAL: Update assembler for 1r10
-2. 🔴 CRITICAL: Update simulator instruction decoding
-3. 🟡 HIGH: Complete ALU operations in simulator
-4. 🟡 HIGH: Fix control flow issues
-5. 🟢 MEDIUM: Implement PSW segment access
+1. 🔴 CRITICAL: Assembler rewrite for 1r11
+2. 🔴 CRITICAL: Simulator instruction decoding
+3. 🟡 HIGH: Test program updates
+4. 🟡 HIGH: PSW control implementation
+5. 🟢 MEDIUM: Comprehensive testing
 6. 🟢 LOW: Performance optimization
-
-Estimated Session Requirements
-
-· Session 1: Assembler updates + basic testing
-· Session 2: Simulator instruction decoding
-· Session 3: Control flow fixes + bubble sort
-· Session 4: System validation + interrupt testing
-· Session 5: Documentation + examples
 
 Risk Assessment
 
-· LOW RISK: Architecture stable, no further changes expected
-· MEDIUM RISK: Simulator complexity for context switching
-· HIGH RISK: Toolchain update coordination
+· LOW RISK: Architecture completely stable
+· MEDIUM RISK: Major toolchain changes required
+· HIGH RISK: Coordination between assembler/simulator updates
+
+Success Criteria for Milestone 3
+
+· All 1r11 instructions assemble and execute correctly
+· Bubble sort works end-to-end with new instructions
+· PSW segment control functions properly
+· No encoding conflicts in toolchain
+· Performance meets expectations
 
 ---
 
-🎯 Success Criteria for Milestone 3
+🎉 Project Status Conclusion
 
-· Bubble sort assembles and runs correctly
-· All instructions decode and execute properly
-· Interrupt handling with automatic context switching works
-· PSW segment access rules implemented
-· Toolchain produces verified correct binaries
-· Performance meets expectations (simulated)
+ARCHITECTURE: COMPLETE & STABLE
+
+· ✅ All design decisions finalized
+· ✅ Instruction set conflict-free
+· ✅ Encoding logically organized
+· ✅ Room for future expansion
+· ✅ Implementation path clear
+
+READY FOR: IMPLEMENTATION PHASE
+
+· Focus shifts from design to toolchain development
+· Milestone 3 will deliver working simulator
+· Future milestones: FPGA implementation, software ecosystem
 
 ---
 
-Project Status: Architecture finalized at 1r10, ready for toolchain implementation in Milestone 3. All major design decisions completed, implementation path clear.
+Project Status: Architecture finalized at 1r11, ready for toolchain implementation in Milestone 3. All major design completed - implementation phase begins!
