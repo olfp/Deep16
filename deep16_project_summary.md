@@ -1,5 +1,5 @@
-```markdown
-# Deep16 Project Status
+
+## Deep16 Project Status
 ## Milestone 3pre2 - Complete Project Snapshot
 
 ---
