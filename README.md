@@ -1,2 +1,2 @@
-# min-16
-MIN-15 ISA/CPU
+# Deep16
+Deep15 ISA/CPU by Deepseek
