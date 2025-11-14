@@ -1,5 +1,6 @@
 -- as-deep16.lua
 -- Deep16 Assembler Implementation for Milestone 1r6
+-- CORRECTED VERSION with expression evaluation fix
 
 local Assembler = {}
 Assembler.__index = Assembler
@@ -117,6 +118,11 @@ function Assembler:evaluate_expression(expr)
         return tonumber(expr, 16)
     end
     
+    -- Binär-Zahl
+    if expr:match("^0b[01]+$") then
+        return tonumber(expr:sub(3), 2)
+    end
+    
     -- Symbol
     if self.symbol_table[expr] then
         return self.symbol_table[expr]
@@ -136,11 +142,19 @@ function Assembler:evaluate_expression(expr)
         processed = processed:gsub(lbl, tostring(val))
     end
     
-    processed = processed:gsub("0x(%x+)", function(x) return tostring(tonumber(x, 16)) end)
+    -- Hex-Zahlen im Ausdruck konvertieren
+    processed = processed:gsub("0x(%x+)", function(x) 
+        return tostring(tonumber(x, 16)) 
+    end)
+    
+    -- Binär-Zahlen im Ausdruck konvertieren
+    processed = processed:gsub("0b([01]+)", function(x) 
+        return tostring(tonumber(x, 2)) 
+    end)
     
     local success, result = pcall(function()
         if processed:match("[^%d%+%-%*%/%(%)]") then
-            error("Ungültige Zeichen")
+            error("Ungültige Zeichen im Ausdruck: " .. processed)
         end
         return load("return " .. processed)()
     end)
@@ -184,36 +198,87 @@ end
 
 function Assembler:evaluate_expression_direct(expr)
     if expr == nil or expr == "" then return 0 end
+    
+    -- Entferne alle Leerzeichen
     expr = expr:gsub("%s+", "")
     
-    -- Direkte Zahl
-    local num = tonumber(expr)
-    if num then return num end
+    -- Debug-Ausgabe
+    -- print("DEBUG evaluate_expression_direct: '" .. expr .. "'")
     
-    -- Hex-Zahl
-    if expr:match("^0x[%x]+$") then
-        return tonumber(expr, 16)
+    -- Direkte Dezimalzahl
+    local num = tonumber(expr)
+    if num then 
+        -- print("DEBUG: Direkte Zahl: " .. num)
+        return num 
     end
     
-    -- Symbol
+    -- Hex-Zahl (0x...)
+    if expr:match("^0x[%x]+$") then
+        local hex_val = tonumber(expr, 16)
+        -- print("DEBUG: Hex-Zahl: " .. expr .. " = " .. hex_val)
+        return hex_val
+    end
+    
+    -- Binär-Zahl (0b...)
+    if expr:match("^0b[01]+$") then
+        local bin_val = tonumber(expr:sub(3), 2)
+        -- print("DEBUG: Binär-Zahl: " .. expr .. " = " .. bin_val)
+        return bin_val
+    end
+    
+    -- Symbol (bereits definiert)
     if self.symbol_table[expr] then
+        -- print("DEBUG: Symbol: " .. expr .. " = " .. self.symbol_table[expr])
         return self.symbol_table[expr]
     end
     
-    -- Mathematischer Ausdruck
+    -- Label (bereits definiert)
+    if self.labels[expr] then
+        -- print("DEBUG: Label: " .. expr .. " = " .. self.labels[expr])
+        return self.labels[expr]
+    end
+    
+    -- Einfache mathematische Ausdrücke verarbeiten
     local processed = expr
+    
+    -- Ersetze alle Symbole und Labels
     for sym, val in pairs(self.symbol_table) do
         processed = processed:gsub(sym, tostring(val))
     end
+    for lbl, val in pairs(self.labels) do
+        processed = processed:gsub(lbl, tostring(val))
+    end
     
-    processed = processed:gsub("0x(%x+)", function(x) return tostring(tonumber(x, 16)) end)
+    -- Konvertiere Hex-Zahlen im Ausdruck
+    processed = processed:gsub("0x(%x+)", function(x) 
+        return tostring(tonumber(x, 16)) 
+    end)
     
+    -- Konvertiere Binär-Zahlen im Ausdruck
+    processed = processed:gsub("0b([01]+)", function(x) 
+        return tostring(tonumber(x, 2)) 
+    end)
+    
+    -- Debug-Ausgabe des verarbeiteten Ausdrucks
+    -- print("DEBUG: Verarbeiteter Ausdruck: '" .. processed .. "'")
+    
+    -- Prüfe ob der Ausdruck nur gültige Zeichen enthält
+    if processed:match("[^%d%+%-%*%/%(%)]") then
+        error("Ungültige Zeichen im Ausdruck: " .. processed)
+    end
+    
+    -- Versuche den Ausdruck auszuwerten
     local success, result = pcall(function()
         return load("return " .. processed)()
     end)
     
-    if success then return math.floor(result) end
-    error("Ungültiger Ausdruck: " .. expr)
+    if success then 
+        local final_result = math.floor(result)
+        -- print("DEBUG: Auswertung erfolgreich: " .. final_result)
+        return final_result
+    end
+    
+    error("Ungültiger Ausdruck: '" .. expr .. "' (verarbeitet: '" .. processed .. "')")
 end
 
 -- ENCODING FUNKTIONEN
@@ -453,7 +518,7 @@ function Assembler:encode_sys(mnemonic, operands)
     return 0xFFF0 | op_val
 end
 
--- HAUPTPARSER FÜR ALLE BEFEHLE
+-- HAUPTPARSER FÜR ALLE BEFEHLE (CORRECTED VERSION)
 
 function Assembler:parse_instruction(line)
     local mnemonic, operands_str = line:match("^(%S+)%s*(.*)$")
@@ -479,15 +544,15 @@ function Assembler:parse_instruction(line)
            mnemonic == "ROR" or mnemonic == "ROC" then
         return self:encode_shift({mnemonic, unpack(operands)})
     
-    -- Sprungoperationen
+    -- LSI muss VOR den Sprungoperationen kommen (gleiches Opcode-Präfix 1110)
+    elseif mnemonic == "LSI" then
+        return self:encode_lsi(operands)
+    
+    -- Sprungoperationen (nach LSI)
     elseif mnemonic == "JMP" or mnemonic == "JZ" or mnemonic == "JNZ" or
            mnemonic == "JC" or mnemonic == "JNC" or mnemonic == "JN" or
            mnemonic == "JNN" then
         return self:encode_jmp(mnemonic, operands)
-    
-    -- LSI (Load Short Immediate)
-    elseif mnemonic == "LSI" then
-        return self:encode_lsi(operands)
     
     -- Datenoperationen
     elseif mnemonic == "LDI" then 
@@ -608,11 +673,14 @@ function Assembler:process_directive(line, is_pass1)
     args = args:gsub("^%s+", ""):gsub("%s+$", "")
     
     if directive == "ORG" then
-        self.address = self:evaluate_expression_direct(args)
+        local addr = self:evaluate_expression_direct(args)
+        -- print(string.format("ORG directive: %s -> %d (0x%04X)", args, addr, addr))
+        self.address = addr
     elseif directive == "DW" then
         if not is_pass1 then
             for value in args:gmatch("%S+") do
-                table.insert(self.output, self:evaluate_expression_direct(value))
+                local num_value = self:evaluate_expression_direct(value)
+                table.insert(self.output, num_value)
                 self.address = self.address + 1
             end
         else
@@ -630,8 +698,8 @@ function main()
     end
     
     local assembler = Assembler.new()
-    print("Deep16 Assembler (Milestone 1r6)")
-    print("================================")
+    print("Deep16 Assembler (Milestone 1r6) - CORRECTED VERSION")
+    print("===================================================")
     
     local success, machine_code = pcall(function() 
         return assembler:assemble_file(arg[1]) 
@@ -643,7 +711,8 @@ function main()
     end
     
     print("\nAssemblierung erfolgreich!")
-    print("Maschinencode:")
+    print(string.format("%d Worte generiert", #machine_code))
+    print("\nMaschinencode:")
     for i, code in ipairs(machine_code) do
         print(string.format("%04X: %04X", i-1, code))
     end
