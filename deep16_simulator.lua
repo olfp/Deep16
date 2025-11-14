@@ -1,5 +1,5 @@
 -- deep16_simulator.lua
--- Deep16 Simulator with Memory Output
+-- Deep16 Simulator with Memory Output - UPDATED VERSION
 
 local Deep16Simulator = {}
 Deep16Simulator.__index = Deep16Simulator
@@ -198,6 +198,106 @@ function Deep16Simulator:update_flags_logical(result)
     self:set_PSW_flag("C", false)
 end
 
+function Deep16Simulator:execute_alu(instruction)
+    local alu_op = (instruction >> 10) & 0x7
+    local rd = (instruction >> 6) & 0xF
+    local w = (instruction >> 5) & 1
+    local i = (instruction >> 4) & 1
+    local src_val = instruction & 0xF
+
+    local operand
+    if i == 0 then -- Register mode
+        operand = self.registers[src_val]
+    else -- Immediate mode
+        operand = src_val
+    end
+
+    local result
+    local update_flags = true
+
+    if alu_op == 0 then -- ADD
+        result = self.registers[rd] + operand
+        if w == 1 then
+            self.registers[rd] = result & 0xFFFF
+        end
+        self:update_flags_arithmetic(result, self.registers[rd], operand, "add")
+        
+    elseif alu_op == 1 then -- SUB
+        result = self.registers[rd] - operand
+        if w == 1 then
+            self.registers[rd] = result & 0xFFFF
+        end
+        self:update_flags_arithmetic(result, self.registers[rd], operand, "sub")
+        
+    elseif alu_op == 2 then -- AND
+        result = self.registers[rd] & operand
+        if w == 1 then
+            self.registers[rd] = result
+        end
+        self:update_flags_logical(result)
+        
+    elseif alu_op == 3 then -- OR
+        result = self.registers[rd] | operand
+        if w == 1 then
+            self.registers[rd] = result
+        end
+        self:update_flags_logical(result)
+        
+    elseif alu_op == 4 then -- XOR
+        result = self.registers[rd] ~ operand
+        if w == 1 then
+            self.registers[rd] = result
+        end
+        self:update_flags_logical(result)
+        
+    else
+        print(string.format("ALU op %d not implemented yet", alu_op))
+        -- For now, just do nothing for unimplemented ALU ops
+    end
+end
+
+function Deep16Simulator:execute_jump(instruction)
+    local type_field = (instruction >> 9) & 0x7
+    
+    if type_field == 0x7 then -- LSI
+        local rd = (instruction >> 5) & 0xF
+        local imm = instruction & 0x1F
+        -- Sign extend 5-bit immediate
+        if (imm & 0x10) ~= 0 then
+            imm = imm | 0xFFE0
+        end
+        self.registers[rd] = imm
+        
+    else -- JMP
+        local target = instruction & 0x1FF
+        -- Sign extend 9-bit offset
+        if (target & 0x100) ~= 0 then
+            target = target | 0xFE00
+        end
+        
+        local jump = false
+        if type_field == 0 then -- JMP (always)
+            jump = true
+        elseif type_field == 1 then -- JZ
+            jump = self:get_PSW_flag("Z")
+        elseif type_field == 2 then -- JNZ
+            jump = not self:get_PSW_flag("Z")
+        elseif type_field == 3 then -- JC
+            jump = self:get_PSW_flag("C")
+        elseif type_field == 4 then -- JNC
+            jump = not self:get_PSW_flag("C")
+        elseif type_field == 5 then -- JN
+            jump = self:get_PSW_flag("N")
+        elseif type_field == 6 then -- JNN
+            jump = not self:get_PSW_flag("N")
+        end
+        
+        if jump then
+            self.PC = self.PC + target
+        end
+    end
+end
+
 function Deep16Simulator:execute_instruction(instruction)
     local opcode = instruction & 0xF000
     
@@ -229,101 +329,29 @@ function Deep16Simulator:execute_instruction(instruction)
         end
         
     elseif opcode == 0xC000 then -- ALU operations
-        local alu_op = (instruction >> 10) & 0x7
-        local rd = (instruction >> 6) & 0xF
-        local w = (instruction >> 5) & 1
-        local i = (instruction >> 4) & 1
-        local src_val = instruction & 0xF
-        
-        local operand
-        if i == 0 then -- Register mode
-            operand = self.registers[src_val]
-        else -- Immediate mode
-            operand = src_val
-        end
-        
-        local result
-        local update_flags = true
-        
-        if alu_op == 0 then -- ADD
-            result = self.registers[rd] + operand
-            if w == 1 then
-                self.registers[rd] = result & 0xFFFF
-            end
-            self:update_flags_arithmetic(result, self.registers[rd], operand, "add")
-            
-        elseif alu_op == 1 then -- SUB
-            result = self.registers[rd] - operand
-            if w == 1 then
-                self.registers[rd] = result & 0xFFFF
-            end
-            self:update_flags_arithmetic(result, self.registers[rd], operand, "sub")
-            
-        elseif alu_op == 2 then -- AND
-            result = self.registers[rd] & operand
-            if w == 1 then
-                self.registers[rd] = result
-            end
-            self:update_flags_logical(result)
-            
-        elseif alu_op == 3 then -- OR
-            result = self.registers[rd] | operand
-            if w == 1 then
-                self.registers[rd] = result
-            end
-            self:update_flags_logical(result)
-            
-        elseif alu_op == 4 then -- XOR
-            result = self.registers[rd] ~ operand
-            if w == 1 then
-                self.registers[rd] = result
-            end
-            self:update_flags_logical(result)
-            
-        else
-            -- MUL, DIV, SHIFT not implemented yet for simplicity
-            print(string.format("ALU op %d not implemented yet", alu_op))
-        end
+        self:execute_alu(instruction)
         
     elseif opcode == 0xE000 then -- JMP/LSI
-        local type_field = (instruction >> 9) & 0x7
+        self:execute_jump(instruction)
         
-        if type_field == 0x7 then -- LSI
-            local rd = (instruction >> 5) & 0xF
-            local imm = instruction & 0x1F
-            -- Sign extend 5-bit immediate
-            if (imm & 0x10) ~= 0 then
-                imm = imm | 0xFFE0
-            end
-            self.registers[rd] = imm
-            
-        else -- JMP
-            local target = instruction & 0x1FF
-            -- Sign extend 9-bit offset
-            if (target & 0x100) ~= 0 then
-                target = target | 0xFE00
-            end
-            
-            local jump = false
-            if type_field == 0 then -- JMP (always)
-                jump = true
-            elseif type_field == 1 then -- JZ
-                jump = self:get_PSW_flag("Z")
-            elseif type_field == 2 then -- JNZ
-                jump = not self:get_PSW_flag("Z")
-            elseif type_field == 3 then -- JC
-                jump = self:get_PSW_flag("C")
-            elseif type_field == 4 then -- JNC
-                jump = not self:get_PSW_flag("C")
-            elseif type_field == 5 then -- JN
-                jump = self:get_PSW_flag("N")
-            elseif type_field == 6 then -- JNN
-                jump = not self:get_PSW_flag("N")
-            end
-            
-            if jump then
-                self.PC = self.PC + target
-            end
+    elseif (instruction & 0xFC00) == 0xF800 then -- MOV
+        local rd = (instruction >> 6) & 0xF
+        local rs = (instruction >> 2) & 0xF
+        local imm = instruction & 0x3
+        self.registers[rd] = self.registers[rs] + imm
+        
+    elseif (instruction & 0xFF00) == 0x3F00 then -- MVS
+        local d = (instruction >> 8) & 1
+        local rd = (instruction >> 4) & 0xF
+        local seg = instruction & 0x3
+        
+        if d == 0 then -- Move from segment to register
+            self.registers[rd] = self:get_segment_register(seg)
+        else -- Move from register to segment
+            if seg == 0 then self.CS = self.registers[rd]
+            elseif seg == 1 then self.DS = self.registers[rd]
+            elseif seg == 2 then self.SS = self.registers[rd]
+            elseif seg == 3 then self.ES = self.registers[rd] end
         end
         
     elseif instruction == 0xFFF0 then -- NOP
@@ -334,8 +362,28 @@ function Deep16Simulator:execute_instruction(instruction)
         
     else
         print(string.format("Unknown instruction: 0x%04X at PC=0x%04X", instruction, self.PC-1))
-        self.halted = true
+        -- Don't halt immediately, just skip and continue
+        -- self.halted = true
     end
+end
+
+function Deep16Simulator:initialize_array_with_random_data()
+    -- Initialize the array at DS:0x0100 with some test data
+    local test_data = {
+        45, 23, 78, 12, 89, 34, 67, 90, 11, 56,
+        33, 77, 44, 22, 99, 1, 65, 32, 87, 54,
+        21, 76, 43, 9, 88, 31, 66, 100, 2, 55,
+        34, 79, 46, 13, 91, 35, 68, 92, 14, 57,
+        36, 78, 47
+    }
+    
+    for i = 0, 41 do
+        local value = test_data[i + 1] or (i * 3 + 7) % 100  -- Fallback pattern
+        local phys_addr = self:calculate_physical_address(self.DS, 0x0100 + i)
+        self:write_memory_word(phys_addr, value)
+    end
+    
+    print("Array initialized with test data")
 end
 
 function Deep16Simulator:run(max_cycles)
@@ -409,13 +457,22 @@ function main()
     
     local success, error_msg = pcall(function()
         simulator:load_binary(filename)
+        
+        -- Initialize array with test data instead of zeros
+        simulator:initialize_array_with_random_data()
+        
+        -- Show initial array state
+        print("\nInitial array state (first 10 elements):")
+        simulator:dump_memory_range(1, 0x0100, 10)
+        
         simulator:run(max_cycles)
         
         -- Show final state
         simulator:dump_registers()
         
-        -- Show sorted array (assuming it's at DATA segment, address 0x0100, size 42)
-        simulator:dump_memory_range(1, 0x0100, 42) -- DS=1, array at 0x0100
+        -- Show sorted array
+        print("\nFinal array state:")
+        simulator:dump_memory_range(1, 0x0100, 42)
         
         -- Verify if array is sorted
         local sorted = true
@@ -425,6 +482,7 @@ function main()
             local current = simulator:read_memory_word(phys_addr)
             if current < prev then
                 sorted = false
+                print(string.format("Sort error at position %d: %d < %d", i, current, prev))
                 break
             end
             prev = current
