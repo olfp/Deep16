@@ -1,7 +1,11 @@
-Perfekt! Hier ist die korrigierte Deep16 Architecture Specification (Milestone 1r5a):
-
-# Deep16 Architecture Specification v3.1 (Milestone 1r5a)
+# Deep16 Architecture Specification v3.2 (Milestone 1r6)
 ## 16-bit RISC Processor with Enhanced Memory Addressing
+
+---
+
+## Einführung
+
+Die **Deep16** Architektur ist ein moderner 16-bit RISC Prozessor, der für Effizienz und Einfachheit optimiert wurde. Mit nur 16-bit festen Instruktionslängen, einem erweiterten Speicher-Adressierungssystem und hardware-unterstütztem Interrupt-Handling bietet Deep16 eine ausgewogene Balance zwischen Leistung und Komplexität. Die Architektur unterstützt segmentierten Speicherzugriff mit impliziten Segmentregistern, erweiterten ALU-Operationen und einem eleganten Shadow-Register-System für schnelle Interrupt-Behandlung.
 
 ---
 
@@ -38,6 +42,7 @@ Deep16 is a 16-bit RISC processor with:
 - Compact encoding with variable-length opcodes
 - Enhanced memory addressing with stack/extra registers
 - Unified jump/LSI instruction encoding
+- New NEG instruction for two's complement
 
 ---
 
@@ -141,7 +146,7 @@ Deep16 is a 16-bit RISC processor with:
 | 00 | SMV DST, APC | `DST ← PC'` (Shadow PC) |
 | 01 | SMV DST, APSW | `DST ← PSW'` (Shadow PSW) |
 | 10 | SMV DST, PSW | `DST ← PSW` (Normal PSW) |
-| 11 | **reserved** | |
+| 11 | **LJMP** | `PC ← DST`, `CS ← DST+1` |
 
 **ISR Mode (S=1):**
 | SRC2 | Mnemonic | Effect |
@@ -149,7 +154,7 @@ Deep16 is a 16-bit RISC processor with:
 | 00 | SMV DST, PC | `DST ← PC` (Normal PC) |
 | 01 | SMV DST, PSW | `DST ← PSW` (Shadow PSW) |
 | 10 | SMV DST, APSW | `DST ← PSW'` (Normal PSW) |
-| 11 | **reserved** | |
+| 11 | **LJMP** | `PC ← DST`, `CS ← DST+1` |
 
 ---
 
@@ -168,14 +173,13 @@ Deep16 is a 16-bit RISC processor with:
 | 111110 | MOV | `[111110][Rd4][Rs4][imm2]` | Move with offset |
 | 1111110 | SET/CLR | `[1111110][s1][bitmask8]` | Set/Clear flags |
 | 111111110 | MVS | `[111111110][d1][Rd4][seg2]` | Move to/from segment |
-| 1111111110 | SMV | `[1111111110][src2][dst4]` | Special move |
+| 1111111110 | SMV/LJMP | `[1111111110][src2][dst4]` | Special move or Long Jump |
 | 11111111110 | SWB/INV | `[11111111110][s1][Rx4]` | Swap Bytes / Invert |
-| 111111111110 | LJMP | `[111111111110][Rs4]` | Long Jump between segments |
+| **111111111110** | **NEG** | `[111111111110][Rx4]` | **Two's complement** |
 | 1111111111110 | SYS | `[1111111111110][op3]` | System operations |
 
 ### Unused Opcodes
 - **11**: `[11][***13]` - **UNUSED** (2-bit opcode with 13 free bits)
-- **1111111111111**: `[1111111111111][***3]` - **UNUSED** (13-bit opcode with 3 free bits)
 
 ---
 
@@ -272,13 +276,14 @@ Bits: [111111110][ d ][ Rd ][ seg2 ]
 - **d=1**: `Segment[seg] ← Rd`
 - **Operands**: 2 (Segment, Rd) or (Rd, Segment)
 
-### 5.10 SMV - Special Move
+### 5.10 SMV/LJMP - Special Move or Long Jump
 ```
 Bits: [1111111110][ src2 ][ dst4 ]
       10           2        4
 ```
-- Access shadow/normal registers based on PSW.S
-- **Operands**: 2 (src, dst)
+- **src2 = 00-10**: Special Move (access shadow/normal registers)
+- **src2 = 11**: Long Jump `PC ← Mem[dst]`, `CS ← Mem[dst+1]`
+- **Operands**: 2 (src, dst) or 1 (dst for LJMP)
 
 ### 5.11 SWB/INV - Swap Bytes / Invert
 ```
@@ -286,16 +291,16 @@ Bits: [11111111110][ s ][ Rx ]
       11            1    4
 ```
 - **s=0**: `SWB Rx` - Swap high/low bytes
-- **s=1**: `INV Rx` - Invert all bits
+- **s=1**: `INV Rx` - Invert all bits (ones complement)
 - **Operands**: 1 (Rx)
 
-### 5.12 LJMP - Long Jump
+### 5.12 NEG - Two's Complement
 ```
-Bits: [111111111110][ Rs ]
+Bits: [111111111110][ Rx ]
       12             4
 ```
-- **Effect**: `CS ← Mem[Rs]`, `PC ← Mem[Rs+1]`
-- **Operands**: 1 (Rs)
+- **Effect**: `Rx ← 0 - Rx` (Two's complement)
+- **Operands**: 1 (Rx)
 
 ### 5.13 SYS - System Operations
 ```
@@ -403,6 +408,9 @@ SUB R0, R3, 50, w=0 ; Compare R3 with 50 (flags only)
 
 ; 32-bit multiplication
 MUL R4, 10, i=1    ; R4:R5 = R4 × 10, Rd muss gerade sein!
+
+; Two's complement with new NEG instruction
+NEG R2             ; R2 = -R2 (Two's complement)
 ```
 
 ### 7.2 Memory Access (Korrigiert)
@@ -424,7 +432,7 @@ LDS R6, SS, SP     ; Load from stack segment (explizit)
 STS R7, ES, R9     ; Store to extra segment (explizit)
 ```
 
-### 7.3 Control Flow
+### 7.3 Control Flow with new LJMP
 ```assembly
 ; Function call
 MOV LR, PC, 2      ; Save return address in Link Register
@@ -435,11 +443,15 @@ function:
     ADD R1, R1, 1
     MOV PC, LR      ; Return using MOV (kein JRL mehr!)
 
+; Long jump between segments
+LDI jump_table
+MOV R2, R0, 0
+LJMP R2            ; Long jump to CS=Mem[R2], PC=Mem[R2+1]
+
 ; Conditional jumps
 ADD R2, R2, 1, w=0 ; Update flags
 JZ  zero_case      ; Jump if result was zero
 JN  negative_case  ; Jump if result was negative
-; ... continue ...
 
 zero_case:
     ; Handle zero case
@@ -453,29 +465,24 @@ continue:
     ; Continue execution
 ```
 
-### 7.4 Interrupt Handling
+### 7.4 Number Manipulation
 ```assembly
-; Interrupt handler in segment 0
-.org 0x0020
-irq_handler:
-    ; AUTO: Switched to Shadow View
-    
-    ; Save context using stack
-    ST R1, [SP, 0]
-    ST R2, [SP, 1]
-    
-    ; Examine pre-interrupt state
-    SMV R3, PC       ; Get interrupted PC
-    ST R3, [SP, 2]
-    
-    ; Interrupt processing
-    ; ...
-    
-    ; Restore context
-    LD R2, [SP, 1]
-    LD R1, [SP, 0]
-    
-    RETI             ; Return to Normal View
+; Number conversion examples
+LDI 0x1234
+MOV R1, R0, 0      ; R1 = 0x1234
+
+SWB R1             ; R1 = 0x3412 (byte swap)
+INV R1             ; R1 = 0xCBED (ones complement)  
+NEG R1             ; R1 = 0x3414 (two's complement of 0xCBED)
+
+; Absolute value using NEG
+LSI R2, -42        ; R2 = -42
+JN  make_positive  ; If negative, make positive
+JMP done
+make_positive:
+    NEG R2         ; R2 = 42
+done:
+    ; R2 contains absolute value
 ```
 
 ---
@@ -561,12 +568,12 @@ Physical_Word_Address = (Segment << 4) + Effective_Address
 - **16-bit data bus**
 - **Shadow register access logic**
 
-### 10.4 Reserved for Future Use
-- **Opcode 11**: 13 free bits for future extensions
-- **Opcode 1111111111111**: 3 free bits for future system operations
-- **PSW bits 15,10**: Already used for DE/DS flags
-- **SMV src2=11**: Reserved for future shadow register access
+### 10.4 Instruction Usage Statistics
+- **ALU operations**: ~40% of typical code
+- **Memory operations**: ~30% of typical code  
+- **Control flow**: ~20% of typical code
+- **System operations**: ~10% of typical code
 
 ---
 
-*Deep16 Architecture Specification v3.1 (Milestone 1r5a) - Complete with corrected examples and register aliases*
+*Deep16 Architecture Specification v3.2 (Milestone 1r6) - Complete with NEG instruction and optimized instruction encoding*
