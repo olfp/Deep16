@@ -1,6 +1,6 @@
 -- as-deep16.lua
 -- Deep16 Assembler Implementation for Milestone 1r6
--- COMPLETE VERSION with .equ directive support
+-- COMPLETE VERSION with .equ support and binary output
 
 local Assembler = {}
 Assembler.__index = Assembler
@@ -73,7 +73,13 @@ function Assembler.new()
     self.address = 0
     self.output = {}
     self.current_segment = "CODE"
+    self.segments = {
+        CODE = { address = 0x0000, data = {} },
+        DATA = { address = 0x0100, data = {} },
+        STACK = { address = 0x0400, data = {} }
+    }
     self.labels = {}
+    self.start_address = 0x0000
     return self
 end
 
@@ -459,10 +465,10 @@ function Assembler:assemble_file(filename)
     self:pass1(source)
     self:pass2(source)
     
-    return self.output
+    return self:generate_binary()
 end
 
--- FIXED: Enhanced preprocess that handles .equ directives
+-- Enhanced preprocess that handles .equ directives
 function Assembler:preprocess_equ_directives(source)
     local lines = self:split_lines(source)
     local other_lines = {}
@@ -470,7 +476,7 @@ function Assembler:preprocess_equ_directives(source)
     for _, line in ipairs(lines) do
         local cleaned_line = self:clean_line(line)
         
-        -- Handle .equ directive - FIXED REGEX
+        -- Handle .equ directive
         if cleaned_line:match("^%.equ%s+") then
             local symbol, value = cleaned_line:match("^%.equ%s+([%w_]+)%s*,?%s*(.+)$")
             if symbol and value then
@@ -480,7 +486,7 @@ function Assembler:preprocess_equ_directives(source)
                 self.symbol_table[symbol] = num_value
                 print(string.format("Symbol definiert: %s = %d (0x%04X)", symbol, num_value, num_value))
             end
-        -- Handle symbol=value format (alternative to .equ) - FIXED REGEX
+        -- Handle symbol=value format (alternative to .equ)
         elseif cleaned_line:match("^[%w_]+%s*=%s*") and not cleaned_line:match(":") then
             local symbol, value = cleaned_line:match("^([%w_]+)%s*=%s*(.+)$")
             if symbol and value then
@@ -501,6 +507,7 @@ end
 function Assembler:pass1(source)
     self.address = 0
     self.labels = {}
+    self.current_segment = "CODE"
     
     for _, line in ipairs(self:split_lines(source)) do
         local cleaned = self:clean_line(line)
@@ -510,7 +517,7 @@ function Assembler:pass1(source)
             else
                 local label, rest = cleaned:match("^([%w_]+):%s*(.*)$")
                 if label then
-                    self.labels[label] = self.address
+                    self.labels[label] = { address = self.address, segment = self.current_segment }
                     cleaned = rest
                 end
                 if cleaned and cleaned ~= "" and not cleaned:match("^;") then
@@ -523,7 +530,12 @@ end
 
 function Assembler:pass2(source)
     self.address = 0
-    self.output = {}
+    self.current_segment = "CODE"
+    self.segments = {
+        CODE = { address = 0x0000, data = {} },
+        DATA = { address = 0x0100, data = {} },
+        STACK = { address = 0x0400, data = {} }
+    }
     
     for _, line in ipairs(self:split_lines(source)) do
         local cleaned = self:clean_line(line)
@@ -536,7 +548,7 @@ function Assembler:pass2(source)
                 if cleaned and cleaned ~= "" and not cleaned:match("^;") then
                     local instruction = self:parse_instruction(cleaned)
                     if instruction then
-                        table.insert(self.output, instruction)
+                        table.insert(self.segments[self.current_segment].data, instruction)
                         self.address = self.address + 1
                     end
                 end
@@ -566,10 +578,28 @@ function Assembler:process_directive(line, is_pass1)
     
     if directive == "ORG" then
         self.address = self:evaluate_expression_direct(args)
+    elseif directive == "START" then
+        self.start_address = self:evaluate_expression_direct(args)
+    elseif directive == "CODE" then
+        self.current_segment = "CODE"
+        if args ~= "" then
+            self.segments.CODE.address = self:evaluate_expression_direct(args)
+        end
+    elseif directive == "DATA" then
+        self.current_segment = "DATA"
+        if args ~= "" then
+            self.segments.DATA.address = self:evaluate_expression_direct(args)
+        end
+    elseif directive == "STACK" then
+        self.current_segment = "STACK"
+        if args ~= "" then
+            self.segments.STACK.address = self:evaluate_expression_direct(args)
+        end
     elseif directive == "DW" then
         if not is_pass1 then
             for value in args:gmatch("%S+") do
-                table.insert(self.output, self:evaluate_expression_direct(value))
+                local num_value = self:evaluate_expression_direct(value)
+                table.insert(self.segments[self.current_segment].data, num_value)
                 self.address = self.address + 1
             end
         else
@@ -580,31 +610,116 @@ function Assembler:process_directive(line, is_pass1)
     end
 end
 
+-- NEW: Generate binary output for simulator
+function Assembler:generate_binary()
+    local binary = {}
+    
+    -- Header: Magic number "DeepSeek16" (10 bytes)
+    local magic = "DeepSeek16"
+    for i = 1, #magic do
+        table.insert(binary, string.byte(magic, i))
+    end
+    
+    -- Version (2 bytes)
+    table.insert(binary, 0x00) -- Major version
+    table.insert(binary, 0x01) -- Minor version
+    
+    -- Start address (2 bytes)
+    table.insert(binary, (self.start_address >> 8) & 0xFF)
+    table.insert(binary, self.start_address & 0xFF)
+    
+    -- Number of segments (1 byte)
+    local segment_count = 0
+    for seg_name, seg_data in pairs(self.segments) do
+        if #seg_data.data > 0 then
+            segment_count = segment_count + 1
+        end
+    end
+    table.insert(binary, segment_count)
+    
+    -- Segment entries
+    for seg_name, seg_data in pairs(self.segments) do
+        if #seg_data.data > 0 then
+            -- Segment type (1 byte)
+            local seg_type = 0
+            if seg_name == "CODE" then seg_type = 0x01
+            elseif seg_name == "DATA" then seg_type = 0x02
+            elseif seg_name == "STACK" then seg_type = 0x03 end
+            
+            table.insert(binary, seg_type)
+            
+            -- Load address (2 bytes)
+            table.insert(binary, (seg_data.address >> 8) & 0xFF)
+            table.insert(binary, seg_data.address & 0xFF)
+            
+            -- Data length in words (2 bytes)
+            local length = #seg_data.data
+            table.insert(binary, (length >> 8) & 0xFF)
+            table.insert(binary, length & 0xFF)
+            
+            -- Segment data (each word as 2 bytes)
+            for _, word in ipairs(seg_data.data) do
+                table.insert(binary, (word >> 8) & 0xFF)
+                table.insert(binary, word & 0xFF)
+            end
+        end
+    end
+    
+    return binary
+end
+
+-- NEW: Save binary to file
+function Assembler:save_binary(filename, binary_data)
+    local file = io.open(filename, "wb")
+    if not file then
+        error("Kann Datei nicht schreiben: " .. filename)
+    end
+    
+    for _, byte in ipairs(binary_data) do
+        file:write(string.char(byte))
+    end
+    
+    file:close()
+end
+
 function main()
-    if #arg ~= 1 then
-        print("Usage: lua as-deep16.lua <sourcefile.asm>")
+    if #arg < 1 then
+        print("Usage: lua as-deep16.lua <sourcefile.asm> [output.bin]")
         os.exit(1)
     end
     
-    local assembler = Assembler.new()
-    print("Deep16 Assembler (Milestone 1r6) - Complete Version with .equ support")
-    print("====================================================================")
+    local input_file = arg[1]
+    local output_file = arg[2] or string.gsub(input_file, "%.asm$", ".bin")
     
-    local success, machine_code = pcall(function() 
-        return assembler:assemble_file(arg[1]) 
+    local assembler = Assembler.new()
+    print("Deep16 Assembler (Milestone 1r6) - Binary Output Version")
+    print("========================================================")
+    
+    local success, binary_data = pcall(function() 
+        return assembler:assemble_file(input_file) 
     end)
     
     if not success then
-        print("Assemblierungsfehler: " .. machine_code)
+        print("Assemblierungsfehler: " .. binary_data)
         os.exit(1)
     end
     
+    -- Save binary file
+    assembler:save_binary(output_file, binary_data)
+    
     print("\nAssemblierung erfolgreich!")
-    print(string.format("%d Worte generiert", #machine_code))
-    print("\nMaschinencode:")
-    for i, code in ipairs(machine_code) do
-        print(string.format("%04X: %04X", i-1, code))
+    print(string.format("Ausgabedatei: %s", output_file))
+    print(string.format("Größe: %d Bytes", #binary_data))
+    
+    -- Print segment summary
+    print("\nSegmentübersicht:")
+    for seg_name, seg_data in pairs(assembler.segments) do
+        if #seg_data.data > 0 then
+            print(string.format("  %s: 0x%04X - %d Worte", 
+                seg_name, seg_data.address, #seg_data.data))
+        end
     end
+    print(string.format("Startadresse: 0x%04X", assembler.start_address))
 end
 
 if arg and arg[0]:match("as%-deep16%.lua") then
