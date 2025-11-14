@@ -257,11 +257,6 @@ function Assembler:encode_alu(mnemonic, operands)
         table.remove(operands, #operands)
     end
     
-    -- Für MUL/DIV 32-bit: Rd muss gerade sein
-    if (mnemonic == "MUL" or mnemonic == "DIV") and i_flag == 1 and (rd % 2 ~= 0) then
-        error(mnemonic .. " mit i=1 benötigt ein gerades Register (R0, R2, R4, ..., R14)")
-    end
-    
     -- Entscheidung Register vs Immediate Mode
     if #operands >= 2 and self:is_register(operands[2]) then
         -- Register mode
@@ -273,6 +268,11 @@ function Assembler:encode_alu(mnemonic, operands)
         if src_val == nil then error(mnemonic .. " erwartet Register oder Immediate") end
         if src_val < 0 or src_val > 15 then error("ALU Immediate muss 0-15 sein") end
         i_flag = 1
+    end
+    
+    -- Für MUL/DIV 32-bit: Rd muss gerade sein
+    if (mnemonic == "MUL" or mnemonic == "DIV") and i_flag == 1 and (rd % 2 ~= 0) then
+        error(mnemonic .. " mit i=1 benötigt ein gerades Register (R0, R2, R4, ..., R14)")
     end
     
     return 0xC000 | (op_val << 10) | (rd << 6) | (w_flag << 5) | (i_flag << 4) | src_val
@@ -458,9 +458,30 @@ function Assembler:parse_instruction(line)
     if not mnemonic then return nil end
     
     mnemonic = mnemonic:upper()
+    
+    -- Spezialbehandlung für LD/ST mit eckigen Klammern
     local operands = {}
-    for op in operands_str:gmatch("[^,%s]+") do
-        table.insert(operands, op)
+    if mnemonic == "LD" or mnemonic == "ST" then
+        -- Extrahiere Operanden aus [Rb, offset] Format
+        local rd, mem_op = operands_str:match("^(%S+)%s+(%b[])$")
+        if rd and mem_op then
+            table.insert(operands, rd)
+            -- Entferne eckige Klammern und extrahiere Rb und offset
+            local rb, offset = mem_op:match("%[(%S+)%s*,%s*(%S+)%]")
+            if rb and offset then
+                table.insert(operands, rb)
+                table.insert(operands, offset)
+            else
+                error("Ungültiger Memory-Operand: " .. mem_op)
+            end
+        else
+            error("Ungültige Syntax für " .. mnemonic .. ": " .. operands_str)
+        end
+    else
+        -- Normale Operanden-Verarbeitung für andere Befehle
+        for op in operands_str:gmatch("[^,%s]+") do
+            table.insert(operands, op)
+        end
     end
     
     -- ALU Operationen
