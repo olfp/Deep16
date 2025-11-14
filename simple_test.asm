@@ -1,4 +1,4 @@
-; simple_test.asm
+; simple_test_fixed.asm
 ; Korrekter Testfall für Deep16
 
 .org 0x0000
@@ -13,8 +13,9 @@ start:
     SUB R4, R3, 5  ; R4 = 47
     
     ; Einfache Speicherzugriffe - KORREKTE SYNTAX
-    ST R3, SP, 0   ; Store to stack
-    LD R5, SP, 0   ; Load from stack
+    ; ST Rd, Rb, offset (nicht ST Rd, Rb, offset)
+    ST R3, R13, 0   ; Store to stack (SP = R13)
+    LD R5, R13, 0   ; Load from stack
     
     ; Einfache Kontrollfluss
     JMP skip
@@ -27,7 +28,7 @@ skip:
     LDI 0x00FF
     MOV R7, R0, 0
     INV R7         ; R7 = 0xFF00
-    NEG R7         ; R7 = 0x0100
+    NEG R7         ; R7 = 0x0100 (two's complement of 0xFF00)
     
     ; Endlosschleife
 loop:
