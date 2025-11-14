@@ -2,10 +2,6 @@
 ; Bubble sort implementation for 42 random numbers
 ; Uses Deep16 assembler syntax
 
-.equ ARRAY_SIZE, 42
-.equ ARRAY_START, 0x0100
-.equ STACK_START, 0x0400
-
 .org 0x0000
 
 ; Register usage:
@@ -22,7 +18,7 @@
 
 start:
     ; Initialize stack pointer
-    LDI STACK_START
+    LDI 0x0400          ; STACK_START = 0x0400
     MOV R13, R0, 0      ; SP = 0x0400
 
     ; Initialize array with random data using a simple PRNG
@@ -39,9 +35,9 @@ start:
 ; Initialize array with pseudo-random data
 init_array:
     ; Set up array pointer and size
-    LDI ARRAY_START
+    LDI 0x0100          ; ARRAY_START = 0x0100
     MOV R3, R0, 0       ; R3 = array pointer
-    LDI ARRAY_SIZE
+    LDI 42              ; ARRAY_SIZE = 42
     MOV R7, R0, 0       ; R7 = array size
     
     ; Simple PRNG seed
@@ -88,15 +84,15 @@ outer_loop:
     LDI 0
     MOV R2, R0, 0       ; R2 = j = 0
     
-    ; Calculate inner loop limit: ARRAY_SIZE - 1 - i
-    LDI ARRAY_SIZE
+    ; Calculate inner loop limit: 42 - 1 - i
+    LDI 42              ; ARRAY_SIZE = 42
     MOV R7, R0, 0       ; R7 = ARRAY_SIZE
     SUB R7, R7, 1       ; R7 = ARRAY_SIZE - 1
     SUB R7, R7, R1      ; R7 = ARRAY_SIZE - 1 - i
 
 inner_loop:
     ; Set array pointer to arr[j]
-    LDI ARRAY_START
+    LDI 0x0100          ; ARRAY_START = 0x0100
     MOV R3, R0, 0       ; R3 = array base
     ADD R3, R3, R2      ; R3 = array base + j
     
@@ -124,9 +120,9 @@ no_swap:
     ; Increment inner loop counter
     ADD R2, R2, 1       ; j++
     
-    ; Check inner loop condition: j < ARRAY_SIZE - 1 - i
+    ; Check inner loop condition: j < 42 - 1 - i
     MOV R0, R2, 0       ; Copy j to R0 for comparison
-    SUB R0, R0, R7, w=0 ; Compare j - (ARRAY_SIZE - 1 - i)
+    SUB R0, R0, R7, w=0 ; Compare j - (42 - 1 - i)
     JN inner_loop       ; If negative, j < limit, continue inner loop
     
     ; Check if any swaps occurred
@@ -137,12 +133,12 @@ no_swap:
     ; Increment outer loop counter
     ADD R1, R1, 1       ; i++
     
-    ; Check outer loop condition: i < ARRAY_SIZE - 1
+    ; Check outer loop condition: i < 42 - 1
     MOV R0, R1, 0       ; Copy i to R0 for comparison
-    LDI ARRAY_SIZE
+    LDI 42              ; ARRAY_SIZE = 42
     MOV R7, R0, 0       ; R7 = ARRAY_SIZE
     SUB R7, R7, 1       ; R7 = ARRAY_SIZE - 1
-    SUB R0, R0, R7, w=0 ; Compare i - (ARRAY_SIZE - 1)
+    SUB R0, R0, R7, w=0 ; Compare i - (42 - 1)
     JN outer_loop       ; If negative, i < limit, continue outer loop
 
 sort_done:
