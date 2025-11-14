@@ -1,20 +1,34 @@
-DEEP16 PROJECT CONTINUATION - MILESTONE 3pre1
+DEEP16 PROJECT CONTINUATION - MILESTONE 3pre2 → MILESTONE 3
 
 CONTEXT:
-- Architecture: Deep16 v3.2 (16-bit RISC, segmented memory, shadow registers)
-- Current: Simulator runs but has missing instruction decoding
-- Known issues: Infinite loop in bubble sort, array not sorting
-- Next: Complete simulator, fix control flow, implement ALU ops
+We're developing a 16-bit RISC processor (Deep16) with segmented memory and shadow registers.
+We have a working assembler and analyzer, but the simulator needs completion.
 
-FILES TO CONTINUE WORK ON:
-1. deep16_simulator.lua - needs complete instruction decoding
-2. as-deep16.lua - working assembler  
-3. bubble_sort.asm - test program
-4. Architecture spec defines all instructions
+CURRENT STATUS:
+- Architecture: v3.2 Milestone 1r8 (complete with clarified segment access)
+- Assembler: Fully functional with binary output
+- Analyzer: Working binary analysis tool  
+- Simulator: Foundation works but missing instruction decoding
+- Test Program: Bubble sort coded but not working due to simulator issues
 
-SPECIFIC TODOs:
-- Decode instructions: 0x5A5A, 0x4105, 0x5B05, 0xB060
-- Fix JMP relative addressing
-- Implement MUL, DIV, SHIFT operations
-- Fix the "shift encoding issue" noted earlier
-- Get bubble sort actually working
+IMMEDIATE BLOCKERS:
+1. Unknown instructions: 0x5A5A, 0x4105, 0x5B05, 0xB060 need decoding
+2. Infinite loop in bubble sort - PC runs to high addresses
+3. Control flow broken (JMP instructions not working)
+4. Array remains unsorted
+
+SPECIFIC TODOs FOR MILESTONE 3:
+- Complete instruction decoding in simulator
+- Fix JMP relative addressing and control flow
+- Implement missing ALU operations (MUL, DIV, SHIFT)
+- Resolve the "shift encoding issue" noted earlier
+- Get bubble sort actually working and verifying
+
+ARCHITECTURE CLARIFICATIONS (1r8):
+- SR/ER are PSW selector fields for segment access
+- DS bit enables dual registers for stack segment (SP+FP use SS)
+- DE bit enables dual registers for extra segment  
+- R0 always uses Data Segment regardless of PSW
+- SR=0 or ER=0 disables that segment access
+
+Let's continue from the deep16_simulator.lua file and complete the instruction decoding to fix the bubble sort execution.
