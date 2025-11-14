@@ -1,4 +1,4 @@
-Deep16 Architecture Specification v3.4 (Milestone 1r10)
+Deep16 Architecture Specification v3.5 (Milestone 1r11)
 
 16-bit RISC Processor with Enhanced Memory Addressing
 
@@ -44,8 +44,8 @@ Key Features
 · 4 segment registers for memory management
 · Compact encoding with variable-length opcodes
 · Enhanced memory addressing with stack/extra registers
-· Consolidated single-register operations
-· Clean PSW layout with reserved expansion bits
+· Clean instruction encoding with no conflicts
+· Intuitive single-operand instruction category
 
 ---
 
@@ -57,7 +57,7 @@ Register Alias Conventional Use Binary
 R0  LDI destination, temporary 0000
 R1  General purpose 0001
 R2  General purpose 0010
-R3  General purpose 0010
+R3  General purpose 0011
 R4  General purpose 0100
 R5  General purpose 0101
 R6  General purpose 0110
@@ -116,14 +116,6 @@ PSW Bit Assignment:
 · Bit 12: DS - Dual registers for stack segment access
 · Bits 13-16: ER[3:0] - Extra Register selection
 · Bit 17: DE - Dual registers for extra segment access
-
-Typical PSW Configuration:
-
-```assembly
-; Standard setup: SP/FP use SS, R11 uses ES
-SET 0x1D08    ; SR=13(SP), DS=1, ER=11, DE=0
-; High byte: 0001 1101 0000 1000 = 0x1D08
-```
 
 ---
 
@@ -184,23 +176,45 @@ Opcode Instruction Format Description
 10 LD/ST [10][d1][Rd4][Rb4][offset5] Load/Store with implicit segment
 110 ALU [110][op3][Rd4][w1][i1][Rs/imm4] Arithmetic/Logic operations
 1110 JMP [1110][type3][target9] Jump/branch operations
-1110 LSI [1110][111][Rd4][imm5] Load Short Immediate
+1111110 LSI [1111110][Rd4][imm5] Load Short Immediate
 11110 LDS/STS [11110][d1][seg2][Rd4][Rs4] Load/Store with explicit segment
 111110 MOV [111110][Rd4][Rs4][imm2] Move with offset
-1111110 SET/CLR [1111110][s1][bitmask8] Set/Clear flags
-11111110 SINGLE-REG [11111110][type4][Rx4] Single-register operations
+11111110 SINGLE-OP [11111110][type4][Rx/imm4] Single-operand operations
 111111110 MVS [111111110][d1][Rd4][seg2] Move to/from segment
 1111111110 SMV [1111111110][src2][Rd4] Special move
 1111111111110 SYS [1111111111110][op3] System operations
 
-Single-Register Operations (type4)
+Single-Operand Operations (type4)
 
-type4 Mnemonic Description
-0000 JML Jump Long (Rx must be even)
-0001 SWB Swap Bytes
-0010 INV Invert bits
-0011 NEG Two's complement
-0100-1111 reserved Future single-register operations
+type4 Mnemonic Operand Description
+0000 JML Rx Jump Long (Rx must be even)
+0001 SWB Rx Swap Bytes
+0010 INV Rx Invert bits
+0011 NEG Rx Two's complement
+0100 SRS Rx Stack Register Single
+0101 SRD Rx Stack Register Dual
+0110 ERS Rx Extra Register Single
+0111 ERD Rx Extra Register Dual
+1000 SET imm4 Set flag bit
+1001 CLR imm4 Clear flag bit
+1010-1111 reserved  Future operations
+
+SET/CLR Flag Bit Encoding
+
+imm4 Operation Flag Bit
+0000 SET N (bit 0)
+0001 SET Z (bit 1)
+0010 SET V (bit 2)
+0011 SET C (bit 3)
+0100 SET S (bit 4)
+0101 SET I (bit 5)
+1000 CLR N (bit 0)
+1001 CLR Z (bit 1)
+1010 CLR V (bit 2)
+1011 CLR C (bit 3)
+1100 CLR S (bit 4)
+1101 CLR I (bit 5)
+0110-0111, 1110-1111 reserved 
 
 ---
 
@@ -258,8 +272,8 @@ Bits: [1110][ type3 ][ target9 ]
 5.5 LSI - Load Short Immediate
 
 ```
-Bits: [1110][ 111 ][ Rd ][ imm5 ]
-      4      3      4      5
+Bits: [1111110][ Rd ][ imm5 ]
+      7         4     5
 ```
 
 · Effect: Rd ← sign_extend(imm5)
@@ -290,21 +304,10 @@ Bits: [111110][ Rd ][ Rs ][ imm2 ]
 · Range: 0-3
 · Operands: 3 (Rd, Rs, imm)
 
-5.8 SET/CLR - Set/Clear Flags
+5.8 SINGLE-OP - Single Operand Operations
 
 ```
-Bits: [1111110][ s ][ bitmask8 ]
-      7         1       8
-```
-
-· s=1: PSW ← PSW | bitmask (SET)
-· s=0: PSW ← PSW & ~bitmask (CLR)
-· Operands: 1 (bitmask)
-
-5.9 SINGLE-REG - Single Register Operations
-
-```
-Bits: [11111110][ type4 ][ Rx ]
+Bits: [11111110][ type4 ][ Rx/imm4 ]
       8          4        4
 ```
 
@@ -312,9 +315,15 @@ Bits: [11111110][ type4 ][ Rx ]
 · type4=0001: SWB Rx - Swap high/low bytes
 · type4=0010: INV Rx - Invert all bits (ones complement)
 · type4=0011: NEG Rx - Two's complement
-· Operands: 1 (Rx)
+· type4=0100: SRS Rx - Stack Register Single SR ← Rx, DS ← 0
+· type4=0101: SRD Rx - Stack Register Dual SR ← Rx, DS ← 1
+· type4=0110: ERS Rx - Extra Register Single ER ← Rx, DE ← 0
+· type4=0111: ERD Rx - Extra Register Dual ER ← Rx, DE ← 1
+· type4=1000: SET imm4 - Set flag bit (see encoding table)
+· type4=1001: CLR imm4 - Clear flag bit (see encoding table)
+· Operands: 1 (Rx or imm4)
 
-5.10 MVS - Move to/from Segment
+5.9 MVS - Move to/from Segment
 
 ```
 Bits: [111111110][ d ][ Rd ][ seg2 ]
@@ -325,7 +334,7 @@ Bits: [111111110][ d ][ Rd ][ seg2 ]
 · d=1: Segment[seg] ← Rd
 · Operands: 2 (Segment, Rd) or (Rd, Segment)
 
-5.11 SMV - Special Move
+5.10 SMV - Special Move
 
 ```
 Bits: [1111111110][ src2 ][ Rd ]
@@ -338,7 +347,7 @@ Bits: [1111111110][ src2 ][ Rd ]
 · src2=11: SMV Rd, ACS - Rd ← alternate_CS
 · Operands: 2 (src, Rd)
 
-5.12 SYS - System Operations
+5.11 SYS - System Operations
 
 ```
 Bits: [1111111111110][ op3 ]
@@ -415,7 +424,7 @@ type3 Mnemonic Condition Description
 100 JNC C=0 Jump if no carry
 101 JN N=1 Jump if negative
 110 JNN N=0 Jump if not negative
-111 LSI (not a jump) Load Short Immediate
+111 reserved  Future jump type
 
 6.5 System Operations (op3)
 
@@ -462,8 +471,10 @@ NEG R2         ; R2 = -R2 (Two's complement)
 7.2 Memory Access with Segment Configuration
 
 ```assembly
-; Setup PSW for standard memory model
-SET 0x1D08     ; SR=13(SP), DS=1, ER=11, DE=0
+; Setup PSW for standard memory model using new instructions
+SRS R13        ; SR=13(SP), DS=0
+SRD R13        ; SR=13(SP), DS=1 (dual mode - SP+FP use SS)
+ERS R11        ; ER=11, DE=0 (single mode)
 
 ; Stack operations (use SS segment)
 LD R1, SP, 0   ; Load from stack (SS:SP + 0)
@@ -476,13 +487,30 @@ ST R5, R8, 15  ; Store to data segment (DS:R8 + 15)
 
 ; Extra segment operations
 LD R6, R11, 0  ; Load from extra segment (ES:R11 + 0)
-
-; Explicit segment access
-LDS R7, SS, SP ; Load from stack segment (explicit)
-STS R8, ES, R9 ; Store to extra segment (explicit)
 ```
 
-7.3 Control Flow
+7.3 Flag Manipulation
+
+```assembly
+; Clear all flags
+CLR 0x8        ; CLR N
+CLR 0x9        ; CLR Z  
+CLR 0xA        ; CLR V
+CLR 0xB        ; CLR C
+CLR 0xC        ; CLR S
+CLR 0xD        ; CLR I
+
+; Set specific flags after operations
+ADD R1, R2     ; Some operation that sets flags
+SET 0x3        ; Force set Carry flag
+CLR 0x1        ; Force clear Zero flag
+
+; Interrupt control
+SET 0x5        ; Enable interrupts (SET I)
+CLR 0x5        ; Disable interrupts (CLR I)
+```
+
+7.4 Control Flow
 
 ```assembly
 ; Function call
@@ -511,7 +539,7 @@ continue:
     ; Continue execution
 ```
 
-7.4 Inter-Segment Subroutine Call
+7.5 Inter-Segment Subroutine Call
 
 ```assembly
 ; Inter-segment subroutine call
@@ -540,7 +568,7 @@ far_subroutine:
     JML R10         ; Return to original segment
 ```
 
-7.5 Interrupt Handling
+7.6 Interrupt Handling
 
 ```assembly
 ; Interrupt handler in segment 0
@@ -561,7 +589,7 @@ irq_handler:
     SMV R3, APSW    ; Get saved PSW
     SMV R4, APC     ; Get interrupted PC
     
-    ; ... process interrupt
+    ; ... process interrupt ...
     
     ; Restore context
     LD R2, SP, 1
@@ -570,7 +598,7 @@ irq_handler:
     RETI            ; Automatic context restore
 ```
 
-7.6 Number Manipulation
+7.7 Number Manipulation
 
 ```assembly
 ; Number conversion examples
@@ -723,8 +751,6 @@ This configuration provides:
 · Flexible extra segment with single register access (R11 uses ES)
 · Simplified memory model with clear separation of stack and data segments
 
-The dual registers for stack segment access allows efficient stack frame management where both the stack pointer (SP) and frame pointer (FP) automatically access the stack segment, while the extra segment provides additional memory space accessible through a single designated register.
-
 ---
 
 10. Implementation Notes
@@ -753,28 +779,20 @@ The dual registers for stack segment access allows efficient stack frame managem
 · 16-bit data bus
 · Automatic context switching logic
 
-10.4 FPGA Implementation Considerations
+10.4 Instruction Encoding Benefits
 
-· Estimated LUTs: 1,500-2,000 for core CPU
-· Memory controller: 300-500 LUTs for PSRAM
-· UART: 100-200 LUTs for serial console
-· Cache: 4KB unified cache recommended
-· Clock target: 25-50MHz achievable
+· ✅ No encoding conflicts - all instructions have clean encoding
+· ✅ Logical grouping - single-operand ops consolidated
+· ✅ Future expansion - reserved opcodes available
+· ✅ Intuitive usage - clear instruction semantics
 
-10.5 Instruction Usage Statistics
-
-· ALU operations: ~40% of typical code
-· Memory operations: ~30% of typical code
-· Control flow: ~20% of typical code
-· System operations: ~10% of typical code
-
-10.6 Performance Optimizations
+10.5 Performance Optimizations
 
 · Unified cache: 4KB recommended for small Deep16 programs
-· Branch prediction: Simple static prediction (forward not taken, backward taken)
+· Branch prediction: Simple static prediction
 · Register forwarding: Essential for 3-stage pipeline efficiency
-· Memory interleaving: Use PSRAM burst modes when available
+· Memory interleaving: Use burst modes when available
 
 ---
 
-Deep16 Architecture Specification v3.4 (Milestone 1r10) - Complete with clean PSW layout, automatic context switching, and consolidated instruction encoding
+Deep16 Architecture Specification v3.5 (Milestone 1r11) - Complete with clean instruction encoding, single-operand operations, and no encoding conflicts
