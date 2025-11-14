@@ -1,4 +1,4 @@
-# cMIN-16a Architecture Specification v2.5 (Milestone 1r3)
+# cMIN-16a Architecture Specification v2.6 (Milestone 1r4)
 ## 16-bit RISC Processor with Shadow Registers and Segmented Memory
 
 ---
@@ -22,18 +22,18 @@
 cMIN-16a is a 16-bit RISC processor with:
 - **16-bit fixed-length instructions**
 - **16 general-purpose registers** + **shadow registers**
-- **Segmented memory addressing** (20-bit physical address space)
+- **Segmented memory addressing** (2MB physical address space)
 - **3-stage pipeline** design
-- **Advanced interrupt handling** with automatic context switching
+- **Advanced interrupt handling** with access switching
 
 ### Key Features
 - All instructions exactly 16 bits
-- 16 user-visible registers + PC'/PSW'/CS' shadow registers
+- 16 user-visible registers + PC/PSW shadow views
 - Hardware-assisted interrupt context switching
 - 4 segment registers for memory management
 - Compact encoding with variable-length opcodes
 - Register-pair operations for MUL/DIV
-- New SWB/INV instructions for data manipulation
+- Complete word-based memory addressing
 
 ---
 
@@ -53,9 +53,8 @@ cMIN-16a is a 16-bit RISC processor with:
 | Register | Purpose |
 |----------|---------|
 | PSW      | Processor Status Word (Flags) |
-| PC'      | Program Counter Shadow |
-| PSW'     | Processor Status Word Shadow |
-| CS'      | Code Segment Shadow |
+| PC'      | Program Counter Shadow View |
+| PSW'     | Processor Status Word Shadow View |
 
 ### 2.3 Segment Registers
 
@@ -77,7 +76,7 @@ cMIN-16a is a 16-bit RISC processor with:
                                   │  │  │  │  └─ Zero
                                   │  │  │  └─ Overflow  
                                   │  │  └─ Carry
-                                  │  └─ In ISR (Shadow active)
+                                  │  └─ In ISR (Shadow View active)
                                   └─ Interrupt Enable
 ```
 
@@ -85,46 +84,47 @@ cMIN-16a is a 16-bit RISC processor with:
 
 ## 3. Shadow Register System
 
-### 3.1 Automatic Context Switching
+### 3.1 Access Switching (No Data Copying)
+
+**Hardware Implementation:**
+- **Single set of physical registers** (PC, PSW)
+- **S-flag in PSW** controls whether "Normal" or "Shadow" view is accessed
+- **No actual data copying** during interrupts
+
+### 3.2 Automatic Context Switching
 
 **On Interrupt:**
-- `PC' ← PC` (Save current PC to shadow)
-- `PSW' ← PSW` (Save current PSW to shadow)  
-- `CS' ← CS` (Save current CS to shadow)
-- `PC ← interrupt_vector`
-- `CS ← interrupt_cs` (from interrupt vector table)
+- `PSW.S ← 1` (Switch to Shadow View)
+- `PC ← interrupt_vector` (Write to Shadow PC in Shadow Mode)
+- `CS ← 0` (Interrupts always run in Segment 0)
 - `PSW.I ← 0` (Disable interrupts)
-- `PSW.S ← 1` (Enter ISR mode)
 
 **On RETI:**
-- `PC ← PC'` (Restore PC from shadow)
-- `PSW ← PSW'` (Restore PSW from shadow)
-- `CS ← CS'` (Restore CS from shadow)
+- `PSW.S ← 0` (Switch back to Normal View)
 - `PSW.I ← 1` (Enable interrupts)
-- `PSW.S ← 0` (Leave ISR mode)
 
-### 3.2 SMV Befehl - Special Move
+### 3.3 SMV Instruction - Special Move
 
 **Opcode:** 1111111110 (10-bit)
 **Format:** `[1111111110][SRC2][DST4]`
 
-#### SRC2 Codes - Context Dependent:
+#### SRC2 Codes - Access to non-active registers:
 
 **Normal Mode (S=0):**
 | SRC2 | Mnemonic | Effect |
 |------|----------|--------|
-| 00 | SMV DST, APC | `DST ← PC'` (inactive shadow) |
-| 01 | SMV DST, APSW | `DST ← PSW'` (inactive shadow) |
-| 10 | SMV DST, PSW | `DST ← PSW` (active) |
-| 11 | SMV DST, ACS | `DST ← CS'` (inactive shadow) |
+| 00 | SMV DST, APC | `DST ← PC'` (Shadow PC) |
+| 01 | SMV DST, APSW | `DST ← PSW'` (Shadow PSW) |
+| 10 | SMV DST, PSW | `DST ← PSW` (Normal PSW) |
+| 11 | **reserved** | |
 
 **ISR Mode (S=1):**
 | SRC2 | Mnemonic | Effect |
 |------|----------|--------|
-| 00 | SMV DST, PC | `DST ← PC` (inactive normal) |
-| 01 | SMV DST, PSW | `DST ← PSW` (active) |
-| 10 | SMV DST, APSW | `DST ← PSW'` (inactive shadow) |
-| 11 | SMV DST, CS | `DST ← CS` (inactive normal) |
+| 00 | SMV DST, PC | `DST ← PC` (Normal PC) |
+| 01 | SMV DST, PSW | `DST ← PSW` (Shadow PSW) |
+| 10 | SMV DST, APSW | `DST ← PSW'` (Normal PSW) |
+| 11 | **reserved** | |
 
 ---
 
@@ -143,23 +143,23 @@ cMIN-16a is a 16-bit RISC processor with:
 | 1111110 | SET/CLR | `[1111110][S/C][bitmask8]` | Set/Clear flags |
 | 111111110 | MVS | `[111111110][D][Rd][Seg]` | Move to/from segment |
 | 1111111110 | SMV | `[1111111110][SRC][DST]` | Special move |
-| **11111111110** | **SWB/INV** | `[11111111110][S][Rx]` | **Swap Bytes / Invert** |
+| 11111111110 | SWB/INV | `[11111111110][S][Rx]` | Swap Bytes / Invert |
 | 111111111110 | LJMP | `[111111111110][Rs]` | Long Jump between segments |
 | 1111111111110 | SYS | `[1111111111110][op]` | System operations |
 
-### Shift Instructions (Kompakte Form)
+### Shift Instructions (Compact Form)
 | Instruction | Format | Description |
 |-------------|--------|-------------|
-| SL | `SL Rd, count3` | Shift Left |
-| SLC | `SLC Rd, count3` | Shift Left with Carry |
-| SR | `SR Rd, count3` | Shift Right Logical |
-| SRC | `SRC Rd, count3` | Shift Right with Carry |
-| SRA | `SRA Rd, count3` | Shift Right Arithmetic |
-| SAC | `SAC Rd, count3` | Shift Arithmetic with Carry |
-| ROR | `ROR Rd, count3` | Rotate Right |
-| ROC | `ROC Rd, count3` | Rotate with Carry |
+| SL | `SL Rd, count` | Shift Left |
+| SLC | `SLC Rd, count` | Shift Left with Carry |
+| SR | `SR Rd, count` | Shift Right Logical |
+| SRC | `SRC Rd, count` | Shift Right with Carry |
+| SRA | `SRA Rd, count` | Shift Right Arithmetic |
+| SAC | `SAC Rd, count` | Shift Arithmetic with Carry |
+| ROR | `ROR Rd, count` | Rotate Right |
+| ROC | `ROC Rd, count` | Rotate with Carry |
 
-### Neue SWB/INV Befehle
+### SWB/INV Instructions
 | Instruction | Format | Description |
 |-------------|--------|-------------|
 | SWB | `SWB Rx` | Swap high and low bytes of Rx |
@@ -171,9 +171,10 @@ cMIN-16a is a 16-bit RISC processor with:
 
 ### 5.1 LDI - Load Long Immediate
 ```
-[0][15-bit immediate]
+[0][imm15]
 ```
 **Effect**: `R0 ← immediate`
+**Operands**: 1 (immediate)
 
 ### 5.2 LD/ST - Load/Store Short Offset
 ```
@@ -182,6 +183,7 @@ cMIN-16a is a 16-bit RISC processor with:
 - **L/S=0**: `Rd ← Mem[Seg:Base + offset]`
 - **L/S=1**: `Mem[Seg:Base + offset] ← Rd`
 - **offset**: 0-3 (2-bit unsigned immediate)
+**Operands**: 2 (Rd, [Seg:Base,offset])
 
 ### 5.3 ALU - Arithmetic/Logic Operations
 ```
@@ -190,6 +192,7 @@ cMIN-16a is a 16-bit RISC processor with:
 - **i=0**: `Rd ← Rd op Rs` (if w=1)
 - **i=1**: `Rd ← Rd op zero_extend(imm4)` (if w=1)
 - **w=0**: Only flags are updated (for CMP/TST)
+**Operands**: 2-3 (Rd, Rs/imm, [w=0])
 
 ### 5.4 Shift Instructions
 ```
@@ -201,23 +204,27 @@ cMIN-16a is a 16-bit RISC processor with:
 - **T=01**: SR/SRC  
 - **T=10**: SRA/SAC
 - **T=11**: ROR/ROC
+**Operands**: 2 (Rd, count)
 
 ### 5.5 JMP - Jump/Branch Operations
 ```
 [1110][type3][target8]
 ```
+**Operands**: 1 (target)
 
 ### 5.6 LSI - Load Short Immediate
 ```
 [11110][Rd4][imm7]
 ```
 **Effect**: `Rd ← sign_extend(imm7)`
+**Operands**: 2 (Rd, imm)
 
 ### 5.7 MOV - Move with Offset
 ```
 [111110][Rd4][Rs4][imm2]
 ```
 **Effect**: `Rd ← Rs + zero_extend(imm2)`
+**Operands**: 3 (Rd, Rs, imm)
 
 ### 5.8 SET/CLR - Set/Clear Flags
 ```
@@ -225,6 +232,7 @@ cMIN-16a is a 16-bit RISC processor with:
 ```
 - **S/C=1**: `PSW ← PSW | bitmask`
 - **S/C=0**: `PSW ← PSW & ~bitmask`
+**Operands**: 1 (bitmask)
 
 ### 5.9 MVS - Move to/from Segment
 ```
@@ -232,12 +240,14 @@ cMIN-16a is a 16-bit RISC processor with:
 ```
 - **D=0**: `Rd ← Segment[Seg]`
 - **D=1**: `Segment[Seg] ← Rd`
+**Operands**: 2 (Segment, Rd) or (Rd, Segment)
 
 ### 5.10 SMV - Special Move
 ```
 [1111111110][SRC2][DST4]
 ```
 **Context-dependent access to shadow/normal registers**
+**Operands**: 2 (SRC, DST)
 
 ### 5.11 SWB/INV - Swap Bytes / Invert
 ```
@@ -245,6 +255,7 @@ cMIN-16a is a 16-bit RISC processor with:
 ```
 - **S=0**: `SWB Rx` - Swap high and low bytes of Rx
 - **S=1**: `INV Rx` - Invert all bits of Rx (ones complement)
+**Operands**: 1 (Rx)
 
 ### 5.12 LJMP - Long Jump
 ```
@@ -253,6 +264,7 @@ cMIN-16a is a 16-bit RISC processor with:
 **Effect**: 
 - `CS ← Mem[Rs]` (Load new Code Segment)
 - `PC ← Mem[Rs+1]` (Load new Program Counter address)
+**Operands**: 1 (Rs)
 
 ### 5.13 SYS - System Operations
 ```
@@ -263,6 +275,7 @@ cMIN-16a is a 16-bit RISC processor with:
 - 010: SWI
 - 011: RETI (Return from interrupt)
 - 100-111: Reserved
+**Operands**: 0
 
 ---
 
@@ -270,7 +283,7 @@ cMIN-16a is a 16-bit RISC processor with:
 
 ### 6.1 ALU Operation Codes
 
-| op | Mnemonic | Description | Flags | Register-Paar |
+| op | Mnemonic | Description | Flags | Register-Pair |
 |----|----------|-------------|-------|---------------|
 | 000 | ADD | Addition | N,Z,V,C | - |
 | 001 | SUB | Subtraction | N,Z,V,C | - |
@@ -301,11 +314,11 @@ cMIN-16a is a 16-bit RISC processor with:
 | SWB Rx | `Rx[15:8] ↔ Rx[7:0]` | `0x1234 → 0x3412` |
 | INV Rx | `Rx ← ~Rx` | `0x00FF → 0xFF00` |
 
-### 6.4 MUL/DIV Register-Paar Konvention
+### 6.4 MUL/DIV Register-Pair Convention
 
-**Für MUL und DIV wird immer ein gerades Register (Rd) angegeben:**
-- **Rd muss gerade sein** (0, 2, 4, ..., 14)
-- **Ergebnis wird in Register-Paar Rd:Rd+1 gespeichert**
+**For MUL and DIV, always specify an even register (Rd):**
+- **Rd must be even** (0, 2, 4, ..., 14)
+- **Result is stored in register pair Rd:Rd+1**
 
 ### 6.5 Condition Codes for JMP
 
@@ -332,18 +345,18 @@ MOV R1, R0, 0    ; R1 = R0
 LSI R2, 100      ; R2 = 100
 
 ; Function call
-MOV R14, PC, 2   ; Set return address
-JMP function
+MOV R14, PC, 2   ; Set return address (R14 = PC + 2)
+JMP function     ; Jump to function
 
 function:
     ADD R3, R1, R2   ; R3 = R1 + R2
-    SUB R0, R3, 50, w=0  ; Compare R3 with 50
-    JN  less_than
+    SUB R0, R3, 50, w=0  ; Compare R3 with 50 (w=0 for flags only)
+    JN  less_than     ; Jump if negative
     JRL R14           ; Return
 
 less_than:
     ; Handle less than case
-    JRL R14
+    JRL R14           ; Return
 ```
 
 ### 7.2 New SWB/INV Instructions
@@ -357,12 +370,6 @@ LDI 0x00FF
 MOV R2, R0, 0    ; R2 = 0x00FF
 INV R2           ; R2 = 0xFF00
 
-; Combined operations
-LDI 0xA5A5
-MOV R3, R0, 0    ; R3 = 0xA5A5
-SWB R3           ; R3 = 0xA5A5 (unchanged)
-INV R3           ; R3 = 0x5A5A
-
 ; Useful for endianness conversion
 LD R4, [DS:R5, 0] ; Load 16-bit value
 SWB R4            ; Convert endianness
@@ -373,20 +380,19 @@ ST R4, [DS:R6, 0] ; Store converted
 ```assembly
 ; 32-bit Multiplication
 LDI 0x1234
-MOV R2, R0, 0      ; R2 = 0x1234
-LSI R3, 0x5678     ; R3 = 0x5678 
-LDI 0x1000
-MOV R4, R0, 0      ; R4 = 0x1000
+MOV R2, R0, 0      ; R2 = 0x1234 (high word)
+LSI R3, 0x5678     ; R3 = 0x5678 (low word)
+LDI 100
+MOV R4, R0, 0      ; R4 = 100
 
 ; R2:R3 * R4 = R0:R1 (64-bit result)
 MUL R0, R4         ; R0:R1 = R2:R3 * R4
 
 ; 32-bit Division  
-LSI R5, 100        ; R5 = 100
-DIV R4, R5         ; R4:R5 = R2:R3 / R5
+DIV R2, R4         ; R2:R3 = R2:R3 / R4
 ```
 
-### 7.4 Shift Operations (Kompakte Form)
+### 7.4 Shift Operations (Compact Form)
 ```assembly
 ; Basic shifts
 SL R1, 3           ; R1 = R1 << 3
@@ -397,55 +403,48 @@ ROR R4, 4          ; R4 = R4 rot>> 4
 ; Shifts with carry
 SLC R1, 2          ; R1 = (R1 << 2) | (C << 0)
 SRC R2, 3          ; R2 = (R2 >> 3) | (C << 15)
-SAC R3, 1          ; R3 = (R3 >>> 1) | (C << 15)
-ROC R4, 2          ; R4 = (R4 rot>> 2) | (C << 15)
 ```
 
 ### 7.5 Memory Access with Correct Offset Range
 ```assembly
 ; LD/ST with 0-3 offset only
-LD R1, [DS:R2, 0]    ; Load from base + 0
-LD R3, [DS:R2, 1]    ; Load from base + 1
-ST R4, [DS:R5, 2]    ; Store to base + 2
-ST R6, [DS:R7, 3]    ; Store to base + 3
+LD R1, [DS:R2, 0]    ; Load from base + 0 words
+LD R3, [DS:R2, 1]    ; Load from base + 1 word
+ST R4, [DS:R5, 2]    ; Store to base + 2 words
+ST R6, [DS:R7, 3]    ; Store to base + 3 words
 
 ; For larger offsets, use MOV + LD/ST
-MOV R8, R2, 0        ; R8 = R2 + 0
-LD R9, [DS:R8, 0]    ; Equivalent to offset 0
-
-MOV R10, R2, 1       ; R10 = R2 + 1  
-LD R11, [DS:R10, 0]  ; Equivalent to offset 1
+MOV R8, R2, 4        ; R8 = R2 + 4 words
+LD R9, [DS:R8, 0]    ; Load from R2 + 4 words
 ```
 
 ### 7.6 Advanced Interrupt Handling with SMV
 ```assembly
 ; Interrupt Vector Table
-.org 0x0008
-    JMP advanced_irq_handler
+.org 0x0000
+    JMP irq_handler
 
-advanced_irq_handler:
-    ; AUTO: PC'=original PC, PSW'=original PSW, CS'=original CS, S=1, I=0
+irq_handler:
+    ; AUTO: Switched to Shadow View, CS=0
     
-    ; Complete context save
+    ; Save working registers
     ST R1, [SS:SP, 0]
     ST R2, [SS:SP, 1]
     
-    ; Save full pre-interrupt state for debugging
-    SMV R3, PC       ; R3 = original PC (inactive normal)
+    ; Debug: examine pre-interrupt state
+    SMV R3, PC       ; R3 = original PC (normal view, now inactive)
     ST R3, [SS:SP, 2]
-    SMV R4, PSW      ; R4 = current PSW (active)  
+    SMV R4, PSW      ; R4 = current PSW (shadow view, active)
     ST R4, [SS:SP, 3]
-    SMV R5, CS       ; R5 = original CS (inactive normal)
-    ST R5, [SS:SP, 0] ; Overwrite R1 save (example)
     
-    ; Complex ISR logic
+    ; ISR logic here
     ; ...
     
     ; Restore context
     LD R2, [SS:SP, 1]
     LD R1, [SS:SP, 0]
     
-    RETI  ; Auto: PC=PC', PSW=PSW', CS=CS', I=1, S=0
+    RETI             ; Switch back to Normal View
 ```
 
 ### 7.7 Cross-Segment Jumps with LJMP
@@ -473,42 +472,160 @@ return_table:
     .dw 0x1002        ; Return address
 ```
 
+### 7.8 Segment Management
+```assembly
+; Segment setup
+LDI 0x1000
+MVS DS, R0        ; Data Segment = 0x1000
+
+LDI 0x2000  
+MVS SS, R0        ; Stack Segment = 0x2000
+
+; Access different segments
+LD R1, [DS:R2, 0]   ; Load from data segment
+ST R3, [SS:SP, 1]   ; Store to stack segment
+LD R4, [ES:R5, 2]   ; Load from extra segment
+```
+
 ---
 
 ## 8. Interrupt Handling
 
-### 8.1 Extended Interrupt Vector Table
+### 8.1 Interrupt Vector Table (Word Addresses)
 
-| Address | CS:PC | Purpose |
-|---------|-------|---------|
-| 0x0000:0000 | CS=0, PC=0x0000 | Reset |
-| 0x0000:0004 | CS=0, PC=0x0010 | Software Interrupt (SWI) |
-| 0x0000:0008 | CS=0, PC=0x0020 | Hardware Interrupt |
-| 0x0000:000C | CS=0, PC=0x0030 | Exception |
+| Word Address | PC Value | Purpose |
+|--------------|---------|---------|
+| 0x00000 | 0x0100 | Reset |
+| 0x00001 | 0x0200 | Software Interrupt (SWI) |
+| 0x00002 | 0x0300 | Hardware Interrupt |
+| 0x00003 | 0x0400 | Exception |
+
+**All interrupts run in CS=0!**
+
+### 8.2 Simple Interrupt Handler
+```assembly
+simple_irq:
+    ; AUTO: Switched to Shadow View
+    ST R1, [SS:SP, 0]  ; Save working register
+    
+    ; Quick ISR processing
+    ; ...
+    
+    LD R1, [SS:SP, 0]  ; Restore register
+    RETI               ; Switch back to Normal View
+```
 
 ---
 
 ## 9. Memory Addressing
 
-### 9.1 Segmented Addressing
-**Physical Address = (Segment << 4) + Effective Address**
+### 9.1 Complete Word-Based Addressing
 
-20-bit physical address space (1MB) using 16-bit effective addresses.
+**The entire cMIN-16a system operates on word basis:**
+- **CPU-internal**: 16-bit Effective Address (A[15:0]) - Word Addresses
+- **Memory Interface**: 20-bit Word Addresses (A[19:0])
+- **Memory chips**: Addressed directly with word addresses
+- **No byte-address conversion** at any level
 
-### 9.2 Addressing Modes
+### 9.2 Address Calculation
 
-1. **Short Offset**: Base register + 0-3 bytes
-   - Format: `[Seg:Base + offset2]`
-   - **Range: 0 to 3 only** (2-bit unsigned immediate)
+**Complete System (Word Addresses):**
+```
+Effective_Address: 16-bit (A[15:0]) - 0x0000 to 0xFFFF Words
+Segment: 4-bit (0x0-0xF)
+Physical_Word_Address = (Segment << 4) + Effective_Address
+```
 
-2. **Medium Offset**: R0-based + 0-127 bytes  
-   - Format: `[Seg:R0 + offset7]`
-   - Range: 0 to +127 bytes
+**Memory Interface:**
+- **A[19:0]** - 20-bit Word Addresses
+- **D[15:0]** - 16-bit Data Bus
+- **No Byte Enable** signals needed
 
-3. **PC-relative**: Via MOV instruction
-   - `MOV Rd, PC, imm2` for small offsets (0-3)
-   - `LSI + ALU` for larger offsets
+### 9.3 Memory Architecture
+
+**Memory Organization:**
+- **20-bit Word Addresses** = 1,048,576 Words total
+- **16-bit per Word** = 2MB total capacity
+- **Per Segment**: 64K Words = 128KB
+
+**Memory Chip Options:**
+- **16-bit memory chips**: 1 chip per word, direct connection
+- **4-bit memory chips**: 4 chips in parallel, each providing 4 bits
+- **1-bit memory chips**: 16 chips in parallel, each providing 1 bit
+
+### 9.4 Example Memory Access
+
+```assembly
+; CPU sends word addresses directly to memory
+LD R1, [DS:0x1234, 0]  
+; → Physical Word Address = (DS << 4) + 0x1234
+; → Memory delivers 16-bit word from this address
+
+ST R2, [DS:0x5678, 1]
+; → Physical Word Address = (DS << 4) + 0x5678 + 1
+; → Memory stores 16-bit word at this address
+```
+
+### 9.5 Advantages of Word-Based Addressing
+
+1. **Simpler Hardware**: No byte-enable logic required
+2. **Faster Access**: Always complete 16-bit words
+3. **Simpler Memory Controller**: Direct addressing
+4. **Consistent Data Width**: 16-bit throughout system
 
 ---
 
-*cMIN-16a Architecture Specification v2.5 (Milestone 1r3) - With SWB/INV instructions and corrected SMV mnemonics*
+## Appendix A: Flag Bitmask Constants
+
+```assembly
+; Recommended constants for flag manipulation
+N_FLAG  = 0x01  ; Negative flag
+Z_FLAG  = 0x02  ; Zero flag
+V_FLAG  = 0x04  ; Overflow flag  
+C_FLAG  = 0x08  ; Carry flag
+S_FLAG  = 0x10  ; In ISR flag (Shadow View active)
+I_FLAG  = 0x20  ; Interrupt enable flag
+```
+
+## Appendix B: SMV Usage Reference
+
+### Normal Mode (S=0):
+- `SMV Rd, APC` - Read shadow PC (inactive in normal mode)
+- `SMV Rd, APSW` - Read shadow PSW (inactive in normal mode)
+- `SMV Rd, PSW` - Read current PSW (active)
+
+### ISR Mode (S=1):
+- `SMV Rd, PC` - Read normal PC (inactive in ISR mode)
+- `SMV Rd, PSW` - Read current PSW (active)
+- `SMV Rd, APSW` - Read normal PSW (inactive in ISR mode)
+
+## Appendix C: Register Pair Reference
+
+### Available Register Pairs:
+- **R0:R1** - Frequently for operation results
+- **R2:R3** - General 32-bit values  
+- **R4:R5** - General 32-bit values
+- **R6:R7** - General 32-bit values
+- **R8:R9** - General 32-bit values
+- **R10:R11** - General 32-bit values
+- **R12:R13** - General 32-bit values  
+- **R14:R15** - Link Register & Program Counter pair (use with caution)
+
+### Invalid MUL/DIV Operations:
+- `MUL R1, R2` → **Error!** R1 is odd
+- `DIV R15, R0` → **Error!** R15 is odd
+- `MUL R3, R4` → **Error!** R3 is odd
+
+## Appendix D: Performance Characteristics
+
+- **Pipeline Stages**: 3 (Fetch, Decode, Execute)
+- **Estimated CPI**: 1.05-1.15
+- **Branch Penalty**: 2 cycles (misprediction)
+- **Load-Use Stall**: 1 cycle
+- **Interrupt Latency**: 2 cycles (access switching only)
+- **Shift Operations**: 1 cycle (all types)
+- **MUL/DIV Operations**: 4-8 cycles (depending on operands)
+
+---
+
+*cMIN-16a Architecture Specification v2.6 (Milestone 1r4) - Complete with word-based addressing and corrected instruction examples*
