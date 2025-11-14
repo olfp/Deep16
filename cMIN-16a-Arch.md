@@ -1,5 +1,7 @@
-# cMIN-16a Architecture Specification v3.0 (Final)
-## 16-bit RISC Processor with Shadow Registers and Enhanced Memory Addressing
+Perfekt! Hier ist die korrigierte Deep16 Architecture Specification (Milestone 1r5a):
+
+# Deep16 Architecture Specification v3.1 (Milestone 1r5a)
+## 16-bit RISC Processor with Enhanced Memory Addressing
 
 ---
 
@@ -20,7 +22,7 @@
 
 ## 1. Processor Overview
 
-cMIN-16a is a 16-bit RISC processor with:
+Deep16 is a 16-bit RISC processor with:
 - **16-bit fixed-length instructions**
 - **16 general-purpose registers** + **shadow register views**
 - **Segmented memory addressing** (2MB physical address space)
@@ -43,24 +45,24 @@ cMIN-16a is a 16-bit RISC processor with:
 
 ### 2.1 General Purpose Registers (16-bit)
 
-| Register | Conventional Use | Binary |
-|----------|------------------|--------|
-| R0       | LDI destination, temporary | 0000 |
-| R1       | General purpose | 0001 |
-| R2       | General purpose | 0010 |
-| R3       | General purpose | 0011 |
-| R4       | General purpose | 0100 |
-| R5       | General purpose | 0101 |
-| R6       | General purpose | 0110 |
-| R7       | General purpose | 0111 |
-| R8       | General purpose | 1000 |
-| R9       | General purpose | 1001 |
-| R10      | General purpose | 1010 |
-| R11      | General purpose | 1011 |
-| R12      | General purpose | 1100 |
-| R13      | Stack Pointer (SP) | 1101 |
-| R14      | Link Register (LR) | 1110 |
-| R15      | Program Counter (PC) | 1111 |
+| Register | Alias | Conventional Use | Binary |
+|----------|-------|------------------|--------|
+| R0       |       | LDI destination, temporary | 0000 |
+| R1       |       | General purpose | 0001 |
+| R2       |       | General purpose | 0010 |
+| R3       |       | General purpose | 0011 |
+| R4       |       | General purpose | 0100 |
+| R5       |       | General purpose | 0101 |
+| R6       |       | General purpose | 0110 |
+| R7       |       | General purpose | 0111 |
+| R8       |       | General purpose | 1000 |
+| R9       |       | General purpose | 1001 |
+| R10      |       | General purpose | 1010 |
+| R11      |       | General purpose | 1011 |
+| R12      | FP    | Frame Pointer | 1100 |
+| R13      | SP    | Stack Pointer | 1101 |
+| R14      | LR    | Link Register | 1110 |
+| R15      | PC    | Program Counter | 1111 |
 
 ### 2.2 Special Registers
 
@@ -195,7 +197,10 @@ Bits: [10][ d ][ Rd ][ Rb ][ offset5 ]
 ```
 - **d=0**: Load `Rd ← Mem[implicit_segment:Rb + offset]`
 - **d=1**: Store `Mem[implicit_segment:Rb + offset] ← Rd`
-- **Implicit segment**: Uses PSW SR/ER fields for SS/ES access
+- **Implicit segment**: Uses PSW SR/ER fields to determine segment:
+  - **If Rb = SR**: Use Stack Segment (SS)
+  - **If Rb = ER**: Use Extra Segment (ES) 
+  - **Otherwise**: Use Data Segment (DS)
 - **offset5**: 5-bit unsigned immediate (0-31 words)
 - **Operands**: 3 (Rd, Rb, offset)
 
@@ -209,7 +214,7 @@ Bits: [110][ op3 ][ Rd ][ w ][ i ][ Rs/imm4 ]
 - **w=1**: Write result to Rd
 - **i=0**: Register mode `Rd ← Rd op Rs`
 - **i=1**: Immediate mode `Rd ← Rd op imm4`
-- **Operands**: 2-3 (Rd, Rs/imm, [w=0])
+- **Operands**: 2 (Rd, Rs/imm) + optional `w=0`
 
 ### 5.4 JMP - Jump/Branch Operations
 ```
@@ -237,6 +242,7 @@ Bits: [11110][ d ][ seg2 ][ Rd ][ Rs ]
 - **d=0**: Load `Rd ← Mem[seg:Rs]`
 - **d=1**: Store `Mem[seg:Rs] ← Rd`
 - **seg2**: 00=CS, 01=DS, 10=SS, 11=ES
+- **No immediate offset** - pure register indirect
 - **Operands**: 3 (Rd, Rs, seg)
 
 ### 5.7 MOV - Move with Offset
@@ -381,51 +387,58 @@ Bits: [1111111111110][ op3 ]
 
 ## 7. Programming Examples
 
-### 7.1 Basic Arithmetic
+### 7.1 Basic Arithmetic (Korrigiert)
 ```assembly
 ; Initialize registers
 LDI 100        ; R0 = 100
 MOV R1, R0, 0  ; R1 = 100
 LSI R2, -5     ; R2 = -5
 
-; Arithmetic operations
+; Arithmetic operations - nur 2 Operanden!
 ADD R3, R1, R2     ; R3 = 100 + (-5) = 95
+SUB R4, R3, 50     ; R4 = 95 - 50 = 45
+
+; Vergleich (nur Flags setzen)
 SUB R0, R3, 50, w=0 ; Compare R3 with 50 (flags only)
 
 ; 32-bit multiplication
-MUL R4, R1, 10, i=1 ; R4:R5 = R1 × 10 = 1000 (0x03E8)
+MUL R4, 10, i=1    ; R4:R5 = R4 × 10, Rd muss gerade sein!
 ```
 
-### 7.2 Memory Access with Implicit Segments
+### 7.2 Memory Access (Korrigiert)
 ```assembly
-; Setup stack register
-SET 0x0640     ; Set SR=6 (R6 as stack base), DS=0
+; Setup stack register (SR=13 für SP)
+SET 0x064D     ; Set SR=13 (SP), DS=0
 
-; Stack operations using implicit segment
-LD R1, [SS:R6, 0]    ; Load from stack (R6 + 0)
-ST R2, [SS:R6, 1]    ; Store to stack (R6 + 1)
-LD R3, [SS:R6, 31]   ; Load from stack (R6 + 31)
+; Stack operations using implicit segment - kein explizites Segment!
+LD R1, [SP, 0]     ; Load from stack (SS:SP + 0)
+ST R2, [SP, 1]     ; Store to stack (SS:SP + 1) 
+LD R3, [SP, 31]    ; Load from stack (SS:SP + 31)
 
-; Data segment operations
-LD R4, [DS:R7, 0]    ; Load from data segment
-ST R5, [DS:R8, 15]   ; Store to data segment
+; Data segment operations (Rb ≠ SR/ER → DS)
+LD R4, [R7, 0]     ; Load from data segment (DS:R7 + 0)
+ST R5, [R8, 15]    ; Store to data segment (DS:R8 + 15)
+
+; Explizites Segment mit LDS/STS
+LDS R6, SS, SP     ; Load from stack segment (explizit)
+STS R7, ES, R9     ; Store to extra segment (explizit)
 ```
 
 ### 7.3 Control Flow
 ```assembly
 ; Function call
-MOV R14, PC, 2   ; Save return address
-JMP function     ; Call function
+MOV LR, PC, 2      ; Save return address in Link Register
+JMP function       ; Call function
 
 function:
     ; Function code
     ADD R1, R1, 1
-    JRL R14       ; Return using MOV PC, R14
+    MOV PC, LR      ; Return using MOV (kein JRL mehr!)
 
 ; Conditional jumps
 ADD R2, R2, 1, w=0 ; Update flags
-JZ  zero_case     ; Jump if result was zero
-JN  negative_case ; Jump if result was negative
+JZ  zero_case      ; Jump if result was zero
+JN  negative_case  ; Jump if result was negative
 ; ... continue ...
 
 zero_case:
@@ -433,7 +446,7 @@ zero_case:
     JMP continue
 
 negative_case:
-    ; Handle negative case
+    ; Handle negative case  
     JMP continue
 
 continue:
@@ -448,19 +461,19 @@ irq_handler:
     ; AUTO: Switched to Shadow View
     
     ; Save context using stack
-    ST R1, [SS:SP, 0]
-    ST R2, [SS:SP, 1]
+    ST R1, [SP, 0]
+    ST R2, [SP, 1]
     
     ; Examine pre-interrupt state
     SMV R3, PC       ; Get interrupted PC
-    ST R3, [SS:SP, 2]
+    ST R3, [SP, 2]
     
     ; Interrupt processing
     ; ...
     
     ; Restore context
-    LD R2, [SS:SP, 1]
-    LD R1, [SS:SP, 0]
+    LD R2, [SP, 1]
+    LD R1, [SP, 0]
     
     RETI             ; Return to Normal View
 ```
@@ -492,7 +505,7 @@ irq_handler:
 
 ### 9.1 Complete Word-Based Addressing
 
-**The entire cMIN-16a system operates on word basis:**
+**The entire Deep16 system operates on word basis:**
 - **CPU-internal**: 16-bit Effective Address (A[15:0]) - Word Addresses
 - **Memory Interface**: 20-bit Word Addresses (A[19:0])
 - **Memory chips**: Addressed directly with word addresses
@@ -514,10 +527,15 @@ Physical_Word_Address = (Segment << 4) + Effective_Address
 
 ### 9.3 Implicit Segment Usage
 
-**LD/ST with implicit segments uses PSW fields:**
-- **Stack operations**: Use SS segment with SR[3:0] as base register
-- **Extra operations**: Use ES segment with ER[3:0] as base register
-- **Dual mode**: When DS/DE=1, use register pairs (ignores LSB of SR/ER)
+**LD/ST determines segment automatically:**
+- **If Rb = SR**: Use Stack Segment (SS)
+- **If Rb = ER**: Use Extra Segment (ES) 
+- **Otherwise**: Use Data Segment (DS)
+
+**Typische Konfiguration:**
+- **SR = 13** (SP = Stack Pointer) → Stack-Zugriffe über SS
+- **ER = 12** (FP = Frame Pointer) → Extra-Zugriffe über ES
+- **Andere Register** → Data-Zugriffe über DS
 
 ---
 
@@ -551,4 +569,4 @@ Physical_Word_Address = (Segment << 4) + Effective_Address
 
 ---
 
-*cMIN-16a Architecture Specification v3.0 - Complete with all instruction formats and implementation details*
+*Deep16 Architecture Specification v3.1 (Milestone 1r5a) - Complete with corrected examples and register aliases*
