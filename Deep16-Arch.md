@@ -1,4 +1,4 @@
-# Deep16 Architecture Specification v3.2 (Milestone 1r6)
+# Deep16 Architecture Specification v3.2 (Milestone 1r7)
 ## 16-bit RISC Processor with Enhanced Memory Addressing
 
 ---
@@ -36,7 +36,7 @@ Deep16 is a 16-bit RISC processor with:
 
 ### Key Features
 - All instructions exactly 16 bits
-- 16 user-visible registers + PC/PSW shadow views
+- 16 user-visible registers + PC/PSW/CS shadow views
 - Hardware-assisted interrupt context switching
 - 4 segment registers for memory management
 - Compact encoding with variable-length opcodes
@@ -76,6 +76,7 @@ Deep16 is a 16-bit RISC processor with:
 | PSW      | Processor Status Word (Flags) | 16 |
 | PC'      | Program Counter Shadow View | 16 |
 | PSW'     | Processor Status Word Shadow View | 16 |
+| **CS'**  | **Code Segment Shadow Register** | **16** |
 
 ### 2.3 Segment Registers (16-bit)
 
@@ -119,47 +120,41 @@ Deep16 is a 16-bit RISC processor with:
 ### 3.1 Access Switching (No Data Copying)
 
 **Hardware Implementation:**
-- **Single set of physical registers** (PC, PSW)
+- **Two complete sets** of physical registers (PC, PSW, CS) 
 - **S-flag in PSW** controls whether "Normal" or "Shadow" view is accessed
-- **No actual data copying** during interrupts
-- **CS is always 0 for interrupts**
+- **PSW' always mirrors the S-flag** to maintain consistency
+- **No actual data copying** during interrupts - just view switching
 
 ### 3.2 Automatic Context Switching
 
 **On Interrupt:**
-- `PSW.S ← 1` (Switch to Shadow View)
-- `PC ← interrupt_vector` (Write to Shadow PC in Shadow Mode)
-- `CS ← 0` (Interrupts always run in Segment 0)
-- `PSW.I ← 0` (Disable interrupts)
+- `PSW.S ← 1` (Switch to Shadow View - now accessing shadow registers)
+- `PSW'.S ← 1` (Keep shadow PSW in sync)
+- `CS ← 0` (Interrupts always run in Segment 0 - this writes to shadow CS)
+- `PSW.I ← 0` (Disable interrupts - this writes to shadow PSW)
+- `PC ← interrupt_vector` (Jump to ISR - this writes to shadow PC)
 
 **On RETI:**
-- `PSW.S ← 0` (Switch back to Normal View)
-- `PSW.I ← 1` (Enable interrupts)
+- `PSW.S ← 0` (Switch back to Normal View - now accessing normal registers)  
+- `PSW'.S ← 0` (Keep shadow PSW in sync)
+- `PSW.I ← 1` (Enable interrupts - this writes to normal PSW)
 
 ### 3.3 SMV Instruction - Special Move
 
-**Access to non-active registers based on PSW.S:**
+**Consistent Logic (regardless of S flag):**
+- **APC/APSW/ACS** always access the **alternate** (inactive) registers
+- **PC/PSW/CS** always access the **current active** registers
 
-**Normal Mode (S=0):**
-| SRC2 | Mnemonic | Effect |
-|------|----------|--------|
-| 00 | SMV DST, APC | `DST ← PC'` (Shadow PC) |
-| 01 | SMV DST, APSW | `DST ← PSW'` (Shadow PSW) |
-| 10 | SMV DST, PSW | `DST ← PSW` (Normal PSW) |
-| 11 | **LJMP** | `PC ← Mem[DST]`, `CS ← Mem[DST+1]` |
+| SRC2 | Mnemonic | Effect (Both Modes) |
+|------|----------|---------------------|
+| 00 | SMV DST, APC | `DST ← alternate_PC` |
+| 01 | SMV DST, APSW | `DST ← alternate_PSW` |
+| 10 | SMV DST, PSW | `DST ← current_PSW` |
+| 11 | SMV DST, ACS | `DST ← alternate_CS` |
 
-**ISR Mode (S=1):**
-| SRC2 | Mnemonic | Effect |
-|------|----------|--------|
-| 00 | SMV DST, PC | `DST ← PC` (Normal PC) |
-| 01 | SMV DST, APSW | `DST ← PSW'` (Normal PSW) |
-| 10 | SMV DST, PSW | `DST ← PSW` (Shadow PSW) |
-| 11 | **LJMP** | `PC ← Mem[DST]`, `CS ← Mem[DST+1]` |
-
-**Consistent Logic:**
-- **APC/APSW** always access the **alternate** (inactive) registers
-- **PC/PSW** always access the **current active** registers  
-- **LJMP** functionality is identical in both modes
+**LJMP Functionality:**
+- **src2 = 11** with specific encoding: `LJMP Rd` where Rd must be even
+- `PC ← R[Rd]`, `CS ← R[Rd+1]` (Register-based long jump)
 
 ---
 
@@ -287,7 +282,7 @@ Bits: [1111111110][ src2 ][ dst4 ]
       10           2        4
 ```
 - **src2 = 00-10**: Special Move (access shadow/normal registers)
-- **src2 = 11**: Long Jump `PC ← Mem[dst]`, `CS ← Mem[dst+1]`
+- **src2 = 11**: Long Jump `PC ← R[dst]`, `CS ← R[dst+1]` (dst must be even)
 - **Operands**: 2 (src, dst) or 1 (dst for LJMP)
 
 ### 5.11 SWB/INV - Swap Bytes / Invert
@@ -321,8 +316,8 @@ Bits: [1111111111110][ op3 ]
 
 ### 6.1 ALU Operation Codes (op3)
 
-| op3 | Mnemonic | Description | Flags | i=0 (16-bit) | i=1 (32-bit) |
-|-----|----------|-------------|-------|--------------|--------------|
+| op3 | Mnemonic | Description | Flags | i=0 (Register) | i=1 (Immediate) |
+|-----|----------|-------------|-------|----------------|-----------------|
 | 000 | ADD | Addition | N,Z,V,C | `Rd ← Rd + Rs` | `Rd ← Rd + imm4` |
 | 001 | SUB | Subtraction | N,Z,V,C | `Rd ← Rd - Rs` | `Rd ← Rd - imm4` |
 | 010 | AND | Logical AND | N,Z | `Rd ← Rd & Rs` | `Rd ← Rd & imm4` |
@@ -400,22 +395,26 @@ Bits: [1111111111110][ op3 ]
 ### 7.1 Basic Arithmetic
 ```assembly
 ; Initialize registers
-LDI 100        ; R0 = 100
-MOV R1, R0, 0  ; R1 = 100
-LSI R2, -5     ; R2 = -5
+LDI 42         ; R0 = 42
+MOV R1, R0, 0  ; R1 = 42
+LSI R2, 10     ; R2 = 10
 
-; Arithmetic operations
-ADD R3, R1, R2     ; R3 = 100 + (-5) = 95
-SUB R4, R3, 50     ; R4 = 95 - 50 = 45
+; 2-operand arithmetic operations
+ADD R1, R2     ; R1 = 42 + 10 = 52
+SUB R1, 5      ; R1 = 52 - 5 = 47
+
+; 3-operand simulation using MOV
+MOV R3, R1, 0  ; R3 = R1 (copy first operand)
+ADD R3, R2     ; R3 = R3 + R2 (R1 + R2)
 
 ; Comparison (flags only)
-SUB R0, R3, 50, w=0 ; Compare R3 with 50
+SUB R1, R2, w=0 ; Compare R1 and R2
 
 ; 32-bit multiplication
-MUL R4, 10, i=1    ; R4:R5 = R4 × 10
+MUL R4, 10, i=1 ; R4:R5 = R4 × 10
 
 ; Two's complement with new NEG instruction
-NEG R2             ; R2 = -R2 (Two's complement)
+NEG R2         ; R2 = -R2 (Two's complement)
 ```
 
 ### 7.2 Memory Access
@@ -424,34 +423,29 @@ NEG R2             ; R2 = -R2 (Two's complement)
 SET 0x064D     ; Set SR=13 (SP), DS=0
 
 ; Stack operations using implicit segment
-LD R1, [SP, 0]     ; Load from stack (SS:SP + 0)
-ST R2, [SP, 1]     ; Store to stack (SS:SP + 1) 
-LD R3, [SP, 31]    ; Load from stack (SS:SP + 31)
+LD R1, SP, 0   ; Load from stack (SS:SP + 0)
+ST R2, SP, 1   ; Store to stack (SS:SP + 1) 
+LD R3, SP, 31  ; Load from stack (SS:SP + 31)
 
 ; Data segment operations (Rb ≠ SR/ER → DS)
-LD R4, [R7, 0]     ; Load from data segment (DS:R7 + 0)
-ST R5, [R8, 15]    ; Store to data segment (DS:R8 + 15)
+LD R4, R7, 0   ; Load from data segment (DS:R7 + 0)
+ST R5, R8, 15  ; Store to data segment (DS:R8 + 15)
 
 ; Explicit segment with LDS/STS
-LDS R6, SS, SP     ; Load from stack segment (explicit)
-STS R7, ES, R9     ; Store to extra segment (explicit)
+LDS R6, SS, SP ; Load from stack segment (explicit)
+STS R7, ES, R9 ; Store to extra segment (explicit)
 ```
 
 ### 7.3 Control Flow
 ```assembly
 ; Function call
-MOV LR, PC, 2      ; Save return address in Link Register
-JMP function       ; Call function
+MOV LR, PC, 2  ; Save return address in Link Register
+JMP function   ; Call function
 
 function:
     ; Function code
     ADD R1, R1, 1
-    MOV PC, LR      ; Return using MOV
-
-; Long jump between segments
-LDI jump_table
-MOV R2, R0, 0
-LJMP R2            ; Long jump to CS=Mem[R2], PC=Mem[R2+1]
+    MOV PC, LR  ; Return using MOV
 
 ; Conditional jumps
 ADD R2, R2, 1, w=0 ; Update flags
@@ -470,7 +464,35 @@ continue:
     ; Continue execution
 ```
 
-### 7.4 Number Manipulation
+### 7.4 Inter-Segment Subroutine Call
+```assembly
+; Inter-segment subroutine call with context saving
+far_call:
+    ; Save current CS and PC for return
+    SMV R8, ACS     ; R8 = alternate CS (current CS in normal mode)
+    MOV R9, PC, 2   ; R9 = return address (PC + 2)
+    
+    ; Setup target address (CS=0x1000, PC=0x0200)
+    LDI 0x1000
+    MOV R10, R0, 0  ; R10 = target CS
+    LDI 0x0200
+    MOV R11, R0, 0  ; R11 = target PC
+    
+    ; Perform long jump
+    LJMP R10        ; Jump to CS=R10, PC=R11
+
+; In the far subroutine (segment 0x1000)
+far_subroutine:
+    ; Subroutine code here
+    ; ...
+    
+    ; Return to caller: restore CS and PC
+    MOV R10, R8, 0  ; R10 = saved CS
+    MOV R11, R9, 0  ; R11 = saved return address
+    LJMP R10        ; Return to original segment
+```
+
+### 7.5 Number Manipulation
 ```assembly
 ; Number conversion examples
 LDI 0x1234
@@ -490,7 +512,7 @@ done:
     ; R2 contains absolute value
 ```
 
-### 7.5 Interrupt Handling
+### 7.6 Interrupt Handling
 ```assembly
 ; Interrupt handler in segment 0
 .org 0x0020
@@ -498,21 +520,21 @@ irq_handler:
     ; AUTO: Switched to Shadow View
     
     ; Save context using stack
-    ST R1, [SP, 0]
-    ST R2, [SP, 1]
+    ST R1, SP, 0
+    ST R2, SP, 1
     
     ; Examine pre-interrupt state
     SMV R3, PC       ; Get interrupted PC (normal PC)
-    ST R3, [SP, 2]
-    SMV R4, APSW     ; Get interrupted PSW (normal PSW)
-    ST R4, [SP, 3]
+    ST R3, SP, 2
+    SMV R4, ACS      ; Get interrupted CS (normal CS)
+    ST R4, SP, 3
     
     ; Interrupt processing
     ; ...
     
     ; Restore context
-    LD R2, [SP, 1]
-    LD R1, [SP, 0]
+    LD R2, SP, 1
+    LD R1, SP, 0
     
     RETI             ; Return to Normal View
 ```
@@ -523,20 +545,20 @@ irq_handler:
 
 ### 8.1 Interrupt Vector Table (Word Addresses)
 
-| Word Address | PC Value | Purpose |
-|--------------|---------|---------|
-| 0x00000 | 0x0100 | Reset |
-| 0x00001 | 0x0200 | Software Interrupt (SWI) |
-| 0x00002 | 0x0300 | Hardware Interrupt |
-| 0x00003 | 0x0400 | Exception |
-
-**All interrupts run in CS=0!**
+| Word Address | PC Value | Purpose | Priority |
+|--------------|---------|---------|----------|
+| 0x00000 | 0x0100 | **Reset** (highest priority) | 1 |
+| 0x00001 | 0x0200 | **Hardware Interrupt** | 2 |
+| 0x00002 | 0x0300 | **Software Interrupt (SWI)** | 3 |
+| 0x00003 | 0x0400 | **Exception** (lowest priority) | 4 |
 
 ### 8.2 Interrupt Priority
 1. Reset (highest priority)
 2. Hardware Interrupt
 3. Software Interrupt (SWI)
 4. Exception (lowest priority)
+
+**All interrupts run in CS=0!**
 
 ---
 
@@ -608,4 +630,4 @@ Physical_Word_Address = (Segment << 4) + Effective_Address
 
 ---
 
-*Deep16 Architecture Specification v3.2 (Milestone 1r6) - Complete with corrected SMV semantics and NEG instruction*
+*Deep16 Architecture Specification v3.2 (Milestone 1r7) - Complete with corrected shadow register semantics, 2-operand ALU format, and proper LJMP implementation*
