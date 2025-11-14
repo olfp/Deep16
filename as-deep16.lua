@@ -462,7 +462,7 @@ function Assembler:assemble_file(filename)
     return self.output
 end
 
--- NEW: Enhanced preprocess that handles .equ directives
+-- FIXED: Enhanced preprocess that handles .equ directives
 function Assembler:preprocess_equ_directives(source)
     local lines = self:split_lines(source)
     local other_lines = {}
@@ -470,18 +470,22 @@ function Assembler:preprocess_equ_directives(source)
     for _, line in ipairs(lines) do
         local cleaned_line = self:clean_line(line)
         
-        -- Handle .equ directive
+        -- Handle .equ directive - FIXED REGEX
         if cleaned_line:match("^%.equ%s+") then
-            local symbol, value = cleaned_line:match("^%.equ%s+(%S+)%s*[,]?%s*(.+)$")
+            local symbol, value = cleaned_line:match("^%.equ%s+([%w_]+)%s*,?%s*(.+)$")
             if symbol and value then
+                -- Remove any trailing commas from value
+                value = value:gsub(",.*", "")
                 local num_value = self:evaluate_expression_direct(value)
                 self.symbol_table[symbol] = num_value
                 print(string.format("Symbol definiert: %s = %d (0x%04X)", symbol, num_value, num_value))
             end
-        -- Handle symbol=value format (alternative to .equ)
+        -- Handle symbol=value format (alternative to .equ) - FIXED REGEX
         elseif cleaned_line:match("^[%w_]+%s*=%s*") and not cleaned_line:match(":") then
             local symbol, value = cleaned_line:match("^([%w_]+)%s*=%s*(.+)$")
             if symbol and value then
+                -- Remove any trailing commas from value
+                value = value:gsub(",.*", "")
                 local num_value = self:evaluate_expression_direct(value)
                 self.symbol_table[symbol] = num_value
                 print(string.format("Symbol definiert: %s = %d (0x%04X)", symbol, num_value, num_value))
