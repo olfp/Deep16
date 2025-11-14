@@ -1,6 +1,6 @@
 -- as-deep16.lua
 -- Deep16 Assembler Implementation for Milestone 1r6
--- CORRECTED VERSION with expression evaluation fix
+-- CORRECTED VERSION with directive processing fix
 
 local Assembler = {}
 Assembler.__index = Assembler
@@ -203,38 +203,38 @@ function Assembler:evaluate_expression_direct(expr)
     expr = expr:gsub("%s+", "")
     
     -- Debug-Ausgabe
-    -- print("DEBUG evaluate_expression_direct: '" .. expr .. "'")
+    print("DEBUG evaluate_expression_direct: '" .. expr .. "'")
     
     -- Direkte Dezimalzahl
     local num = tonumber(expr)
     if num then 
-        -- print("DEBUG: Direkte Zahl: " .. num)
+        print("DEBUG: Direkte Zahl: " .. num)
         return num 
     end
     
     -- Hex-Zahl (0x...)
     if expr:match("^0x[%x]+$") then
         local hex_val = tonumber(expr, 16)
-        -- print("DEBUG: Hex-Zahl: " .. expr .. " = " .. hex_val)
+        print("DEBUG: Hex-Zahl: " .. expr .. " = " .. hex_val)
         return hex_val
     end
     
     -- Binär-Zahl (0b...)
     if expr:match("^0b[01]+$") then
         local bin_val = tonumber(expr:sub(3), 2)
-        -- print("DEBUG: Binär-Zahl: " .. expr .. " = " .. bin_val)
+        print("DEBUG: Binär-Zahl: " .. expr .. " = " .. bin_val)
         return bin_val
     end
     
     -- Symbol (bereits definiert)
     if self.symbol_table[expr] then
-        -- print("DEBUG: Symbol: " .. expr .. " = " .. self.symbol_table[expr])
+        print("DEBUG: Symbol: " .. expr .. " = " .. self.symbol_table[expr])
         return self.symbol_table[expr]
     end
     
     -- Label (bereits definiert)
     if self.labels[expr] then
-        -- print("DEBUG: Label: " .. expr .. " = " .. self.labels[expr])
+        print("DEBUG: Label: " .. expr .. " = " .. self.labels[expr])
         return self.labels[expr]
     end
     
@@ -260,11 +260,11 @@ function Assembler:evaluate_expression_direct(expr)
     end)
     
     -- Debug-Ausgabe des verarbeiteten Ausdrucks
-    -- print("DEBUG: Verarbeiteter Ausdruck: '" .. processed .. "'")
+    print("DEBUG: Verarbeiteter Ausdruck: '" .. processed .. "'")
     
     -- Prüfe ob der Ausdruck nur gültige Zeichen enthält
     if processed:match("[^%d%+%-%*%/%(%)]") then
-        error("Ungültige Zeichen im Ausdruck: " .. processed)
+        error("Ungültige Zeichen im Ausdruck: '" .. processed .. "'")
     end
     
     -- Versuche den Ausdruck auszuwerten
@@ -274,7 +274,7 @@ function Assembler:evaluate_expression_direct(expr)
     
     if success then 
         local final_result = math.floor(result)
-        -- print("DEBUG: Auswertung erfolgreich: " .. final_result)
+        print("DEBUG: Auswertung erfolgreich: " .. final_result)
         return final_result
     end
     
@@ -654,7 +654,9 @@ function Assembler:pass2(source)
 end
 
 function Assembler:clean_line(line)
-    return line:gsub(";.*", ""):gsub("%s+$", ""):gsub("^%s+", "")
+    -- Remove comments and trim whitespace
+    local cleaned = line:gsub(";.*", ""):gsub("%s+$", ""):gsub("^%s+", "")
+    return cleaned
 end
 
 function Assembler:split_lines(text)
@@ -672,14 +674,17 @@ function Assembler:process_directive(line, is_pass1)
     directive = directive:upper()
     args = args:gsub("^%s+", ""):gsub("%s+$", "")
     
+    print(string.format("DEBUG: Processing directive .%s with args '%s'", directive, args))
+    
     if directive == "ORG" then
         local addr = self:evaluate_expression_direct(args)
-        -- print(string.format("ORG directive: %s -> %d (0x%04X)", args, addr, addr))
+        print(string.format("DEBUG: ORG directive: '%s' -> %d (0x%04X)", args, addr, addr))
         self.address = addr
     elseif directive == "DW" then
         if not is_pass1 then
             for value in args:gmatch("%S+") do
                 local num_value = self:evaluate_expression_direct(value)
+                print(string.format("DEBUG: DW value: '%s' -> %d (0x%04X)", value, num_value, num_value))
                 table.insert(self.output, num_value)
                 self.address = self.address + 1
             end
@@ -688,6 +693,8 @@ function Assembler:process_directive(line, is_pass1)
                 self.address = self.address + 1
             end
         end
+    else
+        print(string.format("DEBUG: Unsupported directive: .%s", directive))
     end
 end
 
