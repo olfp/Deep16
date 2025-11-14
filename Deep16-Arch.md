@@ -1,4 +1,4 @@
-# Deep16 Architecture Specification v3.2 (Milestone 1r7)
+# Deep16 Architecture Specification v3.2 (Milestone 1r8)
 ## 16-bit RISC Processor with Enhanced Memory Addressing
 
 ---
