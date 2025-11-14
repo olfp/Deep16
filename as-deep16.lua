@@ -1,6 +1,6 @@
 -- as-deep16.lua
 -- Deep16 Assembler Implementation for Milestone 1r6
--- COMPLETE VERSION with all instructions
+-- COMPLETE VERSION with .equ directive support
 
 local Assembler = {}
 Assembler.__index = Assembler
@@ -216,7 +216,7 @@ function Assembler:encode_alu(mnemonic, operands)
 end
 
 function Assembler:encode_shift(operands)
-    if #operands < 2 then error("Shift benötigt Rd, Count") end
+    if #operands ~= 2 then error("Shift benötigt Rd, Count") end
     
     local mnemonic = operands[1]:upper()
     local rd = self:parse_register(operands[2])
@@ -453,10 +453,45 @@ function Assembler:assemble_file(filename)
     -- Remove any problematic characters and normalize line endings
     source = source:gsub('\r\n', '\n'):gsub('\r', '\n')
     
+    -- Preprocess: handle .equ directives first
+    source = self:preprocess_equ_directives(source)
+    
     self:pass1(source)
     self:pass2(source)
     
     return self.output
+end
+
+-- NEW: Enhanced preprocess that handles .equ directives
+function Assembler:preprocess_equ_directives(source)
+    local lines = self:split_lines(source)
+    local other_lines = {}
+    
+    for _, line in ipairs(lines) do
+        local cleaned_line = self:clean_line(line)
+        
+        -- Handle .equ directive
+        if cleaned_line:match("^%.equ%s+") then
+            local symbol, value = cleaned_line:match("^%.equ%s+(%S+)%s*[,]?%s*(.+)$")
+            if symbol and value then
+                local num_value = self:evaluate_expression_direct(value)
+                self.symbol_table[symbol] = num_value
+                print(string.format("Symbol definiert: %s = %d (0x%04X)", symbol, num_value, num_value))
+            end
+        -- Handle symbol=value format (alternative to .equ)
+        elseif cleaned_line:match("^[%w_]+%s*=%s*") and not cleaned_line:match(":") then
+            local symbol, value = cleaned_line:match("^([%w_]+)%s*=%s*(.+)$")
+            if symbol and value then
+                local num_value = self:evaluate_expression_direct(value)
+                self.symbol_table[symbol] = num_value
+                print(string.format("Symbol definiert: %s = %d (0x%04X)", symbol, num_value, num_value))
+            end
+        else
+            table.insert(other_lines, line)
+        end
+    end
+    
+    return table.concat(other_lines, "\n")
 end
 
 function Assembler:pass1(source)
@@ -548,8 +583,8 @@ function main()
     end
     
     local assembler = Assembler.new()
-    print("Deep16 Assembler (Milestone 1r6) - Complete Version")
-    print("===================================================")
+    print("Deep16 Assembler (Milestone 1r6) - Complete Version with .equ support")
+    print("====================================================================")
     
     local success, machine_code = pcall(function() 
         return assembler:assemble_file(arg[1]) 
