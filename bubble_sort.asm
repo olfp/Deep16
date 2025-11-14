@@ -6,7 +6,8 @@
 .equ ARRAY_START, 0x0100
 .equ STACK_START, 0x0400
 
-.org 0x0000
+.start 0x0000
+.code 0x0000
 
 ; Register usage:
 ; R0  - Temporary, LDI destination
@@ -148,3 +149,6 @@ no_swap:
 sort_done:
     ; Return
     MOV R15, R14, 0     ; PC = return address
+
+.data 0x0100
+; Array will be initialized at runtime by init_array
