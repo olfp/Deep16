@@ -1,4 +1,3 @@
- simple_test.asm
 .org 0x0000
 
 start:
@@ -9,4 +8,3 @@ start:
     ST R3, R13, 0
     LD R5, R13, 0
     JMP start
-EOF
