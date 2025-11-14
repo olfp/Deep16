@@ -586,8 +586,6 @@ Physical_Word_Address = (Segment << 4) + Effective_Address
 - **16-bit per Word** = 2MB total capacity
 - **Per Segment**: 64K Words = 128KB
 
-Here's the rewritten section 9.3 with the requested clarifications:
-
 ## 9.3 Implicit Segment Usage
 
 ### Segment Determination in LD/ST Instructions
@@ -599,12 +597,12 @@ Here's the rewritten section 9.3 with the requested clarifications:
 - **If Rb = R0**: Always uses Data Segment (DS) - special case
 - **Otherwise**: Use Data Segment (DS)
 
-### Dual Register Mode (PSW-controlled)
+### Dual Registers for Segment Access (PSW-controlled)
 
 The PSW contains special control bits for extended segment access:
 
-- **DS bit (bit 10)**: When set, enables dual stack mode using SR:SR+1 register pair
-- **DE bit (bit 15)**: When set, enables dual extra mode using ER:ER+1 register pair
+- **DS bit (bit 10)**: When set, enables dual registers for stack segment access using SR:SR+1 register pair
+- **DE bit (bit 15)**: When set, enables dual registers for extra segment access using ER:ER+1 register pair
 
 **Special Register Zero Handling:**
 - **SR = 0**: Stack segment access is disabled (SR ignored)
@@ -612,11 +610,11 @@ The PSW contains special control bits for extended segment access:
 
 ### Examples
 
-**Example 1: Dual Stack Mode (SR=13, DS=1)**
+**Example 1: Dual Registers for Stack Segment Access (SR=13, DS=1)**
 ```
 PSW Configuration:
   SR[3:0] = 1101 (R13/SP)
-  DS = 1 (Dual Stack Mode enabled)
+  DS = 1 (Dual registers for stack segment access enabled)
 
 Segment Access:
   LD R1, SP, 0    → Uses SS (SP = R13)
@@ -624,39 +622,44 @@ Segment Access:
   LD R3, R7, 0    → Uses DS (R7 ≠ SR/ER)
 ```
 
-**Example 2: Single Stack Mode (SR=13, DS=0)**
+**Example 2: Single Register for Stack Segment Access (SR=13, DS=0)**
 ```
 PSW Configuration:
   SR[3:0] = 1101 (R13/SP) 
-  DS = 0 (Dual Stack Mode disabled)
+  DS = 0 (Dual registers for stack segment access disabled)
 
 Segment Access:
   LD R1, SP, 0    → Uses SS (SP = R13)
-  LD R2, FP, 0    → Uses DS (FP = R12, but dual mode disabled)
+  LD R2, FP, 0    → Uses DS (FP = R12, but dual registers disabled)
   LD R3, R0, 0    → Uses DS (R0 always uses DS)
   LD R4, R7, 0    → Uses DS (R7 ≠ SR/ER)
 ```
 
-**Example 3: Disabled Stack Access (SR=0)**
+**Example 3: Single Register for Extra Segment Access (ER=11, DE=0)**
 ```
 PSW Configuration:
-  SR[3:0] = 0000 (disabled)
-  DS = 1
+  ER[3:0] = 1011 (R11)
+  DE = 0 (Dual registers for extra segment access disabled)
 
 Segment Access:
-  LD R1, SP, 0    → Uses DS (SR=0 means SP/R13 ignored)
-  LD R2, R0, 0    → Uses DS (R0 always uses DS)
-  All accesses use DS segment
+  LD R1, R11, 0   → Uses ES (R11 = ER)
+  LD R2, R10, 0   → Uses DS (R10 ≠ SR/ER, dual registers disabled)
+  LD R3, R0, 0    → Uses DS (R0 always uses DS)
 ```
 
 ### Typical Configuration
 
 - **SR = 13** (SP = Stack Pointer) → Stack access via SS
-- **ER = 12** (FP = Frame Pointer) → Extra access via ES (when DE=1)
-- **DS = 1** → Enable dual stack mode for SP/FP pair
-- **DE = 0** → Disable dual extra mode (simpler memory model)
+- **DS = 1** → Enable dual registers for stack segment access (SP and FP)
+- **ER = 11** (R11) → Extra segment access via ES  
+- **DE = 0** → Single register for extra segment access
 
-This system provides flexible memory segmentation while maintaining efficient stack frame access through the SP/FP register pair.
+This configuration provides:
+- **Efficient stack operations** with dual registers for stack segment access (SP and FP both use SS)
+- **Flexible extra segment** with single register access (R11 uses ES)
+- **Simplified memory model** with clear separation of stack and data segments
+
+The dual registers for stack segment access allows efficient stack frame management where both the stack pointer (SP) and frame pointer (FP) automatically access the stack segment, while the extra segment provides additional memory space accessible through a single designated register.
 
 ---
 
