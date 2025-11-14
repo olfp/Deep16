@@ -2,6 +2,10 @@
 ; Bubble sort implementation for 42 random numbers
 ; Uses Deep16 assembler syntax
 
+.equ ARRAY_SIZE, 42
+.equ ARRAY_START, 0x0100
+.equ STACK_START, 0x0400
+
 .org 0x0000
 
 ; Register usage:
@@ -16,29 +20,24 @@
 ; R8  - Temporary for comparisons
 ; R13 - Stack Pointer (SP)
 
-; Constants
-ARRAY_SIZE = 42
-ARRAY_START = 0x0100
-
 start:
     ; Initialize stack pointer
-    LDI 0x0400
+    LDI STACK_START
     MOV R13, R0, 0      ; SP = 0x0400
 
     ; Initialize array with random data using a simple PRNG
-    JSR init_array
+    MOV R14, R15, 2     ; LR = return address (PC + 2)
+    JMP init_array
 
     ; Perform bubble sort
-    JSR bubble_sort
+    MOV R14, R15, 2     ; LR = return address (PC + 2)  
+    JMP bubble_sort
 
     ; Halt when done
     HLT
 
 ; Initialize array with pseudo-random data
 init_array:
-    ; Save return address
-    MOV R14, R15, 0     ; LR = return address
-
     ; Set up array pointer and size
     LDI ARRAY_START
     MOV R3, R0, 0       ; R3 = array pointer
@@ -52,9 +51,9 @@ init_array:
 init_loop:
     ; Generate pseudo-random number (simple LCG)
     MOV R0, R8, 0       ; R0 = state
-    LDI 1103515245 >> 16
+    LDI 16645           ; 1103515245 >> 16 (high part)
     MOV R1, R0, 0
-    LDI 1103515245 & 0xFFFF
+    LDI 23301           ; 1103515245 & 0xFFFF (low part)
     MOV R2, R0, 0
     ; Multiply state by 1103515245 (simplified)
     ADD R8, R8, R8      ; state *= 2
@@ -71,15 +70,11 @@ init_loop:
     SUB R7, R7, 1       ; counter--
     JNZ init_loop       ; Continue until counter = 0
 
-    ; Restore and return
+    ; Return
     MOV R15, R14, 0     ; PC = return address
-    RET
 
 ; Bubble sort implementation
 bubble_sort:
-    ; Save return address
-    MOV R14, R15, 0     ; LR = return address
-
     ; Initialize outer loop counter (i = 0)
     LDI 0
     MOV R1, R0, 0       ; R1 = i = 0
@@ -151,13 +146,5 @@ no_swap:
     JN outer_loop       ; If negative, i < limit, continue outer loop
 
 sort_done:
-    ; Restore and return
+    ; Return
     MOV R15, R14, 0     ; PC = return address
-    RET
-
-; Subroutine call/return macros (since we don't have actual CALL/RET instructions)
-; JSR label: MOV LR, PC, 2; JMP label
-; RET: MOV PC, LR, 0
-
-; Data section (the array will be stored starting at ARRAY_START)
-; The array is initialized at runtime, so no .dw needed here
