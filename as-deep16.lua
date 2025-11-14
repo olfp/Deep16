@@ -241,6 +241,7 @@ function Assembler:encode_shift(operands)
     return 0xCE00 | (rd << 8) | (c_flag << 7) | (shift_type << 5) | count
 end
 
+-- FIXED: encode_jmp function
 function Assembler:encode_jmp(mnemonic, operands)
     local jump_types = {JMP=0, JZ=1, JNZ=2, JC=3, JNC=4, JN=5, JNN=6}
     local type_val = jump_types[mnemonic] or error("Unbekannter Sprung-Typ")
@@ -250,14 +251,19 @@ function Assembler:encode_jmp(mnemonic, operands)
     local target = self:evaluate_expression(operands[1])
     if target == nil then error("Sprungziel erwartet Label oder Adresse") end
     
+    -- DEBUG: Check what type of value we got
+    if type(target) == "table" then
+        error("Label '" .. operands[1] .. "' nicht gefunden oder ungültig")
+    end
+    
     local relative_offset = target - (self.address + 1)
     
     if relative_offset < -256 or relative_offset > 255 then
-        error("Sprung-Offset zu groß: " .. relative_offset)
+        error("Sprung-Offset zu groß: " .. relative_offset .. " (Ziel: " .. target .. ", Aktuell: " .. (self.address + 1) .. ")")
     end
     
     if relative_offset < 0 then
-        relative_offset = 512 + relative_offset
+        relative_offset = 512 + relative_offset  -- Convert to 9-bit signed
     end
     
     return 0xE000 | (type_val << 9) | (relative_offset & 0x1FF)
@@ -504,6 +510,7 @@ function Assembler:preprocess_equ_directives(source)
     return table.concat(other_lines, "\n")
 end
 
+-- FIXED: pass1 function
 function Assembler:pass1(source)
     self.address = 0
     self.labels = {}
@@ -517,7 +524,8 @@ function Assembler:pass1(source)
             else
                 local label, rest = cleaned:match("^([%w_]+):%s*(.*)$")
                 if label then
-                    self.labels[label] = { address = self.address, segment = self.current_segment }
+                    -- Store just the address, not a table
+                    self.labels[label] = self.address
                     cleaned = rest
                 end
                 if cleaned and cleaned ~= "" and not cleaned:match("^;") then
@@ -610,7 +618,7 @@ function Assembler:process_directive(line, is_pass1)
     end
 end
 
--- NEW: Generate binary output for simulator
+-- Generate binary output for simulator
 function Assembler:generate_binary()
     local binary = {}
     
@@ -668,7 +676,7 @@ function Assembler:generate_binary()
     return binary
 end
 
--- NEW: Save binary to file
+-- Save binary to file
 function Assembler:save_binary(filename, binary_data)
     local file = io.open(filename, "wb")
     if not file then
