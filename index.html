@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deep16 (深十六) Integrated Development Environment</title>
+    <title>DeepWeb - Deep16 (深十六) Integrated Development Environment</title>
     <style>
         * {
             margin: 0;
@@ -19,9 +19,54 @@
             overflow: hidden;
         }
         
+        .header {
+            background: #007acc;
+            padding: 15px 20px;
+            border-bottom: 2px solid #3e3e42;
+        }
+        
+        .header h1 {
+            color: white;
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .header .subtitle {
+            color: #cdeeff;
+            font-size: 14px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            padding: 15px 20px;
+            background: #2d2d30;
+            border-bottom: 1px solid #3e3e42;
+        }
+        
+        button {
+            padding: 8px 16px;
+            background: #0e639c;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #1177bb;
+        }
+        
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        
         .container {
             display: flex;
-            height: 100vh;
+            height: calc(100vh - 150px);
             gap: 10px;
             padding: 10px;
         }
@@ -43,19 +88,21 @@
             padding: 10px;
             border-bottom: 1px solid #3e3e42;
             font-weight: bold;
+            font-size: 14px;
         }
         
         .editor {
             flex: 1;
             background: #1e1e1e;
             border: 1px solid #3e3e42;
-            padding: 10px;
+            padding: 15px;
             font-family: 'Courier New', monospace;
             font-size: 14px;
             color: #d4d4d4;
             resize: none;
             white-space: pre;
             overflow: auto;
+            line-height: 1.4;
         }
         
         .memory-display {
@@ -69,52 +116,28 @@
             line-height: 1.2;
         }
         
-        .controls {
-            display: flex;
-            gap: 10px;
-            padding: 10px;
-            background: #2d2d30;
-            border-top: 1px solid #3e3e42;
-        }
-        
-        button {
-            padding: 8px 16px;
-            background: #0e639c;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            font-family: 'Courier New', monospace;
-        }
-        
-        button:hover {
-            background: #1177bb;
-        }
-        
-        button:disabled {
-            background: #555;
-            cursor: not-allowed;
-        }
-        
         .status-bar {
-            padding: 5px 10px;
+            padding: 8px 20px;
             background: #007acc;
             font-size: 12px;
+            color: white;
         }
         
         .memory-line {
             display: flex;
             margin-bottom: 2px;
+            padding: 2px 4px;
         }
         
         .memory-address {
             color: #569cd6;
-            width: 60px;
+            width: 80px;
+            font-weight: bold;
         }
         
         .memory-bytes {
             color: #ce9178;
-            width: 120px;
+            width: 200px;
         }
         
         .memory-disassembly {
@@ -124,40 +147,141 @@
         
         .pc-marker {
             background: #264f78;
+            border-left: 3px solid #569cd6;
         }
         
-        .register-display {
-            background: #252526;
+        .registers-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
             padding: 10px;
+        }
+        
+        .register-section {
+            background: #252526;
             border: 1px solid #3e3e42;
-            margin-bottom: 10px;
-            font-size: 12px;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        
+        .section-title {
+            color: #569cd6;
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 13px;
+            border-bottom: 1px solid #3e3e42;
+            padding-bottom: 4px;
         }
         
         .register-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 5px;
+            gap: 6px;
         }
         
         .register {
             display: flex;
             justify-content: space-between;
+            align-items: center;
+            padding: 2px 4px;
+        }
+        
+        .register:hover {
+            background: #2a2d2e;
         }
         
         .register-name {
-            color: #569cd6;
+            color: #9cdcfe;
+            font-weight: bold;
+            font-size: 12px;
         }
         
         .register-value {
             color: #b5cea8;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .psw-display {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .psw-bits {
+            display: flex;
+            gap: 2px;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        
+        .psw-bit {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+        
+        .psw-label {
+            font-size: 10px;
+            color: #9cdcfe;
+        }
+        
+        .psw-value {
+            width: 20px;
+            height: 20px;
+            background: #3c3c3c;
+            border: 1px solid #5a5a5a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: #d4d4d4;
+        }
+        
+        .psw-value.on {
+            background: #0e639c;
+            color: white;
+        }
+        
+        .psw-hex {
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            color: #b5cea8;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+        
+        .special-registers {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        
+        .shadow-section {
+            background: #2d2d30;
+            border-left: 3px solid #ce9178;
         }
     </style>
 </head>
 <body>
+    <div class="header">
+        <h1>DeepWeb - Deep16 (深十六) IDE</h1>
+        <div class="subtitle">Architecture v3.5 (1r11) - Integrated Assembler & Simulator</div>
+    </div>
+    
+    <div class="controls">
+        <button id="assemble-btn">Assemble</button>
+        <button id="run-btn" disabled>Run</button>
+        <button id="step-btn" disabled>Step</button>
+        <button id="reset-btn" disabled>Reset</button>
+        <div style="flex: 1"></div>
+        <button id="load-example">Load Example</button>
+    </div>
+    
     <div class="container">
         <div class="editor-panel">
-            <div class="panel-header">Deep16 (深十六) Assembler Editor</div>
+            <div class="panel-header">Deep16 Assembler Editor</div>
             <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Example Program
 ; Simple addition test
 
@@ -186,50 +310,148 @@ data:
         </div>
         
         <div class="memory-panel">
-            <div class="panel-header">Deep16 (深十六) Memory & Registers</div>
-            
-            <div class="register-display">
-                <div class="register-grid" id="register-grid">
-                    <!-- Registers will be populated by JavaScript -->
+            <div class="panel-header">Deep16 Memory & Registers</div>
+            <div class="registers-container">
+                <!-- PSW Display -->
+                <div class="register-section">
+                    <div class="section-title">Processor Status Word (PSW)</div>
+                    <div class="psw-display">
+                        <div class="psw-bits">
+                            <div class="psw-bit">
+                                <div class="psw-label">DE</div>
+                                <div class="psw-value" id="psw-de">0</div>
+                            </div>
+                            <div class="psw-bit">
+                                <div class="psw-label">ER</div>
+                                <div class="psw-value" id="psw-er">0</div>
+                            </div>
+                            <div class="psw-bit">
+                                <div class="psw-label">DS</div>
+                                <div class="psw-value" id="psw-ds">0</div>
+                            </div>
+                            <div class="psw-bit">
+                                <div class="psw-label">DR</div>
+                                <div class="psw-value" id="psw-dr">0</div>
+                            </div>
+                            <div class="psw-bit">
+                                <div class="psw-label">X</div>
+                                <div class="psw-value" id="psw-x1">0</div>
+                            </div>
+                            <div class="psw-bit">
+                                <div class="psw-label">X</div>
+                                <div class="psw-value" id="psw-x2">0</div>
+                            </div>
+                            <div class="psw-bit">
+                                <div class="psw-label">I</div>
+                                <div class="psw-value" id="psw-i">0</div>
+                            </div>
+                            <div class="psw-bit">
+                                <div class="psw-label">S</div>
+                                <div class="psw-value" id="psw-s">0</div>
+                            </div>
+                            <div class="psw-bit">
+                                <div class="psw-label">C</div>
+                                <div class="psw-value" id="psw-c">0</div>
+                            </div>
+                            <div class="psw-bit">
+                                <div class="psw-label">V</div>
+                                <div class="psw-value" id="psw-v">0</div>
+                            </div>
+                            <div class="psw-bit">
+                                <div class="psw-label">Z</div>
+                                <div class="psw-value" id="psw-z">0</div>
+                            </div>
+                            <div class="psw-bit">
+                                <div class="psw-label">N</div>
+                                <div class="psw-value" id="psw-n">0</div>
+                            </div>
+                        </div>
+                        <div class="psw-hex" id="psw-hex">Full: 0x0000</div>
+                    </div>
+                </div>
+                
+                <!-- General Purpose Registers -->
+                <div class="register-section">
+                    <div class="section-title">General Purpose Registers (R0-R15)</div>
+                    <div class="register-grid" id="register-grid">
+                        <!-- Filled by JavaScript -->
+                    </div>
+                </div>
+                
+                <!-- Segment Registers -->
+                <div class="register-section">
+                    <div class="section-title">Segment Registers</div>
+                    <div class="special-registers">
+                        <div class="register">
+                            <span class="register-name">CS</span>
+                            <span class="register-value" id="reg-cs">0x0000</span>
+                        </div>
+                        <div class="register">
+                            <span class="register-name">DS</span>
+                            <span class="register-value" id="reg-ds">0x0000</span>
+                        </div>
+                        <div class="register">
+                            <span class="register-name">SS</span>
+                            <span class="register-value" id="reg-ss">0x0000</span>
+                        </div>
+                        <div class="register">
+                            <span class="register-name">ES</span>
+                            <span class="register-value" id="reg-es">0x0000</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Shadow Registers -->
+                <div class="register-section shadow-section">
+                    <div class="section-title">Shadow Registers (Interrupt Context)</div>
+                    <div class="special-registers">
+                        <div class="register">
+                            <span class="register-name">PSW'</span>
+                            <span class="register-value" id="reg-psw-shadow">0x0000</span>
+                        </div>
+                        <div class="register">
+                            <span class="register-name">PC'</span>
+                            <span class="register-value" id="reg-pc-shadow">0x0000</span>
+                        </div>
+                        <div class="register">
+                            <span class="register-name">CS'</span>
+                            <span class="register-value" id="reg-cs-shadow">0x0000</span>
+                        </div>
+                    </div>
                 </div>
             </div>
             
+            <div class="panel-header">Memory Display (Word Addressing)</div>
             <div id="memory-display" class="memory-display">
                 <!-- Memory content will be populated by JavaScript -->
             </div>
         </div>
     </div>
     
-    <div class="controls">
-        <button id="assemble-btn">Assemble</button>
-        <button id="run-btn" disabled>Run</button>
-        <button id="step-btn" disabled>Step</button>
-        <button id="reset-btn" disabled>Reset</button>
-        <div style="flex: 1"></div>
-        <button id="load-example">Load Example</button>
-    </div>
-    
     <div id="status-bar" class="status-bar">
-        Deep16 (深十六) IDE Ready - Architecture v3.5 (1r11)
+        DeepWeb Ready - Architecture v3.5 (1r11) - Enter assembly code and click 'Assemble'
     </div>
 
     <script>
-        // Deep16 Assembler and Simulator
-        class Deep16IDE {
+        // DeepWeb - Deep16 Assembler and Simulator
+        class DeepWeb {
             constructor() {
                 this.memory = new Array(65536).fill(0);
-                this.registers = new Array(8).fill(0);
+                this.registers = new Array(16).fill(0);
+                this.segmentRegisters = { CS: 0, DS: 0, SS: 0, ES: 0 };
+                this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
+                this.psw = 0;
                 this.labels = {};
                 this.running = false;
                 this.pc = 0;
                 
                 // Initialize registers
-                this.registers[6] = 0x7FFF; // SP
-                this.registers[7] = 0x0000; // PC
+                this.registers[13] = 0x7FFF; // SP
+                this.registers[15] = 0x0000; // PC
                 
                 this.setupEventListeners();
                 this.updateMemoryDisplay();
-                this.updateRegisterDisplay();
+                this.updateAllRegisterDisplays();
             }
             
             setupEventListeners() {
@@ -245,14 +467,13 @@ data:
                 this.status("Assembling...");
                 
                 try {
-                    // Simple assembler - will be expanded
                     const lines = source.split('\n');
                     let address = 0;
                     this.labels = {};
                     
                     // First pass: collect labels
                     for (let line of lines) {
-                        line = line.split(';')[0].trim(); // Remove comments
+                        line = line.split(';')[0].trim();
                         if (!line) continue;
                         
                         if (line.startsWith('.org')) {
@@ -260,8 +481,10 @@ data:
                             address = parseInt(orgValue, 16);
                         } else if (line.endsWith(':')) {
                             this.labels[line.slice(0, -1)] = address;
+                        } else if (line.startsWith('.word')) {
+                            address += 2;
                         } else {
-                            address += 2; // Assume each instruction is 2 bytes
+                            address += 2;
                         }
                     }
                     
@@ -277,24 +500,21 @@ data:
                             const orgValue = line.split(' ')[1];
                             address = parseInt(orgValue, 16);
                         } else if (line.endsWith(':')) {
-                            // Already handled in first pass
+                            // Label - already handled
                         } else if (line.startsWith('.word')) {
                             const value = parseInt(line.split(' ')[1], 16);
-                            this.memory[address] = value & 0xFF;
-                            this.memory[address + 1] = (value >> 8) & 0xFF;
+                            this.memory[address] = value & 0xFFFF;
                             address += 2;
                         } else {
-                            // Simple instruction encoding for demonstration
                             const instruction = this.encodeInstruction(line, address);
                             if (instruction !== null) {
-                                this.memory[address] = instruction & 0xFF;
-                                this.memory[address + 1] = (instruction >> 8) & 0xFF;
+                                this.memory[address] = instruction;
                                 address += 2;
                             }
                         }
                     }
                     
-                    this.status("Assembly successful!");
+                    this.status("Assembly successful! Program loaded at 0x" + this.registers[15].toString(16).toUpperCase());
                     document.getElementById('run-btn').disabled = false;
                     document.getElementById('step-btn').disabled = false;
                     document.getElementById('reset-btn').disabled = false;
@@ -317,18 +537,18 @@ data:
                         if (parts[1].startsWith('R') && parts[2].startsWith('R')) {
                             const rd = parseInt(parts[1].substring(1));
                             const rs = parseInt(parts[2].substring(1));
-                            return (0x8000 | (rd << 8) | (rs << 4));
+                            return 0x8000 | (rd << 8) | (rs << 4);
                         } else if (parts[1].startsWith('R') && !isNaN(parseInt(parts[2]))) {
                             const rd = parseInt(parts[1].substring(1));
                             const imm = parseInt(parts[2]);
-                            return (0x9000 | (rd << 8) | (imm & 0xFF));
+                            return 0x9000 | (rd << 8) | (imm & 0xFF);
                         }
                         break;
                     case 'ADD':
                         if (parts[1].startsWith('R') && parts[2].startsWith('R')) {
                             const rd = parseInt(parts[1].substring(1));
                             const rs = parseInt(parts[2].substring(1));
-                            return (0x0000 | (rd << 8) | (rs << 4));
+                            return 0x0000 | (rd << 8) | (rs << 4);
                         }
                         break;
                     case 'ST':
@@ -336,7 +556,7 @@ data:
                             const rd = parseInt(parts[1].substring(1));
                             const rb = parseInt(parts[2].substring(1));
                             const offset = parseInt(parts[3]);
-                            return (0xA000 | (rd << 8) | (rb << 4) | (offset & 0x0F));
+                            return 0xA000 | (rd << 8) | (rb << 4) | (offset & 0x0F);
                         }
                         break;
                     case 'HALT':
@@ -348,7 +568,7 @@ data:
             
             run() {
                 this.running = true;
-                this.status("Running...");
+                this.status("Running program...");
                 this.runCycle();
             }
             
@@ -358,7 +578,7 @@ data:
                 try {
                     this.step();
                     if (this.running) {
-                        setTimeout(() => this.runCycle(), 100); // 10 Hz
+                        setTimeout(() => this.runCycle(), 100);
                     }
                 } catch (error) {
                     this.running = false;
@@ -367,55 +587,74 @@ data:
             }
             
             step() {
-                const pc = this.registers[7];
-                const instruction = (this.memory[pc + 1] << 8) | this.memory[pc];
+                const pc = this.registers[15];
+                if (pc >= this.memory.length) {
+                    this.running = false;
+                    this.status("Program counter out of bounds");
+                    return;
+                }
                 
-                // Simple instruction decoding for demonstration
+                const instruction = this.memory[pc];
+                
+                // Simple instruction decoding
                 const opcode = (instruction >> 12) & 0xF;
-                const rd = (instruction >> 8) & 0x7;
-                const rs = (instruction >> 4) & 0x7;
+                const rd = (instruction >> 8) & 0xF;
+                const rs = (instruction >> 4) & 0xF;
                 const imm = instruction & 0xFF;
                 
                 switch (opcode) {
                     case 0x0: // ADD
                         this.registers[rd] += this.registers[rs];
-                        this.registers[7] += 2;
+                        this.registers[15] += 2;
                         break;
                     case 0x8: // MOV reg-reg
                         this.registers[rd] = this.registers[rs];
-                        this.registers[7] += 2;
+                        this.registers[15] += 2;
                         break;
                     case 0x9: // MOV immediate
                         this.registers[rd] = imm;
-                        this.registers[7] += 2;
+                        this.registers[15] += 2;
                         break;
                     case 0xA: // ST
                         const rb = rs;
                         const offset = instruction & 0xF;
                         const address = this.registers[rb] + offset;
-                        this.memory[address] = this.registers[rd] & 0xFF;
-                        this.memory[address + 1] = (this.registers[rd] >> 8) & 0xFF;
-                        this.registers[7] += 2;
+                        if (address < this.memory.length) {
+                            this.memory[address] = this.registers[rd];
+                        }
+                        this.registers[15] += 2;
                         break;
                     case 0xF: // HALT
                         this.running = false;
                         this.status("Program halted");
                         break;
                     default:
-                        this.registers[7] += 2; // NOP
+                        this.registers[15] += 2; // NOP
                 }
                 
+                // Update PSW flags based on last operation
+                this.updatePSWFlags();
                 this.updateMemoryDisplay();
-                this.updateRegisterDisplay();
+                this.updateAllRegisterDisplays();
+            }
+            
+            updatePSWFlags() {
+                // Simple flag updates for demonstration
+                // In a real implementation, this would update based on ALU operations
+                this.psw = 0;
+                // Set some example flags
+                if (this.registers[0] === 0) this.psw |= (1 << 1); // Z flag
+                if (this.registers[0] & 0x8000) this.psw |= (1 << 0); // N flag
             }
             
             reset() {
                 this.running = false;
                 this.registers.fill(0);
-                this.registers[6] = 0x7FFF; // SP
-                this.registers[7] = 0x0000; // PC
+                this.registers[13] = 0x7FFF; // SP
+                this.registers[15] = 0x0000; // PC
+                this.psw = 0;
                 this.updateMemoryDisplay();
-                this.updateRegisterDisplay();
+                this.updateAllRegisterDisplays();
                 this.status("Reset complete");
             }
             
@@ -423,36 +662,43 @@ data:
                 const display = document.getElementById('memory-display');
                 let html = '';
                 
-                for (let addr = 0; addr < 256; addr += 8) {
-                    const isPC = (addr <= this.registers[7] && this.registers[7] < addr + 8);
+                // Show memory in word format (16 words per line)
+                for (let addr = 0; addr < 256; addr += 16) {
+                    const isPC = (addr <= this.registers[15] && this.registers[15] < addr + 16);
                     const lineClass = isPC ? 'memory-line pc-marker' : 'memory-line';
                     
                     html += `<div class="${lineClass}">`;
-                    html += `<div class="memory-address">0x${addr.toString(16).padStart(4, '0')}</div>`;
+                    html += `<div class="memory-address">W:0x${addr.toString(16).padStart(4, '0')}</div>`;
                     html += `<div class="memory-bytes">`;
                     
-                    // Show bytes
-                    for (let i = 0; i < 8; i += 2) {
-                        const byte1 = this.memory[addr + i];
-                        const byte2 = this.memory[addr + i + 1];
-                        const word = (byte2 << 8) | byte1;
-                        html += `${word.toString(16).padStart(4, '0')} `;
+                    // Show 16 words per line
+                    for (let i = 0; i < 16; i++) {
+                        const wordAddr = addr + i;
+                        if (wordAddr < this.memory.length) {
+                            const word = this.memory[wordAddr];
+                            html += `${word.toString(16).padStart(4, '0')} `;
+                        }
                     }
                     
-                    html += `</div><div class="memory-disassembly">`;
-                    // Simple disassembly would go here
                     html += `</div></div>`;
                 }
                 
                 display.innerHTML = html;
             }
             
-            updateRegisterDisplay() {
+            updateAllRegisterDisplays() {
+                this.updateGeneralRegisters();
+                this.updatePSWDisplay();
+                this.updateSegmentRegisters();
+                this.updateShadowRegisters();
+            }
+            
+            updateGeneralRegisters() {
                 const grid = document.getElementById('register-grid');
                 let html = '';
                 
-                for (let i = 0; i < 8; i++) {
-                    const regName = i === 6 ? 'SP' : i === 7 ? 'PC' : `R${i}`;
+                for (let i = 0; i < 16; i++) {
+                    const regName = i === 12 ? 'FP' : i === 13 ? 'SP' : i === 14 ? 'LR' : i === 15 ? 'PC' : `R${i}`;
                     const value = this.registers[i];
                     html += `
                         <div class="register">
@@ -465,8 +711,43 @@ data:
                 grid.innerHTML = html;
             }
             
+            updatePSWDisplay() {
+                // Update individual PSW bits
+                const bits = [
+                    { id: 'psw-de', bit: 17 }, { id: 'psw-er', bit: 13 }, 
+                    { id: 'psw-ds', bit: 12 }, { id: 'psw-dr', bit: 11 },
+                    { id: 'psw-x1', bit: 6 }, { id: 'psw-x2', bit: 7 },
+                    { id: 'psw-i', bit: 5 }, { id: 'psw-s', bit: 4 },
+                    { id: 'psw-c', bit: 3 }, { id: 'psw-v', bit: 2 },
+                    { id: 'psw-z', bit: 1 }, { id: 'psw-n', bit: 0 }
+                ];
+                
+                bits.forEach(bitInfo => {
+                    const element = document.getElementById(bitInfo.id);
+                    const value = (this.psw >> bitInfo.bit) & 1;
+                    element.textContent = value;
+                    element.className = value ? 'psw-value on' : 'psw-value';
+                });
+                
+                // Update hex display
+                document.getElementById('psw-hex').textContent = `Full: 0x${this.psw.toString(16).padStart(4, '0')}`;
+            }
+            
+            updateSegmentRegisters() {
+                document.getElementById('reg-cs').textContent = `0x${this.segmentRegisters.CS.toString(16).padStart(4, '0')}`;
+                document.getElementById('reg-ds').textContent = `0x${this.segmentRegisters.DS.toString(16).padStart(4, '0')}`;
+                document.getElementById('reg-ss').textContent = `0x${this.segmentRegisters.SS.toString(16).padStart(4, '0')}`;
+                document.getElementById('reg-es').textContent = `0x${this.segmentRegisters.ES.toString(16).padStart(4, '0')}`;
+            }
+            
+            updateShadowRegisters() {
+                document.getElementById('reg-psw-shadow').textContent = `0x${this.shadowRegisters.PSW.toString(16).padStart(4, '0')}`;
+                document.getElementById('reg-pc-shadow').textContent = `0x${this.shadowRegisters.PC.toString(16).padStart(4, '0')}`;
+                document.getElementById('reg-cs-shadow').textContent = `0x${this.shadowRegisters.CS.toString(16).padStart(4, '0')}`;
+            }
+            
             status(message) {
-                document.getElementById('status-bar').textContent = `Deep16 (深十六): ${message}`;
+                document.getElementById('status-bar').textContent = `DeepWeb: ${message}`;
             }
             
             loadExample() {
@@ -500,13 +781,13 @@ fibonacci_results:
     .word 0`;
                 
                 document.getElementById('editor').value = example;
-                this.status("Example loaded - ready to assemble");
+                this.status("Fibonacci example loaded - ready to assemble");
             }
         }
 
-        // Initialize the IDE when the page loads
+        // Initialize DeepWeb when the page loads
         document.addEventListener('DOMContentLoaded', () => {
-            window.deep16IDE = new Deep16IDE();
+            window.deepWeb = new DeepWeb();
         });
     </script>
 </body>
