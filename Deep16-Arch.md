@@ -1,4 +1,4 @@
-# Deep16 (深十六) Architecture Specification v3.5 (Milestone 1r11)
+# Deep16 (深十六) Architecture Specification v3.5 (Milestone 1r12)
 ## 16-bit RISC Processor with Enhanced Memory Addressing
 
 ---
@@ -251,22 +251,15 @@ The shadow register system provides hardware-assisted interrupt handling with co
 | 10 | 2 | LD/ST | `[10][d1][Rd4][Rb4][offset5]` | Load/Store with implicit segment |
 | 110 | 3 | ALU | `[110][op3][Rd4][w1][i1][Rs/imm4]` | Arithmetic/Logic operations |
 | 1110 | 4 | JMP | `[1110][type3][target9]` | Jump/branch operations |
-| 1111 | 4 | *unused* | | Reserved for future use |
 | 11110 | 5 | LDS/STS | `[11110][d1][seg2][Rd4][Rs4]` | Load/Store with explicit segment |
-| 11111 | 5 | *unused* | | Reserved for future use |
 | 111110 | 6 | MOV | `[111110][Rd4][Rs4][imm2]` | Move with offset |
-| 111111 | 6 | *unused* | | Reserved for future use |
 | 1111110 | 7 | LSI | `[1111110][Rd4][imm5]` | Load Short Immediate |
-| 1111111 | 7 | *unused* | | Reserved for future use |
 | 11111110 | 8 | SINGLE-OP | `[11111110][type4][Rx/imm4]` | Single-operand operations |
-| 11111111 | 8 | *unused* | | Reserved for future use |
 | 111111110 | 9 | MVS | `[111111110][d1][Rd4][seg2]` | Move to/from segment |
-| 111111111 | 9 | *unused* | | Reserved for future use |
 | 1111111110 | 10 | SMV | `[1111111110][src2][Rd4]` | Special move |
-| 1111111111 | 10 | *unused* | | Reserved for future use |
+| 11111111110 | 11 | *unused* | | Reserved for future use |
 | 111111111110 | 12 | *unused* | | Reserved for future use |
 | 1111111111110 | 13 | SYS | `[1111111111110][op3]` | System operations |
-| 1111111111111 | 13 | *unused* | | Reserved for future use |
 
 ### 4.2 Single-Operand Operations (type4)
 
