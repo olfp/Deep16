@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep16 (深十六) Integrated Development Environment</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+            gap: 10px;
+            padding: 10px;
+        }
+        
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .memory-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .panel-header {
+            background: #2d2d30;
+            padding: 10px;
+            border-bottom: 1px solid #3e3e42;
+            font-weight: bold;
+        }
+        
+        .editor {
+            flex: 1;
+            background: #1e1e1e;
+            border: 1px solid #3e3e42;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #d4d4d4;
+            resize: none;
+            white-space: pre;
+            overflow: auto;
+        }
+        
+        .memory-display {
+            flex: 1;
+            background: #1e1e1e;
+            border: 1px solid #3e3e42;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow: auto;
+            line-height: 1.2;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            padding: 10px;
+            background: #2d2d30;
+            border-top: 1px solid #3e3e42;
+        }
+        
+        button {
+            padding: 8px 16px;
+            background: #0e639c;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+        }
+        
+        button:hover {
+            background: #1177bb;
+        }
+        
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        
+        .status-bar {
+            padding: 5px 10px;
+            background: #007acc;
+            font-size: 12px;
+        }
+        
+        .memory-line {
+            display: flex;
+            margin-bottom: 2px;
+        }
+        
+        .memory-address {
+            color: #569cd6;
+            width: 60px;
+        }
+        
+        .memory-bytes {
+            color: #ce9178;
+            width: 120px;
+        }
+        
+        .memory-disassembly {
+            color: #dcdcaa;
+            flex: 1;
+        }
+        
+        .pc-marker {
+            background: #264f78;
+        }
+        
+        .register-display {
+            background: #252526;
+            padding: 10px;
+            border: 1px solid #3e3e42;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+        
+        .register-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+        }
+        
+        .register {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .register-name {
+            color: #569cd6;
+        }
+        
+        .register-value {
+            color: #b5cea8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="editor-panel">
+            <div class="panel-header">Deep16 (深十六) Assembler Editor</div>
+            <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Example Program
+; Simple addition test
+
+.org 0x0000
+
+main:
+    ; Initialize stack pointer
+    MOV  SP, 0x7FFF
+    
+    ; Test addition
+    MOV  R0, 5
+    MOV  R1, 7
+    ADD  R0, R1      ; R0 = 5 + 7 = 12
+    
+    ; Store result in memory
+    MOV  R2, 0x1000
+    ST   R0, R2, 0
+    
+    ; Infinite loop
+    HALT
+    
+.org 0x0100
+data:
+    .word 0x1234
+    .word 0x5678</textarea>
+        </div>
+        
+        <div class="memory-panel">
+            <div class="panel-header">Deep16 (深十六) Memory & Registers</div>
+            
+            <div class="register-display">
+                <div class="register-grid" id="register-grid">
+                    <!-- Registers will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <div id="memory-display" class="memory-display">
+                <!-- Memory content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button id="assemble-btn">Assemble</button>
+        <button id="run-btn" disabled>Run</button>
+        <button id="step-btn" disabled>Step</button>
+        <button id="reset-btn" disabled>Reset</button>
+        <div style="flex: 1"></div>
+        <button id="load-example">Load Example</button>
+    </div>
+    
+    <div id="status-bar" class="status-bar">
+        Deep16 (深十六) IDE Ready - Architecture v3.5 (1r11)
+    </div>
+
+    <script>
+        // Deep16 Assembler and Simulator
+        class Deep16IDE {
+            constructor() {
+                this.memory = new Array(65536).fill(0);
+                this.registers = new Array(8).fill(0);
+                this.labels = {};
+                this.running = false;
+                this.pc = 0;
+                
+                // Initialize registers
+                this.registers[6] = 0x7FFF; // SP
+                this.registers[7] = 0x0000; // PC
+                
+                this.setupEventListeners();
+                this.updateMemoryDisplay();
+                this.updateRegisterDisplay();
+            }
+            
+            setupEventListeners() {
+                document.getElementById('assemble-btn').addEventListener('click', () => this.assemble());
+                document.getElementById('run-btn').addEventListener('click', () => this.run());
+                document.getElementById('step-btn').addEventListener('click', () => this.step());
+                document.getElementById('reset-btn').addEventListener('click', () => this.reset());
+                document.getElementById('load-example').addEventListener('click', () => this.loadExample());
+            }
+            
+            assemble() {
+                const source = document.getElementById('editor').value;
+                this.status("Assembling...");
+                
+                try {
+                    // Simple assembler - will be expanded
+                    const lines = source.split('\n');
+                    let address = 0;
+                    this.labels = {};
+                    
+                    // First pass: collect labels
+                    for (let line of lines) {
+                        line = line.split(';')[0].trim(); // Remove comments
+                        if (!line) continue;
+                        
+                        if (line.startsWith('.org')) {
+                            const orgValue = line.split(' ')[1];
+                            address = parseInt(orgValue, 16);
+                        } else if (line.endsWith(':')) {
+                            this.labels[line.slice(0, -1)] = address;
+                        } else {
+                            address += 2; // Assume each instruction is 2 bytes
+                        }
+                    }
+                    
+                    // Second pass: assemble instructions
+                    address = 0;
+                    this.memory.fill(0);
+                    
+                    for (let line of lines) {
+                        line = line.split(';')[0].trim();
+                        if (!line) continue;
+                        
+                        if (line.startsWith('.org')) {
+                            const orgValue = line.split(' ')[1];
+                            address = parseInt(orgValue, 16);
+                        } else if (line.endsWith(':')) {
+                            // Already handled in first pass
+                        } else if (line.startsWith('.word')) {
+                            const value = parseInt(line.split(' ')[1], 16);
+                            this.memory[address] = value & 0xFF;
+                            this.memory[address + 1] = (value >> 8) & 0xFF;
+                            address += 2;
+                        } else {
+                            // Simple instruction encoding for demonstration
+                            const instruction = this.encodeInstruction(line, address);
+                            if (instruction !== null) {
+                                this.memory[address] = instruction & 0xFF;
+                                this.memory[address + 1] = (instruction >> 8) & 0xFF;
+                                address += 2;
+                            }
+                        }
+                    }
+                    
+                    this.status("Assembly successful!");
+                    document.getElementById('run-btn').disabled = false;
+                    document.getElementById('step-btn').disabled = false;
+                    document.getElementById('reset-btn').disabled = false;
+                    this.updateMemoryDisplay();
+                    
+                } catch (error) {
+                    this.status("Assembly error: " + error.message);
+                }
+            }
+            
+            encodeInstruction(line, address) {
+                const parts = line.split(/[\s,]+/).filter(part => part);
+                if (parts.length === 0) return null;
+                
+                const mnemonic = parts[0].toUpperCase();
+                
+                // Simple demonstration encoding
+                switch (mnemonic) {
+                    case 'MOV':
+                        if (parts[1].startsWith('R') && parts[2].startsWith('R')) {
+                            const rd = parseInt(parts[1].substring(1));
+                            const rs = parseInt(parts[2].substring(1));
+                            return (0x8000 | (rd << 8) | (rs << 4));
+                        } else if (parts[1].startsWith('R') && !isNaN(parseInt(parts[2]))) {
+                            const rd = parseInt(parts[1].substring(1));
+                            const imm = parseInt(parts[2]);
+                            return (0x9000 | (rd << 8) | (imm & 0xFF));
+                        }
+                        break;
+                    case 'ADD':
+                        if (parts[1].startsWith('R') && parts[2].startsWith('R')) {
+                            const rd = parseInt(parts[1].substring(1));
+                            const rs = parseInt(parts[2].substring(1));
+                            return (0x0000 | (rd << 8) | (rs << 4));
+                        }
+                        break;
+                    case 'ST':
+                        if (parts[1].startsWith('R') && parts[2].startsWith('R') && !isNaN(parseInt(parts[3]))) {
+                            const rd = parseInt(parts[1].substring(1));
+                            const rb = parseInt(parts[2].substring(1));
+                            const offset = parseInt(parts[3]);
+                            return (0xA000 | (rd << 8) | (rb << 4) | (offset & 0x0F));
+                        }
+                        break;
+                    case 'HALT':
+                        return 0xFFFF;
+                }
+                
+                return 0x0000; // NOP for unknown instructions
+            }
+            
+            run() {
+                this.running = true;
+                this.status("Running...");
+                this.runCycle();
+            }
+            
+            runCycle() {
+                if (!this.running) return;
+                
+                try {
+                    this.step();
+                    if (this.running) {
+                        setTimeout(() => this.runCycle(), 100); // 10 Hz
+                    }
+                } catch (error) {
+                    this.running = false;
+                    this.status("Runtime error: " + error.message);
+                }
+            }
+            
+            step() {
+                const pc = this.registers[7];
+                const instruction = (this.memory[pc + 1] << 8) | this.memory[pc];
+                
+                // Simple instruction decoding for demonstration
+                const opcode = (instruction >> 12) & 0xF;
+                const rd = (instruction >> 8) & 0x7;
+                const rs = (instruction >> 4) & 0x7;
+                const imm = instruction & 0xFF;
+                
+                switch (opcode) {
+                    case 0x0: // ADD
+                        this.registers[rd] += this.registers[rs];
+                        this.registers[7] += 2;
+                        break;
+                    case 0x8: // MOV reg-reg
+                        this.registers[rd] = this.registers[rs];
+                        this.registers[7] += 2;
+                        break;
+                    case 0x9: // MOV immediate
+                        this.registers[rd] = imm;
+                        this.registers[7] += 2;
+                        break;
+                    case 0xA: // ST
+                        const rb = rs;
+                        const offset = instruction & 0xF;
+                        const address = this.registers[rb] + offset;
+                        this.memory[address] = this.registers[rd] & 0xFF;
+                        this.memory[address + 1] = (this.registers[rd] >> 8) & 0xFF;
+                        this.registers[7] += 2;
+                        break;
+                    case 0xF: // HALT
+                        this.running = false;
+                        this.status("Program halted");
+                        break;
+                    default:
+                        this.registers[7] += 2; // NOP
+                }
+                
+                this.updateMemoryDisplay();
+                this.updateRegisterDisplay();
+            }
+            
+            reset() {
+                this.running = false;
+                this.registers.fill(0);
+                this.registers[6] = 0x7FFF; // SP
+                this.registers[7] = 0x0000; // PC
+                this.updateMemoryDisplay();
+                this.updateRegisterDisplay();
+                this.status("Reset complete");
+            }
+            
+            updateMemoryDisplay() {
+                const display = document.getElementById('memory-display');
+                let html = '';
+                
+                for (let addr = 0; addr < 256; addr += 8) {
+                    const isPC = (addr <= this.registers[7] && this.registers[7] < addr + 8);
+                    const lineClass = isPC ? 'memory-line pc-marker' : 'memory-line';
+                    
+                    html += `<div class="${lineClass}">`;
+                    html += `<div class="memory-address">0x${addr.toString(16).padStart(4, '0')}</div>`;
+                    html += `<div class="memory-bytes">`;
+                    
+                    // Show bytes
+                    for (let i = 0; i < 8; i += 2) {
+                        const byte1 = this.memory[addr + i];
+                        const byte2 = this.memory[addr + i + 1];
+                        const word = (byte2 << 8) | byte1;
+                        html += `${word.toString(16).padStart(4, '0')} `;
+                    }
+                    
+                    html += `</div><div class="memory-disassembly">`;
+                    // Simple disassembly would go here
+                    html += `</div></div>`;
+                }
+                
+                display.innerHTML = html;
+            }
+            
+            updateRegisterDisplay() {
+                const grid = document.getElementById('register-grid');
+                let html = '';
+                
+                for (let i = 0; i < 8; i++) {
+                    const regName = i === 6 ? 'SP' : i === 7 ? 'PC' : `R${i}`;
+                    const value = this.registers[i];
+                    html += `
+                        <div class="register">
+                            <span class="register-name">${regName}</span>
+                            <span class="register-value">0x${value.toString(16).padStart(4, '0')}</span>
+                        </div>
+                    `;
+                }
+                
+                grid.innerHTML = html;
+            }
+            
+            status(message) {
+                document.getElementById('status-bar').textContent = `Deep16 (深十六): ${message}`;
+            }
+            
+            loadExample() {
+                const example = `; Deep16 (深十六) Fibonacci Example
+; Calculate Fibonacci numbers
+
+.org 0x0000
+
+main:
+    MOV  SP, 0x7FFF    ; Initialize stack
+    MOV  R0, 0         ; F(0) = 0
+    MOV  R1, 1         ; F(1) = 1
+    MOV  R2, 10        ; Calculate up to F(10)
+    MOV  R3, 0x0200    ; Output address
+    
+fib_loop:
+    ST   R0, R3, 0     ; Store current Fibonacci
+    ADD  R3, 2         ; Next output address
+    
+    MOV  R4, R1        ; temp = current
+    ADD  R1, R0        ; next = current + previous
+    MOV  R0, R4        ; previous = temp
+    
+    SUB  R2, 1         ; decrement counter
+    JNZ  R2, fib_loop  ; loop if not zero
+    
+    HALT
+
+.org 0x0200
+fibonacci_results:
+    .word 0`;
+                
+                document.getElementById('editor').value = example;
+                this.status("Example loaded - ready to assemble");
+            }
+        }
+
+        // Initialize the IDE when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            window.deep16IDE = new Deep16IDE();
+        });
+    </script>
+</body>
+</html>
