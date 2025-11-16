@@ -46,22 +46,24 @@
 .org 0x0000
 
 main:
-    MOV  SP, 0x7FFF    ; Initialize stack
-    MOV  R0, 0         ; F(0) = 0
-    MOV  R1, 1         ; F(1) = 1
-    MOV  R2, 10        ; Calculate up to F(10)
-    MOV  R3, 0x0200    ; Output address
+    LDI  R0, 0x7FFF    ; Load stack pointer value into R0
+    MOV  SP, R0        ; Initialize stack pointer
+    LSI  R0, 0         ; F(0) = 0
+    LSI  R1, 1         ; F(1) = 1
+    LSI  R2, 10        ; Calculate up to F(10)
+    LDI  R0, 0x0200    ; Output address
+    MOV  R3, R0        ; Move to R3
     
 fib_loop:
     ST   R0, R3, 0     ; Store current Fibonacci
-    ADD  R3, 2         ; Next output address
+    ADD  R3, 1         ; Next output address
     
     MOV  R4, R1        ; temp = current
     ADD  R1, R0        ; next = current + previous
     MOV  R0, R4        ; previous = temp
     
     SUB  R2, 1         ; decrement counter
-    JNZ  R2, fib_loop  ; loop if not zero
+    JNZ  fib_loop      ; loop if not zero
     
     HALT
 
