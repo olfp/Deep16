@@ -45,7 +45,7 @@ ST   R1, SP, 0       ; 16-bit store
 
 **Design Choice**: Every instruction exactly 16 bits
 - **No instruction length decoding**
-- **Simple PC increment** (+2 for next instruction)
+- **Simple PC increment** (+1 for next instruction)
 - **Deterministic fetch timing**
 - **Easy disassembly and debugging**
 
