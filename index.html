@@ -30,8 +30,16 @@
     </div>
     
     <div class="container">
-        <div class="editor-panel">
-            <div class="panel-header">Deep16 Assembler Editor</div>
+<div class="editor-panel">
+    <div class="panel-header">Deep16 Assembler</div>
+    <div class="tab-container">
+        <div class="tab-buttons">
+            <button class="tab-button active" data-tab="editor">Editor</button>
+            <button class="tab-button" data-tab="errors">Errors</button>
+            <button class="tab-button" data-tab="listing">Listing</button>
+        </div>
+        
+        <div id="editor-tab" class="tab-content active">
             <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Fibonacci Example
 ; Calculate Fibonacci numbers
 
@@ -60,14 +68,28 @@ fib_loop:
 .org 0x0200
 fibonacci_results:
     .word 0</textarea>
-            
-            <div class="symbols-section">
-                <div class="section-title">Symbol Table</div>
-                <div id="symbol-table" class="symbol-table">
-                    <!-- Symbols will be populated here -->
-                </div>
+        </div>
+        
+        <div id="errors-tab" class="tab-content">
+            <div id="errors-list" class="errors-list">
+                <div class="no-errors">No assembly performed yet</div>
             </div>
         </div>
+        
+        <div id="listing-tab" class="tab-content">
+            <div id="listing-content" class="assembly-listing">
+                No assembly performed yet
+            </div>
+        </div>
+    </div>
+    
+    <div class="symbols-section">
+        <div class="section-title">Symbol Table</div>
+        <div id="symbol-table" class="symbol-table">
+            <div class="symbol-row">No symbols</div>
+        </div>
+    </div>
+</div>
         
         <div class="memory-panel">
             <div class="panel-header">Deep16 Memory & Registers</div>
