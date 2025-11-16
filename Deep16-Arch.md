@@ -72,10 +72,10 @@ Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
  │  │           │  │           │  │  └─ 3: Carry (1=carry)
  │  │           │  │           │  └─ 4: Interrupt Enable (1=enabled)
  │  │           │  │           └─ 5: Shadow View (1=active)
- │  │           │  └─ 8-11: SR[3:0] (Stack Register selection)
- │  │           └─ 12: DS (1=dual registers for stack segment)
- │  └─ 13-16: ER[3:0] (Extra Register selection)  
- └─ 17: DE (1=dual registers for extra segment)
+ │  │           │  └─ 6-9: SR[3:0] (Stack Register selection)
+ │  │           └─ 10: DS (1=dual registers for stack segment)
+ │  └─ 11-14: ER[3:0] (Extra Register selection)  
+ └─ 15: DE (1=dual registers for extra segment)
 ```
 
 ---
