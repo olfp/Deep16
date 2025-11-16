@@ -1,4 +1,4 @@
-// deep16_ui.js - Updated with Memory Display and Safari Fixes
+// deep16_ui.js - Updated with proper PSW, symbols, and layout fixes
 class DeepWebUI {
     constructor() {
         this.assembler = new Deep16Assembler();
@@ -77,14 +77,23 @@ class DeepWebUI {
         const result = this.assembler.assemble(source);
         
         if (result.success) {
-            this.simulator.loadProgram(result.memory);
+            // Clear existing memory and load the new program
+            this.simulator.memory.fill(0);
+            for (let i = 0; i < result.memory.length; i++) {
+                this.simulator.memory[i] = result.memory[i];
+            }
+            
+            this.simulator.registers[15] = 0x0000; // Reset PC
             this.status("Assembly successful! Program loaded.");
             this.addTranscriptEntry("Assembly successful - program loaded", "success");
             document.getElementById('run-btn').disabled = false;
             document.getElementById('step-btn').disabled = false;
             document.getElementById('reset-btn').disabled = false;
+            
+            // Update symbols - FIXED: Use the symbols from the assembly result
             this.updateSymbolTable(result.symbols);
             this.updateSymbolSelect(result.symbols);
+            this.addTranscriptEntry(`Found ${Object.keys(result.symbols).length} symbols`, "info");
         } else {
             const errorMsg = `Assembly failed with ${result.errors.length} error(s)`;
             this.status("Assembly errors - see transcript for details");
@@ -172,11 +181,11 @@ class DeepWebUI {
 
     onSymbolSelect(event) {
         const address = parseInt(event.target.value);
-        if (!isNaN(address)) {
+        if (!isNaN(address) && address >= 0) {
             this.memoryStartAddress = address;
             this.updateMemoryDisplay();
             document.getElementById('memory-start-address').value = '0x' + address.toString(16).padStart(4, '0');
-            const symbolName = event.target.options[event.target.selectedIndex].text.split(' ')[0];
+            const symbolName = event.target.options[event.target.selectedIndex].text.split(' (')[0];
             this.addTranscriptEntry(`Memory view jumped to symbol: ${symbolName}`, "info");
         }
     }
@@ -202,7 +211,7 @@ class DeepWebUI {
             const value = this.simulator.registers[i];
             const valueHex = '0x' + value.toString(16).padStart(4, '0').toUpperCase();
             html += `
-                <div class="register">
+                <div class="register-compact">
                     <span class="register-name">${registerNames[i]}</span>
                     <span class="register-value">${valueHex}</span>
                 </div>
@@ -215,26 +224,24 @@ class DeepWebUI {
     updatePSWDisplay() {
         const psw = this.simulator.psw;
         
-        // Update individual PSW bits
+        // Correct PSW bit mapping according to Deep16 spec:
+        // Bit 0: N (Negative), Bit 1: Z (Zero), Bit 2: V (Overflow), Bit 3: C (Carry)
+        // Bit 4: I (Interrupt Enable), Bit 5: S (Shadow View)
+        // Bits 6-15: Segment control (we don't show individual bits for these)
+        
+        // Update checkbox PSW bits (only show relevant 1-bit flags)
+        document.getElementById('psw-n').checked = (psw & 0x0001) !== 0;
+        document.getElementById('psw-z').checked = (psw & 0x0002) !== 0;
+        document.getElementById('psw-v').checked = (psw & 0x0004) !== 0;
+        document.getElementById('psw-c').checked = (psw & 0x0008) !== 0;
+        document.getElementById('psw-i').checked = (psw & 0x0010) !== 0; // Bit 4
+        document.getElementById('psw-s').checked = (psw & 0x0020) !== 0; // Bit 5 (S and I are swapped from before)
+        
+        // Update segment control displays (multi-bit fields)
         document.getElementById('psw-de').textContent = (psw >> 15) & 1;
         document.getElementById('psw-er').textContent = (psw >> 11) & 0xF;
         document.getElementById('psw-ds').textContent = (psw >> 10) & 1;
         document.getElementById('psw-dr').textContent = (psw >> 6) & 0xF;
-        document.getElementById('psw-x1').textContent = (psw >> 5) & 1;
-        document.getElementById('psw-x2').textContent = (psw >> 4) & 1;
-        document.getElementById('psw-i').textContent = (psw >> 3) & 1;
-        document.getElementById('psw-s').textContent = (psw >> 2) & 1;
-        document.getElementById('psw-c').textContent = (psw >> 1) & 1;
-        document.getElementById('psw-v').textContent = (psw >> 0) & 1;
-        document.getElementById('psw-z').textContent = (psw >> 1) & 1; // Note: Z flag is typically bit 1
-        document.getElementById('psw-n').textContent = (psw >> 0) & 1; // Note: N flag is typically bit 0
-        
-        // Add visual highlighting for set bits
-        const pswBits = document.querySelectorAll('.psw-value');
-        pswBits.forEach(bit => {
-            const bitValue = parseInt(bit.textContent);
-            bit.classList.toggle('on', bitValue === 1);
-        });
     }
 
     updateMemoryDisplay() {
@@ -305,40 +312,79 @@ class DeepWebUI {
     }
 
     updateSegmentRegisters() {
-        document.getElementById('reg-cs').textContent = '0x' + this.simulator.segmentRegisters.CS.toString(16).padStart(4, '0');
-        document.getElementById('reg-ds').textContent = '0x' + this.simulator.segmentRegisters.DS.toString(16).padStart(4, '0');
-        document.getElementById('reg-ss').textContent = '0x' + this.simulator.segmentRegisters.SS.toString(16).padStart(4, '0');
-        document.getElementById('reg-es').textContent = '0x' + this.simulator.segmentRegisters.ES.toString(16).padStart(4, '0');
+        // Use compact layout for segment registers
+        const segmentGrid = document.querySelector('.register-section:nth-child(3) .register-grid');
+        if (segmentGrid) {
+            segmentGrid.innerHTML = `
+                <div class="register-compact">
+                    <span class="register-name">CS</span>
+                    <span class="register-value">0x${this.simulator.segmentRegisters.CS.toString(16).padStart(4, '0')}</span>
+                </div>
+                <div class="register-compact">
+                    <span class="register-name">DS</span>
+                    <span class="register-value">0x${this.simulator.segmentRegisters.DS.toString(16).padStart(4, '0')}</span>
+                </div>
+                <div class="register-compact">
+                    <span class="register-name">SS</span>
+                    <span class="register-value">0x${this.simulator.segmentRegisters.SS.toString(16).padStart(4, '0')}</span>
+                </div>
+                <div class="register-compact">
+                    <span class="register-name">ES</span>
+                    <span class="register-value">0x${this.simulator.segmentRegisters.ES.toString(16).padStart(4, '0')}</span>
+                </div>
+            `;
+        }
     }
 
     updateShadowRegisters() {
-        document.getElementById('reg-psw-shadow').textContent = '0x' + this.simulator.shadowRegisters.PSW.toString(16).padStart(4, '0');
-        document.getElementById('reg-pc-shadow').textContent = '0x' + this.simulator.shadowRegisters.PC.toString(16).padStart(4, '0');
-        document.getElementById('reg-cs-shadow').textContent = '0x' + this.simulator.shadowRegisters.CS.toString(16).padStart(4, '0');
+        // Use compact layout for shadow registers
+        const shadowGrid = document.querySelector('.shadow-section .register-grid');
+        if (shadowGrid) {
+            shadowGrid.innerHTML = `
+                <div class="register-compact">
+                    <span class="register-name">PSW'</span>
+                    <span class="register-value">0x${this.simulator.shadowRegisters.PSW.toString(16).padStart(4, '0')}</span>
+                </div>
+                <div class="register-compact">
+                    <span class="register-name">PC'</span>
+                    <span class="register-value">0x${this.simulator.shadowRegisters.PC.toString(16).padStart(4, '0')}</span>
+                </div>
+                <div class="register-compact">
+                    <span class="register-name">CS'</span>
+                    <span class="register-value">0x${this.simulator.shadowRegisters.CS.toString(16).padStart(4, '0')}</span>
+                </div>
+            `;
+        }
     }
 
     updateSymbolTable(symbols) {
         const symbolTable = document.getElementById('symbol-table');
         let html = '';
         
-        for (const [name, address] of Object.entries(symbols)) {
-            html += `
-                <div class="symbol-row">
-                    <span class="symbol-name">${name}</span>
-                    <span class="symbol-address">0x${address.toString(16).padStart(4, '0')}</span>
-                </div>
-            `;
+        if (symbols && Object.keys(symbols).length > 0) {
+            for (const [name, address] of Object.entries(symbols)) {
+                html += `
+                    <div class="symbol-row">
+                        <span class="symbol-name">${name}</span>
+                        <span class="symbol-address">0x${address.toString(16).padStart(4, '0')}</span>
+                    </div>
+                `;
+            }
+        } else {
+            html = '<div class="symbol-row">No symbols found</div>';
         }
         
-        symbolTable.innerHTML = html || '<div class="symbol-row">No symbols</div>';
+        symbolTable.innerHTML = html;
     }
 
     updateSymbolSelect(symbols) {
         const symbolSelect = document.getElementById('symbol-select');
         let html = '<option value="">-- Select Symbol --</option>';
         
-        for (const [name, address] of Object.entries(symbols)) {
-            html += `<option value="${address}">${name} (0x${address.toString(16).padStart(4, '0')})</option>`;
+        if (symbols && Object.keys(symbols).length > 0) {
+            for (const [name, address] of Object.entries(symbols)) {
+                html += `<option value="${address}">${name} (0x${address.toString(16).padStart(4, '0')})</option>`;
+            }
         }
         
         symbolSelect.innerHTML = html;
