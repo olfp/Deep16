@@ -1,4 +1,4 @@
-// deep16_assembler.js - Enhanced with complete ALU support and proper result structure
+// deep16_assembler.js - Fixed register/immediate parsing and LDI handling
 class Deep16Assembler {
     constructor() {
         this.labels = {};
@@ -10,6 +10,7 @@ class Deep16Assembler {
         this.symbols = {};
         const errors = [];
         const memory = new Array(65536).fill(0);
+        const assemblyListing = [];
         let address = 0;
 
         const lines = source.split('\n');
@@ -39,20 +40,30 @@ class Deep16Assembler {
         address = 0;
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
-            if (!line || line.startsWith(';')) continue;
+            const originalLine = lines[i];
+            if (!line || line.startsWith(';')) {
+                assemblyListing.push({ address, line: originalLine });
+                continue;
+            }
 
             try {
                 if (line.startsWith('.org')) {
                     const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
                     address = orgValue;
+                    assemblyListing.push({ address, line: originalLine });
                 } else if (line.endsWith(':')) {
-                    // Labels already processed in first pass
+                    assemblyListing.push({ address, line: originalLine });
                     continue;
                 } else if (line.startsWith('.word')) {
                     const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
                     for (const value of values) {
                         if (address < memory.length) {
                             memory[address] = value & 0xFFFF;
+                            assemblyListing.push({ 
+                                address, 
+                                instruction: value,
+                                line: originalLine 
+                            });
                             address++;
                         }
                     }
@@ -60,11 +71,24 @@ class Deep16Assembler {
                     const instruction = this.encodeInstruction(line, address, i + 1);
                     if (instruction !== null && address < memory.length) {
                         memory[address] = instruction;
+                        assemblyListing.push({ 
+                            address, 
+                            instruction: instruction,
+                            line: originalLine 
+                        });
                         address++;
+                    } else {
+                        assemblyListing.push({ address, line: originalLine });
                     }
                 }
             } catch (error) {
                 errors.push(`Line ${i + 1}: ${error.message}`);
+                assemblyListing.push({ 
+                    address, 
+                    error: `ERR: ${error.message}`,
+                    line: originalLine 
+                });
+                address++; // Still advance address even on error
             }
         }
 
@@ -72,7 +96,8 @@ class Deep16Assembler {
             success: errors.length === 0,
             memory: memory,
             symbols: this.symbols,
-            errors: errors
+            errors: errors,
+            listing: assemblyListing
         };
     }
 
@@ -81,28 +106,51 @@ class Deep16Assembler {
     }
 
     parseRegister(reg) {
+        if (typeof reg !== 'string') {
+            throw new Error(`Invalid register: ${reg}`);
+        }
+        
         const regMap = {
             'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3, 'R4': 4, 'R5': 5, 'R6': 6, 'R7': 7,
             'R8': 8, 'R9': 9, 'R10': 10, 'R11': 11, 
             'FP': 12, 'SP': 13, 'LR': 14, 'PC': 15
         };
         
-        if (reg in regMap) return regMap[reg];
-        if (reg.startsWith('R')) {
-            const num = parseInt(reg.substring(1));
-            if (num >= 0 && num <= 15) return num;
+        const upperReg = reg.toUpperCase();
+        if (upperReg in regMap) return regMap[upperReg];
+        
+        if (upperReg.startsWith('R')) {
+            const num = parseInt(upperReg.substring(1));
+            if (!isNaN(num) && num >= 0 && num <= 15) return num;
         }
+        
         throw new Error(`Invalid register: ${reg}`);
     }
 
     parseImmediate(value) {
-        if (value.startsWith('0x')) {
-            return parseInt(value.substring(2), 16);
-        } else if (value.startsWith('$')) {
-            return parseInt(value.substring(1), 16);
-        } else {
-            return parseInt(value);
+        if (typeof value !== 'string') {
+            throw new Error(`Invalid immediate value: ${value}`);
         }
+        
+        const trimmed = value.trim();
+        if (trimmed.startsWith('0x')) {
+            return parseInt(trimmed.substring(2), 16);
+        } else if (trimmed.startsWith('$')) {
+            return parseInt(trimmed.substring(1), 16);
+        } else {
+            const num = parseInt(trimmed);
+            if (isNaN(num)) {
+                throw new Error(`Invalid immediate value: ${value}`);
+            }
+            return num;
+        }
+    }
+
+    isRegister(value) {
+        if (typeof value !== 'string') return false;
+        const upper = value.toUpperCase();
+        return (upper.startsWith('R') && !isNaN(parseInt(upper.substring(1)))) || 
+               ['SP', 'FP', 'LR', 'PC'].includes(upper);
     }
 
     encodeInstruction(line, address, lineNumber) {
@@ -117,23 +165,22 @@ class Deep16Assembler {
 
         try {
             switch (mnemonic) {
-                case 'LDI': return this.encodeLDI(parts, address, lineNumber);
                 case 'MOV': return this.encodeMOV(parts, address, lineNumber);
                 case 'ADD': return this.encodeALU(parts, 0b000, address, lineNumber);
                 case 'SUB': return this.encodeALU(parts, 0b001, address, lineNumber);
                 case 'AND': return this.encodeALU(parts, 0b010, address, lineNumber);
                 case 'OR':  return this.encodeALU(parts, 0b011, address, lineNumber);
                 case 'XOR': return this.encodeALU(parts, 0b100, address, lineNumber);
-                case 'ST':  return this.encodeST(parts, address, lineNumber);
-                case 'LD':  return this.encodeLD(parts, address, lineNumber);
-                case 'JZ':  return this.encodeJZ(parts, address, lineNumber);
-                case 'JNZ': return this.encodeJNZ(parts, address, lineNumber);
-                case 'JC':  return this.encodeJC(parts, address, lineNumber);
-                case 'JNC': return this.encodeJNC(parts, address, lineNumber);
-                case 'JN':  return this.encodeJN(parts, address, lineNumber);
-                case 'JNN': return this.encodeJNN(parts, address, lineNumber);
-                case 'JO':  return this.encodeJO(parts, address, lineNumber);
-                case 'JNO': return this.encodeJNO(parts, address, lineNumber);
+                case 'ST':  return this.encodeMemory(parts, true, address, lineNumber);
+                case 'LD':  return this.encodeMemory(parts, false, address, lineNumber);
+                case 'JZ':  return this.encodeJump(parts, 0b000, address, lineNumber);
+                case 'JNZ': return this.encodeJump(parts, 0b001, address, lineNumber);
+                case 'JC':  return this.encodeJump(parts, 0b010, address, lineNumber);
+                case 'JNC': return this.encodeJump(parts, 0b011, address, lineNumber);
+                case 'JN':  return this.encodeJump(parts, 0b100, address, lineNumber);
+                case 'JNN': return this.encodeJump(parts, 0b101, address, lineNumber);
+                case 'JO':  return this.encodeJump(parts, 0b110, address, lineNumber);
+                case 'JNO': return this.encodeJump(parts, 0b111, address, lineNumber);
                 case 'SL':  return this.encodeShift(parts, 0b000, address, lineNumber);
                 case 'SR':  return this.encodeShift(parts, 0b010, address, lineNumber);
                 case 'SRA': return this.encodeShift(parts, 0b100, address, lineNumber);
@@ -144,6 +191,8 @@ class Deep16Assembler {
                 case 'CLR2': return this.encodeCLR2(parts, address, lineNumber);
                 case 'SETI': return 0b1111111011100001; // SET2 1 alias
                 case 'CLRI': return 0b1111111011110001; // CLR2 1 alias
+                case 'LDI':  return this.encodeLDI(parts, address, lineNumber);
+                case 'LSI':  return this.encodeLSI(parts, address, lineNumber);
                 case 'HALT': return 0b1111111111110001;
                 case 'NOP':  return 0b1111111111110000;
                 case 'RETI': return 0b1111111111110011;
@@ -155,58 +204,36 @@ class Deep16Assembler {
                     throw new Error(`Unknown instruction: ${mnemonic}`);
             }
         } catch (error) {
-            throw new Error(`Line ${lineNumber}: ${error.message}`);
+            throw new Error(`${error.message}`);
         }
     }
 
-// Add this to the encodeInstruction switch statement:
-case 'LDI': return this.encodeLDI(parts, address, lineNumber);
-
-// And add the encodeLDI method:
-encodeLDI(parts, address, lineNumber) {
-    if (parts.length >= 2) {
-        const imm = this.parseImmediate(parts[1]);
-        if (imm < 0 || imm > 32767) {
-            throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
-        }
-        // LDI: [0][imm15] - can only load into R0
-        return imm & 0x7FFF;
-    }
-    throw new Error('LDI requires immediate value');
-}
-
-encodeMOV(parts, address, lineNumber) {
-    if (parts.length >= 3) {
-        const rd = this.parseRegister(parts[1]);
-        
-        // Check if second operand is a register or immediate
-        if (parts[2].startsWith('R') || ['SP', 'FP', 'LR', 'PC'].includes(parts[2])) {
-            // Register to register move
-            const rs = this.parseRegister(parts[2]);
-            return 0b1111100000000000 | (rd << 8) | (rs << 4);
-        } else {
-            // Immediate value - use LSI for values -16 to 15
-            const imm = this.parseImmediate(parts[2]);
+    encodeMOV(parts, address, lineNumber) {
+        if (parts.length >= 3) {
+            const rd = this.parseRegister(parts[1]);
             
-            if (imm < -16 || imm > 15) {
-                throw new Error(`MOV immediate ${imm} out of range for LSI (-16 to 15). Use LDI R0, value then MOV R${rd}, R0 for larger values.`);
+            // MOV can be register-to-register or immediate-to-register
+            if (this.isRegister(parts[2])) {
+                // Register to register move
+                const rs = this.parseRegister(parts[2]);
+                return 0b1111100000000000 | (rd << 8) | (rs << 4);
+            } else {
+                throw new Error(`MOV with immediate not supported. Use LSI R${rd}, value for small values or LDI R0, value then MOV R${rd}, R0 for large values.`);
             }
-            
-            // Encode as LSI: [1111110][Rd][imm5]
-            const imm5 = imm & 0x1F; // 5-bit signed immediate
-            return 0b1111110000000000 | (rd << 8) | (imm5 << 4);
         }
+        throw new Error('MOV requires destination register and source register');
     }
-    throw new Error('MOV requires destination register and source register/immediate');
-}
 
     encodeALU(parts, aluOp, address, lineNumber) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
-            if (parts[2].startsWith('R') || ['SP', 'FP', 'LR', 'PC'].includes(parts[2])) {
+            
+            if (this.isRegister(parts[2])) {
+                // Register mode
                 const rs = this.parseRegister(parts[2]);
                 return 0b1100000000000000 | (aluOp << 10) | (rd << 8) | (rs << 4);
             } else {
+                // Immediate mode
                 const imm = this.parseImmediate(parts[2]);
                 if (imm < 0 || imm > 15) {
                     throw new Error(`Immediate value ${imm} out of range (0-15)`);
@@ -217,55 +244,48 @@ encodeMOV(parts, address, lineNumber) {
         throw new Error(`ALU operation requires two operands`);
     }
 
-    encodeST(parts, address, lineNumber) {
+    encodeMemory(parts, isStore, address, lineNumber) {
         if (parts.length >= 4) {
             const rd = this.parseRegister(parts[1]);
             const rb = this.parseRegister(parts[2]);
             const offset = this.parseImmediate(parts[3]);
+            
             if (offset < 0 || offset > 31) {
                 throw new Error(`Offset ${offset} out of range (0-31)`);
             }
-            return 0b1010000000000000 | (rd << 8) | (rb << 4) | offset;
+            
+            return (isStore ? 0b1010000000000000 : 0b1000000000000000) | 
+                   (rd << 8) | (rb << 4) | offset;
         }
-        throw new Error('ST requires register, base register, and offset');
+        throw new Error(`${isStore ? 'ST' : 'LD'} requires register, base register, and offset`);
     }
 
-    encodeLD(parts, address, lineNumber) {
-        if (parts.length >= 4) {
+    encodeLDI(parts, address, lineNumber) {
+        if (parts.length >= 2) {
+            const imm = this.parseImmediate(parts[1]);
+            if (imm < 0 || imm > 32767) {
+                throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
+            }
+            // LDI: [0][imm15] - always loads to R0
+            return imm & 0x7FFF;
+        }
+        throw new Error('LDI requires immediate value');
+    }
+
+    encodeLSI(parts, address, lineNumber) {
+        if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
-            const rb = this.parseRegister(parts[2]);
-            const offset = this.parseImmediate(parts[3]);
-            if (offset < 0 || offset > 31) {
-                throw new Error(`Offset ${offset} out of range (0-31)`);
+            const imm = this.parseImmediate(parts[2]);
+            
+            if (imm < -16 || imm > 15) {
+                throw new Error(`LSI immediate ${imm} out of range (-16 to 15)`);
             }
-            return 0b1000000000000000 | (rd << 8) | (rb << 4) | offset;
+            
+            // LSI: [1111110][Rd][imm5]
+            const imm5 = imm & 0x1F; // 5-bit signed immediate
+            return 0b1111110000000000 | (rd << 8) | (imm5 << 4);
         }
-        throw new Error('LD requires register, base register, and offset');
-    }
-
-    encodeJZ(parts, address, lineNumber) { 
-        return this.encodeJump(parts, 0b000, address, lineNumber); 
-    }
-    encodeJNZ(parts, address, lineNumber) { 
-        return this.encodeJump(parts, 0b001, address, lineNumber); 
-    }
-    encodeJC(parts, address, lineNumber) { 
-        return this.encodeJump(parts, 0b010, address, lineNumber); 
-    }
-    encodeJNC(parts, address, lineNumber) { 
-        return this.encodeJump(parts, 0b011, address, lineNumber); 
-    }
-    encodeJN(parts, address, lineNumber) { 
-        return this.encodeJump(parts, 0b100, address, lineNumber); 
-    }
-    encodeJNN(parts, address, lineNumber) { 
-        return this.encodeJump(parts, 0b101, address, lineNumber); 
-    }
-    encodeJO(parts, address, lineNumber) { 
-        return this.encodeJump(parts, 0b110, address, lineNumber); 
-    }
-    encodeJNO(parts, address, lineNumber) { 
-        return this.encodeJump(parts, 0b111, address, lineNumber); 
+        throw new Error('LSI requires register and immediate value');
     }
 
     encodeJump(parts, condition, address, lineNumber) {
