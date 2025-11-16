@@ -360,24 +360,27 @@ class DeepWebUI {
         registerGrid.innerHTML = html;
     }
 
-    updatePSWDisplay() {
-        const psw = this.simulator.psw;
-        
-        // Correct PSW bit mapping according to Deep16 spec:
-        // All 1-bit flags as checkboxes
-        document.getElementById('psw-n').checked = (psw & 0x0001) !== 0;
-        document.getElementById('psw-z').checked = (psw & 0x0002) !== 0;
-        document.getElementById('psw-v').checked = (psw & 0x0004) !== 0;
-        document.getElementById('psw-c').checked = (psw & 0x0008) !== 0;
-        document.getElementById('psw-i').checked = (psw & 0x0010) !== 0; // Bit 4
-        document.getElementById('psw-s').checked = (psw & 0x0020) !== 0; // Bit 5
-        document.getElementById('psw-ds').checked = (psw & 0x0400) !== 0; // Bit 10
-        document.getElementById('psw-de').checked = (psw & 0x8000) !== 0; // Bit 15
-        
-        // Multi-bit fields as text displays
-        document.getElementById('psw-er').textContent = (psw >> 11) & 0xF;
-        document.getElementById('psw-dr').textContent = (psw >> 6) & 0xF;
-    }
+updatePSWDisplay() {
+    const psw = this.simulator.psw;
+    
+    // PSW bit mapping according to Deep16 spec (bit 15 to bit 0):
+    // Bit 15: DE, Bits 14-11: ER, Bit 10: DS, Bits 9-6: SR, 
+    // Bit 5: S, Bit 4: I, Bit 3: C, Bit 2: V, Bit 1: Z, Bit 0: N
+    
+    // Update checkboxes (1-bit flags)
+    document.getElementById('psw-de').checked = (psw & 0x8000) !== 0; // Bit 15
+    document.getElementById('psw-ds').checked = (psw & 0x0400) !== 0; // Bit 10
+    document.getElementById('psw-s').checked = (psw & 0x0020) !== 0;  // Bit 5
+    document.getElementById('psw-i').checked = (psw & 0x0010) !== 0;  // Bit 4
+    document.getElementById('psw-c').checked = (psw & 0x0008) !== 0;  // Bit 3
+    document.getElementById('psw-v').checked = (psw & 0x0004) !== 0;  // Bit 2
+    document.getElementById('psw-z').checked = (psw & 0x0002) !== 0;  // Bit 1
+    document.getElementById('psw-n').checked = (psw & 0x0001) !== 0;  // Bit 0
+    
+    // Update multi-bit fields
+    document.getElementById('psw-er').textContent = (psw >> 11) & 0xF; // Bits 14-11
+    document.getElementById('psw-sr').textContent = (psw >> 6) & 0xF;  // Bits 9-6
+}
 
     updateMemoryDisplay() {
         const memoryDisplay = document.getElementById('memory-display');
