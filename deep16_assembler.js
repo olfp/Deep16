@@ -260,18 +260,18 @@ class Deep16Assembler {
         throw new Error(`${isStore ? 'ST' : 'LD'} requires register, base register, and offset`);
     }
 
-    encodeLDI(parts, address, lineNumber) {
-        if (parts.length >= 2) {
-            const imm = this.parseImmediate(parts[1]);
-            if (imm < 0 || imm > 32767) {
-                throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
-            }
-            // LDI: [0][imm15] - always loads to R0
-            return imm & 0x7FFF;
+encodeLDI(parts, address, lineNumber) {
+    if (parts.length >= 2) {
+        // LDI has only one argument: the immediate value
+        const imm = this.parseImmediate(parts[1]);
+        if (imm < 0 || imm > 32767) {
+            throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
         }
-        throw new Error('LDI requires immediate value');
+        // LDI: [0][imm15] - always loads to R0
+        return imm & 0x7FFF;
     }
-
+    throw new Error('LDI requires immediate value');
+}
     encodeLSI(parts, address, lineNumber) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
