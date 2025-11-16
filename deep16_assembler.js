@@ -117,6 +117,7 @@ class Deep16Assembler {
 
         try {
             switch (mnemonic) {
+                case 'LDI': return this.encodeLDI(parts, address, lineNumber);
                 case 'MOV': return this.encodeMOV(parts, address, lineNumber);
                 case 'ADD': return this.encodeALU(parts, 0b000, address, lineNumber);
                 case 'SUB': return this.encodeALU(parts, 0b001, address, lineNumber);
@@ -158,14 +159,46 @@ class Deep16Assembler {
         }
     }
 
-    encodeMOV(parts, address, lineNumber) {
-        if (parts.length >= 3) {
-            const rd = this.parseRegister(parts[1]);
+// Add this to the encodeInstruction switch statement:
+case 'LDI': return this.encodeLDI(parts, address, lineNumber);
+
+// And add the encodeLDI method:
+encodeLDI(parts, address, lineNumber) {
+    if (parts.length >= 2) {
+        const imm = this.parseImmediate(parts[1]);
+        if (imm < 0 || imm > 32767) {
+            throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
+        }
+        // LDI: [0][imm15] - can only load into R0
+        return imm & 0x7FFF;
+    }
+    throw new Error('LDI requires immediate value');
+}
+
+encodeMOV(parts, address, lineNumber) {
+    if (parts.length >= 3) {
+        const rd = this.parseRegister(parts[1]);
+        
+        // Check if second operand is a register or immediate
+        if (parts[2].startsWith('R') || ['SP', 'FP', 'LR', 'PC'].includes(parts[2])) {
+            // Register to register move
             const rs = this.parseRegister(parts[2]);
             return 0b1111100000000000 | (rd << 8) | (rs << 4);
+        } else {
+            // Immediate value - use LSI for values -16 to 15
+            const imm = this.parseImmediate(parts[2]);
+            
+            if (imm < -16 || imm > 15) {
+                throw new Error(`MOV immediate ${imm} out of range for LSI (-16 to 15). Use LDI R0, value then MOV R${rd}, R0 for larger values.`);
+            }
+            
+            // Encode as LSI: [1111110][Rd][imm5]
+            const imm5 = imm & 0x1F; // 5-bit signed immediate
+            return 0b1111110000000000 | (rd << 8) | (imm5 << 4);
         }
-        throw new Error('MOV requires two registers');
     }
+    throw new Error('MOV requires destination register and source register/immediate');
+}
 
     encodeALU(parts, aluOp, address, lineNumber) {
         if (parts.length >= 3) {
