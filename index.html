@@ -98,9 +98,8 @@ fibonacci_results:
                 <div class="register-section">
                     <div class="section-title">Processor Status Word (PSW)</div>
                     <div class="psw-display">
-<!-- Replace the existing PSW bits section with this: -->
 <div class="psw-bits">
-    <!-- 1-bit flags as checkboxes -->
+    <!-- All 1-bit flags as checkboxes -->
     <div class="psw-bit">
         <span class="psw-label">N</span>
         <input type="checkbox" class="psw-checkbox" id="psw-n" disabled>
@@ -125,19 +124,19 @@ fibonacci_results:
         <span class="psw-label">S</span>
         <input type="checkbox" class="psw-checkbox" id="psw-s" disabled>
     </div>
+    <div class="psw-bit">
+        <span class="psw-label">DS</span>
+        <input type="checkbox" class="psw-checkbox" id="psw-ds" disabled>
+    </div>
+    <div class="psw-bit">
+        <span class="psw-label">DE</span>
+        <input type="checkbox" class="psw-checkbox" id="psw-de" disabled>
+    </div>
     
     <!-- Multi-bit fields as text displays -->
     <div class="psw-bit">
-        <span class="psw-label">DE</span>
-        <span class="psw-value-display" id="psw-de">0</span>
-    </div>
-    <div class="psw-bit">
         <span class="psw-label">ER</span>
         <span class="psw-value-display" id="psw-er">0</span>
-    </div>
-    <div class="psw-bit">
-        <span class="psw-label">DS</span>
-        <span class="psw-value-display" id="psw-ds">0</span>
     </div>
     <div class="psw-bit">
         <span class="psw-label">DR</span>
