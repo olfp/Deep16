@@ -1,4 +1,4 @@
-/* deep16_style.css - Updated for Safari/iPad compatibility */
+/* deep16_style.css - Updated with checkbox PSW and better layout */
 * {
     margin: 0;
     padding: 0;
@@ -100,7 +100,7 @@ body {
 
 button {
     padding: 8px 12px;
-    background: #0e639c;
+    background: #0e639c; /* Same blue as assemble button */
     color: white;
     border: none;
     border-radius: 3px;
@@ -299,6 +299,26 @@ button:disabled {
     font-family: 'Courier New', monospace;
 }
 
+/* Compact register layout - value next to name */
+.register-compact {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 3px;
+    font-size: 11px;
+}
+
+.register-compact .register-name {
+    color: #9cdcfe;
+    font-weight: bold;
+    min-width: 40px;
+}
+
+.register-compact .register-value {
+    color: #b5cea8;
+    font-family: 'Courier New', monospace;
+}
+
 .psw-display {
     display: flex;
     flex-direction: column;
@@ -307,37 +327,34 @@ button:disabled {
 
 .psw-bits {
     display: flex;
-    gap: 1px;
+    gap: 8px;
     justify-content: space-between;
+    flex-wrap: wrap;
 }
 
 .psw-bit {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 1px;
+    gap: 4px;
 }
 
 .psw-label {
-    font-size: 9px;
-    color: #9cdcfe;
-}
-
-.psw-value {
-    width: 18px;
-    height: 18px;
-    background: #3c3c3c;
-    border: 1px solid #5a5a5a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     font-size: 10px;
-    color: #d4d4d4;
+    color: #9cdcfe;
+    min-width: 25px;
 }
 
-.psw-value.on {
-    background: #0e639c;
-    color: white;
+.psw-checkbox {
+    width: 14px;
+    height: 14px;
+    accent-color: #0e639c;
+}
+
+.psw-value-display {
+    font-size: 9px;
+    color: #b5cea8;
+    min-width: 20px;
+    text-align: center;
 }
 
 .shadow-section {
