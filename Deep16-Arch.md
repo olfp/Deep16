@@ -64,7 +64,7 @@ Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 ```
 15                                              0
 +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-|DE|   ER[3:0]   |DS|   SR[3:0]   | | |S|I|C|V|Z|N|
+|DE|  ER[3:0]  |DS|  SR[3:0]  |S |I |C |V |Z |N |
 +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
  │  │           │  │           │  │  │ │ │ │ │ └─ 0: Negative (1=negative)
  │  │           │  │           │  │  │ │ │ │ └─ 1: Zero (1=zero)
