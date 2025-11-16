@@ -46,13 +46,13 @@
 .org 0x0000
 
 main:
-    LDI  R0, 0x7FFF    ; Load stack pointer value into R0
-    MOV  SP, R0        ; Initialize stack pointer
-    LSI  R0, 0         ; F(0) = 0
-    LSI  R1, 1         ; F(1) = 1
-    LSI  R2, 10        ; Calculate up to F(10)
-    LDI  R0, 0x0200    ; Output address
-    MOV  R3, R0        ; Move to R3
+    LDI  0x7FFF    ; Load stack pointer value into R0
+    MOV  SP, R0    ; Initialize stack pointer
+    LSI  R0, 0     ; F(0) = 0
+    LSI  R1, 1     ; F(1) = 1
+    LSI  R2, 10    ; Calculate up to F(10)
+    LDI  0x0200    ; Output address into R0
+    MOV  R3, R0    ; Move to R3
     
 fib_loop:
     ST   R0, R3, 0     ; Store current Fibonacci
