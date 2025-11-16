@@ -213,34 +213,52 @@ updateAssemblyListing() {
     
     for (const item of listing) {
         if (item.error) {
-            // Error line
+            // Error line - show error message
             html += `<div class="listing-line" style="color: #f44747;">`;
-            if (item.address !== undefined) {
-                html += `<span class="listing-address">0x${item.address.toString(16).padStart(4, '0')}</span>`;
-                html += `<span class="listing-bytes">--------</span>`;
-            } else {
+            html += `<span class="listing-address"></span>`;
+            html += `<span class="listing-bytes"></span>`;
+            html += `<span class="listing-source">ERR: ${item.error}</span>`;
+            html += `</div>`;
+            
+            // Also show the original source line that caused the error
+            if (item.line) {
+                html += `<div class="listing-line">`;
                 html += `<span class="listing-address"></span>`;
                 html += `<span class="listing-bytes"></span>`;
+                html += `<span class="listing-source" style="color: #ce9178;">${item.line}</span>`;
+                html += `</div>`;
             }
-            html += `<span class="listing-source">${item.error}</span>`;
-            html += `</div>`;
         } else if (item.instruction !== undefined) {
-            // Instruction line
+            // Instruction line - one line per memory location
             const instructionHex = item.instruction.toString(16).padStart(4, '0').toUpperCase();
             html += `<div class="listing-line">`;
             html += `<span class="listing-address">0x${item.address.toString(16).padStart(4, '0')}</span>`;
             html += `<span class="listing-bytes">0x${instructionHex}</span>`;
             html += `<span class="listing-source">${item.line}</span>`;
             html += `</div>`;
-        } else if (item.address !== undefined) {
-            // Directive or label line
+        } else if (item.address !== undefined && (item.line.includes('.org') || item.line.includes('.word'))) {
+            // Directive that affects address - show address but no instruction
             html += `<div class="listing-line">`;
             html += `<span class="listing-address">0x${item.address.toString(16).padStart(4, '0')}</span>`;
             html += `<span class="listing-bytes"></span>`;
             html += `<span class="listing-source">${item.line}</span>`;
             html += `</div>`;
-        } else {
+        } else if (item.line && item.line.trim().endsWith(':')) {
+            // Label line - show without address
+            html += `<div class="listing-line">`;
+            html += `<span class="listing-address"></span>`;
+            html += `<span class="listing-bytes"></span>`;
+            html += `<span class="listing-source" style="color: #569cd6;">${item.line}</span>`;
+            html += `</div>`;
+        } else if (item.line && (item.line.trim().startsWith(';') || item.line.trim() === '')) {
             // Comment or empty line
+            html += `<div class="listing-line">`;
+            html += `<span class="listing-address"></span>`;
+            html += `<span class="listing-bytes"></span>`;
+            html += `<span class="listing-source" style="color: #6a9955;">${item.line}</span>`;
+            html += `</div>`;
+        } else if (item.line) {
+            // Other source lines (shouldn't happen, but just in case)
             html += `<div class="listing-line">`;
             html += `<span class="listing-address"></span>`;
             html += `<span class="listing-bytes"></span>`;
@@ -251,7 +269,7 @@ updateAssemblyListing() {
 
     listingContent.innerHTML = html || 'No assembly output';
 }
-
+    
     run() {
         this.simulator.running = true;
         this.status("Running program...");
