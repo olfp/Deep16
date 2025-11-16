@@ -148,7 +148,7 @@ class Deep16Simulator {
         }
 
         if (shouldJump) {
-            this.registers[15] += offset * 2;
+            this.registers[15] += offset;
         }
     }
 
