@@ -5,101 +5,103 @@ class Deep16Assembler {
         this.symbols = {};
     }
 
-    assemble(source) {
-        this.labels = {};
-        this.symbols = {};
-        const errors = [];
-        const memory = new Array(65536).fill(0);
-        const assemblyListing = [];
-        let address = 0;
+assemble(source) {
+    this.labels = {};
+    this.symbols = {};
+    const errors = [];
+    const memory = new Array(65536).fill(0);
+    const assemblyListing = [];
+    let address = 0;
 
-        const lines = source.split('\n');
-        
-        // First pass: collect labels and symbols
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line || line.startsWith(';')) continue;
+    const lines = source.split('\n');
+    
+    // First pass: collect labels and symbols
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line || line.startsWith(';')) continue;
 
-            try {
-                if (line.startsWith('.org')) {
-                    const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
-                    address = orgValue;
-                } else if (line.endsWith(':')) {
-                    const label = line.slice(0, -1).trim();
-                    this.labels[label] = address;
-                    this.symbols[label] = address;
-                } else if (!this.isDirective(line)) {
-                    address++;
-                }
-            } catch (error) {
-                errors.push(`Line ${i + 1}: ${error.message}`);
+        try {
+            if (line.startsWith('.org')) {
+                const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
+                address = orgValue;
+            } else if (line.endsWith(':')) {
+                const label = line.slice(0, -1).trim();
+                this.labels[label] = address;
+                this.symbols[label] = address;
+            } else if (!this.isDirective(line)) {
+                address++;
             }
+        } catch (error) {
+            errors.push(`Line ${i + 1}: ${error.message}`);
+        }
+    }
+
+    // Second pass: generate machine code and build listing
+    address = 0;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        const originalLine = lines[i];
+        
+        if (!line || line.startsWith(';')) {
+            // Comments and empty lines - add to listing without address
+            assemblyListing.push({ line: originalLine });
+            continue;
         }
 
-        // Second pass: generate machine code
-        address = 0;
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            const originalLine = lines[i];
-            if (!line || line.startsWith(';')) {
-                assemblyListing.push({ address, line: originalLine });
-                continue;
-            }
-
-            try {
-                if (line.startsWith('.org')) {
-                    const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
-                    address = orgValue;
-                    assemblyListing.push({ address, line: originalLine });
-                } else if (line.endsWith(':')) {
-                    assemblyListing.push({ address, line: originalLine });
-                    continue;
-                } else if (line.startsWith('.word')) {
-                    const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
-                    for (const value of values) {
-                        if (address < memory.length) {
-                            memory[address] = value & 0xFFFF;
-                            assemblyListing.push({ 
-                                address, 
-                                instruction: value,
-                                line: originalLine 
-                            });
-                            address++;
-                        }
-                    }
-                } else {
-                    const instruction = this.encodeInstruction(line, address, i + 1);
-                    if (instruction !== null && address < memory.length) {
-                        memory[address] = instruction;
+        try {
+            if (line.startsWith('.org')) {
+                const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
+                address = orgValue;
+                assemblyListing.push({ address: address, line: originalLine });
+            } else if (line.endsWith(':')) {
+                // Labels - add to listing without instruction
+                assemblyListing.push({ address: address, line: originalLine });
+            } else if (line.startsWith('.word')) {
+                const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
+                for (const value of values) {
+                    if (address < memory.length) {
+                        memory[address] = value & 0xFFFF;
                         assemblyListing.push({ 
-                            address, 
-                            instruction: instruction,
+                            address: address, 
+                            instruction: value,
                             line: originalLine 
                         });
                         address++;
-                    } else {
-                        assemblyListing.push({ address, line: originalLine });
                     }
                 }
-            } catch (error) {
-                errors.push(`Line ${i + 1}: ${error.message}`);
-                assemblyListing.push({ 
-                    address, 
-                    error: `ERR: ${error.message}`,
-                    line: originalLine 
-                });
-                address++; // Still advance address even on error
+            } else {
+                const instruction = this.encodeInstruction(line, address, i + 1);
+                if (instruction !== null && address < memory.length) {
+                    memory[address] = instruction;
+                    assemblyListing.push({ 
+                        address: address, 
+                        instruction: instruction,
+                        line: originalLine 
+                    });
+                    address++;
+                } else {
+                    assemblyListing.push({ address: address, line: originalLine });
+                }
             }
+        } catch (error) {
+            errors.push(`Line ${i + 1}: ${error.message}`);
+            assemblyListing.push({ 
+                address: address,
+                error: error.message,
+                line: originalLine 
+            });
+            address++; // Advance address even on error to maintain alignment
         }
-
-        return {
-            success: errors.length === 0,
-            memory: memory,
-            symbols: this.symbols,
-            errors: errors,
-            listing: assemblyListing
-        };
     }
+
+    return {
+        success: errors.length === 0,
+        memory: memory,
+        symbols: this.symbols,
+        errors: errors,
+        listing: assemblyListing
+    };
+}
 
     isDirective(line) {
         return line.startsWith('.org') || line.startsWith('.word');
