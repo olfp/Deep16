@@ -200,50 +200,57 @@ class DeepWebUI {
         this.addTranscriptEntry(`Navigated to error at line ${lineNumber + 1}`, "info");
     }
 
-    updateAssemblyListing() {
-        const listingContent = document.getElementById('listing-content');
-        
-        if (!this.currentAssemblyResult) {
-            listingContent.innerHTML = 'No assembly performed yet';
-            return;
-        }
-
-        const { memory, symbols } = this.currentAssemblyResult;
-        let html = '';
-        let address = 0;
-
-        // Create reverse symbol lookup for addresses
-        const addressToSymbol = {};
-        Object.entries(symbols).forEach(([name, addr]) => {
-            addressToSymbol[addr] = name;
-        });
-
-        // Convert source to lines for reference
-        const sourceLines = this.editorElement.value.split('\n');
-        
-        for (let i = 0; i < memory.length && memory[i] !== undefined; i++) {
-            const value = memory[i];
-            if (value === 0 && i > 0 && memory[i-1] === 0) continue; // Skip consecutive zeros
-            
-            const symbol = addressToSymbol[i];
-            const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
-            const sourceLine = sourceLines[i] || '';
-            
-            if (symbol) {
-                html += `<div class="listing-line" style="color: #b5cea8;">; ${symbol}</div>`;
-            }
-            
-            html += `
-                <div class="listing-line">
-                    <span class="listing-address">0x${i.toString(16).padStart(4, '0')}</span>
-                    <span class="listing-bytes">0x${valueHex}</span>
-                    <span class="listing-source">${sourceLine.trim()}</span>
-                </div>
-            `;
-        }
-
-        listingContent.innerHTML = html || 'No assembly output';
+updateAssemblyListing() {
+    const listingContent = document.getElementById('listing-content');
+    
+    if (!this.currentAssemblyResult) {
+        listingContent.innerHTML = 'No assembly performed yet';
+        return;
     }
+
+    const { listing } = this.currentAssemblyResult;
+    let html = '';
+    
+    for (const item of listing) {
+        if (item.error) {
+            // Error line
+            html += `<div class="listing-line" style="color: #f44747;">`;
+            if (item.address !== undefined) {
+                html += `<span class="listing-address">0x${item.address.toString(16).padStart(4, '0')}</span>`;
+                html += `<span class="listing-bytes">--------</span>`;
+            } else {
+                html += `<span class="listing-address"></span>`;
+                html += `<span class="listing-bytes"></span>`;
+            }
+            html += `<span class="listing-source">${item.error}</span>`;
+            html += `</div>`;
+        } else if (item.instruction !== undefined) {
+            // Instruction line
+            const instructionHex = item.instruction.toString(16).padStart(4, '0').toUpperCase();
+            html += `<div class="listing-line">`;
+            html += `<span class="listing-address">0x${item.address.toString(16).padStart(4, '0')}</span>`;
+            html += `<span class="listing-bytes">0x${instructionHex}</span>`;
+            html += `<span class="listing-source">${item.line}</span>`;
+            html += `</div>`;
+        } else if (item.address !== undefined) {
+            // Directive or label line
+            html += `<div class="listing-line">`;
+            html += `<span class="listing-address">0x${item.address.toString(16).padStart(4, '0')}</span>`;
+            html += `<span class="listing-bytes"></span>`;
+            html += `<span class="listing-source">${item.line}</span>`;
+            html += `</div>`;
+        } else {
+            // Comment or empty line
+            html += `<div class="listing-line">`;
+            html += `<span class="listing-address"></span>`;
+            html += `<span class="listing-bytes"></span>`;
+            html += `<span class="listing-source">${item.line}</span>`;
+            html += `</div>`;
+        }
+    }
+
+    listingContent.innerHTML = html || 'No assembly output';
+}
 
     run() {
         this.simulator.running = true;
