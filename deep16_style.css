@@ -1,4 +1,4 @@
-/* deep16_style.css - Updated with checkbox PSW and better layout */
+/* deep16_style.css - Updated with tabs and improved PSW */
 * {
     margin: 0;
     padding: 0;
@@ -100,7 +100,7 @@ body {
 
 button {
     padding: 8px 12px;
-    background: #0e639c; /* Same blue as assemble button */
+    background: #0e639c; /* Same blue for all buttons */
     color: white;
     border: none;
     border-radius: 3px;
@@ -146,10 +146,57 @@ button:disabled {
     font-size: 12px;
 }
 
+/* Tab system */
+.tab-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.tab-buttons {
+    display: flex;
+    background: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+}
+
+.tab-button {
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #d4d4d4;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    min-height: auto;
+}
+
+.tab-button:hover {
+    background: #3e3e42;
+}
+
+.tab-button.active {
+    background: #1e1e1e;
+    border-bottom-color: #0e639c;
+    color: white;
+}
+
+.tab-content {
+    flex: 1;
+    display: none;
+    background: #1e1e1e;
+    border: 1px solid #3e3e42;
+    overflow: auto;
+}
+
+.tab-content.active {
+    display: flex;
+    flex-direction: column;
+}
+
 .editor {
     flex: 1;
     background: #1e1e1e;
-    border: 1px solid #3e3e42;
     padding: 12px;
     font-family: 'Courier New', monospace;
     font-size: 13px;
@@ -158,6 +205,76 @@ button:disabled {
     white-space: pre;
     overflow: auto;
     line-height: 1.4;
+    border: none;
+    outline: none;
+}
+
+.errors-list {
+    flex: 1;
+    padding: 8px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+}
+
+.error-item {
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    background: #3c2a2a;
+    border-left: 3px solid #f44747;
+    cursor: pointer;
+}
+
+.error-item:hover {
+    background: #4a3535;
+}
+
+.error-location {
+    color: #ce9178;
+    font-size: 11px;
+    margin-bottom: 2px;
+}
+
+.error-message {
+    color: #f44747;
+}
+
+.no-errors {
+    padding: 20px;
+    text-align: center;
+    color: #6a9955;
+    font-style: italic;
+}
+
+.assembly-listing {
+    flex: 1;
+    padding: 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    overflow-y: auto;
+    white-space: pre;
+    line-height: 1.4;
+    color: #d4d4d4;
+}
+
+.listing-line {
+    margin-bottom: 2px;
+}
+
+.listing-address {
+    color: #569cd6;
+    display: inline-block;
+    width: 60px;
+}
+
+.listing-bytes {
+    color: #ce9178;
+    display: inline-block;
+    width: 80px;
+}
+
+.listing-source {
+    color: #d4d4d4;
 }
 
 .memory-controls {
@@ -397,21 +514,30 @@ button:disabled {
 .transcript::-webkit-scrollbar,
 .memory-display::-webkit-scrollbar,
 .symbol-table::-webkit-scrollbar,
-.registers-container::-webkit-scrollbar {
+.registers-container::-webkit-scrollbar,
+.editor::-webkit-scrollbar,
+.errors-list::-webkit-scrollbar,
+.assembly-listing::-webkit-scrollbar {
     width: 8px;
 }
 
 .transcript::-webkit-scrollbar-track,
 .memory-display::-webkit-scrollbar-track,
 .symbol-table::-webkit-scrollbar-track,
-.registers-container::-webkit-scrollbar-track {
+.registers-container::-webkit-scrollbar-track,
+.editor::-webkit-scrollbar-track,
+.errors-list::-webkit-scrollbar-track,
+.assembly-listing::-webkit-scrollbar-track {
     background: #2d2d30;
 }
 
 .transcript::-webkit-scrollbar-thumb,
 .memory-display::-webkit-scrollbar-thumb,
 .symbol-table::-webkit-scrollbar-thumb,
-.registers-container::-webkit-scrollbar-thumb {
+.registers-container::-webkit-scrollbar-thumb,
+.editor::-webkit-scrollbar-thumb,
+.errors-list::-webkit-scrollbar-thumb,
+.assembly-listing::-webkit-scrollbar-thumb {
     background: #424242;
     border-radius: 4px;
 }
@@ -419,7 +545,10 @@ button:disabled {
 .transcript::-webkit-scrollbar-thumb:hover,
 .memory-display::-webkit-scrollbar-thumb:hover,
 .symbol-table::-webkit-scrollbar-thumb:hover,
-.registers-container::-webkit-scrollbar-thumb:hover {
+.registers-container::-webkit-scrollbar-thumb:hover,
+.editor::-webkit-scrollbar-thumb:hover,
+.errors-list::-webkit-scrollbar-thumb:hover,
+.assembly-listing::-webkit-scrollbar-thumb:hover {
     background: #4f4f4f;
 }
 
@@ -429,13 +558,18 @@ button:disabled {
         height: calc(100vh - 170px); /* Extra space for Safari */
     }
     
-    .editor, .memory-display, .registers-container {
+    .editor, .memory-display, .registers-container, .errors-list, .assembly-listing {
         -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
     }
     
     button {
         min-height: 44px; /* Better touch targets on iOS */
         padding: 12px 16px;
+    }
+    
+    .tab-button {
+        min-height: auto;
+        padding: 10px 16px;
     }
 }
 
@@ -474,6 +608,15 @@ button:disabled {
     .memory-controls label {
         font-size: 10px;
     }
+    
+    .tab-buttons {
+        flex-wrap: wrap;
+    }
+    
+    .tab-button {
+        flex: 1;
+        min-width: 80px;
+    }
 }
 
 /* Very small screens */
@@ -497,5 +640,10 @@ button:disabled {
     button {
         font-size: 11px;
         padding: 8px 10px;
+    }
+    
+    .tab-button {
+        font-size: 11px;
+        padding: 8px 12px;
     }
 }
