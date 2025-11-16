@@ -1,4 +1,4 @@
-// deep16_ui.js - Updated with proper PSW, symbols, and layout fixes
+// deep16_ui.js - Updated with tab system and error navigation
 class DeepWebUI {
     constructor() {
         this.assembler = new Deep16Assembler();
@@ -7,9 +7,12 @@ class DeepWebUI {
         this.runInterval = null;
         this.transcriptEntries = [];
         this.maxTranscriptEntries = 50;
+        this.currentAssemblyResult = null;
+        this.editorElement = document.getElementById('editor');
 
         this.initializeEventListeners();
-        this.initializeTestMemory(); // Initialize memory with test data
+        this.initializeTestMemory();
+        this.initializeTabs();
         this.updateAllDisplays();
         this.addTranscriptEntry("DeepWeb initialized and ready", "info");
     }
@@ -26,12 +29,38 @@ class DeepWebUI {
         document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.jumpToMemoryAddress();
         });
+
+        // Tab buttons
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+        });
+    }
+
+    initializeTabs() {
+        // Show editor tab by default
+        this.switchTab('editor');
+    }
+
+    switchTab(tabName) {
+        // Update tab buttons
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.classList.toggle('active', button.dataset.tab === tabName);
+        });
+
+        // Update tab content
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.toggle('active', content.id === `${tabName}-tab`);
+        });
+
+        // If switching to listing tab and we have assembly results, update it
+        if (tabName === 'listing' && this.currentAssemblyResult) {
+            this.updateAssemblyListing();
+        }
     }
 
     initializeTestMemory() {
         // Add some test values to memory for display purposes
         for (let i = 0; i < 256; i++) {
-            // Create a pattern for visibility
             this.simulator.memory[i] = (i * 0x111) & 0xFFFF;
         }
     }
@@ -44,7 +73,6 @@ class DeepWebUI {
             type: type
         });
 
-        // Keep only the last N entries
         if (this.transcriptEntries.length > this.maxTranscriptEntries) {
             this.transcriptEntries = this.transcriptEntries.slice(0, this.maxTranscriptEntries);
         }
@@ -70,11 +98,12 @@ class DeepWebUI {
     }
 
     assemble() {
-        const source = document.getElementById('editor').value;
+        const source = this.editorElement.value;
         this.status("Assembling...");
         this.addTranscriptEntry("Starting assembly", "info");
 
         const result = this.assembler.assemble(source);
+        this.currentAssemblyResult = result;
         
         if (result.success) {
             // Clear existing memory and load the new program
@@ -90,20 +119,130 @@ class DeepWebUI {
             document.getElementById('step-btn').disabled = false;
             document.getElementById('reset-btn').disabled = false;
             
-            // Update symbols - FIXED: Use the symbols from the assembly result
             this.updateSymbolTable(result.symbols);
             this.updateSymbolSelect(result.symbols);
             this.addTranscriptEntry(`Found ${Object.keys(result.symbols).length} symbols`, "info");
+            
+            // Switch to errors tab (will show "no errors" message)
+            this.switchTab('errors');
         } else {
             const errorMsg = `Assembly failed with ${result.errors.length} error(s)`;
-            this.status("Assembly errors - see transcript for details");
+            this.status("Assembly errors - see errors tab for details");
             this.addTranscriptEntry(errorMsg, "error");
-            result.errors.forEach(error => {
-                this.addTranscriptEntry(error, "error");
-            });
+            
+            // Switch to errors tab to show the errors
+            this.switchTab('errors');
         }
 
         this.updateAllDisplays();
+        this.updateErrorsList();
+        this.updateAssemblyListing();
+    }
+
+    updateErrorsList() {
+        const errorsList = document.getElementById('errors-list');
+        
+        if (!this.currentAssemblyResult) {
+            errorsList.innerHTML = '<div class="no-errors">No assembly performed yet</div>';
+            return;
+        }
+
+        const errors = this.currentAssemblyResult.errors;
+        
+        if (errors.length === 0) {
+            errorsList.innerHTML = '<div class="no-errors">No errors - Assembly successful!</div>';
+        } else {
+            let html = '';
+            errors.forEach((error, index) => {
+                // Extract line number from error message if available
+                const lineMatch = error.match(/Line (\d+):/);
+                const lineNumber = lineMatch ? parseInt(lineMatch[1]) - 1 : 0;
+                
+                html += `
+                    <div class="error-item" data-line="${lineNumber}">
+                        <div class="error-location">Line ${lineNumber + 1}</div>
+                        <div class="error-message">${error}</div>
+                    </div>
+                `;
+            });
+            errorsList.innerHTML = html;
+
+            // Add click handlers for error navigation
+            document.querySelectorAll('.error-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const lineNumber = parseInt(item.dataset.line);
+                    this.navigateToError(lineNumber);
+                });
+            });
+        }
+    }
+
+    navigateToError(lineNumber) {
+        // Switch to editor tab
+        this.switchTab('editor');
+        
+        // Focus the editor
+        this.editorElement.focus();
+        
+        // Move cursor to the error line
+        const lines = this.editorElement.value.split('\n');
+        let position = 0;
+        for (let i = 0; i < lineNumber && i < lines.length; i++) {
+            position += lines[i].length + 1; // +1 for newline
+        }
+        
+        this.editorElement.setSelectionRange(position, position);
+        
+        // Scroll to the line
+        const lineHeight = 16; // Approximate line height
+        this.editorElement.scrollTop = (lineNumber - 3) * lineHeight;
+        
+        this.addTranscriptEntry(`Navigated to error at line ${lineNumber + 1}`, "info");
+    }
+
+    updateAssemblyListing() {
+        const listingContent = document.getElementById('listing-content');
+        
+        if (!this.currentAssemblyResult) {
+            listingContent.innerHTML = 'No assembly performed yet';
+            return;
+        }
+
+        const { memory, symbols } = this.currentAssemblyResult;
+        let html = '';
+        let address = 0;
+
+        // Create reverse symbol lookup for addresses
+        const addressToSymbol = {};
+        Object.entries(symbols).forEach(([name, addr]) => {
+            addressToSymbol[addr] = name;
+        });
+
+        // Convert source to lines for reference
+        const sourceLines = this.editorElement.value.split('\n');
+        
+        for (let i = 0; i < memory.length && memory[i] !== undefined; i++) {
+            const value = memory[i];
+            if (value === 0 && i > 0 && memory[i-1] === 0) continue; // Skip consecutive zeros
+            
+            const symbol = addressToSymbol[i];
+            const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+            const sourceLine = sourceLines[i] || '';
+            
+            if (symbol) {
+                html += `<div class="listing-line" style="color: #b5cea8;">; ${symbol}</div>`;
+            }
+            
+            html += `
+                <div class="listing-line">
+                    <span class="listing-address">0x${i.toString(16).padStart(4, '0')}</span>
+                    <span class="listing-bytes">0x${valueHex}</span>
+                    <span class="listing-source">${sourceLine.trim()}</span>
+                </div>
+            `;
+        }
+
+        listingContent.innerHTML = html || 'No assembly output';
     }
 
     run() {
@@ -151,7 +290,7 @@ class DeepWebUI {
         this.simulator.reset();
         this.memoryStartAddress = 0;
         document.getElementById('memory-start-address').value = '0x0000';
-        this.initializeTestMemory(); // Reinitialize test memory
+        this.initializeTestMemory();
         this.updateAllDisplays();
         this.status("Reset complete");
         this.addTranscriptEntry("System reset", "info");
@@ -225,22 +364,18 @@ class DeepWebUI {
         const psw = this.simulator.psw;
         
         // Correct PSW bit mapping according to Deep16 spec:
-        // Bit 0: N (Negative), Bit 1: Z (Zero), Bit 2: V (Overflow), Bit 3: C (Carry)
-        // Bit 4: I (Interrupt Enable), Bit 5: S (Shadow View)
-        // Bits 6-15: Segment control (we don't show individual bits for these)
-        
-        // Update checkbox PSW bits (only show relevant 1-bit flags)
+        // All 1-bit flags as checkboxes
         document.getElementById('psw-n').checked = (psw & 0x0001) !== 0;
         document.getElementById('psw-z').checked = (psw & 0x0002) !== 0;
         document.getElementById('psw-v').checked = (psw & 0x0004) !== 0;
         document.getElementById('psw-c').checked = (psw & 0x0008) !== 0;
         document.getElementById('psw-i').checked = (psw & 0x0010) !== 0; // Bit 4
-        document.getElementById('psw-s').checked = (psw & 0x0020) !== 0; // Bit 5 (S and I are swapped from before)
+        document.getElementById('psw-s').checked = (psw & 0x0020) !== 0; // Bit 5
+        document.getElementById('psw-ds').checked = (psw & 0x0400) !== 0; // Bit 10
+        document.getElementById('psw-de').checked = (psw & 0x8000) !== 0; // Bit 15
         
-        // Update segment control displays (multi-bit fields)
-        document.getElementById('psw-de').textContent = (psw >> 15) & 1;
+        // Multi-bit fields as text displays
         document.getElementById('psw-er').textContent = (psw >> 11) & 0xF;
-        document.getElementById('psw-ds').textContent = (psw >> 10) & 1;
         document.getElementById('psw-dr').textContent = (psw >> 6) & 0xF;
     }
 
@@ -259,7 +394,6 @@ class DeepWebUI {
                 const value = this.simulator.memory[address];
                 const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
                 
-                // Check if this is current PC
                 const isPC = (address === this.simulator.registers[15]);
                 const pcClass = isPC ? 'pc-marker' : '';
                 
@@ -284,19 +418,16 @@ class DeepWebUI {
         switch (opcode) {
             case 0b000: 
                 return `LDI #${instruction & 0x7FFF}`;
-                
             case 0b100: 
                 const d = (instruction >> 12) & 0x1;
                 const rd = (instruction >> 8) & 0xF;
                 const rb = (instruction >> 4) & 0xF;
                 const offset = instruction & 0x1F;
                 return d === 0 ? `LD R${rd}, [R${rb}+${offset}]` : `ST R${rd}, [R${rb}+${offset}]`;
-                
             case 0b110:
                 const aluOp = (instruction >> 10) & 0x7;
                 const aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
                 return `${aluOps[aluOp]} ...`;
-                
             case 0b111: 
                 if ((instruction >> 12) === 0b1110) {
                     const condition = (instruction >> 9) & 0x7;
@@ -305,14 +436,12 @@ class DeepWebUI {
                     return `${conditions[condition]} ${offset}`;
                 }
                 return 'SYS';
-                
             default: 
                 return `??? (0x${instruction.toString(16)})`;
         }
     }
 
     updateSegmentRegisters() {
-        // Use compact layout for segment registers
         const segmentGrid = document.querySelector('.register-section:nth-child(3) .register-grid');
         if (segmentGrid) {
             segmentGrid.innerHTML = `
@@ -337,7 +466,6 @@ class DeepWebUI {
     }
 
     updateShadowRegisters() {
-        // Use compact layout for shadow registers
         const shadowGrid = document.querySelector('.shadow-section .register-grid');
         if (shadowGrid) {
             shadowGrid.innerHTML = `
@@ -395,7 +523,6 @@ class DeepWebUI {
     }
 
     loadExample() {
-        // Keep the current example or load a new one
         this.addTranscriptEntry("Fibonacci example loaded into editor", "info");
         this.status("Fibonacci example ready - click 'Assemble' to compile");
     }
