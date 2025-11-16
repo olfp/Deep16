@@ -76,56 +76,52 @@ fibonacci_results:
                 <div class="register-section">
                     <div class="section-title">Processor Status Word (PSW)</div>
                     <div class="psw-display">
-                        <div class="psw-bits">
-                            <div class="psw-bit">
-                                <div class="psw-label">DE</div>
-                                <div class="psw-value" id="psw-de">0</div>
-                            </div>
-                            <div class="psw-bit">
-                                <div class="psw-label">ER</div>
-                                <div class="psw-value" id="psw-er">0</div>
-                            </div>
-                            <div class="psw-bit">
-                                <div class="psw-label">DS</div>
-                                <div class="psw-value" id="psw-ds">0</div>
-                            </div>
-                            <div class="psw-bit">
-                                <div class="psw-label">DR</div>
-                                <div class="psw-value" id="psw-dr">0</div>
-                            </div>
-                            <div class="psw-bit">
-                                <div class="psw-label">X</div>
-                                <div class="psw-value" id="psw-x1">0</div>
-                            </div>
-                            <div class="psw-bit">
-                                <div class="psw-label">X</div>
-                                <div class="psw-value" id="psw-x2">0</div>
-                            </div>
-                            <div class="psw-bit">
-                                <div class="psw-label">I</div>
-                                <div class="psw-value" id="psw-i">0</div>
-                            </div>
-                            <div class="psw-bit">
-                                <div class="psw-label">S</div>
-                                <div class="psw-value" id="psw-s">0</div>
-                            </div>
-                            <div class="psw-bit">
-                                <div class="psw-label">C</div>
-                                <div class="psw-value" id="psw-c">0</div>
-                            </div>
-                            <div class="psw-bit">
-                                <div class="psw-label">V</div>
-                                <div class="psw-value" id="psw-v">0</div>
-                            </div>
-                            <div class="psw-bit">
-                                <div class="psw-label">Z</div>
-                                <div class="psw-value" id="psw-z">0</div>
-                            </div>
-                            <div class="psw-bit">
-                                <div class="psw-label">N</div>
-                                <div class="psw-value" id="psw-n">0</div>
-                            </div>
-                        </div>
+<!-- Replace the existing PSW bits section with this: -->
+<div class="psw-bits">
+    <!-- 1-bit flags as checkboxes -->
+    <div class="psw-bit">
+        <span class="psw-label">N</span>
+        <input type="checkbox" class="psw-checkbox" id="psw-n" disabled>
+    </div>
+    <div class="psw-bit">
+        <span class="psw-label">Z</span>
+        <input type="checkbox" class="psw-checkbox" id="psw-z" disabled>
+    </div>
+    <div class="psw-bit">
+        <span class="psw-label">V</span>
+        <input type="checkbox" class="psw-checkbox" id="psw-v" disabled>
+    </div>
+    <div class="psw-bit">
+        <span class="psw-label">C</span>
+        <input type="checkbox" class="psw-checkbox" id="psw-c" disabled>
+    </div>
+    <div class="psw-bit">
+        <span class="psw-label">I</span>
+        <input type="checkbox" class="psw-checkbox" id="psw-i" disabled>
+    </div>
+    <div class="psw-bit">
+        <span class="psw-label">S</span>
+        <input type="checkbox" class="psw-checkbox" id="psw-s" disabled>
+    </div>
+    
+    <!-- Multi-bit fields as text displays -->
+    <div class="psw-bit">
+        <span class="psw-label">DE</span>
+        <span class="psw-value-display" id="psw-de">0</span>
+    </div>
+    <div class="psw-bit">
+        <span class="psw-label">ER</span>
+        <span class="psw-value-display" id="psw-er">0</span>
+    </div>
+    <div class="psw-bit">
+        <span class="psw-label">DS</span>
+        <span class="psw-value-display" id="psw-ds">0</span>
+    </div>
+    <div class="psw-bit">
+        <span class="psw-label">DR</span>
+        <span class="psw-value-display" id="psw-dr">0</span>
+    </div>
+</div>
                     </div>
                 </div>
                 
