@@ -47,17 +47,27 @@ step() {
     // Increment PC by 1 (word addressing)
     this.registers[15] += 1;
 
+    // Reset ALU tracking
+    this.lastOperationWasALU = false;
+    this.lastALUResult = 0;
+
     // Decode and execute instruction
     try {
         // Check for LDI first (bit 15 = 0)
         if ((instruction & 0x8000) === 0) {
+            console.log("Detected LDI instruction");
             this.executeLDI(instruction);
         } else {
             const opcode = (instruction >> 13) & 0x7;
+            console.log(`Opcode: ${opcode.toString(2)}`);
             
             switch (opcode) {
-                case 0b100: this.executeMemoryOp(instruction); break;
-                case 0b110: this.executeALUOp(instruction); break;
+                case 0b100: 
+                    this.executeMemoryOp(instruction); 
+                    break;
+                case 0b110:
+                    this.executeALUOp(instruction); 
+                    break;
                 case 0b111: 
                     if ((instruction >> 12) === 0b1110) {
                         this.executeJump(instruction, originalPC);
@@ -89,12 +99,14 @@ step() {
 
 executeLDI(instruction) {
     const immediate = instruction & 0x7FFF;
+    console.log(`LDI executing: immediate = 0x${immediate.toString(16).padStart(4, '0')}`);
     this.registers[0] = immediate; // LDI always loads into R0
-    console.log(`LDI: R0 = 0x${immediate.toString(16).padStart(4, '0')}`);
     
     // Set flags for LDI operation
     this.lastALUResult = immediate;
     this.lastOperationWasALU = true;
+    
+    console.log(`LDI complete: R0 = 0x${this.registers[0].toString(16).padStart(4, '0')}`);
 }
     executeMemoryOp(instruction) {
         const d = (instruction >> 12) & 0x1;
