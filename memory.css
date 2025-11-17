@@ -6,6 +6,9 @@
     min-height: 0;
 }
 
+/* memory.css - Memory display styles */
+/* ... existing code ... */
+
 .memory-controls {
     display: flex;
     gap: 8px;
@@ -20,6 +23,22 @@
 .memory-controls label {
     font-size: 11px;
     color: #9cdcfe;
+}
+
+.memory-controls select {
+    background: #1e1e1e;
+    border: 1px solid #3e3e42;
+    color: #d4d4d4;
+    padding: 3px 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    width: 180px;  /* Set same fixed width */
+}
+
+.memory-controls select option {
+    background: #2d2d30;
+    color: #d4d4d4;
+    padding: 4px;
 }
 
 .memory-controls input, .memory-controls select {
