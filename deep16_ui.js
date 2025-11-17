@@ -1,5 +1,5 @@
 /* deep16_ui.js */
-// Updated with collapsible register groups
+// Updated with Compact/Full view toggle
 class DeepWebUI {
     constructor() {
         this.assembler = new Deep16Assembler();
@@ -12,6 +12,7 @@ class DeepWebUI {
         this.editorElement = document.getElementById('editor');
         this.symbolsExpanded = false; // Start with symbols collapsed
         this.registersExpanded = true; // Start with registers expanded
+        this.compactView = false; // Start with full view
 
         this.initializeEventListeners();
         this.initializeTestMemory();
@@ -29,6 +30,7 @@ class DeepWebUI {
         document.getElementById('memory-jump-btn').addEventListener('click', () => this.jumpToMemoryAddress());
         document.getElementById('symbol-select').addEventListener('change', (e) => this.onSymbolSelect(e));
         document.getElementById('listing-symbol-select').addEventListener('change', (e) => this.onListingSymbolSelect(e));
+        document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
         
         document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.jumpToMemoryAddress();
@@ -49,7 +51,28 @@ class DeepWebUI {
         });
     }
 
+    toggleView() {
+        this.compactView = !this.compactView;
+        const memoryPanel = document.querySelector('.memory-panel');
+        const viewToggle = document.getElementById('view-toggle');
+        
+        if (this.compactView) {
+            memoryPanel.classList.add('compact-view');
+            viewToggle.textContent = 'Full View';
+            this.addTranscriptEntry("Switched to Compact view - PSW only", "info");
+        } else {
+            memoryPanel.classList.remove('compact-view');
+            viewToggle.textContent = 'Compact View';
+            this.addTranscriptEntry("Switched to Full view - All registers visible", "info");
+        }
+        
+        this.updateMemoryDisplayHeight();
+    }
+
     toggleRegisterSection(titleElement) {
+        // Don't allow collapsing in compact view
+        if (this.compactView) return;
+        
         const section = titleElement.closest('.register-section');
         section.classList.toggle('collapsed');
         
@@ -66,10 +89,9 @@ class DeepWebUI {
 
     updateMemoryDisplayHeight() {
         const memoryDisplay = document.getElementById('memory-display');
-        const registersContainer = document.querySelector('.registers-container');
         
         // Memory display will automatically take available space due to flexbox
-        // This ensures proper rendering after collapse/expand
+        // This ensures proper rendering after view changes
         setTimeout(() => {
             memoryDisplay.style.height = 'auto';
         }, 10);
