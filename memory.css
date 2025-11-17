@@ -9,30 +9,47 @@
 /* memory.css - Memory display styles */
 /* ... existing code ... */
 
+/* memory.css - Memory display styles */
+/* ... existing code ... */
+
 .memory-controls {
     display: flex;
-    gap: 8px;
-    padding: 6px 8px;
+    gap: 6px;
+    padding: 4px 8px;      /* Compact padding */
     background: #2d2d30;
     border-bottom: 1px solid #3e3e42;
     align-items: center;
     flex-wrap: wrap;
     flex-shrink: 0;
+    height: 32px;          /* Fixed compact height */
 }
 
 .memory-controls label {
     font-size: 11px;
     color: #9cdcfe;
+    margin: 0;             /* Remove default margins */
 }
 
 .memory-controls select {
     background: #1e1e1e;
     border: 1px solid #3e3e42;
     color: #d4d4d4;
-    padding: 3px 6px;
+    padding: 2px 4px;      /* Compact padding */
     font-family: 'Courier New', monospace;
     font-size: 11px;
-    width: 180px;  /* Set same fixed width */
+    height: 20px;          /* Fixed compact height */
+    width: 150px;          /* Same width as listing selector */
+}
+
+.memory-controls input {
+    background: #1e1e1e;
+    border: 1px solid #3e3e42;
+    color: #d4d4d4;
+    padding: 2px 4px;      /* Compact padding */
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    height: 20px;          /* Match select height */
+    width: 70px;
 }
 
 .memory-controls select option {
