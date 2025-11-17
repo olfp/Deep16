@@ -1,4 +1,4 @@
-// deep16_ui.js - Updated with integrated symbols listing and improved pane management
+// deep16_ui.js - Updated with compact, collapsible symbols listing
 class DeepWebUI {
     constructor() {
         this.assembler = new Deep16Assembler();
@@ -9,6 +9,7 @@ class DeepWebUI {
         this.maxTranscriptEntries = 50;
         this.currentAssemblyResult = null;
         this.editorElement = document.getElementById('editor');
+        this.symbolsExpanded = false; // Start with symbols collapsed
 
         this.initializeEventListeners();
         this.initializeTestMemory();
@@ -199,6 +200,11 @@ class DeepWebUI {
         this.addTranscriptEntry(`Navigated to error at line ${lineNumber + 1}`, "info");
     }
 
+    toggleSymbols() {
+        this.symbolsExpanded = !this.symbolsExpanded;
+        this.updateAssemblyListing();
+    }
+
 updateAssemblyListing() {
     const listingContent = document.getElementById('listing-content');
     
@@ -212,21 +218,40 @@ updateAssemblyListing() {
     
     // Add symbols section at the top
     if (symbols && Object.keys(symbols).length > 0) {
-        html += '<div class="symbols-section-header">Symbol Table</div>';
-        html += '<div class="symbols-table">';
+        const symbolCount = Object.keys(symbols).length;
+        const chevron = this.symbolsExpanded ? '▼' : '▶';
         
-        // Sort symbols by address for better readability
-        const sortedSymbols = Object.entries(symbols).sort((a, b) => a[1] - b[1]);
+        html += `<div class="symbols-section-header" onclick="deepWebUI.toggleSymbols()">`;
+        html += `<span class="symbols-toggle">${chevron}</span>`;
+        html += `Symbol Table (${symbolCount} symbol${symbolCount !== 1 ? 's' : ''})`;
+        html += `</div>`;
         
-        for (const [name, address] of sortedSymbols) {
-            html += `
-                <div class="symbol-row">
-                    <span class="symbol-name">${name}</span>
-                    <span class="symbol-address">0x${address.toString(16).padStart(4, '0')}</span>
-                </div>
-            `;
+        if (this.symbolsExpanded) {
+            html += '<div class="symbols-table">';
+            
+            // Sort symbols by address for better readability
+            const sortedSymbols = Object.entries(symbols).sort((a, b) => a[1] - b[1]);
+            
+            // Use compact grid layout
+            let symbolRows = [];
+            for (let i = 0; i < sortedSymbols.length; i += 4) {
+                symbolRows.push(sortedSymbols.slice(i, i + 4));
+            }
+            
+            for (const row of symbolRows) {
+                html += '<div class="symbol-row">';
+                for (const [name, address] of row) {
+                    html += `
+                        <div class="symbol-item">
+                            <span class="symbol-name">${name}</span>
+                            <span class="symbol-address">0x${address.toString(16).padStart(4, '0')}</span>
+                        </div>
+                    `;
+                }
+                html += '</div>';
+            }
+            html += '</div>';
         }
-        html += '</div>';
         html += '<div class="listing-separator"></div>';
     }
     
