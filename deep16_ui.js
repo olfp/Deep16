@@ -378,42 +378,44 @@ class DeepWebUI {
         listingContent.innerHTML = html || 'No assembly output';
     }
     
-    run() {
-        this.simulator.running = true;
-        this.status("Running program...");
-        this.addTranscriptEntry("Starting program execution", "info");
+run() {
+    this.simulator.running = true;
+    this.status("Running program...");
+    this.addTranscriptEntry("Starting program execution", "info");
+    
+    this.runInterval = setInterval(() => {
+        if (!this.simulator.running) {
+            clearInterval(this.runInterval);
+            this.status("Program halted");
+            this.addTranscriptEntry("Program execution halted", "info");
+            return;
+        }
         
-        this.runInterval = setInterval(() => {
-            if (!this.simulator.running) {
-                clearInterval(this.runInterval);
-                this.status("Program halted");
-                this.addTranscriptEntry("Program execution halted", "info");
-                return;
-            }
-            
-            const continueRunning = this.simulator.step();
-            if (!continueRunning) {
-                clearInterval(this.runInterval);
-                this.status("Program finished");
-                this.addTranscriptEntry("Program execution completed", "success");
-            }
-            
-            this.updateAllDisplays();
-        }, 50);
-    }
-
-    step() {
-        this.simulator.running = true;
-        const pcBefore = this.simulator.registers[15];
         const continueRunning = this.simulator.step();
-        const pcAfter = this.simulator.registers[15];
         
+        // Force UI update after each step
         this.updateAllDisplays();
-        this.status("Step executed");
-        this.addTranscriptEntry(`Step: PC 0x${pcBefore.toString(16).padStart(4, '0')} → 0x${pcAfter.toString(16).padStart(4, '0')}`, "info");
         
-        return continueRunning;
-    }
+        if (!continueRunning) {
+            clearInterval(this.runInterval);
+            this.status("Program finished");
+            this.addTranscriptEntry("Program execution completed", "success");
+        }
+    }, 50);
+}
+step() {
+    this.simulator.running = true;
+    const pcBefore = this.simulator.registers[15];
+    const continueRunning = this.simulator.step();
+    const pcAfter = this.simulator.registers[15];
+    
+    // Force UI update
+    this.updateAllDisplays();
+    this.status("Step executed");
+    this.addTranscriptEntry(`Step: PC 0x${pcBefore.toString(16).padStart(4, '0')} → 0x${pcAfter.toString(16).padStart(4, '0')}`, "info");
+    
+    return continueRunning;
+}
 
     reset() {
         if (this.runInterval) {
