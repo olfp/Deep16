@@ -3,6 +3,7 @@ class DeepWebUI {
     constructor() {
         this.assembler = new Deep16Assembler();
         this.simulator = new Deep16Simulator();
+        this.disassembler = new Deep16Disassembler();
         this.memoryStartAddress = 0;
         this.runInterval = null;
         this.transcriptEntries = [];
@@ -500,68 +501,57 @@ class DeepWebUI {
         let html = '';
         
         const start = this.memoryStartAddress;
-        const end = Math.min(start + this.getWordsPerLine() * 8, this.simulator.memory.length);
+        const end = Math.min(start + 64, this.simulator.memory.length); // Show 64 locations
 
         if (start >= end) {
             html = '<div class="memory-line">Invalid memory range</div>';
         } else {
-            const wordsPerLine = this.getWordsPerLine();
-            
-            for (let lineStart = start; lineStart < end; lineStart += wordsPerLine) {
-                const lineEnd = Math.min(lineStart + wordsPerLine, end);
-                html += this.createMemoryLine(lineStart, lineEnd, wordsPerLine);
+            for (let address = start; address < end; address++) {
+                html += this.createMemoryLine(address);
             }
         }
         
         memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
     }
 
-    getWordsPerLine() {
-        const screenWidth = window.innerWidth;
-        if (screenWidth < 480) return 2;
-        if (screenWidth < 768) return 4;
-        if (screenWidth < 1024) return 8;
-        return 16;
-    }
-
-    createMemoryLine(startAddr, endAddr, wordsPerLine) {
-        const isCodeSegment = this.isCodeAddress(startAddr);
+    createMemoryLine(address) {
+        const isCodeSegment = this.isCodeAddress(address);
+        const value = this.simulator.memory[address];
+        const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+        const isPC = (address === this.simulator.registers[15]);
+        const pcClass = isPC ? 'pc-marker' : '';
+        const source = this.getSourceForAddress(address);
+        
         let html = '';
         
-        html += `<div class="memory-line-header">`;
-        html += `<span class="memory-address">0x${startAddr.toString(16).padStart(4, '0')}</span>`;
-        
-        for (let i = startAddr; i < endAddr; i++) {
-            const value = this.simulator.memory[i];
-            const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
-            const isPC = (i === this.simulator.registers[15]);
-            const pcClass = isPC ? 'pc-marker' : '';
-            
-            html += `<span class="memory-bytes ${pcClass}">0x${valueHex}</span>`;
-        }
-        
-        html += `</div>`;
-        
         if (isCodeSegment) {
-            html += `<div class="memory-disassembly-line">`;
-            for (let i = startAddr; i < endAddr; i++) {
-                const instruction = this.simulator.memory[i];
-                const disasm = this.disassembleInstruction(instruction);
-                const source = this.getSourceForAddress(i);
-                
-                html += `<span class="memory-disassembly">${disasm}</span>`;
-                if (source) {
-                    html += `<span class="memory-source">; ${source}</span>`;
-                }
+            // Code segment: one instruction per line
+            const disasm = this.disassembler.disassemble(value);
+            html += `<div class="memory-line code-line ${pcClass}">`;
+            html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
+            html += `<span class="memory-bytes">0x${valueHex}</span>`;
+            html += `<span class="memory-disassembly">${disasm}</span>`;
+            if (source) {
+                html += `<span class="memory-source">; ${source}</span>`;
             }
             html += `</div>`;
         } else {
-            html += `<div class="memory-data-line">`;
-            for (let i = startAddr; i < endAddr; i++) {
-                const value = this.simulator.memory[i];
-                html += `<span class="memory-data">.dw 0x${value.toString(16).padStart(4, '0')}</span>`;
+            // Data segment: 8 words per line
+            if ((address - this.memoryStartAddress) % 8 === 0) {
+                // Start of a new data line
+                html += `<div class="memory-line data-line">`;
+                html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
+                
+                // Add all 8 words for this line
+                for (let i = 0; i < 8 && (address + i) < this.simulator.memory.length; i++) {
+                    const dataValue = this.simulator.memory[address + i];
+                    const dataHex = dataValue.toString(16).padStart(4, '0').toUpperCase();
+                    const dataPCClass = (address + i === this.simulator.registers[15]) ? 'pc-marker' : '';
+                    html += `<span class="memory-data ${dataPCClass}">0x${dataHex}</span>`;
+                }
+                
+                html += `</div>`;
             }
-            html += `</div>`;
         }
         
         return html;
@@ -577,106 +567,6 @@ class DeepWebUI {
         const listing = this.currentAssemblyResult.listing;
         const item = listing.find(item => item.address === address);
         return item ? item.line.trim() : '';
-    }
-
-    disassembleInstruction(instruction) {
-        if (instruction === 0) return 'NOP';
-        
-        const opcode = (instruction >> 13) & 0x7;
-        
-        switch (opcode) {
-            case 0b000: 
-                return `LDI #${instruction & 0x7FFF}`;
-                
-            case 0b100: 
-                const d = (instruction >> 12) & 0x1;
-                const rd = (instruction >> 8) & 0xF;
-                const rb = (instruction >> 4) & 0xF;
-                const offset = instruction & 0x1F;
-                const regNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
-                return d === 0 ? 
-                    `LD ${regNames[rd]}, [${regNames[rb]}+${offset}]` : 
-                    `ST ${regNames[rd]}, [${regNames[rb]}+${offset}]`;
-                    
-            case 0b110:
-                return this.disassembleALU(instruction);
-                
-            case 0b111: 
-                return this.disassembleControlFlow(instruction);
-                
-            default: 
-                return `??? (0x${instruction.toString(16)})`;
-        }
-    }
-
-    disassembleALU(instruction) {
-        const aluOp = (instruction >> 10) & 0x7;
-        const rd = (instruction >> 8) & 0xF;
-        const w = (instruction >> 7) & 0x1;
-        const i = (instruction >> 6) & 0x1;
-        const operand = instruction & 0xF;
-        
-        const aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
-        const regNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
-        
-        let opStr = aluOps[aluOp];
-        let operandStr = i === 0 ? regNames[operand] : `#${operand}`;
-        
-        if (aluOp === 0b111) {
-            return this.disassembleShift(instruction);
-        }
-        
-        if (w === 0) {
-            const flagOps = ['ANW', 'CMP', 'TBS', 'TBC', '', '', '', ''];
-            opStr = flagOps[aluOp] || opStr;
-        }
-        
-        return `${opStr} ${regNames[rd]}, ${operandStr}`;
-    }
-
-    disassembleShift(instruction) {
-        const rd = (instruction >> 8) & 0xF;
-        const shiftType = (instruction >> 4) & 0x7;
-        const count = instruction & 0xF;
-        
-        const shiftOps = ['SL', 'SLC', 'SR', 'SRC', 'SRA', 'SAC', 'ROR', 'ROC'];
-        const regNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
-        
-        return `${shiftOps[shiftType]} ${regNames[rd]}, #${count}`;
-    }
-
-    disassembleControlFlow(instruction) {
-        if ((instruction >> 12) === 0b1110) {
-            const condition = (instruction >> 9) & 0x7;
-            const conditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
-            const offset = instruction & 0x1FF;
-            const signedOffset = (offset & 0x100) ? (offset | 0xFE00) : offset;
-            return `${conditions[condition]} ${signedOffset}`;
-        }
-        
-        if ((instruction >> 10) === 0b111110) {
-            const rd = (instruction >> 8) & 0xF;
-            const rs = (instruction >> 4) & 0xF;
-            const imm = instruction & 0x3;
-            const regNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
-            return `MOV ${regNames[rd]}, ${regNames[rs]}, ${imm}`;
-        }
-        
-        if ((instruction >> 9) === 0b1111110) {
-            const rd = (instruction >> 8) & 0xF;
-            let imm = (instruction >> 4) & 0x1F;
-            if (imm & 0x10) imm |= 0xFFE0;
-            const regNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
-            return `LSI ${regNames[rd]}, ${imm}`;
-        }
-        
-        if ((instruction >> 13) === 0b11111) {
-            const sysOp = instruction & 0x7;
-            const sysOps = ['NOP', 'HLT', 'SWI', 'RETI', '', '', '', ''];
-            return sysOps[sysOp] || 'SYS';
-        }
-        
-        return '???';
     }
 
     updateSegmentRegisters() {
