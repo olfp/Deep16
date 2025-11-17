@@ -1,5 +1,5 @@
 /* deep16_style.css */
-/* Updated with collapsible register groups */
+/* Updated with Compact/Full view toggle */
 * {
     margin: 0;
     padding: 0;
@@ -207,6 +207,29 @@ button:disabled {
     border-bottom: 1px solid #3e3e42;
     font-weight: bold;
     font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.panel-header-title {
+    flex: 1;
+}
+
+.view-toggle {
+    background: #0e639c;
+    border: 1px solid #3e3e42;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    margin-left: 8px;
+}
+
+.view-toggle:hover {
+    background: #1177bb;
 }
 
 .listing-line {
@@ -534,6 +557,15 @@ button:disabled {
     overflow-y: auto;
     min-height: 0; /* Allow proper flexbox scrolling */
     flex-shrink: 0; /* Prevent shrinking when collapsed */
+}
+
+/* Compact view - hide all register sections except PSW */
+.memory-panel.compact-view .register-section:not(:first-child) {
+    display: none;
+}
+
+.memory-panel.compact-view .registers-container {
+    gap: 0;
 }
 
 /* Collapsible register sections */
