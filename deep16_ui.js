@@ -20,7 +20,7 @@ class DeepWebUI {
         };
 
         this.initializeEventListeners();
-        this.initializeSearchableDropdowns(); // Add this line
+        this.initializeSearchableDropdowns();
         this.initializeTestMemory();
         this.initializeTabs();
         this.updateAllDisplays();
@@ -55,6 +55,67 @@ class DeepWebUI {
         });
 
         window.addEventListener('resize', () => this.updateMemoryDisplay());
+    }
+
+    initializeSearchableDropdowns() {
+        this.initializeSymbolDropdown('symbol-select');
+        this.initializeSymbolDropdown('listing-symbol-select');
+    }
+
+    initializeSymbolDropdown(selectId) {
+        const select = document.getElementById(selectId);
+        let isUserInteraction = true;
+        
+        // Store original options
+        const originalOptions = Array.from(select.options);
+        
+        // Add input event listener for filtering
+        select.addEventListener('input', (e) => {
+            if (!isUserInteraction) return;
+            
+            const filterText = e.target.value.toLowerCase();
+            const filteredOptions = originalOptions.filter(option => 
+                option.text.toLowerCase().includes(filterText)
+            );
+            
+            // Temporarily disable user interaction to avoid recursion
+            isUserInteraction = false;
+            
+            // Clear and repopulate options
+            select.innerHTML = '';
+            filteredOptions.forEach(option => {
+                select.appendChild(option.cloneNode(true));
+            });
+            
+            // Restore user interaction
+            setTimeout(() => isUserInteraction = true, 10);
+        });
+        
+        // Add focus event to show all options when focused
+        select.addEventListener('focus', () => {
+            if (!isUserInteraction) return;
+            
+            isUserInteraction = false;
+            select.innerHTML = '';
+            originalOptions.forEach(option => {
+                select.appendChild(option.cloneNode(true));
+            });
+            setTimeout(() => isUserInteraction = true, 10);
+        });
+        
+        // Add keydown for navigation
+        select.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (selectId === 'symbol-select') {
+                    this.onSymbolSelect({ target: select });
+                } else {
+                    this.onListingSymbolSelect({ target: select });
+                }
+            } else if (e.key === 'Escape') {
+                select.blur();
+            }
+        });
     }
 
     toggleView() {
@@ -160,14 +221,14 @@ class DeepWebUI {
     }
 
     assemble() {
-        console.log("Assemble button clicked"); // Debug log
+        console.log("Assemble button clicked");
         const source = this.editorElement.value;
         this.status("Assembling...");
         this.addTranscriptEntry("Starting assembly", "info");
 
         try {
             const result = this.assembler.assemble(source);
-            console.log("Assembly result:", result); // Debug log
+            console.log("Assembly result:", result);
             this.currentAssemblyResult = result;
             
             if (result.success) {
@@ -257,36 +318,36 @@ class DeepWebUI {
         this.addTranscriptEntry(`Navigated to error at line ${lineNumber + 1}`, "info");
     }
 
-updateSymbolSelects(symbols) {
-    const symbolSelects = [
-        document.getElementById('symbol-select'),
-        document.getElementById('listing-symbol-select')
-    ];
-    
-    symbolSelects.forEach(select => {
-        // Store the current selection
-        const currentValue = select.value;
+    updateSymbolSelects(symbols) {
+        const symbolSelects = [
+            document.getElementById('symbol-select'),
+            document.getElementById('listing-symbol-select')
+        ];
         
-        let html = '<option value="">-- Select Symbol --</option>';
-        
-        if (symbols && Object.keys(symbols).length > 0) {
-            for (const [name, address] of Object.entries(symbols)) {
-                const displayText = `${name} (0x${address.toString(16).padStart(4, '0')})`;
-                html += `<option value="${address}">${displayText}</option>`;
+        symbolSelects.forEach(select => {
+            // Store the current selection
+            const currentValue = select.value;
+            
+            let html = '<option value="">-- Select Symbol --</option>';
+            
+            if (symbols && Object.keys(symbols).length > 0) {
+                for (const [name, address] of Object.entries(symbols)) {
+                    const displayText = `${name} (0x${address.toString(16).padStart(4, '0')})`;
+                    html += `<option value="${address}">${displayText}</option>`;
+                }
             }
-        }
-        
-        select.innerHTML = html;
-        
-        // Restore selection if it still exists
-        if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
-            select.value = currentValue;
-        }
-        
-        // Re-initialize search functionality
-        this.initializeSearchableDropdown(select.id);
-    });
-}
+            
+            select.innerHTML = html;
+            
+            // Restore selection if it still exists
+            if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
+                select.value = currentValue;
+            }
+            
+            // Re-initialize search functionality
+            this.initializeSymbolDropdown(select.id);
+        });
+    }
 
     onListingSymbolSelect(event) {
         const address = parseInt(event.target.value);
@@ -391,44 +452,45 @@ updateSymbolSelects(symbols) {
         listingContent.innerHTML = html || 'No assembly output';
     }
     
-run() {
-    this.simulator.running = true;
-    this.status("Running program...");
-    this.addTranscriptEntry("Starting program execution", "info");
-    
-    this.runInterval = setInterval(() => {
-        if (!this.simulator.running) {
-            clearInterval(this.runInterval);
-            this.status("Program halted");
-            this.addTranscriptEntry("Program execution halted", "info");
-            return;
-        }
+    run() {
+        this.simulator.running = true;
+        this.status("Running program...");
+        this.addTranscriptEntry("Starting program execution", "info");
         
+        this.runInterval = setInterval(() => {
+            if (!this.simulator.running) {
+                clearInterval(this.runInterval);
+                this.status("Program halted");
+                this.addTranscriptEntry("Program execution halted", "info");
+                return;
+            }
+            
+            const continueRunning = this.simulator.step();
+            
+            // Force UI update after each step
+            this.updateAllDisplays();
+            
+            if (!continueRunning) {
+                clearInterval(this.runInterval);
+                this.status("Program finished");
+                this.addTranscriptEntry("Program execution completed", "success");
+            }
+        }, 50);
+    }
+
+    step() {
+        this.simulator.running = true;
+        const pcBefore = this.simulator.registers[15];
         const continueRunning = this.simulator.step();
+        const pcAfter = this.simulator.registers[15];
         
-        // Force UI update after each step
+        // Force UI update
         this.updateAllDisplays();
+        this.status("Step executed");
+        this.addTranscriptEntry(`Step: PC 0x${pcBefore.toString(16).padStart(4, '0')} → 0x${pcAfter.toString(16).padStart(4, '0')}`, "info");
         
-        if (!continueRunning) {
-            clearInterval(this.runInterval);
-            this.status("Program finished");
-            this.addTranscriptEntry("Program execution completed", "success");
-        }
-    }, 50);
-}
-step() {
-    this.simulator.running = true;
-    const pcBefore = this.simulator.registers[15];
-    const continueRunning = this.simulator.step();
-    const pcAfter = this.simulator.registers[15];
-    
-    // Force UI update
-    this.updateAllDisplays();
-    this.status("Step executed");
-    this.addTranscriptEntry(`Step: PC 0x${pcBefore.toString(16).padStart(4, '0')} → 0x${pcAfter.toString(16).padStart(4, '0')}`, "info");
-    
-    return continueRunning;
-}
+        return continueRunning;
+    }
 
     reset() {
         if (this.runInterval) {
@@ -444,64 +506,6 @@ step() {
         this.addTranscriptEntry("System reset", "info");
     }
 
-initializeSearchableDropdowns() {
-    this.initializeSymbolDropdown('symbol-select');
-    this.initializeSymbolDropdown('listing-symbol-select');
-}
-
-initializeSymbolDropdown(selectId) {
-    const select = document.getElementById(selectId);
-    let isUserInteraction = true;
-    
-    // Store original options
-    const originalOptions = Array.from(select.options);
-    
-    // Add input event listener for filtering
-    select.addEventListener('input', (e) => {
-        if (!isUserInteraction) return;
-        
-        const filterText = e.target.value.toLowerCase();
-        const filteredOptions = originalOptions.filter(option => 
-            option.text.toLowerCase().includes(filterText)
-        );
-        
-        // Temporarily disable user interaction to avoid recursion
-        isUserInteraction = false;
-        
-        // Clear and repopulate options
-        select.innerHTML = '';
-        filteredOptions.forEach(option => {
-            select.appendChild(option.cloneNode(true));
-        });
-        
-        // Restore user interaction
-        setTimeout(() => isUserInteraction = true, 10);
-    });
-    
-    // Add focus event to show all options when focused
-    select.addEventListener('focus', () => {
-        if (!isUserInteraction) return;
-        
-        isUserInteraction = false;
-        select.innerHTML = '';
-        originalOptions.forEach(option => {
-            select.appendChild(option.cloneNode(true));
-        });
-        setTimeout(() => isUserInteraction = true, 10);
-    });
-    
-    // Add keydown for navigation
-    select.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            this.onSymbolSelect({ target: select });
-        } else if (e.key === 'Escape') {
-            select.blur();
-        }
-    });
-}
-
-    
     jumpToMemoryAddress() {
         const input = document.getElementById('memory-start-address');
         let address = input.value.trim();
@@ -532,6 +536,7 @@ initializeSymbolDropdown(selectId) {
             document.getElementById('memory-start-address').value = '0x' + address.toString(16).padStart(4, '0');
             const symbolName = event.target.options[event.target.selectedIndex].text.split(' (')[0];
             this.addTranscriptEntry(`Memory view jumped to symbol: ${symbolName}`, "info");
+            event.target.value = ''; // Clear after selection
         }
     }
 
@@ -616,36 +621,25 @@ initializeSymbolDropdown(selectId) {
         memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
     }
 
-createCodeMemoryLine(address) {
-    const value = this.simulator.memory[address];
-    const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
-    const isPC = (address === this.simulator.registers[15]);
-    const pcClass = isPC ? 'pc-marker' : '';
-    const disasm = this.disassembler.disassemble(value);
-    
-    // Get the correct source line - only show actual instruction sources
-    let source = '';
-    if (this.currentAssemblyResult) {
-        const listing = this.currentAssemblyResult.listing;
-        for (const item of listing) {
-            if (item.address === address && item.instruction !== undefined && item.line) {
-                source = item.line.trim();
-                break;
-            }
+    createCodeMemoryLine(address) {
+        const value = this.simulator.memory[address];
+        const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+        const isPC = (address === this.simulator.registers[15]);
+        const pcClass = isPC ? 'pc-marker' : '';
+        const disasm = this.disassembler.disassemble(value);
+        const source = this.getSourceForAddress(address);
+        
+        let html = `<div class="memory-line code-line ${pcClass}">`;
+        html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
+        html += `<span class="memory-bytes">0x${valueHex}</span>`;
+        html += `<span class="memory-disassembly">${disasm}</span>`;
+        if (source) {
+            html += `<span class="memory-source">; ${source}</span>`;
         }
+        html += `</div>`;
+        
+        return html;
     }
-    
-    let html = `<div class="memory-line code-line ${pcClass}">`;
-    html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
-    html += `<span class="memory-bytes">0x${valueHex}</span>`;
-    html += `<span class="memory-disassembly">${disasm}</span>`;
-    if (source) {
-        html += `<span class="memory-source">; ${source}</span>`;
-    }
-    html += `</div>`;
-    
-    return html;
-}
 
     createDataMemoryLine(startAddr, endAddr) {
         let html = `<div class="memory-line data-line">`;
@@ -667,28 +661,22 @@ createCodeMemoryLine(address) {
         return address >= this.segmentInfo.code.start && address < this.segmentInfo.code.end;
     }
 
-getSourceForAddress(address) {
-    if (!this.currentAssemblyResult) return '';
-    
-    const listing = this.currentAssemblyResult.listing;
-    
-    // Find the listing item that matches the address AND has an instruction
-    for (const item of listing) {
-        if (item.address === address && item.instruction !== undefined) {
-            // This is an actual instruction at this address
-            return item.line ? item.line.trim() : '';
+    getSourceForAddress(address) {
+        if (!this.currentAssemblyResult) return '';
+        
+        const listing = this.currentAssemblyResult.listing;
+        
+        // Find the listing item that matches the address AND has an instruction
+        for (const item of listing) {
+            if (item.address === address && item.instruction !== undefined) {
+                // This is an actual instruction at this address
+                return item.line ? item.line.trim() : '';
+            }
         }
+        
+        return '';
     }
-    
-    // If no instruction found at this exact address, try to find the closest source line
-    for (const item of listing) {
-        if (item.address === address && item.line) {
-            return item.line.trim();
-        }
-    }
-    
-    return '';
-}
+
     updateSegmentRegisters() {
         const segmentGrid = document.querySelector('.register-section:nth-child(3) .register-grid');
         if (segmentGrid) {
