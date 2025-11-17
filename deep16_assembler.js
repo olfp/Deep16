@@ -5,99 +5,99 @@ class Deep16Assembler {
         this.symbols = {};
     }
 
-assemble(source) {
-    this.labels = {};
-    this.symbols = {};
-    const errors = [];
-    const memory = new Array(65536).fill(0);
-    const assemblyListing = [];
-    let address = 0;
+    assemble(source) {
+        this.labels = {};
+        this.symbols = {};
+        const errors = [];
+        const memory = new Array(65536).fill(0);
+        const assemblyListing = [];
+        let address = 0;
 
-    const lines = source.split('\n');
-    
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line || line.startsWith(';')) continue;
-
-        try {
-            if (line.startsWith('.org')) {
-                const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
-                address = orgValue;
-            } else if (line.endsWith(':')) {
-                const label = line.slice(0, -1).trim();
-                this.labels[label] = address;
-                this.symbols[label] = address;
-            } else if (!this.isDirective(line)) {
-                address++;
-            }
-        } catch (error) {
-            errors.push(`Line ${i + 1}: ${error.message}`);
-        }
-    }
-
-    address = 0;
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        const originalLine = lines[i];
+        const lines = source.split('\n');
         
-        if (!line || line.startsWith(';')) {
-            assemblyListing.push({ line: originalLine });
-            continue;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line || line.startsWith(';')) continue;
+
+            try {
+                if (line.startsWith('.org')) {
+                    const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
+                    address = orgValue;
+                } else if (line.endsWith(':')) {
+                    const label = line.slice(0, -1).trim();
+                    this.labels[label] = address;
+                    this.symbols[label] = address;
+                } else if (!this.isDirective(line)) {
+                    address++;
+                }
+            } catch (error) {
+                errors.push(`Line ${i + 1}: ${error.message}`);
+            }
         }
 
-        try {
-            if (line.startsWith('.org')) {
-                const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
-                address = orgValue;
-                assemblyListing.push({ address: address, line: originalLine });
-            } else if (line.endsWith(':')) {
-                assemblyListing.push({ address: address, line: originalLine });
-            } else if (line.startsWith('.word')) {
-                const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
-                for (const value of values) {
-                    if (address < memory.length) {
-                        memory[address] = value & 0xFFFF;
+        address = 0;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            const originalLine = lines[i];
+            
+            if (!line || line.startsWith(';')) {
+                assemblyListing.push({ line: originalLine });
+                continue;
+            }
+
+            try {
+                if (line.startsWith('.org')) {
+                    const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
+                    address = orgValue;
+                    assemblyListing.push({ address: address, line: originalLine });
+                } else if (line.endsWith(':')) {
+                    assemblyListing.push({ address: address, line: originalLine });
+                } else if (line.startsWith('.word')) {
+                    const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
+                    for (const value of values) {
+                        if (address < memory.length) {
+                            memory[address] = value & 0xFFFF;
+                            assemblyListing.push({ 
+                                address: address, 
+                                instruction: value,
+                                line: originalLine 
+                            });
+                            address++;
+                        }
+                    }
+                } else {
+                    const instruction = this.encodeInstruction(line, address, i + 1);
+                    if (instruction !== null && address < memory.length) {
+                        memory[address] = instruction;
                         assemblyListing.push({ 
                             address: address, 
-                            instruction: value,
+                            instruction: instruction,
                             line: originalLine 
                         });
                         address++;
+                    } else {
+                        assemblyListing.push({ address: address, line: originalLine });
                     }
                 }
-            } else {
-                const instruction = this.encodeInstruction(line, address, i + 1);
-                if (instruction !== null && address < memory.length) {
-                    memory[address] = instruction;
-                    assemblyListing.push({ 
-                        address: address, 
-                        instruction: instruction,
-                        line: originalLine 
-                    });
-                    address++;
-                } else {
-                    assemblyListing.push({ address: address, line: originalLine });
-                }
+            } catch (error) {
+                errors.push(`Line ${i + 1}: ${error.message}`);
+                assemblyListing.push({ 
+                    address: address,
+                    error: error.message,
+                    line: originalLine 
+                });
+                address++;
             }
-        } catch (error) {
-            errors.push(`Line ${i + 1}: ${error.message}`);
-            assemblyListing.push({ 
-                address: address,
-                error: error.message,
-                line: originalLine 
-            });
-            address++;
         }
-    }
 
-    return {
-        success: errors.length === 0,
-        memory: memory,
-        symbols: this.symbols,
-        errors: errors,
-        listing: assemblyListing
-    };
-}
+        return {
+            success: errors.length === 0,
+            memory: memory,
+            symbols: this.symbols,
+            errors: errors,
+            listing: assemblyListing
+        };
+    }
 
     isDirective(line) {
         return line.startsWith('.org') || line.startsWith('.word');
@@ -204,32 +204,36 @@ assemble(source) {
         }
     }
 
-encodeMOV(parts, address, lineNumber) {
-    if (parts.length >= 3) {
-        const rd = this.parseRegister(parts[1]);
-        const rs = this.parseRegister(parts[2]);
-        const imm = 0; // Default immediate is 0
-        
-        // Correct encoding: [111110][Rd4][Rs4][imm2]
-        // Bits: 15-10: opcode, 9-6: Rd, 5-2: Rs, 1-0: imm
-        return 0b1111100000000000 | (rd << 6) | (rs << 2) | imm;
+    encodeMOV(parts, address, lineNumber) {
+        if (parts.length >= 3) {
+            const rd = this.parseRegister(parts[1]);
+            const rs = this.parseRegister(parts[2]);
+            const imm = 0; // Default immediate is 0
+            
+            // Correct encoding: [111110][Rd4][Rs4][imm2]
+            // Bits: 15-10: opcode, 9-6: Rd, 5-2: Rs, 1-0: imm
+            return 0b1111100000000000 | (rd << 6) | (rs << 2) | imm;
+        }
+        throw new Error('MOV requires destination register and source register');
     }
-    throw new Error('MOV requires destination register and source register');
-}
-    
+
     encodeALU(parts, aluOp, address, lineNumber) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
             
             if (this.isRegister(parts[2])) {
                 const rs = this.parseRegister(parts[2]);
-                return 0b1100000000000000 | (aluOp << 10) | (rd << 8) | (rs << 4);
+                // ALU2 register mode: [110][op3][Rd4][w1][i0][Rs4]
+                // Bits: 15-13: opcode, 12-10: aluOp, 9-6: Rd, 5: w=1, 4: i=0, 3-0: Rs
+                return 0b1100000000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | rs;
             } else {
                 const imm = this.parseImmediate(parts[2]);
                 if (imm < 0 || imm > 15) {
                     throw new Error(`Immediate value ${imm} out of range (0-15)`);
                 }
-                return 0b1100001000000000 | (aluOp << 10) | (rd << 8) | imm;
+                // ALU2 immediate mode: [110][op3][Rd4][w1][i1][imm4]
+                // Bits: 15-13: opcode, 12-10: aluOp, 9-6: Rd, 5: w=1, 4: i=1, 3-0: imm
+                return 0b1100001000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | (1 << 4) | imm;
             }
         }
         throw new Error(`ALU operation requires two operands`);
@@ -245,22 +249,25 @@ encodeMOV(parts, address, lineNumber) {
                 throw new Error(`Offset ${offset} out of range (0-31)`);
             }
             
+            // LD/ST: [10][d1][Rd4][Rb4][offset5]
+            // Bits: 15-14: opcode, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
             return (isStore ? 0b1010000000000000 : 0b1000000000000000) | 
-                   (rd << 8) | (rb << 4) | offset;
+                   (rd << 9) | (rb << 5) | offset;
         }
         throw new Error(`${isStore ? 'ST' : 'LD'} requires register, base register, and offset`);
     }
 
-encodeLDI(parts, address, lineNumber) {
-    if (parts.length >= 2) {
-        const imm = this.parseImmediate(parts[1]);
-        if (imm < 0 || imm > 32767) {
-            throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
+    encodeLDI(parts, address, lineNumber) {
+        if (parts.length >= 2) {
+            const imm = this.parseImmediate(parts[1]);
+            if (imm < 0 || imm > 32767) {
+                throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
+            }
+            return imm & 0x7FFF;
         }
-        return imm & 0x7FFF;
+        throw new Error('LDI requires immediate value');
     }
-    throw new Error('LDI requires immediate value');
-}
+
     encodeLSI(parts, address, lineNumber) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
@@ -271,7 +278,9 @@ encodeLDI(parts, address, lineNumber) {
             }
             
             const imm5 = imm & 0x1F;
-            return 0b1111110000000000 | (rd << 8) | (imm5 << 4);
+            // Correct encoding: [1111110][Rd4][imm5]
+            // Bits: 15-9: opcode, 8-5: Rd, 4-0: imm5
+            return 0b1111110000000000 | (rd << 5) | imm5;
         }
         throw new Error('LSI requires register and immediate value');
     }
@@ -287,6 +296,8 @@ encodeLDI(parts, address, lineNumber) {
             if (offset < -256 || offset > 255) {
                 throw new Error(`Jump target too far: ${offset} words from current position`);
             }
+            // JMP: [1110][type3][target9]
+            // Bits: 15-12: opcode, 11-9: condition, 8-0: offset
             return 0b1110000000000000 | (condition << 9) | (offset & 0x1FF);
         }
         throw new Error('Jump requires target label');
@@ -299,7 +310,9 @@ encodeLDI(parts, address, lineNumber) {
             if (count < 0 || count > 7) {
                 throw new Error(`Shift count ${count} out of range (0-7)`);
             }
-            return 0b1101110000000000 | (rd << 8) | (shiftType << 4) | count;
+            // Shift: [110][111][Rd4][T2][C][count3]
+            // Bits: 15-13: opcode=110, 12-10: aluOp=111, 9-6: Rd, 5-4: T2, 3: C, 2-0: count
+            return 0b1101110000000000 | (rd << 6) | (shiftType << 3) | count;
         }
         throw new Error('Shift operation requires register and count');
     }
@@ -310,6 +323,8 @@ encodeLDI(parts, address, lineNumber) {
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`SET immediate ${imm} out of range (0-15)`);
             }
+            // SET: [11111110][1100][imm4]  
+            // Bits: 15-8: opcode=11111110, 7-4: type=1100, 3-0: imm
             return 0b1111111011000000 | (imm << 4);
         }
         throw new Error('SET requires immediate value');
@@ -321,6 +336,8 @@ encodeLDI(parts, address, lineNumber) {
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`CLR immediate ${imm} out of range (0-15)`);
             }
+            // CLR: [11111110][1101][imm4]
+            // Bits: 15-8: opcode=11111110, 7-4: type=1101, 3-0: imm
             return 0b1111111011010000 | (imm << 4);
         }
         throw new Error('CLR requires immediate value');
@@ -332,6 +349,8 @@ encodeLDI(parts, address, lineNumber) {
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`SET2 immediate ${imm} out of range (0-15)`);
             }
+            // SET2: [11111110][1110][imm4]
+            // Bits: 15-8: opcode=11111110, 7-4: type=1110, 3-0: imm
             return 0b1111111011100000 | (imm << 4);
         }
         throw new Error('SET2 requires immediate value');
@@ -343,6 +362,8 @@ encodeLDI(parts, address, lineNumber) {
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`CLR2 immediate ${imm} out of range (0-15)`);
             }
+            // CLR2: [11111110][1111][imm4]
+            // Bits: 15-8: opcode=11111110, 7-4: type=1111, 3-0: imm
             return 0b1111111011110000 | (imm << 4);
         }
         throw new Error('CLR2 requires immediate value');
