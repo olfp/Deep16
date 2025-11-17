@@ -1,4 +1,5 @@
-// deep16_ui.js - Updated with symbol navigation in listing pane
+/* deep16_ui.js */
+// Updated with collapsible register groups
 class DeepWebUI {
     constructor() {
         this.assembler = new Deep16Assembler();
@@ -10,6 +11,7 @@ class DeepWebUI {
         this.currentAssemblyResult = null;
         this.editorElement = document.getElementById('editor');
         this.symbolsExpanded = false; // Start with symbols collapsed
+        this.registersExpanded = true; // Start with registers expanded
 
         this.initializeEventListeners();
         this.initializeTestMemory();
@@ -36,6 +38,41 @@ class DeepWebUI {
         document.querySelectorAll('.tab-button').forEach(button => {
             button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
         });
+
+        // Register section toggle
+        document.querySelectorAll('.section-title').forEach(title => {
+            title.addEventListener('click', (e) => {
+                if (e.target.classList.contains('section-title')) {
+                    this.toggleRegisterSection(e.target);
+                }
+            });
+        });
+    }
+
+    toggleRegisterSection(titleElement) {
+        const section = titleElement.closest('.register-section');
+        section.classList.toggle('collapsed');
+        
+        const toggle = titleElement.querySelector('.section-toggle');
+        if (section.classList.contains('collapsed')) {
+            toggle.textContent = '▶';
+        } else {
+            toggle.textContent = '▼';
+        }
+        
+        // Update memory display height when registers are collapsed/expanded
+        this.updateMemoryDisplayHeight();
+    }
+
+    updateMemoryDisplayHeight() {
+        const memoryDisplay = document.getElementById('memory-display');
+        const registersContainer = document.querySelector('.registers-container');
+        
+        // Memory display will automatically take available space due to flexbox
+        // This ensures proper rendering after collapse/expand
+        setTimeout(() => {
+            memoryDisplay.style.height = 'auto';
+        }, 10);
     }
 
     initializeTabs() {
@@ -268,76 +305,76 @@ class DeepWebUI {
         }
     }
 
-updateAssemblyListing() {
-    const listingContent = document.getElementById('listing-content');
-    
-    if (!this.currentAssemblyResult) {
-        listingContent.innerHTML = 'No assembly performed yet';
-        return;
-    }
+    updateAssemblyListing() {
+        const listingContent = document.getElementById('listing-content');
+        
+        if (!this.currentAssemblyResult) {
+            listingContent.innerHTML = 'No assembly performed yet';
+            return;
+        }
 
-    const { listing } = this.currentAssemblyResult;
-    let html = '';
-    
-    // Add assembly listing
-    for (const item of listing) {
-        if (item.error) {
-            // Error line - show error message
-            html += `<div class="listing-line" style="color: #f44747;">`;
-            html += `<span class="listing-address"></span>`;
-            html += `<span class="listing-bytes"></span>`;
-            html += `<span class="listing-source">ERR: ${item.error}</span>`;
-            html += `</div>`;
-            
-            // Also show the original source line that caused the error
-            if (item.line) {
+        const { listing } = this.currentAssemblyResult;
+        let html = '';
+        
+        // Add assembly listing
+        for (const item of listing) {
+            if (item.error) {
+                // Error line - show error message
+                html += `<div class="listing-line" style="color: #f44747;">`;
+                html += `<span class="listing-address"></span>`;
+                html += `<span class="listing-bytes"></span>`;
+                html += `<span class="listing-source">ERR: ${item.error}</span>`;
+                html += `</div>`;
+                
+                // Also show the original source line that caused the error
+                if (item.line) {
+                    html += `<div class="listing-line">`;
+                    html += `<span class="listing-address"></span>`;
+                    html += `<span class="listing-bytes"></span>`;
+                    html += `<span class="listing-source" style="color: #ce9178;">${item.line}</span>`;
+                    html += `</div>`;
+                }
+            } else if (item.instruction !== undefined) {
+                // Instruction line - one line per memory location
+                const instructionHex = item.instruction.toString(16).padStart(4, '0').toUpperCase();
+                html += `<div class="listing-line">`;
+                html += `<span class="listing-address">0x${item.address.toString(16).padStart(4, '0')}</span>`;
+                html += `<span class="listing-bytes">0x${instructionHex}</span>`;
+                html += `<span class="listing-source">${item.line}</span>`;
+                html += `</div>`;
+            } else if (item.address !== undefined && (item.line.includes('.org') || item.line.includes('.word'))) {
+                // Directive that affects address - show address but no instruction
+                html += `<div class="listing-line">`;
+                html += `<span class="listing-address">0x${item.address.toString(16).padStart(4, '0')}</span>`;
+                html += `<span class="listing-bytes"></span>`;
+                html += `<span class="listing-source">${item.line}</span>`;
+                html += `</div>`;
+            } else if (item.line && item.line.trim().endsWith(':')) {
+                // Label line - show without address
                 html += `<div class="listing-line">`;
                 html += `<span class="listing-address"></span>`;
                 html += `<span class="listing-bytes"></span>`;
-                html += `<span class="listing-source" style="color: #ce9178;">${item.line}</span>`;
+                html += `<span class="listing-source" style="color: #569cd6;">${item.line}</span>`;
+                html += `</div>`;
+            } else if (item.line && (item.line.trim().startsWith(';') || item.line.trim() === '')) {
+                // Comment or empty line
+                html += `<div class="listing-line">`;
+                html += `<span class="listing-address"></span>`;
+                html += `<span class="listing-bytes"></span>`;
+                html += `<span class="listing-source" style="color: #6a9955;">${item.line}</span>`;
+                html += `</div>`;
+            } else if (item.line) {
+                // Other source lines (shouldn't happen, but just in case)
+                html += `<div class="listing-line">`;
+                html += `<span class="listing-address"></span>`;
+                html += `<span class="listing-bytes"></span>`;
+                html += `<span class="listing-source">${item.line}</span>`;
                 html += `</div>`;
             }
-        } else if (item.instruction !== undefined) {
-            // Instruction line - one line per memory location
-            const instructionHex = item.instruction.toString(16).padStart(4, '0').toUpperCase();
-            html += `<div class="listing-line">`;
-            html += `<span class="listing-address">0x${item.address.toString(16).padStart(4, '0')}</span>`;
-            html += `<span class="listing-bytes">0x${instructionHex}</span>`;
-            html += `<span class="listing-source">${item.line}</span>`;
-            html += `</div>`;
-        } else if (item.address !== undefined && (item.line.includes('.org') || item.line.includes('.word'))) {
-            // Directive that affects address - show address but no instruction
-            html += `<div class="listing-line">`;
-            html += `<span class="listing-address">0x${item.address.toString(16).padStart(4, '0')}</span>`;
-            html += `<span class="listing-bytes"></span>`;
-            html += `<span class="listing-source">${item.line}</span>`;
-            html += `</div>`;
-        } else if (item.line && item.line.trim().endsWith(':')) {
-            // Label line - show without address
-            html += `<div class="listing-line">`;
-            html += `<span class="listing-address"></span>`;
-            html += `<span class="listing-bytes"></span>`;
-            html += `<span class="listing-source" style="color: #569cd6;">${item.line}</span>`;
-            html += `</div>`;
-        } else if (item.line && (item.line.trim().startsWith(';') || item.line.trim() === '')) {
-            // Comment or empty line
-            html += `<div class="listing-line">`;
-            html += `<span class="listing-address"></span>`;
-            html += `<span class="listing-bytes"></span>`;
-            html += `<span class="listing-source" style="color: #6a9955;">${item.line}</span>`;
-            html += `</div>`;
-        } else if (item.line) {
-            // Other source lines (shouldn't happen, but just in case)
-            html += `<div class="listing-line">`;
-            html += `<span class="listing-address"></span>`;
-            html += `<span class="listing-bytes"></span>`;
-            html += `<span class="listing-source">${item.line}</span>`;
-            html += `</div>`;
         }
-    }
 
-    listingContent.innerHTML = html || 'No assembly output';
-}
+        listingContent.innerHTML = html || 'No assembly output';
+    }
     
     run() {
         this.simulator.running = true;
@@ -454,27 +491,27 @@ updateAssemblyListing() {
         registerGrid.innerHTML = html;
     }
 
-updatePSWDisplay() {
-    const psw = this.simulator.psw;
-    
-    // PSW bit mapping according to Deep16 spec (bit 15 to bit 0):
-    // Bit 15: DE, Bits 14-11: ER, Bit 10: DS, Bits 9-6: SR, 
-    // Bit 5: S, Bit 4: I, Bit 3: C, Bit 2: V, Bit 1: Z, Bit 0: N
-    
-    // Update checkboxes (1-bit flags)
-    document.getElementById('psw-de').checked = (psw & 0x8000) !== 0; // Bit 15
-    document.getElementById('psw-ds').checked = (psw & 0x0400) !== 0; // Bit 10
-    document.getElementById('psw-s').checked = (psw & 0x0020) !== 0;  // Bit 5
-    document.getElementById('psw-i').checked = (psw & 0x0010) !== 0;  // Bit 4
-    document.getElementById('psw-c').checked = (psw & 0x0008) !== 0;  // Bit 3
-    document.getElementById('psw-v').checked = (psw & 0x0004) !== 0;  // Bit 2
-    document.getElementById('psw-z').checked = (psw & 0x0002) !== 0;  // Bit 1
-    document.getElementById('psw-n').checked = (psw & 0x0001) !== 0;  // Bit 0
-    
-    // Update multi-bit fields
-    document.getElementById('psw-er').textContent = (psw >> 11) & 0xF; // Bits 14-11
-    document.getElementById('psw-sr').textContent = (psw >> 6) & 0xF;  // Bits 9-6
-}
+    updatePSWDisplay() {
+        const psw = this.simulator.psw;
+        
+        // PSW bit mapping according to Deep16 spec (bit 15 to bit 0):
+        // Bit 15: DE, Bits 14-11: ER, Bit 10: DS, Bits 9-6: SR, 
+        // Bit 5: S, Bit 4: I, Bit 3: C, Bit 2: V, Bit 1: Z, Bit 0: N
+        
+        // Update checkboxes (1-bit flags)
+        document.getElementById('psw-de').checked = (psw & 0x8000) !== 0; // Bit 15
+        document.getElementById('psw-ds').checked = (psw & 0x0400) !== 0; // Bit 10
+        document.getElementById('psw-s').checked = (psw & 0x0020) !== 0;  // Bit 5
+        document.getElementById('psw-i').checked = (psw & 0x0010) !== 0;  // Bit 4
+        document.getElementById('psw-c').checked = (psw & 0x0008) !== 0;  // Bit 3
+        document.getElementById('psw-v').checked = (psw & 0x0004) !== 0;  // Bit 2
+        document.getElementById('psw-z').checked = (psw & 0x0002) !== 0;  // Bit 1
+        document.getElementById('psw-n').checked = (psw & 0x0001) !== 0;  // Bit 0
+        
+        // Update multi-bit fields
+        document.getElementById('psw-er').textContent = (psw >> 11) & 0xF; // Bits 14-11
+        document.getElementById('psw-sr').textContent = (psw >> 6) & 0xF;  // Bits 9-6
+    }
 
     updateMemoryDisplay() {
         const memoryDisplay = document.getElementById('memory-display');
@@ -596,3 +633,4 @@ updatePSWDisplay() {
 document.addEventListener('DOMContentLoaded', () => {
     window.deepWebUI = new DeepWebUI();
 });
+/* deep16_ui.js */
