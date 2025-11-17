@@ -1,0 +1,168 @@
+/* responsive.css - Responsive design styles */
+@media (max-width: 768px) {
+    .header-container {
+        flex-direction: column;
+        height: auto;
+    }
+    
+    .container {
+        flex-direction: column;
+        height: auto;
+        min-height: calc(100vh - 200px);
+    }
+    
+    .register-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .listing-controls, .memory-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+    }
+    
+    .listing-controls label, .memory-controls label {
+        text-align: center;
+    }
+    
+    .controls {
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 4px 10px;
+    }
+    
+    .controls-left, .controls-right {
+        flex: 1;
+        justify-content: center;
+    }
+    
+    button {
+        flex: 1;
+        min-width: 70px;
+        padding: 3px 8px;
+    }
+    
+    .memory-controls label {
+        font-size: 10px;
+    }
+    
+    .tab-buttons {
+        flex-wrap: wrap;
+    }
+    
+    .tab-button {
+        flex: 1;
+        min-width: 70px;
+        padding: 4px 12px;
+    }
+    
+    .memory-disassembly {
+        width: 150px;
+        font-size: 10px;
+    }
+    
+    .memory-bytes {
+        width: 50px;
+    }
+    
+    .memory-address {
+        width: 60px;
+    }
+}
+
+@media (max-width: 480px) {
+    .header h1 {
+        font-size: 18px;
+    }
+    
+    .header .subtitle {
+        font-size: 11px;
+    }
+    
+    .register-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .controls {
+        padding: 3px 8px;
+    }
+    
+    button {
+        font-size: 11px;
+        padding: 2px 6px;
+    }
+    
+    .tab-button {
+        font-size: 11px;
+        padding: 3px 8px;
+    }
+    
+    .memory-disassembly {
+        width: 120px;
+        font-size: 9px;
+    }
+    
+    .memory-bytes {
+        width: 45px;
+        font-size: 9px;
+    }
+    
+    .memory-address {
+        width: 55px;
+        font-size: 9px;
+    }
+    
+    .memory-data {
+        width: 40px;
+        font-size: 9px;
+        padding: 0 2px;
+    }
+}
+
+/* Scrollbar styling */
+.transcript::-webkit-scrollbar,
+.memory-display::-webkit-scrollbar,
+.assembly-listing::-webkit-scrollbar,
+.registers-container::-webkit-scrollbar,
+.editor::-webkit-scrollbar,
+.errors-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.transcript::-webkit-scrollbar-track,
+.memory-display::-webkit-scrollbar-track,
+.assembly-listing::-webkit-scrollbar-track,
+.registers-container::-webkit-scrollbar-track,
+.editor::-webkit-scrollbar-track,
+.errors-list::-webkit-scrollbar-track {
+    background: #2d2d30;
+}
+
+.transcript::-webkit-scrollbar-thumb,
+.memory-display::-webkit-scrollbar-thumb,
+.assembly-listing::-webkit-scrollbar-thumb,
+.registers-container::-webkit-scrollbar-thumb,
+.editor::-webkit-scrollbar-thumb,
+.errors-list::-webkit-scrollbar-thumb {
+    background: #424242;
+    border-radius: 4px;
+}
+
+.transcript::-webkit-scrollbar-thumb:hover,
+.memory-display::-webkit-scrollbar-thumb:hover,
+.assembly-listing::-webkit-scrollbar-thumb:hover,
+.registers-container::-webkit-scrollbar-thumb:hover,
+.editor::-webkit-scrollbar-thumb:hover,
+.errors-list::-webkit-scrollbar-thumb:hover {
+    background: #4f4f4f;
+}
+
+@supports (-webkit-touch-callout: none) {
+    .container {
+        height: calc(100vh - 170px);
+    }
+    
+    .editor, .memory-display, .registers-container, .errors-list, .assembly-listing {
+        -webkit-overflow-scrolling: touch;
+    }
+}
