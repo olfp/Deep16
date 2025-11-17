@@ -101,9 +101,12 @@ fibonacci_results:
         </div>
         
         <div class="memory-panel">
-            <div class="panel-header">Deep16 Memory & Registers</div>
+            <div class="panel-header">
+                <div class="panel-header-title">Deep16 Memory & Registers</div>
+                <button id="view-toggle" class="view-toggle">Compact View</button>
+            </div>
             <div class="registers-container">
-                <!-- PSW Display (not collapsible) -->
+                <!-- PSW Display (always visible) -->
                 <div class="register-section">
                     <div class="section-title">Processor Status Word (PSW)</div>
                     <div class="psw-display">
