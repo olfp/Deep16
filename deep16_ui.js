@@ -543,25 +543,36 @@ class DeepWebUI {
         memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
     }
 
-    createCodeMemoryLine(address) {
-        const value = this.simulator.memory[address];
-        const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
-        const isPC = (address === this.simulator.registers[15]);
-        const pcClass = isPC ? 'pc-marker' : '';
-        const disasm = this.disassembler.disassemble(value);
-        const source = this.getSourceForAddress(address);
-        
-        let html = `<div class="memory-line code-line ${pcClass}">`;
-        html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
-        html += `<span class="memory-bytes">0x${valueHex}</span>`;
-        html += `<span class="memory-disassembly">${disasm}</span>`;
-        if (source) {
-            html += `<span class="memory-source">; ${source}</span>`;
+createCodeMemoryLine(address) {
+    const value = this.simulator.memory[address];
+    const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+    const isPC = (address === this.simulator.registers[15]);
+    const pcClass = isPC ? 'pc-marker' : '';
+    const disasm = this.disassembler.disassemble(value);
+    
+    // Get the correct source line - only show actual instruction sources
+    let source = '';
+    if (this.currentAssemblyResult) {
+        const listing = this.currentAssemblyResult.listing;
+        for (const item of listing) {
+            if (item.address === address && item.instruction !== undefined && item.line) {
+                source = item.line.trim();
+                break;
+            }
         }
-        html += `</div>`;
-        
-        return html;
     }
+    
+    let html = `<div class="memory-line code-line ${pcClass}">`;
+    html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
+    html += `<span class="memory-bytes">0x${valueHex}</span>`;
+    html += `<span class="memory-disassembly">${disasm}</span>`;
+    if (source) {
+        html += `<span class="memory-source">; ${source}</span>`;
+    }
+    html += `</div>`;
+    
+    return html;
+}
 
     createDataMemoryLine(startAddr, endAddr) {
         let html = `<div class="memory-line data-line">`;
@@ -583,14 +594,28 @@ class DeepWebUI {
         return address >= this.segmentInfo.code.start && address < this.segmentInfo.code.end;
     }
 
-    getSourceForAddress(address) {
-        if (!this.currentAssemblyResult) return '';
-        
-        const listing = this.currentAssemblyResult.listing;
-        const item = listing.find(item => item.address === address);
-        return item ? item.line.trim() : '';
+getSourceForAddress(address) {
+    if (!this.currentAssemblyResult) return '';
+    
+    const listing = this.currentAssemblyResult.listing;
+    
+    // Find the listing item that matches the address AND has an instruction
+    for (const item of listing) {
+        if (item.address === address && item.instruction !== undefined) {
+            // This is an actual instruction at this address
+            return item.line ? item.line.trim() : '';
+        }
     }
-
+    
+    // If no instruction found at this exact address, try to find the closest source line
+    for (const item of listing) {
+        if (item.address === address && item.line) {
+            return item.line.trim();
+        }
+    }
+    
+    return '';
+}
     updateSegmentRegisters() {
         const segmentGrid = document.querySelector('.register-section:nth-child(3) .register-grid');
         if (segmentGrid) {
