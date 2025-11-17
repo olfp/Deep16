@@ -116,9 +116,14 @@ class DeepWebUI {
     }
 
     initializeTestMemory() {
+        // Initialize with some test data
         for (let i = 0; i < 256; i++) {
             this.simulator.memory[i] = (i * 0x111) & 0xFFFF;
         }
+        // Set some recognizable patterns
+        this.simulator.memory[0x0000] = 0x7FFF; // LDI 32767
+        this.simulator.memory[0x0001] = 0x8010; // LD R1, [R0+0]
+        this.simulator.memory[0x0002] = 0x3120; // ADD R1, R2
     }
 
     addTranscriptEntry(message, type = "info") {
@@ -154,40 +159,48 @@ class DeepWebUI {
     }
 
     assemble() {
+        console.log("Assemble button clicked"); // Debug log
         const source = this.editorElement.value;
         this.status("Assembling...");
         this.addTranscriptEntry("Starting assembly", "info");
 
-        const result = this.assembler.assemble(source);
-        this.currentAssemblyResult = result;
-        
-        if (result.success) {
-            this.simulator.memory.fill(0);
-            for (let i = 0; i < result.memory.length; i++) {
-                this.simulator.memory[i] = result.memory[i];
+        try {
+            const result = this.assembler.assemble(source);
+            console.log("Assembly result:", result); // Debug log
+            this.currentAssemblyResult = result;
+            
+            if (result.success) {
+                this.simulator.memory.fill(0);
+                for (let i = 0; i < result.memory.length; i++) {
+                    this.simulator.memory[i] = result.memory[i];
+                }
+                
+                this.simulator.registers[15] = 0x0000;
+                this.status("Assembly successful! Program loaded.");
+                this.addTranscriptEntry("Assembly successful - program loaded", "success");
+                document.getElementById('run-btn').disabled = false;
+                document.getElementById('step-btn').disabled = false;
+                document.getElementById('reset-btn').disabled = false;
+                
+                this.updateSymbolSelects(result.symbols);
+                this.addTranscriptEntry(`Found ${Object.keys(result.symbols).length} symbols`, "info");
+                
+                this.switchTab('listing');
+            } else {
+                const errorMsg = `Assembly failed with ${result.errors.length} error(s)`;
+                this.status("Assembly errors - see errors tab for details");
+                this.addTranscriptEntry(errorMsg, "error");
+                this.switchTab('errors');
             }
-            
-            this.simulator.registers[15] = 0x0000;
-            this.status("Assembly successful! Program loaded.");
-            this.addTranscriptEntry("Assembly successful - program loaded", "success");
-            document.getElementById('run-btn').disabled = false;
-            document.getElementById('step-btn').disabled = false;
-            document.getElementById('reset-btn').disabled = false;
-            
-            this.updateSymbolSelects(result.symbols);
-            this.addTranscriptEntry(`Found ${Object.keys(result.symbols).length} symbols`, "info");
-            
-            this.switchTab('listing');
-        } else {
-            const errorMsg = `Assembly failed with ${result.errors.length} error(s)`;
-            this.status("Assembly errors - see errors tab for details");
-            this.addTranscriptEntry(errorMsg, "error");
-            this.switchTab('errors');
-        }
 
-        this.updateAllDisplays();
-        this.updateErrorsList();
-        this.updateAssemblyListing();
+            this.updateAllDisplays();
+            this.updateErrorsList();
+            this.updateAssemblyListing();
+        } catch (error) {
+            console.error("Assembly error:", error);
+            this.status("Assembly failed with exception");
+            this.addTranscriptEntry(`Assembly exception: ${error.message}`, "error");
+        }
     }
 
     updateErrorsList() {
@@ -501,59 +514,68 @@ class DeepWebUI {
         let html = '';
         
         const start = this.memoryStartAddress;
-        const end = Math.min(start + 64, this.simulator.memory.length); // Show 64 locations
+        const end = Math.min(start + 64, this.simulator.memory.length);
 
         if (start >= end) {
             html = '<div class="memory-line">Invalid memory range</div>';
         } else {
+            // Track data line grouping
+            let currentDataLineStart = -1;
+            
             for (let address = start; address < end; address++) {
-                html += this.createMemoryLine(address);
+                const isCodeSegment = this.isCodeAddress(address);
+                
+                if (isCodeSegment) {
+                    // Code segment: one instruction per line
+                    html += this.createCodeMemoryLine(address);
+                    currentDataLineStart = -1; // Reset data line tracking
+                } else {
+                    // Data segment: group 8 words per line
+                    if ((address - start) % 8 === 0) {
+                        // Start a new data line
+                        currentDataLineStart = address;
+                        html += this.createDataMemoryLine(address, Math.min(address + 8, end));
+                    }
+                }
             }
         }
         
         memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
     }
 
-    createMemoryLine(address) {
-        const isCodeSegment = this.isCodeAddress(address);
+    createCodeMemoryLine(address) {
         const value = this.simulator.memory[address];
         const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
         const isPC = (address === this.simulator.registers[15]);
         const pcClass = isPC ? 'pc-marker' : '';
+        const disasm = this.disassembler.disassemble(value);
         const source = this.getSourceForAddress(address);
         
-        let html = '';
+        let html = `<div class="memory-line code-line ${pcClass}">`;
+        html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
+        html += `<span class="memory-bytes">0x${valueHex}</span>`;
+        html += `<span class="memory-disassembly">${disasm}</span>`;
+        if (source) {
+            html += `<span class="memory-source">; ${source}</span>`;
+        }
+        html += `</div>`;
         
-        if (isCodeSegment) {
-            // Code segment: one instruction per line
-            const disasm = this.disassembler.disassemble(value);
-            html += `<div class="memory-line code-line ${pcClass}">`;
-            html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
-            html += `<span class="memory-bytes">0x${valueHex}</span>`;
-            html += `<span class="memory-disassembly">${disasm}</span>`;
-            if (source) {
-                html += `<span class="memory-source">; ${source}</span>`;
-            }
-            html += `</div>`;
-        } else {
-            // Data segment: 8 words per line
-            if ((address - this.memoryStartAddress) % 8 === 0) {
-                // Start of a new data line
-                html += `<div class="memory-line data-line">`;
-                html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
-                
-                // Add all 8 words for this line
-                for (let i = 0; i < 8 && (address + i) < this.simulator.memory.length; i++) {
-                    const dataValue = this.simulator.memory[address + i];
-                    const dataHex = dataValue.toString(16).padStart(4, '0').toUpperCase();
-                    const dataPCClass = (address + i === this.simulator.registers[15]) ? 'pc-marker' : '';
-                    html += `<span class="memory-data ${dataPCClass}">0x${dataHex}</span>`;
-                }
-                
-                html += `</div>`;
-            }
+        return html;
+    }
+
+    createDataMemoryLine(startAddr, endAddr) {
+        let html = `<div class="memory-line data-line">`;
+        html += `<span class="memory-address">0x${startAddr.toString(16).padStart(4, '0')}</span>`;
+        
+        for (let addr = startAddr; addr < endAddr; addr++) {
+            const value = this.simulator.memory[addr];
+            const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+            const isPC = (addr === this.simulator.registers[15]);
+            const pcClass = isPC ? 'pc-marker' : '';
+            html += `<span class="memory-data ${pcClass}">0x${valueHex}</span>`;
         }
         
+        html += `</div>`;
         return html;
     }
 
