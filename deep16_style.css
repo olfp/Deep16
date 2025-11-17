@@ -1,4 +1,5 @@
-/* deep16_style.css - Updated with fixed scrolling and improved styling */
+/* deep16_style.css */
+/* Updated with collapsible register groups */
 * {
     margin: 0;
     padding: 0;
@@ -528,17 +529,35 @@ button:disabled {
 .registers-container {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
     padding: 8px;
     overflow-y: auto;
     min-height: 0; /* Allow proper flexbox scrolling */
+    flex-shrink: 0; /* Prevent shrinking when collapsed */
 }
 
+/* Collapsible register sections */
 .register-section {
     background: #252526;
     border: 1px solid #3e3e42;
     border-radius: 3px;
     padding: 8px;
+    transition: all 0.3s ease;
+}
+
+.register-section.collapsed {
+    padding: 4px 8px;
+    min-height: auto;
+}
+
+.register-section.collapsed .register-grid {
+    display: none;
+}
+
+.register-section.collapsed .section-title {
+    margin-bottom: 0;
+    border-bottom: none;
+    padding-bottom: 0;
 }
 
 .section-title {
@@ -548,12 +567,29 @@ button:disabled {
     font-size: 12px;
     border-bottom: 1px solid #3e3e42;
     padding-bottom: 3px;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.section-title:hover {
+    color: #9cdcfe;
+}
+
+.section-toggle {
+    font-size: 10px;
+    width: 12px;
+    text-align: center;
+    color: #9cdcfe;
 }
 
 .register-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 4px;
+    transition: all 0.3s ease;
 }
 
 .register {
@@ -785,3 +821,4 @@ button:disabled {
         padding: 8px 12px;
     }
 }
+/* deep16_style.css */
