@@ -6,6 +6,14 @@
     flex-direction: column;
 }
 
+.transcript-panel .panel-header {
+    background: #2d2d30;
+    padding: 8px 12px;
+    border-bottom: 1px solid #3e3e42;
+    font-weight: bold;
+    font-size: 12px;
+}
+
 .transcript {
     flex: 1;
     padding: 6px;
