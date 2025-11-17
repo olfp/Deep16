@@ -1,0 +1,38 @@
+/* layout.css - Main layout structure */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Courier New', monospace;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    height: 100vh;
+    overflow: hidden;
+    padding-bottom: 30px;
+}
+
+.container {
+    display: flex;
+    height: calc(100vh - 160px);
+    gap: 10px;
+    padding: 10px;
+    overflow: hidden;
+}
+
+.status-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 4px 20px;
+    background: #007acc;
+    font-size: 11px;
+    color: white;
+    z-index: 1000;
+    height: 22px;
+    display: flex;
+    align-items: center;
+}
