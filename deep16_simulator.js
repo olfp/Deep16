@@ -7,7 +7,6 @@ class Deep16Simulator {
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
         this.psw = 0;
         this.running = false;
-        this.lastALUResult = 0;
         
         // Initialize registers
         this.registers[13] = 0x7FFF; // SP
@@ -27,7 +26,6 @@ class Deep16Simulator {
         this.psw = 0;
         this.memory.fill(0);
         this.running = false;
-        this.lastALUResult = 0;
     }
 
     step() {
@@ -40,13 +38,19 @@ class Deep16Simulator {
         }
 
         const instruction = this.memory[pc];
-        this.registers[15] += 2;
+        
+        // DEBUG: Log the step
+        console.log(`Step: PC=0x${pc.toString(16).padStart(4, '0')}, Instruction=0x${instruction.toString(16).padStart(4, '0')}`);
+        
+        // Increment PC by 1 (word addressing, not byte addressing)
+        this.registers[15] += 1;
 
         // Decode and execute instruction
         const opcode = (instruction >> 13) & 0x7;
 
         try {
             switch (opcode) {
+                case 0b000: this.executeLDI(instruction); break;
                 case 0b100: this.executeMemoryOp(instruction); break;
                 case 0b110: this.executeALUOp(instruction); break;
                 case 0b111: 
@@ -60,14 +64,25 @@ class Deep16Simulator {
                         this.executeSystem(instruction);
                     }
                     break;
+                default:
+                    console.warn(`Unknown opcode: ${opcode.toString(2)}`);
             }
         } catch (error) {
             this.running = false;
+            console.error('Execution error:', error);
             throw error;
         }
 
+        // Update PSW flags based on the last operation
         this.updatePSWFlags();
+        
         return true;
+    }
+
+    executeLDI(instruction) {
+        const immediate = instruction & 0x7FFF;
+        this.registers[0] = immediate; // LDI always loads into R0
+        console.log(`LDI: R0 = 0x${immediate.toString(16).padStart(4, '0')}`);
     }
 
     executeMemoryOp(instruction) {
@@ -81,10 +96,12 @@ class Deep16Simulator {
         if (d === 0) { // LD
             if (address < this.memory.length) {
                 this.registers[rd] = this.memory[address];
+                console.log(`LD: ${this.getRegisterName(rd)} = memory[0x${address.toString(16).padStart(4, '0')}] = 0x${this.memory[address].toString(16).padStart(4, '0')}`);
             }
         } else { // ST
             if (address < this.memory.length) {
                 this.memory[address] = this.registers[rd];
+                console.log(`ST: memory[0x${address.toString(16).padStart(4, '0')}] = ${this.getRegisterName(rd)} = 0x${this.registers[rd].toString(16).padStart(4, '0')}`);
             }
         }
     }
@@ -105,20 +122,39 @@ class Deep16Simulator {
             operandValue = operand;
         }
 
+        const rdValue = this.registers[rd];
+        
         switch (aluOp) {
-            case 0b000: result = this.registers[rd] + operandValue; break;
-            case 0b001: result = this.registers[rd] - operandValue; break;
-            case 0b010: result = this.registers[rd] & operandValue; break;
-            case 0b011: result = this.registers[rd] | operandValue; break;
-            case 0b100: result = this.registers[rd] ^ operandValue; break;
-            default: result = this.registers[rd]; break;
+            case 0b000: // ADD
+                result = rdValue + operandValue;
+                console.log(`ADD: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) + ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                break;
+            case 0b001: // SUB
+                result = rdValue - operandValue;
+                console.log(`SUB: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) - ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                break;
+            case 0b010: // AND
+                result = rdValue & operandValue;
+                console.log(`AND: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) & ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                break;
+            case 0b011: // OR
+                result = rdValue | operandValue;
+                break;
+            case 0b100: // XOR
+                result = rdValue ^ operandValue;
+                break;
+            default: 
+                result = rdValue;
+                console.warn(`Unimplemented ALU op: ${aluOp}`);
         }
 
         if (w === 1) {
             this.registers[rd] = result & 0xFFFF;
         }
 
+        // Store result for PSW flag calculation
         this.lastALUResult = result;
+        this.lastOperationWasALU = true;
     }
 
     executeMOV(instruction) {
@@ -126,51 +162,90 @@ class Deep16Simulator {
         const rs = (instruction >> 4) & 0xF;
         const imm = instruction & 0x3;
         this.registers[rd] = this.registers[rs] + imm;
+        console.log(`MOV: ${this.getRegisterName(rd)} = ${this.getRegisterName(rs)} + ${imm} = 0x${this.registers[rd].toString(16)}`);
+        this.lastALUResult = this.registers[rd];
+        this.lastOperationWasALU = true;
     }
 
     executeLSI(instruction) {
         const rd = (instruction >> 8) & 0xF;
         let imm = (instruction >> 4) & 0x1F;
-        if (imm & 0x10) imm |= 0xFFE0;
+        if (imm & 0x10) imm |= 0xFFE0; // Sign extend 5-bit value
         this.registers[rd] = imm;
+        console.log(`LSI: ${this.getRegisterName(rd)} = ${imm} (0x${imm.toString(16)})`);
+        this.lastALUResult = imm;
+        this.lastOperationWasALU = true;
     }
 
     executeJump(instruction) {
         const condition = (instruction >> 9) & 0x7;
         let offset = instruction & 0x1FF;
-        if (offset & 0x100) offset |= 0xFE00;
+        if (offset & 0x100) offset |= 0xFE00; // Sign extend 9-bit value
 
         let shouldJump = false;
         switch (condition) {
-            case 0b000: shouldJump = true; break;
-            case 0b001: shouldJump = (this.psw & (1 << 1)) !== 0; break;
-            case 0b010: shouldJump = (this.psw & (1 << 1)) === 0; break;
+            case 0b000: shouldJump = true; break; // JMP (unconditional)
+            case 0b001: shouldJump = (this.psw & (1 << 1)) !== 0; break; // JZ
+            case 0b010: shouldJump = (this.psw & (1 << 1)) === 0; break; // JNZ
+            case 0b011: shouldJump = (this.psw & (1 << 3)) !== 0; break; // JC
+            case 0b100: shouldJump = (this.psw & (1 << 3)) === 0; break; // JNC
+            case 0b101: shouldJump = (this.psw & (1 << 0)) !== 0; break; // JN
+            case 0b110: shouldJump = (this.psw & (1 << 0)) === 0; break; // JNN
+            case 0b111: shouldJump = (this.psw & (1 << 2)) !== 0; break; // JO
         }
 
         if (shouldJump) {
-            this.registers[15] += offset;
+            // Adjust PC: we already incremented it, so subtract 1 then add offset
+            this.registers[15] = (this.registers[15] - 1) + offset;
+            console.log(`JUMP: PC = 0x${this.registers[15].toString(16).padStart(4, '0')} (offset=${offset})`);
         }
     }
 
     executeSystem(instruction) {
         const sysOp = instruction & 0x7;
         switch (sysOp) {
-            case 0b001: 
+            case 0b001: // HLT
                 this.running = false;
+                console.log('HLT: Processor halted');
                 break;
+            default:
+                console.log(`SYS: op=${sysOp}`);
         }
     }
 
     updatePSWFlags() {
-        this.psw = 0;
+        if (!this.lastOperationWasALU) return;
+        
+        this.psw = 0; // Reset flags
+        
         if (this.lastALUResult !== undefined) {
             const result = this.lastALUResult & 0xFFFF;
+            const signedResult = this.lastALUResult & 0x8000 ? this.lastALUResult - 0x10000 : this.lastALUResult;
+            
+            // Zero flag
             if (result === 0) this.psw |= (1 << 1);
+            
+            // Negative flag (sign bit)
             if (result & 0x8000) this.psw |= (1 << 0);
+            
+            // Carry flag (unsigned overflow)
             if (this.lastALUResult > 0xFFFF || this.lastALUResult < 0) {
                 this.psw |= (1 << 3);
             }
+            
+            // Overflow flag (signed overflow) - simplified
+            if (signedResult > 32767 || signedResult < -32768) {
+                this.psw |= (1 << 2);
+            }
         }
+        
+        this.lastOperationWasALU = false;
+        console.log(`PSW updated: 0x${this.psw.toString(16).padStart(4, '0')} (N=${!!(this.psw & 1)}, Z=${!!(this.psw & 2)}, V=${!!(this.psw & 4)}, C=${!!(this.psw & 8)})`);
+    }
+
+    getRegisterName(regIndex) {
+        const names = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
+        return names[regIndex] || `R${regIndex}`;
     }
 
     getState() {
