@@ -29,14 +29,12 @@
   <path d="M 145 160 Q 160 140 170 120 Q 180 100 190 80 Q 200 60 180 40 Q 160 20 140 30 Q 120 40 110 60" 
         stroke="#4A5568" stroke-width="8" fill="none" stroke-linecap="round"/>
   
-  <!-- Deep16 Text -->
-  <text x="100" y="180" text-anchor="middle" font-family="Courier New, monospace" font-size="14" font-weight="bold" fill="#2D3748">
+  <!-- Deep16 Text inside body -->
+  <text x="100" y="145" text-anchor="middle" font-family="Courier New, monospace" font-size="14" font-weight="bold" fill="#FFFFFF">
     Deep16
   </text>
   
-  <!-- Binary code pattern on body -->
+  <!-- Binary code pattern on body (moved to make space for text) -->
   <text x="85" y="105" font-family="Courier New, monospace" font-size="6" fill="#FFFFFF" opacity="0.7">1010</text>
   <text x="95" y="115" font-family="Courier New, monospace" font-size="6" fill="#FFFFFF" opacity="0.7">1100</text>
-  <text x="85" y="125" font-family="Courier New, monospace" font-size="6" fill="#FFFFFF" opacity="0.7">0110</text>
-  <text x="95" y="135" font-family="Courier New, monospace" font-size="6" fill="#FFFFFF" opacity="0.7">1001</text>
 </svg>
