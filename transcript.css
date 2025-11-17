@@ -1,0 +1,47 @@
+/* transcript.css - Transcript panel styles */
+.transcript-panel {
+    flex: 1;
+    background: #252526;
+    display: flex;
+    flex-direction: column;
+}
+
+.transcript {
+    flex: 1;
+    padding: 6px;
+    font-size: 11px;
+    overflow-y: auto;
+    line-height: 1.3;
+}
+
+.transcript-entry {
+    margin-bottom: 3px;
+    padding: 2px 4px;
+    border-left: 2px solid #569cd6;
+    background: #2a2d2e;
+}
+
+.transcript-entry.error {
+    border-left-color: #f44747;
+    background: #3c2a2a;
+}
+
+.transcript-entry.success {
+    border-left-color: #b5cea8;
+    background: #2a3c2a;
+}
+
+.transcript-entry.warning {
+    border-left-color: #ffcc02;
+    background: #3c3c2a;
+}
+
+.transcript-time {
+    color: #6a9955;
+    font-size: 10px;
+    margin-right: 6px;
+}
+
+.transcript-message {
+    color: #d4d4d4;
+}
