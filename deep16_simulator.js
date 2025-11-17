@@ -40,6 +40,7 @@ step() {
     const instruction = this.memory[pc];
     
     console.log(`Step: PC=0x${pc.toString(16).padStart(4, '0')}, Instruction=0x${instruction.toString(16).padStart(4, '0')}`);
+    console.log(`Instruction binary: ${instruction.toString(2).padStart(16, '0')}`);
     
     // Store PC before execution for jump calculations
     const originalPC = pc;
@@ -53,30 +54,40 @@ step() {
 
     // Decode and execute instruction
     try {
-        // Check for LDI first (bit 15 = 0)
+        // Check for LDI first (bit 15 = 0) - THIS IS THE KEY FIX
         if ((instruction & 0x8000) === 0) {
-            console.log("Detected LDI instruction");
+            console.log("Detected LDI instruction (bit 15 = 0)");
             this.executeLDI(instruction);
         } else {
+            // For non-LDI instructions, check the opcode properly
             const opcode = (instruction >> 13) & 0x7;
-            console.log(`Opcode: ${opcode.toString(2)}`);
+            console.log(`Non-LDI opcode: ${opcode.toString(2)} (${opcode})`);
             
             switch (opcode) {
                 case 0b100: 
+                    console.log("Memory operation");
                     this.executeMemoryOp(instruction); 
                     break;
                 case 0b110:
+                    console.log("ALU operation");
                     this.executeALUOp(instruction); 
                     break;
                 case 0b111: 
+                    console.log("Control flow or extended opcode");
                     if ((instruction >> 12) === 0b1110) {
+                        console.log("Jump instruction");
                         this.executeJump(instruction, originalPC);
                     } else if ((instruction >> 10) === 0b111110) {
+                        console.log("MOV instruction");
                         this.executeMOV(instruction);
                     } else if ((instruction >> 9) === 0b1111110) {
+                        console.log("LSI instruction");
                         this.executeLSI(instruction);
                     } else if ((instruction >> 13) === 0b11111) {
+                        console.log("System instruction");
                         this.executeSystem(instruction);
+                    } else {
+                        console.warn("Unknown extended opcode");
                     }
                     break;
                 default:
@@ -96,7 +107,7 @@ step() {
     
     return true;
 }
-
+    
 executeLDI(instruction) {
     const immediate = instruction & 0x7FFF;
     console.log(`LDI executing: immediate = 0x${immediate.toString(16).padStart(4, '0')}`);
