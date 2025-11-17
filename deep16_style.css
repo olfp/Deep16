@@ -1,4 +1,4 @@
-/* deep16_style.css - Updated with styled symbol navigation */
+/* deep16_style.css - Updated with fixed scrolling and improved styling */
 * {
     margin: 0;
     padding: 0;
@@ -183,18 +183,21 @@ button:disabled {
     height: calc(100vh - 160px); /* Increased to account for status bar */
     gap: 10px;
     padding: 10px;
+    overflow: hidden; /* Prevent container scrolling */
 }
 
 .editor-panel {
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0; /* Allow proper flexbox scrolling */
 }
 
 .memory-panel {
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0; /* Allow proper flexbox scrolling */
 }
 
 .panel-header {
@@ -242,6 +245,7 @@ button:disabled {
     display: flex;
     flex-direction: column;
     flex: 1;
+    min-height: 0; /* Allow proper flexbox scrolling */
 }
 
 .tab-buttons {
@@ -277,7 +281,8 @@ button:disabled {
     display: none;
     background: #1e1e1e;
     border: 1px solid #3e3e42;
-    overflow: auto;
+    overflow: hidden; /* Changed from auto to hidden for proper child scrolling */
+    min-height: 0; /* Allow proper flexbox scrolling */
 }
 
 .tab-content.active {
@@ -298,6 +303,7 @@ button:disabled {
     line-height: 1.4;
     border: none;
     outline: none;
+    min-height: 0; /* Allow proper flexbox scrolling */
 }
 
 .errors-list {
@@ -306,6 +312,7 @@ button:disabled {
     overflow-y: auto;
     font-family: 'Courier New', monospace;
     font-size: 12px;
+    min-height: 0; /* Allow proper flexbox scrolling */
 }
 
 .error-item {
@@ -346,17 +353,19 @@ button:disabled {
     white-space: pre;
     line-height: 1.4;
     color: #d4d4d4;
+    min-height: 0; /* Allow proper flexbox scrolling */
 }
 
-/* Listing controls - Updated to match footer style */
+/* Listing controls - Updated with darker blue background */
 .listing-controls {
     display: flex;
     gap: 8px;
     padding: 8px 12px;
-    background: #007acc; /* Match footer blue */
+    background: #005a9e; /* Darker blue tone matching header */
     border-bottom: 1px solid #3e3e42;
     align-items: center;
     font-family: 'Courier New', monospace;
+    flex-shrink: 0; /* Prevent shrinking */
 }
 
 .listing-controls label {
@@ -374,6 +383,13 @@ button:disabled {
     font-family: 'Courier New', monospace;
     font-size: 11px;
     flex: 1;
+}
+
+/* Style dropdown options */
+.listing-controls select option {
+    background: #2d2d30; /* Dark background for dropdown */
+    color: #d4d4d4;
+    padding: 4px;
 }
 
 /* Symbol highlight in listing */
@@ -421,6 +437,7 @@ button:disabled {
     border-bottom: 1px solid #3e3e42;
     align-items: center;
     flex-wrap: wrap; /* Allow wrapping on small screens */
+    flex-shrink: 0; /* Prevent shrinking */
 }
 
 .memory-controls label {
@@ -441,6 +458,13 @@ button:disabled {
     width: 70px;
 }
 
+/* Style memory dropdown options */
+.memory-controls select option {
+    background: #2d2d30; /* Dark background for dropdown */
+    color: #d4d4d4;
+    padding: 4px;
+}
+
 .memory-display {
     flex: 1;
     background: #1e1e1e;
@@ -449,6 +473,7 @@ button:disabled {
     font-size: 11px;
     overflow: auto;
     line-height: 1.2;
+    min-height: 0; /* Allow proper flexbox scrolling */
 }
 
 .status-bar {
@@ -506,6 +531,7 @@ button:disabled {
     gap: 12px;
     padding: 8px;
     overflow-y: auto;
+    min-height: 0; /* Allow proper flexbox scrolling */
 }
 
 .register-section {
@@ -605,9 +631,14 @@ button:disabled {
 
 .psw-value-display {
     font-size: 9px;
-    color: #b5cea8;
+    color: #1e1e1e; /* Dark text for contrast */
     min-width: 20px;
     text-align: center;
+    background: white; /* White background for SR and ER */
+    border: 1px solid #3e3e42;
+    border-radius: 2px;
+    padding: 1px 2px;
+    font-weight: bold;
 }
 
 .shadow-section {
