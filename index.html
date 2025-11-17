@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -37,17 +38,17 @@
     </div>
     
     <div class="container">
-<div class="editor-panel">
-    <div class="panel-header">Deep16 Assembler</div>
-    <div class="tab-container">
-        <div class="tab-buttons">
-            <button class="tab-button active" data-tab="editor">Editor</button>
-            <button class="tab-button" data-tab="errors">Errors</button>
-            <button class="tab-button" data-tab="listing">Listing</button>
-        </div>
-        
-        <div id="editor-tab" class="tab-content active">
-            <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Fibonacci Example
+        <div class="editor-panel">
+            <div class="panel-header">Deep16 Assembler</div>
+            <div class="tab-container">
+                <div class="tab-buttons">
+                    <button class="tab-button active" data-tab="editor">Editor</button>
+                    <button class="tab-button" data-tab="errors">Errors</button>
+                    <button class="tab-button" data-tab="listing">Listing</button>
+                </div>
+                
+                <div id="editor-tab" class="tab-content active">
+                    <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Fibonacci Example
 ; Calculate Fibonacci numbers
 
 .org 0x0000
@@ -77,125 +78,125 @@ fib_loop:
 .org 0x0200
 fibonacci_results:
     .word 0</textarea>
-        </div>
-        
-        <div id="errors-tab" class="tab-content">
-            <div id="errors-list" class="errors-list">
-                <div class="no-errors">No assembly performed yet</div>
+                </div>
+                
+                <div id="errors-tab" class="tab-content">
+                    <div id="errors-list" class="errors-list">
+                        <div class="no-errors">No assembly performed yet</div>
+                    </div>
+                </div>
+                
+                <div id="listing-tab" class="tab-content">
+                    <div class="listing-controls">
+                        <label for="listing-symbol-select">Navigate to symbol:</label>
+                        <select id="listing-symbol-select">
+                            <option value="">-- Select Symbol --</option>
+                        </select>
+                    </div>
+                    <div id="listing-content" class="assembly-listing">
+                        No assembly performed yet
+                    </div>
+                </div>
             </div>
         </div>
-        
-        <div id="listing-tab" class="tab-content">
-            <div class="listing-controls">
-                <label for="listing-symbol-select">Navigate to symbol:</label>
-                <select id="listing-symbol-select">
-                    <option value="">-- Select Symbol --</option>
-                </select>
-            </div>
-            <div id="listing-content" class="assembly-listing">
-                No assembly performed yet
-            </div>
-        </div>
-    </div>
-</div>
         
         <div class="memory-panel">
             <div class="panel-header">Deep16 Memory & Registers</div>
             <div class="registers-container">
-                <!-- PSW Display -->
+                <!-- PSW Display (not collapsible) -->
                 <div class="register-section">
                     <div class="section-title">Processor Status Word (PSW)</div>
                     <div class="psw-display">
-<div class="psw-bits">
-    <!-- PSW bits in correct order from documentation -->
-    <div class="psw-bit">
-        <span class="psw-label">DE</span>
-        <input type="checkbox" class="psw-checkbox" id="psw-de" disabled>
-    </div>
-    <div class="psw-bit">
-        <span class="psw-label">ER</span>
-        <span class="psw-value-display" id="psw-er">0</span>
-    </div>
-    <div class="psw-bit">
-        <span class="psw-label">DS</span>
-        <input type="checkbox" class="psw-checkbox" id="psw-ds" disabled>
-    </div>
-    <div class="psw-bit">
-        <span class="psw-label">SR</span>
-        <span class="psw-value-display" id="psw-sr">0</span>
-    </div>
-    <div class="psw-bit">
-        <span class="psw-label">S</span>
-        <input type="checkbox" class="psw-checkbox" id="psw-s" disabled>
-    </div>
-    <div class="psw-bit">
-        <span class="psw-label">I</span>
-        <input type="checkbox" class="psw-checkbox" id="psw-i" disabled>
-    </div>
-    <div class="psw-bit">
-        <span class="psw-label">C</span>
-        <input type="checkbox" class="psw-checkbox" id="psw-c" disabled>
-    </div>
-    <div class="psw-bit">
-        <span class="psw-label">V</span>
-        <input type="checkbox" class="psw-checkbox" id="psw-v" disabled>
-    </div>
-    <div class="psw-bit">
-        <span class="psw-label">Z</span>
-        <input type="checkbox" class="psw-checkbox" id="psw-z" disabled>
-    </div>
-    <div class="psw-bit">
-        <span class="psw-label">N</span>
-        <input type="checkbox" class="psw-checkbox" id="psw-n" disabled>
-    </div>
-</div>
+                        <div class="psw-bits">
+                            <!-- PSW bits in correct order from documentation -->
+                            <div class="psw-bit">
+                                <span class="psw-label">DE</span>
+                                <input type="checkbox" class="psw-checkbox" id="psw-de" disabled>
+                            </div>
+                            <div class="psw-bit">
+                                <span class="psw-label">ER</span>
+                                <span class="psw-value-display" id="psw-er">0</span>
+                            </div>
+                            <div class="psw-bit">
+                                <span class="psw-label">DS</span>
+                                <input type="checkbox" class="psw-checkbox" id="psw-ds" disabled>
+                            </div>
+                            <div class="psw-bit">
+                                <span class="psw-label">SR</span>
+                                <span class="psw-value-display" id="psw-sr">0</span>
+                            </div>
+                            <div class="psw-bit">
+                                <span class="psw-label">S</span>
+                                <input type="checkbox" class="psw-checkbox" id="psw-s" disabled>
+                            </div>
+                            <div class="psw-bit">
+                                <span class="psw-label">I</span>
+                                <input type="checkbox" class="psw-checkbox" id="psw-i" disabled>
+                            </div>
+                            <div class="psw-bit">
+                                <span class="psw-label">C</span>
+                                <input type="checkbox" class="psw-checkbox" id="psw-c" disabled>
+                            </div>
+                            <div class="psw-bit">
+                                <span class="psw-label">V</span>
+                                <input type="checkbox" class="psw-checkbox" id="psw-v" disabled>
+                            </div>
+                            <div class="psw-bit">
+                                <span class="psw-label">Z</span>
+                                <input type="checkbox" class="psw-checkbox" id="psw-z" disabled>
+                            </div>
+                            <div class="psw-bit">
+                                <span class="psw-label">N</span>
+                                <input type="checkbox" class="psw-checkbox" id="psw-n" disabled>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
-                <!-- General Purpose Registers -->
+                <!-- General Purpose Registers (collapsible) -->
                 <div class="register-section">
-                    <div class="section-title">General Purpose Registers (R0-R15)</div>
+                    <div class="section-title"><span class="section-toggle">▼</span>General Purpose Registers (R0-R15)</div>
                     <div class="register-grid" id="register-grid">
                         <!-- Filled by JavaScript -->
                     </div>
                 </div>
                 
-                <!-- Segment Registers -->
+                <!-- Segment Registers (collapsible) -->
                 <div class="register-section">
-                    <div class="section-title">Segment Registers</div>
+                    <div class="section-title"><span class="section-toggle">▼</span>Segment Registers</div>
                     <div class="register-grid">
-                        <div class="register">
+                        <div class="register-compact">
                             <span class="register-name">CS</span>
                             <span class="register-value" id="reg-cs">0x0000</span>
                         </div>
-                        <div class="register">
+                        <div class="register-compact">
                             <span class="register-name">DS</span>
                             <span class="register-value" id="reg-ds">0x0000</span>
                         </div>
-                        <div class="register">
+                        <div class="register-compact">
                             <span class="register-name">SS</span>
                             <span class="register-value" id="reg-ss">0x0000</span>
                         </div>
-                        <div class="register">
+                        <div class="register-compact">
                             <span class="register-name">ES</span>
                             <span class="register-value" id="reg-es">0x0000</span>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Shadow Registers -->
+                <!-- Shadow Registers (collapsible) -->
                 <div class="register-section shadow-section">
-                    <div class="section-title">Shadow Registers (Interrupt Context)</div>
+                    <div class="section-title"><span class="section-toggle">▼</span>Shadow Registers (Interrupt Context)</div>
                     <div class="register-grid">
-                        <div class="register">
+                        <div class="register-compact">
                             <span class="register-name">PSW'</span>
                             <span class="register-value" id="reg-psw-shadow">0x0000</span>
                         </div>
-                        <div class="register">
+                        <div class="register-compact">
                             <span class="register-name">PC'</span>
                             <span class="register-value" id="reg-pc-shadow">0x0000</span>
                         </div>
-                        <div class="register">
+                        <div class="register-compact">
                             <span class="register-name">CS'</span>
                             <span class="register-value" id="reg-cs-shadow">0x0000</span>
                         </div>
@@ -228,3 +229,4 @@ fibonacci_results:
     <script src="deep16_ui.js"></script>
 </body>
 </html>
+<!-- index.html -->
