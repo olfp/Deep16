@@ -1,4 +1,4 @@
-// deep16_ui.js - Updated with compact, collapsible symbols listing
+// deep16_ui.js - Updated with symbol navigation in listing pane
 class DeepWebUI {
     constructor() {
         this.assembler = new Deep16Assembler();
@@ -26,6 +26,7 @@ class DeepWebUI {
         document.getElementById('load-example').addEventListener('click', () => this.loadExample());
         document.getElementById('memory-jump-btn').addEventListener('click', () => this.jumpToMemoryAddress());
         document.getElementById('symbol-select').addEventListener('change', (e) => this.onSymbolSelect(e));
+        document.getElementById('listing-symbol-select').addEventListener('change', (e) => this.onListingSymbolSelect(e));
         
         document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.jumpToMemoryAddress();
@@ -120,7 +121,7 @@ class DeepWebUI {
             document.getElementById('step-btn').disabled = false;
             document.getElementById('reset-btn').disabled = false;
             
-            this.updateSymbolSelect(result.symbols);
+            this.updateSymbolSelects(result.symbols);
             this.addTranscriptEntry(`Found ${Object.keys(result.symbols).length} symbols`, "info");
             
             // Switch to listing tab when assembly is successful
@@ -200,9 +201,71 @@ class DeepWebUI {
         this.addTranscriptEntry(`Navigated to error at line ${lineNumber + 1}`, "info");
     }
 
-    toggleSymbols() {
-        this.symbolsExpanded = !this.symbolsExpanded;
-        this.updateAssemblyListing();
+    updateSymbolSelects(symbols) {
+        // Update both symbol selects (memory and listing)
+        const symbolSelects = [
+            document.getElementById('symbol-select'),
+            document.getElementById('listing-symbol-select')
+        ];
+        
+        symbolSelects.forEach(select => {
+            let html = '<option value="">-- Select Symbol --</option>';
+            
+            if (symbols && Object.keys(symbols).length > 0) {
+                for (const [name, address] of Object.entries(symbols)) {
+                    html += `<option value="${address}">${name} (0x${address.toString(16).padStart(4, '0')})</option>`;
+                }
+            }
+            
+            select.innerHTML = html;
+        });
+    }
+
+    onListingSymbolSelect(event) {
+        const address = parseInt(event.target.value);
+        if (!isNaN(address) && address >= 0) {
+            this.navigateToSymbolInListing(address);
+            // Reset the select to show placeholder
+            event.target.value = '';
+        }
+    }
+
+    navigateToSymbolInListing(symbolAddress) {
+        const listingContent = document.getElementById('listing-content');
+        const lines = listingContent.querySelectorAll('.listing-line');
+        
+        // Remove any existing highlights
+        lines.forEach(line => line.classList.remove('symbol-highlight'));
+        
+        // Find and highlight the line with this address
+        let targetLine = null;
+        for (const line of lines) {
+            const addressSpan = line.querySelector('.listing-address');
+            if (addressSpan) {
+                const lineAddress = parseInt(addressSpan.textContent.replace('0x', ''), 16);
+                if (lineAddress === symbolAddress) {
+                    targetLine = line;
+                    break;
+                }
+            }
+        }
+        
+        if (targetLine) {
+            // Add highlight class
+            targetLine.classList.add('symbol-highlight');
+            
+            // Scroll to the line
+            targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Find symbol name for transcript
+            const symbolName = Object.entries(this.currentAssemblyResult.symbols).find(
+                ([name, addr]) => addr === symbolAddress
+            )?.[0] || 'unknown';
+            
+            this.addTranscriptEntry(`Navigated to symbol: ${symbolName} (0x${symbolAddress.toString(16).padStart(4, '0')})`, "info");
+        } else {
+            this.addTranscriptEntry(`Symbol not found in listing at address 0x${symbolAddress.toString(16).padStart(4, '0')}`, "warning");
+        }
     }
 
 updateAssemblyListing() {
@@ -213,47 +276,8 @@ updateAssemblyListing() {
         return;
     }
 
-    const { listing, symbols } = this.currentAssemblyResult;
+    const { listing } = this.currentAssemblyResult;
     let html = '';
-    
-    // Add symbols section at the top
-    if (symbols && Object.keys(symbols).length > 0) {
-        const symbolCount = Object.keys(symbols).length;
-        const chevron = this.symbolsExpanded ? '▼' : '▶';
-        
-        html += `<div class="symbols-section-header" onclick="deepWebUI.toggleSymbols()">`;
-        html += `<span class="symbols-toggle">${chevron}</span>`;
-        html += `Symbol Table (${symbolCount} symbol${symbolCount !== 1 ? 's' : ''})`;
-        html += `</div>`;
-        
-        if (this.symbolsExpanded) {
-            html += '<div class="symbols-table">';
-            
-            // Sort symbols by address for better readability
-            const sortedSymbols = Object.entries(symbols).sort((a, b) => a[1] - b[1]);
-            
-            // Use compact grid layout
-            let symbolRows = [];
-            for (let i = 0; i < sortedSymbols.length; i += 4) {
-                symbolRows.push(sortedSymbols.slice(i, i + 4));
-            }
-            
-            for (const row of symbolRows) {
-                html += '<div class="symbol-row">';
-                for (const [name, address] of row) {
-                    html += `
-                        <div class="symbol-item">
-                            <span class="symbol-name">${name}</span>
-                            <span class="symbol-address">0x${address.toString(16).padStart(4, '0')}</span>
-                        </div>
-                    `;
-                }
-                html += '</div>';
-            }
-            html += '</div>';
-        }
-        html += '<div class="listing-separator"></div>';
-    }
     
     // Add assembly listing
     for (const item of listing) {
@@ -556,19 +580,6 @@ updatePSWDisplay() {
                 </div>
             `;
         }
-    }
-
-    updateSymbolSelect(symbols) {
-        const symbolSelect = document.getElementById('symbol-select');
-        let html = '<option value="">-- Select Symbol --</option>';
-        
-        if (symbols && Object.keys(symbols).length > 0) {
-            for (const [name, address] of Object.entries(symbols)) {
-                html += `<option value="${address}">${name} (0x${address.toString(16).padStart(4, '0')})</option>`;
-            }
-        }
-        
-        symbolSelect.innerHTML = html;
     }
 
     status(message) {
