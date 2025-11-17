@@ -204,20 +204,19 @@ assemble(source) {
         }
     }
 
-    encodeMOV(parts, address, lineNumber) {
-        if (parts.length >= 3) {
-            const rd = this.parseRegister(parts[1]);
-            
-            if (this.isRegister(parts[2])) {
-                const rs = this.parseRegister(parts[2]);
-                return 0b1111100000000000 | (rd << 8) | (rs << 4);
-            } else {
-                throw new Error(`MOV with immediate not supported. Use LSI R${rd}, value for small values or LDI R0, value then MOV R${rd}, R0 for large values.`);
-            }
-        }
-        throw new Error('MOV requires destination register and source register');
+encodeMOV(parts, address, lineNumber) {
+    if (parts.length >= 3) {
+        const rd = this.parseRegister(parts[1]);
+        const rs = this.parseRegister(parts[2]);
+        const imm = 0; // Default immediate is 0
+        
+        // Correct encoding: [111110][Rd4][Rs4][imm2]
+        // Bits: 15-10: opcode, 9-6: Rd, 5-2: Rs, 1-0: imm
+        return 0b1111100000000000 | (rd << 6) | (rs << 2) | imm;
     }
-
+    throw new Error('MOV requires destination register and source register');
+}
+    
     encodeALU(parts, aluOp, address, lineNumber) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
