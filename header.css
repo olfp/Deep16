@@ -1,0 +1,42 @@
+/* header.css - Header and logo styles only */
+.header-container {
+    display: flex;
+    height: 100px;
+    border-bottom: 2px solid #3e3e42;
+}
+
+.header {
+    flex: 1;
+    background: #007acc;
+    padding: 15px 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.header-content {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.logo-container {
+    flex-shrink: 0;
+}
+
+.deep16-logo {
+    width: 60px;
+    height: 60px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.header-text h1 {
+    color: white;
+    font-size: 20px;
+    margin-bottom: 4px;
+}
+
+.header-text .subtitle {
+    color: #cdeeff;
+    font-size: 12px;
+}
