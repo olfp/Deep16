@@ -1,5 +1,4 @@
 /* deep16_style.css */
-/* Updated with Compact/Full view toggle */
 * {
     margin: 0;
     padding: 0;
@@ -12,7 +11,7 @@ body {
     color: #d4d4d4;
     height: 100vh;
     overflow: hidden;
-    padding-bottom: 30px; /* Space for fixed status bar */
+    padding-bottom: 30px;
 }
 
 .header-container {
@@ -41,7 +40,6 @@ body {
     font-size: 12px;
 }
 
-/* Logo and Header Layout */
 .header-content {
     display: flex;
     align-items: center;
@@ -73,7 +71,6 @@ body {
     font-size: 12px;
 }
 
-/* Mobile responsiveness for header */
 @media (max-width: 768px) {
     .header-content {
         flex-direction: column;
@@ -160,14 +157,14 @@ body {
 
 button {
     padding: 8px 12px;
-    background: #0e639c; /* Same blue for all buttons */
+    background: #0e639c;
     color: white;
     border: none;
     border-radius: 3px;
     cursor: pointer;
     font-family: 'Courier New', monospace;
     font-size: 12px;
-    min-height: 36px; /* Better touch targets */
+    min-height: 36px;
 }
 
 button:hover {
@@ -181,24 +178,24 @@ button:disabled {
 
 .container {
     display: flex;
-    height: calc(100vh - 160px); /* Increased to account for status bar */
+    height: calc(100vh - 160px);
     gap: 10px;
     padding: 10px;
-    overflow: hidden; /* Prevent container scrolling */
+    overflow: hidden;
 }
 
 .editor-panel {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0; /* Allow proper flexbox scrolling */
+    min-height: 0;
 }
 
 .memory-panel {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0; /* Allow proper flexbox scrolling */
+    min-height: 0;
 }
 
 .panel-header {
@@ -264,12 +261,11 @@ button:disabled {
     white-space: pre;
 }
 
-/* Tab system */
 .tab-container {
     display: flex;
     flex-direction: column;
     flex: 1;
-    min-height: 0; /* Allow proper flexbox scrolling */
+    min-height: 0;
 }
 
 .tab-buttons {
@@ -305,8 +301,8 @@ button:disabled {
     display: none;
     background: #1e1e1e;
     border: 1px solid #3e3e42;
-    overflow: hidden; /* Changed from auto to hidden for proper child scrolling */
-    min-height: 0; /* Allow proper flexbox scrolling */
+    overflow: hidden;
+    min-height: 0;
 }
 
 .tab-content.active {
@@ -327,7 +323,7 @@ button:disabled {
     line-height: 1.4;
     border: none;
     outline: none;
-    min-height: 0; /* Allow proper flexbox scrolling */
+    min-height: 0;
 }
 
 .errors-list {
@@ -336,7 +332,7 @@ button:disabled {
     overflow-y: auto;
     font-family: 'Courier New', monospace;
     font-size: 12px;
-    min-height: 0; /* Allow proper flexbox scrolling */
+    min-height: 0;
 }
 
 .error-item {
@@ -377,24 +373,23 @@ button:disabled {
     white-space: pre;
     line-height: 1.4;
     color: #d4d4d4;
-    min-height: 0; /* Allow proper flexbox scrolling */
+    min-height: 0;
 }
 
-/* Listing controls - Updated with darker blue background */
 .listing-controls {
     display: flex;
     gap: 8px;
     padding: 8px 12px;
-    background: #005a9e; /* Darker blue tone matching header */
+    background: #005a9e;
     border-bottom: 1px solid #3e3e42;
     align-items: center;
     font-family: 'Courier New', monospace;
-    flex-shrink: 0; /* Prevent shrinking */
+    flex-shrink: 0;
 }
 
 .listing-controls label {
     font-size: 12px;
-    color: white; /* White text like footer */
+    color: white;
     font-weight: bold;
     white-space: nowrap;
 }
@@ -409,14 +404,12 @@ button:disabled {
     flex: 1;
 }
 
-/* Style dropdown options */
 .listing-controls select option {
-    background: #2d2d30; /* Dark background for dropdown */
+    background: #2d2d30;
     color: #d4d4d4;
     padding: 4px;
 }
 
-/* Symbol highlight in listing */
 .listing-line.symbol-highlight {
     background: #2a3c2a !important;
     border-left: 3px solid #b5cea8;
@@ -433,26 +426,6 @@ button:disabled {
     }
 }
 
-.listing-line {
-    margin-bottom: 2px;
-}
-
-.listing-address {
-    color: #569cd6;
-    display: inline-block;
-    width: 60px;
-}
-
-.listing-bytes {
-    color: #ce9178;
-    display: inline-block;
-    width: 80px;
-}
-
-.listing-source {
-    color: #d4d4d4;
-}
-
 .memory-controls {
     display: flex;
     gap: 8px;
@@ -460,8 +433,8 @@ button:disabled {
     background: #2d2d30;
     border-bottom: 1px solid #3e3e42;
     align-items: center;
-    flex-wrap: wrap; /* Allow wrapping on small screens */
-    flex-shrink: 0; /* Prevent shrinking */
+    flex-wrap: wrap;
+    flex-shrink: 0;
 }
 
 .memory-controls label {
@@ -482,9 +455,8 @@ button:disabled {
     width: 70px;
 }
 
-/* Style memory dropdown options */
 .memory-controls select option {
-    background: #2d2d30; /* Dark background for dropdown */
+    background: #2d2d30;
     color: #d4d4d4;
     padding: 4px;
 }
@@ -497,7 +469,7 @@ button:disabled {
     font-size: 11px;
     overflow: auto;
     line-height: 1.2;
-    min-height: 0; /* Allow proper flexbox scrolling */
+    min-height: 0;
 }
 
 .status-bar {
@@ -515,38 +487,86 @@ button:disabled {
     align-items: center;
 }
 
-.memory-line {
+/* Enhanced Memory Display Styles */
+.memory-line-header {
     display: flex;
-    margin-bottom: 1px;
     padding: 2px 3px;
+    border-bottom: 1px solid #3e3e42;
+    background: #252526;
 }
 
-.memory-address {
-    color: #569cd6;
-    width: 70px;
-    font-weight: bold;
+.memory-disassembly-line, .memory-data-line {
+    display: flex;
+    padding: 2px 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    border-bottom: 1px solid #2d2d30;
+}
+
+.memory-disassembly-line {
+    background: #1e1e1e;
+}
+
+.memory-data-line {
+    background: #252526;
 }
 
 .memory-bytes {
     color: #ce9178;
-    width: 180px;
     font-family: 'Courier New', monospace;
+    padding: 0 4px;
+    border-right: 1px solid #3e3e42;
+    min-width: 50px;
 }
 
 .memory-disassembly {
     color: #dcdcaa;
+    padding: 0 4px;
+    border-right: 1px solid #3e3e42;
+    min-width: 120px;
+    white-space: nowrap;
+}
+
+.memory-source {
+    color: #6a9955;
+    padding: 0 4px;
     flex: 1;
-    font-family: 'Courier New', monospace;
+    font-style: italic;
+}
+
+.memory-data {
+    color: #569cd6;
+    padding: 0 4px;
+    border-right: 1px solid #3e3e42;
+    min-width: 80px;
 }
 
 .pc-marker {
-    background: #264f78;
-    border-left: 2px solid #569cd6;
+    background: #264f78 !important;
+    font-weight: bold;
 }
 
-.symbol-marker {
-    background: #2d2d30;
-    border-left: 2px solid #b5cea8;
+/* Responsive memory display */
+@media (max-width: 480px) {
+    .memory-bytes, .memory-disassembly, .memory-data {
+        min-width: 40px;
+        font-size: 10px;
+        padding: 0 2px;
+    }
+    
+    .memory-disassembly {
+        min-width: 80px;
+    }
+}
+
+@media (max-width: 768px) {
+    .memory-bytes, .memory-disassembly, .memory-data {
+        min-width: 45px;
+    }
+    
+    .memory-disassembly {
+        min-width: 100px;
+    }
 }
 
 .registers-container {
@@ -555,11 +575,10 @@ button:disabled {
     gap: 8px;
     padding: 8px;
     overflow-y: auto;
-    min-height: 0; /* Allow proper flexbox scrolling */
-    flex-shrink: 0; /* Prevent shrinking when collapsed */
+    min-height: 0;
+    flex-shrink: 0;
 }
 
-/* Compact view - hide all register sections except PSW */
 .memory-panel.compact-view .register-section:not(:first-child) {
     display: none;
 }
@@ -568,7 +587,6 @@ button:disabled {
     gap: 0;
 }
 
-/* Collapsible register sections */
 .register-section {
     background: #252526;
     border: 1px solid #3e3e42;
@@ -646,7 +664,6 @@ button:disabled {
     font-family: 'Courier New', monospace;
 }
 
-/* Compact register layout - value next to name */
 .register-compact {
     display: flex;
     align-items: center;
@@ -699,10 +716,10 @@ button:disabled {
 
 .psw-value-display {
     font-size: 9px;
-    color: #1e1e1e; /* Dark text for contrast */
+    color: #1e1e1e;
     min-width: 20px;
     text-align: center;
-    background: white; /* White background for SR and ER */
+    background: white;
     border: 1px solid #3e3e42;
     border-radius: 2px;
     padding: 1px 2px;
@@ -752,18 +769,17 @@ button:disabled {
     background: #4f4f4f;
 }
 
-/* Safari-specific fixes */
 @supports (-webkit-touch-callout: none) {
     .container {
-        height: calc(100vh - 170px); /* Extra space for Safari */
+        height: calc(100vh - 170px);
     }
     
     .editor, .memory-display, .registers-container, .errors-list, .assembly-listing {
-        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+        -webkit-overflow-scrolling: touch;
     }
     
     button {
-        min-height: 44px; /* Better touch targets on iOS */
+        min-height: 44px;
         padding: 12px 16px;
     }
     
@@ -773,7 +789,6 @@ button:disabled {
     }
 }
 
-/* Better mobile responsiveness */
 @media (max-width: 768px) {
     .header-container {
         flex-direction: column;
@@ -787,7 +802,7 @@ button:disabled {
     }
     
     .register-grid {
-        grid-template-columns: repeat(2, 1fr); /* 2 columns on mobile */
+        grid-template-columns: repeat(2, 1fr);
     }
     
     .listing-controls, .memory-controls {
@@ -825,7 +840,6 @@ button:disabled {
     }
 }
 
-/* Very small screens */
 @media (max-width: 480px) {
     .header h1 {
         font-size: 18px;
@@ -836,7 +850,7 @@ button:disabled {
     }
     
     .register-grid {
-        grid-template-columns: 1fr; /* 1 column on very small screens */
+        grid-template-columns: 1fr;
     }
     
     .controls {
