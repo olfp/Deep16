@@ -1,4 +1,4 @@
-/* deep16_style.css - Updated with integrated symbols listing */
+/* deep16_style.css - Updated with compact, collapsible symbols listing */
 * {
     margin: 0;
     padding: 0;
@@ -343,14 +343,32 @@ button:disabled {
     color: #d4d4d4;
 }
 
-/* Symbols section in listing */
+/* Compact, collapsible symbols section */
 .symbols-section-header {
     color: #569cd6;
     font-weight: bold;
     margin-bottom: 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #3e3e42;
-    font-size: 13px;
+    padding: 6px 8px;
+    background: #2d2d30;
+    border-radius: 3px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 12px;
+    border: 1px solid #3e3e42;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.symbols-section-header:hover {
+    background: #3e3e42;
+}
+
+.symbols-toggle {
+    font-size: 10px;
+    width: 12px;
+    text-align: center;
+    color: #9cdcfe;
 }
 
 .symbols-table {
@@ -358,34 +376,53 @@ button:disabled {
     border: 1px solid #3e3e42;
     border-radius: 3px;
     background: #252526;
+    padding: 4px;
 }
 
 .symbol-row {
     display: flex;
-    justify-content: space-between;
-    padding: 4px 8px;
-    border-bottom: 1px solid #3e3e42;
-    font-size: 11px;
+    gap: 8px;
+    margin-bottom: 2px;
 }
 
 .symbol-row:last-child {
-    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.symbol-item {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 6px;
+    background: #2a2d2e;
+    border-radius: 2px;
+    font-size: 10px;
+    min-width: 0; /* Allow shrinking */
 }
 
 .symbol-name {
     color: #9cdcfe;
     font-weight: bold;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 1;
+    min-width: 0;
 }
 
 .symbol-address {
     color: #b5cea8;
     font-family: 'Courier New', monospace;
+    font-size: 9px;
+    flex-shrink: 0;
+    margin-left: 6px;
 }
 
 .listing-separator {
     height: 1px;
     background: #3e3e42;
-    margin: 12px 0;
+    margin: 8px 0;
 }
 
 .listing-line {
@@ -684,6 +721,15 @@ button:disabled {
     
     .register-grid {
         grid-template-columns: repeat(2, 1fr); /* 2 columns on mobile */
+    }
+    
+    .symbol-row {
+        flex-direction: column;
+        gap: 2px;
+    }
+    
+    .symbol-item {
+        min-width: auto;
     }
     
     .controls {
