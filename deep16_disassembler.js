@@ -8,29 +8,31 @@ class Deep16Disassembler {
         this.systemOps = ['NOP', 'HLT', 'SWI', 'RETI', '', '', '', ''];
     }
 
-    disassemble(instruction) {
-        if (instruction === 0) return 'NOP';
-        
-        const opcode = (instruction >> 13) & 0x7;
-        
-        switch (opcode) {
-            case 0b000: 
-                return this.disassembleLDI(instruction);
-            case 0b100: 
-                return this.disassembleMemory(instruction);
-            case 0b110:
-                return this.disassembleALU(instruction);
-            case 0b111: 
-                return this.disassembleControlFlow(instruction);
-            default: 
-                return `??? (0x${instruction.toString(16).padStart(4, '0')})`;
-        }
+disassemble(instruction) {    
+    // Check for LDI first (opcode bit 15 = 0)
+    if ((instruction & 0x8000) === 0) {
+        return this.disassembleLDI(instruction);
     }
+    
+    const opcode = (instruction >> 13) & 0x7;
+    
+    switch (opcode) {
+        case 0b100: 
+            return this.disassembleMemory(instruction);
+        case 0b110:
+            return this.disassembleALU(instruction);
+        case 0b111: 
+            return this.disassembleControlFlow(instruction);
+        default: 
+            return `??? (0x${instruction.toString(16).padStart(4, '0')})`;
+    }
+}
 
     disassembleLDI(instruction) {
-        const immediate = instruction & 0x7FFF;
-        return `LDI #${immediate}`;
+     const immediate = instruction & 0x7FFF;
+     return `LDI R0, #${immediate}`;  // LDI always loads into R0
     }
+
 
     disassembleMemory(instruction) {
         const d = (instruction >> 12) & 0x1;
