@@ -122,11 +122,11 @@
     background: #1e1e1e;
     border: 1px solid #3e3e42;
     color: #d4d4d4;
-    padding: 2px 4px;      /* More compact padding */
+    padding: 2px 4px;
     font-family: 'Courier New', monospace;
     font-size: 11px;
-    height: 20px;          /* Fixed height to match */
-    width: 150px;          /* Slightly smaller fixed width */
+    height: 20px;
+    width: 200px; /* Same width as memory selector */
 }
 
 .listing-controls select option {
