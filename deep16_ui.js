@@ -1,4 +1,4 @@
-// deep16_ui.js - Updated with tab system and error navigation
+// deep16_ui.js - Updated with integrated symbols listing and improved pane management
 class DeepWebUI {
     constructor() {
         this.assembler = new Deep16Assembler();
@@ -119,12 +119,11 @@ class DeepWebUI {
             document.getElementById('step-btn').disabled = false;
             document.getElementById('reset-btn').disabled = false;
             
-            this.updateSymbolTable(result.symbols);
             this.updateSymbolSelect(result.symbols);
             this.addTranscriptEntry(`Found ${Object.keys(result.symbols).length} symbols`, "info");
             
-            // Switch to errors tab (will show "no errors" message)
-            this.switchTab('errors');
+            // Switch to listing tab when assembly is successful
+            this.switchTab('listing');
         } else {
             const errorMsg = `Assembly failed with ${result.errors.length} error(s)`;
             this.status("Assembly errors - see errors tab for details");
@@ -208,9 +207,30 @@ updateAssemblyListing() {
         return;
     }
 
-    const { listing } = this.currentAssemblyResult;
+    const { listing, symbols } = this.currentAssemblyResult;
     let html = '';
     
+    // Add symbols section at the top
+    if (symbols && Object.keys(symbols).length > 0) {
+        html += '<div class="symbols-section-header">Symbol Table</div>';
+        html += '<div class="symbols-table">';
+        
+        // Sort symbols by address for better readability
+        const sortedSymbols = Object.entries(symbols).sort((a, b) => a[1] - b[1]);
+        
+        for (const [name, address] of sortedSymbols) {
+            html += `
+                <div class="symbol-row">
+                    <span class="symbol-name">${name}</span>
+                    <span class="symbol-address">0x${address.toString(16).padStart(4, '0')}</span>
+                </div>
+            `;
+        }
+        html += '</div>';
+        html += '<div class="listing-separator"></div>';
+    }
+    
+    // Add assembly listing
     for (const item of listing) {
         if (item.error) {
             // Error line - show error message
@@ -511,26 +531,6 @@ updatePSWDisplay() {
                 </div>
             `;
         }
-    }
-
-    updateSymbolTable(symbols) {
-        const symbolTable = document.getElementById('symbol-table');
-        let html = '';
-        
-        if (symbols && Object.keys(symbols).length > 0) {
-            for (const [name, address] of Object.entries(symbols)) {
-                html += `
-                    <div class="symbol-row">
-                        <span class="symbol-name">${name}</span>
-                        <span class="symbol-address">0x${address.toString(16).padStart(4, '0')}</span>
-                    </div>
-                `;
-            }
-        } else {
-            html = '<div class="symbol-row">No symbols found</div>';
-        }
-        
-        symbolTable.innerHTML = html;
     }
 
     updateSymbolSelect(symbols) {
