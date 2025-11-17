@@ -478,20 +478,26 @@ class DeepWebUI {
         }, 50);
     }
 
-    step() {
-        this.simulator.running = true;
-        const pcBefore = this.simulator.registers[15];
-        const continueRunning = this.simulator.step();
-        const pcAfter = this.simulator.registers[15];
-        
-        // Force UI update
-        this.updateAllDisplays();
-        this.status("Step executed");
-        this.addTranscriptEntry(`Step: PC 0x${pcBefore.toString(16).padStart(4, '0')} → 0x${pcAfter.toString(16).padStart(4, '0')}`, "info");
-        
-        return continueRunning;
-    }
-
+step() {
+    this.simulator.running = true;
+    const pcBefore = this.simulator.registers[15];
+    const instruction = this.simulator.memory[pcBefore];
+    
+    console.log(`UI Step: PC=0x${pcBefore.toString(16).padStart(4, '0')}, Instruction=0x${instruction.toString(16).padStart(4, '0')}`);
+    console.log(`Before step - R0=0x${this.simulator.registers[0].toString(16).padStart(4, '0')}`);
+    
+    const continueRunning = this.simulator.step();
+    const pcAfter = this.simulator.registers[15];
+    
+    console.log(`After step - R0=0x${this.simulator.registers[0].toString(16).padStart(4, '0')}, PSW=0x${this.simulator.psw.toString(16).padStart(4, '0')}`);
+    
+    // Force UI update
+    this.updateAllDisplays();
+    this.status("Step executed");
+    this.addTranscriptEntry(`Step: PC 0x${pcBefore.toString(16).padStart(4, '0')} → 0x${pcAfter.toString(16).padStart(4, '0')}`, "info");
+    
+    return continueRunning;
+}
     reset() {
         if (this.runInterval) {
             clearInterval(this.runInterval);
