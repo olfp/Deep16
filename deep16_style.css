@@ -40,6 +40,60 @@ body {
     font-size: 12px;
 }
 
+/* Logo and Header Layout */
+.header-content {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.logo-container {
+    flex-shrink: 0;
+}
+
+.deep16-logo {
+    width: 60px;
+    height: 60px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.header-text {
+    flex: 1;
+}
+
+.header-text h1 {
+    color: white;
+    font-size: 20px;
+    margin-bottom: 4px;
+}
+
+.header-text .subtitle {
+    color: #cdeeff;
+    font-size: 12px;
+}
+
+/* Mobile responsiveness for header */
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        text-align: center;
+        gap: 10px;
+    }
+    
+    .deep16-logo {
+        width: 50px;
+        height: 50px;
+    }
+    
+    .header-text h1 {
+        font-size: 18px;
+    }
+    
+    .header-text .subtitle {
+        font-size: 11px;
+    }
+}
+
 .transcript-panel {
     flex: 1;
     background: #252526;
