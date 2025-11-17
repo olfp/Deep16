@@ -1,7 +1,7 @@
 // Deep16 Simulator - CPU Execution and State Management
 class Deep16Simulator {
     constructor() {
-        this.memory = new Array(65536).fill(0);
+        this.memory = new Array(65536).fill(0xFFFF); // Initialize with 0xFFFF
         this.registers = new Array(16).fill(0);
         this.segmentRegisters = { CS: 0, DS: 0, SS: 0, ES: 0 };
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
@@ -14,7 +14,10 @@ class Deep16Simulator {
     }
 
     loadProgram(memory) {
-        this.memory = [...memory];
+        // Copy program into memory, but keep the rest as 0xFFFF
+        for (let i = 0; i < memory.length; i++) {
+            this.memory[i] = memory[i];
+        }
         this.registers[15] = 0x0000;
         this.running = false;
     }
@@ -24,88 +27,107 @@ class Deep16Simulator {
         this.registers[13] = 0x7FFF;
         this.registers[15] = 0x0000;
         this.psw = 0;
-        this.memory.fill(0);
+        this.memory.fill(0xFFFF); // Reset to all 0xFFFF
         this.running = false;
+        this.lastOperationWasALU = false;
+        this.lastALUResult = 0;
     }
 
-step() {
-    if (!this.running) return false;
+    step() {
+        if (!this.running) return false;
 
-    const pc = this.registers[15];
-    if (pc >= this.memory.length) {
-        this.running = false;
-        return false;
-    }
-
-    const instruction = this.memory[pc];
-    
-    console.log(`Step: PC=0x${pc.toString(16).padStart(4, '0')}, Instruction=0x${instruction.toString(16).padStart(4, '0')}`);
-    console.log(`Instruction binary: ${instruction.toString(2).padStart(16, '0')}`);
-    
-    // Store PC before execution for jump calculations
-    const originalPC = pc;
-    
-    // Increment PC by 1 (word addressing)
-    this.registers[15] += 1;
-
-    // Reset ALU tracking
-    this.lastOperationWasALU = false;
-    this.lastALUResult = 0;
-
-    // Decode and execute instruction
-    try {
-        // Check for LDI first (bit 15 = 0) - THIS IS THE KEY FIX
-        if ((instruction & 0x8000) === 0) {
-            console.log("Detected LDI instruction (bit 15 = 0)");
-            this.executeLDI(instruction);
-        } else {
-            // For non-LDI instructions, check the opcode properly
-            const opcode = (instruction >> 13) & 0x7;
-            console.log(`Non-LDI opcode: ${opcode.toString(2)} (${opcode})`);
-            
-            switch (opcode) {
-                case 0b100: 
-                    console.log("Memory operation");
-                    this.executeMemoryOp(instruction); 
-                    break;
-                case 0b110:
-                    console.log("ALU operation");
-                    this.executeALUOp(instruction); 
-                    break;
-                case 0b111: 
-                    console.log("Control flow or extended opcode");
-                    if ((instruction >> 12) === 0b1110) {
-                        console.log("Jump instruction");
-                        this.executeJump(instruction, originalPC);
-                    } else if ((instruction >> 10) === 0b111110) {
-                        console.log("MOV instruction");
-                        this.executeMOV(instruction);
-                    } else if ((instruction >> 9) === 0b1111110) {
-                        console.log("LSI instruction");
-                        this.executeLSI(instruction);
-                    } else if ((instruction >> 13) === 0b11111) {
-                        console.log("System instruction");
-                        this.executeSystem(instruction);
-                    } else {
-                        console.warn("Unknown extended opcode");
-                    }
-                    break;
-                default:
-                    console.warn(`Unknown opcode: ${opcode.toString(2)}`);
-            }
+        const pc = this.registers[15];
+        if (pc >= this.memory.length) {
+            this.running = false;
+            return false;
         }
-    } catch (error) {
-        this.running = false;
-        console.error('Execution error:', error);
-        throw error;
+
+        const instruction = this.memory[pc];
+        
+        console.log(`Step: PC=0x${pc.toString(16).padStart(4, '0')}, Instruction=0x${instruction.toString(16).padStart(4, '0')}`);
+        
+        // Check for HALT (0xFFFF) first
+        if (instruction === 0xFFFF) {
+            console.log("HALT instruction detected - stopping execution");
+            this.running = false;
+            return false;
+        }
+        
+        // Store PC before execution for jump calculations
+        const originalPC = pc;
+        
+        // Increment PC by 1 (word addressing)
+        this.registers[15] += 1;
+
+        // Reset ALU tracking
+        this.lastOperationWasALU = false;
+        this.lastALUResult = 0;
+
+        // Decode and execute instruction
+        try {
+            // Check for LDI first (bit 15 = 0)
+            if ((instruction & 0x8000) === 0) {
+                console.log("Detected LDI instruction (bit 15 = 0)");
+                this.executeLDI(instruction);
+            } else {
+                const opcode = (instruction >> 13) & 0x7;
+                console.log(`Non-LDI opcode: ${opcode.toString(2)} (${opcode})`);
+                
+                switch (opcode) {
+                    case 0b100: 
+                        console.log("Memory operation");
+                        this.executeMemoryOp(instruction); 
+                        break;
+                    case 0b110:
+                        console.log("ALU operation");
+                        this.executeALUOp(instruction); 
+                        break;
+                    case 0b111: 
+                        console.log("Control flow or extended opcode");
+                        if ((instruction >> 12) === 0b1110) {
+                            console.log("Jump instruction");
+                            this.executeJump(instruction, originalPC);
+                        } else if ((instruction >> 10) === 0b111110) {
+                            console.log("MOV instruction");
+                            this.executeMOV(instruction);
+                        } else if ((instruction >> 9) === 0b1111110) {
+                            console.log("LSI instruction");
+                            this.executeLSI(instruction);
+                        } else if (instruction === 0b1111111111110001) {
+                            console.log("System HALT instruction");
+                            this.running = false;
+                            return false;
+                        } else if (instruction === 0b1111111111110011) {
+                            console.log("RETI instruction");
+                            this.executeRETI();
+                        } else {
+                            console.warn("Unknown extended opcode");
+                        }
+                        break;
+                    default:
+                        console.warn(`Unknown opcode: ${opcode.toString(2)}`);
+                }
+            }
+        } catch (error) {
+            this.running = false;
+            console.error('Execution error:', error);
+            throw error;
+        }
+
+        // Update PSW flags based on the last operation
+        this.updatePSWFlags();
+        
+        console.log(`After step: R0=0x${this.registers[0].toString(16).padStart(4, '0')}, PSW=0x${this.psw.toString(16).padStart(4, '0')}`);
+        
+        return true;
     }
 
-    // Update PSW flags based on the last operation
-    this.updatePSWFlags();
-    
-    console.log(`After step: R0=0x${this.registers[0].toString(16).padStart(4, '0')}, PSW=0x${this.psw.toString(16).padStart(4, '0')}`);
-    
-    return true;
+    executeRETI() {
+        // Simple RETI implementation - return from interrupt
+        // In a real implementation, this would restore shadow registers
+        console.log("RETI executed");
+    }
+
 }
     
 executeLDI(instruction) {
