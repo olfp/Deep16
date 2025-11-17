@@ -1,4 +1,4 @@
-/* deep16_style.css - Updated with symbol navigation in listing */
+/* deep16_style.css - Updated with styled symbol navigation */
 * {
     margin: 0;
     padding: 0;
@@ -348,19 +348,22 @@ button:disabled {
     color: #d4d4d4;
 }
 
-/* Listing controls */
+/* Listing controls - Updated to match footer style */
 .listing-controls {
     display: flex;
     gap: 8px;
-    padding: 8px;
-    background: #2d2d30;
+    padding: 8px 12px;
+    background: #007acc; /* Match footer blue */
     border-bottom: 1px solid #3e3e42;
     align-items: center;
+    font-family: 'Courier New', monospace;
 }
 
 .listing-controls label {
-    font-size: 11px;
-    color: #9cdcfe;
+    font-size: 12px;
+    color: white; /* White text like footer */
+    font-weight: bold;
+    white-space: nowrap;
 }
 
 .listing-controls select {
