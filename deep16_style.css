@@ -488,85 +488,67 @@ button:disabled {
 }
 
 /* Enhanced Memory Display Styles */
-.memory-line-header {
+.memory-line {
     display: flex;
     padding: 2px 3px;
-    border-bottom: 1px solid #3e3e42;
-    background: #252526;
-}
-
-.memory-disassembly-line, .memory-data-line {
-    display: flex;
-    padding: 2px 3px;
-    font-family: 'Courier New', monospace;
-    font-size: 11px;
     border-bottom: 1px solid #2d2d30;
+    align-items: center;
 }
 
-.memory-disassembly-line {
+.code-line {
     background: #1e1e1e;
+    display: flex;
+    align-items: center;
 }
 
-.memory-data-line {
+.data-line {
     background: #252526;
+    display: flex;
+    align-items: center;
+}
+
+.memory-address {
+    color: #569cd6;
+    font-weight: bold;
+    width: 70px;
+    text-align: right;
+    padding-right: 10px;
+    font-family: 'Courier New', monospace;
 }
 
 .memory-bytes {
     color: #ce9178;
     font-family: 'Courier New', monospace;
-    padding: 0 4px;
-    border-right: 1px solid #3e3e42;
-    min-width: 50px;
+    width: 60px;
+    padding-right: 10px;
 }
 
 .memory-disassembly {
     color: #dcdcaa;
-    padding: 0 4px;
-    border-right: 1px solid #3e3e42;
-    min-width: 120px;
+    font-family: 'Courier New', monospace;
+    width: 200px;
+    padding-right: 10px;
     white-space: nowrap;
 }
 
 .memory-source {
     color: #6a9955;
-    padding: 0 4px;
-    flex: 1;
     font-style: italic;
+    flex: 1;
+    padding-left: 10px;
 }
 
 .memory-data {
     color: #569cd6;
+    font-family: 'Courier New', monospace;
+    width: 50px;
     padding: 0 4px;
-    border-right: 1px solid #3e3e42;
-    min-width: 80px;
+    text-align: center;
 }
 
 .pc-marker {
     background: #264f78 !important;
     font-weight: bold;
-}
-
-/* Responsive memory display */
-@media (max-width: 480px) {
-    .memory-bytes, .memory-disassembly, .memory-data {
-        min-width: 40px;
-        font-size: 10px;
-        padding: 0 2px;
-    }
-    
-    .memory-disassembly {
-        min-width: 80px;
-    }
-}
-
-@media (max-width: 768px) {
-    .memory-bytes, .memory-disassembly, .memory-data {
-        min-width: 45px;
-    }
-    
-    .memory-disassembly {
-        min-width: 100px;
-    }
 }
 
 .registers-container {
@@ -838,6 +820,20 @@ button:disabled {
         flex: 1;
         min-width: 80px;
     }
+    
+    /* Mobile memory display adjustments */
+    .memory-disassembly {
+        width: 150px;
+        font-size: 10px;
+    }
+    
+    .memory-bytes {
+        width: 50px;
+    }
+    
+    .memory-address {
+        width: 60px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -865,6 +861,28 @@ button:disabled {
     .tab-button {
         font-size: 11px;
         padding: 8px 12px;
+    }
+    
+    /* Very small screen memory display */
+    .memory-disassembly {
+        width: 120px;
+        font-size: 9px;
+    }
+    
+    .memory-bytes {
+        width: 45px;
+        font-size: 9px;
+    }
+    
+    .memory-address {
+        width: 55px;
+        font-size: 9px;
+    }
+    
+    .memory-data {
+        width: 40px;
+        font-size: 9px;
+        padding: 0 2px;
     }
 }
 /* deep16_style.css */
