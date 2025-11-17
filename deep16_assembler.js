@@ -1,4 +1,4 @@
-// deep16_assembler.js - Fixed register/immediate parsing and LDI handling
+/* deep16_assembler.js */
 class Deep16Assembler {
     constructor() {
         this.labels = {};
@@ -15,7 +15,6 @@ assemble(source) {
 
     const lines = source.split('\n');
     
-    // First pass: collect labels and symbols
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line || line.startsWith(';')) continue;
@@ -36,14 +35,12 @@ assemble(source) {
         }
     }
 
-    // Second pass: generate machine code and build listing
     address = 0;
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         const originalLine = lines[i];
         
         if (!line || line.startsWith(';')) {
-            // Comments and empty lines - add to listing without address
             assemblyListing.push({ line: originalLine });
             continue;
         }
@@ -54,7 +51,6 @@ assemble(source) {
                 address = orgValue;
                 assemblyListing.push({ address: address, line: originalLine });
             } else if (line.endsWith(':')) {
-                // Labels - add to listing without instruction
                 assemblyListing.push({ address: address, line: originalLine });
             } else if (line.startsWith('.word')) {
                 const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
@@ -90,7 +86,7 @@ assemble(source) {
                 error: error.message,
                 line: originalLine 
             });
-            address++; // Advance address even on error to maintain alignment
+            address++;
         }
     }
 
@@ -156,7 +152,6 @@ assemble(source) {
     }
 
     encodeInstruction(line, address, lineNumber) {
-        // Remove comments
         const cleanLine = line.split(';')[0].trim();
         if (!cleanLine) return null;
 
@@ -191,17 +186,16 @@ assemble(source) {
                 case 'CLR': return this.encodeCLR(parts, address, lineNumber);
                 case 'SET2': return this.encodeSET2(parts, address, lineNumber);
                 case 'CLR2': return this.encodeCLR2(parts, address, lineNumber);
-                case 'SETI': return 0b1111111011100001; // SET2 1 alias
-                case 'CLRI': return 0b1111111011110001; // CLR2 1 alias
+                case 'SETI': return 0b1111111011100001;
+                case 'CLRI': return 0b1111111011110001;
                 case 'LDI':  return this.encodeLDI(parts, address, lineNumber);
                 case 'LSI':  return this.encodeLSI(parts, address, lineNumber);
                 case 'HALT': return 0b1111111111110001;
                 case 'NOP':  return 0b1111111111110000;
                 case 'RETI': return 0b1111111111110011;
                 default: 
-                    // Check if it's a label reference
                     if (this.labels[mnemonic] !== undefined) {
-                        return null; // Labels don't generate instructions
+                        return null;
                     }
                     throw new Error(`Unknown instruction: ${mnemonic}`);
             }
@@ -214,9 +208,7 @@ assemble(source) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
             
-            // MOV can be register-to-register or immediate-to-register
             if (this.isRegister(parts[2])) {
-                // Register to register move
                 const rs = this.parseRegister(parts[2]);
                 return 0b1111100000000000 | (rd << 8) | (rs << 4);
             } else {
@@ -231,11 +223,9 @@ assemble(source) {
             const rd = this.parseRegister(parts[1]);
             
             if (this.isRegister(parts[2])) {
-                // Register mode
                 const rs = this.parseRegister(parts[2]);
                 return 0b1100000000000000 | (aluOp << 10) | (rd << 8) | (rs << 4);
             } else {
-                // Immediate mode
                 const imm = this.parseImmediate(parts[2]);
                 if (imm < 0 || imm > 15) {
                     throw new Error(`Immediate value ${imm} out of range (0-15)`);
@@ -264,12 +254,10 @@ assemble(source) {
 
 encodeLDI(parts, address, lineNumber) {
     if (parts.length >= 2) {
-        // LDI has only one argument: the immediate value
         const imm = this.parseImmediate(parts[1]);
         if (imm < 0 || imm > 32767) {
             throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
         }
-        // LDI: [0][imm15] - always loads to R0
         return imm & 0x7FFF;
     }
     throw new Error('LDI requires immediate value');
@@ -283,8 +271,7 @@ encodeLDI(parts, address, lineNumber) {
                 throw new Error(`LSI immediate ${imm} out of range (-16 to 15)`);
             }
             
-            // LSI: [1111110][Rd][imm5]
-            const imm5 = imm & 0x1F; // 5-bit signed immediate
+            const imm5 = imm & 0x1F;
             return 0b1111110000000000 | (rd << 8) | (imm5 << 4);
         }
         throw new Error('LSI requires register and immediate value');
@@ -362,3 +349,4 @@ encodeLDI(parts, address, lineNumber) {
         throw new Error('CLR2 requires immediate value');
     }
 }
+/* deep16_assembler.js */
