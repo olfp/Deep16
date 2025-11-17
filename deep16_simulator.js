@@ -7,6 +7,8 @@ class Deep16Simulator {
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
         this.psw = 0;
         this.running = false;
+        this.lastOperationWasALU = false;
+        this.lastALUResult = 0;
         
         // Initialize registers
         this.registers[13] = 0x7FFF; // SP
@@ -93,13 +95,9 @@ class Deep16Simulator {
                         } else if ((instruction >> 9) === 0b1111110) {
                             console.log("LSI instruction");
                             this.executeLSI(instruction);
-                        } else if (instruction === 0b1111111111110001) {
-                            console.log("System HALT instruction");
-                            this.running = false;
-                            return false;
-                        } else if (instruction === 0b1111111111110011) {
-                            console.log("RETI instruction");
-                            this.executeRETI();
+                        } else if ((instruction >> 13) === 0b11111) {
+                            console.log("System instruction");
+                            this.executeSystem(instruction);
                         } else {
                             console.warn("Unknown extended opcode");
                         }
@@ -122,25 +120,18 @@ class Deep16Simulator {
         return true;
     }
 
-    executeRETI() {
-        // Simple RETI implementation - return from interrupt
-        // In a real implementation, this would restore shadow registers
-        console.log("RETI executed");
+    executeLDI(instruction) {
+        const immediate = instruction & 0x7FFF;
+        console.log(`LDI executing: immediate = 0x${immediate.toString(16).padStart(4, '0')}`);
+        this.registers[0] = immediate; // LDI always loads into R0
+        
+        // Set flags for LDI operation
+        this.lastALUResult = immediate;
+        this.lastOperationWasALU = true;
+        
+        console.log(`LDI complete: R0 = 0x${this.registers[0].toString(16).padStart(4, '0')}`);
     }
 
-}
-    
-executeLDI(instruction) {
-    const immediate = instruction & 0x7FFF;
-    console.log(`LDI executing: immediate = 0x${immediate.toString(16).padStart(4, '0')}`);
-    this.registers[0] = immediate; // LDI always loads into R0
-    
-    // Set flags for LDI operation
-    this.lastALUResult = immediate;
-    this.lastOperationWasALU = true;
-    
-    console.log(`LDI complete: R0 = 0x${this.registers[0].toString(16).padStart(4, '0')}`);
-}
     executeMemoryOp(instruction) {
         const d = (instruction >> 12) & 0x1;
         const rd = (instruction >> 8) & 0xF;
@@ -233,7 +224,7 @@ executeLDI(instruction) {
         this.lastOperationWasALU = true;
     }
 
-    executeJump(instruction) {
+    executeJump(instruction, originalPC) {
         const condition = (instruction >> 9) & 0x7;
         let offset = instruction & 0x1FF;
         if (offset & 0x100) offset |= 0xFE00; // Sign extend 9-bit value
@@ -260,9 +251,13 @@ executeLDI(instruction) {
     executeSystem(instruction) {
         const sysOp = instruction & 0x7;
         switch (sysOp) {
-            case 0b001: // HLT
+            case 0b001: // HLT (old encoding)
                 this.running = false;
                 console.log('HLT: Processor halted');
+                break;
+            case 0b011: // RETI
+                console.log("RETI executed");
+                // Simple RETI implementation
                 break;
             default:
                 console.log(`SYS: op=${sysOp}`);
