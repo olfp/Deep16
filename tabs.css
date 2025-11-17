@@ -100,31 +100,33 @@
 
 .listing-controls {
     display: flex;
-    gap: 8px;
-    padding: 6px 8px;
-    background: #2d2d30;  /* Same as memory-controls background */
+    gap: 6px;
+    padding: 4px 8px;      /* More compact padding */
+    background: #2d2d30;
     border-bottom: 1px solid #3e3e42;
     align-items: center;
     font-family: 'Courier New', monospace;
     flex-shrink: 0;
+    height: 32px;          /* Fixed height like memory controls */
 }
 
 .listing-controls label {
-    font-size: 11px;  /* Match memory-controls label size */
-    color: #9cdcfe;   /* Match memory-controls label color */
+    font-size: 11px;
+    color: #9cdcfe;
     font-weight: bold;
     white-space: nowrap;
+    margin: 0;             /* Remove any default margins */
 }
 
 .listing-controls select {
     background: #1e1e1e;
     border: 1px solid #3e3e42;
     color: #d4d4d4;
-    padding: 3px 6px;      /* Match memory-controls input padding */
+    padding: 2px 4px;      /* More compact padding */
     font-family: 'Courier New', monospace;
-    font-size: 11px;       /* Match memory-controls font size */
-    flex: 1;
-    width: 180px;          /* Set fixed width to match memory pane */
+    font-size: 11px;
+    height: 20px;          /* Fixed height to match */
+    width: 150px;          /* Slightly smaller fixed width */
 }
 
 .listing-controls select option {
