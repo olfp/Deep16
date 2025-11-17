@@ -20,6 +20,7 @@ class DeepWebUI {
         };
 
         this.initializeEventListeners();
+        this.initializeSearchableDropdowns(); // Add this line
         this.initializeTestMemory();
         this.initializeTabs();
         this.updateAllDisplays();
@@ -256,24 +257,36 @@ class DeepWebUI {
         this.addTranscriptEntry(`Navigated to error at line ${lineNumber + 1}`, "info");
     }
 
-    updateSymbolSelects(symbols) {
-        const symbolSelects = [
-            document.getElementById('symbol-select'),
-            document.getElementById('listing-symbol-select')
-        ];
+updateSymbolSelects(symbols) {
+    const symbolSelects = [
+        document.getElementById('symbol-select'),
+        document.getElementById('listing-symbol-select')
+    ];
+    
+    symbolSelects.forEach(select => {
+        // Store the current selection
+        const currentValue = select.value;
         
-        symbolSelects.forEach(select => {
-            let html = '<option value="">-- Select Symbol --</option>';
-            
-            if (symbols && Object.keys(symbols).length > 0) {
-                for (const [name, address] of Object.entries(symbols)) {
-                    html += `<option value="${address}">${name} (0x${address.toString(16).padStart(4, '0')})</option>`;
-                }
+        let html = '<option value="">-- Select Symbol --</option>';
+        
+        if (symbols && Object.keys(symbols).length > 0) {
+            for (const [name, address] of Object.entries(symbols)) {
+                const displayText = `${name} (0x${address.toString(16).padStart(4, '0')})`;
+                html += `<option value="${address}">${displayText}</option>`;
             }
-            
-            select.innerHTML = html;
-        });
-    }
+        }
+        
+        select.innerHTML = html;
+        
+        // Restore selection if it still exists
+        if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
+            select.value = currentValue;
+        }
+        
+        // Re-initialize search functionality
+        this.initializeSearchableDropdown(select.id);
+    });
+}
 
     onListingSymbolSelect(event) {
         const address = parseInt(event.target.value);
@@ -431,6 +444,64 @@ step() {
         this.addTranscriptEntry("System reset", "info");
     }
 
+initializeSearchableDropdowns() {
+    this.initializeSymbolDropdown('symbol-select');
+    this.initializeSymbolDropdown('listing-symbol-select');
+}
+
+initializeSymbolDropdown(selectId) {
+    const select = document.getElementById(selectId);
+    let isUserInteraction = true;
+    
+    // Store original options
+    const originalOptions = Array.from(select.options);
+    
+    // Add input event listener for filtering
+    select.addEventListener('input', (e) => {
+        if (!isUserInteraction) return;
+        
+        const filterText = e.target.value.toLowerCase();
+        const filteredOptions = originalOptions.filter(option => 
+            option.text.toLowerCase().includes(filterText)
+        );
+        
+        // Temporarily disable user interaction to avoid recursion
+        isUserInteraction = false;
+        
+        // Clear and repopulate options
+        select.innerHTML = '';
+        filteredOptions.forEach(option => {
+            select.appendChild(option.cloneNode(true));
+        });
+        
+        // Restore user interaction
+        setTimeout(() => isUserInteraction = true, 10);
+    });
+    
+    // Add focus event to show all options when focused
+    select.addEventListener('focus', () => {
+        if (!isUserInteraction) return;
+        
+        isUserInteraction = false;
+        select.innerHTML = '';
+        originalOptions.forEach(option => {
+            select.appendChild(option.cloneNode(true));
+        });
+        setTimeout(() => isUserInteraction = true, 10);
+    });
+    
+    // Add keydown for navigation
+    select.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            this.onSymbolSelect({ target: select });
+        } else if (e.key === 'Escape') {
+            select.blur();
+        }
+    });
+}
+
+    
     jumpToMemoryAddress() {
         const input = document.getElementById('memory-start-address');
         let address = input.value.trim();
