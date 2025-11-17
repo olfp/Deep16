@@ -9,7 +9,12 @@ class Deep16Disassembler {
     }
 
     disassemble(instruction) {
-        // Check for LDI first (opcode bit 15 = 0)
+        // Check for HALT first (0xFFFF)
+        if (instruction === 0xFFFF) {
+            return 'HLT';
+        }
+        
+        // Check for LDI (opcode bit 15 = 0)
         if ((instruction & 0x8000) === 0) {
             return this.disassembleLDI(instruction);
         }
