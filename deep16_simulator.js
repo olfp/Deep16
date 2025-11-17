@@ -28,34 +28,39 @@ class Deep16Simulator {
         this.running = false;
     }
 
-    step() {
-        if (!this.running) return false;
+step() {
+    if (!this.running) return false;
 
-        const pc = this.registers[15];
-        if (pc >= this.memory.length) {
-            this.running = false;
-            return false;
-        }
+    const pc = this.registers[15];
+    if (pc >= this.memory.length) {
+        this.running = false;
+        return false;
+    }
 
-        const instruction = this.memory[pc];
-        
-        // DEBUG: Log the step
-        console.log(`Step: PC=0x${pc.toString(16).padStart(4, '0')}, Instruction=0x${instruction.toString(16).padStart(4, '0')}`);
-        
-        // Increment PC by 1 (word addressing, not byte addressing)
-        this.registers[15] += 1;
+    const instruction = this.memory[pc];
+    
+    console.log(`Step: PC=0x${pc.toString(16).padStart(4, '0')}, Instruction=0x${instruction.toString(16).padStart(4, '0')}`);
+    
+    // Store PC before execution for jump calculations
+    const originalPC = pc;
+    
+    // Increment PC by 1 (word addressing)
+    this.registers[15] += 1;
 
-        // Decode and execute instruction
-        const opcode = (instruction >> 13) & 0x7;
-
-        try {
+    // Decode and execute instruction
+    try {
+        // Check for LDI first (bit 15 = 0)
+        if ((instruction & 0x8000) === 0) {
+            this.executeLDI(instruction);
+        } else {
+            const opcode = (instruction >> 13) & 0x7;
+            
             switch (opcode) {
-                case 0b000: this.executeLDI(instruction); break;
                 case 0b100: this.executeMemoryOp(instruction); break;
                 case 0b110: this.executeALUOp(instruction); break;
                 case 0b111: 
                     if ((instruction >> 12) === 0b1110) {
-                        this.executeJump(instruction);
+                        this.executeJump(instruction, originalPC);
                     } else if ((instruction >> 10) === 0b111110) {
                         this.executeMOV(instruction);
                     } else if ((instruction >> 9) === 0b1111110) {
@@ -67,24 +72,30 @@ class Deep16Simulator {
                 default:
                     console.warn(`Unknown opcode: ${opcode.toString(2)}`);
             }
-        } catch (error) {
-            this.running = false;
-            console.error('Execution error:', error);
-            throw error;
         }
-
-        // Update PSW flags based on the last operation
-        this.updatePSWFlags();
-        
-        return true;
+    } catch (error) {
+        this.running = false;
+        console.error('Execution error:', error);
+        throw error;
     }
 
-    executeLDI(instruction) {
-        const immediate = instruction & 0x7FFF;
-        this.registers[0] = immediate; // LDI always loads into R0
-        console.log(`LDI: R0 = 0x${immediate.toString(16).padStart(4, '0')}`);
-    }
+    // Update PSW flags based on the last operation
+    this.updatePSWFlags();
+    
+    console.log(`After step: R0=0x${this.registers[0].toString(16).padStart(4, '0')}, PSW=0x${this.psw.toString(16).padStart(4, '0')}`);
+    
+    return true;
+}
 
+executeLDI(instruction) {
+    const immediate = instruction & 0x7FFF;
+    this.registers[0] = immediate; // LDI always loads into R0
+    console.log(`LDI: R0 = 0x${immediate.toString(16).padStart(4, '0')}`);
+    
+    // Set flags for LDI operation
+    this.lastALUResult = immediate;
+    this.lastOperationWasALU = true;
+}
     executeMemoryOp(instruction) {
         const d = (instruction >> 12) & 0x1;
         const rd = (instruction >> 8) & 0xF;
