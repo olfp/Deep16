@@ -90,12 +90,12 @@ fibonacci_results:
                 </div>
                 
                 <div id="listing-tab" class="tab-content">
-                    <div class="listing-controls">
-                        <label for="listing-symbol-select">Navigate to symbol:</label>
-                        <select id="listing-symbol-select">
-                            <option value="">-- Select Symbol --</option>
-                        </select>
-                    </div>
+<div class="listing-controls">
+    <label for="listing-symbol-select">Navigate to symbol:</label>
+    <select id="listing-symbol-select" size="1" style="width: 200px;">
+        <option value="">-- Select Symbol --</option>
+    </select>
+</div>
                     <div id="listing-content" class="assembly-listing">
                         No assembly performed yet
                     </div>
@@ -211,15 +211,15 @@ fibonacci_results:
             </div>
             
             <div class="panel-header">Memory Display (Word Addressing)</div>
-            <div class="memory-controls">
-                <label for="memory-start-address">Start Address:</label>
-                <input type="text" id="memory-start-address" value="0x0000" placeholder="0x0000">
-                <label for="symbol-select">or select symbol:</label>
-                <select id="symbol-select">
-                    <option value="">-- Select Symbol --</option>
-                </select>
-                <button id="memory-jump-btn">Jump</button>
-            </div>
+<div class="memory-controls">
+    <label for="memory-start-address">Start Address:</label>
+    <input type="text" id="memory-start-address" value="0x0000" placeholder="0x0000" style="width: 80px;">
+    <label for="symbol-select">or select symbol:</label>
+    <select id="symbol-select" size="1" style="width: 200px;">
+        <option value="">-- Select Symbol --</option>
+    </select>
+    <button id="memory-jump-btn">Jump</button>
+</div>
             <div id="memory-display" class="memory-display">
                 <!-- Memory content will be populated by JavaScript -->
             </div>
