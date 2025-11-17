@@ -1,0 +1,42 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Mouse Body -->
+  <ellipse cx="100" cy="120" rx="45" ry="60" fill="#4A5568" stroke="#2D3748" stroke-width="3"/>
+  
+  <!-- Mouse Ears -->
+  <ellipse cx="75" cy="70" rx="15" ry="20" fill="#4A5568" stroke="#2D3748" stroke-width="2"/>
+  <ellipse cx="125" cy="70" rx="15" ry="20" fill="#4A5568" stroke="#2D3748" stroke-width="2"/>
+  <ellipse cx="75" cy="70" rx="8" ry="12" fill="#E2E8F0"/>
+  <ellipse cx="125" cy="70" rx="8" ry="12" fill="#E2E8F0"/>
+  
+  <!-- Mouse Face -->
+  <circle cx="90" cy="110" r="8" fill="#2D3748"/>
+  <circle cx="110" cy="110" r="8" fill="#2D3748"/>
+  <circle cx="92" cy="108" r="3" fill="#FFFFFF"/>
+  <circle cx="112" cy="108" r="3" fill="#FFFFFF"/>
+  
+  <!-- Nose -->
+  <ellipse cx="100" cy="125" rx="4" ry="3" fill="#F56565"/>
+  
+  <!-- Whiskers -->
+  <line x1="70" y1="120" x2="50" y2="115" stroke="#2D3748" stroke-width="2"/>
+  <line x1="70" y1="125" x2="50" y2="125" stroke="#2D3748" stroke-width="2"/>
+  <line x1="70" y1="130" x2="50" y2="135" stroke="#2D3748" stroke-width="2"/>
+  <line x1="130" y1="120" x2="150" y2="115" stroke="#2D3748" stroke-width="2"/>
+  <line x1="130" y1="125" x2="150" y2="125" stroke="#2D3748" stroke-width="2"/>
+  <line x1="130" y1="130" x2="150" y2="135" stroke="#2D3748" stroke-width="2"/>
+  
+  <!-- Tail (wrapping around like a binary 1) -->
+  <path d="M 145 160 Q 160 140 170 120 Q 180 100 190 80 Q 200 60 180 40 Q 160 20 140 30 Q 120 40 110 60" 
+        stroke="#4A5568" stroke-width="8" fill="none" stroke-linecap="round"/>
+  
+  <!-- Deep16 Text -->
+  <text x="100" y="180" text-anchor="middle" font-family="Courier New, monospace" font-size="14" font-weight="bold" fill="#2D3748">
+    Deep16
+  </text>
+  
+  <!-- Binary code pattern on body -->
+  <text x="85" y="105" font-family="Courier New, monospace" font-size="6" fill="#FFFFFF" opacity="0.7">1010</text>
+  <text x="95" y="115" font-family="Courier New, monospace" font-size="6" fill="#FFFFFF" opacity="0.7">1100</text>
+  <text x="85" y="125" font-family="Courier New, monospace" font-size="6" fill="#FFFFFF" opacity="0.7">0110</text>
+  <text x="95" y="135" font-family="Courier New, monospace" font-size="6" fill="#FFFFFF" opacity="0.7">1001</text>
+</svg>
