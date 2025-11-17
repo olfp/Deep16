@@ -1,0 +1,10 @@
+/* main.css - Deep16 IDE Main Stylesheet */
+@import url('layout.css');
+@import url('header.css');
+@import url('controls.css');
+@import url('editor.css');
+@import url('memory.css');
+@import url('registers.css');
+@import url('tabs.css');
+@import url('transcript.css');
+@import url('responsive.css');
