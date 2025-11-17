@@ -8,8 +8,9 @@ class Deep16Disassembler {
         this.systemOps = ['NOP', 'HLT', 'SWI', 'RETI', '', '', '', ''];
     }
 
-disassemble(instruction) {    
+disassemble(instruction) {
     // Check for LDI first (opcode bit 15 = 0)
+    // LDI has format: [0][imm15] - so bit 15 is 0, not 1
     if ((instruction & 0x8000) === 0) {
         return this.disassembleLDI(instruction);
     }
@@ -27,12 +28,11 @@ disassemble(instruction) {
             return `??? (0x${instruction.toString(16).padStart(4, '0')})`;
     }
 }
-
-    disassembleLDI(instruction) {
-     const immediate = instruction & 0x7FFF;
-     return `LDI R0, #${immediate}`;  // LDI always loads into R0
-    }
-
+    
+disassembleLDI(instruction) {
+    const immediate = instruction & 0x7FFF;  // All 15 bits are the immediate value
+    return `LDI R0, #${immediate}`;  // LDI always loads into R0
+}
 
     disassembleMemory(instruction) {
         const d = (instruction >> 12) & 0x1;
