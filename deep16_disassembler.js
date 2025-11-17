@@ -8,31 +8,30 @@ class Deep16Disassembler {
         this.systemOps = ['NOP', 'HLT', 'SWI', 'RETI', '', '', '', ''];
     }
 
-disassemble(instruction) {
-    // Check for LDI first (opcode bit 15 = 0)
-    // LDI has format: [0][imm15] - so bit 15 is 0, not 1
-    if ((instruction & 0x8000) === 0) {
-        return this.disassembleLDI(instruction);
+    disassemble(instruction) {
+        // Check for LDI first (opcode bit 15 = 0)
+        if ((instruction & 0x8000) === 0) {
+            return this.disassembleLDI(instruction);
+        }
+        
+        const opcode = (instruction >> 13) & 0x7;
+        
+        switch (opcode) {
+            case 0b100: 
+                return this.disassembleMemory(instruction);
+            case 0b110:
+                return this.disassembleALU(instruction);
+            case 0b111: 
+                return this.disassembleControlFlow(instruction);
+            default: 
+                return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
+        }
     }
-    
-    const opcode = (instruction >> 13) & 0x7;
-    
-    switch (opcode) {
-        case 0b100: 
-            return this.disassembleMemory(instruction);
-        case 0b110:
-            return this.disassembleALU(instruction);
-        case 0b111: 
-            return this.disassembleControlFlow(instruction);
-        default: 
-            return `??? (0x${instruction.toString(16).padStart(4, '0')})`;
+
+    disassembleLDI(instruction) {
+        const immediate = instruction & 0x7FFF;
+        return `LDI R0, #0x${immediate.toString(16).padStart(4, '0').toUpperCase()}`;
     }
-}
-    
-disassembleLDI(instruction) {
-    const immediate = instruction & 0x7FFF;  // All 15 bits are the immediate value
-    return `LDI R0, #${immediate}`;  // LDI always loads into R0
-}
 
     disassembleMemory(instruction) {
         const d = (instruction >> 12) & 0x1;
@@ -41,9 +40,9 @@ disassembleLDI(instruction) {
         const offset = instruction & 0x1F;
         
         if (d === 0) {
-            return `LD ${this.registerNames[rd]}, [${this.registerNames[rb]}+${offset}]`;
+            return `LD ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
         } else {
-            return `ST ${this.registerNames[rd]}, [${this.registerNames[rb]}+${offset}]`;
+            return `ST ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
         }
     }
 
@@ -60,7 +59,7 @@ disassembleLDI(instruction) {
         const operand = instruction & 0xF;
         
         let opStr = this.aluOps[aluOp];
-        let operandStr = i === 0 ? this.registerNames[operand] : `#${operand}`;
+        let operandStr = i === 0 ? this.registerNames[operand] : `#0x${operand.toString(16).toUpperCase()}`;
         
         if (w === 0) {
             const flagOps = ['ANW', 'CMP', 'TBS', 'TBC', '', '', '', ''];
@@ -75,7 +74,7 @@ disassembleLDI(instruction) {
         const shiftType = (instruction >> 4) & 0x7;
         const count = instruction & 0xF;
         
-        return `${this.shiftOps[shiftType]} ${this.registerNames[rd]}, #${count}`;
+        return `${this.shiftOps[shiftType]} ${this.registerNames[rd]}, #0x${count.toString(16).toUpperCase()}`;
     }
 
     disassembleControlFlow(instruction) {
@@ -102,21 +101,29 @@ disassembleLDI(instruction) {
         const condition = (instruction >> 9) & 0x7;
         const offset = instruction & 0x1FF;
         const signedOffset = (offset & 0x100) ? (offset | 0xFE00) : offset;
-        return `${this.jumpConditions[condition]} ${signedOffset}`;
+        // Show jump offset in hex, but keep it signed for display
+        const offsetStr = signedOffset >= 0 ? 
+            `+0x${signedOffset.toString(16).toUpperCase()}` : 
+            `-0x${(-signedOffset).toString(16).toUpperCase()}`;
+        return `${this.jumpConditions[condition]} ${offsetStr}`;
     }
 
     disassembleMOV(instruction) {
         const rd = (instruction >> 8) & 0xF;
         const rs = (instruction >> 4) & 0xF;
         const imm = instruction & 0x3;
-        return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}, ${imm}`;
+        return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}, #0x${imm.toString(16).toUpperCase()}`;
     }
 
     disassembleLSI(instruction) {
         const rd = (instruction >> 8) & 0xF;
         let imm = (instruction >> 4) & 0x1F;
         if (imm & 0x10) imm |= 0xFFE0;
-        return `LSI ${this.registerNames[rd]}, ${imm}`;
+        // Show LSI immediate in hex, but keep it signed for display
+        const immStr = imm >= 0 ? 
+            `#0x${imm.toString(16).toUpperCase()}` : 
+            `#-0x${(-imm).toString(16).toUpperCase()}`;
+        return `LSI ${this.registerNames[rd]}, ${immStr}`;
     }
 
     disassembleSystem(instruction) {
