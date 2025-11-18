@@ -1,5 +1,6 @@
 // Deep16 Simulator - CPU Execution and State Management
 class Deep16Simulator {
+class Deep16Simulator {
     constructor() {
         this.memory = new Array(65536).fill(0xFFFF);
         this.registers = new Array(16).fill(0);
@@ -9,6 +10,9 @@ class Deep16Simulator {
         this.running = false;
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
+        
+        // Add ALU operations array for debugging
+        this.aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
         
         // Initialize registers
         this.registers[13] = 0x7FFF; // SP
@@ -158,66 +162,69 @@ executeMemoryOp(instruction) {
     }
 }
 
-// In deep16_simulator.js - Fix executeALUOp method
-executeALUOp(instruction) {
-    const aluOp = (instruction >>> 10) & 0x7;
-    
-    // CORRECTED ALU bit extraction to match disassembler:
-    // ALU format: [110][op3][Rd4][w1][i1][Rs/imm4]
-    // Bits: 15-13: opcode=110, 12-10: aluOp, 9-6: Rd, 5: w, 4: i, 3-0: Rs/imm
-    
-    const rd = (instruction >>> 6) & 0xF;      // Bits 9-6  ← FIXED!
-    const w = (instruction >>> 5) & 0x1;       // Bit 5     ← FIXED!
-    const i = (instruction >>> 4) & 0x1;       // Bit 4     ← FIXED!
-    const operand = instruction & 0xF;         // Bits 3-0
+    executeALUOp(instruction) {
+        const aluOp = (instruction >>> 10) & 0x7;
+        
+        // CORRECTED ALU bit extraction:
+        const rd = (instruction >>> 6) & 0xF;
+        const w = (instruction >>> 5) & 0x1;
+        const i = (instruction >>> 4) & 0x1;
+        const operand = instruction & 0xF;
 
-    let result;
-    let operandValue;
+        let result;
+        let operandValue;
 
-    if (i === 0) {
-        operandValue = this.registers[operand];
-    } else {
-        operandValue = operand;
+        if (i === 0) {
+            operandValue = this.registers[operand];
+        } else {
+            operandValue = operand;
+        }
+
+        const rdValue = this.registers[rd];
+        
+        // FIXED: Check if aluOp is valid before using it
+        const opName = this.aluOps[aluOp] || `ALU${aluOp}`;
+        
+        console.log(`ALU Execute: op=${opName}, rd=${rd} (${this.getRegisterName(rd)}), w=${w}, i=${i}, operand=${operand}`);
+        console.log(`ALU Execute: R${rd}=0x${rdValue.toString(16)}, operand=0x${operandValue.toString(16)}`);
+        
+        switch (aluOp) {
+            case 0b000: // ADD
+                result = rdValue + operandValue;
+                console.log(`ADD: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) + ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                break;
+            case 0b001: // SUB
+                result = rdValue - operandValue;
+                console.log(`SUB: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) - ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                break;
+            case 0b010: // AND
+                result = rdValue & operandValue;
+                console.log(`AND: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) & ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                break;
+            case 0b011: // OR
+                result = rdValue | operandValue;
+                console.log(`OR: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) | ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                break;
+            case 0b100: // XOR
+                result = rdValue ^ operandValue;
+                console.log(`XOR: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) ^ ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                break;
+            default: 
+                result = rdValue;
+                console.warn(`Unimplemented ALU op: ${aluOp}`);
+        }
+
+        if (w === 1) {
+            this.registers[rd] = result & 0xFFFF;
+            console.log(`ALU Write: ${this.getRegisterName(rd)} = 0x${this.registers[rd].toString(16).padStart(4, '0')}`);
+        }
+
+        // Store result for PSW flag calculation
+        this.lastALUResult = result;
+        this.lastOperationWasALU = true;
     }
-
-    const rdValue = this.registers[rd];
-    
-    console.log(`ALU Execute: op=${this.aluOps[aluOp]}, rd=${rd} (${this.getRegisterName(rd)}), w=${w}, i=${i}, operand=${operand}`);
-    console.log(`ALU Execute: R${rd}=0x${rdValue.toString(16)}, operand=0x${operandValue.toString(16)}`);
-    
-    switch (aluOp) {
-        case 0b000: // ADD
-            result = rdValue + operandValue;
-            console.log(`ADD: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) + ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
-            break;
-        case 0b001: // SUB
-            result = rdValue - operandValue;
-            console.log(`SUB: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) - ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
-            break;
-        case 0b010: // AND
-            result = rdValue & operandValue;
-            console.log(`AND: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) & ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
-            break;
-        case 0b011: // OR
-            result = rdValue | operandValue;
-            break;
-        case 0b100: // XOR
-            result = rdValue ^ operandValue;
-            break;
-        default: 
-            result = rdValue;
-            console.warn(`Unimplemented ALU op: ${aluOp}`);
-    }
-
-    if (w === 1) {
-        this.registers[rd] = result & 0xFFFF;
-        console.log(`ALU Write: ${this.getRegisterName(rd)} = 0x${this.registers[rd].toString(16).padStart(4, '0')}`);
-    }
-
-    // Store result for PSW flag calculation
-    this.lastALUResult = result;
-    this.lastOperationWasALU = true;
 }
+
 
 executeMOV(instruction) {
     // MOV encoding: [111110][Rd4][Rs4][imm2]
