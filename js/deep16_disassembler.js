@@ -1,4 +1,4 @@
-/* deep16_disassembler.js */
+/* deep16_disassembler.js - DEBUG VERSION */
 class Deep16Disassembler {
     constructor() {
         this.registerNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
@@ -9,6 +9,8 @@ class Deep16Disassembler {
     }
 
     disassemble(instruction) {
+        console.log(`Disassembling: 0x${instruction.toString(16).padStart(4, '0')}`);
+        
         // Check for HALT first (0xFFFF)
         if (instruction === 0xFFFF) {
             return 'HLT';
@@ -37,24 +39,35 @@ class Deep16Disassembler {
         return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
     }
 
-    disassembleLDI(instruction) {
-        const immediate = instruction & 0x7FFF;
-        return `LDI #0x${immediate.toString(16).padStart(4, '0').toUpperCase()}`;
-    }
-
     disassembleMemory(instruction) {
+        console.log(`Memory instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
+        console.log(`Binary: ${instruction.toString(2).padStart(16, '0')}`);
+        
         // LD/ST format: [10][d1][Rd4][Rb4][offset5]
-        // Bits: 15-14: opcode, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
+        // Let me check each bit extraction carefully
         const d = (instruction >>> 12) & 0x1;
         const rd = (instruction >>> 8) & 0xF;
         const rb = (instruction >>> 4) & 0xF;
         const offset = instruction & 0x1F;
         
+        console.log(`Extracted: d=${d}, rd=${rd}, rb=${rb}, offset=${offset}`);
+        console.log(`Register names: rd=${this.registerNames[rd]}, rb=${this.registerNames[rb]}`);
+        
         if (d === 0) {
-            return `LD ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
+            const result = `LD ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
+            console.log(`Result: ${result}`);
+            return result;
         } else {
-            return `ST ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
+            const result = `ST ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
+            console.log(`Result: ${result}`);
+            return result;
         }
+    }
+
+    // ... rest of the methods remain the same as before ...
+    disassembleLDI(instruction) {
+        const immediate = instruction & 0x7FFF;
+        return `LDI #0x${immediate.toString(16).padStart(4, '0').toUpperCase()}`;
     }
 
     disassembleALU(instruction) {
@@ -113,7 +126,6 @@ class Deep16Disassembler {
     }
 
     disassembleMOV(instruction) {
-        // MOV encoding: [111110][Rd4][Rs4][imm2]
         const rd = (instruction >>> 6) & 0xF;
         const rs = (instruction >>> 2) & 0xF;
         const imm = instruction & 0x3;
@@ -126,11 +138,9 @@ class Deep16Disassembler {
     }
 
     disassembleLSI(instruction) {
-        // LSI encoding: [1111110][Rd4][imm5]
         const rd = (instruction >>> 5) & 0xF;
         let imm = instruction & 0x1F;
         
-        // Sign extend 5-bit value
         if (imm & 0x10) imm |= 0xFFE0;
         
         const immStr = imm >= 0 ? 
@@ -157,4 +167,3 @@ class Deep16Disassembler {
         return this.systemOps[sysOp] || 'SYS';
     }
 }
-/* deep16_disassembler.js */
