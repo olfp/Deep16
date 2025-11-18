@@ -1,4 +1,4 @@
-// deep16_disassembler.js - Fixed version
+// FINAL CORRECTED VERSION - deep16_disassembler.js
 class Deep16Disassembler {
     constructor() {
         this.registerNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
@@ -19,23 +19,27 @@ class Deep16Disassembler {
             return this.disassembleLDI(instruction);
         }
         
-        const opcode = (instruction >> 13) & 0x7;
-        
-        switch (opcode) {
-            case 0b100: 
-                return this.disassembleMemory(instruction);
-            case 0b110:
-                return this.disassembleALU(instruction);
-            case 0b111: 
-                return this.disassembleControlFlow(instruction);
-            default: 
-                return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
+        // Check for LD/ST (opcode bits 15-14 = 10)
+        if (((instruction >> 14) & 0x3) === 0b10) {
+            return this.disassembleMemory(instruction);
         }
+        
+        // Check for ALU2 (opcode bits 15-13 = 110)
+        if (((instruction >> 13) & 0x7) === 0b110) {
+            return this.disassembleALU(instruction);
+        }
+        
+        // Check for extended instructions (opcode bits 15-13 = 111)
+        if (((instruction >> 13) & 0x7) === 0b111) {
+            return this.disassembleControlFlow(instruction);
+        }
+        
+        return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
     }
 
     disassembleLDI(instruction) {
         const immediate = instruction & 0x7FFF;
-        return `LDI #0x${immediate.toString(16).padStart(4, '0').toUpperCase()}`; // R0 is implicit!
+        return `LDI #0x${immediate.toString(16).padStart(4, '0').toUpperCase()}`;
     }
 
     disassembleMemory(instruction) {
@@ -51,6 +55,7 @@ class Deep16Disassembler {
         }
     }
 
+    // ... keep all the other methods the same as before ...
     disassembleALU(instruction) {
         const aluOp = (instruction >> 10) & 0x7;
         
@@ -74,14 +79,6 @@ class Deep16Disassembler {
         return `${opStr} ${this.registerNames[rd]}, ${operandStr}`;
     }
 
-    disassembleShift(instruction) {
-        const rd = (instruction >> 8) & 0xF;
-        const shiftType = (instruction >> 4) & 0x7;
-        const count = instruction & 0xF;
-        
-        return `${this.shiftOps[shiftType]} ${this.registerNames[rd]}, #0x${count.toString(16).toUpperCase()}`;
-    }
-
     disassembleControlFlow(instruction) {
         // Check for MOV first (opcode bits 15-10 = 111110)
         if ((instruction >> 10) === 0b111110) {
@@ -98,8 +95,8 @@ class Deep16Disassembler {
             return this.disassembleJump(instruction);
         }
         
-        // Check for System (opcode bits 15-13 = 11111)
-        if ((instruction >> 13) === 0b11111) {
+        // Check for System (opcode bits 15-3 = 1111111111110)
+        if ((instruction >> 3) === 0b1111111111110) {
             return this.disassembleSystem(instruction);
         }
         
@@ -107,10 +104,9 @@ class Deep16Disassembler {
     }
 
     disassembleMOV(instruction) {
-        // MOV encoding: [111110][Rd4][Rs4][imm2]
-        const rd = (instruction >> 6) & 0xF;  // Bits 9-6
-        const rs = (instruction >> 2) & 0xF;  // Bits 5-2  
-        const imm = instruction & 0x3;        // Bits 1-0
+        const rd = (instruction >> 6) & 0xF;
+        const rs = (instruction >> 2) & 0xF;
+        const imm = instruction & 0x3;
         
         if (imm === 0) {
             return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}`;
@@ -120,11 +116,8 @@ class Deep16Disassembler {
     }
 
     disassembleLSI(instruction) {
-        // LSI encoding: [1111110][Rd4][imm5]
-        const rd = (instruction >> 5) & 0xF;  // Bits 8-5
-        let imm = instruction & 0x1F;         // Bits 4-0
-        
-        // Sign extend 5-bit value
+        const rd = (instruction >> 5) & 0xF;
+        let imm = instruction & 0x1F;
         if (imm & 0x10) imm |= 0xFFE0;
         
         const immStr = imm >= 0 ? 
@@ -149,5 +142,13 @@ class Deep16Disassembler {
     disassembleSystem(instruction) {
         const sysOp = instruction & 0x7;
         return this.systemOps[sysOp] || 'SYS';
+    }
+
+    disassembleShift(instruction) {
+        const rd = (instruction >> 8) & 0xF;
+        const shiftType = (instruction >> 4) & 0x7;
+        const count = instruction & 0xF;
+        
+        return `${this.shiftOps[shiftType]} ${this.registerNames[rd]}, #0x${count.toString(16).toUpperCase()}`;
     }
 }
