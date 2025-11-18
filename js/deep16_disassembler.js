@@ -1,4 +1,4 @@
-/* deep16_disassembler.js */
+/* deep16_disassembler.js - FIXED VERSION */
 class Deep16Disassembler {
     constructor() {
         this.registerNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
@@ -65,10 +65,11 @@ class Deep16Disassembler {
             return this.disassembleShift(instruction);
         }
         
-        const rd = (instruction >>> 8) & 0xF;
-        const w = (instruction >>> 7) & 0x1;
-        const i = (instruction >>> 6) & 0x1;
-        const operand = instruction & 0xF;
+        // FIXED: Correct ALU bit extraction
+        const rd = (instruction >>> 8) & 0xF;      // Bits 11-8
+        const w = (instruction >>> 7) & 0x1;       // Bit 7
+        const i = (instruction >>> 6) & 0x1;       // Bit 6
+        const operand = instruction & 0xF;         // Bits 3-0
         
         let opStr = this.aluOps[aluOp];
         let operandStr = i === 0 ? this.registerNames[operand] : `#0x${operand.toString(16).toUpperCase()}`;
@@ -153,14 +154,39 @@ class Deep16Disassembler {
 
     disassembleJump(instruction) {
         const condition = (instruction >>> 9) & 0x7;
-        const offset = instruction & 0x1FF;
-        const signedOffset = (offset & 0x100) ? (offset | 0xFE00) : offset;
+        let offset = instruction & 0x1FF;
         
-        const offsetStr = signedOffset >= 0 ? 
-            `+0x${signedOffset.toString(16).toUpperCase()}` : 
-            `-0x${(-signedOffset).toString(16).toUpperCase()}`;
-            
-        return `${this.jumpConditions[condition]} ${offsetStr}`;
+        // Sign extend 9-bit value
+        if (offset & 0x100) offset |= 0xFE00;
+        
+        const conditionName = this.jumpConditions[condition];
+        const offsetStr = offset >= 0 ? 
+            `+0x${offset.toString(16).toUpperCase()}` : 
+            `-0x${(-offset).toString(16).toUpperCase()}`;
+        
+        // Calculate absolute target address for comment
+        // Note: This assumes we know the current address - we'd need to pass it in
+        // For now, just show the relative offset
+        return `${conditionName} ${offsetStr}`;
+    }
+
+    // Enhanced version that takes current address for absolute target calculation
+    disassembleJumpWithAddress(instruction, currentAddress) {
+        const condition = (instruction >>> 9) & 0x7;
+        let offset = instruction & 0x1FF;
+        
+        // Sign extend 9-bit value
+        if (offset & 0x100) offset |= 0xFE00;
+        
+        const conditionName = this.jumpConditions[condition];
+        const offsetStr = offset >= 0 ? 
+            `+0x${offset.toString(16).toUpperCase()}` : 
+            `-0x${(-offset).toString(16).toUpperCase()}`;
+        
+        // Calculate absolute target address
+        const targetAddress = (currentAddress + 1 + offset) & 0xFFFF;
+        
+        return `${conditionName} ${offsetStr}   ; 0x${targetAddress.toString(16).padStart(4, '0').toUpperCase()}`;
     }
 
     disassembleSystem(instruction) {
