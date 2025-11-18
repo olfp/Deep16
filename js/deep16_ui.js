@@ -538,18 +538,17 @@ step() {
         }
     }
 
-    onSymbolSelect(event) {
-        const address = parseInt(event.target.value);
-        if (!isNaN(address) && address >= 0) {
-            this.memoryStartAddress = address;
-            this.updateMemoryDisplay();
-            document.getElementById('memory-start-address').value = '0x' + address.toString(16).padStart(4, '0');
-            const symbolName = event.target.options[event.target.selectedIndex].text.split(' (')[0];
-            this.addTranscriptEntry(`Memory view jumped to symbol: ${symbolName}`, "info");
-            event.target.value = ''; // Clear after selection
-        }
+onSymbolSelect(event) {
+    const address = parseInt(event.target.value);
+    if (!isNaN(address) && address >= 0) {
+        this.memoryStartAddress = address;
+        this.updateMemoryDisplay();
+        document.getElementById('memory-start-address').value = '0x' + address.toString(16).padStart(4, '0');
+        const symbolName = event.target.options[event.target.selectedIndex].text.split(' (')[0];
+        this.addTranscriptEntry(`Memory view jumped to symbol: ${symbolName}`, "info");
+        // REMOVED: event.target.value = ''; // Don't clear after selection
     }
-
+}
     updateAllDisplays() {
         this.updateRegisterDisplay();
         this.updatePSWDisplay();
