@@ -34,23 +34,16 @@ initializeEventListeners() {
     document.getElementById('load-example').addEventListener('click', () => this.loadExample());
     document.getElementById('memory-jump-btn').addEventListener('click', () => this.jumpToMemoryAddress());
     
-    // FIXED: Use proper event listeners instead of inline handlers
-    const symbolSelect = document.getElementById('symbol-select');
-    const listingSymbolSelect = document.getElementById('listing-symbol-select');
+    // SIMPLE: Use standard change events
+    document.getElementById('symbol-select').addEventListener('change', (e) => {
+        console.log('Symbol select changed to:', e.target.value);
+        this.onSymbolSelect(e);
+    });
     
-    if (symbolSelect) {
-        symbolSelect.addEventListener('change', (e) => {
-            console.log('Symbol select changed:', e.target.value);
-            this.onSymbolSelect(e);
-        });
-    }
-    
-    if (listingSymbolSelect) {
-        listingSymbolSelect.addEventListener('change', (e) => {
-            console.log('Listing symbol select changed:', e.target.value);
-            this.onListingSymbolSelect(e);
-        });
-    }
+    document.getElementById('listing-symbol-select').addEventListener('change', (e) => {
+        console.log('Listing symbol select changed to:', e.target.value);
+        this.onListingSymbolSelect(e);
+    });
     
     document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
     
@@ -73,29 +66,12 @@ initializeEventListeners() {
     window.addEventListener('resize', () => this.updateMemoryDisplay());
 }
 
-
 initializeSearchableDropdowns() {
-    // For now, just initialize basic functionality
-    // We'll add search back once basic selection works
-    console.log('Initializing symbol dropdowns');
-    
-    const symbolSelect = document.getElementById('symbol-select');
-    const listingSelect = document.getElementById('listing-symbol-select');
-    
-    if (symbolSelect) {
-        symbolSelect.addEventListener('focus', () => {
-            console.log('Symbol select focused');
-        });
-    }
-    
-    if (listingSelect) {
-        listingSelect.addEventListener('focus', () => {
-            console.log('Listing symbol select focused');
-        });
-    }
+    // Remove the complex search functionality that's causing issues
+    // Just use standard HTML select elements
+    console.log('Using simple dropdowns without search');
 }
-
-initializeSymbolDropdown(selectId) {
+    initializeSymbolDropdown(selectId) {
     const select = document.getElementById(selectId);
     let isUserInteraction = true;
     
@@ -161,7 +137,6 @@ initializeSymbolDropdown(selectId) {
 }
 
 onSymbolSelect(event) {
-    console.log('onSymbolSelect called with value:', event.target.value);
     const address = parseInt(event.target.value);
     if (!isNaN(address) && address >= 0) {
         console.log('Jumping to symbol at address:', address);
@@ -171,23 +146,22 @@ onSymbolSelect(event) {
         const selectedOption = event.target.options[event.target.selectedIndex];
         const symbolName = selectedOption ? selectedOption.text.split(' (')[0] : 'unknown';
         this.addTranscriptEntry(`Memory view jumped to symbol: ${symbolName}`, "info");
-    } else {
-        console.log('Invalid address from symbol select:', event.target.value);
+        
+        // IMPORTANT: Don't clear the selection - let it stay visible
     }
 }
 
 onListingSymbolSelect(event) {
-    console.log('onListingSymbolSelect called with value:', event.target.value);
     const address = parseInt(event.target.value);
     if (!isNaN(address) && address >= 0) {
         console.log('Navigating to symbol in listing at address:', address);
         this.navigateToSymbolInListing(address);
-    } else {
-        console.log('Invalid address from listing symbol select:', event.target.value);
+        
+        // IMPORTANT: Don't clear the selection - let it stay visible  
     }
 }
 
-// Also make sure symbols are being populated correctly
+// Update symbol selects method remains the same
 updateSymbolSelects(symbols) {
     console.log('Updating symbol selects with:', symbols);
     
@@ -215,6 +189,7 @@ updateSymbolSelects(symbols) {
     
     console.log('Symbol selects updated. Options count:', symbolSelect.options.length);
 }
+
 
 
     toggleView() {
