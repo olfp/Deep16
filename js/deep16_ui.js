@@ -219,6 +219,7 @@ class DeepWebUI {
         transcript.innerHTML = html;
     }
 
+// In deep16_ui.js - Fix the assemble method
 assemble() {
     console.log("Assemble button clicked");
     const source = this.editorElement.value;
@@ -229,16 +230,14 @@ assemble() {
         const result = this.assembler.assemble(source);
         console.log("Assembly result:", result);
         
-        // Debug: Check what's in memory at address 0
-        console.log("Memory at address 0x0000:", result.memory[0].toString(16));
-        console.log("Memory at address 0x0001:", result.memory[1].toString(16));
-        
         this.currentAssemblyResult = result;
         
         if (result.success) {
-            this.simulator.memory.fill(0);
-            for (let i = 0; i < result.memory.length; i++) {
-                this.simulator.memory[i] = result.memory[i];
+            // DON'T clear the entire memory! Only update the changed locations
+            for (const change of result.memoryChanges) {
+                if (change.address < this.simulator.memory.length) {
+                    this.simulator.memory[change.address] = change.value;
+                }
             }
             
             // Debug: Check simulator memory after load
@@ -271,7 +270,6 @@ assemble() {
         this.addTranscriptEntry(`Assembly exception: ${error.message}`, "error");
     }
 }
-
     updateErrorsList() {
         const errorsList = document.getElementById('errors-list');
         
