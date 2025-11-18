@@ -222,7 +222,6 @@ executeMemoryOp(instruction) {
         this.lastALUResult = result;
         this.lastOperationWasALU = true;
     }
-}
 
 
 executeMOV(instruction) {
