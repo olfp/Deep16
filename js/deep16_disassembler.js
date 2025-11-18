@@ -1,4 +1,4 @@
-/* deep16_disassembler.js - FINAL CORRECTED VERSION */
+/* deep16_disassembler.js */
 class Deep16Disassembler {
     constructor() {
         this.registerNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
@@ -9,30 +9,20 @@ class Deep16Disassembler {
     }
 
     disassemble(instruction) {
-        console.log("=== DISASSEMBLE CALL ===");
-        console.log("Input instruction: 0x" + instruction.toString(16).padStart(4, '0'));
-        console.log("Input binary: " + instruction.toString(2).padStart(16, '0'));
-        
         // Check for HALT first (0xFFFF)
         if (instruction === 0xFFFF) {
-            console.log("Detected HALT");
             return 'HLT';
         }
         
         // Check for LDI (opcode bit 15 = 0)
         if ((instruction & 0x8000) === 0) {
-            console.log("Detected LDI");
             return this.disassembleLDI(instruction);
         }
         
         // Check for LD/ST (opcode bits 15-14 = 10)
-        const opcode2 = (instruction >>> 14) & 0x3;
-        console.log("Opcode2 (bits 15-14): " + opcode2.toString(2).padStart(2, '0'));
-        if (opcode2 === 0b10) {
-            console.log("Detected LD/ST");
+        if (((instruction >>> 14) & 0x3) === 0b10) {
             return this.disassembleMemory(instruction);
         }
-
         
         // Check for ALU2 (opcode bits 15-13 = 110)
         if (((instruction >>> 13) & 0x7) === 0b110) {
@@ -54,19 +44,12 @@ class Deep16Disassembler {
 
     disassembleMemory(instruction) {
         // LD/ST format: [10][d1][Rd4][Rb4][offset5]
-        // CORRECTED BIT SHIFTS:
         // Bits: 15-14: opcode=10, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
         
         const d = (instruction >>> 13) & 0x1;      // Bit 13
         const rd = (instruction >>> 9) & 0xF;      // Bits 12-9  
         const rb = (instruction >>> 5) & 0xF;      // Bits 8-5
         const offset = instruction & 0x1F;         // Bits 4-0
-        
-        console.log("CORRECTED SHIFTS:");
-        console.log("d (bit 13):", d);
-        console.log("rd (bits 12-9):", rd);
-        console.log("rb (bits 8-5):", rb);
-        console.log("offset (bits 4-0):", offset);
         
         if (d === 0) {
             return `LD ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
@@ -75,35 +58,35 @@ class Deep16Disassembler {
         }
     }
 
-// In deep16_disassembler.js - Fix disassembleALU
-disassembleALU(instruction) {
-    const aluOp = (instruction >>> 10) & 0x7;
-    
-    if (aluOp === 0b111) {
-        return this.disassembleShift(instruction);
-    }
-    
-    const rd = (instruction >>> 8) & 0xF;
-    const w = (instruction >>> 7) & 0x1;
-    const i = (instruction >>> 6) & 0x1;
-    const operand = instruction & 0xF;
-    
-    let opStr = this.aluOps[aluOp];
-    let operandStr = i === 0 ? this.registerNames[operand] : `#0x${operand.toString(16).toUpperCase()}`;
-    
-    // FIX: Only use flag-only operations when w=0 AND for specific ALU ops
-    if (w === 0) {
-        switch (aluOp) {
-            case 0b000: opStr = 'ANW'; break;  // ADD No Write
-            case 0b001: opStr = 'CMP'; break;  // SUB No Write (Compare)
-            case 0b010: opStr = 'TBS'; break;  // AND No Write (Test Bit Set)
-            case 0b100: opStr = 'TBC'; break;  // XOR No Write (Test Bit Clear)
-            default: break; // Keep original opcode for others
+    disassembleALU(instruction) {
+        const aluOp = (instruction >>> 10) & 0x7;
+        
+        if (aluOp === 0b111) {
+            return this.disassembleShift(instruction);
         }
+        
+        const rd = (instruction >>> 8) & 0xF;
+        const w = (instruction >>> 7) & 0x1;
+        const i = (instruction >>> 6) & 0x1;
+        const operand = instruction & 0xF;
+        
+        let opStr = this.aluOps[aluOp];
+        let operandStr = i === 0 ? this.registerNames[operand] : `#0x${operand.toString(16).toUpperCase()}`;
+        
+        // Only use flag-only operations when w=0 AND for specific ALU ops
+        if (w === 0) {
+            switch (aluOp) {
+                case 0b000: opStr = 'ANW'; break;  // ADD No Write
+                case 0b001: opStr = 'CMP'; break;  // SUB No Write (Compare)
+                case 0b010: opStr = 'TBS'; break;  // AND No Write (Test Bit Set)
+                case 0b100: opStr = 'TBC'; break;  // XOR No Write (Test Bit Clear)
+                default: break; // Keep original opcode for others
+            }
+        }
+        
+        return `${opStr} ${this.registerNames[rd]}, ${operandStr}`;
     }
-    
-    return `${opStr} ${this.registerNames[rd]}, ${operandStr}`;
-}
+
     disassembleShift(instruction) {
         const rd = (instruction >>> 8) & 0xF;
         const shiftType = (instruction >>> 4) & 0x7;
@@ -137,9 +120,12 @@ disassembleALU(instruction) {
     }
 
     disassembleMOV(instruction) {
-        const rd = (instruction >>> 6) & 0xF;
-        const rs = (instruction >>> 2) & 0xF;
-        const imm = instruction & 0x3;
+        // MOV encoding: [111110][Rd4][Rs4][imm2]
+        // Bits: 15-10: opcode=111110, 9-6: Rd, 5-2: Rs, 1-0: imm
+        
+        const rd = (instruction >>> 6) & 0xF;      // Bits 9-6
+        const rs = (instruction >>> 2) & 0xF;      // Bits 5-2
+        const imm = instruction & 0x3;             // Bits 1-0
         
         if (imm === 0) {
             return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}`;
@@ -149,9 +135,13 @@ disassembleALU(instruction) {
     }
 
     disassembleLSI(instruction) {
-        const rd = (instruction >>> 5) & 0xF;
-        let imm = instruction & 0x1F;
+        // LSI encoding: [1111110][Rd4][imm5]
+        // Bits: 15-9: opcode=1111110, 8-5: Rd, 4-0: imm5
         
+        const rd = (instruction >>> 5) & 0xF;      // Bits 8-5
+        let imm = instruction & 0x1F;              // Bits 4-0
+        
+        // Sign extend 5-bit value
         if (imm & 0x10) imm |= 0xFFE0;
         
         const immStr = imm >= 0 ? 
@@ -178,3 +168,4 @@ disassembleALU(instruction) {
         return this.systemOps[sysOp] || 'SYS';
     }
 }
+/* deep16_disassembler.js */
