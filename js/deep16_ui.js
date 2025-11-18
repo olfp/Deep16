@@ -56,66 +56,139 @@ class DeepWebUI {
         window.addEventListener('resize', () => this.updateMemoryDisplay());
     }
 
-    initializeSearchableDropdowns() {
-        this.initializeSymbolDropdown('symbol-select');
-        this.initializeSymbolDropdown('listing-symbol-select');
-    }
+// In deep16_ui.js - Fix symbol selector functionality
+initializeSearchableDropdowns() {
+    this.initializeSymbolDropdown('symbol-select');
+    this.initializeSymbolDropdown('listing-symbol-select');
+}
 
-    initializeSymbolDropdown(selectId) {
-        const select = document.getElementById(selectId);
-        let isUserInteraction = true;
+initializeSymbolDropdown(selectId) {
+    const select = document.getElementById(selectId);
+    let isUserInteraction = true;
+    
+    // Store original options
+    const originalOptions = Array.from(select.options);
+    
+    // Add input event listener for filtering
+    select.addEventListener('input', (e) => {
+        if (!isUserInteraction) return;
         
-        // Store original options
-        const originalOptions = Array.from(select.options);
+        const filterText = e.target.value.toLowerCase();
+        const filteredOptions = originalOptions.filter(option => 
+            option.text.toLowerCase().includes(filterText)
+        );
         
-        // Add input event listener for filtering
-        select.addEventListener('input', (e) => {
-            if (!isUserInteraction) return;
-            
-            const filterText = e.target.value.toLowerCase();
-            const filteredOptions = originalOptions.filter(option => 
-                option.text.toLowerCase().includes(filterText)
-            );
-            
-            // Temporarily disable user interaction to avoid recursion
-            isUserInteraction = false;
-            
-            // Clear and repopulate options
-            select.innerHTML = '';
-            filteredOptions.forEach(option => {
-                select.appendChild(option.cloneNode(true));
-            });
-            
-            // Restore user interaction
-            setTimeout(() => isUserInteraction = true, 10);
+        // Temporarily disable user interaction to avoid recursion
+        isUserInteraction = false;
+        
+        // Clear and repopulate options
+        select.innerHTML = '';
+        filteredOptions.forEach(option => {
+            select.appendChild(option.cloneNode(true));
         });
         
-        // Add focus event to show all options when focused
-        select.addEventListener('focus', () => {
-            if (!isUserInteraction) return;
-            
-            isUserInteraction = false;
-            select.innerHTML = '';
-            originalOptions.forEach(option => {
-                select.appendChild(option.cloneNode(true));
-            });
-            setTimeout(() => isUserInteraction = true, 10);
-        });
+        // Restore user interaction
+        setTimeout(() => isUserInteraction = true, 10);
+    });
+    
+    // Add focus event to show all options when focused
+    select.addEventListener('focus', () => {
+        if (!isUserInteraction) return;
         
-        // Add keydown for navigation
-        select.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (selectId === 'symbol-select') {
-                    this.onSymbolSelect({ target: select });
-                } else {
-                    this.onListingSymbolSelect({ target: select });
-                }
-            } else if (e.key === 'Escape') {
-                select.blur();
+        isUserInteraction = false;
+        select.innerHTML = '';
+        originalOptions.forEach(option => {
+            select.appendChild(option.cloneNode(true));
+        });
+        setTimeout(() => isUserInteraction = true, 10);
+    });
+    
+    // Add keydown for navigation
+    select.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (selectId === 'symbol-select') {
+                this.onSymbolSelect({ target: select });
+            } else {
+                this.onListingSymbolSelect({ target: select });
             }
-        });
+        } else if (e.key === 'Escape') {
+            select.blur();
+        }
+    });
+    
+    // FIXED: Add change event listener for mouse selection
+    select.addEventListener('change', (e) => {
+        if (selectId === 'symbol-select') {
+            this.onSymbolSelect(e);
+        } else {
+            this.onListingSymbolSelect(e);
+        }
+    });
+}
+
+// Fix the symbol selection handlers
+onSymbolSelect(event) {
+    const address = parseInt(event.target.value);
+    if (!isNaN(address) && address >= 0) {
+        this.memoryStartAddress = address;
+        this.renderMemoryDisplay(); // Use renderMemoryDisplay to avoid recursion
+        document.getElementById('memory-start-address').value = '0x' + address.toString(16).padStart(4, '0');
+        const selectedOption = event.target.options[event.target.selectedIndex];
+        const symbolName = selectedOption ? selectedOption.text.split(' (')[0] : 'unknown';
+        this.addTranscriptEntry(`Memory view jumped to symbol: ${symbolName}`, "info");
+        
+        // FIXED: Don't clear the selection - keep it visible
+        // event.target.value = ''; // REMOVED THIS LINE
     }
+}
+
+onListingSymbolSelect(event) {
+    const address = parseInt(event.target.value);
+    if (!isNaN(address) && address >= 0) {
+        this.navigateToSymbolInListing(address);
+        
+        // FIXED: Don't clear the selection - keep it visible
+        // event.target.value = ''; // REMOVED THIS LINE
+    }
+}
+
+// Also make sure symbols are being populated correctly
+updateSymbolSelects(symbols) {
+    const symbolSelects = [
+        document.getElementById('symbol-select'),
+        document.getElementById('listing-symbol-select')
+    ];
+    
+    symbolSelects.forEach(select => {
+        if (!select) {
+            console.error('Symbol select element not found');
+            return;
+        }
+        
+        // Store the current selection
+        const currentValue = select.value;
+        
+        let html = '<option value="">-- Select Symbol --</option>';
+        
+        if (symbols && Object.keys(symbols).length > 0) {
+            for (const [name, address] of Object.entries(symbols)) {
+                const displayText = `${name} (0x${address.toString(16).padStart(4, '0')})`;
+                html += `<option value="${address}">${displayText}</option>`;
+            }
+        }
+        
+        select.innerHTML = html;
+        
+        // Restore selection if it still exists
+        if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
+            select.value = currentValue;
+        }
+        
+        // Re-initialize search functionality with the new options
+        this.initializeSymbolDropdown(select.id);
+    });
+}
 
     toggleView() {
         this.compactView = !this.compactView;
