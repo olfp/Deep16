@@ -631,6 +631,7 @@ step() {
         memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
     }
 
+// In deep16_ui.js - Update createCodeMemoryLine to use better jump disassembly
 createCodeMemoryLine(address) {
     const value = this.simulator.memory[address];
     const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
@@ -645,7 +646,6 @@ createCodeMemoryLine(address) {
     
     const source = this.getSourceForAddress(address);
     
-    // Show empty for uninitialized memory
     const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
     
     let html = `<div class="memory-line code-line ${pcClass}">`;
@@ -659,7 +659,6 @@ createCodeMemoryLine(address) {
     
     return html;
 }
-
     createDataMemoryLine(startAddr, endAddr) {
         let html = `<div class="memory-line data-line">`;
         html += `<span class="memory-address">0x${startAddr.toString(16).padStart(4, '0')}</span>`;
