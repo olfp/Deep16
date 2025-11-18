@@ -18,8 +18,7 @@ class Deep16Simulator {
         this.registers[15] = 0x0000; // PC
 
         // NEW: Track recent memory accesses
-        this.recentMemoryAccesses = [];
-        this.maxRecentAccesses = 8;        
+        this.recentMemoryAddress = null;
     }
 
     loadProgram(memory) {
@@ -160,8 +159,8 @@ step() {
                 const value = this.memory[address];
                 this.registers[rd] = value;
                 
-                // NEW: Track this memory access
-                this.trackMemoryAccess('LD', address, value, rd);
+                // NEW: Track the accessed address
+                this.recentMemoryAddress = address;
                 
                 console.log(`LD: ${this.getRegisterName(rd)} = memory[0x${address.toString(16).padStart(4, '0')}] = 0x${value.toString(16).padStart(4, '0')}`);
             }
@@ -170,34 +169,39 @@ step() {
                 const value = this.registers[rd];
                 this.memory[address] = value;
                 
-                // NEW: Track this memory access
-                this.trackMemoryAccess('ST', address, value, rd);
+                // NEW: Track the accessed address
+                this.recentMemoryAddress = address;
                 
                 console.log(`ST: memory[0x${address.toString(16).padStart(4, '0')}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
             }
         }
     }
 
-    // NEW: Method to track recent memory accesses
-    trackMemoryAccess(operation, address, value, register) {
-        // Add new access to the front
-        this.recentMemoryAccesses.unshift({
-            operation: operation,
-            address: address,
-            value: value,
-            register: this.getRegisterName(register),
-            timestamp: Date.now()
-        });
-        
-        // Keep only the most recent accesses
-        if (this.recentMemoryAccesses.length > this.maxRecentAccesses) {
-            this.recentMemoryAccesses = this.recentMemoryAccesses.slice(0, this.maxRecentAccesses);
+    // NEW: Method to get memory around recent access address
+    getRecentMemoryView() {
+        if (this.recentMemoryAddress === null) {
+            return null;
         }
-    }
-
-    // NEW: Method to get recent memory accesses for display
-    getRecentMemoryAccesses() {
-        return this.recentMemoryAccesses;
+        
+        const startAddress = this.recentMemoryAddress;
+        const memoryView = [];
+        
+        // Get 8 words starting from the accessed address
+        for (let i = 0; i < 8; i++) {
+            const addr = startAddress + i;
+            if (addr < this.memory.length) {
+                memoryView.push({
+                    address: addr,
+                    value: this.memory[addr],
+                    isCurrent: (addr === startAddress)
+                });
+            }
+        }
+        
+        return {
+            baseAddress: startAddress,
+            memoryWords: memoryView
+        };
     }
 
     executeALUOp(instruction) {
