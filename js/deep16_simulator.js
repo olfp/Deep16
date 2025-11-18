@@ -314,29 +314,35 @@ executeMOV(instruction) {
         this.lastOperationWasALU = true;
     }
 
-    executeJump(instruction, originalPC) {
-        const condition = (instruction >>> 9) & 0x7;
-        let offset = instruction & 0x1FF;
-        if (offset & 0x100) offset |= 0xFE00; // Sign extend 9-bit value
+// In deep16_simulator.js - Fix executeJump method
+executeJump(instruction, originalPC) {
+    const condition = (instruction >>> 9) & 0x7;
+    let offset = instruction & 0x1FF;
+    if (offset & 0x100) offset |= 0xFE00; // Sign extend 9-bit value
 
-        let shouldJump = false;
-        switch (condition) {
-            case 0b000: shouldJump = true; break; // JMP (unconditional)
-            case 0b001: shouldJump = (this.psw & (1 << 1)) !== 0; break; // JZ
-            case 0b010: shouldJump = (this.psw & (1 << 1)) === 0; break; // JNZ
-            case 0b011: shouldJump = (this.psw & (1 << 3)) !== 0; break; // JC
-            case 0b100: shouldJump = (this.psw & (1 << 3)) === 0; break; // JNC
-            case 0b101: shouldJump = (this.psw & (1 << 0)) !== 0; break; // JN
-            case 0b110: shouldJump = (this.psw & (1 << 0)) === 0; break; // JNN
-            case 0b111: shouldJump = (this.psw & (1 << 2)) !== 0; break; // JO
-        }
-
-        if (shouldJump) {
-            // Adjust PC: we already incremented it, so subtract 1 then add offset
-            this.registers[15] = (this.registers[15] - 1) + offset;
-            console.log(`JUMP: PC = 0x${this.registers[15].toString(16).padStart(4, '0')} (offset=${offset})`);
-        }
+    let shouldJump = false;
+    
+    console.log(`Jump: condition=${condition}, offset=${offset}, Z-flag=${!!(this.psw & (1 << 1))}`);
+    
+    switch (condition) {
+        case 0b000: shouldJump = (this.psw & (1 << 1)) !== 0; break; // JZ (Zero=1)
+        case 0b001: shouldJump = (this.psw & (1 << 1)) === 0; break; // JNZ (Zero=0) ← THIS SHOULD JUMP WHEN Z=0!
+        case 0b010: shouldJump = (this.psw & (1 << 3)) !== 0; break; // JC (Carry=1)
+        case 0b011: shouldJump = (this.psw & (1 << 3)) === 0; break; // JNC (Carry=0)
+        case 0b100: shouldJump = (this.psw & (1 << 0)) !== 0; break; // JN (Negative=1)
+        case 0b101: shouldJump = (this.psw & (1 << 0)) === 0; break; // JNN (Negative=0)
+        case 0b110: shouldJump = (this.psw & (1 << 2)) !== 0; break; // JO (Overflow=1)
+        case 0b111: shouldJump = (this.psw & (1 << 2)) === 0; break; // JNO (Overflow=0)
     }
+
+    console.log(`Jump decision: ${shouldJump ? 'TAKEN' : 'NOT TAKEN'}`);
+
+    if (shouldJump) {
+        // Adjust PC: we already incremented it, so subtract 1 then add offset
+        this.registers[15] = (this.registers[15] - 1) + offset;
+        console.log(`JUMP: PC = 0x${this.registers[15].toString(16).padStart(4, '0')} (offset=${offset})`);
+    }
+}
 
     executeSystem(instruction) {
         const sysOp = instruction & 0x7;
