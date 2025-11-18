@@ -212,17 +212,21 @@ executeMOV(instruction) {
     const rs = (instruction >>> 2) & 0xF;      // Bits 5-2  
     const imm = instruction & 0x3;             // Bits 1-0
     
-    console.log(`MOV Execute: rd=${rd} (${this.getRegisterName(rd)}), rs=${rs} (${this.getRegisterName(rs)}), imm=${imm}`);
+    console.log(`=== MOV DEBUG ===`);
+    console.log(`Instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
+    console.log(`Binary: ${instruction.toString(2).padStart(16, '0')}`);
+    console.log(`Extracted: rd=${rd}, rs=${rs}, imm=${imm}`);
+    console.log(`Before: R${rd}=0x${this.registers[rd].toString(16)}, R${rs}=0x${this.registers[rs].toString(16)}`);
     
-    // FIXED: Use register value, not register index
+    // FIXED: Use the VALUE of register rs, not the register index
     this.registers[rd] = this.registers[rs] + imm;
     
-    console.log(`MOV Execute: ${this.getRegisterName(rd)} = ${this.getRegisterName(rs)} (0x${this.registers[rs].toString(16)}) + ${imm} = ${this.registers[rd]}`);
+    console.log(`After: R${rd}=0x${this.registers[rd].toString(16)}`);
+    console.log(`Calculation: R${rd} = R${rs} (0x${this.registers[rs].toString(16)}) + ${imm}`);
     
     this.lastALUResult = this.registers[rd];
     this.lastOperationWasALU = true;
 }
-
     executeLSI(instruction) {
         // LSI encoding: [1111110][Rd4][imm5]
         // Bits: 15-9: opcode=1111110, 8-5: Rd, 4-0: imm5
