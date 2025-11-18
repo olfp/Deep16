@@ -232,7 +232,6 @@ step() {
             accessInfo: access
         };
     }
-}
 
     executeALUOp(instruction) {
         const aluOp = (instruction >>> 10) & 0x7;
