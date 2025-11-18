@@ -341,14 +341,15 @@ executeJump(instruction, originalPC) {
 
     console.log(`Jump decision: ${shouldJump ? 'TAKEN' : 'NOT TAKEN'}`);
 
-    if (shouldJump) {
-        // Adjust PC: we already incremented it, so subtract 1 then add offset
-        const newPC = (this.registers[15] - 1) + offset;
-        this.registers[15] = newPC & 0xFFFF; // Wrap around 16-bit address space
-        
-        console.log(`JUMP: PC = 0x${this.registers[15].toString(16).padStart(4, '0')} (offset=${offset})`);
-        console.log(`Jump from 0x${originalPC.toString(16)} to 0x${this.registers[15].toString(16)}`);
-    }
+if (shouldJump) {
+    // CORRECTED: Jump to = current instruction address + 1 + offset
+    // Since PC was already incremented, we need: (PC - 1) + 1 + offset = PC + offset
+    const newPC = this.registers[15] + offset;
+    this.registers[15] = newPC & 0xFFFF;
+    
+    console.log(`JUMP: PC = 0x${this.registers[15].toString(16).padStart(4, '0')} (offset=${offset})`);
+    console.log(`Jump from 0x${originalPC.toString(16)} to 0x${this.registers[15].toString(16)}`);
+}
 }
 
     executeSystem(instruction) {
