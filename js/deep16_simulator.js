@@ -41,7 +41,7 @@ class Deep16Simulator {
         this.memory[0x0001] = 0x8010; // LD R1, [R0+0]
         this.memory[0x0002] = 0x3120; // ADD R1, R2
     }
-}
+    
     step() {
         if (!this.running) return false;
 
