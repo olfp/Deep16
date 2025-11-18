@@ -17,8 +17,8 @@ class Deep16Simulator {
         this.registers[13] = 0x7FFF; // SP
         this.registers[15] = 0x0000; // PC
 
-        // NEW: Track recent memory accesses
-        this.recentMemoryAddress = null;
+        // ENHANCED: Track recent memory accesses with base address and offset
+        this.recentMemoryAccess = null; // { address, baseAddress, offset, type }
     }
 
     loadProgram(memory) {
@@ -144,67 +144,95 @@ step() {
         console.log(`LDI complete: R0 = 0x${this.registers[0].toString(16).padStart(4, '0')}`);
     }
 
-// In deep16_simulator.js - Fix executeMemoryOp bit extraction
-executeMemoryOp(instruction) {
-    // CORRECTED: Use the same bit extraction as the disassembler
-    // LD/ST format: [10][d1][Rd4][Rb4][offset5]
-    // Bits: 15-14: opcode=10, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
-    
-    const d = (instruction >>> 13) & 0x1;      // Bit 13  ← FIXED!
-    const rd = (instruction >>> 9) & 0xF;      // Bits 12-9  ← FIXED!
-    const rb = (instruction >>> 5) & 0xF;      // Bits 8-5  ← FIXED!
-    const offset = instruction & 0x1F;         // Bits 4-0
+    // ENHANCED: Update executeMemoryOp to track base address and offset
+    executeMemoryOp(instruction) {
+        // CORRECTED: Use the same bit extraction as the disassembler
+        // LD/ST format: [10][d1][Rd4][Rb4][offset5]
+        // Bits: 15-14: opcode=10, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
+        
+        const d = (instruction >>> 13) & 0x1;      // Bit 13
+        const rd = (instruction >>> 9) & 0xF;      // Bits 12-9  
+        const rb = (instruction >>> 5) & 0xF;      // Bits 8-5
+        const offset = instruction & 0x1F;         // Bits 4-0
 
-    const address = this.registers[rb] + offset;
+        const address = this.registers[rb] + offset;
 
-    console.log(`MemoryOp: d=${d}, rd=${rd} (${this.getRegisterName(rd)}), rb=${rb} (${this.getRegisterName(rb)}), offset=${offset}`);
-    console.log(`MemoryOp: R${rb}=0x${this.registers[rb].toString(16)}, address=0x${address.toString(16)}`);
+        console.log(`MemoryOp: d=${d}, rd=${rd} (${this.getRegisterName(rd)}), rb=${rb} (${this.getRegisterName(rb)}), offset=${offset}`);
+        console.log(`MemoryOp: R${rb}=0x${this.registers[rb].toString(16)}, address=0x${address.toString(16)}`);
 
-    // Track the accessed address
-    this.recentMemoryAddress = address;
-    console.log(`Recent memory address set to: 0x${this.recentMemoryAddress.toString(16).padStart(4, '0')}`);
+        // ENHANCED: Track the memory access with base address and offset
+        this.recentMemoryAccess = {
+            address: address,
+            baseAddress: this.registers[rb],
+            offset: offset,
+            type: d === 0 ? 'LD' : 'ST',
+            accessedAt: Date.now()
+        };
+        
+        console.log(`Recent memory access: ${this.recentMemoryAccess.type} at 0x${address.toString(16).padStart(4, '0')} (base: 0x${this.recentMemoryAccess.baseAddress.toString(16).padStart(4, '0')} + ${offset})`);
 
-    if (d === 0) { // LD
-        if (address < this.memory.length) {
-            const value = this.memory[address];
-            this.registers[rd] = value;
-            console.log(`LD: ${this.getRegisterName(rd)} = memory[0x${address.toString(16).padStart(4, '0')}] = 0x${value.toString(16).padStart(4, '0')}`);
-        }
-    } else { // ST
-        if (address < this.memory.length) {
-            const value = this.registers[rd];
-            this.memory[address] = value;
-            console.log(`ST: memory[0x${address.toString(16).padStart(4, '0')}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
+        if (d === 0) { // LD
+            if (address < this.memory.length) {
+                const value = this.memory[address];
+                this.registers[rd] = value;
+                console.log(`LD: ${this.getRegisterName(rd)} = memory[0x${address.toString(16).padStart(4, '0')}] = 0x${value.toString(16).padStart(4, '0')}`);
+            }
+        } else { // ST
+            if (address < this.memory.length) {
+                const value = this.registers[rd];
+                this.memory[address] = value;
+                console.log(`ST: memory[0x${address.toString(16).padStart(4, '0')}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
+            }
         }
     }
-}
-    
-    // NEW: Method to get memory around recent access address
+
+    // ENHANCED: Method to get expanded memory view (32 words)
     getRecentMemoryView() {
-        if (this.recentMemoryAddress === null) {
+        if (!this.recentMemoryAccess) {
             return null;
         }
         
-        const startAddress = this.recentMemoryAddress;
+        const access = this.recentMemoryAccess;
+        
+        // RULE 2: If access is via LD/ST with non-zero offset, display from base address
+        let startAddress;
+        if (access.offset !== 0) {
+            startAddress = access.baseAddress;
+        } else {
+            // RULE 1: Otherwise, center on the accessed address
+            startAddress = Math.max(0, access.address - 8);
+        }
+        
+        // Ensure we show exactly 32 words (4 lines of 8)
+        startAddress = Math.max(0, startAddress);
+        startAddress = Math.min(startAddress, this.memory.length - 32);
+        
         const memoryView = [];
         
-        // Get 8 words starting from the accessed address
-        for (let i = 0; i < 8; i++) {
+        // Get 32 words (4 lines of 8)
+        for (let i = 0; i < 32; i++) {
             const addr = startAddress + i;
             if (addr < this.memory.length) {
+                const isCurrent = (addr === access.address);
+                const isBase = (access.offset !== 0 && addr === access.baseAddress);
+                
                 memoryView.push({
                     address: addr,
                     value: this.memory[addr],
-                    isCurrent: (addr === startAddress)
+                    isCurrent: isCurrent,
+                    isBase: isBase,
+                    isInRange: true
                 });
             }
         }
         
         return {
             baseAddress: startAddress,
-            memoryWords: memoryView
+            memoryWords: memoryView,
+            accessInfo: access
         };
     }
+}
 
     executeALUOp(instruction) {
         const aluOp = (instruction >>> 10) & 0x7;
