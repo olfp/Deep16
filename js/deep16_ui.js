@@ -158,33 +158,29 @@ class DeepWebUI {
         }, 10);
     }
 
-    updateRecentMemoryDisplay() {
+// In deep16_ui.js - Update updateRecentMemoryDisplay method
+updateRecentMemoryDisplay() {
     const recentDisplay = document.getElementById('recent-memory-display');
-    const accesses = this.simulator.getRecentMemoryAccesses();
+    const memoryView = this.simulator.getRecentMemoryView();
     
-    if (accesses.length === 0) {
+    if (!memoryView) {
         recentDisplay.innerHTML = 'No memory operations yet';
         return;
     }
     
-    let html = '';
-    accesses.forEach(access => {
-        const addressHex = '0x' + access.address.toString(16).padStart(4, '0').toUpperCase();
-        const valueHex = '0x' + access.value.toString(16).padStart(4, '0').toUpperCase();
-        
-        html += `
-            <div class="recent-memory-item">
-                <span class="recent-memory-op">${access.operation}</span>
-                <span class="recent-memory-address">${addressHex}</span>
-                <span class="recent-memory-value">${valueHex}</span>
-                <span class="recent-memory-reg">(${access.register})</span>
-            </div>
-        `;
+    let html = `<div class="recent-memory-line">`;
+    html += `<span class="recent-memory-address">0x${memoryView.baseAddress.toString(16).padStart(4, '0').toUpperCase()}</span>`;
+    html += `<span class="recent-memory-data">`;
+    
+    memoryView.memoryWords.forEach(word => {
+        const valueHex = '0x' + word.value.toString(16).padStart(4, '0').toUpperCase();
+        const wordClass = word.isCurrent ? 'recent-memory-word recent-memory-current' : 'recent-memory-word';
+        html += `<span class="${wordClass}">${valueHex}</span>`;
     });
     
+    html += `</span></div>`;
     recentDisplay.innerHTML = html;
 }
-
 
     initializeTabs() {
         this.switchTab('editor');
