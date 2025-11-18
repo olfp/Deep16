@@ -201,4 +201,5 @@ disassembleJumpWithAddress(instruction, currentAddress) {
     
     return `${conditionName} ${offsetStr}   ; 0x${targetAddress.toString(16).padStart(4, '0').toUpperCase()}`;
 }
+}
 /* deep16_disassembler.js */
