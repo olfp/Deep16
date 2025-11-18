@@ -241,28 +241,26 @@ assemble(source) {
         throw new Error('MOV requires destination register and source register');
     }
 
-    encodeALU(parts, aluOp, address, lineNumber) {
-        if (parts.length >= 3) {
-            const rd = this.parseRegister(parts[1]);
-            
-            if (this.isRegister(parts[2])) {
-                const rs = this.parseRegister(parts[2]);
-                // ALU2 register mode: [110][op3][Rd4][w1][i0][Rs4]
-                // Bits: 15-13: opcode, 12-10: aluOp, 9-6: Rd, 5: w=1, 4: i=0, 3-0: Rs
-                return 0b1100000000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | rs;
-            } else {
-                const imm = this.parseImmediate(parts[2]);
-                if (imm < 0 || imm > 15) {
-                    throw new Error(`Immediate value ${imm} out of range (0-15)`);
-                }
-                // ALU2 immediate mode: [110][op3][Rd4][w1][i1][imm4]
-                // Bits: 15-13: opcode, 12-10: aluOp, 9-6: Rd, 5: w=1, 4: i=1, 3-0: imm
-                return 0b1100001000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | (1 << 4) | imm;
+encodeALU(parts, aluOp, address, lineNumber) {
+    if (parts.length >= 3) {
+        const rd = this.parseRegister(parts[1]);
+        
+        if (this.isRegister(parts[2])) {
+            const rs = this.parseRegister(parts[2]);
+            // ALU2 register mode: [110][op3][Rd4][w1][i0][Rs4]
+            return 0b1100000000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | rs;
+        } else {
+            const imm = this.parseImmediate(parts[2]);
+            if (imm < 0 || imm > 15) {
+                throw new Error(`Immediate value ${imm} out of range (0-15)`);
             }
+            // ALU2 immediate mode: [110][op3][Rd4][w1][i1][imm4]
+            // FIXED: Remove the extra bit that was causing the issue
+            return 0b1100000000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | (1 << 4) | imm;
         }
-        throw new Error(`ALU operation requires two operands`);
     }
-
+    throw new Error(`ALU operation requires two operands`);
+}
     encodeMemory(parts, isStore, address, lineNumber) {
         if (parts.length >= 4) {
             const rd = this.parseRegister(parts[1]);
