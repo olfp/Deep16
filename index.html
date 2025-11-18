@@ -53,30 +53,33 @@
                 </div>
                 
                 <div id="editor-tab" class="tab-content active">
-                    <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Fibonacci Example
-; Calculate Fibonacci numbers
+                    <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Fibonacci Example - PROPER COUNTING
+; Calculate Fibonacci numbers F(0) through F(10)
 
 .org 0x0000
 
 main:
-    LDI  0x7FFF    ; Load stack pointer value into R0
-    MOV  SP, R0    ; Initialize stack pointer
-    LSI  R0, 0     ; F(0) = 0
-    LSI  R1, 1     ; F(1) = 1
-    LSI  R2, 10    ; Calculate up to F(10)
-    LDI  0x0200    ; Output address into R0
-    MOV  R3, R0    ; Move to R3
+    LSI  R1, 0        ; F(0) = 0
+    LSI  R2, 1        ; F(1) = 1
+    LSI  R3, 10       ; Calculate F(2) through F(10) (9 numbers)
+    LDI  0x0200       ; Output address into R0
+    MOV  R4, R0       ; Move to R4 for output pointer
+    
+    ST   R1, R4, 0    ; Store F(0)
+    ADD  R4, 1        ; Next address
+    ST   R2, R4, 0    ; Store F(1)  
+    ADD  R4, 1        ; Next address
     
 fib_loop:
-    ST   R0, R3, 0     ; Store current Fibonacci
-    ADD  R3, 1         ; Next output address
+    MOV  R0, R2       ; temp = current
+    ADD  R2, R1       ; next = current + previous
+    MOV  R1, R0       ; previous = temp
     
-    MOV  R4, R1        ; temp = current
-    ADD  R1, R0        ; next = current + previous
-    MOV  R0, R4        ; previous = temp
+    ST   R2, R4, 0    ; Store the NEW Fibonacci number
+    ADD  R4, 1        ; Next output address
     
-    SUB  R2, 1         ; decrement counter
-    JNZ  fib_loop      ; loop if not zero
+    SUB  R3, 1        ; decrement counter
+    JNZ  fib_loop     ; loop if not zero
     
     HALT
 
