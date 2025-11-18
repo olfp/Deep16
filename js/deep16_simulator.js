@@ -143,40 +143,36 @@ step() {
         console.log(`LDI complete: R0 = 0x${this.registers[0].toString(16).padStart(4, '0')}`);
     }
 
-    executeMemoryOp(instruction) {
-        const d = (instruction >>> 12) & 0x1;
-        const rd = (instruction >>> 8) & 0xF;
-        const rb = (instruction >>> 4) & 0xF;
-        const offset = instruction & 0x1F;
+// In deep16_simulator.js - Fix recent memory address tracking
+executeMemoryOp(instruction) {
+    const d = (instruction >>> 12) & 0x1;
+    const rd = (instruction >>> 8) & 0xF;
+    const rb = (instruction >>> 4) & 0xF;
+    const offset = instruction & 0x1F;
 
-        const address = this.registers[rb] + offset;
+    const address = this.registers[rb] + offset;
 
-        console.log(`MemoryOp: d=${d}, rd=${rd} (${this.getRegisterName(rd)}), rb=${rb} (${this.getRegisterName(rb)}), offset=${offset}`);
-        console.log(`MemoryOp: R${rb}=0x${this.registers[rb].toString(16)}, address=0x${address.toString(16)}`);
+    console.log(`MemoryOp: d=${d}, rd=${rd} (${this.getRegisterName(rd)}), rb=${rb} (${this.getRegisterName(rb)}), offset=${offset}`);
+    console.log(`MemoryOp: R${rb}=0x${this.registers[rb].toString(16)}, address=0x${address.toString(16)}`);
 
-        if (d === 0) { // LD
-            if (address < this.memory.length) {
-                const value = this.memory[address];
-                this.registers[rd] = value;
-                
-                // NEW: Track the accessed address
-                this.recentMemoryAddress = address;
-                
-                console.log(`LD: ${this.getRegisterName(rd)} = memory[0x${address.toString(16).padStart(4, '0')}] = 0x${value.toString(16).padStart(4, '0')}`);
-            }
-        } else { // ST
-            if (address < this.memory.length) {
-                const value = this.registers[rd];
-                this.memory[address] = value;
-                
-                // NEW: Track the accessed address
-                this.recentMemoryAddress = address;
-                
-                console.log(`ST: memory[0x${address.toString(16).padStart(4, '0')}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
-            }
+    // NEW: Track the accessed address BEFORE the operation
+    this.recentMemoryAddress = address;
+    console.log(`Recent memory address set to: 0x${this.recentMemoryAddress.toString(16).padStart(4, '0')}`);
+
+    if (d === 0) { // LD
+        if (address < this.memory.length) {
+            const value = this.memory[address];
+            this.registers[rd] = value;
+            console.log(`LD: ${this.getRegisterName(rd)} = memory[0x${address.toString(16).padStart(4, '0')}] = 0x${value.toString(16).padStart(4, '0')}`);
+        }
+    } else { // ST
+        if (address < this.memory.length) {
+            const value = this.registers[rd];
+            this.memory[address] = value;
+            console.log(`ST: memory[0x${address.toString(16).padStart(4, '0')}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
         }
     }
-
+}
     // NEW: Method to get memory around recent access address
     getRecentMemoryView() {
         if (this.recentMemoryAddress === null) {
