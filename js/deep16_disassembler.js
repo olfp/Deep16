@@ -75,29 +75,35 @@ class Deep16Disassembler {
         }
     }
 
-    disassembleALU(instruction) {
-        const aluOp = (instruction >>> 10) & 0x7;
-        
-        if (aluOp === 0b111) {
-            return this.disassembleShift(instruction);
-        }
-        
-        const rd = (instruction >>> 8) & 0xF;
-        const w = (instruction >>> 7) & 0x1;
-        const i = (instruction >>> 6) & 0x1;
-        const operand = instruction & 0xF;
-        
-        let opStr = this.aluOps[aluOp];
-        let operandStr = i === 0 ? this.registerNames[operand] : `#0x${operand.toString(16).toUpperCase()}`;
-        
-        if (w === 0) {
-            const flagOps = ['ANW', 'CMP', 'TBS', 'TBC', '', '', '', ''];
-            opStr = flagOps[aluOp] || opStr;
-        }
-        
-        return `${opStr} ${this.registerNames[rd]}, ${operandStr}`;
+// In deep16_disassembler.js - Fix disassembleALU
+disassembleALU(instruction) {
+    const aluOp = (instruction >>> 10) & 0x7;
+    
+    if (aluOp === 0b111) {
+        return this.disassembleShift(instruction);
     }
-
+    
+    const rd = (instruction >>> 8) & 0xF;
+    const w = (instruction >>> 7) & 0x1;
+    const i = (instruction >>> 6) & 0x1;
+    const operand = instruction & 0xF;
+    
+    let opStr = this.aluOps[aluOp];
+    let operandStr = i === 0 ? this.registerNames[operand] : `#0x${operand.toString(16).toUpperCase()}`;
+    
+    // FIX: Only use flag-only operations when w=0 AND for specific ALU ops
+    if (w === 0) {
+        switch (aluOp) {
+            case 0b000: opStr = 'ANW'; break;  // ADD No Write
+            case 0b001: opStr = 'CMP'; break;  // SUB No Write (Compare)
+            case 0b010: opStr = 'TBS'; break;  // AND No Write (Test Bit Set)
+            case 0b100: opStr = 'TBC'; break;  // XOR No Write (Test Bit Clear)
+            default: break; // Keep original opcode for others
+        }
+    }
+    
+    return `${opStr} ${this.registerNames[rd]}, ${operandStr}`;
+}
     disassembleShift(instruction) {
         const rd = (instruction >>> 8) & 0xF;
         const shiftType = (instruction >>> 4) & 0x7;
