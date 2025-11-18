@@ -1,6 +1,5 @@
 // Deep16 Simulator - CPU Execution and State Management
 class Deep16Simulator {
-class Deep16Simulator {
     constructor() {
         this.memory = new Array(65536).fill(0xFFFF);
         this.registers = new Array(16).fill(0);
