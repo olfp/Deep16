@@ -21,7 +21,6 @@ class DeepWebUI {
 
         this.initializeEventListeners();
         this.initializeSearchableDropdowns();
-        this.initializeTestMemory();
         this.initializeTabs();
         this.updateAllDisplays();
         this.addTranscriptEntry("DeepWeb initialized and ready", "info");
@@ -514,7 +513,6 @@ step() {
         this.simulator.reset();
         this.memoryStartAddress = 0;
         document.getElementById('memory-start-address').value = '0x0000';
-        this.initializeTestMemory();
         this.updateAllDisplays();
         this.status("Reset complete");
         this.addTranscriptEntry("System reset", "info");
