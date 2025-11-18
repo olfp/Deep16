@@ -26,40 +26,73 @@ class DeepWebUI {
         this.addTranscriptEntry("DeepWeb initialized and ready", "info");
     }
 
-    initializeEventListeners() {
-        document.getElementById('assemble-btn').addEventListener('click', () => this.assemble());
-        document.getElementById('run-btn').addEventListener('click', () => this.run());
-        document.getElementById('step-btn').addEventListener('click', () => this.step());
-        document.getElementById('reset-btn').addEventListener('click', () => this.reset());
-        document.getElementById('load-example').addEventListener('click', () => this.loadExample());
-        document.getElementById('memory-jump-btn').addEventListener('click', () => this.jumpToMemoryAddress());
-        document.getElementById('symbol-select').addEventListener('change', (e) => this.onSymbolSelect(e));
-        document.getElementById('listing-symbol-select').addEventListener('change', (e) => this.onListingSymbolSelect(e));
-        document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
-        
-        document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.jumpToMemoryAddress();
+initializeEventListeners() {
+    document.getElementById('assemble-btn').addEventListener('click', () => this.assemble());
+    document.getElementById('run-btn').addEventListener('click', () => this.run());
+    document.getElementById('step-btn').addEventListener('click', () => this.step());
+    document.getElementById('reset-btn').addEventListener('click', () => this.reset());
+    document.getElementById('load-example').addEventListener('click', () => this.loadExample());
+    document.getElementById('memory-jump-btn').addEventListener('click', () => this.jumpToMemoryAddress());
+    
+    // FIXED: Use proper event listeners instead of inline handlers
+    const symbolSelect = document.getElementById('symbol-select');
+    const listingSymbolSelect = document.getElementById('listing-symbol-select');
+    
+    if (symbolSelect) {
+        symbolSelect.addEventListener('change', (e) => {
+            console.log('Symbol select changed:', e.target.value);
+            this.onSymbolSelect(e);
         });
-
-        document.querySelectorAll('.tab-button').forEach(button => {
-            button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
-        });
-
-        document.querySelectorAll('.section-title').forEach(title => {
-            title.addEventListener('click', (e) => {
-                if (e.target.classList.contains('section-title')) {
-                    this.toggleRegisterSection(e.target);
-                }
-            });
-        });
-
-        window.addEventListener('resize', () => this.updateMemoryDisplay());
     }
+    
+    if (listingSymbolSelect) {
+        listingSymbolSelect.addEventListener('change', (e) => {
+            console.log('Listing symbol select changed:', e.target.value);
+            this.onListingSymbolSelect(e);
+        });
+    }
+    
+    document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
+    
+    document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') this.jumpToMemoryAddress();
+    });
 
-// In deep16_ui.js - Fix symbol selector functionality
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+    });
+
+    document.querySelectorAll('.section-title').forEach(title => {
+        title.addEventListener('click', (e) => {
+            if (e.target.classList.contains('section-title')) {
+                this.toggleRegisterSection(e.target);
+            }
+        });
+    });
+
+    window.addEventListener('resize', () => this.updateMemoryDisplay());
+}
+
+
 initializeSearchableDropdowns() {
-    this.initializeSymbolDropdown('symbol-select');
-    this.initializeSymbolDropdown('listing-symbol-select');
+    // For now, just initialize basic functionality
+    // We'll add search back once basic selection works
+    console.log('Initializing symbol dropdowns');
+    
+    const symbolSelect = document.getElementById('symbol-select');
+    const listingSelect = document.getElementById('listing-symbol-select');
+    
+    if (symbolSelect) {
+        symbolSelect.addEventListener('focus', () => {
+            console.log('Symbol select focused');
+        });
+    }
+    
+    if (listingSelect) {
+        listingSelect.addEventListener('focus', () => {
+            console.log('Listing symbol select focused');
+        });
+    }
 }
 
 initializeSymbolDropdown(selectId) {
@@ -127,68 +160,62 @@ initializeSymbolDropdown(selectId) {
     });
 }
 
-// Fix the symbol selection handlers
 onSymbolSelect(event) {
+    console.log('onSymbolSelect called with value:', event.target.value);
     const address = parseInt(event.target.value);
     if (!isNaN(address) && address >= 0) {
+        console.log('Jumping to symbol at address:', address);
         this.memoryStartAddress = address;
-        this.renderMemoryDisplay(); // Use renderMemoryDisplay to avoid recursion
+        this.renderMemoryDisplay();
         document.getElementById('memory-start-address').value = '0x' + address.toString(16).padStart(4, '0');
         const selectedOption = event.target.options[event.target.selectedIndex];
         const symbolName = selectedOption ? selectedOption.text.split(' (')[0] : 'unknown';
         this.addTranscriptEntry(`Memory view jumped to symbol: ${symbolName}`, "info");
-        
-        // FIXED: Don't clear the selection - keep it visible
-        // event.target.value = ''; // REMOVED THIS LINE
+    } else {
+        console.log('Invalid address from symbol select:', event.target.value);
     }
 }
 
 onListingSymbolSelect(event) {
+    console.log('onListingSymbolSelect called with value:', event.target.value);
     const address = parseInt(event.target.value);
     if (!isNaN(address) && address >= 0) {
+        console.log('Navigating to symbol in listing at address:', address);
         this.navigateToSymbolInListing(address);
-        
-        // FIXED: Don't clear the selection - keep it visible
-        // event.target.value = ''; // REMOVED THIS LINE
+    } else {
+        console.log('Invalid address from listing symbol select:', event.target.value);
     }
 }
 
 // Also make sure symbols are being populated correctly
 updateSymbolSelects(symbols) {
-    const symbolSelects = [
-        document.getElementById('symbol-select'),
-        document.getElementById('listing-symbol-select')
-    ];
+    console.log('Updating symbol selects with:', symbols);
     
-    symbolSelects.forEach(select => {
-        if (!select) {
-            console.error('Symbol select element not found');
-            return;
+    const symbolSelect = document.getElementById('symbol-select');
+    const listingSelect = document.getElementById('listing-symbol-select');
+    
+    if (!symbolSelect || !listingSelect) {
+        console.error('Symbol select elements not found!');
+        return;
+    }
+    
+    let html = '<option value="">-- Select Symbol --</option>';
+    
+    if (symbols && Object.keys(symbols).length > 0) {
+        for (const [name, address] of Object.entries(symbols)) {
+            const displayText = `${name} (0x${address.toString(16).padStart(4, '0')})`;
+            html += `<option value="${address}">${displayText}</option>`;
         }
-        
-        // Store the current selection
-        const currentValue = select.value;
-        
-        let html = '<option value="">-- Select Symbol --</option>';
-        
-        if (symbols && Object.keys(symbols).length > 0) {
-            for (const [name, address] of Object.entries(symbols)) {
-                const displayText = `${name} (0x${address.toString(16).padStart(4, '0')})`;
-                html += `<option value="${address}">${displayText}</option>`;
-            }
-        }
-        
-        select.innerHTML = html;
-        
-        // Restore selection if it still exists
-        if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
-            select.value = currentValue;
-        }
-        
-        // Re-initialize search functionality with the new options
-        this.initializeSymbolDropdown(select.id);
-    });
+    } else {
+        html += '<option value="">No symbols found</option>';
+    }
+    
+    symbolSelect.innerHTML = html;
+    listingSelect.innerHTML = html;
+    
+    console.log('Symbol selects updated. Options count:', symbolSelect.options.length);
 }
+
 
     toggleView() {
         this.compactView = !this.compactView;
