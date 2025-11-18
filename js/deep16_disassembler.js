@@ -160,70 +160,45 @@ constructor() {
         return `LSI ${this.registerNames[rd]}, ${immStr}`;
     }
 
-// In deep16_disassembler.js - Fix disassembleJump method
+// In deep16_disassembler.js - Fix jump bit extraction
 disassembleJump(instruction) {
-    const condition = (instruction >>> 9) & 0x7;
-    let offset = instruction & 0x1FF;
+    // CORRECTED: JMP format: [1110][type3][target9]
+    // Bits: 15-12: opcode=1110, 11-9: condition, 8-0: offset
+    
+    const condition = (instruction >>> 9) & 0x7;  // Bits 11-9
+    let offset = instruction & 0x1FF;             // Bits 8-0
     
     // Sign extend 9-bit value properly
-    // 9-bit signed range: -256 to +255
     if (offset & 0x100) {
-        offset = offset | 0xFE00; // Extend sign to 16 bits
+        offset = offset - 0x200; // Convert to signed integer
     }
     
     const conditionName = this.jumpConditions[condition];
-    
-    // Display as signed decimal for better readability
-    const offsetStr = offset >= 0 ? 
-        `+${offset}` : 
-        `${offset}`; // Negative numbers already have minus sign
+    const offsetStr = offset >= 0 ? `+${offset}` : `${offset}`;
     
     return `${conditionName} ${offsetStr}`;
 }
 
-// Enhanced version with hex display option
-disassembleJumpWithHex(instruction) {
-    const condition = (instruction >>> 9) & 0x7;
-    let offset = instruction & 0x1FF;
-    
-    // Sign extend 9-bit value properly
-    if (offset & 0x100) {
-        offset = offset | 0xFE00;
-    }
-    
-    const conditionName = this.jumpConditions[condition];
-    
-    // Show both decimal and hex for clarity
-    const offsetDecimal = offset >= 0 ? `+${offset}` : `${offset}`;
-    const offsetHex = offset >= 0 ? 
-        `+0x${offset.toString(16).toUpperCase()}` : 
-        `-0x${(-offset).toString(16).toUpperCase()}`;
-    
-    return `${conditionName} ${offsetDecimal} (${offsetHex})`;
-}
-
-// Enhanced version with absolute address calculation
 disassembleJumpWithAddress(instruction, currentAddress) {
-    const condition = (instruction >>> 9) & 0x7;
-    let offset = instruction & 0x1FF;
+    // CORRECTED: JMP format: [1110][type3][target9]
+    // Bits: 15-12: opcode=1110, 11-9: condition, 8-0: offset
+    
+    const condition = (instruction >>> 9) & 0x7;  // Bits 11-9
+    let offset = instruction & 0x1FF;             // Bits 8-0
     
     // Sign extend 9-bit value properly
     if (offset & 0x100) {
-        offset = offset | 0xFE00;
+        offset = offset - 0x200; // Convert to signed integer
     }
     
     const conditionName = this.jumpConditions[condition];
     const offsetStr = offset >= 0 ? `+${offset}` : `${offset}`;
     
     // Calculate absolute target address
-    // PC is already incremented when jump executes, so: target = (PC - 1) + offset
-    const targetAddress = (currentAddress + offset) & 0xFFFF;
+    // When jump executes: PC has already been incremented to next instruction
+    // So: target = current PC + offset = (currentAddress + 1) + offset
+    const targetAddress = (currentAddress + 1 + offset) & 0xFFFF;
     
     return `${conditionName} ${offsetStr}   ; 0x${targetAddress.toString(16).padStart(4, '0').toUpperCase()}`;
-}
-    disassembleSystem(instruction) {
-        const sysOp = instruction & 0x7;
-        return this.systemOps[sysOp] || 'SYS';
-    }
 }
 /* deep16_disassembler.js */
