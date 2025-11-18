@@ -52,9 +52,10 @@ step() {
 
     const instruction = this.memory[pc];
     
-    console.log(`Step: PC=0x${pc.toString(16).padStart(4, '0')}, Instruction=0x${instruction.toString(16).padStart(4, '0')}`);
-    console.log(`Binary: ${instruction.toString(2).padStart(16, '0')}`);
-    
+    console.log(`=== STEP: PC=0x${pc.toString(16).padStart(4, '0')} ===`);
+    console.log(`Instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
+    console.log(`Registers: R0=0x${this.registers[0].toString(16)}, R3=0x${this.registers[3].toString(16)}`);
+
     // Check for HALT (0xFFFF) first
     if (instruction === 0xFFFF) {
         console.log("HALT instruction detected - stopping execution");
