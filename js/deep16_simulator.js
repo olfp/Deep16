@@ -16,6 +16,10 @@ class Deep16Simulator {
         // Initialize registers
         this.registers[13] = 0x7FFF; // SP
         this.registers[15] = 0x0000; // PC
+
+        // NEW: Track recent memory accesses
+        this.recentMemoryAccesses = [];
+        this.maxRecentAccesses = 8;        
     }
 
     loadProgram(memory) {
@@ -135,31 +139,61 @@ class Deep16Simulator {
         console.log(`LDI complete: R0 = 0x${this.registers[0].toString(16).padStart(4, '0')}`);
     }
 
-// In deep16_simulator.js - Fix executeMemoryOp for ST instruction
-executeMemoryOp(instruction) {
-    const d = (instruction >>> 12) & 0x1;
-    const rd = (instruction >>> 8) & 0xF;
-    const rb = (instruction >>> 4) & 0xF;
-    const offset = instruction & 0x1F;
+    executeMemoryOp(instruction) {
+        const d = (instruction >>> 12) & 0x1;
+        const rd = (instruction >>> 8) & 0xF;
+        const rb = (instruction >>> 4) & 0xF;
+        const offset = instruction & 0x1F;
 
-    const address = this.registers[rb] + offset;
+        const address = this.registers[rb] + offset;
 
-    console.log(`MemoryOp: d=${d}, rd=${rd} (${this.getRegisterName(rd)}), rb=${rb} (${this.getRegisterName(rb)}), offset=${offset}`);
-    console.log(`MemoryOp: R${rb}=0x${this.registers[rb].toString(16)}, address=0x${address.toString(16)}`);
+        console.log(`MemoryOp: d=${d}, rd=${rd} (${this.getRegisterName(rd)}), rb=${rb} (${this.getRegisterName(rb)}), offset=${offset}`);
+        console.log(`MemoryOp: R${rb}=0x${this.registers[rb].toString(16)}, address=0x${address.toString(16)}`);
 
-    if (d === 0) { // LD
-        if (address < this.memory.length) {
-            this.registers[rd] = this.memory[address];
-            console.log(`LD: ${this.getRegisterName(rd)} = memory[0x${address.toString(16).padStart(4, '0')}] = 0x${this.memory[address].toString(16).padStart(4, '0')}`);
-        }
-    } else { // ST
-        if (address < this.memory.length) {
-            // FIXED: Store the VALUE of register rd, not the register index!
-            this.memory[address] = this.registers[rd];
-            console.log(`ST: memory[0x${address.toString(16).padStart(4, '0')}] = ${this.getRegisterName(rd)} (0x${this.registers[rd].toString(16).padStart(4, '0')})`);
+        if (d === 0) { // LD
+            if (address < this.memory.length) {
+                const value = this.memory[address];
+                this.registers[rd] = value;
+                
+                // NEW: Track this memory access
+                this.trackMemoryAccess('LD', address, value, rd);
+                
+                console.log(`LD: ${this.getRegisterName(rd)} = memory[0x${address.toString(16).padStart(4, '0')}] = 0x${value.toString(16).padStart(4, '0')}`);
+            }
+        } else { // ST
+            if (address < this.memory.length) {
+                const value = this.registers[rd];
+                this.memory[address] = value;
+                
+                // NEW: Track this memory access
+                this.trackMemoryAccess('ST', address, value, rd);
+                
+                console.log(`ST: memory[0x${address.toString(16).padStart(4, '0')}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
+            }
         }
     }
-}
+
+    // NEW: Method to track recent memory accesses
+    trackMemoryAccess(operation, address, value, register) {
+        // Add new access to the front
+        this.recentMemoryAccesses.unshift({
+            operation: operation,
+            address: address,
+            value: value,
+            register: this.getRegisterName(register),
+            timestamp: Date.now()
+        });
+        
+        // Keep only the most recent accesses
+        if (this.recentMemoryAccesses.length > this.maxRecentAccesses) {
+            this.recentMemoryAccesses = this.recentMemoryAccesses.slice(0, this.maxRecentAccesses);
+        }
+    }
+
+    // NEW: Method to get recent memory accesses for display
+    getRecentMemoryAccesses() {
+        return this.recentMemoryAccesses;
+    }
 
     executeALUOp(instruction) {
         const aluOp = (instruction >>> 10) & 0x7;
