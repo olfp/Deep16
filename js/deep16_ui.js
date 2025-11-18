@@ -26,193 +26,48 @@ class DeepWebUI {
         this.addTranscriptEntry("DeepWeb initialized and ready", "info");
     }
 
-initializeEventListeners() {
-    document.getElementById('assemble-btn').addEventListener('click', () => this.assemble());
-    document.getElementById('run-btn').addEventListener('click', () => this.run());
-    document.getElementById('step-btn').addEventListener('click', () => this.step());
-    document.getElementById('reset-btn').addEventListener('click', () => this.reset());
-    document.getElementById('load-example').addEventListener('click', () => this.loadExample());
-    document.getElementById('memory-jump-btn').addEventListener('click', () => this.jumpToMemoryAddress());
-    
-    // SIMPLE: Use standard change events
-    document.getElementById('symbol-select').addEventListener('change', (e) => {
-        console.log('Symbol select changed to:', e.target.value);
-        this.onSymbolSelect(e);
-    });
-    
-    document.getElementById('listing-symbol-select').addEventListener('change', (e) => {
-        console.log('Listing symbol select changed to:', e.target.value);
-        this.onListingSymbolSelect(e);
-    });
-    
-    document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
-    
-    document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') this.jumpToMemoryAddress();
-    });
-
-    document.querySelectorAll('.tab-button').forEach(button => {
-        button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
-    });
-
-    document.querySelectorAll('.section-title').forEach(title => {
-        title.addEventListener('click', (e) => {
-            if (e.target.classList.contains('section-title')) {
-                this.toggleRegisterSection(e.target);
-            }
-        });
-    });
-
-    window.addEventListener('resize', () => this.updateMemoryDisplay());
-}
-
-initializeSearchableDropdowns() {
-    console.log('Using simple dropdowns without search');
-}
-
-    initializeSymbolDropdown(selectId) {
-    const select = document.getElementById(selectId);
-    let isUserInteraction = true;
-    
-    // Store original options
-    const originalOptions = Array.from(select.options);
-    
-    // Add input event listener for filtering
-    select.addEventListener('input', (e) => {
-        if (!isUserInteraction) return;
+    initializeEventListeners() {
+        document.getElementById('assemble-btn').addEventListener('click', () => this.assemble());
+        document.getElementById('run-btn').addEventListener('click', () => this.run());
+        document.getElementById('step-btn').addEventListener('click', () => this.step());
+        document.getElementById('reset-btn').addEventListener('click', () => this.reset());
+        document.getElementById('load-example').addEventListener('click', () => this.loadExample());
+        document.getElementById('memory-jump-btn').addEventListener('click', () => this.jumpToMemoryAddress());
         
-        const filterText = e.target.value.toLowerCase();
-        const filteredOptions = originalOptions.filter(option => 
-            option.text.toLowerCase().includes(filterText)
-        );
-        
-        // Temporarily disable user interaction to avoid recursion
-        isUserInteraction = false;
-        
-        // Clear and repopulate options
-        select.innerHTML = '';
-        filteredOptions.forEach(option => {
-            select.appendChild(option.cloneNode(true));
-        });
-        
-        // Restore user interaction
-        setTimeout(() => isUserInteraction = true, 10);
-    });
-    
-    // Add focus event to show all options when focused
-    select.addEventListener('focus', () => {
-        if (!isUserInteraction) return;
-        
-        isUserInteraction = false;
-        select.innerHTML = '';
-        originalOptions.forEach(option => {
-            select.appendChild(option.cloneNode(true));
-        });
-        setTimeout(() => isUserInteraction = true, 10);
-    });
-    
-    // Add keydown for navigation
-    select.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            if (selectId === 'symbol-select') {
-                this.onSymbolSelect({ target: select });
-            } else {
-                this.onListingSymbolSelect({ target: select });
-            }
-        } else if (e.key === 'Escape') {
-            select.blur();
-        }
-    });
-    
-    // FIXED: Add change event listener for mouse selection
-    select.addEventListener('change', (e) => {
-        if (selectId === 'symbol-select') {
+        // Simple symbol select handlers
+        document.getElementById('symbol-select').addEventListener('change', (e) => {
             this.onSymbolSelect(e);
-        } else {
+        });
+        
+        document.getElementById('listing-symbol-select').addEventListener('change', (e) => {
             this.onListingSymbolSelect(e);
-        }
-    });
-}
-    
-onSymbolSelect(event) {
-    const address = parseInt(event.target.value);
-    console.log('🔍 onSymbolSelect - value:', event.target.value, 'parsed:', address, 'type:', typeof address);
-    
-    // Check if it's a valid number and within memory bounds
-    if (!isNaN(address) && address >= 0) {
-        console.log('✅ Valid address, memory length:', this.simulator.memory.length);
+        });
         
-        if (address < this.simulator.memory.length) {
-            console.log('🚀 Jumping to address:', address);
-            this.memoryStartAddress = address;
-            this.renderMemoryDisplay();
-            document.getElementById('memory-start-address').value = '0x' + address.toString(16).padStart(4, '0');
-            const selectedOption = event.target.options[event.target.selectedIndex];
-            const symbolName = selectedOption ? selectedOption.text.split(' (')[0] : 'unknown';
-            this.addTranscriptEntry(`Memory view jumped to symbol: ${symbolName}`, "info");
-            
-            // Debug: Verify the selection sticks
-            setTimeout(() => {
-                const currentValue = document.getElementById('symbol-select').value;
-                console.log('📌 After jump - symbol-select value:', currentValue);
-            }, 100);
-        } else {
-            console.log('❌ Address out of bounds:', address, '>=', this.simulator.memory.length);
-            this.addTranscriptEntry(`Invalid memory address: 0x${address.toString(16)}`, "error");
-        }
-    } else {
-        console.log('❌ Invalid address or empty selection');
-    }
-}
-
-onListingSymbolSelect(event) {
-    const address = parseInt(event.target.value);
-    console.log('🔍 onListingSymbolSelect - value:', event.target.value, 'parsed:', address);
-    
-    if (!isNaN(address) && address >= 0) {
-        console.log('🚀 Navigating to symbol in listing:', address);
-        this.navigateToSymbolInListing(address);
+        document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
         
-        // Debug: Verify the selection sticks
-        setTimeout(() => {
-            const currentValue = document.getElementById('listing-symbol-select').value;
-            console.log('📌 After navigation - listing-symbol-select value:', currentValue);
-        }, 100);
-    } else {
-        console.log('❌ Invalid address or empty selection');
-    }
-}
+        document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.jumpToMemoryAddress();
+        });
 
-// Update symbol selects with better debugging
-updateSymbolSelects(symbols) {
-    console.log('🔄 Updating symbol selects with:', symbols);
-    
-    const symbolSelect = document.getElementById('symbol-select');
-    const listingSelect = document.getElementById('listing-symbol-select');
-    
-    if (!symbolSelect || !listingSelect) {
-        console.error('❌ Symbol select elements not found!');
-        return;
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+        });
+
+        document.querySelectorAll('.section-title').forEach(title => {
+            title.addEventListener('click', (e) => {
+                if (e.target.classList.contains('section-title')) {
+                    this.toggleRegisterSection(e.target);
+                }
+            });
+        });
+
+        window.addEventListener('resize', () => this.updateMemoryDisplay());
     }
-    
-    let html = '<option value="">-- Select Symbol --</option>';
-    
-    if (symbols && Object.keys(symbols).length > 0) {
-        for (const [name, address] of Object.entries(symbols)) {
-            const displayText = `${name} (0x${address.toString(16).padStart(4, '0')})`;
-            html += `<option value="${address}">${displayText}</option>`;
-            console.log(`➕ Added symbol: ${name} = 0x${address.toString(16).padStart(4, '0')}`);
-        }
-    } else {
-        html += '<option value="">No symbols found</option>';
+
+    initializeSearchableDropdowns() {
+        // Using simple dropdowns without search for now
+        console.log('Using simple dropdowns');
     }
-    
-    symbolSelect.innerHTML = html;
-    listingSelect.innerHTML = html;
-    
-    console.log('✅ Symbol selects updated. Options:', symbolSelect.options.length);
-}
 
     toggleView() {
         this.compactView = !this.compactView;
@@ -255,35 +110,6 @@ updateSymbolSelects(symbols) {
         }, 10);
     }
 
-// In deep16_ui.js - Add debugging to updateRecentMemoryDisplay
-updateRecentMemoryDisplay() {
-    const recentDisplay = document.getElementById('recent-memory-display');
-    const memoryView = this.simulator.getRecentMemoryView();
-    
-    console.log(`Recent memory view:`, memoryView);
-    console.log(`Recent memory address in simulator:`, this.simulator.recentMemoryAddress);
-    
-    if (!memoryView) {
-        recentDisplay.innerHTML = 'No memory operations yet';
-        return;
-    }
-    
-    let html = `<div class="recent-memory-line">`;
-    html += `<span class="recent-memory-address">0x${memoryView.baseAddress.toString(16).padStart(4, '0').toUpperCase()}</span>`;
-    html += `<span class="recent-memory-data">`;
-    
-    memoryView.memoryWords.forEach(word => {
-        const valueHex = '0x' + word.value.toString(16).padStart(4, '0').toUpperCase();
-        const wordClass = word.isCurrent ? 'recent-memory-word recent-memory-current' : 'recent-memory-word';
-        html += `<span class="${wordClass}">${valueHex}</span>`;
-    });
-    
-    html += `</span></div>`;
-    recentDisplay.innerHTML = html;
-    
-    console.log(`Displaying memory at: 0x${memoryView.baseAddress.toString(16).padStart(4, '0')}`);
-}
-
     initializeTabs() {
         this.switchTab('editor');
     }
@@ -302,100 +128,56 @@ updateRecentMemoryDisplay() {
         }
     }
 
-    initializeTestMemory() {
-        // Initialize with some test data
-        for (let i = 0; i < 256; i++) {
-            this.simulator.memory[i] = (i * 0x111) & 0xFFFF;
-        }
-        // Set some recognizable patterns
-        this.simulator.memory[0x0000] = 0x7FFF; // LDI 32767
-        this.simulator.memory[0x0001] = 0x8010; // LD R1, [R0+0]
-        this.simulator.memory[0x0002] = 0x3120; // ADD R1, R2
-    }
+    assemble() {
+        console.log("Assemble button clicked");
+        const source = this.editorElement.value;
+        this.status("Assembling...");
+        this.addTranscriptEntry("Starting assembly", "info");
 
-    addTranscriptEntry(message, type = "info") {
-        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
-        this.transcriptEntries.unshift({
-            timestamp: timestamp,
-            message: message,
-            type: type
-        });
-
-        if (this.transcriptEntries.length > this.maxTranscriptEntries) {
-            this.transcriptEntries = this.transcriptEntries.slice(0, this.maxTranscriptEntries);
-        }
-
-        this.updateTranscriptDisplay();
-    }
-
-    updateTranscriptDisplay() {
-        const transcript = document.getElementById('transcript');
-        let html = '';
-
-        this.transcriptEntries.forEach(entry => {
-            const entryClass = `transcript-entry ${entry.type}`;
-            html += `
-                <div class="${entryClass}">
-                    <span class="transcript-time">${entry.timestamp}</span>
-                    <span class="transcript-message">${entry.message}</span>
-                </div>
-            `;
-        });
-
-        transcript.innerHTML = html;
-    }
-
-// In deep16_ui.js - Fix the assemble method
-assemble() {
-    console.log("Assemble button clicked");
-    const source = this.editorElement.value;
-    this.status("Assembling...");
-    this.addTranscriptEntry("Starting assembly", "info");
-
-    try {
-        const result = this.assembler.assemble(source);
-        console.log("Assembly result:", result);
-        
-        this.currentAssemblyResult = result;
-        
-        if (result.success) {
-            // DON'T clear the entire memory! Only update the changed locations
-            for (const change of result.memoryChanges) {
-                if (change.address < this.simulator.memory.length) {
-                    this.simulator.memory[change.address] = change.value;
+        try {
+            const result = this.assembler.assemble(source);
+            console.log("Assembly result:", result);
+            
+            this.currentAssemblyResult = result;
+            
+            if (result.success) {
+                // Apply memory changes
+                for (const change of result.memoryChanges) {
+                    if (change.address < this.simulator.memory.length) {
+                        this.simulator.memory[change.address] = change.value;
+                    }
                 }
+                
+                console.log("Simulator memory at 0x0000:", this.simulator.memory[0].toString(16));
+                
+                this.simulator.registers[15] = 0x0000;
+                this.status("Assembly successful! Program loaded.");
+                this.addTranscriptEntry("Assembly successful - program loaded", "success");
+                document.getElementById('run-btn').disabled = false;
+                document.getElementById('step-btn').disabled = false;
+                document.getElementById('reset-btn').disabled = false;
+                
+                this.updateSymbolSelects(result.symbols);
+                this.addTranscriptEntry(`Found ${Object.keys(result.symbols).length} symbols`, "info");
+                
+                this.switchTab('listing');
+            } else {
+                const errorMsg = `Assembly failed with ${result.errors.length} error(s)`;
+                this.status("Assembly errors - see errors tab for details");
+                this.addTranscriptEntry(errorMsg, "error");
+                this.switchTab('errors');
             }
-            
-            // Debug: Check simulator memory after load
-            console.log("Simulator memory at 0x0000:", this.simulator.memory[0].toString(16));
-            
-            this.simulator.registers[15] = 0x0000;
-            this.status("Assembly successful! Program loaded.");
-            this.addTranscriptEntry("Assembly successful - program loaded", "success");
-            document.getElementById('run-btn').disabled = false;
-            document.getElementById('step-btn').disabled = false;
-            document.getElementById('reset-btn').disabled = false;
-            
-            this.updateSymbolSelects(result.symbols);
-            this.addTranscriptEntry(`Found ${Object.keys(result.symbols).length} symbols`, "info");
-            
-            this.switchTab('listing');
-        } else {
-            const errorMsg = `Assembly failed with ${result.errors.length} error(s)`;
-            this.status("Assembly errors - see errors tab for details");
-            this.addTranscriptEntry(errorMsg, "error");
-            this.switchTab('errors');
-        }
 
-        this.updateAllDisplays();
-        this.updateErrorsList();
-        this.updateAssemblyListing();
-    } catch (error) {
-        console.error("Assembly error:", error);
-        this.status("Assembly failed with exception");
-        this.addTranscriptEntry(`Assembly exception: ${error.message}`, "error");
+            this.updateAllDisplays();
+            this.updateErrorsList();
+            this.updateAssemblyListing();
+        } catch (error) {
+            console.error("Assembly error:", error);
+            this.status("Assembly failed with exception");
+            this.addTranscriptEntry(`Assembly exception: ${error.message}`, "error");
+        }
     }
-}
+
     updateErrorsList() {
         const errorsList = document.getElementById('errors-list');
         
@@ -456,7 +238,11 @@ assemble() {
         ];
         
         symbolSelects.forEach(select => {
-            // Store the current selection
+            if (!select) {
+                console.error('Symbol select element not found');
+                return;
+            }
+            
             const currentValue = select.value;
             
             let html = '<option value="">-- Select Symbol --</option>';
@@ -470,21 +256,27 @@ assemble() {
             
             select.innerHTML = html;
             
-            // Restore selection if it still exists
             if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
                 select.value = currentValue;
             }
-            
-            // Re-initialize search functionality
-            this.initializeSymbolDropdown(select.id);
         });
+    }
+
+    onSymbolSelect(event) {
+        const address = parseInt(event.target.value);
+        if (!isNaN(address) && address >= 0) {
+            this.memoryStartAddress = address;
+            this.renderMemoryDisplay();
+            document.getElementById('memory-start-address').value = '0x' + address.toString(16).padStart(4, '0');
+            const symbolName = event.target.options[event.target.selectedIndex].text.split(' (')[0];
+            this.addTranscriptEntry(`Memory view jumped to symbol: ${symbolName}`, "info");
+        }
     }
 
     onListingSymbolSelect(event) {
         const address = parseInt(event.target.value);
         if (!isNaN(address) && address >= 0) {
             this.navigateToSymbolInListing(address);
-            event.target.value = '';
         }
     }
 
@@ -598,7 +390,6 @@ assemble() {
             
             const continueRunning = this.simulator.step();
             
-            // Force UI update after each step
             this.updateAllDisplays();
             
             if (!continueRunning) {
@@ -609,26 +400,26 @@ assemble() {
         }, 50);
     }
 
-step() {
-    this.simulator.running = true;
-    const pcBefore = this.simulator.registers[15];
-    const instruction = this.simulator.memory[pcBefore];
-    
-    console.log(`UI Step: PC=0x${pcBefore.toString(16).padStart(4, '0')}, Instruction=0x${instruction.toString(16).padStart(4, '0')}`);
-    console.log(`Before step - R0=0x${this.simulator.registers[0].toString(16).padStart(4, '0')}`);
-    
-    const continueRunning = this.simulator.step();
-    const pcAfter = this.simulator.registers[15];
-    
-    console.log(`After step - R0=0x${this.simulator.registers[0].toString(16).padStart(4, '0')}, PSW=0x${this.simulator.psw.toString(16).padStart(4, '0')}`);
-    
-    // Force UI update
-    this.updateAllDisplays();
-    this.status("Step executed");
-    this.addTranscriptEntry(`Step: PC 0x${pcBefore.toString(16).padStart(4, '0')} → 0x${pcAfter.toString(16).padStart(4, '0')}`, "info");
-    
-    return continueRunning;
-}
+    step() {
+        this.simulator.running = true;
+        const pcBefore = this.simulator.registers[15];
+        const instruction = this.simulator.memory[pcBefore];
+        
+        console.log(`UI Step: PC=0x${pcBefore.toString(16).padStart(4, '0')}, Instruction=0x${instruction.toString(16).padStart(4, '0')}`);
+        console.log(`Before step - R0=0x${this.simulator.registers[0].toString(16).padStart(4, '0')}`);
+        
+        const continueRunning = this.simulator.step();
+        const pcAfter = this.simulator.registers[15];
+        
+        console.log(`After step - R0=0x${this.simulator.registers[0].toString(16).padStart(4, '0')}, PSW=0x${this.simulator.psw.toString(16).padStart(4, '0')}`);
+        
+        this.updateAllDisplays();
+        this.status("Step executed");
+        this.addTranscriptEntry(`Step: PC 0x${pcBefore.toString(16).padStart(4, '0')} → 0x${pcAfter.toString(16).padStart(4, '0')}`, "info");
+        
+        return continueRunning;
+    }
+
     reset() {
         if (this.runInterval) {
             clearInterval(this.runInterval);
@@ -642,84 +433,35 @@ step() {
         this.addTranscriptEntry("System reset", "info");
     }
 
-jumpToMemoryAddress() {
-    const input = document.getElementById('memory-start-address');
-    let address = input.value.trim();
+    jumpToMemoryAddress() {
+        const input = document.getElementById('memory-start-address');
+        let address = input.value.trim();
 
-    if (address.startsWith('0x')) {
-        address = parseInt(address.substring(2), 16);
-    } else {
-        address = parseInt(address);
-    }
+        if (address.startsWith('0x')) {
+            address = parseInt(address.substring(2), 16);
+        } else {
+            address = parseInt(address);
+        }
 
-    if (!isNaN(address) && address >= 0 && address < this.simulator.memory.length) {
-        this.memoryStartAddress = address;
-        // Call the internal display update, not the public method that checks for PC visibility
-        this.renderMemoryDisplay();
-        input.value = '0x' + address.toString(16).padStart(4, '0');
-        this.addTranscriptEntry(`Memory view jumped to 0x${address.toString(16).padStart(4, '0')}`, "info");
-    } else {
-        const errorMsg = `Invalid memory address: ${input.value}`;
-        this.status(errorMsg);
-        this.addTranscriptEntry(errorMsg, "error");
-    }
-}
-
-renderMemoryDisplay() {
-    const memoryDisplay = document.getElementById('memory-display');
-    const start = this.memoryStartAddress;
-    const end = Math.min(start + 64, this.simulator.memory.length);
-
-    let html = '';
-    
-    if (start >= end) {
-        html = '<div class="memory-line">Invalid memory range</div>';
-    } else {
-        let currentDataLineStart = -1;
-        
-        for (let address = start; address < end; address++) {
-            const isCodeSegment = this.isCodeAddress(address);
-            
-            if (isCodeSegment) {
-                html += this.createCodeMemoryLine(address);
-                currentDataLineStart = -1;
-            } else {
-                if ((address - start) % 8 === 0) {
-                    currentDataLineStart = address;
-                    html += this.createDataMemoryLine(address, Math.min(address + 8, end));
-                }
-            }
+        if (!isNaN(address) && address >= 0 && address < this.simulator.memory.length) {
+            this.memoryStartAddress = address;
+            this.renderMemoryDisplay();
+            input.value = '0x' + address.toString(16).padStart(4, '0');
+            this.addTranscriptEntry(`Memory view jumped to 0x${address.toString(16).padStart(4, '0')}`, "info");
+        } else {
+            const errorMsg = `Invalid memory address: ${input.value}`;
+            this.status(errorMsg);
+            this.addTranscriptEntry(errorMsg, "error");
         }
     }
-    
-    memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
-    
-    // Scroll to PC if it's in the current view
-    const currentPC = this.simulator.registers[15];
-    if (currentPC >= start && currentPC < end) {
-        this.scrollToPC();
-    }
-}
 
-
-onSymbolSelect(event) {
-    const address = parseInt(event.target.value);
-    if (!isNaN(address) && address >= 0) {
-        this.memoryStartAddress = address;
-        this.updateMemoryDisplay();
-        document.getElementById('memory-start-address').value = '0x' + address.toString(16).padStart(4, '0');
-        const symbolName = event.target.options[event.target.selectedIndex].text.split(' (')[0];
-        this.addTranscriptEntry(`Memory view jumped to symbol: ${symbolName}`, "info");
-        // REMOVED: event.target.value = ''; // Don't clear after selection
-    }
-}
     updateAllDisplays() {
         this.updateRegisterDisplay();
         this.updatePSWDisplay();
         this.updateMemoryDisplay();
         this.updateSegmentRegisters();
         this.updateShadowRegisters();
-        this.updateRecentMemoryDisplay(); // NEW
+        this.updateRecentMemoryDisplay();
     }
 
     updateRegisterDisplay() {
@@ -761,107 +503,136 @@ onSymbolSelect(event) {
         document.getElementById('psw-sr').textContent = (psw >> 6) & 0xF;
     }
 
-updateMemoryDisplay() {
-    const memoryDisplay = document.getElementById('memory-display');
-    
-    const start = this.memoryStartAddress;
-    const end = Math.min(start + 64, this.simulator.memory.length);
-
-    // Check if current PC is outside the visible range
-    const currentPC = this.simulator.registers[15];
-    const pcIsVisible = (currentPC >= start && currentPC < end);
-    
-    // If PC is not visible, adjust the start address to show it
-    if (!pcIsVisible && currentPC < this.simulator.memory.length) {
-        this.memoryStartAddress = Math.max(0, currentPC - 8); // Show PC with some context
-        // Don't call jumpToMemoryAddress() here - that causes recursion!
-        // Instead, just update the input field and continue with normal display
-        document.getElementById('memory-start-address').value = '0x' + this.memoryStartAddress.toString(16).padStart(4, '0');
-        // Continue to render with the new address
-    }
-
-    // Rest of the memory display code...
-    let html = '';
-    
-    if (start >= end) {
-        html = '<div class="memory-line">Invalid memory range</div>';
-    } else {
-        // Track data line grouping
-        let currentDataLineStart = -1;
+    updateMemoryDisplay() {
+        const memoryDisplay = document.getElementById('memory-display');
         
-        for (let address = start; address < end; address++) {
-            const isCodeSegment = this.isCodeAddress(address);
+        const start = this.memoryStartAddress;
+        const end = Math.min(start + 64, this.simulator.memory.length);
+
+        // Check if current PC is outside the visible range
+        const currentPC = this.simulator.registers[15];
+        const pcIsVisible = (currentPC >= start && currentPC < end);
+        
+        // If PC is not visible, adjust the start address to show it
+        if (!pcIsVisible && currentPC < this.simulator.memory.length) {
+            this.memoryStartAddress = Math.max(0, currentPC - 8);
+            document.getElementById('memory-start-address').value = '0x' + this.memoryStartAddress.toString(16).padStart(4, '0');
+            // Continue to render with the new address
+        }
+
+        // Rest of memory display code
+        let html = '';
+        
+        if (start >= end) {
+            html = '<div class="memory-line">Invalid memory range</div>';
+        } else {
+            let currentDataLineStart = -1;
             
-            if (isCodeSegment) {
-                // Code segment: one instruction per line
-                html += this.createCodeMemoryLine(address);
-                currentDataLineStart = -1; // Reset data line tracking
-            } else {
-                // Data segment: group 8 words per line
-                if ((address - start) % 8 === 0) {
-                    // Start a new data line
-                    currentDataLineStart = address;
-                    html += this.createDataMemoryLine(address, Math.min(address + 8, end));
+            for (let address = start; address < end; address++) {
+                const isCodeSegment = this.isCodeAddress(address);
+                
+                if (isCodeSegment) {
+                    html += this.createCodeMemoryLine(address);
+                    currentDataLineStart = -1;
+                } else {
+                    if ((address - start) % 8 === 0) {
+                        currentDataLineStart = address;
+                        html += this.createDataMemoryLine(address, Math.min(address + 8, end));
+                    }
                 }
             }
         }
-    }
-    
-    memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
-    
-    // Auto-scroll to the PC line if it's visible
-    if (pcIsVisible) {
-        this.scrollToPC();
-    }
-}
-
-    // NEW: Method to scroll to the current PC line
-scrollToPC() {
-    const memoryDisplay = document.getElementById('memory-display');
-    const pcLine = memoryDisplay.querySelector('.pc-marker');
-    
-    if (pcLine) {
-        pcLine.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center' 
-        });
         
-        // Add a highlight animation
-        pcLine.style.animation = 'pulse-highlight 1s ease-in-out';
-        setTimeout(() => {
-            pcLine.style.animation = '';
-        }, 1000);
+        memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
+        
+        // Auto-scroll to the PC line if it's visible
+        if (pcIsVisible) {
+            this.scrollToPC();
+        }
     }
-}
 
-// In deep16_ui.js - Update createCodeMemoryLine to use better jump disassembly
-createCodeMemoryLine(address) {
-    const value = this.simulator.memory[address];
-    const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
-    const isPC = (address === this.simulator.registers[15]);
-    const pcClass = isPC ? 'pc-marker' : '';
-    let disasm = this.disassembler.disassemble(value);
-    
-    // Enhanced jump disassembly with absolute addresses
-    if ((value >>> 12) === 0b1110) { // Jump instruction
-        disasm = this.disassembler.disassembleJumpWithAddress(value, address);
+    renderMemoryDisplay() {
+        const memoryDisplay = document.getElementById('memory-display');
+        const start = this.memoryStartAddress;
+        const end = Math.min(start + 64, this.simulator.memory.length);
+
+        let html = '';
+        
+        if (start >= end) {
+            html = '<div class="memory-line">Invalid memory range</div>';
+        } else {
+            let currentDataLineStart = -1;
+            
+            for (let address = start; address < end; address++) {
+                const isCodeSegment = this.isCodeAddress(address);
+                
+                if (isCodeSegment) {
+                    html += this.createCodeMemoryLine(address);
+                    currentDataLineStart = -1;
+                } else {
+                    if ((address - start) % 8 === 0) {
+                        currentDataLineStart = address;
+                        html += this.createDataMemoryLine(address, Math.min(address + 8, end));
+                    }
+                }
+            }
+        }
+        
+        memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
+        
+        // Scroll to PC if it's in the current view
+        const currentPC = this.simulator.registers[15];
+        if (currentPC >= start && currentPC < end) {
+            this.scrollToPC();
+        }
     }
-    
-    const source = this.getSourceForAddress(address);
-    
-    const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
-    
-    let html = `<div class="memory-line code-line ${pcClass}">`;
-    html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
-    html += `<span class="memory-bytes">${displayValue}</span>`;
-    html += `<span class="memory-disassembly">${disasm}</span>`;
-    if (source) {
-        html += `<span class="memory-source">; ${source}</span>`;
+
+    scrollToPC() {
+        const memoryDisplay = document.getElementById('memory-display');
+        const pcLine = memoryDisplay.querySelector('.pc-marker');
+        
+        if (pcLine) {
+            pcLine.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+            });
+            
+            // Add a highlight animation
+            pcLine.style.animation = 'pulse-highlight 1s ease-in-out';
+            setTimeout(() => {
+                pcLine.style.animation = '';
+            }, 1000);
+        }
     }
-    html += `</div>`;
-    
-    return html;
-}
+
+    createCodeMemoryLine(address) {
+        const value = this.simulator.memory[address];
+        const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+        const isPC = (address === this.simulator.registers[15]);
+        const pcClass = isPC ? 'pc-marker' : '';
+        let disasm = this.disassembler.disassemble(value);
+        
+        // Enhanced jump disassembly with absolute addresses
+        if ((value >>> 12) === 0b1110) {
+            disasm = this.disassembler.disassembleJumpWithAddress(value, address);
+        }
+        
+        const source = this.getSourceForAddress(address);
+        
+        const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
+        
+        let html = `<div class="memory-line code-line ${pcClass}">`;
+        html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
+        html += `<span class="memory-bytes">${displayValue}</span>`;
+        html += `<span class="memory-disassembly">${disasm}</span>`;
+        if (source) {
+            html += `<span class="memory-source">; ${source}</span>`;
+        }
+        html += `</div>`;
+        
+        return html;
+    }
+
     createDataMemoryLine(startAddr, endAddr) {
         let html = `<div class="memory-line data-line">`;
         html += `<span class="memory-address">0x${startAddr.toString(16).padStart(4, '0')}</span>`;
@@ -871,7 +642,8 @@ createCodeMemoryLine(address) {
             const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
             const isPC = (addr === this.simulator.registers[15]);
             const pcClass = isPC ? 'pc-marker' : '';
-            html += `<span class="memory-data ${pcClass}">0x${valueHex}</span>`;
+            const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
+            html += `<span class="memory-data ${pcClass}">${displayValue}</span>`;
         }
         
         html += `</div>`;
@@ -887,10 +659,8 @@ createCodeMemoryLine(address) {
         
         const listing = this.currentAssemblyResult.listing;
         
-        // Find the listing item that matches the address AND has an instruction
         for (const item of listing) {
             if (item.address === address && item.instruction !== undefined) {
-                // This is an actual instruction at this address
                 return item.line ? item.line.trim() : '';
             }
         }
@@ -942,8 +712,63 @@ createCodeMemoryLine(address) {
         }
     }
 
+    updateRecentMemoryDisplay() {
+        const recentDisplay = document.getElementById('recent-memory-display');
+        const memoryView = this.simulator.getRecentMemoryView();
+        
+        if (!memoryView) {
+            recentDisplay.innerHTML = 'No memory operations yet';
+            return;
+        }
+        
+        let html = `<div class="recent-memory-line">`;
+        html += `<span class="recent-memory-address">0x${memoryView.baseAddress.toString(16).padStart(4, '0').toUpperCase()}</span>`;
+        html += `<span class="recent-memory-data">`;
+        
+        memoryView.memoryWords.forEach(word => {
+            const valueHex = '0x' + word.value.toString(16).padStart(4, '0').toUpperCase();
+            const wordClass = word.isCurrent ? 'recent-memory-word recent-memory-current' : 'recent-memory-word';
+            html += `<span class="${wordClass}">${valueHex}</span>`;
+        });
+        
+        html += `</span></div>`;
+        recentDisplay.innerHTML = html;
+    }
+
     status(message) {
         document.getElementById('status-bar').textContent = `DeepWeb: ${message}`;
+    }
+
+    addTranscriptEntry(message, type = "info") {
+        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        this.transcriptEntries.unshift({
+            timestamp: timestamp,
+            message: message,
+            type: type
+        });
+
+        if (this.transcriptEntries.length > this.maxTranscriptEntries) {
+            this.transcriptEntries = this.transcriptEntries.slice(0, this.maxTranscriptEntries);
+        }
+
+        this.updateTranscriptDisplay();
+    }
+
+    updateTranscriptDisplay() {
+        const transcript = document.getElementById('transcript');
+        let html = '';
+
+        this.transcriptEntries.forEach(entry => {
+            const entryClass = `transcript-entry ${entry.type}`;
+            html += `
+                <div class="${entryClass}">
+                    <span class="transcript-time">${entry.timestamp}</span>
+                    <span class="transcript-message">${entry.message}</span>
+                </div>
+            `;
+        });
+
+        transcript.innerHTML = html;
     }
 
     loadExample() {
