@@ -140,53 +140,145 @@
     text-align: center;
 }
 
-/* In memory.css - Update recent memory display styles */
+    updateRecentMemoryDisplay() {
+        const recentDisplay = document.getElementById('recent-memory-display');
+        const memoryView = this.simulator.getRecentMemoryView();
+        
+        if (!memoryView) {
+            recentDisplay.innerHTML = 'No memory operations yet';
+            return;
+        }
+        
+        const { baseAddress, memoryWords, accessInfo } = memoryView;
+        
+        let html = '';
+        
+        // Create 4 lines of 8 words each
+        for (let line = 0; line < 4; line++) {
+            const lineStart = line * 8;
+            const lineEnd = lineStart + 8;
+            const lineAddress = baseAddress + lineStart;
+            
+            html += `<div class="recent-memory-line">`;
+            html += `<span class="recent-memory-address">0x${lineAddress.toString(16).padStart(4, '0').toUpperCase()}</span>`;
+            html += `<span class="recent-memory-data">`;
+            
+            for (let i = lineStart; i < lineEnd && i < memoryWords.length; i++) {
+                const word = memoryWords[i];
+                const valueHex = '0x' + word.value.toString(16).padStart(4, '0').toUpperCase();
+                
+                let wordClass = 'recent-memory-word';
+                
+                // RULE 2: Highlight base address and accessed address for LD/ST with offset
+                if (accessInfo.offset !== 0) {
+                    if (word.isBase) {
+                        wordClass += ' recent-memory-base';
+                    } else if (word.isCurrent) {
+                        wordClass += ' recent-memory-current';
+                    }
+                } 
+                // RULE 1: Only highlight accessed address for zero-offset accesses
+                else if (word.isCurrent) {
+                    wordClass += ' recent-memory-current';
+                }
+                
+                html += `<span class="${wordClass}" title="Address: 0x${word.address.toString(16).padStart(4, '0').toUpperCase()}">${valueHex}</span>`;
+            }
+            
+            html += `</span></div>`;
+        }
+        
+        // Add access information
+        const accessType = accessInfo.type === 'LD' ? 'Load' : 'Store';
+        const offsetInfo = accessInfo.offset !== 0 ? 
+            ` (base: 0x${accessInfo.baseAddress.toString(16).padStart(4, '0').toUpperCase()} + ${accessInfo.offset})` : 
+            '';
+        
+        html += `<div class="recent-memory-info">${accessType} at 0x${accessInfo.address.toString(16).padStart(4, '0').toUpperCase()}${offsetInfo}</div>`;
+        
+        recentDisplay.innerHTML = html;
+    }
+}
+Changes to memory.css
+
+css
+/* In memory.css - Update styles for the expanded recent memory display */
 .recent-memory-panel {
+    margin-top: 8px;
     border-top: 1px solid #3e3e42;
-    background: #252526;
+    padding-top: 6px;
 }
 
 .recent-memory-display {
-    padding: 4px 8px;
     font-family: 'Courier New', monospace;
-    font-size: 11px;
+    font-size: 10px;
     background: #1e1e1e;
-    min-height: 20px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    border: 1px solid #3e3e42;
+    border-radius: 3px;
+    padding: 4px;
+    max-height: 120px;
+    overflow-y: auto;
 }
 
 .recent-memory-line {
     display: flex;
-    align-items: center;
-    gap: 6px;
+    margin-bottom: 1px;
+    padding: 1px 0;
 }
 
 .recent-memory-address {
     color: #569cd6;
+    width: 50px;
+    text-align: right;
+    padding-right: 6px;
     font-weight: bold;
-    min-width: 70px;
+    font-size: 9px;
 }
 
 .recent-memory-data {
-    color: #b5cea8;
     display: flex;
-    gap: 4px;
+    gap: 2px;
+    flex-wrap: wrap;
 }
 
 .recent-memory-word {
     padding: 1px 3px;
-    background: #2d2d30;
-    border: 1px solid #3e3e42;
     border-radius: 2px;
-    min-width: 50px;
+    background: #2d2d30;
+    color: #d4d4d4;
+    cursor: default;
+    font-size: 9px;
+    min-width: 45px;
     text-align: center;
+    transition: all 0.2s ease;
+}
+
+.recent-memory-word:hover {
+    background: #3e3e42;
 }
 
 .recent-memory-current {
-    background: #264f78 !important;
+    background: #4e3a3a !important;
+    color: #ff6b6b !important;
     font-weight: bold;
+    border: 1px solid #ff6b6b;
+}
+
+.recent-memory-base {
+    background: #3a4e3a !important;
+    color: #6bff6b !important;
+    font-weight: bold;
+    border: 1px solid #6bff6b;
+}
+
+.recent-memory-info {
+    font-size: 9px;
+    color: #9cdcfe;
+    text-align: center;
+    padding: 2px;
+    margin-top: 3px;
+    border-top: 1px solid #3e3e42;
+    font-style: italic;
 }
 
 /* In memory.css - Add pulse animation */
