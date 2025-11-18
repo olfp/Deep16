@@ -188,6 +188,20 @@
     background: #264f78 !important;
     font-weight: bold;
 }
+
+/* In memory.css - Add pulse animation */
+@keyframes pulse-highlight {
+    0% {
+        background-color: #264f78;
+    }
+    50% {
+        background-color: #3a6ea5;
+    }
+    100% {
+        background-color: #264f78;
+    }
+}
+
 .pc-marker {
     background: #264f78 !important;
     font-weight: bold;
