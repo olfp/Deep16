@@ -1,10 +1,10 @@
-/* deep16_disassembler.js */
+// deep16_disassembler.js - Fixed version
 class Deep16Disassembler {
     constructor() {
         this.registerNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
         this.aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
         this.shiftOps = ['SL', 'SLC', 'SR', 'SRC', 'SRA', 'SAC', 'ROR', 'ROC'];
-        this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
+        this.jumpConditions = ['JMP', 'JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO'];
         this.systemOps = ['NOP', 'HLT', 'SWI', 'RETI', '', '', '', ''];
     }
 
@@ -35,7 +35,7 @@ class Deep16Disassembler {
 
     disassembleLDI(instruction) {
         const immediate = instruction & 0x7FFF;
-        return `LDI R0, #0x${immediate.toString(16).padStart(4, '0').toUpperCase()}`;
+        return `LDI #0x${immediate.toString(16).padStart(4, '0').toUpperCase()}`; // R0 is implicit!
     }
 
     disassembleMemory(instruction) {
@@ -83,52 +83,67 @@ class Deep16Disassembler {
     }
 
     disassembleControlFlow(instruction) {
-        if ((instruction >> 12) === 0b1110) {
-            return this.disassembleJump(instruction);
-        }
-        
+        // Check for MOV first (opcode bits 15-10 = 111110)
         if ((instruction >> 10) === 0b111110) {
             return this.disassembleMOV(instruction);
         }
         
+        // Check for LSI (opcode bits 15-9 = 1111110)
         if ((instruction >> 9) === 0b1111110) {
             return this.disassembleLSI(instruction);
         }
         
+        // Check for Jump (opcode bits 15-12 = 1110)
+        if ((instruction >> 12) === 0b1110) {
+            return this.disassembleJump(instruction);
+        }
+        
+        // Check for System (opcode bits 15-13 = 11111)
         if ((instruction >> 13) === 0b11111) {
             return this.disassembleSystem(instruction);
         }
         
-        return '???';
+        return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
+    }
+
+    disassembleMOV(instruction) {
+        // MOV encoding: [111110][Rd4][Rs4][imm2]
+        const rd = (instruction >> 6) & 0xF;  // Bits 9-6
+        const rs = (instruction >> 2) & 0xF;  // Bits 5-2  
+        const imm = instruction & 0x3;        // Bits 1-0
+        
+        if (imm === 0) {
+            return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}`;
+        } else {
+            return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}, #0x${imm.toString(16).toUpperCase()}`;
+        }
+    }
+
+    disassembleLSI(instruction) {
+        // LSI encoding: [1111110][Rd4][imm5]
+        const rd = (instruction >> 5) & 0xF;  // Bits 8-5
+        let imm = instruction & 0x1F;         // Bits 4-0
+        
+        // Sign extend 5-bit value
+        if (imm & 0x10) imm |= 0xFFE0;
+        
+        const immStr = imm >= 0 ? 
+            `#0x${imm.toString(16).toUpperCase()}` : 
+            `#-0x${(-imm).toString(16).toUpperCase()}`;
+            
+        return `LSI ${this.registerNames[rd]}, ${immStr}`;
     }
 
     disassembleJump(instruction) {
         const condition = (instruction >> 9) & 0x7;
         const offset = instruction & 0x1FF;
         const signedOffset = (offset & 0x100) ? (offset | 0xFE00) : offset;
-        // Show jump offset in hex, but keep it signed for display
+        
         const offsetStr = signedOffset >= 0 ? 
             `+0x${signedOffset.toString(16).toUpperCase()}` : 
             `-0x${(-signedOffset).toString(16).toUpperCase()}`;
+            
         return `${this.jumpConditions[condition]} ${offsetStr}`;
-    }
-
-    disassembleMOV(instruction) {
-        const rd = (instruction >> 8) & 0xF;
-        const rs = (instruction >> 4) & 0xF;
-        const imm = instruction & 0x3;
-        return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}, #0x${imm.toString(16).toUpperCase()}`;
-    }
-
-    disassembleLSI(instruction) {
-        const rd = (instruction >> 8) & 0xF;
-        let imm = (instruction >> 4) & 0x1F;
-        if (imm & 0x10) imm |= 0xFFE0;
-        // Show LSI immediate in hex, but keep it signed for display
-        const immStr = imm >= 0 ? 
-            `#0x${imm.toString(16).toUpperCase()}` : 
-            `#-0x${(-imm).toString(16).toUpperCase()}`;
-        return `LSI ${this.registerNames[rd]}, ${immStr}`;
     }
 
     disassembleSystem(instruction) {
@@ -136,4 +151,3 @@ class Deep16Disassembler {
         return this.systemOps[sysOp] || 'SYS';
     }
 }
-/* deep16_disassembler.js */
