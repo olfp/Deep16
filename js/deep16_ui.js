@@ -770,7 +770,6 @@ class DeepWebUI {
         
         recentDisplay.innerHTML = html;
     }
-}
 
 
     status(message) {
