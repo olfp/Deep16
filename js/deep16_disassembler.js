@@ -53,29 +53,25 @@ class Deep16Disassembler {
     }
 
     disassembleMemory(instruction) {
-        console.log("=== DISASSEMBLE MEMORY ===");
-        console.log("Instruction: 0x" + instruction.toString(16).padStart(4, '0'));
-        console.log("Binary: " + instruction.toString(2).padStart(16, '0'));
-        
         // LD/ST format: [10][d1][Rd4][Rb4][offset5]
-        const d = (instruction >>> 12) & 0x1;
-        const rd = (instruction >>> 8) & 0xF;
-        const rb = (instruction >>> 4) & 0xF;
-        const offset = instruction & 0x1F;
+        // CORRECTED BIT SHIFTS:
+        // Bits: 15-14: opcode=10, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
         
-        console.log("d (bit 13):", d, "binary:", d.toString(2));
-        console.log("rd (bits 12-9):", rd, "binary:", rd.toString(2).padStart(4, '0'));
-        console.log("rb (bits 8-5):", rb, "binary:", rb.toString(2).padStart(4, '0'));
-        console.log("offset (bits 4-0):", offset, "binary:", offset.toString(2).padStart(5, '0'));
+        const d = (instruction >>> 13) & 0x1;      // Bit 13
+        const rd = (instruction >>> 9) & 0xF;      // Bits 12-9  
+        const rb = (instruction >>> 5) & 0xF;      // Bits 8-5
+        const offset = instruction & 0x1F;         // Bits 4-0
+        
+        console.log("CORRECTED SHIFTS:");
+        console.log("d (bit 13):", d);
+        console.log("rd (bits 12-9):", rd);
+        console.log("rb (bits 8-5):", rb);
+        console.log("offset (bits 4-0):", offset);
         
         if (d === 0) {
-            const result = `LD ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
-            console.log("Result: " + result);
-            return result;
+            return `LD ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
         } else {
-            const result = `ST ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
-            console.log("Result: " + result);
-            return result;
+            return `ST ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
         }
     }
 
