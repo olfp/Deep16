@@ -158,43 +158,67 @@ class Deep16Disassembler {
         return `LSI ${this.registerNames[rd]}, ${immStr}`;
     }
 
-    disassembleJump(instruction) {
-        const condition = (instruction >>> 9) & 0x7;
-        let offset = instruction & 0x1FF;
-        
-        // Sign extend 9-bit value
-        if (offset & 0x100) offset |= 0xFE00;
-        
-        const conditionName = this.jumpConditions[condition];
-        const offsetStr = offset >= 0 ? 
-            `+0x${offset.toString(16).toUpperCase()}` : 
-            `-0x${(-offset).toString(16).toUpperCase()}`;
-        
-        // Calculate absolute target address for comment
-        // Note: This assumes we know the current address - we'd need to pass it in
-        // For now, just show the relative offset
-        return `${conditionName} ${offsetStr}`;
+// In deep16_disassembler.js - Fix disassembleJump method
+disassembleJump(instruction) {
+    const condition = (instruction >>> 9) & 0x7;
+    let offset = instruction & 0x1FF;
+    
+    // Sign extend 9-bit value properly
+    // 9-bit signed range: -256 to +255
+    if (offset & 0x100) {
+        offset = offset | 0xFE00; // Extend sign to 16 bits
     }
+    
+    const conditionName = this.jumpConditions[condition];
+    
+    // Display as signed decimal for better readability
+    const offsetStr = offset >= 0 ? 
+        `+${offset}` : 
+        `${offset}`; // Negative numbers already have minus sign
+    
+    return `${conditionName} ${offsetStr}`;
+}
 
-    // Enhanced version that takes current address for absolute target calculation
-    disassembleJumpWithAddress(instruction, currentAddress) {
-        const condition = (instruction >>> 9) & 0x7;
-        let offset = instruction & 0x1FF;
-        
-        // Sign extend 9-bit value
-        if (offset & 0x100) offset |= 0xFE00;
-        
-        const conditionName = this.jumpConditions[condition];
-        const offsetStr = offset >= 0 ? 
-            `+0x${offset.toString(16).toUpperCase()}` : 
-            `-0x${(-offset).toString(16).toUpperCase()}`;
-        
-        // Calculate absolute target address
-        const targetAddress = (currentAddress + 1 + offset) & 0xFFFF;
-        
-        return `${conditionName} ${offsetStr}   ; 0x${targetAddress.toString(16).padStart(4, '0').toUpperCase()}`;
+// Enhanced version with hex display option
+disassembleJumpWithHex(instruction) {
+    const condition = (instruction >>> 9) & 0x7;
+    let offset = instruction & 0x1FF;
+    
+    // Sign extend 9-bit value properly
+    if (offset & 0x100) {
+        offset = offset | 0xFE00;
     }
+    
+    const conditionName = this.jumpConditions[condition];
+    
+    // Show both decimal and hex for clarity
+    const offsetDecimal = offset >= 0 ? `+${offset}` : `${offset}`;
+    const offsetHex = offset >= 0 ? 
+        `+0x${offset.toString(16).toUpperCase()}` : 
+        `-0x${(-offset).toString(16).toUpperCase()}`;
+    
+    return `${conditionName} ${offsetDecimal} (${offsetHex})`;
+}
 
+// Enhanced version with absolute address calculation
+disassembleJumpWithAddress(instruction, currentAddress) {
+    const condition = (instruction >>> 9) & 0x7;
+    let offset = instruction & 0x1FF;
+    
+    // Sign extend 9-bit value properly
+    if (offset & 0x100) {
+        offset = offset | 0xFE00;
+    }
+    
+    const conditionName = this.jumpConditions[condition];
+    const offsetStr = offset >= 0 ? `+${offset}` : `${offset}`;
+    
+    // Calculate absolute target address
+    // PC is already incremented when jump executes, so: target = (PC - 1) + offset
+    const targetAddress = (currentAddress + offset) & 0xFFFF;
+    
+    return `${conditionName} ${offsetStr}   ; 0x${targetAddress.toString(16).padStart(4, '0').toUpperCase()}`;
+}
     disassembleSystem(instruction) {
         const sysOp = instruction & 0x7;
         return this.systemOps[sysOp] || 'SYS';
