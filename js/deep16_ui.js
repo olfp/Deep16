@@ -158,10 +158,13 @@ class DeepWebUI {
         }, 10);
     }
 
-// In deep16_ui.js - Update updateRecentMemoryDisplay method
+// In deep16_ui.js - Add debugging to updateRecentMemoryDisplay
 updateRecentMemoryDisplay() {
     const recentDisplay = document.getElementById('recent-memory-display');
     const memoryView = this.simulator.getRecentMemoryView();
+    
+    console.log(`Recent memory view:`, memoryView);
+    console.log(`Recent memory address in simulator:`, this.simulator.recentMemoryAddress);
     
     if (!memoryView) {
         recentDisplay.innerHTML = 'No memory operations yet';
@@ -180,6 +183,8 @@ updateRecentMemoryDisplay() {
     
     html += `</span></div>`;
     recentDisplay.innerHTML = html;
+    
+    console.log(`Displaying memory at: 0x${memoryView.baseAddress.toString(16).padStart(4, '0')}`);
 }
 
     initializeTabs() {
