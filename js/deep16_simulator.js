@@ -13,15 +13,8 @@ class Deep16Simulator {
         // Initialize registers
         this.registers[13] = 0x7FFF; // SP
         this.registers[15] = 0x0000; // PC
-    }
-
-    loadProgram(memory) {
-        // Copy program into memory, but keep the rest as 0xFFFF
-        for (let i = 0; i < memory.length; i++) {
-            this.memory[i] = memory[i];
-        }
-        this.registers[15] = 0x0000;
-        this.running = false;
+        
+        // Don't call initializeTestMemory here - keep memory clean
     }
 
     reset() {
@@ -33,8 +26,22 @@ class Deep16Simulator {
         this.running = false;
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
+        
+        // Don't call initializeTestMemory here either
     }
 
+    // Optional: Only call this when you specifically want test data
+    initializeTestMemory() {
+        // Initialize with some test data but preserve 0xFFFF for unused areas
+        for (let i = 0; i < 256; i++) {
+            this.memory[i] = (i * 0x111) & 0xFFFF;
+        }
+        // Set some recognizable patterns
+        this.memory[0x0000] = 0x7FFF; // LDI 32767
+        this.memory[0x0001] = 0x8010; // LD R1, [R0+0]
+        this.memory[0x0002] = 0x3120; // ADD R1, R2
+    }
+}
     step() {
         if (!this.running) return false;
 
