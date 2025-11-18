@@ -99,9 +99,10 @@ class Deep16Simulator {
                         } else if ((instruction >> 10) === 0b111110) {
                             console.log("MOV instruction");
                             this.executeMOV(instruction);
-                        } else if ((instruction >> 9) === 0b1111110) {
-                            console.log("LSI instruction");
-                            this.executeLSI(instruction);
+// In the step method, fix the LSI detection:
+} else if ((instruction >>> 9) === 0b1111110) {
+    console.log("LSI instruction detected");
+    this.executeLSI(instruction);
                         } else if ((instruction >> 13) === 0b11111) {
                             console.log("System instruction");
                             this.executeSystem(instruction);
@@ -221,17 +222,28 @@ class Deep16Simulator {
         this.lastOperationWasALU = true;
     }
 
-    executeLSI(instruction) {
-        const rd = (instruction >> 8) & 0xF;
-        let imm = (instruction >> 4) & 0x1F;
-        if (imm & 0x10) imm |= 0xFFE0; // Sign extend 5-bit value
-        this.registers[rd] = imm;
-        console.log(`LSI: ${this.getRegisterName(rd)} = ${imm} (0x${imm.toString(16)})`);
-        this.lastALUResult = imm;
-        this.lastOperationWasALU = true;
+// In deep16_simulator.js - FIXED executeLSI
+executeLSI(instruction) {
+    // LSI encoding: [1111110][Rd4][imm5]
+    // Bits: 15-9: opcode=1111110, 8-5: Rd, 4-0: imm5
+    
+    const rd = (instruction >>> 5) & 0xF;      // Bits 8-5
+    let imm = instruction & 0x1F;              // Bits 4-0
+    
+    // Sign extend 5-bit value
+    if (imm & 0x10) {
+        imm |= 0xFFE0; // Extend sign for negative numbers
     }
-
-    executeJump(instruction, originalPC) {
+    
+    console.log(`LSI Execute: rd=${rd} (${this.getRegisterName(rd)}), imm=${imm} (0x${imm.toString(16)})`);
+    
+    this.registers[rd] = imm;
+    
+    console.log(`LSI Execute: ${this.getRegisterName(rd)} = ${this.registers[rd]} (0x${this.registers[rd].toString(16).padStart(4, '0')})`);
+    
+    this.lastALUResult = imm;
+    this.lastOperationWasALU = true;
+}    executeJump(instruction, originalPC) {
         const condition = (instruction >> 9) & 0x7;
         let offset = instruction & 0x1FF;
         if (offset & 0x100) offset |= 0xFE00; // Sign extend 9-bit value
