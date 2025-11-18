@@ -557,7 +557,8 @@ jumpToMemoryAddress() {
 
     if (!isNaN(address) && address >= 0 && address < this.simulator.memory.length) {
         this.memoryStartAddress = address;
-        this.updateMemoryDisplay(); // This will now handle auto-scroll
+        // Call the internal display update, not the public method that checks for PC visibility
+        this.renderMemoryDisplay();
         input.value = '0x' + address.toString(16).padStart(4, '0');
         this.addTranscriptEntry(`Memory view jumped to 0x${address.toString(16).padStart(4, '0')}`, "info");
     } else {
@@ -566,6 +567,43 @@ jumpToMemoryAddress() {
         this.addTranscriptEntry(errorMsg, "error");
     }
 }
+
+renderMemoryDisplay() {
+    const memoryDisplay = document.getElementById('memory-display');
+    const start = this.memoryStartAddress;
+    const end = Math.min(start + 64, this.simulator.memory.length);
+
+    let html = '';
+    
+    if (start >= end) {
+        html = '<div class="memory-line">Invalid memory range</div>';
+    } else {
+        let currentDataLineStart = -1;
+        
+        for (let address = start; address < end; address++) {
+            const isCodeSegment = this.isCodeAddress(address);
+            
+            if (isCodeSegment) {
+                html += this.createCodeMemoryLine(address);
+                currentDataLineStart = -1;
+            } else {
+                if ((address - start) % 8 === 0) {
+                    currentDataLineStart = address;
+                    html += this.createDataMemoryLine(address, Math.min(address + 8, end));
+                }
+            }
+        }
+    }
+    
+    memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
+    
+    // Scroll to PC if it's in the current view
+    const currentPC = this.simulator.registers[15];
+    if (currentPC >= start && currentPC < end) {
+        this.scrollToPC();
+    }
+}
+
 
 onSymbolSelect(event) {
     const address = parseInt(event.target.value);
@@ -639,11 +677,13 @@ updateMemoryDisplay() {
     // If PC is not visible, adjust the start address to show it
     if (!pcIsVisible && currentPC < this.simulator.memory.length) {
         this.memoryStartAddress = Math.max(0, currentPC - 8); // Show PC with some context
-        this.jumpToMemoryAddress(); // Update the display with new address
-        return; // Exit early since we're updating the display
+        // Don't call jumpToMemoryAddress() here - that causes recursion!
+        // Instead, just update the input field and continue with normal display
+        document.getElementById('memory-start-address').value = '0x' + this.memoryStartAddress.toString(16).padStart(4, '0');
+        // Continue to render with the new address
     }
 
-    // Rest of the existing memory display code...
+    // Rest of the memory display code...
     let html = '';
     
     if (start >= end) {
