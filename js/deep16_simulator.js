@@ -212,16 +212,24 @@ class Deep16Simulator {
         this.lastOperationWasALU = true;
     }
 
-    executeMOV(instruction) {
-        const rd = (instruction >> 8) & 0xF;
-        const rs = (instruction >> 4) & 0xF;
-        const imm = instruction & 0x3;
-        this.registers[rd] = this.registers[rs] + imm;
-        console.log(`MOV: ${this.getRegisterName(rd)} = ${this.getRegisterName(rs)} + ${imm} = 0x${this.registers[rd].toString(16)}`);
-        this.lastALUResult = this.registers[rd];
-        this.lastOperationWasALU = true;
-    }
-
+// In deep16_simulator.js - Fix executeMOV
+executeMOV(instruction) {
+    // MOV encoding: [111110][Rd4][Rs4][imm2]
+    // Bits: 15-10: opcode=111110, 9-6: Rd, 5-2: Rs, 1-0: imm
+    
+    const rd = (instruction >>> 6) & 0xF;      // Bits 9-6
+    const rs = (instruction >>> 2) & 0xF;      // Bits 5-2  
+    const imm = instruction & 0x3;             // Bits 1-0
+    
+    console.log(`MOV Execute: rd=${rd} (${this.getRegisterName(rd)}), rs=${rs} (${this.getRegisterName(rs)}), imm=${imm}`);
+    
+    this.registers[rd] = this.registers[rs] + imm;
+    
+    console.log(`MOV Execute: ${this.getRegisterName(rd)} = ${this.getRegisterName(rs)} + ${imm} = ${this.registers[rd]}`);
+    
+    this.lastALUResult = this.registers[rd];
+    this.lastOperationWasALU = true;
+}
 // In deep16_simulator.js - FIXED executeLSI
 executeLSI(instruction) {
     // LSI encoding: [1111110][Rd4][imm5]
