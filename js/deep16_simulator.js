@@ -144,19 +144,23 @@ step() {
         console.log(`LDI complete: R0 = 0x${this.registers[0].toString(16).padStart(4, '0')}`);
     }
 
-// In deep16_simulator.js - Fix recent memory address tracking
+// In deep16_simulator.js - Fix executeMemoryOp bit extraction
 executeMemoryOp(instruction) {
-    const d = (instruction >>> 12) & 0x1;
-    const rd = (instruction >>> 8) & 0xF;
-    const rb = (instruction >>> 4) & 0xF;
-    const offset = instruction & 0x1F;
+    // CORRECTED: Use the same bit extraction as the disassembler
+    // LD/ST format: [10][d1][Rd4][Rb4][offset5]
+    // Bits: 15-14: opcode=10, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
+    
+    const d = (instruction >>> 13) & 0x1;      // Bit 13  ← FIXED!
+    const rd = (instruction >>> 9) & 0xF;      // Bits 12-9  ← FIXED!
+    const rb = (instruction >>> 5) & 0xF;      // Bits 8-5  ← FIXED!
+    const offset = instruction & 0x1F;         // Bits 4-0
 
     const address = this.registers[rb] + offset;
 
     console.log(`MemoryOp: d=${d}, rd=${rd} (${this.getRegisterName(rd)}), rb=${rb} (${this.getRegisterName(rb)}), offset=${offset}`);
     console.log(`MemoryOp: R${rb}=0x${this.registers[rb].toString(16)}, address=0x${address.toString(16)}`);
 
-    // NEW: Track the accessed address BEFORE the operation
+    // Track the accessed address
     this.recentMemoryAddress = address;
     console.log(`Recent memory address set to: 0x${this.recentMemoryAddress.toString(16).padStart(4, '0')}`);
 
@@ -174,6 +178,7 @@ executeMemoryOp(instruction) {
         }
     }
 }
+    
     // NEW: Method to get memory around recent access address
     getRecentMemoryView() {
         if (this.recentMemoryAddress === null) {
