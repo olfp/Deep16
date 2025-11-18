@@ -9,20 +9,30 @@ class Deep16Disassembler {
     }
 
     disassemble(instruction) {
+        console.log("=== DISASSEMBLE CALL ===");
+        console.log("Input instruction: 0x" + instruction.toString(16).padStart(4, '0'));
+        console.log("Input binary: " + instruction.toString(2).padStart(16, '0'));
+        
         // Check for HALT first (0xFFFF)
         if (instruction === 0xFFFF) {
+            console.log("Detected HALT");
             return 'HLT';
         }
         
         // Check for LDI (opcode bit 15 = 0)
         if ((instruction & 0x8000) === 0) {
+            console.log("Detected LDI");
             return this.disassembleLDI(instruction);
         }
         
         // Check for LD/ST (opcode bits 15-14 = 10)
-        if (((instruction >>> 14) & 0x3) === 0b10) {
+        const opcode2 = (instruction >>> 14) & 0x3;
+        console.log("Opcode2 (bits 15-14): " + opcode2.toString(2).padStart(2, '0'));
+        if (opcode2 === 0b10) {
+            console.log("Detected LD/ST");
             return this.disassembleMemory(instruction);
         }
+
         
         // Check for ALU2 (opcode bits 15-13 = 110)
         if (((instruction >>> 13) & 0x7) === 0b110) {
@@ -43,18 +53,29 @@ class Deep16Disassembler {
     }
 
     disassembleMemory(instruction) {
+        console.log("=== DISASSEMBLE MEMORY ===");
+        console.log("Instruction: 0x" + instruction.toString(16).padStart(4, '0'));
+        console.log("Binary: " + instruction.toString(2).padStart(16, '0'));
+        
         // LD/ST format: [10][d1][Rd4][Rb4][offset5]
-        // CORRECTED BIT POSITIONS:
-        // Bits: 15-14: opcode=10, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
-        const d = (instruction >>> 12) & 0x1;      // Bit 13
-        const rd = (instruction >>> 8) & 0xF;      // Bits 12-9  
-        const rb = (instruction >>> 4) & 0xF;      // Bits 8-5  ← FIXED!
-        const offset = instruction & 0x1F;         // Bits 4-0
+        const d = (instruction >>> 12) & 0x1;
+        const rd = (instruction >>> 8) & 0xF;
+        const rb = (instruction >>> 4) & 0xF;
+        const offset = instruction & 0x1F;
+        
+        console.log("d (bit 13):", d, "binary:", d.toString(2));
+        console.log("rd (bits 12-9):", rd, "binary:", rd.toString(2).padStart(4, '0'));
+        console.log("rb (bits 8-5):", rb, "binary:", rb.toString(2).padStart(4, '0'));
+        console.log("offset (bits 4-0):", offset, "binary:", offset.toString(2).padStart(5, '0'));
         
         if (d === 0) {
-            return `LD ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
+            const result = `LD ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
+            console.log("Result: " + result);
+            return result;
         } else {
-            return `ST ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
+            const result = `ST ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
+            console.log("Result: " + result);
+            return result;
         }
     }
 
