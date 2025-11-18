@@ -1,0 +1,24 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simplified Deep16 Mouse Favicon -->
+  <circle cx="16" cy="16" r="15" fill="#2D3748" stroke="#4A5568" stroke-width="1"/>
+  
+  <!-- Mouse Ears -->
+  <circle cx="11" cy="10" r="3" fill="#4A5568"/>
+  <circle cx="21" cy="10" r="3" fill="#4A5568"/>
+  
+  <!-- Mouse Body -->
+  <ellipse cx="16" cy="18" rx="7" ry="9" fill="#4A5568"/>
+  
+  <!-- Eyes -->
+  <circle cx="13" cy="16" r="1.5" fill="#FFFFFF"/>
+  <circle cx="19" cy="16" r="1.5" fill="#FFFFFF"/>
+  
+  <!-- Nose -->
+  <circle cx="16" cy="19" r="1" fill="#F56565"/>
+  
+  <!-- Binary Tail -->
+  <path d="M 23 22 Q 25 20 26 18 Q 27 16 28 14" stroke="#E2E8F0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  
+  <!-- Deep16 Text (Micro) -->
+  <text x="16" y="26" text-anchor="middle" font-family="Courier New, monospace" font-size="3" font-weight="bold" fill="#FFFFFF">D16</text>
+</svg>
