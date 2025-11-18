@@ -545,27 +545,27 @@ step() {
         this.addTranscriptEntry("System reset", "info");
     }
 
-    jumpToMemoryAddress() {
-        const input = document.getElementById('memory-start-address');
-        let address = input.value.trim();
+jumpToMemoryAddress() {
+    const input = document.getElementById('memory-start-address');
+    let address = input.value.trim();
 
-        if (address.startsWith('0x')) {
-            address = parseInt(address.substring(2), 16);
-        } else {
-            address = parseInt(address);
-        }
-
-        if (!isNaN(address) && address >= 0 && address < this.simulator.memory.length) {
-            this.memoryStartAddress = address;
-            this.updateMemoryDisplay();
-            input.value = '0x' + address.toString(16).padStart(4, '0');
-            this.addTranscriptEntry(`Memory view jumped to 0x${address.toString(16).padStart(4, '0')}`, "info");
-        } else {
-            const errorMsg = `Invalid memory address: ${input.value}`;
-            this.status(errorMsg);
-            this.addTranscriptEntry(errorMsg, "error");
-        }
+    if (address.startsWith('0x')) {
+        address = parseInt(address.substring(2), 16);
+    } else {
+        address = parseInt(address);
     }
+
+    if (!isNaN(address) && address >= 0 && address < this.simulator.memory.length) {
+        this.memoryStartAddress = address;
+        this.updateMemoryDisplay(); // This will now handle auto-scroll
+        input.value = '0x' + address.toString(16).padStart(4, '0');
+        this.addTranscriptEntry(`Memory view jumped to 0x${address.toString(16).padStart(4, '0')}`, "info");
+    } else {
+        const errorMsg = `Invalid memory address: ${input.value}`;
+        this.status(errorMsg);
+        this.addTranscriptEntry(errorMsg, "error");
+    }
+}
 
 onSymbolSelect(event) {
     const address = parseInt(event.target.value);
@@ -626,39 +626,76 @@ onSymbolSelect(event) {
         document.getElementById('psw-sr').textContent = (psw >> 6) & 0xF;
     }
 
-    updateMemoryDisplay() {
-        const memoryDisplay = document.getElementById('memory-display');
-        let html = '';
-        
-        const start = this.memoryStartAddress;
-        const end = Math.min(start + 64, this.simulator.memory.length);
+updateMemoryDisplay() {
+    const memoryDisplay = document.getElementById('memory-display');
+    
+    const start = this.memoryStartAddress;
+    const end = Math.min(start + 64, this.simulator.memory.length);
 
-        if (start >= end) {
-            html = '<div class="memory-line">Invalid memory range</div>';
-        } else {
-            // Track data line grouping
-            let currentDataLineStart = -1;
+    // Check if current PC is outside the visible range
+    const currentPC = this.simulator.registers[15];
+    const pcIsVisible = (currentPC >= start && currentPC < end);
+    
+    // If PC is not visible, adjust the start address to show it
+    if (!pcIsVisible && currentPC < this.simulator.memory.length) {
+        this.memoryStartAddress = Math.max(0, currentPC - 8); // Show PC with some context
+        this.jumpToMemoryAddress(); // Update the display with new address
+        return; // Exit early since we're updating the display
+    }
+
+    // Rest of the existing memory display code...
+    let html = '';
+    
+    if (start >= end) {
+        html = '<div class="memory-line">Invalid memory range</div>';
+    } else {
+        // Track data line grouping
+        let currentDataLineStart = -1;
+        
+        for (let address = start; address < end; address++) {
+            const isCodeSegment = this.isCodeAddress(address);
             
-            for (let address = start; address < end; address++) {
-                const isCodeSegment = this.isCodeAddress(address);
-                
-                if (isCodeSegment) {
-                    // Code segment: one instruction per line
-                    html += this.createCodeMemoryLine(address);
-                    currentDataLineStart = -1; // Reset data line tracking
-                } else {
-                    // Data segment: group 8 words per line
-                    if ((address - start) % 8 === 0) {
-                        // Start a new data line
-                        currentDataLineStart = address;
-                        html += this.createDataMemoryLine(address, Math.min(address + 8, end));
-                    }
+            if (isCodeSegment) {
+                // Code segment: one instruction per line
+                html += this.createCodeMemoryLine(address);
+                currentDataLineStart = -1; // Reset data line tracking
+            } else {
+                // Data segment: group 8 words per line
+                if ((address - start) % 8 === 0) {
+                    // Start a new data line
+                    currentDataLineStart = address;
+                    html += this.createDataMemoryLine(address, Math.min(address + 8, end));
                 }
             }
         }
-        
-        memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
     }
+    
+    memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
+    
+    // Auto-scroll to the PC line if it's visible
+    if (pcIsVisible) {
+        this.scrollToPC();
+    }
+}
+
+    // NEW: Method to scroll to the current PC line
+scrollToPC() {
+    const memoryDisplay = document.getElementById('memory-display');
+    const pcLine = memoryDisplay.querySelector('.pc-marker');
+    
+    if (pcLine) {
+        pcLine.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+        });
+        
+        // Add a highlight animation
+        pcLine.style.animation = 'pulse-highlight 1s ease-in-out';
+        setTimeout(() => {
+            pcLine.style.animation = '';
+        }, 1000);
+    }
+}
 
 // In deep16_ui.js - Update createCodeMemoryLine to use better jump disassembly
 createCodeMemoryLine(address) {
