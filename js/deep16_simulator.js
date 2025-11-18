@@ -314,19 +314,23 @@ executeMOV(instruction) {
         this.lastOperationWasALU = true;
     }
 
-// In deep16_simulator.js - Fix executeJump method
+// In deep16_simulator.js - Fix jump offset sign extension
 executeJump(instruction, originalPC) {
     const condition = (instruction >>> 9) & 0x7;
     let offset = instruction & 0x1FF;
-    if (offset & 0x100) offset |= 0xFE00; // Sign extend 9-bit value
-
+    
+    // PROPER 9-bit sign extension
+    if (offset & 0x100) {
+        offset = offset - 0x200; // Convert to proper signed integer
+    }
+    
     let shouldJump = false;
     
-    console.log(`Jump: condition=${condition}, offset=${offset}, Z-flag=${!!(this.psw & (1 << 1))}`);
+    console.log(`Jump: condition=${condition}, offset=${offset} (signed), Z-flag=${!!(this.psw & (1 << 1))}`);
     
     switch (condition) {
         case 0b000: shouldJump = (this.psw & (1 << 1)) !== 0; break; // JZ (Zero=1)
-        case 0b001: shouldJump = (this.psw & (1 << 1)) === 0; break; // JNZ (Zero=0) ← THIS SHOULD JUMP WHEN Z=0!
+        case 0b001: shouldJump = (this.psw & (1 << 1)) === 0; break; // JNZ (Zero=0)
         case 0b010: shouldJump = (this.psw & (1 << 3)) !== 0; break; // JC (Carry=1)
         case 0b011: shouldJump = (this.psw & (1 << 3)) === 0; break; // JNC (Carry=0)
         case 0b100: shouldJump = (this.psw & (1 << 0)) !== 0; break; // JN (Negative=1)
@@ -339,8 +343,11 @@ executeJump(instruction, originalPC) {
 
     if (shouldJump) {
         // Adjust PC: we already incremented it, so subtract 1 then add offset
-        this.registers[15] = (this.registers[15] - 1) + offset;
+        const newPC = (this.registers[15] - 1) + offset;
+        this.registers[15] = newPC & 0xFFFF; // Wrap around 16-bit address space
+        
         console.log(`JUMP: PC = 0x${this.registers[15].toString(16).padStart(4, '0')} (offset=${offset})`);
+        console.log(`Jump from 0x${originalPC.toString(16)} to 0x${this.registers[15].toString(16)}`);
     }
 }
 
