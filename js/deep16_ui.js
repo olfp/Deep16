@@ -135,10 +135,12 @@ initializeSearchableDropdowns() {
         }
     });
 }
-
+    
 onSymbolSelect(event) {
     const address = parseInt(event.target.value);
-    if (!isNaN(address) && address >= 0) {
+    console.log('onSymbolSelect - raw value:', event.target.value, 'parsed address:', address, 'valid:', !isNaN(address) && address >= 0);
+    
+    if (!isNaN(address) && address >= 0 && address < this.simulator.memory.length) {
         console.log('Jumping to symbol at address:', address);
         this.memoryStartAddress = address;
         this.renderMemoryDisplay();
@@ -146,22 +148,30 @@ onSymbolSelect(event) {
         const selectedOption = event.target.options[event.target.selectedIndex];
         const symbolName = selectedOption ? selectedOption.text.split(' (')[0] : 'unknown';
         this.addTranscriptEntry(`Memory view jumped to symbol: ${symbolName}`, "info");
-        
-        // IMPORTANT: Don't clear the selection - let it stay visible
+    } else {
+        console.log('Invalid address:', address, 'memory length:', this.simulator.memory.length);
     }
 }
 
 onListingSymbolSelect(event) {
     const address = parseInt(event.target.value);
+    console.log('onListingSymbolSelect - raw value:', event.target.value, 'parsed address:', address);
+    
     if (!isNaN(address) && address >= 0) {
         console.log('Navigating to symbol in listing at address:', address);
         this.navigateToSymbolInListing(address);
         
-        // IMPORTANT: Don't clear the selection - let it stay visible  
+        // DEBUG: Check if selection is still there after navigation
+        setTimeout(() => {
+            console.log('After navigation - listing-symbol-select value:', document.getElementById('listing-symbol-select').value);
+        }, 100);
+    } else {
+        console.log('Invalid address or empty selection');
     }
 }
 
-// Update symbol selects method remains the same
+// Let me also check if there's any CSS or other code interfering
+// Add this to see what's happening with the fibonacci_results symbol specifically
 updateSymbolSelects(symbols) {
     console.log('Updating symbol selects with:', symbols);
     
@@ -179,6 +189,7 @@ updateSymbolSelects(symbols) {
         for (const [name, address] of Object.entries(symbols)) {
             const displayText = `${name} (0x${address.toString(16).padStart(4, '0')})`;
             html += `<option value="${address}">${displayText}</option>`;
+            console.log(`Added symbol: ${name} = 0x${address.toString(16).padStart(4, '0')}`);
         }
     } else {
         html += '<option value="">No symbols found</option>';
@@ -188,9 +199,11 @@ updateSymbolSelects(symbols) {
     listingSelect.innerHTML = html;
     
     console.log('Symbol selects updated. Options count:', symbolSelect.options.length);
+    
+    // DEBUG: Check if fibonacci_results is in the options
+    const fibResultsOption = symbolSelect.querySelector('option[value="512"]');
+    console.log('fibonacci_results option found:', !!fibResultsOption);
 }
-
-
 
     toggleView() {
         this.compactView = !this.compactView;
@@ -961,6 +974,41 @@ fibonacci_results:
         this.status("Fibonacci example ready - click 'Assemble' to compile");
     }
 }
+
+// Temporary: Add a global event listener to prevent clearing
+document.addEventListener('DOMContentLoaded', () => {
+    // Prevent any code from clearing our symbol selects
+    const symbolSelects = ['symbol-select', 'listing-symbol-select'];
+    
+    symbolSelects.forEach(id => {
+        const select = document.getElementById(id);
+        if (select) {
+            // Store the original value setter
+            const originalValueSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+            
+            // Override the value setter to prevent clearing
+            Object.defineProperty(select, 'value', {
+                set: function(newValue) {
+                    console.log(`Attempt to set ${id} value to:`, newValue);
+                    if (newValue === '' && this._userSelected) {
+                        console.log('Preventing clear of user selection');
+                        return; // Don't allow clearing
+                    }
+                    originalValueSetter.call(this, newValue);
+                },
+                get: function() {
+                    return originalValueSetter.get.call(this);
+                }
+            });
+            
+            // Track user selections
+            select.addEventListener('change', function() {
+                this._userSelected = true;
+                console.log(`User selected ${id}:`, this.value);
+            });
+        }
+    });
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     window.deepWebUI = new DeepWebUI();
