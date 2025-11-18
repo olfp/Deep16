@@ -721,19 +721,57 @@ class DeepWebUI {
             return;
         }
         
-        let html = `<div class="recent-memory-line">`;
-        html += `<span class="recent-memory-address">0x${memoryView.baseAddress.toString(16).padStart(4, '0').toUpperCase()}</span>`;
-        html += `<span class="recent-memory-data">`;
+        const { baseAddress, memoryWords, accessInfo } = memoryView;
         
-        memoryView.memoryWords.forEach(word => {
-            const valueHex = '0x' + word.value.toString(16).padStart(4, '0').toUpperCase();
-            const wordClass = word.isCurrent ? 'recent-memory-word recent-memory-current' : 'recent-memory-word';
-            html += `<span class="${wordClass}">${valueHex}</span>`;
-        });
+        let html = '';
         
-        html += `</span></div>`;
+        // Create 4 lines of 8 words each
+        for (let line = 0; line < 4; line++) {
+            const lineStart = line * 8;
+            const lineEnd = lineStart + 8;
+            const lineAddress = baseAddress + lineStart;
+            
+            html += `<div class="recent-memory-line">`;
+            html += `<span class="recent-memory-address">0x${lineAddress.toString(16).padStart(4, '0').toUpperCase()}</span>`;
+            html += `<span class="recent-memory-data">`;
+            
+            for (let i = lineStart; i < lineEnd && i < memoryWords.length; i++) {
+                const word = memoryWords[i];
+                const valueHex = '0x' + word.value.toString(16).padStart(4, '0').toUpperCase();
+                
+                let wordClass = 'recent-memory-word';
+                
+                // RULE 2: Highlight base address and accessed address for LD/ST with offset
+                if (accessInfo.offset !== 0) {
+                    if (word.isBase) {
+                        wordClass += ' recent-memory-base';
+                    } else if (word.isCurrent) {
+                        wordClass += ' recent-memory-current';
+                    }
+                } 
+                // RULE 1: Only highlight accessed address for zero-offset accesses
+                else if (word.isCurrent) {
+                    wordClass += ' recent-memory-current';
+                }
+                
+                html += `<span class="${wordClass}" title="Address: 0x${word.address.toString(16).padStart(4, '0').toUpperCase()}">${valueHex}</span>`;
+            }
+            
+            html += `</span></div>`;
+        }
+        
+        // Add access information
+        const accessType = accessInfo.type === 'LD' ? 'Load' : 'Store';
+        const offsetInfo = accessInfo.offset !== 0 ? 
+            ` (base: 0x${accessInfo.baseAddress.toString(16).padStart(4, '0').toUpperCase()} + ${accessInfo.offset})` : 
+            '';
+        
+        html += `<div class="recent-memory-info">${accessType} at 0x${accessInfo.address.toString(16).padStart(4, '0').toUpperCase()}${offsetInfo}</div>`;
+        
         recentDisplay.innerHTML = html;
     }
+}
+
 
     status(message) {
         document.getElementById('status-bar').textContent = `DeepWeb: ${message}`;
