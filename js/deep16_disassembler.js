@@ -65,10 +65,13 @@ class Deep16Disassembler {
             return this.disassembleShift(instruction);
         }
         
-        // FIXED: Correct ALU bit extraction
-        const rd = (instruction >>> 8) & 0xF;      // Bits 11-8
-        const w = (instruction >>> 7) & 0x1;       // Bit 7
-        const i = (instruction >>> 6) & 0x1;       // Bit 6
+        // CORRECTED ALU bit extraction:
+        // ALU format: [110][op3][Rd4][w1][i1][Rs/imm4]
+        // Bits: 15-13: opcode=110, 12-10: aluOp, 9-6: Rd, 5: w, 4: i, 3-0: Rs/imm
+        
+        const rd = (instruction >>> 6) & 0xF;      // Bits 9-6  ← FIXED!
+        const w = (instruction >>> 5) & 0x1;       // Bit 5     ← FIXED!
+        const i = (instruction >>> 4) & 0x1;       // Bit 4     ← FIXED!
         const operand = instruction & 0xF;         // Bits 3-0
         
         let opStr = this.aluOps[aluOp];
@@ -87,6 +90,9 @@ class Deep16Disassembler {
         
         return `${opStr} ${this.registerNames[rd]}, ${operandStr}`;
     }
+
+    // ... rest of methods same as before ...
+
 
     disassembleShift(instruction) {
         const rd = (instruction >>> 8) & 0xF;
