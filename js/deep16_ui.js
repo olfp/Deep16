@@ -158,6 +158,34 @@ class DeepWebUI {
         }, 10);
     }
 
+    updateRecentMemoryDisplay() {
+    const recentDisplay = document.getElementById('recent-memory-display');
+    const accesses = this.simulator.getRecentMemoryAccesses();
+    
+    if (accesses.length === 0) {
+        recentDisplay.innerHTML = 'No memory operations yet';
+        return;
+    }
+    
+    let html = '';
+    accesses.forEach(access => {
+        const addressHex = '0x' + access.address.toString(16).padStart(4, '0').toUpperCase();
+        const valueHex = '0x' + access.value.toString(16).padStart(4, '0').toUpperCase();
+        
+        html += `
+            <div class="recent-memory-item">
+                <span class="recent-memory-op">${access.operation}</span>
+                <span class="recent-memory-address">${addressHex}</span>
+                <span class="recent-memory-value">${valueHex}</span>
+                <span class="recent-memory-reg">(${access.register})</span>
+            </div>
+        `;
+    });
+    
+    recentDisplay.innerHTML = html;
+}
+
+
     initializeTabs() {
         this.switchTab('editor');
     }
@@ -555,6 +583,7 @@ onSymbolSelect(event) {
         this.updateMemoryDisplay();
         this.updateSegmentRegisters();
         this.updateShadowRegisters();
+        this.updateRecentMemoryDisplay(); // NEW
     }
 
     updateRegisterDisplay() {
