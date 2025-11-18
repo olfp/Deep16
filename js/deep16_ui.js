@@ -631,25 +631,34 @@ step() {
         memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
     }
 
-    createCodeMemoryLine(address) {
-        const value = this.simulator.memory[address];
-        const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
-        const isPC = (address === this.simulator.registers[15]);
-        const pcClass = isPC ? 'pc-marker' : '';
-        const disasm = this.disassembler.disassemble(value);
-        const source = this.getSourceForAddress(address);
-        
-        let html = `<div class="memory-line code-line ${pcClass}">`;
-        html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
-        html += `<span class="memory-bytes">0x${valueHex}</span>`;
-        html += `<span class="memory-disassembly">${disasm}</span>`;
-        if (source) {
-            html += `<span class="memory-source">; ${source}</span>`;
-        }
-        html += `</div>`;
-        
-        return html;
+createCodeMemoryLine(address) {
+    const value = this.simulator.memory[address];
+    const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+    const isPC = (address === this.simulator.registers[15]);
+    const pcClass = isPC ? 'pc-marker' : '';
+    let disasm = this.disassembler.disassemble(value);
+    
+    // Enhanced jump disassembly with absolute addresses
+    if ((value >>> 12) === 0b1110) { // Jump instruction
+        disasm = this.disassembler.disassembleJumpWithAddress(value, address);
     }
+    
+    const source = this.getSourceForAddress(address);
+    
+    // Show empty for uninitialized memory
+    const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
+    
+    let html = `<div class="memory-line code-line ${pcClass}">`;
+    html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
+    html += `<span class="memory-bytes">${displayValue}</span>`;
+    html += `<span class="memory-disassembly">${disasm}</span>`;
+    if (source) {
+        html += `<span class="memory-source">; ${source}</span>`;
+    }
+    html += `</div>`;
+    
+    return html;
+}
 
     createDataMemoryLine(startAddr, endAddr) {
         let html = `<div class="memory-line data-line">`;
