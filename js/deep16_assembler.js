@@ -307,23 +307,35 @@ encodeALU(parts, aluOp, address, lineNumber) {
         throw new Error('LSI requires register and immediate value');
     }
 
-    encodeJump(parts, condition, address, lineNumber) {
-        if (parts.length >= 2) {
-            const targetLabel = parts[1];
-            let targetAddress = this.labels[targetLabel];
-            if (targetAddress === undefined) {
-                throw new Error(`Unknown label: ${targetLabel}`);
-            }
-            const offset = targetAddress - (address + 1);
-            if (offset < -256 || offset > 255) {
-                throw new Error(`Jump target too far: ${offset} words from current position`);
-            }
-            // JMP: [1110][type3][target9]
-            // Bits: 15-12: opcode, 11-9: condition, 8-0: offset
-            return 0b1110000000000000 | (condition << 9) | (offset & 0x1FF);
+// In deep16_assembler.js - Fix jump condition encoding
+encodeJump(parts, condition, address, lineNumber) {
+    if (parts.length >= 2) {
+        const targetLabel = parts[1];
+        let targetAddress = this.labels[targetLabel];
+        if (targetAddress === undefined) {
+            throw new Error(`Unknown label: ${targetLabel}`);
         }
-        throw new Error('Jump requires target label');
+        const offset = targetAddress - (address + 1);
+        if (offset < -256 || offset > 255) {
+            throw new Error(`Jump target too far: ${offset} words from current position`);
+        }
+        
+        // CORRECTED condition mapping according to Table 6.3:
+        const conditionCodes = {
+            'JZ': 0b000, 'JNZ': 0b001, 'JC': 0b010, 'JNC': 0b011,
+            'JN': 0b100, 'JNN': 0b101, 'JO': 0b110, 'JNO': 0b111
+        };
+        
+        const conditionCode = conditionCodes[parts[0].toUpperCase()];
+        if (conditionCode === undefined) {
+            throw new Error(`Unknown jump condition: ${parts[0]}`);
+        }
+        
+        // JMP: [1110][type3][target9]
+        return 0b1110000000000000 | (conditionCode << 9) | (offset & 0x1FF);
     }
+    throw new Error('Jump requires target label');
+}
 
     encodeShift(parts, shiftType, address, lineNumber) {
         if (parts.length >= 3) {
