@@ -586,12 +586,17 @@ encodeMemory(parts, isStore, address, lineNumber) {
             const bracketContent = bracketMatch[1];
             console.log(`Bracket content: "${bracketContent}"`);
             
-            // Parse Rb and offset - handle spaces around plus sign
-            // Split on plus with optional whitespace: "R2 + 5", "R2+5", "R2 +5", "R2+ 5"
-            const plusParts = bracketContent.split(/\s*\+\s*/);
-            rb = this.parseRegister(plusParts[0].trim());
-            if (plusParts.length > 1) {
-                offset = this.parseImmediate(plusParts[1].trim());
+            // Parse Rb and offset - use regex to extract register and optional offset
+            // This handles: "R2", "R2+5", "R2 +5", "R2+ 5", "R2 + 5", "R2+21", etc.
+            const memoryMatch = bracketContent.match(/^([A-Za-z0-9]+)\s*(\+\s*(\d+))?$/);
+            if (!memoryMatch) {
+                throw new Error(`Invalid memory address syntax: ${bracketContent}`);
+            }
+            
+            rb = this.parseRegister(memoryMatch[1].trim());
+            
+            if (memoryMatch[2]) { // If there's an offset part (+ something)
+                offset = this.parseImmediate(memoryMatch[3].trim()); // memoryMatch[3] is the number part
             } else {
                 offset = 0; // Default offset is 0 if not specified
             }
