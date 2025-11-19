@@ -558,11 +558,12 @@ isRegister(value) {
 
 
 encodeMemory(parts, isStore, address, lineNumber) {
-    if (parts.length >= 4) {
+    if (parts.length >= 3) {
         let rd, rb, offset;
         
         // Check for bracket syntax: LD R1, [R2+5] or LD R1, [R2]
-        if (parts[2].includes('[') && parts[2].includes(']')) {
+        // In bracket syntax, parts will be: ["LD", "R1", "[R2+5]"] or ["LD", "R1", "[R2]"]
+        if (parts.length === 3 && parts[2].includes('[') && parts[2].includes(']')) {
             // Parse bracket syntax: [Rb+offset] or [Rb]
             const bracketContent = parts[2].replace(/[\[\]]/g, '');
             const plusParts = bracketContent.split('+');
@@ -576,11 +577,14 @@ encodeMemory(parts, isStore, address, lineNumber) {
             
             rd = this.parseRegister(parts[1]);
         } 
-        // Check for old syntax: LD R1, R2, 5
-        else {
+        // Check for old syntax: LD R1, R2, 5 (parts: ["LD", "R1", "R2", "5"])
+        else if (parts.length >= 4) {
             rd = this.parseRegister(parts[1]);
             rb = this.parseRegister(parts[2]);
             offset = this.parseImmediate(parts[3]);
+        }
+        else {
+            throw new Error(`${isStore ? 'ST' : 'LD'} requires register, base register, and offset`);
         }
         
         if (offset < 0 || offset > 31) {
