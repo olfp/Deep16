@@ -141,12 +141,15 @@ class DeepWebUI {
             this.currentAssemblyResult = result;
             
             if (result.success) {
-                // Apply memory changes
+                // Apply memory changes with segment info
                 for (const change of result.memoryChanges) {
                     if (change.address < this.simulator.memory.length) {
                         this.simulator.memory[change.address] = change.value;
                     }
                 }
+                
+                // Store segment information for display
+                this.segmentInfo = this.buildSegmentInfo(result.listing);
                 
                 console.log("Simulator memory at 0x0000:", this.simulator.memory[0].toString(16));
                 
@@ -177,6 +180,40 @@ class DeepWebUI {
             this.addTranscriptEntry(`Assembly exception: ${error.message}`, "error");
         }
     }
+
+    // NEW: Build segment information from assembly results
+    buildSegmentInfo(listing) {
+        const segments = {
+            code: { start: Infinity, end: -Infinity },
+            data: { start: Infinity, end: -Infinity }
+        };
+
+        for (const item of listing) {
+            if (item.address !== undefined && item.segment) {
+                const segment = item.segment;
+                if (item.address < segments[segment].start) {
+                    segments[segment].start = item.address;
+                }
+                if (item.address > segments[segment].end) {
+                    segments[segment].end = item.address;
+                }
+            }
+        }
+
+        // Add some padding around code segments for better display
+        if (segments.code.start !== Infinity) {
+            segments.code.start = Math.max(0, segments.code.start - 16);
+            segments.code.end = segments.code.end + 32;
+        }
+        if (segments.data.start !== Infinity) {
+            segments.data.start = Math.max(0, segments.data.start - 8);
+            segments.data.end = segments.data.end + 16;
+        }
+
+        return segments;
+    }
+
+
 
     updateErrorsList() {
         const errorsList = document.getElementById('errors-list');
@@ -607,7 +644,7 @@ class DeepWebUI {
         }
     }
 
-    createCodeMemoryLine(address) {
+        createCodeMemoryLine(address) {
         const value = this.simulator.memory[address];
         const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
         const isPC = (address === this.simulator.registers[15]);
@@ -653,7 +690,11 @@ class DeepWebUI {
     }
 
     isCodeAddress(address) {
-        return address >= this.segmentInfo.code.start && address < this.segmentInfo.code.end;
+        if (!this.segmentInfo || !this.segmentInfo.code) {
+            return false;
+        }
+        
+        return address >= this.segmentInfo.code.start && address <= this.segmentInfo.code.end;
     }
 
     getSourceForAddress(address) {
@@ -662,8 +703,12 @@ class DeepWebUI {
         const listing = this.currentAssemblyResult.listing;
         
         for (const item of listing) {
-            if (item.address === address && item.instruction !== undefined) {
-                return item.line ? item.line.trim() : '';
+            if (item.address === address) {
+                if (item.instruction !== undefined) {
+                    return item.line ? item.line.trim() : '';
+                } else if (item.line && (item.line.includes('.word') || item.line.includes('.org'))) {
+                    return item.line.trim();
+                }
             }
         }
         
