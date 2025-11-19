@@ -31,10 +31,15 @@
     </div>
     
 <div class="controls">
-    <div class="controls-left">
-        <button id="assemble-btn">Assemble</button>
-        <button id="load-example">Load Fibonacci Example</button>
-    </div>
+<div class="controls-left">
+    <button id="assemble-btn">Assemble</button>
+    <label for="example-select">Load Example:</label>
+    <select id="example-select" style="width: 180px;">
+        <option value="">-- Choose Example --</option>
+        <option value="fibonacci">Fibonacci Sequence</option>
+        <option value="far_call">Far Call & Long Jump</option>
+    </select>
+</div>
     <div class="controls-right">
         <button id="run-btn" disabled>Run</button>
         <button id="step-btn" disabled>Step</button>
