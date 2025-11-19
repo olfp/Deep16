@@ -201,6 +201,13 @@ renderMemoryDisplay() {
     const end = Math.min(start + 64, this.ui.simulator.memory.length);
 
     let html = '';
+
+    console.log('Segment map entries around 0x20:');
+    for (let addr = 0x18; addr <= 0x28; addr++) {
+        const segment = this.ui.currentAssemblyResult.segmentMap.get(addr);
+        console.log(`  0x${addr.toString(16)}: ${segment}`);
+    }
+
     
     if (start >= end) {
         html = '<div class="memory-line">Invalid memory range</div>';
