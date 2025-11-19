@@ -109,152 +109,115 @@ class Deep16MemoryUI {
         }
     }
 
-   createMemoryLine(address) {
-        const value = this.ui.simulator.memory[address];
-        const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
-        const isPC = (address === this.ui.simulator.registers[15]);
-        const pcClass = isPC ? 'pc-marker' : '';
-        
-        // Check if this should be displayed as code
-        if (this.isCodeAddress(address)) {
-            let disasm = this.ui.disassembler.disassemble(value);
-            
-            // Enhanced jump disassembly with absolute addresses
-            if ((value >>> 12) === 0b1110) {
-                disasm = this.ui.disassembler.disassembleJumpWithAddress(value, address);
-            }
-            
-            const source = this.getSourceForAddress(address);
-            const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
-            
-            let html = `<div class="memory-line code-line ${pcClass}">`;
-            html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
-            html += `<span class="memory-bytes">${displayValue}</span>`;
-            html += `<span class="memory-disassembly">${disasm}</span>`;
-            if (source) {
-                html += `<span class="memory-source">; ${source}</span>`;
-            }
-            html += `</div>`;
-            return html;
-        } else {
-            // For data, we need to check if this is the start of a data line
-            const lineStart = address - (address % 8);
-            if (address !== lineStart) {
-                return ''; // Skip non-start addresses in data lines
-            }
-            
-            // Create a data line with 8 words
-            let html = `<div class="memory-line data-line ${pcClass}">`;
-            html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
-            
-            for (let i = 0; i < 8; i++) {
-                const dataAddr = address + i;
-                if (dataAddr >= this.ui.simulator.memory.length) break;
-                
-                const dataValue = this.ui.simulator.memory[dataAddr];
-                const dataHex = dataValue.toString(16).padStart(4, '0').toUpperCase();
-                const dataPC = (dataAddr === this.ui.simulator.registers[15]);
-                const dataClass = dataPC ? 'pc-marker' : '';
-                const displayData = dataValue === 0xFFFF ? "----" : `0x${dataHex}`;
-                
-                html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
-            }
-            
-            // NEW: Get appropriate source comment for the data line
-            const source = this.getDataLineSource(address);
-            if (source) {
-                html += `<span class="memory-source">; ${source}</span>`;
-            }
-            
-            html += `</div>`;
-            return html;
+getDataLineSource(lineStartAddress) {
+    if (!this.ui.currentAssemblyResult) return '';
+    
+    const listing = this.ui.currentAssemblyResult.listing;
+    
+    // Strategy 1: Check if the line start address has an exact source
+    const exactSource = this.getExactSourceForAddress(lineStartAddress);
+    if (exactSource) {
+        return exactSource;
+    }
+    
+    // Strategy 2: Check if any address in this line has a data definition
+    for (let i = 0; i < 8; i++) {
+        const addr = lineStartAddress + i;
+        const source = this.getExactSourceForAddress(addr);
+        if (source && (source.startsWith('.word') || source.startsWith('.byte') || source.startsWith('.space'))) {
+            return source;
         }
     }
+    
+    // Strategy 3: Find the nearest label before this line
+    return this.findNearestLabel(lineStartAddress);
+}
 
-    // NEW: Get appropriate source for data lines
-    getDataLineSource(lineStartAddress) {
-        if (!this.ui.currentAssemblyResult) return '';
-        
-        const listing = this.ui.currentAssemblyResult.listing;
-        
-        // Strategy 1: Check if all addresses in this line have the same source
-        const lineSources = new Set();
-        for (let i = 0; i < 8; i++) {
-            const addr = lineStartAddress + i;
-            const source = this.getExactSourceForAddress(addr);
-            if (source) {
-                lineSources.add(source);
+// NEW: Get exact source for a specific address - FIXED VERSION
+getExactSourceForAddress(address) {
+    if (!this.ui.currentAssemblyResult) return '';
+    
+    const listing = this.ui.currentAssemblyResult.listing;
+    
+    // First, look for exact address matches with data definitions
+    for (const item of listing) {
+        if (item.address === address) {
+            const line = item.line ? item.line.trim() : '';
+            
+            // Return data definitions
+            if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
+                return line;
+            }
+            
+            // For code, return the instruction
+            if (item.instruction !== undefined) {
+                return line;
+            }
+            
+            // For org directives, return them
+            if (line.startsWith('.org')) {
+                return line;
             }
         }
-        
-        // If all addresses have the same source, use it
-        if (lineSources.size === 1) {
-            return Array.from(lineSources)[0];
-        }
-        
-        // Strategy 2: Find the most common source in this line
-        const sourceCounts = new Map();
-        for (let i = 0; i < 8; i++) {
-            const addr = lineStartAddress + i;
-            const source = this.getExactSourceForAddress(addr);
-            if (source) {
-                sourceCounts.set(source, (sourceCounts.get(source) || 0) + 1);
-            }
-        }
-        
-        let mostCommonSource = '';
-        let maxCount = 0;
-        for (const [source, count] of sourceCounts) {
-            if (count > maxCount) {
-                mostCommonSource = source;
-                maxCount = count;
-            }
-        }
-        
-        if (mostCommonSource && maxCount >= 4) { // At least half the line
-            return mostCommonSource;
-        }
-        
-        // Strategy 3: Use the label or data definition at the line start
-        const lineStartSource = this.getExactSourceForAddress(lineStartAddress);
-        if (lineStartSource) {
-            return lineStartSource;
-        }
-        
-        // Strategy 4: Find the nearest label before this line
-        return this.findNearestLabel(lineStartAddress);
     }
+    
+    return '';
+}
 
-    // NEW: Get exact source for a specific address
-    getExactSourceForAddress(address) {
-        if (!this.ui.currentAssemblyResult) return '';
-        
-        const listing = this.ui.currentAssemblyResult.listing;
-        
-        for (const item of listing) {
-            if (item.address === address && item.line) {
-                const line = item.line.trim();
-                
-                // Skip org directives for data lines
-                if (line.startsWith('.org')) {
-                    continue;
-                }
-                
-                // Return data definitions and labels
-                if (line.startsWith('.word') || line.startsWith('.byte') || 
-                    line.startsWith('.space') || line.endsWith(':')) {
-                    return line;
-                }
-                
-                // For code, return the instruction
-                if (item.instruction !== undefined) {
-                    return line;
-                }
+getDataLineSource(lineStartAddress) {
+    if (!this.ui.currentAssemblyResult) return '';
+    
+    const listing = this.ui.currentAssemblyResult.listing;
+    
+    // Strategy 1: Check if the line start address has an exact source
+    const exactSource = this.getExactSourceForAddress(lineStartAddress);
+    if (exactSource) {
+        return exactSource;
+    }
+    
+    // Strategy 2: Check if any address in this line has a data definition
+    for (let i = 0; i < 8; i++) {
+        const addr = lineStartAddress + i;
+        const source = this.getExactSourceForAddress(addr);
+        if (source && (source.startsWith('.word') || source.startsWith('.byte') || source.startsWith('.space'))) {
+            return source;
+        }
+    }
+    
+    // Strategy 3: Find the nearest label before this line
+    return this.findNearestLabel(lineStartAddress);
+}
+
+// NEW: Get exact source for a specific address - FIXED VERSION
+getExactSourceForAddress(address) {
+    if (!this.ui.currentAssemblyResult) return '';
+    
+    const listing = this.ui.currentAssemblyResult.listing;
+    
+    // First, look for exact address matches with data definitions
+    for (const item of listing) {
+        if (item.address === address) {
+            const line = item.line ? item.line.trim() : '';
+            
+            // Return data definitions
+            if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
+                return line;
+            }
+            
+            // For code, return the instruction
+            if (item.instruction !== undefined) {
+                return line;
+            }
+            
+            // For org directives, return them
+            if (line.startsWith('.org')) {
+                return line;
             }
         }
-        
-        return '';
     }
+    
+    return '';
+}
 
     // NEW: Find the nearest label before an address
     findNearestLabel(address) {
