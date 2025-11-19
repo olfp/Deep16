@@ -50,67 +50,67 @@ class Deep16MemoryUI {
         return segment === 'code';
     }
 
-    createMemoryLine(address) {
-        const value = this.ui.simulator.memory[address];
-        const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
-        const isPC = (address === this.ui.simulator.registers[15]);
-        const pcClass = isPC ? 'pc-marker' : '';
+createMemoryLine(address) {
+    const value = this.ui.simulator.memory[address];
+    const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+    const isPC = (address === this.ui.simulator.registers[15]);
+    const pcClass = isPC ? 'pc-marker' : '';
+    
+    // Check if this should be displayed as code
+    if (this.isCodeAddress(address)) {
+        let disasm = this.ui.disassembler.disassemble(value);
         
-        // Check if this should be displayed as code
-        if (this.isCodeAddress(address)) {
-            let disasm = this.ui.disassembler.disassemble(value);
-            
-            // Enhanced jump disassembly with absolute addresses
-            if ((value >>> 12) === 0b1110) {
-                disasm = this.ui.disassembler.disassembleJumpWithAddress(value, address);
-            }
-            
-            const source = this.getSourceForAddress(address);
-            const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
-            
-            let html = `<div class="memory-line code-line ${pcClass}">`;
-            html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
-            html += `<span class="memory-bytes">${displayValue}</span>`;
-            html += `<span class="memory-disassembly">${disasm}</span>`;
-            if (source) {
-                html += `<span class="memory-source">; ${source}</span>`;
-            }
-            html += `</div>`;
-            return html;
-        } else {
-            // For data, we need to check if this is the start of a data line
-            const lineStart = address - (address % 8);
-            if (address !== lineStart) {
-                return ''; // Skip non-start addresses in data lines
-            }
-            
-            // Create a data line with 8 words
-            let html = `<div class="memory-line data-line ${pcClass}">`;
-            html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
-            
-            for (let i = 0; i < 8; i++) {
-                const dataAddr = address + i;
-                if (dataAddr >= this.ui.simulator.memory.length) break;
-                
-                const dataValue = this.ui.simulator.memory[dataAddr];
-                const dataHex = dataValue.toString(16).padStart(4, '0').toUpperCase();
-                const dataPC = (dataAddr === this.ui.simulator.registers[15]);
-                const dataClass = dataPC ? 'pc-marker' : '';
-                const displayData = dataValue === 0xFFFF ? "----" : `0x${dataHex}`;
-                
-                html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
-            }
-            
-            // Get source for data line
-            const source = this.getDataLineSource(address);
-            if (source) {
-                html += `<span class="memory-source">; ${source}</span>`;
-            }
-            
-            html += `</div>`;
-            return html;
+        // Enhanced jump disassembly with absolute addresses
+        if ((value >>> 12) === 0b1110) {
+            disasm = this.ui.disassembler.disassembleJumpWithAddress(value, address);
         }
+        
+        const source = this.getSourceForAddress(address);
+        const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
+        
+        let html = `<div class="memory-line code-line ${pcClass}">`;
+        html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`; // 5 hex digits
+        html += `<span class="memory-bytes">${displayValue}</span>`;
+        html += `<span class="memory-disassembly">${disasm}</span>`;
+        if (source) {
+            html += `<span class="memory-source">; ${source}</span>`;
+        }
+        html += `</div>`;
+        return html;
+    } else {
+        // For data, we need to check if this is the start of a data line
+        const lineStart = address - (address % 8);
+        if (address !== lineStart) {
+            return ''; // Skip non-start addresses in data lines
+        }
+        
+        // Create a data line with 8 words
+        let html = `<div class="memory-line data-line ${pcClass}">`;
+        html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`; // 5 hex digits
+        
+        for (let i = 0; i < 8; i++) {
+            const dataAddr = address + i;
+            if (dataAddr >= this.ui.simulator.memory.length) break;
+            
+            const dataValue = this.ui.simulator.memory[dataAddr];
+            const dataHex = dataValue.toString(16).padStart(4, '0').toUpperCase();
+            const dataPC = (dataAddr === this.ui.simulator.registers[15]);
+            const dataClass = dataPC ? 'pc-marker' : '';
+            const displayData = dataValue === 0xFFFF ? "----" : `0x${dataHex}`;
+            
+            html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
+        }
+        
+        // Get source for data line
+        const source = this.getDataLineSource(address);
+        if (source) {
+            html += `<span class="memory-source">; ${source}</span>`;
+        }
+        
+        html += `</div>`;
+        return html;
     }
+}
 
     getSourceForAddress(address) {
         if (!this.ui.currentAssemblyResult) return '';
@@ -350,91 +350,91 @@ getExactSourceForAddress(address) {
         }, 10);
     }
 
-    updateRecentMemoryDisplay() {
-        const recentDisplay = document.getElementById('recent-memory-display');
-        if (!recentDisplay) return;
+updateRecentMemoryDisplay() {
+    const recentDisplay = document.getElementById('recent-memory-display');
+    if (!recentDisplay) return;
+    
+    if (!this.ui.simulator.getRecentMemoryView) {
+        recentDisplay.innerHTML = 'Memory view not available';
+        return;
+    }
+    
+    const memoryView = this.ui.simulator.getRecentMemoryView();
+    
+    if (!memoryView) {
+        recentDisplay.innerHTML = 'No memory operations yet';
+        return;
+    }
+    
+    const { baseAddress, memoryWords, accessInfo } = memoryView;
+    
+    let html = '';
+    
+    // Create 4 lines of 8 words each
+    for (let line = 0; line < 4; line++) {
+        const lineStart = line * 8;
+        const lineEnd = lineStart + 8;
+        const lineAddress = baseAddress + lineStart;
         
-        if (!this.ui.simulator.getRecentMemoryView) {
-            recentDisplay.innerHTML = 'Memory view not available';
-            return;
-        }
+        html += `<div class="recent-memory-line">`;
+        html += `<span class="recent-memory-address">0x${lineAddress.toString(16).padStart(5, '0').toUpperCase()}</span>`; // 5 hex digits
+        html += `<span class="recent-memory-data">`;
         
-        const memoryView = this.ui.simulator.getRecentMemoryView();
-        
-        if (!memoryView) {
-            recentDisplay.innerHTML = 'No memory operations yet';
-            return;
-        }
-        
-        const { baseAddress, memoryWords, accessInfo } = memoryView;
-        
-        let html = '';
-        
-        // Create 4 lines of 8 words each
-        for (let line = 0; line < 4; line++) {
-            const lineStart = line * 8;
-            const lineEnd = lineStart + 8;
-            const lineAddress = baseAddress + lineStart;
+        for (let i = lineStart; i < lineEnd && i < memoryWords.length; i++) {
+            const word = memoryWords[i];
+            const valueHex = '0x' + word.value.toString(16).padStart(4, '0').toUpperCase();
             
-            html += `<div class="recent-memory-line">`;
-            html += `<span class="recent-memory-address">0x${lineAddress.toString(16).padStart(4, '0').toUpperCase()}</span>`;
-            html += `<span class="recent-memory-data">`;
+            let wordClass = 'recent-memory-word';
             
-            for (let i = lineStart; i < lineEnd && i < memoryWords.length; i++) {
-                const word = memoryWords[i];
-                const valueHex = '0x' + word.value.toString(16).padStart(4, '0').toUpperCase();
-                
-                let wordClass = 'recent-memory-word';
-                
-                // RULE 2: Highlight base address and accessed address for LD/ST with offset
-                if (accessInfo.offset !== 0) {
-                    if (word.isBase) {
-                        wordClass += ' recent-memory-base';
-                    } else if (word.isCurrent) {
-                        wordClass += ' recent-memory-current';
-                    }
-                } 
-                // RULE 1: Only highlight accessed address for zero-offset accesses
-                else if (word.isCurrent) {
+            // RULE 2: Highlight base address and accessed address for LD/ST with offset
+            if (accessInfo.offset !== 0) {
+                if (word.isBase) {
+                    wordClass += ' recent-memory-base';
+                } else if (word.isCurrent) {
                     wordClass += ' recent-memory-current';
                 }
-                
-                html += `<span class="${wordClass}" title="Address: 0x${word.address.toString(16).padStart(4, '0').toUpperCase()}">${valueHex}</span>`;
+            } 
+            // RULE 1: Only highlight accessed address for zero-offset accesses
+            else if (word.isCurrent) {
+                wordClass += ' recent-memory-current';
             }
             
-            html += `</span></div>`;
+            html += `<span class="${wordClass}" title="Address: 0x${word.address.toString(16).padStart(5, '0').toUpperCase()}">${valueHex}</span>`;
         }
         
-        // Add access information
-        const accessType = accessInfo.type === 'LD' ? 'Load' : 'Store';
-        const offsetInfo = accessInfo.offset !== 0 ? 
-            ` (base: 0x${accessInfo.baseAddress.toString(16).padStart(4, '0').toUpperCase()} + ${accessInfo.offset})` : 
-            '';
-        
-        html += `<div class="recent-memory-info">${accessType} at 0x${accessInfo.address.toString(16).padStart(4, '0').toUpperCase()}${offsetInfo}</div>`;
-        
-        recentDisplay.innerHTML = html;
+        html += `</span></div>`;
     }
+    
+    // Add access information with 20-bit addresses
+    const accessType = accessInfo.type === 'LD' ? 'Load' : 'Store';
+    const offsetInfo = accessInfo.offset !== 0 ? 
+        ` (base: 0x${accessInfo.baseAddress.toString(16).padStart(5, '0').toUpperCase()} + ${accessInfo.offset})` : 
+        '';
+    
+    html += `<div class="recent-memory-info">${accessType} at 0x${accessInfo.address.toString(16).padStart(5, '0').toUpperCase()}${offsetInfo}</div>`;
+    
+    recentDisplay.innerHTML = html;
+}
 
-    // Add this method to handle memory address changes
-    handleMemoryAddressChange() {
-        const input = document.getElementById('memory-start-address');
-        if (!input) return;
-        
-        let value = input.value.trim();
-        
-        // Remove 0x prefix if present and parse
-        if (value.startsWith('0x')) {
-            value = value.substring(2);
-        }
-        
-        const address = parseInt(value, 16);
-        if (!isNaN(address) && address >= 0 && address < this.ui.simulator.memory.length) {
-            this.ui.memoryStartAddress = address;
-            this.updateMemoryDisplay();
-        } else {
-            // Reset to current value if invalid
-            input.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(4, '0');
-        }
+// Update memory address change handler for 20-bit addresses
+handleMemoryAddressChange() {
+    const input = document.getElementById('memory-start-address');
+    if (!input) return;
+    
+    let value = input.value.trim();
+    
+    // Remove 0x prefix if present and parse
+    if (value.startsWith('0x')) {
+        value = value.substring(2);
     }
+    
+    const address = parseInt(value, 16);
+    if (!isNaN(address) && address >= 0 && address < this.ui.simulator.memory.length) {
+        this.ui.memoryStartAddress = address;
+        this.updateMemoryDisplay();
+    } else {
+        // Reset to current value if invalid
+        input.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(5, '0'); // 5 hex digits
+    }
+}
 }
