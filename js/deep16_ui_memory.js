@@ -41,15 +41,19 @@ class Deep16MemoryUI {
         return segments;
     }
 
-    isCodeAddress(address) {
-        if (!this.ui.currentAssemblyResult || !this.ui.currentAssemblyResult.segmentMap) {
-            return false;
-        }
-        
-        const segment = this.ui.currentAssemblyResult.segmentMap.get(address);
-        return segment === 'code';
+// Add debugging to isCodeAddress method
+isCodeAddress(address) {
+    if (!this.ui.currentAssemblyResult || !this.ui.currentAssemblyResult.segmentMap) {
+        console.log(`isCodeAddress(${address.toString(16)}): no segment map`);
+        return false;
     }
-
+    
+    const segment = this.ui.currentAssemblyResult.segmentMap.get(address);
+    const isCode = segment === 'code';
+    console.log(`isCodeAddress(0x${address.toString(16)}): segment=${segment}, isCode=${isCode}`);
+    return isCode;
+}
+    
 createMemoryLine(address) {
     const value = this.ui.simulator.memory[address];
     const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
