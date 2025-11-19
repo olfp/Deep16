@@ -5,127 +5,155 @@ class Deep16Assembler {
         this.symbols = {};
     }
 
-    assemble(source) {
-        this.labels = {};
-        this.symbols = {};
-        const errors = [];
-        const memoryChanges = [];
-        const assemblyListing = [];
-        const segmentMap = new Map();
-        let currentSegment = 'code'; // Default segment
-        let address = 0;
+assemble(source) {
+    this.labels = {};
+    this.symbols = {};
+    const errors = [];
+    const memoryChanges = [];
+    const assemblyListing = [];
+    const segmentMap = new Map();
+    let currentSegment = 'code'; // Default segment
+    let address = 0;
 
-        const lines = source.split('\n');
-        
-        // First pass: collect labels, segments, and calculate addresses
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line || line.startsWith(';')) continue;
+    console.log('=== ASSEMBLER FIRST PASS ===');
+    const lines = source.split('\n');
+    
+    // First pass: collect labels, segments, and calculate addresses
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line || line.startsWith(';')) continue;
 
-            try {
-                if (line.startsWith('.org')) {
-                    const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
-                    address = orgValue;
-                    // Keep current segment type
-                } else if (line.startsWith('.code')) {
-                    currentSegment = 'code';
-                } else if (line.startsWith('.data')) {
-                    currentSegment = 'data';
-                } else if (line.endsWith(':')) {
-                    const label = line.slice(0, -1).trim();
-                    this.labels[label] = address;
-                    this.symbols[label] = address;
-                    segmentMap.set(address, currentSegment);
-                } else if (line.startsWith('.word')) {
-                    // Data directive - mark as data
-                    const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
-                    for (const value of values) {
-                        segmentMap.set(address, 'data');
-                        address++;
-                    }
-                } else if (!this.isDirective(line)) {
-                    segmentMap.set(address, currentSegment);
+        try {
+            if (line.startsWith('.org')) {
+                const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
+                const oldAddress = address;
+                address = orgValue;
+                console.log(`ORG: ${line} -> address changed from 0x${oldAddress.toString(16)} to 0x${address.toString(16)}, segment=${currentSegment}`);
+            } else if (line.startsWith('.code')) {
+                currentSegment = 'code';
+                console.log(`SEGMENT: ${line} -> switching to code segment`);
+            } else if (line.startsWith('.data')) {
+                currentSegment = 'data';
+                console.log(`SEGMENT: ${line} -> switching to data segment`);
+            } else if (line.endsWith(':')) {
+                const label = line.slice(0, -1).trim();
+                this.labels[label] = address;
+                this.symbols[label] = address;
+                segmentMap.set(address, currentSegment);
+                console.log(`LABEL: ${label} at 0x${address.toString(16)}, segment=${currentSegment}`);
+            } else if (line.startsWith('.word')) {
+                // Data directive - mark as data
+                const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
+                console.log(`DATA: ${line} -> ${values.length} words at 0x${address.toString(16)}`);
+                for (const value of values) {
+                    segmentMap.set(address, 'data');
+                    console.log(`  DATA WORD: 0x${address.toString(16)} = 0x${value.toString(16)}`);
                     address++;
                 }
-            } catch (error) {
-                errors.push(`Line ${i + 1}: ${error.message}`);
-            }
-        }
-
-        // Second pass: generate machine code
-        address = 0;
-        currentSegment = 'code';
-        
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            const originalLine = lines[i];
-            
-            if (!line || line.startsWith(';')) {
-                assemblyListing.push({ line: originalLine });
-                continue;
-            }
-
-            try {
-                if (line.startsWith('.org')) {
-                    const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
-                    address = orgValue;
-                    assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
-                } else if (line.startsWith('.code')) {
-                    currentSegment = 'code';
-                    assemblyListing.push({ line: originalLine, segment: currentSegment });
-                } else if (line.startsWith('.data')) {
-                    currentSegment = 'data';
-                    assemblyListing.push({ line: originalLine, segment: currentSegment });
-                } else if (line.endsWith(':')) {
-                    assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
-                } else if (line.startsWith('.word')) {
-                    const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
-                    for (const value of values) {
-                        memoryChanges.push({ address: address, value: value & 0xFFFF, segment: 'data' });
-                        assemblyListing.push({ 
-                            address: address, 
-                            instruction: value,
-                            line: originalLine,
-                            segment: 'data'
-                        });
-                        address++;
-                    }
-                } else {
-                    const instruction = this.encodeInstruction(line, address, i + 1);
-                    if (instruction !== null) {
-                        memoryChanges.push({ address: address, value: instruction, segment: currentSegment });
-                        assemblyListing.push({ 
-                            address: address, 
-                            instruction: instruction,
-                            line: originalLine,
-                            segment: currentSegment
-                        });
-                        address++;
-                    } else {
-                        assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
-                    }
-                }
-            } catch (error) {
-                errors.push(`Line ${i + 1}: ${error.message}`);
-                assemblyListing.push({ 
-                    address: address,
-                    error: error.message,
-                    line: originalLine,
-                    segment: currentSegment
-                });
+            } else if (!this.isDirective(line)) {
+                segmentMap.set(address, currentSegment);
+                console.log(`CODE: ${line} -> instruction at 0x${address.toString(16)}, segment=${currentSegment}`);
                 address++;
             }
+        } catch (error) {
+            errors.push(`Line ${i + 1}: ${error.message}`);
+        }
+    }
+
+    console.log('=== ASSEMBLER SECOND PASS ===');
+    // Second pass: generate machine code
+    address = 0;
+    currentSegment = 'code';
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        const originalLine = lines[i];
+        
+        if (!line || line.startsWith(';')) {
+            assemblyListing.push({ line: originalLine });
+            continue;
         }
 
-        return {
-            success: errors.length === 0,
-            memoryChanges: memoryChanges,
-            symbols: this.symbols,
-            errors: errors,
-            listing: assemblyListing,
-            segmentMap: segmentMap
-        };
+        try {
+            if (line.startsWith('.org')) {
+                const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
+                address = orgValue;
+                assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
+                console.log(`ORG (pass2): setting address to 0x${address.toString(16)}`);
+            } else if (line.startsWith('.code')) {
+                currentSegment = 'code';
+                assemblyListing.push({ line: originalLine, segment: currentSegment });
+                console.log(`SEGMENT (pass2): switching to code`);
+            } else if (line.startsWith('.data')) {
+                currentSegment = 'data';
+                assemblyListing.push({ line: originalLine, segment: currentSegment });
+                console.log(`SEGMENT (pass2): switching to data`);
+            } else if (line.endsWith(':')) {
+                assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
+                console.log(`LABEL (pass2): ${line} at 0x${address.toString(16)}`);
+            } else if (line.startsWith('.word')) {
+                const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
+                console.log(`DATA (pass2): ${values.length} words at 0x${address.toString(16)}`);
+                for (const value of values) {
+                    memoryChanges.push({ address: address, value: value & 0xFFFF, segment: 'data' });
+                    assemblyListing.push({ 
+                        address: address, 
+                        instruction: value,
+                        line: originalLine,
+                        segment: 'data'
+                    });
+                    console.log(`  DATA STORE: memory[0x${address.toString(16)}] = 0x${value.toString(16)}`);
+                    address++;
+                }
+            } else {
+                const instruction = this.encodeInstruction(line, address, i + 1);
+                if (instruction !== null) {
+                    memoryChanges.push({ address: address, value: instruction, segment: currentSegment });
+                    assemblyListing.push({ 
+                        address: address, 
+                        instruction: instruction,
+                        line: originalLine,
+                        segment: currentSegment
+                    });
+                    console.log(`CODE STORE: memory[0x${address.toString(16)}] = 0x${instruction.toString(16).padStart(4, '0')} from: ${line}`);
+                    address++;
+                } else {
+                    assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
+                    console.log(`CODE SKIP: no instruction generated for: ${line}`);
+                }
+            }
+        } catch (error) {
+            errors.push(`Line ${i + 1}: ${error.message}`);
+            assemblyListing.push({ 
+                address: address,
+                error: error.message,
+                line: originalLine,
+                segment: currentSegment
+            });
+            address++;
+        }
     }
+
+    console.log('=== ASSEMBLER FINAL RESULTS ===');
+    console.log('Segment map entries:');
+    const sortedSegmentEntries = Array.from(segmentMap.entries()).sort((a, b) => a[0] - b[0]);
+    for (const [addr, segment] of sortedSegmentEntries) {
+        console.log(`  0x${addr.toString(16).padStart(4, '0')}: ${segment}`);
+    }
+    
+    console.log('Symbols:', this.symbols);
+    console.log('Memory changes:', memoryChanges.length);
+    console.log('Errors:', errors.length);
+
+    return {
+        success: errors.length === 0,
+        memoryChanges: memoryChanges,
+        symbols: this.symbols,
+        errors: errors,
+        listing: assemblyListing,
+        segmentMap: segmentMap
+    };
+}
 
     isDirective(line) {
         return line.startsWith('.org') || line.startsWith('.word');
