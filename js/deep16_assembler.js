@@ -568,7 +568,7 @@ encodeMemory(parts, isStore, address, lineNumber) {
         console.log(`Joined parts: "${joinedParts}"`);
         
         if (joinedParts.includes('[') && joinedParts.includes(']')) {
-            // Bracket syntax: LD R1, [R2+5] or ST R1, [R2]
+            // Bracket syntax: LD R1, [R2+5] or ST R1, [R2] or LD R1, [R2 + 5]
             console.log("Detected bracket syntax");
             
             // Find the part with brackets (usually parts[2] but could be later if commas are involved)
@@ -586,8 +586,9 @@ encodeMemory(parts, isStore, address, lineNumber) {
             const bracketContent = bracketMatch[1];
             console.log(`Bracket content: "${bracketContent}"`);
             
-            // Parse Rb and offset
-            const plusParts = bracketContent.split('+');
+            // Parse Rb and offset - handle spaces around plus sign
+            // Split on plus with optional whitespace: "R2 + 5", "R2+5", "R2 +5", "R2+ 5"
+            const plusParts = bracketContent.split(/\s*\+\s*/);
             rb = this.parseRegister(plusParts[0].trim());
             if (plusParts.length > 1) {
                 offset = this.parseImmediate(plusParts[1].trim());
