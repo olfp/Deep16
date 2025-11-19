@@ -852,8 +852,8 @@ fibonacci_results:
             exampleTitle = "Fibonacci example";
             break;
 
-        case 'far_call':
-            exampleCode = `; Deep16 (深十六) Far Call Example
+case 'far_call':
+    exampleCode = `; Deep16 (深十六) Far Call Example
 ; Demonstrates inter-segment procedure calls
 
 .org 0x0000
@@ -864,24 +864,29 @@ main:
     MOV  R13, R0      ; SP = 0x7F00 (grows downward)
     SRD  R13          ; Set SR=13 and enable dual registers (SP+FP use SS)
     
-    LSI  R1, 0        ; Initialize some test data
-    LSI  R2, 100
-    LSI  R3, 200
+    LDI  100          ; Initialize some test data
+    MOV  R1, R0
+    LDI  200
+    MOV  R2, R0
+    LDI  300  
+    MOV  R3, R0
     
     ; Save current context for return
     MVS  R8, CS       ; Save current CS to R8
     MOV  R9, PC, 2    ; Save return address to R9
     
     ; Setup far call to segment 0x1000
-    LSI  R10, 0x10    ; Target CS = 0x1000
-    SL   R10, 8       ; Shift to upper byte (R10 = 0x1000)
-    LSI  R11, 0x0200  ; Target PC = 0x0200
+    LDI  0x1000       ; Target CS = 0x1000
+    MOV  R10, R0
+    LDI  0x0200       ; Target PC = 0x0200
+    MOV  R11, R0
     
     ; Perform far jump (JML uses R10 for CS, R11 for PC)
     JML  R10          ; Jump to CS=R10, PC=R11
     
     ; Execution continues here after far return
-    ADD  R1, 50       ; Modify data after return
+    LDI  50
+    ADD  R1, R0       ; Modify data after return
     ST   R1, R0, 0    ; Store result
     
     HALT
@@ -897,17 +902,20 @@ far_function:
     ST   R1, R13, 2   ; Save R1 at [SP+2]
     
     ; Far function body
-    ADD  R1, R2       ; R1 = R1 + R2 (100)
-    ADD  R1, R3       ; R1 = R1 + R3 (300)
-    ST   R1, R0, 0x100 ; Store intermediate result
+    ADD  R1, R2       ; R1 = R1 + R2 (100 + 200 = 300)
+    ADD  R1, R3       ; R1 = R1 + R3 (300 + 300 = 600)
+    LDI  0x0100
+    ST   R1, R0, 0    ; Store intermediate result
     
     ; Call another far function in same segment
     MOV  R14, PC, 2   ; Save return address in LR (R14)
-    LSI  R11, 0x0300  ; Target PC for nested call in R11
+    LDI  0x0300       ; Target PC for nested call
+    MOV  R11, R0
     JML  R10          ; CS=R10 (0x1000), PC=R11 (0x0300)
     
     ; Continue after nested call returns
-    ADD  R1, 50       ; R1 = 350 + 50 = 400
+    LDI  50
+    ADD  R1, R0       ; R1 = 650 + 50 = 700
     
     ; Far function epilogue - restore from stack frame
     LD   R1, R13, 2   ; Restore R1 from [SP+2]
@@ -929,7 +937,8 @@ nested_far_function:
     ST   R14, R13, 0  ; Save return address at [SP+0]
     
     ; Nested function body
-    ADD  R1, 50       ; R1 = 300 + 50 = 350
+    LDI  50
+    ADD  R1, R0       ; R1 = 600 + 50 = 650
     
     ; Nested function epilogue
     LD   R14, R13, 0  ; Restore return address from [SP+0]
@@ -942,8 +951,9 @@ nested_far_function:
 .org 0x0200
 data_buffer:
     .word 0`;
-            exampleTitle = "Far call example";
-            break;
+    exampleTitle = "Far call example";
+    break;
+
 
         default:
             return; // No example selected
