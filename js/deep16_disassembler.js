@@ -87,36 +87,38 @@ disassembleControlFlow(instruction) {
     
     return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
 }
-    // NEW: Disassemble Single Operand Instructions (SOP)
-    disassembleSOP(instruction) {
-        const type4 = (instruction >>> 4) & 0xF;
-        const rx = instruction & 0xF;
-        
-        switch (type4) {
-            case 0b0000: return `SWB ${this.registerNames[rx]}`;
-            case 0b0001: return `INV ${this.registerNames[rx]}`;
-            case 0b0010: return `NEG ${this.registerNames[rx]}`;
-            case 0b0100: return `JML ${this.registerNames[rx]}`;
-            case 0b1000: return `SRS ${this.registerNames[rx]}`;
-            case 0b1001: return `SRD ${this.registerNames[rx]}`;
-            case 0b1010: return `ERS ${this.registerNames[rx]}`;
-            case 0b1011: return `ERD ${this.registerNames[rx]}`;
-            case 0b1100: 
-                const setImm = instruction & 0xF;
-                return `SET #0x${setImm.toString(16).toUpperCase()}`;
-            case 0b1101:
-                const clrImm = instruction & 0xF;
-                return `CLR #0x${clrImm.toString(16).toUpperCase()}`;
-            case 0b1110:
-                const set2Imm = instruction & 0xF;
-                return `SET2 #0x${set2Imm.toString(16).toUpperCase()}`;
-            case 0b1111:
-                const clr2Imm = instruction & 0xF;
-                return `CLR2 #0x${clr2Imm.toString(16).toUpperCase()}`;
-            default:
-                return `SOP??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
-        }
+// In deep16_disassembler.js - Fix disassembleSOP method
+disassembleSOP(instruction) {
+    const type4 = (instruction >>> 4) & 0xF;
+    const rx = instruction & 0xF;
+    
+    console.log(`SOP instruction: 0x${instruction.toString(16)}, type4: ${type4.toString(2)}, rx: ${rx}`);
+    
+    switch (type4) {
+        case 0b0000: return `SWB ${this.registerNames[rx]}`;
+        case 0b0001: return `INV ${this.registerNames[rx]}`;
+        case 0b0010: return `NEG ${this.registerNames[rx]}`;
+        case 0b0100: return `JML ${this.registerNames[rx]}`;  // This should be correct
+        case 0b1000: return `SRS ${this.registerNames[rx]}`;
+        case 0b1001: return `SRD ${this.registerNames[rx]}`;
+        case 0b1010: return `ERS ${this.registerNames[rx]}`;
+        case 0b1011: return `ERD ${this.registerNames[rx]}`;
+        case 0b1100: 
+            const setImm = instruction & 0xF;
+            return `SET #0x${setImm.toString(16).toUpperCase()}`;
+        case 0b1101:
+            const clrImm = instruction & 0xF;
+            return `CLR #0x${clrImm.toString(16).toUpperCase()}`;
+        case 0b1110:
+            const set2Imm = instruction & 0xF;
+            return `SET2 #0x${set2Imm.toString(16).toUpperCase()}`;
+        case 0b1111:
+            const clr2Imm = instruction & 0xF;
+            return `CLR2 #0x${clr2Imm.toString(16).toUpperCase()}`;
+        default:
+            return `SOP??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
     }
+}
 
     // NEW: Disassemble MVS instruction
     disassembleMVS(instruction) {
