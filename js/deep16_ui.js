@@ -1026,7 +1026,7 @@ main:
     
     ; Save current context for return
     MVS  R8, CS       ; Save current CS to R8
-    MOV  R9, PC, 2    ; Save return address to R9
+    MOV  R9, PC, 1    ; Save return address to R9
     
     ; Setup far call to segment 0x1000
     LDI  0x1000       ; Target CS = 0x1000
