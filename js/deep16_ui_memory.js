@@ -159,8 +159,9 @@ class Deep16MemoryUI {
 
     updateMemoryDisplay() {
         const memoryDisplay = document.getElementById('memory-display');
+        if (!memoryDisplay) return;
         
-        const start = this.ui.memoryStartAddress;
+        const start = this.ui.memoryStartAddress || 0;
         const end = Math.min(start + 64, this.ui.simulator.memory.length);
 
         // Check if current PC is outside the visible range
@@ -170,7 +171,10 @@ class Deep16MemoryUI {
         // If PC is not visible, adjust the start address to show it
         if (!pcIsVisible && currentPC < this.ui.simulator.memory.length) {
             this.ui.memoryStartAddress = Math.max(0, currentPC - 8);
-            document.getElementById('memory-start-address').value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(4, '0');
+            const startAddressInput = document.getElementById('memory-start-address');
+            if (startAddressInput) {
+                startAddressInput.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(4, '0');
+            }
         }
 
         this.renderMemoryDisplay();
@@ -183,7 +187,9 @@ class Deep16MemoryUI {
 
     renderMemoryDisplay() {
         const memoryDisplay = document.getElementById('memory-display');
-        const start = this.ui.memoryStartAddress;
+        if (!memoryDisplay) return;
+        
+        const start = this.ui.memoryStartAddress || 0;
         const end = Math.min(start + 64, this.ui.simulator.memory.length);
 
         let html = '';
@@ -269,6 +275,11 @@ class Deep16MemoryUI {
                 if (line.startsWith('.org')) {
                     return line;
                 }
+                
+                // For labels, return them
+                if (line.endsWith(':')) {
+                    return line;
+                }
             }
         }
         
@@ -310,6 +321,8 @@ class Deep16MemoryUI {
 
     scrollToPC() {
         const memoryDisplay = document.getElementById('memory-display');
+        if (!memoryDisplay) return;
+        
         const pcLine = memoryDisplay.querySelector('.pc-marker');
         
         if (pcLine) {
@@ -328,6 +341,8 @@ class Deep16MemoryUI {
 
     updateMemoryDisplayHeight() {
         const memoryDisplay = document.getElementById('memory-display');
+        if (!memoryDisplay) return;
+        
         setTimeout(() => {
             memoryDisplay.style.height = 'auto';
         }, 10);
@@ -335,6 +350,13 @@ class Deep16MemoryUI {
 
     updateRecentMemoryDisplay() {
         const recentDisplay = document.getElementById('recent-memory-display');
+        if (!recentDisplay) return;
+        
+        if (!this.ui.simulator.getRecentMemoryView) {
+            recentDisplay.innerHTML = 'Memory view not available';
+            return;
+        }
+        
         const memoryView = this.ui.simulator.getRecentMemoryView();
         
         if (!memoryView) {
@@ -390,5 +412,27 @@ class Deep16MemoryUI {
         html += `<div class="recent-memory-info">${accessType} at 0x${accessInfo.address.toString(16).padStart(4, '0').toUpperCase()}${offsetInfo}</div>`;
         
         recentDisplay.innerHTML = html;
+    }
+
+    // Add this method to handle memory address changes
+    handleMemoryAddressChange() {
+        const input = document.getElementById('memory-start-address');
+        if (!input) return;
+        
+        let value = input.value.trim();
+        
+        // Remove 0x prefix if present and parse
+        if (value.startsWith('0x')) {
+            value = value.substring(2);
+        }
+        
+        const address = parseInt(value, 16);
+        if (!isNaN(address) && address >= 0 && address < this.ui.simulator.memory.length) {
+            this.ui.memoryStartAddress = address;
+            this.updateMemoryDisplay();
+        } else {
+            // Reset to current value if invalid
+            input.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(4, '0');
+        }
     }
 }
