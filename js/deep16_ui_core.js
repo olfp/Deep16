@@ -485,12 +485,12 @@ updateAssemblyListing() {
         transcript.innerHTML = html;
     }
 
-    loadExample(exampleName) {
-        let source = '';
-        
-        switch (exampleName) {
-            case 'fibonacci':
-                source = `; Deep16 (深十六) Fibonacci Example - PERFECTED
+loadExample(exampleName) {
+    let source = '';
+    
+    switch (exampleName) {
+        case 'fibonacci':
+            source = `; Deep16 (深十六) Fibonacci Example
 ; Calculate Fibonacci numbers F(0) through F(10)
 
 .org 0x0000
@@ -523,11 +523,11 @@ fib_loop:
 .org 0x0200
 fibonacci_results:
     .word 0`;
-                break;
-                
-            case 'far_call':
-                source = `; Inter-Segment Call Example
-; JML Rx: CS = R[Rx], PC = R[Rx+1]
+            break;
+            
+        case 'far_call':
+            source = `; Inter-Segment Call Example
+; Demonstrates calling between code segments
 
 ; Segment 0: Main program
 .org 0x0000
@@ -548,8 +548,8 @@ main:
     LDI  0x0020        ; R0 = function address (PC)
     MOV  R9, R0        ; R9 = target PC
     
-    ; Calculate return address RIGHT BEFORE the jump
-    MOV  LR, PC, 2     ; LR = PC + 2 (address of return_here)
+    ; Calculate return address
+    MOV  LR, PC, 1     ; LR = PC + 1 (address of return_here)
     JML  R8            ; Far call: CS=R8, PC=R9
     
 return_here:
@@ -574,19 +574,21 @@ add_func:
 ; Segment 1 continuation
 .org 0x0100
     HALT`;
-                break;
+            break;
                 
-            default:
-                return;
-        }
-        
-        this.editorElement.value = source;
-        this.addTranscriptEntry(`Loaded example: ${exampleName}`, "info");
-        this.status(`Loaded ${exampleName} example - Click 'Assemble' to compile`);
-        
-        // Reset the dropdown
-        document.getElementById('example-select').value = '';
+        default:
+            return;
     }
+    
+    this.editorElement.value = source;
+    this.addTranscriptEntry(`Loaded example: ${exampleName}`, "info");
+    this.status(`Loaded ${exampleName} example - Click 'Assemble' to compile`);
+    
+    // Switch back to editor tab
+    this.switchTab('editor');
+    
+    // Reset the dropdown
+    document.getElementById('example-select').value = '';
 }
 
 document.addEventListener('DOMContentLoaded', () => {
