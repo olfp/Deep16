@@ -255,6 +255,25 @@ isRegister(value) {
                 
                 case 'LDI':  return this.encodeLDI(parts, address, lineNumber);
                 case 'LSI':  return this.encodeLSI(parts, address, lineNumber);
+
+                case 'LDS': return this.encodeLDSSTS(parts, false, address, lineNumber);
+                case 'STS': return this.encodeLDSSTS(parts, true, address, lineNumber);
+                
+                // NEW: Complete shift operations
+                case 'SLC': return this.encodeShift(parts, 0b001, address, lineNumber);
+                case 'SRC': return this.encodeShift(parts, 0b011, address, lineNumber);
+                case 'SAC': return this.encodeShift(parts, 0b101, address, lineNumber);
+                case 'ROC': return this.encodeShift(parts, 0b111, address, lineNumber);
+                
+                // NEW: Complete SOP operations
+                case 'SWB': return this.encodeSWB(parts, address, lineNumber);
+                case 'INV': return this.encodeINV(parts, address, lineNumber);
+                case 'NEG': return this.encodeNEG(parts, address, lineNumber);
+                
+                // NEW: MUL/DIV with 32-bit mode
+                case 'MUL32': return this.encodeMUL32(parts, address, lineNumber);
+                case 'DIV32': return this.encodeDIV32(parts, address, lineNumber);
+                    
                 default: 
                     if (this.labels[mnemonic] !== undefined) {
                         return null;
@@ -368,26 +387,152 @@ isRegister(value) {
         throw new Error('MOV requires destination register and source register');
     }
 
-encodeALU(parts, aluOp, address, lineNumber) {
-    if (parts.length >= 3) {
-        const rd = this.parseRegister(parts[1]);
-        
-        if (this.isRegister(parts[2])) {
-            const rs = this.parseRegister(parts[2]);
-            // ALU2 register mode: [110][op3][Rd4][w1][i0][Rs4]
-            return 0b1100000000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | rs;
-        } else {
-            const imm = this.parseImmediate(parts[2]);
-            if (imm < 0 || imm > 15) {
-                throw new Error(`Immediate value ${imm} out of range (0-15)`);
+    // NEW: Encode LDS/STS instructions
+    encodeLDSSTS(parts, isStore, address, lineNumber) {
+        if (parts.length >= 4) {
+            const rd = this.parseRegister(parts[1]);
+            const seg = parts[2].toUpperCase();
+            const rs = this.parseRegister(parts[3]);
+            
+            const segMap = {
+                'CS': 0b00, 'DS': 0b01, 'SS': 0b10, 'ES': 0b11
+            };
+            
+            if (seg in segMap) {
+                // LDS/STS: [11110][d][seg2][Rd4][Rs4]
+                // Bits: 15-11: opcode=11110, 10: d, 9-8: seg, 7-4: Rd, 3-0: Rs
+                return 0b1111000000000000 | 
+                       (isStore ? 0x0400 : 0) | 
+                       (segMap[seg] << 8) | 
+                       (rd << 4) | 
+                       rs;
             }
-            // ALU2 immediate mode: [110][op3][Rd4][w1][i1][imm4]
-            // FIXED: Remove the extra bit that was causing the issue
-            return 0b1100000000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | (1 << 4) | imm;
+            throw new Error(`Invalid segment register: ${seg}`);
         }
+        throw new Error(`${isStore ? 'STS' : 'LDS'} requires register, segment, and base register`);
     }
-    throw new Error(`ALU operation requires two operands`);
+
+    // ENHANCED: Update shift encoding to use proper ALU format
+    encodeShift(parts, shiftType, address, lineNumber) {
+        if (parts.length >= 3) {
+            const rd = this.parseRegister(parts[1]);
+            const count = this.parseImmediate(parts[2]);
+            if (count < 0 || count > 7) {
+                throw new Error(`Shift count ${count} out of range (0-7)`);
+            }
+            // Enhanced shift encoding: [110][111][Rd4][T2][C][count3]
+            // Bits: 15-13: opcode=110, 12-10: aluOp=111, 9-6: Rd, 5-4: T2, 3: C, 2-0: count
+            const T2 = (shiftType >>> 1) & 0x3;  // Extract T2 from shiftType
+            const C = shiftType & 0x1;           // Extract C from shiftType
+            return 0b1101110000000000 | (rd << 6) | (T2 << 4) | (C << 3) | count;
+        }
+        throw new Error('Shift operation requires register and count');
+    }
+
+    // NEW: Encode SWB (Swap Bytes)
+    encodeSWB(parts, address, lineNumber) {
+        if (parts.length >= 2) {
+            const rx = this.parseRegister(parts[1]);
+            // SWB: [11111110][0000][Rx4]
+            return 0b1111111000000000 | (rx << 4);
+        }
+        throw new Error('SWB requires register operand');
+    }
+
+    // NEW: Encode INV (Invert)
+    encodeINV(parts, address, lineNumber) {
+        if (parts.length >= 2) {
+            const rx = this.parseRegister(parts[1]);
+            // INV: [11111110][0001][Rx4]
+            return 0b1111111000010000 | (rx << 4);
+        }
+        throw new Error('INV requires register operand');
+    }
+
+    // NEW: Encode NEG (Negate)
+    encodeNEG(parts, address, lineNumber) {
+        if (parts.length >= 2) {
+            const rx = this.parseRegister(parts[1]);
+            // NEG: [11111110][0010][Rx4]
+            return 0b1111111000100000 | (rx << 4);
+        }
+        throw new Error('NEG requires register operand');
+    }
+
+    // NEW: Encode MUL32 (32-bit multiplication)
+    encodeMUL32(parts, address, lineNumber) {
+        if (parts.length >= 3) {
+            const rd = this.parseRegister(parts[1]);
+            if (rd % 2 !== 0) {
+                throw new Error('MUL32 requires even destination register for 32-bit result');
+            }
+            
+            if (this.isRegister(parts[2])) {
+                const rs = this.parseRegister(parts[2]);
+                // MUL32 register mode: [110][101][Rd4][w1][i1][Rs4]
+                return 0b1101010000000000 | (rd << 6) | (1 << 5) | (1 << 4) | rs;
+            } else {
+                throw new Error('MUL32 requires register operand for 32-bit mode');
+            }
+        }
+        throw new Error('MUL32 requires destination and source registers');
+    }
+
+    // NEW: Encode DIV32 (32-bit division)
+    encodeDIV32(parts, address, lineNumber) {
+        if (parts.length >= 3) {
+            const rd = this.parseRegister(parts[1]);
+            if (rd % 2 !== 0) {
+                throw new Error('DIV32 requires even destination register for 32-bit result');
+            }
+            
+            if (this.isRegister(parts[2])) {
+                const rs = this.parseRegister(parts[2]);
+                // DIV32 register mode: [110][110][Rd4][w1][i1][Rs4]
+                return 0b1101100000000000 | (rd << 6) | (1 << 5) | (1 << 4) | rs;
+            } else {
+                throw new Error('DIV32 requires register operand for 32-bit mode');
+            }
+        }
+        throw new Error('DIV32 requires destination and source registers');
+    }
+
+    // ENHANCED: Update ALU to handle MUL/DIV with i flag
+    encodeALU(parts, aluOp, address, lineNumber) {
+        if (parts.length >= 3) {
+            const rd = this.parseRegister(parts[1]);
+            
+            // Check for 32-bit mode suffix
+            let iFlag = 0;
+            let operand = parts[2];
+            
+            if (operand.toUpperCase().endsWith(',I=1')) {
+                iFlag = 1;
+                operand = operand.substring(0, operand.length - 4);
+                
+                // For MUL/DIV 32-bit mode, rd must be even
+                if ((aluOp === 0b101 || aluOp === 0b110) && rd % 2 !== 0) {
+                    throw new Error(`32-bit ${aluOp === 0b101 ? 'MUL' : 'DIV'} requires even destination register`);
+                }
+            }
+            
+            if (this.isRegister(operand)) {
+                const rs = this.parseRegister(operand);
+                // ALU2 register mode: [110][op3][Rd4][w1][i][Rs4]
+                return 0b1100000000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | (iFlag << 4) | rs;
+            } else {
+                const imm = this.parseImmediate(operand);
+                if (imm < 0 || imm > 15) {
+                    throw new Error(`Immediate value ${imm} out of range (0-15)`);
+                }
+                // ALU2 immediate mode: [110][op3][Rd4][w1][i1][imm4]
+                return 0b1100000000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | (1 << 4) | imm;
+            }
+        }
+        throw new Error(`ALU operation requires two operands`);
+    }
 }
+
     encodeMemory(parts, isStore, address, lineNumber) {
         if (parts.length >= 4) {
             const rd = this.parseRegister(parts[1]);
@@ -463,20 +608,6 @@ encodeJump(parts, condition, address, lineNumber) {
     }
     throw new Error('Jump requires target label');
 }
-
-    encodeShift(parts, shiftType, address, lineNumber) {
-        if (parts.length >= 3) {
-            const rd = this.parseRegister(parts[1]);
-            const count = this.parseImmediate(parts[2]);
-            if (count < 0 || count > 7) {
-                throw new Error(`Shift count ${count} out of range (0-7)`);
-            }
-            // Shift: [110][111][Rd4][T2][C][count3]
-            // Bits: 15-13: opcode=110, 12-10: aluOp=111, 9-6: Rd, 5-4: T2, 3: C, 2-0: count
-            return 0b1101110000000000 | (rd << 6) | (shiftType << 3) | count;
-        }
-        throw new Error('Shift operation requires register and count');
-    }
 
     encodeSET(parts, address, lineNumber) {
         if (parts.length >= 2) {
