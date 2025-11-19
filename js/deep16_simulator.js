@@ -1,7 +1,7 @@
 // Deep16 Simulator - Complete CPU Execution and State Management
 class Deep16Simulator {
     constructor() {
-        this.memory = new Array(65536).fill(0xFFFF);
+        this.memory = new Array(1048576).fill(0xFFFF); // 1MB memory
         this.registers = new Array(16).fill(0);
         this.segmentRegisters = { CS: 0, DS: 0, SS: 0, ES: 0 };
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
@@ -705,62 +705,51 @@ class Deep16Simulator {
     }
 
     // ENHANCED: Method to get expanded memory view (32 words)
-    getRecentMemoryView() {
-        if (!this.recentMemoryAccess) {
-            return null;
-        }
-        
-        const access = this.recentMemoryAccess;
-        
-        // RULE 2: If access is via LD/ST with non-zero offset, display from base address
-        let startAddress;
-        if (access.offset !== 0) {
-            startAddress = access.baseAddress;
-        } else {
-            // RULE 1: Otherwise, center on the accessed address
-            startAddress = Math.max(0, access.address - 8);
-        }
-        
-        // Ensure we show exactly 32 words (4 lines of 8)
-        startAddress = Math.max(0, startAddress);
-        startAddress = Math.min(startAddress, this.memory.length - 32);
-        
-        const memoryView = [];
-        
-        // Get 32 words (4 lines of 8)
-        for (let i = 0; i < 32; i++) {
-            const addr = startAddress + i;
-            if (addr < this.memory.length) {
-                const isCurrent = (addr === access.address);
-                const isBase = (access.offset !== 0 && addr === access.baseAddress);
-                
-                memoryView.push({
-                    address: addr,
-                    value: this.memory[addr],
-                    isCurrent: isCurrent,
-                    isBase: isBase,
-                    isInRange: true
-                });
-            }
-        }
-        
-        return {
-            baseAddress: startAddress,
-            memoryWords: memoryView,
-            accessInfo: access
-        };
+getRecentMemoryView() {
+    if (!this.recentMemoryAccess) {
+        return null;
     }
-
-    getState() {
-        return {
-            registers: [...this.registers],
-            memory: [...this.memory],
-            psw: this.psw,
-            segmentRegisters: { ...this.segmentRegisters },
-            shadowRegisters: { ...this.shadowRegisters },
-            running: this.running
-        };
+    
+    const access = this.recentMemoryAccess;
+    
+    // RULE 2: If access is via LD/ST with non-zero offset, display from base address
+    let startAddress;
+    if (access.offset !== 0) {
+        startAddress = access.baseAddress;
+    } else {
+        // RULE 1: Otherwise, center on the accessed address
+        startAddress = Math.max(0, access.address - 8);
     }
+    
+    // Ensure we show exactly 32 words (4 lines of 8)
+    startAddress = Math.max(0, startAddress);
+    startAddress = Math.min(startAddress, this.memory.length - 32);
+    
+    const memoryView = [];
+    
+    // Get 32 words (4 lines of 8)
+    for (let i = 0; i < 32; i++) {
+        const addr = startAddress + i;
+        if (addr < this.memory.length) {
+            const isCurrent = (addr === access.address);
+            const isBase = (access.offset !== 0 && addr === access.baseAddress);
+            
+            memoryView.push({
+                address: addr,
+                value: this.memory[addr],
+                isCurrent: isCurrent,
+                isBase: isBase,
+                isInRange: true
+            });
+        }
+    }
+    
+    return {
+        baseAddress: startAddress,
+        memoryWords: memoryView,
+        accessInfo: access
+    };
+}
 
     // Optional: Only call this when you specifically want test data
     initializeTestMemory() {
