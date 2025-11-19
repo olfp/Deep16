@@ -14,34 +14,34 @@ class Deep16Disassembler {
         this.smvSources = ['APC', 'APSW', 'PSW', 'ACS'];
     }
 
-    disassemble(instruction) {
-        // Check for HALT first (0xFFFF)
-        if (instruction === 0xFFFF) {
-            return 'HLT';
-        }
-        
-        // Check for LDI (opcode bit 15 = 0)
-        if ((instruction & 0x8000) === 0) {
-            return this.disassembleLDI(instruction);
-        }
-        
-        // Check for LD/ST (opcode bits 15-14 = 10)
-        if (((instruction >>> 14) & 0x3) === 0b10) {
-            return this.disassembleMemory(instruction);
-        }
-        
-        // Check for ALU2 (opcode bits 15-13 = 110)
-        if (((instruction >>> 13) & 0x7) === 0b110) {
-            return this.disassembleALU(instruction);
-        }
-        
-        // Check for extended instructions (opcode bits 15-13 = 111)
-        if (((instruction >>> 13) & 0x7) === 0b111) {
-            return this.disassembleControlFlow(instruction);
-        }
-        
-        return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
+disassemble(instruction) {
+    // Check for HALT first (0xFFFF) - this should take highest priority
+    if (instruction === 0xFFFF) {
+        return 'HLT';
     }
+    
+    // Check for LDI (opcode bit 15 = 0)
+    if ((instruction & 0x8000) === 0) {
+        return this.disassembleLDI(instruction);
+    }
+    
+    // Check for LD/ST (opcode bits 15-14 = 10)
+    if (((instruction >>> 14) & 0x3) === 0b10) {
+        return this.disassembleMemory(instruction);
+    }
+    
+    // Check for ALU2 (opcode bits 15-13 = 110)
+    if (((instruction >>> 13) & 0x7) === 0b110) {
+        return this.disassembleALU(instruction);
+    }
+    
+    // Check for extended instructions (opcode bits 15-13 = 111)
+    if (((instruction >>> 13) & 0x7) === 0b111) {
+        return this.disassembleControlFlow(instruction);
+    }
+    
+    return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
+}
 
 // In deep16_disassembler.js - Fix MVS detection
 disassembleControlFlow(instruction) {
