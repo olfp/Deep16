@@ -227,29 +227,30 @@ getDataLineSource(lineStartAddress) {
     
     const listing = this.ui.currentAssemblyResult.listing;
     
-    // Strategy 1: Check if the line start address has an exact source
-    const exactSource = this.getExactSourceForAddress(lineStartAddress);
-    if (exactSource) {
-        // Only return if it's a data definition, not a label
-        if (exactSource.startsWith('.word') || exactSource.startsWith('.byte') || exactSource.startsWith('.space')) {
-            return exactSource;
-        }
-        // Don't return labels for data lines
-        return '';
-    }
+    console.log(`Checking data line at 0x${lineStartAddress.toString(16)}`);
     
-    // Strategy 2: Check if any address in this line has a data definition
+    // Check each address in this data line for data definitions
     for (let i = 0; i < 8; i++) {
         const addr = lineStartAddress + i;
-        const source = this.getExactSourceForAddress(addr);
-        if (source && (source.startsWith('.word') || source.startsWith('.byte') || source.startsWith('.space'))) {
-            return source;
+        if (addr >= this.ui.simulator.memory.length) break;
+        
+        // Look for exact address matches in the listing
+        for (const item of listing) {
+            if (item.address === addr && item.line) {
+                const line = item.line.trim();
+                console.log(`Found item at 0x${addr.toString(16)}: "${line}"`);
+                
+                // Return data definitions (.word, .byte, .space)
+                if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
+                    console.log(`Returning data definition: "${line}"`);
+                    return line;
+                }
+            }
         }
     }
     
-    // Strategy 3: DELETED - Never show labels for data lines
-    
-    return ''; // Return empty string for data lines without data definitions
+    console.log(`No data definition found for line starting at 0x${lineStartAddress.toString(16)}`);
+    return ''; // No data definitions in this line
 }
 
 getExactSourceForAddress(address) {
@@ -257,10 +258,10 @@ getExactSourceForAddress(address) {
     
     const listing = this.ui.currentAssemblyResult.listing;
     
-    // First, look for exact address matches with data definitions
+    // Look for exact address matches
     for (const item of listing) {
-        if (item.address === address) {
-            const line = item.line ? item.line.trim() : '';
+        if (item.address === address && item.line) {
+            const line = item.line.trim();
             
             // Return data definitions
             if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
@@ -277,7 +278,7 @@ getExactSourceForAddress(address) {
                 return line;
             }
             
-            // For labels, return them (but only for code lines, not data lines)
+            // For labels, return them
             if (line.endsWith(':')) {
                 return line;
             }
@@ -286,7 +287,6 @@ getExactSourceForAddress(address) {
     
     return '';
 }
-
 
     findNearestLabel(address) {
         if (!this.ui.currentAssemblyResult) return '';
