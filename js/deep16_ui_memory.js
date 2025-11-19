@@ -224,9 +224,9 @@ getDataLineSource(lineStartAddress) {
     
     const listing = this.ui.currentAssemblyResult.listing;
     
-    // Strategy 1: Check if the line start address has an exact source
+    // Strategy 1: Check if the line start address has an exact data definition
     const exactSource = this.getExactSourceForAddress(lineStartAddress);
-    if (exactSource) {
+    if (exactSource && (exactSource.startsWith('.word') || exactSource.startsWith('.byte') || exactSource.startsWith('.space'))) {
         return exactSource;
     }
     
@@ -239,8 +239,31 @@ getDataLineSource(lineStartAddress) {
         }
     }
     
-    // Strategy 3: Find the nearest label before this line
-    return this.findNearestLabel(lineStartAddress);
+    // Strategy 3: Only show label if it's very close (within 1-2 words)
+    const nearestLabel = this.findNearestLabel(lineStartAddress);
+    if (nearestLabel) {
+        // Calculate distance from label
+        const labelAddress = this.getLabelAddress(nearestLabel);
+        if (labelAddress !== null) {
+            const distance = lineStartAddress - labelAddress;
+            // Only show label if it's very close (within 2 words)
+            if (distance >= 0 && distance <= 2) {
+                return nearestLabel;
+            }
+        }
+    }
+    
+    return '';
+}
+
+// NEW: Helper method to get address for a label
+getLabelAddress(label) {
+    if (!this.ui.currentAssemblyResult) return null;
+    
+    const symbols = this.ui.currentAssemblyResult.symbols;
+    const labelName = label.replace(':', '').trim();
+    
+    return symbols[labelName] !== undefined ? symbols[labelName] : null;
 }
 
 // NEW: Get exact source for a specific address - FIXED VERSION
@@ -343,27 +366,28 @@ getExactSourceForAddress(address) {
 
     // NEW: Find the nearest label before an address
     findNearestLabel(address) {
-        if (!this.ui.currentAssemblyResult) return '';
-        
-        const listing = this.ui.currentAssemblyResult.listing;
-        let nearestLabel = '';
-        let nearestDistance = Infinity;
-        
-        for (const item of listing) {
-            if (item.address !== undefined && item.line) {
-                const line = item.line.trim();
-                if (line.endsWith(':') && item.address <= address) {
-                    const distance = address - item.address;
-                    if (distance < nearestDistance) {
-                        nearestDistance = distance;
-                        nearestLabel = line;
-                    }
+    if (!this.ui.currentAssemblyResult) return '';
+    
+    const listing = this.ui.currentAssemblyResult.listing;
+    let nearestLabel = '';
+    let nearestDistance = Infinity;
+    
+    for (const item of listing) {
+        if (item.address !== undefined && item.line) {
+            const line = item.line.trim();
+            if (line.endsWith(':') && item.address <= address) {
+                const distance = address - item.address;
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestLabel = line;
                 }
             }
         }
-        
-        return nearestLabel;
     }
+    
+    // Only return if we found a reasonably close label
+    return nearestDistance < Infinity ? nearestLabel : '';
+}
 
     getSourceForAddress(address) {
         if (!this.ui.currentAssemblyResult) return '';
