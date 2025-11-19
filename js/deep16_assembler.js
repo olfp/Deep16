@@ -113,21 +113,27 @@ assemble(source) {
         }
         
         const regMap = {
+            // Standard register numbers
             'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3, 'R4': 4, 'R5': 5, 'R6': 6, 'R7': 7,
-            'R8': 8, 'R9': 9, 'R10': 10, 'R11': 11, 
+            'R8': 8, 'R9': 9, 'R10': 10, 'R11': 11, 'R12': 12, 'R13': 13, 'R14': 14, 'R15': 15,
+            // Aliases
             'FP': 12, 'SP': 13, 'LR': 14, 'PC': 15
         };
         
         const upperReg = reg.toUpperCase();
         if (upperReg in regMap) return regMap[upperReg];
         
-        if (upperReg.startsWith('R')) {
-            const num = parseInt(upperReg.substring(1));
-            if (!isNaN(num) && num >= 0 && num <= 15) return num;
-        }
+        // Also support case variations of aliases
+        const lowerReg = reg.toLowerCase();
+        const lowerMap = {
+            'fp': 12, 'sp': 13, 'lr': 14, 'pc': 15
+        };
+        if (lowerReg in lowerMap) return lowerMap[lowerReg];
         
         throw new Error(`Invalid register: ${reg}`);
     }
+
+
 
     parseImmediate(value) {
         if (typeof value !== 'string') {
@@ -148,12 +154,22 @@ assemble(source) {
         }
     }
 
-    isRegister(value) {
-        if (typeof value !== 'string') return false;
-        const upper = value.toUpperCase();
-        return (upper.startsWith('R') && !isNaN(parseInt(upper.substring(1)))) || 
-               ['SP', 'FP', 'LR', 'PC'].includes(upper);
+isRegister(value) {
+    if (typeof value !== 'string') return false;
+    const upper = value.toUpperCase();
+    const lower = value.toLowerCase();
+    
+    // Check for R0-R15
+    if (upper.startsWith('R') && !isNaN(parseInt(upper.substring(1)))) {
+        const num = parseInt(upper.substring(1));
+        return num >= 0 && num <= 15;
     }
+    
+    // Check for aliases (case insensitive)
+    const aliases = ['FP', 'SP', 'LR', 'PC', 'fp', 'sp', 'lr', 'pc'];
+    return aliases.includes(upper) || aliases.includes(lower);
+}
+
 
     encodeInstruction(line, address, lineNumber) {
         const cleanLine = line.split(';')[0].trim();
