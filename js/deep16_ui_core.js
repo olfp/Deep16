@@ -72,7 +72,7 @@ class DeepWebUI {
         console.log('Using simple dropdowns');
     }
 
-        updateErrorsList() {
+    updateErrorsList() {
         const errorsList = document.getElementById('errors-list');
         
         if (!this.currentAssemblyResult) {
@@ -367,7 +367,67 @@ class DeepWebUI {
         this.memoryUI.updateRecentMemoryDisplay();
     }
 
-    // ... rest of core methods (run, step, reset, jumpToMemoryAddress, etc.)
+    run() {
+        if (!this.simulator.running) {
+            this.simulator.running = true;
+            this.status("Running program...");
+            this.addTranscriptEntry("Starting program execution", "info");
+            
+            this.runInterval = setInterval(() => {
+                if (!this.simulator.running) {
+                    clearInterval(this.runInterval);
+                    this.status("Program halted");
+                    this.addTranscriptEntry("Program execution stopped", "info");
+                    return;
+                }
+                
+                const continueRunning = this.simulator.step();
+                this.updateAllDisplays();
+                
+                if (!continueRunning) {
+                    clearInterval(this.runInterval);
+                    this.simulator.running = false;
+                    this.status("Program completed");
+                    this.addTranscriptEntry("Program execution completed", "success");
+                }
+            }, 100);
+        }
+    }
+
+    step() {
+        if (!this.simulator.running) {
+            this.simulator.running = true;
+        }
+        
+        const continueRunning = this.simulator.step();
+        this.updateAllDisplays();
+        
+        if (!continueRunning) {
+            this.simulator.running = false;
+            this.status("Program halted");
+            this.addTranscriptEntry("Program halted after step", "info");
+        } else {
+            this.addTranscriptEntry(`Step executed - PC=0x${this.simulator.registers[15].toString(16).padStart(4, '0')}`, "info");
+        }
+    }
+
+    reset() {
+        if (this.runInterval) {
+            clearInterval(this.runInterval);
+            this.runInterval = null;
+        }
+        
+        this.simulator.reset();
+        this.memoryStartAddress = 0;
+        document.getElementById('memory-start-address').value = '0x0000';
+        this.updateAllDisplays();
+        this.status("Simulator reset");
+        this.addTranscriptEntry("Simulator reset to initial state", "info");
+    }
+
+    jumpToMemoryAddress() {
+        this.memoryUI.handleMemoryAddressChange();
+    }
 
     status(message) {
         document.getElementById('status-bar').textContent = `DeepWeb: ${message}`;
@@ -406,7 +466,78 @@ class DeepWebUI {
     }
 
     loadExample(exampleName) {
-        // ... example loading code ...
+        let source = '';
+        
+        switch (exampleName) {
+            case 'fibonacci':
+                source = `; Deep16 (深十六) Fibonacci Example - PERFECTED
+; Calculate Fibonacci numbers F(0) through F(10)
+
+.org 0x0000
+
+main:
+    LSI  R1, 0        ; F(0) = 0
+    LSI  R2, 1        ; F(1) = 1
+    LSI  R3, 10       ; Calculate F(2) through F(10)
+    LDI  0x0200       ; Output address into R0
+    MOV  R4, R0       ; Move to R4 for output pointer
+    
+    ST   R1, R4, 0    ; Store F(0)
+    ADD  R4, 1        ; Next address
+    ST   R2, R4, 0    ; Store F(1)  
+    ADD  R4, 1        ; Next address
+    
+fib_loop:
+    MOV  R0, R2       ; temp = current
+    ADD  R2, R1       ; next = current + previous
+    MOV  R1, R0       ; previous = temp
+    
+    ST   R2, R4, 0    ; Store the NEW Fibonacci number
+    ADD  R4, 1        ; Next output address
+    
+    SUB  R3, 1        ; decrement counter
+    JNZ  fib_loop     ; loop if not zero
+    
+    HALT
+
+.org 0x0200
+fibonacci_results:
+    .word 0`;
+                break;
+                
+            case 'far_call':
+                source = `; Far Call and Long Jump Example
+.org 0x0000
+
+main:
+    MOV  SP, 0x7FFF
+    MOV  R0, 0x1234
+    
+    ; Setup far call
+    MOV  R10, 0x1000   ; Target CS
+    MOV  R11, 0x0020   ; Target PC
+    
+    ; Perform far jump
+    JML  R10           ; Jump to CS=R10, PC=R11
+    
+    HALT
+
+.org 0x1000
+far_function:
+    MOV  R1, 0x5678
+    HALT`;
+                break;
+                
+            default:
+                return;
+        }
+        
+        this.editorElement.value = source;
+        this.addTranscriptEntry(`Loaded example: ${exampleName}`, "info");
+        this.status(`Loaded ${exampleName} example - Click 'Assemble' to compile`);
+        
+        // Reset the dropdown
+        document.getElementById('example-select').value = '';
     }
 }
 
