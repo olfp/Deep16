@@ -143,36 +143,37 @@ class DeepWebUI {
         this.addTranscriptEntry(`Navigated to error at line ${lineNumber + 1}`, "info");
     }
 
-    updateSymbolSelects(symbols) {
-        const symbolSelects = [
-            document.getElementById('symbol-select'),
-            document.getElementById('listing-symbol-select')
-        ];
+updateSymbolSelects(symbols) {
+    const symbolSelects = [
+        document.getElementById('symbol-select'),
+        document.getElementById('listing-symbol-select')
+    ];
+    
+    symbolSelects.forEach(select => {
+        if (!select) {
+            console.error('Symbol select element not found');
+            return;
+        }
         
-        symbolSelects.forEach(select => {
-            if (!select) {
-                console.error('Symbol select element not found');
-                return;
+        const currentValue = select.value;
+        
+        let html = '<option value="">-- Select Symbol --</option>';
+        
+        if (symbols && Object.keys(symbols).length > 0) {
+            for (const [name, address] of Object.entries(symbols)) {
+                const displayText = `${name} (0x${address.toString(16).padStart(5, '0')})`; // 5 hex digits
+                html += `<option value="${address}">${displayText}</option>`;
             }
-            
-            const currentValue = select.value;
-            
-            let html = '<option value="">-- Select Symbol --</option>';
-            
-            if (symbols && Object.keys(symbols).length > 0) {
-                for (const [name, address] of Object.entries(symbols)) {
-                    const displayText = `${name} (0x${address.toString(16).padStart(4, '0')})`;
-                    html += `<option value="${address}">${displayText}</option>`;
-                }
-            }
-            
-            select.innerHTML = html;
-            
-            if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
-                select.value = currentValue;
-            }
-        });
-    }
+        }
+        
+        select.innerHTML = html;
+        
+        if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
+            select.value = currentValue;
+        }
+    });
+}
+
 
     onSymbolSelect(event) {
         const address = parseInt(event.target.value);
@@ -224,68 +225,69 @@ class DeepWebUI {
         }
     }
 
-    updateAssemblyListing() {
-        const listingContent = document.getElementById('listing-content');
-        
-        if (!this.currentAssemblyResult) {
-            listingContent.innerHTML = 'No assembly performed yet';
-            return;
-        }
+updateAssemblyListing() {
+    const listingContent = document.getElementById('listing-content');
+    
+    if (!this.currentAssemblyResult) {
+        listingContent.innerHTML = 'No assembly performed yet';
+        return;
+    }
 
-        const { listing } = this.currentAssemblyResult;
-        let html = '';
-        
-        for (const item of listing) {
-            if (item.error) {
-                html += `<div class="listing-line" style="color: #f44747;">`;
-                html += `<span class="listing-address"></span>`;
-                html += `<span class="listing-bytes"></span>`;
-                html += `<span class="listing-source">ERR: ${item.error}</span>`;
-                html += `</div>`;
-                
-                if (item.line) {
-                    html += `<div class="listing-line">`;
-                    html += `<span class="listing-address"></span>`;
-                    html += `<span class="listing-bytes"></span>`;
-                    html += `<span class="listing-source" style="color: #ce9178;">${item.line}</span>`;
-                    html += `</div>`;
-                }
-            } else if (item.instruction !== undefined) {
-                const instructionHex = item.instruction.toString(16).padStart(4, '0').toUpperCase();
-                html += `<div class="listing-line">`;
-                html += `<span class="listing-address">0x${item.address.toString(16).padStart(4, '0')}</span>`;
-                html += `<span class="listing-bytes">0x${instructionHex}</span>`;
-                html += `<span class="listing-source">${item.line}</span>`;
-                html += `</div>`;
-            } else if (item.address !== undefined && (item.line.includes('.org') || item.line.includes('.word'))) {
-                html += `<div class="listing-line">`;
-                html += `<span class="listing-address">0x${item.address.toString(16).padStart(4, '0')}</span>`;
-                html += `<span class="listing-bytes"></span>`;
-                html += `<span class="listing-source">${item.line}</span>`;
-                html += `</div>`;
-            } else if (item.line && item.line.trim().endsWith(':')) {
+    const { listing } = this.currentAssemblyResult;
+    let html = '';
+    
+    for (const item of listing) {
+        if (item.error) {
+            html += `<div class="listing-line" style="color: #f44747;">`;
+            html += `<span class="listing-address"></span>`;
+            html += `<span class="listing-bytes"></span>`;
+            html += `<span class="listing-source">ERR: ${item.error}</span>`;
+            html += `</div>`;
+            
+            if (item.line) {
                 html += `<div class="listing-line">`;
                 html += `<span class="listing-address"></span>`;
                 html += `<span class="listing-bytes"></span>`;
-                html += `<span class="listing-source" style="color: #569cd6;">${item.line}</span>`;
-                html += `</div>`;
-            } else if (item.line && (item.line.trim().startsWith(';') || item.line.trim() === '')) {
-                html += `<div class="listing-line">`;
-                html += `<span class="listing-address"></span>`;
-                html += `<span class="listing-bytes"></span>`;
-                html += `<span class="listing-source" style="color: #6a9955;">${item.line}</span>`;
-                html += `</div>`;
-            } else if (item.line) {
-                html += `<div class="listing-line">`;
-                html += `<span class="listing-address"></span>`;
-                html += `<span class="listing-bytes"></span>`;
-                html += `<span class="listing-source">${item.line}</span>`;
+                html += `<span class="listing-source" style="color: #ce9178;">${item.line}</span>`;
                 html += `</div>`;
             }
+        } else if (item.instruction !== undefined) {
+            const instructionHex = item.instruction.toString(16).padStart(4, '0').toUpperCase();
+            html += `<div class="listing-line">`;
+            html += `<span class="listing-address">0x${item.address.toString(16).padStart(5, '0')}</span>`; // 5 hex digits
+            html += `<span class="listing-bytes">0x${instructionHex}</span>`;
+            html += `<span class="listing-source">${item.line}</span>`;
+            html += `</div>`;
+        } else if (item.address !== undefined && (item.line.includes('.org') || item.line.includes('.word'))) {
+            html += `<div class="listing-line">`;
+            html += `<span class="listing-address">0x${item.address.toString(16).padStart(5, '0')}</span>`; // 5 hex digits
+            html += `<span class="listing-bytes"></span>`;
+            html += `<span class="listing-source">${item.line}</span>`;
+            html += `</div>`;
+        } else if (item.line && item.line.trim().endsWith(':')) {
+            html += `<div class="listing-line">`;
+            html += `<span class="listing-address"></span>`;
+            html += `<span class="listing-bytes"></span>`;
+            html += `<span class="listing-source" style="color: #569cd6;">${item.line}</span>`;
+            html += `</div>`;
+        } else if (item.line && (item.line.trim().startsWith(';') || item.line.trim() === '')) {
+            html += `<div class="listing-line">`;
+            html += `<span class="listing-address"></span>`;
+            html += `<span class="listing-bytes"></span>`;
+            html += `<span class="listing-source" style="color: #6a9955;">${item.line}</span>`;
+            html += `</div>`;
+        } else if (item.line) {
+            html += `<div class="listing-line">`;
+            html += `<span class="listing-address"></span>`;
+            html += `<span class="listing-bytes"></span>`;
+            html += `<span class="listing-source">${item.line}</span>`;
+            html += `</div>`;
         }
-
-        listingContent.innerHTML = html || 'No assembly output';
     }
+
+    listingContent.innerHTML = html || 'No assembly output';
+}
+
 
     toggleView() {
         this.compactView = !this.compactView;
