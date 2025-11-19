@@ -617,14 +617,8 @@ encodeMemory(parts, isStore, address, lineNumber) {
             // Bracket syntax: LD R1, [R2+5] or ST R1, [R2] or LD R1, [R2 + 5]
             console.log("Detected bracket syntax");
             
-            // Find the part with brackets (usually parts[2] but could be later if commas are involved)
-            let bracketPart = parts.find(part => part.includes('[') && part.includes(']'));
-            if (!bracketPart) {
-                throw new Error(`Invalid bracket syntax in ${isStore ? 'ST' : 'LD'}`);
-            }
-            
-            // Extract content inside brackets
-            const bracketMatch = bracketPart.match(/\[([^\]]+)\]/);
+            // Extract the entire bracket content from joined parts
+            const bracketMatch = joinedParts.match(/\[([^\]]+)\]/);
             if (!bracketMatch) {
                 throw new Error(`Invalid bracket syntax in ${isStore ? 'ST' : 'LD'}`);
             }
@@ -649,8 +643,10 @@ encodeMemory(parts, isStore, address, lineNumber) {
                 offset = 0; // Default offset is 0 if not specified
             }
             
-            // Rd is the part before the brackets (usually parts[1])
-            rd = this.parseRegister(parts[1]);
+            // Rd is the part before the brackets (find the register before the [)
+            const beforeBracket = joinedParts.split('[')[0].trim();
+            const rdParts = beforeBracket.split(/\s+/);
+            rd = this.parseRegister(rdParts[rdParts.length - 1]); // Last part before [
         } 
         // Old syntax: LD R1, R2, 5
         else if (parts.length >= 4) {
