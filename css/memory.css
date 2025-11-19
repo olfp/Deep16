@@ -71,6 +71,10 @@
     width: 70px;
 }
 
+.memory-controls input[type="text"] {
+    width: 90px; /* Slightly wider for 5-digit addresses */
+}
+
 .memory-display {
     flex: 1;
     background: #1e1e1e;
@@ -136,6 +140,10 @@
     font-family: 'Courier New', monospace;
 }
 
+.memory-address, .listing-address, .recent-memory-address {
+    width: 80px; /* Increased from ~60px for 5 hex digits */
+    font-family: 'Courier New', monospace;
+}
 .memory-bytes {
     color: #ce9178;
     font-family: 'Courier New', monospace;
