@@ -106,6 +106,9 @@ step() {
                     } else if ((instruction >>> 9) === 0b1111110) {
                         console.log("LSI instruction");
                         this.executeLSI(instruction);
+                    } else if ((instruction >>> 8) === 0b11111110) {
+                        console.log("SOP instruction");
+                        this.executeSOP(instruction);  // JML is handled here!                        
                     } else if ((instruction >>> 13) === 0b11111) {
                         console.log("System instruction");
                         this.executeSystem(instruction);
@@ -131,6 +134,66 @@ step() {
     return true;
 }
 
+// In deep16_simulator.js - Add executeSOP method
+executeSOP(instruction) {
+    const type4 = (instruction >>> 4) & 0xF;
+    const rx = instruction & 0xF;
+    
+    console.log(`SOP Execute: type4=${type4.toString(2)}, rx=${rx}`);
+    
+    switch (type4) {
+        case 0b0100: // JML
+            this.executeJML(rx);
+            break;
+        // Add other SOP instructions as needed
+        default:
+            console.warn(`Unimplemented SOP instruction: type4=${type4.toString(2)}`);
+    }
+}
+
+// Add executeJML method
+executeJML(rx) {
+    // JML Rx: CS = R[Rx], PC = R[Rx+1]
+    // rx must be even (0,2,4,6,8,10,12,14)
+    
+    if (rx % 2 !== 0) {
+        console.warn(`JML requires even register, got R${rx}`);
+        return;
+    }
+    
+    const targetCS = this.registers[rx];
+    const targetPC = this.registers[rx + 1];
+    
+    console.log(`JML Execute: R${rx}=0x${targetCS.toString(16)} (CS), R${rx+1}=0x${targetPC.toString(16)} (PC)`);
+    
+    // Update segment and program counter
+    this.segmentRegisters.CS = targetCS;
+    this.registers[15] = targetPC;  // PC = targetPC
+    
+    console.log(`JML: Jump to CS=0x${targetCS.toString(16)}, PC=0x${targetPC.toString(16)}`);
+}
+
+// Add executeJML method
+executeJML(rx) {
+    // JML Rx: CS = R[Rx], PC = R[Rx+1]
+    // rx must be even (0,2,4,6,8,10,12,14)
+    
+    if (rx % 2 !== 0) {
+        console.warn(`JML requires even register, got R${rx}`);
+        return;
+    }
+    
+    const targetCS = this.registers[rx];
+    const targetPC = this.registers[rx + 1];
+    
+    console.log(`JML Execute: R${rx}=0x${targetCS.toString(16)} (CS), R${rx+1}=0x${targetPC.toString(16)} (PC)`);
+    
+    // Update segment and program counter
+    this.segmentRegisters.CS = targetCS;
+    this.registers[15] = targetPC;  // PC = targetPC
+    
+    console.log(`JML: Jump to CS=0x${targetCS.toString(16)}, PC=0x${targetPC.toString(16)}`);
+}
 
     executeLDI(instruction) {
         const immediate = instruction & 0x7FFF;
