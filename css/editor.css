@@ -21,9 +21,10 @@
     flex: 1;
 }
 
+/* In editor.css - Lighten the editor background */
 .editor {
     flex: 1;
-    background: #1e1e1e;
+    background: #252526;  /* Lightened from #1e1e1e */
     padding: 12px;
     font-family: 'Courier New', monospace;
     font-size: 13px;
