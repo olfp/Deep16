@@ -182,6 +182,7 @@ isRegister(value) {
 
         try {
             switch (mnemonic) {
+                // ... existing instructions ...
                 case 'MOV': return this.encodeMOV(parts, address, lineNumber);
                 case 'ADD': return this.encodeALU(parts, 0b000, address, lineNumber);
                 case 'SUB': return this.encodeALU(parts, 0b001, address, lineNumber);
@@ -198,16 +199,39 @@ isRegister(value) {
                 case 'JNN': return this.encodeJump(parts, 0b101, address, lineNumber);
                 case 'JO':  return this.encodeJump(parts, 0b110, address, lineNumber);
                 case 'JNO': return this.encodeJump(parts, 0b111, address, lineNumber);
+                
+                // NEW: Shift operations
                 case 'SL':  return this.encodeShift(parts, 0b000, address, lineNumber);
+                case 'SLC': return this.encodeShift(parts, 0b001, address, lineNumber);
                 case 'SR':  return this.encodeShift(parts, 0b010, address, lineNumber);
+                case 'SRC': return this.encodeShift(parts, 0b011, address, lineNumber);
                 case 'SRA': return this.encodeShift(parts, 0b100, address, lineNumber);
+                case 'SAC': return this.encodeShift(parts, 0b101, address, lineNumber);
                 case 'ROR': return this.encodeShift(parts, 0b110, address, lineNumber);
+                case 'ROC': return this.encodeShift(parts, 0b111, address, lineNumber);
+                
+                // NEW: PSW operations
+                case 'SRS': return this.encodeSRS(parts, address, lineNumber);
+                case 'SRD': return this.encodeSRD(parts, address, lineNumber);
+                case 'ERS': return this.encodeERS(parts, address, lineNumber);
+                case 'ERD': return this.encodeERD(parts, address, lineNumber);
+                
+                // NEW: Segment operations
+                case 'MVS': return this.encodeMVS(parts, address, lineNumber);
+                
+                // NEW: Special moves
+                case 'SMV': return this.encodeSMV(parts, address, lineNumber);
+                
+                // NEW: Long jump
+                case 'JML': return this.encodeJML(parts, address, lineNumber);
+                
+                // ... existing flag operations ...
                 case 'SET': return this.encodeSET(parts, address, lineNumber);
                 case 'CLR': return this.encodeCLR(parts, address, lineNumber);
                 case 'SET2': return this.encodeSET2(parts, address, lineNumber);
                 case 'CLR2': return this.encodeCLR2(parts, address, lineNumber);
                 
-                // Flag aliases for SET/CLR (PSW[3:0])
+                // ... existing aliases ...
                 case 'SETN': return this.encodeSETAlias(0b0000);
                 case 'CLRN': return this.encodeCLRAlias(0b1000);
                 case 'SETZ': return this.encodeSETAlias(0b0001);
@@ -216,8 +240,6 @@ isRegister(value) {
                 case 'CLRV': return this.encodeCLRAlias(0b1010);
                 case 'SETC': return this.encodeSETAlias(0b0011);
                 case 'CLRC': return this.encodeCLRAlias(0b1011);
-                
-                // Flag aliases for SET2/CLR2 (PSW[7:4])
                 case 'SETI': return this.encodeSET2Alias(0b0000);
                 case 'CLRI': return this.encodeCLR2Alias(0b0000);
                 case 'SETS': return this.encodeSET2Alias(0b0001);
@@ -225,7 +247,7 @@ isRegister(value) {
                 
                 // HALT alias and new encoding
                 case 'HALT': 
-                case 'HLT': return 0xFFFF; // All ones for HALT
+                case 'HLT': return 0xFFFF;
                 
                 // System instructions
                 case 'RETI': return this.encodeSystem(0b011);
@@ -242,6 +264,95 @@ isRegister(value) {
         } catch (error) {
             throw new Error(`${error.message}`);
         }
+    }
+
+    // NEW: Encode SRS instruction
+    encodeSRS(parts, address, lineNumber) {
+        if (parts.length >= 2) {
+            const rx = this.parseRegister(parts[1]);
+            // SRS: [11111110][1000][Rx4]
+            return 0b1111111010000000 | (rx << 4);
+        }
+        throw new Error('SRS requires register operand');
+    }
+
+    // NEW: Encode SRD instruction
+    encodeSRD(parts, address, lineNumber) {
+        if (parts.length >= 2) {
+            const rx = this.parseRegister(parts[1]);
+            // SRD: [11111110][1001][Rx4]
+            return 0b1111111010010000 | (rx << 4);
+        }
+        throw new Error('SRD requires register operand');
+    }
+
+    // NEW: Encode ERS instruction
+    encodeERS(parts, address, lineNumber) {
+        if (parts.length >= 2) {
+            const rx = this.parseRegister(parts[1]);
+            // ERS: [11111110][1010][Rx4]
+            return 0b1111111010100000 | (rx << 4);
+        }
+        throw new Error('ERS requires register operand');
+    }
+
+    // NEW: Encode ERD instruction
+    encodeERD(parts, address, lineNumber) {
+        if (parts.length >= 2) {
+            const rx = this.parseRegister(parts[1]);
+            // ERD: [11111110][1011][Rx4]
+            return 0b1111111010110000 | (rx << 4);
+        }
+        throw new Error('ERD requires register operand');
+    }
+
+    // NEW: Encode MVS instruction
+    encodeMVS(parts, address, lineNumber) {
+        if (parts.length >= 3) {
+            const rd = this.parseRegister(parts[1]);
+            const seg = parts[2].toUpperCase();
+            
+            const segMap = {
+                'CS': 0b00, 'DS': 0b01, 'SS': 0b10, 'ES': 0b11
+            };
+            
+            if (seg in segMap) {
+                // MVS: [111111110][d1][Rd4][seg2]
+                // d=0: Rd ← Sx (read from segment register)
+                return 0b1111111100000000 | (rd << 4) | segMap[seg];
+            }
+            throw new Error(`Invalid segment register: ${seg}`);
+        }
+        throw new Error('MVS requires destination register and segment register');
+    }
+
+    // NEW: Encode SMV instruction
+    encodeSMV(parts, address, lineNumber) {
+        if (parts.length >= 3) {
+            const rd = this.parseRegister(parts[1]);
+            const src = parts[2].toUpperCase();
+            
+            const srcMap = {
+                'APC': 0b00, 'APSW': 0b01, 'PSW': 0b10, 'ACS': 0b11
+            };
+            
+            if (src in srcMap) {
+                // SMV: [1111111110][src2][Rd4]
+                return 0b1111111110000000 | (srcMap[src] << 4) | rd;
+            }
+            throw new Error(`Invalid SMV source: ${src}`);
+        }
+        throw new Error('SMV requires destination register and source');
+    }
+
+    // NEW: Encode JML instruction
+    encodeJML(parts, address, lineNumber) {
+        if (parts.length >= 2) {
+            const rx = this.parseRegister(parts[1]);
+            // JML: [11111110][0100][Rx4] - JML uses even register Rx (Rx=CS, Rx+1=PC)
+            return 0b1111111001000000 | (rx << 4);
+        }
+        throw new Error('JML requires register operand (even register)');
     }
 
     encodeMOV(parts, address, lineNumber) {
