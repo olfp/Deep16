@@ -186,40 +186,40 @@ getSourceForAddress(address) {
         }
     }
 
-    renderMemoryDisplay() {
-        const memoryDisplay = document.getElementById('memory-display');
-        const start = this.ui.memoryStartAddress;
-        const end = Math.min(start + 64, this.ui.simulator.memory.length);
+renderMemoryDisplay() {
+    const memoryDisplay = document.getElementById('memory-display');
+    const start = this.ui.memoryStartAddress;
+    const end = Math.min(start + 64, this.ui.simulator.memory.length);
 
-        let html = '';
-        
-        if (start >= end) {
-            html = '<div class="memory-line">Invalid memory range</div>';
-        } else {
-            let address = start;
-            while (address < end) {
-                // Check if current address is code
-                if (this.isCodeAddress(address)) {
-                    // Code displays one instruction per line
-                    html += this./(address);
-                    address++;
-                } else {
-                    // Data displays 8 words per line
-                    const lineStart = address;
-                    html += this.createMemoryLine(lineStart);
-                    address += 8; // Skip to next data line
-                }
+    let html = '';
+    
+    if (start >= end) {
+        html = '<div class="memory-line">Invalid memory range</div>';
+    } else {
+        let address = start;
+        while (address < end) {
+            // Check if current address is code
+            if (this.isCodeAddress(address)) {
+                // Code displays one instruction per line
+                html += this.createMemoryLine(address); // Now this should work
+                address++;
+            } else {
+                // Data displays 8 words per line
+                const lineStart = address;
+                html += this.createMemoryLine(lineStart); // Now this should work
+                address += 8; // Skip to next data line
             }
         }
-        
-        memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
-        
-        // Scroll to PC if it's in the current view
-        const currentPC = this.ui.simulator.registers[15];
-        if (currentPC >= start && currentPC < end) {
-            this.scrollToPC();
-        }
     }
+    
+    memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
+    
+    // Scroll to PC if it's in the current view
+    const currentPC = this.ui.simulator.registers[15];
+    if (currentPC >= start && currentPC < end) {
+        this.scrollToPC();
+    }
+}
 
 getDataLineSource(lineStartAddress) {
     if (!this.ui.currentAssemblyResult) return '';
