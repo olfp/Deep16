@@ -105,12 +105,17 @@
 .register-compact .register-name {
     color: #9cdcfe;
     font-weight: bold;
-    min-width: 60px;  /* Increased to accommodate dual labels */
-    font-size: 10px;  /* Slightly smaller to fit both names */
+    min-width: 65px;
+    font-size: 11px;
+    text-align: right;        /* Right-align the labels */
+    padding-right: 8px;       /* Add some space before values */
 }
+
 .register-compact .register-value {
     color: #b5cea8;
     font-family: 'Courier New', monospace;
+    min-width: 50px;          /* Ensure consistent width for values */
+    text-align: left;         /* Keep values left-aligned */
 }
 
 .psw-display {
