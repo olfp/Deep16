@@ -524,25 +524,53 @@ fibonacci_results:
                 break;
                 
             case 'far_call':
-                source = `; Far Call and Long Jump Example
+                source = `; Inter-Segment Call Example
+; JML Rx: CS = R[Rx], PC = R[Rx+1]
+
+; Segment 0: Main program
 .org 0x0000
 
 main:
-    MOV  SP, 0x7FFF
-    MOV  R0, 0x1234
+    ; Initialize stack pointer
+    LDI  0x7FFF        ; R0 = 0x7FFF
+    MOV  SP, R0        ; SP = R0
     
-    ; Setup far call
-    MOV  R10, 0x1000   ; Target CS
-    MOV  R11, 0x0020   ; Target PC
+    ; Prepare numbers
+    LSI  R1, 12        ; First number = 12
+    LSI  R2, 5         ; Second number = 5
     
-    ; Perform far jump
-    JML  R10           ; Jump to CS=R10, PC=R11
+    ; Setup far call to segment 1
+    ; JML R8: CS = R8, PC = R9
+    LDI  0x0100        ; R0 = segment 1 (CS)
+    MOV  R8, R0        ; R8 = target CS
+    LDI  0x0020        ; R0 = function address (PC)
+    MOV  R9, R0        ; R9 = target PC
     
+    ; Calculate return address RIGHT BEFORE the jump
+    MOV  LR, PC, 2     ; LR = PC + 2 (address of return_here)
+    JML  R8            ; Far call: CS=R8, PC=R9
+    
+return_here:
+    ; Result should be in R3 (12 + 5 = 17)
     HALT
 
-.org 0x1000
-far_function:
-    MOV  R1, 0x5678
+; Segment 1: Math function
+.org 0x0020
+
+add_func:
+    ; Add two numbers: R3 = R1 + R2
+    MOV  R3, R1        ; R3 = R1
+    ADD  R3, R2        ; R3 = R3 + R2
+    
+    ; Return to caller using the return address in LR
+    ; JML R10: CS = R10, PC = R11
+    LDI  0x0000        ; R0 = segment 0 (CS)
+    MOV  R10, R0       ; R10 = return CS
+    MOV  R11, LR       ; R11 = return PC (from LR)
+    JML  R10           ; Far return: CS=R10, PC=R11
+
+; Segment 1 continuation
+.org 0x0100
     HALT`;
                 break;
                 
