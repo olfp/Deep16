@@ -66,10 +66,9 @@ createMemoryLine(address) {
         }
         
         const source = this.getSourceForAddress(address);
-        // FIX: Don't show ---- for HLT instructions
-        const displayValue = value === 0xFFFF && this.isCodeAddress(address) ? 
-            `0x${valueHex}` :  // Show 0xFFFF for HLT in code
-            (value === 0xFFFF ? "----" : `0x${valueHex}`);
+        
+        // FIX: Only show actual hex values for code, never "----"
+        const displayValue = `0x${valueHex}`;
         
         let html = `<div class="memory-line code-line ${pcClass}">`;
         html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
@@ -81,7 +80,39 @@ createMemoryLine(address) {
         html += `</div>`;
         return html;
     } else {
-        // ... data section unchanged ...
+        // For data, we need to check if this is the start of a data line
+        const lineStart = address - (address % 8);
+        if (address !== lineStart) {
+            return ''; // Skip non-start addresses in data lines
+        }
+        
+        // Create a data line with 8 words
+        let html = `<div class="memory-line data-line ${pcClass}">`;
+        html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
+        
+        for (let i = 0; i < 8; i++) {
+            const dataAddr = address + i;
+            if (dataAddr >= this.ui.simulator.memory.length) break;
+            
+            const dataValue = this.ui.simulator.memory[dataAddr];
+            const dataHex = dataValue.toString(16).padStart(4, '0').toUpperCase();
+            const dataPC = (dataAddr === this.ui.simulator.registers[15]);
+            const dataClass = dataPC ? 'pc-marker' : '';
+            
+            // For data lines, show "----" for uninitialized memory (0xFFFF)
+            const displayData = dataValue === 0xFFFF ? "----" : `0x${dataHex}`;
+            
+            html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
+        }
+        
+        // Get source for data line
+        const source = this.getDataLineSource(address);
+        if (source) {
+            html += `<span class="memory-source">; ${source}</span>`;
+        }
+        
+        html += `</div>`;
+        return html;
     }
 }
 
@@ -173,11 +204,14 @@ renderMemoryDisplay() {
         let address = start;
         let lastDisplayedAddress = start - 1;
         
+        console.log(`Memory display: ${start.toString(16)} to ${end.toString(16)}`);
+        
         while (address < end) {
             // Check if current address is code
             if (this.isCodeAddress(address)) {
                 // Check for gap before this code line
                 if (address > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
+                    console.log(`Gap detected: ${lastDisplayedAddress.toString(16)} to ${address.toString(16)}`);
                     html += `<div class="memory-gap">...</div>`;
                 }
                 
@@ -191,6 +225,7 @@ renderMemoryDisplay() {
                 
                 // Check for gap before this data line
                 if (lineStart > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
+                    console.log(`Gap detected: ${lastDisplayedAddress.toString(16)} to ${lineStart.toString(16)}`);
                     html += `<div class="memory-gap">...</div>`;
                 }
                 
@@ -209,7 +244,6 @@ renderMemoryDisplay() {
         this.scrollToPC();
     }
 }
-
 
 getDataLineSource(lineStartAddress) {
     if (!this.ui.currentAssemblyResult) return '';
