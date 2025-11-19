@@ -411,8 +411,8 @@ encodeMOV(parts, address, lineNumber) {
             console.log("Detected MOV plus syntax");
             
             // Extract the register+immediate part using regex
-            // Look for patterns like: MOV R1, R2+3 or MOV R1, R2 + 3
-            const movMatch = joinedParts.match(/MOV\s+([A-Za-z0-9]+)\s*,\s*([A-Za-z0-9]+)\s*\+\s*(\d+)/);
+            // Look for patterns like: MOV R1 R2+3 or MOV R1 R2 + 3 (comma may be removed)
+            const movMatch = joinedParts.match(/MOV\s+([A-Za-z0-9]+)\s+([A-Za-z0-9]+)\s*\+\s*(\d+)/);
             console.log(`MOV match:`, movMatch);
             
             if (!movMatch) {
