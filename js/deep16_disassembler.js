@@ -1,6 +1,5 @@
-/* deep16_disassembler.js - FIXED VERSION */
+/* deep16_disassembler.js - UPDATED VERSION */
 class Deep16Disassembler {
-    // In deep16_disassembler.js - Fix jump condition mapping
     constructor() {
         // ENHANCED: Always use Rx format except PC for R15
         this.registerNames = [
@@ -11,6 +10,8 @@ class Deep16Disassembler {
         this.shiftOps = ['SL', 'SLC', 'SR', 'SRC', 'SRA', 'SAC', 'ROR', 'ROC'];
         this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
         this.systemOps = ['NOP', 'HLT', 'SWI', 'RETI', '', '', '', ''];
+        this.segmentNames = ['CS', 'DS', 'SS', 'ES'];
+        this.smvSources = ['APC', 'APSW', 'PSW', 'ACS'];
     }
 
     disassemble(instruction) {
@@ -42,71 +43,6 @@ class Deep16Disassembler {
         return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
     }
 
-    disassembleLDI(instruction) {
-        const immediate = instruction & 0x7FFF;
-        return `LDI #0x${immediate.toString(16).padStart(4, '0').toUpperCase()}`;
-    }
-
-    disassembleMemory(instruction) {
-        // LD/ST format: [10][d1][Rd4][Rb4][offset5]
-        // Bits: 15-14: opcode=10, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
-        
-        const d = (instruction >>> 13) & 0x1;      // Bit 13
-        const rd = (instruction >>> 9) & 0xF;      // Bits 12-9  
-        const rb = (instruction >>> 5) & 0xF;      // Bits 8-5
-        const offset = instruction & 0x1F;         // Bits 4-0
-        
-        if (d === 0) {
-            return `LD ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
-        } else {
-            return `ST ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
-        }
-    }
-
-    disassembleALU(instruction) {
-        const aluOp = (instruction >>> 10) & 0x7;
-        
-        if (aluOp === 0b111) {
-            return this.disassembleShift(instruction);
-        }
-        
-        // CORRECTED ALU bit extraction:
-        // ALU format: [110][op3][Rd4][w1][i1][Rs/imm4]
-        // Bits: 15-13: opcode=110, 12-10: aluOp, 9-6: Rd, 5: w, 4: i, 3-0: Rs/imm
-        
-        const rd = (instruction >>> 6) & 0xF;      // Bits 9-6  ← FIXED!
-        const w = (instruction >>> 5) & 0x1;       // Bit 5     ← FIXED!
-        const i = (instruction >>> 4) & 0x1;       // Bit 4     ← FIXED!
-        const operand = instruction & 0xF;         // Bits 3-0
-        
-        let opStr = this.aluOps[aluOp];
-        let operandStr = i === 0 ? this.registerNames[operand] : `#0x${operand.toString(16).toUpperCase()}`;
-        
-        // Only use flag-only operations when w=0 AND for specific ALU ops
-        if (w === 0) {
-            switch (aluOp) {
-                case 0b000: opStr = 'ANW'; break;  // ADD No Write
-                case 0b001: opStr = 'CMP'; break;  // SUB No Write (Compare)
-                case 0b010: opStr = 'TBS'; break;  // AND No Write (Test Bit Set)
-                case 0b100: opStr = 'TBC'; break;  // XOR No Write (Test Bit Clear)
-                default: break; // Keep original opcode for others
-            }
-        }
-        
-        return `${opStr} ${this.registerNames[rd]}, ${operandStr}`;
-    }
-
-    // ... rest of methods same as before ...
-
-
-    disassembleShift(instruction) {
-        const rd = (instruction >>> 8) & 0xF;
-        const shiftType = (instruction >>> 4) & 0x7;
-        const count = instruction & 0xF;
-        
-        return `${this.shiftOps[shiftType]} ${this.registerNames[rd]}, #0x${count.toString(16).toUpperCase()}`;
-    }
-
     disassembleControlFlow(instruction) {
         // Check for MOV first (opcode bits 15-10 = 111110)
         if ((instruction >>> 10) === 0b111110) {
@@ -123,6 +59,26 @@ class Deep16Disassembler {
             return this.disassembleJump(instruction);
         }
         
+        // Check for SOP (Single Operand) instructions (opcode bits 15-8 = 11111110)
+        if ((instruction >>> 8) === 0b11111110) {
+            return this.disassembleSOP(instruction);
+        }
+        
+        // Check for MVS (opcode bits 15-9 = 111111110)
+        if ((instruction >>> 9) === 0b111111110) {
+            return this.disassembleMVS(instruction);
+        }
+        
+        // Check for SMV (opcode bits 15-10 = 1111111110)
+        if ((instruction >>> 10) === 0b1111111110) {
+            return this.disassembleSMV(instruction);
+        }
+        
+        // Check for JML (opcode bits 15-8 = 11111110, type=0100)
+        if ((instruction >>> 8) === 0b11111110 && ((instruction >>> 4) & 0xF) === 0b0100) {
+            return this.disassembleJML(instruction);
+        }
+        
         // Check for System (opcode bits 15-3 = 1111111111110)
         if ((instruction >>> 3) === 0b1111111111110) {
             return this.disassembleSystem(instruction);
@@ -131,13 +87,129 @@ class Deep16Disassembler {
         return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
     }
 
-    disassembleMOV(instruction) {
-        // MOV encoding: [111110][Rd4][Rs4][imm2]
-        // Bits: 15-10: opcode=111110, 9-6: Rd, 5-2: Rs, 1-0: imm
+    // NEW: Disassemble Single Operand Instructions (SOP)
+    disassembleSOP(instruction) {
+        const type4 = (instruction >>> 4) & 0xF;
+        const rx = instruction & 0xF;
         
-        const rd = (instruction >>> 6) & 0xF;      // Bits 9-6
-        const rs = (instruction >>> 2) & 0xF;      // Bits 5-2
-        const imm = instruction & 0x3;             // Bits 1-0
+        switch (type4) {
+            case 0b0000: return `SWB ${this.registerNames[rx]}`;
+            case 0b0001: return `INV ${this.registerNames[rx]}`;
+            case 0b0010: return `NEG ${this.registerNames[rx]}`;
+            case 0b0100: return `JML ${this.registerNames[rx]}`;
+            case 0b1000: return `SRS ${this.registerNames[rx]}`;
+            case 0b1001: return `SRD ${this.registerNames[rx]}`;
+            case 0b1010: return `ERS ${this.registerNames[rx]}`;
+            case 0b1011: return `ERD ${this.registerNames[rx]}`;
+            case 0b1100: 
+                const setImm = instruction & 0xF;
+                return `SET #0x${setImm.toString(16).toUpperCase()}`;
+            case 0b1101:
+                const clrImm = instruction & 0xF;
+                return `CLR #0x${clrImm.toString(16).toUpperCase()}`;
+            case 0b1110:
+                const set2Imm = instruction & 0xF;
+                return `SET2 #0x${set2Imm.toString(16).toUpperCase()}`;
+            case 0b1111:
+                const clr2Imm = instruction & 0xF;
+                return `CLR2 #0x${clr2Imm.toString(16).toUpperCase()}`;
+            default:
+                return `SOP??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
+        }
+    }
+
+    // NEW: Disassemble MVS instruction
+    disassembleMVS(instruction) {
+        const d = (instruction >>> 8) & 0x1;
+        const rd = (instruction >>> 4) & 0xF;
+        const seg = instruction & 0x3;
+        
+        if (d === 0) {
+            return `MVS ${this.registerNames[rd]}, ${this.segmentNames[seg]}`;
+        } else {
+            return `MVS ${this.segmentNames[seg]}, ${this.registerNames[rd]}`;
+        }
+    }
+
+    // NEW: Disassemble SMV instruction
+    disassembleSMV(instruction) {
+        const src2 = (instruction >>> 4) & 0x3;
+        const rd = instruction & 0xF;
+        
+        return `SMV ${this.registerNames[rd]}, ${this.smvSources[src2]}`;
+    }
+
+    // NEW: Disassemble JML instruction (from SOP group)
+    disassembleJML(instruction) {
+        const rx = instruction & 0xF;
+        return `JML ${this.registerNames[rx]}`;
+    }
+
+    // Enhanced disassembleSystem to handle all system ops
+    disassembleSystem(instruction) {
+        const sysOp = instruction & 0x7;
+        return this.systemOps[sysOp] || `SYS??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
+    }
+
+    // All existing methods remain the same...
+    disassembleLDI(instruction) {
+        const immediate = instruction & 0x7FFF;
+        return `LDI #0x${immediate.toString(16).padStart(4, '0').toUpperCase()}`;
+    }
+
+    disassembleMemory(instruction) {
+        const d = (instruction >>> 13) & 0x1;
+        const rd = (instruction >>> 9) & 0xF;
+        const rb = (instruction >>> 5) & 0xF;
+        const offset = instruction & 0x1F;
+        
+        if (d === 0) {
+            return `LD ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
+        } else {
+            return `ST ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
+        }
+    }
+
+    disassembleALU(instruction) {
+        const aluOp = (instruction >>> 10) & 0x7;
+        
+        if (aluOp === 0b111) {
+            return this.disassembleShift(instruction);
+        }
+        
+        const rd = (instruction >>> 6) & 0xF;
+        const w = (instruction >>> 5) & 0x1;
+        const i = (instruction >>> 4) & 0x1;
+        const operand = instruction & 0xF;
+        
+        let opStr = this.aluOps[aluOp];
+        let operandStr = i === 0 ? this.registerNames[operand] : `#0x${operand.toString(16).toUpperCase()}`;
+        
+        if (w === 0) {
+            switch (aluOp) {
+                case 0b000: opStr = 'ANW'; break;
+                case 0b001: opStr = 'CMP'; break;
+                case 0b010: opStr = 'TBS'; break;
+                case 0b100: opStr = 'TBC'; break;
+                default: break;
+            }
+        }
+        
+        return `${opStr} ${this.registerNames[rd]}, ${operandStr}`;
+    }
+
+    disassembleShift(instruction) {
+        const rd = (instruction >>> 8) & 0xF;
+        const shiftType = (instruction >>> 4) & 0x7;
+        const count = instruction & 0xF;
+        
+        return `${this.shiftOps[shiftType]} ${this.registerNames[rd]}, #0x${count.toString(16).toUpperCase()}`;
+    }
+
+    disassembleMOV(instruction) {
+        const rd = (instruction >>> 6) & 0xF;
+        const rs = (instruction >>> 2) & 0xF;
+        const imm = instruction & 0x3;
         
         if (imm === 0) {
             return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}`;
@@ -147,13 +219,9 @@ class Deep16Disassembler {
     }
 
     disassembleLSI(instruction) {
-        // LSI encoding: [1111110][Rd4][imm5]
-        // Bits: 15-9: opcode=1111110, 8-5: Rd, 4-0: imm5
+        const rd = (instruction >>> 5) & 0xF;
+        let imm = instruction & 0x1F;
         
-        const rd = (instruction >>> 5) & 0xF;      // Bits 8-5
-        let imm = instruction & 0x1F;              // Bits 4-0
-        
-        // Sign extend 5-bit value
         if (imm & 0x10) imm |= 0xFFE0;
         
         const immStr = imm >= 0 ? 
@@ -163,46 +231,32 @@ class Deep16Disassembler {
         return `LSI ${this.registerNames[rd]}, ${immStr}`;
     }
 
-// In deep16_disassembler.js - Fix jump bit extraction
-disassembleJump(instruction) {
-    // CORRECTED: JMP format: [1110][type3][target9]
-    // Bits: 15-12: opcode=1110, 11-9: condition, 8-0: offset
-    
-    const condition = (instruction >>> 9) & 0x7;  // Bits 11-9
-    let offset = instruction & 0x1FF;             // Bits 8-0
-    
-    // Sign extend 9-bit value properly
-    if (offset & 0x100) {
-        offset = offset - 0x200; // Convert to signed integer
+    disassembleJump(instruction) {
+        const condition = (instruction >>> 9) & 0x7;
+        let offset = instruction & 0x1FF;
+        
+        if (offset & 0x100) {
+            offset = offset - 0x200;
+        }
+        
+        const conditionName = this.jumpConditions[condition];
+        const offsetStr = offset >= 0 ? `+${offset}` : `${offset}`;
+        
+        return `${conditionName} ${offsetStr}`;
     }
-    
-    const conditionName = this.jumpConditions[condition];
-    const offsetStr = offset >= 0 ? `+${offset}` : `${offset}`;
-    
-    return `${conditionName} ${offsetStr}`;
-}
 
-disassembleJumpWithAddress(instruction, currentAddress) {
-    // CORRECTED: JMP format: [1110][type3][target9]
-    // Bits: 15-12: opcode=1110, 11-9: condition, 8-0: offset
-    
-    const condition = (instruction >>> 9) & 0x7;  // Bits 11-9
-    let offset = instruction & 0x1FF;             // Bits 8-0
-    
-    // Sign extend 9-bit value properly
-    if (offset & 0x100) {
-        offset = offset - 0x200; // Convert to signed integer
+    disassembleJumpWithAddress(instruction, currentAddress) {
+        const condition = (instruction >>> 9) & 0x7;
+        let offset = instruction & 0x1FF;
+        
+        if (offset & 0x100) {
+            offset = offset - 0x200;
+        }
+        
+        const conditionName = this.jumpConditions[condition];
+        const offsetStr = offset >= 0 ? `+${offset}` : `${offset}`;
+        const targetAddress = (currentAddress + 1 + offset) & 0xFFFF;
+        
+        return `${conditionName} ${offsetStr}   ; 0x${targetAddress.toString(16).padStart(4, '0').toUpperCase()}`;
     }
-    
-    const conditionName = this.jumpConditions[condition];
-    const offsetStr = offset >= 0 ? `+${offset}` : `${offset}`;
-    
-    // Calculate absolute target address
-    // When jump executes: PC has already been incremented to next instruction
-    // So: target = current PC + offset = (currentAddress + 1) + offset
-    const targetAddress = (currentAddress + 1 + offset) & 0xFFFF;
-    
-    return `${conditionName} ${offsetStr}   ; 0x${targetAddress.toString(16).padStart(4, '0').toUpperCase()}`;
 }
-}
-/* deep16_disassembler.js */
