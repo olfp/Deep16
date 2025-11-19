@@ -101,17 +101,17 @@ createMemoryLine(address) {
             html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
         }
         
-        // FIXED: Use getDataLineSource which handles the logic properly
+        // SIMPLIFIED: Only show source if this exact line start has a data definition
         const source = this.getDataLineSource(address);
         if (source) {
             html += `<span class="memory-source">; ${source}</span>`;
         }
+        // Otherwise, NO source comment at all for data lines
         
         html += `</div>`;
         return html;
     }
 }
-
 
 // Also add this helper method to Deep16MemoryUI
 getSourceForAddress(address) {
@@ -224,35 +224,18 @@ getDataLineSource(lineStartAddress) {
     
     const listing = this.ui.currentAssemblyResult.listing;
     
-    // Strategy 1: Check if the line start address has an exact data definition
-    const exactSource = this.getExactSourceForAddress(lineStartAddress);
-    if (exactSource && (exactSource.startsWith('.word') || exactSource.startsWith('.byte') || exactSource.startsWith('.space'))) {
-        return exactSource;
-    }
-    
-    // Strategy 2: Check if any address in this line has a data definition
-    for (let i = 0; i < 8; i++) {
-        const addr = lineStartAddress + i;
-        const source = this.getExactSourceForAddress(addr);
-        if (source && (source.startsWith('.word') || source.startsWith('.byte') || source.startsWith('.space'))) {
-            return source;
-        }
-    }
-    
-    // Strategy 3: Only show label if it's very close (within 1-2 words)
-    const nearestLabel = this.findNearestLabel(lineStartAddress);
-    if (nearestLabel) {
-        // Calculate distance from label
-        const labelAddress = this.getLabelAddress(nearestLabel);
-        if (labelAddress !== null) {
-            const distance = lineStartAddress - labelAddress;
-            // Only show label if it's very close (within 2 words)
-            if (distance >= 0 && distance <= 2) {
-                return nearestLabel;
+    // ONLY show source if this exact line start address has a data definition
+    for (const item of listing) {
+        if (item.address === lineStartAddress && item.line) {
+            const line = item.line.trim();
+            // Only return actual data definitions, not labels
+            if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
+                return line;
             }
         }
     }
     
+    // For data lines, NEVER show labels or other context
     return '';
 }
 
