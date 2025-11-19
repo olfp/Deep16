@@ -590,6 +590,7 @@ add_func:
     // Reset the dropdown
     document.getElementById('example-select').value = '';
 }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     window.deepWebUI = new DeepWebUI();
