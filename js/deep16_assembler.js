@@ -398,19 +398,65 @@ isRegister(value) {
         throw new Error('JML requires register operand (even register)');
     }
 
-    encodeMOV(parts, address, lineNumber) {
-        if (parts.length >= 3) {
-            const rd = this.parseRegister(parts[1]);
-            const rs = this.parseRegister(parts[2]);
-            const imm = 0; // Default immediate is 0
+encodeMOV(parts, address, lineNumber) {
+    if (parts.length >= 3) {
+        let rd, rs, imm;
+        
+        // Check if we're using the plus syntax: MOV R1, R2+3 or MOV R1, R2 + 3
+        const joinedParts = parts.join(' ');
+        console.log(`MOV joined parts: "${joinedParts}"`);
+        
+        if (joinedParts.includes('+')) {
+            // Plus syntax: MOV R1, R2+3 or MOV R1, R2 + 3
+            console.log("Detected MOV plus syntax");
             
-            // Correct encoding: [111110][Rd4][Rs4][imm2]
-            // Bits: 15-10: opcode, 9-6: Rd, 5-2: Rs, 1-0: imm
-            return 0b1111100000000000 | (rd << 6) | (rs << 2) | imm;
+            // Find the part with plus (usually parts[2] but could be later)
+            let plusPart = parts.slice(1).find(part => part.includes('+'));
+            if (!plusPart) {
+                throw new Error(`Invalid plus syntax in MOV`);
+            }
+            
+            // Parse Rs and immediate - use regex to extract register and immediate
+            // This handles: "R2+3", "R2 +3", "R2+ 3", "R2 + 3", "R2+0", etc.
+            const movMatch = plusPart.match(/^([A-Za-z0-9]+)\s*\+\s*(\d+)$/);
+            if (!movMatch) {
+                throw new Error(`Invalid MOV plus syntax: ${plusPart}`);
+            }
+            
+            rs = this.parseRegister(movMatch[1].trim());
+            imm = this.parseImmediate(movMatch[2].trim());
+            
+            // Rd is the first register
+            rd = this.parseRegister(parts[1]);
+        } 
+        // Original syntax: MOV R1, R2 or MOV R1, R2, 3
+        else if (parts.length >= 3) {
+            console.log("Detected original MOV syntax");
+            rd = this.parseRegister(parts[1]);
+            rs = this.parseRegister(parts[2]);
+            
+            if (parts.length >= 4) {
+                imm = this.parseImmediate(parts[3]);
+            } else {
+                imm = 0; // Default immediate is 0 if not specified
+            }
         }
-        throw new Error('MOV requires destination register and source register');
+        else {
+            throw new Error('MOV requires destination register and source register');
+        }
+        
+        console.log(`MOV parsed: rd=${rd}, rs=${rs}, imm=${imm}`);
+        
+        if (imm < 0 || imm > 3) {
+            throw new Error(`MOV immediate ${imm} out of range (0-3)`);
+        }
+        
+        // Correct encoding: [111110][Rd4][Rs4][imm2]
+        // Bits: 15-10: opcode, 9-6: Rd, 5-2: Rs, 1-0: imm
+        return 0b1111100000000000 | (rd << 6) | (rs << 2) | imm;
     }
-
+    throw new Error('MOV requires destination register and source register');
+}
     // NEW: Encode LDS/STS instructions
     encodeLDSSTS(parts, isStore, address, lineNumber) {
         if (parts.length >= 4) {
