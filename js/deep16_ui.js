@@ -542,53 +542,30 @@ class DeepWebUI {
         document.getElementById('psw-sr').textContent = (psw >> 6) & 0xF;
     }
 
-    updateMemoryDisplay() {
-        const memoryDisplay = document.getElementById('memory-display');
-        
-        const start = this.memoryStartAddress;
-        const end = Math.min(start + 64, this.simulator.memory.length);
+updateMemoryDisplay() {
+    const memoryDisplay = document.getElementById('memory-display');
+    
+    const start = this.memoryStartAddress;
+    const end = Math.min(start + 64, this.simulator.memory.length);
 
-        // Check if current PC is outside the visible range
-        const currentPC = this.simulator.registers[15];
-        const pcIsVisible = (currentPC >= start && currentPC < end);
-        
-        // If PC is not visible, adjust the start address to show it
-        if (!pcIsVisible && currentPC < this.simulator.memory.length) {
-            this.memoryStartAddress = Math.max(0, currentPC - 8);
-            document.getElementById('memory-start-address').value = '0x' + this.memoryStartAddress.toString(16).padStart(4, '0');
-            // Continue to render with the new address
-        }
-
-        // Rest of memory display code
-        let html = '';
-        
-        if (start >= end) {
-            html = '<div class="memory-line">Invalid memory range</div>';
-        } else {
-            let currentDataLineStart = -1;
-            
-            for (let address = start; address < end; address++) {
-                const isCodeSegment = this.isCodeAddress(address);
-                
-                if (isCodeSegment) {
-                    html += this.createCodeMemoryLine(address);
-                    currentDataLineStart = -1;
-                } else {
-                    if ((address - start) % 8 === 0) {
-                        currentDataLineStart = address;
-                        html += this.createDataMemoryLine(address, Math.min(address + 8, end));
-                    }
-                }
-            }
-        }
-        
-        memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
-        
-        // Auto-scroll to the PC line if it's visible
-        if (pcIsVisible) {
-            this.scrollToPC();
-        }
+    // Check if current PC is outside the visible range
+    const currentPC = this.simulator.registers[15];
+    const pcIsVisible = (currentPC >= start && currentPC < end);
+    
+    // If PC is not visible, adjust the start address to show it
+    if (!pcIsVisible && currentPC < this.simulator.memory.length) {
+        this.memoryStartAddress = Math.max(0, currentPC - 8);
+        document.getElementById('memory-start-address').value = '0x' + this.memoryStartAddress.toString(16).padStart(4, '0');
     }
+
+    // Use the new render method
+    this.renderMemoryDisplay();
+    
+    // Auto-scroll to the PC line if it's visible
+    if (pcIsVisible) {
+        this.scrollToPC();
+    }
+}
 
     // ENHANCED: Create memory line with proper segment handling
     createMemoryLine(address) {
