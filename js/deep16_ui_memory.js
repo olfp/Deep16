@@ -69,7 +69,7 @@ createMemoryLine(address) {
         const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
         
         let html = `<div class="memory-line code-line ${pcClass}">`;
-        html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`; // 5 hex digits
+        html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
         html += `<span class="memory-bytes">${displayValue}</span>`;
         html += `<span class="memory-disassembly">${disasm}</span>`;
         if (source) {
@@ -86,7 +86,7 @@ createMemoryLine(address) {
         
         // Create a data line with 8 words
         let html = `<div class="memory-line data-line ${pcClass}">`;
-        html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`; // 5 hex digits
+        html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
         
         for (let i = 0; i < 8; i++) {
             const dataAddr = address + i;
@@ -185,42 +185,51 @@ createMemoryLine(address) {
         }
     }
 
-    renderMemoryDisplay() {
-        const memoryDisplay = document.getElementById('memory-display');
-        if (!memoryDisplay) return;
-        
-        const start = this.ui.memoryStartAddress || 0;
-        const end = Math.min(start + 64, this.ui.simulator.memory.length);
+renderMemoryDisplay() {
+    const memoryDisplay = document.getElementById('memory-display');
+    if (!memoryDisplay) return;
+    
+    const start = this.ui.memoryStartAddress || 0;
+    const end = Math.min(start + 64, this.ui.simulator.memory.length);
 
-        let html = '';
+    let html = '';
+    
+    if (start >= end) {
+        html = '<div class="memory-line">Invalid memory range</div>';
+    } else {
+        let address = start;
+        let lastAddress = start - 1;
         
-        if (start >= end) {
-            html = '<div class="memory-line">Invalid memory range</div>';
-        } else {
-            let address = start;
-            while (address < end) {
-                // Check if current address is code
-                if (this.isCodeAddress(address)) {
-                    // Code displays one instruction per line
-                    html += this.createMemoryLine(address);
-                    address++;
-                } else {
-                    // Data displays 8 words per line
-                    const lineStart = address;
-                    html += this.createMemoryLine(lineStart);
-                    address += 8; // Skip to next data line
-                }
+        while (address < end) {
+            // Check for gap in memory addresses
+            if (address > lastAddress + 1 && lastAddress >= start) {
+                html += `<div class="memory-gap">...</div>`;
+            }
+            
+            // Check if current address is code
+            if (this.isCodeAddress(address)) {
+                // Code displays one instruction per line
+                html += this.createMemoryLine(address);
+                lastAddress = address;
+                address++;
+            } else {
+                // Data displays 8 words per line
+                const lineStart = address;
+                html += this.createMemoryLine(lineStart);
+                lastAddress = lineStart + 7; // End of data line
+                address += 8; // Skip to next data line
             }
         }
-        
-        memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
-        
-        // Scroll to PC if it's in the current view
-        const currentPC = this.ui.simulator.registers[15];
-        if (currentPC >= start && currentPC < end) {
-            this.scrollToPC();
-        }
     }
+    
+    memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
+    
+    // Scroll to PC if it's in the current view
+    const currentPC = this.ui.simulator.registers[15];
+    if (currentPC >= start && currentPC < end) {
+        this.scrollToPC();
+    }
+}
 
 getDataLineSource(lineStartAddress) {
     if (!this.ui.currentAssemblyResult) return '';
