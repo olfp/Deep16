@@ -50,332 +50,67 @@ class Deep16MemoryUI {
         return segment === 'code';
     }
 
-createMemoryLine(address) {
-    const value = this.ui.simulator.memory[address];
-    const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
-    const isPC = (address === this.ui.simulator.registers[15]);
-    const pcClass = isPC ? 'pc-marker' : '';
-    
-    // Check if this should be displayed as code
-    if (this.isCodeAddress(address)) {
-        let disasm = this.ui.disassembler.disassemble(value);
+    createMemoryLine(address) {
+        const value = this.ui.simulator.memory[address];
+        const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+        const isPC = (address === this.ui.simulator.registers[15]);
+        const pcClass = isPC ? 'pc-marker' : '';
         
-        // Enhanced jump disassembly with absolute addresses
-        if ((value >>> 12) === 0b1110) {
-            disasm = this.ui.disassembler.disassembleJumpWithAddress(value, address);
-        }
-        
-        const source = this.getSourceForAddress(address);
-        const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
-        
-        let html = `<div class="memory-line code-line ${pcClass}">`;
-        html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
-        html += `<span class="memory-bytes">${displayValue}</span>`;
-        html += `<span class="memory-disassembly">${disasm}</span>`;
-        if (source) {
-            html += `<span class="memory-source">; ${source}</span>`;
-        }
-        html += `</div>`;
-        return html;
-    } else {
-        // For data, we need to check if this is the start of a data line
-        const lineStart = address - (address % 8);
-        if (address !== lineStart) {
-            return ''; // Skip non-start addresses in data lines
-        }
-        
-        // Create a data line with 8 words
-        let html = `<div class="memory-line data-line ${pcClass}">`;
-        html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
-        
-        for (let i = 0; i < 8; i++) {
-            const dataAddr = address + i;
-            if (dataAddr >= this.ui.simulator.memory.length) break;
+        // Check if this should be displayed as code
+        if (this.isCodeAddress(address)) {
+            let disasm = this.ui.disassembler.disassemble(value);
             
-            const dataValue = this.ui.simulator.memory[dataAddr];
-            const dataHex = dataValue.toString(16).padStart(4, '0').toUpperCase();
-            const dataPC = (dataAddr === this.ui.simulator.registers[15]);
-            const dataClass = dataPC ? 'pc-marker' : '';
-            const displayData = dataValue === 0xFFFF ? "----" : `0x${dataHex}`;
-            
-            html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
-        }
-        
-        // SIMPLIFIED: Only show source if this exact line start has a data definition
-        const source = this.getDataLineSource(address);
-        if (source) {
-            html += `<span class="memory-source">; ${source}</span>`;
-        }
-        // Otherwise, NO source comment at all for data lines
-        
-        html += `</div>`;
-        return html;
-    }
-}
-
-// Also add this helper method to Deep16MemoryUI
-getSourceForAddress(address) {
-    if (!this.ui.currentAssemblyResult) return '';
-    
-    const listing = this.ui.currentAssemblyResult.listing;
-    
-    // First, try to find the exact address with data definition
-    for (const item of listing) {
-        if (item.address === address) {
-            if (item.line && (item.line.includes('.word') || item.line.includes('.byte') || item.line.includes('.space'))) {
-                return item.line.trim(); // Prefer data definitions
-            }
-            if (item.instruction !== undefined && item.line) {
-                return item.line.trim(); // Code instructions
-            }
-        }
-    }
-    
-    // If no exact match, find the nearest label or data definition
-    let lastLabel = '';
-    let lastData = '';
-    let lastOrg = '';
-    
-    for (const item of listing) {
-        if (item.line) {
-            const line = item.line.trim();
-            if (line.endsWith(':')) {
-                lastLabel = line;
-            } else if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
-                lastData = line;
-            } else if (line.startsWith('.org')) {
-                lastOrg = line;
-            }
-        }
-        
-        if (item.address === address) {
-            // Return the most relevant source
-            if (lastData) return lastData;
-            if (lastLabel) return lastLabel;
-            if (lastOrg) return lastOrg;
-        }
-    }
-    
-    return '';
-}
-    
-
-    updateMemoryDisplay() {
-        const memoryDisplay = document.getElementById('memory-display');
-        
-        const start = this.ui.memoryStartAddress;
-        const end = Math.min(start + 64, this.ui.simulator.memory.length);
-
-        // Check if current PC is outside the visible range
-        const currentPC = this.ui.simulator.registers[15];
-        const pcIsVisible = (currentPC >= start && currentPC < end);
-        
-        // If PC is not visible, adjust the start address to show it
-        if (!pcIsVisible && currentPC < this.ui.simulator.memory.length) {
-            this.ui.memoryStartAddress = Math.max(0, currentPC - 8);
-            document.getElementById('memory-start-address').value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(4, '0');
-        }
-
-        this.renderMemoryDisplay();
-        
-        // Auto-scroll to the PC line if it's visible
-        if (pcIsVisible) {
-            this.scrollToPC();
-        }
-    }
-
-renderMemoryDisplay() {
-    const memoryDisplay = document.getElementById('memory-display');
-    const start = this.ui.memoryStartAddress;
-    const end = Math.min(start + 64, this.ui.simulator.memory.length);
-
-    let html = '';
-    
-    if (start >= end) {
-        html = '<div class="memory-line">Invalid memory range</div>';
-    } else {
-        let address = start;
-        while (address < end) {
-            // Check if current address is code
-            if (this.isCodeAddress(address)) {
-                // Code displays one instruction per line
-                html += this.createMemoryLine(address); // Now this should work
-                address++;
-            } else {
-                // Data displays 8 words per line
-                const lineStart = address;
-                html += this.createMemoryLine(lineStart); // Now this should work
-                address += 8; // Skip to next data line
-            }
-        }
-    }
-    
-    memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
-    
-    // Scroll to PC if it's in the current view
-    const currentPC = this.ui.simulator.registers[15];
-    if (currentPC >= start && currentPC < end) {
-        this.scrollToPC();
-    }
-}
-
-getDataLineSource(lineStartAddress) {
-    if (!this.ui.currentAssemblyResult) return '';
-    
-    const listing = this.ui.currentAssemblyResult.listing;
-    
-    console.log(`Checking data line at 0x${lineStartAddress.toString(16)}`);
-    
-    // ONLY show source if this exact line start address has a data definition
-    for (const item of listing) {
-        if (item.address === lineStartAddress && item.line) {
-            const line = item.line.trim();
-            console.log(`Found item at 0x${lineStartAddress.toString(16)}: "${line}"`);
-            // Only return actual data definitions, not labels
-            if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
-                console.log(`Returning data definition: "${line}"`);
-                return line;
-            }
-        }
-    }
-    
-    console.log(`No data definition found for 0x${lineStartAddress.toString(16)}, returning empty`);
-    // For data lines, NEVER show labels or other context
-    return '';
-}
-
-// NEW: Helper method to get address for a label
-getLabelAddress(label) {
-    if (!this.ui.currentAssemblyResult) return null;
-    
-    const symbols = this.ui.currentAssemblyResult.symbols;
-    const labelName = label.replace(':', '').trim();
-    
-    return symbols[labelName] !== undefined ? symbols[labelName] : null;
-}
-
-// NEW: Get exact source for a specific address - FIXED VERSION
-getExactSourceForAddress(address) {
-    if (!this.ui.currentAssemblyResult) return '';
-    
-    const listing = this.ui.currentAssemblyResult.listing;
-    
-    // First, look for exact address matches with any relevant content
-    for (const item of listing) {
-        if (item.address === address) {
-            const line = item.line ? item.line.trim() : '';
-            
-            // Return data definitions
-            if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
-                return line;
+            // Enhanced jump disassembly with absolute addresses
+            if ((value >>> 12) === 0b1110) {
+                disasm = this.ui.disassembler.disassembleJumpWithAddress(value, address);
             }
             
-            // For code, return the instruction
-            if (item.instruction !== undefined) {
-                return line;
+            const source = this.getSourceForAddress(address);
+            const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
+            
+            let html = `<div class="memory-line code-line ${pcClass}">`;
+            html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
+            html += `<span class="memory-bytes">${displayValue}</span>`;
+            html += `<span class="memory-disassembly">${disasm}</span>`;
+            if (source) {
+                html += `<span class="memory-source">; ${source}</span>`;
+            }
+            html += `</div>`;
+            return html;
+        } else {
+            // For data, we need to check if this is the start of a data line
+            const lineStart = address - (address % 8);
+            if (address !== lineStart) {
+                return ''; // Skip non-start addresses in data lines
             }
             
-            // For org directives, return them
-            if (line.startsWith('.org')) {
-                return line;
+            // Create a data line with 8 words
+            let html = `<div class="memory-line data-line ${pcClass}">`;
+            html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
+            
+            for (let i = 0; i < 8; i++) {
+                const dataAddr = address + i;
+                if (dataAddr >= this.ui.simulator.memory.length) break;
+                
+                const dataValue = this.ui.simulator.memory[dataAddr];
+                const dataHex = dataValue.toString(16).padStart(4, '0').toUpperCase();
+                const dataPC = (dataAddr === this.ui.simulator.registers[15]);
+                const dataClass = dataPC ? 'pc-marker' : '';
+                const displayData = dataValue === 0xFFFF ? "----" : `0x${dataHex}`;
+                
+                html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
             }
             
-            // For labels, return them
-            if (line.endsWith(':')) {
-                return line;
+            // Get source for data line
+            const source = this.getDataLineSource(address);
+            if (source) {
+                html += `<span class="memory-source">; ${source}</span>`;
             }
+            
+            html += `</div>`;
+            return html;
         }
     }
-    
-    return '';
-}
-
-// FIXED: Get appropriate source for data lines
-getDataLineSource(lineStartAddress) {
-    if (!this.ui.currentAssemblyResult) return '';
-    
-    const listing = this.ui.currentAssemblyResult.listing;
-    
-    // Strategy 1: Check if the line start address has an exact source
-    const exactSource = this.getExactSourceForAddress(lineStartAddress);
-    if (exactSource) {
-        return exactSource;
-    }
-    
-    // Strategy 2: Check if any address in this line has a data definition
-    for (let i = 0; i < 8; i++) {
-        const addr = lineStartAddress + i;
-        const source = this.getExactSourceForAddress(addr);
-        if (source && (source.startsWith('.word') || source.startsWith('.byte') || source.startsWith('.space'))) {
-            return source;
-        }
-    }
-    
-    // Strategy 3: Find the nearest label before this line
-    const nearestLabel = this.findNearestLabel(lineStartAddress);
-    if (nearestLabel) {
-        return nearestLabel;
-    }
-    
-    return '';
-}
-
-
-// NEW: Get exact source for a specific address - FIXED VERSION
-getExactSourceForAddress(address) {
-    if (!this.ui.currentAssemblyResult) return '';
-    
-    const listing = this.ui.currentAssemblyResult.listing;
-    
-    // First, look for exact address matches with data definitions
-    for (const item of listing) {
-        if (item.address === address) {
-            const line = item.line ? item.line.trim() : '';
-            
-            // Return data definitions
-            if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
-                return line;
-            }
-            
-            // For code, return the instruction
-            if (item.instruction !== undefined) {
-                return line;
-            }
-            
-            // For org directives, return them
-            if (line.startsWith('.org')) {
-                return line;
-            }
-        }
-    }
-    
-    return '';
-}
-
-    // NEW: Find the nearest label before an address
-    findNearestLabel(address) {
-    if (!this.ui.currentAssemblyResult) return '';
-    
-    const listing = this.ui.currentAssemblyResult.listing;
-    let nearestLabel = '';
-    let nearestDistance = Infinity;
-    
-    for (const item of listing) {
-        if (item.address !== undefined && item.line) {
-            const line = item.line.trim();
-            if (line.endsWith(':') && item.address <= address) {
-                const distance = address - item.address;
-                if (distance < nearestDistance) {
-                    nearestDistance = distance;
-                    nearestLabel = line;
-                }
-            }
-        }
-    }
-    
-    // Only return if we found a reasonably close label
-    return nearestDistance < Infinity ? nearestLabel : '';
-}
 
     getSourceForAddress(address) {
         if (!this.ui.currentAssemblyResult) return '';
@@ -422,35 +157,155 @@ getExactSourceForAddress(address) {
         return '';
     }
 
-    getContextSourceForAddress(address) {
+    updateMemoryDisplay() {
+        const memoryDisplay = document.getElementById('memory-display');
+        
+        const start = this.ui.memoryStartAddress;
+        const end = Math.min(start + 64, this.ui.simulator.memory.length);
+
+        // Check if current PC is outside the visible range
+        const currentPC = this.ui.simulator.registers[15];
+        const pcIsVisible = (currentPC >= start && currentPC < end);
+        
+        // If PC is not visible, adjust the start address to show it
+        if (!pcIsVisible && currentPC < this.ui.simulator.memory.length) {
+            this.ui.memoryStartAddress = Math.max(0, currentPC - 8);
+            document.getElementById('memory-start-address').value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(4, '0');
+        }
+
+        this.renderMemoryDisplay();
+        
+        // Auto-scroll to the PC line if it's visible
+        if (pcIsVisible) {
+            this.scrollToPC();
+        }
+    }
+
+    renderMemoryDisplay() {
+        const memoryDisplay = document.getElementById('memory-display');
+        const start = this.ui.memoryStartAddress;
+        const end = Math.min(start + 64, this.ui.simulator.memory.length);
+
+        let html = '';
+        
+        if (start >= end) {
+            html = '<div class="memory-line">Invalid memory range</div>';
+        } else {
+            let address = start;
+            while (address < end) {
+                // Check if current address is code
+                if (this.isCodeAddress(address)) {
+                    // Code displays one instruction per line
+                    html += this.createMemoryLine(address);
+                    address++;
+                } else {
+                    // Data displays 8 words per line
+                    const lineStart = address;
+                    html += this.createMemoryLine(lineStart);
+                    address += 8; // Skip to next data line
+                }
+            }
+        }
+        
+        memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
+        
+        // Scroll to PC if it's in the current view
+        const currentPC = this.ui.simulator.registers[15];
+        if (currentPC >= start && currentPC < end) {
+            this.scrollToPC();
+        }
+    }
+
+    getDataLineSource(lineStartAddress) {
         if (!this.ui.currentAssemblyResult) return '';
         
         const listing = this.ui.currentAssemblyResult.listing;
         
-        // Look for the closest data definition before this address
-        let closestData = '';
-        let closestDistance = Infinity;
+        // Strategy 1: Check if the line start address has an exact source
+        const exactSource = this.getExactSourceForAddress(lineStartAddress);
+        if (exactSource) {
+            return exactSource;
+        }
+        
+        // Strategy 2: Check if any address in this line has a data definition
+        for (let i = 0; i < 8; i++) {
+            const addr = lineStartAddress + i;
+            const source = this.getExactSourceForAddress(addr);
+            if (source && (source.startsWith('.word') || source.startsWith('.byte') || source.startsWith('.space'))) {
+                return source;
+            }
+        }
+        
+        // Strategy 3: Find the nearest label before this line
+        const nearestLabel = this.findNearestLabel(lineStartAddress);
+        if (nearestLabel) {
+            return nearestLabel;
+        }
+        
+        return '';
+    }
+
+    getExactSourceForAddress(address) {
+        if (!this.ui.currentAssemblyResult) return '';
+        
+        const listing = this.ui.currentAssemblyResult.listing;
+        
+        // First, look for exact address matches with data definitions
+        for (const item of listing) {
+            if (item.address === address) {
+                const line = item.line ? item.line.trim() : '';
+                
+                // Return data definitions
+                if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
+                    return line;
+                }
+                
+                // For code, return the instruction
+                if (item.instruction !== undefined) {
+                    return line;
+                }
+                
+                // For org directives, return them
+                if (line.startsWith('.org')) {
+                    return line;
+                }
+            }
+        }
+        
+        return '';
+    }
+
+    findNearestLabel(address) {
+        if (!this.ui.currentAssemblyResult) return '';
+        
+        const listing = this.ui.currentAssemblyResult.listing;
+        let nearestLabel = '';
+        let nearestDistance = Infinity;
         
         for (const item of listing) {
             if (item.address !== undefined && item.line) {
                 const line = item.line.trim();
-                if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
+                if (line.endsWith(':') && item.address <= address) {
                     const distance = address - item.address;
-                    if (distance >= 0 && distance < closestDistance) {
-                        closestDistance = distance;
-                        closestData = line;
-                    }
-                } else if (line.endsWith(':') && item.address <= address) {
-                    // Also consider labels as context
-                    const distance = address - item.address;
-                    if (distance >= 0 && distance < 16) { // Within 16 words
-                        return line; // Use label as context
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        nearestLabel = line;
                     }
                 }
             }
         }
         
-        return closestData;
+        // Only return if we found a reasonably close label
+        return nearestDistance < Infinity ? nearestLabel : '';
+    }
+
+    getLabelAddress(label) {
+        if (!this.ui.currentAssemblyResult) return null;
+        
+        const symbols = this.ui.currentAssemblyResult.symbols;
+        const labelName = label.replace(':', '').trim();
+        
+        return symbols[labelName] !== undefined ? symbols[labelName] : null;
     }
 
     scrollToPC() {
