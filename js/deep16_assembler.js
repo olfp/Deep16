@@ -5,16 +5,15 @@ class Deep16Assembler {
         this.symbols = {};
     }
 
-// In deep16_assembler.js - Fix the assemble method
+// In deep16_assembler.js - Enhance output with segment info
 assemble(source) {
     this.labels = {};
     this.symbols = {};
     const errors = [];
-    
-    // DON'T create a new memory array filled with zeros!
-    // Instead, we'll just return the changes and let the UI apply them
-    const memoryChanges = []; // Array of {address, value} pairs
+    const memoryChanges = [];
     const assemblyListing = [];
+    const segmentMap = new Map(); // Track address -> segment type
+    let currentSegment = 'code'; // Default segment
     let address = 0;
 
     const lines = source.split('\n');
@@ -28,11 +27,22 @@ assemble(source) {
             if (line.startsWith('.org')) {
                 const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
                 address = orgValue;
+                // Assume code segment unless we see data directives
+                currentSegment = 'code';
             } else if (line.endsWith(':')) {
                 const label = line.slice(0, -1).trim();
                 this.labels[label] = address;
                 this.symbols[label] = address;
+                segmentMap.set(address, currentSegment);
+            } else if (line.startsWith('.word')) {
+                currentSegment = 'data';
+                const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
+                for (const value of values) {
+                    segmentMap.set(address, 'data');
+                    address++;
+                }
             } else if (!this.isDirective(line)) {
+                segmentMap.set(address, 'code');
                 address++;
             }
         } catch (error) {
@@ -42,6 +52,8 @@ assemble(source) {
 
     // Second pass: generate machine code
     address = 0;
+    currentSegment = 'code';
+    
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         const originalLine = lines[i];
@@ -55,32 +67,36 @@ assemble(source) {
             if (line.startsWith('.org')) {
                 const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
                 address = orgValue;
-                assemblyListing.push({ address: address, line: originalLine });
+                currentSegment = 'code';
+                assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
             } else if (line.endsWith(':')) {
-                assemblyListing.push({ address: address, line: originalLine });
+                assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
             } else if (line.startsWith('.word')) {
+                currentSegment = 'data';
                 const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
                 for (const value of values) {
-                    memoryChanges.push({ address: address, value: value & 0xFFFF });
+                    memoryChanges.push({ address: address, value: value & 0xFFFF, segment: 'data' });
                     assemblyListing.push({ 
                         address: address, 
                         instruction: value,
-                        line: originalLine 
+                        line: originalLine,
+                        segment: 'data'
                     });
                     address++;
                 }
             } else {
                 const instruction = this.encodeInstruction(line, address, i + 1);
                 if (instruction !== null) {
-                    memoryChanges.push({ address: address, value: instruction });
+                    memoryChanges.push({ address: address, value: instruction, segment: 'code' });
                     assemblyListing.push({ 
                         address: address, 
                         instruction: instruction,
-                        line: originalLine 
+                        line: originalLine,
+                        segment: 'code'
                     });
                     address++;
                 } else {
-                    assemblyListing.push({ address: address, line: originalLine });
+                    assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
                 }
             }
         } catch (error) {
@@ -88,7 +104,8 @@ assemble(source) {
             assemblyListing.push({ 
                 address: address,
                 error: error.message,
-                line: originalLine 
+                line: originalLine,
+                segment: currentSegment
             });
             address++;
         }
@@ -96,13 +113,13 @@ assemble(source) {
 
     return {
         success: errors.length === 0,
-        memoryChanges: memoryChanges, // Return changes instead of full memory
+        memoryChanges: memoryChanges,
         symbols: this.symbols,
         errors: errors,
-        listing: assemblyListing
+        listing: assemblyListing,
+        segmentMap: segmentMap // NEW: Provide segment information to UI
     };
 }
-
     isDirective(line) {
         return line.startsWith('.org') || line.startsWith('.word');
     }
