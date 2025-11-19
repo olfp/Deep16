@@ -65,6 +65,24 @@ class DeepWebUI {
             });
         });
 
+    // Tab key support for editor
+    this.editorElement.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+            e.preventDefault(); // Prevent default tab behavior (focus change)
+            
+            const start = this.editorElement.selectionStart;
+            const end = this.editorElement.selectionEnd;
+            
+            // Insert tab character at cursor position
+            this.editorElement.value = this.editorElement.value.substring(0, start) + 
+                                      '\t' + 
+                                      this.editorElement.value.substring(end);
+            
+            // Move cursor to after the inserted tab
+            this.editorElement.selectionStart = this.editorElement.selectionEnd = start + 1;
+        }
+    });        
+
         window.addEventListener('resize', () => this.memoryUI.updateMemoryDisplay());
     }
 
