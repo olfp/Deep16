@@ -388,16 +388,17 @@ isRegister(value) {
         throw new Error('SMV requires destination register and source');
     }
 
-    // NEW: Encode JML instruction
-    encodeJML(parts, address, lineNumber) {
-        if (parts.length >= 2) {
-            const rx = this.parseRegister(parts[1]);
-            // JML: [11111110][0100][Rx4] - JML uses even register Rx (Rx=CS, Rx+1=PC)
-            return 0b1111111001000000 | (rx << 4);
-        }
-        throw new Error('JML requires register operand (even register)');
+// In deep16_assembler.js - Fix encodeJML
+encodeJML(parts, address, lineNumber) {
+    if (parts.length >= 2) {
+        const rx = this.parseRegister(parts[1]);
+        // JML: [11111110][0100][Rx4]
+        // Bits: 15-8: 11111110, 7-4: 0100, 3-0: Rx
+        // So we need: 0xFE40 | Rx (not Rx << 4)
+        return 0b1111111001000000 | rx;  // Remove the shift!
     }
-
+    throw new Error('JML requires register operand (even register)');
+}
 encodeMOV(parts, address, lineNumber) {
     if (parts.length >= 3) {
         let rd, rs, imm;
