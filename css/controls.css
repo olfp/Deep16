@@ -13,6 +13,31 @@
     gap: 8px;
 }
 
+#example-select {
+    background: #1e1e1e;
+    border: 1px solid #3e3e42;
+    color: #d4d4d4;
+    padding: 2px 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    height: 20px;
+    border-radius: 3px;
+}
+
+#example-select option {
+    background: #2d2d30;
+    color: #d4d4d4;
+    padding: 4px;
+}
+
+.controls-left label {
+    color: #9cdcfe;
+    font-size: 11px;
+    margin-left: 8px;
+    margin-right: 4px;
+}
+
+
 button {
     padding: 2px 8px;      /* Even more compact */
     background: #0e639c;
