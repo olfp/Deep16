@@ -44,6 +44,11 @@ class Deep16Disassembler {
     }
 
     disassembleControlFlow(instruction) {
+        // Check for LDS/STS first (opcode bits 15-11 = 11110)
+        if ((instruction >>> 11) === 0b11110) {
+            return this.disassembleLDSSTS(instruction);
+        }
+
         // Check for MOV first (opcode bits 15-10 = 111110)
         if ((instruction >>> 10) === 0b111110) {
             return this.disassembleMOV(instruction);
@@ -185,6 +190,11 @@ class Deep16Disassembler {
         let opStr = this.aluOps[aluOp];
         let operandStr = i === 0 ? this.registerNames[operand] : `#0x${operand.toString(16).toUpperCase()}`;
         
+        // Add 32-bit mode indicator for MUL/DIV
+        if (i === 1 && (aluOp === 0b101 || aluOp === 0b110)) {
+            opStr += '32';
+        }
+        
         if (w === 0) {
             switch (aluOp) {
                 case 0b000: opStr = 'ANW'; break;
@@ -197,6 +207,22 @@ class Deep16Disassembler {
         
         return `${opStr} ${this.registerNames[rd]}, ${operandStr}`;
     }
+
+    // NEW: Disassemble LDS/STS
+    disassembleLDSSTS(instruction) {
+        const d = (instruction >>> 10) & 0x1;
+        const seg = (instruction >>> 8) & 0x3;
+        const rd = (instruction >>> 4) & 0xF;
+        const rs = instruction & 0xF;
+        
+        if (d === 0) {
+            return `LDS ${this.registerNames[rd]}, ${this.segmentNames[seg]}, ${this.registerNames[rs]}`;
+        } else {
+            return `STS ${this.registerNames[rd]}, ${this.segmentNames[seg]}, ${this.registerNames[rs]}`;
+        }
+    }
+
+
 
     disassembleShift(instruction) {
         const rd = (instruction >>> 8) & 0xF;
