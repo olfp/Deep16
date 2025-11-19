@@ -58,38 +58,21 @@
                 </div>
                 
                 <div id="editor-tab" class="tab-content active">
-                    <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Fibonacci Example - PROPER COUNTING
-; Calculate Fibonacci numbers F(0) through F(10)
+<textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Integrated Development Environment
+; Select an example from the dropdown or write your own code
+; Then click 'Assemble' to compile and 'Run' to execute
 
 .org 0x0000
 
 main:
-    LSI  R1, 0        ; F(0) = 0
-    LSI  R2, 1        ; F(1) = 1
-    LSI  R3, 10       ; Calculate F(2) through F(10) (9 numbers)
-    LDI  0x0200       ; Output address into R0
-    MOV  R4, R0       ; Move to R4 for output pointer
-    
-    ST   R1, R4, 0    ; Store F(0)
-    ADD  R4, 1        ; Next address
-    ST   R2, R4, 0    ; Store F(1)  
-    ADD  R4, 1        ; Next address
-    
-fib_loop:
-    MOV  R0, R2       ; temp = current
-    ADD  R2, R1       ; next = current + previous
-    MOV  R1, R0       ; previous = temp
-    
-    ST   R2, R4, 0    ; Store the NEW Fibonacci number
-    ADD  R4, 1        ; Next output address
-    
-    SUB  R3, 1        ; decrement counter
-    JNZ  fib_loop     ; loop if not zero
+    ; Your Deep16 code here
+    LSI R0, 42        ; Example: load immediate value
+    ST  R0, R0, 0     ; Example: store to memory
     
     HALT
 
 .org 0x0200
-fibonacci_results:
+data_area:
     .word 0</textarea>
                 </div>
                 
