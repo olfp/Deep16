@@ -567,7 +567,6 @@ updateMemoryDisplay() {
     }
 }
 
-    // ENHANCED: Create memory line with proper segment handling
     createMemoryLine(address) {
         const value = this.simulator.memory[address];
         const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
@@ -596,24 +595,41 @@ updateMemoryDisplay() {
             html += `</div>`;
             return html;
         } else {
-            // Display as data
-            const source = this.getSourceForAddress(address);
-            const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
+            // For data, we need to check if this is the start of a data line
+            const lineStart = address - (address % 8);
+            if (address !== lineStart) {
+                return ''; // Skip non-start addresses in data lines
+            }
             
+            // Create a data line with 8 words
             let html = `<div class="memory-line data-line ${pcClass}">`;
             html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
-            html += `<span class="memory-bytes">${displayValue}</span>`;
+            
+            for (let i = 0; i < 8; i++) {
+                const dataAddr = address + i;
+                if (dataAddr >= this.simulator.memory.length) break;
+                
+                const dataValue = this.simulator.memory[dataAddr];
+                const dataHex = dataValue.toString(16).padStart(4, '0').toUpperCase();
+                const dataPC = (dataAddr === this.simulator.registers[15]);
+                const dataClass = dataPC ? 'pc-marker' : '';
+                const displayData = dataValue === 0xFFFF ? "----" : `0x${dataHex}`;
+                
+                html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
+            }
+            
+            // Add source for the first address in the line
+            const source = this.getSourceForAddress(address);
             if (source) {
                 html += `<span class="memory-source">; ${source}</span>`;
-            } else {
-                html += `<span class="memory-source">; data</span>`;
             }
+            
             html += `</div>`;
             return html;
         }
     }
 
-    // UPDATED: Memory display to use new createMemoryLine method
+    // UPDATED: Memory display to handle data line grouping
     renderMemoryDisplay() {
         const memoryDisplay = document.getElementById('memory-display');
         const start = this.memoryStartAddress;
@@ -624,8 +640,19 @@ updateMemoryDisplay() {
         if (start >= end) {
             html = '<div class="memory-line">Invalid memory range</div>';
         } else {
-            for (let address = start; address < end; address++) {
-                html += this.createMemoryLine(address);
+            let address = start;
+            while (address < end) {
+                // Check if current address is code
+                if (this.isCodeAddress(address)) {
+                    // Code displays one instruction per line
+                    html += this.createMemoryLine(address);
+                    address++;
+                } else {
+                    // Data displays 8 words per line
+                    const lineStart = address;
+                    html += this.createMemoryLine(lineStart);
+                    address += 8; // Skip to next data line
+                }
             }
         }
         
@@ -637,8 +664,6 @@ updateMemoryDisplay() {
             this.scrollToPC();
         }
     }
-
-
 
     scrollToPC() {
         const memoryDisplay = document.getElementById('memory-display');
