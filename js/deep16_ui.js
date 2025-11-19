@@ -854,106 +854,99 @@ fibonacci_results:
 
 case 'far_call':
     exampleCode = `; Deep16 (深十六) Far Call Example
-; Demonstrates inter-segment procedure calls
+; Demonstrates inter-segment procedure calls with full instruction set
 
 .org 0x0000
 
 main:
     ; Initialize stack segment and pointer
-    LDI  0x7F00       ; Stack segment base (0x7F00)
-    MOV  R13, R0      ; SP = 0x7F00 (grows downward)
-    SRD  R13          ; Set SR=13 and enable dual registers (SP+FP use SS)
+    LDI  0x7F00       ; Stack segment base
+    MOV  R13, R0      ; SP = 0x7F00
+    SRD  R13          ; Set stack register and enable dual mode
     
-    LDI  100          ; Initialize some test data
+    ; Test data using different instructions
+    LDI  100
     MOV  R1, R0
-    LDI  200
+    LDI  200  
     MOV  R2, R0
-    LDI  300  
+    LDI  300
     MOV  R3, R0
     
-    ; Save current context for return
-    MVS  R8, CS       ; Save current CS to R8
-    MOV  R9, PC, 2    ; Save return address to R9
+    ; Demonstrate LDS/STS with explicit segments
+    LDI  0x1234
+    STS  R0, ES, R1   ; Store to extra segment
+    
+    ; Save current context for far call
+    MVS  R8, CS       ; Save current CS
+    MOV  R9, PC, 2    ; Save return address
     
     ; Setup far call to segment 0x1000
-    LDI  0x1000       ; Target CS = 0x1000
+    LDI  0x1000       ; Target CS
     MOV  R10, R0
-    LDI  0x0200       ; Target PC = 0x0200
+    LDI  0x0200       ; Target PC  
     MOV  R11, R0
     
-    ; Perform far jump (JML uses R10 for CS, R11 for PC)
+    ; Perform far jump
     JML  R10          ; Jump to CS=R10, PC=R11
     
-    ; Execution continues here after far return
+    ; Return here after far call
     LDI  50
-    ADD  R1, R0       ; Modify data after return
-    ST   R1, R0, 0    ; Store result
+    ADD  R1, R0
+    ST   R1, R0, 0
     
     HALT
 
-; Far procedure in segment 0x1000
+; Far procedure in different segment
 .org 0x1000
 
 far_function:
-    ; Far function prologue - allocate stack frame
-    SUB  R13, 3       ; Allocate space for 3 words: CS, ret_addr, R1
-    ST   R8, R13, 0   ; Save caller's CS at [SP+0]
-    ST   R9, R13, 1   ; Save return address at [SP+1]
-    ST   R1, R13, 2   ; Save R1 at [SP+2]
+    ; Prologue with stack operations
+    SUB  R13, 3
+    ST   R8, R13, 0   ; Save caller's CS
+    ST   R9, R13, 1   ; Save return address
+    ST   R1, R13, 2   ; Save R1
     
-    ; Far function body
-    ADD  R1, R2       ; R1 = R1 + R2 (100 + 200 = 300)
-    ADD  R1, R3       ; R1 = R1 + R3 (300 + 300 = 600)
-    LDI  0x0100
-    ST   R1, R0, 0    ; Store intermediate result
+    ; Demonstrate 32-bit multiplication
+    LDI  1000
+    MOV  R4, R0
+    LDI  500  
+    MOV  R5, R0
+    MUL32 R6, R5      ; R6:R7 = R4 × R5 (32-bit result)
     
-    ; Call another far function in same segment
-    MOV  R14, PC, 2   ; Save return address in LR (R14)
-    LDI  0x0300       ; Target PC for nested call
+    ; Demonstrate shift operations
+    LDI  0x00FF
+    MOV  R8, R0
+    SL   R8, 2        ; Shift left
+    SRA  R8, 1        ; Arithmetic shift right
+    
+    ; Demonstrate SOP operations
+    LDI  0x1234
+    MOV  R9, R0
+    SWB  R9           ; Swap bytes -> 0x3412
+    INV  R9           ; Invert bits
+    NEG  R9           ; Two's complement
+    
+    ; Call nested function
+    MOV  R14, PC, 2
+    LDI  0x0300
     MOV  R11, R0
-    JML  R10          ; CS=R10 (0x1000), PC=R11 (0x0300)
+    JML  R10
     
-    ; Continue after nested call returns
-    LDI  50
-    ADD  R1, R0       ; R1 = 650 + 50 = 700
+    ; Epilogue
+    LD   R1, R13, 2
+    LD   R9, R13, 1  
+    LD   R8, R13, 0
+    ADD  R13, 3
     
-    ; Far function epilogue - restore from stack frame
-    LD   R1, R13, 2   ; Restore R1 from [SP+2]
-    LD   R9, R13, 1   ; Restore return address from [SP+1]
-    LD   R8, R13, 0   ; Restore caller's CS from [SP+0]
-    ADD  R13, 3       ; Deallocate stack frame
-    
-    ; Return to caller (original segment)
-    MOV  R10, R8, 0   ; Restore original CS to R10
-    MOV  R11, R9, 0   ; Restore return address to R11
-    JML  R10          ; Return to original segment
-
-; Nested far function in same segment (0x1000)
-.org 0x1300
-
-nested_far_function:
-    ; Nested function prologue
-    SUB  R13, 1       ; Allocate space for return address
-    ST   R14, R13, 0  ; Save return address at [SP+0]
-    
-    ; Nested function body
-    LDI  50
-    ADD  R1, R0       ; R1 = 600 + 50 = 650
-    
-    ; Nested function epilogue
-    LD   R14, R13, 0  ; Restore return address from [SP+0]
-    ADD  R13, 1       ; Deallocate stack frame
-    
-    ; Return to caller in same segment
-    MOV  R11, R14, 0  ; Return address to R11 (CS still in R10)
-    JML  R10          ; Return within same segment
+    ; Return to caller
+    MOV  R10, R8, 0
+    MOV  R11, R9, 0
+    JML  R10
 
 .org 0x0200
 data_buffer:
     .word 0`;
-    exampleTitle = "Far call example";
     break;
-
 
         default:
             return; // No example selected
