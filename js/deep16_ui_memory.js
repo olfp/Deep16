@@ -224,17 +224,22 @@ getDataLineSource(lineStartAddress) {
     
     const listing = this.ui.currentAssemblyResult.listing;
     
+    console.log(`Checking data line at 0x${lineStartAddress.toString(16)}`);
+    
     // ONLY show source if this exact line start address has a data definition
     for (const item of listing) {
         if (item.address === lineStartAddress && item.line) {
             const line = item.line.trim();
+            console.log(`Found item at 0x${lineStartAddress.toString(16)}: "${line}"`);
             // Only return actual data definitions, not labels
             if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
+                console.log(`Returning data definition: "${line}"`);
                 return line;
             }
         }
     }
     
+    console.log(`No data definition found for 0x${lineStartAddress.toString(16)}, returning empty`);
     // For data lines, NEVER show labels or other context
     return '';
 }
