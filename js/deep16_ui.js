@@ -821,7 +821,6 @@ updateMemoryDisplay() {
         
         return closestData;
     }
-}
 
     updateSegmentRegisters() {
         const segmentGrid = document.querySelector('.register-section:nth-child(3) .register-grid');
