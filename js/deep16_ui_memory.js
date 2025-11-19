@@ -109,7 +109,7 @@ class Deep16MemoryUI {
         }
     }
 
-    createMemoryLine(address) {
+   createMemoryLine(address) {
         const value = this.ui.simulator.memory[address];
         const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
         const isPC = (address === this.ui.simulator.registers[15]);
@@ -160,21 +160,124 @@ class Deep16MemoryUI {
                 html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
             }
             
-            // Add source for the first address in the line
-            const source = this.getSourceForAddress(address);
+            // NEW: Get appropriate source comment for the data line
+            const source = this.getDataLineSource(address);
             if (source) {
                 html += `<span class="memory-source">; ${source}</span>`;
-            } else {
-                // Fallback: try to find any source context for this address range
-                const contextSource = this.getContextSourceForAddress(address);
-                if (contextSource) {
-                    html += `<span class="memory-source">; ${contextSource}</span>`;
-                }
             }
             
             html += `</div>`;
             return html;
         }
+    }
+
+    // NEW: Get appropriate source for data lines
+    getDataLineSource(lineStartAddress) {
+        if (!this.ui.currentAssemblyResult) return '';
+        
+        const listing = this.ui.currentAssemblyResult.listing;
+        
+        // Strategy 1: Check if all addresses in this line have the same source
+        const lineSources = new Set();
+        for (let i = 0; i < 8; i++) {
+            const addr = lineStartAddress + i;
+            const source = this.getExactSourceForAddress(addr);
+            if (source) {
+                lineSources.add(source);
+            }
+        }
+        
+        // If all addresses have the same source, use it
+        if (lineSources.size === 1) {
+            return Array.from(lineSources)[0];
+        }
+        
+        // Strategy 2: Find the most common source in this line
+        const sourceCounts = new Map();
+        for (let i = 0; i < 8; i++) {
+            const addr = lineStartAddress + i;
+            const source = this.getExactSourceForAddress(addr);
+            if (source) {
+                sourceCounts.set(source, (sourceCounts.get(source) || 0) + 1);
+            }
+        }
+        
+        let mostCommonSource = '';
+        let maxCount = 0;
+        for (const [source, count] of sourceCounts) {
+            if (count > maxCount) {
+                mostCommonSource = source;
+                maxCount = count;
+            }
+        }
+        
+        if (mostCommonSource && maxCount >= 4) { // At least half the line
+            return mostCommonSource;
+        }
+        
+        // Strategy 3: Use the label or data definition at the line start
+        const lineStartSource = this.getExactSourceForAddress(lineStartAddress);
+        if (lineStartSource) {
+            return lineStartSource;
+        }
+        
+        // Strategy 4: Find the nearest label before this line
+        return this.findNearestLabel(lineStartAddress);
+    }
+
+    // NEW: Get exact source for a specific address
+    getExactSourceForAddress(address) {
+        if (!this.ui.currentAssemblyResult) return '';
+        
+        const listing = this.ui.currentAssemblyResult.listing;
+        
+        for (const item of listing) {
+            if (item.address === address && item.line) {
+                const line = item.line.trim();
+                
+                // Skip org directives for data lines
+                if (line.startsWith('.org')) {
+                    continue;
+                }
+                
+                // Return data definitions and labels
+                if (line.startsWith('.word') || line.startsWith('.byte') || 
+                    line.startsWith('.space') || line.endsWith(':')) {
+                    return line;
+                }
+                
+                // For code, return the instruction
+                if (item.instruction !== undefined) {
+                    return line;
+                }
+            }
+        }
+        
+        return '';
+    }
+
+    // NEW: Find the nearest label before an address
+    findNearestLabel(address) {
+        if (!this.ui.currentAssemblyResult) return '';
+        
+        const listing = this.ui.currentAssemblyResult.listing;
+        let nearestLabel = '';
+        let nearestDistance = Infinity;
+        
+        for (const item of listing) {
+            if (item.address !== undefined && item.line) {
+                const line = item.line.trim();
+                if (line.endsWith(':') && item.address <= address) {
+                    const distance = address - item.address;
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        nearestLabel = line;
+                    }
+                }
+            }
+        }
+        
+        return nearestLabel;
     }
 
     getSourceForAddress(address) {
