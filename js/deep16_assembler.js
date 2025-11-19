@@ -618,7 +618,10 @@ encodeMemory(parts, isStore, address, lineNumber) {
             console.log("Detected bracket syntax");
             
             // Extract the entire bracket content from joined parts
+            // Look for: ST R0 [R0 +21] - we want "R0 +21"
             const bracketMatch = joinedParts.match(/\[([^\]]+)\]/);
+            console.log(`Bracket match:`, bracketMatch);
+            
             if (!bracketMatch) {
                 throw new Error(`Invalid bracket syntax in ${isStore ? 'ST' : 'LD'}`);
             }
@@ -644,8 +647,11 @@ encodeMemory(parts, isStore, address, lineNumber) {
             }
             
             // Rd is the part before the brackets (find the register before the [)
+            // For "ST R0 [R0 +21]", we want "R0" (the second one)
             const beforeBracket = joinedParts.split('[')[0].trim();
+            console.log(`Before bracket: "${beforeBracket}"`);
             const rdParts = beforeBracket.split(/\s+/);
+            console.log(`Rd parts:`, rdParts);
             rd = this.parseRegister(rdParts[rdParts.length - 1]); // Last part before [
         } 
         // Old syntax: LD R1, R2, 5
