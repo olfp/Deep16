@@ -222,69 +222,71 @@ class Deep16MemoryUI {
         }
     }
 
-    getDataLineSource(lineStartAddress) {
-        if (!this.ui.currentAssemblyResult) return '';
-        
-        const listing = this.ui.currentAssemblyResult.listing;
-        
-        // Strategy 1: Check if the line start address has an exact source
-        const exactSource = this.getExactSourceForAddress(lineStartAddress);
-        if (exactSource) {
+getDataLineSource(lineStartAddress) {
+    if (!this.ui.currentAssemblyResult) return '';
+    
+    const listing = this.ui.currentAssemblyResult.listing;
+    
+    // Strategy 1: Check if the line start address has an exact source
+    const exactSource = this.getExactSourceForAddress(lineStartAddress);
+    if (exactSource) {
+        // Only return if it's a data definition, not a label
+        if (exactSource.startsWith('.word') || exactSource.startsWith('.byte') || exactSource.startsWith('.space')) {
             return exactSource;
         }
-        
-        // Strategy 2: Check if any address in this line has a data definition
-        for (let i = 0; i < 8; i++) {
-            const addr = lineStartAddress + i;
-            const source = this.getExactSourceForAddress(addr);
-            if (source && (source.startsWith('.word') || source.startsWith('.byte') || source.startsWith('.space'))) {
-                return source;
-            }
-        }
-        
-        // Strategy 3: Find the nearest label before this line
-        const nearestLabel = this.findNearestLabel(lineStartAddress);
-        if (nearestLabel) {
-            return nearestLabel;
-        }
-        
+        // Don't return labels for data lines
         return '';
     }
+    
+    // Strategy 2: Check if any address in this line has a data definition
+    for (let i = 0; i < 8; i++) {
+        const addr = lineStartAddress + i;
+        const source = this.getExactSourceForAddress(addr);
+        if (source && (source.startsWith('.word') || source.startsWith('.byte') || source.startsWith('.space'))) {
+            return source;
+        }
+    }
+    
+    // Strategy 3: DELETED - Never show labels for data lines
+    
+    return ''; // Return empty string for data lines without data definitions
+}
 
-    getExactSourceForAddress(address) {
-        if (!this.ui.currentAssemblyResult) return '';
-        
-        const listing = this.ui.currentAssemblyResult.listing;
-        
-        // First, look for exact address matches with data definitions
-        for (const item of listing) {
-            if (item.address === address) {
-                const line = item.line ? item.line.trim() : '';
-                
-                // Return data definitions
-                if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
-                    return line;
-                }
-                
-                // For code, return the instruction
-                if (item.instruction !== undefined) {
-                    return line;
-                }
-                
-                // For org directives, return them
-                if (line.startsWith('.org')) {
-                    return line;
-                }
-                
-                // For labels, return them
-                if (line.endsWith(':')) {
-                    return line;
-                }
+getExactSourceForAddress(address) {
+    if (!this.ui.currentAssemblyResult) return '';
+    
+    const listing = this.ui.currentAssemblyResult.listing;
+    
+    // First, look for exact address matches with data definitions
+    for (const item of listing) {
+        if (item.address === address) {
+            const line = item.line ? item.line.trim() : '';
+            
+            // Return data definitions
+            if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
+                return line;
+            }
+            
+            // For code, return the instruction
+            if (item.instruction !== undefined) {
+                return line;
+            }
+            
+            // For org directives, return them
+            if (line.startsWith('.org')) {
+                return line;
+            }
+            
+            // For labels, return them (but only for code lines, not data lines)
+            if (line.endsWith(':')) {
+                return line;
             }
         }
-        
-        return '';
     }
+    
+    return '';
+}
+
 
     findNearestLabel(address) {
         if (!this.ui.currentAssemblyResult) return '';
