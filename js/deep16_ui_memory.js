@@ -101,19 +101,17 @@ createMemoryLine(address) {
             html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
         }
         
-        // ENHANCED: Only show source if there's actual data definition at line start
-        const source = this.getExactSourceForAddress(address);
-        if (source && (source.startsWith('.word') || source.startsWith('.byte') || source.startsWith('.space'))) {
+        // FIXED: Use getDataLineSource which handles the logic properly
+        const source = this.getDataLineSource(address);
+        if (source) {
             html += `<span class="memory-source">; ${source}</span>`;
-        } else {
-            // For uninitialized data areas, don't show any source
-            // This prevents "data_area" label from appearing on every line
         }
         
         html += `</div>`;
         return html;
     }
 }
+
 
 // Also add this helper method to Deep16MemoryUI
 getSourceForAddress(address) {
