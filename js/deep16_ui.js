@@ -897,7 +897,7 @@ fibonacci_results:
             exampleTitle = "Fibonacci example";
             break;
 
-case 'case 'far_call':
+case 'far_call':
     exampleCode = `; Deep16 (深十六) Far Call Example
 ; Demonstrates inter-segment procedure calls
 
