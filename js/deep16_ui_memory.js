@@ -251,7 +251,7 @@ getExactSourceForAddress(address) {
     
     const listing = this.ui.currentAssemblyResult.listing;
     
-    // First, look for exact address matches with data definitions
+    // First, look for exact address matches with any relevant content
     for (const item of listing) {
         if (item.address === address) {
             const line = item.line ? item.line.trim() : '';
@@ -270,12 +270,18 @@ getExactSourceForAddress(address) {
             if (line.startsWith('.org')) {
                 return line;
             }
+            
+            // For labels, return them
+            if (line.endsWith(':')) {
+                return line;
+            }
         }
     }
     
     return '';
 }
 
+// FIXED: Get appropriate source for data lines
 getDataLineSource(lineStartAddress) {
     if (!this.ui.currentAssemblyResult) return '';
     
@@ -297,8 +303,14 @@ getDataLineSource(lineStartAddress) {
     }
     
     // Strategy 3: Find the nearest label before this line
-    return this.findNearestLabel(lineStartAddress);
+    const nearestLabel = this.findNearestLabel(lineStartAddress);
+    if (nearestLabel) {
+        return nearestLabel;
+    }
+    
+    return '';
 }
+
 
 // NEW: Get exact source for a specific address - FIXED VERSION
 getExactSourceForAddress(address) {
