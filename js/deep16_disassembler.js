@@ -1,14 +1,17 @@
 /* deep16_disassembler.js - FIXED VERSION */
 class Deep16Disassembler {
     // In deep16_disassembler.js - Fix jump condition mapping
-constructor() {
-    this.registerNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
-    this.aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
-    this.shiftOps = ['SL', 'SLC', 'SR', 'SRC', 'SRA', 'SAC', 'ROR', 'ROC'];
-    // CORRECTED jump conditions according to Table 6.3:
-    this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
-    this.systemOps = ['NOP', 'HLT', 'SWI', 'RETI', '', '', '', ''];
-}
+    constructor() {
+        // ENHANCED: Always use Rx format except PC for R15
+        this.registerNames = [
+            'R0','R1','R2','R3','R4','R5','R6','R7',
+            'R8','R9','R10','R11','R12','R13','R14','PC'  // R15 becomes PC
+        ];
+        this.aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
+        this.shiftOps = ['SL', 'SLC', 'SR', 'SRC', 'SRA', 'SAC', 'ROR', 'ROC'];
+        this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
+        this.systemOps = ['NOP', 'HLT', 'SWI', 'RETI', '', '', '', ''];
+    }
 
     disassemble(instruction) {
         // Check for HALT first (0xFFFF)
