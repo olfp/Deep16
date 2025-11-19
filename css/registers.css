@@ -105,9 +105,9 @@
 .register-compact .register-name {
     color: #9cdcfe;
     font-weight: bold;
-    min-width: 40px;
+    min-width: 60px;  /* Increased to accommodate dual labels */
+    font-size: 10px;  /* Slightly smaller to fit both names */
 }
-
 .register-compact .register-value {
     color: #b5cea8;
     font-family: 'Courier New', monospace;
