@@ -50,6 +50,118 @@ class Deep16MemoryUI {
         return segment === 'code';
     }
 
+createMemoryLine(address) {
+    const value = this.ui.simulator.memory[address];
+    const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+    const isPC = (address === this.ui.simulator.registers[15]);
+    const pcClass = isPC ? 'pc-marker' : '';
+    
+    // Check if this should be displayed as code
+    if (this.isCodeAddress(address)) {
+        let disasm = this.ui.disassembler.disassemble(value);
+        
+        // Enhanced jump disassembly with absolute addresses
+        if ((value >>> 12) === 0b1110) {
+            disasm = this.ui.disassembler.disassembleJumpWithAddress(value, address);
+        }
+        
+        const source = this.getSourceForAddress(address);
+        const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
+        
+        let html = `<div class="memory-line code-line ${pcClass}">`;
+        html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
+        html += `<span class="memory-bytes">${displayValue}</span>`;
+        html += `<span class="memory-disassembly">${disasm}</span>`;
+        if (source) {
+            html += `<span class="memory-source">; ${source}</span>`;
+        }
+        html += `</div>`;
+        return html;
+    } else {
+        // For data, we need to check if this is the start of a data line
+        const lineStart = address - (address % 8);
+        if (address !== lineStart) {
+            return ''; // Skip non-start addresses in data lines
+        }
+        
+        // Create a data line with 8 words
+        let html = `<div class="memory-line data-line ${pcClass}">`;
+        html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
+        
+        for (let i = 0; i < 8; i++) {
+            const dataAddr = address + i;
+            if (dataAddr >= this.ui.simulator.memory.length) break;
+            
+            const dataValue = this.ui.simulator.memory[dataAddr];
+            const dataHex = dataValue.toString(16).padStart(4, '0').toUpperCase();
+            const dataPC = (dataAddr === this.ui.simulator.registers[15]);
+            const dataClass = dataPC ? 'pc-marker' : '';
+            const displayData = dataValue === 0xFFFF ? "----" : `0x${dataHex}`;
+            
+            html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
+        }
+        
+        // ENHANCED: Only show source if there's actual data definition at line start
+        const source = this.getExactSourceForAddress(address);
+        if (source && (source.startsWith('.word') || source.startsWith('.byte') || source.startsWith('.space'))) {
+            html += `<span class="memory-source">; ${source}</span>`;
+        } else {
+            // For uninitialized data areas, don't show any source
+            // This prevents "data_area" label from appearing on every line
+        }
+        
+        html += `</div>`;
+        return html;
+    }
+}
+
+// Also add this helper method to Deep16MemoryUI
+getSourceForAddress(address) {
+    if (!this.ui.currentAssemblyResult) return '';
+    
+    const listing = this.ui.currentAssemblyResult.listing;
+    
+    // First, try to find the exact address with data definition
+    for (const item of listing) {
+        if (item.address === address) {
+            if (item.line && (item.line.includes('.word') || item.line.includes('.byte') || item.line.includes('.space'))) {
+                return item.line.trim(); // Prefer data definitions
+            }
+            if (item.instruction !== undefined && item.line) {
+                return item.line.trim(); // Code instructions
+            }
+        }
+    }
+    
+    // If no exact match, find the nearest label or data definition
+    let lastLabel = '';
+    let lastData = '';
+    let lastOrg = '';
+    
+    for (const item of listing) {
+        if (item.line) {
+            const line = item.line.trim();
+            if (line.endsWith(':')) {
+                lastLabel = line;
+            } else if (line.startsWith('.word') || line.startsWith('.byte') || line.startsWith('.space')) {
+                lastData = line;
+            } else if (line.startsWith('.org')) {
+                lastOrg = line;
+            }
+        }
+        
+        if (item.address === address) {
+            // Return the most relevant source
+            if (lastData) return lastData;
+            if (lastLabel) return lastLabel;
+            if (lastOrg) return lastOrg;
+        }
+    }
+    
+    return '';
+}
+    
+
     updateMemoryDisplay() {
         const memoryDisplay = document.getElementById('memory-display');
         
@@ -89,7 +201,7 @@ class Deep16MemoryUI {
                 // Check if current address is code
                 if (this.isCodeAddress(address)) {
                     // Code displays one instruction per line
-                    html += this.createMemoryLine(address);
+                    html += this./(address);
                     address++;
                 } else {
                     // Data displays 8 words per line
