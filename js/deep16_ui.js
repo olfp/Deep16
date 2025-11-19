@@ -468,9 +468,10 @@ class DeepWebUI {
         const registerGrid = document.getElementById('register-grid');
         let html = '';
         
+        // ENHANCED: Register names with both alias and number
         const registerNames = [
             'R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7',
-            'R8', 'R9', 'R10', 'R11', 'FP', 'SP', 'LR', 'PC'
+            'R8', 'R9', 'R10', 'R11', 'FP / R12', 'SP / R13', 'LR / R14', 'PC / R15'
         ];
         
         for (let i = 0; i < 16; i++) {
@@ -486,6 +487,7 @@ class DeepWebUI {
         
         registerGrid.innerHTML = html;
     }
+
 
     updatePSWDisplay() {
         const psw = this.simulator.psw;
