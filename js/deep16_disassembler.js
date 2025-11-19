@@ -43,55 +43,50 @@ class Deep16Disassembler {
         return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
     }
 
-    disassembleControlFlow(instruction) {
-        // Check for LDS/STS first (opcode bits 15-11 = 11110)
-        if ((instruction >>> 11) === 0b11110) {
-            return this.disassembleLDSSTS(instruction);
-        }
-
-        // Check for MOV first (opcode bits 15-10 = 111110)
-        if ((instruction >>> 10) === 0b111110) {
-            return this.disassembleMOV(instruction);
-        }
-        
-        // Check for LSI (opcode bits 15-9 = 1111110)
-        if ((instruction >>> 9) === 0b1111110) {
-            return this.disassembleLSI(instruction);
-        }
-        
-        // Check for Jump (opcode bits 15-12 = 1110)
-        if ((instruction >>> 12) === 0b1110) {
-            return this.disassembleJump(instruction);
-        }
-        
-        // Check for SOP (Single Operand) instructions (opcode bits 15-8 = 11111110)
-        if ((instruction >>> 8) === 0b11111110) {
-            return this.disassembleSOP(instruction);
-        }
-        
-        // Check for MVS (opcode bits 15-9 = 111111110)
-        if ((instruction >>> 9) === 0b111111110) {
-            return this.disassembleMVS(instruction);
-        }
-        
-        // Check for SMV (opcode bits 15-10 = 1111111110)
-        if ((instruction >>> 10) === 0b1111111110) {
-            return this.disassembleSMV(instruction);
-        }
-        
-        // Check for JML (opcode bits 15-8 = 11111110, type=0100)
-        if ((instruction >>> 8) === 0b11111110 && ((instruction >>> 4) & 0xF) === 0b0100) {
-            return this.disassembleJML(instruction);
-        }
-        
-        // Check for System (opcode bits 15-3 = 1111111111110)
-        if ((instruction >>> 3) === 0b1111111111110) {
-            return this.disassembleSystem(instruction);
-        }
-        
-        return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
+// In deep16_disassembler.js - Fix MVS detection
+disassembleControlFlow(instruction) {
+    // Check for LDS/STS first (opcode bits 15-11 = 11110)
+    if ((instruction >>> 11) === 0b11110) {
+        return this.disassembleLDSSTS(instruction);
     }
-
+    
+    // Check for MOV first (opcode bits 15-10 = 111110)
+    if ((instruction >>> 10) === 0b111110) {
+        return this.disassembleMOV(instruction);
+    }
+    
+    // Check for LSI (opcode bits 15-9 = 1111110)
+    if ((instruction >>> 9) === 0b1111110) {
+        return this.disassembleLSI(instruction);
+    }
+    
+    // Check for MVS (opcode bits 15-9 = 111111110)
+    if ((instruction >>> 9) === 0b111111110) {
+        return this.disassembleMVS(instruction);
+    }
+    
+    // Check for SMV (opcode bits 15-10 = 1111111110)
+    if ((instruction >>> 10) === 0b1111111110) {
+        return this.disassembleSMV(instruction);
+    }
+    
+    // Check for SOP (Single Operand) instructions (opcode bits 15-8 = 11111110)
+    if ((instruction >>> 8) === 0b11111110) {
+        return this.disassembleSOP(instruction);
+    }
+    
+    // Check for Jump (opcode bits 15-12 = 1110)
+    if ((instruction >>> 12) === 0b1110) {
+        return this.disassembleJump(instruction);
+    }
+    
+    // Check for System (opcode bits 15-3 = 1111111111110)
+    if ((instruction >>> 3) === 0b1111111111110) {
+        return this.disassembleSystem(instruction);
+    }
+    
+    return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
+}
     // NEW: Disassemble Single Operand Instructions (SOP)
     disassembleSOP(instruction) {
         const type4 = (instruction >>> 4) & 0xF;
