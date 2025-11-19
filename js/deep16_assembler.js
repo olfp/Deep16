@@ -632,11 +632,13 @@ encodeMemory(parts, isStore, address, lineNumber) {
             const bracketContent = bracketMatch[1];
             console.log(`Bracket content: "${bracketContent}"`);
             
-            // Parse Rb and offset - use regex to extract register and optional offset
-            // This handles: "R2", "R2+5", "R2 +5", "R2+ 5", "R2 + 5", "R2+21", etc.
+            // Parse Rb and offset - use more flexible regex
+            // This should handle: "R0", "R0+21", "R0 +21", "R0+ 21", "R0 + 21"
             const memoryMatch = bracketContent.match(/^([A-Za-z0-9]+)\s*(\+\s*(\d+))?$/);
+            console.log(`Memory match:`, memoryMatch);
+            
             if (!memoryMatch) {
-                throw new Error(`Invalid memory address syntax: ${bracketContent}`);
+                throw new Error(`Invalid memory address syntax: "${bracketContent}"`);
             }
             
             rb = this.parseRegister(memoryMatch[1].trim());
