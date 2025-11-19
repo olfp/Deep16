@@ -204,11 +204,15 @@ renderMemoryDisplay() {
         let address = start;
         let lastDisplayedAddress = start - 1;
         
+        console.log(`Rendering memory from 0x${start.toString(16)} to 0x${end.toString(16)}`);
+        
         while (address < end) {
             let lineHtml = '';
+            const isCode = this.isCodeAddress(address);
             
-            // Check if current address is code
-            if (this.isCodeAddress(address)) {
+            console.log(`Address 0x${address.toString(16)}: isCode=${isCode}`);
+            
+            if (isCode) {
                 // Code displays one instruction per line
                 lineHtml = this.createMemoryLine(address);
                 if (lineHtml) {
