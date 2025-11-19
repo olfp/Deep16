@@ -558,16 +558,36 @@ isRegister(value) {
 
 
 encodeMemory(parts, isStore, address, lineNumber) {
+    console.log(`encodeMemory parts:`, parts, `isStore:`, isStore);
+    
     if (parts.length >= 3) {
         let rd, rb, offset;
         
-        // Check for bracket syntax: LD R1, [R2+5] or LD R1, [R2]
-        // In bracket syntax, parts will be: ["LD", "R1", "[R2+5]"] or ["LD", "R1", "[R2]"]
-        if (parts.length === 3 && parts[2].includes('[') && parts[2].includes(']')) {
-            // Parse bracket syntax: [Rb+offset] or [Rb]
-            const bracketContent = parts[2].replace(/[\[\]]/g, '');
-            const plusParts = bracketContent.split('+');
+        // Check if we're using bracket syntax by looking for [ in any part
+        const joinedParts = parts.join(' ');
+        console.log(`Joined parts: "${joinedParts}"`);
+        
+        if (joinedParts.includes('[') && joinedParts.includes(']')) {
+            // Bracket syntax: LD R1, [R2+5] or ST R1, [R2]
+            console.log("Detected bracket syntax");
             
+            // Find the part with brackets (usually parts[2] but could be later if commas are involved)
+            let bracketPart = parts.find(part => part.includes('[') && part.includes(']'));
+            if (!bracketPart) {
+                throw new Error(`Invalid bracket syntax in ${isStore ? 'ST' : 'LD'}`);
+            }
+            
+            // Extract content inside brackets
+            const bracketMatch = bracketPart.match(/\[([^\]]+)\]/);
+            if (!bracketMatch) {
+                throw new Error(`Invalid bracket syntax in ${isStore ? 'ST' : 'LD'}`);
+            }
+            
+            const bracketContent = bracketMatch[1];
+            console.log(`Bracket content: "${bracketContent}"`);
+            
+            // Parse Rb and offset
+            const plusParts = bracketContent.split('+');
             rb = this.parseRegister(plusParts[0].trim());
             if (plusParts.length > 1) {
                 offset = this.parseImmediate(plusParts[1].trim());
@@ -575,10 +595,12 @@ encodeMemory(parts, isStore, address, lineNumber) {
                 offset = 0; // Default offset is 0 if not specified
             }
             
+            // Rd is the part before the brackets (usually parts[1])
             rd = this.parseRegister(parts[1]);
         } 
-        // Check for old syntax: LD R1, R2, 5 (parts: ["LD", "R1", "R2", "5"])
+        // Old syntax: LD R1, R2, 5
         else if (parts.length >= 4) {
+            console.log("Detected old syntax");
             rd = this.parseRegister(parts[1]);
             rb = this.parseRegister(parts[2]);
             offset = this.parseImmediate(parts[3]);
@@ -586,6 +608,8 @@ encodeMemory(parts, isStore, address, lineNumber) {
         else {
             throw new Error(`${isStore ? 'ST' : 'LD'} requires register, base register, and offset`);
         }
+        
+        console.log(`Parsed: rd=${rd}, rb=${rb}, offset=${offset}`);
         
         if (offset < 0 || offset > 31) {
             throw new Error(`Offset ${offset} out of range (0-31)`);
