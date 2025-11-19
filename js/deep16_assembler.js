@@ -402,7 +402,7 @@ encodeMOV(parts, address, lineNumber) {
     if (parts.length >= 3) {
         let rd, rs, imm;
         
-        // Check if we're using the plus syntax: MOV R1, R2+3 or MOV R1, R2 + 3
+        // Check if we're using the plus syntax by looking for + in the joined parts
         const joinedParts = parts.join(' ');
         console.log(`MOV joined parts: "${joinedParts}"`);
         
@@ -410,24 +410,18 @@ encodeMOV(parts, address, lineNumber) {
             // Plus syntax: MOV R1, R2+3 or MOV R1, R2 + 3
             console.log("Detected MOV plus syntax");
             
-            // Find the part with plus (usually parts[2] but could be later)
-            let plusPart = parts.slice(1).find(part => part.includes('+'));
-            if (!plusPart) {
-                throw new Error(`Invalid plus syntax in MOV`);
-            }
+            // Extract the register+immediate part using regex
+            // Look for patterns like: MOV R1, R2+3 or MOV R1, R2 + 3
+            const movMatch = joinedParts.match(/MOV\s+([A-Za-z0-9]+)\s*,\s*([A-Za-z0-9]+)\s*\+\s*(\d+)/);
+            console.log(`MOV match:`, movMatch);
             
-            // Parse Rs and immediate - use regex to extract register and immediate
-            // This handles: "R2+3", "R2 +3", "R2+ 3", "R2 + 3", "R2+0", etc.
-            const movMatch = plusPart.match(/^([A-Za-z0-9]+)\s*\+\s*(\d+)$/);
             if (!movMatch) {
-                throw new Error(`Invalid MOV plus syntax: ${plusPart}`);
+                throw new Error(`Invalid MOV plus syntax: ${joinedParts}`);
             }
             
-            rs = this.parseRegister(movMatch[1].trim());
-            imm = this.parseImmediate(movMatch[2].trim());
-            
-            // Rd is the first register
-            rd = this.parseRegister(parts[1]);
+            rd = this.parseRegister(movMatch[1].trim());
+            rs = this.parseRegister(movMatch[2].trim());
+            imm = this.parseImmediate(movMatch[3].trim());
         } 
         // Original syntax: MOV R1, R2 or MOV R1, R2, 3
         else if (parts.length >= 3) {
@@ -457,6 +451,7 @@ encodeMOV(parts, address, lineNumber) {
     }
     throw new Error('MOV requires destination register and source register');
 }
+    
     // NEW: Encode LDS/STS instructions
     encodeLDSSTS(parts, isStore, address, lineNumber) {
         if (parts.length >= 4) {
