@@ -31,7 +31,7 @@ class DeepWebUI {
         document.getElementById('run-btn').addEventListener('click', () => this.run());
         document.getElementById('step-btn').addEventListener('click', () => this.step());
         document.getElementById('reset-btn').addEventListener('click', () => this.reset());
-        document.getElementById('load-example').addEventListener('click', () => this.loadExample());
+        document.getElementById('example-select').addEventListener('change', (e) => this.loadExample(e.target.value));
         document.getElementById('memory-jump-btn').addEventListener('click', () => this.jumpToMemoryAddress());
         
         // Simple symbol select handlers
@@ -810,8 +810,13 @@ class DeepWebUI {
         transcript.innerHTML = html;
     }
 
-    loadExample() {
-        const fibonacciExample = `; Deep16 (深十六) Fibonacci Example - PROPER COUNTING
+loadExample(exampleName) {
+    let exampleCode = '';
+    let exampleTitle = '';
+
+    switch (exampleName) {
+        case 'fibonacci':
+            exampleCode = `; Deep16 (深十六) Fibonacci Example
 ; Calculate Fibonacci numbers F(0) through F(10)
 
 .org 0x0000
@@ -819,7 +824,7 @@ class DeepWebUI {
 main:
     LSI  R1, 0        ; F(0) = 0
     LSI  R2, 1        ; F(1) = 1
-    LSI  R3, 10       ; Calculate F(2) through F(10) (9 numbers)
+    LSI  R3, 10       ; Calculate F(2) through F(10)
     LDI  0x0200       ; Output address into R0
     MOV  R4, R0       ; Move to R4 for output pointer
     
@@ -844,12 +849,114 @@ fib_loop:
 .org 0x0200
 fibonacci_results:
     .word 0`;
-        
-        this.editorElement.value = fibonacciExample;
-        this.addTranscriptEntry("Fibonacci example loaded into editor", "info");
-        this.status("Fibonacci example ready - click 'Assemble' to compile");
+            exampleTitle = "Fibonacci example";
+            break;
+
+        case 'far_call':
+            exampleCode = `; Deep16 (深十六) Far Call Example
+; Demonstrates inter-segment procedure calls
+
+.org 0x0000
+
+main:
+    ; Initialize stack segment and pointer
+    LDI  0x7F00       ; Stack segment base (0x7F00)
+    MOV  R13, R0      ; SP = 0x7F00 (grows downward)
+    SRD  R13          ; Set SR=13 and enable dual registers (SP+FP use SS)
+    
+    LSI  R1, 0        ; Initialize some test data
+    LSI  R2, 100
+    LSI  R3, 200
+    
+    ; Save current context for return
+    MVS  R8, CS       ; Save current CS to R8
+    MOV  R9, PC, 2    ; Save return address to R9
+    
+    ; Setup far call to segment 0x1000
+    LSI  R10, 0x10    ; Target CS = 0x1000
+    SL   R10, 8       ; Shift to upper byte (R10 = 0x1000)
+    LSI  R11, 0x0200  ; Target PC = 0x0200
+    
+    ; Perform far jump (JML uses R10 for CS, R11 for PC)
+    JML  R10          ; Jump to CS=R10, PC=R11
+    
+    ; Execution continues here after far return
+    ADD  R1, 50       ; Modify data after return
+    ST   R1, R0, 0    ; Store result
+    
+    HALT
+
+; Far procedure in segment 0x1000
+.org 0x1000
+
+far_function:
+    ; Far function prologue - allocate stack frame
+    SUB  R13, 3       ; Allocate space for 3 words: CS, ret_addr, R1
+    ST   R8, R13, 0   ; Save caller's CS at [SP+0]
+    ST   R9, R13, 1   ; Save return address at [SP+1]
+    ST   R1, R13, 2   ; Save R1 at [SP+2]
+    
+    ; Far function body
+    ADD  R1, R2       ; R1 = R1 + R2 (100)
+    ADD  R1, R3       ; R1 = R1 + R3 (300)
+    ST   R1, R0, 0x100 ; Store intermediate result
+    
+    ; Call another far function in same segment
+    MOV  R14, PC, 2   ; Save return address in LR (R14)
+    LSI  R11, 0x0300  ; Target PC for nested call in R11
+    JML  R10          ; CS=R10 (0x1000), PC=R11 (0x0300)
+    
+    ; Continue after nested call returns
+    ADD  R1, 50       ; R1 = 350 + 50 = 400
+    
+    ; Far function epilogue - restore from stack frame
+    LD   R1, R13, 2   ; Restore R1 from [SP+2]
+    LD   R9, R13, 1   ; Restore return address from [SP+1]
+    LD   R8, R13, 0   ; Restore caller's CS from [SP+0]
+    ADD  R13, 3       ; Deallocate stack frame
+    
+    ; Return to caller (original segment)
+    MOV  R10, R8, 0   ; Restore original CS to R10
+    MOV  R11, R9, 0   ; Restore return address to R11
+    JML  R10          ; Return to original segment
+
+; Nested far function in same segment (0x1000)
+.org 0x1300
+
+nested_far_function:
+    ; Nested function prologue
+    SUB  R13, 1       ; Allocate space for return address
+    ST   R14, R13, 0  ; Save return address at [SP+0]
+    
+    ; Nested function body
+    ADD  R1, 50       ; R1 = 300 + 50 = 350
+    
+    ; Nested function epilogue
+    LD   R14, R13, 0  ; Restore return address from [SP+0]
+    ADD  R13, 1       ; Deallocate stack frame
+    
+    ; Return to caller in same segment
+    MOV  R11, R14, 0  ; Return address to R11 (CS still in R10)
+    JML  R10          ; Return within same segment
+
+.org 0x0200
+data_buffer:
+    .word 0`;
+            exampleTitle = "Far call example";
+            break;
+
+        default:
+            return; // No example selected
     }
+
+    this.editorElement.value = exampleCode;
+    this.addTranscriptEntry(`${exampleTitle} loaded into editor`, "info");
+    this.status(`${exampleTitle} ready - click 'Assemble' to compile`);
+    
+    // Reset the dropdown
+    document.getElementById('example-select').value = '';
 }
+
 
 document.addEventListener('DOMContentLoaded', () => {
     window.deepWebUI = new DeepWebUI();
