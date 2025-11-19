@@ -1,4 +1,4 @@
-// Deep16 Simulator - CPU Execution and State Management
+// Deep16 Simulator - Complete CPU Execution and State Management
 class Deep16Simulator {
     constructor() {
         this.memory = new Array(65536).fill(0xFFFF);
@@ -12,13 +12,15 @@ class Deep16Simulator {
         
         // Add ALU operations array for debugging
         this.aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
+        this.shiftOps = ['SL', 'SLC', 'SR', 'SRC', 'SRA', 'SAC', 'ROR', 'ROC'];
+        this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
         
+        // ENHANCED: Track recent memory accesses with base address and offset
+        this.recentMemoryAccess = null; // { address, baseAddress, offset, type }
+
         // Initialize registers
         this.registers[13] = 0x7FFF; // SP
         this.registers[15] = 0x0000; // PC
-
-        // ENHANCED: Track recent memory accesses with base address and offset
-        this.recentMemoryAccess = null; // { address, baseAddress, offset, type }
     }
 
     loadProgram(memory) {
@@ -39,161 +41,111 @@ class Deep16Simulator {
         this.running = false;
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
+        this.segmentRegisters = { CS: 0, DS: 0, SS: 0, ES: 0 };
+        this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
     }
 
-step() {
-    if (!this.running) return false;
+    step() {
+        if (!this.running) return false;
 
-    const pc = this.registers[15];
-    if (pc >= this.memory.length) {
-        this.running = false;
-        return false;
-    }
-
-    const instruction = this.memory[pc];
-    
-    console.log(`=== STEP: PC=0x${pc.toString(16).padStart(4, '0')} ===`);
-    console.log(`Instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
-    console.log(`Registers: R0=0x${this.registers[0].toString(16)}, R3=0x${this.registers[3].toString(16)}`);
-
-    // Check for HALT (0xFFFF) first
-    if (instruction === 0xFFFF) {
-        console.log("HALT instruction detected - stopping execution");
-        this.running = false;
-        return false;
-    }
-    
-    // Store PC before execution for jump calculations
-    const originalPC = pc;
-    
-    // Increment PC by 1 (word addressing)
-    this.registers[15] += 1;
-
-    // Reset ALU tracking
-    this.lastOperationWasALU = false;
-    this.lastALUResult = 0;
-
-    // Decode and execute instruction
-    try {
-        // Check for LDI first (bit 15 = 0)
-        if ((instruction & 0x8000) === 0) {
-            console.log("Detected LDI instruction (bit 15 = 0)");
-            this.executeLDI(instruction);
+        const pc = this.registers[15];
+        if (pc >= this.memory.length) {
+            this.running = false;
+            return false;
         }
-        // Check for LD/ST (opcode bits 15-14 = 10)
-        else if (((instruction >>> 14) & 0x3) === 0b10) {
-            console.log("Detected LD/ST instruction (opcode 10)");
-            this.executeMemoryOp(instruction);
+
+        const instruction = this.memory[pc];
+        
+        console.log(`=== STEP: PC=0x${pc.toString(16).padStart(4, '0')} ===`);
+        console.log(`Instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
+        console.log(`Registers: R0=0x${this.registers[0].toString(16)}, R3=0x${this.registers[3].toString(16)}`);
+
+        // Check for HALT (0xFFFF) first
+        if (instruction === 0xFFFF) {
+            console.log("HALT instruction detected - stopping execution");
+            this.running = false;
+            return false;
         }
-        else {
-            // Check 3-bit opcodes
-            const opcode = (instruction >>> 13) & 0x7;
-            console.log(`3-bit opcode: ${opcode.toString(2).padStart(3, '0')} (${opcode})`);
-            
-            switch (opcode) {
-                case 0b110: // ALU2 (opcode bits 15-13 = 110)
-                    console.log("ALU operation");
-                    this.executeALUOp(instruction); 
-                    break;
-                case 0b111: // Extended (opcode bits 15-13 = 111)
-                    console.log("Control flow or extended opcode");
-                    if ((instruction >>> 12) === 0b1110) {
-                        console.log("Jump instruction");
-                        this.executeJump(instruction, originalPC);
-                    } else if ((instruction >>> 10) === 0b111110) {
-                        console.log("MOV instruction");
-                        this.executeMOV(instruction);
-                    } else if ((instruction >>> 9) === 0b1111110) {
-                        console.log("LSI instruction");
-                        this.executeLSI(instruction);
-                    } else if ((instruction >>> 8) === 0b11111110) {
-                        console.log("SOP instruction");
-                        this.executeSOP(instruction);  // JML is handled here!                        
-                    } else if ((instruction >>> 13) === 0b11111) {
-                        console.log("System instruction");
-                        this.executeSystem(instruction);
-                    } else {
-                        console.warn("Unknown extended opcode");
-                    }
-                    break;
-                default:
-                    console.warn(`Unknown 3-bit opcode: ${opcode.toString(2).padStart(3, '0')}`);
+        
+        // Store PC before execution for jump calculations
+        const originalPC = pc;
+        
+        // Increment PC by 1 (word addressing)
+        this.registers[15] += 1;
+
+        // Reset ALU tracking
+        this.lastOperationWasALU = false;
+        this.lastALUResult = 0;
+
+        // Decode and execute instruction
+        try {
+            // Check for LDI first (bit 15 = 0)
+            if ((instruction & 0x8000) === 0) {
+                console.log("Detected LDI instruction (bit 15 = 0)");
+                this.executeLDI(instruction);
             }
+            // Check for LD/ST (opcode bits 15-14 = 10)
+            else if (((instruction >>> 14) & 0x3) === 0b10) {
+                console.log("Detected LD/ST instruction (opcode 10)");
+                this.executeMemoryOp(instruction);
+            }
+            else {
+                // Check 3-bit opcodes
+                const opcode = (instruction >>> 13) & 0x7;
+                console.log(`3-bit opcode: ${opcode.toString(2).padStart(3, '0')} (${opcode})`);
+                
+                switch (opcode) {
+                    case 0b110: // ALU2 (opcode bits 15-13 = 110)
+                        console.log("ALU operation");
+                        this.executeALUOp(instruction); 
+                        break;
+                    case 0b111: // Extended (opcode bits 15-13 = 111)
+                        console.log("Control flow or extended opcode");
+                        if ((instruction >>> 12) === 0b1110) {
+                            console.log("Jump instruction");
+                            this.executeJump(instruction, originalPC);
+                        } else if ((instruction >>> 10) === 0b111110) {
+                            console.log("MOV instruction");
+                            this.executeMOV(instruction);
+                        } else if ((instruction >>> 9) === 0b1111110) {
+                            console.log("LSI instruction");
+                            this.executeLSI(instruction);
+                        } else if ((instruction >>> 8) === 0b11111110) {
+                            console.log("SOP instruction");
+                            this.executeSOP(instruction);
+                        } else if ((instruction >>> 9) === 0b111111110) {
+                            console.log("MVS instruction");
+                            this.executeMVS(instruction);
+                        } else if ((instruction >>> 10) === 0b1111111110) {
+                            console.log("SMV instruction");
+                            this.executeSMV(instruction);
+                        } else if ((instruction >>> 11) === 0b11110) {
+                            console.log("LDS/STS instruction");
+                            this.executeLDSSTS(instruction);
+                        } else if ((instruction >>> 3) === 0b1111111111110) {
+                            console.log("System instruction");
+                            this.executeSystem(instruction);
+                        } else {
+                            console.warn("Unknown extended opcode");
+                        }
+                        break;
+                    default:
+                        console.warn(`Unknown 3-bit opcode: ${opcode.toString(2).padStart(3, '0')}`);
+                }
+            }
+        } catch (error) {
+            this.running = false;
+            console.error('Execution error:', error);
+            throw error;
         }
-    } catch (error) {
-        this.running = false;
-        console.error('Execution error:', error);
-        throw error;
-    }
 
-    // Update PSW flags based on the last operation
-    this.updatePSWFlags();
-    
-    console.log(`After step: R0=0x${this.registers[0].toString(16).padStart(4, '0')}, PSW=0x${this.psw.toString(16).padStart(4, '0')}`);
-    
-    return true;
-}
-
-// In deep16_simulator.js - Add executeSOP method
-executeSOP(instruction) {
-    const type4 = (instruction >>> 4) & 0xF;
-    const rx = instruction & 0xF;
-    
-    console.log(`SOP Execute: type4=${type4.toString(2)}, rx=${rx}`);
-    
-    switch (type4) {
-        case 0b0100: // JML
-            this.executeJML(rx);
-            break;
-        // Add other SOP instructions as needed
-        default:
-            console.warn(`Unimplemented SOP instruction: type4=${type4.toString(2)}`);
+        // Update PSW flags based on the last operation
+        this.updatePSWFlags();
+        
+        console.log(`After step: R0=0x${this.registers[0].toString(16).padStart(4, '0')}, PSW=0x${this.psw.toString(16).padStart(4, '0')}`);
+        
+        return true;
     }
-}
-
-// Add executeJML method
-executeJML(rx) {
-    // JML Rx: CS = R[Rx], PC = R[Rx+1]
-    // rx must be even (0,2,4,6,8,10,12,14)
-    
-    if (rx % 2 !== 0) {
-        console.warn(`JML requires even register, got R${rx}`);
-        return;
-    }
-    
-    const targetCS = this.registers[rx];
-    const targetPC = this.registers[rx + 1];
-    
-    console.log(`JML Execute: R${rx}=0x${targetCS.toString(16)} (CS), R${rx+1}=0x${targetPC.toString(16)} (PC)`);
-    
-    // Update segment and program counter
-    this.segmentRegisters.CS = targetCS;
-    this.registers[15] = targetPC;  // PC = targetPC
-    
-    console.log(`JML: Jump to CS=0x${targetCS.toString(16)}, PC=0x${targetPC.toString(16)}`);
-}
-
-// Add executeJML method
-executeJML(rx) {
-    // JML Rx: CS = R[Rx], PC = R[Rx+1]
-    // rx must be even (0,2,4,6,8,10,12,14)
-    
-    if (rx % 2 !== 0) {
-        console.warn(`JML requires even register, got R${rx}`);
-        return;
-    }
-    
-    const targetCS = this.registers[rx];
-    const targetPC = this.registers[rx + 1];
-    
-    console.log(`JML Execute: R${rx}=0x${targetCS.toString(16)} (CS), R${rx+1}=0x${targetPC.toString(16)} (PC)`);
-    
-    // Update segment and program counter
-    this.segmentRegisters.CS = targetCS;
-    this.registers[15] = targetPC;  // PC = targetPC
-    
-    console.log(`JML: Jump to CS=0x${targetCS.toString(16)}, PC=0x${targetPC.toString(16)}`);
-}
 
     executeLDI(instruction) {
         const immediate = instruction & 0x7FFF;
@@ -207,7 +159,6 @@ executeJML(rx) {
         console.log(`LDI complete: R0 = 0x${this.registers[0].toString(16).padStart(4, '0')}`);
     }
 
-    // ENHANCED: Update executeMemoryOp to track base address and offset
     executeMemoryOp(instruction) {
         // CORRECTED: Use the same bit extraction as the disassembler
         // LD/ST format: [10][d1][Rd4][Rb4][offset5]
@@ -247,53 +198,6 @@ executeJML(rx) {
                 console.log(`ST: memory[0x${address.toString(16).padStart(4, '0')}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
             }
         }
-    }
-
-    // ENHANCED: Method to get expanded memory view (32 words)
-    getRecentMemoryView() {
-        if (!this.recentMemoryAccess) {
-            return null;
-        }
-        
-        const access = this.recentMemoryAccess;
-        
-        // RULE 2: If access is via LD/ST with non-zero offset, display from base address
-        let startAddress;
-        if (access.offset !== 0) {
-            startAddress = access.baseAddress;
-        } else {
-            // RULE 1: Otherwise, center on the accessed address
-            startAddress = Math.max(0, access.address - 8);
-        }
-        
-        // Ensure we show exactly 32 words (4 lines of 8)
-        startAddress = Math.max(0, startAddress);
-        startAddress = Math.min(startAddress, this.memory.length - 32);
-        
-        const memoryView = [];
-        
-        // Get 32 words (4 lines of 8)
-        for (let i = 0; i < 32; i++) {
-            const addr = startAddress + i;
-            if (addr < this.memory.length) {
-                const isCurrent = (addr === access.address);
-                const isBase = (access.offset !== 0 && addr === access.baseAddress);
-                
-                memoryView.push({
-                    address: addr,
-                    value: this.memory[addr],
-                    isCurrent: isCurrent,
-                    isBase: isBase,
-                    isInRange: true
-                });
-            }
-        }
-        
-        return {
-            baseAddress: startAddress,
-            memoryWords: memoryView,
-            accessInfo: access
-        };
     }
 
     executeALUOp(instruction) {
@@ -343,12 +247,50 @@ executeJML(rx) {
                 result = rdValue ^ operandValue;
                 console.log(`XOR: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) ^ ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
                 break;
+            case 0b101: // MUL
+                if (i === 1 && rd % 2 === 0) {
+                    // 32-bit multiplication: R[rd]:R[rd+1] = rdValue × operandValue
+                    const product = rdValue * operandValue;
+                    this.registers[rd] = (product >>> 16) & 0xFFFF;     // High word
+                    this.registers[rd + 1] = product & 0xFFFF;          // Low word
+                    result = product;
+                    console.log(`MUL32: ${this.getRegisterName(rd)}:${this.getRegisterName(rd + 1)} = ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) × ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${product.toString(16)}`);
+                } else {
+                    // 16-bit multiplication
+                    result = (rdValue * operandValue) & 0xFFFF;
+                    console.log(`MUL: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) × ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                }
+                break;
+            case 0b110: // DIV
+                if (operandValue === 0) {
+                    console.warn("DIV: Division by zero");
+                    result = 0xFFFF; // Handle division by zero
+                } else if (i === 1 && rd % 2 === 0) {
+                    // 32-bit division: R[rd] = quotient, R[rd+1] = remainder
+                    const dividend = (this.registers[rd] << 16) | this.registers[rd + 1];
+                    const quotient = Math.floor(dividend / operandValue);
+                    const remainder = dividend % operandValue;
+                    this.registers[rd] = quotient & 0xFFFF;
+                    this.registers[rd + 1] = remainder & 0xFFFF;
+                    result = quotient;
+                    console.log(`DIV32: ${this.getRegisterName(rd)}:${this.getRegisterName(rd + 1)} / ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = Q:0x${quotient.toString(16)} R:0x${remainder.toString(16)}`);
+                } else {
+                    // 16-bit division
+                    result = Math.floor(rdValue / operandValue);
+                    const remainder = rdValue % operandValue;
+                    this.registers[rd + 1] = remainder & 0xFFFF; // Store remainder in next register
+                    console.log(`DIV: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) / ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = Q:0x${result.toString(16)} R:0x${remainder.toString(16)}`);
+                }
+                break;
+            case 0b111: // SHIFT
+                this.executeShift(instruction);
+                return; // Shift handles its own result storage
             default: 
                 result = rdValue;
                 console.warn(`Unimplemented ALU op: ${aluOp}`);
         }
 
-        if (w === 1) {
+        if (w === 1 && aluOp !== 0b101 && aluOp !== 0b110) { // MUL/DIV handle writing separately
             this.registers[rd] = result & 0xFFFF;
             console.log(`ALU Write: ${this.getRegisterName(rd)} = 0x${this.registers[rd].toString(16).padStart(4, '0')}`);
         }
@@ -358,30 +300,95 @@ executeJML(rx) {
         this.lastOperationWasALU = true;
     }
 
+    executeShift(instruction) {
+        const rd = (instruction >>> 6) & 0xF;
+        const shiftType = (instruction >>> 4) & 0x7;
+        const count = instruction & 0xF;
+        
+        const value = this.registers[rd];
+        let result = value;
+        
+        console.log(`Shift Execute: type=${this.shiftOps[shiftType]}, rd=${this.getRegisterName(rd)}, count=${count}, value=0x${value.toString(16)}`);
+        
+        switch (shiftType) {
+            case 0b000: // SL - Shift Left
+                result = (value << count) & 0xFFFF;
+                break;
+            case 0b001: // SLC - Shift Left with Carry
+                result = (value << count) & 0xFFFF;
+                // Carry out is the bit shifted out from the left
+                if (count > 0) {
+                    const carryOut = (value >>> (16 - count)) & 0x1;
+                    this.psw = (this.psw & ~0x8) | (carryOut << 3);
+                }
+                break;
+            case 0b010: // SR - Shift Right Logical
+                result = (value >>> count) & 0xFFFF;
+                break;
+            case 0b011: // SRC - Shift Right with Carry
+                result = (value >>> count) & 0xFFFF;
+                // Carry out is the bit shifted out from the right
+                if (count > 0) {
+                    const carryOut = (value >>> (count - 1)) & 0x1;
+                    this.psw = (this.psw & ~0x8) | (carryOut << 3);
+                }
+                break;
+            case 0b100: // SRA - Shift Right Arithmetic
+                // Arithmetic right shift preserves sign bit
+                const sign = value & 0x8000;
+                result = (value >>> count) | (sign ? (0xFFFF << (16 - count)) : 0);
+                break;
+            case 0b101: // SAC - Shift Arithmetic with Carry
+                const signBit = value & 0x8000;
+                result = (value >>> count) | (signBit ? (0xFFFF << (16 - count)) : 0);
+                if (count > 0) {
+                    const carryOut = (value >>> (count - 1)) & 0x1;
+                    this.psw = (this.psw & ~0x8) | (carryOut << 3);
+                }
+                break;
+            case 0b110: // ROR - Rotate Right
+                result = ((value >>> count) | (value << (16 - count))) & 0xFFFF;
+                break;
+            case 0b111: // ROC - Rotate with Carry
+                const carryIn = (this.psw >>> 3) & 0x1;
+                result = ((value >>> count) | (value << (17 - count)) | (carryIn << (16 - count))) & 0xFFFF;
+                // New carry is the bit that rotated out
+                const newCarry = (value >>> (count - 1)) & 0x1;
+                this.psw = (this.psw & ~0x8) | (newCarry << 3);
+                break;
+        }
+        
+        this.registers[rd] = result;
+        this.lastALUResult = result;
+        this.lastOperationWasALU = true;
+        
+        console.log(`Shift Complete: ${this.getRegisterName(rd)} = 0x${result.toString(16).padStart(4, '0')}`);
+    }
 
-executeMOV(instruction) {
-    // MOV encoding: [111110][Rd4][Rs4][imm2]
-    // Bits: 15-10: opcode=111110, 9-6: Rd, 5-2: Rs, 1-0: imm
-    
-    const rd = (instruction >>> 6) & 0xF;      // Bits 9-6
-    const rs = (instruction >>> 2) & 0xF;      // Bits 5-2  
-    const imm = instruction & 0x3;             // Bits 1-0
-    
-    console.log(`=== MOV DEBUG ===`);
-    console.log(`Instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
-    console.log(`Binary: ${instruction.toString(2).padStart(16, '0')}`);
-    console.log(`Extracted: rd=${rd}, rs=${rs}, imm=${imm}`);
-    console.log(`Before: R${rd}=0x${this.registers[rd].toString(16)}, R${rs}=0x${this.registers[rs].toString(16)}`);
-    
-    // FIXED: Use the VALUE of register rs, not the register index
-    this.registers[rd] = this.registers[rs] + imm;
-    
-    console.log(`After: R${rd}=0x${this.registers[rd].toString(16)}`);
-    console.log(`Calculation: R${rd} = R${rs} (0x${this.registers[rs].toString(16)}) + ${imm}`);
-    
-    this.lastALUResult = this.registers[rd];
-    this.lastOperationWasALU = true;
-}
+    executeMOV(instruction) {
+        // MOV encoding: [111110][Rd4][Rs4][imm2]
+        // Bits: 15-10: opcode=111110, 9-6: Rd, 5-2: Rs, 1-0: imm
+        
+        const rd = (instruction >>> 6) & 0xF;      // Bits 9-6
+        const rs = (instruction >>> 2) & 0xF;      // Bits 5-2  
+        const imm = instruction & 0x3;             // Bits 1-0
+        
+        console.log(`=== MOV DEBUG ===`);
+        console.log(`Instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
+        console.log(`Binary: ${instruction.toString(2).padStart(16, '0')}`);
+        console.log(`Extracted: rd=${rd}, rs=${rs}, imm=${imm}`);
+        console.log(`Before: R${rd}=0x${this.registers[rd].toString(16)}, R${rs}=0x${this.registers[rs].toString(16)}`);
+        
+        // FIXED: Use the VALUE of register rs, not the register index
+        this.registers[rd] = this.registers[rs] + imm;
+        
+        console.log(`After: R${rd}=0x${this.registers[rd].toString(16)}`);
+        console.log(`Calculation: R${rd} = R${rs} (0x${this.registers[rs].toString(16)}) + ${imm}`);
+        
+        this.lastALUResult = this.registers[rd];
+        this.lastOperationWasALU = true;
+    }
+
     executeLSI(instruction) {
         // LSI encoding: [1111110][Rd4][imm5]
         // Bits: 15-9: opcode=1111110, 8-5: Rd, 4-0: imm5
@@ -404,64 +411,268 @@ executeMOV(instruction) {
         this.lastOperationWasALU = true;
     }
 
-// In deep16_simulator.js - Fix jump offset sign extension
-executeJump(instruction, originalPC) {
-    const condition = (instruction >>> 9) & 0x7;
-    let offset = instruction & 0x1FF;
-    
-    // PROPER 9-bit sign extension
-    if (offset & 0x100) {
-        offset = offset - 0x200; // Convert to proper signed integer
-    }
-    
-    let shouldJump = false;
-    
-    console.log(`Jump: condition=${condition}, offset=${offset} (signed), Z-flag=${!!(this.psw & (1 << 1))}`);
-    
-    switch (condition) {
-        case 0b000: shouldJump = (this.psw & (1 << 1)) !== 0; break; // JZ (Zero=1)
-        case 0b001: shouldJump = (this.psw & (1 << 1)) === 0; break; // JNZ (Zero=0)
-        case 0b010: shouldJump = (this.psw & (1 << 3)) !== 0; break; // JC (Carry=1)
-        case 0b011: shouldJump = (this.psw & (1 << 3)) === 0; break; // JNC (Carry=0)
-        case 0b100: shouldJump = (this.psw & (1 << 0)) !== 0; break; // JN (Negative=1)
-        case 0b101: shouldJump = (this.psw & (1 << 0)) === 0; break; // JNN (Negative=0)
-        case 0b110: shouldJump = (this.psw & (1 << 2)) !== 0; break; // JO (Overflow=1)
-        case 0b111: shouldJump = (this.psw & (1 << 2)) === 0; break; // JNO (Overflow=0)
+    executeJump(instruction, originalPC) {
+        const condition = (instruction >>> 9) & 0x7;
+        let offset = instruction & 0x1FF;
+        
+        // PROPER 9-bit sign extension
+        if (offset & 0x100) {
+            offset = offset - 0x200; // Convert to proper signed integer
+        }
+        
+        let shouldJump = false;
+        
+        console.log(`Jump: condition=${condition}, offset=${offset} (signed), Z-flag=${!!(this.psw & (1 << 1))}`);
+        
+        switch (condition) {
+            case 0b000: shouldJump = (this.psw & (1 << 1)) !== 0; break; // JZ (Zero=1)
+            case 0b001: shouldJump = (this.psw & (1 << 1)) === 0; break; // JNZ (Zero=0)
+            case 0b010: shouldJump = (this.psw & (1 << 3)) !== 0; break; // JC (Carry=1)
+            case 0b011: shouldJump = (this.psw & (1 << 3)) === 0; break; // JNC (Carry=0)
+            case 0b100: shouldJump = (this.psw & (1 << 0)) !== 0; break; // JN (Negative=1)
+            case 0b101: shouldJump = (this.psw & (1 << 0)) === 0; break; // JNN (Negative=0)
+            case 0b110: shouldJump = (this.psw & (1 << 2)) !== 0; break; // JO (Overflow=1)
+            case 0b111: shouldJump = (this.psw & (1 << 2)) === 0; break; // JNO (Overflow=0)
+        }
+
+        console.log(`Jump decision: ${shouldJump ? 'TAKEN' : 'NOT TAKEN'}`);
+
+        if (shouldJump) {
+            // CORRECTED: Jump to = current instruction address + 1 + offset
+            // Since PC was already incremented, we need: (PC - 1) + 1 + offset = PC + offset
+            const newPC = this.registers[15] + offset;
+            this.registers[15] = newPC & 0xFFFF;
+            
+            console.log(`JUMP: PC = 0x${this.registers[15].toString(16).padStart(4, '0')} (offset=${offset})`);
+            console.log(`Jump from 0x${originalPC.toString(16)} to 0x${this.registers[15].toString(16)}`);
+        }
     }
 
-    console.log(`Jump decision: ${shouldJump ? 'TAKEN' : 'NOT TAKEN'}`);
+    executeSOP(instruction) {
+        const type4 = (instruction >>> 4) & 0xF;
+        const rx = instruction & 0xF;
+        
+        console.log(`SOP Execute: type4=${type4.toString(2)}, rx=${rx} (${this.getRegisterName(rx)})`);
+        
+        switch (type4) {
+            case 0b0000: // SWB - Swap Bytes
+                const value = this.registers[rx];
+                this.registers[rx] = ((value & 0xFF) << 8) | ((value >>> 8) & 0xFF);
+                console.log(`SWB: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
+                this.lastALUResult = this.registers[rx];
+                this.lastOperationWasALU = true;
+                break;
+                
+            case 0b0001: // INV - Invert bits
+                this.registers[rx] = ~this.registers[rx] & 0xFFFF;
+                console.log(`INV: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
+                this.lastALUResult = this.registers[rx];
+                this.lastOperationWasALU = true;
+                break;
+                
+            case 0b0010: // NEG - Two's complement
+                this.registers[rx] = (~this.registers[rx] + 1) & 0xFFFF;
+                console.log(`NEG: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
+                this.lastALUResult = this.registers[rx];
+                this.lastOperationWasALU = true;
+                break;
+                
+            case 0b0100: // JML - Jump Long
+                this.executeJML(rx);
+                break;
+                
+            case 0b1000: // SRS - Stack Register Single
+                this.psw = (this.psw & ~0x03C0) | (rx << 6);
+                console.log(`SRS: Stack Register = R${rx}, PSW = 0x${this.psw.toString(16)}`);
+                break;
+                
+            case 0b1001: // SRD - Stack Register Dual
+                this.psw = (this.psw & ~0x03C0) | (rx << 6) | 0x0400;
+                console.log(`SRD: Stack Register Dual = R${rx}, PSW = 0x${this.psw.toString(16)}`);
+                break;
+                
+            case 0b1010: // ERS - Extra Register Single
+                this.psw = (this.psw & ~0x7800) | (rx << 11);
+                console.log(`ERS: Extra Register = R${rx}, PSW = 0x${this.psw.toString(16)}`);
+                break;
+                
+            case 0b1011: // ERD - Extra Register Dual
+                this.psw = (this.psw & ~0x7800) | (rx << 11) | 0x8000;
+                console.log(`ERD: Extra Register Dual = R${rx}, PSW = 0x${this.psw.toString(16)}`);
+                break;
+                
+            case 0b1100: // SET - Set PSW flags
+                const setFlags = instruction & 0xF;
+                this.psw |= setFlags;
+                console.log(`SET: PSW flags 0x${setFlags.toString(16)} set, PSW = 0x${this.psw.toString(16)}`);
+                break;
+                
+            case 0b1101: // CLR - Clear PSW flags
+                const clrFlags = instruction & 0xF;
+                this.psw &= ~clrFlags;
+                console.log(`CLR: PSW flags 0x${clrFlags.toString(16)} cleared, PSW = 0x${this.psw.toString(16)}`);
+                break;
+                
+            case 0b1110: // SET2 - Set upper PSW bits
+                const set2Flags = (instruction & 0xF) << 4;
+                this.psw |= set2Flags;
+                console.log(`SET2: PSW bits 0x${set2Flags.toString(16)} set, PSW = 0x${this.psw.toString(16)}`);
+                break;
+                
+            case 0b1111: // CLR2 - Clear upper PSW bits
+                const clr2Flags = (instruction & 0xF) << 4;
+                this.psw &= ~clr2Flags;
+                console.log(`CLR2: PSW bits 0x${clr2Flags.toString(16)} cleared, PSW = 0x${this.psw.toString(16)}`);
+                break;
+                
+            default:
+                console.warn(`Unimplemented SOP instruction: type4=${type4.toString(2)}`);
+        }
+    }
 
-if (shouldJump) {
-    // CORRECTED: Jump to = current instruction address + 1 + offset
-    // Since PC was already incremented, we need: (PC - 1) + 1 + offset = PC + offset
-    const newPC = this.registers[15] + offset;
-    this.registers[15] = newPC & 0xFFFF;
-    
-    console.log(`JUMP: PC = 0x${this.registers[15].toString(16).padStart(4, '0')} (offset=${offset})`);
-    console.log(`Jump from 0x${originalPC.toString(16)} to 0x${this.registers[15].toString(16)}`);
-}
-}
+    executeJML(rx) {
+        // JML Rx: CS = R[Rx], PC = R[Rx+1]
+        // rx must be even (0,2,4,6,8,10,12,14)
+        
+        if (rx % 2 !== 0) {
+            console.warn(`JML requires even register, got R${rx}`);
+            return;
+        }
+        
+        const targetCS = this.registers[rx];
+        const targetPC = this.registers[rx + 1];
+        
+        console.log(`JML Execute: R${rx}=0x${targetCS.toString(16)} (CS), R${rx+1}=0x${targetPC.toString(16)} (PC)`);
+        
+        // Update segment and program counter
+        this.segmentRegisters.CS = targetCS;
+        this.registers[15] = targetPC;  // PC = targetPC
+        
+        console.log(`JML: Jump to CS=0x${targetCS.toString(16)}, PC=0x${targetPC.toString(16)}`);
+    }
+
+    executeMVS(instruction) {
+        // MVS: [111111110][d1][Rd4][seg2]
+        const d = (instruction >>> 8) & 0x1;
+        const rd = (instruction >>> 4) & 0xF;
+        const seg = instruction & 0x3;
+        
+        const segNames = ['CS', 'DS', 'SS', 'ES'];
+        
+        console.log(`MVS Execute: d=${d}, rd=${this.getRegisterName(rd)}, seg=${segNames[seg]}`);
+        
+        if (d === 0) {
+            // Rd ← Sx (read from segment register)
+            switch (seg) {
+                case 0: this.registers[rd] = this.segmentRegisters.CS; break;
+                case 1: this.registers[rd] = this.segmentRegisters.DS; break;
+                case 2: this.registers[rd] = this.segmentRegisters.SS; break;
+                case 3: this.registers[rd] = this.segmentRegisters.ES; break;
+            }
+            console.log(`MVS: ${this.getRegisterName(rd)} = ${segNames[seg]} (0x${this.registers[rd].toString(16)})`);
+        } else {
+            // Sx ← Rd (write to segment register)
+            switch (seg) {
+                case 0: this.segmentRegisters.CS = this.registers[rd]; break;
+                case 1: this.segmentRegisters.DS = this.registers[rd]; break;
+                case 2: this.segmentRegisters.SS = this.registers[rd]; break;
+                case 3: this.segmentRegisters.ES = this.registers[rd]; break;
+            }
+            console.log(`MVS: ${segNames[seg]} = ${this.getRegisterName(rd)} (0x${this.registers[rd].toString(16)})`);
+        }
+    }
+
+    executeSMV(instruction) {
+        // SMV: [1111111110][src2][Rd4]
+        const src2 = (instruction >>> 4) & 0x3;
+        const rd = instruction & 0xF;
+        
+        const srcNames = ['APC', 'APSW', 'PSW', 'ACS'];
+        
+        console.log(`SMV Execute: src=${srcNames[src2]}, rd=${this.getRegisterName(rd)}`);
+        
+        switch (src2) {
+            case 0: // APC - Alternate PC
+                this.registers[rd] = this.shadowRegisters.PC;
+                break;
+            case 1: // APSW - Alternate PSW
+                this.registers[rd] = this.shadowRegisters.PSW;
+                break;
+            case 2: // PSW - Current PSW
+                this.registers[rd] = this.psw;
+                break;
+            case 3: // ACS - Alternate CS
+                this.registers[rd] = this.shadowRegisters.CS;
+                break;
+        }
+        
+        console.log(`SMV: ${this.getRegisterName(rd)} = ${srcNames[src2]} (0x${this.registers[rd].toString(16)})`);
+    }
+
+    executeLDSSTS(instruction) {
+        // LDS/STS: [11110][d][seg2][Rd4][Rs4]
+        const d = (instruction >>> 10) & 0x1;
+        const seg = (instruction >>> 8) & 0x3;
+        const rd = (instruction >>> 4) & 0xF;
+        const rs = instruction & 0xF;
+        
+        const segNames = ['CS', 'DS', 'SS', 'ES'];
+        const address = this.registers[rs];
+        
+        console.log(`LDS/STS Execute: d=${d}, seg=${segNames[seg]}, rd=${this.getRegisterName(rd)}, rs=${this.getRegisterName(rs)}, address=0x${address.toString(16)}`);
+        
+        // Note: In the current flat memory model, segment doesn't affect the physical address
+        if (d === 0) { // LDS
+            if (address < this.memory.length) {
+                this.registers[rd] = this.memory[address];
+                console.log(`LDS: ${this.getRegisterName(rd)} = [${segNames[seg]}:${this.getRegisterName(rs)}] = 0x${this.registers[rd].toString(16)}`);
+            }
+        } else { // STS
+            if (address < this.memory.length) {
+                this.memory[address] = this.registers[rd];
+                console.log(`STS: [${segNames[seg]}:${this.getRegisterName(rs)}] = ${this.getRegisterName(rd)} (0x${this.registers[rd].toString(16)})`);
+            }
+        }
+    }
 
     executeSystem(instruction) {
         const sysOp = instruction & 0x7;
+        
+        console.log(`System Execute: op=${sysOp}`);
+        
         switch (sysOp) {
-            case 0b001: // HLT (old encoding)
-                this.running = false;
-                console.log('HLT: Processor halted');
+            case 0b000: // NOP
+                console.log("NOP: No operation");
                 break;
-            case 0b011: // RETI
-                console.log("RETI executed");
-                // Simple RETI implementation
+            case 0b001: // HLT
+                this.running = false;
+                console.log("HLT: Processor halted");
+                break;
+            case 0b010: // SWI - Software Interrupt
+                console.log("SWI: Software interrupt");
+                // Save current context to shadow registers
+                this.shadowRegisters.PC = this.registers[15];
+                this.shadowRegisters.PSW = this.psw;
+                this.shadowRegisters.CS = this.segmentRegisters.CS;
+                // Jump to interrupt vector (simplified)
+                this.registers[15] = 0x0020;
+                break;
+            case 0b011: // RETI - Return from Interrupt
+                console.log("RETI: Return from interrupt");
+                // Restore context from shadow registers
+                this.registers[15] = this.shadowRegisters.PC;
+                this.psw = this.shadowRegisters.PSW;
+                this.segmentRegisters.CS = this.shadowRegisters.CS;
                 break;
             default:
-                console.log(`SYS: op=${sysOp}`);
+                console.warn(`Unknown system operation: ${sysOp}`);
         }
     }
 
     updatePSWFlags() {
         if (!this.lastOperationWasALU) return;
         
-        this.psw = 0; // Reset flags
+        this.psw &= 0xFFF0; // Clear standard flags (keep system bits)
         
         if (this.lastALUResult !== undefined) {
             const result = this.lastALUResult & 0xFFFF;
@@ -491,6 +702,53 @@ if (shouldJump) {
     getRegisterName(regIndex) {
         const names = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
         return names[regIndex] || `R${regIndex}`;
+    }
+
+    // ENHANCED: Method to get expanded memory view (32 words)
+    getRecentMemoryView() {
+        if (!this.recentMemoryAccess) {
+            return null;
+        }
+        
+        const access = this.recentMemoryAccess;
+        
+        // RULE 2: If access is via LD/ST with non-zero offset, display from base address
+        let startAddress;
+        if (access.offset !== 0) {
+            startAddress = access.baseAddress;
+        } else {
+            // RULE 1: Otherwise, center on the accessed address
+            startAddress = Math.max(0, access.address - 8);
+        }
+        
+        // Ensure we show exactly 32 words (4 lines of 8)
+        startAddress = Math.max(0, startAddress);
+        startAddress = Math.min(startAddress, this.memory.length - 32);
+        
+        const memoryView = [];
+        
+        // Get 32 words (4 lines of 8)
+        for (let i = 0; i < 32; i++) {
+            const addr = startAddress + i;
+            if (addr < this.memory.length) {
+                const isCurrent = (addr === access.address);
+                const isBase = (access.offset !== 0 && addr === access.baseAddress);
+                
+                memoryView.push({
+                    address: addr,
+                    value: this.memory[addr],
+                    isCurrent: isCurrent,
+                    isBase: isBase,
+                    isInRange: true
+                });
+            }
+        }
+        
+        return {
+            baseAddress: startAddress,
+            memoryWords: memoryView,
+            accessInfo: access
+        };
     }
 
     getState() {
