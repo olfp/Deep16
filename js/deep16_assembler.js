@@ -531,7 +531,7 @@ isRegister(value) {
         }
         throw new Error(`ALU operation requires two operands`);
     }
-}
+
 
     encodeMemory(parts, isStore, address, lineNumber) {
         if (parts.length >= 4) {
