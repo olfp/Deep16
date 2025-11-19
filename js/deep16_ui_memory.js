@@ -204,33 +204,34 @@ renderMemoryDisplay() {
         let address = start;
         let lastDisplayedAddress = start - 1;
         
-        console.log(`Memory display: ${start.toString(16)} to ${end.toString(16)}`);
-        
         while (address < end) {
+            let lineHtml = '';
+            
             // Check if current address is code
             if (this.isCodeAddress(address)) {
-                // Check for gap before this code line
-                if (address > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
-                    console.log(`Gap detected: ${lastDisplayedAddress.toString(16)} to ${address.toString(16)}`);
-                    html += `<div class="memory-gap">...</div>`;
-                }
-                
                 // Code displays one instruction per line
-                html += this.createMemoryLine(address);
-                lastDisplayedAddress = address;
+                lineHtml = this.createMemoryLine(address);
+                if (lineHtml) {
+                    // Check for gap before this code line
+                    if (address > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
+                        html += `<div class="memory-gap">...</div>`;
+                    }
+                    html += lineHtml;
+                    lastDisplayedAddress = address;
+                }
                 address++;
             } else {
                 // Data displays 8 words per line
                 const lineStart = address;
-                
-                // Check for gap before this data line
-                if (lineStart > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
-                    console.log(`Gap detected: ${lastDisplayedAddress.toString(16)} to ${lineStart.toString(16)}`);
-                    html += `<div class="memory-gap">...</div>`;
+                lineHtml = this.createMemoryLine(lineStart);
+                if (lineHtml) {
+                    // Check for gap before this data line
+                    if (lineStart > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
+                        html += `<div class="memory-gap">...</div>`;
+                    }
+                    html += lineHtml;
+                    lastDisplayedAddress = lineStart + 7; // End of data line
                 }
-                
-                html += this.createMemoryLine(lineStart);
-                lastDisplayedAddress = lineStart + 7; // End of data line
                 address = lineStart + 8; // Skip to next data line
             }
         }
@@ -244,7 +245,7 @@ renderMemoryDisplay() {
         this.scrollToPC();
     }
 }
-
+    
 getDataLineSource(lineStartAddress) {
     if (!this.ui.currentAssemblyResult) return '';
     
