@@ -590,6 +590,53 @@ class DeepWebUI {
         }
     }
 
+    // ENHANCED: Create memory line with proper segment handling
+    createMemoryLine(address) {
+        const value = this.simulator.memory[address];
+        const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+        const isPC = (address === this.simulator.registers[15]);
+        const pcClass = isPC ? 'pc-marker' : '';
+        
+        // Check if this should be displayed as code
+        if (this.isCodeAddress(address)) {
+            let disasm = this.disassembler.disassemble(value);
+            
+            // Enhanced jump disassembly with absolute addresses
+            if ((value >>> 12) === 0b1110) {
+                disasm = this.disassembler.disassembleJumpWithAddress(value, address);
+            }
+            
+            const source = this.getSourceForAddress(address);
+            const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
+            
+            let html = `<div class="memory-line code-line ${pcClass}">`;
+            html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
+            html += `<span class="memory-bytes">${displayValue}</span>`;
+            html += `<span class="memory-disassembly">${disasm}</span>`;
+            if (source) {
+                html += `<span class="memory-source">; ${source}</span>`;
+            }
+            html += `</div>`;
+            return html;
+        } else {
+            // Display as data
+            const source = this.getSourceForAddress(address);
+            const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
+            
+            let html = `<div class="memory-line data-line ${pcClass}">`;
+            html += `<span class="memory-address">0x${address.toString(16).padStart(4, '0')}</span>`;
+            html += `<span class="memory-bytes">${displayValue}</span>`;
+            if (source) {
+                html += `<span class="memory-source">; ${source}</span>`;
+            } else {
+                html += `<span class="memory-source">; data</span>`;
+            }
+            html += `</div>`;
+            return html;
+        }
+    }
+
+    // UPDATED: Memory display to use new createMemoryLine method
     renderMemoryDisplay() {
         const memoryDisplay = document.getElementById('memory-display');
         const start = this.memoryStartAddress;
@@ -600,20 +647,8 @@ class DeepWebUI {
         if (start >= end) {
             html = '<div class="memory-line">Invalid memory range</div>';
         } else {
-            let currentDataLineStart = -1;
-            
             for (let address = start; address < end; address++) {
-                const isCodeSegment = this.isCodeAddress(address);
-                
-                if (isCodeSegment) {
-                    html += this.createCodeMemoryLine(address);
-                    currentDataLineStart = -1;
-                } else {
-                    if ((address - start) % 8 === 0) {
-                        currentDataLineStart = address;
-                        html += this.createDataMemoryLine(address, Math.min(address + 8, end));
-                    }
-                }
+                html += this.createMemoryLine(address);
             }
         }
         
@@ -625,6 +660,8 @@ class DeepWebUI {
             this.scrollToPC();
         }
     }
+
+
 
     scrollToPC() {
         const memoryDisplay = document.getElementById('memory-display');
@@ -690,11 +727,13 @@ class DeepWebUI {
     }
 
     isCodeAddress(address) {
-        if (!this.segmentInfo || !this.segmentInfo.code) {
+        if (!this.currentAssemblyResult || !this.currentAssemblyResult.segmentMap) {
             return false;
         }
         
-        return address >= this.segmentInfo.code.start && address <= this.segmentInfo.code.end;
+        // Check if assembler explicitly marked this as code
+        const segment = this.currentAssemblyResult.segmentMap.get(address);
+        return segment === 'code';
     }
 
     getSourceForAddress(address) {
@@ -704,9 +743,7 @@ class DeepWebUI {
         
         for (const item of listing) {
             if (item.address === address) {
-                if (item.instruction !== undefined) {
-                    return item.line ? item.line.trim() : '';
-                } else if (item.line && (item.line.includes('.word') || item.line.includes('.org'))) {
+                if (item.line) {
                     return item.line.trim();
                 }
             }
@@ -714,6 +751,7 @@ class DeepWebUI {
         
         return '';
     }
+
 
     updateSegmentRegisters() {
         const segmentGrid = document.querySelector('.register-section:nth-child(3) .register-grid');
