@@ -557,23 +557,43 @@ isRegister(value) {
     }
 
 
-    encodeMemory(parts, isStore, address, lineNumber) {
-        if (parts.length >= 4) {
-            const rd = this.parseRegister(parts[1]);
-            const rb = this.parseRegister(parts[2]);
-            const offset = this.parseImmediate(parts[3]);
+encodeMemory(parts, isStore, address, lineNumber) {
+    if (parts.length >= 4) {
+        let rd, rb, offset;
+        
+        // Check for bracket syntax: LD R1, [R2+5] or LD R1, [R2]
+        if (parts[2].includes('[') && parts[2].includes(']')) {
+            // Parse bracket syntax: [Rb+offset] or [Rb]
+            const bracketContent = parts[2].replace(/[\[\]]/g, '');
+            const plusParts = bracketContent.split('+');
             
-            if (offset < 0 || offset > 31) {
-                throw new Error(`Offset ${offset} out of range (0-31)`);
+            rb = this.parseRegister(plusParts[0].trim());
+            if (plusParts.length > 1) {
+                offset = this.parseImmediate(plusParts[1].trim());
+            } else {
+                offset = 0; // Default offset is 0 if not specified
             }
             
-            // LD/ST: [10][d1][Rd4][Rb4][offset5]
-            // Bits: 15-14: opcode, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
-            return (isStore ? 0b1010000000000000 : 0b1000000000000000) | 
-                   (rd << 9) | (rb << 5) | offset;
+            rd = this.parseRegister(parts[1]);
+        } 
+        // Check for old syntax: LD R1, R2, 5
+        else {
+            rd = this.parseRegister(parts[1]);
+            rb = this.parseRegister(parts[2]);
+            offset = this.parseImmediate(parts[3]);
         }
-        throw new Error(`${isStore ? 'ST' : 'LD'} requires register, base register, and offset`);
+        
+        if (offset < 0 || offset > 31) {
+            throw new Error(`Offset ${offset} out of range (0-31)`);
+        }
+        
+        // LD/ST: [10][d1][Rd4][Rb4][offset5]
+        // Bits: 15-14: opcode, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
+        return (isStore ? 0b1010000000000000 : 0b1000000000000000) | 
+               (rd << 9) | (rb << 5) | offset;
     }
+    throw new Error(`${isStore ? 'ST' : 'LD'} requires register, base register, and offset`);
+}
 
     encodeLDI(parts, address, lineNumber) {
         if (parts.length >= 2) {
