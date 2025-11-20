@@ -1,0 +1,90 @@
+/* file-menu.css - File menu and status line styles */
+.file-menu {
+    position: relative;
+    display: inline-block;
+}
+
+#file-menu-btn {
+    background: #0e639c;
+    border: 1px solid #3e3e42;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    min-height: 20px;
+}
+
+#file-menu-btn:hover {
+    background: #1177bb;
+}
+
+.file-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: #2d2d30;
+    border: 1px solid #3e3e42;
+    border-radius: 3px;
+    min-width: 120px;
+    z-index: 1000;
+    flex-direction: column;
+    padding: 4px;
+    gap: 2px;
+}
+
+.file-dropdown.show {
+    display: flex;
+}
+
+.file-dropdown button {
+    background: transparent;
+    border: none;
+    color: #d4d4d4;
+    padding: 4px 8px;
+    text-align: left;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    border-radius: 2px;
+}
+
+.file-dropdown button:hover {
+    background: #3e3e42;
+}
+
+.file-status-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 12px;
+    background: #252526;
+    border-bottom: 1px solid #3e3e42;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #d4d4d4;
+    height: 20px;
+}
+
+#current-filename {
+    color: #9cdcfe;
+    font-weight: bold;
+}
+
+.file-status-clean {
+    color: #6a9955;
+}
+
+.file-status-modified {
+    color: #ce9178;
+}
+
+.file-status-saving {
+    color: #569cd6;
+}
+
+.file-status-error {
+    color: #f44747;
+}
