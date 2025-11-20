@@ -339,22 +339,25 @@ initializeEventListeners() {
     
     document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
 
-    // FIXED: Proper memory address input handling
-    const memoryAddressInput = document.getElementById('memory-start-address');
-    if (memoryAddressInput) {
-        // Handle Enter key
-        memoryAddressInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                this.handleMemoryAddressInput();
-            }
-        });
-        
-        // Handle blur (when input loses focus)
-        memoryAddressInput.addEventListener('blur', () => {
+const memoryAddressInput = document.getElementById('memory-start-address');
+if (memoryAddressInput) {
+    console.log('Setting up memory address input event listeners');
+    
+    // Handle Enter key
+    memoryAddressInput.addEventListener('keypress', (e) => {
+        console.log('Key pressed in memory address input:', e.key);
+        if (e.key === 'Enter') {
+            e.preventDefault();
             this.handleMemoryAddressInput();
-        });
-    }
+        }
+    });
+    
+    // Handle blur (when input loses focus)
+    memoryAddressInput.addEventListener('blur', () => {
+        console.log('Memory address input lost focus');
+        this.handleMemoryAddressInput();
+    });
+}
     
     document.querySelectorAll('.tab-button').forEach(button => {
         button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
@@ -401,12 +404,15 @@ initializeEventListeners() {
         console.log('Using simple dropdowns');
     }
 
-// This method should already exist in deep16_ui_core.js:
 handleMemoryAddressInput() {
     const input = document.getElementById('memory-start-address');
-    if (!input) return;
+    if (!input) {
+        console.error('Memory address input not found');
+        return;
+    }
     
     let value = input.value.trim();
+    console.log('Memory address input value:', value);
     
     // If empty, use current address
     if (value === '') {
@@ -421,17 +427,19 @@ handleMemoryAddressInput() {
     
     // Parse as hex
     const address = parseInt(value, 16);
+    console.log('Parsed address:', address, 'isNaN:', isNaN(address));
     
     if (!isNaN(address) && address >= 0 && address < this.simulator.memory.length) {
+        console.log('Setting memory start address to:', address);
         this.memoryStartAddress = address;
         input.value = '0x' + address.toString(16).padStart(5, '0').toUpperCase();
         this.memoryUI.updateMemoryDisplay();
     } else {
         // Invalid address - reset to current
+        console.log('Invalid address, resetting to:', this.memoryStartAddress);
         input.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0').toUpperCase();
     }
 }
-
 
     updateErrorsList() {
         const errorsList = document.getElementById('errors-list');
@@ -526,7 +534,7 @@ onSymbolSelect(event) {
         const contextAddress = Math.max(0, address - contextBefore);
         this.memoryStartAddress = contextAddress;
         this.memoryUI.renderMemoryDisplay();
-        document.getElementById('memory-start-address').value = '0x' + contextAddress.toString(16).padStart(4, '0');
+        document.getElementById('memory-start-address').value = '0x' + contextAddress.toString(16).padStart(5, '0');
         const symbolName = event.target.options[event.target.selectedIndex].text.split(' (')[0];
         this.addTranscriptEntry(`Memory view showing symbol: ${symbolName} with context`, "info");
         
