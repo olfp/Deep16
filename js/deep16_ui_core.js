@@ -429,7 +429,7 @@ handleMemoryAddressInput() {
     if (!isNaN(address) && address >= 0 && address < this.simulator.memory.length) {
         console.log('Setting memory start address to:', address);
         this.memoryStartAddress = address;
-        this.manualAddressChange = true; // Mark as manual change
+        this.manualAddressChange = true; // Mark as manual change to prevent auto-adjustment
         input.value = '0x' + address.toString(16).padStart(5, '0').toUpperCase();
         this.memoryUI.updateMemoryDisplay();
     } else {
