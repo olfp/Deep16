@@ -39,6 +39,7 @@ class DeepWebUI {
     }
 
     // Add new methods for file operations
+// In deep16_ui_core.js - Replace the initializeFileMenu method
 initializeFileMenu() {
     const fileMenuBtn = document.getElementById('file-menu-btn');
     const fileDropdown = document.getElementById('file-dropdown');
@@ -55,17 +56,38 @@ initializeFileMenu() {
     });
     
     // File operations
-    document.getElementById('new-file-btn').addEventListener('click', () => this.newFile());
-    document.getElementById('load-file-btn').addEventListener('click', () => this.loadFile());
-    document.getElementById('save-file-btn').addEventListener('click', () => this.saveFile());
-    document.getElementById('save-as-btn').addEventListener('click', () => this.saveAsFile());
-    document.getElementById('print-btn').addEventListener('click', () => this.printFile());
+    document.getElementById('new-file-btn').addEventListener('click', () => {
+        this.newFile();
+        fileDropdown.classList.remove('show');
+    });
+    document.getElementById('load-file-btn').addEventListener('click', () => {
+        this.loadFile();
+        fileDropdown.classList.remove('show');
+    });
+    document.getElementById('save-file-btn').addEventListener('click', () => {
+        this.saveFile();
+        fileDropdown.classList.remove('show');
+    });
+    document.getElementById('save-as-btn').addEventListener('click', () => {
+        this.saveAsFile();
+        fileDropdown.classList.remove('show');
+    });
+    document.getElementById('print-btn').addEventListener('click', () => {
+        this.printFile();
+        fileDropdown.classList.remove('show');
+    });
     
     // Track editor changes for modified status
     this.editorElement.addEventListener('input', () => {
         this.setFileModified(true);
     });
+    
+    // Initialize file status
+    this.updateFileStatus();
 }
+
+// Keep all the other file operation methods the same (newFile, loadFile, saveFile, etc.)
+// They don't need changes, just make sure they're included
 
 newFile() {
     if (this.fileModified) {
