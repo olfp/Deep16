@@ -797,7 +797,7 @@ updateAssemblyListing() {
     }
 
 handleMemoryAddressChange() {
-    this.ui.handleMemoryAddressInput();
+    this.handleMemoryAddressInput();
 }
 
 
