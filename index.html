@@ -47,39 +47,38 @@
     </div>
 </div>
     
-    <div class="container">
-<!-- In index.html - Replace the editor-panel section -->
-<div class="editor-panel">
-    <div class="panel-header">
-        <div class="file-menu">
-            <button id="file-menu-btn">File ▾</button>
-            <div class="file-dropdown" id="file-dropdown">
-                <button id="new-file-btn">New</button>
-                <button id="load-file-btn">Load...</button>
-                <button id="save-file-btn">Save</button>
-                <button id="save-as-btn">Save As...</button>
-                <button id="print-btn">Print</button>
+<div class="container">
+    <!-- Editor Panel -->
+    <div class="editor-panel">
+        <div class="panel-header">
+            <div class="file-menu">
+                <button id="file-menu-btn">File ▾</button>
+                <div class="file-dropdown" id="file-dropdown">
+                    <button id="new-file-btn">New</button>
+                    <button id="load-file-btn">Load...</button>
+                    <button id="save-file-btn">Save</button>
+                    <button id="save-as-btn">Save As...</button>
+                    <button id="print-btn">Print</button>
+                </div>
             </div>
-        </div>
-        <div class="panel-header-title">Deep16 Assembler</div>
-    </div>
-    
-    <!-- Add file status line -->
-    <div class="file-status-line">
-        <span id="current-filename">Untitled.asm</span>
-        <span id="file-status" class="file-status-clean">● Clean</span>
-    </div>
-    
-    <div class="tab-container">
-        <!-- Rest of the tab container remains the same -->
-        <div class="tab-buttons">
-            <button class="tab-button active" data-tab="editor">Editor</button>
-            <button class="tab-button" data-tab="errors">Errors</button>
-            <button class="tab-button" data-tab="listing">Listing</button>
+            <div class="panel-header-title">Deep16 Assembler</div>
         </div>
         
-        <div id="editor-tab" class="tab-content active">
-            <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Integrated Development Environment
+        <!-- File status line -->
+        <div class="file-status-line">
+            <span id="current-filename">Untitled.asm</span>
+            <span id="file-status" class="file-status-clean">● Clean</span>
+        </div>
+        
+        <div class="tab-container">
+            <div class="tab-buttons">
+                <button class="tab-button active" data-tab="editor">Editor</button>
+                <button class="tab-button" data-tab="errors">Errors</button>
+                <button class="tab-button" data-tab="listing">Listing</button>
+            </div>
+            
+            <div id="editor-tab" class="tab-content active">
+                <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Integrated Development Environment
 ; Select an example from the dropdown or write your own code
 ; Then click 'Assemble' to compile and 'Run' to execute
 
@@ -96,160 +95,156 @@ main:
 .org 0x0200
 data_area:
     .word 0</textarea>
+            </div>
+            
+            <div id="errors-tab" class="tab-content">
+                <div id="errors-list" class="errors-list">
+                    <div class="no-errors">No assembly performed yet</div>
+                </div>
+            </div>
+            
+            <div id="listing-tab" class="tab-content">
+                <div class="listing-controls">
+                    <label for="listing-symbol-select">Navigate to symbol:</label>
+                    <select id="listing-symbol-select" size="1" style="width: 200px;">
+                        <option value="">-- Select Symbol --</option>
+                    </select>
+                </div>
+                <div id="listing-content" class="assembly-listing">
+                    No assembly performed yet
+                </div>
+            </div>
         </div>
-        
-        <!-- Rest of tab content remains the same -->
     </div>
-</div>    
-                <div id="errors-tab" class="tab-content">
-                    <div id="errors-list" class="errors-list">
-                        <div class="no-errors">No assembly performed yet</div>
-                    </div>
-                </div>
-                
-                <div id="listing-tab" class="tab-content">
-<div class="listing-controls">
-    <label for="listing-symbol-select">Navigate to symbol:</label>
-    <select id="listing-symbol-select" size="1" style="width: 200px;">
-        <option value="">-- Select Symbol --</option>
-    </select>
-</div>
-                    <div id="listing-content" class="assembly-listing">
-                        No assembly performed yet
-                    </div>
-                </div>
-            </div>
+    
+    <!-- Memory & Registers Panel -->
+    <div class="memory-panel">
+        <div class="panel-header">
+            <div class="panel-header-title">Deep16 Memory & Registers</div>
+            <button id="view-toggle" class="view-toggle">Compact View</button>
         </div>
-        
-        <div class="memory-panel">
-            <div class="panel-header">
-                <div class="panel-header-title">Deep16 Memory & Registers</div>
-                <button id="view-toggle" class="view-toggle">Compact View</button>
-            </div>
-            <div class="registers-container">
-                <!-- PSW Display (always visible) -->
-                <div class="register-section">
-                    <div class="section-title">Processor Status Word (PSW)</div>
-                    <div class="psw-display">
-                        <div class="psw-bits">
-                            <!-- PSW bits in correct order from documentation -->
-                            <div class="psw-bit">
-                                <span class="psw-label">DE</span>
-                                <input type="checkbox" class="psw-checkbox" id="psw-de" disabled>
-                            </div>
-                            <div class="psw-bit">
-                                <span class="psw-label">ER</span>
-                                <span class="psw-value-display" id="psw-er">0</span>
-                            </div>
-                            <div class="psw-bit">
-                                <span class="psw-label">DS</span>
-                                <input type="checkbox" class="psw-checkbox" id="psw-ds" disabled>
-                            </div>
-                            <div class="psw-bit">
-                                <span class="psw-label">SR</span>
-                                <span class="psw-value-display" id="psw-sr">0</span>
-                            </div>
-                            <div class="psw-bit">
-                                <span class="psw-label">S</span>
-                                <input type="checkbox" class="psw-checkbox" id="psw-s" disabled>
-                            </div>
-                            <div class="psw-bit">
-                                <span class="psw-label">I</span>
-                                <input type="checkbox" class="psw-checkbox" id="psw-i" disabled>
-                            </div>
-                            <div class="psw-bit">
-                                <span class="psw-label">C</span>
-                                <input type="checkbox" class="psw-checkbox" id="psw-c" disabled>
-                            </div>
-                            <div class="psw-bit">
-                                <span class="psw-label">V</span>
-                                <input type="checkbox" class="psw-checkbox" id="psw-v" disabled>
-                            </div>
-                            <div class="psw-bit">
-                                <span class="psw-label">Z</span>
-                                <input type="checkbox" class="psw-checkbox" id="psw-z" disabled>
-                            </div>
-                            <div class="psw-bit">
-                                <span class="psw-label">N</span>
-                                <input type="checkbox" class="psw-checkbox" id="psw-n" disabled>
-                            </div>
+        <div class="registers-container">
+            <!-- PSW Display -->
+            <div class="register-section">
+                <div class="section-title">Processor Status Word (PSW)</div>
+                <div class="psw-display">
+                    <div class="psw-bits">
+                        <div class="psw-bit">
+                            <span class="psw-label">DE</span>
+                            <input type="checkbox" class="psw-checkbox" id="psw-de" disabled>
                         </div>
-                    </div>
-                </div>
-                
-                <!-- General Purpose Registers (collapsible) -->
-                <div class="register-section">
-                    <div class="section-title"><span class="section-toggle">▼</span>General Purpose Registers (R0-R15)</div>
-                    <div class="register-grid" id="register-grid">
-                        <!-- Filled by JavaScript -->
-                    </div>
-                </div>
-                
-                <!-- Segment Registers (collapsible) -->
-                <div class="register-section">
-                    <div class="section-title"><span class="section-toggle">▼</span>Segment Registers</div>
-                    <div class="register-grid">
-                        <div class="register-compact">
-                            <span class="register-name">CS</span>
-                            <span class="register-value" id="reg-cs">0x0000</span>
+                        <div class="psw-bit">
+                            <span class="psw-label">ER</span>
+                            <span class="psw-value-display" id="psw-er">0</span>
                         </div>
-                        <div class="register-compact">
-                            <span class="register-name">DS</span>
-                            <span class="register-value" id="reg-ds">0x0000</span>
+                        <div class="psw-bit">
+                            <span class="psw-label">DS</span>
+                            <input type="checkbox" class="psw-checkbox" id="psw-ds" disabled>
                         </div>
-                        <div class="register-compact">
-                            <span class="register-name">SS</span>
-                            <span class="register-value" id="reg-ss">0x0000</span>
+                        <div class="psw-bit">
+                            <span class="psw-label">SR</span>
+                            <span class="psw-value-display" id="psw-sr">0</span>
                         </div>
-                        <div class="register-compact">
-                            <span class="register-name">ES</span>
-                            <span class="register-value" id="reg-es">0x0000</span>
+                        <div class="psw-bit">
+                            <span class="psw-label">S</span>
+                            <input type="checkbox" class="psw-checkbox" id="psw-s" disabled>
                         </div>
-                    </div>
-                </div>
-                
-                <!-- Shadow Registers (collapsible) -->
-                <div class="register-section shadow-section">
-                    <div class="section-title"><span class="section-toggle">▼</span>Shadow Registers (Interrupt Context)</div>
-                    <div class="register-grid">
-                        <div class="register-compact">
-                            <span class="register-name">PSW'</span>
-                            <span class="register-value" id="reg-psw-shadow">0x0000</span>
+                        <div class="psw-bit">
+                            <span class="psw-label">I</span>
+                            <input type="checkbox" class="psw-checkbox" id="psw-i" disabled>
                         </div>
-                        <div class="register-compact">
-                            <span class="register-name">PC'</span>
-                            <span class="register-value" id="reg-pc-shadow">0x0000</span>
+                        <div class="psw-bit">
+                            <span class="psw-label">C</span>
+                            <input type="checkbox" class="psw-checkbox" id="psw-c" disabled>
                         </div>
-                        <div class="register-compact">
-                            <span class="register-name">CS'</span>
-                            <span class="register-value" id="reg-cs-shadow">0x0000</span>
+                        <div class="psw-bit">
+                            <span class="psw-label">V</span>
+                            <input type="checkbox" class="psw-checkbox" id="psw-v" disabled>
+                        </div>
+                        <div class="psw-bit">
+                            <span class="psw-label">Z</span>
+                            <input type="checkbox" class="psw-checkbox" id="psw-z" disabled>
+                        </div>
+                        <div class="psw-bit">
+                            <span class="psw-label">N</span>
+                            <input type="checkbox" class="psw-checkbox" id="psw-n" disabled>
                         </div>
                     </div>
                 </div>
             </div>
             
-            <div class="panel-header">Memory Display (Word Addressing)</div>
-<div class="memory-controls">
-    <label for="memory-start-address">Start Address:</label>
-    <input type="text" id="memory-start-address" value="0x0000" placeholder="0x0000" style="width: 80px;">
-    <label for="symbol-select">or select symbol:</label>
-    <select id="symbol-select" size="1" style="width: 200px;">
-        <option value="">-- Select Symbol --</option>
-    </select>
-    <button id="memory-jump-btn">Jump</button>
-</div>
-            <div id="memory-display" class="memory-display">
-                <!-- Memory content will be populated by JavaScript -->
+            <!-- General Purpose Registers -->
+            <div class="register-section">
+                <div class="section-title"><span class="section-toggle">▼</span>General Purpose Registers (R0-R15)</div>
+                <div class="register-grid" id="register-grid">
+                    <!-- Filled by JavaScript -->
+                </div>
             </div>
-<!-- In index.html - Update recent-memory-panel -->
-<div class="recent-memory-panel">
-    <div class="panel-header">Recent Memory Access Location</div>
-    <div id="recent-memory-display" class="recent-memory-display">
-        No memory operations yet
-    </div>
-</div>
+            
+            <!-- Segment Registers -->
+            <div class="register-section">
+                <div class="section-title"><span class="section-toggle">▼</span>Segment Registers</div>
+                <div class="register-grid">
+                    <div class="register-compact">
+                        <span class="register-name">CS</span>
+                        <span class="register-value" id="reg-cs">0x0000</span>
+                    </div>
+                    <div class="register-compact">
+                        <span class="register-name">DS</span>
+                        <span class="register-value" id="reg-ds">0x0000</span>
+                    </div>
+                    <div class="register-compact">
+                        <span class="register-name">SS</span>
+                        <span class="register-value" id="reg-ss">0x0000</span>
+                    </div>
+                    <div class="register-compact">
+                        <span class="register-name">ES</span>
+                        <span class="register-value" id="reg-es">0x0000</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Shadow Registers -->
+            <div class="register-section shadow-section">
+                <div class="section-title"><span class="section-toggle">▼</span>Shadow Registers (Interrupt Context)</div>
+                <div class="register-grid">
+                    <div class="register-compact">
+                        <span class="register-name">PSW'</span>
+                        <span class="register-value" id="reg-psw-shadow">0x0000</span>
+                    </div>
+                    <div class="register-compact">
+                        <span class="register-name">PC'</span>
+                        <span class="register-value" id="reg-pc-shadow">0x0000</span>
+                    </div>
+                    <div class="register-compact">
+                        <span class="register-name">CS'</span>
+                        <span class="register-value" id="reg-cs-shadow">0x0000</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel-header">Memory Display (Word Addressing)</div>
+        <div class="memory-controls">
+            <label for="memory-start-address">Start Address:</label>
+            <input type="text" id="memory-start-address" value="0x0000" placeholder="0x0000" style="width: 80px;">
+            <label for="symbol-select">or select symbol:</label>
+            <select id="symbol-select" size="1" style="width: 200px;">
+                <option value="">-- Select Symbol --</option>
+            </select>
+            <button id="memory-jump-btn">Jump</button>
+        </div>
+        <div id="memory-display" class="memory-display">
+            <!-- Memory content will be populated by JavaScript -->
+        </div>
+        <div class="recent-memory-panel">
+            <div class="panel-header">Recent Memory Access Location</div>
+            <div id="recent-memory-display" class="recent-memory-display">
+                No memory operations yet
+            </div>
         </div>
     </div>
+</div>
     
     <div id="status-bar" class="status-bar">
         DeepCode Ready - Architecture v3.5 (1r11a) - Enter assembly code and click 'Assemble'
