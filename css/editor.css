@@ -79,33 +79,7 @@
     padding: 4px;
 }
 
-/* Editor controls on the right side */
-.editor-controls-right {
-    display: flex;
-    gap: 4px;
-    margin-left: auto;
-}
 
-.editor-controls-right button {
-    padding: 2px 8px;
-    background: #0e639c;
-    color: white;
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-    font-family: 'Courier New', monospace;
-    font-size: 11px;
-    min-height: 20px;
-}
-
-.editor-controls-right button:hover {
-    background: #1177bb;
-}
-
-.editor-controls-right button:disabled {
-    background: #555;
-    cursor: not-allowed;
-}
 
 /* Tier 4: File status line */
 .file-status-line {
