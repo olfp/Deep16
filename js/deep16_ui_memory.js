@@ -44,7 +44,7 @@ class Deep16MemoryUI {
 // Add debugging to isCodeAddress method
 isCodeAddress(address) {
     if (!this.ui.currentAssemblyResult || !this.ui.currentAssemblyResult.segmentMap) {
-        console.log(`isCodeAddress(${address.toString(16)}): no segment map`);
+        // console.log(`isCodeAddress(${address.toString(16)}): no segment map`);
         return false;
     }
     
