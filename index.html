@@ -70,21 +70,15 @@
                         </div>
                     </div>
                     
-                    <!-- Add Assemble button and examples back as visible elements -->
+                    <!-- Examples and Assemble button -->
                     <div class="editor-controls-center">
-                        <button id="assemble-btn">Assemble</button>
                         <label for="example-select">Load Example:</label>
                         <select id="example-select" style="width: 180px;">
                             <option value="">-- Choose Example --</option>
                             <option value="fibonacci">Fibonacci Sequence</option>
                             <option value="far_call">Far Call & Long Jump</option>
                         </select>
-                    </div>
-                    
-                    <div class="editor-controls-right">
-                        <button id="run-btn" disabled>Run</button>
-                        <button id="step-btn" disabled>Step</button>
-                        <button id="reset-btn" disabled>Reset</button>
+                        <button id="assemble-btn">Assemble</button>
                     </div>
                 </div>
                 
@@ -138,7 +132,12 @@ data_area:
     <div class="memory-panel">
         <div class="panel-header">
             <div class="panel-header-title">Deep16 Memory & Registers</div>
-            <button id="view-toggle" class="view-toggle">Compact View</button>
+            <div class="memory-panel-controls">
+                <button id="run-btn" disabled>Run</button>
+                <button id="step-btn" disabled>Step</button>
+                <button id="reset-btn" disabled>Reset</button>
+                <button id="view-toggle" class="view-toggle">Compact View</button>
+            </div>
         </div>
         <div class="registers-container">
             <!-- PSW Display -->
