@@ -1,18 +1,6 @@
 /* file-menu.css - File menu and status line styles */
-.editor-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 12px;
-    background: #2d2d30;
-    border-bottom: 1px solid #3e3e42;
-    height: 32px;
-}
-
-.file-menu {
+.editor-header .file-menu {
     position: relative;
-    display: flex;
-    align-items: center;
 }
 
 #file-menu-btn {
