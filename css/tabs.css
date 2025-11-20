@@ -1,5 +1,4 @@
 /* tabs.css - Tab system styles */
-/* In tabs.css - Update the tab-container */
 .tab-container {
     display: flex;
     flex-direction: column;
@@ -7,12 +6,10 @@
     min-height: 0;
 }
 
-/* Ensure the tab buttons come after the editor header */
 .tab-buttons {
     display: flex;
     background: #2d2d30;
     border-bottom: 1px solid #3e3e42;
-    padding: 0 10px;
 }
 
 .tab-button {
@@ -35,14 +32,6 @@
     background: #1e1e1e;
     border-bottom-color: #0e639c;
     color: white;
-}
-
-/* Update tab container */
-.tab-container {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
 }
 
 .tab-content {
@@ -112,13 +101,13 @@
 .listing-controls {
     display: flex;
     gap: 6px;
-    padding: 4px 8px;      /* More compact padding */
+    padding: 4px 8px;
     background: #2d2d30;
     border-bottom: 1px solid #3e3e42;
     align-items: center;
     font-family: 'Courier New', monospace;
     flex-shrink: 0;
-    height: 32px;          /* Fixed height like memory controls */
+    height: 32px;
 }
 
 .listing-controls label {
@@ -126,7 +115,7 @@
     color: #9cdcfe;
     font-weight: bold;
     white-space: nowrap;
-    margin: 0;             /* Remove any default margins */
+    margin: 0;
 }
 
 .listing-controls select {
@@ -137,7 +126,7 @@
     font-family: 'Courier New', monospace;
     font-size: 11px;
     height: 20px;
-    width: 200px; /* Same width as memory selector */
+    width: 200px;
 }
 
 .listing-controls select option {
