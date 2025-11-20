@@ -175,17 +175,67 @@ updateSymbolSelects(symbols) {
 }
 
 
-    onSymbolSelect(event) {
-        const address = parseInt(event.target.value);
-        if (!isNaN(address) && address >= 0) {
-            this.memoryStartAddress = address;
-            this.memoryUI.renderMemoryDisplay();
-            document.getElementById('memory-start-address').value = '0x' + address.toString(16).padStart(4, '0');
-            const symbolName = event.target.options[event.target.selectedIndex].text.split(' (')[0];
-            this.addTranscriptEntry(`Memory view jumped to symbol: ${symbolName}`, "info");
+onSymbolSelect(event) {
+    const address = parseInt(event.target.value);
+    if (!isNaN(address) && address >= 0) {
+        // Show context around the symbol (some addresses before and after)
+        const contextBefore = 16; // Show 16 addresses before the symbol
+        const contextAddress = Math.max(0, address - contextBefore);
+        this.memoryStartAddress = contextAddress;
+        this.memoryUI.renderMemoryDisplay();
+        document.getElementById('memory-start-address').value = '0x' + contextAddress.toString(16).padStart(4, '0');
+        const symbolName = event.target.options[event.target.selectedIndex].text.split(' (')[0];
+        this.addTranscriptEntry(`Memory view showing symbol: ${symbolName} with context`, "info");
+        
+        // Scroll to the symbol address after a short delay to ensure DOM is updated
+        setTimeout(() => {
+            this.memoryUI.scrollToAddress(address);
+        }, 50);
+    }
+}
+
+// In deep16_ui_memory.js - Add this method:
+scrollToAddress(address) {
+    const memoryDisplay = document.getElementById('memory-display');
+    if (!memoryDisplay) return;
+    
+    // Find all memory lines and look for the one with our target address
+    const lines = memoryDisplay.querySelectorAll('.memory-line');
+    let targetLine = null;
+    
+    for (const line of lines) {
+        const addressSpan = line.querySelector('.memory-address');
+        if (addressSpan) {
+            const lineAddressText = addressSpan.textContent.replace('0x', '');
+            const lineAddress = parseInt(lineAddressText, 16);
+            
+            // For code lines, the address is exact
+            // For data lines, check if our address falls within the data line range
+            if (line.classList.contains('code-line')) {
+                if (lineAddress === address) {
+                    targetLine = line;
+                    break;
+                }
+            } else if (line.classList.contains('data-line')) {
+                // Data lines cover 8 addresses
+                if (address >= lineAddress && address < lineAddress + 8) {
+                    targetLine = line;
+                    break;
+                }
+            }
         }
     }
-
+    
+    if (targetLine) {
+        targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Add highlight animation
+        targetLine.style.animation = 'pulse-highlight 1s ease-in-out';
+        setTimeout(() => {
+            targetLine.style.animation = '';
+        }, 1000);
+    }
+}
     onListingSymbolSelect(event) {
         const address = parseInt(event.target.value);
         if (!isNaN(address) && address >= 0) {
