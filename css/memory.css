@@ -9,19 +9,19 @@
 .memory-controls {
     display: flex;
     gap: 6px;
-    padding: 4px 8px;      /* Compact padding */
+    padding: 4px 8px;
     background: #2d2d30;
     border-bottom: 1px solid #3e3e42;
     align-items: center;
     flex-wrap: wrap;
     flex-shrink: 0;
-    height: 32px;          /* Fixed compact height */
+    height: 32px;
 }
 
 .memory-controls label {
     font-size: 11px;
     color: #9cdcfe;
-    margin: 0;             /* Remove default margins */
+    margin: 0;
 }
 
 .memory-controls select {
@@ -32,7 +32,7 @@
     font-family: 'Courier New', monospace;
     font-size: 11px;
     height: 20px;
-    width: 200px; /* Fixed width for consistency */
+    width: 200px;
 }
 
 .memory-controls input {
@@ -43,30 +43,13 @@
     font-family: 'Courier New', monospace;
     font-size: 11px;
     height: 20px;
-    width: 80px; /* Fixed width for address input */
+    width: 80px;
 }
 
 .memory-controls select option {
     background: #2d2d30;
     color: #d4d4d4;
     padding: 4px;
-}
-
-.memory-controls input, .memory-controls select {
-    background: #1e1e1e;
-    border: 1px solid #3e3e42;
-    color: #d4d4d4;
-    padding: 3px 6px;
-    font-family: 'Courier New', monospace;
-    font-size: 11px;
-}
-
-.memory-controls input {
-    width: 70px;
-}
-
-.memory-controls input[type="text"] {
-    width: 90px; /* Slightly wider for 5-digit addresses */
 }
 
 .memory-display {
@@ -94,7 +77,7 @@
     padding: 2px 3px;
     border-bottom: 1px solid #2d2d30;
     align-items: center;
-    min-height: 18px; /* Consistent height */
+    min-height: 18px;
 }
 
 .code-line {
@@ -107,33 +90,17 @@
     background: #252526;
     display: flex;
     align-items: center;
-    /* Ensure data lines align with code lines */
-    padding-left: 80px; /* Match the address column width */
-}
-
-.memory-line.data-line {
-    display: flex;
-    align-items: center;
-    padding: 1px 0 1px 80px; /* Consistent left padding */
-    border-bottom: 1px solid #2d2d30;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-    gap: 4px; /* Consistent spacing between data items */
+    /* REMOVED the problematic padding-left */
 }
 
 .memory-address {
     color: #569cd6;
     font-weight: bold;
-    width: 80px; /* Fixed width for 5 hex digits */
+    width: 80px;
     text-align: right;
     padding-right: 10px;
     font-family: 'Courier New', monospace;
-    flex-shrink: 0; /* Prevent shrinking */
-}
-
-.memory-address, .listing-address, .recent-memory-address {
-    width: 80px; /* Increased from ~60px for 5 hex digits */
-    font-family: 'Courier New', monospace;
+    flex-shrink: 0;
 }
 
 .memory-bytes {
@@ -258,7 +225,6 @@
     font-style: italic;
 }
 
-/* In memory.css - Add pulse animation */
 @keyframes pulse-highlight {
     0% {
         background-color: #264f78;
