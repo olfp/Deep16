@@ -208,41 +208,44 @@ scrollToAddress(address) {
         return '';
     }
 
-    updateMemoryDisplay() {
-        const memoryDisplay = document.getElementById('memory-display');
-        if (!memoryDisplay) return;
-        
-        const start = this.ui.memoryStartAddress || 0;
-        const end = Math.min(start + 64, this.ui.simulator.memory.length);
+updateMemoryDisplay() {
+    const memoryDisplay = document.getElementById('memory-display');
+    if (!memoryDisplay) return;
+    
+    const start = this.ui.memoryStartAddress || 0;
+    const end = Math.min(start + 64, this.ui.simulator.memory.length);
 
-        // Check if current PC is outside the visible range
-        const currentPC = this.ui.simulator.registers[15];
-        const pcIsVisible = (currentPC >= start && currentPC < end);
-        
-        // If PC is not visible, adjust the start address to show it
-        if (!pcIsVisible && currentPC < this.ui.simulator.memory.length) {
-            this.ui.memoryStartAddress = Math.max(0, currentPC - 8);
-            const startAddressInput = document.getElementById('memory-start-address');
-            if (startAddressInput) {
-                startAddressInput.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(4, '0');
-            }
-        }
+    console.log(`updateMemoryDisplay: memoryStartAddress = ${this.ui.memoryStartAddress}, start = ${start}, end = ${end}`);
 
-        this.renderMemoryDisplay();
-        
-        // Auto-scroll to the PC line if it's visible
-        if (pcIsVisible) {
-            this.scrollToPC();
+    // Check if current PC is outside the visible range
+    const currentPC = this.ui.simulator.registers[15];
+    const pcIsVisible = (currentPC >= start && currentPC < end);
+    
+    // If PC is not visible, adjust the start address to show it
+    if (!pcIsVisible && currentPC < this.ui.simulator.memory.length) {
+        this.ui.memoryStartAddress = Math.max(0, currentPC - 8);
+        const startAddressInput = document.getElementById('memory-start-address');
+        if (startAddressInput) {
+            startAddressInput.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(5, '0');
         }
     }
 
-// In deep16_ui_memory.js - Replace the renderMemoryDisplay method
+    this.renderMemoryDisplay();
+    
+    // Auto-scroll to the PC line if it's visible
+    if (pcIsVisible) {
+        this.scrollToPC();
+    }
+}
+
 renderMemoryDisplay() {
     const memoryDisplay = document.getElementById('memory-display');
     if (!memoryDisplay) return;
     
     const start = this.ui.memoryStartAddress || 0;
     const end = Math.min(start + 64, this.ui.simulator.memory.length);
+    
+    console.log(`Rendering memory from 0x${start.toString(16)} to 0x${end.toString(16)}, memoryStartAddress = ${this.ui.memoryStartAddress}`);
     
     let html = '';
     
@@ -251,8 +254,6 @@ renderMemoryDisplay() {
     } else {
         let address = start;
         let lastDisplayedAddress = start - 1;
-        
-        console.log(`Rendering memory from 0x${start.toString(16)} to 0x${end.toString(16)}`);
         
         while (address < end) {
             const isCode = this.isCodeAddress(address);
