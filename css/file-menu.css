@@ -1,9 +1,11 @@
-/* file-menu.css - File menu and status line styles */
-.editor-header .file-menu {
+/* file-menu.css - File and Edit menu styles */
+.file-menu, .edit-menu {
     position: relative;
+    display: flex;
+    align-items: center;
 }
 
-#file-menu-btn {
+#file-menu-btn, #edit-menu-btn {
     background: #0e639c;
     border: 1px solid #3e3e42;
     color: white;
@@ -15,11 +17,11 @@
     min-height: 24px;
 }
 
-#file-menu-btn:hover {
+#file-menu-btn:hover, #edit-menu-btn:hover {
     background: #1177bb;
 }
 
-.file-dropdown {
+.file-dropdown, .edit-dropdown {
     display: none;
     position: absolute;
     top: 100%;
@@ -27,18 +29,18 @@
     background: #2d2d30;
     border: 1px solid #3e3e42;
     border-radius: 3px;
-    min-width: 120px;
+    min-width: 160px;
     z-index: 1000;
     flex-direction: column;
     padding: 4px;
     gap: 2px;
 }
 
-.file-dropdown.show {
+.file-dropdown.show, .edit-dropdown.show {
     display: flex;
 }
 
-.file-dropdown button {
+.file-dropdown button, .edit-dropdown button {
     background: transparent;
     border: none;
     color: #d4d4d4;
@@ -51,8 +53,43 @@
     width: 100%;
 }
 
-.file-dropdown button:hover {
+.file-dropdown button:hover, .edit-dropdown button:hover {
     background: #3e3e42;
+}
+
+/* Edit menu specific styles */
+.menu-divider {
+    height: 1px;
+    background: #3e3e42;
+    margin: 2px 0;
+}
+
+.menu-label {
+    color: #9cdcfe;
+    font-size: 10px;
+    padding: 4px 12px 2px 12px;
+    font-weight: bold;
+}
+
+.menu-example-section {
+    padding: 4px 0;
+}
+
+.menu-select {
+    background: #1e1e1e;
+    border: 1px solid #3e3e42;
+    color: #d4d4d4;
+    padding: 2px 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    width: 100%;
+    margin: 2px 8px;
+}
+
+.menu-select option {
+    background: #2d2d30;
+    color: #d4d4d4;
+    padding: 4px;
 }
 
 .file-status-line {
