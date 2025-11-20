@@ -12,6 +12,7 @@
     display: flex;
     background: #2d2d30;
     border-bottom: 1px solid #3e3e42;
+    padding: 0 10px;
 }
 
 .tab-button {
@@ -36,6 +37,14 @@
     color: white;
 }
 
+/* Update tab container */
+.tab-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
 .tab-content {
     flex: 1;
     display: none;
@@ -43,11 +52,11 @@
     border: 1px solid #3e3e42;
     overflow: hidden;
     min-height: 0;
+    flex-direction: column;
 }
 
 .tab-content.active {
     display: flex;
-    flex-direction: column;
 }
 
 .errors-list {
