@@ -339,6 +339,7 @@ initializeEventListeners() {
     
     document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
 
+// FIXED: Proper memory address input handling
 const memoryAddressInput = document.getElementById('memory-start-address');
 if (memoryAddressInput) {
     console.log('Setting up memory address input event listeners');
@@ -350,12 +351,6 @@ if (memoryAddressInput) {
             e.preventDefault();
             this.handleMemoryAddressInput();
         }
-    });
-    
-    // Handle blur (when input loses focus)
-    memoryAddressInput.addEventListener('blur', () => {
-        console.log('Memory address input lost focus');
-        this.handleMemoryAddressInput();
     });
 }
     
