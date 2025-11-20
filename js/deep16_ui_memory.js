@@ -200,10 +200,6 @@ renderMemoryDisplay() {
     
     const start = this.ui.memoryStartAddress || 0;
     const end = Math.min(start + 64, this.ui.simulator.memory.length);
-
-    console.log('=== SEGMENT MAP DEBUG ===');
-    console.log('Current memoryStartAddress:', this.ui.memoryStartAddress.toString(16));
-    console.log('Segment map size:', this.ui.currentAssemblyResult?.segmentMap?.size);
     
     let html = '';
     
@@ -222,6 +218,7 @@ renderMemoryDisplay() {
             
             if (isCode) {
                 // CODE: Display one instruction per line
+                // Show gap if there's a jump from previous displayed address
                 if (address > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
                     html += `<div class="memory-gap">...</div>`;
                 }
@@ -233,43 +230,56 @@ renderMemoryDisplay() {
                 }
                 address++; // Move to next address for code
             } else {
-                // DATA: Only show data lines for addresses that have defined data (not 0xFFFF)
-                // Skip uninitialized memory and just show gaps
+                // DATA: Check if this is meaningful data or just uninitialized memory
                 const lineStart = address;
                 let lineEnd = lineStart;
-                
-                // Find a block of meaningful data (not all 0xFFFF)
                 let hasMeaningfulData = false;
                 
-                // Check next 8 addresses for meaningful data
+                // Scan forward to find if there's any non-0xFFFF data in this potential data block
                 while (lineEnd < end && !this.isCodeAddress(lineEnd) && (lineEnd - lineStart) < 8) {
                     if (this.ui.simulator.memory[lineEnd] !== 0xFFFF) {
                         hasMeaningfulData = true;
+                        break; // Found at least one meaningful value
                     }
                     lineEnd++;
                 }
                 
                 if (hasMeaningfulData) {
-                    // We found some meaningful data - create a data line
+                    // We have actual data - create a data line
                     if (lineStart > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
                         html += `<div class="memory-gap">...</div>`;
                     }
                     
-                    const lineHtml = this.createDataLine(lineStart, lineEnd);
+                    // Create a full data line (8 words) even if not all are meaningful
+                    const dataLineEnd = Math.min(lineStart + 8, end);
+                    const lineHtml = this.createDataLine(lineStart, dataLineEnd);
                     if (lineHtml) {
                         html += lineHtml;
-                        lastDisplayedAddress = lineStart + 7; // Data lines show 8 words
+                        lastDisplayedAddress = lineStart + 7;
                     }
-                    address = lineEnd; // Move to next unprocessed address
+                    address = lineStart + 8; // Skip the entire data line
                 } else {
-                    // No meaningful data - just skip this block and show gap if needed
+                    // No meaningful data - this is uninitialized memory
+                    // Just skip it and let the gap logic handle it
                     if (lineStart > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
                         html += `<div class="memory-gap">...</div>`;
+                        lastDisplayedAddress = lineStart - 1; // Gap ends before this block
                     }
-                    lastDisplayedAddress = lineEnd - 1;
-                    address = lineEnd; // Skip this uninitialized block
+                    
+                    // Skip to the next code segment or meaningful data
+                    let skipAddress = lineStart;
+                    while (skipAddress < end && !this.isCodeAddress(skipAddress) && 
+                           this.ui.simulator.memory[skipAddress] === 0xFFFF) {
+                        skipAddress++;
+                    }
+                    address = skipAddress;
                 }
             }
+        }
+        
+        // If we ended with uninitialized memory at the end of our view, show a final gap
+        if (lastDisplayedAddress < end - 1 && lastDisplayedAddress >= start) {
+            html += `<div class="memory-gap">...</div>`;
         }
     }
     
@@ -282,7 +292,7 @@ renderMemoryDisplay() {
     }
 }
 
-// Also update the createDataLine method to handle partial data lines better
+// Keep the createDataLine method as before, but ensure it shows empty for 0xFFFF
 createDataLine(startAddress, endAddress) {
     let html = `<div class="memory-line data-line">`;
     html += `<span class="memory-address">0x${startAddress.toString(16).padStart(5, '0')}</span>`;
@@ -300,7 +310,7 @@ createDataLine(startAddress, endAddress) {
         const isPC = (addr === this.ui.simulator.registers[15]);
         const pcClass = isPC ? 'pc-marker' : '';
         
-        // For data lines, only show values for non-0xFFFF, otherwise show empty
+        // Only show values for non-0xFFFF, otherwise show empty
         let displayValue = "";
         if (value !== 0xFFFF) {
             displayValue = `0x${valueHex}`;
@@ -309,7 +319,7 @@ createDataLine(startAddress, endAddress) {
         html += `<span class="memory-data ${pcClass}">${displayValue}</span>`;
     }
     
-    // Get source for data line - only if we have actual data definitions
+    // Get source for data line
     const source = this.getDataLineSource(startAddress);
     if (source) {
         html += `<span class="memory-source">; ${source}</span>`;
