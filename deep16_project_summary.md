@@ -1,6 +1,3 @@
-I'll update the status document to capture our current debugging state. Here's the updated `deep16_project_summary.md`:
-
-```markdown
 # DeepWeb IDE - Development Status
 ## Current: Debugging Memory Display & Segment Map Issues
 
