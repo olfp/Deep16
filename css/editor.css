@@ -21,14 +21,16 @@
     flex: 1;
 }
 
+/* Tier 3: Editor header with File and Edit menus */
 .editor-header {
     display: flex;
     align-items: center;
-    padding: 8px 12px;
+    padding: 6px 12px;
     background: #2d2d30;
     border-bottom: 1px solid #3e3e42;
     height: 32px;
     flex-shrink: 0;
+    gap: 8px;
 }
 
 /* Tier 4: File status line */
@@ -36,12 +38,12 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 6px 12px;
+    padding: 4px 12px;
     background: #252526;
     border-bottom: 1px solid #3e3e42;
     font-family: 'Courier New', monospace;
     font-size: 12px;
-    height: 28px;
+    height: 24px;
     flex-shrink: 0;
 }
 
@@ -59,6 +61,34 @@
 .file-status-modified {
     color: #ce9178;
     font-size: 11px;
+}
+
+/* Editor controls on the right side */
+.editor-controls-right {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.editor-controls-right button {
+    padding: 2px 8px;
+    background: #0e639c;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    min-height: 20px;
+}
+
+.editor-controls-right button:hover {
+    background: #1177bb;
+}
+
+.editor-controls-right button:disabled {
+    background: #555;
+    cursor: not-allowed;
 }
 
 /* Update editor to account for new headers */
