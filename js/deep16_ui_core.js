@@ -338,7 +338,7 @@ initializeEventListeners() {
     });
     
     document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
-    
+
     document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') this.jumpToMemoryAddress();
     });
@@ -794,6 +794,28 @@ updateAssemblyListing() {
         this.status("Simulator reset");
         this.addTranscriptEntry("Simulator reset to initial state", "info");
     }
+
+    // In deep16_ui_memory.js - update the handleMemoryAddressChange method
+handleMemoryAddressChange() {
+    const input = document.getElementById('memory-start-address');
+    if (!input) return;
+    
+    let value = input.value.trim();
+    
+    // Remove 0x prefix if present and parse
+    if (value.startsWith('0x')) {
+        value = value.substring(2);
+    }
+    
+    const address = parseInt(value, 16);
+    if (!isNaN(address) && address >= 0 && address < this.ui.simulator.memory.length) {
+        this.ui.memoryStartAddress = address;
+        this.updateMemoryDisplay();
+    } else {
+        // Reset to current value if invalid
+        input.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(5, '0');
+    }
+}
 
     jumpToMemoryAddress() {
         this.memoryUI.handleMemoryAddressChange();
