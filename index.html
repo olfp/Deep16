@@ -30,8 +30,6 @@
         </div>
     </div>
     
-    <!-- Removed the top controls bar - functionality moved to Edit menu -->
-    
 <div class="container">
     <!-- Editor Panel -->
     <div class="editor-panel">
@@ -46,50 +44,55 @@
             <!-- Tier 3 & 4: Inside the Editor tab -->
             <div id="editor-tab" class="tab-content active">
                 <!-- Tier 3: File and Edit menus inside Editor tab -->
-<!-- Tier 3: File and Edit menus inside Editor tab -->
-<div class="editor-header">
-    <div class="file-menu">
-        <button id="file-menu-btn">File ▾</button>
-        <div class="file-dropdown" id="file-dropdown">
-            <button id="new-file-btn">New</button>
-            <button id="load-file-btn">Load...</button>
-            <button id="save-file-btn">Save</button>
-            <button id="save-as-btn">Save As...</button>
-            <button id="print-btn">Print</button>
-        </div>
-    </div>
-    <div class="edit-menu">
-        <button id="edit-menu-btn">Edit ▾</button>
-        <div class="edit-dropdown" id="edit-dropdown">
-            <button id="undo-btn">Undo</button>
-            <button id="redo-btn">Redo</button>
-            <div class="menu-divider"></div>
-            <button id="cut-btn">Cut</button>
-            <button id="copy-btn">Copy</button>
-            <button id="paste-btn">Paste</button>
-            <div class="menu-divider"></div>
-            <button id="select-all-btn">Select All</button>
-            <button id="find-btn">Find</button>
-        </div>
-    </div>
-    
-    <!-- Add Assemble button and examples back as visible elements -->
-    <div class="editor-controls-center">
-        <button id="assemble-btn">Assemble</button>
-        <label for="example-select">Load Example:</label>
-        <select id="example-select" style="width: 180px;">
-            <option value="">-- Choose Example --</option>
-            <option value="fibonacci">Fibonacci Sequence</option>
-            <option value="far_call">Far Call & Long Jump</option>
-        </select>
-    </div>
-    
-    <div class="editor-controls-right">
-        <button id="run-btn" disabled>Run</button>
-        <button id="step-btn" disabled>Step</button>
-        <button id="reset-btn" disabled>Reset</button>
-    </div>
-</div>
+                <div class="editor-header">
+                    <div class="file-menu">
+                        <button id="file-menu-btn">File ▾</button>
+                        <div class="file-dropdown" id="file-dropdown">
+                            <button id="new-file-btn">New</button>
+                            <button id="load-file-btn">Load...</button>
+                            <button id="save-file-btn">Save</button>
+                            <button id="save-as-btn">Save As...</button>
+                            <button id="print-btn">Print</button>
+                        </div>
+                    </div>
+                    <div class="edit-menu">
+                        <button id="edit-menu-btn">Edit ▾</button>
+                        <div class="edit-dropdown" id="edit-dropdown">
+                            <button id="undo-btn">Undo</button>
+                            <button id="redo-btn">Redo</button>
+                            <div class="menu-divider"></div>
+                            <button id="cut-btn">Cut</button>
+                            <button id="copy-btn">Copy</button>
+                            <button id="paste-btn">Paste</button>
+                            <div class="menu-divider"></div>
+                            <button id="select-all-btn">Select All</button>
+                            <button id="find-btn">Find</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Add Assemble button and examples back as visible elements -->
+                    <div class="editor-controls-center">
+                        <button id="assemble-btn">Assemble</button>
+                        <label for="example-select">Load Example:</label>
+                        <select id="example-select" style="width: 180px;">
+                            <option value="">-- Choose Example --</option>
+                            <option value="fibonacci">Fibonacci Sequence</option>
+                            <option value="far_call">Far Call & Long Jump</option>
+                        </select>
+                    </div>
+                    
+                    <div class="editor-controls-right">
+                        <button id="run-btn" disabled>Run</button>
+                        <button id="step-btn" disabled>Step</button>
+                        <button id="reset-btn" disabled>Reset</button>
+                    </div>
+                </div>
+                
+                <!-- Tier 4: Filename and status below menus -->
+                <div class="file-status-line">
+                    <span id="current-filename">Untitled.asm</span>
+                    <span id="file-status" class="file-status-clean">● Clean</span>
+                </div>
                 
                 <!-- Editor textarea -->
                 <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Integrated Development Environment
