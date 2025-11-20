@@ -339,26 +339,18 @@ initializeEventListeners() {
     
     document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
 
-// Temporary direct fix - add this to deep16_ui_core.js constructor or initializeEventListeners
+// In deep16_ui_core.js - Replace the temporary fix with this:
 document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
         e.preventDefault();
-        const input = e.target;
-        let value = input.value.trim();
-        
-        if (value.startsWith('0x')) {
-            value = value.substring(2);
-        }
-        
-        const address = parseInt(value, 16);
-        if (!isNaN(address)) {
-            this.memoryStartAddress = address;
-            input.value = '0x' + address.toString(16).padStart(5, '0');
-            this.memoryUI.updateMemoryDisplay();
-        }
+        this.handleMemoryAddressInput();
     }
 });
-    
+
+// Also add change event for when the input loses focus
+document.getElementById('memory-start-address').addEventListener('change', () => {
+    this.handleMemoryAddressInput();
+});    
     document.querySelectorAll('.tab-button').forEach(button => {
         button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
     });
@@ -406,7 +398,8 @@ document.getElementById('memory-start-address').addEventListener('keypress', (e)
         console.log('Using simple dropdowns');
     }
 
-    handleMemoryAddressInput() {
+// This method should already exist in deep16_ui_core.js:
+handleMemoryAddressInput() {
     const input = document.getElementById('memory-start-address');
     if (!input) return;
     
@@ -435,7 +428,6 @@ document.getElementById('memory-start-address').addEventListener('keypress', (e)
         input.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0').toUpperCase();
     }
 }
-
 
     updateErrorsList() {
         const errorsList = document.getElementById('errors-list');
@@ -800,27 +792,10 @@ updateAssemblyListing() {
         this.addTranscriptEntry("Simulator reset to initial state", "info");
     }
 
-    // In deep16_ui_memory.js - update the handleMemoryAddressChange method
 handleMemoryAddressChange() {
-    const input = document.getElementById('memory-start-address');
-    if (!input) return;
-    
-    let value = input.value.trim();
-    
-    // Remove 0x prefix if present and parse
-    if (value.startsWith('0x')) {
-        value = value.substring(2);
-    }
-    
-    const address = parseInt(value, 16);
-    if (!isNaN(address) && address >= 0 && address < this.ui.simulator.memory.length) {
-        this.ui.memoryStartAddress = address;
-        this.updateMemoryDisplay();
-    } else {
-        // Reset to current value if invalid
-        input.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(5, '0');
-    }
+    this.ui.handleMemoryAddressInput();
 }
+
 
     jumpToMemoryAddress() {
         this.memoryUI.handleMemoryAddressChange();
