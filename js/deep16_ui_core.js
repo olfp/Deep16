@@ -23,12 +23,220 @@ class DeepWebUI {
         this.memoryUI = new Deep16MemoryUI(this);
         this.registerUI = new Deep16RegisterUI(this);
 
+        // File management
+        this.currentFilename = 'Untitled.asm';
+        this.fileModified = false;
+        this.fileHandle = null; // For File System Access API
+    
+        // Initialize file menu
+        this.initializeFileMenu();
+
         this.initializeEventListeners();
         this.initializeSearchableDropdowns();
         this.initializeTabs();
         this.updateAllDisplays();
         this.addTranscriptEntry("DeepCode initialized and ready", "info");
     }
+
+    // Add new methods for file operations
+initializeFileMenu() {
+    const fileMenuBtn = document.getElementById('file-menu-btn');
+    const fileDropdown = document.getElementById('file-dropdown');
+    
+    // File menu toggle
+    fileMenuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fileDropdown.classList.toggle('show');
+    });
+    
+    // Close dropdown when clicking elsewhere
+    document.addEventListener('click', () => {
+        fileDropdown.classList.remove('show');
+    });
+    
+    // File operations
+    document.getElementById('new-file-btn').addEventListener('click', () => this.newFile());
+    document.getElementById('load-file-btn').addEventListener('click', () => this.loadFile());
+    document.getElementById('save-file-btn').addEventListener('click', () => this.saveFile());
+    document.getElementById('save-as-btn').addEventListener('click', () => this.saveAsFile());
+    document.getElementById('print-btn').addEventListener('click', () => this.printFile());
+    
+    // Track editor changes for modified status
+    this.editorElement.addEventListener('input', () => {
+        this.setFileModified(true);
+    });
+}
+
+newFile() {
+    if (this.fileModified) {
+        if (!confirm('You have unsaved changes. Create new file anyway?')) {
+            return;
+        }
+    }
+    
+    this.editorElement.value = '; New Deep16 Program\n.org 0x0000\n\nmain:\n    ; Your code here\n    HALT\n';
+    this.currentFilename = 'Untitled.asm';
+    this.fileHandle = null;
+    this.setFileModified(false);
+    this.updateFileStatus();
+    this.addTranscriptEntry("Created new file", "info");
+}
+
+async loadFile() {
+    if (this.fileModified) {
+        if (!confirm('You have unsaved changes. Load new file anyway?')) {
+            return;
+        }
+    }
+    
+    try {
+        // Use File System Access API if available, fallback to traditional input
+        if ('showOpenFilePicker' in window) {
+            const [fileHandle] = await window.showOpenFilePicker({
+                types: [{
+                    description: 'Deep16 Assembly Files',
+                    accept: {'text/plain': ['.asm', '.s']}
+                }]
+            });
+            const file = await fileHandle.getFile();
+            const contents = await file.text();
+            this.editorElement.value = contents;
+            this.currentFilename = file.name;
+            this.fileHandle = fileHandle;
+            this.setFileModified(false);
+            this.addTranscriptEntry(`Loaded file: ${file.name}`, "success");
+        } else {
+            // Fallback for browsers without File System Access API
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.asm,.s';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        this.editorElement.value = e.target.result;
+                        this.currentFilename = file.name;
+                        this.setFileModified(false);
+                        this.addTranscriptEntry(`Loaded file: ${file.name}`, "success");
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        }
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            this.addTranscriptEntry(`Error loading file: ${error.message}`, "error");
+        }
+    }
+    
+    this.updateFileStatus();
+}
+
+async saveFile() {
+    try {
+        const contents = this.editorElement.value;
+        
+        if (this.fileHandle) {
+            // Save to existing file
+            const writable = await this.fileHandle.createWritable();
+            await writable.write(contents);
+            await writable.close();
+            this.setFileModified(false);
+            this.addTranscriptEntry(`Saved: ${this.currentFilename}`, "success");
+        } else {
+            // No file handle, use Save As
+            await this.saveAsFile();
+        }
+    } catch (error) {
+        this.addTranscriptEntry(`Error saving file: ${error.message}`, "error");
+    }
+    
+    this.updateFileStatus();
+}
+
+async saveAsFile() {
+    try {
+        const contents = this.editorElement.value;
+        
+        if ('showSaveFilePicker' in window) {
+            const fileHandle = await window.showSaveFilePicker({
+                types: [{
+                    description: 'Deep16 Assembly Files',
+                    accept: {'text/plain': ['.asm']}
+                }],
+                suggestedName: this.currentFilename
+            });
+            
+            const writable = await fileHandle.createWritable();
+            await writable.write(contents);
+            await writable.close();
+            
+            this.currentFilename = fileHandle.name;
+            this.fileHandle = fileHandle;
+            this.setFileModified(false);
+            this.addTranscriptEntry(`Saved as: ${fileHandle.name}`, "success");
+        } else {
+            // Fallback for browsers without File System Access API
+            const blob = new Blob([contents], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = this.currentFilename;
+            a.click();
+            URL.revokeObjectURL(url);
+            this.addTranscriptEntry(`Downloaded: ${this.currentFilename}`, "success");
+        }
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            this.addTranscriptEntry(`Error saving file: ${error.message}`, "error");
+        }
+    }
+    
+    this.updateFileStatus();
+}
+
+printFile() {
+    const contents = this.editorElement.value;
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>${this.currentFilename}</title>
+                <style>
+                    body { font-family: 'Courier New', monospace; font-size: 12px; white-space: pre; }
+                    .comment { color: #6a9955; }
+                </style>
+            </head>
+            <body>${contents.replace(/;/g, '<span class="comment">;')}</span></body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+    this.addTranscriptEntry("Printed current file", "info");
+}
+
+setFileModified(modified) {
+    this.fileModified = modified;
+    this.updateFileStatus();
+}
+
+updateFileStatus() {
+    const filenameElement = document.getElementById('current-filename');
+    const statusElement = document.getElementById('file-status');
+    
+    filenameElement.textContent = this.currentFilename;
+    
+    if (this.fileModified) {
+        statusElement.textContent = '● Modified';
+        statusElement.className = 'file-status-modified';
+    } else {
+        statusElement.textContent = '● Clean';
+        statusElement.className = 'file-status-clean';
+    }
+}
+
 
     initializeEventListeners() {
         document.getElementById('assemble-btn').addEventListener('click', () => this.assemble());
