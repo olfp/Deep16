@@ -27,7 +27,7 @@ class DeepWebUI {
         this.initializeSearchableDropdowns();
         this.initializeTabs();
         this.updateAllDisplays();
-        this.addTranscriptEntry("DeepWeb initialized and ready", "info");
+        this.addTranscriptEntry("DeepCode initialized and ready", "info");
     }
 
     initializeEventListeners() {
@@ -450,7 +450,7 @@ updateAssemblyListing() {
     }
 
     status(message) {
-        document.getElementById('status-bar').textContent = `DeepWeb: ${message}`;
+        document.getElementById('status-bar').textContent = `DeepCode: ${message}`;
     }
 
     addTranscriptEntry(message, type = "info") {
