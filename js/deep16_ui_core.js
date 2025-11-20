@@ -50,11 +50,6 @@ initializeFileMenu() {
         fileDropdown.classList.toggle('show');
     });
     
-    // Close dropdown when clicking elsewhere
-    document.addEventListener('click', () => {
-        fileDropdown.classList.remove('show');
-    });
-    
     // File operations
     document.getElementById('new-file-btn').addEventListener('click', () => {
         this.newFile();
@@ -259,62 +254,130 @@ updateFileStatus() {
     }
 }
 
+// Edit menu functionality
+undo() {
+    document.execCommand('undo');
+    this.addTranscriptEntry("Undo", "info");
+}
 
-    initializeEventListeners() {
-        document.getElementById('assemble-btn').addEventListener('click', () => this.assemble());
-        document.getElementById('run-btn').addEventListener('click', () => this.run());
-        document.getElementById('step-btn').addEventListener('click', () => this.step());
-        document.getElementById('reset-btn').addEventListener('click', () => this.reset());
-        document.getElementById('example-select').addEventListener('change', (e) => this.loadExample(e.target.value));
-        document.getElementById('memory-jump-btn').addEventListener('click', () => this.jumpToMemoryAddress());
-        
-        // Simple symbol select handlers
-        document.getElementById('symbol-select').addEventListener('change', (e) => {
-            this.onSymbolSelect(e);
-        });
-        
-        document.getElementById('listing-symbol-select').addEventListener('change', (e) => {
-            this.onListingSymbolSelect(e);
-        });
-        
-        document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
-        
-        document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.jumpToMemoryAddress();
-        });
+redo() {
+    document.execCommand('redo');
+    this.addTranscriptEntry("Redo", "info");
+}
 
-        document.querySelectorAll('.tab-button').forEach(button => {
-            button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
-        });
+cut() {
+    document.execCommand('cut');
+    this.addTranscriptEntry("Cut", "info");
+}
 
-        document.querySelectorAll('.section-title').forEach(title => {
-            title.addEventListener('click', (e) => {
-                if (e.target.classList.contains('section-title')) {
-                    this.registerUI.toggleRegisterSection(e.target);
-                }
-            });
+copy() {
+    document.execCommand('copy');
+    this.addTranscriptEntry("Copy", "info");
+}
+
+paste() {
+    document.execCommand('paste');
+    this.addTranscriptEntry("Paste", "info");
+}
+
+selectAll() {
+    this.editorElement.select();
+    this.addTranscriptEntry("Select All", "info");
+}
+
+find() {
+    const searchText = prompt("Find:");
+    if (searchText) {
+        const content = this.editorElement.value;
+        const index = content.toLowerCase().indexOf(searchText.toLowerCase());
+        if (index !== -1) {
+            this.editorElement.focus();
+            this.editorElement.setSelectionRange(index, index + searchText.length);
+            this.addTranscriptEntry(`Found: "${searchText}"`, "success");
+        } else {
+            this.addTranscriptEntry(`"${searchText}" not found`, "warning");
+        }
+    }
+}
+
+
+initializeEventListeners() {
+    // Update these to point to the new elements in editor header
+    document.getElementById('assemble-btn').addEventListener('click', () => this.assemble());
+    document.getElementById('example-select').addEventListener('change', (e) => this.loadExample(e.target.value));
+    document.getElementById('run-btn').addEventListener('click', () => this.run());
+    document.getElementById('step-btn').addEventListener('click', () => this.step());
+    document.getElementById('reset-btn').addEventListener('click', () => this.reset());
+    document.getElementById('memory-jump-btn').addEventListener('click', () => this.jumpToMemoryAddress());
+    
+    // Add event listeners for Edit menu items
+    document.getElementById('undo-btn').addEventListener('click', () => this.undo());
+    document.getElementById('redo-btn').addEventListener('click', () => this.redo());
+    document.getElementById('cut-btn').addEventListener('click', () => this.cut());
+    document.getElementById('copy-btn').addEventListener('click', () => this.copy());
+    document.getElementById('paste-btn').addEventListener('click', () => this.paste());
+    document.getElementById('select-all-btn').addEventListener('click', () => this.selectAll());
+    document.getElementById('find-btn').addEventListener('click', () => this.find());
+    document.getElementById('assemble-menu-btn').addEventListener('click', () => this.assemble());
+    document.getElementById('example-select-menu').addEventListener('change', (e) => this.loadExample(e.target.value));
+
+    // Simple symbol select handlers
+    document.getElementById('symbol-select').addEventListener('change', (e) => {
+        this.onSymbolSelect(e);
+    });
+    
+    document.getElementById('listing-symbol-select').addEventListener('change', (e) => {
+        this.onListingSymbolSelect(e);
+    });
+    
+    document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
+    
+    document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') this.jumpToMemoryAddress();
+    });
+
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+    });
+
+    document.querySelectorAll('.section-title').forEach(title => {
+        title.addEventListener('click', (e) => {
+            if (e.target.classList.contains('section-title')) {
+                this.registerUI.toggleRegisterSection(e.target);
+            }
         });
+    });
+
+    // Edit menu toggle
+    document.getElementById('edit-menu-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('edit-dropdown').classList.toggle('show');
+    });
+
+    // Close dropdowns when clicking elsewhere
+    document.addEventListener('click', () => {
+        document.getElementById('file-dropdown').classList.remove('show');
+        document.getElementById('edit-dropdown').classList.remove('show');
+    });
 
     // Tab key support for editor
     this.editorElement.addEventListener('keydown', (e) => {
         if (e.key === 'Tab') {
-            e.preventDefault(); // Prevent default tab behavior (focus change)
+            e.preventDefault();
             
             const start = this.editorElement.selectionStart;
             const end = this.editorElement.selectionEnd;
             
-            // Insert tab character at cursor position
             this.editorElement.value = this.editorElement.value.substring(0, start) + 
                                       '\t' + 
                                       this.editorElement.value.substring(end);
             
-            // Move cursor to after the inserted tab
             this.editorElement.selectionStart = this.editorElement.selectionEnd = start + 1;
         }
     });        
 
-        window.addEventListener('resize', () => this.memoryUI.updateMemoryDisplay());
-    }
+    window.addEventListener('resize', () => this.memoryUI.updateMemoryDisplay());
+}
 
     initializeSearchableDropdowns() {
         console.log('Using simple dropdowns');
