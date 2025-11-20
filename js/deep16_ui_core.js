@@ -503,48 +503,6 @@ onSymbolSelect(event) {
     }
 }
 
-// In deep16_ui_memory.js - Add this method:
-scrollToAddress(address) {
-    const memoryDisplay = document.getElementById('memory-display');
-    if (!memoryDisplay) return;
-    
-    // Find all memory lines and look for the one with our target address
-    const lines = memoryDisplay.querySelectorAll('.memory-line');
-    let targetLine = null;
-    
-    for (const line of lines) {
-        const addressSpan = line.querySelector('.memory-address');
-        if (addressSpan) {
-            const lineAddressText = addressSpan.textContent.replace('0x', '');
-            const lineAddress = parseInt(lineAddressText, 16);
-            
-            // For code lines, the address is exact
-            // For data lines, check if our address falls within the data line range
-            if (line.classList.contains('code-line')) {
-                if (lineAddress === address) {
-                    targetLine = line;
-                    break;
-                }
-            } else if (line.classList.contains('data-line')) {
-                // Data lines cover 8 addresses
-                if (address >= lineAddress && address < lineAddress + 8) {
-                    targetLine = line;
-                    break;
-                }
-            }
-        }
-    }
-    
-    if (targetLine) {
-        targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
-        // Add highlight animation
-        targetLine.style.animation = 'pulse-highlight 1s ease-in-out';
-        setTimeout(() => {
-            targetLine.style.animation = '';
-        }, 1000);
-    }
-}
     onListingSymbolSelect(event) {
         const address = parseInt(event.target.value);
         if (!isNaN(address) && address >= 0) {
