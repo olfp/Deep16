@@ -243,6 +243,12 @@ updateFileStatus() {
     const filenameElement = document.getElementById('current-filename');
     const statusElement = document.getElementById('file-status');
     
+    // Check if elements exist before trying to update them
+    if (!filenameElement || !statusElement) {
+        console.warn('File status elements not found in DOM');
+        return;
+    }
+    
     filenameElement.textContent = this.currentFilename;
     
     if (this.fileModified) {
@@ -253,7 +259,6 @@ updateFileStatus() {
         statusElement.className = 'file-status-clean';
     }
 }
-
 // Edit menu functionality
 undo() {
     document.execCommand('undo');
