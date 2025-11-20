@@ -6,12 +6,6 @@
     min-height: 0;
 }
 
-/* memory.css - Memory display styles */
-/* ... existing code ... */
-
-/* memory.css - Memory display styles */
-/* ... existing code ... */
-
 .memory-controls {
     display: flex;
     gap: 6px;
@@ -100,6 +94,7 @@
     padding: 2px 3px;
     border-bottom: 1px solid #2d2d30;
     align-items: center;
+    min-height: 18px; /* Consistent height */
 }
 
 .code-line {
@@ -112,52 +107,41 @@
     background: #252526;
     display: flex;
     align-items: center;
+    /* Ensure data lines align with code lines */
+    padding-left: 80px; /* Match the address column width */
 }
 
 .memory-line.data-line {
     display: flex;
     align-items: center;
-    padding: 1px 0;
+    padding: 1px 0 1px 80px; /* Consistent left padding */
     border-bottom: 1px solid #2d2d30;
     font-family: 'Courier New', monospace;
     font-size: 12px;
+    gap: 4px; /* Consistent spacing between data items */
 }
-
-.memory-data {
-    width: 50px;
-    text-align: center;
-    padding: 0 2px;
-    color: #b5cea8;
-    font-family: 'Courier New', monospace;
-}
-
-.memory-data.pc-marker {
-    background: #4e3a3a;
-    color: #ff6b6b;
-    font-weight: bold;
-    border: 1px solid #ff6b6b;
-    border-radius: 2px;
-}
-
 
 .memory-address {
     color: #569cd6;
     font-weight: bold;
-    width: 70px;
+    width: 80px; /* Fixed width for 5 hex digits */
     text-align: right;
     padding-right: 10px;
     font-family: 'Courier New', monospace;
+    flex-shrink: 0; /* Prevent shrinking */
 }
 
 .memory-address, .listing-address, .recent-memory-address {
     width: 80px; /* Increased from ~60px for 5 hex digits */
     font-family: 'Courier New', monospace;
 }
+
 .memory-bytes {
     color: #ce9178;
     font-family: 'Courier New', monospace;
     width: 60px;
     padding-right: 10px;
+    flex-shrink: 0;
 }
 
 .memory-disassembly {
@@ -166,6 +150,7 @@
     width: 200px;
     padding-right: 10px;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .memory-source {
@@ -173,14 +158,26 @@
     font-style: italic;
     flex: 1;
     padding-left: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .memory-data {
-    color: #569cd6;
-    font-family: 'Courier New', monospace;
     width: 50px;
-    padding: 0 4px;
     text-align: center;
+    padding: 0 2px;
+    color: #b5cea8;
+    font-family: 'Courier New', monospace;
+    flex-shrink: 0;
+}
+
+.memory-data.pc-marker {
+    background: #4e3a3a;
+    color: #ff6b6b;
+    font-weight: bold;
+    border: 1px solid #ff6b6b;
+    border-radius: 2px;
 }
 
 .recent-memory-panel {
