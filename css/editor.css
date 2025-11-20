@@ -21,10 +21,50 @@
     flex: 1;
 }
 
-/* In editor.css - Lighten the editor background */
+.editor-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+    height: 32px;
+    flex-shrink: 0;
+}
+
+/* Tier 4: File status line */
+.file-status-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
+    background: #252526;
+    border-bottom: 1px solid #3e3e42;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+#current-filename {
+    color: #9cdcfe;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+.file-status-clean {
+    color: #6a9955;
+    font-size: 11px;
+}
+
+.file-status-modified {
+    color: #ce9178;
+    font-size: 11px;
+}
+
+/* Update editor to account for new headers */
 .editor {
     flex: 1;
-    background: #252526;  /* Lightened from #1e1e1e */
+    background: #252526;
     padding: 12px;
     font-family: 'Courier New', monospace;
     font-size: 13px;
