@@ -41,19 +41,20 @@ class Deep16MemoryUI {
         return segments;
     }
 
-// Add debugging to isCodeAddress method
+// In deep16_ui_memory.js - Fix isCodeAddress method:
+
 isCodeAddress(address) {
     if (!this.ui.currentAssemblyResult || !this.ui.currentAssemblyResult.segmentMap) {
-        // console.log(`isCodeAddress(${address.toString(16)}): no segment map`);
+        console.log(`isCodeAddress(${address.toString(16)}): no segment map - defaulting to false`);
         return false;
     }
     
     const segment = this.ui.currentAssemblyResult.segmentMap.get(address);
     const isCode = segment === 'code';
-    // console.log(`isCodeAddress(0x${address.toString(16)}): segment=${segment}, isCode=${isCode}`);
+    console.log(`isCodeAddress(0x${address.toString(16)}): segment=${segment}, isCode=${isCode}`);
     return isCode;
-}
-    
+}    
+
 createMemoryLine(address) {
     const value = this.ui.simulator.memory[address];
     const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
@@ -249,11 +250,12 @@ updateMemoryDisplay() {
     }
 }
 
+// In deep16_ui_memory.js - Replace the renderMemoryDisplay method:
+
 renderMemoryDisplay() {
     const memoryDisplay = document.getElementById('memory-display');
     if (!memoryDisplay) return;
     
-    // Debug: Check what memoryStartAddress actually is
     console.log(`renderMemoryDisplay: this.ui.memoryStartAddress = ${this.ui.memoryStartAddress}`);
     
     const start = this.ui.memoryStartAddress || 0;
@@ -262,19 +264,20 @@ renderMemoryDisplay() {
     console.log(`Rendering memory from 0x${start.toString(16)} to 0x${end.toString(16)}`);
     
     let html = '';
+    let currentAddress = start;
     
-    // Simple test: just show the addresses we're supposed to be showing
-    for (let address = start; address < end; address++) {
-        const value = this.ui.simulator.memory[address];
-        const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
-        const isPC = (address === this.ui.simulator.registers[15]);
-        const pcClass = isPC ? 'pc-marker' : '';
-        
-        html += `<div class="memory-line ${pcClass}">`;
-        html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
-        html += `<span class="memory-bytes">0x${valueHex}</span>`;
-        html += `<span class="memory-disassembly">RAW: 0x${valueHex}</span>`;
-        html += `</div>`;
+    while (currentAddress < end) {
+        // Check if this should be a code line or data line
+        if (this.isCodeAddress(currentAddress)) {
+            // Create code line (single instruction)
+            html += this.createMemoryLine(currentAddress);
+            currentAddress++;
+        } else {
+            // Create data line (8 words per line)
+            const lineEnd = Math.min(currentAddress + 8, end);
+            html += this.createDataLine(currentAddress, lineEnd);
+            currentAddress = lineEnd;
+        }
     }
     
     memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
