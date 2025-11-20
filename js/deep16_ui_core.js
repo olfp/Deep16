@@ -339,9 +339,18 @@ initializeEventListeners() {
     
     document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
 
-    document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') this.jumpToMemoryAddress();
-    });
+// In initializeEventListeners method, replace the memory-start-address listener:
+document.getElementById('memory-start-address').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault(); // Prevent form submission behavior
+        this.jumpToMemoryAddress();
+    }
+});
+
+// Also add input and blur events for better UX
+document.getElementById('memory-start-address').addEventListener('blur', () => {
+    this.jumpToMemoryAddress();
+});
 
     document.querySelectorAll('.tab-button').forEach(button => {
         button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
