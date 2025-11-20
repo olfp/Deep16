@@ -339,18 +339,14 @@ initializeEventListeners() {
     
     document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
 
-// In initializeEventListeners method, replace the memory-start-address listener:
-document.getElementById('memory-start-address').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        e.preventDefault(); // Prevent form submission behavior
-        this.jumpToMemoryAddress();
-    }
+document.getElementById('memory-start-address').addEventListener('change', (e) => {
+    this.handleMemoryAddressInput();
 });
 
-// Also add input and blur events for better UX
-document.getElementById('memory-start-address').addEventListener('blur', () => {
-    this.jumpToMemoryAddress();
+document.getElementById('memory-start-address').addEventListener('blur', (e) => {
+    this.handleMemoryAddressInput();
 });
+
 
     document.querySelectorAll('.tab-button').forEach(button => {
         button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
@@ -398,6 +394,37 @@ document.getElementById('memory-start-address').addEventListener('blur', () => {
     initializeSearchableDropdowns() {
         console.log('Using simple dropdowns');
     }
+
+    handleMemoryAddressInput() {
+    const input = document.getElementById('memory-start-address');
+    if (!input) return;
+    
+    let value = input.value.trim();
+    
+    // If empty, use current address
+    if (value === '') {
+        input.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+        return;
+    }
+    
+    // Remove 0x prefix if present
+    if (value.toLowerCase().startsWith('0x')) {
+        value = value.substring(2);
+    }
+    
+    // Parse as hex
+    const address = parseInt(value, 16);
+    
+    if (!isNaN(address) && address >= 0 && address < this.simulator.memory.length) {
+        this.memoryStartAddress = address;
+        input.value = '0x' + address.toString(16).padStart(5, '0').toUpperCase();
+        this.memoryUI.updateMemoryDisplay();
+    } else {
+        // Invalid address - reset to current
+        input.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0').toUpperCase();
+    }
+}
+
 
     updateErrorsList() {
         const errorsList = document.getElementById('errors-list');
