@@ -339,18 +339,23 @@ initializeEventListeners() {
     
     document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
 
-// In deep16_ui_core.js - Replace the temporary fix with this:
-document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        this.handleMemoryAddressInput();
+    // FIXED: Proper memory address input handling
+    const memoryAddressInput = document.getElementById('memory-start-address');
+    if (memoryAddressInput) {
+        // Handle Enter key
+        memoryAddressInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.handleMemoryAddressInput();
+            }
+        });
+        
+        // Handle blur (when input loses focus)
+        memoryAddressInput.addEventListener('blur', () => {
+            this.handleMemoryAddressInput();
+        });
     }
-});
-
-// Also add change event for when the input loses focus
-document.getElementById('memory-start-address').addEventListener('change', () => {
-    this.handleMemoryAddressInput();
-});    
+    
     document.querySelectorAll('.tab-button').forEach(button => {
         button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
     });
@@ -390,8 +395,6 @@ document.getElementById('memory-start-address').addEventListener('change', () =>
             this.editorElement.selectionStart = this.editorElement.selectionEnd = start + 1;
         }
     });        
-
-    window.addEventListener('resize', () => this.memoryUI.updateMemoryDisplay());
 }
 
     initializeSearchableDropdowns() {
@@ -428,6 +431,7 @@ handleMemoryAddressInput() {
         input.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0').toUpperCase();
     }
 }
+
 
     updateErrorsList() {
         const errorsList = document.getElementById('errors-list');
@@ -797,9 +801,9 @@ handleMemoryAddressChange() {
 }
 
 
-    jumpToMemoryAddress() {
-        this.memoryUI.handleMemoryAddressChange();
-    }
+jumpToMemoryAddress() {
+    this.handleMemoryAddressInput();
+}
 
     status(message) {
         document.getElementById('status-bar').textContent = `DeepCode: ${message}`;
