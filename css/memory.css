@@ -6,35 +6,6 @@
     min-height: 0;
 }
 
-.memory-panel-controls {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    margin-left: auto;
-}
-
-.memory-panel-controls button {
-    padding: 2px 8px;
-    background: #0e639c;
-    color: white;
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-    font-family: 'Courier New', monospace;
-    font-size: 11px;
-    min-height: 20px;
-}
-
-.memory-panel-controls button:hover {
-    background: #1177bb;
-}
-
-.memory-panel-controls button:disabled {
-    background: #555;
-    cursor: not-allowed;
-}
-
-
 .memory-controls {
     display: flex;
     gap: 6px;
@@ -81,6 +52,24 @@
     padding: 4px;
 }
 
+/* Style Jump button like Run/Step/Reset buttons */
+#memory-jump-btn {
+    padding: 2px 8px;
+    background: #0e639c;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    min-height: 20px;
+    margin-left: 4px;
+}
+
+#memory-jump-btn:hover {
+    background: #1177bb;
+}
+
 .memory-display {
     flex: 1;
     background: #1e1e1e;
@@ -119,7 +108,6 @@
     background: #252526;
     display: flex;
     align-items: center;
-    /* REMOVED the problematic padding-left */
 }
 
 .memory-address {
@@ -254,6 +242,24 @@
     font-style: italic;
 }
 
+@keyframes pulse-highlight {
+    0% {
+        background-color: #264f78;
+    }
+    50% {
+        background-color: #3a6ea5;
+    }
+    100% {
+        background-color: #264f78;
+    }
+}
+
+.pc-marker {
+    background: #264f78 !important;
+    font-weight: bold;
+}
+
+/* Memory panel controls */
 .memory-panel-controls {
     display: flex;
     gap: 4px;
@@ -280,22 +286,4 @@
 .memory-panel-controls button:disabled {
     background: #555;
     cursor: not-allowed;
-}
-
-
-@keyframes pulse-highlight {
-    0% {
-        background-color: #264f78;
-    }
-    50% {
-        background-color: #3a6ea5;
-    }
-    100% {
-        background-color: #264f78;
-    }
-}
-
-.pc-marker {
-    background: #264f78 !important;
-    font-weight: bold;
 }
