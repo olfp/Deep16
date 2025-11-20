@@ -193,7 +193,7 @@ createMemoryLine(address) {
         }
     }
 
-// In deep16_ui_memory.js - add to renderMemoryDisplay
+// In deep16_ui_memory.js - Replace the renderMemoryDisplay method
 renderMemoryDisplay() {
     const memoryDisplay = document.getElementById('memory-display');
     if (!memoryDisplay) return;
@@ -201,14 +201,13 @@ renderMemoryDisplay() {
     const start = this.ui.memoryStartAddress || 0;
     const end = Math.min(start + 64, this.ui.simulator.memory.length);
 
-    // DEBUG: Check segment map consistency
     console.log('=== SEGMENT MAP DEBUG ===');
     console.log('Current memoryStartAddress:', this.ui.memoryStartAddress.toString(16));
     console.log('Segment map size:', this.ui.currentAssemblyResult?.segmentMap?.size);
     
     if (this.ui.currentAssemblyResult && this.ui.currentAssemblyResult.segmentMap) {
-        console.log('Segment map entries around 0x20:');
-        for (let addr = 0x18; addr <= 0x28; addr++) {
+        console.log('Segment map entries around current view:');
+        for (let addr = start; addr < Math.min(start + 16, end); addr++) {
             const segment = this.ui.currentAssemblyResult.segmentMap.get(addr);
             console.log(`  0x${addr.toString(16)}: ${segment}`);
         }
@@ -225,36 +224,48 @@ renderMemoryDisplay() {
         console.log(`Rendering memory from 0x${start.toString(16)} to 0x${end.toString(16)}`);
         
         while (address < end) {
-            let lineHtml = '';
             const isCode = this.isCodeAddress(address);
             
-            console.log(`Address 0x${address.toString(16)}: isCode=${isCode}`);
+            console.log(`Processing address 0x${address.toString(16)}: isCode=${isCode}`);
             
             if (isCode) {
-                // Code displays one instruction per line
-                lineHtml = this.createMemoryLine(address);
+                // CODE: Display one instruction per line
+                if (address > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
+                    html += `<div class="memory-gap">...</div>`;
+                }
+                
+                const lineHtml = this.createMemoryLine(address);
                 if (lineHtml) {
-                    // Check for gap before this code line
-                    if (address > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
-                        html += `<div class="memory-gap">...</div>`;
-                    }
                     html += lineHtml;
                     lastDisplayedAddress = address;
                 }
-                address++;
+                address++; // Move to next address for code
             } else {
-                // Data displays 8 words per line
+                // DATA: Display 8 words per line, but only if we're at the start of a data block
+                // Check if this is the beginning of a data line (address % 8 === 0) 
+                // OR if we're in the middle of uninitialized space
                 const lineStart = address;
-                lineHtml = this.createMemoryLine(lineStart);
-                if (lineHtml) {
-                    // Check for gap before this data line
+                let lineEnd = lineStart;
+                
+                // Find the end of this contiguous data block
+                while (lineEnd < end && !this.isCodeAddress(lineEnd) && (lineEnd - lineStart) < 8) {
+                    lineEnd++;
+                }
+                
+                // Only create data line if we have meaningful data to show
+                if (lineEnd > lineStart) {
                     if (lineStart > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
                         html += `<div class="memory-gap">...</div>`;
                     }
-                    html += lineHtml;
-                    lastDisplayedAddress = lineStart + 7; // End of data line
+                    
+                    const lineHtml = this.createDataLine(lineStart, Math.min(lineEnd, lineStart + 8));
+                    if (lineHtml) {
+                        html += lineHtml;
+                        lastDisplayedAddress = lineStart + 7; // Data lines show 8 words
+                    }
                 }
-                address = lineStart + 8; // Skip to next data line
+                
+                address = lineEnd; // Move to the next unprocessed address
             }
         }
     }
@@ -266,6 +277,40 @@ renderMemoryDisplay() {
     if (currentPC >= start && currentPC < end) {
         this.scrollToPC();
     }
+}
+
+// Add this helper method for creating data lines
+createDataLine(startAddress, endAddress) {
+    let html = `<div class="memory-line data-line">`;
+    html += `<span class="memory-address">0x${startAddress.toString(16).padStart(5, '0')}</span>`;
+    
+    for (let i = 0; i < 8; i++) {
+        const addr = startAddress + i;
+        if (addr >= endAddress || addr >= this.ui.simulator.memory.length) {
+            // Fill remaining slots with empty space
+            html += `<span class="memory-data"></span>`;
+            continue;
+        }
+        
+        const value = this.ui.simulator.memory[addr];
+        const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+        const isPC = (addr === this.ui.simulator.registers[15]);
+        const pcClass = isPC ? 'pc-marker' : '';
+        
+        // For data lines, show "----" for uninitialized memory (0xFFFF)
+        const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
+        
+        html += `<span class="memory-data ${pcClass}">${displayValue}</span>`;
+    }
+    
+    // Get source for data line
+    const source = this.getDataLineSource(startAddress);
+    if (source) {
+        html += `<span class="memory-source">; ${source}</span>`;
+    }
+    
+    html += `</div>`;
+    return html;
 }
     
 getDataLineSource(lineStartAddress) {
