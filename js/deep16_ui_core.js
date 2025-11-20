@@ -339,15 +339,26 @@ initializeEventListeners() {
     
     document.getElementById('view-toggle').addEventListener('click', () => this.toggleView());
 
-document.getElementById('memory-start-address').addEventListener('change', (e) => {
-    this.handleMemoryAddressInput();
+// Temporary direct fix - add this to deep16_ui_core.js constructor or initializeEventListeners
+document.getElementById('memory-start-address').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const input = e.target;
+        let value = input.value.trim();
+        
+        if (value.startsWith('0x')) {
+            value = value.substring(2);
+        }
+        
+        const address = parseInt(value, 16);
+        if (!isNaN(address)) {
+            this.memoryStartAddress = address;
+            input.value = '0x' + address.toString(16).padStart(5, '0');
+            this.memoryUI.updateMemoryDisplay();
+        }
+    }
 });
-
-document.getElementById('memory-start-address').addEventListener('blur', (e) => {
-    this.handleMemoryAddressInput();
-});
-
-
+    
     document.querySelectorAll('.tab-button').forEach(button => {
         button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
     });
