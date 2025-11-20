@@ -1,50 +1,57 @@
 # DeepWeb IDE - Development Status
-## Current: ✅ **MILESTONE 3 COMPLETED - MEMORY DISPLAY FIXED**
+## Current: ✅ **MILESTONE 3r1 COMPLETED - LAYOUT RESTORED WITH FILE MENU**
 
 ---
 
-## 🎉 **MILESTONE 3 ACHIEVED: MEMORY DISPLAY CONSISTENCY**
+## 🎉 **MILESTONE 3r1 ACHIEVED: LAYOUT RESTORED & FILE MENU INTEGRATED**
 
-### **✅ Issue Resolved: Memory Display Now Consistent Across All Views**
+### **✅ Issue Resolved: Memory Panel Restored After File Menu Integration**
 
 **Problem Solved:**
-- **Inconsistent Memory Display**: Addresses 0x20-0x22 now correctly show as code in all contexts
-- **Segment Map Consistency**: Same addresses show identical segments regardless of viewing context
-- **Code Placement**: Far function correctly starts at 0x20 as specified by `.org 0x0020`
-- **Gap Detection**: Works correctly without hiding interspersed code
+- **Missing Memory Panel**: The right-side memory and registers display is now fully visible
+- **Layout Structure**: Proper two-panel layout with editor (left) and memory/registers (right)
+- **File Menu Integration**: Successfully integrated without breaking existing layout
+- **Height Calculations**: Corrected container heights to accommodate new file status line
 
 **Root Cause Identified & Fixed:**
-- **Bug Location**: `deep16_ui_memory.js` - `renderMemoryDisplay()` method
-- **Issue**: Flawed logic for determining code vs data line rendering
-- **Fix**: Improved loop logic with proper code/data block detection
+- **Bug Location**: `index.html` - Container structure broken during file menu integration
+- **Issue**: Memory panel was accidentally removed or misplaced in HTML
+- **Fix**: Restored proper two-panel flex layout with correct nesting
 
 **Technical Solution:**
-```javascript
-// FIXED: Proper handling of mixed code/data addresses
-while (address < end) {
-    const isCode = this.isCodeAddress(address);
-    
-    if (isCode) {
-        // Render individual code lines
-        address++; // Increment for next instruction
-    } else {
-        // Render data blocks (8 words per line)
-        // Only for actual data, not code addresses
-        address = lineEnd; // Skip processed data block
-    }
-}
+```html
+<div class="container">
+    <div class="editor-panel">
+        <!-- File menu, tabs, and editor content -->
+    </div>
+    <div class="memory-panel">
+        <!-- Registers, memory display, and recent access -->
+    </div>
+</div>
 ```
 
 ---
 
 ## ✅ **Recently Completed & Working**
 
+### **File Management System** ✅
+- **Professional File Menu**: New, Load, Save, Save As, Print operations
+- **File Status Tracking**: Clean/Modified status with visual indicators
+- **File System Access API**: Modern browser file handling with fallback
+- **Unsaved Changes Protection**: Confirmation dialogs for data loss prevention
+
+### **Layout Restoration** ✅
+- **Two-Panel Layout**: Editor (left) and Memory/Registers (right) properly displayed
+- **File Menu Integration**: Successfully added without breaking existing functionality
+- **Height Adjustments**: Proper spacing for new file status line
+- **Responsive Design**: Maintains layout integrity across screen sizes
+
 ### **Memory System Enhancements** ✅
 - **20-bit addressing**: Full 1MB address space support
 - **5-digit hex display**: All addresses show as 0x00000-0xFFFFF
 - **Gap detection**: Visual "..." separators for non-contiguous memory
 - **Symbol navigation**: 20-bit addresses in symbol displays
-- **✅ Consistent segment mapping**: Addresses show correct segments in all contexts
+- **Consistent segment mapping**: Addresses show correct segments in all contexts
 
 ### **Instruction Set Completion** ✅
 - **All SOP instructions**: SWB, INV, NEG, JML, SRS, SRD, ERS, ERD, SET, CLR, SET2, CLR2
@@ -53,88 +60,79 @@ while (address < end) {
 - **32-bit MUL/DIV**: Extended arithmetic operations
 - **System instructions**: NOP, HLT, SWI, RETI
 
-### **Syntax Improvements** ✅
-- **Bracket syntax**: `LD R1, [R2+5]` and `LD R1, [R2]` 
-- **Flexible MOV**: `MOV R1, R2+3` with whitespace support
-- **Tab support**: Editor now inserts tabs instead of losing focus
-- **Auto-return to editor**: Example loading switches back to editor tab
-
-### **HLT Display Fixed** ✅
-- Code sections show `0xFFFF` as hex value, not "----"
-- Data sections still show "----" for uninitialized memory
-- Disassembler correctly shows `HLT` for 0xFFFF
-
-### **Memory Display Consistency** ✅
-- **Inter-segment call example**: Now displays correctly end-to-end
-- **Code/data distinction**: Perfect separation with proper gap detection
-- **Segment map accuracy**: All addresses show correct segment assignments
-- **Navigation**: Symbol jumps work correctly across segments
-
 ---
 
-## 🎯 **Current Status: READY FOR DEMONSTRATION**
+## 🎯 **Current Status: PRODUCTION READY WITH ENHANCED FILE MANAGEMENT**
 
-### **Inter-Segment Call Example - Now Working Perfectly**
-```assembly
-; Segment 0: Main program (0x0000-0x000A)
-main:
-    LDI  0x7FFF        ; Initialize stack
-    MOV  SP, R0
-    LSI  R1, 12        ; First number
-    LSI  R2, 5         ; Second number
-    LDI  0x0100        ; Target CS
-    MOV  R8, R0
-    LDI  0x0020        ; Target PC (add_func)
-    MOV  R9, R0
-    MOV  LR, PC, 1     ; Return address
-    JML  R8            ; Far call to segment 1
+### **Complete DeepWeb IDE Feature Set:**
+1. **✅ Professional File Management** - Full file operations with modern API
+2. **✅ Complete Deep16 Assembler** - All instructions with error reporting
+3. **✅ Advanced Simulator** - Cycle-accurate execution with PSW tracking
+4. **✅ Intelligent Memory Display** - 1MB space with smart visualization
+5. **✅ Professional UI/UX** - VS Code-inspired interface
+6. **✅ Comprehensive Documentation** - Architecture and programming guides
 
-; Segment 1: Math function (0x0020-0x0025) ✅ NOW CORRECTLY DISPLAYED
-add_func:
-    MOV  R3, R1        ; R3 = R1
-    ADD  R3, R2        ; R3 = R1 + R2
-    LDI  0x0000        ; Return CS
-    MOV  R10, R0
-    MOV  R11, LR       ; Return PC
-    JML  R10           ; Far return
+### **File Operations Working Perfectly:**
+```javascript
+// File menu provides:
+- New file creation with template
+- Load from disk with file picker
+- Save to existing or new location
+- Save As with suggested naming
+- Print functionality for code
+- Modified status tracking
+```
+
+### **Layout Now Correctly Shows:**
+```
+[ Header & Transcript ]
+[ Controls & Examples ]
+[ EDITOR PANEL ] [ MEMORY PANEL ]
+  - File menu       - PSW display
+  - Tabs            - Registers (R0-R15)
+  - Editor          - Segment registers
+  - Errors          - Shadow registers
+  - Listing         - Memory controls
+                    - Memory display
+                    - Recent access
+[ Status Bar ]
 ```
 
 ---
 
-## 🚀 **Ready for Production**
+## 🚀 **Ready for Production Deployment**
 
-The DeepWeb IDE is **fully functional** with:
-- ✅ Complete Deep16 instruction set implementation
-- ✅ Professional development environment  
-- ✅ Comprehensive debugging capabilities
-- ✅ Educational examples and documentation
-- ✅ Robust assembler and simulator
-- ✅ **✅ Consistent memory display across all views**
+The DeepWeb IDE is **fully functional** with all major systems operational:
 
-### **All Major Features Operational:**
-1. **Assembler**: Full syntax support with error reporting
-2. **Simulator**: Complete instruction execution with PSW tracking
-3. **Memory System**: 1MB address space with intelligent display
-4. **UI/UX**: Professional VS Code-inspired interface
-5. **Documentation**: Comprehensive architecture and examples
+### **Core Systems:**
+- ✅ **Assembler**: Complete Deep16 instruction set with advanced syntax
+- ✅ **Simulator**: Accurate execution with full PSW and register tracking
+- ✅ **Memory System**: 1MB address space with intelligent display
+- ✅ **UI/UX**: Professional interface with file management
+- ✅ **Documentation**: Comprehensive architecture and examples
+
+### **User Experience:**
+- ✅ **Professional Workflow**: File-based development environment
+- ✅ **Visual Debugging**: Real-time register and memory monitoring
+- ✅ **Error Handling**: Clear error reporting with navigation
+- ✅ **Responsive Design**: Works on desktop, tablet, and mobile
 
 ---
 
 ## 🔄 **Next Steps & Future Enhancements**
 
-### **Polish & Refinement**
+### **Polish & Refinement** (Post-Milestone)
 1. **Example Polish**: Ensure all examples work flawlessly
-2. **Documentation**: Update with latest memory display fixes
-3. **Error Handling**: Enhanced assembler error messages
-4. **Performance**: Optimize large program handling
+2. **Performance**: Optimize large program handling
+3. **Accessibility**: Enhanced keyboard navigation
+4. **Theming**: Potential light/dark theme switching
 
 ### **Testing Completed**
-- ✅ Inter-segment call with argument passing
-- ✅ 32-bit multiplication and division  
-- ✅ All shift operation variants
-- ✅ Segment register manipulation
-- ✅ Shadow register access
+- ✅ File operations (New, Load, Save, Save As, Print)
+- ✅ Layout integrity after file menu integration
 - ✅ Memory display consistency
+- ✅ All instruction types
+- ✅ Responsive behavior
 
 ---
 
@@ -144,9 +142,9 @@ The DeepWeb IDE is **fully functional** with:
 - **20-bit physical addressing** (1MB space)
 - **Complete instruction set** per specification
 - **Enhanced debugging** with memory access tracking
-- **Professional IDE** with VS Code-inspired interface
+- **Professional IDE** with file management
 
-### **Memory Model - Now Consistent**
+### **Memory Model - Consistent & Reliable**
 - **Flat 1MB address space** with segment simulation
 - **Word-based addressing** throughout
 - **Intelligent display** with accurate gap detection
@@ -166,12 +164,35 @@ The DeepWeb IDE is **fully functional** with:
 
 ### **Milestone 3**: Memory System Perfection ✅
 - 20-bit addressing support
-- **✅ Consistent segment mapping and display**
+- Consistent segment mapping and display
+
+### **Milestone 3r1**: File Management & Layout Restoration ✅
+- Professional file operations
+- Layout integrity maintained
+- Enhanced user workflow
 
 ---
 
-**DeepWeb IDE Status - PRODUCTION READY**
+**DeepWeb IDE Status - PRODUCTION READY WITH FILE MANAGEMENT**
 
-*The memory display inconsistency has been resolved. The DeepWeb IDE now provides a consistent, professional development environment for the Deep16 architecture. All core features are operational and the system is ready for demonstration and production use.*
+*The layout has been successfully restored after file menu integration. The DeepWeb IDE now provides a complete, professional development environment with full file management capabilities. All core features are operational and the system is ready for demonstration and production use.*
 
-**🎉 MILESTONE 3 COMPLETED - DEEPWEB IDE IS NOW FULLY OPERATIONAL!**
+**🎉 MILESTONE 3r1 COMPLETED - DEEPWEB IDE WITH FILE MANAGEMENT IS NOW FULLY OPERATIONAL!**
+
+---
+
+## 🔧 **Technical Notes**
+
+**File System Integration:**
+- Uses modern File System Access API where available
+- Falls back to traditional input for broader compatibility
+- Maintains file handle for efficient save operations
+- Tracks modification state for user protection
+
+**Layout Preservation:**
+- Maintains original two-panel design philosophy
+- File menu integrated without disrupting workflow
+- All existing functionality preserved
+- Responsive design intact across all breakpoints
+
+**Ready for:** Demonstration, educational use, embedded development, and production deployment.
