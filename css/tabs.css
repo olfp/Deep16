@@ -1,4 +1,5 @@
 /* tabs.css - Tab system styles */
+/* In tabs.css - Update the tab-container */
 .tab-container {
     display: flex;
     flex-direction: column;
@@ -6,6 +7,7 @@
     min-height: 0;
 }
 
+/* Ensure the tab buttons come after the editor header */
 .tab-buttons {
     display: flex;
     background: #2d2d30;
