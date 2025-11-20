@@ -252,8 +252,10 @@ renderMemoryDisplay() {
     if (start >= end) {
         html = '<div class="memory-line">Invalid memory range</div>';
     } else {
-        let address = start;
+        let address = start;  // Use the actual start address
         let lastDisplayedAddress = start - 1;
+        
+        console.log(`Starting render loop from address 0x${address.toString(16)}`);
         
         while (address < end) {
             const isCode = this.isCodeAddress(address);
