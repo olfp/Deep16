@@ -323,8 +323,10 @@ initializeEventListeners() {
     document.getElementById('paste-btn').addEventListener('click', () => this.paste());
     document.getElementById('select-all-btn').addEventListener('click', () => this.selectAll());
     document.getElementById('find-btn').addEventListener('click', () => this.find());
-    document.getElementById('assemble-menu-btn').addEventListener('click', () => this.assemble());
-    document.getElementById('example-select-menu').addEventListener('change', (e) => this.loadExample(e.target.value));
+    
+    // REMOVE THESE LINES - they reference elements that don't exist anymore:
+    // document.getElementById('assemble-menu-btn').addEventListener('click', () => this.assemble());
+    // document.getElementById('example-select-menu').addEventListener('change', (e) => this.loadExample(e.target.value));
 
     // Simple symbol select handlers
     document.getElementById('symbol-select').addEventListener('change', (e) => {
