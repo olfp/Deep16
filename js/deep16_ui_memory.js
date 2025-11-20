@@ -212,6 +212,8 @@ updateMemoryDisplay() {
     const memoryDisplay = document.getElementById('memory-display');
     if (!memoryDisplay) return;
     
+    console.log(`updateMemoryDisplay START: memoryStartAddress = ${this.ui.memoryStartAddress}`);
+    
     const start = this.ui.memoryStartAddress || 0;
     const end = Math.min(start + 64, this.ui.simulator.memory.length);
 
@@ -221,8 +223,12 @@ updateMemoryDisplay() {
     const currentPC = this.ui.simulator.registers[15];
     const pcIsVisible = (currentPC >= start && currentPC < end);
     
-    // If PC is not visible, adjust the start address to show it
-    if (!pcIsVisible && currentPC < this.ui.simulator.memory.length) {
+    console.log(`PC check: currentPC = ${currentPC}, pcIsVisible = ${pcIsVisible}`);
+    
+    // Only auto-adjust if we haven't manually changed the address recently
+    // AND if the PC is not visible in the current view
+    if (!pcIsVisible && currentPC < this.ui.simulator.memory.length && !this.ui.manualAddressChange) {
+        console.log(`Auto-adjusting memory start address to show PC`);
         this.ui.memoryStartAddress = Math.max(0, currentPC - 8);
         const startAddressInput = document.getElementById('memory-start-address');
         if (startAddressInput) {
@@ -230,7 +236,12 @@ updateMemoryDisplay() {
         }
     }
 
+    // Reset the manual address change flag after processing
+    this.ui.manualAddressChange = false;
+
     this.renderMemoryDisplay();
+    
+    console.log(`updateMemoryDisplay END: memoryStartAddress = ${this.ui.memoryStartAddress}`);
     
     // Auto-scroll to the PC line if it's visible
     if (pcIsVisible) {
