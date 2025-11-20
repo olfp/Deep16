@@ -567,39 +567,6 @@ updateRecentMemoryDisplay() {
 }
 
 handleMemoryAddressChange() {
-    const input = document.getElementById('memory-start-address');
-    if (!input) {
-        console.error('Memory start address input not found');
-        return;
-    }
-    
-    let value = input.value.trim();
-    console.log('Input value:', value); // Debug log
-    
-    // Handle empty input
-    if (value === '') {
-        input.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(5, '0');
-        return;
-    }
-    
-    // Remove 0x prefix if present and parse
-    if (value.startsWith('0x')) {
-        value = value.substring(2);
-    }
-    
-    const address = parseInt(value, 16);
-    console.log('Parsed address:', address); // Debug log
-    
-    if (!isNaN(address) && address >= 0 && address < this.ui.simulator.memory.length) {
-        this.ui.memoryStartAddress = address;
-        // Update the input to show the properly formatted address
-        input.value = '0x' + address.toString(16).padStart(5, '0').toUpperCase();
-        this.updateMemoryDisplay();
-        console.log('Memory display updated to address:', address); // Debug log
-    } else {
-        // Reset to current value if invalid
-        input.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(5, '0').toUpperCase();
-        console.log('Invalid address, reset to:', this.ui.memoryStartAddress); // Debug log
-    }
+    this.ui.handleMemoryAddressInput();
 }
 }
