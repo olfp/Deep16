@@ -16,7 +16,7 @@ body {
 
 .container {
     display: flex;
-    height: calc(100vh - 160px);
+    height: calc(100vh - 182px); /* Adjusted for file status line */
     gap: 10px;
     padding: 10px;
     overflow: hidden;
