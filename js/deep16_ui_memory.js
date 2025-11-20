@@ -205,14 +205,6 @@ renderMemoryDisplay() {
     console.log('Current memoryStartAddress:', this.ui.memoryStartAddress.toString(16));
     console.log('Segment map size:', this.ui.currentAssemblyResult?.segmentMap?.size);
     
-    if (this.ui.currentAssemblyResult && this.ui.currentAssemblyResult.segmentMap) {
-        console.log('Segment map entries around current view:');
-        for (let addr = start; addr < Math.min(start + 16, end); addr++) {
-            const segment = this.ui.currentAssemblyResult.segmentMap.get(addr);
-            console.log(`  0x${addr.toString(16)}: ${segment}`);
-        }
-    }
-    
     let html = '';
     
     if (start >= end) {
@@ -241,31 +233,42 @@ renderMemoryDisplay() {
                 }
                 address++; // Move to next address for code
             } else {
-                // DATA: Display 8 words per line, but only if we're at the start of a data block
-                // Check if this is the beginning of a data line (address % 8 === 0) 
-                // OR if we're in the middle of uninitialized space
+                // DATA: Only show data lines for addresses that have defined data (not 0xFFFF)
+                // Skip uninitialized memory and just show gaps
                 const lineStart = address;
                 let lineEnd = lineStart;
                 
-                // Find the end of this contiguous data block
+                // Find a block of meaningful data (not all 0xFFFF)
+                let hasMeaningfulData = false;
+                
+                // Check next 8 addresses for meaningful data
                 while (lineEnd < end && !this.isCodeAddress(lineEnd) && (lineEnd - lineStart) < 8) {
+                    if (this.ui.simulator.memory[lineEnd] !== 0xFFFF) {
+                        hasMeaningfulData = true;
+                    }
                     lineEnd++;
                 }
                 
-                // Only create data line if we have meaningful data to show
-                if (lineEnd > lineStart) {
+                if (hasMeaningfulData) {
+                    // We found some meaningful data - create a data line
                     if (lineStart > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
                         html += `<div class="memory-gap">...</div>`;
                     }
                     
-                    const lineHtml = this.createDataLine(lineStart, Math.min(lineEnd, lineStart + 8));
+                    const lineHtml = this.createDataLine(lineStart, lineEnd);
                     if (lineHtml) {
                         html += lineHtml;
                         lastDisplayedAddress = lineStart + 7; // Data lines show 8 words
                     }
+                    address = lineEnd; // Move to next unprocessed address
+                } else {
+                    // No meaningful data - just skip this block and show gap if needed
+                    if (lineStart > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
+                        html += `<div class="memory-gap">...</div>`;
+                    }
+                    lastDisplayedAddress = lineEnd - 1;
+                    address = lineEnd; // Skip this uninitialized block
                 }
-                
-                address = lineEnd; // Move to the next unprocessed address
             }
         }
     }
@@ -279,7 +282,7 @@ renderMemoryDisplay() {
     }
 }
 
-// Add this helper method for creating data lines
+// Also update the createDataLine method to handle partial data lines better
 createDataLine(startAddress, endAddress) {
     let html = `<div class="memory-line data-line">`;
     html += `<span class="memory-address">0x${startAddress.toString(16).padStart(5, '0')}</span>`;
@@ -297,13 +300,16 @@ createDataLine(startAddress, endAddress) {
         const isPC = (addr === this.ui.simulator.registers[15]);
         const pcClass = isPC ? 'pc-marker' : '';
         
-        // For data lines, show "----" for uninitialized memory (0xFFFF)
-        const displayValue = value === 0xFFFF ? "----" : `0x${valueHex}`;
+        // For data lines, only show values for non-0xFFFF, otherwise show empty
+        let displayValue = "";
+        if (value !== 0xFFFF) {
+            displayValue = `0x${valueHex}`;
+        }
         
         html += `<span class="memory-data ${pcClass}">${displayValue}</span>`;
     }
     
-    // Get source for data line
+    // Get source for data line - only if we have actual data definitions
     const source = this.getDataLineSource(startAddress);
     if (source) {
         html += `<span class="memory-source">; ${source}</span>`;
