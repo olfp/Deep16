@@ -242,100 +242,33 @@ renderMemoryDisplay() {
     const memoryDisplay = document.getElementById('memory-display');
     if (!memoryDisplay) return;
     
+    // Debug: Check what memoryStartAddress actually is
+    console.log(`renderMemoryDisplay: this.ui.memoryStartAddress = ${this.ui.memoryStartAddress}`);
+    
     const start = this.ui.memoryStartAddress || 0;
     const end = Math.min(start + 64, this.ui.simulator.memory.length);
     
-    console.log(`Rendering memory from 0x${start.toString(16)} to 0x${end.toString(16)}, memoryStartAddress = ${this.ui.memoryStartAddress}`);
+    console.log(`Rendering memory from 0x${start.toString(16)} to 0x${end.toString(16)}`);
     
     let html = '';
     
-    if (start >= end) {
-        html = '<div class="memory-line">Invalid memory range</div>';
-    } else {
-        let address = start;  // Use the actual start address
-        let lastDisplayedAddress = start - 1;
+    // Simple test: just show the addresses we're supposed to be showing
+    for (let address = start; address < end; address++) {
+        const value = this.ui.simulator.memory[address];
+        const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+        const isPC = (address === this.ui.simulator.registers[15]);
+        const pcClass = isPC ? 'pc-marker' : '';
         
-        console.log(`Starting render loop from address 0x${address.toString(16)}`);
-        
-        while (address < end) {
-            const isCode = this.isCodeAddress(address);
-            
-            console.log(`Processing address 0x${address.toString(16)}: isCode=${isCode}`);
-            
-            if (isCode) {
-                // CODE: Display one instruction per line
-                // Show gap if there's a jump from previous displayed address
-                if (address > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
-                    html += `<div class="memory-gap">...</div>`;
-                }
-                
-                const lineHtml = this.createMemoryLine(address);
-                if (lineHtml) {
-                    html += lineHtml;
-                    lastDisplayedAddress = address;
-                }
-                address++; // Move to next address for code
-            } else {
-                // DATA: Check if this is meaningful data or just uninitialized memory
-                const lineStart = address;
-                let lineEnd = lineStart;
-                let hasMeaningfulData = false;
-                
-                // Scan forward to find if there's any non-0xFFFF data in this potential data block
-                while (lineEnd < end && !this.isCodeAddress(lineEnd) && (lineEnd - lineStart) < 8) {
-                    if (this.ui.simulator.memory[lineEnd] !== 0xFFFF) {
-                        hasMeaningfulData = true;
-                        break; // Found at least one meaningful value
-                    }
-                    lineEnd++;
-                }
-                
-                if (hasMeaningfulData) {
-                    // We have actual data - create a data line
-                    if (lineStart > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
-                        html += `<div class="memory-gap">...</div>`;
-                    }
-                    
-                    // Create a full data line (8 words) even if not all are meaningful
-                    const dataLineEnd = Math.min(lineStart + 8, end);
-                    const lineHtml = this.createDataLine(lineStart, dataLineEnd);
-                    if (lineHtml) {
-                        html += lineHtml;
-                        lastDisplayedAddress = lineStart + 7;
-                    }
-                    address = lineStart + 8; // Skip the entire data line
-                } else {
-                    // No meaningful data - this is uninitialized memory
-                    // Just skip it and let the gap logic handle it
-                    if (lineStart > lastDisplayedAddress + 1 && lastDisplayedAddress >= start) {
-                        html += `<div class="memory-gap">...</div>`;
-                        lastDisplayedAddress = lineStart - 1; // Gap ends before this block
-                    }
-                    
-                    // Skip to the next code segment or meaningful data
-                    let skipAddress = lineStart;
-                    while (skipAddress < end && !this.isCodeAddress(skipAddress) && 
-                           this.ui.simulator.memory[skipAddress] === 0xFFFF) {
-                        skipAddress++;
-                    }
-                    address = skipAddress;
-                }
-            }
-        }
-        
-        // If we ended with uninitialized memory at the end of our view, show a final gap
-        if (lastDisplayedAddress < end - 1 && lastDisplayedAddress >= start) {
-            html += `<div class="memory-gap">...</div>`;
-        }
+        html += `<div class="memory-line ${pcClass}">`;
+        html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
+        html += `<span class="memory-bytes">0x${valueHex}</span>`;
+        html += `<span class="memory-disassembly">RAW: 0x${valueHex}</span>`;
+        html += `</div>`;
     }
     
     memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
     
-    // Scroll to PC if it's in the current view
-    const currentPC = this.ui.simulator.registers[15];
-    if (currentPC >= start && currentPC < end) {
-        this.scrollToPC();
-    }
+    console.log(`Finished rendering ${end - start} memory locations`);
 }
 
 // Keep the createDataLine method as before, but ensure it shows empty for 0xFFFF
@@ -494,14 +427,42 @@ getExactSourceForAddress(address) {
         }
     }
 
-    updateMemoryDisplayHeight() {
-        const memoryDisplay = document.getElementById('memory-display');
-        if (!memoryDisplay) return;
-        
-        setTimeout(() => {
-            memoryDisplay.style.height = 'auto';
-        }, 10);
+updateMemoryDisplay() {
+    const memoryDisplay = document.getElementById('memory-display');
+    if (!memoryDisplay) return;
+    
+    console.log(`updateMemoryDisplay START: memoryStartAddress = ${this.ui.memoryStartAddress}`);
+    
+    const start = this.ui.memoryStartAddress || 0;
+    const end = Math.min(start + 64, this.ui.simulator.memory.length);
+
+    console.log(`updateMemoryDisplay: memoryStartAddress = ${this.ui.memoryStartAddress}, start = ${start}, end = ${end}`);
+
+    // Check if current PC is outside the visible range
+    const currentPC = this.ui.simulator.registers[15];
+    const pcIsVisible = (currentPC >= start && currentPC < end);
+    
+    console.log(`PC check: currentPC = ${currentPC}, pcIsVisible = ${pcIsVisible}`);
+    
+    // If PC is not visible, adjust the start address to show it
+    if (!pcIsVisible && currentPC < this.ui.simulator.memory.length) {
+        console.log(`Auto-adjusting memory start address to show PC`);
+        this.ui.memoryStartAddress = Math.max(0, currentPC - 8);
+        const startAddressInput = document.getElementById('memory-start-address');
+        if (startAddressInput) {
+            startAddressInput.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(5, '0');
+        }
     }
+
+    this.renderMemoryDisplay();
+    
+    console.log(`updateMemoryDisplay END: memoryStartAddress = ${this.ui.memoryStartAddress}`);
+    
+    // Auto-scroll to the PC line if it's visible
+    if (pcIsVisible) {
+        this.scrollToPC();
+    }
+}
 
 updateRecentMemoryDisplay() {
     const recentDisplay = document.getElementById('recent-memory-display');
