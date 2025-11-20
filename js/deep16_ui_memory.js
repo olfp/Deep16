@@ -50,7 +50,7 @@ isCodeAddress(address) {
     
     const segment = this.ui.currentAssemblyResult.segmentMap.get(address);
     const isCode = segment === 'code';
-    console.log(`isCodeAddress(0x${address.toString(16)}): segment=${segment}, isCode=${isCode}`);
+    // console.log(`isCodeAddress(0x${address.toString(16)}): segment=${segment}, isCode=${isCode}`);
     return isCode;
 }
     
