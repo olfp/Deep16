@@ -48,17 +48,38 @@
 </div>
     
     <div class="container">
-        <div class="editor-panel">
-            <div class="panel-header">Deep16 Assembler</div>
-            <div class="tab-container">
-                <div class="tab-buttons">
-                    <button class="tab-button active" data-tab="editor">Editor</button>
-                    <button class="tab-button" data-tab="errors">Errors</button>
-                    <button class="tab-button" data-tab="listing">Listing</button>
-                </div>
-                
-                <div id="editor-tab" class="tab-content active">
-<textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Integrated Development Environment
+<!-- In index.html - Replace the editor-panel section -->
+<div class="editor-panel">
+    <div class="panel-header">
+        <div class="file-menu">
+            <button id="file-menu-btn">File ▾</button>
+            <div class="file-dropdown" id="file-dropdown">
+                <button id="new-file-btn">New</button>
+                <button id="load-file-btn">Load...</button>
+                <button id="save-file-btn">Save</button>
+                <button id="save-as-btn">Save As...</button>
+                <button id="print-btn">Print</button>
+            </div>
+        </div>
+        <div class="panel-header-title">Deep16 Assembler</div>
+    </div>
+    
+    <!-- Add file status line -->
+    <div class="file-status-line">
+        <span id="current-filename">Untitled.asm</span>
+        <span id="file-status" class="file-status-clean">● Clean</span>
+    </div>
+    
+    <div class="tab-container">
+        <!-- Rest of the tab container remains the same -->
+        <div class="tab-buttons">
+            <button class="tab-button active" data-tab="editor">Editor</button>
+            <button class="tab-button" data-tab="errors">Errors</button>
+            <button class="tab-button" data-tab="listing">Listing</button>
+        </div>
+        
+        <div id="editor-tab" class="tab-content active">
+            <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Integrated Development Environment
 ; Select an example from the dropdown or write your own code
 ; Then click 'Assemble' to compile and 'Run' to execute
 
@@ -75,8 +96,11 @@ main:
 .org 0x0200
 data_area:
     .word 0</textarea>
-                </div>
-                
+        </div>
+        
+        <!-- Rest of tab content remains the same -->
+    </div>
+</div>    
                 <div id="errors-tab" class="tab-content">
                     <div id="errors-list" class="errors-list">
                         <div class="no-errors">No assembly performed yet</div>
