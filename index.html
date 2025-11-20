@@ -30,54 +30,58 @@
         </div>
     </div>
     
-<div class="controls">
-<div class="controls-left">
-    <button id="assemble-btn">Assemble</button>
-    <label for="example-select">Load Example:</label>
-    <select id="example-select" style="width: 180px;">
-        <option value="">-- Choose Example --</option>
-        <option value="fibonacci">Fibonacci Sequence</option>
-        <option value="far_call">Far Call & Long Jump</option>
-    </select>
-</div>
-    <div class="controls-right">
-        <button id="run-btn" disabled>Run</button>
-        <button id="step-btn" disabled>Step</button>
-        <button id="reset-btn" disabled>Reset</button>
+    <!-- Tier 1: Assemble button and example menu -->
+    <div class="controls">
+        <div class="controls-left">
+            <button id="assemble-btn">Assemble</button>
+            <label for="example-select">Load Example:</label>
+            <select id="example-select" style="width: 180px;">
+                <option value="">-- Choose Example --</option>
+                <option value="fibonacci">Fibonacci Sequence</option>
+                <option value="far_call">Far Call & Long Jump</option>
+            </select>
+        </div>
+        <div class="controls-right">
+            <button id="run-btn" disabled>Run</button>
+            <button id="step-btn" disabled>Step</button>
+            <button id="reset-btn" disabled>Reset</button>
+        </div>
     </div>
-</div>
     
 <div class="container">
     <!-- Editor Panel -->
     <div class="editor-panel">
-        <div class="panel-header">
-            <div class="file-menu">
-                <button id="file-menu-btn">File ▾</button>
-                <div class="file-dropdown" id="file-dropdown">
-                    <button id="new-file-btn">New</button>
-                    <button id="load-file-btn">Load...</button>
-                    <button id="save-file-btn">Save</button>
-                    <button id="save-as-btn">Save As...</button>
-                    <button id="print-btn">Print</button>
-                </div>
-            </div>
-            <div class="panel-header-title">Deep16 Assembler</div>
-        </div>
-        
-        <!-- File status line -->
-        <div class="file-status-line">
-            <span id="current-filename">Untitled.asm</span>
-            <span id="file-status" class="file-status-clean">● Clean</span>
+        <!-- Tier 2: Tabs for Editor, Errors, Listing -->
+        <div class="tab-buttons">
+            <button class="tab-button active" data-tab="editor">Editor</button>
+            <button class="tab-button" data-tab="errors">Errors</button>
+            <button class="tab-button" data-tab="listing">Listing</button>
         </div>
         
         <div class="tab-container">
-            <div class="tab-buttons">
-                <button class="tab-button active" data-tab="editor">Editor</button>
-                <button class="tab-button" data-tab="errors">Errors</button>
-                <button class="tab-button" data-tab="listing">Listing</button>
-            </div>
-            
+            <!-- Tier 3 & 4: Inside the Editor tab -->
             <div id="editor-tab" class="tab-content active">
+                <!-- Tier 3: File menu inside Editor tab -->
+                <div class="editor-header">
+                    <div class="file-menu">
+                        <button id="file-menu-btn">File ▾</button>
+                        <div class="file-dropdown" id="file-dropdown">
+                            <button id="new-file-btn">New</button>
+                            <button id="load-file-btn">Load...</button>
+                            <button id="save-file-btn">Save</button>
+                            <button id="save-as-btn">Save As...</button>
+                            <button id="print-btn">Print</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tier 4: Filename and status below File menu -->
+                <div class="file-status-line">
+                    <span id="current-filename">Untitled.asm</span>
+                    <span id="file-status" class="file-status-clean">● Clean</span>
+                </div>
+                
+                <!-- Editor textarea -->
                 <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Integrated Development Environment
 ; Select an example from the dropdown or write your own code
 ; Then click 'Assemble' to compile and 'Run' to execute
@@ -258,4 +262,3 @@ data_area:
     <script src="js/deep16_ui_core.js"></script>
 </body>
 </html>
-<!-- index.html -->
