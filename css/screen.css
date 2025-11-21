@@ -4,35 +4,36 @@
     display: flex;
     flex-direction: column;
     background: #000000;
-    padding: 8px; /* Reduced from 10px */
+    padding: 6px; /* Further reduced */
     overflow: auto;
     align-items: center;
 }
 
 .screen-display {
     background: #000000;
-    border: 2px solid #3e3e42; /* Reduced from 3px */
-    border-radius: 3px; /* Reduced from 4px */
-    padding: 8px; /* Reduced from 10px */
+    border: 1px solid #3e3e42; /* Reduced to 1px */
+    border-radius: 2px; /* Further reduced */
+    padding: 6px; /* Further reduced */
     margin: 0 auto;
-    box-shadow: 0 0 15px rgba(0, 255, 0, 0.1); /* Reduced glow */
+    box-shadow: 0 0 8px rgba(0, 255, 0, 0.08); /* Much smaller glow */
     font-family: 'Courier New', monospace;
-    font-size: 14px;
+    font-size: 13px; /* Slightly smaller font */
     line-height: 1.1;
     color: #ffffff;
-    min-width: min-content;
-    position: relative;
+    width: 720px; /* Fixed width to match other tabs */
+    box-sizing: border-box; /* Include padding and border in width */
 }
 
 .screen-row {
     display: flex;
     white-space: nowrap;
-    height: 16px;
+    height: 15px; /* Slightly reduced */
+    justify-content: center; /* Center the row within fixed width */
 }
 
 .screen-char {
-    width: 9px;
-    height: 16px;
+    width: 8.5px; /* Precise calculation: (720 - 12) / 80 = 8.85px per char */
+    height: 15px;
     display: inline-block;
     text-align: center;
     font-weight: bold;
@@ -41,8 +42,9 @@
     border: none;
     outline: none;
     font-family: 'Courier New', monospace;
-    font-size: 14px;
+    font-size: 13px;
     letter-spacing: -0.5px;
+    flex-shrink: 0; /* Prevent characters from shrinking */
 }
 
 .screen-char:hover {
@@ -56,8 +58,8 @@
 
 .screen-controls {
     display: flex;
-    gap: 8px; /* Reduced from 10px */
-    padding: 8px; /* Reduced from 10px */
+    gap: 6px;
+    padding: 6px;
     background: #2d2d30;
     border-top: 1px solid #3e3e42;
     align-items: center;
@@ -67,11 +69,12 @@
 .screen-info {
     color: #6a9955;
     font-family: 'Courier New', monospace;
-    font-size: 11px; /* Reduced from 12px */
+    font-size: 10px; /* Smaller */
     text-align: center;
-    margin-top: 8px; /* Reduced from 10px */
-    max-width: 800px;
-    padding: 0 10px;
+    margin-top: 6px;
+    max-width: 720px; /* Match display width */
+    padding: 0 8px;
+    box-sizing: border-box;
 }
 
 /* Retro scanline effect */
@@ -85,18 +88,18 @@
     background: linear-gradient(
         to bottom,
         transparent 50%,
-        rgba(0, 255, 0, 0.02) 50%
+        rgba(0, 255, 0, 0.015) 50%
     );
-    background-size: 100% 2px; /* Reduced from 3px */
+    background-size: 100% 2px;
     pointer-events: none;
-    border-radius: 1px; /* Reduced from 2px */
+    border-radius: 1px;
 }
 
-/* Reduced glow effect */
+/* Minimal glow effect */
 @keyframes screen-glow {
-    0% { box-shadow: 0 0 3px rgba(0, 255, 0, 0.2); }
-    50% { box-shadow: 0 0 10px rgba(0, 255, 0, 0.3); }
-    100% { box-shadow: 0 0 3px rgba(0, 255, 0, 0.2); }
+    0% { box-shadow: 0 0 2px rgba(0, 255, 0, 0.15); }
+    50% { box-shadow: 0 0 6px rgba(0, 255, 0, 0.2); }
+    100% { box-shadow: 0 0 2px rgba(0, 255, 0, 0.15); }
 }
 
 .screen-display.active {
@@ -105,28 +108,19 @@
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
-    .screen-tab {
-        padding: 5px;
-    }
-    
     .screen-display {
-        transform: scale(0.8);
-        padding: 5px;
-        border: 1px solid #3e3e42;
+        width: 95%; /* Use percentage on mobile */
+        max-width: 720px;
+        transform: none; /* Remove scaling */
+        padding: 4px;
     }
     
     .screen-char {
-        width: 8px;
-        height: 14px;
-        font-size: 12px;
+        width: calc((100% - 12px) / 80); /* Dynamic width calculation */
+        font-size: 11px;
     }
     
     .screen-row {
-        height: 14px;
-    }
-    
-    .screen-info {
-        font-size: 10px;
-        margin-top: 5px;
+        height: 13px;
     }
 }
