@@ -22,6 +22,7 @@ class DeepWebUI {
         // Initialize modules
         this.memoryUI = new Deep16MemoryUI(this);
         this.registerUI = new Deep16RegisterUI(this);
+        this.screenUI = new Deep16ScreenUI(this); 
 
         // File management
         this.currentFilename = 'Untitled.asm';
@@ -785,6 +786,8 @@ updateAssemblyListing() {
 
         if (tabName === 'listing' && this.currentAssemblyResult) {
             this.updateAssemblyListing();
+        } else if (tabName === 'screen') { 
+            this.screenUI.updateScreenDisplay();
         }
     }
 
@@ -849,6 +852,7 @@ updateAssemblyListing() {
         this.registerUI.updateShadowRegisters();
         this.memoryUI.updateRecentMemoryDisplay();
         this.updateSegmentNavigationFields();
+        this.screenUI.updateScreenDisplay();          
     }
 
     run() {
