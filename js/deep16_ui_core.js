@@ -315,7 +315,6 @@ initializeEventListeners() {
     document.getElementById('run-btn').addEventListener('click', () => this.run());
     document.getElementById('step-btn').addEventListener('click', () => this.step());
     document.getElementById('reset-btn').addEventListener('click', () => this.reset());
-    document.getElementById('memory-jump-btn').addEventListener('click', () => this.jumpToMemoryAddress());
     
     // Add event listeners for Edit menu items
     document.getElementById('undo-btn').addEventListener('click', () => this.undo());
