@@ -6,31 +6,33 @@
     background: #000000;
     padding: 10px;
     overflow: auto;
+    align-items: center; /* Center the screen display */
 }
 
 .screen-display {
     background: #000000;
     border: 3px solid #3e3e42;
     border-radius: 4px;
-    padding: 15px;
+    padding: 10px;
     margin: 0 auto;
     box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
     font-family: 'Courier New', monospace;
-    font-size: 16px;
-    line-height: 1.2;
+    font-size: 14px; /* Reduced from 16px */
+    line-height: 1.1; /* Reduced from 1.2 */
     color: #ffffff;
     min-width: min-content;
+    position: relative; /* For pseudo-elements */
 }
 
 .screen-row {
     display: flex;
     white-space: nowrap;
-    height: 19px;
+    height: 16px; /* Reduced from 19px */
 }
 
 .screen-char {
-    width: 12px;
-    height: 19px;
+    width: 9px;  /* Reduced from 12px - approximately 2/3 */
+    height: 16px; /* Reduced from 19px */
     display: inline-block;
     text-align: center;
     font-weight: bold;
@@ -39,7 +41,8 @@
     border: none;
     outline: none;
     font-family: 'Courier New', monospace;
-    font-size: 16px;
+    font-size: 14px; /* Reduced from 16px */
+    letter-spacing: -0.5px; /* Tighter letter spacing */
 }
 
 .screen-char:hover {
@@ -67,6 +70,7 @@
     font-size: 12px;
     text-align: center;
     margin-top: 10px;
+    max-width: 800px; /* Limit info text width */
 }
 
 /* Retro scanline effect */
@@ -82,7 +86,7 @@
         transparent 50%,
         rgba(0, 255, 0, 0.02) 50%
     );
-    background-size: 100% 4px;
+    background-size: 100% 3px; /* Reduced from 4px */
     pointer-events: none;
     border-radius: 2px;
 }
@@ -90,10 +94,35 @@
 /* Glow effect */
 @keyframes screen-glow {
     0% { box-shadow: 0 0 5px rgba(0, 255, 0, 0.3); }
-    50% { box-shadow: 0 0 20px rgba(0, 255, 0, 0.6); }
+    50% { box-shadow: 0 0 15px rgba(0, 255, 0, 0.5); } /* Reduced glow */
     100% { box-shadow: 0 0 5px rgba(0, 255, 0, 0.3); }
 }
 
 .screen-display.active {
     animation: screen-glow 3s ease-in-out infinite;
+}
+
+/* Ensure the screen display doesn't get too wide on large screens */
+@media (min-width: 1200px) {
+    .screen-display {
+        transform: scale(0.9); /* Slight scaling on very large screens */
+    }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .screen-display {
+        transform: scale(0.8);
+        padding: 5px;
+    }
+    
+    .screen-char {
+        width: 8px;
+        height: 14px;
+        font-size: 12px;
+    }
+    
+    .screen-row {
+        height: 14px;
+    }
 }
