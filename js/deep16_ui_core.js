@@ -355,6 +355,18 @@ if (memoryAddressInput) {
         }
     });
 }
+
+    // NEW: Segmented navigation
+    document.getElementById('goto-segment-btn').addEventListener('click', () => this.gotoSegmentAddress());
+    
+    // Also handle Enter key in CS/PC inputs
+    document.getElementById('cs-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') this.gotoSegmentAddress();
+    });
+    document.getElementById('pc-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') this.gotoSegmentAddress();
+    });
+
     
     document.querySelectorAll('.tab-button').forEach(button => {
         button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
@@ -445,6 +457,73 @@ handleMemoryAddressInput() {
         // Invalid address - reset to current
         console.log('Invalid address, resetting to:', this.memoryStartAddress);
         input.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0').toUpperCase();
+    }
+}
+
+    // In deep16_ui_core.js - Add new method:
+
+gotoSegmentAddress() {
+    const csInput = document.getElementById('cs-input');
+    const pcInput = document.getElementById('pc-input');
+    
+    if (!csInput || !pcInput) {
+        console.error('CS or PC input not found');
+        return;
+    }
+    
+    let csValue = csInput.value.trim();
+    let pcValue = pcInput.value.trim();
+    
+    console.log(`gotoSegmentAddress: CS='${csValue}', PC='${pcValue}'`);
+    
+    // Parse CS value
+    if (csValue.toLowerCase().startsWith('0x')) {
+        csValue = csValue.substring(2);
+    }
+    const csAddress = parseInt(csValue, 16);
+    
+    // Parse PC value  
+    if (pcValue.toLowerCase().startsWith('0x')) {
+        pcValue = pcValue.substring(2);
+    }
+    const pcAddress = parseInt(pcValue, 16);
+    
+    console.log(`Parsed: CS=0x${csAddress.toString(16)}, PC=0x${pcAddress.toString(16)}`);
+    
+    // Validate addresses
+    if (isNaN(csAddress) || csAddress < 0 || csAddress > 0xFFFF) {
+        this.addTranscriptEntry(`Invalid CS address: ${csInput.value}`, "error");
+        csInput.value = '0x' + this.simulator.segmentRegisters.CS.toString(16).padStart(4, '0');
+        return;
+    }
+    
+    if (isNaN(pcAddress) || pcAddress < 0 || pcAddress > 0xFFFF) {
+        this.addTranscriptEntry(`Invalid PC address: ${pcInput.value}`, "error");
+        pcInput.value = '0x' + this.simulator.registers[15].toString(16).padStart(4, '0');
+        return;
+    }
+    
+    // Calculate physical address: CS << 4 + PC
+    const physicalAddress = (csAddress << 4) + pcAddress;
+    
+    console.log(`Physical address calculation: (0x${csAddress.toString(16)} << 4) + 0x${pcAddress.toString(16)} = 0x${physicalAddress.toString(16)}`);
+    
+    if (physicalAddress >= 0 && physicalAddress < this.simulator.memory.length) {
+        // Set the memory start address to show this location
+        this.memoryStartAddress = physicalAddress;
+        
+        // Update the start address input to show the physical address
+        const startAddressInput = document.getElementById('memory-start-address');
+        if (startAddressInput) {
+            startAddressInput.value = '0x' + physicalAddress.toString(16).padStart(5, '0');
+        }
+        
+        // Render the memory display at this location
+        this.memoryUI.renderMemoryDisplay();
+        
+        this.addTranscriptEntry(`Jumped to CS:PC = 0x${csAddress.toString(16).padStart(4, '0')}::0x${pcAddress.toString(16).padStart(4, '0')} (physical: 0x${physicalAddress.toString(16).padStart(5, '0')})`, "success");
+    } else {
+        this.addTranscriptEntry(`Invalid physical address: 0x${physicalAddress.toString(16).padStart(5, '0')}`, "error");
     }
 }
 
@@ -549,6 +628,19 @@ onSymbolSelect(event) {
         setTimeout(() => {
             this.memoryUI.scrollToAddress(address);
         }, 50);
+    }
+}
+
+updateSegmentNavigationFields() {
+    const csInput = document.getElementById('cs-input');
+    const pcInput = document.getElementById('pc-input');
+    
+    if (csInput && pcInput) {
+        // Update CS input with current code segment
+        csInput.value = '0x' + this.simulator.segmentRegisters.CS.toString(16).padStart(4, '0');
+        
+        // Update PC input with current program counter  
+        pcInput.value = '0x' + this.simulator.registers[15].toString(16).padStart(4, '0');
     }
 }
 
@@ -751,6 +843,7 @@ updateAssemblyListing() {
         this.registerUI.updateSegmentRegisters();
         this.registerUI.updateShadowRegisters();
         this.memoryUI.updateRecentMemoryDisplay();
+        this.updateSegmentNavigationFields();
     }
 
     run() {
