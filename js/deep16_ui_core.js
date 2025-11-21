@@ -1053,7 +1053,92 @@ add_func:
 .org 0x0100
     HALT`;
             break;
-                
+// In deep16_ui_core.js, add to loadExample method
+case 'screen_demo':
+    source = `; Deep16 Screen Demo
+; Write text to the 80x25 character display at 0xF1000
+
+.org 0x0000
+
+main:
+    ; Initialize stack
+    MOV  SP, 0x7FFF
+    
+    ; Clear screen (set all characters to space)
+    LDI  0xF1000      ; R0 = screen base address
+    MOV  R1, R0       ; R1 = current address
+    LDI  2000         ; R2 = character count (80*25)
+    MOV  R3, 0        ; R3 = space character (0x20)
+
+clear_loop:
+    ST   R3, R1, 0    ; Store space character
+    ADD  R1, 1        ; Next address
+    SUB  R2, 1        ; Decrement counter
+    JNZ  clear_loop   ; Continue until done
+
+    ; Write "HELLO DEEP16!" to center of screen
+    LDI  0xF10A2      ; R0 = center position (row 10, col 34)
+    MOV  R1, R0       ; R1 = current position
+    
+    ; Write characters
+    LDI  'H'          ; R2 = 'H'
+    ST   R2, R1, 0
+    ADD  R1, 1
+    
+    LDI  'E'          ; R2 = 'E'
+    ST   R2, R1, 0
+    ADD  R1, 1
+    
+    LDI  'L'          ; R2 = 'L'
+    ST   R2, R1, 0
+    ADD  R1, 1
+    
+    LDI  'L'          ; R2 = 'L'
+    ST   R2, R1, 0
+    ADD  R1, 1
+    
+    LDI  'O'          ; R2 = 'O'
+    ST   R2, R1, 0
+    ADD  R1, 1
+    
+    LDI  ' '          ; R2 = space
+    ST   R2, R1, 0
+    ADD  R1, 1
+    
+    LDI  'D'          ; R2 = 'D'
+    ST   R2, R1, 0
+    ADD  R1, 1
+    
+    LDI  'E'          ; R2 = 'E'
+    ST   R2, R1, 0
+    ADD  R1, 1
+    
+    LDI  'E'          ; R2 = 'E'
+    ST   R2, R1, 0
+    ADD  R1, 1
+    
+    LDI  'P'          ; R2 = 'P'
+    ST   R2, R1, 0
+    ADD  R1, 1
+    
+    LDI  '1'          ; R2 = '1'
+    ST   R2, R1, 0
+    ADD  R1, 1
+    
+    LDI  '6'          ; R2 = '6'
+    ST   R2, R1, 0
+    ADD  R1, 1
+    
+    LDI  '!'          ; R2 = '!'
+    ST   R2, R1, 0
+
+    HALT
+
+.org 0xF1000
+screen_memory:
+    ; 80x25 character display memory
+    .word 0`;
+    break;                
         default:
             return;
     }
