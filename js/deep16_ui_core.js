@@ -401,7 +401,7 @@ if (memoryAddressInput) {
         console.log('Using simple dropdowns');
     }
 
-// In deep16_ui_core.js - Replace the handleMemoryAddressInput method:
+// In deep16_ui_core.js - Replace handleMemoryAddressInput method:
 
 handleMemoryAddressInput() {
     const input = document.getElementById('memory-start-address');
@@ -431,9 +431,16 @@ handleMemoryAddressInput() {
     if (!isNaN(address) && address >= 0 && address < this.simulator.memory.length) {
         console.log('Setting memory start address to:', address);
         this.memoryStartAddress = address;
-        this.manualAddressChange = true; // CRITICAL: Mark as manual change
         input.value = '0x' + address.toString(16).padStart(5, '0').toUpperCase();
-        this.memoryUI.updateMemoryDisplay();
+        
+        // CRITICAL: Call renderMemoryDisplay directly instead of updateMemoryDisplay
+        // This bypasses the auto-adjust logic for manual changes
+        this.memoryUI.renderMemoryDisplay();
+        
+        // Add a temporary flag to prevent auto-adjust on the next update
+        this.manualAddressChange = true;
+        
+        console.log('Manual address change completed, calling renderMemoryDisplay directly');
     } else {
         // Invalid address - reset to current
         console.log('Invalid address, resetting to:', this.memoryStartAddress);
