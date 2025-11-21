@@ -1053,92 +1053,106 @@ add_func:
 .org 0x0100
     HALT`;
             break;
-// In deep16_ui_core.js, add to loadExample method
 case 'screen_demo':
     source = `; Deep16 Screen Demo
 ; Write text to the 80x25 character display at 0xF1000
 
-.org 0x0000
+.org 0x0000    ; Home Segment - Code starts here
 
 main:
-    ; Initialize stack
-    MOV  SP, 0x7FFF
+    ; Initialize stack pointer using LDI (0x7FFF is within range)
+    LDI  0x7FFF      ; R0 = 0x7FFF
+    MOV  SP, R0      ; SP = R0
     
     ; Clear screen (set all characters to space)
-    LDI  0xF1000      ; R0 = screen base address
-    MOV  R1, R0       ; R1 = current address
-    LDI  2000         ; R2 = character count (80*25)
-    MOV  R3, 0        ; R3 = space character (0x20)
+    ; We can't load 0xF1000 directly with LDI (too large)
+    ; Instead, we'll start from a known address and calculate
+    LDI  0x0000      ; R0 = 0 (we'll build the address)
+    MOV  R1, R0      ; R1 = screen address (will be 0xF1000)
+    
+    ; Set up screen base address (0xF1000)
+    ; Use multiple operations to build the large address
+    LDI  0xF000      ; R2 = 0xF000 (upper part)
+    MOV  R3, R2      ; R3 = 0xF000
+    SL   R3, 4       ; R3 = 0xF0000 (shift left 4 bits = ×16)
+    MOV  R1, R3      ; R1 = 0xF0000
+    LDI  0x1000      ; R4 = 0x1000 (lower part)
+    ADD  R1, R4      ; R1 = 0xF1000 (screen base address)
+    
+    ; Now R1 = 0xF1000, clear the screen
+    MOV  R2, R1      ; R2 = current address
+    LDI  2000        ; R3 = character count (80*25)
+    LDI  0x20        ; R4 = space character (0x20)
 
 clear_loop:
-    ST   R3, R1, 0    ; Store space character
-    ADD  R1, 1        ; Next address
-    SUB  R2, 1        ; Decrement counter
-    JNZ  clear_loop   ; Continue until done
+    ST   R4, R2, 0   ; Store space character
+    ADD  R2, 1       ; Next address
+    SUB  R3, 1       ; Decrement counter
+    JNZ  clear_loop  ; Continue until done
 
     ; Write "HELLO DEEP16!" to center of screen
-    LDI  0xF10A2      ; R0 = center position (row 10, col 34)
-    MOV  R1, R0       ; R1 = current position
+    ; Center position: row 12, col 34 (12*80 + 34 = 994)
+    ; 994 = 0x3E2, which we can reach from 0xF1000
+    MOV  R5, R1      ; R5 = screen base (0xF1000)
+    LDI  994         ; R6 = offset to center (994)
+    ADD  R5, R6      ; R5 = center position address
     
-    ; Write characters
-    LDI  'H'          ; R2 = 'H'
-    ST   R2, R1, 0
-    ADD  R1, 1
+    ; Write characters using their ASCII codes
+    LDI  72          ; 'H' = 72
+    ST   R0, R5, 0
+    ADD  R5, 1
     
-    LDI  'E'          ; R2 = 'E'
-    ST   R2, R1, 0
-    ADD  R1, 1
+    LDI  69          ; 'E' = 69
+    ST   R0, R5, 0
+    ADD  R5, 1
     
-    LDI  'L'          ; R2 = 'L'
-    ST   R2, R1, 0
-    ADD  R1, 1
+    LDI  76          ; 'L' = 76
+    ST   R0, R5, 0
+    ADD  R5, 1
     
-    LDI  'L'          ; R2 = 'L'
-    ST   R2, R1, 0
-    ADD  R1, 1
+    LDI  76          ; 'L' = 76
+    ST   R0, R5, 0
+    ADD  R5, 1
     
-    LDI  'O'          ; R2 = 'O'
-    ST   R2, R1, 0
-    ADD  R1, 1
+    LDI  79          ; 'O' = 79
+    ST   R0, R5, 0
+    ADD  R5, 1
     
-    LDI  ' '          ; R2 = space
-    ST   R2, R1, 0
-    ADD  R1, 1
+    LDI  32          ; Space = 32
+    ST   R0, R5, 0
+    ADD  R5, 1
     
-    LDI  'D'          ; R2 = 'D'
-    ST   R2, R1, 0
-    ADD  R1, 1
+    LDI  68          ; 'D' = 68
+    ST   R0, R5, 0
+    ADD  R5, 1
     
-    LDI  'E'          ; R2 = 'E'
-    ST   R2, R1, 0
-    ADD  R1, 1
+    LDI  69          ; 'E' = 69
+    ST   R0, R5, 0
+    ADD  R5, 1
     
-    LDI  'E'          ; R2 = 'E'
-    ST   R2, R1, 0
-    ADD  R1, 1
+    LDI  69          ; 'E' = 69
+    ST   R0, R5, 0
+    ADD  R5, 1
     
-    LDI  'P'          ; R2 = 'P'
-    ST   R2, R1, 0
-    ADD  R1, 1
+    LDI  80          ; 'P' = 80
+    ST   R0, R5, 0
+    ADD  R5, 1
     
-    LDI  '1'          ; R2 = '1'
-    ST   R2, R1, 0
-    ADD  R1, 1
+    LDI  49          ; '1' = 49
+    ST   R0, R5, 0
+    ADD  R5, 1
     
-    LDI  '6'          ; R2 = '6'
-    ST   R2, R1, 0
-    ADD  R1, 1
+    LDI  54          ; '6' = 54
+    ST   R0, R5, 0
+    ADD  R5, 1
     
-    LDI  '!'          ; R2 = '!'
-    ST   R2, R1, 0
+    LDI  33          ; '!' = 33
+    ST   R0, R5, 0
 
     HALT
 
-.org 0xF1000
-screen_memory:
-    ; 80x25 character display memory
-    .word 0`;
-    break;                
+; Screen buffer is automatically at 0xF1000 in I/O Segment`;
+    break;            
         default:
             return;
     }
