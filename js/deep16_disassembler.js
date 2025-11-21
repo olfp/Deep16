@@ -122,8 +122,8 @@ disassembleSOP(instruction) {
 
     // NEW: Disassemble MVS instruction
     disassembleMVS(instruction) {
-        const d = (instruction >>> 8) & 0x1;
-        const rd = (instruction >>> 4) & 0xF;
+        const d = (instruction >>> 6) & 0x1;
+        const rd = (instruction >>> 2) & 0xF;
         const seg = instruction & 0x3;
         
         if (d === 0) {
