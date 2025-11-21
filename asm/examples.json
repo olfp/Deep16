@@ -1,0 +1,22 @@
+{
+  "examples": [
+    {
+      "name": "Fibonacci Sequence",
+      "filename": "fibonacci.a16",
+      "description": "Calculate Fibonacci numbers F(0) through F(10)",
+      "category": "Mathematics"
+    },
+    {
+      "name": "Far Call & Long Jump", 
+      "filename": "far_call.a16",
+      "description": "Demonstrates calling between code segments",
+      "category": "Advanced"
+    },
+    {
+      "name": "Screen Demo",
+      "filename": "screen_demo.a16", 
+      "description": "Write text to the 80x25 character display",
+      "category": "I/O"
+    }
+  ]
+}
