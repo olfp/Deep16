@@ -48,6 +48,8 @@ Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 | SS       | 10   | Stack Segment |
 | ES       | 11   | Extra Segment |
 
+The effective 20 bit memory address is computed as (segment << 4) + offset. Which sehment register to use is either explicit (LDS/STS) or implicit: CS for intruction fetch, SS or ES when specified cua PSW SR/ER or else DS.
+
 ### 2.3 Special Registers
 
 **Table 2.3: Special Registers**
