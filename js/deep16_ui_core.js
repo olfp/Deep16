@@ -459,8 +459,6 @@ handleMemoryAddressInput() {
     }
 }
 
-    // In deep16_ui_core.js - Add new method:
-
 gotoSegmentAddress() {
     const csInput = document.getElementById('cs-input');
     const pcInput = document.getElementById('pc-input');
@@ -489,7 +487,7 @@ gotoSegmentAddress() {
     
     console.log(`Parsed: CS=0x${csAddress.toString(16)}, PC=0x${pcAddress.toString(16)}`);
     
-    // Validate addresses
+    // Validate addresses (16-bit segment and offset)
     if (isNaN(csAddress) || csAddress < 0 || csAddress > 0xFFFF) {
         this.addTranscriptEntry(`Invalid CS address: ${csInput.value}`, "error");
         csInput.value = '0x' + this.simulator.segmentRegisters.CS.toString(16).padStart(4, '0');
@@ -502,23 +500,31 @@ gotoSegmentAddress() {
         return;
     }
     
-    // Calculate physical address: CS << 4 + PC
+    // Calculate physical address: CS << 4 + PC (20-bit physical address)
     const physicalAddress = (csAddress << 4) + pcAddress;
     
     console.log(`Physical address calculation: (0x${csAddress.toString(16)} << 4) + 0x${pcAddress.toString(16)} = 0x${physicalAddress.toString(16)}`);
     
     if (physicalAddress >= 0 && physicalAddress < this.simulator.memory.length) {
-        // Set the memory start address to show this location
-        this.memoryStartAddress = physicalAddress;
+        // Set the memory start address to show CONTEXT around the target
+        // Show 16 addresses before the target so we can scroll up
+        const contextStart = Math.max(0, physicalAddress - 16);
+        this.memoryStartAddress = contextStart;
         
-        // Update the start address input to show the physical address
+        // Update the start address input to show the context start
         const startAddressInput = document.getElementById('memory-start-address');
         if (startAddressInput) {
-            startAddressInput.value = '0x' + physicalAddress.toString(16).padStart(5, '0');
+            startAddressInput.value = '0x' + contextStart.toString(16).padStart(5, '0');
         }
         
-        // Render the memory display at this location
+        // Render the memory display at this context location
+        this.manualAddressChange = true;
         this.memoryUI.renderMemoryDisplay();
+        
+        // Scroll to make the target address visible in the middle of the view
+        setTimeout(() => {
+            this.memoryUI.scrollToAddress(physicalAddress);
+        }, 50);
         
         this.addTranscriptEntry(`Jumped to CS:PC = 0x${csAddress.toString(16).padStart(4, '0')}::0x${pcAddress.toString(16).padStart(4, '0')} (physical: 0x${physicalAddress.toString(16).padStart(5, '0')})`, "success");
     } else {
