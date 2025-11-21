@@ -45,13 +45,13 @@ class Deep16MemoryUI {
 isCodeAddress(address) {
     if (!this.ui.currentAssemblyResult || !this.ui.currentAssemblyResult.segmentMap) {
         console.log(`isCodeAddress(${address.toString(16)}): no segment map - defaulting to false`);
-        return false;
+        // return false;
     }
     
     // First, check if this address is explicitly marked as code in the segment map
     const segment = this.ui.currentAssemblyResult.segmentMap.get(address);
     if (segment === 'code') {
-        console.log(`isCodeAddress(0x${address.toString(16)}): explicit code segment`);
+        // console.log(`isCodeAddress(0x${address.toString(16)}): explicit code segment`);
         return true;
     }
     
@@ -60,12 +60,12 @@ isCodeAddress(address) {
     for (let offset = -8; offset <= 8; offset++) {
         const nearbyAddress = address + offset;
         if (this.ui.currentAssemblyResult.segmentMap.get(nearbyAddress) === 'code') {
-            console.log(`isCodeAddress(0x${address.toString(16)}): inferred as code from nearby address 0x${nearbyAddress.toString(16)}`);
+            // console.log(`isCodeAddress(0x${address.toString(16)}): inferred as code from nearby address 0x${nearbyAddress.toString(16)}`);
             return true;
         }
     }
     
-    console.log(`isCodeAddress(0x${address.toString(16)}): not code`);
+    // console.log(`isCodeAddress(0x${address.toString(16)}): not code`);
     return false;
 }
     
