@@ -1,98 +1,137 @@
 ; Deep16 Screen Demo
-; Write text to the 80x25 character display at 0xF1000
+; Write text to the 80x25 character display at ES:0x1000 (physical 0xF1000)
 
 .org 0x0000    ; Home Segment - Code starts here
 
 main:
-    ; Initialize stack pointer using LDI (0x7FFF is within range)
+    ; Initialize stack pointer
     LDI  0x7FFF      ; R0 = 0x7FFF
     MOV  SP, R0      ; SP = R0
     
+    ; Configure Extra Segment for I/O access
+    ; Set ES = 0xF000 to access I/O segment (0xF0000-0xFFFFF)
+    LDI  0xF000      ; R0 = 0xF000 (ES value)
+    MOV  R1, R0      ; R1 = 0xF000 (preserve for MVS)
+    MVS  ES, R1      ; ES = 0xF000
+    
+    ; Configure dual registers for ES (ER=11, DE=1)
+    ERS  R11         ; Extra Register = R11
+    ERD  R11         ; Enable dual registers (R11+R10 use ES)
+    
+    ; Now we can access screen memory at ES:0x1000 (physical 0xF1000)
     ; Clear screen (set all characters to space)
-    ; We can't load 0xF1000 directly with LDI (too large)
-    ; Instead, we'll start from a known address and calculate
-    LDI  0x0000      ; R0 = 0 (we'll build the address)
-    MOV  R1, R0      ; R1 = screen address (will be 0xF1000)
+    LDI  0x1000      ; R0 = screen offset in ES (0x1000)
+    MOV  R10, R0     ; R10 = screen base address (ES:0x1000)
+    MOV  R11, R0     ; R11 = current address pointer
     
-    ; Set up screen base address (0xF1000)
-    ; Use multiple operations to build the large address
-    LDI  0xF000      ; R2 = 0xF000 (upper part)
-    MOV  R3, R2      ; R3 = 0xF000
-    SL   R3, 4       ; R3 = 0xF0000 (shift left 4 bits = ×16)
-    MOV  R1, R3      ; R1 = 0xF0000
-    LDI  0x1000      ; R4 = 0x1000 (lower part)
-    ADD  R1, R4      ; R1 = 0xF1000 (screen base address)
+    LDI  2000        ; R0 = character count (80*25)
+    MOV  R2, R0      ; R2 = character count (preserve)
     
-    ; Now R1 = 0xF1000, clear the screen
-    MOV  R2, R1      ; R2 = current address
-    LDI  2000        ; R3 = character count (80*25)
-    LDI  0x20        ; R4 = space character (0x20)
+    LDI  0x20        ; R0 = space character (0x20)
+    MOV  R3, R0      ; R3 = space character (preserve)
 
 clear_loop:
-    ST   R4, R2, 0   ; Store space character
-    ADD  R2, 1       ; Next address
-    SUB  R3, 1       ; Decrement counter
+    ; Store using ES segment (automatically used with R10/R11)
+    ST   R3, R11, 0  ; Store space character at ES:R11
+    ADD  R11, 1      ; Next address
+    SUB  R2, 1       ; Decrement counter
     JNZ  clear_loop  ; Continue until done
 
     ; Write "HELLO DEEP16!" to center of screen
     ; Center position: row 12, col 34 (12*80 + 34 = 994)
-    ; 994 = 0x3E2, which we can reach from 0xF1000
-    MOV  R5, R1      ; R5 = screen base (0xF1000)
-    LDI  994         ; R6 = offset to center (994)
-    ADD  R5, R6      ; R5 = center position address
+    MOV  R11, R10    ; R11 = screen base (ES:0x1000)
+    
+    LDI  994         ; R0 = offset to center (994)
+    MOV  R4, R0      ; R4 = offset to center (preserve)
+    ADD  R11, R4     ; R11 = center position address
     
     ; Write characters using their ASCII codes
-    LDI  72          ; 'H' = 72
-    ST   R0, R5, 0
-    ADD  R5, 1
+    ; Each LDI loads into R0, then we move to a different register
+    LDI  72          ; R0 = 'H' = 72
+    ST   R0, R11, 0
+    ADD  R11, 1
     
-    LDI  69          ; 'E' = 69
-    ST   R0, R5, 0
-    ADD  R5, 1
+    LDI  69          ; R0 = 'E' = 69
+    ST   R0, R11, 0
+    ADD  R11, 1
     
-    LDI  76          ; 'L' = 76
-    ST   R0, R5, 0
-    ADD  R5, 1
+    LDI  76          ; R0 = 'L' = 76
+    ST   R0, R11, 0
+    ADD  R11, 1
     
-    LDI  76          ; 'L' = 76
-    ST   R0, R5, 0
-    ADD  R5, 1
+    LDI  76          ; R0 = 'L' = 76
+    ST   R0, R11, 0
+    ADD  R11, 1
     
-    LDI  79          ; 'O' = 79
-    ST   R0, R5, 0
-    ADD  R5, 1
+    LDI  79          ; R0 = 'O' = 79
+    ST   R0, R11, 0
+    ADD  R11, 1
     
-    LDI  32          ; Space = 32
-    ST   R0, R5, 0
-    ADD  R5, 1
+    LDI  32          ; R0 = Space = 32
+    ST   R0, R11, 0
+    ADD  R11, 1
     
-    LDI  68          ; 'D' = 68
-    ST   R0, R5, 0
-    ADD  R5, 1
+    LDI  68          ; R0 = 'D' = 68
+    ST   R0, R11, 0
+    ADD  R11, 1
     
-    LDI  69          ; 'E' = 69
-    ST   R0, R5, 0
-    ADD  R5, 1
+    LDI  69          ; R0 = 'E' = 69
+    ST   R0, R11, 0
+    ADD  R11, 1
     
-    LDI  69          ; 'E' = 69
-    ST   R0, R5, 0
-    ADD  R5, 1
+    LDI  69          ; R0 = 'E' = 69
+    ST   R0, R11, 0
+    ADD  R11, 1
     
-    LDI  80          ; 'P' = 80
-    ST   R0, R5, 0
-    ADD  R5, 1
+    LDI  80          ; R0 = 'P' = 80
+    ST   R0, R11, 0
+    ADD  R11, 1
     
-    LDI  49          ; '1' = 49
-    ST   R0, R5, 0
-    ADD  R5, 1
+    LDI  49          ; R0 = '1' = 49
+    ST   R0, R11, 0
+    ADD  R11, 1
     
-    LDI  54          ; '6' = 54
-    ST   R0, R5, 0
-    ADD  R5, 1
+    LDI  54          ; R0 = '6' = 54
+    ST   R0, R11, 0
+    ADD  R11, 1
     
-    LDI  33          ; '!' = 33
-    ST   R0, R5, 0
+    LDI  33          ; R0 = '!' = 33
+    ST   R0, R11, 0
+
+    ; Alternative method using STS (explicit segment store)
+    ; Write "SCREEN!" below the first message
+    MOV  R11, R10    ; R11 = screen base
+    LDI  1074        ; R0 = row 13, col 34 (13*80 + 34 = 1074)
+    MOV  R4, R0      ; R4 = second line offset
+    ADD  R11, R4     ; R11 = second line position
+    
+    LDI  83          ; R0 = 'S' = 83
+    STS  R0, ES, R11 ; Store to ES:R11 explicitly
+    ADD  R11, 1
+    
+    LDI  67          ; R0 = 'C' = 67
+    STS  R0, ES, R11
+    ADD  R11, 1
+    
+    LDI  82          ; R0 = 'R' = 82
+    STS  R0, ES, R11
+    ADD  R11, 1
+    
+    LDI  69          ; R0 = 'E' = 69
+    STS  R0, ES, R11
+    ADD  R11, 1
+    
+    LDI  69          ; R0 = 'E' = 69
+    STS  R0, ES, R11
+    ADD  R11, 1
+    
+    LDI  78          ; R0 = 'N' = 78
+    STS  R0, ES, R11
+    ADD  R11, 1
+    
+    LDI  33          ; R0 = '!' = 33
+    STS  R0, ES, R11
 
     HALT
 
-; Screen buffer is automatically at 0xF1000 in I/O Segment
+; Screen buffer is at ES:0x1000 (physical 0xF1000) in I/O Segment
