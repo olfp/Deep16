@@ -41,20 +41,34 @@ class Deep16MemoryUI {
         return segments;
     }
 
-// In deep16_ui_memory.js - Fix isCodeAddress method:
-
+// Replace the isCodeAddress method with this improved version:
 isCodeAddress(address) {
     if (!this.ui.currentAssemblyResult || !this.ui.currentAssemblyResult.segmentMap) {
         console.log(`isCodeAddress(${address.toString(16)}): no segment map - defaulting to false`);
         return false;
     }
     
+    // First, check if this address is explicitly marked as code in the segment map
     const segment = this.ui.currentAssemblyResult.segmentMap.get(address);
-    const isCode = segment === 'code';
-    console.log(`isCodeAddress(0x${address.toString(16)}): segment=${segment}, isCode=${isCode}`);
-    return isCode;
-}    
-
+    if (segment === 'code') {
+        console.log(`isCodeAddress(0x${address.toString(16)}): explicit code segment`);
+        return true;
+    }
+    
+    // If not explicitly marked, check if it's in a code region by looking at nearby addresses
+    // This handles gaps between instructions that are still part of the code segment
+    for (let offset = -8; offset <= 8; offset++) {
+        const nearbyAddress = address + offset;
+        if (this.ui.currentAssemblyResult.segmentMap.get(nearbyAddress) === 'code') {
+            console.log(`isCodeAddress(0x${address.toString(16)}): inferred as code from nearby address 0x${nearbyAddress.toString(16)}`);
+            return true;
+        }
+    }
+    
+    console.log(`isCodeAddress(0x${address.toString(16)}): not code`);
+    return false;
+}
+    
 createMemoryLine(address) {
     const value = this.ui.simulator.memory[address];
     const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
@@ -269,18 +283,31 @@ renderMemoryDisplay() {
     
     let html = '';
     let currentAddress = start;
+    let lastWasCode = false;
+    let consecutiveData = 0;
     
     while (currentAddress < end) {
-        // Check if this should be a code line or data line
-        if (this.isCodeAddress(currentAddress)) {
+        const isCode = this.isCodeAddress(currentAddress);
+        
+        // If we find code after data, and we've had several data lines,
+        // we might be at a new code section
+        if (isCode && consecutiveData > 16) {
+            html += `<div class="memory-gap">... gap ...</div>`;
+        }
+        
+        if (isCode) {
             // Create code line (single instruction)
             html += this.createMemoryLine(currentAddress);
             currentAddress++;
+            consecutiveData = 0;
+            lastWasCode = true;
         } else {
             // Create data line (8 words per line)
             const lineEnd = Math.min(currentAddress + 8, end);
             html += this.createDataLine(currentAddress, lineEnd);
             currentAddress = lineEnd;
+            consecutiveData += 8;
+            lastWasCode = false;
         }
     }
     
