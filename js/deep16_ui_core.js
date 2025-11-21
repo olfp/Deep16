@@ -34,6 +34,9 @@ class DeepWebUI {
 
         this.manualAddressChange = false;
 
+        this.examples = [];
+        this.loadExamplesList();
+
         this.initializeEventListeners();
         this.initializeSearchableDropdowns();
         this.initializeTabs();
@@ -391,6 +394,15 @@ if (memoryAddressInput) {
         document.getElementById('file-dropdown').classList.remove('show');
         document.getElementById('edit-dropdown').classList.remove('show');
     });
+
+        // Update example selector handler
+        document.getElementById('example-select').addEventListener('change', (e) => {
+            const filename = e.target.value;
+            if (filename) {
+                this.loadExample(filename);
+            }
+        });
+
 
     // Tab key support for editor
     this.editorElement.addEventListener('keydown', (e) => {
@@ -963,210 +975,94 @@ jumpToMemoryAddress() {
         transcript.innerHTML = html;
     }
 
-loadExample(exampleName) {
-    let source = '';
-    
-    switch (exampleName) {
-        case 'fibonacci':
-            source = `; Deep16 (深十六) Fibonacci Example
-; Calculate Fibonacci numbers F(0) through F(10)
-
-.org 0x0000
-
-main:
-    LSI  R1, 0        ; F(0) = 0
-    LSI  R2, 1        ; F(1) = 1
-    LSI  R3, 10       ; Calculate F(2) through F(10)
-    LDI  0x0200       ; Output address into R0
-    MOV  R4, R0       ; Move to R4 for output pointer
-    
-    ST   R1, R4, 0    ; Store F(0)
-    ADD  R4, 1        ; Next address
-    ST   R2, R4, 0    ; Store F(1)  
-    ADD  R4, 1        ; Next address
-    
-fib_loop:
-    MOV  R0, R2       ; temp = current
-    ADD  R2, R1       ; next = current + previous
-    MOV  R1, R0       ; previous = temp
-    
-    ST   R2, R4, 0    ; Store the NEW Fibonacci number
-    ADD  R4, 1        ; Next output address
-    
-    SUB  R3, 1        ; decrement counter
-    JNZ  fib_loop     ; loop if not zero
-    
-    HALT
-
-.org 0x0200
-fibonacci_results:
-    .word 0`;
-            break;
+    async loadExamplesList() {
+        try {
+            const response = await fetch('asm/examples.json');
+            if (!response.ok) throw new Error('Examples list not found');
             
-        case 'far_call':
-            source = `; Inter-Segment Call Example
-; Demonstrates calling between code segments
-
-; Segment 0: Main program
-.org 0x0000
-
-main:
-    ; Initialize stack pointer
-    LDI  0x7FFF        ; R0 = 0x7FFF
-    MOV  SP, R0        ; SP = R0
-    
-    ; Prepare numbers
-    LSI  R1, 12        ; First number = 12
-    LSI  R2, 5         ; Second number = 5
-    
-    ; Setup far call to segment 1
-    ; JML R8: CS = R8, PC = R9
-    LDI  0x0100        ; R0 = segment 1 (CS)
-    MOV  R8, R0        ; R8 = target CS
-    LDI  0x0020        ; R0 = function address (PC)
-    MOV  R9, R0        ; R9 = target PC
-    
-    ; Calculate return address
-    MOV  LR, PC, 1     ; LR = PC + 1 (address of return_here)
-    JML  R8            ; Far call: CS=R8, PC=R9
-    
-return_here:
-    ; Result should be in R3 (12 + 5 = 17)
-    HALT
-
-; Segment 1: Math function
-.org 0x0020
-
-add_func:
-    ; Add two numbers: R3 = R1 + R2
-    MOV  R3, R1        ; R3 = R1
-    ADD  R3, R2        ; R3 = R3 + R2
-    
-    ; Return to caller using the return address in LR
-    ; JML R10: CS = R10, PC = R11
-    LDI  0x0000        ; R0 = segment 0 (CS)
-    MOV  R10, R0       ; R10 = return CS
-    MOV  R11, LR       ; R11 = return PC (from LR)
-    JML  R10           ; Far return: CS=R10, PC=R11
-
-; Segment 1 continuation
-.org 0x0100
-    HALT`;
-            break;
-case 'screen_demo':
-    source = `; Deep16 Screen Demo
-; Write text to the 80x25 character display at 0xF1000
-
-.org 0x0000    ; Home Segment - Code starts here
-
-main:
-    ; Initialize stack pointer using LDI (0x7FFF is within range)
-    LDI  0x7FFF      ; R0 = 0x7FFF
-    MOV  SP, R0      ; SP = R0
-    
-    ; Clear screen (set all characters to space)
-    ; We can't load 0xF1000 directly with LDI (too large)
-    ; Instead, we'll start from a known address and calculate
-    LDI  0x0000      ; R0 = 0 (we'll build the address)
-    MOV  R1, R0      ; R1 = screen address (will be 0xF1000)
-    
-    ; Set up screen base address (0xF1000)
-    ; Use multiple operations to build the large address
-    LDI  0xF000      ; R2 = 0xF000 (upper part)
-    MOV  R3, R2      ; R3 = 0xF000
-    SL   R3, 4       ; R3 = 0xF0000 (shift left 4 bits = ×16)
-    MOV  R1, R3      ; R1 = 0xF0000
-    LDI  0x1000      ; R4 = 0x1000 (lower part)
-    ADD  R1, R4      ; R1 = 0xF1000 (screen base address)
-    
-    ; Now R1 = 0xF1000, clear the screen
-    MOV  R2, R1      ; R2 = current address
-    LDI  2000        ; R3 = character count (80*25)
-    LDI  0x20        ; R4 = space character (0x20)
-
-clear_loop:
-    ST   R4, R2, 0   ; Store space character
-    ADD  R2, 1       ; Next address
-    SUB  R3, 1       ; Decrement counter
-    JNZ  clear_loop  ; Continue until done
-
-    ; Write "HELLO DEEP16!" to center of screen
-    ; Center position: row 12, col 34 (12*80 + 34 = 994)
-    ; 994 = 0x3E2, which we can reach from 0xF1000
-    MOV  R5, R1      ; R5 = screen base (0xF1000)
-    LDI  994         ; R6 = offset to center (994)
-    ADD  R5, R6      ; R5 = center position address
-    
-    ; Write characters using their ASCII codes
-    LDI  72          ; 'H' = 72
-    ST   R0, R5, 0
-    ADD  R5, 1
-    
-    LDI  69          ; 'E' = 69
-    ST   R0, R5, 0
-    ADD  R5, 1
-    
-    LDI  76          ; 'L' = 76
-    ST   R0, R5, 0
-    ADD  R5, 1
-    
-    LDI  76          ; 'L' = 76
-    ST   R0, R5, 0
-    ADD  R5, 1
-    
-    LDI  79          ; 'O' = 79
-    ST   R0, R5, 0
-    ADD  R5, 1
-    
-    LDI  32          ; Space = 32
-    ST   R0, R5, 0
-    ADD  R5, 1
-    
-    LDI  68          ; 'D' = 68
-    ST   R0, R5, 0
-    ADD  R5, 1
-    
-    LDI  69          ; 'E' = 69
-    ST   R0, R5, 0
-    ADD  R5, 1
-    
-    LDI  69          ; 'E' = 69
-    ST   R0, R5, 0
-    ADD  R5, 1
-    
-    LDI  80          ; 'P' = 80
-    ST   R0, R5, 0
-    ADD  R5, 1
-    
-    LDI  49          ; '1' = 49
-    ST   R0, R5, 0
-    ADD  R5, 1
-    
-    LDI  54          ; '6' = 54
-    ST   R0, R5, 0
-    ADD  R5, 1
-    
-    LDI  33          ; '!' = 33
-    ST   R0, R5, 0
-
-    HALT
-
-; Screen buffer is automatically at 0xF1000 in I/O Segment`;
-    break;            
-        default:
-            return;
+            const data = await response.json();
+            this.examples = data.examples;
+            this.populateExampleSelector();
+            
+            console.log(`Loaded ${this.examples.length} examples`);
+            this.addTranscriptEntry(`Loaded ${this.examples.length} examples from asm/ directory`, "success");
+        } catch (error) {
+            console.error('Failed to load examples list:', error);
+            this.addTranscriptEntry('Warning: Could not load examples list', "warning");
+            this.setupFallbackExamples();
+        }
     }
-    
-    this.editorElement.value = source;
-    this.addTranscriptEntry(`Loaded example: ${exampleName}`, "info");
-    this.status(`Loaded ${exampleName} example - Click 'Assemble' to compile`);
-    
-    // Switch back to editor tab
-    this.switchTab('editor');
-    
-    // Reset the dropdown
-    document.getElementById('example-select').value = '';
-}
+
+    populateExampleSelector() {
+        const exampleSelect = document.getElementById('example-select');
+        if (!exampleSelect) return;
+
+        // Clear existing options
+        exampleSelect.innerHTML = '<option value="">-- Choose Example --</option>';
+        
+        // Group by category
+        const categories = {};
+        this.examples.forEach(example => {
+            if (!categories[example.category]) {
+                categories[example.category] = [];
+            }
+            categories[example.category].push(example);
+        });
+
+        // Add options grouped by category
+        Object.keys(categories).sort().forEach(category => {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = category;
+            
+            categories[category].forEach(example => {
+                const option = document.createElement('option');
+                option.value = example.filename;
+                option.textContent = example.name;
+                optgroup.appendChild(option);
+            });
+            
+            exampleSelect.appendChild(optgroup);
+        });
+    }
+
+    setupFallbackExamples() {
+        // Fallback to hardcoded examples if JSON loading fails
+        this.examples = [
+            { name: "Fibonacci Sequence", filename: "fibonacci.a16", category: "Mathematics" },
+            { name: "Far Call & Long Jump", filename: "far_call.a16", category: "Advanced" },
+            { name: "Screen Demo", filename: "screen_demo.a16", category: "I/O" }
+        ];
+        this.populateExampleSelector();
+    }
+
+    async loadExample(filename) {
+        if (!filename) return;
+        
+        try {
+            const response = await fetch(`asm/${filename}`);
+            if (!response.ok) throw new Error(`File not found: ${filename}`);
+            
+            const source = await response.text();
+            this.editorElement.value = source;
+            
+            const example = this.examples.find(ex => ex.filename === filename);
+            const displayName = example ? example.name : filename;
+            
+            this.addTranscriptEntry(`Loaded example: ${displayName}`, "info");
+            this.status(`Loaded ${displayName} - Click 'Assemble' to compile`);
+            
+            // Switch back to editor tab
+            this.switchTab('editor');
+            
+            // Reset the dropdown
+            document.getElementById('example-select').value = '';
+            
+        } catch (error) {
+            console.error('Failed to load example:', error);
+            this.addTranscriptEntry(`Error loading example: ${error.message}`, "error");
+            this.status(`Error loading example: ${error.message}`);
+        }
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
