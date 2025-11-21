@@ -1,0 +1,59 @@
+; String and Character Demo
+; Demonstrates character constants and .text directive
+
+.org 0x0000
+
+main:
+    ; Initialize stack
+    LDI  0x7FFF
+    MOV  SP, R0
+    
+    ; Set up ES for screen access
+    LDI  0x0FFF
+    INV  R0
+    MVS  ES, R0
+    ERD  R11
+    
+    ; Clear screen
+    LDI  0x1000
+    MOV  R10, R0
+    MOV  R11, R0
+    LDI  2000
+    MOV  R2, R0
+    LDI  ' '         ; NEW: Character constant
+    MOV  R3, R0
+
+clear_loop:
+    ST   R3, R11, 0
+    ADD  R11, 1
+    SUB  R2, 1
+    JNZ  clear_loop
+    
+    ; Write string from .text section
+    MOV  R11, R10
+    LDI  hello_msg   ; Get address of string
+    MOV  R4, R0
+    
+write_loop:
+    LD   R5, R4, 0   ; Load character
+    JZ   R5, done    ; Stop at null terminator
+    ST   R5, R11, 0  ; Write to screen
+    ADD  R11, 1
+    ADD  R4, 1
+    JMP  write_loop
+    
+done:
+    HALT
+
+; Data section with strings
+.org 0x0200
+hello_msg:
+    .text "Hello, Deep16!"  ; NEW: Null-terminated string
+
+prompt_msg:  
+    .text "Enter name: "    ; Another string
+
+; Individual character constants
+.org 0x0300
+chars:
+    .word 'A', 'B', 'C', '\n', '\0'  ; NEW: Character constants
