@@ -6,41 +6,34 @@
     min-height: 0;
 }
 
+/* Add to memory.css - Replace or add these styles */
+
 .memory-controls {
     display: flex;
-    gap: 6px;
+    align-items: center;
+    gap: 15px;
     padding: 4px 8px;
     background: #2d2d30;
     border-bottom: 1px solid #3e3e42;
-    align-items: center;
-    flex-wrap: wrap;
-    flex-shrink: 0;
-    height: auto; /* Change from 32px to auto for flexibility */
-    min-height: 32px;
+    flex-wrap: nowrap;
+    height: 32px;
 }
 
 .memory-address-controls {
     display: flex;
     align-items: center;
     gap: 6px;
-}
-
-.segment-navigation {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: 15px;
-    padding-left: 15px;
-    border-left: 1px solid #3e3e42;
+    flex-shrink: 0;
 }
 
 .memory-controls label {
-    font-size: 11px;
     color: #9cdcfe;
+    font-size: 11px;
+    white-space: nowrap;
     margin: 0;
 }
 
-.memory-controls select {
+.memory-controls input, .memory-controls select {
     background: #1e1e1e;
     border: 1px solid #3e3e42;
     color: #d4d4d4;
@@ -48,18 +41,14 @@
     font-family: 'Courier New', monospace;
     font-size: 11px;
     height: 20px;
-    width: 200px;
 }
 
 .memory-controls input {
-    background: #1e1e1e;
-    border: 1px solid #3e3e42;
-    color: #d4d4d4;
-    padding: 2px 4px;
-    font-family: 'Courier New', monospace;
-    font-size: 11px;
-    height: 20px;
-    width: 80px;
+    width: 70px;
+}
+
+.memory-controls select {
+    width: 180px;
 }
 
 .memory-controls select option {
@@ -68,8 +57,45 @@
     padding: 4px;
 }
 
-/* Style Jump button like Run/Step/Reset buttons */
-#memory-jump-btn {
+.controls-divider {
+    width: 1px;
+    height: 20px;
+    background: #3e3e42;
+    flex-shrink: 0;
+}
+
+.segment-navigation {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.segment-navigation label {
+    color: #9cdcfe;
+    font-size: 11px;
+    white-space: nowrap;
+    font-weight: bold;
+    margin: 0;
+}
+
+.segment-navigation input {
+    width: 50px;
+    background: #1e1e1e;
+    border: 1px solid #3e3e42;
+    color: #d4d4d4;
+    padding: 2px 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    height: 20px;
+}
+
+.segment-divider {
+    color: #d4d4d4;
+    font-size: 11px;
+}
+
+#goto-segment-btn {
     padding: 2px 8px;
     background: #0e639c;
     color: white;
@@ -79,10 +105,9 @@
     font-family: 'Courier New', monospace;
     font-size: 11px;
     min-height: 20px;
-    margin-left: 4px;
 }
 
-#memory-jump-btn:hover {
+#goto-segment-btn:hover {
     background: #1177bb;
 }
 
