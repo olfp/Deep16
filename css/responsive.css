@@ -41,6 +41,26 @@
         min-width: 70px;
         padding: 3px 8px;
     }
+
+    .memory-controls {
+        flex-direction: column;
+        height: auto;
+        gap: 8px;
+        padding: 8px;
+    }
+    
+    .controls-divider {
+        display: none;
+    }
+    
+    .memory-address-controls, .segment-navigation {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .memory-controls input, .memory-controls select {
+        flex: 1;
+    }
     
     .memory-controls label {
         font-size: 10px;
