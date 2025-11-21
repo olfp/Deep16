@@ -815,6 +815,11 @@ handleMemoryAddressChange() {
 
 jumpToMemoryAddress() {
     this.handleMemoryAddressInput();
+    
+    // Add a small delay to ensure the memory display updates
+    setTimeout(() => {
+        this.memoryUI.updateMemoryDisplay();
+    }, 10);
 }
 
     status(message) {
