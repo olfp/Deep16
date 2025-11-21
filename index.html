@@ -241,27 +241,28 @@ data_area:
         </div>
         
         <div class="panel-header">Memory Display (Word Addressing)</div>
-<div class="memory-controls" style="display: flex; align-items: center; gap: 15px; padding: 4px 8px; background: #2d2d30; border-bottom: 1px solid #3e3e42; flex-wrap: nowrap; height: 32px;">
+<!-- In index.html - Replace memory-controls with this clean version: -->
+<div class="memory-controls">
     <!-- Left: Memory Address Controls -->
-    <div class="memory-address-controls" style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-        <label for="memory-start-address" style="color: #9cdcfe; font-size: 11px; white-space: nowrap;">Start:</label>
-        <input type="text" id="memory-start-address" value="0x00000" placeholder="0x00000" style="width: 70px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; padding: 2px 4px; font-family: 'Courier New', monospace; font-size: 11px; height: 20px;">
-        <label for="symbol-select" style="color: #9cdcfe; font-size: 11px; white-space: nowrap;">Symbol:</label>
-        <select id="symbol-select" size="1" style="width: 180px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; padding: 2px 4px; font-family: 'Courier New', monospace; font-size: 11px; height: 20px;">
+    <div class="memory-address-controls">
+        <label for="memory-start-address">Start:</label>
+        <input type="text" id="memory-start-address" value="0x00000" placeholder="0x00000">
+        <label for="symbol-select">Symbol:</label>
+        <select id="symbol-select" size="1">
             <option value="">-- Select Symbol --</option>
         </select>
     </div>
     
     <!-- Vertical Divider -->
-    <div style="width: 1px; height: 20px; background: #3e3e42; flex-shrink: 0;"></div>
+    <div class="controls-divider"></div>
     
     <!-- Right: Segmented Navigation -->
-    <div class="segment-navigation" style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
-        <label style="color: #9cdcfe; font-size: 11px; white-space: nowrap; font-weight: bold;">CS::PC:</label>
-        <input type="text" id="cs-input" value="0x0000" placeholder="CS" style="width: 50px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; padding: 2px 4px; font-family: 'Courier New', monospace; font-size: 11px; height: 20px;">
-        <span style="color: #d4d4d4; font-size: 11px;">::</span>
-        <input type="text" id="pc-input" value="0x0000" placeholder="PC" style="width: 50px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; padding: 2px 4px; font-family: 'Courier New', monospace; font-size: 11px; height: 20px;">
-        <button id="goto-segment-btn" style="padding: 2px 8px; background: #0e639c; color: white; border: none; border-radius: 3px; cursor: pointer; font-family: 'Courier New', monospace; font-size: 11px; min-height: 20px;">Go to</button>
+    <div class="segment-navigation">
+        <label>CS::PC:</label>
+        <input type="text" id="cs-input" value="0x0000" placeholder="CS">
+        <span class="segment-divider">::</span>
+        <input type="text" id="pc-input" value="0x0000" placeholder="PC">
+        <button id="goto-segment-btn">Go to</button>
     </div>
 </div>
         <div id="memory-display" class="memory-display">
