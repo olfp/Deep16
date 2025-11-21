@@ -237,20 +237,18 @@ updateMemoryDisplay() {
         }
     }
 
-    // Reset the manual address change flag after processing
-    this.ui.manualAddressChange = false;
+    // DON'T reset manualAddressChange here - let it persist until the next manual change
+    // this.ui.manualAddressChange = false; // REMOVE THIS LINE
 
     this.renderMemoryDisplay();
     
-    console.log(`updateMemoryDisplay END: memoryStartAddress = ${this.ui.memoryStartAddress}`);
+    console.log(`updateMemoryDisplay END: memoryStartAddress = ${this.ui.memoryStartAddress}, manualAddressChange = ${this.ui.manualAddressChange}`);
     
     // Auto-scroll to the PC line if it's visible
     if (pcIsVisible) {
         this.scrollToPC();
     }
 }
-
-// In deep16_ui_memory.js - Replace the renderMemoryDisplay method:
 
 renderMemoryDisplay() {
     const memoryDisplay = document.getElementById('memory-display');
