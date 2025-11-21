@@ -122,13 +122,15 @@
     min-height: 0;
 }
 
+/* Add to memory.css */
 .memory-gap {
     text-align: center;
     color: #666;
     font-style: italic;
-    padding: 2px 0;
+    padding: 8px 0;
     border-bottom: 1px dashed #444;
-    margin: 4px 0;
+    margin: 8px 0;
+    background: #2a2a2a;
 }
 
 .memory-line {
