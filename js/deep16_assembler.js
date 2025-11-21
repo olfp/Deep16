@@ -377,25 +377,35 @@ isRegister(value) {
         throw new Error('ERD requires register operand');
     }
 
-    // NEW: Encode MVS instruction
-    encodeMVS(parts, address, lineNumber) {
-        if (parts.length >= 3) {
-            const rd = this.parseRegister(parts[1]);
-            const seg = parts[2].toUpperCase();
-            
-            const segMap = {
-                'CS': 0b00, 'DS': 0b01, 'SS': 0b10, 'ES': 0b11
-            };
-            
-            if (seg in segMap) {
-                // MVS: [111111110][d1][Rd4][seg2]
-                // d=0: Rd ← Sx (read from segment register)
-                return 0b1111111100000000 | (rd << 4) | segMap[seg];
-            }
-            throw new Error(`Invalid segment register: ${seg}`);
+// Update the encodeMVS method to handle both read and write operations:
+encodeMVS(parts, address, lineNumber) {
+    if (parts.length >= 3) {
+        // Check if first operand is a segment register (write operation)
+        const firstOperand = parts[1].toUpperCase();
+        const secondOperand = parts[2].toUpperCase();
+        
+        const segMap = {
+            'CS': 0b00, 'DS': 0b01, 'SS': 0b10, 'ES': 0b11
+        };
+        
+        if (firstOperand in segMap) {
+            // MVS Sx, Rd (write to segment register)
+            const seg = segMap[firstOperand];
+            const rd = this.parseRegister(parts[2]);
+            // MVS: [111111110][d=1][Rd4][seg2]
+            return 0b1111111101000000 | (rd << 4) | seg;
         }
-        throw new Error('MVS requires destination register and segment register');
+        else if (secondOperand in segMap) {
+            // MVS Rd, Sx (read from segment register)
+            const rd = this.parseRegister(parts[1]);
+            const seg = segMap[secondOperand];
+            // MVS: [111111110][d=0][Rd4][seg2]
+            return 0b1111111100000000 | (rd << 4) | seg;
+        }
+        throw new Error(`Invalid MVS operands: ${parts[1]}, ${parts[2]}`);
     }
+    throw new Error('MVS requires destination register and segment register');
+}
 
     // NEW: Encode SMV instruction
     encodeSMV(parts, address, lineNumber) {
@@ -427,6 +437,8 @@ encodeJML(parts, address, lineNumber) {
     }
     throw new Error('JML requires register operand (even register)');
 }
+
+// Replace the encodeMOV method with this version that calls existing encoding methods:
 encodeMOV(parts, address, lineNumber) {
     if (parts.length >= 3) {
         let rd, rs, imm;
@@ -440,7 +452,6 @@ encodeMOV(parts, address, lineNumber) {
             console.log("Detected MOV plus syntax");
             
             // Extract the register+immediate part using regex
-            // Look for patterns like: MOV R1 R2+3 or MOV R1 R2 + 3 (comma may be removed)
             const movMatch = joinedParts.match(/MOV\s+([A-Za-z0-9]+)\s+([A-Za-z0-9]+)\s*\+\s*(\d+)/);
             console.log(`MOV match:`, movMatch);
             
@@ -451,34 +462,90 @@ encodeMOV(parts, address, lineNumber) {
             rd = this.parseRegister(movMatch[1].trim());
             rs = this.parseRegister(movMatch[2].trim());
             imm = this.parseImmediate(movMatch[3].trim());
+            
+            // Handle regular MOV with offset
+            console.log(`MOV parsed: rd=${rd}, rs=${rs}, imm=${imm}`);
+            
+            if (imm < 0 || imm > 3) {
+                throw new Error(`MOV immediate ${imm} out of range (0-3)`);
+            }
+            
+            // Regular MOV encoding: [111110][Rd4][Rs4][imm2]
+            return 0b1111100000000000 | (rd << 6) | (rs << 2) | imm;
         } 
         // Original syntax: MOV R1, R2 or MOV R1, R2, 3
         else if (parts.length >= 3) {
             console.log("Detected original MOV syntax");
             rd = this.parseRegister(parts[1]);
-            rs = this.parseRegister(parts[2]);
             
-            if (parts.length >= 4) {
-                imm = this.parseImmediate(parts[3]);
-            } else {
-                imm = 0; // Default immediate is 0 if not specified
+            // Check if second operand is a segment register or special register
+            const secondOperand = parts[2].toUpperCase();
+            
+            // Handle MOV between segment registers and general registers
+            if (this.isSegmentRegister(secondOperand)) {
+                // MOV Rd, Sx -> MVS Rd, Sx (read from segment register)
+                console.log(`Detected MOV from segment register: ${secondOperand}`);
+                return this.encodeMVS([null, parts[1], parts[2]], address, lineNumber);
+            }
+            else if (this.isSpecialRegister(secondOperand)) {
+                // MOV Rd, special -> SMV Rd, special
+                console.log(`Detected MOV from special register: ${secondOperand}`);
+                return this.encodeSMV([null, parts[1], parts[2]], address, lineNumber);
+            }
+            else {
+                // Regular register to register move
+                rs = this.parseRegister(parts[2]);
+                
+                if (parts.length >= 4) {
+                    imm = this.parseImmediate(parts[3]);
+                } else {
+                    imm = 0; // Default immediate is 0 if not specified
+                }
+                
+                console.log(`MOV parsed: rd=${rd}, rs=${rs}, imm=${imm}`);
+                
+                if (imm < 0 || imm > 3) {
+                    throw new Error(`MOV immediate ${imm} out of range (0-3)`);
+                }
+                
+                // Regular MOV encoding: [111110][Rd4][Rs4][imm2]
+                return 0b1111100000000000 | (rd << 6) | (rs << 2) | imm;
             }
         }
         else {
             throw new Error('MOV requires destination register and source register');
         }
-        
-        console.log(`MOV parsed: rd=${rd}, rs=${rs}, imm=${imm}`);
-        
-        if (imm < 0 || imm > 3) {
-            throw new Error(`MOV immediate ${imm} out of range (0-3)`);
-        }
-        
-        // Correct encoding: [111110][Rd4][Rs4][imm2]
-        // Bits: 15-10: opcode, 9-6: Rd, 5-2: Rs, 1-0: imm
-        return 0b1111100000000000 | (rd << 6) | (rs << 2) | imm;
     }
+    
+    // Handle MOV with segment register as destination
+    if (parts.length >= 3) {
+        const firstOperand = parts[1].toUpperCase();
+        
+        if (this.isSegmentRegister(firstOperand)) {
+            // MOV Sx, Rd -> MVS Sx, Rd (write to segment register)
+            console.log(`Detected MOV to segment register: ${firstOperand}`);
+            // For MVS with write, we need to call encodeMVS with the right parameters
+            // But encodeMVS expects [MVS, Rd, seg] format, so we need to rearrange
+            const tempParts = ['MVS', parts[2], parts[1]]; // Swap operands for MVS encoding
+            return this.encodeMVS(tempParts, address, lineNumber);
+        }
+    }
+    
     throw new Error('MOV requires destination register and source register');
+}
+
+// Add these helper methods to the Deep16Assembler class:
+
+// Helper method to check if a string is a segment register
+isSegmentRegister(reg) {
+    const segRegs = ['CS', 'DS', 'SS', 'ES'];
+    return segRegs.includes(reg.toUpperCase());
+}
+
+// Helper method to check if a string is a special register
+isSpecialRegister(reg) {
+    const specialRegs = ['APC', 'APSW', 'PSW', 'ACS'];
+    return specialRegs.includes(reg.toUpperCase());
 }
     
     // NEW: Encode LDS/STS instructions
