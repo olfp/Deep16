@@ -39,6 +39,7 @@
                 <button class="tab-button active" data-tab="editor">Editor</button>
                 <button class="tab-button" data-tab="errors">Errors</button>
                 <button class="tab-button" data-tab="listing">Listing</button>
+                <button class="tab-button" data-tab="screen">Screen</button>                 
             </div>
             
             <!-- Tier 3 & 4: Inside the Editor tab -->
@@ -125,6 +126,17 @@ data_area:
                     No assembly performed yet
                 </div>
             </div>
+            <div id="screen-tab" class="tab-content">
+                <div class="screen-tab">
+                    <div class="screen-display" id="screen-display">
+                        <!-- 80x25 character grid will be populated by JavaScript -->
+                    </div>
+                    <div class="screen-info">
+                        Memory: 0xF1000-0xF17CF (80×25 characters) | Lower byte = ASCII character
+                    </div>
+                </div>
+            </div>
+            
         </div>
     </div>
     
