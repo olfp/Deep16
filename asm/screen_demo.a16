@@ -10,13 +10,14 @@ main:
     
     ; Configure Extra Segment for I/O access
     ; Set ES = 0xF000 to access I/O segment (0xF0000-0xFFFFF)
-    LDI  0xF000      ; R0 = 0xF000 (ES value)
-    MOV  R1, R0      ; R1 = 0xF000 (preserve for MVS)
-    MVS  ES, R1      ; ES = 0xF000
+    ; 0xF000 is too large for LDI, so use bit manipulation:
+    LDI  0x0FFF      ; R0 = 0x0FFF
+    INV  R0          ; R0 = 0xF000 (invert all bits)
+    MVS  ES, R0      ; ES = 0xF000
     
     ; Configure dual registers for ES (ER=11, DE=1)
-    ERS  R11         ; Extra Register = R11
-    ERD  R11         ; Enable dual registers (R11+R10 use ES)
+    ; ERD R11 automatically sets the ER field to R11 and enables dual mode
+    ERD  R11         ; Extra Register = R11, enable dual (R11+R10 use ES)
     
     ; Now we can access screen memory at ES:0x1000 (physical 0xF1000)
     ; Clear screen (set all characters to space)
@@ -46,7 +47,6 @@ clear_loop:
     ADD  R11, R4     ; R11 = center position address
     
     ; Write characters using their ASCII codes
-    ; Each LDI loads into R0, then we move to a different register
     LDI  72          ; R0 = 'H' = 72
     ST   R0, R11, 0
     ADD  R11, 1
@@ -97,40 +97,6 @@ clear_loop:
     
     LDI  33          ; R0 = '!' = 33
     ST   R0, R11, 0
-
-    ; Alternative method using STS (explicit segment store)
-    ; Write "SCREEN!" below the first message
-    MOV  R11, R10    ; R11 = screen base
-    LDI  1074        ; R0 = row 13, col 34 (13*80 + 34 = 1074)
-    MOV  R4, R0      ; R4 = second line offset
-    ADD  R11, R4     ; R11 = second line position
-    
-    LDI  83          ; R0 = 'S' = 83
-    STS  R0, ES, R11 ; Store to ES:R11 explicitly
-    ADD  R11, 1
-    
-    LDI  67          ; R0 = 'C' = 67
-    STS  R0, ES, R11
-    ADD  R11, 1
-    
-    LDI  82          ; R0 = 'R' = 82
-    STS  R0, ES, R11
-    ADD  R11, 1
-    
-    LDI  69          ; R0 = 'E' = 69
-    STS  R0, ES, R11
-    ADD  R11, 1
-    
-    LDI  69          ; R0 = 'E' = 69
-    STS  R0, ES, R11
-    ADD  R11, 1
-    
-    LDI  78          ; R0 = 'N' = 78
-    STS  R0, ES, R11
-    ADD  R11, 1
-    
-    LDI  33          ; R0 = '!' = 33
-    STS  R0, ES, R11
 
     HALT
 
