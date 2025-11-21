@@ -1,0 +1,99 @@
+/* screen.css - Retro terminal display styles */
+.screen-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #000000;
+    padding: 10px;
+    overflow: auto;
+}
+
+.screen-display {
+    background: #000000;
+    border: 3px solid #3e3e42;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 0 auto;
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    line-height: 1.2;
+    color: #ffffff;
+    min-width: min-content;
+}
+
+.screen-row {
+    display: flex;
+    white-space: nowrap;
+    height: 19px;
+}
+
+.screen-char {
+    width: 12px;
+    height: 19px;
+    display: inline-block;
+    text-align: center;
+    font-weight: bold;
+    background: #000000;
+    color: #ffffff;
+    border: none;
+    outline: none;
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+}
+
+.screen-char:hover {
+    background: #1a1a1a;
+}
+
+.screen-char:focus {
+    background: #2a2a2a;
+    outline: 1px solid #00ff00;
+}
+
+.screen-controls {
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+    background: #2d2d30;
+    border-top: 1px solid #3e3e42;
+    align-items: center;
+    justify-content: center;
+}
+
+.screen-info {
+    color: #6a9955;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    text-align: center;
+    margin-top: 10px;
+}
+
+/* Retro scanline effect */
+.screen-display::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        to bottom,
+        transparent 50%,
+        rgba(0, 255, 0, 0.02) 50%
+    );
+    background-size: 100% 4px;
+    pointer-events: none;
+    border-radius: 2px;
+}
+
+/* Glow effect */
+@keyframes screen-glow {
+    0% { box-shadow: 0 0 5px rgba(0, 255, 0, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(0, 255, 0, 0.6); }
+    100% { box-shadow: 0 0 5px rgba(0, 255, 0, 0.3); }
+}
+
+.screen-display.active {
+    animation: screen-glow 3s ease-in-out infinite;
+}
