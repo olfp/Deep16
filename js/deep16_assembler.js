@@ -5,6 +5,7 @@ class Deep16Assembler {
         this.symbols = {};
     }
 
+// In the assemble method, add .text handling
 assemble(source) {
     this.labels = {};
     this.symbols = {};
@@ -12,7 +13,7 @@ assemble(source) {
     const memoryChanges = [];
     const assemblyListing = [];
     const segmentMap = new Map();
-    let currentSegment = 'code'; // Default segment
+    let currentSegment = 'code';
     let address = 0;
 
     console.log('=== ASSEMBLER FIRST PASS ===');
@@ -50,6 +51,20 @@ assemble(source) {
                     console.log(`  DATA WORD: 0x${address.toString(16)} = 0x${value.toString(16)}`);
                     address++;
                 }
+            } else if (line.startsWith('.text')) {
+                // NEW: .text directive for null-terminated strings
+                const textContent = line.substring(5).trim();
+                const stringValue = this.parseStringLiteral(textContent);
+                console.log(`TEXT: "${stringValue}" -> ${stringValue.length + 1} words at 0x${address.toString(16)}`);
+                for (let j = 0; j < stringValue.length; j++) {
+                    segmentMap.set(address, 'data');
+                    console.log(`  TEXT CHAR: 0x${address.toString(16)} = '${stringValue[j]}' (${stringValue.charCodeAt(j)})`);
+                    address++;
+                }
+                // Add null terminator
+                segmentMap.set(address, 'data');
+                console.log(`  TEXT NULL: 0x${address.toString(16)} = 0`);
+                address++;
             } else if (!this.isDirective(line)) {
                 segmentMap.set(address, currentSegment);
                 console.log(`CODE: ${line} -> instruction at 0x${address.toString(16)}, segment=${currentSegment}`);
@@ -60,8 +75,7 @@ assemble(source) {
         }
     }
 
-    console.log('=== ASSEMBLER SECOND PASS ===');
-    // Second pass: generate machine code
+    // Second pass (similar updates for .text)
     address = 0;
     currentSegment = 'code';
     
@@ -79,18 +93,14 @@ assemble(source) {
                 const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
                 address = orgValue;
                 assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
-                console.log(`ORG (pass2): setting address to 0x${address.toString(16)}`);
             } else if (line.startsWith('.code')) {
                 currentSegment = 'code';
                 assemblyListing.push({ line: originalLine, segment: currentSegment });
-                console.log(`SEGMENT (pass2): switching to code`);
             } else if (line.startsWith('.data')) {
                 currentSegment = 'data';
                 assemblyListing.push({ line: originalLine, segment: currentSegment });
-                console.log(`SEGMENT (pass2): switching to data`);
             } else if (line.endsWith(':')) {
                 assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
-                console.log(`LABEL (pass2): ${line} at 0x${address.toString(16)}`);
             } else if (line.startsWith('.word')) {
                 const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
                 console.log(`DATA (pass2): ${values.length} words at 0x${address.toString(16)}`);
@@ -105,6 +115,33 @@ assemble(source) {
                     console.log(`  DATA STORE: memory[0x${address.toString(16)}] = 0x${value.toString(16)}`);
                     address++;
                 }
+            } else if (line.startsWith('.text')) {
+                // NEW: .text directive processing in second pass
+                const textContent = line.substring(5).trim();
+                const stringValue = this.parseStringLiteral(textContent);
+                console.log(`TEXT (pass2): "${stringValue}" at 0x${address.toString(16)}`);
+                for (let j = 0; j < stringValue.length; j++) {
+                    const charCode = stringValue.charCodeAt(j);
+                    memoryChanges.push({ address: address, value: charCode & 0xFFFF, segment: 'data' });
+                    assemblyListing.push({ 
+                        address: address, 
+                        instruction: charCode,
+                        line: originalLine,
+                        segment: 'data'
+                    });
+                    console.log(`  TEXT STORE: memory[0x${address.toString(16)}] = '${stringValue[j]}' (0x${charCode.toString(16)})`);
+                    address++;
+                }
+                // Store null terminator
+                memoryChanges.push({ address: address, value: 0, segment: 'data' });
+                assemblyListing.push({ 
+                    address: address, 
+                    instruction: 0,
+                    line: originalLine,
+                    segment: 'data'
+                });
+                console.log(`  TEXT NULL: memory[0x${address.toString(16)}] = 0`);
+                address++;
             } else {
                 const instruction = this.encodeInstruction(line, address, i + 1);
                 if (instruction !== null) {
@@ -134,17 +171,6 @@ assemble(source) {
         }
     }
 
-    console.log('=== ASSEMBLER FINAL RESULTS ===');
-    console.log('Segment map entries:');
-    const sortedSegmentEntries = Array.from(segmentMap.entries()).sort((a, b) => a[0] - b[0]);
-    for (const [addr, segment] of sortedSegmentEntries) {
-        console.log(`  0x${addr.toString(16).padStart(4, '0')}: ${segment}`);
-    }
-    
-    console.log('Symbols:', this.symbols);
-    console.log('Memory changes:', memoryChanges.length);
-    console.log('Errors:', errors.length);
-
     return {
         success: errors.length === 0,
         memoryChanges: memoryChanges,
@@ -155,10 +181,11 @@ assemble(source) {
     };
 }
 
-    isDirective(line) {
-        return line.startsWith('.org') || line.startsWith('.word');
-    }
-
+isDirective(line) {
+    return line.startsWith('.org') || 
+           line.startsWith('.word') || 
+           line.startsWith('.text'); 
+}
     parseRegister(reg) {
         if (typeof reg !== 'string') {
             throw new Error(`Invalid register: ${reg}`);
@@ -185,26 +212,89 @@ assemble(source) {
         throw new Error(`Invalid register: ${reg}`);
     }
 
-
-
-    parseImmediate(value) {
-        if (typeof value !== 'string') {
-            throw new Error(`Invalid immediate value: ${value}`);
-        }
+// NEW: Parse string literals for .text directive
+parseStringLiteral(text) {
+    if (!text.startsWith('"') || !text.endsWith('"')) {
+        throw new Error('String literal must be enclosed in double quotes');
+    }
+    
+    const content = text.substring(1, text.length - 1);
+    let result = '';
+    let i = 0;
+    
+    while (i < content.length) {
+        const currentChar = content[i];
         
-        const trimmed = value.trim();
-        if (trimmed.startsWith('0x')) {
-            return parseInt(trimmed.substring(2), 16);
-        } else if (trimmed.startsWith('$')) {
-            return parseInt(trimmed.substring(1), 16);
-        } else {
-            const num = parseInt(trimmed);
-            if (isNaN(num)) {
-                throw new Error(`Invalid immediate value: ${value}`);
+        if (currentChar === '\\') {
+            // Escape sequence
+            if (i + 1 >= content.length) {
+                throw new Error('Incomplete escape sequence');
             }
-            return num;
+            
+            const nextChar = content[i + 1];
+            switch (nextChar) {
+                case 'n': result += '\n'; break;
+                case 'r': result += '\r'; break;
+                case 't': result += '\t'; break;
+                case '0': result += '\0'; break;
+                case '\\': result += '\\'; break;
+                case '"': result += '"'; break;
+                default: throw new Error(`Unknown escape sequence: \\${nextChar}`);
+            }
+            i += 2;
+        } else {
+            // Regular character
+            result += currentChar;
+            i += 1;
         }
     }
+    
+    return result;
+}
+
+parseImmediate(value) {
+    if (typeof value !== 'string') {
+        throw new Error(`Invalid immediate value: ${value}`);
+    }
+    
+    const trimmed = value.trim();
+    
+    // NEW: Character constants - single quoted characters
+    if (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length === 3) {
+        const char = trimmed.charAt(1);
+        const charCode = char.charCodeAt(0);
+        console.log(`Character constant: '${char}' = ${charCode} (0x${charCode.toString(16)})`);
+        return charCode;
+    }
+    
+    // NEW: Special character constants
+    const specialChars = {
+        '\\n': 10,    // Newline
+        '\\r': 13,    // Carriage return  
+        '\\t': 9,     // Tab
+        '\\0': 0,     // Null
+        '\\\\': 92,   // Backslash
+        '\\\'': 39,   // Single quote
+    };
+    
+    if (trimmed in specialChars) {
+        console.log(`Special character: ${trimmed} = ${specialChars[trimmed]}`);
+        return specialChars[trimmed];
+    }
+    
+    // Existing hex and decimal parsing
+    if (trimmed.startsWith('0x')) {
+        return parseInt(trimmed.substring(2), 16);
+    } else if (trimmed.startsWith('$')) {
+        return parseInt(trimmed.substring(1), 16);
+    } else {
+        const num = parseInt(trimmed);
+        if (isNaN(num)) {
+            throw new Error(`Invalid immediate value: ${value}`);
+        }
+        return num;
+    }
+}
 
 isRegister(value) {
     if (typeof value !== 'string') return false;
