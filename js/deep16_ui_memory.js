@@ -121,7 +121,7 @@ createMemoryLine(address) {
     }
 }
 
-    // In deep16_ui_memory.js - Add this method:
+// In deep16_ui_memory.js - Enhance scrollToAddress method:
 scrollToAddress(address) {
     const memoryDisplay = document.getElementById('memory-display');
     if (!memoryDisplay) return;
@@ -154,13 +154,21 @@ scrollToAddress(address) {
     }
     
     if (targetLine) {
-        targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Scroll to the target line, positioning it in the middle of the view
+        targetLine.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center'  // Changed from 'center' to ensure visibility
+        });
         
         // Add highlight animation
         targetLine.style.animation = 'pulse-highlight 1s ease-in-out';
         setTimeout(() => {
             targetLine.style.animation = '';
         }, 1000);
+        
+        console.log(`Scrolled to address 0x${address.toString(16)}`);
+    } else {
+        console.log(`Address 0x${address.toString(16)} not found in current display`);
     }
 }
 
