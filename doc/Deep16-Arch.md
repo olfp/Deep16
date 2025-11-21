@@ -37,20 +37,9 @@ Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 | R14      | LR    | Link Register |
 | R15      | PC    | Program Counter |
 
-### 2.2 Special Registers
+### 2.2 Segment Registers (16-bit)
 
-**Table 2.2: Special Registers**
-
-| Register | Purpose | Bits |
-|----------|---------|------|
-| PSW      | Processor Status Word | 16 |
-| PC'      | Program Counter Shadow | 16 |
-| PSW'     | PSW Shadow | 16 |
-| CS'      | Code Segment Shadow | 16 |
-
-### 2.3 Segment Registers (16-bit)
-
-**Table 2.3: Segment Registers**
+**Table 2.2: Segment Registers**
 
 | Register | Code | Purpose |
 |----------|------|---------|
@@ -58,6 +47,17 @@ Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 | DS       | 01   | Data Segment |
 | SS       | 10   | Stack Segment |
 | ES       | 11   | Extra Segment |
+
+### 2.3 Special Registers
+
+**Table 2.3: Special Registers**
+
+| Register | Purpose | Bits |
+|----------|---------|------|
+| PSW      | Processor Status Word | 16 |
+| PC'      | Program Counter Shadow | 16 |
+| PSW'     | PSW Shadow | 16 |
+| CS'      | Code Segment Shadow | 16 |
 
 ### 2.4 Processor Status Word (PSW)
 
