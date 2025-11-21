@@ -126,6 +126,9 @@ else use_DS;                            // Default data segment
 - **Stack Segment**: SR and SR+1 both access SS when DS=1
 - **Extra Segment**: ER and ER+1 both access ES when DE=1
 
+**Effective Address Calculation**
+The explicit or implicit segment register is shifted left four places and added with the iffset given: (segment << 4) + offset
+
 **Benefits**:
 - **Large Address Space**: 2MB total (128KB per segment)
 - **Memory Protection**: Natural isolation between segments
