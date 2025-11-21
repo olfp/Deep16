@@ -553,8 +553,8 @@ class Deep16Simulator {
 
     executeMVS(instruction) {
         // MVS: [111111110][d1][Rd4][seg2]
-        const d = (instruction >>> 8) & 0x1;
-        const rd = (instruction >>> 4) & 0xF;
+        const d = (instruction >>> 6) & 0x1;
+        const rd = (instruction >>> 2) & 0xF;
         const seg = instruction & 0x3;
         
         const segNames = ['CS', 'DS', 'SS', 'ES'];
