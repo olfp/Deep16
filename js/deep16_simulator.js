@@ -1,27 +1,34 @@
 // Deep16 Simulator - Complete CPU Execution and State Management
 class Deep16Simulator {
-    constructor() {
-        this.memory = new Array(1048576).fill(0xFFFF); // 1MB memory
-        this.registers = new Array(16).fill(0);
-        this.segmentRegisters = { CS: 0, DS: 0, SS: 0, ES: 0 };
-        this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
-        this.psw = 0;
-        this.running = false;
-        this.lastOperationWasALU = false;
-        this.lastALUResult = 0;
-        
-        // Add ALU operations array for debugging
-        this.aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
-        this.shiftOps = ['SL', 'SLC', 'SR', 'SRC', 'SRA', 'SAC', 'ROR', 'ROC'];
-        this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
-        
-        // ENHANCED: Track recent memory accesses with base address and offset
-        this.recentMemoryAccess = null; // { address, baseAddress, offset, type }
+constructor() {
+    // Change memory to 2MB (2097152 words) to support 20-bit addressing
+    this.memory = new Array(2097152).fill(0xFFFF);
+    this.registers = new Array(16).fill(0);
+    this.segmentRegisters = { CS: 0, DS: 0, SS: 0, ES: 0 };
+    this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
+    this.psw = 0;
+    this.running = false;
+    this.lastOperationWasALU = false;
+    this.lastALUResult = 0;
+    
+    // Add ALU operations array for debugging
+    this.aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
+    this.shiftOps = ['SL', 'SLC', 'SR', 'SRC', 'SRA', 'SAC', 'ROR', 'ROC'];
+    this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
+    
+    // ENHANCED: Track recent memory accesses with segment information
+    this.recentMemoryAccess = null;
 
-        // Initialize registers
-        this.registers[13] = 0x7FFF; // SP
-        this.registers[15] = 0x0000; // PC
-    }
+    // Initialize registers
+    this.registers[13] = 0x7FFF; // SP
+    this.registers[15] = 0x0000; // PC
+    
+    // Initialize segment registers with reasonable defaults
+    this.segmentRegisters.CS = 0x0000; // Code at bottom of memory
+    this.segmentRegisters.DS = 0x1000; // Data segment  
+    this.segmentRegisters.SS = 0x8000; // Stack segment
+    this.segmentRegisters.ES = 0x2000; // Extra segment
+}
 
     loadProgram(memory) {
         // Copy program into memory, but keep the rest as 0xFFFF
@@ -159,46 +166,113 @@ class Deep16Simulator {
         console.log(`LDI complete: R0 = 0x${this.registers[0].toString(16).padStart(4, '0')}`);
     }
 
-    executeMemoryOp(instruction) {
-        // CORRECTED: Use the same bit extraction as the disassembler
-        // LD/ST format: [10][d1][Rd4][Rb4][offset5]
-        // Bits: 15-14: opcode=10, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
-        
-        const d = (instruction >>> 13) & 0x1;      // Bit 13
-        const rd = (instruction >>> 9) & 0xF;      // Bits 12-9  
-        const rb = (instruction >>> 5) & 0xF;      // Bits 8-5
-        const offset = instruction & 0x1F;         // Bits 4-0
+executeMemoryOp(instruction) {
+    // CORRECTED: Use the same bit extraction as the disassembler
+    // LD/ST format: [10][d1][Rd4][Rb4][offset5]
+    // Bits: 15-14: opcode=10, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
+    
+    const d = (instruction >>> 13) & 0x1;      // Bit 13
+    const rd = (instruction >>> 9) & 0xF;      // Bits 12-9  
+    const rb = (instruction >>> 5) & 0xF;      // Bits 8-5
+    const offset = instruction & 0x1F;         // Bits 4-0
 
-        const address = this.registers[rb] + offset;
+    // Calculate the effective address offset
+    const addressOffset = this.registers[rb] + offset;
+    
+    // Determine which segment register to use based on PSW configuration
+    let segmentRegister;
+    let segmentName;
+    
+    // Check if this is a stack access (uses SS segment)
+    const isStackAccess = this.isStackRegister(rb);
+    
+    // Check if this is an extra segment access (uses ES segment)  
+    const isExtraAccess = this.isExtraRegister(rb);
+    
+    if (isStackAccess) {
+        segmentRegister = this.segmentRegisters.SS;
+        segmentName = 'SS';
+    } else if (isExtraAccess) {
+        segmentRegister = this.segmentRegisters.ES;
+        segmentName = 'ES';
+    } else {
+        // Default to Data Segment
+        segmentRegister = this.segmentRegisters.DS;
+        segmentName = 'DS';
+    }
+    
+    // Calculate 20-bit physical address: (segment << 4) + offset
+    const physicalAddress = (segmentRegister << 4) + addressOffset;
+    
+    console.log(`MemoryOp: d=${d}, rd=${rd} (${this.getRegisterName(rd)}), rb=${rb} (${this.getRegisterName(rb)}), offset=${offset}`);
+    console.log(`MemoryOp: R${rb}=0x${this.registers[rb].toString(16)}, offset=0x${addressOffset.toString(16)}`);
+    console.log(`MemoryOp: Segment=${segmentName} (0x${segmentRegister.toString(16)}), Physical=0x${physicalAddress.toString(16)}`);
 
-        console.log(`MemoryOp: d=${d}, rd=${rd} (${this.getRegisterName(rd)}), rb=${rb} (${this.getRegisterName(rb)}), offset=${offset}`);
-        console.log(`MemoryOp: R${rb}=0x${this.registers[rb].toString(16)}, address=0x${address.toString(16)}`);
+    // ENHANCED: Track the memory access with segment information
+    this.recentMemoryAccess = {
+        address: physicalAddress,
+        baseAddress: this.registers[rb],
+        offset: offset,
+        segment: segmentName,
+        segmentValue: segmentRegister,
+        type: d === 0 ? 'LD' : 'ST',
+        accessedAt: Date.now()
+    };
+    
+    console.log(`Recent memory access: ${this.recentMemoryAccess.type} at ${segmentName}:0x${addressOffset.toString(16).padStart(4, '0')} (physical: 0x${physicalAddress.toString(16).padStart(5, '0')})`);
 
-        // ENHANCED: Track the memory access with base address and offset
-        this.recentMemoryAccess = {
-            address: address,
-            baseAddress: this.registers[rb],
-            offset: offset,
-            type: d === 0 ? 'LD' : 'ST',
-            accessedAt: Date.now()
-        };
-        
-        console.log(`Recent memory access: ${this.recentMemoryAccess.type} at 0x${address.toString(16).padStart(4, '0')} (base: 0x${this.recentMemoryAccess.baseAddress.toString(16).padStart(4, '0')} + ${offset})`);
-
-        if (d === 0) { // LD
-            if (address < this.memory.length) {
-                const value = this.memory[address];
-                this.registers[rd] = value;
-                console.log(`LD: ${this.getRegisterName(rd)} = memory[0x${address.toString(16).padStart(4, '0')}] = 0x${value.toString(16).padStart(4, '0')}`);
-            }
-        } else { // ST
-            if (address < this.memory.length) {
-                const value = this.registers[rd];
-                this.memory[address] = value;
-                console.log(`ST: memory[0x${address.toString(16).padStart(4, '0')}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
-            }
+    if (d === 0) { // LD
+        if (physicalAddress < this.memory.length) {
+            const value = this.memory[physicalAddress];
+            this.registers[rd] = value;
+            console.log(`LD: ${this.getRegisterName(rd)} = [${segmentName}:${this.getRegisterName(rb)}+${offset}] = 0x${value.toString(16).padStart(4, '0')}`);
+        } else {
+            console.warn(`LD: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
+        }
+    } else { // ST
+        if (physicalAddress < this.memory.length) {
+            const value = this.registers[rd];
+            this.memory[physicalAddress] = value;
+            console.log(`ST: [${segmentName}:${this.getRegisterName(rb)}+${offset}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
+        } else {
+            console.warn(`ST: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
         }
     }
+}
+
+// Helper method to determine if a register is used for stack access
+isStackRegister(registerIndex) {
+    // Get the current stack register selection from PSW bits 6-9
+    const srSelection = (this.psw >>> 6) & 0xF;
+    
+    // Check if dual stack registers are enabled (PSW bit 10)
+    const dualStack = (this.psw & (1 << 10)) !== 0;
+    
+    if (dualStack) {
+        // Dual mode: SR and SR+1 are stack registers
+        return registerIndex === srSelection || registerIndex === (srSelection + 1);
+    } else {
+        // Single mode: only SR is stack register
+        return registerIndex === srSelection;
+    }
+}
+
+// Helper method to determine if a register is used for extra segment access
+isExtraRegister(registerIndex) {
+    // Get the current extra register selection from PSW bits 11-14
+    const erSelection = (this.psw >>> 11) & 0xF;
+    
+    // Check if dual extra registers are enabled (PSW bit 15)
+    const dualExtra = (this.psw & (1 << 15)) !== 0;
+    
+    if (dualExtra) {
+        // Dual mode: ER and ER+1 are extra registers
+        return registerIndex === erSelection || registerIndex === (erSelection + 1);
+    } else {
+        // Single mode: only ER is extra register
+        return registerIndex === erSelection;
+    }
+}
 
     executeALUOp(instruction) {
         const aluOp = (instruction >>> 10) & 0x7;
@@ -704,7 +778,7 @@ class Deep16Simulator {
         return names[regIndex] || `R${regIndex}`;
     }
 
-    // ENHANCED: Method to get expanded memory view (32 words)
+// ENHANCED: Method to get expanded memory view with segment info
 getRecentMemoryView() {
     if (!this.recentMemoryAccess) {
         return null;
@@ -747,7 +821,12 @@ getRecentMemoryView() {
     return {
         baseAddress: startAddress,
         memoryWords: memoryView,
-        accessInfo: access
+        accessInfo: access,
+        segmentInfo: {
+            name: access.segment,
+            value: access.segmentValue,
+            physicalAddress: access.address
+        }
     };
 }
 
