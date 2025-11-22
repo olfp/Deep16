@@ -838,7 +838,7 @@ updateAssemblyListing() {
                 this.updateSymbolSelects(result.symbols);
                 this.addTranscriptEntry(`Found ${Object.keys(result.symbols).length} symbols`, "info");
                 
-                this.switchTab('listing');
+                this.switchTab('screen');
             } else {
                 const errorMsg = `Assembly failed with ${result.errors.length} error(s)`;
                 this.status("Assembly errors - see errors tab for details");
