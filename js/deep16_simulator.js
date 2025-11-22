@@ -1,8 +1,9 @@
 // Deep16 Simulator - Complete CPU Execution and State Management
 class Deep16Simulator {
 constructor() {
-    // Change memory to 2MB (2097152 words) to support 20-bit addressing
-    this.memory = new Array(2097152).fill(0xFFFF);
+    // CORRECTED: 2 megawords = 2^20 words = 1,048,576 words of 16-bit memory
+    // This equals 2MB × 2 bytes/word = 4MB physical memory
+    this.memory = new Array(1048576).fill(0xFFFF); // 1,048,576 words (2MW)
     this.registers = new Array(16).fill(0);
     this.segmentRegisters = { CS: 0, DS: 0, SS: 0, ES: 0 };
     this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
