@@ -1,0 +1,2 @@
+- Branch delay slot
+- Swi in assembler
