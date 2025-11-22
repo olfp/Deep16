@@ -104,6 +104,9 @@ class Deep16Simulator {
                         if ((instruction >>> 12) === 0b1110) {
                             console.log("Jump instruction");
                             this.executeJump(instruction, originalPC);
+                        } else if ((instruction >>> 11) === 0b11110) {
+                            console.log("LDS/STS instruction");
+                            this.executeLDSSTS(instruction);
                         } else if ((instruction >>> 10) === 0b111110) {
                             console.log("MOV instruction");
                             this.executeMOV(instruction);
@@ -113,15 +116,12 @@ class Deep16Simulator {
                         } else if ((instruction >>> 8) === 0b11111110) {
                             console.log("SOP instruction");
                             this.executeSOP(instruction);
-                        } else if ((instruction >>> 9) === 0b111111110) {
+                        } else if ((instruction >>> 7) === 0b111111110) {
                             console.log("MVS instruction");
                             this.executeMVS(instruction);
-                        } else if ((instruction >>> 10) === 0b1111111110) {
+                        } else if ((instruction >>> 6) === 0b1111111110) {
                             console.log("SMV instruction");
                             this.executeSMV(instruction);
-                        } else if ((instruction >>> 11) === 0b11110) {
-                            console.log("LDS/STS instruction");
-                            this.executeLDSSTS(instruction);
                         } else if ((instruction >>> 3) === 0b1111111111110) {
                             console.log("System instruction");
                             this.executeSystem(instruction);
