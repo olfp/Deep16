@@ -8,7 +8,7 @@
 Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 - **16-bit fixed-length instructions**
 - **16 general-purpose registers** + **shadow register views**
-- **Segmented memory addressing** (2MB physical address space)
+- **Segmented memory addressing** (1MW physical address space)
 - **3-stage pipeline** design
 - **Hardware-assisted interrupt handling**
 - **Complete word-based memory system**
