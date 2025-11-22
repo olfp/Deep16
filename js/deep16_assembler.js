@@ -432,7 +432,7 @@ isRegister(value) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
             // SRS: [11111110][1000][Rx4]
-            return 0b1111111010000000 | (rx << 4);
+            return 0b1111111010000000 | rx;
         }
         throw new Error('SRS requires register operand');
     }
@@ -442,7 +442,7 @@ isRegister(value) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
             // SRD: [11111110][1001][Rx4]
-            return 0b1111111010010000 | (rx << 4);
+            return 0b1111111010010000 | rx;
         }
         throw new Error('SRD requires register operand');
     }
@@ -452,7 +452,7 @@ isRegister(value) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
             // ERS: [11111110][1010][Rx4]
-            return 0b1111111010100000 | (rx << 4);
+            return 0b1111111010100000 | rx;
         }
         throw new Error('ERS requires register operand');
     }
@@ -462,7 +462,7 @@ isRegister(value) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
             // ERD: [11111110][1011][Rx4]
-            return 0b1111111010110000 | (rx << 4);
+            return 0b1111111010110000 | rx;
         }
         throw new Error('ERD requires register operand');
     }
