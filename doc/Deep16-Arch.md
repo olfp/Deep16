@@ -7,18 +7,22 @@
 
 Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 - **16-bit fixed-length instructions**
-- **16 general-purpose registers** + **shadow register views**
+- **16 general-purpose registers**
 - **Segmented memory addressing** (1MW physical address space)
-- **3-stage pipeline** design
+- **4 segment registers** fir code, data, stack and extra
+- **shadow register views** for interrupts
 - **Hardware-assisted interrupt handling**
 - **Complete word-based memory system**
+- **Extended addressing** 20 bit physical address space
 
 ### 1.1 Key Features
 - All instructions exactly 16 bits
-- 16 user-visible registers + PC/PSW/CS shadow views
+- 16 user-visible registers, PC ist R15
+- 4 segment registers, CS, DS, SS, ES
+- Processor status word (PSW) for flags and implicit segment selection
+- PC'/CS'/PSW' shadow views for interrupt handling
 - Compact encoding with variable-length opcodes
 - Enhanced memory addressing with stack/extra registers
-- Clean instruction encoding with no conflicts
 
 ---
 
