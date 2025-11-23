@@ -404,9 +404,10 @@ Bits: [1111111111110][ op3 ]
 | op3 | Mnemonic | Description | Pipeline Effect |
 |-----|----------|-------------|-----------------|
 | 000 | NOP | No operation | Full pipeline |
-| 001 | HLT | Halt processor | Pipeline freeze |
+| 001 | FSH | NO OPERATION | Pipeline flush |
 | 010 | SWI | Software interrupt | Pipeline flush + context switch |
 | 011 | RETI | Return from interrupt | Pipeline flush + context restore |
+| 111 | HLT | Halt processor | Pipeline freeze |
 
 ---
 
