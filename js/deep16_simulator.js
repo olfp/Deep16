@@ -1,35 +1,35 @@
 // Deep16 Simulator - Complete CPU Execution and State Management
 class Deep16Simulator {
-constructor() {
-    // CORRECTED: 2 megawords = 2^20 words = 1,048,576 words of 16-bit memory
-    // This equals 2MB × 2 bytes/word = 4MB physical memory
-    this.memory = new Array(1048576).fill(0xFFFF); // 1,048,576 words (2MW)
-    this.registers = new Array(16).fill(0);
-    this.segmentRegisters = { CS: 0, DS: 0, SS: 0, ES: 0 };
-    this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
-    this.psw = 0;
-    this.running = false;
-    this.lastOperationWasALU = false;
-    this.lastALUResult = 0;
-    
-    // Add ALU operations array for debugging
-    this.aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
-    this.shiftOps = ['SL', 'SLC', 'SR', 'SRC', 'SRA', 'SAC', 'ROR', 'ROC'];
-    this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
-    
-    // ENHANCED: Track recent memory accesses with segment information
-    this.recentMemoryAccess = null;
+    constructor() {
+        // CORRECTED: 2 megawords = 2^20 words = 1,048,576 words of 16-bit memory
+        // This equals 2MB × 2 bytes/word = 4MB physical memory
+        this.memory = new Array(1048576).fill(0xFFFF); // 1,048,576 words (2MW)
+        this.registers = new Array(16).fill(0);
+        this.segmentRegisters = { CS: 0, DS: 0, SS: 0, ES: 0 };
+        this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
+        this.psw = 0;
+        this.running = false;
+        this.lastOperationWasALU = false;
+        this.lastALUResult = 0;
+        
+        // Add ALU operations array for debugging
+        this.aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
+        this.shiftOps = ['SL', 'SLC', 'SR', 'SRC', 'SRA', 'SAC', 'ROR', 'ROC'];
+        this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
+        
+        // ENHANCED: Track recent memory accesses with segment information
+        this.recentMemoryAccess = null;
 
-    // Initialize registers
-    this.registers[13] = 0x7FFF; // SP
-    this.registers[15] = 0x0000; // PC
-    
-    // Initialize segment registers with reasonable defaults
-    this.segmentRegisters.CS = 0x0000; // Code at bottom of memory
-    this.segmentRegisters.DS = 0x1000; // Data segment  
-    this.segmentRegisters.SS = 0x8000; // Stack segment
-    this.segmentRegisters.ES = 0x2000; // Extra segment
-}
+        // Initialize registers
+        this.registers[13] = 0x7FFF; // SP
+        this.registers[15] = 0x0000; // PC
+        
+        // Initialize segment registers with reasonable defaults
+        this.segmentRegisters.CS = 0x0000; // Code at bottom of memory
+        this.segmentRegisters.DS = 0x1000; // Data segment  
+        this.segmentRegisters.SS = 0x8000; // Stack segment
+        this.segmentRegisters.ES = 0x2000; // Extra segment
+    }
 
     loadProgram(memory) {
         // Copy program into memory, but keep the rest as 0xFFFF
@@ -167,113 +167,113 @@ constructor() {
         console.log(`LDI complete: R0 = 0x${this.registers[0].toString(16).padStart(4, '0')}`);
     }
 
-executeMemoryOp(instruction) {
-    // CORRECTED: Use the same bit extraction as the disassembler
-    // LD/ST format: [10][d1][Rd4][Rb4][offset5]
-    // Bits: 15-14: opcode=10, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
-    
-    const d = (instruction >>> 13) & 0x1;      // Bit 13
-    const rd = (instruction >>> 9) & 0xF;      // Bits 12-9  
-    const rb = (instruction >>> 5) & 0xF;      // Bits 8-5
-    const offset = instruction & 0x1F;         // Bits 4-0
+    executeMemoryOp(instruction) {
+        // CORRECTED: Use the same bit extraction as the disassembler
+        // LD/ST format: [10][d1][Rd4][Rb4][offset5]
+        // Bits: 15-14: opcode=10, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
+        
+        const d = (instruction >>> 13) & 0x1;      // Bit 13
+        const rd = (instruction >>> 9) & 0xF;      // Bits 12-9  
+        const rb = (instruction >>> 5) & 0xF;      // Bits 8-5
+        const offset = instruction & 0x1F;         // Bits 4-0
 
-    // Calculate the effective address offset
-    const addressOffset = this.registers[rb] + offset;
-    
-    // Determine which segment register to use based on PSW configuration
-    let segmentRegister;
-    let segmentName;
-    
-    // Check if this is a stack access (uses SS segment)
-    const isStackAccess = this.isStackRegister(rb);
-    
-    // Check if this is an extra segment access (uses ES segment)  
-    const isExtraAccess = this.isExtraRegister(rb);
-    
-    if (isStackAccess) {
-        segmentRegister = this.segmentRegisters.SS;
-        segmentName = 'SS';
-    } else if (isExtraAccess) {
-        segmentRegister = this.segmentRegisters.ES;
-        segmentName = 'ES';
-    } else {
-        // Default to Data Segment
-        segmentRegister = this.segmentRegisters.DS;
-        segmentName = 'DS';
-    }
-    
-    // Calculate 20-bit physical address: (segment << 4) + offset
-    const physicalAddress = (segmentRegister << 4) + addressOffset;
-    
-    console.log(`MemoryOp: d=${d}, rd=${rd} (${this.getRegisterName(rd)}), rb=${rb} (${this.getRegisterName(rb)}), offset=${offset}`);
-    console.log(`MemoryOp: R${rb}=0x${this.registers[rb].toString(16)}, offset=0x${addressOffset.toString(16)}`);
-    console.log(`MemoryOp: Segment=${segmentName} (0x${segmentRegister.toString(16)}), Physical=0x${physicalAddress.toString(16)}`);
-
-    // ENHANCED: Track the memory access with segment information
-    this.recentMemoryAccess = {
-        address: physicalAddress,
-        baseAddress: this.registers[rb],
-        offset: offset,
-        segment: segmentName,
-        segmentValue: segmentRegister,
-        type: d === 0 ? 'LD' : 'ST',
-        accessedAt: Date.now()
-    };
-    
-    console.log(`Recent memory access: ${this.recentMemoryAccess.type} at ${segmentName}:0x${addressOffset.toString(16).padStart(4, '0')} (physical: 0x${physicalAddress.toString(16).padStart(5, '0')})`);
-
-    if (d === 0) { // LD
-        if (physicalAddress < this.memory.length) {
-            const value = this.memory[physicalAddress];
-            this.registers[rd] = value;
-            console.log(`LD: ${this.getRegisterName(rd)} = [${segmentName}:${this.getRegisterName(rb)}+${offset}] = 0x${value.toString(16).padStart(4, '0')}`);
+        // Calculate the effective address offset
+        const addressOffset = this.registers[rb] + offset;
+        
+        // Determine which segment register to use based on PSW configuration
+        let segmentRegister;
+        let segmentName;
+        
+        // Check if this is a stack access (uses SS segment)
+        const isStackAccess = this.isStackRegister(rb);
+        
+        // Check if this is an extra segment access (uses ES segment)  
+        const isExtraAccess = this.isExtraRegister(rb);
+        
+        if (isStackAccess) {
+            segmentRegister = this.segmentRegisters.SS;
+            segmentName = 'SS';
+        } else if (isExtraAccess) {
+            segmentRegister = this.segmentRegisters.ES;
+            segmentName = 'ES';
         } else {
-            console.warn(`LD: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
+            // Default to Data Segment
+            segmentRegister = this.segmentRegisters.DS;
+            segmentName = 'DS';
         }
-    } else { // ST
-        if (physicalAddress < this.memory.length) {
-            const value = this.registers[rd];
-            this.memory[physicalAddress] = value;
-            console.log(`ST: [${segmentName}:${this.getRegisterName(rb)}+${offset}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
+        
+        // Calculate 20-bit physical address: (segment << 4) + offset
+        const physicalAddress = (segmentRegister << 4) + addressOffset;
+        
+        console.log(`MemoryOp: d=${d}, rd=${rd} (${this.getRegisterName(rd)}), rb=${rb} (${this.getRegisterName(rb)}), offset=${offset}`);
+        console.log(`MemoryOp: R${rb}=0x${this.registers[rb].toString(16)}, offset=0x${addressOffset.toString(16)}`);
+        console.log(`MemoryOp: Segment=${segmentName} (0x${segmentRegister.toString(16)}), Physical=0x${physicalAddress.toString(16)}`);
+
+        // ENHANCED: Track the memory access with segment information
+        this.recentMemoryAccess = {
+            address: physicalAddress,
+            baseAddress: this.registers[rb],
+            offset: offset,
+            segment: segmentName,
+            segmentValue: segmentRegister,
+            type: d === 0 ? 'LD' : 'ST',
+            accessedAt: Date.now()
+        };
+        
+        console.log(`Recent memory access: ${this.recentMemoryAccess.type} at ${segmentName}:0x${addressOffset.toString(16).padStart(4, '0')} (physical: 0x${physicalAddress.toString(16).padStart(5, '0')})`);
+
+        if (d === 0) { // LD
+            if (physicalAddress < this.memory.length) {
+                const value = this.memory[physicalAddress];
+                this.registers[rd] = value;
+                console.log(`LD: ${this.getRegisterName(rd)} = [${segmentName}:${this.getRegisterName(rb)}+${offset}] = 0x${value.toString(16).padStart(4, '0')}`);
+            } else {
+                console.warn(`LD: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
+            }
+        } else { // ST
+            if (physicalAddress < this.memory.length) {
+                const value = this.registers[rd];
+                this.memory[physicalAddress] = value;
+                console.log(`ST: [${segmentName}:${this.getRegisterName(rb)}+${offset}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
+            } else {
+                console.warn(`ST: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
+            }
+        }
+    }
+
+    // Helper method to determine if a register is used for stack access
+    isStackRegister(registerIndex) {
+        // Get the current stack register selection from PSW bits 6-9
+        const srSelection = (this.psw >>> 6) & 0xF;
+        
+        // Check if dual stack registers are enabled (PSW bit 10)
+        const dualStack = (this.psw & (1 << 10)) !== 0;
+        
+        if (dualStack) {
+            // Dual mode: SR and SR+1 are stack registers
+            return registerIndex === srSelection || registerIndex === (srSelection + 1);
         } else {
-            console.warn(`ST: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
+            // Single mode: only SR is stack register
+            return registerIndex === srSelection;
         }
     }
-}
 
-// Helper method to determine if a register is used for stack access
-isStackRegister(registerIndex) {
-    // Get the current stack register selection from PSW bits 6-9
-    const srSelection = (this.psw >>> 6) & 0xF;
-    
-    // Check if dual stack registers are enabled (PSW bit 10)
-    const dualStack = (this.psw & (1 << 10)) !== 0;
-    
-    if (dualStack) {
-        // Dual mode: SR and SR+1 are stack registers
-        return registerIndex === srSelection || registerIndex === (srSelection + 1);
-    } else {
-        // Single mode: only SR is stack register
-        return registerIndex === srSelection;
+    // Helper method to determine if a register is used for extra segment access
+    isExtraRegister(registerIndex) {
+        // Get the current extra register selection from PSW bits 11-14
+        const erSelection = (this.psw >>> 11) & 0xF;
+        
+        // Check if dual extra registers are enabled (PSW bit 15)
+        const dualExtra = (this.psw & (1 << 15)) !== 0;
+        
+        if (dualExtra) {
+            // Dual mode: ER and ER+1 are extra registers
+            return registerIndex === erSelection || registerIndex === (erSelection + 1);
+        } else {
+            // Single mode: only ER is extra register
+            return registerIndex === erSelection;
+        }
     }
-}
-
-// Helper method to determine if a register is used for extra segment access
-isExtraRegister(registerIndex) {
-    // Get the current extra register selection from PSW bits 11-14
-    const erSelection = (this.psw >>> 11) & 0xF;
-    
-    // Check if dual extra registers are enabled (PSW bit 15)
-    const dualExtra = (this.psw & (1 << 15)) !== 0;
-    
-    if (dualExtra) {
-        // Dual mode: ER and ER+1 are extra registers
-        return registerIndex === erSelection || registerIndex === (erSelection + 1);
-    } else {
-        // Single mode: only ER is extra register
-        return registerIndex === erSelection;
-    }
-}
 
     executeALUOp(instruction) {
         const aluOp = (instruction >>> 10) & 0x7;
@@ -664,24 +664,60 @@ isExtraRegister(registerIndex) {
         
         const srcNames = ['APC', 'APSW', 'PSW', 'ACS'];
         
-        console.log(`SMV Execute: src=${srcNames[src2]}, rd=${this.getRegisterName(rd)}`);
+        console.log(`SMV Execute: src=${srcNames[src2]}, rd=${this.getRegisterName(rd)}, S-bit=${!!(this.psw & (1 << 5))}`);
+        
+        // Check S-bit to determine current context
+        const inShadowView = !!(this.psw & (1 << 5));
         
         switch (src2) {
-            case 0: // APC - Alternate PC
-                this.registers[rd] = this.shadowRegisters.PC;
+            case 0: // APC - Alternate PC (non-active context PC)
+                if (inShadowView) {
+                    // In shadow view: APC = normal context PC (current PC)
+                    this.registers[rd] = this.registers[15];
+                    console.log(`SMV: ${this.getRegisterName(rd)} = APC = PC(normal) = 0x${this.registers[rd].toString(16)}`);
+                } else {
+                    // In normal view: APC = shadow context PC (PC')
+                    this.registers[rd] = this.shadowRegisters.PC;
+                    console.log(`SMV: ${this.getRegisterName(rd)} = APC = PC'(shadow) = 0x${this.registers[rd].toString(16)}`);
+                }
                 break;
-            case 1: // APSW - Alternate PSW
-                this.registers[rd] = this.shadowRegisters.PSW;
+                
+            case 1: // APSW - Alternate PSW (non-active context PSW)
+                if (inShadowView) {
+                    // In shadow view: APSW = normal context PSW (current PSW)
+                    this.registers[rd] = this.psw;
+                    console.log(`SMV: ${this.getRegisterName(rd)} = APSW = PSW(normal) = 0x${this.registers[rd].toString(16)}`);
+                } else {
+                    // In normal view: APSW = shadow context PSW (PSW')
+                    this.registers[rd] = this.shadowRegisters.PSW;
+                    console.log(`SMV: ${this.getRegisterName(rd)} = APSW = PSW'(shadow) = 0x${this.registers[rd].toString(16)}`);
+                }
                 break;
-            case 2: // PSW - Current PSW
-                this.registers[rd] = this.psw;
+                
+            case 2: // PSW - Current context PSW
+                if (inShadowView) {
+                    // In shadow view: PSW = PSW' (shadow PSW)
+                    this.registers[rd] = this.shadowRegisters.PSW;
+                    console.log(`SMV: ${this.getRegisterName(rd)} = PSW = PSW'(shadow) = 0x${this.registers[rd].toString(16)}`);
+                } else {
+                    // In normal view: PSW = current PSW
+                    this.registers[rd] = this.psw;
+                    console.log(`SMV: ${this.getRegisterName(rd)} = PSW = PSW(normal) = 0x${this.registers[rd].toString(16)}`);
+                }
                 break;
-            case 3: // ACS - Alternate CS
-                this.registers[rd] = this.shadowRegisters.CS;
+                
+            case 3: // ACS - Alternate CS (non-active context CS)
+                if (inShadowView) {
+                    // In shadow view: ACS = normal context CS (current CS)
+                    this.registers[rd] = this.segmentRegisters.CS;
+                    console.log(`SMV: ${this.getRegisterName(rd)} = ACS = CS(normal) = 0x${this.registers[rd].toString(16)}`);
+                } else {
+                    // In normal view: ACS = shadow context CS (CS')
+                    this.registers[rd] = this.shadowRegisters.CS;
+                    console.log(`SMV: ${this.getRegisterName(rd)} = ACS = CS'(shadow) = 0x${this.registers[rd].toString(16)}`);
+                }
                 break;
         }
-        
-        console.log(`SMV: ${this.getRegisterName(rd)} = ${srcNames[src2]} (0x${this.registers[rd].toString(16)})`);
     }
 
     executeLDSSTS(instruction) {
@@ -713,7 +749,7 @@ isExtraRegister(registerIndex) {
     executeSystem(instruction) {
         const sysOp = instruction & 0x7;
         
-        console.log(`System Execute: op=${sysOp}`);
+        console.log(`System Execute: op=${sysOp}, PSW=0x${this.psw.toString(16)}, S-bit=${!!(this.psw & (1 << 5))}`);
         
         switch (sysOp) {
             case 0b000: // NOP
@@ -724,24 +760,105 @@ isExtraRegister(registerIndex) {
                 console.log("HLT: Processor halted");
                 break;
             case 0b010: // SWI - Software Interrupt
-                console.log("SWI: Software interrupt");
-                // Save current context to shadow registers
-                this.shadowRegisters.PC = this.registers[15];
-                this.shadowRegisters.PSW = this.psw;
-                this.shadowRegisters.CS = this.segmentRegisters.CS;
-                // Jump to interrupt vector (simplified)
-                this.registers[15] = 0x0020;
+                this.executeSWI();
                 break;
             case 0b011: // RETI - Return from Interrupt
-                console.log("RETI: Return from interrupt");
-                // Restore context from shadow registers
-                this.registers[15] = this.shadowRegisters.PC;
-                this.psw = this.shadowRegisters.PSW;
-                this.segmentRegisters.CS = this.shadowRegisters.CS;
+                this.executeRETI();
                 break;
             default:
                 console.warn(`Unknown system operation: ${sysOp}`);
         }
+    }
+
+    /**
+     * Execute Software Interrupt with proper context switching
+     */
+    executeSWI() {
+        console.log("SWI: Software interrupt - switching to shadow context");
+        
+        // Check if interrupts are enabled
+        if (!(this.psw & (1 << 4))) {
+            console.warn("SWI: Interrupts disabled, ignoring software interrupt");
+            return;
+        }
+        
+        // According to section 4: Only PSW is copied to PSW'
+        this.shadowRegisters.PSW = this.psw;
+        
+        console.log(`SWI: PSW' = PSW = 0x${this.shadowRegisters.PSW.toString(16)}`);
+        
+        // Switch to shadow view: PSW.S ← 1, PSW.I ← 0
+        this.psw = (this.psw & ~(1 << 4)) | (1 << 5); // Clear I-bit, set S-bit
+        
+        // Interrupts run in Segment 0 with new PC
+        this.segmentRegisters.CS = 0x0000; // Interrupts run in Segment 0
+        this.registers[15] = 0x0004;      // SWI vector at offset 4
+        
+        console.log(`SWI: Jump to CS=0x${this.segmentRegisters.CS.toString(16)}, PC=0x${this.registers[15].toString(16)}, PSW=0x${this.psw.toString(16)}`);
+        console.log(`SWI: Now in shadow context - accessing PC', CS', PSW' views`);
+        
+        // In a pipelined implementation, this would flush the pipeline
+        this.flushPipeline();
+    }
+
+    /**
+     * Execute Return from Interrupt with context restoration
+     */
+    executeRETI() {
+        console.log("RETI: Return from interrupt - switching to normal context");
+        
+        // Simply switch back to normal view (clear S-bit)
+        // No register copying - pure view switching
+        this.psw = this.psw & ~(1 << 5); // Clear S-bit
+        
+        console.log(`RETI: Switched to normal context - accessing PC, CS, PSW views`);
+        console.log(`RETI: PSW=0x${this.psw.toString(16)}, PC=0x${this.registers[15].toString(16)}, CS=0x${this.segmentRegisters.CS.toString(16)}`);
+        
+        // In a pipelined implementation, this would flush the pipeline
+        this.flushPipeline();
+    }
+
+    /**
+     * Handle hardware interrupt with proper context switching
+     * @param {number} vector - Interrupt vector address
+     */
+    handleHardwareInterrupt(vector) {
+        // Check if interrupts are enabled and not already in interrupt context
+        if (!(this.psw & (1 << 4)) || (this.psw & (1 << 5))) {
+            console.log(`Hardware interrupt ignored: I=${!!(this.psw & (1 << 4))}, S=${!!(this.psw & (1 << 5))}`);
+            return false;
+        }
+        
+        console.log(`Hardware interrupt: vector=0x${vector.toString(16)}`);
+        
+        // According to section 4: Only PSW is copied to PSW'
+        this.shadowRegisters.PSW = this.psw;
+        
+        console.log(`Hardware interrupt: PSW' = PSW = 0x${this.shadowRegisters.PSW.toString(16)}`);
+        
+        // Switch to shadow view: PSW.S ← 1, PSW.I ← 0
+        this.psw = (this.psw & ~(1 << 4)) | (1 << 5); // Clear I-bit, set S-bit
+        
+        // Hardware interrupts run in Segment 0
+        this.segmentRegisters.CS = 0x0000; // Hardware interrupts run in segment 0
+        this.registers[15] = vector;
+        
+        console.log(`Hardware interrupt: Jump to CS=0x${this.segmentRegisters.CS.toString(16)}, PC=0x${this.registers[15].toString(16)}, PSW=0x${this.psw.toString(16)}`);
+        console.log(`Hardware interrupt: Now in shadow context - accessing PC', CS', PSW' views`);
+        
+        // In a pipelined implementation, this would flush the pipeline
+        this.flushPipeline();
+        
+        return true;
+    }
+
+    /**
+     * Simulate pipeline flush (for context switches)
+     */
+    flushPipeline() {
+        console.log("Pipeline flushed due to context switch");
+        // In a real implementation, this would clear pipeline stages
+        // For this simulator, we just log it since we're not modeling pipeline stages
     }
 
     updatePSWFlags() {
@@ -779,57 +896,57 @@ isExtraRegister(registerIndex) {
         return names[regIndex] || `R${regIndex}`;
     }
 
-// ENHANCED: Method to get expanded memory view with segment info
-getRecentMemoryView() {
-    if (!this.recentMemoryAccess) {
-        return null;
-    }
-    
-    const access = this.recentMemoryAccess;
-    
-    // RULE 2: If access is via LD/ST with non-zero offset, display from base address
-    let startAddress;
-    if (access.offset !== 0) {
-        startAddress = access.baseAddress;
-    } else {
-        // RULE 1: Otherwise, center on the accessed address
-        startAddress = Math.max(0, access.address - 8);
-    }
-    
-    // Ensure we show exactly 32 words (4 lines of 8)
-    startAddress = Math.max(0, startAddress);
-    startAddress = Math.min(startAddress, this.memory.length - 32);
-    
-    const memoryView = [];
-    
-    // Get 32 words (4 lines of 8)
-    for (let i = 0; i < 32; i++) {
-        const addr = startAddress + i;
-        if (addr < this.memory.length) {
-            const isCurrent = (addr === access.address);
-            const isBase = (access.offset !== 0 && addr === access.baseAddress);
-            
-            memoryView.push({
-                address: addr,
-                value: this.memory[addr],
-                isCurrent: isCurrent,
-                isBase: isBase,
-                isInRange: true
-            });
+    // ENHANCED: Method to get expanded memory view with segment info
+    getRecentMemoryView() {
+        if (!this.recentMemoryAccess) {
+            return null;
         }
-    }
-    
-    return {
-        baseAddress: startAddress,
-        memoryWords: memoryView,
-        accessInfo: access,
-        segmentInfo: {
-            name: access.segment,
-            value: access.segmentValue,
-            physicalAddress: access.address
+        
+        const access = this.recentMemoryAccess;
+        
+        // RULE 2: If access is via LD/ST with non-zero offset, display from base address
+        let startAddress;
+        if (access.offset !== 0) {
+            startAddress = access.baseAddress;
+        } else {
+            // RULE 1: Otherwise, center on the accessed address
+            startAddress = Math.max(0, access.address - 8);
         }
-    };
-}
+        
+        // Ensure we show exactly 32 words (4 lines of 8)
+        startAddress = Math.max(0, startAddress);
+        startAddress = Math.min(startAddress, this.memory.length - 32);
+        
+        const memoryView = [];
+        
+        // Get 32 words (4 lines of 8)
+        for (let i = 0; i < 32; i++) {
+            const addr = startAddress + i;
+            if (addr < this.memory.length) {
+                const isCurrent = (addr === access.address);
+                const isBase = (access.offset !== 0 && addr === access.baseAddress);
+                
+                memoryView.push({
+                    address: addr,
+                    value: this.memory[addr],
+                    isCurrent: isCurrent,
+                    isBase: isBase,
+                    isInRange: true
+                });
+            }
+        }
+        
+        return {
+            baseAddress: startAddress,
+            memoryWords: memoryView,
+            accessInfo: access,
+            segmentInfo: {
+                name: access.segment,
+                value: access.segmentValue,
+                physicalAddress: access.address
+            }
+        };
+    }
 
     // Optional: Only call this when you specifically want test data
     initializeTestMemory() {
@@ -841,5 +958,30 @@ getRecentMemoryView() {
         this.memory[0x0000] = 0x7FFF; // LDI 32767
         this.memory[0x0001] = 0x8010; // LD R1, [R0+0]
         this.memory[0x0002] = 0x3120; // ADD R1, R2
+    }
+
+    /**
+     * Method to check if we're in interrupt context
+     */
+    isInInterruptContext() {
+        return !!(this.psw & (1 << 5));
+    }
+
+    /**
+     * Method to get current context information for debugging
+     */
+    getContextInfo() {
+        const inShadowView = this.isInInterruptContext();
+        return {
+            view: inShadowView ? "Shadow" : "Normal",
+            S_bit: inShadowView,
+            I_bit: !!(this.psw & (1 << 4)),
+            PC: inShadowView ? this.shadowRegisters.PC : this.registers[15],
+            CS: inShadowView ? this.shadowRegisters.CS : this.segmentRegisters.CS,
+            PSW: inShadowView ? this.shadowRegisters.PSW : this.psw,
+            shadowPC: this.shadowRegisters.PC,
+            shadowCS: this.shadowRegisters.CS,
+            shadowPSW: this.shadowRegisters.PSW
+        };
     }
 }
