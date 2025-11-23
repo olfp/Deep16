@@ -1,3 +1,3 @@
-- Implement Branch delay slot
-- Implement SWI in assembler
-- Implement shadow regs correctly in sim (executeSystem(), RETI, ...
+- Test Branch delay slot
+- Test SWI in assembler
+- Test shadow regs correctly in sim (executeSystem(), RETI, ...
