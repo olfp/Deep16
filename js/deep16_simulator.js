@@ -1,4 +1,4 @@
-// Deep16 Simulator - Complete CPU Execution and State Management
+// Deep16 Simulator - Complete CPU Execution and State Management with Delay Slot
 class Deep16Simulator {
     constructor() {
         // CORRECTED: 2 megawords = 2^20 words = 1,048,576 words of 16-bit memory
@@ -11,6 +11,12 @@ class Deep16Simulator {
         this.running = false;
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
+        
+        // Delay slot implementation
+        this.delaySlotActive = false;
+        this.delayedPC = 0;
+        this.delayedCS = 0;
+        this.branchTaken = false;
         
         // Add ALU operations array for debugging
         this.aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
@@ -51,11 +57,37 @@ class Deep16Simulator {
         this.lastALUResult = 0;
         this.segmentRegisters = { CS: 0, DS: 0, SS: 0, ES: 0 };
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
+        
+        // Reset delay slot state
+        this.delaySlotActive = false;
+        this.delayedPC = 0;
+        this.delayedCS = 0;
+        this.branchTaken = false;
     }
 
     step() {
         if (!this.running) return false;
 
+        // Handle delay slot if active
+        if (this.delaySlotActive) {
+            console.log("=== DELAY SLOT EXECUTION ===");
+            this.delaySlotActive = false;
+            
+            // Execute the delay slot instruction
+            const delayInstruction = this.memory[this.registers[15]];
+            this.executeInstruction(delayInstruction, this.registers[15]);
+            
+            // Now apply the delayed branch
+            if (this.branchTaken) {
+                this.registers[15] = this.delayedPC;
+                this.segmentRegisters.CS = this.delayedCS;
+                console.log(`Delayed branch applied: PC=0x${this.registers[15].toString(16)}, CS=0x${this.segmentRegisters.CS.toString(16)}`);
+            }
+            
+            return true;
+        }
+
+        // Normal instruction execution
         const pc = this.registers[15];
         if (pc >= this.memory.length) {
             this.running = false;
@@ -85,17 +117,33 @@ class Deep16Simulator {
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
 
-        // Decode and execute instruction
+        // Execute instruction and check if it's a branch/jump
+        const isBranch = this.executeInstruction(instruction, originalPC);
+        
+        // Update PSW flags based on the last operation
+        this.updatePSWFlags();
+        
+        console.log(`After step: R0=0x${this.registers[0].toString(16).padStart(4, '0')}, PSW=0x${this.psw.toString(16).padStart(4, '0')}`);
+        
+        return true;
+    }
+
+    /**
+     * Execute instruction and return true if it's a branch/jump that uses delay slot
+     */
+    executeInstruction(instruction, originalPC) {
         try {
             // Check for LDI first (bit 15 = 0)
             if ((instruction & 0x8000) === 0) {
                 console.log("Detected LDI instruction (bit 15 = 0)");
                 this.executeLDI(instruction);
+                return false;
             }
             // Check for LD/ST (opcode bits 15-14 = 10)
             else if (((instruction >>> 14) & 0x3) === 0b10) {
                 console.log("Detected LD/ST instruction (opcode 10)");
                 this.executeMemoryOp(instruction);
+                return false;
             }
             else {
                 // Check 3-bit opcodes
@@ -105,40 +153,49 @@ class Deep16Simulator {
                 switch (opcode) {
                     case 0b110: // ALU2 (opcode bits 15-13 = 110)
                         console.log("ALU operation");
-                        this.executeALUOp(instruction); 
-                        break;
+                        this.executeALUOp(instruction);
+                        return false;
+                        
                     case 0b111: // Extended (opcode bits 15-13 = 111)
                         console.log("Control flow or extended opcode");
                         if ((instruction >>> 12) === 0b1110) {
                             console.log("Jump instruction");
-                            this.executeJump(instruction, originalPC);
+                            return this.executeJump(instruction, originalPC);
                         } else if ((instruction >>> 11) === 0b11110) {
                             console.log("LDS/STS instruction");
                             this.executeLDSSTS(instruction);
+                            return false;
                         } else if ((instruction >>> 10) === 0b111110) {
                             console.log("MOV instruction");
                             this.executeMOV(instruction);
+                            return false;
                         } else if ((instruction >>> 9) === 0b1111110) {
                             console.log("LSI instruction");
                             this.executeLSI(instruction);
+                            return false;
                         } else if ((instruction >>> 8) === 0b11111110) {
                             console.log("SOP instruction");
-                            this.executeSOP(instruction);
+                            return this.executeSOP(instruction);
                         } else if ((instruction >>> 7) === 0b111111110) {
                             console.log("MVS instruction");
                             this.executeMVS(instruction);
+                            return false;
                         } else if ((instruction >>> 6) === 0b1111111110) {
                             console.log("SMV instruction");
                             this.executeSMV(instruction);
+                            return false;
                         } else if ((instruction >>> 3) === 0b1111111111110) {
                             console.log("System instruction");
                             this.executeSystem(instruction);
+                            return false;
                         } else {
                             console.warn("Unknown extended opcode");
+                            return false;
                         }
-                        break;
+                        
                     default:
                         console.warn(`Unknown 3-bit opcode: ${opcode.toString(2).padStart(3, '0')}`);
+                        return false;
                 }
             }
         } catch (error) {
@@ -146,13 +203,6 @@ class Deep16Simulator {
             console.error('Execution error:', error);
             throw error;
         }
-
-        // Update PSW flags based on the last operation
-        this.updatePSWFlags();
-        
-        console.log(`After step: R0=0x${this.registers[0].toString(16).padStart(4, '0')}, PSW=0x${this.psw.toString(16).padStart(4, '0')}`);
-        
-        return true;
     }
 
     executeLDI(instruction) {
@@ -513,14 +563,22 @@ class Deep16Simulator {
         console.log(`Jump decision: ${shouldJump ? 'TAKEN' : 'NOT TAKEN'}`);
 
         if (shouldJump) {
-            // CORRECTED: Jump to = current instruction address + 1 + offset
-            // Since PC was already incremented, we need: (PC - 1) + 1 + offset = PC + offset
-            const newPC = this.registers[15] + offset;
-            this.registers[15] = newPC & 0xFFFF;
+            // Calculate target address but don't jump yet
+            const targetPC = this.registers[15] + offset;
             
-            console.log(`JUMP: PC = 0x${this.registers[15].toString(16).padStart(4, '0')} (offset=${offset})`);
-            console.log(`Jump from 0x${originalPC.toString(16)} to 0x${this.registers[15].toString(16)}`);
+            // Set up delay slot
+            this.delaySlotActive = true;
+            this.delayedPC = targetPC & 0xFFFF;
+            this.delayedCS = this.segmentRegisters.CS; // Same CS segment
+            this.branchTaken = true;
+            
+            console.log(`JUMP: Delay slot activated - will jump to 0x${this.delayedPC.toString(16)} after next instruction`);
+        } else {
+            // Branch not taken, no delay slot needed
+            this.branchTaken = false;
         }
+        
+        return true; // This is a branch instruction
     }
 
     executeSOP(instruction) {
@@ -536,72 +594,72 @@ class Deep16Simulator {
                 console.log(`SWB: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
                 this.lastALUResult = this.registers[rx];
                 this.lastOperationWasALU = true;
-                break;
+                return false;
                 
             case 0b0001: // INV - Invert bits
                 this.registers[rx] = ~this.registers[rx] & 0xFFFF;
                 console.log(`INV: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
                 this.lastALUResult = this.registers[rx];
                 this.lastOperationWasALU = true;
-                break;
+                return false;
                 
             case 0b0010: // NEG - Two's complement
                 this.registers[rx] = (~this.registers[rx] + 1) & 0xFFFF;
                 console.log(`NEG: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
                 this.lastALUResult = this.registers[rx];
                 this.lastOperationWasALU = true;
-                break;
+                return false;
                 
             case 0b0100: // JML - Jump Long
-                this.executeJML(rx);
-                break;
+                return this.executeJML(rx); // Now returns true
                 
             case 0b1000: // SRS - Stack Register Single
                 this.psw = (this.psw & ~0x03C0) | (rx << 6);
                 console.log(`SRS: Stack Register = R${rx}, PSW = 0x${this.psw.toString(16)}`);
-                break;
+                return false;
                 
             case 0b1001: // SRD - Stack Register Dual
                 this.psw = (this.psw & ~0x03C0) | (rx << 6) | 0x0400;
                 console.log(`SRD: Stack Register Dual = R${rx}, PSW = 0x${this.psw.toString(16)}`);
-                break;
+                return false;
                 
             case 0b1010: // ERS - Extra Register Single
                 this.psw = (this.psw & ~0x7800) | (rx << 11);
                 console.log(`ERS: Extra Register = R${rx}, PSW = 0x${this.psw.toString(16)}`);
-                break;
+                return false;
                 
             case 0b1011: // ERD - Extra Register Dual
                 this.psw = (this.psw & ~0x7800) | (rx << 11) | 0x8000;
                 console.log(`ERD: Extra Register Dual = R${rx}, PSW = 0x${this.psw.toString(16)}`);
-                break;
+                return false;
                 
             case 0b1100: // SET - Set PSW flags
                 const setFlags = instruction & 0xF;
                 this.psw |= setFlags;
                 console.log(`SET: PSW flags 0x${setFlags.toString(16)} set, PSW = 0x${this.psw.toString(16)}`);
-                break;
+                return false;
                 
             case 0b1101: // CLR - Clear PSW flags
                 const clrFlags = instruction & 0xF;
                 this.psw &= ~clrFlags;
                 console.log(`CLR: PSW flags 0x${clrFlags.toString(16)} cleared, PSW = 0x${this.psw.toString(16)}`);
-                break;
+                return false;
                 
             case 0b1110: // SET2 - Set upper PSW bits
                 const set2Flags = (instruction & 0xF) << 4;
                 this.psw |= set2Flags;
                 console.log(`SET2: PSW bits 0x${set2Flags.toString(16)} set, PSW = 0x${this.psw.toString(16)}`);
-                break;
+                return false;
                 
             case 0b1111: // CLR2 - Clear upper PSW bits
                 const clr2Flags = (instruction & 0xF) << 4;
                 this.psw &= ~clr2Flags;
                 console.log(`CLR2: PSW bits 0x${clr2Flags.toString(16)} cleared, PSW = 0x${this.psw.toString(16)}`);
-                break;
+                return false;
                 
             default:
                 console.warn(`Unimplemented SOP instruction: type4=${type4.toString(2)}`);
+                return false;
         }
     }
 
@@ -611,7 +669,7 @@ class Deep16Simulator {
         
         if (rx % 2 !== 0) {
             console.warn(`JML requires even register, got R${rx}`);
-            return;
+            return false;
         }
         
         const targetCS = this.registers[rx];
@@ -619,11 +677,15 @@ class Deep16Simulator {
         
         console.log(`JML Execute: R${rx}=0x${targetCS.toString(16)} (CS), R${rx+1}=0x${targetPC.toString(16)} (PC)`);
         
-        // Update segment and program counter
-        this.segmentRegisters.CS = targetCS;
-        this.registers[15] = targetPC;  // PC = targetPC
+        // Set up delay slot for JML
+        this.delaySlotActive = true;
+        this.delayedPC = targetPC & 0xFFFF;
+        this.delayedCS = targetCS & 0xFFFF;
+        this.branchTaken = true;
         
-        console.log(`JML: Jump to CS=0x${targetCS.toString(16)}, PC=0x${targetPC.toString(16)}`);
+        console.log(`JML: Delay slot activated - will jump to CS=0x${targetCS.toString(16)}, PC=0x${targetPC.toString(16)} after next instruction`);
+        
+        return true; // This is a branch instruction
     }
 
     executeMVS(instruction) {
