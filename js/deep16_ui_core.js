@@ -76,10 +76,11 @@ class DeepWebUI {
     }
 
     initializeWorkerToggle() {
-        if (!this.workerSupported) return;
-        
         const controlPanel = document.querySelector('.control-panel');
-        if (controlPanel) {
+        if (!controlPanel) return;
+        
+        // Add Worker toggle if supported
+        if (this.workerSupported) {
             const workerBtn = document.createElement('button');
             workerBtn.id = 'worker-btn';
             workerBtn.className = 'control-btn';
@@ -88,6 +89,7 @@ class DeepWebUI {
             controlPanel.appendChild(workerBtn);
         }
 
+        // Always add Turbo button (works with both JS and Worker)
         const turboBtn = document.createElement('button');
         turboBtn.id = 'turbo-btn';
         turboBtn.className = 'control-btn';
@@ -119,7 +121,8 @@ class DeepWebUI {
                 data: {
                     memory: this.simulator.memory,
                     registers: this.simulator.registers,
-                    psw: this.simulator.psw
+                    psw: this.simulator.psw,
+                    segmentRegisters: this.simulator.segmentRegisters
                 }
             });
         }
@@ -153,10 +156,14 @@ class DeepWebUI {
                 this.simulator.registers = data.registers;
                 this.simulator.psw = data.psw;
                 this.simulator.memory = data.memory;
+                this.simulator.segmentRegisters = data.segmentRegisters;
                 this.simulator.running = data.running;
                 
+                // Update screen in real-time during execution
+                this.screenUI.updateScreenDisplay();
+                
                 // Update UI less frequently for better performance
-                if (data.stepsExecuted > 0) {
+                if (data.stepsExecuted > 0 && data.stepsExecuted % 10 === 0) {
                     this.updateAllDisplays();
                 }
                 break;
@@ -165,6 +172,7 @@ class DeepWebUI {
                 this.simulator.registers = data.registers;
                 this.simulator.psw = data.psw;
                 this.simulator.memory = data.memory;
+                this.simulator.segmentRegisters = data.segmentRegisters;
                 this.simulator.running = data.running;
                 this.updateAllDisplays();
                 break;
@@ -173,8 +181,10 @@ class DeepWebUI {
                 this.simulator.registers = data.registers;
                 this.simulator.psw = data.psw;
                 this.simulator.memory = data.memory;
+                this.simulator.segmentRegisters = data.segmentRegisters;
                 this.simulator.running = false;
                 this.updateAllDisplays();
+                this.updateRunButton(false);
                 this.status("Program completed");
                 this.addTranscriptEntry("Program execution completed", "success");
                 break;
@@ -192,8 +202,25 @@ class DeepWebUI {
                 background-color: #ff9800 !important;
                 color: white !important;
             }
+            .stop-btn {
+                background-color: #f44336 !important;
+                color: white !important;
+            }
         `;
         document.head.appendChild(style);
+    }
+
+    updateRunButton(isRunning) {
+        const runBtn = document.getElementById('run-btn');
+        if (runBtn) {
+            if (isRunning) {
+                runBtn.textContent = 'Stop';
+                runBtn.classList.add('stop-btn');
+            } else {
+                runBtn.textContent = 'Run';
+                runBtn.classList.remove('stop-btn');
+            }
+        }
     }
 
     // Add new methods for file operations
@@ -1012,10 +1039,19 @@ class DeepWebUI {
     }
 
     run() {
+        if (this.useWorker && this.worker && this.workerSupported) {
+            this.workerRun();
+        } else {
+            this.jsRun();
+        }
+    }
+
+    workerRun() {
         if (!this.simulator.running) {
             this.simulator.running = true;
-            this.status("Running program...");
-            this.addTranscriptEntry("Starting program execution", "info");
+            this.status("Running program (Worker)...");
+            this.addTranscriptEntry("Starting worker execution", "info");
+            this.updateRunButton(true);
             
             if (this.useWorker && this.worker) {
                 // Use worker for execution
@@ -1071,6 +1107,7 @@ class DeepWebUI {
                 this.simulator.running = false;
                 this.status("Program halted");
                 this.addTranscriptEntry("Program halted after step", "info");
+                this.updateRunButton(false);
             } else {
                 this.addTranscriptEntry(`Step executed - PC=0x${this.simulator.registers[15].toString(16).padStart(4, '0')}`, "info");
             }
@@ -1092,6 +1129,7 @@ class DeepWebUI {
         this.simulator.reset();
         this.memoryStartAddress = 0;
         document.getElementById('memory-start-address').value = '0x0000';
+        this.updateRunButton(false);
         this.updateAllDisplays();
         this.status("Simulator reset");
         this.addTranscriptEntry("Simulator reset to initial state", "info");
