@@ -1039,6 +1039,11 @@ class DeepWebUI {
     }
 
     run() {
+        // Toggle Run/Stop
+        if (this.simulator.running) {
+            this.stop();
+            return;
+        }
         if (this.useWorker && this.worker && this.workerSupported) {
             this.workerRun();
         } else {
@@ -1047,47 +1052,61 @@ class DeepWebUI {
     }
 
     workerRun() {
-        if (!this.simulator.running) {
-            this.simulator.running = true;
-            this.status("Running program (Worker)...");
-            this.addTranscriptEntry("Starting worker execution", "info");
-            this.updateRunButton(true);
-            
-            if (this.useWorker && this.worker) {
-                // Use worker for execution
-                this.worker.postMessage({
-                    type: 'RUN'
-                });
-            } else {
-                // Use main thread with reduced interval
-                const runInterval = this.turboMode ? 1 : 10; // 1ms in turbo, 10ms normal
-                
-                this.runInterval = setInterval(() => {
-                    if (!this.simulator.running) {
-                        clearInterval(this.runInterval);
-                        this.status("Program halted");
-                        this.addTranscriptEntry("Program execution stopped", "info");
-                        this.updateAllDisplays();
-                        return;
-                    }
+        this.simulator.running = true;
+        this.status("Running program (Worker)...");
+        this.addTranscriptEntry("Starting worker execution", "info");
+        this.updateRunButton(true);
+        this.worker.postMessage({ type: 'RUN' });
+    }
 
-                    const stepsPerTick = this.turboMode ? 1000 : 50;
-                    let continueRunning = true;
-                    for (let i = 0; i < stepsPerTick && this.simulator.running; i++) {
-                        continueRunning = this.simulator.step();
-                        if (!continueRunning) break;
-                    }
+    jsRun() {
+        this.simulator.running = true;
+        this.status("Running program...");
+        this.addTranscriptEntry("Starting program execution", "info");
+        this.updateRunButton(true);
 
-                    if (!continueRunning) {
-                        clearInterval(this.runInterval);
-                        this.simulator.running = false;
-                        this.status("Program completed");
-                        this.addTranscriptEntry("Program execution completed", "success");
-                        this.updateAllDisplays();
-                    }
-                }, runInterval);
+        const runInterval = this.turboMode ? 1 : 10; // 1ms in turbo, 10ms normal
+        this.runInterval = setInterval(() => {
+            if (!this.simulator.running) {
+                clearInterval(this.runInterval);
+                this.status("Program halted");
+                this.addTranscriptEntry("Program execution stopped", "info");
+                this.updateAllDisplays();
+                this.updateRunButton(false);
+                return;
             }
+
+            const stepsPerTick = this.turboMode ? 1000 : 50;
+            let continueRunning = true;
+            for (let i = 0; i < stepsPerTick && this.simulator.running; i++) {
+                continueRunning = this.simulator.step();
+                if (!continueRunning) break;
+            }
+
+            if (!continueRunning) {
+                clearInterval(this.runInterval);
+                this.simulator.running = false;
+                this.status("Program completed");
+                this.addTranscriptEntry("Program execution completed", "success");
+                this.updateAllDisplays();
+                this.updateRunButton(false);
+            }
+        }, runInterval);
+    }
+
+    stop() {
+        if (this.useWorker && this.worker) {
+            this.worker.postMessage({ type: 'STOP' });
         }
+        if (this.runInterval) {
+            clearInterval(this.runInterval);
+            this.runInterval = null;
+        }
+        this.simulator.running = false;
+        this.status("Program halted");
+        this.addTranscriptEntry("Program execution stopped", "info");
+        this.updateAllDisplays();
+        this.updateRunButton(false);
     }
 
     step() {

@@ -20,6 +20,9 @@ self.addEventListener('message', function(e) {
             if (data.psw !== undefined) {
                 simulator.psw = data.psw;
             }
+            if (data.segmentRegisters) {
+                simulator.segmentRegisters = data.segmentRegisters;
+            }
             break;
             
         case 'LOAD_PROGRAM':
@@ -44,6 +47,7 @@ self.addEventListener('message', function(e) {
                         registers: [...simulator.registers],
                         psw: simulator.psw,
                         memory: simulator.memory,
+                        segmentRegisters: { ...simulator.segmentRegisters },
                         continueRunning: result,
                         running: simulator.running
                     }
@@ -107,7 +111,8 @@ self.postMessage({
             data: {
                 registers: [...simulator.registers],
                 psw: simulator.psw,
-                memory: simulator.memory
+                memory: simulator.memory,
+                segmentRegisters: { ...simulator.segmentRegisters }
             }
         });
     }
