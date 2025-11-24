@@ -165,7 +165,7 @@ ERD  R10         ; Use R10/R11 for ES access, sets DE=1 automatically
 
 ### 5.1 Universal MOV Instruction
 
-The `MOV` instruction automatically selects the appropriate encoding based on operands:
+The assembler automatically selects the appropriate encoding `MOV` instruction based on operands:
 
 | Operand Types | Actual Encoding | Description |
 |---------------|-----------------|-------------|
@@ -191,9 +191,15 @@ The `MOV` instruction automatically selects the appropriate encoding based on op
 
 **Correct usage example:**
 ```assembly
-LDI  0x0000      ; Base offset to R0 (LDI always loads R0)
-MOV  R10, R0     ; Copy to R10
-ERD  R10         ; Use R10/R11 for ES access, sets DE=1 automatically
+LDI  0x3000       ; Segment to R0 (LDI always loads R0)
+MOV  ES, R0       ; Copy to ES; ES now set up
+ERD  R10          ; Use R10/R11 for ES access, PSW.ER=10, PSW.DE=1
+LDI  0x4000       ; Load offset to R0
+MOV  R10, R0      ; In R10
+LDI  0x6000       ; Load another offset
+MOV  R11, R0      ; keep in R11
+LD   R2, [R10+21] ; loads from 0x3000::0x4000, i.e. 0x34000
+ST   R2, [R11+21] ; writes to 0x3000::0x6000, i.e. 0x36000
 ```
 
 ### 5.3 Single Operand ALU Operations
@@ -238,16 +244,16 @@ SMV R2, APC          ; Read alternate PC (interrupt return address) to R2
 
 | Instruction | Format | Encoding | Description |
 |-------------|---------|----------|-------------|
-| **JML** | `JML Rx` | `[11111110][0100][Rx4]` | Jump Long - CS=R[Rx+1], PC=R[Rx] |
+| **JML** | `JML Rx` | `[11111110][0100][Rx4]` | Jump Long - CS=Rx, PC=Rx+1 |
 
 **Usage Example:**
 ```assembly
 ; Set up far jump address
 LDI  0x1000      ; Target offset to R0
-MOV  R2, R0      ; Copy to R2
-LDI  0x0001      ; Target segment to R0  
 MOV  R3, R0      ; Copy to R3
-JML  R2          ; Jump to CS=R3=0x0001, PC=R2=0x1000
+LDI  0x0001      ; Target segment to R0  
+MOV  R2, R0      ; Copy to R2
+JML  R2          ; Jump to CS=R2=0x0001, PC=R3=0x1000
 ```
 
 ### 5.6 Explicit Segment Memory Operations
