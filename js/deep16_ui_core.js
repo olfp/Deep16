@@ -867,32 +867,37 @@ updateAssemblyListing() {
         this.screenUI.updateScreenDisplay();          
     }
 
-    run() {
-        if (!this.simulator.running) {
-            this.simulator.running = true;
-            this.status("Running program...");
-            this.addTranscriptEntry("Starting program execution", "info");
-            
-            this.runInterval = setInterval(() => {
-                if (!this.simulator.running) {
-                    clearInterval(this.runInterval);
-                    this.status("Program halted");
-                    this.addTranscriptEntry("Program execution stopped", "info");
-                    return;
-                }
-                
-                const continueRunning = this.simulator.step();
+run() {
+    if (!this.simulator.running) {
+        this.simulator.running = true;
+        this.status("Running program...");
+        this.addTranscriptEntry("Starting program execution", "info");
+        
+        this.runInterval = setInterval(() => {
+            if (!this.simulator.running) {
+                clearInterval(this.runInterval);
+                this.status("Program halted");
+                this.addTranscriptEntry("Program execution stopped", "info");
+                // UPDATE DISPLAYS ONLY WHEN HALTED
                 this.updateAllDisplays();
-                
-                if (!continueRunning) {
-                    clearInterval(this.runInterval);
-                    this.simulator.running = false;
-                    this.status("Program completed");
-                    this.addTranscriptEntry("Program execution completed", "success");
-                }
-            }, 100);
-        }
+                return;
+            }
+            
+            const continueRunning = this.simulator.step();
+            
+            // REMOVED: this.updateAllDisplays(); - No display updates during execution
+            
+            if (!continueRunning) {
+                clearInterval(this.runInterval);
+                this.simulator.running = false;
+                this.status("Program completed");
+                this.addTranscriptEntry("Program execution completed", "success");
+                // UPDATE DISPLAYS WHEN PROGRAM COMPLETES
+                this.updateAllDisplays();
+            }
+        }, 100);
     }
+}
 
     step() {
         if (!this.simulator.running) {
