@@ -32,16 +32,18 @@ clear_loop:
     
     ; Write string from .text section
     MOV  R11, R10
-    LDI  hello_msg   ; Get address of string
+    LDI  hello_msg
     MOV  R4, R0
     
 write_loop:
-    LD   R5, R4, 0   ; Load character
-    JZ   R5, done    ; Stop at null terminator
+    LD   R5, R4, 0
+    OR   R5, R5      
+    JZ   done        
     ST   R5, R11, 0  ; Write to screen
     ADD  R11, 1
     ADD  R4, 1
-    JMP  write_loop
+    CLRZ              
+    JNZ  write_loop  
     NOP               ; branch delay slot
     
 done:
@@ -50,12 +52,12 @@ done:
 ; Data section with strings
 .org 0x0200
 hello_msg:
-    .text "Hello, Deep16!"  ; NEW: Null-terminated string
+    .text "Hello, Deep16!"
 
 prompt_msg:  
-    .text "Enter name: "    ; Another string
+    .text "Enter name: "
 
 ; Individual character constants
 .org 0x0300
 chars:
-    .word 'A', 'B', 'C', '\n', '\0'  ; NEW: Character constants
+    .word 'A', 'B', 'C', \n, \0

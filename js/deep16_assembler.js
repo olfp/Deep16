@@ -212,25 +212,34 @@ isDirective(line) {
         throw new Error(`Invalid register: ${reg}`);
     }
 
-// NEW: Parse string literals for .text directive
 parseStringLiteral(text) {
-    if (!text.startsWith('"') || !text.endsWith('"')) {
+    const trimmed = text.trim();
+    if (!trimmed.startsWith('"')) {
         throw new Error('String literal must be enclosed in double quotes');
     }
-    
-    const content = text.substring(1, text.length - 1);
+
+    let endIdx = -1;
+    for (let i = 1; i < trimmed.length; i++) {
+        if (trimmed[i] === '"' && trimmed[i - 1] !== '\\') {
+            endIdx = i;
+            break;
+        }
+    }
+    if (endIdx === -1) {
+        throw new Error('String literal must be enclosed in double quotes');
+    }
+
+    const content = trimmed.substring(1, endIdx);
     let result = '';
     let i = 0;
-    
+
     while (i < content.length) {
         const currentChar = content[i];
-        
+
         if (currentChar === '\\') {
-            // Escape sequence
             if (i + 1 >= content.length) {
                 throw new Error('Incomplete escape sequence');
             }
-            
             const nextChar = content[i + 1];
             switch (nextChar) {
                 case 'n': result += '\n'; break;
@@ -243,21 +252,20 @@ parseStringLiteral(text) {
             }
             i += 2;
         } else {
-            // Regular character
             result += currentChar;
             i += 1;
         }
     }
-    
+
     return result;
 }
 
-parseImmediate(value) {
-    if (typeof value !== 'string') {
-        throw new Error(`Invalid immediate value: ${value}`);
-    }
-    
-    const trimmed = value.trim();
+    parseImmediate(value) {
+        if (typeof value !== 'string') {
+            throw new Error(`Invalid immediate value: ${value}`);
+        }
+        
+        const trimmed = value.trim();
     
     // NEW: Character constants - single quoted characters
     if (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length === 3) {
@@ -289,12 +297,19 @@ parseImmediate(value) {
         return parseInt(trimmed.substring(1), 16);
     } else {
         const num = parseInt(trimmed);
-        if (isNaN(num)) {
-            throw new Error(`Invalid immediate value: ${value}`);
+        if (!isNaN(num)) {
+            return num;
         }
-        return num;
+        // Label/symbol immediate support (second pass)
+        if (this.labels && this.labels[trimmed] !== undefined) {
+            return this.labels[trimmed];
+        }
+        if (this.symbols && this.symbols[trimmed] !== undefined) {
+            return this.symbols[trimmed];
+        }
+        throw new Error(`Invalid immediate value: ${value}`);
     }
-}
+    }
 
 isRegister(value) {
     if (typeof value !== 'string') return false;
