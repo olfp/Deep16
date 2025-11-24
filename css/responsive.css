@@ -103,8 +103,17 @@
         min-height: 32px;
         font-size: 12px;
         padding: 6px 10px;
+        background: #0e639c;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+        font-family: 'Courier New', monospace;
     }
+    .mobile-controls button:hover { background: #1177bb; }
+    .mobile-controls button:disabled { background: #555; cursor: not-allowed; }
 
+    .transcript-panel { display: none; }
     .memory-panel { display: none; }
 
     #machine-tab { display: none; }
@@ -113,6 +122,17 @@
     .memory-display { overflow-x: hidden; }
     .memory-source { white-space: normal; }
     .memory-disassembly { white-space: normal; }
+
+    .header .logo-container { display: none; }
+    .header .subtitle { display: none; }
+    .header { padding: 6px 12px; }
+    .header-text h1 { font-size: 16px; }
+
+    .editor-header { flex-direction: column; gap: 8px; align-items: stretch; }
+    .editor-controls-center { width: 100%; justify-content: space-between; }
+    .editor-controls-center label[for="example-select"] { display: none; }
+
+    #status-bar { display: none; }
 }
 
 @media (max-width: 480px) {
