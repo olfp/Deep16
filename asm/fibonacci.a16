@@ -25,6 +25,7 @@ fib_loop:
     
     SUB  R3, 1        ; decrement counter
     JNZ  fib_loop     ; loop if not zero
+    NOP               ; branch delay slot
     
     HALT
 
