@@ -2,8 +2,8 @@
 class DeepWebUI {
     constructor() {
         this.assembler = new Deep16Assembler();
-        this.disassembler = new Deep16Disassembler();
         this.simulator = new Deep16Simulator();
+        this.disassembler = new Deep16Disassembler();
         this.simulator.setUI(this);
         
         this.memoryStartAddress = 0;
