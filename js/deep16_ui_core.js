@@ -882,7 +882,7 @@ updateAssemblyListing() {
                 }
                 
                 const continueRunning = this.simulator.step();
-                // this.updateAllDisplays();
+                this.updateAllDisplays();
                 
                 if (!continueRunning) {
                     clearInterval(this.runInterval);
@@ -892,7 +892,6 @@ updateAssemblyListing() {
                 }
             }, 100);
         }
-        this.updateAllDisplays();
     }
 
     step() {
