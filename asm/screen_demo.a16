@@ -37,6 +37,7 @@ clear_loop:
     ADD  R11, 1      ; Next address
     SUB  R2, 1       ; Decrement counter
     JNZ  clear_loop  ; Continue until done
+    NOP              ; Branch delay slot
 
     ; Write "HELLO DEEP16!" to center of screen
     ; Center position: row 12, col 34 (12*80 + 34 = 994)
