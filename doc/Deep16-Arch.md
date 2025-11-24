@@ -1,4 +1,4 @@
-# Deep16 (深十六) Architecture Specification Milestone 1r19
+# Deep16 (深十六) Architecture Specification Milestone 1r20
 ## 16-bit RISC Processor with Enhanced Memory Addressing
 
 ---
@@ -28,6 +28,7 @@ Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 - **Word-only memory operations** (simplifies alignment)
 - **No memory protection** (keep it simple)
 - **Universal MOV instruction** with automatic encoding selection
+- **Enhanced assembler syntax** with bracket and plus notation
 
 ---
 
@@ -163,22 +164,58 @@ ERD  R10         ; Use R10/R11 for ES access, sets DE=1 automatically
 
 ## 5. Instruction Set Enhancements
 
-### 5.1 Universal MOV Instruction
+### 5.1 Enhanced Assembler Syntax
 
-The assembler automatically selects the appropriate encoding `MOV` instruction based on operands:
+The Deep16 assembler supports flexible syntax for memory operations and register moves:
+
+#### 5.1.1 LD/ST Bracket Syntax
+
+**Traditional Syntax:**
+```assembly
+LD   R1, R2, 5        ; Load from [R2+5] to R1
+ST   R1, R2, 5        ; Store R1 to [R2+5]
+```
+
+**Enhanced Bracket Syntax:**
+```assembly
+LD   R1, [R2+5]       ; Load from [R2+5] to R1
+LD   R1, [R2]         ; Load from [R2+0] to R1 (offset 0 implied)
+LD   R1, [R2 + 5]     ; Spaces allowed around +
+ST   R1, [SP-4]       ; Store to stack frame
+ST   R0, [FP+3]       ; Store to frame pointer with offset
+```
+
+#### 5.1.2 MOV Plus Syntax
+
+**Traditional Syntax:**
+```assembly
+MOV  R1, R2, 3        ; R1 ← R2 + 3
+```
+
+**Enhanced Plus Syntax:**
+```assembly
+MOV  R1, R2+3         ; R1 ← R2 + 3
+MOV  R1, R2 + 3       ; Spaces allowed around +
+MOV  R3, SP-4         ; Calculate stack-relative address
+```
+
+### 5.2 Universal MOV Instruction
+
+The `MOV` instruction automatically selects the appropriate encoding based on operands:
 
 | Operand Types | Actual Encoding | Description |
 |---------------|-----------------|-------------|
 | `MOV Rd, Rs` | MOV | Register-to-register move |
 | `MOV Rd, Rs, imm` | MOV | Register move with offset (0-3) |
+| `MOV Rd, Rs+imm` | MOV | Enhanced plus syntax |
 | `MOV Rd, Sx` | MVS Rd, Sx | Read from segment register |
 | `MOV Sx, Rd` | MVS Sx, Rd | Write to segment register |
 | `MOV Rd, PSW` | SMV Rd, PSW | Read from special register |
 | `MOV Rd, APC` | SMV Rd, APC | Read from alternate PC |
 
-### 5.2 PSW Segment Assignment Instructions
+### 5.3 PSW Segment Assignment Instructions
 
-**Table 5.2: PSW Segment Assignment Operations**
+**Table 5.3: PSW Segment Assignment Operations**
 
 | Instruction | Format | Encoding | Purpose |
 |-------------|---------|----------|---------|
@@ -191,20 +228,14 @@ The assembler automatically selects the appropriate encoding `MOV` instruction b
 
 **Correct usage example:**
 ```assembly
-LDI  0x3000       ; Segment to R0 (LDI always loads R0)
-MOV  ES, R0       ; Copy to ES; ES now set up
-ERD  R10          ; Use R10/R11 for ES access, PSW.ER=10, PSW.DE=1
-LDI  0x4000       ; Load offset to R0
-MOV  R10, R0      ; In R10
-LDI  0x6000       ; Load another offset
-MOV  R11, R0      ; keep in R11
-LD   R2, [R10+21] ; loads from 0x3000::0x4000, i.e. 0x34000
-ST   R2, [R11+21] ; writes to 0x3000::0x6000, i.e. 0x36000
+LDI  0x0000      ; Base offset to R0 (LDI always loads R0)
+MOV  R10, R0     ; Copy to R10
+ERD  R10         ; Use R10/R11 for ES access, sets DE=1 automatically
 ```
 
-### 5.3 Single Operand ALU Operations
+### 5.4 Single Operand ALU Operations
 
-**Table 5.3: Single Operand Instructions**
+**Table 5.4: Single Operand Instructions**
 
 | Instruction | Format | Encoding | Description |
 |-------------|---------|----------|-------------|
@@ -221,9 +252,9 @@ INV  R1          ; R1 = 0xCBED
 NEG  R1          ; R1 = 0x3413 (two's complement)
 ```
 
-### 5.4 Special Move Operations
+### 5.5 Special Move Operations
 
-**Table 5.4: SMV Instruction**
+**Table 5.5: SMV Instruction**
 
 | Instruction | Format | Encoding | Description |
 |-------------|---------|----------|-------------|
@@ -238,27 +269,27 @@ SMV R1, PSW          ; Read current PSW to R1
 SMV R2, APC          ; Read alternate PC (interrupt return address) to R2
 ```
 
-### 5.5 Long Jump Instruction
+### 5.6 Long Jump Instruction
 
-**Table 5.5: JML Instruction**
+**Table 5.6: JML Instruction**
 
 | Instruction | Format | Encoding | Description |
 |-------------|---------|----------|-------------|
-| **JML** | `JML Rx` | `[11111110][0100][Rx4]` | Jump Long - CS=Rx, PC=Rx+1 |
+| **JML** | `JML Rx` | `[11111110][0100][Rx4]` | Jump Long - CS=R[Rx+1], PC=R[Rx] |
 
 **Usage Example:**
 ```assembly
 ; Set up far jump address
 LDI  0x1000      ; Target offset to R0
-MOV  R3, R0      ; Copy to R3
-LDI  0x0001      ; Target segment to R0  
 MOV  R2, R0      ; Copy to R2
-JML  R2          ; Jump to CS=R2=0x0001, PC=R3=0x1000
+LDI  0x0001      ; Target segment to R0  
+MOV  R3, R0      ; Copy to R3
+JML  R2          ; Jump to CS=R3=0x0001, PC=R2=0x1000
 ```
 
-### 5.6 Explicit Segment Memory Operations
+### 5.7 Explicit Segment Memory Operations
 
-**Table 5.6: LDS/STS Instructions**
+**Table 5.7: LDS/STS Instructions**
 
 | Instruction | Format | Encoding | Description |
 |-------------|---------|----------|-------------|
@@ -274,9 +305,9 @@ LDS R1, ES, R10      ; Load from ES:R10 to R1
 STS R2, CS, R15      ; Store R2 to CS:PC (unusual but possible)
 ```
 
-### 5.7 Complete Shift Operations
+### 5.8 Complete Shift Operations
 
-**Table 5.7: Enhanced Shift Instructions**
+**Table 5.8: Enhanced Shift Instructions**
 
 | Instruction | Format | Encoding | Description |
 |-------------|---------|----------|-------------|
@@ -285,9 +316,9 @@ STS R2, CS, R15      ; Store R2 to CS:PC (unusual but possible)
 | **SAC** | `SAC Rd, count` | `[110][111][Rd4][10][1][count3]` | Shift Arithmetic with Carry |
 | **ROC** | `ROC Rd, count` | `[110][111][Rd4][11][1][count3]` | Rotate with Carry |
 
-### 5.8 System Operations
+### 5.9 System Operations
 
-**Table 5.8: Complete System Instructions**
+**Table 5.9: Complete System Instructions**
 
 | Instruction | Format | Encoding | Description | Pipeline Effect |
 |-------------|---------|----------|-------------|-----------------|
@@ -297,9 +328,9 @@ STS R2, CS, R15      ; Store R2 to CS:PC (unusual but possible)
 | **RETI** | `RETI` | `[1111111111110][011]` | Return from interrupt | Pipeline flush + context restore |
 | **HLT** | `HLT` | `[1111111111110][111]` | Halt processor | Pipeline freeze |
 
-### 5.9 Complete Instruction Summary
+### 5.10 Complete Instruction Summary
 
-**Table 5.9: Comprehensive Instruction Set**
+**Table 5.10: Comprehensive Instruction Set**
 
 | Category | Instructions | Notes |
 |----------|--------------|-------|
@@ -313,9 +344,9 @@ STS R2, CS, R15      ; Store R2 to CS:PC (unusual but possible)
 | **PSW Operations** | SRS, SRD, ERS, ERD, SET, CLR, SET2, CLR2 | SRD/ERD set DS/DE flags |
 | **System** | NOP, FSH, SWI, RETI, HLT | Complete system control |
 
-### 5.10 Flag Operation Aliases
+### 5.11 Flag Operation Aliases
 
-**Table 5.10: Common Flag Aliases**
+**Table 5.11: Common Flag Aliases**
 
 | Alias | Actual Instruction | Purpose |
 |-------|-------------------|---------|
@@ -411,17 +442,17 @@ Low addresses
 
 ### 7.3 Common Idioms
 
-**Function Prologue:**
+**Function Prologue (Enhanced Syntax):**
 ```assembly
 ; Save frame and link, allocate stack space
 MOV  FP, SP          ; Set new frame pointer
 LSI  R0, -4          ; Allocate 4 words to R0
 ADD  SP, SP, R0      ; Adjust stack pointer
-ST   LR, [FP+3]      ; Save return address
+ST   LR, [FP+3]      ; Save return address using bracket syntax
 ST   OldFP, [FP+2]   ; Save old frame pointer
 ```
 
-**Correct Screen Output:**
+**Correct Screen Output (Enhanced Syntax):**
 ```assembly
 ; Efficient screen writing using ES segment
 setup_screen:
@@ -435,7 +466,38 @@ setup_screen:
 write_char:
     LDI  'A'          ; Character to R0
     MOV  R1, R0       ; Copy to R1  
-    STS  R1, 0x1000   ; Write to screen at ES:R10+0x1000
+    STS  R1, [R10+0x1000]   ; Write to screen using bracket syntax
+```
+
+**Array Access (Enhanced Syntax):**
+```assembly
+; Access array element using enhanced syntax
+LDI  array_base
+MOV  R1, R0          ; R1 = array base address
+LDI  2
+MOV  R2, R0          ; R2 = index
+MOV  R3, R1+R2       ; R3 = array_base + index (calculate address)
+LD   R4, [R3]        ; Load array element using bracket syntax
+
+; Or combined in one operation:
+LD   R4, [R1+R2]     ; Load array element directly
+```
+
+**Stack Operations (Enhanced Syntax):**
+```assembly
+; Push multiple values using enhanced syntax
+ST   R1, [SP-1]      ; Push R1
+ST   R2, [SP-2]      ; Push R2  
+ST   R3, [SP-3]      ; Push R3
+LSI  R0, -3
+ADD  SP, SP, R0      ; Adjust stack pointer
+
+; Pop values
+LD   R3, [SP]        ; Pop R3
+LD   R2, [SP+1]      ; Pop R2
+LD   R1, [SP+2]      ; Pop R1
+LSI  R0, 3
+ADD  SP, SP, R0      ; Adjust stack pointer
 ```
 
 **Interrupt Handler:**
@@ -488,15 +550,15 @@ return_here:
 - **Label Support**: Forward and backward references
 - **Error Reporting**: Comprehensive with line numbers
 - **Listing Output**: Includes addresses and generated code
+- **Enhanced Syntax**: Bracket notation for LD/ST, plus notation for MOV
 
 ---
 
-*Deep16 (深十六) Architecture Specification v3.9 (1r19) - Corrected LDI Syntax*
+*Deep16 (深十六) Architecture Specification v4.0 (1r20) - Complete with Enhanced Syntax Documentation*
 
-**Critical Corrections:**
-- ✅ LDI syntax corrected - single operand only: `LDI immediate`
-- ✅ All examples use proper LDI syntax without R0 operand
-- ✅ Interrupt vectors now correctly load PC from memory
-- ✅ SRD/ERD automatically set DS/DE flags - removed manual SET2
-- ✅ All examples use correct register movement patterns
+**New Features Documented:**
+- ✅ LD/ST bracket syntax: `LD R1, [R2+5]`, `ST R0, [SP-4]`
+- ✅ MOV plus syntax: `MOV R1, R2+3`, `MOV R3, SP-4`
+- ✅ All examples updated with enhanced syntax where appropriate
+- ✅ Array access and stack operation examples with new syntax
 ```
