@@ -1,6 +1,3 @@
-You're absolutely right! LDI has only one operand - the immediate value, and it always loads R0. Let me fix all the LDI instructions throughout the document:
-
-```markdown
 # Deep16 (深十六) Architecture Specification Milestone 1r19
 ## 16-bit RISC Processor with Enhanced Memory Addressing
 
