@@ -1221,9 +1221,22 @@ class DeepWebUI {
             this.mobileActive = true;
             this.initializeMobileControls();
             this.initializeMachineTab();
+            const headerTitle = document.querySelector('.header-text h1');
+            const subtitle = document.querySelector('.header-text .subtitle');
+            if (headerTitle) {
+                this.originalHeaderTitle = headerTitle.textContent;
+                headerTitle.textContent = 'DeepCode - Deep16 IDE';
+            }
+            if (subtitle) { subtitle.style.display = 'none'; }
         } else if (!isMobile && this.mobileActive) {
             this.mobileActive = false;
             this.restoreDesktopLayout();
+            const headerTitle = document.querySelector('.header-text h1');
+            const subtitle = document.querySelector('.header-text .subtitle');
+            if (headerTitle && this.originalHeaderTitle) {
+                headerTitle.textContent = this.originalHeaderTitle;
+            }
+            if (subtitle) { subtitle.style.display = ''; }
         }
     }
 
