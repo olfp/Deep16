@@ -886,6 +886,19 @@ encodeMemory(parts, isStore, address, lineNumber) {
         throw new Error('LDI requires immediate value');
     }
 
+    encodeLDIFromLine(line, address, lineNumber) {
+        const cleaned = line.split(';')[0].trim();
+        const rest = cleaned.replace(/^LDI\s+/, '').replace(/,$/, '').trim();
+        if (!rest) {
+            throw new Error('LDI requires immediate value');
+        }
+        const imm = this.parseImmediate(rest);
+        if (imm < 0 || imm > 32767) {
+            throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
+        }
+        return imm & 0x7FFF;
+    }
+
     encodeLSI(parts, address, lineNumber) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
@@ -1009,15 +1022,3 @@ encodeJump(parts, condition, address, lineNumber) {
     }
 }
 /* deep16_assembler.js */
-    encodeLDIFromLine(line, address, lineNumber) {
-        const cleaned = line.split(';')[0].trim();
-        const rest = cleaned.replace(/^LDI\s+/, '').replace(/,$/, '').trim();
-        if (!rest) {
-            throw new Error('LDI requires immediate value');
-        }
-        const imm = this.parseImmediate(rest);
-        if (imm < 0 || imm > 32767) {
-            throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
-        }
-        return imm & 0x7FFF;
-    }
