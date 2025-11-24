@@ -29,6 +29,7 @@ class DeepWebUI {
         this.memoryUI = new Deep16MemoryUI(this);
         this.registerUI = new Deep16RegisterUI(this);
         this.screenUI = new Deep16ScreenUI(this); 
+        this.simulator.setUI(this);
 
         // File management
         this.currentFilename = 'Untitled.asm';
@@ -93,6 +94,12 @@ class DeepWebUI {
         turboBtn.textContent = 'Turbo: OFF';
         turboBtn.addEventListener('click', () => this.toggleTurboMode());
         controlPanel.appendChild(turboBtn);
+        const screenBufBtn = document.createElement('button');
+        screenBufBtn.id = 'screen-buffer-btn';
+        screenBufBtn.className = 'control-btn';
+        screenBufBtn.textContent = 'Screen Buffer: OFF';
+        screenBufBtn.addEventListener('click', () => this.toggleScreenBuffer());
+        controlPanel.appendChild(screenBufBtn);
     }
 
     toggleWorker() {
@@ -124,6 +131,16 @@ class DeepWebUI {
         if (turboBtn) {
             turboBtn.textContent = `Turbo: ${this.turboMode ? 'ON' : 'OFF'}`;
             turboBtn.className = `control-btn ${this.turboMode ? 'turbo-active' : ''}`;
+        }
+    }
+
+    toggleScreenBuffer() {
+        const flag = !this.screenUI.deferUpdates;
+        this.screenUI.setDeferUpdates(flag);
+        const btn = document.getElementById('screen-buffer-btn');
+        if (btn) {
+            btn.textContent = `Screen Buffer: ${flag ? 'ON' : 'OFF'}`;
+            btn.className = `control-btn ${flag ? 'screen-buffer-active' : ''}`;
         }
     }
 
@@ -987,7 +1004,11 @@ class DeepWebUI {
         this.registerUI.updateShadowRegisters();
         this.memoryUI.updateRecentMemoryDisplay();
         this.updateSegmentNavigationFields();
-        this.screenUI.updateScreenDisplay();          
+        if (this.screenUI.deferUpdates && this.simulator.running) {
+            this.screenUI.flushPending();
+        } else {
+            this.screenUI.updateScreenDisplay();
+        }
     }
 
     run() {
@@ -1010,21 +1031,22 @@ class DeepWebUI {
                         clearInterval(this.runInterval);
                         this.status("Program halted");
                         this.addTranscriptEntry("Program execution stopped", "info");
-                        // UPDATE DISPLAYS ONLY WHEN HALTED
                         this.updateAllDisplays();
                         return;
                     }
-                    
-                    const continueRunning = this.simulator.step();
-                    
-                    // REMOVED: this.updateAllDisplays(); - No display updates during execution
-                    
+
+                    const stepsPerTick = this.turboMode ? 1000 : 50;
+                    let continueRunning = true;
+                    for (let i = 0; i < stepsPerTick && this.simulator.running; i++) {
+                        continueRunning = this.simulator.step();
+                        if (!continueRunning) break;
+                    }
+
                     if (!continueRunning) {
                         clearInterval(this.runInterval);
                         this.simulator.running = false;
                         this.status("Program completed");
                         this.addTranscriptEntry("Program execution completed", "success");
-                        // UPDATE DISPLAYS WHEN PROGRAM COMPLETES
                         this.updateAllDisplays();
                     }
                 }, runInterval);
