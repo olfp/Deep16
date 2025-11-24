@@ -7,6 +7,10 @@ class Deep16ScreenUI {
         this.screenHeight = 25;
         this.totalChars = this.screenWidth * this.screenHeight; // 2000 characters
         this.screenEndAddress = this.screenBaseAddress + this.totalChars - 1;
+        this.deferUpdates = false;
+        this.pendingUpdates = new Set();
+        this.flushIntervalMs = 33;
+        this.flushTimerId = null;
         
         this.initializeScreen();
     }
@@ -108,8 +112,49 @@ class Deep16ScreenUI {
     handleScreenMemoryWrite(address, value) {
         if (this.isScreenMemory(address)) {
             const charIndex = address - this.screenBaseAddress;
-            const charCode = value & 0xFF;
-            this.updateCharacter(charIndex, charCode);
+            if (this.deferUpdates) {
+                this.pendingUpdates.add(charIndex);
+            } else {
+                const charCode = value & 0xFF;
+                this.updateCharacter(charIndex, charCode);
+            }
         }
+    }
+
+    setDeferUpdates(flag) {
+        this.deferUpdates = flag;
+        if (flag) {
+            this.startFlush();
+        } else {
+            this.stopFlush();
+            this.updateScreenDisplay();
+        }
+    }
+
+    startFlush() {
+        if (this.flushTimerId) return;
+        this.flushTimerId = setInterval(() => {
+            this.flushPending();
+        }, this.flushIntervalMs);
+    }
+
+    stopFlush() {
+        if (this.flushTimerId) {
+            clearInterval(this.flushTimerId);
+            this.flushTimerId = null;
+        }
+    }
+
+    flushPending() {
+        if (this.pendingUpdates.size === 0) return;
+        for (const charIndex of this.pendingUpdates) {
+            const memoryAddress = this.screenBaseAddress + charIndex;
+            if (memoryAddress < this.ui.simulator.memory.length) {
+                const wordValue = this.ui.simulator.memory[memoryAddress];
+                const charCode = wordValue & 0xFF;
+                this.updateCharacter(charIndex, charCode);
+            }
+        }
+        this.pendingUpdates.clear();
     }
 }
