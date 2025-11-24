@@ -1,4 +1,4 @@
-# Deep16 (深十六) Architecture Specification Milestone 1r21
+# Deep16 (深十六) Architecture Specification Milestone 1r22
 ## 16-bit RISC Processor with Enhanced Memory Addressing
 
 ---
@@ -211,6 +211,18 @@ The `MOV` mnemonic is processed by the assembler to select the appropriate instr
 | `MOV Sx, Rd` | MVS Sx, Rd | `[111111110][1][Rd][seg]` |
 | `MOV Rd, PSW` | SMV Rd, PSW | `[1111111110][10][Rd]` |
 | `MOV Rd, APC` | SMV Rd, APC | `[1111111110][00][Rd]` |
+| `MOV Rd, APSW` | SMV Rd, APSW | `[1111111110][01][Rd]` |
+| `MOV Rd, ACS` | SMV Rd, ACS | `[1111111110][11][Rd]` |
+
+**Enhanced MOV Syntax for Segment Operations:**
+```assembly
+; These are all assembler preprocessing - generate same binary
+MOV  R10, R0        ; Regular MOV encoding
+MOV  R10, R0+0      ; Plus syntax (assembler converts to MOV R10, R0, 0)
+MOV  ES, R0         ; Assembler converts to MVS ES, R0
+MOV  R1, CS         ; Assembler converts to MVS R1, CS
+MOV  R2, PSW        ; Assembler converts to SMV R2, PSW
+```
 
 **Important**: The processor only understands the specific instructions (MOV, MVS, SMV). The universal MOV is purely an assembler convenience feature.
 
@@ -227,11 +239,21 @@ The `MOV` mnemonic is processed by the assembler to select the appropriate instr
 
 **Important**: SRD and ERD instructions automatically set the DS/DE flags in PSW.
 
-**Correct usage example:**
+**Enhanced Usage Examples:**
 ```assembly
-LDI  0x0000      ; Base offset to R0 (LDI always loads R0)
-MOV  R10, R0     ; Copy to R10
+; Stack segment setup
+LDI  0x0000      ; Base offset to R0
+MOV  R12, R0     ; Copy to R12 using enhanced MOV syntax
+SRD  R12         ; Use R12/R13 for SS access, sets DS=1 automatically
+
+; Extra segment setup  
+LDI  0x0000      ; Base offset to R0
+MOV  R10, R0     ; Copy to R10 using enhanced MOV syntax
 ERD  R10         ; Use R10/R11 for ES access, sets DE=1 automatically
+
+; Single register variants
+SRS  R8          ; Use R8 only for SS access
+ERS  R9          ; Use R9 only for ES access
 ```
 
 ### 5.4 Single Operand ALU Operations
@@ -276,17 +298,19 @@ SMV R2, APC          ; Read alternate PC (interrupt return address) to R2
 
 | Instruction | Format | Encoding | Description |
 |-------------|---------|----------|-------------|
-| **JML** | `JML Rx` | `[11111110][0100][Rx4]` | Jump Long - CS=R[Rx+1], PC=R[Rx] |
+| **JML** | `JML Rx` | `[11111110][0100][Rx4]` | Jump Long - CS=R[Rx], PC=R[Rx+1] |
 
 **Usage Example:**
 ```assembly
 ; Set up far jump address
-LDI  0x1000      ; Target offset to R0
-MOV  R2, R0      ; Copy to R2
 LDI  0x0001      ; Target segment to R0  
-MOV  R3, R0      ; Copy to R3
-JML  R2          ; Jump to CS=R3=0x0001, PC=R2=0x1000
+MOV  R2, R0      ; Copy to R2 (will be CS)
+LDI  0x1000      ; Target offset to R0
+MOV  R3, R0      ; Copy to R3 (will be PC)
+JML  R2          ; Jump to CS=R2=0x0001, PC=R3=0x1000
 ```
+
+**Important**: Rx must be an even register for JML to work correctly, as it uses Rx for CS and Rx+1 for PC.
 
 ### 5.7 Explicit Segment Memory Operations
 
@@ -335,7 +359,7 @@ STS R2, CS, R15      ; Store R2 to CS:PC (unusual but possible)
 
 | Category | Instructions | Notes |
 |----------|--------------|-------|
-| **Data Movement** | MOV, LDI, LSI, MVS, SMV | LDI always loads R0 |
+| **Data Movement** | MOV, LDI, LSI, MVS, SMV | Enhanced MOV syntax is assembler preprocessing |
 | **ALU Operations** | ADD, SUB, AND, OR, XOR, MUL, DIV | |
 | **32-bit ALU** | MUL32, DIV32 | Explicit 32-bit results |
 | **Single Operand ALU** | SWB, INV, NEG | Byte swap, invert, negate |
@@ -345,9 +369,25 @@ STS R2, CS, R15      ; Store R2 to CS:PC (unusual but possible)
 | **PSW Operations** | SRS, SRD, ERS, ERD, SET, CLR, SET2, CLR2 | SRD/ERD set DS/DE flags |
 | **System** | NOP, FSH, SWI, RETI, HLT | Complete system control |
 
-### 5.11 Flag Operation Aliases
+### 5.11 Enhanced Syntax Summary
 
-**Table 5.11: Common Flag Aliases**
+**Table 5.11: Assembler Preprocessing Features**
+
+| Enhanced Syntax | Actual Instruction | Purpose |
+|-----------------|-------------------|---------|
+| `MOV Rd, Rs+imm` | `MOV Rd, Rs, imm` | Register move with offset |
+| `LD Rd, [Rb+offset]` | `LD Rd, Rb, offset` | Memory load with bracket syntax |
+| `ST Rd, [Rb+offset]` | `ST Rd, Rb, offset` | Memory store with bracket syntax |
+| `MOV Rd, Sx` | `MVS Rd, Sx` | Read from segment register |
+| `MOV Sx, Rd` | `MVS Sx, Rd` | Write to segment register |
+| `MOV Rd, PSW` | `SMV Rd, PSW` | Read processor status word |
+| `MOV Rd, APC` | `SMV Rd, APC` | Read alternate program counter |
+| `MOV Rd, APSW` | `SMV Rd, APSW` | Read alternate PSW |
+| `MOV Rd, ACS` | `SMV Rd, ACS` | Read alternate code segment |
+
+### 5.12 Flag Operation Aliases
+
+**Table 5.12: Common Flag Aliases**
 
 | Alias | Actual Instruction | Purpose |
 |-------|-------------------|---------|
@@ -366,10 +406,171 @@ STS R2, CS, R15      ; Store R2 to CS:PC (unusual but possible)
 
 ---
 
-*Deep16 (深十六) Architecture Specification v4.1 (1r21) - Clarified Assembler Preprocessing*
+## 6. Pipeline Architecture
 
-**Key Clarifications:**
-- ✅ Enhanced syntax (bracket/plus notation) is purely assembler preprocessing
-- ✅ Binary encoding always uses specific instructions (MOV, MVS, SMV, LD, ST)
-- ✅ Universal MOV is assembler convenience, not processor feature
-- ✅ Clear separation between assembler input and machine encoding
+### 6.1 5-Stage Pipeline Structure
+
+**Pipeline Stages:**
+1. **IF** (Instruction Fetch) - Fetch instruction from memory using CS:PC
+2. **ID** (Instruction Decode) - Decode instruction, read registers, resolve hazards
+3. **EX** (Execute) - ALU operations, effective address calculation, branch resolution
+4. **MEM** (Memory Access) - Load/store operations, segment register access
+5. **WB** (Write Back) - Write results to register file
+
+### 6.2 Delayed Branch Implementation
+
+**One delay slot** is implemented for all branch and jump instructions:
+- The instruction immediately following a branch/jump **always executes**
+- Compiler/assembler must schedule useful instructions in the delay slot
+- **Applies to**: JMP, JZ, JNZ, JC, JNC, JN, JNN, JO, JNO, JML
+
+**Example Optimization:**
+```assembly
+; Suboptimal - empty delay slot
+ADD  R1, R2
+JZ   target
+NOP            ; Wasted cycle
+
+; Optimized - useful work in delay slot  
+ADD  R1, R2
+JZ   target
+MOV  R3, R4    ; Useful work executes regardless of branch
+```
+
+### 6.3 Performance Characteristics
+
+- **Base CPI**: Ideally 1.0 (one instruction per cycle)
+- **Realistic CPI**: 1.1-1.3 due to stalls and multi-cycle operations
+- **Branch penalty**: 0 cycles (thanks to delayed branch)
+- **Load-use penalty**: 1 cycle stall when unavoidable
+- **FPGA Target**: 80MHz achievable in modern FPGAs
+
+---
+
+## 7. Programming Model
+
+### 7.1 Register Usage Conventions
+
+| Register | Preserved? | Purpose |
+|----------|------------|---------|
+| R0       | Caller-save | LDI destination, temporary |
+| R1-R11   | Caller-save | General purpose |
+| R12 (FP) | Callee-save | Frame pointer |
+| R13 (SP) | Callee-save | Stack pointer |
+| R14 (LR) | Callee-save | Return address |
+| R15 (PC) | - | Program counter |
+
+### 7.2 Stack Frame Layout
+```
+High addresses
++------------+
+| Saved LR   | ← FP + 3
++------------+
+| Saved FP   | ← FP + 2  
++------------+
+| Local 2    | ← FP + 1
++------------+
+| Local 1    | ← FP
++------------+
+| Parameter n| ← FP - 1
++------------+
+| ...        |
++------------+
+| Parameter 1| ← FP - n + 1
++------------+
+Low addresses
+```
+
+### 7.3 Common Idioms
+
+**Function Prologue (Enhanced Syntax):**
+```assembly
+; Save frame and link, allocate stack space
+MOV  FP, SP          ; Set new frame pointer
+LSI  R0, -4          ; Allocate 4 words to R0
+ADD  SP, SP, R0      ; Adjust stack pointer
+ST   LR, [FP+3]      ; Save return address using bracket syntax
+ST   OldFP, [FP+2]   ; Save old frame pointer
+```
+
+**Correct Screen Output (Enhanced Syntax):**
+```assembly
+; Efficient screen writing using ES segment
+setup_screen:
+    LDI  0x0FFF       ; LDI always loads R0
+    INV  R0           ; R0 = 0xF000
+    MOV  ES, R0       ; Enhanced MOV to segment register
+    LDI  0x0000       ; Base offset to R0
+    MOV  R10, R0      ; Enhanced MOV syntax
+    ERD  R10          ; Use R10/R11 for ES access, sets DE=1
+
+write_char:
+    LDI  'H'          ; Character to R0
+    MOV  R1, R0       ; Copy to R1  
+    STS  R1, [R10+0x1000]    ; Enhanced bracket syntax for screen write
+    
+    RET
+```
+
+**Far Function Call:**
+```assembly
+far_call:
+    ; R2 = target segment, R3 = target offset
+    ST   R2, [SP-1]   ; Save target segment
+    ST   R3, [SP-2]   ; Save target offset
+    LDI  return_here
+    MOV  R4, R0       ; Copy to R4
+    ST   R4, [SP-3]   ; Save return address
+    JML  R2           ; Far jump to CS=R2, PC=R3
+
+return_here:
+    ; Execution continues here after far return
+```
+
+**Interrupt Handler:**
+```assembly
+interrupt_handler:
+    ; Automatic context switch to shadow registers
+    SMV  R0, APSW     ; Read pre-interrupt PSW to R0
+    MOV  R5, R0       ; Copy to R5 for processing
+    SMV  R0, APC      ; Read pre-interrupt PC to R0
+    MOV  R6, R0       ; Copy to R6
+    
+    ; Interrupt processing...
+    
+    RETI              ; Return and restore context
+```
+
+---
+
+## 8. Implementation Notes
+
+### 8.1 FPGA Implementation
+- **Target Frequency**: 80MHz in modern FPGAs
+- **Memory Interface**: 20 address lines, 16 data lines
+- **Block RAM**: Can be used for zero-wait-state memory
+- **Pipeline registers**: Standard flip-flop implementation
+
+### 8.2 Simulator Integration
+- **DeepWeb IDE**: Complete development environment
+- **Assembler**: Supports all enhanced syntax features
+- **Simulator**: Cycle-accurate with visual debugging
+- **Screen Subsystem**: 80×25 character display at 0xF1000
+
+### 8.3 Toolchain Support
+- **Assembler Directives**: `.code`, `.data`, `.org`, `.word`, `.text`
+- **Label Support**: Forward and backward references
+- **Error Reporting**: Comprehensive with line numbers
+- **Listing Output**: Includes addresses and generated code
+- **Enhanced Syntax**: Bracket notation for LD/ST, plus notation for MOV
+
+---
+
+*Deep16 (深十六) Architecture Specification v4.2 (1r22) - Complete and Corrected*
+
+**Key Corrections:**
+- ✅ JML instruction corrected: CS=R[Rx], PC=R[Rx+1]
+- ✅ All enhanced syntax properly documented as assembler preprocessing
+- ✅ Complete instruction set with proper binary encodings
+- ✅ Practical programming examples with correct syntax
+- ✅ Clear separation between assembler features and processor capabilities
