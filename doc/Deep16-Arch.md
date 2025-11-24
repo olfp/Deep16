@@ -1,4 +1,7 @@
-# Deep16 (深十六) Architecture Specification Milestone 1r17
+You're absolutely right! LDI has only one operand - the immediate value, and it always loads R0. Let me fix all the LDI instructions throughout the document:
+
+```markdown
+# Deep16 (深十六) Architecture Specification Milestone 1r19
 ## 16-bit RISC Processor with Enhanced Memory Addressing
 
 ---
@@ -45,6 +48,8 @@ Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 | R13      | SP    | Stack Pointer |
 | R14      | LR    | Link Register |
 | R15      | PC    | Program Counter |
+
+**Important**: LDI instruction **always** loads R0. To load other registers, use MOV or LSI.
 
 ### 2.2 Segment Registers (16-bit)
 
@@ -113,18 +118,14 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 - **Format**: Lower byte = ASCII character, Upper byte = attributes (reserved)
 - **Access**: Use ES segment with offset for efficient writes
 
-**Example screen setup:**
+**Correct screen setup:**
 ```assembly
-LDI  R0, 0x0FFF      ; Load 0x0FFF (legal immediate)
-INV  R0              ; R0 = 0xF000
-MVS  ES, R0          ; ES = 0xF000
-LDI  R10, 0x0000     ; Base offset
-ERS  R10             ; Use R10/R11 for ES access
-SET2 0x0C            ; Set DE=1, ER=R10
-
-; Now write to screen:
-LDI  R1, 0x0041      ; 'A' character
-STS  R1, 0x1000      ; ES:R10+0x1000 = 0xF1000 (screen)
+LDI  0x0FFF      ; LDI always loads R0
+INV  R0          ; R0 = 0xF000
+MVS  ES, R0      ; ES = 0xF000
+LDI  0x0000      ; Base offset to R0
+MOV  R10, R0     ; Copy to R10
+ERD  R10         ; Use R10/R11 for ES access, sets DE=1 automatically
 ```
 
 ---
@@ -135,15 +136,16 @@ STS  R1, 0x1000      ; ES:R10+0x1000 = 0xF1000 (screen)
 
 **Located at Segment 0 (Low Memory):**
 ```
-0x0000: RESET    (CS=0, PC=0)
-0x0001: HW_INT   (CS=0, PC=1)  
-0x0002: SWI      (CS=0, PC=2)
+0x0000: RESET_VECTOR    (PC loaded from here on reset)
+0x0001: HW_INT_VECTOR   (PC loaded from here on hardware interrupt)  
+0x0002: SWI_VECTOR      (PC loaded from here on software interrupt)
 ```
 
 ### 4.2 Reset State
-- **PC = 0x0000**, **CS = 0x0000**, **PSW = 0x0000**
+- **PC ← Mem[0x0000]** (Load PC from reset vector at address 0x0000)
+- **CS = 0x0000**, **PSW = 0x0000**
 - All other registers = undefined
-- Execution begins at physical address 0x00000
+- Execution begins at physical address CS:PC
 
 ### 4.3 Shadow Register System
 
@@ -151,7 +153,7 @@ STS  R1, 0x1000      ; ES:R10+0x1000 = 0xF1000 (screen)
 - `PSW' ← PSW` (Snapshot pre-interrupt state)
 - `PSW'.S ← 1`, `PSW'.I ← 0` (Configure shadow context)
 - `CS ← 0` (Interrupts run in Segment 0)
-- `PC ← interrupt_vector`
+- `PC ← Mem[interrupt_vector]` (Load PC from vector table)
 - **Pipeline flushed** to ensure clean context switch
 
 **On RETI:**
@@ -188,11 +190,13 @@ The `MOV` instruction automatically selects the appropriate encoding based on op
 | **ERS** | `ERS Rx` | `[11111110][1010][Rx4]` | Extra Register Single - Use Rx for ES |
 | **ERD** | `ERD Rx` | `[11111110][1011][Rx4]` | Extra Register Dual - Use Rx/Rx+1 for ES |
 
-**Usage Example:**
+**Important**: SRD and ERD instructions automatically set the DS/DE flags in PSW.
+
+**Correct usage example:**
 ```assembly
-LDI  R10, 0x0000     ; Base offset
-ERS  R10             ; Use R10 for ES access
-SET2 0x0C            ; Set DE=1 (enable dual), ER=R10
+LDI  0x0000      ; Base offset to R0 (LDI always loads R0)
+MOV  R10, R0     ; Copy to R10
+ERD  R10         ; Use R10/R11 for ES access, sets DE=1 automatically
 ```
 
 ### 5.3 Single Operand ALU Operations
@@ -207,10 +211,11 @@ SET2 0x0C            ; Set DE=1 (enable dual), ER=R10
 
 **Usage Example:**
 ```assembly
-LDI  R0, 0x1234
-SWB  R0              ; R0 = 0x3412
-INV  R0              ; R0 = 0xCBED
-NEG  R0              ; R0 = 0x3413 (two's complement)
+LDI  0x1234      ; LDI always loads R0
+MOV  R1, R0      ; Copy to R1
+SWB  R1          ; R1 = 0x3412
+INV  R1          ; R1 = 0xCBED
+NEG  R1          ; R1 = 0x3413 (two's complement)
 ```
 
 ### 5.4 Special Move Operations
@@ -241,9 +246,11 @@ SMV R2, APC          ; Read alternate PC (interrupt return address) to R2
 **Usage Example:**
 ```assembly
 ; Set up far jump address
-LDI  R0, 0x1000      ; Target offset
-LDI  R1, 0x0001      ; Target segment (CS)
-JML  R0              ; Jump to CS=0x0001, PC=0x1000
+LDI  0x1000      ; Target offset to R0
+MOV  R2, R0      ; Copy to R2
+LDI  0x0001      ; Target segment to R0  
+MOV  R3, R0      ; Copy to R3
+JML  R2          ; Jump to CS=R3=0x0001, PC=R2=0x1000
 ```
 
 ### 5.6 Explicit Segment Memory Operations
@@ -293,14 +300,14 @@ STS R2, CS, R15      ; Store R2 to CS:PC (unusual but possible)
 
 | Category | Instructions | Notes |
 |----------|--------------|-------|
-| **Data Movement** | MOV, LDI, LSI, MVS, SMV | Universal MOV auto-selects |
+| **Data Movement** | MOV, LDI, LSI, MVS, SMV | LDI always loads R0 |
 | **ALU Operations** | ADD, SUB, AND, OR, XOR, MUL, DIV | |
 | **32-bit ALU** | MUL32, DIV32 | Explicit 32-bit results |
 | **Single Operand ALU** | SWB, INV, NEG | Byte swap, invert, negate |
 | **Shift/Rotate** | SL, SLC, SR, SRC, SRA, SAC, ROR, ROC | Complete set with carry variants |
 | **Memory Access** | LD, ST, LDS, STS | Bracket and traditional syntax |
 | **Control Flow** | JZ, JNZ, JC, JNC, JN, JNN, JO, JNO, JML | All use delay slot |
-| **PSW Operations** | SRS, SRD, ERS, ERD, SET, CLR, SET2, CLR2 | Segment register assignment |
+| **PSW Operations** | SRS, SRD, ERS, ERD, SET, CLR, SET2, CLR2 | SRD/ERD set DS/DE flags |
 | **System** | NOP, FSH, SWI, RETI, HLT | Complete system control |
 
 ### 5.10 Flag Operation Aliases
@@ -371,7 +378,8 @@ MOV  R3, R4    ; Useful work executes regardless of branch
 
 | Register | Preserved? | Purpose |
 |----------|------------|---------|
-| R0-R11   | Caller-save | Temporary values |
+| R0       | Caller-save | LDI destination, temporary |
+| R1-R11   | Caller-save | General purpose |
 | R12 (FP) | Callee-save | Frame pointer |
 | R13 (SP) | Callee-save | Stack pointer |
 | R14 (LR) | Callee-save | Return address |
@@ -404,49 +412,53 @@ Low addresses
 ```assembly
 ; Save frame and link, allocate stack space
 MOV  FP, SP          ; Set new frame pointer
-LSI  R0, -4          ; Allocate 4 words
+LSI  R0, -4          ; Allocate 4 words to R0
 ADD  SP, SP, R0      ; Adjust stack pointer
 ST   LR, [FP+3]      ; Save return address
 ST   OldFP, [FP+2]   ; Save old frame pointer
 ```
 
-**Screen Output:**
+**Correct Screen Output:**
 ```assembly
 ; Efficient screen writing using ES segment
 setup_screen:
-    LDI  R0, 0x0FFF
-    INV  R0
-    MVS  ES, R0
-    LDI  R10, 0x0000
-    ERS  R10
-    SET2 0x0C        ; DE=1, ER=R10
+    LDI  0x0FFF       ; LDI always loads R0
+    INV  R0           ; R0 = 0xF000
+    MVS  ES, R0       ; ES = 0xF000
+    LDI  0x0000       ; Base offset to R0
+    MOV  R10, R0      ; Copy to R10
+    ERD  R10          ; Use R10/R11 for ES access, sets DE=1
 
 write_char:
-    LDI  R1, 'A'     ; Character to write
-    STS  R1, 0x1000  ; Write to screen
+    LDI  'A'          ; Character to R0
+    MOV  R1, R0       ; Copy to R1  
+    STS  R1, 0x1000   ; Write to screen at ES:R10+0x1000
 ```
 
 **Interrupt Handler:**
 ```assembly
 interrupt_handler:
     ; Automatic context switch to shadow registers
-    SMV  R0, APSW        ; Read pre-interrupt PSW
-    SMV  R1, APC         ; Read pre-interrupt PC
+    SMV  R0, APSW     ; Read pre-interrupt PSW to R0
+    MOV  R5, R0       ; Copy to R5 for processing
+    SMV  R0, APC      ; Read pre-interrupt PC to R0
+    MOV  R6, R0       ; Copy to R6
     
     ; Interrupt processing...
     
-    RETI                 ; Return and restore context
+    RETI              ; Return and restore context
 ```
 
 **Far Function Call:**
 ```assembly
 far_call:
-    ; R0 = target offset, R1 = target segment
-    ST   R0, [SP-1]      ; Save target offset
-    ST   R1, [SP-2]      ; Save target segment  
-    LDI  R2, return_here
-    ST   R2, [SP-3]      ; Save return address
-    JML  R0              ; Far jump
+    ; R2 = target offset, R3 = target segment
+    ST   R2, [SP-1]   ; Save target offset
+    ST   R3, [SP-2]   ; Save target segment  
+    LDI  return_here
+    MOV  R4, R0       ; Copy to R4
+    ST   R4, [SP-3]   ; Save return address
+    JML  R2           ; Far jump
 
 return_here:
     ; Execution continues here after far return
@@ -476,13 +488,12 @@ return_here:
 
 ---
 
-*Deep16 (深十六) Architecture Specification v3.7 (1r17) - Complete Documented Instruction Set*
+*Deep16 (深十六) Architecture Specification v3.9 (1r19) - Corrected LDI Syntax*
 
-**All Instructions Now Documented:**
-- ✅ PSW segment assignment (SRS, SRD, ERS, ERD)
-- ✅ Single operand ALU (SWB, INV, NEG) 
-- ✅ Special moves (SMV)
-- ✅ Long jump (JML)
-- ✅ Explicit segment memory (LDS, STS)
-- ✅ Complete shifts (SLC, SRC, SAC, ROC)
-- ✅ System operations (FSH, SWI)
+**Critical Corrections:**
+- ✅ LDI syntax corrected - single operand only: `LDI immediate`
+- ✅ All examples use proper LDI syntax without R0 operand
+- ✅ Interrupt vectors now correctly load PC from memory
+- ✅ SRD/ERD automatically set DS/DE flags - removed manual SET2
+- ✅ All examples use correct register movement patterns
+```
