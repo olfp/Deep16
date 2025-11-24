@@ -1228,6 +1228,7 @@ class DeepWebUI {
                 headerTitle.textContent = 'DeepCode - Deep16 IDE';
             }
             if (subtitle) { subtitle.style.display = 'none'; }
+            this.initializeMiniMenu();
         } else if (!isMobile && this.mobileActive) {
             this.mobileActive = false;
             this.restoreDesktopLayout();
@@ -1237,6 +1238,7 @@ class DeepWebUI {
                 headerTitle.textContent = this.originalHeaderTitle;
             }
             if (subtitle) { subtitle.style.display = ''; }
+            this.restoreMiniMenu();
         }
     }
 
@@ -1253,6 +1255,54 @@ class DeepWebUI {
             mobileCtrls.appendChild(reset);
             mobileCtrls.style.display = 'flex';
         }
+    }
+
+    initializeMiniMenu() {
+        const miniMenu = document.getElementById('mini-menu');
+        const miniBtn = document.getElementById('mini-menu-btn');
+        const miniPanel = document.getElementById('mini-menu-panel');
+        const fileDropdown = document.getElementById('file-dropdown');
+        const editDropdown = document.getElementById('edit-dropdown');
+        if (!miniMenu || !miniBtn || !miniPanel || !fileDropdown || !editDropdown) return;
+
+        // Move dropdowns into mini panel
+        this.originalFileMenuParent = fileDropdown.parentElement;
+        this.originalEditMenuParent = editDropdown.parentElement;
+        miniPanel.appendChild(fileDropdown);
+        miniPanel.appendChild(editDropdown);
+        miniMenu.style.display = 'flex';
+
+        // Ensure both dropdowns are visible inside mini panel
+        fileDropdown.classList.add('show');
+        editDropdown.classList.add('show');
+
+        // Toggle mini panel visibility and triangle rotation
+        if (!this.miniMenuInitialized) {
+            miniBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isShown = miniPanel.classList.toggle('show');
+                miniBtn.classList.toggle('open', isShown);
+            });
+            document.addEventListener('click', () => {
+                miniPanel.classList.remove('show');
+                miniBtn.classList.remove('open');
+            });
+            this.miniMenuInitialized = true;
+        }
+    }
+
+    restoreMiniMenu() {
+        const miniMenu = document.getElementById('mini-menu');
+        const miniPanel = document.getElementById('mini-menu-panel');
+        const fileDropdown = document.getElementById('file-dropdown');
+        const editDropdown = document.getElementById('edit-dropdown');
+        if (!miniMenu || !miniPanel || !fileDropdown || !editDropdown) return;
+
+        // Move back to original parents
+        if (this.originalFileMenuParent) this.originalFileMenuParent.appendChild(fileDropdown);
+        if (this.originalEditMenuParent) this.originalEditMenuParent.appendChild(editDropdown);
+        miniPanel.classList.remove('show');
+        miniMenu.style.display = 'none';
     }
 
     initializeMachineTab() {

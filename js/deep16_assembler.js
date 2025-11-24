@@ -267,12 +267,26 @@ parseStringLiteral(text) {
         
         const trimmed = value.trim();
     
-    // NEW: Character constants - single quoted characters
-    if (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length === 3) {
-        const char = trimmed.charAt(1);
-        const charCode = char.charCodeAt(0);
-        console.log(`Character constant: '${char}' = ${charCode} (0x${charCode.toString(16)})`);
-        return charCode;
+    // Character constants - single quoted characters and escapes
+    if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+        const inner = trimmed.slice(1, -1);
+        if (inner.length === 1) {
+            return inner.charCodeAt(0);
+        }
+        if (inner.startsWith('\\') && inner.length === 2) {
+            const esc = inner[1];
+            switch (esc) {
+                case 'n': return 10;
+                case 'r': return 13;
+                case 't': return 9;
+                case '0': return 0;
+                case '\\': return 92;
+                case "'": return 39;
+                case '"': return 34;
+                default: throw new Error(`Invalid character escape: \\${esc}`);
+            }
+        }
+        throw new Error(`Invalid character literal: ${value}`);
     }
     
     // NEW: Special character constants
@@ -285,10 +299,7 @@ parseStringLiteral(text) {
         '\\\'': 39,   // Single quote
     };
     
-    if (trimmed in specialChars) {
-        console.log(`Special character: ${trimmed} = ${specialChars[trimmed]}`);
-        return specialChars[trimmed];
-    }
+    
     
     // Existing hex and decimal parsing
     if (trimmed.startsWith('0x')) {

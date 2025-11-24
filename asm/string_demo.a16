@@ -13,6 +13,9 @@ main:
     INV  R0
     MVS  ES, R0
     ERD  R11
+    ; Ensure DS points to program data
+    LDI  0x0000
+    MVS  DS, R0
     
     ; Clear screen
     LDI  0x1000
@@ -39,6 +42,7 @@ write_loop:
     LD   R5, R4, 0
     OR   R5, R5      
     JZ   done        
+    NOP ; delay slot
     ST   R5, R11, 0  ; Write to screen
     ADD  R11, 1
     ADD  R4, 1
@@ -60,4 +64,4 @@ prompt_msg:
 ; Individual character constants
 .org 0x0300
 chars:
-    .word 'A', 'B', 'C', \n, \0
+    .word 'A', 'B', 'C', '\n', '\0'
