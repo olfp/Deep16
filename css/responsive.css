@@ -133,6 +133,27 @@
     .editor-controls-center label[for="example-select"] { display: none; }
 
     #status-bar { display: none; }
+    /* Mini menu: replaces File/Edit on mobile */
+    .file-menu, .edit-menu { display: none; }
+    .mini-menu { display: flex !important; align-items: center; gap: 8px; }
+    .mini-menu-btn { 
+        background: #2d2d30; color: #d4d4d4; border: 1px solid #3e3e42; 
+        border-radius: 3px; width: 28px; height: 28px; line-height: 26px; 
+        text-align: center; font-size: 14px; transform: rotate(0deg); transition: transform 0.2s ease;
+    }
+    .mini-menu-btn.open { transform: rotate(90deg); }
+    .mini-menu-panel { 
+        display: none; position: relative; background: #1e1e1e; border: 1px solid #3e3e42; 
+        padding: 6px; border-radius: 4px; 
+    }
+    .mini-menu-panel.show { display: block; }
+    /* Ensure dropdowns stack inside mini panel */
+    #mini-menu-panel .file-dropdown, #mini-menu-panel .edit-dropdown { 
+        position: static; display: block; box-shadow: none; border: none; padding: 0; margin: 0; 
+    }
+    #mini-menu-panel .file-dropdown button, #mini-menu-panel .edit-dropdown button {
+        width: 100%; text-align: left; padding: 6px 8px; font-size: 12px;
+    }
 }
 
 @media (max-width: 480px) {
