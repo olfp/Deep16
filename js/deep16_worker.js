@@ -85,17 +85,17 @@ function runSimulation() {
         }
     }
     
-    // Send batch update
-    self.postMessage({
-        type: 'BATCH_UPDATE',
-        data: {
-            registers: [...simulator.registers],
-            psw: simulator.psw,
-            memory: simulator.memory,
-            stepsExecuted: stepsExecuted,
-            running: simulator.running && isRunning
-        }
-    });
+self.postMessage({
+    type: 'BATCH_UPDATE',
+    data: {
+        registers: [...simulator.registers],
+        psw: simulator.psw,
+        memory: simulator.memory,
+        segmentRegisters: {...simulator.segmentRegisters}, // Add this
+        stepsExecuted: stepsExecuted,
+        running: simulator.running && isRunning
+    }
+});
     
     // If still running, continue in next animation frame
     if (isRunning && simulator.running) {
