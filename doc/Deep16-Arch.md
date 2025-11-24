@@ -500,14 +500,14 @@ setup_screen:
     LDI  0x0FFF       ; LDI always loads R0
     INV  R0           ; R0 = 0xF000
     MOV  ES, R0       ; Enhanced MOV to segment register
-    LDI  0x0000       ; Base offset to R0
+    LDI  0x1000       ; Base offset to screen buffer start
     MOV  R10, R0      ; Enhanced MOV syntax
     ERD  R10          ; Use R10/R11 for ES access, sets DE=1
 
 write_char:
     LDI  'H'          ; Character to R0
     MOV  R1, R0       ; Copy to R1  
-    STS  R1, [R10+0x1000]    ; Enhanced bracket syntax for screen write
+    STS  R1, ES, R10          ; Explicit ES segment store
     
     RET
 ```
