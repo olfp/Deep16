@@ -897,7 +897,7 @@ run() {
                 // UPDATE DISPLAYS WHEN PROGRAM COMPLETES
                 this.updateAllDisplays();
             }
-        }, 100);
+        }, 1);
     }
 }
 
