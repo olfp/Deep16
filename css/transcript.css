@@ -6,25 +6,19 @@
     flex-direction: column;
 }
 
-.transcript-panel .panel-header {
-    background: #2d2d30;
-    padding: 8px 12px;
-    border-bottom: 1px solid #3e3e42;
-    font-weight: bold;
-    font-size: 12px;
-}
+/* Transcript title removed in markup */
 
 .transcript {
     flex: 1;
-    padding: 6px;
-    font-size: 11px;
+    padding: 4px 6px;
+    font-size: 10px;
     overflow-y: auto;
-    line-height: 1.3;
+    line-height: 1.15;
 }
 
 .transcript-entry {
-    margin-bottom: 3px;
-    padding: 2px 4px;
+    margin-bottom: 2px;
+    padding: 1px 3px;
     border-left: 2px solid #569cd6;
     background: #2a2d2e;
 }

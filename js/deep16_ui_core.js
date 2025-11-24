@@ -51,6 +51,8 @@ class DeepWebUI {
         this.initializeWorkerToggle();
         this.addWorkerStyles();
         this.updateAllDisplays();
+        this.syncHeaderWidths();
+        this.setupMobileLayout();
         this.addTranscriptEntry("DeepCode initialized and ready", "info");
     }
 
@@ -566,6 +568,9 @@ class DeepWebUI {
             document.getElementById('edit-dropdown').classList.remove('show');
         });
 
+        window.addEventListener('resize', () => this.syncHeaderWidths());
+        window.addEventListener('resize', () => this.setupMobileLayout());
+
         // Update example selector handler
         document.getElementById('example-select').addEventListener('change', (e) => {
             const filename = e.target.value;
@@ -967,7 +972,14 @@ class DeepWebUI {
             this.updateAssemblyListing();
         } else if (tabName === 'screen') { 
             this.screenUI.updateScreenDisplay();
+        } else if (tabName === 'machine') {
+            this.registerUI.updateRegisterDisplay();
+            this.registerUI.updatePSWDisplay();
+            this.registerUI.updateSegmentRegisters();
+            this.memoryUI.updateMemoryDisplayHeight();
         }
+
+        this.syncHeaderWidths();
     }
 
     assemble() {
@@ -1201,6 +1213,115 @@ class DeepWebUI {
         });
 
         transcript.innerHTML = html;
+    }
+
+    setupMobileLayout() {
+        const isMobile = window.matchMedia('(max-width: 768px)').matches;
+        if (isMobile && !this.mobileActive) {
+            this.mobileActive = true;
+            this.initializeMobileControls();
+            this.initializeMachineTab();
+        } else if (!isMobile && this.mobileActive) {
+            this.mobileActive = false;
+            this.restoreDesktopLayout();
+        }
+    }
+
+    initializeMobileControls() {
+        const mobileCtrls = document.getElementById('mobile-controls');
+        if (!mobileCtrls) return;
+        const run = document.getElementById('run-btn');
+        const step = document.getElementById('step-btn');
+        const reset = document.getElementById('reset-btn');
+        if (run && step && reset) {
+            this.originalButtonParent = run.parentElement;
+            mobileCtrls.appendChild(run);
+            mobileCtrls.appendChild(step);
+            mobileCtrls.appendChild(reset);
+            mobileCtrls.style.display = 'flex';
+        }
+    }
+
+    initializeMachineTab() {
+        const tabButtons = document.querySelector('.tab-buttons');
+        const screenBtn = Array.from(tabButtons.querySelectorAll('.tab-button')).find(b => b.dataset.tab === 'screen');
+        let machineBtn = Array.from(tabButtons.querySelectorAll('.tab-button')).find(b => b.dataset.tab === 'machine');
+        if (!machineBtn) {
+            machineBtn = document.createElement('button');
+            machineBtn.className = 'tab-button';
+            machineBtn.dataset.tab = 'machine';
+            machineBtn.textContent = 'Machine';
+            tabButtons.insertBefore(machineBtn, screenBtn);
+            machineBtn.addEventListener('click', (e) => this.switchTab('machine'));
+        }
+
+        let machineTab = document.getElementById('machine-tab');
+        if (!machineTab) {
+            machineTab = document.createElement('div');
+            machineTab.id = 'machine-tab';
+            machineTab.className = 'tab-content';
+            const tabContainer = document.querySelector('.tab-container');
+            tabContainer.appendChild(machineTab);
+        }
+
+        const registersContainer = document.querySelector('.registers-container');
+        const memoryControls = document.querySelector('.memory-controls');
+        const memoryDisplay = document.getElementById('memory-display');
+        const recentPanel = document.querySelector('.recent-memory-panel');
+
+        if (registersContainer && memoryControls && memoryDisplay && recentPanel) {
+            this.origRegistersParent = registersContainer.parentElement;
+            this.origMemoryControlsParent = memoryControls.parentElement;
+            this.origMemoryDisplayParent = memoryDisplay.parentElement;
+            this.origRecentPanelParent = recentPanel.parentElement;
+            machineTab.appendChild(registersContainer);
+            machineTab.appendChild(memoryControls);
+            machineTab.appendChild(memoryDisplay);
+            machineTab.appendChild(recentPanel);
+        }
+    }
+
+    restoreDesktopLayout() {
+        const run = document.getElementById('run-btn');
+        const step = document.getElementById('step-btn');
+        const reset = document.getElementById('reset-btn');
+        if (run && step && reset && this.originalButtonParent) {
+            this.originalButtonParent.appendChild(run);
+            this.originalButtonParent.appendChild(step);
+            this.originalButtonParent.appendChild(reset);
+            const mobileCtrls = document.getElementById('mobile-controls');
+            if (mobileCtrls) mobileCtrls.style.display = 'none';
+        }
+
+        const machineTab = document.getElementById('machine-tab');
+        const registersContainer = document.querySelector('.registers-container');
+        const memoryControls = document.querySelector('.memory-controls');
+        const memoryDisplay = document.getElementById('memory-display');
+        const recentPanel = document.querySelector('.recent-memory-panel');
+        if (machineTab && this.origRegistersParent && this.origMemoryControlsParent && this.origMemoryDisplayParent && this.origRecentPanelParent) {
+            this.origRegistersParent.appendChild(registersContainer);
+            this.origMemoryControlsParent.appendChild(memoryControls);
+            this.origMemoryDisplayParent.appendChild(memoryDisplay);
+            this.origRecentPanelParent.appendChild(recentPanel);
+            machineTab.remove();
+            const tabButtons = document.querySelector('.tab-buttons');
+            const machineBtn = Array.from(tabButtons.querySelectorAll('.tab-button')).find(b => b.dataset.tab === 'machine');
+            if (machineBtn) machineBtn.remove();
+        }
+    }
+
+    syncHeaderWidths() {
+        const editorPanel = document.querySelector('.editor-panel');
+        const memoryPanel = document.querySelector('.memory-panel');
+        if (!editorPanel || !memoryPanel) return;
+        const leftW = editorPanel.getBoundingClientRect().width;
+        const rightW = memoryPanel.getBoundingClientRect().width;
+        const totalW = leftW + rightW;
+        if (totalW <= 0) return;
+        const leftPct = (leftW / totalW) * 100;
+        const rightPct = 100 - leftPct;
+        document.documentElement.style.setProperty('--left-col-pct', leftPct + '%');
+        document.documentElement.style.setProperty('--right-col-pct', rightPct + '%');
     }
 
     async loadExamplesList() {

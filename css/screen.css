@@ -5,23 +5,25 @@
     flex-direction: column;
     background: #000000;
     padding: 6px; /* Further reduced */
-    overflow: auto;
+    overflow: hidden;
     align-items: center;
+    min-width: 0;
 }
 
 .screen-display {
     background: #000000;
-    border: 1px solid #3e3e42; /* Reduced to 1px */
-    border-radius: 2px; /* Further reduced */
-    padding: 6px; /* Further reduced */
+    border: 1px solid #3e3e42;
+    border-radius: 2px;
+    padding: 6px;
     margin: 0 auto;
-    box-shadow: 0 0 8px rgba(0, 255, 0, 0.08); /* Much smaller glow */
+    box-shadow: 0 0 8px rgba(0, 255, 0, 0.08);
     font-family: 'Courier New', monospace;
-    font-size: 13px; /* Slightly smaller font */
+    font-size: 13px;
     line-height: 1.1;
     color: #ffffff;
-    width: 720px; /* Fixed width to match other tabs */
-    box-sizing: border-box; /* Include padding and border in width */
+    width: 100%;
+    max-width: 720px;
+    box-sizing: border-box;
 }
 
 .screen-row {
@@ -32,7 +34,7 @@
 }
 
 .screen-char {
-    width: 8.5px; /* Precise calculation: (720 - 12) / 80 = 8.85px per char */
+    width: calc((100% - 12px) / 80);
     height: 15px;
     display: inline-block;
     text-align: center;
@@ -44,7 +46,7 @@
     font-family: 'Courier New', monospace;
     font-size: 13px;
     letter-spacing: -0.5px;
-    flex-shrink: 0; /* Prevent characters from shrinking */
+    flex-shrink: 0;
 }
 
 .screen-char:hover {
@@ -69,10 +71,10 @@
 .screen-info {
     color: #6a9955;
     font-family: 'Courier New', monospace;
-    font-size: 10px; /* Smaller */
+    font-size: 10px;
     text-align: center;
     margin-top: 6px;
-    max-width: 720px; /* Match display width */
+    max-width: 720px;
     padding: 0 8px;
     box-sizing: border-box;
 }
@@ -108,19 +110,7 @@
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
-    .screen-display {
-        width: 95%; /* Use percentage on mobile */
-        max-width: 720px;
-        transform: none; /* Remove scaling */
-        padding: 4px;
-    }
-    
-    .screen-char {
-        width: calc((100% - 12px) / 80); /* Dynamic width calculation */
-        font-size: 11px;
-    }
-    
-    .screen-row {
-        height: 13px;
-    }
+    .screen-display { width: 95%; max-width: 960px; padding: 4px; }
+    .screen-char { font-size: 11px; }
+    .screen-row { height: 13px; }
 }

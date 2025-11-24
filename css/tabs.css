@@ -4,6 +4,7 @@
     flex-direction: column;
     flex: 1;
     min-height: 0;
+    min-width: 0;
 }
 
 .tab-buttons {
@@ -42,6 +43,7 @@
     overflow: hidden;
     min-height: 0;
     flex-direction: column;
+    min-width: 0;
 }
 
 .tab-content.active {

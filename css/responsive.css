@@ -88,6 +88,31 @@
     .memory-address {
         width: 60px;
     }
+    .mobile-controls {
+        display: flex !important;
+        gap: 8px;
+        padding: 8px 10px;
+        background: #2d2d30;
+        border-bottom: 1px solid #3e3e42;
+        position: relative;
+        z-index: 2;
+    }
+
+    .mobile-controls button {
+        flex: 1;
+        min-height: 32px;
+        font-size: 12px;
+        padding: 6px 10px;
+    }
+
+    .memory-panel { display: none; }
+
+    #machine-tab { display: none; }
+    #machine-tab.active { display: flex; }
+
+    .memory-display { overflow-x: hidden; }
+    .memory-source { white-space: normal; }
+    .memory-disassembly { white-space: normal; }
 }
 
 @media (max-width: 480px) {
