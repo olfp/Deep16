@@ -28,6 +28,7 @@ clear_loop:
     ADD  R11, 1
     SUB  R2, 1
     JNZ  clear_loop
+    NOP              ; branch delay slot
     
     ; Write string from .text section
     MOV  R11, R10
@@ -41,6 +42,7 @@ write_loop:
     ADD  R11, 1
     ADD  R4, 1
     JMP  write_loop
+    NOP               ; branch delay slot
     
 done:
     HALT
