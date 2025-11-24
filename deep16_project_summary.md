@@ -1,36 +1,42 @@
 # DeepWeb IDE - Development Status
-## Current: ✅ **ALL MAJOR BUGS RESOLVED - PRODUCTION READY**
+## Current: ✅ **ARCHITECTURE SPECIFICATION COMPLETE - PRODUCTION READY**
 
 ---
 
-## 🎉 **MILESTONE 4 COMPLETED - SCREEN SUBSYSTEM INTEGRATED**
+## 🎉 **MILESTONE 5 COMPLETED - ARCHITECTURE DOCUMENTATION FINALIZED**
 
-### **✅ New Feature: 80x25 Character Display**
+### **✅ Complete Architecture Specification v4.2 (1r22)**
 
-**Screen Subsystem Implemented:**
-- **Memory-mapped display** at I/O Segment 0xF1000-0xF17CF
-- **80×25 character grid** - Classic terminal dimensions
-- **Real-time synchronization** with simulator memory
-- **Retro styling** - White on black with scanline effects
-- **ASCII support** - Printable characters with special handling
+**Documentation Finalized:**
+- **Corrected JML instruction**: CS=R[Rx], PC=R[Rx+1] (not Rx+1 for CS)
+- **Enhanced assembler syntax** fully documented as preprocessing only
+- **Universal MOV instruction** with automatic encoding selection
+- **All instruction encodings** verified and documented
+- **Programming examples** updated with correct syntax
 
-**Memory Architecture Finalized:**
-- **Home Segment (0x00000-0xDFFFF)**: 896KB for code and data execution
-- **Graphics Segment (0xE0000-0xEFFFF)**: 64KB reserved for future 640x400 display
-- **I/O Segment (0xF0000-0xFFFFF)**: 64KB for peripherals
-  - **Screen Buffer (0xF1000-0xF17CF)**: 80×25 character display operational
-  - **Future**: Keyboard ports and other I/O devices
+**Architecture Clarifications:**
+- **LDI always loads R0** - all examples corrected
+- **Interrupt vectors** properly documented with memory loading
+- **Segment assignment instructions** (SRS/SRD/ERS/ERD) fully documented
+- **Enhanced syntax** clearly distinguished from actual binary encoding
 
 ---
 
 ## ✅ **Recently Completed & Working**
+
+### **Architecture Documentation** ✅
+- **Complete instruction set**: All 45+ instructions with proper encodings
+- **Enhanced assembler syntax**: Bracket notation for LD/ST, plus notation for MOV
+- **Universal MOV preprocessing**: Automatic selection of MOV/MVS/SMV
+- **PSW operations**: SRS, SRD, ERS, ERD with automatic flag setting
+- **Interrupt system**: Shadow registers and vector table at segment 0
+- **Memory architecture**: 1MB segmented address space with I/O mapping
 
 ### **Screen Subsystem** ✅
 - **Memory-mapped I/O**: Direct access via 0xF1000-0xF17CF
 - **Real-time updates**: Automatic sync with simulator memory writes
 - **Retro terminal aesthetics**: Classic 80x25 with glow effects
 - **Character mapping**: Lower byte = ASCII, upper byte reserved for attributes
-- **Example program**: Screen demo with text output
 
 ### **Memory Display System** ✅ **(Perfected)**
 - **20-bit addressing**: Full 1MB address space support
@@ -51,25 +57,18 @@
 - **Professional Layout**: Two-panel design with proper spacing
 - **Interactive Elements**: Hover states and smooth transitions
 
-### **Instruction Set Completion** ✅
-- **All SOP instructions**: SWB, INV, NEG, JML, SRS, SRD, ERS, ERD, SET, CLR, SET2, CLR2
-- **Segment operations**: MVS, SMV, LDS, STS
-- **Complete shifts**: SL, SLC, SR, SRC, SRA, SAC, ROR, ROC
-- **32-bit MUL/DIV**: Extended arithmetic operations
-- **System instructions**: NOP, HLT, SWI, RETI
-
 ---
 
-## 🎯 **Current Status: PRODUCTION READY WITH SCREEN SUBSYSTEM**
+## 🎯 **Current Status: PRODUCTION READY WITH COMPLETE DOCUMENTATION**
 
 ### **Complete DeepWeb IDE Feature Set:**
 1. **✅ Professional File Management** - Full file operations with modern API
-2. **✅ Complete Deep16 Assembler** - All instructions with error reporting
+2. **✅ Complete Deep16 Assembler** - All instructions with enhanced syntax
 3. **✅ Advanced Simulator** - Cycle-accurate execution with PSW tracking
 4. **✅ Perfect Memory Display** - 1MB space with intelligent visualization
 5. **✅ Screen Output System** - 80x25 character display with retro styling
 6. **✅ Professional UI/UX** - VS Code-inspired interface
-7. **✅ Comprehensive Documentation** - Architecture and programming guides
+7. **✅ Comprehensive Documentation** - Complete architecture specification
 
 ### **Memory Architecture - Complete & Structured**
 ```
@@ -80,56 +79,63 @@
 ```
 
 ### **All Systems Operational:**
-- **Assembler**: Complete Deep16 instruction set with advanced syntax
+- **Assembler**: Complete Deep16 instruction set with enhanced syntax
 - **Simulator**: Accurate execution with full PSW and register tracking
 - **Memory System**: 1MB address space with perfect display
 - **Screen System**: Real-time character display output
 - **UI/UX**: Professional interface with file management
 - **Documentation**: Comprehensive architecture and examples
 
-### **User Experience:**
-- **Professional Workflow**: File-based development environment
-- **Visual Debugging**: Real-time register and memory monitoring
-- **Screen Output**: Character-based display for program output
-- **Error Handling**: Clear error reporting with navigation
-- **Responsive Design**: Works on desktop, tablet, and mobile
+### **Enhanced Assembler Features:**
+- **Bracket syntax**: `LD R1, [R2+5]` → `LD R1, R2, 5`
+- **Plus syntax**: `MOV R1, R2+3` → `MOV R1, R2, 3`
+- **Universal MOV**: Automatic MVS/SMV selection for segment/special registers
+- **Character literals**: `LDI 'A'` and escape sequences `\n`, `\t`
+- **String directives**: `.text "Hello\n"` with null termination
 
 ---
 
 ## 🚀 **Ready for Production Deployment**
 
-The DeepWeb IDE is now **fully functional** with all major systems operational, including the new screen subsystem:
+The DeepWeb IDE is now **fully functional** with all major systems operational and completely documented:
 
 ### **Core Systems:**
-- ✅ **Assembler**: Complete Deep16 instruction set with advanced syntax
+- ✅ **Assembler**: Complete Deep16 instruction set with enhanced syntax
 - ✅ **Simulator**: Accurate execution with full PSW and register tracking
 - ✅ **Memory System**: 1MB address space with perfect display
 - ✅ **Screen System**: 80x25 character display with retro styling
 - ✅ **UI/UX**: Professional interface with file management
-- ✅ **Documentation**: Comprehensive architecture and examples
+- ✅ **Documentation**: Comprehensive architecture specification v4.2
+
+### **Architecture Finalized:**
+- **Deep16 v4.2 (1r22)**: Production ready with complete instruction set
+- **20-bit physical addressing**: 1MB segmented memory space
+- **Enhanced assembler syntax**: User-friendly preprocessing features
+- **Universal MOV**: Intelligent instruction selection
+- **Interrupt system**: Shadow registers for fast context switching
 
 ### **Testing Completed**
 - ✅ File operations (New, Load, Save, Save As, Print)
-- ✅ Layout integrity after all integrations
-- ✅ Memory display consistency (all bugs resolved)
+- ✅ All instruction types with correct encodings
+- ✅ Enhanced syntax preprocessing
 - ✅ Screen subsystem functionality
-- ✅ All instruction types
-- ✅ Responsive behavior
-- ✅ Gap handling in memory display
-- ✅ Code/data differentiation
-- ✅ Screen memory mapping and updates
+- ✅ Memory display consistency
+- ✅ Interrupt and shadow register behavior
+- ✅ Segment register operations
+- ✅ Responsive behavior across devices
 
 ---
 
 ## 🏗️ **Architecture Updates**
 
-### **Deep16 v3.5 (1r13) - Production Ready with I/O**
-- **20-bit physical addressing** (1MB space)
-- **Structured memory segments**: Home, Graphics, I/O
-- **Memory-mapped I/O**: Screen at 0xF1000-0xF17CF
-- **Complete instruction set** per specification
-- **Enhanced debugging** with memory access tracking
-- **Professional IDE** with file management and screen output
+### **Deep16 v4.2 (1r22) - Production Ready**
+- **Complete instruction set**: 45+ instructions with verified encodings
+- **Enhanced assembler syntax**: Bracket and plus notation as preprocessing
+- **Universal MOV**: Automatic selection of MOV/MVS/SMV
+- **PSW segment assignment**: SRS, SRD, ERS, ERD with automatic flag setting
+- **Corrected JML**: CS=R[Rx], PC=R[Rx+1]
+- **Interrupt system**: Vector table at segment 0 with shadow registers
+- **Memory-mapped I/O**: Screen at 0xF1000 operational
 
 ### **Memory Model - Complete & Structured**
 - **Home Segment**: 896KB for code execution and data
@@ -170,9 +176,22 @@ The DeepWeb IDE is now **fully functional** with all major systems operational, 
 - Retro terminal styling
 - Real-time synchronization
 
+### **Milestone 5**: Architecture Documentation Finalized ✅
+- Complete instruction set documentation
+- Enhanced syntax specification
+- Universal MOV preprocessing
+- All corrections and clarifications
+
 ---
 
 ## 🔧 **Technical Notes**
+
+**Architecture Finalized:**
+- **JML instruction**: CS=R[Rx], PC=R[Rx+1] (corrected)
+- **LDI syntax**: Single operand only, always loads R0
+- **Enhanced syntax**: Pure assembler preprocessing
+- **Universal MOV**: Automatic encoding selection
+- **Interrupt vectors**: Memory loading from segment 0
 
 **Screen Subsystem Features:**
 - Memory-mapped at I/O Segment 0xF1000-0xF17CF
@@ -182,17 +201,12 @@ The DeepWeb IDE is now **fully functional** with all major systems operational, 
 - Real-time updates on memory writes
 - Retro terminal aesthetics with scanlines
 
-**Memory Architecture Perfected:**
-- Clean separation between code, graphics, and I/O
-- Memory-mapped I/O for simple hardware access
-- Expandable architecture for future peripherals
-- Backward compatible with existing programs
-
-**File System Integration:**
-- Uses modern File System Access API where available
-- Falls back to traditional input for broader compatibility
-- Maintains file handle for efficient save operations
-- Tracks modification state for user protection
+**Enhanced Assembler Syntax:**
+- **Bracket notation**: `LD R1, [R2+5]` → traditional `LD R1, R2, 5`
+- **Plus notation**: `MOV R1, R2+3` → traditional `MOV R1, R2, 3`
+- **Universal MOV**: Automatic MVS/SMV for segment/special registers
+- **Character constants**: `'A'`, `'\n'`, `'\t'` support
+- **String directives**: `.text "Hello"` with escape sequences
 
 **Ready for:** Demonstration, educational use, embedded development, and production deployment.
 
@@ -214,12 +228,12 @@ The DeepWeb IDE is now feature-complete with a professional development environm
 
 ---
 
-**DeepWeb IDE Status - PRODUCTION READY WITH SCREEN SUBSYSTEM**
+**DeepWeb IDE Status - PRODUCTION READY WITH COMPLETE DOCUMENTATION**
 
-*All systems operational, screen output implemented, memory architecture complete - Ready for public release!*
+*All systems operational, architecture finalized, documentation complete - Ready for public release!*
 
-**🎉 MILESTONE 4 COMPLETED - DEEPWEB IDE WITH SCREEN SUBSYSTEM IS NOW FULLY OPERATIONAL AND PRODUCTION READY!**
+**🎉 MILESTONE 5 COMPLETED - DEEPWEB IDE WITH COMPLETE ARCHITECTURE SPECIFICATION IS NOW FULLY OPERATIONAL AND PRODUCTION READY!**
 
 ---
 
-*The DeepWeb IDE represents a significant achievement in educational tool development, providing a complete, professional-grade development environment for the Deep16 architecture with visual output capabilities. All known issues have been resolved and the system is ready for production use.*
+*The DeepWeb IDE represents a significant achievement in educational tool development, providing a complete, professional-grade development environment for the Deep16 architecture with comprehensive documentation. All known issues have been resolved and the system is ready for production use.*
