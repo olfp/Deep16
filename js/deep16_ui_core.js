@@ -57,6 +57,22 @@ class DeepWebUI {
         this.useWasm = this.wasmAvailable;
         if (this.wasmAvailable) {
             this.addTranscriptEntry("WASM module detected", "success");
+        } else if (window.Deep16WasmReady && typeof window.Deep16WasmReady.then === 'function') {
+            this.addTranscriptEntry("WASM module loading...", "info");
+            window.Deep16WasmReady.then(() => {
+                this.wasmAvailable = true;
+                this.useWasm = true;
+                this.addTranscriptEntry("WASM module loaded", "success");
+                if (this.currentAssemblyResult) {
+                    try {
+                        const seg = this.simulator.segmentRegisters;
+                        window.Deep16Wasm.set_segments(seg.CS & 0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
+                        this.addTranscriptEntry("Segments synced to WASM", "info");
+                    } catch {}
+                }
+            }).catch(() => {
+                this.addTranscriptEntry("WASM module failed to load", "error");
+            });
         } else {
             this.addTranscriptEntry("WASM module not available", "info");
         }
