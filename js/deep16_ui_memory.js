@@ -10,6 +10,15 @@ class Deep16MemoryUI {
     }
 
     buildSegmentInfo(listing) {
+        if (!listing || listing.length === 0) {
+            this.segmentInfo = {
+               code: { start: 0x0000, end: 0x1FFF },
+               data: { start: 0x2000, end: 0x3FFF },
+               stack: { start: 0x4000, end: 0x7FFF }
+            };
+          return;
+        }
+
         const segments = {
             code: { start: Infinity, end: -Infinity },
             data: { start: Infinity, end: -Infinity }
@@ -45,7 +54,7 @@ class Deep16MemoryUI {
 isCodeAddress(address) {
     if (!this.ui.currentAssemblyResult || !this.ui.currentAssemblyResult.segmentMap) {
         console.log(`isCodeAddress(${address.toString(16)}): no segment map - defaulting to false`);
-        // return false;
+        return false;
     }
     
     // First, check if this address is explicitly marked as code in the segment map
@@ -280,6 +289,10 @@ renderMemoryDisplay() {
     const end = Math.min(start + 64, this.ui.simulator.memory.length);
     
     console.log(`Rendering memory from 0x${start.toString(16)} to 0x${end.toString(16)}`);
+
+    if (!this.segmentInfo) {
+        this.buildSegmentInfo([]); // Initialize with empty listing
+    }
     
     let html = '';
     let currentAddress = start;
@@ -483,6 +496,10 @@ updateMemoryDisplay() {
 
     console.log(`updateMemoryDisplay: memoryStartAddress = ${this.ui.memoryStartAddress}, start = ${start}, end = ${end}`);
 
+    if (!this.ui.currentAssemblyResult) {
+        this.buildSegmentInfo([]);
+    }
+    
     // Check if current PC is outside the visible range
     const currentPC = this.ui.simulator.registers[15];
     const pcIsVisible = (currentPC >= start && currentPC < end);
