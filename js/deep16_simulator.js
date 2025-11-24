@@ -291,7 +291,7 @@ class Deep16Simulator {
             } else {
                 console.warn(`LD: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
             }
-        if (d === 1) { // ST
+        } else { // ST
             if (physicalAddress < this.memory.length) {
                 const value = this.registers[rd];
                 this.memory[physicalAddress] = value;
