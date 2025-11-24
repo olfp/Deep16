@@ -1,4 +1,4 @@
-# Deep16 (深十六) Architecture Specification Milestone 1r15
+# Deep16 (深十六) Architecture Specification Milestone 1r17
 ## 16-bit RISC Processor with Enhanced Memory Addressing
 
 ---
@@ -8,23 +8,26 @@
 Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 - **16-bit fixed-length instructions**
 - **16 general-purpose registers**
-- **Segmented memory addressing** (1MW physical address space)
+- **Segmented memory addressing** (1MB physical address space)
 - **4 segment registers** for code, data, stack and extra
 - **shadow register views** for interrupts
 - **Hardware-assisted interrupt handling**
-- **Complete word-based memory system**
-- **Extended addressing** 20 bit physical address space
+- **Complete word-based memory system** (no byte operations)
+- **Extended addressing** 20-bit physical address space
 - **5-stage pipelined implementation** with delayed branch
 
 ### 1.1 Key Features
 - All instructions exactly 16 bits
 - 16 user-visible registers, PC is R15
-- 4 segment registers, CS, DS, SS, ES
+- 4 segment registers: CS, DS, SS, ES
 - Processor status word (PSW) for flags and implicit segment selection
 - PC'/CS'/PSW' shadow views for interrupt handling
 - Compact encoding with variable-length opcodes
 - Enhanced memory addressing with stack/extra registers
 - **1-slot delayed branch** for improved pipeline efficiency
+- **Word-only memory operations** (simplifies alignment)
+- **No memory protection** (keep it simple)
+- **Universal MOV instruction** with automatic encoding selection
 
 ---
 
@@ -54,7 +57,7 @@ Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 | SS       | 10   | Stack Segment |
 | ES       | 11   | Extra Segment |
 
-The effective 20 bit memory address is computed as (segment << 4) + offset. Which segment register to use is either explicit (LDS/STS) or implicit: CS for instruction fetch, SS or ES when specified via PSW SR/ER or else DS.
+The effective 20-bit memory address is computed as `(segment << 4) + offset`. Which segment register to use is either explicit (LDS/STS) or implicit: CS for instruction fetch, SS or ES when specified via PSW SR/ER or else DS.
 
 ### 2.3 Special Registers
 
@@ -88,55 +91,61 @@ The effective 20 bit memory address is computed as (segment << 4) + offset. Whic
 
 ---
 
-## 3. Pipeline Architecture
+## 3. Memory Architecture
 
-### 3.1 5-Stage Pipeline Structure
+### 3.1 Physical Memory Map (1MB)
 
-The Deep16 implements a classic 5-stage RISC pipeline with delayed branch support:
-
-**Pipeline Stages:**
-1. **IF** (Instruction Fetch) - Fetch instruction from memory using CS:PC
-2. **ID** (Instruction Decode) - Decode instruction, read registers, resolve hazards
-3. **EX** (Execute) - ALU operations, effective address calculation, branch resolution
-4. **MEM** (Memory Access) - Load/store operations, segment register access
-5. **WB** (Write Back) - Write results to register file
-
-### 3.2 Delayed Branch Implementation
-
-**One delay slot** is implemented for all branch and jump instructions:
-- The instruction immediately following a branch/jump **always executes**
-- Compiler/assembler must schedule useful instructions in the delay slot
-- **Applies to**: JMP, JZ, JNZ, JC, JNC, JN, JNN, JO, JNO, JML
-
-**Example:**
-```assembly
-JZ   target    ; Branch if zero flag set
-ADD  R1, R2    ; This instruction ALWAYS executes (delay slot)
-; If branch taken, execution continues at target
-; If not taken, execution continues after ADD
+```
+0x00000 - 0xDFFFF: Home Segment (896KB) - Code execution starts here
+0xE0000 - 0xEFFFF: Graphics Segment (64KB) - Reserved for future 640x400 display
+0xF0000 - 0xFFFFF: I/O Segment (64KB) - Memory-mapped peripherals
+   └── 0xF1000 - 0xF17CF: Screen Buffer (2KB) - 80×25 character display
 ```
 
-### 3.3 Pipeline Hazard Management
+### 3.2 Memory Access Characteristics
+- **Word-based only** - No byte addressable operations
+- **No alignment restrictions** - All addresses are word-aligned
+- **No memory protection** - Simple and predictable
+- **Memory-mapped I/O** - Peripherals accessed via load/store
 
-**Data Hazards:**
-- **Forwarding paths**: EX→EX, MEM→EX, WB→EX
-- **Load-use stalls**: 1-cycle stall for LD/LDS followed by dependent ALU operation
-- **Multi-cycle operations**: MUL/DIV may require additional EX cycles
+### 3.3 Screen Memory Mapping
+- **Location**: 0xF1000-0xF17CF (80×25 characters × 2 bytes)
+- **Format**: Lower byte = ASCII character, Upper byte = attributes (reserved)
+- **Access**: Use ES segment with offset for efficient writes
 
-**Control Hazards:**
-- **Delayed branch** eliminates bubbles for most branches
-- **JML instruction** may require special handling due to CS segment change
-- **RETI** requires careful pipeline flush on context switch
+**Example screen setup:**
+```assembly
+LDI  R0, 0x0FFF      ; Load 0x0FFF (legal immediate)
+INV  R0              ; R0 = 0xF000
+MVS  ES, R0          ; ES = 0xF000
+LDI  R10, 0x0000     ; Base offset
+ERS  R10             ; Use R10/R11 for ES access
+SET2 0x0C            ; Set DE=1, ER=R10
 
-**Memory Hazards:**
-- **In-order execution** simplifies memory dependency resolution
-- **Segment register operations** coordinated in MEM stage
+; Now write to screen:
+LDI  R1, 0x0041      ; 'A' character
+STS  R1, 0x1000      ; ES:R10+0x1000 = 0xF1000 (screen)
+```
 
 ---
 
-## 4. Shadow Register System
+## 4. Interrupt System
 
-### 4.1 Automatic Context Switching
+### 4.1 Interrupt Vector Table
+
+**Located at Segment 0 (Low Memory):**
+```
+0x0000: RESET    (CS=0, PC=0)
+0x0001: HW_INT   (CS=0, PC=1)  
+0x0002: SWI      (CS=0, PC=2)
+```
+
+### 4.2 Reset State
+- **PC = 0x0000**, **CS = 0x0000**, **PSW = 0x0000**
+- All other registers = undefined
+- Execution begins at physical address 0x00000
+
+### 4.3 Shadow Register System
 
 **On Interrupt:**
 - `PSW' ← PSW` (Snapshot pre-interrupt state)
@@ -151,275 +160,187 @@ ADD  R1, R2    ; This instruction ALWAYS executes (delay slot)
 - Both contexts preserved for debugging
 - **Pipeline flushed** on context restoration
 
-### 4.2 SMV Instruction - Special Move
+---
 
-**Table 4.1: SMV Instruction Encoding**
+## 5. Instruction Set Enhancements
 
-| SRC2 | Mnemonic | Effect |
-|------|----------|--------|
-| 00 | SMV DST, APC | `DST ← alternate_PC` |
-| 01 | SMV DST, APSW | `DST ← alternate_PSW` |
-| 10 | SMV DST, PSW | `DST ← current_PSW` |
-| 11 | SMV DST, ACS | `DST ← alternate_CS` |
+### 5.1 Universal MOV Instruction
+
+The `MOV` instruction automatically selects the appropriate encoding based on operands:
+
+| Operand Types | Actual Encoding | Description |
+|---------------|-----------------|-------------|
+| `MOV Rd, Rs` | MOV | Register-to-register move |
+| `MOV Rd, Rs, imm` | MOV | Register move with offset (0-3) |
+| `MOV Rd, Sx` | MVS Rd, Sx | Read from segment register |
+| `MOV Sx, Rd` | MVS Sx, Rd | Write to segment register |
+| `MOV Rd, PSW` | SMV Rd, PSW | Read from special register |
+| `MOV Rd, APC` | SMV Rd, APC | Read from alternate PC |
+
+### 5.2 PSW Segment Assignment Instructions
+
+**Table 5.2: PSW Segment Assignment Operations**
+
+| Instruction | Format | Encoding | Purpose |
+|-------------|---------|----------|---------|
+| **SRS** | `SRS Rx` | `[11111110][1000][Rx4]` | Stack Register Single - Use Rx for SS |
+| **SRD** | `SRD Rx` | `[11111110][1001][Rx4]` | Stack Register Dual - Use Rx/Rx+1 for SS |
+| **ERS** | `ERS Rx` | `[11111110][1010][Rx4]` | Extra Register Single - Use Rx for ES |
+| **ERD** | `ERD Rx` | `[11111110][1011][Rx4]` | Extra Register Dual - Use Rx/Rx+1 for ES |
+
+**Usage Example:**
+```assembly
+LDI  R10, 0x0000     ; Base offset
+ERS  R10             ; Use R10 for ES access
+SET2 0x0C            ; Set DE=1 (enable dual), ER=R10
+```
+
+### 5.3 Single Operand ALU Operations
+
+**Table 5.3: Single Operand Instructions**
+
+| Instruction | Format | Encoding | Description |
+|-------------|---------|----------|-------------|
+| **SWB** | `SWB Rx` | `[11111110][0000][Rx4]` | Swap Bytes in Rx |
+| **INV** | `INV Rx` | `[11111110][0001][Rx4]` | Invert all bits in Rx |
+| **NEG** | `NEG Rx` | `[11111110][0010][Rx4]` | Two's complement negation of Rx |
+
+**Usage Example:**
+```assembly
+LDI  R0, 0x1234
+SWB  R0              ; R0 = 0x3412
+INV  R0              ; R0 = 0xCBED
+NEG  R0              ; R0 = 0x3413 (two's complement)
+```
+
+### 5.4 Special Move Operations
+
+**Table 5.4: SMV Instruction**
+
+| Instruction | Format | Encoding | Description |
+|-------------|---------|----------|-------------|
+| **SMV** | `SMV Rd, APC` | `[1111111110][00][Rd4]` | Read Alternate PC to Rd |
+| **SMV** | `SMV Rd, APSW` | `[1111111110][01][Rd4]` | Read Alternate PSW to Rd |
+| **SMV** | `SMV Rd, PSW` | `[1111111110][10][Rd4]` | Read Current PSW to Rd |
+| **SMV** | `SMV Rd, ACS` | `[1111111110][11][Rd4]` | Read Alternate CS to Rd |
+
+**Usage Example:**
+```assembly
+SMV R1, PSW          ; Read current PSW to R1
+SMV R2, APC          ; Read alternate PC (interrupt return address) to R2
+```
+
+### 5.5 Long Jump Instruction
+
+**Table 5.5: JML Instruction**
+
+| Instruction | Format | Encoding | Description |
+|-------------|---------|----------|-------------|
+| **JML** | `JML Rx` | `[11111110][0100][Rx4]` | Jump Long - CS=R[Rx+1], PC=R[Rx] |
+
+**Usage Example:**
+```assembly
+; Set up far jump address
+LDI  R0, 0x1000      ; Target offset
+LDI  R1, 0x0001      ; Target segment (CS)
+JML  R0              ; Jump to CS=0x0001, PC=0x1000
+```
+
+### 5.6 Explicit Segment Memory Operations
+
+**Table 5.6: LDS/STS Instructions**
+
+| Instruction | Format | Encoding | Description |
+|-------------|---------|----------|-------------|
+| **LDS** | `LDS Rd, seg, Rb` | `[11110][0][seg2][Rd4][Rb4]` | Load from explicit segment |
+| **STS** | `STS Rd, seg, Rb` | `[11110][1][seg2][Rd4][Rb4]` | Store to explicit segment |
+
+**Segment Encoding:**
+- `00` = CS, `01` = DS, `10` = SS, `11` = ES
+
+**Usage Example:**
+```assembly
+LDS R1, ES, R10      ; Load from ES:R10 to R1
+STS R2, CS, R15      ; Store R2 to CS:PC (unusual but possible)
+```
+
+### 5.7 Complete Shift Operations
+
+**Table 5.7: Enhanced Shift Instructions**
+
+| Instruction | Format | Encoding | Description |
+|-------------|---------|----------|-------------|
+| **SLC** | `SLC Rd, count` | `[110][111][Rd4][00][1][count3]` | Shift Left with Carry |
+| **SRC** | `SRC Rd, count` | `[110][111][Rd4][01][1][count3]` | Shift Right with Carry |
+| **SAC** | `SAC Rd, count` | `[110][111][Rd4][10][1][count3]` | Shift Arithmetic with Carry |
+| **ROC** | `ROC Rd, count` | `[110][111][Rd4][11][1][count3]` | Rotate with Carry |
+
+### 5.8 System Operations
+
+**Table 5.8: Complete System Instructions**
+
+| Instruction | Format | Encoding | Description | Pipeline Effect |
+|-------------|---------|----------|-------------|-----------------|
+| **NOP** | `NOP` | `[1111111111110][000]` | No operation | Full pipeline |
+| **FSH** | `FSH` | `[1111111111110][001]` | Pipeline flush | Pipeline flush |
+| **SWI** | `SWI` | `[1111111111110][010]` | Software interrupt | Pipeline flush + context switch |
+| **RETI** | `RETI` | `[1111111111110][011]` | Return from interrupt | Pipeline flush + context restore |
+| **HLT** | `HLT` | `[1111111111110][111]` | Halt processor | Pipeline freeze |
+
+### 5.9 Complete Instruction Summary
+
+**Table 5.9: Comprehensive Instruction Set**
+
+| Category | Instructions | Notes |
+|----------|--------------|-------|
+| **Data Movement** | MOV, LDI, LSI, MVS, SMV | Universal MOV auto-selects |
+| **ALU Operations** | ADD, SUB, AND, OR, XOR, MUL, DIV | |
+| **32-bit ALU** | MUL32, DIV32 | Explicit 32-bit results |
+| **Single Operand ALU** | SWB, INV, NEG | Byte swap, invert, negate |
+| **Shift/Rotate** | SL, SLC, SR, SRC, SRA, SAC, ROR, ROC | Complete set with carry variants |
+| **Memory Access** | LD, ST, LDS, STS | Bracket and traditional syntax |
+| **Control Flow** | JZ, JNZ, JC, JNC, JN, JNN, JO, JNO, JML | All use delay slot |
+| **PSW Operations** | SRS, SRD, ERS, ERD, SET, CLR, SET2, CLR2 | Segment register assignment |
+| **System** | NOP, FSH, SWI, RETI, HLT | Complete system control |
+
+### 5.10 Flag Operation Aliases
+
+**Table 5.10: Common Flag Aliases**
+
+| Alias | Actual Instruction | Purpose |
+|-------|-------------------|---------|
+| SETN | SET 0 | Set Negative flag |
+| CLRN | CLR 0 | Clear Negative flag |
+| SETZ | SET 1 | Set Zero flag |
+| CLRZ | CLR 1 | Clear Zero flag |
+| SETV | SET 2 | Set Overflow flag |
+| CLRV | CLR 2 | Clear Overflow flag |
+| SETC | SET 3 | Set Carry flag |
+| CLRC | CLR 3 | Clear Carry flag |
+| SETI | SET2 0 | Enable interrupts |
+| CLRI | CLR2 0 | Disable interrupts |
+| SETS | SET2 1 | Enable shadow view |
+| CLRS | CLR2 1 | Disable shadow view |
 
 ---
 
-## 5. Instruction Set Summary
+## 6. Pipeline Architecture
 
-### 5.1 Complete Opcode Hierarchy
+### 6.1 5-Stage Pipeline Structure
 
-**Table 5.1: Instruction Opcode Hierarchy**
+**Pipeline Stages:**
+1. **IF** (Instruction Fetch) - Fetch instruction from memory using CS:PC
+2. **ID** (Instruction Decode) - Decode instruction, read registers, resolve hazards
+3. **EX** (Execute) - ALU operations, effective address calculation, branch resolution
+4. **MEM** (Memory Access) - Load/store operations, segment register access
+5. **WB** (Write Back) - Write results to register file
 
-| Opcode | Bits | Instruction | Format | Pipeline Notes |
-|--------|------|-------------|--------|----------------|
-| 0 | 1 | LDI | `[0][imm15]` | Full pipeline |
-| 10 | 2 | LD/ST | `[10][d1][Rd4][Rb4][offset5]` | Potential load-use stall |
-| 110 | 3 | ALU2 | `[110][op3][Rd4][w1][i1][Rs/imm4]` | Full pipeline, forwarding |
-| 1110 | 4 | JMP | `[1110][type3][target9]` | **Uses delay slot** |
-| 11110 | 5 | LDS/STS | `[11110][d1][seg2][Rd4][Rs4]` | Segment access in MEM |
-| 111110 | 6 | MOV | `[111110][Rd4][Rs4][imm2]` | Full pipeline |
-| 1111110 | 7 | LSI | `[1111110][Rd4][imm5]` | Full pipeline |
-| 11111110 | 8 | SOP | `[11111110][type4][Rx/imm4]` | Various pipeline effects |
-| 111111110 | 9 | MVS | `[111111110][d1][Rd4][seg2]` | Segment access in MEM |
-| 1111111110 | 10 | SMV | `[1111111110][src2][Rd4]` | Special register access |
-| 1111111111110 | 13 | SYS | `[1111111111110][op3]` | Pipeline flush on RETI |
+### 6.2 Delayed Branch Implementation
 
-### 5.2 SOP Operations (type4)
-
-**Table 5.2: Single Operand Instruction Groups**
-
-| Group | type4 | Mnemonic | Operand | Description | Pipeline Notes |
-|-------|-------|----------|---------|-------------|----------------|
-| GRP1 | 0000 | SWB | Rx | Swap Bytes | Full pipeline |
-| GRP1 | 0001 | INV | Rx | Invert bits | Full pipeline |
-| GRP1 | 0010 | NEG | Rx | Two's complement | Full pipeline |
-| GRP2 | 0100 | JML | Rx | Jump Long (CS=R[Rx+1], PC=R[Rx]) | **Uses delay slot**, may flush |
-| GRP3 | 1000 | SRS | Rx | Stack Register Single | PSW update |
-| GRP3 | 1001 | SRD | Rx | Stack Register Dual | PSW update |
-| GRP3 | 1010 | ERS | Rx | Extra Register Single | PSW update |
-| GRP3 | 1011 | ERD | Rx | Extra Register Dual | PSW update |
-| GRP4 | 1100 | SET | imm4 | Set flag bits in PSW[3:0] | PSW update |
-| GRP4 | 1101 | CLR | imm4 | Clear flag bits in PSW[3:0] | PSW update |
-| GRP4 | 1110 | SET2 | imm4 | Set bits in PSW[7:4] | PSW update |
-| GRP4 | 1111 | CLR2 | imm4 | Clear bits in PSW[7:4] | PSW update |
-
-**Aliases:**
-- `SETI` = `SET2 1` (Set Interrupt Enable: PSW[4]=1)
-- `CLRI` = `CLR2 1` (Clear Interrupt Enable: PSW[4]=0)
-
-### 5.3 SET/CLR Flag Bit Encoding
-
-**Table 5.3: SET/CLR Flag Encoding (PSW[3:0])**
-
-| imm4 | Operation | Flag | imm4 | Operation | Flag |
-|------|-----------|------|------|-----------|------|
-| 0000 | SET | N | 1000 | CLR | N |
-| 0001 | SET | Z | 1001 | CLR | Z |
-| 0010 | SET | V | 1010 | CLR | V |
-| 0011 | SET | C | 1011 | CLR | C |
-
-**Table 5.4: SET2/CLR2 Bit Encoding (PSW[7:4])**
-
-| imm4 | Bit | Purpose |
-|------|-----|---------|
-| 0000 | 4 | Interrupt Enable (I) |
-| 0001 | 5 | Shadow View (S) |
-| 0010 | 6 | Reserved |
-| 0011 | 7 | Reserved |
-
----
-
-## 6. Detailed Instruction Formats
-
-### 6.1 LDI - Load Long Immediate
-```
-Bits: [0][ imm15 ]
-      1     15
-```
-- **Effect**: `R0 ← immediate`
-- **Range**: 0 to 32,767
-- **Pipeline**: Full 5-stage execution
-
-### 6.2 LD/ST - Load/Store with Implicit Segment
-```
-Bits: [10][ d ][ Rd ][ Rb ][ offset5 ]
-      2    1    4     4      5
-```
-- **d=0**: Load `Rd ← Mem[implicit_segment:Rb + offset]`
-- **d=1**: Store `Mem[implicit_segment:Rb + offset] ← Rd`
-- **offset5**: 5-bit unsigned immediate (0-31 words)
-- **Pipeline**: Potential 1-cycle stall if load followed by dependent operation
-
-### 6.3 ALU2 - Dual Operand ALU Operations
-```
-Bits: [110][ op3 ][ Rd ][ w ][ i ][ Rs/imm4 ]
-      3     3      4     1    1      4
-```
-- **w=0**: Update flags only (ANW, CMP, TBS, TBC operations)
-- **w=1**: Write result to Rd
-- **i=0**: Register mode `Rd ← Rd op Rs`
-- **i=1**: Immediate mode `Rd ← Rd op imm4`
-- **Pipeline**: Full forwarding support for data hazards
-
-### 6.4 JMP - Jump/Branch Operations
-```
-Bits: [1110][ type3 ][ target9 ]
-      4      3         9
-```
-- **target9**: 9-bit signed immediate (-256 to +255 words)
-- **Pipeline**: **Uses 1 delay slot** - next instruction always executes
-
-### 6.5 LSI - Load Short Immediate
-```
-Bits: [1111110][ Rd ][ imm5 ]
-      7         4     5
-```
-- **Effect**: `Rd ← sign_extend(imm5)`
-- **Range**: -16 to +15
-- **Pipeline**: Full 5-stage execution
-
-### 6.6 LDS/STS - Load/Store with Explicit Segment
-```
-Bits: [11110][ d ][ seg2 ][ Rd ][ Rs ]
-      5       1     2       4     4
-```
-- **d=0**: Load `Rd ← Mem[seg:Rs]`
-- **d=1**: Store `Mem[seg:Rs] ← Rd`
-- **seg2**: 00=CS, 01=DS, 10=SS, 11=ES
-- **Pipeline**: Segment register access in MEM stage
-
-### 6.7 MOV - Move with Offset
-```
-Bits: [111110][ Rd ][ Rs ][ imm2 ]
-      6        4     4      2
-```
-- **Effect**: `Rd ← Rs + zero_extend(imm2)`
-- **Range**: 0-3
-- **Pipeline**: Full 5-stage execution
-
-### 6.8 SOP - Single Operand Operations
-```
-Bits: [11111110][ type4 ][ Rx/imm4 ]
-      8          4        4
-```
-- **GRP1 (000x)**: ALU1 operations (SWB, INV, NEG)
-- **GRP2 (0100)**: Special jump (JML) - **uses delay slot**
-- **GRP3 (10xx)**: PSW segment assignment (SRS, SRD, ERS, ERD)
-- **GRP4 (11xx)**: PSW flag manipulation (SET, CLR, SET2, CLR2)
-
-### 6.9 MVS - Move to/from Segment
-```
-Bits: [111111110][ d ][ Rd ][ seg2 ]
-      9           1    4      2
-```
-- **d=0**: `Rd ← Sx` where Sx is segment register CS/DS/SS/ES
-- **d=1**: `Sx ← Rd` where Sx is segment register CS/DS/SS/ES
-- **Pipeline**: Segment register access in MEM stage
-
-### 6.10 SMV - Special Move
-```
-Bits: [1111111110][ src2 ][ Rd ]
-      10           2       4
-```
-- Access alternate register views (APC, APSW, ACS, PSW)
-- **Pipeline**: Special register access with potential stalls
-
-### 6.11 SYS - System Operations
-```
-Bits: [1111111111110][ op3 ]
-      13               3
-```
-- **op3**: 000=NOP, 001=HLT, 010=SWI, 011=RETI, 100-111=reserved
-- **Pipeline**: RETI causes pipeline flush and context switch
-
----
-
-## 7. ALU Operations
-
-### 7.1 ALU2 Operation Codes (op3)
-
-**Table 7.1: ALU2 Operations**
-
-| op3 | Mnemonic | Description | w=1 (Write) | w=0 (Flags Only) | Pipeline |
-|-----|----------|-------------|-------------|------------------|----------|
-| 000 | ADD | Addition | `Rd ← Rd + Rs/imm` | ANW (Add No Write) | Full pipeline |
-| 001 | SUB | Subtraction | `Rd ← Rd - Rs/imm` | CMP (Compare) | Full pipeline |
-| 010 | AND | Logical AND | `Rd ← Rd & Rs/imm` | TBS (Test Bit Set) | Full pipeline |
-| 011 | OR | Logical OR | `Rd ← Rd | Rs/imm` | - | Full pipeline |
-| 100 | XOR | Logical XOR | `Rd ← Rd ^ Rs/imm` | TBC (Test Bit Clear) | Full pipeline |
-| 101 | MUL | Multiplication | `Rd ← Rd × Rs` | - | Multi-cycle EX |
-| 110 | DIV | Division | `Rd ← Rd ÷ Rs` | - | Multi-cycle EX |
-| 111 | Shift | Shift operations | Various shifts | - | Full pipeline |
-
-### 7.2 MUL/DIV Behavior
-
-**MUL Operations:**
-- **MUL Rd, Rs** (i=0): 16×16→16-bit multiplication
-- **MUL Rd, Rs** (i=1): 16×16→32-bit multiplication, **Rd must be even**
-
-**DIV Operations:**
-- **DIV Rd, Rs** (i=0): 16÷16→16-bit division (quotient)
-- **DIV Rd, Rs** (i=1): 16÷16→32-bit division, **Rd must be even**
-
-### 7.3 Shift Operations (ALU op=111)
-
-**Shift Type Encoding:**
-```
-[ T2 ][ C ][ count3 ]
- 2     1     3
-```
-
-**Table 7.2: Shift Operations**
-
-| T2 | C | Mnemonic | Description |
-|----|---|----------|-------------|
-| 00 | 0 | SL | Shift Left |
-| 00 | 1 | SLC | Shift Left with Carry |
-| 01 | 0 | SR | Shift Right Logical |
-| 01 | 1 | SRC | Shift Right with Carry |
-| 10 | 0 | SRA | Shift Right Arithmetic |
-| 10 | 1 | SAC | Shift Arithmetic with Carry |
-| 11 | 0 | ROR | Rotate Right |
-| 11 | 1 | ROC | Rotate with Carry |
-
-### 7.4 JMP Conditions (type3)
-
-**Table 7.3: Jump Conditions**
-
-| type3 | Mnemonic | Condition | Pipeline |
-|-------|----------|-----------|----------|
-| 000 | JZ | Z=1 | **Uses delay slot** |
-| 001 | JNZ | Z=0 | **Uses delay slot** |
-| 010 | JC | C=1 | **Uses delay slot** |
-| 011 | JNC | C=0 | **Uses delay slot** |
-| 100 | JN | N=1 | **Uses delay slot** |
-| 101 | JNN | N=0 | **Uses delay slot** |
-| 110 | JO | V=1 | **Uses delay slot** |
-| 111 | JNO | V=0 | **Uses delay slot** |
-
-### 7.5 System Operations (op3)
-
-**Table 7.4: System Operations**
-
-| op3 | Mnemonic | Description | Pipeline Effect |
-|-----|----------|-------------|-----------------|
-| 000 | NOP | No operation | Full pipeline |
-| 001 | FSH | NO OPERATION | Pipeline flush |
-| 010 | SWI | Software interrupt | Pipeline flush + context switch |
-| 011 | RETI | Return from interrupt | Pipeline flush + context restore |
-| 111 | HLT | Halt processor | Pipeline freeze |
-
----
-
-## 8. Pipeline Implementation Notes
-
-### 8.1 Compiler Considerations for Delayed Branch
-
-**Optimal Delay Slot Scheduling:**
-- Prefer **ALU operations** unrelated to branch condition
-- Use **register moves** or **immediate loads**
-- Avoid **memory operations** that might cause stalls
-- **NOP** if no useful instruction can be scheduled
+**One delay slot** is implemented for all branch and jump instructions:
+- The instruction immediately following a branch/jump **always executes**
+- Compiler/assembler must schedule useful instructions in the delay slot
+- **Applies to**: JMP, JZ, JNZ, JC, JNC, JN, JNN, JO, JNO, JML
 
 **Example Optimization:**
 ```assembly
@@ -434,21 +355,134 @@ JZ   target
 MOV  R3, R4    ; Useful work executes regardless of branch
 ```
 
-### 8.2 Hazard Detection Unit
-
-The pipeline includes hardware to detect:
-- **RAW** (Read-After-Write) hazards
-- **Load-use** dependencies requiring stalls
-- **Control hazards** managed via delayed branch
-- **Structural hazards** on register file/memory access
-
-### 8.3 Performance Characteristics
+### 6.3 Performance Characteristics
 
 - **Base CPI**: Ideally 1.0 (one instruction per cycle)
 - **Realistic CPI**: 1.1-1.3 due to stalls and multi-cycle operations
 - **Branch penalty**: 0 cycles (thanks to delayed branch)
 - **Load-use penalty**: 1 cycle stall when unavoidable
+- **FPGA Target**: 80MHz achievable in modern FPGAs
 
 ---
 
-*Deep16 (深十六) Architecture Specification v3.5 (1r14) - With Pipeline Implementation Details*
+## 7. Programming Model
+
+### 7.1 Register Usage Conventions
+
+| Register | Preserved? | Purpose |
+|----------|------------|---------|
+| R0-R11   | Caller-save | Temporary values |
+| R12 (FP) | Callee-save | Frame pointer |
+| R13 (SP) | Callee-save | Stack pointer |
+| R14 (LR) | Callee-save | Return address |
+| R15 (PC) | - | Program counter |
+
+### 7.2 Stack Frame Layout
+```
+High addresses
++------------+
+| Saved LR   | ← FP + 3
++------------+
+| Saved FP   | ← FP + 2  
++------------+
+| Local 2    | ← FP + 1
++------------+
+| Local 1    | ← FP
++------------+
+| Parameter n| ← FP - 1
++------------+
+| ...        |
++------------+
+| Parameter 1| ← FP - n + 1
++------------+
+Low addresses
+```
+
+### 7.3 Common Idioms
+
+**Function Prologue:**
+```assembly
+; Save frame and link, allocate stack space
+MOV  FP, SP          ; Set new frame pointer
+LSI  R0, -4          ; Allocate 4 words
+ADD  SP, SP, R0      ; Adjust stack pointer
+ST   LR, [FP+3]      ; Save return address
+ST   OldFP, [FP+2]   ; Save old frame pointer
+```
+
+**Screen Output:**
+```assembly
+; Efficient screen writing using ES segment
+setup_screen:
+    LDI  R0, 0x0FFF
+    INV  R0
+    MVS  ES, R0
+    LDI  R10, 0x0000
+    ERS  R10
+    SET2 0x0C        ; DE=1, ER=R10
+
+write_char:
+    LDI  R1, 'A'     ; Character to write
+    STS  R1, 0x1000  ; Write to screen
+```
+
+**Interrupt Handler:**
+```assembly
+interrupt_handler:
+    ; Automatic context switch to shadow registers
+    SMV  R0, APSW        ; Read pre-interrupt PSW
+    SMV  R1, APC         ; Read pre-interrupt PC
+    
+    ; Interrupt processing...
+    
+    RETI                 ; Return and restore context
+```
+
+**Far Function Call:**
+```assembly
+far_call:
+    ; R0 = target offset, R1 = target segment
+    ST   R0, [SP-1]      ; Save target offset
+    ST   R1, [SP-2]      ; Save target segment  
+    LDI  R2, return_here
+    ST   R2, [SP-3]      ; Save return address
+    JML  R0              ; Far jump
+
+return_here:
+    ; Execution continues here after far return
+```
+
+---
+
+## 8. Implementation Notes
+
+### 8.1 FPGA Implementation
+- **Target Frequency**: 80MHz in modern FPGAs
+- **Memory Interface**: 20 address lines, 16 data lines
+- **Block RAM**: Can be used for zero-wait-state memory
+- **Pipeline registers**: Standard flip-flop implementation
+
+### 8.2 Simulator Integration
+- **DeepWeb IDE**: Complete development environment
+- **Assembler**: Supports all enhanced syntax features
+- **Simulator**: Cycle-accurate with visual debugging
+- **Screen Subsystem**: 80×25 character display at 0xF1000
+
+### 8.3 Toolchain Support
+- **Assembler Directives**: `.code`, `.data`, `.org`, `.word`, `.text`
+- **Label Support**: Forward and backward references
+- **Error Reporting**: Comprehensive with line numbers
+- **Listing Output**: Includes addresses and generated code
+
+---
+
+*Deep16 (深十六) Architecture Specification v3.7 (1r17) - Complete Documented Instruction Set*
+
+**All Instructions Now Documented:**
+- ✅ PSW segment assignment (SRS, SRD, ERS, ERD)
+- ✅ Single operand ALU (SWB, INV, NEG) 
+- ✅ Special moves (SMV)
+- ✅ Long jump (JML)
+- ✅ Explicit segment memory (LDS, STS)
+- ✅ Complete shifts (SLC, SRC, SAC, ROC)
+- ✅ System operations (FSH, SWI)
