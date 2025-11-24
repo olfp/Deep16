@@ -9,6 +9,12 @@ struct Cpu {
     ss: u16,
     es: u16,
     running: bool,
+    delay_active: bool,
+    delayed_pc: u16,
+    delayed_cs: u16,
+    branch_taken: bool,
+    last_alu_result: i32,
+    last_op_alu: bool,
 }
 
 static mut CPU: Option<Cpu> = None;
@@ -27,6 +33,12 @@ impl Cpu {
             ss: 0x8000,
             es: 0x2000,
             running: false,
+            delay_active: false,
+            delayed_pc: 0,
+            delayed_cs: 0,
+            branch_taken: false,
+            last_alu_result: 0,
+            last_op_alu: false,
         }
     }
     fn reset(&mut self) {
@@ -40,6 +52,12 @@ impl Cpu {
         self.ss = 0x8000;
         self.es = 0x2000;
         self.running = false;
+        self.delay_active = false;
+        self.delayed_pc = 0;
+        self.delayed_cs = 0;
+        self.branch_taken = false;
+        self.last_alu_result = 0;
+        self.last_op_alu = false;
     }
 }
 
@@ -104,58 +122,248 @@ fn phys(seg: u16, off: u32) -> usize {
     (((seg as u32) << 4) + off) as usize
 }
 
+#[wasm_bindgen]
+pub fn get_memory_slice(start: usize, count: usize) -> Box<[u16]> {
+    unsafe {
+        let c = cpu_ref();
+        let end = start.saturating_add(count);
+        let end = end.min(c.mem.len());
+        c.mem[start..end].to_vec().into_boxed_slice()
+    }
+}
+
+fn is_stack_register(psw: u16, idx: usize) -> bool {
+    let sr = ((psw >> 6) & 0xF) as usize;
+    let dual = (psw & (1 << 10)) != 0;
+    if dual { idx == sr || idx == (sr + 1) } else { idx == sr }
+}
+
+fn is_extra_register(psw: u16, idx: usize) -> bool {
+    let er = ((psw >> 11) & 0xF) as usize;
+    let dual = (psw & (1 << 15)) != 0;
+    if dual { idx == er || idx == (er + 1) } else { idx == er }
+}
+
+fn update_psw_flags(c: &mut Cpu) {
+    if !c.last_op_alu { return; }
+    let mut psw = c.psw & 0xFFF0;
+    let res16 = (c.last_alu_result as i64) & 0xFFFF;
+    let signed = if (res16 & 0x8000) != 0 { (res16 as i64) - 0x10000 } else { res16 as i64 };
+    if res16 == 0 { psw |= 1 << 1; }
+    if (res16 & 0x8000) != 0 { psw |= 1 << 0; }
+    if c.last_alu_result > 0xFFFF || c.last_alu_result < 0 { psw |= 1 << 3; }
+    if signed > 32767 || signed < -32768 { psw |= 1 << 2; }
+    c.psw = psw;
+    c.last_op_alu = false;
+}
+
+fn exec_ldi(c: &mut Cpu, instr: u16) {
+    let imm = instr & 0x7FFF;
+    c.reg[0] = imm;
+    c.last_alu_result = imm as i32;
+    c.last_op_alu = true;
+}
+
+fn exec_mem(c: &mut Cpu, instr: u16) {
+    let d = (instr >> 13) & 0x1;
+    let rd = ((instr >> 9) & 0xF) as usize;
+    let rb = ((instr >> 5) & 0xF) as usize;
+    let off = (instr & 0x1F) as u32;
+    let addr_off = (c.reg[rb] as u32).wrapping_add(off);
+    let seg = if is_stack_register(c.psw, rb) { c.ss } else if is_extra_register(c.psw, rb) { c.es } else { c.ds };
+    let pa = phys(seg, addr_off);
+    if pa >= c.mem.len() { return; }
+    if d == 0 { c.reg[rd] = c.mem[pa]; } else { c.mem[pa] = c.reg[rd]; }
+}
+
+fn exec_alu(c: &mut Cpu, instr: u16) {
+    let alu_op = (instr >> 10) & 0x7;
+    let rd = ((instr >> 6) & 0xF) as usize;
+    let w = (instr >> 5) & 0x1;
+    let i = (instr >> 4) & 0x1;
+    let opnd = (instr & 0xF) as usize;
+    let operand = if i == 0 { c.reg[opnd] as i32 } else { (opnd as u16) as i32 };
+    let rdv = c.reg[rd] as i32;
+    let mut result = rdv;
+    match alu_op {
+        0 => { result = rdv + operand; }
+        1 => { result = rdv - operand; }
+        2 => { result = (rdv as u32 & 0xFFFF) as i32 & (operand as u32 & 0xFFFF) as i32; }
+        3 => { result = ((rdv as u32 & 0xFFFF) | (operand as u32 & 0xFFFF)) as i32; }
+        4 => { result = ((rdv as u32 & 0xFFFF) ^ (operand as u32 & 0xFFFF)) as i32; }
+        5 => {
+            if i == 1 && rd % 2 == 0 {
+                let prod = (rdv as i64) * (operand as i64);
+                c.reg[rd] = ((prod >> 16) as u32 & 0xFFFF) as u16;
+                c.reg[rd + 1] = (prod as u32 & 0xFFFF) as u16;
+                result = prod as i32;
+            } else {
+                let prod = ((rdv as u32 & 0xFFFF) * (operand as u32 & 0xFFFF)) & 0xFFFF;
+                result = prod as i32;
+            }
+        }
+        6 => {
+            if operand == 0 { result = 0xFFFF; } else if i == 1 && rd % 2 == 0 {
+                let dividend = (((c.reg[rd] as u32) << 16) | (c.reg[rd + 1] as u32)) as u64;
+                let q = (dividend / operand as u64) as u32;
+                let r = (dividend % operand as u64) as u32;
+                c.reg[rd] = (q & 0xFFFF) as u16;
+                c.reg[rd + 1] = (r & 0xFFFF) as u16;
+                result = q as i32;
+            } else {
+                let q = (rdv as u32 / operand as u32) as u32;
+                let r = (rdv as u32 % operand as u32) as u32;
+                c.reg[rd + 1] = (r & 0xFFFF) as u16;
+                result = q as i32;
+            }
+        }
+        _ => { return; }
+    }
+    if w == 1 && alu_op != 5 && alu_op != 6 {
+        c.reg[rd] = (result as u32 & 0xFFFF) as u16;
+    }
+    c.last_alu_result = result;
+    c.last_op_alu = true;
+}
+
+fn exec_mov(c: &mut Cpu, instr: u16) {
+    let rd = ((instr >> 6) & 0xF) as usize;
+    let rs = ((instr >> 2) & 0xF) as usize;
+    let imm2 = (instr & 0x3) as u16;
+    let v = c.reg[rs].wrapping_add(imm2);
+    c.reg[rd] = v;
+}
+
+fn exec_lsi(c: &mut Cpu, instr: u16) {
+    let rd = ((instr >> 5) & 0xF) as usize;
+    let mut imm = (instr & 0x1F) as i16;
+    if (imm & 0x10) != 0 { imm |= -1i16 << 5; }
+    c.reg[rd] = imm as u16;
+}
+
+fn exec_sop(c: &mut Cpu, instr: u16) -> bool {
+    let t = (instr >> 4) & 0xF;
+    let rx = (instr & 0xF) as usize;
+    match t {
+        0b0001 => {
+            c.reg[rx] = (!c.reg[rx]) & 0xFFFF;
+            c.last_alu_result = c.reg[rx] as i32;
+            c.last_op_alu = true;
+            false
+        }
+        0b1000 => {
+            c.psw = (c.psw & !0x03C0) | (((rx as u16) & 0xF) << 6);
+            false
+        }
+        0b1001 => {
+            c.psw = (c.psw & !0x03C0) | (((rx as u16) & 0xF) << 6) | 0x0400;
+            false
+        }
+        0b1010 => {
+            c.psw = (c.psw & !0x7800) | (((rx as u16) & 0xF) << 11);
+            false
+        }
+        0b1011 => {
+            c.psw = (c.psw & !0x7800) | (((rx as u16) & 0xF) << 11) | 0x8000;
+            false
+        }
+        0b0100 => {
+            false
+        }
+        _ => false,
+    }
+}
+
+fn exec_mvs(c: &mut Cpu, instr: u16) {
+    let d = (instr >> 7) & 0x1;
+    let rd = ((instr >> 3) & 0xF) as usize;
+    let seg = (instr & 0x3) as u16;
+    if d == 0 {
+        let v = match seg { 0 => c.cs, 1 => c.ds, 2 => c.ss, _ => c.es };
+        c.reg[rd] = v;
+    } else {
+        let v = c.reg[rd];
+        match seg { 0 => c.cs = v, 1 => c.ds = v, 2 => c.ss = v, _ => c.es = v };
+    }
+}
+
+fn exec_jump(c: &mut Cpu, instr: u16) -> bool {
+    let cond = (instr >> 9) & 0x7;
+    let mut off = instr & 0x1FF;
+    if (off & 0x100) != 0 { off = (off as i32 - 0x200) as u16; }
+    let z = (c.psw & (1 << 1)) != 0;
+    let cflag = (c.psw & (1 << 3)) != 0;
+    let nflag = (c.psw & (1 << 0)) != 0;
+    let oflag = (c.psw & (1 << 2)) != 0;
+    let mut j = false;
+    match cond {
+        0 => j = z,
+        1 => j = !z,
+        2 => j = cflag,
+        3 => j = !cflag,
+        4 => j = nflag,
+        5 => j = !nflag,
+        6 => j = oflag,
+        _ => j = !oflag,
+    }
+    if j {
+        let target_pc = ((c.reg[15] as i32) + (off as i16 as i32)) as u16;
+        c.delay_active = true;
+        c.delayed_pc = target_pc;
+        c.delayed_cs = c.cs;
+        c.branch_taken = true;
+    } else {
+        c.branch_taken = false;
+    }
+    true
+}
+
 fn step_one(c: &mut Cpu) -> bool {
-    if !c.running {
-        c.running = true;
+    if !c.running { c.running = true; }
+    if c.delay_active {
+        c.delay_active = false;
+        let pc = c.reg[15] as usize;
+        if pc >= c.mem.len() { c.running = false; return false; }
+        let instr = c.mem[pc];
+        let original_pc = c.reg[15];
+        c.reg[15] = c.reg[15].wrapping_add(1);
+        c.last_op_alu = false;
+        c.last_alu_result = 0;
+        let is_branch = exec_instruction(c, instr, original_pc);
+        update_psw_flags(c);
+        if c.branch_taken { c.reg[15] = c.delayed_pc; c.cs = c.delayed_cs; }
+        return !is_branch || c.running;
     }
     let pc = c.reg[15] as usize;
-    if pc >= c.mem.len() {
-        return false;
-    }
+    if pc >= c.mem.len() { c.running = false; return false; }
     let instr = c.mem[pc];
-    if instr == 0xFFFF {
-        c.running = false;
-        return false;
-    }
+    if instr == 0xFFFF { c.running = false; return false; }
+    let original_pc = c.reg[15];
     c.reg[15] = c.reg[15].wrapping_add(1);
-
-    let top2 = (instr >> 14) & 0x3;
-    if top2 == 0b10 {
-        let d = (instr >> 13) & 0x1;
-        let rd = ((instr >> 9) & 0xF) as usize;
-        let rb = ((instr >> 5) & 0xF) as usize;
-        let off = (instr & 0x1F) as u32;
-        let addr_off = (c.reg[rb] as u32).wrapping_add(off);
-        let seg = c.ds;
-        let pa = phys(seg, addr_off);
-        if pa >= c.mem.len() { return true; }
-        if d == 0 {
-            c.reg[rd] = c.mem[pa];
-        } else {
-            c.mem[pa] = c.reg[rd];
-        }
-        return true;
-    }
-
-    let top7 = (instr >> 9) & 0x7F;
-    if top7 == 0b1111110 {
-        let rd = ((instr >> 5) & 0xF) as usize;
-        let mut imm = (instr & 0x1F) as i16;
-        if (imm & 0x10) != 0 { imm |= -1i16 << 5; }
-        c.reg[rd] = imm as u16;
-        return true;
-    }
-
-    let top6 = (instr >> 10) & 0x3F;
-    if top6 == 0b111110 {
-        let rd = ((instr >> 6) & 0xF) as usize;
-        let rs = ((instr >> 2) & 0xF) as usize;
-        let imm2 = (instr & 0x3) as u16;
-        c.reg[rd] = c.reg[rs].wrapping_add(imm2);
-        return true;
-    }
-
+    c.last_op_alu = false;
+    c.last_alu_result = 0;
+    let is_branch = exec_instruction(c, instr, original_pc);
+    update_psw_flags(c);
     true
+}
+
+fn exec_instruction(c: &mut Cpu, instr: u16, _original_pc: u16) -> bool {
+    if (instr & 0x8000) == 0 { exec_ldi(c, instr); return false; }
+    if ((instr >> 14) & 0x3) == 0b10 { exec_mem(c, instr); return false; }
+    let opcode3 = (instr >> 13) & 0x7;
+    match opcode3 {
+        0b110 => { exec_alu(c, instr); false }
+        0b111 => {
+            if ((instr >> 12) & 0xF) == 0b1110 { return exec_jump(c, instr); }
+            if ((instr >> 11) & 0x1F) == 0b11110 { return false; }
+            if ((instr >> 10) & 0x3F) == 0b111110 { exec_mov(c, instr); return false; }
+            if ((instr >> 9) & 0x7F) == 0b1111110 { exec_lsi(c, instr); return false; }
+            if ((instr >> 8) & 0xFF) == 0b11111110 { return exec_sop(c, instr); }
+            if ((instr >> 7) & 0x1FF) == 0b111111110 { exec_mvs(c, instr); return false; }
+            false
+        }
+        _ => false,
+    }
 }
 
 #[wasm_bindgen]
@@ -177,4 +385,3 @@ pub fn run_steps(n: u32) -> bool {
         cont
     }
 }
-

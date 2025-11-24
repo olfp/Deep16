@@ -62,6 +62,7 @@ class DeepWebUI {
             window.Deep16WasmReady.then(() => {
                 this.wasmAvailable = true;
                 this.useWasm = true;
+                this.wasmInitialized = true;
                 this.addTranscriptEntry("WASM module loaded", "success");
                 if (this.currentAssemblyResult) {
                     try {
@@ -79,6 +80,7 @@ class DeepWebUI {
         window.addEventListener('deep16-wasm-ready', () => {
             this.wasmAvailable = true;
             this.useWasm = true;
+            this.wasmInitialized = true;
             this.addTranscriptEntry("WASM module loaded", "success");
             if (this.currentAssemblyResult) {
                 try {
@@ -98,7 +100,7 @@ class DeepWebUI {
         }
         
         try {
-            this.worker = new Worker('deep16_worker.js');
+            this.worker = new Worker('js/deep16_worker.js');
             this.worker.onmessage = (e) => this.handleWorkerMessage(e);
             this.worker.onerror = (error) => {
                 console.error('Worker error:', error);
@@ -245,6 +247,14 @@ class DeepWebUI {
             }
         `;
         document.head.appendChild(style);
+    }
+
+    updateWorkerToggle() {
+        const workerBtn = document.getElementById('worker-btn');
+        if (workerBtn) {
+            workerBtn.textContent = `Worker: ${this.useWorker ? 'ON' : 'OFF'}`;
+            workerBtn.className = `control-btn ${this.useWorker ? 'worker-active' : ''}`;
+        }
     }
 
     updateRunButton(isRunning) {
