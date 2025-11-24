@@ -35,6 +35,17 @@ class Deep16Simulator {
         this.segmentRegisters.DS = 0x1000; // Data segment  
         this.segmentRegisters.SS = 0x8000; // Stack segment
         this.segmentRegisters.ES = 0x2000; // Extra segment
+
+        // Screen memory mapping
+        this.SCREEN_MEMORY_START = 0xF1000;
+        this.SCREEN_MEMORY_END = 0xF17CF;
+        
+        // Reference to UI for screen updates (will be set by UI)
+        this.ui = null;
+    }
+
+    setUI(ui) {
+        this.ui = ui;
     }
 
     loadProgram(memory) {
@@ -280,11 +291,14 @@ class Deep16Simulator {
             } else {
                 console.warn(`LD: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
             }
-        } else { // ST
+        if (d === 1) { // ST
             if (physicalAddress < this.memory.length) {
                 const value = this.registers[rd];
                 this.memory[physicalAddress] = value;
                 console.log(`ST: [${segmentName}:${this.getRegisterName(rb)}+${offset}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
+                
+                // Check if this is a screen memory write
+                this.checkScreenUpdate(physicalAddress, value);
             } else {
                 console.warn(`ST: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
             }
@@ -804,6 +818,9 @@ class Deep16Simulator {
             if (address < this.memory.length) {
                 this.memory[address] = this.registers[rd];
                 console.log(`STS: [${segNames[seg]}:${this.getRegisterName(rs)}] = ${this.getRegisterName(rd)} (0x${this.registers[rd].toString(16)})`);
+                
+                // Check if this is a screen memory write
+                this.checkScreenUpdate(address, this.registers[rd]);
             }
         }
     }
@@ -878,6 +895,17 @@ class Deep16Simulator {
         
         // In a pipelined implementation, this would flush the pipeline
         this.flushPipeline();
+    }
+
+    checkScreenUpdate(address, value) {
+        if (address >= this.SCREEN_MEMORY_START && address <= this.SCREEN_MEMORY_END) {
+            console.log(`Screen memory updated: address=0x${address.toString(16)}, value=0x${value.toString(16)}`);
+            
+            // Use the existing screen UI method
+            if (this.ui && this.ui.screenUI && typeof this.ui.screenUI.handleScreenMemoryWrite === 'function') {
+                this.ui.screenUI.handleScreenMemoryWrite(address, value);
+            }
+        }
     }
 
     /**
