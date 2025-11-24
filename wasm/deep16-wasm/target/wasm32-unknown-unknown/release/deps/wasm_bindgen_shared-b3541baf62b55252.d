@@ -1,0 +1,12 @@
+/Users/olf/Projects/Trae/Deep16/Deep16/wasm/deep16-wasm/target/wasm32-unknown-unknown/release/deps/wasm_bindgen_shared-b3541baf62b55252.d: /Users/olf/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-shared-0.2.105/src/lib.rs /Users/olf/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-shared-0.2.105/src/identifier.rs /Users/olf/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-shared-0.2.105/src/tys.rs
+
+/Users/olf/Projects/Trae/Deep16/Deep16/wasm/deep16-wasm/target/wasm32-unknown-unknown/release/deps/libwasm_bindgen_shared-b3541baf62b55252.rlib: /Users/olf/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-shared-0.2.105/src/lib.rs /Users/olf/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-shared-0.2.105/src/identifier.rs /Users/olf/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-shared-0.2.105/src/tys.rs
+
+/Users/olf/Projects/Trae/Deep16/Deep16/wasm/deep16-wasm/target/wasm32-unknown-unknown/release/deps/libwasm_bindgen_shared-b3541baf62b55252.rmeta: /Users/olf/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-shared-0.2.105/src/lib.rs /Users/olf/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-shared-0.2.105/src/identifier.rs /Users/olf/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-shared-0.2.105/src/tys.rs
+
+/Users/olf/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-shared-0.2.105/src/lib.rs:
+/Users/olf/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-shared-0.2.105/src/identifier.rs:
+/Users/olf/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-shared-0.2.105/src/tys.rs:
+
+# env-dep:CARGO_PKG_VERSION=0.2.105
+# env-dep:WBG_VERSION

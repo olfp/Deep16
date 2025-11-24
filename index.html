@@ -302,6 +302,22 @@ data_area:
     <script src="js/deep16_ui_registers.js"></script>
     <script src="js/deep16_ui_memory.js"></script>
     <script src="js/deep16_ui_screen.js"></script>    
+    <script type="module">
+        try {
+            const modPromise = import('./wasm/pkg/deep16_wasm.js');
+            modPromise.then(async (wasm) => {
+                const initPromise = wasm.default();
+                window.Deep16WasmReady = initPromise;
+                window.Deep16Wasm = wasm;
+                await initPromise;
+                window.dispatchEvent(new Event('deep16-wasm-ready'));
+            }).catch((e) => {
+                console.warn('WASM module not loaded', e);
+            });
+        } catch (e) {
+            console.warn('WASM module not loaded', e);
+        }
+    </script>
     <script src="js/deep16_ui_core.js"></script>
 </body>
 </html>
