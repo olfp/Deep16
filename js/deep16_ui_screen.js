@@ -36,12 +36,20 @@ class Deep16ScreenUI {
 
     updateScreenDisplay() {
         // Update all characters from screen memory
-        for (let i = 0; i < this.totalChars; i++) {
-            const memoryAddress = this.screenBaseAddress + i;
-            if (memoryAddress < this.ui.simulator.memory.length) {
-                const wordValue = this.ui.simulator.memory[memoryAddress];
-                const charCode = wordValue & 0xFF; // Lower byte contains character
+        if (this.ui.useWasm && this.ui.wasmAvailable && this.ui.wasmInitialized && window.Deep16Wasm && typeof window.Deep16Wasm.get_memory_slice === 'function') {
+            const slice = window.Deep16Wasm.get_memory_slice(this.screenBaseAddress, this.totalChars);
+            for (let i = 0; i < slice.length; i++) {
+                const charCode = slice[i] & 0xFF;
                 this.updateCharacter(i, charCode);
+            }
+        } else {
+            for (let i = 0; i < this.totalChars; i++) {
+                const memoryAddress = this.screenBaseAddress + i;
+                if (memoryAddress < this.ui.simulator.memory.length) {
+                    const wordValue = this.ui.simulator.memory[memoryAddress];
+                    const charCode = wordValue & 0xFF; // Lower byte contains character
+                    this.updateCharacter(i, charCode);
+                }
             }
         }
     }
