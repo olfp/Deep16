@@ -42,6 +42,9 @@ class Deep16Simulator {
         
         // Reference to UI for screen updates (will be set by UI)
         this.ui = null;
+
+        // Performance optimization: Precompute register names
+        this.registerNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
     }
 
     setUI(ui) {
@@ -81,7 +84,7 @@ class Deep16Simulator {
 
         // Handle delay slot if active
         if (this.delaySlotActive) {
-            console.log("=== DELAY SLOT EXECUTION ===");
+            // console.log("=== DELAY SLOT EXECUTION ===");
             this.delaySlotActive = false;
             
             // Execute the delay slot instruction
@@ -92,7 +95,7 @@ class Deep16Simulator {
             if (this.branchTaken) {
                 this.registers[15] = this.delayedPC;
                 this.segmentRegisters.CS = this.delayedCS;
-                console.log(`Delayed branch applied: PC=0x${this.registers[15].toString(16)}, CS=0x${this.segmentRegisters.CS.toString(16)}`);
+                // console.log(`Delayed branch applied: PC=0x${this.registers[15].toString(16)}, CS=0x${this.segmentRegisters.CS.toString(16)}`);
             }
             
             return true;
@@ -107,13 +110,13 @@ class Deep16Simulator {
 
         const instruction = this.memory[pc];
         
-        console.log(`=== STEP: PC=0x${pc.toString(16).padStart(4, '0')} ===`);
-        console.log(`Instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
-        console.log(`Registers: R0=0x${this.registers[0].toString(16)}, R3=0x${this.registers[3].toString(16)}`);
+        // console.log(`=== STEP: PC=0x${pc.toString(16).padStart(4, '0')} ===`);
+        // console.log(`Instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
+        // console.log(`Registers: R0=0x${this.registers[0].toString(16)}, R3=0x${this.registers[3].toString(16)}`);
 
         // Check for HALT (0xFFFF) first
         if (instruction === 0xFFFF) {
-            console.log("HALT instruction detected - stopping execution");
+            // console.log("HALT instruction detected - stopping execution");
             this.running = false;
             return false;
         }
@@ -134,7 +137,7 @@ class Deep16Simulator {
         // Update PSW flags based on the last operation
         this.updatePSWFlags();
         
-        console.log(`After step: R0=0x${this.registers[0].toString(16).padStart(4, '0')}, PSW=0x${this.psw.toString(16).padStart(4, '0')}`);
+        // console.log(`After step: R0=0x${this.registers[0].toString(16).padStart(4, '0')}, PSW=0x${this.psw.toString(16).padStart(4, '0')}`);
         
         return true;
     }
@@ -146,86 +149,86 @@ class Deep16Simulator {
         try {
             // Check for LDI first (bit 15 = 0)
             if ((instruction & 0x8000) === 0) {
-                console.log("Detected LDI instruction (bit 15 = 0)");
+                // console.log("Detected LDI instruction (bit 15 = 0)");
                 this.executeLDI(instruction);
                 return false;
             }
             // Check for LD/ST (opcode bits 15-14 = 10)
             else if (((instruction >>> 14) & 0x3) === 0b10) {
-                console.log("Detected LD/ST instruction (opcode 10)");
+                // console.log("Detected LD/ST instruction (opcode 10)");
                 this.executeMemoryOp(instruction);
                 return false;
             }
             else {
                 // Check 3-bit opcodes
                 const opcode = (instruction >>> 13) & 0x7;
-                console.log(`3-bit opcode: ${opcode.toString(2).padStart(3, '0')} (${opcode})`);
+                // console.log(`3-bit opcode: ${opcode.toString(2).padStart(3, '0')} (${opcode})`);
                 
                 switch (opcode) {
                     case 0b110: // ALU2 (opcode bits 15-13 = 110)
-                        console.log("ALU operation");
+                        // console.log("ALU operation");
                         this.executeALUOp(instruction);
                         return false;
                         
                     case 0b111: // Extended (opcode bits 15-13 = 111)
-                        console.log("Control flow or extended opcode");
+                        // console.log("Control flow or extended opcode");
                         if ((instruction >>> 12) === 0b1110) {
-                            console.log("Jump instruction");
+                            // console.log("Jump instruction");
                             return this.executeJump(instruction, originalPC);
                         } else if ((instruction >>> 11) === 0b11110) {
-                            console.log("LDS/STS instruction");
+                            // console.log("LDS/STS instruction");
                             this.executeLDSSTS(instruction);
                             return false;
                         } else if ((instruction >>> 10) === 0b111110) {
-                            console.log("MOV instruction");
+                            // console.log("MOV instruction");
                             this.executeMOV(instruction);
                             return false;
                         } else if ((instruction >>> 9) === 0b1111110) {
-                            console.log("LSI instruction");
+                            // console.log("LSI instruction");
                             this.executeLSI(instruction);
                             return false;
                         } else if ((instruction >>> 8) === 0b11111110) {
-                            console.log("SOP instruction");
+                            // console.log("SOP instruction");
                             return this.executeSOP(instruction);
                         } else if ((instruction >>> 7) === 0b111111110) {
-                            console.log("MVS instruction");
+                            // console.log("MVS instruction");
                             this.executeMVS(instruction);
                             return false;
                         } else if ((instruction >>> 6) === 0b1111111110) {
-                            console.log("SMV instruction");
+                            // console.log("SMV instruction");
                             this.executeSMV(instruction);
                             return false;
                         } else if ((instruction >>> 3) === 0b1111111111110) {
-                            console.log("System instruction");
+                            // console.log("System instruction");
                             this.executeSystem(instruction);
                             return false;
                         } else {
-                            console.warn("Unknown extended opcode");
+                            // console.warn("Unknown extended opcode");
                             return false;
                         }
                         
                     default:
-                        console.warn(`Unknown 3-bit opcode: ${opcode.toString(2).padStart(3, '0')}`);
+                        // console.warn(`Unknown 3-bit opcode: ${opcode.toString(2).padStart(3, '0')}`);
                         return false;
                 }
             }
         } catch (error) {
             this.running = false;
-            console.error('Execution error:', error);
+            // console.error('Execution error:', error);
             throw error;
         }
     }
 
     executeLDI(instruction) {
         const immediate = instruction & 0x7FFF;
-        console.log(`LDI executing: immediate = 0x${immediate.toString(16).padStart(4, '0')}`);
+        // console.log(`LDI executing: immediate = 0x${immediate.toString(16).padStart(4, '0')}`);
         this.registers[0] = immediate; // LDI always loads into R0
         
         // Set flags for LDI operation
         this.lastALUResult = immediate;
         this.lastOperationWasALU = true;
         
-        console.log(`LDI complete: R0 = 0x${this.registers[0].toString(16).padStart(4, '0')}`);
+        // console.log(`LDI complete: R0 = 0x${this.registers[0].toString(16).padStart(4, '0')}`);
     }
 
     executeMemoryOp(instruction) {
@@ -266,9 +269,9 @@ class Deep16Simulator {
         // Calculate 20-bit physical address: (segment << 4) + offset
         const physicalAddress = (segmentRegister << 4) + addressOffset;
         
-        console.log(`MemoryOp: d=${d}, rd=${rd} (${this.getRegisterName(rd)}), rb=${rb} (${this.getRegisterName(rb)}), offset=${offset}`);
-        console.log(`MemoryOp: R${rb}=0x${this.registers[rb].toString(16)}, offset=0x${addressOffset.toString(16)}`);
-        console.log(`MemoryOp: Segment=${segmentName} (0x${segmentRegister.toString(16)}), Physical=0x${physicalAddress.toString(16)}`);
+        // console.log(`MemoryOp: d=${d}, rd=${rd} (${this.getRegisterName(rd)}), rb=${rb} (${this.getRegisterName(rb)}), offset=${offset}`);
+        // console.log(`MemoryOp: R${rb}=0x${this.registers[rb].toString(16)}, offset=0x${addressOffset.toString(16)}`);
+        // console.log(`MemoryOp: Segment=${segmentName} (0x${segmentRegister.toString(16)}), Physical=0x${physicalAddress.toString(16)}`);
 
         // ENHANCED: Track the memory access with segment information
         this.recentMemoryAccess = {
@@ -281,26 +284,26 @@ class Deep16Simulator {
             accessedAt: Date.now()
         };
         
-        console.log(`Recent memory access: ${this.recentMemoryAccess.type} at ${segmentName}:0x${addressOffset.toString(16).padStart(4, '0')} (physical: 0x${physicalAddress.toString(16).padStart(5, '0')})`);
+        // console.log(`Recent memory access: ${this.recentMemoryAccess.type} at ${segmentName}:0x${addressOffset.toString(16).padStart(4, '0')} (physical: 0x${physicalAddress.toString(16).padStart(5, '0')})`);
 
         if (d === 0) { // LD
             if (physicalAddress < this.memory.length) {
                 const value = this.memory[physicalAddress];
                 this.registers[rd] = value;
-                console.log(`LD: ${this.getRegisterName(rd)} = [${segmentName}:${this.getRegisterName(rb)}+${offset}] = 0x${value.toString(16).padStart(4, '0')}`);
+                // console.log(`LD: ${this.getRegisterName(rd)} = [${segmentName}:${this.getRegisterName(rb)}+${offset}] = 0x${value.toString(16).padStart(4, '0')}`);
             } else {
-                console.warn(`LD: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
+                // console.warn(`LD: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
             }
         } else { // ST
             if (physicalAddress < this.memory.length) {
                 const value = this.registers[rd];
                 this.memory[physicalAddress] = value;
-                console.log(`ST: [${segmentName}:${this.getRegisterName(rb)}+${offset}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
+                // console.log(`ST: [${segmentName}:${this.getRegisterName(rb)}+${offset}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
                 
                 // Check if this is a screen memory write
                 this.checkScreenUpdate(physicalAddress, value);
             } else {
-                console.warn(`ST: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
+                // console.warn(`ST: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
             }
         }
     }
@@ -362,29 +365,29 @@ class Deep16Simulator {
         // FIXED: Check if aluOp is valid before using it
         const opName = this.aluOps[aluOp] || `ALU${aluOp}`;
         
-        console.log(`ALU Execute: op=${opName}, rd=${rd} (${this.getRegisterName(rd)}), w=${w}, i=${i}, operand=${operand}`);
-        console.log(`ALU Execute: R${rd}=0x${rdValue.toString(16)}, operand=0x${operandValue.toString(16)}`);
+        // console.log(`ALU Execute: op=${opName}, rd=${rd} (${this.getRegisterName(rd)}), w=${w}, i=${i}, operand=${operand}`);
+        // console.log(`ALU Execute: R${rd}=0x${rdValue.toString(16)}, operand=0x${operandValue.toString(16)}`);
         
         switch (aluOp) {
             case 0b000: // ADD
                 result = rdValue + operandValue;
-                console.log(`ADD: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) + ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                // console.log(`ADD: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) + ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
                 break;
             case 0b001: // SUB
                 result = rdValue - operandValue;
-                console.log(`SUB: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) - ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                // console.log(`SUB: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) - ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
                 break;
             case 0b010: // AND
                 result = rdValue & operandValue;
-                console.log(`AND: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) & ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                // console.log(`AND: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) & ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
                 break;
             case 0b011: // OR
                 result = rdValue | operandValue;
-                console.log(`OR: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) | ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                // console.log(`OR: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) | ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
                 break;
             case 0b100: // XOR
                 result = rdValue ^ operandValue;
-                console.log(`XOR: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) ^ ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                // console.log(`XOR: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) ^ ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
                 break;
             case 0b101: // MUL
                 if (i === 1 && rd % 2 === 0) {
@@ -393,16 +396,16 @@ class Deep16Simulator {
                     this.registers[rd] = (product >>> 16) & 0xFFFF;     // High word
                     this.registers[rd + 1] = product & 0xFFFF;          // Low word
                     result = product;
-                    console.log(`MUL32: ${this.getRegisterName(rd)}:${this.getRegisterName(rd + 1)} = ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) × ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${product.toString(16)}`);
+                    // console.log(`MUL32: ${this.getRegisterName(rd)}:${this.getRegisterName(rd + 1)} = ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) × ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${product.toString(16)}`);
                 } else {
                     // 16-bit multiplication
                     result = (rdValue * operandValue) & 0xFFFF;
-                    console.log(`MUL: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) × ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+                    // console.log(`MUL: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) × ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
                 }
                 break;
             case 0b110: // DIV
                 if (operandValue === 0) {
-                    console.warn("DIV: Division by zero");
+                    // console.warn("DIV: Division by zero");
                     result = 0xFFFF; // Handle division by zero
                 } else if (i === 1 && rd % 2 === 0) {
                     // 32-bit division: R[rd] = quotient, R[rd+1] = remainder
@@ -412,13 +415,13 @@ class Deep16Simulator {
                     this.registers[rd] = quotient & 0xFFFF;
                     this.registers[rd + 1] = remainder & 0xFFFF;
                     result = quotient;
-                    console.log(`DIV32: ${this.getRegisterName(rd)}:${this.getRegisterName(rd + 1)} / ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = Q:0x${quotient.toString(16)} R:0x${remainder.toString(16)}`);
+                    // console.log(`DIV32: ${this.getRegisterName(rd)}:${this.getRegisterName(rd + 1)} / ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = Q:0x${quotient.toString(16)} R:0x${remainder.toString(16)}`);
                 } else {
                     // 16-bit division
                     result = Math.floor(rdValue / operandValue);
                     const remainder = rdValue % operandValue;
                     this.registers[rd + 1] = remainder & 0xFFFF; // Store remainder in next register
-                    console.log(`DIV: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) / ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = Q:0x${result.toString(16)} R:0x${remainder.toString(16)}`);
+                    // console.log(`DIV: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) / ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = Q:0x${result.toString(16)} R:0x${remainder.toString(16)}`);
                 }
                 break;
             case 0b111: // SHIFT
@@ -426,12 +429,12 @@ class Deep16Simulator {
                 return; // Shift handles its own result storage
             default: 
                 result = rdValue;
-                console.warn(`Unimplemented ALU op: ${aluOp}`);
+                // console.warn(`Unimplemented ALU op: ${aluOp}`);
         }
 
         if (w === 1 && aluOp !== 0b101 && aluOp !== 0b110) { // MUL/DIV handle writing separately
             this.registers[rd] = result & 0xFFFF;
-            console.log(`ALU Write: ${this.getRegisterName(rd)} = 0x${this.registers[rd].toString(16).padStart(4, '0')}`);
+            // console.log(`ALU Write: ${this.getRegisterName(rd)} = 0x${this.registers[rd].toString(16).padStart(4, '0')}`);
         }
 
         // Store result for PSW flag calculation
@@ -447,7 +450,7 @@ class Deep16Simulator {
         const value = this.registers[rd];
         let result = value;
         
-        console.log(`Shift Execute: type=${this.shiftOps[shiftType]}, rd=${this.getRegisterName(rd)}, count=${count}, value=0x${value.toString(16)}`);
+        // console.log(`Shift Execute: type=${this.shiftOps[shiftType]}, rd=${this.getRegisterName(rd)}, count=${count}, value=0x${value.toString(16)}`);
         
         switch (shiftType) {
             case 0b000: // SL - Shift Left
@@ -501,7 +504,7 @@ class Deep16Simulator {
         this.lastALUResult = result;
         this.lastOperationWasALU = true;
         
-        console.log(`Shift Complete: ${this.getRegisterName(rd)} = 0x${result.toString(16).padStart(4, '0')}`);
+        // console.log(`Shift Complete: ${this.getRegisterName(rd)} = 0x${result.toString(16).padStart(4, '0')}`);
     }
 
     executeMOV(instruction) {
@@ -512,17 +515,17 @@ class Deep16Simulator {
         const rs = (instruction >>> 2) & 0xF;      // Bits 5-2  
         const imm = instruction & 0x3;             // Bits 1-0
         
-        console.log(`=== MOV DEBUG ===`);
-        console.log(`Instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
-        console.log(`Binary: ${instruction.toString(2).padStart(16, '0')}`);
-        console.log(`Extracted: rd=${rd}, rs=${rs}, imm=${imm}`);
-        console.log(`Before: R${rd}=0x${this.registers[rd].toString(16)}, R${rs}=0x${this.registers[rs].toString(16)}`);
+        // console.log(`=== MOV DEBUG ===`);
+        // console.log(`Instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
+        // console.log(`Binary: ${instruction.toString(2).padStart(16, '0')}`);
+        // console.log(`Extracted: rd=${rd}, rs=${rs}, imm=${imm}`);
+        // console.log(`Before: R${rd}=0x${this.registers[rd].toString(16)}, R${rs}=0x${this.registers[rs].toString(16)}`);
         
         // FIXED: Use the VALUE of register rs, not the register index
         this.registers[rd] = this.registers[rs] + imm;
         
-        console.log(`After: R${rd}=0x${this.registers[rd].toString(16)}`);
-        console.log(`Calculation: R${rd} = R${rs} (0x${this.registers[rs].toString(16)}) + ${imm}`);
+        // console.log(`After: R${rd}=0x${this.registers[rd].toString(16)}`);
+        // console.log(`Calculation: R${rd} = R${rs} (0x${this.registers[rs].toString(16)}) + ${imm}`);
         
         this.lastALUResult = this.registers[rd];
         this.lastOperationWasALU = true;
@@ -540,11 +543,11 @@ class Deep16Simulator {
             imm |= 0xFFE0; // Extend sign for negative numbers
         }
         
-        console.log(`LSI Execute: rd=${rd} (${this.getRegisterName(rd)}), imm=${imm} (0x${imm.toString(16)})`);
+        // console.log(`LSI Execute: rd=${rd} (${this.getRegisterName(rd)}), imm=${imm} (0x${imm.toString(16)})`);
         
         this.registers[rd] = imm;
         
-        console.log(`LSI Execute: ${this.getRegisterName(rd)} = ${this.registers[rd]} (0x${this.registers[rd].toString(16).padStart(4, '0')})`);
+        // console.log(`LSI Execute: ${this.getRegisterName(rd)} = ${this.registers[rd]} (0x${this.registers[rd].toString(16).padStart(4, '0')})`);
         
         this.lastALUResult = imm;
         this.lastOperationWasALU = true;
@@ -561,7 +564,7 @@ class Deep16Simulator {
         
         let shouldJump = false;
         
-        console.log(`Jump: condition=${condition}, offset=${offset} (signed), Z-flag=${!!(this.psw & (1 << 1))}`);
+        // console.log(`Jump: condition=${condition}, offset=${offset} (signed), Z-flag=${!!(this.psw & (1 << 1))}`);
         
         switch (condition) {
             case 0b000: shouldJump = (this.psw & (1 << 1)) !== 0; break; // JZ (Zero=1)
@@ -574,7 +577,7 @@ class Deep16Simulator {
             case 0b111: shouldJump = (this.psw & (1 << 2)) === 0; break; // JNO (Overflow=0)
         }
 
-        console.log(`Jump decision: ${shouldJump ? 'TAKEN' : 'NOT TAKEN'}`);
+        // console.log(`Jump decision: ${shouldJump ? 'TAKEN' : 'NOT TAKEN'}`);
 
         if (shouldJump) {
             // Calculate target address but don't jump yet
@@ -586,7 +589,7 @@ class Deep16Simulator {
             this.delayedCS = this.segmentRegisters.CS; // Same CS segment
             this.branchTaken = true;
             
-            console.log(`JUMP: Delay slot activated - will jump to 0x${this.delayedPC.toString(16)} after next instruction`);
+            // console.log(`JUMP: Delay slot activated - will jump to 0x${this.delayedPC.toString(16)} after next instruction`);
         } else {
             // Branch not taken, no delay slot needed
             this.branchTaken = false;
@@ -599,27 +602,27 @@ class Deep16Simulator {
         const type4 = (instruction >>> 4) & 0xF;
         const rx = instruction & 0xF;
         
-        console.log(`SOP Execute: type4=${type4.toString(2)}, rx=${rx} (${this.getRegisterName(rx)})`);
+        // console.log(`SOP Execute: type4=${type4.toString(2)}, rx=${rx} (${this.getRegisterName(rx)})`);
         
         switch (type4) {
             case 0b0000: // SWB - Swap Bytes
                 const value = this.registers[rx];
                 this.registers[rx] = ((value & 0xFF) << 8) | ((value >>> 8) & 0xFF);
-                console.log(`SWB: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
+                // console.log(`SWB: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
                 this.lastALUResult = this.registers[rx];
                 this.lastOperationWasALU = true;
                 return false;
                 
             case 0b0001: // INV - Invert bits
                 this.registers[rx] = ~this.registers[rx] & 0xFFFF;
-                console.log(`INV: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
+                // console.log(`INV: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
                 this.lastALUResult = this.registers[rx];
                 this.lastOperationWasALU = true;
                 return false;
                 
             case 0b0010: // NEG - Two's complement
                 this.registers[rx] = (~this.registers[rx] + 1) & 0xFFFF;
-                console.log(`NEG: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
+                // console.log(`NEG: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
                 this.lastALUResult = this.registers[rx];
                 this.lastOperationWasALU = true;
                 return false;
@@ -629,50 +632,50 @@ class Deep16Simulator {
                 
             case 0b1000: // SRS - Stack Register Single
                 this.psw = (this.psw & ~0x03C0) | (rx << 6);
-                console.log(`SRS: Stack Register = R${rx}, PSW = 0x${this.psw.toString(16)}`);
+                // console.log(`SRS: Stack Register = R${rx}, PSW = 0x${this.psw.toString(16)}`);
                 return false;
                 
             case 0b1001: // SRD - Stack Register Dual
                 this.psw = (this.psw & ~0x03C0) | (rx << 6) | 0x0400;
-                console.log(`SRD: Stack Register Dual = R${rx}, PSW = 0x${this.psw.toString(16)}`);
+                // console.log(`SRD: Stack Register Dual = R${rx}, PSW = 0x${this.psw.toString(16)}`);
                 return false;
                 
             case 0b1010: // ERS - Extra Register Single
                 this.psw = (this.psw & ~0x7800) | (rx << 11);
-                console.log(`ERS: Extra Register = R${rx}, PSW = 0x${this.psw.toString(16)}`);
+                // console.log(`ERS: Extra Register = R${rx}, PSW = 0x${this.psw.toString(16)}`);
                 return false;
                 
             case 0b1011: // ERD - Extra Register Dual
                 this.psw = (this.psw & ~0x7800) | (rx << 11) | 0x8000;
-                console.log(`ERD: Extra Register Dual = R${rx}, PSW = 0x${this.psw.toString(16)}`);
+                // console.log(`ERD: Extra Register Dual = R${rx}, PSW = 0x${this.psw.toString(16)}`);
                 return false;
                 
             case 0b1100: // SET - Set PSW flags
                 const setFlags = instruction & 0xF;
                 this.psw |= setFlags;
-                console.log(`SET: PSW flags 0x${setFlags.toString(16)} set, PSW = 0x${this.psw.toString(16)}`);
+                // console.log(`SET: PSW flags 0x${setFlags.toString(16)} set, PSW = 0x${this.psw.toString(16)}`);
                 return false;
                 
             case 0b1101: // CLR - Clear PSW flags
                 const clrFlags = instruction & 0xF;
                 this.psw &= ~clrFlags;
-                console.log(`CLR: PSW flags 0x${clrFlags.toString(16)} cleared, PSW = 0x${this.psw.toString(16)}`);
+                // console.log(`CLR: PSW flags 0x${clrFlags.toString(16)} cleared, PSW = 0x${this.psw.toString(16)}`);
                 return false;
                 
             case 0b1110: // SET2 - Set upper PSW bits
                 const set2Flags = (instruction & 0xF) << 4;
                 this.psw |= set2Flags;
-                console.log(`SET2: PSW bits 0x${set2Flags.toString(16)} set, PSW = 0x${this.psw.toString(16)}`);
+                // console.log(`SET2: PSW bits 0x${set2Flags.toString(16)} set, PSW = 0x${this.psw.toString(16)}`);
                 return false;
                 
             case 0b1111: // CLR2 - Clear upper PSW bits
                 const clr2Flags = (instruction & 0xF) << 4;
                 this.psw &= ~clr2Flags;
-                console.log(`CLR2: PSW bits 0x${clr2Flags.toString(16)} cleared, PSW = 0x${this.psw.toString(16)}`);
+                // console.log(`CLR2: PSW bits 0x${clr2Flags.toString(16)} cleared, PSW = 0x${this.psw.toString(16)}`);
                 return false;
                 
             default:
-                console.warn(`Unimplemented SOP instruction: type4=${type4.toString(2)}`);
+                // console.warn(`Unimplemented SOP instruction: type4=${type4.toString(2)}`);
                 return false;
         }
     }
@@ -682,14 +685,14 @@ class Deep16Simulator {
         // rx must be even (0,2,4,6,8,10,12,14)
         
         if (rx % 2 !== 0) {
-            console.warn(`JML requires even register, got R${rx}`);
+            // console.warn(`JML requires even register, got R${rx}`);
             return false;
         }
         
         const targetCS = this.registers[rx];
         const targetPC = this.registers[rx + 1];
         
-        console.log(`JML Execute: R${rx}=0x${targetCS.toString(16)} (CS), R${rx+1}=0x${targetPC.toString(16)} (PC)`);
+        // console.log(`JML Execute: R${rx}=0x${targetCS.toString(16)} (CS), R${rx+1}=0x${targetPC.toString(16)} (PC)`);
         
         // Set up delay slot for JML
         this.delaySlotActive = true;
@@ -697,7 +700,7 @@ class Deep16Simulator {
         this.delayedCS = targetCS & 0xFFFF;
         this.branchTaken = true;
         
-        console.log(`JML: Delay slot activated - will jump to CS=0x${targetCS.toString(16)}, PC=0x${targetPC.toString(16)} after next instruction`);
+        // console.log(`JML: Delay slot activated - will jump to CS=0x${targetCS.toString(16)}, PC=0x${targetPC.toString(16)} after next instruction`);
         
         return true; // This is a branch instruction
     }
@@ -710,7 +713,7 @@ class Deep16Simulator {
         
         const segNames = ['CS', 'DS', 'SS', 'ES'];
         
-        console.log(`MVS Execute: d=${d}, rd=${this.getRegisterName(rd)}, seg=${segNames[seg]}`);
+        // console.log(`MVS Execute: d=${d}, rd=${this.getRegisterName(rd)}, seg=${segNames[seg]}`);
         
         if (d === 0) {
             // Rd ← Sx (read from segment register)
@@ -720,7 +723,7 @@ class Deep16Simulator {
                 case 2: this.registers[rd] = this.segmentRegisters.SS; break;
                 case 3: this.registers[rd] = this.segmentRegisters.ES; break;
             }
-            console.log(`MVS: ${this.getRegisterName(rd)} = ${segNames[seg]} (0x${this.registers[rd].toString(16)})`);
+            // console.log(`MVS: ${this.getRegisterName(rd)} = ${segNames[seg]} (0x${this.registers[rd].toString(16)})`);
         } else {
             // Sx ← Rd (write to segment register)
             switch (seg) {
@@ -729,7 +732,7 @@ class Deep16Simulator {
                 case 2: this.segmentRegisters.SS = this.registers[rd]; break;
                 case 3: this.segmentRegisters.ES = this.registers[rd]; break;
             }
-            console.log(`MVS: ${segNames[seg]} = ${this.getRegisterName(rd)} (0x${this.registers[rd].toString(16)})`);
+            // console.log(`MVS: ${segNames[seg]} = ${this.getRegisterName(rd)} (0x${this.registers[rd].toString(16)})`);
         }
     }
 
@@ -740,7 +743,7 @@ class Deep16Simulator {
         
         const srcNames = ['APC', 'APSW', 'PSW', 'ACS'];
         
-        console.log(`SMV Execute: src=${srcNames[src2]}, rd=${this.getRegisterName(rd)}, S-bit=${!!(this.psw & (1 << 5))}`);
+        // console.log(`SMV Execute: src=${srcNames[src2]}, rd=${this.getRegisterName(rd)}, S-bit=${!!(this.psw & (1 << 5))}`);
         
         // Check S-bit to determine current context
         const inShadowView = !!(this.psw & (1 << 5));
@@ -750,11 +753,11 @@ class Deep16Simulator {
                 if (inShadowView) {
                     // In shadow view: APC = normal context PC (current PC)
                     this.registers[rd] = this.registers[15];
-                    console.log(`SMV: ${this.getRegisterName(rd)} = APC = PC(normal) = 0x${this.registers[rd].toString(16)}`);
+                    // console.log(`SMV: ${this.getRegisterName(rd)} = APC = PC(normal) = 0x${this.registers[rd].toString(16)}`);
                 } else {
                     // In normal view: APC = shadow context PC (PC')
                     this.registers[rd] = this.shadowRegisters.PC;
-                    console.log(`SMV: ${this.getRegisterName(rd)} = APC = PC'(shadow) = 0x${this.registers[rd].toString(16)}`);
+                    // console.log(`SMV: ${this.getRegisterName(rd)} = APC = PC'(shadow) = 0x${this.registers[rd].toString(16)}`);
                 }
                 break;
                 
@@ -762,11 +765,11 @@ class Deep16Simulator {
                 if (inShadowView) {
                     // In shadow view: APSW = normal context PSW (current PSW)
                     this.registers[rd] = this.psw;
-                    console.log(`SMV: ${this.getRegisterName(rd)} = APSW = PSW(normal) = 0x${this.registers[rd].toString(16)}`);
+                    // console.log(`SMV: ${this.getRegisterName(rd)} = APSW = PSW(normal) = 0x${this.registers[rd].toString(16)}`);
                 } else {
                     // In normal view: APSW = shadow context PSW (PSW')
                     this.registers[rd] = this.shadowRegisters.PSW;
-                    console.log(`SMV: ${this.getRegisterName(rd)} = APSW = PSW'(shadow) = 0x${this.registers[rd].toString(16)}`);
+                    // console.log(`SMV: ${this.getRegisterName(rd)} = APSW = PSW'(shadow) = 0x${this.registers[rd].toString(16)}`);
                 }
                 break;
                 
@@ -774,11 +777,11 @@ class Deep16Simulator {
                 if (inShadowView) {
                     // In shadow view: PSW = PSW' (shadow PSW)
                     this.registers[rd] = this.shadowRegisters.PSW;
-                    console.log(`SMV: ${this.getRegisterName(rd)} = PSW = PSW'(shadow) = 0x${this.registers[rd].toString(16)}`);
+                    // console.log(`SMV: ${this.getRegisterName(rd)} = PSW = PSW'(shadow) = 0x${this.registers[rd].toString(16)}`);
                 } else {
                     // In normal view: PSW = current PSW
                     this.registers[rd] = this.psw;
-                    console.log(`SMV: ${this.getRegisterName(rd)} = PSW = PSW(normal) = 0x${this.registers[rd].toString(16)}`);
+                    // console.log(`SMV: ${this.getRegisterName(rd)} = PSW = PSW(normal) = 0x${this.registers[rd].toString(16)}`);
                 }
                 break;
                 
@@ -786,11 +789,11 @@ class Deep16Simulator {
                 if (inShadowView) {
                     // In shadow view: ACS = normal context CS (current CS)
                     this.registers[rd] = this.segmentRegisters.CS;
-                    console.log(`SMV: ${this.getRegisterName(rd)} = ACS = CS(normal) = 0x${this.registers[rd].toString(16)}`);
+                    // console.log(`SMV: ${this.getRegisterName(rd)} = ACS = CS(normal) = 0x${this.registers[rd].toString(16)}`);
                 } else {
                     // In normal view: ACS = shadow context CS (CS')
                     this.registers[rd] = this.shadowRegisters.CS;
-                    console.log(`SMV: ${this.getRegisterName(rd)} = ACS = CS'(shadow) = 0x${this.registers[rd].toString(16)}`);
+                    // console.log(`SMV: ${this.getRegisterName(rd)} = ACS = CS'(shadow) = 0x${this.registers[rd].toString(16)}`);
                 }
                 break;
         }
@@ -806,18 +809,18 @@ class Deep16Simulator {
         const segNames = ['CS', 'DS', 'SS', 'ES'];
         const address = this.registers[rs];
         
-        console.log(`LDS/STS Execute: d=${d}, seg=${segNames[seg]}, rd=${this.getRegisterName(rd)}, rs=${this.getRegisterName(rs)}, address=0x${address.toString(16)}`);
+        // console.log(`LDS/STS Execute: d=${d}, seg=${segNames[seg]}, rd=${this.getRegisterName(rd)}, rs=${this.getRegisterName(rs)}, address=0x${address.toString(16)}`);
         
         // Note: In the current flat memory model, segment doesn't affect the physical address
         if (d === 0) { // LDS
             if (address < this.memory.length) {
                 this.registers[rd] = this.memory[address];
-                console.log(`LDS: ${this.getRegisterName(rd)} = [${segNames[seg]}:${this.getRegisterName(rs)}] = 0x${this.registers[rd].toString(16)}`);
+                // console.log(`LDS: ${this.getRegisterName(rd)} = [${segNames[seg]}:${this.getRegisterName(rs)}] = 0x${this.registers[rd].toString(16)}`);
             }
         } else { // STS
             if (address < this.memory.length) {
                 this.memory[address] = this.registers[rd];
-                console.log(`STS: [${segNames[seg]}:${this.getRegisterName(rs)}] = ${this.getRegisterName(rd)} (0x${this.registers[rd].toString(16)})`);
+                // console.log(`STS: [${segNames[seg]}:${this.getRegisterName(rs)}] = ${this.getRegisterName(rd)} (0x${this.registers[rd].toString(16)})`);
                 
                 // Check if this is a screen memory write
                 this.checkScreenUpdate(address, this.registers[rd]);
@@ -828,15 +831,15 @@ class Deep16Simulator {
     executeSystem(instruction) {
         const sysOp = instruction & 0x7;
         
-        console.log(`System Execute: op=${sysOp}, PSW=0x${this.psw.toString(16)}, S-bit=${!!(this.psw & (1 << 5))}`);
+        // console.log(`System Execute: op=${sysOp}, PSW=0x${this.psw.toString(16)}, S-bit=${!!(this.psw & (1 << 5))}`);
         
         switch (sysOp) {
             case 0b000: // NOP
-                console.log("NOP: No operation");
+                // console.log("NOP: No operation");
                 break;
             case 0b001: // HLT
                 this.running = false;
-                console.log("HLT: Processor halted");
+                // console.log("HLT: Processor halted");
                 break;
             case 0b010: // SWI - Software Interrupt
                 this.executeSWI();
@@ -845,7 +848,7 @@ class Deep16Simulator {
                 this.executeRETI();
                 break;
             default:
-                console.warn(`Unknown system operation: ${sysOp}`);
+                // console.warn(`Unknown system operation: ${sysOp}`);
         }
     }
 
@@ -853,18 +856,18 @@ class Deep16Simulator {
      * Execute Software Interrupt with proper context switching
      */
     executeSWI() {
-        console.log("SWI: Software interrupt - switching to shadow context");
+        // console.log("SWI: Software interrupt - switching to shadow context");
         
         // Check if interrupts are enabled
         if (!(this.psw & (1 << 4))) {
-            console.warn("SWI: Interrupts disabled, ignoring software interrupt");
+            // console.warn("SWI: Interrupts disabled, ignoring software interrupt");
             return;
         }
         
         // According to section 4: Only PSW is copied to PSW'
         this.shadowRegisters.PSW = this.psw;
         
-        console.log(`SWI: PSW' = PSW = 0x${this.shadowRegisters.PSW.toString(16)}`);
+        // console.log(`SWI: PSW' = PSW = 0x${this.shadowRegisters.PSW.toString(16)}`);
         
         // Switch to shadow view: PSW.S ← 1, PSW.I ← 0
         this.psw = (this.psw & ~(1 << 4)) | (1 << 5); // Clear I-bit, set S-bit
@@ -873,8 +876,8 @@ class Deep16Simulator {
         this.segmentRegisters.CS = 0x0000; // Interrupts run in Segment 0
         this.registers[15] = 0x0004;      // SWI vector at offset 4
         
-        console.log(`SWI: Jump to CS=0x${this.segmentRegisters.CS.toString(16)}, PC=0x${this.registers[15].toString(16)}, PSW=0x${this.psw.toString(16)}`);
-        console.log(`SWI: Now in shadow context - accessing PC', CS', PSW' views`);
+        // console.log(`SWI: Jump to CS=0x${this.segmentRegisters.CS.toString(16)}, PC=0x${this.registers[15].toString(16)}, PSW=0x${this.psw.toString(16)}`);
+        // console.log(`SWI: Now in shadow context - accessing PC', CS', PSW' views`);
         
         // In a pipelined implementation, this would flush the pipeline
         this.flushPipeline();
@@ -884,14 +887,14 @@ class Deep16Simulator {
      * Execute Return from Interrupt with context restoration
      */
     executeRETI() {
-        console.log("RETI: Return from interrupt - switching to normal context");
+        // console.log("RETI: Return from interrupt - switching to normal context");
         
         // Simply switch back to normal view (clear S-bit)
         // No register copying - pure view switching
         this.psw = this.psw & ~(1 << 5); // Clear S-bit
         
-        console.log(`RETI: Switched to normal context - accessing PC, CS, PSW views`);
-        console.log(`RETI: PSW=0x${this.psw.toString(16)}, PC=0x${this.registers[15].toString(16)}, CS=0x${this.segmentRegisters.CS.toString(16)}`);
+        // console.log(`RETI: Switched to normal context - accessing PC, CS, PSW views`);
+        // console.log(`RETI: PSW=0x${this.psw.toString(16)}, PC=0x${this.registers[15].toString(16)}, CS=0x${this.segmentRegisters.CS.toString(16)}`);
         
         // In a pipelined implementation, this would flush the pipeline
         this.flushPipeline();
@@ -899,7 +902,7 @@ class Deep16Simulator {
 
     checkScreenUpdate(address, value) {
         if (address >= this.SCREEN_MEMORY_START && address <= this.SCREEN_MEMORY_END) {
-            console.log(`Screen memory updated: address=0x${address.toString(16)}, value=0x${value.toString(16)}`);
+            // console.log(`Screen memory updated: address=0x${address.toString(16)}, value=0x${value.toString(16)}`);
             
             // Use the existing screen UI method
             if (this.ui && this.ui.screenUI && typeof this.ui.screenUI.handleScreenMemoryWrite === 'function') {
@@ -915,16 +918,16 @@ class Deep16Simulator {
     handleHardwareInterrupt(vector) {
         // Check if interrupts are enabled and not already in interrupt context
         if (!(this.psw & (1 << 4)) || (this.psw & (1 << 5))) {
-            console.log(`Hardware interrupt ignored: I=${!!(this.psw & (1 << 4))}, S=${!!(this.psw & (1 << 5))}`);
+            // console.log(`Hardware interrupt ignored: I=${!!(this.psw & (1 << 4))}, S=${!!(this.psw & (1 << 5))}`);
             return false;
         }
         
-        console.log(`Hardware interrupt: vector=0x${vector.toString(16)}`);
+        // console.log(`Hardware interrupt: vector=0x${vector.toString(16)}`);
         
         // According to section 4: Only PSW is copied to PSW'
         this.shadowRegisters.PSW = this.psw;
         
-        console.log(`Hardware interrupt: PSW' = PSW = 0x${this.shadowRegisters.PSW.toString(16)}`);
+        // console.log(`Hardware interrupt: PSW' = PSW = 0x${this.shadowRegisters.PSW.toString(16)}`);
         
         // Switch to shadow view: PSW.S ← 1, PSW.I ← 0
         this.psw = (this.psw & ~(1 << 4)) | (1 << 5); // Clear I-bit, set S-bit
@@ -933,8 +936,8 @@ class Deep16Simulator {
         this.segmentRegisters.CS = 0x0000; // Hardware interrupts run in segment 0
         this.registers[15] = vector;
         
-        console.log(`Hardware interrupt: Jump to CS=0x${this.segmentRegisters.CS.toString(16)}, PC=0x${this.registers[15].toString(16)}, PSW=0x${this.psw.toString(16)}`);
-        console.log(`Hardware interrupt: Now in shadow context - accessing PC', CS', PSW' views`);
+        // console.log(`Hardware interrupt: Jump to CS=0x${this.segmentRegisters.CS.toString(16)}, PC=0x${this.registers[15].toString(16)}, PSW=0x${this.psw.toString(16)}`);
+        // console.log(`Hardware interrupt: Now in shadow context - accessing PC', CS', PSW' views`);
         
         // In a pipelined implementation, this would flush the pipeline
         this.flushPipeline();
@@ -946,7 +949,7 @@ class Deep16Simulator {
      * Simulate pipeline flush (for context switches)
      */
     flushPipeline() {
-        console.log("Pipeline flushed due to context switch");
+        // console.log("Pipeline flushed due to context switch");
         // In a real implementation, this would clear pipeline stages
         // For this simulator, we just log it since we're not modeling pipeline stages
     }
@@ -978,12 +981,11 @@ class Deep16Simulator {
         }
         
         this.lastOperationWasALU = false;
-        console.log(`PSW updated: 0x${this.psw.toString(16).padStart(4, '0')} (N=${!!(this.psw & 1)}, Z=${!!(this.psw & 2)}, V=${!!(this.psw & 4)}, C=${!!(this.psw & 8)})`);
+        // console.log(`PSW updated: 0x${this.psw.toString(16).padStart(4, '0')} (N=${!!(this.psw & 1)}, Z=${!!(this.psw & 2)}, V=${!!(this.psw & 4)}, C=${!!(this.psw & 8)})`);
     }
 
     getRegisterName(regIndex) {
-        const names = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
-        return names[regIndex] || `R${regIndex}`;
+        return this.registerNames[regIndex] || `R${regIndex}`;
     }
 
     // ENHANCED: Method to get expanded memory view with segment info
