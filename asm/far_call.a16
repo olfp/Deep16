@@ -23,7 +23,8 @@ main:
     ; Calculate return address
     MOV  LR, PC, 1     ; LR = PC + 1 (address of return_here)
     JML  R8            ; Far call: CS=R8, PC=R9
-    
+    NOP
+
 return_here:
     ; Result should be in R3 (12 + 5 = 17)
     HALT
@@ -42,7 +43,8 @@ add_func:
     MOV  R10, R0       ; R10 = return CS
     MOV  R11, LR       ; R11 = return PC (from LR)
     JML  R10           ; Far return: CS=R10, PC=R11
-
+    NOP
+    
 ; Segment 1 continuation
 .org 0x0100
     HALT

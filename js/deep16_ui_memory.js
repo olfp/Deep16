@@ -85,7 +85,10 @@ isCodeAddress(address) {
     const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
     const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
     const isPC = (address === physPC);
+    const recent = this.ui.simulator.recentMemoryAccess;
+    const isRecent = !!recent && (address === recent.address);
     const pcClass = isPC ? 'pc-marker' : '';
+    const recentClass = isRecent ? 'recent-access' : '';
     
     // Check if this should be displayed as code
     if (this.isCodeAddress(address)) {
@@ -101,9 +104,9 @@ isCodeAddress(address) {
         // FIX: Only show actual hex values for code, never "----"
         const displayValue = `0x${valueHex}`;
         
-        let html = `<div class="memory-line code-line ${pcClass}">`;
+        let html = `<div class="memory-line code-line ${pcClass} ${recentClass}">`;
         html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
-        html += `<span class="memory-bytes">${displayValue}</span>`;
+        html += `<span class="memory-bytes ${recentClass}">${displayValue}</span>`;
         html += `<span class="memory-disassembly">${disasm}</span>`;
         if (source) {
             html += `<span class="memory-source">; ${source}</span>`;
@@ -120,23 +123,25 @@ isCodeAddress(address) {
         // Create a data line with 8 words
         let html = `<div class="memory-line data-line ${pcClass}">`;
         html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
-        
         const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
+        let values = null;
+        if (this.ui.useWasm && window.Deep16Wasm && typeof window.Deep16Wasm.get_memory_slice === 'function') {
+            try {
+                const slice = window.Deep16Wasm.get_memory_slice(address, Math.min(8, this.ui.simulator.memory.length - address));
+                values = Array.from(slice).map(v => v & 0xFFFF);
+            } catch {}
+        }
         for (let i = 0; i < 8; i++) {
             const dataAddr = address + i;
             if (dataAddr >= this.ui.simulator.memory.length) break;
-            
-            const dataValue = (this.ui.useWasm && window.Deep16Wasm && typeof window.Deep16Wasm.get_memory_word === 'function')
-                ? (window.Deep16Wasm.get_memory_word(dataAddr) & 0xFFFF)
-                : this.ui.simulator.memory[dataAddr];
-            const dataHex = dataValue.toString(16).padStart(4, '0').toUpperCase();
+            const dataValue = values ? values[i] : this.ui.simulator.memory[dataAddr];
+            const dataHex = (dataValue >>> 0).toString(16).padStart(4, '0').toUpperCase();
             const dataPC = (dataAddr === physPC);
+            const dataRecent = !!recent && (dataAddr === recent.address);
             const dataClass = dataPC ? 'pc-marker' : '';
-            
-            // For data lines, show "----" for uninitialized memory (0xFFFF)
+            const recentClass = dataRecent ? 'recent-access' : '';
             const displayData = dataValue === 0xFFFF ? "----" : `0x${dataHex}`;
-            
-            html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
+            html += `<span class="memory-data ${dataClass} ${recentClass}">${displayData}</span>`;
         }
         
         // Get source for data line
@@ -246,10 +251,12 @@ updateMemoryDisplay() {
     
     if (window.Deep16Debug) console.log(`updateMemoryDisplay START: memoryStartAddress = ${this.ui.memoryStartAddress}, manualAddressChange = ${this.ui.manualAddressChange}`);
     
-    // If this is a manual address change, skip auto-adjust entirely
-    if (this.ui.manualAddressChange) {
+    // If this is a manual address change, or memory is locked during run, skip auto-adjust
+    if (this.ui.manualAddressChange || this.ui.lockMemoryStartWhileRunning) {
         if (window.Deep16Debug) console.log('Manual address change detected - skipping auto-adjust');
-        this.ui.manualAddressChange = false; // Reset the flag
+        if (!this.ui.lockMemoryStartWhileRunning) {
+            this.ui.manualAddressChange = false; // Reset only when not running
+        }
         this.renderMemoryDisplay();
         return;
     }
@@ -259,15 +266,12 @@ updateMemoryDisplay() {
 
     if (window.Deep16Debug) console.log(`updateMemoryDisplay: memoryStartAddress = ${this.ui.memoryStartAddress}, start = ${start}, end = ${end}`);
 
-    // Check if current PC is outside the visible range
+    // Optional: follow PC only when explicitly enabled
     const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
     const pcIsVisible = (physPC >= start && physPC < end);
-    
-    if (window.Deep16Debug) console.log(`PC check: physPC = ${physPC}, pcIsVisible = ${pcIsVisible}`);
-    
-    // Only auto-adjust if the PC is not visible
-    if (!pcIsVisible && physPC < this.ui.simulator.memory.length) {
-        if (window.Deep16Debug) console.log(`Auto-adjusting memory start address to show PC`);
+    if (window.Deep16Debug) console.log(`PC check: physPC = ${physPC}, pcIsVisible = ${pcIsVisible}, followPC=${this.ui.followPC}`);
+    if (this.ui.followPC && !pcIsVisible && physPC < this.ui.simulator.memory.length) {
+        if (window.Deep16Debug) console.log(`Auto-adjusting memory start address to show PC (followPC=true)`);
         this.ui.memoryStartAddress = Math.max(0, physPC - 8);
         const startAddressInput = document.getElementById('memory-start-address');
         if (startAddressInput) {
@@ -528,23 +532,35 @@ updateMemoryDisplay() {
     }
 }
 
-updateRecentMemoryDisplay() {
-    const recentDisplay = document.getElementById('recent-memory-display');
-    if (!recentDisplay) return;
-    
-    if (!this.ui.simulator.getRecentMemoryView) {
-        recentDisplay.innerHTML = 'Memory view not available';
-        return;
-    }
-    
-    const memoryView = this.ui.simulator.getRecentMemoryView();
-    
-    if (!memoryView) {
-        recentDisplay.innerHTML = 'No memory operations yet';
-        return;
-    }
-    
-    const { baseAddress, memoryWords, accessInfo } = memoryView;
+    updateRecentMemoryDisplay() {
+        const recentDisplay = document.getElementById('recent-memory-display');
+        if (!recentDisplay) return;
+        
+        if (!this.ui.simulator.getRecentMemoryView) {
+            recentDisplay.innerHTML = 'Memory view not available';
+            return;
+        }
+        
+        const memoryView = this.ui.simulator.getRecentMemoryView();
+        
+        if (!memoryView) {
+            recentDisplay.innerHTML = 'No memory operations yet';
+            return;
+        }
+        
+        const { baseAddress, memoryWords, accessInfo } = memoryView;
+        
+        // If access is already visible in main memory window, just mark it and avoid rearranging recent panel
+        const start = this.ui.memoryStartAddress || 0;
+        const end = Math.min(start + 64, this.ui.simulator.memory.length);
+        const accessOnScreen = accessInfo.address >= start && accessInfo.address < end;
+        if (accessOnScreen) {
+            // Re-render main memory panel to include recent-access highlighting
+            this.renderMemoryDisplay();
+            const accessType = accessInfo.type === 'LD' ? 'Load' : 'Store';
+            recentDisplay.innerHTML = `<div class="recent-memory-info">${accessType} on-screen at 0x${accessInfo.address.toString(16).padStart(5,'0').toUpperCase()}</div>`;
+            return;
+        }
     
     let html = '';
     
