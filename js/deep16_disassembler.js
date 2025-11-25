@@ -92,7 +92,7 @@ disassembleSOP(instruction) {
     const type4 = (instruction >>> 4) & 0xF;
     const rx = instruction & 0xF;
     
-    console.log(`SOP instruction: 0x${instruction.toString(16)}, type4: ${type4.toString(2)}, rx: ${rx}`);
+    if (window.Deep16Debug) console.log(`SOP instruction: 0x${instruction.toString(16)}, type4: ${type4.toString(2)}, rx: ${rx}`);
     
     switch (type4) {
         case 0b0000: return `SWB ${this.registerNames[rx]}`;

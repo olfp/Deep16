@@ -36,6 +36,29 @@
     gap: 15px;
 }
 
+.header-spacer {
+    flex: 1;
+}
+
+.header-right-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.toggle-label {
+    color: #ffffff;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#wssam-toggle {
+    width: 16px;
+    height: 16px;
+}
+
 .logo-container {
     flex-shrink: 0;
 }

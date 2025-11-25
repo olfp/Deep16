@@ -81,6 +81,17 @@ class DeepWebUI {
         this.setupMobileLayout();
         this.wasmAvailable = typeof window.Deep16Wasm !== 'undefined';
         this.useWasm = false;
+        const wssamToggle = document.getElementById('wssam-toggle');
+        if (wssamToggle) {
+            wssamToggle.checked = true;
+            wssamToggle.disabled = !this.wasmAvailable;
+            wssamToggle.addEventListener('change', (e) => {
+                const on = !!e.target.checked;
+                this.useWasm = on && this.wasmAvailable && !!this.wasmInitialized;
+                if (this.runInterval) { this.stop(); }
+                this.addTranscriptEntry(`WASM: ${this.useWasm ? 'ON' : 'OFF'}`, "info");
+            });
+        }
         if (this.wasmAvailable) {
             this.addTranscriptEntry("WASM module detected", "success");
         } else if (window.Deep16WasmReady && typeof window.Deep16WasmReady.then === 'function') {
@@ -90,7 +101,10 @@ class DeepWebUI {
                 this.turboMode = true;
                 try {
                     window.Deep16Wasm.init(this.simulator.memory.length);
-                    // Load ROM region into WASM
+                    if (typeof this.simulator.autoloadROM === 'function') {
+                        this.simulator.autoloadROM();
+                        this.simulator.segmentRegisters.CS = 0xFFFF;
+                    }
                     for (let a = 0xFFFF0; a <= 0xFFFFF; a++) {
                         const v = this.simulator.memory[a] & 0xFFFF;
                         window.Deep16Wasm.load_program(a, new Uint16Array([v]));
@@ -99,6 +113,7 @@ class DeepWebUI {
                     window.Deep16Wasm.set_segments(0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
                     this.wasmInitialized = true;
                     this.useWasm = true;
+                    if (wssamToggle) { wssamToggle.disabled = false; wssamToggle.checked = true; }
                     this.addTranscriptEntry("WASM module loaded and CPU initialized", "success");
                     this.addTranscriptEntry("ROM loaded into WASM core", "success");
                     this.addTranscriptEntry("Segments synced to WASM", "info");
@@ -106,18 +121,24 @@ class DeepWebUI {
                     this.addTranscriptEntry("WASM init failed; using JS core", "warning");
                     this.useWasm = false;
                     this.wasmInitialized = false;
+                    if (wssamToggle) { wssamToggle.disabled = true; wssamToggle.checked = false; }
                 }
             }).catch(() => {
                 this.addTranscriptEntry("WASM module failed to load", "error");
             });
         } else {
             this.addTranscriptEntry("WASM module not available", "info");
+            if (wssamToggle) { wssamToggle.disabled = true; wssamToggle.checked = false; }
         }
         window.addEventListener('deep16-wasm-ready', () => {
             this.wasmAvailable = true;
             this.turboMode = true;
             try {
                 window.Deep16Wasm.init(this.simulator.memory.length);
+                if (typeof this.simulator.autoloadROM === 'function') {
+                    this.simulator.autoloadROM();
+                    this.simulator.segmentRegisters.CS = 0xFFFF;
+                }
                 for (let a = 0xFFFF0; a <= 0xFFFFF; a++) {
                     const v = this.simulator.memory[a] & 0xFFFF;
                     window.Deep16Wasm.load_program(a, new Uint16Array([v]));
@@ -126,6 +147,7 @@ class DeepWebUI {
                 window.Deep16Wasm.set_segments(0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
                 this.wasmInitialized = true;
                 this.useWasm = true;
+                if (wssamToggle) { wssamToggle.disabled = false; wssamToggle.checked = true; }
                 this.addTranscriptEntry("WASM module loaded and CPU initialized", "success");
                 this.addTranscriptEntry("ROM loaded into WASM core", "success");
                 this.addTranscriptEntry("Segments synced to WASM", "info");
@@ -133,6 +155,7 @@ class DeepWebUI {
                 this.addTranscriptEntry("WASM init failed; using JS core", "warning");
                 this.useWasm = false;
                 this.wasmInitialized = false;
+                if (wssamToggle) { wssamToggle.disabled = true; wssamToggle.checked = false; }
             }
         });
         this.addTranscriptEntry("DeepCode initialized and ready", "info");
@@ -140,7 +163,7 @@ class DeepWebUI {
 
     initializeWorker() {
         if (!this.workerSupported) {
-            console.log('Web Workers not supported, using main thread');
+        if (window.Deep16Debug) console.log('Web Workers not supported, using main thread');
             return;
         }
         
@@ -610,11 +633,11 @@ class DeepWebUI {
         // FIXED: Proper memory address input handling
         const memoryAddressInput = document.getElementById('memory-start-address');
         if (memoryAddressInput) {
-            console.log('Setting up memory address input event listeners');
+        if (window.Deep16Debug) console.log('Setting up memory address input event listeners');
             
             // Handle Enter key
             memoryAddressInput.addEventListener('keypress', (e) => {
-                console.log('Key pressed in memory address input:', e.key);
+                if (window.Deep16Debug) console.log('Key pressed in memory address input:', e.key);
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     this.handleMemoryAddressInput();
@@ -687,7 +710,7 @@ class DeepWebUI {
     }
 
     initializeSearchableDropdowns() {
-        console.log('Using simple dropdowns');
+        if (window.Deep16Debug) console.log('Using simple dropdowns');
     }
 
     // In deep16_ui_core.js - Replace handleMemoryAddressInput method:
@@ -699,7 +722,7 @@ class DeepWebUI {
         }
         
         let value = input.value.trim();
-        console.log('Memory address input value:', value);
+        if (window.Deep16Debug) console.log('Memory address input value:', value);
         
         // If empty, use current address
         if (value === '') {
@@ -714,10 +737,10 @@ class DeepWebUI {
         
         // Parse as hex
         const address = parseInt(value, 16);
-        console.log('Parsed address:', address, 'isNaN:', isNaN(address));
+        if (window.Deep16Debug) console.log('Parsed address:', address, 'isNaN:', isNaN(address));
         
         if (!isNaN(address) && address >= 0 && address < this.simulator.memory.length) {
-            console.log('Setting memory start address to:', address);
+            if (window.Deep16Debug) console.log('Setting memory start address to:', address);
             this.memoryStartAddress = address;
             input.value = '0x' + address.toString(16).padStart(5, '0').toUpperCase();
             
@@ -728,10 +751,10 @@ class DeepWebUI {
             // Add a temporary flag to prevent auto-adjust on the next update
             this.manualAddressChange = true;
             
-            console.log('Manual address change completed, calling renderMemoryDisplay directly');
+            if (window.Deep16Debug) console.log('Manual address change completed, calling renderMemoryDisplay directly');
         } else {
             // Invalid address - reset to current
-            console.log('Invalid address, resetting to:', this.memoryStartAddress);
+            if (window.Deep16Debug) console.log('Invalid address, resetting to:', this.memoryStartAddress);
             input.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0').toUpperCase();
         }
     }
@@ -748,7 +771,7 @@ class DeepWebUI {
         let csValue = csInput.value.trim();
         let pcValue = pcInput.value.trim();
         
-        console.log(`gotoSegmentAddress: CS='${csValue}', PC='${pcValue}'`);
+        if (window.Deep16Debug) console.log(`gotoSegmentAddress: CS='${csValue}', PC='${pcValue}'`);
         
         // Parse CS value
         if (csValue.toLowerCase().startsWith('0x')) {
@@ -762,7 +785,7 @@ class DeepWebUI {
         }
         const pcAddress = parseInt(pcValue, 16);
         
-        console.log(`Parsed: CS=0x${csAddress.toString(16)}, PC=0x${pcAddress.toString(16)}`);
+        if (window.Deep16Debug) console.log(`Parsed: CS=0x${csAddress.toString(16)}, PC=0x${pcAddress.toString(16)}`);
         
         // Validate addresses (16-bit segment and offset)
         if (isNaN(csAddress) || csAddress < 0 || csAddress > 0xFFFF) {
@@ -780,7 +803,7 @@ class DeepWebUI {
         // Calculate physical address: CS << 4 + PC (20-bit physical address)
         const physicalAddress = (csAddress << 4) + pcAddress;
         
-        console.log(`Physical address calculation: (0x${csAddress.toString(16)} << 4) + 0x${pcAddress.toString(16)} = 0x${physicalAddress.toString(16)}`);
+        if (window.Deep16Debug) console.log(`Physical address calculation: (0x${csAddress.toString(16)} << 4) + 0x${pcAddress.toString(16)} = 0x${physicalAddress.toString(16)}`);
         
         if (physicalAddress >= 0 && physicalAddress < this.simulator.memory.length) {
             // Set the memory start address to show CONTEXT around the target
@@ -1073,14 +1096,14 @@ class DeepWebUI {
     }
 
     assemble() {
-        console.log("Assemble button clicked");
+        if (window.Deep16Debug) console.log("Assemble button clicked");
         const source = this.editorElement.value;
         this.status("Assembling...");
         this.addTranscriptEntry("Starting assembly", "info");
 
         try {
             const result = this.assembler.assemble(source);
-            console.log("Assembly result:", result);
+            if (window.Deep16Debug) console.log("Assembly result:", result);
             
             this.currentAssemblyResult = result;
             
@@ -1131,7 +1154,7 @@ class DeepWebUI {
                 } catch {}
                 this.memoryUI.buildSegmentInfo(result.listing);
                 
-                console.log("Simulator memory at 0x0000:", this.simulator.memory[0].toString(16));
+                if (window.Deep16Debug) console.log("Simulator memory at 0x0000:", this.simulator.memory[0].toString(16));
                 
                 this.simulator.registers[15] = 0x0000;
                 this.status("Assembly successful! Program loaded.");
@@ -1301,6 +1324,14 @@ class DeepWebUI {
                             type: isStore ? 'ST' : 'LD',
                             accessedAt: Date.now()
                         };
+                        if (isStore && typeof window.Deep16Wasm.get_memory_word === 'function') {
+                            try {
+                                const w = window.Deep16Wasm.get_memory_word(address) & 0xFFFF;
+                                if (address < this.simulator.memory.length) {
+                                    this.simulator.memory[address] = w;
+                                }
+                            } catch {}
+                        }
                     }
                 } catch {}
             }
@@ -1418,6 +1449,14 @@ class DeepWebUI {
                             type: isStore ? 'ST' : 'LD',
                             accessedAt: Date.now()
                         };
+                        if (isStore && typeof window.Deep16Wasm.get_memory_word === 'function') {
+                            try {
+                                const w = window.Deep16Wasm.get_memory_word(address) & 0xFFFF;
+                                if (address < this.simulator.memory.length) {
+                                    this.simulator.memory[address] = w;
+                                }
+                            } catch {}
+                        }
                     }
                 } catch {}
             }
@@ -1662,7 +1701,7 @@ class DeepWebUI {
             this.examples = data.examples;
             this.populateExampleSelector();
             
-            console.log(`Loaded ${this.examples.length} examples`);
+            if (window.Deep16Debug) console.log(`Loaded ${this.examples.length} examples`);
             this.addTranscriptEntry(`Loaded ${this.examples.length} examples from asm/ directory`, "success");
         } catch (error) {
             console.error('Failed to load examples list:', error);

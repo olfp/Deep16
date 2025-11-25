@@ -16,7 +16,7 @@ assemble(source) {
     let currentSegment = 'code';
     let address = 0;
 
-    console.log('=== ASSEMBLER FIRST PASS ===');
+    if (window.Deep16Debug) console.log('=== ASSEMBLER FIRST PASS ===');
     const lines = source.split('\n');
     
     // First pass: collect labels, segments, and calculate addresses
@@ -29,45 +29,45 @@ assemble(source) {
                 const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
                 const oldAddress = address;
                 address = orgValue;
-                console.log(`ORG: ${line} -> address changed from 0x${oldAddress.toString(16)} to 0x${address.toString(16)}, segment=${currentSegment}`);
+                if (window.Deep16Debug) console.log(`ORG: ${line} -> address changed from 0x${oldAddress.toString(16)} to 0x${address.toString(16)}, segment=${currentSegment}`);
             } else if (line.startsWith('.code')) {
                 currentSegment = 'code';
-                console.log(`SEGMENT: ${line} -> switching to code segment`);
+                if (window.Deep16Debug) console.log(`SEGMENT: ${line} -> switching to code segment`);
             } else if (line.startsWith('.data')) {
                 currentSegment = 'data';
-                console.log(`SEGMENT: ${line} -> switching to data segment`);
+                if (window.Deep16Debug) console.log(`SEGMENT: ${line} -> switching to data segment`);
             } else if (line.endsWith(':')) {
                 const label = line.slice(0, -1).trim();
                 this.labels[label] = address;
                 this.symbols[label] = address;
                 segmentMap.set(address, currentSegment);
-                console.log(`LABEL: ${label} at 0x${address.toString(16)}, segment=${currentSegment}`);
+                if (window.Deep16Debug) console.log(`LABEL: ${label} at 0x${address.toString(16)}, segment=${currentSegment}`);
             } else if (line.startsWith('.word')) {
                 // Data directive - mark as data
                 const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
-                console.log(`DATA: ${line} -> ${values.length} words at 0x${address.toString(16)}`);
+                if (window.Deep16Debug) console.log(`DATA: ${line} -> ${values.length} words at 0x${address.toString(16)}`);
                 for (const value of values) {
                     segmentMap.set(address, 'data');
-                    console.log(`  DATA WORD: 0x${address.toString(16)} = 0x${value.toString(16)}`);
+                    if (window.Deep16Debug) console.log(`  DATA WORD: 0x${address.toString(16)} = 0x${value.toString(16)}`);
                     address++;
                 }
             } else if (line.startsWith('.text')) {
                 // NEW: .text directive for null-terminated strings
                 const textContent = line.substring(5).trim();
                 const stringValue = this.parseStringLiteral(textContent);
-                console.log(`TEXT: "${stringValue}" -> ${stringValue.length + 1} words at 0x${address.toString(16)}`);
+                if (window.Deep16Debug) console.log(`TEXT: "${stringValue}" -> ${stringValue.length + 1} words at 0x${address.toString(16)}`);
                 for (let j = 0; j < stringValue.length; j++) {
                     segmentMap.set(address, 'data');
-                    console.log(`  TEXT CHAR: 0x${address.toString(16)} = '${stringValue[j]}' (${stringValue.charCodeAt(j)})`);
+                    if (window.Deep16Debug) console.log(`  TEXT CHAR: 0x${address.toString(16)} = '${stringValue[j]}' (${stringValue.charCodeAt(j)})`);
                     address++;
                 }
                 // Add null terminator
                 segmentMap.set(address, 'data');
-                console.log(`  TEXT NULL: 0x${address.toString(16)} = 0`);
+                if (window.Deep16Debug) console.log(`  TEXT NULL: 0x${address.toString(16)} = 0`);
                 address++;
             } else if (!this.isDirective(line)) {
                 segmentMap.set(address, currentSegment);
-                console.log(`CODE: ${line} -> instruction at 0x${address.toString(16)}, segment=${currentSegment}`);
+                if (window.Deep16Debug) console.log(`CODE: ${line} -> instruction at 0x${address.toString(16)}, segment=${currentSegment}`);
                 address++;
             }
         } catch (error) {
@@ -103,7 +103,7 @@ assemble(source) {
                 assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
             } else if (line.startsWith('.word')) {
                 const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
-                console.log(`DATA (pass2): ${values.length} words at 0x${address.toString(16)}`);
+                if (window.Deep16Debug) console.log(`DATA (pass2): ${values.length} words at 0x${address.toString(16)}`);
                 for (const value of values) {
                     memoryChanges.push({ address: address, value: value & 0xFFFF, segment: 'data' });
                     assemblyListing.push({ 
@@ -112,14 +112,14 @@ assemble(source) {
                         line: originalLine,
                         segment: 'data'
                     });
-                    console.log(`  DATA STORE: memory[0x${address.toString(16)}] = 0x${value.toString(16)}`);
+                    if (window.Deep16Debug) console.log(`  DATA STORE: memory[0x${address.toString(16)}] = 0x${value.toString(16)}`);
                     address++;
                 }
             } else if (line.startsWith('.text')) {
                 // NEW: .text directive processing in second pass
                 const textContent = line.substring(5).trim();
                 const stringValue = this.parseStringLiteral(textContent);
-                console.log(`TEXT (pass2): "${stringValue}" at 0x${address.toString(16)}`);
+                if (window.Deep16Debug) console.log(`TEXT (pass2): "${stringValue}" at 0x${address.toString(16)}`);
                 for (let j = 0; j < stringValue.length; j++) {
                     const charCode = stringValue.charCodeAt(j);
                     memoryChanges.push({ address: address, value: charCode & 0xFFFF, segment: 'data' });
@@ -129,7 +129,7 @@ assemble(source) {
                         line: originalLine,
                         segment: 'data'
                     });
-                    console.log(`  TEXT STORE: memory[0x${address.toString(16)}] = '${stringValue[j]}' (0x${charCode.toString(16)})`);
+                    if (window.Deep16Debug) console.log(`  TEXT STORE: memory[0x${address.toString(16)}] = '${stringValue[j]}' (0x${charCode.toString(16)})`);
                     address++;
                 }
                 // Store null terminator
@@ -140,7 +140,7 @@ assemble(source) {
                     line: originalLine,
                     segment: 'data'
                 });
-                console.log(`  TEXT NULL: memory[0x${address.toString(16)}] = 0`);
+                if (window.Deep16Debug) console.log(`  TEXT NULL: memory[0x${address.toString(16)}] = 0`);
                 address++;
             } else {
                 const instruction = this.encodeInstruction(line, address, i + 1);
@@ -152,11 +152,11 @@ assemble(source) {
                         line: originalLine,
                         segment: currentSegment
                     });
-                    console.log(`CODE STORE: memory[0x${address.toString(16)}] = 0x${instruction.toString(16).padStart(4, '0')} from: ${line}`);
+                    if (window.Deep16Debug) console.log(`CODE STORE: memory[0x${address.toString(16)}] = 0x${instruction.toString(16).padStart(4, '0')} from: ${line}`);
                     address++;
                 } else {
                     assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
-                    console.log(`CODE SKIP: no instruction generated for: ${line}`);
+                    if (window.Deep16Debug) console.log(`CODE SKIP: no instruction generated for: ${line}`);
                 }
             }
         } catch (error) {
@@ -561,15 +561,15 @@ encodeMOV(parts, address, lineNumber) {
         
         // Check if we're using the plus syntax by looking for + in the joined parts
         const joinedParts = parts.join(' ');
-        console.log(`MOV joined parts: "${joinedParts}"`);
+        if (window.Deep16Debug) console.log(`MOV joined parts: "${joinedParts}"`);
         
         if (joinedParts.includes('+')) {
             // Plus syntax: MOV R1, R2+3 or MOV R1, R2 + 3
-            console.log("Detected MOV plus syntax");
+            if (window.Deep16Debug) console.log("Detected MOV plus syntax");
             
             // Extract the register+immediate part using regex
             const movMatch = joinedParts.match(/MOV\s+([A-Za-z0-9]+)\s+([A-Za-z0-9]+)\s*\+\s*(\d+)/);
-            console.log(`MOV match:`, movMatch);
+            if (window.Deep16Debug) console.log(`MOV match:`, movMatch);
             
             if (!movMatch) {
                 throw new Error(`Invalid MOV plus syntax: ${joinedParts}`);
@@ -580,7 +580,7 @@ encodeMOV(parts, address, lineNumber) {
             imm = this.parseImmediate(movMatch[3].trim());
             
             // Handle regular MOV with offset
-            console.log(`MOV parsed: rd=${rd}, rs=${rs}, imm=${imm}`);
+            if (window.Deep16Debug) console.log(`MOV parsed: rd=${rd}, rs=${rs}, imm=${imm}`);
             
             if (imm < 0 || imm > 3) {
                 throw new Error(`MOV immediate ${imm} out of range (0-3)`);
@@ -591,7 +591,7 @@ encodeMOV(parts, address, lineNumber) {
         } 
         // Original syntax: MOV R1, R2 or MOV R1, R2, 3
         else if (parts.length >= 3) {
-            console.log("Detected original MOV syntax");
+            if (window.Deep16Debug) console.log("Detected original MOV syntax");
             rd = this.parseRegister(parts[1]);
             
             // Check if second operand is a segment register or special register
@@ -600,12 +600,12 @@ encodeMOV(parts, address, lineNumber) {
             // Handle MOV between segment registers and general registers
             if (this.isSegmentRegister(secondOperand)) {
                 // MOV Rd, Sx -> MVS Rd, Sx (read from segment register)
-                console.log(`Detected MOV from segment register: ${secondOperand}`);
+                if (window.Deep16Debug) console.log(`Detected MOV from segment register: ${secondOperand}`);
                 return this.encodeMVS([null, parts[1], parts[2]], address, lineNumber);
             }
             else if (this.isSpecialRegister(secondOperand)) {
                 // MOV Rd, special -> SMV Rd, special
-                console.log(`Detected MOV from special register: ${secondOperand}`);
+                if (window.Deep16Debug) console.log(`Detected MOV from special register: ${secondOperand}`);
                 return this.encodeSMV([null, parts[1], parts[2]], address, lineNumber);
             }
             else {
@@ -618,7 +618,7 @@ encodeMOV(parts, address, lineNumber) {
                     imm = 0; // Default immediate is 0 if not specified
                 }
                 
-                console.log(`MOV parsed: rd=${rd}, rs=${rs}, imm=${imm}`);
+                if (window.Deep16Debug) console.log(`MOV parsed: rd=${rd}, rs=${rs}, imm=${imm}`);
                 
                 if (imm < 0 || imm > 3) {
                     throw new Error(`MOV immediate ${imm} out of range (0-3)`);
@@ -639,7 +639,7 @@ encodeMOV(parts, address, lineNumber) {
         
         if (this.isSegmentRegister(firstOperand)) {
             // MOV Sx, Rd -> MVS Sx, Rd (write to segment register)
-            console.log(`Detected MOV to segment register: ${firstOperand}`);
+            if (window.Deep16Debug) console.log(`Detected MOV to segment register: ${firstOperand}`);
             // For MVS with write, we need to call encodeMVS with the right parameters
             // But encodeMVS expects [MVS, Rd, seg] format, so we need to rearrange
             const tempParts = ['MVS', parts[2], parts[1]]; // Swap operands for MVS encoding
@@ -811,35 +811,35 @@ isSpecialRegister(reg) {
 
 
 encodeMemory(parts, isStore, address, lineNumber) {
-    console.log(`encodeMemory parts:`, parts, `isStore:`, isStore);
+    if (window.Deep16Debug) console.log(`encodeMemory parts:`, parts, `isStore:`, isStore);
     
     if (parts.length >= 3) {
         let rd, rb, offset;
         
         // Check if we're using bracket syntax by looking for [ in any part
         const joinedParts = parts.join(' ');
-        console.log(`Joined parts: "${joinedParts}"`);
+        if (window.Deep16Debug) console.log(`Joined parts: "${joinedParts}"`);
         
         if (joinedParts.includes('[') && joinedParts.includes(']')) {
             // Bracket syntax: LD R1, [R2+5] or ST R1, [R2] or LD R1, [R2 + 5]
-            console.log("Detected bracket syntax");
+            if (window.Deep16Debug) console.log("Detected bracket syntax");
             
             // Extract the entire bracket content from joined parts
             // Look for: ST R0 [R0 +21] - we want "R0 +21"
             const bracketMatch = joinedParts.match(/\[([^\]]+)\]/);
-            console.log(`Bracket match:`, bracketMatch);
+            if (window.Deep16Debug) console.log(`Bracket match:`, bracketMatch);
             
             if (!bracketMatch) {
                 throw new Error(`Invalid bracket syntax in ${isStore ? 'ST' : 'LD'}`);
             }
             
             const bracketContent = bracketMatch[1];
-            console.log(`Bracket content: "${bracketContent}"`);
+            if (window.Deep16Debug) console.log(`Bracket content: "${bracketContent}"`);
             
             // Parse Rb and offset - use more flexible regex
             // This should handle: "R0", "R0+21", "R0 +21", "R0+ 21", "R0 + 21"
             const memoryMatch = bracketContent.match(/^([A-Za-z0-9]+)\s*(\+\s*(\d+))?$/);
-            console.log(`Memory match:`, memoryMatch);
+            if (window.Deep16Debug) console.log(`Memory match:`, memoryMatch);
             
             if (!memoryMatch) {
                 throw new Error(`Invalid memory address syntax: "${bracketContent}"`);
@@ -856,14 +856,14 @@ encodeMemory(parts, isStore, address, lineNumber) {
             // Rd is the part before the brackets (find the register before the [)
             // For "ST R0 [R0 +21]", we want "R0" (the second one)
             const beforeBracket = joinedParts.split('[')[0].trim();
-            console.log(`Before bracket: "${beforeBracket}"`);
+            if (window.Deep16Debug) console.log(`Before bracket: "${beforeBracket}"`);
             const rdParts = beforeBracket.split(/\s+/);
-            console.log(`Rd parts:`, rdParts);
+            if (window.Deep16Debug) console.log(`Rd parts:`, rdParts);
             rd = this.parseRegister(rdParts[rdParts.length - 1]); // Last part before [
         } 
         // Old syntax: LD R1, R2, 5
         else if (parts.length >= 4) {
-            console.log("Detected old syntax");
+            if (window.Deep16Debug) console.log("Detected old syntax");
             rd = this.parseRegister(parts[1]);
             rb = this.parseRegister(parts[2]);
             offset = this.parseImmediate(parts[3]);
@@ -872,7 +872,7 @@ encodeMemory(parts, isStore, address, lineNumber) {
             throw new Error(`${isStore ? 'ST' : 'LD'} requires register, base register, and offset`);
         }
         
-        console.log(`Parsed: rd=${rd}, rb=${rb}, offset=${offset}`);
+        if (window.Deep16Debug) console.log(`Parsed: rd=${rd}, rb=${rb}, offset=${offset}`);
         
         if (offset < 0 || offset > 31) {
             throw new Error(`Offset ${offset} out of range (0-31)`);

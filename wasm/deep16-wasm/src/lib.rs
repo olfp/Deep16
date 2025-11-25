@@ -446,6 +446,7 @@ fn autoload_rom(c: &mut Cpu) {
         0xFFF1, // HLT
         0xFFF1, // HLT
         0xFFF1, // HLT
+        0xFFF1, // HLT
     ];
     for i in 0..rom.len() {
         let addr = base + i;
