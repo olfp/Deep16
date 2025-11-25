@@ -21,7 +21,7 @@ main:
     MOV  R9, R0        ; R9 = target PC
     
     ; Calculate return address
-    MOV  LR, PC, 1     ; LR = PC + 1 (address of return_here)
+    MOV  LR, PC, 2     ; LR = PC + 2 (address of return_here, mind the delay slot)
     JML  R8            ; Far call: CS=R8, PC=R9
     NOP
 
@@ -30,7 +30,7 @@ return_here:
     HALT
 
 ; Segment 1: Math function
-.org 0x0020
+.org 0x1020
 
 add_func:
     ; Add two numbers: R3 = R1 + R2
@@ -44,7 +44,5 @@ add_func:
     MOV  R11, LR       ; R11 = return PC (from LR)
     JML  R10           ; Far return: CS=R10, PC=R11
     NOP
-    
-; Segment 1 continuation
-.org 0x0100
-    HALT
+
+; eof

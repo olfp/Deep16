@@ -98,7 +98,7 @@ class Deep16Simulator {
             0xFE01, // SWB R1
             0xA200, // ST R1, [R0+0]
             0xA201, // ST R1, [R0+1]
-            0xA201, // ST R1, [R0+1]
+            0xA202, // ST R1, [R0+2]
             0xFE40, // JML R0
             0xFFF0, // NOP (delay slot)
             0xFFF1, // HLT

@@ -85,10 +85,7 @@ isCodeAddress(address) {
     const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
     const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
     const isPC = (address === physPC);
-    const recent = this.ui.simulator.recentMemoryAccess;
-    const isRecent = !!recent && (address === recent.address);
     const pcClass = isPC ? 'pc-marker' : '';
-    const recentClass = isRecent ? 'recent-access' : '';
     
     // Check if this should be displayed as code
     if (this.isCodeAddress(address)) {
@@ -104,9 +101,9 @@ isCodeAddress(address) {
         // FIX: Only show actual hex values for code, never "----"
         const displayValue = `0x${valueHex}`;
         
-        let html = `<div class="memory-line code-line ${pcClass} ${recentClass}">`;
+        let html = `<div class="memory-line code-line ${pcClass}">`;
         html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
-        html += `<span class="memory-bytes ${recentClass}">${displayValue}</span>`;
+        html += `<span class="memory-bytes">${displayValue}</span>`;
         html += `<span class="memory-disassembly">${disasm}</span>`;
         if (source) {
             html += `<span class="memory-source">; ${source}</span>`;
@@ -137,11 +134,9 @@ isCodeAddress(address) {
             const dataValue = values ? values[i] : this.ui.simulator.memory[dataAddr];
             const dataHex = (dataValue >>> 0).toString(16).padStart(4, '0').toUpperCase();
             const dataPC = (dataAddr === physPC);
-            const dataRecent = !!recent && (dataAddr === recent.address);
             const dataClass = dataPC ? 'pc-marker' : '';
-            const recentClass = dataRecent ? 'recent-access' : '';
             const displayData = dataValue === 0xFFFF ? "----" : `0x${dataHex}`;
-            html += `<span class="memory-data ${dataClass} ${recentClass}">${displayData}</span>`;
+            html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
         }
         
         // Get source for data line
@@ -549,20 +544,8 @@ updateMemoryDisplay() {
         }
         
         const { baseAddress, memoryWords, accessInfo } = memoryView;
-        
-        // If access is already visible in main memory window, just mark it and avoid rearranging recent panel
-        const start = this.ui.memoryStartAddress || 0;
-        const end = Math.min(start + 64, this.ui.simulator.memory.length);
-        const accessOnScreen = accessInfo.address >= start && accessInfo.address < end;
-        if (accessOnScreen) {
-            // Re-render main memory panel to include recent-access highlighting
-            this.renderMemoryDisplay();
-            const accessType = accessInfo.type === 'LD' ? 'Load' : 'Store';
-            recentDisplay.innerHTML = `<div class="recent-memory-info">${accessType} on-screen at 0x${accessInfo.address.toString(16).padStart(5,'0').toUpperCase()}</div>`;
-            return;
-        }
     
-    let html = '';
+        let html = '';
     
     // Create 4 lines of 8 words each
     for (let line = 0; line < 4; line++) {
