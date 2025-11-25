@@ -240,11 +240,11 @@ updateMemoryDisplay() {
     const memoryDisplay = document.getElementById('memory-display');
     if (!memoryDisplay) return;
     
-    console.log(`updateMemoryDisplay START: memoryStartAddress = ${this.ui.memoryStartAddress}, manualAddressChange = ${this.ui.manualAddressChange}`);
+    if (window.Deep16Debug) console.log(`updateMemoryDisplay START: memoryStartAddress = ${this.ui.memoryStartAddress}, manualAddressChange = ${this.ui.manualAddressChange}`);
     
     // If this is a manual address change, skip auto-adjust entirely
     if (this.ui.manualAddressChange) {
-        console.log('Manual address change detected - skipping auto-adjust');
+        if (window.Deep16Debug) console.log('Manual address change detected - skipping auto-adjust');
         this.ui.manualAddressChange = false; // Reset the flag
         this.renderMemoryDisplay();
         return;
@@ -253,17 +253,17 @@ updateMemoryDisplay() {
     const start = this.ui.memoryStartAddress || 0;
     const end = Math.min(start + 64, this.simulator.memory.length);
 
-    console.log(`updateMemoryDisplay: memoryStartAddress = ${this.ui.memoryStartAddress}, start = ${start}, end = ${end}`);
+    if (window.Deep16Debug) console.log(`updateMemoryDisplay: memoryStartAddress = ${this.ui.memoryStartAddress}, start = ${start}, end = ${end}`);
 
     // Check if current PC is outside the visible range
     const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
     const pcIsVisible = (physPC >= start && physPC < end);
     
-    console.log(`PC check: physPC = ${physPC}, pcIsVisible = ${pcIsVisible}`);
+    if (window.Deep16Debug) console.log(`PC check: physPC = ${physPC}, pcIsVisible = ${pcIsVisible}`);
     
     // Only auto-adjust if the PC is not visible
     if (!pcIsVisible && physPC < this.ui.simulator.memory.length) {
-        console.log(`Auto-adjusting memory start address to show PC`);
+        if (window.Deep16Debug) console.log(`Auto-adjusting memory start address to show PC`);
         this.ui.memoryStartAddress = Math.max(0, physPC - 8);
         const startAddressInput = document.getElementById('memory-start-address');
         if (startAddressInput) {
@@ -273,7 +273,7 @@ updateMemoryDisplay() {
 
     this.renderMemoryDisplay();
     
-    console.log(`updateMemoryDisplay END: memoryStartAddress = ${this.ui.memoryStartAddress}`);
+    if (window.Deep16Debug) console.log(`updateMemoryDisplay END: memoryStartAddress = ${this.ui.memoryStartAddress}`);
     
     // Auto-scroll to the PC line if it's visible
     if (pcIsVisible) {
@@ -285,12 +285,12 @@ renderMemoryDisplay() {
     const memoryDisplay = document.getElementById('memory-display');
     if (!memoryDisplay) return;
     
-    console.log(`renderMemoryDisplay: this.ui.memoryStartAddress = ${this.ui.memoryStartAddress}`);
+    if (window.Deep16Debug) console.log(`renderMemoryDisplay: this.ui.memoryStartAddress = ${this.ui.memoryStartAddress}`);
     
     const start = this.ui.memoryStartAddress || 0;
     const end = Math.min(start + 64, this.ui.simulator.memory.length);
     
-    console.log(`Rendering memory from 0x${start.toString(16)} to 0x${end.toString(16)}`);
+    if (window.Deep16Debug) console.log(`Rendering memory from 0x${start.toString(16)} to 0x${end.toString(16)}`);
 
     if (!this.segmentInfo) {
         this.buildSegmentInfo([]); // Initialize with empty listing
@@ -328,7 +328,7 @@ renderMemoryDisplay() {
     
     memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
     
-    console.log(`Finished rendering ${end - start} memory locations`);
+    if (window.Deep16Debug) console.log(`Finished rendering ${end - start} memory locations`);
 }
 
 // Keep the createDataLine method as before, but ensure it shows empty for 0xFFFF
@@ -487,12 +487,12 @@ updateMemoryDisplay() {
     const memoryDisplay = document.getElementById('memory-display');
     if (!memoryDisplay) return;
     
-    console.log(`updateMemoryDisplay START: memoryStartAddress = ${this.ui.memoryStartAddress}`);
+    if (window.Deep16Debug) console.log(`updateMemoryDisplay START: memoryStartAddress = ${this.ui.memoryStartAddress}`);
     
     const start = this.ui.memoryStartAddress || 0;
     const end = Math.min(start + 64, this.ui.simulator.memory.length);
 
-    console.log(`updateMemoryDisplay: memoryStartAddress = ${this.ui.memoryStartAddress}, start = ${start}, end = ${end}`);
+    if (window.Deep16Debug) console.log(`updateMemoryDisplay: memoryStartAddress = ${this.ui.memoryStartAddress}, start = ${start}, end = ${end}`);
 
     if (!this.ui.currentAssemblyResult) {
         this.buildSegmentInfo([]);
@@ -502,11 +502,11 @@ updateMemoryDisplay() {
     const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
     const pcIsVisible = (physPC >= start && physPC < end);
     
-    console.log(`PC check: physPC = ${physPC}, pcIsVisible = ${pcIsVisible}`);
+    if (window.Deep16Debug) console.log(`PC check: physPC = ${physPC}, pcIsVisible = ${pcIsVisible}`);
     
     // If PC is not visible, adjust the start address to show it
     if (!pcIsVisible && physPC < this.ui.simulator.memory.length) {
-        console.log(`Auto-adjusting memory start address to show PC`);
+        if (window.Deep16Debug) console.log(`Auto-adjusting memory start address to show PC`);
         this.ui.memoryStartAddress = Math.max(0, physPC - 8);
         const startAddressInput = document.getElementById('memory-start-address');
         if (startAddressInput) {
@@ -516,7 +516,7 @@ updateMemoryDisplay() {
 
     this.renderMemoryDisplay();
     
-    console.log(`updateMemoryDisplay END: memoryStartAddress = ${this.ui.memoryStartAddress}`);
+    if (window.Deep16Debug) console.log(`updateMemoryDisplay END: memoryStartAddress = ${this.ui.memoryStartAddress}`);
     
     // Auto-scroll to the PC line if it's visible
     if (pcIsVisible) {

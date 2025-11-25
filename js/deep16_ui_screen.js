@@ -31,7 +31,7 @@ class Deep16ScreenUI {
         }
         screenDisplay.innerHTML = html;
         
-        console.log(`Screen initialized: ${this.screenWidth}x${this.screenHeight} at 0x${this.screenBaseAddress.toString(16).toUpperCase()}`);
+        if (window.Deep16Debug) console.log(`Screen initialized: ${this.screenWidth}x${this.screenHeight} at 0x${this.screenBaseAddress.toString(16).toUpperCase()}`);
     }
 
     updateScreenDisplay() {
