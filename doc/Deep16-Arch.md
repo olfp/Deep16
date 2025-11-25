@@ -139,11 +139,38 @@ ERD  R10         ; Use R10/R11 for ES access, sets DE=1 automatically
 0x0002: SWI_VECTOR      (PC loaded from here on software interrupt)
 ```
 
+Note: Boot uses the fixed ROM sequence at `0xFFFF0..0xFFFFF` to transfer control to low memory (default `0x0000:0x0100`). The vector table remains in Segment 0 for hardware and software interrupts; vector loads occur when an interrupt is taken.
+
 ### 4.2 Reset State
-- **PC ← Mem[0x0000]** (Load PC from reset vector at address 0x0000)
-- **CS = 0x0000**, **PSW = 0x0000**
-- All other registers = undefined
-- Execution begins at physical address CS:PC
+- **Initial registers**: `CS = 0xFFFF`, `DS = 0x1000`, `SS = 0x8000`, `ES = 0x2000`, `SP (R13) = 0x7FFF`, `PC (R15) = 0x0000`, `PSW = 0x0000`
+- **Boot ROM** at `0xFFFF0..0xFFFFF` executes first and establishes runtime segments, performs basic diagnostics, and jumps to low memory.
+- **Execution begins** at physical address computed by the boot ROM’s jump (default `CS:PC = 0x0000:0x0100`).
+
+#### 4.2.1 Boot ROM Sequence (at 0xFFFF0)
+```
+0xFFFF0: 0x0000    ; LDI  #0x0000 -> R0
+0xFFFF1: 0xFF41    ; MVS  DS, R0
+0xFFFF2: 0xFF42    ; MVS  SS, R0
+0xFFFF3: 0xFC21    ; LSI  R1, 1
+0xFFFF4: 0xFE01    ; SWB  R1
+0xFFFF5: 0xA200    ; ST   R1, [R0+0]
+0xFFFF6: 0xA201    ; ST   R1, [R0+1]
+0xFFFF7: 0xA201    ; ST   R1, [R0+1]
+0xFFFF8: 0xFE40    ; JML  R0        ; Jump to CS=R0, PC=R1
+0xFFFF9: 0xFFF0    ; NOP             ; Delay slot
+0xFFFFA: 0xFFF1    ; HLT
+0xFFFFB: 0xFFF1    ; HLT
+0xFFFFC: 0xFFF1    ; HLT
+0xFFFFD: 0xFFF1    ; HLT
+0xFFFFE: 0xFFF1    ; HLT
+0xFFFFF: 0xFFF1    ; HLT
+```
+
+Default effect:
+- Sets `DS = 0x0000` and `SS = 0x0000`
+- Prepares `R1 = 0x0100` via `LSI` and `SWB`
+- Stores diagnostic words at physical `0x00000..`
+- Performs `JML R0` using the `(R0,R1)` pair → jumps to `CS=0x0000`, `PC=0x0100`
 
 ### 4.3 Shadow Register System
 

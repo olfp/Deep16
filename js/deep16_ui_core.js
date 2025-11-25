@@ -1335,6 +1335,18 @@ class DeepWebUI {
                     }
                 } catch {}
             }
+            try {
+                const start = this.memoryStartAddress || 0;
+                const end = Math.min(start + 64, this.simulator.memory.length);
+                if (typeof window.Deep16Wasm.get_memory_slice === 'function') {
+                    const slice = window.Deep16Wasm.get_memory_slice(start, end - start);
+                    if (slice && slice.length) {
+                        for (let i = 0; i < slice.length; i++) {
+                            this.simulator.memory[start + i] = slice[i] & 0xFFFF;
+                        }
+                    }
+                }
+            } catch {}
             this.updateAllDisplays();
             if (!cont) {
                 this.simulator.running = false;
@@ -1460,6 +1472,18 @@ class DeepWebUI {
                     }
                 } catch {}
             }
+            try {
+                const start = this.memoryStartAddress || 0;
+                const end = Math.min(start + 64, this.simulator.memory.length);
+                if (typeof window.Deep16Wasm.get_memory_slice === 'function') {
+                    const slice = window.Deep16Wasm.get_memory_slice(start, end - start);
+                    if (slice && slice.length) {
+                        for (let i = 0; i < slice.length; i++) {
+                            this.simulator.memory[start + i] = slice[i] & 0xFFFF;
+                        }
+                    }
+                }
+            } catch {}
             this.updateAllDisplays();
             if (!cont) {
                 clearInterval(this.runInterval);

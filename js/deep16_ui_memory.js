@@ -78,8 +78,10 @@ isCodeAddress(address) {
     return false;
 }
     
-createMemoryLine(address) {
-    const value = this.ui.simulator.memory[address];
+    createMemoryLine(address) {
+        const value = (this.ui.useWasm && window.Deep16Wasm && typeof window.Deep16Wasm.get_memory_word === 'function')
+            ? (window.Deep16Wasm.get_memory_word(address) & 0xFFFF)
+            : this.ui.simulator.memory[address];
     const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
     const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
     const isPC = (address === physPC);
@@ -124,7 +126,9 @@ createMemoryLine(address) {
             const dataAddr = address + i;
             if (dataAddr >= this.ui.simulator.memory.length) break;
             
-            const dataValue = this.ui.simulator.memory[dataAddr];
+            const dataValue = (this.ui.useWasm && window.Deep16Wasm && typeof window.Deep16Wasm.get_memory_word === 'function')
+                ? (window.Deep16Wasm.get_memory_word(dataAddr) & 0xFFFF)
+                : this.ui.simulator.memory[dataAddr];
             const dataHex = dataValue.toString(16).padStart(4, '0').toUpperCase();
             const dataPC = (dataAddr === physPC);
             const dataClass = dataPC ? 'pc-marker' : '';
