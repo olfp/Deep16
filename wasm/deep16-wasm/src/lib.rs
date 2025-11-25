@@ -132,6 +132,14 @@ pub fn get_memory_slice(start: usize, count: usize) -> Box<[u16]> {
     }
 }
 
+#[wasm_bindgen]
+pub fn get_memory_word(addr: usize) -> u16 {
+    unsafe {
+        let c = cpu_ref();
+        if addr < c.mem.len() { c.mem[addr] } else { 0xFFFF }
+    }
+}
+
 fn is_stack_register(psw: u16, idx: usize) -> bool {
     let sr = ((psw >> 6) & 0xF) as usize;
     let dual = (psw & (1 << 10)) != 0;
@@ -355,7 +363,7 @@ fn exec_instruction(c: &mut Cpu, instr: u16, _original_pc: u16) -> bool {
         0b110 => { exec_alu(c, instr); false }
         0b111 => {
             if ((instr >> 12) & 0xF) == 0b1110 { return exec_jump(c, instr); }
-            if ((instr >> 11) & 0x1F) == 0b11110 { return false; }
+            if ((instr >> 11) & 0x1F) == 0b11110 { exec_lds_sts(c, instr); return false; }
             if ((instr >> 10) & 0x3F) == 0b111110 { exec_mov(c, instr); return false; }
             if ((instr >> 9) & 0x7F) == 0b1111110 { exec_lsi(c, instr); return false; }
             if ((instr >> 8) & 0xFF) == 0b11111110 { return exec_sop(c, instr); }
@@ -364,6 +372,19 @@ fn exec_instruction(c: &mut Cpu, instr: u16, _original_pc: u16) -> bool {
         }
         _ => false,
     }
+}
+
+fn exec_lds_sts(c: &mut Cpu, instr: u16) {
+    // [11110][d1][seg2][Rd4][Rs4]
+    let d = (instr >> 10) & 0x1;
+    let seg = (instr >> 8) & 0x3;
+    let rd = ((instr >> 4) & 0xF) as usize;
+    let rs = (instr & 0xF) as usize;
+    let base = c.reg[rs] as u32;
+    let segv = match seg { 0 => c.cs, 1 => c.ds, 2 => c.ss, _ => c.es };
+    let pa = phys(segv, base);
+    if pa >= c.mem.len() { return; }
+    if d == 0 { c.reg[rd] = c.mem[pa]; } else { c.mem[pa] = c.reg[rd]; }
 }
 
 #[wasm_bindgen]
