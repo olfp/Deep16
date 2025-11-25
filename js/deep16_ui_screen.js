@@ -36,13 +36,28 @@ class Deep16ScreenUI {
 
     updateScreenDisplay() {
         // Update all characters from screen memory
-        if (this.ui.useWasm && this.ui.wasmAvailable && this.ui.wasmInitialized && window.Deep16Wasm && typeof window.Deep16Wasm.get_memory_slice === 'function') {
-            const slice = window.Deep16Wasm.get_memory_slice(this.screenBaseAddress, this.totalChars);
-            for (let i = 0; i < slice.length; i++) {
-                const charCode = slice[i] & 0xFF;
-                this.updateCharacter(i, charCode);
+        if (this.ui.useWasm && this.ui.wasmAvailable && this.ui.wasmInitialized && window.Deep16Wasm) {
+            try {
+                if (typeof window.Deep16Wasm.get_memory_slice === 'function') {
+                    const slice = window.Deep16Wasm.get_memory_slice(this.screenBaseAddress, this.totalChars);
+                    for (let i = 0; i < slice.length; i++) {
+                        const charCode = slice[i] & 0xFF;
+                        this.updateCharacter(i, charCode);
+                    }
+                    return;
+                } else if (typeof window.Deep16Wasm.get_memory_word === 'function') {
+                    for (let i = 0; i < this.totalChars; i++) {
+                        const word = window.Deep16Wasm.get_memory_word(this.screenBaseAddress + i);
+                        const charCode = word & 0xFF;
+                        this.updateCharacter(i, charCode);
+                    }
+                    return;
+                }
+            } catch (e) {
+                console.warn('WASM screen read failed, falling back to JS', e);
             }
-        } else {
+        }
+        {
             for (let i = 0; i < this.totalChars; i++) {
                 const memoryAddress = this.screenBaseAddress + i;
                 if (memoryAddress < this.ui.simulator.memory.length) {

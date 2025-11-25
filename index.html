@@ -304,9 +304,9 @@ data_area:
     <script src="js/deep16_ui_screen.js"></script>    
     <script type="module">
         try {
-            const modPromise = import('./wasm/pkg/deep16_wasm.js');
+            const modPromise = import('./wasm/pkg/deep16_wasm.js?v=20251124');
             modPromise.then(async (wasm) => {
-                const initPromise = wasm.default();
+                const initPromise = wasm.default(new URL('./wasm/pkg/deep16_wasm_bg.wasm?v=20251124', import.meta.url));
                 window.Deep16WasmReady = initPromise;
                 window.Deep16Wasm = wasm;
                 await initPromise;

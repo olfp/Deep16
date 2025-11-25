@@ -54,7 +54,7 @@ class DeepWebUI {
         this.syncHeaderWidths();
         this.setupMobileLayout();
         this.wasmAvailable = typeof window.Deep16Wasm !== 'undefined';
-        this.useWasm = this.wasmAvailable;
+        this.useWasm = false;
         if (this.wasmAvailable) {
             this.addTranscriptEntry("WASM module detected", "success");
         } else if (window.Deep16WasmReady && typeof window.Deep16WasmReady.then === 'function') {
