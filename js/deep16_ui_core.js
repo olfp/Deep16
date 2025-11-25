@@ -42,6 +42,7 @@ class DeepWebUI {
         this.manualAddressChange = false;
         this.followPC = false;
         this.lockMemoryStartWhileRunning = false;
+        this.lastPhysPC = 0;
 
         this.examples = [];
         this.loadExamplesList();
@@ -1250,13 +1251,29 @@ class DeepWebUI {
                 this.updateRunButton(false);
                 return;
             }
-
+            
             const stepsPerTick = this.turboMode ? 4000 : 200;
             let continueRunning = true;
             for (let i = 0; i < stepsPerTick && this.simulator.running; i++) {
                 continueRunning = this.simulator.step();
                 if (!continueRunning) break;
             }
+
+            // One-time follow on large jump: bring PC into view even when locked
+            const physPC = ((this.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.simulator.registers[15] & 0xFFFF);
+            const start = this.memoryStartAddress || 0;
+            const end = Math.min(start + 64, this.simulator.memory.length);
+            const pcVisible = physPC >= start && physPC < end;
+            const jumpedFar = Math.abs(physPC - this.lastPhysPC) > 16;
+            if (!pcVisible && jumpedFar) {
+                this.memoryStartAddress = Math.max(0, physPC - 8);
+                const startAddressInput = document.getElementById('memory-start-address');
+                if (startAddressInput) {
+                    startAddressInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+                }
+                this.memoryUI.renderMemoryDisplay();
+            }
+            this.lastPhysPC = physPC;
 
             if (!continueRunning) {
                 clearInterval(this.runInterval);
@@ -1360,6 +1377,23 @@ class DeepWebUI {
                     }
                 }
             } catch {}
+            // Bring new PC into view on large jumps when stepping (WASM)
+            const afterPC = this.simulator.registers[15] & 0xFFFF;
+            const afterCS = this.simulator.segmentRegisters.CS & 0xFFFF;
+            const afterPhys = (afterCS << 4) + afterPC;
+            const start2 = this.memoryStartAddress || 0;
+            const end2 = Math.min(start2 + 64, this.simulator.memory.length);
+            const pcVisible2 = afterPhys >= start2 && afterPhys < end2;
+            const jumpedFar2 = Math.abs(afterPhys - beforePhys) > 16;
+            if (!pcVisible2 && jumpedFar2) {
+                this.memoryStartAddress = Math.max(0, afterPhys - 8);
+                const startAddressInput = document.getElementById('memory-start-address');
+                if (startAddressInput) {
+                    startAddressInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+                }
+                this.memoryUI.renderMemoryDisplay();
+            }
+            this.lastPhysPC = afterPhys;
             this.updateAllDisplays();
             if (!cont) {
                 this.simulator.running = false;
@@ -1367,14 +1401,28 @@ class DeepWebUI {
                 this.addTranscriptEntry("Program halted after step (WASM)", "info");
                 this.updateRunButton(false);
             }
-            const afterPC = this.simulator.registers[15] & 0xFFFF;
-            const afterCS = this.simulator.segmentRegisters.CS & 0xFFFF;
-            const afterPhys = (afterCS << 4) + afterPC;
             this.addTranscriptEntry(`Step (WASM): 0x${beforePhys.toString(16).padStart(5,'0')} -> 0x${afterPhys.toString(16).padStart(5,'0')}`, "info");
             this.simulator.running = false;
         } else {
             const continueRunning = this.simulator.step();
             this.simulator.running = false;
+            // Bring new PC into view on large jumps when stepping
+            const afterPC = this.simulator.registers[15] & 0xFFFF;
+            const afterCS = this.simulator.segmentRegisters.CS & 0xFFFF;
+            const afterPhys = (afterCS << 4) + afterPC;
+            const start = this.memoryStartAddress || 0;
+            const end = Math.min(start + 64, this.simulator.memory.length);
+            const pcVisible = afterPhys >= start && afterPhys < end;
+            const jumpedFar = Math.abs(afterPhys - beforePhys) > 16;
+            if (!pcVisible && jumpedFar) {
+                this.memoryStartAddress = Math.max(0, afterPhys - 8);
+                const startAddressInput = document.getElementById('memory-start-address');
+                if (startAddressInput) {
+                    startAddressInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+                }
+                this.memoryUI.renderMemoryDisplay();
+            }
+            this.lastPhysPC = afterPhys;
             this.updateAllDisplays();
             
             if (!continueRunning) {
@@ -1383,9 +1431,6 @@ class DeepWebUI {
                 this.addTranscriptEntry("Program halted after step", "info");
                 this.updateRunButton(false);
             } else {
-                const afterPC = this.simulator.registers[15] & 0xFFFF;
-                const afterCS = this.simulator.segmentRegisters.CS & 0xFFFF;
-                const afterPhys = (afterCS << 4) + afterPC;
                 this.addTranscriptEntry(`Step (JS): 0x${beforePhys.toString(16).padStart(5,'0')} -> 0x${afterPhys.toString(16).padStart(5,'0')}`, "info");
             }
         }
@@ -1498,6 +1543,23 @@ class DeepWebUI {
                     }
                 }
             } catch {}
+
+            // One-time follow on large jump (WASM): bring PC into view even when locked
+            const physPC = ((this.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.simulator.registers[15] & 0xFFFF);
+            const wStart = this.memoryStartAddress || 0;
+            const wEnd = Math.min(wStart + 64, this.simulator.memory.length);
+            const wPcVisible = physPC >= wStart && physPC < wEnd;
+            const wJumpedFar = Math.abs(physPC - this.lastPhysPC) > 16;
+            if (!wPcVisible && wJumpedFar) {
+                this.memoryStartAddress = Math.max(0, physPC - 8);
+                const startAddressInput = document.getElementById('memory-start-address');
+                if (startAddressInput) {
+                    startAddressInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+                }
+                this.memoryUI.renderMemoryDisplay();
+            }
+            this.lastPhysPC = physPC;
+
             this.updateAllDisplays();
             if (!cont) {
                 clearInterval(this.runInterval);

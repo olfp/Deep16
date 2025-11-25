@@ -101,7 +101,7 @@ isCodeAddress(address) {
         // FIX: Only show actual hex values for code, never "----"
         const displayValue = `0x${valueHex}`;
         
-        let html = `<div class="memory-line code-line ${pcClass}">`;
+        let html = `<div class="memory-line code-line ${pcClass}" data-addr="${address}">`;
         html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
         html += `<span class="memory-bytes">${displayValue}</span>`;
         html += `<span class="memory-disassembly">${disasm}</span>`;
@@ -118,7 +118,7 @@ isCodeAddress(address) {
         }
         
         // Create a data line with 8 words
-        let html = `<div class="memory-line data-line ${pcClass}">`;
+        let html = `<div class="memory-line data-line ${pcClass}" data-addr="${address}">`;
         html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
         const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
         let values = null;
@@ -136,7 +136,7 @@ isCodeAddress(address) {
             const dataPC = (dataAddr === physPC);
             const dataClass = dataPC ? 'pc-marker' : '';
             const displayData = dataValue === 0xFFFF ? "----" : `0x${dataHex}`;
-            html += `<span class="memory-data ${dataClass}">${displayData}</span>`;
+            html += `<span class="memory-data ${dataClass}" data-addr="${dataAddr}">${displayData}</span>`;
         }
         
         // Get source for data line
@@ -257,7 +257,7 @@ updateMemoryDisplay() {
     }
     
     const start = this.ui.memoryStartAddress || 0;
-    const end = Math.min(start + 64, this.simulator.memory.length);
+    const end = Math.min(start + 64, this.ui.simulator.memory.length);
 
     if (window.Deep16Debug) console.log(`updateMemoryDisplay: memoryStartAddress = ${this.ui.memoryStartAddress}, start = ${start}, end = ${end}`);
 
@@ -336,7 +336,7 @@ renderMemoryDisplay() {
 
 // Keep the createDataLine method as before, but ensure it shows empty for 0xFFFF
 createDataLine(startAddress, endAddress) {
-    let html = `<div class="memory-line data-line">`;
+    let html = `<div class="memory-line data-line" data-addr="${startAddress}">`;
     html += `<span class="memory-address">0x${startAddress.toString(16).padStart(5, '0')}</span>`;
     
     for (let i = 0; i < 8; i++) {
@@ -354,7 +354,7 @@ createDataLine(startAddress, endAddress) {
         
         let displayValue = `0x${valueHex}`;
         
-        html += `<span class="memory-data ${pcClass}">${displayValue}</span>`;
+        html += `<span class="memory-data ${pcClass}" data-addr="${addr}">${displayValue}</span>`;
     }
     
     // Get source for data line
@@ -486,46 +486,7 @@ getExactSourceForAddress(address) {
         }
     }
 
-updateMemoryDisplay() {
-    const memoryDisplay = document.getElementById('memory-display');
-    if (!memoryDisplay) return;
-    
-    if (window.Deep16Debug) console.log(`updateMemoryDisplay START: memoryStartAddress = ${this.ui.memoryStartAddress}`);
-    
-    const start = this.ui.memoryStartAddress || 0;
-    const end = Math.min(start + 64, this.ui.simulator.memory.length);
-
-    if (window.Deep16Debug) console.log(`updateMemoryDisplay: memoryStartAddress = ${this.ui.memoryStartAddress}, start = ${start}, end = ${end}`);
-
-    if (!this.ui.currentAssemblyResult) {
-        this.buildSegmentInfo([]);
-    }
-    
-    // Check if current PC is outside the visible range
-    const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
-    const pcIsVisible = (physPC >= start && physPC < end);
-    
-    if (window.Deep16Debug) console.log(`PC check: physPC = ${physPC}, pcIsVisible = ${pcIsVisible}`);
-    
-    // If PC is not visible, adjust the start address to show it
-    if (!pcIsVisible && physPC < this.ui.simulator.memory.length) {
-        if (window.Deep16Debug) console.log(`Auto-adjusting memory start address to show PC`);
-        this.ui.memoryStartAddress = Math.max(0, physPC - 8);
-        const startAddressInput = document.getElementById('memory-start-address');
-        if (startAddressInput) {
-            startAddressInput.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(5, '0');
-        }
-    }
-
-    this.renderMemoryDisplay();
-    
-    if (window.Deep16Debug) console.log(`updateMemoryDisplay END: memoryStartAddress = ${this.ui.memoryStartAddress}`);
-    
-    // Auto-scroll to the PC line if it's visible
-    if (pcIsVisible) {
-        this.scrollToPC();
-    }
-}
+ 
 
     updateRecentMemoryDisplay() {
         const recentDisplay = document.getElementById('recent-memory-display');
@@ -544,6 +505,15 @@ updateMemoryDisplay() {
         }
         
         const { baseAddress, memoryWords, accessInfo } = memoryView;
+        const start = this.ui.memoryStartAddress || 0;
+        const end = Math.min(start + 64, this.ui.simulator.memory.length);
+        const accessOnScreen = accessInfo.address >= start && accessInfo.address < end;
+        if (accessOnScreen) {
+            this.markOnscreenAccess(accessInfo.address);
+            const accessType = accessInfo.type === 'LD' ? 'Load' : 'Store';
+            recentDisplay.innerHTML = `<div class="recent-memory-info">${accessType} on-screen at 0x${accessInfo.address.toString(16).padStart(5, '0').toUpperCase()}</div>`;
+            return;
+        }
     
         let html = '';
     
@@ -595,5 +565,18 @@ updateMemoryDisplay() {
 
 handleMemoryAddressChange() {
     this.ui.handleMemoryAddressInput();
+}
+
+markOnscreenAccess(address) {
+    const memoryDisplay = document.getElementById('memory-display');
+    if (!memoryDisplay) return;
+    let target = memoryDisplay.querySelector(`.memory-line[data-addr="${address}"]`);
+    if (!target) {
+        target = memoryDisplay.querySelector(`.memory-data[data-addr="${address}"]`);
+    }
+    if (target) {
+        target.style.animation = 'pulse-highlight 1s ease-in-out';
+        setTimeout(() => { target.style.animation = ''; }, 1000);
+    }
 }
 }
