@@ -134,7 +134,7 @@ ERD  R10         ; Use R10/R11 for ES access, sets DE=1 automatically
 
 **Located at Segment 0 (Low Memory):**
 ```
-0x0000: RESET_VECTOR    (PC loaded from here on reset)
+0x0000: NMI_VECTOR      (PC loaded from here on non-maskable interrupt)
 0x0001: HW_INT_VECTOR   (PC loaded from here on hardware interrupt)  
 0x0002: SWI_VECTOR      (PC loaded from here on software interrupt)
 ```
