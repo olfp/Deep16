@@ -63,6 +63,7 @@ class DeepWebUI {
                 this.wasmAvailable = true;
                 this.useWasm = true;
                 this.wasmInitialized = true;
+                this.turboMode = true;
                 this.addTranscriptEntry("WASM module loaded", "success");
                 if (this.currentAssemblyResult) {
                     try {
@@ -81,6 +82,7 @@ class DeepWebUI {
             this.wasmAvailable = true;
             this.useWasm = true;
             this.wasmInitialized = true;
+            this.turboMode = true;
             this.addTranscriptEntry("WASM module loaded", "success");
             if (this.currentAssemblyResult) {
                 try {
@@ -1157,7 +1159,7 @@ class DeepWebUI {
                 return;
             }
 
-            const stepsPerTick = this.turboMode ? 1000 : 50;
+            const stepsPerTick = this.turboMode ? 4000 : 200;
             let continueRunning = true;
             for (let i = 0; i < stepsPerTick && this.simulator.running; i++) {
                 continueRunning = this.simulator.step();
@@ -1204,6 +1206,43 @@ class DeepWebUI {
             const regs = window.Deep16Wasm.get_registers();
             for (let i = 0; i < this.simulator.registers.length && i < regs.length; i++) {
                 this.simulator.registers[i] = regs[i] & 0xFFFF;
+            }
+            if (typeof window.Deep16Wasm.get_psw === 'function') {
+                try { this.simulator.psw = window.Deep16Wasm.get_psw() & 0xFFFF; } catch {}
+            }
+            if (typeof window.Deep16Wasm.get_segments === 'function') {
+                try {
+                    const segs = window.Deep16Wasm.get_segments();
+                    if (segs && segs.length >= 4) {
+                        this.simulator.segmentRegisters.CS = segs[0] & 0xFFFF;
+                        this.simulator.segmentRegisters.DS = segs[1] & 0xFFFF;
+                        this.simulator.segmentRegisters.SS = segs[2] & 0xFFFF;
+                        this.simulator.segmentRegisters.ES = segs[3] & 0xFFFF;
+                    }
+                } catch {}
+            }
+            if (typeof window.Deep16Wasm.get_recent_access === 'function') {
+                try {
+                    const info = window.Deep16Wasm.get_recent_access();
+                    if (info && info.length >= 6) {
+                        const segNames = ['CS','DS','SS','ES'];
+                        const address = info[0] >>> 0;
+                        const baseAddress = info[1] >>> 0;
+                        const offset = info[2] >>> 0;
+                        const segmentValue = info[3] >>> 0;
+                        const segmentIndex = info[4] >>> 0;
+                        const isStore = (info[5] >>> 0) === 1;
+                        this.simulator.recentMemoryAccess = {
+                            address: address,
+                            baseAddress: baseAddress,
+                            offset: offset,
+                            segment: segNames[segmentIndex] || 'DS',
+                            segmentValue: segmentValue,
+                            type: isStore ? 'ST' : 'LD',
+                            accessedAt: Date.now()
+                        };
+                    }
+                } catch {}
             }
             this.updateAllDisplays();
             if (!cont) {
@@ -1266,11 +1305,48 @@ class DeepWebUI {
                 this.updateRunButton(false);
                 return;
             }
-            const stepsPerTick = this.turboMode ? 1000 : 50;
+            const stepsPerTick = this.turboMode ? 4000 : 200;
             const cont = window.Deep16Wasm.run_steps(stepsPerTick);
             const regs = window.Deep16Wasm.get_registers();
             for (let i = 0; i < this.simulator.registers.length && i < regs.length; i++) {
                 this.simulator.registers[i] = regs[i] & 0xFFFF;
+            }
+            if (typeof window.Deep16Wasm.get_psw === 'function') {
+                try { this.simulator.psw = window.Deep16Wasm.get_psw() & 0xFFFF; } catch {}
+            }
+            if (typeof window.Deep16Wasm.get_segments === 'function') {
+                try {
+                    const segs = window.Deep16Wasm.get_segments();
+                    if (segs && segs.length >= 4) {
+                        this.simulator.segmentRegisters.CS = segs[0] & 0xFFFF;
+                        this.simulator.segmentRegisters.DS = segs[1] & 0xFFFF;
+                        this.simulator.segmentRegisters.SS = segs[2] & 0xFFFF;
+                        this.simulator.segmentRegisters.ES = segs[3] & 0xFFFF;
+                    }
+                } catch {}
+            }
+            if (typeof window.Deep16Wasm.get_recent_access === 'function') {
+                try {
+                    const info = window.Deep16Wasm.get_recent_access();
+                    if (info && info.length >= 6) {
+                        const segNames = ['CS','DS','SS','ES'];
+                        const address = info[0] >>> 0;
+                        const baseAddress = info[1] >>> 0;
+                        const offset = info[2] >>> 0;
+                        const segmentValue = info[3] >>> 0;
+                        const segmentIndex = info[4] >>> 0;
+                        const isStore = (info[5] >>> 0) === 1;
+                        this.simulator.recentMemoryAccess = {
+                            address: address,
+                            baseAddress: baseAddress,
+                            offset: offset,
+                            segment: segNames[segmentIndex] || 'DS',
+                            segmentValue: segmentValue,
+                            type: isStore ? 'ST' : 'LD',
+                            accessedAt: Date.now()
+                        };
+                    }
+                } catch {}
             }
             this.updateAllDisplays();
             if (!cont) {
