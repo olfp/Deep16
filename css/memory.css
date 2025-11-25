@@ -302,6 +302,12 @@
     font-weight: bold;
 }
 
+.recent-access {
+    outline: 1px solid #ffd54f;
+    background: #3a3a2a !important;
+    color: #ffd54f !important;
+}
+
 /* Memory panel controls */
 .memory-panel-controls {
     display: flex;

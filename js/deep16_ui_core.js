@@ -40,6 +40,8 @@ class DeepWebUI {
         this.initializeFileMenu();
 
         this.manualAddressChange = false;
+        this.followPC = false;
+        this.lockMemoryStartWhileRunning = false;
 
         this.examples = [];
         this.loadExamplesList();
@@ -1125,6 +1127,16 @@ class DeepWebUI {
                     const loadIntoWasm = () => {
                         try {
                             window.Deep16Wasm.init(this.simulator.memory.length);
+                            try {
+                                if (typeof this.simulator.autoloadROM === 'function') {
+                                    this.simulator.autoloadROM();
+                                    this.simulator.segmentRegisters.CS = 0xFFFF;
+                                }
+                                for (let a = 0xFFFF0; a <= 0xFFFFF; a++) {
+                                    const v = this.simulator.memory[a] & 0xFFFF;
+                                    window.Deep16Wasm.load_program(a, new Uint16Array([v]));
+                                }
+                            } catch {}
                             for (const change of result.memoryChanges) {
                                 const arr = new Uint16Array([change.value]);
                                 window.Deep16Wasm.load_program(change.address, arr);
@@ -1330,6 +1342,7 @@ class DeepWebUI {
                                 if (address < this.simulator.memory.length) {
                                     this.simulator.memory[address] = w;
                                 }
+                                this.addTranscriptEntry(`WASM store @0x${address.toString(16).padStart(5,'0')} = 0x${w.toString(16).padStart(4,'0').toUpperCase()} seg=${segNames[segmentIndex]}(0x${segmentValue.toString(16)})`, "info");
                             } catch {}
                         }
                     }
@@ -1408,6 +1421,7 @@ class DeepWebUI {
 
     wasmRun() {
         this.simulator.running = true;
+        this.lockMemoryStartWhileRunning = true;
         this.status("Running program (WASM)...");
         this.addTranscriptEntry("Starting WASM execution", "info");
         this.updateRunButton(true);
@@ -1488,6 +1502,20 @@ class DeepWebUI {
             if (!cont) {
                 clearInterval(this.runInterval);
                 this.simulator.running = false;
+                try {
+                    if (this.useWasm && window.Deep16Wasm && typeof window.Deep16Wasm.get_memory_slice === 'function') {
+                        const addr = this.memoryStartAddress || 0;
+                        const slice = window.Deep16Wasm.get_memory_slice(addr, Math.min(16, this.simulator.memory.length - addr));
+                        const hex = Array.from(slice).map(v => '0x' + (v & 0xFFFF).toString(16).padStart(4, '0').toUpperCase());
+                        this.addTranscriptEntry(`WASM mem[0x${addr.toString(16).padStart(5,'0')}].. (${hex.join(' ')})`, "info");
+                        // Also log Fibonacci window for verification
+                        const fibAddr = 0x0200;
+                        const fibSlice = window.Deep16Wasm.get_memory_slice(fibAddr, 16);
+                        const fibHex = Array.from(fibSlice).map(v => '0x' + (v & 0xFFFF).toString(16).padStart(4, '0').toUpperCase());
+                        this.addTranscriptEntry(`WASM mem[0x${fibAddr.toString(16).padStart(5,'0')}].. (${fibHex.join(' ')})`, "info");
+                    }
+                } catch {}
+                this.lockMemoryStartWhileRunning = false;
                 this.status("Program completed");
                 this.addTranscriptEntry("Program execution completed (WASM)", "success");
                 this.updateRunButton(false);
