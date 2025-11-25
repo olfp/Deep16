@@ -50,6 +50,32 @@ class DeepWebUI {
         this.initializeWorker();
         this.initializeWorkerToggle();
         this.addWorkerStyles();
+        try {
+            this.simulator.autoloadROM();
+        } catch {}
+        this.simulator.segmentRegisters.CS = 0xFFFF;
+        this.currentAssemblyResult = {
+            listing: [],
+            symbols: {},
+            segmentMap: new Map(),
+            success: true,
+            errors: []
+        };
+        for (let a = 0xFFFF0; a <= 0xFFFFF; a++) {
+            this.currentAssemblyResult.segmentMap.set(a, 'code');
+        }
+        this.memoryStartAddress = 0xFFFF0;
+        const startAddrInput = document.getElementById('memory-start-address');
+        if (startAddrInput) {
+            startAddrInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+        }
+        const runBtn = document.getElementById('run-btn');
+        const stepBtn = document.getElementById('step-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        if (runBtn) runBtn.disabled = false;
+        if (stepBtn) stepBtn.disabled = false;
+        if (resetBtn) resetBtn.disabled = false;
+        this.manualAddressChange = true;
         this.updateAllDisplays();
         this.syncHeaderWidths();
         this.setupMobileLayout();
@@ -61,16 +87,25 @@ class DeepWebUI {
             this.addTranscriptEntry("WASM module loading...", "info");
             window.Deep16WasmReady.then(() => {
                 this.wasmAvailable = true;
-                this.useWasm = true;
-                this.wasmInitialized = true;
                 this.turboMode = true;
-                this.addTranscriptEntry("WASM module loaded", "success");
-                if (this.currentAssemblyResult) {
-                    try {
-                        const seg = this.simulator.segmentRegisters;
-                        window.Deep16Wasm.set_segments(seg.CS & 0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
-                        this.addTranscriptEntry("Segments synced to WASM", "info");
-                    } catch {}
+                try {
+                    window.Deep16Wasm.init(this.simulator.memory.length);
+                    // Load ROM region into WASM
+                    for (let a = 0xFFFF0; a <= 0xFFFFF; a++) {
+                        const v = this.simulator.memory[a] & 0xFFFF;
+                        window.Deep16Wasm.load_program(a, new Uint16Array([v]));
+                    }
+                    const seg = this.simulator.segmentRegisters;
+                    window.Deep16Wasm.set_segments(0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
+                    this.wasmInitialized = true;
+                    this.useWasm = true;
+                    this.addTranscriptEntry("WASM module loaded and CPU initialized", "success");
+                    this.addTranscriptEntry("ROM loaded into WASM core", "success");
+                    this.addTranscriptEntry("Segments synced to WASM", "info");
+                } catch (e) {
+                    this.addTranscriptEntry("WASM init failed; using JS core", "warning");
+                    this.useWasm = false;
+                    this.wasmInitialized = false;
                 }
             }).catch(() => {
                 this.addTranscriptEntry("WASM module failed to load", "error");
@@ -80,16 +115,24 @@ class DeepWebUI {
         }
         window.addEventListener('deep16-wasm-ready', () => {
             this.wasmAvailable = true;
-            this.useWasm = true;
-            this.wasmInitialized = true;
             this.turboMode = true;
-            this.addTranscriptEntry("WASM module loaded", "success");
-            if (this.currentAssemblyResult) {
-                try {
-                    const seg = this.simulator.segmentRegisters;
-                    window.Deep16Wasm.set_segments(seg.CS & 0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
-                    this.addTranscriptEntry("Segments synced to WASM", "info");
-                } catch {}
+            try {
+                window.Deep16Wasm.init(this.simulator.memory.length);
+                for (let a = 0xFFFF0; a <= 0xFFFFF; a++) {
+                    const v = this.simulator.memory[a] & 0xFFFF;
+                    window.Deep16Wasm.load_program(a, new Uint16Array([v]));
+                }
+                const seg = this.simulator.segmentRegisters;
+                window.Deep16Wasm.set_segments(0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
+                this.wasmInitialized = true;
+                this.useWasm = true;
+                this.addTranscriptEntry("WASM module loaded and CPU initialized", "success");
+                this.addTranscriptEntry("ROM loaded into WASM core", "success");
+                this.addTranscriptEntry("Segments synced to WASM", "info");
+            } catch (e) {
+                this.addTranscriptEntry("WASM init failed; using JS core", "warning");
+                this.useWasm = false;
+                this.wasmInitialized = false;
             }
         });
         this.addTranscriptEntry("DeepCode initialized and ready", "info");
@@ -1048,6 +1091,13 @@ class DeepWebUI {
                         this.simulator.memory[change.address] = change.value;
                     }
                 }
+                // Ensure ROM is present in JS simulator and segments reflect ROM-first boot
+                try {
+                    if (typeof this.simulator.autoloadROM === 'function') {
+                        this.simulator.autoloadROM();
+                    }
+                    this.simulator.segmentRegisters.CS = 0xFFFF;
+                } catch {}
                 if (this.useWasm && window.Deep16Wasm) {
                     const loadIntoWasm = () => {
                         try {
@@ -1057,7 +1107,7 @@ class DeepWebUI {
                                 window.Deep16Wasm.load_program(change.address, arr);
                             }
                             const seg = this.simulator.segmentRegisters;
-                            window.Deep16Wasm.set_segments(seg.CS & 0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
+                            window.Deep16Wasm.set_segments(0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
                             this.addTranscriptEntry("Program loaded into WASM core", "success");
                         } catch (e) {
                             this.addTranscriptEntry("WASM load failed; falling back to JS", "warning");
@@ -1072,6 +1122,13 @@ class DeepWebUI {
                 }
                 
                 // Update segment information for display
+                // Mark ROM region as code in segmentMap so memory panel shows disassembly
+                try {
+                    if (!result.segmentMap) { result.segmentMap = new Map(); }
+                    for (let a = 0xFFFF0; a <= 0xFFFFF; a++) {
+                        result.segmentMap.set(a, 'code');
+                    }
+                } catch {}
                 this.memoryUI.buildSegmentInfo(result.listing);
                 
                 console.log("Simulator memory at 0x0000:", this.simulator.memory[0].toString(16));
@@ -1127,7 +1184,7 @@ class DeepWebUI {
         }
         if (this.useWorker && this.worker && this.workerSupported) {
             this.workerRun();
-        } else if (this.useWasm && this.wasmAvailable && window.Deep16Wasm) {
+        } else if (this.useWasm && this.wasmAvailable && this.wasmInitialized && window.Deep16Wasm) {
             this.wasmRun();
         } else {
             this.jsRun();
@@ -1193,6 +1250,9 @@ class DeepWebUI {
     }
 
     step() {
+        const beforePC = this.simulator.registers[15] & 0xFFFF;
+        const beforeCS = this.simulator.segmentRegisters.CS & 0xFFFF;
+        const beforePhys = (beforeCS << 4) + beforePC;
         if (!this.simulator.running) {
             this.simulator.running = true;
         }
@@ -1201,7 +1261,7 @@ class DeepWebUI {
             this.worker.postMessage({
                 type: 'STEP'
             });
-        } else if (this.useWasm && this.wasmAvailable && window.Deep16Wasm) {
+        } else if (this.useWasm && this.wasmAvailable && this.wasmInitialized && window.Deep16Wasm) {
             const cont = window.Deep16Wasm.step();
             const regs = window.Deep16Wasm.get_registers();
             for (let i = 0; i < this.simulator.registers.length && i < regs.length; i++) {
@@ -1251,8 +1311,14 @@ class DeepWebUI {
                 this.addTranscriptEntry("Program halted after step (WASM)", "info");
                 this.updateRunButton(false);
             }
+            const afterPC = this.simulator.registers[15] & 0xFFFF;
+            const afterCS = this.simulator.segmentRegisters.CS & 0xFFFF;
+            const afterPhys = (afterCS << 4) + afterPC;
+            this.addTranscriptEntry(`Step (WASM): 0x${beforePhys.toString(16).padStart(5,'0')} -> 0x${afterPhys.toString(16).padStart(5,'0')}`, "info");
+            this.simulator.running = false;
         } else {
             const continueRunning = this.simulator.step();
+            this.simulator.running = false;
             this.updateAllDisplays();
             
             if (!continueRunning) {
@@ -1261,7 +1327,10 @@ class DeepWebUI {
                 this.addTranscriptEntry("Program halted after step", "info");
                 this.updateRunButton(false);
             } else {
-                this.addTranscriptEntry(`Step executed - PC=0x${this.simulator.registers[15].toString(16).padStart(4, '0')}`, "info");
+                const afterPC = this.simulator.registers[15] & 0xFFFF;
+                const afterCS = this.simulator.segmentRegisters.CS & 0xFFFF;
+                const afterPhys = (afterCS << 4) + afterPC;
+                this.addTranscriptEntry(`Step (JS): 0x${beforePhys.toString(16).padStart(5,'0')} -> 0x${afterPhys.toString(16).padStart(5,'0')}`, "info");
             }
         }
     }
@@ -1277,13 +1346,17 @@ class DeepWebUI {
                 type: 'RESET'
             });
         }
-        if (this.useWasm && this.wasmAvailable && window.Deep16Wasm) {
+        if (this.useWasm && this.wasmAvailable && this.wasmInitialized && window.Deep16Wasm) {
             try { window.Deep16Wasm.reset(); } catch {}
         }
         
         this.simulator.reset();
-        this.memoryStartAddress = 0;
-        document.getElementById('memory-start-address').value = '0x0000';
+        this.memoryStartAddress = 0xFFFF0;
+        const addrInput = document.getElementById('memory-start-address');
+        if (addrInput) {
+            addrInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+        }
+        this.manualAddressChange = true;
         this.updateRunButton(false);
         this.updateAllDisplays();
         this.status("Simulator reset");

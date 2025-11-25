@@ -81,7 +81,8 @@ isCodeAddress(address) {
 createMemoryLine(address) {
     const value = this.ui.simulator.memory[address];
     const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
-    const isPC = (address === this.ui.simulator.registers[15]);
+    const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
+    const isPC = (address === physPC);
     const pcClass = isPC ? 'pc-marker' : '';
     
     // Check if this should be displayed as code
@@ -118,13 +119,14 @@ createMemoryLine(address) {
         let html = `<div class="memory-line data-line ${pcClass}">`;
         html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
         
+        const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
         for (let i = 0; i < 8; i++) {
             const dataAddr = address + i;
             if (dataAddr >= this.ui.simulator.memory.length) break;
             
             const dataValue = this.ui.simulator.memory[dataAddr];
             const dataHex = dataValue.toString(16).padStart(4, '0').toUpperCase();
-            const dataPC = (dataAddr === this.ui.simulator.registers[15]);
+            const dataPC = (dataAddr === physPC);
             const dataClass = dataPC ? 'pc-marker' : '';
             
             // For data lines, show "----" for uninitialized memory (0xFFFF)
@@ -254,15 +256,15 @@ updateMemoryDisplay() {
     console.log(`updateMemoryDisplay: memoryStartAddress = ${this.ui.memoryStartAddress}, start = ${start}, end = ${end}`);
 
     // Check if current PC is outside the visible range
-    const currentPC = this.ui.simulator.registers[15];
-    const pcIsVisible = (currentPC >= start && currentPC < end);
+    const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
+    const pcIsVisible = (physPC >= start && physPC < end);
     
-    console.log(`PC check: currentPC = ${currentPC}, pcIsVisible = ${pcIsVisible}`);
+    console.log(`PC check: physPC = ${physPC}, pcIsVisible = ${pcIsVisible}`);
     
     // Only auto-adjust if the PC is not visible
-    if (!pcIsVisible && currentPC < this.ui.simulator.memory.length) {
+    if (!pcIsVisible && physPC < this.ui.simulator.memory.length) {
         console.log(`Auto-adjusting memory start address to show PC`);
-        this.ui.memoryStartAddress = Math.max(0, currentPC - 8);
+        this.ui.memoryStartAddress = Math.max(0, physPC - 8);
         const startAddressInput = document.getElementById('memory-start-address');
         if (startAddressInput) {
             startAddressInput.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(5, '0');
@@ -347,11 +349,7 @@ createDataLine(startAddress, endAddress) {
         const isPC = (addr === this.ui.simulator.registers[15]);
         const pcClass = isPC ? 'pc-marker' : '';
         
-        // Only show values for non-0xFFFF, otherwise show empty
-        let displayValue = "";
-        if (value !== 0xFFFF) {
-            displayValue = `0x${valueHex}`;
-        }
+        let displayValue = `0x${valueHex}`;
         
         html += `<span class="memory-data ${pcClass}">${displayValue}</span>`;
     }
@@ -501,15 +499,15 @@ updateMemoryDisplay() {
     }
     
     // Check if current PC is outside the visible range
-    const currentPC = this.ui.simulator.registers[15];
-    const pcIsVisible = (currentPC >= start && currentPC < end);
+    const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
+    const pcIsVisible = (physPC >= start && physPC < end);
     
-    console.log(`PC check: currentPC = ${currentPC}, pcIsVisible = ${pcIsVisible}`);
+    console.log(`PC check: physPC = ${physPC}, pcIsVisible = ${pcIsVisible}`);
     
     // If PC is not visible, adjust the start address to show it
-    if (!pcIsVisible && currentPC < this.ui.simulator.memory.length) {
+    if (!pcIsVisible && physPC < this.ui.simulator.memory.length) {
         console.log(`Auto-adjusting memory start address to show PC`);
-        this.ui.memoryStartAddress = Math.max(0, currentPC - 8);
+        this.ui.memoryStartAddress = Math.max(0, physPC - 8);
         const startAddressInput = document.getElementById('memory-start-address');
         if (startAddressInput) {
             startAddressInput.value = '0x' + this.ui.memoryStartAddress.toString(16).padStart(5, '0');

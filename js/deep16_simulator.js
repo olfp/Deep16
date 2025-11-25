@@ -5,7 +5,7 @@ class Deep16Simulator {
         // This equals 2MB × 2 bytes/word = 4MB physical memory
         this.memory = new Array(1048576).fill(0xFFFF); // 1,048,576 words (2MW)
         this.registers = new Array(16).fill(0);
-        this.segmentRegisters = { CS: 0, DS: 0, SS: 0, ES: 0 };
+        this.segmentRegisters = { CS: 0xFFFF, DS: 0x1000, SS: 0x8000, ES: 0x2000 };
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
         this.psw = 0;
         this.running = false;
@@ -30,8 +30,8 @@ class Deep16Simulator {
         this.registers[13] = 0x7FFF; // SP
         this.registers[15] = 0x0000; // PC
         
-        // Initialize segment registers with reasonable defaults
-        this.segmentRegisters.CS = 0x0000; // Code at bottom of memory
+        // Initialize segment registers for ROM-first reset
+        this.segmentRegisters.CS = 0xFFFF; // Execute from ROM segment
         this.segmentRegisters.DS = 0x1000; // Data segment  
         this.segmentRegisters.SS = 0x8000; // Stack segment
         this.segmentRegisters.ES = 0x2000; // Extra segment
@@ -56,6 +56,8 @@ class Deep16Simulator {
         for (let i = 0; i < memory.length; i++) {
             this.memory[i] = memory[i];
         }
+        // Autoload ROM at 0xFFF0
+        this.autoloadROM();
         this.registers[15] = 0x0000;
         this.running = false;
     }
@@ -69,7 +71,7 @@ class Deep16Simulator {
         this.running = false;
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
-        this.segmentRegisters = { CS: 0, DS: 0, SS: 0, ES: 0 };
+        this.segmentRegisters = { CS: 0xFFFF, DS: 0x1000, SS: 0x8000, ES: 0x2000 };
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
         
         // Reset delay slot state
@@ -77,6 +79,41 @@ class Deep16Simulator {
         this.delayedPC = 0;
         this.delayedCS = 0;
         this.branchTaken = false;
+
+        // Autoload ROM at 0xFFF0
+        this.autoloadROM();
+    }
+
+    phys(seg, off) {
+        return ((seg << 4) + (off & 0xFFFF)) >>> 0;
+    }
+
+    autoloadROM() {
+        const base = 0xFFFF0;
+        const rom = [
+            0x0000, // LDI 0 -> R0
+            0xFF41, // MVS DS, R0
+            0xFF42, // MVS SS, R0 (ensure SS=0 so ST with R0 base uses physical 0x0000)
+            0xFC21, // LSI R1, 1
+            0xFE01, // SWB R1
+            0xA200, // ST R1, [R0+0]
+            0xA201, // ST R1, [R0+1]
+            0xA201, // ST R1, [R0+1]
+            0xFE40, // JML R0
+            0xFFF0, // NOP (delay slot)
+            0xFFF1, // HLT
+            0xFFF1, // HLT
+            0xFFF1, // HLT
+            0xFFF1, // HLT
+            0xFFF1, // HLT
+            0xFFF1, // HLT
+        ];
+        for (let i = 0; i < rom.length; i++) {
+            const addr = base + i;
+            if (addr < this.memory.length) {
+                this.memory[addr] = rom[i];
+            }
+        }
     }
 
     step() {
@@ -88,7 +125,8 @@ class Deep16Simulator {
             this.delaySlotActive = false;
             
             // Execute the delay slot instruction
-            const delayInstruction = this.memory[this.registers[15]];
+            const paDelay = this.phys(this.segmentRegisters.CS & 0xFFFF, this.registers[15] & 0xFFFF);
+            const delayInstruction = this.memory[paDelay];
             this.executeInstruction(delayInstruction, this.registers[15]);
             
             // Now apply the delayed branch
@@ -102,13 +140,14 @@ class Deep16Simulator {
         }
 
         // Normal instruction execution
-        const pc = this.registers[15];
-        if (pc >= this.memory.length) {
+        const pc = this.registers[15] & 0xFFFF;
+        const pa = this.phys(this.segmentRegisters.CS & 0xFFFF, pc);
+        if (pa >= this.memory.length) {
             this.running = false;
             return false;
         }
 
-        const instruction = this.memory[pc];
+        const instruction = this.memory[pa];
         
         // console.log(`=== STEP: PC=0x${pc.toString(16).padStart(4, '0')} ===`);
         // console.log(`Instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
@@ -310,36 +349,22 @@ class Deep16Simulator {
 
     // Helper method to determine if a register is used for stack access
     isStackRegister(registerIndex) {
-        // Get the current stack register selection from PSW bits 6-9
         const srSelection = (this.psw >>> 6) & 0xF;
-        
-        // Check if dual stack registers are enabled (PSW bit 10)
         const dualStack = (this.psw & (1 << 10)) !== 0;
-        
-        if (dualStack) {
-            // Dual mode: SR and SR+1 are stack registers
-            return registerIndex === srSelection || registerIndex === (srSelection + 1);
-        } else {
-            // Single mode: only SR is stack register
-            return registerIndex === srSelection;
-        }
+        if (srSelection === 0) return false;
+        return dualStack
+            ? (registerIndex === srSelection || registerIndex === (srSelection + 1))
+            : (registerIndex === srSelection);
     }
 
     // Helper method to determine if a register is used for extra segment access
     isExtraRegister(registerIndex) {
-        // Get the current extra register selection from PSW bits 11-14
         const erSelection = (this.psw >>> 11) & 0xF;
-        
-        // Check if dual extra registers are enabled (PSW bit 15)
         const dualExtra = (this.psw & (1 << 15)) !== 0;
-        
-        if (dualExtra) {
-            // Dual mode: ER and ER+1 are extra registers
-            return registerIndex === erSelection || registerIndex === (erSelection + 1);
-        } else {
-            // Single mode: only ER is extra register
-            return registerIndex === erSelection;
-        }
+        if (erSelection === 0) return false;
+        return dualExtra
+            ? (registerIndex === erSelection || registerIndex === (erSelection + 1))
+            : (registerIndex === erSelection);
     }
 
     executeALUOp(instruction) {

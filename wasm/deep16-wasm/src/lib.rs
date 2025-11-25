@@ -34,7 +34,7 @@ impl Cpu {
             mem: vec![0xFFFF; mem_words],
             reg,
             psw: 0,
-            cs: 0x0000,
+            cs: 0xFFFF,
             ds: 0x1000,
             ss: 0x8000,
             es: 0x2000,
@@ -59,7 +59,7 @@ impl Cpu {
         self.reg[13] = 0x7FFF;
         self.reg[15] = 0x0000;
         self.psw = 0;
-        self.cs = 0x0000;
+        self.cs = 0xFFFF;
         self.ds = 0x1000;
         self.ss = 0x8000;
         self.es = 0x2000;
@@ -89,14 +89,18 @@ unsafe fn cpu_ref() -> &'static Cpu {
 #[wasm_bindgen]
 pub fn init(mem_words: usize) {
     unsafe {
-        CPU = Some(Cpu::new(mem_words));
+        let mut c = Cpu::new(mem_words);
+        autoload_rom(&mut c);
+        CPU = Some(c);
     }
 }
 
 #[wasm_bindgen]
 pub fn reset() {
     unsafe {
-        cpu_mut().reset();
+        let c = cpu_mut();
+        c.reset();
+        autoload_rom(c);
     }
 }
 
@@ -123,6 +127,7 @@ pub fn load_program(ptr: usize, data: Box<[u16]>) {
             c.mem[ptr + i] = data[i];
         }
         c.reg[15] = 0;
+        c.cs = 0xFFFF;
     }
 }
 
@@ -168,12 +173,14 @@ pub fn get_memory_word(addr: usize) -> u16 {
 
 fn is_stack_register(psw: u16, idx: usize) -> bool {
     let sr = ((psw >> 6) & 0xF) as usize;
+    if sr == 0 { return false; }
     let dual = (psw & (1 << 10)) != 0;
     if dual { idx == sr || idx == (sr + 1) } else { idx == sr }
 }
 
 fn is_extra_register(psw: u16, idx: usize) -> bool {
     let er = ((psw >> 11) & 0xF) as usize;
+    if er == 0 { return false; }
     let dual = (psw & (1 << 15)) != 0;
     if dual { idx == er || idx == (er + 1) } else { idx == er }
 }
@@ -285,11 +292,29 @@ fn exec_sop(c: &mut Cpu, instr: u16) -> bool {
     let t = (instr >> 4) & 0xF;
     let rx = (instr & 0xF) as usize;
     match t {
+        0b0000 => {
+            let v = c.reg[rx];
+            let swapped = (((v & 0x00FF) << 8) | ((v >> 8) & 0x00FF)) as u16;
+            c.reg[rx] = swapped;
+            c.last_alu_result = swapped as i32;
+            c.last_op_alu = true;
+            false
+        }
         0b0001 => {
             c.reg[rx] = (!c.reg[rx]) & 0xFFFF;
             c.last_alu_result = c.reg[rx] as i32;
             c.last_op_alu = true;
             false
+        }
+        0b0100 => {
+            if rx % 2 != 0 { return false; }
+            let target_cs = c.reg[rx];
+            let target_pc = c.reg[rx + 1];
+            c.delay_active = true;
+            c.delayed_pc = target_pc;
+            c.delayed_cs = target_cs;
+            c.branch_taken = true;
+            true
         }
         0b1000 => {
             c.psw = (c.psw & !0x03C0) | (((rx as u16) & 0xF) << 6);
@@ -305,9 +330,6 @@ fn exec_sop(c: &mut Cpu, instr: u16) -> bool {
         }
         0b1011 => {
             c.psw = (c.psw & !0x7800) | (((rx as u16) & 0xF) << 11) | 0x8000;
-            false
-        }
-        0b0100 => {
             false
         }
         _ => false,
@@ -362,9 +384,9 @@ fn step_one(c: &mut Cpu) -> bool {
     if !c.running { c.running = true; }
     if c.delay_active {
         c.delay_active = false;
-        let pc = c.reg[15] as usize;
-        if pc >= c.mem.len() { c.running = false; return false; }
-        let instr = c.mem[pc];
+        let pa = phys(c.cs, c.reg[15] as u32);
+        if pa >= c.mem.len() { c.running = false; return false; }
+        let instr = c.mem[pa];
         let original_pc = c.reg[15];
         c.reg[15] = c.reg[15].wrapping_add(1);
         c.last_op_alu = false;
@@ -374,9 +396,9 @@ fn step_one(c: &mut Cpu) -> bool {
         if c.branch_taken { c.reg[15] = c.delayed_pc; c.cs = c.delayed_cs; }
         return !is_branch || c.running;
     }
-    let pc = c.reg[15] as usize;
-    if pc >= c.mem.len() { c.running = false; return false; }
-    let instr = c.mem[pc];
+    let pa = phys(c.cs, c.reg[15] as u32);
+    if pa >= c.mem.len() { c.running = false; return false; }
+    let instr = c.mem[pa];
     if instr == 0xFFFF { c.running = false; return false; }
     let original_pc = c.reg[15];
     c.reg[15] = c.reg[15].wrapping_add(1);
@@ -403,6 +425,31 @@ fn exec_instruction(c: &mut Cpu, instr: u16, _original_pc: u16) -> bool {
             false
         }
         _ => false,
+    }
+}
+
+fn autoload_rom(c: &mut Cpu) {
+    let base = 0xFFFF0usize;
+    let rom: [u16; 16] = [
+        0x0000, // LDI 0 -> R0
+        0xFF41, // MVS DS, R0
+        0xFF42, // MVS SS, R0
+        0xFC21, // LSI R1, 1
+        0xFE01, // SWB R1
+        0xA200, // ST R1, [R0+0]
+        0xA201, // ST R1, [R0+1]
+        0xA201, // ST R1, [R0+1]
+        0xFE40, // JML R0
+        0xFFF0, // NOP (delay slot)
+        0xFFF1, // HLT
+        0xFFF1, // HLT
+        0xFFF1, // HLT
+        0xFFF1, // HLT
+        0xFFF1, // HLT
+    ];
+    for i in 0..rom.len() {
+        let addr = base + i;
+        if addr < c.mem.len() { c.mem[addr] = rom[i]; }
     }
 }
 
