@@ -15,6 +15,12 @@ struct Cpu {
     branch_taken: bool,
     last_alu_result: i32,
     last_op_alu: bool,
+    recent_addr: usize,
+    recent_base: u16,
+    recent_offset: u16,
+    recent_seg_val: u16,
+    recent_seg_idx: u16,
+    recent_is_store: bool,
 }
 
 static mut CPU: Option<Cpu> = None;
@@ -39,6 +45,12 @@ impl Cpu {
             branch_taken: false,
             last_alu_result: 0,
             last_op_alu: false,
+            recent_addr: 0,
+            recent_base: 0,
+            recent_offset: 0,
+            recent_seg_val: 0,
+            recent_seg_idx: 0,
+            recent_is_store: false,
         }
     }
     fn reset(&mut self) {
@@ -58,6 +70,12 @@ impl Cpu {
         self.branch_taken = false;
         self.last_alu_result = 0;
         self.last_op_alu = false;
+        self.recent_addr = 0;
+        self.recent_base = 0;
+        self.recent_offset = 0;
+        self.recent_seg_val = 0;
+        self.recent_seg_idx = 0;
+        self.recent_is_store = false;
     }
 }
 
@@ -116,6 +134,14 @@ pub fn get_registers() -> Box<[u16]> {
 #[wasm_bindgen]
 pub fn get_psw() -> u16 {
     unsafe { cpu_ref().psw }
+}
+
+#[wasm_bindgen]
+pub fn get_segments() -> Box<[u16]> {
+    unsafe {
+        let c = cpu_ref();
+        vec![c.cs, c.ds, c.ss, c.es].into_boxed_slice()
+    }
 }
 
 fn phys(seg: u16, off: u32) -> usize {
@@ -178,10 +204,16 @@ fn exec_mem(c: &mut Cpu, instr: u16) {
     let rb = ((instr >> 5) & 0xF) as usize;
     let off = (instr & 0x1F) as u32;
     let addr_off = (c.reg[rb] as u32).wrapping_add(off);
-    let seg = if is_stack_register(c.psw, rb) { c.ss } else if is_extra_register(c.psw, rb) { c.es } else { c.ds };
+    let (seg_idx, seg) = if is_stack_register(c.psw, rb) { (2u16, c.ss) } else if is_extra_register(c.psw, rb) { (3u16, c.es) } else { (1u16, c.ds) };
     let pa = phys(seg, addr_off);
     if pa >= c.mem.len() { return; }
     if d == 0 { c.reg[rd] = c.mem[pa]; } else { c.mem[pa] = c.reg[rd]; }
+    c.recent_addr = pa;
+    c.recent_base = c.reg[rb];
+    c.recent_offset = (off & 0x1F) as u16;
+    c.recent_seg_val = seg;
+    c.recent_seg_idx = seg_idx;
+    c.recent_is_store = d == 1;
 }
 
 fn exec_alu(c: &mut Cpu, instr: u16) {
@@ -283,8 +315,8 @@ fn exec_sop(c: &mut Cpu, instr: u16) -> bool {
 }
 
 fn exec_mvs(c: &mut Cpu, instr: u16) {
-    let d = (instr >> 7) & 0x1;
-    let rd = ((instr >> 3) & 0xF) as usize;
+    let d = (instr >> 6) & 0x1;
+    let rd = ((instr >> 2) & 0xF) as usize;
     let seg = (instr & 0x3) as u16;
     if d == 0 {
         let v = match seg { 0 => c.cs, 1 => c.ds, 2 => c.ss, _ => c.es };
@@ -385,6 +417,12 @@ fn exec_lds_sts(c: &mut Cpu, instr: u16) {
     let pa = phys(segv, base);
     if pa >= c.mem.len() { return; }
     if d == 0 { c.reg[rd] = c.mem[pa]; } else { c.mem[pa] = c.reg[rd]; }
+    c.recent_addr = pa;
+    c.recent_base = c.reg[rs];
+    c.recent_offset = 0;
+    c.recent_seg_val = segv;
+    c.recent_seg_idx = seg as u16;
+    c.recent_is_store = d == 1;
 }
 
 #[wasm_bindgen]
@@ -404,5 +442,19 @@ pub fn run_steps(n: u32) -> bool {
             if !step_one(c) { cont = false; break; }
         }
         cont
+    }
+}
+#[wasm_bindgen]
+pub fn get_recent_access() -> Box<[u32]> {
+    unsafe {
+        let c = cpu_ref();
+        vec![
+            c.recent_addr as u32,
+            c.recent_base as u32,
+            c.recent_offset as u32,
+            c.recent_seg_val as u32,
+            c.recent_seg_idx as u32,
+            if c.recent_is_store { 1 } else { 0 },
+        ].into_boxed_slice()
     }
 }
