@@ -2,7 +2,7 @@
 ; Demonstrates calling between code segments
 
 ; Segment 0: Main program
-.org 0x0000
+.org 0x0100
 
 main:
     ; Initialize stack pointer

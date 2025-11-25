@@ -1,7 +1,7 @@
 ; Deep16 Fibonacci Example
 ; Calculate Fibonacci numbers F(0) through F(10)
 
-.org 0x0000
+.org 0x0100
 
 main:
     LSI  R1, 0        ; F(0) = 0

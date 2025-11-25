@@ -1,7 +1,7 @@
 ; String and Character Demo
 ; Demonstrates character constants and .text directive
 
-.org 0x0000
+.org 0x0100
 
 main:
     ; Initialize stack

@@ -1,7 +1,7 @@
 ; Deep16 Screen Demo
 ; Write text to the 80x25 character display at ES:0x1000 (physical 0xF1000)
 
-.org 0x0000    ; Home Segment - Code starts here
+.org 0x0100    ; Home Segment - Code starts here
 
 main:
     ; Initialize stack pointer
