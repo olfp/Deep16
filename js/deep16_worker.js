@@ -40,7 +40,11 @@ self.addEventListener('message', function(e) {
             
         case 'STEP':
             if (simulator) {
+                // Ensure single-step executes even if simulator.running is false
+                const prevRunning = simulator.running;
+                simulator.running = true;
                 const result = simulator.step();
+                simulator.running = false;
                 self.postMessage({
                     type: 'STEP_RESULT',
                     data: {
@@ -49,7 +53,7 @@ self.addEventListener('message', function(e) {
                         memory: simulator.memory,
                         segmentRegisters: { ...simulator.segmentRegisters },
                         continueRunning: result,
-                        running: simulator.running
+                        running: false
                     }
                 });
             }
