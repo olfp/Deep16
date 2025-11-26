@@ -74,16 +74,17 @@ d_exit:
 d_lit:
     LD R1, R11, 0      ; Get literal value
     ADD R11, R11, 1     ; Advance R11
-    ST R1, R13, -1     ; Push to data stack
-    ADD R13, R13, -1    ; Adjust stack
+    ; Push to data stack using positive offset
+    ADD R13, R13, -1   ; Adjust stack pointer first
+    ST R1, R13, 0      ; Store at new stack top
     JMP next
     NOP
 
 ; DUP - duplicate top of stack
 d_dup:
-    LD R1, R13, 1      ; Get top of stack
-    ST R1, R13, -1     ; Push duplicate
-    ADD R13, R13, -1    ; Adjust stack
+    LD R1, R13, 0      ; Get top of stack
+    ADD R13, R13, -1   ; Adjust stack pointer
+    ST R1, R13, 0      ; Push duplicate
     JMP next
     NOP
 
@@ -95,16 +96,16 @@ d_drop:
 
 ; SWAP - swap top two stack items
 d_swap:
-    LD R1, R13, 1      ; R1 = top
-    LD R2, R13, 2      ; R2 = second
-    ST R1, R13, 2      ; Swap them
-    ST R2, R13, 1
+    LD R1, R13, 0      ; R1 = top
+    LD R2, R13, 1      ; R2 = second
+    ST R1, R13, 1      ; Swap them
+    ST R2, R13, 0
     JMP next
     NOP
 
 ; EMIT - output character
 d_emit:
-    LD R1, R13, 1      ; Get character from stack
+    LD R1, R13, 0      ; Get character from stack
     ADD R13, R13, 1     ; Drop it
     
     ; Store character to screen
@@ -119,7 +120,7 @@ d_emit:
 
 ; TELL - output string (addr -- )
 d_tell:
-    LD R3, R13, 1      ; R3 = string address
+    LD R3, R13, 0      ; R3 = string address
     ADD R13, R13, 1     ; Drop address
     
 tell_loop:
@@ -128,13 +129,14 @@ tell_loop:
     NOP
     
     ; Push character and call EMIT
-    ST R1, R13, -1     ; Push character for EMIT
-    ADD R13, R13, -1
+    ADD R13, R13, -1   ; Adjust stack pointer
+    ST R1, R13, 0      ; Push character for EMIT
     
     ; Save current state
-    ST R11, R12, -1    ; Push R11 to return stack
-    ST R3, R12, -2     ; Push string pointer
-    ADD R12, R12, -2
+    ADD R12, R12, -1   ; Adjust return stack
+    ST R11, R12, 0     ; Push R11 to return stack
+    ADD R12, R12, -1   ; Adjust return stack
+    ST R3, R12, 0      ; Push string pointer
     
     ; Call EMIT
     LDI d_emit
@@ -145,8 +147,9 @@ tell_loop:
     
     ; Restore state
     LD R3, R12, 0      ; Pop string pointer
-    LD R11, R12, 1     ; Pop R11
-    ADD R12, R12, 2
+    ADD R12, R12, 1    ; Adjust return stack
+    LD R11, R12, 0     ; Pop R11
+    ADD R12, R12, 1    ; Adjust return stack
     
     ADD R3, R3, 1      ; Next character
     JMP tell_loop
