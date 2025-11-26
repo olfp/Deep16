@@ -133,10 +133,9 @@ tell_loop:
     JZ tell_done       ; If zero, end of string
     NOP
     
-    ; Output character directly to screen memory
+    ; Output character to screen memory
     STS R1, ES, R8     ; [ES:R8] = character
     ADD R8, 1          ; Advance screen position
-    
     ADD R3, 1          ; Next character (add 1)
     JNO tell_loop      ; Continue loop
     NOP
@@ -148,14 +147,11 @@ tell_done:
 ; =============================================
 ; Demo Program - "Hello DeepForth!"
 ; =============================================
-; =============================================
-; Demo Program - "Hello DeepForth!"
-; =============================================
 user_program:
-    .word d_lit+3     ; Point to code field of LIT (skip 3 words of header)
+    .word d_lit
     .word hello_str
-    .word d_tell+3    ; Point to code field of TELL  
-    .word d_exit+3    ; Point to code field of EXIT
+    .word d_tell
+    .word d_exit
 
 ; =============================================
 ; Dictionary Headers
