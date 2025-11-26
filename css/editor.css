@@ -54,6 +54,94 @@
     min-height: 20px;
 }
 
+.tab-config { 
+    margin-left: auto; 
+    display: flex; 
+    align-items: center; 
+    gap: 6px; 
+}
+
+.tab-config-label {
+    color: #9cdcfe;
+    font-size: 11px;
+}
+
+.tab-size-input {
+    background: #1e1e1e;
+    border: 1px solid #3e3e42;
+    color: #d4d4d4;
+    padding: 2px 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    height: 20px;
+    width: 40px;
+}
+
+.editor-wrapper {
+    position: relative;
+    background: #252526;
+    flex: 1;
+}
+
+.editor-highlight {
+    position: absolute;
+    inset: 0;
+    padding: 12px;
+    pointer-events: none;
+    white-space: pre-wrap;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    color: inherit;
+    overflow: hidden;
+    z-index: 0;
+}
+
+.editor {
+    position: relative;
+    z-index: 1;
+    background: transparent;
+    padding: 12px;
+    font-family: 'Courier New', monospace;
+    color: transparent;
+    caret-color: #d4d4d4;
+    width: 100%;
+    height: 100%;
+    flex: 1;
+    resize: none;
+}
+
+/* Syntax colors via CSS variables for theme support */
+:root {
+    --hl-mn: #a7ff83;
+    --hl-reg: #00ffff;     /* pure cyan for registers */
+    --hl-lit: #ffff66;     /* vivid yellow for strings/literals */
+    --hl-imm: #ffff66;     /* vivid yellow for immediates */
+    --hl-lbl: #ffb000;     /* bright amber for labels */
+    --hl-lbl-def: #ffd000; /* brighter warm highlight for label defs */
+    --hl-cmt: #cfd8dc;     /* very light blue-gray for comments */
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        --hl-mn: #007a00;
+        --hl-reg: #0077ff;
+        --hl-lit: #cc8a00;
+        --hl-imm: #cc8a00;
+        --hl-lbl: #a86100;
+        --hl-lbl-def: #8c4f00;
+        --hl-cmt: #455a64;
+    }
+}
+
+.hl-mn { color: var(--hl-mn); }
+.hl-reg { color: var(--hl-reg); }
+.hl-lit { color: var(--hl-lit); }
+.hl-imm { color: var(--hl-imm); }
+.hl-lbl { color: var(--hl-lbl); }
+.hl-lbl-def { color: var(--hl-lbl-def); font-weight: bold; }
+.hl-cmt { color: var(--hl-cmt); }
+
 .editor-controls-center button:hover {
     background: #1177bb;
 }
@@ -115,11 +203,9 @@
 /* Update editor to account for new headers */
 .editor {
     flex: 1;
-    background: #252526;
     padding: 12px;
     font-family: 'Courier New', monospace;
     font-size: 13px;
-    color: #d4d4d4;
     resize: none;
     white-space: pre;
     overflow: auto;
