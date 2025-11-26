@@ -148,11 +148,14 @@ tell_done:
 ; =============================================
 ; Demo Program - "Hello DeepForth!"
 ; =============================================
+; =============================================
+; Demo Program - "Hello DeepForth!"
+; =============================================
 user_program:
-    .word d_lit
+    .word d_lit+3     ; Point to code field of LIT (skip 3 words of header)
     .word hello_str
-    .word d_tell
-    .word d_exit
+    .word d_tell+3    ; Point to code field of TELL  
+    .word d_exit+3    ; Point to code field of EXIT
 
 ; =============================================
 ; Dictionary Headers
