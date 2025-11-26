@@ -7,9 +7,10 @@
 .code
 
 ; Register Usage:
-; R12: Instruction Pointer (IP)
-; R13: Stack Pointer (SP)  
-; R14: Return Stack Pointer (RSP)
+; R11: Instruction Pointer (IP)
+; R12: Return Stack Pointer (RSP)  
+; R13: Stack Pointer (SP)
+; R14: Link Register (LR) - used for temporary jumps
 ; R15: Program Counter (PC)
 
 ; Forth Memory Layout:
@@ -20,13 +21,13 @@
 forth_start:
     ; Initialize stack pointers
     LDI 0x7FF0
-    MOV SP, R0        ; Data stack grows down from 0x7FF0
+    MOV R13, R0        ; Data stack grows down from 0x7FF0 (R13)
     LDI 0x7FE0  
-    MOV RSP, R0       ; Return stack grows down from 0x7FE0
+    MOV R12, R0       ; Return stack grows down from 0x7FE0 (R12)
     
-    ; Initialize instruction pointer to user program
+    ; Initialize instruction pointer to user program (R11)
     LDI user_program
-    MOV IP, R0
+    MOV R11, R0
     
     ; Set up screen segment for output
     LDI 0x0FFF
@@ -36,7 +37,7 @@ forth_start:
     MOV R10, R0       ; Use R10 as screen pointer
     ERD R10           ; Use R10/R11 for ES access
     
-    ; Clear screen position counter
+    ; Clear screen position counter (R9)
     LDI 0
     MOV R9, R0
     
@@ -50,8 +51,8 @@ forth_start:
 
 next:
     ; Fetch next word from instruction stream
-    LD R1, IP, 0      ; R1 = [IP] - get codeword address
-    ADD IP, IP, 1     ; IP++ - advance instruction pointer
+    LD R1, R11, 0      ; R1 = [R11] - get codeword address
+    ADD R11, R11, 1     ; R11++ - advance instruction pointer
     
     ; Jump to codeword
     LD R2, R1, 0      ; R2 = [R1] - get actual code address
@@ -64,47 +65,47 @@ next:
 
 ; EXIT - return from word
 d_exit:
-    LD IP, RSP, 0     ; Pop IP from return stack
-    ADD RSP, RSP, 1   ; Adjust return stack
+    LD R11, R12, 0     ; Pop R11 from return stack
+    ADD R12, R12, 1   ; Adjust return stack
     JMP next
     NOP
 
 ; LIT - push literal
 d_lit:
-    LD R1, IP, 0      ; Get literal value
-    ADD IP, IP, 1     ; Advance IP
-    ST R1, SP, -1     ; Push to data stack
-    ADD SP, SP, -1    ; Adjust stack
+    LD R1, R11, 0      ; Get literal value
+    ADD R11, R11, 1     ; Advance R11
+    ST R1, R13, -1     ; Push to data stack
+    ADD R13, R13, -1    ; Adjust stack
     JMP next
     NOP
 
 ; DUP - duplicate top of stack
 d_dup:
-    LD R1, SP, 1      ; Get top of stack
-    ST R1, SP, -1     ; Push duplicate
-    ADD SP, SP, -1    ; Adjust stack
+    LD R1, R13, 1      ; Get top of stack
+    ST R1, R13, -1     ; Push duplicate
+    ADD R13, R13, -1    ; Adjust stack
     JMP next
     NOP
 
 ; DROP - drop top of stack
 d_drop:
-    ADD SP, SP, 1     ; Adjust stack
+    ADD R13, R13, 1     ; Adjust stack
     JMP next
     NOP
 
 ; SWAP - swap top two stack items
 d_swap:
-    LD R1, SP, 1      ; R1 = top
-    LD R2, SP, 2      ; R2 = second
-    ST R1, SP, 2      ; Swap them
-    ST R2, SP, 1
+    LD R1, R13, 1      ; R1 = top
+    LD R2, R13, 2      ; R2 = second
+    ST R1, R13, 2      ; Swap them
+    ST R2, R13, 1
     JMP next
     NOP
 
 ; EMIT - output character
 d_emit:
-    LD R1, SP, 1      ; Get character from stack
-    ADD SP, SP, 1     ; Drop it
+    LD R1, R13, 1      ; Get character from stack
+    ADD R13, R13, 1     ; Drop it
     
     ; Store character to screen
     STS R1, ES, R10   ; [ES:R10] = character
@@ -118,28 +119,36 @@ d_emit:
 
 ; TELL - output string (addr len -- )
 d_tell:
-    LD R2, SP, 1      ; R2 = length
-    LD R3, SP, 2      ; R3 = address
-    ADD SP, SP, 2     ; Drop both
+    LD R2, R13, 1      ; R2 = length
+    LD R3, R13, 2      ; R3 = address
+    ADD R13, R13, 2     ; Drop both
     
 tell_loop:
     JZ R2, tell_done  ; If length == 0, done
     NOP
     
     LD R1, R3, 0      ; Get character
-    ST R1, SP, -1     ; Push for EMIT
-    ADD SP, SP, -1
+    ST R1, R13, -1     ; Push for EMIT
+    ADD R13, R13, -1
     
-    ; Call EMIT indirectly
+    ; Save current state
+    ST R11, R12, -1    ; Push R11 to return stack
+    ST R2, R12, -2    ; Push counter
+    ST R3, R12, -3    ; Push string pointer
+    ADD R12, R12, -3
+    
+    ; Call EMIT
     LDI d_emit
     MOV R4, R0
     LD R4, R4, 0      ; Get EMIT code address
-    ST RSP, RSP, -1   ; Push current IP to return stack
-    ADD RSP, RSP, -1
-    MOV IP, PC        ; Set IP to continue after EMIT
-    ADD IP, IP, 3
     JMP R4            ; Call EMIT
     NOP
+    
+    ; Restore state
+    LD R3, R12, 0     ; Pop string pointer
+    LD R2, R12, 1     ; Pop counter  
+    LD R11, R12, 2     ; Pop R11
+    ADD R12, R12, 3
     
     ADD R3, R3, 1     ; Next character
     ADD R2, R2, -1    ; Decrement count
