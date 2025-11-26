@@ -1,0 +1,296 @@
+; =============================================
+; Deep16 Forth Kernel with Interpreter
+; Memory starts at 0x0100 as per spec
+; =============================================
+
+.org 0x0100
+.code
+
+; Register Usage:
+; R11: Instruction Pointer (IP)
+; R12: Return Stack Pointer (RSP)  
+; R13: Stack Pointer (SP)
+; R14: Link Register (LR) - used for temporary jumps
+; R15: Program Counter (PC)
+; R8/R9: Screen pointer pair for ES access
+; R7: Temporary/State
+
+; Forth Memory Layout:
+; 0x0100-0x01FF: Forth kernel
+; 0x0200-0x02FF: User dictionary
+; 0x0300-0x7FFF: Data stack, return stack, heap
+; 0x8000-0x8FFF: Input buffer
+
+; =============================================
+; Forth Kernel Implementation
+; =============================================
+
+forth_start:
+    ; Initialize stack pointers
+    LDI 0x7FF0
+    MOV R13, R0        ; Data stack grows down from 0x7FF0 (R13)
+    LDI 0x7FE0  
+    MOV R12, R0       ; Return stack grows down from 0x7FE0 (R12)
+    
+    ; Set up screen segment for output using R8/R9 pair
+    LDI 0x0FFF
+    INV R0            ; R0 = 0xF000
+    MVS ES, R0        ; ES = 0xF000
+    LDI 0x1000        ; Screen buffer starts at 0xF1000
+    MOV R8, R0        ; Use R8 as screen pointer (R8/R9 pair)
+    ERD R8            ; Use R8/R9 for ES access (PSW.ER=1000, DE=1)
+    
+    ; Clear screen position counter
+    LDI 0
+    MOV R7, R0        ; Use R7 as screen position counter
+    
+    ; Jump to interpreter
+    JNO interpret
+    NOP
+
+; =============================================
+; Forth Inner Interpreter
+; =============================================
+
+next:
+    ; Fetch next word from instruction stream
+    LD R1, R11, 0      ; R1 = [R11] - get codeword (which is the code address)
+    ADD R11, 1         ; R11++ - advance instruction pointer
+    
+    ; Jump to codeword directly (R1 already contains the code address)
+    MOV PC, R1         ; Execute the word
+    NOP
+
+; =============================================
+; Forth Primitive Words
+; =============================================
+
+; EXIT - return from word
+d_exit:
+    LD R11, R12, 0     ; Pop R11 from return stack
+    ADD R12, 1         ; Adjust return stack
+    JNO next          ; Jump back to next
+    NOP
+
+; LIT - push literal
+d_lit:
+    LD R1, R11, 0      ; Get literal value
+    ADD R11, 1         ; Advance R11
+    ; Push to data stack using positive offset
+    SUB R13, 1         ; Adjust stack pointer first (subtract 1)
+    ST R1, R13, 0      ; Store at new stack top
+    JNO next
+    NOP
+
+; DUP - duplicate top of stack
+d_dup:
+    LD R1, R13, 0      ; Get top of stack
+    SUB R13, 1         ; Adjust stack pointer (subtract 1)
+    ST R1, R13, 0      ; Push duplicate
+    JNO next
+    NOP
+
+; DROP - drop top of stack
+d_drop:
+    ADD R13, 1         ; Adjust stack (add 1)
+    JNO next
+    NOP
+
+; SWAP - swap top two stack items
+d_swap:
+    LD R1, R13, 0      ; R1 = top
+    LD R2, R13, 1      ; R2 = second
+    ST R1, R13, 1      ; Swap them
+    ST R2, R13, 0
+    JNO next
+    NOP
+
+; EMIT - output character
+d_emit:
+    LD R1, R13, 0      ; Get character from stack
+    ADD R13, 1         ; Drop it (add 1)
+    
+    ; Store character to screen using R8 for ES access
+    STS R1, ES, R8     ; [ES:R8] = character
+    
+    ; Advance screen position
+    ADD R8, 1
+    ADD R7, 1
+    
+    JNO next
+    NOP
+
+; TELL - output string (addr -- )
+d_tell:
+    LD R3, R13, 0      ; R3 = string address
+    ADD R13, 1         ; Drop address (add 1)
+    
+tell_loop:
+    LD R1, R3, 0       ; Get character from string
+    ADD R1, 0          ; Set flags based on R1 value
+    JZ tell_done       ; If zero, end of string
+    NOP
+    
+    ; Output character to screen memory
+    STS R1, ES, R8     ; [ES:R8] = character
+    ADD R8, 1          ; Advance screen position
+    ADD R3, 1          ; Next character (add 1)
+    JNO tell_loop      ; Continue loop
+    NOP
+    
+tell_done:
+    JNO next
+    NOP
+
+; ." (dot-quote) - compile string literal
+d_dot_quote:
+    LD R3, R11, 0      ; Get string address from instruction stream
+    ADD R11, 1         ; Advance IP past string address
+    
+dot_quote_loop:
+    LD R1, R3, 0       ; Get character from string
+    ADD R1, 0          ; Set flags
+    JZ dot_quote_done  ; If zero, end of string
+    NOP
+    
+    ; Push character and call EMIT
+    SUB R13, 1         ; Make space on stack
+    ST R1, R13, 0      ; Push character
+    JNO d_emit         ; Call EMIT to output it
+    NOP
+    
+    ADD R3, 1          ; Next character
+    JNO dot_quote_loop ; Continue
+    NOP
+    
+dot_quote_done:
+    ADD R11, 1         ; Skip the null terminator in instruction stream
+    JNO next
+    NOP
+
+; EXECUTE ( xt -- ) - execute word from stack
+d_execute:
+    LD R1, R13, 0      ; Get execution token from stack
+    ADD R13, 1         ; Drop it
+    
+    ; Save current IP to return stack
+    SUB R12, 1
+    ST R11, R12, 0
+    
+    ; Set IP to continue after execution
+    LDI execute_return
+    MOV R11, R0
+    
+    ; Jump to the word
+    MOV PC, R1
+    NOP
+
+execute_return:
+    ; Restore IP from return stack
+    LD R11, R12, 0
+    ADD R12, 1
+    JNO next
+    NOP
+
+; INTERPRET - main interpreter loop
+interpret:
+    ; For now, just execute our demo program
+    LDI demo_program
+    MOV R11, R0
+    JNO next
+    NOP
+
+; =============================================
+; Demo Programs
+; =============================================
+
+; Original demo
+user_program:
+    .word d_lit
+    .word hello_str
+    .word d_tell
+    .word d_exit
+
+; New demo with ." and TELL
+demo_program:
+    .word d_dot_quote
+    .word hello_again_str
+    .word d_tell
+    .word d_exit
+
+; =============================================
+; Dictionary Headers
+; =============================================
+
+; Dictionary format: [link][name][code]
+dict_start:
+
+; EXIT
+.word 0
+.word 0x4558
+.word 0x4954
+.word d_exit
+
+; LIT  
+.word dict_start
+.word 0x4C49
+.word 0x5400
+.word d_lit
+
+; DUP
+.word dict_start+6
+.word 0x4455
+.word 0x5000
+.word d_dup
+
+; DROP
+.word dict_start+12
+.word 0x4452
+.word 0x4F50
+.word d_drop
+
+; SWAP
+.word dict_start+18
+.word 0x5357
+.word 0x4150
+.word d_swap
+
+; EMIT
+.word dict_start+24
+.word 0x454D
+.word 0x4954
+.word d_emit
+
+; TELL
+.word dict_start+30
+.word 0x5445
+.word 0x4C4C
+.word d_tell
+
+; ."
+.word dict_start+36
+.word 0x2E22
+.word 0x0000
+.word d_dot_quote
+
+; EXECUTE
+.word dict_start+42
+.word 0x4558
+.word 0x4543
+.word d_execute
+
+; =============================================
+; String data using .text directive (auto-null-terminated)
+; =============================================
+hello_str:
+    .text "Hello DeepForth!"
+
+hello_again_str:
+    .text "Hello again, DeepForth!"
+
+; =============================================
+; End of Kernel
+; =============================================
+
+kernel_end:
+    HLT
