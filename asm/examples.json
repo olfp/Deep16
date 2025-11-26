@@ -18,10 +18,17 @@
       "description": "Write text to the 80x25 character display",
       "category": "I/O"
     },
-    {
+  {
       "name": "String Demo",
       "filename": "string_demo.a16",
       "description": "Demonstrates character constants and strings",
+      "category": "I/O"
+    }
+    ,
+    {
+      "name": "Threaded Forth: Hello",
+      "filename": "forth.a16",
+      "description": "Minimal threaded Forth kernel prints greeting",
       "category": "I/O"
     }
   ]
