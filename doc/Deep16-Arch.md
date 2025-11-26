@@ -192,22 +192,26 @@ Default effect:
 
 ## 5. Instruction Set
 
-5.0 Complete Opcode Hierarchy
+## 5. Instruction Set Summary
 
-Table 5.1: Instruction Opcode Hierarchy
+### 5.1 Complete Opcode Hierarchy
 
-Opcode	Bits	Instruction	Format	Pipeline Notes
-0	1	LDI	[0][imm15]	Full pipeline
-10	2	LD/ST	[10][d1][Rd4][Rb4][offset5]	Potential load-use stall
-110	3	ALU2	[110][op3][Rd4][w1][i1][Rs/imm4]	Full pipeline, forwarding
-1110	4	JMP	[1110][type3][target9]	Uses delay slot
-11110	5	LDS/STS	[11110][d1][seg2][Rd4][Rs4]	Segment access in MEM
-111110	6	MOV	[111110][Rd4][Rs4][imm2]	Full pipeline
-1111110	7	LSI	[1111110][Rd4][imm5]	Full pipeline
-11111110	8	SOP	[11111110][type4][Rx/imm4]	Various pipeline effects
-111111110	9	MVS	[111111110][d1][Rd4][seg2]	Segment access in MEM
-1111111110	10	SMV	[1111111110][src2][Rd4]	Special register access
-1111111111110	13	SYS	[1111111111110][op3]	Pipeline flush on RETI
+**Table 5.1: Instruction Opcode Hierarchy**
+
+| Opcode | Bits | Instruction | Format | Pipeline Notes |
+|--------|------|-------------|--------|----------------|
+| 0 | 1 | LDI | `[0][imm15]` | Full pipeline |
+| 10 | 2 | LD/ST | `[10][d1][Rd4][Rb4][offset5]` | Potential load-use stall |
+| 110 | 3 | ALU2 | `[110][op3][Rd4][w1][i1][Rs/imm4]` | Full pipeline, forwarding |
+| 1110 | 4 | JMP | `[1110][type3][target9]` | **Uses delay slot** |
+| 11110 | 5 | LDS/STS | `[11110][d1][seg2][Rd4][Rs4]` | Segment access in MEM |
+| 111110 | 6 | MOV | `[111110][Rd4][Rs4][imm2]` | Full pipeline |
+| 1111110 | 7 | LSI | `[1111110][Rd4][imm5]` | Full pipeline |
+| 11111110 | 8 | SOP | `[11111110][type4][Rx/imm4]` | Various pipeline effects |
+| 111111110 | 9 | MVS | `[111111110][d1][Rd4][seg2]` | Segment access in MEM |
+| 1111111110 | 10 | SMV | `[1111111110][src2][Rd4]` | Special register access |
+| 1111111111110 | 13 | SYS | `[1111111111110][op3]` | Pipeline flush on RETI |
+| 111111111111111 | 16 | HLT ˋ[111111111111111]ˋ | Halt the processor |
 
 
 ### 5.1 Data Movement Instructions
