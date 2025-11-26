@@ -12,6 +12,7 @@
 ; R13: Stack Pointer (SP)
 ; R14: Link Register (LR) - used for temporary jumps
 ; R15: Program Counter (PC)
+; R8/R9: Screen pointer pair for ES access
 
 ; Forth Memory Layout:
 ; 0x0100-0x01FF: Forth kernel
@@ -33,17 +34,17 @@ forth_start:
     LDI user_program
     MOV R11, R0
     
-    ; Set up screen segment for output
+    ; Set up screen segment for output using R8/R9 pair
     LDI 0x0FFF
     INV R0            ; R0 = 0xF000
     MVS ES, R0        ; ES = 0xF000
     LDI 0x1000        ; Screen buffer starts at 0xF1000
-    MOV R10, R0       ; Use R10 as screen pointer
-    ERD R10           ; Use R10/R11 for ES access
+    MOV R8, R0        ; Use R8 as screen pointer (R8/R9 pair)
+    ERD R8            ; Use R8/R9 for ES access (PSW.ER=1000, DE=1)
     
-    ; Clear screen position counter (R9)
+    ; Clear screen position counter
     LDI 0
-    MOV R9, R0
+    MOV R7, R0        ; Use R7 as screen position counter
     
     ; Jump to inner interpreter using unconditional jump
     JNO next          ; Use JNO (Jump No Overflow) as unconditional jump
@@ -112,12 +113,12 @@ d_emit:
     LD R1, R13, 0      ; Get character from stack
     ADD R13, R13, 1     ; Drop it
     
-    ; Store character to screen
-    STS R1, ES, R10   ; [ES:R10] = character
+    ; Store character to screen using R8 for ES access
+    STS R1, ES, R8     ; [ES:R8] = character
     
     ; Advance screen position
-    ADD R10, R10, 1
-    ADD R9, R9, 1
+    ADD R8, R8, 1
+    ADD R7, R7, 1
     
     JNO next
     NOP
