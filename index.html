@@ -95,6 +95,10 @@
                             <option value="">-- Loading Examples --</option>
                         </select>
                         <button id="assemble-btn">Assemble</button>
+                        <div class="tab-config">
+                            <label class="tab-config-label" for="tab-size-input">Tab</label>
+                            <input type="number" id="tab-size-input" min="2" max="8" value="4" class="tab-size-input" />
+                        </div>
                     </div>
                 </div>
                 
@@ -104,8 +108,10 @@
                     <span id="file-status" class="file-status-clean">● Clean</span>
                 </div>
                 
-                <!-- Editor textarea -->
-                <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Integrated Development Environment
+                <!-- Editor textarea with syntax highlight overlay -->
+                <div class="editor-wrapper">
+                    <pre id="editor-highlight" class="editor-highlight"></pre>
+                    <textarea id="editor" class="editor" spellcheck="false">; Deep16 (深十六) Integrated Development Environment
 ; Select an example from the dropdown or write your own code
 ; Then click 'Assemble' to compile and 'Run' to execute
 
@@ -122,6 +128,7 @@ main:
 .org 0x0200
 data_area:
     .word 0</textarea>
+                </div>
             </div>
             
             <div id="errors-tab" class="tab-content">

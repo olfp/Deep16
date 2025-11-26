@@ -158,6 +158,8 @@ class DeepWebUI {
             }
         });
         this.addTranscriptEntry("DeepCode initialized and ready", "info");
+        this.initTabSizeSetting();
+        this.setupEditorHighlighting();
     }
 
     updateRunIndicator(isRunning) {
@@ -238,6 +240,7 @@ class DeepWebUI {
         }
         
         this.editorElement.value = '; New Deep16 Program\n.org 0x0000\n\nmain:\n    ; Your code here\n    HALT\n';
+        this.renderEditorHighlight();
         this.currentFilename = 'Untitled.asm';
         this.fileHandle = null;
         this.setFileModified(false);
@@ -264,6 +267,7 @@ class DeepWebUI {
                 const file = await fileHandle.getFile();
                 const contents = await file.text();
                 this.editorElement.value = contents;
+                this.renderEditorHighlight();
                 this.currentFilename = file.name;
                 this.fileHandle = fileHandle;
                 this.setFileModified(false);
@@ -279,6 +283,7 @@ class DeepWebUI {
                         const reader = new FileReader();
                         reader.onload = (e) => {
                             this.editorElement.value = e.target.result;
+                            this.renderEditorHighlight();
                             this.currentFilename = file.name;
                             this.setFileModified(false);
                             this.addTranscriptEntry(`Loaded file: ${file.name}`, "success");
@@ -569,17 +574,103 @@ class DeepWebUI {
         this.editorElement.addEventListener('keydown', (e) => {
             if (e.key === 'Tab') {
                 e.preventDefault();
-                
+                const size = this.tabSize || 4;
+                const spaces = ' '.repeat(Math.max(2, Math.min(8, size)));
                 const start = this.editorElement.selectionStart;
                 const end = this.editorElement.selectionEnd;
-                
-                this.editorElement.value = this.editorElement.value.substring(0, start) + 
-                                          '\t' + 
-                                          this.editorElement.value.substring(end);
-                
-                this.editorElement.selectionStart = this.editorElement.selectionEnd = start + 1;
+                this.editorElement.value = this.editorElement.value.substring(0, start) + spaces + this.editorElement.value.substring(end);
+                this.editorElement.selectionStart = this.editorElement.selectionEnd = start + spaces.length;
+                this.renderEditorHighlight();
             }
         });        
+        this.editorElement.addEventListener('input', () => this.renderEditorHighlight());
+        const tabInput = document.getElementById('tab-size-input');
+        if (tabInput) {
+            tabInput.addEventListener('change', () => this.updateTabSizeFromInput());
+        }
+    }
+
+    initTabSizeSetting() {
+        const stored = parseInt(localStorage.getItem('deep16.tabSize') || '4', 10);
+        this.tabSize = isNaN(stored) ? 4 : Math.max(2, Math.min(8, stored));
+        const tabInput = document.getElementById('tab-size-input');
+        if (tabInput) tabInput.value = String(this.tabSize);
+    }
+
+    updateTabSizeFromInput() {
+        const tabInput = document.getElementById('tab-size-input');
+        if (!tabInput) return;
+        let v = parseInt(tabInput.value, 10);
+        if (isNaN(v)) v = this.tabSize || 4;
+        v = Math.max(2, Math.min(8, v));
+        this.tabSize = v;
+        tabInput.value = String(v);
+        localStorage.setItem('deep16.tabSize', String(v));
+    }
+
+    setupEditorHighlighting() {
+        this.editorElement = document.getElementById('editor');
+        this.editorHighlight = document.getElementById('editor-highlight');
+        this.renderEditorHighlight();
+        if (this.editorElement && this.editorHighlight) {
+            this.editorHighlight.scrollTop = this.editorElement.scrollTop;
+            this.editorHighlight.scrollLeft = this.editorElement.scrollLeft;
+            this.editorElement.addEventListener('scroll', () => {
+                this.editorHighlight.scrollTop = this.editorElement.scrollTop;
+                this.editorHighlight.scrollLeft = this.editorElement.scrollLeft;
+            });
+        }
+    }
+
+    renderEditorHighlight() {
+        if (!this.editorHighlight || !this.editorElement) return;
+        const src = this.editorElement.value;
+        const lines = src.split('\n');
+        const regNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','R12','R13','R14','R15','SP','FP','LR','PC'];
+        const mnemonics = ['LDI','LD','ST','ADD','SUB','AND','OR','XOR','MUL','DIV','SHIFT','JMP','JZ','JNZ','JC','JNC','JN','JNN','LSI','MOV','LDS','STS','SET','CLR','MVS','SMV','SWB','INV','NEG','NOP','HLT','SWI','RETI','SRS','SRD','ERS','ERD','SET2','CLR2','JML'];
+        const reCmt = /(^\s*;.*)$/;
+        const reLitHex = /\b0x[0-9a-fA-F]+\b/g;
+        const reLitNum = /\b\d+\b/g;
+        const reStr = /"[^"]*"|'[^']*'/g;
+        const reReg = new RegExp(`\\b(${regNames.join('|')})\\b`, 'gi');
+        const reMn = new RegExp(`\\b(${mnemonics.join('|')})\\b`, 'gi');
+        const labelDefs = new Set();
+        for (const s of lines) {
+            const m = s.match(/^\s*([A-Za-z_][\w]*)\s*:\s*(?:;.*)?$/);
+            if (m) labelDefs.add(m[1]);
+        }
+        const lblList = Array.from(labelDefs);
+        const reLbl = lblList.length ? new RegExp(`\\b(${lblList.map(x=>x.replace(/[.*+?^${}()|[\\]\\]/g,'\\$&')).join('|')})\\b`, 'gi') : null;
+        const applyLine = (s) => {
+            if (reCmt.test(s)) return `<span class="hl-cmt">${this.escapeHtml(s)}</span>`;
+            const def = s.match(/^\s*([A-Za-z_][\w]*)\s*:(.*)$/);
+            if (def) {
+                const label = this.escapeHtml(def[1]);
+                let rest = def[2] || '';
+                let t = this.escapeHtml(rest);
+                t = t.replace(reStr, (m) => `<span class=\"hl-lit\">${m}</span>`);
+                t = t.replace(reLitHex, (m) => `<span class=\"hl-imm\">${m}</span>`);
+                t = t.replace(reLitNum, (m) => `<span class=\"hl-imm\">${m}</span>`);
+                t = t.replace(reReg, (m) => `<span class=\"hl-reg\">${m}</span>`);
+                t = t.replace(reMn, (m) => `<span class=\"hl-mn\">${m}</span>`);
+                if (reLbl) t = t.replace(reLbl, (m) => `<span class=\"hl-lbl\">${m}</span>`);
+                return `<span class=\"hl-lbl-def\">${label}</span>:` + t;
+            }
+            let t = this.escapeHtml(s);
+            t = t.replace(reStr, (m) => `<span class=\"hl-lit\">${m}</span>`);
+            t = t.replace(reLitHex, (m) => `<span class=\"hl-imm\">${m}</span>`);
+            t = t.replace(reLitNum, (m) => `<span class=\"hl-imm\">${m}</span>`);
+            t = t.replace(reReg, (m) => `<span class=\"hl-reg\">${m}</span>`);
+            t = t.replace(reMn, (m) => `<span class=\"hl-mn\">${m}</span>`);
+            if (reLbl) t = t.replace(reLbl, (m) => `<span class=\"hl-lbl\">${m}</span>`);
+            return t;
+        };
+        const html = lines.map(applyLine).join('\n');
+        this.editorHighlight.innerHTML = html;
+    }
+
+    escapeHtml(s) {
+        return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
     }
 
     openMarkdownOverlay(path, title) {
@@ -2033,6 +2124,7 @@ class DeepWebUI {
             
             const source = await response.text();
             this.editorElement.value = source;
+            this.renderEditorHighlight();
             
             const example = this.examples.find(ex => ex.filename === filename);
             const displayName = example ? example.name : filename;
