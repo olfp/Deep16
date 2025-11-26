@@ -1,53 +1,224 @@
-.org 0x0100
+; =============================================
+; Deep16 Forth Kernel
+; Memory starts at 0x0100 as per spec
+; =============================================
 
-LSI R2, 0
-LSI R8, 0
-LDI next
-MOV R9, R0
-LDI hello_thread
-MOV R7, R0
-LDI 0x00F1
-MOV R1, R0
-SLC R1, 4
-SLC R1, 4
-MVS ES, R1
-ERS R4
-LSI R4, 0
+.org 0x0100
+.code
+
+; Register Usage:
+; R12: Instruction Pointer (IP)
+; R13: Stack Pointer (SP)  
+; R14: Return Stack Pointer (RSP)
+; R15: Program Counter (PC)
+
+; Forth Memory Layout:
+; 0x0100-0x01FF: Forth kernel
+; 0x0200-0x02FF: User dictionary
+; 0x0300-0x7FFF: Data stack, return stack, heap
+
+forth_start:
+    ; Initialize stack pointers
+    LDI 0x7FF0
+    MOV SP, R0        ; Data stack grows down from 0x7FF0
+    LDI 0x7FE0  
+    MOV RSP, R0       ; Return stack grows down from 0x7FE0
+    
+    ; Initialize instruction pointer to user program
+    LDI user_program
+    MOV IP, R0
+    
+    ; Set up screen segment for output
+    LDI 0x0FFF
+    INV R0            ; R0 = 0xF000
+    MVS ES, R0        ; ES = 0xF000
+    LDI 0x1000        ; Screen buffer starts at 0xF1000
+    MOV R10, R0       ; Use R10 as screen pointer
+    ERD R10           ; Use R10/R11 for ES access
+    
+    ; Clear screen position counter
+    LDI 0
+    MOV R9, R0
+    
+    ; Jump to inner interpreter
+    JMP next
+    NOP
+
+; =============================================
+; Forth Inner Interpreter
+; =============================================
 
 next:
-LD R0, R7, 0
-ADD R7, 1
-MOV R3, R0
-JML R2
-NOP
+    ; Fetch next word from instruction stream
+    LD R1, IP, 0      ; R1 = [IP] - get codeword address
+    ADD IP, IP, 1     ; IP++ - advance instruction pointer
+    
+    ; Jump to codeword
+    LD R2, R1, 0      ; R2 = [R1] - get actual code address
+    JMP R2            ; Execute the word
+    NOP
 
-cfa_lit:
-LD R0, R7, 0
-ADD R7, 1
-JML R8
-NOP
+; =============================================
+; Forth Primitive Words
+; =============================================
 
-cfa_emit:
-ST R0, R4, 0
-ADD R4, 1
-JML R8
-NOP
+; EXIT - return from word
+d_exit:
+    LD IP, RSP, 0     ; Pop IP from return stack
+    ADD RSP, RSP, 1   ; Adjust return stack
+    JMP next
+    NOP
 
-cfa_stop:
-HALT
+; LIT - push literal
+d_lit:
+    LD R1, IP, 0      ; Get literal value
+    ADD IP, IP, 1     ; Advance IP
+    ST R1, SP, -1     ; Push to data stack
+    ADD SP, SP, -1    ; Adjust stack
+    JMP next
+    NOP
 
-hello_thread:
-.word cfa_lit, 'H', cfa_emit
-.word cfa_lit, 'e', cfa_emit
-.word cfa_lit, 'l', cfa_emit
-.word cfa_lit, 'l', cfa_emit
-.word cfa_lit, 'o', cfa_emit
-.word cfa_lit, ' ', cfa_emit
-.word cfa_lit, 'D', cfa_emit
-.word cfa_lit, 'e', cfa_emit
-.word cfa_lit, 'e', cfa_emit
-.word cfa_lit, 'p', cfa_emit
-.word cfa_lit, '1', cfa_emit
-.word cfa_lit, '6', cfa_emit
-.word cfa_lit, '!', cfa_emit
-.word cfa_stop
+; DUP - duplicate top of stack
+d_dup:
+    LD R1, SP, 1      ; Get top of stack
+    ST R1, SP, -1     ; Push duplicate
+    ADD SP, SP, -1    ; Adjust stack
+    JMP next
+    NOP
+
+; DROP - drop top of stack
+d_drop:
+    ADD SP, SP, 1     ; Adjust stack
+    JMP next
+    NOP
+
+; SWAP - swap top two stack items
+d_swap:
+    LD R1, SP, 1      ; R1 = top
+    LD R2, SP, 2      ; R2 = second
+    ST R1, SP, 2      ; Swap them
+    ST R2, SP, 1
+    JMP next
+    NOP
+
+; EMIT - output character
+d_emit:
+    LD R1, SP, 1      ; Get character from stack
+    ADD SP, SP, 1     ; Drop it
+    
+    ; Store character to screen
+    STS R1, ES, R10   ; [ES:R10] = character
+    
+    ; Advance screen position
+    ADD R10, R10, 1
+    ADD R9, R9, 1
+    
+    JMP next
+    NOP
+
+; TELL - output string (addr len -- )
+d_tell:
+    LD R2, SP, 1      ; R2 = length
+    LD R3, SP, 2      ; R3 = address
+    ADD SP, SP, 2     ; Drop both
+    
+tell_loop:
+    JZ R2, tell_done  ; If length == 0, done
+    NOP
+    
+    LD R1, R3, 0      ; Get character
+    ST R1, SP, -1     ; Push for EMIT
+    ADD SP, SP, -1
+    
+    ; Call EMIT indirectly
+    LDI d_emit
+    MOV R4, R0
+    LD R4, R4, 0      ; Get EMIT code address
+    ST RSP, RSP, -1   ; Push current IP to return stack
+    ADD RSP, RSP, -1
+    MOV IP, PC        ; Set IP to continue after EMIT
+    ADD IP, IP, 3
+    JMP R4            ; Call EMIT
+    NOP
+    
+    ADD R3, R3, 1     ; Next character
+    ADD R2, R2, -1    ; Decrement count
+    JMP tell_loop
+    NOP
+    
+tell_done:
+    JMP next
+    NOP
+
+; =============================================
+; Demo Program - "Hello DeepForth!"
+; =============================================
+
+user_program:
+    .word d_lit       ; LIT
+    .word hello_str   ; Address of string
+    .word d_lit       ; LIT  
+    .word hello_len   ; Length of string
+    .word d_tell      ; TELL (output string)
+    .word d_exit      ; EXIT
+
+; String data
+hello_str:
+    .word 'H', 'e', 'l', 'l', 'o', ' ', 'D', 'e', 'e', 'p', 'F', 'o', 'r', 't', 'h', '!'
+hello_len: .word 16
+
+; =============================================
+; Dictionary Headers
+; =============================================
+
+; Dictionary format: [link][name][code]
+dict_start:
+
+; EXIT
+.word 0              ; NULL link (end of dictionary)
+.word 0x4558         ; "EX" name (2 chars)
+.word 0x4954         ; "IT" name continued  
+.word d_exit         ; Code word
+
+; LIT  
+.word dict_start     ; Link to previous
+.word 0x4C49         ; "LI"
+.word 0x5400         ; "T" + padding
+.word d_lit
+
+; DUP
+.word dict_start+6   ; Link to LIT
+.word 0x4455         ; "DU" 
+.word 0x5000         ; "P" + padding
+.word d_dup
+
+; DROP
+.word dict_start+12  ; Link to DUP
+.word 0x4452         ; "DR"
+.word 0x4F50         ; "OP"
+.word d_drop
+
+; SWAP
+.word dict_start+18  ; Link to DROP  
+.word 0x5357         ; "SW"
+.word 0x4150         ; "AP"
+.word d_swap
+
+; EMIT
+.word dict_start+24  ; Link to SWAP
+.word 0x454D         ; "EM"
+.word 0x4954         ; "IT"
+.word d_emit
+
+; TELL
+.word dict_start+30  ; Link to EMIT
+.word 0x5445         ; "TE"
+.word 0x4C4C         ; "LL"
+.word d_tell
+
+; =============================================
+; End of Kernel
+; =============================================
+
+kernel_end:
+    HLT
