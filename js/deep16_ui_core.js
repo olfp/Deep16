@@ -1809,12 +1809,10 @@ class DeepWebUI {
                         const addr = this.memoryStartAddress || 0;
                         const slice = window.Deep16Wasm.get_memory_slice(addr, Math.min(16, this.simulator.memory.length - addr));
                         const hex = Array.from(slice).map(v => '0x' + (v & 0xFFFF).toString(16).padStart(4, '0').toUpperCase());
-                        this.addTranscriptEntry(`WASM mem[0x${addr.toString(16).padStart(5,'0')}].. (${hex.join(' ')})`, "info");
                         // Also log Fibonacci window for verification
                         const fibAddr = 0x0200;
                         const fibSlice = window.Deep16Wasm.get_memory_slice(fibAddr, 16);
                         const fibHex = Array.from(fibSlice).map(v => '0x' + (v & 0xFFFF).toString(16).padStart(4, '0').toUpperCase());
-                        this.addTranscriptEntry(`WASM mem[0x${fibAddr.toString(16).padStart(5,'0')}].. (${fibHex.join(' ')})`, "info");
                     }
                 } catch {}
                 this.lockMemoryStartWhileRunning = false;
