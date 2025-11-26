@@ -57,7 +57,7 @@ forth_start:
 next:
     ; Fetch next word from instruction stream
     LD R1, R11, 0      ; R1 = [R11] - get codeword address
-    ADD R11, R11, 1     ; R11++ - advance instruction pointer
+    ADD R11, 1         ; R11++ - advance instruction pointer
     
     ; Jump to codeword
     LD R2, R1, 0      ; R2 = [R1] - get actual code address
@@ -71,16 +71,16 @@ next:
 ; EXIT - return from word
 d_exit:
     LD R11, R12, 0     ; Pop R11 from return stack
-    ADD R12, R12, 1   ; Adjust return stack
+    ADD R12, 1         ; Adjust return stack
     JNO next          ; Jump back to next
     NOP
 
 ; LIT - push literal
 d_lit:
     LD R1, R11, 0      ; Get literal value
-    ADD R11, R11, 1     ; Advance R11
+    ADD R11, 1         ; Advance R11
     ; Push to data stack using positive offset
-    ADD R13, R13, -1   ; Adjust stack pointer first
+    ADD R13, -1        ; Adjust stack pointer first
     ST R1, R13, 0      ; Store at new stack top
     JNO next
     NOP
@@ -88,14 +88,14 @@ d_lit:
 ; DUP - duplicate top of stack
 d_dup:
     LD R1, R13, 0      ; Get top of stack
-    ADD R13, R13, -1   ; Adjust stack pointer
+    ADD R13, -1        ; Adjust stack pointer
     ST R1, R13, 0      ; Push duplicate
     JNO next
     NOP
 
 ; DROP - drop top of stack
 d_drop:
-    ADD R13, R13, 1     ; Adjust stack
+    ADD R13, 1         ; Adjust stack
     JNO next
     NOP
 
@@ -111,14 +111,14 @@ d_swap:
 ; EMIT - output character
 d_emit:
     LD R1, R13, 0      ; Get character from stack
-    ADD R13, R13, 1     ; Drop it
+    ADD R13, 1         ; Drop it
     
     ; Store character to screen using R8 for ES access
     STS R1, ES, R8     ; [ES:R8] = character
     
     ; Advance screen position
-    ADD R8, R8, 1
-    ADD R7, R7, 1
+    ADD R8, 1
+    ADD R7, 1
     
     JNO next
     NOP
@@ -126,7 +126,7 @@ d_emit:
 ; TELL - output string (addr -- )
 d_tell:
     LD R3, R13, 0      ; R3 = string address
-    ADD R13, R13, 1     ; Drop address
+    ADD R13, 1         ; Drop address
     
 tell_loop:
     LD R1, R3, 0       ; Get character from string
@@ -135,13 +135,13 @@ tell_loop:
     NOP
     
     ; Push character and call EMIT
-    ADD R13, R13, -1   ; Adjust stack pointer
+    ADD R13, -1        ; Adjust stack pointer
     ST R1, R13, 0      ; Push character for EMIT
     
     ; Save current state
-    ADD R12, R12, -1   ; Adjust return stack
+    ADD R12, -1        ; Adjust return stack
     ST R11, R12, 0     ; Push R11 to return stack
-    ADD R12, R12, -1   ; Adjust return stack
+    ADD R12, -1        ; Adjust return stack
     ST R3, R12, 0      ; Push string pointer
     
     ; Call EMIT
@@ -153,11 +153,11 @@ tell_loop:
     
     ; Restore state
     LD R3, R12, 0      ; Pop string pointer
-    ADD R12, R12, 1    ; Adjust return stack
+    ADD R12, 1         ; Adjust return stack
     LD R11, R12, 0     ; Pop R11
-    ADD R12, R12, 1    ; Adjust return stack
+    ADD R12, 1         ; Adjust return stack
     
-    ADD R3, R3, 1      ; Next character
+    ADD R3, 1          ; Next character
     JNO tell_loop      ; Continue loop
     NOP
     
