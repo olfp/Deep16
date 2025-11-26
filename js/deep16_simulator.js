@@ -18,10 +18,7 @@ class Deep16Simulator {
         this.delayedCS = 0;
         this.branchTaken = false;
         
-        // Add ALU operations array for debugging
-        this.aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
-        this.shiftOps = ['SL', 'SLC', 'SR', 'SRC', 'SRA', 'SAC', 'ROR', 'ROC'];
-        this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
+        
         
         // ENHANCED: Track recent memory accesses with segment information
         this.recentMemoryAccess = null;
@@ -149,9 +146,7 @@ class Deep16Simulator {
 
         const instruction = this.memory[pa];
         
-        // console.log(`=== STEP: PC=0x${pc.toString(16).padStart(4, '0')} ===`);
-        // console.log(`Instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
-        // console.log(`Registers: R0=0x${this.registers[0].toString(16)}, R3=0x${this.registers[3].toString(16)}`);
+        
 
         // Check for HALT (0xFFFF) first
         if (instruction === 0xFFFF) {
@@ -176,7 +171,7 @@ class Deep16Simulator {
         // Update PSW flags based on the last operation
         this.updatePSWFlags();
         
-        // console.log(`After step: R0=0x${this.registers[0].toString(16).padStart(4, '0')}, PSW=0x${this.psw.toString(16).padStart(4, '0')}`);
+        
         
         return true;
     }
@@ -185,16 +180,16 @@ class Deep16Simulator {
      * Execute instruction and return true if it's a branch/jump that uses delay slot
      */
     executeInstruction(instruction, originalPC) {
+        // Track original PC for MOV link/architectural reads
+        this.lastOriginalPCForExec = originalPC & 0xFFFF;
         try {
             // Check for LDI first (bit 15 = 0)
             if ((instruction & 0x8000) === 0) {
-                // console.log("Detected LDI instruction (bit 15 = 0)");
                 this.executeLDI(instruction);
                 return false;
             }
             // Check for LD/ST (opcode bits 15-14 = 10)
             else if (((instruction >>> 14) & 0x3) === 0b10) {
-                // console.log("Detected LD/ST instruction (opcode 10)");
                 this.executeMemoryOp(instruction);
                 return false;
             }
@@ -219,9 +214,8 @@ class Deep16Simulator {
                             this.executeLDSSTS(instruction);
                             return false;
                         } else if ((instruction >>> 10) === 0b111110) {
-                            // console.log("MOV instruction");
-                            this.executeMOV(instruction);
-                            return false;
+                            const isBranch = this.executeMOV(instruction);
+                            return isBranch;
                         } else if ((instruction >>> 9) === 0b1111110) {
                             // console.log("LSI instruction");
                             this.executeLSI(instruction);
@@ -387,8 +381,7 @@ class Deep16Simulator {
 
         const rdValue = this.registers[rd];
         
-        // FIXED: Check if aluOp is valid before using it
-        const opName = this.aluOps[aluOp] || `ALU${aluOp}`;
+        
         
         // console.log(`ALU Execute: op=${opName}, rd=${rd} (${this.getRegisterName(rd)}), w=${w}, i=${i}, operand=${operand}`);
         // console.log(`ALU Execute: R${rd}=0x${rdValue.toString(16)}, operand=0x${operandValue.toString(16)}`);
@@ -536,24 +529,41 @@ class Deep16Simulator {
         // MOV encoding: [111110][Rd4][Rs4][imm2]
         // Bits: 15-10: opcode=111110, 9-6: Rd, 5-2: Rs, 1-0: imm
         
-        const rd = (instruction >>> 6) & 0xF;      // Bits 9-6
-        const rs = (instruction >>> 2) & 0xF;      // Bits 5-2  
-        const imm = instruction & 0x3;             // Bits 1-0
-        
-        // console.log(`=== MOV DEBUG ===`);
-        // console.log(`Instruction: 0x${instruction.toString(16).padStart(4, '0')}`);
-        // console.log(`Binary: ${instruction.toString(2).padStart(16, '0')}`);
-        // console.log(`Extracted: rd=${rd}, rs=${rs}, imm=${imm}`);
-        // console.log(`Before: R${rd}=0x${this.registers[rd].toString(16)}, R${rs}=0x${this.registers[rs].toString(16)}`);
-        
-        // FIXED: Use the VALUE of register rs, not the register index
-        this.registers[rd] = this.registers[rs] + imm;
-        
-        // console.log(`After: R${rd}=0x${this.registers[rd].toString(16)}`);
-        // console.log(`Calculation: R${rd} = R${rs} (0x${this.registers[rs].toString(16)}) + ${imm}`);
+        const rd = (instruction >>> 6) & 0xF;
+        const rs = (instruction >>> 2) & 0xF;
+        const imm = instruction & 0x3;
+
+        let value;
+        if (imm === 0) {
+            value = this.registers[rs];
+        } else if (rs === 15 && imm === 2) {
+            // Standard link: use original PC context
+            value = (this.lastOriginalPCForExec + 2) & 0xFFFF;
+        } else if (rs === 15 && imm === 3) {
+            value = (this.lastOriginalPCForExec + 1) & 0xFFFF;
+        } else if (imm === 3) {
+            // Architectural read bypass: do not add immediate
+            value = this.registers[rs];
+        } else {
+            value = (this.registers[rs] + imm) & 0xFFFF;
+        }
+
+        // If destination is PC, treat as jump with delay slot
+        if (rd === 15) {
+            this.delaySlotActive = true;
+            this.delayedPC = value & 0xFFFF;
+            this.delayedCS = this.segmentRegisters.CS;
+            this.branchTaken = true;
+            this.lastALUResult = value;
+            this.lastOperationWasALU = true;
+            return true;
+        }
+
+        this.registers[rd] = value;
         
         this.lastALUResult = this.registers[rd];
         this.lastOperationWasALU = true;
+        return false;
     }
 
     executeLSI(instruction) {
@@ -859,21 +869,17 @@ class Deep16Simulator {
         // console.log(`System Execute: op=${sysOp}, PSW=0x${this.psw.toString(16)}, S-bit=${!!(this.psw & (1 << 5))}`);
         
         switch (sysOp) {
-            case 0b000: // NOP
-                // console.log("NOP: No operation");
+            case 0b000:
                 break;
-            case 0b001: // HLT
-                this.running = false;
-                // console.log("HLT: Processor halted");
+            case 0b001:
                 break;
-            case 0b010: // SWI - Software Interrupt
+            case 0b010:
                 this.executeSWI();
                 break;
-            case 0b011: // RETI - Return from Interrupt
+            case 0b011:
                 this.executeRETI();
                 break;
             default:
-                // console.warn(`Unknown system operation: ${sysOp}`);
         }
     }
 

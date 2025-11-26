@@ -159,12 +159,12 @@ ERD  R10         ; Use R10/R11 for ES access, sets DE=1 automatically
 0xFFFF7: 0xA201    ; ST   R1, [R0+1]
 0xFFFF8: 0xFE40    ; JML  R0        ; Jump to CS=R0, PC=R1
 0xFFFF9: 0xFFF0    ; NOP             ; Delay slot
-0xFFFFA: 0xFFF1    ; HLT
-0xFFFFB: 0xFFF1    ; HLT
-0xFFFFC: 0xFFF1    ; HLT
-0xFFFFD: 0xFFF1    ; HLT
-0xFFFFE: 0xFFF1    ; HLT
-0xFFFFF: 0xFFF1    ; HLT
+0xFFFFA: 0xFFFF    ; HLT
+0xFFFFB: 0xFFFF    ; HLT
+0xFFFFC: 0xFFFF    ; HLT
+0xFFFFD: 0xFFFF    ; HLT
+0xFFFFE: 0xFFFF    ; HLT
+0xFFFFF: 0xFFFF    ; HLT
 ```
 
 Default effect:
@@ -333,13 +333,20 @@ Default effect:
 | **FSH** | `FSH` | `1111111111110 001` | 0x1FFC | Flush pipeline |
 | **SWI** | `SWI` | `1111111111110 010` | 0x1FFC | Software interrupt |
 | **RETI** | `RETI` | `1111111111110 011` | 0x1FFC | Return from interrupt |
-| **HLT** | `HLT` | `1111111111110 111` | 0x1FFC | Halt processor |
 
-### 5.10 Enhanced Assembler Syntax (Preprocessing Only)
+### 5.10 Halt Instruction
+
+**Table 5.12: Halt Instruction**
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
+| **HLT** | `HLT` | `1111111111111111` | 0xFFFF | Halt processor |
+
+### 5.11 Enhanced Assembler Syntax (Preprocessing Only)
 
 **Important**: The enhanced syntax described below is purely **assembler preprocessing**. The binary encoding always uses the specific instruction (MOV, MVS, SMV, LD, ST). The assembler automatically translates enhanced syntax to the correct machine instruction.
 
-#### 5.10.1 LD/ST Bracket Syntax
+#### 5.11.1 LD/ST Bracket Syntax
 
 **Assembler Input (Enhanced Syntax):**
 ```assembly
@@ -355,7 +362,7 @@ ST   R1, SP, 4        ; Machine instruction: [10][1][R1][SP][4]
 LD   R1, R2, 0        ; Machine instruction: [10][0][R1][R2][0]
 ```
 
-#### 5.10.2 MOV Plus Syntax
+#### 5.11.2 MOV Plus Syntax
 
 **Assembler Input (Enhanced Syntax):**
 ```assembly
@@ -369,7 +376,7 @@ MOV  R1, R2, 3        ; Machine instruction: [111110][R1][R2][3]
 MOV  R3, SP, 0        ; Note: Negative offsets not supported in MOV
 ```
 
-### 5.11 MOV Special Immediate Value
+### 5.12 MOV Special Immediate Value
 
 The immediate value `3` in MOV instructions has special meaning:
 - **MOV Rx, Ry, 3**: Architectural register read - reads the current architectural value of Ry, ignoring any pending writes in the pipeline
@@ -377,9 +384,9 @@ The immediate value `3` in MOV instructions has special meaning:
 - This enables correct PC reading for link instructions in delay slots
 - For general registers, this provides a mechanism to read stable architectural state
 
-### 5.12 Instruction Aliases
+### 5.13 Instruction Aliases
 
-**Table 5.12: Instruction Aliases**
+**Table 5.13: Instruction Aliases**
 
 | Alias | Actual Instruction | Purpose |
 |-------|-------------------|---------|
@@ -391,9 +398,9 @@ The immediate value `3` in MOV instructions has special meaning:
 | ALNK Rx | MOV Rx, PC, 3 | Architectural link in delay slot |
 | ALINK | MOV LR, PC, 3 | Architectural link to LR in delay slot |
 
-### 5.13 Flag Operation Aliases
+### 5.14 Flag Operation Aliases
 
-**Table 5.13: Common Flag Aliases**
+**Table 5.14: Common Flag Aliases**
 
 | Alias | Actual Instruction | Purpose |
 |-------|-------------------|---------|
@@ -609,18 +616,16 @@ interrupt_handler:
 - **Error Reporting**: Comprehensive with line numbers
 - **Listing Output**: Includes addresses and generated code
 - **Enhanced Syntax**: Bracket notation for LD/ST, plus notation for MOV
+- **Instruction Aliases**: HALT, JMP, LNK, LINK, AMV, ALNK, ALINK, and flag operations
 
 ---
 
-*Deep16 (深十六) Architecture Specification v4.5 (1r22) - Complete with Pipeline and Architectural Access*
+*Deep16 (深十六) Architecture Specification v4.6 (1r22) - Complete with HLT as Separate Opcode*
 
 **Key Updates:**
-- ✅ Boot ROM explicitly added to memory map at 0xFFFF0-0xFFFFF
-- ✅ Non-forwarded load capability added to key features
-- ✅ Architectural register access via MOV with immediate=3 documented
-- ✅ AMV, ALNK, ALINK aliases added for architectural access
-- ✅ Pipeline architecture section expanded with forwarding details
-- ✅ All instructions documented with full bit patterns and opcode prefixes
-- ✅ Register transfer notation added for all instructions
-- ✅ Condition code table for Jxx instructions added
-- ✅ Complete shift instruction documentation as ALU variants
+- ✅ HLT moved to dedicated opcode 0xFFFF (all ones)
+- ✅ Boot ROM updated with HLT instructions (0xFFFF)
+- ✅ System instructions table updated (HLT removed)
+- ✅ Halt instruction added as separate section
+- ✅ All tables renumbered accordingly
+- ✅ Boot ROM sequence corrected with new HLT encoding

@@ -9,7 +9,7 @@ class Deep16Disassembler {
         this.aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
         this.shiftOps = ['SL', 'SLC', 'SR', 'SRC', 'SRA', 'SAC', 'ROR', 'ROC'];
         this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
-        this.systemOps = ['NOP', 'HLT', 'SWI', 'RETI', '', '', '', ''];
+        this.systemOps = ['NOP', 'FSH', 'SWI', 'RETI', '', '', '', ''];
         this.segmentNames = ['CS', 'DS', 'SS', 'ES'];
         this.smvSources = ['APC', 'APSW', 'PSW', 'ACS'];
     }
@@ -233,12 +233,26 @@ disassembleSOP(instruction) {
         const rd = (instruction >>> 6) & 0xF;
         const rs = (instruction >>> 2) & 0xF;
         const imm = instruction & 0x3;
-        
+
+        // Aliases for readability per architecture docs
+        if (rd === 15 && imm === 0) {
+            return `JMP ${this.registerNames[rs]}`;
+        }
+        if (rs === 15 && imm === 2) {
+            if (rd === 14) return `LINK`;
+            return `LNK ${this.registerNames[rd]}`;
+        }
+        if (rs === 15 && imm === 3) {
+            if (rd === 14) return `ALINK`;
+            return `ALNK ${this.registerNames[rd]}`;
+        }
+        if (imm === 3) {
+            return `AMV ${this.registerNames[rd]}, ${this.registerNames[rs]}`;
+        }
         if (imm === 0) {
             return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}`;
-        } else {
-            return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}, #0x${imm.toString(16).toUpperCase()}`;
         }
+        return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}, #0x${imm.toString(16).toUpperCase()}`;
     }
 
     disassembleLSI(instruction) {

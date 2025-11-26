@@ -31,5 +31,12 @@
       "description": "Minimal threaded Forth kernel prints greeting",
       "category": "I/O"
     }
+    ,
+    {
+      "name": "Link in Delay Slot",
+      "filename": "link_delay_slot.a16",
+      "description": "Demonstrates ALNK in jump delay slot using R3 target",
+      "category": "Advanced"
+    }
   ]
 }

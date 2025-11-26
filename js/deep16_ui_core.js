@@ -171,7 +171,7 @@ class DeepWebUI {
         }
         
         try {
-            this.worker = new Worker('js/deep16_worker.js');
+            this.worker = new Worker('js/deep16_worker.js?v=20251126-1');
             this.worker.onmessage = (e) => this.handleWorkerMessage(e);
             this.worker.onerror = (error) => {
                 console.error('Worker error:', error);
@@ -186,32 +186,48 @@ class DeepWebUI {
     }
 
     initializeWorkerToggle() {
-        const controlPanel = document.querySelector('.control-panel');
-        if (!controlPanel) return;
-        
-        // Add Worker toggle if supported
-        if (this.workerSupported) {
-            const workerBtn = document.createElement('button');
-            workerBtn.id = 'worker-btn';
-            workerBtn.className = 'control-btn';
-            workerBtn.textContent = 'Worker: OFF';
-            workerBtn.addEventListener('click', () => this.toggleWorker());
-            controlPanel.appendChild(workerBtn);
+        const workerToggle = document.getElementById('worker-toggle');
+        const turboToggle = document.getElementById('turbo-toggle');
+        const screenToggle = document.getElementById('screen-buffer-toggle');
+
+        if (workerToggle) {
+            workerToggle.checked = !!this.useWorker;
+            workerToggle.disabled = !this.workerSupported;
+            workerToggle.title = !this.workerSupported ? 'Web Workers not supported in this environment' : '';
+            workerToggle.addEventListener('change', () => {
+                if (!this.workerSupported) return;
+                this.useWorker = !!workerToggle.checked;
+                this.updateWorkerToggle();
+                if (this.useWorker && this.worker) {
+                    this.worker.postMessage({
+                        type: 'INIT',
+                        data: {
+                            memory: this.simulator.memory,
+                            registers: this.simulator.registers,
+                            psw: this.simulator.psw,
+                            segmentRegisters: this.simulator.segmentRegisters
+                        }
+                    });
+                }
+            });
         }
 
-        // Always add Turbo button (works with both JS and Worker)
-        const turboBtn = document.createElement('button');
-        turboBtn.id = 'turbo-btn';
-        turboBtn.className = 'control-btn';
-        turboBtn.textContent = 'Turbo: OFF';
-        turboBtn.addEventListener('click', () => this.toggleTurboMode());
-        controlPanel.appendChild(turboBtn);
-        const screenBufBtn = document.createElement('button');
-        screenBufBtn.id = 'screen-buffer-btn';
-        screenBufBtn.className = 'control-btn';
-        screenBufBtn.textContent = 'Screen Buffer: OFF';
-        screenBufBtn.addEventListener('click', () => this.toggleScreenBuffer());
-        controlPanel.appendChild(screenBufBtn);
+        if (turboToggle) {
+            turboToggle.checked = !!this.turboMode;
+            turboToggle.addEventListener('change', () => {
+                this.turboMode = !!turboToggle.checked;
+                this.addTranscriptEntry(`Turbo: ${this.turboMode ? 'ON' : 'OFF'}`, 'info');
+            });
+        }
+
+        if (screenToggle) {
+            screenToggle.checked = !!this.screenUI.deferUpdates;
+            screenToggle.addEventListener('change', () => {
+                const flag = !!screenToggle.checked;
+                this.screenUI.setDeferUpdates(flag);
+                this.addTranscriptEntry(`Screen Buffer: ${flag ? 'ON' : 'OFF'}`, 'info');
+            });
+        }
     }
 
     toggleWorker() {
@@ -321,10 +337,11 @@ class DeepWebUI {
     }
 
     updateWorkerToggle() {
-        const workerBtn = document.getElementById('worker-btn');
-        if (workerBtn) {
-            workerBtn.textContent = `Worker: ${this.useWorker ? 'ON' : 'OFF'}`;
-            workerBtn.className = `control-btn ${this.useWorker ? 'worker-active' : ''}`;
+        const workerToggle = document.getElementById('worker-toggle');
+        if (workerToggle) {
+            workerToggle.checked = !!this.useWorker;
+            workerToggle.disabled = !this.workerSupported;
+            workerToggle.title = !this.workerSupported ? 'Web Workers not supported in this environment' : '';
         }
     }
 
