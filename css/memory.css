@@ -330,6 +330,8 @@
     font-family: 'Courier New', monospace;
     font-size: 11px;
     min-height: 20px;
+    box-shadow: none;
+    outline: none;
 }
 
 .memory-panel-controls button:hover {

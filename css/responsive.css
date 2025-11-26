@@ -1,5 +1,6 @@
 /* responsive.css - Responsive design styles */
 @media (max-width: 768px) {
+    body { overflow: auto; }
     .header-container {
         flex-direction: column;
         height: auto;
@@ -8,7 +9,9 @@
     .container {
         flex-direction: column;
         height: auto;
-        min-height: calc(100vh - 200px);
+        min-height: calc(100vh - var(--header-height, 150px));
+        overflow-y: auto;
+        overflow-x: hidden;
     }
     
     .register-grid {
@@ -91,33 +94,72 @@
     .mobile-controls {
         display: flex !important;
         gap: 8px;
-        padding: 8px 10px;
-        background: #2d2d30;
-        border-bottom: 1px solid #3e3e42;
+        padding: 0;
+        background: transparent;
+        border: none;
         position: relative;
         z-index: 2;
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: flex-start;
     }
+    .mobile-controls .mobile-group { display: flex; gap: 8px; align-items: center; }
+    .mobile-controls .group-docs-wasm { margin-left: auto; }
+    .mobile-controls .group-docs-wasm .header-right-controls { flex-direction: row !important; gap: 8px; align-items: center; }
+    .header-right-controls #docs-menu-btn {
+        min-height: 20px;
+        font-size: 11px;
+        padding: 2px 8px;
+        background: #0e639c;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        width: var(--mobile-btn-w, auto);
+    }
+    /* Wide mobile: align Docs top with Step/Full V. */
+    .header-right-controls .docs-menu { order: 1; }
+    .header-right-controls .toggle-label { order: 2; }
 
     .mobile-controls button {
         flex: 1;
-        min-height: 32px;
-        font-size: 12px;
-        padding: 6px 10px;
+        min-height: 20px;
+        font-size: 11px;
+        padding: 2px 8px;
         background: #0e639c;
         color: white;
         border: none;
         border-radius: 3px;
         cursor: pointer;
         font-family: 'Courier New', monospace;
+        appearance: none;
+        -webkit-appearance: none;
+        box-shadow: none;
+        outline: none;
+        width: var(--mobile-btn-w, auto);
     }
     .mobile-controls button:hover { background: #1177bb; }
     .mobile-controls button:disabled { background: #555; cursor: not-allowed; }
+
+    .editor-highlight { display: none !important; }
+    .editor { color: #d4d4d4; background: #1e1e1e; min-height: 55vh; }
+
+    /* Hide CS::PC segmented navigation and Go to on mobile */
+    .segment-navigation { display: none; }
 
     .transcript-panel { display: none; }
     .memory-panel { display: none; }
 
     #machine-tab { display: none; }
-    #machine-tab.active { display: flex; }
+    #machine-tab.active { 
+        display: flex; 
+        flex-direction: column; 
+        height: calc(100vh - var(--header-height, 150px)); 
+        overflow: hidden; 
+    }
+    #machine-tab .registers-container,
+    #machine-tab .memory-controls,
+    #machine-tab .recent-memory-panel { flex: 0 0 auto; }
+    #machine-tab #memory-display { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; }
 
     .memory-display { overflow-x: hidden; }
     .memory-source { white-space: normal; }
@@ -126,7 +168,14 @@
     .header .logo-container { display: none; }
     .header .subtitle { display: none; }
     .header { padding: 6px 12px; }
+    .header-container { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; }
+    .container { margin-top: var(--header-height, 80px); }
     .header-text h1 { font-size: 16px; }
+    .header-content { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .header-right-controls { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+    /* Wide mobile: Docs and WASM side-by-side */
+    .mobile-controls .group-docs-wasm .header-right-controls { flex-direction: row !important; gap: 8px; align-items: center; }
+    .mobile-controls { order: 2; flex: 1; justify-content: center; }
 
     .editor-header { flex-direction: row; gap: 8px; align-items: center; height: auto; }
     .editor-controls-center { flex: 1; width: auto; justify-content: flex-start; }
@@ -138,10 +187,10 @@
     .file-menu, .edit-menu { display: none; }
     .mini-menu { display: flex !important; align-items: center; gap: 8px; align-self: flex-start; width: auto; position: relative; }
     .mini-menu-btn { 
-        background: #2d2d30; color: #d4d4d4; border: 1px solid #3e3e42; 
-        border-radius: 3px; width: 28px; height: 28px; line-height: 26px; 
-        text-align: center; font-size: 14px; transform: rotate(0deg); transition: transform 0.2s ease;
-        flex: 0 0 28px; display: inline-flex; justify-content: center; align-items: center; padding: 0;
+        background: #007acc; color: #ffffff; border: none; 
+        border-radius: 2px; width: 12px; height: 12px; line-height: 12px; 
+        text-align: center; font-size: 10px; transform: rotate(0deg); transition: transform 0.2s ease;
+        flex: 0 0 12px; display: inline-flex; justify-content: center; align-items: center; padding: 0;
     }
     .mini-menu-btn.open { transform: rotate(90deg); }
     .mini-menu-panel { 
@@ -159,52 +208,48 @@
 }
 
 @media (max-width: 480px) {
-    .header h1 {
-        font-size: 18px;
+    .header-content { 
+        display: grid !important; 
+        width: 100%;
+        grid-template-columns: auto 1fr var(--mobile-btn-w) var(--mobile-btn-w) var(--mobile-btn-w);
+        grid-template-rows: auto auto;
+        align-items: start;
+        column-gap: 8px; row-gap: 6px;
+        justify-items: end;
+        padding-right: 12px;
     }
-    
-    .header .subtitle {
-        font-size: 11px;
+    .header-text { grid-column: 1; grid-row: 1 / span 2; justify-self: start; }
+    .mobile-controls { 
+        display: grid !important; 
+        grid-template-columns: var(--mobile-btn-w) var(--mobile-btn-w) var(--mobile-btn-w);
+        grid-template-rows: auto auto;
+        grid-column: 3 / 6; grid-row: 1 / span 2; 
+        justify-items: end; align-items: start; gap: 6px;
     }
-    
-    .register-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .controls {
-        padding: 3px 8px;
-    }
-    
-    button {
-        font-size: 11px;
-        padding: 2px 6px;
-    }
-    
-    .tab-button {
-        font-size: 11px;
-        padding: 3px 8px;
-    }
-    
-    .memory-disassembly {
-        width: 120px;
-        font-size: 9px;
-    }
-    
-    .memory-bytes {
-        width: 45px;
-        font-size: 9px;
-    }
-    
-    .memory-address {
-        width: 55px;
-        font-size: 9px;
-    }
-    
-    .memory-data {
-        width: 40px;
-        font-size: 9px;
-        padding: 0 2px;
-    }
+    .group-run-step { grid-column: 1; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; margin-left: 0; }
+    .group-reset-view { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; margin-left: 0; }
+    .group-docs-wasm { grid-column: 3; grid-row: 1 / span 2; justify-self: end; margin-left: 0 !important; }
+    .mobile-controls .group-docs-wasm .header-right-controls { flex-direction: column !important; align-items: flex-end; gap: 4px; }
+    /* Order WASM above Docs */
+    .header-right-controls .toggle-label { order: 1; }
+    .header-right-controls .docs-menu { order: 2; }
+    /* Remove legacy margin from reset button */
+    #reset-btn { margin-right: 0 !important; }
+    .header-right-controls #docs-menu-btn { width: var(--mobile-btn-w); margin-top: 3px; }
+    /* Fit tab titles on one line */
+    .tab-buttons { flex-wrap: nowrap; gap: 3px; justify-content: space-between; }
+    .tab-button { flex: 0 1 auto; min-width: 0; padding: 2px 6px; font-size: 10px; }
+
+    .header h1 { font-size: 18px; }
+    .header .subtitle { font-size: 11px; }
+    .register-grid { grid-template-columns: 1fr; }
+    .controls { padding: 3px 8px; }
+    button { font-size: 11px; padding: 2px 6px; }
+    .tab-button { font-size: 11px; padding: 3px 8px; }
+    .memory-disassembly { width: 120px; font-size: 9px; }
+    .memory-bytes { width: 45px; font-size: 9px; }
+    .memory-address { width: 55px; font-size: 9px; }
+    .memory-data { width: 40px; font-size: 9px; padding: 0 2px; }
 }
 
 /* Scrollbar styling */

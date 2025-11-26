@@ -156,9 +156,9 @@ isCodeAddress(address) {
 }
 
     // In deep16_ui_memory.js - Add this method:
-scrollToAddress(address) {
-    const memoryDisplay = document.getElementById('memory-display');
-    if (!memoryDisplay) return;
+    scrollToAddress(address) {
+        const memoryDisplay = document.getElementById('memory-display');
+        if (!memoryDisplay) return;
     
     // Find all memory lines and look for the one with our target address
     const lines = memoryDisplay.querySelectorAll('.memory-line');
@@ -188,15 +188,22 @@ scrollToAddress(address) {
     }
     
     if (targetLine) {
+        const before = memoryDisplay.scrollTop;
         targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
+        // Fallback manual scroll for flex containers
+        setTimeout(() => {
+            if (Math.abs(memoryDisplay.scrollTop - before) < 2) {
+                const offset = targetLine.offsetTop - (memoryDisplay.clientHeight / 2);
+                memoryDisplay.scrollTop = Math.max(0, offset);
+            }
+        }, 60);
         // Add highlight animation
         targetLine.style.animation = 'pulse-highlight 1s ease-in-out';
         setTimeout(() => {
             targetLine.style.animation = '';
         }, 1000);
     }
-}
+    }
 
     getSourceForAddress(address) {
         if (!this.ui.currentAssemblyResult) return '';
@@ -478,18 +485,12 @@ getExactSourceForAddress(address) {
         if (!memoryDisplay) return;
         
         const pcLine = memoryDisplay.querySelector('.pc-marker');
-        
         if (pcLine) {
-            pcLine.scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'center' 
-            });
-            
-            // Add a highlight animation
+            const target = pcLine.offsetTop - (memoryDisplay.clientHeight / 2);
+            const newTop = Math.max(0, target);
+            memoryDisplay.scrollTo({ top: newTop, behavior: 'smooth' });
             pcLine.style.animation = 'pulse-highlight 1s ease-in-out';
-            setTimeout(() => {
-                pcLine.style.animation = '';
-            }, 1000);
+            setTimeout(() => { pcLine.style.animation = ''; }, 1000);
         }
     }
 

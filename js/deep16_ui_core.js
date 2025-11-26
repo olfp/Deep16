@@ -1214,7 +1214,7 @@ class DeepWebUI {
         
         if (this.compactView) {
             if (compactContainer) compactContainer.classList.add('compact-view');
-            viewToggle.textContent = this.mobileActive ? 'Full' : 'Full View';
+            viewToggle.textContent = this.mobileActive ? 'Full\u00A0V.' : 'Full View';
             this.addTranscriptEntry("Switched to Compact view - PSW only", "info");
         } else {
             if (compactContainer) compactContainer.classList.remove('compact-view');
@@ -1893,21 +1893,25 @@ class DeepWebUI {
             const subtitle = document.querySelector('.header-text .subtitle');
             if (headerTitle) {
                 this.originalHeaderTitle = headerTitle.textContent;
-                headerTitle.textContent = 'DeepCode - Deep16 IDE';
+                headerTitle.textContent = (window.matchMedia('(max-width: 480px)').matches) ? 'D16' : 'Deep16';
             }
             if (subtitle) { subtitle.style.display = 'none'; }
             this.initializeMiniMenu();
+            this.updateTabLabels();
 
             const machineTab = document.getElementById('machine-tab');
             const viewToggle = document.getElementById('view-toggle');
             if (machineTab) {
                 machineTab.classList.add('compact-view');
                 this.compactView = true;
-                if (viewToggle) viewToggle.textContent = 'Full';
+                if (viewToggle) viewToggle.textContent = 'Full\u00A0V.';
                 if (this.memoryUI && typeof this.memoryUI.updateMemoryDisplayHeight === 'function') {
                     this.memoryUI.updateMemoryDisplayHeight();
                 }
             }
+
+            this.updateHeaderHeight();
+            this.installResizeWatcher();
         } else if (!isMobile && this.mobileActive) {
             this.mobileActive = false;
             this.restoreDesktopLayout();
@@ -1933,6 +1937,8 @@ class DeepWebUI {
                     this.memoryUI.updateMemoryDisplayHeight();
                 }
             }
+
+            this.updateHeaderHeight();
         }
     }
 
@@ -1943,17 +1949,49 @@ class DeepWebUI {
         const step = document.getElementById('step-btn');
         const reset = document.getElementById('reset-btn');
         const viewToggle = document.getElementById('view-toggle');
+        const headerContent = document.querySelector('.header-content');
+        const rightControls = document.querySelector('.header-right-controls');
         if (run && step && reset) {
             this.originalButtonParent = run.parentElement;
-            mobileCtrls.appendChild(run);
-            mobileCtrls.appendChild(step);
-            mobileCtrls.appendChild(reset);
+            // build grouped layout: [Run, Step] [Reset, View] [Docs, WASM]
+            const groupRunStep = document.createElement('div');
+            groupRunStep.className = 'mobile-group group-run-step';
+            groupRunStep.appendChild(run);
+            groupRunStep.appendChild(step);
+
+            const groupResetView = document.createElement('div');
+            groupResetView.className = 'mobile-group group-reset-view';
+            groupResetView.appendChild(reset);
             if (viewToggle) {
                 this.originalViewToggleParent = viewToggle.parentElement;
-                mobileCtrls.appendChild(viewToggle);
-                viewToggle.textContent = this.compactView ? 'Full' : 'Compact';
+                groupResetView.appendChild(viewToggle);
+                viewToggle.textContent = this.compactView ? 'Full\u00A0V.' : 'Compact';
             }
+            const groupDocsWasm = document.createElement('div');
+            groupDocsWasm.className = 'mobile-group group-docs-wasm';
+            if (rightControls) {
+                this.originalRightControlsParent = rightControls.parentElement;
+                groupDocsWasm.appendChild(rightControls);
+            }
+
+            mobileCtrls.textContent = '';
+            mobileCtrls.appendChild(groupRunStep);
+            mobileCtrls.appendChild(groupResetView);
+            mobileCtrls.appendChild(groupDocsWasm);
             mobileCtrls.style.display = 'flex';
+            if (headerContent) {
+                headerContent.appendChild(mobileCtrls);
+            }
+
+            // unify button widths to match "Full V." width
+            if (viewToggle) {
+                const w = Math.ceil(viewToggle.offsetWidth);
+                document.documentElement.style.setProperty('--mobile-btn-w', w + 'px');
+            }
+            const docsBtn = document.getElementById('docs-menu-btn');
+            [run, step, reset, viewToggle, docsBtn].forEach(b => {
+                if (b) b.style.width = 'var(--mobile-btn-w)';
+            });
         }
     }
 
@@ -2049,6 +2087,7 @@ class DeepWebUI {
         const step = document.getElementById('step-btn');
         const reset = document.getElementById('reset-btn');
         const viewToggle = document.getElementById('view-toggle');
+        const rightControls = document.querySelector('.header-right-controls');
         if (run && step && reset && this.originalButtonParent) {
             this.originalButtonParent.appendChild(run);
             this.originalButtonParent.appendChild(step);
@@ -2059,6 +2098,9 @@ class DeepWebUI {
         if (viewToggle && this.originalViewToggleParent) {
             this.originalViewToggleParent.appendChild(viewToggle);
             viewToggle.textContent = 'Compact View';
+        }
+        if (rightControls && this.originalRightControlsParent) {
+            this.originalRightControlsParent.appendChild(rightControls);
         }
 
         const machineTab = document.getElementById('machine-tab');
@@ -2076,6 +2118,52 @@ class DeepWebUI {
             const machineBtn = Array.from(tabButtons.querySelectorAll('.tab-button')).find(b => b.dataset.tab === 'machine');
             if (machineBtn) machineBtn.remove();
         }
+        this.removeResizeWatcher();
+    }
+
+    updateHeaderHeight() {
+        const headerContainer = document.querySelector('.header-container');
+        if (headerContainer) {
+            const hh = headerContainer.offsetHeight;
+            document.documentElement.style.setProperty('--header-height', hh + 'px');
+        }
+        const headerTitle = document.querySelector('.header-text h1');
+        if (headerTitle && this.mobileActive) {
+            headerTitle.textContent = (window.matchMedia('(max-width: 480px)').matches) ? 'D16' : 'Deep16';
+        }
+        this.updateTabLabels();
+    }
+
+    installResizeWatcher() {
+        if (this._resizeHandler) return;
+        this._resizeHandler = () => this.updateHeaderHeight();
+        window.addEventListener('resize', this._resizeHandler, { passive: true });
+    }
+
+    removeResizeWatcher() {
+        if (!this._resizeHandler) return;
+        window.removeEventListener('resize', this._resizeHandler);
+        this._resizeHandler = null;
+    }
+
+    updateTabLabels() {
+        const isNarrow = window.matchMedia('(max-width: 480px)').matches;
+        const tabButtons = document.querySelector('.tab-buttons');
+        if (!tabButtons) return;
+        const editorBtn = Array.from(tabButtons.querySelectorAll('.tab-button')).find(b => b.dataset.tab === 'editor');
+        const listingBtn = Array.from(tabButtons.querySelectorAll('.tab-button')).find(b => b.dataset.tab === 'listing');
+        const machineBtn = Array.from(tabButtons.querySelectorAll('.tab-button')).find(b => b.dataset.tab === 'machine');
+        const errorsBtn = Array.from(tabButtons.querySelectorAll('.tab-button')).find(b => b.dataset.tab === 'errors');
+        if (isNarrow) {
+            if (editorBtn) editorBtn.textContent = 'Edit';
+            if (listingBtn) listingBtn.textContent = 'List';
+            if (machineBtn) machineBtn.textContent = 'CPU';
+        } else {
+            if (editorBtn) editorBtn.textContent = 'Editor';
+            if (listingBtn) listingBtn.textContent = 'Listing';
+            if (machineBtn) machineBtn.textContent = 'Machine';
+        }
+        // Errors remains the same
     }
 
     syncHeaderWidths() {
