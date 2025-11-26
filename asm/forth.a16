@@ -56,12 +56,11 @@ forth_start:
 
 next:
     ; Fetch next word from instruction stream
-    LD R1, R11, 0      ; R1 = [R11] - get codeword address
+    LD R1, R11, 0      ; R1 = [R11] - get codeword (which is the code address)
     ADD R11, 1         ; R11++ - advance instruction pointer
     
-    ; Jump to codeword
-    LD R2, R1, 0      ; R2 = [R1] - get actual code address
-    MOV PC, R2        ; Execute the word (JMP equivalent)
+    ; Jump to codeword directly (R1 already contains the code address)
+    MOV PC, R1         ; Execute the word
     NOP
 
 ; =============================================
@@ -147,8 +146,7 @@ tell_loop:
     ; Call EMIT
     LDI d_emit
     MOV R4, R0
-    LD R4, R4, 0       ; Get EMIT code address
-    MOV PC, R4         ; Call EMIT
+    MOV PC, R4         ; Call EMIT directly (R4 contains address)
     NOP
     
     ; Restore state
