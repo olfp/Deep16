@@ -80,6 +80,8 @@ class DeepWebUI {
         this.wasmAvailable = typeof window.Deep16Wasm !== 'undefined';
         this.useWasm = false;
         this.resumeFromBreakpoint = false;
+        this.wasmDirtyStart = null;
+        this.wasmDirtyEnd = null;
         const wssamToggle = document.getElementById('wssam-toggle');
         if (wssamToggle) {
             wssamToggle.checked = true;
@@ -523,10 +525,33 @@ class DeepWebUI {
             document.getElementById('edit-dropdown').classList.toggle('show');
         });
 
+        const docsMenuBtn = document.getElementById('docs-menu-btn');
+        const docsDropdown = document.getElementById('docs-dropdown');
+        if (docsMenuBtn && docsDropdown) {
+            docsMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                docsDropdown.classList.toggle('show');
+            });
+            docsDropdown.addEventListener('click', (e) => {
+                const target = e.target;
+                if (target && target.tagName === 'BUTTON') {
+                    const which = target.getAttribute('data-doc');
+                    if (which === 'arch') {
+                        this.openMarkdownOverlay('doc/Deep16-Arch.md', 'Deep16 Architecture');
+                    } else if (which === 'ide') {
+                        this.openMarkdownOverlay('doc/User-man.md', 'DeepCode IDE Manual');
+                    }
+                    docsDropdown.classList.remove('show');
+                }
+            });
+        }
+
         // Close dropdowns when clicking elsewhere
         document.addEventListener('click', () => {
             document.getElementById('file-dropdown').classList.remove('show');
             document.getElementById('edit-dropdown').classList.remove('show');
+            const dd = document.getElementById('docs-dropdown');
+            if (dd) dd.classList.remove('show');
         });
 
         window.addEventListener('resize', () => this.syncHeaderWidths());
@@ -555,6 +580,199 @@ class DeepWebUI {
                 this.editorElement.selectionStart = this.editorElement.selectionEnd = start + 1;
             }
         });        
+    }
+
+    openMarkdownOverlay(path, title) {
+        const overlay = document.getElementById('doc-overlay');
+        const body = document.getElementById('doc-overlay-body');
+        const ttl = document.getElementById('doc-overlay-title');
+        const closeBtn = document.getElementById('doc-overlay-close');
+        if (!overlay || !body || !ttl || !closeBtn) return;
+        fetch(path).then(r => r.text()).then(md => {
+            ttl.textContent = title;
+            body.innerHTML = this.renderMarkdown(md);
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }).catch(() => {
+            ttl.textContent = title;
+            body.innerHTML = `<pre>Unable to load ${title} (${path})</pre>`;
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        });
+        const close = () => {
+            overlay.style.display = 'none';
+            document.body.style.overflow = '';
+        };
+        closeBtn.onclick = close;
+        overlay.onclick = (e) => {
+            if (e.target === overlay) close();
+        };
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') close();
+        }, { once: true });
+    }
+
+    renderMarkdown(md) {
+        const esc = (s) => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+        const isSafeUrl = (u) => /^https?:\/\//i.test(u);
+        const lines = md.replace(/\r\n?/g,'\n').split('\n');
+        let out = '';
+        let inCode = false;
+        let codeLang = '';
+        let codeBuffer = [];
+        let listType = null; // 'ul' or 'ol'
+        let inBlockquote = false;
+        let inTable = false;
+        let tableRows = [];
+        let tableAlign = [];
+        const flushList = () => { if (listType) { out += `</${listType}>`; listType = null; } };
+        const flushBlockquote = () => { if (inBlockquote) { out += '</blockquote>'; inBlockquote = false; } };
+        const flushTable = () => {
+            if (!inTable) return;
+            // Build table HTML
+            if (tableRows.length) {
+                out += '<table class="md-table">';
+                const hdr = tableRows[0];
+                out += '<thead><tr>' + hdr.map((c,i)=>`<th style="text-align:${tableAlign[i]||'left'}">${esc(c.trim())}</th>`).join('') + '</tr></thead>';
+                const bodyRows = tableRows.slice(1);
+                out += '<tbody>' + bodyRows.map(row => '<tr>' + row.map((c,i)=>`<td style="text-align:${tableAlign[i]||'left'}">${esc(c.trim())}</td>`).join('') + '</tr>').join('') + '</tbody>';
+                out += '</table>';
+            }
+            inTable = false; tableRows = []; tableAlign = [];
+        };
+        for (let i=0; i<lines.length; i++) {
+            let line = lines[i];
+            // Fenced code blocks
+            const fence = line.match(/^\s*```(.*)$/);
+            if (fence) {
+                if (!inCode) {
+                    codeLang = fence[1].trim();
+                    out += `<pre><code${codeLang?` class=\"language-${esc(codeLang)}\"`:''}>`;
+                    inCode = true;
+                    codeBuffer = [];
+                } else {
+                    const highlighted = this.highlightCode(codeBuffer.join('\n'), codeLang);
+                    out += highlighted + '</code></pre>';
+                    inCode = false; codeLang = ''; codeBuffer = [];
+                }
+                continue;
+            }
+            if (inCode) { codeBuffer.push(line); continue; }
+            // Tables (GFM): header + separator
+            const isPipeLine = line.trim().startsWith('|') || (line.includes('|') && !line.trim().startsWith('#'));
+            const next = lines[i+1] || '';
+            const isSeparator = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(next);
+            if (!inTable && isPipeLine && isSeparator) {
+                flushList(); flushBlockquote();
+                const headerCells = line.replace(/^\s*\|?|\|\s*$/g,'').split('|');
+                const sepCells = next.replace(/^\s*\|?|\|\s*$/g,'').split('|');
+                tableAlign = sepCells.map(s => (s.includes(':') && s.trim().startsWith(':') && s.trim().endsWith(':')) ? 'center' : (s.trim().endsWith(':') ? 'right' : (s.trim().startsWith(':') ? 'left' : 'left')));
+                tableRows = [headerCells]; inTable = true; i++; // consume separator
+                continue;
+            }
+            if (inTable) {
+                if (line.trim() === '' || !line.includes('|')) { flushTable(); /* fall through to normal */ }
+                else { const cells = line.replace(/^\s*\|?|\|\s*$/g,'').split('|'); tableRows.push(cells); continue; }
+            }
+            // Blockquotes
+            const bq = line.match(/^\s*>\s?(.*)$/);
+            if (bq) {
+                flushList();
+                if (!inBlockquote) { out += '<blockquote>'; inBlockquote = true; }
+                let txt = bq[1];
+                txt = esc(txt).replace(/`([^`]+)`/g, '<code>$1</code>');
+                txt = txt.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>').replace(/~~([^~]+)~~/g,'<del>$1</del>');
+                txt = txt.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,(m,a,u)=> isSafeUrl(u)?`<img alt="${esc(a)}" src="${u}">`:esc(m));
+                txt = txt.replace(/\[([^\]]+)\]\(([^)]+)\)/g,(m,a,u)=> isSafeUrl(u)?`<a href="${u}" target="_blank" rel="noopener noreferrer">${esc(a)}</a>`:esc(m));
+                txt = txt.replace(/https?:\/\/\S+/g,(u)=> isSafeUrl(u)?`<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`:esc(u));
+                out += `<p>${txt}</p>`;
+                continue;
+            } else { flushBlockquote(); }
+            // Headings
+            const h = line.match(/^(#{1,6})\s+(.*)$/);
+            if (h) { flushList(); out += `<h${h[1].length}>${esc(h[2])}</h${h[1].length}>`; continue; }
+            // Horizontal rule
+            if (/^\s*(?:---|\*\*\*|___)\s*$/.test(line)) { flushList(); out += '<hr>'; continue; }
+            // Lists (including GFM task lists)
+            const task = line.match(/^\s*[-*]\s+\[( |x|X)\]\s+(.*)$/);
+            const ul = line.match(/^\s*[-*+]\s+(.*)$/);
+            const ol = line.match(/^\s*(\d+)\.\s+(.*)$/);
+            if (task) {
+                if (listType !== 'ul') { flushList(); out += '<ul>'; listType = 'ul'; }
+                const checked = /x/i.test(task[1]) ? ' checked' : '';
+                out += `<li><input type="checkbox" disabled${checked}> ${esc(task[2])}</li>`; continue;
+            }
+            if (ul) {
+                if (listType !== 'ul') { flushList(); out += '<ul>'; listType = 'ul'; }
+                let txt = ul[1];
+                txt = esc(txt).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>').replace(/~~([^~]+)~~/g,'<del>$1</del>');
+                out += `<li>${txt}</li>`; continue;
+            }
+            if (ol) {
+                if (listType !== 'ol') { flushList(); out += '<ol>'; listType = 'ol'; }
+                let txt = ol[2];
+                txt = esc(txt).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>').replace(/~~([^~]+)~~/g,'<del>$1</del>');
+                out += `<li>${txt}</li>`; continue;
+            }
+            if (listType && line.trim() === '') { flushList(); continue; }
+            // Paragraph / inline formatting
+            if (line.trim() === '') { out += '<p></p>'; continue; }
+            let txt = esc(line)
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+                .replace(/\*([^*]+)\*/g,'<em>$1</em>')
+                .replace(/~~([^~]+)~~/g,'<del>$1</del>')
+                .replace(/!\[([^\]]*)\]\(([^)]+)\)/g,(m,a,u)=> isSafeUrl(u)?`<img alt="${esc(a)}" src="${u}">`:esc(m))
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g,(m,a,u)=> isSafeUrl(u)?`<a href="${u}" target="_blank" rel="noopener noreferrer">${esc(a)}</a>`:esc(m))
+                .replace(/https?:\/\/\S+/g,(u)=> isSafeUrl(u)?`<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`:esc(u));
+            out += `<p>${txt}</p>`;
+        }
+        flushList(); flushBlockquote(); flushTable();
+        if (inCode) { const highlighted = this.highlightCode(codeBuffer.join('\n'), codeLang); out += highlighted + '</code></pre>'; }
+        return out;
+    }
+
+    highlightCode(code, lang) {
+        const esc = (s) => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+        let html = esc(code);
+        // Protect comments first
+        html = html.replace(/\/\*[\s\S]*?\*\//g, (m) => `<span class="hl-cmt">${m}</span>`);
+        html = html.replace(/\/\/[^\n]*/g, (m) => `<span class="hl-cmt">${m}</span>`);
+        const split = html.split(/(<span class=\"hl-cmt\">[\s\S]*?<\/span>)/);
+        const processSeg = (seg) => {
+            // Numbers (hex and dec)
+            seg = seg.replace(/\b0x[0-9a-fA-F]+\b/g, (m) => `<span class="hl-num">${m}</span>`);
+            seg = seg.replace(/\b\d+\b/g, (m) => `<span class="hl-num">${m}</span>`);
+            // Keywords
+            const kwSets = {
+                js: ['var','let','const','function','return','if','else','for','while','switch','case','break','continue','import','export','class','new','try','catch','finally','throw','await','async','yield','this','null','true','false','undefined'],
+                ts: ['interface','type','enum','implements','extends','public','private','protected','readonly','abstract'],
+                py: ['def','return','if','elif','else','for','while','try','except','finally','class','import','from','as','pass','break','continue','with','lambda','True','False','None'],
+                c: ['int','char','float','double','void','return','if','else','for','while','switch','case','break','continue','struct','union','typedef','enum','sizeof','static','const'],
+                cpp:['namespace','using','template','class','public','private','protected','virtual','override','auto'],
+                rust:['fn','let','mut','struct','enum','impl','trait','match','if','else','loop','for','while','return','pub','use','crate','mod'],
+                asm:['LSI','ST','MOV','HALT','JMP','JNZ','JZ','CALL','RET','PUSH','POP','ADD','SUB','MUL','DIV','AND','OR','XOR','NOT','SHL','SHR','NOP']
+            };
+            const langKey = (lang||'').toLowerCase();
+            let kws = [];
+            if (langKey === 'javascript' || langKey === 'js') kws = kwSets.js;
+            else if (langKey === 'typescript' || langKey === 'ts') kws = kwSets.js.concat(kwSets.ts);
+            else if (langKey === 'python' || langKey === 'py') kws = kwSets.py;
+            else if (langKey === 'c') kws = kwSets.c;
+            else if (langKey === 'cpp' || langKey === 'c++') kws = kwSets.c.concat(kwSets.cpp);
+            else if (langKey === 'rust') kws = kwSets.rust;
+            else if (langKey === 'a16' || langKey === 'asm') kws = kwSets.asm;
+            if (kws.length) {
+                const re = new RegExp(`\\b(${kws.map(k=>k.replace(/[.*+?^${}()|[\\]\\]/g,'\\$&')).join('|')})\\b`,'g');
+                seg = seg.replace(re, '<span class="hl-kw">$1</span>');
+            }
+            return seg;
+        };
+        for (let i=0; i<split.length; i++) {
+            if (!split[i]) continue;
+            if (!split[i].startsWith('<span class="hl-cmt">')) split[i] = processSeg(split[i]);
+        }
+        return split.join('');
     }
 
     initializeSearchableDropdowns() {
@@ -1302,6 +1520,8 @@ class DeepWebUI {
         }
         
         this.simulator.reset();
+        this.wasmDirtyStart = null;
+        this.wasmDirtyEnd = null;
         this.memoryStartAddress = 0xFFFF0;
         const addrInput = document.getElementById('memory-start-address');
         if (addrInput) {
@@ -1372,6 +1592,24 @@ class DeepWebUI {
                     break;
                 }
                 const stepCont = window.Deep16Wasm.step();
+                // Capture store per instruction to mirror to JS memory
+                if (typeof window.Deep16Wasm.get_recent_access === 'function') {
+                    try {
+                        const info = window.Deep16Wasm.get_recent_access();
+                        if (info && info.length >= 6) {
+                            const address = (info[0] >>> 0);
+                            const isStore = ((info[5] >>> 0) === 1);
+                            if (isStore && typeof window.Deep16Wasm.get_memory_word === 'function') {
+                                const w = window.Deep16Wasm.get_memory_word(address) & 0xFFFF;
+                                if (address < this.simulator.memory.length) {
+                                    this.simulator.memory[address] = w;
+                                }
+                                if (this.wasmDirtyStart === null || address < this.wasmDirtyStart) this.wasmDirtyStart = address;
+                                if (this.wasmDirtyEnd === null || address > this.wasmDirtyEnd) this.wasmDirtyEnd = address;
+                            }
+                        }
+                    } catch {}
+                }
                 if (!stepCont) { cont = false; break; }
             }
             const regs = window.Deep16Wasm.get_registers();
@@ -1418,11 +1656,30 @@ class DeepWebUI {
                                 if (address < this.simulator.memory.length) {
                                     this.simulator.memory[address] = w;
                                 }
+                                if (this.wasmDirtyStart === null || address < this.wasmDirtyStart) this.wasmDirtyStart = address;
+                                if (this.wasmDirtyEnd === null || address > this.wasmDirtyEnd) this.wasmDirtyEnd = address;
                             } catch {}
                         }
                     }
                 } catch {}
             }
+            // Sync a dirty window from WASM memory to JS memory to capture intermediate stores
+            try {
+                if (this.wasmDirtyStart !== null && this.wasmDirtyEnd !== null) {
+                    const startDirty = this.wasmDirtyStart >>> 0;
+                    const endDirty = this.wasmDirtyEnd >>> 0;
+                    const count = Math.min(256, (endDirty - startDirty + 1));
+                    if (count > 0 && typeof window.Deep16Wasm.get_memory_slice === 'function') {
+                        const sliceDirty = window.Deep16Wasm.get_memory_slice(startDirty, count);
+                        if (sliceDirty && sliceDirty.length) {
+                            for (let i = 0; i < sliceDirty.length; i++) {
+                                const addr = startDirty + i;
+                                if (addr < this.simulator.memory.length) this.simulator.memory[addr] = sliceDirty[i] & 0xFFFF;
+                            }
+                        }
+                    }
+                }
+            } catch {}
             try {
                 const start = this.memoryStartAddress || 0;
                 const end = Math.min(start + 64, this.simulator.memory.length);
@@ -1470,6 +1727,8 @@ class DeepWebUI {
                     }
                 } catch {}
                 this.lockMemoryStartWhileRunning = false;
+                this.wasmDirtyStart = null;
+                this.wasmDirtyEnd = null;
                 const physPCNow = ((this.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.simulator.registers[15] & 0xFFFF);
                 if (this.memoryUI && this.memoryUI.breakpoints && this.memoryUI.breakpoints.has(physPCNow)) {
                     this.status(`Program halted at breakpoint 0x${physPCNow.toString(16).padStart(5,'0')}`);
