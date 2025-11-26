@@ -161,10 +161,10 @@ tell_done:
 ; =============================================
 
 user_program:
-    .word d_lit       ; LIT
-    .word hello_str   ; Address of string
-    .word d_tell      ; TELL (output string)
-    .word d_exit      ; EXIT
+    .word d_lit
+    .word hello_str
+    .word d_tell
+    .word d_exit
 
 ; String data using .text directive (auto-null-terminated)
 hello_str:
@@ -178,45 +178,45 @@ hello_str:
 dict_start:
 
 ; EXIT
-.word 0              ; NULL link (end of dictionary)
-.word 0x4558         ; "EX" name (2 chars)
-.word 0x4954         ; "IT" name continued  
-.word d_exit         ; Code word
+.word 0
+.word 0x4558
+.word 0x4954
+.word d_exit
 
 ; LIT  
-.word dict_start     ; Link to previous
-.word 0x4C49         ; "LI"
-.word 0x5400         ; "T" + padding
+.word dict_start
+.word 0x4C49
+.word 0x5400
 .word d_lit
 
 ; DUP
-.word dict_start+6   ; Link to LIT
-.word 0x4455         ; "DU" 
-.word 0x5000         ; "P" + padding
+.word dict_start+6
+.word 0x4455
+.word 0x5000
 .word d_dup
 
 ; DROP
-.word dict_start+12  ; Link to DUP
-.word 0x4452         ; "DR"
-.word 0x4F50         ; "OP"
+.word dict_start+12
+.word 0x4452
+.word 0x4F50
 .word d_drop
 
 ; SWAP
-.word dict_start+18  ; Link to DROP  
-.word 0x5357         ; "SW"
-.word 0x4150         ; "AP"
+.word dict_start+18
+.word 0x5357
+.word 0x4150
 .word d_swap
 
 ; EMIT
-.word dict_start+24  ; Link to SWAP
-.word 0x454D         ; "EM"
-.word 0x4954         ; "IT"
+.word dict_start+24
+.word 0x454D
+.word 0x4954
 .word d_emit
 
 ; TELL
-.word dict_start+30  ; Link to EMIT
-.word 0x5445         ; "TE"
-.word 0x4C4C         ; "LL"
+.word dict_start+30
+.word 0x5445
+.word 0x4C4C
 .word d_tell
 
 ; =============================================
