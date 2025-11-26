@@ -133,27 +133,9 @@ tell_loop:
     JZ tell_done       ; If zero, end of string
     NOP
     
-    ; Push character and call EMIT
-    SUB R13, 1         ; Adjust stack pointer (subtract 1)
-    ST R1, R13, 0      ; Push character for EMIT
-    
-    ; Save current state
-    SUB R12, 1         ; Adjust return stack (subtract 1)
-    ST R11, R12, 0     ; Push R11 to return stack
-    SUB R12, 1         ; Adjust return stack (subtract 1)
-    ST R3, R12, 0      ; Push string pointer
-    
-    ; Call EMIT
-    LDI d_emit
-    MOV R4, R0
-    MOV PC, R4         ; Call EMIT directly (R4 contains address)
-    NOP
-    
-    ; Restore state
-    LD R3, R12, 0      ; Pop string pointer
-    ADD R12, 1         ; Adjust return stack (add 1)
-    LD R11, R12, 0     ; Pop R11
-    ADD R12, 1         ; Adjust return stack (add 1)
+    ; Output character directly to screen memory
+    STS R1, ES, R8     ; [ES:R8] = character
+    ADD R8, 1          ; Advance screen position
     
     ADD R3, 1          ; Next character (add 1)
     JNO tell_loop      ; Continue loop
