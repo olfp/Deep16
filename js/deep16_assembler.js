@@ -43,8 +43,9 @@ assemble(source) {
                 segmentMap.set(address, currentSegment);
                 if (window.Deep16Debug) console.log(`LABEL: ${label} at 0x${address.toString(16)}, segment=${currentSegment}`);
             } else if (line.startsWith('.word')) {
-                // Data directive - mark as data
-                const values = line.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
+                // Remove comments first
+                const cleanLine = line.split(';')[0].trim();
+                const values = cleanLine.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
                 if (window.Deep16Debug) console.log(`DATA: ${line} -> ${values.length} words at 0x${address.toString(16)}`);
                 for (const value of values) {
                     segmentMap.set(address, 'data');
@@ -52,8 +53,9 @@ assemble(source) {
                     address++;
                 }
             } else if (line.startsWith('.text')) {
-                // NEW: .text directive for null-terminated strings
-                const textContent = line.substring(5).trim();
+                // Remove comments first
+                const cleanLine = line.split(';')[0].trim();
+                const textContent = cleanLine.substring(5).trim();
                 const stringValue = this.parseStringLiteral(textContent);
                 if (window.Deep16Debug) console.log(`TEXT: "${stringValue}" -> ${stringValue.length + 1} words at 0x${address.toString(16)}`);
                 for (let j = 0; j < stringValue.length; j++) {
