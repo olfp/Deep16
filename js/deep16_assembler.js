@@ -266,6 +266,7 @@ class Deep16Assembler {
         return result;
     }
 
+    // UPDATED: parseImmediate now handles arithmetic expressions
     parseImmediate(value) {
         if (typeof value !== 'string') {
             throw new Error(`Invalid immediate value: ${value}`);
@@ -295,15 +296,10 @@ class Deep16Assembler {
             throw new Error(`Invalid character literal: ${value}`);
         }
         
-        // Special character constants
-        const specialChars = {
-            '\\n': 10,    // Newline
-            '\\r': 13,    // Carriage return  
-            '\\t': 9,     // Tab
-            '\\0': 0,     // Null
-            '\\\\': 92,   // Backslash
-            '\\\'': 39,   // Single quote
-        };
+        // NEW: Handle arithmetic expressions with + and -
+        if (trimmed.includes('+') || trimmed.includes('-')) {
+            return this.parseExpression(trimmed);
+        }
         
         // Existing hex and decimal parsing
         if (trimmed.startsWith('0x')) {
@@ -324,6 +320,38 @@ class Deep16Assembler {
             }
             throw new Error(`Invalid immediate value: ${value}`);
         }
+    }
+
+    // NEW: Parse arithmetic expressions with + and -
+    parseExpression(expr) {
+        // Simple expression parser for label + number and label - number
+        const plusMatch = expr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\+\s*(\d+)$/);
+        if (plusMatch) {
+            const label = plusMatch[1];
+            const offset = parseInt(plusMatch[2]);
+            if (this.labels && this.labels[label] !== undefined) {
+                return this.labels[label] + offset;
+            }
+            if (this.symbols && this.symbols[label] !== undefined) {
+                return this.symbols[label] + offset;
+            }
+            throw new Error(`Unknown label in expression: ${label}`);
+        }
+
+        const minusMatch = expr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\-\s*(\d+)$/);
+        if (minusMatch) {
+            const label = minusMatch[1];
+            const offset = parseInt(minusMatch[2]);
+            if (this.labels && this.labels[label] !== undefined) {
+                return this.labels[label] - offset;
+            }
+            if (this.symbols && this.symbols[label] !== undefined) {
+                return this.symbols[label] - offset;
+            }
+            throw new Error(`Unknown label in expression: ${label}`);
+        }
+
+        throw new Error(`Invalid expression: ${expr}`);
     }
 
     isRegister(value) {
