@@ -873,7 +873,6 @@ class Deep16Assembler {
                 if (window.Deep16Debug) console.log("Detected bracket syntax");
                 
                 // Extract the entire bracket content from joined parts
-                // Look for: ST R0 [R0 +21] - we want "R0 +21"
                 const bracketMatch = joinedParts.match(/\[([^\]]+)\]/);
                 if (window.Deep16Debug) console.log(`Bracket match:`, bracketMatch);
                 
@@ -884,8 +883,7 @@ class Deep16Assembler {
                 const bracketContent = bracketMatch[1];
                 if (window.Deep16Debug) console.log(`Bracket content: "${bracketContent}"`);
                 
-                // Parse Rb and offset - use more flexible regex
-                // This should handle: "R0", "R0+21", "R0 +21", "R0+ 21", "R0 + 21"
+                // Parse Rb and offset - only positive offsets allowed (0-31)
                 const memoryMatch = bracketContent.match(/^([A-Za-z0-9]+)\s*(\+\s*(\d+))?$/);
                 if (window.Deep16Debug) console.log(`Memory match:`, memoryMatch);
                 
@@ -896,20 +894,19 @@ class Deep16Assembler {
                 rb = this.parseRegister(memoryMatch[1].trim());
                 
                 if (memoryMatch[2]) { // If there's an offset part (+ something)
-                    offset = this.parseImmediate(memoryMatch[3].trim()); // memoryMatch[3] is the number part
+                    offset = this.parseImmediate(memoryMatch[3].trim());
                 } else {
                     offset = 0; // Default offset is 0 if not specified
                 }
                 
-                // Rd is the part before the brackets (find the register before the [)
-                // For "ST R0 [R0 +21]", we want "R0" (the second one)
+                // Rd is the part before the brackets
                 const beforeBracket = joinedParts.split('[')[0].trim();
                 if (window.Deep16Debug) console.log(`Before bracket: "${beforeBracket}"`);
                 const rdParts = beforeBracket.split(/\s+/);
                 if (window.Deep16Debug) console.log(`Rd parts:`, rdParts);
-                rd = this.parseRegister(rdParts[rdParts.length - 1]); // Last part before [
+                rd = this.parseRegister(rdParts[rdParts.length - 1]);
             } 
-            // Old syntax: LD R1, R2, 5
+            // Old syntax: LD R1, R2, 5 (only positive offsets 0-31)
             else if (parts.length >= 4) {
                 if (window.Deep16Debug) console.log("Detected old syntax");
                 rd = this.parseRegister(parts[1]);
@@ -922,6 +919,7 @@ class Deep16Assembler {
             
             if (window.Deep16Debug) console.log(`Parsed: rd=${rd}, rb=${rb}, offset=${offset}`);
             
+            // CORRECTED: Deep16 uses 5-bit UNSIGNED offset (0-31)
             if (offset < 0 || offset > 31) {
                 throw new Error(`Offset ${offset} out of range (0-31)`);
             }
