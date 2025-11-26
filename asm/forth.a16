@@ -41,8 +41,8 @@ forth_start:
     LDI 0
     MOV R9, R0
     
-    ; Jump to inner interpreter
-    JMP next
+    ; Jump to inner interpreter using unconditional jump
+    JNO next          ; Use JNO (Jump No Overflow) as unconditional jump
     NOP
 
 ; =============================================
@@ -56,7 +56,7 @@ next:
     
     ; Jump to codeword
     LD R2, R1, 0      ; R2 = [R1] - get actual code address
-    JMP R2            ; Execute the word
+    MOV PC, R2        ; Execute the word (JMP equivalent)
     NOP
 
 ; =============================================
@@ -67,7 +67,7 @@ next:
 d_exit:
     LD R11, R12, 0     ; Pop R11 from return stack
     ADD R12, R12, 1   ; Adjust return stack
-    JMP next
+    JNO next          ; Jump back to next
     NOP
 
 ; LIT - push literal
@@ -77,7 +77,7 @@ d_lit:
     ; Push to data stack using positive offset
     ADD R13, R13, -1   ; Adjust stack pointer first
     ST R1, R13, 0      ; Store at new stack top
-    JMP next
+    JNO next
     NOP
 
 ; DUP - duplicate top of stack
@@ -85,13 +85,13 @@ d_dup:
     LD R1, R13, 0      ; Get top of stack
     ADD R13, R13, -1   ; Adjust stack pointer
     ST R1, R13, 0      ; Push duplicate
-    JMP next
+    JNO next
     NOP
 
 ; DROP - drop top of stack
 d_drop:
     ADD R13, R13, 1     ; Adjust stack
-    JMP next
+    JNO next
     NOP
 
 ; SWAP - swap top two stack items
@@ -100,7 +100,7 @@ d_swap:
     LD R2, R13, 1      ; R2 = second
     ST R1, R13, 1      ; Swap them
     ST R2, R13, 0
-    JMP next
+    JNO next
     NOP
 
 ; EMIT - output character
@@ -115,7 +115,7 @@ d_emit:
     ADD R10, R10, 1
     ADD R9, R9, 1
     
-    JMP next
+    JNO next
     NOP
 
 ; TELL - output string (addr -- )
@@ -142,7 +142,7 @@ tell_loop:
     LDI d_emit
     MOV R4, R0
     LD R4, R4, 0       ; Get EMIT code address
-    JMP R4             ; Call EMIT
+    MOV PC, R4         ; Call EMIT
     NOP
     
     ; Restore state
@@ -152,11 +152,11 @@ tell_loop:
     ADD R12, R12, 1    ; Adjust return stack
     
     ADD R3, R3, 1      ; Next character
-    JMP tell_loop
+    JNO tell_loop      ; Continue loop
     NOP
     
 tell_done:
-    JMP next
+    JNO next
     NOP
 
 ; =============================================
