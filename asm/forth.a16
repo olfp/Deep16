@@ -117,41 +117,38 @@ d_emit:
     JMP next
     NOP
 
-; TELL - output string (addr len -- )
+; TELL - output string (addr -- )
 d_tell:
-    LD R2, R13, 1      ; R2 = length
-    LD R3, R13, 2      ; R3 = address
-    ADD R13, R13, 2     ; Drop both
+    LD R3, R13, 1      ; R3 = string address
+    ADD R13, R13, 1     ; Drop address
     
 tell_loop:
-    JZ R2, tell_done  ; If length == 0, done
+    LD R1, R3, 0       ; Get character from string
+    JZ R1, tell_done   ; If zero, end of string
     NOP
     
-    LD R1, R3, 0      ; Get character
-    ST R1, R13, -1     ; Push for EMIT
+    ; Push character and call EMIT
+    ST R1, R13, -1     ; Push character for EMIT
     ADD R13, R13, -1
     
     ; Save current state
     ST R11, R12, -1    ; Push R11 to return stack
-    ST R2, R12, -2    ; Push counter
-    ST R3, R12, -3    ; Push string pointer
-    ADD R12, R12, -3
+    ST R3, R12, -2     ; Push string pointer
+    ADD R12, R12, -2
     
     ; Call EMIT
     LDI d_emit
     MOV R4, R0
-    LD R4, R4, 0      ; Get EMIT code address
-    JMP R4            ; Call EMIT
+    LD R4, R4, 0       ; Get EMIT code address
+    JMP R4             ; Call EMIT
     NOP
     
     ; Restore state
-    LD R3, R12, 0     ; Pop string pointer
-    LD R2, R12, 1     ; Pop counter  
-    LD R11, R12, 2     ; Pop R11
-    ADD R12, R12, 3
+    LD R3, R12, 0      ; Pop string pointer
+    LD R11, R12, 1     ; Pop R11
+    ADD R12, R12, 2
     
-    ADD R3, R3, 1     ; Next character
-    ADD R2, R2, -1    ; Decrement count
+    ADD R3, R3, 1      ; Next character
     JMP tell_loop
     NOP
     
@@ -166,15 +163,12 @@ tell_done:
 user_program:
     .word d_lit       ; LIT
     .word hello_str   ; Address of string
-    .word d_lit       ; LIT  
-    .word hello_len   ; Length of string
     .word d_tell      ; TELL (output string)
     .word d_exit      ; EXIT
 
-; String data
+; String data using .text directive (auto-null-terminated)
 hello_str:
-    .word 'H', 'e', 'l', 'l', 'o', ' ', 'D', 'e', 'e', 'p', 'F', 'o', 'r', 't', 'h', '!'
-hello_len: .word 16
+    .text "Hello DeepForth!"
 
 ; =============================================
 ; Dictionary Headers
