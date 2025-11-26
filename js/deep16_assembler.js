@@ -377,6 +377,31 @@ isRegister(value) {
                     }
                     throw new Error('JMP requires register operand');
                 
+                // Aliases per Deep16-Arch.md
+                case 'AMV': // AMV Rx, Ry => MOV Rx, Ry, 3
+                    if (parts.length >= 3) {
+                        const rd = this.parseRegister(parts[1]);
+                        const rs = this.parseRegister(parts[2]);
+                        return 0b1111100000000000 | (rd << 6) | (rs << 2) | 3;
+                    }
+                    throw new Error('AMV requires two registers');
+                case 'LNK': // LNK Rx => MOV Rx, PC, 2
+                    if (parts.length >= 2) {
+                        const rd = this.parseRegister(parts[1]);
+                        return 0b1111100000000000 | (rd << 6) | (15 << 2) | 2;
+                    }
+                    throw new Error('LNK requires destination register');
+                case 'LINK': // LINK => MOV LR, PC, 2
+                    return 0b1111100000000000 | (14 << 6) | (15 << 2) | 2;
+                case 'ALNK': // ALNK Rx => MOV Rx, PC, 3
+                    if (parts.length >= 2) {
+                        const rd = this.parseRegister(parts[1]);
+                        return 0b1111100000000000 | (rd << 6) | (15 << 2) | 3;
+                    }
+                    throw new Error('ALNK requires destination register');
+                case 'ALINK': // ALINK => MOV LR, PC, 3
+                    return 0b1111100000000000 | (14 << 6) | (15 << 2) | 3;
+                
                 // Shift operations
                 case 'SL':  return this.encodeShift(parts, 0b000, address, lineNumber);
                 case 'SLC': return this.encodeShift(parts, 0b001, address, lineNumber);
@@ -423,12 +448,12 @@ isRegister(value) {
                 case 'CLRS': return this.encodeCLR2Alias(0b0001);
                 
                 // System instructions
-                case 'FSH': return this.encodeSystem(0b001);  // NEW
+                case 'FSH': return this.encodeSystem(0b001);
                 case 'SWI': return this.encodeSystem(0b010);
                 case 'RETI': return this.encodeSystem(0b011);
                 case 'NOP':  return this.encodeSystem(0b000);
                 case 'HALT': 
-                case 'HLT': return this.encodeSystem(0b111);
+                case 'HLT': return 0xFFFF;
                 
                 case 'LDI':  return this.encodeLDIFromLine(cleanLine, address, lineNumber);
                 case 'LSI':  return this.encodeLSI(parts, address, lineNumber);

@@ -273,12 +273,37 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
     c.last_op_alu = true;
 }
 
-fn exec_mov(c: &mut Cpu, instr: u16) {
+fn exec_mov(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
     let rd = ((instr >> 6) & 0xF) as usize;
     let rs = ((instr >> 2) & 0xF) as usize;
     let imm2 = (instr & 0x3) as u16;
-    let v = c.reg[rs].wrapping_add(imm2);
-    c.reg[rd] = v;
+
+    let value: u16 = if imm2 == 0 {
+        c.reg[rs]
+    } else if rs == 15 && imm2 == 2 {
+        // Standard link (LNK): PC architectural read before jump
+        original_pc.wrapping_add(2)
+    } else if rs == 15 && imm2 == 3 {
+        // Architectural link in delay slot (ALNK): next instruction after delay slot
+        original_pc.wrapping_add(1)
+    } else if imm2 == 3 {
+        // Architectural read bypass (AMV)
+        c.reg[rs]
+    } else {
+        c.reg[rs].wrapping_add(imm2)
+    };
+
+    // MOV to PC is a branch with one delay slot
+    if rd == 15 {
+        c.delay_active = true;
+        c.delayed_pc = value;
+        c.delayed_cs = c.cs;
+        c.branch_taken = true;
+        return true;
+    }
+
+    c.reg[rd] = value;
+    false
 }
 
 fn exec_lsi(c: &mut Cpu, instr: u16) {
@@ -409,7 +434,7 @@ fn step_one(c: &mut Cpu) -> bool {
     true
 }
 
-fn exec_instruction(c: &mut Cpu, instr: u16, _original_pc: u16) -> bool {
+fn exec_instruction(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
     if (instr & 0x8000) == 0 { exec_ldi(c, instr); return false; }
     if ((instr >> 14) & 0x3) == 0b10 { exec_mem(c, instr); return false; }
     let opcode3 = (instr >> 13) & 0x7;
@@ -418,7 +443,7 @@ fn exec_instruction(c: &mut Cpu, instr: u16, _original_pc: u16) -> bool {
         0b111 => {
             if ((instr >> 12) & 0xF) == 0b1110 { return exec_jump(c, instr); }
             if ((instr >> 11) & 0x1F) == 0b11110 { exec_lds_sts(c, instr); return false; }
-            if ((instr >> 10) & 0x3F) == 0b111110 { exec_mov(c, instr); return false; }
+            if ((instr >> 10) & 0x3F) == 0b111110 { return exec_mov(c, instr, original_pc); }
             if ((instr >> 9) & 0x7F) == 0b1111110 { exec_lsi(c, instr); return false; }
             if ((instr >> 8) & 0xFF) == 0b11111110 { return exec_sop(c, instr); }
             if ((instr >> 7) & 0x1FF) == 0b111111110 { exec_mvs(c, instr); return false; }
