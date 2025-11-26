@@ -1,7 +1,7 @@
 ; =============================================
 ; Deep16 Forth Kernel
 ; Memory starts at 0x0100 as per spec
-; =============================================#
+; =============================================
 
 .org 0x0100
 .code
@@ -17,70 +17,6 @@
 ; 0x0100-0x01FF: Forth kernel
 ; 0x0200-0x02FF: User dictionary
 ; 0x0300-0x7FFF: Data stack, return stack, heap
-
-; =============================================
-; String data using .text directive (auto-null-terminated)
-; =============================================
-hello_str:
-    .text "Hello DeepForth!"
-
-; =============================================
-; Dictionary Headers
-; =============================================
-
-; Dictionary format: [link][name][code]
-dict_start:
-
-; EXIT
-.word 0
-.word 0x4558
-.word 0x4954
-.word d_exit
-
-; LIT  
-.word dict_start
-.word 0x4C49
-.word 0x5400
-.word d_lit
-
-; DUP
-.word dict_start+6
-.word 0x4455
-.word 0x5000
-.word d_dup
-
-; DROP
-.word dict_start+12
-.word 0x4452
-.word 0x4F50
-.word d_drop
-
-; SWAP
-.word dict_start+18
-.word 0x5357
-.word 0x4150
-.word d_swap
-
-; EMIT
-.word dict_start+24
-.word 0x454D
-.word 0x4954
-.word d_emit
-
-; TELL
-.word dict_start+30
-.word 0x5445
-.word 0x4C4C
-.word d_tell
-
-; =============================================
-; Demo Program - "Hello DeepForth!"
-; =============================================
-user_program:
-    .word d_lit
-    .word hello_str
-    .word d_tell
-    .word d_exit
 
 ; =============================================
 ; Forth Kernel Implementation
@@ -227,6 +163,70 @@ tell_loop:
 tell_done:
     JNO next
     NOP
+
+; =============================================
+; Demo Program - "Hello DeepForth!"
+; =============================================
+user_program:
+    .word d_lit
+    .word hello_str
+    .word d_tell
+    .word d_exit
+
+; =============================================
+; Dictionary Headers
+; =============================================
+
+; Dictionary format: [link][name][code]
+dict_start:
+
+; EXIT
+.word 0
+.word 0x4558
+.word 0x4954
+.word d_exit
+
+; LIT  
+.word dict_start
+.word 0x4C49
+.word 0x5400
+.word d_lit
+
+; DUP
+.word dict_start+6
+.word 0x4455
+.word 0x5000
+.word d_dup
+
+; DROP
+.word dict_start+12
+.word 0x4452
+.word 0x4F50
+.word d_drop
+
+; SWAP
+.word dict_start+18
+.word 0x5357
+.word 0x4150
+.word d_swap
+
+; EMIT
+.word dict_start+24
+.word 0x454D
+.word 0x4954
+.word d_emit
+
+; TELL
+.word dict_start+30
+.word 0x5445
+.word 0x4C4C
+.word d_tell
+
+; =============================================
+; String data using .text directive (auto-null-terminated)
+; =============================================
+hello_str:
+    .text "Hello DeepForth!"
 
 ; =============================================
 ; End of Kernel
