@@ -222,7 +222,7 @@ disassembleSOP(instruction) {
 
 
     disassembleShift(instruction) {
-        const rd = (instruction >>> 8) & 0xF;
+        const rd = (instruction >>> 6) & 0xF;
         const shiftType = (instruction >>> 4) & 0x7;
         const count = instruction & 0xF;
         

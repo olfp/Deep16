@@ -1,0 +1,53 @@
+.org 0x0100
+
+LSI R2, 0
+LSI R8, 0
+LDI next
+MOV R9, R0
+LDI hello_thread
+MOV R7, R0
+LDI 0x00F1
+MOV R1, R0
+SLC R1, 4
+SLC R1, 4
+MVS ES, R1
+ERS R4
+LSI R4, 0
+
+next:
+LD R0, R7, 0
+ADD R7, 1
+MOV R3, R0
+JML R2
+NOP
+
+cfa_lit:
+LD R0, R7, 0
+ADD R7, 1
+JML R8
+NOP
+
+cfa_emit:
+ST R0, R4, 0
+ADD R4, 1
+JML R8
+NOP
+
+cfa_stop:
+HALT
+
+hello_thread:
+.word cfa_lit, 'H', cfa_emit
+.word cfa_lit, 'e', cfa_emit
+.word cfa_lit, 'l', cfa_emit
+.word cfa_lit, 'l', cfa_emit
+.word cfa_lit, 'o', cfa_emit
+.word cfa_lit, ' ', cfa_emit
+.word cfa_lit, 'D', cfa_emit
+.word cfa_lit, 'e', cfa_emit
+.word cfa_lit, 'e', cfa_emit
+.word cfa_lit, 'p', cfa_emit
+.word cfa_lit, '1', cfa_emit
+.word cfa_lit, '6', cfa_emit
+.word cfa_lit, '!', cfa_emit
+.word cfa_stop

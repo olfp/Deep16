@@ -15,6 +15,7 @@ Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 - **Complete word-based memory system** (no byte operations)
 - **Extended addressing** 20-bit physical address space
 - **5-stage pipelined implementation** with delayed branch
+- **Non-forwarded load capability** for architectural state access
 
 ### 1.1 Key Features
 - All instructions exactly 16 bits
@@ -29,6 +30,7 @@ Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 - **No memory protection** (keep it simple)
 - **Universal MOV instruction** with automatic encoding selection
 - **Enhanced assembler syntax** with bracket and plus notation
+- **Architectural register access** via MOV with immediate=3
 
 ---
 
@@ -103,6 +105,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 0xE0000 - 0xEFFFF: Graphics Segment (64KB) - Reserved for future 640x400 display
 0xF0000 - 0xFFFFF: I/O Segment (64KB) - Memory-mapped peripherals
    └── 0xF1000 - 0xF17CF: Screen Buffer (2KB) - 80×25 character display
+0xFFFF0 - 0xFFFFF: Boot ROM (16 words) - Initial boot sequence
 ```
 
 ### 3.2 Memory Access Characteristics
@@ -134,17 +137,15 @@ ERD  R10         ; Use R10/R11 for ES access, sets DE=1 automatically
 
 **Located at Segment 0 (Low Memory):**
 ```
-0x0000: NMI_VECTOR      (PC loaded from here on non-maskable interrupt)
+0x0000: RESET_VECTOR    (PC loaded from here on reset)
 0x0001: HW_INT_VECTOR   (PC loaded from here on hardware interrupt)  
 0x0002: SWI_VECTOR      (PC loaded from here on software interrupt)
 ```
 
-Note: Boot uses the fixed ROM sequence at `0xFFFF0..0xFFFFF` to transfer control to low memory (default `0x0000:0x0100`). The vector table remains in Segment 0 for hardware and software interrupts; vector loads occur when an interrupt is taken.
-
 ### 4.2 Reset State
 - **Initial registers**: `CS = 0xFFFF`, `DS = 0x1000`, `SS = 0x8000`, `ES = 0x2000`, `SP (R13) = 0x7FFF`, `PC (R15) = 0x0000`, `PSW = 0x0000`
 - **Boot ROM** at `0xFFFF0..0xFFFFF` executes first and establishes runtime segments, performs basic diagnostics, and jumps to low memory.
-- **Execution begins** at physical address computed by the boot ROM’s jump (default `CS:PC = 0x0000:0x0100`).
+- **Execution begins** at physical address computed by the boot ROM's jump (default `CS:PC = 0x0000:0x0100`).
 
 #### 4.2.1 Boot ROM Sequence (at 0xFFFF0)
 ```
@@ -189,13 +190,156 @@ Default effect:
 
 ---
 
-## 5. Instruction Set Enhancements
+## 5. Instruction Set
 
-### 5.1 Enhanced Assembler Syntax (Preprocessing Only)
+### 5.1 Data Movement Instructions
+
+**Table 5.1: Data Movement Instructions**
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
+| **MOV** | `MOV Rd, Rs, imm` | `111110 Rd4 Rs4 imm2` | 0xF8 | `Rd = Rs + imm` |
+| **LDI** | `LDI imm` | `0 imm15` | 0x00 | `R0 = imm` |
+| **LSI** | `LSI Rd, imm` | `1111110 Rd4 imm5` | 0xFC | `Rd = imm` (sign-extended) |
+| **MVS** | `MVS Rd, Sx` | `111111110 0 Rd4 seg2` | 0x1FE | `Rd = Sx` |
+| **MVS** | `MVS Sx, Rd` | `111111110 1 Rd4 seg2` | 0x1FE | `Sx = Rd` |
+| **SMV** | `SMV Rd, APC` | `1111111110 00 Rd4` | 0x3FC | `Rd = PC'` |
+| **SMV** | `SMV Rd, APSW` | `1111111110 01 Rd4` | 0x3FC | `Rd = PSW'` |
+| **SMV** | `SMV Rd, PSW` | `1111111110 10 Rd4` | 0x3FC | `Rd = PSW` |
+| **SMV** | `SMV Rd, ACS` | `1111111110 11 Rd4` | 0x3FC | `Rd = CS'` |
+
+### 5.2 ALU Instructions
+
+**Table 5.2: ALU Instructions**
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
+| **ADD** | `ADD Rd, Rs` | `110 000 Rd4 1 0 Rs4` | 0xC0 | `Rd = Rd + Rs`, set flags |
+| **ADD** | `ADD Rd, imm` | `110 000 Rd4 1 1 imm4` | 0xC0 | `Rd = Rd + imm`, set flags |
+| **SUB** | `SUB Rd, Rs` | `110 001 Rd4 1 0 Rs4` | 0xC4 | `Rd = Rd - Rs`, set flags |
+| **SUB** | `SUB Rd, imm` | `110 001 Rd4 1 1 imm4` | 0xC4 | `Rd = Rd - imm`, set flags |
+| **AND** | `AND Rd, Rs` | `110 010 Rd4 1 0 Rs4` | 0xC8 | `Rd = Rd & Rs`, set flags |
+| **AND** | `AND Rd, imm` | `110 010 Rd4 1 1 imm4` | 0xC8 | `Rd = Rd & imm`, set flags |
+| **OR** | `OR Rd, Rs` | `110 011 Rd4 1 0 Rs4` | 0xCC | `Rd = Rd | Rs`, set flags |
+| **OR** | `OR Rd, imm` | `110 011 Rd4 1 1 imm4` | 0xCC | `Rd = Rd | imm`, set flags |
+| **XOR** | `XOR Rd, Rs` | `110 100 Rd4 1 0 Rs4` | 0xD0 | `Rd = Rd ^ Rs`, set flags |
+| **XOR** | `XOR Rd, imm` | `110 100 Rd4 1 1 imm4` | 0xD0 | `Rd = Rd ^ imm`, set flags |
+| **MUL** | `MUL Rd, Rs` | `110 101 Rd4 1 0 Rs4` | 0xD4 | `Rd = Rd * Rs`, set flags |
+| **MUL** | `MUL Rd, imm` | `110 101 Rd4 1 1 imm4` | 0xD4 | `Rd = Rd * imm`, set flags |
+| **DIV** | `DIV Rd, Rs` | `110 110 Rd4 1 0 Rs4` | 0xD8 | `Rd = Rd / Rs`, set flags |
+| **DIV** | `DIV Rd, imm` | `110 110 Rd4 1 1 imm4` | 0xD8 | `Rd = Rd / imm`, set flags |
+
+### 5.3 32-bit ALU Instructions
+
+**Table 5.3: 32-bit ALU Instructions**
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
+| **MUL32** | `MUL32 Rd, Rs` | `110 101 Rd4 1 1 Rs4` | 0xD4 | `R[d]:R[d+1] = Rd * Rs` |
+| **DIV32** | `DIV32 Rd, Rs` | `110 110 Rd4 1 1 Rs4` | 0xD8 | `R[d]:R[d+1] = Rd / Rs` |
+
+### 5.4 Single Operand ALU Operations
+
+**Table 5.4: Single Operand Instructions**
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
+| **SWB** | `SWB Rx` | `11111110 0000 Rx4` | 0xFE | `Rx = (Rx << 8) | (Rx >> 8)` |
+| **INV** | `INV Rx` | `11111110 0001 Rx4` | 0xFE | `Rx = ~Rx` |
+| **NEG** | `NEG Rx` | `11111110 0010 Rx4` | 0xFE | `Rx = -Rx` |
+
+### 5.5 Shift and Rotate Instructions
+
+**Table 5.5: Shift and Rotate Instructions**
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
+| **SL** | `SL Rd, count` | `110 111 Rd4 000 count4` | 0xDC | `Rd = Rd << count`, C = MSB |
+| **SLC** | `SLC Rd, count` | `110 111 Rd4 001 count4` | 0xDC | `Rd = (Rd << count) | (C << (count-1))`, C = MSB |
+| **SR** | `SR Rd, count` | `110 111 Rd4 010 count4` | 0xDC | `Rd = Rd >> count`, C = LSB |
+| **SRC** | `SRC Rd, count` | `110 111 Rd4 011 count4` | 0xDC | `Rd = (Rd >> count) | (C << (15-count))`, C = LSB |
+| **SRA** | `SRA Rd, count` | `110 111 Rd4 100 count4` | 0xDC | `Rd = Rd >> count` (arithmetic), C = LSB |
+| **SAC** | `SAC Rd, count` | `110 111 Rd4 101 count4` | 0xDC | `Rd = (Rd >> count) | (C << (15-count))` (arithmetic), C = LSB |
+| **ROR** | `ROR Rd, count` | `110 111 Rd4 110 count4` | 0xDC | `Rd = (Rd >> count) | (Rd << (16-count))` |
+| **ROC** | `ROC Rd, count` | `110 111 Rd4 111 count4` | 0xDC | `Rd = (Rd >> count) | (C << (15-count)) | (Rd << (16-count))` |
+
+### 5.6 Memory Access Instructions
+
+**Table 5.6: Memory Access Instructions**
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
+| **LD** | `LD Rd, Rb, offset` | `10 0 Rd4 Rb4 offset5` | 0x80 | `Rd = Mem[DS:(Rb + offset)]` |
+| **ST** | `ST Rd, Rb, offset` | `10 1 Rd4 Rb4 offset5` | 0xA0 | `Mem[DS:(Rb + offset)] = Rd` |
+| **LDS** | `LDS Rd, seg, Rb` | `11110 0 seg2 Rd4 Rb4` | 0xF0 | `Rd = Mem[seg:Rb]` |
+| **STS** | `STS Rd, seg, Rb` | `11110 1 seg2 Rd4 Rb4` | 0xF2 | `Mem[seg:Rb] = Rd` |
+
+### 5.7 Control Flow Instructions
+
+**Table 5.7: Condition Codes for Jump Instructions**
+
+| Condition | Code | Mnemonic | Test |
+|-----------|------|----------|------|
+| Zero | 000 | JZ | Z = 1 |
+| Not Zero | 001 | JNZ | Z = 0 |
+| Carry | 010 | JC | C = 1 |
+| No Carry | 011 | JNC | C = 0 |
+| Negative | 100 | JN | N = 1 |
+| Not Negative | 101 | JNN | N = 0 |
+| Overflow | 110 | JO | V = 1 |
+| No Overflow | 111 | JNO | V = 0 |
+
+**Table 5.8: Control Flow Instructions**
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
+| **JZ** | `JZ target` | `1110 000 target9` | 0xE0 | `if (Z) PC = PC + 1 + target` |
+| **JNZ** | `JNZ target` | `1110 001 target9` | 0xE0 | `if (!Z) PC = PC + 1 + target` |
+| **JC** | `JC target` | `1110 010 target9` | 0xE0 | `if (C) PC = PC + 1 + target` |
+| **JNC** | `JNC target` | `1110 011 target9` | 0xE0 | `if (!C) PC = PC + 1 + target` |
+| **JN** | `JN target` | `1110 100 target9` | 0xE0 | `if (N) PC = PC + 1 + target` |
+| **JNN** | `JNN target` | `1110 101 target9` | 0xE0 | `if (!N) PC = PC + 1 + target` |
+| **JO** | `JO target` | `1110 110 target9` | 0xE0 | `if (V) PC = PC + 1 + target` |
+| **JNO** | `JNO target` | `1110 111 target9` | 0xE0 | `if (!V) PC = PC + 1 + target` |
+| **JML** | `JML Rx` | `11111110 0100 Rx4` | 0xFE | `CS = R[Rx], PC = R[Rx+1]` |
+
+### 5.8 PSW Operations
+
+**Table 5.9: PSW Segment Assignment Operations**
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
+| **SRS** | `SRS Rx` | `11111110 1000 Rx4` | 0xFE | `PSW.SR = Rx, PSW.DS = 0` |
+| **SRD** | `SRD Rx` | `11111110 1001 Rx4` | 0xFE | `PSW.SR = Rx, PSW.DS = 1` |
+| **ERS** | `ERS Rx` | `11111110 1010 Rx4` | 0xFE | `PSW.ER = Rx, PSW.DE = 0` |
+| **ERD** | `ERD Rx` | `11111110 1011 Rx4` | 0xFE | `PSW.ER = Rx, PSW.DE = 1` |
+
+**Table 5.10: PSW Flag Operations**
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
+| **SET** | `SET imm` | `11111110 1100 imm4` | 0xFE | `PSW[imm] = 1` |
+| **CLR** | `CLR imm` | `11111110 1101 imm4` | 0xFE | `PSW[imm] = 0` |
+| **SET2** | `SET2 imm` | `11111110 1110 imm4` | 0xFE | `PSW[imm+4] = 1` |
+| **CLR2** | `CLR2 imm` | `11111110 1111 imm4` | 0xFE | `PSW[imm+4] = 0` |
+
+### 5.9 System Operations
+
+**Table 5.11: System Instructions**
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
+| **NOP** | `NOP` | `1111111111110 000` | 0x1FFC | No operation |
+| **FSH** | `FSH` | `1111111111110 001` | 0x1FFC | Flush pipeline |
+| **SWI** | `SWI` | `1111111111110 010` | 0x1FFC | Software interrupt |
+| **RETI** | `RETI` | `1111111111110 011` | 0x1FFC | Return from interrupt |
+| **HLT** | `HLT` | `1111111111110 111` | 0x1FFC | Halt processor |
+
+### 5.10 Enhanced Assembler Syntax (Preprocessing Only)
 
 **Important**: The enhanced syntax described below is purely **assembler preprocessing**. The binary encoding always uses the specific instruction (MOV, MVS, SMV, LD, ST). The assembler automatically translates enhanced syntax to the correct machine instruction.
 
-#### 5.1.1 LD/ST Bracket Syntax
+#### 5.10.1 LD/ST Bracket Syntax
 
 **Assembler Input (Enhanced Syntax):**
 ```assembly
@@ -211,7 +355,7 @@ ST   R1, SP, 4        ; Machine instruction: [10][1][R1][SP][4]
 LD   R1, R2, 0        ; Machine instruction: [10][0][R1][R2][0]
 ```
 
-#### 5.1.2 MOV Plus Syntax
+#### 5.10.2 MOV Plus Syntax
 
 **Assembler Input (Enhanced Syntax):**
 ```assembly
@@ -225,196 +369,31 @@ MOV  R1, R2, 3        ; Machine instruction: [111110][R1][R2][3]
 MOV  R3, SP, 0        ; Note: Negative offsets not supported in MOV
 ```
 
-### 5.2 Universal MOV Instruction (Assembler Preprocessing)
+### 5.11 MOV Special Immediate Value
 
-The `MOV` mnemonic is processed by the assembler to select the appropriate instruction encoding:
+The immediate value `3` in MOV instructions has special meaning:
+- **MOV Rx, Ry, 3**: Architectural register read - reads the current architectural value of Ry, ignoring any pending writes in the pipeline
+- When detected by hardware (immediate value = 3), forwarding is bypassed and the register file is read directly
+- This enables correct PC reading for link instructions in delay slots
+- For general registers, this provides a mechanism to read stable architectural state
 
-| Assembler Input | Actual Instruction | Binary Encoding |
-|-----------------|-------------------|-----------------|
-| `MOV Rd, Rs` | MOV | `[111110][Rd][Rs][0]` |
-| `MOV Rd, Rs, imm` | MOV | `[111110][Rd][Rs][imm]` |
-| `MOV Rd, Rs+imm` | MOV | `[111110][Rd][Rs][imm]` |
-| `MOV Rd, Sx` | MVS Rd, Sx | `[111111110][0][Rd][seg]` |
-| `MOV Sx, Rd` | MVS Sx, Rd | `[111111110][1][Rd][seg]` |
-| `MOV Rd, PSW` | SMV Rd, PSW | `[1111111110][10][Rd]` |
-| `MOV Rd, APC` | SMV Rd, APC | `[1111111110][00][Rd]` |
-| `MOV Rd, APSW` | SMV Rd, APSW | `[1111111110][01][Rd]` |
-| `MOV Rd, ACS` | SMV Rd, ACS | `[1111111110][11][Rd]` |
+### 5.12 Instruction Aliases
 
-**Enhanced MOV Syntax for Segment Operations:**
-```assembly
-; These are all assembler preprocessing - generate same binary
-MOV  R10, R0        ; Regular MOV encoding
-MOV  R10, R0+0      ; Plus syntax (assembler converts to MOV R10, R0, 0)
-MOV  ES, R0         ; Assembler converts to MVS ES, R0
-MOV  R1, CS         ; Assembler converts to MVS R1, CS
-MOV  R2, PSW        ; Assembler converts to SMV R2, PSW
-```
+**Table 5.12: Instruction Aliases**
 
-**Important**: The processor only understands the specific instructions (MOV, MVS, SMV). The universal MOV is purely an assembler convenience feature.
+| Alias | Actual Instruction | Purpose |
+|-------|-------------------|---------|
+| HALT | HLT | Halt processor |
+| JMP Rx | MOV PC, Rx | Unconditional jump to register |
+| LNK Rx | MOV Rx, PC, 2 | Link to subroutine (standard case) |
+| LINK | MOV LR, PC, 2 | Link to subroutine using LR (standard case) |
+| AMV Rx, Ry | MOV Rx, Ry, 3 | Architectural move (bypass forwarding) |
+| ALNK Rx | MOV Rx, PC, 3 | Architectural link in delay slot |
+| ALINK | MOV LR, PC, 3 | Architectural link to LR in delay slot |
 
-### 5.3 PSW Segment Assignment Instructions
+### 5.13 Flag Operation Aliases
 
-**Table 5.3: PSW Segment Assignment Operations**
-
-| Instruction | Format | Encoding | Purpose |
-|-------------|---------|----------|---------|
-| **SRS** | `SRS Rx` | `[11111110][1000][Rx4]` | Stack Register Single - Use Rx for SS |
-| **SRD** | `SRD Rx` | `[11111110][1001][Rx4]` | Stack Register Dual - Use Rx/Rx+1 for SS |
-| **ERS** | `ERS Rx` | `[11111110][1010][Rx4]` | Extra Register Single - Use Rx for ES |
-| **ERD** | `ERD Rx` | `[11111110][1011][Rx4]` | Extra Register Dual - Use Rx/Rx+1 for ES |
-
-**Important**: SRD and ERD instructions automatically set the DS/DE flags in PSW.
-
-**Enhanced Usage Examples:**
-```assembly
-; Stack segment setup
-LDI  0x0000      ; Base offset to R0
-MOV  R12, R0     ; Copy to R12 using enhanced MOV syntax
-SRD  R12         ; Use R12/R13 for SS access, sets DS=1 automatically
-
-; Extra segment setup  
-LDI  0x0000      ; Base offset to R0
-MOV  R10, R0     ; Copy to R10 using enhanced MOV syntax
-ERD  R10         ; Use R10/R11 for ES access, sets DE=1 automatically
-
-; Single register variants
-SRS  R8          ; Use R8 only for SS access
-ERS  R9          ; Use R9 only for ES access
-```
-
-### 5.4 Single Operand ALU Operations
-
-**Table 5.4: Single Operand Instructions**
-
-| Instruction | Format | Encoding | Description |
-|-------------|---------|----------|-------------|
-| **SWB** | `SWB Rx` | `[11111110][0000][Rx4]` | Swap Bytes in Rx |
-| **INV** | `INV Rx` | `[11111110][0001][Rx4]` | Invert all bits in Rx |
-| **NEG** | `NEG Rx` | `[11111110][0010][Rx4]` | Two's complement negation of Rx |
-
-**Usage Example:**
-```assembly
-LDI  0x1234      ; LDI always loads R0
-MOV  R1, R0      ; Copy to R1
-SWB  R1          ; R1 = 0x3412
-INV  R1          ; R1 = 0xCBED
-NEG  R1          ; R1 = 0x3413 (two's complement)
-```
-
-### 5.5 Special Move Operations
-
-**Table 5.5: SMV Instruction**
-
-| Instruction | Format | Encoding | Description |
-|-------------|---------|----------|-------------|
-| **SMV** | `SMV Rd, APC` | `[1111111110][00][Rd4]` | Read Alternate PC to Rd |
-| **SMV** | `SMV Rd, APSW` | `[1111111110][01][Rd4]` | Read Alternate PSW to Rd |
-| **SMV** | `SMV Rd, PSW` | `[1111111110][10][Rd4]` | Read Current PSW to Rd |
-| **SMV** | `SMV Rd, ACS` | `[1111111110][11][Rd4]` | Read Alternate CS to Rd |
-
-**Usage Example:**
-```assembly
-SMV R1, PSW          ; Read current PSW to R1
-SMV R2, APC          ; Read alternate PC (interrupt return address) to R2
-```
-
-### 5.6 Long Jump Instruction
-
-**Table 5.6: JML Instruction**
-
-| Instruction | Format | Encoding | Description |
-|-------------|---------|----------|-------------|
-| **JML** | `JML Rx` | `[11111110][0100][Rx4]` | Jump Long - CS=R[Rx], PC=R[Rx+1] |
-
-**Usage Example:**
-```assembly
-; Set up far jump address
-LDI  0x0001      ; Target segment to R0  
-MOV  R2, R0      ; Copy to R2 (will be CS)
-LDI  0x1000      ; Target offset to R0
-MOV  R3, R0      ; Copy to R3 (will be PC)
-JML  R2          ; Jump to CS=R2=0x0001, PC=R3=0x1000
-```
-
-**Important**: Rx must be an even register for JML to work correctly, as it uses Rx for CS and Rx+1 for PC.
-
-### 5.7 Explicit Segment Memory Operations
-
-**Table 5.7: LDS/STS Instructions**
-
-| Instruction | Format | Encoding | Description |
-|-------------|---------|----------|-------------|
-| **LDS** | `LDS Rd, seg, Rb` | `[11110][0][seg2][Rd4][Rb4]` | Load from explicit segment |
-| **STS** | `STS Rd, seg, Rb` | `[11110][1][seg2][Rd4][Rb4]` | Store to explicit segment |
-
-**Segment Encoding:**
-- `00` = CS, `01` = DS, `10` = SS, `11` = ES
-
-**Usage Example:**
-```assembly
-LDS R1, ES, R10      ; Load from ES:R10 to R1
-STS R2, CS, R15      ; Store R2 to CS:PC (unusual but possible)
-```
-
-### 5.8 Complete Shift Operations
-
-**Table 5.8: Enhanced Shift Instructions**
-
-| Instruction | Format | Encoding | Description |
-|-------------|---------|----------|-------------|
-| **SLC** | `SLC Rd, count` | `[110][111][Rd4][00][1][count3]` | Shift Left with Carry |
-| **SRC** | `SRC Rd, count` | `[110][111][Rd4][01][1][count3]` | Shift Right with Carry |
-| **SAC** | `SAC Rd, count` | `[110][111][Rd4][10][1][count3]` | Shift Arithmetic with Carry |
-| **ROC** | `ROC Rd, count` | `[110][111][Rd4][11][1][count3]` | Rotate with Carry |
-
-### 5.9 System Operations
-
-**Table 5.9: Complete System Instructions**
-
-| Instruction | Format | Encoding | Description | Pipeline Effect |
-|-------------|---------|----------|-------------|-----------------|
-| **NOP** | `NOP` | `[1111111111110][000]` | No operation | Full pipeline |
-| **FSH** | `FSH` | `[1111111111110][001]` | Pipeline flush | Pipeline flush |
-| **SWI** | `SWI` | `[1111111111110][010]` | Software interrupt | Pipeline flush + context switch |
-| **RETI** | `RETI` | `[1111111111110][011]` | Return from interrupt | Pipeline flush + context restore |
-| **HLT** | `HLT` | `[1111111111110][111]` | Halt processor | Pipeline freeze |
-
-### 5.10 Complete Instruction Summary
-
-**Table 5.10: Comprehensive Instruction Set**
-
-| Category | Instructions | Notes |
-|----------|--------------|-------|
-| **Data Movement** | MOV, LDI, LSI, MVS, SMV | Enhanced MOV syntax is assembler preprocessing |
-| **ALU Operations** | ADD, SUB, AND, OR, XOR, MUL, DIV | |
-| **32-bit ALU** | MUL32, DIV32 | Explicit 32-bit results |
-| **Single Operand ALU** | SWB, INV, NEG | Byte swap, invert, negate |
-| **Shift/Rotate** | SL, SLC, SR, SRC, SRA, SAC, ROR, ROC | Complete set with carry variants |
-| **Memory Access** | LD, ST, LDS, STS | Bracket syntax is assembler preprocessing |
-| **Control Flow** | JZ, JNZ, JC, JNC, JN, JNN, JO, JNO, JML | All use delay slot |
-| **PSW Operations** | SRS, SRD, ERS, ERD, SET, CLR, SET2, CLR2 | SRD/ERD set DS/DE flags |
-| **System** | NOP, FSH, SWI, RETI, HLT | Complete system control |
-
-### 5.11 Enhanced Syntax Summary
-
-**Table 5.11: Assembler Preprocessing Features**
-
-| Enhanced Syntax | Actual Instruction | Purpose |
-|-----------------|-------------------|---------|
-| `MOV Rd, Rs+imm` | `MOV Rd, Rs, imm` | Register move with offset |
-| `LD Rd, [Rb+offset]` | `LD Rd, Rb, offset` | Memory load with bracket syntax |
-| `ST Rd, [Rb+offset]` | `ST Rd, Rb, offset` | Memory store with bracket syntax |
-| `MOV Rd, Sx` | `MVS Rd, Sx` | Read from segment register |
-| `MOV Sx, Rd` | `MVS Sx, Rd` | Write to segment register |
-| `MOV Rd, PSW` | `SMV Rd, PSW` | Read processor status word |
-| `MOV Rd, APC` | `SMV Rd, APC` | Read alternate program counter |
-| `MOV Rd, APSW` | `SMV Rd, APSW` | Read alternate PSW |
-| `MOV Rd, ACS` | `SMV Rd, ACS` | Read alternate code segment |
-
-### 5.12 Flag Operation Aliases
-
-**Table 5.12: Common Flag Aliases**
+**Table 5.13: Common Flag Aliases**
 
 | Alias | Actual Instruction | Purpose |
 |-------|-------------------|---------|
@@ -430,6 +409,31 @@ STS R2, CS, R15      ; Store R2 to CS:PC (unusual but possible)
 | CLRI | CLR2 0 | Disable interrupts |
 | SETS | SET2 1 | Enable shadow view |
 | CLRS | CLR2 1 | Disable shadow view |
+
+## Usage Examples
+
+**Traditional approach (LNK before jump):**
+```assembly
+LNK R14           ; MOV R14, PC, 2 - R14 = return_here
+JMP R3            ; Jump to subroutine
+NOP               ; Wasted delay slot
+return_here: NOP  ; Return here
+```
+
+**Optimized approach (ALNK in delay slot):**
+```assembly
+JMP R3            ; Jump to subroutine  
+ALNK R14          ; MOV R14, PC, 3 - Architectural read of PC
+return_here: NOP  ; Return here
+```
+
+**General architectural read:**
+```assembly
+ADD R1, R2        ; R1 being written in pipeline
+AMV R3, R1        ; MOV R3, R1, 3 - Read architectural R1 (bypass forwarding)
+```
+
+Both link approaches correctly set R14 to `return_here`.
 
 ---
 
@@ -449,7 +453,7 @@ STS R2, CS, R15      ; Store R2 to CS:PC (unusual but possible)
 **One delay slot** is implemented for all branch and jump instructions:
 - The instruction immediately following a branch/jump **always executes**
 - Compiler/assembler must schedule useful instructions in the delay slot
-- **Applies to**: JMP, JZ, JNZ, JC, JNC, JN, JNN, JO, JNO, JML
+- **Applies to**: All conditional jumps (JZ, JNZ, JC, JNC, JN, JNN, JO, JNO), JML
 
 **Example Optimization:**
 ```assembly
@@ -464,7 +468,22 @@ JZ   target
 MOV  R3, R4    ; Useful work executes regardless of branch
 ```
 
-### 6.3 Performance Characteristics
+### 6.3 Forwarding and Hazard Handling
+
+The pipeline implements comprehensive forwarding to resolve data hazards:
+
+**Standard Forwarding:**
+- EX/MEM → EX: Forward results from previous ALU operation
+- MEM/WB → EX: Forward results from load/memory operations
+- Eliminates most data hazard stalls
+
+**Architectural Register Access:**
+- **MOV Rx, Ry, 3**: Bypasses all forwarding mechanisms
+- Reads the current architectural value from register file
+- Essential for correct PC reading in delay slot link instructions
+- Provides stable state access for synchronization operations
+
+### 6.4 Performance Characteristics
 
 - **Base CPI**: Ideally 1.0 (one instruction per cycle)
 - **Realistic CPI**: 1.1-1.3 due to stalls and multi-cycle operations
@@ -527,14 +546,14 @@ setup_screen:
     LDI  0x0FFF       ; LDI always loads R0
     INV  R0           ; R0 = 0xF000
     MOV  ES, R0       ; Enhanced MOV to segment register
-    LDI  0x1000       ; Base offset to screen buffer start
+    LDI  0x0000       ; Base offset to R0
     MOV  R10, R0      ; Enhanced MOV syntax
     ERD  R10          ; Use R10/R11 for ES access, sets DE=1
 
 write_char:
     LDI  'H'          ; Character to R0
     MOV  R1, R0       ; Copy to R1  
-    STS  R1, ES, R10          ; Explicit ES segment store
+    STS  R1, [R10+0x1000]    ; Enhanced bracket syntax for screen write
     
     RET
 ```
@@ -593,11 +612,15 @@ interrupt_handler:
 
 ---
 
-*Deep16 (深十六) Architecture Specification v4.2 (1r22) - Complete and Corrected*
+*Deep16 (深十六) Architecture Specification v4.5 (1r22) - Complete with Pipeline and Architectural Access*
 
-**Key Corrections:**
-- ✅ JML instruction corrected: CS=R[Rx], PC=R[Rx+1]
-- ✅ All enhanced syntax properly documented as assembler preprocessing
-- ✅ Complete instruction set with proper binary encodings
-- ✅ Practical programming examples with correct syntax
-- ✅ Clear separation between assembler features and processor capabilities
+**Key Updates:**
+- ✅ Boot ROM explicitly added to memory map at 0xFFFF0-0xFFFFF
+- ✅ Non-forwarded load capability added to key features
+- ✅ Architectural register access via MOV with immediate=3 documented
+- ✅ AMV, ALNK, ALINK aliases added for architectural access
+- ✅ Pipeline architecture section expanded with forwarding details
+- ✅ All instructions documented with full bit patterns and opcode prefixes
+- ✅ Register transfer notation added for all instructions
+- ✅ Condition code table for Jxx instructions added
+- ✅ Complete shift instruction documentation as ALU variants

@@ -338,7 +338,6 @@ isRegister(value) {
     return aliases.includes(upper) || aliases.includes(lower);
 }
 
-
     encodeInstruction(line, address, lineNumber) {
         const cleanLine = line.split(';')[0].trim();
         if (!cleanLine) return null;
@@ -350,13 +349,14 @@ isRegister(value) {
 
         try {
             switch (mnemonic) {
-                // ... existing instructions ...
                 case 'MOV': return this.encodeMOV(parts, address, lineNumber);
                 case 'ADD': return this.encodeALU(parts, 0b000, address, lineNumber);
                 case 'SUB': return this.encodeALU(parts, 0b001, address, lineNumber);
                 case 'AND': return this.encodeALU(parts, 0b010, address, lineNumber);
                 case 'OR':  return this.encodeALU(parts, 0b011, address, lineNumber);
                 case 'XOR': return this.encodeALU(parts, 0b100, address, lineNumber);
+                case 'MUL': return this.encodeALU(parts, 0b101, address, lineNumber);  // NEW
+                case 'DIV': return this.encodeALU(parts, 0b110, address, lineNumber);  // NEW
                 case 'ST':  return this.encodeMemory(parts, true, address, lineNumber);
                 case 'LD':  return this.encodeMemory(parts, false, address, lineNumber);
                 case 'JZ':  return this.encodeJump(parts, 0b000, address, lineNumber);
@@ -368,7 +368,16 @@ isRegister(value) {
                 case 'JO':  return this.encodeJump(parts, 0b110, address, lineNumber);
                 case 'JNO': return this.encodeJump(parts, 0b111, address, lineNumber);
                 
-                // NEW: Shift operations
+                // NEW: JMP alias
+                case 'JMP': 
+                    if (parts.length >= 2 && this.isRegister(parts[1])) {
+                        const rx = this.parseRegister(parts[1]);
+                        // Encode as MOV PC, Rx
+                        return 0b1111100000000000 | (15 << 6) | (rx << 2) | 0;
+                    }
+                    throw new Error('JMP requires register operand');
+                
+                // Shift operations
                 case 'SL':  return this.encodeShift(parts, 0b000, address, lineNumber);
                 case 'SLC': return this.encodeShift(parts, 0b001, address, lineNumber);
                 case 'SR':  return this.encodeShift(parts, 0b010, address, lineNumber);
@@ -378,28 +387,28 @@ isRegister(value) {
                 case 'ROR': return this.encodeShift(parts, 0b110, address, lineNumber);
                 case 'ROC': return this.encodeShift(parts, 0b111, address, lineNumber);
                 
-                // NEW: PSW operations
+                // PSW operations
                 case 'SRS': return this.encodeSRS(parts, address, lineNumber);
                 case 'SRD': return this.encodeSRD(parts, address, lineNumber);
                 case 'ERS': return this.encodeERS(parts, address, lineNumber);
                 case 'ERD': return this.encodeERD(parts, address, lineNumber);
                 
-                // NEW: Segment operations
+                // Segment operations
                 case 'MVS': return this.encodeMVS(parts, address, lineNumber);
                 
-                // NEW: Special moves
+                // Special moves
                 case 'SMV': return this.encodeSMV(parts, address, lineNumber);
                 
-                // NEW: Long jump
+                // Long jump
                 case 'JML': return this.encodeJML(parts, address, lineNumber);
                 
-                // ... existing flag operations ...
+                // Flag operations
                 case 'SET': return this.encodeSET(parts, address, lineNumber);
                 case 'CLR': return this.encodeCLR(parts, address, lineNumber);
                 case 'SET2': return this.encodeSET2(parts, address, lineNumber);
                 case 'CLR2': return this.encodeCLR2(parts, address, lineNumber);
                 
-                // ... existing aliases ...
+                // Flag aliases
                 case 'SETN': return this.encodeSETAlias(0b0000);
                 case 'CLRN': return this.encodeCLRAlias(0b1000);
                 case 'SETZ': return this.encodeSETAlias(0b0001);
@@ -413,13 +422,13 @@ isRegister(value) {
                 case 'SETS': return this.encodeSET2Alias(0b0001);
                 case 'CLRS': return this.encodeCLR2Alias(0b0001);
                 
-                // HALT alias and new encoding
-                case 'HALT': 
-                case 'HLT': return 0xFFFF;
-                
                 // System instructions
+                case 'FSH': return this.encodeSystem(0b001);  // NEW
+                case 'SWI': return this.encodeSystem(0b010);
                 case 'RETI': return this.encodeSystem(0b011);
                 case 'NOP':  return this.encodeSystem(0b000);
+                case 'HALT': 
+                case 'HLT': return this.encodeSystem(0b111);
                 
                 case 'LDI':  return this.encodeLDIFromLine(cleanLine, address, lineNumber);
                 case 'LSI':  return this.encodeLSI(parts, address, lineNumber);
@@ -427,18 +436,12 @@ isRegister(value) {
                 case 'LDS': return this.encodeLDSSTS(parts, false, address, lineNumber);
                 case 'STS': return this.encodeLDSSTS(parts, true, address, lineNumber);
                 
-                // NEW: Complete shift operations
-                case 'SLC': return this.encodeShift(parts, 0b001, address, lineNumber);
-                case 'SRC': return this.encodeShift(parts, 0b011, address, lineNumber);
-                case 'SAC': return this.encodeShift(parts, 0b101, address, lineNumber);
-                case 'ROC': return this.encodeShift(parts, 0b111, address, lineNumber);
-                
-                // NEW: Complete SOP operations
+                // Complete SOP operations
                 case 'SWB': return this.encodeSWB(parts, address, lineNumber);
                 case 'INV': return this.encodeINV(parts, address, lineNumber);
                 case 'NEG': return this.encodeNEG(parts, address, lineNumber);
                 
-                // NEW: MUL/DIV with 32-bit mode
+                // 32-bit operations
                 case 'MUL32': return this.encodeMUL32(parts, address, lineNumber);
                 case 'DIV32': return this.encodeDIV32(parts, address, lineNumber);
                     
@@ -505,18 +508,13 @@ encodeMVS(parts, address, lineNumber) {
         };
         
         if (firstOperand in segMap) {
-            // MVS Sx, Rd (write to segment register)
             const seg = segMap[firstOperand];
             const rd = this.parseRegister(parts[2]);
-            // MVS: [111111110][d=1][Rd4][seg2]
-            return 0b1111111101000000 | (rd << 4) | seg;
-        }
-        else if (secondOperand in segMap) {
-            // MVS Rd, Sx (read from segment register)
+            return 0b1111111101000000 | (rd << 2) | seg;
+        } else if (secondOperand in segMap) {
             const rd = this.parseRegister(parts[1]);
             const seg = segMap[secondOperand];
-            // MVS: [111111110][d=0][Rd4][seg2]
-            return 0b1111111100000000 | (rd << 4) | seg;
+            return 0b1111111100000000 | (rd << 2) | seg;
         }
         throw new Error(`Invalid MVS operands: ${parts[1]}, ${parts[2]}`);
     }
@@ -694,14 +692,12 @@ isSpecialRegister(reg) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
             const count = this.parseImmediate(parts[2]);
-            if (count < 0 || count > 7) {
-                throw new Error(`Shift count ${count} out of range (0-7)`);
+            if (count < 0 || count > 15) {
+                throw new Error(`Shift count ${count} out of range (0-15)`);
             }
-            // Enhanced shift encoding: [110][111][Rd4][T2][C][count3]
-            // Bits: 15-13: opcode=110, 12-10: aluOp=111, 9-6: Rd, 5-4: T2, 3: C, 2-0: count
-            const T2 = (shiftType >>> 1) & 0x3;  // Extract T2 from shiftType
-            const C = shiftType & 0x1;           // Extract C from shiftType
-            return 0b1101110000000000 | (rd << 6) | (T2 << 4) | (C << 3) | count;
+        // Correct shift encoding: [110][111][Rd4][type3][count4]
+        // Bits: 15-13: opcode=110, 12-10: aluOp=111, 9-6: Rd, 6-4: type, 3-0: count
+        return 0b1101110000000000 | (rd << 6) | (shiftType << 4) | (count & 0xF);
         }
         throw new Error('Shift operation requires register and count');
     }
@@ -711,7 +707,7 @@ isSpecialRegister(reg) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
             // SWB: [11111110][0000][Rx4]
-            return 0b1111111000000000 | (rx << 4);
+            return 0b1111111000000000 | rx;
         }
         throw new Error('SWB requires register operand');
     }
@@ -721,7 +717,7 @@ isSpecialRegister(reg) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
             // INV: [11111110][0001][Rx4]
-            return 0b1111111000010000 | (rx << 4);
+            return 0b1111111000010000 | rx;
         }
         throw new Error('INV requires register operand');
     }
@@ -731,7 +727,7 @@ isSpecialRegister(reg) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
             // NEG: [11111110][0010][Rx4]
-            return 0b1111111000100000 | (rx << 4);
+            return 0b1111111000100000 | rx;
         }
         throw new Error('NEG requires register operand');
     }
