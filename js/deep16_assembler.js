@@ -859,7 +859,6 @@ class Deep16Assembler {
         throw new Error('DIV32 requires destination and source registers');
     }
 
-    // ENHANCED: Update ALU to handle MUL/DIV with i flag
     encodeALU(parts, aluOp, address, lineNumber) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
@@ -879,10 +878,12 @@ class Deep16Assembler {
             }
             
             if (this.isRegister(operand)) {
+                // ALU with register operand: ADD Rd, Rs
                 const rs = this.parseRegister(operand);
                 // ALU2 register mode: [110][op3][Rd4][w1][i][Rs4]
                 return 0b1100000000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | (iFlag << 4) | rs;
             } else {
+                // ALU with immediate operand: ADD Rd, imm
                 const imm = this.parseImmediate(operand, false);
                 if (imm < 0 || imm > 15) {
                     throw new Error(`Immediate value ${imm} out of range (0-15)`);
@@ -891,9 +892,9 @@ class Deep16Assembler {
                 return 0b1100000000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | (1 << 4) | imm;
             }
         }
-        throw new Error(`ALU operation requires two operands`);
+        throw new Error(`ALU operation requires destination register and operand`);
     }
-
+    
     encodeMemory(parts, isStore, address, lineNumber) {
         if (window.Deep16Debug) console.log(`encodeMemory parts:`, parts, `isStore:`, isStore);
         
