@@ -1,11 +1,11 @@
 /* file-menu.css - File and Edit menu styles */
-.file-menu, .edit-menu {
+.file-menu, .edit-menu, .docs-menu {
     position: relative;
     display: flex;
     align-items: center;
 }
 
-#file-menu-btn, #edit-menu-btn {
+#file-menu-btn, #edit-menu-btn, #docs-menu-btn {
     background: #0e639c;
     border: 1px solid #3e3e42;
     color: white;
@@ -17,11 +17,11 @@
     min-height: 24px;
 }
 
-#file-menu-btn:hover, #edit-menu-btn:hover {
+#file-menu-btn:hover, #edit-menu-btn:hover, #docs-menu-btn:hover {
     background: #1177bb;
 }
 
-.file-dropdown, .edit-dropdown {
+.file-dropdown, .edit-dropdown, .docs-dropdown {
     display: none;
     position: absolute;
     top: 100%;
@@ -36,11 +36,11 @@
     gap: 2px;
 }
 
-.file-dropdown.show, .edit-dropdown.show {
+.file-dropdown.show, .edit-dropdown.show, .docs-dropdown.show {
     display: flex;
 }
 
-.file-dropdown button, .edit-dropdown button {
+.file-dropdown button, .edit-dropdown button, .docs-dropdown button {
     background: transparent;
     border: none;
     color: #d4d4d4;
@@ -53,7 +53,7 @@
     width: 100%;
 }
 
-.file-dropdown button:hover, .edit-dropdown button:hover {
+.file-dropdown button:hover, .edit-dropdown button:hover, .docs-dropdown button:hover {
     background: #3e3e42;
 }
 

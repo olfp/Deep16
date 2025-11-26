@@ -24,6 +24,13 @@
                     <label class="toggle-label">WASM
                         <input type="checkbox" id="wssam-toggle" checked>
                     </label>
+                    <div class="docs-menu">
+                        <button id="docs-menu-btn">Docs ▾</button>
+                        <div class="docs-dropdown" id="docs-dropdown">
+                            <button data-doc="arch">Deep16 Architecture</button>
+                            <button data-doc="ide">DeepCode IDE Manual</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -300,6 +307,16 @@ data_area:
     
     <div id="status-bar" class="status-bar">
         DeepCode Ready - Architecture v3.5 (1r11a) - Enter assembly code and click 'Assemble'
+    </div>
+
+    <div id="doc-overlay" class="doc-overlay" style="display:none">
+        <div class="doc-overlay-content">
+            <div class="doc-overlay-header">
+                <span id="doc-overlay-title"></span>
+                <button id="doc-overlay-close">Close</button>
+            </div>
+            <div id="doc-overlay-body" class="doc-overlay-body"></div>
+        </div>
     </div>
 
     <script src="js/deep16_assembler.js?v=20251126-1"></script>

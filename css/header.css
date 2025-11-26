@@ -42,8 +42,9 @@
 
 .header-right-controls {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
 }
 
 .toggle-label {
@@ -79,3 +80,94 @@
     color: #cdeeff;
     font-size: 12px;
 }
+
+.doc-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.doc-overlay-content {
+    width: 72%;
+    max-width: 960px;
+    max-height: 80vh;
+    background: #1e1e1e;
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+}
+
+.doc-overlay-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+    padding: 8px 12px;
+    font-weight: bold;
+    color: #9cdcfe;
+}
+
+#doc-overlay-close {
+    padding: 2px 8px;
+    background: #0e639c;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    min-height: 20px;
+}
+
+.doc-overlay-body {
+    padding: 16px;
+    overflow: auto;
+    color: #d4d4d4;
+    font-family: 'Courier New', monospace;
+    line-height: 1.6;
+}
+.doc-overlay-body h1, .doc-overlay-body h2, .doc-overlay-body h3 {
+    color: #9cdcfe;
+    margin-top: 16px;
+    margin-bottom: 8px;
+}
+.doc-overlay-body p { margin: 10px 0 14px; }
+.doc-overlay-body pre { margin: 12px 0; }
+.doc-overlay-body ul, .doc-overlay-body ol { margin: 8px 0 12px; }
+.doc-overlay-body li { margin: 4px 0; }
+.doc-overlay-body pre, .doc-overlay-body code {
+    background: #252526;
+    border: 1px solid #3e3e42;
+    border-radius: 3px;
+}
+.doc-overlay-body pre { padding: 8px; overflow: auto; }
+.doc-overlay-body blockquote {
+    border-left: 3px solid #3e3e42;
+    margin: 8px 0;
+    padding: 4px 12px;
+    color: #c8c8c8;
+    background: #232323;
+}
+.doc-overlay-body table.md-table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8px 0;
+}
+.doc-overlay-body table.md-table th,
+.doc-overlay-body table.md-table td {
+    border: 1px solid #3e3e42;
+    padding: 6px 8px;
+}
+
+/* Lightweight code highlighter */
+.doc-overlay-body .hl-kw { color: #c586c0; }
+.doc-overlay-body .hl-num { color: #b5cea8; }
+.doc-overlay-body .hl-cmt { color: #6a9955; }
+.doc-overlay-body .hl-op  { color: #d4d4d4; }
