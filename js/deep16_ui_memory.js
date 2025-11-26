@@ -7,6 +7,9 @@ class Deep16MemoryUI {
             data: { start: 0x2000, end: 0x3FFF },
             stack: { start: 0x4000, end: 0x7FFF }
         };
+        this.breakpoints = new Set([0x00100]);
+        this.clickHandlersInitialized = false;
+        this.bpHeaderClickInitialized = false;
     }
 
     buildSegmentInfo(listing) {
@@ -102,6 +105,8 @@ isCodeAddress(address) {
         const displayValue = `0x${valueHex}`;
         
         let html = `<div class="memory-line code-line ${pcClass}" data-addr="${address}">`;
+        const hasBP = this.breakpoints && this.breakpoints.has(address);
+        html += `<span class="memory-breakpoint${hasBP ? ' bp-set' : ''}">${hasBP ? 'B' : ''}</span>`;
         html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
         html += `<span class="memory-bytes">${displayValue}</span>`;
         html += `<span class="memory-disassembly">${disasm}</span>`;
@@ -284,9 +289,9 @@ updateMemoryDisplay() {
     }
 }
 
-renderMemoryDisplay() {
-    const memoryDisplay = document.getElementById('memory-display');
-    if (!memoryDisplay) return;
+    renderMemoryDisplay() {
+        const memoryDisplay = document.getElementById('memory-display');
+        if (!memoryDisplay) return;
     
     if (window.Deep16Debug) console.log(`renderMemoryDisplay: this.ui.memoryStartAddress = ${this.ui.memoryStartAddress}`);
     
@@ -329,7 +334,9 @@ renderMemoryDisplay() {
         }
     }
     
-    memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
+        memoryDisplay.innerHTML = html || '<div class="memory-line">No memory content</div>';
+        this.ensureBreakpointClickListener();
+        this.updateBreakpointsHeader();
     
     if (window.Deep16Debug) console.log(`Finished rendering ${end - start} memory locations`);
 }
@@ -579,4 +586,68 @@ markOnscreenAccess(address) {
         setTimeout(() => { target.style.animation = ''; }, 1000);
     }
 }
+    
+    toggleBreakpoint(address) {
+        if (this.breakpoints.has(address)) {
+            this.breakpoints.delete(address);
+            this.ui.addTranscriptEntry(`Breakpoint removed at 0x${address.toString(16).padStart(5, '0').toUpperCase()}`, "info");
+        } else {
+            this.breakpoints.add(address);
+            this.ui.addTranscriptEntry(`Breakpoint added at 0x${address.toString(16).padStart(5, '0').toUpperCase()}`, "info");
+        }
+        this.renderMemoryDisplay();
+        this.updateBreakpointsHeader();
+    }
+
+    ensureBreakpointClickListener() {
+        const memoryDisplay = document.getElementById('memory-display');
+        if (!memoryDisplay || this.clickHandlersInitialized) return;
+        this.clickHandlersInitialized = true;
+        memoryDisplay.addEventListener('click', (e) => {
+            const line = e.target.closest('.memory-line');
+            if (!line || !line.classList.contains('code-line')) return;
+            const addrText = line.getAttribute('data-addr');
+            if (!addrText) return;
+            const address = parseInt(addrText, 10);
+            if (Number.isNaN(address)) return;
+            this.toggleBreakpoint(address);
+        });
+    }
+    
+    updateBreakpointsHeader() {
+        const header = document.getElementById('memory-breakpoints-header');
+        if (!header) return;
+        const bps = Array.from(this.breakpoints).sort((a,b) => a - b);
+        if (bps.length) {
+            const items = bps.map(a => {
+                const hex = '0x' + a.toString(16).padStart(5,'0').toUpperCase();
+                return `<span class="bp-item">${hex}<span class="bp-del" data-addr="${a}" title="Delete">×</span></span>`;
+            }).join(', ');
+            header.innerHTML = `Memory Display (BP@\u00A0${items})`;
+        } else {
+            header.textContent = 'Memory Display (BP@ none)';
+        }
+        this.ensureBreakpointHeaderListener();
+    }
+
+    ensureBreakpointHeaderListener() {
+        if (this.bpHeaderClickInitialized) return;
+        const header = document.getElementById('memory-breakpoints-header');
+        if (!header) return;
+        this.bpHeaderClickInitialized = true;
+        header.addEventListener('click', (e) => {
+            const target = e.target;
+            if (target && target.classList && target.classList.contains('bp-del')) {
+                const addrText = target.getAttribute('data-addr');
+                if (!addrText) return;
+                const address = parseInt(addrText, 10);
+                if (Number.isNaN(address)) return;
+                if (this.breakpoints.has(address)) {
+                    this.breakpoints.delete(address);
+                }
+                this.renderMemoryDisplay();
+                this.updateBreakpointsHeader();
+            }
+        });
+    }
 }

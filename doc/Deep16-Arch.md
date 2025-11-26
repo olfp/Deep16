@@ -1,4 +1,4 @@
-# Deep16 (深十六) Architecture Specification Milestone 1r22
+# Deep16 (深十六) Architecture Specification Milestone 2
 ## 16-bit RISC Processor with Enhanced Memory Addressing
 
 ---

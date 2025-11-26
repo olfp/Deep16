@@ -19,11 +19,7 @@ class DeepWebUI {
             stack: { start: 0x4000, end: 0x7FFF }
         };
 
-        // Web Worker support
-        this.worker = null;
-        this.workerSupported = typeof Worker !== 'undefined';
-        this.useWorker = false;
-        this.turboMode = false;
+        
 
         // Initialize modules
         this.memoryUI = new Deep16MemoryUI(this);
@@ -50,9 +46,7 @@ class DeepWebUI {
         this.initializeEventListeners();
         this.initializeSearchableDropdowns();
         this.initializeTabs();
-        this.initializeWorker();
-        this.initializeWorkerToggle();
-        this.addWorkerStyles();
+        
         try {
             this.simulator.autoloadROM();
         } catch {}
@@ -78,12 +72,14 @@ class DeepWebUI {
         if (runBtn) runBtn.disabled = false;
         if (stepBtn) stepBtn.disabled = false;
         if (resetBtn) resetBtn.disabled = false;
+        this.updateRunIndicator(false);
         this.manualAddressChange = true;
         this.updateAllDisplays();
         this.syncHeaderWidths();
         this.setupMobileLayout();
         this.wasmAvailable = typeof window.Deep16Wasm !== 'undefined';
         this.useWasm = false;
+        this.resumeFromBreakpoint = false;
         const wssamToggle = document.getElementById('wssam-toggle');
         if (wssamToggle) {
             wssamToggle.checked = true;
@@ -101,7 +97,6 @@ class DeepWebUI {
             this.addTranscriptEntry("WASM module loading...", "info");
             window.Deep16WasmReady.then(() => {
                 this.wasmAvailable = true;
-                this.turboMode = true;
                 try {
                     window.Deep16Wasm.init(this.simulator.memory.length);
                     if (typeof this.simulator.autoloadROM === 'function') {
@@ -135,7 +130,6 @@ class DeepWebUI {
         }
         window.addEventListener('deep16-wasm-ready', () => {
             this.wasmAvailable = true;
-            this.turboMode = true;
             try {
                 window.Deep16Wasm.init(this.simulator.memory.length);
                 if (typeof this.simulator.autoloadROM === 'function') {
@@ -164,184 +158,17 @@ class DeepWebUI {
         this.addTranscriptEntry("DeepCode initialized and ready", "info");
     }
 
-    initializeWorker() {
-        if (!this.workerSupported) {
-        if (window.Deep16Debug) console.log('Web Workers not supported, using main thread');
-            return;
-        }
-        
-        try {
-            this.worker = new Worker('js/deep16_worker.js?v=20251126-1');
-            this.worker.onmessage = (e) => this.handleWorkerMessage(e);
-            this.worker.onerror = (error) => {
-                console.error('Worker error:', error);
-                this.useWorker = false;
-                this.updateWorkerToggle();
-            };
-        } catch (error) {
-            console.error('Failed to create worker:', error);
-            this.workerSupported = false;
-            this.useWorker = false;
-        }
-    }
-
-    initializeWorkerToggle() {
-        const workerToggle = document.getElementById('worker-toggle');
-        const turboToggle = document.getElementById('turbo-toggle');
-        const screenToggle = document.getElementById('screen-buffer-toggle');
-
-        if (workerToggle) {
-            workerToggle.checked = !!this.useWorker;
-            workerToggle.disabled = !this.workerSupported;
-            workerToggle.title = !this.workerSupported ? 'Web Workers not supported in this environment' : '';
-            workerToggle.addEventListener('change', () => {
-                if (!this.workerSupported) return;
-                this.useWorker = !!workerToggle.checked;
-                this.updateWorkerToggle();
-                if (this.useWorker && this.worker) {
-                    this.worker.postMessage({
-                        type: 'INIT',
-                        data: {
-                            memory: this.simulator.memory,
-                            registers: this.simulator.registers,
-                            psw: this.simulator.psw,
-                            segmentRegisters: this.simulator.segmentRegisters
-                        }
-                    });
-                }
-            });
-        }
-
-        if (turboToggle) {
-            turboToggle.checked = !!this.turboMode;
-            turboToggle.addEventListener('change', () => {
-                this.turboMode = !!turboToggle.checked;
-                this.addTranscriptEntry(`Turbo: ${this.turboMode ? 'ON' : 'OFF'}`, 'info');
-            });
-        }
-
-        if (screenToggle) {
-            screenToggle.checked = !!this.screenUI.deferUpdates;
-            screenToggle.addEventListener('change', () => {
-                const flag = !!screenToggle.checked;
-                this.screenUI.setDeferUpdates(flag);
-                this.addTranscriptEntry(`Screen Buffer: ${flag ? 'ON' : 'OFF'}`, 'info');
-            });
-        }
-    }
-
-    toggleWorker() {
-        if (!this.workerSupported) return;
-        
-        this.useWorker = !this.useWorker;
-        const workerBtn = document.getElementById('worker-btn');
-        if (workerBtn) {
-            workerBtn.textContent = `Worker: ${this.useWorker ? 'ON' : 'OFF'}`;
-            workerBtn.className = `control-btn ${this.useWorker ? 'worker-active' : ''}`;
-        }
-        
-        if (this.useWorker && this.worker) {
-            // Initialize worker with current state
-            this.worker.postMessage({
-                type: 'INIT',
-                data: {
-                    memory: this.simulator.memory,
-                    registers: this.simulator.registers,
-                    psw: this.simulator.psw,
-                    segmentRegisters: this.simulator.segmentRegisters
-                }
-            });
-        }
-    }
-
-    toggleTurboMode() {
-        this.turboMode = !this.turboMode;
-        const turboBtn = document.getElementById('turbo-btn');
-        if (turboBtn) {
-            turboBtn.textContent = `Turbo: ${this.turboMode ? 'ON' : 'OFF'}`;
-            turboBtn.className = `control-btn ${this.turboMode ? 'turbo-active' : ''}`;
-        }
-    }
-
-    toggleScreenBuffer() {
-        const flag = !this.screenUI.deferUpdates;
-        this.screenUI.setDeferUpdates(flag);
-        const btn = document.getElementById('screen-buffer-btn');
-        if (btn) {
-            btn.textContent = `Screen Buffer: ${flag ? 'ON' : 'OFF'}`;
-            btn.className = `control-btn ${flag ? 'screen-buffer-active' : ''}`;
-        }
-    }
-
-    handleWorkerMessage(e) {
-        const { type, data } = e.data;
-        
-        switch (type) {
-            case 'BATCH_UPDATE':
-                // Update simulator state from worker
-                this.simulator.registers = data.registers;
-                this.simulator.psw = data.psw;
-                this.simulator.memory = data.memory;
-                this.simulator.segmentRegisters = data.segmentRegisters;
-                this.simulator.running = data.running;
-                
-                // Update screen in real-time during execution
-                this.screenUI.updateScreenDisplay();
-                
-                // Update UI less frequently for better performance
-                if (data.stepsExecuted > 0 && data.stepsExecuted % 10 === 0) {
-                    this.updateAllDisplays();
-                }
-                break;
-                
-            case 'STEP_RESULT':
-                this.simulator.registers = data.registers;
-                this.simulator.psw = data.psw;
-                this.simulator.memory = data.memory;
-                this.simulator.segmentRegisters = data.segmentRegisters;
-                this.simulator.running = data.running;
-                this.updateAllDisplays();
-                break;
-                
-            case 'EXECUTION_COMPLETE':
-                this.simulator.registers = data.registers;
-                this.simulator.psw = data.psw;
-                this.simulator.memory = data.memory;
-                this.simulator.segmentRegisters = data.segmentRegisters;
-                this.simulator.running = false;
-                this.updateAllDisplays();
-                this.updateRunButton(false);
-                this.status("Program completed");
-                this.addTranscriptEntry("Program execution completed", "success");
-                break;
-        }
-    }
-
-    addWorkerStyles() {
-        const style = document.createElement('style');
-        style.textContent = `
-            .worker-active {
-                background-color: #4CAF50 !important;
-                color: white !important;
-            }
-            .turbo-active {
-                background-color: #ff9800 !important;
-                color: white !important;
-            }
-            .stop-btn {
-                background-color: #f44336 !important;
-                color: white !important;
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
-    updateWorkerToggle() {
-        const workerToggle = document.getElementById('worker-toggle');
-        if (workerToggle) {
-            workerToggle.checked = !!this.useWorker;
-            workerToggle.disabled = !this.workerSupported;
-            workerToggle.title = !this.workerSupported ? 'Web Workers not supported in this environment' : '';
+    updateRunIndicator(isRunning) {
+        const el = document.getElementById('run-state-indicator');
+        if (!el) return;
+        if (isRunning) {
+            el.textContent = 'Run';
+            el.classList.remove('run-indicator-halt');
+            el.classList.add('run-indicator-running');
+        } else {
+            el.textContent = 'Halt';
+            el.classList.remove('run-indicator-running');
+            el.classList.add('run-indicator-halt');
         }
     }
 
@@ -356,6 +183,7 @@ class DeepWebUI {
                 runBtn.classList.remove('stop-btn');
             }
         }
+        this.updateRunIndicator(isRunning);
     }
 
     // Add new methods for file operations
@@ -1222,11 +1050,7 @@ class DeepWebUI {
         this.registerUI.updateShadowRegisters();
         this.memoryUI.updateRecentMemoryDisplay();
         this.updateSegmentNavigationFields();
-        if (this.screenUI.deferUpdates && this.simulator.running) {
-            this.screenUI.flushPending();
-        } else {
-            this.screenUI.updateScreenDisplay();
-        }
+        this.screenUI.updateScreenDisplay();
     }
 
     run() {
@@ -1235,9 +1059,7 @@ class DeepWebUI {
             this.stop();
             return;
         }
-        if (this.useWorker && this.worker && this.workerSupported) {
-            this.workerRun();
-        } else if (this.useWasm && this.wasmAvailable && this.wasmInitialized && window.Deep16Wasm) {
+        if (this.useWasm && this.wasmAvailable && this.wasmInitialized && window.Deep16Wasm) {
             this.wasmRun();
         } else {
             this.jsRun();
@@ -1257,8 +1079,16 @@ class DeepWebUI {
         this.status("Running program...");
         this.addTranscriptEntry("Starting program execution", "info");
         this.updateRunButton(true);
-
-        const runInterval = this.turboMode ? 1 : 10; // 1ms in turbo, 10ms normal
+        if (this.resumeFromBreakpoint) {
+            try {
+                const physPCCheck = ((this.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.simulator.registers[15] & 0xFFFF);
+                if (this.memoryUI && this.memoryUI.breakpoints && this.memoryUI.breakpoints.has(physPCCheck)) {
+                    this.simulator.step();
+                }
+            } catch {}
+            this.resumeFromBreakpoint = false;
+        }
+        const runInterval = 10;
         this.runInterval = setInterval(() => {
             if (!this.simulator.running) {
                 clearInterval(this.runInterval);
@@ -1269,9 +1099,18 @@ class DeepWebUI {
                 return;
             }
             
-            const stepsPerTick = this.turboMode ? 4000 : 200;
+            const stepsPerTick = 200;
             let continueRunning = true;
             for (let i = 0; i < stepsPerTick && this.simulator.running; i++) {
+                const physPCCheck = ((this.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.simulator.registers[15] & 0xFFFF);
+                if (this.memoryUI && this.memoryUI.breakpoints && this.memoryUI.breakpoints.has(physPCCheck)) {
+                    continueRunning = false;
+                    this.simulator.running = false;
+                    this.status(`Breakpoint hit at 0x${physPCCheck.toString(16).padStart(5,'0')}`);
+                    this.addTranscriptEntry(`Breakpoint hit at 0x${physPCCheck.toString(16).padStart(5,'0')}`, "warning");
+                    this.resumeFromBreakpoint = true;
+                    break;
+                }
                 continueRunning = this.simulator.step();
                 if (!continueRunning) break;
             }
@@ -1295,8 +1134,15 @@ class DeepWebUI {
             if (!continueRunning) {
                 clearInterval(this.runInterval);
                 this.simulator.running = false;
-                this.status("Program completed");
-                this.addTranscriptEntry("Program execution completed", "success");
+                const physPCNow = ((this.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.simulator.registers[15] & 0xFFFF);
+                if (this.memoryUI && this.memoryUI.breakpoints && this.memoryUI.breakpoints.has(physPCNow)) {
+                    this.status(`Program halted at breakpoint 0x${physPCNow.toString(16).padStart(5,'0')}`);
+                    this.addTranscriptEntry(`Program halted at breakpoint 0x${physPCNow.toString(16).padStart(5,'0')}`, "warning");
+                    this.resumeFromBreakpoint = true;
+                } else {
+                    this.status("Program completed");
+                    this.addTranscriptEntry("Program execution completed", "success");
+                }
                 this.updateAllDisplays();
                 this.updateRunButton(false);
             }
@@ -1304,9 +1150,6 @@ class DeepWebUI {
     }
 
     stop() {
-        if (this.useWorker && this.worker) {
-            this.worker.postMessage({ type: 'STOP' });
-        }
         if (this.runInterval) {
             clearInterval(this.runInterval);
             this.runInterval = null;
@@ -1326,11 +1169,7 @@ class DeepWebUI {
             this.simulator.running = true;
         }
         
-        if (this.useWorker && this.worker) {
-            this.worker.postMessage({
-                type: 'STEP'
-            });
-        } else if (this.useWasm && this.wasmAvailable && this.wasmInitialized && window.Deep16Wasm) {
+        if (this.useWasm && this.wasmAvailable && this.wasmInitialized && window.Deep16Wasm) {
             const cont = window.Deep16Wasm.step();
             const regs = window.Deep16Wasm.get_registers();
             for (let i = 0; i < this.simulator.registers.length && i < regs.length; i++) {
@@ -1458,12 +1297,6 @@ class DeepWebUI {
             clearInterval(this.runInterval);
             this.runInterval = null;
         }
-        
-        if (this.useWorker && this.worker) {
-            this.worker.postMessage({
-                type: 'RESET'
-            });
-        }
         if (this.useWasm && this.wasmAvailable && this.wasmInitialized && window.Deep16Wasm) {
             try { window.Deep16Wasm.reset(); } catch {}
         }
@@ -1487,7 +1320,26 @@ class DeepWebUI {
         this.status("Running program (WASM)...");
         this.addTranscriptEntry("Starting WASM execution", "info");
         this.updateRunButton(true);
-        const runInterval = this.turboMode ? 1 : 10;
+        if (this.resumeFromBreakpoint) {
+            try {
+                let csVal = this.simulator.segmentRegisters.CS & 0xFFFF;
+                let pcVal = this.simulator.registers[15] & 0xFFFF;
+                try {
+                    const segsCur = window.Deep16Wasm.get_segments();
+                    if (segsCur && segsCur.length >= 1) csVal = segsCur[0] & 0xFFFF;
+                } catch {}
+                try {
+                    const regsCur = window.Deep16Wasm.get_registers();
+                    if (regsCur && regsCur.length >= 16) pcVal = regsCur[15] & 0xFFFF;
+                } catch {}
+                const physPCCheck = ((csVal & 0xFFFF) << 4) + (pcVal & 0xFFFF);
+                if (this.memoryUI && this.memoryUI.breakpoints && this.memoryUI.breakpoints.has(physPCCheck)) {
+                    window.Deep16Wasm.step();
+                }
+            } catch {}
+            this.resumeFromBreakpoint = false;
+        }
+        const runInterval = 10;
         this.runInterval = setInterval(() => {
             if (!this.simulator.running) {
                 clearInterval(this.runInterval);
@@ -1497,8 +1349,31 @@ class DeepWebUI {
                 this.updateRunButton(false);
                 return;
             }
-            const stepsPerTick = this.turboMode ? 4000 : 200;
-            const cont = window.Deep16Wasm.run_steps(stepsPerTick);
+            const stepsPerTick = 200;
+            let cont = true;
+            for (let i = 0; i < stepsPerTick && this.simulator.running; i++) {
+                let csVal = this.simulator.segmentRegisters.CS & 0xFFFF;
+                let pcVal = this.simulator.registers[15] & 0xFFFF;
+                try {
+                    const segsCur = window.Deep16Wasm.get_segments();
+                    if (segsCur && segsCur.length >= 1) csVal = segsCur[0] & 0xFFFF;
+                } catch {}
+                try {
+                    const regsCur = window.Deep16Wasm.get_registers();
+                    if (regsCur && regsCur.length >= 16) pcVal = regsCur[15] & 0xFFFF;
+                } catch {}
+                const physPCCheck = ((csVal & 0xFFFF) << 4) + (pcVal & 0xFFFF);
+                if (this.memoryUI && this.memoryUI.breakpoints && this.memoryUI.breakpoints.has(physPCCheck)) {
+                    cont = false;
+                    this.simulator.running = false;
+                    this.status(`Breakpoint hit at 0x${physPCCheck.toString(16).padStart(5,'0')}`);
+                    this.addTranscriptEntry(`Breakpoint hit at 0x${physPCCheck.toString(16).padStart(5,'0')}`, "warning");
+                    this.resumeFromBreakpoint = true;
+                    break;
+                }
+                const stepCont = window.Deep16Wasm.step();
+                if (!stepCont) { cont = false; break; }
+            }
             const regs = window.Deep16Wasm.get_registers();
             for (let i = 0; i < this.simulator.registers.length && i < regs.length; i++) {
                 this.simulator.registers[i] = regs[i] & 0xFFFF;
@@ -1595,8 +1470,15 @@ class DeepWebUI {
                     }
                 } catch {}
                 this.lockMemoryStartWhileRunning = false;
-                this.status("Program completed");
-                this.addTranscriptEntry("Program execution completed (WASM)", "success");
+                const physPCNow = ((this.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.simulator.registers[15] & 0xFFFF);
+                if (this.memoryUI && this.memoryUI.breakpoints && this.memoryUI.breakpoints.has(physPCNow)) {
+                    this.status(`Program halted at breakpoint 0x${physPCNow.toString(16).padStart(5,'0')}`);
+                    this.addTranscriptEntry("Program execution halted at breakpoint (WASM)", "warning");
+                    this.resumeFromBreakpoint = true;
+                } else {
+                    this.status("Program completed");
+                    this.addTranscriptEntry("Program execution completed (WASM)", "success");
+                }
                 this.updateRunButton(false);
             }
         }, runInterval);

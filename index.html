@@ -24,15 +24,6 @@
                     <label class="toggle-label">WASM
                         <input type="checkbox" id="wssam-toggle" checked>
                     </label>
-                    <label class="toggle-label">Worker
-                        <input type="checkbox" id="worker-toggle">
-                    </label>
-                    <label class="toggle-label">Turbo
-                        <input type="checkbox" id="turbo-toggle">
-                    </label>
-                    <label class="toggle-label">Screen Buffer
-                        <input type="checkbox" id="screen-buffer-toggle">
-                    </label>
                 </div>
             </div>
         </div>
@@ -163,6 +154,7 @@ data_area:
             <div class="panel-header-title">Deep16 Memory & Registers</div>
             <div class="memory-panel-controls">
                 <button id="run-btn" disabled>Run</button>
+                <span id="run-state-indicator" class="run-indicator run-indicator-halt">Halt</span>
                 <button id="step-btn" disabled>Step</button>
                 <button id="reset-btn" disabled>Reset</button>
                 <button id="view-toggle" class="view-toggle">Compact View</button>
@@ -269,7 +261,7 @@ data_area:
             </div>
         </div>
         
-        <div class="panel-header">Memory Display (Word Addressing)</div>
+        <div class="panel-header" id="memory-breakpoints-header">Memory Display (Word Addressing)</div>
 <!-- In index.html - Replace memory-controls with this clean version: -->
 <div class="memory-controls">
     <!-- Left: Memory Address Controls -->
