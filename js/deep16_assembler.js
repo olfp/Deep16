@@ -3,12 +3,13 @@ class Deep16Assembler {
     constructor() {
         this.labels = {};
         this.symbols = {};
+        this.unresolvedRefs = [];
     }
 
-    // In the assemble method, add .text handling
     assemble(source) {
         this.labels = {};
         this.symbols = {};
+        this.unresolvedRefs = [];
         const errors = [];
         const memoryChanges = [];
         const assemblyListing = [];
@@ -19,65 +20,54 @@ class Deep16Assembler {
         if (window.Deep16Debug) console.log('=== ASSEMBLER FIRST PASS ===');
         const lines = source.split('\n');
         
-        // First pass: collect labels, segments, and calculate addresses
+        // First pass: collect ALL labels and calculate addresses
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
             if (!line || line.startsWith(';')) continue;
 
             try {
                 if (line.startsWith('.org')) {
-                    const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
-                    const oldAddress = address;
+                    const orgValue = this.parseImmediate(line.split(/\s+/)[1], true); // First pass only
                     address = orgValue;
-                    if (window.Deep16Debug) console.log(`ORG: ${line} -> address changed from 0x${oldAddress.toString(16)} to 0x${address.toString(16)}, segment=${currentSegment}`);
                 } else if (line.startsWith('.code')) {
                     currentSegment = 'code';
-                    if (window.Deep16Debug) console.log(`SEGMENT: ${line} -> switching to code segment`);
                 } else if (line.startsWith('.data')) {
                     currentSegment = 'data';
-                    if (window.Deep16Debug) console.log(`SEGMENT: ${line} -> switching to data segment`);
                 } else if (line.endsWith(':')) {
                     const label = line.slice(0, -1).trim();
                     this.labels[label] = address;
                     this.symbols[label] = address;
                     segmentMap.set(address, currentSegment);
-                    if (window.Deep16Debug) console.log(`LABEL: ${label} at 0x${address.toString(16)}, segment=${currentSegment}`);
+                    if (window.Deep16Debug) console.log(`LABEL: ${label} at 0x${address.toString(16)}`);
                 } else if (line.startsWith('.word')) {
-                    // Remove comments first
                     const cleanLine = line.split(';')[0].trim();
-                    const values = cleanLine.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
-                    if (window.Deep16Debug) console.log(`DATA: ${line} -> ${values.length} words at 0x${address.toString(16)}`);
+                    const values = cleanLine.substring(5).trim().split(',').map(v => v.trim());
                     for (const value of values) {
                         segmentMap.set(address, 'data');
-                        if (window.Deep16Debug) console.log(`  DATA WORD: 0x${address.toString(16)} = 0x${value.toString(16)}`);
                         address++;
                     }
                 } else if (line.startsWith('.text')) {
-                    // Remove comments first
                     const cleanLine = line.split(';')[0].trim();
                     const textContent = cleanLine.substring(5).trim();
                     const stringValue = this.parseStringLiteral(textContent);
-                    if (window.Deep16Debug) console.log(`TEXT: "${stringValue}" -> ${stringValue.length + 1} words at 0x${address.toString(16)}`);
                     for (let j = 0; j < stringValue.length; j++) {
                         segmentMap.set(address, 'data');
-                        if (window.Deep16Debug) console.log(`  TEXT CHAR: 0x${address.toString(16)} = '${stringValue[j]}' (${stringValue.charCodeAt(j)})`);
                         address++;
                     }
                     // Add null terminator
                     segmentMap.set(address, 'data');
-                    if (window.Deep16Debug) console.log(`  TEXT NULL: 0x${address.toString(16)} = 0`);
                     address++;
                 } else if (!this.isDirective(line)) {
                     segmentMap.set(address, currentSegment);
-                    if (window.Deep16Debug) console.log(`CODE: ${line} -> instruction at 0x${address.toString(16)}, segment=${currentSegment}`);
                     address++;
                 }
             } catch (error) {
-                errors.push(`Line ${i + 1}: ${error.message}`);
+                // Ignore most errors in first pass - they'll be caught in second pass
             }
         }
 
-        // Second pass (similar updates for .text)
+        // Second pass: resolve all instructions and data
+        if (window.Deep16Debug) console.log('=== ASSEMBLER SECOND PASS ===');
         address = 0;
         currentSegment = 'code';
         
@@ -92,7 +82,7 @@ class Deep16Assembler {
 
             try {
                 if (line.startsWith('.org')) {
-                    const orgValue = this.parseImmediate(line.split(/\s+/)[1]);
+                    const orgValue = this.parseImmediate(line.split(/\s+/)[1], false);
                     address = orgValue;
                     assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
                 } else if (line.startsWith('.code')) {
@@ -104,9 +94,8 @@ class Deep16Assembler {
                 } else if (line.endsWith(':')) {
                     assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
                 } else if (line.startsWith('.word')) {
-                    // Remove comments first
                     const cleanLine = line.split(';')[0].trim();
-                    const values = cleanLine.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim()));
+                    const values = cleanLine.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim(), false));
                     if (window.Deep16Debug) console.log(`DATA (pass2): ${values.length} words at 0x${address.toString(16)}`);
                     for (const value of values) {
                         memoryChanges.push({ address: address, value: value & 0xFFFF, segment: 'data' });
@@ -116,11 +105,9 @@ class Deep16Assembler {
                             line: originalLine,
                             segment: 'data'
                         });
-                        if (window.Deep16Debug) console.log(`  DATA STORE: memory[0x${address.toString(16)}] = 0x${value.toString(16)}`);
                         address++;
                     }
                 } else if (line.startsWith('.text')) {
-                    // Remove comments first
                     const cleanLine = line.split(';')[0].trim();
                     const textContent = cleanLine.substring(5).trim();
                     const stringValue = this.parseStringLiteral(textContent);
@@ -134,7 +121,6 @@ class Deep16Assembler {
                             line: originalLine,
                             segment: 'data'
                         });
-                        if (window.Deep16Debug) console.log(`  TEXT STORE: memory[0x${address.toString(16)}] = '${stringValue[j]}' (0x${charCode.toString(16)})`);
                         address++;
                     }
                     // Store null terminator
@@ -145,7 +131,6 @@ class Deep16Assembler {
                         line: originalLine,
                         segment: 'data'
                     });
-                    if (window.Deep16Debug) console.log(`  TEXT NULL: memory[0x${address.toString(16)}] = 0`);
                     address++;
                 } else {
                     const instruction = this.encodeInstruction(line, address, i + 1);
@@ -157,11 +142,9 @@ class Deep16Assembler {
                             line: originalLine,
                             segment: currentSegment
                         });
-                        if (window.Deep16Debug) console.log(`CODE STORE: memory[0x${address.toString(16)}] = 0x${instruction.toString(16).padStart(4, '0')} from: ${line}`);
                         address++;
                     } else {
                         assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
-                        if (window.Deep16Debug) console.log(`CODE SKIP: no instruction generated for: ${line}`);
                     }
                 }
             } catch (error) {
@@ -172,7 +155,17 @@ class Deep16Assembler {
                     line: originalLine,
                     segment: currentSegment
                 });
-                address++;
+                // Still advance address to maintain alignment
+                if (!line.startsWith('.') && !line.endsWith(':')) {
+                    address++;
+                }
+            }
+        }
+
+        // Check for unresolved references
+        if (this.unresolvedRefs.length > 0) {
+            for (const ref of this.unresolvedRefs) {
+                errors.push(`Unresolved reference: ${ref.label} at line ${ref.line}`);
             }
         }
 
@@ -266,15 +259,15 @@ class Deep16Assembler {
         return result;
     }
 
-    // UPDATED: parseImmediate now handles arithmetic expressions
-    parseImmediate(value) {
+    // Updated parseImmediate to handle forward references
+    parseImmediate(value, firstPass) {
         if (typeof value !== 'string') {
             throw new Error(`Invalid immediate value: ${value}`);
         }
         
         const trimmed = value.trim();
     
-        // Character constants - single quoted characters and escapes
+        // Character constants
         if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
             const inner = trimmed.slice(1, -1);
             if (inner.length === 1) {
@@ -296,12 +289,12 @@ class Deep16Assembler {
             throw new Error(`Invalid character literal: ${value}`);
         }
         
-        // NEW: Handle arithmetic expressions with + and -
+        // Handle arithmetic expressions with + and -
         if (trimmed.includes('+') || trimmed.includes('-')) {
-            return this.parseExpression(trimmed);
+            return this.parseExpression(trimmed, firstPass);
         }
         
-        // Existing hex and decimal parsing
+        // Hex and decimal parsing
         if (trimmed.startsWith('0x')) {
             return parseInt(trimmed.substring(2), 16);
         } else if (trimmed.startsWith('$')) {
@@ -311,19 +304,26 @@ class Deep16Assembler {
             if (!isNaN(num)) {
                 return num;
             }
-            // Label/symbol immediate support (second pass)
+            // Label/symbol resolution (works in both passes now)
             if (this.labels && this.labels[trimmed] !== undefined) {
                 return this.labels[trimmed];
             }
             if (this.symbols && this.symbols[trimmed] !== undefined) {
                 return this.symbols[trimmed];
             }
-            throw new Error(`Invalid immediate value: ${value}`);
+            
+            if (firstPass) {
+                // In first pass, we don't have the label yet - return 0 as placeholder
+                return 0;
+            } else {
+                // In second pass, this is an error
+                throw new Error(`Unknown label: ${value}`);
+            }
         }
     }
 
-    // NEW: Parse arithmetic expressions with + and -
-    parseExpression(expr) {
+    // Updated parseExpression to handle forward references
+    parseExpression(expr, firstPass) {
         // Simple expression parser for label + number and label - number
         const plusMatch = expr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\+\s*(\d+)$/);
         if (plusMatch) {
@@ -335,7 +335,12 @@ class Deep16Assembler {
             if (this.symbols && this.symbols[label] !== undefined) {
                 return this.symbols[label] + offset;
             }
-            throw new Error(`Unknown label in expression: ${label}`);
+            
+            if (firstPass) {
+                return 0; // Placeholder in first pass
+            } else {
+                throw new Error(`Unknown label in expression: ${label}`);
+            }
         }
 
         const minusMatch = expr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\-\s*(\d+)$/);
@@ -348,7 +353,12 @@ class Deep16Assembler {
             if (this.symbols && this.symbols[label] !== undefined) {
                 return this.symbols[label] - offset;
             }
-            throw new Error(`Unknown label in expression: ${label}`);
+            
+            if (firstPass) {
+                return 0; // Placeholder in first pass
+            } else {
+                throw new Error(`Unknown label in expression: ${label}`);
+            }
         }
 
         throw new Error(`Invalid expression: ${expr}`);
@@ -380,6 +390,32 @@ class Deep16Assembler {
         const mnemonic = parts[0].toUpperCase();
 
         try {
+            // Handle jump instructions with label resolution
+            if (mnemonic.startsWith('J') && parts.length >= 2 && !this.isRegister(parts[1])) {
+                const jumpTypes = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
+                if (jumpTypes.includes(mnemonic)) {
+                    const targetLabel = parts[1];
+                    let targetAddress = this.labels[targetLabel];
+                    
+                    if (targetAddress === undefined) {
+                        throw new Error(`Unknown label: ${targetLabel}`);
+                    }
+                    
+                    const offset = targetAddress - (address + 1);
+                    if (offset < -256 || offset > 255) {
+                        throw new Error(`Jump target too far: ${offset} words from current position`);
+                    }
+                    
+                    const conditionCodes = {
+                        'JZ': 0b000, 'JNZ': 0b001, 'JC': 0b010, 'JNC': 0b011,
+                        'JN': 0b100, 'JNN': 0b101, 'JO': 0b110, 'JNO': 0b111
+                    };
+                    
+                    const conditionCode = conditionCodes[mnemonic];
+                    return 0b1110000000000000 | (conditionCode << 9) | (offset & 0x1FF);
+                }
+            }
+            
             switch (mnemonic) {
                 case 'MOV': return this.encodeMOV(parts, address, lineNumber);
                 case 'ADD': return this.encodeALU(parts, 0b000, address, lineNumber);
@@ -630,7 +666,7 @@ class Deep16Assembler {
                 
                 rd = this.parseRegister(movMatch[1].trim());
                 rs = this.parseRegister(movMatch[2].trim());
-                imm = this.parseImmediate(movMatch[3].trim());
+                imm = this.parseImmediate(movMatch[3].trim(), false);
                 
                 // Handle regular MOV with offset
                 if (window.Deep16Debug) console.log(`MOV parsed: rd=${rd}, rs=${rs}, imm=${imm}`);
@@ -666,7 +702,7 @@ class Deep16Assembler {
                     rs = this.parseRegister(parts[2]);
                     
                     if (parts.length >= 4) {
-                        imm = this.parseImmediate(parts[3]);
+                        imm = this.parseImmediate(parts[3], false);
                     } else {
                         imm = 0; // Default immediate is 0 if not specified
                     }
@@ -744,7 +780,7 @@ class Deep16Assembler {
     encodeShift(parts, shiftType, address, lineNumber) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
-            const count = this.parseImmediate(parts[2]);
+            const count = this.parseImmediate(parts[2], false);
             if (count < 0 || count > 15) {
                 throw new Error(`Shift count ${count} out of range (0-15)`);
             }
@@ -847,7 +883,7 @@ class Deep16Assembler {
                 // ALU2 register mode: [110][op3][Rd4][w1][i][Rs4]
                 return 0b1100000000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | (iFlag << 4) | rs;
             } else {
-                const imm = this.parseImmediate(operand);
+                const imm = this.parseImmediate(operand, false);
                 if (imm < 0 || imm > 15) {
                     throw new Error(`Immediate value ${imm} out of range (0-15)`);
                 }
@@ -894,7 +930,7 @@ class Deep16Assembler {
                 rb = this.parseRegister(memoryMatch[1].trim());
                 
                 if (memoryMatch[2]) { // If there's an offset part (+ something)
-                    offset = this.parseImmediate(memoryMatch[3].trim());
+                    offset = this.parseImmediate(memoryMatch[3].trim(), false);
                 } else {
                     offset = 0; // Default offset is 0 if not specified
                 }
@@ -911,7 +947,7 @@ class Deep16Assembler {
                 if (window.Deep16Debug) console.log("Detected old syntax");
                 rd = this.parseRegister(parts[1]);
                 rb = this.parseRegister(parts[2]);
-                offset = this.parseImmediate(parts[3]);
+                offset = this.parseImmediate(parts[3], false);
             }
             else {
                 throw new Error(`${isStore ? 'ST' : 'LD'} requires register, base register, and offset`);
@@ -934,7 +970,7 @@ class Deep16Assembler {
 
     encodeLDI(parts, address, lineNumber) {
         if (parts.length >= 2) {
-            const imm = this.parseImmediate(parts[1]);
+            const imm = this.parseImmediate(parts[1], false);
             if (imm < 0 || imm > 32767) {
                 throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
             }
@@ -949,7 +985,7 @@ class Deep16Assembler {
         if (!rest) {
             throw new Error('LDI requires immediate value');
         }
-        const imm = this.parseImmediate(rest);
+        const imm = this.parseImmediate(rest, false);
         if (imm < 0 || imm > 32767) {
             throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
         }
@@ -959,7 +995,7 @@ class Deep16Assembler {
     encodeLSI(parts, address, lineNumber) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
-            const imm = this.parseImmediate(parts[2]);
+            const imm = this.parseImmediate(parts[2], false);
             
             if (imm < -16 || imm > 15) {
                 throw new Error(`LSI immediate ${imm} out of range (-16 to 15)`);
@@ -1005,7 +1041,7 @@ class Deep16Assembler {
 
     encodeSET(parts, address, lineNumber) {
         if (parts.length >= 2) {
-            const imm = this.parseImmediate(parts[1]);
+            const imm = this.parseImmediate(parts[1], false);
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`SET immediate ${imm} out of range (0-15)`);
             }
@@ -1018,7 +1054,7 @@ class Deep16Assembler {
 
     encodeCLR(parts, address, lineNumber) {
         if (parts.length >= 2) {
-            const imm = this.parseImmediate(parts[1]);
+            const imm = this.parseImmediate(parts[1], false);
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`CLR immediate ${imm} out of range (0-15)`);
             }
@@ -1031,7 +1067,7 @@ class Deep16Assembler {
 
     encodeSET2(parts, address, lineNumber) {
         if (parts.length >= 2) {
-            const imm = this.parseImmediate(parts[1]);
+            const imm = this.parseImmediate(parts[1], false);
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`SET2 immediate ${imm} out of range (0-15)`);
             }
@@ -1044,7 +1080,7 @@ class Deep16Assembler {
 
     encodeCLR2(parts, address, lineNumber) {
         if (parts.length >= 2) {
-            const imm = this.parseImmediate(parts[1]);
+            const imm = this.parseImmediate(parts[1], false);
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`CLR2 immediate ${imm} out of range (0-15)`);
             }
