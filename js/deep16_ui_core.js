@@ -1209,16 +1209,16 @@ class DeepWebUI {
 
     toggleView() {
         this.compactView = !this.compactView;
-        const memoryPanel = document.querySelector('.memory-panel');
+        const compactContainer = this.mobileActive ? document.getElementById('machine-tab') : document.querySelector('.memory-panel');
         const viewToggle = document.getElementById('view-toggle');
         
         if (this.compactView) {
-            memoryPanel.classList.add('compact-view');
-            viewToggle.textContent = 'Full View';
+            if (compactContainer) compactContainer.classList.add('compact-view');
+            viewToggle.textContent = this.mobileActive ? 'Full' : 'Full View';
             this.addTranscriptEntry("Switched to Compact view - PSW only", "info");
         } else {
-            memoryPanel.classList.remove('compact-view');
-            viewToggle.textContent = 'Compact View';
+            if (compactContainer) compactContainer.classList.remove('compact-view');
+            viewToggle.textContent = this.mobileActive ? 'Compact' : 'Compact View';
             this.addTranscriptEntry("Switched to Full view - All registers visible", "info");
         }
         
@@ -1897,6 +1897,17 @@ class DeepWebUI {
             }
             if (subtitle) { subtitle.style.display = 'none'; }
             this.initializeMiniMenu();
+
+            const machineTab = document.getElementById('machine-tab');
+            const viewToggle = document.getElementById('view-toggle');
+            if (machineTab) {
+                machineTab.classList.add('compact-view');
+                this.compactView = true;
+                if (viewToggle) viewToggle.textContent = 'Full';
+                if (this.memoryUI && typeof this.memoryUI.updateMemoryDisplayHeight === 'function') {
+                    this.memoryUI.updateMemoryDisplayHeight();
+                }
+            }
         } else if (!isMobile && this.mobileActive) {
             this.mobileActive = false;
             this.restoreDesktopLayout();
@@ -1907,6 +1918,21 @@ class DeepWebUI {
             }
             if (subtitle) { subtitle.style.display = ''; }
             this.restoreMiniMenu();
+
+            const memoryPanel = document.querySelector('.memory-panel');
+            const machineTab = document.getElementById('machine-tab');
+            const viewToggle = document.getElementById('view-toggle');
+            if (machineTab) {
+                machineTab.classList.remove('compact-view');
+            }
+            if (memoryPanel) {
+                memoryPanel.classList.remove('compact-view');
+                this.compactView = false;
+                if (viewToggle) viewToggle.textContent = 'Compact View';
+                if (this.memoryUI && typeof this.memoryUI.updateMemoryDisplayHeight === 'function') {
+                    this.memoryUI.updateMemoryDisplayHeight();
+                }
+            }
         }
     }
 
@@ -1916,11 +1942,17 @@ class DeepWebUI {
         const run = document.getElementById('run-btn');
         const step = document.getElementById('step-btn');
         const reset = document.getElementById('reset-btn');
+        const viewToggle = document.getElementById('view-toggle');
         if (run && step && reset) {
             this.originalButtonParent = run.parentElement;
             mobileCtrls.appendChild(run);
             mobileCtrls.appendChild(step);
             mobileCtrls.appendChild(reset);
+            if (viewToggle) {
+                this.originalViewToggleParent = viewToggle.parentElement;
+                mobileCtrls.appendChild(viewToggle);
+                viewToggle.textContent = this.compactView ? 'Full' : 'Compact';
+            }
             mobileCtrls.style.display = 'flex';
         }
     }
@@ -2016,12 +2048,17 @@ class DeepWebUI {
         const run = document.getElementById('run-btn');
         const step = document.getElementById('step-btn');
         const reset = document.getElementById('reset-btn');
+        const viewToggle = document.getElementById('view-toggle');
         if (run && step && reset && this.originalButtonParent) {
             this.originalButtonParent.appendChild(run);
             this.originalButtonParent.appendChild(step);
             this.originalButtonParent.appendChild(reset);
             const mobileCtrls = document.getElementById('mobile-controls');
             if (mobileCtrls) mobileCtrls.style.display = 'none';
+        }
+        if (viewToggle && this.originalViewToggleParent) {
+            this.originalViewToggleParent.appendChild(viewToggle);
+            viewToggle.textContent = 'Compact View';
         }
 
         const machineTab = document.getElementById('machine-tab');

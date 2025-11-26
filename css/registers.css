@@ -9,11 +9,11 @@
     flex-shrink: 0;
 }
 
-.memory-panel.compact-view .register-section:not(:first-child) {
+.compact-view .register-section:not(:first-child) {
     display: none;
 }
 
-.memory-panel.compact-view .registers-container {
+.compact-view .registers-container {
     gap: 0;
 }
 

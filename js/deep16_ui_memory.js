@@ -650,4 +650,8 @@ markOnscreenAccess(address) {
             }
         });
     }
+
+    updateMemoryDisplayHeight() {
+        this.updateMemoryDisplay();
+    }
 }
