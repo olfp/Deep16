@@ -129,7 +129,7 @@ d_tell:
     
 tell_loop:
     LD R1, R3, 0       ; Get character from string
-    ADD R0, R1, 0      ; Copy to R0 to set flags
+    ADD R1, 0          ; Set flags based on R1 value
     JZ tell_done       ; If zero, end of string
     NOP
     
