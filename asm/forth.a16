@@ -1,5 +1,5 @@
 ; =============================================
-; Deep16 Forth Kernel with Interpreter
+; Deep16 Forth Kernel
 ; Memory starts at 0x0100 as per spec
 ; =============================================
 
@@ -13,13 +13,13 @@
 ; R14: Link Register (LR) - used for temporary jumps
 ; R15: Program Counter (PC)
 ; R8/R9: Screen pointer pair for ES access
-; R7: Temporary/State
+; R7: Screen position counter
+; R0-R6: General purpose temporaries
 
 ; Forth Memory Layout:
 ; 0x0100-0x01FF: Forth kernel
 ; 0x0200-0x02FF: User dictionary
 ; 0x0300-0x7FFF: Data stack, return stack, heap
-; 0x8000-0x8FFF: Input buffer
 
 ; =============================================
 ; Forth Kernel Implementation
@@ -30,22 +30,26 @@ forth_start:
     LDI 0x7FF0
     MOV R13, R0        ; Data stack grows down from 0x7FF0 (R13)
     LDI 0x7FE0  
-    MOV R12, R0       ; Return stack grows down from 0x7FE0 (R12)
+    MOV R12, R0        ; Return stack grows down from 0x7FE0 (R12)
+    
+    ; Initialize instruction pointer to user program (R11)
+    LDI user_program
+    MOV R11, R0
     
     ; Set up screen segment for output using R8/R9 pair
     LDI 0x0FFF
-    INV R0            ; R0 = 0xF000
-    MVS ES, R0        ; ES = 0xF000
-    LDI 0x1000        ; Screen buffer starts at 0xF1000
-    MOV R8, R0        ; Use R8 as screen pointer (R8/R9 pair)
-    ERD R8            ; Use R8/R9 for ES access (PSW.ER=1000, DE=1)
+    INV R0             ; R0 = 0xF000
+    MVS ES, R0         ; ES = 0xF000
+    LDI 0x1000         ; Screen buffer starts at 0xF1000
+    MOV R8, R0         ; Use R8 as screen pointer (R8/R9 pair)
+    ERD R8             ; Use R8/R9 for ES access (PSW.ER=1000, DE=1)
     
     ; Clear screen position counter
     LDI 0
-    MOV R7, R0        ; Use R7 as screen position counter
+    MOV R7, R0         ; Use R7 as screen position counter
     
-    ; Jump to interpreter
-    JNO interpret
+    ; Jump to inner interpreter using unconditional jump
+    JNO next           ; Use JNO (Jump No Overflow) as unconditional jump
     NOP
 
 ; =============================================
@@ -62,231 +66,663 @@ next:
     NOP
 
 ; =============================================
-; Forth Primitive Words
+; Stack Primitives
 ; =============================================
+
+; PUSH value in R1 to data stack
+push_r1:
+    SUB R13, 1         ; Pre-decrement stack pointer
+    ST R1, R13, 0      ; Store at new top (offset 0)
+    JNO next
+    NOP
+
+; POP value from data stack to R1  
+pop_r1:
+    LD R1, R13, 0      ; Load from current top
+    ADD R13, 1         ; Post-increment stack pointer
+    JNO next
+    NOP
 
 ; EXIT - return from word
 d_exit:
     LD R11, R12, 0     ; Pop R11 from return stack
     ADD R12, 1         ; Adjust return stack
-    JNO next          ; Jump back to next
+    JNO next           ; Jump back to next
     NOP
 
 ; LIT - push literal
 d_lit:
     LD R1, R11, 0      ; Get literal value
     ADD R11, 1         ; Advance R11
-    ; Push to data stack using positive offset
-    SUB R13, 1         ; Adjust stack pointer first (subtract 1)
-    ST R1, R13, 0      ; Store at new stack top
+    SUB R13, 1         ; Pre-decrement stack pointer
+    ST R1, R13, 0      ; Push to stack
     JNO next
     NOP
 
 ; DUP - duplicate top of stack
 d_dup:
     LD R1, R13, 0      ; Get top of stack
-    SUB R13, 1         ; Adjust stack pointer (subtract 1)
+    SUB R13, 1         ; Pre-decrement
     ST R1, R13, 0      ; Push duplicate
     JNO next
     NOP
 
-; DROP - drop top of stack
+; DROP - drop top of stack  
 d_drop:
-    ADD R13, 1         ; Adjust stack (add 1)
+    ADD R13, 1         ; Simply increment stack pointer
     JNO next
     NOP
 
 ; SWAP - swap top two stack items
 d_swap:
-    LD R1, R13, 0      ; R1 = top
-    LD R2, R13, 1      ; R2 = second
-    ST R1, R13, 1      ; Swap them
+    LD R1, R13, 0      ; R1 = top (offset 0)
+    LD R2, R13, 1      ; R2 = second (offset 1)
+    ST R1, R13, 1      ; Swap positions
     ST R2, R13, 0
     JNO next
     NOP
 
-; EMIT - output character
-d_emit:
-    LD R1, R13, 0      ; Get character from stack
-    ADD R13, 1         ; Drop it (add 1)
-    
-    ; Store character to screen using R8 for ES access
-    STS R1, ES, R8     ; [ES:R8] = character
-    
-    ; Advance screen position
-    ADD R8, 1
-    ADD R7, 1
-    
+; OVER - copy second item to top
+d_over:
+    LD R1, R13, 1      ; Get second item (offset 1)
+    SUB R13, 1         ; Pre-decrement
+    ST R1, R13, 0      ; Push copy
     JNO next
     NOP
 
-; TELL - output string (addr -- )
+; ROT - rotate top three items
+d_rot:
+    LD R1, R13, 0      ; top
+    LD R2, R13, 1      ; second  
+    LD R3, R13, 2      ; third
+    ST R1, R13, 2      ; rotate
+    ST R3, R13, 1
+    ST R2, R13, 0
+    JNO next
+    NOP
+
+; =============================================
+; Memory Operations
+; =============================================
+
+; @ (fetch) - ( addr -- value )
+d_fetch:
+    LD R1, R13, 0      ; Get address from stack
+    LD R1, R1, 0       ; Fetch value from memory (offset 0)
+    ST R1, R13, 0      ; Replace TOS with value
+    JNO next
+    NOP
+
+; ! (store) - ( value addr -- )
+d_store:
+    LD R1, R13, 0      ; Address (TOS)
+    LD R2, R13, 1      ; Value (second)
+    ST R2, R1, 0       ; Store value at address (offset 0)
+    ADD R13, 2         ; Drop both items
+    JNO next
+    NOP
+
+; C@ (char fetch) - ( addr -- char )
+d_cfetch:
+    LD R1, R13, 0      ; Get address
+    LD R1, R1, 0       ; Get word
+    AND R1, 0x00FF     ; Extract low byte
+    ST R1, R13, 0      ; Replace TOS
+    JNO next
+    NOP
+
+; C! (char store) - ( char addr -- )
+d_cstore:
+    LD R1, R13, 0      ; Address
+    LD R2, R13, 1      ; Character
+    AND R2, 0x00FF     ; Ensure it's a byte
+    ST R2, R1, 0       ; Store character word
+    ADD R13, 2         ; Drop both
+    JNO next
+    NOP
+
+; =============================================
+; Return Stack Operations
+; =============================================
+
+; >R (push to return stack) - ( x -- )
+d_to_r:
+    LD R1, R13, 0      ; Get value from data stack
+    ADD R13, 1         ; Drop from data stack
+    SUB R12, 1         ; Pre-decrement return stack
+    ST R1, R12, 0      ; Push to return stack
+    JNO next
+    NOP
+
+; R> (pop from return stack) - ( -- x )
+d_r_from:
+    LD R1, R12, 0      ; Pop from return stack
+    ADD R12, 1         ; Adjust return stack pointer
+    SUB R13, 1         ; Pre-decrement data stack
+    ST R1, R13, 0      ; Push to data stack
+    JNO next
+    NOP
+
+; R@ (copy from return stack) - ( -- x )
+d_r_fetch:
+    LD R1, R12, 0      ; Peek at return stack
+    SUB R13, 1         ; Pre-decrement data stack
+    ST R1, R13, 0      ; Push copy to data stack
+    JNO next
+    NOP
+
+; =============================================
+; Arithmetic Operations
+; =============================================
+
+; + (addition) - ( a b -- a+b )
+d_plus:
+    LD R1, R13, 0      ; b (TOS)
+    LD R2, R13, 1      ; a (second)
+    ADD R2, R1         ; a + b
+    ST R2, R13, 1      ; Store result in second position
+    ADD R13, 1         ; Drop TOS
+    JNO next
+    NOP
+
+; - (subtraction) - ( a b -- a-b )
+d_minus:
+    LD R1, R13, 0      ; b
+    LD R2, R13, 1      ; a  
+    SUB R2, R1         ; a - b
+    ST R2, R13, 1      ; Store result
+    ADD R13, 1         ; Drop TOS
+    JNO next
+    NOP
+
+; AND (bitwise and) - ( a b -- a&b )
+d_and:
+    LD R1, R13, 0      ; b
+    LD R2, R13, 1      ; a
+    AND R2, R1         ; a & b
+    ST R2, R13, 1      ; Store result
+    ADD R13, 1         ; Drop TOS
+    JNO next
+    NOP
+
+; OR (bitwise or) - ( a b -- a|b )
+d_or:
+    LD R1, R13, 0      ; b
+    LD R2, R13, 1      ; a
+    OR R2, R1          ; a | b
+    ST R2, R13, 1      ; Store result
+    ADD R13, 1         ; Drop TOS
+    JNO next
+    NOP
+
+; XOR (bitwise xor) - ( a b -- a^b )
+d_xor:
+    LD R1, R13, 0      ; b
+    LD R2, R13, 1      ; a
+    XOR R2, R1         ; a ^ b
+    ST R2, R13, 1      ; Store result
+    ADD R13, 1         ; Drop TOS
+    JNO next
+    NOP
+
+; INVERT (bitwise not) - ( a -- ~a )
+d_invert:
+    LD R1, R13, 0      ; Get value
+    INV R1             ; Invert bits
+    ST R1, R13, 0      ; Store back
+    JNO next
+    NOP
+
+; NEGATE (two's complement) - ( a -- -a )
+d_negate:
+    LD R1, R13, 0      ; Get value
+    NEG R1             ; Two's complement
+    ST R1, R13, 0      ; Store back
+    JNO next
+    NOP
+
+; =============================================
+; Comparison Operations
+; =============================================
+
+; 0= (zero test) - ( a -- flag )
+d_zero_equals:
+    LD R1, R13, 0      ; Get value
+    ADD R1, 0          ; Set flags
+    LDI 0              ; Prepare false
+    MOV R2, R0
+    LDI 1              ; Prepare true  
+    JZ set_flag        ; If zero, set true
+    NOP
+    ST R2, R13, 0      ; Store false
+    JNO next
+    NOP
+set_flag:
+    ST R1, R13, 0      ; Store true
+    JNO next
+    NOP
+
+; 0< (negative test) - ( a -- flag )
+d_zero_less:
+    LD R1, R13, 0      ; Get value
+    ADD R1, 0          ; Set flags
+    LDI 0              ; Prepare false
+    MOV R2, R0
+    LDI 1              ; Prepare true
+    JN set_flag2       ; If negative, set true
+    NOP
+    ST R2, R13, 0      ; Store false
+    JNO next
+    NOP
+set_flag2:
+    ST R1, R13, 0      ; Store true
+    JNO next
+    NOP
+
+; = (equals test) - ( a b -- flag )
+d_equals:
+    LD R1, R13, 0      ; b
+    LD R2, R13, 1      ; a
+    SUB R2, R1         ; Compare a - b
+    LDI 0              ; Prepare false
+    MOV R3, R0
+    LDI 1              ; Prepare true
+    JZ set_flag3       ; If equal, set true
+    NOP
+    ST R3, R13, 1      ; Store false
+    ADD R13, 1         ; Drop TOS
+    JNO next
+    NOP
+set_flag3:
+    ST R3, R13, 1      ; Store true
+    ADD R13, 1         ; Drop TOS
+    JNO next
+    NOP
+
+; < (less than test) - ( a b -- flag )
+d_less_than:
+    LD R1, R13, 0      ; b
+    LD R2, R13, 1      ; a
+    SUB R2, R1         ; Compare a - b
+    LDI 0              ; Prepare false
+    MOV R3, R0
+    LDI 1              ; Prepare true
+    JN set_flag4       ; If a < b, set true
+    NOP
+    ST R3, R13, 1      ; Store false
+    ADD R13, 1         ; Drop TOS
+    JNO next
+    NOP
+set_flag4:
+    ST R3, R13, 1      ; Store true
+    ADD R13, 1         ; Drop TOS
+    JNO next
+    NOP
+
+; =============================================
+; I/O Operations
+; =============================================
+
+; EMIT - output character with screen bounds checking
+d_emit:
+    LD R1, R13, 0      ; Get character from stack
+    ADD R13, 1         ; Drop it
+    
+    ; Check screen bounds (80x25 = 2000 characters)
+    LDI 2000
+    SUB R0, R7         ; 2000 - current_position
+    JZ screen_scroll   ; Scroll if at bottom
+    NOP
+    
+emit_store:
+    STS R1, ES, R8     ; [ES:R8] = character
+    ADD R8, 1          ; Advance screen pointer
+    ADD R7, 1          ; Advance position counter
+    JNO next
+    NOP
+
+screen_scroll:
+    ; Simple screen clear for now - just reset position
+    LDI 0x1000
+    MOV R8, R0         ; Reset screen pointer
+    LDI 0
+    MOV R7, R0         ; Reset position counter
+    JNO emit_store     ; Now store the character
+    NOP
+
+; TELL - output null-terminated string
 d_tell:
     LD R3, R13, 0      ; R3 = string address
-    ADD R13, 1         ; Drop address (add 1)
+    ADD R13, 1         ; Drop address
     
 tell_loop:
     LD R1, R3, 0       ; Get character from string
-    ADD R1, 0          ; Set flags based on R1 value
+    ADD R1, 0          ; Set flags
     JZ tell_done       ; If zero, end of string
     NOP
     
-    ; Output character to screen memory
+    ; Output character (reuse EMIT logic)
     STS R1, ES, R8     ; [ES:R8] = character
-    ADD R8, 1          ; Advance screen position
-    ADD R3, 1          ; Next character (add 1)
-    JNO tell_loop      ; Continue loop
+    ADD R8, 1          ; Advance screen
+    ADD R7, 1          ; Advance position
+    ADD R3, 1          ; Next character
+    JNO tell_loop
     NOP
     
 tell_done:
     JNO next
     NOP
 
-; ." (dot-quote) - compile string literal
-d_dot_quote:
-    LD R3, R11, 0      ; Get string address from instruction stream
-    ADD R11, 1         ; Advance IP past string address
+; CR - carriage return (move to next line)
+d_cr:
+    ; Calculate current column: position % 80
+    MOV R1, R7         ; Copy position
+    LDI 80
+    MOV R2, R0
+cr_mod_loop:
+    SUB R1, R2         ; Subtract 80
+    JN cr_done_mod     ; If negative, done
+    NOP
+    JNO cr_mod_loop
+    NOP
+cr_done_mod:
+    ADD R1, R2         ; Add back the last 80
+    ; Now R1 = current column
     
-dot_quote_loop:
-    LD R1, R3, 0       ; Get character from string
-    ADD R1, 0          ; Set flags
-    JZ dot_quote_done  ; If zero, end of string
+    ; Calculate spaces to next line: 80 - current_column
+    LDI 80
+    SUB R0, R1         ; 80 - current_column
+    MOV R2, R0         ; R2 = spaces needed
+    
+    ; Add spaces to advance to next line
+    LDI 0x20           ; Space character
+    MOV R3, R0
+cr_space_loop:
+    ADD R2, 0          ; Set flags
+    JZ cr_done         ; If no more spaces needed
+    NOP
+    STS R3, ES, R8     ; Output space
+    ADD R8, 1          ; Advance screen
+    ADD R7, 1          ; Advance position
+    SUB R2, 1          ; Decrement counter
+    JNO cr_space_loop
     NOP
     
-    ; Push character and call EMIT
-    SUB R13, 1         ; Make space on stack
-    ST R1, R13, 0      ; Push character
-    JNO d_emit         ; Call EMIT to output it
-    NOP
-    
-    ADD R3, 1          ; Next character
-    JNO dot_quote_loop ; Continue
-    NOP
-    
-dot_quote_done:
-    ADD R11, 1         ; Skip the null terminator in instruction stream
+cr_done:
     JNO next
     NOP
 
-; EXECUTE ( xt -- ) - execute word from stack
-d_execute:
-    LD R1, R13, 0      ; Get execution token from stack
+; =============================================
+; Control Structures
+; =============================================
+
+; BRANCH - unconditional branch
+d_branch:
+    LD R1, R11, 0      ; Get branch offset
+    ADD R11, R1        ; Add to instruction pointer
+    JNO next
+    NOP
+
+; 0BRANCH - branch if zero
+d_zero_branch:
+    LD R1, R13, 0      ; Get flag from stack
     ADD R13, 1         ; Drop it
-    
-    ; Save current IP to return stack
-    SUB R12, 1
-    ST R11, R12, 0
-    
-    ; Set IP to continue after execution
-    LDI execute_return
-    MOV R11, R0
-    
-    ; Jump to the word
-    MOV PC, R1
+    ADD R1, 0          ; Set flags
+    JZ do_branch       ; If zero, take branch
     NOP
-
-execute_return:
-    ; Restore IP from return stack
-    LD R11, R12, 0
-    ADD R12, 1
+    ADD R11, 1         ; Skip branch offset
     JNO next
     NOP
-
-; INTERPRET - main interpreter loop
-interpret:
-    ; For now, just execute our demo program
-    LDI demo_program
-    MOV R11, R0
+do_branch:
+    LD R1, R11, 0      ; Get branch offset
+    ADD R11, R1        ; Add to instruction pointer
     JNO next
     NOP
 
 ; =============================================
-; Demo Programs
+; Demo Program - "Hello DeepForth!"
 ; =============================================
-
-; Original demo
 user_program:
     .word d_lit
     .word hello_str
     .word d_tell
-    .word d_exit
-
-; New demo with ." and TELL
-demo_program:
-    .word d_dot_quote
-    .word hello_again_str
+    .word d_cr
+    .word d_lit
+    .word welcome_str
     .word d_tell
+    .word d_cr
+    .word d_lit
+    .word stack_test_str
+    .word d_tell
+    .word d_cr
+    
+    ; Stack test: 10 20 + emit result as '3' (30 = 0x1E = RS)
+    .word d_lit
+    .word 10
+    .word d_lit
+    .word 20
+    .word d_plus
+    .word d_lit
+    .word 0x1E         ; ASCII '0' + 30
+    .word d_emit
+    .word d_cr
+    
     .word d_exit
 
 ; =============================================
-; Dictionary Headers
+; Dictionary Headers - Word Oriented Format
 ; =============================================
 
-; Dictionary format: [link][name][code]
+; Dictionary format: [link][name_length][name_chars... padded to word][code]
+; Each name character occupies 16 bits (word-oriented)
+
 dict_start:
 
 ; EXIT
-.word 0
-.word 0x4558
-.word 0x4954
-.word d_exit
+.word 0                ; Link field (end of chain)
+.word 0x4004           ; Length=4, then "EXIT" in 4 words
+.word 0x4558           ; 'E' 'X'
+.word 0x4954           ; 'I' 'T'
+.word 0x0000           ; Padding
+.word d_exit           ; Code field
 
 ; LIT  
-.word dict_start
-.word 0x4C49
-.word 0x5400
-.word d_lit
+.word dict_start       ; Link to previous
+.word 0x4003           ; Length=3, then "LIT" in 3 words  
+.word 0x4C49           ; 'L' 'I'
+.word 0x5400           ; 'T' + padding
+.word d_lit            ; Code field
 
 ; DUP
-.word dict_start+6
-.word 0x4455
-.word 0x5000
-.word d_dup
+.word dict_start+12    ; Link to previous
+.word 0x4003           ; Length=3, then "DUP" in 3 words
+.word 0x4455           ; 'D' 'U'  
+.word 0x5000           ; 'P' + padding
+.word d_dup            ; Code field
 
 ; DROP
-.word dict_start+12
-.word 0x4452
-.word 0x4F50
-.word d_drop
+.word dict_start+24    ; Link to previous
+.word 0x4004           ; Length=4, then "DROP" in 4 words
+.word 0x4452           ; 'D' 'R'
+.word 0x4F50           ; 'O' 'P'
+.word 0x0000           ; Padding
+.word d_drop           ; Code field
 
 ; SWAP
-.word dict_start+18
-.word 0x5357
-.word 0x4150
-.word d_swap
+.word dict_start+36    ; Link to previous
+.word 0x4004           ; Length=4, then "SWAP" in 4 words
+.word 0x5357           ; 'S' 'W'
+.word 0x4150           ; 'A' 'P'
+.word 0x0000           ; Padding
+.word d_swap           ; Code field
+
+; OVER
+.word dict_start+48    ; Link to previous
+.word 0x4004           ; Length=4, then "OVER" in 4 words
+.word 0x4F56           ; 'O' 'V'
+.word 0x4552           ; 'E' 'R'
+.word 0x0000           ; Padding
+.word d_over           ; Code field
+
+; ROT
+.word dict_start+60    ; Link to previous
+.word 0x4003           ; Length=3, then "ROT" in 3 words
+.word 0x524F           ; 'R' 'O'
+.word 0x5400           ; 'T' + padding
+.word d_rot            ; Code field
+
+; @
+.word dict_start+72    ; Link to previous
+.word 0x4001           ; Length=1, then "@" in 1 word
+.word 0x4000           ; '@' + padding
+.word d_fetch          ; Code field
+
+; !
+.word dict_start+84    ; Link to previous  
+.word 0x4001           ; Length=1, then "!" in 1 word
+.word 0x2100           ; '!' + padding
+.word d_store          ; Code field
+
+; C@
+.word dict_start+96    ; Link to previous
+.word 0x4002           ; Length=2, then "C@" in 2 words
+.word 0x4340           ; 'C' '@'
+.word d_cfetch         ; Code field
+
+; C!
+.word dict_start+108   ; Link to previous
+.word 0x4002           ; Length=2, then "C!" in 2 words  
+.word 0x4321           ; 'C' '!'
+.word d_cstore         ; Code field
+
+; >R
+.word dict_start+120   ; Link to previous
+.word 0x4002           ; Length=2, then ">R" in 2 words
+.word 0x3E52           ; '>' 'R'
+.word d_to_r           ; Code field
+
+; R>
+.word dict_start+132   ; Link to previous
+.word 0x4002           ; Length=2, then "R>" in 2 words
+.word 0x523E           ; 'R' '>'
+.word d_r_from         ; Code field
+
+; R@
+.word dict_start+144   ; Link to previous
+.word 0x4002           ; Length=2, then "R@" in 2 words
+.word 0x5240           ; 'R' '@'
+.word d_r_fetch        ; Code field
+
+; +
+.word dict_start+156   ; Link to previous
+.word 0x4001           ; Length=1, then "+" in 1 word
+.word 0x2B00           ; '+' + padding
+.word d_plus           ; Code field
+
+; -
+.word dict_start+168   ; Link to previous
+.word 0x4001           ; Length=1, then "-" in 1 word
+.word 0x2D00           ; '-' + padding
+.word d_minus          ; Code field
+
+; AND
+.word dict_start+180   ; Link to previous
+.word 0x4003           ; Length=3, then "AND" in 3 words
+.word 0x414E           ; 'A' 'N'
+.word 0x4400           ; 'D' + padding
+.word d_and            ; Code field
+
+; OR
+.word dict_start+192   ; Link to previous
+.word 0x4002           ; Length=2, then "OR" in 2 words
+.word 0x4F52           ; 'O' 'R'
+.word d_or             ; Code field
+
+; XOR
+.word dict_start+204   ; Link to previous
+.word 0x4003           ; Length=3, then "XOR" in 3 words
+.word 0x584F           ; 'X' 'O'
+.word 0x5200           ; 'R' + padding
+.word d_xor            ; Code field
+
+; INVERT
+.word dict_start+216   ; Link to previous
+.word 0x4006           ; Length=6, then "INVERT" in 6 words
+.word 0x494E           ; 'I' 'N'
+.word 0x5645           ; 'V' 'E'
+.word 0x5254           ; 'R' 'T'
+.word 0x0000           ; Padding
+.word d_invert         ; Code field
+
+; NEGATE
+.word dict_start+234   ; Link to previous
+.word 0x4006           ; Length=6, then "NEGATE" in 6 words
+.word 0x4E45           ; 'N' 'E'
+.word 0x4741           ; 'G' 'A'
+.word 0x5445           ; 'T' 'E'
+.word 0x0000           ; Padding
+.word d_negate         ; Code field
 
 ; EMIT
-.word dict_start+24
-.word 0x454D
-.word 0x4954
-.word d_emit
+.word dict_start+252   ; Link to previous
+.word 0x4004           ; Length=4, then "EMIT" in 4 words
+.word 0x454D           ; 'E' 'M'
+.word 0x4954           ; 'I' 'T'
+.word 0x0000           ; Padding
+.word d_emit           ; Code field
 
 ; TELL
-.word dict_start+30
-.word 0x5445
-.word 0x4C4C
-.word d_tell
-
-; ."
-.word dict_start+36
-.word 0x2E22
-.word 0x0000
-.word d_dot_quote
-
-; EXECUTE
-.word dict_start+42
-.word 0x4558
-.word 0x4543
-.word d_execute
+.word dict_start+264   ; Link to previous
+.word 0x4004           ; Length=4, then "TELL" in 4 words
+.word 0x5445           ; 'T' 'E'
+.word 0x4C4C           ; 'L' 'L'
+.word 0x0000           ; Padding
+.word d_tell           ; Code field
 
 ; =============================================
-; String data using .text directive (auto-null-terminated)
+; String data - Word Oriented Format
 ; =============================================
 hello_str:
-    .text "Hello DeepForth!"
+    .word 0x4865       ; 'H' 'e'
+    .word 0x6C6C       ; 'l' 'l'
+    .word 0x6F20       ; 'o' ' '
+    .word 0x4465       ; 'D' 'e'
+    .word 0x6570       ; 'e' 'p'
+    .word 0x466F       ; 'F' 'o'
+    .word 0x7274       ; 'r' 't'
+    .word 0x6821       ; 'h' '!'
+    .word 0x0000       ; Null terminator
 
-hello_again_str:
-    .text "Hello again, DeepForth!"
+welcome_str:
+    .word 0x5765       ; 'W' 'e'
+    .word 0x6C63       ; 'l' 'c'
+    .word 0x6F6D       ; 'o' 'm'
+    .word 0x6520       ; 'e' ' '
+    .word 0x746F       ; 't' 'o'
+    .word 0x2074       ; ' ' 't'
+    .word 0x6865       ; 'h' 'e'
+    .word 0x2044       ; ' ' 'D'
+    .word 0x6565       ; 'e' 'e'
+    .word 0x7031       ; 'p' '1'
+    .word 0x3620       ; '6' ' '
+    .word 0x466F       ; 'F' 'o'
+    .word 0x7274       ; 'r' 't'
+    .word 0x6820       ; 'h' ' '
+    .word 0x7379       ; 's' 'y'
+    .word 0x7374       ; 's' 't'
+    .word 0x656D       ; 'e' 'm'
+    .word 0x2100       ; '!' + null
+
+stack_test_str:
+    .word 0x5374       ; 'S' 't'
+    .word 0x6163       ; 'a' 'c'
+    .word 0x6B20       ; 'k' ' '
+    .word 0x7465       ; 't' 'e'
+    .word 0x7374       ; 's' 't'
+    .word 0x2031       ; ' ' '1'
+    .word 0x302B       ; '0' '+'
+    .word 0x3230       ; '2' '0'
+    .word 0x3D00       ; '=' + null
 
 ; =============================================
 ; End of Kernel
