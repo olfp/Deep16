@@ -112,9 +112,10 @@ class DeepWebUI {
                     const seg = this.simulator.segmentRegisters;
                     window.Deep16Wasm.set_segments(0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
                     this.wasmInitialized = true;
-                    this.useWasm = true;
-                    if (wssamToggle) { wssamToggle.disabled = false; wssamToggle.checked = true; }
-                    this.addTranscriptEntry("WASM module loaded and CPU initialized", "success");
+                    this.useWasm = false;
+                    if (wssamToggle) { wssamToggle.disabled = false; wssamToggle.checked = false; }
+                    this.addTranscriptEntry("WASM module loaded (default OFF)", "success");
+                
                     this.addTranscriptEntry("ROM loaded into WASM core", "success");
                     this.addTranscriptEntry("Segments synced to WASM", "info");
                 } catch (e) {
@@ -145,9 +146,9 @@ class DeepWebUI {
                 const seg = this.simulator.segmentRegisters;
                 window.Deep16Wasm.set_segments(0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
                 this.wasmInitialized = true;
-                this.useWasm = true;
-                if (wssamToggle) { wssamToggle.disabled = false; wssamToggle.checked = true; }
-                this.addTranscriptEntry("WASM module loaded and CPU initialized", "success");
+                this.useWasm = false;
+                if (wssamToggle) { wssamToggle.disabled = false; wssamToggle.checked = false; }
+                this.addTranscriptEntry("WASM module loaded (default OFF)", "success");
                 this.addTranscriptEntry("ROM loaded into WASM core", "success");
                 this.addTranscriptEntry("Segments synced to WASM", "info");
             } catch (e) {

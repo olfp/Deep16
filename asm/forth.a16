@@ -6,6 +6,14 @@
 .org 0x0100
 .code
 
+.equ IP R11
+.equ RSP R12
+.equ SP R13
+.equ NEXT R10
+.equ POS R7
+.equ SCR R8
+.equ MASK R4
+
 ; Register Usage:
 ; R0: Temporary (LDI target), AND mask holder
 ; R1: Temporary for operations
@@ -35,36 +43,42 @@
 forth_start:
     ; Initialize stack pointers
     LDI 0x7FF0
-    MOV R13, R0        ; Data stack grows down from 0x7FF0 (R13)
+    MOV SP, R0        ; Data stack grows down from 0x7FF0 (R13)
     LDI 0x7FE0  
-    MOV R12, R0        ; Return stack grows down from 0x7FE0 (R12)
+    MOV RSP, R0        ; Return stack grows down from 0x7FE0 (R12)
     
     ; Initialize instruction pointer to user program (R11)
     LDI user_program
-    MOV R11, R0
+    MOV IP, R0
     
     ; Set up screen segment for output using R8/R9 pair
     LDI 0x0FFF
     INV R0             ; R0 = 0xF000
     MVS ES, R0         ; ES = 0xF000
     LDI 0x1000         ; Screen buffer starts at 0xF1000
-    MOV R8, R0         ; Use R8 as screen pointer (R8/R9 pair)
-    ERD R8             ; Use R8/R9 for ES access (PSW.ER=1000, DE=1)
+    MOV SCR, R0         ; Use R8 as screen pointer (R8/R9 pair)
+    ERD SCR             ; Use R8/R9 for ES access (PSW.ER=1000, DE=1)
     
     ; Clear screen position counter
     LDI 0
-    MOV R7, R0         ; Use R7 as screen position counter
+    MOV POS, R0         ; Use R7 as screen position counter
     
     ; Set up AND mask for byte operations
     LDI 0x00FF
-    MOV R4, R0         ; R4 = 0x00FF for byte masking
+    MOV MASK, R0         ; R4 = 0x00FF for byte masking
+
+    ; Ensure Data Segment points to physical 0x0000 for LD/ST
+    LDI 0
+    MVS DS, R0
     
     ; Set up NEXT jump target
     LDI next
-    MOV R10, R0        ; R10 = address of next
+    MOV NEXT, R0        ; R10 = address of next
     
+    
+
     ; Jump to inner interpreter
-    MOV PC, R10        ; Jump to next
+    MOV PC, NEXT        ; Jump to next
     NOP
 
 ; =============================================
@@ -73,8 +87,8 @@ forth_start:
 
 next:
     ; Fetch next word from instruction stream
-    LD R1, R11, 0      ; R1 = [R11] - get codeword (which is the code address)
-    ADD R11, 1         ; R11++ - advance instruction pointer
+    LD R1, IP, 0      ; R1 = [R11] - get codeword (which is the code address)
+    ADD IP, 1         ; R11++ - advance instruction pointer
     
     ; Jump to codeword directly (R1 already contains the code address)
     MOV PC, R1         ; Execute the word
@@ -86,41 +100,41 @@ next:
 
 ; EXIT - return from word
 d_exit:
-    LD R11, R12, 0     ; Pop R11 from return stack
-    ADD R12, 1         ; Adjust return stack
-    MOV PC, R10        ; Jump back to next
+    LD IP, RSP, 0     ; Pop R11 from return stack
+    ADD RSP, 1         ; Adjust return stack
+    MOV PC, NEXT        ; Jump back to next
     NOP
 
 ; LIT - push literal
 d_lit:
-    LD R1, R11, 0      ; Get literal value
-    ADD R11, 1         ; Advance R11
-    SUB R13, 1         ; Pre-decrement stack pointer
-    ST R1, R13, 0      ; Push to stack
-    MOV PC, R10        ; Jump back to next
+    LD R1, IP, 0      ; Get literal value
+    ADD IP, 1         ; Advance R11
+    SUB SP, 1         ; Pre-decrement stack pointer
+    ST R1, SP, 0      ; Push to stack
+    MOV PC, NEXT        ; Jump back to next
     NOP
 
 ; DUP - duplicate top of stack
 d_dup:
-    LD R1, R13, 0      ; Get top of stack
-    SUB R13, 1         ; Pre-decrement
-    ST R1, R13, 0      ; Push duplicate
-    MOV PC, R10        ; Jump back to next
+    LD R1, SP, 0      ; Get top of stack
+    SUB SP, 1         ; Pre-decrement
+    ST R1, SP, 0      ; Push duplicate
+    MOV PC, NEXT        ; Jump back to next
     NOP
 
 ; DROP - drop top of stack  
 d_drop:
-    ADD R13, 1         ; Simply increment stack pointer
-    MOV PC, R10        ; Jump back to next
+    ADD SP, 1         ; Simply increment stack pointer
+    MOV PC, NEXT        ; Jump back to next
     NOP
 
 ; SWAP - swap top two stack items
 d_swap:
-    LD R1, R13, 0      ; R1 = top (offset 0)
-    LD R2, R13, 1      ; R2 = second (offset 1)
-    ST R1, R13, 1      ; Swap positions
-    ST R2, R13, 0
-    MOV PC, R10        ; Jump back to next
+    LD R1, SP, 0      ; R1 = top (offset 0)
+    LD R2, SP, 1      ; R2 = second (offset 1)
+    ST R1, SP, 1      ; Swap positions
+    ST R2, SP, 0
+    MOV PC, NEXT        ; Jump back to next
     NOP
 
 ; =============================================
@@ -129,19 +143,19 @@ d_swap:
 
 ; @ (fetch) - ( addr -- value )
 d_fetch:
-    LD R1, R13, 0      ; Get address from stack
+    LD R1, SP, 0      ; Get address from stack
     LD R1, R1, 0       ; Fetch value from memory (offset 0)
-    ST R1, R13, 0      ; Replace TOS with value
-    MOV PC, R10        ; Jump back to next
+    ST R1, SP, 0      ; Replace TOS with value
+    MOV PC, NEXT        ; Jump back to next
     NOP
 
 ; ! (store) - ( value addr -- )
 d_store:
-    LD R1, R13, 0      ; Address (TOS)
-    LD R2, R13, 1      ; Value (second)
+    LD R1, SP, 0      ; Address (TOS)
+    LD R2, SP, 1      ; Value (second)
     ST R2, R1, 0       ; Store value at address (offset 0)
-    ADD R13, 2         ; Drop both items
-    MOV PC, R10        ; Jump back to next
+    ADD SP, 2         ; Drop both items
+    MOV PC, NEXT        ; Jump back to next
     NOP
 
 ; =============================================
@@ -150,68 +164,91 @@ d_store:
 
 ; EMIT - output character
 d_emit:
-    LD R1, R13, 0      ; Get character from stack
-    ADD R13, 1         ; Drop it
+    LD R1, SP, 0      ; Get character from stack
+    ADD SP, 1         ; Drop it
     
-    STS R1, ES, R8     ; [ES:R8] = character
-    ADD R8, 1          ; Advance screen pointer
-    ADD R7, 1          ; Advance position counter
+    STS R1, ES, SCR     ; Explicit ES screen write
+    ADD SCR, 1          ; Advance screen pointer
+    ADD POS, 1          ; Advance position counter
     
     ; Simple bounds checking - reset if at end of screen
     LDI 2000
     MOV R2, R0
-    SUB R2, R7         ; 2000 - current_position
+    SUB R2, POS         ; 2000 - current_position
     JNZ emit_done      ; If not zero, continue
     NOP
     LDI 0x1000         ; Reset screen pointer
-    MOV R8, R0
+    MOV SCR, R0
     LDI 0              ; Reset position counter
-    MOV R7, R0
+    MOV POS, R0
     
 emit_done:
-    MOV PC, R10        ; Jump back to next
+    MOV PC, NEXT        ; Jump back to next
     NOP
 
-; TELL - output null-terminated string (one char per word)
 d_tell:
-    LD R3, R13, 0      ; R3 = string address
-    ADD R13, 1         ; Drop address
-    
+    LD R3, SP, 0
+    ADD SP, 1
+
 tell_loop:
-    LD R1, R3, 0       ; Get character from string
-    ADD R1, 0          ; Set flags
-    JZ tell_done       ; If zero, end of string
+    LD R1, R3, 0
+    ADD R1, 0
+    JZ tell_done
     NOP
-    
-    ; Output the character
-    STS R1, ES, R8     ; [ES:R8] = character
-    ADD R8, 1          ; Advance screen
-    ADD R7, 1          ; Advance position
-    
-    ; Simple bounds checking
+
+    MOV R2, R1
+    SWB R2               ; high byte becomes low byte
+    AND R2, MASK
+    ADD R2, 0
+    JZ skip_high
+    NOP
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
     LDI 2000
     MOV R2, R0
-    SUB R2, R7         ; 2000 - current_position
-    JNZ tell_next_char ; If not zero, continue
+    SUB R2, POS
+    JNZ high_ok
     NOP
-    LDI 0x1000         ; Reset screen pointer
-    MOV R8, R0
-    LDI 0              ; Reset position counter
-    MOV R7, R0
-    
-tell_next_char:
-    ADD R3, 1          ; Next character address
-    JNO tell_loop      ; Continue loop
+    LDI 0x1000
+    MOV SCR, R0
+    LDI 0
+    MOV POS, R0
+high_ok:
+
+skip_high:
+    MOV R2, R1
+    AND R2, MASK        ; then low byte
+    ADD R2, 0
+    JZ tell_next_word
     NOP
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
     
+    LDI 2000
+    MOV R2, R0
+    SUB R2, POS
+    JNZ tell_next_word
+    NOP
+    LDI 0x1000
+    MOV SCR, R0
+    LDI 0
+    MOV POS, R0
+
+tell_next_word:
+    ADD R3, 1
+    JNO tell_loop
+    NOP
+
 tell_done:
-    MOV PC, R10        ; Jump back to next
+    MOV PC, NEXT
     NOP
 
 ; CR - carriage return (move to next line)
 d_cr:
     ; Calculate current column: position % 80
-    MOV R1, R7         ; Copy position
+    MOV R1, POS         ; Copy position
     LDI 80
     MOV R2, R0
 cr_mod_loop:
@@ -229,22 +266,663 @@ cr_done_mod:
     SUB R0, R1         ; 80 - current_column
     MOV R2, R0         ; R2 = spaces needed
     
-    ; Add spaces to advance to next line
-    LDI 0x20           ; Space character
-    MOV R3, R0
-cr_space_loop:
-    ADD R2, 0          ; Set flags
-    JZ cr_done         ; If no more spaces needed
+    ADD R2, 0
+    JZ cr_done
     NOP
-    STS R3, ES, R8     ; Output space
-    ADD R8, 1          ; Advance screen
-    ADD R7, 1          ; Advance position
-    SUB R2, 1          ; Decrement counter
-    JNO cr_space_loop
-    NOP
+    ADD SCR, R2
+    ADD POS, R2
     
 cr_done:
-    MOV PC, R10        ; Jump back to next
+    MOV PC, NEXT        ; Jump back to next
+    NOP
+
+; =============================================
+; Arithmetic and Print Words
+; =============================================
+
+d_add:
+    LD R2, SP, 0       ; a
+    LD R1, SP, 1       ; b
+    ADD R1, R2         ; b+a
+    ADD SP, 1          ; drop a
+    ST R1, SP, 0       ; push result
+    MOV PC, NEXT
+    NOP
+
+d_mul:
+    LD R2, SP, 0       ; a
+    LD R1, SP, 1       ; b
+    MUL R1, R2         ; b*a
+    ADD SP, 1          ; drop a
+    ST R1, SP, 0       ; push result
+    MOV PC, NEXT
+    NOP
+
+; Print top of stack as decimal
+d_dot:
+    LD R1, SP, 0       ; value
+    ADD SP, 1          ; pop
+    ADD R1, 0
+    JZ dot_zero
+    NOP
+
+    LDI 0
+    MOV R5, R0         ; count = 0
+
+dot_digit_loop:
+    DIV R1, 10         ; R1 = quotient, R2 = remainder
+    MOV R3, R2         ; remainder
+    LDI 48
+    ADD R3, R0         ; ASCII
+    SUB SP, 1
+    ST R3, SP, 0       ; push digit
+    ADD R5, 1
+    ADD R1, 0
+    JZ dot_print
+    NOP
+    JNO dot_digit_loop
+    NOP
+
+dot_zero:
+    LDI 48             ; '0'
+    SUB SP, 1
+    ST R0, SP, 0
+    LDI 1
+    MOV R5, R0
+
+dot_print:
+    ADD R5, 0
+    JZ dot_done
+    NOP
+    LD R1, SP, 0
+    ADD SP, 1
+    STS R1, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    SUB R5, 1
+    JNO dot_print
+    NOP
+
+dot_done:
+    MOV PC, NEXT
+    NOP
+
+; Halt word
+d_halt:
+    HLT
+
+; =============================================
+; String Interpreter (EVAL)
+; Supports tokens: ." <text>", numbers, dup, *, +, .
+; =============================================
+
+d_eval:
+    LD R3, SP, 0       ; R3 = address of packed .string
+    ADD SP, 1
+    LDI 0
+    MOV R9, R0         ; byteSel: 0=high,1=low
+
+eval_next:
+    LD R1, R3, 0       ; current word
+    ADD R1, 0
+    JNZ eval_next_cont
+    LDI eval_done
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_next_cont:
+
+    MOV R2, R1
+    ADD R9, 0
+    JZ eval_use_high
+    NOP
+    AND R2, MASK       ; low byte
+    LDI eval_have_char
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_use_high:
+    SWB R2
+    AND R2, MASK       ; high byte
+eval_have_char:
+    ; advance selector to next character
+    ADD R9, 0
+    JZ eval_used_high
+    NOP
+    ; previously used low byte → move to next word high
+    ADD R3, 1
+    LDI 0
+    MOV R9, R0
+    LDI eval_process
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_used_high:
+    ; previously used high byte → stay in word, switch to low
+    LDI 1
+    MOV R9, R0
+    LDI eval_process
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_set_low:
+    LDI 1
+    MOV R9, R0
+
+eval_process:
+    ; skip spaces
+    MOV R5, R2
+    LDI 32
+    SUB R5, R0
+    JNZ eval_after_space
+    NOP
+    LDI eval_consume_then_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_after_space:
+
+    ; token: '"' start direct string printing (alternative to dot-quote)
+    MOV R5, R2
+    LDI 34
+    SUB R5, R0
+    JNZ eval_after_quote
+    NOP
+    LDI eval_consume_quote
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_after_quote:
+
+    ; token: ." (dot-quote)
+    MOV R5, R2
+    LDI 46             ; '.'
+    SUB R5, R0
+    JNZ eval_after_dotquote
+    NOP
+    MOV R7, R3
+    MOV R5, R9
+    LD R1, R7, 0
+    ADD R5, 0
+    JNZ eval_dq_peek_low_same
+    NOP
+    ; R9==0 → peek low-of-same word
+    MOV R2, R1
+    AND R2, MASK
+    LDI 34
+    SUB R2, R0
+    JNZ eval_dq_high_dot
+    NOP
+    ; Quote in low-of-same → next char is high-of-next
+    ADD R3, 1
+    LDI 0
+    MOV R9, R0
+    LDI eval_print_str
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_dq_high_dot:
+    LDI eval_dot
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_dq_peek_low_same:
+    ; R9==1 → peek high-of-next word
+    ADD R7, 1
+    LD R1, R7, 0
+    SWB R1
+    AND R1, MASK
+    MOV R2, R1
+    LDI 34
+    SUB R2, R0
+    JNZ eval_dq_low_dot
+    NOP
+    ; Quote in high-of-next → start at low-of-next
+    ADD R3, 1
+    LDI 1
+    MOV R9, R0
+    LDI eval_print_str
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_dq_low_dot:
+    LDI eval_dot
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_after_dotquote:
+
+    MOV R5, R2
+    LDI 42
+    SUB R5, R0
+    JNZ eval_after_mul
+    NOP
+    LDI eval_mul
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_after_mul:
+
+    MOV R5, R2
+    LDI 43
+    SUB R5, R0
+    JNZ eval_after_add
+    NOP
+    LDI eval_add
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_after_add:
+
+    MOV R5, R2
+    LDI 100
+    SUB R5, R0
+    JNZ eval_after_dup
+    NOP
+    LDI eval_try_dup_u
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_after_dup:
+
+    MOV R5, R2
+    LDI 46
+    SUB R5, R0
+    JNZ eval_after_dot
+    NOP
+    LDI eval_check_quote
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_after_dot:
+
+    ; number start '0'..'9'
+    MOV R5, R2
+    LDI 48
+    SUB R5, R0
+    JN eval_next       ; below '0'
+    NOP
+    MOV R5, R2
+    LDI 57
+    SUB R0, R5
+    JN eval_next       ; above '9'
+    NOP
+
+    ; parse number
+    LDI 0
+    MOV R1, R0         ; acc=0
+    ; include the already-read first digit (in R2)
+    LDI 48
+    SUB R2, R0
+    MOV R6, R2
+    MOV R5, R1
+    MUL R5, 10
+    ADD R5, R6
+    MOV R1, R5
+
+eval_num_peek_next:
+    ; peek next character at R3/R9 without advancing
+    LD R7, R3, 0
+    MOV R2, R7
+    ADD R9, 0
+    JZ eval_num_peek_high_same
+    NOP
+    AND R2, MASK       ; low byte
+    LDI eval_num_have_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_num_peek_high_same:
+    SWB R2
+    AND R2, MASK       ; high byte
+eval_num_have_next:
+    ; if next is not a digit, we're done
+    LDI 48
+    SUB R2, R0
+    JN eval_num_done
+    NOP
+    LDI 57
+    SUB R0, R2
+    JN eval_num_done
+    NOP
+    ; advance selector to consume the next digit
+    ADD R9, 0
+    JZ eval_num_consume_set_low2
+    NOP
+    ADD R3, 1
+    LDI 0
+    MOV R9, R0
+    LDI eval_num_add_digit
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_num_consume_set_low2:
+    LDI 1
+    MOV R9, R0
+    LDI eval_num_add_digit
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_num_add_digit:
+    ; add consumed digit (currently in R2) to accumulator
+    LDI 48
+    SUB R2, R0
+    MOV R6, R2
+    MOV R5, R1
+    MUL R5, 10
+    ADD R5, R6
+    MOV R1, R5
+    LDI eval_num_peek_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+
+eval_consume_quote:
+    ; consume opening '"' and set selector to first char
+    ADD R9, 0
+    JZ eval_consume_set_low_q
+    NOP
+    ADD R3, 1
+    LDI 0
+    MOV R9, R0
+    LDI eval_print_str
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_consume_set_low_q:
+    LDI 1
+    MOV R9, R0
+    LDI eval_print_str
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+
+eval_num_done:
+    ; push acc
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+
+eval_check_quote:
+    ; peek next char (do not advance main pointer)
+    MOV R7, R3         ; temp pointer
+    MOV R5, R9         ; temp selector
+    LD R1, R7, 0
+    ADD R5, 0
+    JNZ eval_q_peek_low_same
+    NOP
+    ADD R7, 1
+    LD R1, R7, 0
+    SWB R1
+    AND R1, MASK
+    MOV R2, R1
+    LDI 34             ; '"'
+    SUB R2, R0
+    JNZ eval_not_dotquote_high
+    NOP
+    ; consume opening quote when next is high-of-current word (R9==0)
+    LDI 1
+    MOV R9, R0
+    LDI eval_print_str
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_not_dotquote_high:
+    ; '.' not followed by '"' (current R9==1 case) → just handle dot
+    LDI eval_dot
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_q_peek_low_same:
+    AND R1, MASK
+    MOV R2, R1
+    LDI 34
+    SUB R2, R0
+    JNZ eval_not_dotquote_low
+    NOP
+    ; consume opening quote when next is low-of-same word (R9==1)
+    ADD R3, 1
+    LDI 0
+    MOV R9, R0
+    LDI eval_print_str
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_not_dotquote_low:
+    ; '.' not followed by '"' (current R9==0 case) → just handle dot
+    LDI eval_dot
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+    
+eval_print_str:
+    ; print until next '"' honoring starting selector R9
+    LD R7, R3, 0
+    ADD R7, 0
+    JNZ eval_ps_not_zero
+    NOP
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_ps_not_zero:
+    ADD R9, 0
+    JZ eval_ps_start_high
+    NOP
+    ; start with low byte of current word
+    MOV R2, R7
+    AND R2, MASK
+    LDI 34
+    SUB R2, R0
+    JZ eval_finish_str_low
+    NOP
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    ; after starting low, advance to next word and continue from high
+    ADD R3, 1
+    LDI 0
+    MOV R9, R0
+    LDI eval_print_str
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_ps_start_high:
+    ; start with high byte, then low
+    MOV R2, R7
+    SWB R2
+    AND R2, MASK
+    LDI 34
+    SUB R2, R0
+    JZ eval_finish_str_high
+    NOP
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    ; now low byte
+    MOV R2, R7
+    AND R2, MASK
+    LDI 34
+    SUB R2, R0
+    JZ eval_finish_str_low
+    NOP
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    ; advance to next word
+    ADD R3, 1
+    LDI eval_print_str
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_finish_str_high:
+    ; closing quote in high of current word → next is low-of-same
+    LDI 1
+    MOV R9, R0
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_finish_str_low:
+    ; closing quote in low of current word → next is high-of-next
+    ADD R3, 1
+    LDI 0
+    MOV R9, R0
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+
+eval_mul:
+    ; inline multiply top two stack items
+    LD R2, SP, 0
+    LD R1, SP, 1
+    MUL R1, R2
+    ADD SP, 1
+    ST R1, SP, 0
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+
+eval_add:
+    LD R2, SP, 0
+    LD R1, SP, 1
+    ADD R1, R2
+    ADD SP, 1
+    ST R1, SP, 0
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+
+eval_try_dup_u:
+    ; expect 'u' then 'p'
+    ; check next char 'u'
+    LD R7, R3, 0
+    MOV R2, R7
+    ADD R9, 0
+    JZ eval_du_high
+    NOP
+    AND R2, MASK
+    LDI eval_du_have
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_du_high:
+    SWB R2
+    AND R2, MASK
+eval_du_have:
+    LDI 117            ; 'u'
+    SUB R2, R0
+    JNZ eval_du_not_u
+    NOP
+    ; advance selector
+    ADD R9, 0
+    JZ eval_du_set_low
+    NOP
+    ADD R3, 1
+    LDI 0
+    MOV R9, R0
+    ; now check 'p'
+    LD R7, R3, 0
+    MOV R2, R7
+    ADD R9, 0
+    JZ eval_dp_high
+    NOP
+    AND R2, MASK
+    LDI eval_dp_have
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_du_set_low:
+    LDI 1
+    MOV R9, R0
+    LD R7, R3, 0
+    MOV R2, R7
+    ADD R9, 0
+    JZ eval_dp_high
+    NOP
+    AND R2, MASK
+    LDI eval_dp_have
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_dp_high:
+    SWB R2
+    AND R2, MASK
+eval_dp_have:
+    LDI 112            ; 'p'
+    SUB R2, R0
+    JNZ eval_not_dup
+    NOP
+    ; perform dup
+    LD R1, SP, 0
+    SUB SP, 1
+    ST R1, SP, 0
+    MOV R1, R1         ; no-op
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_not_dup:
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+
+eval_dot:
+    ; print TOS as decimal
+    ; call d_dot inline
+    LD R1, SP, 0
+    ADD SP, 1
+    ADD R1, 0
+    JZ eval_dot_zero
+    NOP
+    LDI 0
+    MOV R5, R0
+eval_dot_digits:
+    DIV R1, 10          ; R1=quotient, R2=remainder
+    LDI 48
+    ADD R2, R0          ; remainder + '0'
+    SUB SP, 1
+    ST R2, SP, 0
+    ADD R5, 1
+    ADD R1, 0           ; check quotient
+    JZ eval_dot_print
+    NOP
+    LDI eval_dot_digits ; loop
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_dot_zero:
+    LDI 48
+    SUB SP, 1
+    ST R0, SP, 0
+    LDI 1
+    MOV R5, R0
+eval_dot_print:
+    ADD R5, 0
+    JZ eval_next_far
+    NOP
+    LD R1, SP, 0
+    ADD SP, 1
+    STS R1, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    SUB R5, 1
+    JNO eval_dot_print
+    NOP
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+
+eval_done:
+    MOV PC, NEXT
     NOP
 
 ; =============================================
@@ -252,63 +930,21 @@ cr_done:
 ; =============================================
 user_program:
     .word d_lit
-    .word hello_str
+    .word program_msg
     .word d_tell
-    .word d_cr
     .word d_lit
-    .word welcome_str
-    .word d_tell
+    .word 3
+    .word d_lit
+    .word 7
+    .word d_mul        ; 3 * 7 = 21
+    .word d_dup
+    .word d_add        ; 21 + 21 = 42
+    .word d_dot
     .word d_cr
-    .word d_exit
+    .word d_halt
 
-; =============================================
-; String data - ONE CHARACTER PER WORD
-; =============================================
-hello_str:
-    .word 'H'
-    .word 'e'
-    .word 'l'
-    .word 'l'
-    .word 'o'
-    .word ' '
-    .word 'D'
-    .word 'e'
-    .word 'e'
-    .word 'p'
-    .word 'F'
-    .word 'o'
-    .word 'r'
-    .word 't'
-    .word 'h'
-    .word '!'
-    .word 0
-
-welcome_str:
-    .word 'W'
-    .word 'e'
-    .word 'l'
-    .word 'c'
-    .word 'o'
-    .word 'm'
-    .word 'e'
-    .word ' '
-    .word 't'
-    .word 'o'
-    .word ' '
-    .word 'D'
-    .word 'e'
-    .word 'e'
-    .word 'p'
-    .word '1'
-    .word '6'
-    .word ' '
-    .word 'F'
-    .word 'o'
-    .word 'r'
-    .word 't'
-    .word 'h'
-    .word '!'
-    .word 0
+program_msg:
+    .string "Hello from DeepForth, the answer is "
 
 ; =============================================
 ; Dictionary Headers - Word Oriented Format
@@ -385,3 +1021,183 @@ dict_start:
 
 kernel_end:
     HLT
+eval_done_far:
+    LDI eval_done
+    MOV PC, R0
+    NOP
+eval_next_far:
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_du_not_u:
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_mul_go:
+    LDI eval_mul
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_add_go:
+    LDI eval_add
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_try_dup_u_go:
+    LDI eval_try_dup_u
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_dot_go:
+    LDI eval_dot
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+; Debug: print first 16 characters from current R3/R9 to verify alignment
+eval_dbg16:
+    LDI '<'
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI 'D'
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI 'B'
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI 'G'
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI '1'
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI '6'
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI '>'
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI ' '
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI 16
+    MOV R5, R0          ; count
+dbg16_loop:
+    ADD R5, 0
+    JZ dbg16_done
+    NOP
+    LD R7, R3, 0
+    ADD R7, 0
+    JZ dbg16_done       ; stop if zero word encountered
+    NOP
+    ADD R9, 0
+    JZ dbg16_high
+    NOP
+    ; emit low byte
+    MOV R2, R7
+    AND R2, MASK
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    ; after low, advance to next word
+    ADD R3, 1
+    LDI 0
+    MOV R9, R0
+    SUB R5, 1
+    JNO dbg16_loop
+    NOP
+dbg16_high:
+    ; emit high byte
+    MOV R2, R7
+    SWB R2
+    AND R2, MASK
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    ; after high, switch to low and continue without advancing word
+    LDI 1
+    MOV R9, R0
+    SUB R5, 1
+    JNO dbg16_loop
+    NOP
+dbg16_done:
+    LDI ' '
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI '['
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI '/'
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI 'D'
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI 'B'
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI 'G'
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI ']'
+    MOV R2, R0
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_force_dbg:
+    ; without any further checks, dump next 16 chars
+    LDI eval_dbg16
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_consume_then_next:
+    ADD R9, 0
+    JZ eval_consume_set_low
+    NOP
+    ADD R3, 1
+    LDI 0
+    MOV R9, R0
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+eval_consume_set_low:
+    LDI 1
+    MOV R9, R0
+    LDI eval_next
+    MOV R6, R0
+    MOV PC, R6
+    NOP

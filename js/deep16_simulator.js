@@ -418,6 +418,8 @@ class Deep16Simulator {
                 } else {
                     // 16-bit multiplication
                     result = (rdValue * operandValue) & 0xFFFF;
+                    // Write back to Rd for 16-bit MUL
+                    this.registers[rd] = result & 0xFFFF;
                     // console.log(`MUL: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) × ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
                 }
                 break;
@@ -438,7 +440,8 @@ class Deep16Simulator {
                     // 16-bit division
                     result = Math.floor(rdValue / operandValue);
                     const remainder = rdValue % operandValue;
-                    this.registers[rd + 1] = remainder & 0xFFFF; // Store remainder in next register
+                    this.registers[rd] = result & 0xFFFF;          // Write quotient to Rd
+                    this.registers[rd + 1] = remainder & 0xFFFF;   // Store remainder in next register
                     // console.log(`DIV: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) / ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = Q:0x${result.toString(16)} R:0x${remainder.toString(16)}`);
                 }
                 break;
@@ -842,23 +845,30 @@ class Deep16Simulator {
         const rs = instruction & 0xF;
         
         const segNames = ['CS', 'DS', 'SS', 'ES'];
-        const address = this.registers[rs];
+        const address = this.registers[rs] & 0xFFFF;
+        const baseSegment = [
+            this.segmentRegisters.CS & 0xFFFF,
+            this.segmentRegisters.DS & 0xFFFF,
+            this.segmentRegisters.SS & 0xFFFF,
+            this.segmentRegisters.ES & 0xFFFF,
+        ][seg];
+        const physicalAddress = this.phys(baseSegment, address);
         
         // console.log(`LDS/STS Execute: d=${d}, seg=${segNames[seg]}, rd=${this.getRegisterName(rd)}, rs=${this.getRegisterName(rs)}, address=0x${address.toString(16)}`);
         
-        // Note: In the current flat memory model, segment doesn't affect the physical address
         if (d === 0) { // LDS
-            if (address < this.memory.length) {
-                this.registers[rd] = this.memory[address];
-                // console.log(`LDS: ${this.getRegisterName(rd)} = [${segNames[seg]}:${this.getRegisterName(rs)}] = 0x${this.registers[rd].toString(16)}`);
+            if (physicalAddress < this.memory.length) {
+                this.registers[rd] = this.memory[physicalAddress] & 0xFFFF;
+                // console.log(`LDS: ${this.getRegisterName(rd)} = [${segNames[seg]}:${this.getRegisterName(rs)}] -> phys 0x${physicalAddress.toString(16)}`);
             }
         } else { // STS
-            if (address < this.memory.length) {
-                this.memory[address] = this.registers[rd];
-                // console.log(`STS: [${segNames[seg]}:${this.getRegisterName(rs)}] = ${this.getRegisterName(rd)} (0x${this.registers[rd].toString(16)})`);
+            if (physicalAddress < this.memory.length) {
+                const value = this.registers[rd] & 0xFFFF;
+                this.memory[physicalAddress] = value;
+                // console.log(`STS: [${segNames[seg]}:${this.getRegisterName(rs)}] -> phys 0x${physicalAddress.toString(16)} = 0x${value.toString(16)}`);
                 
                 // Check if this is a screen memory write
-                this.checkScreenUpdate(address, this.registers[rd]);
+                this.checkScreenUpdate(physicalAddress, value);
             }
         }
     }

@@ -246,6 +246,7 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
                 result = prod as i32;
             } else {
                 let prod = ((rdv as u32 & 0xFFFF) * (operand as u32 & 0xFFFF)) & 0xFFFF;
+                c.reg[rd] = (prod & 0xFFFF) as u16;
                 result = prod as i32;
             }
         }
@@ -260,6 +261,7 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             } else {
                 let q = (rdv as u32 / operand as u32) as u32;
                 let r = (rdv as u32 % operand as u32) as u32;
+                c.reg[rd] = (q & 0xFFFF) as u16;
                 c.reg[rd + 1] = (r & 0xFFFF) as u16;
                 result = q as i32;
             }
