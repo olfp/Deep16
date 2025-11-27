@@ -213,6 +213,7 @@ Default effect:
 | 1111111111110 | 13 | SYS | `[1111111111110][op3]` | Pipeline flush on RETI |
 | 111111111111111 | 16 | HLT ˋ[111111111111111]ˋ | Halt the processor |
 
+The immediate values of LDI, LD/ST, ALU2, MOV and SOP are insigned. JMP and LSI take signed immediates.
 
 ### 5.1 Data Movement Instructions
 
