@@ -4,12 +4,14 @@ class Deep16Assembler {
         this.labels = {};
         this.symbols = {};
         this.unresolvedRefs = [];
+        this.aliases = {};
     }
 
     assemble(source) {
         this.labels = {};
         this.symbols = {};
         this.unresolvedRefs = [];
+        this.aliases = {};
         const errors = [];
         const memoryChanges = [];
         const assemblyListing = [];
@@ -57,6 +59,34 @@ class Deep16Assembler {
                     // Add null terminator
                     segmentMap.set(address, 'data');
                     address++;
+                } else if (line.startsWith('.string')) {
+                    const cleanLine = line.split(';')[0].trim();
+                    const textContent = cleanLine.substring(7).trim();
+                    const stringValue = this.parseStringLiteral(textContent);
+                    const words = Math.ceil(stringValue.length / 2);
+                    for (let j = 0; j < words; j++) {
+                        segmentMap.set(address, 'data');
+                        address++;
+                    }
+                    segmentMap.set(address, 'data');
+                    address++;
+                } else if (line.startsWith('.equ')) {
+                    const cleanLine = line.split(';')[0].trim();
+                    const rest = cleanLine.substring(4).trim();
+                    const parts = rest.split(/[\s,]+/).filter(p => p);
+                    if (parts.length >= 2) {
+                        const name = parts[0];
+                        const value = parts[1];
+                        const upperVal = value.toUpperCase();
+                        if (this.isRegister(upperVal)) {
+                            this.aliases[name.toUpperCase()] = upperVal;
+                        } else {
+                            try {
+                                const imm = this.parseImmediate(value, true);
+                                this.symbols[name] = imm;
+                            } catch {}
+                        }
+                    }
                 } else if (!this.isDirective(line)) {
                     segmentMap.set(address, currentSegment);
                     address++;
@@ -132,6 +162,48 @@ class Deep16Assembler {
                         segment: 'data'
                     });
                     address++;
+                } else if (line.startsWith('.string')) {
+                    const cleanLine = line.split(';')[0].trim();
+                    const textContent = cleanLine.substring(7).trim();
+                    const stringValue = this.parseStringLiteral(textContent);
+                    if (window.Deep16Debug) console.log(`STRING (pass2): "${stringValue}" at 0x${address.toString(16)}`);
+                    for (let j = 0; j < stringValue.length; j += 2) {
+                        const c1 = stringValue.charCodeAt(j) & 0xFF;
+                        const c2 = (j + 1 < stringValue.length) ? (stringValue.charCodeAt(j + 1) & 0xFF) : 0;
+                        const word = ((c1 << 8) | c2) & 0xFFFF;
+                        memoryChanges.push({ address: address, value: word, segment: 'data' });
+                        assemblyListing.push({ 
+                            address: address, 
+                            instruction: word,
+                            line: originalLine,
+                            segment: 'data'
+                        });
+                        address++;
+                    }
+                    memoryChanges.push({ address: address, value: 0, segment: 'data' });
+                    assemblyListing.push({ 
+                        address: address, 
+                        instruction: 0,
+                        line: originalLine,
+                        segment: 'data'
+                    });
+                    address++;
+                } else if (line.startsWith('.equ')) {
+                    const cleanLine = line.split(';')[0].trim();
+                    const rest = cleanLine.substring(4).trim();
+                    const parts = rest.split(/[\s,]+/).filter(p => p);
+                    if (parts.length >= 2) {
+                        const name = parts[0];
+                        const value = parts[1];
+                        const upperVal = value.toUpperCase();
+                        if (this.isRegister(upperVal)) {
+                            this.aliases[name.toUpperCase()] = upperVal;
+                        } else {
+                            const imm = this.parseImmediate(value, false);
+                            this.symbols[name] = imm;
+                        }
+                    }
+                    assemblyListing.push({ line: originalLine, segment: currentSegment });
                 } else {
                     const instruction = this.encodeInstruction(line, address, i + 1);
                     if (instruction !== null) {
@@ -182,7 +254,9 @@ class Deep16Assembler {
     isDirective(line) {
         return line.startsWith('.org') || 
                line.startsWith('.word') || 
-               line.startsWith('.text'); 
+               line.startsWith('.text') ||
+               line.startsWith('.string') ||
+               line.startsWith('.equ'); 
     }
 
     parseRegister(reg) {
@@ -198,7 +272,10 @@ class Deep16Assembler {
             'FP': 12, 'SP': 13, 'LR': 14, 'PC': 15
         };
         
-        const upperReg = reg.toUpperCase();
+        let upperReg = reg.toUpperCase();
+        if (this.aliases && this.aliases[upperReg]) {
+            upperReg = this.aliases[upperReg];
+        }
         if (upperReg in regMap) return regMap[upperReg];
         
         // Also support case variations of aliases
@@ -366,8 +443,11 @@ class Deep16Assembler {
 
     isRegister(value) {
         if (typeof value !== 'string') return false;
-        const upper = value.toUpperCase();
+        let upper = value.toUpperCase();
         const lower = value.toLowerCase();
+        if (this.aliases && this.aliases[upper]) {
+            upper = this.aliases[upper];
+        }
         
         // Check for R0-R15
         if (upper.startsWith('R') && !isNaN(parseInt(upper.substring(1)))) {
