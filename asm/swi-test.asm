@@ -3,9 +3,6 @@
 ; Simple SWI call that returns version number
 ; =============================================
 
-.org 0x0100
-.code
-
 ; =============================================
 ; Interrupt Vector Table (Segment 0)
 ; =============================================
@@ -34,6 +31,13 @@ main:
     LDI 0x1000         ; Screen buffer at 0xF1000
     MOV R8, R0         ; Use R8 as screen pointer
     ERD R8             ; Use R8/R9 for ES access
+    LDI 0
+    MVS DS, R0
+    LDI 2
+    MOV R2, R0
+    LDI swi_handler
+    MOV R1, R0
+    STS R1, DS, R2
     
     ; Display initial message without subroutine call
     LDI message1
@@ -151,6 +155,9 @@ message1:
     .word 0
 
 message2:
+    .word ' '
+    .word '-'
+    .word ' '
     .word 'O'
     .word 'S'
     .word ' '

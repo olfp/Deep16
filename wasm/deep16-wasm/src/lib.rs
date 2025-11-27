@@ -4,7 +4,10 @@ struct Cpu {
     mem: Vec<u16>,
     reg: [u16; 16],
     psw: u16,
+    spsw: u16,
     cs: u16,
+    scs: u16,
+    spc: u16,
     ds: u16,
     ss: u16,
     es: u16,
@@ -12,6 +15,7 @@ struct Cpu {
     delay_active: bool,
     delayed_pc: u16,
     delayed_cs: u16,
+    delayed_to_shadow: bool,
     branch_taken: bool,
     last_alu_result: i32,
     last_op_alu: bool,
@@ -21,6 +25,9 @@ struct Cpu {
     recent_seg_val: u16,
     recent_seg_idx: u16,
     recent_is_store: bool,
+    last_event_code: u16,
+    last_event_spc: u16,
+    last_event_scs: u16,
 }
 
 static mut CPU: Option<Cpu> = None;
@@ -34,7 +41,10 @@ impl Cpu {
             mem: vec![0xFFFF; mem_words],
             reg,
             psw: 0,
+            spsw: 0,
             cs: 0xFFFF,
+            scs: 0,
+            spc: 0,
             ds: 0x1000,
             ss: 0x8000,
             es: 0x2000,
@@ -42,6 +52,7 @@ impl Cpu {
             delay_active: false,
             delayed_pc: 0,
             delayed_cs: 0,
+            delayed_to_shadow: false,
             branch_taken: false,
             last_alu_result: 0,
             last_op_alu: false,
@@ -51,6 +62,9 @@ impl Cpu {
             recent_seg_val: 0,
             recent_seg_idx: 0,
             recent_is_store: false,
+            last_event_code: 0,
+            last_event_spc: 0,
+            last_event_scs: 0,
         }
     }
     fn reset(&mut self) {
@@ -59,7 +73,10 @@ impl Cpu {
         self.reg[13] = 0x7FFF;
         self.reg[15] = 0x0000;
         self.psw = 0;
+        self.spsw = 0;
         self.cs = 0xFFFF;
+        self.scs = 0;
+        self.spc = 0;
         self.ds = 0x1000;
         self.ss = 0x8000;
         self.es = 0x2000;
@@ -67,6 +84,7 @@ impl Cpu {
         self.delay_active = false;
         self.delayed_pc = 0;
         self.delayed_cs = 0;
+        self.delayed_to_shadow = false;
         self.branch_taken = false;
         self.last_alu_result = 0;
         self.last_op_alu = false;
@@ -76,6 +94,9 @@ impl Cpu {
         self.recent_seg_val = 0;
         self.recent_seg_idx = 0;
         self.recent_is_store = false;
+        self.last_event_code = 0;
+        self.last_event_spc = 0;
+        self.last_event_scs = 0;
     }
 }
 
@@ -133,7 +154,12 @@ pub fn load_program(ptr: usize, data: Box<[u16]>) {
 
 #[wasm_bindgen]
 pub fn get_registers() -> Box<[u16]> {
-    unsafe { cpu_ref().reg.to_vec().into_boxed_slice() }
+    unsafe {
+        let c = cpu_ref();
+        let mut v = c.reg.to_vec();
+        if (c.psw & (1 << 5)) != 0 { v[15] = c.spc; }
+        v.into_boxed_slice()
+    }
 }
 
 #[wasm_bindgen]
@@ -145,7 +171,8 @@ pub fn get_psw() -> u16 {
 pub fn get_segments() -> Box<[u16]> {
     unsafe {
         let c = cpu_ref();
-        vec![c.cs, c.ds, c.ss, c.es].into_boxed_slice()
+        let cs = if (c.psw & (1 << 5)) != 0 { c.scs } else { c.cs };
+        vec![cs, c.ds, c.ss, c.es].into_boxed_slice()
     }
 }
 
@@ -297,14 +324,20 @@ fn exec_mov(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
 
     // MOV to PC is a branch with one delay slot
     if rd == 15 {
+        let in_shadow = (c.psw & (1 << 5)) != 0;
         c.delay_active = true;
         c.delayed_pc = value;
-        c.delayed_cs = c.cs;
+        c.delayed_cs = if in_shadow { c.scs } else { c.cs };
+        c.delayed_to_shadow = in_shadow;
         c.branch_taken = true;
+        c.last_alu_result = value as i32;
+        c.last_op_alu = true;
         return true;
     }
 
     c.reg[rd] = value;
+    c.last_alu_result = value as i32;
+    c.last_op_alu = true;
     false
 }
 
@@ -340,6 +373,7 @@ fn exec_sop(c: &mut Cpu, instr: u16) -> bool {
             c.delay_active = true;
             c.delayed_pc = target_pc;
             c.delayed_cs = target_cs;
+            c.delayed_to_shadow = (c.psw & (1 << 5)) != 0;
             c.branch_taken = true;
             true
         }
@@ -396,10 +430,13 @@ fn exec_jump(c: &mut Cpu, instr: u16) -> bool {
         _ => j = !oflag,
     }
     if j {
-        let target_pc = ((c.reg[15] as i32) + (off as i16 as i32)) as u16;
+        let in_shadow = (c.psw & (1 << 5)) != 0;
+        let current_pc = if in_shadow { c.spc } else { c.reg[15] } as i32;
+        let target_pc = (current_pc + (off as i16 as i32)) as u16;
         c.delay_active = true;
         c.delayed_pc = target_pc;
-        c.delayed_cs = c.cs;
+        c.delayed_cs = if in_shadow { c.scs } else { c.cs };
+        c.delayed_to_shadow = in_shadow;
         c.branch_taken = true;
     } else {
         c.branch_taken = false;
@@ -409,34 +446,51 @@ fn exec_jump(c: &mut Cpu, instr: u16) -> bool {
 
 fn step_one(c: &mut Cpu) -> bool {
     if !c.running { c.running = true; }
+    let in_shadow = (c.psw & (1 << 5)) != 0;
     if c.delay_active {
         c.delay_active = false;
-        let pa = phys(c.cs, c.reg[15] as u32);
+        let active_cs = if in_shadow { c.scs } else { c.cs };
+        let active_pc = if in_shadow { c.spc } else { c.reg[15] };
+        let pa = phys(active_cs, active_pc as u32);
         if pa >= c.mem.len() { c.running = false; return false; }
         let instr = c.mem[pa];
-        let original_pc = c.reg[15];
-        c.reg[15] = c.reg[15].wrapping_add(1);
+        let original_pc = active_pc;
+        if in_shadow { c.spc = c.spc.wrapping_add(1); } else { c.reg[15] = c.reg[15].wrapping_add(1); }
         c.last_op_alu = false;
         c.last_alu_result = 0;
         let is_branch = exec_instruction(c, instr, original_pc);
         update_psw_flags(c);
-        if c.branch_taken { c.reg[15] = c.delayed_pc; c.cs = c.delayed_cs; }
+        if c.branch_taken {
+            if c.delayed_to_shadow { c.spc = c.delayed_pc; c.scs = c.delayed_cs; } else { c.reg[15] = c.delayed_pc; c.cs = c.delayed_cs; }
+        }
         return !is_branch || c.running;
     }
-    let pa = phys(c.cs, c.reg[15] as u32);
+    let active_cs = if in_shadow { c.scs } else { c.cs };
+    let active_pc = if in_shadow { c.spc } else { c.reg[15] };
+    let pa = phys(active_cs, active_pc as u32);
     if pa >= c.mem.len() { c.running = false; return false; }
     let instr = c.mem[pa];
     if instr == 0xFFFF { c.running = false; return false; }
-    let original_pc = c.reg[15];
-    c.reg[15] = c.reg[15].wrapping_add(1);
+    c.last_event_code = instr;
+    c.last_event_spc = active_pc;
+    c.last_event_scs = active_cs;
+    if (instr & 0xFFF0) == 0xFFF0 {
+        exec_sys(c, instr);
+        update_psw_flags(c);
+        return true;
+    }
+    let original_pc = active_pc;
+    if in_shadow { c.spc = c.spc.wrapping_add(1); } else { c.reg[15] = c.reg[15].wrapping_add(1); }
     c.last_op_alu = false;
     c.last_alu_result = 0;
-    let is_branch = exec_instruction(c, instr, original_pc);
+    let _is_branch = exec_instruction(c, instr, original_pc);
     update_psw_flags(c);
     true
 }
 
 fn exec_instruction(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
+    // Fast-path: System instructions (NOP/HLT/SWI/RETI)
+    if (instr & 0xFFF0) == 0xFFF0 { exec_sys(c, instr); return false; }
     if (instr & 0x8000) == 0 { exec_ldi(c, instr); return false; }
     if ((instr >> 14) & 0x3) == 0b10 { exec_mem(c, instr); return false; }
     let opcode3 = (instr >> 13) & 0x7;
@@ -446,6 +500,9 @@ fn exec_instruction(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
             if ((instr >> 12) & 0xF) == 0b1110 { return exec_jump(c, instr); }
             if ((instr >> 11) & 0x1F) == 0b11110 { exec_lds_sts(c, instr); return false; }
             if ((instr >> 10) & 0x3F) == 0b111110 { return exec_mov(c, instr, original_pc); }
+            // System instruction (SWI/RETI/etc.) must be detected before other 0b111* groups
+            if (instr & 0xFFF0) == 0xFFF0 { exec_sys(c, instr); return false; }
+            if ((instr >> 3) & 0x1FFF) == 0x1FFE { exec_sys(c, instr); return false; }
             if ((instr >> 9) & 0x7F) == 0b1111110 { exec_lsi(c, instr); return false; }
             if ((instr >> 8) & 0xFF) == 0b11111110 { return exec_sop(c, instr); }
             if ((instr >> 7) & 0x1FF) == 0b111111110 { exec_mvs(c, instr); return false; }
@@ -531,5 +588,47 @@ pub fn get_recent_access() -> Box<[u32]> {
             c.recent_seg_idx as u32,
             if c.recent_is_store { 1 } else { 0 },
         ].into_boxed_slice()
+    }
+}
+
+#[wasm_bindgen]
+pub fn get_last_event() -> Box<[u16]> {
+    unsafe {
+        let c = cpu_ref();
+        vec![c.last_event_code, c.spc, c.scs, c.psw, c.spsw].into_boxed_slice()
+    }
+}
+
+#[wasm_bindgen]
+pub fn get_shadow_state() -> Box<[u16]> {
+    unsafe {
+        let c = cpu_ref();
+        vec![c.spc, c.scs, c.spsw].into_boxed_slice()
+    }
+}
+fn exec_sys(c: &mut Cpu, instr: u16) -> bool {
+    let op = (instr & 0x7) as u16;
+    match op {
+        0 => { /* NOP */ false }
+        1 => { /* HLT */ c.running = false; false }
+        2 => { /* SWI */
+            c.spsw = c.psw;
+            c.psw = (c.psw & !(1 << 4)) | (1 << 5);
+            c.scs = 0x0000;
+            let pa = phys(0, 2u32);
+            let target = if pa < c.mem.len() { c.mem[pa] & 0xFFFF } else { 0xFFFF };
+            c.spc = target;
+            c.last_event_code = 2;
+            c.last_event_spc = c.spc;
+            c.last_event_scs = c.scs;
+            false
+        }
+        3 => { /* RETI */
+            // Return from interrupt: clear S-bit
+            c.psw = c.psw & !(1 << 5);
+            c.last_event_code = 3;
+            false
+        }
+        _ => false,
     }
 }

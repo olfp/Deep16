@@ -192,8 +192,6 @@ Default effect:
 
 ## 5. Instruction Set
 
-## 5. Instruction Set Summary
-
 ### 5.1 Complete Opcode Hierarchy
 
 **Table 5.1: Instruction Opcode Hierarchy**
@@ -215,7 +213,132 @@ Default effect:
 
 The immediate values of LDI, LD/ST, ALU2, MOV and SOP are insigned. JMP and LSI take signed immediates.
 
-### 5.1 Data Movement Instructions
+### 5.2 Detailed Instruction Formats
+
+#### 5.2.1 LDI - Load Long Immediate
+
+```
+Bits: [0][ imm15 ]
+      1     15
+```
+
+- **Effect**: `R0 ← immediate`
+- **Range**: 0 to 32,767
+- **Pipeline**: Full 5-stage execution
+
+#### 5.2.2 LD/ST - Load/Store with Implicit Segment
+
+```
+Bits: [10][ d ][ Rd ][ Rb ][ offset5 ]
+      2    1    4     4      5
+```
+
+- **d=0**: Load `Rd ← Mem[implicit_segment:Rb + offset]`
+- **d=1**: Store `Mem[implicit_segment:Rb + offset] ← Rd`
+- **offset5**: 5-bit unsigned immediate (0-31 words)
+- **Pipeline**: Potential 1-cycle stall if load followed by dependent operation
+
+#### 5.2.3 ALU2 - Dual Operand ALU Operations
+
+```
+Bits: [110][ op3 ][ Rd ][ w ][ i ][ Rs/imm4 ]
+      3     3      4     1    1      4
+```
+
+- **w=0**: Update flags only (ANW, CMP, TBS, TBC operations)
+- **w=1**: Write result to Rd
+- **i=0**: Register mode `Rd ← Rd op Rs`
+- **i=1**: Immediate mode `Rd ← Rd op imm4`
+- **Pipeline**: Full forwarding support for data hazards
+
+#### 5.2.4 JMP - Jump/Branch Operations
+
+```
+Bits: [1110][ type3 ][ target9 ]
+      4      3         9
+```
+
+- **target9**: 9-bit signed immediate (-256 to +255 words)
+- **Pipeline**: **Uses 1 delay slot** - next instruction always executes
+
+#### 5.2.5 LSI - Load Short Immediate
+
+```
+Bits: [1111110][ Rd ][ imm5 ]
+      7         4     5
+```
+
+- **Effect**: `Rd ← sign_extend(imm5)`
+- **Range**: -16 to +15
+- **Pipeline**: Full 5-stage execution
+
+#### 5.2.6 LDS/STS - Load/Store with Explicit Segment
+
+```
+Bits: [11110][ d ][ seg2 ][ Rd ][ Rs ]
+      5       1     2       4     4
+```
+
+- **d=0**: Load `Rd ← Mem[seg:Rs]`
+- **d=1**: Store `Mem[seg:Rs] ← Rd`
+- **seg2**: 00=CS, 01=DS, 10=SS, 11=ES
+- **Pipeline**: Segment register access in MEM stage
+
+#### 5.2.7 MOV - Move with Offset
+
+```
+Bits: [111110][ Rd ][ Rs ][ imm2 ]
+      6        4     4      2
+```
+
+- **Effect**: `Rd ← Rs + zero_extend(imm2)`
+- **Range**: 0-3
+- **Pipeline**: Full 5-stage execution
+
+#### 5.2.8 SOP - Single Operand Operations
+
+```
+Bits: [11111110][ type4 ][ Rx/imm4 ]
+      8          4        4
+```
+
+- **GRP1 (000x)**: ALU1 operations (SWB, INV, NEG)
+- **GRP2 (0100)**: Special jump (JML) - **uses delay slot**
+- **GRP3 (10xx)**: PSW segment assignment (SRS, SRD, ERS, ERD)
+- **GRP4 (11xx)**: PSW flag manipulation (SET, CLR, SET2, CLR2)
+
+#### 5.2.9 MVS - Move to/from Segment
+
+```
+Bits: [111111110][ d ][ Rd ][ seg2 ]
+      9           1    4      2
+```
+
+- **d=0**: `Rd ← Sx` where Sx is segment register CS/DS/SS/ES
+- **d=1**: `Sx ← Rd` where Sx is segment register CS/DS/SS/ES
+- **Pipeline**: Segment register access in MEM stage
+
+#### 5.2.10 SMV - Special Move
+
+```
+Bits: [1111111110][ src2 ][ Rd ]
+      10           2       4
+```
+
+- Access alternate register views (APC, APSW, ACS, PSW)
+- **Pipeline**: Special register access with potential stalls
+
+#### 5.2.11 SYS - System Operations
+
+```
+Bits: [1111111111110][ op3 ]
+      13               3
+```
+
+- **op3**: 000=NOP, 001=HLT, 010=SWI, 011=RETI, 100-111=reserved
+- **Pipeline**: RETI causes pipeline flush and context switch
+
+### 5.3 Data Movement Instructions
 
 **Table 5.1: Data Movement Instructions**
 
@@ -231,28 +354,87 @@ The immediate values of LDI, LD/ST, ALU2, MOV and SOP are insigned. JMP and LSI 
 | **SMV** | `SMV Rd, PSW` | `1111111110 10 Rd4` | 0x3FC | `Rd = PSW` |
 | **SMV** | `SMV Rd, ACS` | `1111111110 11 Rd4` | 0x3FC | `Rd = CS'` |
 
-### 5.2 ALU Instructions
+Note that an uncoditional jump to an address held in a register, i.e. **JMP Rx** is coded as **MOV PC, Rx** 
+
+### 5.4 ALU Instructions
 
 **Table 5.2: ALU Instructions**
+
+##### 5.4.1 ADD/ANW
 
 | Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
 |-------------|---------|-----------------|---------------|----------|
 | **ADD** | `ADD Rd, Rs` | `110 000 Rd4 1 0 Rs4` | 0xC0 | `Rd = Rd + Rs`, set flags |
 | **ADD** | `ADD Rd, imm` | `110 000 Rd4 1 1 imm4` | 0xC0 | `Rd = Rd + imm`, set flags |
+| **ANW** | `ANW Rd, Rs` | `110 000 Rd4 0 0 Rs4` | 0xC0 | `Rd = Rd + Rs`, set flags |
+| **ANW** | `ANW Rd, imm` | `110 000 Rd4 0 1 imm4` | 0xC0 | `Rd = Rd + imm`, set flags |
+
+##### 5.4.2 SUB/CMP
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
 | **SUB** | `SUB Rd, Rs` | `110 001 Rd4 1 0 Rs4` | 0xC4 | `Rd = Rd - Rs`, set flags |
 | **SUB** | `SUB Rd, imm` | `110 001 Rd4 1 1 imm4` | 0xC4 | `Rd = Rd - imm`, set flags |
+| **CMP** | `CMP Rd, Rs` | `110 001 Rd4 0 0 Rs4` | 0xC4 | `Rd = Rd - Rs`, set flags |
+| **CMP** | `CMP Rd, imm` | `110 001 Rd4 0 1 imm4` | 0xC4 | `Rd = Rd - imm`, set flags |
+
+##### 5.4.3 AND/TST
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
 | **AND** | `AND Rd, Rs` | `110 010 Rd4 1 0 Rs4` | 0xC8 | `Rd = Rd & Rs`, set flags |
 | **AND** | `AND Rd, imm` | `110 010 Rd4 1 1 imm4` | 0xC8 | `Rd = Rd & imm`, set flags |
+| **TST** | `TST Rd, Rs` | `110 010 Rd4 0 0 Rs4` | 0xC8 | `Rd = Rd & Rs`, set flags |
+| **TST** | `TST Rd, imm` | `110 010 Rd4 0 1 imm4` | 0xC8 | `Rd = Rd & imm`, set flags |
+
+##### 5.4.4 OR/ONW
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
 | **OR** | `OR Rd, Rs` | `110 011 Rd4 1 0 Rs4` | 0xCC | `Rd = Rd | Rs`, set flags |
 | **OR** | `OR Rd, imm` | `110 011 Rd4 1 1 imm4` | 0xCC | `Rd = Rd | imm`, set flags |
+| **ONW** | `ONW Rd, Rs` | `110 011 Rd4 0 0 Rs4` | 0xCC | `Rd = Rd | Rs`, set flags |
+| **ONW** | `ONW Rd, imm` | `110 011 Rd4 0 1 imm4` | 0xCC | `Rd = Rd | imm`, set flags |
+
+##### 5.4.5 XOR/TBC
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
 | **XOR** | `XOR Rd, Rs` | `110 100 Rd4 1 0 Rs4` | 0xD0 | `Rd = Rd ^ Rs`, set flags |
 | **XOR** | `XOR Rd, imm` | `110 100 Rd4 1 1 imm4` | 0xD0 | `Rd = Rd ^ imm`, set flags |
-| **MUL** | `MUL Rd, Rs` | `110 101 Rd4 1 0 Rs4` | 0xD4 | `Rd = Rd * Rs`, set flags |
-| **MUL** | `MUL Rd, imm` | `110 101 Rd4 1 1 imm4` | 0xD4 | `Rd = Rd * imm`, set flags |
-| **DIV** | `DIV Rd, Rs` | `110 110 Rd4 1 0 Rs4` | 0xD8 | `Rd = Rd / Rs`, set flags |
-| **DIV** | `DIV Rd, imm` | `110 110 Rd4 1 1 imm4` | 0xD8 | `Rd = Rd / imm`, set flags |
+| **TBC** | `TBC Rd, Rs` | `110 100 Rd4 0 0 Rs4` | 0xD0 | `Rd = Rd ^ Rs`, set flags |
+| **TBC** | `TBC Rd, imm` | `110 100 Rd4 0 1 imm4` | 0xD0 | `Rd = Rd ^ imm`, set flags |
 
-### 5.3 32-bit ALU Instructions
+##### 5.4.6 MUL/MUL32/MNW/NMW32
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
+| **MUL** | `MUL Rd, Rs` | `110 101 Rd4 1 0 Rs4` | 0xD4 | `Rd = Rd * Rs`, set flags |
+| **MUL32** | `MUL Rd, Rs` | `110 101 Rd4 1 1 Rs4` | 0xD4 | `Rd = Rd * imm`, set flags |
+| **MNW** | `MNW Rd, Rs` | `110 101 Rd4 0 0 Rs4` | 0xD4 | `Rd = Rd * Rs`, set flags |
+| **MNW32** | `MNW Rd, Rs` | `110 101 Rd4 0 1 rs4` | 0xD4 | `Rd = Rd * imm`, set flags |
+
+##### 5.4.7 DIV/DIV32/DNW/DNW32
+
+| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
+|-------------|---------|-----------------|---------------|----------|
+| **DIV** | `DIV Rd, Rs` | `110 110 Rd4 1 0 Rs4` | 0xD8 | `Rd = Rd / Rs`, set flags |
+| **DIV32** | `DIV Rd, Rs` | `110 110 Rd4 1 1 Rs4` | 0xD8 | `Rd = Rd / imm`, set flags |
+| **DNW** | `DNW Rd, Rs` | `110 110 Rd4 0 0 Rs4` | 0xD8 | `Rd = Rd / Rs`, set flags |
+| **DNW32** | `DNW Rd, Rs` | `110 110 Rd4 0 1 Rs4` | 0xD8 | `Rd = Rd / imm`, set flags |
+
+### 5.4.1 MUL/DIV Behavior 16/32 Bit
+
+**MUL Operations:**
+
+- **MUL Rd, Rs** (i=0): 16×16→16-bit multiplication
+- **MUL32 Rd, Rs** (i=1): 16×16→32-bit multiplication, **Rd must be even**
+
+**DIV Operations:**
+
+- **DIV Rd, Rs** (i=0): 16÷16→16-bit division (quotient)
+- **DIV32 Rd, Rs** (i=1): 16÷16→32-bit division, **Rd must be even**
+### 5.4.2 32-bit ALU Instructions
 
 **Table 5.3: 32-bit ALU Instructions**
 
@@ -260,16 +442,6 @@ The immediate values of LDI, LD/ST, ALU2, MOV and SOP are insigned. JMP and LSI 
 |-------------|---------|-----------------|---------------|----------|
 | **MUL32** | `MUL32 Rd, Rs` | `110 101 Rd4 1 1 Rs4` | 0xD4 | `R[d]:R[d+1] = Rd * Rs` |
 | **DIV32** | `DIV32 Rd, Rs` | `110 110 Rd4 1 1 Rs4` | 0xD8 | `R[d]:R[d+1] = Rd / Rs` |
-
-### 5.4 Single Operand ALU Operations
-
-**Table 5.4: Single Operand Instructions**
-
-| Instruction | Format | Binary Encoding | Opcode Prefix | Behavior |
-|-------------|---------|-----------------|---------------|----------|
-| **SWB** | `SWB Rx` | `11111110 0000 Rx4` | 0xFE | `Rx = (Rx << 8) | (Rx >> 8)` |
-| **INV** | `INV Rx` | `11111110 0001 Rx4` | 0xFE | `Rx = ~Rx` |
-| **NEG** | `NEG Rx` | `11111110 0010 Rx4` | 0xFE | `Rx = -Rx` |
 
 ### 5.5 Shift and Rotate Instructions
 
@@ -286,7 +458,17 @@ The immediate values of LDI, LD/ST, ALU2, MOV and SOP are insigned. JMP and LSI 
 | **ROR** | `ROR Rd, count` | `110 111 Rd4 110 count4` | 0xDC | `Rd = (Rd >> count) | (Rd << (16-count))` |
 | **ROC** | `ROC Rd, count` | `110 111 Rd4 111 count4` | 0xDC | `Rd = (Rd >> count) | (C << (15-count)) | (Rd << (16-count))` |
 
-### 5.6 Memory Access Instructions
+### 5.6 Single Operand ALU Operations
+
+**Table 5.4: Single Operand Instructions**
+
+| Instruction | Format   | Binary Encoding     | Opcode Prefix | Behavior                     |
+| ----------- | -------- | ------------------- | ------------- | ---------------------------- |
+| **SWB**     | `SWB Rx` | `11111110 0000 Rx4` | 0xFE          | `Rx = (Rx << 8) | (Rx >> 8)` |
+| **INV**     | `INV Rx` | `11111110 0001 Rx4` | 0xFE          | `Rx = ~Rx`                   |
+| **NEG**     | `NEG Rx` | `11111110 0010 Rx4` | 0xFE          | `Rx = -Rx`                   |
+
+### 5.7 Memory Access Instructions
 
 **Table 5.6: Memory Access Instructions**
 
@@ -297,7 +479,7 @@ The immediate values of LDI, LD/ST, ALU2, MOV and SOP are insigned. JMP and LSI 
 | **LDS** | `LDS Rd, seg, Rb` | `11110 0 seg2 Rd4 Rb4` | 0xF0 | `Rd = Mem[seg:Rb]` |
 | **STS** | `STS Rd, seg, Rb` | `11110 1 seg2 Rd4 Rb4` | 0xF2 | `Mem[seg:Rb] = Rd` |
 
-### 5.7 Control Flow Instructions
+### 5.8 Control Flow Instructions
 
 **Table 5.7: Condition Codes for Jump Instructions**
 
@@ -326,7 +508,7 @@ The immediate values of LDI, LD/ST, ALU2, MOV and SOP are insigned. JMP and LSI 
 | **JNO** | `JNO target` | `1110 111 target9` | 0xE0 | `if (!V) PC = PC + 1 + target` |
 | **JML** | `JML Rx` | `11111110 0100 Rx4` | 0xFE | `CS = R[Rx], PC = R[Rx+1]` |
 
-### 5.8 PSW Operations
+### 5.9 PSW Operations
 
 **Table 5.9: PSW Segment Assignment Operations**
 
@@ -346,7 +528,7 @@ The immediate values of LDI, LD/ST, ALU2, MOV and SOP are insigned. JMP and LSI 
 | **SET2** | `SET2 imm` | `11111110 1110 imm4` | 0xFE | `PSW[imm+4] = 1` |
 | **CLR2** | `CLR2 imm` | `11111110 1111 imm4` | 0xFE | `PSW[imm+4] = 0` |
 
-### 5.9 System Operations
+### 5.10 System Operations
 
 **Table 5.11: System Instructions**
 
@@ -357,7 +539,7 @@ The immediate values of LDI, LD/ST, ALU2, MOV and SOP are insigned. JMP and LSI 
 | **SWI** | `SWI` | `1111111111110 010` | 0x1FFC | Software interrupt |
 | **RETI** | `RETI` | `1111111111110 011` | 0x1FFC | Return from interrupt |
 
-### 5.10 Halt Instruction
+### 5.11 Halt Instruction
 
 **Table 5.12: Halt Instruction**
 
@@ -365,11 +547,11 @@ The immediate values of LDI, LD/ST, ALU2, MOV and SOP are insigned. JMP and LSI 
 |-------------|---------|-----------------|---------------|----------|
 | **HLT** | `HLT` | `1111111111111111` | 0xFFFF | Halt processor |
 
-### 5.11 Enhanced Assembler Syntax (Preprocessing Only)
+### 5.12 Enhanced Assembler Syntax (Preprocessing Only)
 
 **Important**: The enhanced syntax described below is purely **assembler preprocessing**. The binary encoding always uses the specific instruction (MOV, MVS, SMV, LD, ST). The assembler automatically translates enhanced syntax to the correct machine instruction.
 
-#### 5.11.1 LD/ST Bracket Syntax
+#### 5.12.1 LD/ST Bracket Syntax
 
 **Assembler Input (Enhanced Syntax):**
 ```assembly
@@ -385,7 +567,7 @@ ST   R1, SP, 4        ; Machine instruction: [10][1][R1][SP][4]
 LD   R1, R2, 0        ; Machine instruction: [10][0][R1][R2][0]
 ```
 
-#### 5.11.2 MOV Plus Syntax
+#### 5.12.2 MOV Plus Syntax
 
 **Assembler Input (Enhanced Syntax):**
 ```assembly
@@ -399,7 +581,7 @@ MOV  R1, R2, 3        ; Machine instruction: [111110][R1][R2][3]
 MOV  R3, SP, 0        ; Note: Negative offsets not supported in MOV
 ```
 
-### 5.12 MOV Special Immediate Value
+### 5.13 MOV Special Immediate Value
 
 The immediate value `3` in MOV instructions has special meaning:
 - **MOV Rx, Ry, 3**: Architectural register read - reads the current architectural value of Ry, ignoring any pending writes in the pipeline
@@ -407,7 +589,7 @@ The immediate value `3` in MOV instructions has special meaning:
 - This enables correct PC reading for link instructions in delay slots
 - For general registers, this provides a mechanism to read stable architectural state
 
-### 5.13 Instruction Aliases
+### 5.14 Instruction Aliases
 
 **Table 5.13: Instruction Aliases**
 
@@ -421,7 +603,7 @@ The immediate value `3` in MOV instructions has special meaning:
 | ALNK Rx | MOV Rx, PC, 3 | Architectural link in delay slot |
 | ALINK | MOV LR, PC, 3 | Architectural link to LR in delay slot |
 
-### 5.14 Flag Operation Aliases
+### 5.15 Flag Operation Aliases
 
 **Table 5.14: Common Flag Aliases**
 

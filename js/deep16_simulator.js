@@ -17,6 +17,7 @@ class Deep16Simulator {
         this.delayedPC = 0;
         this.delayedCS = 0;
         this.branchTaken = false;
+        this.delayedToShadow = false;
         
         
         
@@ -116,29 +117,26 @@ class Deep16Simulator {
     step() {
         if (!this.running) return false;
 
+        const inShadow = (this.psw & (1 << 5)) !== 0;
         // Handle delay slot if active
         if (this.delaySlotActive) {
-            // console.log("=== DELAY SLOT EXECUTION ===");
             this.delaySlotActive = false;
-            
-            // Execute the delay slot instruction
-            const paDelay = this.phys(this.segmentRegisters.CS & 0xFFFF, this.registers[15] & 0xFFFF);
+            const activeCS = inShadow ? (this.shadowRegisters.CS & 0xFFFF) : (this.segmentRegisters.CS & 0xFFFF);
+            const activePC = inShadow ? (this.shadowRegisters.PC & 0xFFFF) : (this.registers[15] & 0xFFFF);
+            const paDelay = this.phys(activeCS, activePC);
             const delayInstruction = this.memory[paDelay];
-            this.executeInstruction(delayInstruction, this.registers[15]);
-            
-            // Now apply the delayed branch
+            this.executeInstruction(delayInstruction, activePC);
+            if (inShadow) { this.shadowRegisters.PC = (this.shadowRegisters.PC + 1) & 0xFFFF; } else { this.registers[15] = (this.registers[15] + 1) & 0xFFFF; }
             if (this.branchTaken) {
-                this.registers[15] = this.delayedPC;
-                this.segmentRegisters.CS = this.delayedCS;
-                // console.log(`Delayed branch applied: PC=0x${this.registers[15].toString(16)}, CS=0x${this.segmentRegisters.CS.toString(16)}`);
+                if (this.delayedToShadow) { this.shadowRegisters.PC = this.delayedPC & 0xFFFF; this.shadowRegisters.CS = this.delayedCS & 0xFFFF; }
+                else { this.registers[15] = this.delayedPC & 0xFFFF; this.segmentRegisters.CS = this.delayedCS & 0xFFFF; }
             }
-            
             return true;
         }
 
         // Normal instruction execution
-        const pc = this.registers[15] & 0xFFFF;
-        const pa = this.phys(this.segmentRegisters.CS & 0xFFFF, pc);
+        const pc = (inShadow ? this.shadowRegisters.PC : this.registers[15]) & 0xFFFF;
+        const pa = this.phys((inShadow ? this.shadowRegisters.CS : this.segmentRegisters.CS) & 0xFFFF, pc);
         if (pa >= this.memory.length) {
             this.running = false;
             return false;
@@ -159,7 +157,7 @@ class Deep16Simulator {
         const originalPC = pc;
         
         // Increment PC by 1 (word addressing)
-        this.registers[15] += 1;
+        if (inShadow) { this.shadowRegisters.PC = (this.shadowRegisters.PC + 1) & 0xFFFF; } else { this.registers[15] = (this.registers[15] + 1) & 0xFFFF; }
 
         // Reset ALU tracking
         this.lastOperationWasALU = false;
@@ -553,9 +551,11 @@ class Deep16Simulator {
 
         // If destination is PC, treat as jump with delay slot
         if (rd === 15) {
+            const inShadow = (this.psw & (1 << 5)) !== 0;
             this.delaySlotActive = true;
             this.delayedPC = value & 0xFFFF;
-            this.delayedCS = this.segmentRegisters.CS;
+            this.delayedCS = inShadow ? (this.shadowRegisters.CS & 0xFFFF) : (this.segmentRegisters.CS & 0xFFFF);
+            this.delayedToShadow = inShadow;
             this.branchTaken = true;
             this.lastALUResult = value;
             this.lastOperationWasALU = true;
@@ -618,16 +618,14 @@ class Deep16Simulator {
         // console.log(`Jump decision: ${shouldJump ? 'TAKEN' : 'NOT TAKEN'}`);
 
         if (shouldJump) {
-            // Calculate target address but don't jump yet
-            const targetPC = this.registers[15] + offset;
-            
-            // Set up delay slot
+            const inShadow = (this.psw & (1 << 5)) !== 0;
+            const currentPC = inShadow ? (this.shadowRegisters.PC & 0xFFFF) : (this.registers[15] & 0xFFFF);
+            const targetPC = (currentPC + offset) & 0xFFFF;
             this.delaySlotActive = true;
-            this.delayedPC = targetPC & 0xFFFF;
-            this.delayedCS = this.segmentRegisters.CS; // Same CS segment
+            this.delayedPC = targetPC;
+            this.delayedCS = inShadow ? (this.shadowRegisters.CS & 0xFFFF) : (this.segmentRegisters.CS & 0xFFFF);
+            this.delayedToShadow = inShadow;
             this.branchTaken = true;
-            
-            // console.log(`JUMP: Delay slot activated - will jump to 0x${this.delayedPC.toString(16)} after next instruction`);
         } else {
             // Branch not taken, no delay slot needed
             this.branchTaken = false;
@@ -733,9 +731,11 @@ class Deep16Simulator {
         // console.log(`JML Execute: R${rx}=0x${targetCS.toString(16)} (CS), R${rx+1}=0x${targetPC.toString(16)} (PC)`);
         
         // Set up delay slot for JML
+        const inShadow = (this.psw & (1 << 5)) !== 0;
         this.delaySlotActive = true;
         this.delayedPC = targetPC & 0xFFFF;
         this.delayedCS = targetCS & 0xFFFF;
+        this.delayedToShadow = inShadow;
         this.branchTaken = true;
         
         // console.log(`JML: Delay slot activated - will jump to CS=0x${targetCS.toString(16)}, PC=0x${targetPC.toString(16)} after next instruction`);
@@ -897,30 +897,12 @@ class Deep16Simulator {
      * Execute Software Interrupt with proper context switching
      */
     executeSWI() {
-        // console.log("SWI: Software interrupt - switching to shadow context");
-        
-        // Check if interrupts are enabled
-        if (!(this.psw & (1 << 4))) {
-            // console.warn("SWI: Interrupts disabled, ignoring software interrupt");
-            return;
-        }
-        
-        // According to section 4: Only PSW is copied to PSW'
         this.shadowRegisters.PSW = this.psw;
-        
-        // console.log(`SWI: PSW' = PSW = 0x${this.shadowRegisters.PSW.toString(16)}`);
-        
-        // Switch to shadow view: PSW.S ← 1, PSW.I ← 0
-        this.psw = (this.psw & ~(1 << 4)) | (1 << 5); // Clear I-bit, set S-bit
-        
-        // Interrupts run in Segment 0 with new PC
-        this.segmentRegisters.CS = 0x0000; // Interrupts run in Segment 0
-        this.registers[15] = 0x0004;      // SWI vector at offset 4
-        
-        // console.log(`SWI: Jump to CS=0x${this.segmentRegisters.CS.toString(16)}, PC=0x${this.registers[15].toString(16)}, PSW=0x${this.psw.toString(16)}`);
-        // console.log(`SWI: Now in shadow context - accessing PC', CS', PSW' views`);
-        
-        // In a pipelined implementation, this would flush the pipeline
+        this.psw = (this.psw & ~(1 << 4)) | (1 << 5);
+        this.shadowRegisters.CS = 0x0000;
+        const pa = this.phys(0, 2);
+        const target = pa < this.memory.length ? (this.memory[pa] & 0xFFFF) : 0xFFFF;
+        this.shadowRegisters.PC = target;
         this.flushPipeline();
     }
 
@@ -957,32 +939,19 @@ class Deep16Simulator {
      * @param {number} vector - Interrupt vector address
      */
     handleHardwareInterrupt(vector) {
-        // Check if interrupts are enabled and not already in interrupt context
-        if (!(this.psw & (1 << 4)) || (this.psw & (1 << 5))) {
-            // console.log(`Hardware interrupt ignored: I=${!!(this.psw & (1 << 4))}, S=${!!(this.psw & (1 << 5))}`);
-            return false;
+        const isNMI = (vector & 0xFFFF) === 0;
+        if (!isNMI) {
+            if (!(this.psw & (1 << 4)) || (this.psw & (1 << 5))) {
+                return false;
+            }
         }
-        
-        // console.log(`Hardware interrupt: vector=0x${vector.toString(16)}`);
-        
-        // According to section 4: Only PSW is copied to PSW'
         this.shadowRegisters.PSW = this.psw;
-        
-        // console.log(`Hardware interrupt: PSW' = PSW = 0x${this.shadowRegisters.PSW.toString(16)}`);
-        
-        // Switch to shadow view: PSW.S ← 1, PSW.I ← 0
-        this.psw = (this.psw & ~(1 << 4)) | (1 << 5); // Clear I-bit, set S-bit
-        
-        // Hardware interrupts run in Segment 0
-        this.segmentRegisters.CS = 0x0000; // Hardware interrupts run in segment 0
-        this.registers[15] = vector;
-        
-        // console.log(`Hardware interrupt: Jump to CS=0x${this.segmentRegisters.CS.toString(16)}, PC=0x${this.registers[15].toString(16)}, PSW=0x${this.psw.toString(16)}`);
-        // console.log(`Hardware interrupt: Now in shadow context - accessing PC', CS', PSW' views`);
-        
-        // In a pipelined implementation, this would flush the pipeline
+        this.psw = (this.psw & ~(1 << 4)) | (1 << 5);
+        this.shadowRegisters.CS = 0x0000;
+        const pa = this.phys(0, vector & 0xFFFF);
+        const target = pa < this.memory.length ? (this.memory[pa] & 0xFFFF) : 0xFFFF;
+        this.shadowRegisters.PC = target;
         this.flushPipeline();
-        
         return true;
     }
 
