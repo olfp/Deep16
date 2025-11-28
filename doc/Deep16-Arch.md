@@ -171,18 +171,23 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 |-------------|---------|-----------------|----------|
 | **SL** | `SL Rd, count` | `110 10000 Rd4 count4` | `Rd = Rd << count`, C = MSB |
 | **SLA** | `SLA Rd, count` | `110 10001 Rd4 count4` | `Rd = Rd << count` (arithmetic, preserves sign) |
-| **SLAC** | `SLAC Rd, count` | `110 10010 Rd4 count4` | `Rd = (Rd << count) | (C << (count-1))` (arithmetic) |
-| **SLC** | `SLC Rd, count` | `110 10011 Rd4 count4` | `Rd = (Rd << count) | (C << (count-1))`, C = MSB |
+| **SLAC** | `SLAC Rd, count` | `110 10010 Rd4 count4` | `Rd = (Rd << count) \| (C << (count-1))` (arithmetic) |
+| **SLC** | `SLC Rd, count` | `110 10011 Rd4 count4` | `Rd = (Rd << count) \| (C << (count-1))`, C = MSB |
 | **SR** | `SR Rd, count` | `110 10100 Rd4 count4` | `Rd = Rd >> count`, C = LSB |
-| **SRC** | `SRC Rd, count` | `110 10101 Rd4 count4` | `Rd = (Rd >> count) | (C << (15-count))`, C = LSB |
+| **SRC** | `SRC Rd, count` | `110 10101 Rd4 count4` | `Rd = (Rd >> count) \| (C << (15-count))`, C = LSB |
 | **SRA** | `SRA Rd, count` | `110 10110 Rd4 count4` | `Rd = Rd >> count` (arithmetic), C = LSB |
-| **SRAC** | `SRAC Rd, count` | `110 10111 Rd4 count4` | `Rd = (Rd >> count) | (C << (15-count))` (arithmetic) |
-| **ROL** | `ROL Rd, count` | `110 11000 Rd4 count4` | `Rd = (Rd << count) | (Rd >> (16-count))` |
-| **RLC** | `RLC Rd, count` | `110 11001 Rd4 count4` | `Rd = (Rd << count) | (C << (count-1)) | (Rd >> (16-count))` |
-| **ROR** | `ROR Rd, count` | `110 11010 Rd4 count4` | `Rd = (Rd >> count) | (Rd << (16-count))` |
-| **RRC** | `RRC Rd, count` | `110 11011 Rd4 count4` | `Rd = (Rd >> count) | (C << (15-count)) | (Rd << (16-count))` |
+| **SRAC** | `SRAC Rd, count` | `110 10111 Rd4 count4` | `Rd = (Rd >> count) \| (C << (15-count))` (arithmetic) |
+| **ROL** | `ROL Rd, count` | `110 11000 Rd4 count4` | `Rd = (Rd << count) \| (Rd >> (16-count))` |
+| **RLC** | `RLC Rd, count` | `110 11001 Rd4 count4` | `Rd = (Rd << count) \| (C << (count-1)) \| (Rd >> (16-count))`, **C = bit shifted out** |
+| **ROR** | `ROR Rd, count` | `110 11010 Rd4 count4` | `Rd = (Rd >> count) \| (Rd << (16-count))` |
+| **RRC** | `RRC Rd, count` | `110 11011 Rd4 count4` | `Rd = (Rd >> count) \| (C << (15-count)) \| (Rd << (16-count))`, **C = bit shifted out** |
 
 **Note**: Arithmetic shifts (SLA, SLAC, SRA, SRAC) preserve the sign bit for two's complement operations, while logical shifts (SL, SLC, SR, SRC) treat values as unsigned.
+
+**RLC/RRC Carry Behavior:**
+- **RLC**: Carry bit is inserted at the LSB position, bit shifted out becomes new carry
+- **RRC**: Carry bit is inserted at the MSB position, bit shifted out becomes new carry  
+- **Purpose**: Enables multi-word rotations by propagating carry between words
 
 ### 3.5 ALU Instructions - Group 3: Multiply/Divide Operations
 
@@ -626,6 +631,22 @@ write_char:
     RET
 ```
 
+**Multi-Word Rotation Example:**
+```assembly
+; Multi-word 64-bit rotate left using RLC
+; Assume R1:R2:R3:R4 contains 64-bit value
+RLC  R1, 1      ; Rotate low word left through carry
+RLC  R2, 1      ; Rotate next word, carry propagates
+RLC  R3, 1      ; Continue propagation  
+RLC  R4, 1      ; Rotate high word
+
+; Multi-word 64-bit rotate right using RRC
+RRC  R4, 1      ; Rotate high word right through carry
+RRC  R3, 1      ; Rotate next word, carry propagates
+RRC  R2, 1      ; Continue propagation
+RRC  R1, 1      ; Rotate low word
+```
+
 **Far Function Call:**
 ```assembly
 far_call:
@@ -707,6 +728,7 @@ ERD  R10         ; Use R10/R11 for ES access
 - ✅ 32 function codes organized into 3 logical groups
 - ✅ Corrected TBS/TBC semantics for intuitive bit testing
 - ✅ Full shift/rotate instruction set with arithmetic variants
+- ✅ Corrected RLC/RRC descriptions with proper carry bit handling
 - ✅ UNEVEN register requirement for 32-bit multiply/divide
 - ✅ Reorganized document structure (ISA first, then system details)
 - ✅ Table numbering with letters (A-R) for clear reference
@@ -717,5 +739,6 @@ ERD  R10         ; Use R10/R11 for ES access
 - ✅ Segment register conventions documented
 - ✅ Complete bit test examples included
 - ✅ Delayed branch examples expanded
+- ✅ Multi-word rotation examples added
 
 This revision represents a significant improvement in both encoding efficiency and educational clarity while maintaining the core RISC philosophy.
