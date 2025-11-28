@@ -107,7 +107,7 @@ after_whitespace:
     
     LDI interpret_loop
     MOV R1, R0
-    MOV PC, R1         ; FIXED: Use MOV PC, R1 instead of JMP
+    MOV PC, R1
     NOP
 
 interpret_done:
@@ -472,7 +472,7 @@ dot_quote_loop:
     AND R3, MASK
     LDI 34             ; '"'
     SUB R3, R0
-    JZ dot_quote_done_final  ; FIXED: Use correct label
+    JZ dot_quote_done  ; Found quote, we're done
     NOP
     
     ; Print high byte if not quote
@@ -485,7 +485,7 @@ dot_quote_loop:
     AND R3, MASK
     LDI 34             ; '"'
     SUB R3, R0
-    JZ dot_quote_done_final  ; FIXED: Use correct label
+    JZ dot_quote_done  ; Found quote, we're done
     NOP
     
     ; Print low byte if not quote
@@ -500,7 +500,7 @@ dot_quote_loop:
     MOV PC, R1
     NOP
 
-dot_quote_done_final:  ; FIXED: Correct label name
+dot_quote_done:
     ; Quote found - skip this word and we're done
     ADD >IN, 1
     LDI interpret_loop_return
