@@ -65,16 +65,6 @@ forth_start:
     NOP
 
 ; =============================================
-; Forth Inner Interpreter (not used in text mode)
-; =============================================
-
-next:
-    LD R1, IP, 0
-    ADD IP, 1
-    MOV PC, R1
-    NOP
-
-; =============================================
 ; Text Interpreter Core
 ; =============================================
 
@@ -161,11 +151,6 @@ skip_done:
 
 parse_word:
     ; Here we'll parse the next word from input
-    ; For now, let's implement a simple interpreter that handles:
-    ; - Numbers
-    ; - ." string" 
-    ; - Basic words: dup + * .
-    
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0       ; Get current word
@@ -221,7 +206,6 @@ after_digit_check:
 
 is_digit:
     ; Check if character in R3 is digit '0'-'9'
-    ; Returns R5 = 1 if digit, 0 if not
     LDI 0
     MOV R5, R0
     
@@ -455,6 +439,10 @@ unknown_word:
     MOV PC, R1
     NOP
 
+; =============================================
+; Fixed Dot-Quote String Handling
+; =============================================
+
 handle_dot_quote:
     ; Handle ." string" - skip the ." and print until next "
     ADD >IN, 1         ; Skip the ." word
@@ -465,35 +453,40 @@ dot_quote_loop:
     LD R2, R1, 0       ; Get current word
     ADD R2, 0
     JZ dot_quote_done  ; End of input
-    NOP
     
-    ; Check for closing quote in high byte
+    ; Extract and check high byte
     MOV R3, R2
-    SRA R3, 8
-    AND R3, MASK
+    SRA R3, 8          ; Shift high byte to low position
+    AND R3, MASK       ; Mask to get just the byte
+    ADD R3, 0
+    JZ dot_quote_check_low  ; Skip if null
     LDI 34             ; '"'
     SUB R3, R0
-    JZ dot_quote_done  ; Found quote, we're done
-    NOP
+    JZ dot_quote_done  ; Found quote in high byte, done
+    ADD R3, R0         ; Restore character
     
-    ; Print high byte if not quote
+    ; Print high byte character
     STS R3, ES, SCR
     ADD SCR, 1
     ADD POS, 1
     
-    ; Check for closing quote in low byte
+dot_quote_check_low:
+    ; Extract and check low byte  
     MOV R3, R2
-    AND R3, MASK
+    AND R3, MASK       ; Get low byte directly
+    ADD R3, 0
+    JZ dot_quote_next  ; Skip if null
     LDI 34             ; '"'
     SUB R3, R0
-    JZ dot_quote_done  ; Found quote, we're done
-    NOP
+    JZ dot_quote_done  ; Found quote in low byte, done
+    ADD R3, R0         ; Restore character
     
-    ; Print low byte if not quote
+    ; Print low byte character
     STS R3, ES, SCR
     ADD SCR, 1
     ADD POS, 1
     
+dot_quote_next:
     ; Advance to next word
     ADD >IN, 1
     LDI dot_quote_loop
@@ -502,7 +495,7 @@ dot_quote_loop:
     NOP
 
 dot_quote_done:
-    ; Quote found - skip this word and we're done
+    ; Quote found - skip this word and continue
     ADD >IN, 1
     LDI interpret_loop_return
     MOV R1, R0
@@ -596,144 +589,6 @@ exec_dot_done:
     MOV R1, R0
     MOV PC, R1
     NOP
-
-; =============================================
-; Original primitives (kept for compatibility)
-; =============================================
-
-d_exit:
-    LD IP, RSP, 0
-    ADD RSP, 1
-    MOV PC, NEXT
-    NOP
-
-d_lit:
-    LD R1, IP, 0
-    ADD IP, 1
-    SUB SP, 1
-    ST R1, SP, 0
-    MOV PC, NEXT
-    NOP
-
-d_dup:
-    LD R1, SP, 0
-    SUB SP, 1
-    ST R1, SP, 0
-    MOV PC, NEXT
-    NOP
-
-d_drop:
-    ADD SP, 1
-    MOV PC, NEXT
-    NOP
-
-d_swap:
-    LD R1, SP, 0
-    LD R2, SP, 1
-    ST R1, SP, 1
-    ST R2, SP, 0
-    MOV PC, NEXT
-    NOP
-
-d_fetch:
-    LD R1, SP, 0
-    LD R1, R1, 0
-    ST R1, SP, 0
-    MOV PC, NEXT
-    NOP
-
-d_store:
-    LD R1, SP, 0
-    LD R2, SP, 1
-    ST R2, R1, 0
-    ADD SP, 2
-    MOV PC, NEXT
-    NOP
-
-d_emit:
-    LD R1, SP, 0
-    ADD SP, 1
-    STS R1, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI 2000
-    MOV R2, R0
-    SUB R2, POS
-    JNZ d_emit_done
-    NOP
-    LDI 0x1000
-    MOV SCR, R0
-    LDI 0
-    MOV POS, R0
-d_emit_done:
-    MOV PC, NEXT
-    NOP
-
-d_add:
-    LD R2, SP, 0
-    LD R1, SP, 1
-    ADD R1, R2
-    ADD SP, 1
-    ST R1, SP, 0
-    MOV PC, NEXT
-    NOP
-
-d_mul:
-    LD R2, SP, 0
-    LD R1, SP, 1
-    MUL R1, R2
-    ADD SP, 1
-    ST R1, SP, 0
-    MOV PC, NEXT
-    NOP
-
-d_dot:
-    LD R1, SP, 0
-    ADD SP, 1
-    ADD R1, 0
-    JZ d_dot_zero
-    NOP
-    LDI 0
-    MOV R5, R0
-    LDI 10
-    MOV R6, R0
-d_dot_digit_loop:
-    DIV R1, R6
-    MOV R3, R2
-    LDI 48
-    ADD R3, R0
-    SUB SP, 1
-    ST R3, SP, 0
-    ADD R5, 1
-    ADD R1, 0
-    JZ d_dot_print
-    NOP
-    JNO d_dot_digit_loop
-    NOP
-d_dot_zero:
-    LDI 48
-    SUB SP, 1
-    ST R0, SP, 0
-    LDI 1
-    MOV R5, R0
-d_dot_print:
-    ADD R5, 0
-    JZ d_dot_done
-    NOP
-    LD R1, SP, 0
-    ADD SP, 1
-    STS R1, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    SUB R5, 1
-    JNO d_dot_print
-    NOP
-d_dot_done:
-    MOV PC, NEXT
-    NOP
-
-d_halt:
-    HLT
 
 ; =============================================
 ; User Input String
