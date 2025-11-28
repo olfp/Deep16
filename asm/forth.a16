@@ -309,8 +309,11 @@ d_dot:
     LDI 0
     MOV R5, R0         ; count = 0
 
+    LDI 10
+    MOV R6, R0
+
 dot_digit_loop:
-    DIV R1, 10         ; R1 = quotient, R2 = remainder
+    DIV R1, R6
     MOV R3, R2         ; remainder
     LDI 48
     ADD R3, R0         ; ASCII
@@ -556,7 +559,9 @@ eval_after_dot:
     SUB R2, R0
     MOV R6, R2
     MOV R5, R1
-    MUL R5, 10
+    LDI 10
+    MOV R7, R0
+    MUL R5, R7
     ADD R5, R6
     MOV R1, R5
 
@@ -609,7 +614,9 @@ eval_num_add_digit:
     SUB R2, R0
     MOV R6, R2
     MOV R5, R1
-    MUL R5, 10
+    LDI 10
+    MOV R7, R0
+    MUL R5, R7
     ADD R5, R6
     MOV R1, R5
     LDI eval_num_peek_next
@@ -884,8 +891,10 @@ eval_dot:
     NOP
     LDI 0
     MOV R5, R0
+    LDI 10
+    MOV R7, R0
 eval_dot_digits:
-    DIV R1, 10          ; R1=quotient, R2=remainder
+    DIV R1, R7
     LDI 48
     ADD R2, R0          ; remainder + '0'
     SUB SP, 1
