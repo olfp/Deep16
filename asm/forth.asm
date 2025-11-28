@@ -344,7 +344,9 @@ hex_loop:
     ; Digit 0-9
     LDI 48
     ADD R2, R0
-    JMP hex_output
+    LDI hex_output
+    MOV R6, R0
+    MOV PC, R6        ; Jump to output
     NOP
 is_hex_letter:
     ; Digit A-F  
@@ -530,7 +532,8 @@ eval_check_next_digit:
     NOP
     MOV R5, R2
     LDI 57            ; '9'
-    SUB R0, R5
+    MOV R6, R0
+    SUB R6, R5
     JN eval_num_done  ; Not a digit
     NOP
     LDI eval_num_loop ; Continue parsing
