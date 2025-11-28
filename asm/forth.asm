@@ -70,12 +70,19 @@ interpret_loop:
     NOP
     
 after_whitespace:
-    ; Check if we're at end of input
+    ; Check if we're at end of input - IMPROVED CHECK
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0       ; Get current word
     ADD R2, 0
-    JZ interpret_done  ; End of input
+    JZ interpret_done  ; End of input (null terminator)
+    NOP
+    
+    ; Also check for maximum input length to prevent infinite loop
+    MOV R3, >IN
+    LDI 20             ; Reasonable maximum input length
+    SUB R3, R0
+    JC interpret_done  ; If >IN >= 20, we've gone too far
     NOP
     
     ; DEBUG: Show current position
@@ -97,6 +104,28 @@ interpret_loop_return:
     NOP
 
 interpret_done:
+    ; Show completion message
+    LDI 10            ; Newline
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI 68            ; 'D'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI 79            ; 'O'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI 78            ; 'N'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI 69            ; 'E'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    
     ; Halt when done interpreting
     HLT
 
@@ -557,6 +586,36 @@ exec_dot_print_digits:
     NOP
 
 exec_dot_done:
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+; =============================================
+; Additional Forth Words
+; =============================================
+
+exec_swap:
+    LD R1, SP, 0
+    LD R2, SP, 1
+    ST R1, SP, 1
+    ST R2, SP, 0
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+exec_drop:
+    ADD SP, 1
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+exec_over:
+    LD R1, SP, 1
+    SUB SP, 1
+    ST R1, SP, 0
     LDI interpret_loop_return
     MOV R1, R0
     MOV PC, R1
