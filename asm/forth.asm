@@ -1,5 +1,5 @@
 ; =============================================
-; Enhanced Deep16 Forth Kernel - FINAL FIXED VERSION
+; Enhanced Deep16 Forth Kernel - FINAL CORRECTED VERSION
 ; =============================================
 
 .org 0x0100
@@ -24,9 +24,11 @@ forth_start:
     LDI 0x7FE0
     MOV RSP, R0
     
+    ; Initialize instruction pointer
     LDI user_program
     MOV IP, R0
     
+    ; Set up screen segment for output
     LDI 0x0FFF
     INV R0
     MVS ES, R0
@@ -34,16 +36,29 @@ forth_start:
     MOV SCR, R0
     ERD R8
     
+    ; Clear screen position counter
     LDI 0
     MOV POS, R0
+
+    ; Set up AND mask for byte operations
     LDI 0x00FF
     MOV MASK, R0
+
+    ; Ensure Data Segment points to physical 0x0000
     LDI 0
     MVS DS, R0
+    
+    ; Set up NEXT jump target
     LDI next
     MOV NEXT, R0
+
+    ; Jump to inner interpreter
     MOV PC, NEXT
     NOP
+
+; =============================================
+; Forth Inner Interpreter
+; =============================================
 
 next:
     LD R1, IP, 0
@@ -52,7 +67,7 @@ next:
     NOP
 
 ; =============================================
-; Core Primitives
+; Stack Primitives
 ; =============================================
 
 d_exit:
@@ -88,6 +103,10 @@ d_swap:
     ST R2, SP, 0
     MOV PC, NEXT
     NOP
+
+; =============================================
+; Memory Operations
+; =============================================
 
 d_fetch:
     LD R1, SP, 0
@@ -135,7 +154,7 @@ tell_loop:
     ADD R1, 0
     JZ tell_done
     NOP
-    ; High byte
+    ; High byte (first character)
     MOV R2, R1
     SRA R2, 8
     AND R2, MASK
@@ -156,7 +175,7 @@ tell_loop:
     MOV POS, R0
 high_ok:
 skip_high:
-    ; Low byte
+    ; Low byte (second character)
     MOV R2, R1
     AND R2, MASK
     ADD R2, 0
@@ -183,6 +202,7 @@ tell_done:
     NOP
 
 d_cr:
+    ; Calculate current column: position % 80
     MOV R1, POS
     LDI 80
     MOV R2, R0
@@ -194,6 +214,7 @@ cr_mod_loop:
     NOP
 cr_done_mod:
     ADD R1, R2
+    ; Calculate spaces to next line: 80 - current_column
     LDI 80
     SUB R0, R1
     MOV R2, R0
@@ -207,13 +228,22 @@ cr_done:
     NOP
 
 ; =============================================
-; Arithmetic
+; Arithmetic Operations
 ; =============================================
 
 d_add:
     LD R2, SP, 0
     LD R1, SP, 1
     ADD R1, R2
+    ADD SP, 1
+    ST R1, SP, 0
+    MOV PC, NEXT
+    NOP
+
+d_sub:
+    LD R2, SP, 0
+    LD R1, SP, 1
+    SUB R1, R2
     ADD SP, 1
     ST R1, SP, 0
     MOV PC, NEXT
@@ -277,7 +307,7 @@ dot_done:
     MOV PC, NEXT
     NOP
 
-; .H - print hexadecimal (FIXED to show correct order)
+; .H (DOT_HEX) - print top of stack as hexadecimal
 d_dot_hex:
     LD R1, SP, 0
     ADD SP, 1
@@ -296,7 +326,9 @@ hex_store:
     NOP
     LDI 48
     ADD R2, R0
-    JMP hex_store_digit
+    LDI hex_store_digit
+    MOV R4, R0
+    MOV PC, R4
     NOP
 hex_letter:
     LDI 55
@@ -326,7 +358,10 @@ hex_print:
     NOP
 
 hex_buffer:
-    .word 0, 0, 0, 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
 
 d_halt:
     HLT
@@ -335,24 +370,81 @@ d_halt:
 ; Demo Program
 ; =============================================
 user_program:
-    .word d_lit, program_msg, d_tell
-    .word d_lit, 42, d_dot
-    .word d_lit, hex_msg, d_tell  
-    .word d_lit, 0xABCD, d_dot_hex
+    .word d_lit
+    .word program_msg
+    .word d_tell        ; Print "Deep16 Forth"
+    .word d_lit
+    .word 42
+    .word d_dot         ; Print "42"
+    .word d_lit
+    .word hex_msg
+    .word d_tell        ; Print " hex: "
+    .word d_lit
+    .word 0xABCD
+    .word d_dot_hex     ; Print "ABCD" (hexadecimal output)
     .word d_cr
-    .word d_lit, calc_msg, d_tell
-    .word d_lit, 10, d_lit, 7, d_add
-    .word d_lit, 3, d_mul, d_dot
-    .word d_cr, d_halt
+    .word d_lit
+    .word calc_msg
+    .word d_tell        ; Print "Test: "
+    .word d_lit
+    .word 10
+    .word d_lit
+    .word 7
+    .word d_add         ; 10 + 7 = 17
+    .word d_lit
+    .word 3
+    .word d_mul         ; 17 * 3 = 51
+    .word d_dot         ; Print "51"
+    .word d_cr
+    .word d_halt
 
+; Correctly packed strings (high byte first, low byte second)
 program_msg:
-    .word 0x4465, 0x6570, 0x3631, 0x2046, 0x6F72, 0x7468, 0x0000
+    .word 0x4465       ; 'D' 'e'
+    .word 0x6570       ; 'e' 'p'
+    .word 0x3631       ; '6' '1'
+    .word 0x2046       ; ' ' 'F'
+    .word 0x6F72       ; 'o' 'r'
+    .word 0x7468       ; 't' 'h'
+    .word 0x0000       ; Null terminator
 
 hex_msg:
-    .word 0x2068, 0x6578, 0x3A20, 0x0000
+    .word 0x2068       ; ' ' 'h'
+    .word 0x6578       ; 'e' 'x'
+    .word 0x3A20       ; ':' ' '
+    .word 0x0000       ; Null terminator
 
 calc_msg:
-    .word 0x5465, 0x7374, 0x3A20, 0x0000
+    .word 0x5465       ; 'T' 'e'
+    .word 0x7374       ; 's' 't'
+    .word 0x3A20       ; ':' ' '
+    .word 0x0000       ; Null terminator
+
+; =============================================
+; Dictionary Headers
+; =============================================
+
+dict_start:
+; EXIT
+.word 0
+.word 0x4004
+.word 0x4558           ; 'E' 'X'
+.word 0x5449           ; 'T' 'I'
+.word 0x0000
+.word d_exit
+
+; LIT
+.word dict_start
+.word 0x4003
+.word 0x4C49           ; 'L' 'I'
+.word 0x0054           ; 'T' + padding
+.word d_lit
+
+; .H (DOT_HEX)
+.word dict_start+12
+.word 0x4002
+.word 0x2E48           ; '.' 'H'
+.word d_dot_hex
 
 kernel_end:
     HLT
