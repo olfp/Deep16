@@ -63,12 +63,6 @@ text_interpreter:
     MOV >IN, R0        ; Reset input offset
     
 interpret_loop:
-    ; DEBUG: Show current position
-    ; LDI 62            ; '>'
-    ; STS R0, ES, SCR
-    ; ADD SCR, 1
-    ; ADD POS, 1
-    
     ; Skip leading whitespace
     LDI skip_whitespace
     MOV R1, R0
@@ -83,12 +77,6 @@ after_whitespace:
     ADD R2, 0
     JZ interpret_done  ; End of input
     NOP
-    
-    ; DEBUG: Show we're parsing a word
-    ; LDI 42            ; '*'
-    ; STS R0, ES, SCR
-    ; ADD SCR, 1
-    ; ADD POS, 1
     
     ; Parse word or number
     LDI parse_word
@@ -178,7 +166,7 @@ parse_word:
     NOP
 
 check_number:
-    ; SIMPLIFIED: Just try to parse numbers directly
+    ; Try to parse a number first
     LDI parse_number_simple
     MOV R1, R0
     MOV PC, R1
@@ -221,8 +209,12 @@ parse_digit_simple:
     AND R3, MASK
     LDI 48
     SUB R3, R0         ; Convert to number
-    JN number_done_simple
+    JN number_done_simple  ; Not a digit anymore
     NOP
+    CMP R3, 10         ; Check if result > 9
+    JC number_done_simple  ; Not a digit
+    NOP
+    
     MOV R5, R4
     LDI 10
     MOV R6, R0
@@ -238,8 +230,12 @@ parse_digit_simple:
     NOP
     LDI 48
     SUB R3, R0         ; Convert to number
-    JN number_done_simple
+    JN number_done_simple  ; Not a digit
     NOP
+    CMP R3, 10         ; Check if result > 9
+    JC number_done_simple  ; Not a digit
+    NOP
+    
     MOV R5, R4
     LDI 10
     MOV R6, R0
@@ -419,7 +415,6 @@ dot_quote_loop:
     LDI 34             ; '"'
     SUB R3, R0
     JZ dot_quote_done  ; Found quote in high byte, done
-    ADD R3, R0         ; Restore character
     
     ; Print high byte character
     STS R3, ES, SCR
@@ -435,7 +430,6 @@ dot_quote_check_low:
     LDI 34             ; '"'
     SUB R3, R0
     JZ dot_quote_done  ; Found quote in low byte, done
-    ADD R3, R0         ; Restore character
     
     ; Print low byte character
     STS R3, ES, SCR
