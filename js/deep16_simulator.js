@@ -360,171 +360,177 @@ class Deep16Simulator {
     }
 
     executeALUOp(instruction) {
-        const aluOp = (instruction >>> 10) & 0x7;
-        
-        // CORRECTED ALU bit extraction:
-        const rd = (instruction >>> 6) & 0xF;
-        const w = (instruction >>> 5) & 0x1;
-        const i = (instruction >>> 4) & 0x1;
-        const operand = instruction & 0xF;
-
-        let result;
-        let operandValue;
-
-        if (i === 0) {
-            operandValue = this.registers[operand];
-        } else {
-            operandValue = operand;
-        }
-
-        const rdValue = this.registers[rd];
-        
-        
-        
-        // console.log(`ALU Execute: op=${opName}, rd=${rd} (${this.getRegisterName(rd)}), w=${w}, i=${i}, operand=${operand}`);
-        // console.log(`ALU Execute: R${rd}=0x${rdValue.toString(16)}, operand=0x${operandValue.toString(16)}`);
-        
-        switch (aluOp) {
-            case 0b000: // ADD
-                result = rdValue + operandValue;
-                // console.log(`ADD: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) + ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+        const func5 = (instruction >>> 8) & 0x1F;
+        const rd = (instruction >>> 4) & 0xF;
+        const low4 = instruction & 0xF;
+        const rdValue = this.registers[rd] & 0xFFFF;
+        let result = rdValue;
+        const cbit = (this.psw >>> 3) & 0x1;
+        const sign = (rdValue & 0x8000) !== 0 ? 1 : 0;
+        const isReg = func5 === 0b00000 || func5 === 0b00010 || func5 === 0b00100 || func5 === 0b00110 || func5 === 0b01000 || func5 === 0b01010 || func5 === 0b01100 || func5 === 0b01110 || func5 >= 0b11100;
+        const opVal = isReg ? (this.registers[low4] & 0xFFFF) : (low4 & 0xF);
+        switch (func5) {
+            case 0b00000: result = (rdValue + opVal) & 0x1FFFF; break;
+            case 0b00001: result = (rdValue + opVal) & 0x1FFFF; break;
+            case 0b00010: result = (rdValue - opVal) | 0; break;
+            case 0b00011: result = (rdValue - opVal) | 0; break;
+            case 0b00100: result = (rdValue - opVal) | 0; this.lastALUResult = result; this.lastOperationWasALU = true; return; 
+            case 0b00101: result = (rdValue - opVal) | 0; this.lastALUResult = result; this.lastOperationWasALU = true; return;
+            case 0b00110: result = (rdValue & opVal) & 0xFFFF; break;
+            case 0b00111: result = (rdValue & opVal) & 0xFFFF; break;
+            case 0b01000: {
+                const masked = (rdValue & opVal) & 0xFFFF;
+                this.lastALUResult = masked === 0 ? 0 : 1;
+                this.lastOperationWasALU = true;
+                return;
+            }
+            case 0b01001: {
+                const bit = (rdValue >>> opVal) & 0x1;
+                this.lastALUResult = bit === 0 ? 1 : 0;
+                this.lastOperationWasALU = true;
+                return;
+            }
+            case 0b01010: result = (rdValue | opVal) & 0xFFFF; break;
+            case 0b01011: result = (rdValue | opVal) & 0xFFFF; break;
+            case 0b01100: result = (rdValue ^ opVal) & 0xFFFF; break;
+            case 0b01101: result = (rdValue ^ opVal) & 0xFFFF; break;
+            case 0b01110: {
+                const masked = (rdValue & opVal) & 0xFFFF;
+                this.lastALUResult = masked !== 0 ? 1 : 0;
+                this.lastOperationWasALU = true;
+                return;
+            }
+            case 0b01111: {
+                const bit = (rdValue >>> opVal) & 0x1;
+                this.lastALUResult = bit === 1 ? 1 : 0;
+                this.lastOperationWasALU = true;
+                return;
+            }
+            case 0b10000: {
+                const count = opVal & 0xF;
+                const carryOut = (count > 0) ? ((rdValue >>> (16 - count)) & 0x1) : 0;
+                result = (rdValue << count) & 0xFFFF;
+                this.psw = (this.psw & ~0x8) | (carryOut << 3);
                 break;
-            case 0b001: // SUB
-                result = rdValue - operandValue;
-                // console.log(`SUB: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) - ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+            }
+            case 0b10001: {
+                const count = opVal & 0xF;
+                const carryOut = (count > 0) ? ((rdValue >>> (16 - count)) & 0x1) : 0;
+                result = ((rdValue << count) & 0x7FFF) | (sign ? 0x8000 : 0);
+                this.psw = (this.psw & ~0x8) | (carryOut << 3);
                 break;
-            case 0b010: // AND
-                result = rdValue & operandValue;
-                // console.log(`AND: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) & ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+            }
+            case 0b10010: {
+                const count = opVal & 0xF;
+                const carryOut = (count > 0) ? ((rdValue >>> (16 - count)) & 0x1) : 0;
+                const carryFill = count > 0 ? (cbit << (count - 1)) : 0;
+                result = ((rdValue << count) & 0x7FFF) | (sign ? 0x8000 : 0) | carryFill;
+                this.psw = (this.psw & ~0x8) | (carryOut << 3);
                 break;
-            case 0b011: // OR
-                result = rdValue | operandValue;
-                // console.log(`OR: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) | ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+            }
+            case 0b10011: {
+                const count = opVal & 0xF;
+                const carryOut = (count > 0) ? ((rdValue >>> (16 - count)) & 0x1) : 0;
+                const carryFill = count > 0 ? (cbit << (count - 1)) : 0;
+                result = ((rdValue << count) & 0xFFFF) | carryFill;
+                this.psw = (this.psw & ~0x8) | (carryOut << 3);
                 break;
-            case 0b100: // XOR
-                result = rdValue ^ operandValue;
-                // console.log(`XOR: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) ^ ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
+            }
+            case 0b10100: {
+                const count = opVal & 0xF;
+                const carryOut = (count > 0) ? ((rdValue >>> (count - 1)) & 0x1) : 0;
+                result = rdValue >>> count;
+                this.psw = (this.psw & ~0x8) | (carryOut << 3);
                 break;
-            case 0b101: // MUL
-                if (i === 1 && rd % 2 === 0) {
-                    // 32-bit multiplication: R[rd]:R[rd+1] = rdValue × operandValue
-                    const product = rdValue * operandValue;
-                    this.registers[rd] = (product >>> 16) & 0xFFFF;     // High word
-                    this.registers[rd + 1] = product & 0xFFFF;          // Low word
-                    result = product;
-                    // console.log(`MUL32: ${this.getRegisterName(rd)}:${this.getRegisterName(rd + 1)} = ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) × ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${product.toString(16)}`);
-                } else {
-                    // 16-bit multiplication
-                    result = (rdValue * operandValue) & 0xFFFF;
-                    // Write back to Rd for 16-bit MUL
-                    this.registers[rd] = result & 0xFFFF;
-                    // console.log(`MUL: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) × ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = 0x${result.toString(16)}`);
-                }
+            }
+            case 0b10101: {
+                const count = opVal & 0xF;
+                const carryOut = (count > 0) ? ((rdValue >>> (count - 1)) & 0x1) : 0;
+                const carryFill = count > 0 ? (cbit << (15 - count)) : 0;
+                result = (rdValue >>> count) | carryFill;
+                this.psw = (this.psw & ~0x8) | (carryOut << 3);
                 break;
-            case 0b110: // DIV
-                if (operandValue === 0) {
-                    // console.warn("DIV: Division by zero");
-                    result = 0xFFFF; // Handle division by zero
-                } else if (i === 1 && rd % 2 === 0) {
-                    // 32-bit division: R[rd] = quotient, R[rd+1] = remainder
-                    const dividend = (this.registers[rd] << 16) | this.registers[rd + 1];
-                    const quotient = Math.floor(dividend / operandValue);
-                    const remainder = dividend % operandValue;
-                    this.registers[rd] = quotient & 0xFFFF;
-                    this.registers[rd + 1] = remainder & 0xFFFF;
-                    result = quotient;
-                    // console.log(`DIV32: ${this.getRegisterName(rd)}:${this.getRegisterName(rd + 1)} / ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = Q:0x${quotient.toString(16)} R:0x${remainder.toString(16)}`);
-                } else {
-                    // 16-bit division
-                    result = Math.floor(rdValue / operandValue);
-                    const remainder = rdValue % operandValue;
-                    this.registers[rd] = result & 0xFFFF;          // Write quotient to Rd
-                    this.registers[rd + 1] = remainder & 0xFFFF;   // Store remainder in next register
-                    // console.log(`DIV: ${this.getRegisterName(rd)} (0x${rdValue.toString(16)}) / ${i ? '#' : this.getRegisterName(operand)} (0x${operandValue.toString(16)}) = Q:0x${result.toString(16)} R:0x${remainder.toString(16)}`);
-                }
+            }
+            case 0b10110: {
+                const count = opVal & 0xF;
+                const carryOut = (count > 0) ? ((rdValue >>> (count - 1)) & 0x1) : 0;
+                const signMask = sign ? 0xFFFF << (16 - count) : 0;
+                result = (rdValue >>> count) | (signMask & 0xFFFF);
+                this.psw = (this.psw & ~0x8) | (carryOut << 3);
                 break;
-            case 0b111: // SHIFT
-                this.executeShift(instruction);
-                return; // Shift handles its own result storage
-            default: 
-                result = rdValue;
-                // console.warn(`Unimplemented ALU op: ${aluOp}`);
-        }
-
-        if (w === 1 && aluOp !== 0b101 && aluOp !== 0b110) { // MUL/DIV handle writing separately
-            this.registers[rd] = result & 0xFFFF;
-            // console.log(`ALU Write: ${this.getRegisterName(rd)} = 0x${this.registers[rd].toString(16).padStart(4, '0')}`);
-        }
-
-        // Store result for PSW flag calculation
-        this.lastALUResult = result;
-        this.lastOperationWasALU = true;
-    }
-
-    executeShift(instruction) {
-        const rd = (instruction >>> 6) & 0xF;
-        const shiftType = (instruction >>> 4) & 0x7;
-        const count = instruction & 0xF;
-        
-        const value = this.registers[rd];
-        let result = value;
-        
-        // console.log(`Shift Execute: type=${this.shiftOps[shiftType]}, rd=${this.getRegisterName(rd)}, count=${count}, value=0x${value.toString(16)}`);
-        
-        switch (shiftType) {
-            case 0b000: // SL - Shift Left
-                result = (value << count) & 0xFFFF;
+            }
+            case 0b10111: {
+                const count = opVal & 0xF;
+                const carryOut = (count > 0) ? ((rdValue >>> (count - 1)) & 0x1) : 0;
+                const signMask = sign ? 0xFFFF << (16 - count) : 0;
+                const carryFill = count > 0 ? (cbit << (15 - count)) : 0;
+                result = (rdValue >>> count) | (signMask & 0xFFFF) | carryFill;
+                this.psw = (this.psw & ~0x8) | (carryOut << 3);
                 break;
-            case 0b001: // SLC - Shift Left with Carry
-                result = (value << count) & 0xFFFF;
-                // Carry out is the bit shifted out from the left
-                if (count > 0) {
-                    const carryOut = (value >>> (16 - count)) & 0x1;
-                    this.psw = (this.psw & ~0x8) | (carryOut << 3);
-                }
+            }
+            case 0b11000: {
+                const count = opVal & 0xF;
+                result = ((rdValue << count) | (rdValue >>> (16 - count))) & 0xFFFF;
                 break;
-            case 0b010: // SR - Shift Right Logical
-                result = (value >>> count) & 0xFFFF;
+            }
+            case 0b11001: {
+                const count = opVal & 0xF;
+                const carryFill = count > 0 ? (cbit << (count - 1)) : 0;
+                result = ((rdValue << count) | (rdValue >>> (16 - count)) | carryFill) & 0xFFFF;
                 break;
-            case 0b011: // SRC - Shift Right with Carry
-                result = (value >>> count) & 0xFFFF;
-                // Carry out is the bit shifted out from the right
-                if (count > 0) {
-                    const carryOut = (value >>> (count - 1)) & 0x1;
-                    this.psw = (this.psw & ~0x8) | (carryOut << 3);
-                }
+            }
+            case 0b11010: {
+                const count = opVal & 0xF;
+                result = ((rdValue >>> count) | (rdValue << (16 - count))) & 0xFFFF;
                 break;
-            case 0b100: // SRA - Shift Right Arithmetic
-                // Arithmetic right shift preserves sign bit
-                const sign = value & 0x8000;
-                result = (value >>> count) | (sign ? (0xFFFF << (16 - count)) : 0);
-                break;
-            case 0b101: // SAC - Shift Arithmetic with Carry
-                const signBit = value & 0x8000;
-                result = (value >>> count) | (signBit ? (0xFFFF << (16 - count)) : 0);
-                if (count > 0) {
-                    const carryOut = (value >>> (count - 1)) & 0x1;
-                    this.psw = (this.psw & ~0x8) | (carryOut << 3);
-                }
-                break;
-            case 0b110: // ROR - Rotate Right
-                result = ((value >>> count) | (value << (16 - count))) & 0xFFFF;
-                break;
-            case 0b111: // ROC - Rotate with Carry
-                const carryIn = (this.psw >>> 3) & 0x1;
-                result = ((value >>> count) | (value << (17 - count)) | (carryIn << (16 - count))) & 0xFFFF;
-                // New carry is the bit that rotated out
-                const newCarry = (value >>> (count - 1)) & 0x1;
+            }
+            case 0b11011: {
+                const count = opVal & 0xF;
+                const carryFill = count > 0 ? (cbit << (15 - count)) : 0;
+                result = ((rdValue >>> count) | (rdValue << (16 - count)) | carryFill) & 0xFFFF;
+                const newCarry = count > 0 ? ((rdValue >>> (count - 1)) & 0x1) : cbit;
                 this.psw = (this.psw & ~0x8) | (newCarry << 3);
                 break;
+            }
+            case 0b11100: {
+                result = (rdValue * opVal) & 0xFFFF;
+                this.registers[rd] = result & 0xFFFF;
+                break;
+            }
+            case 0b11101: {
+                const product = (rdValue * opVal) >>> 0;
+                this.registers[rd] = (product >>> 16) & 0xFFFF;
+                this.registers[rd + 1] = product & 0xFFFF;
+                result = product;
+                break;
+            }
+            case 0b11110: {
+                if (opVal === 0) { result = 0xFFFF; break; }
+                const q = Math.floor(rdValue / opVal) & 0xFFFF;
+                const r = (rdValue % opVal) & 0xFFFF;
+                this.registers[rd] = q;
+                this.registers[rd + 1] = r;
+                result = q;
+                break;
+            }
+            case 0b11111: {
+                if (opVal === 0) { result = 0xFFFF; break; }
+                const dividend = ((this.registers[rd] << 16) | this.registers[rd + 1]) >>> 0;
+                const q = Math.floor(dividend / opVal) & 0xFFFF;
+                const r = (dividend % opVal) & 0xFFFF;
+                this.registers[rd] = q;
+                this.registers[rd + 1] = r;
+                result = q;
+                break;
+            }
+            default: break;
         }
-        
-        this.registers[rd] = result;
+        this.registers[rd] = result & 0xFFFF;
         this.lastALUResult = result;
         this.lastOperationWasALU = true;
-        
-        // console.log(`Shift Complete: ${this.getRegisterName(rd)} = 0x${result.toString(16).padStart(4, '0')}`);
     }
+
+    
 
     executeMOV(instruction) {
         // MOV encoding: [111110][Rd4][Rs4][imm2]

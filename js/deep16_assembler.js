@@ -498,13 +498,18 @@ class Deep16Assembler {
             
             switch (mnemonic) {
                 case 'MOV': return this.encodeMOV(parts, address, lineNumber);
-                case 'ADD': return this.encodeALU(parts, 0b000, address, lineNumber);
-                case 'SUB': return this.encodeALU(parts, 0b001, address, lineNumber);
-                case 'AND': return this.encodeALU(parts, 0b010, address, lineNumber);
-                case 'OR':  return this.encodeALU(parts, 0b011, address, lineNumber);
-                case 'XOR': return this.encodeALU(parts, 0b100, address, lineNumber);
-                case 'MUL': return this.encodeALU(parts, 0b101, address, lineNumber);
-                case 'DIV': return this.encodeALU(parts, 0b110, address, lineNumber);
+                case 'ADD': return this.encodeALU(parts, 'ADD', address, lineNumber);
+                case 'SUB': return this.encodeALU(parts, 'SUB', address, lineNumber);
+                case 'CMP': return this.encodeALU(parts, 'CMP', address, lineNumber);
+                case 'AND': return this.encodeALU(parts, 'AND', address, lineNumber);
+                case 'TBC': return this.encodeALU(parts, 'TBC', address, lineNumber);
+                case 'OR':  return this.encodeALU(parts, 'OR', address, lineNumber);
+                case 'XOR': return this.encodeALU(parts, 'XOR', address, lineNumber);
+                case 'TBS': return this.encodeALU(parts, 'TBS', address, lineNumber);
+                case 'MUL': return this.encodeALU(parts, 'MUL', address, lineNumber);
+                case 'MUL32': return this.encodeALU(parts, 'MUL32', address, lineNumber);
+                case 'DIV': return this.encodeALU(parts, 'DIV', address, lineNumber);
+                case 'DIV32': return this.encodeALU(parts, 'DIV32', address, lineNumber);
                 case 'ST':  return this.encodeMemory(parts, true, address, lineNumber);
                 case 'LD':  return this.encodeMemory(parts, false, address, lineNumber);
                 case 'JZ':  return this.encodeJump(parts, 0b000, address, lineNumber);
@@ -551,14 +556,18 @@ class Deep16Assembler {
                     return 0b1111100000000000 | (14 << 6) | (15 << 2) | 3;
                 
                 // Shift operations
-                case 'SL':  return this.encodeShift(parts, 0b000, address, lineNumber);
-                case 'SLC': return this.encodeShift(parts, 0b001, address, lineNumber);
-                case 'SR':  return this.encodeShift(parts, 0b010, address, lineNumber);
-                case 'SRC': return this.encodeShift(parts, 0b011, address, lineNumber);
-                case 'SRA': return this.encodeShift(parts, 0b100, address, lineNumber);
-                case 'SAC': return this.encodeShift(parts, 0b101, address, lineNumber);
-                case 'ROR': return this.encodeShift(parts, 0b110, address, lineNumber);
-                case 'ROC': return this.encodeShift(parts, 0b111, address, lineNumber);
+                case 'SL':   return this.encodeShift(parts, 'SL', address, lineNumber);
+                case 'SLA':  return this.encodeShift(parts, 'SLA', address, lineNumber);
+                case 'SLAC': return this.encodeShift(parts, 'SLAC', address, lineNumber);
+                case 'SLC':  return this.encodeShift(parts, 'SLC', address, lineNumber);
+                case 'SR':   return this.encodeShift(parts, 'SR', address, lineNumber);
+                case 'SRC':  return this.encodeShift(parts, 'SRC', address, lineNumber);
+                case 'SRA':  return this.encodeShift(parts, 'SRA', address, lineNumber);
+                case 'SRAC': return this.encodeShift(parts, 'SRAC', address, lineNumber);
+                case 'ROL':  return this.encodeShift(parts, 'ROL', address, lineNumber);
+                case 'RLC':  return this.encodeShift(parts, 'RLC', address, lineNumber);
+                case 'ROR':  return this.encodeShift(parts, 'ROR', address, lineNumber);
+                case 'RRC':  return this.encodeShift(parts, 'RRC', address, lineNumber);
                 
                 // PSW operations
                 case 'SRS': return this.encodeSRS(parts, address, lineNumber);
@@ -856,17 +865,30 @@ class Deep16Assembler {
         throw new Error(`${isStore ? 'STS' : 'LDS'} requires register, segment, and base register`);
     }
 
-    // ENHANCED: Update shift encoding to use proper ALU format
-    encodeShift(parts, shiftType, address, lineNumber) {
+    encodeShift(parts, shiftName, address, lineNumber) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
             const count = this.parseImmediate(parts[2], false);
             if (count < 0 || count > 15) {
                 throw new Error(`Shift count ${count} out of range (0-15)`);
             }
-            // Correct shift encoding: [110][111][Rd4][type3][count4]
-            // Bits: 15-13: opcode=110, 12-10: aluOp=111, 9-6: Rd, 6-4: type, 3-0: count
-            return 0b1101110000000000 | (rd << 6) | (shiftType << 4) | (count & 0xF);
+            let func5 = 0;
+            switch (shiftName) {
+                case 'SL': func5 = 0b10000; break;
+                case 'SLA': func5 = 0b10001; break;
+                case 'SLAC': func5 = 0b10010; break;
+                case 'SLC': func5 = 0b10011; break;
+                case 'SR': func5 = 0b10100; break;
+                case 'SRC': func5 = 0b10101; break;
+                case 'SRA': func5 = 0b10110; break;
+                case 'SRAC': func5 = 0b10111; break;
+                case 'ROL': func5 = 0b11000; break;
+                case 'RLC': func5 = 0b11001; break;
+                case 'ROR': func5 = 0b11010; break;
+                case 'RRC': func5 = 0b11011; break;
+                default: throw new Error(`Unknown shift mnemonic ${shiftName}`);
+            }
+            return (0b110 << 13) | (func5 << 8) | (rd << 4) | (count & 0xF);
         }
         throw new Error('Shift operation requires register and count');
     }
@@ -939,40 +961,56 @@ class Deep16Assembler {
         throw new Error('DIV32 requires destination and source registers');
     }
 
-    encodeALU(parts, aluOp, address, lineNumber) {
+    encodeALU(parts, kind, address, lineNumber) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
-            
-            // Check for 32-bit mode suffix
-            let iFlag = 0;
-            let operand = parts[2];
-            
-            if (operand.toUpperCase().endsWith(',I=1')) {
-                iFlag = 1;
-                operand = operand.substring(0, operand.length - 4);
-                
-                // For MUL/DIV 32-bit mode, rd must be even
-                if ((aluOp === 0b101 || aluOp === 0b110) && rd % 2 !== 0) {
-                    throw new Error(`32-bit ${aluOp === 0b101 ? 'MUL' : 'DIV'} requires even destination register`);
-                }
+            const op = parts[2];
+            const isReg = this.isRegister(op);
+            let func5 = null;
+            if (kind === 'ADD') {
+                func5 = isReg ? 0b00000 : 0b00001;
+            } else if (kind === 'SUB') {
+                func5 = isReg ? 0b00010 : 0b00011;
+            } else if (kind === 'CMP') {
+                func5 = isReg ? 0b00100 : 0b00101;
+            } else if (kind === 'AND') {
+                func5 = isReg ? 0b00110 : 0b00111;
+            } else if (kind === 'TBC') {
+                func5 = isReg ? 0b01000 : 0b01001;
+            } else if (kind === 'OR') {
+                func5 = isReg ? 0b01010 : 0b01011;
+            } else if (kind === 'XOR') {
+                func5 = isReg ? 0b01100 : 0b01101;
+            } else if (kind === 'TBS') {
+                func5 = isReg ? 0b01110 : 0b01111;
+            } else if (kind === 'MUL') {
+                if (!isReg) throw new Error('MUL requires register operand');
+                func5 = 0b11100;
+            } else if (kind === 'MUL32') {
+                if (!isReg) throw new Error('MUL32 requires register operand');
+                if (rd % 2 === 0) throw new Error('MUL32 requires UNEVEN destination register');
+                func5 = 0b11101;
+            } else if (kind === 'DIV') {
+                if (!isReg) throw new Error('DIV requires register operand');
+                func5 = 0b11110;
+            } else if (kind === 'DIV32') {
+                if (!isReg) throw new Error('DIV32 requires register operand');
+                if (rd % 2 === 0) throw new Error('DIV32 requires UNEVEN destination register');
+                func5 = 0b11111;
             }
-            
-            if (this.isRegister(operand)) {
-                // ALU with register operand: ADD Rd, Rs
-                const rs = this.parseRegister(operand);
-                // ALU2 register mode: [110][op3][Rd4][w1][i][Rs4]
-                return 0b1100000000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | (iFlag << 4) | rs;
+            if (func5 === null) throw new Error('Unsupported ALU operation');
+            if (isReg) {
+                const rs = this.parseRegister(op);
+                return (0b110 << 13) | (func5 << 8) | (rd << 4) | rs;
             } else {
-                // ALU with immediate operand: ADD Rd, imm
-                const imm = this.parseImmediate(operand, false);
+                const imm = this.parseImmediate(op, false);
                 if (imm < 0 || imm > 15) {
                     throw new Error(`Immediate value ${imm} out of range (0-15)`);
                 }
-                // ALU2 immediate mode: [110][op3][Rd4][w1][i1][imm4]
-                return 0b1100000000000000 | (aluOp << 10) | (rd << 6) | (1 << 5) | (1 << 4) | imm;
+                return (0b110 << 13) | (func5 << 8) | (rd << 4) | (imm & 0xF);
             }
         }
-        throw new Error(`ALU operation requires destination register and operand`);
+        throw new Error('ALU operation requires destination and operand');
     }
     
     encodeMemory(parts, isStore, address, lineNumber) {

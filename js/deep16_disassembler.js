@@ -6,8 +6,7 @@ class Deep16Disassembler {
             'R0','R1','R2','R3','R4','R5','R6','R7',
             'R8','R9','R10','R11','R12','R13','R14','PC'  // R15 becomes PC
         ];
-        this.aluOps = ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'MUL', 'DIV', 'SHIFT'];
-        this.shiftOps = ['SL', 'SLC', 'SR', 'SRC', 'SRA', 'SAC', 'ROR', 'ROC'];
+        this.shiftOps = ['SL','SLA','SLAC','SLC','SR','SRC','SRA','SRAC','ROL','RLC','ROR','RRC'];
         this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
         this.systemOps = ['NOP', 'FSH', 'SWI', 'RETI', '', '', '', ''];
         this.segmentNames = ['CS', 'DS', 'SS', 'ES'];
@@ -173,35 +172,47 @@ disassembleSOP(instruction) {
     }
 
     disassembleALU(instruction) {
-        const aluOp = (instruction >>> 10) & 0x7;
-        
-        if (aluOp === 0b111) {
-            return this.disassembleShift(instruction);
+        const func5 = (instruction >>> 8) & 0x1F;
+        const rd = (instruction >>> 4) & 0xF;
+        const low4 = instruction & 0xF;
+        const isReg = func5 === 0b00000 || func5 === 0b00010 || func5 === 0b00100 || func5 === 0b00110 || func5 === 0b01000 || func5 === 0b01010 || func5 === 0b01100 || func5 === 0b01110 || func5 >= 0b11100;
+        const operandStr = isReg ? this.registerNames[low4] : `#0x${low4.toString(16).toUpperCase()}`;
+        let opStr = '';
+        switch (func5) {
+            case 0b00000: opStr = 'ADD'; break;
+            case 0b00001: opStr = 'ADD'; break;
+            case 0b00010: opStr = 'SUB'; break;
+            case 0b00011: opStr = 'SUB'; break;
+            case 0b00100: opStr = 'CMP'; break;
+            case 0b00101: opStr = 'CMP'; break;
+            case 0b00110: opStr = 'AND'; break;
+            case 0b00111: opStr = 'AND'; break;
+            case 0b01000: opStr = 'TBC'; break;
+            case 0b01001: opStr = 'TBC'; break;
+            case 0b01010: opStr = 'OR'; break;
+            case 0b01011: opStr = 'OR'; break;
+            case 0b01100: opStr = 'XOR'; break;
+            case 0b01101: opStr = 'XOR'; break;
+            case 0b01110: opStr = 'TBS'; break;
+            case 0b01111: opStr = 'TBS'; break;
+            case 0b10000: return this.disassembleShiftWith('SL', rd, low4);
+            case 0b10001: return this.disassembleShiftWith('SLA', rd, low4);
+            case 0b10010: return this.disassembleShiftWith('SLAC', rd, low4);
+            case 0b10011: return this.disassembleShiftWith('SLC', rd, low4);
+            case 0b10100: return this.disassembleShiftWith('SR', rd, low4);
+            case 0b10101: return this.disassembleShiftWith('SRC', rd, low4);
+            case 0b10110: return this.disassembleShiftWith('SRA', rd, low4);
+            case 0b10111: return this.disassembleShiftWith('SRAC', rd, low4);
+            case 0b11000: return this.disassembleShiftWith('ROL', rd, low4);
+            case 0b11001: return this.disassembleShiftWith('RLC', rd, low4);
+            case 0b11010: return this.disassembleShiftWith('ROR', rd, low4);
+            case 0b11011: return this.disassembleShiftWith('RRC', rd, low4);
+            case 0b11100: opStr = 'MUL'; break;
+            case 0b11101: opStr = 'MUL32'; break;
+            case 0b11110: opStr = 'DIV'; break;
+            case 0b11111: opStr = 'DIV32'; break;
+            default: return `ALU??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
         }
-        
-        const rd = (instruction >>> 6) & 0xF;
-        const w = (instruction >>> 5) & 0x1;
-        const i = (instruction >>> 4) & 0x1;
-        const operand = instruction & 0xF;
-        
-        let opStr = this.aluOps[aluOp];
-        let operandStr = i === 0 ? this.registerNames[operand] : `#0x${operand.toString(16).toUpperCase()}`;
-        
-        // Add 32-bit mode indicator for MUL/DIV
-        if (i === 1 && (aluOp === 0b101 || aluOp === 0b110)) {
-            opStr += '32';
-        }
-        
-        if (w === 0) {
-            switch (aluOp) {
-                case 0b000: opStr = 'ANW'; break;
-                case 0b001: opStr = 'CMP'; break;
-                case 0b010: opStr = 'TBS'; break;
-                case 0b100: opStr = 'TBC'; break;
-                default: break;
-            }
-        }
-        
         return `${opStr} ${this.registerNames[rd]}, ${operandStr}`;
     }
 
@@ -221,12 +232,8 @@ disassembleSOP(instruction) {
 
 
 
-    disassembleShift(instruction) {
-        const rd = (instruction >>> 6) & 0xF;
-        const shiftType = (instruction >>> 4) & 0x7;
-        const count = instruction & 0xF;
-        
-        return `${this.shiftOps[shiftType]} ${this.registerNames[rd]}, #0x${count.toString(16).toUpperCase()}`;
+    disassembleShiftWith(name, rd, count) {
+        return `${name} ${this.registerNames[rd]}, #0x${count.toString(16).toUpperCase()}`;
     }
 
     disassembleMOV(instruction) {

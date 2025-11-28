@@ -23,6 +23,26 @@ export function get_segments() {
     return v1;
 }
 
+/**
+ * @returns {Uint16Array}
+ */
+export function get_last_event() {
+    const ret = wasm.get_last_event();
+    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+    return v1;
+}
+
+/**
+ * @returns {Uint16Array}
+ */
+export function get_shadow_state() {
+    const ret = wasm.get_shadow_state();
+    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+    return v1;
+}
+
 let WASM_VECTOR_LEN = 0;
 
 function passArray16ToWasm0(arg, malloc) {

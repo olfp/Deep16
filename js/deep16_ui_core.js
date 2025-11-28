@@ -851,7 +851,7 @@ class DeepWebUI {
                 c: ['int','char','float','double','void','return','if','else','for','while','switch','case','break','continue','struct','union','typedef','enum','sizeof','static','const'],
                 cpp:['namespace','using','template','class','public','private','protected','virtual','override','auto'],
                 rust:['fn','let','mut','struct','enum','impl','trait','match','if','else','loop','for','while','return','pub','use','crate','mod'],
-                asm:['LSI','ST','MOV','HALT','JMP','JNZ','JZ','CALL','RET','PUSH','POP','ADD','SUB','MUL','DIV','AND','OR','XOR','NOT','SHL','SHR','NOP']
+                asm:['LSI','LD','ST','LDS','STS','MVS','SMV','MOV','HALT','JMP','JNZ','JZ','JC','JNC','JN','JNN','JO','JNO','RET','LINK','ALINK','LNK','ALNK','ADD','SUB','CMP','AND','OR','XOR','TBS','TBC','MUL','MUL32','DIV','DIV32','SWB','INV','NEG','SRS','SRD','ERS','ERD','SET','CLR','SET2','CLR2','SL','SLA','SLAC','SLC','SR','SRC','SRA','SRAC','ROL','RLC','ROR','RRC','JML','NOP']
             };
             const langKey = (lang||'').toLowerCase();
             let kws = [];

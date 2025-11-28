@@ -251,53 +251,163 @@ fn exec_mem(c: &mut Cpu, instr: u16) {
 }
 
 fn exec_alu(c: &mut Cpu, instr: u16) {
-    let alu_op = (instr >> 10) & 0x7;
-    let rd = ((instr >> 6) & 0xF) as usize;
-    let w = (instr >> 5) & 0x1;
-    let i = (instr >> 4) & 0x1;
-    let opnd = (instr & 0xF) as usize;
-    let operand = if i == 0 { c.reg[opnd] as i32 } else { (opnd as u16) as i32 };
-    let rdv = c.reg[rd] as i32;
-    let mut result = rdv;
-    match alu_op {
-        0 => { result = rdv + operand; }
-        1 => { result = rdv - operand; }
-        2 => { result = (rdv as u32 & 0xFFFF) as i32 & (operand as u32 & 0xFFFF) as i32; }
-        3 => { result = ((rdv as u32 & 0xFFFF) | (operand as u32 & 0xFFFF)) as i32; }
-        4 => { result = ((rdv as u32 & 0xFFFF) ^ (operand as u32 & 0xFFFF)) as i32; }
-        5 => {
-            if i == 1 && rd % 2 == 0 {
-                let prod = (rdv as i64) * (operand as i64);
-                c.reg[rd] = ((prod >> 16) as u32 & 0xFFFF) as u16;
-                c.reg[rd + 1] = (prod as u32 & 0xFFFF) as u16;
-                result = prod as i32;
-            } else {
-                let prod = ((rdv as u32 & 0xFFFF) * (operand as u32 & 0xFFFF)) & 0xFFFF;
-                c.reg[rd] = (prod & 0xFFFF) as u16;
-                result = prod as i32;
+    let func5 = (instr >> 8) & 0x1F;
+    let rd = ((instr >> 4) & 0xF) as usize;
+    let low4 = (instr & 0xF) as u16;
+    let rdv = c.reg[rd] as u32 & 0xFFFF;
+    let sign = (rdv & 0x8000) != 0;
+    let is_reg = func5 == 0b00000 || func5 == 0b00010 || func5 == 0b00100 || func5 == 0b00110 || func5 == 0b01000 || func5 == 0b01010 || func5 == 0b01100 || func5 == 0b01110 || func5 >= 0b11100;
+    let opv = if is_reg { c.reg[low4 as usize] as u32 & 0xFFFF } else { low4 as u32 & 0xF };
+    let mut result: i32 = rdv as i32;
+    match func5 {
+        0b00000 | 0b00001 => { result = ((rdv + opv) & 0x1FFFF) as i32; }
+        0b00010 | 0b00011 => { result = (rdv as i32 - opv as i32) as i32; }
+        0b00100 | 0b00101 => { result = (rdv as i32 - opv as i32) as i32; c.last_alu_result = result; c.last_op_alu = true; return; }
+        0b00110 | 0b00111 => { result = ((rdv & opv) & 0xFFFF) as i32; }
+        0b01000 => {
+            let masked = (rdv & opv) & 0xFFFF;
+            c.last_alu_result = if masked == 0 { 0 } else { 1 };
+            c.last_op_alu = true;
+            return;
+        }
+        0b01001 => {
+            let bit = ((rdv >> opv) & 1) as i32;
+            c.last_alu_result = if bit == 0 { 1 } else { 0 };
+            c.last_op_alu = true;
+            return;
+        }
+        0b01010 | 0b01011 => { result = ((rdv | opv) & 0xFFFF) as i32; }
+        0b01100 | 0b01101 => { result = ((rdv ^ opv) & 0xFFFF) as i32; }
+        0b01110 => {
+            let masked = (rdv & opv) & 0xFFFF;
+            c.last_alu_result = if masked != 0 { 1 } else { 0 };
+            c.last_op_alu = true;
+            return;
+        }
+        0b01111 => {
+            let bit = ((rdv >> opv) & 1) as i32;
+            c.last_alu_result = if bit == 1 { 1 } else { 0 };
+            c.last_op_alu = true;
+            return;
+        }
+        0b10000 => {
+            let count = (opv & 0xF) as u32;
+            let carry_out = if count > 0 { ((rdv >> (16 - count)) & 1) as u16 } else { 0 };
+            result = ((rdv << count) & 0xFFFF) as i32;
+            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+        }
+        0b10001 => {
+            let count = (opv & 0xF) as u32;
+            let carry_out = if count > 0 { ((rdv >> (16 - count)) & 1) as u16 } else { 0 };
+            let mut val = ((rdv << count) & 0x7FFF) as u16;
+            if sign { val |= 0x8000; }
+            result = val as i32;
+            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+        }
+        0b10010 => {
+            let count = (opv & 0xF) as u32;
+            let carry_out = if count > 0 { ((rdv >> (16 - count)) & 1) as u16 } else { 0 };
+            let carry_in = ((c.psw >> 3) & 1) as u16;
+            let mut val = ((rdv << count) & 0x7FFF) as u16;
+            if sign { val |= 0x8000; }
+            if count > 0 { val |= (carry_in << (count - 1)) as u16; }
+            result = val as i32;
+            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+        }
+        0b10011 => {
+            let count = (opv & 0xF) as u32;
+            let carry_out = if count > 0 { ((rdv >> (16 - count)) & 1) as u16 } else { 0 };
+            let carry_in = ((c.psw >> 3) & 1) as u16;
+            let mut val = ((rdv << count) & 0xFFFF) as u16;
+            if count > 0 { val |= (carry_in << (count - 1)) as u16; }
+            result = val as i32;
+            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+        }
+        0b10100 => {
+            let count = (opv & 0xF) as u32;
+            let carry_out = if count > 0 { ((rdv >> (count - 1)) & 1) as u16 } else { 0 };
+            result = (rdv >> count) as i32;
+            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+        }
+        0b10101 => {
+            let count = (opv & 0xF) as u32;
+            let carry_out = if count > 0 { ((rdv >> (count - 1)) & 1) as u16 } else { 0 };
+            let carry_in = ((c.psw >> 3) & 1) as u16;
+            let fill = if count > 0 { (carry_in as u32) << (15 - count) } else { 0 };
+            result = ((rdv >> count) | fill) as i32;
+            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+        }
+        0b10110 => {
+            let count = (opv & 0xF) as u32;
+            let carry_out = if count > 0 { ((rdv >> (count - 1)) & 1) as u16 } else { 0 };
+            let sign_mask = if sign { 0xFFFFu32 << (16 - count) } else { 0 };
+            result = ((rdv >> count) | (sign_mask & 0xFFFF)) as i32;
+            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+        }
+        0b10111 => {
+            let count = (opv & 0xF) as u32;
+            let carry_out = if count > 0 { ((rdv >> (count - 1)) & 1) as u16 } else { 0 };
+            let sign_mask = if sign { 0xFFFFu32 << (16 - count) } else { 0 };
+            let carry_in = ((c.psw >> 3) & 1) as u16;
+            let fill = if count > 0 { (carry_in as u32) << (15 - count) } else { 0 };
+            result = ((rdv >> count) | (sign_mask & 0xFFFF) | fill) as i32;
+            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+        }
+        0b11000 => {
+            let count = (opv & 0xF) as u32;
+            result = (((rdv << count) | (rdv >> (16 - count))) & 0xFFFF) as i32;
+        }
+        0b11001 => {
+            let count = (opv & 0xF) as u32;
+            let carry_in = ((c.psw >> 3) & 1) as u16;
+            let fill = if count > 0 { (carry_in as u32) << (count - 1) } else { 0 };
+            result = (((rdv << count) | (rdv >> (16 - count)) | fill) & 0xFFFF) as i32;
+        }
+        0b11010 => {
+            let count = (opv & 0xF) as u32;
+            result = (((rdv >> count) | (rdv << (16 - count))) & 0xFFFF) as i32;
+        }
+        0b11011 => {
+            let count = (opv & 0xF) as u32;
+            let carry_in = ((c.psw >> 3) & 1) as u16;
+            let fill = if count > 0 { (carry_in as u32) << (15 - count) } else { 0 };
+            let new_carry = if count > 0 { ((rdv >> (count - 1)) & 1) as u16 } else { carry_in };
+            result = (((rdv >> count) | (rdv << (16 - count)) | fill) & 0xFFFF) as i32;
+            c.psw = (c.psw & !0x8) | (new_carry << 3);
+        }
+        0b11100 => {
+            let prod = ((rdv as u32 & 0xFFFF) * (opv as u32 & 0xFFFF)) & 0xFFFF;
+            c.reg[rd] = (prod & 0xFFFF) as u16;
+            result = prod as i32;
+        }
+        0b11101 => {
+            let prod = (rdv as u64) * (opv as u64);
+            c.reg[rd] = ((prod >> 16) as u32 & 0xFFFF) as u16;
+            c.reg[rd + 1] = (prod as u32 & 0xFFFF) as u16;
+            result = prod as i32;
+        }
+        0b11110 => {
+            if opv == 0 { result = 0xFFFF; } else {
+                let q = ((rdv as u32) / opv) as u32 & 0xFFFF;
+                let r = ((rdv as u32) % opv) as u32 & 0xFFFF;
+                c.reg[rd] = q as u16;
+                c.reg[rd + 1] = r as u16;
+                result = q as i32;
             }
         }
-        6 => {
-            if operand == 0 { result = 0xFFFF; } else if i == 1 && rd % 2 == 0 {
+        0b11111 => {
+            if opv == 0 { result = 0xFFFF; } else {
                 let dividend = (((c.reg[rd] as u32) << 16) | (c.reg[rd + 1] as u32)) as u64;
-                let q = (dividend / operand as u64) as u32;
-                let r = (dividend % operand as u64) as u32;
-                c.reg[rd] = (q & 0xFFFF) as u16;
-                c.reg[rd + 1] = (r & 0xFFFF) as u16;
-                result = q as i32;
-            } else {
-                let q = (rdv as u32 / operand as u32) as u32;
-                let r = (rdv as u32 % operand as u32) as u32;
-                c.reg[rd] = (q & 0xFFFF) as u16;
-                c.reg[rd + 1] = (r & 0xFFFF) as u16;
+                let q = (dividend / opv as u64) as u32 & 0xFFFF;
+                let r = (dividend % opv as u64) as u32 & 0xFFFF;
+                c.reg[rd] = q as u16;
+                c.reg[rd + 1] = r as u16;
                 result = q as i32;
             }
         }
-        _ => { return; }
+        _ => { }
     }
-    if w == 1 && alu_op != 5 && alu_op != 6 {
-        c.reg[rd] = (result as u32 & 0xFFFF) as u16;
-    }
+    c.reg[rd] = (result as u32 & 0xFFFF) as u16;
     c.last_alu_result = result;
     c.last_op_alu = true;
 }
