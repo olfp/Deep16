@@ -58,12 +58,14 @@ forth_start:
     LDI 0
     MOV >IN, R0        ; Input offset starts at 0
 
-    ; Jump to inner interpreter
-    MOV PC, NEXT
+    ; Jump to text interpreter directly (not inner interpreter)
+    LDI text_interpreter
+    MOV R1, R0
+    MOV PC, R1
     NOP
 
 ; =============================================
-; Forth Inner Interpreter
+; Forth Inner Interpreter (not used in text mode)
 ; =============================================
 
 next:
@@ -111,9 +113,8 @@ after_whitespace:
     NOP
 
 interpret_done:
-    ; Return to Forth prompt or halt
-    MOV PC, NEXT
-    NOP
+    ; Halt when done interpreting
+    HLT
 
 skip_whitespace:
     MOV R1, TIB
@@ -378,7 +379,7 @@ interpret_word:
     
     ; Found "dup" - execute it
     ADD >IN, 2         ; Skip "dup"
-    LDI d_dup
+    LDI exec_dup
     MOV R1, R0
     MOV PC, R1
     NOP
@@ -399,7 +400,7 @@ check_plus:
     
     ; Found "+" - execute it
     ADD >IN, 1
-    LDI d_add
+    LDI exec_add
     MOV R1, R0
     MOV PC, R1
     NOP
@@ -420,7 +421,7 @@ check_multiply:
     
     ; Found "*" - execute it
     ADD >IN, 1
-    LDI d_mul
+    LDI exec_mul
     MOV R1, R0
     MOV PC, R1
     NOP
@@ -441,7 +442,7 @@ check_dot:
     
     ; Found "." - execute it
     ADD >IN, 1
-    LDI d_dot
+    LDI exec_dot
     MOV R1, R0
     MOV PC, R1
     NOP
@@ -515,7 +516,89 @@ interpret_loop_return:
     NOP
 
 ; =============================================
-; Stack Primitives (same as before)
+; Execution wrappers that return to text interpreter
+; =============================================
+
+exec_dup:
+    LD R1, SP, 0
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+exec_add:
+    LD R2, SP, 0
+    LD R1, SP, 1
+    ADD R1, R2
+    ADD SP, 1
+    ST R1, SP, 0
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+exec_mul:
+    LD R2, SP, 0
+    LD R1, SP, 1
+    MUL R1, R2
+    ADD SP, 1
+    ST R1, SP, 0
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+exec_dot:
+    LD R1, SP, 0
+    ADD SP, 1
+    ADD R1, 0
+    JZ exec_dot_zero
+    NOP
+    LDI 0
+    MOV R5, R0
+    LDI 10
+    MOV R6, R0
+exec_dot_digit_loop:
+    DIV R1, R6
+    MOV R3, R2
+    LDI 48
+    ADD R3, R0
+    SUB SP, 1
+    ST R3, SP, 0
+    ADD R5, 1
+    ADD R1, 0
+    JZ exec_dot_print
+    NOP
+    JNO exec_dot_digit_loop
+    NOP
+exec_dot_zero:
+    LDI 48
+    SUB SP, 1
+    ST R0, SP, 0
+    LDI 1
+    MOV R5, R0
+exec_dot_print:
+    ADD R5, 0
+    JZ exec_dot_done
+    NOP
+    LD R1, SP, 0
+    ADD SP, 1
+    STS R1, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    SUB R5, 1
+    JNO exec_dot_print
+    NOP
+exec_dot_done:
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+; =============================================
+; Original primitives (kept for compatibility)
 ; =============================================
 
 d_exit:
@@ -567,10 +650,6 @@ d_store:
     MOV PC, NEXT
     NOP
 
-; =============================================
-; I/O Operations (same as before)
-; =============================================
-
 d_emit:
     LD R1, SP, 0
     ADD SP, 1
@@ -580,96 +659,15 @@ d_emit:
     LDI 2000
     MOV R2, R0
     SUB R2, POS
-    JNZ emit_done
+    JNZ d_emit_done
     NOP
     LDI 0x1000
     MOV SCR, R0
     LDI 0
     MOV POS, R0
-emit_done:
+d_emit_done:
     MOV PC, NEXT
     NOP
-
-d_tell:
-    LD R3, SP, 0
-    ADD SP, 1
-tell_loop:
-    LD R1, R3, 0
-    ADD R1, 0
-    JZ tell_done
-    NOP
-    MOV R2, R1
-    SRA R2, 8
-    AND R2, MASK
-    ADD R2, 0
-    JZ skip_high
-    NOP
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI 2000
-    MOV R6, R0
-    SUB R6, POS
-    JNZ high_ok
-    NOP
-    LDI 0x1000
-    MOV SCR, R0
-    LDI 0
-    MOV POS, R0
-high_ok:
-skip_high:
-    MOV R2, R1
-    AND R2, MASK
-    ADD R2, 0
-    JZ tell_next_word
-    NOP
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI 2000
-    MOV R6, R0
-    SUB R6, POS
-    JNZ tell_next_word
-    NOP
-    LDI 0x1000
-    MOV SCR, R0
-    LDI 0
-    MOV POS, R0
-tell_next_word:
-    ADD R3, 1
-    JNO tell_loop
-    NOP
-tell_done:
-    MOV PC, NEXT
-    NOP
-
-d_cr:
-    MOV R1, POS
-    LDI 80
-    MOV R2, R0
-cr_mod_loop:
-    SUB R1, R2
-    JN cr_done_mod
-    NOP
-    JNO cr_mod_loop
-    NOP
-cr_done_mod:
-    ADD R1, R2
-    LDI 80
-    SUB R0, R1
-    MOV R2, R0
-    ADD R2, 0
-    JZ cr_done
-    NOP
-    ADD SCR, R2
-    ADD POS, R2
-cr_done:
-    MOV PC, NEXT
-    NOP
-
-; =============================================
-; Arithmetic Operations (same as before)
-; =============================================
 
 d_add:
     LD R2, SP, 0
@@ -693,13 +691,13 @@ d_dot:
     LD R1, SP, 0
     ADD SP, 1
     ADD R1, 0
-    JZ dot_zero
+    JZ d_dot_zero
     NOP
     LDI 0
     MOV R5, R0
     LDI 10
     MOV R6, R0
-dot_digit_loop:
+d_dot_digit_loop:
     DIV R1, R6
     MOV R3, R2
     LDI 48
@@ -708,19 +706,19 @@ dot_digit_loop:
     ST R3, SP, 0
     ADD R5, 1
     ADD R1, 0
-    JZ dot_print
+    JZ d_dot_print
     NOP
-    JNO dot_digit_loop
+    JNO d_dot_digit_loop
     NOP
-dot_zero:
+d_dot_zero:
     LDI 48
     SUB SP, 1
     ST R0, SP, 0
     LDI 1
     MOV R5, R0
-dot_print:
+d_dot_print:
     ADD R5, 0
-    JZ dot_done
+    JZ d_dot_done
     NOP
     LD R1, SP, 0
     ADD SP, 1
@@ -728,9 +726,9 @@ dot_print:
     ADD SCR, 1
     ADD POS, 1
     SUB R5, 1
-    JNO dot_print
+    JNO d_dot_print
     NOP
-dot_done:
+d_dot_done:
     MOV PC, NEXT
     NOP
 
@@ -762,26 +760,6 @@ user_input:
     .word 0x202B       ; ' ', '+'
     .word 0x202E       ; ' ', '.'
     .word 0x0000       ; Null terminator
-
-; =============================================
-; Dictionary Headers
-; =============================================
-
-dict_start:
-; EXIT
-.word 0
-.word 0x4004
-.word 0x4558           ; 'E' 'X'
-.word 0x5449           ; 'T' 'I'
-.word 0x0000
-.word d_exit
-
-; LIT
-.word dict_start
-.word 0x4003
-.word 0x4C49           ; 'L' 'I'
-.word 0x0054           ; 'T' + padding
-.word d_lit
 
 kernel_end:
     HLT
