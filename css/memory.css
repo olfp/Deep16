@@ -359,6 +359,8 @@
     font-family: 'Courier New', monospace;
     font-size: 11px;
     min-height: 20px;
+    width: 80px;
+    text-align: center;
 }
 
 .run-indicator-running {

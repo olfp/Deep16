@@ -94,6 +94,32 @@ class DeepWebUI {
                 const on = !!e.target.checked;
                 this.useWasm = on && this.wasmAvailable && !!this.wasmInitialized;
                 if (this.runInterval) { this.stop(); }
+                if (this.useWasm && window.Deep16Wasm) {
+                    try {
+                        if (typeof window.Deep16Wasm.reset === 'function') { window.Deep16Wasm.reset(); }
+                        const memLen = this.simulator.memory.length >>> 0;
+                        if (typeof window.Deep16Wasm.init === 'function') { window.Deep16Wasm.init(memLen); }
+                        try {
+                            if (typeof this.simulator.autoloadROM === 'function') {
+                                this.simulator.autoloadROM();
+                                this.simulator.segmentRegisters.CS = 0xFFFF;
+                            }
+                            for (let a = 0xFFFF0; a <= 0xFFFFF; a++) {
+                                const v = this.simulator.memory[a] & 0xFFFF;
+                                window.Deep16Wasm.load_program(a, new Uint16Array([v]));
+                            }
+                        } catch {}
+                        if (this.currentAssemblyResult && this.currentAssemblyResult.success) {
+                            for (const change of this.currentAssemblyResult.memoryChanges) {
+                                const arr = new Uint16Array([change.value & 0xFFFF]);
+                                window.Deep16Wasm.load_program(change.address >>> 0, arr);
+                            }
+                        }
+                        const seg = this.simulator.segmentRegisters;
+                        window.Deep16Wasm.set_segments(seg.CS & 0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
+                        this.addTranscriptEntry("Program loaded into WASM core", "success");
+                    } catch {}
+                }
                 this.addTranscriptEntry(`WASM: ${this.useWasm ? 'ON' : 'OFF'}`, "info");
                 try { localStorage.setItem('deep16_use_wasm', this.useWasm ? 'true' : 'false'); } catch {}
             });
