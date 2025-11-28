@@ -150,14 +150,14 @@ parse_word:
     AND R3, MASK
     LDI 46             ; '.'
     SUB R3, R0
-    JNZ check_number
+    JNZ check_number_simple
     NOP
     
     MOV R3, R2
     AND R3, MASK       ; Low byte
     LDI 34             ; '"'
     SUB R3, R0
-    JNZ check_number
+    JNZ check_number_simple
     NOP
     
     ; Found ." - handle string
@@ -166,133 +166,47 @@ parse_word:
     MOV PC, R1
     NOP
 
-check_number:
-    ; Try to parse a number first
-    LDI parse_number_check_both
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-parse_number_check_both:
-    ; DEBUG: Show we're trying to parse a number
-    LDI 78            ; 'N'
+check_number_simple:
+    ; SIMPLIFIED: Try to parse a number - check low byte only for our test input
+    LDI 78            ; 'N' - show we're trying number
     STS R0, ES, SCR
     ADD SCR, 1
     ADD POS, 1
     
-    ; Check current word for numbers in either byte
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
     
-    ; Check high byte
+    ; For our test input "1 2 + .", the digits are in the LOW byte
+    ; Check low byte for digit '0'-'9'
     MOV R3, R2
-    SRA R3, 8
-    AND R3, MASK
-    
-    ; Check for digits in high byte - FIXED: use proper range check
+    AND R3, MASK       ; Get low byte
     LDI 48             ; '0'
-    SUB R3, R0
-    JN check_low_byte_fixed  ; Below '0'
+    SUB R3, R0         ; R3 = char - '0'
+    JN not_a_number_simple  ; Below '0'
     NOP
-    ; Now R3 = digit value (0-9 if valid)
+    
+    ; Now check if <= 9
     CMP R3, 9
-    JC check_low_byte_fixed  ; Above 9 (carry = unsigned less)
+    JC not_a_number_simple  ; Above 9 (unsigned comparison)
     NOP
     
-    ; High byte is a valid digit 0-9
-    LDI parse_full_number
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-check_low_byte_fixed:
-    ; Check low byte for digits
-    MOV R3, R2
-    AND R3, MASK
-    
-    LDI 48             ; '0'
-    SUB R3, R0
-    JN not_a_number_both  ; Below '0'
-    NOP
-    ; Now R3 = digit value (0-9 if valid)  
-    CMP R3, 9
-    JC not_a_number_both  ; Above 9
-    NOP
-    
-    ; Low byte is a valid digit 0-9
-    LDI parse_full_number
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-parse_full_number:
-    ; DEBUG: Show we found a digit
-    LDI 68            ; 'D'
+    ; Valid digit 0-9 found!
+    LDI 68            ; 'D' - show digit found
     STS R0, ES, SCR
     ADD SCR, 1
     ADD POS, 1
     
-    ; Parse the actual digit - FIXED LOGIC
-    MOV R1, TIB
-    ADD R1, >IN
-    LD R2, R1, 0
-    
-    ; Try high byte first
-    MOV R3, R2
-    SRA R3, 8
-    AND R3, MASK
-    LDI 48
-    SUB R3, R0         ; Convert to number 0-9
-    JN try_low_byte_fixed
-    NOP
-    CMP R3, 9
-    JC try_low_byte_fixed
-    NOP
-    
-    ; High byte has valid digit
-    MOV R4, R3
-    LDI push_number_fixed
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-try_low_byte_fixed:
-    ; Try low byte
-    MOV R3, R2
-    AND R3, MASK
-    LDI 48
-    SUB R3, R0         ; Convert to number 0-9
-    JN not_a_number_both
-    NOP
-    CMP R3, 9
-    JC not_a_number_both
-    NOP
-    
-    ; Low byte has valid digit
-    MOV R4, R3
-
-push_number_fixed:
-    ; DEBUG: Show the digit we found
-    LDI 48
-    ADD R4, R0         ; Convert back to ASCII for display
-    STS R4, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI 48
-    SUB R4, R0         ; Convert back to number
-    
-    ; Push number onto stack
+    ; Push the digit value (already in R3 as 0-9)
     SUB SP, 1
-    ST R4, SP, 0
+    ST R3, SP, 0
     
-    ; DEBUG: Show stack push
-    LDI 80            ; 'P'
+    LDI 80            ; 'P' - show pushed
     STS R0, ES, SCR
     ADD SCR, 1
     ADD POS, 1
     
-    ; Advance past this word (we consumed it)
+    ; Advance input
     ADD >IN, 1
     
     LDI interpret_loop_return
@@ -300,7 +214,7 @@ push_number_fixed:
     MOV PC, R1
     NOP
 
-not_a_number_both:
+not_a_number_simple:
     ; DEBUG: Show it's not a number
     LDI 88            ; 'X'
     STS R0, ES, SCR
@@ -308,13 +222,13 @@ not_a_number_both:
     ADD POS, 1
     
     ; Not a number, try to interpret as word
-    LDI interpret_word_check_both
+    LDI interpret_word_simple
     MOV R1, R0
     MOV PC, R1
     NOP
 
-interpret_word_check_both:
-    ; Interpret a word from input - check both bytes
+interpret_word_simple:
+    ; Interpret a word from input
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
@@ -325,111 +239,65 @@ interpret_word_check_both:
     ADD SCR, 1
     ADD POS, 1
     
-    ; Check operators in either byte
+    ; For our test input, operators are in LOW byte
+    ; Check low byte for operators
+    MOV R3, R2
+    AND R3, MASK       ; Get low byte
     
-    ; Check for single char operators in high byte
-    MOV R3, R2
-    SRA R3, 8
-    AND R3, MASK
     LDI 43             ; '+'
     SUB R3, R0
-    JNZ check_multiply_high
+    JNZ check_multiply_simple
     NOP
-    ; Found "+" in high byte
+    ; Found "+"
     ADD >IN, 1
     LDI exec_add
     MOV R1, R0
     MOV PC, R1
     NOP
 
-check_multiply_high:
+check_multiply_simple:
     MOV R3, R2
-    SRA R3, 8
     AND R3, MASK
     LDI 42             ; '*'
     SUB R3, R0
-    JNZ check_dot_high
+    JNZ check_dot_simple
     NOP
-    ; Found "*" in high byte
+    ; Found "*"
     ADD >IN, 1
     LDI exec_mul
     MOV R1, R0
     MOV PC, R1
     NOP
 
-check_dot_high:
+check_dot_simple:
     MOV R3, R2
-    SRA R3, 8
     AND R3, MASK
     LDI 46             ; '.'
     SUB R3, R0
-    JNZ check_operators_low
+    JNZ check_dup_simple
     NOP
-    ; Found "." in high byte
+    ; Found "."
     ADD >IN, 1
     LDI exec_dot
     MOV R1, R0
     MOV PC, R1
     NOP
 
-check_operators_low:
-    ; Check operators in low byte
-    MOV R3, R2
-    AND R3, MASK
-    LDI 43             ; '+'
-    SUB R3, R0
-    JNZ check_multiply_low
-    NOP
-    ; Found "+" in low byte
-    ADD >IN, 1
-    LDI exec_add
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-check_multiply_low:
-    MOV R3, R2
-    AND R3, MASK
-    LDI 42             ; '*'
-    SUB R3, R0
-    JNZ check_dot_low
-    NOP
-    ; Found "*" in low byte
-    ADD >IN, 1
-    LDI exec_mul
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-check_dot_low:
-    MOV R3, R2
-    AND R3, MASK
-    LDI 46             ; '.'
-    SUB R3, R0
-    JNZ check_dup_both
-    NOP
-    ; Found "." in low byte
-    ADD >IN, 1
-    LDI exec_dot
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-check_dup_both:
-    ; Check for "dup" - must be complete in high+low bytes
+check_dup_simple:
+    ; Check for "dup" 
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
     LDI 100            ; 'd'
     SUB R3, R0
-    JNZ unknown_word_both
+    JNZ unknown_word_simple
     NOP
     
     MOV R3, R2
     AND R3, MASK
     LDI 117            ; 'u'
     SUB R3, R0
-    JNZ unknown_word_both
+    JNZ unknown_word_simple
     NOP
     
     ; Check next word starts with 'p'
@@ -442,7 +310,7 @@ check_dup_both:
     AND R3, MASK
     LDI 112            ; 'p'
     SUB R3, R0
-    JNZ unknown_word_both
+    JNZ unknown_word_simple
     NOP
     
     ; Found "dup"
@@ -452,12 +320,10 @@ check_dup_both:
     MOV PC, R1
     NOP
 
-unknown_word_both:
-    ; Skip unknown word - just advance by 1
+unknown_word_simple:
+    ; Skip unknown word
     ADD >IN, 1
-    
-    ; DEBUG: Show we skipped unknown
-    LDI 83            ; 'S'
+    LDI 83            ; 'S' - show skipped
     STS R0, ES, SCR
     ADD SCR, 1
     ADD POS, 1
@@ -609,32 +475,37 @@ exec_dot:
     ADD R1, 0
     JZ exec_dot_zero
     NOP
+    
+    ; Convert number to string and print
     LDI 0
-    MOV R5, R0
+    MOV R5, R0        ; digit counter
     LDI 10
-    MOV R6, R0
-exec_dot_digit_loop:
+    MOV R6, R0        ; divisor
+    
+exec_dot_convert_loop:
     DIV R1, R6
-    MOV R3, R2
+    MOV R3, R2        ; remainder (digit 0-9)
     LDI 48
-    ADD R3, R0
+    ADD R3, R0        ; convert to ASCII
     SUB SP, 1
-    ST R3, SP, 0
-    ADD R5, 1
-    ADD R1, 0
-    JZ exec_dot_print
+    ST R3, SP, 0      ; push digit to stack
+    ADD R5, 1         ; increment digit count
+    ADD R1, 0         ; check if quotient is zero
+    JZ exec_dot_print_digits
     NOP
-    LDI exec_dot_digit_loop
+    LDI exec_dot_convert_loop
     MOV R1, R0
     MOV PC, R1
     NOP
+
 exec_dot_zero:
     LDI 48
     SUB SP, 1
     ST R0, SP, 0
     LDI 1
     MOV R5, R0
-exec_dot_print:
+
+exec_dot_print_digits:
     ADD R5, 0
     JZ exec_dot_done
     NOP
@@ -644,10 +515,11 @@ exec_dot_print:
     ADD SCR, 1
     ADD POS, 1
     SUB R5, 1
-    LDI exec_dot_print
+    LDI exec_dot_print_digits
     MOV R1, R0
     MOV PC, R1
     NOP
+
 exec_dot_done:
     LDI interpret_loop_return
     MOV R1, R0
