@@ -176,12 +176,29 @@ class DeepWebUI {
         if (!el) return;
         if (isRunning) {
             el.textContent = 'Run';
-            el.classList.remove('run-indicator-halt');
             el.classList.add('run-indicator-running');
-        } else {
+            el.classList.remove('run-indicator-halt');
+            return;
+        }
+
+        const cs = this.simulator.segmentRegisters.CS & 0xFFFF;
+        const pc = this.simulator.registers[15] & 0xFFFF;
+        const physPC = ((cs << 4) + pc) >>> 0;
+        const cur = physPC < this.simulator.memory.length ? (this.simulator.memory[physPC] & 0xFFFF) : 0xFFFF;
+        const bpHit = this.memoryUI && this.memoryUI.breakpoints && this.memoryUI.breakpoints.has(physPC);
+
+        if (cur === 0xFFFF) {
             el.textContent = 'Halt';
-            el.classList.remove('run-indicator-running');
             el.classList.add('run-indicator-halt');
+            el.classList.remove('run-indicator-running');
+        } else if (bpHit) {
+            el.textContent = `B 0x${physPC.toString(16).padStart(5,'0')}`;
+            el.classList.remove('run-indicator-running');
+            el.classList.remove('run-indicator-halt');
+        } else {
+            el.textContent = 'Ready';
+            el.classList.remove('run-indicator-running');
+            el.classList.remove('run-indicator-halt');
         }
     }
 
