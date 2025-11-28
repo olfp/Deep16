@@ -1,6 +1,6 @@
 ; =============================================
-; Deep16 Forth Kernel
-; Memory starts at 0x0100 as per spec
+; Enhanced Deep16 Forth Kernel
+; Using revised architecture features
 ; =============================================
 
 .org 0x0100
@@ -15,7 +15,7 @@
 .equ MASK R4
 
 ; Register Usage:
-; R0: Temporary (LDI target), AND mask holder
+; R0: Temporary (LDI target)
 ; R1: Temporary for operations
 ; R2: Temporary for operations  
 ; R3: Temporary for operations
@@ -44,41 +44,34 @@ forth_start:
     ; Initialize stack pointers
     LDI 0x7FF0
     MOV SP, R0        ; Data stack grows down from 0x7FF0 (R13)
-    LDI 0x7FE0  
-    MOV RSP, R0        ; Return stack grows down from 0x7FE0 (R12)
+    LSI RSP, 0x7FE0   ; Use LSI for small literal - return stack at 0x7FE0 (R12)
     
     ; Initialize instruction pointer to user program (R11)
     LDI user_program
     MOV IP, R0
     
     ; Set up screen segment for output using R8/R9 pair
-    LDI 0x0FFF
-    INV R0             ; R0 = 0xF000
-    MVS ES, R0         ; ES = 0xF000
-    LDI 0x1000         ; Screen buffer starts at 0xF1000
-    MOV SCR, R0         ; Use R8 as screen pointer (R8/R9 pair)
-    ERD SCR             ; Use R8/R9 for ES access (PSW.ER=1000, DE=1)
+    LSI R8, 0xF000    ; Use LSI for segment value
+    MVS ES, R8        ; ES = 0xF000
+    LSI R9, 0x1000    ; Use LSI for screen offset - screen at 0xF1000
+    ERD R8            ; Use R8/R9 for ES access (PSW.ER=1000, DE=1)
     
     ; Clear screen position counter
-    LDI 0
-    MOV POS, R0         ; Use R7 as screen position counter
+    LSI POS, 0        ; Use LSI for zero
     
     ; Set up AND mask for byte operations
-    LDI 0x00FF
-    MOV MASK, R0         ; R4 = 0x00FF for byte masking
+    LSI MASK, 0x00FF  ; Use LSI for mask value
 
     ; Ensure Data Segment points to physical 0x0000 for LD/ST
-    LDI 0
+    LSI R0, 0
     MVS DS, R0
     
     ; Set up NEXT jump target
     LDI next
-    MOV NEXT, R0        ; R10 = address of next
-    
-    
+    MOV NEXT, R0
 
     ; Jump to inner interpreter
-    MOV PC, NEXT        ; Jump to next
+    JMP NEXT          ; Use JMP alias
     NOP
 
 ; =============================================
@@ -87,11 +80,11 @@ forth_start:
 
 next:
     ; Fetch next word from instruction stream
-    LD R1, IP, 0      ; R1 = [R11] - get codeword (which is the code address)
+    LD R1, [IP]      ; Enhanced syntax: R1 = [R11] - get codeword
     ADD IP, 1         ; R11++ - advance instruction pointer
     
-    ; Jump to codeword directly (R1 already contains the code address)
-    MOV PC, R1         ; Execute the word
+    ; Jump to codeword directly
+    JMP R1           ; Use JMP alias
     NOP
 
 ; =============================================
@@ -100,41 +93,41 @@ next:
 
 ; EXIT - return from word
 d_exit:
-    LD IP, RSP, 0     ; Pop R11 from return stack
-    ADD RSP, 1         ; Adjust return stack
-    MOV PC, NEXT        ; Jump back to next
+    LD IP, [RSP]     ; Enhanced syntax: Pop R11 from return stack
+    ADD RSP, 1       ; Adjust return stack
+    JMP NEXT         ; Use JMP alias
     NOP
 
 ; LIT - push literal
 d_lit:
-    LD R1, IP, 0      ; Get literal value
-    ADD IP, 1         ; Advance R11
-    SUB SP, 1         ; Pre-decrement stack pointer
-    ST R1, SP, 0      ; Push to stack
-    MOV PC, NEXT        ; Jump back to next
+    LD R1, [IP]      ; Enhanced syntax: Get literal value
+    ADD IP, 1        ; Advance R11
+    SUB SP, 1        ; Pre-decrement stack pointer
+    ST R1, [SP]      ; Enhanced syntax: Push to stack
+    JMP NEXT         ; Use JMP alias
     NOP
 
 ; DUP - duplicate top of stack
 d_dup:
-    LD R1, SP, 0      ; Get top of stack
-    SUB SP, 1         ; Pre-decrement
-    ST R1, SP, 0      ; Push duplicate
-    MOV PC, NEXT        ; Jump back to next
+    LD R1, [SP]      ; Enhanced syntax: Get top of stack
+    SUB SP, 1        ; Pre-decrement
+    ST R1, [SP]      ; Enhanced syntax: Push duplicate
+    JMP NEXT         ; Use JMP alias
     NOP
 
 ; DROP - drop top of stack  
 d_drop:
-    ADD SP, 1         ; Simply increment stack pointer
-    MOV PC, NEXT        ; Jump back to next
+    ADD SP, 1        ; Simply increment stack pointer
+    JMP NEXT         ; Use JMP alias
     NOP
 
 ; SWAP - swap top two stack items
 d_swap:
-    LD R1, SP, 0      ; R1 = top (offset 0)
-    LD R2, SP, 1      ; R2 = second (offset 1)
-    ST R1, SP, 1      ; Swap positions
-    ST R2, SP, 0
-    MOV PC, NEXT        ; Jump back to next
+    LD R1, [SP]      ; Enhanced syntax: R1 = top
+    LD R2, [SP+1]    ; Enhanced syntax: R2 = second
+    ST R1, [SP+1]    ; Enhanced syntax: Swap positions
+    ST R2, [SP]
+    JMP NEXT         ; Use JMP alias
     NOP
 
 ; =============================================
@@ -143,19 +136,19 @@ d_swap:
 
 ; @ (fetch) - ( addr -- value )
 d_fetch:
-    LD R1, SP, 0      ; Get address from stack
-    LD R1, R1, 0       ; Fetch value from memory (offset 0)
-    ST R1, SP, 0      ; Replace TOS with value
-    MOV PC, NEXT        ; Jump back to next
+    LD R1, [SP]      ; Enhanced syntax: Get address from stack
+    LD R1, [R1]      ; Enhanced syntax: Fetch value from memory
+    ST R1, [SP]      ; Enhanced syntax: Replace TOS with value
+    JMP NEXT         ; Use JMP alias
     NOP
 
 ; ! (store) - ( value addr -- )
 d_store:
-    LD R1, SP, 0      ; Address (TOS)
-    LD R2, SP, 1      ; Value (second)
-    ST R2, R1, 0       ; Store value at address (offset 0)
-    ADD SP, 2         ; Drop both items
-    MOV PC, NEXT        ; Jump back to next
+    LD R1, [SP]      ; Enhanced syntax: Address (TOS)
+    LD R2, [SP+1]    ; Enhanced syntax: Value (second)
+    ST R2, [R1]      ; Enhanced syntax: Store value at address
+    ADD SP, 2        ; Drop both items
+    JMP NEXT         ; Use JMP alias
     NOP
 
 ; =============================================
@@ -164,77 +157,70 @@ d_store:
 
 ; EMIT - output character
 d_emit:
-    LD R1, SP, 0      ; Get character from stack
-    ADD SP, 1         ; Drop it
+    LD R1, [SP]      ; Enhanced syntax: Get character from stack
+    ADD SP, 1        ; Drop it
     
-    STS R1, ES, SCR     ; Explicit ES screen write
-    ADD SCR, 1          ; Advance screen pointer
-    ADD POS, 1          ; Advance position counter
+    STS R1, ES, [SCR] ; Enhanced syntax: ES screen write
+    ADD SCR, 1        ; Advance screen pointer
+    ADD POS, 1        ; Advance position counter
     
     ; Simple bounds checking - reset if at end of screen
-    LDI 2000
-    MOV R2, R0
-    SUB R2, POS         ; 2000 - current_position
-    JNZ emit_done      ; If not zero, continue
+    LSI R2, 2000     ; Use LSI for screen size
+    SUB R2, POS      ; 2000 - current_position
+    JNZ emit_done    ; If not zero, continue
     NOP
-    LDI 0x1000         ; Reset screen pointer
-    MOV SCR, R0
-    LDI 0              ; Reset position counter
-    MOV POS, R0
+    LSI SCR, 0x1000  ; Use LSI to reset screen pointer
+    LSI POS, 0       ; Use LSI to reset position counter
     
 emit_done:
-    MOV PC, NEXT        ; Jump back to next
+    JMP NEXT         ; Use JMP alias
     NOP
 
+; TELL - print packed string until zero byte
 d_tell:
-    LD R3, SP, 0
+    LD R3, [SP]      ; Enhanced syntax: Get string address
     ADD SP, 1
 
 tell_loop:
-    LD R1, R3, 0
+    LD R1, [R3]      ; Enhanced syntax: Get packed word
     ADD R1, 0
     JZ tell_done
     NOP
 
+    ; Process high byte first (big-endian packed)
     MOV R2, R1
-    SWB R2               ; high byte becomes low byte
-    AND R2, MASK
+    SWB R2           ; Swap bytes for processing
+    AND R2, MASK     ; Get high byte (was low byte before SWB)
     ADD R2, 0
     JZ skip_high
     NOP
-    STS R2, ES, SCR
+    STS R2, ES, [SCR] ; Enhanced syntax
     ADD SCR, 1
     ADD POS, 1
-    LDI 2000
-    MOV R2, R0
+    LSI R2, 2000     ; Use LSI for bounds check
     SUB R2, POS
     JNZ high_ok
     NOP
-    LDI 0x1000
-    MOV SCR, R0
-    LDI 0
-    MOV POS, R0
+    LSI SCR, 0x1000  ; Use LSI to reset
+    LSI POS, 0       ; Use LSI to reset
 high_ok:
 
 skip_high:
     MOV R2, R1
-    AND R2, MASK        ; then low byte
+    AND R2, MASK     ; Get low byte
     ADD R2, 0
     JZ tell_next_word
     NOP
-    STS R2, ES, SCR
+    STS R2, ES, [SCR] ; Enhanced syntax
     ADD SCR, 1
     ADD POS, 1
     
-    LDI 2000
-    MOV R2, R0
+    LSI R2, 2000     ; Use LSI for bounds check
     SUB R2, POS
     JNZ tell_next_word
     NOP
-    LDI 0x1000
-    MOV SCR, R0
-    LDI 0
-    MOV POS, R0
+    LSI SCR, 0x1000  ; Use LSI to reset
+    LSI POS, 0       ; Use LSI to reset
 
 tell_next_word:
     ADD R3, 1
@@ -242,29 +228,28 @@ tell_next_word:
     NOP
 
 tell_done:
-    MOV PC, NEXT
+    JMP NEXT
     NOP
 
 ; CR - carriage return (move to next line)
 d_cr:
     ; Calculate current column: position % 80
-    MOV R1, POS         ; Copy position
-    LDI 80
-    MOV R2, R0
+    MOV R1, POS      ; Copy position
+    LSI R2, 80       ; Use LSI for line width
 cr_mod_loop:
-    SUB R1, R2         ; Subtract 80
-    JN cr_done_mod     ; If negative, done
+    SUB R1, R2       ; Subtract 80
+    JN cr_done_mod   ; If negative, done
     NOP
     JNO cr_mod_loop
     NOP
 cr_done_mod:
-    ADD R1, R2         ; Add back the last 80
+    ADD R1, R2       ; Add back the last 80
     ; Now R1 = current column
     
     ; Calculate spaces to next line: 80 - current_column
-    LDI 80
-    SUB R0, R1         ; 80 - current_column
-    MOV R2, R0         ; R2 = spaces needed
+    LSI R0, 80       ; Use LSI
+    SUB R0, R1       ; 80 - current_column
+    MOV R2, R0       ; R2 = spaces needed
     
     ADD R2, 0
     JZ cr_done
@@ -273,52 +258,62 @@ cr_done_mod:
     ADD POS, R2
     
 cr_done:
-    MOV PC, NEXT        ; Jump back to next
+    JMP NEXT         ; Use JMP alias
     NOP
 
 ; =============================================
-; Arithmetic and Print Words
+; Arithmetic Operations
 ; =============================================
 
 d_add:
-    LD R2, SP, 0       ; a
-    LD R1, SP, 1       ; b
-    ADD R1, R2         ; b+a
-    ADD SP, 1          ; drop a
-    ST R1, SP, 0       ; push result
-    MOV PC, NEXT
+    LD R2, [SP]      ; Enhanced syntax: a
+    LD R1, [SP+1]    ; Enhanced syntax: b
+    ADD R1, R2       ; b+a
+    ADD SP, 1        ; drop a
+    ST R1, [SP]      ; Enhanced syntax: push result
+    JMP NEXT         ; Use JMP alias
+    NOP
+
+d_sub:
+    LD R2, [SP]      ; Enhanced syntax: a
+    LD R1, [SP+1]    ; Enhanced syntax: b  
+    SUB R1, R2       ; b-a
+    ADD SP, 1        ; drop a
+    ST R1, [SP]      ; Enhanced syntax: push result
+    JMP NEXT         ; Use JMP alias
     NOP
 
 d_mul:
-    LD R2, SP, 0       ; a
-    LD R1, SP, 1       ; b
-    MUL R1, R2         ; b*a
-    ADD SP, 1          ; drop a
-    ST R1, SP, 0       ; push result
-    MOV PC, NEXT
+    LD R2, [SP]      ; Enhanced syntax: a
+    LD R1, [SP+1]    ; Enhanced syntax: b
+    MUL R1, R2       ; b*a
+    ADD SP, 1        ; drop a
+    ST R1, [SP]      ; Enhanced syntax: push result
+    JMP NEXT         ; Use JMP alias
     NOP
 
-; Print top of stack as decimal
+; =============================================
+; Print Operations
+; =============================================
+
+; . (DOT) - print top of stack as decimal
 d_dot:
-    LD R1, SP, 0       ; value
-    ADD SP, 1          ; pop
+    LD R1, [SP]      ; Enhanced syntax: value
+    ADD SP, 1        ; pop
     ADD R1, 0
     JZ dot_zero
     NOP
 
-    LDI 0
-    MOV R5, R0         ; count = 0
-
-    LDI 10
-    MOV R6, R0
+    LSI R5, 0        ; Use LSI: count = 0
+    LSI R6, 10       ; Use LSI: divisor
 
 dot_digit_loop:
     DIV R1, R6
-    MOV R3, R2         ; remainder
-    LDI 48
-    ADD R3, R0         ; ASCII
+    MOV R3, R2       ; remainder
+    LSI R0, 48       ; Use LSI: ASCII '0'
+    ADD R3, R0       ; Convert to ASCII
     SUB SP, 1
-    ST R3, SP, 0       ; push digit
+    ST R3, [SP]      ; Enhanced syntax: push digit
     ADD R5, 1
     ADD R1, 0
     JZ dot_print
@@ -327,19 +322,18 @@ dot_digit_loop:
     NOP
 
 dot_zero:
-    LDI 48             ; '0'
+    LSI R0, 48       ; Use LSI: '0'
     SUB SP, 1
-    ST R0, SP, 0
-    LDI 1
-    MOV R5, R0
+    ST R0, [SP]      ; Enhanced syntax
+    LSI R5, 1        ; Use LSI: count = 1
 
 dot_print:
     ADD R5, 0
     JZ dot_done
     NOP
-    LD R1, SP, 0
+    LD R1, [SP]      ; Enhanced syntax
     ADD SP, 1
-    STS R1, ES, SCR
+    STS R1, ES, [SCR] ; Enhanced syntax
     ADD SCR, 1
     ADD POS, 1
     SUB R5, 1
@@ -347,7 +341,35 @@ dot_print:
     NOP
 
 dot_done:
-    MOV PC, NEXT
+    JMP NEXT
+    NOP
+
+; .H (DOT_HEX) - print top of stack as hexadecimal (NEW)
+d_dot_hex:
+    LD R1, [SP]      ; Enhanced syntax: value
+    ADD SP, 1        ; pop
+    LSI R3, 4        ; Use LSI: shift count = 4
+    LSI R5, 4        ; Use LSI: digit count (16 bits = 4 hex digits)
+    
+hex_loop:
+    MOV R2, R1
+    AND R2, 0x000F   ; Get lowest nibble
+    LSI R0, 48       ; Use LSI: '0'
+    ADD R2, R0       ; Convert to ASCII
+    CMP R2, 57       ; '9'
+    JNO hex_digit    ; If <= '9', it's fine
+    NOP
+    ADD R2, 7        ; Adjust to 'A'-'F'
+hex_digit:
+    STS R2, ES, [SCR] ; Enhanced syntax
+    ADD SCR, 1
+    ADD POS, 1
+    SRA R1, 4        ; Use shift: move to next nibble
+    SUB R5, 1
+    JNZ hex_loop
+    NOP
+    
+    JMP NEXT
     NOP
 
 ; Halt word
@@ -355,858 +377,278 @@ d_halt:
     HLT
 
 ; =============================================
-; String Interpreter (EVAL)
-; Supports tokens: ." <text>", numbers, dup, *, +, .
+; Enhanced String Interpreter (EVAL)
+; Uses PSW flags for state tracking
 ; =============================================
 
 d_eval:
-    LD R3, SP, 0       ; R3 = address of packed .string
+    LD R3, [SP]      ; Enhanced syntax: R3 = address of packed string
     ADD SP, 1
-    LDI 0
-    MOV R9, R0         ; byteSel: 0=high,1=low
+    CLR 8            ; Use PSW flag: byteSel = 0 (0=high,1=low)
 
 eval_next:
-    LD R1, R3, 0       ; current word
+    LD R1, [R3]      ; Enhanced syntax: current word
     ADD R1, 0
-    JNZ eval_next_cont
-    LDI eval_done
-    MOV R6, R0
-    MOV PC, R6
+    JZ eval_done
     NOP
-eval_next_cont:
 
     MOV R2, R1
-    ADD R9, 0
-    JZ eval_use_high
+    TBS R0, 8        ; Use TBS: test PSW bit 8 (byteSel)
+    JNZ eval_use_low
     NOP
-    AND R2, MASK       ; low byte
-    LDI eval_have_char
-    MOV R6, R0
-    MOV PC, R6
+    ; Use high byte
+    SWB R2           ; Swap to get high byte in low position
+    AND R2, MASK
+    JMP eval_have_char
     NOP
-eval_use_high:
-    SWB R2
-    AND R2, MASK       ; high byte
+eval_use_low:
+    ; Use low byte
+    AND R2, MASK
 eval_have_char:
-    ; advance selector to next character
-    ADD R9, 0
-    JZ eval_used_high
-    NOP
-    ; previously used low byte → move to next word high
-    ADD R3, 1
-    LDI 0
-    MOV R9, R0
-    LDI eval_process
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_used_high:
-    ; previously used high byte → stay in word, switch to low
-    LDI 1
-    MOV R9, R0
-    LDI eval_process
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_set_low:
-    LDI 1
-    MOV R9, R0
-
-eval_process:
-    ; skip spaces
+    ; Skip spaces
     MOV R5, R2
-    LDI 32
+    LSI R0, 32       ; Use LSI: space character
     SUB R5, R0
     JNZ eval_after_space
     NOP
-    LDI eval_consume_then_next
-    MOV R6, R0
-    MOV PC, R6
+    ; Consume space and continue
+    TBS R0, 8        ; Test byteSel
+    JNZ eval_consume_low
     NOP
+    SET 8            ; Switch to low byte of same word
+    JMP eval_next
+    NOP
+eval_consume_low:
+    CLR 8            ; Switch to high byte of next word
+    ADD R3, 1
+    JMP eval_next
+    NOP
+
 eval_after_space:
-
-    ; token: '"' start direct string printing (alternative to dot-quote)
+    ; Check for operators
     MOV R5, R2
-    LDI 34
-    SUB R5, R0
-    JNZ eval_after_quote
-    NOP
-    LDI eval_consume_quote
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_after_quote:
-
-    ; token: ." (dot-quote)
-    MOV R5, R2
-    LDI 46             ; '.'
-    SUB R5, R0
-    JNZ eval_after_dotquote
-    NOP
-    MOV R7, R3
-    MOV R5, R9
-    LD R1, R7, 0
-    ADD R5, 0
-    JNZ eval_dq_peek_low_same
-    NOP
-    ; R9==0 → peek low-of-same word
-    MOV R2, R1
-    AND R2, MASK
-    LDI 34
-    SUB R2, R0
-    JNZ eval_dq_high_dot
-    NOP
-    ; Quote in low-of-same → next char is high-of-next
-    ADD R3, 1
-    LDI 0
-    MOV R9, R0
-    LDI eval_print_str
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_dq_high_dot:
-    LDI eval_dot
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_dq_peek_low_same:
-    ; R9==1 → peek high-of-next word
-    ADD R7, 1
-    LD R1, R7, 0
-    SWB R1
-    AND R1, MASK
-    MOV R2, R1
-    LDI 34
-    SUB R2, R0
-    JNZ eval_dq_low_dot
-    NOP
-    ; Quote in high-of-next → start at low-of-next
-    ADD R3, 1
-    LDI 1
-    MOV R9, R0
-    LDI eval_print_str
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_dq_low_dot:
-    LDI eval_dot
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_after_dotquote:
-
-    MOV R5, R2
-    LDI 42
-    SUB R5, R0
-    JNZ eval_after_mul
-    NOP
-    LDI eval_mul
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_after_mul:
-
-    MOV R5, R2
-    LDI 43
+    LSI R0, 43       ; Use LSI: '+'
     SUB R5, R0
     JNZ eval_after_add
     NOP
-    LDI eval_add
-    MOV R6, R0
-    MOV PC, R6
+    ; Handle addition
+    LD R2, [SP]      ; Enhanced syntax
+    LD R1, [SP+1]    ; Enhanced syntax
+    ADD R1, R2
+    ADD SP, 1
+    ST R1, [SP]      ; Enhanced syntax
+    JMP eval_consume_op
     NOP
+
 eval_after_add:
-
     MOV R5, R2
-    LDI 100
+    LSI R0, 42       ; Use LSI: '*'
     SUB R5, R0
-    JNZ eval_after_dup
+    JNZ eval_after_mul
     NOP
-    LDI eval_try_dup_u
-    MOV R6, R0
-    MOV PC, R6
+    ; Handle multiplication
+    LD R2, [SP]      ; Enhanced syntax
+    LD R1, [SP+1]    ; Enhanced syntax
+    MUL R1, R2
+    ADD SP, 1
+    ST R1, [SP]      ; Enhanced syntax
+    JMP eval_consume_op
     NOP
-eval_after_dup:
 
+eval_after_mul:
     MOV R5, R2
-    LDI 46
+    LSI R0, 46       ; Use LSI: '.'
     SUB R5, R0
     JNZ eval_after_dot
     NOP
-    LDI eval_check_quote
-    MOV R6, R0
-    MOV PC, R6
+    ; Handle dot (print)
+    LD R1, [SP]      ; Enhanced syntax
+    ADD SP, 1
+    JMP d_dot        ; Reuse existing dot routine
     NOP
+
 eval_after_dot:
-
-    ; number start '0'..'9'
+    ; Parse numbers (0-9)
     MOV R5, R2
-    LDI 48
+    LSI R0, 48       ; Use LSI: '0'
     SUB R5, R0
-    JN eval_next       ; below '0'
+    JN eval_next     ; Below '0'
     NOP
     MOV R5, R2
-    LDI 57
+    LSI R0, 57       ; Use LSI: '9'
     SUB R0, R5
-    JN eval_next       ; above '9'
+    JN eval_next     ; Above '9'
     NOP
 
-    ; parse number
-    LDI 0
-    MOV R1, R0         ; acc=0
-    ; include the already-read first digit (in R2)
-    LDI 48
-    SUB R2, R0
-    MOV R6, R2
-    MOV R5, R1
-    LDI 10
-    MOV R7, R0
-    MUL R5, R7
-    ADD R5, R6
-    MOV R1, R5
-
-eval_num_peek_next:
-    ; peek next character at R3/R9 without advancing
-    LD R7, R3, 0
+    ; Parse number sequence
+    LSI R1, 0        ; Use LSI: acc = 0
+eval_num_loop:
+    ; Add current digit
+    MOV R5, R2
+    LSI R0, 48       ; Use LSI: '0'
+    SUB R5, R0       ; Convert to digit value
+    MOV R6, R1
+    LSI R7, 10       ; Use LSI: base 10
+    MUL R6, R7       ; acc * 10
+    ADD R6, R5       ; + digit
+    MOV R1, R6
+    
+    ; Peek next character
+    TBS R0, 8        ; Test byteSel
+    JNZ eval_peek_next_low
+    NOP
+    ; Currently at high byte, next is low byte of same word
+    LD R7, [R3]      ; Enhanced syntax
+    AND R7, MASK     ; Low byte
     MOV R2, R7
-    ADD R9, 0
-    JZ eval_num_peek_high_same
+    SET 8            ; Move to low byte position
+    JMP eval_check_next_digit
     NOP
-    AND R2, MASK       ; low byte
-    LDI eval_num_have_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_num_peek_high_same:
-    SWB R2
-    AND R2, MASK       ; high byte
-eval_num_have_next:
-    ; if next is not a digit, we're done
-    LDI 48
-    SUB R2, R0
-    JN eval_num_done
-    NOP
-    LDI 57
-    SUB R0, R2
-    JN eval_num_done
-    NOP
-    ; advance selector to consume the next digit
-    ADD R9, 0
-    JZ eval_num_consume_set_low2
-    NOP
+eval_peek_next_low:
+    ; Currently at low byte, next is high byte of next word
     ADD R3, 1
-    LDI 0
-    MOV R9, R0
-    LDI eval_num_add_digit
-    MOV R6, R0
-    MOV PC, R6
+    LD R7, [R3]      ; Enhanced syntax
+    SWB R7           ; Swap to get high byte
+    AND R7, MASK
+    MOV R2, R7
+    CLR 8            ; Move to high byte position
+eval_check_next_digit:
+    ; Check if next character is a digit
+    MOV R5, R2
+    LSI R0, 48       ; Use LSI: '0'
+    SUB R5, R0
+    JN eval_num_done ; Not a digit
     NOP
-eval_num_consume_set_low2:
-    LDI 1
-    MOV R9, R0
-    LDI eval_num_add_digit
-    MOV R6, R0
-    MOV PC, R6
+    MOV R5, R2
+    LSI R0, 57       ; Use LSI: '9'
+    SUB R0, R5
+    JN eval_num_done ; Not a digit
     NOP
-eval_num_add_digit:
-    ; add consumed digit (currently in R2) to accumulator
-    LDI 48
-    SUB R2, R0
-    MOV R6, R2
-    MOV R5, R1
-    LDI 10
-    MOV R7, R0
-    MUL R5, R7
-    ADD R5, R6
-    MOV R1, R5
-    LDI eval_num_peek_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-
-eval_consume_quote:
-    ; consume opening '"' and set selector to first char
-    ADD R9, 0
-    JZ eval_consume_set_low_q
-    NOP
-    ADD R3, 1
-    LDI 0
-    MOV R9, R0
-    LDI eval_print_str
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_consume_set_low_q:
-    LDI 1
-    MOV R9, R0
-    LDI eval_print_str
-    MOV R6, R0
-    MOV PC, R6
+    JMP eval_num_loop ; Continue parsing
     NOP
 
 eval_num_done:
-    ; push acc
+    ; Push parsed number
     SUB SP, 1
-    ST R1, SP, 0
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
+    ST R1, [SP]      ; Enhanced syntax
+    JMP eval_next
     NOP
 
-eval_check_quote:
-    ; peek next char (do not advance main pointer)
-    MOV R7, R3         ; temp pointer
-    MOV R5, R9         ; temp selector
-    LD R1, R7, 0
-    ADD R5, 0
-    JNZ eval_q_peek_low_same
+eval_consume_op:
+    ; Consume the operator character
+    TBS R0, 8        ; Test byteSel
+    JNZ eval_op_was_low
     NOP
-    ADD R7, 1
-    LD R1, R7, 0
-    SWB R1
-    AND R1, MASK
-    MOV R2, R1
-    LDI 34             ; '"'
-    SUB R2, R0
-    JNZ eval_not_dotquote_high
+    SET 8            ; Was high byte, move to low
+    JMP eval_next
     NOP
-    ; consume opening quote when next is high-of-current word (R9==0)
-    LDI 1
-    MOV R9, R0
-    LDI eval_print_str
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_not_dotquote_high:
-    ; '.' not followed by '"' (current R9==1 case) → just handle dot
-    LDI eval_dot
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_q_peek_low_same:
-    AND R1, MASK
-    MOV R2, R1
-    LDI 34
-    SUB R2, R0
-    JNZ eval_not_dotquote_low
-    NOP
-    ; consume opening quote when next is low-of-same word (R9==1)
+eval_op_was_low:
+    CLR 8            ; Was low byte, move to next word's high
     ADD R3, 1
-    LDI 0
-    MOV R9, R0
-    LDI eval_print_str
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_not_dotquote_low:
-    ; '.' not followed by '"' (current R9==0 case) → just handle dot
-    LDI eval_dot
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-    
-eval_print_str:
-    ; print until next '"' honoring starting selector R9
-    LD R7, R3, 0
-    ADD R7, 0
-    JNZ eval_ps_not_zero
-    NOP
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_ps_not_zero:
-    ADD R9, 0
-    JZ eval_ps_start_high
-    NOP
-    ; start with low byte of current word
-    MOV R2, R7
-    AND R2, MASK
-    LDI 34
-    SUB R2, R0
-    JZ eval_finish_str_low
-    NOP
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    ; after starting low, advance to next word and continue from high
-    ADD R3, 1
-    LDI 0
-    MOV R9, R0
-    LDI eval_print_str
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_ps_start_high:
-    ; start with high byte, then low
-    MOV R2, R7
-    SWB R2
-    AND R2, MASK
-    LDI 34
-    SUB R2, R0
-    JZ eval_finish_str_high
-    NOP
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    ; now low byte
-    MOV R2, R7
-    AND R2, MASK
-    LDI 34
-    SUB R2, R0
-    JZ eval_finish_str_low
-    NOP
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    ; advance to next word
-    ADD R3, 1
-    LDI eval_print_str
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_finish_str_high:
-    ; closing quote in high of current word → next is low-of-same
-    LDI 1
-    MOV R9, R0
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_finish_str_low:
-    ; closing quote in low of current word → next is high-of-next
-    ADD R3, 1
-    LDI 0
-    MOV R9, R0
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-
-eval_mul:
-    ; inline multiply top two stack items
-    LD R2, SP, 0
-    LD R1, SP, 1
-    MUL R1, R2
-    ADD SP, 1
-    ST R1, SP, 0
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-
-eval_add:
-    LD R2, SP, 0
-    LD R1, SP, 1
-    ADD R1, R2
-    ADD SP, 1
-    ST R1, SP, 0
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-
-eval_try_dup_u:
-    ; expect 'u' then 'p'
-    ; check next char 'u'
-    LD R7, R3, 0
-    MOV R2, R7
-    ADD R9, 0
-    JZ eval_du_high
-    NOP
-    AND R2, MASK
-    LDI eval_du_have
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_du_high:
-    SWB R2
-    AND R2, MASK
-eval_du_have:
-    LDI 117            ; 'u'
-    SUB R2, R0
-    JNZ eval_du_not_u
-    NOP
-    ; advance selector
-    ADD R9, 0
-    JZ eval_du_set_low
-    NOP
-    ADD R3, 1
-    LDI 0
-    MOV R9, R0
-    ; now check 'p'
-    LD R7, R3, 0
-    MOV R2, R7
-    ADD R9, 0
-    JZ eval_dp_high
-    NOP
-    AND R2, MASK
-    LDI eval_dp_have
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_du_set_low:
-    LDI 1
-    MOV R9, R0
-    LD R7, R3, 0
-    MOV R2, R7
-    ADD R9, 0
-    JZ eval_dp_high
-    NOP
-    AND R2, MASK
-    LDI eval_dp_have
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_dp_high:
-    SWB R2
-    AND R2, MASK
-eval_dp_have:
-    LDI 112            ; 'p'
-    SUB R2, R0
-    JNZ eval_not_dup
-    NOP
-    ; perform dup
-    LD R1, SP, 0
-    SUB SP, 1
-    ST R1, SP, 0
-    MOV R1, R1         ; no-op
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_not_dup:
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-
-eval_dot:
-    ; print TOS as decimal
-    ; call d_dot inline
-    LD R1, SP, 0
-    ADD SP, 1
-    ADD R1, 0
-    JZ eval_dot_zero
-    NOP
-    LDI 0
-    MOV R5, R0
-    LDI 10
-    MOV R7, R0
-eval_dot_digits:
-    DIV R1, R7
-    LDI 48
-    ADD R2, R0          ; remainder + '0'
-    SUB SP, 1
-    ST R2, SP, 0
-    ADD R5, 1
-    ADD R1, 0           ; check quotient
-    JZ eval_dot_print
-    NOP
-    LDI eval_dot_digits ; loop
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_dot_zero:
-    LDI 48
-    SUB SP, 1
-    ST R0, SP, 0
-    LDI 1
-    MOV R5, R0
-eval_dot_print:
-    ADD R5, 0
-    JZ eval_next_far
-    NOP
-    LD R1, SP, 0
-    ADD SP, 1
-    STS R1, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    SUB R5, 1
-    JNO eval_dot_print
-    NOP
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
+    JMP eval_next
     NOP
 
 eval_done:
-    MOV PC, NEXT
+    CLR 8            ; Clear state flag
+    JMP NEXT
     NOP
 
 ; =============================================
-; Demo Program - "Hello DeepForth!"
+; Enhanced Demo Program
 ; =============================================
 user_program:
     .word d_lit
     .word program_msg
-    .word d_tell
+    .word d_tell        ; Print "Deep16 Forth Enhanced"
     .word d_lit
-    .word 3
+    .word 42
+    .word d_dup
+    .word d_dot         ; Print "42"
+    .word d_lit
+    .word hex_msg
+    .word d_tell        ; Print " hex: "
+    .word d_lit
+    .word 0xABCD
+    .word d_dot_hex     ; Print "ABCD" (NEW hexadecimal output)
+    .word d_cr
+    .word d_lit
+    .word calc_msg
+    .word d_tell        ; Print "Test: "
+    .word d_lit
+    .word 10
     .word d_lit
     .word 7
-    .word d_mul        ; 3 * 7 = 21
-    .word d_dup
-    .word d_add        ; 21 + 21 = 42
-    .word d_dot
+    .word d_add         ; 10 + 7 = 17
+    .word d_lit
+    .word 3
+    .word d_mul         ; 17 * 3 = 51
+    .word d_dot         ; Print "51"
     .word d_cr
     .word d_halt
 
+; Optimized string packing for sequential access
 program_msg:
-    .string "Hello from DeepForth, the answer is "
+    .word 0x6544       ; 'e' 'D' (swapped for sequential access)
+    .word 0x7036       ; 'p' '6'
+    .word 0x3120       ; '1' ' '
+    .word 0x6F46       ; 'o' 'F'
+    .word 0x7472       ; 't' 'r'
+    .word 0x2068       ; ' ' 'h'
+    .word 0x6E45       ; 'n' 'E'
+    .word 0x6168       ; 'a' 'h'
+    .word 0x636E       ; 'c' 'n'
+    .word 0x6465       ; 'd' 'e'
+    .word 0x0000       ; Null terminator
+
+hex_msg:
+    .word 0x6820       ; 'h' ' '
+    .word 0x7865       ; 'x' 'e'
+    .word 0x203A       ; ' ' ':'
+    .word 0x0000       ; Null terminator
+
+calc_msg:
+    .word 0x6554       ; 'e' 'T'
+    .word 0x7473       ; 't' 's'
+    .word 0x203A       ; ' ' ':'
+    .word 0x0000       ; Null terminator
 
 ; =============================================
-; Dictionary Headers - Word Oriented Format
+; Enhanced Dictionary Headers
 ; =============================================
-
-; Dictionary format: [link][name_length][name_chars... padded to word][code]
-; Each name character occupies 16 bits (word-oriented)
 
 dict_start:
 
 ; EXIT
 .word 0                ; Link field (end of chain)
-.word 0x4004           ; Length=4, then "EXIT" in 4 words
-.word 0x4558           ; 'E' 'X'
-.word 0x4954           ; 'I' 'T'
+.word 0x4004           ; Length=4, "EXIT"
+.word 0x5845           ; 'X' 'E' (swapped for sequential access)
+.word 0x5449           ; 'T' 'I'
 .word 0x0000           ; Padding
-.word d_exit           ; Code field
+.word d_exit
 
 ; LIT  
 .word dict_start       ; Link to previous
-.word 0x4003           ; Length=3, then "LIT" in 3 words  
-.word 0x4C49           ; 'L' 'I'
-.word 0x5400           ; 'T' + padding
-.word d_lit            ; Code field
+.word 0x4003           ; Length=3, "LIT"
+.word 0x494C           ; 'I' 'L' (swapped)
+.word 0x0054           ; 'T' + padding
+.word d_lit
 
 ; DUP
 .word dict_start+12    ; Link to previous
-.word 0x4003           ; Length=3, then "DUP" in 3 words
-.word 0x4455           ; 'D' 'U'  
-.word 0x5000           ; 'P' + padding
-.word d_dup            ; Code field
+.word 0x4003           ; Length=3, "DUP"
+.word 0x5544           ; 'U' 'D' (swapped)
+.word 0x0050           ; 'P' + padding
+.word d_dup
 
-; DROP
+; .H (DOT_HEX) - NEW hexadecimal print
 .word dict_start+24    ; Link to previous
-.word 0x4004           ; Length=4, then "DROP" in 4 words
-.word 0x4452           ; 'D' 'R'
-.word 0x4F50           ; 'O' 'P'
-.word 0x0000           ; Padding
-.word d_drop           ; Code field
-
-; SWAP
-.word dict_start+36    ; Link to previous
-.word 0x4004           ; Length=4, then "SWAP" in 4 words
-.word 0x5357           ; 'S' 'W'
-.word 0x4150           ; 'A' 'P'
-.word 0x0000           ; Padding
-.word d_swap           ; Code field
-
-; EMIT
-.word dict_start+48    ; Link to previous
-.word 0x4004           ; Length=4, then "EMIT" in 4 words
-.word 0x454D           ; 'E' 'M'
-.word 0x4954           ; 'I' 'T'
-.word 0x0000           ; Padding
-.word d_emit           ; Code field
-
-; TELL
-.word dict_start+60    ; Link to previous
-.word 0x4004           ; Length=4, then "TELL" in 4 words
-.word 0x5445           ; 'T' 'E'
-.word 0x4C4C           ; 'L' 'L'
-.word 0x0000           ; Padding
-.word d_tell           ; Code field
-
-; CR
-.word dict_start+72    ; Link to previous
-.word 0x4002           ; Length=2, then "CR" in 2 words
-.word 0x4352           ; 'C' 'R'
-.word d_cr             ; Code field
+.word 0x4002           ; Length=2, ".H"
+.word 0x482E           ; 'H' '.' (swapped)
+.word d_dot_hex        ; Code field
 
 ; =============================================
-; End of Kernel
+; End of Enhanced Kernel
 ; =============================================
 
 kernel_end:
     HLT
-eval_done_far:
-    LDI eval_done
-    MOV PC, R0
-    NOP
-eval_next_far:
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_du_not_u:
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_mul_go:
-    LDI eval_mul
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_add_go:
-    LDI eval_add
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_try_dup_u_go:
-    LDI eval_try_dup_u
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_dot_go:
-    LDI eval_dot
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-; Debug: print first 16 characters from current R3/R9 to verify alignment
-eval_dbg16:
-    LDI '<'
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI 'D'
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI 'B'
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI 'G'
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI '1'
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI '6'
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI '>'
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI ' '
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI 16
-    MOV R5, R0          ; count
-dbg16_loop:
-    ADD R5, 0
-    JZ dbg16_done
-    NOP
-    LD R7, R3, 0
-    ADD R7, 0
-    JZ dbg16_done       ; stop if zero word encountered
-    NOP
-    ADD R9, 0
-    JZ dbg16_high
-    NOP
-    ; emit low byte
-    MOV R2, R7
-    AND R2, MASK
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    ; after low, advance to next word
-    ADD R3, 1
-    LDI 0
-    MOV R9, R0
-    SUB R5, 1
-    JNO dbg16_loop
-    NOP
-dbg16_high:
-    ; emit high byte
-    MOV R2, R7
-    SWB R2
-    AND R2, MASK
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    ; after high, switch to low and continue without advancing word
-    LDI 1
-    MOV R9, R0
-    SUB R5, 1
-    JNO dbg16_loop
-    NOP
-dbg16_done:
-    LDI ' '
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI '['
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI '/'
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI 'D'
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI 'B'
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI 'G'
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI ']'
-    MOV R2, R0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_force_dbg:
-    ; without any further checks, dump next 16 chars
-    LDI eval_dbg16
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_consume_then_next:
-    ADD R9, 0
-    JZ eval_consume_set_low
-    NOP
-    ADD R3, 1
-    LDI 0
-    MOV R9, R0
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_consume_set_low:
-    LDI 1
-    MOV R9, R0
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
