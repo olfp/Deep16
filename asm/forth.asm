@@ -63,8 +63,8 @@ text_interpreter:
     MOV >IN, R0        ; Reset input offset
     
 interpret_loop:
-    ; Skip leading whitespace
-    LDI skip_whitespace
+    ; Skip leading whitespace - BUT be careful about mixed words
+    LDI skip_whitespace_careful
     MOV R1, R0
     MOV PC, R1
     NOP
@@ -77,6 +77,12 @@ after_whitespace:
     ADD R2, 0
     JZ interpret_done  ; End of input
     NOP
+    
+    ; DEBUG: Show current position
+    LDI 62            ; '>'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
     
     ; Parse word or number
     LDI parse_word
@@ -94,44 +100,39 @@ interpret_done:
     ; Halt when done interpreting
     HLT
 
-skip_whitespace:
+skip_whitespace_careful:
+    ; Only skip PURE whitespace words (both bytes are space)
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0       ; Get current word
     ADD R2, 0
-    JZ skip_done       ; End of input
+    JZ skip_done_careful  ; End of input
     NOP
     
-    ; Check both bytes for whitespace
+    ; Check if BOTH bytes are whitespace
     MOV R3, R2
     SRA R3, 8          ; High byte
     AND R3, MASK
     LDI 32             ; Space
     SUB R3, R0
-    JNZ check_low_byte
-    NOP
-    ; High byte is space, advance
-    ADD >IN, 1
-    LDI skip_whitespace
-    MOV R1, R0
-    MOV PC, R1
+    JNZ skip_done_careful  ; High byte not space - might have data in low byte
     NOP
     
-check_low_byte:
     MOV R3, R2
     AND R3, MASK       ; Low byte
     LDI 32             ; Space
     SUB R3, R0
-    JNZ skip_done      ; Not whitespace
+    JNZ skip_done_careful  ; Low byte not space - has data
     NOP
-    ; Low byte is space, advance
+    
+    ; Both bytes are space, advance past this word
     ADD >IN, 1
-    LDI skip_whitespace
+    LDI skip_whitespace_careful
     MOV R1, R0
     MOV PC, R1
     NOP
     
-skip_done:
+skip_done_careful:
     LDI after_whitespace
     MOV R1, R0
     MOV PC, R1
@@ -166,84 +167,129 @@ parse_word:
     NOP
 
 check_number:
-    ; Try to parse a number first
-    LDI parse_number_fixed
+    ; Try to parse a number first - check both bytes
+    LDI parse_number_check_both
     MOV R1, R0
     MOV PC, R1
     NOP
 
-parse_number_fixed:
+parse_number_check_both:
     ; DEBUG: Show we're trying to parse a number
     LDI 78            ; 'N'
     STS R0, ES, SCR
     ADD SCR, 1
     ADD POS, 1
     
-    ; Try to parse a number - FIXED VERSION
+    ; Check current word for numbers in either byte
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
     
-    ; Check BOTH bytes for digits since numbers might be in either position
-    
-    ; Check high byte first
+    ; Check high byte
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
     
-    ; Check for '3' in high byte
-    LDI 51            ; '3'
+    ; Check for digits in high byte
+    LDI 48             ; '0'
     SUB R3, R0
-    JZ found_three_high
+    JN check_low_byte  ; Below '0'
     NOP
-    
-    ; Check for '7' in high byte
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
-    LDI 55            ; '7'
-    SUB R3, R0
-    JZ found_seven_high
+    LDI 57             ; '9'
+    SUB R0, R3
+    JN check_low_byte  ; Above '9'
     NOP
     
+    ; High byte is a digit - parse full number
+    LDI parse_full_number
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+check_low_byte:
     ; Check low byte for digits
     MOV R3, R2
     AND R3, MASK
     
-    ; Check for '3' in low byte
-    LDI 51            ; '3'
+    LDI 48             ; '0'
     SUB R3, R0
-    JZ found_three_low
+    JN not_a_number_both  ; Below '0'
     NOP
-    
-    ; Check for '7' in low byte
     MOV R3, R2
     AND R3, MASK
-    LDI 55            ; '7'
-    SUB R3, R0
-    JZ found_seven_low
+    LDI 57             ; '9'
+    SUB R0, R3
+    JN not_a_number_both  ; Above '9'
     NOP
     
-    ; Not a number we recognize
-    LDI not_a_number_fixed
+    ; Low byte is a digit - parse full number
+    LDI parse_full_number
     MOV R1, R0
     MOV PC, R1
     NOP
 
-found_three_high:
-    ; DEBUG: Show we found 3 in high byte
-    LDI 51            ; '3'
+parse_full_number:
+    ; DEBUG: Show we found a digit
+    LDI 68            ; 'D'
     STS R0, ES, SCR
     ADD SCR, 1
     ADD POS, 1
     
-    ; Push 3 onto stack
-    LDI 3
-    MOV R4, R0
+    ; For now, just handle single digits to keep it simple
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0
+    
+    ; Try high byte first
+    MOV R3, R2
+    SRA R3, 8
+    AND R3, MASK
+    LDI 48
+    SUB R3, R0         ; Convert to number
+    JN try_low_byte
+    NOP
+    CMP R3, 10
+    JC try_low_byte    ; Not a single digit 0-9
+    NOP
+    
+    ; High byte has the digit
+    MOV R4, R3
+    JMP push_number
+    NOP
+
+try_low_byte:
+    ; Try low byte
+    MOV R3, R2
+    AND R3, MASK
+    LDI 48
+    SUB R3, R0         ; Convert to number
+    JN not_a_number_both
+    NOP
+    CMP R3, 10
+    JC not_a_number_both  ; Not a single digit 0-9
+    NOP
+    
+    ; Low byte has the digit
+    MOV R4, R3
+
+push_number:
+    ; DEBUG: Show the digit we found
+    LDI 48
+    ADD R4, R0         ; Convert back to ASCII for display
+    STS R4, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    LDI 48
+    SUB R4, R0         ; Convert back to number
+    
+    ; Push number onto stack
     SUB SP, 1
     ST R4, SP, 0
     
-    ; Advance past the number
+    ; Advance past this word (we consumed it)
     ADD >IN, 1
     
     LDI interpret_loop_return
@@ -251,70 +297,7 @@ found_three_high:
     MOV PC, R1
     NOP
 
-found_seven_high:
-    ; DEBUG: Show we found 7 in high byte
-    LDI 55            ; '7'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    
-    ; Push 7 onto stack
-    LDI 7
-    MOV R4, R0
-    SUB SP, 1
-    ST R4, SP, 0
-    
-    ; Advance past the number
-    ADD >IN, 1
-    
-    LDI interpret_loop_return
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-found_three_low:
-    ; DEBUG: Show we found 3 in low byte
-    LDI 51            ; '3'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    
-    ; Push 3 onto stack
-    LDI 3
-    MOV R4, R0
-    SUB SP, 1
-    ST R4, SP, 0
-    
-    ; Advance past the number (the number was in low byte, so we consumed this word)
-    ADD >IN, 1
-    
-    LDI interpret_loop_return
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-found_seven_low:
-    ; DEBUG: Show we found 7 in low byte
-    LDI 55            ; '7'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    
-    ; Push 7 onto stack
-    LDI 7
-    MOV R4, R0
-    SUB SP, 1
-    ST R4, SP, 0
-    
-    ; Advance past the number (the number was in low byte, so we consumed this word)
-    ADD >IN, 1
-    
-    LDI interpret_loop_return
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-not_a_number_fixed:
+not_a_number_both:
     ; DEBUG: Show it's not a number
     LDI 88            ; 'X'
     STS R0, ES, SCR
@@ -322,13 +305,13 @@ not_a_number_fixed:
     ADD POS, 1
     
     ; Not a number, try to interpret as word
-    LDI interpret_word_fixed
+    LDI interpret_word_check_both
     MOV R1, R0
     MOV PC, R1
     NOP
 
-interpret_word_fixed:
-    ; Interpret a word from input
+interpret_word_check_both:
+    ; Interpret a word from input - check both bytes
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
@@ -339,73 +322,114 @@ interpret_word_fixed:
     ADD SCR, 1
     ADD POS, 1
     
-    ; Check for single-character operators first
+    ; Check operators in either byte
     
-    ; Check for "+" in high byte
+    ; Check for single char operators in high byte
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
     LDI 43             ; '+'
     SUB R3, R0
-    JNZ check_multiply_fixed
+    JNZ check_multiply_high
     NOP
-    ; Found "+"
+    ; Found "+" in high byte
     ADD >IN, 1
     LDI exec_add
     MOV R1, R0
     MOV PC, R1
     NOP
 
-check_multiply_fixed:
-    ; Check for "*" in high byte
+check_multiply_high:
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
     LDI 42             ; '*'
     SUB R3, R0
-    JNZ check_dot_fixed
+    JNZ check_dot_high
     NOP
-    ; Found "*"
+    ; Found "*" in high byte
     ADD >IN, 1
     LDI exec_mul
     MOV R1, R0
     MOV PC, R1
     NOP
 
-check_dot_fixed:
-    ; Check for "." in high byte
+check_dot_high:
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
     LDI 46             ; '.'
     SUB R3, R0
-    JNZ check_dup_fixed
+    JNZ check_operators_low
     NOP
-    ; Found "."
+    ; Found "." in high byte
     ADD >IN, 1
     LDI exec_dot
     MOV R1, R0
     MOV PC, R1
     NOP
 
-check_dup_fixed:
-    ; Check for "dup" - look for 'd' in high byte, 'u' in low byte, 'p' in next high byte
+check_operators_low:
+    ; Check operators in low byte
+    MOV R3, R2
+    AND R3, MASK
+    LDI 43             ; '+'
+    SUB R3, R0
+    JNZ check_multiply_low
+    NOP
+    ; Found "+" in low byte
+    ADD >IN, 1
+    LDI exec_add
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+check_multiply_low:
+    MOV R3, R2
+    AND R3, MASK
+    LDI 42             ; '*'
+    SUB R3, R0
+    JNZ check_dot_low
+    NOP
+    ; Found "*" in low byte
+    ADD >IN, 1
+    LDI exec_mul
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+check_dot_low:
+    MOV R3, R2
+    AND R3, MASK
+    LDI 46             ; '.'
+    SUB R3, R0
+    JNZ check_dup_both
+    NOP
+    ; Found "." in low byte
+    ADD >IN, 1
+    LDI exec_dot
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+check_dup_both:
+    ; Check for "dup" - must be complete in high+low bytes
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
     LDI 100            ; 'd'
     SUB R3, R0
-    JNZ unknown_word_fixed
+    JNZ unknown_word_both
     NOP
     
     MOV R3, R2
     AND R3, MASK
     LDI 117            ; 'u'
     SUB R3, R0
-    JNZ unknown_word_fixed
+    JNZ unknown_word_both
     NOP
     
-    ; Check next word for 'p'
+    ; Check next word starts with 'p'
     MOV R1, TIB
     ADD R1, >IN
     ADD R1, 1
@@ -415,7 +439,7 @@ check_dup_fixed:
     AND R3, MASK
     LDI 112            ; 'p'
     SUB R3, R0
-    JNZ unknown_word_fixed
+    JNZ unknown_word_both
     NOP
     
     ; Found "dup"
@@ -425,7 +449,7 @@ check_dup_fixed:
     MOV PC, R1
     NOP
 
-unknown_word_fixed:
+unknown_word_both:
     ; Skip unknown word - just advance by 1
     ADD >IN, 1
     LDI interpret_loop_return
@@ -499,12 +523,6 @@ dot_quote_done:
 ; =============================================
 
 exec_dup:
-    ; DEBUG: Show dup
-    LDI 68            ; 'D'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    
     LD R1, SP, 0
     SUB SP, 1
     ST R1, SP, 0
@@ -514,12 +532,6 @@ exec_dup:
     NOP
 
 exec_add:
-    ; DEBUG: Show add
-    LDI 65            ; 'A'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    
     LD R2, SP, 0
     LD R1, SP, 1
     ADD R1, R2
@@ -531,12 +543,6 @@ exec_add:
     NOP
 
 exec_mul:
-    ; DEBUG: Show mul
-    LDI 77            ; 'M'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    
     LD R2, SP, 0
     LD R1, SP, 1
     MUL R1, R2
@@ -548,12 +554,6 @@ exec_mul:
     NOP
 
 exec_dot:
-    ; DEBUG: Show dot
-    LDI 46            ; '.'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    
     LD R1, SP, 0
     ADD SP, 1
     ADD R1, 0
@@ -617,13 +617,13 @@ user_input:
     .word 0x696E       ; 'i', 'n'
     .word 0x6773       ; 'g', 's'
     .word 0x2122       ; '!', '"'
-    .word 0x2033       ; ' ', '3'  ← Space in high byte, '3' in low byte
-    .word 0x202A       ; ' ', '*'  ← Space in high byte, '*' in low byte  
-    .word 0x2037       ; ' ', '7'  ← Space in high byte, '7' in low byte
-    .word 0x2064       ; ' ', 'd'  ← Space in high byte, 'd' in low byte
-    .word 0x7570       ; 'u', 'p'  ← 'u' in high byte, 'p' in low byte
-    .word 0x202B       ; ' ', '+'  ← Space in high byte, '+' in low byte
-    .word 0x202E       ; ' ', '.'  ← Space in high byte, '.' in low byte
+    .word 0x2033       ; ' ', '3'  ← This word has '3' in low byte!
+    .word 0x202A       ; ' ', '*'  ← This word has '*' in low byte!
+    .word 0x2037       ; ' ', '7'  ← This word has '7' in low byte!
+    .word 0x2064       ; ' ', 'd'  ← This word has 'd' in low byte!
+    .word 0x7570       ; 'u', 'p'  
+    .word 0x202B       ; ' ', '+'  ← This word has '+' in low byte!
+    .word 0x202E       ; ' ', '.'  ← This word has '.' in low byte!
     .word 0x0000       ; Null terminator
 
 kernel_end:
