@@ -1,6 +1,6 @@
 ; =============================================
 ; Enhanced Deep16 Forth Kernel
-; Using revised architecture features CORRECTLY
+; Fixed string handling version
 ; =============================================
 
 .org 0x0100
@@ -151,6 +151,7 @@ emit_done:
     MOV PC, NEXT
     NOP
 
+; TELL - print packed string until zero byte (FIXED VERSION)
 d_tell:
     LD R3, SP, 0      ; Get string address
     ADD SP, 1
@@ -161,9 +162,11 @@ tell_loop:
     JZ tell_done
     NOP
 
+    ; Process high byte first (correct order)
     MOV R2, R1
-    SWB R2
-    AND R2, MASK      ; Get high byte
+    SWB R2           ; Swap bytes to get correct order
+    SRA R2, 8        ; Shift right to get high byte in low position
+    AND R2, MASK
     ADD R2, 0
     JZ skip_high
     NOP
@@ -182,8 +185,9 @@ tell_loop:
 high_ok:
 
 skip_high:
+    ; Process low byte
     MOV R2, R1
-    AND R2, MASK      ; Get low byte
+    AND R2, MASK     ; Get low byte
     ADD R2, 0
     JZ tell_next_word
     NOP
@@ -325,7 +329,7 @@ dot_done:
     MOV PC, NEXT
     NOP
 
-; .H (DOT_HEX) - print top of stack as hexadecimal (NEW)
+; .H (DOT_HEX) - print top of stack as hexadecimal
 d_dot_hex:
     LD R1, SP, 0      ; value
     ADD SP, 1         ; pop
@@ -368,214 +372,7 @@ d_halt:
     HLT
 
 ; =============================================
-; Enhanced String Interpreter (EVAL)
-; Uses actual useful enhancements
-; =============================================
-
-d_eval:
-    LD R3, SP, 0      ; R3 = address of packed string
-    ADD SP, 1
-    LDI 0
-    MOV R9, R0        ; byteSel: 0=high,1=low
-
-eval_next:
-    LD R1, R3, 0      ; current word
-    ADD R1, 0
-    JZ eval_done
-    NOP
-
-    MOV R2, R1
-    ADD R9, 0
-    JZ eval_use_high
-    NOP
-    AND R2, MASK      ; low byte
-    LDI eval_have_char
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_use_high:
-    SWB R2
-    AND R2, MASK      ; high byte
-eval_have_char:
-    ; Skip spaces using actual useful comparison
-    MOV R5, R2
-    LDI 32            ; space character
-    SUB R5, R0
-    JNZ eval_after_space
-    NOP
-    ; Consume space and continue
-    ADD R9, 0
-    JZ eval_consume_set_low
-    NOP
-    ADD R3, 1
-    LDI 0
-    MOV R9, R0
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_consume_set_low:
-    LDI 1
-    MOV R9, R0
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-
-eval_after_space:
-    ; Check for operators using actual useful comparisons
-    MOV R5, R2
-    LDI 43            ; '+'
-    SUB R5, R0
-    JNZ eval_after_add
-    NOP
-    ; Handle addition - use actual instruction
-    LD R2, SP, 0
-    LD R1, SP, 1
-    ADD R1, R2
-    ADD SP, 1
-    ST R1, SP, 0
-    LDI eval_consume_op
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-
-eval_after_add:
-    MOV R5, R2
-    LDI 42            ; '*'
-    SUB R5, R0
-    JNZ eval_after_mul
-    NOP
-    ; Handle multiplication
-    LD R2, SP, 0
-    LD R1, SP, 1
-    MUL R1, R2
-    ADD SP, 1
-    ST R1, SP, 0
-    LDI eval_consume_op
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-
-eval_after_mul:
-    MOV R5, R2
-    LDI 46            ; '.'
-    SUB R5, R0
-    JNZ eval_after_dot
-    NOP
-    ; Handle dot (print) - jump to actual routine
-    LD R1, SP, 0
-    ADD SP, 1
-    LDI d_dot
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-
-eval_after_dot:
-    ; Parse numbers (0-9) using actual range check
-    MOV R5, R2
-    LDI 48            ; '0'
-    SUB R5, R0        ; c - '0'
-    JN eval_next      ; Below '0'
-    NOP
-    MOV R5, R2
-    LDI 57            ; '9'
-    MOV R6, R0        ; Load '9' into register
-    SUB R6, R5        ; '9' - c  
-    JN eval_next      ; Above '9'
-    NOP
-
-    ; Parse number sequence
-    LDI 0
-    MOV R1, R0        ; acc = 0
-eval_num_loop:
-    ; Add current digit
-    MOV R5, R2
-    LDI 48            ; '0'
-    SUB R5, R0        ; Convert to digit value
-    MOV R6, R1
-    LDI 10            ; base 10
-    MOV R7, R0
-    MUL R6, R7        ; acc * 10
-    ADD R6, R5        ; + digit
-    MOV R1, R6
-    
-    ; Peek next character
-    ADD R9, 0
-    JNZ eval_peek_next_low
-    NOP
-    ; Currently at high byte, next is low byte of same word
-    LD R7, R3, 0
-    AND R7, MASK      ; Low byte
-    MOV R2, R7
-    LDI 1
-    MOV R9, R0        ; Move to low byte position
-    LDI eval_check_next_digit
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_peek_next_low:
-    ; Currently at low byte, next is high byte of next word
-    ADD R3, 1
-    LD R7, R3, 0
-    SWB R7            ; Swap to get high byte
-    AND R7, MASK
-    MOV R2, R7
-    LDI 0
-    MOV R9, R0        ; Move to high byte position
-eval_check_next_digit:
-    ; Check if next character is a digit
-    MOV R5, R2
-    LDI 48            ; '0'
-    SUB R5, R0
-    JN eval_num_done  ; Not a digit
-    NOP
-    MOV R5, R2
-    LDI 57            ; '9'
-    MOV R6, R0
-    SUB R6, R5
-    JN eval_num_done  ; Not a digit
-    NOP
-    LDI eval_num_loop ; Continue parsing
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-
-eval_num_done:
-    ; Push parsed number
-    SUB SP, 1
-    ST R1, SP, 0
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-
-eval_consume_op:
-    ; Consume the operator character
-    ADD R9, 0
-    JNZ eval_op_was_low
-    NOP
-    LDI 1
-    MOV R9, R0        ; Was high byte, move to low
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-eval_op_was_low:
-    LDI 0
-    MOV R9, R0        ; Was low byte, move to next word's high
-    ADD R3, 1
-    LDI eval_next
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-
-eval_done:
-    MOV PC, NEXT
-    NOP
-
-; =============================================
-; Demo Program
+; Demo Program with CORRECT string packing
 ; =============================================
 user_program:
     .word d_lit
@@ -583,7 +380,6 @@ user_program:
     .word d_tell        ; Print "Deep16 Forth"
     .word d_lit
     .word 42
-    .word d_dup
     .word d_dot         ; Print "42"
     .word d_lit
     .word hex_msg
@@ -607,25 +403,26 @@ user_program:
     .word d_cr
     .word d_halt
 
+; CORRECT string packing - high byte first, then low byte
 program_msg:
-    .word 0x6544       ; 'e' 'D' (swapped)
-    .word 0x7036       ; 'p' '6'
-    .word 0x3120       ; '1' ' '
-    .word 0x6F46       ; 'o' 'F'
-    .word 0x7472       ; 't' 'r'
-    .word 0x2068       ; ' ' 'h'
+    .word 0x4465       ; 'D' 'e' (high: 'D', low: 'e')
+    .word 0x6570       ; 'e' 'p'
+    .word 0x3631       ; '6' '1'
+    .word 0x2046       ; ' ' 'F'
+    .word 0x6F72       ; 'o' 'r'
+    .word 0x7468       ; 't' 'h'
     .word 0x0000       ; Null terminator
 
 hex_msg:
-    .word 0x6820       ; 'h' ' '
-    .word 0x7865       ; 'x' 'e'
-    .word 0x203A       ; ' ' ':'
+    .word 0x2068       ; ' ' 'h'
+    .word 0x6578       ; 'e' 'x'
+    .word 0x3A20       ; ':' ' '
     .word 0x0000       ; Null terminator
 
 calc_msg:
-    .word 0x6554       ; 'e' 'T'
-    .word 0x7473       ; 't' 's'
-    .word 0x203A       ; ' ' ':'
+    .word 0x5465       ; 'T' 'e'
+    .word 0x7374       ; 's' 't'
+    .word 0x3A20       ; ':' ' '
     .word 0x0000       ; Null terminator
 
 ; =============================================
@@ -636,7 +433,7 @@ dict_start:
 ; EXIT
 .word 0
 .word 0x4004
-.word 0x5845           ; 'X' 'E' (swapped)
+.word 0x4558           ; 'E' 'X' (correct order)
 .word 0x5449           ; 'T' 'I'
 .word 0x0000
 .word d_exit
@@ -644,14 +441,14 @@ dict_start:
 ; LIT  
 .word dict_start
 .word 0x4003
-.word 0x494C           ; 'I' 'L' (swapped)
+.word 0x4C49           ; 'L' 'I' (correct order)
 .word 0x0054           ; 'T' + padding
 .word d_lit
 
 ; .H (DOT_HEX)
 .word dict_start+12
 .word 0x4002
-.word 0x482E           ; 'H' '.' (swapped)
+.word 0x2E48           ; '.' 'H' (correct order)
 .word d_dot_hex
 
 kernel_end:
