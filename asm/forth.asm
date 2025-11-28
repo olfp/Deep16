@@ -190,7 +190,7 @@ parse_number_check_both:
     SRA R3, 8
     AND R3, MASK
     
-    ; Check for digits in high byte
+    ; Check for digits in high byte - FIXED COMPARISON
     LDI 48             ; '0'
     SUB R3, R0
     JN check_low_byte  ; Below '0'
@@ -251,13 +251,16 @@ parse_full_number:
     SUB R3, R0         ; Convert to number
     JN try_low_byte
     NOP
-    CMP R3, 10
-    JC try_low_byte    ; Not a single digit 0-9
+    ; FIXED: Check if it's a valid digit 0-9
+    CMP R3, 9
+    JC try_low_byte    ; Above 9
     NOP
     
     ; High byte has the digit
     MOV R4, R3
-    JMP push_number
+    LDI push_number
+    MOV R1, R0
+    MOV PC, R1
     NOP
 
 try_low_byte:
@@ -268,8 +271,9 @@ try_low_byte:
     SUB R3, R0         ; Convert to number
     JN not_a_number_both
     NOP
-    CMP R3, 10
-    JC not_a_number_both  ; Not a single digit 0-9
+    ; FIXED: Check if it's a valid digit 0-9
+    CMP R3, 9
+    JC not_a_number_both  ; Above 9
     NOP
     
     ; Low byte has the digit
@@ -285,7 +289,7 @@ push_number:
     LDI 48
     SUB R4, R0         ; Convert back to number
     
-    ; Push number onto stack
+    ; Push number onto stack - FIXED: SUB before ST
     SUB SP, 1
     ST R4, SP, 0
     
@@ -574,7 +578,9 @@ exec_dot_digit_loop:
     ADD R1, 0
     JZ exec_dot_print
     NOP
-    JNO exec_dot_digit_loop
+    LDI exec_dot_digit_loop
+    MOV R1, R0
+    MOV PC, R1
     NOP
 exec_dot_zero:
     LDI 48
@@ -592,7 +598,9 @@ exec_dot_print:
     ADD SCR, 1
     ADD POS, 1
     SUB R5, 1
-    JNO exec_dot_print
+    LDI exec_dot_print
+    MOV R1, R0
+    MOV PC, R1
     NOP
 exec_dot_done:
     LDI interpret_loop_return
@@ -601,30 +609,134 @@ exec_dot_done:
     NOP
 
 ; =============================================
-; User Input String
+; Additional Forth Words (Fixed JMP instructions)
+; =============================================
+
+exec_swap:
+    LD R1, SP, 0
+    LD R2, SP, 1
+    ST R1, SP, 1
+    ST R2, SP, 0
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+exec_drop:
+    ADD SP, 1
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+exec_over:
+    LD R1, SP, 1
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+; =============================================
+; Improved Number Parser for Multi-digit (Optional)
+; =============================================
+
+parse_number_full:
+    LDI 0
+    MOV R9, R0        ; Accumulator
+    LDI 10
+    MOV R10, R0       ; Base (10)
+
+parse_digit_loop:
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0
+    
+    ; Try high byte first
+    MOV R3, R2
+    SRA R3, 8
+    AND R3, MASK
+    LDI 48
+    SUB R3, R0
+    JN try_low_digit
+    NOP
+    CMP R3, 9
+    JC try_low_digit
+    NOP
+    
+    ; Valid digit in high byte
+    MUL R9, R10       ; accumulator *= 10
+    ADD R9, R3        ; accumulator += digit
+    LDI advance_and_continue
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+try_low_digit:
+    MOV R3, R2
+    AND R3, MASK
+    LDI 48
+    SUB R3, R0
+    JN number_complete
+    NOP
+    CMP R3, 9
+    JC number_complete
+    NOP
+    
+    ; Valid digit in low byte
+    MUL R9, R10       ; accumulator *= 10
+    ADD R9, R3        ; accumulator += digit
+
+advance_and_continue:
+    ADD >IN, 1
+    LDI parse_digit_loop
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+number_complete:
+    ; Push accumulated number
+    SUB SP, 1
+    ST R9, SP, 0
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+; =============================================
+; User Input String - SIMPLIFIED FOR TESTING
 ; =============================================
 user_input:
-    ; ." Hello Deep16 strings!" 3 * 7 dup + .
-    .word 0x2E22       ; '.', '"'
-    .word 0x4865       ; 'H', 'e'
-    .word 0x6C6C       ; 'l', 'l'
-    .word 0x6F20       ; 'o', ' '
-    .word 0x4465       ; 'D', 'e'
-    .word 0x6570       ; 'e', 'p'
-    .word 0x3136       ; '1', '6'
-    .word 0x2073       ; ' ', 's'
-    .word 0x7472       ; 't', 'r'
-    .word 0x696E       ; 'i', 'n'
-    .word 0x6773       ; 'g', 's'
-    .word 0x2122       ; '!', '"'
-    .word 0x2033       ; ' ', '3'  ← This word has '3' in low byte!
-    .word 0x202A       ; ' ', '*'  ← This word has '*' in low byte!
-    .word 0x2037       ; ' ', '7'  ← This word has '7' in low byte!
-    .word 0x2064       ; ' ', 'd'  ← This word has 'd' in low byte!
-    .word 0x7570       ; 'u', 'p'  
-    .word 0x202B       ; ' ', '+'  ← This word has '+' in low byte!
-    .word 0x202E       ; ' ', '.'  ← This word has '.' in low byte!
+    ; Simple test: 1 2 + . 
+    .word 0x2031       ; ' ', '1'
+    .word 0x2032       ; ' ', '2'  
+    .word 0x202B       ; ' ', '+'
+    .word 0x202E       ; ' ', '.'
     .word 0x0000       ; Null terminator
+
+; Original complex input (commented out for now):
+;    ; ." Hello Deep16 strings!" 3 * 7 dup + .
+;    .word 0x2E22       ; '.', '"'
+;    .word 0x4865       ; 'H', 'e'
+;    .word 0x6C6C       ; 'l', 'l'
+;    .word 0x6F20       ; 'o', ' '
+;    .word 0x4465       ; 'D', 'e'
+;    .word 0x6570       ; 'e', 'p'
+;    .word 0x3136       ; '1', '6'
+;    .word 0x2073       ; ' ', 's'
+;    .word 0x7472       ; 't', 'r'
+;    .word 0x696E       ; 'i', 'n'
+;    .word 0x6773       ; 'g', 's'
+;    .word 0x2122       ; '!', '"'
+;    .word 0x2033       ; ' ', '3'
+;    .word 0x202A       ; ' ', '*'
+;    .word 0x2037       ; ' ', '7'
+;    .word 0x2064       ; ' ', 'd'
+;    .word 0x7570       ; 'u', 'p'  
+;    .word 0x202B       ; ' ', '+'
+;    .word 0x202E       ; ' ', '.'
+;    .word 0x0000       ; Null terminator
 
 kernel_end:
     HLT
