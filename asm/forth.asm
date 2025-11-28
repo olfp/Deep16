@@ -167,51 +167,71 @@ parse_word:
 
 check_number:
     ; Try to parse a number first
-    LDI parse_number_debug
+    LDI parse_number_fixed
     MOV R1, R0
     MOV PC, R1
     NOP
 
-parse_number_debug:
+parse_number_fixed:
     ; DEBUG: Show we're trying to parse a number
     LDI 78            ; 'N'
     STS R0, ES, SCR
     ADD SCR, 1
     ADD POS, 1
     
-    ; Try to parse a number - ULTRA SIMPLIFIED
+    ; Try to parse a number - FIXED VERSION
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
     
-    ; Check high byte for single digit '3' or '7'
+    ; Check BOTH bytes for digits since numbers might be in either position
+    
+    ; Check high byte first
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
     
-    ; Check for '3'
+    ; Check for '3' in high byte
     LDI 51            ; '3'
     SUB R3, R0
-    JZ found_three
+    JZ found_three_high
     NOP
     
-    ; Check for '7'  
+    ; Check for '7' in high byte
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
     LDI 55            ; '7'
     SUB R3, R0
-    JZ found_seven
+    JZ found_seven_high
+    NOP
+    
+    ; Check low byte for digits
+    MOV R3, R2
+    AND R3, MASK
+    
+    ; Check for '3' in low byte
+    LDI 51            ; '3'
+    SUB R3, R0
+    JZ found_three_low
+    NOP
+    
+    ; Check for '7' in low byte
+    MOV R3, R2
+    AND R3, MASK
+    LDI 55            ; '7'
+    SUB R3, R0
+    JZ found_seven_low
     NOP
     
     ; Not a number we recognize
-    LDI not_a_number_debug
+    LDI not_a_number_fixed
     MOV R1, R0
     MOV PC, R1
     NOP
 
-found_three:
-    ; DEBUG: Show we found 3
+found_three_high:
+    ; DEBUG: Show we found 3 in high byte
     LDI 51            ; '3'
     STS R0, ES, SCR
     ADD SCR, 1
@@ -231,8 +251,8 @@ found_three:
     MOV PC, R1
     NOP
 
-found_seven:
-    ; DEBUG: Show we found 7
+found_seven_high:
+    ; DEBUG: Show we found 7 in high byte
     LDI 55            ; '7'
     STS R0, ES, SCR
     ADD SCR, 1
@@ -252,7 +272,49 @@ found_seven:
     MOV PC, R1
     NOP
 
-not_a_number_debug:
+found_three_low:
+    ; DEBUG: Show we found 3 in low byte
+    LDI 51            ; '3'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    
+    ; Push 3 onto stack
+    LDI 3
+    MOV R4, R0
+    SUB SP, 1
+    ST R4, SP, 0
+    
+    ; Advance past the number (the number was in low byte, so we consumed this word)
+    ADD >IN, 1
+    
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+found_seven_low:
+    ; DEBUG: Show we found 7 in low byte
+    LDI 55            ; '7'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    
+    ; Push 7 onto stack
+    LDI 7
+    MOV R4, R0
+    SUB SP, 1
+    ST R4, SP, 0
+    
+    ; Advance past the number (the number was in low byte, so we consumed this word)
+    ADD >IN, 1
+    
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+not_a_number_fixed:
     ; DEBUG: Show it's not a number
     LDI 88            ; 'X'
     STS R0, ES, SCR
@@ -260,12 +322,12 @@ not_a_number_debug:
     ADD POS, 1
     
     ; Not a number, try to interpret as word
-    LDI interpret_word_simple
+    LDI interpret_word_fixed
     MOV R1, R0
     MOV PC, R1
     NOP
 
-interpret_word_simple:
+interpret_word_fixed:
     ; Interpret a word from input
     MOV R1, TIB
     ADD R1, >IN
@@ -285,7 +347,7 @@ interpret_word_simple:
     AND R3, MASK
     LDI 43             ; '+'
     SUB R3, R0
-    JNZ check_multiply_simple
+    JNZ check_multiply_fixed
     NOP
     ; Found "+"
     ADD >IN, 1
@@ -294,14 +356,14 @@ interpret_word_simple:
     MOV PC, R1
     NOP
 
-check_multiply_simple:
+check_multiply_fixed:
     ; Check for "*" in high byte
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
     LDI 42             ; '*'
     SUB R3, R0
-    JNZ check_dot_simple
+    JNZ check_dot_fixed
     NOP
     ; Found "*"
     ADD >IN, 1
@@ -310,14 +372,14 @@ check_multiply_simple:
     MOV PC, R1
     NOP
 
-check_dot_simple:
+check_dot_fixed:
     ; Check for "." in high byte
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
     LDI 46             ; '.'
     SUB R3, R0
-    JNZ check_dup_simple
+    JNZ check_dup_fixed
     NOP
     ; Found "."
     ADD >IN, 1
@@ -326,21 +388,21 @@ check_dot_simple:
     MOV PC, R1
     NOP
 
-check_dup_simple:
+check_dup_fixed:
     ; Check for "dup" - look for 'd' in high byte, 'u' in low byte, 'p' in next high byte
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
     LDI 100            ; 'd'
     SUB R3, R0
-    JNZ unknown_word_simple
+    JNZ unknown_word_fixed
     NOP
     
     MOV R3, R2
     AND R3, MASK
     LDI 117            ; 'u'
     SUB R3, R0
-    JNZ unknown_word_simple
+    JNZ unknown_word_fixed
     NOP
     
     ; Check next word for 'p'
@@ -353,7 +415,7 @@ check_dup_simple:
     AND R3, MASK
     LDI 112            ; 'p'
     SUB R3, R0
-    JNZ unknown_word_simple
+    JNZ unknown_word_fixed
     NOP
     
     ; Found "dup"
@@ -363,7 +425,7 @@ check_dup_simple:
     MOV PC, R1
     NOP
 
-unknown_word_simple:
+unknown_word_fixed:
     ; Skip unknown word - just advance by 1
     ADD >IN, 1
     LDI interpret_loop_return
@@ -555,13 +617,13 @@ user_input:
     .word 0x696E       ; 'i', 'n'
     .word 0x6773       ; 'g', 's'
     .word 0x2122       ; '!', '"'
-    .word 0x2033       ; ' ', '3'  - This is what we need to parse
-    .word 0x202A       ; ' ', '*'
-    .word 0x2037       ; ' ', '7'  - This is what we need to parse  
-    .word 0x2064       ; ' ', 'd'
-    .word 0x7570       ; 'u', 'p'
-    .word 0x202B       ; ' ', '+'
-    .word 0x202E       ; ' ', '.'
+    .word 0x2033       ; ' ', '3'  ← Space in high byte, '3' in low byte
+    .word 0x202A       ; ' ', '*'  ← Space in high byte, '*' in low byte  
+    .word 0x2037       ; ' ', '7'  ← Space in high byte, '7' in low byte
+    .word 0x2064       ; ' ', 'd'  ← Space in high byte, 'd' in low byte
+    .word 0x7570       ; 'u', 'p'  ← 'u' in high byte, 'p' in low byte
+    .word 0x202B       ; ' ', '+'  ← Space in high byte, '+' in low byte
+    .word 0x202E       ; ' ', '.'  ← Space in high byte, '.' in low byte
     .word 0x0000       ; Null terminator
 
 kernel_end:
