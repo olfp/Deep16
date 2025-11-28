@@ -330,24 +330,31 @@ d_dot_hex:
     LD R1, SP, 0      ; value
     ADD SP, 1         ; pop
     LDI 4
-    MOV R3, R0        ; shift count = 4
-    LDI 4
-    MOV R5, R0        ; digit count (16 bits = 4 hex digits)
+    MOV R5, R0        ; digit count
     
 hex_loop:
     MOV R2, R1
     AND R2, 0x000F    ; Get lowest nibble
-    LDI 48
-    ADD R2, R0        ; Convert to ASCII
-    CMP R2, 57        ; '9'
-    JNO hex_digit     ; If <= '9', it's fine
+    ; Check if digit > 9 using register comparison
+    LDI 9
+    MOV R3, R0
+    SUB R3, R2        ; 9 - digit
+    JC is_hex_letter  ; If digit > 9
     NOP
-    ADD R2, 7         ; Adjust to 'A'-'F'
-hex_digit:
+    ; Digit 0-9
+    LDI 48
+    ADD R2, R0
+    JMP hex_output
+    NOP
+is_hex_letter:
+    ; Digit A-F  
+    LDI 55            ; 'A' - 10
+    ADD R2, R0
+hex_output:
     STS R2, ES, SCR
     ADD SCR, 1
     ADD POS, 1
-    SRA R1, 4         ; Use shift: move to next nibble
+    SRA R1, 4         ; Shift to next nibble
     SUB R5, 1
     JNZ hex_loop
     NOP
