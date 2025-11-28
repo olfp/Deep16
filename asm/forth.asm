@@ -71,15 +71,21 @@ print_char:
     ; Newline needed - move to next line
     LDI 0
     MOV POS, R0
-    ADD SCR, 80        ; Skip to next line (80 chars per line)
+    ; Calculate next line: SCR = SCR + 80 - 80 (we're already at end of line)
+    ; Just set SCR to beginning of next line manually
+    MOV R1, SCR
+    LDI 80
+    ADD R1, R0
+    MOV SCR, R1
     
 print_char_done:
-    LDI interpret_loop_return  ; Return to caller
+    ; Return to caller - the return address should be in interpret_loop_return
+    LDI interpret_loop_return
     MOV R1, R0
     MOV PC, R1
     NOP
 
-; Print debug character
+; Print debug character (no newline handling)
 debug_char:
     STS R0, ES, SCR    ; Print the character in R0
     ADD SCR, 1
@@ -126,7 +132,7 @@ after_whitespace:
     ; DEBUG: Show current position
     LDI 62            ; '>'
     MOV R0, R0        ; Prepare for print_char
-    LDI print_char
+    LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
