@@ -1,5 +1,3 @@
-I'll completely reorganize and update the Deep16 architecture document with all the changes. Here's the revised structure:
-
 # Deep16 (深十六) Architecture Specification Milestone 3
 ## 16-bit RISC Processor with Enhanced Memory Addressing
 
@@ -135,6 +133,13 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | **SMV** | `SMV Rd, PSW` | `1111111110 10 Rd4` | `Rd = PSW` |
 | **SMV** | `SMV Rd, ACS` | `1111111110 11 Rd4` | `Rd = CS'` |
 
+**MOV with immediate value 3 (AMV/ALNK aliases):**
+- Bypasses all pipeline forwarding mechanisms
+- Reads the current architectural state from register file
+- Essential for reading PC in branch delay slots
+- Causes 1-cycle stall since it cannot use forwarded values
+- Provides synchronization point for reading stable state
+
 ### 3.3 ALU Instructions - Group 1: Basic Operations
 
 **Table F: Basic ALU Instructions**
@@ -150,13 +155,13 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | **AND** | `AND Rd, Rs` | `110 00110 Rd4 Rs4` | `Rd = Rd & Rs`, set flags |
 | **AND** | `AND Rd, imm` | `110 00111 Rd4 imm4` | `Rd = Rd & imm`, set flags |
 | **TBC** | `TBC Rd, Rs` | `110 01000 Rd4 Rs4` | `Rd & Rs`, set flags only |
-| **TBC** | `TBC Rd, count` | `110 01001 Rd4 count4` | `Rd & (1<<count)`, Z=1 if bit CLEAR |
+| **TBC** | `TBC Rd, count` | `110 01001 Rd4 count4` | `Rd & (1<<count)`, **Z=1 if bit CLEAR** |
 | **OR** | `OR Rd, Rs` | `110 01010 Rd4 Rs4` | `Rd = Rd | Rs`, set flags |
 | **OR** | `OR Rd, imm` | `110 01011 Rd4 imm4` | `Rd = Rd | imm`, set flags |
 | **XOR** | `XOR Rd, Rs` | `110 01100 Rd4 Rs4` | `Rd = Rd ^ Rs`, set flags |
 | **XOR** | `XOR Rd, imm` | `110 01101 Rd4 imm4` | `Rd = Rd ^ imm`, set flags |
 | **TBS** | `TBS Rd, Rs` | `110 01110 Rd4 Rs4` | `Rd ^ Rs`, set flags only |
-| **TBS** | `TBS Rd, count` | `110 01111 Rd4 count4` | `Rd ^ (1<<count)`, Z=1 if bit SET |
+| **TBS** | `TBS Rd, count` | `110 01111 Rd4 count4` | `Rd ^ (1<<count)`, **Z=1 if bit SET** |
 
 ### 3.4 ALU Instructions - Group 2: Shift/Rotate Operations
 
@@ -177,6 +182,8 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | **ROR** | `ROR Rd, count` | `110 11010 Rd4 count4` | `Rd = (Rd >> count) | (Rd << (16-count))` |
 | **RRC** | `RRC Rd, count` | `110 11011 Rd4 count4` | `Rd = (Rd >> count) | (C << (15-count)) | (Rd << (16-count))` |
 
+**Note**: Arithmetic shifts (SLA, SLAC, SRA, SRAC) preserve the sign bit for two's complement operations, while logical shifts (SL, SLC, SR, SRC) treat values as unsigned.
+
 ### 3.5 ALU Instructions - Group 3: Multiply/Divide Operations
 
 **Table H: Multiply/Divide Instructions**
@@ -187,6 +194,14 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | **MUL32** | `MUL32 Rd, Rs` | `110 11101 Rd4 Rs4` | `R[d]:R[d+1] = Rd * Rs` (Rd must be UNEVEN) |
 | **DIV** | `DIV Rd, Rs` | `110 11110 Rd4 Rs4` | `Rd = Rd / Rs` (16÷16→16-bit quotient) |
 | **DIV32** | `DIV32 Rd, Rs` | `110 11111 Rd4 Rs4` | `R[d]:R[d+1] = Rd / Rs` (Rd must be UNEVEN) |
+
+**32-bit Operation Requirements:**
+- MUL32/DIV32 require UNEVEN register numbers (1,3,5,7,9,11,13)
+- Assembler must enforce this constraint
+- Runtime behavior is undefined if even register specified  
+- Result: R[d] = low 16 bits, R[d+1] = high 16 bits
+- For MUL32: R[d]:R[d+1] = Rd × Rs
+- For DIV32: R[d] = quotient, R[d+1] = remainder
 
 ### 3.6 Single Operand ALU Operations
 
@@ -372,6 +387,7 @@ The immediate value `3` in MOV instructions has special meaning:
 - When detected by hardware (immediate value = 3), forwarding is bypassed and the register file is read directly
 - This enables correct PC reading for link instructions in delay slots
 - For general registers, this provides a mechanism to read stable architectural state
+- **Pipeline effect**: Causes 1-cycle stall since it cannot use forwarded values
 
 ---
 
@@ -397,11 +413,11 @@ The immediate value `3` in MOV instructions has special meaning:
 0xFFFF1: 0xFF41    ; MVS  DS, R0
 0xFFFF2: 0xFF42    ; MVS  SS, R0
 0xFFFF3: 0xFC21    ; LSI  R1, 1
-0xFFFF4: 0xFE01    ; SWB  R1
+0xFFFF4: 0xFE01    ; SWB  R1        ; R1 = 0x0100 (user program start address)
 0xFFFF5: 0xA200    ; ST   R1, [R0+0]
 0xFFFF6: 0xA201    ; ST   R1, [R0+1]
 0xFFFF7: 0xA202    ; ST   R1, [R0+2]
-0xFFFF8: 0xFE40    ; JML  R0        ; Jump to CS=R0, PC=R1
+0xFFFF8: 0xFE40    ; JML  R0        ; Jump to CS=R0, PC=R1 (0x0000:0x0100)
 0xFFFF9: 0xFFF0    ; NOP             ; Delay slot
 0xFFFFA: 0xFFFF    ; HLT
 0xFFFFB: 0xFFFF    ; HLT
@@ -489,6 +505,19 @@ ERD  R10         ; Use R10/R11 for ES access, sets DE=1 automatically
 
 **Example Optimization:**
 ```assembly
+; Traditional approach (wasted cycle)
+LNK  R14           ; MOV R14, PC, 2
+JMP  subroutine
+NOP               ; Wasted delay slot
+return_here:      ; Execution continues here
+
+; Optimized approach (uses delay slot)
+JMP  subroutine
+ALNK R14          ; MOV R14, PC, 3 (architectural read)
+return_here:      ; Execution continues here
+
+; Both approaches set R14 to 'return_here'
+
 ; Suboptimal - empty delay slot
 ADD  R1, R2
 JZ   target
@@ -514,6 +543,13 @@ The pipeline implements comprehensive forwarding to resolve data hazards:
 - Reads the current architectural value from register file
 - Essential for correct PC reading in delay slot link instructions
 - Provides stable state access for synchronization operations
+
+**Pipeline Flush Behavior:**
+Pipeline flushes occur on:
+- RETI instruction (context switch)
+- Interrupt entry  
+- JML instruction (far jump)
+Flushes clear the pipeline and refetch from new context.
 
 ### 7.4 Performance Characteristics
 
@@ -619,6 +655,25 @@ interrupt_handler:
     RETI              ; Return and restore context
 ```
 
+### 8.4 Segment Register Conventions
+
+**Stack Segment Access:**
+- **Option A**: PSW.SR = 13 (SP), PSW.DS = 0 → SP alone accesses SS
+- **Option B**: PSW.SR = 12 (FP), PSW.DS = 1 → FP/SP pair accesses SS
+
+**Extra Segment (Screen) Access:**
+- ES = 0xF000, PSW.ER = 11, PSW.DE = 0 → R11 alone accesses screen
+- ES = 0xF000, PSW.ER = 10, PSW.DE = 1 → R10/R11 pair accesses screen
+
+**Example screen setup:**
+```assembly
+LDI  0x0FFF      ; R0 = 0x0FFF
+INV  R0          ; R0 = 0xF000
+MVS  ES, R0      ; ES = 0xF000
+LSI  R10, 0      ; R10 = 0x0000  
+ERD  R10         ; Use R10/R11 for ES access
+```
+
 ---
 
 ## 9. Implementation Notes
@@ -655,7 +710,12 @@ interrupt_handler:
 - ✅ UNEVEN register requirement for 32-bit multiply/divide
 - ✅ Reorganized document structure (ISA first, then system details)
 - ✅ Table numbering with letters (A-R) for clear reference
-- ✅ Boot ROM sequence corrected
+- ✅ Boot ROM sequence corrected with user program start comment
 - ✅ Enhanced educational focus with clear examples
+- ✅ All non-standard behaviors thoroughly explained
+- ✅ Pipeline implications for MOV immediate=3 clarified
+- ✅ Segment register conventions documented
+- ✅ Complete bit test examples included
+- ✅ Delayed branch examples expanded
 
 This revision represents a significant improvement in both encoding efficiency and educational clarity while maintaining the core RISC philosophy.
