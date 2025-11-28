@@ -11,6 +11,7 @@
 .equ MASK R4
 .equ TIB R6           ; Text Input Buffer pointer
 .equ >IN R5           ; Input pointer offset
+.equ RETURN_ADDR R11   ; For subroutine returns
 
 ; =============================================
 ; Forth Kernel Implementation
@@ -55,44 +56,23 @@ forth_start:
 ; Screen Output Utilities
 ; =============================================
 
-; Print character with newline handling
+; Print character with return address in R11
 print_char:
     STS R0, ES, SCR    ; Print the character in R0
     ADD SCR, 1
     ADD POS, 1
     
-    ; Check if we need newline (every 80 characters)
-    MOV R1, POS
-    LDI 80
-    SUB R1, R0
-    JNZ print_char_done
-    NOP
-    
-    ; Newline needed - move to next line
-    LDI 0
-    MOV POS, R0
-    ; Calculate next line: SCR = SCR + 80 - 80 (we're already at end of line)
-    ; Just set SCR to beginning of next line manually
-    MOV R1, SCR
-    LDI 80
-    ADD R1, R0
-    MOV SCR, R1
-    
-print_char_done:
-    ; Return to caller - the return address should be in interpret_loop_return
-    LDI interpret_loop_return
-    MOV R1, R0
-    MOV PC, R1
+    ; Return to caller
+    MOV PC, R11
     NOP
 
-; Print debug character (no newline handling)
+; Print debug character with return address in R11  
 debug_char:
     STS R0, ES, SCR    ; Print the character in R0
     ADD SCR, 1
     ADD POS, 1
-    LDI interpret_loop_return  ; Return to caller
-    MOV R1, R0
-    MOV PC, R1
+    ; Return to caller
+    MOV PC, R11
     NOP
 
 ; =============================================
@@ -114,7 +94,7 @@ interpret_loop:
     NOP
     
 after_whitespace:
-    ; Check if we're at end of input - IMPROVED CHECK
+    ; Check if we're at end of input
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0       ; Get current word
@@ -124,19 +104,22 @@ after_whitespace:
     
     ; Also check for maximum input length to prevent infinite loop
     MOV R3, >IN
-    LDI 20             ; Reasonable maximum input length
+    LDI 10             ; Reasonable maximum input length
     SUB R3, R0
-    JC interpret_done  ; If >IN >= 20, we've gone too far
+    JC interpret_done  ; If >IN >= 10, we've gone too far
     NOP
     
     ; DEBUG: Show current position
     LDI 62            ; '>'
-    MOV R0, R0        ; Prepare for print_char
+    MOV R0, R0
+    LDI after_debug_char
+    MOV R11, R0       ; Set return address
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_debug_char:
     ; Parse word or number
     LDI parse_word_fixed
     MOV R1, R0
@@ -150,42 +133,57 @@ interpret_loop_return:
     NOP
 
 interpret_done:
-    ; Show completion message on new line
+    ; Show completion message
     LDI 10            ; Newline
     MOV R0, R0
+    LDI after_newline
+    MOV R11, R0
     LDI print_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_newline:
     LDI 68            ; 'D'
     MOV R0, R0
+    LDI after_d
+    MOV R11, R0
     LDI print_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_d:
     LDI 79            ; 'O'
     MOV R0, R0
+    LDI after_o
+    MOV R11, R0
     LDI print_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_o:
     LDI 78            ; 'N'
     MOV R0, R0
+    LDI after_n
+    MOV R11, R0
     LDI print_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_n:
     LDI 69            ; 'E'
     MOV R0, R0
+    LDI after_e
+    MOV R11, R0
     LDI print_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_e:
     ; Halt when done interpreting
     HLT
 
@@ -256,14 +254,17 @@ parse_word_fixed:
     NOP
 
 check_number_fixed:
-    ; Try to parse a number - FIXED VERSION
+    ; Try to parse a number
     LDI 78            ; 'N' - show we're trying number
     MOV R0, R0
+    LDI after_n_debug
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_n_debug:
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
@@ -273,11 +274,14 @@ check_number_fixed:
     MOV R3, R2
     AND R3, MASK       ; Get low byte
     MOV R0, R3         ; Move to R0 for printing
+    LDI after_char_debug
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_char_debug:
     ; Check if low byte is digit '0'-'9'
     MOV R3, R2
     AND R3, MASK       ; Get low byte
@@ -304,22 +308,28 @@ check_number_fixed:
     
     LDI 68            ; 'D' - show digit found
     MOV R0, R0
+    LDI after_d_debug
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_d_debug:
     ; Push the digit value
     SUB SP, 1
     ST R3, SP, 0
     
     LDI 80            ; 'P' - show pushed
     MOV R0, R0
+    LDI after_p_debug
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_p_debug:
     ; Advance input
     ADD >IN, 1
     
@@ -332,11 +342,14 @@ not_a_number_fixed:
     ; DEBUG: Show it's not a number
     LDI 88            ; 'X'
     MOV R0, R0
+    LDI after_x_debug
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_x_debug:
     ; Not a number, try to interpret as word
     LDI interpret_word_fixed
     MOV R1, R0
@@ -352,20 +365,26 @@ interpret_word_fixed:
     ; DEBUG: Show we're interpreting a word
     LDI 87            ; 'W'
     MOV R0, R0
+    LDI after_w_debug
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_w_debug:
     ; Let's DEBUG what character we're checking
     MOV R3, R2
     AND R3, MASK       ; Get low byte
     MOV R0, R3         ; Move to R0 for printing
+    LDI after_char2_debug
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_char2_debug:
     ; For our test input, operators are in LOW byte
     ; Check low byte for operators
     MOV R3, R2
@@ -378,10 +397,14 @@ interpret_word_fixed:
     ; Found "+"
     LDI 43            ; DEBUG: Show we found '+'
     MOV R0, R0
+    LDI after_plus_debug
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
+    
+after_plus_debug:
     ADD >IN, 1
     LDI exec_add
     MOV R1, R0
@@ -398,10 +421,14 @@ check_multiply_fixed:
     ; Found "*"
     LDI 42            ; DEBUG: Show we found '*'
     MOV R0, R0
+    LDI after_star_debug
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
+    
+after_star_debug:
     ADD >IN, 1
     LDI exec_mul
     MOV R1, R0
@@ -418,10 +445,14 @@ check_dot_fixed:
     ; Found "."
     LDI 46            ; DEBUG: Show we found '.'
     MOV R0, R0
+    LDI after_dot_debug
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
+    
+after_dot_debug:
     ADD >IN, 1
     LDI exec_dot
     MOV R1, R0
@@ -470,11 +501,14 @@ unknown_word_fixed:
     ADD >IN, 1
     LDI 83            ; 'S' - show skipped
     MOV R0, R0
+    LDI after_s_debug
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_s_debug:
     LDI interpret_loop_return
     MOV R1, R0
     MOV PC, R1
@@ -508,11 +542,14 @@ dot_quote_loop:
     ; Restore character and print it
     ADD R3, R0         ; Restore original character
     MOV R0, R3
+    LDI after_char1_print
+    MOV R11, R0
     LDI print_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_char1_print:
     ; Extract low byte (second character)
     MOV R3, R2
     AND R3, MASK       ; Get low byte directly
@@ -525,11 +562,14 @@ dot_quote_loop:
     ; Restore character and print it
     ADD R3, R0         ; Restore original character
     MOV R0, R3
+    LDI after_char2_print
+    MOV R11, R0
     LDI print_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_char2_print:
     ; Advance to next word
     ADD >IN, 1
     LDI dot_quote_loop
@@ -553,17 +593,24 @@ exec_dup:
     ; DEBUG: Show executing dup
     LDI 69            ; 'E'
     MOV R0, R0
-    LDI debug_char
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-    LDI 100           ; 'd'
-    MOV R0, R0
+    LDI after_e_exec
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_e_exec:
+    LDI 100           ; 'd'
+    MOV R0, R0
+    LDI after_d_exec
+    MOV R11, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
+after_d_exec:
     LD R1, SP, 0
     SUB SP, 1
     ST R1, SP, 0
@@ -576,17 +623,24 @@ exec_add:
     ; DEBUG: Show executing add
     LDI 69            ; 'E'
     MOV R0, R0
-    LDI debug_char
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-    LDI 97            ; 'a'
-    MOV R0, R0
+    LDI after_e_add
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_e_add:
+    LDI 97            ; 'a'
+    MOV R0, R0
+    LDI after_a_add
+    MOV R11, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
+after_a_add:
     LD R2, SP, 0
     LD R1, SP, 1
     ADD R1, R2
@@ -601,17 +655,24 @@ exec_mul:
     ; DEBUG: Show executing mul
     LDI 69            ; 'E'
     MOV R0, R0
-    LDI debug_char
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-    LDI 109           ; 'm'
-    MOV R0, R0
+    LDI after_e_mul
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_e_mul:
+    LDI 109           ; 'm'
+    MOV R0, R0
+    LDI after_m_mul
+    MOV R11, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
+after_m_mul:
     LD R2, SP, 0
     LD R1, SP, 1
     MUL R1, R2
@@ -626,17 +687,24 @@ exec_dot:
     ; DEBUG: Show executing dot
     LDI 69            ; 'E'
     MOV R0, R0
-    LDI debug_char
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-    LDI 46            ; '.'
-    MOV R0, R0
+    LDI after_e_dot
+    MOV R11, R0
     LDI debug_char
     MOV R1, R0
     MOV PC, R1
     NOP
     
+after_e_dot:
+    LDI 46            ; '.'
+    MOV R0, R0
+    LDI after_dot_dot
+    MOV R11, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
+after_dot_dot:
     LD R1, SP, 0
     ADD SP, 1
     ADD R1, 0
@@ -679,10 +747,14 @@ exec_dot_print_digits:
     LD R1, SP, 0
     ADD SP, 1
     MOV R0, R1
+    LDI after_digit_print
+    MOV R11, R0
     LDI print_char
     MOV R1, R0
     MOV PC, R1
     NOP
+    
+after_digit_print:
     SUB R5, 1
     LDI exec_dot_print_digits
     MOV R1, R0
