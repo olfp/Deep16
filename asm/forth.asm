@@ -52,6 +52,44 @@ forth_start:
     NOP
 
 ; =============================================
+; Screen Output Utilities
+; =============================================
+
+; Print character with newline handling
+print_char:
+    STS R0, ES, SCR    ; Print the character in R0
+    ADD SCR, 1
+    ADD POS, 1
+    
+    ; Check if we need newline (every 80 characters)
+    MOV R1, POS
+    LDI 80
+    SUB R1, R0
+    JNZ print_char_done
+    NOP
+    
+    ; Newline needed - move to next line
+    LDI 0
+    MOV POS, R0
+    ADD SCR, 80        ; Skip to next line (80 chars per line)
+    
+print_char_done:
+    LDI interpret_loop_return  ; Return to caller
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+; Print debug character
+debug_char:
+    STS R0, ES, SCR    ; Print the character in R0
+    ADD SCR, 1
+    ADD POS, 1
+    LDI interpret_loop_return  ; Return to caller
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+; =============================================
 ; Text Interpreter Core
 ; =============================================
 
@@ -87,9 +125,11 @@ after_whitespace:
     
     ; DEBUG: Show current position
     LDI 62            ; '>'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0        ; Prepare for print_char
+    LDI print_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     ; Parse word or number
     LDI parse_word_fixed
@@ -104,27 +144,41 @@ interpret_loop_return:
     NOP
 
 interpret_done:
-    ; Show completion message
+    ; Show completion message on new line
     LDI 10            ; Newline
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI print_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
     LDI 68            ; 'D'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI print_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
     LDI 79            ; 'O'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI print_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
     LDI 78            ; 'N'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI print_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
     LDI 69            ; 'E'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI print_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     ; Halt when done interpreting
     HLT
@@ -198,9 +252,11 @@ parse_word_fixed:
 check_number_fixed:
     ; Try to parse a number - FIXED VERSION
     LDI 78            ; 'N' - show we're trying number
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     MOV R1, TIB
     ADD R1, >IN
@@ -210,9 +266,11 @@ check_number_fixed:
     ; Let's DEBUG what we're actually reading
     MOV R3, R2
     AND R3, MASK       ; Get low byte
-    STS R3, ES, SCR    ; DEBUG: Show the actual character
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R3         ; Move to R0 for printing
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     ; Check if low byte is digit '0'-'9'
     MOV R3, R2
@@ -239,18 +297,22 @@ check_number_fixed:
     SUB R3, R0         ; R3 now contains 0-9
     
     LDI 68            ; 'D' - show digit found
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     ; Push the digit value
     SUB SP, 1
     ST R3, SP, 0
     
     LDI 80            ; 'P' - show pushed
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     ; Advance input
     ADD >IN, 1
@@ -263,9 +325,11 @@ check_number_fixed:
 not_a_number_fixed:
     ; DEBUG: Show it's not a number
     LDI 88            ; 'X'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     ; Not a number, try to interpret as word
     LDI interpret_word_fixed
@@ -281,16 +345,20 @@ interpret_word_fixed:
     
     ; DEBUG: Show we're interpreting a word
     LDI 87            ; 'W'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     ; Let's DEBUG what character we're checking
     MOV R3, R2
     AND R3, MASK       ; Get low byte
-    STS R3, ES, SCR    ; DEBUG: Show the actual character
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R3         ; Move to R0 for printing
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     ; For our test input, operators are in LOW byte
     ; Check low byte for operators
@@ -303,9 +371,11 @@ interpret_word_fixed:
     NOP
     ; Found "+"
     LDI 43            ; DEBUG: Show we found '+'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     ADD >IN, 1
     LDI exec_add
     MOV R1, R0
@@ -321,9 +391,11 @@ check_multiply_fixed:
     NOP
     ; Found "*"
     LDI 42            ; DEBUG: Show we found '*'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     ADD >IN, 1
     LDI exec_mul
     MOV R1, R0
@@ -339,9 +411,11 @@ check_dot_fixed:
     NOP
     ; Found "."
     LDI 46            ; DEBUG: Show we found '.'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     ADD >IN, 1
     LDI exec_dot
     MOV R1, R0
@@ -389,9 +463,11 @@ unknown_word_fixed:
     ; Skip unknown word
     ADD >IN, 1
     LDI 83            ; 'S' - show skipped
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     LDI interpret_loop_return
     MOV R1, R0
@@ -425,9 +501,11 @@ dot_quote_loop:
     
     ; Restore character and print it
     ADD R3, R0         ; Restore original character
-    STS R3, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R3
+    LDI print_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     ; Extract low byte (second character)
     MOV R3, R2
@@ -440,9 +518,11 @@ dot_quote_loop:
     
     ; Restore character and print it
     ADD R3, R0         ; Restore original character
-    STS R3, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R3
+    LDI print_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     ; Advance to next word
     ADD >IN, 1
@@ -466,13 +546,17 @@ dot_quote_done:
 exec_dup:
     ; DEBUG: Show executing dup
     LDI 69            ; 'E'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     LDI 100           ; 'd'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     LD R1, SP, 0
     SUB SP, 1
@@ -485,13 +569,17 @@ exec_dup:
 exec_add:
     ; DEBUG: Show executing add
     LDI 69            ; 'E'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     LDI 97            ; 'a'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     LD R2, SP, 0
     LD R1, SP, 1
@@ -506,13 +594,17 @@ exec_add:
 exec_mul:
     ; DEBUG: Show executing mul
     LDI 69            ; 'E'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     LDI 109           ; 'm'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     LD R2, SP, 0
     LD R1, SP, 1
@@ -527,13 +619,17 @@ exec_mul:
 exec_dot:
     ; DEBUG: Show executing dot
     LDI 69            ; 'E'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     LDI 46            ; '.'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R0
+    LDI debug_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     
     LD R1, SP, 0
     ADD SP, 1
@@ -576,9 +672,11 @@ exec_dot_print_digits:
     NOP
     LD R1, SP, 0
     ADD SP, 1
-    STS R1, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
+    MOV R0, R1
+    LDI print_char
+    MOV R1, R0
+    MOV PC, R1
+    NOP
     SUB R5, 1
     LDI exec_dot_print_digits
     MOV R1, R0
@@ -586,36 +684,6 @@ exec_dot_print_digits:
     NOP
 
 exec_dot_done:
-    LDI interpret_loop_return
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-; =============================================
-; Additional Forth Words
-; =============================================
-
-exec_swap:
-    LD R1, SP, 0
-    LD R2, SP, 1
-    ST R1, SP, 1
-    ST R2, SP, 0
-    LDI interpret_loop_return
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-exec_drop:
-    ADD SP, 1
-    LDI interpret_loop_return
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-exec_over:
-    LD R1, SP, 1
-    SUB SP, 1
-    ST R1, SP, 0
     LDI interpret_loop_return
     MOV R1, R0
     MOV PC, R1
