@@ -5,8 +5,6 @@
 .org 0x0100
 .code
 
-.equ IP R11
-.equ RSP R12
 .equ SP R13
 .equ POS R7
 .equ SCR R8
@@ -22,8 +20,6 @@ forth_start:
     ; Initialize stack pointers
     LDI 0x7FF0
     MOV SP, R0
-    LDI 0x7FE0
-    MOV RSP, R0
     
     ; Set up screen segment for output
     LDI 0x0FFF
@@ -88,6 +84,7 @@ after_whitespace:
     MOV PC, R1
     NOP
     
+interpret_loop_return:
     LDI interpret_loop
     MOV R1, R0
     MOV PC, R1
@@ -169,12 +166,12 @@ parse_word:
     NOP
 
 check_number:
-    ; Check if it's a number
+    ; Check if it's a number - look at first character
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
     
-    ; Check high byte
+    ; Check high byte first
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
@@ -189,6 +186,19 @@ after_digit_check:
     JNZ parse_number
     NOP
     
+    ; Check low byte if high byte wasn't digit
+    MOV R3, R2
+    AND R3, MASK
+    LDI is_digit
+    MOV R4, R0
+    MOV PC, R4
+    NOP
+    
+after_digit_check2:
+    ADD R5, 0
+    JNZ parse_number
+    NOP
+    
     ; Not a number, try to interpret as word
     LDI interpret_word
     MOV R1, R0
@@ -197,6 +207,7 @@ after_digit_check:
 
 is_digit:
     ; Check if character in R3 is digit '0'-'9'
+    ; Returns R5 = 1 if digit, 0 if not
     LDI 0
     MOV R5, R0
     
@@ -224,33 +235,55 @@ not_digit:
     MOV R5, R0
     
 after_digit_check_return:
+    ; Return to appropriate location based on which check we were doing
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0
+    MOV R3, R2
+    SRA R3, 8
+    AND R3, MASK
+    SUB R3, R0         ; Compare with original character
+    JZ was_first_check
+    NOP
+    LDI after_digit_check2
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
+was_first_check:
     LDI after_digit_check
     MOV R1, R0
     MOV PC, R1
     NOP
 
 parse_number:
-    ; Parse number from input
+    ; Parse number from input - SIMPLIFIED VERSION
     LDI 0
     MOV R1, R0         ; accumulator
     
-number_loop:
+    ; Get the current word to start parsing
     MOV R2, TIB
     ADD R2, >IN
-    LD R3, R2, 0       ; Get current word
+    LD R3, R2, 0
     
-    ; Process high byte
+parse_digit:
+    ; Process high byte first
     MOV R4, R3
     SRA R4, 8
     AND R4, MASK
-    LDI is_digit_num
-    MOV R6, R0
-    MOV PC, R6
-    NOP
+    ADD R4, 0
+    JZ parse_low_byte  ; Skip if null
     
-after_digit_check_num:
-    ADD R5, 0
-    JZ number_done
+    ; Check if it's a digit
+    MOV R6, R4
+    LDI 48             ; '0'
+    SUB R6, R0
+    JN number_done     ; Not a digit, done
+    NOP
+    MOV R6, R4
+    LDI 57             ; '9'
+    SUB R0, R6
+    JN number_done     ; Not a digit, done
     NOP
     
     ; It's a digit, add to accumulator
@@ -264,45 +297,63 @@ after_digit_check_num:
     ADD R7, R6         ; + digit
     MOV R1, R7
     
-    ; Advance input
-    ADD >IN, 1
+    ; Mark that we consumed this character
+    LDI 1
+    MOV R9, R0
     
-    ; Check next character
-    LDI number_loop
-    MOV R6, R0
-    MOV PC, R6
-    NOP
-
-is_digit_num:
-    ; Same as is_digit but for number parsing
-    LDI 0
-    MOV R5, R0
+parse_low_byte:
+    ; Process low byte
+    MOV R4, R3
+    AND R4, MASK
+    ADD R4, 0
+    JZ parse_next_word  ; Skip if null
     
+    ; Check if it's a digit
     MOV R6, R4
     LDI 48             ; '0'
     SUB R6, R0
-    JN not_digit_num
+    JN number_done     ; Not a digit, done
     NOP
-    
     MOV R6, R4
     LDI 57             ; '9'
     SUB R0, R6
-    JN not_digit_num
+    JN number_done     ; Not a digit, done
     NOP
     
+    ; It's a digit, add to accumulator
+    MOV R6, R4
+    LDI 48
+    SUB R6, R0         ; Convert ASCII to value
+    MOV R7, R1
+    LDI 10
+    MOV R8, R0
+    MUL R7, R8         ; acc * 10
+    ADD R7, R6         ; + digit
+    MOV R1, R7
+    
+    ; Mark that we consumed this character
     LDI 1
-    MOV R5, R0
-    LDI after_digit_check_num_return
-    MOV R1, R0
-    MOV PC, R1
+    MOV R9, R0
+    
+parse_next_word:
+    ; Advance to next word if we consumed characters
+    ADD R9, 0
+    JZ number_done     ; Didn't consume any characters
     NOP
     
-not_digit_num:
+    ADD >IN, 1         ; Move to next word
     LDI 0
-    MOV R5, R0
+    MOV R9, R0         ; Reset consumption flag
     
-after_digit_check_num_return:
-    LDI after_digit_check_num
+    ; Get next word and continue parsing
+    MOV R2, TIB
+    ADD R2, >IN
+    LD R3, R2, 0
+    ADD R3, 0
+    JZ number_done     ; End of input
+    NOP
+    
+    LDI parse_digit
     MOV R1, R0
     MOV PC, R1
     NOP
@@ -323,9 +374,9 @@ interpret_word:
     ADD R1, >IN
     LD R2, R1, 0
     
-    ; Check for "dup"
+    ; Check for "dup" - high byte 'd', low byte 'u', next word high byte 'p'
     MOV R3, R2
-    SRA R3, 8          ; High byte 'd'
+    SRA R3, 8          ; High byte
     AND R3, MASK
     LDI 100            ; 'd'
     SUB R3, R0
@@ -333,13 +384,13 @@ interpret_word:
     NOP
     
     MOV R3, R2
-    AND R3, MASK       ; Low byte 'u'
+    AND R3, MASK       ; Low byte
     LDI 117            ; 'u'
     SUB R3, R0
     JNZ check_plus
     NOP
     
-    ; Check next word for 'p'
+    ; Check next word for 'p' in high byte
     MOV R1, TIB
     ADD R1, >IN
     ADD R1, 1
@@ -353,14 +404,14 @@ interpret_word:
     NOP
     
     ; Found "dup" - execute it
-    ADD >IN, 2         ; Skip "dup"
+    ADD >IN, 2         ; Skip "dup" (2 words)
     LDI exec_dup
     MOV R1, R0
     MOV PC, R1
     NOP
 
 check_plus:
-    ; Check for "+"
+    ; Check for "+" - single character in high byte
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
@@ -374,14 +425,14 @@ check_plus:
     NOP
     
     ; Found "+" - execute it
-    ADD >IN, 1
+    ADD >IN, 1         ; Skip "+" (1 word)
     LDI exec_add
     MOV R1, R0
     MOV PC, R1
     NOP
 
 check_multiply:
-    ; Check for "*"
+    ; Check for "*" - single character in high byte
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
@@ -395,14 +446,14 @@ check_multiply:
     NOP
     
     ; Found "*" - execute it
-    ADD >IN, 1
+    ADD >IN, 1         ; Skip "*" (1 word)
     LDI exec_mul
     MOV R1, R0
     MOV PC, R1
     NOP
 
 check_dot:
-    ; Check for "."
+    ; Check for "." - single character in high byte
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
@@ -416,14 +467,14 @@ check_dot:
     NOP
     
     ; Found "." - execute it
-    ADD >IN, 1
+    ADD >IN, 1         ; Skip "." (1 word)
     LDI exec_dot
     MOV R1, R0
     MOV PC, R1
     NOP
 
 unknown_word:
-    ; Skip unknown word (for now)
+    ; Skip unknown word (for now) - just advance by 1 word
     ADD >IN, 1
     LDI interpret_loop_return
     MOV R1, R0
@@ -489,12 +540,6 @@ dot_quote_done:
     ; Quote found - skip this word and continue
     ADD >IN, 1
     LDI interpret_loop_return
-    MOV R1, R0
-    MOV PC, R1
-    NOP
-
-interpret_loop_return:
-    LDI interpret_loop
     MOV R1, R0
     MOV PC, R1
     NOP
