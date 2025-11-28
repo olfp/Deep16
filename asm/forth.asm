@@ -143,7 +143,7 @@ parse_word:
     ADD R1, >IN
     LD R2, R1, 0       ; Get current word
     
-    ; Check for ." (dot-quote) string
+    ; Check for ." (dot-quote) string - look for '.' in high byte and '"' in low byte
     MOV R3, R2
     SRA R3, 8          ; High byte
     AND R3, MASK
@@ -392,12 +392,12 @@ unknown_word_simple:
     NOP
 
 ; =============================================
-; Fixed Dot-Quote String Handling
+; CORRECTED Dot-Quote String Handling
 ; =============================================
 
 handle_dot_quote:
     ; Handle ." string" - skip the ." and print until next "
-    ADD >IN, 1         ; Skip the ." word
+    ADD >IN, 1         ; Skip the ." word (0x2E22)
     
 dot_quote_loop:
     MOV R1, TIB
@@ -406,37 +406,49 @@ dot_quote_loop:
     ADD R2, 0
     JZ dot_quote_done  ; End of input
     
-    ; Extract and check high byte
+    ; DEBUG: Print '[' to show we're in string mode
+    ; LDI 91            ; '['
+    ; STS R0, ES, SCR
+    ; ADD SCR, 1
+    ; ADD POS, 1
+    
+    ; Extract high byte (first character)
     MOV R3, R2
     SRA R3, 8          ; Shift high byte to low position
     AND R3, MASK       ; Mask to get just the byte
-    ADD R3, 0
-    JZ dot_quote_check_low  ; Skip if null
+    
+    ; Check if it's the closing quote
     LDI 34             ; '"'
     SUB R3, R0
-    JZ dot_quote_done  ; Found quote in high byte, done
+    JZ dot_quote_done  ; Found quote, done
     
-    ; Print high byte character
+    ; Restore character and print it
+    ADD R3, R0         ; Restore original character
     STS R3, ES, SCR
     ADD SCR, 1
     ADD POS, 1
     
-dot_quote_check_low:
-    ; Extract and check low byte  
+    ; Extract low byte (second character)
     MOV R3, R2
     AND R3, MASK       ; Get low byte directly
-    ADD R3, 0
-    JZ dot_quote_next  ; Skip if null
+    
+    ; Check if it's the closing quote
     LDI 34             ; '"'
     SUB R3, R0
-    JZ dot_quote_done  ; Found quote in low byte, done
+    JZ dot_quote_done  ; Found quote, done
     
-    ; Print low byte character
+    ; Restore character and print it
+    ADD R3, R0         ; Restore original character
     STS R3, ES, SCR
     ADD SCR, 1
     ADD POS, 1
     
-dot_quote_next:
+    ; DEBUG: Print ']' to show we processed a word
+    ; LDI 93            ; ']'
+    ; STS R0, ES, SCR
+    ; ADD SCR, 1
+    ; ADD POS, 1
+    
     ; Advance to next word
     ADD >IN, 1
     LDI dot_quote_loop
@@ -535,22 +547,23 @@ exec_dot_done:
     NOP
 
 ; =============================================
-; User Input String
+; User Input String - VERIFIED CORRECT PACKING
 ; =============================================
 user_input:
     ; ." Hello Deep16 strings!" 3 * 7 dup + .
-    .word 0x2E22       ; '.', '"'
-    .word 0x4865       ; 'H', 'e'
-    .word 0x6C6C       ; 'l', 'l'
-    .word 0x6F20       ; 'o', ' '
-    .word 0x4465       ; 'D', 'e'
-    .word 0x6570       ; 'e', 'p'
-    .word 0x3136       ; '1', '6'
-    .word 0x2073       ; ' ', 's'
-    .word 0x7472       ; 't', 'r'
-    .word 0x696E       ; 'i', 'n'
-    .word 0x6773       ; 'g', 's'
-    .word 0x2122       ; '!', '"'
+    ; Each word contains two characters: high_byte = first char, low_byte = second char
+    .word 0x2E22       ; '.', '"'  - THIS IS CORRECT
+    .word 0x4865       ; 'H', 'e'  - 0x48='H', 0x65='e'
+    .word 0x6C6C       ; 'l', 'l'  - 0x6C='l', 0x6C='l'
+    .word 0x6F20       ; 'o', ' '  - 0x6F='o', 0x20=' '
+    .word 0x4465       ; 'D', 'e'  - 0x44='D', 0x65='e'
+    .word 0x6570       ; 'e', 'p'  - 0x65='e', 0x70='p'
+    .word 0x3136       ; '1', '6'  - 0x31='1', 0x36='6'
+    .word 0x2073       ; ' ', 's'  - 0x20=' ', 0x73='s'
+    .word 0x7472       ; 't', 'r'  - 0x74='t', 0x72='r'
+    .word 0x696E       ; 'i', 'n'  - 0x69='i', 0x6E='n'
+    .word 0x6773       ; 'g', 's'  - 0x67='g', 0x73='s'
+    .word 0x2122       ; '!', '"'  - 0x21='!', 0x22='"' - CLOSING QUOTE
     .word 0x2033       ; ' ', '3'
     .word 0x202A       ; ' ', '*'
     .word 0x2037       ; ' ', '7'
