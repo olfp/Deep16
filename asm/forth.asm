@@ -85,7 +85,7 @@ after_whitespace:
     ADD POS, 1
     
     ; Parse word or number
-    LDI parse_word
+    LDI parse_word_fixed
     MOV R1, R0
     MOV PC, R1
     NOP
@@ -138,7 +138,7 @@ skip_done_careful:
     MOV PC, R1
     NOP
 
-parse_word:
+parse_word_fixed:
     ; Here we'll parse the next word from input
     MOV R1, TIB
     ADD R1, >IN
@@ -150,14 +150,14 @@ parse_word:
     AND R3, MASK
     LDI 46             ; '.'
     SUB R3, R0
-    JNZ check_number_simple
+    JNZ check_number_fixed
     NOP
     
     MOV R3, R2
     AND R3, MASK       ; Low byte
     LDI 34             ; '"'
     SUB R3, R0
-    JNZ check_number_simple
+    JNZ check_number_fixed
     NOP
     
     ; Found ." - handle string
@@ -166,8 +166,8 @@ parse_word:
     MOV PC, R1
     NOP
 
-check_number_simple:
-    ; SIMPLIFIED: Try to parse a number - check low byte only for our test input
+check_number_fixed:
+    ; Try to parse a number - FIXED VERSION
     LDI 78            ; 'N' - show we're trying number
     STS R0, ES, SCR
     ADD SCR, 1
@@ -178,26 +178,43 @@ check_number_simple:
     LD R2, R1, 0
     
     ; For our test input "1 2 + .", the digits are in the LOW byte
-    ; Check low byte for digit '0'-'9'
+    ; Let's DEBUG what we're actually reading
+    MOV R3, R2
+    AND R3, MASK       ; Get low byte
+    STS R3, ES, SCR    ; DEBUG: Show the actual character
+    ADD SCR, 1
+    ADD POS, 1
+    
+    ; Check if low byte is digit '0'-'9'
+    MOV R3, R2
+    AND R3, MASK       ; Get low byte
+    
+    ; First check if >= '0'
+    LDI 48             ; '0'
+    SUB R3, R0         ; R3 = char - '0'
+    JN not_a_number_fixed  ; Below '0' (negative result)
+    NOP
+    
+    ; Now check if <= '9' 
+    MOV R3, R2         ; Reload original character
+    AND R3, MASK
+    LDI 57             ; '9'
+    SUB R0, R3         ; R0 = '9' - char
+    JN not_a_number_fixed  ; Above '9' (negative result means char > '9')
+    NOP
+    
+    ; Valid digit found! Convert to number
     MOV R3, R2
     AND R3, MASK       ; Get low byte
     LDI 48             ; '0'
-    SUB R3, R0         ; R3 = char - '0'
-    JN not_a_number_simple  ; Below '0'
-    NOP
+    SUB R3, R0         ; R3 now contains 0-9
     
-    ; Now check if <= 9
-    CMP R3, 9
-    JC not_a_number_simple  ; Above 9 (unsigned comparison)
-    NOP
-    
-    ; Valid digit 0-9 found!
     LDI 68            ; 'D' - show digit found
     STS R0, ES, SCR
     ADD SCR, 1
     ADD POS, 1
     
-    ; Push the digit value (already in R3 as 0-9)
+    ; Push the digit value
     SUB SP, 1
     ST R3, SP, 0
     
@@ -214,7 +231,7 @@ check_number_simple:
     MOV PC, R1
     NOP
 
-not_a_number_simple:
+not_a_number_fixed:
     ; DEBUG: Show it's not a number
     LDI 88            ; 'X'
     STS R0, ES, SCR
@@ -222,12 +239,12 @@ not_a_number_simple:
     ADD POS, 1
     
     ; Not a number, try to interpret as word
-    LDI interpret_word_simple
+    LDI interpret_word_fixed
     MOV R1, R0
     MOV PC, R1
     NOP
 
-interpret_word_simple:
+interpret_word_fixed:
     ; Interpret a word from input
     MOV R1, TIB
     ADD R1, >IN
@@ -239,6 +256,13 @@ interpret_word_simple:
     ADD SCR, 1
     ADD POS, 1
     
+    ; Let's DEBUG what character we're checking
+    MOV R3, R2
+    AND R3, MASK       ; Get low byte
+    STS R3, ES, SCR    ; DEBUG: Show the actual character
+    ADD SCR, 1
+    ADD POS, 1
+    
     ; For our test input, operators are in LOW byte
     ; Check low byte for operators
     MOV R3, R2
@@ -246,58 +270,70 @@ interpret_word_simple:
     
     LDI 43             ; '+'
     SUB R3, R0
-    JNZ check_multiply_simple
+    JNZ check_multiply_fixed
     NOP
     ; Found "+"
+    LDI 43            ; DEBUG: Show we found '+'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
     ADD >IN, 1
     LDI exec_add
     MOV R1, R0
     MOV PC, R1
     NOP
 
-check_multiply_simple:
+check_multiply_fixed:
     MOV R3, R2
     AND R3, MASK
     LDI 42             ; '*'
     SUB R3, R0
-    JNZ check_dot_simple
+    JNZ check_dot_fixed
     NOP
     ; Found "*"
+    LDI 42            ; DEBUG: Show we found '*'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
     ADD >IN, 1
     LDI exec_mul
     MOV R1, R0
     MOV PC, R1
     NOP
 
-check_dot_simple:
+check_dot_fixed:
     MOV R3, R2
     AND R3, MASK
     LDI 46             ; '.'
     SUB R3, R0
-    JNZ check_dup_simple
+    JNZ check_dup_fixed
     NOP
     ; Found "."
+    LDI 46            ; DEBUG: Show we found '.'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
     ADD >IN, 1
     LDI exec_dot
     MOV R1, R0
     MOV PC, R1
     NOP
 
-check_dup_simple:
+check_dup_fixed:
     ; Check for "dup" 
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
     LDI 100            ; 'd'
     SUB R3, R0
-    JNZ unknown_word_simple
+    JNZ unknown_word_fixed
     NOP
     
     MOV R3, R2
     AND R3, MASK
     LDI 117            ; 'u'
     SUB R3, R0
-    JNZ unknown_word_simple
+    JNZ unknown_word_fixed
     NOP
     
     ; Check next word starts with 'p'
@@ -310,7 +346,7 @@ check_dup_simple:
     AND R3, MASK
     LDI 112            ; 'p'
     SUB R3, R0
-    JNZ unknown_word_simple
+    JNZ unknown_word_fixed
     NOP
     
     ; Found "dup"
@@ -320,7 +356,7 @@ check_dup_simple:
     MOV PC, R1
     NOP
 
-unknown_word_simple:
+unknown_word_fixed:
     ; Skip unknown word
     ADD >IN, 1
     LDI 83            ; 'S' - show skipped
