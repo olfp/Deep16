@@ -8,7 +8,6 @@
 .equ IP R11
 .equ RSP R12
 .equ SP R13
-.equ NEXT R10
 .equ POS R7
 .equ SCR R8
 .equ MASK R4
@@ -25,10 +24,6 @@ forth_start:
     MOV SP, R0
     LDI 0x7FE0
     MOV RSP, R0
-    
-    ; Initialize instruction pointer - now points to text interpreter
-    LDI text_interpreter
-    MOV IP, R0
     
     ; Set up screen segment for output
     LDI 0x0FFF
@@ -49,16 +44,12 @@ forth_start:
     ; Ensure Data Segment points to physical 0x0000
     LDI 0
     MVS DS, R0
-    
-    ; Set up NEXT jump target
-    LDI next
-    MOV NEXT, R0
 
     ; Initialize text input system
     LDI 0
     MOV >IN, R0        ; Input offset starts at 0
 
-    ; Jump to text interpreter directly (not inner interpreter)
+    ; Jump to text interpreter directly
     LDI text_interpreter
     MOV R1, R0
     MOV PC, R1
