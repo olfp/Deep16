@@ -473,12 +473,13 @@ eval_after_dot:
     ; Parse numbers (0-9) using actual range check
     MOV R5, R2
     LDI 48            ; '0'
-    SUB R5, R0
+    SUB R5, R0        ; c - '0'
     JN eval_next      ; Below '0'
     NOP
     MOV R5, R2
     LDI 57            ; '9'
-    SUB R0, R5
+    MOV R6, R0        ; Load '9' into register
+    SUB R6, R5        ; '9' - c  
     JN eval_next      ; Above '9'
     NOP
 
