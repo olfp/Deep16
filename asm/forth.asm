@@ -143,7 +143,7 @@ parse_word:
     ADD R1, >IN
     LD R2, R1, 0       ; Get current word
     
-    ; Check for ." (dot-quote) string - look for '.' in high byte and '"' in low byte
+    ; Check for ." (dot-quote) string
     MOV R3, R2
     SRA R3, 8          ; High byte
     AND R3, MASK
@@ -167,132 +167,98 @@ parse_word:
 
 check_number:
     ; Try to parse a number first
-    LDI parse_number_simple
+    LDI parse_number_debug
     MOV R1, R0
     MOV PC, R1
     NOP
 
-parse_number_simple:
-    ; Try to parse a number - if it fails, try words
+parse_number_debug:
+    ; DEBUG: Show we're trying to parse a number
+    LDI 78            ; 'N'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    
+    ; Try to parse a number - ULTRA SIMPLIFIED
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
     
-    ; Check high byte for digit
+    ; Check high byte for single digit '3' or '7'
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
-    LDI 48             ; '0'
+    
+    ; Check for '3'
+    LDI 51            ; '3'
     SUB R3, R0
-    JN not_a_number    ; Below '0'
+    JZ found_three
     NOP
+    
+    ; Check for '7'  
     MOV R3, R2
     SRA R3, 8
     AND R3, MASK
-    LDI 57             ; '9'
-    SUB R0, R3
-    JN not_a_number    ; Above '9'
-    NOP
-    
-    ; It's a digit in high byte - parse it
-    LDI 0
-    MOV R4, R0         ; accumulator
-    
-parse_digit_simple:
-    MOV R1, TIB
-    ADD R1, >IN
-    LD R2, R1, 0
-    
-    ; Process high byte
-    MOV R3, R2
-    SRA R3, 8
-    AND R3, MASK
-    LDI 48
-    SUB R3, R0         ; Convert to number
-    JN number_done_simple  ; Not a digit anymore
-    NOP
-    
-    ; Check if result is 0-9 (not needed if we already checked it's a digit)
-    MOV R5, R4
-    LDI 10
-    MOV R6, R0
-    MUL R5, R6         ; acc * 10
-    ADD R5, R3         ; + digit
-    MOV R4, R5
-    
-    ; Process low byte if available
-    MOV R3, R2
-    AND R3, MASK
-    ADD R3, 0
-    JZ advance_and_continue
-    NOP
-    
-    ; Check if low byte is digit
-    MOV R7, R3
-    LDI 48
-    SUB R7, R0
-    JN number_done_simple  ; Not a digit
-    NOP
-    MOV R7, R3
-    LDI 57
-    SUB R0, R7
-    JN number_done_simple  ; Not a digit
-    NOP
-    
-    ; It's a digit, process it
-    MOV R3, R2
-    AND R3, MASK
-    LDI 48
-    SUB R3, R0         ; Convert to number
-    MOV R5, R4
-    LDI 10
-    MOV R6, R0
-    MUL R5, R6         ; acc * 10
-    ADD R5, R3         ; + digit
-    MOV R4, R5
-    
-advance_and_continue:
-    ADD >IN, 1         ; Advance to next word
-    
-    ; Check next character
-    MOV R1, TIB
-    ADD R1, >IN
-    LD R2, R1, 0
-    ADD R2, 0
-    JZ number_done_simple  ; End of input
-    
-    ; Check if next high byte is digit
-    MOV R3, R2
-    SRA R3, 8
-    AND R3, MASK
-    LDI 48             ; '0'
+    LDI 55            ; '7'
     SUB R3, R0
-    JN number_done_simple  ; Not a digit
-    NOP
-    MOV R3, R2
-    SRA R3, 8
-    AND R3, MASK
-    LDI 57             ; '9'
-    SUB R0, R3
-    JN number_done_simple  ; Not a digit
+    JZ found_seven
     NOP
     
-    LDI parse_digit_simple
+    ; Not a number we recognize
+    LDI not_a_number_debug
     MOV R1, R0
     MOV PC, R1
     NOP
 
-number_done_simple:
-    ; Push number onto stack
+found_three:
+    ; DEBUG: Show we found 3
+    LDI 51            ; '3'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    
+    ; Push 3 onto stack
+    LDI 3
+    MOV R4, R0
     SUB SP, 1
     ST R4, SP, 0
+    
+    ; Advance past the number
+    ADD >IN, 1
     
     LDI interpret_loop_return
     MOV R1, R0
     MOV PC, R1
     NOP
 
-not_a_number:
+found_seven:
+    ; DEBUG: Show we found 7
+    LDI 55            ; '7'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    
+    ; Push 7 onto stack
+    LDI 7
+    MOV R4, R0
+    SUB SP, 1
+    ST R4, SP, 0
+    
+    ; Advance past the number
+    ADD >IN, 1
+    
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+not_a_number_debug:
+    ; DEBUG: Show it's not a number
+    LDI 88            ; 'X'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    
     ; Not a number, try to interpret as word
     LDI interpret_word_simple
     MOV R1, R0
@@ -300,10 +266,16 @@ not_a_number:
     NOP
 
 interpret_word_simple:
-    ; Interpret a word from input - SIMPLIFIED
+    ; Interpret a word from input
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
+    
+    ; DEBUG: Show we're interpreting a word
+    LDI 87            ; 'W'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
     
     ; Check for single-character operators first
     
@@ -465,6 +437,12 @@ dot_quote_done:
 ; =============================================
 
 exec_dup:
+    ; DEBUG: Show dup
+    LDI 68            ; 'D'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    
     LD R1, SP, 0
     SUB SP, 1
     ST R1, SP, 0
@@ -474,6 +452,12 @@ exec_dup:
     NOP
 
 exec_add:
+    ; DEBUG: Show add
+    LDI 65            ; 'A'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    
     LD R2, SP, 0
     LD R1, SP, 1
     ADD R1, R2
@@ -485,6 +469,12 @@ exec_add:
     NOP
 
 exec_mul:
+    ; DEBUG: Show mul
+    LDI 77            ; 'M'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    
     LD R2, SP, 0
     LD R1, SP, 1
     MUL R1, R2
@@ -496,6 +486,12 @@ exec_mul:
     NOP
 
 exec_dot:
+    ; DEBUG: Show dot
+    LDI 46            ; '.'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    
     LD R1, SP, 0
     ADD SP, 1
     ADD R1, 0
@@ -559,9 +555,9 @@ user_input:
     .word 0x696E       ; 'i', 'n'
     .word 0x6773       ; 'g', 's'
     .word 0x2122       ; '!', '"'
-    .word 0x2033       ; ' ', '3'
+    .word 0x2033       ; ' ', '3'  - This is what we need to parse
     .word 0x202A       ; ' ', '*'
-    .word 0x2037       ; ' ', '7'
+    .word 0x2037       ; ' ', '7'  - This is what we need to parse  
     .word 0x2064       ; ' ', 'd'
     .word 0x7570       ; 'u', 'p'
     .word 0x202B       ; ' ', '+'
