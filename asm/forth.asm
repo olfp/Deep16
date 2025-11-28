@@ -1,5 +1,5 @@
 ; =============================================
-; Enhanced Deep16 Forth Kernel - FINAL CORRECTED VERSION
+; Enhanced Deep16 Forth Kernel with Text Interpreter
 ; =============================================
 
 .org 0x0100
@@ -12,6 +12,8 @@
 .equ POS R7
 .equ SCR R8
 .equ MASK R4
+.equ TIB R6           ; Text Input Buffer pointer
+.equ >IN R5           ; Input pointer offset
 
 ; =============================================
 ; Forth Kernel Implementation
@@ -24,8 +26,8 @@ forth_start:
     LDI 0x7FE0
     MOV RSP, R0
     
-    ; Initialize instruction pointer
-    LDI user_program
+    ; Initialize instruction pointer - now points to text interpreter
+    LDI text_interpreter
     MOV IP, R0
     
     ; Set up screen segment for output
@@ -52,6 +54,10 @@ forth_start:
     LDI next
     MOV NEXT, R0
 
+    ; Initialize text input system
+    LDI 0
+    MOV >IN, R0        ; Input offset starts at 0
+
     ; Jump to inner interpreter
     MOV PC, NEXT
     NOP
@@ -67,7 +73,455 @@ next:
     NOP
 
 ; =============================================
-; Stack Primitives
+; Text Interpreter Core
+; =============================================
+
+text_interpreter:
+    ; Set up TIB (Text Input Buffer) for user input
+    LDI user_input
+    MOV TIB, R0
+    LDI 0
+    MOV >IN, R0        ; Reset input offset
+    
+interpret_loop:
+    ; Skip leading whitespace
+    LDI skip_whitespace
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
+after_whitespace:
+    ; Check if we're at end of input
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0       ; Get current word
+    ADD R2, 0
+    JZ interpret_done  ; End of input
+    NOP
+    
+    ; Parse word or number
+    LDI parse_word
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
+    JMP interpret_loop
+    NOP
+
+interpret_done:
+    ; Return to Forth prompt or halt
+    MOV PC, NEXT
+    NOP
+
+skip_whitespace:
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0       ; Get current word
+    ADD R2, 0
+    JZ skip_done       ; End of input
+    NOP
+    
+    ; Check both bytes for whitespace
+    MOV R3, R2
+    SRA R3, 8          ; High byte
+    AND R3, MASK
+    LDI 32             ; Space
+    SUB R3, R0
+    JNZ check_low_byte
+    NOP
+    ; High byte is space, advance
+    ADD >IN, 1
+    LDI skip_whitespace
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
+check_low_byte:
+    MOV R3, R2
+    AND R3, MASK       ; Low byte
+    LDI 32             ; Space
+    SUB R3, R0
+    JNZ skip_done      ; Not whitespace
+    NOP
+    ; Low byte is space, advance
+    ADD >IN, 1
+    LDI skip_whitespace
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
+skip_done:
+    LDI after_whitespace
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+parse_word:
+    ; Here we'll parse the next word from input
+    ; For now, let's implement a simple interpreter that handles:
+    ; - Numbers
+    ; - ." string" 
+    ; - Basic words: dup + * .
+    
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0       ; Get current word
+    
+    ; Check for ." (dot-quote) string
+    MOV R3, R2
+    SRA R3, 8          ; High byte
+    AND R3, MASK
+    LDI 46             ; '.'
+    SUB R3, R0
+    JNZ check_number
+    NOP
+    
+    MOV R3, R2
+    AND R3, MASK       ; Low byte
+    LDI 34             ; '"'
+    SUB R3, R0
+    JNZ check_number
+    NOP
+    
+    ; Found ." - handle string
+    LDI handle_dot_quote
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+check_number:
+    ; Check if it's a number
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0
+    
+    ; Check high byte
+    MOV R3, R2
+    SRA R3, 8
+    AND R3, MASK
+    LDI is_digit
+    MOV R4, R0
+    MOV PC, R4
+    NOP
+    
+after_digit_check:
+    ; If R5 = 1, it's a digit
+    ADD R5, 0
+    JNZ parse_number
+    NOP
+    
+    ; Not a number, try to interpret as word
+    LDI interpret_word
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+is_digit:
+    ; Check if character in R3 is digit '0'-'9'
+    ; Returns R5 = 1 if digit, 0 if not
+    LDI 0
+    MOV R5, R0
+    
+    MOV R6, R3
+    LDI 48             ; '0'
+    SUB R6, R0
+    JN not_digit
+    NOP
+    
+    MOV R6, R3
+    LDI 57             ; '9'
+    SUB R0, R6
+    JN not_digit
+    NOP
+    
+    LDI 1
+    MOV R5, R0
+    LDI after_digit_check_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
+not_digit:
+    LDI 0
+    MOV R5, R0
+    
+after_digit_check_return:
+    LDI after_digit_check
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+parse_number:
+    ; Parse number from input
+    LDI 0
+    MOV R1, R0         ; accumulator
+    
+number_loop:
+    MOV R2, TIB
+    ADD R2, >IN
+    LD R3, R2, 0       ; Get current word
+    
+    ; Process high byte
+    MOV R4, R3
+    SRA R4, 8
+    AND R4, MASK
+    LDI is_digit_num
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+    
+after_digit_check_num:
+    ADD R5, 0
+    JZ number_done
+    NOP
+    
+    ; It's a digit, add to accumulator
+    MOV R6, R4
+    LDI 48
+    SUB R6, R0         ; Convert ASCII to value
+    MOV R7, R1
+    LDI 10
+    MOV R8, R0
+    MUL R7, R8         ; acc * 10
+    ADD R7, R6         ; + digit
+    MOV R1, R7
+    
+    ; Advance input
+    ADD >IN, 1
+    
+    ; Check next character
+    LDI number_loop
+    MOV R6, R0
+    MOV PC, R6
+    NOP
+
+is_digit_num:
+    ; Same as is_digit but for number parsing
+    LDI 0
+    MOV R5, R0
+    
+    MOV R6, R4
+    LDI 48             ; '0'
+    SUB R6, R0
+    JN not_digit_num
+    NOP
+    
+    MOV R6, R4
+    LDI 57             ; '9'
+    SUB R0, R6
+    JN not_digit_num
+    NOP
+    
+    LDI 1
+    MOV R5, R0
+    LDI after_digit_check_num_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+    
+not_digit_num:
+    LDI 0
+    MOV R5, R0
+    
+after_digit_check_num_return:
+    LDI after_digit_check_num
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+number_done:
+    ; Push number onto stack
+    SUB SP, 1
+    ST R1, SP, 0
+    
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+interpret_word:
+    ; Interpret a word from input
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0
+    
+    ; Check for "dup"
+    MOV R3, R2
+    SRA R3, 8          ; High byte 'd'
+    AND R3, MASK
+    LDI 100            ; 'd'
+    SUB R3, R0
+    JNZ check_plus
+    NOP
+    
+    MOV R3, R2
+    AND R3, MASK       ; Low byte 'u'
+    LDI 117            ; 'u'
+    SUB R3, R0
+    JNZ check_plus
+    NOP
+    
+    ; Check next word for 'p'
+    MOV R1, TIB
+    ADD R1, >IN
+    ADD R1, 1
+    LD R2, R1, 0
+    MOV R3, R2
+    SRA R3, 8
+    AND R3, MASK
+    LDI 112            ; 'p'
+    SUB R3, R0
+    JNZ check_plus
+    NOP
+    
+    ; Found "dup" - execute it
+    ADD >IN, 2         ; Skip "dup"
+    LDI d_dup
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+check_plus:
+    ; Check for "+"
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0
+    
+    MOV R3, R2
+    SRA R3, 8          ; High byte
+    AND R3, MASK
+    LDI 43             ; '+'
+    SUB R3, R0
+    JNZ check_multiply
+    NOP
+    
+    ; Found "+" - execute it
+    ADD >IN, 1
+    LDI d_add
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+check_multiply:
+    ; Check for "*"
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0
+    
+    MOV R3, R2
+    SRA R3, 8          ; High byte
+    AND R3, MASK
+    LDI 42             ; '*'
+    SUB R3, R0
+    JNZ check_dot
+    NOP
+    
+    ; Found "*" - execute it
+    ADD >IN, 1
+    LDI d_mul
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+check_dot:
+    ; Check for "."
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0
+    
+    MOV R3, R2
+    SRA R3, 8          ; High byte
+    AND R3, MASK
+    LDI 46             ; '.'
+    SUB R3, R0
+    JNZ unknown_word
+    NOP
+    
+    ; Found "." - execute it
+    ADD >IN, 1
+    LDI d_dot
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+unknown_word:
+    ; Skip unknown word (for now)
+    ADD >IN, 1
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+handle_dot_quote:
+    ; Handle ." string" - skip the ." and print until next "
+    ADD >IN, 1         ; Skip the ." word
+    
+dot_quote_loop:
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0       ; Get current word
+    ADD R2, 0
+    JZ dot_quote_done  ; End of input
+    NOP
+    
+    ; Check for closing quote in high byte
+    MOV R3, R2
+    SRA R3, 8
+    AND R3, MASK
+    LDI 34             ; '"'
+    SUB R3, R0
+    JZ dot_quote_done_high
+    NOP
+    
+    ; Print high byte if not quote
+    STS R3, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    
+    ; Check for closing quote in low byte
+    MOV R3, R2
+    AND R3, MASK
+    LDI 34             ; '"'
+    SUB R3, R0
+    JZ dot_quote_done_low
+    NOP
+    
+    ; Print low byte if not quote
+    STS R3, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+    
+    ; Advance to next word
+    ADD >IN, 1
+    LDI dot_quote_loop
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+dot_quote_done_high:
+    ; Quote in high byte - we're done
+    ADD >IN, 1
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+dot_quote_done_low:
+    ; Quote in low byte - skip this word and we're done
+    ADD >IN, 1
+    LDI interpret_loop_return
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+interpret_loop_return:
+    LDI interpret_loop
+    MOV R1, R0
+    MOV PC, R1
+    NOP
+
+; =============================================
+; Stack Primitives (same as before)
 ; =============================================
 
 d_exit:
@@ -104,10 +558,6 @@ d_swap:
     MOV PC, NEXT
     NOP
 
-; =============================================
-; Memory Operations
-; =============================================
-
 d_fetch:
     LD R1, SP, 0
     LD R1, R1, 0
@@ -124,7 +574,7 @@ d_store:
     NOP
 
 ; =============================================
-; I/O Operations
+; I/O Operations (same as before)
 ; =============================================
 
 d_emit:
@@ -154,7 +604,6 @@ tell_loop:
     ADD R1, 0
     JZ tell_done
     NOP
-    ; High byte (first character)
     MOV R2, R1
     SRA R2, 8
     AND R2, MASK
@@ -175,7 +624,6 @@ tell_loop:
     MOV POS, R0
 high_ok:
 skip_high:
-    ; Low byte (second character)
     MOV R2, R1
     AND R2, MASK
     ADD R2, 0
@@ -202,7 +650,6 @@ tell_done:
     NOP
 
 d_cr:
-    ; Calculate current column: position % 80
     MOV R1, POS
     LDI 80
     MOV R2, R0
@@ -214,7 +661,6 @@ cr_mod_loop:
     NOP
 cr_done_mod:
     ADD R1, R2
-    ; Calculate spaces to next line: 80 - current_column
     LDI 80
     SUB R0, R1
     MOV R2, R0
@@ -228,22 +674,13 @@ cr_done:
     NOP
 
 ; =============================================
-; Arithmetic Operations
+; Arithmetic Operations (same as before)
 ; =============================================
 
 d_add:
     LD R2, SP, 0
     LD R1, SP, 1
     ADD R1, R2
-    ADD SP, 1
-    ST R1, SP, 0
-    MOV PC, NEXT
-    NOP
-
-d_sub:
-    LD R2, SP, 0
-    LD R1, SP, 1
-    SUB R1, R2
     ADD SP, 1
     ST R1, SP, 0
     MOV PC, NEXT
@@ -257,10 +694,6 @@ d_mul:
     ST R1, SP, 0
     MOV PC, NEXT
     NOP
-
-; =============================================
-; Print Operations
-; =============================================
 
 d_dot:
     LD R1, SP, 0
@@ -307,117 +740,33 @@ dot_done:
     MOV PC, NEXT
     NOP
 
-; .H (DOT_HEX) - print top of stack as hexadecimal
-d_dot_hex:
-    LD R1, SP, 0
-    ADD SP, 1
-    ; Store digits in correct order
-    LDI 4
-    MOV R5, R0
-    LDI hex_buffer
-    MOV R6, R0
-hex_store:
-    MOV R2, R1
-    AND R2, 0x000F
-    LDI 9
-    MOV R3, R0
-    SUB R3, R2
-    JC hex_letter
-    NOP
-    LDI 48
-    ADD R2, R0
-    LDI hex_store_digit
-    MOV R4, R0
-    MOV PC, R4
-    NOP
-hex_letter:
-    LDI 55
-    ADD R2, R0
-hex_store_digit:
-    ST R2, R6, 0
-    ADD R6, 1
-    SRA R1, 4
-    SUB R5, 1
-    JNZ hex_store
-    NOP
-    ; Print in reverse order for correct display
-    LDI 4
-    MOV R5, R0
-    LDI hex_buffer+3
-    MOV R6, R0
-hex_print:
-    LD R2, R6, 0
-    STS R2, ES, SCR
-    ADD SCR, 1
-    ADD POS, 1
-    SUB R6, 1
-    SUB R5, 1
-    JNZ hex_print
-    NOP
-    MOV PC, NEXT
-    NOP
-
-hex_buffer:
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-
 d_halt:
     HLT
 
 ; =============================================
-; Demo Program
+; User Input String
 ; =============================================
-user_program:
-    .word d_lit
-    .word program_msg
-    .word d_tell        ; Print "Deep16 Forth"
-    .word d_lit
-    .word 42
-    .word d_dot         ; Print "42"
-    .word d_lit
-    .word hex_msg
-    .word d_tell        ; Print " hex: "
-    .word d_lit
-    .word 0xABCD
-    .word d_dot_hex     ; Print "ABCD" (hexadecimal output)
-    .word d_cr
-    .word d_lit
-    .word calc_msg
-    .word d_tell        ; Print "Test: "
-    .word d_lit
-    .word 10
-    .word d_lit
-    .word 7
-    .word d_add         ; 10 + 7 = 17
-    .word d_lit
-    .word 3
-    .word d_mul         ; 17 * 3 = 51
-    .word d_dot         ; Print "51"
-    .word d_cr
-    .word d_halt
-
-; Correctly packed strings (high byte first, low byte second)
-program_msg:
-    .word 0x4465       ; 'D' 'e'
-    .word 0x6570       ; 'e' 'p'
-    .word 0x3631       ; '6' '1'
-    .word 0x2046       ; ' ' 'F'
-    .word 0x6F72       ; 'o' 'r'
-    .word 0x7468       ; 't' 'h'
-    .word 0x0000       ; Null terminator
-
-hex_msg:
-    .word 0x2068       ; ' ' 'h'
-    .word 0x6578       ; 'e' 'x'
-    .word 0x3A20       ; ':' ' '
-    .word 0x0000       ; Null terminator
-
-calc_msg:
-    .word 0x5465       ; 'T' 'e'
-    .word 0x7374       ; 's' 't'
-    .word 0x3A20       ; ':' ' '
+user_input:
+    ; ." Hello Deep16 strings!" 3 * 7 dup + .
+    .word 0x2E22       ; '.', '"'
+    .word 0x4865       ; 'H', 'e'
+    .word 0x6C6C       ; 'l', 'l'
+    .word 0x6F20       ; 'o', ' '
+    .word 0x4465       ; 'D', 'e'
+    .word 0x6570       ; 'e', 'p'
+    .word 0x3136       ; '1', '6'
+    .word 0x2073       ; ' ', 's'
+    .word 0x7472       ; 't', 'r'
+    .word 0x696E       ; 'i', 'n'
+    .word 0x6773       ; 'g', 's'
+    .word 0x2122       ; '!', '"'
+    .word 0x2033       ; ' ', '3'
+    .word 0x202A       ; ' ', '*'
+    .word 0x2037       ; ' ', '7'
+    .word 0x2064       ; ' ', 'd'
+    .word 0x7570       ; 'u', 'p'
+    .word 0x202B       ; ' ', '+'
+    .word 0x202E       ; ' ', '.'
     .word 0x0000       ; Null terminator
 
 ; =============================================
@@ -439,12 +788,6 @@ dict_start:
 .word 0x4C49           ; 'L' 'I'
 .word 0x0054           ; 'T' + padding
 .word d_lit
-
-; .H (DOT_HEX)
-.word dict_start+12
-.word 0x4002
-.word 0x2E48           ; '.' 'H'
-.word d_dot_hex
 
 kernel_end:
     HLT
