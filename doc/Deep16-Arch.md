@@ -1,4 +1,4 @@
-# Deep16 (深十六) Architecture Specification Milestone 3
+# Deep16 (深十六) Architecture Specification Milestone 3r1
 ## 16-bit RISC Processor with Enhanced Memory Addressing
 
 ---
@@ -10,7 +10,7 @@ Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 - **16 general-purpose registers**
 - **Segmented memory addressing** (1MB physical address space)
 - **4 segment registers** for code, data, stack and extra
-- **shadow register views** for interrupts
+- **Complete shadow register system** for interrupts
 - **Hardware-assisted interrupt handling**
 - **Complete word-based memory system** (no byte operations)
 - **Extended addressing** 20-bit physical address space
@@ -21,8 +21,9 @@ Deep16 is a 16-bit RISC processor optimized for efficiency and simplicity:
 - All instructions exactly 16 bits
 - 16 user-visible registers, PC is R15
 - 4 segment registers: CS, DS, SS, ES
+- Complete shadow register set: CS', DS', SS', ES', PC', PSW'
 - Processor status word (PSW) for flags and implicit segment selection
-- PC'/CS'/PSW' shadow views for interrupt handling
+- Shadow register views for interrupt handling
 - Compact encoding with variable-length opcodes
 - Enhanced memory addressing with stack/extra registers
 - **1-slot delayed branch** for improved pipeline efficiency
@@ -74,6 +75,9 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | PC'      | Program Counter Shadow | 16 |
 | PSW'     | PSW Shadow | 16 |
 | CS'      | Code Segment Shadow | 16 |
+| DS'      | Data Segment Shadow | 16 |
+| SS'      | Stack Segment Shadow | 16 |
+| ES'      | Extra Segment Shadow | 16 |
 
 ### 2.4 Processor Status Word (PSW)
 
@@ -132,6 +136,9 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | **SMV** | `SMV Rd, APSW` | `1111111110 01 Rd4` | `Rd = PSW'` |
 | **SMV** | `SMV Rd, PSW` | `1111111110 10 Rd4` | `Rd = PSW` |
 | **SMV** | `SMV Rd, ACS` | `1111111110 11 Rd4` | `Rd = CS'` |
+| **SMV** | `SMV Rd, ADS` | `1111111110 100 Rd4` | `Rd = DS'` |
+| **SMV** | `SMV Rd, ASS` | `1111111110 101 Rd4` | `Rd = SS'` |
+| **SMV** | `SMV Rd, AES` | `1111111110 110 Rd4` | `Rd = ES'` |
 
 **MOV with immediate value 3 (AMV/ALNK aliases):**
 - Bypasses all pipeline forwarding mechanisms
@@ -152,16 +159,16 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | **SUB** | `SUB Rd, imm` | `110 00011 Rd4 imm4` | `Rd = Rd - imm`, set flags |
 | **CMP** | `CMP Rd, Rs` | `110 00100 Rd4 Rs4` | `Rd - Rs`, set flags only |
 | **CMP** | `CMP Rd, imm` | `110 00101 Rd4 imm4` | `Rd - imm`, set flags only |
-| **AND** | `AND Rd, Rs` | `110 00110 Rd4 Rs4` | `Rd = Rd & Rs`, set flags |
-| **AND** | `AND Rd, imm` | `110 00111 Rd4 imm4` | `Rd = Rd & imm`, set flags |
-| **TBC** | `TBC Rd, Rs` | `110 01000 Rd4 Rs4` | `Rd & Rs`, set flags only |
-| **TBC** | `TBC Rd, count` | `110 01001 Rd4 count4` | `Rd & (1<<count)`, **Z=1 if bit CLEAR** |
-| **OR** | `OR Rd, Rs` | `110 01010 Rd4 Rs4` | `Rd = Rd | Rs`, set flags |
-| **OR** | `OR Rd, imm` | `110 01011 Rd4 imm4` | `Rd = Rd | imm`, set flags |
-| **XOR** | `XOR Rd, Rs` | `110 01100 Rd4 Rs4` | `Rd = Rd ^ Rs`, set flags |
-| **XOR** | `XOR Rd, imm` | `110 01101 Rd4 imm4` | `Rd = Rd ^ imm`, set flags |
-| **TBS** | `TBS Rd, Rs` | `110 01110 Rd4 Rs4` | `Rd ^ Rs`, set flags only |
-| **TBS** | `TBS Rd, count` | `110 01111 Rd4 count4` | `Rd ^ (1<<count)`, **Z=1 if bit SET** |
+| **AND** | `AND Rd, Rs` | `110 00110 Rd4 Rs4` | `Rd = Rd AND Rs`, set flags |
+| **AND** | `AND Rd, imm` | `110 00111 Rd4 imm4` | `Rd = Rd AND imm`, set flags |
+| **TBC** | `TBC Rd, Rs` | `110 01000 Rd4 Rs4` | `Rd AND Rs`, **Z=0 if ANY bit CLEAR** (result ≠ 0) |
+| **TBC** | `TBC Rd, count` | `110 01001 Rd4 count4` | `Rd AND (1<<count)`, **Z=0 if bit CLEAR** |
+| **OR** | `OR Rd, Rs` | `110 01010 Rd4 Rs4` | `Rd = Rd OR Rs`, set flags |
+| **OR** | `OR Rd, imm` | `110 01011 Rd4 imm4` | `Rd = Rd OR imm`, set flags |
+| **XOR** | `XOR Rd, Rs` | `110 01100 Rd4 Rs4` | `Rd = Rd XOR Rs`, set flags |
+| **XOR** | `XOR Rd, imm` | `110 01101 Rd4 imm4` | `Rd = Rd XOR imm`, set flags |
+| **TBS** | `TBS Rd, Rs` | `110 01110 Rd4 Rs4` | `Rd XOR Rs`, **Z=0 if ANY bit SET** (result ≠ 0) |
+| **TBS** | `TBS Rd, count` | `110 01111 Rd4 count4` | `Rd XOR (1<<count)`, **Z=0 if bit SET** |
 
 ### 3.4 ALU Instructions - Group 2: Shift/Rotate Operations
 
@@ -171,16 +178,16 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 |-------------|---------|-----------------|----------|
 | **SL** | `SL Rd, count` | `110 10000 Rd4 count4` | `Rd = Rd << count`, C = MSB |
 | **SLA** | `SLA Rd, count` | `110 10001 Rd4 count4` | `Rd = Rd << count` (arithmetic, preserves sign) |
-| **SLAC** | `SLAC Rd, count` | `110 10010 Rd4 count4` | `Rd = (Rd << count) \| (C << (count-1))` (arithmetic) |
-| **SLC** | `SLC Rd, count` | `110 10011 Rd4 count4` | `Rd = (Rd << count) \| (C << (count-1))`, C = MSB |
+| **SLAC** | `SLAC Rd, count` | `110 10010 Rd4 count4` | `Rd = (Rd << count) OR (C << (count-1))` (arithmetic) |
+| **SLC** | `SLC Rd, count` | `110 10011 Rd4 count4` | `Rd = (Rd << count) OR (C << (count-1))`, C = MSB |
 | **SR** | `SR Rd, count` | `110 10100 Rd4 count4` | `Rd = Rd >> count`, C = LSB |
-| **SRC** | `SRC Rd, count` | `110 10101 Rd4 count4` | `Rd = (Rd >> count) \| (C << (15-count))`, C = LSB |
+| **SRC** | `SRC Rd, count` | `110 10101 Rd4 count4` | `Rd = (Rd >> count) OR (C << (15-count))`, C = LSB |
 | **SRA** | `SRA Rd, count` | `110 10110 Rd4 count4` | `Rd = Rd >> count` (arithmetic), C = LSB |
-| **SRAC** | `SRAC Rd, count` | `110 10111 Rd4 count4` | `Rd = (Rd >> count) \| (C << (15-count))` (arithmetic) |
-| **ROL** | `ROL Rd, count` | `110 11000 Rd4 count4` | `Rd = (Rd << count) \| (Rd >> (16-count))` |
-| **RLC** | `RLC Rd, count` | `110 11001 Rd4 count4` | `Rd = (Rd << count) \| (C << (count-1)) \| (Rd >> (16-count))`, **C = bit shifted out** |
-| **ROR** | `ROR Rd, count` | `110 11010 Rd4 count4` | `Rd = (Rd >> count) \| (Rd << (16-count))` |
-| **RRC** | `RRC Rd, count` | `110 11011 Rd4 count4` | `Rd = (Rd >> count) \| (C << (15-count)) \| (Rd << (16-count))`, **C = bit shifted out** |
+| **SRAC** | `SRAC Rd, count` | `110 10111 Rd4 count4` | `Rd = (Rd >> count) OR (C << (15-count))` (arithmetic) |
+| **ROL** | `ROL Rd, count` | `110 11000 Rd4 count4` | `Rd = (Rd << count) OR (Rd >> (16-count))` |
+| **RLC** | `RLC Rd, count` | `110 11001 Rd4 count4` | `Rd = (Rd << count) OR (C << (count-1)) OR (Rd >> (16-count))`, **C = bit shifted out** |
+| **ROR** | `ROR Rd, count` | `110 11010 Rd4 count4` | `Rd = (Rd >> count) OR (Rd << (16-count))` |
+| **RRC** | `RRC Rd, count` | `110 11011 Rd4 count4` | `Rd = (Rd >> count) OR (C << (15-count)) OR (Rd << (16-count))`, **C = bit shifted out** |
 
 **Note**: Arithmetic shifts (SLA, SLAC, SRA, SRAC) preserve the sign bit for two's complement operations, while logical shifts (SL, SLC, SR, SRC) treat values as unsigned.
 
@@ -196,14 +203,14 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | Instruction | Format | Binary Encoding | Behavior |
 |-------------|---------|-----------------|----------|
 | **MUL** | `MUL Rd, Rs` | `110 11100 Rd4 Rs4` | `Rd = Rd * Rs` (16×16→16-bit) |
-| **MUL32** | `MUL32 Rd, Rs` | `110 11101 Rd4 Rs4` | `R[d]:R[d+1] = Rd * Rs` (Rd must be UNEVEN) |
+| **MUL32** | `MUL32 Rd, Rs` | `110 11101 Rd4 Rs4` | `R[d]:R[d+1] = Rd * Rs` (Rd must be **EVEN**) |
 | **DIV** | `DIV Rd, Rs` | `110 11110 Rd4 Rs4` | `Rd = Rd / Rs` (16÷16→16-bit quotient) |
-| **DIV32** | `DIV32 Rd, Rs` | `110 11111 Rd4 Rs4` | `R[d]:R[d+1] = Rd / Rs` (Rd must be UNEVEN) |
+| **DIV32** | `DIV32 Rd, Rs` | `110 11111 Rd4 Rs4` | `R[d]:R[d+1] = Rd / Rs` (Rd must be **EVEN**) |
 
 **32-bit Operation Requirements:**
-- MUL32/DIV32 require UNEVEN register numbers (1,3,5,7,9,11,13)
+- MUL32/DIV32 require **EVEN** register numbers (0,2,4,6,8,10,12,14)
 - Assembler must enforce this constraint
-- Runtime behavior is undefined if even register specified  
+- Runtime behavior is undefined if odd register specified  
 - Result: R[d] = low 16 bits, R[d+1] = high 16 bits
 - For MUL32: R[d]:R[d+1] = Rd × Rs
 - For DIV32: R[d] = quotient, R[d+1] = remainder
@@ -214,7 +221,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 
 | Instruction | Format   | Binary Encoding     | Behavior |
 |-------------|----------|---------------------|----------|
-| **SWB**     | `SWB Rx` | `11111110 0000 Rx4` | `Rx = (Rx << 8) | (Rx >> 8)` |
+| **SWB**     | `SWB Rx` | `11111110 0000 Rx4` | `Rx = (Rx << 8) OR (Rx >> 8)` |
 | **INV**     | `INV Rx` | `11111110 0001 Rx4` | `Rx = ~Rx` |
 | **NEG**     | `NEG Rx` | `11111110 0010 Rx4` | `Rx = -Rx` |
 
@@ -370,19 +377,40 @@ MOV  R3, SP, 0        ; Note: Negative offsets not supported in MOV
 
 ### 4.4 Bit Test Usage Examples
 
-**Natural bit testing with corrected semantics:**
+**Intuitive bit testing with natural semantics:**
+
+**Single-bit testing (count variant):**
 ```assembly
 ; Test if bit 3 is SET - jump if it IS set
 TBS   R5, 3      ; Z=0 if bit 3 is SET, Z=1 if CLEAR
-JNZ   bit_is_set ; Jump when Z=0 (bit WAS set)
+JNZ   bit_is_set ; Jump when Z=0 (bit IS set) - NATURAL!
 
 ; Test if bit 7 is CLEAR - jump if it IS clear  
 TBC   R5, 7      ; Z=0 if bit 7 is CLEAR, Z=1 if SET
-JNZ   bit_is_clear ; Jump when Z=0 (bit WAS clear)
+JNZ   bit_is_clear ; Jump when Z=0 (bit IS clear) - NATURAL!
 
-; Alternative: test if NOT set
+; Alternative: test if NOT set (less common)
 TBS   R5, 3
-JZ    bit_not_set ; Jump when Z=1 (bit was NOT set)
+JZ    bit_not_set ; Jump when Z=1 (bit is NOT set)
+```
+
+**Multi-bit testing (Rs variant):**
+```assembly
+; Test if ANY of the bits in mask R6 are SET in R5
+TBS   R5, R6     ; Z=0 if ANY masked bit is SET, Z=1 if ALL masked bits are CLEAR
+JNZ   some_bits_set ; Jump when any masked bit is set
+
+; Test if ALL bits in mask R6 are CLEAR in R5  
+TBC   R5, R6     ; Z=0 if ANY masked bit is CLEAR, Z=1 if ALL masked bits are SET
+JNZ   some_bits_clear ; Jump when any masked bit is clear
+
+; Test if ALL bits in mask R6 are SET in R5
+TBC   R5, R6     ; Z=1 if ALL masked bits are SET
+JZ    all_bits_set ; Jump when all masked bits are set
+
+; Test if ALL bits in mask R6 are CLEAR in R5
+TBS   R5, R6     ; Z=1 if ALL masked bits are CLEAR  
+JZ    all_bits_clear ; Jump when all masked bits are clear
 ```
 
 ### 4.5 MOV Special Immediate Value
@@ -438,10 +466,11 @@ Default effect:
 - Stores diagnostic words at physical `0x00000..`
 - Performs `JML R0` using the `(R0,R1)` pair → jumps to `CS=0x0000`, `PC=0x0100`
 
-### 5.3 Shadow Register System
+### 5.3 Complete Shadow Register System
 
-**On Interrupt:**
+**On Interrupt (NMI, INT, or SWI):**
 - `PSW' ← PSW` (Snapshot pre-interrupt state)
+- `CS' ← CS`, `DS' ← DS`, `SS' ← SS`, `ES' ← ES` (Snapshot all segment registers)
 - `PSW'.S ← 1`, `PSW'.I ← 0` (Configure shadow context)
 - `CS ← 0` (Interrupts run in Segment 0)
 - `PC ← Mem[interrupt_vector]` (Load PC from vector table)
@@ -452,6 +481,12 @@ Default effect:
 - No register copying - pure view switching
 - Both contexts preserved for debugging
 - **Pipeline flushed** on context restoration
+
+**Benefits of Complete Shadow System:**
+- Interrupt handlers can freely modify segment registers without saving/restoring
+- Debugging visibility into both normal and interrupt contexts
+- Faster interrupt response (no need to push segment registers)
+- Clean separation of execution contexts
 
 ---
 
@@ -634,17 +669,17 @@ write_char:
 **Multi-Word Rotation Example:**
 ```assembly
 ; Multi-word 64-bit rotate left using RLC
-; Assume R1:R2:R3:R4 contains 64-bit value
-RLC  R1, 1      ; Rotate low word left through carry
-RLC  R2, 1      ; Rotate next word, carry propagates
-RLC  R3, 1      ; Continue propagation  
-RLC  R4, 1      ; Rotate high word
+; Assume R0:R1:R2:R3 contains 64-bit value (EVEN start)
+RLC  R0, 1      ; Rotate low word left through carry
+RLC  R1, 1      ; Rotate next word, carry propagates
+RLC  R2, 1      ; Continue propagation  
+RLC  R3, 1      ; Rotate high word
 
 ; Multi-word 64-bit rotate right using RRC
-RRC  R4, 1      ; Rotate high word right through carry
-RRC  R3, 1      ; Rotate next word, carry propagates
-RRC  R2, 1      ; Continue propagation
-RRC  R1, 1      ; Rotate low word
+RRC  R3, 1      ; Rotate high word right through carry
+RRC  R2, 1      ; Rotate next word, carry propagates
+RRC  R1, 1      ; Continue propagation
+RRC  R0, 1      ; Rotate low word
 ```
 
 **Far Function Call:**
@@ -670,6 +705,8 @@ interrupt_handler:
     MOV  R5, R0       ; Copy to R5 for processing
     SMV  R0, APC      ; Read pre-interrupt PC to R0
     MOV  R6, R0
+    SMV  R0, ADS      ; Read pre-interrupt DS to R0
+    MOV  R7, R0
     
     ; Interrupt processing...
     
@@ -721,24 +758,128 @@ ERD  R10         ; Use R10/R11 for ES access
 
 ---
 
-*Deep16 (深十六) Architecture Specification v5.0 (Milestone 3) - Complete ALU2 Redesign*
+## 10. System Hardware Architecture
 
-**Key Updates:**
-- ✅ Complete ALU2 instruction redesign with 5-bit function field
-- ✅ 32 function codes organized into 3 logical groups
-- ✅ Corrected TBS/TBC semantics for intuitive bit testing
-- ✅ Full shift/rotate instruction set with arithmetic variants
-- ✅ Corrected RLC/RRC descriptions with proper carry bit handling
-- ✅ UNEVEN register requirement for 32-bit multiply/divide
-- ✅ Reorganized document structure (ISA first, then system details)
-- ✅ Table numbering with letters (A-R) for clear reference
-- ✅ Boot ROM sequence corrected with user program start comment
-- ✅ Enhanced educational focus with clear examples
-- ✅ All non-standard behaviors thoroughly explained
-- ✅ Pipeline implications for MOV immediate=3 clarified
-- ✅ Segment register conventions documented
-- ✅ Complete bit test examples included
-- ✅ Delayed branch examples expanded
-- ✅ Multi-word rotation examples added
+### 10.1 Memory-Mapped I/O System
 
-This revision represents a significant improvement in both encoding efficiency and educational clarity while maintaining the core RISC philosophy.
+The Deep16 processor uses memory-mapped I/O in the I/O Segment (0xF0000-0xFFFFF). All peripherals are accessed via standard load/store instructions using the ES segment register.
+
+**Table S: Memory-Mapped I/O Map**
+
+| Address Range | Device | Base Offset | Interrupt | Purpose |
+|---------------|--------|-------------|-----------|----------|
+| 0xF0000-0xF000F | System LED | 0x0000 | - | Status and diagnostic LEDs |
+| 0xF0010-0xF001F | SIC | 0x0010 | - | Simple Interrupt Controller |
+| 0xF0020-0xF002F | Timer/Counter | 0x0020 | INT 0 | System timer and event counter |
+| 0xF0030-0xF003F | Video Controller | 0x0030 | INT 2 | Text/Graphics display control |
+| 0xF0040-0xF004F | Serial Port | 0x0040 | INT 3 | UART communications |
+| 0xF0060-0xF006F | Keyboard Controller | 0x0060 | INT 1 | PS/2 keyboard input |
+| 0xF1000-0xF17CF | Screen Buffer | 0x1000 | - | 80×25 character display |
+
+### 10.2 Peripheral Details
+
+#### 10.2.1 System LED Controller (0xF0000)
+- **LED0**: Power/Status
+- **LED1**: CPU Activity  
+- **LED2**: Memory Access
+- **LED3**: Interrupt Activity
+- **LED4-7**: User programmable
+
+#### 10.2.2 Simple Interrupt Controller (SIC) (0xF0010)
+- **0xF0010**: Interrupt Mask Register (1=enabled)
+- **0xF0012**: Interrupt Status Register (1=pending)
+- **Priority**: Timer(0) > Keyboard(1) > Video(2) > Serial(3)
+
+#### 10.2.3 Timer/Counter (0xF0020)
+- **0xF0020**: Timer Control (start/stop/reset)
+- **0xF0022**: Timer Value (read current count)
+- **0xF0024**: Timer Reload Value
+- **0xF0026**: Timer Prescaler
+
+#### 10.2.4 Video Display Controller (0xF0030)
+- **0xF0030**: Display Control (mode select)
+- **0xF0032**: Cursor Position X
+- **0xF0034**: Cursor Position Y
+- **0xF0036**: Character Attributes
+- Supports 80×25 text mode and basic graphics modes
+
+#### 10.2.5 Serial Port (0xF0040)
+- **0xF0040**: Serial Status/Control
+- **0xF0042**: Serial Data TX/RX
+- **0xF0044**: Baud Rate Generator
+- RS-232 compatible UART
+
+#### 10.2.6 Keyboard Controller (0xF0060)
+- **0xF0060**: Keyboard Status
+- **0xF0062**: Keyboard Scan Code
+- **0xF0064**: Keyboard Control
+- PS/2 keyboard compatible
+
+### 10.3 I/O Programming Examples
+
+**Timer Setup:**
+```assembly
+setup_timer:
+    LDI  0x0FFF      ; R0 = 0x0FFF
+    INV  R0          ; R0 = 0xF000
+    MVS  ES, R0      ; ES = 0xF000
+    
+    ; Configure timer for 1ms interrupts
+    LDI  1000        ; 1ms at 1MHz clock
+    MOV  R1, R0      ; Copy to R1
+    STS  R1, [0x0024] ; Set reload value
+    
+    LDI  1           ; Start timer
+    STS  R0, [0x0020] ; Write to control register
+    RET
+```
+
+**Keyboard Input:**
+```assembly
+read_keyboard:
+    LDI  0x0FFF
+    INV  R0
+    MVS  ES, R0
+    
+key_wait:
+    LDS  R1, [0x0060] ; Read keyboard status
+    TBS  R1, 0        ; Test data ready bit
+    JZ   key_wait     ; Wait if not ready
+    
+    LDS  R2, [0x0062] ; Read scan code
+    RET
+```
+
+**Serial Output:**
+```assembly
+serial_putc:
+    ; R1 contains character to send
+    LDI  0x0FFF
+    INV  R0
+    MVS  ES, R0
+    
+tx_wait:
+    LDS  R2, [0x0040] ; Read serial status
+    TBS  R2, 1        ; Test TX ready bit
+    JZ   tx_wait      ; Wait if not ready
+    
+    STS  R1, [0x0042] ; Send character
+    RET
+```
+
+---
+
+*Deep16 (深十六) Architecture Specification v5.1 (Milestone 3r1) - Complete Shadow System & Hardware*
+
+**Key Updates in 3r1:**
+- ✅ Complete shadow register system (CS', DS', SS', ES', PC', PSW')
+- ✅ Enhanced interrupt handling with full segment register preservation
+- ✅ Intuitive TBS/TBC semantics with natural Z flag behavior
+- ✅ EVEN register requirement for 32-bit multiply/divide operations
+- ✅ Comprehensive memory-mapped I/O system specification
+- ✅ Fixed table formatting issues in ALU instructions
+- ✅ Complete system hardware architecture with peripherals
+- ✅ Practical I/O programming examples
+- ✅ Enhanced educational focus with clear peripheral documentation
+
+This revision provides a complete system specification ready for both processor implementation and peripheral development, maintaining the core RISC philosophy while offering practical I/O capabilities.
