@@ -69,15 +69,15 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 
 **Table C: Special Registers**
 
-| Register | Purpose | Bits |
-|----------|---------|------|
-| PSW      | Processor Status Word | 16 |
-| PC'      | Program Counter Shadow | 16 |
-| PSW'     | PSW Shadow | 16 |
-| CS'      | Code Segment Shadow | 16 |
-| DS'      | Data Segment Shadow | 16 |
-| SS'      | Stack Segment Shadow | 16 |
-| ES'      | Extra Segment Shadow | 16 |
+| Register | Purpose | Bits | Access Method |
+|----------|---------|------|---------------|
+| PSW      | Processor Status Word | 16 | MVS, LPSW |
+| PC'      | Program Counter Shadow | 16 | SMV |
+| PSW'     | PSW Shadow | 16 | SMV |
+| CS'      | Code Segment Shadow | 16 | SMV |
+| DS'      | Data Segment Shadow | 16 | SMV |
+| SS'      | Stack Segment Shadow | 16 | SMV |
+| ES'      | Extra Segment Shadow | 16 | SMV |
 
 ### 2.4 Processor Status Word (PSW)
 
@@ -117,7 +117,8 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | 1111110 | 7 | LSI | `[1111110][Rd4][imm5]` | Full pipeline |
 | 11111110 | 8 | SOP | `[11111110][type4][Rx/imm4]` | Various pipeline effects |
 | 111111110 | 9 | MVS | `[111111110][d1][Rd4][seg2]` | Segment access in MEM |
-| 1111111110 | 10 | SMV | `[1111111110][src2][Rd4]` | Special register access |
+| 1111111110 | 10 | SMV | `[1111111110][d1][Rs4][alt_sel4]` | Alternate context access |
+| 111111111110 | 12 | LPSW | `[111111111110][Rx4]` | Load PSW of current context |
 | 1111111111110 | 13 | SYS | `[1111111111110][op3]` | Pipeline flush on RETI |
 | 1111111111111111 | 16 | HLT | `[1111111111111111]` | Halt the processor |
 
@@ -132,13 +133,44 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | **LSI** | `LSI Rd, imm` | `1111110 Rd4 imm5` | `Rd = imm` (sign-extended) |
 | **MVS** | `MVS Rd, Sx` | `111111110 0 Rd4 seg2` | `Rd = Sx` |
 | **MVS** | `MVS Sx, Rd` | `111111110 1 Rd4 seg2` | `Sx = Rd` |
-| **SMV** | `SMV Rd, APC` | `1111111110 00 Rd4` | `Rd = PC'` |
-| **SMV** | `SMV Rd, APSW` | `1111111110 01 Rd4` | `Rd = PSW'` |
-| **SMV** | `SMV Rd, PSW` | `1111111110 10 Rd4` | `Rd = PSW` |
-| **SMV** | `SMV Rd, ACS` | `1111111110 11 Rd4` | `Rd = CS'` |
-| **SMV** | `SMV Rd, ADS` | `1111111110 100 Rd4` | `Rd = DS'` |
-| **SMV** | `SMV Rd, ASS` | `1111111110 101 Rd4` | `Rd = SS'` |
-| **SMV** | `SMV Rd, AES` | `1111111110 110 Rd4` | `Rd = ES'` |
+| **SMV** | `SMV Rs, alt_reg` | `1111111110 1 Rs4 alt_sel4` | Read from alternate context |
+| **SMV** | `SMV alt_reg, Rs` | `1111111110 0 Rs4 alt_sel4` | Write to alternate context |
+| **LPSW** | `LPSW Rx` | `111111111110 Rx4` | `Rx = PSW` (Load PSW of current context) |
+
+**Table F: SMV Alternate Register Selection**
+
+| alt_sel | Alternate Register | Read Example | Write Example |
+|---------|-------------------|-------------|---------------|
+| 0000 | ACS (Alternate CS) | `SMV R1, ACS` | `SMV ACS, R1` |
+| 0001 | ADS (Alternate DS) | `SMV R2, ADS` | `SMV ADS, R2` |
+| 0010 | ASS (Alternate SS) | `SMV R3, ASS` | `SMV ASS, R3` |
+| 0011 | AES (Alternate ES) | `SMV R4, AES` | `SMV AES, R4` |
+| 0100 | APC (Alternate PC) | `SMV R5, APC` | `SMV APC, R5` |
+| 0101 | APSW (Alternate PSW) | `SMV R6, APSW` | `SMV APSW, R6` |
+| 0110-1111 | *reserved* | *reserved* | *reserved* |
+
+**Alternate Register Semantics:**
+- **Normal mode (PSW.S=0)**: SMV accesses shadow registers (CS', DS', SS', ES', PC', PSW')
+- **Interrupt mode (PSW.S=1)**: SMV accesses normal registers (CS, DS, SS, ES, PC, PSW)
+
+**SMV Instruction Format:**
+```
+15              5 4 3             0
++-----------------+-+---------------+
+| 1111111110      |d|   alt_sel     |
++-----------------+-+---------------+
+
+d = 0: Write to alternate (SMV alt_reg, Rs)
+d = 1: Read from alternate (SMV Rs, alt_reg)
+```
+
+**LPSW Instruction Format:**
+```
+15                4 3             0
++-------------------+---------------+
+| 111111111110      |     Rx4       |
++-------------------+---------------+
+```
 
 **MOV with immediate value 3 (AMV/ALNK aliases):**
 - Bypasses all pipeline forwarding mechanisms
@@ -149,7 +181,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 
 ### 3.3 ALU Instructions - Group 1: Basic Operations
 
-**Table F: Basic ALU Instructions**
+**Table G: Basic ALU Instructions**
 
 | Instruction | Format | Binary Encoding | Behavior |
 |-------------|---------|-----------------|----------|
@@ -172,7 +204,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 
 ### 3.4 ALU Instructions - Group 2: Shift/Rotate Operations
 
-**Table G: Shift and Rotate Instructions**
+**Table H: Shift and Rotate Instructions**
 
 | Instruction | Format | Binary Encoding | Behavior |
 |-------------|---------|-----------------|----------|
@@ -198,7 +230,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 
 ### 3.5 ALU Instructions - Group 3: Multiply/Divide Operations
 
-**Table H: Multiply/Divide Instructions**
+**Table I: Multiply/Divide Instructions**
 
 | Instruction | Format | Binary Encoding | Behavior |
 |-------------|---------|-----------------|----------|
@@ -217,7 +249,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 
 ### 3.6 Single Operand ALU Operations
 
-**Table I: Single Operand Instructions**
+**Table J: Single Operand Instructions**
 
 | Instruction | Format   | Binary Encoding     | Behavior |
 |-------------|----------|---------------------|----------|
@@ -227,7 +259,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 
 ### 3.7 Memory Access Instructions
 
-**Table J: Memory Access Instructions**
+**Table K: Memory Access Instructions**
 
 | Instruction | Format | Binary Encoding | Behavior |
 |-------------|---------|-----------------|----------|
@@ -238,7 +270,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 
 ### 3.8 Control Flow Instructions
 
-**Table K: Condition Codes for Jump Instructions**
+**Table L: Condition Codes for Jump Instructions**
 
 | Condition | Code | Mnemonic | Test |
 |-----------|------|----------|------|
@@ -251,7 +283,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | Overflow | 110 | JO | V = 1 |
 | No Overflow | 111 | JNO | V = 0 |
 
-**Table L: Control Flow Instructions**
+**Table M: Control Flow Instructions**
 
 | Instruction | Format | Binary Encoding | Behavior |
 |-------------|---------|-----------------|----------|
@@ -267,7 +299,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 
 ### 3.9 PSW Operations
 
-**Table M: PSW Segment Assignment Operations**
+**Table N: PSW Segment Assignment Operations**
 
 | Instruction | Format | Binary Encoding | Behavior |
 |-------------|---------|-----------------|----------|
@@ -276,7 +308,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | **ERS** | `ERS Rx` | `11111110 1010 Rx4` | `PSW.ER = Rx, PSW.DE = 0` |
 | **ERD** | `ERD Rx` | `11111110 1011 Rx4` | `PSW.ER = Rx, PSW.DE = 1` |
 
-**Table N: PSW Flag Operations**
+**Table O: PSW Flag Operations**
 
 | Instruction | Format | Binary Encoding | Behavior |
 |-------------|---------|-----------------|----------|
@@ -287,7 +319,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 
 ### 3.10 System Operations
 
-**Table O: System Instructions**
+**Table P: System Instructions**
 
 | Instruction | Format | Binary Encoding | Behavior |
 |-------------|---------|-----------------|----------|
@@ -298,7 +330,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 
 ### 3.11 Halt Instruction
 
-**Table P: Halt Instruction**
+**Table Q: Halt Instruction**
 
 | Instruction | Format | Binary Encoding | Behavior |
 |-------------|---------|-----------------|----------|
@@ -344,7 +376,7 @@ MOV  R3, SP, 0        ; Note: Negative offsets not supported in MOV
 
 ### 4.2 Instruction Aliases
 
-**Table Q: Instruction Aliases**
+**Table R: Instruction Aliases**
 
 | Alias | Actual Instruction | Purpose |
 |-------|-------------------|---------|
@@ -358,7 +390,7 @@ MOV  R3, SP, 0        ; Note: Negative offsets not supported in MOV
 
 ### 4.3 Flag Operation Aliases
 
-**Table R: Common Flag Aliases**
+**Table S: Common Flag Aliases**
 
 | Alias | Actual Instruction | Purpose |
 |-------|-------------------|---------|
@@ -482,11 +514,16 @@ Default effect:
 - Both contexts preserved for debugging
 - **Pipeline flushed** on context restoration
 
+**SMV Symmetric Access:**
+- **Normal mode (PSW.S=0)**: SMV accesses shadow registers (CS', DS', SS', ES', PC', PSW')
+- **Interrupt mode (PSW.S=1)**: SMV accesses normal registers (CS, DS, SS, ES, PC, PSW)
+
 **Benefits of Complete Shadow System:**
 - Interrupt handlers can freely modify segment registers without saving/restoring
 - Debugging visibility into both normal and interrupt contexts
 - Faster interrupt response (no need to push segment registers)
 - Clean separation of execution contexts
+- Symmetric SMV access simplifies context management
 
 ---
 
@@ -697,20 +734,59 @@ return_here:
     ; Execution continues here after far return
 ```
 
-**Interrupt Handler:**
+**Interrupt Handler with SMV:**
 ```assembly
 interrupt_handler:
-    ; Automatic context switch to shadow registers
-    SMV  R0, APSW     ; Read pre-interrupt PSW to R0
-    MOV  R5, R0       ; Copy to R5 for processing
-    SMV  R0, APC      ; Read pre-interrupt PC to R0
-    MOV  R6, R0
-    SMV  R0, ADS      ; Read pre-interrupt DS to R0
-    MOV  R7, R0
+    ; We're in interrupt context (PSW.S=1)
+    ; SMV accesses NORMAL registers for context save
+    
+    SMV  R1, APC      ; R1 = PC (from normal context)
+    SMV  R2, APSW     ; R2 = PSW (from normal context) 
+    SMV  R3, ACS      ; R3 = CS (from normal context)
+    SMV  R4, ADS      ; R4 = DS (from normal context)
+    
+    ; Save context to stack
+    ST   R1, [SP-1]   ; Save PC
+    ST   R2, [SP-2]   ; Save PSW
+    ST   R3, [SP-3]   ; Save CS
+    ST   R4, [SP-4]   ; Save DS
     
     ; Interrupt processing...
     
-    RETI              ; Return and restore context
+    ; Optionally modify return context
+    LDI  new_return_pc
+    MOV  R5, R0
+    SMV  APC, R5      ; Modify PC in normal context
+    
+    RETI              ; Automatically restores context
+```
+
+**Debugging with SMV:**
+```assembly
+debug_interrupt_state:
+    ; We're in normal mode (PSW.S=0)
+    ; SMV accesses SHADOW registers for inspection
+    
+    SMV  R1, APC      ; R1 = PC' (last interrupt PC)
+    SMV  R2, APSW     ; R2 = PSW' (last interrupt PSW)
+    SMV  R3, ACS      ; R3 = CS' (last interrupt CS)
+    
+    ; Display debug information...
+    RET
+```
+
+**LPSW Usage:**
+```assembly
+check_interrupt_state:
+    LPSW R5           ; R5 = current PSW
+    TBS  R5, 4        ; Test interrupt enable bit
+    JNZ  interrupts_enabled
+    
+modify_flags:
+    LPSW R3           ; R3 = current PSW
+    SET  R3, 0        ; Set negative flag in copy
+    CLR  R3, 3        ; Clear carry flag in copy
+    MVS  PSW, R3      ; Write back modified PSW
 ```
 
 ### 8.4 Segment Register Conventions
@@ -764,7 +840,7 @@ ERD  R10         ; Use R10/R11 for ES access
 
 The Deep16 processor uses memory-mapped I/O in the I/O Segment (0xF0000-0xFFFFF). All peripherals are accessed via standard load/store instructions using the ES segment register.
 
-**Table S: Memory-Mapped I/O Map**
+**Table T: Memory-Mapped I/O Map**
 
 | Address Range | Device | Base Offset | Interrupt | Purpose |
 |---------------|--------|-------------|-----------|----------|
@@ -867,19 +943,33 @@ tx_wait:
     RET
 ```
 
+**Interrupt Controller Setup:**
+```assembly
+enable_interrupts:
+    LDI  0x0FFF
+    INV  R0
+    MVS  ES, R0
+    
+    LDI  0x000F       ; Enable all interrupts
+    STS  R0, [0x0010] ; Write to interrupt mask
+    
+    SETI              ; Enable interrupts globally
+    RET
+```
+
 ---
 
-*Deep16 (深十六) Architecture Specification v5.1 (Milestone 3r1) - Complete Shadow System & Hardware*
+*Deep16 (深十六) Architecture Specification v5.2 (Milestone 3r1) - Complete System*
 
-**Key Updates in 3r1:**
-- ✅ Complete shadow register system (CS', DS', SS', ES', PC', PSW')
-- ✅ Enhanced interrupt handling with full segment register preservation
-- ✅ Intuitive TBS/TBC semantics with natural Z flag behavior
-- ✅ EVEN register requirement for 32-bit multiply/divide operations
-- ✅ Comprehensive memory-mapped I/O system specification
-- ✅ Fixed table formatting issues in ALU instructions
-- ✅ Complete system hardware architecture with peripherals
-- ✅ Practical I/O programming examples
-- ✅ Enhanced educational focus with clear peripheral documentation
+**Key Features in Final Specification:**
+- ✅ **Symmetric SMV Instruction**: Clean alternate context access with perfect symmetry
+- ✅ **LPSW Instruction**: Direct PSW access for current context
+- ✅ **Complete Shadow System**: All segment registers plus PC and PSW
+- ✅ **Intuitive Bit Testing**: Natural TBS/TBC semantics
+- ✅ **EVEN Register 32-bit Ops**: Better register allocation
+- ✅ **Enhanced Assembler Syntax**: Bracket and plus notation
+- ✅ **Memory-Mapped I/O**: Complete peripheral system
+- ✅ **5-Stage Pipeline**: With delayed branch and forwarding
+- ✅ **Practical Examples**: Comprehensive programming idioms
 
-This revision provides a complete system specification ready for both processor implementation and peripheral development, maintaining the core RISC philosophy while offering practical I/O capabilities.
+This specification represents a complete, balanced RISC architecture suitable for educational use, FPGA implementation, and practical embedded systems development.
