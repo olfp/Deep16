@@ -193,14 +193,14 @@ d = 1: Read from alternate (SMV R0, alt_reg) - alt_reg → R0
 | **CMP** | `CMP Rd, imm` | `110 00101 Rd4 imm4` | `Rd - imm`, set flags only |
 | **AND** | `AND Rd, Rs` | `110 00110 Rd4 Rs4` | `Rd = Rd AND Rs`, set flags |
 | **AND** | `AND Rd, imm` | `110 00111 Rd4 imm4` | `Rd = Rd AND imm`, set flags |
-| **TBC** | `TBC Rd, Rs` | `110 01000 Rd4 Rs4` | `Rd AND Rs`, **Z=0 if ANY bit CLEAR** (result ≠ 0) |
-| **TBC** | `TBC Rd, count` | `110 01001 Rd4 count4` | `Rd AND (1<<count)`, **Z=0 if bit CLEAR** |
+| **TBC** | `TBC Rd, Rs` | `110 01000 Rd4 Rs4` | `Rd AND Rs`, **set flags only** |
+| **TBC** | `TBC Rd, imm` | `110 01001 Rd4 imm4` | `Rd AND imm`, **set flags only** |
 | **OR** | `OR Rd, Rs` | `110 01010 Rd4 Rs4` | `Rd = Rd OR Rs`, set flags |
 | **OR** | `OR Rd, imm` | `110 01011 Rd4 imm4` | `Rd = Rd OR imm`, set flags |
 | **XOR** | `XOR Rd, Rs` | `110 01100 Rd4 Rs4` | `Rd = Rd XOR Rs`, set flags |
 | **XOR** | `XOR Rd, imm` | `110 01101 Rd4 imm4` | `Rd = Rd XOR imm`, set flags |
-| **TBS** | `TBS Rd, Rs` | `110 01110 Rd4 Rs4` | `Rd XOR Rs`, **Z=0 if ANY bit SET** (result ≠ 0) |
-| **TBS** | `TBS Rd, count` | `110 01111 Rd4 count4` | `Rd XOR (1<<count)`, **Z=0 if bit SET** |
+| **TBS** | `TBS Rd, Rs` | `110 01110 Rd4 Rs4` | `Rd XOR Rs`, **set flags only** |
+| **TBS** | `TBS Rd, imm` | `110 01111 Rd4 imm4` | `Rd XOR imm`, **set flags only** |
 
 ### 3.4 ALU Instructions - Group 2: Shift/Rotate Operations
 
@@ -407,42 +407,64 @@ MOV  R3, SP, 0        ; Note: Negative offsets not supported in MOV
 | SETS | SET2 1 | Enable shadow view |
 | CLRS | CLR2 1 | Disable shadow view |
 
-### 4.4 Bit Test Usage Examples
+### 4.4 TBS/TBC Usage Examples
 
-**Intuitive bit testing with natural semantics:**
+**Fundamental Bit Testing with AND/XOR Operations:**
 
-**Single-bit testing (count variant):**
 ```assembly
-; Test if bit 3 is SET - jump if it IS set
-TBS   R5, 3      ; Z=0 if bit 3 is SET, Z=1 if CLEAR
-JNZ   bit_is_set ; Jump when Z=0 (bit IS set) - NATURAL!
-
-; Test if bit 7 is CLEAR - jump if it IS clear  
-TBC   R5, 7      ; Z=0 if bit 7 is CLEAR, Z=1 if SET
-JNZ   bit_is_clear ; Jump when Z=0 (bit IS clear) - NATURAL!
-
-; Alternative: test if NOT set (less common)
-TBS   R5, 3
-JZ    bit_not_set ; Jump when Z=1 (bit is NOT set)
-```
-
-**Multi-bit testing (Rs variant):**
-```assembly
-; Test if ANY of the bits in mask R6 are SET in R5
-TBS   R5, R6     ; Z=0 if ANY masked bit is SET, Z=1 if ALL masked bits are CLEAR
-JNZ   some_bits_set ; Jump when any masked bit is set
-
-; Test if ALL bits in mask R6 are CLEAR in R5  
-TBC   R5, R6     ; Z=0 if ANY masked bit is CLEAR, Z=1 if ALL masked bits are SET
-JNZ   some_bits_clear ; Jump when any masked bit is clear
-
-; Test if ALL bits in mask R6 are SET in R5
-TBC   R5, R6     ; Z=1 if ALL masked bits are SET
-JZ    all_bits_set ; Jump when all masked bits are set
+; Test if ANY bits in mask R6 are SET in R5
+TBC  R5, R6     ; Z=0 if ANY masked bits are SET
+JNZ  some_bits_set ; Jump when Z=0 (some bits set)
 
 ; Test if ALL bits in mask R6 are CLEAR in R5
-TBS   R5, R6     ; Z=1 if ALL masked bits are CLEAR  
-JZ    all_bits_clear ; Jump when all masked bits are clear
+TBC  R5, R6     ; Z=1 if ALL masked bits are CLEAR  
+JZ   all_clear  ; Jump when Z=1 (all bits clear)
+
+; Test if R5 matches pattern in R6 exactly
+TBS  R5, R6     ; Z=1 if EXACT match (all bits same)
+JZ   exact_match ; Jump when Z=1 (exact match)
+
+; Test if ANY bits differ between R5 and R6
+TBS  R5, R6     ; Z=0 if ANY bits differ
+JNZ  bits_differ ; Jump when Z=0 (bits differ)
+```
+
+**Single-bit Testing:**
+
+```assembly
+; Test if bit 3 is SET
+TBC  R5, 0x0008 ; Z=0 if bit 3 is SET (mask = 1<<3)
+JNZ  bit3_set   ; Jump when Z=0
+
+; Test if bit 7 is CLEAR  
+TBC  R5, 0x0080 ; Z=1 if bit 7 is CLEAR
+JZ   bit7_clear ; Jump when Z=1
+
+; Test if bit 5 matches our expected value (1)
+LSI  R6, 0x0020 ; Mask for bit 5
+TBS  R5, R6     ; Z=1 if bit 5 = 1, Z=0 if bit 5 = 0
+JZ   bit5_is_1  ; Jump when bit 5 is 1
+```
+
+**Practical Building Blocks:**
+
+```assembly
+; Check if R5 has ANY of the bits in mask R6 set
+TBC  R5, R6
+JNZ  has_some_bits
+
+; Check if R5 has ALL bits in mask R6 set
+AND  R7, R5, R6  ; Actually perform the AND
+CMP  R7, R6      ; Compare result with original mask
+JZ   has_all_bits
+
+; Check if R5 has NONE of the bits in mask R6 set  
+TBC  R5, R6
+JZ   has_no_bits
+
+; Quick equality test
+TBS  R5, R6
+JZ   registers_equal
 ```
 
 ### 4.5 MOV Special Immediate Value
@@ -962,13 +984,13 @@ enable_interrupts:
 
 ---
 
-*Deep16 (深十六) Architecture Specification v5.3 (Milestone 3r1) - Final*
+*Deep16 (深十六) Architecture Specification v5.4 (Milestone 3r1) - Final*
 
 **Key Features in Final Specification:**
 - ✅ **Corrected SMV Instruction**: 11-bit opcode with R0-only data transfer
 - ✅ **LPSW Instruction**: Direct PSW access for current context
 - ✅ **Complete Shadow System**: All segment registers plus PC and PSW
-- ✅ **Intuitive Bit Testing**: Natural TBS/TBC semantics
+- ✅ **Fundamental TBS/TBC**: AND/XOR operations with flag setting only
 - ✅ **EVEN Register 32-bit Ops**: Better register allocation
 - ✅ **Enhanced Assembler Syntax**: Bracket and plus notation
 - ✅ **Memory-Mapped I/O**: Complete peripheral system
