@@ -336,6 +336,123 @@ d = 1: Read from alternate (SMV R0, alt_reg) - alt_reg → R0
 |-------------|---------|-----------------|----------|
 | **HLT** | `HLT` | `1111111111111111` | Halt processor |
 
+### 3.12 Subroutine Call Mechanism
+
+#### 3.12.1 Delayed Branch Impact on Subroutine Calls
+
+The Deep16 architecture implements a **one-slot delayed branch**, which significantly impacts subroutine call conventions. Unlike architectures with dedicated CALL instructions, Deep16 uses a two-instruction sequence:
+
+**Standard Subroutine Call:**
+```assembly
+LINK          ; MOV LR, PC, 2  - Store return address in Link Register
+JMP  sub_func ; Jump to subroutine
+; Delay slot executes here
+```
+
+**Why LINK uses immediate value 2:**
+- The `LINK` alias expands to `MOV LR, PC, 2`
+- The value `2` accounts for the **branch delay slot**:
+  - `PC` during `LINK` execution points to the `JMP` instruction
+  - The delay slot instruction at `PC + 1` always executes
+  - The actual return address should be `PC + 2` (after delay slot)
+
+#### 3.12.2 Architectural Move for Delay Slot Optimization
+
+To utilize the delay slot efficiently, Deep16 provides **architectural register access** via the MOV instruction with immediate value `3`:
+
+**CRITICAL: Immediate value 3 signals architectural move with offset 0**
+- `MOV Rx, Ry, 3` means: **Architectural read of Ry + 0**
+- The value `3` is a **control flag**, not an arithmetic offset
+- When immediate = 3: **Bypass all pipeline forwarding, read architectural state**
+- When immediate = 0-2: **Normal operation with arithmetic offset**
+
+**Optimized Subroutine Call using ALINK:**
+```assembly
+JMP   sub_func        ; Jump to subroutine  
+ALINK                 ; MOV LR, PC, 3 - Architectural read of PC+0 in delay slot
+; Execution continues after subroutine return
+```
+
+#### 3.12.3 Understanding the Immediate Field Semantics
+
+**MOV Instruction Immediate Field:**
+```
+MOV Rd, Rs, imm2
+```
+- `imm2 = 0, 1, 2`: **Normal operation** - `Rd = Rs + imm2` (with forwarding)
+- `imm2 = 3`: **Architectural move** - `Rd = Rs + 0` (bypass forwarding)
+
+**Therefore:**
+- `MOV LR, PC, 2` = `LR = PC + 2` (normal addition with pipeline-relative PC)
+- `MOV LR, PC, 3` = `LR = PC + 0` (architectural read of stable PC value)
+
+#### 3.12.4 Comparison of Call Methods
+
+**Traditional Approach (wastes delay slot):**
+```assembly
+LINK           ; MOV LR, PC, 2  - LR = pipeline_PC + 2
+JMP  subroutine
+NOP            ; Wasted delay slot - does nothing useful
+```
+
+**Optimized Approach (uses delay slot):**
+```assembly
+JMP   subroutine
+ALINK          ; MOV LR, PC, 3 - LR = architectural_PC + 0
+```
+
+**Both approaches** set the Link Register to the instruction **after the delay slot**, but the optimized version utilizes the otherwise-wasted delay slot cycle.
+
+#### 3.12.5 Why This Works
+
+In the optimized case:
+- `JMP subroutine` enters the pipeline
+- `ALINK` executes in the delay slot
+- `MOV LR, PC, 3` reads the **architectural PC** (bypassing forwarding)
+- Architectural PC during delay slot = address of instruction after delay slot
+- Therefore: `LR = address_after_delay_slot + 0 = correct_return_address`
+
+#### 3.12.6 Complete Call/Return Sequence
+
+**Caller:**
+```assembly
+; Option 1: Standard call (clear but inefficient)
+LINK           ; MOV LR, PC, 2  - LR = pipeline_PC + 2
+JMP  my_func   ; Jump to function
+NOP            ; Wasted cycle
+
+; Option 2: Optimized call (efficient)
+JMP   my_func
+ALINK          ; MOV LR, PC, 3  - LR = architectural_PC + 0
+
+; Option 3: Register-based optimized call  
+JMP   my_func
+AMV   R5, PC   ; MOV R5, PC, 3 - Architectural move to R5 in delay slot
+```
+
+**Callee (my_func):**
+```assembly
+my_func:
+    ; Function prologue
+    MOV  FP, SP      ; Set frame pointer
+    SUB  SP, 4       ; Allocate 4 words of stack space
+    ST   LR, [FP+3]  ; Save return address
+    ; ... function body ...
+    ; Function epilogue
+    LD   LR, [FP+3]  ; Restore return address
+    MOV  SP, FP      ; Restore stack pointer
+    JMP  LR          ; Return to caller
+    NOP              ; Delay slot (often used for cleanup)
+```
+
+**Note on Stack Allocation:** 
+`SUB SP, 4` is the cleanest and most readable way to allocate stack space:
+- Uses the ALU immediate operation `SUB Rd, imm4`
+- The assembler handles the 4-bit unsigned immediate encoding
+- Much clearer than using `LSI` with hexadecimal constants
+
+This design embraces the RISC philosophy of providing simple, orthogonal operations that can be combined to create complex behaviors, while providing mechanisms to optimize for the pipeline architecture. The key insight is that **immediate value 3 changes the semantics from "add offset" to "architectural read with zero offset".**
+
 ---
 
 ## 4. Enhanced Assembler Syntax and Aliases
@@ -700,8 +817,7 @@ Low addresses
 ```assembly
 ; Save frame and link, allocate stack space
 MOV  FP, SP          ; Set new frame pointer
-LSI  R0, -4          ; Allocate 4 words to R0
-ADD  SP, SP, R0      ; Adjust stack pointer
+SUB  SP, 4           ; Allocate 4 words of stack space
 ST   LR, [FP+3]      ; Save return address using bracket syntax
 ST   OldFP, [FP+2]   ; Save old frame pointer
 ```
@@ -984,7 +1100,7 @@ enable_interrupts:
 
 ---
 
-*Deep16 (深十六) Architecture Specification v5.4 (Milestone 3r1) - Final*
+*Deep16 (深十六) Architecture Specification v5.5 (Milestone 3r1) - Final*
 
 **Key Features in Final Specification:**
 - ✅ **Corrected SMV Instruction**: 11-bit opcode with R0-only data transfer
@@ -997,5 +1113,7 @@ enable_interrupts:
 - ✅ **5-Stage Pipeline**: With delayed branch and forwarding
 - ✅ **Practical Examples**: Comprehensive programming idioms
 - ✅ **Symmetric Context Access**: SMV works perfectly in both modes
+- ✅ **Correct ALU2 Examples**: All examples use proper two-operand format
+- ✅ **Clear Subroutine Call Section**: Explains LINK/JMP sequence and architectural move
 
 This specification represents a complete, balanced RISC architecture suitable for educational use, FPGA implementation, and practical embedded systems development.
