@@ -117,7 +117,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | 1111110 | 7 | LSI | `[1111110][Rd4][imm5]` | Full pipeline |
 | 11111110 | 8 | SOP | `[11111110][type4][Rx/imm4]` | Various pipeline effects |
 | 111111110 | 9 | MVS | `[111111110][d1][Rd4][seg2]` | Segment access in MEM |
-| 1111111110 | 10 | SMV | `[1111111110][d1][Rs4][alt_sel4]` | Alternate context access |
+| 11111111110 | 11 | SMV | `[11111111110][d1][alt_sel4]` | Alternate context access |
 | 111111111110 | 12 | LPSW | `[111111111110][Rx4]` | Load PSW of current context |
 | 1111111111110 | 13 | SYS | `[1111111111110][op3]` | Pipeline flush on RETI |
 | 1111111111111111 | 16 | HLT | `[1111111111111111]` | Halt the processor |
@@ -133,35 +133,31 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | **LSI** | `LSI Rd, imm` | `1111110 Rd4 imm5` | `Rd = imm` (sign-extended) |
 | **MVS** | `MVS Rd, Sx` | `111111110 0 Rd4 seg2` | `Rd = Sx` |
 | **MVS** | `MVS Sx, Rd` | `111111110 1 Rd4 seg2` | `Sx = Rd` |
-| **SMV** | `SMV Rs, alt_reg` | `1111111110 1 Rs4 alt_sel4` | Read from alternate context |
-| **SMV** | `SMV alt_reg, Rs` | `1111111110 0 Rs4 alt_sel4` | Write to alternate context |
+| **SMV** | `SMV alt_reg` | `11111111110 0 alt_sel4` | `alt_reg = R0` (Write to alternate) |
+| **SMV** | `SMV R0, alt_reg` | `11111111110 1 alt_sel4` | `R0 = alt_reg` (Read from alternate) |
 | **LPSW** | `LPSW Rx` | `111111111110 Rx4` | `Rx = PSW` (Load PSW of current context) |
 
 **Table F: SMV Alternate Register Selection**
 
 | alt_sel | Alternate Register | Read Example | Write Example |
 |---------|-------------------|-------------|---------------|
-| 0000 | ACS (Alternate CS) | `SMV R1, ACS` | `SMV ACS, R1` |
-| 0001 | ADS (Alternate DS) | `SMV R2, ADS` | `SMV ADS, R2` |
-| 0010 | ASS (Alternate SS) | `SMV R3, ASS` | `SMV ASS, R3` |
-| 0011 | AES (Alternate ES) | `SMV R4, AES` | `SMV AES, R4` |
-| 0100 | APC (Alternate PC) | `SMV R5, APC` | `SMV APC, R5` |
-| 0101 | APSW (Alternate PSW) | `SMV R6, APSW` | `SMV APSW, R6` |
+| 0000 | ACS (Alternate CS) | `SMV R0, ACS` | `SMV ACS` |
+| 0001 | ADS (Alternate DS) | `SMV R0, ADS` | `SMV ADS` |
+| 0010 | ASS (Alternate SS) | `SMV R0, ASS` | `SMV ASS` |
+| 0011 | AES (Alternate ES) | `SMV R0, AES` | `SMV AES` |
+| 0100 | APC (Alternate PC) | `SMV R0, APC` | `SMV APC` |
+| 0101 | APSW (Alternate PSW) | `SMV R0, APSW` | `SMV APSW` |
 | 0110-1111 | *reserved* | *reserved* | *reserved* |
-
-**Alternate Register Semantics:**
-- **Normal mode (PSW.S=0)**: SMV accesses shadow registers (CS', DS', SS', ES', PC', PSW')
-- **Interrupt mode (PSW.S=1)**: SMV accesses normal registers (CS, DS, SS, ES, PC, PSW)
 
 **SMV Instruction Format:**
 ```
-15              5 4 3             0
-+-----------------+-+---------------+
-| 1111111110      |d|   alt_sel     |
-+-----------------+-+---------------+
+15                4 3             0
++-------------------+-+-------------+
+| 11111111110       |d|   alt_sel   |
++-------------------+-+-------------+
 
-d = 0: Write to alternate (SMV alt_reg, Rs)
-d = 1: Read from alternate (SMV Rs, alt_reg)
+d = 0: Write to alternate (SMV alt_reg) - R0 → alt_reg
+d = 1: Read from alternate (SMV R0, alt_reg) - alt_reg → R0
 ```
 
 **LPSW Instruction Format:**
@@ -171,6 +167,10 @@ d = 1: Read from alternate (SMV Rs, alt_reg)
 | 111111111110      |     Rx4       |
 +-------------------+---------------+
 ```
+
+**Alternate Register Semantics:**
+- **Normal mode (PSW.S=0)**: SMV accesses shadow registers (CS', DS', SS', ES', PC', PSW')
+- **Interrupt mode (PSW.S=1)**: SMV accesses normal registers (CS, DS, SS, ES, PC, PSW)
 
 **MOV with immediate value 3 (AMV/ALNK aliases):**
 - Bypasses all pipeline forwarding mechanisms
@@ -740,23 +740,23 @@ interrupt_handler:
     ; We're in interrupt context (PSW.S=1)
     ; SMV accesses NORMAL registers for context save
     
-    SMV  R1, APC      ; R1 = PC (from normal context)
-    SMV  R2, APSW     ; R2 = PSW (from normal context) 
-    SMV  R3, ACS      ; R3 = CS (from normal context)
-    SMV  R4, ADS      ; R4 = DS (from normal context)
+    SMV  R0, APC      ; R0 = PC (from normal context)
+    MOV  R1, R0       ; Save to R1
+    SMV  R0, APSW     ; R0 = PSW (from normal context)
+    MOV  R2, R0       ; Save to R2
+    SMV  R0, ACS      ; R0 = CS (from normal context)
+    MOV  R3, R0       ; Save to R3
     
     ; Save context to stack
     ST   R1, [SP-1]   ; Save PC
     ST   R2, [SP-2]   ; Save PSW
     ST   R3, [SP-3]   ; Save CS
-    ST   R4, [SP-4]   ; Save DS
     
     ; Interrupt processing...
     
     ; Optionally modify return context
     LDI  new_return_pc
-    MOV  R5, R0
-    SMV  APC, R5      ; Modify PC in normal context
+    SMV  APC          ; Modify PC in normal context (R0 → APC)
     
     RETI              ; Automatically restores context
 ```
@@ -767,9 +767,12 @@ debug_interrupt_state:
     ; We're in normal mode (PSW.S=0)
     ; SMV accesses SHADOW registers for inspection
     
-    SMV  R1, APC      ; R1 = PC' (last interrupt PC)
-    SMV  R2, APSW     ; R2 = PSW' (last interrupt PSW)
-    SMV  R3, ACS      ; R3 = CS' (last interrupt CS)
+    SMV  R0, APC      ; R0 = PC' (last interrupt PC)
+    MOV  R1, R0       ; Save for display
+    SMV  R0, APSW     ; R0 = PSW' (last interrupt PSW)
+    MOV  R2, R0       ; Save for display
+    SMV  R0, ACS      ; R0 = CS' (last interrupt CS)
+    MOV  R3, R0       ; Save for display
     
     ; Display debug information...
     RET
@@ -959,10 +962,10 @@ enable_interrupts:
 
 ---
 
-*Deep16 (深十六) Architecture Specification v5.2 (Milestone 3r1) - Complete System*
+*Deep16 (深十六) Architecture Specification v5.3 (Milestone 3r1) - Final*
 
 **Key Features in Final Specification:**
-- ✅ **Symmetric SMV Instruction**: Clean alternate context access with perfect symmetry
+- ✅ **Corrected SMV Instruction**: 11-bit opcode with R0-only data transfer
 - ✅ **LPSW Instruction**: Direct PSW access for current context
 - ✅ **Complete Shadow System**: All segment registers plus PC and PSW
 - ✅ **Intuitive Bit Testing**: Natural TBS/TBC semantics
@@ -971,5 +974,6 @@ enable_interrupts:
 - ✅ **Memory-Mapped I/O**: Complete peripheral system
 - ✅ **5-Stage Pipeline**: With delayed branch and forwarding
 - ✅ **Practical Examples**: Comprehensive programming idioms
+- ✅ **Symmetric Context Access**: SMV works perfectly in both modes
 
 This specification represents a complete, balanced RISC architecture suitable for educational use, FPGA implementation, and practical embedded systems development.
