@@ -13,8 +13,9 @@ Deep16 is a 16-bit RISC processor designed for efficiency, simplicity, and educa
 - **16 general-purpose registers** - Rich register set for efficient coding
 - **Enhanced assembler syntax** - Bracket and plus notation for readability
 - **Delayed branch architecture** - One delay slot for performance optimization
-- **Complete shadow register system** - Hardware-assisted interrupt handling
+- **Simplified shadow register system** - Fast interrupt context switching
 - **Memory-mapped I/O** - Simple peripheral access
+- **No memory protection** - Full memory accessibility
 
 ### 1.3 Performance Characteristics
 - **Base performance**: 1.0-1.3 CPI (Cycles Per Instruction)
@@ -109,11 +110,13 @@ Low addresses
 **LDI - Load Immediate (to R0)**
 ```assembly
 LDI  0x1234      ; R0 = 0x1234
-LDI  -100        ; R0 = -100 (two's complement)
+LDI  -100        ; R0 = -100 (two's complement) - loads 0xFF9C
+LDI  -1          ; R0 = 0xFFFF (sign extension!)
 LDI  label       ; R0 = address of label
 ```
 - **Always loads R0**
 - **15-bit immediate** (sign-extended to 16 bits)
+- **Critical**: Uses sign extension - `LDI -1` loads `0xFFFF`
 - **Use for**: Loading constants, addresses
 
 **MOV - Register to Register with Offset**
@@ -142,10 +145,10 @@ AMV  R1, R2      ; MOV R1, R2, 3 - Architectural read
 ALINK            ; MOV LR, PC, 3 - Architectural link in delay slot
 ALNK R5          ; MOV R5, PC, 3 - Architectural link to R5
 ```
-- **Bypasses pipeline forwarding** to read architectural state
-- **No pipeline stall** - operates in normal cycle time
+- **Bypasses pipeline forwarding**
+- **Reads current architectural state**
 - **Essential for delay slot link instructions**
-- **Reads stable register file value** ignoring pending writes
+- **No pipeline stall**
 
 **Segment Register Access**
 ```assembly
@@ -181,17 +184,20 @@ CMP  R1, 10      ; R1 - 10 (set flags only)
 **AND/OR/XOR - Bitwise Operations**
 ```assembly
 AND  R1, R2      ; R1 = R1 AND R2
-AND  R1, 0x0F    ; R1 = R1 AND 0x0F (clear upper bits)
-OR   R1, 0x80    ; R1 = R1 OR 0x80 (set bit 7)
-XOR  R1, R1      ; R1 = 0 (clear register)
+AND  R1, 3       ; R1 = R1 AND (1 << 3)  (clear all except bit 3)
+OR   R1, 7       ; R1 = R1 OR (1 << 7)   (set bit 7)
+XOR  R1, 0       ; R1 = R1 XOR (1 << 0)  (toggle bit 0)
 ```
+- **Immediate operands specify bit positions** (0-15)
+- **NOT general 4-bit values** - uses `(1 << imm)`
+- **Powerful single-bit manipulation**
 
 **TBC/TBS - Test Bits**
 ```assembly
 TBC  R1, R2      ; R1 AND R2 (set flags only)
-TBC  R1, 0x08    ; Test if bit 3 is clear (Z=1 if clear)
+TBC  R1, 5       ; Test if bit 5 is clear (Z=1 if clear)
 TBS  R1, R2      ; R1 XOR R2 (set flags only)  
-TBS  R1, 0x08    ; Test if bit 3 matches (Z=1 if same)
+TBS  R1, 12      ; Test if bit 12 is set (Z=1 if set)
 ```
 - **Sets flags** without writing result
 - **TBC**: AND operation - Z=1 if all tested bits are clear
@@ -205,12 +211,12 @@ INV  R1          ; R1 = ~R1 (bitwise complement)
 NEG  R1          ; R1 = -R1 (two's complement negation)
 ```
 
-**SWB - Swap Bytes**
+**SWB - Swap Bytes (Alias)**
 ```assembly
-SWB  R1          ; R1 = (R1 << 8) | (R1 >> 8)
+SWB  R1          ; R1 = (R1 << 8) | (R1 >> 8) - alias for ROL R1, 8
 ```
 - **Swaps high and low bytes**
-- **Use for**: Endian conversion, data packing
+- **Example**: `0x1234` becomes `0x3412`
 
 ### 3.3 Shift and Rotate Instructions
 
@@ -224,48 +230,25 @@ SR   R1, 3       ; R1 = R1 >> 3 (logical right shift)
 - **Shifts in zeros**
 - **Carry flag** gets last bit shifted out
 
-**SLC/SRC - Shift Logical with Carry**
-```assembly
-SLC  R1, 1       ; R1 = (R1 << 1) | C
-SRC  R1, 1       ; R1 = (R1 >> 1) | (C << 15)
-```
-- **Carry flag is shifted into register**
-- **Use for**: Multi-precision shifts
-
-#### 3.3.2 Arithmetic Shifts
-
-**SLA/SRA - Shift Arithmetic**
-```assembly
-SLA  R1, 2       ; R1 = R1 << 2 (arithmetic left)
-SRA  R1, 3       ; R1 = R1 >> 3 (arithmetic right, sign-extended)
-```
-- **Preserves sign bit** for two's complement
-
-#### 3.3.3 Rotate Operations
+#### 3.3.2 Rotate Operations
 
 **ROL/ROR - Rotate**
 ```assembly
 ROL  R1, 4       ; R1 = (R1 << 4) | (R1 >> 12)
+ROL  R1, 8       ; R1 = (R1 << 8) | (R1 >> 8) - same as SWB R1
 ROR  R1, 4       ; R1 = (R1 >> 4) | (R1 << 12)
 ```
 - **Bits wrap around** (no carry involvement)
-
-**RLC/RRC - Rotate through Carry**
-```assembly
-RLC  R1, 1       ; Rotate left through carry
-RRC  R1, 1       ; Rotate right through carry
-```
-- **Carry flag becomes part of rotation**
-- **Use for**: Multi-word rotations
+- **ROL R1, 8** is identical to **SWB R1**
 
 ### 3.4 Multiply and Divide
 
 **MUL/MUL32 - Multiply**
 ```assembly
 MUL    R2, R3    ; R2 = R2 * R3 (16×16→16-bit)
-MUL32  R4, R5    ; R4:R5 = R4 * R5 (R4 must be EVEN)
+MUL32  R4, R5    ; R4:R5 = R4 * R5 (R4 must be EVEN: 0,2,4,6,8,10,12,14)
 ```
-- **MUL32 requires EVEN register** (0,2,4,6,8,10,12,14)
+- **MUL32 requires EVEN register**
 - **32-bit result** stored in register pair
 
 **DIV/DIV32 - Divide**
@@ -285,13 +268,14 @@ DIV32  R4, R5    ; R4 = quotient, R5 = remainder (R4 must be EVEN)
 LD   R1, R2, 5   ; R1 = [DS:R2+5]
 ST   R1, R2, 5   ; [DS:R2+5] = R1
 ```
-- **5-bit unsigned offset** (0-31)
+- **5-bit signed offset** (-16 to +15)
+- **Sign-extended** - enables negative offsets!
 - **Uses DS segment** by default
 
 **Enhanced Syntax (Assembler Preprocessing):**
 ```assembly
 LD   R1, [R2+5]  ; Assembler converts to LD R1, R2, 5
-ST   R1, [SP-4]  ; Assembler converts to ST R1, SP, 4
+LD   R1, [SP-4]  ; Assembler converts to LD R1, SP, -4 (negative offset!)
 LD   R1, [R2]    ; Offset 0 implied
 ```
 
@@ -392,6 +376,14 @@ SETC             ; Set carry flag (SET 3)
 CLRC             ; Clear carry flag (CLR 3)
 ```
 
+**Segment Configuration:**
+```assembly
+SRS  R10         ; Use R10 for stack access (single register)
+SRD  R12         ; Use R12/R13 (FP/SP) for stack access (dual registers)
+ERS  R11         ; Use R11 for extra segment access
+ERD  R10         ; Use R10/R11 for extra segment access
+```
+
 **Interrupt Control:**
 ```assembly
 SWI              ; Software interrupt
@@ -422,7 +414,7 @@ loop:
     NOP              ; Delay slot
 ```
 
-**Array Processing:**
+**Array Processing with Negative Offsets:**
 ```assembly
     LDI  array       ; R0 = array address
     MOV  R2, R0      ; R2 = current pointer
@@ -436,69 +428,64 @@ process_loop:
     NOP              ; Delay slot
 ```
 
-#### 4.1.2 String Operations
+#### 4.1.2 Stack Frame Access
 
-**String Length:**
+**Efficient Stack Access:**
 ```assembly
-; R1 = string pointer (zero-terminated)
-string_length:
-    LSI  R2, 0       ; R2 = length counter
-length_loop:
-    LD   R3, [R1]    ; Load character
-    TBC  R3, 0x00FF  ; Test low byte for zero
-    JZ   done        ; Found null terminator
-    NOP
-    ADD  R1, 2       ; Next character
-    ADD  R2, 1       ; Increment length
-    JMP  length_loop
-    NOP
-done:
-    ; R2 contains string length
+; Using negative offsets for stack frames
+LD   R1, [FP-1]     ; Load parameter 1
+LD   R2, [FP-2]     ; Load parameter 2  
+ST   R3, [FP+1]     ; Store local variable 1
+ST   R4, [FP+2]     ; Store local variable 2
 ```
 
 ### 4.2 Memory Management
 
-#### 4.2.1 Stack Usage
+#### 4.2.1 Initialization
 
-**Function with Parameters:**
+**Reset State Setup:**
 ```assembly
-; Caller
-    LDI  value1
-    ST   R0, [SP-1]  ; Push parameter 1
-    LDI  value2  
-    ST   R0, [SP-2]  ; Push parameter 2
-    JMP  my_function
-    ALINK            ; Store return address
-    
-; Callee
-my_function:
-    MOV  FP, SP      ; Set frame pointer
-    SUB  SP, 4       ; Allocate locals
-    ST   LR, [FP+3]  ; Save return address
-    
-    LD   R1, [FP-1]  ; Access parameter 1
-    LD   R2, [FP-2]  ; Access parameter 2
-    
-    ; ... function body ...
-    
-    LD   LR, [FP+3]  ; Restore return address
-    MOV  SP, FP      ; Restore stack
-    JMP  LR          ; Return
-    NOP
+; After reset:
+; CS = 0xFFFF, DS = 0x0000, SS = 0x0000, ES = 0x0000
+; SP = 0x7FFF, PC = 0x0000
+
+; Typical startup code:
+    LDI  0x1000      ; Setup data segment
+    MVS  DS, R0
+    LDI  0x8000      ; Setup stack segment  
+    MVS  SS, R0
+    LDI  0x2000      ; Setup extra segment
+    MVS  ES, R0
+    LDI  0x7FFF      ; Initialize stack pointer
+    MOV  SP, R0
 ```
 
-#### 4.2.2 Heap Allocation
+#### 4.2.2 Interrupt Handling
 
-**Simple Heap Manager:**
+**Interrupt Service Routine:**
 ```assembly
-; R10 = heap pointer (initialized at program start)
-allocate:
-    ; R1 = size in words to allocate
-    MOV  R2, R10     ; R2 = return pointer
-    ADD  R10, R1     ; Advance heap pointer
-    ADD  R10, R1     ; *2 for word addressing
-    JMP  LR          ; Return allocation
-    NOP
+interrupt_handler:
+    ; On entry: All segments = 0, PSW' = old PSW
+    ; Save working registers
+    ST   R1, [SP-1]
+    ST   R2, [SP-2]
+    
+    ; ... handle interrupt ...
+    
+    ; Restore registers
+    LD   R2, [SP-2]
+    LD   R1, [SP-1]
+    
+    RETI              ; Restores original segments and PSW
+```
+
+**Debugging Interrupts:**
+```assembly
+; In normal mode, inspect last interrupt context
+debug_interrupt:
+    SMV  R0, APC      ; R0 = PC' (interrupted address)
+    SMV  R1, APSW     ; R1 = PSW' (interrupted flags)
+    ; ... display debug info ...
 ```
 
 ### 4.3 I/O Programming
@@ -508,10 +495,9 @@ allocate:
 **Setup Screen Access:**
 ```assembly
 setup_screen:
-    LDI  0x0FFF      ; R0 = 0x0FFF
-    INV  R0          ; R0 = 0xF000 (I/O segment)
+    LDI  0xF000      ; I/O segment base
     MVS  ES, R0      ; ES = 0xF000
-    LDI  0x1000      ; R0 = screen buffer offset
+    LDI  0x1000      ; Screen buffer offset
     MOV  R10, R0     ; R10 = screen pointer
     ERD  R10         ; Use R10/R11 for ES access
     RET
@@ -527,68 +513,9 @@ write_char:
     RET
 ```
 
-#### 4.3.2 Timer Programming
+### 4.4 Performance Optimization
 
-**Setup Timer:**
-```assembly
-setup_timer:
-    LDI  0x0FFF
-    INV  R0
-    MVS  ES, R0      ; ES = 0xF000
-    
-    LDI  1000        ; 1ms at 1MHz clock
-    STS  R0, [0x0024] ; Set timer reload value
-    
-    LDI  1           ; Start timer
-    STS  R0, [0x0020] ; Write to control register
-    RET
-```
-
-### 4.4 Interrupt Handling
-
-#### 4.4.1 Interrupt Service Routine
-
-**Basic ISR Structure:**
-```assembly
-interrupt_handler:
-    ; We're in interrupt context (PSW.S=1)
-    ; SMV accesses NORMAL registers
-    
-    SMV  R0, APC      ; R0 = interrupted PC
-    MOV  R1, R0       ; Save for later
-    
-    ; Save working registers if needed
-    ST   R2, [SP-1]
-    ST   R3, [SP-2]
-    
-    ; ... handle interrupt ...
-    
-    ; Restore registers
-    LD   R3, [SP-2]
-    LD   R2, [SP-1]
-    
-    RETI              ; Return to interrupted code
-```
-
-#### 4.4.2 Debugging with Shadow Registers
-
-**Inspect Interrupt State:**
-```assembly
-debug_interrupt:
-    ; Normal mode (PSW.S=0)
-    ; SMV accesses SHADOW registers
-    
-    SMV  R0, APC      ; R0 = last interrupt PC
-    SMV  R1, APSW     ; R1 = last interrupt PSW
-    SMV  R2, ACS      ; R2 = last interrupt CS
-    
-    ; Display debug information...
-    RET
-```
-
-### 4.5 Performance Optimization
-
-#### 4.5.1 Delay Slot Scheduling
+#### 4.4.1 Delay Slot Scheduling
 
 **Poor Scheduling:**
 ```assembly
@@ -610,142 +537,89 @@ JMP  function
 ALINK            ; Store return address in delay slot
 ```
 
-#### 4.5.2 Register Allocation
+#### 4.4.2 Using Negative Offsets
 
-**Optimal Register Usage:**
-- **R0**: LDI target, temporary calculations
-- **R1-R6**: General purpose, caller-save
-- **R7-R11**: Local variables within functions
-- **R12 (FP)**: Frame pointer (callee-save)
-- **R13 (SP)**: Stack pointer (callee-save)
-- **R14 (LR)**: Return address (callee-save)
-
-### 4.6 Common Idioms
-
-#### 4.6.1 Constants and Masks
-
-**Frequently Used Constants:**
+**Stack Frame Access:**
 ```assembly
-; Common constants in R7-R11 at function start
-LSI  R7, -1      ; R7 = 0xFFFF (all ones)
-LDI  0x0001
-MOV  R8, R0      ; R8 = 1
-LDI  0x00FF
-MOV  R9, R0      ; R9 = 0x00FF (byte mask)
-```
+; Instead of calculating offsets:
+SUB  R0, SP, 4
+LD   R1, [R0]
 
-#### 4.6.2 Bit Manipulation
-
-**Set/Clear/Toggle Bits:**
-```assembly
-; Set bit 3
-OR   R1, 0x0008
-
-; Clear bit 5
-AND  R1, 0xFFDF
-
-; Toggle bit 7
-XOR  R1, 0x0080
-
-; Test bit 2
-TBC  R1, 0x0004
-JNZ  bit_is_set
-```
-
-#### 4.6.3 Multi-Word Operations
-
-**64-bit Addition:**
-```assembly
-; R1:R2 + R3:R4 → R1:R2
-ADD  R2, R4      ; Add low words
-JC   carry       ; Check for carry
-NOP
-high_add:
-ADD  R1, R3      ; Add high words
-JMP  done
-NOP
-carry:
-ADD  R1, R3      ; Add high words
-ADD  R1, 1       ; Add carry
-done:
+; Use negative offsets directly:
+LD   R1, [SP-4]   ; Much cleaner!
 ```
 
 ---
 
-## 5. Assembler Usage
+## 5. Instruction Aliases
 
-### 5.1 Enhanced Syntax
+**Table 3: Instruction Aliases**
 
-**Bracket Notation:**
-```assembly
-LD   R1, [R2+5]      ; Becomes: LD R1, R2, 5
-ST   R1, [SP-4]      ; Becomes: ST R1, SP, 4
-LD   R1, [R2]        ; Becomes: LD R1, R2, 0
-```
-
-**Plus Notation:**
-```assembly
-MOV  R1, R2+3        ; Becomes: MOV R1, R2, 3
-```
-
-### 5.2 Common Aliases
-
-**Control Flow:**
-```assembly
-JMP  R1              ; Alias for: MOV PC, R1
-LINK                 ; Alias for: MOV LR, PC, 2
-ALINK                ; Alias for: MOV LR, PC, 3
-```
-
-**Flag Operations:**
-```assembly
-SETI                 ; Enable interrupts
-CLRI                 ; Disable interrupts
-SETC                 ; Set carry flag
-CLRC                 ; Clear carry flag
-```
-
-### 5.3 Directives
-
-**Common Assembler Directives:**
-```assembly
-.code               ; Code section
-.data               ; Data section
-.org  0x0100        ; Set origin
-.word 0x1234        ; Define word
-label:              ; Label definition
-```
+| Alias | Actual Instruction | Purpose |
+|-------|-------------------|---------|
+| **SWB Rx** | `ROL Rx, 8` | Swap bytes in register |
+| **HALT** | `HLT` | Halt processor |
+| **JMP Rx** | `MOV PC, Rx` | Unconditional jump to register |
+| **LNK Rx** | `MOV Rx, PC, 2` | Link to subroutine |
+| **ALNK Rx** | `MOV Rx, PC, 3` | Architectural link in delay slot |
+| **ALINK** | `MOV LR, PC, 3` | Architectural link to LR |
+| **AMV Rx, Ry** | `MOV Rx, Ry, 3` | Architectural move |
+| **SETI** | `SET2 0` | Enable interrupts |
+| **CLRI** | `CLR2 0` | Disable interrupts |
+| **SETC** | `SET 3` | Set carry flag |
+| **CLRC** | `CLR 3` | Clear carry flag |
 
 ---
 
-## 6. Troubleshooting Guide
+## 6. Important Changes Summary
 
-### 6.1 Common Issues
+### 6.1 Critical Updates
 
-**PC Reading in Delay Slots:**
-- **Problem**: Reading PC in delay slot gives wrong address
-- **Solution**: Use `ALINK` or `MOV Rx, PC, 3` for architectural read
+**LDI Sign Extension:**
+- `LDI -1` now loads `0xFFFF` (not `0x7FFF`)
+- Essential for loading negative constants
 
-**Segment Register Access:**
-- **Problem**: Memory access uses wrong segment
-- **Solution**: Use `LDS/STS` for explicit segment or configure PSW.SR/PSW.ER
+**LD/ST Signed Offsets:**
+- 5-bit offset is **sign-extended** (-16 to +15)
+- Enables `LD R1, [SP-4]` syntax
+- Much cleaner stack frame access
 
-**Pipeline Hazards:**
-- **Problem**: Reading register immediately after write
-- **Solution**: Pipeline handles most hazards automatically; use `AMV` for architectural state
+**Logical Immediate as Bit Positions:**
+- `AND R1, 3` means `R1 AND (1 << 3)`  
+- NOT `R1 AND 3`
+- Powerful single-bit manipulation
 
-### 6.2 Debugging Tips
+**Reset State:**
+- **CS = 0xFFFF** (boot from top of memory)
+- **DS = 0x0000, SS = 0x0000, ES = 0x0000** (all others zero)
+- **PC = 0x0000** (start at CS:0000)
 
-**Register Inspection:**
-- Use `LPSW` to examine processor state
-- Use `SMV` to inspect shadow registers during debugging
-- Check PSW flags after arithmetic operations
+**Interrupt Behavior:**
+- Only **PSW** is saved to PSW'
+- **All segments set to 0** during interrupts
+- **Vector 0x0000 = NMI** (not Reset)
 
-**Memory Issues:**
-- Verify segment registers are properly set
-- Check stack pointer alignment
-- Use bracket syntax for clarity in memory operations
+**No Memory Protection:**
+- All memory fully accessible
+- CS is read/write like other segments
+- Self-modifying code permitted
+
+### 6.2 Programming Impact
+
+**Positive Changes:**
+- Cleaner stack access with negative offsets
+- Efficient negative constant loading with LDI
+- Powerful bit manipulation with logical immediates
+- Simplified interrupt handlers
+- More flexible memory usage
+
+**Things to Watch:**
+- LDI now sign-extends (affects constant loading)
+- Logical immediates work differently than arithmetic
+- Interrupt handlers run in segment 0
 
 ---
 
-*Deep16 Programmer's Manual v1.0 - Complete practical reference for Deep16 assembly programming*
+*Deep16 Programmer's Manual v2.0 - Updated with all architectural changes*
+
+This manual reflects the current Deep16 architecture with all recent simplifications and improvements. The changes make the processor more practical for embedded programming while maintaining the clean RISC philosophy.
