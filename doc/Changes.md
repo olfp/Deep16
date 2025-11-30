@@ -1,72 +1,140 @@
-# Deep16 Architecture Changes Summary
+# Deep16 Architecture Changes Since Saturday Morning
 
-## Major Architectural Simplifications
+## Major Evolution of the Architecture
 
-### 1. **Instruction Set Cleanup**
-- **SWB instruction removed** - now implemented as alias for `ROL Rx, 8`
-- **Logical immediate operands** now specify bit positions: `AND R1, 3` = `R1 AND (1 << 3)`
-- **Opcode space reclaimed** for future extensions
+### **NEW: Complete Shadow Register System (Saturday Morning)**
+- **✅ INTRODUCED**: Full shadow register set: **CS', DS', SS', ES', PC', PSW'**
+- **✅ INTRODUCED**: **Symmetric SMV instruction** for accessing both contexts
+- **✅ INTRODUCED**: **Automatic context saving** on interrupts (original design)
+- **Purpose**: Zero-overhead interrupt context switching with full state preservation
 
-### 2. **Memory Access Improvements**
-- **LD/ST offsets are now sign-extended** (-16 to +15)
-- Enables direct negative indexing: `LD R1, [SP-4]`
-- Much cleaner stack frame access
-- Enhanced assembler syntax supports bracket notation
+### **Saturday Evening: Major Refinements & Simplifications**
 
-### 3. **Interrupt System Simplification**
-- **Only PSW is automatically saved** to PSW'
-- **All segment registers set to 0** during interrupts (CS=0, DS=0, SS=0, ES=0)
-- **Simplified context switching** - no segment register saving/restoring
-- **Vector table change**: 0x0000 = NMI (was Reset)
+#### 1. **Interrupt Handling Optimized**
+- **✅ CHANGED**: Interrupt auto-save behavior
+  - **Before**: All segments automatically saved to shadows (CS→CS', DS→DS', etc.)
+  - **After**: **Only PSW automatically saved** to PSW', segments set to 0
+- **✅ CHANGED**: Interrupt segment state
+  - **Before**: Segments preserved via shadows
+  - **After**: **All segments set to 0** during interrupt handling
+- **✅ PRESERVED**: Full shadow register set remains available via SMV
+- **✅ PRESERVED**: Symmetric SMV access unchanged
 
-### 4. **Reset Behavior Update**
-- **CS = 0xFFFF** (boot from top of memory)
-- **All other segments = 0x0000** (DS=0, SS=0, ES=0)
-- **PC = 0x0000** (start execution at CS:0000)
-- Boot ROM expected at 0xFFFF0-0xFFFFF
+#### 2. **Instruction Set Refinements**
+- **❌ REMOVED**: Dedicated SWB instruction (opcode reclaimed)
+- **✅ ADDED**: SWB as assembler alias for `ROL Rx, 8`
+- **✅ CLARIFIED**: Logical immediate semantics
+  - **Before**: `AND R1, 3` = `R1 AND 3` (general 4-bit value)
+  - **After**: `AND R1, 3` = `R1 AND (1 << 3)` (bit position only)
 
-### 5. **Memory Protection Removed**
-- **All memory fully accessible** - no read/write/execute restrictions
-- **CS register is read/write** like other segments
-- **Self-modifying code permitted**
-- Simplified hardware, more flexible programming
+#### 3. **Memory Access Enhanced**
+- **✅ CHANGED**: LD/ST offset semantics
+  - **Before**: 5-bit unsigned offset (0-31)
+  - **After**: **5-bit signed offset** (-16 to +15)
+- **✅ ADDED**: Negative offset support in enhanced syntax
+  - `LD R1, [SP-4]` now valid and clean
+- **✅ IMPROVED**: Stack frame access much cleaner
 
-### 6. **Critical Semantic Clarifications**
-- **LDI performs sign extension**: `LDI -1` loads `0xFFFF` (not `0x7FFF`)
-- **Architectural moves (MOV with imm=3) cause no pipeline stall**
-- **Cache details minimized** - treated as optional implementation detail
+#### 4. **Reset & Boot System Redesigned**
+- **✅ CHANGED**: Interrupt vector table
+  - **Before**: 0x0000 = Reset vector
+  - **After**: **0x0000 = NMI vector**, 0x0001 = HW_INT, 0x0002 = SWI
+- **✅ CHANGED**: Reset state
+  - **Before**: CS=0xFFFF, DS=0x1000, SS=0x8000, ES=0x2000
+  - **After**: **CS=0xFFFF, DS=0x0000, SS=0x0000, ES=0x0000**
+- **✅ CHANGED**: Boot behavior
+  - **Before**: Complex boot ROM sequence
+  - **After**: Direct execution from **CS:0000**
 
-## Impact on Programmers
+#### 5. **Memory Protection Eliminated**
+- **❌ REMOVED**: All memory protection mechanisms
+- **✅ CHANGED**: CS register accessibility
+  - **Before**: CS read-only (execute protection)
+  - **After**: **CS read/write** like other segments
+- **✅ ADDED**: Self-modifying code support
+- **Result**: **All memory fully accessible** - no restrictions
 
-### ✅ **Positive Changes**
-- **Cleaner stack code**: `LD R1, [SP-4]` works directly
-- **Efficient constants**: `LDI -1` loads all ones
-- **Powerful bit manipulation**: `AND R1, 5` clears all bits except bit 5
-- **Simplified interrupt handlers**: No segment register management
-- **More flexible memory usage**: No protection restrictions
+#### 6. **Critical Semantic Clarifications**
+- **✅ CLARIFIED**: LDI sign extension behavior
+  - `LDI -1` now correctly loads `0xFFFF` (was ambiguous)
+- **✅ CLARIFIED**: Architectural move semantics
+  - MOV with immediate=3 causes **no pipeline stall**
+  - Simply bypasses forwarding for architectural read
+- **✅ MINIMIZED**: Cache implementation details
+  - Treated as optional feature rather than core specification
 
-### ⚠️ **Breaking Changes**
-- **LDI now sign-extends** - affects constant loading
-- **Logical immediates work differently** than arithmetic immediates
-- **Interrupt handlers run in segment 0** - must set up segments if needed
-- **Reset vector moved** - NMI at 0x0000, Reset boots from top
+## Before vs After Complete Comparison
 
-### 🔄 **Behavior Changes**
-| Instruction | Old Behavior | New Behavior |
-|-------------|--------------|--------------|
-| `LDI -1` | Loaded `0x7FFF` | Loads `0xFFFF` |
+### **Shadow Register System**
+| Aspect | Initial Design | Current Design |
+|--------|----------------|----------------|
+| **Shadow Registers** | **Newly introduced** CS',DS',SS',ES',PC',PSW' | **Still present** unchanged |
+| **Interrupt Auto-save** | Save all segments to shadows | Save only PSW, set segments to 0 |
+| **SMV Access** | **New symmetric access** | **Preserved unchanged** |
+| **Context Switching** | Full automatic preservation | Manual via SMV when needed |
+
+### **Instruction Set**
+| Instruction | Initial | Current |
+|-------------|---------|---------|
+| `SWB R1` | Dedicated instruction | Alias for `ROL R1, 8` |
 | `AND R1, 3` | `R1 AND 3` | `R1 AND (1<<3)` |
-| `LD R1, SP, -4` | Invalid | Valid (sign-extended) |
-| Interrupt entry | Saved all segments | Only PSW saved, segments=0 |
-| Reset | CS=0xFFFF, others=default | CS=0xFFFF, others=0 |
+| `LD R1, SP, -4` | Invalid | **Valid** (sign-extended) |
+| `LDI -1` | Ambiguous | **0xFFFF** (sign-extended) |
 
-## Rationale
+### **System Architecture**
+| Component | Initial | Current |
+|-----------|---------|---------|
+| **Memory Protection** | CS execute-only | **No protection** |
+| **Reset Vectors** | 0x0000=Reset | **0x0000=NMI** |
+| **Boot Location** | Boot ROM sequence | **CS:0000 directly** |
+| **Segment Defaults** | Non-zero defaults | **All zero except CS** |
 
-These changes make Deep16:
-- **Simpler to implement** - less hardware complexity
-- **Easier to program** - more intuitive instructions
-- **More practical** for embedded applications
-- **Cleaner architecture** - orthogonal design principles
-- **Maintains performance** while reducing complexity
+## Programming Impact Summary
 
-The architecture now better balances educational clarity with practical utility for real embedded systems programming.
+### **New Capabilities**
+- ✅ **Shadow register access** via SMV for debugging/context
+- ✅ **Negative memory offsets** for cleaner stack code
+- ✅ **Self-modifying code** support
+- ✅ **Flexible segment usage** - no protection restrictions
+
+### **Changed Behaviors**
+- 🔄 **Interrupt handlers** now run in segment 0 by default
+- 🔄 **Reset code** starts at CS:0000 directly
+- 🔄 **Logical operations** with immediates work differently
+- 🔄 **LDI loading** of negative constants now correct
+
+### **Simplifications**
+- 🎯 **Less automatic context saving** - faster interrupts
+- 🎯 **No protection management** - simpler programming
+- 🎯 **Cleaner stack access** with negative offsets
+- 🎯 **Reclaimed opcode space** from SWB removal
+
+## Rationale Behind Changes
+
+### **Why Introduce Shadow Registers?**
+- **Advanced interrupt handling** capability
+- **Debugging support** - inspect interrupted state
+- **Future expansion** - task switching support
+- **Educational value** - modern processor feature
+
+### **Why Optimize Interrupt Auto-save?**
+- **Performance**: Most ISRs don't need segment preservation
+- **Simplicity**: Common case (segment 0 ISRs) made faster
+- **Flexibility**: Manual save via SMV when actually needed
+
+### **Why Remove Protection?**
+- **Embedded reality**: Small systems rarely need MMU
+- **Implementation simplicity**: Less complex hardware
+- **Programming flexibility**: Dynamic code generation enabled
+
+## Current Architecture Status
+
+The Deep16 has evolved into a **balanced, practical RISC architecture**:
+
+- **✅ Modern features**: Shadow registers for advanced contexts
+- **✅ Practical simplifications**: Optimized for common use cases  
+- **✅ Clean instruction set**: Orthogonal and consistent
+- **✅ Educational value**: Understandable yet feature-rich
+- **✅ Implementation ready**: Feasible in FPGA/ASIC
+
+This represents a thoughtful evolution from theoretical completeness to practical elegance while maintaining the core RISC philosophy and educational value.
