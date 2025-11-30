@@ -12,17 +12,18 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 - **16-bit fixed-length instructions** - Simplified decoding and alignment
 - **16 general-purpose registers** - Reduced memory traffic
 - **Segmented memory addressing** - 20-bit physical address space (1MB)
-- **Complete shadow register system** - Zero-overhead interrupt context switching
+- **Simplified shadow register system** - Fast interrupt context switching
 - **5-stage pipelined implementation** - With delayed branch optimization
-- **Unified L1 cache option** - Configurable 4KB direct-mapped cache
+- **Optional unified L1 cache** - Configurable 0-4KB direct-mapped cache
 - **Memory-mapped I/O** - Simplified peripheral access
 - **Word-based memory system** - No byte alignment complications
+- **No memory protection** - Fully accessible memory space
 
 ### 1.3 Performance Targets
 - **Base CPI**: 1.0-1.3 (ideal to realistic)
 - **Operating frequency**: 80MHz in modern FPGAs
 - **Branch penalty**: 0 cycles (delayed branch architecture)
-- **Cache hit rate**: 85-95% with 4KB unified cache
+- **Cache hit rate**: 85-95% with 4KB unified cache (if implemented)
 - **Memory bandwidth**: 160 MB/s at 80MHz
 
 ---
@@ -64,6 +65,13 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 | **SMV R0, alt_reg** | `SMV R0, alt_reg` | `11111111110 1 alt_sel4` | `R0 ← alt_reg` |
 | **LPSW** | `LPSW Rx` | `111111111110 Rx4` | `Rx ← PSW` |
 
+**LDI Sign Extension Behavior:**
+- **Critical**: LDI performs **sign extension** of the 15-bit immediate
+- **LDI -1** loads `0xFFFF` into R0 (not `0x7FFF`)
+- **LDI 32767** loads `0x7FFF` into R0  
+- **LDI -32768** loads `0x8000` into R0
+- This enables loading both positive and negative constants efficiently
+
 **MOV Special Semantics:**
 - `imm2 = 0,1,2`: `Rd ← Rs + imm2` (normal operation with forwarding)
 - `imm2 = 3`: `Rd ← Rs + 0` (architectural read, bypasses forwarding)
@@ -81,15 +89,34 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 | **CMP Rd, Rs** | `CMP Rd, Rs` | `110 00100 Rd4 Rs4` | `Rd - Rs` (flags only) | NZVC |
 | **CMP Rd, imm** | `CMP Rd, imm` | `110 00101 Rd4 imm4` | `Rd - imm` (flags only) | NZVC |
 | **AND Rd, Rs** | `AND Rd, Rs` | `110 00110 Rd4 Rs4` | `Rd ← Rd AND Rs` | NZ00 |
-| **AND Rd, imm** | `AND Rd, imm` | `110 00111 Rd4 imm4` | `Rd ← Rd AND imm` | NZ00 |
+| **AND Rd, imm** | `AND Rd, imm` | `110 00111 Rd4 imm4` | `Rd ← Rd AND (1 << imm)` | NZ00 |
 | **TBC Rd, Rs** | `TBC Rd, Rs` | `110 01000 Rd4 Rs4` | `Rd AND Rs` (flags only) | NZ00 |
-| **TBC Rd, imm** | `TBC Rd, imm` | `110 01001 Rd4 imm4` | `Rd AND imm` (flags only) | NZ00 |
+| **TBC Rd, imm** | `TBC Rd, imm` | `110 01001 Rd4 imm4` | `Rd AND (1 << imm)` (flags only) | NZ00 |
 | **OR Rd, Rs** | `OR Rd, Rs` | `110 01010 Rd4 Rs4` | `Rd ← Rd OR Rs` | NZ00 |
-| **OR Rd, imm** | `OR Rd, imm` | `110 01011 Rd4 imm4` | `Rd ← Rd OR imm` | NZ00 |
+| **OR Rd, imm** | `OR Rd, imm` | `110 01011 Rd4 imm4` | `Rd ← Rd OR (1 << imm)` | NZ00 |
 | **XOR Rd, Rs** | `XOR Rd, Rs` | `110 01100 Rd4 Rs4` | `Rd ← Rd XOR Rs` | NZ00 |
-| **XOR Rd, imm** | `XOR Rd, imm` | `110 01101 Rd4 imm4` | `Rd ← Rd XOR imm` | NZ00 |
+| **XOR Rd, imm** | `XOR Rd, imm` | `110 01101 Rd4 imm4` | `Rd ← Rd XOR (1 << imm)` | NZ00 |
 | **TBS Rd, Rs** | `TBS Rd, Rs` | `110 01110 Rd4 Rs4` | `Rd XOR Rs` (flags only) | NZ00 |
-| **TBS Rd, imm** | `TBS Rd, imm` | `110 01111 Rd4 imm4` | `Rd XOR imm` (flags only) | NZ00 |
+| **TBS Rd, imm** | `TBS Rd, imm` | `110 01111 Rd4 imm4` | `Rd XOR (1 << imm)` (flags only) | NZ00 |
+
+**Logical Immediate Operand Semantics:**
+- **Critical**: For AND, OR, XOR, TBS, TBC with immediate operands:
+  - The 4-bit immediate specifies a **bit position** (0-15)
+  - The operation is performed with `(1 << imm)` as the second operand
+  - **NOT** a general 4-bit immediate value
+
+**Examples:**
+```assembly
+AND  R1, 3        ; R1 = R1 AND (1 << 3)  → Clear all bits except bit 3
+OR   R1, 7        ; R1 = R1 OR (1 << 7)   → Set bit 7
+XOR  R1, 0        ; R1 = R1 XOR (1 << 0)  → Toggle bit 0
+TBC  R1, 5        ; Test if bit 5 is clear in R1
+TBS  R1, 12       ; Test if bit 12 is set in R1
+```
+
+**Arithmetic vs Logical Immediate Differences:**
+- **ADD/SUB/CMP**: `imm4` is treated as unsigned value 0-15
+- **AND/OR/XOR/TBS/TBC**: `imm4` specifies bit position for `(1 << imm)`
 
 ### 2.4 ALU Instructions - Group 2: Shift/Rotate Operations
 
@@ -110,6 +137,11 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 | **ROR Rd, count** | `ROR Rd, count` | `110 11010 Rd4 count4` | `Rd ← (Rd >> count) OR (Rd << (16-count))` | C = bit shifted out |
 | **RRC Rd, count** | `RRC Rd, count` | `110 11011 Rd4 count4` | `Rd ← (Rd >> count) OR (C << (15-count)) OR (Rd << (16-count))` | C = bit shifted out |
 
+**Special Case - Byte Swap:**
+- **ROL Rx, 8**: Performs byte swap operation `(Rx << 8) | (Rx >> 8)`
+- **SWB Rx**: Assembler alias for `ROL Rx, 8`
+- **Example**: `0x1234` becomes `0x3412`
+
 ### 2.5 ALU Instructions - Group 3: Multiply/Divide Operations
 
 **Table 5: Multiply/Divide Instructions**
@@ -127,7 +159,6 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 
 | Instruction | Format | Binary Encoding | Register Transfer | Flags |
 |-------------|---------|-----------------|-------------------|-------|
-| **SWB Rx** | `SWB Rx` | `11111110 0000 Rx4` | `Rx ← (Rx << 8) OR (Rx >> 8)` | NZ00 |
 | **INV Rx** | `INV Rx` | `11111110 0001 Rx4` | `Rx ← ~Rx` | NZ00 |
 | **NEG Rx** | `NEG Rx` | `11111110 0010 Rx4` | `Rx ← -Rx` | NZVC |
 
@@ -137,10 +168,23 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 
 | Instruction | Format | Binary Encoding | Register Transfer | Address Calculation |
 |-------------|---------|-----------------|-------------------|---------------------|
-| **LD Rd, Rb, offset** | `LD Rd, Rb, offset` | `10 0 Rd4 Rb4 offset5` | `Rd ← Mem[DS:(Rb + offset)]` | `EA = Rb + zero_extend(offset)` |
-| **ST Rd, Rb, offset** | `ST Rd, Rb, offset` | `10 1 Rd4 Rb4 offset5` | `Mem[DS:(Rb + offset)] ← Rd` | `EA = Rb + zero_extend(offset)` |
+| **LD Rd, Rb, offset** | `LD Rd, Rb, offset` | `10 0 Rd4 Rb4 offset5` | `Rd ← Mem[DS:(Rb + offset)]` | `EA = Rb + sign_extend(offset)` |
+| **ST Rd, Rb, offset** | `ST Rd, Rb, offset` | `10 1 Rd4 Rb4 offset5` | `Mem[DS:(Rb + offset)] ← Rd` | `EA = Rb + sign_extend(offset)` |
 | **LDS Rd, seg, Rb** | `LDS Rd, seg, Rb` | `11110 0 seg2 Rd4 Rb4` | `Rd ← Mem[seg:Rb]` | `EA = Rb` |
 | **STS Rd, seg, Rb** | `STS Rd, seg, Rb` | `11110 1 seg2 Rd4 Rb4` | `Mem[seg:Rb] ← Rd` | `EA = Rb` |
+
+**LD/ST Offset Semantics:**
+- **Critical**: 5-bit offset is **sign-extended** (-16 to +15)
+- **Enables negative offsets**: `LD R1, [SP-4]` works directly
+- **Enhanced syntax**: `LD R1, [R2-8]` becomes `LD R1, R2, -8`
+- **Range**: -16 to +15 from base register
+
+**Examples:**
+```assembly
+LD  R1, SP, -4    ; Load from stack frame (SP-4)
+ST  R2, FP, 2     ; Store to frame pointer + 2  
+LD  R3, R4, -1    ; Load from previous word
+```
 
 ### 2.8 Control Flow Instructions
 
@@ -276,71 +320,21 @@ Each pipeline stage is separated by registers containing:
 
 ### 3.3 Memory Hierarchy
 
-#### 3.3.1 Cache Architecture (Optional)
-
-**Unified L1 Cache Features:**
-- **Size**: 4KB configurable implementation
-- **Organization**: Direct-mapped
-- **Line size**: 16 bytes (8 instructions or 4 data words)
-- **Write policy**: Write-through with write buffer
-- **Allocation policy**: Read-allocate
-
-**Cache Tag Structure:**
-```
-+----------------+--------+-----+
-| Tag (15 bits)  | Index (8 bits) | Offset (1 bit) |
-+----------------+--------+-----+
-```
-- **Total address**: 20 bits (1MB physical)
-- **Index**: 8 bits (256 cache lines)
-- **Offset**: 1 bit (selecting word in 16-byte line)
-- **Tag**: 15 bits (remaining address bits)
-
-**Cache Control Registers:**
-- **Cache Enable (CE)**: Global cache enable/disable
-- **Cache Flush (CF)**: Invalidate all cache lines
-- **Cache Lock (CL)**: Lock critical code/data in cache
-
-#### 3.3.2 Memory Access Timing
-
-**Cache Hit:**
-- **Instruction fetch**: 1 cycle (IF stage)
-- **Data access**: 1 cycle (MEM stage)
-
-**Cache Miss:**
-- **Instruction miss**: 3-5 cycle penalty (block load)
-- **Data miss**: 3-5 cycle penalty (block load)
-- **Write buffer**: 1-entry buffer hides write latency
-
+#### 3.3.1 Basic Memory Access
 **No-Cache Operation:**
-- **Memory read**: 2-3 cycles (assuming fast SRAM)
-- **Memory write**: 1 cycle (with ready signal)
+- **Instruction fetch**: 1-3 cycles (depending on memory technology)
+- **Data access**: 1-3 cycles  
+- **Simple interface**: Direct connection to memory controller
 
-### 3.4 Execution Units
+**With Optional Cache:**
+- **Cache hit**: 1 cycle
+- **Cache miss**: 3-5 cycle penalty
+- **Write buffer**: Hides write latency
 
-#### 3.4.1 ALU Design
-**16-bit Arithmetic Unit:**
-- **Operations**: ADD, SUB, CMP with full flag generation
-- **Flag logic**: N, Z, V, C with precise exception handling
-- **Forwarding**: Results available in same cycle
-
-**Logical Unit:**
-- **Bitwise operations**: AND, OR, XOR
-- **Test operations**: TBC, TBS (flag-only variants)
-- **Single-operand**: INV, NEG, SWB
-
-#### 3.4.2 Shift/Rotate Unit
-**Barrel Shifter Design:**
-- **Single-cycle** shifts/rotates of 0-15 positions
-- **Comprehensive support**: Logical, arithmetic, rotate with/without carry
-- **Multi-word capability**: Through carry propagation
-
-#### 3.4.3 Multiply/Divide Unit
-**Iterative Design:**
-- **MUL**: 8-16 cycles (early termination for small operands)
-- **MUL32**: 16 cycles for full 32-bit result
-- **DIV**: 16-32 cycles (early termination)
-- **Pipelined**: Can proceed concurrently with other operations
+#### 3.3.2 Memory Interface
+**20-bit physical address** (1MB address space)
+**16-bit data bus** (word-based access only)
+**Simple control signals**: Read, Write, Ready
 
 ---
 
@@ -375,129 +369,83 @@ PSW.ER = 11, PSW.DE = 0  → R11 accesses ES
 PSW.ER = 10, PSW.DE = 1  → R10/R11 pair accesses ES
 ```
 
-### 4.2 Cache Implementation Details
+### 4.2 No Memory Protection
 
-#### 4.2.1 Cache Organization
+**Simplified Memory Model:**
+- **All memory is readable, writable, and executable**
+- **No segment protection** - any segment can contain code or data
+- **No privilege levels** - single execution mode
+- **Self-modifying code permitted**
+- **CS register is read/write** - can be modified like any segment register
 
-**4KB Unified Cache Structure:**
-```
-+-------------------------+---------------+----------+
-| Tag RAM (256×15 bits)   | Data RAM (256×64 bits) | Valid Bits |
-+-------------------------+---------------+----------+
-```
+**Benefits:**
+- **Simpler hardware** - no protection checks
+- **Flexible programming** - dynamic code generation allowed
+- **Educational clarity** - no complex protection concepts
+- **Embedded suitability** - typical for small microcontrollers
 
-**Cache Line Format:**
-```
-+----------+----------+----------+----------+----------+----------+----------+----------+
-| Word 0   | Word 1   | Word 2   | Word 3   | Word 4   | Word 5   | Word 6   | Word 7   |
-+----------+----------+----------+----------+----------+----------+----------+----------+
-```
+### 4.3 Cache Architecture (Optional)
 
-#### 4.2.2 Cache Operation
+**Basic Cache Features (if implemented):**
+- **Unified L1 cache** - instructions and data
+- **Direct-mapped** - simple implementation
+- **Write-through** - simple coherence
+- **Configurable size** - 0-4KB typical
 
-**Read Hit:**
-1. Address broken into tag, index, offset
-2. Tag comparison with valid bit check
-3. Data word selected based on offset
-4. Result available in 1 cycle
-
-**Read Miss:**
-1. Cache line invalidated (if dirty in write-back mode)
-2. Main memory read of entire 16-byte line
-3. Cache line updated with new data
-4. Requested word forwarded to processor
-5. Total penalty: 3-5 cycles
-
-**Write Operation (Write-Through):**
-1. Data written to cache (if hit)
-2. Simultaneous write to write buffer
-3. Write buffer handles main memory update
-4. Processor continues immediately
-
-#### 4.2.3 Cache Performance Analysis
-
-**Expected Hit Rates:**
-- **Instruction cache**: 90-98% (spatial locality)
-- **Data cache**: 80-95% (temporal locality)
-- **Unified cache**: 85-96% (balanced workload)
-
-**Performance Impact:**
-- **Best case** (95% hit rate): Effective CPI ≈ 1.05
-- **Worst case** (no cache): Effective CPI ≈ 1.8-2.2
-- **Typical case** (90% hit rate): Effective CPI ≈ 1.15
-
-### 4.3 Memory Protection
-
-#### 4.3.1 Simplified Protection Model
-Deep16 employs a simple protection scheme:
-
-**Segment-based Protection:**
-- **Code Segment (CS)**: Execute-only
-- **Data Segments (DS/SS/ES)**: Read/Write
-- **No user/supervisor mode** - Single privilege level
-- **No page protection** - Keep it simple philosophy
-
-**Boot ROM Protection:**
-- **Write protection** for addresses 0xFFFF0-0xFFFFF
-- **Reset vector integrity** guaranteed
+**Cache Operation:**
+- **Transparent to software** - no management instructions required
+- **Optional implementation** - can be omitted for simplicity
+- **Performance enhancement** - reduces memory bandwidth requirements
 
 ---
 
 ## 5. Interrupt System Architecture
 
-### 5.1 Complete Shadow Register System
+### 5.1 Simplified Shadow Register System
 
-#### 5.1.1 Shadow Register Set
+#### 5.1.1 Interrupt Entry Sequence
+**On any interrupt (NMI, HW, SWI):**
+1. **PSW' ← PSW** (Save processor state)
+2. **CS ← 0, DS ← 0, SS ← 0, ES ← 0** (All segments set to 0)
+3. **PSW'.S ← 1, PSW'.I ← 0** (Enter interrupt context, disable interrupts)
+4. **PC ← Mem[interrupt_vector]** (Jump to handler)
+5. **Pipeline flush** (Clean context switch)
+
+**No other registers are saved automatically**
+
+#### 5.1.2 Interrupt Exit Sequence
+**On RETI instruction:**
+1. **PSW ← PSW'** (Restore processor state)
+2. **Switch to normal segment registers** (CS, DS, SS, ES return to pre-interrupt values)
+3. **Continue from saved PC** (In normal context)
+4. **Pipeline flush** (Clean context restoration)
+
+### 5.2 Interrupt Vector Table
+
+**Located at Segment 0 (Low Memory):**
 ```
-Normal Registers    Shadow Registers    Purpose
----------------    ----------------    -------
-CS                 CS'                 Code Segment
-DS                 DS'                 Data Segment  
-SS                 SS'                 Stack Segment
-ES                 ES'                 Extra Segment
-PC                 PC'                 Program Counter
-PSW                PSW'                Processor Status Word
-```
-
-#### 5.1.2 Context Switching Mechanism
-
-**Interrupt Entry Sequence:**
-1. **Complete state save** to shadow registers (hardware automatic)
-2. **PSW modification**: PSW.S=1, PSW.I=0 (enter interrupt context)
-3. **Segment setup**: CS=0 (interrupts run in segment 0)
-4. **Vector fetch**: PC = memory[interrupt_vector]
-5. **Pipeline flush** and restart
-
-**Interrupt Exit Sequence:**
-1. **RETI instruction** execution
-2. **Context restore**: PSW.S=0 (switch to normal view)
-3. **Pipeline flush** and restart from saved PC
-4. **No data movement** - pure view switching
-
-### 5.2 Interrupt Handling
-
-#### 5.2.1 Vector Table
-**Fixed Locations in Segment 0:**
-```
-0x0000: RESET_VECTOR    (Cold start and warm reset)
-0x0001: HW_INT_VECTOR   (Hardware interrupts)
-0x0002: SWI_VECTOR      (Software interrupts)
+0x0000: NMI_VECTOR      (Non-Maskable Interrupt)
+0x0001: HW_INT_VECTOR   (Hardware Interrupts)  
+0x0002: SWI_VECTOR      (Software Interrupts)
 ```
 
-#### 5.2.2 Priority and Masking
-**Fixed Priority:**
-1. **Reset** (highest priority)
-2. **Hardware Interrupts**
-3. **Software Interrupts** (lowest priority)
+### 5.3 Reset Behavior
 
-**Interrupt Control:**
-- **Global enable/disable**: PSW.I bit
-- **Individual masking**: Through interrupt controller
-- **Nesting**: Not supported (keep it simple)
+**Processor Reset State:**
+- **CS = 0xFFFF** (Boot from top of memory)
+- **DS = 0x0000, SS = 0x0000, ES = 0x0000** (All other segments zero)
+- **SP (R13) = 0x7FFF** (Stack grows downward)
+- **PC = 0x0000** (Start execution at CS:0000)
+- **PSW = 0x0000** (All flags cleared, interrupts disabled)
 
-### 5.3 SMV Instruction Architecture
+**Boot Sequence:**
+- Processor begins execution at `CS:PC = 0xFFFF:0x0000`
+- Boot ROM expected at top of memory (0xFFFF0-0xFFFFF)
+- Boot ROM establishes runtime environment and jumps to user code
 
-#### 5.3.1 Symmetric Access
+### 5.4 SMV Instruction Architecture
+
+#### 5.4.1 Symmetric Access
 **Normal Mode (PSW.S=0):**
 ```assembly
 SMV R0, ACS      ; R0 = CS' (read shadow CS)
@@ -510,7 +458,7 @@ SMV R0, ACS      ; R0 = CS (read normal CS)
 SMV APC          ; PC = R0 (write normal PC)
 ```
 
-#### 5.3.2 Use Cases
+#### 5.4.2 Use Cases
 **Debugging:**
 - Inspect interrupted context from normal mode
 - Examine normal context from interrupt mode
@@ -521,13 +469,74 @@ SMV APC          ; PC = R0 (write normal PC)
 
 ---
 
-*Deep16 Architecture Specification v2.1 - Complete instruction set tables and microarchitecture*
+## 6. I/O System Architecture
+
+### 6.1 Memory-Mapped I/O
+
+#### 6.1.1 I/O Address Space
+**I/O Segment (0xF0000-0xFFFFF):**
+```
+0xF0000-0xF000F: System LED Controller
+0xF0010-0xF001F: Interrupt Controller (SIC)
+0xF0020-0xF002F: Timer/Counter
+0xF0030-0xF003F: Video Display Controller  
+0xF0040-0xF004F: Serial Port (UART)
+0xF0060-0xF006F: Keyboard Controller
+0xF1000-0xF17CF: Screen Buffer (80×25 characters)
+```
+
+#### 6.1.2 I/O Access Characteristics
+- **Word-based access** only (no byte I/O)
+- **No cacheing** of I/O addresses (uncacheable region)
+- **Wait states** possible for slow peripherals
+- **Interrupt-driven** operation recommended
+
+### 6.2 Peripheral Integration
+
+#### 6.2.1 Standard Peripheral Set
+**Essential Peripherals:**
+- **Timer/Counter**: System timing and event counting
+- **UART**: Serial communication
+- **Keyboard Controller**: PS/2 keyboard input
+- **Video Controller**: Text and basic graphics
+- **Interrupt Controller**: Centralized interrupt management
+
+#### 6.2.2 Custom Peripheral Support
+**Extension Mechanism:**
+- **Reserved address ranges** for custom peripherals
+- **Standard interrupt assignment** for new devices
+- **Plug-and-play** address decoding
+
+---
+
+## 7. Instruction Aliases
+
+**Table 14: Instruction Aliases**
+
+| Alias | Actual Instruction | Purpose |
+|-------|-------------------|---------|
+| **SWB Rx** | `ROL Rx, 8` | Swap bytes in register |
+| **HALT** | `HLT` | Halt processor |
+| **JMP Rx** | `MOV PC, Rx` | Unconditional jump to register |
+| **LNK Rx** | `MOV Rx, PC, 2` | Link to subroutine |
+| **ALNK Rx** | `MOV Rx, PC, 3` | Architectural link in delay slot |
+| **ALINK** | `MOV LR, PC, 3` | Architectural link to LR |
+| **AMV Rx, Ry** | `MOV Rx, Ry, 3` | Architectural move |
+| **SETI** | `SET2 0` | Enable interrupts |
+| **CLRI** | `CLR2 0` | Disable interrupts |
+
+---
+
+*Deep16 Architecture Specification v3.0 - Final*
 
 **Key Features:**
-- ✅ **Complete instruction set tables** with bit layouts and register transfers
-- ✅ **Detailed pipeline architecture** with hazard handling
-- ✅ **Optional unified cache** implementation
-- ✅ **Comprehensive interrupt system** with shadow registers
-- ✅ **Performance analysis** for different configurations
+- ✅ **Complete instruction set** with detailed bit layouts and register transfers
+- ✅ **Sign-extended LD/ST offsets** for negative indexing (-16 to +15)
+- ✅ **Simplified interrupt system** - only PSW saved, all segments set to 0
+- ✅ **Reset behavior**: CS=0xFFFF, all other segments=0, PC=0x0000
+- ✅ **No memory protection** - fully accessible memory space
+- ✅ **Vector table**: 0x0000=NMI, 0x0001=HW, 0x0002=SWI
+- ✅ **Optional cache** - minimal implementation details
+- ✅ **Instruction aliases** for common operations
 
-This architecture provides a complete specification for both educational understanding and practical implementation of the Deep16 processor.
+This architecture represents a clean, practical design suitable for both educational use and real embedded systems implementation.
