@@ -12,17 +12,19 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 - **16-bit fixed-length instructions** - Simplified decoding and alignment
 - **16 general-purpose registers** - Reduced memory traffic
 - **Segmented memory addressing** - 20-bit physical address space (1MB)
-- **Simplified shadow register system** - Fast interrupt context switching
+- **Extended shadow register system** - Zero-overhead interrupt context switching with selective general-purpose register shadows
 - **5-stage pipelined implementation** - With delayed branch optimization
 - **Optional unified L1 cache** - Configurable 0-4KB direct-mapped cache
 - **Memory-mapped I/O** - Simplified peripheral access
 - **Word-based memory system** - No byte alignment complications
 - **No memory protection** - Fully accessible memory space
+- **Clean interrupt model** - Hardware-managed context switching via PSW'.S
 
 ### 1.3 Performance Targets
 - **Base CPI**: 1.0-1.3 (ideal to realistic)
 - **Operating frequency**: 80MHz in modern FPGAs
 - **Branch penalty**: 0 cycles (delayed branch architecture)
+- **Interrupt latency**: 2 cycles (entry + jump)
 - **Cache hit rate**: 85-95% with 4KB unified cache (if implemented)
 - **Memory bandwidth**: 160 MB/s at 80MHz
 
@@ -30,7 +32,7 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 
 ## 2. Instruction Set Architecture
 
-### 2.1 Complete Opcode Hierarchy
+### 2.1 Complete Opcode Hierarchy (Updated)
 
 **Table 1: Instruction Opcode Hierarchy**
 
@@ -43,9 +45,9 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 | 11110 | 5 | LDS/STS | `[11110][d1][seg2][Rd4][Rs4]` | Segment access in MEM |
 | 111110 | 6 | MOV | `[111110][Rd4][Rs4][imm2]` | imm2=3 disables forwarding |
 | 1111110 | 7 | LSI | `[1111110][Rd4][imm5]` | Full pipeline |
-| 11111110 | 8 | SOP | `[11111110][type4][Rx/imm4]` | Various pipeline effects |
+| 11111110 | 8 | SMV | `[11111110][Rx4][alt_sel4]` | Shadow register access |
 | 111111110 | 9 | MVS | `[111111110][d1][Rd4][seg2]` | Segment access in MEM |
-| 11111111110 | 11 | SMV | `[11111111110][d1][alt_sel4]` | Alternate context access |
+| 1111111110 | 10 | SOP | `[1111111110][type2][Rx4]` | Single operand operations |
 | 111111111110 | 12 | LPSW | `[111111111110][Rx4]` | Load PSW of current context |
 | 1111111111110 | 13 | SYS | `[1111111111110][op3]` | Pipeline flush on RETI |
 | 1111111111111111 | 16 | HLT | `[1111111111111111]` | Halt the processor |
@@ -61,9 +63,18 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 | **MOV** | `MOV Rd, Rs, imm` | `111110 Rd4 Rs4 imm2` | `Rd ← Rs + zero_extend(imm2)` |
 | **MVS Rd, Sx** | `MVS Rd, Sx` | `111111110 0 Rd4 seg2` | `Rd ← Sx` |
 | **MVS Sx, Rd** | `MVS Sx, Rd` | `111111110 1 Rd4 seg2` | `Sx ← Rd` |
-| **SMV alt_reg** | `SMV alt_reg` | `11111111110 0 alt_sel4` | `alt_reg ← R0` |
-| **SMV R0, alt_reg** | `SMV R0, alt_reg` | `11111111110 1 alt_sel4` | `R0 ← alt_reg` |
+| **SMV Rx, alt_reg** | `SMV Rx, alt_reg` | `11111110 Rx4 alt_sel4` | `Rx ← alt_reg` (read shadow) |
 | **LPSW** | `LPSW Rx` | `111111111110 Rx4` | `Rx ← PSW` |
+
+**Extended SMV alt_sel encodings:**
+```
+0000: ACS  (Alternate CS)       1000: AR0  (Alternate R0)
+0001: ADS  (Alternate DS)       1001: AR1  (Alternate R1)
+0010: ASS  (Alternate SS)       1010: AR2  (Alternate R2)
+0011: AES  (Alternate ES)       1101: AR13 (Alternate R13/SP)
+0100: APSW (Alternate PSW)      1110: AR14 (Alternate R14/LR)
+                               1111: APC  (Alternate PC)
+```
 
 **LDI Sign Extension Behavior:**
 - **Critical**: LDI performs **sign extension** of the 15-bit immediate
@@ -153,14 +164,14 @@ TBS  R1, 12       ; Test if bit 12 is set in R1
 | **DIV Rd, Rs** | `DIV Rd, Rs` | `110 11110 Rd4 Rs4` | `Rd ← Rd ÷ Rs` (quotient) | 16÷16→16-bit |
 | **DIV32 Rd, Rs** | `DIV32 Rd, Rs` | `110 11111 Rd4 Rs4` | `R[d] ← quotient, R[d+1] ← remainder` | Rd must be EVEN |
 
-### 2.6 Single Operand Instructions
+### 2.6 Single Operand Instructions (Updated)
 
 **Table 6: Single Operand Instructions**
 
 | Instruction | Format | Binary Encoding | Register Transfer | Flags |
 |-------------|---------|-----------------|-------------------|-------|
-| **INV Rx** | `INV Rx` | `11111110 0001 Rx4` | `Rx ← ~Rx` | NZ00 |
-| **NEG Rx** | `NEG Rx` | `11111110 0010 Rx4` | `Rx ← -Rx` | NZVC |
+| **INV Rx** | `INV Rx` | `1111111110 00 Rx4` | `Rx ← ~Rx` | NZ00 |
+| **NEG Rx** | `NEG Rx` | `1111111110 01 Rx4` | `Rx ← -Rx` | NZVC |
 
 ### 2.7 Memory Access Instructions
 
@@ -213,7 +224,7 @@ LD  R3, R4, -1    ; Load from previous word
 | **JNN target** | `JNN target` | `1110 101 target9` | `if (!N) PC ← PC + 1 + sign_extend(target)` | Uses delay slot |
 | **JO target** | `JO target` | `1110 110 target9` | `if (V) PC ← PC + 1 + sign_extend(target)` | Uses delay slot |
 | **JNO target** | `JNO target` | `1110 111 target9` | `if (!V) PC ← PC + 1 + sign_extend(target)` | Uses delay slot |
-| **JML Rx** | `JML Rx` | `11111110 0100 Rx4` | `CS ← R[Rx], PC ← R[Rx+1]` | Far jump, flushes pipeline |
+| **JML Rx** | `JML Rx` | `1111111110 10 Rx4` | `CS ← R[Rx], PC ← R[Rx+1]` | Far jump, flushes pipeline |
 
 ### 2.9 PSW Operations
 
@@ -221,19 +232,19 @@ LD  R3, R4, -1    ; Load from previous word
 
 | Instruction | Format | Binary Encoding | Register Transfer |
 |-------------|---------|-----------------|-------------------|
-| **SRS Rx** | `SRS Rx` | `11111110 1000 Rx4` | `PSW.SR ← Rx, PSW.DS ← 0` |
-| **SRD Rx** | `SRD Rx` | `11111110 1001 Rx4` | `PSW.SR ← Rx, PSW.DS ← 1` |
-| **ERS Rx** | `ERS Rx` | `11111110 1010 Rx4` | `PSW.ER ← Rx, PSW.DE ← 0` |
-| **ERD Rx** | `ERD Rx` | `11111110 1011 Rx4` | `PSW.ER ← Rx, PSW.DE ← 1` |
+| **SRS Rx** | `SRS Rx` | `1111111110 11 Rx4` | `PSW.SR ← Rx, PSW.DS ← 0` |
+| **SRD Rx** | `SRD Rx` | `1111111110 11 Rx4` | `PSW.SR ← Rx, PSW.DS ← 1` |
+| **ERS Rx** | `ERS Rx` | `1111111110 11 Rx4` | `PSW.ER ← Rx, PSW.DE ← 0` |
+| **ERD Rx** | `ERD Rx** | `1111111110 11 Rx4` | `PSW.ER ← Rx, PSW.DE ← 1` |
 
 **Table 11: PSW Flag Operations**
 
 | Instruction | Format | Binary Encoding | Register Transfer |
 |-------------|---------|-----------------|-------------------|
-| **SET imm** | `SET imm` | `11111110 1100 imm4` | `PSW[imm] ← 1` |
-| **CLR imm** | `CLR imm` | `11111110 1101 imm4` | `PSW[imm] ← 0` |
-| **SET2 imm** | `SET2 imm` | `11111110 1110 imm4` | `PSW[imm+4] ← 1` |
-| **CLR2 imm** | `CLR2 imm` | `11111110 1111 imm4` | `PSW[imm+4] ← 0` |
+| **SET imm** | `SET imm` | `1111111110 11 Rx4` | `PSW[imm] ← 1` |
+| **CLR imm** | `CLR imm` | `1111111110 11 Rx4` | `PSW[imm] ← 0` |
+| **SET2 imm** | `SET2 imm` | `1111111110 11 Rx4` | `PSW[imm+4] ← 1` |
+| **CLR2 imm** | `CLR2 imm` | `1111111110 11 Rx4` | `PSW[imm+4] ← 0` |
 
 ### 2.10 System Operations
 
@@ -399,28 +410,94 @@ PSW.ER = 10, PSW.DE = 1  → R10/R11 pair accesses ES
 
 ---
 
-## 5. Interrupt System Architecture
+## 5. Interrupt System Architecture (Updated)
 
-### 5.1 Simplified Shadow Register System
+### 5.1 Extended Shadow Register System
 
-#### 5.1.1 Interrupt Entry Sequence
+#### 5.1.1 Core Principle
+**PSW'.S bit** controls active register context:
+- **PSW'.S = 0**: Normal registers (CS, DS, SS, ES, PC, PSW, R0-R15)
+- **PSW'.S = 1**: Shadow registers (CS', DS', SS', ES', PC', PSW', R0', R1', R2', R13', R14')
+
+#### 5.1.2 Shadow Register Set (11 total)
+- **Segment Shadows**: CS', DS', SS', ES'
+- **Control Shadows**: PC', PSW'
+- **GP Register Shadows**: R0', R1', R2', R13' (SP'), R14' (LR')
+
+#### 5.1.3 Reset Initialization
+```
+PSW'  ← 0x0000    ; S=0, use normal context
+PSW   ← 0x0000    ; S=0, interrupts disabled
+CS    ← 0xFFFF    ; Boot from top of memory
+DS/SS/ES ← 0x0000 ; Other segments zero
+PC    ← 0x0000    ; Start execution at CS:0000
+```
+
+### 5.2 Interrupt Entry Sequence
+
 **On any interrupt (NMI, HW, SWI):**
-1. **PSW' ← PSW** (Save processor state)
-2. **CS ← 0, DS ← 0, SS ← 0, ES ← 0** (All segments set to 0)
-3. **PSW'.S ← 1, PSW'.I ← 0** (Enter interrupt context, disable interrupts)
-4. **PC ← Mem[interrupt_vector]** (Jump to handler)
-5. **Pipeline flush** (Clean context switch)
+```
+PSW'  ← 0x0020    ; S=1, I=0 - switch to shadow context
+CS'   ← 0         ; Interrupts run in segment 0
+DS'   ← 0
+SS'   ← 0  
+ES'   ← 0
+R0'   ← 0         ; Initialize shadow registers
+R1'   ← 0
+R2'   ← 0
+R13'  ← 0
+R14'  ← 0
+PC'   ← Mem[interrupt_vector]  ; Jump to handler
+; Hardware automatically uses shadow registers (PSW'.S=1)
+```
 
-**No other registers are saved automatically**
+**Critical Notes:**
+1. **PSW' is NOT copied from PSW** - set to `0x0020` (S=1, I=0)
+2. **All shadow registers initialized to 0** - clean interrupt context
+3. **Normal registers remain unchanged** - accessible via SMV
+4. **Hardware context switch** via PSW'.S=1
 
-#### 5.1.2 Interrupt Exit Sequence
+### 5.3 Interrupt Handler Execution
+
+- All instructions automatically use **shadow registers** (PSW'.S=1)
+- Segments fixed at 0 unless modified by handler
+- Interrupts disabled (PSW'.I=0) during handler
+- Access normal context via SMV: `SMV Rx, APSW` reads normal PSW
+
+### 5.4 Interrupt Exit Sequence
+
 **On RETI instruction:**
-1. **PSW ← PSW'** (Restore processor state)
-2. **Switch to normal segment registers** (CS, DS, SS, ES return to pre-interrupt values)
-3. **Continue from saved PC** (In normal context)
-4. **Pipeline flush** (Clean context restoration)
+```
+PSW'  ← 0x0000    ; S=0 - switch back to normal context
+; Hardware automatically uses normal registers (PSW'.S=0)
+; Execution resumes with original segments and PSW intact
+```
 
-### 5.2 Interrupt Vector Table
+**Important:**
+- **No register restoration** - normal registers were never modified
+- **Shadow registers retain values** for next interrupt/debugging
+- **Only PSW' modified** - set to 0x0000 to trigger context switch
+- **Pipeline flush** - clean transition
+
+### 5.5 SMV Instruction (Updated)
+
+**Format:** `11111110 Rx4 alt_sel4`
+**Operation:** `Rx ← alt_reg` (read shadow register to Rx)
+
+**Symmetric Access:**
+- **Normal Mode (PSW.S=0, PSW'.S=0):**
+  ```assembly
+  SMV R1, APC      ; R1 = PC' (shadow PC)
+  SMV R2, APSW     ; R2 = PSW' (shadow PSW, typically 0x0020 if in interrupt)
+  ```
+
+- **Interrupt Mode (PSW.S=0, PSW'.S=1):**
+  ```assembly
+  SMV R1, APC      ; R1 = PC (normal PC)
+  SMV R2, APSW     ; R2 = PSW (normal PSW)
+  ```
+
+### 5.6 Interrupt Vector Table
 
 **Located at Segment 0 (Low Memory):**
 ```
@@ -429,43 +506,70 @@ PSW.ER = 10, PSW.DE = 1  → R10/R11 pair accesses ES
 0x0002: SWI_VECTOR      (Software Interrupts)
 ```
 
-### 5.3 Reset Behavior
+### 5.7 NMI (Non-Maskable Interrupt)
 
-**Processor Reset State:**
-- **CS = 0xFFFF** (Boot from top of memory)
-- **DS = 0x0000, SS = 0x0000, ES = 0x0000** (All other segments zero)
-- **SP (R13) = 0x7FFF** (Stack grows downward)
-- **PC = 0x0000** (Start execution at CS:0000)
-- **PSW = 0x0000** (All flags cleared, interrupts disabled)
+**Special Characteristics:**
+- **Ignores PSW.I flag** - cannot be disabled
+- **Vector at 0x0000** - separate from maskable interrupts
+- **Not nestable** - discarded if already in interrupt
+- **Same shadow mechanism** - identical context switching
 
-**Boot Sequence:**
-- Processor begins execution at `CS:PC = 0xFFFF:0x0000`
-- Boot ROM expected at top of memory (0xFFFF0-0xFFFFF)
-- Boot ROM establishes runtime environment and jumps to user code
+### 5.8 Hardware Implementation
 
-### 5.4 SMV Instruction Architecture
+```verilog
+// Single bit (PSW'.S) controls all context switching
+assign active_cs   = psw_shadow_s ? cs_shadow   : cs_normal;
+assign active_ds   = psw_shadow_s ? ds_shadow   : ds_normal;
+assign active_ss   = psw_shadow_s ? ss_shadow   : ss_normal;  
+assign active_es   = psw_shadow_s ? es_shadow   : es_normal;
+assign active_pc   = psw_shadow_s ? pc_shadow   : pc_normal;
+assign active_psw  = psw_shadow_s ? psw_shadow  : psw_normal;
 
-#### 5.4.1 Symmetric Access
-**Normal Mode (PSW.S=0):**
-```assembly
-SMV R0, ACS      ; R0 = CS' (read shadow CS)
-SMV APC          ; PC' = R0 (write shadow PC)
+// General-purpose shadow register muxing
+assign active_reg0  = psw_shadow_s ? reg0_shadow  : reg0_normal;
+assign active_reg1  = psw_shadow_s ? reg1_shadow  : reg1_normal;
+assign active_reg2  = psw_shadow_s ? reg2_shadow  : reg2_normal;
+assign active_reg13 = psw_shadow_s ? reg13_shadow : reg13_normal;
+assign active_reg14 = psw_shadow_s ? reg14_shadow : reg14_normal;
+
+// Other registers always use normal context
+assign active_reg3  = reg3_normal;
+// ... R4-R12 ...
+assign active_reg15 = reg15_normal;  // PC handled separately above
 ```
 
-**Interrupt Mode (PSW.S=1):**
+### 5.9 Key Benefits
+
+1. **Zero Software Overhead** - no manual register saving
+2. **Fast Interrupt Entry** - only PSW' update and initialization
+3. **Clean Context Separation** - interrupts run in clean shadow context
+4. **Debugging Support** - SMV provides symmetric access to both contexts
+5. **Simple Hardware** - single control bit for all muxing
+6. **Minimal State** - only 11 shadow registers vs full duplication
+
+### 5.10 Example Usage
+
+**Fast Interrupt Handler:**
 ```assembly
-SMV R0, ACS      ; R0 = CS (read normal CS)  
-SMV APC          ; PC = R0 (write normal PC)
+timer_isr:
+    ; Running in shadow context (PSW'.S=1)
+    ; All shadow registers initialized to 0
+    
+    LDI  TIMER_ADDR     ; Uses R0' (shadow)
+    MVS  ES, R0         ; ES' = timer segment
+    LDS  R1, ES, [R0]   ; R1' = timer value
+    ; ... process ...
+    RETI                ; Return to normal context
 ```
 
-#### 5.4.2 Use Cases
-**Debugging:**
-- Inspect interrupted context from normal mode
-- Examine normal context from interrupt mode
-
-**Context Manipulation:**
-- Modify return address before RETI
-- Adjust saved processor state
+**Debugging from Normal Mode:**
+```assembly
+check_interrupt:
+    SMV  R1, APC      ; R1 = PC' (where interrupt occurred)
+    SMV  R2, APSW     ; R2 = PSW' (0x0020 if in interrupt)
+    SMV  R3, AR0      ; R3 = R0' (shadow R0)
+    ; ... debug display ...
+```
 
 ---
 
@@ -524,19 +628,58 @@ SMV APC          ; PC = R0 (write normal PC)
 | **AMV Rx, Ry** | `MOV Rx, Ry, 3` | Architectural move |
 | **SETI** | `SET2 0` | Enable interrupts |
 | **CLRI** | `CLR2 0` | Disable interrupts |
+| **SETC** | `SET 3` | Set carry flag |
+| **CLRC** | `CLR 3` | Clear carry flag |
 
 ---
 
-*Deep16 Architecture Specification v3.0 - Final*
+## 8. Updated Changes Summary
 
-**Key Features:**
-- ✅ **Complete instruction set** with detailed bit layouts and register transfers
-- ✅ **Sign-extended LD/ST offsets** for negative indexing (-16 to +15)
-- ✅ **Simplified interrupt system** - only PSW saved, all segments set to 0
-- ✅ **Reset behavior**: CS=0xFFFF, all other segments=0, PC=0x0000
-- ✅ **No memory protection** - fully accessible memory space
-- ✅ **Vector table**: 0x0000=NMI, 0x0001=HW, 0x0002=SWI
-- ✅ **Optional cache** - minimal implementation details
-- ✅ **Instruction aliases** for common operations
+### 8.1 Critical Updates
 
-This architecture represents a clean, practical design suitable for both educational use and real embedded systems implementation.
+**Shadow Register System:**
+- **Extended shadow set**: CS', DS', SS', ES', PC', PSW', R0', R1', R2', R13', R14'
+- **Clean initialization**: All shadows set to 0 on interrupt entry
+- **PSW' handling**: Set to 0x0020 (S=1, I=0), NOT copied from PSW
+
+**SMV Instruction:**
+- **New encoding**: `11111110 Rx4 alt_sel4`
+- **Read-only**: Only reads shadow registers to Rx
+- **Symmetric access**: Reads normal regs in interrupt mode, shadow regs in normal mode
+
+**Instruction Encoding:**
+- **SOP re-encoded**: `1111111110 type2 Rx4` (INV, NEG only)
+- **Compact opcodes**: Better utilization of instruction space
+
+**Interrupt Behavior:**
+- **Fast entry**: PSW'=0x0020, shadows=0, PC'=vector
+- **Clean context**: Interrupts run with initialized shadow registers
+- **Zero overhead**: No manual save/restore required
+
+### 8.2 Performance Characteristics
+- **Interrupt latency**: 2 cycles
+- **Context switch**: 0 cycles (hardware concurrent)
+- **Register access**: Immediate in shadow context
+- **Hardware cost**: ~2,650 LUTs estimated
+
+### 8.3 Programming Impact
+
+**Positive Changes:**
+- ✅ Cleaner stack access with negative offsets (-16 to +15)
+- ✅ Efficient negative constant loading with LDI sign extension
+- ✅ Powerful bit manipulation with logical immediates as bit positions
+- ✅ Simplified interrupt handlers with clean shadow context
+- ✅ Flexible memory usage with no protection
+- ✅ Debugging support via SMV symmetric access
+
+**Things to Watch:**
+- 🔄 LDI now sign-extends (affects constant loading)
+- 🔄 Logical immediates work differently than arithmetic
+- 🔄 Interrupt handlers run in segment 0 with initialized shadows
+- 🔄 SMV is now read-only with simpler encoding
+
+---
+
+*Deep16 Architecture Specification v4.0 - Updated with Extended Shadow Registers*
+
+This architecture represents a **balanced, practical RISC design** suitable for both educational use and real embedded systems implementation. The extended shadow register system provides zero-overhead interrupt context switching while maintaining hardware simplicity and clean programming model.
