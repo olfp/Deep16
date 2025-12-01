@@ -10,7 +10,7 @@ class Deep16Disassembler {
         this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
         this.systemOps = ['NOP', 'FSH', 'SWI', 'RETI', '', '', '', ''];
         this.segmentNames = ['CS', 'DS', 'SS', 'ES'];
-        this.smvSources = ['APC', 'APSW', 'PSW', 'ACS'];
+        this.smvSources = ['ACS','ADS','ASS','AES','APSW','AR0','AR1','AR2','','','AR13','AR14','APC'];
     }
 
 disassemble(instruction) {
@@ -64,9 +64,9 @@ disassembleControlFlow(instruction) {
         return this.disassembleLSI(instruction);
     }
     
-    // Check for SOP (Single Operand) instructions (opcode bits 15-8 = 11111110)
+    // Check for SMV (opcode bits 15-8 = 11111110)
     if ((instruction >>> 8) === 0b11111110) {
-        return this.disassembleSOP(instruction);
+        return this.disassembleSMV(instruction);
     }
     
     // Check for MVS (opcode bits 15-7 = 111111110)
@@ -74,10 +74,15 @@ disassembleControlFlow(instruction) {
         return this.disassembleMVS(instruction);
     }
     
-    // Check for SMV (opcode bits 15-10 = 1111111110)
+    // Check for SOP (opcode bits 15-6 = 1111111110)
     if ((instruction >>> 6) === 0b1111111110) {
-        return this.disassembleSMV(instruction);
+        return this.disassembleSOP(instruction);
     }    
+    // Check for LPSW (opcode bits 15-4 = 111111111110)
+    if ((instruction >>> 4) === 0b111111111110) {
+        const rx = instruction & 0xF;
+        return `LPSW ${this.registerNames[rx]}`;
+    }
     
     // Check for System (opcode bits 15-3 = 1111111111110)
     if ((instruction >>> 3) === 0b1111111111110) {
@@ -134,10 +139,14 @@ disassembleSOP(instruction) {
 
     // NEW: Disassemble SMV instruction
     disassembleSMV(instruction) {
-        const src2 = (instruction >>> 4) & 0x3;
-        const rd = instruction & 0xF;
-        
-        return `SMV ${this.registerNames[rd]}, ${this.smvSources[src2]}`;
+        const rx = (instruction >>> 4) & 0xF;
+        const alt = instruction & 0xF;
+        const names = {
+            0x0: 'ACS', 0x1: 'ADS', 0x2: 'ASS', 0x3: 'AES', 0x4: 'APSW',
+            0x8: 'AR0', 0x9: 'AR1', 0xA: 'AR2', 0xD: 'AR13', 0xE: 'AR14', 0xF: 'APC'
+        };
+        const srcName = names[alt] || `ALT${alt}`;
+        return `SMV ${this.registerNames[rx]}, ${srcName}`;
     }
 
     // NEW: Disassemble JML instruction (from SOP group)

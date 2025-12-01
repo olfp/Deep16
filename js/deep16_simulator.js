@@ -5,8 +5,8 @@ class Deep16Simulator {
         // This equals 2MB × 2 bytes/word = 4MB physical memory
         this.memory = new Array(1048576).fill(0xFFFF); // 1,048,576 words (2MW)
         this.registers = new Array(16).fill(0);
-        this.segmentRegisters = { CS: 0xFFFF, DS: 0x1000, SS: 0x8000, ES: 0x2000 };
-        this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
+        this.segmentRegisters = { CS: 0xFFFF, DS: 0x0000, SS: 0x0000, ES: 0x0000 };
+        this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R13: 0, R14: 0 };
         this.psw = 0;
         this.running = false;
         this.lastOperationWasALU = false;
@@ -69,8 +69,8 @@ class Deep16Simulator {
         this.running = false;
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
-        this.segmentRegisters = { CS: 0xFFFF, DS: 0x1000, SS: 0x8000, ES: 0x2000 };
-        this.shadowRegisters = { PSW: 0, PC: 0, CS: 0 };
+        this.segmentRegisters = { CS: 0xFFFF, DS: 0x0000, SS: 0x0000, ES: 0x0000 };
+        this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R13: 0, R14: 0 };
         
         // Reset delay slot state
         this.delaySlotActive = false;
@@ -219,15 +219,16 @@ class Deep16Simulator {
                             this.executeLSI(instruction);
                             return false;
                         } else if ((instruction >>> 8) === 0b11111110) {
-                            // console.log("SOP instruction");
-                            return this.executeSOP(instruction);
+                            this.executeSMV(instruction);
+                            return false;
                         } else if ((instruction >>> 7) === 0b111111110) {
                             // console.log("MVS instruction");
                             this.executeMVS(instruction);
                             return false;
                         } else if ((instruction >>> 6) === 0b1111111110) {
-                            // console.log("SMV instruction");
-                            this.executeSMV(instruction);
+                            return this.executeSOP(instruction);
+                        } else if ((instruction >>> 4) === 0b111111111110) {
+                            this.executeLPSW(instruction);
                             return false;
                         } else if ((instruction >>> 3) === 0b1111111111110) {
                             // console.log("System instruction");
@@ -285,15 +286,17 @@ class Deep16Simulator {
         // Check if this is an extra segment access (uses ES segment)  
         const isExtraAccess = this.isExtraRegister(rb);
         
+        const inShadow = (this.psw & (1 << 5)) !== 0;
+        const segs = inShadow ? this.shadowRegisters : this.segmentRegisters;
         if (isStackAccess) {
-            segmentRegister = this.segmentRegisters.SS;
+            segmentRegister = segs.SS;
             segmentName = 'SS';
         } else if (isExtraAccess) {
-            segmentRegister = this.segmentRegisters.ES;
+            segmentRegister = segs.ES;
             segmentName = 'ES';
         } else {
             // Default to Data Segment
-            segmentRegister = this.segmentRegisters.DS;
+            segmentRegister = segs.DS;
             segmentName = 'DS';
         }
         
@@ -756,91 +759,73 @@ class Deep16Simulator {
         const seg = instruction & 0x3;
         
         const segNames = ['CS', 'DS', 'SS', 'ES'];
-        
-        // console.log(`MVS Execute: d=${d}, rd=${this.getRegisterName(rd)}, seg=${segNames[seg]}`);
-        
+        const inShadow = (this.psw & (1 << 5)) !== 0;
+        const segs = inShadow ? this.shadowRegisters : this.segmentRegisters;
         if (d === 0) {
-            // Rd ← Sx (read from segment register)
             switch (seg) {
-                case 0: this.registers[rd] = this.segmentRegisters.CS; break;
-                case 1: this.registers[rd] = this.segmentRegisters.DS; break;
-                case 2: this.registers[rd] = this.segmentRegisters.SS; break;
-                case 3: this.registers[rd] = this.segmentRegisters.ES; break;
+                case 0: this.registers[rd] = segs.CS; break;
+                case 1: this.registers[rd] = segs.DS; break;
+                case 2: this.registers[rd] = segs.SS; break;
+                case 3: this.registers[rd] = segs.ES; break;
             }
-            // console.log(`MVS: ${this.getRegisterName(rd)} = ${segNames[seg]} (0x${this.registers[rd].toString(16)})`);
         } else {
-            // Sx ← Rd (write to segment register)
             switch (seg) {
-                case 0: this.segmentRegisters.CS = this.registers[rd]; break;
-                case 1: this.segmentRegisters.DS = this.registers[rd]; break;
-                case 2: this.segmentRegisters.SS = this.registers[rd]; break;
-                case 3: this.segmentRegisters.ES = this.registers[rd]; break;
+                case 0: segs.CS = this.registers[rd] & 0xFFFF; break;
+                case 1: segs.DS = this.registers[rd] & 0xFFFF; break;
+                case 2: segs.SS = this.registers[rd] & 0xFFFF; break;
+                case 3: segs.ES = this.registers[rd] & 0xFFFF; break;
             }
-            // console.log(`MVS: ${segNames[seg]} = ${this.getRegisterName(rd)} (0x${this.registers[rd].toString(16)})`);
         }
     }
 
     executeSMV(instruction) {
-        // SMV: [1111111110][src2][Rd4]
-        const src2 = (instruction >>> 4) & 0x3;
-        const rd = instruction & 0xF;
-        
-        const srcNames = ['APC', 'APSW', 'PSW', 'ACS'];
-        
-        // console.log(`SMV Execute: src=${srcNames[src2]}, rd=${this.getRegisterName(rd)}, S-bit=${!!(this.psw & (1 << 5))}`);
-        
-        // Check S-bit to determine current context
+        const rx = (instruction >>> 4) & 0xF;
+        const alt = instruction & 0xF;
         const inShadowView = !!(this.psw & (1 << 5));
-        
-        switch (src2) {
-            case 0: // APC - Alternate PC (non-active context PC)
-                if (inShadowView) {
-                    // In shadow view: APC = normal context PC (current PC)
-                    this.registers[rd] = this.registers[15];
-                    // console.log(`SMV: ${this.getRegisterName(rd)} = APC = PC(normal) = 0x${this.registers[rd].toString(16)}`);
-                } else {
-                    // In normal view: APC = shadow context PC (PC')
-                    this.registers[rd] = this.shadowRegisters.PC;
-                    // console.log(`SMV: ${this.getRegisterName(rd)} = APC = PC'(shadow) = 0x${this.registers[rd].toString(16)}`);
-                }
+        switch (alt) {
+            case 0b0000:
+                this.registers[rx] = inShadowView ? (this.segmentRegisters.CS & 0xFFFF) : (this.shadowRegisters.CS & 0xFFFF);
                 break;
-                
-            case 1: // APSW - Alternate PSW (non-active context PSW)
-                if (inShadowView) {
-                    // In shadow view: APSW = normal context PSW (current PSW)
-                    this.registers[rd] = this.psw;
-                    // console.log(`SMV: ${this.getRegisterName(rd)} = APSW = PSW(normal) = 0x${this.registers[rd].toString(16)}`);
-                } else {
-                    // In normal view: APSW = shadow context PSW (PSW')
-                    this.registers[rd] = this.shadowRegisters.PSW;
-                    // console.log(`SMV: ${this.getRegisterName(rd)} = APSW = PSW'(shadow) = 0x${this.registers[rd].toString(16)}`);
-                }
+            case 0b0001:
+                this.registers[rx] = inShadowView ? (this.segmentRegisters.DS & 0xFFFF) : (this.shadowRegisters.DS & 0xFFFF);
                 break;
-                
-            case 2: // PSW - Current context PSW
-                if (inShadowView) {
-                    // In shadow view: PSW = PSW' (shadow PSW)
-                    this.registers[rd] = this.shadowRegisters.PSW;
-                    // console.log(`SMV: ${this.getRegisterName(rd)} = PSW = PSW'(shadow) = 0x${this.registers[rd].toString(16)}`);
-                } else {
-                    // In normal view: PSW = current PSW
-                    this.registers[rd] = this.psw;
-                    // console.log(`SMV: ${this.getRegisterName(rd)} = PSW = PSW(normal) = 0x${this.registers[rd].toString(16)}`);
-                }
+            case 0b0010:
+                this.registers[rx] = inShadowView ? (this.segmentRegisters.SS & 0xFFFF) : (this.shadowRegisters.SS & 0xFFFF);
                 break;
-                
-            case 3: // ACS - Alternate CS (non-active context CS)
-                if (inShadowView) {
-                    // In shadow view: ACS = normal context CS (current CS)
-                    this.registers[rd] = this.segmentRegisters.CS;
-                    // console.log(`SMV: ${this.getRegisterName(rd)} = ACS = CS(normal) = 0x${this.registers[rd].toString(16)}`);
-                } else {
-                    // In normal view: ACS = shadow context CS (CS')
-                    this.registers[rd] = this.shadowRegisters.CS;
-                    // console.log(`SMV: ${this.getRegisterName(rd)} = ACS = CS'(shadow) = 0x${this.registers[rd].toString(16)}`);
-                }
+            case 0b0011:
+                this.registers[rx] = inShadowView ? (this.segmentRegisters.ES & 0xFFFF) : (this.shadowRegisters.ES & 0xFFFF);
+                break;
+            case 0b0100:
+                this.registers[rx] = inShadowView ? (this.psw & 0xFFFF) : (this.shadowRegisters.PSW & 0xFFFF);
+                break;
+            case 0b1000:
+                this.registers[rx] = inShadowView ? (this.registers[0] & 0xFFFF) : (this.shadowRegisters.R0 & 0xFFFF);
+                break;
+            case 0b1001:
+                this.registers[rx] = inShadowView ? (this.registers[1] & 0xFFFF) : (this.shadowRegisters.R1 & 0xFFFF);
+                break;
+            case 0b1010:
+                this.registers[rx] = inShadowView ? (this.registers[2] & 0xFFFF) : (this.shadowRegisters.R2 & 0xFFFF);
+                break;
+            case 0b1101:
+                this.registers[rx] = inShadowView ? (this.registers[13] & 0xFFFF) : (this.shadowRegisters.R13 & 0xFFFF);
+                break;
+            case 0b1110:
+                this.registers[rx] = inShadowView ? (this.registers[14] & 0xFFFF) : (this.shadowRegisters.R14 & 0xFFFF);
+                break;
+            case 0b1111:
+                this.registers[rx] = inShadowView ? (this.registers[15] & 0xFFFF) : (this.shadowRegisters.PC & 0xFFFF);
+                break;
+            default:
                 break;
         }
+    }
+
+    executeLPSW(instruction) {
+        const rx = instruction & 0xF;
+        const inShadowView = !!(this.psw & (1 << 5));
+        const value = inShadowView ? (this.shadowRegisters.PSW & 0xFFFF) : (this.psw & 0xFFFF);
+        this.registers[rx] = value;
     }
 
     executeLDSSTS(instruction) {
@@ -906,6 +891,14 @@ class Deep16Simulator {
         this.shadowRegisters.PSW = this.psw;
         this.psw = (this.psw & ~(1 << 4)) | (1 << 5);
         this.shadowRegisters.CS = 0x0000;
+        this.shadowRegisters.DS = 0x0000;
+        this.shadowRegisters.SS = 0x0000;
+        this.shadowRegisters.ES = 0x0000;
+        this.shadowRegisters.R0 = 0x0000;
+        this.shadowRegisters.R1 = 0x0000;
+        this.shadowRegisters.R2 = 0x0000;
+        this.shadowRegisters.R13 = 0x0000;
+        this.shadowRegisters.R14 = 0x0000;
         const pa = this.phys(0, 2);
         const target = pa < this.memory.length ? (this.memory[pa] & 0xFFFF) : 0xFFFF;
         this.shadowRegisters.PC = target;
@@ -954,6 +947,14 @@ class Deep16Simulator {
         this.shadowRegisters.PSW = this.psw;
         this.psw = (this.psw & ~(1 << 4)) | (1 << 5);
         this.shadowRegisters.CS = 0x0000;
+        this.shadowRegisters.DS = 0x0000;
+        this.shadowRegisters.SS = 0x0000;
+        this.shadowRegisters.ES = 0x0000;
+        this.shadowRegisters.R0 = 0x0000;
+        this.shadowRegisters.R1 = 0x0000;
+        this.shadowRegisters.R2 = 0x0000;
+        this.shadowRegisters.R13 = 0x0000;
+        this.shadowRegisters.R14 = 0x0000;
         const pa = this.phys(0, vector & 0xFFFF);
         const target = pa < this.memory.length ? (this.memory[pa] & 0xFFFF) : 0xFFFF;
         this.shadowRegisters.PC = target;
