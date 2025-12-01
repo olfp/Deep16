@@ -61,10 +61,20 @@ class DeepWebUI {
         for (let a = 0xFFFF0; a <= 0xFFFFF; a++) {
             this.currentAssemblyResult.segmentMap.set(a, 'code');
         }
-        this.memoryStartAddress = 0xFFFF0;
-        const startAddrInput = document.getElementById('memory-start-address');
-        if (startAddrInput) {
-            startAddrInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+        {
+            const phys0 = this.getActivePhysPC();
+            const windowSize = 64;
+            const memLen = this.simulator.memory.length >>> 0;
+            let targetStart = (phys0 - (windowSize >> 1)) >>> 0;
+            if (targetStart < 0) targetStart = 0;
+            const maxStart = memLen > windowSize ? (memLen - windowSize) : 0;
+            if (targetStart > maxStart) targetStart = maxStart;
+            targetStart &= ~0x7;
+            this.memoryStartAddress = targetStart;
+            const startAddrInput = document.getElementById('memory-start-address');
+            if (startAddrInput) {
+                startAddrInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+            }
         }
         const runBtn = document.getElementById('run-btn');
         const stepBtn = document.getElementById('step-btn');
@@ -1015,18 +1025,20 @@ class DeepWebUI {
         if (window.Deep16Debug) console.log(`Physical address calculation: (0x${csAddress.toString(16)} << 4) + 0x${pcAddress.toString(16)} = 0x${physicalAddress.toString(16)}`);
         
         if (physicalAddress >= 0 && physicalAddress < this.simulator.memory.length) {
-            // Set the memory start address to show CONTEXT around the target
-            // Show 16 addresses before the target so we can scroll up
-            const contextStart = Math.max(0, physicalAddress - 16);
-            this.memoryStartAddress = contextStart;
-            
-            // Update the start address input to show the context start
+            const windowSize = 64;
+            const memLen = this.simulator.memory.length >>> 0;
+            let targetStart = (physicalAddress - (windowSize >> 1)) >>> 0;
+            if (targetStart < 0) targetStart = 0;
+            const maxStart = memLen > windowSize ? (memLen - windowSize) : 0;
+            if (targetStart > maxStart) targetStart = maxStart;
+            targetStart &= ~0x7;
+            this.memoryStartAddress = targetStart;
+
             const startAddressInput = document.getElementById('memory-start-address');
             if (startAddressInput) {
-                startAddressInput.value = '0x' + contextStart.toString(16).padStart(5, '0');
+                startAddressInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
             }
-            
-            // Render the memory display at this context location
+
             this.manualAddressChange = true;
             this.memoryUI.renderMemoryDisplay();
             
@@ -1128,16 +1140,22 @@ class DeepWebUI {
     onSymbolSelect(event) {
         const address = parseInt(event.target.value);
         if (!isNaN(address) && address >= 0) {
-            // Show context around the symbol (some addresses before and after)
-            const contextBefore = 16; // Show 16 addresses before the symbol
-            const contextAddress = Math.max(0, address - contextBefore);
-            this.memoryStartAddress = contextAddress;
+            const windowSize = 64;
+            const memLen = this.simulator.memory.length >>> 0;
+            let targetStart = (address - (windowSize >> 1)) >>> 0;
+            if (targetStart < 0) targetStart = 0;
+            const maxStart = memLen > windowSize ? (memLen - windowSize) : 0;
+            if (targetStart > maxStart) targetStart = maxStart;
+            targetStart &= ~0x7;
+            this.memoryStartAddress = targetStart;
+            const startAddressInput = document.getElementById('memory-start-address');
+            if (startAddressInput) {
+                startAddressInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+            }
+            this.manualAddressChange = true;
             this.memoryUI.renderMemoryDisplay();
-            document.getElementById('memory-start-address').value = '0x' + contextAddress.toString(16).padStart(5, '0');
             const symbolName = event.target.options[event.target.selectedIndex].text.split(' (')[0];
-            this.addTranscriptEntry(`Memory view showing symbol: ${symbolName} with context`, "info");
-            
-            // Scroll to the symbol address after a short delay to ensure DOM is updated
+            this.addTranscriptEntry(`Memory view centered on symbol: ${symbolName}`, "info");
             setTimeout(() => {
                 this.memoryUI.scrollToAddress(address);
             }, 50);
@@ -1384,6 +1402,25 @@ class DeepWebUI {
                 
                 this.updateSymbolSelects(result.symbols);
                 this.addTranscriptEntry(`Found ${Object.keys(result.symbols).length} symbols`, "info");
+                {
+                    const cs0 = this.simulator.segmentRegisters.CS & 0xFFFF;
+                    const pc0 = this.simulator.registers[15] & 0xFFFF;
+                    const phys0 = ((cs0 << 4) + pc0) >>> 0;
+                    const windowSize = 64;
+                    const memLen = this.simulator.memory.length >>> 0;
+                    let targetStart = (phys0 - (windowSize >> 1)) >>> 0;
+                    if (targetStart < 0) targetStart = 0;
+                    const maxStart = memLen > windowSize ? (memLen - windowSize) : 0;
+                    if (targetStart > maxStart) targetStart = maxStart;
+                    targetStart &= ~0x7;
+                    this.memoryStartAddress = targetStart;
+                    const addrInput = document.getElementById('memory-start-address');
+                    if (addrInput) {
+                        addrInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+                    }
+                    this.manualAddressChange = true;
+                    this.memoryUI.renderMemoryDisplay();
+                }
                 
                 this.switchTab('screen');
             } else {
@@ -1477,18 +1514,26 @@ class DeepWebUI {
             }
 
             // One-time follow on large jump: bring PC into view even when locked
-            const physPC = ((this.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.simulator.registers[15] & 0xFFFF);
+            const physPC = this.getActivePhysPC();
             const start = this.memoryStartAddress || 0;
             const end = Math.min(start + 64, this.simulator.memory.length);
             const pcVisible = physPC >= start && physPC < end;
             const jumpedFar = Math.abs(physPC - this.lastPhysPC) > 16;
-            if (this.compactView && !pcVisible && jumpedFar) {
-                this.memoryStartAddress = Math.max(0, physPC - 8);
+            if (!pcVisible && jumpedFar) {
+                const windowSize = 64;
+                const memLen = this.simulator.memory.length >>> 0;
+                let targetStart = (physPC - (windowSize >> 1)) >>> 0;
+                if (targetStart < 0) targetStart = 0;
+                const maxStart = memLen > windowSize ? (memLen - windowSize) : 0;
+                if (targetStart > maxStart) targetStart = maxStart;
+                targetStart &= ~0x7;
+                this.memoryStartAddress = targetStart;
                 const startAddressInput = document.getElementById('memory-start-address');
                 if (startAddressInput) {
                     startAddressInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
                 }
                 this.memoryUI.renderMemoryDisplay();
+                this.memoryUI.scrollToPC();
             }
             this.lastPhysPC = physPC;
 
@@ -1522,10 +1567,37 @@ class DeepWebUI {
         this.updateRunButton(false);
     }
 
+    getActivePhysPC() {
+        if (this.useWasm && this.wasmAvailable && this.wasmInitialized && window.Deep16Wasm) {
+            try {
+                const psw = typeof window.Deep16Wasm.get_psw === 'function' ? (window.Deep16Wasm.get_psw() & 0xFFFF) : 0;
+                const sbit = (psw & (1 << 5)) !== 0;
+                if (sbit && typeof window.Deep16Wasm.get_shadow_state === 'function') {
+                    const sh = window.Deep16Wasm.get_shadow_state();
+                    const pc = sh && sh.length >= 3 ? (sh[0] & 0xFFFF) : (this.simulator.shadowRegisters.PC & 0xFFFF);
+                    const cs = sh && sh.length >= 3 ? (sh[1] & 0xFFFF) : (this.simulator.shadowRegisters.CS & 0xFFFF);
+                    return ((cs << 4) + pc) >>> 0;
+                }
+                const segs = typeof window.Deep16Wasm.get_segments === 'function' ? window.Deep16Wasm.get_segments() : null;
+                const regs = typeof window.Deep16Wasm.get_registers === 'function' ? window.Deep16Wasm.get_registers() : null;
+                const cs = segs && segs.length >= 1 ? (segs[0] & 0xFFFF) : (this.simulator.segmentRegisters.CS & 0xFFFF);
+                const pc = regs && regs.length >= 16 ? (regs[15] & 0xFFFF) : (this.simulator.registers[15] & 0xFFFF);
+                return ((cs << 4) + pc) >>> 0;
+            } catch {}
+        }
+        const sbitSim = (this.simulator.psw & (1 << 5)) !== 0;
+        if (sbitSim) {
+            const cs = this.simulator.shadowRegisters.CS & 0xFFFF;
+            const pc = this.simulator.shadowRegisters.PC & 0xFFFF;
+            return ((cs << 4) + pc) >>> 0;
+        }
+        const cs = this.simulator.segmentRegisters.CS & 0xFFFF;
+        const pc = this.simulator.registers[15] & 0xFFFF;
+        return ((cs << 4) + pc) >>> 0;
+    }
+
     step() {
-        const beforePC = this.simulator.registers[15] & 0xFFFF;
-        const beforeCS = this.simulator.segmentRegisters.CS & 0xFFFF;
-        const beforePhys = (beforeCS << 4) + beforePC;
+        const beforePhys = this.getActivePhysPC();
         if (!this.simulator.running) {
             this.simulator.running = true;
         }
@@ -1660,9 +1732,7 @@ class DeepWebUI {
                 }
             } catch {}
             // Bring new PC into view on large jumps when stepping (WASM)
-            const afterPC = this.simulator.registers[15] & 0xFFFF;
-            const afterCS = this.simulator.segmentRegisters.CS & 0xFFFF;
-            const afterPhys = (afterCS << 4) + afterPC;
+            const afterPhys = this.getActivePhysPC();
             const start2 = this.memoryStartAddress || 0;
             const end2 = Math.min(start2 + 64, this.simulator.memory.length);
             const pcVisible2 = afterPhys >= start2 && afterPhys < end2;
@@ -1722,9 +1792,7 @@ class DeepWebUI {
             const continueRunning = this.simulator.step();
             this.simulator.running = false;
             // Bring new PC into view on large jumps when stepping
-            const afterPC = this.simulator.registers[15] & 0xFFFF;
-            const afterCS = this.simulator.segmentRegisters.CS & 0xFFFF;
-            const afterPhys = (afterCS << 4) + afterPC;
+            const afterPhys = this.getActivePhysPC();
             const start = this.memoryStartAddress || 0;
             const end = Math.min(start + 64, this.simulator.memory.length);
             const pcVisible = afterPhys >= start && afterPhys < end;
@@ -1796,7 +1864,17 @@ class DeepWebUI {
         this.simulator.reset();
         this.wasmDirtyStart = null;
         this.wasmDirtyEnd = null;
-        this.memoryStartAddress = 0xFFFF0;
+        const cs0 = this.simulator.segmentRegisters.CS & 0xFFFF;
+        const pc0 = this.simulator.registers[15] & 0xFFFF;
+        const phys0 = ((cs0 << 4) + pc0) >>> 0;
+        const windowSize = 64;
+        const memLen = this.simulator.memory.length >>> 0;
+        let targetStart = (phys0 - (windowSize >> 1)) >>> 0;
+        if (targetStart < 0) targetStart = 0;
+        const maxStart = memLen > windowSize ? (memLen - windowSize) : 0;
+        if (targetStart > maxStart) targetStart = maxStart;
+        targetStart &= ~0x7;
+        this.memoryStartAddress = targetStart;
         const addrInput = document.getElementById('memory-start-address');
         if (addrInput) {
             addrInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');

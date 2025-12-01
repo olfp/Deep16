@@ -87,7 +87,7 @@ isCodeAddress(address) {
             ? (window.Deep16Wasm.get_memory_word(address) & 0xFFFF)
             : this.ui.simulator.memory[address];
         const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
-    const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
+    const physPC = this.getCurrentPhysPC();
     const isPC = (address === physPC);
     const pcClass = isPC ? 'pc-marker' : '';
     
@@ -126,7 +126,7 @@ isCodeAddress(address) {
         // Create a data line with 8 words
         let html = `<div class="memory-line data-line ${pcClass}" data-addr="${address}">`;
         html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
-        const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
+        const physPC = this.getCurrentPhysPC();
         let values = null;
         if (this.ui.useWasm && window.Deep16Wasm && typeof window.Deep16Wasm.get_memory_slice === 'function') {
             try {
@@ -275,7 +275,7 @@ updateMemoryDisplay() {
     if (window.Deep16Debug) console.log(`updateMemoryDisplay: memoryStartAddress = ${this.ui.memoryStartAddress}, start = ${start}, end = ${end}`);
 
     // Optional: follow PC only when explicitly enabled
-    const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
+    const physPC = this.getCurrentPhysPC();
     const pcIsVisible = (physPC >= start && physPC < end);
     if (window.Deep16Debug) console.log(`PC check: physPC = ${physPC}, pcIsVisible = ${pcIsVisible}, followPC=${this.ui.followPC}`);
     if (this.ui.followPC && !pcIsVisible && physPC < this.ui.simulator.memory.length) {
@@ -291,8 +291,7 @@ updateMemoryDisplay() {
     
     if (window.Deep16Debug) console.log(`updateMemoryDisplay END: memoryStartAddress = ${this.ui.memoryStartAddress}`);
     
-    // Auto-scroll only in Compact view or when followPC is enabled
-    if ((this.ui.compactView || this.ui.followPC) && pcIsVisible) {
+    if (pcIsVisible) {
         this.scrollToPC();
     }
 }
@@ -483,8 +482,41 @@ getExactSourceForAddress(address) {
     }
 
     scrollToPC() {
-        const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
+        const physPC = this.getCurrentPhysPC();
         this.scrollToAddress(physPC);
+    }
+
+    getCurrentPhysPC() {
+        let cs = 0, pc = 0;
+        if (this.ui.useWasm && window.Deep16Wasm && typeof window.Deep16Wasm.get_psw === 'function') {
+            try {
+                const psw = window.Deep16Wasm.get_psw() & 0xFFFF;
+                const sbit = (psw & (1 << 5)) !== 0;
+                if (sbit && typeof window.Deep16Wasm.get_shadow_state === 'function') {
+                    const sh = window.Deep16Wasm.get_shadow_state();
+                    pc = sh && sh.length >= 3 ? (sh[0] & 0xFFFF) : (this.ui.simulator.shadowRegisters.PC & 0xFFFF);
+                    cs = sh && sh.length >= 3 ? (sh[1] & 0xFFFF) : (this.ui.simulator.shadowRegisters.CS & 0xFFFF);
+                } else {
+                    const segs = typeof window.Deep16Wasm.get_segments === 'function' ? window.Deep16Wasm.get_segments() : null;
+                    const regs = typeof window.Deep16Wasm.get_registers === 'function' ? window.Deep16Wasm.get_registers() : null;
+                    cs = segs && segs.length >= 1 ? (segs[0] & 0xFFFF) : (this.ui.simulator.segmentRegisters.CS & 0xFFFF);
+                    pc = regs && regs.length >= 16 ? (regs[15] & 0xFFFF) : (this.ui.simulator.registers[15] & 0xFFFF);
+                }
+            } catch {
+                cs = this.ui.simulator.segmentRegisters.CS & 0xFFFF;
+                pc = this.ui.simulator.registers[15] & 0xFFFF;
+            }
+        } else {
+            const sbit = (this.ui.simulator.psw & (1 << 5)) !== 0;
+            if (sbit) {
+                cs = this.ui.simulator.shadowRegisters.CS & 0xFFFF;
+                pc = this.ui.simulator.shadowRegisters.PC & 0xFFFF;
+            } else {
+                cs = this.ui.simulator.segmentRegisters.CS & 0xFFFF;
+                pc = this.ui.simulator.registers[15] & 0xFFFF;
+            }
+        }
+        return ((cs << 4) + pc) >>> 0;
     }
 
  
@@ -508,7 +540,7 @@ getExactSourceForAddress(address) {
         }
         
         const hadContent = this.recentPanelHasContent;
-        const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
+        const physPC = this.getCurrentPhysPC();
         
         const { baseAddress, memoryWords, accessInfo } = memoryView;
         const start = this.ui.memoryStartAddress || 0;
