@@ -1,3 +1,5 @@
+You're absolutely right! Thank you for catching that. Let me update the Programmer's Manual with the corrected JML encoding:
+
 # Deep16 (深十六) Programmer's Manual
 ## 16-bit RISC Processor with Enhanced Memory Addressing
 
@@ -244,10 +246,11 @@ TBS  R1, 12      ; Test if bit 12 is set (Z=1 if set)
 
 #### 3.2.3 Single Operand Operations (UPDATED)
 
-**INV/NEG - Invert and Negate (new encoding)**
+**SOP Instructions (New encoding: `1111111110 type2 Rx4`)**
 ```assembly
-INV  R1          ; R1 = ~R1 (bitwise complement) - NEW: 1111111110 00 R1
-NEG  R1          ; R1 = -R1 (two's complement negation) - NEW: 1111111110 01 R1
+INV  R1          ; R1 = ~R1 (bitwise complement) - type2=00
+NEG  R1          ; R1 = -R1 (two's complement negation) - type2=01
+JML  R1          ; Far jump: CS = R[Rx], PC = R[Rx+1] - type2=11
 ```
 
 **SWB - Swap Bytes (Alias)**
@@ -353,12 +356,14 @@ JNO  target      ; Jump if V=0 (no overflow)
 JMP  R1          ; MOV PC, R1 - Jump to address in R1
 ```
 
-**JML - Long Jump**
+**JML - Long Jump (Far Jump)**
 ```assembly
-JML  R2          ; CS = R2, PC = R3 (uses R2:R3 pair)
+JML  R2          ; CS = R[Rx], PC = R[Rx+1] (uses register pair)
 ```
 - **Far jump** to different code segment
-- **R2** contains segment, **R3** contains offset
+- **Rx must be EVEN** (0,2,4,6,8,10,12,14)
+- **Rx contains segment**, **Rx+1 contains offset**
+- **Pipeline flush** required
 
 ### 3.7 Subroutine Calls
 
@@ -402,6 +407,23 @@ my_function:
     MOV  SP, FP      ; Deallocate stack frame
     JMP  LR          ; Return to caller
     NOP              ; Delay slot (can be used for cleanup)
+```
+
+#### 3.7.4 Far Subroutine Calls
+```assembly
+; Call function in different segment
+LDI  segment_address
+MOV  R4, R0         ; R4 = segment
+LDI  function_address
+MOV  R5, R0         ; R5 = offset
+JML  R4             ; Far jump (uses R4:R5 pair)
+
+; Alternative: store in registers first
+LDI  0x1000
+MOV  R2, R0         ; R2 = segment (0x1000)
+LDI  far_function
+MOV  R3, R0         ; R3 = offset
+JML  R2             ; Jump to 0x1000:far_function
 ```
 
 ### 3.8 System Instructions
@@ -735,6 +757,18 @@ fast_timer_isr:
     RETI                ; Only 4 instructions!
 ```
 
+#### 5.4.4 Far Jump Optimization
+```assembly
+; Pre-load segment and offset for fast far jumps
+setup_far_jump:
+    LDI  0x2000          ; Target segment
+    MOV  R4, R0          ; R4 = segment
+    LDI  target_func     ; Target offset
+    MOV  R5, R0          ; R5 = offset
+    ; ... later ...
+    JML  R4              ; Fast far jump (uses pre-loaded R4:R5)
+```
+
 ## 6. Instruction Aliases (Updated)
 
 **Table 4: Instruction Aliases**
@@ -770,8 +804,17 @@ fast_timer_isr:
   - Interrupt mode: SMV reads normal registers
 
 **Instruction Encoding Updates:**
-- **SOP re-encoded**: Now `1111111110 type2 Rx4` (INV, NEG only)
+- **SOP re-encoded**: Now `1111111110 type2 Rx4`
+  - `type2=00`: INV Rx
+  - `type2=01`: NEG Rx
+  - `type2=11`: JML Rx (Far Jump)
 - **Compact opcodes**: Better utilization of instruction space
+
+**JML Instruction (Corrected):**
+- **New encoding**: `1111111110 11 Rx4`
+- **Operation**: `CS = R[Rx], PC = R[Rx+1]` (Far jump)
+- **Requirement**: Rx must be EVEN (uses register pair)
+- **Effect**: Pipeline flush required
 
 **Interrupt Behavior:**
 - **Fast entry**: 2-cycle latency with clean context
@@ -787,12 +830,14 @@ fast_timer_isr:
 - ✅ **Fast ISRs** - can use shadow registers immediately
 - ✅ **Cleaner stack access** with negative offsets (-16 to +15)
 - ✅ **Efficient constant loading** with LDI sign extension
+- ✅ **Simplified JML encoding** - now part of SOP group
 
 **Things to Watch:**
 - 🔄 **LDI now sign-extends** - `LDI -1` loads `0xFFFF`
 - 🔄 **Logical immediates use bit positions** - `AND R1, 3` means `R1 AND (1<<3)`
 - 🔄 **SMV is read-only** - cannot write shadow registers directly
 - 🔄 **Interrupts run in segment 0** - handlers must be in low memory
+- 🔄 **JML requires EVEN register** - uses register pair (Rx:Rx+1)
 
 ### 7.3 Best Practices
 
@@ -801,6 +846,7 @@ fast_timer_isr:
 3. **Schedule Delay Slots**: Maximize performance
 4. **Debug with SMV**: Inspect interrupt context from normal mode
 5. **Initialize Properly**: Set up segments and stack pointer after reset
+6. **Pair Registers for JML**: Use EVEN registers for far jumps
 
 ### 7.4 Example Complete System
 
@@ -840,12 +886,30 @@ timer_isr:
 
 main:
     ; Main program loop
-    ; ... application code ...
-    JMP  main
+    ; Setup far jump to function in different segment
+    LDI  0x3000          ; Target segment
+    MOV  R4, R0
+    LDI  far_function    ; Target function
+    MOV  R5, R0
+    
+    ; Execute far jump when needed
+    JML  R4              ; Jump to 0x3000:far_function
+    
+    ; ... rest of main program ...
 ```
+
+### 7.5 Complete Opcode Summary
+
+**Key Instruction Encodings:**
+- **SMV**: `11111110 Rx4 alt_sel4` - Shadow register read
+- **INV**: `1111111110 00 Rx4` - Bitwise complement
+- **NEG**: `1111111110 01 Rx4` - Two's complement negation
+- **JML**: `1111111110 11 Rx4` - Far jump (Rx must be EVEN)
+- **LDI**: `0 imm15` - Load immediate to R0
+- **LD/ST**: `10 d1 Rd4 Rb4 offset5` - Memory access with signed offset
 
 ---
 
-*Deep16 Programmer's Manual v3.0 - Updated with Extended Shadow Register System*
+*Deep16 Programmer's Manual v3.0 - Updated with Extended Shadow Register System and Corrected JML Encoding*
 
 This manual reflects the current Deep16 architecture with extended shadow registers, providing zero-overhead interrupt context switching while maintaining the clean RISC philosophy. The practical examples and best practices will help you write efficient, maintainable code for the Deep16 processor.
