@@ -27,7 +27,7 @@
     ,
     {
       "name": "DeepForth",
-      "filename": "forth.a16",
+      "filename": "forth.asm",
       "description": "Minimal threaded Forth kernel prints greeting",
       "category": "I/O"
     }

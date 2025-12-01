@@ -1,3 +1,0 @@
-- Test Branch delay slot
-- Test SWI in assembler
-- Test shadow regs correctly in sim (executeSystem(), RETI, ...
