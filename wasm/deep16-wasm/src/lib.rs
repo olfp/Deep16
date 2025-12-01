@@ -585,6 +585,7 @@ fn step_one(c: &mut Cpu) -> bool {
     c.last_event_spc = active_pc;
     c.last_event_scs = active_cs;
     if (instr & 0xFFF0) == 0xFFF0 {
+        if in_shadow { c.spc = c.spc.wrapping_add(1); } else { c.reg[15] = c.reg[15].wrapping_add(1); }
         exec_sys(c, instr);
         update_psw_flags(c);
         return true;
