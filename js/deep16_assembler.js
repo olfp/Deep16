@@ -538,6 +538,12 @@ class Deep16Assembler {
                         return 0b1111100000000000 | (rd << 6) | (rs << 2) | 3;
                     }
                     throw new Error('AMV requires two registers');
+                case 'LPSW':
+                    if (parts.length >= 2) {
+                        const rx = this.parseRegister(parts[1]);
+                        return 0b1111111111100000 | rx;
+                    }
+                    throw new Error('LPSW requires register operand');
                 case 'LNK': // LNK Rx => MOV Rx, PC, 2
                     if (parts.length >= 2) {
                         const rd = this.parseRegister(parts[1]);
@@ -703,21 +709,28 @@ class Deep16Assembler {
         throw new Error('MVS requires destination register and segment register');
     }
 
-    // Encode SMV instruction
+    // Encode SMV instruction (updated 8-bit encoding)
     encodeSMV(parts, address, lineNumber) {
         if (parts.length >= 3) {
-            const rd = this.parseRegister(parts[1]);
-            const src = parts[2].toUpperCase();
-            
-            const srcMap = {
-                'APC': 0b00, 'APSW': 0b01, 'PSW': 0b10, 'ACS': 0b11
+            const rx = this.parseRegister(parts[1]);
+            const alt = parts[2].toUpperCase();
+            const altMap = {
+                'ACS': 0b0000,
+                'ADS': 0b0001,
+                'ASS': 0b0010,
+                'AES': 0b0011,
+                'APSW': 0b0100,
+                'AR0': 0b1000,
+                'AR1': 0b1001,
+                'AR2': 0b1010,
+                'AR13': 0b1101,
+                'AR14': 0b1110,
+                'APC': 0b1111,
             };
-            
-            if (src in srcMap) {
-                // SMV: [1111111110][src2][Rd4]
-                return 0b1111111110000000 | (srcMap[src] << 4) | rd;
+            if (!(alt in altMap)) {
+                throw new Error(`Invalid SMV source: ${alt}`);
             }
-            throw new Error(`Invalid SMV source: ${src}`);
+            return 0b1111111000000000 | (rx << 4) | altMap[alt];
         }
         throw new Error('SMV requires destination register and source');
     }
@@ -726,8 +739,8 @@ class Deep16Assembler {
     encodeJML(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // JML: [11111110][0100][Rx4]
-            return 0b1111111001000000 | rx;
+            // JML: [1111111110][0100][Rx4]
+            return 0b1111111110000000 | (0b0100 << 4) | rx;
         }
         throw new Error('JML requires register operand (even register)');
     }
@@ -780,6 +793,9 @@ class Deep16Assembler {
                     // MOV Rd, Sx -> MVS Rd, Sx (read from segment register)
                     if (window.Deep16Debug) console.log(`Detected MOV from segment register: ${secondOperand}`);
                     return this.encodeMVS([null, parts[1], parts[2]], address, lineNumber);
+                }
+                else if (secondOperand === 'PSW') {
+                    return 0b1111111111100000 | rd;
                 }
                 else if (this.isSpecialRegister(secondOperand)) {
                     // MOV Rd, special -> SMV Rd, special
@@ -897,8 +913,8 @@ class Deep16Assembler {
     encodeSWB(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // SWB: [11111110][0000][Rx4]
-            return 0b1111111000000000 | rx;
+            // SWB: [1111111110][0000][Rx4]
+            return 0b1111111110000000 | (0b0000 << 4) | rx;
         }
         throw new Error('SWB requires register operand');
     }
@@ -907,8 +923,8 @@ class Deep16Assembler {
     encodeINV(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // INV: [11111110][0001][Rx4]
-            return 0b1111111000010000 | rx;
+            // INV: [1111111110][0001][Rx4]
+            return 0b1111111110000000 | (0b0001 << 4) | rx;
         }
         throw new Error('INV requires register operand');
     }
@@ -917,8 +933,8 @@ class Deep16Assembler {
     encodeNEG(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // NEG: [11111110][0010][Rx4]
-            return 0b1111111000100000 | rx;
+            // NEG: [1111111110][0010][Rx4]
+            return 0b1111111110000000 | (0b0010 << 4) | rx;
         }
         throw new Error('NEG requires register operand');
     }
@@ -1164,9 +1180,8 @@ class Deep16Assembler {
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`SET immediate ${imm} out of range (0-15)`);
             }
-            // SET: [11111110][1100][imm4]  
-            // Bits: 15-8: opcode=11111110, 7-4: type=1100, 3-0: imm
-            return 0b1111111011000000 | (imm << 4);
+            // SET: [1111111110][1100][imm4]
+            return 0b1111111110000000 | (0b1100 << 4) | (imm & 0xF);
         }
         throw new Error('SET requires immediate value');
     }
@@ -1177,9 +1192,8 @@ class Deep16Assembler {
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`CLR immediate ${imm} out of range (0-15)`);
             }
-            // CLR: [11111110][1101][imm4]
-            // Bits: 15-8: opcode=11111110, 7-4: type=1101, 3-0: imm
-            return 0b1111111011010000 | (imm << 4);
+            // CLR: [1111111110][1101][imm4]
+            return 0b1111111110000000 | (0b1101 << 4) | (imm & 0xF);
         }
         throw new Error('CLR requires immediate value');
     }
@@ -1190,9 +1204,8 @@ class Deep16Assembler {
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`SET2 immediate ${imm} out of range (0-15)`);
             }
-            // SET2: [11111110][1110][imm4]
-            // Bits: 15-8: opcode=11111110, 7-4: type=1110, 3-0: imm
-            return 0b1111111011100000 | (imm << 4);
+            // SET2: [1111111110][1110][imm4]
+            return 0b1111111110000000 | (0b1110 << 4) | (imm & 0xF);
         }
         throw new Error('SET2 requires immediate value');
     }
@@ -1203,28 +1216,27 @@ class Deep16Assembler {
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`CLR2 immediate ${imm} out of range (0-15)`);
             }
-            // CLR2: [11111110][1111][imm4]
-            // Bits: 15-8: opcode=11111110, 7-4: type=1111, 3-0: imm
-            return 0b1111111011110000 | (imm << 4);
+            // CLR2: [1111111110][1111][imm4]
+            return 0b1111111110000000 | (0b1111 << 4) | (imm & 0xF);
         }
         throw new Error('CLR2 requires immediate value');
     }
 
     // Alias methods for flag operations
     encodeSETAlias(imm) {
-        return 0b1111111011000000 | (imm << 4);
+        return 0b1111111110000000 | (0b1100 << 4) | (imm & 0xF);
     }
 
     encodeCLRAlias(imm) {
-        return 0b1111111011010000 | (imm << 4);
+        return 0b1111111110000000 | (0b1101 << 4) | (imm & 0xF);
     }
 
     encodeSET2Alias(imm) {
-        return 0b1111111011100000 | (imm << 4);
+        return 0b1111111110000000 | (0b1110 << 4) | (imm & 0xF);
     }
 
     encodeCLR2Alias(imm) {
-        return 0b1111111011110000 | (imm << 4);
+        return 0b1111111110000000 | (0b1111 << 4) | (imm & 0xF);
     }
 
     encodeSystem(sysOp) {

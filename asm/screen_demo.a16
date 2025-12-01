@@ -1,6 +1,11 @@
 ; Deep16 Screen Demo
 ; Write text to the 80x25 character display at ES:0x1000 (physical 0xF1000)
 
+.org 0x0000
+.word main
+.word hw_int_handler
+.word swi_handler
+
 .org 0x0100    ; Home Segment - Code starts here
 
 main:
@@ -49,6 +54,25 @@ clear_loop:
     
     ; Write characters using their ASCII codes
     LDI  72          ; R0 = 'H' = 72
+    ST   R0, R11, 0
+    ADD  R11, 1
+
+    ; Install SWI handler vector at DS:2 and trigger SWI
+    LDI  0
+    MVS  DS, R0
+    LDI  2
+    MOV  R4, R0
+    LDI  swi_handler
+    MOV  R5, R0
+    STS  R5, DS, R4
+    LDI  0
+    SWI
+
+    ; After returning to normal context, read AR13' and AR14' via SMV
+    SMV  R0, AR13
+    ST   R0, R11, 0
+    ADD  R11, 1
+    SMV  R0, AR14
     ST   R0, R11, 0
     ADD  R11, 1
     
@@ -100,5 +124,17 @@ clear_loop:
     ST   R0, R11, 0
 
     HALT
+
+hw_int_handler:
+    RETI
+    NOP
+
+swi_handler:
+    LDI  'S'
+    MOV  R13, R0
+    LDI  'P'
+    MOV  R14, R0
+    RETI
+    NOP
 
 ; Screen buffer is at ES:0x1000 (physical 0xF1000) in I/O Segment
