@@ -30,9 +30,9 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 
 ---
 
-## 2. Instruction Set Architecture
+## 2. Instruction Set Architecture (UPDATED)
 
-### 2.1 Complete Opcode Hierarchy (Updated)
+### 2.1 Complete Opcode Hierarchy (Revised)
 
 **Table 1: Instruction Opcode Hierarchy**
 
@@ -47,7 +47,7 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 | 1111110 | 7 | LSI | `[1111110][Rd4][imm5]` | Full pipeline |
 | 11111110 | 8 | SMV | `[11111110][Rx4][alt_sel4]` | Shadow register access |
 | 111111110 | 9 | MVS | `[111111110][d1][Rd4][seg2]` | Segment access in MEM |
-| 1111111110 | 10 | SOP | `[1111111110][type2][Rx4]` | Single operand operations |
+| 1111111110 | 10 | SOP | `[1111111110][type2][Rx4]` | Single operand and JML |
 | 111111111110 | 12 | LPSW | `[111111111110][Rx4]` | Load PSW of current context |
 | 1111111111110 | 13 | SYS | `[1111111111110][op3]` | Pipeline flush on RETI |
 | 1111111111111111 | 16 | HLT | `[1111111111111111]` | Halt the processor |
@@ -64,7 +64,6 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 | **MVS Rd, Sx** | `MVS Rd, Sx` | `111111110 0 Rd4 seg2` | `Rd ← Sx` |
 | **MVS Sx, Rd** | `MVS Sx, Rd` | `111111110 1 Rd4 seg2` | `Sx ← Rd` |
 | **SMV Rx, alt_reg** | `SMV Rx, alt_reg` | `11111110 Rx4 alt_sel4` | `Rx ← alt_reg` (read shadow) |
-| **LPSW** | `LPSW Rx` | `111111111110 Rx4` | `Rx ← PSW` |
 
 **Extended SMV alt_sel encodings:**
 ```
@@ -164,14 +163,21 @@ TBS  R1, 12       ; Test if bit 12 is set in R1
 | **DIV Rd, Rs** | `DIV Rd, Rs` | `110 11110 Rd4 Rs4` | `Rd ← Rd ÷ Rs` (quotient) | 16÷16→16-bit |
 | **DIV32 Rd, Rs** | `DIV32 Rd, Rs` | `110 11111 Rd4 Rs4` | `R[d] ← quotient, R[d+1] ← remainder` | Rd must be EVEN |
 
-### 2.6 Single Operand Instructions (Updated)
+### 2.6 Single Operand Instructions (REVISED)
 
-**Table 6: Single Operand Instructions**
+**Table 6: Single Operand and JML Instructions**
 
-| Instruction | Format | Binary Encoding | Register Transfer | Flags |
+| Instruction | Format | Binary Encoding | Register Transfer | Notes |
 |-------------|---------|-----------------|-------------------|-------|
-| **INV Rx** | `INV Rx` | `1111111110 00 Rx4` | `Rx ← ~Rx` | NZ00 |
-| **NEG Rx** | `NEG Rx` | `1111111110 01 Rx4` | `Rx ← -Rx` | NZVC |
+| **INV Rx** | `INV Rx` | `1111111110 00 Rx4` | `Rx ← ~Rx` | Bitwise complement |
+| **NEG Rx** | `NEG Rx` | `1111111110 01 Rx4` | `Rx ← -Rx` | Two's complement negation |
+| **JML Rx** | `JML Rx` | `1111111110 11 Rx4` | `CS ← R[Rx], PC ← R[Rx+1]` | Far jump, Rx must be EVEN |
+
+**JML Requirements:**
+- **Rx must be EVEN** (0, 2, 4, 6, 8, 10, 12, 14)
+- **Uses register pair**: Rx contains segment, Rx+1 contains offset
+- **Pipeline flush** required on execution
+- **Assembler alias**: Far jump to different code segment
 
 ### 2.7 Memory Access Instructions
 
@@ -224,7 +230,7 @@ LD  R3, R4, -1    ; Load from previous word
 | **JNN target** | `JNN target` | `1110 101 target9` | `if (!N) PC ← PC + 1 + sign_extend(target)` | Uses delay slot |
 | **JO target** | `JO target` | `1110 110 target9` | `if (V) PC ← PC + 1 + sign_extend(target)` | Uses delay slot |
 | **JNO target** | `JNO target` | `1110 111 target9` | `if (!V) PC ← PC + 1 + sign_extend(target)` | Uses delay slot |
-| **JML Rx** | `JML Rx` | `1111111110 10 Rx4` | `CS ← R[Rx], PC ← R[Rx+1]` | Far jump, flushes pipeline |
+| **JMP Rx** | `JMP Rx` | `MOV PC, Rx` | `PC ← Rx` | Assembler alias |
 
 ### 2.9 PSW Operations
 
@@ -232,19 +238,20 @@ LD  R3, R4, -1    ; Load from previous word
 
 | Instruction | Format | Binary Encoding | Register Transfer |
 |-------------|---------|-----------------|-------------------|
-| **SRS Rx** | `SRS Rx` | `1111111110 11 Rx4` | `PSW.SR ← Rx, PSW.DS ← 0` |
-| **SRD Rx** | `SRD Rx` | `1111111110 11 Rx4` | `PSW.SR ← Rx, PSW.DS ← 1` |
-| **ERS Rx** | `ERS Rx` | `1111111110 11 Rx4` | `PSW.ER ← Rx, PSW.DE ← 0` |
-| **ERD Rx** | `ERD Rx** | `1111111110 11 Rx4` | `PSW.ER ← Rx, PSW.DE ← 1` |
+| **SRS Rx** | `SRS Rx` | Use SET/CLR with appropriate bits | `PSW.SR ← Rx, PSW.DS ← 0` |
+| **SRD Rx** | `SRD Rx` | Use SET/CLR with appropriate bits | `PSW.SR ← Rx, PSW.DS ← 1` |
+| **ERS Rx** | `ERS Rx` | Use SET/CLR with appropriate bits | `PSW.ER ← Rx, PSW.DE ← 0` |
+| **ERD Rx** | `ERD Rx` | Use SET/CLR with appropriate bits | `PSW.ER ← Rx, PSW.DE ← 1` |
 
 **Table 11: PSW Flag Operations**
 
 | Instruction | Format | Binary Encoding | Register Transfer |
 |-------------|---------|-----------------|-------------------|
-| **SET imm** | `SET imm` | `1111111110 11 Rx4` | `PSW[imm] ← 1` |
-| **CLR imm** | `CLR imm` | `1111111110 11 Rx4` | `PSW[imm] ← 0` |
-| **SET2 imm** | `SET2 imm` | `1111111110 11 Rx4` | `PSW[imm+4] ← 1` |
-| **CLR2 imm** | `CLR2 imm` | `1111111110 11 Rx4` | `PSW[imm+4] ← 0` |
+| **LPSW Rx** | `LPSW Rx` | `111111111110 Rx4` | `Rx ← PSW` |
+| **SET imm** | `SET imm` | Use appropriate bit setting | `PSW[imm] ← 1` |
+| **CLR imm** | `CLR imm` | Use appropriate bit clearing | `PSW[imm] ← 0` |
+| **SET2 imm** | `SET2 imm` | Use appropriate bit setting | `PSW[imm+4] ← 1` |
+| **CLR2 imm** | `CLR2 imm` | Use appropriate bit clearing | `PSW[imm+4] ← 0` |
 
 ### 2.10 System Operations
 
@@ -410,7 +417,7 @@ PSW.ER = 10, PSW.DE = 1  → R10/R11 pair accesses ES
 
 ---
 
-## 5. Interrupt System Architecture (Updated)
+## 5. Interrupt System Architecture (UPDATED)
 
 ### 5.1 Extended Shadow Register System
 
@@ -479,7 +486,7 @@ PSW'  ← 0x0000    ; S=0 - switch back to normal context
 - **Only PSW' modified** - set to 0x0000 to trigger context switch
 - **Pipeline flush** - clean transition
 
-### 5.5 SMV Instruction (Updated)
+### 5.5 SMV Instruction (UPDATED)
 
 **Format:** `11111110 Rx4 alt_sel4`
 **Operation:** `Rx ← alt_reg` (read shadow register to Rx)
@@ -635,7 +642,7 @@ check_interrupt:
 
 ## 8. Updated Changes Summary
 
-### 8.1 Critical Updates
+### 8.1 Critical Updates (v4.0)
 
 **Shadow Register System:**
 - **Extended shadow set**: CS', DS', SS', ES', PC', PSW', R0', R1', R2', R13', R14'
@@ -648,13 +655,23 @@ check_interrupt:
 - **Symmetric access**: Reads normal regs in interrupt mode, shadow regs in normal mode
 
 **Instruction Encoding:**
-- **SOP re-encoded**: `1111111110 type2 Rx4` (INV, NEG only)
+- **SOP re-encoded**: `1111111110 type2 Rx4`
+  - `type2=00`: INV Rx
+  - `type2=01`: NEG Rx  
+  - `type2=11`: JML Rx (Far Jump)
+- **JML moved to SOP group**: More efficient encoding
 - **Compact opcodes**: Better utilization of instruction space
 
+**JML Instruction (Corrected):**
+- **New encoding**: `1111111110 11 Rx4`
+- **Operation**: `CS = R[Rx], PC = R[Rx+1]` (Far jump)
+- **Requirement**: Rx must be EVEN (uses register pair)
+- **Effect**: Pipeline flush required
+
 **Interrupt Behavior:**
-- **Fast entry**: PSW'=0x0020, shadows=0, PC'=vector
-- **Clean context**: Interrupts run with initialized shadow registers
-- **Zero overhead**: No manual save/restore required
+- **Fast entry**: 2-cycle latency with clean context
+- **No manual save/restore**: Hardware manages everything
+- **Segment 0 execution**: Interrupts run in segment 0
 
 ### 8.2 Performance Characteristics
 - **Interrupt latency**: 2 cycles
@@ -665,21 +682,40 @@ check_interrupt:
 ### 8.3 Programming Impact
 
 **Positive Changes:**
-- ✅ Cleaner stack access with negative offsets (-16 to +15)
-- ✅ Efficient negative constant loading with LDI sign extension
-- ✅ Powerful bit manipulation with logical immediates as bit positions
-- ✅ Simplified interrupt handlers with clean shadow context
-- ✅ Flexible memory usage with no protection
-- ✅ Debugging support via SMV symmetric access
+- ✅ **Zero-overhead interrupts** - no manual register saving
+- ✅ **Clean interrupt context** - all shadows initialized to 0
+- ✅ **Debugging support** via SMV symmetric access
+- ✅ **Fast ISRs** - can use shadow registers immediately
+- ✅ **Cleaner stack access** with negative offsets (-16 to +15)
+- ✅ **Efficient constant loading** with LDI sign extension
+- ✅ **Simplified JML encoding** - now part of SOP group
 
 **Things to Watch:**
-- 🔄 LDI now sign-extends (affects constant loading)
-- 🔄 Logical immediates work differently than arithmetic
-- 🔄 Interrupt handlers run in segment 0 with initialized shadows
-- 🔄 SMV is now read-only with simpler encoding
+- 🔄 **LDI now sign-extends** - `LDI -1` loads `0xFFFF`
+- 🔄 **Logical immediates use bit positions** - `AND R1, 3` means `R1 AND (1<<3)`
+- 🔄 **SMV is read-only** - cannot write shadow registers directly
+- 🔄 **Interrupts run in segment 0** - handlers must be in low memory
+- 🔄 **JML requires EVEN register** - uses register pair (Rx:Rx+1)
+
+### 8.4 Complete Instruction Encoding Summary
+
+**Key Opcode Patterns:**
+- **0xxxx xxxx xxxx xxxx**: LDI (load immediate)
+- **10xx xxxx xxxx xxxx**: LD/ST (memory access)
+- **110x xxxx xxxx xxxx**: ALU2 (arithmetic/logical)
+- **1110 xxxx xxxx xxxx**: JMP (conditional jumps)
+- **11110 xxxx xxxx xxxx**: LDS/STS (segment access)
+- **111110 xxxx xxxx xxxx**: MOV (register move)
+- **1111110 xxxx xxxx xxxx**: LSI (load small immediate)
+- **11111110 xxxx xxxx xxxx**: SMV (shadow register access)
+- **111111110 xxxx xxxx xxxx**: MVS (move segment)
+- **1111111110 xxxx xxxx xxxx**: SOP (INV, NEG, JML)
+- **111111111110 xxxx xxxx xxxx**: LPSW (load PSW)
+- **1111111111110 xxxx xxxx xxxx**: SYS (system operations)
+- **1111111111111111**: HLT (halt)
 
 ---
 
-*Deep16 Architecture Specification v4.0 - Updated with Extended Shadow Registers*
+*Deep16 Architecture Specification v4.0 - Updated with Extended Shadow Registers and Corrected JML Encoding*
 
 This architecture represents a **balanced, practical RISC design** suitable for both educational use and real embedded systems implementation. The extended shadow register system provides zero-overhead interrupt context switching while maintaining hardware simplicity and clean programming model.
