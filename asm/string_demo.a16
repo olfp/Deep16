@@ -5,8 +5,9 @@
 
 main:
     ; Initialize stack
-    LDI  0x7FFF
+    LDI  -1
     MOV  SP, R0
+    SR   SP, 1
     
     ; Set up ES for screen access
     LDI  0x0FFF

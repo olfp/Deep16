@@ -93,11 +93,11 @@ class Deep16Simulator {
             0xFF41, // MVS DS, R0
             0xFF42, // MVS SS, R0 (ensure SS=0 so ST with R0 base uses physical 0x0000)
             0xFC21, // LSI R1, 1
-            0xFE01, // SWB R1
+            0xD818, // ROL R1, 8
             0xA200, // ST R1, [R0+0]
             0xA201, // ST R1, [R0+1]
             0xA202, // ST R1, [R0+2]
-            0xFE40, // JML R0
+            0xFFB0, // JML R0
             0xFFF0, // NOP (delay slot)
             0xFFF1, // HLT
             0xFFF1, // HLT
@@ -252,15 +252,13 @@ class Deep16Simulator {
     }
 
     executeLDI(instruction) {
-        const immediate = instruction & 0x7FFF;
-        // console.log(`LDI executing: immediate = 0x${immediate.toString(16).padStart(4, '0')}`);
-        this.registers[0] = immediate; // LDI always loads into R0
-        
-        // Set flags for LDI operation
-        this.lastALUResult = immediate;
+        let immediate = instruction & 0x7FFF;
+        if (immediate & 0x4000) {
+            immediate |= 0x8000; // sign-extend 15-bit to 16-bit
+        }
+        this.registers[0] = immediate & 0xFFFF;
+        this.lastALUResult = this.registers[0];
         this.lastOperationWasALU = true;
-        
-        // console.log(`LDI complete: R0 = 0x${this.registers[0].toString(16).padStart(4, '0')}`);
     }
 
     executeMemoryOp(instruction) {
@@ -646,9 +644,15 @@ class Deep16Simulator {
     executeSOP(instruction) {
         const type4 = (instruction >>> 4) & 0xF;
         const rx = instruction & 0xF;
+        const sub2 = (instruction >>> 4) & 0x3;
         
         // console.log(`SOP Execute: type4=${type4.toString(2)}, rx=${rx} (${this.getRegisterName(rx)})`);
         
+        // New JML encoding: [1111111110][11][Rx]
+        if (sub2 === 0b11) {
+            return this.executeJML(rx);
+        }
+
         switch (type4) {
             case 0b0000: // SWB - Swap Bytes
                 const value = this.registers[rx];
@@ -672,8 +676,7 @@ class Deep16Simulator {
                 this.lastOperationWasALU = true;
                 return false;
                 
-            case 0b0100: // JML - Jump Long
-                return this.executeJML(rx); // Now returns true
+            // JML handled by sub2 check
                 
             case 0b1000: // SRS - Stack Register Single
                 this.psw = (this.psw & ~0x03C0) | (rx << 6);

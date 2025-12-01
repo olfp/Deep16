@@ -1482,7 +1482,7 @@ class DeepWebUI {
             const end = Math.min(start + 64, this.simulator.memory.length);
             const pcVisible = physPC >= start && physPC < end;
             const jumpedFar = Math.abs(physPC - this.lastPhysPC) > 16;
-            if (!pcVisible && jumpedFar) {
+            if (this.compactView && !pcVisible && jumpedFar) {
                 this.memoryStartAddress = Math.max(0, physPC - 8);
                 const startAddressInput = document.getElementById('memory-start-address');
                 if (startAddressInput) {
@@ -1667,14 +1667,47 @@ class DeepWebUI {
             const end2 = Math.min(start2 + 64, this.simulator.memory.length);
             const pcVisible2 = afterPhys >= start2 && afterPhys < end2;
             const jumpedFar2 = Math.abs(afterPhys - beforePhys) > 16;
-            if (!pcVisible2 && jumpedFar2) {
-                this.memoryStartAddress = Math.max(0, afterPhys - 8);
-                const startAddressInput = document.getElementById('memory-start-address');
-                if (startAddressInput) {
-                    startAddressInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+            if (this.compactView) {
+                const margin = 8;
+                const nearTop = (afterPhys - start2) < margin || afterPhys < start2;
+                const nearBottom = (end2 - afterPhys) <= margin;
+                if (!pcVisible2 || jumpedFar2 || nearTop || nearBottom) {
+                    const windowSize = 64;
+                    const memLen = this.simulator.memory.length >>> 0;
+                    let targetStart = (afterPhys - (windowSize >> 1)) >>> 0;
+                    if (targetStart < 0) targetStart = 0;
+                    const maxStart = memLen > windowSize ? (memLen - windowSize) : 0;
+                    if (targetStart > maxStart) targetStart = maxStart;
+                    targetStart &= ~0x7;
+                    this.memoryStartAddress = targetStart;
+                    const startAddressInput = document.getElementById('memory-start-address');
+                    if (startAddressInput) {
+                        startAddressInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+                    }
+                    this.memoryUI.renderMemoryDisplay();
                 }
-                this.memoryUI.renderMemoryDisplay();
             }
+            // Full View: keep PC comfortably inside viewport; recenter near edges
+            if (!this.compactView) {
+                const margin = 8;
+                const nearTop = (afterPhys - start2) < margin;
+                const nearBottom = (end2 - afterPhys) <= margin;
+                if (!pcVisible2 || jumpedFar2 || nearTop || nearBottom) {
+                    const windowSize = 64;
+                    const memLen = this.simulator.memory.length >>> 0;
+                    let targetStart = (afterPhys - (windowSize >> 1)) >>> 0; // center PC
+                    if (targetStart < 0) targetStart = 0;
+                    const maxStart = memLen > windowSize ? (memLen - windowSize) : 0;
+                    if (targetStart > maxStart) targetStart = maxStart;
+                    targetStart &= ~0x7; // align to 8-word line
+                    this.memoryStartAddress = targetStart;
+                }
+            }
+            const startAddressInput2 = document.getElementById('memory-start-address');
+            if (startAddressInput2) {
+                startAddressInput2.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+            }
+            this.memoryUI.renderMemoryDisplay();
             this.lastPhysPC = afterPhys;
             this.updateAllDisplays();
             if (!cont) {
@@ -1696,14 +1729,47 @@ class DeepWebUI {
             const end = Math.min(start + 64, this.simulator.memory.length);
             const pcVisible = afterPhys >= start && afterPhys < end;
             const jumpedFar = Math.abs(afterPhys - beforePhys) > 16;
-            if (!pcVisible && jumpedFar) {
-                this.memoryStartAddress = Math.max(0, afterPhys - 8);
-                const startAddressInput = document.getElementById('memory-start-address');
-                if (startAddressInput) {
-                    startAddressInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+            if (this.compactView) {
+                const margin = 8;
+                const nearTop = (afterPhys - start) < margin || afterPhys < start;
+                const nearBottom = (end - afterPhys) <= margin;
+                if (!pcVisible || jumpedFar || nearTop || nearBottom) {
+                    const windowSize = 64;
+                    const memLen = this.simulator.memory.length >>> 0;
+                    let targetStart = (afterPhys - (windowSize >> 1)) >>> 0;
+                    if (targetStart < 0) targetStart = 0;
+                    const maxStart = memLen > windowSize ? (memLen - windowSize) : 0;
+                    if (targetStart > maxStart) targetStart = maxStart;
+                    targetStart &= ~0x7;
+                    this.memoryStartAddress = targetStart;
+                    const startAddressInput = document.getElementById('memory-start-address');
+                    if (startAddressInput) {
+                        startAddressInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+                    }
+                    this.memoryUI.renderMemoryDisplay();
                 }
-                this.memoryUI.renderMemoryDisplay();
             }
+            // Full View: keep PC comfortably inside viewport; recenter near edges
+            if (!this.compactView) {
+                const margin = 8;
+                const nearTop = (afterPhys - start) < margin;
+                const nearBottom = (end - afterPhys) <= margin;
+                if (!pcVisible || jumpedFar || nearTop || nearBottom) {
+                    const windowSize = 64;
+                    const memLen = this.simulator.memory.length >>> 0;
+                    let targetStart = (afterPhys - (windowSize >> 1)) >>> 0; // center PC
+                    if (targetStart < 0) targetStart = 0;
+                    const maxStart = memLen > windowSize ? (memLen - windowSize) : 0;
+                    if (targetStart > maxStart) targetStart = maxStart;
+                    targetStart &= ~0x7; // align to 8-word line
+                    this.memoryStartAddress = targetStart;
+                }
+            }
+            const startAddressInput3 = document.getElementById('memory-start-address');
+            if (startAddressInput3) {
+                startAddressInput3.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+            }
+            this.memoryUI.renderMemoryDisplay();
             this.lastPhysPC = afterPhys;
             this.updateAllDisplays();
             

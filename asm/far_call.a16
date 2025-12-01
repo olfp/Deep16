@@ -6,8 +6,9 @@
 
 main:
     ; Initialize stack pointer
-    LDI  0x7FFF        ; R0 = 0x7FFF
-    MOV  SP, R0        ; SP = R0
+    LDI  -1            ; R0 = 0xFFFF (sign-extended)
+    MOV  SP, R0        ; SP = 0xFFFF
+    SR   SP, 1         ; SP = 0x7FFF
     
     ; Prepare numbers
     LSI  R1, 12        ; First number = 12
