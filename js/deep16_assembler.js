@@ -739,8 +739,8 @@ class Deep16Assembler {
     encodeJML(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // JML: [1111111110][0100][Rx4]
-            return 0b1111111110000000 | (0b0100 << 4) | rx;
+            // JML: [1111111110][11][Rx]
+            return 0b1111111110000000 | (0b0011 << 4) | rx;
         }
         throw new Error('JML requires register operand (even register)');
     }
@@ -1106,8 +1106,14 @@ class Deep16Assembler {
     encodeLDI(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const imm = this.parseImmediate(parts[1], false);
-            if (imm < 0 || imm > 32767) {
-                throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
+            if (imm >= 0) {
+                if (imm > 0x7FFF) {
+                    throw new Error(`LDI immediate ${imm} out of range (0..0x7FFF)`);
+                }
+            } else {
+                if (imm < -16384) {
+                    throw new Error(`LDI immediate ${imm} out of range (-16384..16383)`);
+                }
             }
             return imm & 0x7FFF;
         }
@@ -1121,8 +1127,14 @@ class Deep16Assembler {
             throw new Error('LDI requires immediate value');
         }
         const imm = this.parseImmediate(rest, false);
-        if (imm < 0 || imm > 32767) {
-            throw new Error(`LDI immediate ${imm} out of range (0-32767)`);
+        if (imm >= 0) {
+            if (imm > 0x7FFF) {
+                throw new Error(`LDI immediate ${imm} out of range (0..0x7FFF)`);
+            }
+        } else {
+            if (imm < -16384) {
+                throw new Error(`LDI immediate ${imm} out of range (-16384..16383)`);
+            }
         }
         return imm & 0x7FFF;
     }

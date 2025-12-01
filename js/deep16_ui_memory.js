@@ -10,6 +10,7 @@ class Deep16MemoryUI {
         this.breakpoints = new Set([0x00100]);
         this.clickHandlersInitialized = false;
         this.bpHeaderClickInitialized = false;
+        this.recentPanelHasContent = false;
     }
 
     buildSegmentInfo(listing) {
@@ -85,7 +86,7 @@ isCodeAddress(address) {
         const value = (this.ui.useWasm && window.Deep16Wasm && typeof window.Deep16Wasm.get_memory_word === 'function')
             ? (window.Deep16Wasm.get_memory_word(address) & 0xFFFF)
             : this.ui.simulator.memory[address];
-    const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
+        const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
     const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
     const isPC = (address === physPC);
     const pcClass = isPC ? 'pc-marker' : '';
@@ -290,8 +291,8 @@ updateMemoryDisplay() {
     
     if (window.Deep16Debug) console.log(`updateMemoryDisplay END: memoryStartAddress = ${this.ui.memoryStartAddress}`);
     
-    // Auto-scroll to the PC line if it's visible
-    if (pcIsVisible) {
+    // Auto-scroll only in Compact view or when followPC is enabled
+    if ((this.ui.compactView || this.ui.followPC) && pcIsVisible) {
         this.scrollToPC();
     }
 }
@@ -363,7 +364,8 @@ createDataLine(startAddress, endAddress) {
         
         const value = this.ui.simulator.memory[addr];
         const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
-        const isPC = (addr === this.ui.simulator.registers[15]);
+        const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
+        const isPC = (addr === physPC);
         const pcClass = isPC ? 'pc-marker' : '';
         
         let displayValue = `0x${valueHex}`;
@@ -481,17 +483,8 @@ getExactSourceForAddress(address) {
     }
 
     scrollToPC() {
-        const memoryDisplay = document.getElementById('memory-display');
-        if (!memoryDisplay) return;
-        
-        const pcLine = memoryDisplay.querySelector('.pc-marker');
-        if (pcLine) {
-            const target = pcLine.offsetTop - (memoryDisplay.clientHeight / 2);
-            const newTop = Math.max(0, target);
-            memoryDisplay.scrollTo({ top: newTop, behavior: 'smooth' });
-            pcLine.style.animation = 'pulse-highlight 1s ease-in-out';
-            setTimeout(() => { pcLine.style.animation = ''; }, 1000);
-        }
+        const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
+        this.scrollToAddress(physPC);
     }
 
  
@@ -502,6 +495,7 @@ getExactSourceForAddress(address) {
         
         if (!this.ui.simulator.getRecentMemoryView) {
             recentDisplay.innerHTML = 'Memory view not available';
+            this.recentPanelHasContent = false;
             return;
         }
         
@@ -509,8 +503,12 @@ getExactSourceForAddress(address) {
         
         if (!memoryView) {
             recentDisplay.innerHTML = 'No memory operations yet';
+            this.recentPanelHasContent = false;
             return;
         }
+        
+        const hadContent = this.recentPanelHasContent;
+        const physPC = ((this.ui.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.ui.simulator.registers[15] & 0xFFFF);
         
         const { baseAddress, memoryWords, accessInfo } = memoryView;
         const start = this.ui.memoryStartAddress || 0;
@@ -520,11 +518,15 @@ getExactSourceForAddress(address) {
             this.markOnscreenAccess(accessInfo.address);
             const accessType = accessInfo.type === 'LD' ? 'Load' : 'Store';
             recentDisplay.innerHTML = `<div class="recent-memory-info">${accessType} on-screen at 0x${accessInfo.address.toString(16).padStart(5, '0').toUpperCase()}</div>`;
+            this.recentPanelHasContent = true;
+            if (!hadContent) {
+                setTimeout(() => { this.scrollToAddress(physPC); }, 60);
+            }
             return;
         }
     
         let html = '';
-    
+        
     // Create 4 lines of 8 words each
     for (let line = 0; line < 4; line++) {
         const lineStart = line * 8;
@@ -566,10 +568,14 @@ getExactSourceForAddress(address) {
         ` (base: 0x${accessInfo.baseAddress.toString(16).padStart(5, '0').toUpperCase()} + ${accessInfo.offset})` : 
         '';
     
-    html += `<div class="recent-memory-info">${accessType} at 0x${accessInfo.address.toString(16).padStart(5, '0').toUpperCase()}${offsetInfo}</div>`;
-    
-    recentDisplay.innerHTML = html;
-}
+        html += `<div class="recent-memory-info">${accessType} at 0x${accessInfo.address.toString(16).padStart(5, '0').toUpperCase()}${offsetInfo}</div>`;
+        
+        recentDisplay.innerHTML = html;
+        this.recentPanelHasContent = true;
+        if (!hadContent) {
+            setTimeout(() => { this.scrollToAddress(physPC); }, 60);
+        }
+    }
 
 handleMemoryAddressChange() {
     this.ui.handleMemoryAddressInput();

@@ -226,7 +226,8 @@ fn update_psw_flags(c: &mut Cpu) {
 }
 
 fn exec_ldi(c: &mut Cpu, instr: u16) {
-    let imm = instr & 0x7FFF;
+    let mut imm = instr & 0x7FFF;
+    if (imm & 0x4000) != 0 { imm |= 0x8000; }
     c.reg[0] = imm;
     c.last_alu_result = imm as i32;
     c.last_op_alu = true;
@@ -459,8 +460,20 @@ fn exec_lsi(c: &mut Cpu, instr: u16) {
 }
 
 fn exec_sop(c: &mut Cpu, instr: u16) -> bool {
+    let sub2 = (instr >> 4) & 0x3;
     let t = (instr >> 4) & 0xF;
     let rx = (instr & 0xF) as usize;
+    if sub2 == 0b11 {
+        if rx % 2 != 0 { return false; }
+        let target_cs = c.reg[rx];
+        let target_pc = c.reg[rx + 1];
+        c.delay_active = true;
+        c.delayed_pc = target_pc;
+        c.delayed_cs = target_cs;
+        c.delayed_to_shadow = (c.psw & (1 << 5)) != 0;
+        c.branch_taken = true;
+        return true;
+    }
     match t {
         0b0000 => {
             let v = c.reg[rx];
@@ -475,17 +488,6 @@ fn exec_sop(c: &mut Cpu, instr: u16) -> bool {
             c.last_alu_result = c.reg[rx] as i32;
             c.last_op_alu = true;
             false
-        }
-        0b0100 => {
-            if rx % 2 != 0 { return false; }
-            let target_cs = c.reg[rx];
-            let target_pc = c.reg[rx + 1];
-            c.delay_active = true;
-            c.delayed_pc = target_pc;
-            c.delayed_cs = target_cs;
-            c.delayed_to_shadow = (c.psw & (1 << 5)) != 0;
-            c.branch_taken = true;
-            true
         }
         0b1000 => {
             c.psw = (c.psw & !0x03C0) | (((rx as u16) & 0xF) << 6);
@@ -630,11 +632,11 @@ fn autoload_rom(c: &mut Cpu) {
         0xFF41, // MVS DS, R0
         0xFF42, // MVS SS, R0
         0xFC21, // LSI R1, 1
-        0xFE01, // SWB R1
+        0xD818, // ROL R1, 8
         0xA200, // ST R1, [R0+0]
         0xA201, // ST R1, [R0+1]
         0xA202, // ST R1, [R0+2]
-        0xFE40, // JML R0
+        0xFFB0, // JML R0
         0xFFF0, // NOP (delay slot)
         0xFFF1, // HLT
         0xFFF1, // HLT
