@@ -6,21 +6,23 @@
 ## 1. Introduction
 
 ### 1.1 Overview
-Deep16 is a 16-bit RISC processor designed for efficiency, simplicity, and educational use. This manual provides practical guidance for programmers writing assembly code for the Deep16 architecture.
+Deep16 is a 16-bit RISC processor designed for efficiency, simplicity, and educational use. This manual provides practical guidance for programmers writing assembly code for the Deep16 architecture, incorporating the latest extended shadow register system.
 
 ### 1.2 Key Programming Features
 - **Fixed 16-bit instructions** - Simple decoding and alignment
 - **16 general-purpose registers** - Rich register set for efficient coding
+- **Extended shadow register system** - Zero-overhead interrupt context switching with R0', R1', R2', R13', R14'
 - **Enhanced assembler syntax** - Bracket and plus notation for readability
 - **Delayed branch architecture** - One delay slot for performance optimization
-- **Simplified shadow register system** - Fast interrupt context switching
 - **Memory-mapped I/O** - Simple peripheral access
 - **No memory protection** - Full memory accessibility
+- **Clean interrupt model** - Hardware-managed context switching via PSW'.S
 
 ### 1.3 Performance Characteristics
 - **Base performance**: 1.0-1.3 CPI (Cycles Per Instruction)
 - **Branch penalty**: 0 cycles (delayed branch)
 - **Subroutine calls**: 2 cycles (optimized with ALINK)
+- **Interrupt latency**: 2 cycles (entry + jump)
 - **Call performance**: 33% faster than traditional approaches
 - **Real-world speedup**: 10-25% for call-intensive code
 
@@ -59,6 +61,24 @@ Deep16 is a 16-bit RISC processor designed for efficiency, simplicity, and educa
 | DS       | Data Segment | Default for memory access |
 | SS       | Stack Segment | Used when PSW.SR configured |
 | ES       | Extra Segment | Used for I/O and special memory |
+
+#### 2.1.3 Shadow Registers (Extended Set)
+
+**Table 3: Shadow Registers**
+
+| Shadow Register | Normal Equivalent | Purpose |
+|-----------------|-------------------|---------|
+| CS'             | CS                | Shadow Code Segment |
+| DS'             | DS                | Shadow Data Segment |
+| SS'             | SS                | Shadow Stack Segment |
+| ES'             | ES                | Shadow Extra Segment |
+| PC'             | PC                | Shadow Program Counter |
+| PSW'            | PSW               | Shadow Processor Status Word |
+| R0'             | R0                | Shadow temporary/LDI destination |
+| R1'             | R1                | Shadow general-purpose |
+| R2'             | R2                | Shadow general-purpose |
+| R13' (SP')      | R13 (SP)          | Shadow Stack Pointer |
+| R14' (LR')      | R14 (LR)          | Shadow Link Register |
 
 **Memory Address Calculation:**
 ```
@@ -101,7 +121,7 @@ Low addresses
 
 ---
 
-## 3. Instruction Set Reference
+## 3. Instruction Set Reference (Updated)
 
 ### 3.1 Data Movement Instructions
 
@@ -157,6 +177,25 @@ MVS  DS, R1      ; DS = R1 (write segment register)
 MVS  ES, R0      ; ES = R0
 ```
 
+**Shadow Register Access (NEW)**
+```assembly
+SMV  R1, AR0     ; R1 = R0' (read shadow R0)
+SMV  R1, APSW    ; R1 = PSW' (read shadow PSW)
+SMV  R1, APC     ; R1 = PC' (read shadow PC)
+SMV  R1, AR13    ; R1 = R13' (read shadow SP)
+SMV  R1, AR14    ; R1 = R14' (read shadow LR)
+```
+
+**SMV alt_sel encodings:**
+```
+0000: ACS  (Alternate CS)       1000: AR0  (Alternate R0)
+0001: ADS  (Alternate DS)       1001: AR1  (Alternate R1)
+0010: ASS  (Alternate SS)       1010: AR2  (Alternate R2)
+0011: AES  (Alternate ES)       1101: AR13 (Alternate R13/SP)
+0100: APSW (Alternate PSW)      1110: AR14 (Alternate R14/LR)
+                               1111: APC  (Alternate PC)
+```
+
 ### 3.2 Arithmetic Instructions
 
 #### 3.2.1 Basic Arithmetic
@@ -203,12 +242,12 @@ TBS  R1, 12      ; Test if bit 12 is set (Z=1 if set)
 - **TBC**: AND operation - Z=1 if all tested bits are clear
 - **TBS**: XOR operation - Z=1 if all bits match
 
-#### 3.2.3 Single Operand Operations
+#### 3.2.3 Single Operand Operations (UPDATED)
 
-**INV/NEG - Invert and Negate**
+**INV/NEG - Invert and Negate (new encoding)**
 ```assembly
-INV  R1          ; R1 = ~R1 (bitwise complement)
-NEG  R1          ; R1 = -R1 (two's complement negation)
+INV  R1          ; R1 = ~R1 (bitwise complement) - NEW: 1111111110 00 R1
+NEG  R1          ; R1 = -R1 (two's complement negation) - NEW: 1111111110 01 R1
 ```
 
 **SWB - Swap Bytes (Alias)**
@@ -398,11 +437,162 @@ HLT              ; Halt processor
 
 ---
 
-## 4. Programming Techniques
+## 4. Interrupt Programming (UPDATED)
 
-### 4.1 Efficient Code Patterns
+### 4.1 New Interrupt Model with Extended Shadows
 
-#### 4.1.1 Loop Structures
+#### 4.1.1 Interrupt Entry Behavior
+**On interrupt entry (NMI, HW, SWI):**
+```
+PSW'  ← 0x0020    ; S=1, I=0 - switch to shadow context
+CS'   ← 0         ; Interrupts run in segment 0
+DS'   ← 0
+SS'   ← 0  
+ES'   ← 0
+R0'   ← 0         ; All shadow registers initialized to 0
+R1'   ← 0
+R2'   ← 0
+R13'  ← 0
+R14'  ← 0
+PC'   ← Mem[interrupt_vector]  ; Jump to handler
+```
+
+**Critical Points:**
+1. **PSW' is NOT copied from PSW** - set to `0x0020` (S=1, I=0)
+2. **All shadow registers initialized to 0** - clean interrupt context
+3. **Normal registers remain unchanged** - accessible via SMV
+4. **Hardware switches context** via PSW'.S=1
+
+#### 4.1.2 Writing Interrupt Handlers
+
+**Simple Interrupt Handler:**
+```assembly
+timer_interrupt:
+    ; Running in shadow context (PSW'.S=1)
+    ; CS'=0, DS'=0, SS'=0, ES'=0
+    ; R0'=0, R1'=0, R2'=0, R13'=0, R14'=0
+    
+    ; Use shadow registers directly
+    LDI  TIMER_REG     ; R0' = timer address
+    MVS  ES, R0        ; ES' = timer segment
+    LDS  R1, ES, [R0]  ; R1' = timer value
+    
+    ; Process timer event
+    ADD  R1, 1         ; Increment timer
+    STS  R1, ES, [R0]  ; Store back
+    
+    ; Access interrupted context if needed
+    SMV  R2, APC       ; R2' = PC (normal interrupted PC)
+    
+    RETI               ; Return to normal context
+```
+
+**Fast ISR using Shadows:**
+```assembly
+fast_isr:
+    ; No need to save registers - shadows are clean!
+    LDI  PORT_ADDR     ; R0' = I/O port address
+    LDS  R1, ES, [R0]  ; R1' = read from port
+    
+    ; Quick processing
+    AND  R1, 0x0F      ; Mask lower 4 bits
+    STS  R1, ES, [R0]  ; Write back
+    
+    RETI               ; Fast return (2 cycles)
+```
+
+#### 4.1.3 Interrupt Exit Behavior
+**On RETI instruction:**
+```
+PSW'  ← 0x0000    ; S=0 - switch back to normal context
+; Hardware automatically uses normal registers (PSW'.S=0)
+; Execution resumes with original segments and PSW intact
+```
+
+**Important:**
+- **No register restoration** - normal registers were never modified
+- **Shadow registers retain values** for next interrupt or debugging
+- **Only PSW' modified** - set to 0x0000 to trigger context switch
+
+### 4.2 SMV for Debugging and Context Inspection
+
+#### 4.2.1 Debugging from Normal Mode
+```assembly
+; After interrupt occurred, inspect shadow context
+debug_interrupt:
+    SMV  R1, APC      ; R1 = PC' (where interrupt occurred)
+    SMV  R2, APSW     ; R2 = PSW' (0x0020 if in interrupt)
+    SMV  R3, AR0      ; R3 = R0' (shadow R0, typically 0)
+    SMV  R4, AR1      ; R4 = R1' (shadow R1)
+    ; ... display debug info ...
+```
+
+#### 4.2.2 Accessing Normal Context from ISR
+```assembly
+isr_with_context:
+    ; In interrupt mode, access normal registers
+    SMV  R0, AR0      ; R0' = R0 (normal R0)
+    SMV  R1, AR1      ; R1' = R1 (normal R1)
+    SMV  R2, APC      ; R2' = PC (normal interrupted PC)
+    SMV  R3, APSW     ; R3' = PSW (normal interrupted PSW)
+    
+    ; Use these values as needed
+    ADD  R0, R1       ; Add normal R0 and R1 in shadow R0'
+    
+    RETI
+```
+
+### 4.3 Vector Table Setup
+
+**Interrupt Vector Table (Segment 0):**
+```assembly
+.org 0x0000
+    .word nmi_handler      ; NMI vector (0x0000)
+    .word hwint_handler    ; Hardware interrupt (0x0001)
+    .word swi_handler      ; Software interrupt (0x0002)
+
+nmi_handler:
+    ; Non-maskable interrupt handler
+    ; ... code ...
+    RETI
+
+hwint_handler:
+    ; Hardware interrupt handler
+    ; ... code ...
+    RETI
+
+swi_handler:
+    ; Software interrupt handler
+    ; ... code ...
+    RETI
+```
+
+### 4.4 NMI (Non-Maskable Interrupt) Handling
+
+**NMI Characteristics:**
+- **Cannot be disabled** (ignores PSW.I)
+- **Vector at 0x0000**
+- **Not nestable** (discarded if already in interrupt)
+- **Same shadow mechanism** as regular interrupts
+
+**NMI Handler Example:**
+```assembly
+nmi_handler:
+    ; Critical system error handler
+    LDI  ERROR_FLAG      ; R0' = error flag address
+    MVS  ES, R0          ; ES' = error segment
+    LDI  0xDEAD          ; R0' = error code
+    STS  R0, ES, [R1]    ; Store error code
+    
+    ; System recovery or halt
+    HLT                  ; Halt on critical error
+```
+
+## 5. Programming Techniques
+
+### 5.1 Efficient Code Patterns
+
+#### 5.1.1 Loop Structures
 
 **Simple Counter Loop:**
 ```assembly
@@ -428,7 +618,7 @@ process_loop:
     NOP              ; Delay slot
 ```
 
-#### 4.1.2 Stack Frame Access
+#### 5.1.2 Stack Frame Access
 
 **Efficient Stack Access:**
 ```assembly
@@ -439,9 +629,9 @@ ST   R3, [FP+1]     ; Store local variable 1
 ST   R4, [FP+2]     ; Store local variable 2
 ```
 
-### 4.2 Memory Management
+### 5.2 Memory Management
 
-#### 4.2.1 Initialization
+#### 5.2.1 Initialization
 
 **Reset State Setup:**
 ```assembly
@@ -460,37 +650,22 @@ ST   R4, [FP+2]     ; Store local variable 2
     MOV  SP, R0
 ```
 
-#### 4.2.2 Interrupt Handling
-
-**Interrupt Service Routine:**
+#### 5.2.2 Interrupt System Initialization
 ```assembly
-interrupt_handler:
-    ; On entry: All segments = 0, PSW' = old PSW
-    ; Save working registers
-    ST   R1, [SP-1]
-    ST   R2, [SP-2]
+setup_interrupts:
+    ; Set interrupt vectors
+    LDI  timer_isr    ; R0 = timer ISR address
+    STS  R0, 0, [0x0001]  ; Store at HW interrupt vector
     
-    ; ... handle interrupt ...
+    ; Enable interrupts
+    SETI              ; SET2 0 - enable interrupts
     
-    ; Restore registers
-    LD   R2, [SP-2]
-    LD   R1, [SP-1]
-    
-    RETI              ; Restores original segments and PSW
+    RET
 ```
 
-**Debugging Interrupts:**
-```assembly
-; In normal mode, inspect last interrupt context
-debug_interrupt:
-    SMV  R0, APC      ; R0 = PC' (interrupted address)
-    SMV  R1, APSW     ; R1 = PSW' (interrupted flags)
-    ; ... display debug info ...
-```
+### 5.3 I/O Programming
 
-### 4.3 I/O Programming
-
-#### 4.3.1 Screen Output
+#### 5.3.1 Screen Output
 
 **Setup Screen Access:**
 ```assembly
@@ -513,9 +688,9 @@ write_char:
     RET
 ```
 
-### 4.4 Performance Optimization
+### 5.4 Performance Optimization
 
-#### 4.4.1 Delay Slot Scheduling
+#### 5.4.1 Delay Slot Scheduling
 
 **Poor Scheduling:**
 ```assembly
@@ -537,7 +712,7 @@ JMP  function
 ALINK            ; Store return address in delay slot
 ```
 
-#### 4.4.2 Using Negative Offsets
+#### 5.4.2 Using Negative Offsets
 
 **Stack Frame Access:**
 ```assembly
@@ -549,11 +724,20 @@ LD   R1, [R0]
 LD   R1, [SP-4]   ; Much cleaner!
 ```
 
----
+#### 5.4.3 Fast Interrupt Handlers
+```assembly
+; Use shadow registers for maximum speed
+fast_timer_isr:
+    LDI  TIMER_REG      ; R0' = timer address
+    LDS  R1, ES, [R0]   ; R1' = timer value
+    ADD  R1, 1          ; Increment
+    STS  R1, ES, [R0]   ; Store back
+    RETI                ; Only 4 instructions!
+```
 
-## 5. Instruction Aliases
+## 6. Instruction Aliases (Updated)
 
-**Table 3: Instruction Aliases**
+**Table 4: Instruction Aliases**
 
 | Alias | Actual Instruction | Purpose |
 |-------|-------------------|---------|
@@ -569,57 +753,99 @@ LD   R1, [SP-4]   ; Much cleaner!
 | **SETC** | `SET 3` | Set carry flag |
 | **CLRC** | `CLR 3` | Clear carry flag |
 
----
+## 7. Important Changes Summary
 
-## 6. Important Changes Summary
+### 7.1 Critical Updates (v4.0)
 
-### 6.1 Critical Updates
+**Shadow Register System:**
+- **Extended shadow set**: R0', R1', R2', R13', R14' added to existing CS', DS', SS', ES', PC', PSW'
+- **Clean initialization**: All shadows set to 0 on interrupt entry
+- **PSW' handling**: Set to 0x0020 (S=1, I=0), NOT copied from PSW
 
-**LDI Sign Extension:**
-- `LDI -1` now loads `0xFFFF` (not `0x7FFF`)
-- Essential for loading negative constants
+**SMV Instruction (NEW encoding):**
+- **Format**: `11111110 Rx4 alt_sel4`
+- **Read-only**: Always reads shadow register to Rx
+- **Symmetric access**: 
+  - Normal mode: SMV reads shadow registers
+  - Interrupt mode: SMV reads normal registers
 
-**LD/ST Signed Offsets:**
-- 5-bit offset is **sign-extended** (-16 to +15)
-- Enables `LD R1, [SP-4]` syntax
-- Much cleaner stack frame access
-
-**Logical Immediate as Bit Positions:**
-- `AND R1, 3` means `R1 AND (1 << 3)`  
-- NOT `R1 AND 3`
-- Powerful single-bit manipulation
-
-**Reset State:**
-- **CS = 0xFFFF** (boot from top of memory)
-- **DS = 0x0000, SS = 0x0000, ES = 0x0000** (all others zero)
-- **PC = 0x0000** (start at CS:0000)
+**Instruction Encoding Updates:**
+- **SOP re-encoded**: Now `1111111110 type2 Rx4` (INV, NEG only)
+- **Compact opcodes**: Better utilization of instruction space
 
 **Interrupt Behavior:**
-- Only **PSW** is saved to PSW'
-- **All segments set to 0** during interrupts
-- **Vector 0x0000 = NMI** (not Reset)
+- **Fast entry**: 2-cycle latency with clean context
+- **No manual save/restore**: Hardware manages everything
+- **Segment 0 execution**: Interrupts run in segment 0
 
-**No Memory Protection:**
-- All memory fully accessible
-- CS is read/write like other segments
-- Self-modifying code permitted
-
-### 6.2 Programming Impact
+### 7.2 Programming Impact
 
 **Positive Changes:**
-- Cleaner stack access with negative offsets
-- Efficient negative constant loading with LDI
-- Powerful bit manipulation with logical immediates
-- Simplified interrupt handlers
-- More flexible memory usage
+- ✅ **Zero-overhead interrupts** - no manual register saving
+- ✅ **Clean interrupt context** - all shadows initialized to 0
+- ✅ **Debugging support** - SMV provides symmetric access to both contexts
+- ✅ **Fast ISRs** - can use shadow registers immediately
+- ✅ **Cleaner stack access** with negative offsets (-16 to +15)
+- ✅ **Efficient constant loading** with LDI sign extension
 
 **Things to Watch:**
-- LDI now sign-extends (affects constant loading)
-- Logical immediates work differently than arithmetic
-- Interrupt handlers run in segment 0
+- 🔄 **LDI now sign-extends** - `LDI -1` loads `0xFFFF`
+- 🔄 **Logical immediates use bit positions** - `AND R1, 3` means `R1 AND (1<<3)`
+- 🔄 **SMV is read-only** - cannot write shadow registers directly
+- 🔄 **Interrupts run in segment 0** - handlers must be in low memory
+
+### 7.3 Best Practices
+
+1. **Keep ISRs Simple**: Use shadow registers when possible
+2. **Use Negative Offsets**: Cleaner stack frame access
+3. **Schedule Delay Slots**: Maximize performance
+4. **Debug with SMV**: Inspect interrupt context from normal mode
+5. **Initialize Properly**: Set up segments and stack pointer after reset
+
+### 7.4 Example Complete System
+
+```assembly
+; Reset handler at CS:0000 (CS=0xFFFF)
+reset_handler:
+    ; Initialize segments
+    LDI  0x1000
+    MVS  DS, R0
+    LDI  0x8000
+    MVS  SS, R0
+    LDI  0x2000
+    MVS  ES, R0
+    
+    ; Initialize stack
+    LDI  0x7FFF
+    MOV  SP, R0
+    
+    ; Set interrupt vectors
+    LDI  timer_isr
+    STS  R0, 0, [0x0001]
+    
+    ; Enable interrupts
+    SETI
+    
+    ; Jump to main program
+    LDI  main
+    JMP  R0
+
+timer_isr:
+    ; Fast interrupt using shadows
+    LDI  TIMER_COUNT
+    LDS  R1, ES, [R0]
+    ADD  R1, 1
+    STS  R1, ES, [R0]
+    RETI
+
+main:
+    ; Main program loop
+    ; ... application code ...
+    JMP  main
+```
 
 ---
 
-*Deep16 Programmer's Manual v2.0 - Updated with all architectural changes*
+*Deep16 Programmer's Manual v3.0 - Updated with Extended Shadow Register System*
 
-This manual reflects the current Deep16 architecture with all recent simplifications and improvements. The changes make the processor more practical for embedded programming while maintaining the clean RISC philosophy.
+This manual reflects the current Deep16 architecture with extended shadow registers, providing zero-overhead interrupt context switching while maintaining the clean RISC philosophy. The practical examples and best practices will help you write efficient, maintainable code for the Deep16 processor.
