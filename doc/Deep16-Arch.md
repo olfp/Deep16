@@ -1,5 +1,3 @@
-Perfect! Here's the updated specification with the classic PSW visualization included:
-
 # **Deep16 (深十六) Architecture Specification v5.2**
 ## **16-bit RISC Processor with Enhanced Memory Addressing and Shadow Register System**
 
