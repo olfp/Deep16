@@ -1,17 +1,11 @@
 ; Deep16 Screen Demo
 ; Write text to the 80x25 character display at ES:0x1000 (physical 0xF1000)
 
-.org 0x0000
-.word main
-.word hw_int_handler
-.word swi_handler
-
 .org 0x0100    ; Home Segment - Code starts here
 
 main:
     ; Initialize stack pointer
-    LDI  -1          ; R0 = 0xFFFF (sign-extended)
-    MOV  SP, R0      ; SP = 0xFFFF
+    LSI  SP, -1      ; R0 = 0xFFFF (sign-extended)
     SR   SP, 1       ; SP = 0x7FFF
     
     ; Configure Extra Segment for I/O access
@@ -25,11 +19,9 @@ main:
     ; Clear ER/DE, then set ER=11 (0xB) and DE=1
     LPSW R12
     LDI  0x07FF
-    MOV  R2, R0
-    AND  R12, R2
+    AND  R12, R0
     LDI  0x5800      ; Sign-extends to 0xD800 at runtime (DE=1, ER=11)
-    MOV  R2, R0
-    OR   R12, R2
+    OR   R12, R0
     SPSW R12
     
     ; Now we can access screen memory at ES:0x1000 (physical 0xF1000)
@@ -65,25 +57,6 @@ clear_loop:
     ST   R0, R11, 0
     ADD  R11, 1
 
-    ; Install SWI handler vector at DS:2 and trigger SWI
-    LDI  0
-    MVS  DS, R0
-    LDI  2
-    MOV  R4, R0
-    LDI  swi_handler
-    MOV  R5, R0
-    STS  R5, DS, R4
-    LDI  0
-    SWI
-
-    ; After returning to normal context, read AR13' and AR14' via SMV
-    SMV  R0, AR13
-    ST   R0, R11, 0
-    ADD  R11, 1
-    SMV  R0, AR14
-    ST   R0, R11, 0
-    ADD  R11, 1
-    
     LDI  69          ; R0 = 'E' = 69
     ST   R0, R11, 0
     ADD  R11, 1

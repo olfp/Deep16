@@ -935,22 +935,20 @@ class Deep16Assembler {
         throw new Error('SWB requires register operand');
     }
 
-    // Encode INV (Invert) (swapped mapping)
+    // Encode INV (Invert) using SOP type2 mapping
     encodeINV(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // INV: [1111111110][1001][Rx4]
-            return 0b1111111110000000 | (0b1001 << 4) | rx;
+            return 0xFF80 | (0b00 << 4) | rx;
         }
         throw new Error('INV requires register operand');
     }
 
-    // Encode NEG (Negate)
+    // Encode NEG (Negate) using SOP type2 mapping
     encodeNEG(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // NEG: [1111111110][0010][Rx4]
-            return 0b1111111110000000 | (0b0010 << 4) | rx;
+            return 0xFF80 | (0b01 << 4) | rx;
         }
         throw new Error('NEG requires register operand');
     }

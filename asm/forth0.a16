@@ -40,7 +40,15 @@ forth_start:
     MVS ES, R0        ; ES = 0xF000
     LDI 0x1000        ; Screen buffer starts at 0xF1000
     MOV R8, R0        ; Use R8 as screen pointer (R8/R9 pair)
-    ERD R8            ; Use R8/R9 for ES access (PSW.ER=1000, DE=1)
+    ; Configure PSW: ER=8 (R8), DE=1 using LPSW/SPSW
+    LPSW R6
+    LDI 0x07FF
+    MOV R2, R0
+    AND R6, R2
+    LDI 0x5000        ; Sign-extends to 0x9000 (DE=1, ER=8)
+    MOV R2, R0
+    OR R6, R2
+    SPSW R6
     
     ; Clear screen position counter
     LDI 0
