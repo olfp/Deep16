@@ -162,7 +162,7 @@ dict_loop:
     MOV R2, R7
     LDI dict_end
     CMP R2, R0
-    JZ interpret_loop
+    JZ skip_unknown
     MOV R3, TIB
     ADD R3, >IN
     LDI 0
@@ -201,6 +201,23 @@ word_cmp_done:
 advance_token:
     ADD R7, 2
     LDI dict_loop
+    MOV PC, R0
+    NOP
+
+skip_unknown:
+    MOV R3, TIB
+    ADD R3, >IN
+skip_scan:
+    LD R2, R3, 0
+    LDI 0
+    CMP R2, R0
+    JZ interpret_loop
+    LDI ' '
+    CMP R2, R0
+    JZ interpret_loop
+    ADD R3, 1
+    ADD >IN, 1
+    LDI skip_scan
     MOV PC, R0
     NOP
 next_entry:
@@ -303,8 +320,7 @@ wm_ok:
     MUL R1, R2
     ST R1, SP, 0
     LDI interpret_loop
-    MOV R3, R0
-    MOV PC, R3
+    MOV PC, R0
     NOP
 word_dup:
     CMP SP, SP0
@@ -313,13 +329,11 @@ word_dup:
     SUB SP, 1
     ST R1, SP, 0
     LDI interpret_loop
-    MOV R3, R0
-    MOV PC, R3
+    MOV PC, R0
     NOP
 wd_under:
     LDI interpret_loop
-    MOV R3, R0
-    MOV PC, R3
+    MOV PC, R0
     NOP
 word_dot:
     CMP SP, SP0
@@ -373,6 +387,16 @@ dot_print_loop:
     MOV PC, R0
     NOP
 dot_done:
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0
+    LDI 0
+    CMP R2, R0
+    JNZ dot_continue
+    LDI interpret_done
+    MOV PC, R0
+    NOP
+dot_continue:
     LDI interpret_loop
     MOV PC, R0
     NOP
@@ -418,13 +442,11 @@ word_drop:
     JZ wd2_under
     ADD SP, 1
     LDI interpret_loop
-    MOV R3, R0
-    MOV PC, R3
+    MOV PC, R0
     NOP
 wd2_under:
     LDI interpret_loop
-    MOV R3, R0
-    MOV PC, R3
+    MOV PC, R0
     NOP
 
 print_buf:
