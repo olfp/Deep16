@@ -94,21 +94,21 @@ disassembleControlFlow(instruction) {
 // In deep16_disassembler.js - Fix disassembleSOP method
 disassembleSOP(instruction) {
     const rx = instruction & 0xF;
-    const sub2 = (instruction >>> 4) & 0x3;
     const type4 = (instruction >>> 4) & 0xF;
 
-    if (sub2 === 0b11) {
+    if (type4 === 0b1011) {
         return `JML ${this.registerNames[rx]}`;
     }
 
     switch (type4) {
         case 0b0000: return `SWB ${this.registerNames[rx]}`;
-        case 0b0001: return `INV ${this.registerNames[rx]}`;
+        case 0b0001: return `SRD ${this.registerNames[rx]}`;
         case 0b0010: return `NEG ${this.registerNames[rx]}`;
         case 0b1000: return `SRS ${this.registerNames[rx]}`;
-        case 0b1001: return `SRD ${this.registerNames[rx]}`;
+        case 0b1001: return `INV ${this.registerNames[rx]}`;
         case 0b1010: return `ERS ${this.registerNames[rx]}`;
-        case 0b1011: return `ERD ${this.registerNames[rx]}`;
+        case 0b0011: return `ERD ${this.registerNames[rx]}`;
+        case 0b1011: return `JML ${this.registerNames[rx]}`;
         case 0b1100: return `SET #0x${(instruction & 0xF).toString(16).toUpperCase()}`;
         case 0b1101: return `CLR #0x${(instruction & 0xF).toString(16).toUpperCase()}`;
         case 0b1110: return `SET2 #0x${(instruction & 0xF).toString(16).toUpperCase()}`;

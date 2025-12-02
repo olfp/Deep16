@@ -644,12 +644,11 @@ class Deep16Simulator {
     executeSOP(instruction) {
         const type4 = (instruction >>> 4) & 0xF;
         const rx = instruction & 0xF;
-        const sub2 = (instruction >>> 4) & 0x3;
         
         // console.log(`SOP Execute: type4=${type4.toString(2)}, rx=${rx} (${this.getRegisterName(rx)})`);
         
-        // New JML encoding: [1111111110][11][Rx]
-        if (sub2 === 0b11) {
+        // JML encoding: type4 == 0b1011
+        if (type4 === 0b1011) {
             return this.executeJML(rx);
         }
 
@@ -662,11 +661,9 @@ class Deep16Simulator {
                 this.lastOperationWasALU = true;
                 return false;
                 
-            case 0b0001: // INV - Invert bits
-                this.registers[rx] = ~this.registers[rx] & 0xFFFF;
-                // console.log(`INV: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
-                this.lastALUResult = this.registers[rx];
-                this.lastOperationWasALU = true;
+            case 0b0001: // SRD - Stack Register Dual (swapped mapping)
+                this.psw = (this.psw & ~0x03C0) | (rx << 6) | 0x0400;
+                // console.log(`SRD: Stack Register Dual = R${rx}, PSW = 0x${this.psw.toString(16)}`);
                 return false;
                 
             case 0b0010: // NEG - Two's complement
@@ -683,9 +680,11 @@ class Deep16Simulator {
                 // console.log(`SRS: Stack Register = R${rx}, PSW = 0x${this.psw.toString(16)}`);
                 return false;
                 
-            case 0b1001: // SRD - Stack Register Dual
-                this.psw = (this.psw & ~0x03C0) | (rx << 6) | 0x0400;
-                // console.log(`SRD: Stack Register Dual = R${rx}, PSW = 0x${this.psw.toString(16)}`);
+            case 0b1001: // INV - Invert bits (swapped mapping)
+                this.registers[rx] = ~this.registers[rx] & 0xFFFF;
+                // console.log(`INV: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
+                this.lastALUResult = this.registers[rx];
+                this.lastOperationWasALU = true;
                 return false;
                 
             case 0b1010: // ERS - Extra Register Single
@@ -693,7 +692,7 @@ class Deep16Simulator {
                 // console.log(`ERS: Extra Register = R${rx}, PSW = 0x${this.psw.toString(16)}`);
                 return false;
                 
-            case 0b1011: // ERD - Extra Register Dual
+            case 0b0011: // ERD - Extra Register Dual (updated mapping)
                 this.psw = (this.psw & ~0x7800) | (rx << 11) | 0x8000;
                 // console.log(`ERD: Extra Register Dual = R${rx}, PSW = 0x${this.psw.toString(16)}`);
                 return false;

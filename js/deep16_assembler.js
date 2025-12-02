@@ -273,13 +273,14 @@ class Deep16Assembler {
         };
         
         let upperReg = reg.toUpperCase();
+        if (upperReg === 'RO') upperReg = 'R0';
         if (this.aliases && this.aliases[upperReg]) {
             upperReg = this.aliases[upperReg];
         }
         if (upperReg in regMap) return regMap[upperReg];
         
         // Also support case variations of aliases
-        const lowerReg = reg.toLowerCase();
+        const lowerReg = reg.toLowerCase() === 'ro' ? 'r0' : reg.toLowerCase();
         const lowerMap = {
             'fp': 12, 'sp': 13, 'lr': 14, 'pc': 15
         };
@@ -648,18 +649,18 @@ class Deep16Assembler {
     encodeSRS(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // SRS: [11111110][1000][Rx4]
-            return 0b1111111010000000 | rx;
+            // SRS: [1111111110][1000][Rx4]
+            return 0b1111111110000000 | (0b1000 << 4) | rx;
         }
         throw new Error('SRS requires register operand');
     }
 
-    // Encode SRD instruction
+    // Encode SRD instruction (swapped mapping)
     encodeSRD(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // SRD: [11111110][1001][Rx4]
-            return 0b1111111010010000 | rx;
+            // SRD: [1111111110][0001][Rx4]
+            return 0b1111111110000000 | (0b0001 << 4) | rx;
         }
         throw new Error('SRD requires register operand');
     }
@@ -668,18 +669,18 @@ class Deep16Assembler {
     encodeERS(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // ERS: [11111110][1010][Rx4]
-            return 0b1111111010100000 | rx;
+            // ERS: [1111111110][1010][Rx4]
+            return 0b1111111110000000 | (0b1010 << 4) | rx;
         }
         throw new Error('ERS requires register operand');
     }
 
-    // Encode ERD instruction
+    // Encode ERD instruction (updated mapping)
     encodeERD(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // ERD: [11111110][1011][Rx4]
-            return 0b1111111010110000 | rx;
+            // ERD: [1111111110][0011][Rx4]
+            return 0b1111111110000000 | (0b0011 << 4) | rx;
         }
         throw new Error('ERD requires register operand');
     }
@@ -730,17 +731,15 @@ class Deep16Assembler {
             if (!(alt in altMap)) {
                 throw new Error(`Invalid SMV source: ${alt}`);
             }
-            return 0b1111111000000000 | (rx << 4) | altMap[alt];
+        return 0b1111111000000000 | (rx << 4) | altMap[alt];
         }
         throw new Error('SMV requires destination register and source');
     }
 
-    // Fix encodeJML
     encodeJML(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // JML: [1111111110][11][Rx]
-            return 0b1111111110000000 | (0b0011 << 4) | rx;
+            return 0b1111111110000000 | (0b1011 << 4) | rx;
         }
         throw new Error('JML requires register operand (even register)');
     }
@@ -919,12 +918,12 @@ class Deep16Assembler {
         throw new Error('SWB requires register operand');
     }
 
-    // Encode INV (Invert)
+    // Encode INV (Invert) (swapped mapping)
     encodeINV(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // INV: [1111111110][0001][Rx4]
-            return 0b1111111110000000 | (0b0001 << 4) | rx;
+            // INV: [1111111110][1001][Rx4]
+            return 0b1111111110000000 | (0b1001 << 4) | rx;
         }
         throw new Error('INV requires register operand');
     }
