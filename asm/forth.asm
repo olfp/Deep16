@@ -72,6 +72,15 @@ interpret_loop:
     MOV PC, R0
     NOP
 token_start:
+    LDI '"'
+    CMP R2, R0
+    JNZ check_dot_token
+    ; Bare string opening: advance inside string and print
+    ADD >IN, 1
+    LDI print_string_skip
+    MOV PC, R0
+    NOP
+check_dot_token:
     LDI '.'
     CMP R2, R0
     JNZ check_number_or_word
@@ -91,16 +100,42 @@ skip_dot_spaces:
 check_quote_after_dot:
     LDI '"'
     CMP R4, R0
+    JZ dot_string_open
+    ; also accept backslash-quote sequence \" after dot
+    LDI '\\'
+    CMP R4, R0
     JNZ check_number_or_word
-    MOV R2, TIB
-    MOV R1, R3
-    SUB R1, R2           ; R1 = offset to '"'
-    MOV >IN, R1
-    ADD >IN, 1           ; point to first char in string
-    LDI print_string
+    LD R5, R3, 1
+    LDI '"'
+    CMP R5, R0
+    JNZ check_number_or_word
+    MOV R1, R3           ; R1 points to '\\' after dot and spaces
+    SUB R1, TIB          ; R1 = absolute offset from TIB
+    MOV >IN, R1          ; set >IN to offset of '\\'
+    ADD >IN, 2           ; skip \" and point inside string
+    LDI print_string_skip
     MOV PC, R0
     NOP
-print_string:
+dot_string_open:
+    MOV R1, R3           ; R1 points to '"' after dot and spaces
+    SUB R1, TIB          ; R1 = absolute offset from TIB
+    MOV >IN, R1          ; set >IN to offset of '"'
+    ADD >IN, 1           ; point to first char in string
+    LDI print_string_skip
+    MOV PC, R0
+    NOP
+print_string_skip:
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0
+    LDI ' '
+    CMP R2, R0
+    JNZ print_string_body
+    ADD >IN, 1
+    LDI print_string_skip
+    MOV PC, R0
+    NOP
+print_string_body:
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
@@ -110,7 +145,7 @@ print_string:
     STS R2, ES, SCR
     ADD SCR, 1
     ADD >IN, 1
-    LDI print_string
+    LDI print_string_body
     MOV PC, R0
     NOP
 after_string:
@@ -375,9 +410,9 @@ dot_nonzero:
 dot_div_loop:
     LDI 10
     MOV R12, R0
-    MOV R6, R2
-    DIV R6, R12
-    MOV R4, R6
+    MOV R13, R2
+    DIV R13, R12
+    MOV R4, R13
     MUL R4, R12
     MOV R7, R2
     SUB R7, R4
@@ -385,7 +420,7 @@ dot_div_loop:
     ADD R7, R0
     ST R7, R10, 0
     ADD R10, 1
-    MOV R2, R6
+    MOV R2, R13
     ADD R3, 1           ; count++
     LDI 0
     CMP R2, R0
