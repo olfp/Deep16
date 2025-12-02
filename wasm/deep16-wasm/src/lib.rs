@@ -6,11 +6,19 @@ struct Cpu {
     psw: u16,
     spsw: u16,
     cs: u16,
+    sds: u16,
+    sss: u16,
+    ses: u16,
     scs: u16,
     spc: u16,
     ds: u16,
     ss: u16,
     es: u16,
+    sr0: u16,
+    sr1: u16,
+    sr2: u16,
+    sr13: u16,
+    sr14: u16,
     running: bool,
     delay_active: bool,
     delayed_pc: u16,
@@ -43,11 +51,19 @@ impl Cpu {
             psw: 0,
             spsw: 0,
             cs: 0xFFFF,
+            sds: 0,
+            sss: 0,
+            ses: 0,
             scs: 0,
             spc: 0,
             ds: 0x1000,
             ss: 0x8000,
             es: 0x2000,
+            sr0: 0,
+            sr1: 0,
+            sr2: 0,
+            sr13: 0,
+            sr14: 0,
             running: false,
             delay_active: false,
             delayed_pc: 0,
@@ -75,11 +91,19 @@ impl Cpu {
         self.psw = 0;
         self.spsw = 0;
         self.cs = 0xFFFF;
+        self.sds = 0;
+        self.sss = 0;
+        self.ses = 0;
         self.scs = 0;
         self.spc = 0;
         self.ds = 0x1000;
         self.ss = 0x8000;
         self.es = 0x2000;
+        self.sr0 = 0;
+        self.sr1 = 0;
+        self.sr2 = 0;
+        self.sr13 = 0;
+        self.sr14 = 0;
         self.running = false;
         self.delay_active = false;
         self.delayed_pc = 0;
@@ -171,8 +195,12 @@ pub fn get_psw() -> u16 {
 pub fn get_segments() -> Box<[u16]> {
     unsafe {
         let c = cpu_ref();
-        let cs = if (c.psw & (1 << 5)) != 0 { c.scs } else { c.cs };
-        vec![cs, c.ds, c.ss, c.es].into_boxed_slice()
+        let in_shadow = (c.psw & (1 << 5)) != 0;
+        let cs = if in_shadow { c.scs } else { c.cs };
+        let ds = if in_shadow { c.sds } else { c.ds };
+        let ss = if in_shadow { c.sss } else { c.ss };
+        let es = if in_shadow { c.ses } else { c.es };
+        vec![cs, ds, ss, es].into_boxed_slice()
     }
 }
 
@@ -228,7 +256,8 @@ fn update_psw_flags(c: &mut Cpu) {
 fn exec_ldi(c: &mut Cpu, instr: u16) {
     let mut imm = instr & 0x7FFF;
     if (imm & 0x4000) != 0 { imm |= 0x8000; }
-    c.reg[0] = imm;
+    let in_shadow = (c.psw & (1 << 5)) != 0;
+    if in_shadow { c.sr0 = imm; } else { c.reg[0] = imm; }
     c.last_alu_result = imm as i32;
     c.last_op_alu = true;
 }
@@ -238,11 +267,29 @@ fn exec_mem(c: &mut Cpu, instr: u16) {
     let rd = ((instr >> 9) & 0xF) as usize;
     let rb = ((instr >> 5) & 0xF) as usize;
     let off = (instr & 0x1F) as u32;
-    let addr_off = (c.reg[rb] as u32).wrapping_add(off);
-    let (seg_idx, seg) = if is_stack_register(c.psw, rb) { (2u16, c.ss) } else if is_extra_register(c.psw, rb) { (3u16, c.es) } else { (1u16, c.ds) };
+    let base_val = if (c.psw & (1 << 5)) != 0 {
+        match rb { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rb] }
+    } else { c.reg[rb] };
+    let addr_off = (base_val as u32).wrapping_add(off);
+    let in_shadow = (c.psw & (1 << 5)) != 0;
+    let (seg_idx, seg) = if is_stack_register(c.psw, rb) {
+        (2u16, if in_shadow { c.sss } else { c.ss })
+    } else if is_extra_register(c.psw, rb) {
+        (3u16, if in_shadow { c.ses } else { c.es })
+    } else {
+        (1u16, if in_shadow { c.sds } else { c.ds })
+    };
     let pa = phys(seg, addr_off);
     if pa >= c.mem.len() { return; }
-    if d == 0 { c.reg[rd] = c.mem[pa]; } else { c.mem[pa] = c.reg[rd]; }
+    if d == 0 {
+        let v = c.mem[pa];
+        if (c.psw & (1 << 5)) != 0 {
+            match rd { 0 => c.sr0 = v, 1 => c.sr1 = v, 2 => c.sr2 = v, 13 => c.sr13 = v, 14 => c.sr14 = v, _ => c.reg[rd] = v }
+        } else { c.reg[rd] = v }
+    } else {
+        let v = if (c.psw & (1 << 5)) != 0 { match rd { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rd] } } else { c.reg[rd] };
+        c.mem[pa] = v;
+    }
     c.recent_addr = pa;
     c.recent_base = c.reg[rb];
     c.recent_offset = (off & 0x1F) as u16;
@@ -255,10 +302,15 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
     let func5 = (instr >> 8) & 0x1F;
     let rd = ((instr >> 4) & 0xF) as usize;
     let low4 = (instr & 0xF) as u16;
-    let rdv = c.reg[rd] as u32 & 0xFFFF;
+    let rdv = if (c.psw & (1 << 5)) != 0 {
+        match rd { 0 => c.sr0 as u32, 1 => c.sr1 as u32, 2 => c.sr2 as u32, 13 => c.sr13 as u32, 14 => c.sr14 as u32, _ => c.reg[rd] as u32 }
+    } else { c.reg[rd] as u32 } & 0xFFFF;
     let sign = (rdv & 0x8000) != 0;
     let is_reg = func5 == 0b00000 || func5 == 0b00010 || func5 == 0b00100 || func5 == 0b00110 || func5 == 0b01000 || func5 == 0b01010 || func5 == 0b01100 || func5 == 0b01110 || func5 >= 0b11100;
-    let opv = if is_reg { c.reg[low4 as usize] as u32 & 0xFFFF } else { low4 as u32 & 0xF };
+    let opv = if is_reg {
+        let idx = low4 as usize;
+        if (c.psw & (1 << 5)) != 0 { match idx { 0 => c.sr0 as u32, 1 => c.sr1 as u32, 2 => c.sr2 as u32, 13 => c.sr13 as u32, 14 => c.sr14 as u32, _ => c.reg[idx] as u32 } } else { c.reg[idx] as u32 }
+    } else { low4 as u32 & 0xF } & 0xFFFF;
     let mut result: i32 = rdv as i32;
     match func5 {
         0b00000 | 0b00001 => { result = ((rdv + opv) & 0x1FFFF) as i32; }
@@ -408,7 +460,10 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
         }
         _ => { }
     }
-    c.reg[rd] = (result as u32 & 0xFFFF) as u16;
+    let res16 = (result as u32 & 0xFFFF) as u16;
+    if (c.psw & (1 << 5)) != 0 {
+        match rd { 0 => c.sr0 = res16, 1 => c.sr1 = res16, 2 => c.sr2 = res16, 13 => c.sr13 = res16, 14 => c.sr14 = res16, _ => c.reg[rd] = res16 }
+    } else { c.reg[rd] = res16 }
     c.last_alu_result = result;
     c.last_op_alu = true;
 }
@@ -419,7 +474,7 @@ fn exec_mov(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
     let imm2 = (instr & 0x3) as u16;
 
     let value: u16 = if imm2 == 0 {
-        c.reg[rs]
+        if (c.psw & (1 << 5)) != 0 { match rs { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rs] } } else { c.reg[rs] }
     } else if rs == 15 && imm2 == 2 {
         // Standard link (LNK): PC architectural read before jump
         original_pc.wrapping_add(2)
@@ -430,7 +485,8 @@ fn exec_mov(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
         // Architectural read bypass (AMV)
         c.reg[rs]
     } else {
-        c.reg[rs].wrapping_add(imm2)
+        let base = if (c.psw & (1 << 5)) != 0 { match rs { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rs] } } else { c.reg[rs] };
+        base.wrapping_add(imm2)
     };
 
     // MOV to PC is a branch with one delay slot
@@ -446,7 +502,9 @@ fn exec_mov(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
         return true;
     }
 
-    c.reg[rd] = value;
+    if (c.psw & (1 << 5)) != 0 {
+        match rd { 0 => c.sr0 = value, 1 => c.sr1 = value, 2 => c.sr2 = value, 13 => c.sr13 = value, 14 => c.sr14 = value, _ => c.reg[rd] = value }
+    } else { c.reg[rd] = value }
     c.last_alu_result = value as i32;
     c.last_op_alu = true;
     false
@@ -460,33 +518,31 @@ fn exec_lsi(c: &mut Cpu, instr: u16) {
 }
 
 fn exec_sop(c: &mut Cpu, instr: u16) -> bool {
-    let sub2 = (instr >> 4) & 0x3;
     let t = (instr >> 4) & 0xF;
     let rx = (instr & 0xF) as usize;
-    if sub2 == 0b11 {
-        if rx % 2 != 0 { return false; }
-        let target_cs = c.reg[rx];
-        let target_pc = c.reg[rx + 1];
-        c.delay_active = true;
-        c.delayed_pc = target_pc;
-        c.delayed_cs = target_cs;
-        c.delayed_to_shadow = (c.psw & (1 << 5)) != 0;
-        c.branch_taken = true;
-        return true;
-    }
     match t {
         0b0000 => {
-            let v = c.reg[rx];
+            let v = if (c.psw & (1 << 5)) != 0 { match rx { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rx] } } else { c.reg[rx] };
             let swapped = (((v & 0x00FF) << 8) | ((v >> 8) & 0x00FF)) as u16;
-            c.reg[rx] = swapped;
+            if (c.psw & (1 << 5)) != 0 { match rx { 0 => c.sr0 = swapped, 1 => c.sr1 = swapped, 2 => c.sr2 = swapped, 13 => c.sr13 = swapped, 14 => c.sr14 = swapped, _ => c.reg[rx] = swapped } } else { c.reg[rx] = swapped };
             c.last_alu_result = swapped as i32;
             c.last_op_alu = true;
             false
         }
         0b0001 => {
-            c.reg[rx] = (!c.reg[rx]) & 0xFFFF;
-            c.last_alu_result = c.reg[rx] as i32;
+            c.psw = (c.psw & !0x03C0) | (((rx as u16) & 0xF) << 6) | 0x0400;
+            false
+        }
+        0b0010 => {
+            let cur = if (c.psw & (1 << 5)) != 0 { match rx { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rx] } } else { c.reg[rx] };
+            let v = (!cur).wrapping_add(1) & 0xFFFF;
+            if (c.psw & (1 << 5)) != 0 { match rx { 0 => c.sr0 = v, 1 => c.sr1 = v, 2 => c.sr2 = v, 13 => c.sr13 = v, 14 => c.sr14 = v, _ => c.reg[rx] = v } } else { c.reg[rx] = v };
+            c.last_alu_result = v as i32;
             c.last_op_alu = true;
+            false
+        }
+        0b0011 => {
+            c.psw = (c.psw & !0x7800) | (((rx as u16) & 0xF) << 11) | 0x8000;
             false
         }
         0b1000 => {
@@ -494,18 +550,70 @@ fn exec_sop(c: &mut Cpu, instr: u16) -> bool {
             false
         }
         0b1001 => {
-            c.psw = (c.psw & !0x03C0) | (((rx as u16) & 0xF) << 6) | 0x0400;
+            let cur = if (c.psw & (1 << 5)) != 0 { match rx { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rx] } } else { c.reg[rx] };
+            let v = (!cur) & 0xFFFF;
+            if (c.psw & (1 << 5)) != 0 { match rx { 0 => c.sr0 = v, 1 => c.sr1 = v, 2 => c.sr2 = v, 13 => c.sr13 = v, 14 => c.sr14 = v, _ => c.reg[rx] = v } } else { c.reg[rx] = v };
+            c.last_alu_result = v as i32;
+            c.last_op_alu = true;
             false
         }
         0b1010 => {
             c.psw = (c.psw & !0x7800) | (((rx as u16) & 0xF) << 11);
             false
         }
-        0b1011 => {
-            c.psw = (c.psw & !0x7800) | (((rx as u16) & 0xF) << 11) | 0x8000;
+        0b1100 => {
+            let in_shadow = (c.psw & (1 << 5)) != 0;
+            let v = if in_shadow { c.spsw } else { c.psw };
+            if in_shadow { match rx { 0 => c.sr0 = v, 1 => c.sr1 = v, 2 => c.sr2 = v, 13 => c.sr13 = v, 14 => c.sr14 = v, _ => c.reg[rx] = v } } else { c.reg[rx] = v };
+            false
+        }
+        0b1101 => {
+            c.psw = c.reg[rx];
             false
         }
         _ => false,
+    }
+}
+
+fn exec_set_clr(c: &mut Cpu, instr: u16) {
+    let d = (instr >> 4) & 0x1;
+    let imm = instr & 0xF;
+    if imm == 4 { return; }
+    let mask = (1u16 << imm) & 0xFFFF;
+    if d == 0 { c.psw |= mask; } else { c.psw &= !mask; }
+}
+
+fn exec_jml(c: &mut Cpu, instr: u16) -> bool {
+    let rx = (instr & 0xF) as usize;
+    if rx % 2 != 0 { return false; }
+    let target_cs = c.reg[rx];
+    let target_pc = c.reg[rx + 1];
+    let in_shadow = (c.psw & (1 << 5)) != 0;
+    c.delay_active = true;
+    c.delayed_pc = target_pc;
+    c.delayed_cs = target_cs;
+    c.delayed_to_shadow = in_shadow;
+    c.branch_taken = true;
+    true
+}
+
+fn exec_smv(c: &mut Cpu, instr: u16) {
+    let rx = ((instr >> 4) & 0xF) as usize;
+    let alt = (instr & 0xF) as u16;
+    let in_shadow = (c.psw & (1 << 5)) != 0;
+    match alt {
+        0b0000 => { c.reg[rx] = if in_shadow { c.cs } else { c.scs }; }
+        0b0001 => { c.reg[rx] = if in_shadow { c.ds } else { c.sds }; }
+        0b0010 => { c.reg[rx] = if in_shadow { c.ss } else { c.sss }; }
+        0b0011 => { c.reg[rx] = if in_shadow { c.es } else { c.ses }; }
+        0b0100 => { c.reg[rx] = if in_shadow { c.psw } else { c.spsw }; }
+        0b1000 => { c.reg[rx] = if in_shadow { c.reg[0] } else { 0 }; }
+        0b1001 => { c.reg[rx] = if in_shadow { c.reg[1] } else { 0 }; }
+        0b1010 => { c.reg[rx] = if in_shadow { c.reg[2] } else { 0 }; }
+        0b1101 => { c.reg[rx] = if in_shadow { c.reg[13] } else { 0 }; }
+        0b1110 => { c.reg[rx] = if in_shadow { c.reg[14] } else { 0 }; }
+        0b1111 => { c.reg[rx] = if in_shadow { c.reg[15] } else { c.spc }; }
+        _ => { }
     }
 }
 
@@ -513,12 +621,23 @@ fn exec_mvs(c: &mut Cpu, instr: u16) {
     let d = (instr >> 6) & 0x1;
     let rd = ((instr >> 2) & 0xF) as usize;
     let seg = (instr & 0x3) as u16;
+    let in_shadow = (c.psw & (1 << 5)) != 0;
     if d == 0 {
-        let v = match seg { 0 => c.cs, 1 => c.ds, 2 => c.ss, _ => c.es };
-        c.reg[rd] = v;
+        let v = match seg {
+            0 => if in_shadow { c.scs } else { c.cs },
+            1 => if in_shadow { c.sds } else { c.ds },
+            2 => if in_shadow { c.sss } else { c.ss },
+            _ => if in_shadow { c.ses } else { c.es },
+        };
+        if in_shadow { match rd { 0 => c.sr0 = v, 1 => c.sr1 = v, 2 => c.sr2 = v, 13 => c.sr13 = v, 14 => c.sr14 = v, _ => c.reg[rd] = v } } else { c.reg[rd] = v };
     } else {
-        let v = c.reg[rd];
-        match seg { 0 => c.cs = v, 1 => c.ds = v, 2 => c.ss = v, _ => c.es = v };
+        let v = if in_shadow { match rd { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rd] } } else { c.reg[rd] };
+        match seg {
+            0 => if in_shadow { c.scs = v } else { c.cs = v },
+            1 => if in_shadow { c.sds = v } else { c.ds = v },
+            2 => if in_shadow { c.sss = v } else { c.ss = v },
+            _ => if in_shadow { c.ses = v } else { c.es = v },
+        };
     }
 }
 
@@ -613,12 +732,13 @@ fn exec_instruction(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
             if ((instr >> 12) & 0xF) == 0b1110 { return exec_jump(c, instr); }
             if ((instr >> 11) & 0x1F) == 0b11110 { exec_lds_sts(c, instr); return false; }
             if ((instr >> 10) & 0x3F) == 0b111110 { return exec_mov(c, instr, original_pc); }
-            // System instruction (SWI/RETI/etc.) must be detected before other 0b111* groups
-            if (instr & 0xFFF0) == 0xFFF0 { exec_sys(c, instr); return false; }
-            if ((instr >> 3) & 0x1FFF) == 0x1FFE { exec_sys(c, instr); return false; }
             if ((instr >> 9) & 0x7F) == 0b1111110 { exec_lsi(c, instr); return false; }
-            if ((instr >> 8) & 0xFF) == 0b11111110 { return exec_sop(c, instr); }
+            if ((instr >> 8) & 0xFF) == 0b11111110 { exec_smv(c, instr); return false; }
             if ((instr >> 7) & 0x1FF) == 0b111111110 { exec_mvs(c, instr); return false; }
+            if ((instr >> 6) & 0x3FF) == 0b1111111110 { return exec_sop(c, instr); }
+            if ((instr >> 5) & 0x7FF) == 0b11111111110 { exec_set_clr(c, instr); return false; }
+            if ((instr >> 4) & 0xFFF) == 0b111111111110 { return exec_jml(c, instr); }
+            if ((instr >> 3) & 0x1FFF) == 0b1111111111110 { exec_sys(c, instr); return false; }
             false
         }
         _ => false,
@@ -636,7 +756,7 @@ fn autoload_rom(c: &mut Cpu) {
         0xA200, // ST R1, [R0+0]
         0xA201, // ST R1, [R0+1]
         0xA202, // ST R1, [R0+2]
-        0xFFB0, // JML R0
+        0xFFE0, // JML R0
         0xFFF0, // NOP (delay slot)
         0xFFF1, // HLT
         0xFFF1, // HLT
@@ -657,11 +777,17 @@ fn exec_lds_sts(c: &mut Cpu, instr: u16) {
     let seg = (instr >> 8) & 0x3;
     let rd = ((instr >> 4) & 0xF) as usize;
     let rs = (instr & 0xF) as usize;
-    let base = c.reg[rs] as u32;
+    let base = if (c.psw & (1 << 5)) != 0 { match rs { 0 => c.sr0 as u32, 1 => c.sr1 as u32, 2 => c.sr2 as u32, 13 => c.sr13 as u32, 14 => c.sr14 as u32, _ => c.reg[rs] as u32 } } else { c.reg[rs] as u32 };
     let segv = match seg { 0 => c.cs, 1 => c.ds, 2 => c.ss, _ => c.es };
     let pa = phys(segv, base);
     if pa >= c.mem.len() { return; }
-    if d == 0 { c.reg[rd] = c.mem[pa]; } else { c.mem[pa] = c.reg[rd]; }
+    if d == 0 {
+        let v = c.mem[pa];
+        if (c.psw & (1 << 5)) != 0 { match rd { 0 => c.sr0 = v, 1 => c.sr1 = v, 2 => c.sr2 = v, 13 => c.sr13 = v, 14 => c.sr14 = v, _ => c.reg[rd] = v } } else { c.reg[rd] = v };
+    } else {
+        let v = if (c.psw & (1 << 5)) != 0 { match rd { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rd] } } else { c.reg[rd] };
+        c.mem[pa] = v;
+    }
     c.recent_addr = pa;
     c.recent_base = c.reg[rs];
     c.recent_offset = 0;
@@ -728,6 +854,14 @@ fn exec_sys(c: &mut Cpu, instr: u16) -> bool {
             c.spsw = c.psw;
             c.psw = (c.psw & !(1 << 4)) | (1 << 5);
             c.scs = 0x0000;
+            c.sds = 0x0000;
+            c.sss = 0x0000;
+            c.ses = 0x0000;
+            c.sr0 = 0x0000;
+            c.sr1 = 0x0000;
+            c.sr2 = 0x0000;
+            c.sr13 = 0x0000;
+            c.sr14 = 0x0000;
             let pa = phys(0, 2u32);
             let target = if pa < c.mem.len() { c.mem[pa] & 0xFFFF } else { 0xFFFF };
             c.spc = target;
@@ -740,6 +874,14 @@ fn exec_sys(c: &mut Cpu, instr: u16) -> bool {
             // Return from interrupt: clear S-bit
             c.psw = c.psw & !(1 << 5);
             c.last_event_code = 3;
+            false
+        }
+        4 => { /* SETI */
+            c.psw |= 1 << 4;
+            false
+        }
+        5 => { /* CLRI */
+            c.psw &= !(1 << 4);
             false
         }
         _ => false,

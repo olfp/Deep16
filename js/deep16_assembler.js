@@ -367,18 +367,27 @@ class Deep16Assembler {
             throw new Error(`Invalid character literal: ${value}`);
         }
         
-        // Handle arithmetic expressions with + and -
+        // Numeric literals (handle signed decimal and signed hex before expression logic)
+        if (/^[-+]?\d+$/.test(trimmed)) {
+            return parseInt(trimmed, 10);
+        }
+        if (/^[-+]?0x[0-9a-fA-F]+$/.test(trimmed)) {
+            // parseInt supports signed hex like -0x1
+            return parseInt(trimmed, 16);
+        }
+
+        // Handle arithmetic expressions with + and - (labels +/- constants)
         if (trimmed.includes('+') || trimmed.includes('-')) {
             return this.parseExpression(trimmed, firstPass);
         }
         
-        // Hex and decimal parsing
+        // Hex (no sign) and decimal parsing
         if (trimmed.startsWith('0x')) {
             return parseInt(trimmed.substring(2), 16);
         } else if (trimmed.startsWith('$')) {
             return parseInt(trimmed.substring(1), 16);
         } else {
-            const num = parseInt(trimmed);
+            const num = parseInt(trimmed, 10);
             if (!isNaN(num)) {
                 return num;
             }
@@ -542,9 +551,15 @@ class Deep16Assembler {
                 case 'LPSW':
                     if (parts.length >= 2) {
                         const rx = this.parseRegister(parts[1]);
-                        return 0b1111111111100000 | rx;
+                        return 0xFF80 | (0b11 << 4) | rx;
                     }
                     throw new Error('LPSW requires register operand');
+                case 'SPSW':
+                    if (parts.length >= 2) {
+                        const rx = this.parseRegister(parts[1]);
+                        return 0xFF80 | (0b10 << 4) | rx;
+                    }
+                    throw new Error('SPSW requires register operand');
                 case 'LNK': // LNK Rx => MOV Rx, PC, 2
                     if (parts.length >= 2) {
                         const rd = this.parseRegister(parts[1]);
@@ -606,8 +621,8 @@ class Deep16Assembler {
                 case 'CLRV': return this.encodeCLRAlias(0b1010);
                 case 'SETC': return this.encodeSETAlias(0b0011);
                 case 'CLRC': return this.encodeCLRAlias(0b1011);
-                case 'SETI': return this.encodeSET2Alias(0b0000);
-                case 'CLRI': return this.encodeCLR2Alias(0b0000);
+                case 'SETI': return this.encodeSystem(0b100);
+                case 'CLRI': return this.encodeSystem(0b101);
                 case 'SETS': return this.encodeSET2Alias(0b0001);
                 case 'CLRS': return this.encodeCLR2Alias(0b0001);
                 
@@ -912,8 +927,10 @@ class Deep16Assembler {
     encodeSWB(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            // SWB: [1111111110][0000][Rx4]
-            return 0b1111111110000000 | (0b0000 << 4) | rx;
+            // Alias: SWB Rx => ROL Rx, 8 (ALU2 group)
+            const func5 = 0b11000; // ROL
+            const count = 8;
+            return (0b110 << 13) | (func5 << 8) | (rx << 4) | (count & 0xF);
         }
         throw new Error('SWB requires register operand');
     }
@@ -1191,8 +1208,7 @@ class Deep16Assembler {
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`SET immediate ${imm} out of range (0-15)`);
             }
-            // SET: [1111111110][1100][imm4]
-            return 0b1111111110000000 | (0b1100 << 4) | (imm & 0xF);
+            return 0b1111111111000000 | (0 << 4) | (imm & 0xF);
         }
         throw new Error('SET requires immediate value');
     }
@@ -1203,8 +1219,7 @@ class Deep16Assembler {
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`CLR immediate ${imm} out of range (0-15)`);
             }
-            // CLR: [1111111110][1101][imm4]
-            return 0b1111111110000000 | (0b1101 << 4) | (imm & 0xF);
+            return 0b1111111111000000 | (1 << 4) | (imm & 0xF);
         }
         throw new Error('CLR requires immediate value');
     }
@@ -1215,8 +1230,7 @@ class Deep16Assembler {
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`SET2 immediate ${imm} out of range (0-15)`);
             }
-            // SET2: [1111111110][1110][imm4]
-            return 0b1111111110000000 | (0b1110 << 4) | (imm & 0xF);
+            return 0b1111111111000000 | (0 << 4) | (imm & 0xF);
         }
         throw new Error('SET2 requires immediate value');
     }
@@ -1235,19 +1249,19 @@ class Deep16Assembler {
 
     // Alias methods for flag operations
     encodeSETAlias(imm) {
-        return 0b1111111110000000 | (0b1100 << 4) | (imm & 0xF);
+        return 0xFFA0 | (imm & 0xF);
     }
 
     encodeCLRAlias(imm) {
-        return 0b1111111110000000 | (0b1101 << 4) | (imm & 0xF);
+        return 0xFFB0 | (imm & 0xF);
     }
 
     encodeSET2Alias(imm) {
-        return 0b1111111110000000 | (0b1110 << 4) | (imm & 0xF);
+        return 0xFFA0 | ((imm + 4) & 0xF);
     }
 
     encodeCLR2Alias(imm) {
-        return 0b1111111110000000 | (0b1111 << 4) | (imm & 0xF);
+        return 0xFFB0 | ((imm + 4) & 0xF);
     }
 
     encodeSystem(sysOp) {

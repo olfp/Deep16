@@ -6,7 +6,8 @@ global.window = {};
 const assemblerCode = fs.readFileSync('./js/deep16_assembler.js','utf8');
 vm.runInThisContext(assemblerCode);
 const asm = new Deep16Assembler();
-const src = fs.readFileSync('./asm/fibonacci.a16','utf8');
+const asmPath = process.argv[2] || './asm/fibonacci.a16';
+const src = fs.readFileSync(asmPath,'utf8');
   const res = asm.assemble(src);
   if(!res.success){
     console.log('assemble failed', res.errors);
@@ -14,8 +15,8 @@ const src = fs.readFileSync('./asm/fibonacci.a16','utf8');
   }
   // Debug: show assembled listing around 0x0100
   const listing = res.listing || [];
-  const around = listing.filter(it => it.address >= 0x0100 && it.address < 0x0120);
-  console.log('listing 0x0100..0x011F');
+  const around = listing.filter(it => it.address >= 0x0100 && it.address < 0x0140);
+  console.log('listing 0x0100..0x013F');
   for(const it of around){
     const instr = it.instruction !== undefined ? it.instruction.toString(16).padStart(4,'0') : '----';
     console.log(`0x${it.address.toString(16).padStart(4,'0')}  ${instr}  ${it.line || ''}`);
@@ -35,6 +36,13 @@ async function main(){
   const slice = Array.from(get_memory_slice(0x0200, 16)).map(v=>v.toString(16));
   console.log('mem[0x200..]', slice);
   console.log('segs', Array.from(get_segments()).map(x=>x.toString(16)));
+
+  if(asmPath.includes('swi-test.asm')){
+    const screenAddr = 0xF1000;
+    const screenSlice = Array.from(get_memory_slice(screenAddr, 64)).map(v => v & 0xFF);
+    const chars = screenSlice.map(c => String.fromCharCode(c)).join('');
+    console.log('screen[0xF1000..]:', chars.replace(/\u0000/g,'\\0'));
+  }
 
   // Now test ALU2/Shift execution in WASM
   reset();

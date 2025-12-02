@@ -30,7 +30,14 @@ main:
     MVS ES, R0         ; ES = 0xF000
     LDI 0x1000         ; Screen buffer at 0xF1000
     MOV R8, R0         ; Use R8 as screen pointer
-    ERD R8             ; Use R8/R9 for ES access
+    LPSW R11           ; Read PSW
+    LDI 0x07FF         ; Clear ER[3:0] and DE bits (keep low 11 bits)
+    MOV R2, R0
+    AND R11, R2
+    LDI 0x4000         ; Set DE=1 and ER=8 (R8) via sign-extend
+    MOV R2, R0
+    OR R11, R2
+    SPSW R11           ; Write back PSW
     LDI 0
     MVS DS, R0
     LDI 2
@@ -90,189 +97,7 @@ after_message2:
     MOV R2, R0
     ADD R2, R1         ; Add major version
     STS R2, ES, R8     ; Output major version
-    ADD R8, 1
-    
-    ; Demonstrate reading APSW and APC from shadow context
-    LDI ' '
-    MOV R2, R0
-    STS R2, ES, R8
-    ADD R8, 1
-    LDI 'A'
-    MOV R2, R0
-    STS R2, ES, R8
-    ADD R8, 1
-    SMV R1, APSW
-    MOV R3, R1
-    SR R3, 12
-    AND R3, 0xF
-    MOV R4, R3
-    SUB R4, 10
-    JN apsw_n0
-    NOP
-    LDI 'A'
-    MOV R2, R0
-    ADD R2, R4
-    STS R2, ES, R8
-    ADD R8, 1
-    JNO apsw_c1
-    NOP
-apsw_n0:
-    LDI '0'
-    MOV R2, R0
-    ADD R2, R3
-    STS R2, ES, R8
-    ADD R8, 1
-apsw_c1:
-    MOV R3, R1
-    SR R3, 8
-    AND R3, 0xF
-    MOV R4, R3
-    SUB R4, 10
-    JN apsw_n1
-    NOP
-    LDI 'A'
-    MOV R2, R0
-    ADD R2, R4
-    STS R2, ES, R8
-    ADD R8, 1
-    JNO apsw_c2
-    NOP
-apsw_n1:
-    LDI '0'
-    MOV R2, R0
-    ADD R2, R3
-    STS R2, ES, R8
-    ADD R8, 1
-apsw_c2:
-    MOV R3, R1
-    SR R3, 4
-    AND R3, 0xF
-    MOV R4, R3
-    SUB R4, 10
-    JN apsw_n2
-    NOP
-    LDI 'A'
-    MOV R2, R0
-    ADD R2, R4
-    STS R2, ES, R8
-    ADD R8, 1
-    JNO apsw_c3
-    NOP
-apsw_n2:
-    LDI '0'
-    MOV R2, R0
-    ADD R2, R3
-    STS R2, ES, R8
-    ADD R8, 1
-apsw_c3:
-    MOV R3, R1
-    AND R3, 0xF
-    MOV R4, R3
-    SUB R4, 10
-    JN apsw_n3
-    NOP
-    LDI 'A'
-    MOV R2, R0
-    ADD R2, R4
-    STS R2, ES, R8
-    ADD R8, 1
-    JNO apsw_done
-    NOP
-apsw_n3:
-    LDI '0'
-    MOV R2, R0
-    ADD R2, R3
-    STS R2, ES, R8
-    ADD R8, 1
-apsw_done:
-    LDI 'P'
-    MOV R2, R0
-    STS R2, ES, R8
-    ADD R8, 1
-    SMV R1, APC
-    MOV R3, R1
-    SR R3, 12
-    AND R3, 0xF
-    MOV R4, R3
-    SUB R4, 10
-    JN apc_n0
-    NOP
-    LDI 'A'
-    MOV R2, R0
-    ADD R2, R4
-    STS R2, ES, R8
-    ADD R8, 1
-    JNO apc_c1
-    NOP
-apc_n0:
-    LDI '0'
-    MOV R2, R0
-    ADD R2, R3
-    STS R2, ES, R8
-    ADD R8, 1
-apc_c1:
-    MOV R3, R1
-    SR R3, 8
-    AND R3, 0xF
-    MOV R4, R3
-    SUB R4, 10
-    JN apc_n1
-    NOP
-    LDI 'A'
-    MOV R2, R0
-    ADD R2, R4
-    STS R2, ES, R8
-    ADD R8, 1
-    JNO apc_c2
-    NOP
-apc_n1:
-    LDI '0'
-    MOV R2, R0
-    ADD R2, R3
-    STS R2, ES, R8
-    ADD R8, 1
-apc_c2:
-    MOV R3, R1
-    SR R3, 4
-    AND R3, 0xF
-    MOV R4, R3
-    SUB R4, 10
-    JN apc_n2
-    NOP
-    LDI 'A'
-    MOV R2, R0
-    ADD R2, R4
-    STS R2, ES, R8
-    ADD R8, 1
-    JNO apc_c3
-    NOP
-apc_n2:
-    LDI '0'
-    MOV R2, R0
-    ADD R2, R3
-    STS R2, ES, R8
-    ADD R8, 1
-apc_c3:
-    MOV R3, R1
-    AND R3, 0xF
-    MOV R4, R3
-    SUB R4, 10
-    JN apc_n3
-    NOP
-    LDI 'A'
-    MOV R2, R0
-    ADD R2, R4
-    STS R2, ES, R8
-    ADD R8, 1
-    JNO apc_done
-    NOP
-apc_n3:
-    LDI '0'
-    MOV R2, R0
-    ADD R2, R3
-    STS R2, ES, R8
-    ADD R8, 1
-apc_done:
+    ADD R8, 1    
     
     LDI '.'            ; Decimal point
     MOV R2, R0
