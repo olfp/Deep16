@@ -1,19 +1,19 @@
-# **Deep16 Floating-Point Unit (FPU) Manual v2.0**
-## **Accumulator-Based 2-Register Window Design**
+# **Deep16 Floating-Point Unit (FPU) Manual v3.0**
+## **Fixed Register Window FPU with Transcendental Support**
 
 ---
 
 ## **1. Overview**
 
-Deep16 includes a floating-point capability through **software emulation** of FPU instructions, with a path for future hardware acceleration. All FPU instructions use reserved opcode space and trap to software emulation via the illegal instruction handler.
+Deep16 includes a floating-point capability through **software emulation** of FPU instructions, with a path for future hardware acceleration. The FPU uses a fixed 2-register window model with built-in transcendental functions.
 
 ### **1.1 Key Features**
-- **7 computational operations** + **1 setup operation**
-- **Accumulator-based design** - F0 acts as implicit accumulator
-- **2-register virtual window** mapped to CPU register pairs
+- **7 computational operations** including transcendentals
+- **Fixed 2-register window** - F0=R2:R3, F1=R4:R5
 - **IEEE 754 single-precision** (32-bit) format
+- **FEXP/FLOG support** - Enables advanced mathematical functions
 - **Software emulation first** - hardware acceleration path
-- **Educational focus** - understand FPU internals through software
+- **Educational focus** - understand FPU internals and function implementation
 
 ### **1.2 Performance Characteristics**
 ```
@@ -30,26 +30,33 @@ Future Hardware Acceleration:
 
 ## **2. FPU Architecture**
 
-### **2.1 Virtual FP Register Model**
+### **2.1 Fixed Register Window**
 
-**Virtual FP Registers (mapped to CPU register pairs):**
+**FPU uses fixed CPU register pairs:**
 ```
-F0 = R(fp_base):R(fp_base+1)   ; Accumulator (destination)
-F1 = R(fp_base+2):R(fp_base+3) ; Source operand
+F0 (accumulator) = R2:R3
+F1 (operand)     = R4:R5
 ```
 
-**FINIT Instruction:**
-- `FINIT Rx` where Rx is even (0, 2, 4, ..., 14)
-- Establishes mapping: F0→Rx:Rx+1, F1→Rx+2:Rx+3
-- Example: `FINIT R4` sets F0=R4:R5, F1=R6:R7
+**Rationale for this assignment:**
+1. **R0:R1 remain free** for LDI and general temporary use
+2. **R2-R5** are general-purpose registers not used for special purposes
+3. **Doesn't conflict** with stack registers (R12-R14)
+4. **Predictable and consistent** for compiler code generation
 
-**Accumulator Model:**
-- **F0 acts as implicit accumulator** for all operations
-- Binary ops: F0 = F0 op F1
-- Unary ops: F0 = op(F0)
-- FCMP: Compare F0 and F1
+### **2.2 Register Usage Guidelines**
+```assembly
+; R0:R1 - Free for LDI and general temporary
+; R2:R3 - F0 (FP accumulator - modified by FP ops)
+; R4:R5 - F1 (FP operand - typically source)
+; R6-R11 - General purpose (safe from FPU)
+; R12 (FP) - Frame pointer
+; R13 (SP) - Stack pointer  
+; R14 (LR) - Link register
+; R15 (PC) - Program counter
+```
 
-### **2.2 CPU Configuration Register**
+### **2.3 CPU Configuration Register**
 ```
 Address: 0xF0010 (I/O space)
 
@@ -68,76 +75,69 @@ Bits:
 ### **3.1 Opcode Space Allocation**
 
 ```
-14-bit: 1111111110 10 rrrr   (FINIT only - setup register window)
-14-bit: 111111111111 10 ff   (4 core operations: FADD, FMUL, FDIV, FSQRT)
-15-bit: 111111111111 110 f    (2 transcendental operations: FEXP, FLOG)
-16-bit: 111111111111 1110    (1 special operation: FCMP)
+14-bit: 11111111111110 xx   (4 core operations)
+15-bit: 111111111111110 x    (2 transcendental operations)  
+16-bit: 1111111111111110     (1 comparison operation)
 ```
 
-### **3.2 Setup Instruction**
-
-#### **FINIT - Initialize FPU Register Window**
-```
-Format: 1111111110 10 rrrr
-Operation: Establish FPU register mapping:
-           F0 = R(rrrr):R(rrrr+1)
-           F1 = R(rrrr+2):R(rrrr+3)
-Requires: rrrr must be EVEN (0, 2, 4, ..., 14)
-Note: Does not modify register contents, only establishes mapping
-```
-
-### **3.3 Binary Operations (F0 = F0 op F1)**
+### **3.2 Core Arithmetic Operations**
 
 #### **FADD - Floating-Point Addition**
 ```
-Format: 111111111111 10 00
+Format: 11111111111110 00
 Operation: F0 = F0 + F1
+Stack effect: R2:R3 = R2:R3 + R4:R5
 ```
 
 #### **FMUL - Floating-Point Multiplication**
 ```
-Format: 111111111111 10 01
+Format: 11111111111110 01
 Operation: F0 = F0 × F1
+Stack effect: R2:R3 = R2:R3 × R4:R5
 ```
 
 #### **FDIV - Floating-Point Division**
 ```
-Format: 111111111111 10 10
+Format: 11111111111110 10
 Operation: F0 = F0 ÷ F1
-Note: Consistent accumulator model (not x87-style pop)
+Stack effect: R2:R3 = R2:R3 ÷ R4:R5
 ```
-
-### **3.4 Unary Operations (F0 = op(F0))**
 
 #### **FSQRT - Square Root**
 ```
-Format: 111111111111 10 11
+Format: 11111111111110 11
 Operation: F0 = √F0
+Stack effect: R2:R3 = √(R2:R3)
 ```
+
+### **3.3 Transcendental Operations**
 
 #### **FEXP - Exponential**
 ```
-Format: 111111111111 110 0
+Format: 111111111111110 0
 Operation: F0 = exp(F0)  (e^x)
+Stack effect: R2:R3 = exp(R2:R3)
+Note: Enables pow(), exp2(), sigmoid(), etc.
 ```
 
 #### **FLOG - Natural Logarithm**
 ```
-Format: 111111111111 110 1
-Operation: F0 = log(F0)  (ln(x))
+Format: 111111111111110 1
+Operation: F0 = log(F0)  (natural log, ln(x))
+Stack effect: R2:R3 = ln(R2:R3)
+Note: Enables log10(), pow(), etc.
 ```
 
-### **3.5 Comparison Operation**
+### **3.4 Comparison Operation**
 
 #### **FCMP - Compare**
 ```
-Format: 111111111111 1110
-Operation: Compare F0 and F1, set CPU flags:
-           Z=1 if F0 == F1 (or both ±0)
+Format: 1111111111111110
+Operation: Compare F0 and F1, set CPU flags
+           Z=1 if equal (or both ±0)
            N=1 if F0 < F1 (signed comparison)
            V=1 if unordered (either operand is NaN)
-           C flag undefined
-Note: Register contents preserved (non-destructive)
+Stack effect: Preserves all registers
 ```
 
 ---
@@ -177,61 +177,81 @@ Epsilon:          2^(-23) ≈ 1.192×10^(-7)
 
 ---
 
-## **5. Data Movement and Register Management**
+## **5. Data Movement and Setup**
 
 ### **5.1 Loading Data into FPU Registers**
 
-Since FPU operates on CPU registers directly, use normal CPU instructions:
-
+**Load from memory:**
 ```assembly
-; Load float value 1.5 (0x3FC00000) into F0
-; Assuming FINIT R4 was executed (F0 = R4:R5)
-LDI 0x3FC0        ; High word: 0x3FC0
-MOV R4, R0        ; R4 = 0x3FC0
-LDI 0x0000        ; Low word: 0x0000  
-MOV R5, R0        ; R5 = 0x0000
-; Now F0 = 1.5
+; Load value into F0 (R2:R3)
+LD  R2, [address_high]
+LD  R3, [address_low]
 
-; Load from memory into F1
-; F1 = R6:R7 (after FINIT R4)
-LD R6, [address_high]
-LD R7, [address_low]
+; Load value into F1 (R4:R5)
+LD  R4, [address_high]
+LD  R5, [address_low]
+```
+
+**Load constant using LDI (R0 free!):**
+```assembly
+; Load 1.0 (0x3F800000) into F0
+LDI 0x3F80        ; High word
+MOV R2, R0        ; F0 high = 0x3F80
+LDI 0x0000        ; Low word
+MOV R3, R0        ; F0 low = 0x0000
+; R0 still free for next operation
+```
+
+**Move between FP registers:**
+```assembly
+; Copy F0 to F1
+MOV R4, R2        ; F1 high = F0 high
+MOV R5, R3        ; F1 low = F0 low
+
+; Copy F1 to F0
+MOV R2, R4        ; F0 high = F1 high
+MOV R3, R5        ; F0 low = F1 low
 ```
 
 ### **5.2 Storing FPU Results**
-
 ```assembly
-; Store F0 result to memory
-; F0 = R4:R5 (after FINIT R4)
-ST [result_high], R4
-ST [result_low], R5
+; Store F0 to memory
+ST  R2, [result_high]
+ST  R3, [result_low]
+
+; Store F1 to memory
+ST  R4, [result_high]
+ST  R5, [result_low]
 ```
 
-### **5.3 Moving Between F0 and F1**
+### **5.3 CPU-Based FP Operations**
 
+#### **FNEG - Negate**
 ```assembly
-; Swap F0 and F1 contents (after FINIT R4)
-; F0=R4:R5, F1=R6:R7
-MOV R8, R4    ; Temp = F0 high
-MOV R9, R5    ; Temp = F0 low
-MOV R4, R6    ; F0 high = F1 high
-MOV R5, R7    ; F0 low = F1 low
-MOV R6, R8    ; F1 high = old F0 high
-MOV R7, R9    ; F1 low = old F0 low
+; Negate F0 (R2:R3)
+XOR R2, 0x8000    ; Toggle sign bit (bit 15)
+
+; Negate F1 (R4:R5)  
+XOR R4, 0x8000    ; Toggle sign bit
 ```
 
-### **5.4 CPU-Based FP Operations**
-
-#### **FNEG - Negate (in CPU)**
+#### **FABS - Absolute Value**
 ```assembly
-; Negate value in F0 (R4:R5)
-XOR R4, 0x8000   ; Toggle sign bit (bit 15)
+; Absolute value of F0 (R2:R3)
+AND R2, 0x7FFF    ; Clear sign bit (bit 15)
+
+; Absolute value of F1 (R4:R5)
+AND R4, 0x7FFF    ; Clear sign bit
 ```
 
-#### **FABS - Absolute Value (in CPU)**
+#### **FSUB - Subtraction (via negation + addition)**
 ```assembly
-; Absolute value of F0 (R4:R5)
-AND R4, 0x7FFF   ; Clear sign bit (bit 15)
+; Compute a - b
+; Assume: a in F0, b in F1
+
+; Negate b in F1
+XOR R4, 0x8000    ; F1 = -b
+FADD              ; F0 = a + (-b) = a - b
 ```
 
 ---
@@ -242,214 +262,418 @@ AND R4, 0x7FFF   ; Clear sign bit (bit 15)
 ```assembly
 ; Compute: y = (a × b) + c
 
-; Setup FPU window at R0
-FINIT R0          ; F0=R0:R1, F1=R2:R3
-
 ; Load a into F0, b into F1
-; (Assume loaded from memory using normal LD)
+LD  R2, [a_high]
+LD  R3, [a_low]
+LD  R4, [b_high]
+LD  R5, [b_low]
+
+; Compute a × b
 FMUL              ; F0 = a × b
-; Save F0 (a×b) temporarily
-MOV R4, R0        ; CPU temp for high word
-MOV R5, R1        ; CPU temp for low word
 
-; Load c into F0, 1.0 into F1 for addition
-; (Generate 1.0 = 0x3F800000)
-LDI 0x3F80
-MOV R2, R0        ; F1 high = 0x3F80
-LDI 0x0000
-MOV R3, R0        ; F1 low = 0x0000
-; Restore a×b to F0
-MOV R0, R4
-MOV R1, R5
-; Load c into... wait, F0 has a×b, F1 has 1.0
-; Need c in F0, a×b in F1
-; This shows data movement challenge
+; Save a×b temporarily (to memory)
+ST  R2, [temp_high]
+ST  R3, [temp_low]
+
+; Load c into F0
+LD  R2, [c_high]
+LD  R3, [c_low]
+
+; Load saved a×b into F1
+LD  R4, [temp_high]
+LD  R5, [temp_low]
+
+; Add: F0 = c + (a×b)
+FADD              ; F0 = a×b + c
+
+; Result in F0 (R2:R3)
 ```
 
-### **6.2 Division Example**
+### **6.2 Using Transcendental Functions**
 ```assembly
-; Compute: ratio = numerator / denominator
+; Compute: sigmoid(x) = 1 / (1 + exp(-x))
 
-FINIT R0          ; F0=R0:R1, F1=R2:R3
-
-; Load numerator into F0, denominator into F1
-; (Using normal LD instructions)
-FDIV              ; F0 = numerator ÷ denominator
-; Result in F0 (R0:R1)
-```
-
-### **6.3 Using Transcendental Functions**
-```assembly
-; Compute: sigmoid(x) = 1.0 / (1.0 + exp(-x))
-
-FINIT R0          ; F0=R0:R1, F1=R2:R3
+; Input: x in memory at [x]
 
 ; Load x into F0
-; Compute -x (negate in CPU)
-XOR R0, 0x8000    ; Toggle sign bit
+LD  R2, [x_high]
+LD  R3, [x_low]
+
+; Negate x
+XOR R2, 0x8000    ; F0 = -x
+
 ; Compute exp(-x)
 FEXP              ; F0 = exp(-x)
-; Compute 1.0 + exp(-x)
-; Need to load 1.0 into F1
+
+; Add 1.0
 LDI 0x3F80        ; 1.0 high
+MOV R4, R0        ; F1 high = 1.0
+LDI 0x0000        ; 1.0 low
+MOV R5, R0        ; F1 low = 1.0
+FADD              ; F0 = 1 + exp(-x)
+
+; Compute reciprocal: 1 / (1 + exp(-x))
+; Save denominator
+ST  R2, [denom_high]
+ST  R3, [denom_low]
+
+; Load 1.0 into F0
+LDI 0x3F80
 MOV R2, R0
 LDI 0x0000
-MOV R3, R0        ; F1 = 1.0
-FADD              ; F0 = 1.0 + exp(-x)
-; Compute reciprocal: 1.0 / (1.0 + exp(-x))
-; Need to swap F0 and F1
-MOV R4, R0        ; Temp swap
-MOV R5, R1
-MOV R0, R2
-MOV R1, R3
-MOV R2, R4
-MOV R3, R5        ; Now F0=1.0, F1=(1.0+exp(-x))
-FDIV              ; F0 = 1.0 / (1.0 + exp(-x))
+MOV R3, R0
+
+; Load denominator into F1
+LD  R4, [denom_high]
+LD  R5, [denom_low]
+
+; Divide: 1 / denominator
+FDIV              ; F0 = 1 / (1 + exp(-x))
+
+; Result in F0 (R2:R3)
+```
+
+### **6.3 Power Function using FEXP/FLOG**
+```assembly
+; Compute: y = a^b (a to the power b)
+
+; Input: a, b in memory
+
+; Load a into F0
+LD  R2, [a_high]
+LD  R3, [a_low]
+
+; Compute log(a)
+FLOG              ; F0 = log(a)
+
+; Save log(a)
+ST  R2, [log_a_high]
+ST  R3, [log_a_low]
+
+; Load b into F0
+LD  R2, [b_high]
+LD  R3, [b_low]
+
+; Load log(a) into F1
+LD  R4, [log_a_high]
+LD  R5, [log_a_low]
+
+; Multiply: b × log(a)
+FMUL              ; F0 = b × log(a)
+
+; Compute exp(b × log(a))
+FEXP              ; F0 = exp(b × log(a)) = a^b
+
+; Result in F0 (R2:R3)
 ```
 
 ### **6.4 Conditional Execution**
 ```assembly
-; if (x > 0.0) then y = sqrt(x) else y = 0.0
+; If (x > threshold) then y = sqrt(x) else y = 0
 
-FINIT R0          ; F0=R0:R1, F1=R2:R3
+; Load x into F0, threshold into F1
+LD  R2, [x_high]
+LD  R3, [x_low]
+LD  R4, [thresh_high]
+LD  R5, [thresh_low]
 
-; Load x into F0, 0.0 into F1
-LDI 0x0000        ; 0.0 high
-MOV R2, R0
-MOV R3, R0        ; F1 = 0.0
-FCMP              ; Compare x and 0.0
-JN  .x_negative   ; Jump if x < 0.0 (N=1)
+; Compare x and threshold
+FCMP              ; Sets flags based on x - threshold
+JN  x_le_thresh   ; Jump if x <= threshold (x < threshold)
 
-; x >= 0.0
-FSQRT             ; F0 = √x
-JMP .done
+; x > threshold: compute sqrt(x)
+; x already in F0
+FSQRT             ; F0 = sqrt(x)
+JMP done
+NOP
 
-.x_negative:
-; Load 0.0 into F0
-MOV R0, R2
-MOV R1, R3        ; F0 = 0.0
+x_le_thresh:
+; x <= threshold: set y = 0
+LDI 0
+MOV R2, R0        ; F0 high = 0
+MOV R3, R0        ; F0 low = 0
 
-.done:
-; Result in F0
+done:
+; Result in F0 (R2:R3)
+```
+
+### **6.5 Efficient Constant Generation**
+```assembly
+; Common constants generation macros
+
+.macro LOAD_ONE
+    LDI 0x3F80     ; 1.0 high
+    MOV R2, R0     ; F0 high
+    LDI 0x0000     ; 1.0 low
+    MOV R3, R0     ; F0 low
+.endm
+
+.macro LOAD_PI
+    ; π = 3.1415926535 = 0x40490FDB
+    LDI 0x4049     ; π high
+    MOV R2, R0     ; F0 high
+    LDI 0x0FDB     ; π low
+    MOV R3, R0     ; F0 low
+.endm
+
+.macro LOAD_E
+    ; e = 2.718281828 = 0x402DF854
+    LDI 0x402D     ; e high
+    MOV R2, R0     ; F0 high
+    LDI 0xF854     ; e low
+    MOV R3, R0     ; F0 low
+.endm
 ```
 
 ---
 
 ## **7. Math Software Library**
 
-### **7.1 Available Functions (0xF9000)**
-```c
-// Extended functions (beyond hardware)
-float pow(float x, float y);     // x^y via exp(y×log(x))
-float sin(float x);              // sine
-float cos(float x);              // cosine via sin(x+π/2)
-float tan(float x);              // tangent
-float asin(float x);             // arcsine
-float acos(float x);             // arccosine
-float atan(float x);             // arctangent
-float sinh(float x);             // hyperbolic sine
-float cosh(float x);             // hyperbolic cosine
-float tanh(float x);             // hyperbolic tangent
+### **7.1 Extended Functions (Built using FEXP/FLOG)**
 
-// Utility functions
-float floor(float x);            // round down to integer
-float ceil(float x);             // round up to integer
-float fmod(float x, float y);    // floating-point remainder
+**Available at software library address 0xF9000:**
+```c
+// Power functions
+float pow(float x, float y);     // x^y via exp(y×log(x))
+float exp2(float x);             // 2^x via exp(x×log(2))
+float exp10(float x);            // 10^x via exp(x×log(10))
+
+// Logarithm functions
+float log10(float x);            // log10(x) = log(x)/log(10)
+float log2(float x);             // log2(x) = log(x)/log(2)
+
+// Trigonometric functions (Taylor series approximations)
+float sin(float x);
+float cos(float x);
+float tan(float x);
+float asin(float x);
+float acos(float x);
+float atan(float x);
+
+// Hyperbolic functions
+float sinh(float x);             // (exp(x) - exp(-x))/2
+float cosh(float x);             // (exp(x) + exp(-x))/2
+float tanh(float x);             // sinh(x)/cosh(x)
+
+// Special functions
+float hypot(float x, float y);   // √(x² + y²)
+float fmod(float x, float y);    // Floating-point remainder
 ```
 
-### **7.2 Calling Convention**
+### **7.2 Example Library Implementation**
 ```assembly
-; Call pow(x, y) library function
-; 1. Push arguments to predefined memory locations
+; Library: pow(x, y) = exp(y × log(x))
+; Input: x in F0, y in F1
+; Output: result in F0
+
+pow_function:
+    ; Save y to memory
+    ST  R4, [temp_y_high]
+    ST  R5, [temp_y_low]
+    
+    ; Compute log(x)
+    FLOG              ; F0 = log(x)
+    
+    ; Load y into F1
+    LD  R4, [temp_y_high]
+    LD  R5, [temp_y_low]
+    
+    ; Multiply: y × log(x)
+    FMUL              ; F0 = y × log(x)
+    
+    ; Compute exp(y × log(x))
+    FEXP              ; F0 = exp(y × log(x)) = x^y
+    
+    RET
+```
+
+### **7.3 Library Calling Convention**
+```assembly
+; Call sin(x) library function
+; 1. Push argument to FPU registers
 ; 2. Call via SWI with function code
 
-ST [ARG1_HIGH], R0   ; x high
-ST [ARG1_LOW], R1    ; x low
-ST [ARG2_HIGH], R2   ; y high  
-ST [ARG2_LOW], R3    ; y low
-LDI POW_FUNC_ID      ; Function code for pow()
-SWI                  ; Software interrupt
-; Result in predefined result location
-LD R0, [RESULT_HIGH]
-LD R1, [RESULT_LOW]
+; Load x into F0
+LD  R2, [x_high]
+LD  R3, [x_low]
+
+; Call library
+LDI SIN_FUNC_ID     ; Function code for sin()
+SWI                 ; Software interrupt
+
+; Result in F0 (R2:R3)
 ```
 
 ---
 
-## **8. Instruction Quick Reference**
+## **8. Performance Optimization Tips**
 
-### **8.1 Opcode Map**
+### **8.1 Minimize FPU-CPU Transfers**
+```
+BAD: Load to CPU reg, move to FP reg, compute, move back
+GOOD: Keep values in FP registers (R2-R5) as long as possible
+```
+
+### **8.2 Use R0 Efficiently for Constants**
+```assembly
+; Generate constant once, reuse
+LDI  0x3F80      ; 1.0 high
+MOV  R6, R0      ; Save in R6 for reuse
+LDI  0x0000      ; 1.0 low
+MOV  R7, R0      ; Save in R7
+
+; Later, load to F0:
+MOV R2, R6       ; F0 high = 1.0
+MOV R3, R7       ; F0 low = 1.0
+```
+
+### **8.3 Batch FPU Operations**
+```assembly
+; Group FPU operations to minimize
+; trap handler overhead in software emulation
+
+; Instead of:
+; FADD, LD, ST, FMUL, LD, ST
+
+; Do:
+; LD, LD, FADD, FMUL, ST, ST
+```
+
+### **8.4 Future Hardware Planning**
+```
+Same code will run faster when hardware FPU
+is added - no changes needed!
+```
+
+---
+
+## **9. Common Issues and Solutions**
+
+### **9.1 Register Conflict**
+```
+FPU uses fixed registers R2-R5:
+- Don't use R2-R5 for other purposes during FP sequences
+- Save/Restore R2-R5 if calling functions during FP computation
+```
+
+### **9.2 NaN and Infinity Handling**
+```
+Operations producing NaN or Infinity:
+- Division by zero
+- Square root of negative number  
+- Invalid operations
+Check status via FCMP or examine result bits.
+```
+
+### **9.3 Precision Issues**
+```
+Single precision: ~7 decimal digits
+Accumulate errors in long computations
+Consider using double in software for critical parts
+```
+
+### **9.4 Workarounds for Missing Operations**
+
+**Subtraction:**
+```assembly
+; a - b
+; Load a to F0, b to F1
+XOR R4, 0x8000    ; Negate b in F1
+FADD              ; F0 = a + (-b) = a - b
+```
+
+**Absolute Value:**
+```assembly
+; |x|
+; Load x to F0
+AND R2, 0x7FFF    ; Clear sign bit
+```
+
+**Multiplication by Constant:**
+```assembly
+; x × 2.5
+; Load x to F0
+; Load 2.5 to F1
+FMUL              ; F0 = x × 2.5
+```
+
+---
+
+## **10. Future Hardware FPU**
+
+### **10.1 Migration Path**
+When hardware FPU is implemented:
+1. **Same instructions** - binary compatible
+2. **CPU config bit** set to 1 (FPU_PRESENT)
+3. **Trap handler** checks bit, executes hardware if present
+4. **No code changes** required
+
+### **10.2 Hardware Specifications**
+```
+Estimated gate count: ~30,000 gates (28nm)
+Operations: Same 7 instructions
+Registers: Fixed mapping to R2-R5
+Performance: 3-40 cycles per operation
+IEEE 754: Fully compliant, all rounding modes
+```
+
+### **10.3 Enabling Hardware**
+```assembly
+; Check if hardware FPU present
+LD    R0, [0xF0010]     ; CPU config register
+TBC   R0, 0             ; Test FPU_PRESENT bit
+JNZ   .hw_fpu_available
+
+; Software emulation path
+; (trap handler executes software emulation)
+
+.hw_fpu_available:
+; Hardware executes directly
+```
+
+---
+
+## **11. Instruction Quick Reference**
+
+### **11.1 Opcode Map**
 ```
 Instruction        Binary Encoding          Operation
 ─────────────────────────────────────────────────────────────
-FINIT Rx      1111111110 10 rrrr    Map F0,F1 to CPU regs
+FADD          11111111111110 00    F0 = F0 + F1
+FMUL          11111111111110 01    F0 = F0 × F1
+FDIV          11111111111110 10    F0 = F0 ÷ F1
+FSQRT         11111111111110 11    F0 = √F0
 
-FADD          111111111111 10 00    F0 = F0 + F1
-FMUL          111111111111 10 01    F0 = F0 × F1
-FDIV          111111111111 10 10    F0 = F0 ÷ F1
-FSQRT         111111111111 10 11    F0 = √F0
+FEXP          111111111111110 0    F0 = exp(F0)
+FLOG          111111111111110 1    F0 = log(F0)
 
-FEXP          111111111111 110 0    F0 = exp(F0)
-FLOG          111111111111 110 1    F0 = log(F0)
-
-FCMP          111111111111 1110     Compare F0 and F1
+FCMP          1111111111111110     Compare F0 and F1
 ```
 
-### **8.2 Register Mapping**
+### **11.2 Register Mapping**
 ```
-FINIT R0:  F0 = R0:R1,   F1 = R2:R3
-FINIT R2:  F0 = R2:R3,   F1 = R4:R5
-FINIT R4:  F0 = R4:R5,   F1 = R6:R7
-FINIT R6:  F0 = R6:R7,   F1 = R8:R9
-FINIT R8:  F0 = R8:R9,   F1 = R10:R11
-FINIT R10: F0 = R10:R11, F1 = R12:R13
-FINIT R12: F0 = R12:R13, F1 = R14:R15
-FINIT R14: F0 = R14:R15, F1 = ?:?    (R16,R17 don't exist!)
-Note: FINIT R14 is invalid (not enough following registers)
+Always:
+  F0 = R2:R3
+  F1 = R4:R5
 ```
 
-### **8.3 Common Sequences**
+### **11.3 Common Sequences**
 ```
-Addition:        FINIT, load a→F0, b→F1, FADD
-Subtraction:     FINIT, load a→F0, b→F1, FNEG(b in CPU), FADD
-Multiplication:  FINIT, load a→F0, b→F1, FMUL
-Division:        FINIT, load a→F0, b→F1, FDIV
-Square root:     FINIT, load x→F0, FSQRT
-Comparison:      FINIT, load a→F0, b→F1, FCMP, branch on flags
+Addition:        Load a→F0, b→F1, FADD
+Subtraction:     Load a→F0, b→F1, XOR R4,0x8000, FADD
+Multiplication:  Load a→F0, b→F1, FMUL
+Division:        Load a→F0, b→F1, FDIV
+Square root:     Load x→F0, FSQRT
+Exponential:     Load x→F0, FEXP
+Logarithm:       Load x→F0, FLOG
+Comparison:      Load a→F0, b→F1, FCMP, branch on flags
 ```
 
 ---
 
-## **9. Implementation Notes**
+## **12. Educational Exercises**
 
-### **9.1 Software Emulation Handler**
-All FPU instructions trap to vector 0 (illegal instruction). The handler:
-1. Decodes the FPU instruction
-2. Reads operands from CPU registers (based on last FINIT)
-3. Performs operation in software
-4. Writes result back to CPU registers
-5. Returns to next instruction
-
-### **9.2 Hardware Acceleration Path**
-When FPU_PRESENT bit is set:
-1. Trap handler checks configuration register
-2. If hardware present, dispatches to hardware FPU
-3. Hardware reads/writes CPU registers directly
-4. No software emulation overhead
-
-### **9.3 Performance Considerations**
-```
-Data movement is critical: FPU operates directly on CPU registers
-Minimize: FINIT calls (setup overhead)
-Maximize: Sequences of FP operations between data moves
-Consider: Using multiple FINIT contexts for different computation phases
-```
-
----
-
-## **10. Educational Exercises**
-
-### **10.1 Implement Software FPU**
+### **12.1 Implement Software FPU**
 ```
 1. Write IEEE 754 single-precision format handlers
 2. Implement FADD/FMUL software algorithms
@@ -457,26 +681,52 @@ Consider: Using multiple FINIT contexts for different computation phases
 4. Implement FSQRT using Babylonian method
 5. Add FEXP using Taylor series approximation
 6. Implement FLOG using similar approximations
+7. Test all special values (NaN, Inf, denormals)
 ```
 
-### **10.2 Optimization Challenges**
+### **12.2 Math Function Implementation**
 ```
-1. Minimize FINIT overhead in loops
-2. Implement register renaming to avoid moves
-3. Create efficient constant generation routines
-4. Design hardware FPU block diagram
-5. Estimate cycle counts for each operation
+1. Implement pow() using FEXP and FLOG
+2. Create sin() using Taylor series
+3. Build math library with common functions
+4. Compare precision with reference implementations
+5. Optimize critical functions
 ```
 
-### **10.3 Numerical Analysis**
+### **12.3 Performance Analysis**
 ```
-1. Test precision limits of each operation
-2. Compare software vs hardware rounding behavior
-3. Analyze error propagation in complex expressions
-4. Implement Kahan summation algorithm
-5. Test special value handling (NaN, Inf, denormals)
+1. Profile software emulation performance
+2. Identify bottlenecks for hardware acceleration
+3. Design hardware FPU block diagram
+4. Estimate gate count vs performance tradeoffs
+5. Benchmark against software math library
 ```
 
 ---
 
-**Deep16 FPU Manual v2.0** - Accumulator-based 2-register window design. This minimalist approach provides essential floating-point capability while maintaining hardware simplicity and educational value. The virtual register window mapped to physical CPU registers enables efficient software emulation with a clear path to hardware acceleration.
+## **13. Changes from Previous Version**
+
+### **13.1 v3.0 Key Updates**
+1. **Fixed register window**: F0=R2:R3, F1=R4:R5
+2. **Added FEXP/FLOG**: Replaced FSUB/FABS with transcendentals
+3. **Kept R0 free**: For efficient constant loading via LDI
+4. **7 operation design**: FADD, FMUL, FDIV, FSQRT, FEXP, FLOG, FCMP
+5. **Practical focus**: Enables advanced functions via FEXP/FLOG
+
+### **13.2 Why These Choices?**
+- **R2-R5**: General purpose, doesn't conflict with special registers
+- **FEXP/FLOG**: Enable pow(), exp(), log10(), sigmoid(), etc.
+- **Fixed window**: Necessary due to encoding constraints
+- **R0 free**: Critical for efficient constant generation
+
+### **13.3 Performance Impact**
+- **Positive**: FEXP/FLOG enable many functions in hardware
+- **Negative**: Fixed registers require careful register management
+- **Neutral**: Subtraction/absolute value require extra CPU ops
+- **Overall**: More powerful for mathematical computations
+
+---
+
+**Deep16 FPU Manual v3.0** - Fixed register window with transcendental support. This design provides powerful floating-point capability within encoding constraints, keeping R0 free for efficient programming while enabling advanced mathematical functions through FEXP and FLOG support.
+
+*Note: All FPU instructions initially trap to software emulation. Future hardware implementation will provide direct execution.*
