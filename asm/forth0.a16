@@ -45,7 +45,7 @@ forth_start:
     LDI 0x07FF
     MOV R2, R0
     AND R6, R2
-    LDI 0x5000        ; Sign-extends to 0x9000 (DE=1, ER=8)
+    LDI 0x4000        ; Sign-extends to 0xC000 (DE=1, ER=8)
     MOV R2, R0
     OR R6, R2
     SPSW R6
