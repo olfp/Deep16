@@ -97,7 +97,7 @@ class Deep16Simulator {
             0xA200, // ST R1, [R0+0]
             0xA201, // ST R1, [R0+1]
             0xA202, // ST R1, [R0+2]
-            0xFFB0, // JML R0
+            0xFFE0, // JML R0
             0xFFF0, // NOP (delay slot)
             0xFFF1, // HLT
             0xFFF1, // HLT
@@ -227,9 +227,12 @@ class Deep16Simulator {
                             return false;
                         } else if ((instruction >>> 6) === 0b1111111110) {
                             return this.executeSOP(instruction);
-                        } else if ((instruction >>> 4) === 0b111111111110) {
-                            this.executeLPSW(instruction);
+                        } else if ((instruction >>> 5) === 0b11111111110) {
+                            this.executeSetClr(instruction);
                             return false;
+                        } else if ((instruction >>> 4) === 0b111111111110) {
+                            const rx = instruction & 0xF;
+                            return this.executeJML(rx);
                         } else if ((instruction >>> 3) === 0b1111111111110) {
                             // console.log("System instruction");
                             this.executeSystem(instruction);
@@ -642,88 +645,40 @@ class Deep16Simulator {
     }
 
     executeSOP(instruction) {
-        const type4 = (instruction >>> 4) & 0xF;
+        const type2 = (instruction >>> 4) & 0x3;
         const rx = instruction & 0xF;
-        
-        // console.log(`SOP Execute: type4=${type4.toString(2)}, rx=${rx} (${this.getRegisterName(rx)})`);
-        
-        // JML encoding: type4 == 0b1011
-        if (type4 === 0b1011) {
-            return this.executeJML(rx);
-        }
 
-        switch (type4) {
-            case 0b0000: // SWB - Swap Bytes
-                const value = this.registers[rx];
-                this.registers[rx] = ((value & 0xFF) << 8) | ((value >>> 8) & 0xFF);
-                // console.log(`SWB: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
+        switch (type2) {
+            case 0b00: // INV
+                this.registers[rx] = (~this.registers[rx]) & 0xFFFF;
                 this.lastALUResult = this.registers[rx];
                 this.lastOperationWasALU = true;
                 return false;
-                
-            case 0b0001: // SRD - Stack Register Dual (swapped mapping)
-                this.psw = (this.psw & ~0x03C0) | (rx << 6) | 0x0400;
-                // console.log(`SRD: Stack Register Dual = R${rx}, PSW = 0x${this.psw.toString(16)}`);
-                return false;
-                
-            case 0b0010: // NEG - Two's complement
+            case 0b01: // NEG
                 this.registers[rx] = (~this.registers[rx] + 1) & 0xFFFF;
-                // console.log(`NEG: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
                 this.lastALUResult = this.registers[rx];
                 this.lastOperationWasALU = true;
                 return false;
-                
-            // JML handled by sub2 check
-                
-            case 0b1000: // SRS - Stack Register Single
-                this.psw = (this.psw & ~0x03C0) | (rx << 6);
-                // console.log(`SRS: Stack Register = R${rx}, PSW = 0x${this.psw.toString(16)}`);
+            case 0b10: // SPSW
+                this.psw = this.registers[rx] & 0xFFFF;
                 return false;
-                
-            case 0b1001: // INV - Invert bits (swapped mapping)
-                this.registers[rx] = ~this.registers[rx] & 0xFFFF;
-                // console.log(`INV: ${this.getRegisterName(rx)} = 0x${this.registers[rx].toString(16).padStart(4, '0')}`);
-                this.lastALUResult = this.registers[rx];
-                this.lastOperationWasALU = true;
+            case 0b11: // LPSW
+                this.executeLPSW(instruction);
                 return false;
-                
-            case 0b1010: // ERS - Extra Register Single
-                this.psw = (this.psw & ~0x7800) | (rx << 11);
-                // console.log(`ERS: Extra Register = R${rx}, PSW = 0x${this.psw.toString(16)}`);
-                return false;
-                
-            case 0b0011: // ERD - Extra Register Dual (updated mapping)
-                this.psw = (this.psw & ~0x7800) | (rx << 11) | 0x8000;
-                // console.log(`ERD: Extra Register Dual = R${rx}, PSW = 0x${this.psw.toString(16)}`);
-                return false;
-                
-            case 0b1100: // SET - Set PSW flags
-                const setFlags = instruction & 0xF;
-                this.psw |= setFlags;
-                // console.log(`SET: PSW flags 0x${setFlags.toString(16)} set, PSW = 0x${this.psw.toString(16)}`);
-                return false;
-                
-            case 0b1101: // CLR - Clear PSW flags
-                const clrFlags = instruction & 0xF;
-                this.psw &= ~clrFlags;
-                // console.log(`CLR: PSW flags 0x${clrFlags.toString(16)} cleared, PSW = 0x${this.psw.toString(16)}`);
-                return false;
-                
-            case 0b1110: // SET2 - Set upper PSW bits
-                const set2Flags = (instruction & 0xF) << 4;
-                this.psw |= set2Flags;
-                // console.log(`SET2: PSW bits 0x${set2Flags.toString(16)} set, PSW = 0x${this.psw.toString(16)}`);
-                return false;
-                
-            case 0b1111: // CLR2 - Clear upper PSW bits
-                const clr2Flags = (instruction & 0xF) << 4;
-                this.psw &= ~clr2Flags;
-                // console.log(`CLR2: PSW bits 0x${clr2Flags.toString(16)} cleared, PSW = 0x${this.psw.toString(16)}`);
-                return false;
-                
             default:
-                // console.warn(`Unimplemented SOP instruction: type4=${type4.toString(2)}`);
                 return false;
+        }
+    }
+
+    executeSetClr(instruction) {
+        const d = (instruction >>> 4) & 0x1;
+        const imm = instruction & 0xF;
+        if (imm === 4) return;
+        const mask = (1 << imm) & 0xFFFF;
+        if (d === 0) {
+            this.psw |= mask;
+        } else {
+            this.psw &= ~mask;
         }
     }
 

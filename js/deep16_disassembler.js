@@ -8,7 +8,7 @@ class Deep16Disassembler {
         ];
         this.shiftOps = ['SL','SLA','SLAC','SLC','SR','SRC','SRA','SRAC','ROL','RLC','ROR','RRC'];
         this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
-        this.systemOps = ['NOP', 'FSH', 'SWI', 'RETI', '', '', '', ''];
+        this.systemOps = ['NOP', 'FSH', 'SWI', 'RETI', 'SETI', 'CLRI', '', ''];
         this.segmentNames = ['CS', 'DS', 'SS', 'ES'];
         this.smvSources = ['ACS','ADS','ASS','AES','APSW','AR0','AR1','AR2','','','AR13','AR14','APC'];
     }
@@ -69,6 +69,13 @@ disassembleControlFlow(instruction) {
         return this.disassembleSOP(instruction);
     }
 
+    // 11-bit SET/CLR
+    if ((instruction >>> 5) === 0b11111111110) {
+        const d = (instruction >>> 4) & 0x1;
+        const imm = instruction & 0xF;
+        return d === 0 ? `SET #0x${imm.toString(16).toUpperCase()}` : `CLR #0x${imm.toString(16).toUpperCase()}`;
+    }
+
     // Check for MVS (opcode bits 15-7 = 111111110)
     if ((instruction >>> 7) === 0b111111110) {
         return this.disassembleMVS(instruction);
@@ -78,10 +85,10 @@ disassembleControlFlow(instruction) {
     if ((instruction >>> 8) === 0b11111110) {
         return this.disassembleSMV(instruction);
     }
-    // Check for LPSW (opcode bits 15-4 = 111111111110)
+    // 12-bit JML
     if ((instruction >>> 4) === 0b111111111110) {
         const rx = instruction & 0xF;
-        return `LPSW ${this.registerNames[rx]}`;
+        return `JML ${this.registerNames[rx]}`;
     }
     
     // Check for System (opcode bits 15-3 = 1111111111110)
@@ -94,25 +101,13 @@ disassembleControlFlow(instruction) {
 // In deep16_disassembler.js - Fix disassembleSOP method
 disassembleSOP(instruction) {
     const rx = instruction & 0xF;
-    const type4 = (instruction >>> 4) & 0xF;
+    const type2 = (instruction >>> 4) & 0x3;
 
-    if (type4 === 0b1011) {
-        return `JML ${this.registerNames[rx]}`;
-    }
-
-    switch (type4) {
-        case 0b0000: return `SWB ${this.registerNames[rx]}`;
-        case 0b0001: return `SRD ${this.registerNames[rx]}`;
-        case 0b0010: return `NEG ${this.registerNames[rx]}`;
-        case 0b1000: return `SRS ${this.registerNames[rx]}`;
-        case 0b1001: return `INV ${this.registerNames[rx]}`;
-        case 0b1010: return `ERS ${this.registerNames[rx]}`;
-        case 0b0011: return `ERD ${this.registerNames[rx]}`;
-        case 0b1011: return `JML ${this.registerNames[rx]}`;
-        case 0b1100: return `SET #0x${(instruction & 0xF).toString(16).toUpperCase()}`;
-        case 0b1101: return `CLR #0x${(instruction & 0xF).toString(16).toUpperCase()}`;
-        case 0b1110: return `SET2 #0x${(instruction & 0xF).toString(16).toUpperCase()}`;
-        case 0b1111: return `CLR2 #0x${(instruction & 0xF).toString(16).toUpperCase()}`;
+    switch (type2) {
+        case 0b00: return `INV ${this.registerNames[rx]}`;
+        case 0b01: return `NEG ${this.registerNames[rx]}`;
+        case 0b10: return `SPSW ${this.registerNames[rx]}`;
+        case 0b11: return `LPSW ${this.registerNames[rx]}`;
         default: return `SOP??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
     }
 }

@@ -21,9 +21,16 @@ main:
     INV  R0          ; R0 = 0xF000 (invert all bits)
     MVS  ES, R0      ; ES = 0xF000
     
-    ; Configure dual registers for ES (ER=11, DE=1)
-    ; ERD R11 automatically sets the ER field to R11 and enables dual mode
-    ERD  R11         ; Extra Register = R11, enable dual (R11+R10 use ES)
+    ; Configure dual registers for ES (ER=11, DE=1) using PSW sequence
+    ; Clear ER/DE, then set ER=11 (0xB) and DE=1
+    LPSW R12
+    LDI  0x07FF
+    MOV  R2, R0
+    AND  R12, R2
+    LDI  0x5800      ; Sign-extends to 0xD800 at runtime (DE=1, ER=11)
+    MOV  R2, R0
+    OR   R12, R2
+    SPSW R12
     
     ; Now we can access screen memory at ES:0x1000 (physical 0xF1000)
     ; Clear screen (set all characters to space)
