@@ -511,9 +511,7 @@ class Deep16Simulator {
             case 0b11110: {
                 if (opVal === 0) { result = 0xFFFF; break; }
                 const q = Math.floor(rdValue / opVal) & 0xFFFF;
-                const r = (rdValue % opVal) & 0xFFFF;
                 this.registers[rd] = q;
-                this.registers[rd + 1] = r;
                 result = q;
                 break;
             }
@@ -631,17 +629,17 @@ class Deep16Simulator {
             const inShadow = (this.psw & (1 << 5)) !== 0;
             const currentPC = inShadow ? (this.shadowRegisters.PC & 0xFFFF) : (this.registers[15] & 0xFFFF);
             const targetPC = (currentPC + offset) & 0xFFFF;
-            this.delaySlotActive = true;
-            this.delayedPC = targetPC;
-            this.delayedCS = inShadow ? (this.shadowRegisters.CS & 0xFFFF) : (this.segmentRegisters.CS & 0xFFFF);
-            this.delayedToShadow = inShadow;
+            // Immediate branch, no delay slot for conditional jumps
+            if (inShadow) {
+                this.shadowRegisters.PC = targetPC;
+            } else {
+                this.registers[15] = targetPC;
+            }
             this.branchTaken = true;
         } else {
-            // Branch not taken, no delay slot needed
             this.branchTaken = false;
         }
-        
-        return true; // This is a branch instruction
+        return false;
     }
 
     executeSOP(instruction) {
