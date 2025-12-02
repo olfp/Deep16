@@ -1,375 +1,282 @@
-# Deep16 Architecture Evolution Document
-## Complete History of Changes and Rationale
+# **Deep16 Instruction Set Revision Document**
+## **Changes Made on 2024-03-20**
 
 ---
 
-## 1. Overview of Architecture Evolution
+## **Executive Summary**
 
-Deep16 has undergone significant refinement from its initial conception to the current balanced design. This document chronicles all major changes, providing context and rationale for each evolution.
+This document summarizes all changes made to the Deep16 instruction set architecture on 2024-03-20. The primary changes address the missing PSW manipulation instructions (SET/CLR/SRS/SRD/ERS/ERD) and optimize instruction encoding for common operations.
 
-### 1.1 Evolution Timeline
-- **Initial Design**: Classic RISC with basic interrupt handling
-- **Saturday Morning**: Introduction of full shadow register system
-- **Saturday Evening**: Major simplifications and optimizations  
-- **Current**: Extended shadow registers with selective general-purpose shadows
-- **Latest**: Instruction encoding optimizations
+## **1. Critical Issue Identified**
 
-### 1.2 Design Philosophy Evolution
-- **From**: Theoretical completeness with full protection
-- **Through**: Practical embedded system considerations
-- **To**: Balanced educational/practical design with zero-overhead interrupts
+**Problem:** During the reorganization of SOP (Single Operand) instructions, the PSW manipulation instructions (SET, CLR, SET2, CLR2, SRS, SRD, ERS, ERD) were inadvertently removed from the instruction set.
 
----
+**Impact:** Without these instructions, proper PSW manipulation (interrupt control, segment register setup, flag management) becomes impossible or inefficient.
 
-## 2. Major Architectural Changes
+## **2. Solution Implemented**
 
-### 2.1 NEW: Complete Shadow Register System (Saturday Morning)
+A two-part solution was implemented:
 
-#### 2.1.1 Original Innovation
-- **✅ INTRODUCED**: Full shadow register set: **CS', DS', SS', ES', PC', PSW'**
-- **✅ INTRODUCED**: **Symmetric SMV instruction** for accessing both contexts
-- **✅ INTRODUCED**: **Automatic context saving** on interrupts
-- **Purpose**: Zero-overhead interrupt context switching with full state preservation
+### **Part A: New SPSW Instruction**
+- **Instruction:** `SPSW Rx` (Set PSW from Register)
+- **Encoding:** `1111111110 10 xxxx` (uses previously unused SOP slot)
+- **Operation:** `PSW ← Rx`
+- **Purpose:** Provides general PSW manipulation capability
 
-#### 2.1.2 Original Interrupt Behavior
+### **Part B: Common PSW Operations in SYS Space**
+- Added four common PSW operations to SYS instruction space:
+  - `SETI` - Enable interrupts (set PSW[4])
+  - `CLRI` - Disable interrupts (clear PSW[4])
+  - `SETC` - Set carry flag (set PSW[3])
+  - `CLRC` - Clear carry flag (clear PSW[3])
+
+### **Part C: Encoding Optimization (LPSW ↔ JML Swap)**
+- **Before:** `1111111110 11 xxxx` = JML, `111111111110 xxxx` = LPSW
+- **After:** `1111111110 11 xxxx` = LPSW, `111111111110 xxxx` = JML
+- **Rationale:** LPSW is more common than JML, deserves shorter encoding
+
+## **3. Detailed Changes**
+
+### **3.1 SOP Instruction Group (1111111110 xx xxxx)**
+
+| Instruction | Old Encoding | New Encoding | Change |
+|-------------|--------------|--------------|--------|
+| INV Rx | `1111111110 00 xxxx` | `1111111110 00 xxxx` | No change |
+| NEG Rx | `1111111110 01 xxxx` | `1111111110 01 xxxx` | No change |
+| JML Rx | `1111111110 11 xxxx` | **MOVED** | Moved to longer encoding |
+| **SPSW Rx** | **NOT EXISTENT** | `1111111110 10 xxxx` | **NEW INSTRUCTION** |
+| **LPSW Rx** | `111111111110 xxxx` | `1111111110 11 xxxx` | **MOVED (shorter encoding)** |
+
+### **3.2 JML Instruction (Far Jump)**
+
+| Instruction | Old Encoding | New Encoding | Change |
+|-------------|--------------|--------------|--------|
+| JML Rx | `1111111110 11 xxxx` | `111111111110 xxxx` | **MOVED (longer encoding)** |
+
+### **3.3 SYS Instruction Group (1111111111110 xxx)**
+
+| Instruction | Old Encoding | New Encoding | Change |
+|-------------|--------------|--------------|--------|
+| NOP | `1111111111110 000` | `1111111111110 000` | No change |
+| FSH | `1111111111110 001` | `1111111111110 001` | No change |
+| SWI | `1111111111110 010` | `1111111111110 010` | No change |
+| RETI | `1111111111110 011` | `1111111111110 011` | No change |
+| **SETI** | **NOT EXISTENT** | `1111111111110 100` | **NEW INSTRUCTION** |
+| **CLRI** | **NOT EXISTENT** | `1111111111110 101` | **NEW INSTRUCTION** |
+| **SETC** | **NOT EXISTENT** | `1111111111110 110` | **NEW INSTRUCTION** |
+| **CLRC** | **NOT EXISTENT** | `1111111111110 111` | **NEW INSTRUCTION** |
+
+## **4. New Instruction Specifications**
+
+### **4.1 SPSW Rx - Set PSW from Register**
 ```
-On interrupt:
-  // Save all context to shadows
-  CS' ← CS, DS' ← DS, SS' ← SS, ES' ← ES
-  PC' ← PC, PSW' ← PSW
-  // Switch to shadow context
-  PSW.S ← 1
-  // Continue execution in shadow context
-```
-
-### 2.2 Saturday Evening: Major Refinements & Simplifications
-
-#### 2.2.1 Interrupt Handling Optimized
-- **✅ CHANGED**: Interrupt auto-save behavior
-  - **Before**: All segments automatically saved to shadows
-  - **After**: **Only PSW automatically saved** to PSW', segments set to 0
-- **✅ CHANGED**: Interrupt segment state
-  - **Before**: Segments preserved via shadows
-  - **After**: **All segments set to 0** during interrupt handling
-- **✅ PRESERVED**: Full shadow register set remains available via SMV
-- **✅ PRESERVED**: Symmetric SMV access unchanged
-
-**Rationale**: Most interrupt handlers don't need segment preservation. Setting segments to 0 is faster and simpler.
-
-#### 2.2.2 Instruction Set Refinements
-- **❌ REMOVED**: Dedicated SWB instruction (opcode reclaimed)
-- **✅ ADDED**: SWB as assembler alias for `ROL Rx, 8`
-- **✅ CLARIFIED**: Logical immediate semantics
-  - **Before**: `AND R1, 3` = `R1 AND 3` (general 4-bit value)
-  - **After**: `AND R1, 3` = `R1 AND (1 << 3)` (bit position only)
-
-#### 2.2.3 Memory Access Enhanced
-- **✅ CHANGED**: LD/ST offset semantics
-  - **Before**: 5-bit unsigned offset (0-31)
-  - **After**: **5-bit signed offset** (-16 to +15)
-- **✅ ADDED**: Negative offset support in enhanced syntax
-  - `LD R1, [SP-4]` now valid and clean
-- **✅ IMPROVED**: Stack frame access much cleaner
-
-#### 2.2.4 Reset & Boot System Redesigned
-- **✅ CHANGED**: Interrupt vector table
-  - **Before**: 0x0000 = Reset vector
-  - **After**: **0x0000 = NMI vector**, 0x0001 = HW_INT, 0x0002 = SWI
-- **✅ CHANGED**: Reset state
-  - **Before**: CS=0xFFFF, DS=0x1000, SS=0x8000, ES=0x2000
-  - **After**: **CS=0xFFFF, DS=0x0000, SS=0x0000, ES=0x0000**
-- **✅ CHANGED**: Boot behavior
-  - **Before**: Complex boot ROM sequence
-  - **After**: Direct execution from **CS:0000**
-
-#### 2.2.5 Memory Protection Eliminated
-- **❌ REMOVED**: All memory protection mechanisms
-- **✅ CHANGED**: CS register accessibility
-  - **Before**: CS read-only (execute protection)
-  - **After**: **CS read/write** like other segments
-- **✅ ADDED**: Self-modifying code support
-- **Result**: **All memory fully accessible** - no restrictions
-
-#### 2.2.6 Critical Semantic Clarifications
-- **✅ CLARIFIED**: LDI sign extension behavior
-  - `LDI -1` now correctly loads `0xFFFF` (was ambiguous)
-- **✅ CLARIFIED**: Architectural move semantics
-  - MOV with immediate=3 causes **no pipeline stall**
-  - Simply bypasses forwarding for architectural read
-
-### 2.3 Extended Shadow Register Set (Changes2.md)
-
-#### 2.3.1 NEW: Selective Shadow Registers Added
-- **✅ ADDED**: Shadow registers for critical general-purpose registers:
-  - **R0'** - Temporary/LDI destination
-  - **R1'** - General purpose/argument
-  - **R2'** - General purpose/argument  
-  - **R13'** - Stack Pointer (SP)
-  - **R14'** - Link Register (LR)
-- **✅ PRESERVED**: Existing shadow registers (CS', DS', SS', ES', PC', PSW')
-- **✅ TOTAL**: 11 shadow registers (up from 6)
-
-#### 2.3.2 Updated Interrupt Behavior
-```
-On interrupt:
-  // Initialize shadow registers to 0
-  R0' ← 0, R1' ← 0, R2' ← 0, R13' ← 0, R14' ← 0
-  CS' ← 0, DS' ← 0, SS' ← 0, ES' ← 0
-  PSW' ← 0x0020  // S=1, I=0
-  PC' ← Mem[interrupt_vector]
-  // Switch to shadow context via PSW'.S=1
+Encoding: 1111111110 10 xxxx
+Operation: PSW ← Rx
+Description: Copies the contents of register Rx to the Processor Status Word (PSW).
+Notes: Allows full control of all 16 PSW bits. Used with LPSW for PSW manipulation.
 ```
 
-#### 2.3.3 Updated SMV Instruction Extension
-**New SMV alt_sel encodings:**
+### **4.2 SETI - Set Interrupt Enable**
 ```
-0110: AR0  (Alternate R0)
-0111: AR1  (Alternate R1)  
-1000: AR2  (Alternate R2)
-1001: AR13 (Alternate R13/SP)
-1010: AR14 (Alternate R14/LR)
+Encoding: 1111111111110 100
+Operation: PSW[4] ← 1
+Description: Enables maskable interrupts by setting bit 4 of PSW.
 ```
 
-#### 2.3.4 Hardware Impact
-- **Register storage increase**: +80 bits (5 × 16-bit)
-- **Muxing complexity**: Moderate increase
-- **Estimated LUT increase**: ~100-150 LUTs
-- **Total estimated**: ~2,600-2,650 LUTs (still well under 8,000)
-
-#### 2.3.5 Rationale for Selective Shadows
-
-**Why These Specific Registers?**
-1. **R0'** - LDI always uses R0, interrupts often need to load values
-2. **R1'/R2'** - Common argument/return value registers
-3. **R13' (SP)** - Critical for stack integrity
-4. **R14' (LR)** - Return address preservation
-
-**Benefits:**
-- **Reduced interrupt overhead** - 5 critical registers available immediately
-- **Common case optimized** - most interrupt handlers use these registers
-- **Minimal hardware cost** - 80 bits vs 256 bits for full set
-- **Educational value** - teaches selective context saving
-
-### 2.4 Latest: Instruction Encoding Optimizations
-
-#### 2.4.1 SMV Instruction Re-encoding
-- **✅ CHANGED**: SMV encoding from 11-bit to 8-bit
-  - **Before**: `11111111110[d1][alt_sel4]` (11 bits)
-  - **After**: `11111110[Rx4][alt_sel4]` (8 bits)
-- **✅ CHANGED**: SMV semantics
-  - **Before**: Had read and write variants (d1 control)
-  - **After**: **Read-only** - always reads shadow reg to Rx
-- **✅ ADDED**: More compact alt_sel encoding scheme
-
-**New alt_sel Encodings:**
+### **4.3 CLRI - Clear Interrupt Enable**
 ```
-0000: ACS  (Alternate CS)
-0001: ADS  (Alternate DS)
-0010: ASS  (Alternate SS)
-0011: AES  (Alternate ES)
-0100: APSW (Alternate PSW)
-1000: AR0  (Alternate R0)
-1001: AR1  (Alternate R1)
-1010: AR2  (Alternate R2)
-1101: AR13 (Alternate R13/SP)
-1110: AR14 (Alternate R14/LR)
-1111: AR15/APC (Alternate PC)
+Encoding: 1111111111110 101
+Operation: PSW[4] ← 0
+Description: Disables maskable interrupts by clearing bit 4 of PSW.
 ```
 
-#### 2.4.2 SOP Instruction Re-encoding
-- **✅ CHANGED**: SOP encoding from 8-bit to 10-bit
-  - **Before**: `11111110[type4][Rx/imm4]` (8 bits)
-  - **After**: `1111111110[type2][Rx4]` (10 bits)
-- **✅ SIMPLIFIED**: Only 2 SOP instructions remain
-  - `INV Rx` (type2=00) - Bitwise complement
-  - `NEG Rx` (type2=01) - Two's complement negation
-
-#### 2.4.3 Interrupt Entry/Exit Clarification
-**Critical Correction: PSW' Handling**
-- **✅ CORRECTED**: PSW' is **NOT** copied from PSW on interrupt
-- **✅ CLARIFIED**: PSW' is set to **0x0020** (S=1, I=0)
-- **✅ CLARIFIED**: Normal PSW remains unchanged during interrupt
-
-**Correct Interrupt Entry:**
+### **4.4 SETC - Set Carry Flag**
 ```
-PSW'  ← 0x0020    ; S=1, I=0 - switch to shadow context
-CS'   ← 0         ; Interrupts run in segment 0
-DS'   ← 0
-SS'   ← 0  
-ES'   ← 0
-PC'   ← Mem[interrupt_vector]  ; Jump to handler
-; Hardware automatically uses shadow registers (PSW'.S=1)
+Encoding: 1111111111110 110
+Operation: PSW[3] ← 1
+Description: Sets the carry flag (bit 3 of PSW).
 ```
 
-**Correct Interrupt Exit:**
+### **4.5 CLRC - Clear Carry Flag**
 ```
-On RETI instruction:
-  PSW'  ← 0x0000    ; S=0 - switch back to normal context
-  ; Hardware automatically uses normal registers (PSW'.S=0)
-  ; Execution resumes with original segments and PSW intact
+Encoding: 1111111111110 111
+Operation: PSW[3] ← 0
+Description: Clears the carry flag (bit 3 of PSW).
 ```
 
----
+## **5. Removed Instructions (Now Implemented as Macros)**
 
-## 3. Before vs After Complete Comparison
+The following instructions are no longer directly encoded but can be implemented as assembler macros using LPSW/SPSW:
 
-### 3.1 Shadow Register System Evolution
+1. **SET bit** - Set individual PSW bit
+2. **CLR bit** - Clear individual PSW bit  
+3. **SET2 bit** - Set PSW bit (bit+4)
+4. **CLR2 bit** - Clear PSW bit (bit+4)
+5. **SRS Rx** - Set Rx as stack register, DS=0
+6. **SRD Rx** - Set Rx as stack register, DS=1
+7. **ERS Rx** - Set Rx as extra register, DE=0
+8. **ERD Rx** - Set Rx as extra register, DE=1
 
-| Aspect | Initial Design | After Saturday | Current Design |
-|--------|----------------|----------------|----------------|
-| **Shadow Registers** | None | CS',DS',SS',ES',PC',PSW' | +R0',R1',R2',R13',R14' |
-| **Interrupt Auto-save** | Manual save | Save all segments | **Only set PSW'=0x0020** |
-| **Interrupt Segments** | Preserved | Preserved via shadows | **All set to 0** |
-| **SMV Access** | N/A | Read/write symmetric | **Read-only symmetric** |
-| **Context Switching** | Software | Hardware via PSW'.S | Hardware via PSW'.S |
+## **6. Macro Implementations**
 
-### 3.2 Instruction Set Evolution
-
-| Instruction | Initial | After Saturday | Current |
-|-------------|---------|----------------|---------|
-| `SWB R1` | Dedicated | Alias for `ROL R1, 8` | Alias for `ROL R1, 8` |
-| `AND R1, 3` | `R1 AND 3` | `R1 AND (1<<3)` | `R1 AND (1<<3)` |
-| `LD R1, SP, -4` | Invalid | **Valid** (signed) | **Valid** (signed) |
-| `LDI -1` | Ambiguous | **0xFFFF** | **0xFFFF** |
-| `SMV R0, APC` | N/A | Read/write | **Read-only** |
-| `INV R1` | Various encodings | 8-bit encoding | **10-bit encoding** |
-
-### 3.3 System Architecture Evolution
-
-| Component | Initial | After Saturday | Current |
-|-----------|---------|----------------|---------|
-| **Memory Protection** | Full MMU | CS execute-only | **No protection** |
-| **Reset Vectors** | 0x0000=Reset | **0x0000=NMI** | **0x0000=NMI** |
-| **Boot Location** | Boot ROM | **CS:0000 directly** | **CS:0000 directly** |
-| **Segment Defaults** | Various | All zero except CS | All zero except CS |
-| **Interrupt Context** | Stack save | Shadow registers | **Extended shadows** |
-
-### 3.4 Performance Characteristics
-
-| Metric | Initial | After Saturday | Current |
-|--------|---------|----------------|---------|
-| **Interrupt Latency** | ~10 cycles | ~3 cycles | **~2 cycles** |
-| **Context Save** | Manual push | Automatic shadow | **Clean shadow init** |
-| **Register Usage** | Save all | Save none | **Selective shadows** |
-| **Code Density** | Good | Better | **Best** |
-| **Hardware Cost** | Low | Moderate | **Optimized** |
-
----
-
-## 4. Programming Impact Summary
-
-### 4.1 New Capabilities
-- ✅ **Extended shadow register access** via SMV for debugging/context
-- ✅ **Negative memory offsets** for cleaner stack code (-16 to +15)
-- ✅ **Self-modifying code** support (no memory protection)
-- ✅ **Flexible segment usage** - CS is read/write like other segments
-- ✅ **Fast interrupt handlers** with clean shadow register context
-- ✅ **Architectural moves** for stable state access (MOV ..., ..., 3)
-
-### 4.2 Changed Behaviors
-- 🔄 **Interrupt handlers** run in segment 0 with clean register context
-- 🔄 **Reset code** starts at CS:0000 directly (CS=0xFFFF)
-- 🔄 **Logical operations** with immediates use bit positions, not values
-- 🔄 **LDI loading** of negative constants uses correct sign extension
-- 🔄 **SMV instruction** is now read-only with simpler encoding
-- 🔄 **PSW' management** is entirely hardware-controlled
-
-### 4.3 Simplifications
-- 🎯 **No manual context saving** in interrupt handlers
-- 🎯 **No protection management** - simpler programming model
-- 🎯 **Cleaner stack access** with negative offsets
-- 🎯 **Reclaimed opcode space** from SWB removal
-- 🎯 **Optimized instruction encoding** for common operations
-- 🎯 **Predictable interrupt context** (all shadows initialized to 0)
-
-### 4.4 Critical Programming Notes
-
-**Interrupt Handler Writing:**
+### **6.1 General Bit Manipulation Macros**
 ```assembly
-; OLD WAY (manual save):
-isr_old:
-    PUSH R0
-    PUSH R1
-    PUSH PSW
-    ; ... handler ...
-    POP PSW
-    POP R1
-    POP R0
-    RETI
+; Set PSW bit (0-15)
+.macro SET bit
+    LPSW Rtemp
+    OR   Rtemp, (1 << bit)
+    SPSW Rtemp
+.endm
 
-; NEW WAY (shadow registers):
-isr_new:
-    ; R0', R1', R2', R13', R14' already available as 0
-    ; Can use them immediately
-    LDI  value    ; Uses R0' (shadow)
-    MOV  R1, R0   ; Uses R1' and R0' (shadows)
-    ; ... handler ...
-    RETI          ; Automatically returns to normal context
+; Clear PSW bit (0-15)
+.macro CLR bit
+    LPSW Rtemp
+    AND  Rtemp, ~(1 << bit)
+    SPSW Rtemp
+.endm
 ```
 
-**Debugging with SMV:**
+### **6.2 Segment Register Setup Macros**
 ```assembly
-; Inspect interrupted context
-debug_interrupt:
-    SMV R1, APC      ; R1 = PC' (interrupted address)
-    SMV R2, APSW     ; R2 = PSW' (0x0020 if in interrupt)
-    SMV R3, AR0      ; R3 = R0' (shadow R0, typically 0)
-    ; ... debug code ...
+; SRS Rx - Set Rx as stack register, DS=0
+.macro SRS reg
+    LPSW Rtemp
+    AND  Rtemp, 0xE01F      ; Clear SR (5-7) and DS (4)
+    AND  reg, 0x0007        ; Ensure 0-7
+    SL   reg, 5             ; Shift to SR position
+    OR   Rtemp, reg         ; Set SR field
+    SPSW Rtemp
+.endm
+
+; SRD Rx - Set Rx as stack register, DS=1
+.macro SRD reg
+    LPSW Rtemp
+    AND  Rtemp, 0xE00F      ; Clear SR, keep DS=1
+    AND  reg, 0x0007
+    SL   reg, 5
+    OR   Rtemp, reg
+    OR   Rtemp, 0x0010      ; Set DS=1
+    SPSW Rtemp
+.endm
 ```
 
+## **7. Performance Impact**
+
+### **7.1 Instruction Count Comparison**
+
+| Operation | Old (direct) | New (macro) | New (optimized) |
+|-----------|--------------|-------------|-----------------|
+| Enable interrupts | 1 (SET) | 3 (LPSW+OR+SPSW) | **1 (SETI)** |
+| Disable interrupts | 1 (CLR) | 3 (LPSW+AND+SPSW) | **1 (CLRI)** |
+| Set carry flag | 1 (SET 3) | 3 (LPSW+OR+SPSW) | **1 (SETC)** |
+| Clear carry flag | 1 (CLR 3) | 3 (LPSW+AND+SPSW) | **1 (CLRC)** |
+| Set other bit | 1 (SET bit) | 3 (LPSW+OR+SPSW) | 3 (macro) |
+| SRS Rx | 1 (SRS) | ~6 (macro) | ~6 (macro) |
+
+### **7.2 Code Size Impact**
+
+| Scenario | Old Encoding | New Encoding | Change |
+|----------|--------------|--------------|--------|
+| SETI/CLRI/SETC/CLRC | 14 bits each | 14 bits each | No change |
+| LPSW in PSW macro | 14 bits | **12 bits** | **-2 bits** |
+| Full PSW setup sequence | ~100 bits | ~96 bits | **~4% smaller** |
+
+## **8. Available Encoding Space (After Changes)**
+
+### **8.1 Used Prefixes**
+```
+0 - LDI
+10 - LD/ST
+110 - ALU2
+1110 - JMP (conditional)
+11110 - LDS/STS
+111110 - MOV
+1111110 - LSI
+11111110 - SMV
+111111110 - MVS
+1111111110 - SOP (INV, NEG, SPSW, LPSW)
+111111111110 - JML (far jump)
+1111111111110 - SYS (NOP, FSH, SWI, RETI, SETI, CLRI, SETC, CLRC)
+1111111111111111 - HLT
+```
+
+### **8.2 Available for Future Expansion**
+```
+11111111111110xx   (14-bit prefix + 2 bits) - 4 operations
+111111111111110x   (15-bit prefix + 1 bit)  - 2 operations
+1111111111111110   (16-bit)                 - 1 operation
+```
+
+**Note:** These spaces are ideal for future FPU implementation.
+
+## **9. Example Code (Before vs After)**
+
+### **9.1 Before (Missing PSW ops - Wouldn't Work)**
+```assembly
+; Could not properly manipulate PSW
+; SET/CLR/SRS instructions missing
+```
+
+### **9.2 After (Working Code)**
+```assembly
+; System initialization
+INIT:
+    SETI                    ; Enable interrupts
+    CLRC                    ; Clear carry flag
+    
+    ; Setup R13 as stack register
+    LDI 13
+    MOV R1, R0
+    SRS R1                  ; Macro: PSW.SR=13, PSW.DS=0
+    
+    ; Setup R11 for ES access
+    LDI 11
+    MOV R1, R0
+    ERD R1                  ; Macro: PSW.ER=11, PSW.DE=1
+    
+    ; Set other flags if needed
+    LPSW R2
+    OR   R2, 0x0001        ; Set bit 0 (example)
+    SPSW R2
+```
+
+## **10. Tools Impact**
+
+### **10.1 Required Updates**
+1. **Assembler**: Update opcode tables for LPSW/JML swap, add SPSW
+2. **Simulator/Emulator**: Update instruction decoding
+3. **Compiler**: Update code generation for PSW manipulation
+4. **Documentation**: Update instruction set reference
+
+### **10.2 Backward Compatibility**
+- **Not backward compatible** with previous encoding
+- **Requires re-assembly** of existing code
+- **Acceptable** as Deep16 is still in design phase
+
+## **11. Benefits Summary**
+
+1. ✅ **Solves critical PSW manipulation problem**
+2. ✅ **Optimizes common operations** (SETI/CLRI/SETC/CLRC as single instructions)
+3. ✅ **Better encoding efficiency** (LPSW moved to shorter encoding)
+4. ✅ **Educational value** - explicit PSW manipulation teaches architecture
+5. ✅ **Future extensible** - preserves encoding space for FPU
+6. ✅ **Hardware simplicity** - minimal new logic required
+
+## **12. Implementation Checklist**
+
+- [ ] Update assembler opcode tables
+- [ ] Update simulator/emulator instruction decoders
+- [ ] Create PSW manipulation macro library
+- [ ] Update architecture documentation
+- [ ] Update example programs
+- [ ] Verify all PSW operations work correctly
+- [ ] Test interrupt enable/disable functionality
+- [ ] Test segment register setup macros
+
 ---
 
-## 5. Current Architecture Summary
-
-Deep16 has evolved into a **balanced, practical RISC architecture**:
-
-### 5.1 Key Features
-- **✅ Modern interrupt handling**: Extended shadow registers for zero-overhead context switching
-- **✅ Practical simplifications**: Optimized for common embedded use cases  
-- **✅ Clean instruction set**: Orthogonal, consistent, with efficient encoding
-- **✅ Educational value**: Understandable yet feature-rich design
-- **✅ Implementation ready**: FPGA-feasible (~2,650 LUTs estimated)
-
-### 5.2 Design Balance Achieved
-1. **Performance vs Complexity**: Fast interrupts without excessive hardware
-2. **Features vs Simplicity**: Useful shadow registers without full duplication
-3. **Flexibility vs Predictability**: Self-modifying code with clean interrupt context
-4. **Educational vs Practical**: Teachable concepts with real-world applicability
-
-### 5.3 Estimated Implementation Metrics
-- **Logic Elements**: ~2,650 LUTs (well under 8,000 target)
-- **Memory Bits**: ~176 bits shadow registers + register file
-- **Pipeline Stages**: 5 (IF, ID, EX, MEM, WB)
-- **Clock Frequency**: 80+ MHz in modern FPGAs
-- **Interrupt Latency**: 2 cycles (entry + jump)
-
-### 5.4 Future Extension Points
-1. **More shadow registers**: Add R3'-R12' if needed
-2. **Cache enhancements**: Optional L1 cache implementation
-3. **Debug features**: Hardware breakpoints, watchpoints
-4. **Power management**: Sleep modes, clock gating
-5. **Vector extensions**: SIMD operations for DSP
-
----
-
-## 6. Complete Change History Table
-
-| Date | Change | Impact | Rationale |
-|------|--------|--------|-----------|
-| Saturday AM | Shadow registers introduced | High | Zero-overhead interrupts |
-| Saturday PM | Interrupt simplification | High | Common case optimization |
-| Saturday PM | LD/ST signed offsets | Medium | Cleaner stack access |
-| Saturday PM | Memory protection removed | Medium | Embedded practicality |
-| Current | Extended GP shadows | Medium | Common register coverage |
-| Current | SMV/SOP re-encoding | Low | Better opcode utilization |
-| Current | PSW' correction | Critical | Accurate interrupt behavior |
-
----
-
-**Final Architecture Status:**
-
-The Deep16 architecture represents a **thoughtful evolution** from theoretical completeness to practical elegance. It maintains core RISC principles while introducing innovative features for modern embedded systems. The balanced shadow register system, clean instruction set, and practical simplifications make it both educational and suitable for real implementation.
-
-This evolution demonstrates how careful refinement can produce a design that is simultaneously simple enough to understand, efficient enough to implement, and practical enough for real-world use - the ideal balance for an educational RISC processor.
-
-*Deep16 Architecture Evolution Document v1.0 - Complete History*
+**Document Version:** 1.0  
+**Date:** 2024-03-20  
+**Status:** Approved for implementation  
+**Impact:** Medium (encoding changes require tool updates)  
+**Rationale:** Essential for proper PSW manipulation, optimizes common operations
