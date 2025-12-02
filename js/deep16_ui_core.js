@@ -85,6 +85,8 @@ class DeepWebUI {
         this.updateRunIndicator(false);
         this.manualAddressChange = true;
         this.updateAllDisplays();
+        this.ensurePCCentered();
+        setTimeout(() => { this.memoryUI.scrollToPC(); }, 60);
         this.syncHeaderWidths();
         this.setupMobileLayout();
         this.wasmAvailable = typeof window.Deep16Wasm !== 'undefined';
@@ -1394,6 +1396,9 @@ class DeepWebUI {
                 if (window.Deep16Debug) console.log("Simulator memory at 0x0000:", this.simulator.memory[0].toString(16));
                 
                 this.simulator.registers[15] = 0x0000;
+                this.simulator.psw = 0;
+                this.simulator.shadowRegisters.PC = 0;
+                this.simulator.shadowRegisters.CS = 0;
                 this.status("Assembly successful! Program loaded.");
                 this.addTranscriptEntry("Assembly successful - program loaded", "success");
                 document.getElementById('run-btn').disabled = false;
@@ -1420,6 +1425,8 @@ class DeepWebUI {
                     }
                     this.manualAddressChange = true;
                     this.memoryUI.renderMemoryDisplay();
+                    this.ensurePCCentered();
+                    setTimeout(() => { this.memoryUI.scrollToPC(); }, 120);
                 }
                 
                 this.switchTab('screen');
@@ -1431,6 +1438,8 @@ class DeepWebUI {
             }
 
             this.updateAllDisplays();
+            this.ensurePCCentered();
+            setTimeout(() => { this.memoryUI.scrollToPC(); }, 120);
             this.updateErrorsList();
             this.updateAssemblyListing();
         } catch (error) {
@@ -1594,6 +1603,31 @@ class DeepWebUI {
         const cs = this.simulator.segmentRegisters.CS & 0xFFFF;
         const pc = this.simulator.registers[15] & 0xFFFF;
         return ((cs << 4) + pc) >>> 0;
+    }
+    ensurePCCentered() {
+        const phys = this.getActivePhysPC();
+        const windowSize = 64;
+        const memLen = this.simulator.memory.length >>> 0;
+        const start = this.memoryStartAddress >>> 0;
+        const end = Math.min(start + windowSize, memLen);
+        const margin = 8;
+        const pcVisible = phys >= start && phys < end;
+        const nearTop = (phys - start) < margin;
+        const nearBottom = (end - phys) <= margin;
+        if (!pcVisible || nearTop || nearBottom) {
+            let targetStart = (phys - (windowSize >> 1)) >>> 0;
+            if (targetStart < 0) targetStart = 0;
+            const maxStart = memLen > windowSize ? (memLen - windowSize) : 0;
+            if (targetStart > maxStart) targetStart = maxStart;
+            targetStart &= ~0x7;
+            this.memoryStartAddress = targetStart;
+            const startAddressInput = document.getElementById('memory-start-address');
+            if (startAddressInput) {
+                startAddressInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
+            }
+            this.manualAddressChange = true;
+            this.memoryUI.renderMemoryDisplay();
+        }
     }
 
     step() {
@@ -1882,6 +1916,8 @@ class DeepWebUI {
         this.manualAddressChange = true;
         this.updateRunButton(false);
         this.updateAllDisplays();
+        this.ensurePCCentered();
+        setTimeout(() => { this.memoryUI.scrollToPC(); }, 60);
         this.status("Simulator reset");
         this.addTranscriptEntry("Simulator reset to initial state", "info");
         this.switchTab('editor');
@@ -2111,18 +2147,26 @@ class DeepWebUI {
             } catch {}
 
             // One-time follow on large jump (WASM): bring PC into view even when locked
-            const physPC = ((this.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.simulator.registers[15] & 0xFFFF);
+            const physPC = this.getActivePhysPC();
             const wStart = this.memoryStartAddress || 0;
             const wEnd = Math.min(wStart + 64, this.simulator.memory.length);
             const wPcVisible = physPC >= wStart && physPC < wEnd;
             const wJumpedFar = Math.abs(physPC - this.lastPhysPC) > 16;
             if (!wPcVisible && wJumpedFar) {
-                this.memoryStartAddress = Math.max(0, physPC - 8);
+                const windowSize = 64;
+                const memLen = this.simulator.memory.length >>> 0;
+                let targetStart = (physPC - (windowSize >> 1)) >>> 0;
+                if (targetStart < 0) targetStart = 0;
+                const maxStart = memLen > windowSize ? (memLen - windowSize) : 0;
+                if (targetStart > maxStart) targetStart = maxStart;
+                targetStart &= ~0x7;
+                this.memoryStartAddress = targetStart;
                 const startAddressInput = document.getElementById('memory-start-address');
                 if (startAddressInput) {
                     startAddressInput.value = '0x' + this.memoryStartAddress.toString(16).padStart(5, '0');
                 }
                 this.memoryUI.renderMemoryDisplay();
+                this.memoryUI.scrollToPC();
             }
             this.lastPhysPC = physPC;
 
