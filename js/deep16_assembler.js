@@ -325,7 +325,10 @@ class Deep16Assembler {
                     case '0': result += '\0'; break;
                     case '\\': result += '\\'; break;
                     case '"': result += '"'; break;
-                    default: throw new Error(`Unknown escape sequence: \\${nextChar}`);
+                    default:
+                        // Gracefully accept unknown escapes: treat as literal next char
+                        result += nextChar;
+                        break;
                 }
                 i += 2;
             } else {
