@@ -1,372 +1,352 @@
-# **Deep16 Instruction Set Revision Document v2.0**
-## **Changes Made on 2024-03-20 (Updated)**
+You're absolutely right. Let me create a comprehensive document that integrates **all changes** from both the original v2.0 (March 20) and the new v2.1 (March 21) updates:
+
+# **Deep16 Instruction Set Revision Document v2.1**
+## **Comprehensive Changes Made on 2024-03-20 through 2024-03-21**
 
 ---
 
 ## **Executive Summary**
 
-This document summarizes all changes made to the Deep16 instruction set architecture on 2024-03-20. The primary changes address the missing PSW manipulation instructions and optimize instruction encoding using newly discovered encoding space.
+This document summarizes **all changes** made to the Deep16 instruction set architecture between March 20-21, 2024. The changes address: PSW manipulation instructions, encoding optimization, FPU space allocation, ILL trap behavior, new CLRB instruction, AMV clarification, and hard-wired assembler aliases.
 
-## **1. Critical Issue Identified**
+## **1. Overview of All Changes**
 
-**Problem:** During the reorganization of SOP (Single Operand) instructions, the PSW manipulation instructions (SET, CLR, SRS, SRD, ERS, ERD) were inadvertently removed from the instruction set.
+### **Phase 1: March 20 (v2.0) - PSW Manipulation Crisis**
+- **Problem**: PSW manipulation instructions (SET, CLR, SRS, SRD, ERS, ERD) were missing
+- **Solution**: Discovered 11-bit prefix space, created comprehensive PSW manipulation system
 
-**Impact:** Without these instructions, proper PSW manipulation (interrupt control, segment register setup, flag management) becomes impossible or inefficient.
+### **Phase 2: March 21 (v2.1) - Refinements and Extensions**
+- **Additions**: CLRB instruction, AMV clarification, FPU encoding space
+- **Optimizations**: Hard-wired assembler aliases, precise encoding definitions
+- **Future-proofing**: ILL trap mechanism for unimplemented FPU instructions
 
-## **2. Solution Implemented**
+## **2. Complete Encoding Hierarchy (Final)**
 
-A comprehensive solution was implemented using multiple encoding spaces:
+**Table 1: Deep16 v5.2 Instruction Encoding Map**
 
-### **Part A: New 11-bit Prefix for SET/CLR Operations**
-- **Encoding:** `11111111110 d1 imm4`
-- **Operations:** 
-  - `SET imm` - Set PSW bit imm (0-15)
-  - `CLR imm` - Clear PSW bit imm (0-15)
-- **Purpose:** Direct manipulation of PSW flag bits (0-3) and Shadow bit (5)
+| Prefix | Bits | Instruction Group | Key Instructions | Status |
+|--------|------|-------------------|------------------|--------|
+| 0 | 1 | LDI | `LDI imm` | **No change** |
+| 10 | 2 | LD/ST | `LD Rd, Rb, offset`, `ST Rd, Rb, offset` | **No change** |
+| 110 | 3 | ALU2 | `ADD`, `SUB`, `AND`, `OR`, `XOR`, `CLRB`, shifts, rotates, multiply/divide | **NEW: Added CLRB** |
+| 1110 | 4 | JMP | `JZ`, `JNZ`, `JC`, `JNC`, `JN`, `JNN`, `JO`, `JNO` | **No change** |
+| 11110 | 5 | LDS/STS | `LDS Rd, seg, Rb`, `STS Rd, seg, Rb` | **No change** |
+| 111110 | 6 | MOV/AMV | `MOV Rd, Rs, imm`, `AMV Rd, Rs` | **NEW: AMV clarified** |
+| 1111110 | 7 | LSI | `LSI Rd, imm` | **No change** |
+| 11111110 | 8 | SMV | `SMV Rx, alt_reg` | **No change** |
+| 111111110 | 9 | MVS | `MVS Rd, Sx`, `MVS Sx, Rd` | **No change** |
+| 1111111110 | 10 | SOP | `INV Rx`, `NEG Rx`, `SPSW Rx`, `LPSW Rx` | **NEW: LPSW moved here from 12-bit** |
+| 11111111110 | 11 | SET/CLR | `SET imm`, `CLR imm` | **NEW: Created from discovered space** |
+| 111111111110 | 12 | JML | `JML Rx` | **CHANGED: Moved from 10-bit** |
+| 1111111111110 | 13 | SYS | `NOP`, `FSH`, `SWI`, `RETI`, `SETI`, `CLRI` | **NEW: Added SETI/CLRI** |
+| 11111111111110 | 14 | FPU_CORE | `FADD`, `FMUL`, `FDIV`, `FSQRT` | **NEW: ILL trap space** |
+| 111111111111110 | 15 | FPU_EXT | `FEXP`, `FLOG` | **NEW: ILL trap space** |
+| 1111111111111110 | 16 | FCMP | `FCMP` | **NEW: ILL trap space** |
+| 1111111111111111 | 16 | HLT | `HLT` | **No change** |
 
-### **Part B: Common PSW Operations in SYS Space**
-- Added two common PSW operations to SYS instruction space:
-  - `SETI` - Enable interrupts (set PSW[4])
-  - `CLRI` - Disable interrupts (clear PSW[4])
-- **Rationale:** Bit 4 needs special handling, not reachable via imm4's single-bit operations
+## **3. Detailed Changes from Original Specification**
 
-### **Part C: New SPSW/LPSW Instructions**
-- **SPSW Rx:** `1111111110 10 Rx4` - Set PSW from register
-- **LPSW Rx:** `1111111110 11 Rx4` - Load PSW to register (moved from 12-bit encoding)
-- **Purpose:** Full PSW manipulation for upper byte (bits 6-15)
+### **3.1 PSW Manipulation System (March 20)**
 
-### **Part D: Encoding Optimization (LPSW ↔ JML Swap)**
-- **Before:** `1111111110 11 xxxx` = JML, `111111111110 xxxx` = LPSW
-- **After:** `1111111110 11 xxxx` = LPSW, `111111111110 xxxx` = JML
-- **Rationale:** LPSW is more common than JML, deserves shorter encoding
+**Problem**: During SOP reorganization, PSW manipulation instructions were lost.
 
-## **3. Detailed Changes**
+**Solution**: Created a complete PSW manipulation system using three encoding spaces:
 
-### **3.1 New 11-bit Prefix Instructions (11111111110 d1 imm4)**
+1. **11-bit SET/CLR** (`11111111110 d1 imm4`):
+   - Direct PSW bit manipulation (bits 0-3,5)
+   - Aliases: `SETC`, `CLRC`, `SETV`, `CLRV`, `SETZ`, `CLRZ`, `SETN`, `CLRN`
 
-| Instruction | Old Encoding | New Encoding | Change |
-|-------------|--------------|--------------|--------|
-| **SET imm** | `11111110 1100 imm4` (SOP) | `11111111110 0 imm4` | **MOVED to 11-bit prefix** |
-| **CLR imm** | `11111110 1101 imm4` (SOP) | `11111111110 1 imm4` | **MOVED to 11-bit prefix** |
+2. **13-bit SYS additions** (`1111111111110 op3`):
+   - `SETI`, `CLRI` for interrupt control
+   - Bit 4 needs special handling (not reachable via imm4)
 
-### **3.2 SYS Instruction Group (1111111111110 op3)**
+3. **10-bit SOP changes** (`1111111110 type2 Rx4`):
+   - Added `SPSW Rx` (Set PSW from register)
+   - Moved `LPSW Rx` here from 12-bit encoding (more common)
 
-| Instruction | Old Encoding | New Encoding | Change |
-|-------------|--------------|--------------|--------|
-| NOP | `1111111111110 000` | `1111111111110 000` | No change |
-| FSH | `1111111111110 001` | `1111111111110 001` | No change |
-| SWI | `1111111111110 010` | `1111111111110 010` | No change |
-| RETI | `1111111111110 011` | `1111111111110 011` | No change |
-| **SETI** | **NOT EXISTENT** | `1111111111110 100` | **NEW INSTRUCTION** |
-| **CLRI** | **NOT EXISTENT** | `1111111111110 101` | **NEW INSTRUCTION** |
-| *Reserved* | `1111111111110 110` | `1111111111110 110` | Now reserved |
-| *Reserved* | `1111111111110 111` | `1111111111110 111` | Now reserved |
+### **3.2 Encoding Optimization: LPSW ↔ JML Swap**
 
-### **3.3 SOP Instruction Group (1111111110 xx xxxx)**
+**Before:**
+- `1111111110 11 xxxx` = JML (far jump)
+- `111111111110 xxxx` = LPSW (load PSW)
 
-| Instruction | Old Encoding | New Encoding | Change |
-|-------------|--------------|--------------|--------|
-| INV Rx | `1111111110 00 xxxx` | `1111111110 00 xxxx` | No change |
-| NEG Rx | `1111111110 01 xxxx` | `1111111110 01 xxxx` | No change |
-| **SPSW Rx** | **NOT EXISTENT** | `1111111110 10 xxxx` | **NEW INSTRUCTION** |
-| **LPSW Rx** | `111111111110 xxxx` | `1111111110 11 xxxx` | **MOVED (shorter encoding)** |
+**After:**
+- `1111111110 11 xxxx` = LPSW (more common, shorter encoding)
+- `111111111110 xxxx` = JML (less common, longer encoding)
 
-### **3.4 JML Instruction (Far Jump)**
+### **3.3 New Instructions (March 21)**
 
-| Instruction | Old Encoding | New Encoding | Change |
-|-------------|--------------|--------------|--------|
-| JML Rx | `1111111110 11 xxxx` | `111111111110 xxxx` | **MOVED (longer encoding)** |
+1. **CLRB Rd, imm** (`110 00111 Rd4 imm4`):
+   - `Rd ← Rd AND NOT(1 << imm4)`
+   - Completes bit manipulation suite (OR sets, XOR toggles, CLRB clears)
+   - Replaces problematic `AND Rd, imm` encoding
 
-## **4. New Instruction Specifications**
+2. **AMV Rd, Rs** (clarification):
+   - Assembler alias for `MOV Rd, Rs, 3`
+   - Reads from architectural register file, bypasses forwarding
+   - Useful for specific timing/code requirements
 
-### **4.1 SET imm - Set PSW Bit**
-```
-Encoding: 11111111110 0 imm4
-Operation: PSW[imm] ← 1
-Description: Sets the specified bit (0-15) of the Processor Status Word.
-Notes: Typically used for flags: N(0), Z(1), V(2), C(3), S(5)
-```
+### **3.4 FPU and ILL System**
 
-### **4.2 CLR imm - Clear PSW Bit**
-```
-Encoding: 11111111110 1 imm4
-Operation: PSW[imm] ← 0
-Description: Clears the specified bit (0-15) of the Processor Status Word.
-Notes: Typically used for flags: N(0), Z(1), V(2), C(3), S(5)
-```
+**FPU Encoding Space Allocation:**
+- 14-bit: 4 FPU_CORE operations (FADD, FMUL, FDIV, FSQRT)
+- 15-bit: 2 FPU_EXT operations (FEXP, FLOG)
+- 16-bit: 1 FCMP operation
 
-### **4.3 SETI - Set Interrupt Enable**
-```
-Encoding: 1111111111110 100
-Operation: PSW[4] ← 1
-Description: Enables maskable interrupts by setting bit 4 of PSW.
-```
+**ILL Trap Behavior:**
+- Unimplemented FPU instructions trigger ILL trap
+- Behaves like SWI but with PSW' = 0x20 (shadow context active)
+- **Critical restriction**: ILL must NOT occur in interrupt context (PSW.S=1)
+- If attempted in interrupt context: processor reset (double fault)
 
-### **4.4 CLRI - Clear Interrupt Enable**
-```
-Encoding: 1111111111110 101
-Operation: PSW[4] ← 0
-Description: Disables maskable interrupts by clearing bit 4 of PSW.
-```
+### **3.5 Hard-wired Assembler Aliases**
 
-### **4.5 SPSW Rx - Set PSW from Register**
-```
-Encoding: 1111111110 10 xxxx
-Operation: PSW ← Rx
-Description: Copies the contents of register Rx to the Processor Status Word.
-Notes: Used for setting upper PSW byte (bits 6-15)
-```
-
-### **4.6 LPSW Rx - Load PSW to Register**
-```
-Encoding: 1111111110 11 xxxx
-Operation: Rx ← PSW
-Description: Loads the current Processor Status Word to register Rx.
-Notes: Used for reading/modifying PSW
-```
-
-## **5. Removed Instructions (Now Implemented Differently)**
-
-The following instructions are no longer directly encoded but can be implemented differently:
-
-1. **SET2 bit** - Not needed (use SET imm for bits 0-3, LPSW/SPSW for bits 6-15)
-2. **CLR2 bit** - Not needed (use CLR imm for bits 0-3, LPSW/SPSW for bits 6-15)
-3. **SRS Rx** - Implemented as macro using LPSW/SPSW
-4. **SRD Rx** - Implemented as macro using LPSW/SPSW  
-5. **ERS Rx** - Implemented as macro using LPSW/SPSW
-6. **ERD Rx** - Implemented as macro using LPSW/SPSW
-
-## **6. Macro Implementations**
-
-### **6.1 Flag Aliases (Common Operations)**
+**Changed from macros to direct assembler substitutions:**
 ```assembly
-; Flag operation aliases
+; BEFORE (macros)
 .macro SETC
-    SET 3          ; Set carry flag
+    SET 3
 .endm
 
-.macro CLRC
-    CLR 3          ; Clear carry flag
-.endm
-
-.macro SETV
-    SET 2          ; Set overflow flag
-.endm
-
-.macro CLRV
-    CLR 2          ; Clear overflow flag
-.endm
-
-.macro SETZ
-    SET 1          ; Set zero flag
-.endm
-
-.macro CLRZ
-    CLR 1          ; Clear zero flag
-.endm
-
-.macro SETN
-    SET 0          ; Set negative flag
-.endm
-
-.macro CLRN
-    CLR 0          ; Clear negative flag
-.endm
+; AFTER (hard-wired aliases)
+SETC    ; Assembler directly outputs: 11111111110 0 0011
 ```
 
-### **6.2 Segment Register Setup Macros**
+**Full alias table:**
+| Alias | Expands To | Purpose |
+|-------|------------|---------|
+| `SETC` | `SET 3` | Set carry flag |
+| `CLRC` | `CLR 3` | Clear carry flag |
+| `SETV` | `SET 2` | Set overflow flag |
+| `CLRV` | `CLR 2` | Clear overflow flag |
+| `SETZ` | `SET 1` | Set zero flag |
+| `CLRZ` | `CLR 1` | Clear zero flag |
+| `SETN` | `SET 0` | Set negative flag |
+| `CLRN` | `CLR 0` | Clear negative flag |
+| `AMV Rd, Rs` | `MOV Rd, Rs, 3` | Architectural move |
+| `JMP Rx` | `MOV PC, Rx, 0` | Jump indirect |
+
+## **4. PSW Bit Layout (Definitive)**
+
+**Classic Visualization:**
+```
+15                                              0
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+|DE|  ER[3:0]  |DS|  SR[3:0]  |S |I |C |V |Z |N |
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+ │  │           │  │           │  │  │  │  │  └─ 0: Negative (1=negative)
+ │  │           │  │           │  │  │  │  └─ 1: Zero (1=zero)
+ │  │           │  │           │  │  │  └─ 2: Overflow (1=overflow)
+ │  │           │  │           │  │  └─ 3: Carry (1=carry)
+ │  │           │  │           │  └─ 4: Interrupt Enable (1=enabled)
+ │  │           │  │           └─ 5: Shadow View (1=active)
+ │  │           │  └─ 6-9: SR[3:0] (Stack Register selection)
+ │  │           └─ 10: DS (1=dual registers for stack segment)
+ │  └─ 11-14: ER[3:0] (Extra Register selection)  
+ └─ 15: DE (1=dual registers for extra segment)
+```
+
+**Access Methods:**
+- **Bits 0-3 (NZVC)**: SET/CLR aliases (`SETC`, `CLRC`, etc.)
+- **Bit 4 (I)**: `SETI`, `CLRI` instructions
+- **Bit 5 (S)**: Hardware managed, readable via `LPSW`
+- **Bits 6-15 (SR, DS, ER, DE)**: `LPSW`/`SPSW` with bit manipulation
+
+## **5. Complete ALU2 func5 Encoding Table**
+
+**Updated with CLRB instruction:**
+
+| func5 | Instruction | Operation | Notes |
+|-------|-------------|-----------|-------|
+| 00000 | ADD Rd, Rs | `Rd ← Rd + Rs` | Sets NZVC |
+| 00001 | ADD Rd, imm | `Rd ← Rd + imm` | Sets NZVC |
+| 00010 | SUB Rd, Rs | `Rd ← Rd - Rs` | Sets NZVC |
+| 00011 | SUB Rd, imm | `Rd ← Rd - imm` | Sets NZVC |
+| 00100 | CMP Rd, Rs | `Rd - Rs` (flags only) | Sets NZVC |
+| 00101 | CMP Rd, imm | `Rd - imm` (flags only) | Sets NZVC |
+| 00110 | AND Rd, Rs | `Rd ← Rd AND Rs` | Sets NZ00 |
+| **00111** | **CLRB Rd, imm** | **`Rd ← Rd AND NOT(1 << imm)`** | **NEW: Sets NZ00** |
+| 01000 | TBC Rd, Rs | `Rd AND Rs` (flags only) | Sets NZ00 |
+| 01001 | TBC Rd, imm | `Rd AND (1 << imm)` (flags only) | Sets NZ00 |
+| 01010 | OR Rd, Rs | `Rd ← Rd OR Rs` | Sets NZ00 |
+| 01011 | OR Rd, imm | `Rd ← Rd OR (1 << imm)` | Sets NZ00 |
+| 01100 | XOR Rd, Rs | `Rd ← Rd XOR Rs` | Sets NZ00 |
+| 01101 | XOR Rd, imm | `Rd ← Rd XOR (1 << imm)` | Sets NZ00 |
+| 01110 | TBS Rd, Rs | `Rd XOR Rs` (flags only) | Sets NZ00 |
+| 01111 | TBS Rd, imm | `Rd XOR (1 << imm)` (flags only) | Sets NZ00 |
+| 10000-11011 | Shift/Rotate ops | Various shifts/rotates | Sets C flag |
+| 11100-11111 | Multiply/Divide | MUL, MUL32, DIV, DIV32 | Special behavior |
+
+## **6. Example Code Evolution**
+
+### **6.1 Flag Operations**
 ```assembly
-; SRS Rx - Set Rx as stack register, DS=0
-.macro SRS reg
-    LPSW Rtemp
-    AND  Rtemp, 0xFC1F    ; Clear SR field (bits 6-9) and DS (bit 10)
-    AND  reg, 0x000F      ; Ensure register 0-15
-    SL   reg, 6           ; Shift to SR position (bits 6-9)
-    OR   Rtemp, reg       ; Set SR field
-    SPSW Rtemp
+; OLD (before all changes) - Hypothetical
+SET2 3          ; Set carry (instruction lost in reorganization)
+
+; INTERMEDIATE (March 20) - Using macros
+.macro SETC
+    SET 3
 .endm
+SETC            ; Macro expands to SET 3
 
-; SRD Rx - Set Rx as stack register, DS=1
-.macro SRD reg
-    LPSW Rtemp
-    AND  Rtemp, 0xF81F    ; Clear SR field, keep DS=1
-    AND  reg, 0x000F
-    SL   reg, 6
-    OR   Rtemp, reg
-    OR   Rtemp, 0x0400    ; Set DS=1 (bit 10)
-    SPSW Rtemp
-.endm
+; FINAL (March 21) - Hard-wired alias
+SETC            ; Assembler directly outputs SET 3 encoding
 ```
 
-## **7. Performance Impact**
-
-### **7.1 Instruction Count Comparison**
-
-| Operation | Old (direct) | New (direct) | Macro Implementation |
-|-----------|--------------|--------------|---------------------|
-| Set carry flag | 1 (SET 3) | 1 (SET 3) | Same |
-| Clear carry flag | 1 (CLR 3) | 1 (CLR 3) | Same |
-| Enable interrupts | 1 (SET2 0) | 1 (SETI) | Same |
-| Disable interrupts | 1 (CLR2 0) | 1 (CLRI) | Same |
-| Set other flag (0-3,5) | 1 (SET bit) | 1 (SET bit) | Same |
-| SRS Rx | 1 (SRS) | ~5 (macro) | Slower but setup-only |
-| SRD Rx | 1 (SRD) | ~5 (macro) | Slower but setup-only |
-
-### **7.2 Code Size Impact**
-
-| Scenario | Old Encoding | New Encoding | Change |
-|----------|--------------|--------------|--------|
-| SET/CLR flag bits | 12 bits | **11 bits** | **-1 bit each** |
-| SETI/CLRI | 12 bits | 13 bits | +1 bit |
-| LPSW in common use | 14 bits | **12 bits** | **-2 bits** |
-| Full PSW setup sequence | ~100 bits | ~95 bits | **~5% smaller** |
-
-## **8. Available Encoding Space (After Changes)**
-
-### **8.1 Used Prefixes**
-```
-0 - LDI
-10 - LD/ST
-110 - ALU2
-1110 - JMP (conditional)
-11110 - LDS/STS
-111110 - MOV
-1111110 - LSI
-11111110 - SMV
-111111110 - MVS
-1111111110 - SOP (INV, NEG, SPSW, LPSW)
-11111111110 - SET/CLR (PSW bit ops)
-111111111110 - JML (far jump)
-1111111111110 - SYS (NOP, FSH, SWI, RETI, SETI, CLRI)
-1111111111111111 - HLT
-```
-
-### **8.2 Available for Future Expansion**
-```
-11111111111110xx   (14-bit prefix + 2 bits) - 4 operations
-111111111111110x   (15-bit prefix + 1 bit)  - 2 operations
-1111111111111110   (16-bit)                 - 1 operation
-```
-
-**Note:** These spaces are ideal for future FPU implementation.
-
-## **9. Example Code (Before vs After)**
-
-### **9.1 Before (With old SOP encoding)**
+### **6.2 Bit Manipulation**
 ```assembly
-; Flag operations
-SETC          ; 11111110 1100 0011 (12 bits)
-CLRI          ; 11111110 1111 0000 (12 bits)
-LPSW R1       ; 111111111110 0001 (14 bits)
+; OLD - Clear bit 3 of R1 (inefficient)
+LDI  0xFFF7     ; Load mask
+AND  R1, R0     ; Apply mask
 
-; SRS R13
-SRS R13       ; 11111110 1000 1101 (12 bits)
+; FINAL - Using CLRB
+CLRB R1, 3      ; Single instruction, 11+4 bits
 ```
 
-### **9.2 After (With new encoding)**
+### **6.3 PSW Full Setup**
 ```assembly
-; Flag operations
-SETC          ; 11111111110 0 0011 (11 bits) - 1 bit saved
-CLRI          ; 1111111111110 101 (13 bits) - 1 bit longer
-LPSW R1       ; 1111111110 11 0001 (12 bits) - 2 bits saved
+; Setup complete PSW (SR=13, DS=1, ER=11, DE=1, I=1)
+LPSW R1                 ; Load current PSW (12 bits, was 14)
+AND  R1, 0x001F         ; Keep NZVC+I
+LDI  0xE410             ; DE=1, ER=11, DS=1, SR=13, I=1
+OR   R1, R0             ; Combine
+SPSW R1                 ; Store back (12 bits)
 
-; SRS R13 (macro)
-LPSW Rtemp    ; 1111111110 11 XXXX (12 bits)
-AND Rtemp, X  ; 110 00111 XXXX XXXX (11+4 bits)
-AND R13, X    ; 110 00111 1101 XXXX (11+4 bits)
-SL R13, 6     ; 110 10000 1101 0110 (11+4 bits)
-OR Rtemp, R13 ; 110 01010 XXXX 1101 (11+4 bits)
-SPSW Rtemp    ; 1111111110 10 XXXX (12 bits)
-; ~62 bits total (was 12 bits) - but setup-only
+; Enable interrupts
+SETI                    ; 13 bits (special for bit 4)
 ```
 
-## **10. Tools Impact**
+## **7. Tools Impact (Combined)**
 
-### **10.1 Required Updates**
-1. **Assembler**: 
-   - Update opcode tables for new SET/CLR encoding
-   - Add SPSW instruction
-   - Update LPSW encoding (moved)
-   - Update JML encoding (moved)
-   - Add SETI/CLRI instructions
-   - Update macro library
+### **7.1 Assembler Updates Required**
+1. **New instructions**: SET, CLR, SETI, CLRI, SPSW, CLRB
+2. **Changed encodings**: LPSW (10-bit), JML (12-bit)
+3. **Hard-wired aliases**: SETC, CLRC, etc. (not macros)
+4. **FPU placeholders**: FADD, FMUL, etc. (trap to ILL)
+5. **AMV alias**: `AMV Rd, Rs` → `MOV Rd, Rs, 3`
 
-2. **Simulator/Emulator**: 
-   - Update instruction decoding tables
-   - Implement new PSW bit operations
-   - Update context for LPSW/JML swap
+### **7.2 Simulator/Emulator Updates**
+1. **PSW bit operations**: Implement SET/CLR behavior
+2. **ILL trap mechanism**: Handle unimplemented FPU instructions
+3. **CLRB instruction**: New ALU operation
+4. **AMV behavior**: Bypass forwarding logic
+5. **LPSW/JML swap**: Update instruction decoding tables
 
-3. **Compiler**: 
-   - Update code generation for PSW manipulation
-   - Use new SET/CLR for flag operations
-   - Use macros for SRS/SRD/ERS/ERD
+### **7.3 Documentation Updates**
+1. **Instruction set reference**: Complete with all new instructions
+2. **Encoding tables**: Updated hierarchy and bit patterns
+3. **Examples**: Updated with new syntax and instructions
+4. **Pipeline details**: AMV forwarding behavior
+5. **FPU emulation**: ILL trap mechanism documentation
 
-4. **Documentation**: 
-   - Update instruction set reference
-   - Update programming examples
-   - Update encoding tables
+## **8. Performance Impact Analysis**
 
-### **10.2 Backward Compatibility**
-- **Not backward compatible** with previous encoding
-- **Requires re-assembly** of existing code
-- **Acceptable** as Deep16 is still in design phase
+### **8.1 Code Size Impact**
 
-## **11. Benefits Summary**
+| Operation | Original | v2.0 (March 20) | v2.1 (March 21) | Change |
+|-----------|----------|-----------------|-----------------|--------|
+| SET flag bit | 12 bits | **11 bits** | **11 bits** | **-1 bit** |
+| CLR flag bit | 12 bits | **11 bits** | **11 bits** | **-1 bit** |
+| LPSW (common) | 14 bits | **12 bits** | **12 bits** | **-2 bits** |
+| SRS setup | 1 instr | ~5 instr macro | ~5 instr macro | Slower but setup-only |
+| CLRB bit | 2 instr | 2 instr | **1 instr** | **50% smaller** |
+| Enable interrupts | ? | 13 bits | 13 bits | New capability |
 
-1. ✅ **Complete PSW manipulation** - Direct bit ops + full PSW access
-2. ✅ **More efficient encoding** - SET/CLR now 11 bits (was 12)
-3. ✅ **Common ops optimized** - LPSW in shorter encoding (12 vs 14 bits)
-4. ✅ **Educational value** - Clear separation of flag vs setup operations
-5. ✅ **Hardware simplicity** - Clean encoding using available space
-6. ✅ **Future extensible** - Preserves space for FPU and other extensions
-7. ✅ **Performance balanced** - Critical operations fast, setup ops as macros
+### **8.2 Execution Speed**
+- **Flag operations**: Same speed (1 cycle)
+- **PSW full setup**: Slower as macro but setup-only operation
+- **CLRB**: Faster than equivalent AND with mask
+- **AMV**: Same speed as MOV but different forwarding behavior
 
-## **12. Implementation Checklist**
+## **9. Benefits Summary (Combined)**
 
-- [ ] Update assembler opcode tables for all changed instructions
-- [ ] Implement new SET/CLR encoding (11-bit prefix)
-- [ ] Add SPSW instruction to assembler
-- [ ] Update LPSW encoding (move to SOP space)
-- [ ] Update JML encoding (move to 12-bit prefix)
-- [ ] Add SETI/CLRI to SYS space
-- [ ] Update simulator instruction decoders
-- [ ] Create/update PSW manipulation macro library
-- [ ] Update architecture documentation
-- [ ] Update example programs with new encoding
-- [ ] Test all PSW operations work correctly
-- [ ] Test interrupt enable/disable functionality
-- [ ] Test segment register setup macros
-- [ ] Verify backward compatibility break is documented
+1. ✅ **Complete PSW manipulation**: Direct bits + full register access
+2. ✅ **Optimized encoding**: Common ops (LPSW) in shorter encoding
+3. ✅ **Bit manipulation suite**: OR (set), XOR (toggle), CLRB (clear)
+4. ✅ **Forwarding control**: AMV provides architectural access when needed
+5. ✅ **Clean assembler**: Hard-wired aliases instead of macros for flags
+6. ✅ **Future expansion**: FPU encoding space with ILL trap mechanism
+7. ✅ **Educational value**: Clear PSW structure and manipulation methods
+8. ✅ **Hardware simplicity**: Clean encoding using discovered space
 
-## **13. Key Insights**
+## **10. Implementation Priority**
 
-1. **11-bit prefix discovery** was crucial - provides perfect encoding for SET/CLR
-2. **Bit 4 special handling** needed - imm4 only goes to 15, but PSW has 16 bits
-3. **Setup vs runtime ops** - SRS/SRD are setup operations, can be macros
-4. **Encoding optimization** - Common ops (LPSW) deserve shorter encoding
-5. **Educational balance** - Direct bit manipulation teaches PSW structure
+### **Phase 1: Core PSW System (Essential)**
+- [ ] SET/CLR instructions (11-bit prefix)
+- [ ] SETI/CLRI instructions (SYS space)
+- [ ] SPSW/LPSW instructions (SOP space)
+- [ ] LPSW/JML encoding swap
 
-## **14. Final Assessment**
+### **Phase 2: New Instructions**
+- [ ] CLRB instruction (ALU2 func5=00111)
+- [ ] AMV behavior (MOV with imm2=3 bypasses forwarding)
+- [ ] Hard-wired assembler aliases
 
-**Pros:**
-1. ✅ **Solves PSW manipulation completely**
-2. ✅ **More efficient encoding overall**
-3. ✅ **Clean separation of concerns**
-4. ✅ **Educational value maintained**
-5. ✅ **Hardware implementation straightforward**
-6. ✅ **Future expansion preserved**
+### **Phase 3: FPU/ILL System**
+- [ ] ILL trap mechanism
+- [ ] FPU instruction placeholders
+- [ ] FPU emulation library (software)
 
-**Cons:**
-1. ❌ **Breaks binary compatibility** (but acceptable in design phase)
-2. ❌ **SRS/SRD slower as macros** (but setup-only operations)
-3. ❌ **Toolchain updates required**
+### **Phase 4: Toolchain Updates**
+- [ ] Assembler with new encodings and aliases
+- [ ] Simulator with all new instructions
+- [ ] Documentation updates
+- [ ] Example programs
 
-**Verdict: Excellent solution!** The discovery of the 11-bit prefix space made this a much cleaner solution than originally planned. The trade-offs are well-balanced for Deep16's educational and practical goals.
+## **11. Backward Compatibility**
+
+- **Not backward compatible** with any previous encoding
+- **Complete re-assembly** required for existing code
+- **Acceptable** as Deep16 is in design phase
+- **Migration path**: Update assembler, reassemble all code
+
+## **12. Rationale for Changes**
+
+### **12.1 Why 11-bit prefix for SET/CLR?**
+- Discovered unused encoding space
+- Perfect fit for PSW bit operations
+- More efficient than previous 12-bit encoding
+
+### **12.2 Why CLRB instead of AND immediate?**
+- AND immediate could only manipulate low 4 bits
+- CLRB provides full 16-bit bit manipulation
+- Complements existing OR/XOR immediate
+- More useful in practice
+
+### **12.3 Why hard-wired aliases vs macros?**
+- Cleaner assembler output
+- No macro expansion overhead
+- Easier for assembler to optimize
+- Better error messages
+
+### **12.4 Why FPU ILL trap?**
+- Future compatibility without hardware changes
+- Software emulation possible today
+- Same binary works with/without FPU hardware
+- Clean expansion path
+
+## **13. Final Assessment**
+
+**Deep16 v5.2 represents a mature, complete architecture:**
+
+1. **✅ Problem Solved**: PSW manipulation was completely missing, now fully supported
+2. **✅ Encoding Optimized**: Common operations in shorter encodings
+3. **✅ Feature Complete**: Bit manipulation, PSW control, future expansion
+4. **✅ Educational Value**: Clear architecture with visible design choices
+5. **✅ Practical Value**: Useful for embedded systems with interrupt handling
+
+**Trade-offs Accepted:**
+1. **Breaking changes**: Required but acceptable in design phase
+2. **Macro-based setup**: SRS/SRD as macros but setup-only operations
+3. **ILL overhead**: FPU emulation has performance cost
+
+**Conclusion**: The changes from March 20-21 transform Deep16 from an incomplete specification to a fully-featured, implementable 16-bit RISC architecture ready for HDL implementation.
 
 ---
 
-**Document Version:** 2.0  
-**Date:** 2024-03-20 (Updated)  
+**Document Version:** 2.1 (Comprehensive)  
+**Date:** 2024-03-21  
 **Status:** Approved for implementation  
-**Impact:** Medium (encoding changes require tool updates)  
-**Rationale:** Essential for proper PSW manipulation, optimized encoding using discovered 11-bit prefix space
+**Impact:** High (breaking changes, new instructions)  
+**Rationale:** Essential for functional processor, optimized encoding, future expansion
