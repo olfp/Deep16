@@ -1,5 +1,3 @@
-Excellent catch! You're absolutely right. Let me revise the design to use the 11-bit prefix for SET/CLR operations, which is much cleaner. Here's the corrected architecture:
-
 # **Deep16 (深十六) Architecture Specification v5.1**
 ## **16-bit RISC Processor with Enhanced Memory Addressing and Shadow Register System**
 
