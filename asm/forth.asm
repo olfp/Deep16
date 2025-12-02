@@ -79,10 +79,27 @@ token_start:
     ADD R3, >IN
     ADD R3, 1
     LD R4, R3, 0
+    LDI ' '
+    CMP R4, R0
+    JNZ check_quote_after_dot
+skip_dot_spaces:
+    ADD R3, 1
+    LD R4, R3, 0
+    LDI ' '
+    CMP R4, R0
+    JZ skip_dot_spaces
+check_quote_after_dot:
     LDI '"'
     CMP R4, R0
     JNZ check_number_or_word
-    ADD >IN, 2
+    MOV R2, TIB
+    MOV R1, R3
+    SUB R1, R2           ; R1 = offset to '"'
+    MOV >IN, R1
+    ADD >IN, 1           ; point to first char in string
+    LDI print_string
+    MOV PC, R0
+    NOP
 print_string:
     MOV R1, TIB
     ADD R1, >IN
@@ -235,7 +252,7 @@ interpret_done:
 
 .org 0x0200
 input_data:
-    .text ".\" Hello String DeepForth! The answer is \" 3 7 * dup + ."
+    .text ".\" Hello String DeepForth! The answer is \" 3 7 * dup + . .\" !\" 21 ."
 
 dict_names:
 plus_name:
@@ -387,16 +404,6 @@ dot_print_loop:
     MOV PC, R0
     NOP
 dot_done:
-    MOV R1, TIB
-    ADD R1, >IN
-    LD R2, R1, 0
-    LDI 0
-    CMP R2, R0
-    JNZ dot_continue
-    LDI interpret_done
-    MOV PC, R0
-    NOP
-dot_continue:
     LDI interpret_loop
     MOV PC, R0
     NOP
