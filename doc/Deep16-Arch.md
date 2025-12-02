@@ -295,99 +295,92 @@ LD  R3, R4, -1    ; Load from previous word
 
 ---
 
+Excellent point! Hard-wired assembler aliases are much cleaner than macros for these simple flag operations. Here's the corrected section:
+
 ## **3. Programming Examples**
 
 ### **3.1 Complete PSW Manipulation**
 
-**Using SET/CLR for lower bits (0-3):**
+**Hard-wired Assembler Aliases for Flag Operations:**
 ```assembly
-SETC        ; SET 3    - Set carry flag
-CLRC        ; CLR 3    - Clear carry flag  
-SETV        ; SET 2    - Set overflow flag
-CLRV        ; CLR 2    - Clear overflow flag
-SETZ        ; SET 1    - Set zero flag
-CLRZ        ; CLR 1    - Clear zero flag
-SETN        ; SET 0    - Set negative flag
-CLRN        ; CLR 0    - Clear negative flag
+; These are assembler aliases, not macros
+; Each expands directly to the corresponding SET/CLR instruction
+
+SETC        ; Assembler expands to: SET 3    - Set carry flag
+CLRC        ; Assembler expands to: CLR 3    - Clear carry flag  
+SETV        ; Assembler expands to: SET 2    - Set overflow flag
+CLRV        ; Assembler expands to: CLR 2    - Clear overflow flag
+SETZ        ; Assembler expands to: SET 1    - Set zero flag
+CLRZ        ; Assembler expands to: CLR 1    - Clear zero flag
+SETN        ; Assembler expands to: SET 0    - Set negative flag
+CLRN        ; Assembler expands to: CLR 0    - Clear negative flag
+
+; Also available: direct SET/CLR of any PSW bit (0-3,5)
+SET  5      ; Set shadow bit (only meaningful when read via LPSW)
+CLR  5      ; Clear shadow bit
+SET  4      ; Set interrupt enable (but use SETI instead)
+CLR  4      ; Clear interrupt enable (but use CLRI instead)
 ```
 
 **Using SETI/CLRI for interrupt control:**
 ```assembly
-SETI        ; Enable interrupts (PSW[4]=1)
-CLRI        ; Disable interrupts (PSW[4]=0)
+SETI        ; Enable interrupts (PSW[4]=1) - 13-bit instruction
+CLRI        ; Disable interrupts (PSW[4]=0) - 13-bit instruction
 ```
 
-**Using CLRB for bit manipulation:**
+**Complete example showing the difference:**
 ```assembly
-CLRB R1, 3      ; Clear bit 3 of R1
-CLRB R2, 15     ; Clear most significant bit of R2
-CLRB R3, 0      ; Clear bit 0 (LSB) of R3
-```
+; Hard-wired assembler aliases (compile-time substitution):
+SETC        ; → 11111111110 0 0011 (11 bits)
+CLRV        ; → 11111111110 1 0010 (11 bits)
 
-**Complete PSW Setup Example:**
-```assembly
-; Setup SR=13 (R13 as stack), DS=1 (use pair), ER=11, DE=1, I=1
-LPSW R1             ; R1 = current PSW
-AND  R1, 0x001F     ; Keep only lower 5 bits (NZVC+I)
-
-; Set upper bits: DE=1, ER=11, DS=1, SR=13
-; SR=13 (1101) at bits 6-9 = 0x3400
-; ER=11 (1011) at bits 11-14 = 0xB000
-; DS=1 (bit 10) = 0x0400
-; DE=1 (bit 15) = 0x8000
-; Combined: 0x8000 | 0xB000 | 0x0400 | 0x3400 = 0xE400? Wait...
-
-; Let's calculate systematically:
-LDI  0x3400         ; SR=13 (1101) at bits 6-9
-OR   R1, R0         ; Add to PSW
-LDI  0xB000         ; ER=11 (1011) at bits 11-14
-OR   R1, R0         ; Add to PSW
-OR   R1, 0x8400     ; Set DS=1 (0x0400) and DE=1 (0x8000) = 0x8400
-OR   R1, 0x0010     ; Ensure I=1 (interrupts enabled)
-SPSW R1             ; Update PSW
-; Final PSW: 0x8000 | 0xB000 | 0x0400 | 0x3400 | 0x0010 = 0xE410
-```
-
-### **3.2 Assembler Macros for Common Operations**
-
-**Flag Aliases:**
-```assembly
-.macro SETC
+; vs. Macros (assembler text substitution):
+.macro SETC_MACRO
     SET 3
 .endm
+SETC_MACRO  ; → Same binary but more complex for assembler
 
-.macro CLRC
-    CLR 3
-.endm
-
-.macro SETV
-    SET 2
-.endm
-
-.macro CLRV
-    CLR 2
-.endm
-
-.macro SETZ
-    SET 1
-.endm
-
-.macro CLRZ
-    CLR 1
-.endm
-
-.macro SETN
-    SET 0
-.endm
-
-.macro CLRN
-    CLR 0
-.endm
+; SETI/CLRI are actual instructions, not aliases:
+SETI        ; → 1111111111110 100 (13 bits)
+CLRI        ; → 1111111111110 101 (13 bits)
 ```
 
-**Segment Register Setup Macros:**
+### **3.2 Assembler Implementation Details**
+
+**For assembler developers, the alias mapping is:**
+
+| Alias | Expands To | Binary Encoding |
+|-------|------------|-----------------|
+| `SETC` | `SET 3` | `11111111110 0 0011` |
+| `CLRC` | `CLR 3` | `11111111110 1 0011` |
+| `SETV` | `SET 2` | `11111111110 0 0010` |
+| `CLRV` | `CLR 2` | `11111111110 1 0010` |
+| `SETZ` | `SET 1` | `11111111110 0 0001` |
+| `CLRZ` | `CLR 1` | `11111111110 1 0001` |
+| `SETN` | `SET 0` | `11111111110 0 0000` |
+| `CLRN` | `CLR 0` | `11111111110 1 0000` |
+
+**Other common assembler aliases to implement:**
+```assembly
+; Data movement
+NOP         ; → 1111111111110 000  (SYS NOP)
+JMP Rx      ; → 111110 1111 Rx4 00 (MOV PC, Rx, 0)
+MOV Rd, Rs  ; → 111110 Rd4 Rs4 00  (MOV Rd, Rs, 0)
+AMV Rd, Rs  ; → 111110 Rd4 Rs4 11  (MOV Rd, Rs, 3)
+
+; Conditional jumps (assembler calculates target offset)
+JZ  label   ; → 1110 000 (PC-relative offset)
+JNZ label   ; → 1110 001 (PC-relative offset)
+JC  label   ; → 1110 010 (PC-relative offset)
+JNC label   ; → 1110 011 (PC-relative offset)
+```
+
+### **3.3 Updated Assembler Macro Examples**
+
+**Only complex operations remain as macros:**
 ```assembly
 ; SRS Rx - Set Rx as stack register, DS=0 (single)
+; Still needs to be a macro because it uses multiple instructions
 .macro SRS reg
     LPSW Rtemp
     AND  Rtemp, 0xFC1F    ; Clear SR field (bits 6-9) and DS (bit 10)
@@ -398,40 +391,52 @@ SPSW R1             ; Update PSW
     SPSW Rtemp
 .endm
 
-; SRD Rx - Set Rx as stack register, DS=1 (dual)  
-.macro SRD reg
-    LPSW Rtemp
-    AND  Rtemp, 0xF81F    ; Clear SR field and DS
-    MOV  Rtemp2, reg
-    AND  Rtemp2, 0x000F
-    SL   Rtemp2, 6
-    OR   Rtemp, Rtemp2    ; Set SR field
-    OR   Rtemp, 0x0400    ; Set DS=1 (bit 10)
-    SPSW Rtemp
+; But simple flag operations are now hard-wired aliases:
+.macro ENABLE_INTERRUPTS
+    SETI                  ; Direct instruction, not macro expansion needed
 .endm
 
-; ERS Rx - Set Rx as extra register, DE=0 (single)
-.macro ERS reg
-    LPSW Rtemp
-    AND  Rtemp, 0x87FF    ; Clear ER field (bits 11-14) and DE (bit 15)
-    MOV  Rtemp2, reg
-    AND  Rtemp2, 0x000F
-    SL   Rtemp2, 11       ; Shift to ER position (bits 11-14)
-    OR   Rtemp, Rtemp2    ; Set ER field
-    SPSW Rtemp
+.macro DISABLE_INTERRUPTS
+    CLRI                  ; Direct instruction
 .endm
 
-; ERD Rx - Set Rx as extra register, DE=1 (dual)
-.macro ERD reg
-    LPSW Rtemp
-    AND  Rtemp, 0x07FF    ; Clear ER field and DE
-    MOV  Rtemp2, reg
-    AND  Rtemp2, 0x000F
-    SL   Rtemp2, 11
-    OR   Rtemp, Rtemp2    ; Set ER field
-    OR   Rtemp, 0x8000    ; Set DE=1 (bit 15)
-    SPSW Rtemp
+.macro CLEAR_ALL_FLAGS
+    CLRN                  ; Hard-wired alias: CLR 0
+    CLRZ                  ; Hard-wired alias: CLR 1  
+    CLRV                  ; Hard-wired alias: CLR 2
+    CLRC                  ; Hard-wired alias: CLR 3
 .endm
+```
+
+### **3.4 Example Usage in Code**
+
+```assembly
+; Clear all flags before operation
+CLEAR_ALL_FLAGS     ; Expands to 4 CLR instructions
+
+; Perform arithmetic
+ADD  R1, R2, 5      ; Sets flags based on result
+
+; Check result and branch
+JNZ  NOT_ZERO       ; Jump if result not zero
+
+; Zero case
+SETZ                ; Hard-wired alias: SET 1
+JMP  DONE
+
+NOT_ZERO:
+    ; Check for overflow
+    JO  OVERFLOW_CASE
+    ; Normal case
+    CLRV             ; Hard-wired alias: CLR 2
+    JMP DONE
+    
+OVERFLOW_CASE:
+    SETV             ; Hard-wired alias: SET 2
+    
+DONE:
+    ; Enable interrupts before returning
+    SETI             ; Actual instruction (13-bit)
 ```
 
 ### **3.3 Pipeline Hazard Examples**
