@@ -163,6 +163,8 @@ class DeepWebUI {
                 }
                 this.addTranscriptEntry(`WASM: ${this.useWasm ? 'ON' : 'OFF'}`, "info");
                 try { localStorage.setItem('deep16_use_wasm', this.useWasm ? 'true' : 'false'); } catch {}
+                // Treat toggle like a full reset to sync core, memory, and UI
+                try { this.reset(); } catch {}
             });
             this.useWasm = wssamToggle.checked && this.wasmAvailable && !!this.wasmInitialized;
         }
@@ -226,6 +228,7 @@ class DeepWebUI {
                 this.addTranscriptEntry("WASM module loaded (default OFF)", "success");
                 this.addTranscriptEntry("ROM loaded into WASM core", "success");
                 this.addTranscriptEntry("Segments synced to WASM", "info");
+                if (!this.simulator.running) { this.run(); }
             } catch (e) {
                 this.addTranscriptEntry("WASM init failed; using JS core", "warning");
                 this.useWasm = false;
@@ -1372,27 +1375,12 @@ class DeepWebUI {
                         this.simulator.memory[change.address] = change.value;
                     }
                 }
-                // Ensure ROM is present in JS simulator and segments reflect ROM-first boot
-                try {
-                    if (typeof this.simulator.autoloadROM === 'function') {
-                        this.simulator.autoloadROM();
-                    }
-                    this.simulator.segmentRegisters.CS = 0xFFFF;
-                } catch {}
+                // Do not modify registers or segments during Assemble
                 if (this.useWasm && window.Deep16Wasm) {
                     const loadIntoWasm = () => {
                         try {
                             window.Deep16Wasm.init(this.simulator.memory.length);
-                            try {
-                                if (typeof this.simulator.autoloadROM === 'function') {
-                                    this.simulator.autoloadROM();
-                                    this.simulator.segmentRegisters.CS = 0xFFFF;
-                                }
-                                for (let a = 0xFFFF0; a <= 0xFFFFF; a++) {
-                                    const v = this.simulator.memory[a] & 0xFFFF;
-                                    window.Deep16Wasm.load_program(a, new Uint16Array([v]));
-                                }
-                            } catch {}
+                            // Do not reload ROM or alter segments during Assemble
                             for (const change of result.memoryChanges) {
                                 const arr = new Uint16Array([change.value]);
                                 window.Deep16Wasm.load_program(change.address, arr);
@@ -1424,10 +1412,6 @@ class DeepWebUI {
                 
                 if (window.Deep16Debug) console.log("Simulator memory at 0x0000:", this.simulator.memory[0].toString(16));
                 
-                this.simulator.registers[15] = 0x0000;
-                this.simulator.psw = 0;
-                this.simulator.shadowRegisters.PC = 0;
-                this.simulator.shadowRegisters.CS = 0;
                 this.status("Assembly successful! Program loaded.");
                 this.addTranscriptEntry("Assembly successful - program loaded", "success");
                 document.getElementById('run-btn').disabled = false;
@@ -1950,6 +1934,10 @@ class DeepWebUI {
         this.status("Simulator reset");
         this.addTranscriptEntry("Simulator reset to initial state", "info");
         this.switchTab('editor');
+        // Auto-run boot ROM after reset
+        try {
+            this.run();
+        } catch {}
     }
 
     wasmRun() {
@@ -2348,12 +2336,17 @@ class DeepWebUI {
         const viewToggle = document.getElementById('view-toggle');
         const headerContent = document.querySelector('.header-content');
         const rightControls = document.querySelector('.header-right-controls');
+        const indicator = document.getElementById('run-state-indicator');
         if (run && step && reset) {
             this.originalButtonParent = run.parentElement;
+            if (indicator) this.originalRunIndicatorParent = indicator.parentElement;
             // build grouped layout: [Run, Step] [Reset, View] [Docs, WASM]
             const groupRunStep = document.createElement('div');
             groupRunStep.className = 'mobile-group group-run-step';
             groupRunStep.appendChild(run);
+            if (indicator && !window.matchMedia('(max-width: 480px)').matches) {
+                groupRunStep.appendChild(indicator);
+            }
             groupRunStep.appendChild(step);
 
             const groupResetView = document.createElement('div');
@@ -2389,6 +2382,7 @@ class DeepWebUI {
             [run, step, reset, viewToggle, docsBtn].forEach(b => {
                 if (b) b.style.width = 'var(--mobile-btn-w)';
             });
+            this.repositionMobileIndicator();
         }
     }
 
@@ -2485,6 +2479,7 @@ class DeepWebUI {
         const reset = document.getElementById('reset-btn');
         const viewToggle = document.getElementById('view-toggle');
         const rightControls = document.querySelector('.header-right-controls');
+        const indicator = document.getElementById('run-state-indicator');
         if (run && step && reset && this.originalButtonParent) {
             this.originalButtonParent.appendChild(run);
             this.originalButtonParent.appendChild(step);
@@ -2498,6 +2493,9 @@ class DeepWebUI {
         }
         if (rightControls && this.originalRightControlsParent) {
             this.originalRightControlsParent.appendChild(rightControls);
+        }
+        if (indicator && this.originalRunIndicatorParent) {
+            this.originalRunIndicatorParent.appendChild(indicator);
         }
 
         const machineTab = document.getElementById('machine-tab');
@@ -2529,6 +2527,32 @@ class DeepWebUI {
             headerTitle.textContent = (window.matchMedia('(max-width: 480px)').matches) ? 'D16' : 'Deep16';
         }
         this.updateTabLabels();
+        this.repositionMobileIndicator();
+    }
+
+    repositionMobileIndicator() {
+        if (!this.mobileActive) return;
+        const indicator = document.getElementById('run-state-indicator');
+        if (!indicator) return;
+        const isNarrow = window.matchMedia('(max-width: 480px)').matches;
+        if (isNarrow) {
+            const headerText = document.querySelector('.header-text');
+            if (!headerText) return;
+            let container = document.getElementById('mobile-run-indicator');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'mobile-run-indicator';
+                container.className = 'mobile-run-indicator';
+                headerText.appendChild(container);
+            }
+            container.appendChild(indicator);
+        } else {
+            const groupRunStep = document.querySelector('.group-run-step');
+            const step = document.getElementById('step-btn');
+            if (groupRunStep && step) {
+                groupRunStep.insertBefore(indicator, step);
+            }
+        }
     }
 
     installResizeWatcher() {
@@ -2670,4 +2694,8 @@ class DeepWebUI {
 
 document.addEventListener('DOMContentLoaded', () => {
     window.deepWebUI = new DeepWebUI();
+    try {
+        window.deepWebUI.reset();
+        window.deepWebUI.run();
+    } catch {}
 });

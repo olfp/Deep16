@@ -662,19 +662,60 @@ interpret_done:
     LDI 'k'
     STS R0, ES, SCR
     ADD SCR, 1
-    ; Move to start of next line using row index
     LDI 0x1000
-    MOV R2, R0           ; base
-    MOV R3, SCR          ; current address
-    SUB R3, R2           ; offset from base
+    MOV R2, R0
+    MOV R3, SCR
+    SUB R3, R2
     LDI 80
-    MOV R4, R0           ; width
-    MOV R5, R3           ; offset copy
-    DIV R5, R4           ; R5=row, R6=remainder
-    ADD R5, 1            ; row+1
-    MUL R5, R4           ; (row+1)*width
-    ADD R2, R5           ; base + (row+1)*width
-    MOV SCR, R2          ; start of next line
+    MOV R4, R0
+    MOV R5, R3
+    DIV R5, R4
+    LDI 24
+    CMP R5, R0
+    JNZ ok_next_normal
+    LDI 0
+    MOV R7, R0
+    LDI 1920
+    MOV R10, R0
+    LDI 80
+    MOV R12, R0
+ok_scroll_copy:
+    MOV R13, R2
+    ADD R13, R7
+    MOV R11, R2
+    ADD R11, R7
+    ADD R11, R12
+    LDS R1, ES, R11
+    STS R1, ES, R13
+    ADD R7, 1
+    CMP R7, R10
+    JNZ ok_scroll_copy
+    LDI 0
+    MOV R7, R0
+    LDI 80
+    MOV R9, R0
+ok_scroll_clear:
+    MOV R13, R2
+    ADD R13, R7
+    ADD R13, R10
+    LDI ' '
+    STS R0, ES, R13
+    ADD R7, 1
+    SUB R9, 1
+    LDI 0
+    CMP R9, R0
+    JNZ ok_scroll_clear
+    MOV SCR, R2
+    ADD SCR, R10
+    LDI ok_after
+    MOV PC, R0
+    NOP
+ok_next_normal:
+    ADD R5, 1
+    MUL R5, R4
+    ADD R2, R5
+    MOV SCR, R2
+ok_after:
     LDI '>'
     STS R0, ES, SCR
     ADD SCR, 1
@@ -1005,9 +1046,40 @@ emit_do_lf:
     MOV R7, R0
     CMP R10, R7
     JN emit_lf_row_lt
-    LDI emit_lf_row_done
-    MOV PC, R0
-    NOP
+    LDI 0
+    MOV R7, R0
+    LDI 1920
+    MOV R5, R0
+    LDI 80
+    MOV R12, R0
+emit_lf_scroll_copy:
+    MOV R13, R9
+    ADD R13, R7
+    MOV R4, R9
+    ADD R4, R7
+    ADD R4, R12
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R7, 1
+    CMP R7, R5
+    JNZ emit_lf_scroll_copy
+    LDI 0
+    MOV R7, R0
+    LDI 80
+    MOV R4, R0
+emit_lf_scroll_clear:
+    MOV R13, R9
+    ADD R13, R5
+    ADD R13, R7
+    LDI ' '
+    STS R0, ES, R13
+    ADD R7, 1
+    SUB R4, 1
+    LDI 0
+    CMP R4, R0
+    JNZ emit_lf_scroll_clear
+    LDI 24
+    MOV R10, R0
 emit_lf_row_lt:
     ADD R10, 1           ; next row
 emit_lf_row_done:
