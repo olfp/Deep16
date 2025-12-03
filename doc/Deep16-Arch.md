@@ -150,7 +150,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | 110 | 3 | ALU2 | `[110][func5][Rd4][Rs/imm4]` | Full pipeline, forwarding |
 | 1110 | 4 | JMP | `[1110][type3][target9]` | **Uses delay slot** |
 | 11110 | 5 | LDS/STS | `[11110][d1][seg2][Rd4][Rs4]` | Segment access in MEM |
-| 111110 | 6 | MOV/AMV | `[111110][Rd4][Rs4][imm2]` | imm2=3 = AMV (no forwarding) |
+| 111110 | 6 | MOV | `[111110][Rd4][Rs4][imm2]` | Register copy with optional small offset |
 | 1111110 | 7 | LSI | `[1111110][Rd4][imm5]` | Full pipeline |
 | 11111110 | 8 | SMV | `[11111110][Rx4][alt_sel4]` | Shadow register access (read-only) |
 | 111111110 | 9 | MVS | `[111111110][d1][Rd4][seg2]` | Segment access in MEM |
