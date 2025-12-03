@@ -1099,9 +1099,23 @@ word_accept:
     LDI 0
     MOV R11, R0         ; count
 acc_loop:
+    LDI 0x1000
+    MOV R7, R0
+    MOV R4, SCR
+    SUB R4, R7
+    LDI 0
+    CMP R4, R0
+    JZ acc_cursor_prepared
+    MOV R4, SCR
+    SUB R4, 1
+    LDS R2, ES, R4
+    LDI 0x7FFF
+    AND R2, R0
+    STS R2, ES, R4
+acc_cursor_prepared:
     LSI R0, 1
     SL  R0, 15
-    LDS R2, ES, SCR      ; avoid clobbering TIB (R6)
+    LDS R2, ES, SCR
     MOV R3, R2
     OR  R3, R0
     CMP R3, R2
@@ -1153,11 +1167,14 @@ acc_check_bs:
     LDI 0
     CMP R11, R0
     JZ acc_loop
+    LDS R2, ES, SCR
+    LDI 0x7FFF
+    AND R2, R0
+    STS R2, ES, SCR
     SUB R11, 1
     SUB SCR, 1
     LDI ' '
     STS R0, ES, SCR
-    SUB SCR, 1
     LDI acc_loop
     MOV PC, R0
     NOP
