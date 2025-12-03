@@ -798,14 +798,28 @@ acc_cursor_ok:
     LDI 10
     CMP R1, R0
     JNZ acc_check_cr13
-    LDI acc_do_crlf
+    MOV R3, TIB
+    ADD R3, >IN
+    ADD R3, R11
+    LDI 0
+    ST R0, R3, 0
+    LDI 0
+    MOV >IN, R0
+    LDI interpret_loop
     MOV PC, R0
     NOP
 acc_check_cr13:
     LDI 13
     CMP R1, R0
     JNZ acc_check_bs
-    LDI acc_do_crlf
+    MOV R3, TIB
+    ADD R3, >IN
+    ADD R3, R11
+    LDI 0
+    ST R0, R3, 0
+    LDI 0
+    MOV >IN, R0
+    LDI interpret_loop
     MOV PC, R0
     NOP
 acc_check_bs:
