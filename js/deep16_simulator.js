@@ -69,8 +69,6 @@ class Deep16Simulator {
 
     reset() {
         this.registers.fill(0);
-        this.registers[13] = 0x7FFF;
-        this.registers[15] = 0x0000;
         this.psw = 0;
         this.memory.fill(0xFFFF);
         this.running = false;
@@ -157,9 +155,7 @@ class Deep16Simulator {
         
         
 
-        // Check for HALT (0xFFFF) first
-        if (instruction === 0xFFFF) {
-            // console.log("HALT instruction detected - stopping execution");
+        if (instruction === 0xFFFF || instruction === 0xFFF1) {
             this.running = false;
             return false;
         }
