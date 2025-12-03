@@ -442,9 +442,7 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
         0b11110 => {
             if opv == 0 { result = 0xFFFF; } else {
                 let q = ((rdv as u32) / opv) as u32 & 0xFFFF;
-                let r = ((rdv as u32) % opv) as u32 & 0xFFFF;
                 c.reg[rd] = q as u16;
-                c.reg[rd + 1] = r as u16;
                 result = q as i32;
             }
         }
