@@ -2,25 +2,25 @@
   "examples": [
     {
       "name": "Fibonacci Sequence",
-      "filename": "fibonacci.a16",
+      "filename": "fibonacci.asm",
       "description": "Calculate Fibonacci numbers F(0) through F(10)",
       "category": "Mathematics"
     },
     {
       "name": "Far Call & Long Jump", 
-      "filename": "far_call.a16",
+      "filename": "far_call.asm",
       "description": "Demonstrates calling between code segments",
       "category": "Advanced"
     },
     {
       "name": "Screen Demo",
-      "filename": "screen_demo.a16", 
+      "filename": "screen_demo.asm", 
       "description": "Write text to the 80x25 character display",
       "category": "I/O"
     },
   {
       "name": "String Demo",
-      "filename": "string_demo.a16",
+      "filename": "string_demo.asm",
       "description": "Demonstrates character constants and strings",
       "category": "I/O"
     }
@@ -34,7 +34,7 @@
     ,
     {
       "name": "Link in Delay Slot",
-      "filename": "link_delay_slot.a16",
+      "filename": "link_delay_slot.asm",
       "description": "Demonstrates ALNK in jump delay slot using R3 target",
       "category": "Advanced"
     }
