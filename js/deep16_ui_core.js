@@ -49,11 +49,31 @@ class DeepWebUI {
         // Keyboard input: feed browser key events into simulator keyboard buffer
         window.addEventListener('keydown', (e) => {
             if (!this.simulator) return;
-            // Avoid interfering with editor typing
             const active = document.activeElement;
-            const isEditor = active && (active.id === 'editor');
-            if (isEditor) return;
+            const tag = active && active.tagName ? active.tagName.toUpperCase() : '';
+            const isTextual = !!active && (
+                (tag === 'INPUT') || (tag === 'TEXTAREA') || (tag === 'SELECT') ||
+                (active.isContentEditable === true)
+            );
+            if (isTextual) return;
+            if (this.screenUI && typeof this.screenUI.setActive === 'function') {
+                this.screenUI.setActive(true);
+            }
             this.simulator.enqueueKeyEvent(e);
+        });
+
+        // Mark screen as active when clicked; clear when focusing inputs
+        const screenDisplay = document.getElementById('screen-display');
+        if (screenDisplay && this.screenUI && typeof this.screenUI.setActive === 'function') {
+            screenDisplay.addEventListener('click', () => this.screenUI.setActive(true));
+        }
+        document.addEventListener('focusin', (e) => {
+            const el = e.target;
+            const tag = el && el.tagName ? el.tagName.toUpperCase() : '';
+            const isTextual = !!el && ((tag === 'INPUT') || (tag === 'TEXTAREA') || (tag === 'SELECT') || (el.isContentEditable === true));
+            if (isTextual && this.screenUI && typeof this.screenUI.setActive === 'function') {
+                this.screenUI.setActive(false);
+            }
         });
         
         try {

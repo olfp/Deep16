@@ -37,10 +37,44 @@ forth_start:
     OR  R12, R0
     SPSW R12
     ; Ready for screen output at ES:SCR
+
+    ; Clear screen memory (80*25 cells) and reset SCR to start
+    LDI 0x1000
+    MOV SCR, R0
+    LDI 2000
+    MOV R2, R0
+clear_scr_loop:
+    LDI 0
+    STS R0, ES, SCR
+    ADD SCR, 1
+    SUB R2, 1
+    LDI 0
+    CMP R2, R0
+    JNZ clear_scr_loop
+    LDI 0x1000
+    MOV SCR, R0
     
+cursor_on:
+    LDS R1, ES, SCR
+    LSI R0, 1
+    SL  R0, 15
+    OR  R1, R0
+    STS R1, ES, SCR
+    LDI interpret_loop
+    NOP
+cursor_off:
+    LDS R1, ES, SCR
+    LDI 0x7FFF
+    AND R1, R0
+    STS R1, ES, SCR
+    LDI interpret_loop
+    NOP
     ; Ensure Data Segment points to physical 0x0000
     LDI 0
     MVS DS, R0
+    ; Ensure Code/Stack segments are also 0x0000 for correct jumps/stack
+    MVS SS, R0
+    MVS CS, R0
 
     ; Print greeting
     LDI hello_msg
@@ -57,30 +91,40 @@ hello_loop:
     MOV PC, R0
     NOP
 hello_done:
+    ; Move to start of next line (column 0)
     LDI 0x1000
-    MOV R2, R0          
-    MOV R3, SCR         
-    SUB R3, R2          
-    LDI 80              
-    MOV R4, R0          
-    MOV R9, R3          
-    DIV R9, R4          
-    MOV R6, R9          
-    MUL R6, R4          
-    MOV R7, R3          
-    SUB R7, R6          
-    SUB R4, R7          
-    ADD SCR, R4         
-    ; Set TIB to keyboard buffer
+    MOV R8, R0           
+    MOV R9, SCR          
+    SUB R9, R8           
+    LDI 80               
+    MOV R10, R0          
+    MOV R11, R9          
+    DIV R11, R10         
+    MUL R11, R10         
+    MOV R12, R9          
+    SUB R12, R11         
+    SUB R10, R12         
+    ADD SCR, R10         
+    ; Set TIB to keyboard buffer and reset >IN
     LDI tib_kbd
     MOV TIB, R0
     LDI 0
     MOV >IN, R0
-
-    ; Jump to text interpreter
-    LDI text_interpreter
-    MOV R1, R0
-    MOV PC, R1
+    ; Print prompt and place reversed space cursor
+    LDI '>'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LSI R1, 1
+    SL  R1, 15
+    LDI ' '
+    MOV R2, R0
+    OR  R2, R1
+    STS R2, ES, SCR
+    LDI word_accept
+    MOV PC, R0
     NOP
 
 ; =============================================
@@ -94,7 +138,11 @@ interpret_loop:
     LD R2, R1, 0
     LDI 0
     CMP R2, R0
-    JZ interpret_done
+    JNZ not_eol
+    LDI interpret_done
+    MOV PC, R0
+    NOP
+not_eol:
     LDI ' '
     CMP R2, R0
     JNZ token_start
@@ -276,7 +324,11 @@ dict_loop:
     MOV R2, R7
     LDI dict_end
     CMP R2, R0
-    JZ skip_unknown
+    JNZ dict_continue
+    LDI skip_unknown
+    MOV PC, R0
+    NOP
+dict_continue:
     MOV R3, TIB
     ADD R3, >IN
     LDI 0
@@ -308,9 +360,73 @@ word_cmp_done:
     LDI 0
     CMP R4, R0
     JNZ next_entry
-    LD R1, R7, 1
+    LD R2, R7, 0
     ADD >IN, R11
-    MOV PC, R1
+    LDI plus_name
+    CMP R2, R0
+    JNZ chk_mul
+    LDI word_plus
+    MOV PC, R0
+    NOP
+chk_mul:
+    LDI mul_name
+    CMP R2, R0
+    JNZ chk_dup
+    LDI word_mul
+    MOV PC, R0
+    NOP
+chk_dup:
+    LDI dup_name
+    CMP R2, R0
+    JNZ chk_dot
+    LDI word_dup
+    MOV PC, R0
+    NOP
+chk_dot:
+    LDI dot_name
+    CMP R2, R0
+    JNZ chk_emit
+    LDI word_dot
+    MOV PC, R0
+    NOP
+chk_emit:
+    LDI emit_name
+    CMP R2, R0
+    JNZ chk_swap
+    LDI word_emit
+    MOV PC, R0
+    NOP
+chk_swap:
+    LDI swap_name
+    CMP R2, R0
+    JNZ chk_drop
+    LDI word_swap
+    MOV PC, R0
+    NOP
+chk_drop:
+    LDI drop_name
+    CMP R2, R0
+    JNZ chk_key
+    LDI word_drop
+    MOV PC, R0
+    NOP
+chk_key:
+    LDI key_name
+    CMP R2, R0
+    JNZ chk_accept
+    LDI word_key
+    MOV PC, R0
+    NOP
+chk_accept:
+    LDI accept_name
+    CMP R2, R0
+    JNZ fallback_next
+    LDI word_accept
+    MOV PC, R0
+    NOP
+fallback_next:
+    LDI next_entry
+    MOV PC, R0
     NOP
 advance_token:
     ADD R7, 2
@@ -325,10 +441,18 @@ skip_scan:
     LD R2, R3, 0
     LDI 0
     CMP R2, R0
-    JZ interpret_loop
+    JNZ skip_not_end
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+skip_not_end:
     LDI ' '
     CMP R2, R0
-    JZ interpret_loop
+    JNZ skip_advance
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+skip_advance:
     ADD R3, 1
     ADD >IN, 1
     LDI skip_scan
@@ -341,26 +465,31 @@ next_entry:
     NOP
 
 interpret_done:
+    ; Move to start of next line (column 0)
     LDI 0x1000
-    MOV R2, R0          
-    MOV R3, SCR         
-    SUB R3, R2          
-    LDI 80              
-    MOV R4, R0          
-    MOV R9, R3          
-    DIV R9, R4          
-    MOV R6, R9          
-    MUL R6, R4          
-    MOV R7, R3          
-    SUB R7, R6          
-    SUB R4, R7          
-    ADD SCR, R4         
+    MOV R8, R0           
+    MOV R9, SCR          
+    SUB R9, R8           
+    LDI 80               
+    MOV R10, R0          
+    MOV R11, R9          
+    DIV R11, R10         
+    MUL R11, R10         
+    MOV R12, R9          
+    SUB R12, R11         
+    SUB R10, R12         
+    ADD SCR, R10         
     LDI '>'
     STS R0, ES, SCR
     ADD SCR, 1
     LDI ' '
     STS R0, ES, SCR
     ADD SCR, 1
+    LSI R1, 1
+    SL  R1, 15
+    LDI ' '
+    ADD R1, R0
+    STS R1, ES, SCR
     LDI word_accept
     MOV PC, R0
     NOP
@@ -369,7 +498,7 @@ interpret_done:
 ; Data Section
 ; =============================================
 
-.org 0x0200
+.org 0x3000
 hello_msg:
     .word 'H'
     .word 'e'
@@ -442,6 +571,9 @@ dict_start:
     .word accept_name
     .word word_accept
 dict_end:
+
+.code
+.org 0x0400
 word_plus:
     MOV R9, SP
     ADD R9, 2
@@ -543,11 +675,11 @@ dot_print_loop:
     MOV PC, R0
     NOP
 dot_done:
-    LDI interpret_loop
+    LDI interpret_done
     MOV PC, R0
     NOP
 dot_under:
-    LDI interpret_loop
+    LDI interpret_done
     MOV PC, R0
     NOP
 word_emit:
@@ -628,6 +760,9 @@ key_wait:
     LDI KBD_DATA
     MOV R2, R0
     LDS R1, ES, R2
+    ; Mask to low byte to reliably detect control keys
+    LDI 0x00FF
+    AND R1, R0
     SUB SP, 1
     ST R1, SP, 0
     LDI interpret_loop
@@ -642,6 +777,15 @@ word_accept:
     LDI 0
     MOV R11, R0         ; count
 acc_loop:
+    LSI R0, 1
+    SL  R0, 15
+    LDS R6, ES, SCR
+    MOV R7, R6
+    OR  R7, R0
+    CMP R7, R6
+    JZ acc_cursor_ok
+    STS R7, ES, SCR
+acc_cursor_ok:
     LDI KBD_STATUS
     MOV R2, R0
     LDS R1, ES, R2
@@ -653,10 +797,18 @@ acc_loop:
     LDS R1, ES, R2
     LDI 10
     CMP R1, R0
-    JZ acc_crlf
+    JNZ acc_check_cr13
+    LDI acc_do_crlf
+    MOV PC, R0
+    NOP
+acc_check_cr13:
     LDI 13
     CMP R1, R0
-    JZ acc_crlf
+    JNZ acc_check_bs
+    LDI acc_do_crlf
+    MOV PC, R0
+    NOP
+acc_check_bs:
     LDI 8
     CMP R1, R0
     JNZ acc_store
@@ -676,27 +828,107 @@ acc_store:
     ADD R3, >IN
     ADD R3, R11
     ST R1, R3, 0
+    ; Clear MSB at current cell, write typed char
+    LDS R2, ES, SCR
+    LDI 0x7FFF
+    AND R2, R0
+    STS R2, ES, SCR
     STS R1, ES, SCR
     ADD SCR, 1
+    LSI R0, 1
+    SL  R0, 15
+    LDS R2, ES, SCR
+    MOV R7, R2
+    OR  R7, R0
+    CMP R7, R2
+    JZ acc_next_cursor_ok
+    STS R7, ES, SCR
+acc_next_cursor_ok:
     ADD R11, 1
     LDI acc_loop
     MOV PC, R0
     NOP
-acc_crlf:
+acc_do_crlf:
+    ; Force-clear old cursor cell
+    LDI ' '
+    STS R0, ES, SCR
+    
+    LDS R1, ES, SCR
+    LDI 0x7FFF
+    AND R1, R0
+    STS R1, ES, SCR
+    ; Compute columns to advance to reach column 0 of next line
     LDI 0x1000
-    MOV R2, R0          
-    MOV R3, SCR         
-    SUB R3, R2          
-    LDI 80              
-    MOV R4, R0          
-    MOV R9, R3          
-    DIV R9, R4          
-    MOV R6, R9          
-    MUL R6, R4          
-    MOV R7, R3          
-    SUB R7, R6          
-    SUB R4, R7          
-    ADD SCR, R4         
+    MOV R2, R0           ; R2 = base
+    MOV R3, SCR          ; R3 = current address
+    SUB R3, R2           ; R3 = offset
+    LDI 80
+    MOV R4, R0           ; R4 = width
+    MOV R5, R3           ; R5 = offset copy
+    DIV R5, R4           ; R5 = row
+    MUL R5, R4           ; R5 = row*width
+    MOV R6, R3           ; R6 = offset
+    SUB R6, R5           ; R6 = col
+    SUB R4, R6           ; R4 = width - col
+    ADD SCR, R4          ; advance to next line start
+    ; Print prompt and reversed space cursor
+    LDI '>'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LSI R1, 1
+    SL  R1, 15
+    LDI ' '
+    MOV R2, R0
+    OR  R2, R1
+    STS R2, ES, SCR
+    ; Reset input pointers
+    LDI 0
+    MOV >IN, R0
+    LDI 0
+    MOV R11, R0
+    ; Continue accept loop
+    LDI acc_loop
+    MOV PC, R0
+    NOP
+acc_crlf:
+    ; Force-clear old cursor cell
+    LDI ' '
+    STS R0, ES, SCR
+    
+    LDS R1, ES, SCR
+    LDI 0x7FFF
+    AND R1, R0
+    STS R1, ES, SCR
+    ; Move to start of next line (column 0)
+    LDI 0x1000
+    MOV R8, R0           
+    MOV R9, SCR          
+    SUB R9, R8           
+    LDI 80               
+    MOV R10, R0          
+    MOV R11, R9          
+    DIV R11, R10         
+    MUL R11, R10         
+    MOV R12, R9          
+    SUB R12, R11         
+    SUB R10, R12         
+    ADD SCR, R10         
+    ; Print prompt and place reversed space cursor on new line
+    LDI '>'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LSI R1, 1
+    SL  R1, 15
+    LDI ' '
+    MOV R2, R0
+    OR  R2, R1
+    STS R2, ES, SCR
 acc_done:
     MOV R3, TIB
     ADD R3, >IN
