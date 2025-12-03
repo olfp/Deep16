@@ -46,6 +46,15 @@ class DeepWebUI {
         this.initializeEventListeners();
         this.initializeSearchableDropdowns();
         this.initializeTabs();
+        // Keyboard input: feed browser key events into simulator keyboard buffer
+        window.addEventListener('keydown', (e) => {
+            if (!this.simulator) return;
+            // Avoid interfering with editor typing
+            const active = document.activeElement;
+            const isEditor = active && (active.id === 'editor');
+            if (isEditor) return;
+            this.simulator.enqueueKeyEvent(e);
+        });
         
         try {
             this.simulator.autoloadROM();

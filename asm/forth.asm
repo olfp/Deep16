@@ -10,6 +10,8 @@
 .equ TIB R6           ; Text Input Buffer pointer
 .equ >IN R5           ; Input pointer offset
 .equ SP0 R14          ; Stack base snapshot for underflow checks
+.equ KBD_STATUS 0x0060
+.equ KBD_DATA   0x0062
 
 ; =============================================
 ; Forth Kernel Implementation
@@ -40,8 +42,37 @@ forth_start:
     LDI 0
     MVS DS, R0
 
-    ; Set up TIB to point to input data
-    LDI input_data
+    ; Print greeting
+    LDI hello_msg
+    MOV R1, R0
+hello_loop:
+    LD R2, R1, 0
+    LDI 0
+    CMP R2, R0
+    JZ hello_done
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD R1, 1
+    LDI hello_loop
+    MOV PC, R0
+    NOP
+hello_done:
+    LDI 0x1000
+    MOV R2, R0          
+    MOV R3, SCR         
+    SUB R3, R2          
+    LDI 80              
+    MOV R4, R0          
+    MOV R9, R3          
+    DIV R9, R4          
+    MOV R6, R9          
+    MUL R6, R4          
+    MOV R7, R3          
+    SUB R7, R6          
+    SUB R4, R7          
+    ADD SCR, R4         
+    ; Set TIB to keyboard buffer
+    LDI tib_kbd
     MOV TIB, R0
     LDI 0
     MOV >IN, R0
@@ -74,16 +105,24 @@ interpret_loop:
 token_start:
     LDI '"'
     CMP R2, R0
-    JNZ check_dot_token
+    JNZ check_apostrophe
     ; Bare string opening: advance inside string and print
     ADD >IN, 1
     LDI print_string_skip
     MOV PC, R0
     NOP
+check_apostrophe:
+    LDI 39
+    CMP R2, R0
+    JNZ check_dot_token
+    ADD >IN, 1
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
 check_dot_token:
     LDI '.'
     CMP R2, R0
-    JNZ check_number_or_word
+    JNZ check_single_tokens
     MOV R3, TIB
     ADD R3, >IN
     ADD R3, 1
@@ -104,11 +143,11 @@ check_quote_after_dot:
     ; also accept backslash-quote sequence \" after dot
     LDI '\\'
     CMP R4, R0
-    JNZ check_number_or_word
+    JNZ dot_plain
     LD R5, R3, 1
     LDI '"'
     CMP R5, R0
-    JNZ check_number_or_word
+    JNZ dot_plain
     MOV R1, R3           ; R1 points to '\\' after dot and spaces
     SUB R1, TIB          ; R1 = absolute offset from TIB
     MOV >IN, R1          ; set >IN to offset of '\\'
@@ -124,21 +163,44 @@ dot_string_open:
     LDI print_string_skip
     MOV PC, R0
     NOP
+dot_plain:
+    ADD >IN, 1
+    LDI word_dot
+    MOV PC, R0
+    NOP
+check_single_tokens:
+    LDI '+'
+    CMP R2, R0
+    JNZ check_star_token
+    ADD >IN, 1
+    LDI word_plus
+    MOV PC, R0
+    NOP
+check_star_token:
+    LDI '*'
+    CMP R2, R0
+    JNZ check_number_or_word
+    ADD >IN, 1
+    LDI word_mul
+    MOV PC, R0
+    NOP
 print_string_skip:
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
-    LDI ' '
+    LDI 0
     CMP R2, R0
-    JNZ print_string_body
-    ADD >IN, 1
-    LDI print_string_skip
+    JZ after_string
+    LDI print_string_body
     MOV PC, R0
     NOP
 print_string_body:
     MOV R1, TIB
     ADD R1, >IN
     LD R2, R1, 0
+    LDI 0
+    CMP R2, R0
+    JZ after_string
     LDI '"'
     CMP R2, R0
     JZ after_string
@@ -279,15 +341,53 @@ next_entry:
     NOP
 
 interpret_done:
-    HLT
+    LDI 0x1000
+    MOV R2, R0          
+    MOV R3, SCR         
+    SUB R3, R2          
+    LDI 80              
+    MOV R4, R0          
+    MOV R9, R3          
+    DIV R9, R4          
+    MOV R6, R9          
+    MUL R6, R4          
+    MOV R7, R3          
+    SUB R7, R6          
+    SUB R4, R7          
+    ADD SCR, R4         
+    LDI '>'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI word_accept
+    MOV PC, R0
+    NOP
 
 ; =============================================
 ; Data Section
 ; =============================================
 
 .org 0x0200
-input_data:
-    .text ".\" Hello String DeepForth! The answer is \" 3 7 * dup + . .\" !\" 21 ."
+hello_msg:
+    .word 'H'
+    .word 'e'
+    .word 'l'
+    .word 'l'
+    .word 'o'
+    .word ' '
+    .word 'D'
+    .word 'e'
+    .word 'e'
+    .word 'p'
+    .word 'F'
+    .word 'o'
+    .word 'r'
+    .word 't'
+    .word 'h'
+    .word '!'
+    .word 0
 
 dict_names:
 plus_name:
@@ -337,6 +437,10 @@ dict_start:
     .word word_swap
     .word drop_name
     .word word_drop
+    .word key_name
+    .word word_key
+    .word accept_name
+    .word word_accept
 dict_end:
 word_plus:
     MOV R9, SP
@@ -410,9 +514,9 @@ dot_nonzero:
 dot_div_loop:
     LDI 10
     MOV R12, R0
-    MOV R13, R2
-    DIV R13, R12
-    MOV R4, R13
+    MOV R9, R2
+    DIV R9, R12
+    MOV R4, R9
     MUL R4, R12
     MOV R7, R2
     SUB R7, R4
@@ -420,7 +524,7 @@ dot_div_loop:
     ADD R7, R0
     ST R7, R10, 0
     ADD R10, 1
-    MOV R2, R13
+    MOV R2, R9
     ADD R3, 1           ; count++
     LDI 0
     CMP R2, R0
@@ -492,6 +596,121 @@ wd2_under:
     NOP
 
 print_buf:
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+key_name:
+    .word 'k'
+    .word 'e'
+    .word 'y'
+    .word 0
+accept_name:
+    .word 'a'
+    .word 'c'
+    .word 'c'
+    .word 'e'
+    .word 'p'
+    .word 't'
+    .word 0
+word_key:
+    ; Wait for keyboard data ready
+key_wait:
+    LDI KBD_STATUS
+    MOV R2, R0
+    LDS R1, ES, R2
+    LDI 0
+    CMP R1, R0
+    JZ key_wait
+    ; Read data
+    LDI KBD_DATA
+    MOV R2, R0
+    LDS R1, ES, R2
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_accept:
+    LDI tib_kbd
+    MOV TIB, R0
+    LDI 0
+    MOV >IN, R0
+    LDI 0
+    MOV R11, R0         ; count
+acc_loop:
+    LDI KBD_STATUS
+    MOV R2, R0
+    LDS R1, ES, R2
+    LDI 0
+    CMP R1, R0
+    JZ acc_loop
+    LDI KBD_DATA
+    MOV R2, R0
+    LDS R1, ES, R2
+    LDI 10
+    CMP R1, R0
+    JZ acc_crlf
+    LDI 13
+    CMP R1, R0
+    JZ acc_crlf
+    LDI 8
+    CMP R1, R0
+    JNZ acc_store
+    LDI 0
+    CMP R11, R0
+    JZ acc_loop
+    SUB R11, 1
+    SUB SCR, 1
+    LDI ' '
+    STS R0, ES, SCR
+    SUB SCR, 1
+    LDI acc_loop
+    MOV PC, R0
+    NOP
+acc_store:
+    MOV R3, TIB
+    ADD R3, >IN
+    ADD R3, R11
+    ST R1, R3, 0
+    STS R1, ES, SCR
+    ADD SCR, 1
+    ADD R11, 1
+    LDI acc_loop
+    MOV PC, R0
+    NOP
+acc_crlf:
+    LDI 0x1000
+    MOV R2, R0          
+    MOV R3, SCR         
+    SUB R3, R2          
+    LDI 80              
+    MOV R4, R0          
+    MOV R9, R3          
+    DIV R9, R4          
+    MOV R6, R9          
+    MUL R6, R4          
+    MOV R7, R3          
+    SUB R7, R6          
+    SUB R4, R7          
+    ADD SCR, R4         
+acc_done:
+    MOV R3, TIB
+    ADD R3, >IN
+    ADD R3, R11
+    LDI 0
+    ST R0, R3, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+tib_kbd:
+    .word 0
+    .word 0
+    .word 0
+    .word 0
     .word 0
     .word 0
     .word 0

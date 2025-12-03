@@ -43,6 +43,13 @@ class Deep16Simulator {
 
         // Performance optimization: Precompute register names
         this.registerNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
+
+        // Keyboard controller (PS/2 simplified)
+        this.ioBase = 0xF0000;
+        this.KBD_STATUS_ADDR = this.ioBase + 0x0060;
+        this.KBD_DATA_ADDR = this.ioBase + 0x0062;
+        this.kbdBuffer = [];
+        this.kbdLastData = 0;
     }
 
     setUI(ui) {
@@ -80,6 +87,10 @@ class Deep16Simulator {
 
         // Autoload ROM at 0xFFF0
         this.autoloadROM();
+
+        // Reset keyboard buffer
+        this.kbdBuffer = [];
+        this.kbdLastData = 0;
     }
 
     phys(seg, off) {
@@ -803,9 +814,16 @@ class Deep16Simulator {
         // console.log(`LDS/STS Execute: d=${d}, seg=${segNames[seg]}, rd=${this.getRegisterName(rd)}, rs=${this.getRegisterName(rs)}, address=0x${address.toString(16)}`);
         
         if (d === 0) { // LDS
-            if (physicalAddress < this.memory.length) {
+            // Keyboard controller reads
+            if (physicalAddress === this.KBD_STATUS_ADDR) {
+                const ready = this.kbdBuffer.length > 0 ? 1 : 0;
+                this.registers[rd] = ready & 0xFFFF;
+            } else if (physicalAddress === this.KBD_DATA_ADDR) {
+                const data = this.kbdBuffer.length > 0 ? (this.kbdBuffer.shift() & 0xFFFF) : 0;
+                this.kbdLastData = data;
+                this.registers[rd] = data;
+            } else if (physicalAddress < this.memory.length) {
                 this.registers[rd] = this.memory[physicalAddress] & 0xFFFF;
-                // console.log(`LDS: ${this.getRegisterName(rd)} = [${segNames[seg]}:${this.getRegisterName(rs)}] -> phys 0x${physicalAddress.toString(16)}`);
             }
         } else { // STS
             if (physicalAddress < this.memory.length) {
@@ -958,6 +976,21 @@ class Deep16Simulator {
 
     getRegisterName(regIndex) {
         return this.registerNames[regIndex] || `R${regIndex}`;
+    }
+
+    // UI hook to enqueue a key (ASCII code) into keyboard buffer
+    enqueueKeyCode(code) {
+        const c = code & 0xFFFF;
+        this.kbdBuffer.push(c);
+    }
+
+    enqueueKeyEvent(e) {
+        let code = 0;
+        if (e.key === 'Enter') code = 10;
+        else if (e.key === 'Backspace') code = 8;
+        else if (e.key.length === 1) code = e.key.charCodeAt(0);
+        else if (e.key === 'Tab') code = 9;
+        if (code) this.enqueueKeyCode(code);
     }
 
     // ENHANCED: Method to get expanded memory view with segment info
