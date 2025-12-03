@@ -185,10 +185,18 @@ skip_dot_spaces:
     CMP R4, R0
     JZ skip_dot_spaces
 check_quote_after_dot:
+    LD R4, R3, 0
     LDI '"'
     CMP R4, R0
-    JZ dot_string_open
-    ; also accept backslash-quote sequence \" after dot
+    JNZ dot_check_backslash2
+    MOV R1, R3
+    SUB R1, TIB
+    MOV >IN, R1
+    ADD >IN, 1
+    LDI print_string_skip
+    MOV PC, R0
+    NOP
+dot_check_backslash2:
     LDI '\\'
     CMP R4, R0
     JNZ dot_plain
@@ -196,18 +204,9 @@ check_quote_after_dot:
     LDI '"'
     CMP R5, R0
     JNZ dot_plain
-    MOV R1, R3           ; R1 points to '\\' after dot and spaces
-    SUB R1, TIB          ; R1 = absolute offset from TIB
-    MOV >IN, R1          ; set >IN to offset of '\\'
-    ADD >IN, 2           ; skip \" and point inside string
-    LDI print_string_skip
-    MOV PC, R0
-    NOP
-dot_string_open:
-    MOV R1, R3           ; R1 points to '"' after dot and spaces
-    SUB R1, TIB          ; R1 = absolute offset from TIB
-    MOV >IN, R1          ; set >IN to offset of '"'
-    ADD >IN, 1           ; point to first char in string
+    MOV R1, R3
+    SUB R1, TIB
+    MOV >IN, R1
     LDI print_string_skip
     MOV PC, R0
     NOP
@@ -235,10 +234,20 @@ check_star_token:
 print_string_skip:
     MOV R1, TIB
     ADD R1, >IN
+psk_loop:
     LD R2, R1, 0
     LDI 0
     CMP R2, R0
     JZ after_string
+    LDI ' '
+    CMP R2, R0
+    JNZ psk_go
+    ADD >IN, 1
+    ADD R1, 1
+    LDI psk_loop
+    MOV PC, R0
+    NOP
+psk_go:
     LDI print_string_body
     MOV PC, R0
     NOP
@@ -252,6 +261,22 @@ print_string_body:
     LDI '"'
     CMP R2, R0
     JZ after_string
+    ; Handle escaped quote \" -> print '"' and continue
+    LDI '\\'
+    CMP R2, R0
+    JNZ print_string_normal
+    LD R5, R1, 1
+    LDI '"'
+    CMP R5, R0
+    JNZ print_string_normal
+    LDI '"'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD >IN, 2
+    LDI print_string_body
+    MOV PC, R0
+    NOP
+print_string_normal:
     STS R2, ES, SCR
     ADD SCR, 1
     ADD >IN, 1
@@ -739,11 +764,11 @@ dot_print_loop:
     MOV PC, R0
     NOP
 dot_done:
-    LDI interpret_done
+    LDI interpret_loop
     MOV PC, R0
     NOP
 dot_under:
-    LDI interpret_done
+    LDI interpret_loop
     MOV PC, R0
     NOP
 word_emit:
