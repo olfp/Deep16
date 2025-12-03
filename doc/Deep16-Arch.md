@@ -1,4 +1,4 @@
-# **Deep16 (深十六) Architecture Specification v5.2**
+# **Deep16 (深十六) Architecture Specification Milestone 6**
 ## **16-bit RISC Processor with Enhanced Memory Addressing and Complete Shadow Register System**
 
 ---
@@ -19,10 +19,10 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 - **Memory-mapped I/O** - Simplified peripheral access
 - **Word-based memory system** - No byte alignment complications
 - **No memory protection** - Fully accessible memory space
-- **Clean interrupt model** - Hardware-managed context switching via PSW.S
-- **FPU emulation support** - Unimplemented FPU instructions trap to ILL for software emulation
+- **Clean interrupt model** - Hardware-managed context switching via PSW'.S bit
+- **ILL trap system** - Illegal instruction handling with FPU emulation support
 - **Symmetric SMV access** - SMV works perfectly in both normal and interrupt modes
-- **Hardware-assisted interrupt handling** - Automatic context snapshot
+- **Hardware-assisted interrupt handling** - Automatic context snapshot and initialization
 - **Enhanced assembler syntax** - Bracket and plus notation for improved readability
 - **Architectural register access** - MOV with immediate=3 for stable state reading
 
@@ -76,6 +76,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | Register | Purpose | Bits | Access Method |
 |----------|---------|------|---------------|
 | PSW      | Processor Status Word | 16 | SPSW, LPSW |
+| PSW'     | Shadow PSW | 16 | **Hardware managed**, readable via SMV |
 | R0'      | R0 Shadow | 16 | SMV |
 | R1'      | R1 Shadow | 16 | SMV |
 | R2'      | R2 Shadow | 16 | SMV |
@@ -83,17 +84,18 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | R13'     | SP Shadow | 16 | SMV |
 | R14'     | LR Shadow | 16 | SMV |
 | PC'      | Program Counter Shadow | 16 | SMV |
-| PSW'     | PSW Shadow | 16 | SMV |
 | CS'      | Code Segment Shadow | 16 | SMV |
 | DS'      | Data Segment Shadow | 16 | SMV |
 | SS'      | Stack Segment Shadow | 16 | SMV |
 | ES'      | Extra Segment Shadow | 16 | SMV |
 
-**Complete Shadow Register Set:** R0', R1', R2', R3', R13', R14', PC', PSW', CS', DS', SS', ES'
+**Complete Shadow Register Set:** R0', R1', R2', R3', R13', R14', PC', PSW', CS', DS', SS', ES' (12 total shadow registers)
 
-**SMV Symmetric Access:**
-- **Normal mode (PSW.S=0)**: SMV accesses shadow registers (R0'-R3', R13', R14', PC', PSW', CS', DS', SS', ES')
-- **Interrupt mode (PSW.S=1)**: SMV accesses normal registers (R0-R3, R13, R14, PC, PSW, CS, DS, SS, ES)
+**Shadow Register Access:**
+- **SMV accesses alternate context**: Based on PSW'.S bit
+- **PSW'.S = 0 (Normal mode)**: SMV reads shadow registers (R0'-R3', R13', R14', PC', PSW', CS', DS', SS', ES')
+- **PSW'.S = 1 (Interrupt mode)**: SMV reads normal registers (R0-R3, R13, R14, PC, PSW, CS, DS, SS, ES)
+- **Hardware control**: PSW' is managed entirely by hardware during interrupt entry/exit
 
 ### **2.4 Processor Status Word (PSW)**
 
@@ -161,18 +163,59 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | **1111111111111110** | **16** | **FCMP** | `[1111111111111110]` | **FPU compare (ILL trap)** |
 | **1111111111111111** | **16** | **HLT** | `[1111111111111111]` | **Halt processor** |
 
-### **3.2 SMV Instruction (Shadow Register Access)**
+### **3.2 Illegal Instruction (ILL) and FPU Emulation**
+
+**ILL Trap Overview:**
+- **Replaces NMI** at vector address 0x0000
+- **Triggers on**: Unimplemented instructions (including all FPU instructions)
+- **Behavior**: Similar to SWI but handler must examine APC-1 to find trapped instruction
+- **Critical restriction**: ILL must NOT occur in interrupt context (PSW.S=1)
+  - If attempted, results in double fault (processor reset)
+
+**FPU Encoding Space Allocation:**
+- **11111111111110xx** (14-bit prefix + 2 bits): 4 FPU_CORE operations
+  - Suggested: FADD, FMUL, FDIV, FSQRT
+- **111111111111110x** (15-bit prefix + 1 bit): 2 FPU_EXT operations  
+  - Suggested: FEXP, FLOG
+- **1111111111111110** (16-bit): 1 FCMP operation
+  - Floating-point compare with condition codes
+
+**ILL Trap Operation:**
+```
+On ILL trap (unimplemented instruction):
+PSW'  ← 0x0020    ; S=1, I=0 - switch to shadow context
+CS'   ← 0         ; Interrupts run in segment 0
+DS'   ← 0
+SS'   ← 0  
+ES'   ← 0
+R0'   ← 0         ; Initialize shadow registers
+R1'   ← 0
+R2'   ← 0
+R3'   ← 0
+R13'  ← 0
+R14'  ← 0
+PC'   ← Mem[0x0000]  ; Jump to ILL handler at vector 0
+; APC contains address of instruction AFTER the trapped instruction
+```
+
+**FPU Emulation Process:**
+1. ILL handler reads trapped instruction from `APC - 1`
+2. Decodes instruction to determine which FPU operation
+3. Emulates operation using normal integer registers
+4. Returns with RETI
+
+### **3.3 SMV Instruction (Shadow Register Access)**
 
 **Table F: SMV Alternate Register Selection (Extended)**
 
 | alt_sel | Alternate Register | Syntax | Operation |
 |---------|-------------------|--------|-----------|
-| 0000 | R0' | `SMV Rx, R0'` | `Rx ← R0'` |
-| 0001 | R1' | `SMV Rx, R1'` | `Rx ← R1'` |
-| 0010 | R2' | `SMV Rx, R2'` | `Rx ← R2'` |
-| 0011 | R3' | `SMV Rx, R3'` | `Rx ← R3'` |
-| 0100 | R13' (SP') | `SMV Rx, SP'` | `Rx ← SP'` |
-| 0101 | R14' (LR') | `SMV Rx, LR'` | `Rx ← LR'` |
+| 0000 | R0' (AR0) | `SMV Rx, AR0` | `Rx ← R0'` |
+| 0001 | R1' (AR1) | `SMV Rx, AR1` | `Rx ← R1'` |
+| 0010 | R2' (AR2) | `SMV Rx, AR2` | `Rx ← R2'` |
+| 0011 | R3' (AR3) | `SMV Rx, AR3` | `Rx ← R3'` |
+| 0100 | R13' (AR13/SP') | `SMV Rx, AR13` | `Rx ← SP'` |
+| 0101 | R14' (AR14/LR') | `SMV Rx, AR14` | `Rx ← LR'` |
 | 0110 | PC' (APC) | `SMV Rx, APC` | `Rx ← PC'` |
 | 0111 | PSW' (APSW) | `SMV Rx, APSW` | `Rx ← PSW'` |
 | 1000 | CS' (ACS) | `SMV Rx, ACS` | `Rx ← CS'` |
@@ -197,10 +240,14 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 **Key Characteristics:**
 1. **Read-only operation**: Always reads from alternate register to destination Rx
 2. **No d-bit**: Simplified encoding
-3. **Symmetric access**: SMV reads different registers based on PSW.S
+3. **Symmetric access**: SMV reads different registers based on PSW'.S
 4. **Architectural PC access**: alt_sel=1111 reads stable PC (bypasses forwarding)
 
-### **3.3 Data Movement Instructions**
+**SMV Symmetric Access Behavior:**
+- **PSW'.S = 0 (Normal mode)**: SMV accesses shadow registers (R0'-R3', R13', R14', PC', PSW', CS', DS', SS', ES')
+- **PSW'.S = 1 (Interrupt mode)**: SMV accesses normal registers (R0-R3, R13, R14, PC, PSW, CS, DS, SS, ES)
+
+### **3.4 Data Movement Instructions**
 
 **Table 2: Data Movement Instructions**
 
@@ -221,7 +268,7 @@ AMV Rd, Rs        = MOV Rd, Rs, 3      ; Architectural move (bypass forwarding)
 JMP Rx            = MOV PC, Rx, 0      ; Jump to address in Rx
 ```
 
-### **3.4 PSW Operations**
+### **3.5 PSW Operations**
 
 **Table N: PSW Segment Assignment Operations**
 
@@ -252,7 +299,7 @@ JMP Rx            = MOV PC, Rx, 0      ; Jump to address in Rx
 | *Reserved* | - | `1111111111110 110` | Reserved | Future use |
 | *Reserved* | - | `1111111111110 111` | Reserved | Future use |
 
-### **3.5 Single Operand and PSW Instructions (SOP)**
+### **3.6 Single Operand and PSW Instructions (SOP)**
 
 **Table 12: Single Operand Instructions (1111111110 type2 Rx4)**
 
@@ -263,7 +310,7 @@ JMP Rx            = MOV PC, Rx, 0      ; Jump to address in Rx
 | **SPSW Rx** | `SPSW Rx` | `1111111110 10 Rx4` | `PSW ← Rx` |
 | **LPSW Rx** | `LPSW Rx` | `1111111110 11 Rx4` | `Rx ← PSW` |
 
-### **3.6 ALU Instructions - Revised with CLRB**
+### **3.7 ALU Instructions - Revised with CLRB**
 
 **Table 6: Basic ALU Instructions (Updated)**
 
@@ -292,7 +339,7 @@ JMP Rx            = MOV PC, Rx, 0      ; Jump to address in Rx
 - Useful for bit manipulation without needing a mask register
 - Equivalent to: `Rd ← Rd AND NOT(1 << imm4)`
 
-### **3.7 ALU Instructions - Group 2: Shift/Rotate Operations**
+### **3.8 ALU Instructions - Group 2: Shift/Rotate Operations**
 
 **Table 7: Shift and Rotate Instructions**
 
@@ -311,7 +358,7 @@ JMP Rx            = MOV PC, Rx, 0      ; Jump to address in Rx
 | **ROR Rd, count** | `ROR Rd, count` | `110 11010 Rd4 count4` | `Rd ← (Rd >> count) OR (Rd << (16-count))` | C = bit shifted out |
 | **RRC Rd, count** | `RRC Rd, count` | `110 11011 Rd4 count4` | `Rd ← (Rd >> count) OR (C << (15-count)) OR (Rd << (16-count))` | C = bit shifted out |
 
-### **3.8 ALU Instructions - Group 3: Multiply/Divide Operations**
+### **3.9 ALU Instructions - Group 3: Multiply/Divide Operations**
 
 **Table 8: Multiply/Divide Instructions**
 
@@ -322,7 +369,7 @@ JMP Rx            = MOV PC, Rx, 0      ; Jump to address in Rx
 | **DIV Rd, Rs** | `DIV Rd, Rs` | `110 11110 Rd4 Rs4` | `Rd ← Rd ÷ Rs` (quotient) | 16÷16→16-bit |
 | **DIV32 Rd, Rs** | `DIV32 Rd, Rs` | `110 11111 Rd4 Rs4` | `R[d] ← quotient, R[d+1] ← remainder` | Rd must be EVEN |
 
-### **3.9 Single Operand ALU Operations**
+### **3.10 Single Operand ALU Operations**
 
 **Table J: Single Operand Instructions**
 
@@ -332,7 +379,7 @@ JMP Rx            = MOV PC, Rx, 0      ; Jump to address in Rx
 | **INV**     | `INV Rx` | `11111110 0001 Rx4` | `Rx = ~Rx` |
 | **NEG**     | `NEG Rx` | `11111110 0010 Rx4` | `Rx = -Rx` |
 
-### **3.10 Memory Access Instructions**
+### **3.11 Memory Access Instructions**
 
 **Table 9: Memory Access Instructions**
 
@@ -356,7 +403,7 @@ ST  R2, FP, 2     ; Store to frame pointer + 2
 LD  R3, R4, -1    ; Load from previous word
 ```
 
-### **3.11 Control Flow Instructions**
+### **3.12 Control Flow Instructions**
 
 **Table 10: Condition Codes for Jump Instructions**
 
@@ -388,7 +435,7 @@ LD  R3, R4, -1    ; Load from previous word
 
 **Requirements:** For JML, Rx must be EVEN (uses register pair Rx:Rx+1)
 
-### **3.12 Halt Instruction**
+### **3.13 Halt Instruction**
 
 **Table Q: Halt Instruction**
 
@@ -398,13 +445,263 @@ LD  R3, R4, -1    ; Load from previous word
 
 ---
 
-## **4. Enhanced Assembler Syntax and Aliases**
+## **4. Interrupt Context Switching System**
 
-### **4.1 Enhanced Assembler Syntax (Preprocessing Only)**
+### **4.1 Core Principle**
+
+**PSW'.S bit** determines active register context:
+- **PSW'.S = 0**: Normal registers (CS, DS, SS, ES, PC, PSW, R0-R15)
+- **PSW'.S = 1**: Shadow registers (CS', DS', SS', ES', PC', PSW', R0', R1', R2', R3', R13', R14')
+
+### **4.2 Reset Initialization**
+
+```
+PSW'  ← 0x0000    ; S=0, use normal context
+PSW   ← 0x0000    ; S=0, interrupts disabled
+CS    ← 0xFFFF    ; Boot from top of memory
+DS/SS/ES ← 0x0000 ; Other segments zero
+PC    ← 0x0000    ; Start execution at CS:0000
+```
+
+### **4.3 Extended Shadow Register Set**
+
+#### **Shadow Registers (12 total)**
+1. **Segment Registers**: CS', DS', SS', ES'
+2. **Control Registers**: PC', PSW'
+3. **General-Purpose Registers**: R0', R1', R2', R3', R13' (SP'), R14' (LR')
+
+#### **Rationale for Selective Shadows**
+- **R0'**: LDI always uses R0, interrupts often need to load values
+- **R1'/R2'/R3'**: Common argument/return value registers
+- **R13' (SP')**: Critical for stack integrity
+- **R14' (LR')**: Return address preservation
+- **Minimal hardware**: 96 bits vs 256 bits for full set
+
+### **4.4 Interrupt Entry Sequence**
+
+#### **Hardware-Automated Process**
+**On any interrupt (ILL, HW, SWI):**
+```
+PSW'  ← 0x0020    ; S=1, I=0 - switch to shadow context
+CS'   ← 0         ; Interrupts run in segment 0
+DS'   ← 0
+SS'   ← 0  
+ES'   ← 0
+R0'   ← 0         ; Initialize shadow registers
+R1'   ← 0
+R2'   ← 0
+R3'   ← 0
+R13'  ← 0
+R14'  ← 0
+PC'   ← Mem[interrupt_vector]  ; Jump to handler
+; Hardware automatically uses shadow registers (PSW'.S=1)
+```
+
+#### **Key Characteristics**
+1. **PSW' is NOT copied from PSW** - set to `0x0020` (S=1, I=0)
+2. **All shadow segments set to 0** - interrupts run in segment 0
+3. **Shadow GP registers initialized to 0** - clean context
+4. **PC' gets handler address** from interrupt vector table
+5. **Context switch via PSW'.S=1** - hardware handles all muxing
+
+### **4.5 Interrupt Vector Table**
+
+**Located at Segment 0 (Low Memory):**
+```
+0x0000: ILL_VECTOR      (Illegal Instruction Trap) - Replaces NMI
+0x0001: HW_INT_VECTOR   (Hardware Interrupts)  
+0x0002: SWI_VECTOR      (Software Interrupts)
+```
+
+### **4.6 Interrupt Types and Priority**
+
+**Table: Interrupt Types**
+
+| Interrupt Type | Vector Address | Trigger | Priority | Maskable |
+|----------------|----------------|---------|----------|----------|
+| **ILL Trap** | 0x0000 | Unimplemented instruction | Highest | No (always enabled) |
+| **Hardware Interrupt** | 0x0001 | External interrupt signal | Medium | Yes (PSW.I) |
+| **Software Interrupt (SWI)** | 0x0002 | SWI instruction | Lowest | Programmatic |
+
+**Priority Order:** ILL > HW > SWI
+
+### **4.7 ILL Trap Detailed Operation**
+
+#### **ILL Trap Trigger Conditions**
+1. **Unimplemented FPU instructions** (opcodes 11111111111110xx, 111111111111110x, 1111111111111110)
+2. **Any other undefined opcode** not in the instruction set
+3. **Double fault condition**: ILL occurring while already in interrupt context (PSW.S=1)
+
+#### **ILL Handler Requirements**
+- **Must examine APC-1** to find the trapped instruction
+- **Must check for double fault** by reading APSW.S bit
+- **Can emulate instructions** (e.g., FPU operations)
+- **Must return with RETI** to restore normal context
+
+#### **ILL Handler Example**
+```assembly
+ILL_HANDLER:
+    ; Get trapped instruction address
+    SMV  R0, APC      ; R0 = address after trapped instruction
+    SUB  R0, R0, 1    ; R0 = address of trapped instruction
+    
+    ; Check for double fault (ILL in interrupt context)
+    SMV  R1, APSW     ; R1 = interrupted PSW
+    AND  R2, R1, 0x0020  ; Check S bit
+    JNZ  DOUBLE_FAULT  ; Already in interrupt = double fault
+    
+    ; Read trapped instruction
+    MVS  CS, 0        ; Ensure CS=0
+    LD   R1, R0, 0    ; R1 = trapped instruction
+    
+    ; Decode and handle
+    ; ... emulation code ...
+    
+    RETI
+
+DOUBLE_FAULT:
+    ; Fatal error - trigger system reset
+    ; In hardware, this should reset the processor
+    HLT
+```
+
+### **4.8 Interrupt Handler Execution Environment**
+
+#### **Execution Environment**
+- All instructions automatically use **shadow registers** (PSW'.S=1)
+- Segments fixed at 0 unless modified by handler
+- Interrupts disabled (PSW'.I=0) during handler execution
+- Clean register context: all shadow registers initialized to 0
+
+#### **Accessing Interrupted State**
+- `SMV R0, APSW` accesses **normal PSW** (interrupted state)
+- `SMV R0, APC` accesses **normal PC** (interrupted address)
+- `SMV R0, AR0` accesses **normal R0** (from interrupted context)
+- Similar for other registers via SMV instruction
+
+#### **Example Interrupt Handler**
+```assembly
+interrupt_handler:
+    ; Running in shadow context (PSW'.S=1)
+    ; All shadow registers initialized to 0
+    
+    ; Use shadow registers directly
+    LDI  0x1234      ; Uses R0' (shadow R0)
+    MOV  R1, R0      ; R1' = R0' (using shadow registers)
+    
+    ; Access interrupted context if needed
+    SMV  R2, APC     ; R2' = PC (normal interrupted PC)
+    SMV  R3, APSW    ; R3' = PSW (normal interrupted PSW)
+    
+    ; ... handler code ...
+    
+    RETI             ; Return to normal context
+```
+
+### **4.9 Interrupt Exit Sequence**
+
+#### **Hardware-Automated Process**
+**On RETI instruction:**
+```
+PSW'  ← 0x0000    ; S=0 - switch back to normal context
+; Hardware automatically uses normal registers (PSW'.S=0)
+; Execution resumes with original segments and PSW intact
+```
+
+#### **Important Notes**
+1. **No register restoration occurs** - normal registers were never modified
+2. **Shadow registers retain their values** for next interrupt/debugging
+3. **Only PSW' is modified** - set to 0x0000 to trigger context switch
+4. **Pipeline flush** - clean transition between contexts
+
+### **4.10 Hardware Implementation**
+
+#### **Context Switching Muxing**
+```verilog
+// Single bit (PSW'.S) controls all context switching
+assign active_cs   = psw_shadow_s ? cs_shadow   : cs_normal;
+assign active_ds   = psw_shadow_s ? ds_shadow   : ds_normal;
+assign active_ss   = psw_shadow_s ? ss_shadow   : ss_normal;  
+assign active_es   = psw_shadow_s ? es_shadow   : es_normal;
+assign active_pc   = psw_shadow_s ? pc_shadow   : pc_normal;
+assign active_psw  = psw_shadow_s ? psw_shadow  : psw_normal;
+
+// General-purpose register muxing
+assign active_reg0  = psw_shadow_s ? reg0_shadow  : reg0_normal;
+assign active_reg1  = psw_shadow_s ? reg1_shadow  : reg1_normal;
+assign active_reg2  = psw_shadow_s ? reg2_shadow  : reg2_normal;
+assign active_reg3  = psw_shadow_s ? reg3_shadow  : reg3_normal;
+assign active_reg13 = psw_shadow_s ? reg13_shadow : reg13_normal;
+assign active_reg14 = psw_shadow_s ? reg14_shadow : reg14_normal;
+
+// Other registers (R4-R12, R15) always use normal context
+assign active_reg4  = reg4_normal;
+// ... etc for R5-R12 ...
+assign active_reg15 = reg15_normal;  // PC special case handled above
+```
+
+#### **Interrupt Entry Logic**
+```verilog
+always @(posedge interrupt_trigger) begin
+    // Set shadow context
+    psw_shadow <= 16'h0020;    // S=1, I=0
+    
+    // Initialize all shadows to 0
+    cs_shadow  <= 16'h0000;
+    ds_shadow  <= 16'h0000;
+    ss_shadow  <= 16'h0000;
+    es_shadow  <= 16'h0000;
+    reg0_shadow <= 16'h0000;
+    reg1_shadow <= 16'h0000;
+    reg2_shadow <= 16'h0000;
+    reg3_shadow <= 16'h0000;
+    reg13_shadow <= 16'h0000;
+    reg14_shadow <= 16'h0000;
+    
+    // Set handler address
+    pc_shadow <= interrupt_vector;  // From vector table
+    
+    // Note: Normal registers remain unchanged
+end
+```
+
+### **4.11 Key Benefits of Shadow Register System**
+
+#### **1. Zero Software Overhead**
+- **No manual register saving** required in interrupt handlers
+- **Hardware-managed context** switching via PSW'.S
+- **Fast interrupt entry/exit** - minimal cycles
+
+#### **2. Clean Context Separation**
+- **Interrupt handlers** run in clean, initialized context
+- **Normal execution** completely isolated from interrupts
+- **Predictable state** - all shadows initialized to 0
+
+#### **3. Debugging Support**
+- **SMV provides symmetric access** to both contexts
+- **Inspect interrupted state** from normal mode
+- **Examine normal registers** from interrupt mode
+
+#### **4. Hardware Simplicity**
+- **Single control bit** (PSW'.S) for all muxing
+- **Minimal shadow registers** - only commonly-used ones
+- **Efficient implementation** - ~2,650 LUTs estimated
+
+#### **5. Performance Characteristics**
+- **Interrupt latency**: 2 cycles (entry + jump)
+- **Context switch**: 0 cycles (hardware concurrent)
+- **Register access**: Immediate (no save/restore penalty)
+- **Memory usage**: No stack usage for context saving
+
+---
+
+## **5. Enhanced Assembler Syntax and Aliases**
+
+### **5.1 Enhanced Assembler Syntax (Preprocessing Only)**
 
 **Important**: The enhanced syntax described below is purely **assembler preprocessing**. The binary encoding always uses the specific instruction (MOV, MVS, SMV, LD, ST). The assembler automatically translates enhanced syntax to the correct machine instruction.
 
-#### **4.1.1 LD/ST Bracket Syntax**
+#### **5.1.1 LD/ST Bracket Syntax**
 
 **Assembler Input (Enhanced Syntax):**
 ```assembly
@@ -420,7 +717,7 @@ ST   R1, SP, 4        ; Machine instruction: [10][1][R1][SP][4]
 LD   R1, R2, 0        ; Machine instruction: [10][0][R1][R2][0]
 ```
 
-#### **4.1.2 MOV Plus Syntax**
+#### **5.1.2 MOV Plus Syntax**
 
 **Assembler Input (Enhanced Syntax):**
 ```assembly
@@ -434,7 +731,7 @@ MOV  R1, R2, 3        ; Machine instruction: [111110][R1][R2][3]
 MOV  R3, SP, 0        ; Note: Negative offsets not supported in MOV
 ```
 
-### **4.2 Instruction Aliases**
+### **5.2 Instruction Aliases**
 
 **Table R: Instruction Aliases**
 
@@ -449,7 +746,7 @@ MOV  R3, SP, 0        ; Note: Negative offsets not supported in MOV
 | ALINK | SMV LR, PC | Architectural link to LR via SMV LR, PC |
 | GETPC Rx | SMV Rx, PC | Architectural read of PC |
 
-### **4.3 Flag Operation Aliases**
+### **5.3 Flag Operation Aliases**
 
 **Table S: Common Flag Aliases**
 
@@ -470,9 +767,9 @@ MOV  R3, SP, 0        ; Note: Negative offsets not supported in MOV
 
 ---
 
-## **5. Programming Model**
+## **6. Programming Model**
 
-### **5.1 Register Usage Conventions**
+### **6.1 Register Usage Conventions**
 
 | Register | Preserved? | Purpose |
 |----------|------------|---------|
@@ -483,49 +780,9 @@ MOV  R3, SP, 0        ; Note: Negative offsets not supported in MOV
 | R14 (LR) | Callee-save | Return address |
 | R15 (PC) | - | Program counter |
 
-### **5.2 Interrupt System with Complete Shadow Registers**
+### **6.2 Subroutine Call Mechanism**
 
-#### **5.2.1 Complete Shadow Register System**
-
-**On Interrupt (NMI, INT, or SWI):**
-- **Automatic shadow save**: R0', R1', R2', R3', R13', R14' ← R0, R1, R2, R3, R13, R14
-- **PSW' ← PSW** (Snapshot pre-interrupt state)
-- **CS' ← CS**, `DS' ← DS`, `SS' ← SS`, `ES' ← ES` (Snapshot all segment registers)
-- **PC' ← PC** (Save return address)
-- `PSW.S ← 1`, `PSW.I ← 0` (Enter shadow context, disable interrupts)
-- `CS ← 0` (Interrupts run in Segment 0)
-- `PC ← Mem[interrupt_vector]` (Load PC from vector table)
-- **Pipeline flushed** to ensure clean context switch
-
-**On RETI:**
-- Switch to normal view (PSW.S=0)
-- **Automatic shadow restore**: R0, R1, R2, R3, R13, R14 ← R0', R1', R2', R3', R13', R14'
-- **PC ← PC'** (Restore return address)
-- **PSW ← PSW'** (Restore original PSW with I flag)
-- **Pipeline flushed** on context restoration
-
-**SMV Access in Different Contexts:**
-- **Normal mode (PSW.S=0)**: SMV accesses shadow registers (R0'-R3', R13', R14', PC', PSW', CS', DS', SS', ES')
-- **Interrupt mode (PSW.S=1)**: SMV accesses normal registers (R0-R3, R13, R14, PC, PSW, CS, DS, SS, ES)
-
-**Benefits of Complete Shadow System with Extended Registers:**
-- **Zero-overhead interrupt entry**: R0'-R3', R13', R14' preserved automatically
-- **Fast context switch**: No stack pushing for common registers
-- **Debug visibility**: Access both contexts via SMV
-- **Clean separation**: Interrupt handlers use shadow registers, normal code unaffected
-
-#### **5.2.2 Interrupt Vector Table**
-
-**Located at Segment 0 (Low Memory):**
-```
-0x0000: RESET_VECTOR    (PC loaded from here on reset)
-0x0001: HW_INT_VECTOR   (PC loaded from here on hardware interrupt)  
-0x0002: SWI_VECTOR      (PC loaded from here on software interrupt)
-```
-
-### **5.3 Subroutine Call Mechanism**
-
-#### **5.3.1 Delayed Branch Impact on Subroutine Calls**
+#### **6.2.1 Delayed Branch Impact on Subroutine Calls**
 
 The Deep16 architecture implements a **one-slot delayed branch**, which significantly impacts subroutine call conventions. Unlike architectures with dedicated CALL instructions, Deep16 uses a two-instruction sequence:
 
@@ -543,7 +800,7 @@ JMP  sub_func ; Jump to subroutine
   - The delay slot instruction at `PC + 1` always executes
   - The actual return address should be `PC + 2` (after delay slot)
 
-#### **5.3.2 Architectural Move for Delay Slot Optimization**
+#### **6.2.2 Optimized Subroutine Call using ALINK**
 
 To utilize the delay slot efficiently, Deep16 provides **architectural register access** via SMV with alt_sel=1111:
 
@@ -554,7 +811,7 @@ ALINK                 ; SMV LR, PC - Architectural read of PC in delay slot
 ; Execution continues after subroutine return
 ```
 
-#### **5.3.3 Performance Impact of ALINK Optimization**
+#### **6.2.3 Performance Impact of ALINK Optimization**
 
 **Traditional vs Optimized Performance:**
 ```assembly
@@ -574,93 +831,146 @@ ALINK          ; SMV LR, PC  - 1 cycle (useful work) - TOTAL: 2 cycles
 - **Practical achievement**: 20-25% in well-optimized code
 - **Real-world expectation**: 10-20% overall performance gain in call-intensive workloads
 
-### **5.4 Programming Examples**
+### **6.3 Programming Examples**
 
-#### **5.4.1 Interrupt Handler with Extended Shadows**
+#### **6.3.1 Complete System Initialization**
+```assembly
+INIT_SYSTEM:
+    ; Disable interrupts during setup
+    CLRI
+    
+    ; Setup segment registers
+    LDI 0x0000
+    MVS CS, R0      ; CS = 0x0000
+    MVS DS, R0      ; DS = 0x0000
+    MVS SS, R0      ; SS = 0x0000
+    MVS ES, R0      ; ES = 0x0000
+    
+    ; Setup stack pointer (R13)
+    LDI STACK_TOP
+    MOV R13, R0
+    LDI 0x0000      ; Clear R14 (pair with R13 for SS access)
+    MOV R14, R0
+    
+    ; Setup extra register pair (R11:R12 for ES access)
+    LDI ES_BASE
+    MOV R11, R0
+    LDI 0x0000
+    MOV R12, R0
+    
+    ; Configure PSW for dual registers
+    LPSW R1
+    AND  R1, 0x001F     ; Keep only NZVC+I
+    LDI  0xE400         ; DE=1, ER=11, DS=1, SR=13
+    OR   R1, R0         ; Combine
+    OR   R1, 0x0010     ; Set I=1 (will enable later)
+    SPSW R1             ; Update PSW
+    
+    ; Setup interrupt vector table
+    LDI 0x0000
+    MVS CS, R0          ; Set CS for vector table access
+    LDI ILL_HANDLER
+    ST  R0, R0, 0       ; Store at address 0x0000 (ILL vector)
+    LDI TIMER_ISR
+    ST  R0, R0, 1       ; Store at address 0x0001 (timer vector)
+    LDI SWI_HANDLER
+    ST  R0, R0, 2       ; Store at address 0x0002 (SWI vector)
+    
+    ; Enable interrupts
+    SETI
+    
+    ; Jump to main program
+    LDI MAIN
+    MOV PC, R0
+```
 
+#### **6.3.2 ILL Handler with FPU Emulation**
+```assembly
+ILL_HANDLER:
+    ; Get trapped instruction
+    SMV  R0, APC      ; APC = address after trapped instruction
+    SUB  R0, R0, 1    ; Point to trapped instruction
+    MVS  CS, 0        ; Access segment 0
+    LD   R1, R0, 0    ; R1 = trapped instruction
+    
+    ; Check for double fault
+    SMV  R2, APSW
+    AND  R3, R2, 0x0020  ; Check S bit
+    JNZ  DOUBLE_FAULT    ; Already in interrupt = reset
+    
+    ; Check if it's an FPU instruction
+    MOV  R2, R1
+    SR   R2, 14       ; Check bits 14-15
+    CMP  R2, 0x3      ; 0b11xxxx...
+    JNZ  NOT_FPU
+    
+    ; Extract FPU function code
+    AND  R3, R1, 0x0300  ; Get FPU function code
+    SR   R3, 8        ; Shift to lower bits
+    
+    ; Dispatch to emulation routine
+    LDI  FPU_DISPATCH
+    ADD  R3, R3, R0   ; Add offset
+    LD   R4, R3, 0    ; Get routine address
+    JMP  R4           ; Jump to emulation
+    
+FPU_DISPATCH:
+    .dw  FADD_EMU      ; FPU_CORE 00
+    .dw  FMUL_EMU      ; FPU_CORE 01
+    .dw  FDIV_EMU      ; FPU_CORE 10
+    .dw  FSQRT_EMU     ; FPU_CORE 11
+    .dw  FEXP_EMU      ; FPU_EXT 0
+    .dw  FLOG_EMU      ; FPU_EXT 1
+    .dw  FCMP_EMU      ; FCMP
+
+FADD_EMU:
+    ; Software floating-point addition
+    ; Extract operands from instruction
+    AND  R2, R1, 0x000F  ; Rd field
+    SR   R3, R1, 4
+    AND  R3, R3, 0x000F  ; Rs field
+    ; ... emulation code ...
+    RETI
+
+NOT_FPU:
+    ; Not an FPU instruction - truly illegal
+    HLT
+
+DOUBLE_FAULT:
+    ; Fatal error - trigger reset
+    HLT
+```
+
+#### **6.3.3 Timer Interrupt Handler**
 ```assembly
 TIMER_ISR:
-    ; Running in shadow context (PSW.S=1)
-    ; R0', R1', R2', R3', R13', R14' contain original values
-    ; We can use them directly without saving
+    ; Running in shadow context (PSW'.S=1)
+    ; Shadow registers automatically active
     
-    ; Read normal context PC for debugging
-    SMV R0, APC        ; R0 ← PC' (normal context PC)
+    ; Handle timer interrupt
+    LDI TIMER_BASE
+    MVS ES, R0         ; Set ES to timer segment
+    LDS R2, ES, [R0]   ; Read timer value
     
-    ; Use shadow registers for interrupt processing
-    SMV R1, R0'        ; R1 ← original R0
-    ADD R1, R1, 1      ; Process...
-    ; No need to restore - shadow registers are separate
+    ; Process timer tick
+    LDI  TICK_COUNT
+    LD   R3, R0, 0     ; Load tick count
+    ADD  R3, R3, 1     ; Increment
+    ST   R3, R0, 0     ; Store back
     
-    ; Access PSW via LPSW
-    LPSW R2            ; R2 ← PSW (current shadow context PSW)
-    SETI R2            ; Set interrupt enable in copy
-    SPSW R2            ; Update PSW
+    ; Acknowledge interrupt
+    LDI 1
+    STS R0, ES, [R0+2] ; Write to acknowledge register
     
+    ; Restore and return
     RETI               ; Returns to normal context
-                     ; Automatically restores R0-R3, R13-R14 from shadows
-```
-
-#### **5.4.2 Debugging Both Contexts**
-
-```assembly
-; In normal mode (PSW.S=0)
-debug_contexts:
-    ; Read shadow (interrupt) context
-    SMV R1, R0'        ; R1 ← R0' (shadow R0)
-    SMV R2, R1'        ; R2 ← R1' (shadow R1)
-    SMV R3, APC        ; R3 ← PC' (interrupt PC)
-    SMV R4, APSW       ; R4 ← PSW' (interrupt PSW)
-    
-    ; Read current PSW
-    LPSW R5            ; R5 ← PSW (current normal PSW)
-    
-    ; Compare contexts...
-    RET
-```
-
-#### **5.4.3 ALINK Optimization Examples**
-
-```assembly
-; Traditional call (wastes delay slot)
-LINK           ; MOV LR, PC, 2
-JMP  subroutine
-NOP            ; Wasted
-
-; Optimized call (uses delay slot with SMV)
-JMP   subroutine
-ALINK          ; SMV LR, PC (reads architectural PC)
-
-; Alternative with register
-JMP   subroutine
-SMV   R5, PC   ; Save return address in R5
-
-; Complete function with optimized call
-caller:
-    JMP   my_function
-    ALINK          ; SMV LR, PC in delay slot
-    ; Execution continues here after return
-
-my_function:
-    ; Function prologue
-    MOV  FP, SP      ; Set frame pointer
-    SUB  SP, 4       ; Allocate stack space
-    ST   LR, [FP+3]  ; Save return address
-    
-    ; Function body...
-    
-    ; Function epilogue
-    LD   LR, [FP+3]  ; Restore return address
-    MOV  SP, FP      ; Restore stack pointer
-    JMP  LR          ; Return to caller
-    NOP              ; Delay slot
 ```
 
 ---
 
-## **6. Pipeline Implementation Details**
+## **7. Pipeline Implementation Details**
 
-### **6.1 5-Stage Pipeline Structure**
+### **7.1 5-Stage Pipeline Structure**
 
 **Stage 1: IF (Instruction Fetch)**
 - Fetch instruction from memory using PC
@@ -687,7 +997,7 @@ my_function:
 - Write result to register file
 - Update PSW for flag-setting instructions
 
-### **6.2 Hazard Detection and Forwarding**
+### **7.2 Hazard Detection and Forwarding**
 
 **Forwarding Paths:**
 ```
@@ -706,27 +1016,24 @@ WB → EX: Written value to ALU operation
    - Current instruction completes
    - Next instruction fetched but discarded
 
-### **6.3 Interrupt Timing**
+### **7.3 Interrupt Timing**
 
 **Normal Context → Interrupt Context:**
 ```
 Cycle 1: Current instruction completes (if not branch/jump)
-Cycle 2: Hardware saves R0-R3, R13-R14 to shadows
-         Saves PC to PC', PSW to PSW', segments to shadows
-         Sets PSW.S = 1 (enter shadow context)
+Cycle 2: Hardware initializes shadow registers
+         Sets PSW'.S = 1 (enter shadow context)
 Cycle 3: Fetch from interrupt vector (first ISR instruction)
 ```
 
 **Interrupt Context → Normal Context (RETI):**
 ```
 Cycle 1: RETI instruction in EX stage
-Cycle 2: Hardware restores R0-R3, R13-R14 from shadows
-         Restores PC' → PC, PSW' → PSW
-         Sets PSW.S = 0 (return to normal context)
+Cycle 2: Hardware sets PSW'.S = 0 (return to normal context)
 Cycle 3: Fetch next instruction from normal context
 ```
 
-### **6.4 Cache Implementation (Optional)**
+### **7.4 Cache Implementation (Optional)**
 
 **If 4KB unified cache implemented:**
 - Direct-mapped, write-through policy
@@ -742,9 +1049,9 @@ Cycle 3: Fetch next instruction from normal context
 
 ---
 
-## **7. Memory System**
+## **8. Memory System**
 
-### **7.1 Segmented Addressing**
+### **8.1 Segmented Addressing**
 
 **Physical Address Calculation:**
 ```
@@ -758,7 +1065,7 @@ For CS access:       PA = (CS << 16) | (PC & 0xFFFF)
 - **SS**: Stack segment (used when DS=1 in PSW)
 - **ES**: Extra segment (for peripheral access)
 
-### **7.2 Memory Map Example**
+### **8.2 Memory Map Example**
 
 ```
 0x00000 - 0x0FFFF: ROM (64KB) - Boot code, interrupt vectors
@@ -767,7 +1074,7 @@ For CS access:       PA = (CS << 16) | (PC & 0xFFFF)
 0x30000 - 0xFFFFF: Extended RAM (832KB) - Optional
 ```
 
-### **7.3 I/O Access**
+### **8.3 I/O Access**
 
 **Memory-mapped I/O:**
 ```assembly
@@ -782,9 +1089,9 @@ STS R0, ES, [R1]    ; Write to UART transmit
 
 ---
 
-## **8. Future Extensions**
+## **9. Future Extensions**
 
-### **8.1 FPU Instruction Encoding (Reserved Space)**
+### **9.1 FPU Instruction Encoding (Reserved Space)**
 
 **FPU_CORE (11111111111110 ff):**
 ```
@@ -805,7 +1112,7 @@ STS R0, ES, [R1]    ; Write to UART transmit
 - Sets NZVC flags based on comparison
 - Uses R0:R1 and R2:R3 as 32-bit floating operands
 
-### **8.2 Additional Reserved Encodings**
+### **9.2 Additional Reserved Encodings**
 
 **For future SYS extensions:**
 ```
@@ -818,7 +1125,7 @@ STS R0, ES, [R1]    ; Write to UART transmit
 
 ---
 
-## **9. Complete ALU func5 Encoding Table**
+## **10. Complete ALU func5 Encoding Table**
 
 **Table 14: Complete ALU2 func5 Encoding**
 
@@ -859,37 +1166,6 @@ STS R0, ES, [R1]    ; Write to UART transmit
 
 ---
 
-## **10. Changes from Previous Version**
-
-### **10.1 Key Improvements in v5.2**
-
-1. **Extended Shadow Register Set**: Added R0', R1', R2', R3', R13', R14' to shadow system (12 total shadow registers)
-2. **Simplified SMV Instruction**: Read-only format `11111110 Rx4 alt_sel4` (no d-bit)
-3. **Extended alt_sel Codes**: Complete mapping for all shadow registers + architectural PC (1111)
-4. **PSW Access Unified**: LPSW/SPSW in SOP instruction group (10-bit opcode)
-5. **JML Opcode Corrected**: Fixed to `111111111110 Rx4` (12-bit opcode)
-6. **Architectural PC Access**: `SMV Rx, PC` (alt_sel=1111) replaces AMV for PC reading
-7. **Complete Instruction Set**: All instructions now have precise encoding
-8. **Added CLRB Instruction**: `Rd ← Rd AND NOT(1 << imm)` for bit clearing
-9. **FPU Encoding Space**: Defined 14-bit, 15-bit, and 16-bit patterns for future FPU
-10. **ILL Trap Behavior**: FPU instructions trap to interrupt for software emulation
-11. **Complete Pipeline Details**: Hazard detection, forwarding, interrupt timing
-12. **Classic PSW Visualization**: Clear bit layout diagram
-13. **Complete ALU Encoding Table**: All 32 func5 codes defined
-14. **Enhanced Interrupt Handling**: Automatic save/restore of R0-R3, R13-R14
-15. **Optimized Subroutine Calls**: ALINK using SMV for delay slot optimization
-
-### **10.2 Shadow Register Benefits**
-
-1. **Interrupt performance**: 8 registers (R0-R3, R13-R14, PC, PSW) saved/restored in hardware
-2. **Zero stack usage**: Common registers don't need stack saving in interrupts
-3. **Debug capability**: Inspect both contexts via SMV
-4. **Context isolation**: Interrupt code uses separate register set
-5. **Fast switching**: Single-cycle context change with RETI
-6. **Reduced interrupt latency**: Less register pushing/popping
-
----
-
 ## **11. Implementation Checklist**
 
 ### **11.1 Core Required Features**
@@ -899,12 +1175,14 @@ STS R0, ES, [R1]    ; Write to UART transmit
 - [ ] Hazard detection (load-use stall)
 - [ ] Delayed branch implementation
 - [ ] Complete shadow register system (12 shadow registers)
-- [ ] PSW with S-bit for context switching
+- [ ] PSW' with S-bit for context switching
 - [ ] Segment registers (CS, DS, SS, ES)
+- [ ] ILL trap detection and handling
 - [ ] Interrupt handling with automatic context save/restore
-- [ ] ILL trap for unimplemented instructions
 - [ ] SMV instruction with alt_sel decoding
 - [ ] LPSW/SPSW instructions for PSW access
+- [ ] RETI instruction for interrupt return
+- [ ] Double fault detection (ILL in interrupt context)
 
 ### **11.2 Optional Features**
 - [ ] 4KB unified cache
@@ -917,33 +1195,35 @@ STS R0, ES, [R1]    ; Write to UART transmit
 - [ ] Forwarding and stall scenarios
 - [ ] Interrupt entry/exit timing with shadow registers
 - [ ] SMV access in both contexts
-- [ ] Segment addressing correctness
 - [ ] ILL trap for FPU instructions
+- [ ] Double fault detection and reset
 - [ ] Delayed branch behavior
 - [ ] Memory-mapped I/O access
 - [ ] Subroutine calls with ALINK optimization
 - [ ] Context switching with RETI
+- [ ] Segment addressing correctness
 
 ---
 
 ## **12. Summary**
 
-Deep16 v5.2 represents a **mature, implementable 16-bit RISC architecture** with:
+Deep16 Milestone 6 represents a **mature, implementable 16-bit RISC architecture** with:
 
 ### **12.1 Key Strengths**
 1. **Educational Value**: Clean RISC design with visible pipeline effects
 2. **Practical Features**: Complete shadow register system for zero-overhead interrupts
-3. **Extensible Design**: Reserved encoding space for FPU and future extensions
+3. **Extensible Design**: ILL trap system for software emulation of new instructions
 4. **Performance**: 5-stage pipeline with forwarding, ~1.0-1.3 CPI
 5. **Simplicity**: 16-bit fixed instructions, no memory protection overhead
 6. **Optimized Calls**: ALINK optimization provides 33% faster subroutine calls
 
 ### **12.2 Unique Innovations**
 1. **Complete Shadow Register System**: 12 shadow registers including R0'-R3', R13', R14'
-2. **Delayed Branch Architecture**: No branch penalty with ALINK optimization
-3. **Symmetric SMV Access**: Unified access to both normal and shadow contexts
-4. **ILL-based FPU Emulation**: Future compatibility without hardware changes
-5. **Automatic Context Save/Restore**: Hardware-managed interrupt context switching
+2. **ILL Trap System**: Replaces NMI, enables software FPU emulation
+3. **Delayed Branch Architecture**: No branch penalty with ALINK optimization
+4. **Symmetric SMV Access**: Unified access to both normal and shadow contexts
+5. **Automatic Context Management**: Hardware-managed interrupt context switching
+6. **Double Fault Protection**: Prevents recursive ILL traps
 
 ### **12.3 Target Applications**
 - **Educational**: Computer architecture courses, FPGA labs
@@ -953,16 +1233,16 @@ Deep16 v5.2 represents a **mature, implementable 16-bit RISC architecture** with
 - **Real-time Systems**: Fast interrupt response with shadow registers
 
 ### **12.4 Implementation Status**
-- **Specification**: Complete and stable (v5.2)
+- **Specification**: Complete and stable (Milestone 6)
 - **HDL Implementation**: Ready to begin
 - **Toolchain**: Assembler needed, C compiler desirable
 - **Verification**: Test suite required
 
 ---
 
-**Deep16 Architecture Specification v5.2**  
+**Deep16 Architecture Specification Milestone 6**  
 *Updated: 2024-03-20*  
 *Status: Complete and ready for implementation*  
-*Key Features: Extended shadow registers, simplified SMV, complete instruction encoding, ALINK optimization*  
+*Key Features: ILL trap system, complete shadow registers, FPU emulation, simplified interrupt model, ALINK optimization*  
 
-The Deep16 architecture balances simplicity with practical features, making it suitable for both educational use and real embedded applications. The complete shadow register system provides exceptional interrupt performance, while the clean RISC design ensures straightforward implementation and understanding.
+The Deep16 Milestone 6 specification provides a mature, implementable 16-bit RISC architecture with zero-overhead interrupts, software-extensible instruction set via ILL traps, and efficient pipeline design suitable for both educational and practical embedded applications.
