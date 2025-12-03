@@ -175,38 +175,17 @@ check_dot_token:
     ADD R3, >IN
     ADD R3, 1
     LD R4, R3, 0
-    LDI ' '
-    CMP R4, R0
-    JNZ check_quote_after_dot
-skip_dot_spaces:
-    ADD R3, 1
-    LD R4, R3, 0
-    LDI ' '
-    CMP R4, R0
-    JZ skip_dot_spaces
-check_quote_after_dot:
-    LD R4, R3, 0
     LDI '"'
     CMP R4, R0
-    JNZ dot_check_backslash2
+    JNZ dot_plain
+    LD R5, R3, 1
+    LDI ' '
+    CMP R5, R0
+    JNZ skip_unknown
     MOV R1, R3
     SUB R1, TIB
     MOV >IN, R1
     ADD >IN, 1
-    LDI print_string_skip
-    MOV PC, R0
-    NOP
-dot_check_backslash2:
-    LDI '\\'
-    CMP R4, R0
-    JNZ dot_plain
-    LD R5, R3, 1
-    LDI '"'
-    CMP R5, R0
-    JNZ dot_plain
-    MOV R1, R3
-    SUB R1, TIB
-    MOV >IN, R1
     LDI print_string_skip
     MOV PC, R0
     NOP
@@ -462,25 +441,112 @@ advance_token:
 skip_unknown:
     MOV R3, TIB
     ADD R3, >IN
-skip_scan:
+    LDI 0x1000
+    MOV R2, R0
+    MOV R4, SCR
+    SUB R4, R2
+    LDI 80
+    MOV R5, R0
+    MOV R6, R4
+    DIV R6, R5
+    ADD R6, 1
+    MUL R6, R5
+    ADD R2, R6
+    MOV SCR, R2
+    LDI 'u'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'n'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'd'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'e'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'f'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'i'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'n'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'e'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'd'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'w'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'o'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'r'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'd'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI ':'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
     LD R2, R3, 0
+print_bad_loop:
+    ; Ensure printable low-byte only
+    LDI 0x00FF
+    AND R2, R0
     LDI 0
     CMP R2, R0
-    JNZ skip_not_end
-    LDI interpret_loop
-    MOV PC, R0
-    NOP
-skip_not_end:
+    JZ print_bad_done
     LDI ' '
     CMP R2, R0
-    JNZ skip_advance
-    LDI interpret_loop
+    JZ print_bad_done
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD R3, 1
+    LD R2, R3, 0
+    LDI 0x00FF
+    AND R2, R0
+    LDI print_bad_loop
     MOV PC, R0
     NOP
-skip_advance:
-    ADD R3, 1
-    ADD >IN, 1
-    LDI skip_scan
+print_bad_done:
+    LDI 0x1000
+    MOV R2, R0
+    MOV R4, SCR
+    SUB R4, R2
+    LDI 80
+    MOV R5, R0
+    MOV R6, R4
+    DIV R6, R5
+    ADD R6, 1
+    MUL R6, R5
+    ADD R2, R6
+    MOV SCR, R2
+    LDI '>'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LSI R1, 1
+    SL  R1, 15
+    LDI ' '
+    MOV R2, R0
+    OR  R2, R1
+    STS R2, ES, SCR
+    LDI word_accept
     MOV PC, R0
     NOP
 next_entry:
@@ -490,6 +556,15 @@ next_entry:
     NOP
 
 interpret_done:
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'o'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'k'
+    STS R0, ES, SCR
+    ADD SCR, 1
     ; Move to start of next line using row index
     LDI 0x1000
     MOV R2, R0           ; base
