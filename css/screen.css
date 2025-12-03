@@ -26,6 +26,11 @@
     box-sizing: border-box;
 }
 
+.screen-display.screen-active {
+    border-color: #3399ff;
+    box-shadow: 0 0 8px rgba(51, 153, 255, 0.6);
+}
+
 .screen-row {
     display: flex;
     white-space: nowrap;
@@ -47,6 +52,13 @@
     font-size: 13px;
     letter-spacing: -0.5px;
     flex-shrink: 0;
+}
+
+.screen-char.reverse {
+    background: #ffffff;
+    color: #000000;
+    outline: 1px solid #00ff66;
+    box-shadow: 0 0 6px rgba(0, 255, 102, 0.5);
 }
 
 .screen-char:hover {

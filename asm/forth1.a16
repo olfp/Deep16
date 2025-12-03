@@ -75,6 +75,16 @@ forth_start:
     LDI 0x00FF
     MOV MASK, R0         ; R4 = 0x00FF for byte masking
 
+    LSI R1, 1
+    SL  R1, 15
+    ADD R1, 15
+    ADD R1, 10
+    ADD R1, 8
+    ADD R1, 2
+    STS R1, ES, SCR
+    ADD SCR, 1
+    ADD POS, 1
+
     ; Ensure Data Segment points to physical 0x0000 for LD/ST
     LDI 0
     MVS DS, R0

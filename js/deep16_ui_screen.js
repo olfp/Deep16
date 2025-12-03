@@ -34,6 +34,13 @@ class Deep16ScreenUI {
         if (window.Deep16Debug) console.log(`Screen initialized: ${this.screenWidth}x${this.screenHeight} at 0x${this.screenBaseAddress.toString(16).toUpperCase()}`);
     }
 
+    setActive(flag) {
+        const screenDisplay = document.getElementById('screen-display');
+        if (!screenDisplay) return;
+        if (flag) { screenDisplay.classList.add('screen-active'); }
+        else { screenDisplay.classList.remove('screen-active'); }
+    }
+
     updateScreenDisplay() {
         // Update all characters from screen memory
         if (this.ui.useWasm && this.ui.wasmAvailable && this.ui.wasmInitialized && window.Deep16Wasm) {
@@ -41,15 +48,26 @@ class Deep16ScreenUI {
                 if (typeof window.Deep16Wasm.get_memory_slice === 'function') {
                     const slice = window.Deep16Wasm.get_memory_slice(this.screenBaseAddress, this.totalChars);
                     for (let i = 0; i < slice.length; i++) {
-                        const charCode = slice[i] & 0xFF;
-                        this.updateCharacter(i, charCode);
+                        const word = slice[i] & 0xFFFF;
+                        if (word === 0xFFFF || word === 0x0000) {
+                            this.updateCharacter(i, 32, false);
+                        } else {
+                            const charCode = word & 0xFF;
+                            const reverse = (word & 0x8000) !== 0;
+                            this.updateCharacter(i, charCode, reverse);
+                        }
                     }
                     return;
                 } else if (typeof window.Deep16Wasm.get_memory_word === 'function') {
                     for (let i = 0; i < this.totalChars; i++) {
-                        const word = window.Deep16Wasm.get_memory_word(this.screenBaseAddress + i);
-                        const charCode = word & 0xFF;
-                        this.updateCharacter(i, charCode);
+                        const word = window.Deep16Wasm.get_memory_word(this.screenBaseAddress + i) & 0xFFFF;
+                        if (word === 0xFFFF || word === 0x0000) {
+                            this.updateCharacter(i, 32, false);
+                        } else {
+                            const charCode = word & 0xFF;
+                            const reverse = (word & 0x8000) !== 0;
+                            this.updateCharacter(i, charCode, reverse);
+                        }
                     }
                     return;
                 }
@@ -61,15 +79,20 @@ class Deep16ScreenUI {
             for (let i = 0; i < this.totalChars; i++) {
                 const memoryAddress = this.screenBaseAddress + i;
                 if (memoryAddress < this.ui.simulator.memory.length) {
-                    const wordValue = this.ui.simulator.memory[memoryAddress];
-                    const charCode = wordValue & 0xFF; // Lower byte contains character
-                    this.updateCharacter(i, charCode);
+                    const wordValue = this.ui.simulator.memory[memoryAddress] & 0xFFFF;
+                    if (wordValue === 0xFFFF || wordValue === 0x0000) {
+                        this.updateCharacter(i, 32, false);
+                    } else {
+                        const charCode = wordValue & 0xFF; // Lower byte contains character
+                        const reverse = (wordValue & 0x8000) !== 0;
+                        this.updateCharacter(i, charCode, reverse);
+                    }
                 }
             }
         }
     }
 
-    updateCharacter(charIndex, charCode) {
+    updateCharacter(charIndex, charCode, reverse) {
         const charElement = document.getElementById(`screen-char-${charIndex}`);
         if (!charElement) return;
 
@@ -91,6 +114,11 @@ class Deep16ScreenUI {
         // charCode 0 remains as space
 
         charElement.textContent = displayChar;
+        if (reverse) {
+            charElement.classList.add('reverse');
+        } else {
+            charElement.classList.remove('reverse');
+        }
     }
 
     // Method to clear the screen (set all memory to 0)
@@ -138,8 +166,10 @@ class Deep16ScreenUI {
             if (this.deferUpdates) {
                 this.pendingUpdates.add(charIndex);
             } else {
-                const charCode = value & 0xFF;
-                this.updateCharacter(charIndex, charCode);
+                const word = value & 0xFFFF;
+                const charCode = word & 0xFF;
+                const reverse = (word & 0x8000) !== 0;
+                this.updateCharacter(charIndex, charCode, reverse);
             }
         }
     }
@@ -173,9 +203,14 @@ class Deep16ScreenUI {
         for (const charIndex of this.pendingUpdates) {
             const memoryAddress = this.screenBaseAddress + charIndex;
             if (memoryAddress < this.ui.simulator.memory.length) {
-                const wordValue = this.ui.simulator.memory[memoryAddress];
-                const charCode = wordValue & 0xFF;
-                this.updateCharacter(charIndex, charCode);
+                const wordValue = this.ui.simulator.memory[memoryAddress] & 0xFFFF;
+                if (wordValue === 0xFFFF || wordValue === 0x0000) {
+                    this.updateCharacter(charIndex, 32, false);
+                } else {
+                    const charCode = wordValue & 0xFF;
+                    const reverse = (wordValue & 0x8000) !== 0;
+                    this.updateCharacter(charIndex, charCode, reverse);
+                }
             }
         }
         this.pendingUpdates.clear();
