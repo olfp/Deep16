@@ -1088,7 +1088,78 @@ emit_lf_scroll_copy:
     ADD R4, 1
     LDS R1, ES, R4
     STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
+    ADD R13, 1
+    ADD R4, 1
+    LDS R1, ES, R4
+    STS R1, ES, R13
     ADD R7, 8
+    LDI 24
+    MOV R3, R0
+    ADD R7, R3
     CMP R7, R5
     JNZ emit_lf_scroll_copy
     LDI 0
@@ -1115,8 +1186,26 @@ emit_lf_scroll_clear:
     STS R0, ES, R13
     ADD R13, 1
     STS R0, ES, R13
-    ADD R7, 8
-    SUB R4, 8
+    ADD R13, 1
+    STS R0, ES, R13
+    ADD R13, 1
+    STS R0, ES, R13
+    ADD R13, 1
+    STS R0, ES, R13
+    ADD R13, 1
+    STS R0, ES, R13
+    ADD R13, 1
+    STS R0, ES, R13
+    ADD R13, 1
+    STS R0, ES, R13
+    ADD R13, 1
+    STS R0, ES, R13
+    ADD R13, 1
+    STS R0, ES, R13
+    LDI 16
+    MOV R3, R0
+    ADD R7, R3
+    SUB R4, R3
     LDI 0
     CMP R4, R0
     JNZ emit_lf_scroll_clear
