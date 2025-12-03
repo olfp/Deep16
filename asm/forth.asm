@@ -867,6 +867,9 @@ acc_cursor_ok:
     ADD R3, R11
     LDI 0
     ST R0, R3, 0
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
     LDI interpret_loop
     MOV PC, R0
     NOP
@@ -879,6 +882,9 @@ acc_check_cr13:
     ADD R3, R11
     LDI 0
     ST R0, R3, 0
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
     LDI interpret_loop
     MOV PC, R0
     NOP
