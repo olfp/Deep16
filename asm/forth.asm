@@ -363,7 +363,11 @@ word_cmp_done:
     LD R4, R10, 0
     LDI 0
     CMP R4, R0
-    JNZ next_entry
+    JZ word_is_match
+    LDI next_entry
+    MOV PC, R0
+    NOP
+word_is_match:
     LD R2, R7, 0
     ADD >IN, R11
     LDI plus_name
@@ -410,8 +414,15 @@ chk_swap:
 chk_drop:
     LDI drop_name
     CMP R2, R0
-    JNZ chk_key
+    JNZ chk_cr
     LDI word_drop
+    MOV PC, R0
+    NOP
+chk_cr:
+    LDI cr_name
+    CMP R2, R0
+    JNZ chk_key
+    LDI word_cr
     MOV PC, R0
     NOP
 chk_key:
@@ -522,6 +533,92 @@ print_bad_loop:
     MOV PC, R0
     NOP
 print_bad_done:
+    LDI 0x1000
+    MOV R2, R0
+    MOV R4, SCR
+    SUB R4, R2
+    LDI 80
+    MOV R5, R0
+    MOV R6, R4
+    DIV R6, R5
+    ADD R6, 1
+    MUL R6, R5
+    ADD R2, R6
+    MOV SCR, R2
+    LDI '>'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LSI R1, 1
+    SL  R1, 15
+    LDI ' '
+    MOV R2, R0
+    OR  R2, R1
+    STS R2, ES, SCR
+    LDI word_accept
+    MOV PC, R0
+    NOP
+
+stack_underflow_error:
+    LDI 0x1000
+    MOV R2, R0
+    MOV R4, SCR
+    SUB R4, R2
+    LDI 80
+    MOV R5, R0
+    MOV R6, R4
+    DIV R6, R5
+    ADD R6, 1
+    MUL R6, R5
+    ADD R2, R6
+    MOV SCR, R2
+    LDI 's'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 't'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'a'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'c'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'k'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'u'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'n'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'd'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'e'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'r'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'f'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'l'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'o'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI 'w'
+    STS R0, ES, SCR
+    ADD SCR, 1
     LDI 0x1000
     MOV R2, R0
     MOV R4, SCR
@@ -715,6 +812,10 @@ drop_name:
     .word 'o'
     .word 'p'
     .word 0
+cr_name:
+    .word 'c'
+    .word 'r'
+    .word 0
 dict_start:
     .word plus_name
     .word word_plus
@@ -730,6 +831,8 @@ dict_start:
     .word word_swap
     .word drop_name
     .word word_drop
+    .word cr_name
+    .word word_cr
     .word key_name
     .word word_key
     .word accept_name
@@ -744,7 +847,7 @@ word_plus:
     CMP R9, SP0
     JZ wp_ok
     JN wp_ok
-    LDI interpret_loop
+    LDI stack_underflow_error
     MOV PC, R0
     NOP
 wp_ok:
@@ -762,7 +865,7 @@ word_mul:
     CMP R9, SP0
     JZ wm_ok
     JN wm_ok
-    LDI interpret_loop
+    LDI stack_underflow_error
     MOV PC, R0
     NOP
 wm_ok:
@@ -784,7 +887,7 @@ word_dup:
     MOV PC, R0
     NOP
 wd_under:
-    LDI interpret_loop
+    LDI stack_underflow_error
     MOV PC, R0
     NOP
 word_dot:
@@ -843,7 +946,7 @@ dot_done:
     MOV PC, R0
     NOP
 dot_under:
-    LDI interpret_loop
+    LDI stack_underflow_error
     MOV PC, R0
     NOP
 word_emit:
@@ -851,12 +954,67 @@ word_emit:
     JZ we_under
     LD R1, SP, 0
     ADD SP, 1
+    LDI 0x00FF
+    AND R1, R0
+    LDI 10
+    CMP R1, R0
+    JZ emit_do_cr
+    LDI 13
+    CMP R1, R0
+    JZ emit_do_lf
     STS R1, ES, SCR
     ADD SCR, 1
     LDI interpret_loop
     MOV PC, R0
     NOP
 we_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+emit_do_cr:
+    LDI 0x1000
+    MOV R9, R0           ; base
+    MOV R10, SCR         ; current address
+    SUB R10, R9          ; offset from base
+    LDI 80
+    MOV R11, R0          ; width
+    DIV R10, R11         ; R10=row
+    MUL R10, R11         ; row*width
+    ADD R9, R10          ; base + row*width
+    MOV SCR, R9          ; start of current line, column 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+emit_do_lf:
+    LDI 0x1000
+    MOV R9, R0           ; base
+    MOV R10, SCR         ; current address
+    SUB R10, R9          ; offset from base
+    LDI 80
+    MOV R11, R0          ; width
+    MOV R2, R10          ; save offset
+    DIV R10, R11         ; R10=row
+    ; Compute column based on current row before increment
+    MOV R12, R10         ; R12=row copy
+    MUL R12, R11         ; row*width
+    SUB R2, R12          ; col = offset - row*width
+    ; Clamp to last row (24)
+    LDI 24
+    MOV R7, R0
+    CMP R10, R7
+    JN emit_lf_row_lt
+    LDI emit_lf_row_done
+    MOV PC, R0
+    NOP
+emit_lf_row_lt:
+    ADD R10, 1           ; next row
+emit_lf_row_done:
+    MUL R10, R11         ; next_row*width
+    ADD R9, R10          ; base + next_row*width
+    ADD R9, R2           ; + same column
+    MOV SCR, R9
     LDI interpret_loop
     MOV PC, R0
     NOP
@@ -867,7 +1025,7 @@ word_swap:
     CMP R9, SP0
     JZ ws_ok
     JN ws_ok
-    LDI interpret_loop
+    LDI stack_underflow_error
     MOV PC, R0
     NOP
 ws_ok:
@@ -887,7 +1045,7 @@ word_drop:
     MOV PC, R0
     NOP
 wd2_under:
-    LDI interpret_loop
+    LDI stack_underflow_error
     MOV PC, R0
     NOP
 
@@ -1114,6 +1272,50 @@ acc_done:
     ADD R3, R11
     LDI 0
     ST R0, R3, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_cr:
+    ; CR
+    LDI 0x1000
+    MOV R9, R0           ; base
+    MOV R10, SCR         ; current
+    SUB R10, R9          ; offset
+    LDI 80
+    MOV R11, R0          ; width
+    DIV R10, R11         ; R10=row
+    MUL R10, R11         ; row*width
+    ADD R9, R10          ; base + row*width
+    MOV SCR, R9          ; col 0
+    ; LF same column
+    LDI 0x1000
+    MOV R9, R0           ; base
+    MOV R10, SCR         ; current
+    SUB R10, R9          ; offset
+    LDI 80
+    MOV R11, R0          ; width
+    MOV R2, R10          ; save offset
+    DIV R10, R11         ; R10=row
+    ; Compute column based on current row before increment
+    MOV R12, R10         ; R12=row copy
+    MUL R12, R11         ; row*width
+    SUB R2, R12          ; col = offset - row*width
+    ; Clamp to last row (24)
+    LDI 24
+    MOV R7, R0
+    CMP R10, R7
+    JN word_cr_row_lt
+    LDI word_cr_row_done
+    MOV PC, R0
+    NOP
+word_cr_row_lt:
+    ADD R10, 1
+word_cr_row_done:
+    MUL R10, R11
+    ADD R9, R10
+    ADD R9, R2
+    MOV SCR, R9
     LDI interpret_loop
     MOV PC, R0
     NOP
