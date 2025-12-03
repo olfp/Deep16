@@ -11,6 +11,7 @@ class Deep16ScreenUI {
         this.pendingUpdates = new Set();
         this.flushIntervalMs = 33;
         this.flushTimerId = null;
+        this.lastCursorIndex = null;
         
         this.initializeScreen();
     }
@@ -169,7 +170,31 @@ class Deep16ScreenUI {
                 const word = value & 0xFFFF;
                 const charCode = word & 0xFF;
                 const reverse = (word & 0x8000) !== 0;
+                if (reverse) {
+                    const prevIdx = this.lastCursorIndex;
+                    if (prevIdx !== null && prevIdx !== charIndex) {
+                        const prevEl = document.getElementById(`screen-char-${prevIdx}`);
+                        if (prevEl && prevEl.textContent === ' ') {
+                            prevEl.classList.remove('reverse');
+                        }
+                    }
+                    this.lastCursorIndex = charIndex;
+                } else if (charCode === 32 && this.lastCursorIndex === charIndex) {
+                    this.lastCursorIndex = null;
+                }
                 this.updateCharacter(charIndex, charCode, reverse);
+                if (!reverse && this.lastCursorIndex === charIndex && charCode >= 32 && charCode <= 126) {
+                    const nextIndex = charIndex + 1;
+                    if (nextIndex >= 0 && nextIndex < this.totalChars) {
+                        const nextEl = document.getElementById(`screen-char-${nextIndex}`);
+                        if (nextEl && nextEl.textContent === ' ') {
+                            nextEl.classList.add('reverse');
+                            this.lastCursorIndex = nextIndex;
+                        } else {
+                            this.lastCursorIndex = nextIndex;
+                        }
+                    }
+                }
             }
         }
     }
@@ -210,6 +235,18 @@ class Deep16ScreenUI {
                     const charCode = wordValue & 0xFF;
                     const reverse = (wordValue & 0x8000) !== 0;
                     this.updateCharacter(charIndex, charCode, reverse);
+                    if (!reverse && this.lastCursorIndex === charIndex && charCode >= 32 && charCode <= 126) {
+                        const nextIndex = charIndex + 1;
+                        if (nextIndex >= 0 && nextIndex < this.totalChars) {
+                            const nextEl = document.getElementById(`screen-char-${nextIndex}`);
+                            if (nextEl && nextEl.textContent === ' ') {
+                                nextEl.classList.add('reverse');
+                                this.lastCursorIndex = nextIndex;
+                            } else {
+                                this.lastCursorIndex = nextIndex;
+                            }
+                        }
+                    }
                 }
             }
         }
