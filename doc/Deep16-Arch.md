@@ -269,15 +269,6 @@ JMP Rx            = MOV PC, Rx, 0      ; Jump to address in Rx
 
 ### **3.5 PSW Operations**
 
-**Table N: PSW Segment Assignment Operations**
-
-| Instruction | Format | Binary Encoding | Behavior |
-|-------------|---------|-----------------|----------|
-| **SRS** | `SRS Rx` | `11111110 1000 Rx4` | `PSW.SR = Rx, PSW.DS = 0` |
-| **SRD** | `SRD Rx` | `11111110 1001 Rx4` | `PSW.SR = Rx, PSW.DS = 1` |
-| **ERS** | `ERS Rx` | `11111110 1010 Rx4` | `PSW.ER = Rx, PSW.DE = 0` |
-| **ERD** | `ERD Rx` | `11111110 1011 Rx4` | `PSW.ER = Rx, PSW.DE = 1` |
-
 **Table 4: PSW Bit Operations (11111111110 d1 imm4)**
 
 | Instruction | Format | Binary Encoding | Operation | Notes |
