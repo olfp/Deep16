@@ -24,7 +24,7 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 - **Symmetric SMV access** - SMV works perfectly in both normal and interrupt modes
 - **Hardware-assisted interrupt handling** - Automatic context snapshot and initialization
 - **Enhanced assembler syntax** - Bracket and plus notation for improved readability
-- **Architectural register access** - MOV with immediate=3 for stable state reading
+- **Architectural register access** - SMV Rx, PC for stable state reading
 
 ### **1.3 Performance Targets**
 - **Base CPI**: 1.0-1.3 (ideal to realistic)
