@@ -256,7 +256,6 @@ PC'   ← Mem[0x0000]  ; Jump to ILL handler at vector 0
 | **LDI** | `LDI imm` | `0 imm15` | `R0 ← sign_extend(imm15)` | Sign extends 15-bit immediate |
 | **LSI** | `LSI Rd, imm` | `1111110 Rd4 imm5` | `Rd ← sign_extend(imm5)` | Small immediate load |
 | **MOV Rd, Rs, imm** | `MOV Rd, Rs, imm` | `111110 Rd4 Rs4 imm2` | `Rd ← Rs + imm2` | Normal with forwarding |
-| **AMV Rd, Rs** | `AMV Rd, Rs` | `111110 Rd4 Rs4 11` | `Rd ← Rs` (architectural) | Reads from register file, bypasses forwarding |
 | **MVS Rd, Sx** | `MVS Rd, Sx` | `111111110 0 Rd4 seg2` | `Rd ← Sx` | Read segment register |
 | **MVS Sx, Rd** | `MVS Sx, Rd` | `111111110 1 Rd4 seg2` | `Sx ← Rd` | Write segment register |
 | **SMV Rx, alt_reg** | `SMV Rx, alt_reg` | `11111110 Rx4 alt_sel4` | `Rx ← alt_reg` | Read shadow/alternate register |
