@@ -465,20 +465,19 @@ next_entry:
     NOP
 
 interpret_done:
-    ; Move to start of next line (column 0)
+    ; Move to start of next line using row index
     LDI 0x1000
-    MOV R8, R0           
-    MOV R9, SCR          
-    SUB R9, R8           
-    LDI 80               
-    MOV R10, R0          
-    MOV R11, R9          
-    DIV R11, R10         
-    MUL R11, R10         
-    MOV R12, R9          
-    SUB R12, R11         
-    SUB R10, R12         
-    ADD SCR, R10         
+    MOV R2, R0           ; base
+    MOV R3, SCR          ; current address
+    SUB R3, R2           ; offset from base
+    LDI 80
+    MOV R4, R0           ; width
+    MOV R5, R3           ; offset copy
+    DIV R5, R4           ; R5=row, R6=remainder
+    ADD R5, 1            ; row+1
+    MUL R5, R4           ; (row+1)*width
+    ADD R2, R5           ; base + (row+1)*width
+    MOV SCR, R2          ; start of next line
     LDI '>'
     STS R0, ES, SCR
     ADD SCR, 1
@@ -516,6 +515,71 @@ hello_msg:
     .word 't'
     .word 'h'
     .word '!'
+    .word 0
+
+tib_kbd:
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
     .word 0
 
 dict_names:
@@ -779,12 +843,12 @@ word_accept:
 acc_loop:
     LSI R0, 1
     SL  R0, 15
-    LDS R6, ES, SCR
-    MOV R7, R6
-    OR  R7, R0
-    CMP R7, R6
+    LDS R2, ES, SCR      ; avoid clobbering TIB (R6)
+    MOV R3, R2
+    OR  R3, R0
+    CMP R3, R2
     JZ acc_cursor_ok
-    STS R7, ES, SCR
+    STS R3, ES, SCR
 acc_cursor_ok:
     LDI KBD_STATUS
     MOV R2, R0
@@ -798,14 +862,24 @@ acc_cursor_ok:
     LDI 10
     CMP R1, R0
     JNZ acc_check_cr13
-    LDI acc_do_crlf
+    MOV R3, TIB
+    ADD R3, >IN
+    ADD R3, R11
+    LDI 0
+    ST R0, R3, 0
+    LDI interpret_loop
     MOV PC, R0
     NOP
 acc_check_cr13:
     LDI 13
     CMP R1, R0
     JNZ acc_check_bs
-    LDI acc_do_crlf
+    MOV R3, TIB
+    ADD R3, >IN
+    ADD R3, R11
+    LDI 0
+    ST R0, R3, 0
+    LDI interpret_loop
     MOV PC, R0
     NOP
 acc_check_bs:
@@ -838,11 +912,11 @@ acc_store:
     LSI R0, 1
     SL  R0, 15
     LDS R2, ES, SCR
-    MOV R7, R2
-    OR  R7, R0
-    CMP R7, R2
+    MOV R3, R2
+    OR  R3, R0
+    CMP R3, R2
     JZ acc_next_cursor_ok
-    STS R7, ES, SCR
+    STS R3, ES, SCR
 acc_next_cursor_ok:
     ADD R11, 1
     LDI acc_loop
@@ -857,20 +931,19 @@ acc_do_crlf:
     LDI 0x7FFF
     AND R1, R0
     STS R1, ES, SCR
-    ; Compute columns to advance to reach column 0 of next line
+    ; Set SCR to start of next line directly
     LDI 0x1000
-    MOV R2, R0           ; R2 = base
-    MOV R3, SCR          ; R3 = current address
-    SUB R3, R2           ; R3 = offset
+    MOV R2, R0           ; base
+    MOV R3, SCR          ; current address
+    SUB R3, R2           ; offset from base
     LDI 80
-    MOV R4, R0           ; R4 = width
-    MOV R5, R3           ; R5 = offset copy
-    DIV R5, R4           ; R5 = row
-    MUL R5, R4           ; R5 = row*width
-    MOV R6, R3           ; R6 = offset
-    SUB R6, R5           ; R6 = col
-    SUB R4, R6           ; R4 = width - col
-    ADD SCR, R4          ; advance to next line start
+    MOV R4, R0           ; width
+    MOV R5, R3           ; offset copy
+    DIV R5, R4           ; R5=row, R6=remainder
+    ADD R5, 1            ; row+1
+    MUL R5, R4           ; (row+1)*width
+    ADD R2, R5           ; base + (row+1)*width
+    MOV SCR, R2          ; start of next line
     ; Print prompt and reversed space cursor
     LDI '>'
     STS R0, ES, SCR
@@ -938,14 +1011,3 @@ acc_done:
     LDI interpret_loop
     MOV PC, R0
     NOP
-tib_kbd:
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
