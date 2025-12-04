@@ -846,11 +846,14 @@ word_dot:
     LD R1, SP, 0
     ADD SP, 1
     MOV R2, R1          ; value
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
     LDI 0
     CMP R2, R0
     JNZ dot_nonzero
     LDI '0'
-    STS R0, ES, SCR     ; R0 contains '0'
+    STS R0, ES, SCR
     ADD SCR, 1
     LDI interpret_loop
     MOV PC, R0
