@@ -9,7 +9,7 @@
 .equ SCR R8
 .equ TIB R6           ; Text Input Buffer pointer
 .equ >IN R5           ; Input pointer offset
-.equ SP0 R14          ; Stack base snapshot for underflow checks
+; Reserve R14 as LR (link register). Store stack base in memory.
 .equ KBD_STATUS 0x0060
 .equ KBD_DATA   0x0062
 
@@ -21,7 +21,9 @@ forth_start:
     ; Initialize stack pointer
     LDI 0x7FF0
     MOV SP, R0
-    MOV SP0, SP
+    LDI sp0_base
+    MOV R2, R0
+    ST  SP, R2, 0
     
     ; Set up screen segment for output
     LDI 0x0FFF
@@ -60,57 +62,36 @@ cursor_on:
     SL  R0, 15
     OR  R1, R0
     STS R1, ES, SCR
-    LDI interpret_loop
-    NOP
-cursor_off:
-    LDS R1, ES, SCR
-    LDI 0x7FFF
-    AND R1, R0
-    STS R1, ES, SCR
-    LDI interpret_loop
-    NOP
-    ; Ensure Data Segment points to physical 0x0000
-    LDI 0
-    MVS DS, R0
-    ; Ensure Code/Stack segments are also 0x0000 for correct jumps/stack
-    MVS SS, R0
-    MVS CS, R0
-
-    ; Print greeting
+    ; Print greeting immediately, then halt
+    LDI after_print_text
+    MOV LR, R0
+    LDI print_text
+    MOV R2, R0
     LDI hello_msg
+    JMP R2
+    NOP
+
+; -------------------------
+; Common subroutines
+.code
+print_text:
     MOV R1, R0
-hello_loop:
     LD R2, R1, 0
     LDI 0
     CMP R2, R0
-    JZ hello_done
+    JZ print_text_ret
     STS R2, ES, SCR
     ADD SCR, 1
     ADD R1, 1
-    LDI hello_loop
-    MOV PC, R0
+    LDI print_text
+    MOV R2, R0
+    MOV R0, R1
+    JMP R2
     NOP
-hello_done:
-    ; Move to start of next line (column 0)
-    LDI 0x1000
-    MOV R8, R0           
-    MOV R9, SCR          
-    SUB R9, R8           
-    LDI 80               
-    MOV R10, R0          
-    MOV R11, R9          
-    DIV R11, R10         
-    MUL R11, R10         
-    MOV R12, R9          
-    SUB R12, R11         
-    SUB R10, R12         
-    ADD SCR, R10         
-    ; Set TIB to keyboard buffer and reset >IN
-    LDI tib_kbd
-    MOV TIB, R0
-    LDI 0
-    MOV >IN, R0
-    ; Print prompt and place reversed space cursor
+print_text_ret:
+    JMP LR
+    NOP
+print_prompt:
     LDI '>'
     STS R0, ES, SCR
     ADD SCR, 1
@@ -120,9 +101,61 @@ hello_done:
     LSI R1, 1
     SL  R1, 15
     LDI ' '
+    OR  R1, R0
+    STS R1, ES, SCR
+    JMP LR
+    NOP
+cursor_off:
+    LDS R1, ES, SCR
+    LDI 0x7FFF
+    AND R1, R0
+    STS R1, ES, SCR
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+    ; Ensure Data Segment points to physical 0x0000
+    LDI 0
+    MVS DS, R0
+    ; Ensure Code/Stack segments are also 0x0000 for correct jumps/stack
+    MVS SS, R0
+    MVS CS, R0
+
+    ; Print greeting only
+    LDI hello_msg
+    MOV R1, R0
+    LDI after_print_text
+    MOV LR, R0
+    LDI print_text
     MOV R2, R0
-    OR  R2, R1
-    STS R2, ES, SCR
+    MOV R0, R1
+    JMP R2
+    NOP
+after_print_text:
+    ; Advance to start of next line (column 0)
+    LDI 0x1000
+    MOV R8, R0           
+    MOV R9, SCR          
+    SUB R9, R8           
+    LDI 80               
+    MOV R10, R0          
+    MOV R11, R9          
+    DIV R11, R10         
+    ADD R11, 1           
+    MUL R11, R10         
+    ADD R8, R11          
+    MOV SCR, R8          
+    ; Prepare input buffer and counters
+    LDI tib_kbd
+    MOV TIB, R0
+    LDI 0
+    MOV >IN, R0
+    LDI 0
+    MOV R11, R0
+    LDI print_prompt
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
     LDI word_accept
     MOV PC, R0
     NOP
@@ -320,6 +353,15 @@ finish_number:
     MOV PC, R0
     NOP
 parse_word:
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ interpret_done
+    LDI ' '
+    CMP R4, R0
+    JZ interpret_done
     LDI dict_start
     MOV R9, R0
     MOV R7, R9
@@ -450,8 +492,6 @@ advance_token:
     NOP
 
 skip_unknown:
-    MOV R3, TIB
-    ADD R3, >IN
     LDI 0x1000
     MOV R2, R0
     MOV R4, SCR
@@ -464,54 +504,17 @@ skip_unknown:
     MUL R6, R5
     ADD R2, R6
     MOV SCR, R2
-    LDI 'u'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'n'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'd'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'e'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'f'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'i'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'n'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'e'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'd'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'w'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'o'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'r'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'd'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI ':'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LDI print_text
+    MOV R2, R0
+    LDI unknown_word_msg
+    LINK
+    JMP R2
+    NOP
+skip_unknown_after_prefix:
+    NOP
+skip_unknown_after_prefix:
+    MOV R3, TIB
+    ADD R3, >IN
     LD R2, R3, 0
 print_bad_loop:
     ; Ensure printable low-byte only
@@ -545,21 +548,12 @@ print_bad_done:
     MUL R6, R5
     ADD R2, R6
     MOV SCR, R2
-    LDI '>'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LSI R1, 1
-    SL  R1, 15
-    LDI ' '
+    LDI print_prompt
     MOV R2, R0
-    OR  R2, R1
-    STS R2, ES, SCR
-    LDI word_accept
-    MOV PC, R0
+    LINK
+    JMP R2
     NOP
+word_accept:
 
 stack_underflow_error:
     LDI 0x1000
@@ -574,51 +568,15 @@ stack_underflow_error:
     MUL R6, R5
     ADD R2, R6
     MOV SCR, R2
-    LDI 's'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 't'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'a'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'c'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'k'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'u'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'n'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'd'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'e'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'r'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'f'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'l'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'o'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'w'
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LDI print_text
+    MOV R2, R0
+    LDI stack_underflow_msg
+    LINK
+    JMP R2
+    NOP
+stack_underflow_after:
+    NOP
+stack_underflow_after:
     LDI 0x1000
     MOV R2, R0
     MOV R4, SCR
@@ -631,21 +589,12 @@ stack_underflow_error:
     MUL R6, R5
     ADD R2, R6
     MOV SCR, R2
-    LDI '>'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LSI R1, 1
-    SL  R1, 15
-    LDI ' '
+    LDI print_prompt
     MOV R2, R0
-    OR  R2, R1
-    STS R2, ES, SCR
-    LDI word_accept
-    MOV PC, R0
+    LINK
+    JMP R2
     NOP
+word_accept:
 next_entry:
     ADD R7, 2
     LDI dict_loop
@@ -653,15 +602,6 @@ next_entry:
     NOP
 
 interpret_done:
-    LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'o'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI 'k'
-    STS R0, ES, SCR
-    ADD SCR, 1
     LDI 0x1000
     MOV R2, R0
     MOV R3, SCR
@@ -672,7 +612,7 @@ interpret_done:
     DIV R5, R4
     LDI 24
     CMP R5, R0
-    JNZ ok_next_normal
+    JNZ ok_after
     LDI 0
     MOV R7, R0
     LDI 1920
@@ -710,153 +650,57 @@ ok_scroll_clear:
     LDI ok_after
     MOV PC, R0
     NOP
-ok_next_normal:
-    ADD R5, 1
-    MUL R5, R4
-    ADD R2, R5
-    MOV SCR, R2
+; No reposition on normal case; keep SCR where result ended
 ok_after:
-    LDI '>'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LSI R1, 1
-    SL  R1, 15
-    LDI ' '
-    ADD R1, R0
-    STS R1, ES, SCR
-    LDI word_accept
+    ; Print " ok" then move to next line and prompt
+    LDI print_text
+    MOV R2, R0
+    LDI ok_msg
+    LINK
+    JMP R2
+    NOP
+    LDI acc_do_crlf
     MOV PC, R0
     NOP
+word_accept:
 
 ; =============================================
 ; Data Section
 ; =============================================
 
 .org 0x3000
-hello_msg:
-    .word 'H'
-    .word 'e'
-    .word 'l'
-    .word 'l'
-    .word 'o'
-    .word ' '
-    .word 'D'
-    .word 'e'
-    .word 'e'
-    .word 'p'
-    .word 'F'
-    .word 'o'
-    .word 'r'
-    .word 't'
-    .word 'h'
-    .word '!'
+sp0_base:
     .word 0
+hello_msg:
+    .text "Hello DeepForth!"
 
 tib_kbd:
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
+    .word 0*80
+
+unknown_word_msg:
+    .text "undefined word: "
+stack_underflow_msg:
+    .text "stack underflow"
+ok_msg:
+    .text " ok"
 
 dict_names:
 plus_name:
-    .word '+'
-    .word 0
+    .text "+"
 mul_name:
-    .word '*'
-    .word 0
+    .text "*"
 dup_name:
-    .word 'd'
-    .word 'u'
-    .word 'p'
-    .word 0
+    .text "dup"
 dot_name:
-    .word '.'
-    .word 0
+    .text "."
 emit_name:
-    .word 'e'
-    .word 'm'
-    .word 'i'
-    .word 't'
-    .word 0
+    .text "emit"
 swap_name:
-    .word 's'
-    .word 'w'
-    .word 'a'
-    .word 'p'
-    .word 0
+    .text "swap"
 drop_name:
-    .word 'd'
-    .word 'r'
-    .word 'o'
-    .word 'p'
-    .word 0
+    .text "drop"
 cr_name:
-    .word 'c'
-    .word 'r'
-    .word 0
+    .text "cr"
 dict_start:
     .word plus_name
     .word word_plus
@@ -885,7 +729,10 @@ dict_end:
 word_plus:
     MOV R9, SP
     ADD R9, 2
-    CMP R9, SP0
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
     JZ wp_ok
     JN wp_ok
     LDI stack_underflow_error
@@ -903,7 +750,10 @@ wp_ok:
 word_mul:
     MOV R9, SP
     ADD R9, 2
-    CMP R9, SP0
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
     JZ wm_ok
     JN wm_ok
     LDI stack_underflow_error
@@ -919,7 +769,10 @@ wm_ok:
     MOV PC, R0
     NOP
 word_dup:
-    CMP SP, SP0
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
     JZ wd_under
     LD R1, SP, 0
     SUB SP, 1
@@ -932,7 +785,10 @@ wd_under:
     MOV PC, R0
     NOP
 word_dot:
-    CMP SP, SP0
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
     JZ dot_under
     LD R1, SP, 0
     ADD SP, 1
@@ -991,7 +847,10 @@ dot_under:
     MOV PC, R0
     NOP
 word_emit:
-    CMP SP, SP0
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
     JZ we_under
     LD R1, SP, 0
     ADD SP, 1
@@ -1045,7 +904,17 @@ emit_do_lf:
     LDI 24
     MOV R7, R0
     CMP R10, R7
-    JN emit_lf_row_lt
+    JN emit_lf_row_lt_local
+emit_lf_row_lt_local:
+    ADD R10, 1           ; next row
+emit_lf_row_done_local:
+    MUL R10, R11         ; next_row*width
+    ADD R9, R10          ; base + next_row*width
+    ADD R9, R2           ; + same column
+    MOV SCR, R9
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
     LDI 0
     MOV R7, R0
     LDI 1920
@@ -1225,7 +1094,10 @@ emit_lf_row_done:
 word_swap:
     MOV R9, SP
     ADD R9, 2
-    CMP R9, SP0
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
     JZ ws_ok
     JN ws_ok
     LDI stack_underflow_error
@@ -1241,7 +1113,10 @@ ws_ok:
     NOP
 
 word_drop:
-    CMP SP, SP0
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
     JZ wd2_under
     ADD SP, 1
     LDI interpret_loop
@@ -1260,18 +1135,9 @@ print_buf:
     .word 0
     .word 0
 key_name:
-    .word 'k'
-    .word 'e'
-    .word 'y'
-    .word 0
+    .text "key"
 accept_name:
-    .word 'a'
-    .word 'c'
-    .word 'c'
-    .word 'e'
-    .word 'p'
-    .word 't'
-    .word 0
+    .text "accept"
 word_key:
     ; Wait for keyboard data ready
 key_wait:
@@ -1428,25 +1294,16 @@ acc_do_crlf:
     MUL R5, R4           ; (row+1)*width
     ADD R2, R5           ; base + (row+1)*width
     MOV SCR, R2          ; start of next line
-    ; Print prompt and reversed space cursor
-    LDI '>'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LSI R1, 1
-    SL  R1, 15
-    LDI ' '
+    LDI print_prompt
     MOV R2, R0
-    OR  R2, R1
-    STS R2, ES, SCR
-    ; Reset input pointers
+    LINK
+    JMP R2
+    NOP
+acc_after_prompt:
     LDI 0
     MOV >IN, R0
     LDI 0
     MOV R11, R0
-    ; Continue accept loop
     LDI acc_loop
     MOV PC, R0
     NOP
@@ -1473,19 +1330,11 @@ acc_crlf:
     SUB R12, R11         
     SUB R10, R12         
     ADD SCR, R10         
-    ; Print prompt and place reversed space cursor on new line
-    LDI '>'
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
-    LSI R1, 1
-    SL  R1, 15
-    LDI ' '
+    LDI print_prompt
     MOV R2, R0
-    OR  R2, R1
-    STS R2, ES, SCR
+    LINK
+    JMP R2
+    NOP
 acc_done:
     MOV R3, TIB
     ADD R3, >IN

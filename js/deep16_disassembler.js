@@ -131,7 +131,7 @@ disassembleSOP(instruction) {
         const alt = instruction & 0xF;
         const names = {
             0x0: 'ACS', 0x1: 'ADS', 0x2: 'ASS', 0x3: 'AES', 0x4: 'APSW',
-            0x8: 'AR0', 0x9: 'AR1', 0xA: 'AR2', 0xD: 'AR13', 0xE: 'AR14', 0xF: 'APC'
+            0x8: 'AR0', 0x9: 'AR1', 0xA: 'AR2', 0xB: 'AR3', 0xD: 'AR13', 0xE: 'AR14', 0xF: 'APC'
         };
         const srcName = names[alt] || `ALT${alt}`;
         return `SMV ${this.registerNames[rx]}, ${srcName}`;
@@ -249,9 +249,6 @@ disassembleSOP(instruction) {
         if (rs === 15 && imm === 3) {
             if (rd === 14) return `ALINK`;
             return `ALNK ${this.registerNames[rd]}`;
-        }
-        if (imm === 3) {
-            return `AMV ${this.registerNames[rd]}, ${this.registerNames[rs]}`;
         }
         if (imm === 0) {
             return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}`;

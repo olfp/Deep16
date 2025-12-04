@@ -43,10 +43,15 @@ class Deep16Assembler {
                     if (window.Deep16Debug) console.log(`LABEL: ${label} at 0x${address.toString(16)}`);
                 } else if (line.startsWith('.word')) {
                     const cleanLine = line.split(';')[0].trim();
-                    const values = cleanLine.substring(5).trim().split(',').map(v => v.trim());
-                    for (const value of values) {
-                        segmentMap.set(address, 'data');
-                        address++;
+                    const tokens = cleanLine.substring(5).trim().split(',').map(v => v.trim()).filter(v => v);
+                    for (const tok of tokens) {
+                        const m = tok.match(/^(.+)\*(\d+)$/);
+                        const count = m ? parseInt(m[2], 10) : 1;
+                        const reps = Math.max(0, count);
+                        for (let r = 0; r < reps; r++) {
+                            segmentMap.set(address, 'data');
+                            address++;
+                        }
                     }
                 } else if (line.startsWith('.text')) {
                     const cleanLine = line.split(';')[0].trim();
@@ -125,18 +130,27 @@ class Deep16Assembler {
                     assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
                 } else if (line.startsWith('.word')) {
                     const cleanLine = line.split(';')[0].trim();
-                    const values = cleanLine.substring(5).trim().split(',').map(v => this.parseImmediate(v.trim(), false));
-                    if (window.Deep16Debug) console.log(`DATA (pass2): ${values.length} words at 0x${address.toString(16)}`);
-                    for (const value of values) {
-                        memoryChanges.push({ address: address, value: value & 0xFFFF, segment: 'data' });
-                        assemblyListing.push({ 
-                            address: address, 
-                            instruction: value,
-                            line: originalLine,
-                            segment: 'data'
-                        });
-                        address++;
+                    const tokens = cleanLine.substring(5).trim().split(',').map(v => v.trim()).filter(v => v);
+                    let total = 0;
+                    for (const tok of tokens) {
+                        const m = tok.match(/^(.+)\*(\d+)$/);
+                        const valStr = m ? m[1].trim() : tok;
+                        const count = m ? parseInt(m[2], 10) : 1;
+                        const reps = Math.max(0, count);
+                        const value = this.parseImmediate(valStr, false);
+                        for (let r = 0; r < reps; r++) {
+                            memoryChanges.push({ address: address, value: value & 0xFFFF, segment: 'data' });
+                            assemblyListing.push({ 
+                                address: address, 
+                                instruction: value,
+                                line: originalLine,
+                                segment: 'data'
+                            });
+                            address++;
+                            total++;
+                        }
                     }
+                    if (window.Deep16Debug) console.log(`DATA (pass2): ${total} words at 0x${address.toString(16)}`);
                 } else if (line.startsWith('.text')) {
                     const cleanLine = line.split(';')[0].trim();
                     const textContent = cleanLine.substring(5).trim();
@@ -543,14 +557,6 @@ class Deep16Assembler {
                     }
                     throw new Error('JMP requires register operand');
                 
-                // Aliases per Deep16-Arch.md
-                case 'AMV': // AMV Rx, Ry => MOV Rx, Ry, 3
-                    if (parts.length >= 3) {
-                        const rd = this.parseRegister(parts[1]);
-                        const rs = this.parseRegister(parts[2]);
-                        return 0b1111100000000000 | (rd << 6) | (rs << 2) | 3;
-                    }
-                    throw new Error('AMV requires two registers');
                 case 'LPSW':
                     if (parts.length >= 2) {
                         const rx = this.parseRegister(parts[1]);
@@ -742,6 +748,7 @@ class Deep16Assembler {
                 'AR0': 0b1000,
                 'AR1': 0b1001,
                 'AR2': 0b1010,
+                'AR3': 0b1011,
                 'AR13': 0b1101,
                 'AR14': 0b1110,
                 'APC': 0b1111,

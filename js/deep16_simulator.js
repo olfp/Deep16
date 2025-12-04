@@ -6,7 +6,7 @@ class Deep16Simulator {
         this.memory = new Array(1048576).fill(0xFFFF); // 1,048,576 words (2MW)
         this.registers = new Array(16).fill(0);
         this.segmentRegisters = { CS: 0xFFFF, DS: 0x0000, SS: 0x0000, ES: 0x0000 };
-        this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R13: 0, R14: 0 };
+        this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R3: 0, R13: 0, R14: 0 };
         this.psw = 0;
         this.running = false;
         this.lastOperationWasALU = false;
@@ -75,7 +75,7 @@ class Deep16Simulator {
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
         this.segmentRegisters = { CS: 0xFFFF, DS: 0x0000, SS: 0x0000, ES: 0x0000 };
-        this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R13: 0, R14: 0 };
+        this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R3: 0, R13: 0, R14: 0 };
         
         // Reset delay slot state
         this.delaySlotActive = false;
@@ -769,6 +769,9 @@ class Deep16Simulator {
             case 0b1010:
                 this.registers[rx] = inShadowView ? (this.registers[2] & 0xFFFF) : (this.shadowRegisters.R2 & 0xFFFF);
                 break;
+            case 0b1011:
+                this.registers[rx] = inShadowView ? (this.registers[3] & 0xFFFF) : (this.shadowRegisters.R3 & 0xFFFF);
+                break;
             case 0b1101:
                 this.registers[rx] = inShadowView ? (this.registers[13] & 0xFFFF) : (this.shadowRegisters.R13 & 0xFFFF);
                 break;
@@ -866,6 +869,7 @@ class Deep16Simulator {
         this.shadowRegisters.R0 = 0x0000;
         this.shadowRegisters.R1 = 0x0000;
         this.shadowRegisters.R2 = 0x0000;
+        this.shadowRegisters.R3 = 0x0000;
         this.shadowRegisters.R13 = 0x0000;
         this.shadowRegisters.R14 = 0x0000;
         const pa = this.phys(0, 2);
@@ -922,6 +926,7 @@ class Deep16Simulator {
         this.shadowRegisters.R0 = 0x0000;
         this.shadowRegisters.R1 = 0x0000;
         this.shadowRegisters.R2 = 0x0000;
+        this.shadowRegisters.R3 = 0x0000;
         this.shadowRegisters.R13 = 0x0000;
         this.shadowRegisters.R14 = 0x0000;
         const pa = this.phys(0, vector & 0xFFFF);
