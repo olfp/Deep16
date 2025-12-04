@@ -58,8 +58,8 @@ console.log('State after warmup:', { PC: sim.registers[15].toString(16), CS: sim
 // Step more to reach prompt
 stepN(15000);
 
-// Enqueue input: "6 7 * ." and Enter
-const input = ['6',' ','7',' ','*',' ','.','\n'];
+// Enqueue input: "3 4 + ." and Enter
+const input = ['3',' ','4',' ','+',' ','.','\n'];
 for(const ch of input){
   if(ch === '\n') sim.enqueueKeyCode(10);
   else sim.enqueueKeyCode(ch.charCodeAt(0));
