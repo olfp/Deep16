@@ -16,6 +16,10 @@ main:
   ST  R2, R4, 0
   Add R4, 1
   sT  r3, r4, 0
+  ; Negative offset tests
+  ld  r5, r4, -1
+  st  r6, [r4-1]
+  ld  r7, [r4+0x0F]
   HALT
 .org 0x0200
 res:

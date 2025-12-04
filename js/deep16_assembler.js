@@ -109,6 +109,7 @@ class Deep16Assembler {
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
             const originalLine = lines[i];
+            const lineLower = line.toLowerCase();
             
             if (!line || line.startsWith(';')) {
                 assemblyListing.push({ line: originalLine });
@@ -116,19 +117,19 @@ class Deep16Assembler {
             }
 
             try {
-                if (line.startsWith('.org')) {
+                if (lineLower.startsWith('.org')) {
                     const orgValue = this.parseImmediate(line.split(/\s+/)[1], false);
                     address = orgValue;
                     assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
-                } else if (line.startsWith('.code')) {
+                } else if (lineLower.startsWith('.code')) {
                     currentSegment = 'code';
                     assemblyListing.push({ line: originalLine, segment: currentSegment });
-                } else if (line.startsWith('.data')) {
+                } else if (lineLower.startsWith('.data')) {
                     currentSegment = 'data';
                     assemblyListing.push({ line: originalLine, segment: currentSegment });
                 } else if (line.endsWith(':')) {
                     assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
-                } else if (line.startsWith('.word')) {
+                } else if (lineLower.startsWith('.word')) {
                     const cleanLine = line.split(';')[0].trim();
                     const tokens = cleanLine.substring(5).trim().split(',').map(v => v.trim()).filter(v => v);
                     let total = 0;
@@ -151,7 +152,7 @@ class Deep16Assembler {
                         }
                     }
                     if (window.Deep16Debug) console.log(`DATA (pass2): ${total} words at 0x${address.toString(16)}`);
-                } else if (line.startsWith('.text')) {
+                } else if (lineLower.startsWith('.text')) {
                     const cleanLine = line.split(';')[0].trim();
                     const textContent = cleanLine.substring(5).trim();
                     const stringValue = this.parseStringLiteral(textContent);
@@ -176,7 +177,7 @@ class Deep16Assembler {
                         segment: 'data'
                     });
                     address++;
-                } else if (line.startsWith('.string')) {
+                } else if (lineLower.startsWith('.string')) {
                     const cleanLine = line.split(';')[0].trim();
                     const textContent = cleanLine.substring(7).trim();
                     const stringValue = this.parseStringLiteral(textContent);
@@ -202,7 +203,7 @@ class Deep16Assembler {
                         segment: 'data'
                     });
                     address++;
-                } else if (line.startsWith('.equ')) {
+                } else if (lineLower.startsWith('.equ')) {
                     const cleanLine = line.split(';')[0].trim();
                     const rest = cleanLine.substring(4).trim();
                     const parts = rest.split(/[\s,]+/).filter(p => p);
@@ -266,11 +267,12 @@ class Deep16Assembler {
     }
 
     isDirective(line) {
-        return line.startsWith('.org') || 
-               line.startsWith('.word') || 
-               line.startsWith('.text') ||
-               line.startsWith('.string') ||
-               line.startsWith('.equ'); 
+        const l = (typeof line === 'string') ? line.toLowerCase() : '';
+        return l.startsWith('.org') || 
+               l.startsWith('.word') || 
+               l.startsWith('.text') ||
+               l.startsWith('.string') ||
+               l.startsWith('.equ'); 
     }
 
     parseRegister(reg) {
@@ -388,7 +390,7 @@ class Deep16Assembler {
         if (/^[-+]?\d+$/.test(trimmed)) {
             return parseInt(trimmed, 10);
         }
-        if (/^[-+]?0x[0-9a-fA-F]+$/.test(trimmed)) {
+        if (/^[-+]?0[xX][0-9a-fA-F]+$/.test(trimmed)) {
             // parseInt supports signed hex like -0x1
             return parseInt(trimmed, 16);
         }
@@ -399,7 +401,7 @@ class Deep16Assembler {
         }
         
         // Hex (no sign) and decimal parsing
-        if (trimmed.startsWith('0x')) {
+        if (trimmed.startsWith('0x') || trimmed.startsWith('0X')) {
             return parseInt(trimmed.substring(2), 16);
         } else if (trimmed.startsWith('$')) {
             return parseInt(trimmed.substring(1), 16);
@@ -1064,7 +1066,7 @@ class Deep16Assembler {
             if (window.Deep16Debug) console.log(`Joined parts: "${joinedParts}"`);
             
             if (joinedParts.includes('[') && joinedParts.includes(']')) {
-                // Bracket syntax: LD R1, [R2+5] or ST R1, [R2] or LD R1, [R2 + 5]
+                // Bracket syntax: LD R1, [R2+5] or ST R1, [R2] or LD R1, [R2 + 5] or LD R1, [R2-3]
                 if (window.Deep16Debug) console.log("Detected bracket syntax");
                 
                 // Extract the entire bracket content from joined parts
@@ -1078,8 +1080,8 @@ class Deep16Assembler {
                 const bracketContent = bracketMatch[1];
                 if (window.Deep16Debug) console.log(`Bracket content: "${bracketContent}"`);
                 
-                // Parse Rb and offset - only positive offsets allowed (0-31)
-                const memoryMatch = bracketContent.match(/^([A-Za-z0-9]+)\s*(\+\s*(\d+))?$/);
+                // Parse Rb and optional signed offset (+imm or -imm), imm can be dec or hex
+                const memoryMatch = bracketContent.match(/^([A-Za-z0-9]+)\s*(([+\-])\s*(0[xX][0-9a-fA-F]+|\d+))?$/);
                 if (window.Deep16Debug) console.log(`Memory match:`, memoryMatch);
                 
                 if (!memoryMatch) {
@@ -1087,11 +1089,13 @@ class Deep16Assembler {
                 }
                 
                 rb = this.parseRegister(memoryMatch[1].trim());
-                
-                if (memoryMatch[2]) { // If there's an offset part (+ something)
-                    offset = this.parseImmediate(memoryMatch[3].trim(), false);
+                if (memoryMatch[2]) {
+                    const sign = memoryMatch[3];
+                    const immStr = memoryMatch[4].trim();
+                    const signedStr = (sign === '-') ? ('-' + immStr) : ('+' + immStr);
+                    offset = this.parseImmediate(signedStr, false);
                 } else {
-                    offset = 0; // Default offset is 0 if not specified
+                    offset = 0;
                 }
                 
                 // Rd is the part before the brackets
@@ -1107,6 +1111,12 @@ class Deep16Assembler {
                 rd = this.parseRegister(parts[1]);
                 rb = this.parseRegister(parts[2]);
                 offset = this.parseImmediate(parts[3], false);
+            } else if (parts.length === 3) {
+                // Old syntax without explicit offset: default to 0
+                if (window.Deep16Debug) console.log("Detected old syntax (implicit offset 0)");
+                rd = this.parseRegister(parts[1]);
+                rb = this.parseRegister(parts[2]);
+                offset = 0;
             }
             else {
                 throw new Error(`${isStore ? 'ST' : 'LD'} requires register, base register, and offset`);
@@ -1114,15 +1124,15 @@ class Deep16Assembler {
             
             if (window.Deep16Debug) console.log(`Parsed: rd=${rd}, rb=${rb}, offset=${offset}`);
             
-            // CORRECTED: Deep16 uses 5-bit UNSIGNED offset (0-31)
-            if (offset < 0 || offset > 31) {
-                throw new Error(`Offset ${offset} out of range (0-31)`);
+            // Deep16 LD/ST use 5-bit SIGNED offset (-16..15)
+            if (offset < -16 || offset > 15) {
+                throw new Error(`Offset ${offset} out of range (-16..15)`);
             }
             
             // LD/ST: [10][d1][Rd4][Rb4][offset5]
             // Bits: 15-14: opcode, 13: d, 12-9: Rd, 8-5: Rb, 4-0: offset
             return (isStore ? 0b1010000000000000 : 0b1000000000000000) | 
-                   (rd << 9) | (rb << 5) | offset;
+                   (rd << 9) | (rb << 5) | (offset & 0x1F);
         }
         throw new Error(`${isStore ? 'ST' : 'LD'} requires register, base register, and offset`);
     }
@@ -1146,7 +1156,7 @@ class Deep16Assembler {
 
     encodeLDIFromLine(line, address, lineNumber) {
         const cleaned = line.split(';')[0].trim();
-        const rest = cleaned.replace(/^LDI\s+/, '').replace(/,$/, '').trim();
+        const rest = cleaned.replace(/^LDI\s+/i, '').replace(/,$/, '').trim();
         if (!rest) {
             throw new Error('LDI requires immediate value');
         }

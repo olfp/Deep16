@@ -279,10 +279,13 @@ class Deep16Simulator {
         const d = (instruction >>> 13) & 0x1;      // Bit 13
         const rd = (instruction >>> 9) & 0xF;      // Bits 12-9  
         const rb = (instruction >>> 5) & 0xF;      // Bits 8-5
-        const offset = instruction & 0x1F;         // Bits 4-0
+        let offset = instruction & 0x1F;         // Bits 4-0
+        if (offset & 0x10) {
+            offset |= 0xFFE0; // sign-extend imm5
+        }
 
         // Calculate the effective address offset
-        const addressOffset = this.registers[rb] + offset;
+        const addressOffset = (this.registers[rb] + offset) & 0xFFFF;
         
         // Determine which segment register to use based on PSW configuration
         let segmentRegister;
