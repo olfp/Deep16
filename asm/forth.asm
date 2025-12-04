@@ -41,18 +41,70 @@ forth_start:
     ; Ready for screen output at ES:SCR
 
     ; Clear screen memory (80*25 cells) and reset SCR to start
-    LDI 0x1000
+    LDI 0x1010      ; Screenstart + 15, min offset is -15
     MOV SCR, R0
-    LDI 2000
+    LDI 62
     MOV R2, R0
-clear_scr_loop:
-    LDI 0
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LDI ' '
+ clear_scr_loop:
+    ST R0, SCR, -16
+    ST R0, SCR, -15
+    ST R0, SCR, -14
+    ST R0, SCR, -13
+    ST R0, SCR, -12
+    ST R0, SCR, -11
+    ST R0, SCR, -10
+    ST R0, SCR, -9
+    ST R0, SCR, -8
+    ST R0, SCR, -7
+    ST R0, SCR, -6
+    ST R0, SCR, -5
+    ST R0, SCR, -4
+    ST R0, SCR, -3
+    ST R0, SCR, -2
+    ST R0, SCR, -1
+    ST R0, SCR
+    ST R0, SCR, 1
+    ST R0, SCR, 2
+    ST R0, SCR, 3
+    ST R0, SCR, 4
+    ST R0, SCR, 5
+    ST R0, SCR, 6
+    ST R0, SCR, 7
+    ST R0, SCR, 8
+    ST R0, SCR, 9
+    ST R0, SCR, 10
+    ST R0, SCR, 11
+    ST R0, SCR, 12
+    ST R0, SCR, 13
+    ST R0, SCR, 14
+    ST R0, SCR, 15
+
+    ADD SCR, 15
+    ADD SCR, 15
+    ADD SCR, 2
     SUB R2, 1
-    LDI 0
-    CMP R2, R0
+    ;LDI 0
+    ;CMP R2, R0
     JNZ clear_scr_loop
+    ;last 16 ST's here ...
+    ST R0, SCR, -16
+    ST R0, SCR, -15
+    ST R0, SCR, -14
+    ST R0, SCR, -13
+    ST R0, SCR, -12
+    ST R0, SCR, -11
+    ST R0, SCR, -10
+    ST R0, SCR, -9
+    ST R0, SCR, -8
+    ST R0, SCR, -7
+    ST R0, SCR, -6
+    ST R0, SCR, -5
+    ST R0, SCR, -4
+    ST R0, SCR, -3
+    ST R0, SCR, -2
+    ST R0, SCR, -1
+    ; done, restore SCR
     LDI 0x1000
     MOV SCR, R0
     
@@ -67,6 +119,7 @@ cursor_on:
     MOV LR, R0
     LDI print_text
     MOV R2, R0
+    ; greeting
     LDI hello_msg
     JMP R2
     NOP
@@ -1208,9 +1261,6 @@ acc_cursor_ok:
     ADD R3, R11
     LDI 0
     ST R0, R3, 0
-    LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
     LDI interpret_loop
     MOV PC, R0
     NOP
@@ -1223,9 +1273,6 @@ acc_check_cr13:
     ADD R3, R11
     LDI 0
     ST R0, R3, 0
-    LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
     LDI interpret_loop
     MOV PC, R0
     NOP
@@ -1289,8 +1336,15 @@ acc_do_crlf:
     LDI 80
     MOV R4, R0           ; width
     MOV R5, R3           ; offset copy
-    DIV R5, R4           ; R5=row, R6=remainder
+    DIV R5, R4           ; R5=row
     ADD R5, 1            ; row+1
+    LDI 24
+    CMP R5, R0           ; compare with 24
+    JZ acc_row_ok        ; if equal 24
+    JN acc_row_ok        ; if less than 24
+    LDI 24               ; clamp to last row
+    MOV R5, R0
+acc_row_ok:
     MUL R5, R4           ; (row+1)*width
     ADD R2, R5           ; base + (row+1)*width
     MOV SCR, R2          ; start of next line
