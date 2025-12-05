@@ -805,11 +805,13 @@ class Deep16Simulator {
         
         const segNames = ['CS', 'DS', 'SS', 'ES'];
         const address = this.registers[rs] & 0xFFFF;
+        const inShadow = (this.psw & (1 << 5)) !== 0;
+        const segs = inShadow ? this.shadowRegisters : this.segmentRegisters;
         const baseSegment = [
-            this.segmentRegisters.CS & 0xFFFF,
-            this.segmentRegisters.DS & 0xFFFF,
-            this.segmentRegisters.SS & 0xFFFF,
-            this.segmentRegisters.ES & 0xFFFF,
+            segs.CS & 0xFFFF,
+            segs.DS & 0xFFFF,
+            segs.SS & 0xFFFF,
+            segs.ES & 0xFFFF,
         ][seg];
         const physicalAddress = this.phys(baseSegment, address);
         

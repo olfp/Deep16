@@ -766,7 +766,7 @@ class Deep16Assembler {
     encodeJML(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const rx = this.parseRegister(parts[1]);
-            return 0b1111111110000000 | (0b1011 << 4) | rx;
+            return 0b1111111111100000 | (rx & 0xF);
         }
         throw new Error('JML requires register operand (even register)');
     }
