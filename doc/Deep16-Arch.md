@@ -100,6 +100,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 ### **2.4 Processor Status Word (PSW)**
 
 **Classic PSW Visualization:**
+<!--- psw_visual.diag -->
 ```
 15                                              0
 +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
