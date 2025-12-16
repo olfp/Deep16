@@ -262,13 +262,6 @@ PC'   ← Mem[0x0000]  ; Jump to ILL handler at vector 0
 | **SMV Rx, alt_reg** | `SMV Rx, alt_reg` | `11111110 Rx4 alt_sel4` | `Rx ← alt_reg` | Read shadow/alternate register |
 | **SMV Rx, PC** | `SMV Rx, PC` | `11111110 Rx4 1111` | `Rx ← PC*` | Architectural PC read, bypassing forwarding |
 
-**Assembler Aliases for Clarity:**
-```assembly
-MOV Rd, Rs        = MOV Rd, Rs, 0      ; Normal move with forwarding
-AMV Rd, Rs        = MOV Rd, Rs, 3      ; Architectural move (bypass forwarding)
-JMP Rx            = MOV PC, Rx, 0      ; Jump to address in Rx
-```
-
 ### **3.5 PSW Operations**
 
 **Table 4: PSW Bit Operations (11111111110 d1 imm4)**
