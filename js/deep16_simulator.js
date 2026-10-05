@@ -379,6 +379,7 @@ class Deep16Simulator {
         const low4 = instruction & 0xF;
         const rdValue = this.registers[rd] & 0xFFFF;
         let result = rdValue;
+        let wideResult = null; // 32-bit result for MUL32, kept out of the Rd write-back below
         const cbit = (this.psw >>> 3) & 0x1;
         const sign = (rdValue & 0x8000) !== 0 ? 1 : 0;
         const isReg = func5 === 0b00000 || func5 === 0b00010 || func5 === 0b00100 || func5 === 0b00110 || func5 === 0b01000 || func5 === 0b01010 || func5 === 0b01100 || func5 === 0b01110 || func5 >= 0b11100;
@@ -512,10 +513,21 @@ class Deep16Simulator {
                 break;
             }
             case 0b11101: {
+                // MUL32: R[d]:R[d+1] <- Rd * Rs (spec Table 8). Rd must be EVEN so the
+                // pair is aligned; anything else would write outside the register file.
+                if ((rd & 1) !== 0 || rd + 1 > 15) {
+                    this.lastALUResult = 0xFFFFFFFF;
+                    this.lastOperationWasALU = true;
+                    return;
+                }
                 const product = (rdValue * opVal) >>> 0;
-                this.registers[rd] = (product >>> 16) & 0xFFFF;
+                const high = (product >>> 16) & 0xFFFF;
+                this.registers[rd] = high;
                 this.registers[rd + 1] = product & 0xFFFF;
-                result = product;
+                // The epilogue below writes `result` into Rd, so it must carry the HIGH
+                // word -- otherwise it would clobber the pair we just stored.
+                result = high;
+                wideResult = product;
                 break;
             }
             case 0b11110: {
@@ -526,6 +538,12 @@ class Deep16Simulator {
                 break;
             }
             case 0b11111: {
+                // DIV32: R[d] <- quotient, R[d+1] <- remainder of the 32-bit value R[d]:R[d+1]
+                if ((rd & 1) !== 0 || rd + 1 > 15) {
+                    this.lastALUResult = 0xFFFFFFFF;
+                    this.lastOperationWasALU = true;
+                    return;
+                }
                 if (opVal === 0) { result = 0xFFFF; break; }
                 const dividend = ((this.registers[rd] << 16) | this.registers[rd + 1]) >>> 0;
                 const q = Math.floor(dividend / opVal) & 0xFFFF;
@@ -538,7 +556,7 @@ class Deep16Simulator {
             default: break;
         }
         this.registers[rd] = result & 0xFFFF;
-        this.lastALUResult = result;
+        this.lastALUResult = wideResult !== null ? wideResult : result;
         this.lastOperationWasALU = true;
     }
 

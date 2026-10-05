@@ -1,5 +1,26 @@
 let wasm;
 
+/**
+ * @param {number} mem_words
+ */
+export function init(mem_words) {
+    wasm.init(mem_words);
+}
+
+export function reset() {
+    wasm.reset();
+}
+
+/**
+ * @param {number} cs
+ * @param {number} ds
+ * @param {number} ss
+ * @param {number} es
+ */
+export function set_segments(cs, ds, ss, es) {
+    wasm.set_segments(cs, ds, ss, es);
+}
+
 let cachedUint16ArrayMemory0 = null;
 
 function getUint16ArrayMemory0() {
@@ -7,40 +28,6 @@ function getUint16ArrayMemory0() {
         cachedUint16ArrayMemory0 = new Uint16Array(wasm.memory.buffer);
     }
     return cachedUint16ArrayMemory0;
-}
-
-function getArrayU16FromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
-}
-/**
- * @returns {Uint16Array}
- */
-export function get_segments() {
-    const ret = wasm.get_segments();
-    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
-    return v1;
-}
-
-/**
- * @returns {Uint16Array}
- */
-export function get_last_event() {
-    const ret = wasm.get_last_event();
-    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
-    return v1;
-}
-
-/**
- * @returns {Uint16Array}
- */
-export function get_shadow_state() {
-    const ret = wasm.get_shadow_state();
-    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
-    return v1;
 }
 
 let WASM_VECTOR_LEN = 0;
@@ -61,48 +48,28 @@ export function load_program(ptr, data) {
     wasm.load_program(ptr, ptr0, len0);
 }
 
+function getArrayU16FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
+}
 /**
- * @param {number} start
- * @param {number} count
  * @returns {Uint16Array}
  */
-export function get_memory_slice(start, count) {
-    const ret = wasm.get_memory_slice(start, count);
+export function get_last_event() {
+    const ret = wasm.get_last_event();
     var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
     return v1;
 }
 
 /**
- * @returns {boolean}
+ * @returns {Uint16Array}
  */
-export function step() {
-    const ret = wasm.step();
-    return ret !== 0;
-}
-
-/**
- * @param {number} addr
- * @returns {number}
- */
-export function get_memory_word(addr) {
-    const ret = wasm.get_memory_word(addr);
-    return ret;
-}
-
-/**
- * @returns {number}
- */
-export function get_psw() {
-    const ret = wasm.get_psw();
-    return ret;
-}
-
-/**
- * @param {number} mem_words
- */
-export function init(mem_words) {
-    wasm.init(mem_words);
+export function get_shadow_state() {
+    const ret = wasm.get_shadow_state();
+    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+    return v1;
 }
 
 /**
@@ -116,13 +83,59 @@ export function get_registers() {
 }
 
 /**
- * @param {number} cs
- * @param {number} ds
- * @param {number} ss
- * @param {number} es
+ * @returns {number}
  */
-export function set_segments(cs, ds, ss, es) {
-    wasm.set_segments(cs, ds, ss, es);
+export function get_psw() {
+    const ret = wasm.get_psw();
+    return ret;
+}
+
+/**
+ * @returns {Uint16Array}
+ */
+export function get_segments() {
+    const ret = wasm.get_segments();
+    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+    return v1;
+}
+
+/**
+ * @param {number} start
+ * @param {number} count
+ * @returns {Uint16Array}
+ */
+export function get_memory_slice(start, count) {
+    const ret = wasm.get_memory_slice(start, count);
+    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+    return v1;
+}
+
+/**
+ * @param {number} addr
+ * @returns {number}
+ */
+export function get_memory_word(addr) {
+    const ret = wasm.get_memory_word(addr);
+    return ret;
+}
+
+/**
+ * @returns {boolean}
+ */
+export function step() {
+    const ret = wasm.step();
+    return ret !== 0;
+}
+
+/**
+ * @param {number} n
+ * @returns {boolean}
+ */
+export function run_steps(n) {
+    const ret = wasm.run_steps(n);
+    return ret !== 0;
 }
 
 let cachedUint32ArrayMemory0 = null;
@@ -146,19 +159,6 @@ export function get_recent_access() {
     var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
     return v1;
-}
-
-export function reset() {
-    wasm.reset();
-}
-
-/**
- * @param {number} n
- * @returns {boolean}
- */
-export function run_steps(n) {
-    const ret = wasm.run_steps(n);
-    return ret !== 0;
 }
 
 const EXPECTED_RESPONSE_TYPES = new Set(['basic', 'cors', 'default']);

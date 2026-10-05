@@ -656,10 +656,6 @@ class Deep16Assembler {
                 case 'INV': return this.encodeINV(parts, address, lineNumber);
                 case 'NEG': return this.encodeNEG(parts, address, lineNumber);
                 
-                // 32-bit operations
-                case 'MUL32': return this.encodeMUL32(parts, address, lineNumber);
-                case 'DIV32': return this.encodeDIV32(parts, address, lineNumber);
-                    
                 default: 
                     if (this.labels[mnemonic] !== undefined) {
                         return null;
@@ -965,44 +961,6 @@ class Deep16Assembler {
         throw new Error('NEG requires register operand');
     }
 
-    // Encode MUL32 (32-bit multiplication)
-    encodeMUL32(parts, address, lineNumber) {
-        if (parts.length >= 3) {
-            const rd = this.parseRegister(parts[1]);
-            if (rd % 2 !== 0) {
-                throw new Error('MUL32 requires even destination register for 32-bit result');
-            }
-            
-            if (this.isRegister(parts[2])) {
-                const rs = this.parseRegister(parts[2]);
-                // MUL32 register mode: [110][101][Rd4][w1][i1][Rs4]
-                return 0b1101010000000000 | (rd << 6) | (1 << 5) | (1 << 4) | rs;
-            } else {
-                throw new Error('MUL32 requires register operand for 32-bit mode');
-            }
-        }
-        throw new Error('MUL32 requires destination and source registers');
-    }
-
-    // Encode DIV32 (32-bit division)
-    encodeDIV32(parts, address, lineNumber) {
-        if (parts.length >= 3) {
-            const rd = this.parseRegister(parts[1]);
-            if (rd % 2 !== 0) {
-                throw new Error('DIV32 requires even destination register for 32-bit result');
-            }
-            
-            if (this.isRegister(parts[2])) {
-                const rs = this.parseRegister(parts[2]);
-                // DIV32 register mode: [110][110][Rd4][w1][i1][Rs4]
-                return 0b1101100000000000 | (rd << 6) | (1 << 5) | (1 << 4) | rs;
-            } else {
-                throw new Error('DIV32 requires register operand for 32-bit mode');
-            }
-        }
-        throw new Error('DIV32 requires destination and source registers');
-    }
-
     encodeALU(parts, kind, address, lineNumber) {
         if (parts.length >= 3) {
             const rd = this.parseRegister(parts[1]);
@@ -1030,14 +988,15 @@ class Deep16Assembler {
                 func5 = 0b11100;
             } else if (kind === 'MUL32') {
                 if (!isReg) throw new Error('MUL32 requires register operand');
-                if (rd % 2 === 0) throw new Error('MUL32 requires UNEVEN destination register');
+                // 32-bit result lands in R[d]:R[d+1], so the pair must be aligned (spec Table 8)
+                if (rd % 2 !== 0) throw new Error('MUL32 requires EVEN destination register (32-bit result in Rd:Rd+1)');
                 func5 = 0b11101;
             } else if (kind === 'DIV') {
                 if (!isReg) throw new Error('DIV requires register operand');
                 func5 = 0b11110;
             } else if (kind === 'DIV32') {
                 if (!isReg) throw new Error('DIV32 requires register operand');
-                if (rd % 2 === 0) throw new Error('DIV32 requires UNEVEN destination register');
+                if (rd % 2 !== 0) throw new Error('DIV32 requires EVEN destination register (32-bit operand in Rd:Rd+1)');
                 func5 = 0b11111;
             }
             if (func5 === null) throw new Error('Unsupported ALU operation');

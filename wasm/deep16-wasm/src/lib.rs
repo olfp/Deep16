@@ -312,6 +312,7 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
         if (c.psw & (1 << 5)) != 0 { match idx { 0 => c.sr0 as u32, 1 => c.sr1 as u32, 2 => c.sr2 as u32, 13 => c.sr13 as u32, 14 => c.sr14 as u32, _ => c.reg[idx] as u32 } } else { c.reg[idx] as u32 }
     } else { low4 as u32 & 0xF } & 0xFFFF;
     let mut result: i32 = rdv as i32;
+    let mut wide_result: Option<i32> = None; // full 32-bit result for MUL32
     match func5 {
         0b00000 | 0b00001 => { result = ((rdv + opv) & 0x1FFFF) as i32; }
         0b00010 | 0b00011 => { result = (rdv as i32 - opv as i32) as i32; }
@@ -434,10 +435,22 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             result = prod as i32;
         }
         0b11101 => {
-            let prod = (rdv as u64) * (opv as u64);
-            c.reg[rd] = ((prod >> 16) as u32 & 0xFFFF) as u16;
-            c.reg[rd + 1] = (prod as u32 & 0xFFFF) as u16;
-            result = prod as i32;
+            // MUL32: R[d]:R[d+1] <- Rd * Rs (spec Table 8). Rd must be EVEN so the
+            // pair is aligned; anything else would index outside the register file.
+            if rd % 2 != 0 || rd + 1 >= 16 {
+                c.last_alu_result = -1;
+                c.last_op_alu = true;
+                return;
+            } else {
+                let prod = (rdv as u64) * (opv as u64);
+                let high = ((prod >> 16) as u32 & 0xFFFF) as u16;
+                c.reg[rd] = high;
+                c.reg[rd + 1] = (prod as u32 & 0xFFFF) as u16;
+                // The write-back below stores `result` in Rd, so it must carry the
+                // HIGH word -- otherwise it would clobber the pair we just stored.
+                result = high as i32;
+                wide_result = Some(prod as i32);
+            }
         }
         0b11110 => {
             if opv == 0 { result = 0xFFFF; } else {
@@ -447,7 +460,12 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             }
         }
         0b11111 => {
-            if opv == 0 { result = 0xFFFF; } else {
+            // DIV32: R[d] <- quotient, R[d+1] <- remainder of the 32-bit value R[d]:R[d+1]
+            if rd % 2 != 0 || rd + 1 >= 16 {
+                c.last_alu_result = -1;
+                c.last_op_alu = true;
+                return;
+            } else if opv == 0 { result = 0xFFFF; } else {
                 let dividend = (((c.reg[rd] as u32) << 16) | (c.reg[rd + 1] as u32)) as u64;
                 let q = (dividend / opv as u64) as u32 & 0xFFFF;
                 let r = (dividend % opv as u64) as u32 & 0xFFFF;
@@ -462,7 +480,7 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
     if (c.psw & (1 << 5)) != 0 {
         match rd { 0 => c.sr0 = res16, 1 => c.sr1 = res16, 2 => c.sr2 = res16, 13 => c.sr13 = res16, 14 => c.sr14 = res16, _ => c.reg[rd] = res16 }
     } else { c.reg[rd] = res16 }
-    c.last_alu_result = result;
+    c.last_alu_result = wide_result.unwrap_or(result);
     c.last_op_alu = true;
 }
 
