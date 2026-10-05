@@ -761,18 +761,21 @@ fn exec_instruction(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
     }
 }
 
-fn autoload_rom(c: &mut Cpu) {
+// Boot ROM at 0xFFFF0. It zeroes DS/SS, builds the entry point 0x0100 in R1,
+    // stores that value at physical 0x0000..0x0002 as a breadcrumb, and jumps to
+    // CS:R1 = 0000:0100 (JML R0 takes CS from R0 and PC from R1).
+    fn autoload_rom(c: &mut Cpu) {
     let base = 0xFFFF0usize;
     let rom: [u16; 16] = [
-        0x0000, // LDI 0 -> R0
-        0xFF41, // MVS DS, R0
-        0xFF42, // MVS SS, R0
+        0x0000, // LDI 0 -> R0          (R0 = 0)
+        0xFF41, // MVS DS, R0          (flat data addressing)
+        0xFF42, // MVS SS, R0          (stack sits at physical 0x0000)
         0xFC21, // LSI R1, 1
-        0xD818, // ROL R1, 8
-        0xA200, // ST R1, [R0+0]
-        0xA201, // ST R1, [R0+1]
-        0xA202, // ST R1, [R0+2]
-        0xFFE0, // JML R0
+        0xD818, // ROL R1, 8           (R1 = 0x0100, the entry point)
+        0xA200, // ST R1, [R0+0]       (writes 0x0100 at physical 0x0000)
+        0xA201, // ST R1, [R0+1]       (          ...      0x0001)
+        0xA202, // ST R1, [R0+2]       (          ...      0x0002)
+        0xFFE0, // JML R0              (CS = R0 = 0, PC = R1 = 0x0100)
         0xFFF0, // NOP (delay slot)
         0xFFF1, // HLT
         0xFFF1, // HLT

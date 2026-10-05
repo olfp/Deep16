@@ -1,5 +1,32 @@
 # DeepWeb IDE - Development Status
-## Current: ✅ **ARCHITECTURE SPECIFICATION COMPLETE - PRODUCTION READY**
+
+> ## ⚠️ Read this first: the claims below are not a status report
+>
+> This file is the author's original project document, written at the end of
+> 2025. Statements like "PRODUCTION READY", "feature-complete", "All known
+> issues have been resolved" and "All systems operational" were aspirational
+> marketing copy, not measurements. The document has been left as written so
+> the original intent stays visible, but for anything factual use:
+>
+> - **[README.md](README.md)** - what actually works, and what does not
+> - **[doc/Deep16-Arch.md](doc/Deep16-Arch.md) §12.4** - implementation status
+>   verified against the code
+>
+> Verified gaps as of the last update:
+>
+> | Claimed | Actual |
+> |---|---|
+> | FPU per `doc/Deep16-FPU.md` (732 lines of spec) | no floating-point code in either core |
+> | "All known issues have been resolved" | the assembler could not parse the `#` immediate syntax its own disassembler emitted; `MUL32` was unusable and crashed the WASM core |
+> | "Interrupt system ✅" | `handleHardwareInterrupt()` exists in the JS core only, `lib.rs` has none - keyboard input needs the JS core |
+> | "Verification: test suite required" | there was no runner at all; `npm test` now runs 41 assertions |
+>
+> Development ran from 2025-11-28 to 2025-12-16 in 796 commits by one author,
+> then stopped mid-way through a Forth/BIOS refactor.
+
+---
+
+## Current (original text): ✅ **ARCHITECTURE SPECIFICATION COMPLETE - PRODUCTION READY**
 
 ---
 

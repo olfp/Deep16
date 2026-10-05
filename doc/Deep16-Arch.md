@@ -324,6 +324,16 @@ PC'   ← Mem[0x0000]  ; Jump to ILL handler at vector 0
 - Useful for bit manipulation without needing a mask register
 - Equivalent to: `Rd ← Rd AND NOT(1 << imm4)`
 
+> **Not implemented.** `CLRB` is specified here but exists in neither CPU
+> core. `110 00111 Rd4 imm4` is decoded by both cores as a plain
+> `AND Rd, imm`, and the assembler rejects the mnemonic outright
+> (`Unknown instruction: CLRB`). Likewise, the bit-index reading of the
+> immediate forms of `OR`/`XOR`/`TBC`/`TBS` above (`OR Rd, imm` setting bit
+> `imm`) is not what the cores do: they combine `Rd` with the 4-bit literal
+> `imm`. `asm/swi-test.asm` is written against the implementation and runs
+> correctly; this table is not. Both deviations are left as-is for now -
+> see the "Known inconsistencies" section of the README.
+
 ### **3.8 ALU Instructions - Group 2: Shift/Rotate Operations**
 
 **Table 7: Shift and Rotate Instructions**
@@ -354,7 +364,7 @@ PC'   ← Mem[0x0000]  ; Jump to ILL handler at vector 0
 | **DIV Rd, Rs** | `DIV Rd, Rs` | `110 11110 Rd4 Rs4` | `Rd ← Rd ÷ Rs` (quotient) | 16÷16→16-bit |
 | **DIV32 Rd, Rs** | `DIV32 Rd, Rs` | `110 11111 Rd4 Rs4` | `R[d] ← quotient, R[d+1] ← remainder` | Rd must be EVEN |
 
-### **3.11 Memory Access Instructions**
+### **3.10 Memory Access Instructions**
 
 **Table 9: Memory Access Instructions**
 
@@ -596,7 +606,7 @@ PSW'  ← 0x0000    ; S=0 - switch back to normal context
 4. **Pipeline flush** - clean transition between contexts
 
 
-### **4.11 Key Benefits of Shadow Register System**
+### **4.10 Key Benefits of Shadow Register System**
 
 #### **1. Zero Software Overhead**
 - **No manual register saving** required in interrupt handlers
@@ -926,10 +936,20 @@ Deep16 Milestone 6 represents a **mature, implementable 16-bit RISC architecture
 - **Real-time Systems**: Fast interrupt response with shadow registers
 
 ### **12.4 Implementation Status**
-- **Specification**: Complete and stable (Milestone 6)
-- **HDL Implementation**: Ready to begin
-- **Toolchain**: Assembler needed, C compiler desirable
-- **Verification**: Test suite required
+
+Verified against the code in this repository, not against intent:
+
+- **Specification**: complete as a document; sections 3.2, 3.7, 4.7 and the
+  FPU document describe features that are not implemented
+- **JavaScript core**: implements the ISA, including `MUL32`/`DIV32`; has
+  hardware-interrupt handling
+- **WASM core**: implements the ISA; no hardware-interrupt handling, so the
+  keyboard and therefore the Forth REPL only work with the JS core selected
+- **Assembler / disassembler**: implemented and round trip; `CLRB` absent, and
+  `OR`/`XOR` immediates follow the implementation rather than section 3.7
+- **Verification**: `npm test` runs 41 assertions covering the ALU encodings,
+  the assembler/disassembler round trip, JS↔WASM agreement and all seven
+  example programs
 
 ---
 
