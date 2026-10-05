@@ -1,0 +1,15 @@
+{
+  "name": "deep16-wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "deep16_wasm_bg.wasm",
+    "deep16_wasm.js",
+    "deep16_wasm.d.ts"
+  ],
+  "main": "deep16_wasm.js",
+  "types": "deep16_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

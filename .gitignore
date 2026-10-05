@@ -1,0 +1,19 @@
+# Rust build artifacts
+target/
+**/target/
+
+# Node
+node_modules/
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editor / tooling
+*.swp
+.vscode/
+.idea/
+
+# The compiled WASM core in wasm/pkg/ is intentionally NOT ignored:
+# index.html loads wasm/pkg/deep16_wasm.js and wasm/pkg/deep16_wasm_bg.wasm
+# directly, so the browser IDE works without a local Rust build.
