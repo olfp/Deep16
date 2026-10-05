@@ -1,0 +1,164 @@
+// CPU core behaviour, and JS core vs WASM core parity.
+//
+// The MUL32/DIV32 cases here are the regression tests for the bug where the
+// assembler demanded an odd destination register: with the parity check
+// inverted no spec-legal 32-bit instruction could be assembled, while
+// "MUL32 R15, R6" passed and then wrote past the end of the register file
+// (Rust panic, JS grew a 17th register).
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { assemble, loadBrowserScripts, runJs, runWasm, rawProgram, enc } from './helpers.js';
+
+loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
+
+// Data page: DS = 0x100 -> physical 0x1000, loaded with LD Rd, R0, offset.
+const MUL32_PROGRAM = `
+.org 0x0000
+        LDI 0x0
+        LD  R4, R0, 0        ; R4 = 0x1234
+        LD  R6, R0, 1        ; R6 = 0x0010
+        MUL32 R4, R6         ; R4:R5 = 0x00012340
+        HALT
+.org 0x1000
+        .word 0x1234, 0x0010
+`;
+
+const DIV32_PROGRAM = `
+.org 0x0000
+        LDI 0x0
+        LD  R12, R0, 0       ; R12 = 0x0005
+        LD  R13, R0, 1       ; R13 = 0x0003   -> dividend 0x00050003
+        LD  R6, R0, 2        ; R6  = 0x0007   -> divisor
+        DIV32 R12, R6        ; R12 = 46811 (0xB6DB), R13 = 6
+        HALT
+.org 0x1000
+        .word 0x0005, 0x0003, 0x0007
+`;
+
+const ALU_PROGRAM = `
+.org 0x0000
+        LDI 0x0
+        LD  R1, R0, 0
+        LD  R2, R0, 1
+        ADD R3, R1
+        SUB R4, R2
+        AND R5, R1
+        OR  R6, R2
+        XOR R7, R1
+        MUL R8, R2
+        SL  R9, 3
+        ROL R10, 5
+        SRA R11, 2
+        HALT
+.org 0x1000
+        .word 0x1234, 0x000F
+`;
+
+test('the hand-encoded words match what the assembler produces', () => {
+  const cases = [
+    ['LSI R6, 4', enc.LSI(6, 4)],
+    ['MUL32 R4, R6', enc.MUL32(4, 6)],
+    ['DIV32 R12, R6', enc.DIV32(12, 6)],
+    ['HALT', enc.HLT],
+  ];
+  for (const [line, word] of cases) {
+    const res = assemble(`${line}\n`);
+    assert.equal(res.success, true, `${line}: ${res.errors}`);
+    assert.equal(res.memoryChanges[0].value & 0xFFFF, word, line);
+  }
+});
+
+test('MUL32 puts the high word in Rd and the low word in Rd+1', () => {
+  const res = assemble(MUL32_PROGRAM);
+  assert.equal(res.success, true, res.errors.join('; '));
+  const { registers } = runJs(res, { cs: 0x0000, ds: 0x0100 });
+  // 0x1234 * 0x0010 = 0x00012340
+  assert.equal(registers[4] & 0xFFFF, 0x0001, 'R4 must hold the high word');
+  assert.equal(registers[5] & 0xFFFF, 0x2340, 'R5 must hold the low word');
+});
+
+test('DIV32 leaves quotient in Rd and remainder in Rd+1', () => {
+  const res = assemble(DIV32_PROGRAM);
+  assert.equal(res.success, true, res.errors.join('; '));
+  const { registers } = runJs(res, { cs: 0x0000, ds: 0x0100 });
+  assert.equal(registers[12] & 0xFFFF, 46811);
+  assert.equal(registers[13] & 0xFFFF, 6);
+});
+
+test('JS and WASM cores agree on MUL32', async () => {
+  const res = assemble(MUL32_PROGRAM);
+  const js = runJs(res, { cs: 0x0000, ds: 0x0100 });
+  const wasm = await runWasm(res, { cs: 0x0000, ds: 0x0100 });
+  assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF));
+  assert.equal(wasm.registers[4], 0x0001);
+  assert.equal(wasm.registers[5], 0x2340);
+});
+
+test('JS and WASM cores agree on DIV32', async () => {
+  const res = assemble(DIV32_PROGRAM);
+  const js = runJs(res, { cs: 0x0000, ds: 0x0100 });
+  const wasm = await runWasm(res, { cs: 0x0000, ds: 0x0100 });
+  assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF));
+});
+
+test('JS and WASM cores agree on the rest of the ALU group', async () => {
+  const res = assemble(ALU_PROGRAM);
+  const js = runJs(res, { cs: 0x0000, ds: 0x0100 });
+  const wasm = await runWasm(res, { cs: 0x0000, ds: 0x0100 });
+  assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF));
+});
+
+test('an odd destination register does not escape the register file (JS)', () => {
+  // The assembler refuses this word, but the memory panel lets a user type it
+  // in directly, so the core has to cope as well.
+  const prog = rawProgram([enc.LSI(6, 4), enc.MUL32(15, 6), enc.HLT]);
+  const { registers } = runJs(prog, { cs: 0x0000 });
+  assert.equal(registers.length, 16, 'the register file must stay at 16 entries');
+  assert.equal(registers[16], undefined, 'R16 must not be created');
+  assert.equal(registers[6] & 0xFFFF, 4, 'R6 must be untouched by the rejected MUL32');
+});
+
+test('an odd destination register does not panic the WASM core', async () => {
+  const prog = rawProgram([enc.LSI(6, 4), enc.MUL32(15, 6), enc.HLT]);
+  const wasm = await runWasm(prog, { cs: 0x0000 });
+  assert.equal(wasm.registers.length, 16);
+  assert.equal(wasm.registers[6], 4, 'R6 must be untouched by the rejected MUL32');
+});
+
+test('an odd destination register on DIV32 is rejected too', async () => {
+  const prog = rawProgram([enc.LSI(6, 4), enc.DIV32(13, 6), enc.HLT]);
+  const js = runJs(prog, { cs: 0x0000 });
+  assert.equal(js.registers.length, 16);
+  const wasm = await runWasm(prog, { cs: 0x0000 });
+  assert.equal(wasm.registers.length, 16);
+});
+
+// R14/R15 is left out on purpose: R15 is the PC, so a MUL32 writing into
+// R14:R15 overwrites the program counter. That is a property of the ISA, not
+// a bug in the core.
+test('MUL32 with an even destination works at every aligned pair', async () => {
+  // 255 * 258 = 65790 = 0x0100FE: high word 0x0001, low word 0x00FE, so both
+  // halves of the pair are non-zero and a swapped result would be visible.
+  // R0 stays 0 and serves as the LD base, so the load into R{rd+1} must come
+  // first - for rd = 0 it is the only order that keeps the base intact.
+  for (const rd of [0, 2, 4, 6, 8, 10, 12]) {
+    const src = `
+.org 0x0000
+        LDI  0x0
+        LD   R${rd + 1}, R0, 1
+        LD   R${rd}, R0, 0
+        MUL32 R${rd}, R${rd + 1}
+        HALT
+.org 0x1000
+        .word 0x00FF, 0x0102
+`;
+    const res = assemble(src);
+    assert.equal(res.success, true, res.errors.join('; '));
+    const js = runJs(res, { cs: 0x0000, ds: 0x0100 });
+    assert.equal(js.registers[rd] & 0xFFFF, 0x0001, `JS high word for R${rd}`);
+    assert.equal(js.registers[rd + 1] & 0xFFFF, 0x00FE, `JS low word for R${rd + 1}`);
+    const wasm = await runWasm(res, { cs: 0x0000, ds: 0x0100 });
+    assert.equal(wasm.registers[rd], 0x0001, `WASM high word for R${rd}`);
+    assert.equal(wasm.registers[rd + 1], 0x00FE, `WASM low word for R${rd + 1}`);
+  }
+});

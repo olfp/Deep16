@@ -159,13 +159,15 @@ disassembleSOP(instruction) {
         const d = (instruction >>> 13) & 0x1;
         const rd = (instruction >>> 9) & 0xF;
         const rb = (instruction >>> 5) & 0xF;
-        const offset = instruction & 0x1F;
-        
-        if (d === 0) {
-            return `LD ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
-        } else {
-            return `ST ${this.registerNames[rd]}, [${this.registerNames[rb]}+0x${offset.toString(16).toUpperCase()}]`;
-        }
+        const raw = instruction & 0x1F;
+        // The 5-bit offset is signed (-16..+15) and must be printed signed,
+        // otherwise "LD R1, [R2-4]" comes back as "[R2+0x1C]".
+        const offset = (raw & 0x10) ? raw - 0x20 : raw;
+        const offStr = offset < 0
+            ? `-0x${(-offset).toString(16).toUpperCase()}`
+            : `+0x${offset.toString(16).toUpperCase()}`;
+        const op = d === 0 ? 'LD' : 'ST';
+        return `${op} ${this.registerNames[rd]}, [${this.registerNames[rb]}${offStr}]`;
     }
 
     disassembleALU(instruction) {
@@ -260,7 +262,9 @@ disassembleSOP(instruction) {
         const rd = (instruction >>> 5) & 0xF;
         let imm = instruction & 0x1F;
         
-        if (imm & 0x10) imm |= 0xFFE0;
+        // Sign-extend the 5-bit field. (A 32-bit "imm |= 0xFFE0" would print
+        // "LSI R1, -3" as "#0xFFFD", which the assembler then rejects.)
+        if (imm & 0x10) imm |= ~0x1F;
         
         const immStr = imm >= 0 ? 
             `#0x${imm.toString(16).toUpperCase()}` : 

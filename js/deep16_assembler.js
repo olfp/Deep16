@@ -362,7 +362,9 @@ class Deep16Assembler {
             throw new Error(`Invalid immediate value: ${value}`);
         }
         
-        const trimmed = value.trim();
+        // An optional leading "#" marks an immediate literal, matching the
+        // syntax the disassembler prints (e.g. "ADD R1, #0x3").
+        const trimmed = value.trim().replace(/^#/, '').trim();
     
         // Character constants
         if (trimmed.startsWith("'") && trimmed.endsWith("'")) {

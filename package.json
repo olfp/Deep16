@@ -1,0 +1,11 @@
+{
+  "name": "deep16",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deep16 - 16-bit RISC ISA with assembler, disassembler, JS/WASM simulators and a browser IDE",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "build:wasm": "cd wasm/deep16-wasm && wasm-pack build --target web --out-dir ../pkg"
+  }
+}
