@@ -6,7 +6,7 @@ global.window = {};
 const assemblerCode = fs.readFileSync('./js/deep16_assembler.js','utf8');
 vm.runInThisContext(assemblerCode);
 const asm = new Deep16Assembler();
-const asmPath = process.argv[2] || './asm/fibonacci.a16';
+const asmPath = process.argv[2] || './asm/fibonacci.asm';
 const src = fs.readFileSync(asmPath,'utf8');
   const res = asm.assemble(src);
   if(!res.success){
@@ -71,7 +71,8 @@ try {
     + `SR R1, 1\nSRC R1, 2\nSRA R1, 1\nSRAC R1, 2\n`
     + `ROL R1, 4\nRLC R1, 5\nROR R1, 4\nRRC R1, 5\n`
     + `ADD R2, 3\nAND R2, R3\nTBS R2, 7\nTBC R2, 6\n`
-    + `MUL R4, R5\nDIV R6, R7\nMUL32 R9, R10\nDIV32 R11, R12\n`;
+    // MUL32/DIV32 need an EVEN destination: the 32-bit value lives in R[d]:R[d+1]
+    + `MUL R4, R5\nDIV R6, R7\nMUL32 R8, R10\nDIV32 R10, R12\n`;
   const res2 = asm.assemble(src2);
   if(!res2.success){
     console.log('assemble2 failed', res2.errors);

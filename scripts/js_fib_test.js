@@ -7,7 +7,7 @@ vm.runInThisContext(fs.readFileSync('./js/deep16_assembler.js','utf8'));
 vm.runInThisContext(fs.readFileSync('./js/deep16_simulator.js','utf8'));
 
 const asm = new Deep16Assembler();
-const src = fs.readFileSync('./asm/fibonacci.a16','utf8');
+const src = fs.readFileSync('./asm/fibonacci.asm','utf8');
 const res = asm.assemble(src);
 if(!res.success){
   console.log('assemble failed', res.errors);
