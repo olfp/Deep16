@@ -46,16 +46,23 @@ class DeepWebUI {
         this.initializeEventListeners();
         this.initializeSearchableDropdowns();
         this.initializeTabs();
-        // Keyboard input: feed browser key events into simulator keyboard buffer
+        // Keyboard input: feed browser key events into simulator keyboard buffer.
+        // On iOS the soft keyboard only appears when a real <input> is focused
+        // inside the tap gesture, so #terminal-kbd-hook (hidden, focusable, in
+        // the Terminal/Screen tab) is that input. While it is focused the keys
+        // still belong to the simulator, not to text entry.
+        const terminalHook = document.getElementById('terminal-kbd-hook');
         window.addEventListener('keydown', (e) => {
             if (!this.simulator) return;
             const active = document.activeElement;
             const tag = active && active.tagName ? active.tagName.toUpperCase() : '';
+            const isHook = !!active && active.id === 'terminal-kbd-hook';
             const isTextual = !!active && (
                 (tag === 'INPUT') || (tag === 'TEXTAREA') || (tag === 'SELECT') ||
                 (active.isContentEditable === true)
             );
-            if (isTextual) return;
+            if (isTextual && !isHook) return;
+            if (isHook && (e.ctrlKey || e.metaKey || e.altKey)) return; // keep browser shortcuts (save, reload, ...)
             if (this.screenUI && typeof this.screenUI.setActive === 'function') {
                 this.screenUI.setActive(true);
             }
@@ -65,16 +72,31 @@ class DeepWebUI {
         // Mark screen as active when clicked; clear when focusing inputs
         const screenDisplay = document.getElementById('screen-display');
         if (screenDisplay && this.screenUI && typeof this.screenUI.setActive === 'function') {
-            screenDisplay.addEventListener('click', () => this.screenUI.setActive(true));
+            // Tapping the terminal on a touch device summons the iOS soft
+            // keyboard: focus the hidden hook input inside the tap gesture.
+            screenDisplay.addEventListener('click', () => {
+                this.screenUI.setActive(true);
+                if (terminalHook && document.activeElement !== terminalHook) {
+                    terminalHook.focus({ preventScroll: true });
+                }
+            });
         }
         document.addEventListener('focusin', (e) => {
             const el = e.target;
+            // The hidden hook is the terminal itself pretending to be a text
+            // field; focusing it must not clear the terminal-active state.
+            if (el && el.id === 'terminal-kbd-hook') return;
             const tag = el && el.tagName ? el.tagName.toUpperCase() : '';
             const isTextual = !!el && ((tag === 'INPUT') || (tag === 'TEXTAREA') || (tag === 'SELECT') || (el.isContentEditable === true));
             if (isTextual && this.screenUI && typeof this.screenUI.setActive === 'function') {
                 this.screenUI.setActive(false);
             }
         });
+        if (terminalHook) {
+            // The hook is only a keyboard conduit: keep it empty so its value
+            // cannot grow and linger in an off-screen field.
+            terminalHook.addEventListener('input', () => { terminalHook.value = ''; });
+        }
         
         try {
             this.simulator.autoloadROM();
@@ -1280,6 +1302,12 @@ class DeepWebUI {
             this.updateAssemblyListing();
         } else if (tabName === 'screen') { 
             this.screenUI.updateScreenDisplay();
+            // Entering the terminal on a touch device raises the soft keyboard
+            // (clicking the tab is a user gesture, so iOS honours the focus).
+            const hook = document.getElementById('terminal-kbd-hook');
+            if (hook && document.activeElement !== hook) {
+                hook.focus({ preventScroll: true });
+            }
         } else if (tabName === 'machine') {
             this.registerUI.updateRegisterDisplay();
             this.registerUI.updatePSWDisplay();

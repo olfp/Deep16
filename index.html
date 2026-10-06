@@ -156,6 +156,14 @@ data_area:
                     <div class="screen-info">
                         Memory: 0xF1000-0xF17CF (80×25 characters) | Lower byte = ASCII character
                     </div>
+                    <!-- Hidden keyboard hook: on iOS the soft keyboard only appears
+                         when a real <input> receives focus inside the tap gesture.
+                         While focused, its keystrokes feed the simulator keyboard
+                         buffer instead of text entry (see deep16_ui_core.js). -->
+                    <input type="text" id="terminal-kbd-hook"
+                           class="terminal-kbd-hook"
+                           autocapitalize="none" autocorrect="off"
+                           autocomplete="off" spellcheck="false" aria-hidden="true">
                 </div>
             </div>
             
