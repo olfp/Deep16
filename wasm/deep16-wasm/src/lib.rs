@@ -17,6 +17,7 @@ struct Cpu {
     sr0: u16,
     sr1: u16,
     sr2: u16,
+    sr3: u16,
     sr13: u16,
     sr14: u16,
     running: bool,
@@ -62,6 +63,7 @@ impl Cpu {
             sr0: 0,
             sr1: 0,
             sr2: 0,
+            sr3: 0,
             sr13: 0,
             sr14: 0,
             running: false,
@@ -102,6 +104,7 @@ impl Cpu {
         self.sr0 = 0;
         self.sr1 = 0;
         self.sr2 = 0;
+        self.sr3 = 0;
         self.sr13 = 0;
         self.sr14 = 0;
         self.running = false;
@@ -269,6 +272,40 @@ fn is_extra_register(psw: u16, idx: usize) -> bool {
     if dual { idx == er || idx == (er + 1) } else { idx == er }
 }
 
+/// Read a general-purpose register through the active-bank view
+/// (spec 4.1): while PSW.S=1 the set {R0-R3, R13, R14} lives in the shadow
+/// bank (R0'-R3', R13'=SP', R14'=LR'); every other register is shared.
+fn gp_read(c: &Cpu, idx: usize) -> u16 {
+    if (c.psw & (1 << 5)) != 0 {
+        match idx {
+            0 => { return c.sr0; }
+            1 => { return c.sr1; }
+            2 => { return c.sr2; }
+            3 => { return c.sr3; }
+            13 => { return c.sr13; }
+            14 => { return c.sr14; }
+            _ => {}
+        }
+    }
+    c.reg[idx]
+}
+
+/// Write a general-purpose register through the active-bank view (spec 4.1).
+fn gp_write(c: &mut Cpu, idx: usize, val: u16) {
+    if (c.psw & (1 << 5)) != 0 {
+        match idx {
+            0 => { c.sr0 = val; return; }
+            1 => { c.sr1 = val; return; }
+            2 => { c.sr2 = val; return; }
+            3 => { c.sr3 = val; return; }
+            13 => { c.sr13 = val; return; }
+            14 => { c.sr14 = val; return; }
+            _ => {}
+        }
+    }
+    c.reg[idx] = val;
+}
+
 fn update_psw_flags(c: &mut Cpu) {
     if !c.last_op_alu { return; }
     let mut psw = c.psw & 0xFFF0;
@@ -285,8 +322,8 @@ fn update_psw_flags(c: &mut Cpu) {
 fn exec_ldi(c: &mut Cpu, instr: u16) {
     let mut imm = instr & 0x7FFF;
     if (imm & 0x4000) != 0 { imm |= 0x8000; }
-    let in_shadow = (c.psw & (1 << 5)) != 0;
-    if in_shadow { c.sr0 = imm; } else { c.reg[0] = imm; }
+    // LDI always targets the active R0 (spec 4.3: in a handler this is R0')
+    gp_write(c, 0, imm);
     c.last_alu_result = imm as i32;
     c.last_op_alu = true;
 }
@@ -296,9 +333,7 @@ fn exec_mem(c: &mut Cpu, instr: u16) {
     let rd = ((instr >> 9) & 0xF) as usize;
     let rb = ((instr >> 5) & 0xF) as usize;
     let off = (instr & 0x1F) as u32;
-    let base_val = if (c.psw & (1 << 5)) != 0 {
-        match rb { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rb] }
-    } else { c.reg[rb] };
+    let base_val = gp_read(c, rb);
     let addr_off = (base_val as u32).wrapping_add(off);
     let in_shadow = (c.psw & (1 << 5)) != 0;
     let (seg_idx, seg) = if is_stack_register(c.psw, rb) {
@@ -312,15 +347,13 @@ fn exec_mem(c: &mut Cpu, instr: u16) {
     if pa >= c.mem.len() { return; }
     if d == 0 {
         let v = c.mem[pa];
-        if (c.psw & (1 << 5)) != 0 {
-            match rd { 0 => c.sr0 = v, 1 => c.sr1 = v, 2 => c.sr2 = v, 13 => c.sr13 = v, 14 => c.sr14 = v, _ => c.reg[rd] = v }
-        } else { c.reg[rd] = v }
+        gp_write(c, rd, v);
     } else {
-        let v = if (c.psw & (1 << 5)) != 0 { match rd { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rd] } } else { c.reg[rd] };
+        let v = gp_read(c, rd);
         c.mem[pa] = v;
     }
     c.recent_addr = pa;
-    c.recent_base = c.reg[rb];
+    c.recent_base = base_val;
     c.recent_offset = (off & 0x1F) as u16;
     c.recent_seg_val = seg;
     c.recent_seg_idx = seg_idx;
@@ -331,14 +364,12 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
     let func5 = (instr >> 8) & 0x1F;
     let rd = ((instr >> 4) & 0xF) as usize;
     let low4 = (instr & 0xF) as u16;
-    let rdv = if (c.psw & (1 << 5)) != 0 {
-        match rd { 0 => c.sr0 as u32, 1 => c.sr1 as u32, 2 => c.sr2 as u32, 13 => c.sr13 as u32, 14 => c.sr14 as u32, _ => c.reg[rd] as u32 }
-    } else { c.reg[rd] as u32 } & 0xFFFF;
+    let rdv = gp_read(c, rd) as u32 & 0xFFFF;
     let sign = (rdv & 0x8000) != 0;
     let is_reg = func5 == 0b00000 || func5 == 0b00010 || func5 == 0b00100 || func5 == 0b00110 || func5 == 0b01000 || func5 == 0b01010 || func5 == 0b01100 || func5 == 0b01110 || func5 >= 0b11100;
     let opv = if is_reg {
         let idx = low4 as usize;
-        if (c.psw & (1 << 5)) != 0 { match idx { 0 => c.sr0 as u32, 1 => c.sr1 as u32, 2 => c.sr2 as u32, 13 => c.sr13 as u32, 14 => c.sr14 as u32, _ => c.reg[idx] as u32 } } else { c.reg[idx] as u32 }
+        gp_read(c, idx) as u32
     } else { low4 as u32 & 0xF } & 0xFFFF;
     let mut result: i32 = rdv as i32;
     let mut wide_result: Option<i32> = None; // full 32-bit result for MUL32
@@ -466,9 +497,8 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             c.psw = (c.psw & !0x8) | (new_carry << 3);
         }
         0b11100 => {
-            let prod = ((rdv as u32 & 0xFFFF) * (opv as u32 & 0xFFFF)) & 0xFFFF;
-            c.reg[rd] = (prod & 0xFFFF) as u16;
-            result = prod as i32;
+            // MUL: the write-back epilogue stores `result` via gp_write
+            result = ((rdv as u32 & 0xFFFF) * (opv as u32 & 0xFFFF) & 0xFFFF) as i32;
         }
         0b11101 => {
             // MUL32: R[d]:R[d+1] <- Rd * Rs (spec Table 8). Rd must be EVEN so the
@@ -480,8 +510,7 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             } else {
                 let prod = (rdv as u64) * (opv as u64);
                 let high = ((prod >> 16) as u32 & 0xFFFF) as u16;
-                c.reg[rd] = high;
-                c.reg[rd + 1] = (prod as u32 & 0xFFFF) as u16;
+                gp_write(c, rd + 1, (prod as u32 & 0xFFFF) as u16);
                 // The write-back below stores `result` in Rd, so it must carry the
                 // HIGH word -- otherwise it would clobber the pair we just stored.
                 result = high as i32;
@@ -490,9 +519,7 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
         }
         0b11110 => {
             if opv == 0 { result = 0xFFFF; } else {
-                let q = ((rdv as u32) / opv) as u32 & 0xFFFF;
-                c.reg[rd] = q as u16;
-                result = q as i32;
+                result = ((rdv / opv) & 0xFFFF) as i32;
             }
         }
         0b11111 => {
@@ -502,20 +529,17 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
                 c.last_op_alu = true;
                 return;
             } else if opv == 0 { result = 0xFFFF; } else {
-                let dividend = (((c.reg[rd] as u32) << 16) | (c.reg[rd + 1] as u32)) as u64;
+                let dividend = (((gp_read(c, rd) as u32) << 16) | (gp_read(c, rd + 1) as u32)) as u64;
                 let q = (dividend / opv as u64) as u32 & 0xFFFF;
                 let r = (dividend % opv as u64) as u32 & 0xFFFF;
-                c.reg[rd] = q as u16;
-                c.reg[rd + 1] = r as u16;
+                gp_write(c, rd + 1, r as u16);
                 result = q as i32;
             }
         }
         _ => { }
     }
     let res16 = (result as u32 & 0xFFFF) as u16;
-    if (c.psw & (1 << 5)) != 0 {
-        match rd { 0 => c.sr0 = res16, 1 => c.sr1 = res16, 2 => c.sr2 = res16, 13 => c.sr13 = res16, 14 => c.sr14 = res16, _ => c.reg[rd] = res16 }
-    } else { c.reg[rd] = res16 }
+    gp_write(c, rd, res16);
     c.last_alu_result = wide_result.unwrap_or(result);
     c.last_op_alu = true;
 }
@@ -526,7 +550,7 @@ fn exec_mov(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
     let imm2 = (instr & 0x3) as u16;
 
     let value: u16 = if imm2 == 0 {
-        if (c.psw & (1 << 5)) != 0 { match rs { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rs] } } else { c.reg[rs] }
+        gp_read(c, rs)
     } else if rs == 15 && imm2 == 2 {
         // Standard link (LNK): PC architectural read before jump
         original_pc.wrapping_add(2)
@@ -534,11 +558,10 @@ fn exec_mov(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
         // Architectural link in delay slot (ALNK): next instruction after delay slot
         original_pc.wrapping_add(1)
     } else if imm2 == 3 {
-        // Architectural read bypass (AMV)
-        c.reg[rs]
+        // Architectural read bypass (AMV): active-bank register, no addition
+        gp_read(c, rs)
     } else {
-        let base = if (c.psw & (1 << 5)) != 0 { match rs { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rs] } } else { c.reg[rs] };
-        base.wrapping_add(imm2)
+        gp_read(c, rs).wrapping_add(imm2)
     };
 
     // MOV to PC is a branch with one delay slot
@@ -555,7 +578,7 @@ fn exec_mov(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
     }
 
     if (c.psw & (1 << 5)) != 0 {
-        match rd { 0 => c.sr0 = value, 1 => c.sr1 = value, 2 => c.sr2 = value, 13 => c.sr13 = value, 14 => c.sr14 = value, _ => c.reg[rd] = value }
+        match rd { 0 => c.sr0 = value, 1 => c.sr1 = value, 2 => c.sr2 = value, 3 => c.sr3 = value, 13 => c.sr13 = value, 14 => c.sr14 = value, _ => c.reg[rd] = value }
     } else { c.reg[rd] = value }
     c.last_alu_result = value as i32;
     c.last_op_alu = true;
@@ -566,61 +589,35 @@ fn exec_lsi(c: &mut Cpu, instr: u16) {
     let rd = ((instr >> 5) & 0xF) as usize;
     let mut imm = (instr & 0x1F) as i16;
     if (imm & 0x10) != 0 { imm |= -1i16 << 5; }
-    c.reg[rd] = imm as u16;
+    gp_write(c, rd, imm as u16);
 }
 
 fn exec_sop(c: &mut Cpu, instr: u16) -> bool {
-    let t = (instr >> 4) & 0xF;
+    // Spec 3.6 SOP: [1111111110][tt2][Rx4] with 00=INV, 01=NEG, 10=SPSW, 11=LPSW
+    let t = (instr >> 4) & 0x3;
     let rx = (instr & 0xF) as usize;
     match t {
-        0b0000 => {
-            let v = if (c.psw & (1 << 5)) != 0 { match rx { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rx] } } else { c.reg[rx] };
-            let swapped = (((v & 0x00FF) << 8) | ((v >> 8) & 0x00FF)) as u16;
-            if (c.psw & (1 << 5)) != 0 { match rx { 0 => c.sr0 = swapped, 1 => c.sr1 = swapped, 2 => c.sr2 = swapped, 13 => c.sr13 = swapped, 14 => c.sr14 = swapped, _ => c.reg[rx] = swapped } } else { c.reg[rx] = swapped };
-            c.last_alu_result = swapped as i32;
-            c.last_op_alu = true;
-            false
-        }
-        0b0001 => {
-            c.psw = (c.psw & !0x03C0) | (((rx as u16) & 0xF) << 6) | 0x0400;
-            false
-        }
-        0b0010 => {
-            let cur = if (c.psw & (1 << 5)) != 0 { match rx { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rx] } } else { c.reg[rx] };
-            let v = (!cur).wrapping_add(1) & 0xFFFF;
-            if (c.psw & (1 << 5)) != 0 { match rx { 0 => c.sr0 = v, 1 => c.sr1 = v, 2 => c.sr2 = v, 13 => c.sr13 = v, 14 => c.sr14 = v, _ => c.reg[rx] = v } } else { c.reg[rx] = v };
+        0 => { // INV Rx: Rx <- ~Rx (active-bank register)
+            let v = (!gp_read(c, rx)) & 0xFFFF;
+            gp_write(c, rx, v);
             c.last_alu_result = v as i32;
             c.last_op_alu = true;
             false
         }
-        0b0011 => {
-            c.psw = (c.psw & !0x7800) | (((rx as u16) & 0xF) << 11) | 0x8000;
-            false
-        }
-        0b1000 => {
-            c.psw = (c.psw & !0x03C0) | (((rx as u16) & 0xF) << 6);
-            false
-        }
-        0b1001 => {
-            let cur = if (c.psw & (1 << 5)) != 0 { match rx { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rx] } } else { c.reg[rx] };
-            let v = (!cur) & 0xFFFF;
-            if (c.psw & (1 << 5)) != 0 { match rx { 0 => c.sr0 = v, 1 => c.sr1 = v, 2 => c.sr2 = v, 13 => c.sr13 = v, 14 => c.sr14 = v, _ => c.reg[rx] = v } } else { c.reg[rx] = v };
+        1 => { // NEG Rx: Rx <- -Rx
+            let v = ((!gp_read(c, rx)).wrapping_add(1)) & 0xFFFF;
+            gp_write(c, rx, v);
             c.last_alu_result = v as i32;
             c.last_op_alu = true;
             false
         }
-        0b1010 => {
-            c.psw = (c.psw & !0x7800) | (((rx as u16) & 0xF) << 11);
+        2 => { // SPSW Rx: PSW <- Rx (active-bank view, spec 2.4)
+            c.psw = gp_read(c, rx);
             false
         }
-        0b1100 => {
-            let in_shadow = (c.psw & (1 << 5)) != 0;
-            let v = if in_shadow { c.spsw } else { c.psw };
-            if in_shadow { match rx { 0 => c.sr0 = v, 1 => c.sr1 = v, 2 => c.sr2 = v, 13 => c.sr13 = v, 14 => c.sr14 = v, _ => c.reg[rx] = v } } else { c.reg[rx] = v };
-            false
-        }
-        0b1101 => {
-            c.psw = c.reg[rx];
+        3 => { // LPSW Rx: Rx <- PSW (live architectural PSW; interrupted state
+               // comes from SMV Rx, APSW, spec 4.8)
+            gp_write(c, rx, c.psw);
             false
         }
         _ => false,
@@ -638,8 +635,8 @@ fn exec_set_clr(c: &mut Cpu, instr: u16) {
 fn exec_jml(c: &mut Cpu, instr: u16) -> bool {
     let rx = (instr & 0xF) as usize;
     if rx % 2 != 0 { return false; }
-    let target_cs = c.reg[rx];
-    let target_pc = c.reg[rx + 1];
+    let target_cs = gp_read(c, rx);
+    let target_pc = gp_read(c, rx + 1);
     let in_shadow = (c.psw & (1 << 5)) != 0;
     c.delay_active = true;
     c.delayed_pc = target_pc;
@@ -653,18 +650,31 @@ fn exec_smv(c: &mut Cpu, instr: u16) {
     let rx = ((instr >> 4) & 0xF) as usize;
     let alt = (instr & 0xF) as u16;
     let in_shadow = (c.psw & (1 << 5)) != 0;
+    // SMV always reads the *inactive* bank: in shadow view (S=1) the normal
+    // registers, in normal view (S=0) the shadow registers. The result is
+    // written into the *active* bank via gp_write (spec 3.3 / 4.8).
     match alt {
-        0b0000 => { c.reg[rx] = if in_shadow { c.cs } else { c.scs }; }
-        0b0001 => { c.reg[rx] = if in_shadow { c.ds } else { c.sds }; }
-        0b0010 => { c.reg[rx] = if in_shadow { c.ss } else { c.sss }; }
-        0b0011 => { c.reg[rx] = if in_shadow { c.es } else { c.ses }; }
-        0b0100 => { c.reg[rx] = if in_shadow { c.psw } else { c.spsw }; }
-        0b1000 => { c.reg[rx] = if in_shadow { c.reg[0] } else { 0 }; }
-        0b1001 => { c.reg[rx] = if in_shadow { c.reg[1] } else { 0 }; }
-        0b1010 => { c.reg[rx] = if in_shadow { c.reg[2] } else { 0 }; }
-        0b1101 => { c.reg[rx] = if in_shadow { c.reg[13] } else { 0 }; }
-        0b1110 => { c.reg[rx] = if in_shadow { c.reg[14] } else { 0 }; }
-        0b1111 => { c.reg[rx] = if in_shadow { c.reg[15] } else { c.spc }; }
+        0b0000 => { gp_write(c, rx, if in_shadow { c.cs } else { c.scs }); }
+        0b0001 => { gp_write(c, rx, if in_shadow { c.ds } else { c.sds }); }
+        0b0010 => { gp_write(c, rx, if in_shadow { c.ss } else { c.sss }); }
+        0b0011 => { gp_write(c, rx, if in_shadow { c.es } else { c.ses }); }
+        0b0100 => {
+            // APSW: spsw holds the *other* context's PSW -- the interrupted PSW
+            // during handler execution, PSW' (0x0000 after RETI, spec 4.9) in
+            // normal view (spec 4.8).
+            gp_write(c, rx, c.spsw);
+        }
+        0b1000 => { gp_write(c, rx, if in_shadow { c.reg[0] } else { c.sr0 }); }
+        0b1001 => { gp_write(c, rx, if in_shadow { c.reg[1] } else { c.sr1 }); }
+        0b1010 => { gp_write(c, rx, if in_shadow { c.reg[2] } else { c.sr2 }); }
+        0b1011 => { gp_write(c, rx, if in_shadow { c.reg[3] } else { c.sr3 }); }
+        0b1101 => { gp_write(c, rx, if in_shadow { c.reg[13] } else { c.sr13 }); }
+        0b1110 => { gp_write(c, rx, if in_shadow { c.reg[14] } else { c.sr14 }); }
+        0b1111 => {
+            // APC: the architectural (active) PC -- shadow PC in handler
+            // context, normal PC otherwise (spec 3.3 / 6.2.2 ALINK).
+            gp_write(c, rx, if in_shadow { c.spc } else { c.reg[15] });
+        }
         _ => { }
     }
 }
@@ -675,15 +685,17 @@ fn exec_mvs(c: &mut Cpu, instr: u16) {
     let seg = (instr & 0x3) as u16;
     let in_shadow = (c.psw & (1 << 5)) != 0;
     if d == 0 {
+        // MVS Rd, SEG: segment register -> active-bank GPR Rd
         let v = match seg {
             0 => if in_shadow { c.scs } else { c.cs },
             1 => if in_shadow { c.sds } else { c.ds },
             2 => if in_shadow { c.sss } else { c.ss },
             _ => if in_shadow { c.ses } else { c.es },
         };
-        if in_shadow { match rd { 0 => c.sr0 = v, 1 => c.sr1 = v, 2 => c.sr2 = v, 13 => c.sr13 = v, 14 => c.sr14 = v, _ => c.reg[rd] = v } } else { c.reg[rd] = v };
+        gp_write(c, rd, v);
     } else {
-        let v = if in_shadow { match rd { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rd] } } else { c.reg[rd] };
+        // MVS SEG, Rd: active-bank GPR Rd -> segment register
+        let v = gp_read(c, rd);
         match seg {
             0 => if in_shadow { c.scs = v } else { c.cs = v },
             1 => if in_shadow { c.sds = v } else { c.ds = v },
@@ -759,6 +771,10 @@ fn step_one(c: &mut Cpu) -> bool {
     c.last_event_scs = active_cs;
     if (instr & 0xFFF0) == 0xFFF0 {
         if in_shadow { c.spc = c.spc.wrapping_add(1); } else { c.reg[15] = c.reg[15].wrapping_add(1); }
+        // Reset ALU tracking so a stale result cannot smear flags across an
+        // SWI/RETI PSW transition (matches the JS core and the paths below).
+        c.last_op_alu = false;
+        c.last_alu_result = 0;
         exec_sys(c, instr);
         update_psw_flags(c);
         return true;
@@ -832,19 +848,26 @@ fn exec_lds_sts(c: &mut Cpu, instr: u16) {
     let seg = (instr >> 8) & 0x3;
     let rd = ((instr >> 4) & 0xF) as usize;
     let rs = (instr & 0xF) as usize;
-    let base = if (c.psw & (1 << 5)) != 0 { match rs { 0 => c.sr0 as u32, 1 => c.sr1 as u32, 2 => c.sr2 as u32, 13 => c.sr13 as u32, 14 => c.sr14 as u32, _ => c.reg[rs] as u32 } } else { c.reg[rs] as u32 };
-    let segv = match seg { 0 => c.cs, 1 => c.ds, 2 => c.ss, _ => c.es };
+    let in_shadow = (c.psw & (1 << 5)) != 0;
+    let base = gp_read(c, rs) as u32;
+    // The explicit segment uses the active bank's shadow/normal segments
+    let segv = match seg {
+        0 => if in_shadow { c.scs } else { c.cs },
+        1 => if in_shadow { c.sds } else { c.ds },
+        2 => if in_shadow { c.sss } else { c.ss },
+        _ => if in_shadow { c.ses } else { c.es },
+    };
     let pa = phys(segv, base);
     if pa >= c.mem.len() { return; }
     if d == 0 {
         let v = c.mem[pa];
-        if (c.psw & (1 << 5)) != 0 { match rd { 0 => c.sr0 = v, 1 => c.sr1 = v, 2 => c.sr2 = v, 13 => c.sr13 = v, 14 => c.sr14 = v, _ => c.reg[rd] = v } } else { c.reg[rd] = v };
+        gp_write(c, rd, v);
     } else {
-        let v = if (c.psw & (1 << 5)) != 0 { match rd { 0 => c.sr0, 1 => c.sr1, 2 => c.sr2, 13 => c.sr13, 14 => c.sr14, _ => c.reg[rd] } } else { c.reg[rd] };
+        let v = gp_read(c, rd);
         c.mem[pa] = v;
     }
     c.recent_addr = pa;
-    c.recent_base = c.reg[rs];
+    c.recent_base = base as u16;
     c.recent_offset = 0;
     c.recent_seg_val = segv;
     c.recent_seg_idx = seg as u16;
@@ -906,8 +929,10 @@ fn exec_sys(c: &mut Cpu, instr: u16) -> bool {
         0 => { /* NOP */ false }
         1 => { /* HLT */ c.running = false; false }
         2 => { /* SWI */
+            // Spec 4.4: park the interrupted PSW, then enter the handler with a
+            // fresh PSW (S=1, I=0, flags clear) -- NOT a copy of the old one.
             c.spsw = c.psw;
-            c.psw = (c.psw & !(1 << 4)) | (1 << 5);
+            c.psw = 0x0020;
             c.scs = 0x0000;
             c.sds = 0x0000;
             c.sss = 0x0000;
@@ -915,6 +940,7 @@ fn exec_sys(c: &mut Cpu, instr: u16) -> bool {
             c.sr0 = 0x0000;
             c.sr1 = 0x0000;
             c.sr2 = 0x0000;
+            c.sr3 = 0x0000;
             c.sr13 = 0x0000;
             c.sr14 = 0x0000;
             let pa = phys(0, 2u32);
@@ -926,8 +952,15 @@ fn exec_sys(c: &mut Cpu, instr: u16) -> bool {
             false
         }
         3 => { /* RETI */
-            // Return from interrupt: clear S-bit
-            c.psw = c.psw & !(1 << 5);
+            // Spec 4.9: restore the original (interrupted) PSW -- flags, I and
+            // all fields intact -- and reset PSW' to 0x0000.
+            if (c.psw & (1 << 5)) != 0 {
+                c.psw = c.spsw;
+                c.spsw = 0;
+            } else {
+                // Spurious RETI outside a handler: keep S clear / unchanged
+                c.psw = c.psw & !(1 << 5);
+            }
             c.last_event_code = 3;
             false
         }

@@ -24,7 +24,7 @@ Deep16 is a 16-bit RISC processor designed with a balanced approach to simplicit
 - **Symmetric SMV access** - SMV works perfectly in both normal and interrupt modes
 - **Hardware-assisted interrupt handling** - Automatic context snapshot and initialization
 - **Enhanced assembler syntax** - Bracket and plus notation for improved readability
-- **Architectural register access** - SMV Rx, PC for stable state reading
+- **Architectural register access** - `SMV Rx, APC` for stable state reading
 
 ### **1.3 Performance Targets**
 - **Base CPI**: 1.0-1.3 (ideal to realistic)
@@ -169,7 +169,8 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 **ILL Trap Overview:**
 - **Replaces NMI** at vector address 0x0000
 - **Triggers on**: Unimplemented instructions (including all FPU instructions)
-- **Behavior**: Similar to SWI but handler must examine APC-1 to find trapped instruction
+- **Behavior**: Similar to SWI, but the handler reads the interrupted PC with
+  `MOV Rx, PC` (PC is not banked, §4.1) to locate the trapped instruction
 - **Critical restriction**: ILL must NOT occur in interrupt context (PSW.S=1)
   - If attempted, results in double fault (processor reset)
 
@@ -196,11 +197,13 @@ R3'   ← 0
 R13'  ← 0
 R14'  ← 0
 PC'   ← Mem[0x0000]  ; Jump to ILL handler at vector 0
-; APC contains address of instruction AFTER the trapped instruction
+; The interrupted PC stays in normal PC (it is not part of the GP shadow set,
+; §4.1), pointing at the instruction AFTER the trapped instruction
 ```
 
 **FPU Emulation Process:**
-1. ILL handler reads trapped instruction from `APC - 1`
+1. ILL handler reads the interrupted PC with `MOV Rx, PC` and decrements by
+   one (`LD` from `PC - 1`) to fetch the trapped instruction
 2. Decodes instruction to determine which FPU operation
 3. Emulates operation using normal integer registers
 4. Returns with RETI
@@ -209,24 +212,28 @@ PC'   ← Mem[0x0000]  ; Jump to ILL handler at vector 0
 
 **Table F: SMV Alternate Register Selection (Extended)**
 
+The selector is code-canonical: it matches both simulator cores and the
+assembler. SMV reads the **inactive** context's register into `Rx` — except
+`APC`, which reads the **active (architectural)** PC. The destination write
+always uses active-bank semantics (while `PSW.S=1` a GP destination lands in
+the shadow bank).
+
 | alt_sel | Alternate Register | Syntax | Operation |
 |---------|-------------------|--------|-----------|
-| 0000 | AR0 | `SMV Rx, AR0` | `Rx ← AR0` |
-| 0001 | AR1 | `SMV Rx, AR1` | `Rx ← AR1` |
-| 0010 | AR2 | `SMV Rx, AR2` | `Rx ← AR2` |
-| 0011 | AR3 | `SMV Rx, AR3` | `Rx ← AR3` |
-| 0100 | AR13/ASP | `SMV Rx, AR13` | `Rx ← ASP` |
-| 0101 | AR14/ALR | `SMV Rx, AR14` | `Rx ← ALR` |
-| 0110 | AR15/APC | `SMV Rx, APC` | `Rx ← APC` |
-| 0111 | APSW | `SMV Rx, APSW` | `Rx ← APSW` |
-| 1000 | ACS | `SMV Rx, ACS` | `Rx ← ACS` |
-| 1001 | ADS | `SMV Rx, ADS` | `Rx ← ADS` |
-| 1010 | ASS | `SMV Rx, ASS` | `Rx ← ASS` |
-| 1011 | AES | `SMV Rx, AES` | `Rx ← AES` |
+| 0000 | ACS | `SMV Rx, ACS` | `Rx ← inactive CS` |
+| 0001 | ADS | `SMV Rx, ADS` | `Rx ← inactive DS` |
+| 0010 | ASS | `SMV Rx, ASS` | `Rx ← inactive SS` |
+| 0011 | AES | `SMV Rx, AES` | `Rx ← inactive ES` |
+| 0100 | APSW | `SMV Rx, APSW` | `Rx ← inactive PSW` |
+| 0101–0111 | *reserved* | *reserved* | *reserved* |
+| 1000 | AR0 | `SMV Rx, AR0` | `Rx ← inactive R0` |
+| 1001 | AR1 | `SMV Rx, AR1` | `Rx ← inactive R1` |
+| 1010 | AR2 | `SMV Rx, AR2` | `Rx ← inactive R2` |
+| 1011 | AR3 | `SMV Rx, AR3` | `Rx ← inactive R3` |
 | 1100 | *reserved* | *reserved* | *reserved* |
-| 1101 | *reserved* | *reserved* | *reserved* |
-| 1110 | *reserved* | *reserved* | *reserved* |
-| 1111 | PC | `SMV Rx, PC` | `Rx ← PC` (Architectural PC) |
+| 1101 | AR13/ASP | `SMV Rx, AR13` | `Rx ← inactive R13 (SP')` |
+| 1110 | AR14/ALR | `SMV Rx, AR14` | `Rx ← inactive R14 (LR')` |
+| 1111 | APC | `SMV Rx, APC` | `Rx ← active PC` (architectural PC) |
 
 **SMV Instruction Format:**
 ```
@@ -236,13 +243,16 @@ PC'   ← Mem[0x0000]  ; Jump to ILL handler at vector 0
 +-------------------+-------------+---------------+
 ```
 
-**Operation:** `Rx ← alt_reg` (reads alternate/shadow register into Rx)
+**Operation:** `Rx ← alt_reg` (reads the inactive-context register into the active-bank `Rx`)
 
 **Key Characteristics:**
 1. **Read-only operation**: Always reads from alternate register to destination Rx
 2. **No d-bit**: Simplified encoding
-3. **Symmetric access**: SMV reads different registers based on PSW'.S
-4. **Architectural PC access**: alt_sel=1111 reads stable PC (bypasses forwarding)
+3. **Symmetric access**: SMV reads different registers based on PSW'.S; the
+   destination write uses the active bank (§4.8)
+4. **Architectural PC access**: alt_sel=1111 (`APC`) reads the *active* PC
+   (bypasses forwarding), the exception to the inactive-bank rule — this is
+   what `ALINK` uses in the delay slot (§6.2.2)
 
 **SMV Symmetric Access Behavior:**
 - **PSW'.S = 0 (Normal mode)**: SMV accesses shadow registers (R0'-R3', R13', R14', PC', PSW', CS', DS', SS', ES') and with alt_sel=1111 normal PC.
@@ -260,7 +270,7 @@ PC'   ← Mem[0x0000]  ; Jump to ILL handler at vector 0
 | **MVS Rd, Sx** | `MVS Rd, Sx` | `111111110 0 Rd4 seg2` | `Rd ← Sx` | Read segment register |
 | **MVS Sx, Rd** | `MVS Sx, Rd` | `111111110 1 Rd4 seg2` | `Sx ← Rd` | Write segment register |
 | **SMV Rx, alt_reg** | `SMV Rx, alt_reg` | `11111110 Rx4 alt_sel4` | `Rx ← alt_reg` | Read shadow/alternate register |
-| **SMV Rx, PC** | `SMV Rx, PC` | `11111110 Rx4 1111` | `Rx ← PC*` | Architectural PC read, bypassing forwarding |
+| **SMV Rx, APC** | `SMV Rx, APC` | `11111110 Rx4 1111` | `Rx ← PC` (active) | Architectural PC read, bypassing forwarding |
 
 ### **3.5 PSW Operations**
 
@@ -419,6 +429,13 @@ LD  R3, R4, -1    ; Load from previous word
 
 **Requirements:** For JML, Rx must be EVEN (uses register pair Rx:Rx+1)
 
+**Delay slot:** every conditional jump carries a one-instruction delay slot
+(§6.2.1): the instruction at `PC + 1` executes whether or not the branch is
+taken, and only then does the CPU continue at the target (taken) or at
+`PC + 2` (not taken). Both simulator cores implement this, including flag
+updates from the delay-slot instruction; the shipped examples always place a
+`NOP` (or a useful instruction) in the slot.
+
 ### **3.13 Halt Instruction**
 
 **Table Q: Halt Instruction**
@@ -522,7 +539,8 @@ PC'   ← Mem[interrupt_vector]  ; Jump to handler
 3. **Double fault condition**: ILL occurring while already in interrupt context (PSW.S=1)
 
 #### **ILL Handler Requirements**
-- **Must examine APC-1** to find the trapped instruction
+- **Must find the trapped instruction**: `MOV R0, PC` (PC is not banked) gives
+  the interrupted PC, which points at the instruction after the trapped one
 - **Must check for double fault** by reading APSW.S bit
 - **Can emulate instructions** (e.g., FPU operations)
 - **Must return with RETI** to restore normal context
@@ -531,7 +549,7 @@ PC'   ← Mem[interrupt_vector]  ; Jump to handler
 ```assembly
 ILL_HANDLER:
     ; Get trapped instruction address
-    SMV  R0, APC      ; R0 = address after trapped instruction
+    MOV  R0, PC       ; R0 = interrupted PC (address after trapped instruction)
     SMV  R1, ACS      ; R1 = code segment of trapped instruction
     MVS  DS, R1	      ; DS = CS of trapped intr., for mem read
     
@@ -539,6 +557,7 @@ ILL_HANDLER:
     SMV  R1, APSW     ; R1 = interrupted PSW
     TBS  R1, 5        ; Check S bit, Z when set
     JZ   DOUBLE_FAULT ; Already in interrupt = double fault
+    NOP               ; delay slot of JZ (Table 11)
     
     ; Read trapped instruction
     ; DS set on trap CS, PSW.SS and PSW.ES clear
@@ -565,8 +584,9 @@ DOUBLE_FAULT:
 
 #### **Accessing Interrupted State**
 - `SMV R0, APSW` accesses **normal PSW** (interrupted state)
-- `SMV R0, APC` accesses **normal PC** (interrupted address)
 - `SMV R0, AR0` accesses **normal R0** (from interrupted context)
+- The interrupted PC is not in the GP shadow set (§4.1), so a plain `MOV R0, PC`
+  reads it directly from the handler
 - Similar for other registers via SMV instruction
 
 #### **Example Interrupt Handler**
@@ -580,7 +600,7 @@ interrupt_handler:
     MOV  R1, R0      ; R1' = R0' (using shadow registers)
     
     ; Access interrupted context if needed
-    SMV  R2, APC     ; R2' = PC (normal interrupted PC)
+    MOV  R2, PC      ; R2' = PC (normal interrupted PC — PC is not banked)
     SMV  R3, APSW    ; R3' = PSW (normal interrupted PSW)
     
     ; ... handler code ...
@@ -603,6 +623,13 @@ PSW'  ← 0x0000    ; S=0 - switch back to normal context
 2. **Shadow registers retain their values** for next interrupt/debugging
 3. **Only PSW' is modified** - set to 0x0000 to trigger context switch
 4. **Pipeline flush** - clean transition between contexts
+
+**Implementation note:** both simulator cores follow §4.1/§4.4/§4.9 exactly.
+While `PSW.S=1` the GP set {R0,R1,R2,R3,R13,R14} maps to the shadow bank
+(R0'..R3', R13', R14'); on SWI entry the interrupted PSW is parked and the
+live PSW becomes the fresh `0x0020` (§4.4); RETI restores the parked PSW into
+the live PSW and resets the shadow slot to `0x0000` (§4.9). The affected
+register banks are verified by `tests/shadow.test.js` on both cores.
 
 
 ### **4.10 Key Benefits of Shadow Register System**
@@ -681,8 +708,8 @@ MOV  R3, SP, 0        ; Note: Negative offsets not supported in MOV
 | JMP Rx | MOV PC, Rx | Unconditional jump to register |
 | LNK Rx | MOV Rx, PC, 2 | Link to subroutine (standard case) |
 | LINK | MOV LR, PC, 2 | Link to subroutine using LR (standard case) |
-| ALNK Rx | SMV Rx, PC | Architectural link via SMV Rx, PC |
-| ALINK | SMV LR, PC | Architectural link to LR via SMV LR, PC |
+| ALNK Rx | SMV Rx, APC | Architectural link via `SMV Rx, APC` |
+| ALINK | SMV LR, APC | Architectural link to LR via `SMV LR, APC` |
 
 ### **5.3 Flag Operation Aliases**
 
@@ -740,12 +767,12 @@ JMP  sub_func ; Jump to subroutine
 
 #### **6.2.2 Optimized Subroutine Call using ALINK**
 
-To utilize the delay slot efficiently, Deep16 provides **architectural register access** via SMV with alt_sel=1111:
+To utilize the delay slot efficiently, Deep16 provides **architectural register access** via SMV with alt_sel=1111 (`APC`):
 
 **Optimized Subroutine Call using ALINK:**
 ```assembly
 JMP   sub_func        ; Jump to subroutine  
-ALINK                 ; SMV LR, PC - Architectural read of PC in delay slot
+ALINK                 ; SMV LR, APC - Architectural read of PC in delay slot
 ; Execution continues after subroutine return
 ```
 
@@ -940,16 +967,26 @@ Verified against the code in this repository, not against intent:
 
 - **Specification**: complete as a document; sections 3.2 and 4.7 and the
   FPU document describe features that are not implemented
+- **Shadow register system**: implemented on **both** cores: §4.1 GP banking
+  (while `PSW.S=1` the set {R0,R1,R2,R3,R13,R14} maps to R0'..R3', R13', R14'),
+  the fresh `0x0020` SWI entry (§4.4), the RETI restore with the shadow PSW
+  slot reset to 0 (§4.9), the SMV selector table (Table F) and the SOP group
+  INV/NEG/SPSW/LPSW (§3.6)
 - **JavaScript core**: implements the ISA, including `MUL32`/`DIV32` and
   `CLRB`; has hardware-interrupt handling
-- **WASM core**: implements the ISA, including `CLRB`; no hardware-interrupt
-  handling, so the keyboard and therefore the Forth REPL only work with the JS
-  core selected
+- **WASM core**: implements the ISA, including `CLRB`, and is behaviourally
+  aligned with the JS core on the shadow register system and the conditional
+  jump delay slots; no hardware-interrupt handling, so the keyboard driver —
+  and therefore interactive input to the Forth REPL — only works with the JS
+  core selected. The Forth kernel itself (banner, REPL loop, BIOS SWI calls)
+  runs and prints on the WASM core.
 - **Assembler / disassembler**: implemented and round trip, including `CLRB`
-  and the bit-index immediates of section 3.7
-- **Verification**: `npm test` runs 46 assertions covering the ALU encodings,
-  the assembler/disassembler round trip, JS↔WASM agreement and all seven
-  example programs
+  and the bit-index immediates of section 3.7; examples with distant
+  conditional jumps use the inverse-jump-plus-far-jump idiom (§5)
+- **Verification**: `npm test` runs 54 assertions covering the ALU encodings,
+  the assembler/disassembler round trip, JS↔WASM agreement, shadow
+  register/switching semantics and Jcc delay slots on both cores
+  (`tests/shadow.test.js`), and all seven example programs
 
 ---
 

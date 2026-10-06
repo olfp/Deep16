@@ -65,9 +65,9 @@ after_message1:
     LDI 0              ; Function number 0 = GET_VERSION
     SWI                ; Software interrupt
     
-    ; R0 now contains version number (0x0001)
-    ; PRESERVE the version number since LDI will overwrite R0
-    MOV R10, R0        ; Save version number in R10
+    ; The handler returned the version in its shadow R0' (spec 4.3: LDI in a
+    ; handler uses R0'), so read the banked register back after RETI.
+    SMV R10, AR0       ; Save version number in R10 (reads R0')
     
     ; Display result without subroutine call
     LDI message2

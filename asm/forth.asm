@@ -85,6 +85,7 @@ print_text:
     LDI 0
     CMP R2, R0
     JZ print_text_ret
+    NOP
     STS R2, ES, SCR
     ADD SCR, 1
     ADD R1, 1
@@ -252,6 +253,7 @@ interpret_loop:
     LDI 0
     CMP R2, R0
     JNZ not_eol
+    NOP
     LDI interpret_done
     MOV PC, R0
     NOP
@@ -259,6 +261,7 @@ not_eol:
     LDI ' '
     CMP R2, R0
     JNZ token_start
+    NOP
     ADD >IN, 1
     LDI interpret_loop
     MOV PC, R0
@@ -267,6 +270,7 @@ token_start:
     LDI '"'
     CMP R2, R0
     JNZ check_apostrophe
+    NOP
     ; Bare string opening: advance inside string and print
     ADD >IN, 1
     LDI print_string_skip
@@ -276,6 +280,7 @@ check_apostrophe:
     LDI 39
     CMP R2, R0
     JNZ check_dot_token
+    NOP
     ADD >IN, 1
     LDI interpret_loop
     MOV PC, R0
@@ -284,6 +289,7 @@ check_dot_token:
     LDI '.'
     CMP R2, R0
     JNZ check_single_tokens
+    NOP
     MOV R3, TIB
     ADD R3, >IN
     ADD R3, 1
@@ -291,10 +297,17 @@ check_dot_token:
     LDI '"'
     CMP R4, R0
     JNZ dot_plain
+    NOP
     LD R5, R3, 1
     LDI ' '
     CMP R5, R0
-    JNZ skip_unknown
+    JZ farpatch304
+    NOP
+    LDI skip_unknown
+    MOV PC, R0
+    NOP
+farpatch304:
+    NOP
     MOV R1, R3
     SUB R1, TIB
     MOV >IN, R1
@@ -311,6 +324,7 @@ check_single_tokens:
     LDI '+'
     CMP R2, R0
     JNZ check_star_token
+    NOP
     ADD >IN, 1
     LDI word_plus
     MOV PC, R0
@@ -319,6 +333,7 @@ check_star_token:
     LDI '*'
     CMP R2, R0
     JNZ check_number_or_word
+    NOP
     ADD >IN, 1
     LDI word_mul
     MOV PC, R0
@@ -331,9 +346,11 @@ psk_loop:
     LDI 0
     CMP R2, R0
     JZ after_string
+    NOP
     LDI ' '
     CMP R2, R0
     JNZ psk_go
+    NOP
     ADD >IN, 1
     ADD R1, 1
     LDI psk_loop
@@ -350,17 +367,21 @@ print_string_body:
     LDI 0
     CMP R2, R0
     JZ after_string
+    NOP
     LDI '"'
     CMP R2, R0
     JZ after_string
+    NOP
     ; Handle escaped quote \" -> print '"' and continue
     LDI '\\'
     CMP R2, R0
     JNZ print_string_normal
+    NOP
     LD R5, R1, 1
     LDI '"'
     CMP R5, R0
     JNZ print_string_normal
+    NOP
     LDI '"'
     STS R0, ES, SCR
     ADD SCR, 1
@@ -387,9 +408,11 @@ check_number_or_word:
     LDI '0'
     CMP R4, R0
     JN parse_word            ; if ch < '0' => word
+    NOP
     LDI '9'
     CMP R0, R4
     JN parse_word            ; if '9' < ch => word
+    NOP
     LDI parse_number         ; digit in range => parse number
     MOV PC, R0
     NOP
@@ -403,15 +426,19 @@ parse_number_loop:
     LDI 0
     CMP R4, R0
     JZ finish_number
+    NOP
     LDI ' '
     CMP R4, R0
     JZ finish_number
+    NOP
     LDI '0'
     CMP R4, R0
     JN finish_number        ; ch < '0' => stop
+    NOP
     LDI '9'
     CMP R0, R4
     JN finish_number        ; '9' < ch => stop
+    NOP
     ; digit in range
     LDI '0'
     SUB R4, R0
@@ -439,9 +466,11 @@ parse_word:
     LDI 0
     CMP R4, R0
     JZ interpret_done
+    NOP
     LDI ' '
     CMP R4, R0
     JZ interpret_done
+    NOP
     LDI dict_start
     MOV R9, R0
     MOV R7, R9
@@ -451,6 +480,7 @@ dict_loop:
     LDI dict_end
     CMP R2, R0
     JNZ dict_continue
+    NOP
     LDI skip_unknown
     MOV PC, R0
     NOP
@@ -470,11 +500,14 @@ word_cmp_loop:
     LDI 0
     CMP R2, R0
     JZ word_cmp_done
+    NOP
     LDI ' '
     CMP R2, R0
     JZ word_cmp_done
+    NOP
     CMP R2, R4
     JNZ advance_token
+    NOP
     ADD R3, 1
     ADD R10, 1
     ADD R11, 1
@@ -486,6 +519,7 @@ word_cmp_done:
     LDI 0
     CMP R4, R0
     JZ word_is_match
+    NOP
     LDI next_entry
     MOV PC, R0
     NOP
@@ -495,6 +529,7 @@ word_is_match:
     LDI plus_name
     CMP R2, R0
     JNZ chk_mul
+    NOP
     LDI word_plus
     MOV PC, R0
     NOP
@@ -502,6 +537,7 @@ chk_mul:
     LDI mul_name
     CMP R2, R0
     JNZ chk_dup
+    NOP
     LDI word_mul
     MOV PC, R0
     NOP
@@ -509,6 +545,7 @@ chk_dup:
     LDI dup_name
     CMP R2, R0
     JNZ chk_dot
+    NOP
     LDI word_dup
     MOV PC, R0
     NOP
@@ -516,6 +553,7 @@ chk_dot:
     LDI dot_name
     CMP R2, R0
     JNZ chk_emit
+    NOP
     LDI word_dot
     MOV PC, R0
     NOP
@@ -523,6 +561,7 @@ chk_emit:
     LDI emit_name
     CMP R2, R0
     JNZ chk_swap
+    NOP
     LDI word_emit
     MOV PC, R0
     NOP
@@ -530,6 +569,7 @@ chk_swap:
     LDI swap_name
     CMP R2, R0
     JNZ chk_drop
+    NOP
     LDI word_swap
     MOV PC, R0
     NOP
@@ -537,6 +577,7 @@ chk_drop:
     LDI drop_name
     CMP R2, R0
     JNZ chk_cr
+    NOP
     LDI word_drop
     MOV PC, R0
     NOP
@@ -544,6 +585,7 @@ chk_cr:
     LDI cr_name
     CMP R2, R0
     JNZ chk_key
+    NOP
     LDI word_cr
     MOV PC, R0
     NOP
@@ -551,6 +593,7 @@ chk_key:
     LDI key_name
     CMP R2, R0
     JNZ chk_accept
+    NOP
     LDI word_key
     MOV PC, R0
     NOP
@@ -558,6 +601,7 @@ chk_accept:
     LDI accept_name
     CMP R2, R0
     JNZ fallback_next
+    NOP
     LDI word_accept
     MOV PC, R0
     NOP
@@ -604,15 +648,19 @@ print_bad_loop:
     LDI 0
     CMP R2, R0
     JZ print_bad_done
+    NOP
     LDI ' '
     CMP R2, R0
     JZ print_bad_done
+    NOP
     LDI 10
     CMP R2, R0
     JZ print_bad_done
+    NOP
     LDI 13
     CMP R2, R0
     JZ print_bad_done
+    NOP
     ST R2, R10, 0
     ADD R10, 1
     ADD R3, 1
@@ -635,6 +683,7 @@ print_bad_done:
     LDI ' '
     CMP R2, R0
     JNZ skip_space_adv
+    NOP
     ADD R3, 1
 skip_space_adv:
     MOV R1, R3
@@ -699,6 +748,7 @@ interpret_done:
     LDI 24
     CMP R5, R0
     JNZ ok_after
+    NOP
     LDI 0
     MOV R7, R0
     LDI 1920
@@ -716,6 +766,7 @@ ok_scroll_copy:
     ADD R7, 1
     CMP R7, R10
     JNZ ok_scroll_copy
+    NOP
     LDI 0
     MOV R7, R0
     LDI 80
@@ -731,6 +782,7 @@ ok_scroll_clear:
     LDI 0
     CMP R9, R0
     JNZ ok_scroll_clear
+    NOP
     MOV SCR, R2
     ADD SCR, R10
     LDI ok_after
@@ -937,7 +989,9 @@ word_plus:
     LD R1, R2, 0
     CMP R9, R1
     JZ wp_ok
+    NOP
     JN wp_ok
+    NOP
     LDI stack_underflow_error
     MOV PC, R0
     NOP
@@ -958,7 +1012,9 @@ word_mul:
     LD R1, R2, 0
     CMP R9, R1
     JZ wm_ok
+    NOP
     JN wm_ok
+    NOP
     LDI stack_underflow_error
     MOV PC, R0
     NOP
@@ -977,6 +1033,7 @@ word_dup:
     LD R1, R2, 0
     CMP SP, R1
     JZ wd_under
+    NOP
     LD R1, SP, 0
     SUB SP, 1
     ST R1, SP, 0
@@ -993,6 +1050,7 @@ word_dot:
     LD R1, R2, 0
     CMP SP, R1
     JZ dot_under
+    NOP
     LD R1, SP, 0
     ADD SP, 1
     MOV R2, R1          ; value
@@ -1002,6 +1060,7 @@ word_dot:
     LDI 0
     CMP R2, R0
     JNZ dot_nonzero
+    NOP
     LDI '0'
     STS R0, ES, SCR
     ADD SCR, 1
@@ -1031,11 +1090,13 @@ dot_div_loop:
     LDI 0
     CMP R2, R0
     JNZ dot_div_loop
+    NOP
     ; print digits in reverse
 dot_print_loop:
     LDI 0
     CMP R3, R0
     JZ dot_done
+    NOP
     SUB R3, 1
     SUB R10, 1
     LD R7, R10, 0
@@ -1061,6 +1122,7 @@ word_emit:
     LD R1, R2, 0
     CMP SP, R1
     JZ we_under
+    NOP
     LD R1, SP, 0
     ADD SP, 1
     LDI 0x00FF
@@ -1068,9 +1130,11 @@ word_emit:
     LDI 10
     CMP R1, R0
     JZ emit_do_cr
+    NOP
     LDI 13
     CMP R1, R0
     JZ emit_do_lf
+    NOP
     MOV R3, R1
     LDI 2               ; value = 2
     MOV R3, R0
@@ -1122,6 +1186,7 @@ emit_do_lf:
     MOV R7, R0
     CMP R10, R7
     JN emit_lf_row_lt_local
+    NOP
 emit_lf_row_lt_local:
     ADD R10, 1           ; next row
 emit_lf_row_done_local:
@@ -1248,6 +1313,7 @@ emit_lf_scroll_copy:
     ADD R7, R3
     CMP R7, R5
     JNZ emit_lf_scroll_copy
+    NOP
     LDI 0
     MOV R7, R0
     LDI 80
@@ -1295,6 +1361,7 @@ emit_lf_scroll_clear:
     LDI 0
     CMP R4, R0
     JNZ emit_lf_scroll_clear
+    NOP
     LDI 24
     MOV R10, R0
 emit_lf_row_lt:
@@ -1316,7 +1383,9 @@ word_swap:
     LD R1, R2, 0
     CMP R9, R1
     JZ ws_ok
+    NOP
     JN ws_ok
+    NOP
     LDI stack_underflow_error
     MOV PC, R0
     NOP
@@ -1335,6 +1404,7 @@ word_drop:
     LD R1, R2, 0
     CMP SP, R1
     JZ wd2_under
+    NOP
     ADD SP, 1
     LDI interpret_loop
     MOV PC, R0
@@ -1447,6 +1517,7 @@ word_cr:
     MOV R7, R0
     CMP R10, R7
     JN word_cr_row_lt
+    NOP
     CLRZ
     JNZ word_cr_row_done
     NOP
@@ -1473,6 +1544,7 @@ bios_entry:
     LDS R1, DS, R3
     CMP R1, R0
     JNZ bios_f1
+    NOP
     ; 0: bver -> R0 = 0x0001 (version 0.1)
     LDI 0x0001
     RETI
@@ -1481,6 +1553,7 @@ bios_f1:
     LDI 1
     CMP R1, R0
     JNZ bios_f2
+    NOP
     ; 1: binit -> init screen/keyboard, clear screen
     LDI 0x0FFF
     INV R0
@@ -1512,6 +1585,7 @@ bios_f2:
     LDI 2
     CMP R1, R0
     JNZ bios_f3
+    NOP
     LDI 0x0FFF
     INV R0
     MVS ES, R0
@@ -1522,9 +1596,11 @@ bios_f2:
     LDI 10
     CMP R2, R0
     JZ bios_putch_lf
+    NOP
     LDI 13
     CMP R2, R0
     JZ bios_putch_cr
+    NOP
     ; regular character: clear old cursor, write char, advance, set new cursor
     LDI 0x7FFF
     MOV R5, R0
@@ -1574,6 +1650,7 @@ bios_putch_lf:
     MOV R3, R0
     CMP R10, R3
     JN bios_lf_row_lt
+    NOP
     ; need to scroll: copy rows 1..24 up, clear last row
     LDI 0
     MOV R2, R0
@@ -1625,6 +1702,7 @@ bios_f3:
     LDI 3
     CMP R1, R0
     JNZ bios_f4
+    NOP
     LDI 0x0FFF
     INV R0
     MVS ES, R0
@@ -1637,6 +1715,7 @@ bios_putstr_loop:
     LDI 0
     CMP R1, R0
     JZ bios_putstr_done
+    NOP
     STS R1, ES, SCR
     ADD SCR, 1
     ADD R2, 1
@@ -1650,6 +1729,7 @@ bios_f4:
     LDI 4
     CMP R1, R0
     JNZ bios_f5
+    NOP
     LDI 0x0FFF
     INV R0
     MVS ES, R0
@@ -1661,6 +1741,7 @@ bios_getch_wait:
     LDI 0
     CMP R1, R0
     JZ bios_getch_wait
+    NOP
     LDI KBD_DATA
     MOV R2, R0
     LDS R1, ES, R2
@@ -1676,6 +1757,7 @@ bios_f5:
     LDI 5
     CMP R1, R0
     JNZ bios_unknown
+    NOP
     LDI 0x0FFF
     INV R0
     MVS ES, R0
@@ -1692,6 +1774,7 @@ bios_getstr_loop:
     LDI 0
     CMP R1, R0
     JZ bios_getstr_loop
+    NOP
     LDI KBD_DATA
     MOV R4, R0
     LDS R1, ES, R4
@@ -1700,16 +1783,20 @@ bios_getstr_loop:
     LDI 10
     CMP R1, R0
     JZ bios_getstr_done
+    NOP
     LDI 13
     CMP R1, R0
     JZ bios_getstr_done
+    NOP
     ; backspace
     LDI 8
     CMP R1, R0
     JNZ bios_store_char
+    NOP
     LDI 0
     CMP R11, R0
     JZ bios_getstr_loop
+    NOP
     SUB R11, 1
     SUB SCR, 1
     LDI ' '

@@ -10,7 +10,7 @@ class Deep16Disassembler {
         this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
         this.systemOps = ['NOP', 'FSH', 'SWI', 'RETI', 'SETI', 'CLRI', '', ''];
         this.segmentNames = ['CS', 'DS', 'SS', 'ES'];
-        this.smvSources = ['ACS','ADS','ASS','AES','APSW','AR0','AR1','AR2','','','AR13','AR14','APC'];
+        this.smvSources = ['ACS','ADS','ASS','AES','APSW','','','','AR0','AR1','AR2','AR3','','AR13','AR14','APC'];
     }
 
 disassemble(instruction) {

@@ -33,10 +33,13 @@ npm run build:wasm     # needs rustup + wasm-pack
 npm test
 ```
 
-46 assertions over four files: `tests/assembler.test.js`,
-`tests/disassembler.test.js`, `tests/cores.test.js`, `tests/examples.test.js`.
+54 assertions over five files: `tests/assembler.test.js`,
+`tests/disassembler.test.js`, `tests/cores.test.js`, `tests/shadow.test.js`,
+`tests/examples.test.js`.
 They cover the ALU encodings, an assembler/disassembler round trip, agreement
-between the JS and WASM cores, and all seven example programs in `asm/`.
+between the JS and WASM cores, the shadow-register system and conditional-jump
+delay slots on both cores, and all seven example programs in `asm/`. The Forth
+kernel is verified to greet and run its REPL loop on the WASM core.
 
 The four older scripts in `scripts/` also run again but only print output -
 they make no assertions.
@@ -46,9 +49,9 @@ they make no assertions.
 - **Registers** `R0`–`R15`, `R15` is the PC. 16-bit words.
 - **Memory** 20-bit address space, 1M words. Segmented via `CS`/`DS`/`SS`/`ES`,
   effective address `phys = (segment << 4) + offset`.
-- **Shadow registers** `R0`, `R1`, `R2`, `R13`, `R14`, plus `PSW`/`PC` and the
-  four segment registers, saved on hardware-interrupt entry and restored on
-  return. `PSW` bit 5 selects the shadow bank.
+- **Shadow registers** `R0`, `R1`, `R2`, `R3`, `R13`, `R14`, plus `PSW`/`PC` and
+  the four segment registers, swapped in while `PSW` bit 5 is set (handler
+  context) and restored on return. Both cores implement the same banking.
 - **Instructions** are 16 bits, with variable-length opcode prefixes: `0`
   is `LDI`, `10` is LD/ST, `110` is the ALU and shift group, `111` prefixes the
   control-flow, system and extended instructions.
@@ -91,8 +94,9 @@ Known gaps, all verified rather than assumed:
   nowhere.
 - **The WASM core has no hardware-interrupt handling.** The JS core has
   `handleHardwareInterrupt()`, `lib.rs` has nothing, so the two cores behave
-  differently in WASM mode. Keyboard input therefore only reaches the Forth
-  kernel with the JS core selected.
+  differently in WASM mode. The Forth kernel itself (banner, REPL loop, BIOS
+  SWI calls) runs and prints on both cores; only interactive keyboard input
+  stays with the JS core.
 - **Documentation versions** v2.0 through v5.2 once coexisted. `doc/` is now the
   single current version; `old/` holds the rest.
 

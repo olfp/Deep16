@@ -137,7 +137,12 @@ class Deep16Simulator {
             const activePC = inShadow ? (this.shadowRegisters.PC & 0xFFFF) : (this.registers[15] & 0xFFFF);
             const paDelay = this.phys(activeCS, activePC);
             const delayInstruction = this.memory[paDelay];
+            // Reset ALU tracking so a stale result cannot smear flags across
+            // the SWI/RETI PSW transition (matches the WASM core's step_one).
+            this.lastOperationWasALU = false;
+            this.lastALUResult = 0;
             this.executeInstruction(delayInstruction, activePC);
+            this.updatePSWFlags();
             if (inShadow) { this.shadowRegisters.PC = (this.shadowRegisters.PC + 1) & 0xFFFF; } else { this.registers[15] = (this.registers[15] + 1) & 0xFFFF; }
             if (this.branchTaken) {
                 if (this.delayedToShadow) { this.shadowRegisters.PC = this.delayedPC & 0xFFFF; this.shadowRegisters.CS = this.delayedCS & 0xFFFF; }
@@ -264,13 +269,51 @@ class Deep16Simulator {
         }
     }
 
+    // ---- Shadow-register banking (spec 4.1) -------------------------------
+    // While PSW.S=1 the registers R0-R3, R13 and R14 live in the shadow bank
+    // (R0'-R3', R13'=SP', R14'=LR'); every other register is shared between
+    // both contexts. All instruction execution goes through these helpers.
+    isShadowedGPR(index) {
+        if ((this.psw & (1 << 5)) === 0) return false;
+        return index === 0 || index === 1 || index === 2 || index === 3 || index === 13 || index === 14;
+    }
+
+    readGPR(index) {
+        if (this.isShadowedGPR(index)) {
+            switch (index) {
+                case 0: return this.shadowRegisters.R0 & 0xFFFF;
+                case 1: return this.shadowRegisters.R1 & 0xFFFF;
+                case 2: return this.shadowRegisters.R2 & 0xFFFF;
+                case 3: return this.shadowRegisters.R3 & 0xFFFF;
+                case 13: return this.shadowRegisters.R13 & 0xFFFF;
+                case 14: return this.shadowRegisters.R14 & 0xFFFF;
+            }
+        }
+        return this.registers[index] & 0xFFFF;
+    }
+
+    writeGPR(index, value) {
+        value &= 0xFFFF;
+        if (this.isShadowedGPR(index)) {
+            switch (index) {
+                case 0: this.shadowRegisters.R0 = value; return;
+                case 1: this.shadowRegisters.R1 = value; return;
+                case 2: this.shadowRegisters.R2 = value; return;
+                case 3: this.shadowRegisters.R3 = value; return;
+                case 13: this.shadowRegisters.R13 = value; return;
+                case 14: this.shadowRegisters.R14 = value; return;
+            }
+        }
+        this.registers[index] = value;
+    }
+
     executeLDI(instruction) {
         let immediate = instruction & 0x7FFF;
         if (immediate & 0x4000) {
             immediate |= 0x8000; // sign-extend 15-bit to 16-bit
         }
-        this.registers[0] = immediate & 0xFFFF;
-        this.lastALUResult = this.registers[0];
+        this.writeGPR(0, immediate);
+        this.lastALUResult = immediate & 0xFFFF;
         this.lastOperationWasALU = true;
     }
 
@@ -287,8 +330,9 @@ class Deep16Simulator {
             offset |= 0xFFE0; // sign-extend imm5
         }
 
-        // Calculate the effective address offset
-        const addressOffset = (this.registers[rb] + offset) & 0xFFFF;
+        // Calculate the effective address offset (base register via the
+        // active-bank banking helpers, spec 4.1)
+        const addressOffset = (this.readGPR(rb) + offset) & 0xFFFF;
         
         // Determine which segment register to use based on PSW configuration
         let segmentRegister;
@@ -324,7 +368,7 @@ class Deep16Simulator {
         // ENHANCED: Track the memory access with segment information
         this.recentMemoryAccess = {
             address: physicalAddress,
-            baseAddress: this.registers[rb],
+            baseAddress: this.readGPR(rb),
             offset: offset,
             segment: segmentName,
             segmentValue: segmentRegister,
@@ -337,14 +381,14 @@ class Deep16Simulator {
         if (d === 0) { // LD
             if (physicalAddress < this.memory.length) {
                 const value = this.memory[physicalAddress];
-                this.registers[rd] = value;
+                this.writeGPR(rd, value);
                 // console.log(`LD: ${this.getRegisterName(rd)} = [${segmentName}:${this.getRegisterName(rb)}+${offset}] = 0x${value.toString(16).padStart(4, '0')}`);
             } else {
                 // console.warn(`LD: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
             }
         } else { // ST
             if (physicalAddress < this.memory.length) {
-                const value = this.registers[rd];
+                const value = this.readGPR(rd);
                 this.memory[physicalAddress] = value;
                 // console.log(`ST: [${segmentName}:${this.getRegisterName(rb)}+${offset}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
                 
@@ -380,13 +424,13 @@ class Deep16Simulator {
         const func5 = (instruction >>> 8) & 0x1F;
         const rd = (instruction >>> 4) & 0xF;
         const low4 = instruction & 0xF;
-        const rdValue = this.registers[rd] & 0xFFFF;
+        const rdValue = this.readGPR(rd);
         let result = rdValue;
         let wideResult = null; // 32-bit result for MUL32, kept out of the Rd write-back below
         const cbit = (this.psw >>> 3) & 0x1;
         const sign = (rdValue & 0x8000) !== 0 ? 1 : 0;
         const isReg = func5 === 0b00000 || func5 === 0b00010 || func5 === 0b00100 || func5 === 0b00110 || func5 === 0b01000 || func5 === 0b01010 || func5 === 0b01100 || func5 === 0b01110 || func5 >= 0b11100;
-        const opVal = isReg ? (this.registers[low4] & 0xFFFF) : (low4 & 0xF);
+        const opVal = isReg ? this.readGPR(low4) : (low4 & 0xF);
         switch (func5) {
             case 0b00000: result = (rdValue + opVal) & 0x1FFFF; break;
             case 0b00001: result = (rdValue + opVal) & 0x1FFFF; break;
@@ -516,8 +560,8 @@ class Deep16Simulator {
                 break;
             }
             case 0b11100: {
+                // MUL: the write-back epilogue below stores `result` via writeGPR
                 result = (rdValue * opVal) & 0xFFFF;
-                this.registers[rd] = result & 0xFFFF;
                 break;
             }
             case 0b11101: {
@@ -530,8 +574,7 @@ class Deep16Simulator {
                 }
                 const product = (rdValue * opVal) >>> 0;
                 const high = (product >>> 16) & 0xFFFF;
-                this.registers[rd] = high;
-                this.registers[rd + 1] = product & 0xFFFF;
+                this.writeGPR(rd + 1, product & 0xFFFF);
                 // The epilogue below writes `result` into Rd, so it must carry the HIGH
                 // word -- otherwise it would clobber the pair we just stored.
                 result = high;
@@ -540,9 +583,7 @@ class Deep16Simulator {
             }
             case 0b11110: {
                 if (opVal === 0) { result = 0xFFFF; break; }
-                const q = Math.floor(rdValue / opVal) & 0xFFFF;
-                this.registers[rd] = q;
-                result = q;
+                result = Math.floor(rdValue / opVal) & 0xFFFF;
                 break;
             }
             case 0b11111: {
@@ -553,17 +594,16 @@ class Deep16Simulator {
                     return;
                 }
                 if (opVal === 0) { result = 0xFFFF; break; }
-                const dividend = ((this.registers[rd] << 16) | this.registers[rd + 1]) >>> 0;
+                const dividend = ((this.readGPR(rd) << 16) | this.readGPR(rd + 1)) >>> 0;
                 const q = Math.floor(dividend / opVal) & 0xFFFF;
                 const r = (dividend % opVal) & 0xFFFF;
-                this.registers[rd] = q;
-                this.registers[rd + 1] = r;
+                this.writeGPR(rd + 1, r);
                 result = q;
                 break;
             }
             default: break;
         }
-        this.registers[rd] = result & 0xFFFF;
+        this.writeGPR(rd, result);
         this.lastALUResult = wideResult !== null ? wideResult : result;
         this.lastOperationWasALU = true;
     }
@@ -580,7 +620,7 @@ class Deep16Simulator {
 
         let value;
         if (imm === 0) {
-            value = this.registers[rs];
+            value = this.readGPR(rs);
         } else if (rs === 15 && imm === 2) {
             // Standard link: use original PC context
             value = (this.lastOriginalPCForExec + 2) & 0xFFFF;
@@ -588,9 +628,9 @@ class Deep16Simulator {
             value = (this.lastOriginalPCForExec + 1) & 0xFFFF;
         } else if (imm === 3) {
             // Architectural read bypass: do not add immediate
-            value = this.registers[rs];
+            value = this.readGPR(rs);
         } else {
-            value = (this.registers[rs] + imm) & 0xFFFF;
+            value = (this.readGPR(rs) + imm) & 0xFFFF;
         }
 
         // If destination is PC, treat as jump with delay slot
@@ -606,9 +646,9 @@ class Deep16Simulator {
             return true;
         }
 
-        this.registers[rd] = value;
-        
-        this.lastALUResult = this.registers[rd];
+        this.writeGPR(rd, value);
+
+        this.lastALUResult = value;
         this.lastOperationWasALU = true;
         return false;
     }
@@ -627,7 +667,7 @@ class Deep16Simulator {
         
         // console.log(`LSI Execute: rd=${rd} (${this.getRegisterName(rd)}), imm=${imm} (0x${imm.toString(16)})`);
         
-        this.registers[rd] = imm;
+        this.writeGPR(rd, imm);
         
         // console.log(`LSI Execute: ${this.getRegisterName(rd)} = ${this.registers[rd]} (0x${this.registers[rd].toString(16).padStart(4, '0')})`);
         
@@ -665,17 +705,18 @@ class Deep16Simulator {
             const inShadow = (this.psw & (1 << 5)) !== 0;
             const currentPC = inShadow ? (this.shadowRegisters.PC & 0xFFFF) : (this.registers[15] & 0xFFFF);
             const targetPC = (currentPC + offset) & 0xFFFF;
-            // Immediate branch, no delay slot for conditional jumps
-            if (inShadow) {
-                this.shadowRegisters.PC = targetPC;
-            } else {
-                this.registers[15] = targetPC;
-            }
+            // Spec Table 11: conditional jumps use a one-slot delay slot. The
+            // instruction after the jump executes before control transfers;
+            // step() consumes it through the delay-slot machinery below.
+            this.delaySlotActive = true;
+            this.delayedPC = targetPC;
+            this.delayedCS = inShadow ? (this.shadowRegisters.CS & 0xFFFF) : (this.segmentRegisters.CS & 0xFFFF);
+            this.delayedToShadow = inShadow;
             this.branchTaken = true;
         } else {
             this.branchTaken = false;
         }
-        return false;
+        return shouldJump;
     }
 
     executeSOP(instruction) {
@@ -683,18 +724,22 @@ class Deep16Simulator {
         const rx = instruction & 0xF;
 
         switch (type2) {
-            case 0b00: // INV
-                this.registers[rx] = (~this.registers[rx]) & 0xFFFF;
-                this.lastALUResult = this.registers[rx];
+            case 0b00: { // INV
+                const v = (~this.readGPR(rx)) & 0xFFFF;
+                this.writeGPR(rx, v);
+                this.lastALUResult = v;
                 this.lastOperationWasALU = true;
                 return false;
-            case 0b01: // NEG
-                this.registers[rx] = (~this.registers[rx] + 1) & 0xFFFF;
-                this.lastALUResult = this.registers[rx];
+            }
+            case 0b01: { // NEG
+                const v = (~this.readGPR(rx) + 1) & 0xFFFF;
+                this.writeGPR(rx, v);
+                this.lastALUResult = v;
                 this.lastOperationWasALU = true;
                 return false;
+            }
             case 0b10: // SPSW
-                this.psw = this.registers[rx] & 0xFFFF;
+                this.psw = this.readGPR(rx);
                 return false;
             case 0b11: // LPSW
                 this.executeLPSW(instruction);
@@ -725,8 +770,8 @@ class Deep16Simulator {
             return false;
         }
         
-        const targetCS = this.registers[rx];
-        const targetPC = this.registers[rx + 1];
+        const targetCS = this.readGPR(rx);
+        const targetPC = this.readGPR(rx + 1);
         
         // console.log(`JML Execute: R${rx}=0x${targetCS.toString(16)} (CS), R${rx+1}=0x${targetPC.toString(16)} (PC)`);
         
@@ -754,17 +799,18 @@ class Deep16Simulator {
         const segs = inShadow ? this.shadowRegisters : this.segmentRegisters;
         if (d === 0) {
             switch (seg) {
-                case 0: this.registers[rd] = segs.CS; break;
-                case 1: this.registers[rd] = segs.DS; break;
-                case 2: this.registers[rd] = segs.SS; break;
-                case 3: this.registers[rd] = segs.ES; break;
+                case 0: this.writeGPR(rd, segs.CS); break;
+                case 1: this.writeGPR(rd, segs.DS); break;
+                case 2: this.writeGPR(rd, segs.SS); break;
+                case 3: this.writeGPR(rd, segs.ES); break;
             }
         } else {
+            const value = this.readGPR(rd);
             switch (seg) {
-                case 0: segs.CS = this.registers[rd] & 0xFFFF; break;
-                case 1: segs.DS = this.registers[rd] & 0xFFFF; break;
-                case 2: segs.SS = this.registers[rd] & 0xFFFF; break;
-                case 3: segs.ES = this.registers[rd] & 0xFFFF; break;
+                case 0: segs.CS = value; break;
+                case 1: segs.DS = value; break;
+                case 2: segs.SS = value; break;
+                case 3: segs.ES = value; break;
             }
         }
     }
@@ -773,42 +819,50 @@ class Deep16Simulator {
         const rx = (instruction >>> 4) & 0xF;
         const alt = instruction & 0xF;
         const inShadowView = !!(this.psw & (1 << 5));
+        // SMV always reads the *inactive* bank: in shadow view (S=1) the normal
+        // registers, in normal view (S=0) the shadow registers. The result is
+        // written into the *active* bank via writeGPR (spec 3.3 / 4.8).
         switch (alt) {
             case 0b0000:
-                this.registers[rx] = inShadowView ? (this.segmentRegisters.CS & 0xFFFF) : (this.shadowRegisters.CS & 0xFFFF);
+                this.writeGPR(rx, inShadowView ? this.segmentRegisters.CS : this.shadowRegisters.CS);
                 break;
             case 0b0001:
-                this.registers[rx] = inShadowView ? (this.segmentRegisters.DS & 0xFFFF) : (this.shadowRegisters.DS & 0xFFFF);
+                this.writeGPR(rx, inShadowView ? this.segmentRegisters.DS : this.shadowRegisters.DS);
                 break;
             case 0b0010:
-                this.registers[rx] = inShadowView ? (this.segmentRegisters.SS & 0xFFFF) : (this.shadowRegisters.SS & 0xFFFF);
+                this.writeGPR(rx, inShadowView ? this.segmentRegisters.SS : this.shadowRegisters.SS);
                 break;
             case 0b0011:
-                this.registers[rx] = inShadowView ? (this.segmentRegisters.ES & 0xFFFF) : (this.shadowRegisters.ES & 0xFFFF);
+                this.writeGPR(rx, inShadowView ? this.segmentRegisters.ES : this.shadowRegisters.ES);
                 break;
             case 0b0100:
-                this.registers[rx] = inShadowView ? (this.psw & 0xFFFF) : (this.shadowRegisters.PSW & 0xFFFF);
+                // APSW: shadowRegisters.PSW holds the *other* context's PSW --
+                // the interrupted PSW during handler execution, PSW' (0x0000
+                // after RETI, spec 4.9) in normal view (spec 4.8).
+                this.writeGPR(rx, this.shadowRegisters.PSW & 0xFFFF);
                 break;
             case 0b1000:
-                this.registers[rx] = inShadowView ? (this.registers[0] & 0xFFFF) : (this.shadowRegisters.R0 & 0xFFFF);
+                this.writeGPR(rx, inShadowView ? this.registers[0] : this.shadowRegisters.R0);
                 break;
             case 0b1001:
-                this.registers[rx] = inShadowView ? (this.registers[1] & 0xFFFF) : (this.shadowRegisters.R1 & 0xFFFF);
+                this.writeGPR(rx, inShadowView ? this.registers[1] : this.shadowRegisters.R1);
                 break;
             case 0b1010:
-                this.registers[rx] = inShadowView ? (this.registers[2] & 0xFFFF) : (this.shadowRegisters.R2 & 0xFFFF);
+                this.writeGPR(rx, inShadowView ? this.registers[2] : this.shadowRegisters.R2);
                 break;
             case 0b1011:
-                this.registers[rx] = inShadowView ? (this.registers[3] & 0xFFFF) : (this.shadowRegisters.R3 & 0xFFFF);
+                this.writeGPR(rx, inShadowView ? this.registers[3] : this.shadowRegisters.R3);
                 break;
             case 0b1101:
-                this.registers[rx] = inShadowView ? (this.registers[13] & 0xFFFF) : (this.shadowRegisters.R13 & 0xFFFF);
+                this.writeGPR(rx, inShadowView ? this.registers[13] : this.shadowRegisters.R13);
                 break;
             case 0b1110:
-                this.registers[rx] = inShadowView ? (this.registers[14] & 0xFFFF) : (this.shadowRegisters.R14 & 0xFFFF);
+                this.writeGPR(rx, inShadowView ? this.registers[14] : this.shadowRegisters.R14);
                 break;
             case 0b1111:
-                this.registers[rx] = inShadowView ? (this.registers[15] & 0xFFFF) : (this.shadowRegisters.PC & 0xFFFF);
+                // APC: the architectural (active) PC -- shadow PC in handler
+                // context, normal PC otherwise (spec 3.3 / 6.2.2 ALINK)
+                this.writeGPR(rx, inShadowView ? this.shadowRegisters.PC : this.registers[15]);
                 break;
             default:
                 break;
@@ -817,9 +871,10 @@ class Deep16Simulator {
 
     executeLPSW(instruction) {
         const rx = instruction & 0xF;
-        const inShadowView = !!(this.psw & (1 << 5));
-        const value = inShadowView ? (this.shadowRegisters.PSW & 0xFFFF) : (this.psw & 0xFFFF);
-        this.registers[rx] = value;
+        // LPSW Rx: Rx <- PSW. Always the live architectural PSW so the S bit
+        // is observable in handler context too (spec 2.4); for the interrupted
+        // state the handler uses SMV Rx, APSW (spec 4.8).
+        this.writeGPR(rx, this.psw & 0xFFFF);
     }
 
     executeLDSSTS(instruction) {
@@ -830,7 +885,7 @@ class Deep16Simulator {
         const rs = instruction & 0xF;
         
         const segNames = ['CS', 'DS', 'SS', 'ES'];
-        const address = this.registers[rs] & 0xFFFF;
+        const address = this.readGPR(rs);
         const inShadow = (this.psw & (1 << 5)) !== 0;
         const segs = inShadow ? this.shadowRegisters : this.segmentRegisters;
         const baseSegment = [
@@ -847,17 +902,17 @@ class Deep16Simulator {
             // Keyboard controller reads
             if (physicalAddress === this.KBD_STATUS_ADDR) {
                 const ready = this.kbdBuffer.length > 0 ? 1 : 0;
-                this.registers[rd] = ready & 0xFFFF;
+                this.writeGPR(rd, ready);
             } else if (physicalAddress === this.KBD_DATA_ADDR) {
                 const data = this.kbdBuffer.length > 0 ? (this.kbdBuffer.shift() & 0xFFFF) : 0;
                 this.kbdLastData = data;
-                this.registers[rd] = data;
+                this.writeGPR(rd, data);
             } else if (physicalAddress < this.memory.length) {
-                this.registers[rd] = this.memory[physicalAddress] & 0xFFFF;
+                this.writeGPR(rd, this.memory[physicalAddress] & 0xFFFF);
             }
         } else { // STS
             if (physicalAddress < this.memory.length) {
-                const value = this.registers[rd] & 0xFFFF;
+                const value = this.readGPR(rd);
                 this.memory[physicalAddress] = value;
                 // console.log(`STS: [${segNames[seg]}:${this.getRegisterName(rs)}] -> phys 0x${physicalAddress.toString(16)} = 0x${value.toString(16)}`);
                 
@@ -883,6 +938,12 @@ class Deep16Simulator {
             case 0b011:
                 this.executeRETI();
                 break;
+            case 0b100: // SETI (spec Table 5)
+                this.psw |= (1 << 4);
+                break;
+            case 0b101: // CLRI (spec Table 5)
+                this.psw &= ~(1 << 4);
+                break;
             default:
         }
     }
@@ -891,8 +952,10 @@ class Deep16Simulator {
      * Execute Software Interrupt with proper context switching
      */
     executeSWI() {
-        this.shadowRegisters.PSW = this.psw;
-        this.psw = (this.psw & ~(1 << 4)) | (1 << 5);
+        // Spec 4.4: park the interrupted PSW, then enter the handler with a
+        // fresh PSW (S=1, I=0, flags clear) -- NOT a copy of the old one.
+        this.shadowRegisters.PSW = this.psw & 0xFFFF;
+        this.psw = 0x0020;
         this.shadowRegisters.CS = 0x0000;
         this.shadowRegisters.DS = 0x0000;
         this.shadowRegisters.SS = 0x0000;
@@ -915,12 +978,16 @@ class Deep16Simulator {
     executeRETI() {
         // console.log("RETI: Return from interrupt - switching to normal context");
         
-        // Simply switch back to normal view (clear S-bit)
-        // No register copying - pure view switching
-        this.psw = this.psw & ~(1 << 5); // Clear S-bit
-        
-        // console.log(`RETI: Switched to normal context - accessing PC, CS, PSW views`);
-        // console.log(`RETI: PSW=0x${this.psw.toString(16)}, PC=0x${this.registers[15].toString(16)}, CS=0x${this.segmentRegisters.CS.toString(16)}`);
+        // Spec 4.9: restore the original (interrupted) PSW -- flags, I and all
+        // fields must be intact -- and reset PSW' to 0x0000. No register
+        // copying: the normal registers were never modified.
+        if ((this.psw & (1 << 5)) !== 0) {
+            this.psw = this.shadowRegisters.PSW & 0xFFFF;
+            this.shadowRegisters.PSW = 0;
+        } else {
+            // Spurious RETI outside a handler: legacy behaviour, just make sure S stays clear
+            this.psw = this.psw & ~(1 << 5);
+        }
         
         // In a pipelined implementation, this would flush the pipeline
         this.flushPipeline();
@@ -948,8 +1015,10 @@ class Deep16Simulator {
                 return false;
             }
         }
-        this.shadowRegisters.PSW = this.psw;
-        this.psw = (this.psw & ~(1 << 4)) | (1 << 5);
+        // Same entry convention as SWI (spec 4.4): park the interrupted PSW,
+        // then a fresh handler PSW (S=1, I=0).
+        this.shadowRegisters.PSW = this.psw & 0xFFFF;
+        this.psw = 0x0020;
         this.shadowRegisters.CS = 0x0000;
         this.shadowRegisters.DS = 0x0000;
         this.shadowRegisters.SS = 0x0000;
