@@ -176,6 +176,35 @@ pub fn load_program(ptr: usize, data: Box<[u16]>) {
     }
 }
 
+/// Overwrite the register file (R0..R15) from outside, mirroring
+/// `get_registers`: while the shadow set is active (PSW.S = 1) element 15 is
+/// the active (shadow) PC instead of R15, so the two calls round-trip and the
+/// saved user PC stays untouched. Call `set_psw` first - element 15 is placed
+/// according to the PSW.S bit that is current at call time.
+#[wasm_bindgen]
+pub fn set_registers(regs: &[u16]) {
+    unsafe {
+        let c = cpu_mut();
+        let n = regs.len().min(16);
+        for i in 0..n {
+            if i == 15 && (c.psw & (1 << 5)) != 0 {
+                c.spc = regs[15];
+            } else {
+                c.reg[i] = regs[i];
+            }
+        }
+    }
+}
+
+/// Overwrite the PSW. Call before `set_registers`, which interprets its last
+/// element through the S bit, exactly as `get_registers` reports it.
+#[wasm_bindgen]
+pub fn set_psw(psw: u16) {
+    unsafe {
+        cpu_mut().psw = psw;
+    }
+}
+
 #[wasm_bindgen]
 pub fn get_registers() -> Box<[u16]> {
     unsafe {

@@ -48,6 +48,38 @@ export function load_program(ptr, data) {
     wasm.load_program(ptr, ptr0, len0);
 }
 
+/**
+ * @param {number} n
+ * @returns {boolean}
+ */
+export function run_steps(n) {
+    const ret = wasm.run_steps(n);
+    return ret !== 0;
+}
+
+let cachedUint32ArrayMemory0 = null;
+
+function getUint32ArrayMemory0() {
+    if (cachedUint32ArrayMemory0 === null || cachedUint32ArrayMemory0.byteLength === 0) {
+        cachedUint32ArrayMemory0 = new Uint32Array(wasm.memory.buffer);
+    }
+    return cachedUint32ArrayMemory0;
+}
+
+function getArrayU32FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
+/**
+ * @returns {Uint32Array}
+ */
+export function get_recent_access() {
+    const ret = wasm.get_recent_access();
+    var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+    return v1;
+}
+
 function getArrayU16FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
@@ -70,6 +102,29 @@ export function get_shadow_state() {
     var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
     return v1;
+}
+
+/**
+ * Overwrite the register file (R0..R15) from outside, mirroring
+ * `get_registers`: while the shadow set is active (PSW.S = 1) element 15 is
+ * the active (shadow) PC instead of R15, so the two calls round-trip and the
+ * saved user PC stays untouched. Call `set_psw` first - element 15 is placed
+ * according to the PSW.S bit that is current at call time.
+ * @param {Uint16Array} regs
+ */
+export function set_registers(regs) {
+    const ptr0 = passArray16ToWasm0(regs, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    wasm.set_registers(ptr0, len0);
+}
+
+/**
+ * Overwrite the PSW. Call before `set_registers`, which interprets its last
+ * element through the S bit, exactly as `get_registers` reports it.
+ * @param {number} psw
+ */
+export function set_psw(psw) {
+    wasm.set_psw(psw);
 }
 
 /**
@@ -127,38 +182,6 @@ export function get_memory_word(addr) {
 export function step() {
     const ret = wasm.step();
     return ret !== 0;
-}
-
-/**
- * @param {number} n
- * @returns {boolean}
- */
-export function run_steps(n) {
-    const ret = wasm.run_steps(n);
-    return ret !== 0;
-}
-
-let cachedUint32ArrayMemory0 = null;
-
-function getUint32ArrayMemory0() {
-    if (cachedUint32ArrayMemory0 === null || cachedUint32ArrayMemory0.byteLength === 0) {
-        cachedUint32ArrayMemory0 = new Uint32Array(wasm.memory.buffer);
-    }
-    return cachedUint32ArrayMemory0;
-}
-
-function getArrayU32FromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return getUint32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
-}
-/**
- * @returns {Uint32Array}
- */
-export function get_recent_access() {
-    const ret = wasm.get_recent_access();
-    var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-    return v1;
 }
 
 const EXPECTED_RESPONSE_TYPES = new Set(['basic', 'cors', 'default']);

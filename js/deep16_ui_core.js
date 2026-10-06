@@ -136,35 +136,20 @@ class DeepWebUI {
                 this.useWasm = on && this.wasmAvailable && !!this.wasmInitialized;
                 if (this.runInterval) { this.stop(); }
                 if (this.useWasm && window.Deep16Wasm) {
-                    try {
-                        if (typeof window.Deep16Wasm.reset === 'function') { window.Deep16Wasm.reset(); }
-                        const memLen = this.simulator.memory.length >>> 0;
-                        if (typeof window.Deep16Wasm.init === 'function') { window.Deep16Wasm.init(memLen); }
-                        try {
-                            if (typeof this.simulator.autoloadROM === 'function') {
-                                this.simulator.autoloadROM();
-                                this.simulator.segmentRegisters.CS = 0xFFFF;
-                            }
-                            for (let a = 0xFFFF0; a <= 0xFFFFF; a++) {
-                                const v = this.simulator.memory[a] & 0xFFFF;
-                                window.Deep16Wasm.load_program(a, new Uint16Array([v]));
-                            }
-                        } catch {}
-                        if (this.currentAssemblyResult && this.currentAssemblyResult.success) {
-                            for (const change of this.currentAssemblyResult.memoryChanges) {
-                                const arr = new Uint16Array([change.value & 0xFFFF]);
-                                window.Deep16Wasm.load_program(change.address >>> 0, arr);
-                            }
-                        }
-                        const seg = this.simulator.segmentRegisters;
-                        window.Deep16Wasm.set_segments(seg.CS & 0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
+                    // Mirror the JS core into WASM instead of resetting: the
+                    // toggle must not discard the assembled program or the
+                    // current machine state.
+                    if (this.syncStateIntoWasm()) {
                         this.addTranscriptEntry("Program loaded into WASM core", "success");
-                    } catch {}
+                    } else {
+                        this.addTranscriptEntry("WASM load failed; falling back to JS", "warning");
+                        this.useWasm = false;
+                        wssamToggle.checked = false;
+                    }
                 }
                 this.addTranscriptEntry(`WASM: ${this.useWasm ? 'ON' : 'OFF'}`, "info");
                 try { localStorage.setItem('deep16_use_wasm', this.useWasm ? 'true' : 'false'); } catch {}
-                // Treat toggle like a full reset to sync core, memory, and UI
-                try { this.reset(); } catch {}
+                this.updateAllDisplays();
             });
             this.useWasm = wssamToggle.checked && this.wasmAvailable && !!this.wasmInitialized;
         }
@@ -173,34 +158,7 @@ class DeepWebUI {
         } else if (window.Deep16WasmReady && typeof window.Deep16WasmReady.then === 'function') {
             this.addTranscriptEntry("WASM module loading...", "info");
             window.Deep16WasmReady.then(() => {
-                this.wasmAvailable = true;
-                try {
-                    window.Deep16Wasm.init(this.simulator.memory.length);
-                    if (typeof this.simulator.autoloadROM === 'function') {
-                        this.simulator.autoloadROM();
-                        this.simulator.segmentRegisters.CS = 0xFFFF;
-                    }
-                    for (let a = 0xFFFF0; a <= 0xFFFFF; a++) {
-                        const v = this.simulator.memory[a] & 0xFFFF;
-                        window.Deep16Wasm.load_program(a, new Uint16Array([v]));
-                    }
-                    const seg = this.simulator.segmentRegisters;
-                    window.Deep16Wasm.set_segments(seg.CS & 0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
-                    this.wasmInitialized = true;
-                    let desired2 = false;
-                    try { desired2 = localStorage.getItem('deep16_use_wasm') === 'true'; } catch {}
-                    this.useWasm = desired2 && this.wasmAvailable && !!this.wasmInitialized;
-                    if (wssamToggle) { wssamToggle.disabled = false; wssamToggle.checked = this.useWasm; }
-                    this.addTranscriptEntry("WASM module loaded (default OFF)", "success");
-                
-                    this.addTranscriptEntry("ROM loaded into WASM core", "success");
-                    this.addTranscriptEntry("Segments synced to WASM", "info");
-                } catch (e) {
-                    this.addTranscriptEntry("WASM init failed; using JS core", "warning");
-                    this.useWasm = false;
-                    this.wasmInitialized = false;
-                    if (wssamToggle) { wssamToggle.disabled = true; wssamToggle.checked = false; }
-                }
+                this.finishWasmInit(wssamToggle);
             }).catch(() => {
                 this.addTranscriptEntry("WASM module failed to load", "error");
             });
@@ -209,32 +167,8 @@ class DeepWebUI {
             if (wssamToggle) { wssamToggle.disabled = true; wssamToggle.checked = false; }
         }
         window.addEventListener('deep16-wasm-ready', () => {
-            this.wasmAvailable = true;
-            try {
-                window.Deep16Wasm.init(this.simulator.memory.length);
-                if (typeof this.simulator.autoloadROM === 'function') {
-                    this.simulator.autoloadROM();
-                    this.simulator.segmentRegisters.CS = 0xFFFF;
-                }
-                for (let a = 0xFFFF0; a <= 0xFFFFF; a++) {
-                    const v = this.simulator.memory[a] & 0xFFFF;
-                    window.Deep16Wasm.load_program(a, new Uint16Array([v]));
-                }
-                const seg = this.simulator.segmentRegisters;
-                window.Deep16Wasm.set_segments(seg.CS & 0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
-                this.wasmInitialized = true;
-                this.useWasm = false;
-                if (wssamToggle) { wssamToggle.disabled = false; wssamToggle.checked = false; }
-                this.addTranscriptEntry("WASM module loaded (default OFF)", "success");
-                this.addTranscriptEntry("ROM loaded into WASM core", "success");
-                this.addTranscriptEntry("Segments synced to WASM", "info");
-                if (!this.simulator.running) { this.run(); }
-            } catch (e) {
-                this.addTranscriptEntry("WASM init failed; using JS core", "warning");
-                this.useWasm = false;
-                this.wasmInitialized = false;
-                if (wssamToggle) { wssamToggle.disabled = true; wssamToggle.checked = false; }
-            }
+            this.finishWasmInit(wssamToggle);
+            if (this.wasmInitialized && !this.simulator.running) { this.run(); }
         });
         this.addTranscriptEntry("DeepCode initialized and ready", "info");
         this.initTabSizeSetting();
@@ -1377,26 +1311,11 @@ class DeepWebUI {
                 }
                 // Do not modify registers or segments during Assemble
                 if (this.useWasm && window.Deep16Wasm) {
-                    const loadIntoWasm = () => {
-                        try {
-                            window.Deep16Wasm.init(this.simulator.memory.length);
-                            // Do not reload ROM or alter segments during Assemble
-                            for (const change of result.memoryChanges) {
-                                const arr = new Uint16Array([change.value]);
-                                window.Deep16Wasm.load_program(change.address, arr);
-                            }
-                            const seg = this.simulator.segmentRegisters;
-                            window.Deep16Wasm.set_segments(seg.CS & 0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
-                            this.addTranscriptEntry("Program loaded into WASM core", "success");
-                        } catch (e) {
-                            this.addTranscriptEntry("WASM load failed; falling back to JS", "warning");
-                            this.useWasm = false;
-                        }
-                    };
-                    if (window.Deep16WasmReady && typeof window.Deep16WasmReady.then === 'function') {
-                        window.Deep16WasmReady.then(() => loadIntoWasm());
+                    if (this.syncStateIntoWasm()) {
+                        this.addTranscriptEntry("Program loaded into WASM core", "success");
                     } else {
-                        loadIntoWasm();
+                        this.addTranscriptEntry("WASM load failed; falling back to JS", "warning");
+                        this.useWasm = false;
                     }
                 }
                 
@@ -1896,6 +1815,61 @@ class DeepWebUI {
             } else {
                 this.addTranscriptEntry(`Step (JS): 0x${beforePhys.toString(16).padStart(5,'0')} -> 0x${afterPhys.toString(16).padStart(5,'0')}`, "info");
             }
+        }
+    }
+
+    // Copy the JS core's complete state into the WASM core: memory (ROM, the
+    // assembled program, and data written by earlier runs) plus registers,
+    // PSW, segments and PC. WASM is rebuilt with init() first so no stale
+    // state survives, but neither core is reset - assembling or toggling the
+    // header switch must never lose the program or the machine state the user
+    // is looking at.
+    //
+    // Call order matters: load_program() leaves PC=0/CS=0xFFFF behind it, and
+    // set_registers() places element 15 through the current PSW.S bit, so the
+    // state setters run after it with PSW set before registers.
+    syncStateIntoWasm() {
+        if (!this.wasmAvailable || !window.Deep16Wasm) { return false; }
+        try {
+            const W = window.Deep16Wasm;
+            if (typeof W.set_registers !== 'function' || typeof W.set_psw !== 'function') {
+                this.addTranscriptEntry("WASM package is out of date; run npm run build:wasm", "warning");
+                return false;
+            }
+            W.init(this.simulator.memory.length);
+            W.load_program(0, new Uint16Array(this.simulator.memory));
+            const seg = this.simulator.segmentRegisters;
+            W.set_segments(seg.CS & 0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
+            W.set_psw(this.simulator.psw & 0xFFFF);
+            W.set_registers(new Uint16Array(this.simulator.registers));
+            this.wasmDirtyStart = null;
+            this.wasmDirtyEnd = null;
+            return true;
+        } catch (e) {
+            if (window.Deep16Debug) console.error("WASM state sync failed", e);
+            return false;
+        }
+    }
+
+    // Shared tail of both async WASM init paths (the Deep16WasmReady promise
+    // and the deep16-wasm-ready event): mirror the JS core into WASM and
+    // restore the header toggle from localStorage. The JS core is the source
+    // of truth - WASM gets a copy of whatever state the page is in.
+    finishWasmInit(wssamToggle) {
+        this.wasmAvailable = true;
+        if (this.syncStateIntoWasm()) {
+            this.wasmInitialized = true;
+            let desired = false;
+            try { desired = localStorage.getItem('deep16_use_wasm') === 'true'; } catch {}
+            this.useWasm = desired;
+            if (wssamToggle) { wssamToggle.disabled = false; wssamToggle.checked = this.useWasm; }
+            this.addTranscriptEntry("WASM module loaded", "success");
+            this.addTranscriptEntry(`WASM: ${this.useWasm ? 'ON' : 'OFF'}`, "info");
+        } else {
+            this.useWasm = false;
+            this.wasmInitialized = false;
+            if (wssamToggle) { wssamToggle.disabled = true; wssamToggle.checked = false; }
+            this.addTranscriptEntry("WASM init failed; using JS core", "warning");
         }
     }
 

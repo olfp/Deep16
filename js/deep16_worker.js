@@ -1,6 +1,6 @@
 // deep16_worker.js - Web Worker for Deep16 simulation
 // Keep the version query in sync with the script tags in index.html.
-importScripts('deep16_simulator.js?v=20261005-1');
+importScripts('deep16_simulator.js?v=20261006-1');
 
 let simulator = null;
 let isRunning = false;

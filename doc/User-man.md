@@ -13,7 +13,7 @@ DeepCode is an integrated assembler and simulator for the Deep16 architecture. I
 - Simulate
   - Use `Run` to start/stop continuous execution. Use `Step` to execute exactly one instruction. Use `Reset` to reset the machine state.
   - The run-state indicator between Run and Step shows `Run` (green) or `Halt` (red).
-  - JS and WASM cores are both supported; WASM can be toggled in the header if available.
+  - JS and WASM cores are both supported; WASM can be toggled in the header if available. Toggling keeps the loaded program and the current machine state.
 
 ## Debugging with Breakpoints
 - Add/Remove
