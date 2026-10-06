@@ -127,9 +127,9 @@ halt:
 swi_handler:
     LDI 0x0001
     LSI R1, 0
-    OR R1, 3
-    OR R1, 4
-    OR R1, 6
+    OR R1, 0        ; set bit 0
+    OR R1, 1        ; set bit 1
+    OR R1, 2        ; set bit 2 -> R1 = 7 (OR Rd, imm takes a bit index)
     RETI
     NOP
 

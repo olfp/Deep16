@@ -395,7 +395,11 @@ class Deep16Simulator {
             case 0b00100: result = (rdValue - opVal) | 0; this.lastALUResult = result; this.lastOperationWasALU = true; return; 
             case 0b00101: result = (rdValue - opVal) | 0; this.lastALUResult = result; this.lastOperationWasALU = true; return;
             case 0b00110: result = (rdValue & opVal) & 0xFFFF; break;
-            case 0b00111: result = (rdValue & opVal) & 0xFFFF; break;
+            case 0b00111: {
+                // CLRB Rd, imm - imm4 is a bit index (spec Table 6)
+                result = (rdValue & ~(1 << low4)) & 0xFFFF;
+                break;
+            }
             case 0b01000: {
                 const masked = (rdValue & opVal) & 0xFFFF;
                 this.lastALUResult = masked === 0 ? 0 : 1;
@@ -409,9 +413,10 @@ class Deep16Simulator {
                 return;
             }
             case 0b01010: result = (rdValue | opVal) & 0xFFFF; break;
-            case 0b01011: result = (rdValue | opVal) & 0xFFFF; break;
+            // Immediate forms: imm4 is a bit index, the core supplies 1 << imm
+            case 0b01011: result = (rdValue | (1 << low4)) & 0xFFFF; break;
             case 0b01100: result = (rdValue ^ opVal) & 0xFFFF; break;
-            case 0b01101: result = (rdValue ^ opVal) & 0xFFFF; break;
+            case 0b01101: result = (rdValue ^ (1 << low4)) & 0xFFFF; break;
             case 0b01110: {
                 const masked = (rdValue & opVal) & 0xFFFF;
                 this.lastALUResult = masked !== 0 ? 1 : 0;

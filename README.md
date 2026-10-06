@@ -33,7 +33,7 @@ npm run build:wasm     # needs rustup + wasm-pack
 npm test
 ```
 
-41 assertions over four files: `tests/assembler.test.js`,
+46 assertions over four files: `tests/assembler.test.js`,
 `tests/disassembler.test.js`, `tests/cores.test.js`, `tests/examples.test.js`.
 They cover the ALU encodings, an assembler/disassembler round trip, agreement
 between the JS and WASM cores, and all seven example programs in `asm/`.
@@ -93,12 +93,6 @@ Known gaps, all verified rather than assumed:
   `handleHardwareInterrupt()`, `lib.rs` has nothing, so the two cores behave
   differently in WASM mode. Keyboard input therefore only reaches the Forth
   kernel with the JS core selected.
-- **`CLRB` is specified but absent.** `doc/Deep16-Arch.md` §3.7 puts it at
-  `110 00111`; both cores execute that slot as a plain `AND Rd, imm` and the
-  assembler rejects the mnemonic. For the same reason the spec's reading of
-  `OR`/`XOR Rd, imm` as a bit-index operation does not match the
-  implementation, which ANDs/ORs/XORs with the 4-bit literal. `asm/swi-test.asm`
-  is written against the implementation, not the spec, and runs correctly.
 - **Documentation versions** v2.0 through v5.2 once coexisted. `doc/` is now the
   single current version; `old/` holds the rest.
 
@@ -106,3 +100,9 @@ Known ISA quirks that are not bugs: `LDI` always targets `R0` regardless of
 what you write, and `MUL32`/`DIV32` require an *even* destination register
 because the 32-bit value lives in the pair `R[d]:R[d+1]`. Writing `MUL32 R14, x`
 therefore overwrites the PC.
+
+Two things the assembler enforces from `doc/Deep16-Arch.md` §3.7 that older
+examples do not: `AND` has no immediate form (slot `110 00111` belongs to
+`CLRB`, so `AND R1, 3` is rejected - load a mask and use `AND Rd, Rs`), and
+the immediates of `OR`/`XOR`/`TBC`/`TBS`/`CLRB` are bit *indexes* 0-15, not
+values: `OR R1, 3` sets bit 3, not bits 0 and 1.

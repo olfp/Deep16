@@ -279,7 +279,7 @@ SETI                    ; 13 bits (special for bit 4)
 - [ ] LPSW/JML encoding swap
 
 ### **Phase 2: New Instructions**
-- [ ] CLRB instruction (ALU2 func5=00111)
+- [x] CLRB instruction (ALU2 func5=00111)
 - [ ] AMV behavior (MOV with imm2=3 bypasses forwarding)
 - [ ] Hard-wired assembler aliases
 

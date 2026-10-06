@@ -11,7 +11,7 @@ const dis = new globalThis.Deep16Disassembler();
 // disassembler prints back in a shape the assembler accepts again.
 const MNEMONICS = [
   'ADD R1, R2', 'ADD R1, 3', 'SUB R1, R2', 'SUB R1, 3',
-  'CMP R1, R2', 'AND R1, R2', 'AND R1, 3',
+  'CMP R1, R2', 'AND R1, R2',
   'TBC R1, R2', 'OR R1, R2', 'OR R1, 3', 'XOR R1, R2', 'XOR R1, 3',
   'TBS R1, R2', 'MUL R1, R2', 'MUL32 R2, R4', 'DIV R1, R2', 'DIV32 R2, R4',
   'SL R1, 2', 'SLA R1, 2', 'SLAC R1, 2', 'SLC R1, 2',
@@ -19,7 +19,7 @@ const MNEMONICS = [
   'ROL R1, 2', 'RLC R1, 2', 'ROR R1, 2', 'RRC R1, 2',
   'MOV R1, R2', 'LDI 0x7', 'LSI R1, -3',
   'LD R1, R2, 4', 'ST R1, R2, -4',
-  'SWB R1', 'INV R1', 'NEG R1',
+  'SWB R1', 'INV R1', 'NEG R1', 'CLRB R1, 5',
   'SRS R1', 'SRD R1', 'ERS R1', 'ERD R1',
   'SETN', 'CLRN', 'SETZ', 'CLRZ', 'SETV', 'CLRV', 'SETC', 'CLRC',
   'SWI', 'RETI', 'NOP', 'HALT',
@@ -39,7 +39,7 @@ test('every mnemonic disassembles to something the assembler understands', () =>
 });
 
 test('round trip preserves the machine word for the ALU group', () => {
-  const alu = MNEMONICS.filter(l => /^(ADD|SUB|CMP|AND|TBC|OR|XOR|TBS|MUL|DIV)/.test(l));
+  const alu = MNEMONICS.filter(l => /^(ADD|SUB|CMP|AND|CLRB|TBC|OR|XOR|TBS|MUL|DIV)/.test(l));
   for (const line of alu) {
     const word = assemble(`${line}\n`).memoryChanges[0].value & 0xFFFF;
     const back = assemble(`${dis.disassemble(word)}\n`);

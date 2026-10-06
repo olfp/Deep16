@@ -537,6 +537,7 @@ class Deep16Assembler {
                 case 'OR':  return this.encodeALU(parts, 'OR', address, lineNumber);
                 case 'XOR': return this.encodeALU(parts, 'XOR', address, lineNumber);
                 case 'TBS': return this.encodeALU(parts, 'TBS', address, lineNumber);
+                case 'CLRB': return this.encodeALU(parts, 'CLRB', address, lineNumber);
                 case 'MUL': return this.encodeALU(parts, 'MUL', address, lineNumber);
                 case 'MUL32': return this.encodeALU(parts, 'MUL32', address, lineNumber);
                 case 'DIV': return this.encodeALU(parts, 'DIV', address, lineNumber);
@@ -976,7 +977,11 @@ class Deep16Assembler {
             } else if (kind === 'CMP') {
                 func5 = isReg ? 0b00100 : 0b00101;
             } else if (kind === 'AND') {
-                func5 = isReg ? 0b00110 : 0b00111;
+                // Spec Table 6 dropped AND Rd, imm: slot 110 00111 belongs to CLRB.
+                if (!isReg) {
+                    throw new Error('AND has no immediate form - 110 00111 is CLRB. Clear a bit with CLRB Rd, bit, or load a mask (LDI/LSI) and use AND Rd, Rs');
+                }
+                func5 = 0b00110;
             } else if (kind === 'TBC') {
                 func5 = isReg ? 0b01000 : 0b01001;
             } else if (kind === 'OR') {
@@ -985,6 +990,9 @@ class Deep16Assembler {
                 func5 = isReg ? 0b01100 : 0b01101;
             } else if (kind === 'TBS') {
                 func5 = isReg ? 0b01110 : 0b01111;
+            } else if (kind === 'CLRB') {
+                if (isReg) throw new Error('CLRB requires an immediate bit number (0-15)');
+                func5 = 0b00111;
             } else if (kind === 'MUL') {
                 if (!isReg) throw new Error('MUL requires register operand');
                 func5 = 0b11100;
@@ -1010,6 +1018,9 @@ class Deep16Assembler {
                 if (imm < 0 || imm > 15) {
                     throw new Error(`Immediate value ${imm} out of range (0-15)`);
                 }
+                // ADD/SUB/CMP take the 4-bit literal as-is. TBC/OR/XOR/TBS/CLRB
+                // take a bit INDEX (spec Table 6): the field holds 0-15 and the
+                // core expands it to 1 << imm, so it is stored unshifted here.
                 return (0b110 << 13) | (func5 << 8) | (rd << 4) | (imm & 0xF);
             }
         }

@@ -51,7 +51,7 @@ test('ALU group encodes as 110 func5 Rd4 Rs4', () => {
     ['ADD R1, R2', 0b00000], ['ADD R1, 3', 0b00001],
     ['SUB R1, R2', 0b00010], ['SUB R1, 3', 0b00011],
     ['CMP R1, R2', 0b00100], ['CMP R1, 3', 0b00101],
-    ['AND R1, R2', 0b00110], ['AND R1, 3', 0b00111],
+    ['AND R1, R2', 0b00110], ['CLRB R1, 3', 0b00111],
     ['TBC R1, R2', 0b01000], ['TBC R1, 3', 0b01001],
     ['OR R1, R2', 0b01010], ['OR R1, 3', 0b01011],
     ['XOR R1, R2', 0b01100], ['XOR R1, 3', 0b01101],
@@ -66,15 +66,41 @@ test('ALU group encodes as 110 func5 Rd4 Rs4', () => {
     assert.equal(res.success, true, `${line}: ${res.errors}`);
     const rd = Number(/^(\w+)\s+R(\d+)/.exec(line)[2]);
     const operand = line.split(',')[1].trim();
+    // The bit-index immediates (CLRB/TBC/OR/XOR/TBS) store the index itself;
+    // the core expands it to 1 << imm. The literal ones (ADD/SUB/CMP) store
+    // the value. Either way the field is just the 4-bit operand.
     const low4 = /^R/i.test(operand) ? Number(operand.slice(1)) : Number(operand);
     assert.equal(wordsOf(res)[0], (0b110 << 13) | (func5 << 8) | (rd << 4) | low4, line);
   }
 });
 
-test('unknown mnemonics are reported', () => {
+test('CLRB is a recognised mnemonic', () => {
   const res = assemble('CLRB R1, 2\n');
+  assert.equal(res.success, true, res.errors.join('; '));
+  const word = res.memoryChanges[0].value & 0xFFFF;
+  // spec: 110 00111 Rd4 imm4, imm4 = the bit index to clear -> low4 = 2
+  assert.equal(word >>> 8 & 0x1F, 0b00111);
+  assert.equal(word & 0xF, 2);
+});
+
+test('AND has no immediate form any more', () => {
+  const res = assemble('AND R1, 3\n');
   assert.equal(res.success, false);
-  assert.match(res.errors.join(), /Unknown instruction: CLRB/);
+  assert.match(res.errors.join(), /CLRB/);
+  // The register form must still work.
+  assert.equal(assemble('AND R1, R2\n').success, true);
+});
+
+test('CLRB rejects a register operand', () => {
+  const res = assemble('CLRB R1, R2\n');
+  assert.equal(res.success, false);
+  assert.match(res.errors.join(), /bit number/);
+});
+
+test('unknown mnemonics are reported', () => {
+  const res = assemble('FLARP R1, 2\n');
+  assert.equal(res.success, false);
+  assert.match(res.errors.join(), /Unknown instruction: FLARP/);
 });
 
 test('mnemonics and registers are case insensitive', () => {
