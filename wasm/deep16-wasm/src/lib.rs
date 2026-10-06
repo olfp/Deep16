@@ -317,7 +317,11 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
         0b00000 | 0b00001 => { result = ((rdv + opv) & 0x1FFFF) as i32; }
         0b00010 | 0b00011 => { result = (rdv as i32 - opv as i32) as i32; }
         0b00100 | 0b00101 => { result = (rdv as i32 - opv as i32) as i32; c.last_alu_result = result; c.last_op_alu = true; return; }
-        0b00110 | 0b00111 => { result = ((rdv & opv) & 0xFFFF) as i32; }
+        0b00110 => { result = ((rdv & opv) & 0xFFFF) as i32; }
+        0b00111 => {
+            // CLRB Rd, imm - imm4 is a bit index (spec Table 6)
+            result = ((rdv & !(1u32 << low4)) & 0xFFFF) as i32;
+        }
         0b01000 => {
             let masked = (rdv & opv) & 0xFFFF;
             c.last_alu_result = if masked == 0 { 0 } else { 1 };
@@ -330,8 +334,11 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             c.last_op_alu = true;
             return;
         }
-        0b01010 | 0b01011 => { result = ((rdv | opv) & 0xFFFF) as i32; }
-        0b01100 | 0b01101 => { result = ((rdv ^ opv) & 0xFFFF) as i32; }
+        0b01010 => { result = ((rdv | opv) & 0xFFFF) as i32; }
+        // Immediate forms: imm4 is a bit index, the core supplies 1 << imm
+        0b01011 => { result = ((rdv | (1u32 << low4)) & 0xFFFF) as i32; }
+        0b01100 => { result = ((rdv ^ opv) & 0xFFFF) as i32; }
+        0b01101 => { result = ((rdv ^ (1u32 << low4)) & 0xFFFF) as i32; }
         0b01110 => {
             let masked = (rdv & opv) & 0xFFFF;
             c.last_alu_result = if masked != 0 { 1 } else { 0 };

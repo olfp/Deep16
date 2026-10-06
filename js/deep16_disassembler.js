@@ -185,7 +185,7 @@ disassembleSOP(instruction) {
             case 0b00100: opStr = 'CMP'; break;
             case 0b00101: opStr = 'CMP'; break;
             case 0b00110: opStr = 'AND'; break;
-            case 0b00111: opStr = 'AND'; break;
+            case 0b00111: opStr = 'CLRB'; break;
             case 0b01000: opStr = 'TBC'; break;
             case 0b01001: opStr = 'TBC'; break;
             case 0b01010: opStr = 'OR'; break;

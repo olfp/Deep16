@@ -324,15 +324,14 @@ PC'   ← Mem[0x0000]  ; Jump to ILL handler at vector 0
 - Useful for bit manipulation without needing a mask register
 - Equivalent to: `Rd ← Rd AND NOT(1 << imm4)`
 
-> **Not implemented.** `CLRB` is specified here but exists in neither CPU
-> core. `110 00111 Rd4 imm4` is decoded by both cores as a plain
-> `AND Rd, imm`, and the assembler rejects the mnemonic outright
-> (`Unknown instruction: CLRB`). Likewise, the bit-index reading of the
-> immediate forms of `OR`/`XOR`/`TBC`/`TBS` above (`OR Rd, imm` setting bit
-> `imm`) is not what the cores do: they combine `Rd` with the 4-bit literal
-> `imm`. `asm/swi-test.asm` is written against the implementation and runs
-> correctly; this table is not. Both deviations are left as-is for now -
-> see the "Known inconsistencies" section of the README.
+> **Implemented.** Both cores decode `110 00111 Rd4 imm4` as `CLRB`, and the
+> assembler accepts the mnemonic. The immediate forms of `OR`/`XOR`/`TBC`/
+> `TBS` above read `imm4` as the bit index this table specifies - the core,
+> not the assembler, expands it to `1 << imm`. `AND Rd, imm` is gone with the
+> slot it used to share: the assembler rejects it and points at `CLRB`.
+> `asm/swi-test.asm`, which was written against the old literal-immediate
+> reading, had its `OR R1, 3 / 4 / 6` rewritten to `OR R1, 0 / 1 / 2` so it
+> still ends up with the same value.
 
 ### **3.8 ALU Instructions - Group 2: Shift/Rotate Operations**
 
@@ -939,15 +938,16 @@ Deep16 Milestone 6 represents a **mature, implementable 16-bit RISC architecture
 
 Verified against the code in this repository, not against intent:
 
-- **Specification**: complete as a document; sections 3.2, 3.7, 4.7 and the
+- **Specification**: complete as a document; sections 3.2 and 4.7 and the
   FPU document describe features that are not implemented
-- **JavaScript core**: implements the ISA, including `MUL32`/`DIV32`; has
-  hardware-interrupt handling
-- **WASM core**: implements the ISA; no hardware-interrupt handling, so the
-  keyboard and therefore the Forth REPL only work with the JS core selected
-- **Assembler / disassembler**: implemented and round trip; `CLRB` absent, and
-  `OR`/`XOR` immediates follow the implementation rather than section 3.7
-- **Verification**: `npm test` runs 41 assertions covering the ALU encodings,
+- **JavaScript core**: implements the ISA, including `MUL32`/`DIV32` and
+  `CLRB`; has hardware-interrupt handling
+- **WASM core**: implements the ISA, including `CLRB`; no hardware-interrupt
+  handling, so the keyboard and therefore the Forth REPL only work with the JS
+  core selected
+- **Assembler / disassembler**: implemented and round trip, including `CLRB`
+  and the bit-index immediates of section 3.7
+- **Verification**: `npm test` runs 46 assertions covering the ALU encodings,
   the assembler/disassembler round trip, JS↔WASM agreement and all seven
   example programs
 

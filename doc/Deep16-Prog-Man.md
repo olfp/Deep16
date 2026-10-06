@@ -233,12 +233,15 @@ DIV32 R4, R5     ; R4 = quotient, R5 = remainder (R4 must be even)
 **Bitwise Operations:**
 ```assembly
 AND R1, R2       ; R1 = R1 & R2
-AND R3, 5        ; R3 = R3 & (1 << 5)  - Clear all except bit 5
 OR  R4, R5       ; R4 = R4 | R5
 OR  R6, 7        ; R6 = R6 | (1 << 7)   - Set bit 7
 XOR R7, R8       ; R7 = R7 ^ R8
 XOR R9, 0        ; R9 = R9 ^ (1 << 0)   - Toggle bit 0
+CLRB R3, 5       ; R3 = R3 & ~(1 << 5)  - Clear bit 5
 ```
+Note: `AND` takes a register only - the immediate slot (`110 00111`) is
+`CLRB`. The immediates of `OR`/`XOR`/`TBC`/`TBS`/`CLRB` are bit indexes
+0-15, not values.
 
 **Bit Testing:**
 ```assembly

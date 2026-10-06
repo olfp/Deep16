@@ -108,6 +108,46 @@ test('JS and WASM cores agree on the rest of the ALU group', async () => {
   assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF));
 });
 
+// The bit-index immediates: OR/XOR expand imm4 to 1 << imm, CLRB clears that
+// bit. 0x1234 has bit 12 set and bit 3 clear.
+const BIT_PROGRAM = `
+.org 0x0000
+        LDI 0x0
+        LD  R1, R0, 0
+        OR  R1, 3          ; set bit 3        -> 0x123C
+        XOR R1, 3          ; toggle it back   -> 0x1234
+        CLRB R1, 12        ; clear bit 12     -> 0x0234
+        HALT
+.org 0x1000
+        .word 0x1234
+`;
+
+test('CLRB and the bit-index immediates do what spec Table 6 says', async () => {
+  const res = assemble(BIT_PROGRAM);
+  assert.equal(res.success, true, res.errors.join('; '));
+  const js = runJs(res, { cs: 0x0000, ds: 0x0100 });
+  const wasm = await runWasm(res, { cs: 0x0000, ds: 0x0100 });
+  assert.equal(js.registers[1] & 0xFFFF, 0x0234, 'JS core');
+  assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF), 'WASM core must agree');
+});
+
+test('AND immediate is gone but AND with a register still works', async () => {
+  const prog = `
+.org 0x0000
+        LDI 0x0
+        LD  R1, R0, 0
+        LDI 0x00F0
+        AND R1, R0
+        HALT
+.org 0x1000
+        .word 0x1234
+`;
+  const res = assemble(prog);
+  assert.equal(res.success, true, res.errors.join('; '));
+  const js = runJs(res, { cs: 0x0000, ds: 0x0100 });
+  assert.equal(js.registers[1] & 0xFFFF, 0x0030);
+});
+
 test('an odd destination register does not escape the register file (JS)', () => {
   // The assembler refuses this word, but the memory panel lets a user type it
   // in directly, so the core has to cope as well.

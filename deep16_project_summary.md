@@ -19,7 +19,7 @@
 > | FPU per `doc/Deep16-FPU.md` (732 lines of spec) | no floating-point code in either core |
 > | "All known issues have been resolved" | the assembler could not parse the `#` immediate syntax its own disassembler emitted; `MUL32` was unusable and crashed the WASM core |
 > | "Interrupt system ✅" | `handleHardwareInterrupt()` exists in the JS core only, `lib.rs` has none - keyboard input needs the JS core |
-> | "Verification: test suite required" | there was no runner at all; `npm test` now runs 41 assertions |
+> | "Verification: test suite required" | there was no runner at all; `npm test` now runs 46 assertions |
 >
 > Development ran from 2025-11-28 to 2025-12-16 in 796 commits by one author,
 > then stopped mid-way through a Forth/BIOS refactor.
