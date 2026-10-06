@@ -4,16 +4,29 @@ export function init(mem_words: number): void;
 export function reset(): void;
 export function set_segments(cs: number, ds: number, ss: number, es: number): void;
 export function load_program(ptr: number, data: Uint16Array): void;
+export function run_steps(n: number): boolean;
+export function get_recent_access(): Uint32Array;
 export function get_last_event(): Uint16Array;
 export function get_shadow_state(): Uint16Array;
+/**
+ * Overwrite the register file (R0..R15) from outside, mirroring
+ * `get_registers`: while the shadow set is active (PSW.S = 1) element 15 is
+ * the active (shadow) PC instead of R15, so the two calls round-trip and the
+ * saved user PC stays untouched. Call `set_psw` first - element 15 is placed
+ * according to the PSW.S bit that is current at call time.
+ */
+export function set_registers(regs: Uint16Array): void;
+/**
+ * Overwrite the PSW. Call before `set_registers`, which interprets its last
+ * element through the S bit, exactly as `get_registers` reports it.
+ */
+export function set_psw(psw: number): void;
 export function get_registers(): Uint16Array;
 export function get_psw(): number;
 export function get_segments(): Uint16Array;
 export function get_memory_slice(start: number, count: number): Uint16Array;
 export function get_memory_word(addr: number): number;
 export function step(): boolean;
-export function run_steps(n: number): boolean;
-export function get_recent_access(): Uint32Array;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -31,6 +44,8 @@ export interface InitOutput {
   readonly load_program: (a: number, b: number, c: number) => void;
   readonly reset: () => void;
   readonly run_steps: (a: number) => number;
+  readonly set_psw: (a: number) => void;
+  readonly set_registers: (a: number, b: number) => void;
   readonly set_segments: (a: number, b: number, c: number, d: number) => void;
   readonly step: () => number;
   readonly __wbindgen_externrefs: WebAssembly.Table;
