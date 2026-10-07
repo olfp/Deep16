@@ -146,9 +146,9 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // Register und Segmente muessen identisch sein - sonst rechnen die Kerne
 // unterschiedlich und die Geschwindigkeitszahlen waeren wertlos.
-// PSW-Differenzen werden getrennt gemeldet: derzeit ist bekannt, dass die
-// Kerne beim V-Flag (Signed Overflow) und bei der Frage, ob LSI Flags
-// aktualisiert, auseinanderlaufen. Details: siehe Meldung unten.
+// PSW-Differenzen werden getrennt gemeldet: bei identischen Registern waere
+// der Befehlsfluss zwar gleich, eine Flag-Abweichung waere aber ein Bug in
+// der Flag-Logik eines der Kerne (Spec: Deep16-Arch.md, Tests: flags.test.js).
 const regsOk = same(jsEnd.regs, wasmStepEnd.regs) && same(jsEnd.regs, wasmBatchEnd.regs);
 const segsOk = same(jsEnd.segs, wasmStepEnd.segs) && same(jsEnd.segs, wasmBatchEnd.segs);
 const pswOk = jsEnd.psw === wasmStepEnd.psw && jsEnd.psw === wasmBatchEnd.psw;
@@ -179,12 +179,10 @@ if (regsOk && segsOk) {
   if (pswOk) {
     console.log('PSW identisch.');
   } else {
-    console.log(`PSW-Differenz auf Bit ${pswDiff.join(', ')} - bekannter Kern-Unterschied:`);
-    console.log('  der JS-Kern setzt V (Signed Overflow) bei Carry/Borrow falsch,');
-    console.log('  der WASM-Kern setzt V nie, und die Flag-Aktualisierung von LSI');
-    console.log('  unterscheidet sich zwischen den Kernen.');
-    console.log('  Da Register und Segmente identisch sind, lief der Befehlsfluss in beiden');
-    console.log('  Kernen gleich - die Messung ist gueltig.');
+    console.log(`PSW-Differenz auf Bit ${pswDiff.join(', ')} - Flag-Logik weicht ab!`);
+    console.log('  Register und Segmente sind identisch, der Befehlsfluss lief in beiden');
+    console.log('  Kernen also gleich und die Messung ist gueltig - die Abweichung selbst');
+    console.log('  ist aber ein Bug (Spec: Deep16-Arch.md, Tests: tests/flags.test.js).');
   }
 } else {
   console.log('ABWEICHUNG IM REGISTERZUSTAND - die Kerne rechnen unterschiedlich!');

@@ -33,6 +33,7 @@ struct Cpu {
     branch_taken: bool,
     last_alu_result: i32,
     last_op_alu: bool,
+    last_alu_overflow: bool,
     kbd: Vec<u16>,
     kbd_last: u16,
     recent_addr: usize,
@@ -81,6 +82,7 @@ impl Cpu {
             branch_taken: false,
             last_alu_result: 0,
             last_op_alu: false,
+            last_alu_overflow: false,
             kbd: Vec::new(),
             kbd_last: 0,
             recent_addr: 0,
@@ -124,6 +126,7 @@ impl Cpu {
         self.branch_taken = false;
         self.last_alu_result = 0;
         self.last_op_alu = false;
+        self.last_alu_overflow = false;
         self.kbd.clear();
         self.kbd_last = 0;
         self.recent_addr = 0;
@@ -321,13 +324,15 @@ fn update_psw_flags(c: &mut Cpu) {
     if !c.last_op_alu { return; }
     let mut psw = c.psw & 0xFFF0;
     let res16 = (c.last_alu_result as i64) & 0xFFFF;
-    let signed = if (res16 & 0x8000) != 0 { (res16 as i64) - 0x10000 } else { res16 as i64 };
     if res16 == 0 { psw |= 1 << 1; }
     if (res16 & 0x8000) != 0 { psw |= 1 << 0; }
     if c.last_alu_result > 0xFFFF || c.last_alu_result < 0 { psw |= 1 << 3; }
-    if signed > 32767 || signed < -32768 { psw |= 1 << 2; }
+    // Overflow flag: signed overflow computed by the ADD/SUB/CMP sites in
+    // exec_alu (spec Table 6); false everywhere else. Mirrors the JS core.
+    if c.last_alu_overflow { psw |= 1 << 2; }
     c.psw = psw;
     c.last_op_alu = false;
+    c.last_alu_overflow = false;
 }
 
 fn exec_ldi(c: &mut Cpu, instr: u16) {
@@ -384,10 +389,28 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
     } else { low4 as u32 & 0xF } & 0xFFFF;
     let mut result: i32 = rdv as i32;
     let mut wide_result: Option<i32> = None; // full 32-bit result for MUL32
+    // V (signed overflow, spec Table 6: ADD/SUB/CMP = NZVC) is computed here
+    // where both operands are known: ADD overflows when equal operand signs
+    // produce a different result sign, SUB/CMP when different operand signs
+    // produce a result whose sign differs from the minuend. Every other
+    // instruction leaves last_alu_overflow false (NZ00 for the logic group,
+    // V=0 for loads/shifts) - mirrors the JS core.
     match func5 {
-        0b00000 | 0b00001 => { result = ((rdv + opv) & 0x1FFFF) as i32; }
-        0b00010 | 0b00011 => { result = (rdv as i32 - opv as i32) as i32; }
-        0b00100 | 0b00101 => { result = (rdv as i32 - opv as i32) as i32; c.last_alu_result = result; c.last_op_alu = true; return; }
+        0b00000 | 0b00001 => {
+            result = ((rdv + opv) & 0x1FFFF) as i32;
+            c.last_alu_overflow = (((!(rdv ^ opv)) & (rdv ^ (result as u32 & 0xFFFF))) & 0x8000) != 0;
+        }
+        0b00010 | 0b00011 => {
+            result = (rdv as i32 - opv as i32) as i32;
+            c.last_alu_overflow = (((rdv ^ opv) & (rdv ^ (result as u32 & 0xFFFF))) & 0x8000) != 0;
+        }
+        0b00100 | 0b00101 => {
+            result = (rdv as i32 - opv as i32) as i32;
+            c.last_alu_overflow = (((rdv ^ opv) & (rdv ^ (result as u32 & 0xFFFF))) & 0x8000) != 0;
+            c.last_alu_result = result;
+            c.last_op_alu = true;
+            return;
+        }
         0b00110 => { result = ((rdv & opv) & 0xFFFF) as i32; }
         0b00111 => {
             // CLRB Rd, imm - imm4 is a bit index (spec Table 6)
@@ -601,6 +624,11 @@ fn exec_lsi(c: &mut Cpu, instr: u16) {
     let mut imm = (instr & 0x1F) as i16;
     if (imm & 0x10) != 0 { imm |= -1i16 << 5; }
     gp_write(c, rd, imm as u16);
+    // LSI updates flags like its big sibling LDI: N/Z from the loaded value,
+    // V/C clear (imm is kept as the 16-bit pattern, so C stays 0). The JS core
+    // has always done this; the WASM core used to leave the flags untouched.
+    c.last_alu_result = imm as u16 as i32;
+    c.last_op_alu = true;
 }
 
 fn exec_sop(c: &mut Cpu, instr: u16) -> bool {
@@ -764,6 +792,7 @@ fn step_one(c: &mut Cpu) -> bool {
         if in_shadow { c.spc = c.spc.wrapping_add(1); } else { c.reg[15] = c.reg[15].wrapping_add(1); }
         c.last_op_alu = false;
         c.last_alu_result = 0;
+        c.last_alu_overflow = false;
         let is_branch = exec_instruction(c, instr, original_pc);
         update_psw_flags(c);
         if c.branch_taken {
@@ -786,6 +815,7 @@ fn step_one(c: &mut Cpu) -> bool {
         // SWI/RETI PSW transition (matches the JS core and the paths below).
         c.last_op_alu = false;
         c.last_alu_result = 0;
+        c.last_alu_overflow = false;
         exec_sys(c, instr);
         update_psw_flags(c);
         return true;
@@ -794,6 +824,7 @@ fn step_one(c: &mut Cpu) -> bool {
     if in_shadow { c.spc = c.spc.wrapping_add(1); } else { c.reg[15] = c.reg[15].wrapping_add(1); }
     c.last_op_alu = false;
     c.last_alu_result = 0;
+    c.last_alu_overflow = false;
     let _is_branch = exec_instruction(c, instr, original_pc);
     update_psw_flags(c);
     true

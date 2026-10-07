@@ -11,6 +11,7 @@ class Deep16Simulator {
         this.running = false;
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
+        this.lastALUOverflow = false;
         
         // Delay slot implementation
         this.delaySlotActive = false;
@@ -74,6 +75,7 @@ class Deep16Simulator {
         this.running = false;
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
+        this.lastALUOverflow = false;
         this.segmentRegisters = { CS: 0xFFFF, DS: 0x0000, SS: 0x0000, ES: 0x0000 };
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R3: 0, R13: 0, R14: 0 };
         
@@ -141,6 +143,7 @@ class Deep16Simulator {
             // the SWI/RETI PSW transition (matches the WASM core's step_one).
             this.lastOperationWasALU = false;
             this.lastALUResult = 0;
+            this.lastALUOverflow = false;
             this.executeInstruction(delayInstruction, activePC);
             this.updatePSWFlags();
             if (inShadow) { this.shadowRegisters.PC = (this.shadowRegisters.PC + 1) & 0xFFFF; } else { this.registers[15] = (this.registers[15] + 1) & 0xFFFF; }
@@ -177,6 +180,7 @@ class Deep16Simulator {
         // Reset ALU tracking
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
+        this.lastALUOverflow = false;
 
         // Execute instruction and check if it's a branch/jump
         const isBranch = this.executeInstruction(instruction, originalPC);
@@ -431,13 +435,19 @@ class Deep16Simulator {
         const sign = (rdValue & 0x8000) !== 0 ? 1 : 0;
         const isReg = func5 === 0b00000 || func5 === 0b00010 || func5 === 0b00100 || func5 === 0b00110 || func5 === 0b01000 || func5 === 0b01010 || func5 === 0b01100 || func5 === 0b01110 || func5 >= 0b11100;
         const opVal = isReg ? this.readGPR(low4) : (low4 & 0xF);
+        // V (signed overflow, spec Table 6: ADD/SUB/CMP = NZVC) is computed at
+        // the op site where both operands are known: ADD overflows when equal
+        // operand signs produce a different result sign, SUB/CMP when different
+        // operand signs produce a result whose sign differs from the minuend.
+        // Every other instruction leaves lastALUOverflow false (NZ00 for the
+        // logic group, V=0 for loads/shifts).
         switch (func5) {
-            case 0b00000: result = (rdValue + opVal) & 0x1FFFF; break;
-            case 0b00001: result = (rdValue + opVal) & 0x1FFFF; break;
-            case 0b00010: result = (rdValue - opVal) | 0; break;
-            case 0b00011: result = (rdValue - opVal) | 0; break;
-            case 0b00100: result = (rdValue - opVal) | 0; this.lastALUResult = result; this.lastOperationWasALU = true; return; 
-            case 0b00101: result = (rdValue - opVal) | 0; this.lastALUResult = result; this.lastOperationWasALU = true; return;
+            case 0b00000: result = (rdValue + opVal) & 0x1FFFF; this.lastALUOverflow = ((~(rdValue ^ opVal)) & (rdValue ^ (result & 0xFFFF)) & 0x8000) !== 0; break;
+            case 0b00001: result = (rdValue + opVal) & 0x1FFFF; this.lastALUOverflow = ((~(rdValue ^ opVal)) & (rdValue ^ (result & 0xFFFF)) & 0x8000) !== 0; break;
+            case 0b00010: result = (rdValue - opVal) | 0; this.lastALUOverflow = (((rdValue ^ opVal) & (rdValue ^ (result & 0xFFFF))) & 0x8000) !== 0; break;
+            case 0b00011: result = (rdValue - opVal) | 0; this.lastALUOverflow = (((rdValue ^ opVal) & (rdValue ^ (result & 0xFFFF))) & 0x8000) !== 0; break;
+            case 0b00100: result = (rdValue - opVal) | 0; this.lastALUOverflow = (((rdValue ^ opVal) & (rdValue ^ (result & 0xFFFF))) & 0x8000) !== 0; this.lastALUResult = result; this.lastOperationWasALU = true; return; 
+            case 0b00101: result = (rdValue - opVal) | 0; this.lastALUOverflow = (((rdValue ^ opVal) & (rdValue ^ (result & 0xFFFF))) & 0x8000) !== 0; this.lastALUResult = result; this.lastOperationWasALU = true; return;
             case 0b00110: result = (rdValue & opVal) & 0xFFFF; break;
             case 0b00111: {
                 // CLRB Rd, imm - imm4 is a bit index (spec Table 6)
@@ -1052,7 +1062,6 @@ class Deep16Simulator {
         
         if (this.lastALUResult !== undefined) {
             const result = this.lastALUResult & 0xFFFF;
-            const signedResult = this.lastALUResult & 0x8000 ? this.lastALUResult - 0x10000 : this.lastALUResult;
             
             // Zero flag
             if (result === 0) this.psw |= (1 << 1);
@@ -1065,13 +1074,15 @@ class Deep16Simulator {
                 this.psw |= (1 << 3);
             }
             
-            // Overflow flag (signed overflow) - simplified
-            if (signedResult > 32767 || signedResult < -32768) {
+            // Overflow flag (signed overflow): computed by the ADD/SUB/CMP
+            // sites in executeALUOp; false everywhere else (spec Table 6).
+            if (this.lastALUOverflow) {
                 this.psw |= (1 << 2);
             }
         }
         
         this.lastOperationWasALU = false;
+        this.lastALUOverflow = false;
         // console.log(`PSW updated: 0x${this.psw.toString(16).padStart(4, '0')} (N=${!!(this.psw & 1)}, Z=${!!(this.psw & 2)}, V=${!!(this.psw & 4)}, C=${!!(this.psw & 8)})`);
     }
 
