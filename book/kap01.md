@@ -20,7 +20,15 @@ Ein realer 6502 bei 1 MHz erreicht im typischen Code dagegen etwa **0,43 Mio.**
 6502-Instruktion läuft in einem einzigen Takt. Der Simulator ist damit rund
 **63-mal schneller** als die echte Hardware von 1975: Ein Experiment, das auf
 einem 1-MHz-System eine Minute rechnen würde, dauert hier weniger als eine
-Sekunde. Die Zahlen selbst nachmessen geht mit `node scripts/bench.mjs`.
+Sekunde.
+
+Als zweite Referenz ein **PC/AT mit 80286 bei 8 MHz** — ebenfalls ein
+16-Bitter wie die Deep16, nur aus der Mitte der 80er. Er erreicht etwa
+**1,2 Mio.** Befehle pro Sekunde, der Simulator ist damit rund **22-mal
+schneller**. Beide Vergleichspartner sind übrigens selbst längst
+Retro-Computing: Sie stehen hier für Größenordnungen ihrer Epoche, nicht als
+Wettbewerb — heutige Hardware wäre wiederum um Potenzen schneller. Die Zahlen
+selbst nachmessen geht mit `node scripts/bench.mjs`.
 
 ---
 
