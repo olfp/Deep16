@@ -34,6 +34,10 @@ struct Cpu {
     last_alu_result: i32,
     last_op_alu: bool,
     last_alu_overflow: bool,
+    // Tri-state carry from the last shift/rotate: None = not a shift (the
+    // generic unsigned-overflow heuristic decides C), Some(-1) = shift with
+    // count 0 (C stays unchanged), Some(0|1) = spec Table 7 carry-out.
+    shift_carry_out: Option<i32>,
     kbd: Vec<u16>,
     kbd_last: u16,
     recent_addr: usize,
@@ -83,6 +87,7 @@ impl Cpu {
             last_alu_result: 0,
             last_op_alu: false,
             last_alu_overflow: false,
+            shift_carry_out: None,
             kbd: Vec::new(),
             kbd_last: 0,
             recent_addr: 0,
@@ -127,6 +132,7 @@ impl Cpu {
         self.last_alu_result = 0;
         self.last_op_alu = false;
         self.last_alu_overflow = false;
+        self.shift_carry_out = None;
         self.kbd.clear();
         self.kbd_last = 0;
         self.recent_addr = 0;
@@ -322,17 +328,27 @@ fn gp_write(c: &mut Cpu, idx: usize, val: u16) {
 
 fn update_psw_flags(c: &mut Cpu) {
     if !c.last_op_alu { return; }
+    let old_c = (c.psw >> 3) & 1; // read before the nibble is cleared
     let mut psw = c.psw & 0xFFF0;
     let res16 = (c.last_alu_result as i64) & 0xFFFF;
     if res16 == 0 { psw |= 1 << 1; }
     if (res16 & 0x8000) != 0 { psw |= 1 << 0; }
-    if c.last_alu_result > 0xFFFF || c.last_alu_result < 0 { psw |= 1 << 3; }
+    // Carry flag: a shift/rotate writes the bit it shifted out (spec Table 7)
+    // and keeps C unchanged when count is 0; every other instruction uses the
+    // unsigned-overflow heuristic. Mirrors the JS core.
+    let carry = match c.shift_carry_out {
+        None => if c.last_alu_result > 0xFFFF || c.last_alu_result < 0 { 1 } else { 0 },
+        Some(v) if v < 0 => old_c as i32,
+        Some(v) => v,
+    };
+    if carry != 0 { psw |= 1 << 3; }
     // Overflow flag: signed overflow computed by the ADD/SUB/CMP sites in
     // exec_alu (spec Table 6); false everywhere else. Mirrors the JS core.
     if c.last_alu_overflow { psw |= 1 << 2; }
     c.psw = psw;
     c.last_op_alu = false;
     c.last_alu_overflow = false;
+    c.shift_carry_out = None;
 }
 
 fn exec_ldi(c: &mut Cpu, instr: u16) {
@@ -449,7 +465,7 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             let count = (opv & 0xF) as u32;
             let carry_out = if count > 0 { ((rdv >> (16 - count)) & 1) as u16 } else { 0 };
             result = ((rdv << count) & 0xFFFF) as i32;
-            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+            c.shift_carry_out = Some(if count > 0 { carry_out as i32 } else { -1 });
         }
         0b10001 => {
             let count = (opv & 0xF) as u32;
@@ -457,7 +473,7 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             let mut val = ((rdv << count) & 0x7FFF) as u16;
             if sign { val |= 0x8000; }
             result = val as i32;
-            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+            c.shift_carry_out = Some(if count > 0 { carry_out as i32 } else { -1 });
         }
         0b10010 => {
             let count = (opv & 0xF) as u32;
@@ -467,7 +483,7 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             if sign { val |= 0x8000; }
             if count > 0 { val |= (carry_in << (count - 1)) as u16; }
             result = val as i32;
-            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+            c.shift_carry_out = Some(if count > 0 { carry_out as i32 } else { -1 });
         }
         0b10011 => {
             let count = (opv & 0xF) as u32;
@@ -476,13 +492,13 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             let mut val = ((rdv << count) & 0xFFFF) as u16;
             if count > 0 { val |= (carry_in << (count - 1)) as u16; }
             result = val as i32;
-            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+            c.shift_carry_out = Some(if count > 0 { carry_out as i32 } else { -1 });
         }
         0b10100 => {
             let count = (opv & 0xF) as u32;
             let carry_out = if count > 0 { ((rdv >> (count - 1)) & 1) as u16 } else { 0 };
             result = (rdv >> count) as i32;
-            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+            c.shift_carry_out = Some(if count > 0 { carry_out as i32 } else { -1 });
         }
         0b10101 => {
             let count = (opv & 0xF) as u32;
@@ -490,14 +506,14 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             let carry_in = ((c.psw >> 3) & 1) as u16;
             let fill = if count > 0 { (carry_in as u32) << (15 - count) } else { 0 };
             result = ((rdv >> count) | fill) as i32;
-            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+            c.shift_carry_out = Some(if count > 0 { carry_out as i32 } else { -1 });
         }
         0b10110 => {
             let count = (opv & 0xF) as u32;
             let carry_out = if count > 0 { ((rdv >> (count - 1)) & 1) as u16 } else { 0 };
             let sign_mask = if sign { 0xFFFFu32 << (16 - count) } else { 0 };
             result = ((rdv >> count) | (sign_mask & 0xFFFF)) as i32;
-            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+            c.shift_carry_out = Some(if count > 0 { carry_out as i32 } else { -1 });
         }
         0b10111 => {
             let count = (opv & 0xF) as u32;
@@ -506,20 +522,26 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             let carry_in = ((c.psw >> 3) & 1) as u16;
             let fill = if count > 0 { (carry_in as u32) << (15 - count) } else { 0 };
             result = ((rdv >> count) | (sign_mask & 0xFFFF) | fill) as i32;
-            c.psw = (c.psw & !0x8) | ((carry_out as u16) << 3);
+            c.shift_carry_out = Some(if count > 0 { carry_out as i32 } else { -1 });
         }
         0b11000 => {
             let count = (opv & 0xF) as u32;
+            let carry_out = if count > 0 { ((rdv >> (16 - count)) & 1) as i32 } else { -1 };
+            c.shift_carry_out = Some(carry_out);
             result = (((rdv << count) | (rdv >> (16 - count))) & 0xFFFF) as i32;
         }
         0b11001 => {
             let count = (opv & 0xF) as u32;
+            let carry_out = if count > 0 { ((rdv >> (16 - count)) & 1) as i32 } else { -1 };
+            c.shift_carry_out = Some(carry_out);
             let carry_in = ((c.psw >> 3) & 1) as u16;
             let fill = if count > 0 { (carry_in as u32) << (count - 1) } else { 0 };
             result = (((rdv << count) | (rdv >> (16 - count)) | fill) & 0xFFFF) as i32;
         }
         0b11010 => {
             let count = (opv & 0xF) as u32;
+            let carry_out = if count > 0 { ((rdv >> (count - 1)) & 1) as i32 } else { -1 };
+            c.shift_carry_out = Some(carry_out);
             result = (((rdv >> count) | (rdv << (16 - count))) & 0xFFFF) as i32;
         }
         0b11011 => {
@@ -527,8 +549,8 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             let carry_in = ((c.psw >> 3) & 1) as u16;
             let fill = if count > 0 { (carry_in as u32) << (15 - count) } else { 0 };
             let new_carry = if count > 0 { ((rdv >> (count - 1)) & 1) as u16 } else { carry_in };
+            c.shift_carry_out = Some(if count > 0 { new_carry as i32 } else { -1 });
             result = (((rdv >> count) | (rdv << (16 - count)) | fill) & 0xFFFF) as i32;
-            c.psw = (c.psw & !0x8) | (new_carry << 3);
         }
         0b11100 => {
             // MUL: the write-back epilogue stores `result` via gp_write
@@ -793,6 +815,7 @@ fn step_one(c: &mut Cpu) -> bool {
         c.last_op_alu = false;
         c.last_alu_result = 0;
         c.last_alu_overflow = false;
+        c.shift_carry_out = None;
         let is_branch = exec_instruction(c, instr, original_pc);
         update_psw_flags(c);
         if c.branch_taken {
@@ -816,6 +839,7 @@ fn step_one(c: &mut Cpu) -> bool {
         c.last_op_alu = false;
         c.last_alu_result = 0;
         c.last_alu_overflow = false;
+        c.shift_carry_out = None;
         exec_sys(c, instr);
         update_psw_flags(c);
         return true;
@@ -825,6 +849,7 @@ fn step_one(c: &mut Cpu) -> bool {
     c.last_op_alu = false;
     c.last_alu_result = 0;
     c.last_alu_overflow = false;
+    c.shift_carry_out = None;
     let _is_branch = exec_instruction(c, instr, original_pc);
     update_psw_flags(c);
     true

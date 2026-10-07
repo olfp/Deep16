@@ -12,6 +12,7 @@ class Deep16Simulator {
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
         this.lastALUOverflow = false;
+        this.shiftCarryOut = null;
         
         // Delay slot implementation
         this.delaySlotActive = false;
@@ -76,6 +77,7 @@ class Deep16Simulator {
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
         this.lastALUOverflow = false;
+        this.shiftCarryOut = null;
         this.segmentRegisters = { CS: 0xFFFF, DS: 0x0000, SS: 0x0000, ES: 0x0000 };
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R3: 0, R13: 0, R14: 0 };
         
@@ -144,6 +146,7 @@ class Deep16Simulator {
             this.lastOperationWasALU = false;
             this.lastALUResult = 0;
             this.lastALUOverflow = false;
+            this.shiftCarryOut = null;
             this.executeInstruction(delayInstruction, activePC);
             this.updatePSWFlags();
             if (inShadow) { this.shadowRegisters.PC = (this.shadowRegisters.PC + 1) & 0xFFFF; } else { this.registers[15] = (this.registers[15] + 1) & 0xFFFF; }
@@ -181,6 +184,7 @@ class Deep16Simulator {
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
         this.lastALUOverflow = false;
+        this.shiftCarryOut = null;
 
         // Execute instruction and check if it's a branch/jump
         const isBranch = this.executeInstruction(instruction, originalPC);
@@ -487,14 +491,14 @@ class Deep16Simulator {
                 const count = opVal & 0xF;
                 const carryOut = (count > 0) ? ((rdValue >>> (16 - count)) & 0x1) : 0;
                 result = (rdValue << count) & 0xFFFF;
-                this.psw = (this.psw & ~0x8) | (carryOut << 3);
+                this.shiftCarryOut = count > 0 ? carryOut : -1;
                 break;
             }
             case 0b10001: {
                 const count = opVal & 0xF;
                 const carryOut = (count > 0) ? ((rdValue >>> (16 - count)) & 0x1) : 0;
                 result = ((rdValue << count) & 0x7FFF) | (sign ? 0x8000 : 0);
-                this.psw = (this.psw & ~0x8) | (carryOut << 3);
+                this.shiftCarryOut = count > 0 ? carryOut : -1;
                 break;
             }
             case 0b10010: {
@@ -502,7 +506,7 @@ class Deep16Simulator {
                 const carryOut = (count > 0) ? ((rdValue >>> (16 - count)) & 0x1) : 0;
                 const carryFill = count > 0 ? (cbit << (count - 1)) : 0;
                 result = ((rdValue << count) & 0x7FFF) | (sign ? 0x8000 : 0) | carryFill;
-                this.psw = (this.psw & ~0x8) | (carryOut << 3);
+                this.shiftCarryOut = count > 0 ? carryOut : -1;
                 break;
             }
             case 0b10011: {
@@ -510,14 +514,14 @@ class Deep16Simulator {
                 const carryOut = (count > 0) ? ((rdValue >>> (16 - count)) & 0x1) : 0;
                 const carryFill = count > 0 ? (cbit << (count - 1)) : 0;
                 result = ((rdValue << count) & 0xFFFF) | carryFill;
-                this.psw = (this.psw & ~0x8) | (carryOut << 3);
+                this.shiftCarryOut = count > 0 ? carryOut : -1;
                 break;
             }
             case 0b10100: {
                 const count = opVal & 0xF;
                 const carryOut = (count > 0) ? ((rdValue >>> (count - 1)) & 0x1) : 0;
                 result = rdValue >>> count;
-                this.psw = (this.psw & ~0x8) | (carryOut << 3);
+                this.shiftCarryOut = count > 0 ? carryOut : -1;
                 break;
             }
             case 0b10101: {
@@ -525,7 +529,7 @@ class Deep16Simulator {
                 const carryOut = (count > 0) ? ((rdValue >>> (count - 1)) & 0x1) : 0;
                 const carryFill = count > 0 ? (cbit << (15 - count)) : 0;
                 result = (rdValue >>> count) | carryFill;
-                this.psw = (this.psw & ~0x8) | (carryOut << 3);
+                this.shiftCarryOut = count > 0 ? carryOut : -1;
                 break;
             }
             case 0b10110: {
@@ -533,7 +537,7 @@ class Deep16Simulator {
                 const carryOut = (count > 0) ? ((rdValue >>> (count - 1)) & 0x1) : 0;
                 const signMask = sign ? 0xFFFF << (16 - count) : 0;
                 result = (rdValue >>> count) | (signMask & 0xFFFF);
-                this.psw = (this.psw & ~0x8) | (carryOut << 3);
+                this.shiftCarryOut = count > 0 ? carryOut : -1;
                 break;
             }
             case 0b10111: {
@@ -542,22 +546,28 @@ class Deep16Simulator {
                 const signMask = sign ? 0xFFFF << (16 - count) : 0;
                 const carryFill = count > 0 ? (cbit << (15 - count)) : 0;
                 result = (rdValue >>> count) | (signMask & 0xFFFF) | carryFill;
-                this.psw = (this.psw & ~0x8) | (carryOut << 3);
+                this.shiftCarryOut = count > 0 ? carryOut : -1;
                 break;
             }
             case 0b11000: {
                 const count = opVal & 0xF;
+                const carryOut = (count > 0) ? ((rdValue >>> (16 - count)) & 0x1) : 0;
+                this.shiftCarryOut = count > 0 ? carryOut : -1;
                 result = ((rdValue << count) | (rdValue >>> (16 - count))) & 0xFFFF;
                 break;
             }
             case 0b11001: {
                 const count = opVal & 0xF;
+                const carryOut = (count > 0) ? ((rdValue >>> (16 - count)) & 0x1) : 0;
+                this.shiftCarryOut = count > 0 ? carryOut : -1;
                 const carryFill = count > 0 ? (cbit << (count - 1)) : 0;
                 result = ((rdValue << count) | (rdValue >>> (16 - count)) | carryFill) & 0xFFFF;
                 break;
             }
             case 0b11010: {
                 const count = opVal & 0xF;
+                const carryOut = (count > 0) ? ((rdValue >>> (count - 1)) & 0x1) : 0;
+                this.shiftCarryOut = count > 0 ? carryOut : -1;
                 result = ((rdValue >>> count) | (rdValue << (16 - count))) & 0xFFFF;
                 break;
             }
@@ -566,7 +576,7 @@ class Deep16Simulator {
                 const carryFill = count > 0 ? (cbit << (15 - count)) : 0;
                 result = ((rdValue >>> count) | (rdValue << (16 - count)) | carryFill) & 0xFFFF;
                 const newCarry = count > 0 ? ((rdValue >>> (count - 1)) & 0x1) : cbit;
-                this.psw = (this.psw & ~0x8) | (newCarry << 3);
+                this.shiftCarryOut = count > 0 ? newCarry : -1;
                 break;
             }
             case 0b11100: {
@@ -1058,6 +1068,7 @@ class Deep16Simulator {
     updatePSWFlags() {
         if (!this.lastOperationWasALU) return;
         
+        const oldC = (this.psw >>> 3) & 0x1; // read before the nibble is cleared
         this.psw &= 0xFFF0; // Clear standard flags (keep system bits)
         
         if (this.lastALUResult !== undefined) {
@@ -1069,10 +1080,16 @@ class Deep16Simulator {
             // Negative flag (sign bit)
             if (result & 0x8000) this.psw |= (1 << 0);
             
-            // Carry flag (unsigned overflow)
-            if (this.lastALUResult > 0xFFFF || this.lastALUResult < 0) {
-                this.psw |= (1 << 3);
+            // Carry flag: a shift/rotate writes the bit it shifted out
+            // (spec Table 7) and keeps C unchanged when count is 0; every
+            // other instruction uses the unsigned-overflow heuristic.
+            let carry;
+            if (this.shiftCarryOut === null) {
+                carry = (this.lastALUResult > 0xFFFF || this.lastALUResult < 0) ? 1 : 0;
+            } else {
+                carry = this.shiftCarryOut < 0 ? oldC : this.shiftCarryOut;
             }
+            if (carry) this.psw |= (1 << 3);
             
             // Overflow flag (signed overflow): computed by the ADD/SUB/CMP
             // sites in executeALUOp; false everywhere else (spec Table 6).
@@ -1083,6 +1100,7 @@ class Deep16Simulator {
         
         this.lastOperationWasALU = false;
         this.lastALUOverflow = false;
+        this.shiftCarryOut = null;
         // console.log(`PSW updated: 0x${this.psw.toString(16).padStart(4, '0')} (N=${!!(this.psw & 1)}, Z=${!!(this.psw & 2)}, V=${!!(this.psw & 4)}, C=${!!(this.psw & 8)})`);
     }
 

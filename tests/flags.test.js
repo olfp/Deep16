@@ -3,10 +3,12 @@
 // match the spec. The PSW is preset to 0x000F (all four status flags set) so
 // every case shows which bits an instruction sets, clears or preserves.
 //
-// This locks in two fixes:
+// This locks in three fixes:
 //  - the JS core set V on any carry/borrow instead of on signed overflow only
-//    (its "simplified" heuristic could never see a real overflow either), and
-//  - the WASM core did not update the flags for LSI at all.
+//    (its "simplified" heuristic could never see a real overflow either),
+//  - the WASM core did not update the flags for LSI at all, and
+//  - both cores lost the shift/rotate carry-out (spec Table 7): the op wrote
+//    it into the PSW, where updatePSWFlags wiped it again.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assemble, loadBrowserScripts, buildMemory, loadWasm, rawProgram, enc, MEM_WORDS } from './helpers.js';
@@ -54,15 +56,27 @@ const CASES = [
   // destination registers, so this word is injected raw - as a user could in
   // the memory panel.
   ['MUL32 misaligned Rd', enc.MUL32(1, 2), 0x0100, 0x0100, N | C],
-  // Shifts/rotates and the remaining ALU ops: no expected value, because
-  // spec Table 7 wants C = bit shifted out but both cores currently lose that
-  // bit in updatePSWFlags (a shared gap, not a divergence). These rows only
-  // assert that the cores stay in step.
-  ['SL carry out',        'SL R1, 1', 0xC001, 0, null],
-  ['SL no carry',         'SL R1, 1', 0x1234, 0, null],
-  ['SR carry out',        'SR R1, 1', 0x0003, 0, null],
-  ['ROL carry out',       'ROL R1, 1', 0x8001, 0, null],
-  ['ROR carry out',       'ROR R1, 1', 0x0003, 0, null],
+  // Shifts/rotates: spec Table 7 - C = the bit shifted out (left ops: original
+  // bit 16-count, right ops: original bit count-1), and C stays unchanged when
+  // count is 0. The cores used to write that carry into the PSW inside the op,
+  // where updatePSWFlags wiped it again - so C was always 0 after a shift.
+  ['SL carry out',        'SL R1, 1', 0x8000, 0, Z | C],
+  ['SL carry clear',      'SL R1, 1', 0x1234, 0, 0],
+  ['SLA carry out',       'SLA R1, 2', 0x4001, 0, C],
+  ['SLAC carry out',      'SLAC R1, 2', 0x4001, 0, C],
+  ['SLC carry out',       'SLC R1, 1', 0x8000, 0, C],
+  ['SR carry out',        'SR R1, 1', 0x0001, 0, Z | C],
+  ['SRC carry out',       'SRC R1, 1', 0x0001, 0, C],
+  ['SRA carry out',       'SRA R1, 1', 0x0001, 0, Z | C],
+  ['SRAC carry out',      'SRAC R1, 1', 0x0001, 0, C],
+  ['ROL carry out',       'ROL R1, 1', 0x8001, 0, C],
+  ['RLC carry out',       'RLC R1, 1', 0x8001, 0, C],
+  ['ROR carry out',       'ROR R1, 1', 0x0001, 0, N | C],
+  ['RRC carry out',       'RRC R1, 1', 0x0001, 0, N | C],
+  ['SL count 0 keeps C',  'SL R1, 0', 0xC001, 0, N | C],
+  ['RRC count 0 keeps C', 'RRC R1, 0', 0x0001, 0, C],
+  // The remaining ALU ops keep an equality-only row: the spec is silent on
+  // their flag details, so only the agreement of the cores is asserted.
   ['NEG',                 'NEG R1', 0x0001, 0, null],
   ['NEG overflow value',  'NEG R1', 0x8000, 0, null],
   ['INV',                 'INV R1', 0x00FF, 0, null],
