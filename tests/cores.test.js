@@ -202,3 +202,39 @@ test('MUL32 with an even destination works at every aligned pair', async () => {
     assert.equal(wasm.registers[rd + 1], 0x00FE, `WASM low word for R${rd + 1}`);
   }
 });
+
+// Spec 6.2.1: LINK must save the instruction AFTER the branch delay slot as
+// the return address. Both cores used to save the slot address itself, so the
+// delay-slot instruction executed a second time when the subroutine returned -
+// invisible for the shipped NOP slots, wrong for real code.
+//   0x0000 LDI link_sub / 0x0001 MOV R4 / 0x0002 LINK / 0x0003 JMP R4 /
+//   0x0004 ADD (delay slot) / 0x0005 HALT (zurueck) /
+//   0x0006 JMP LR (link_sub) / 0x0007 NOP
+const LINK_PROGRAM = `
+.org 0x0000
+        LDI  link_sub
+        MOV  R4, R0
+        LINK
+        JMP  R4
+        ADD  R6, 1          ; delay slot: useful work, must run exactly once
+zurueck:
+        HALT
+link_sub:
+        JMP  LR
+        NOP
+`;
+
+test('LINK points LR past the delay slot (spec 6.2.1)', async () => {
+  const res = assemble(LINK_PROGRAM);
+  assert.equal(res.success, true, res.errors.join('; '));
+  const js = runJs(res, { cs: 0x0000 });
+  assert.equal(js.registers[14], 0x0005,
+    `JS: LR = 0x${js.registers[14].toString(16)}, expected 0x0005 (zurueck)`);
+  assert.equal(js.registers[6], 1,
+    `JS: delay slot executed ${js.registers[6]}x, expected 1`);
+  const wasm = await runWasm(res, { cs: 0x0000 });
+  assert.equal(wasm.registers[14], 0x0005,
+    `WASM: LR = 0x${wasm.registers[14].toString(16)}, expected 0x0005 (zurueck)`);
+  assert.equal(wasm.registers[6], 1,
+    `WASM: delay slot executed ${wasm.registers[6]}x, expected 1`);
+});

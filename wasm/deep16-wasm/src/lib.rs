@@ -608,8 +608,12 @@ fn exec_mov(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
     let value: u16 = if imm2 == 0 {
         gp_read(c, rs)
     } else if rs == 15 && imm2 == 2 {
-        // Standard link (LNK): PC architectural read before jump
-        original_pc.wrapping_add(2)
+        // LNK/LINK (spec 6.2.1): the return address is the instruction after
+        // the branch delay slot. Visible PC = own address + 1, so PC + 2 lands
+        // on own + 3. The old own + 2 returned into the delay slot, which then
+        // executed a second time on return (spec: "actual return address
+        // should be PC + 2 (after delay slot)").
+        original_pc.wrapping_add(3)
     } else if rs == 15 && imm2 == 3 {
         // Architectural link in delay slot (ALNK): next instruction after delay slot
         original_pc.wrapping_add(1)

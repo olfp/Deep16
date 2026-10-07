@@ -642,8 +642,14 @@ class Deep16Simulator {
         if (imm === 0) {
             value = this.readGPR(rs);
         } else if (rs === 15 && imm === 2) {
-            // Standard link: use original PC context
-            value = (this.lastOriginalPCForExec + 2) & 0xFFFF;
+            // LNK/LINK (spec 6.2.1): the return address is the instruction
+            // AFTER the branch delay slot. The visible PC during execution is
+            // own address + 1, so PC + 2 lands on own + 3. The old own + 2
+            // pointed into the delay slot, which then executed a second time
+            // when the subroutine returned (harmless for NOP slots, wrong for
+            // useful ones - and contrary to the spec's "actual return address
+            // should be PC + 2 (after delay slot)").
+            value = (this.lastOriginalPCForExec + 3) & 0xFFFF;
         } else if (rs === 15 && imm === 3) {
             value = (this.lastOriginalPCForExec + 1) & 0xFFFF;
         } else if (imm === 3) {
