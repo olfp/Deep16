@@ -214,3 +214,57 @@ test('the Forth kernel greets on the WASM core and stays in its REPL loop', asyn
   // it keeps stepping: every step must have executed.
   assert.equal(wasm.steps, 200000, 'the kernel must still be running inside its REPL loop');
 });
+
+// ------------------------------------------------- WASM keyboard port
+
+function screenText(memoryAt, addr, count) {
+  let out = '';
+  for (const c of memoryAt(addr, count)) {
+    const ch = c & 0xFF;
+    if (ch === 0) break;
+    if (ch === 0xFF) out += '\u00ff'; // invisible/invalid glyph marker
+    else out += String.fromCharCode(ch);
+  }
+  return out;
+}
+
+test('WASM: Forth REPL waits on an empty keyboard instead of echoing phantom keys', async () => {
+  // Regression: the WASM core had no keyboard port, so KBD_STATUS (0xF0060)
+  // read raw memory (0xFFFF). The REPL's BIOS getstr saw an "always ready"
+  // keyboard, consumed a stream of 0xFF keys and filled the screen with
+  // invisible characters, then swallowed every real keystroke.
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+  const wasm = await runWasm(res, { maxSteps: 150000 });
+  assert.equal(wasm.steps, 150000, 'REPL must keep stepping while no key is pending');
+  const screen = screenText(wasm.memoryAt, SCREEN_ADDR, 240);
+  assert.match(screen, /Hello DeepForth!/);
+  assert.ok(!screen.includes('\u00ff'), 'no phantom 0xFF characters on the screen');
+  assert.equal(wasm.psw & 0x0020, 0x0020, 'REPL is parked inside the BIOS SWI handler (S=1)');
+});
+
+test('WASM: Forth REPL evaluates typed input exactly like the JS core', async () => {
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+  const line = '1 2 + .\n'; // Enter maps to LF 10, same as the UI bridge
+
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0x8000; sim.segmentRegisters.ES = 0x2000;
+  for (const ch of line) sim.enqueueKeyCode(ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+  const jsOut = screenText((a, n) => sim.memory.slice(a, a + n), SCREEN_ADDR, 480);
+
+  const wasm = await runWasm(res, { maxSteps: 600000, keys: [...line].map((ch) => ch.charCodeAt(0)) });
+  const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 480);
+
+  assert.match(jsOut, /1 2 \+ \. 3  ok/);
+  assert.equal(wasmOut, jsOut, 'WASM REPL must evaluate the line identically to the JS core');
+  assert.equal(wasm.steps, 600000, 'the REPL must stay alive after evaluating the line');
+});

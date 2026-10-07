@@ -1,5 +1,10 @@
 use wasm_bindgen::prelude::*;
 
+// Memory-mapped keyboard controller (parity with the JS core): polled I/O only.
+// KBD_STATUS reads 1 while a key is pending, KBD_DATA pops the waiting key.
+const KBD_STATUS_ADDR: usize = 0xF0060;
+const KBD_DATA_ADDR: usize = 0xF0062;
+
 struct Cpu {
     mem: Vec<u16>,
     reg: [u16; 16],
@@ -28,6 +33,8 @@ struct Cpu {
     branch_taken: bool,
     last_alu_result: i32,
     last_op_alu: bool,
+    kbd: Vec<u16>,
+    kbd_last: u16,
     recent_addr: usize,
     recent_base: u16,
     recent_offset: u16,
@@ -74,6 +81,8 @@ impl Cpu {
             branch_taken: false,
             last_alu_result: 0,
             last_op_alu: false,
+            kbd: Vec::new(),
+            kbd_last: 0,
             recent_addr: 0,
             recent_base: 0,
             recent_offset: 0,
@@ -115,6 +124,8 @@ impl Cpu {
         self.branch_taken = false;
         self.last_alu_result = 0;
         self.last_op_alu = false;
+        self.kbd.clear();
+        self.kbd_last = 0;
         self.recent_addr = 0;
         self.recent_base = 0;
         self.recent_offset = 0;
@@ -860,8 +871,19 @@ fn exec_lds_sts(c: &mut Cpu, instr: u16) {
     let pa = phys(segv, base);
     if pa >= c.mem.len() { return; }
     if d == 0 {
-        let v = c.mem[pa];
-        gp_write(c, rd, v);
+        // Polled keyboard controller (parity with the JS core): STATUS is 1
+        // while a key is pending, DATA pops the next key. Anything else is a
+        // plain memory load through the active-bank view.
+        if pa == KBD_STATUS_ADDR {
+            gp_write(c, rd, if c.kbd.is_empty() { 0 } else { 1 });
+        } else if pa == KBD_DATA_ADDR {
+            let data = if c.kbd.is_empty() { 0 } else { c.kbd.remove(0) & 0xFFFF };
+            c.kbd_last = data;
+            gp_write(c, rd, data);
+        } else {
+            let v = c.mem[pa];
+            gp_write(c, rd, v);
+        }
     } else {
         let v = gp_read(c, rd);
         c.mem[pa] = v;
@@ -879,6 +901,25 @@ pub fn step() -> bool {
     unsafe {
         let c = cpu_mut();
         step_one(c)
+    }
+}
+
+/// Push one key code into the polled keyboard buffer (parity with the JS
+/// core's `simulator.enqueueKeyCode`). Called from the IDE for every
+/// keystroke while the WASM core is selected.
+#[wasm_bindgen]
+pub fn kbd_push(code: u16) {
+    unsafe {
+        cpu_mut().kbd.push(code & 0xFFFF);
+    }
+}
+
+#[wasm_bindgen]
+pub fn kbd_clear() {
+    unsafe {
+        let c = cpu_mut();
+        c.kbd.clear();
+        c.kbd_last = 0;
     }
 }
 

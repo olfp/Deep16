@@ -66,7 +66,16 @@ class DeepWebUI {
             if (this.screenUI && typeof this.screenUI.setActive === 'function') {
                 this.screenUI.setActive(true);
             }
-            this.simulator.enqueueKeyEvent(e);
+            const code = this.keyEventToCode(e);
+            if (code) {
+                this.simulator.enqueueKeyCode(code);
+                // WASM core has its own polled keyboard buffer: mirror every
+                // keystroke into it while the WASM core is selected.
+                if (this.useWasm && this.wasmAvailable && this.wasmInitialized &&
+                    window.Deep16Wasm && typeof window.Deep16Wasm.kbd_push === 'function') {
+                    window.Deep16Wasm.kbd_push(code);
+                }
+            }
         });
 
         // Mark screen as active when clicked; clear when focusing inputs
@@ -1431,6 +1440,16 @@ class DeepWebUI {
         } else {
             this.jsRun();
         }
+    }
+
+    // Translate a browser key event into the ASCII-style key code the
+    // simulator/BIOS expect (parity with Deep16Simulator.enqueueKeyEvent).
+    keyEventToCode(e) {
+        if (e.key === 'Enter') return 10;
+        if (e.key === 'Backspace') return 8;
+        if (e.key === 'Tab') return 9;
+        if (e.key.length === 1) return e.key.charCodeAt(0);
+        return 0;
     }
 
     workerRun() {

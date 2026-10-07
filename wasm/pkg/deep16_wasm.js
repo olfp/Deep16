@@ -49,6 +49,20 @@ export function load_program(ptr, data) {
 }
 
 /**
+ * Push one key code into the polled keyboard buffer (parity with the JS
+ * core's `simulator.enqueueKeyCode`). Called from the IDE for every
+ * keystroke while the WASM core is selected.
+ * @param {number} code
+ */
+export function kbd_push(code) {
+    wasm.kbd_push(code);
+}
+
+export function kbd_clear() {
+    wasm.kbd_clear();
+}
+
+/**
  * @param {number} n
  * @returns {boolean}
  */

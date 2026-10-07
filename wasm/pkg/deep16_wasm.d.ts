@@ -4,6 +4,13 @@ export function init(mem_words: number): void;
 export function reset(): void;
 export function set_segments(cs: number, ds: number, ss: number, es: number): void;
 export function load_program(ptr: number, data: Uint16Array): void;
+/**
+ * Push one key code into the polled keyboard buffer (parity with the JS
+ * core's `simulator.enqueueKeyCode`). Called from the IDE for every
+ * keystroke while the WASM core is selected.
+ */
+export function kbd_push(code: number): void;
+export function kbd_clear(): void;
 export function run_steps(n: number): boolean;
 export function get_recent_access(): Uint32Array;
 export function get_last_event(): Uint16Array;
@@ -41,6 +48,8 @@ export interface InitOutput {
   readonly get_segments: () => [number, number];
   readonly get_shadow_state: () => [number, number];
   readonly init: (a: number) => void;
+  readonly kbd_clear: () => void;
+  readonly kbd_push: (a: number) => void;
   readonly load_program: (a: number, b: number, c: number) => void;
   readonly reset: () => void;
   readonly run_steps: (a: number) => number;
