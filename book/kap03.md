@@ -33,45 +33,7 @@ also das Wort bei `R2 + 3` — im von §2.3 geschnürten Befehl die Zelle
 dasselbe Ergebnis mit `LD R1, [R2+3]`; beide Formen sind messbar identisch
 und im Simulator frei austauschbar.
 
-
-```mermaid
-block-beta
-  columns 5
-  classDef op fill:#e5e7eb,stroke:#374151
-  classDef reg fill:#dbeafe,stroke:#1d4ed8
-  classDef imm fill:#fef3c7,stroke:#b45309
-  classDef off fill:#dcfce7,stroke:#15803d
-  classDef seg fill:#ede9fe,stroke:#6d28d9
-  classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["11110"]:1
-  b1["0"]:1
-  b2["Segment<br/>2"]:1
-  b3["Rd<br/>4"]:1
-  b4["Rb<br/>4"]:1
-  class b0 b1 op
-  class b2 seg
-  class b3 b4 reg
-```
-
-```mermaid
-block-beta
-  columns 5
-  classDef op fill:#e5e7eb,stroke:#374151
-  classDef reg fill:#dbeafe,stroke:#1d4ed8
-  classDef imm fill:#fef3c7,stroke:#b45309
-  classDef off fill:#dcfce7,stroke:#15803d
-  classDef seg fill:#ede9fe,stroke:#6d28d9
-  classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["11110"]:1
-  b1["1"]:1
-  b2["Segment<br/>2"]:1
-  b3["Rd<br/>4"]:1
-  b4["Rb<br/>4"]:1
-  class b0 b1 op
-  class b2 seg
-  class b3 b4 reg
-```
-
+**`LD Rd, Rb, offset` — Laden: Wort aus dem Speicher holen**
 
 ```mermaid
 block-beta
@@ -92,6 +54,9 @@ block-beta
   class b4 off
 ```
 
+
+**`ST Rd, Rb, offset` — Speichern: Wort in den Speicher legen**
+
 ```mermaid
 block-beta
   columns 5
@@ -109,6 +74,50 @@ block-beta
   class b0 b1 op
   class b2 b3 reg
   class b4 off
+```
+
+
+**`LDS Rd, seg, Rb` — Laden mit explizitem Segment**
+
+```mermaid
+block-beta
+  columns 5
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["11110"]:1
+  b1["0"]:1
+  b2["Segment<br/>2"]:1
+  b3["Rd<br/>4"]:1
+  b4["Rb<br/>4"]:1
+  class b0 b1 op
+  class b2 seg
+  class b3 b4 reg
+```
+
+
+**`STS Rd, seg, Rb` — Speichern mit explizitem Segment**
+
+```mermaid
+block-beta
+  columns 5
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["11110"]:1
+  b1["1"]:1
+  b2["Segment<br/>2"]:1
+  b3["Rd<br/>4"]:1
+  b4["Rb<br/>4"]:1
+  class b0 b1 op
+  class b2 seg
+  class b3 b4 reg
 ```
 
 `LD` und `ST` sind die Segment-Auswahl über das Basisregister
@@ -184,6 +193,8 @@ Regel kurz und schnörkellos, sie gilt für den Rest des Kapitels:
         HALT
 ```
 
+**`ADD Rd, Rs` — Addieren (Registerform)**
+
 ```mermaid
 block-beta
   columns 4
@@ -200,6 +211,8 @@ block-beta
   class b0 b1 op
   class b2 b3 reg
 ```
+
+**`ADD Rd, imm` — Addieren mit Immediate 0–15**
 
 ```mermaid
 block-beta
@@ -280,6 +293,7 @@ ist `Z|C` — beide Fälle, beide ehrlich.
 größte Falle für Umsteiger. Rechnest du `0 − 1`, borgt sich die CPU ein Bit
 von oben:
 
+**`SUB Rd, Rs` — Subtrahieren (Registerform)**
 
 ```mermaid
 block-beta
@@ -297,6 +311,8 @@ block-beta
   class b0 b1 op
   class b2 b3 reg
 ```
+
+**`SUB Rd, imm` — Subtrahieren mit Immediate 0–15**
 
 ```mermaid
 block-beta
@@ -342,6 +358,7 @@ Das ist der Unterschied zu `SUB` — und die Grundlage für saubere
 Verzweigungen: Nach `CMP Ra, Rb` gilt `C = 1` genau dann, wenn `Ra < Rb`
 ist, weil dann ein Borrow fällig war; `C = 0` heißt `Ra ≥ Rb`.
 
+**`CMP Rd, Rs` — Vergleichen, ohne zu schreiben (Registerform)**
 
 ```mermaid
 block-beta
@@ -359,6 +376,8 @@ block-beta
   class b0 b1 op
   class b2 b3 reg
 ```
+
+**`CMP Rd, imm` — Vergleichen mit Immediate 0–15**
 
 ```mermaid
 block-beta
@@ -406,6 +425,7 @@ weil `CMP` nicht schreibt, stehen `R1 = 200` und `R2 = 7` am Ende unberührt
 da. Die `NOP`s nach den Sprüngen sind der Delay Slot aus §1.3: Er läuft
 immer, den Zweig betreten die Sprünge erst eine Zeile später.
 
+**`JNZ target` — Sprung bei Z = 0 (ungleich Null)**
 
 ```mermaid
 block-beta
@@ -422,6 +442,8 @@ block-beta
   class b0 b1 op
   class b2 off
 ```
+
+**`JNC target` — Sprung bei C = 0 (kein Carry)**
 
 ```mermaid
 block-beta
@@ -471,6 +493,7 @@ Der Nachsatz ist der wichtige Teil: Vor dem letzten `AND` werden `V` und `C`
 von Hand gesetzt (`SETV`, `SETC`), und das `AND` **löscht beide** — `LPSW
 R4` liest die Null (`0x0000`).
 
+**`AND Rd, Rs` — UND-Verknüpfung (Registerform)**
 
 ```mermaid
 block-beta
@@ -489,6 +512,8 @@ block-beta
   class b2 b3 reg
 ```
 
+**`OR Rd, Rs` — ODER-Verknüpfung (Registerform)**
+
 ```mermaid
 block-beta
   columns 4
@@ -505,6 +530,8 @@ block-beta
   class b0 b1 op
   class b2 b3 reg
 ```
+
+**`OR Rd, imm` — Bit setzen (Bit-Nummer 0–15)**
 
 ```mermaid
 block-beta
@@ -524,6 +551,8 @@ block-beta
   class b3 imm
 ```
 
+**`XOR Rd, Rs` — XOR-Verknüpfung (Registerform)**
+
 ```mermaid
 block-beta
   columns 4
@@ -540,6 +569,8 @@ block-beta
   class b0 b1 op
   class b2 b3 reg
 ```
+
+**`XOR Rd, imm` — Bit kippen (Bit-Nummer 0–15)**
 
 ```mermaid
 block-beta
@@ -558,6 +589,8 @@ block-beta
   class b2 reg
   class b3 imm
 ```
+
+**`CLRB Rd, imm` — Bit löschen (Bit-Nummer 0–15)**
 
 ```mermaid
 block-beta
@@ -598,6 +631,7 @@ Die Merkregel sitzt im Namen, wenn man `JNZ` als „ja“ liest: `TBS` fragt
 **B**it-**S**etzt → `JNZ` bei gesetzt, `TBC` fragt **B**it-**C**lear →
 `JNZ` bei gelöscht. Beide sind gemessen; `R1` bleibt dabei unangetastet.
 
+**`TBS Rd, Rs` — Bit abfragen: gesetzt? (Flags, kein Ergebnis)**
 
 ```mermaid
 block-beta
@@ -615,6 +649,8 @@ block-beta
   class b0 b1 op
   class b2 b3 reg
 ```
+
+**`TBC Rd, Rs` — Bit abfragen: gelöscht? (Flags, kein Ergebnis)**
 
 ```mermaid
 block-beta
@@ -670,6 +706,7 @@ nimmt den Zweig. Und ein Sonderfall der Messung: Bei Zählwert 0 schiebt
 nichts, das Carry bleibt stehen — nach `SETC` liefert ein `SL R1, 0`
 messbar `0x0008` als PSW.
 
+**`SL Rd, cnt` — Logisch links schieben (0–15 Stellen)**
 
 ```mermaid
 block-beta
@@ -688,6 +725,8 @@ block-beta
   class b2 reg
   class b3 off
 ```
+
+**`ROL Rd, cnt` — Links rotieren durch das Carry**
 
 ```mermaid
 block-beta
@@ -751,6 +790,7 @@ Quotient landet in `R6`, Rest in `R7`. Die Probe `0x123456 : 37` ergibt
 liefert nur den Quotienten; ein Divisor 0 mündet messbar in `0xFFFF` — ein
 Wert, an dem du den Fehler erkennst.
 
+**`MUL Rd, Rs` — Multiplizieren: unteres 16-Bit-Produkt**
 
 ```mermaid
 block-beta
@@ -769,6 +809,8 @@ block-beta
   class b2 b3 reg
 ```
 
+**`MUL32 Rd, Rs` — Multiplizieren: 32-Bit-Produkt in Rd:Rd+1**
+
 ```mermaid
 block-beta
   columns 4
@@ -786,6 +828,8 @@ block-beta
   class b2 b3 reg
 ```
 
+**`DIV Rd, Rs` — Dividieren: Quotient nach Rd**
+
 ```mermaid
 block-beta
   columns 4
@@ -802,6 +846,8 @@ block-beta
   class b0 b1 op
   class b2 b3 reg
 ```
+
+**`DIV32 Rd, Rs` — Dividieren: Quotient nach Rd, Rest nach Rd+1**
 
 ```mermaid
 block-beta
@@ -859,6 +905,7 @@ ALU-Gruppe — `V`/`C`. Und für den Alltagsfall gilt: Willst du das
 Vorzeichen eines Wertes umdrehen, ist `NEG` der direkte Weg — jeder
 16-Bit-Wert ist erlaubt, ohne Umweg über die `LDI`-Grenze.
 
+**`NEG Rx` — Negieren (Zweierkomplement)**
 
 ```mermaid
 block-beta
@@ -875,6 +922,8 @@ block-beta
   class b0 b1 op
   class b2 reg
 ```
+
+**`INV Rx` — Invertieren (alle Bits kippen)**
 
 ```mermaid
 block-beta
@@ -898,6 +947,7 @@ sein Register ins PSW (Listing 2-1 stellte so den Stack-Zeiger ein). Sie
 gehören zur selben Familie und sind die vorhersehbarsten Befehle des
 Befehlssatzes.
 
+**`LPSW Rd` — Statuswort lesen: PSW → Register**
 
 ```mermaid
 block-beta
@@ -914,6 +964,8 @@ block-beta
   class b0 b1 op
   class b2 reg
 ```
+
+**`SPSW Rd` — Statuswort schreiben: Register → PSW**
 
 ```mermaid
 block-beta
@@ -937,6 +989,7 @@ Hinter `SET` und `CLR` verbirgt sich ein Befehl mit 16 Operanden: Im Wort
 steht die Bit-Nummer und das Kommando setzen oder löschen. Die vier unteren
 Bits steuern die Flags, die Aliase sparen Schreibarbeit:
 
+**`SET imm` — Flag-Bit setzen (Nummer 0–15)**
 
 ```mermaid
 block-beta
@@ -953,6 +1006,8 @@ block-beta
   class b0 b1 op
   class b2 imm
 ```
+
+**`CLR imm` — Flag-Bit löschen (Nummer 0–15)**
 
 ```mermaid
 block-beta
