@@ -3,12 +3,15 @@
 // match the spec. The PSW is preset to 0x000F (all four status flags set) so
 // every case shows which bits an instruction sets, clears or preserves.
 //
-// This locks in three fixes:
+// This locks in four fixes:
 //  - the JS core set V on any carry/borrow instead of on signed overflow only
 //    (its "simplified" heuristic could never see a real overflow either),
 //  - the WASM core did not update the flags for LSI at all, and
 //  - both cores lost the shift/rotate carry-out (spec Table 7): the op wrote
 //    it into the PSW, where updatePSWFlags wiped it again.
+//  - the assembler encoded the SET/CLR flag aliases (SETZ, CLRC, ...) into the
+//    SOP range (0xFFA0/0xFFB0), where both cores decode INV/NEG/SPSW/LPSW -
+//    SETZ assembled to SPSW R1 and clobbered the whole PSW (spec Table 4).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assemble, loadBrowserScripts, buildMemory, loadWasm, rawProgram, enc, MEM_WORDS } from './helpers.js';
@@ -51,6 +54,19 @@ const CASES = [
   ['CLRB bit 0',          'CLRB R1, 0', 0x8001, 0, N],
   ['TBC operand R0 clear', 'TBC R1, 0', 0x8001, 0, Z],
   ['TBS operand R0 clear', 'TBS R1, 0', 0x8001, 0, 0],
+  // PSW bit operations (spec Table 4): [11111111110][d1][imm4]. The old
+  // alias encoding (0xFFA0/0xFFB0) decoded as SPSW/LPSW instead - SET rows
+  // preset the PSW to 0, because 0x000F already has all four flags set.
+  ['CLRZ clears Z',       'CLRZ', 0, 0, N | V | C],
+  ['CLRN clears N',       'CLRN', 0, 0, Z | V | C],
+  ['CLRV clears V',       'CLRV', 0, 0, N | Z | C],
+  ['CLRC clears C',       'CLRC', 0, 0, N | Z | V],
+  ['CLR 1 equals CLRZ',   'CLR 1', 0, 0, N | V | C],
+  ['SETZ sets Z',         'SETZ', 0, 0, Z, 0],
+  ['SETN sets N',         'SETN', 0, 0, N, 0],
+  ['SETV sets V',         'SETV', 0, 0, V, 0],
+  ['SETC sets C',         'SETC', 0, 0, C, 0],
+  ['SET 1 equals SETZ',   'SET 1', 0, 0, Z, 0],
   // Misaligned MUL32: shared error-path flags of both cores (N from 0xFFFF,
   // C from the -1/0xFFFFFFFF result, V clear). The assembler refuses odd
   // destination registers, so this word is injected raw - as a user could in
@@ -92,7 +108,7 @@ function buildProgram(asm) {
   return prog;
 }
 
-function runJs(asm, r1, r2) {
+function runJs(asm, r1, r2, preset) {
   const prog = buildProgram(asm);
   const sim = new globalThis.Deep16Simulator();
   sim.loadProgram(buildMemory(prog));
@@ -100,29 +116,29 @@ function runJs(asm, r1, r2) {
   sim.registers.fill(0);
   sim.registers[1] = r1;
   sim.registers[2] = r2;
-  sim.psw = PRESET_PSW;
+  sim.psw = preset;
   sim.running = true;
   sim.step();
   return sim.psw & 0xFFFF;
 }
 
-function runWasm(asm, r1, r2) {
+function runWasm(asm, r1, r2, preset) {
   const prog = buildProgram(asm);
   wasm.init(MEM_WORDS);
   for (const ch of prog.memoryChanges) {
     wasm.load_program(ch.address, new Uint16Array([ch.value & 0xFFFF]));
   }
   wasm.set_segments(0, 0, 0, 0);
-  wasm.set_psw(PRESET_PSW);
+  wasm.set_psw(preset);
   wasm.set_registers(new Uint16Array([0, r1, r2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x7FFF, 0, 0]));
   wasm.step();
   return wasm.get_psw() & 0xFFFF;
 }
 
-for (const [label, asm, r1, r2, expected] of CASES) {
+for (const [label, asm, r1, r2, expected, preset = PRESET_PSW] of CASES) {
   test(`flags: ${label}`, () => {
-    const jsPsw = runJs(asm, r1, r2);
-    const wasmPsw = runWasm(asm, r1, r2);
+    const jsPsw = runJs(asm, r1, r2, preset);
+    const wasmPsw = runWasm(asm, r1, r2, preset);
     assert.equal(jsPsw, wasmPsw,
       `cores diverge: JS=0x${jsPsw.toString(16)} WASM=0x${wasmPsw.toString(16)}`);
     if (expected !== null) {
@@ -131,3 +147,41 @@ for (const [label, asm, r1, r2, expected] of CASES) {
     }
   });
 }
+
+// SETI/CLRI (spec Table 5, SYS ops) and SETS/CLRS (= SET/CLR 5, spec 5.3)
+// live outside the low nibble, so they get full-PSW assertions of their own.
+test('flags: SETI/CLRI toggle I (bit 4)', () => {
+  const onJs = runJs('SETI', 0, 0, 0);
+  const onWasm = runWasm('SETI', 0, 0, 0);
+  assert.equal(onJs, onWasm,
+    `cores diverge: JS=0x${onJs.toString(16)} WASM=0x${onWasm.toString(16)}`);
+  assert.equal(onJs & 0x10, 0x10, `SETI did not set I (psw=0x${onJs.toString(16)})`);
+
+  const offJs = runJs('CLRI', 0, 0, 0x10);
+  const offWasm = runWasm('CLRI', 0, 0, 0x10);
+  assert.equal(offJs, offWasm,
+    `cores diverge: JS=0x${offJs.toString(16)} WASM=0x${offWasm.toString(16)}`);
+  assert.equal(offJs & 0x10, 0, `CLRI did not clear I (psw=0x${offJs.toString(16)})`);
+});
+
+test('flags: SETS/CLRS toggle S (bit 5)', () => {
+  const onJs = runJs('SETS', 0, 0, 0);
+  const onWasm = runWasm('SETS', 0, 0, 0);
+  assert.equal(onJs, onWasm,
+    `cores diverge: JS=0x${onJs.toString(16)} WASM=0x${onWasm.toString(16)}`);
+  assert.equal(onJs & 0x20, 0x20, `SETS did not set S (psw=0x${onJs.toString(16)})`);
+
+  const offJs = runJs('CLRS', 0, 0, 0x20);
+  const offWasm = runWasm('CLRS', 0, 0, 0x20);
+  assert.equal(offJs, offWasm,
+    `cores diverge: JS=0x${offJs.toString(16)} WASM=0x${offWasm.toString(16)}`);
+  assert.equal(offJs & 0x20, 0, `CLRS did not clear S (psw=0x${offJs.toString(16)})`);
+});
+
+// A label may carry a trailing comment - that used to be parsed as an
+// instruction ("Unknown instruction: LOOP:"), which no listing should hit.
+test('assembler: label with trailing comment', () => {
+  const prog = assemble('.org 0x0100\nloop: ; Schleifenanfang\n HALT\n');
+  assert.equal(prog.success, true, prog.errors.join('; '));
+  assert.equal(prog.symbols.loop, 0x0100);
+});

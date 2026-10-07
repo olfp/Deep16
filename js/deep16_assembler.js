@@ -35,8 +35,8 @@ class Deep16Assembler {
                     currentSegment = 'code';
                 } else if (line.startsWith('.data')) {
                     currentSegment = 'data';
-                } else if (line.endsWith(':')) {
-                    const label = line.slice(0, -1).trim();
+                } else if (line.split(';')[0].trim().endsWith(':')) {
+                    const label = line.split(';')[0].trim().slice(0, -1).trim();
                     this.labels[label] = address;
                     this.symbols[label] = address;
                     segmentMap.set(address, currentSegment);
@@ -127,7 +127,7 @@ class Deep16Assembler {
                 } else if (lineLower.startsWith('.data')) {
                     currentSegment = 'data';
                     assemblyListing.push({ line: originalLine, segment: currentSegment });
-                } else if (line.endsWith(':')) {
+                } else if (line.split(';')[0].trim().endsWith(':')) {
                     assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
                 } else if (lineLower.startsWith('.word')) {
                     const cleanLine = line.split(';')[0].trim();
@@ -243,7 +243,7 @@ class Deep16Assembler {
                     segment: currentSegment
                 });
                 // Still advance address to maintain alignment
-                if (!line.startsWith('.') && !line.endsWith(':')) {
+                if (!line.startsWith('.') && !line.split(';')[0].trim().endsWith(':')) {
                     address++;
                 }
             }
@@ -626,15 +626,15 @@ class Deep16Assembler {
                 case 'SET2': return this.encodeSET2(parts, address, lineNumber);
                 case 'CLR2': return this.encodeCLR2(parts, address, lineNumber);
                 
-                // Flag aliases
+                // Flag aliases (spec 5.3: SETN = SET 0 ... CLRC = CLR 3)
                 case 'SETN': return this.encodeSETAlias(0b0000);
-                case 'CLRN': return this.encodeCLRAlias(0b1000);
+                case 'CLRN': return this.encodeCLRAlias(0b0000);
                 case 'SETZ': return this.encodeSETAlias(0b0001);
-                case 'CLRZ': return this.encodeCLRAlias(0b1001);
+                case 'CLRZ': return this.encodeCLRAlias(0b0001);
                 case 'SETV': return this.encodeSETAlias(0b0010);
-                case 'CLRV': return this.encodeCLRAlias(0b1010);
+                case 'CLRV': return this.encodeCLRAlias(0b0010);
                 case 'SETC': return this.encodeSETAlias(0b0011);
-                case 'CLRC': return this.encodeCLRAlias(0b1011);
+                case 'CLRC': return this.encodeCLRAlias(0b0011);
                 case 'SETI': return this.encodeSystem(0b100);
                 case 'CLRI': return this.encodeSystem(0b101);
                 case 'SETS': return this.encodeSET2Alias(0b0001);
@@ -1231,27 +1231,31 @@ class Deep16Assembler {
             if (imm < 0 || imm > 0xF) {
                 throw new Error(`CLR2 immediate ${imm} out of range (0-15)`);
             }
-            // CLR2: [1111111110][1111][imm4]
-            return 0b1111111110000000 | (0b1111 << 4) | (imm & 0xF);
+            // Same as CLR: [11111111110][1][imm4]. The old encoding
+            // (0xFFF0|imm) collided with the SYS range (NOP/SWI/SETI/HLT).
+            return 0xFFD0 | (imm & 0xF);
         }
         throw new Error('CLR2 requires immediate value');
     }
 
-    // Alias methods for flag operations
+    // Alias methods for flag operations. Spec Table 4: SET/CLR use
+    // [11111111110][d1][imm4] (0xFFC0-0xFFDF). The old encodings
+    // (0xFFA0/0xFFB0) fell into the SOP range (INV/NEG/SPSW/LPSW), so e.g.
+    // SETZ assembled to SPSW R1 and silently clobbered the PSW.
     encodeSETAlias(imm) {
-        return 0xFFA0 | (imm & 0xF);
+        return 0xFFC0 | (imm & 0xF);
     }
 
     encodeCLRAlias(imm) {
-        return 0xFFB0 | (imm & 0xF);
+        return 0xFFD0 | (imm & 0xF);
     }
 
     encodeSET2Alias(imm) {
-        return 0xFFA0 | ((imm + 4) & 0xF);
+        return 0xFFC0 | ((imm + 4) & 0xF);
     }
 
     encodeCLR2Alias(imm) {
-        return 0xFFB0 | ((imm + 4) & 0xF);
+        return 0xFFD0 | ((imm + 4) & 0xF);
     }
 
     encodeSystem(sysOp) {
