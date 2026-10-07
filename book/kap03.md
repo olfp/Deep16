@@ -45,7 +45,23 @@ gelaufen ist:
 > `Z`-Bit an, wo es war. Ein `JZ` direkt nach `LD` ist blind; erst ein
 > Null-Addit wie `ADD R1, 0` schaltet die Flags scharf — das Muster aus dem
 > „Hallo, Deep16!“-Beispiel in Kapitel 2. Messung: presst du vorher `SETC`
-> und `SETN` ins PSW, stehen nach `LD`/`ST` beide unverändert da.
+
+```mermaid
+block-beta
+  columns 3
+  b0["11111111110"]:1
+  b1["0"]:1
+  b2["0011"]:1
+```
+> und `SETN`
+
+```mermaid
+block-beta
+  columns 3
+  b0["11111111110"]:1
+  b1["0"]:1
+  b2["0000"]:1
+``` ins PSW, stehen nach `LD`/`ST` beide unverändert da.
 
 Listing 3-1 nutzt die Befehle zum ersten Mal ernsthaft: vier Wörter aus der
 Tabelle holen, summieren, das Ergebnis zurücklegen.
@@ -250,7 +266,15 @@ Bit-Nummer — hat Kapitel 2 schon erwähnt. Jetzt arbeiten sie:
 `AND` maskiert ausgewählte Bits durch, `OR` setzt sie, `XOR` kippt sie,
 `CLRB` macht eines gezielt frei — das mündet in `R1 = 0x007F`, gemessen.
 Der Nachsatz ist der wichtige Teil: Vor dem letzten `AND` werden `V` und `C`
-von Hand gesetzt (`SETV`, `SETC`), und das `AND` **löscht beide** — `LPSW
+von Hand gesetzt (`SETV`
+
+```mermaid
+block-beta
+  columns 3
+  b0["11111111110"]:1
+  b1["0"]:1
+  b2["0010"]:1
+```, `SETC`), und das `AND` **löscht beide** — `LPSW
 R4` liest die Null (`0x0000`).
 
 > **Die Logik-Gruppe setzt `V` und `C` auf Null.** `AND`, `OR`, `XOR` und
@@ -408,12 +432,82 @@ Bits steuern die Flags, die Aliase sparen Schreibarbeit:
 
 | Alias | numerisch | Bit | Rolle |
 |-------|-----------|-----|-------|
-| `SETN` / `CLRN` | `SET 0` / `CLR 0` | `N` | Negativ (Bit 15 des Ergebnisses) |
-| `SETZ` / `CLRZ` | `SET 1` / `CLR 1` | `Z` | Null |
-| `SETV` / `CLRV` | `SET 2` / `CLR 2` | `V` | Vorzeichen-Überlauf |
-| `SETC` / `CLRC` | `SET 3` / `CLR 3` | `C` | Carry / Borrow |
-| `SETI` / `CLRI` | — | `I` | Interrupt-Sperre (Kapitel 5) |
-| `SETS` / `CLRS` | `SET 5` / `CLR 5` | `S` | Shadow-Kontext (Kapitel 5) |
+| `SETN` / `CLRN`
+
+```mermaid
+block-beta
+  columns 3
+  b0["11111111110"]:1
+  b1["1"]:1
+  b2["0000"]:1
+``` | `SET 0` / `CLR 0` | `N` | Negativ (Bit 15 des Ergebnisses) |
+| `SETZ`
+
+```mermaid
+block-beta
+  columns 3
+  b0["11111111110"]:1
+  b1["0"]:1
+  b2["0001"]:1
+``` / `CLRZ`
+
+```mermaid
+block-beta
+  columns 3
+  b0["11111111110"]:1
+  b1["1"]:1
+  b2["0001"]:1
+``` | `SET 1` / `CLR 1` | `Z` | Null |
+| `SETV` / `CLRV`
+
+```mermaid
+block-beta
+  columns 3
+  b0["11111111110"]:1
+  b1["1"]:1
+  b2["0010"]:1
+``` | `SET 2` / `CLR 2` | `V` | Vorzeichen-Überlauf |
+| `SETC` / `CLRC`
+
+```mermaid
+block-beta
+  columns 3
+  b0["11111111110"]:1
+  b1["1"]:1
+  b2["0011"]:1
+``` | `SET 3` / `CLR 3` | `C` | Carry / Borrow |
+| `SETI`
+
+```mermaid
+block-beta
+  columns 2
+  b0["1111111111110"]:1
+  b1["100"]:1
+``` / `CLRI`
+
+```mermaid
+block-beta
+  columns 2
+  b0["1111111111110"]:1
+  b1["101"]:1
+``` | — | `I` | Interrupt-Sperre (Kapitel 5) |
+| `SETS`
+
+```mermaid
+block-beta
+  columns 3
+  b0["11111111110"]:1
+  b1["0"]:1
+  b2["0101"]:1
+``` / `CLRS`
+
+```mermaid
+block-beta
+  columns 3
+  b0["11111111110"]:1
+  b1["1"]:1
+  b2["0101"]:1
+``` | `SET 5` / `CLR 5` | `S` | Shadow-Kontext (Kapitel 5) |
 
 ```assembly
 ; listing 3-9: SET und CLR — Flags von Hand schalten
@@ -527,7 +621,13 @@ nach `0x0200` (gemessen, beide Kerne identisch):
 | `R3` | `0x2710` = 10000 | Summe der ungeraden |
 | Speicher `0x0200` | `0x4E84` | Rückweg über `ST` |
 
-Die Messung zählt **1824 Taktschritte** bis zum `HALT` — auf beiden Kernen
+Die Messung zählt **1824 Taktschritte** bis zum `HALT`
+
+```mermaid
+block-beta
+  columns 1
+  b0["1111111111111111"]:1
+``` — auf beiden Kernen
 exakt gleich. Und der 8-Bit-Gedanke dazu: Schon beim 23. Durchlauf hätte
 `R1` auf einer 8-Bit-CPU überlaufen (die Summe klettert über 255); hier
 läuft sie bis 20100 und kein Sonderfall stellt sich ein. Das ist die
