@@ -52,7 +52,8 @@ block-beta
 | 11–14 | `ER[3:0]` | Extra-Register-Auswahl (0–15) | **neu!** ES ist frei wählbar |
 | 15 | `DE` | Dual Extra (1 = ES via Registerpaar) | **neu!** |
 
-**Reset-Zustand:** `0x0020` → nur Bit 5 (`S`=1) gesetzt, Interrupts gesperrt.
+**Reset-Zustand:** `0x0000` → Interrupts gesperrt (`I`=0), Normalmodus (`S`=0).
+Der Shadow-Modus wird nur per `SWI` betreten (§4.4, Kapitel 5).
 Weitere Hinweise für 6502-Umsteiger: Es gibt **kein** Dezimal-Flag (`D`) und
 kein Break-Flag (`B`) — dezimale Arithmetik kennt die Deep16 nicht; Interrupts
 werden über `I` maskiert und über `S` kontextgetrennt (Kapitel 5).

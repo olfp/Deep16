@@ -30,11 +30,14 @@ class Deep16Simulator {
         this.registers[13] = 0x7FFF; // SP
         this.registers[15] = 0x0000; // PC
         
-        // Initialize segment registers for ROM-first reset
+        // ROM-first reset state, identical to the WASM core's init(): CS
+        // points at the boot ROM, DS/SS/ES start flat at 0 (the boot ROM
+        // zeroes DS/SS itself and never touches ES, so this is also the
+        // post-boot state a program actually runs in).
         this.segmentRegisters.CS = 0xFFFF; // Execute from ROM segment
-        this.segmentRegisters.DS = 0x1000; // Data segment  
-        this.segmentRegisters.SS = 0x8000; // Stack segment
-        this.segmentRegisters.ES = 0x2000; // Extra segment
+        this.segmentRegisters.DS = 0x0000; // Flat data addressing
+        this.segmentRegisters.SS = 0x0000; // Stack starts at SP = 0x7FFF
+        this.segmentRegisters.ES = 0x0000; // Extra segment
 
         // Screen memory mapping
         this.SCREEN_MEMORY_START = 0xF1000;
@@ -52,6 +55,10 @@ class Deep16Simulator {
         this.KBD_DATA_ADDR = this.ioBase + 0x0062;
         this.kbdBuffer = [];
         this.kbdLastData = 0;
+
+        // Boot ROM, same as the WASM core's init(): a fresh machine can run
+        // without an explicit loadProgram() first.
+        this.autoloadROM();
     }
 
     setUI(ui) {
@@ -71,6 +78,7 @@ class Deep16Simulator {
 
     reset() {
         this.registers.fill(0);
+        this.registers[13] = 0x7FFF; // SP — must match constructor and WASM reset()
         this.psw = 0;
         this.memory.fill(0xFFFF);
         this.running = false;

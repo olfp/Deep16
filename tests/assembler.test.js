@@ -116,3 +116,15 @@ test('LDI always targets R0', () => {
   assert.equal(res.success, true);
   assert.equal(wordsOf(res)[0] & 0xF, 0xF);
 });
+
+test('LDS/STS reject a fourth operand (no offset field)', () => {
+  for (const m of ['LDS R2, DS, R0, 4', 'STS R1, ES, R8, 4']) {
+    const res = assemble(`${m}\n`);
+    assert.equal(res.success, false, m);
+    assert.match(res.errors.join(), /has no offset operand/);
+  }
+  // The three-operand forms must still work.
+  for (const m of ['LDS R2, DS, R0', 'STS R1, ES, R8', 'LDS R1, CS, R5', 'STS R1, SS, LR']) {
+    assert.equal(assemble(`${m}\n`).success, true, m);
+  }
+});

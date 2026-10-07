@@ -7,7 +7,7 @@
 // (Rust panic, JS grew a 17th register).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assemble, loadBrowserScripts, runJs, runWasm, rawProgram, enc } from './helpers.js';
+import { assemble, loadBrowserScripts, runJs, runWasm, rawProgram, enc, loadWasm, MEM_WORDS } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -237,4 +237,99 @@ test('LINK points LR past the delay slot (spec 6.2.1)', async () => {
     `WASM: LR = 0x${wasm.registers[14].toString(16)}, expected 0x0005 (zurueck)`);
   assert.equal(wasm.registers[6], 1,
     `WASM: delay slot executed ${wasm.registers[6]}x, expected 1`);
+});
+
+// The IDE's Assemble explicitly does NOT touch registers or segments
+// (deep16_ui_core.js: "Do not modify registers or segments during Assemble"),
+// so whatever new()/reset() produce is exactly the state a program starts in -
+// and exactly what the book tells the reader to expect. Both cores must agree
+// on it, including SP = 0x7FFF, the flat segments and the installed boot ROM.
+function jsSnapshot(sim) {
+  return {
+    registers: Array.from(sim.registers),
+    psw: sim.psw,
+    segments: [sim.segmentRegisters.CS, sim.segmentRegisters.DS,
+               sim.segmentRegisters.SS, sim.segmentRegisters.ES],
+    bootROM: Array.from({ length: 16 }, (_, i) => sim.memory[0xFFFF0 + i]),
+  };
+}
+
+function wasmSnapshot(w) {
+  return {
+    registers: Array.from(w.get_registers()),
+    psw: w.get_psw(),
+    segments: Array.from(w.get_segments()),
+    bootROM: Array.from(w.get_memory_slice(0xFFFF0, 16)),
+  };
+}
+
+function assertFreshState(s, label) {
+  assert.equal(s.registers[13], 0x7FFF, `${label}: SP starts at 0x7FFF`);
+  assert.deepEqual(s.segments, [0xFFFF, 0x0000, 0x0000, 0x0000],
+    `${label}: CS/DS/SS/ES`);
+  assert.equal(s.psw, 0, `${label}: PSW`);
+  assert.deepEqual(s.bootROM.slice(0, 3), [0x0000, 0xFF41, 0xFF42],
+    `${label}: boot ROM installed`);
+}
+
+test('fresh-machine state is identical in both cores', async () => {
+  const w = await loadWasm();
+  w.init(MEM_WORDS);
+  const js = jsSnapshot(new Deep16Simulator());
+  const wa = wasmSnapshot(w);
+  assert.deepEqual(wa, js, 'WASM init() differs from new Deep16Simulator()');
+  assertFreshState(js, 'fresh');
+});
+
+test('reset state is identical in both cores', async () => {
+  const w = await loadWasm();
+  w.init(MEM_WORDS);
+  const sim = new Deep16Simulator();
+
+  // Dirty both machines the same way, then reset them.
+  sim.registers.fill(0xAAAA);
+  sim.psw = 0x0361;
+  sim.segmentRegisters.DS = 0x1234;
+  sim.segmentRegisters.ES = 0x5678;
+  const junk = new Uint16Array(16).fill(0xAAAA);
+  w.set_registers(junk);
+  w.set_psw(0x0361);
+  w.set_segments(0x0000, 0x1234, 0x5678, 0x9ABC);
+
+  sim.reset();
+  w.reset();
+  const js = jsSnapshot(sim);
+  const wa = wasmSnapshot(w);
+  assert.deepEqual(wa, js, 'WASM reset() differs from JS reset()');
+  assertFreshState(js, 'reset');
+});
+
+// The documented boot state (book kap02): the ROM zeroes DS/SS, jumps to
+// 0x0100 with CS = 0, and leaves SP at 0x7FFF and the PSW at 0. ES is never
+// touched by the ROM - a fresh machine must already sit at 0.
+const BOOT_PROGRAM = `
+.org 0x0100
+        MOV  R6, PC          ; R6 = 0x0101: execution really reached 0x0100
+        HALT
+`;
+
+test('boot lands on 0x0100 with the documented state (both cores)', async () => {
+  const res = assemble(BOOT_PROGRAM);
+  assert.equal(res.success, true, res.errors.join('; '));
+
+  const js = runJs(res);
+  assert.equal(js.registers[6], 0x0101, 'JS: boot did not start at 0x0100');
+  assert.equal(js.registers[13], 0x7FFF, 'JS: SP after boot');
+  assert.equal(js.sim.psw, 0, 'JS: PSW after boot');
+  assert.deepEqual(
+    [js.sim.segmentRegisters.CS, js.sim.segmentRegisters.DS,
+     js.sim.segmentRegisters.SS, js.sim.segmentRegisters.ES],
+    [0x0000, 0x0000, 0x0000, 0x0000], 'JS: segments after boot');
+
+  const wa = await runWasm(res);
+  assert.equal(wa.registers[6], 0x0101, 'WASM: boot did not start at 0x0100');
+  assert.equal(wa.registers[13], 0x7FFF, 'WASM: SP after boot');
+  assert.equal(wa.psw, 0, 'WASM: PSW after boot');
+  assert.deepEqual(wa.segments, [0x0000, 0x0000, 0x0000, 0x0000],
+    'WASM: segments after boot');
 });

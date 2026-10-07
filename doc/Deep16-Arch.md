@@ -133,8 +133,8 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | 11-14 | ER[3:0] | Extra Register selection (0-15) | LPSW/SPSW only |
 | 15 | DE | Dual Extra (1=use register pair for ES) | LPSW/SPSW only |
 
-**PSW Reset State**: `0x0020` (Shadow bit S=1, interrupts disabled)
-- This ensures boot code runs in normal context (PSW.S=0 after first interrupt return)
+**PSW Reset State**: `0x0000` (Shadow bit S=0, interrupts disabled)
+- This ensures boot code runs in normal context; the shadow context is entered only via SWI (§4.4), and PSW' resets to `0x0000` as well (§4.2)
 
 ---
 

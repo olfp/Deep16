@@ -883,6 +883,11 @@ class Deep16Assembler {
     
     // Encode LDS/STS instructions
     encodeLDSSTS(parts, isStore, address, lineNumber) {
+        if (parts.length > 4) {
+            // Type I.B has no offset field. Silently dropping the operand
+            // would store to an address the writer never named, so reject it.
+            throw new Error(`${isStore ? 'STS' : 'LDS'} has no offset operand (register, segment, base register)`);
+        }
         if (parts.length >= 4) {
             const rd = this.parseRegister(parts[1]);
             const seg = parts[2].toUpperCase();

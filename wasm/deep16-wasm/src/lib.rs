@@ -69,9 +69,9 @@ impl Cpu {
             ses: 0,
             scs: 0,
             spc: 0,
-            ds: 0x1000,
-            ss: 0x8000,
-            es: 0x2000,
+            ds: 0x0000,
+            ss: 0x0000,
+            es: 0x0000,
             sr0: 0,
             sr1: 0,
             sr2: 0,
@@ -114,9 +114,9 @@ impl Cpu {
         self.ses = 0;
         self.scs = 0;
         self.spc = 0;
-        self.ds = 0x1000;
-        self.ss = 0x8000;
-        self.es = 0x2000;
+        self.ds = 0x0000;
+        self.ss = 0x0000;
+        self.es = 0x0000;
         self.sr0 = 0;
         self.sr1 = 0;
         self.sr2 = 0;
