@@ -33,6 +33,84 @@ also das Wort bei `R2 + 3` — im von §2.3 geschnürten Befehl die Zelle
 dasselbe Ergebnis mit `LD R1, [R2+3]`; beide Formen sind messbar identisch
 und im Simulator frei austauschbar.
 
+
+```mermaid
+block-beta
+  columns 5
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["11110"]:1
+  b1["0"]:1
+  b2["Segment<br/>2"]:1
+  b3["Rd<br/>4"]:1
+  b4["Rb<br/>4"]:1
+  class b0 b1 op
+  class b2 seg
+  class b3 b4 reg
+```
+
+```mermaid
+block-beta
+  columns 5
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["11110"]:1
+  b1["1"]:1
+  b2["Segment<br/>2"]:1
+  b3["Rd<br/>4"]:1
+  b4["Rb<br/>4"]:1
+  class b0 b1 op
+  class b2 seg
+  class b3 b4 reg
+```
+
+
+```mermaid
+block-beta
+  columns 5
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["10"]:1
+  b1["0"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rb<br/>4"]:1
+  b4["Offset<br/>5"]:1
+  class b0 b1 op
+  class b2 b3 reg
+  class b4 off
+```
+
+```mermaid
+block-beta
+  columns 5
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["10"]:1
+  b1["1"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rb<br/>4"]:1
+  b4["Offset<br/>5"]:1
+  class b0 b1 op
+  class b2 b3 reg
+  class b4 off
+```
+
 `LD` und `ST` sind die Segment-Auswahl über das Basisregister
 (genau wie §2.3 sagt). Nach dem Boot zeigen `DS`, `SS` und `ES` alle auf
 Segment 0, die Welt ist flach — die Listings dieses Kapitels brauchen deshalb
@@ -45,23 +123,7 @@ gelaufen ist:
 > `Z`-Bit an, wo es war. Ein `JZ` direkt nach `LD` ist blind; erst ein
 > Null-Addit wie `ADD R1, 0` schaltet die Flags scharf — das Muster aus dem
 > „Hallo, Deep16!“-Beispiel in Kapitel 2. Messung: presst du vorher `SETC`
-
-```mermaid
-block-beta
-  columns 3
-  b0["11111111110"]:1
-  b1["0"]:1
-  b2["0011"]:1
-```
-> und `SETN`
-
-```mermaid
-block-beta
-  columns 3
-  b0["11111111110"]:1
-  b1["0"]:1
-  b2["0000"]:1
-``` ins PSW, stehen nach `LD`/`ST` beide unverändert da.
+> und `SETN` ins PSW, stehen nach `LD`/`ST` beide unverändert da.
 
 Listing 3-1 nutzt die Befehle zum ersten Mal ernsthaft: vier Wörter aus der
 Tabelle holen, summieren, das Ergebnis zurücklegen.
@@ -120,6 +182,41 @@ Regel kurz und schnörkellos, sie gilt für den Rest des Kapitels:
         ADD  R1, R2           ; R1 = 0x2233
         ADD  R1, 1            ; R1 = 0x2234 — Immediate 0..15
         HALT
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["00000"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rs<br/>4"]:1
+  class b0 b1 op
+  class b2 b3 reg
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["00001"]:1
+  b2["Rd<br/>4"]:1
+  b3["4"]:1
+  class b0 b1 op
+  class b2 reg
+  class b3 imm
 ```
 
 Auf dem 6502 sieht eine 16-Bit-Addition anders aus: erst `CLC`, dann `ADC`
@@ -183,6 +280,42 @@ ist `Z|C` — beide Fälle, beide ehrlich.
 größte Falle für Umsteiger. Rechnest du `0 − 1`, borgt sich die CPU ein Bit
 von oben:
 
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["00010"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rs<br/>4"]:1
+  class b0 b1 op
+  class b2 b3 reg
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["00011"]:1
+  b2["Rd<br/>4"]:1
+  b3["4"]:1
+  class b0 b1 op
+  class b2 reg
+  class b3 imm
+```
+
 ```text
         LDI  0
         MOV  R1, R0
@@ -208,6 +341,42 @@ Das Zielregister bleibt unangetastet, nur die Flags erzählen vom Vergleich.
 Das ist der Unterschied zu `SUB` — und die Grundlage für saubere
 Verzweigungen: Nach `CMP Ra, Rb` gilt `C = 1` genau dann, wenn `Ra < Rb`
 ist, weil dann ein Borrow fällig war; `C = 0` heißt `Ra ≥ Rb`.
+
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["00100"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rs<br/>4"]:1
+  class b0 b1 op
+  class b2 b3 reg
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["00101"]:1
+  b2["Rd<br/>4"]:1
+  b3["4"]:1
+  class b0 b1 op
+  class b2 reg
+  class b3 imm
+```
 
 ```assembly
 ; listing 3-4: CMP vergleicht — und schreibt nicht
@@ -236,6 +405,39 @@ Das Listing durchläuft beide Zweige (gemessen: `R3 = 1`): Erst ist
 weil `CMP` nicht schreibt, stehen `R1 = 200` und `R2 = 7` am Ende unberührt
 da. Die `NOP`s nach den Sprüngen sind der Delay Slot aus §1.3: Er läuft
 immer, den Zweig betreten die Sprünge erst eine Zeile später.
+
+
+```mermaid
+block-beta
+  columns 3
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["1110"]:1
+  b1["001"]:1
+  b2["Ziel<br/>9"]:1
+  class b0 b1 op
+  class b2 off
+```
+
+```mermaid
+block-beta
+  columns 3
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["1110"]:1
+  b1["011"]:1
+  b2["Ziel<br/>9"]:1
+  class b0 b1 op
+  class b2 off
+```
 
 ### Die Logik-Gruppe: `AND`, `OR`, `XOR` und `CLRB`
 
@@ -266,16 +468,114 @@ Bit-Nummer — hat Kapitel 2 schon erwähnt. Jetzt arbeiten sie:
 `AND` maskiert ausgewählte Bits durch, `OR` setzt sie, `XOR` kippt sie,
 `CLRB` macht eines gezielt frei — das mündet in `R1 = 0x007F`, gemessen.
 Der Nachsatz ist der wichtige Teil: Vor dem letzten `AND` werden `V` und `C`
-von Hand gesetzt (`SETV`
+von Hand gesetzt (`SETV`, `SETC`), und das `AND` **löscht beide** — `LPSW
+R4` liest die Null (`0x0000`).
+
 
 ```mermaid
 block-beta
-  columns 3
-  b0["11111111110"]:1
-  b1["0"]:1
-  b2["0010"]:1
-```, `SETC`), und das `AND` **löscht beide** — `LPSW
-R4` liest die Null (`0x0000`).
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["00110"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rs<br/>4"]:1
+  class b0 b1 op
+  class b2 b3 reg
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["01010"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rs<br/>4"]:1
+  class b0 b1 op
+  class b2 b3 reg
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["01011"]:1
+  b2["Rd<br/>4"]:1
+  b3["Bit-Nr.<br/>4"]:1
+  class b0 b1 op
+  class b2 reg
+  class b3 imm
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["01100"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rs<br/>4"]:1
+  class b0 b1 op
+  class b2 b3 reg
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["01101"]:1
+  b2["Rd<br/>4"]:1
+  b3["Bit-Nr.<br/>4"]:1
+  class b0 b1 op
+  class b2 reg
+  class b3 imm
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["00111"]:1
+  b2["Rd<br/>4"]:1
+  b3["Bit-Nr.<br/>4"]:1
+  class b0 b1 op
+  class b2 reg
+  class b3 imm
+```
 
 > **Die Logik-Gruppe setzt `V` und `C` auf Null.** `AND`, `OR`, `XOR` und
 > `CLRB` füllen nur `N` und `Z` aus dem Ergebnis; `V` und `C` gehen auf
@@ -297,6 +597,41 @@ Flags — mit dem passenden Sprung dahinter:
 Die Merkregel sitzt im Namen, wenn man `JNZ` als „ja“ liest: `TBS` fragt
 **B**it-**S**etzt → `JNZ` bei gesetzt, `TBC` fragt **B**it-**C**lear →
 `JNZ` bei gelöscht. Beide sind gemessen; `R1` bleibt dabei unangetastet.
+
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["01110"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rs<br/>4"]:1
+  class b0 b1 op
+  class b2 b3 reg
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["01000"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rs<br/>4"]:1
+  class b0 b1 op
+  class b2 b3 reg
+```
 
 ### Schieben und Rotieren: 0 bis 15 in einem Zug
 
@@ -334,6 +669,43 @@ schiebt Bit 15 hinaus — es landet in `C`, und das `JC` (Carry gesetzt)
 nimmt den Zweig. Und ein Sonderfall der Messung: Bei Zählwert 0 schiebt
 nichts, das Carry bleibt stehen — nach `SETC` liefert ein `SL R1, 0`
 messbar `0x0008` als PSW.
+
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["10000"]:1
+  b2["Rd<br/>4"]:1
+  b3["Anzahl<br/>4"]:1
+  class b0 b1 op
+  class b2 reg
+  class b3 off
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["11000"]:1
+  b2["Rd<br/>4"]:1
+  b3["Anzahl<br/>4"]:1
+  class b0 b1 op
+  class b2 reg
+  class b3 off
+```
 
 ### Multiplizieren und Dividieren: eingebaut
 
@@ -379,6 +751,75 @@ Quotient landet in `R6`, Rest in `R7`. Die Probe `0x123456 : 37` ergibt
 liefert nur den Quotienten; ein Divisor 0 mündet messbar in `0xFFFF` — ein
 Wert, an dem du den Fehler erkennst.
 
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["11100"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rs<br/>4"]:1
+  class b0 b1 op
+  class b2 b3 reg
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["11101"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rs<br/>4"]:1
+  class b0 b1 op
+  class b2 b3 reg
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["11110"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rs<br/>4"]:1
+  class b0 b1 op
+  class b2 b3 reg
+```
+
+```mermaid
+block-beta
+  columns 4
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["110"]:1
+  b1["11111"]:1
+  b2["Rd<br/>4"]:1
+  b3["Rs<br/>4"]:1
+  class b0 b1 op
+  class b2 b3 reg
+```
+
 Dazwischen steht ein Satz, der zum 6502-Umsteiger spricht: Die Deep16 hat
 **keinen** Dezimal-Modus und kein `D`-Bit im PSW (Kapitel 2 hat das
 Statuswort vorgestellt — dort ist keins). Die 6502 dagegen kippt mit dem
@@ -418,11 +859,77 @@ ALU-Gruppe — `V`/`C`. Und für den Alltagsfall gilt: Willst du das
 Vorzeichen eines Wertes umdrehen, ist `NEG` der direkte Weg — jeder
 16-Bit-Wert ist erlaubt, ohne Umweg über die `LDI`-Grenze.
 
+
+```mermaid
+block-beta
+  columns 3
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["1111111110"]:1
+  b1["01"]:1
+  b2["Rx<br/>4"]:1
+  class b0 b1 op
+  class b2 reg
+```
+
+```mermaid
+block-beta
+  columns 3
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["1111111110"]:1
+  b1["00"]:1
+  b2["Rx<br/>4"]:1
+  class b0 b1 op
+  class b2 reg
+```
+
 `SPSW` und `LPSW` haben in §2.2 ihren Auftritt gehabt: `LPSW Rd` liest das
 PSW in ein Register (`R2 = 0x0005` aus Listing 3-3), `SPSW Rd` schreibt
 sein Register ins PSW (Listing 2-1 stellte so den Stack-Zeiger ein). Sie
 gehören zur selben Familie und sind die vorhersehbarsten Befehle des
 Befehlssatzes.
+
+
+```mermaid
+block-beta
+  columns 3
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["1111111110"]:1
+  b1["11"]:1
+  b2["Rx<br/>4"]:1
+  class b0 b1 op
+  class b2 reg
+```
+
+```mermaid
+block-beta
+  columns 3
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["1111111110"]:1
+  b1["10"]:1
+  b2["Rx<br/>4"]:1
+  class b0 b1 op
+  class b2 reg
+```
 
 ### `SET` und `CLR` — Flags bitweise schalten
 
@@ -430,84 +937,47 @@ Hinter `SET` und `CLR` verbirgt sich ein Befehl mit 16 Operanden: Im Wort
 steht die Bit-Nummer und das Kommando setzen oder löschen. Die vier unteren
 Bits steuern die Flags, die Aliase sparen Schreibarbeit:
 
+
+```mermaid
+block-beta
+  columns 3
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["11111111110"]:1
+  b1["0"]:1
+  b2["Bit-Nr.<br/>4"]:1
+  class b0 b1 op
+  class b2 imm
+```
+
+```mermaid
+block-beta
+  columns 3
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  classDef off fill:#dcfce7,stroke:#15803d
+  classDef seg fill:#ede9fe,stroke:#6d28d9
+  classDef all fill:#fee2e2,stroke:#b91c1c
+  b0["11111111110"]:1
+  b1["1"]:1
+  b2["Bit-Nr.<br/>4"]:1
+  class b0 b1 op
+  class b2 imm
+```
+
 | Alias | numerisch | Bit | Rolle |
 |-------|-----------|-----|-------|
-| `SETN` / `CLRN`
-
-```mermaid
-block-beta
-  columns 3
-  b0["11111111110"]:1
-  b1["1"]:1
-  b2["0000"]:1
-``` | `SET 0` / `CLR 0` | `N` | Negativ (Bit 15 des Ergebnisses) |
-| `SETZ`
-
-```mermaid
-block-beta
-  columns 3
-  b0["11111111110"]:1
-  b1["0"]:1
-  b2["0001"]:1
-``` / `CLRZ`
-
-```mermaid
-block-beta
-  columns 3
-  b0["11111111110"]:1
-  b1["1"]:1
-  b2["0001"]:1
-``` | `SET 1` / `CLR 1` | `Z` | Null |
-| `SETV` / `CLRV`
-
-```mermaid
-block-beta
-  columns 3
-  b0["11111111110"]:1
-  b1["1"]:1
-  b2["0010"]:1
-``` | `SET 2` / `CLR 2` | `V` | Vorzeichen-Überlauf |
-| `SETC` / `CLRC`
-
-```mermaid
-block-beta
-  columns 3
-  b0["11111111110"]:1
-  b1["1"]:1
-  b2["0011"]:1
-``` | `SET 3` / `CLR 3` | `C` | Carry / Borrow |
-| `SETI`
-
-```mermaid
-block-beta
-  columns 2
-  b0["1111111111110"]:1
-  b1["100"]:1
-``` / `CLRI`
-
-```mermaid
-block-beta
-  columns 2
-  b0["1111111111110"]:1
-  b1["101"]:1
-``` | — | `I` | Interrupt-Sperre (Kapitel 5) |
-| `SETS`
-
-```mermaid
-block-beta
-  columns 3
-  b0["11111111110"]:1
-  b1["0"]:1
-  b2["0101"]:1
-``` / `CLRS`
-
-```mermaid
-block-beta
-  columns 3
-  b0["11111111110"]:1
-  b1["1"]:1
-  b2["0101"]:1
-``` | `SET 5` / `CLR 5` | `S` | Shadow-Kontext (Kapitel 5) |
+| `SETN` / `CLRN` | `SET 0` / `CLR 0` | `N` | Negativ (Bit 15 des Ergebnisses) |
+| `SETZ` / `CLRZ` | `SET 1` / `CLR 1` | `Z` | Null |
+| `SETV` / `CLRV` | `SET 2` / `CLR 2` | `V` | Vorzeichen-Überlauf |
+| `SETC` / `CLRC` | `SET 3` / `CLR 3` | `C` | Carry / Borrow |
+| `SETI` / `CLRI` | — | `I` | Interrupt-Sperre (Kapitel 5) |
+| `SETS` / `CLRS` | `SET 5` / `CLR 5` | `S` | Shadow-Kontext (Kapitel 5) |
 
 ```assembly
 ; listing 3-9: SET und CLR — Flags von Hand schalten
@@ -621,13 +1091,7 @@ nach `0x0200` (gemessen, beide Kerne identisch):
 | `R3` | `0x2710` = 10000 | Summe der ungeraden |
 | Speicher `0x0200` | `0x4E84` | Rückweg über `ST` |
 
-Die Messung zählt **1824 Taktschritte** bis zum `HALT`
-
-```mermaid
-block-beta
-  columns 1
-  b0["1111111111111111"]:1
-``` — auf beiden Kernen
+Die Messung zählt **1824 Taktschritte** bis zum `HALT` — auf beiden Kernen
 exakt gleich. Und der 8-Bit-Gedanke dazu: Schon beim 23. Durchlauf hätte
 `R1` auf einer 8-Bit-CPU überlaufen (die Summe klettert über 255); hier
 läuft sie bis 20100 und kein Sonderfall stellt sich ein. Das ist die
