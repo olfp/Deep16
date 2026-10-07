@@ -268,3 +268,65 @@ test('WASM: Forth REPL evaluates typed input exactly like the JS core', async ()
   assert.equal(wasmOut, jsOut, 'WASM REPL must evaluate the line identically to the JS core');
   assert.equal(wasm.steps, 600000, 'the REPL must stay alive after evaluating the line');
 });
+
+test('WASM: Forth REPL reports an unknown word with the word, discards the line, and continues', async () => {
+  // Regression: the kernel's unknown-word error path clobbered >IN (R5) with
+  // the screen column width before echoing the offending token, so it printed
+  // memory garbage after "undefined word:", and the interpreter subsequently
+  // halted the CPU. Both cores must echo the word itself and come back to a
+  // fresh prompt.
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0x8000; sim.segmentRegisters.ES = 0x2000;
+  for (const ch of 'HELLO\n') sim.enqueueKeyCode(ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+  const jsOut = screenText((a, n) => sim.memory.slice(a, a + n), SCREEN_ADDR, 480);
+
+  const wasm = await runWasm(res, { maxSteps: 600000, keys: [...'HELLO\n'].map((ch) => ch.charCodeAt(0)) });
+  const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 480);
+
+  assert.match(jsOut, /undefined word: HELLO/);
+  assert.ok(jsOut.replace(/\u00ff/g, ' ').trimEnd().endsWith('>'),
+    'a fresh prompt must follow the reported error');
+  assert.equal(wasmOut, jsOut, 'WASM REPL must report the unknown word identically to the JS core');
+  assert.equal(steps, 600000, 'the JS REPL must stay alive after the error');
+  assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive after the error');
+});
+
+test('WASM: Forth REPL keeps evaluating lines after an unknown word', async () => {
+  // Regression: the unknown-word error path used to stop the REPL loop for
+  // good. A valid line typed after the error must still work on both cores.
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+  const input = '1 2 + .\nHELLO\n5 6 + .\n';
+
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0x8000; sim.segmentRegisters.ES = 0x2000;
+  for (const ch of input) sim.enqueueKeyCode(ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+  const jsOut = screenText((a, n) => sim.memory.slice(a, a + n), SCREEN_ADDR, 720);
+
+  const wasm = await runWasm(res, { maxSteps: 600000, keys: [...input].map((ch) => ch.charCodeAt(0)) });
+  const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 720);
+
+  assert.match(jsOut, /1 2 \+ \. 3  ok/);
+  assert.match(jsOut, /undefined word: HELLO/);
+  assert.match(jsOut, /5 6 \+ \. 11  ok/);
+  assert.equal(wasmOut, jsOut, 'WASM REPL must keep evaluating lines after an unknown word');
+  assert.equal(steps, 600000, 'the JS REPL must stay alive across the error');
+  assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the error');
+});

@@ -121,6 +121,7 @@ print_prompt:
     JMP LR
     NOP
 bios_putch_direct:
+    MOV R2, R0           ; park the character: R0 is rebuilt below
     LDI 2
     MOV R3, R0
     LDI 0
@@ -128,11 +129,13 @@ bios_putch_direct:
     STS R3, DS, R7
     LDI 1
     MOV R7, R0
+    MOV R0, R2
     STS R0, DS, R7
     SWI
     JMP LR
     NOP
 bios_putstr_direct:
+    MOV R2, R0           ; park the string address: R0 is rebuilt below
     LDI 3
     MOV R3, R0
     LDI 0
@@ -140,6 +143,7 @@ bios_putstr_direct:
     STS R3, DS, R7
     LDI 1
     MOV R7, R0
+    MOV R0, R2
     STS R0, DS, R7
     SWI
     JMP LR
@@ -157,6 +161,7 @@ bios_getch_direct:
     JMP LR
     NOP
 bios_getstr_direct:
+    MOV R2, R0           ; park the buffer address: R0 is rebuilt below
     LDI 5
     MOV R3, R0
     LDI 0
@@ -164,6 +169,33 @@ bios_getstr_direct:
     STS R3, DS, R7
     LDI 1
     MOV R7, R0
+    MOV R0, R2
+    STS R0, DS, R7
+    SWI
+    JMP LR
+    NOP
+newline_direct:
+    ; CR + LF via BIOS putch so the cursor moves to a fresh line (with
+    ; scrolling on the last row). Same newline the interpreter prints
+    ; after " ok".
+    LDI 2               ; BIOS putch
+    MOV R3, R0
+    LDI 0               ; DS offset 0
+    MOV R7, R0
+    STS R3, DS, R7
+    LDI 1
+    MOV R7, R0
+    LDI 13              ; CR
+    STS R0, DS, R7
+    SWI
+    LDI 2               ; BIOS putch
+    MOV R3, R0
+    LDI 0
+    MOV R7, R0
+    STS R3, DS, R7
+    LDI 1
+    MOV R7, R0
+    LDI 10              ; LF
     STS R0, DS, R7
     SWI
     JMP LR
@@ -616,6 +648,10 @@ advance_token:
     NOP
 
 skip_unknown:
+    ; The offending token's offset lives in >IN (R5), but the computation
+    ; below reuses R5 for the column width. Park the token offset in R12
+    ; (a scratch register on this path) so the bad word can be echoed.
+    MOV R12, R5
     LDI 0x1000
     MOV R2, R0
     MOV R4, SCR
@@ -636,7 +672,7 @@ skip_unknown:
     NOP
 skip_unknown_after_prefix:
     MOV R3, TIB
-    ADD R3, >IN
+    ADD R3, R12
     LDI print_buf
     MOV R10, R0
     LDI 0
@@ -671,25 +707,29 @@ print_bad_loop:
 print_bad_done:
     LDI 0
     ST R0, R10, 0
+    ; The message above returned to skip_unknown_after_prefix via the LINK
+    ; return address; arm a fresh return point for the putstr call below.
+    LDI err_continue
+    MOV LR, R0
     LDI bios_putstr_direct
     MOV R2, R0
     LDI print_buf
     MOV R0, R0
     JMP R2
     NOP
-    LD R2, R3, 0
-    LDI 0x00FF
-    AND R2, R0
-    LDI ' '
-    CMP R2, R0
-    JNZ skip_space_adv
+err_continue:
+    ; Discard the rest of the line: fresh line, prompt, next input.
+    LDI newline_direct
+    MOV R2, R0
+    LINK
+    JMP R2
     NOP
-    ADD R3, 1
-skip_space_adv:
-    MOV R1, R3
-    SUB R1, TIB
-    MOV >IN, R1
-    LDI interpret_loop
+    LDI print_prompt
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI word_accept
     MOV PC, R0
     NOP
 
