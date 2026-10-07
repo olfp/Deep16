@@ -11,6 +11,19 @@
 
 ---
 
+**Ein Größenvergleich zum Warmwerden.** Der Simulator ist nicht nur
+Anschauungsobjekt, er ist schnell: Beim typischen Befehlsmix aus
+`scripts/bench.asm` (ALU, Laden und Speichern, Schieben, Sprünge) schafft er
+**rund 28 Mio. Befehle pro Sekunde** auf einem gewöhnlichen Rechner von heute.
+Ein realer 6502 bei 1 MHz erreicht im typischen Code dagegen etwa **0,43 Mio.**
+— und selbst das absolute Maximum sind nur 0,5 Mio., denn keine
+6502-Instruktion läuft in einem einzigen Takt. Der Simulator ist damit rund
+**65-mal schneller** als die echte Hardware von 1975: Ein Experiment, das auf
+einem 1-MHz-System eine Minute rechnen würde, dauert hier weniger als eine
+Sekunde. Die Zahlen selbst nachmessen geht mit `node scripts/bench.mjs`.
+
+---
+
 ## 1.1 Wo der 8-Bitter stoppt
 
 Der 6502 ist ein guter Lehrmeister — und eine Grenze zugleich. Drei Dinge
