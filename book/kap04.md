@@ -250,11 +250,8 @@ block-beta
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   b0["111110<br/>Opcode"]:11
-  gap1:1
   b1["LR<br/>14"]:7
-  gap2:1
   b2["PC<br/>15"]:7
-  gap3:1
   b3["2"]:3
   class b0 op
   class b1 b2 reg
@@ -283,11 +280,8 @@ block-beta
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   b0["111110<br/>Opcode"]:11
-  gap1:1
   b1["PC<br/>15"]:7
-  gap2:1
   b2["Rx<br/>4"]:7
-  gap3:1
   b3["0"]:3
   class b0 op
   class b1 b2 reg
