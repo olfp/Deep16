@@ -43,13 +43,13 @@ Wörter Reichweite:
 
 ```mermaid
 block-beta
-  columns 3
+  columns 16
   classDef op fill:#e5e7eb,stroke:#374151
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
-  b0["1110<br/>Opcode"]:1
-  b1["Bedingung<br/>3"]:1
-  b2["Ziel<br/>9, vorzeichenbehaftet"]:1
+  b0["1110<br/>Opcode"]:4
+  b1["Bedingung<br/>3"]:3
+  b2["Ziel<br/>9, vorzeichenbehaftet"]:9
   class b0 op
   class b1 imm
   class b2 off
@@ -245,14 +245,14 @@ Zwei Befehle tragen das ganze Konzept. `LINK` ist ein Pseudonym für
 
 ```mermaid
 block-beta
-  columns 4
+  columns 16
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
-  b0["111110<br/>Opcode"]:1
-  b1["LR<br/>14"]:1
-  b2["PC<br/>15"]:1
-  b3["2<br/>Immediate"]:1
+  b0["111110<br/>Opcode"]:6
+  b1["LR<br/>14"]:4
+  b2["PC<br/>15"]:4
+  b3["2<br/>Immediate"]:2
   class b0 op
   class b1 b2 reg
   class b3 imm
@@ -275,14 +275,14 @@ Der Rückweg ist `JMP LR` — ein Sprung aus dem Register heraus, alias
 
 ```mermaid
 block-beta
-  columns 4
+  columns 16
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
-  b0["111110<br/>Opcode"]:1
-  b1["PC<br/>15"]:1
-  b2["Rx<br/>4"]:1
-  b3["0<br/>Immediate"]:1
+  b0["111110<br/>Opcode"]:6
+  b1["PC<br/>15"]:4
+  b2["Rx<br/>4"]:4
+  b3["0<br/>Immediate"]:2
   class b0 op
   class b1 b2 reg
   class b3 imm
