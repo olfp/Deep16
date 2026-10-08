@@ -1183,7 +1183,8 @@ word_emit:
     STS R3, DS, R7      ; DS:[0] = 2
     LDI 1               ; offset = 1
     MOV R7, R0
-    STS R3, DS, R7      ; DS:[1] = char
+    STS R1, DS, R7      ; DS:[1] = char (R1 still holds the masked char;
+                        ; R3 was clobbered with the function code before)
     SWI
     LDI interpret_loop
     MOV PC, R0
