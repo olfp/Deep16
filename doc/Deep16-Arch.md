@@ -151,7 +151,7 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 | 110 | 3 | ALU2 | `[110][func5][Rd4][Rs/imm4]` | Full pipeline, forwarding |
 | 1110 | 4 | JMP | `[1110][type3][target9]` | **Uses delay slot** |
 | 11110 | 5 | LDS/STS | `[11110][d1][seg2][Rd4][Rs4]` | Segment access in MEM |
-| 111110 | 6 | MOV | `[111110][Rd4][Rs4][imm2]` | Register copy with optional small offset |
+| 111110 | 6 | MOV | `[111110][Rd4][Rs4][imm2]` | Register copy / `<<1` / `+2` / `<<1\|1` via imm2 function select |
 | 1111110 | 7 | LSI | `[1111110][Rd4][imm5]` | Full pipeline |
 | 11111110 | 8 | SMV | `[11111110][Rx4][alt_sel4]` | Shadow register access (read-only) |
 | 111111110 | 9 | MVS | `[111111110][d1][Rd4][seg2]` | Segment access in MEM |
@@ -266,11 +266,18 @@ the shadow bank).
 |-------------|---------|-----------------|-------------------|-------|
 | **LDI** | `LDI imm` | `0 imm15` | `R0 ← sign_extend(imm15)` | Sign extends 15-bit immediate |
 | **LSI** | `LSI Rd, imm` | `1111110 Rd4 imm5` | `Rd ← sign_extend(imm5)` | Small immediate load |
-| **MOV Rd, Rs, imm** | `MOV Rd, Rs, imm` | `111110 Rd4 Rs4 imm2` | `Rd ← Rs + imm2` | Normal with forwarding |
+| **MOV Rd, Rs, imm** | `MOV Rd, Rs, imm` | `111110 Rd4 Rs4 imm2` | `Rd ← {Rs, Rs<<1, Rs+2, (Rs<<1)\|1}[imm2]` | Normal with forwarding; PC source = own+1 |
 | **MVS Rd, Sx** | `MVS Rd, Sx` | `111111110 0 Rd4 seg2` | `Rd ← Sx` | Read segment register |
 | **MVS Sx, Rd** | `MVS Sx, Rd` | `111111110 1 Rd4 seg2` | `Sx ← Rd` | Write segment register |
 | **SMV Rx, alt_reg** | `SMV Rx, alt_reg` | `11111110 Rx4 alt_sel4` | `Rx ← alt_reg` | Read shadow/alternate register |
 | **SMV Rx, APC** | `SMV Rx, APC` | `11111110 Rx4 1111` | `Rx ← PC` (active) | Architectural PC read, bypassing forwarding |
+
+**imm2 semantics of MOV:** imm2 is a pure function select — `0` = copy,
+`1` = `Rs << 1`, `2` = `Rs + 2`, `3` = `(Rs << 1) | 1` (§5.1.2). MOV **never**
+disables forwarding; the architectural (non-forwarded) read lives exclusively
+in SMV (§3.3), above all `SMV Rx, APC`. A PC source always yields the
+architectural own address + 1 — what makes `LINK` (`imm2 = 2`) return past a
+delay slot (§6.2.1) and `SMV Rx, APC` work inside one (§6.2.2).
 
 ### **3.5 PSW Operations**
 
@@ -684,19 +691,39 @@ ST   R1, SP, 4        ; Machine instruction: [10][1][R1][SP][4]
 LD   R1, R2, 0        ; Machine instruction: [10][0][R1][R2][0]
 ```
 
-#### **5.1.2 MOV Plus Syntax**
+#### **5.1.2 MOV Plus and Shift Syntax**
+
+`imm2` selects one of four functions; all of them read their source with
+forwarding (§3.4), and a PC source always reads the architectural own
+address + 1 (§3.3):
+
+| imm2 | Assembly forms | Operation |
+|------|----------------|-----------|
+| 0 | `MOV Rd, Rs` | `Rd ← Rs` |
+| 1 | `MOV Rd, Rs << 1` | `Rd ← Rs << 1` |
+| 2 | `MOV Rd, Rs + 2`, `MOV Rd, Rs, 2` | `Rd ← Rs + 2` |
+| 3 | `MOV Rd, Rs << 1 + 1` | `Rd ← (Rs << 1) \| 1` |
 
 **Assembler Input (Enhanced Syntax):**
 ```assembly
-MOV  R1, R2+3         ; Assembler preprocessing
-MOV  R3, SP-4         ; Assembler preprocessing
+MOV  R1, R2+2         ; Assembler preprocessing -> MOV R1, R2, 2
+MOV  R4, R5 << 1      ; -> imm2=1
+MOV  R6, R7 << 1 + 1  ; -> imm2=3
 ```
 
 **Actual Binary Encoding:**
 ```assembly
-MOV  R1, R2, 3        ; Machine instruction: [111110][R1][R2][3]
-MOV  R3, SP, 0        ; Note: Negative offsets not supported in MOV
+MOV  R1, R2, 2        ; Machine instruction: [111110][R1][R2][2]
+                       ; (the source line above also assembles directly)
+MOV  R4, R5 << 1      ; Machine instruction: [111110][R4][R5][1]
+MOV  R6, R7 << 1 + 1  ; Machine instruction: [111110][R6][R7][3]
 ```
+
+The old offset spellings `+1` / `+3` and the bare immediates `, 1` / `, 3`
+are **rejected** with an error. They used to mean `Rs + 1` / `Rs + 3`, which
+no longer exists — accepting them would silently turn pre-redesign sources
+into shifts. The one even offset that survives, `+2`, keeps `LINK`/`LNK`
+working unchanged.
 
 ### **5.2 Instruction Aliases**
 
@@ -759,11 +786,12 @@ JMP  sub_func ; Jump to subroutine
 ```
 
 **Why LINK uses immediate value 2:**
-- The `LINK` alias expands to `MOV LR, PC, 2`
-- The value `2` accounts for the **branch delay slot**:
-  - `PC` during `LINK` execution points to the `JMP` instruction
-  - The delay slot instruction at `PC + 1` always executes
-  - The actual return address should be `PC + 2` (after delay slot)
+- The `LINK` alias expands to `MOV LR, PC, 2`, i.e. `LR ← PC + 2`
+- A PC source reads the **architectural own address + 1** (§3.3); with `LINK`
+  at address `A` that value points at the following `JMP`:
+  - `PC` during `LINK` execution = `A + 1` (the `JMP` instruction)
+  - the delay slot instruction at `A + 2` always executes
+  - the actual return address is `A + 3` = `PC + 2` (after the delay slot)
 
 #### **6.2.2 Optimized Subroutine Call using ALINK**
 
@@ -787,7 +815,7 @@ NOP            ; 1 cycle (wasted) - TOTAL: 3 cycles
 
 ; Optimized (2 cycles for call sequence) 
 JMP  func      ; 1 cycle
-ALINK          ; SMV LR, PC  - 1 cycle (useful work) - TOTAL: 2 cycles
+ALINK          ; SMV LR, APC  - 1 cycle (useful work) - TOTAL: 2 cycles
 ```
 
 **Performance Benefits:**

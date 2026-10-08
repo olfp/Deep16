@@ -134,6 +134,12 @@ disassembleSOP(instruction) {
             0x8: 'AR0', 0x9: 'AR1', 0xA: 'AR2', 0xB: 'AR3', 0xD: 'AR13', 0xE: 'AR14', 0xF: 'APC'
         };
         const srcName = names[alt] || `ALT${alt}`;
+        // Spec Table R: ALNK Rx = SMV Rx, APC (architectural read of the
+        // active PC); ALINK = SMV LR, APC. Print the alias back.
+        if (alt === 0xF) {
+            if (rx === 14) return `ALINK`;
+            return `ALNK ${this.registerNames[rx]}`;
+        }
         return `SMV ${this.registerNames[rx]}, ${srcName}`;
     }
 
@@ -248,14 +254,19 @@ disassembleSOP(instruction) {
             if (rd === 14) return `LINK`;
             return `LNK ${this.registerNames[rd]}`;
         }
-        if (rs === 15 && imm === 3) {
-            if (rd === 14) return `ALINK`;
-            return `ALNK ${this.registerNames[rd]}`;
-        }
         if (imm === 0) {
             return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}`;
         }
-        return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]}, #0x${imm.toString(16).toUpperCase()}`;
+        // imm2=1/3 are the shift forms. The assembler only accepts them
+        // spelled with '<<' ('MOV Rd, Rs, 1' and '+1' are rejected because
+        // their meaning changed), so print exactly that shape.
+        if (imm === 1) {
+            return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]} << 1`;
+        }
+        if (imm === 2) {
+            return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]} + 2`;
+        }
+        return `MOV ${this.registerNames[rd]}, ${this.registerNames[rs]} << 1 + 1`;
     }
 
     disassembleLSI(instruction) {

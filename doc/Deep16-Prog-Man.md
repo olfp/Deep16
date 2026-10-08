@@ -184,11 +184,14 @@ LSI R1, 31       ; R1 = 31 (sign-extended 5-bit)
 
 **Register Moves:**
 ```assembly
-MOV R1, R2       ; R1 = R2
-MOV R3, R4, 1    ; R3 = R4 + 1
-MOV R5, R6, 2    ; R5 = R6 + 2
-MOV R7, R8, 3    ; R7 = R8 (architectural read)
+MOV R1, R2           ; R1 = R2
+MOV R5, R6, 2        ; R5 = R6 + 2
+MOV R3, R4 << 1      ; R3 = R4 << 1
+MOV R7, R8 << 1 + 1  ; R7 = (R8 << 1) | 1
 ```
+The bare immediates `, 1` and `, 3` (and `+1` / `+3`) are rejected: they used
+to mean `+1` / `+3` offsets, which no longer exist — imm2 now selects
+`{Rs, Rs<<1, Rs+2, (Rs<<1)|1}`.
 
 **Segment Register Access:**
 ```assembly
@@ -338,7 +341,7 @@ NOP              ; Wasted delay slot
 
 ; Optimized call (uses delay slot)
 JMP   subroutine
-ALINK            ; MOV LR, PC, 3 (in delay slot)
+ALINK            ; SMV LR, APC (in delay slot)
 
 ; Return from subroutine
 JMP  LR          ; Return to caller
@@ -1139,7 +1142,7 @@ ADD  R1, R2        ; This becomes return address!
 
 ; Correct: Optimized call
 JMP  func
-ALINK              ; MOV LR, PC, 3 (in delay slot)
+ALINK              ; SMV LR, APC (in delay slot)
 ```
 
 ### **9.2 Debugging Tools**
@@ -1221,7 +1224,7 @@ HLT:       1111111111111111
 ```
 JMP Rx     = MOV PC, Rx
 LINK       = MOV LR, PC, 2
-ALINK      = MOV LR, PC, 3
+ALINK      = SMV LR, APC
 SWB Rx     = ROL Rx, 8
 SETC       = SET 3
 CLRC       = CLR 3

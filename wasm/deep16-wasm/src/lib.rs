@@ -605,23 +605,28 @@ fn exec_mov(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
     let rs = ((instr >> 2) & 0xF) as usize;
     let imm2 = (instr & 0x3) as u16;
 
-    let value: u16 = if imm2 == 0 {
-        gp_read(c, rs)
-    } else if rs == 15 && imm2 == 2 {
-        // LNK/LINK (spec 6.2.1): the return address is the instruction after
-        // the branch delay slot. Visible PC = own address + 1, so PC + 2 lands
-        // on own + 3. The old own + 2 returned into the delay slot, which then
-        // executed a second time on return (spec: "actual return address
-        // should be PC + 2 (after delay slot)").
-        original_pc.wrapping_add(3)
-    } else if rs == 15 && imm2 == 3 {
-        // Architectural link in delay slot (ALNK): next instruction after delay slot
+    // Architectural PC source: a PC read yields own address + 1 in every
+    // context (spec 3.3/6.2.2), derived from the instruction's own address.
+    let src: u16 = if rs == 15 {
         original_pc.wrapping_add(1)
-    } else if imm2 == 3 {
-        // Architectural read bypass (AMV): active-bank register, no addition
-        gp_read(c, rs)
     } else {
-        gp_read(c, rs).wrapping_add(imm2)
+        gp_read(c, rs)
+    };
+
+    // imm2 function table (all forwarded reads, no architectural bypass):
+    //   0: Rd <- Rs
+    //   1: Rd <- Rs << 1
+    //   2: Rd <- Rs + 2        (LINK = MOV Rd, PC, 2 -> own + 3, the
+    //                           instruction after the delay slot)
+    //   3: Rd <- (Rs << 1) | 1
+    // The former imm2=3 meanings (ALNK = PC own+1, AMV = unforwarded GPR
+    // read) are retired: ALNK is now SMV Rd, APC per spec Table R, and the
+    // no-forward read lives only in SMV.
+    let value: u16 = match imm2 {
+        0 => src,
+        1 => src << 1,
+        2 => src.wrapping_add(2),
+        _ => (src << 1) | 1,
     };
 
     // MOV to PC is a branch with one delay slot

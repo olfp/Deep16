@@ -9,6 +9,12 @@ You're absolutely right. Let me create a comprehensive document that integrates 
 
 This document summarizes **all changes** made to the Deep16 instruction set architecture between March 20-21, 2024. The changes address: PSW manipulation instructions, encoding optimization, FPU space allocation, ILL trap behavior, new CLRB instruction, AMV clarification, and hard-wired assembler aliases.
 
+> **Superseded (2026-10-08):** every **AMV** entry in this document
+> (`AMV Rd, Rs` = `MOV Rd, Rs, 3`, an unforwarded register read), the
+> `imm2=3` architectural-read behaviour, and the `+1`/`+3` MOV offset
+> spellings are obsolete — see **§14 MOV imm2 Redesign** at the end of this
+> document. The historical rows below are kept as originally written.
+
 ## **1. Overview of All Changes**
 
 ### **Phase 1: March 20 (v2.0) - PSW Manipulation Crisis**
@@ -31,7 +37,7 @@ This document summarizes **all changes** made to the Deep16 instruction set arch
 | 110 | 3 | ALU2 | `ADD`, `SUB`, `AND`, `OR`, `XOR`, `CLRB`, shifts, rotates, multiply/divide | **NEW: Added CLRB** |
 | 1110 | 4 | JMP | `JZ`, `JNZ`, `JC`, `JNC`, `JN`, `JNN`, `JO`, `JNO` | **No change** |
 | 11110 | 5 | LDS/STS | `LDS Rd, seg, Rb`, `STS Rd, seg, Rb` | **No change** |
-| 111110 | 6 | MOV/AMV | `MOV Rd, Rs, imm`, `AMV Rd, Rs` | **NEW: AMV clarified** |
+| 111110 | 6 | MOV/AMV | `MOV Rd, Rs, imm`, `AMV Rd, Rs` | **NEW: AMV clarified** (superseded, see §14) |
 | 1111110 | 7 | LSI | `LSI Rd, imm` | **No change** |
 | 11111110 | 8 | SMV | `SMV Rx, alt_reg` | **No change** |
 | 111111110 | 9 | MVS | `MVS Rd, Sx`, `MVS Sx, Rd` | **No change** |
@@ -280,7 +286,7 @@ SETI                    ; 13 bits (special for bit 4)
 
 ### **Phase 2: New Instructions**
 - [x] CLRB instruction (ALU2 func5=00111)
-- [ ] AMV behavior (MOV with imm2=3 bypasses forwarding)
+- [ ] AMV behavior (MOV with imm2=3 bypasses forwarding) — **moot**: AMV was retired, see §14
 - [ ] Hard-wired assembler aliases
 
 ### **Phase 3: FPU/ILL System**
@@ -345,8 +351,69 @@ SETI                    ; 13 bits (special for bit 4)
 
 ---
 
+## **14. MOV imm2 Redesign (2026-10-08)**
+
+**Motivation.** Measuring the assembled program corpus showed the `+1` and
+`+3` offset meanings of `imm2` were used nowhere (every non-zero `imm2` in
+the shipped code is a PC link), while a shift was missing entirely — so the
+field was reassigned from `Rs + imm2` to a four-way function select.
+
+**New imm2 function table** (all source reads are forwarded; a PC source
+yields the architectural own address + 1, §3.3/6.2.1):
+
+| imm2 | Operation | Syntax |
+|------|-----------|--------|
+| 0 | `Rd ← Rs` | `MOV Rd, Rs` |
+| 1 | `Rd ← Rs << 1` | `MOV Rd, Rs << 1` |
+| 2 | `Rd ← Rs + 2` | `MOV Rd, Rs + 2` (`LINK`/`LNK`) |
+| 3 | `Rd ← (Rs << 1) \| 1` | `MOV Rd, Rs << 1 + 1` |
+
+Consequence: **every 16-bit constant loads in two instructions** — `LDI x`
+plus one MOV shift. LDI sign-extends imm15, so only x with `bit15 == bit14`
+is loadable, but exactly one of `v` / `v ^ 0x8000` qualifies, and `<< 1`
+drops the bit15 the XOR flips.
+
+**Retired: AMV.** The general unforwarded GPR read is gone and no encoding
+remains for it: `SMV` is `[11111110][Rx4][alt_sel4]` — full, with Rx as the
+*destination* and the four reserved alt_sel codes naming *fixed* sources
+(no room for a general Rs), the opcode tree is full down to `HLT`, and
+ALU2's `func5` is 32/32. The spec now relies on pipeline drains at exception
+entry rather than an instruction-level committed read of GPRs. The
+no-forward requirement itself survives in **SMV** (Arch §3.3), where it was
+always specified for `APC`.
+
+**Moved: ALNK/ALINK.** The PC instance of the architectural read was
+standardized on `SMV Rx, APC` exactly as Arch Table R already said — this
+also resolves the Arch-doc vs Program-Man alias conflict in favour of the
+Arch doc:
+
+| Alias | Before | After |
+|-------|--------|-------|
+| `LNK Rx` / `LINK` | `MOV Rx/LR, PC, 2` | **unchanged** |
+| `ALNK Rx` | `MOV Rx, PC, 3` | `SMV Rx, APC` |
+| `ALINK` | `MOV LR, PC, 3` | `SMV LR, APC` (0xFEEF) |
+
+**Assembler safety.** `MOV Rd, Rs, 1`, `, 3`, `+1`, `+3` (and the old
+`MOV LR, PC, 3` spelling of ALINK) are rejected with an error pointing at the
+shift syntax, so pre-redesign sources fail loudly instead of silently
+yielding shifted values. `, 0` and `+2` keep their meanings; `LINK`, `LNK`
+and `MOV LR, PC, 2` assemble to the same words as before.
+
+**Core fix shipped alongside.** The JS core executed the delay-slot
+instruction *before* incrementing the PC, so `SMV Rx, APC` or a plain
+`MOV Rx, PC` inside a delay slot returned the slot address while the WASM
+core returned own+1 (measured 0x0103 vs 0x0104). The JS core now increments
+first, matching `step_one` in `lib.rs`; both cores derive MOV's PC source
+from the instruction's original address, so LINK/ALNK values no longer
+depend on PC bookkeeping order. Regression tests: delay-slot PC reads on
+both cores (asserting LR, which the old "does it halt" test could not see)
+plus an end-to-end ALNK call that captures the in-flight return address.
+
+---
+
 **Document Version:** 2.1 (Comprehensive)  
 **Date:** 2024-03-21  
+**Last updated:** 2026-10-08 (§14 MOV imm2 redesign)  
 **Status:** Approved for implementation  
 **Impact:** High (breaking changes, new instructions)  
 **Rationale:** Essential for functional processor, optimized encoding, future expansion

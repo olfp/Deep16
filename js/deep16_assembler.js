@@ -582,14 +582,13 @@ class Deep16Assembler {
                     throw new Error('LNK requires destination register');
                 case 'LINK': // LINK => MOV LR, PC, 2
                     return 0b1111100000000000 | (14 << 6) | (15 << 2) | 2;
-                case 'ALNK': // ALNK Rx => MOV Rx, PC, 3
+                case 'ALNK': // ALNK Rx => SMV Rx, APC (spec Table R: architectural read of the active PC, bypasses forwarding)
                     if (parts.length >= 2) {
-                        const rd = this.parseRegister(parts[1]);
-                        return 0b1111100000000000 | (rd << 6) | (15 << 2) | 3;
+                        return this.encodeSMV([null, parts[1], 'APC'], address, lineNumber);
                     }
                     throw new Error('ALNK requires destination register');
-                case 'ALINK': // ALINK => MOV LR, PC, 3
-                    return 0b1111100000000000 | (14 << 6) | (15 << 2) | 3;
+                case 'ALINK': // ALINK => SMV LR, APC (spec Table R)
+                    return this.encodeSMV([null, 'LR', 'APC'], address, lineNumber);
                 
                 // Shift operations
                 case 'SL':   return this.encodeShift(parts, 'SL', address, lineNumber);
@@ -779,8 +778,24 @@ class Deep16Assembler {
             const joinedParts = parts.join(' ');
             if (window.Deep16Debug) console.log(`MOV joined parts: "${joinedParts}"`);
             
+            // Shift syntax: MOV Rd, Rs << 1      -> imm2=1 (Rd = Rs << 1)
+            //                MOV Rd, Rs << 1 + 1 -> imm2=3 (Rd = (Rs << 1) | 1)
+            // Checked before the '+' branch because the shift-or-1 form contains a '+'.
+            if (joinedParts.includes('<<')) {
+                const shiftMatch = joinedParts.match(/^MOV\s+(\S+)\s+(\S+)\s*<<\s*1(\s*\+\s*1)?$/i);
+                if (!shiftMatch) {
+                    throw new Error(`Invalid MOV shift syntax: ${joinedParts}. Expected 'MOV Rd, Rs << 1' (Rd = Rs << 1) or 'MOV Rd, Rs << 1 + 1' (Rd = (Rs << 1) | 1)`);
+                }
+                rd = this.parseRegister(shiftMatch[1]);
+                rs = this.parseRegister(shiftMatch[2]);
+                imm = shiftMatch[3] ? 3 : 1;
+                // Regular MOV encoding: [111110][Rd4][Rs4][imm2]
+                return 0b1111100000000000 | (rd << 6) | (rs << 2) | imm;
+            }
+            
             if (joinedParts.includes('+')) {
-                // Plus syntax: MOV R1, R2+3 or MOV R1, R2 + 3
+                // Plus syntax: MOV R1, R2+2 or MOV R1, R2 + 2
+                // (+1/+3 are rejected below: imm2=1/3 now encode the shift forms)
                 if (window.Deep16Debug) console.log("Detected MOV plus syntax");
                 
                 // Extract the register+immediate part using regex
@@ -802,10 +817,17 @@ class Deep16Assembler {
                     throw new Error(`MOV immediate ${imm} out of range (0-3)`);
                 }
                 
+                // imm2=1/3 changed meaning: they now encode the shift forms
+                // 'Rs << 1' and '(Rs << 1) | 1', not 'Rs + 1' / 'Rs + 3'.
+                // Reject instead of silently shifting an old source.
+                if (imm === 1 || imm === 3) {
+                    throw new Error(`MOV '+${imm}' rejected: imm2=${imm} now means '${imm === 1 ? 'Rs << 1' : '(Rs << 1) | 1'}', not 'Rs + ${imm}'. Write 'MOV ${movMatch[1]}, ${movMatch[2]} << 1${imm === 3 ? ' + 1' : ''}' (or '+2' for an even offset)`);
+                }
+                
                 // Regular MOV encoding: [111110][Rd4][Rs4][imm2]
                 return 0b1111100000000000 | (rd << 6) | (rs << 2) | imm;
             } 
-            // Original syntax: MOV R1, R2 or MOV R1, R2, 3
+            // Original syntax: MOV R1, R2 or MOV R1, R2, 0
             else if (parts.length >= 3) {
                 if (window.Deep16Debug) console.log("Detected original MOV syntax");
                 rd = this.parseRegister(parts[1]);
@@ -841,6 +863,13 @@ class Deep16Assembler {
                     
                     if (imm < 0 || imm > 3) {
                         throw new Error(`MOV immediate ${imm} out of range (0-3)`);
+                    }
+                    
+                    // imm2=1/3 changed meaning: they now encode the shift forms
+                    // 'Rs << 1' and '(Rs << 1) | 1', not 'Rs + 1' / 'Rs + 3'.
+                    // Reject instead of silently shifting an old source.
+                    if (imm === 1 || imm === 3) {
+                        throw new Error(`MOV '${parts[1]}, ${parts[2]}, ${imm}' rejected: imm2=${imm} now means '${imm === 1 ? 'Rs << 1' : '(Rs << 1) | 1'}', not 'Rs + ${imm}'. Write 'MOV ${parts[1]}, ${parts[2]} << 1${imm === 3 ? ' + 1' : ''}'`);
                     }
                     
                     // Regular MOV encoding: [111110][Rd4][Rs4][imm2]

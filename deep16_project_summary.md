@@ -115,7 +115,7 @@
 
 ### **Enhanced Assembler Features:**
 - **Bracket syntax**: `LD R1, [R2+5]` → `LD R1, R2, 5`
-- **Plus syntax**: `MOV R1, R2+3` → `MOV R1, R2, 3`
+- **Plus/shift syntax**: `MOV R1, R2+2` → `MOV R1, R2, 2`; `MOV R1, R2 << 1` → imm2=1
 - **Universal MOV**: Automatic MVS/SMV selection for segment/special registers
 - **Character literals**: `LDI 'A'` and escape sequences `\n`, `\t`
 - **String directives**: `.text "Hello\n"` with null termination
@@ -230,7 +230,7 @@ The DeepWeb IDE is now **fully functional** with all major systems operational a
 
 **Enhanced Assembler Syntax:**
 - **Bracket notation**: `LD R1, [R2+5]` → traditional `LD R1, R2, 5`
-- **Plus notation**: `MOV R1, R2+3` → traditional `MOV R1, R2, 3`
+- **Plus/shift notation**: `MOV R1, R2+2` → `MOV R1, R2, 2`; `MOV R1, R2 << 1 + 1` → imm2=3 (`(R2<<1)|1`)
 - **Universal MOV**: Automatic MVS/SMV for segment/special registers
 - **Character constants**: `'A'`, `'\n'`, `'\t'` support
 - **String directives**: `.text "Hello"` with escape sequences

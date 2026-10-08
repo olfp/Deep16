@@ -120,8 +120,8 @@
 main:
     ; Your Deep16 code here
     LSI R0, 14          ; Example: load immediate value
-    ST  R0, [R0 +21]    ; Example: store to memory
-    MOV R1, R0 +1
+    ST  R0, [R0 +12]    ; Example: store to memory (offset is a signed 5-bit field)
+    MOV R1, R0 << 1
     
     HALT
 

@@ -155,9 +155,15 @@ class Deep16Simulator {
             this.lastALUResult = 0;
             this.lastALUOverflow = false;
             this.shiftCarryOut = null;
+            // Increment PC BEFORE executing the delay-slot instruction (same
+            // order as the WASM core's step_one). The slot instruction must
+            // observe the architectural own+1 PC: a PC read in a delay slot
+            // (MOV Rx, PC / SMV Rx, APC) yields own address + 1, never the
+            // slot address itself (spec 3.3 / 6.2.2). Incrementing afterwards
+            // made the JS core disagree with the WASM core there.
+            if (inShadow) { this.shadowRegisters.PC = (this.shadowRegisters.PC + 1) & 0xFFFF; } else { this.registers[15] = (this.registers[15] + 1) & 0xFFFF; }
             this.executeInstruction(delayInstruction, activePC);
             this.updatePSWFlags();
-            if (inShadow) { this.shadowRegisters.PC = (this.shadowRegisters.PC + 1) & 0xFFFF; } else { this.registers[15] = (this.registers[15] + 1) & 0xFFFF; }
             if (this.branchTaken) {
                 if (this.delayedToShadow) { this.shadowRegisters.PC = this.delayedPC & 0xFFFF; this.shadowRegisters.CS = this.delayedCS & 0xFFFF; }
                 else { this.registers[15] = this.delayedPC & 0xFFFF; this.segmentRegisters.CS = this.delayedCS & 0xFFFF; }
@@ -646,25 +652,28 @@ class Deep16Simulator {
         const rs = (instruction >>> 2) & 0xF;
         const imm = instruction & 0x3;
 
+        // Source operand. A PC read is the architectural own+1 in every
+        // context (spec 3.3/6.2.2) - derived from the instruction's own
+        // address so it does not depend on PC bookkeeping order.
+        const src = rs === 15
+            ? (this.lastOriginalPCForExec + 1) & 0xFFFF
+            : this.readGPR(rs);
+
+        // imm2 function table (all forwarded reads, no architectural bypass):
+        //   0: Rd <- Rs
+        //   1: Rd <- Rs << 1
+        //   2: Rd <- Rs + 2        (LINK = MOV Rd, PC, 2 -> own + 3, i.e. the
+        //                           instruction after the delay slot)
+        //   3: Rd <- (Rs << 1) | 1
+        // The former imm2=3 meanings (ALNK = PC own+1, AMV = unforwarded GPR
+        // read) are retired: ALNK is now SMV Rd, APC per spec Table R, and the
+        // no-forward read lives only in SMV.
         let value;
-        if (imm === 0) {
-            value = this.readGPR(rs);
-        } else if (rs === 15 && imm === 2) {
-            // LNK/LINK (spec 6.2.1): the return address is the instruction
-            // AFTER the branch delay slot. The visible PC during execution is
-            // own address + 1, so PC + 2 lands on own + 3. The old own + 2
-            // pointed into the delay slot, which then executed a second time
-            // when the subroutine returned (harmless for NOP slots, wrong for
-            // useful ones - and contrary to the spec's "actual return address
-            // should be PC + 2 (after delay slot)").
-            value = (this.lastOriginalPCForExec + 3) & 0xFFFF;
-        } else if (rs === 15 && imm === 3) {
-            value = (this.lastOriginalPCForExec + 1) & 0xFFFF;
-        } else if (imm === 3) {
-            // Architectural read bypass: do not add immediate
-            value = this.readGPR(rs);
-        } else {
-            value = (this.readGPR(rs) + imm) & 0xFFFF;
+        switch (imm) {
+            case 0: value = src; break;
+            case 1: value = (src << 1) & 0xFFFF; break;
+            case 2: value = (src + 2) & 0xFFFF; break;
+            default: value = ((src << 1) | 1) & 0xFFFF; break;
         }
 
         // If destination is PC, treat as jump with delay slot
