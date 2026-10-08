@@ -48,9 +48,7 @@ block-beta
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   b0["1110<br/>Opcode"]:7
-  gap1:1
   b1["Bedingung<br/>3"]:5
-  gap2:1
   b2["Ziel<br/>9"]:17
   class b0 op
   class b1 imm
