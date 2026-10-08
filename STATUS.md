@@ -13,7 +13,7 @@
 | 2 | Register und Speicher organisieren | ✅ fertig | beide Kerne | ✅ SVG-Diagramm |
 | 3 | Die ALU-Werkstatt: Befehle für Einsteiger | ✅ fertig | beide Kerne | ✅ 32 SVG-Diagramme |
 | 4 | Flusskontrolle und Unterprogramme | ✅ fertig | beide Kerne | ✅ 4 SVG-Diagramme |
-| 5 | Interrupts und Shadow-Register | ⏳ offen | — | — |
+| 5 | Interrupts und Shadow-Register | ✅ fertig | beide Kerne | ✅ 8 SVG-Diagramme |
 | 6 | Der Simulator als Werkbank | ⏳ offen | — | — |
 | 7 | Ein Mini-Forth | ⏳ offen | — | — |
 | 8 | Terminal-Uhr / Snake-Projekt | ⏳ offen | — | — |
@@ -59,11 +59,21 @@ Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
 - Verifikation: `npm test` 121/121 · Probe `probe_kap04.mjs` 46 Checks ·
   Extractor `extract_kap04.mjs` 60 Checks · EPUB mit 4 SVGs in `ch004.xhtml`.
 
-### ⏳ Kapitel 5 — Interrupts und Shadow-Register
-- Plan in `book/README.md`: `SWI`/`RETI`, Bit `S`, Shadow-Register
-  R0′–R3′, R13′, R14′, PC′, PSW′, Segmente — löst das Rettungswesen von
-  §4.2 (§2.2) in Hardware.
-- Noch offen: Probeskript, Extractor, Kapiteltext, EPUB-Build.
+### ✅ Kapitel 5 — `book/kap05.md` (730 Zeilen)
+- **8 Listings, alle gemessen** — 8 Bit-Codierungs-Diagramme mit Titelzeile
+  (`SWI`, `RETI`, `SMV`, `SETI`, `CLRI`, `SETS`, `CLRS`, `MVS`/`MOV Rd, Sx`).
+- §5.1 Das Problem (Stapel vs. zweite Bank; ehrliche Note: kein
+  Hardware-Interrupt feuert in einem der beiden Kerne) · §5.2 `SWI`/`RETI`,
+  der Reparatur-Stummel für den Boot-Vektor, `SMV` + `alt_sel`-Tabelle,
+  was `SWI` zurücksetzt, `SETI`/`CLRI` und die `SETS`-Falle ·
+  §5.3 `APSW`, Schatten-Segmente, OS-Aufruf mit zwei Banken, Shadow-Block
+  im Simulator · Beispiel „Drei Interrupts, ein Zähler“ (48 Schritte).
+- **Frozen Fact eingehalten:** `SETS` kommt nur in Listing 5-4 (der Falle)
+  vor, **nie im Beispiel**; `SET`/`CLR` mit Bitnummer fehlen komplett.
+- Verifikation: `npm test` 134/134 · Probe `probe_kap05.mjs` 42 Checks
+  (Boot, ungepakter SWI-Vektor, RETI ohne Delay Slot, Schattenzustand,
+  Code-/Spec-Inspektion) · Extractor `extract_kap05.mjs` 150 Checks ·
+  EPUB mit 8 SVGs in `ch005.xhtml` (46 insgesamt, `raw_pre` = 0).
 
 ---
 
@@ -99,7 +109,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 
 ## Nächste Schritte
 
-1. 🔨 **Kapitel 5** schreiben (Interrupts, Shadow-Register, `SWI`/`RETI`,
+1. ✅ **Kapitel 5** abgeschlossen (Interrupts, Shadow-Register, `SWI`/`RETI`,
    `SMV`/`APSW`; Probe → Listings → Extractor → EPUB → Push).
 2. Stichproben-Härtung Delay-Slot-Grenzfälle ist für Kap. 4 abgeschlossen
    (verschachtelte Jcc gemessen: innerer entscheidet, äußerer fällt weg).
