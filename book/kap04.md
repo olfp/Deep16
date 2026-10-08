@@ -49,7 +49,7 @@ block-beta
   classDef off fill:#dcfce7,stroke:#15803d
   b0["1110<br/>Opcode"]:4
   b1["Bedingung<br/>3"]:3
-  b2["Ziel<br/>9, vorzeichenbehaftet"]:9
+  b2["Ziel<br/>9"]:9
   class b0 op
   class b1 imm
   class b2 off
@@ -252,7 +252,7 @@ block-beta
   b0["111110<br/>Opcode"]:6
   b1["LR<br/>14"]:4
   b2["PC<br/>15"]:4
-  b3["2<br/>Immediate"]:2
+  b3["2"]:2
   class b0 op
   class b1 b2 reg
   class b3 imm
@@ -282,7 +282,7 @@ block-beta
   b0["111110<br/>Opcode"]:6
   b1["PC<br/>15"]:4
   b2["Rx<br/>4"]:4
-  b3["0<br/>Immediate"]:2
+  b3["0"]:2
   class b0 op
   class b1 b2 reg
   class b3 imm
