@@ -48,7 +48,7 @@ block-beta
   b1["0"]:1
   b2["Rd<br/>4"]:7
   b3["Rb<br/>4"]:7
-  b4["Offset<br/>5"]:9
+  b4["Offset<br/>5 Bit"]:9
   class b0 b1 op
   class b2 b3 reg
   class b4 off
@@ -70,7 +70,7 @@ block-beta
   b1["1"]:1
   b2["Rd<br/>4"]:7
   b3["Rb<br/>4"]:7
-  b4["Offset<br/>5"]:9
+  b4["Offset<br/>5 Bit"]:9
   class b0 b1 op
   class b2 b3 reg
   class b4 off
@@ -226,7 +226,7 @@ block-beta
   b0["110"]:5
   b1["00001"]:9
   b2["Rd<br/>4"]:7
-  b3["imm<br/>4"]:7
+  b3["#imm<br/>4 Bit"]:7
   class b0 b1 op
   class b2 reg
   class b3 imm
@@ -326,7 +326,7 @@ block-beta
   b0["110"]:5
   b1["00011"]:9
   b2["Rd<br/>4"]:7
-  b3["imm<br/>4"]:7
+  b3["#imm<br/>4 Bit"]:7
   class b0 b1 op
   class b2 reg
   class b3 imm
@@ -391,7 +391,7 @@ block-beta
   b0["110"]:5
   b1["00101"]:201
   b2["Rd<br/>4"]:7
-  b3["4"]:7
+  b3["#4<br/>4 Bit"]:7
   class b0 b1 op
   class b2 reg
   class b3 imm
