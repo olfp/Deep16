@@ -37,18 +37,22 @@ und im Simulator frei austauschbar.
 
 ```mermaid
 block-beta
-  columns 5
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["10"]:1
+  b0["10"]:3
+  gap1:1
   b1["0"]:1
-  b2["Rd<br/>4"]:1
-  b3["Rb<br/>4"]:1
-  b4["Offset<br/>5"]:1
+  gap2:1
+  b2["Rd<br/>4"]:7
+  gap3:1
+  b3["Rb<br/>4"]:7
+  gap4:1
+  b4["Offset<br/>5"]:9
   class b0 b1 op
   class b2 b3 reg
   class b4 off
