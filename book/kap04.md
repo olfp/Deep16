@@ -65,7 +65,8 @@ Line 2: Jump target too far: 256 words from current position
 ```
 
 Das ist zugleich die Erklärung, warum Schleifen in diesem Buch so oft in
-der Nähe bleiben: `JNZ loop` rückwärts ist mit −4 Wörtern kein Problem.
+der Nähe bleiben: `JNZ loop` rückwärts ist hier nur −2 Wörter, kein
+Problem fürs 9-Bit-Ziel.
 
 ### Das Delay-Slot-Gesetz
 
