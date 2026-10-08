@@ -12,7 +12,7 @@
 | 1 | Warum eine 16-Bit-CPU? | ✅ fertig | beide Kerne | ✅ SVG-Diagramm |
 | 2 | Register und Speicher organisieren | ✅ fertig | beide Kerne | ✅ SVG-Diagramm |
 | 3 | Die ALU-Werkstatt: Befehle für Einsteiger | ✅ fertig | beide Kerne | ✅ 32 SVG-Diagramme |
-| 4 | Flusskontrolle und Unterprogramme | 🔨 in Arbeit | — | — |
+| 4 | Flusskontrolle und Unterprogramme | ✅ fertig | beide Kerne | ✅ 4 SVG-Diagramme |
 | 5 | Interrupts und Shadow-Register | ⏳ offen | — | — |
 | 6 | Der Simulator als Werkbank | ⏳ offen | — | — |
 | 7 | Ein Mini-Forth | ⏳ offen | — | — |
@@ -44,12 +44,25 @@ Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
 - Verifikation: `npm test` 121/121 · Probe 94 Checks · Extractor 107 Checks ·
   EPUB mit 32 SVGs in `ch003.xhtml`.
 
-### 🔨 Kapitel 4 — Flusskontrolle und Unterprogramme
-- Aus dem Buchplan: §4.1 `Jcc` & **Delay Slots** (größte Falle für Neuankömmlinge),
-  §4.2 Unterprogramme ohne Adress-Stapel (`LINK`/`JMP LR`, Rekursion, der Preis dafür),
-  Beispiel **Tokenizer** (Basis für das Mini-Forth in Kap. 7).
-- Natur des Kapitels: Messungen zu Delay-Slot-Semantik (genommen/nicht genommen),
-  `Jcc`-Encoding-Tabelle, `LINK`-Rücksprungadresse, `JSR`/`RTS`-Fallstricke.
+### ✅ Kapitel 4 — `book/kap04.md` (589 Zeilen)
+- **7 Listings, alle gemessen** — 4 Encoding-Diagramme mit Titelzeile
+  (`Jcc`, Delay-Slot-Ablauf, `LINK`, `JMP Rx`), dazu Tabelle aller 8 `Jcc`.
+- §4.1 `Jcc` & **Delay Slots**: Slot läuft immer (4-1, 28 Schritte),
+  Über-Sprung-Falle ohne NOP (4-2a/4-2b), alle 8 Bedingungen im Zähler
+  (4-3, `R8 = 4`), Reichweite ±256 (Fehlermeldung gemessen), verschachtelte
+  Jcc als Warnhinweis gemessen.
+- §4.2 `LINK`/`JMP LR` ohne Adress-Stapel: Aufruf/Rückkehr (4-4,
+  `LR = 0x0105`), „ein LR für alle Aufrufe“ — Sicherung in R5 (4-5,
+  `R8 = 0xAA`); Gegentest ohne Sicherung läuft 1000 Schritte (beide Kerne).
+- **Beispiel: Tokenizer** (4-6): 3 Token aus „eine zwei drei“, Tabelle
+  `(0200,4)/(0205,4)/(020A,4)`, **284 Schritte**.
+- Verifikation: `npm test` 121/121 · Probe `probe_kap04.mjs` 46 Checks ·
+  Extractor `extract_kap04.mjs` 60 Checks · EPUB mit 4 SVGs in `ch004.xhtml`.
+
+### ⏳ Kapitel 5 — Interrupts und Shadow-Register
+- Plan in `book/README.md`: `SWI`/`RETI`, Bit `S`, Shadow-Register
+  R0′–R3′, R13′, R14′, PC′, PSW′, Segmente — löst das Rettungswesen von
+  §4.2 (§2.2) in Hardware.
 - Noch offen: Probeskript, Extractor, Kapiteltext, EPUB-Build.
 
 ---
@@ -86,10 +99,11 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 
 ## Nächste Schritte
 
-1. 🔨 **Kapitel 4** schreiben (Probe → Listings → Extractor → EPUB → Push).
-2. Stichproben-Härtung kontroverser Aussagen (Delay-Slot-Grenzfälle: Sprungziel =
-   Slot, `Jcc` mit Ziel im Slot, verschachtelte Sprünge).
-3. Danach: Kapitel 5 (Interrupts, Shadow-Register, `SWI`/`RETI`, `SMV`/`APSW`).
+1. 🔨 **Kapitel 5** schreiben (Interrupts, Shadow-Register, `SWI`/`RETI`,
+   `SMV`/`APSW`; Probe → Listings → Extractor → EPUB → Push).
+2. Stichproben-Härtung Delay-Slot-Grenzfälle ist für Kap. 4 abgeschlossen
+   (verschachtelte Jcc gemessen: innerer entscheidet, äußerer fällt weg).
+3. Danach: Kapitel 6 (Simulator-Werkbank, Memory-Mapped I/O).
 
 ## Offene Punkte (aus `book/README.md`)
 

@@ -44,7 +44,9 @@ Jedes Kapitel folgt gleich auf:
 ## 3. Listings (```assembly)
 
 - **Jedes** `assembly`-Listing ist ein **vollständiges Programm**:
-  beginnt mit `.org 0x0100` und endet mit `HALT`. Keine Fragmente!
+  beginnt mit `.org 0x0100` und endet in einem `HALT` — Unterroutine-
+  Definitionen dürfen hinter dem `HALT` stehen (Muster aus §2.4 und
+  Listing 4-4). Keine Fragmente!
 - Die erste Kommentarzeile nennt Nummer und Zweck:
 
   ```assembly
