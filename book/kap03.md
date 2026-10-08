@@ -45,13 +45,9 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["10"]:3
-  gap1:1
   b1["0"]:1
-  gap2:1
   b2["Rd<br/>4"]:7
-  gap3:1
   b3["Rb<br/>4"]:7
-  gap4:1
   b4["Offset<br/>5"]:9
   class b0 b1 op
   class b2 b3 reg
@@ -71,13 +67,9 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["10"]:3
-  gap1:1
   b1["1"]:1
-  gap2:1
   b2["Rd<br/>4"]:7
-  gap3:1
   b3["Rb<br/>4"]:7
-  gap4:1
   b4["Offset<br/>5"]:9
   class b0 b1 op
   class b2 b3 reg
@@ -97,13 +89,9 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["11110"]:9
-  gap1:1
   b1["0"]:1
-  gap2:1
   b2["Segment<br/>2"]:3
-  gap3:1
   b3["Rd<br/>4"]:7
-  gap4:1
   b4["Rb<br/>4"]:7
   class b0 b1 op
   class b2 seg
@@ -123,13 +111,9 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["11110"]:9
-  gap1:1
   b1["1"]:1
-  gap2:1
   b2["Segment<br/>2"]:3
-  gap3:1
   b3["Rd<br/>4"]:7
-  gap4:1
   b4["Rb<br/>4"]:7
   class b0 b1 op
   class b2 seg
@@ -221,11 +205,8 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  gap1:1
   b1["00000"]:9
-  gap2:1
   b2["Rd<br/>4"]:7
-  gap3:1
   b3["Rs<br/>4"]:7
   class b0 b1 op
   class b2 b3 reg
@@ -243,11 +224,8 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  gap1:1
   b1["00001"]:9
-  gap2:1
   b2["Rd<br/>4"]:7
-  gap3:1
   b3["imm<br/>4"]:7
   class b0 b1 op
   class b2 reg
@@ -327,11 +305,8 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  gap1:1
   b1["00010"]:9
-  gap2:1
   b2["Rd<br/>4"]:7
-  gap3:1
   b3["Rs<br/>4"]:7
   class b0 b1 op
   class b2 b3 reg
@@ -349,11 +324,8 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  gap1:1
   b1["00011"]:9
-  gap2:1
   b2["Rd<br/>4"]:7
-  gap3:1
   b3["imm<br/>4"]:7
   class b0 b1 op
   class b2 reg
@@ -390,17 +362,17 @@ ist, weil dann ein Borrow fällig war; `C = 0` heißt `Ra ≥ Rb`.
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
+  b0["110"]:5
   b1["00100"]:1
-  b2["Rd<br/>4"]:1
-  b3["Rs<br/>4"]:1
+  b2["Rd<br/>4"]:7
+  b3["Rs<br/>4"]:7
   class b0 b1 op
   class b2 b3 reg
 ```
@@ -409,17 +381,17 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
-  b1["00101"]:1
-  b2["Rd<br/>4"]:1
-  b3["4"]:1
+  b0["110"]:5
+  b1["00101"]:201
+  b2["Rd<br/>4"]:7
+  b3["4"]:7
   class b0 b1 op
   class b2 reg
   class b3 imm
@@ -525,17 +497,17 @@ R4` liest die Null (`0x0000`).
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
+  b0["110"]:5
   b1["00110"]:1
-  b2["Rd<br/>4"]:1
-  b3["Rs<br/>4"]:1
+  b2["Rd<br/>4"]:7
+  b3["Rs<br/>4"]:7
   class b0 b1 op
   class b2 b3 reg
 ```
@@ -544,17 +516,17 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
+  b0["110"]:5
   b1["01010"]:1
-  b2["Rd<br/>4"]:1
-  b3["Rs<br/>4"]:1
+  b2["Rd<br/>4"]:7
+  b3["Rs<br/>4"]:7
   class b0 b1 op
   class b2 b3 reg
 ```
@@ -563,17 +535,17 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
-  b1["01011"]:1
-  b2["Rd<br/>4"]:1
-  b3["Bit-Nr.<br/>4"]:1
+  b0["110"]:5
+  b1["01011"]:2021
+  b2["Rd<br/>4"]:7
+  b3["Bit-Nr.<br/>4"]:7
   class b0 b1 op
   class b2 reg
   class b3 imm
@@ -583,17 +555,17 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
+  b0["110"]:5
   b1["01100"]:1
-  b2["Rd<br/>4"]:1
-  b3["Rs<br/>4"]:1
+  b2["Rd<br/>4"]:7
+  b3["Rs<br/>4"]:7
   class b0 b1 op
   class b2 b3 reg
 ```
@@ -602,17 +574,17 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
-  b1["01101"]:1
-  b2["Rd<br/>4"]:1
-  b3["Bit-Nr.<br/>4"]:1
+  b0["110"]:5
+  b1["01101"]:2201
+  b2["Rd<br/>4"]:7
+  b3["Bit-Nr.<br/>4"]:7
   class b0 b1 op
   class b2 reg
   class b3 imm
@@ -622,17 +594,17 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
-  b1["00111"]:1
-  b2["Rd<br/>4"]:1
-  b3["Bit-Nr.<br/>4"]:1
+  b0["110"]:5
+  b1["00111"]:221
+  b2["Rd<br/>4"]:7
+  b3["Bit-Nr.<br/>4"]:7
   class b0 b1 op
   class b2 reg
   class b3 imm
@@ -663,17 +635,17 @@ Die Merkregel sitzt im Namen, wenn man `JNZ` als „ja“ liest: `TBS` fragt
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
+  b0["110"]:5
   b1["01110"]:1
-  b2["Rd<br/>4"]:1
-  b3["Rs<br/>4"]:1
+  b2["Rd<br/>4"]:7
+  b3["Rs<br/>4"]:7
   class b0 b1 op
   class b2 b3 reg
 ```
@@ -682,17 +654,17 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
+  b0["110"]:5
   b1["01000"]:1
-  b2["Rd<br/>4"]:1
-  b3["Rs<br/>4"]:1
+  b2["Rd<br/>4"]:7
+  b3["Rs<br/>4"]:7
   class b0 b1 op
   class b2 b3 reg
 ```
@@ -738,17 +710,17 @@ messbar `0x0008` als PSW.
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
+  b0["110"]:5
   b1["10000"]:1
-  b2["Rd<br/>4"]:1
-  b3["Anzahl<br/>4"]:1
+  b2["Rd<br/>4"]:7
+  b3["Anzahl<br/>4"]:7
   class b0 b1 op
   class b2 reg
   class b3 off
@@ -758,17 +730,17 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
+  b0["110"]:5
   b1["11000"]:1
-  b2["Rd<br/>4"]:1
-  b3["Anzahl<br/>4"]:1
+  b2["Rd<br/>4"]:7
+  b3["Anzahl<br/>4"]:7
   class b0 b1 op
   class b2 reg
   class b3 off
@@ -822,17 +794,17 @@ Wert, an dem du den Fehler erkennst.
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
+  b0["110"]:5
   b1["11100"]:1
-  b2["Rd<br/>4"]:1
-  b3["Rs<br/>4"]:1
+  b2["Rd<br/>4"]:7
+  b3["Rs<br/>4"]:7
   class b0 b1 op
   class b2 b3 reg
 ```
@@ -841,17 +813,17 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
-  b1["11101"]:1
-  b2["Rd<br/>4"]:1
-  b3["Rs<br/>4"]:1
+  b0["110"]:5
+  b1["11101"]:22201
+  b2["Rd<br/>4"]:7
+  b3["Rs<br/>4"]:7
   class b0 b1 op
   class b2 b3 reg
 ```
@@ -860,17 +832,17 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
-  b1["11110"]:1
-  b2["Rd<br/>4"]:1
-  b3["Rs<br/>4"]:1
+  b0["110"]:5
+  b1["11110"]:9
+  b2["Rd<br/>4"]:7
+  b3["Rs<br/>4"]:7
   class b0 b1 op
   class b2 b3 reg
 ```
@@ -879,17 +851,17 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
-  b1["11111"]:1
-  b2["Rd<br/>4"]:1
-  b3["Rs<br/>4"]:1
+  b0["110"]:5
+  b1["11111"]:22221
+  b2["Rd<br/>4"]:7
+  b3["Rs<br/>4"]:7
   class b0 b1 op
   class b2 b3 reg
 ```
