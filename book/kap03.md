@@ -213,17 +213,20 @@ Regel kurz und schnörkellos, sie gilt für den Rest des Kapitels:
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
-  b1["00000"]:1
-  b2["Rd<br/>4"]:1
-  b3["Rs<br/>4"]:1
+  b0["110"]:5
+  gap1:1
+  b1["00000"]:9
+  gap2:1
+  b2["Rd<br/>4"]:7
+  gap3:1
+  b3["Rs<br/>4"]:7
   class b0 b1 op
   class b2 b3 reg
 ```
@@ -232,17 +235,20 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 4
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["110"]:1
-  b1["00001"]:1
-  b2["Rd<br/>4"]:1
-  b3["4"]:1
+  b0["110"]:5
+  gap1:1
+  b1["00001"]:9
+  gap2:1
+  b2["Rd<br/>4"]:7
+  gap3:1
+  b3["imm<br/>4"]:7
   class b0 b1 op
   class b2 reg
   class b3 imm
