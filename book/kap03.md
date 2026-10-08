@@ -370,7 +370,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["00100"]:1
+  b1["00100"]:9
   b2["Rd<br/>4"]:7
   b3["Rs<br/>4"]:7
   class b0 b1 op
@@ -389,7 +389,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["00101"]:201
+  b1["00101"]:9
   b2["Rd<br/>4"]:7
   b3["#4<br/>4 Bit"]:7
   class b0 b1 op
@@ -429,16 +429,16 @@ immer, den Zweig betreten die Sprünge erst eine Zeile später.
 
 ```mermaid
 block-beta
-  columns 3
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["1110"]:1
-  b1["001"]:1
-  b2["Ziel<br/>9"]:1
+  b0["1110"]:7
+  b1["001"]:5
+  b2["Ziel<br/>9"]:17
   class b0 b1 op
   class b2 off
 ```
@@ -447,16 +447,16 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 3
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["1110"]:1
-  b1["011"]:1
-  b2["Ziel<br/>9"]:1
+  b0["1110"]:7
+  b1["011"]:5
+  b2["Ziel<br/>9"]:17
   class b0 b1 op
   class b2 off
 ```
@@ -505,7 +505,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["00110"]:1
+  b1["00110"]:9
   b2["Rd<br/>4"]:7
   b3["Rs<br/>4"]:7
   class b0 b1 op
@@ -524,7 +524,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["01010"]:1
+  b1["01010"]:9
   b2["Rd<br/>4"]:7
   b3["Rs<br/>4"]:7
   class b0 b1 op
@@ -543,7 +543,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["01011"]:2021
+  b1["01011"]:9
   b2["Rd<br/>4"]:7
   b3["Bit-Nr.<br/>4"]:7
   class b0 b1 op
@@ -563,7 +563,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["01100"]:1
+  b1["01100"]:9
   b2["Rd<br/>4"]:7
   b3["Rs<br/>4"]:7
   class b0 b1 op
@@ -582,7 +582,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["01101"]:2201
+  b1["01101"]:9
   b2["Rd<br/>4"]:7
   b3["Bit-Nr.<br/>4"]:7
   class b0 b1 op
@@ -602,7 +602,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["00111"]:221
+  b1["00111"]:9
   b2["Rd<br/>4"]:7
   b3["Bit-Nr.<br/>4"]:7
   class b0 b1 op
@@ -643,7 +643,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["01110"]:1
+  b1["01110"]:9
   b2["Rd<br/>4"]:7
   b3["Rs<br/>4"]:7
   class b0 b1 op
@@ -662,7 +662,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["01000"]:1
+  b1["01000"]:9
   b2["Rd<br/>4"]:7
   b3["Rs<br/>4"]:7
   class b0 b1 op
@@ -718,7 +718,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["10000"]:1
+  b1["10000"]:9
   b2["Rd<br/>4"]:7
   b3["Anzahl<br/>4"]:7
   class b0 b1 op
@@ -738,7 +738,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["11000"]:1
+  b1["11000"]:9
   b2["Rd<br/>4"]:7
   b3["Anzahl<br/>4"]:7
   class b0 b1 op
@@ -802,7 +802,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["11100"]:1
+  b1["11100"]:9
   b2["Rd<br/>4"]:7
   b3["Rs<br/>4"]:7
   class b0 b1 op
@@ -821,7 +821,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["11101"]:22201
+  b1["11101"]:9
   b2["Rd<br/>4"]:7
   b3["Rs<br/>4"]:7
   class b0 b1 op
@@ -859,7 +859,7 @@ block-beta
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
   b0["110"]:5
-  b1["11111"]:22221
+  b1["11111"]:9
   b2["Rd<br/>4"]:7
   b3["Rs<br/>4"]:7
   class b0 b1 op
@@ -909,16 +909,16 @@ Vorzeichen eines Wertes umdrehen, ist `NEG` der direkte Weg — jeder
 
 ```mermaid
 block-beta
-  columns 3
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["1111111110"]:1
-  b1["01"]:1
-  b2["Rx<br/>4"]:1
+  b0["1111111110"]:19
+  b1["01"]:3
+  b2["Rx<br/>4"]:7
   class b0 b1 op
   class b2 reg
 ```
@@ -927,16 +927,16 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 3
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["1111111110"]:1
-  b1["00"]:1
-  b2["Rx<br/>4"]:1
+  b0["1111111110"]:19
+  b1["00"]:3
+  b2["Rx<br/>4"]:7
   class b0 b1 op
   class b2 reg
 ```
@@ -951,16 +951,16 @@ Befehlssatzes.
 
 ```mermaid
 block-beta
-  columns 3
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["1111111110"]:1
-  b1["11"]:1
-  b2["Rx<br/>4"]:1
+  b0["1111111110"]:19
+  b1["11"]:3
+  b2["Rx<br/>4"]:7
   class b0 b1 op
   class b2 reg
 ```
@@ -969,16 +969,16 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 3
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["1111111110"]:1
-  b1["10"]:1
-  b2["Rx<br/>4"]:1
+  b0["1111111110"]:19
+  b1["10"]:3
+  b2["Rx<br/>4"]:7
   class b0 b1 op
   class b2 reg
 ```
@@ -993,16 +993,16 @@ Bits steuern die Flags, die Aliase sparen Schreibarbeit:
 
 ```mermaid
 block-beta
-  columns 3
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["11111111110"]:1
+  b0["11111111110"]:21
   b1["0"]:1
-  b2["Bit-Nr.<br/>4"]:1
+  b2["Bit-Nr.<br/>4"]:7
   class b0 b1 op
   class b2 imm
 ```
@@ -1011,16 +1011,16 @@ block-beta
 
 ```mermaid
 block-beta
-  columns 3
+  columns 31
   classDef op fill:#e5e7eb,stroke:#374151
   classDef reg fill:#dbeafe,stroke:#1d4ed8
   classDef imm fill:#fef3c7,stroke:#b45309
   classDef off fill:#dcfce7,stroke:#15803d
   classDef seg fill:#ede9fe,stroke:#6d28d9
   classDef all fill:#fee2e2,stroke:#b91c1c
-  b0["11111111110"]:1
+  b0["11111111110"]:21
   b1["1"]:1
-  b2["Bit-Nr.<br/>4"]:1
+  b2["Bit-Nr.<br/>4"]:7
   class b0 b1 op
   class b2 imm
 ```
