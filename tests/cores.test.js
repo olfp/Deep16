@@ -434,3 +434,32 @@ test('base 0 with offset -4 reads 0xFFFC, not 0x1C (both cores)', async () => {
   assert.equal(wasm.registers[1], 0xABCD, 'WASM must sign-extend the offset');
   assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF));
 });
+
+// Spec Table 5: system instructions live in 0xFFF0..0xFFF7 (top 13 bits
+// 1111111111110); only 0xFFFF is HLT. The JS core used to stop on 0xFFF1 (a
+// legacy hack) while the WASM core dispatched all of 0xFFF0..0xFFFF as system
+// words and treated op 1 as HLT — so 0xFFF1 and 0xFFFA behaved differently.
+test('the system space is 0xFFF0..0xFFF7; 0xFFF8..0xFFFE are no-ops (both cores)', async () => {
+  for (const word of [0xFFF0, 0xFFF1, 0xFFF7, 0xFFF8, 0xFFFA, 0xFFFE]) {
+    const prog = rawProgram([word, 0x0007, enc.HLT]);
+    const js = runJs(prog, { cs: 0x0000 });
+    assert.equal(js.registers[0] & 0xFFFF, 7, `JS: 0x${word.toString(16)} must be a no-op`);
+    const wasm = await runWasm(prog, { cs: 0x0000 });
+    assert.equal(wasm.registers[0], 7, `WASM: 0x${word.toString(16)} must be a no-op`);
+    assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF),
+      `0x${word.toString(16)}: cores must agree`);
+  }
+});
+
+test('0xFFFF halts, 0xFFF1 (FSH) runs on (both cores)', async () => {
+  const halt = rawProgram([enc.HLT]);
+  assert.equal(runJs(halt, { cs: 0x0000 }).steps, 1, 'JS: HLT stops after one step');
+  assert.equal((await runWasm(halt, { cs: 0x0000 })).steps, 1, 'WASM: HLT stops after one step');
+
+  const fsh = rawProgram([0xFFF1, 0x0007, enc.HLT]);
+  const js = runJs(fsh, { cs: 0x0000 });
+  assert.equal(js.registers[0] & 0xFFFF, 7, 'JS: 0xFFF1 must not halt');
+  const wasm = await runWasm(fsh, { cs: 0x0000 });
+  assert.equal(wasm.registers[0], 7, 'WASM: 0xFFF1 must not halt');
+  assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF));
+});

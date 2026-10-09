@@ -123,12 +123,12 @@ class Deep16Simulator {
             0xA202, // ST R1, [R0+2]       (          ...      0x0002)
             0xFFE0, // JML R0              (CS = R0 = 0, PC = R1 = 0x0100)
             0xFFF0, // NOP (delay slot)
-            0xFFF1, // HLT
-            0xFFF1, // HLT
-            0xFFF1, // HLT
-            0xFFF1, // HLT
-            0xFFF1, // HLT
-            0xFFF1, // HLT
+            0xFFF1, // FSH (filler; never reached — HLT would be 0xFFFF)
+            0xFFF1, // FSH (filler; never reached — HLT would be 0xFFFF)
+            0xFFF1, // FSH (filler; never reached — HLT would be 0xFFFF)
+            0xFFF1, // FSH (filler; never reached — HLT would be 0xFFFF)
+            0xFFF1, // FSH (filler; never reached — HLT would be 0xFFFF)
+            0xFFF1, // FSH (filler; never reached — HLT would be 0xFFFF)
         ];
         for (let i = 0; i < rom.length; i++) {
             const addr = base + i;
@@ -183,7 +183,9 @@ class Deep16Simulator {
         
         
 
-        if (instruction === 0xFFFF || instruction === 0xFFF1) {
+        // Spec Table 5: only 0xFFFF is HLT. 0xFFF1 is FSH (flush pipeline),
+        // a behavioural no-op — it must not stop the core.
+        if (instruction === 0xFFFF) {
             this.running = false;
             return false;
         }

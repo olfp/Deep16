@@ -846,7 +846,7 @@ fn step_one(c: &mut Cpu) -> bool {
     c.last_event_code = instr;
     c.last_event_spc = active_pc;
     c.last_event_scs = active_cs;
-    if (instr & 0xFFF0) == 0xFFF0 {
+    if (instr >> 3) == 0b1111111111110 {
         if in_shadow { c.spc = c.spc.wrapping_add(1); } else { c.reg[15] = c.reg[15].wrapping_add(1); }
         // Reset ALU tracking so a stale result cannot smear flags across an
         // SWI/RETI PSW transition (matches the JS core and the paths below).
@@ -870,8 +870,10 @@ fn step_one(c: &mut Cpu) -> bool {
 }
 
 fn exec_instruction(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
-    // Fast-path: System instructions (NOP/HLT/SWI/RETI)
-    if (instr & 0xFFF0) == 0xFFF0 { exec_sys(c, instr); return false; }
+    // Fast-path: System instructions. Spec Table 5 defines these in the
+    // 0xFFF0..0xFFF7 space (top 13 bits 1111111111110); 0xFFF8..0xFFFE are
+    // outside it (no-op) and 0xFFFF (HLT) is handled in step_one.
+    if (instr >> 3) == 0b1111111111110 { exec_sys(c, instr); return false; }
     if (instr & 0x8000) == 0 { exec_ldi(c, instr); return false; }
     if ((instr >> 14) & 0x3) == 0b10 { exec_mem(c, instr); return false; }
     let opcode3 = (instr >> 13) & 0x7;
@@ -910,12 +912,12 @@ fn exec_instruction(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
         0xA202, // ST R1, [R0+2]       (          ...      0x0002)
         0xFFE0, // JML R0              (CS = R0 = 0, PC = R1 = 0x0100)
         0xFFF0, // NOP (delay slot)
-        0xFFF1, // HLT
-        0xFFF1, // HLT
-        0xFFF1, // HLT
-        0xFFF1, // HLT
-        0xFFF1, // HLT
-        0xFFF1, // HLT
+        0xFFF1, // FSH (filler; never reached — HLT would be 0xFFFF)
+        0xFFF1, // FSH (filler; never reached — HLT would be 0xFFFF)
+        0xFFF1, // FSH (filler; never reached — HLT would be 0xFFFF)
+        0xFFF1, // FSH (filler; never reached — HLT would be 0xFFFF)
+        0xFFF1, // FSH (filler; never reached — HLT would be 0xFFFF)
+        0xFFF1, // FSH (filler; never reached — HLT would be 0xFFFF)
     ];
     for i in 0..rom.len() {
         let addr = base + i;
@@ -1038,7 +1040,7 @@ fn exec_sys(c: &mut Cpu, instr: u16) -> bool {
     let op = (instr & 0x7) as u16;
     match op {
         0 => { /* NOP */ false }
-        1 => { /* HLT */ c.running = false; false }
+        1 => { /* FSH: flush pipeline (behavioural no-op) */ false }
         2 => { /* SWI */
             // Spec 4.4: park the interrupted PSW, then enter the handler with a
             // fresh PSW (S=1, I=0, flags clear) -- NOT a copy of the old one.
