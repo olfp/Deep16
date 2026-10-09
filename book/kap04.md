@@ -259,14 +259,17 @@ block-beta
 ```
 
 Die Rechnung dahinter kennst du aus §2.1: `PC` zeigt während der
-Ausführung auf die eigene Adresse + 1; das Immediate 2 schiebt das
-Ergebnis auf **eigene Adresse + 3**. Ein Wort für den `JMP`, der folgt,
-eines für dessen Delay Slot, und eine Adresse mehr: dort steht die
-Instruktion, an der das Unterprogramm zurückkommen soll. Hätte `LINK` nur
-eigene Adresse + 2 gerechnet, käme die Rückkehr mitten in den Delay Slot
-— eine echte Instruktion dort würde beim Rückkehren doppelt laufen.
-Gemessen steht das in jedem Aufruf unten: `LR` zeigt auf die Instruktion
-direkt hinter dem Slot.
+Ausführung auf die eigene Adresse + 1, und die Funktion 2 des
+`imm2`-Feldes rechnet `Rs + 2` — zusammen also **eigene Adresse + 3**.
+Ein Wort für den `JMP`, der folgt, eines für dessen Delay Slot, und eine
+Adresse mehr: dort steht die Instruktion, an der das Unterprogramm
+zurückkommen soll. Hätte `LINK` nur eigene Adresse + 2 gerechnet, käme
+die Rückkehr mitten in den Delay Slot — eine echte Instruktion dort
+würde beim Rückkehren doppelt laufen. Diese Variante gibt es nicht mehr:
+`imm2 = 1` bedeutet jetzt `Rs << 1`, und die Schreibweise `, 1`, die
+`eigene Adresse + 2` ergeben hätte, lehnt der Assembler mit diesem
+Hinweis ab (§2.1, Tabelle 2-1). Gemessen steht das in jedem Aufruf
+unten: `LR` zeigt auf die Instruktion direkt hinter dem Slot.
 
 Der Rückweg ist `JMP LR` — ein Sprung aus dem Register heraus, alias
 `MOV PC, LR, 0`:

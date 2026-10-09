@@ -30,10 +30,18 @@ Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
   §1.2 Deep16 im Überblick (Mermaid-Registerbank), §1.3 Konventionen & Delay-Slot-Regel.
 - EPUB: Mermaid-Registerbank als SVG gerendert.
 
-### ✅ Kapitel 2 — `book/kap02.md` (504 Zeilen)
+### ✅ Kapitel 2 — `book/kap02.md` (545 Zeilen)
 - §2.1 Registerbank R0–R15 (Rettungskonvention), `LDI`→R0-Regel,
   §2.2 PSW (Mermaid-Bitdiagramm), §2.3 Adressierung, §2.4 Stack,
   Beispiel „Hallo, Deep16!“.
+- **imm2-Redesign übertragen (2026-10-08):** §2.1 erklärt den dritten
+  Operanden als vierteilige **Funktionsauswahl** statt als addiertes
+  Immediate — **Tabelle 2-1** (Spec §3.4/§5.1.2), neues gemessenes
+  Listing der vier Funktionen (16 Schritte, `PSW = 0x0000`, JS = WASM),
+  PC-Regel mit Delay-Slot-Verweis (§3.4/§6.2.2), Ablehnungs-Text für
+  `, 1`/`, 3`/`+1`/`+3` wörtlich zitiert.
+- Verifikation: Extractor `extract_kap02.mjs` jetzt **beide Kerne**
+  (75 Checks in 9 Blöcken) · Strukturwächter `check_kap02_04.mjs` 61 Checks.
 - EPUB: PSW-Diagramm als SVG.
 
 ### ✅ Kapitel 3 — `book/kap03.md` (1180 Zeilen)
@@ -44,7 +52,7 @@ Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
 - Verifikation: `npm test` 121/121 · Probe 94 Checks · Extractor 107 Checks ·
   EPUB mit 32 SVGs in `ch003.xhtml`.
 
-### ✅ Kapitel 4 — `book/kap04.md` (589 Zeilen)
+### ✅ Kapitel 4 — `book/kap04.md` (593 Zeilen)
 - **7 Listings, alle gemessen** — 4 Encoding-Diagramme mit Titelzeile
   (`Jcc`, Delay-Slot-Ablauf, `LINK`, `JMP Rx`), dazu Tabelle aller 8 `Jcc`.
 - §4.1 `Jcc` & **Delay Slots**: Slot läuft immer (4-1, 28 Schritte),
@@ -54,10 +62,15 @@ Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
 - §4.2 `LINK`/`JMP LR` ohne Adress-Stapel: Aufruf/Rückkehr (4-4,
   `LR = 0x0105`), „ein LR für alle Aufrufe“ — Sicherung in R5 (4-5,
   `R8 = 0xAA`); Gegentest ohne Sicherung läuft 1000 Schritte (beide Kerne).
+  Die Rechnung läuft seit dem imm2-Redesign über **Funktion 2** (`Rs + 2`);
+  die `, 1`-Schreibweise, die „eigene Adresse + 2“ ergeben hätte, wird
+  abgelehnt (Querverweis §2.1, Tabelle 2-1). Diagramme unverändert.
 - **Beispiel: Tokenizer** (4-6): 3 Token aus „eine zwei drei“, Tabelle
   `(0200,4)/(0205,4)/(020A,4)`, **284 Schritte**.
-- Verifikation: `npm test` 121/121 · Probe `probe_kap04.mjs` 46 Checks ·
-  Extractor `extract_kap04.mjs` 60 Checks · EPUB mit 4 SVGs in `ch004.xhtml`.
+- Verifikation: `npm test` 142/143 — der eine offene Fall (`forth.test.js`:
+  „stack underflow …“) stammt aus paralleler Forth-Arbeit und berührt kein
+  `book/`; Probe `probe_kap04.mjs` 46 Checks · Extractor `extract_kap04.mjs`
+  60 Checks · EPUB mit 4 SVGs in `ch004.xhtml`.
 
 ### ✅ Kapitel 5 — `book/kap05.md` (730 Zeilen)
 - **8 Listings, alle gemessen** — 8 Bit-Codierungs-Diagramme mit Titelzeile
@@ -104,6 +117,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-08 | Diagramme brauchen eine **Titelzeile** (`**`Mnemonic` — Funktion**`). | kap03 |
 | 2026-10-08 | `STYLE.md`/`STATUS.md` angelegt; Workflow ab jetzt verbindlich. | Repo |
 | — | `SETS`/`CLRS` (Bit 5) als Footgun **dokumentiert** (Kap. 5), nicht im Kapitel demonstriert. | kap03, kap05 |
+| 2026-10-08 | **MOV imm2-Redesign** (`ARCHREV.md`) ins Buch übertragen: §2.1 erklärt `imm2` als Funktionsauswahl (Tabelle 2-1), §4.2 auf Funktion 2 umformuliert. Keine Messung, kein Listing und keine Spezifikations-Verweisung mussten geändert werden; Diagramme unangetastet. | kap02, kap04 |
 
 ---
 

@@ -116,11 +116,52 @@ Instruktion:
         HALT
 ```
 
-Während der Ausführung zeigt `PC` auf die eigene Adresse + 1; das
-Immediate 2 bringt das Ergebnis auf eigene Adresse + 3 — ein Wort für die
-folgende Instruktion und eines für deren Delay Slot. Genau diese Rechnung
-steckt in `LINK` (§2.4), das die Rücksprungadresse ins `LR`-Register
-rettet.
+Während der Ausführung zeigt `PC` auf die eigene Adresse + 1 — das ist
+keine Eigenheit dieser beiden Zeilen, sondern gilt in jedem Zusammenhang,
+auch in einem Delay Slot (Spezifikation §3.4 und §6.2.2). Die Funktion 2
+des `imm2`-Feldes (Tabelle 2-1) rechnet `Rs + 2` — mit diesem `PC`-Wert
+landet das Ergebnis auf **eigene Adresse + 3**: ein Wort für die folgende
+Instruktion und eines für deren Delay Slot. Genau diese Rechnung steckt in
+`LINK` (§2.4), das die Rücksprungadresse ins `LR`-Register rettet.
+
+Der dritte Operand ist also keine Zahl, die man addiert, sondern eine
+zweibitige **Funktionsauswahl** — `imm2` bestimmt, was mit dem
+Quellregister geschieht (Spezifikation §3.4 und §5.1.2):
+
+**Tabelle 2-1: Die vier Funktionen des `imm2`-Feldes in `MOV Rd, Rs`**
+
+| `imm2` | Funktion | Schreibweise |
+|--------|----------|--------------|
+| `0` | `Rd ← Rs` | `MOV Rd, Rs` |
+| `1` | `Rd ← Rs << 1` | `MOV Rd, Rs << 1` |
+| `2` | `Rd ← Rs + 2` | `MOV Rd, Rs + 2`, `MOV Rd, Rs, 2` |
+| `3` | `Rd ← (Rs << 1) \| 1` | `MOV Rd, Rs << 1 + 1` |
+
+Die vier Funktionen **gemessen** — dieselbe Eingabe, vier Ergebnisse:
+
+```assembly
+.org 0x0100
+        LSI  R1, 5            ; R1 = 0x0005
+        MOV  R2, R1           ; R2 = 0x0005 — Funktion 0: kopieren
+        MOV  R3, R1 << 1      ; R3 = 0x000A — Funktion 1: links schieben
+        MOV  R4, R1 + 2       ; R4 = 0x0007 — Funktion 2: plus 2
+        MOV  R5, R1 << 1 + 1  ; R5 = 0x000B — Funktion 3: schieben, Bit 0 setzen
+        HALT
+```
+
+(16 Schritte inklusive der 10 Boot-Schritte, `PSW = 0x0000`, JS- und
+WASM-Kern identisch.) `+2` ist der einzige gerade Versatz, den es gibt —
+und genau den braucht `LINK`. Schreibweisen wie `, 1`, `, 3`, `+1` und
+`+3` lehnt der Assembler ab, statt sie stillschweigend in Schiebebefehle
+umzudeuten:
+
+```text
+Line 2: MOV 'R6, PC, 1' rejected: imm2=1 now means 'Rs << 1', not 'Rs + 1'. Write 'MOV R6, PC << 1'
+```
+
+Wer `MOV R7, PC, 2` oben also nach dem Muster „das Immediate addiert"
+verallgemeinert, landet genau dort — und die Meldung nennt den Grund
+samt der richtigen Schreibweise.
 
 ---
 
