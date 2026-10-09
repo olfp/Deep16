@@ -95,7 +95,8 @@ Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
 | Aufgabe | Befehl |
 |---------|--------|
 | Tests | `npm test` (alle `tests/*.test.js`) |
-| EPUB bauen | `./book/build-epub.sh` (Pandoc epub3 + Mermaid-SVG-Filter) |
+| EPUB bauen (SVG, Apple Books) | `./book/build-epub.sh` → `book/Deep16.epub` (Pandoc epub3 + Mermaid-SVG-Filter) |
+| EPUB bauen (PNG, Kindle) | `./book/build-epub.sh kindle` → `book/Deep16-kindle.epub` (Diagramme als PNG, gegen E016) |
 | WASM neu bauen | `npm run build:wasm` (nur bei Kernel-Änderung nötig) |
 | Mess-Probe pro Kapitel | `/tmp/opencode/probe_kapNN.mjs` |
 | Book-Extractor pro Kapitel | `/tmp/opencode/extract_kapNN.mjs` |
@@ -119,6 +120,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | — | `SETS`/`CLRS` (Bit 5) als Footgun **dokumentiert** (Kap. 5), nicht im Kapitel demonstriert. | kap03, kap05 |
 | 2026-10-08 | **MOV imm2-Redesign** (`ARCHREV.md`) ins Buch übertragen: §2.1 erklärt `imm2` als Funktionsauswahl (Tabelle 2-1), §4.2 auf Funktion 2 umformuliert. Keine Messung, kein Listing und keine Spezifikations-Verweisung mussten geändert werden; Diagramme unangetastet. | kap02, kap04 |
 | 2026-10-09 | **EPUB-XHTML-Wohlgeformtheit** (Apple Books brach mit „Specification mandates value for attribute style" ab): `mermaid_filter.lua` entfernt leere SVG-Attribute (`style=""`, von Pandoc 3.7 sonst zu wertlosem `style` verkürzt) und escapet nackte `&` (SIL-OFL-Lizenzkommentar im eingebetteten `@font-face`) zu `&amp;`. Alle 11 XML-Teile wohlgeformt. | `book/mermaid_filter.lua`, `book/Deep16.epub` |
+| 2026-10-09 | **Kindle-Variante gegen E016**: Send to Kindle lehnt eingebettete **SVG-Bilder** ab („not compatible with Kindle's reflowable layout") und liefert die Datei wie PDF aus. Der SVG-Build bleibt für Apple Books; `./book/build-epub.sh kindle` erzeugt `book/Deep16-kindle.epub` mit **PNG-Diagrammen** (mmdc `-s 2`), Alt-Text aus der Diagramm-Titelzeile. Sprache `de-DE` ist unterstützt, daher nicht die Ursache. | `book/build-epub.sh`, `book/mermaid_filter.lua`, `book/Deep16-kindle.epub` |
 
 ---
 
