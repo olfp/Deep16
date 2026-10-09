@@ -20,6 +20,20 @@ function CodeBlock(block)
       s:close()
       os.remove(mmd)
       os.remove(svgf)
+      -- Pandoc schreibt das Roh-SVG als XHTML weiter. In XHTML muss jedes '&'
+      -- escaped sein; mmdc lässt im eingebetteten @font-face-Lizenzkommentar
+      -- (SIL OFL, "PERMISSION & CONDITIONS") nackte '&' stehen -> ungültiges
+      -- XHTML, an dem Apple Books die Seite abbricht. Bereits gültige Entities
+      -- werden geschützt, alle übrigen '&' zu '&amp;'.
+      local SENT = '\1'
+      svg = svg:gsub('&(%a+;|%#%d+;|%#x%x+;)', SENT .. '%1')
+      svg = svg:gsub('&', '&amp;')
+      svg = svg:gsub(SENT, '&')
+      -- Pandoc 3.7 schreibt leere Attribute wie style="" als bloßes "style"
+      -- und erzeugt damit ungültiges XHTML (Apple Books bricht die Seite ab).
+      -- Leere Attribute wirken nicht und werden daher vorher entfernt.
+      svg = svg:gsub('%s+[%w:_%-]+=""', '')
+      svg = svg:gsub("%s+[%w:_%-]+=''", '')
       return pandoc.RawInline("html", svg)
     end
     os.remove(mmd)
