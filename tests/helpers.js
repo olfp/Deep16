@@ -112,6 +112,8 @@ export async function runWasm(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es =
 export const enc = {
   LDI: (imm) => imm & 0x7FFF,                              // 15-bit immediate
   LSI: (rd, imm) => 0xFC00 | (rd << 5) | (imm & 0x1F),     // 1111110 Rd4 imm5
+  LD:  (rd, rb, off) => 0x8000 | (rd << 9) | (rb << 5) | (off & 0x1F),
+  ST:  (rd, rb, off) => 0xA000 | (rd << 9) | (rb << 5) | (off & 0x1F),
   MUL32: (rd, rs) => (0b110 << 13) | (0b11101 << 8) | (rd << 4) | rs,
   DIV32: (rd, rs) => (0b110 << 13) | (0b11111 << 8) | (rd << 4) | rs,
   HLT: 0xFFFF,

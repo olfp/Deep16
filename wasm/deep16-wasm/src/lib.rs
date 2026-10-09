@@ -364,9 +364,14 @@ fn exec_mem(c: &mut Cpu, instr: u16) {
     let d = (instr >> 13) & 0x1;
     let rd = ((instr >> 9) & 0xF) as usize;
     let rb = ((instr >> 5) & 0xF) as usize;
+    // The 5-bit offset is signed (-16..+15), exactly as in the JS core and
+    // spec 3.6 ("LD R1, [SP-4] works directly"): sign-extend it, then fold the
+    // base + offset sum into 16 bits *before* the segment is added, so the
+    // wrap-around case (base 0, offset -4 -> 0xFFFC) matches the JS core too.
     let off = (instr & 0x1F) as u32;
+    let off = if off & 0x10 != 0 { off | 0xFFFF_FFE0 } else { off };
     let base_val = gp_read(c, rb);
-    let addr_off = (base_val as u32).wrapping_add(off);
+    let addr_off = (base_val as u32).wrapping_add(off) & 0xFFFF;
     let in_shadow = (c.psw & (1 << 5)) != 0;
     let (seg_idx, seg) = if is_stack_register(c.psw, rb) {
         (2u16, if in_shadow { c.sss } else { c.ss })
@@ -386,7 +391,7 @@ fn exec_mem(c: &mut Cpu, instr: u16) {
     }
     c.recent_addr = pa;
     c.recent_base = base_val;
-    c.recent_offset = (off & 0x1F) as u16;
+    c.recent_offset = (off & 0xFFFF) as u16;
     c.recent_seg_val = seg;
     c.recent_seg_idx = seg_idx;
     c.recent_is_store = d == 1;

@@ -333,3 +333,104 @@ test('boot lands on 0x0100 with the documented state (both cores)', async () => 
   assert.deepEqual(wa.segments, [0x0000, 0x0000, 0x0000, 0x0000],
     'WASM: segments after boot');
 });
+
+// Spec 3.6: the 5-bit LD/ST offset is sign-extended (-16..+15), and that is
+// what makes a stack frame readable ("LD R1, [SP-4] works directly"). The JS
+// core did this; the WASM core added the raw 0..31 field and read the wrong
+// word for every negative offset. Data page DS = 0x100 -> physical 0x1000;
+// the base is built with LDI+MOV because LSI's 5-bit immediate is signed.
+const NEG_OFFSET_PROGRAM = `
+.org 0x0000
+        LDI 16
+        MOV R2, R0          ; base R2 = 16 -> physical 0x1010
+        LD  R3, R2, -16     ; 0x1000
+        LD  R4, R2, -8      ; 0x1008
+        LD  R5, R2, -1      ; 0x100F
+        LD  R6, R2, 0       ; 0x1010
+        LD  R7, R2, 7       ; 0x1017
+        LD  R8, R2, 15      ; 0x101F
+        LDI 0x1234
+        ST  R0, R2, -16     ; 0x1000 <- 0x1234
+        HALT
+.org 0x1000
+        .word 0xA000, 0, 0, 0, 0, 0, 0, 0
+        .word 0xA008, 0, 0, 0, 0, 0, 0
+        .word 0xA00F, 0xA010, 0, 0, 0, 0, 0, 0
+        .word 0xA017, 0, 0, 0, 0, 0, 0, 0, 0xA01F
+`;
+
+test('negative LD/ST offsets reach the right word (JS + WASM parity)', async () => {
+  const res = assemble(NEG_OFFSET_PROGRAM);
+  assert.equal(res.success, true, res.errors.join('; '));
+  const expected = { 3: 0xA000, 4: 0xA008, 5: 0xA00F, 6: 0xA010, 7: 0xA017, 8: 0xA01F };
+  const js = runJs(res, { cs: 0x0000, ds: 0x0100 });
+  for (const [r, v] of Object.entries(expected)) {
+    assert.equal(js.registers[r] & 0xFFFF, v, `JS R${r} at offset`);
+  }
+  assert.equal(js.memory[0x1000] & 0xFFFF, 0x1234, 'JS: store through offset -16');
+  const wasm = await runWasm(res, { cs: 0x0000, ds: 0x0100 });
+  assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF));
+  assert.equal(wasm.memoryAt(0x1000, 1)[0], 0x1234, 'WASM: store through offset -16');
+});
+
+test('the 5-bit LD offset is signed across the whole range -16..+15 (both cores)', async () => {
+  for (let off = -16; off <= 15; off++) {
+    const addr = 0x1010 + off;
+    const src = `
+.org 0x0000
+        LDI 16
+        MOV R2, R0
+        LD  R3, R2, ${off}
+        HALT
+.org 0x${addr.toString(16)}
+        .word 0x${addr.toString(16)}
+`;
+    const res = assemble(src);
+    assert.equal(res.success, true, `offset ${off}: ${res.errors.join('; ')}`);
+    const js = runJs(res, { cs: 0x0000, ds: 0x0100 });
+    assert.equal(js.registers[3] & 0xFFFF, addr, `JS offset ${off}`);
+    const wasm = await runWasm(res, { cs: 0x0000, ds: 0x0100 });
+    assert.equal(wasm.registers[3], addr, `WASM offset ${off}`);
+  }
+});
+
+test('the raw LD encoding sign-extends its offset (both cores)', async () => {
+  // Bypass the assembler so the encoding itself is pinned: base R2 = 8,
+  // offset -4 must hit physical 4, not 8 + 0x1C = 0x24.
+  const words = new Array(0x30).fill(0);
+  words[0] = enc.LSI(2, 8);      // R2 = 8
+  words[1] = enc.LD(1, 2, -4);   // LD R1, R2, -4
+  words[2] = enc.HLT;
+  words[0x04] = 0xABCD;          // what a signed read must fetch
+  words[0x24] = 0x1234;          // what an unsigned read would fetch
+  const prog = rawProgram(words);
+  const js = runJs(prog, { cs: 0x0000 });
+  assert.equal(js.registers[1] & 0xFFFF, 0xABCD, 'JS must sign-extend the offset');
+  const wasm = await runWasm(prog, { cs: 0x0000 });
+  assert.equal(wasm.registers[1], 0xABCD, 'WASM must sign-extend the offset');
+  assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF));
+});
+
+test('base 0 with offset -4 reads 0xFFFC, not 0x1C (both cores)', async () => {
+  // The wrap-around edge: base + offset folds into 16 bits *before* the
+  // segment is added, so the JS core reads physical 0xFFFC. The WASM core
+  // used to read 0x1C. Kept as an assembler program because 0xFFFC lies far
+  // above the code, which keeps the fixture small.
+  const src = `
+.org 0x0000
+        LDI 0
+        LD  R1, R0, -4
+        HALT
+.org 0x001C
+        .word 0x1234
+.org 0xFFFC
+        .word 0xABCD
+`;
+  const res = assemble(src);
+  assert.equal(res.success, true, res.errors.join('; '));
+  const js = runJs(res, { cs: 0x0000 });
+  assert.equal(js.registers[1] & 0xFFFF, 0xABCD, 'JS must sign-extend the offset');
+  const wasm = await runWasm(res, { cs: 0x0000 });
+  assert.equal(wasm.registers[1], 0xABCD, 'WASM must sign-extend the offset');
+  assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF));
+});
