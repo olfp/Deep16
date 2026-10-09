@@ -320,7 +320,7 @@ check_apostrophe:
 check_dot_token:
     LDI '.'
     CMP R2, R0
-    JNZ check_single_tokens
+    JNZ check_number_or_word
     NOP
     MOV R3, TIB
     ADD R3, >IN
@@ -350,24 +350,6 @@ farpatch304:
 dot_plain:
     ADD >IN, 1
     LDI word_dot
-    MOV PC, R0
-    NOP
-check_single_tokens:
-    LDI '+'
-    CMP R2, R0
-    JNZ check_star_token
-    NOP
-    ADD >IN, 1
-    LDI word_plus
-    MOV PC, R0
-    NOP
-check_star_token:
-    LDI '*'
-    CMP R2, R0
-    JNZ check_number_or_word
-    NOP
-    ADD >IN, 1
-    LDI word_mul
     MOV PC, R0
     NOP
 print_string_skip:
@@ -503,147 +485,72 @@ parse_word:
     CMP R4, R0
     JZ interpret_done
     NOP
-    LDI dict_start
-    MOV R9, R0
-    MOV R7, R9
-dict_loop:
-    LD R1, R7, 0
-    MOV R2, R7
-    LDI dict_end
-    CMP R2, R0
-    JNZ dict_continue
-    NOP
-    LDI skip_unknown
-    MOV PC, R0
-    NOP
-dict_continue:
-    MOV R3, TIB
-    ADD R3, >IN
+    ; Measure the token first: R11 = length. The delimiters stay
+    ; untouched so a match can advance >IN by exactly the token length.
     LDI 0
     MOV R11, R0
-    MOV R10, R1
-    MOV R3, TIB
-    ADD R3, >IN
+word_len_loop:
+    LD R4, R3, 0
     LDI 0
-    MOV R11, R0
-word_cmp_loop:
-    LD R2, R3, 0
-    LD R4, R10, 0
-    LDI 0
-    CMP R2, R0
-    JZ word_cmp_done
+    CMP R4, R0
+    JZ word_len_done
     NOP
     LDI ' '
-    CMP R2, R0
-    JZ word_cmp_done
+    CMP R4, R0
+    JZ word_len_done
     NOP
+    ADD R3, 1
+    ADD R11, 1
+    LDI word_len_loop
+    MOV PC, R0
+    NOP
+word_len_done:
+    ; Walk the header chain newest word first: R7 = current header.
+    ; Header format: link | flags+len | name (NUL via .text) | CFA.
+    LDI latest
+    MOV R2, R0
+    LD R7, R2, 0
+find_loop:
+    LDI 0
+    CMP R7, R0
+    JZ skip_unknown          ; end of chain, >IN still on the token start
+    NOP
+    LD R2, R7, 1             ; flags+len cell
+    LDI 0x00FF
+    AND R2, R0               ; name length stored in this header
+    CMP R2, R11
+    JNZ find_next
+    NOP
+    ; Lengths agree: compare the name characters.
+    MOV R10, R7
+    ADD R10, 2               ; name starts at header+2
+    MOV R3, TIB
+    ADD R3, >IN
+    MOV R9, R11              ; character countdown
+find_cmp:
+    LD R2, R3, 0
+    LD R4, R10, 0
     CMP R2, R4
-    JNZ advance_token
+    JNZ find_next
     NOP
     ADD R3, 1
     ADD R10, 1
-    ADD R11, 1
-    LDI word_cmp_loop
-    MOV PC, R0
-    NOP
-word_cmp_done:
-    LD R4, R10, 0
+    SUB R9, 1
     LDI 0
-    CMP R4, R0
-    JZ word_is_match
+    CMP R9, R0
+    JNZ find_cmp
     NOP
-    LDI next_entry
-    MOV PC, R0
+    ; Match: the CFA cell sits at header + 2 + length + 1 (NUL from .text).
+    MOV R2, R7
+    ADD R2, 3
+    ADD R2, R11
+    LD R1, R2, 0             ; machine code address
+    ADD >IN, R11             ; step over the token
+    MOV PC, R1               ; execute the word
     NOP
-word_is_match:
-    LD R2, R7, 0
-    ADD >IN, R11
-    LDI plus_name
-    CMP R2, R0
-    JNZ chk_mul
-    NOP
-    LDI word_plus
-    MOV PC, R0
-    NOP
-chk_mul:
-    LDI mul_name
-    CMP R2, R0
-    JNZ chk_dup
-    NOP
-    LDI word_mul
-    MOV PC, R0
-    NOP
-chk_dup:
-    LDI dup_name
-    CMP R2, R0
-    JNZ chk_dot
-    NOP
-    LDI word_dup
-    MOV PC, R0
-    NOP
-chk_dot:
-    LDI dot_name
-    CMP R2, R0
-    JNZ chk_emit
-    NOP
-    LDI word_dot
-    MOV PC, R0
-    NOP
-chk_emit:
-    LDI emit_name
-    CMP R2, R0
-    JNZ chk_swap
-    NOP
-    LDI word_emit
-    MOV PC, R0
-    NOP
-chk_swap:
-    LDI swap_name
-    CMP R2, R0
-    JNZ chk_drop
-    NOP
-    LDI word_swap
-    MOV PC, R0
-    NOP
-chk_drop:
-    LDI drop_name
-    CMP R2, R0
-    JNZ chk_cr
-    NOP
-    LDI word_drop
-    MOV PC, R0
-    NOP
-chk_cr:
-    LDI cr_name
-    CMP R2, R0
-    JNZ chk_key
-    NOP
-    LDI word_cr
-    MOV PC, R0
-    NOP
-chk_key:
-    LDI key_name
-    CMP R2, R0
-    JNZ chk_accept
-    NOP
-    LDI word_key
-    MOV PC, R0
-    NOP
-chk_accept:
-    LDI accept_name
-    CMP R2, R0
-    JNZ fallback_next
-    NOP
-    LDI word_accept
-    MOV PC, R0
-    NOP
-fallback_next:
-    LDI next_entry
-    MOV PC, R0
-    NOP
-advance_token:
-    ADD R7, 2
-    LDI dict_loop
+find_next:
+    LD R7, R7, 0             ; follow the link field
+    LDI find_loop
     MOV PC, R0
     NOP
 
@@ -739,11 +646,11 @@ stack_underflow_error:
     MOV R4, SCR
     SUB R4, R2
     LDI 80
-    MOV R5, R0
+    MOV R12, R0          ; width (R5 is >IN — leave it alone)
     MOV R9, R4
-    DIV R9, R5
+    DIV R9, R12
     ADD R9, 1
-    MUL R9, R5
+    MUL R9, R12
     ADD R2, R9
     MOV SCR, R2
     LDI print_text
@@ -758,11 +665,11 @@ stack_underflow_after:
     MOV R4, SCR
     SUB R4, R2
     LDI 80
-    MOV R5, R0
+    MOV R12, R0          ; width (R5 is >IN — leave it alone)
     MOV R9, R4
-    DIV R9, R5
+    DIV R9, R12
     ADD R9, 1
-    MUL R9, R5
+    MUL R9, R12
     ADD R2, R9
     MOV SCR, R2
     LDI print_prompt
@@ -770,12 +677,9 @@ stack_underflow_after:
     LINK
     JMP R2
     NOP
-next_entry:
-    ADD R7, 2
-    LDI dict_loop
+    LDI word_accept      ; recover: fresh prompt, then read the next line
     MOV PC, R0
     NOP
-
 interpret_done:
     LDI 0x1000
     MOV R2, R0
@@ -979,45 +883,65 @@ stack_underflow_msg:
 ok_msg:
     .text " ok"
 
-dict_names:
-plus_name:
-    .text "+"
-mul_name:
-    .text "*"
-dup_name:
-    .text "dup"
-dot_name:
-    .text "."
-emit_name:
-    .text "emit"
-swap_name:
-    .text "swap"
-drop_name:
-    .text "drop"
-cr_name:
-    .text "cr"
-dict_start:
-    .word plus_name
-    .word word_plus
-    .word mul_name
-    .word word_mul
-    .word dup_name
-    .word word_dup
-    .word dot_name
-    .word word_dot
-    .word emit_name
-    .word word_emit
-    .word swap_name
-    .word word_swap
-    .word drop_name
-    .word word_drop
-    .word cr_name
-    .word word_cr
-    .word key_name
-    .word word_key
-    .word accept_name
+; --------------------------------------------
+; Wort-Header der eingebauten Wörter.
+; Format: link | flags+len | name (NUL kommt von .text) | CFA
+;   link     Adresse des Vorgänger-Headers, 0 = Ende der Kette
+;   flags+len High-Byte Flags (Bit 15 = IMMEDIATE, ab P2), Low-Byte Namenslänge
+; Die Kette läuft vom neuesten zum ältesten Wort; `latest` ist ihr Kopf.
+; --------------------------------------------
+h_accept:
+    .word h_key
+    .word 6
+    .text "accept"
     .word word_accept
-dict_end:
+h_key:
+    .word h_cr
+    .word 3
+    .text "key"
+    .word word_key
+h_cr:
+    .word h_drop
+    .word 2
+    .text "cr"
+    .word word_cr
+h_drop:
+    .word h_swap
+    .word 4
+    .text "drop"
+    .word word_drop
+h_swap:
+    .word h_emit
+    .word 4
+    .text "swap"
+    .word word_swap
+h_emit:
+    .word h_dot
+    .word 4
+    .text "emit"
+    .word word_emit
+h_dot:
+    .word h_dup
+    .word 1
+    .text "."
+    .word word_dot
+h_dup:
+    .word h_mul
+    .word 3
+    .text "dup"
+    .word word_dup
+h_mul:
+    .word h_plus
+    .word 1
+    .text "*"
+    .word word_mul
+h_plus:
+    .word 0
+    .word 1
+    .text "+"
+    .word word_plus
+latest:
+    .word h_accept
 
 .code
 .org 0x0400
@@ -1487,10 +1411,6 @@ print_buf:
     .word 0
     .word 0
     .word 0
-key_name:
-    .text "key"
-accept_name:
-    .text "accept"
 word_key:
     ; BIOS getch -> char in R0
     LDI 4               ; value = 4

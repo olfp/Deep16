@@ -11,9 +11,7 @@
 //   - `.` terminates the input line: `1 . 2 .` discards the rest of the line,
 //   - `0 .` prints without the trailing space and does NOT terminate the line
 //     (nonzero `.` does both) — pinned as-is in the number test,
-//   - bare strings (`"hi there`) swallow the remainder of the line,
-//   - single tokens starting with `+`/`*` were dispatched before the
-//     dictionary saw them (P1 routes everything through FIND).
+//   - bare strings (`"hi there`) swallow the remainder of the line.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -104,11 +102,23 @@ test('cr moves the " ok" onto the next row', () => {
 });
 
 test('stack underflow is reported and the REPL continues', () => {
-  const { rows, running } = repl('+\n');
+  const { rows, running } = repl('+\n1 2 + .\n');
   assert.equal(rows[1], '> +');
   assert.equal(rows[2], 'stack underflow');
-  assert.equal(rows[3], '>');
-  assert.ok(running, 'the REPL must survive the underflow');
+  assert.equal(rows[3], '> 1 2 + . 3  ok');
+  assert.equal(rows[4], '>');
+  assert.ok(running, 'the REPL must keep evaluating after the underflow');
+});
+
+test('tokens are resolved through the dictionary (no single-char fast path)', () => {
+  // P1: `+`/`*` used to be dispatched before the dictionary saw them, so a
+  // token like `+foo` executed `+` and then treated `foo` as the next word.
+  // Now the whole token goes through FIND and is either a known word or
+  // reported as unknown.
+  const { rows } = repl('+foo\n1 2 + 3 * .\n');
+  assert.equal(rows[1], '> +foo');
+  assert.equal(rows[2], 'undefined word: +foo');
+  assert.equal(rows[3], '> 1 2 + 3 * . 9  ok');
 });
 
 test('an unknown word is echoed, the line discarded, the REPL continues', () => {
