@@ -550,15 +550,24 @@ word_len_loop:
     MOV PC, R0
     NOP
 word_len_done:
-    ; Walk the header chain newest word first: R7 = current header.
-    ; Header format: link | flags+len | name (NUL via .text) | CFA.
-    LDI latest
+    ; Search each wordlist in the search order (R12 = index). Within a
+    ; wordlist the headers chain newest first: link | flags+len | name | CFA.
+    LDI 0
+    MOV R12, R0
+find_wl:
+    LDI search_order
     MOV R2, R0
-    LD R7, R2, 0
+    ADD R2, R12
+    LD R2, R2, 0             ; head cell address of this wordlist
+    LDI 0
+    CMP R2, R0
+    JZ skip_unknown          ; end of the search order: token is unknown
+    NOP
+    LD R7, R2, 0             ; newest header in this wordlist
 find_loop:
     LDI 0
     CMP R7, R0
-    JZ skip_unknown          ; end of chain, >IN still on the token start
+    JZ find_next_wl
     NOP
     LD R2, R7, 1             ; flags+len cell
     LDI 0x00FF
@@ -623,6 +632,11 @@ find_execute:
 find_next:
     LD R7, R7, 0             ; follow the link field
     LDI find_loop
+    MOV PC, R0
+    NOP
+find_next_wl:
+    ADD R12, 1
+    LDI find_wl
     MOV PC, R0
     NOP
 
@@ -966,7 +980,8 @@ ok_msg:
 ; Format: link | flags+len | name (NUL kommt von .text) | CFA
 ;   link     Adresse des Vorgänger-Headers, 0 = Ende der Kette
 ;   flags+len High-Byte Flags (Bit 15 = IMMEDIATE, ab P2), Low-Byte Namenslänge
-; Die Kette läuft vom neuesten zum ältesten Wort; `latest` ist ihr Kopf.
+; Die Kette läuft vom neuesten zum ältesten Wort; die Kopfzelle wird vom
+; jeweiligen Wordlist-Kopf (forth_wl oder einem Vokabular) gehalten.
 ; --------------------------------------------
 h_accept:
     .word h_key
@@ -1019,7 +1034,7 @@ h_plus:
     .text "+"
     .word word_plus
 
-; --- P2 compiler words (chain is newest first, `latest` points at the top) ---
+; --- P2 compiler words (chain is newest first, `current` holds its head) ---
 h_immediate:
     .word h_state
     .word 0x8009          ; IMMEDIATE flag (0x8000) | length 9
@@ -1211,6 +1226,38 @@ h_if:
     .text "if"
     .word word_if
 
+; --- vocabularies (newest first) ---
+h_vocabulary:
+    .word h_definitions
+    .word 10
+    .text "vocabulary"
+    .word word_vocabulary
+h_definitions:
+    .word h_also
+    .word 11
+    .text "definitions"
+    .word word_definitions
+h_also:
+    .word h_only
+    .word 4
+    .text "also"
+    .word word_also
+h_only:
+    .word h_previous
+    .word 4
+    .text "only"
+    .word word_only
+h_previous:
+    .word h_forth
+    .word 8
+    .text "previous"
+    .word word_previous
+h_forth:
+    .word h_to
+    .word 5
+    .text "forth"
+    .word word_forth
+
 ; --- P3 memory words and the simple defining words (newest first) ---
 h_to:
     .word h_value
@@ -1294,8 +1341,15 @@ h_fetch:
     .text "@"
     .word word_fetch
 
-latest:
-    .word h_to
+; --- wordlists: a vocabulary is identified by the address of its head cell,
+; --- which chains its definitions newest-first and ends in 0.
+forth_wl:
+    .word h_vocabulary   ; newest built-in header in the FORTH vocabulary
+search_order:            ; wordlists searched by FIND, first one first, 0-ended
+    .word forth_wl
+    .word 0, 0, 0, 0, 0, 0, 0
+current:
+    .word forth_wl       ; wordlist new definitions are added to
 
 ; BIOS runs in the shadow bank and uses R5 for its own purposes, so a
 ; primitive that calls SWI must park >IN here and reload it afterwards.
@@ -2673,6 +2727,24 @@ dodoes_plain:
     MOV PC, R0
     NOP
 
+; Runtime of a VOCABULARY word: its body cell is the wordlist head. Executing
+; it searches that wordlist first and keeps the built-ins reachable via FORTH.
+dovoc:
+    ADD R10, 1
+    LDI search_order
+    MOV R2, R0
+    ST R10, R2, 0         ; order[0] = this vocabulary
+    ADD R2, 1
+    LDI forth_wl
+    MOV R1, R0
+    ST R1, R2, 0          ; order[1] = FORTH
+    ADD R2, 1
+    LDI 0
+    ST R0, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
 ; =============================================
 ; P2: Indirect-threaded code engine
 ; =============================================
@@ -2804,8 +2876,9 @@ colon_len_done:
     MOV R12, R0
     LD R9, R12, 0         ; R9 = header = old DP
     MOV R2, R9
-    LDI latest
+    LDI current
     MOV R3, R0
+    LD R3, R3, 0          ; address of the current wordlist head cell
     LD R4, R3, 0
     ST R4, R2, 0          ; link field
     ADD R2, 1
@@ -2833,9 +2906,10 @@ colon_copy:
     ST R2, R3, 0          ; remember this definition's xt for recurse
     ADD R2, 1
     ST R2, R12, 0         ; DP = end of CFA
-    LDI latest
+    LDI current
     MOV R3, R0
-    ST R9, R3, 0          ; latest = new header
+    LD R3, R3, 0
+    ST R9, R3, 0          ; current wordlist head = new header
     LDI state_var
     MOV R3, R0
     LDI 1
@@ -2863,9 +2937,10 @@ word_semicolon:
     NOP
 
 word_immediate:
-    LDI latest
+    LDI current
     MOV R2, R0
-    LD R3, R2, 0
+    LD R2, R2, 0          ; address of the current wordlist head cell
+    LD R3, R2, 0          ; newest header in it
     LD R4, R3, 1
     LDI 1
     SL R0, 15                ; R0 = 0x8000
@@ -3156,8 +3231,9 @@ dname_build:
     MOV R12, R0
     LD R9, R12, 0         ; header = old DP
     MOV R2, R9
-    LDI latest
+    LDI current
     MOV R3, R0
+    LD R3, R3, 0          ; address of the current wordlist head cell
     LD R4, R3, 0
     ST R4, R2, 0          ; link
     ADD R2, 1
@@ -3177,9 +3253,10 @@ dname_copy:
     LDI 0
     ST R0, R2, 0          ; NUL terminator
     ADD R2, 1             ; R2 = CFA cell address
-    LDI latest
+    LDI current
     MOV R3, R0
-    ST R9, R3, 0          ; latest = new header
+    LD R3, R3, 0
+    ST R9, R3, 0          ; current wordlist head = new header
     JMP LR
     NOP
 
@@ -3410,13 +3487,22 @@ ft_len:
     MOV PC, R0
     NOP
 ft_have:
-    LDI latest
+    LDI 0
+    MOV R12, R0
+ft_wl:
+    LDI search_order
     MOV R2, R0
+    ADD R2, R12
+    LD R2, R2, 0
+    LDI 0
+    CMP R2, R0
+    JZ ft_none
+    NOP
     LD R7, R2, 0
 ft_loop:
     LDI 0
     CMP R7, R0
-    JZ ft_none
+    JZ ft_next_wl
     NOP
     LD R2, R7, 1
     LDI 0x00FF
@@ -3453,10 +3539,157 @@ ft_next:
     LDI ft_loop
     MOV PC, R0
     NOP
+ft_next_wl:
+    ADD R12, 1
+    LDI ft_wl
+    MOV PC, R0
+    NOP
 ft_none:
     LDI 0
     MOV R1, R0
     JMP LR
+    NOP
+
+; ---------------------------------------------
+; P4: vocabularies and the search order
+; ---------------------------------------------
+; search_order holds wordlist head-cell addresses, first searched first, and
+; is 0-terminated. A definition goes into the wordlist in `current`.
+word_vocabulary:
+    LDI define_name
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI dovoc
+    MOV R1, R0
+    ST R1, R2, 0          ; CFA = dovoc
+    ADD R2, 1
+    LDI 0
+    ST R0, R2, 0          ; the new wordlist starts empty
+    ADD R2, 1
+    ST R2, R12, 0         ; DP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_definitions:
+    LDI search_order
+    MOV R2, R0
+    LD R1, R2, 0          ; first wordlist in the order
+    LDI current
+    MOV R2, R0
+    ST R1, R2, 0          ; new definitions go there
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_also:
+    LDI search_order
+    MOV R2, R0
+    LDI 0
+    MOV R9, R0
+also_count:
+    MOV R4, R2
+    ADD R4, R9
+    LD R4, R4, 0
+    LDI 0
+    CMP R4, R0
+    JZ also_have
+    NOP
+    ADD R9, 1
+    LDI also_count
+    MOV PC, R0
+    NOP
+also_have:
+    LDI 8
+    MOV R4, R0
+    CMP R9, R4
+    JN also_go
+    NOP
+    LDI next              ; order full: ignore
+    MOV PC, R0
+    NOP
+also_go:
+    MOV R1, R9            ; duplicate order[0] by shifting 1..N up
+also_shift:
+    LDI 0
+    CMP R1, R0
+    JZ also_done
+    NOP
+    MOV R4, R2
+    ADD R4, R1
+    MOV R3, R2
+    ADD R3, R1
+    SUB R3, 1
+    LD R7, R3, 0
+    ST R7, R4, 0
+    SUB R1, 1
+    LDI also_shift
+    MOV PC, R0
+    NOP
+also_done:
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_previous:
+    LDI search_order
+    MOV R2, R0
+    MOV R3, R2
+    ADD R3, 1
+    LD R7, R3, 0
+    LDI 0
+    CMP R7, R0
+    JNZ prev_go
+    NOP
+    LDI next              ; only one wordlist: keep it
+    MOV PC, R0
+    NOP
+prev_go:
+    LDI 0
+    MOV R9, R0
+prev_loop:
+    MOV R4, R2
+    ADD R4, R9
+    MOV R3, R4
+    ADD R3, 1
+    LD R7, R3, 0
+    ST R7, R4, 0
+    LDI 0
+    CMP R7, R0
+    JZ prev_done
+    NOP
+    ADD R9, 1
+    LDI prev_loop
+    MOV PC, R0
+    NOP
+prev_done:
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_only:
+    LDI forth_wl
+    MOV R1, R0
+    LDI search_order
+    MOV R2, R0
+    ST R1, R2, 0
+    ADD R2, 1
+    LDI 0
+    ST R0, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_forth:
+    LDI forth_wl
+    MOV R1, R0
+    LDI search_order
+    MOV R2, R0
+    ST R1, R2, 0          ; FORTH becomes the first searched wordlist
+    LDI next
+    MOV PC, R0
     NOP
 
 ; =============================================

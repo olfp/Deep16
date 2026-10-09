@@ -421,3 +421,90 @@ test('to rejects an unknown name without corrupting the value', () => {
   assert.equal(rows[5], '>');
   assert.ok(running);
 });
+
+test('vocabulary creates a wordlist and definitions go into it', () => {
+  const { rows } = repl(
+    ': baz 5 ;\n' +
+    'vocabulary foo\n' +
+    'foo definitions\n' +
+    'baz .\n' +
+    ': qux 3 ;\n' +
+    'qux .\n'
+  );
+  assert.equal(rows[1], '> : baz 5 ; ok');
+  assert.equal(rows[2], '> vocabulary foo ok');
+  assert.equal(rows[3], '> foo definitions ok');
+  assert.equal(rows[4], '> baz . 5  ok');
+  assert.equal(rows[5], '> : qux 3 ; ok');
+  assert.equal(rows[6], '> qux . 3  ok');
+  assert.equal(rows[7], '>');
+});
+
+test('only forth definitions hides words from a vocabulary', () => {
+  const { rows, running } = repl(
+    'vocabulary foo\n' +
+    'foo definitions\n' +
+    ': bar 42 ;\n' +
+    'bar .\n' +
+    'only forth definitions\n' +
+    'bar .\n' +
+    '1 2 + .\n'
+  );
+  assert.equal(rows[1], '> vocabulary foo ok');
+  assert.equal(rows[2], '> foo definitions ok');
+  assert.equal(rows[3], '> : bar 42 ; ok');
+  assert.equal(rows[4], '> bar . 42  ok');
+  assert.equal(rows[5], '> only forth definitions ok');
+  assert.equal(rows[6], '> bar .');
+  assert.equal(rows[7], 'undefined word: bar');
+  assert.equal(rows[8], '> 1 2 + . 3  ok');
+  assert.equal(rows[9], '>');
+  assert.ok(running);
+});
+
+test('a vocabulary word shadows and then reveals a FORTH word', () => {
+  const { rows } = repl(
+    ': x 1 ;\n' +
+    'vocabulary foo\n' +
+    'foo definitions\n' +
+    ': x 2 ;\n' +
+    'x .\n' +
+    'only forth definitions\n' +
+    'x .\n'
+  );
+  assert.equal(rows[1], '> : x 1 ; ok');
+  assert.equal(rows[2], '> vocabulary foo ok');
+  assert.equal(rows[3], '> foo definitions ok');
+  assert.equal(rows[4], '> : x 2 ; ok');
+  assert.equal(rows[5], '> x . 2  ok');
+  assert.equal(rows[6], '> only forth definitions ok');
+  assert.equal(rows[7], '> x . 1  ok');
+  assert.equal(rows[8], '>');
+});
+
+test('also and previous adjust the search order', () => {
+  const { rows } = repl(
+    'vocabulary foo\n' +
+    'only\n' +
+    'also foo\n' +
+    'definitions\n' +
+    ': b 9 ;\n' +
+    'b .\n' +
+    'previous\n' +
+    'definitions\n' +
+    ': z 1 ;\n' +
+    'b .\n'
+  );
+  assert.equal(rows[1], '> vocabulary foo ok');
+  assert.equal(rows[2], '> only ok');
+  assert.equal(rows[3], '> also foo ok');
+  assert.equal(rows[4], '> definitions ok');
+  assert.equal(rows[5], '> : b 9 ; ok');
+  assert.equal(rows[6], '> b . 9  ok');
+  assert.equal(rows[7], '> previous ok');
+  assert.equal(rows[8], '> definitions ok');
+  assert.equal(rows[9], '> : z 1 ; ok');
+  assert.equal(rows[10], '> b .');
+  assert.equal(rows[11], 'undefined word: b');
+  assert.equal(rows[12], '>');
+});

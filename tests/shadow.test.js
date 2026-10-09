@@ -495,3 +495,49 @@ test('WASM: Forth REPL create/does> and value/to match the JS core', async () =>
   assert.equal(steps, 600000, 'the JS REPL must stay alive across create/does>');
   assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across create/does>');
 });
+
+test('WASM: Forth REPL vocabularies and the search order match the JS core', async () => {
+  // Vocabulary execution rewrites the search order and FIND walks it, so both
+  // cores must resolve the same headers.
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+  const input =
+    ': baz 5 ;\n' +
+    'vocabulary foo\n' +
+    'foo definitions\n' +
+    'baz .\n' +
+    ': qux 3 ;\n' +
+    'qux .\n' +
+    'only forth definitions\n' +
+    'qux .\n' +
+    ': x 1 ;\n' +
+    'vocabulary bar\n' +
+    'bar definitions\n' +
+    ': x 2 ;\n' +
+    'x .\n' +
+    'only forth definitions\n' +
+    'x .\n';
+
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0x8000; sim.segmentRegisters.ES = 0x2000;
+  for (const ch of input) sim.enqueueKeyCode(ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+  const jsOut = screenText((a, n) => sim.memory.slice(a, a + n), SCREEN_ADDR, 2000);
+
+  const wasm = await runWasm(res, { maxSteps: 600000, keys: [...input].map((ch) => ch.charCodeAt(0)) });
+  const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 2000);
+
+  assert.ok(jsOut.includes('baz . 5  ok'), 'FORTH words stay visible from a vocabulary');
+  assert.ok(jsOut.includes('qux . 3  ok'), 'a word defined in the vocabulary resolves');
+  assert.ok(jsOut.includes('undefined word: qux'), 'only forth definitions hides it again');
+  assert.ok(jsOut.includes('x . 2  ok'), 'vocabulary word shadows the FORTH word');
+  assert.equal(wasmOut, jsOut, 'WASM vocabularies must match the JS core');
+  assert.equal(steps, 600000, 'the JS REPL must stay alive across the vocabularies');
+  assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the vocabularies');
+});
