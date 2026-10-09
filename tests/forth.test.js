@@ -195,3 +195,70 @@ test('an error while compiling aborts the definition', () => {
   assert.equal(rows[3], '> 1 2 + . 3  ok');
   assert.ok(running, 'the next line must be interpreted, not compiled');
 });
+
+test('arithmetic words subtract, divide, take remainders and scale', () => {
+  const { rows, running } = repl(
+    '10 3 - .\n' +
+    '17 5 / .\n' +
+    '17 5 mod .\n' +
+    '17 5 /mod . .\n' +
+    '5 negate 5 + .\n' +
+    '21 2* .\n' +
+    '4 1+ 1- .\n'
+  );
+  assert.equal(rows[1], '> 10 3 - . 7  ok');
+  assert.equal(rows[2], '> 17 5 / . 3  ok');
+  assert.equal(rows[3], '> 17 5 mod . 2  ok');
+  assert.equal(rows[4], '> 17 5 /mod . . 3  2  ok');
+  assert.equal(rows[5], '> 5 negate 5 + . 0 ok');
+  assert.equal(rows[6], '> 21 2* . 42  ok');
+  assert.equal(rows[7], '> 4 1+ 1- . 4  ok');
+  assert.equal(rows[8], '>');
+  assert.ok(running);
+});
+
+test('comparisons yield the Forth true (-1) and false (0)', () => {
+  const { rows } = repl(
+    '3 3 = . 3 4 = .\n' +
+    '3 4 < . 4 3 < .\n' +
+    '4 3 > . 3 4 > .\n' +
+    '0 0= . 7 0= .\n' +
+    '5 0< . 7 0> .\n'
+  );
+  assert.equal(rows[1], '> 3 3 = . 3 4 = . 65535  0 ok');
+  assert.equal(rows[2], '> 3 4 < . 4 3 < . 65535  0 ok');
+  assert.equal(rows[3], '> 4 3 > . 3 4 > . 65535  0 ok');
+  assert.equal(rows[4], '> 0 0= . 7 0= . 65535  0 ok');
+  assert.equal(rows[5], '> 5 0< . 7 0> . 0 65535  ok');
+  assert.equal(rows[6], '>');
+});
+
+test('stack words over, rot, nip, 2dup, 2drop and depth', () => {
+  const { rows } = repl(
+    '1 2 over . . .\n' +
+    '1 2 3 rot . . .\n' +
+    '1 2 nip .\n' +
+    '1 2 2dup . . . .\n' +
+    '7 8 2drop 9 .\n' +
+    '1 2 3 depth .\n'
+  );
+  assert.equal(rows[1], '> 1 2 over . . . 1  2  1  ok');
+  assert.equal(rows[2], '> 1 2 3 rot . . . 1  3  2  ok');
+  assert.equal(rows[3], '> 1 2 nip . 2  ok');
+  assert.equal(rows[4], '> 1 2 2dup . . . . 2  1  2  1  ok');
+  assert.equal(rows[5], '> 7 8 2drop 9 . 9  ok');
+  assert.equal(rows[6], '> 1 2 3 depth . 3  ok');
+  assert.equal(rows[7], '>');
+});
+
+test('words whose names start with a digit are not split into number + word', () => {
+  const { rows } = repl(
+    '1 2 2dup depth .\n' +
+    ': 2x 2* ;\n' +
+    '5 2x .\n'
+  );
+  assert.equal(rows[1], '> 1 2 2dup depth . 4  ok');
+  assert.equal(rows[2], '> : 2x 2* ; ok');
+  assert.equal(rows[3], '> 5 2x . 10  ok');
+  assert.equal(rows[4], '>');
+});

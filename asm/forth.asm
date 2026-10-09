@@ -429,7 +429,28 @@ check_number_or_word:
     CMP R0, R4
     JN parse_word            ; if '9' < ch => word
     NOP
-    LDI parse_number         ; digit in range => parse number
+    ; The first character is a digit, but the word is a number only if the
+    ; whole token is digits. Words such as 2dup, 1+ or 0= start with a digit.
+number_scan:
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ parse_number          ; NUL ends the token => number
+    NOP
+    LDI ' '
+    CMP R4, R0
+    JZ parse_number          ; space ends the token => number
+    NOP
+    LDI '0'
+    CMP R4, R0
+    JN parse_word            ; a non-digit makes it a word
+    NOP
+    LDI '9'
+    CMP R0, R4
+    JN parse_word            ; a non-digit makes it a word
+    NOP
+    ADD R3, 1
+    LDI number_scan
     MOV PC, R0
     NOP
 parse_number:
@@ -1030,8 +1051,116 @@ h_colon:
     .word 1
     .text ":"
     .word word_colon
-latest:
+
+; --- P3 stack, arithmetic and comparison words (newest first) ---
+h_depth:
+    .word h_0gt
+    .word 5
+    .text "depth"
+    .word word_depth
+h_0gt:
+    .word h_0lt
+    .word 2
+    .text "0>"
+    .word word_0gt
+h_0lt:
+    .word h_0eq
+    .word 2
+    .text "0<"
+    .word word_0lt
+h_0eq:
+    .word h_gt
+    .word 2
+    .text "0="
+    .word word_0eq
+h_gt:
+    .word h_lt
+    .word 1
+    .text ">"
+    .word word_gt
+h_lt:
+    .word h_ne
+    .word 1
+    .text "<"
+    .word word_lt
+h_ne:
+    .word h_eq
+    .word 2
+    .text "<>"
+    .word word_ne
+h_eq:
+    .word h_2star
+    .word 1
+    .text "="
+    .word word_eq
+h_2star:
+    .word h_1minus
+    .word 2
+    .text "2*"
+    .word word_2star
+h_1minus:
+    .word h_1plus
+    .word 2
+    .text "1-"
+    .word word_1minus
+h_1plus:
+    .word h_2drop
+    .word 2
+    .text "1+"
+    .word word_1plus
+h_2drop:
+    .word h_2dup
+    .word 5
+    .text "2drop"
+    .word word_2drop
+h_2dup:
+    .word h_nip
+    .word 4
+    .text "2dup"
+    .word word_2dup
+h_nip:
+    .word h_rot
+    .word 3
+    .text "nip"
+    .word word_nip
+h_rot:
+    .word h_over
+    .word 3
+    .text "rot"
+    .word word_rot
+h_over:
+    .word h_slash_mod
+    .word 4
+    .text "over"
+    .word word_over
+h_slash_mod:
+    .word h_mod
+    .word 4
+    .text "/mod"
+    .word word_slash_mod
+h_mod:
+    .word h_div
+    .word 3
+    .text "mod"
+    .word word_mod
+h_div:
+    .word h_negate
+    .word 1
+    .text "/"
+    .word word_div
+h_negate:
+    .word h_minus
+    .word 6
+    .text "negate"
+    .word word_negate
+h_minus:
     .word h_immediate
+    .word 1
+    .text "-"
+    .word word_minus
+
+latest:
+    .word h_depth
 
 ; BIOS runs in the shadow bank and uses R5 for its own purposes, so a
 ; primitive that calls SWI must park >IN here and reload it afterwards.
@@ -1616,6 +1745,498 @@ word_cr_row_done:
     NOP
 
 ; =============================================
+; P3: stack, arithmetic and comparison primitives
+; =============================================
+; Every primitive ends in NEXT so it can be compiled into a colon
+; definition as well as run from the outer interpreter.
+; ---------------------------------------------
+word_minus:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wminus_ok
+    NOP
+    JN wminus_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wminus_ok:
+    LD R2, SP, 0
+    ADD SP, 1
+    LD R1, SP, 0
+    SUB R1, R2
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_negate:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wnegate_under
+    NOP
+    LD R1, SP, 0
+    NEG R1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wnegate_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_div:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wdiv_ok
+    NOP
+    JN wdiv_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wdiv_ok:
+    LD R2, SP, 0
+    ADD SP, 1
+    LD R1, SP, 0
+    DIV R1, R2
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_mod:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wmod_ok
+    NOP
+    JN wmod_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wmod_ok:
+    LD R2, SP, 0
+    ADD SP, 1
+    LD R1, SP, 0
+    MOV R9, R1
+    DIV R9, R2
+    MUL R9, R2
+    SUB R1, R9
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_slash_mod:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wslashmod_ok
+    NOP
+    JN wslashmod_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wslashmod_ok:
+    LD R2, SP, 0          ; b
+    ADD SP, 1
+    LD R1, SP, 0          ; a
+    MOV R9, R1
+    DIV R9, R2            ; quotient
+    MOV R7, R9
+    MUL R7, R2
+    SUB R1, R7            ; remainder = a - quotient*b
+    ST R1, SP, 0          ; a's slot becomes the remainder
+    SUB SP, 1
+    ST R9, SP, 0          ; push the quotient on top
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_over:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wover_ok
+    NOP
+    JN wover_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wover_ok:
+    LD R1, SP, 1
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_rot:
+    MOV R9, SP
+    ADD R9, 3
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wrot_ok
+    NOP
+    JN wrot_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wrot_ok:
+    LD R1, SP, 2          ; a
+    LD R2, SP, 1          ; b
+    LD R3, SP, 0          ; c
+    ST R2, SP, 2          ; b (deepest)
+    ST R3, SP, 1          ; c
+    ST R1, SP, 0          ; a (top)
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_nip:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wnip_ok
+    NOP
+    JN wnip_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wnip_ok:
+    LD R1, SP, 0          ; b
+    ADD SP, 1             ; drop a
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_2dup:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ w2dup_ok
+    NOP
+    JN w2dup_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+w2dup_ok:
+    LD R1, SP, 1          ; a
+    LD R2, SP, 0          ; b
+    SUB SP, 1
+    ST R1, SP, 0          ; push a first (deeper)
+    SUB SP, 1
+    ST R2, SP, 0          ; push b last (on top)
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_2drop:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ w2drop_ok
+    NOP
+    JN w2drop_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+w2drop_ok:
+    ADD SP, 2
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_1plus:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ w1plus_under
+    NOP
+    LD R1, SP, 0
+    ADD R1, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+w1plus_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_1minus:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ w1minus_under
+    NOP
+    LD R1, SP, 0
+    SUB R1, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+w1minus_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_2star:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ w2star_under
+    NOP
+    LD R1, SP, 0
+    ADD R1, R1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+w2star_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_depth:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0          ; stack base
+    MOV R3, SP
+    SUB R1, R3            ; depth = base - SP
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+; Shared boolean results for the comparisons. True is the Forth
+; convention -1 (0xFFFF); LDI cannot load 0xFFFF directly, so build it.
+cmp_false:
+    LDI 0
+    ST R0, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+cmp_true:
+    LDI 1
+    NEG R0
+    ST R0, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_eq:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ weq_ok
+    NOP
+    JN weq_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+weq_ok:
+    LD R2, SP, 0
+    ADD SP, 1
+    LD R1, SP, 0
+    CMP R1, R2
+    JZ cmp_true
+    NOP
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+
+word_ne:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wne_ok
+    NOP
+    JN wne_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wne_ok:
+    LD R2, SP, 0
+    ADD SP, 1
+    LD R1, SP, 0
+    CMP R1, R2
+    JNZ cmp_true
+    NOP
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+
+word_lt:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wlt_ok
+    NOP
+    JN wlt_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wlt_ok:
+    LD R2, SP, 0
+    ADD SP, 1
+    LD R1, SP, 0
+    CMP R1, R2
+    JN cmp_true
+    NOP
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+
+word_gt:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wgt_ok
+    NOP
+    JN wgt_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wgt_ok:
+    LD R2, SP, 0
+    ADD SP, 1
+    LD R1, SP, 0
+    CMP R2, R1            ; b - a
+    JZ cmp_false
+    NOP
+    JN cmp_true
+    NOP
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+
+word_0eq:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ w0eq_under
+    NOP
+    LDI 0
+    MOV R2, R0
+    LD R1, SP, 0
+    CMP R1, R2
+    JZ cmp_true
+    NOP
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+w0eq_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_0lt:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ w0lt_under
+    NOP
+    LDI 0
+    MOV R2, R0
+    LD R1, SP, 0
+    CMP R1, R2
+    JN cmp_true
+    NOP
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+w0lt_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_0gt:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ w0gt_under
+    NOP
+    LDI 0
+    MOV R2, R0
+    LD R1, SP, 0
+    CMP R1, R2
+    JZ cmp_false
+    NOP
+    JN cmp_false
+    NOP
+    LDI cmp_true
+    MOV PC, R0
+    NOP
+w0gt_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+; =============================================
 ; P2: Indirect-threaded code engine
 ; =============================================
 ; A word is addressed by its execution token (xt): the address of its CFA
@@ -1820,7 +2441,7 @@ word_state:
     LD R1, R2, 0
     SUB SP, 1
     ST R1, SP, 0
-    LDI interpret_loop
+    LDI next
     MOV PC, R0
     NOP
 

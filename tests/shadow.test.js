@@ -360,3 +360,35 @@ test('WASM: Forth REPL runs colon definitions exactly like the JS core', async (
   assert.equal(steps, 600000, 'the JS REPL must stay alive across the definitions');
   assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the definitions');
 });
+
+test('WASM: Forth REPL evaluates the P3 stack, arithmetic and comparison words like the JS core', async () => {
+  // The new primitives (over, rot, -, /mod, <, 2dup, ...) end in NEXT and
+  // must behave identically on both cores; the 2dup line also pins that a
+  // word starting with a digit is not split into number + word.
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+  const input = '10 3 - .\n17 5 /mod . .\n3 4 < .\n1 2 2dup depth .\n';
+
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0x8000; sim.segmentRegisters.ES = 0x2000;
+  for (const ch of input) sim.enqueueKeyCode(ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+  const jsOut = screenText((a, n) => sim.memory.slice(a, a + n), SCREEN_ADDR, 960);
+
+  const wasm = await runWasm(res, { maxSteps: 600000, keys: [...input].map((ch) => ch.charCodeAt(0)) });
+  const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 960);
+
+  assert.ok(jsOut.includes('10 3 - . 7  ok'), 'subtraction result');
+  assert.ok(jsOut.includes('17 5 /mod . . 3  2  ok'), 'division with remainder');
+  assert.ok(jsOut.includes('3 4 < . 65535  ok'), 'comparison true is -1');
+  assert.ok(jsOut.includes('1 2 2dup depth . 4  ok'), '2dup is one word');
+  assert.equal(wasmOut, jsOut, 'WASM P3 words must match the JS core');
+  assert.equal(steps, 600000, 'the JS REPL must stay alive across the P3 words');
+  assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the P3 words');
+});
