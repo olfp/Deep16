@@ -1227,6 +1227,16 @@ h_if:
     .word word_if
 
 ; --- vocabularies (newest first) ---
+h_forget:
+    .word h_words
+    .word 6
+    .text "forget"
+    .word word_forget
+h_words:
+    .word h_vocabulary
+    .word 5
+    .text "words"
+    .word word_words
 h_vocabulary:
     .word h_definitions
     .word 10
@@ -1344,12 +1354,14 @@ h_fetch:
 ; --- wordlists: a vocabulary is identified by the address of its head cell,
 ; --- which chains its definitions newest-first and ends in 0.
 forth_wl:
-    .word h_vocabulary   ; newest built-in header in the FORTH vocabulary
+    .word h_forget       ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
     .word forth_wl
     .word 0, 0, 0, 0, 0, 0, 0
 current:
     .word forth_wl       ; wordlist new definitions are added to
+found_wl:
+    .word 0              ; head cell of the wordlist FIND matched last
 
 ; BIOS runs in the shadow bank and uses R5 for its own purposes, so a
 ; primitive that calls SWI must park >IN here and reload it afterwards.
@@ -3498,6 +3510,9 @@ ft_wl:
     CMP R2, R0
     JZ ft_none
     NOP
+    LDI found_wl
+    MOV R3, R0
+    ST R2, R3, 0          ; remember which wordlist is being searched
     LD R7, R2, 0
 ft_loop:
     LDI 0
@@ -3689,6 +3704,112 @@ word_forth:
     MOV R2, R0
     ST R1, R2, 0          ; FORTH becomes the first searched wordlist
     LDI next
+    MOV PC, R0
+    NOP
+
+; words lists the names in the first wordlist of the search order. It clears
+; the screen first, so a full listing always fits; the direct ES writes never
+; call BIOS, so >IN is untouched.
+word_words:
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x1000
+    MOV SCR, R0
+    LDI 2000
+    MOV R2, R0
+    LDI ' '
+    MOV R1, R0
+wwords_clear:
+    STS R1, ES, SCR
+    ADD SCR, 1
+    SUB R2, 1
+    LDI 0
+    CMP R2, R0
+    JNZ wwords_clear
+    NOP
+    LDI 0x1000
+    MOV SCR, R0
+    LDI search_order
+    MOV R2, R0
+    LD R2, R2, 0          ; first wordlist head cell
+    LDI 0
+    CMP R2, R0
+    JZ wwords_ret
+    NOP
+    LD R3, R2, 0          ; newest header
+wwords_hdr:
+    LDI 0
+    CMP R3, R0
+    JZ wwords_ret
+    NOP
+    LD R2, R3, 1
+    LDI 0x00FF
+    AND R2, R0            ; name length
+    MOV R1, R3
+    ADD R1, 2             ; name pointer
+wwords_char:
+    LDI 0
+    CMP R2, R0
+    JZ wwords_space
+    NOP
+    LD R0, R1, 0
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD R1, 1
+    SUB R2, 1
+    LDI wwords_char
+    MOV PC, R0
+    NOP
+wwords_space:
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LD R3, R3, 0          ; follow the link field
+    LDI wwords_hdr
+    MOV PC, R0
+    NOP
+wwords_ret:
+    LDI next
+    MOV PC, R0
+    NOP
+
+; forget name drops `name` and everything defined after it, reclaims the
+; dictionary space and returns to the FORTH vocabulary.
+word_forget:
+    LDI find_token
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 0
+    CMP R1, R0
+    JZ forget_unknown
+    NOP
+    LDI found_wl
+    MOV R2, R0
+    LD R2, R2, 0          ; containing wordlist head cell
+    LD R3, R7, 0          ; R7 = header, R3 = its link
+    ST R3, R2, 0          ; drop the header and everything newer
+    LDI dp_var
+    MOV R2, R0
+    ST R7, R2, 0          ; HERE = forgotten header
+    LDI forth_wl
+    MOV R1, R0
+    LDI search_order
+    MOV R2, R0
+    ST R1, R2, 0
+    ADD R2, 1
+    LDI 0
+    ST R0, R2, 0
+    LDI current
+    MOV R2, R0
+    ST R1, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+forget_unknown:
+    LDI skip_unknown
     MOV PC, R0
     NOP
 

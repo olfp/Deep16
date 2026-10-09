@@ -508,3 +508,75 @@ test('also and previous adjust the search order', () => {
   assert.equal(rows[11], 'undefined word: b');
   assert.equal(rows[12], '>');
 });
+
+test('words lists the searched wordlist', () => {
+  const { rows, running } = repl('words\n');
+  const text = rows.join('');
+  assert.ok(text.includes('forget'), 'lists forget');
+  assert.ok(text.includes('vocabulary'), 'lists vocabulary');
+  assert.ok(text.includes('does>'), 'names split across rows survive');
+  assert.ok(text.includes('dup'), 'lists primitives');
+  assert.ok(text.includes(' ok'), 'the REPL still prints ok');
+  assert.ok(running);
+});
+
+test('words lists only the first wordlist of the search order', () => {
+  const { rows } = repl(
+    'vocabulary foo\n' +
+    'foo definitions\n' +
+    ': alpha 1 ;\n' +
+    ': beta 2 ;\n' +
+    'words\n'
+  );
+  assert.equal(rows[0], 'beta alpha  ok');
+  assert.equal(rows[1], '>');
+});
+
+test('forget drops a word and everything defined after it', () => {
+  const { rows, running } = repl(
+    ': a 1 ; : b 2 ; : c 3 ;\n' +
+    'forget b\n' +
+    'a .\n' +
+    'b .\n' +
+    'c .\n'
+  );
+  assert.equal(rows[1], '> : a 1 ; : b 2 ; : c 3 ; ok');
+  assert.equal(rows[2], '> forget b ok');
+  assert.equal(rows[3], '> a . 1  ok');
+  assert.equal(rows[4], '> b .');
+  assert.equal(rows[5], 'undefined word: b');
+  assert.equal(rows[6], '> c .');
+  assert.equal(rows[7], 'undefined word: c');
+  assert.equal(rows[8], '>');
+  assert.ok(running);
+});
+
+test('forget a vocabulary returns to FORTH and reclaims space', () => {
+  const { rows } = repl(
+    'vocabulary foo\n' +
+    'foo definitions\n' +
+    ': a 1 ;\n' +
+    'only forth definitions\n' +
+    'forget foo\n' +
+    'foo .\n' +
+    '1 2 + .\n'
+  );
+  assert.equal(rows[4], '> only forth definitions ok');
+  assert.equal(rows[5], '> forget foo ok');
+  assert.equal(rows[6], '> foo .');
+  assert.equal(rows[7], 'undefined word: foo');
+  assert.equal(rows[8], '> 1 2 + . 3  ok');
+  assert.equal(rows[9], '>');
+});
+
+test('forget rejects an unknown name', () => {
+  const { rows } = repl(
+    ': a 1 ;\n' +
+    'forget nope\n' +
+    'a .\n'
+  );
+  assert.equal(rows[2], '> forget nope');
+  assert.equal(rows[3], 'undefined word: nope');
+  assert.equal(rows[4], '> a . 1  ok');
+  assert.equal(rows[5], '>');
+});

@@ -541,3 +541,41 @@ test('WASM: Forth REPL vocabularies and the search order match the JS core', asy
   assert.equal(steps, 600000, 'the JS REPL must stay alive across the vocabularies');
   assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the vocabularies');
 });
+
+test('WASM: Forth REPL words and forget match the JS core', async () => {
+  // words clears the screen and walks the first wordlist; forget rewrites the
+  // wordlist head and reclaims HERE, so both cores must agree cell for cell.
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+  // words clears the screen, so it runs first and forget afterwards; the whole
+  // linear screen must still match cell for cell between the two cores.
+  const input =
+    ': a 1 ; : b 2 ; : c 3 ;\n' +
+    'words\n' +
+    'a .\n' +
+    'forget b\n' +
+    'a .\n' +
+    'b .\n';
+
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0x8000; sim.segmentRegisters.ES = 0x2000;
+  for (const ch of input) sim.enqueueKeyCode(ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+  const jsOut = screenText((a, n) => sim.memory.slice(a, a + n), SCREEN_ADDR, 2000);
+
+  const wasm = await runWasm(res, { maxSteps: 600000, keys: [...input].map((ch) => ch.charCodeAt(0)) });
+  const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 2000);
+
+  assert.ok(jsOut.includes('undefined word: b'), 'forget hides the forgotten word');
+  assert.ok(jsOut.includes('vocabulary'), 'words lists the searched wordlist');
+  assert.ok(jsOut.includes('does>'), 'words wraps names without losing them');
+  assert.equal(wasmOut, jsOut, 'WASM words/forget must match the JS core');
+  assert.equal(steps, 600000, 'the JS REPL must stay alive across words/forget');
+  assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across words/forget');
+});
