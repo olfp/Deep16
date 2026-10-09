@@ -776,13 +776,16 @@ working unchanged.
 
 #### **6.2.1 Delayed Branch Impact on Subroutine Calls**
 
-The Deep16 architecture implements a **one-slot delayed branch**, which significantly impacts subroutine call conventions. Unlike architectures with dedicated CALL instructions, Deep16 uses a two-instruction sequence:
+The Deep16 architecture implements a **one-slot delayed branch**, which significantly impacts subroutine call conventions. Unlike architectures with dedicated CALL instructions, Deep16 uses a two-instruction sequence (the target address is loaded into a register first, here `R4`):
 
 **Standard Subroutine Call:**
 ```assembly
+.equ sub_func 0x0100   ; subroutine entry point
+LDI  sub_func      ; R0 = subroutine address
+MOV  R4, R0        ; keep it in R4
 LINK          ; MOV LR, PC, 2  - Store return address in Link Register
-JMP  sub_func ; Jump to subroutine
-; Delay slot executes here
+JMP  R4       ; Jump to subroutine
+NOP           ; Delay slot executes here (A + 2)
 ```
 
 **Why LINK uses immediate value 2:**
@@ -799,22 +802,25 @@ To utilize the delay slot efficiently, Deep16 provides **architectural register 
 
 **Optimized Subroutine Call using ALINK:**
 ```assembly
-JMP   sub_func        ; Jump to subroutine  
+.equ sub_func 0x0100   ; subroutine entry point
+LDI  sub_func      ; R0 = subroutine address
+MOV  R4, R0        ; keep it in R4
+JMP   R4           ; Jump to subroutine  
 ALINK                 ; SMV LR, APC - Architectural read of PC in delay slot
 ; Execution continues after subroutine return
 ```
 
 #### **6.2.3 Performance Impact of ALINK Optimization**
 
-**Traditional vs Optimized Performance:**
+**Traditional vs Optimized Performance** (with the target address already in `R4`, loaded once before either sequence):
 ```assembly
 ; Traditional (3 cycles for call sequence)
 LINK           ; MOV LR, PC, 2  - 1 cycle
-JMP  func      ; 1 cycle  
+JMP  R4        ; 1 cycle (R4 = func)
 NOP            ; 1 cycle (wasted) - TOTAL: 3 cycles
 
 ; Optimized (2 cycles for call sequence) 
-JMP  func      ; 1 cycle
+JMP  R4        ; 1 cycle (R4 = func)
 ALINK          ; SMV LR, APC  - 1 cycle (useful work) - TOTAL: 2 cycles
 ```
 

@@ -32,7 +32,7 @@ This document explores the unique architectural features that distinguish Deep16
 **Example**:
 ```assembly
 ; All operations work with 16-bit values
-MOV  R0, 0x1234      ; 16-bit immediate
+LDI  0x1234        ; 16-bit immediate
 ADD  R1, R0          ; 16-bit addition
 ST   R1, SP, 0       ; 16-bit store
 ```
@@ -64,7 +64,10 @@ ST   R1, SP, 0       ; 16-bit store
 ; Each line = exactly 16 bits = 1 instruction
 LDI  32767          ; [0][imm15]
 ADD  R1, R2         ; [110][000][R1][1][0][R2]
-JZ   target         ; [1110][001][target9]
+JZ   target         ; [1110][000][target9]
+NOP                 ; delay slot
+target:
+HALT
 ```
 
 ---
@@ -97,9 +100,12 @@ JZ   target         ; [1110][001][target9]
 **Example Encoding**:
 ```assembly
 LDI 42              ; 0x002A (opcode: 0)
-LD  R1, SP, 0       ; 0x8010 (opcode: 10)
-ADD R1, R2          ; 0x3120 (opcode: 110, ALUop=000)
-JZ  loop            ; 0xE100 (opcode: 1110, cond=001)
+LD  R1, SP, 0       ; 0x8390 (opcode: 10)
+ADD R1, R2          ; 0xC012 (opcode: 110, ALUop=00000)
+JZ  loop            ; 0xE001 (opcode: 1110, cond=000, offset 1)
+NOP                 ; delay slot
+loop:
+HALT
 ```
 
 ---
@@ -144,12 +150,15 @@ else use_DS;                            // Default data segment
 ```assembly
 ; Automatic segment selection in action
 SRS  R13           ; SR = SP = R13
-MOV  R0, data_ptr  ; R0 always uses DS
+LDI  data_ptr      ; R0 always uses DS
 
 LD   R1, SP, 0     ; Uses SS (SP = SR)
 LD   R2, FP, 0     ; Uses SS (FP = R12, dual with SP)
 LD   R3, R0, 0     ; Uses DS (R0 special case)
 LD   R4, R7, 0     ; Uses DS (default)
+
+data_ptr:
+    .word 0
 ```
 
 ---
@@ -264,7 +273,9 @@ CLRI           ; = CLR2 1 (Disable interrupts)
 .org 0x0000
 reset_handler:
     ; Initialize stack pointer
-    MOV  SP, 0x7FFF
+    ; LDI sign-extends bit 14, so 0x7FFF is built with a shift
+    LDI  0x3FFF
+    MOV  SP, R0 << 1 + 1   ; SP = 0x7FFF
     
     ; Configure segment registers
     SRS  R13           ; Stack uses R13 (SP)
@@ -272,17 +283,23 @@ reset_handler:
     ERS  R11           ; Extra segment uses R11
     
     ; Clear critical registers
-    MOV  R0, 0
-    MOV  R1, 0
+    LDI  0             ; R0 = 0
+    MOV  R1, R0        ; R1 = 0
     ; ... clear others as needed ...
     
     ; Initialize interrupt vector
-    MOV  R0, irq_handler
-    ST   R0, R0, 1     ; Store at interrupt vector 1
+    LDI  irq_handler
+    MOV  R4, R0        ; R4 = handler address
+    LSI  R0, 0         ; R0 = 0 (vector table base)
+    ST   R4, R0, 1     ; Store at interrupt vector 1
     
     ; Enable interrupts and start main program
     SETI
-    JMP  main_program
+    LDI  main_program
+    MOV  PC, R0        ; Jump to main program
+    NOP                ; Delay slot
+main_program:
+    HALT
 
 .org 0x0020
 irq_handler:

@@ -131,7 +131,7 @@ PSW'  ← 0x0000    ; S=0 - switch back to normal context
 ## SMV Symmetric Access Behavior
 
 ### Normal Mode (PSW.S=0, PSW'.S=0)
-```assembly
+```text
 SMV Rx, ACS      ; Rx = CS' (reads shadow CS, typically 0)
 SMV Rx, AR0      ; Rx = R0' (reads shadow R0, typically 0)
 SMV Rx, APSW     ; Rx = PSW' (reads 0x0020 if in interrupt, else 0x0000)
@@ -139,7 +139,7 @@ SMV Rx, APC      ; Rx = PC' (reads shadow PC)
 ```
 
 ### Interrupt Mode (PSW.S=0, PSW'.S=1)
-```assembly
+```text
 SMV Rx, ACS      ; Rx = CS (reads normal CS)
 SMV Rx, AR0      ; Rx = R0 (reads normal R0)
 SMV Rx, APSW     ; Rx = PSW (reads normal, interrupted PSW)
@@ -243,11 +243,12 @@ end
 
 ### Fast Interrupt Handler
 ```assembly
+.equ TIMER_REG 0x0022
 timer_isr:
     ; R0', R1', R2', SP', LR' already available as 0
     LDI  TIMER_REG    ; R0' = timer address
     MVS  ES, R0       ; ES' = timer segment
-    LDS  R1, ES, [R0] ; R1' = timer value
+    LDS  R1, ES, R0   ; R1' = timer value
     ; ... process ...
     RETI
 ```

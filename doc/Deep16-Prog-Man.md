@@ -47,18 +47,19 @@ make install
 START:
     LDI  'H'          ; Load 'H' into R0
     MOV  R1, R0       ; Copy to R1
-    LDI  0xF000       ; Screen segment
-    INV  R0           ; R0 = 0x0FFF -> INV -> 0xF000
+    LDI  0x0FFF
+    INV  R0           ; R0 = 0x0FFF -> INV -> 0xF000 (screen segment)
     MVS  ES, R0       ; Set ES to screen segment
-    STS  R1, [0x1000] ; Write 'H' to screen position 0
+    LDI  0x1000
+    MOV  R10, R0      ; R10 = screen buffer offset
+    STS  R1, ES, R10  ; Write 'H' to screen position 0
     
     LDI  'e'          ; Next character
     MOV  R1, R0
-    STS  R1, [0x1001] ; Write to next position
+    ADD  R10, 1       ; Next screen position
+    STS  R1, ES, R10  ; Write to next position
     
     HLT               ; Halt execution
-
-.end
 ```
 
 **Assemble and Run:**
@@ -74,7 +75,7 @@ deep16-sim hello.bin
 ### **3.1 Register Usage**
 
 **General Purpose Registers:**
-```assembly
+```text
 R0  - LDI destination, temporary
 R1  - General purpose
 R2  - General purpose
@@ -94,7 +95,7 @@ R15 - Program Counter (PC) - read-only
 ```
 
 **Segment Registers:**
-```assembly
+```text
 CS - Code Segment (implicit for instruction fetch)
 DS - Data Segment (default for LD/ST)
 SS - Stack Segment (controlled by PSW.SR)
@@ -124,8 +125,8 @@ ADD R2, 3        ; R2 = R2 + 3
 
 **Memory Indirect:**
 ```assembly
-LDS R1, ES, [R2] ; Load from ES:R2
-STS R3, DS, [R4] ; Store to DS:R4
+LDS R1, ES, R2   ; Load from ES:R2
+STS R3, DS, R4   ; Store to DS:R4
 ```
 
 ### **3.3 PSW (Processor Status Word)**
@@ -179,7 +180,7 @@ CLR  3          ; Clear bit 3 (Carry)
 **Load Immediate:**
 ```assembly
 LDI 0x1234       ; R0 = 0x1234 (sign-extended)
-LSI R1, 31       ; R1 = 31 (sign-extended 5-bit)
+LSI R1, 15       ; R1 = 15 (5-bit signed immediate -16..15)
 ```
 
 **Register Moves:**
@@ -302,8 +303,8 @@ ST  R4, FP, 2    ; [DS:FP+2] = R4 (frame access)
 
 **Segment-based Access:**
 ```assembly
-LDS R1, ES, [R2] ; R1 = [ES:R2]
-STS R3, CS, [R4] ; [CS:R4] = R3
+LDS R1, ES, R2   ; R1 = [ES:R2]
+STS R3, CS, R4   ; [CS:R4] = R3
 ```
 
 ### **4.6 Control Flow**
@@ -318,6 +319,9 @@ JN  label        ; Jump if N=1 (negative)
 JNN label        ; Jump if N=0 (not negative)
 JO  label        ; Jump if V=1 (overflow)
 JNO label        ; Jump if V=0 (no overflow)
+
+label:
+    HALT
 ```
 
 **Unconditional Jump:**
@@ -334,18 +338,25 @@ JML R2           ; CS = R2, PC = R3 (R2 must be even)
 
 **Subroutine Calls:**
 ```assembly
-; Traditional call (clear but inefficient)
+; Traditional call (clear but inefficient) - target is loaded first
+LDI  subroutine
+MOV  R2, R0      ; R2 = subroutine address
 LINK             ; MOV LR, PC, 2
-JMP  subroutine
+JMP  R2
 NOP              ; Wasted delay slot
 
 ; Optimized call (uses delay slot)
-JMP   subroutine
+LDI  subroutine
+MOV  R2, R0
+JMP  R2
 ALINK            ; SMV LR, APC (in delay slot)
 
 ; Return from subroutine
 JMP  LR          ; Return to caller
 NOP              ; Delay slot
+
+subroutine:
+    HALT
 ```
 
 ### **4.7 System Operations**
@@ -379,10 +390,11 @@ HLT              ; Halt processor
 ```assembly
 my_function:
     ; Save frame and allocate stack
+    MOV  R5, FP          ; Keep old frame pointer
     MOV  FP, SP          ; Set frame pointer
     SUB  SP, 8           ; Allocate 8 words
     ST   LR, [FP+7]      ; Save return address
-    ST   OldFP, [FP+6]   ; Save old frame pointer
+    ST   R5, [FP+6]      ; Save old frame pointer
     ; ... function body ...
 ```
 
@@ -398,12 +410,17 @@ my_function:
 **Parameter Passing:**
 ```assembly
 ; Caller:
+.equ param1 5
+.equ param2 9
+.equ function 0x0100
     LDI  param1
     MOV  R1, R0          ; Parameter 1 in R1
     LDI  param2
     MOV  R2, R0          ; Parameter 2 in R2
-    JMP  function
-    ALINK                ; Set return address
+    LDI  function
+    MOV  R4, R0          ; R4 = callee address
+    JMP  R4
+    ALINK                ; Set return address (delay slot)
     
 ; Callee (function):
     ST   R1, [FP-1]      ; Save parameter 1
@@ -454,13 +471,18 @@ timer_isr:
     ; They won't affect the normal program's registers
     
     ; Handle timer interrupt using shadow registers
-    LDI  TIMER_BASE    ; Load into R0' (shadow)
-    MVS  ES, R0        ; ES' = timer segment (using shadow R0')
-    LDS  R3, ES, [R0]  ; R3' = timer value (using shadow registers)
+    LDI  0x0FFF
+    INV  R0            ; R0' = 0xF000 (I/O segment)
+    MVS  ES, R0        ; ES' = I/O segment (using shadow R0')
+    LDI  0x0020
+    MOV  R4, R0        ; R4' = timer register offset
+    LDS  R3, ES, R4    ; R3' = timer value (using shadow registers)
     
     ; Acknowledge interrupt
+    LDI  0x0012
+    MOV  R4, R0        ; R4' = acknowledge register offset
     LDI  1
-    STS  R0, ES, [R0+2] ; Write using shadow registers
+    STS  R0, ES, R4    ; Write using shadow registers
     
     ; If we modified normal registers via SMV writes, restore them
     ; But we only read, so no restoration needed
@@ -493,8 +515,10 @@ In Interrupt Mode (PSW.S=1):
 ; ============================================
 ; INTERRUPT VECTOR SETUP
 ; ============================================
+.equ COUNTER_ADDR 0x0200
+
 .org 0x0001            ; Hardware interrupt vector
-.dw  timer_interrupt_handler
+.word timer_interrupt_handler
 
 ; ============================================
 ; INTERRUPT HANDLER
@@ -534,14 +558,18 @@ timer_interrupt_handler:
     ; 3. HANDLE THE INTERRUPT
     ; ----------------------------------------------------------------
     ; Read timer value
-    LDS  R7, ES, [0x0020]  ; R7' = timer value
+    LDI  0x0020
+    MOV  R8, R0            ; R8' = timer register offset
+    LDS  R7, ES, R8        ; R7' = timer value
     
     ; Process timer interrupt
     ; ... timer handling code using shadow registers ...
     
     ; Acknowledge interrupt to controller
     LDI  1
-    STS  R0, ES, [0x0012]  ; Acknowledge (using shadow R0')
+    MOV  R9, R0            ; R9' = acknowledge value
+    LDI  0x0012
+    STS  R9, ES, R0        ; Acknowledge (using shadow R0' = offset)
     
     ; ----------------------------------------------------------------
     ; 4. RESTORE NORMAL CONTEXT (if we saved it)
@@ -581,7 +609,8 @@ debug_last_interrupt:
     
     ; Display these for debugging
     ; ... debug code ...
-    RET
+    JMP  LR             ; Return to caller
+    NOP                 ; delay slot
 ```
 
 **From Interrupt Mode (for nested interrupts):**
@@ -601,7 +630,7 @@ nested_interrupt_handler:
 
 ### **Interrupt-Related Macros**
 
-```assembly
+```text
 ; Macro to save normal registers to shadow context
 .macro SAVE_NORMAL_REGS
     SMV  R0, AR0        ; Save normal R0 to shadow R0'
@@ -643,11 +672,12 @@ system_init:
     ; Set interrupt vectors
     LDI  timer_isr
     MOV  R1, R0
-    ST   R1, [0x0001]   ; HW interrupt vector
+    LSI  R2, 0
+    ST   R1, R2, 1      ; HW interrupt vector (DS:0x0001)
     
     LDI  swi_isr
     MOV  R1, R0
-    ST   R1, [0x0002]   ; SWI vector
+    ST   R1, R2, 2      ; SWI vector (DS:0x0002)
     
     ; Configure timer for interrupts
     LDI  0x0FFF
@@ -655,14 +685,20 @@ system_init:
     MVS  ES, R0         ; ES = I/O segment
     
     LDI  1000           ; 1ms at 1MHz
-    STS  R0, [0x0024]   ; Timer reload
+    MOV  R3, R0
+    LDI  0x0024
+    STS  R3, ES, R0     ; Timer reload
     
     LDI  0x03           ; Start + interrupt enable
-    STS  R0, [0x0020]   ; Timer control
+    MOV  R3, R0
+    LDI  0x0020
+    STS  R3, ES, R0     ; Timer control
     
     ; Enable in interrupt controller
     LDI  0x01           ; Enable timer interrupt
-    STS  R0, [0x0010]   ; Interrupt mask
+    MOV  R3, R0
+    LDI  0x0010
+    STS  R3, ES, R0     ; Interrupt mask
     
     ; Enable interrupts globally
     SETI
@@ -670,8 +706,9 @@ system_init:
     ; Main program loop
 main_loop:
     ; ... main program ...
-    JMP  main_loop
-    NOP
+    LDI  main_loop
+    MOV  PC, R0
+    NOP                 ; delay slot
 
 ; ============================================
 ; TIMER INTERRUPT HANDLER (CORRECT)
@@ -690,11 +727,15 @@ timer_isr:
     MVS  ES, R0         ; ES' = I/O segment
     
     ; Read timer (optional)
-    LDS  R1, ES, [0x0022]  ; R1' = timer value
+    LDI  0x0022
+    MOV  R4, R0            ; R4' = timer register offset
+    LDS  R1, ES, R4        ; R1' = timer value
     
     ; Acknowledge
+    LDI  0x0012
+    MOV  R4, R0            ; R4' = acknowledge register offset
     LDI  1
-    STS  R0, ES, [0x0012]  ; Acknowledge
+    STS  R0, ES, R4        ; Acknowledge
     
     ; Update a counter in normal memory
     LDI  timer_counter
@@ -706,10 +747,17 @@ timer_isr:
     RETI
 
 ; ============================================
+; SWI HANDLER
+; ============================================
+swi_isr:
+    RETI                 ; Simple software-interrupt handler
+
+; ============================================
 ; DATA SECTION
 ; ============================================
 .data
-timer_counter: .dw 0
+timer_counter:
+    .word 0
 ```
 
 ### **5.3 Screen Output**
@@ -729,14 +777,15 @@ setup_screen:
     ; ERD R10 would set PSW.ER=10, PSW.DE=1
     ; But we need LPSW/SPSW for that...
     LPSW R1
-    AND  R1, 0xFC3F     ; Clear ER field
+    AND  R1, R1, 0xFC3F ; Clear ER field
     LDI  10
-    AND  R0, 0x000F
+    AND  R0, R0, 0x000F
     SL   R0, 8          ; Shift to ER position
     OR   R1, R0
-    OR   R1, 0x0800     ; Set DE=1
+    OR   R1, R1, 0x0800 ; Set DE=1
     SPSW R1
-    RET
+    JMP  LR             ; Return to caller
+    NOP                 ; delay slot
 ```
 
 **Character Output:**
@@ -744,10 +793,14 @@ setup_screen:
 print_char:
     ; R1 contains character
     ; R10:R11 contains screen position
-    STS  R1, [R10+0]    ; Write character
-    ADD  R10, 1         ; Next position
-    ADC  R11, 0         ; Handle carry
-    RET
+    STS  R1, ES, R10    ; Write character
+    ADD  R10, 1         ; Next position (sets C on carry out)
+    JNC  no_carry       ; No carry into the high word
+    NOP                 ; delay slot
+    ADD  R11, 1         ; Carry into the high word
+no_carry:
+    JMP  LR             ; Return to caller
+    NOP                 ; delay slot
 ```
 
 ### **5.4 String Operations**
@@ -763,12 +816,15 @@ strlen_loop:
     LD   R3, R1, 0      ; Load character
     CMP  R3, 0          ; Check for null terminator
     JZ   strlen_done
+    NOP                 ; delay slot
     ADD  R1, 1          ; Next character
     ADD  R2, 1          ; Increment length
-    JMP  strlen_loop
-    NOP
+    LDI  strlen_loop
+    MOV  PC, R0
+    NOP                 ; delay slot
 strlen_done:
-    RET
+    JMP  LR             ; Return to caller
+    NOP                 ; delay slot
 ```
 
 **String Copy:**
@@ -779,12 +835,15 @@ strcpy:
     ST   R3, R2, 0      ; Store character
     CMP  R3, 0          ; Check for null
     JZ   strcpy_done
+    NOP                 ; delay slot
     ADD  R1, 1          ; Next source
     ADD  R2, 1          ; Next destination
-    JMP  strcpy
-    NOP
+    LDI  strcpy
+    MOV  PC, R0
+    NOP                 ; delay slot
 strcpy_done:
-    RET
+    JMP  LR             ; Return to caller
+    NOP                 ; delay slot
 ```
 
 ### **5.5 Math Operations**
@@ -794,9 +853,17 @@ strcpy_done:
 ; Input: R0:R1 = a, R2:R3 = b
 ; Output: R0:R1 = a + b
 add32:
-    ADD  R1, R3         ; Add low words
-    ADC  R0, R2         ; Add high words with carry
-    RET
+    ADD  R1, R3         ; Add low words (sets C = carry out)
+    JC   add32_carry
+    NOP                 ; delay slot
+    ADD  R0, R2         ; No carry: add high words
+    JMP  LR             ; Return to caller
+    NOP                 ; delay slot
+add32_carry:
+    ADD  R0, R2         ; Add high words
+    ADD  R0, 1          ; Add the low-word carry
+    JMP  LR             ; Return to caller
+    NOP                 ; delay slot
 ```
 
 **32-bit Subtraction:**
@@ -804,9 +871,17 @@ add32:
 ; Input: R0:R1 = a, R2:R3 = b  
 ; Output: R0:R1 = a - b
 sub32:
-    SUB  R1, R3         ; Subtract low words
-    SBC  R0, R2         ; Subtract high words with borrow
-    RET
+    SUB  R1, R3         ; Subtract low words (sets C = borrow)
+    JC   sub32_borrow
+    NOP                 ; delay slot
+    SUB  R0, R2         ; No borrow: subtract high words
+    JMP  LR             ; Return to caller
+    NOP                 ; delay slot
+sub32_borrow:
+    SUB  R0, R2         ; Subtract high words
+    SUB  R0, 1          ; Subtract the low-word borrow
+    JMP  LR             ; Return to caller
+    NOP                 ; delay slot
 ```
 
 **16×16→32-bit Multiplication:**
@@ -814,14 +889,10 @@ sub32:
 ; Input: R0 = a, R1 = b
 ; Output: R2:R3 = a × b
 mul16to32:
-    MUL32 R2, R1        ; R2:R3 = R2 × R1 (R2 must be even)
-    ; Need to save R0 first, then use even register...
-    MOV  R4, R0         ; Save a
-    LDI  0
-    MOV  R2, R0         ; R2 = 0 (even)
-    MOV  R2, R4         ; R2 = a
+    MOV  R2, R0         ; R2 = a (R2 is even - the result pair is R2:R3)
     MUL32 R2, R1        ; R2:R3 = a × b
-    RET
+    JMP  LR             ; Return to caller
+    NOP                 ; delay slot
 ```
 
 ---
@@ -843,8 +914,14 @@ JZ   equal
 MOV  R3, R4      ; Executes regardless
 
 ; BEST - ALINK optimization
-JMP  subroutine
+LDI  subroutine
+MOV  R2, R0
+JMP  R2
 ALINK            ; Set return address in delay slot
+
+equal:
+subroutine:
+    HALT
 ```
 
 ### **6.2 Constant Generation**
@@ -883,15 +960,21 @@ loop:
 
 **Pointer-based Loop:**
 ```assembly
-    MOV  R1, start      ; R1 = pointer
-    MOV  R2, end        ; R2 = end pointer
+.equ start 0x0100
+.equ end   0x0200
+    LDI  end
+    MOV  R2, R0         ; R2 = end pointer
+    LDI  start
+    MOV  R1, R0         ; R1 = pointer
 loop:
     CMP  R1, R2
     JZ   done           ; Reached end
+    NOP                 ; delay slot
     ; ... process [R1] ...
     ADD  R1, 1          ; Next element
-    JMP  loop
-    NOP
+    LDI  loop
+    MOV  PC, R0
+    NOP                 ; delay slot
 done:
 ```
 
@@ -901,9 +984,11 @@ done:
 ```assembly
     CMP  R1, R2
     JNZ  not_equal
+    NOP                 ; delay slot
     ; ... then code ...
-    JMP  end_if
-    NOP
+    LDI  end_if
+    MOV  PC, R0
+    NOP                 ; delay slot
 not_equal:
     ; ... else code ...
 end_if:
@@ -913,9 +998,11 @@ end_if:
 ```assembly
     CMP  R1, 0
     JZ   is_zero
+    NOP                 ; delay slot
     ; ... not zero code ...
-    JMP  end_if
-    NOP
+    LDI  end_if
+    MOV  PC, R0
+    NOP                 ; delay slot
 is_zero:
     ; ... zero code ...
 end_if:
@@ -927,27 +1014,34 @@ end_if:
     ; R1 contains value
     CMP  R1, 0
     JZ   case0
+    NOP                 ; delay slot
     CMP  R1, 1
     JZ   case1
+    NOP                 ; delay slot
     CMP  R1, 2
     JZ   case2
-    JMP  default
-    NOP
+    NOP                 ; delay slot
+    LDI  default
+    MOV  PC, R0
+    NOP                 ; delay slot
     
 case0:
     ; ... case 0 code ...
-    JMP  end_switch
-    NOP
+    LDI  end_switch
+    MOV  PC, R0
+    NOP                 ; delay slot
     
 case1:
     ; ... case 1 code ...
-    JMP  end_switch
-    NOP
+    LDI  end_switch
+    MOV  PC, R0
+    NOP                 ; delay slot
     
 case2:
     ; ... case 2 code ...
-    JMP  end_switch
-    NOP
+    LDI  end_switch
+    MOV  PC, R0
+    NOP                 ; delay slot
     
 default:
     ; ... default code ...
@@ -986,11 +1080,16 @@ setup_timer:
     
     ; Configure for 1ms interrupts at 1MHz
     LDI  1000           ; Reload value
-    STS  R0, [0x0024]   ; Timer reload register
+    MOV  R1, R0
+    LDI  0x0024
+    STS  R1, ES, R0     ; Timer reload register
     
     LDI  0x03           ; Start timer + enable interrupt
-    STS  R0, [0x0020]   ; Timer control register
-    RET
+    MOV  R1, R0
+    LDI  0x0020
+    STS  R1, ES, R0     ; Timer control register
+    JMP  LR             ; Return to caller
+    NOP                 ; delay slot
 ```
 
 **Keyboard Input:**
@@ -999,14 +1098,20 @@ read_key:
     LDI  0x0FFF
     INV  R0
     MVS  ES, R0
+    LDI  0x0060
+    MOV  R3, R0         ; R3 = keyboard status register offset
     
 wait_key:
-    LDS  R1, [0x0060]   ; Keyboard status
+    LDS  R1, ES, R3     ; Keyboard status
     TBC  R1, 0          ; Test data ready bit
     JZ   wait_key       ; Wait if no key
+    NOP                 ; delay slot
     
-    LDS  R2, [0x0062]   ; Read scan code
-    RET
+    LDI  0x0062
+    MOV  R3, R0         ; R3 = scan code register offset
+    LDS  R2, ES, R3     ; Read scan code
+    JMP  LR             ; Return to caller
+    NOP                 ; delay slot
 ```
 
 **Serial Communication:**
@@ -1016,14 +1121,20 @@ serial_putc:
     LDI  0x0FFF
     INV  R0
     MVS  ES, R0
+    LDI  0x0040
+    MOV  R3, R0         ; R3 = serial status register offset
     
 wait_tx:
-    LDS  R2, [0x0040]   ; Serial status
+    LDS  R2, ES, R3     ; Serial status
     TBC  R2, 1          ; Test TX ready
     JZ   wait_tx
+    NOP                 ; delay slot
     
-    STS  R1, [0x0042]   ; Send character
-    RET
+    LDI  0x0042
+    MOV  R3, R0         ; R3 = serial data register offset
+    STS  R1, ES, R3     ; Send character
+    JMP  LR             ; Return to caller
+    NOP                 ; delay slot
 ```
 
 ### **7.3 Boot Sequence**
@@ -1038,19 +1149,16 @@ boot_start:
     MVS  DS, R0         ; DS = 0x0000
     MVS  SS, R0         ; SS = 0x0000
     
-    LDI  0x7FFF
-    MOV  SP, R0         ; SP = 0x7FFF (top of stack)
+    LDI  0x3FFF
+    MOV  SP, R0 << 1 + 1 ; SP = 0x7FFF (top of stack)
     
     LDI  0x0100         ; User program start
     MOV  R1, R0
-    ST   R1, [0x0000]   ; Set reset vector
+    LSI  R2, 0
+    ST   R1, R2, 0      ; Set reset vector (DS:0x0000)
     
-    LDI  user_start
-    MOV  PC, R0         ; Jump to user code
-    NOP
-    
-user_start:
-    ; User program begins here
+    MOV  PC, R1         ; Jump to user code at 0x0100
+    NOP                 ; delay slot
 ```
 
 ---
@@ -1091,7 +1199,8 @@ Physical Address = (Segment << 4) + Offset
 **Setting Up Segments:**
 ```assembly
 ; Setup for screen access
-LDI  0xF000
+LDI  0x0FFF
+INV  R0             ; R0 = 0xF000 (screen segment)
 MVS  ES, R0         ; ES = screen segment
 LDI  10
 MOV  R10, R0
@@ -1135,14 +1244,24 @@ ADD  R3, R1        ; Now R1 is ready
 
 **Incorrect Return Address:**
 ```assembly
-; Wrong: LINK in wrong place
+; Wrong: LINK too early - LR points at the JMP itself, so the call cannot return
 LINK               ; MOV LR, PC, 2
-JMP  func
-ADD  R1, R2        ; This becomes return address!
+LDI  func
+MOV  R2, R0
+JMP  R2
+ADD  R1, R2        ; delay slot
 
-; Correct: Optimized call
-JMP  func
-ALINK              ; SMV LR, APC (in delay slot)
+; Correct: build the target first, then LINK immediately before the jump
+LDI  func
+MOV  R2, R0
+LINK               ; MOV LR, PC, 2
+JMP  R2
+NOP                ; delay slot
+
+func:
+    ; ... subroutine body ...
+    JMP  LR        ; Return to caller
+    NOP            ; delay slot
 ```
 
 ### **9.2 Debugging Tools**
@@ -1153,7 +1272,8 @@ ALINK              ; SMV LR, APC (in delay slot)
 debug_regs:
     LPSW R1
     ; ... display R1 and other registers ...
-    RET
+    JMP  LR            ; Return to caller
+    NOP                ; delay slot
 ```
 
 **Memory Dump:**
@@ -1166,8 +1286,9 @@ dump_mem:
     ADD  R1, 1
     SUB  R2, 1
     JNZ  dump_mem
-    NOP
-    RET
+    NOP            ; delay slot
+    JMP  LR        ; Return to caller
+    NOP            ; delay slot
 ```
 
 ### **9.3 Using the Simulator**
@@ -1257,11 +1378,11 @@ Bit  Operation      Instruction
 ### **10.3 Common Constants**
 
 ```assembly
-ZERO    = 0x0000
-ONE     = 0x0001
-MINUS1  = 0xFFFF
-SCREEN  = 0xF000
-STACK_TOP = 0x7FFF
+.equ ZERO      0x0000
+.equ ONE       0x0001
+.equ MINUS1    0xFFFF
+.equ SCREEN    0xF000
+.equ STACK_TOP 0x7FFF
 ```
 
 ### **10.4 Revision History**

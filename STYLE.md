@@ -54,8 +54,11 @@ Jedes Kapitel folgt gleich auf:
   .org 0x0100
           LDI  tabelle
           MOV  R1, R0           ; R1 → Datenanfang
-          ...
+          ; ...
           HALT
+
+  tabelle:
+          .word 1, 2, 3, 4
   ```
 
 - **Gemessene Ergebnisse** stehen als Kommentar an der Zeile, die sie
