@@ -1159,8 +1159,60 @@ h_minus:
     .text "-"
     .word word_minus
 
-latest:
+; --- P3 control-flow words (immediate where they act at compile time) ---
+h_recurse:
+    .word h_exit
+    .word 0x8007          ; IMMEDIATE | length 7
+    .text "recurse"
+    .word word_recurse
+h_exit:
+    .word h_repeat
+    .word 4
+    .text "exit"
+    .word exit
+h_repeat:
+    .word h_while
+    .word 0x8006          ; IMMEDIATE
+    .text "repeat"
+    .word word_repeat
+h_while:
+    .word h_again
+    .word 0x8005          ; IMMEDIATE
+    .text "while"
+    .word word_while
+h_again:
+    .word h_until
+    .word 0x8005          ; IMMEDIATE
+    .text "again"
+    .word word_again
+h_until:
+    .word h_begin
+    .word 0x8005          ; IMMEDIATE
+    .text "until"
+    .word word_until
+h_begin:
+    .word h_else
+    .word 0x8005          ; IMMEDIATE
+    .text "begin"
+    .word word_begin
+h_else:
+    .word h_then
+    .word 0x8004          ; IMMEDIATE
+    .text "else"
+    .word word_else
+h_then:
+    .word h_if
+    .word 0x8004          ; IMMEDIATE
+    .text "then"
+    .word word_then
+h_if:
     .word h_depth
+    .word 0x8002          ; IMMEDIATE
+    .text "if"
+    .word word_if
+
+latest:
+    .word h_recurse
 
 ; BIOS runs in the shadow bank and uses R5 for its own purposes, so a
 ; primitive that calls SWI must park >IN here and reload it afterwards.
@@ -1184,6 +1236,12 @@ xt_lit:
     .word lit
 xt_exit:
     .word exit
+xt_branch:
+    .word branch
+xt_0branch:
+    .word zbranch
+current_xt:
+    .word 0              ; xt of the definition being compiled (for recurse)
 dict_free:               ; colon definitions are built upwards from here
 
 .code
@@ -2236,6 +2294,56 @@ w0gt_under:
     MOV PC, R0
     NOP
 
+; Unconditional branch: the thread holds an inline offset right after the
+; xt. NEXT leaves IP on the offset cell, so target = IP + offset.
+branch:
+    LDI ip_ptr
+    MOV R2, R0
+    LD R3, R2, 0
+    LD R1, R3, 0
+    ADD R3, R1
+    ST R3, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+; Conditional branch: pop a flag, jump when it is zero, else skip the offset.
+zbranch:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ zbranch_under
+    NOP
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI 0
+    CMP R1, R0
+    JZ zbranch_take
+    NOP
+    LDI ip_ptr
+    MOV R2, R0
+    LD R3, R2, 0
+    ADD R3, 1
+    ST R3, R2, 0          ; not taken: skip the offset cell
+    LDI next
+    MOV PC, R0
+    NOP
+zbranch_take:
+    LDI ip_ptr
+    MOV R2, R0
+    LD R3, R2, 0
+    LD R1, R3, 0
+    ADD R3, R1
+    ST R3, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+zbranch_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
 ; =============================================
 ; P2: Indirect-threaded code engine
 ; =============================================
@@ -2391,6 +2499,9 @@ colon_copy:
     LDI docol
     MOV R1, R0
     ST R1, R2, 0          ; CFA = docol
+    LDI current_xt
+    MOV R3, R0
+    ST R2, R3, 0          ; remember this definition's xt for recurse
     ADD R2, 1
     ST R2, R12, 0         ; DP = end of CFA
     LDI latest
@@ -2459,6 +2570,206 @@ word_bracket_end:
     MOV R2, R0
     LDI 1
     ST R0, R2, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+; ---------------------------------------------
+; P3: control-flow compiler words
+; They are immediate and run while compiling. Compile-time branch targets
+; are kept on the Forth return stack (rp), which is unused at compile time.
+; ---------------------------------------------
+word_if:
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI xt_0branch
+    MOV R4, R0
+    ST R4, R3, 0          ; compile 0branch
+    ADD R3, 1
+    LDI 0
+    ST R0, R3, 0          ; placeholder offset
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    SUB R7, 1
+    ST R3, R7, 0          ; push the placeholder
+    ST R7, R4, 0
+    ADD R3, 1
+    ST R3, R2, 0          ; DP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_then:
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    LD R3, R7, 0          ; placeholder
+    ADD R7, 1
+    ST R7, R4, 0
+    LDI dp_var
+    MOV R2, R0
+    LD R2, R2, 0          ; here
+    MOV R1, R2
+    SUB R1, R3            ; offset = here - placeholder
+    ST R1, R3, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_else:
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    LD R3, R7, 0          ; addr1 (the if's placeholder)
+    ADD R7, 1
+    ST R7, R4, 0
+    LDI dp_var
+    MOV R2, R0
+    LD R1, R2, 0          ; DP
+    LDI xt_branch
+    MOV R9, R0
+    ST R9, R1, 0          ; compile branch
+    ADD R1, 1
+    LDI 0
+    ST R0, R1, 0          ; addr2 = placeholder
+    MOV R9, R1
+    ADD R9, 1             ; here
+    SUB R9, R3            ; offset = here - addr1
+    ST R9, R3, 0          ; patch the if
+    LD R7, R4, 0
+    SUB R7, 1
+    ST R1, R7, 0          ; push addr2
+    ST R7, R4, 0
+    ADD R1, 1
+    ST R1, R2, 0          ; DP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_begin:
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0          ; here
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    SUB R7, 1
+    ST R3, R7, 0          ; push the loop start
+    ST R7, R4, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_until:
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    LD R3, R7, 0          ; dest
+    ADD R7, 1
+    ST R7, R4, 0
+    LDI dp_var
+    MOV R2, R0
+    LD R1, R2, 0          ; DP
+    LDI xt_0branch
+    MOV R9, R0
+    ST R9, R1, 0
+    ADD R1, 1             ; ph
+    MOV R9, R3
+    SUB R9, R1            ; offset = dest - ph
+    ST R9, R1, 0
+    ADD R1, 1
+    ST R1, R2, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_again:
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    LD R3, R7, 0          ; dest
+    ADD R7, 1
+    ST R7, R4, 0
+    LDI dp_var
+    MOV R2, R0
+    LD R1, R2, 0          ; DP
+    LDI xt_branch
+    MOV R9, R0
+    ST R9, R1, 0
+    ADD R1, 1             ; ph
+    MOV R9, R3
+    SUB R9, R1            ; offset = dest - ph
+    ST R9, R1, 0
+    ADD R1, 1
+    ST R1, R2, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_while:
+    LDI dp_var
+    MOV R2, R0
+    LD R1, R2, 0          ; DP
+    LDI xt_0branch
+    MOV R9, R0
+    ST R9, R1, 0
+    ADD R1, 1             ; orig = placeholder
+    LDI 0
+    ST R0, R1, 0
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    SUB R7, 1
+    ST R1, R7, 0          ; push orig on top of dest
+    ST R7, R4, 0
+    ADD R1, 1
+    ST R1, R2, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_repeat:
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    LD R3, R7, 0          ; orig
+    ADD R7, 1
+    LD R1, R7, 0          ; dest
+    ADD R7, 1
+    ST R7, R4, 0
+    LDI dp_var
+    MOV R2, R0
+    LD R7, R2, 0          ; DP
+    LDI xt_branch
+    MOV R10, R0
+    ST R10, R7, 0
+    ADD R7, 1             ; ph
+    LDI 0
+    ST R0, R7, 0
+    MOV R10, R1
+    SUB R10, R7           ; offset = dest - ph
+    ST R10, R7, 0
+    ADD R7, 1             ; here
+    ST R7, R2, 0
+    MOV R10, R7
+    SUB R10, R3           ; offset = here - orig
+    ST R10, R3, 0         ; patch the while
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_recurse:
+    LDI current_xt
+    MOV R4, R0
+    LD R7, R4, 0
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0
+    ST R7, R3, 0          ; compile the current definition's xt
+    ADD R3, 1
+    ST R3, R2, 0
     LDI interpret_loop
     MOV PC, R0
     NOP

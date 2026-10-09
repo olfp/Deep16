@@ -262,3 +262,34 @@ test('words whose names start with a digit are not split into number + word', ()
   assert.equal(rows[3], '> 5 2x . 10  ok');
   assert.equal(rows[4], '>');
 });
+
+test('control flow: if then else pick a branch at run time', () => {
+  const { rows, running } = repl(
+    ': t if 111 . then ; 1 t 0 t\n' +
+    ': e if 1 . else 2 . then ; 1 e 0 e\n' +
+    ': n if 1 . 0 if 2 . else 3 . then else 4 . then ; 1 n 0 n\n'
+  );
+  assert.equal(rows[1], '> : t if 111 . then ; 1 t 0 t 111  ok');
+  assert.equal(rows[2], '> : e if 1 . else 2 . then ; 1 e 0 e 1  2  ok');
+  assert.equal(rows[3], '> : n if 1 . 0 if 2 . else 3 . then else 4 . then ; 1 n 0 n 1  3  4  ok');
+  assert.equal(rows[4], '>');
+  assert.ok(running);
+});
+
+test('control flow: begin until, while repeat and again', () => {
+  const { rows } = repl(
+    ': cu 0 begin 1+ dup 5 = until ; cu .\n' +
+    ': wc 0 begin dup 5 < while 1+ repeat ; wc .\n' +
+    ': ag 0 begin 1+ dup 3 = if drop 7 exit then again ; ag .\n'
+  );
+  assert.equal(rows[1], '> : cu 0 begin 1+ dup 5 = until ; cu . 5  ok');
+  assert.equal(rows[2], '> : wc 0 begin dup 5 < while 1+ repeat ; wc . 5  ok');
+  assert.equal(rows[3], '> : ag 0 begin 1+ dup 3 = if drop 7 exit then again ; ag . 7  ok');
+  assert.equal(rows[4], '>');
+});
+
+test('recurse compiles the current definition', () => {
+  const { rows } = repl(': fac dup 1 > if dup 1- recurse * then ; 5 fac .\n');
+  assert.equal(rows[1], '> : fac dup 1 > if dup 1- recurse * then ; 5 fac . 120  ok');
+  assert.equal(rows[2], '>');
+});

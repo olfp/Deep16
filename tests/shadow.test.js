@@ -392,3 +392,32 @@ test('WASM: Forth REPL evaluates the P3 stack, arithmetic and comparison words l
   assert.equal(steps, 600000, 'the JS REPL must stay alive across the P3 words');
   assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the P3 words');
 });
+
+test('WASM: Forth REPL runs the control-flow words exactly like the JS core', async () => {
+  // if/else/then, begin/while/repeat and recurse compile inline branch
+  // offsets into the thread; both cores must resolve them identically.
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+  const input = ': fac dup 1 > if dup 1- recurse * then ;\n5 fac .\n: wc 0 begin dup 5 < while 1+ repeat ;\nwc .\n';
+
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0x8000; sim.segmentRegisters.ES = 0x2000;
+  for (const ch of input) sim.enqueueKeyCode(ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+  const jsOut = screenText((a, n) => sim.memory.slice(a, a + n), SCREEN_ADDR, 960);
+
+  const wasm = await runWasm(res, { maxSteps: 600000, keys: [...input].map((ch) => ch.charCodeAt(0)) });
+  const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 960);
+
+  assert.ok(jsOut.includes('5 fac . 120  ok'), 'recurse computes the factorial');
+  assert.ok(jsOut.includes('wc . 5  ok'), 'while/repeat counts to five');
+  assert.equal(wasmOut, jsOut, 'WASM control flow must match the JS core');
+  assert.equal(steps, 600000, 'the JS REPL must stay alive across the control flow');
+  assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the control flow');
+});
