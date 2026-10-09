@@ -94,6 +94,14 @@ test('emit prints the popped character', () => {
   assert.equal(rows[1], '> 65 emitA ok');
 });
 
+test('emit keeps >IN so words after it still run', () => {
+  // Regression: the shadow-bank BIOS clobbers R5, which is >IN. word_emit
+  // therefore used to swallow the rest of the input line.
+  const { rows } = repl('65 emit 66 emit\n');
+  assert.equal(rows[1], '> 65 emit 66 emitAB ok');
+  assert.equal(rows[2], '>');
+});
+
 test('cr moves the " ok" onto the next row', () => {
   const { rows } = repl('cr\n');
   assert.equal(rows[1], '> cr');

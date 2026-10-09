@@ -942,6 +942,10 @@ h_plus:
     .word word_plus
 latest:
     .word h_accept
+; BIOS runs in the shadow bank and uses R5 for its own purposes, so a
+; primitive that calls SWI must park >IN here and reload it afterwards.
+saved_in:
+    .word 0
 
 .code
 .org 0x0400
@@ -1099,7 +1103,10 @@ word_emit:
     CMP R1, R0
     JZ emit_do_lf
     NOP
-    MOV R3, R1
+    ; Park >IN (R5) across the BIOS call: the shadow-bank BIOS clobbers R5.
+    LDI saved_in
+    MOV R2, R0
+    ST >IN, R2, 0
     LDI 2               ; value = 2
     MOV R3, R0
     LDI 0               ; offset = 0
@@ -1107,9 +1114,9 @@ word_emit:
     STS R3, DS, R7      ; DS:[0] = 2
     LDI 1               ; offset = 1
     MOV R7, R0
-    STS R1, DS, R7      ; DS:[1] = char (R1 still holds the masked char;
-                        ; R3 was clobbered with the function code before)
+    STS R1, DS, R7      ; DS:[1] = char (R1 still holds the masked char)
     SWI
+    LD >IN, R2, 0       ; N.B.: R2 is shadowed, so it survives the SWI
     LDI interpret_loop
     MOV PC, R0
     NOP
@@ -1413,6 +1420,10 @@ print_buf:
     .word 0
 word_key:
     ; BIOS getch -> char in R0
+    ; Park >IN (R5) across the BIOS call: the shadow-bank BIOS clobbers R5.
+    LDI saved_in
+    MOV R2, R0
+    ST >IN, R2, 0
     LDI 4               ; value = 4
     MOV R4, R0
     LDI 0               ; offset = 0
@@ -1422,6 +1433,7 @@ word_key:
     LDI 1               ; offset = 1
     MOV R7, R0
     LDS R0, DS, R7      ; R0 = DS:[1]
+    LD >IN, R2, 0       ; R2 is shadowed, so it survives the SWI
     SUB SP, 1
     ST R0, SP, 0
     LDI interpret_loop
