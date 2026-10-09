@@ -293,3 +293,54 @@ test('recurse compiles the current definition', () => {
   assert.equal(rows[1], '> : fac dup 1 > if dup 1- recurse * then ; 5 fac . 120  ok');
   assert.equal(rows[2], '>');
 });
+
+test('memory words: variable, ! @ +! and a colon definition using them', () => {
+  const { rows, running } = repl(
+    'variable x drop\n' +
+    '7 x ! x @ .\n' +
+    '4 x +! x @ .\n' +
+    'variable y drop\n' +
+    'y @ .\n' +
+    ': inc y @ 1+ y ! ;\n' +
+    'inc y @ .\n'
+  );
+  assert.equal(rows[1], '> variable x drop ok');
+  assert.equal(rows[2], '> 7 x ! x @ . 7  ok');
+  assert.equal(rows[3], '> 4 x +! x @ . 11  ok');
+  assert.equal(rows[4], '> variable y drop ok');
+  assert.equal(rows[5], '> y @ . 0 ok');
+  assert.equal(rows[6], '> : inc y @ 1+ y ! ; ok');
+  assert.equal(rows[7], '> inc y @ . 1  ok');
+  assert.equal(rows[8], '>');
+  assert.ok(running);
+});
+
+test('constant freezes a value', () => {
+  const { rows } = repl(
+    '5 constant five\n' +
+    'five .\n' +
+    ': add5 five + ;\n' +
+    '10 add5 .\n'
+  );
+  assert.equal(rows[1], '> 5 constant five ok');
+  assert.equal(rows[2], '> five . 5  ok');
+  assert.equal(rows[3], '> : add5 five + ; ok');
+  assert.equal(rows[4], '> 10 add5 . 15  ok');
+  assert.equal(rows[5], '>');
+});
+
+test('c@ c! and here allot , cells cell+', () => {
+  const { rows } = repl(
+    'variable c drop\n' +
+    '65 c c! c c@ .\n' +
+    'here 5 , here swap - .\n' +
+    'here 3 allot here swap - .\n' +
+    '1 cells . 5 cell+ .\n'
+  );
+  assert.equal(rows[1], '> variable c drop ok');
+  assert.equal(rows[2], '> 65 c c! c c@ . 65  ok');
+  assert.equal(rows[3], '> here 5 , here swap - . 1  ok');
+  assert.equal(rows[4], '> here 3 allot here swap - . 3  ok');
+  assert.equal(rows[5], '> 1 cells . 5 cell+ . 1  6  ok');
+  assert.equal(rows[6], '>');
+});

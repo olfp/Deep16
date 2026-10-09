@@ -1211,8 +1211,70 @@ h_if:
     .text "if"
     .word word_if
 
-latest:
+; --- P3 memory words and the simple defining words (newest first) ---
+h_variable:
+    .word h_constant
+    .word 8
+    .text "variable"
+    .word word_variable
+h_constant:
+    .word h_cellplus
+    .word 8
+    .text "constant"
+    .word word_constant
+h_cellplus:
+    .word h_cells
+    .word 5
+    .text "cell+"
+    .word word_cellplus
+h_cells:
+    .word h_comma
+    .word 5
+    .text "cells"
+    .word word_cells
+h_comma:
+    .word h_allot
+    .word 1
+    .word 44, 0           ; "," + NUL (a bare comma is assembler syntax)
+    .word word_comma
+h_allot:
+    .word h_here
+    .word 5
+    .text "allot"
+    .word word_allot
+h_here:
+    .word h_plusstore
+    .word 4
+    .text "here"
+    .word word_here
+h_plusstore:
+    .word h_cstore
+    .word 2
+    .text "+!"
+    .word word_plusstore
+h_cstore:
+    .word h_cfetch
+    .word 2
+    .text "c!"
+    .word word_cstore
+h_cfetch:
+    .word h_store
+    .word 2
+    .text "c@"
+    .word word_cfetch
+h_store:
+    .word h_fetch
+    .word 1
+    .text "!"
+    .word word_store
+h_fetch:
     .word h_recurse
+    .word 1
+    .text "@"
+    .word word_fetch
+
+latest:
+    .word h_variable
 
 ; BIOS runs in the shadow bank and uses R5 for its own purposes, so a
 ; primitive that calls SWI must park >IN here and reload it afterwards.
@@ -2344,6 +2406,220 @@ zbranch_under:
     MOV PC, R0
     NOP
 
+; ---------------------------------------------
+; P3: memory words (word-addressed cells, DS segment)
+; ---------------------------------------------
+word_fetch:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wfetch_under
+    NOP
+    LD R1, SP, 0          ; addr
+    LD R2, R1, 0
+    ST R2, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wfetch_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_store:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wstore_ok
+    NOP
+    JN wstore_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wstore_ok:
+    LD R2, SP, 0          ; addr
+    ADD SP, 1
+    LD R1, SP, 0          ; n
+    ST R1, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_cfetch:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wcfetch_under
+    NOP
+    LD R1, SP, 0          ; addr
+    LD R2, R1, 0
+    LDI 255
+    MOV R3, R0
+    AND R2, R3
+    ST R2, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wcfetch_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_cstore:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wcstore_ok
+    NOP
+    JN wcstore_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wcstore_ok:
+    LD R2, SP, 0          ; addr
+    ADD SP, 1
+    LD R1, SP, 0          ; char
+    LDI 255
+    MOV R3, R0
+    AND R1, R3
+    ST R1, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_plusstore:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wplusstore_ok
+    NOP
+    JN wplusstore_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wplusstore_ok:
+    LD R2, SP, 0          ; addr
+    ADD SP, 1
+    LD R1, SP, 0          ; n
+    LD R3, R2, 0          ; old
+    ADD R3, R1
+    ST R3, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_here:
+    LDI dp_var
+    MOV R2, R0
+    LD R1, R2, 0
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_allot:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wallot_under
+    NOP
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0
+    ADD R3, R1
+    ST R3, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wallot_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_comma:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wcomma_under
+    NOP
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0
+    ST R1, R3, 0
+    ADD R3, 1
+    ST R3, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wcomma_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+; A cell is one address unit on Deep16, so `cells` is the identity and
+; `cell+` adds one unit.
+word_cells:
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_cellplus:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wcellplus_under
+    NOP
+    LD R1, SP, 0
+    ADD R1, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wcellplus_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+; Runtime bodies for defining words. W (R10) is the xt at entry; the data
+; cell for a VARIABLE or a CONSTANT lives directly after the CFA cell.
+dovar:
+    ADD R10, 1            ; data address
+    SUB SP, 1
+    ST R10, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+doconst:
+    LD R1, R10, 1         ; inline constant
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
 ; =============================================
 ; P2: Indirect-threaded code engine
 ; =============================================
@@ -2770,6 +3046,135 @@ word_recurse:
     ST R7, R3, 0          ; compile the current definition's xt
     ADD R3, 1
     ST R3, R2, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+; ---------------------------------------------
+; P3: simple defining words (variable, constant)
+; ---------------------------------------------
+; define_name parses the next token, builds a header at DP (link | flags+len |
+; name | NUL), links it in and leaves the CFA cell for the caller to fill.
+; Returns R9 = header, R2 = CFA cell address, R12 = dp_var.
+; It is called with LINK; an empty name returns to the interpreter.
+define_name:
+    LDI 0
+    MOV R11, R0
+dname_skip:
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R4, R3, 0
+    LDI ' '
+    CMP R4, R0
+    JNZ dname_start
+    NOP
+    ADD >IN, 1
+    LDI dname_skip
+    MOV PC, R0
+    NOP
+dname_start:
+    MOV R10, R3
+dname_len:
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ dname_done
+    NOP
+    LDI ' '
+    CMP R4, R0
+    JZ dname_done
+    NOP
+    ADD R3, 1
+    ADD R11, 1
+    LDI dname_len
+    MOV PC, R0
+    NOP
+dname_done:
+    ADD >IN, R11
+    LDI 0
+    CMP R11, R0
+    JNZ dname_build
+    NOP
+    LDI interpret_loop     ; no name: nothing to define
+    MOV PC, R0
+    NOP
+dname_build:
+    LDI dp_var
+    MOV R12, R0
+    LD R9, R12, 0         ; header = old DP
+    MOV R2, R9
+    LDI latest
+    MOV R3, R0
+    LD R4, R3, 0
+    ST R4, R2, 0          ; link
+    ADD R2, 1
+    ST R11, R2, 0         ; flags+len
+    ADD R2, 1
+    MOV R1, R10
+dname_copy:
+    LD R7, R1, 0
+    ST R7, R2, 0
+    ADD R1, 1
+    ADD R2, 1
+    SUB R11, 1
+    LDI 0
+    CMP R11, R0
+    JNZ dname_copy
+    NOP
+    LDI 0
+    ST R0, R2, 0          ; NUL terminator
+    ADD R2, 1             ; R2 = CFA cell address
+    LDI latest
+    MOV R3, R0
+    ST R9, R3, 0          ; latest = new header
+    JMP LR
+    NOP
+
+word_variable:
+    LDI define_name
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI dovar
+    MOV R1, R0
+    ST R1, R2, 0          ; CFA = dovar
+    ADD R2, 1             ; data cell
+    LDI 0
+    ST R0, R2, 0          ; initial value
+    SUB SP, 1
+    ST R2, SP, 0          ; leave the variable's address
+    ADD R2, 1
+    ST R2, R12, 0         ; DP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_constant:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JNZ wconst_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wconst_ok:
+    LDI define_name
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LD R7, SP, 0          ; value to freeze
+    ADD SP, 1
+    LDI doconst
+    MOV R1, R0
+    ST R1, R2, 0          ; CFA = doconst
+    ADD R2, 1
+    ST R7, R2, 0          ; constant value
+    ADD R2, 1
+    ST R2, R12, 0         ; DP
     LDI interpret_loop
     MOV PC, R0
     NOP

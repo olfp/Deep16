@@ -421,3 +421,33 @@ test('WASM: Forth REPL runs the control-flow words exactly like the JS core', as
   assert.equal(steps, 600000, 'the JS REPL must stay alive across the control flow');
   assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the control flow');
 });
+
+test('WASM: Forth REPL memory words and defining words match the JS core', async () => {
+  // Data-cell access, `,`/`allot` and the dovar/doconst runtime bodies must
+  // write the same dictionary and yield the same screen on both cores.
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+  const input = 'variable x drop\n7 x !\n4 x +! x @ .\n5 constant five\nfive .\nvariable c drop\n65 c c! c c@ .\n';
+
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0x8000; sim.segmentRegisters.ES = 0x2000;
+  for (const ch of input) sim.enqueueKeyCode(ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+  const jsOut = screenText((a, n) => sim.memory.slice(a, a + n), SCREEN_ADDR, 960);
+
+  const wasm = await runWasm(res, { maxSteps: 600000, keys: [...input].map((ch) => ch.charCodeAt(0)) });
+  const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 960);
+
+  assert.ok(jsOut.includes('4 x +! x @ . 11  ok'), '+! accumulates in a variable');
+  assert.ok(jsOut.includes('five . 5  ok'), 'constant pushes its value');
+  assert.ok(jsOut.includes('65 c c! c c@ . 65  ok'), 'c! and c@ round-trip a char');
+  assert.equal(wasmOut, jsOut, 'WASM memory/defining words must match the JS core');
+  assert.equal(steps, 600000, 'the JS REPL must stay alive across the memory words');
+  assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the memory words');
+});
