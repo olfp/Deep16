@@ -451,3 +451,47 @@ test('WASM: Forth REPL memory words and defining words match the JS core', async
   assert.equal(steps, 600000, 'the JS REPL must stay alive across the memory words');
   assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the memory words');
 });
+
+test('WASM: Forth REPL create/does> and value/to match the JS core', async () => {
+  // The CREATE/DOES> runtime (dodoes) and the TO store path touch the return
+  // stack and IP directly, so both cores must produce the same screen.
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+  const input =
+    ': const create , does> @ ;\n' +
+    '42 const answer\n' +
+    'answer .\n' +
+    ': arr create cells allot does> swap cells + ;\n' +
+    '4 arr a\n' +
+    '7 0 a ! 8 3 a !\n' +
+    '0 a @ . 3 a @ .\n' +
+    '5 value v\n' +
+    '9 to v\n' +
+    'v .\n' +
+    ': setv to v ;\n' +
+    '42 setv\n' +
+    'v .\n';
+
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0x8000; sim.segmentRegisters.ES = 0x2000;
+  for (const ch of input) sim.enqueueKeyCode(ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+  const jsOut = screenText((a, n) => sim.memory.slice(a, a + n), SCREEN_ADDR, 2000);
+
+  const wasm = await runWasm(res, { maxSteps: 600000, keys: [...input].map((ch) => ch.charCodeAt(0)) });
+  const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 2000);
+
+  assert.ok(jsOut.includes('answer . 42  ok'), 'does> fetches the stored value');
+  assert.ok(jsOut.includes('0 a @ . 3 a @ . 7  8  ok'), 'does> computes array addresses');
+  assert.ok(jsOut.includes('v . 9  ok'), 'to rewrites a value in interpret state');
+  assert.ok(jsOut.includes('v . 42  ok'), 'to compiles a store inside a definition');
+  assert.equal(wasmOut, jsOut, 'WASM create/does> and value/to must match the JS core');
+  assert.equal(steps, 600000, 'the JS REPL must stay alive across create/does>');
+  assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across create/does>');
+});

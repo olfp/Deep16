@@ -1212,6 +1212,26 @@ h_if:
     .word word_if
 
 ; --- P3 memory words and the simple defining words (newest first) ---
+h_to:
+    .word h_value
+    .word 0x8002          ; IMMEDIATE | length 2
+    .text "to"
+    .word word_to
+h_value:
+    .word h_create
+    .word 5
+    .text "value"
+    .word word_value
+h_create:
+    .word h_does
+    .word 6
+    .text "create"
+    .word word_create
+h_does:
+    .word h_variable
+    .word 5
+    .text "does>"
+    .word word_does
 h_variable:
     .word h_constant
     .word 8
@@ -1266,6 +1286,7 @@ h_store:
     .word h_fetch
     .word 1
     .text "!"
+h_store_cfa:               ; xt cell of `!`, compiled by TO
     .word word_store
 h_fetch:
     .word h_recurse
@@ -1274,7 +1295,7 @@ h_fetch:
     .word word_fetch
 
 latest:
-    .word h_variable
+    .word h_to
 
 ; BIOS runs in the shadow bank and uses R5 for its own purposes, so a
 ; primitive that calls SWI must park >IN here and reload it afterwards.
@@ -1304,6 +1325,8 @@ xt_0branch:
     .word zbranch
 current_xt:
     .word 0              ; xt of the definition being compiled (for recurse)
+created_xt:
+    .word 0              ; xt of the newest CREATE'd word (for DOES>)
 dict_free:               ; colon definitions are built upwards from here
 
 .code
@@ -2620,6 +2643,36 @@ doconst:
     MOV PC, R0
     NOP
 
+; Runtime of a CREATE'd word. W (R10) is the xt; the cell at W+1 holds the
+; DOES> thread that was attached (0 when there is none), and the data field
+; begins at W+2. A plain created word behaves like a variable.
+dodoes:
+    LD R1, R10, 1         ; DOES> thread, if any
+    ADD R10, 2            ; data field address
+    SUB SP, 1
+    ST R10, SP, 0         ; push it
+    LDI 0
+    CMP R1, R0
+    JZ dodoes_plain
+    NOP
+    LDI rp_ptr
+    MOV R2, R0
+    LD R3, R2, 0
+    SUB R3, 1
+    LDI ip_ptr
+    MOV R4, R0
+    LD R7, R4, 0          ; caller's IP
+    ST R7, R3, 0
+    ST R3, R2, 0          ; RP--
+    ST R1, R4, 0          ; IP = DOES> thread
+    LDI next
+    MOV PC, R0
+    NOP
+dodoes_plain:
+    LDI next
+    MOV PC, R0
+    NOP
+
 ; =============================================
 ; P2: Indirect-threaded code engine
 ; =============================================
@@ -3130,6 +3183,56 @@ dname_copy:
     JMP LR
     NOP
 
+; create builds a header whose runtime is dodoes. One cell is reserved after
+; the CFA for the DOES> thread pointer, so the data field starts at CFA+2.
+; It is a threaded primitive: defining words compile it, so it must return
+; via NEXT instead of jumping back to the interpreter.
+word_create:
+    LDI define_name
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI created_xt
+    MOV R4, R0
+    ST R2, R4, 0          ; remember the newest created word
+    LDI dodoes
+    MOV R1, R0
+    ST R1, R2, 0          ; CFA = dodoes
+    ADD R2, 1
+    LDI 0
+    ST R0, R2, 0          ; DOES> pointer = 0 (not attached yet)
+    ADD R2, 1
+    ST R2, R12, 0         ; DP = data field
+    LDI next
+    MOV PC, R0
+    NOP
+
+; does> attaches the thread that follows it to the most recently created word
+; and then leaves the defining word, so that thread runs only when the created
+; word itself is executed.
+word_does:
+    LDI ip_ptr
+    MOV R2, R0
+    LD R3, R2, 0          ; R3 = IP = start of the DOES> thread
+    LDI created_xt
+    MOV R4, R0
+    LD R1, R4, 0
+    ADD R1, 1             ; the word's DOES> pointer cell
+    ST R3, R1, 0
+    LDI rp_ptr
+    MOV R2, R0
+    LD R3, R2, 0
+    LD R1, R3, 0          ; pop the defining word's return address
+    ADD R3, 1
+    ST R3, R2, 0
+    LDI ip_ptr
+    MOV R4, R0
+    ST R1, R4, 0          ; IP = caller of the defining word
+    LDI next
+    MOV PC, R0
+    NOP
+
 word_variable:
     LDI define_name
     MOV R2, R0
@@ -3177,6 +3280,183 @@ wconst_ok:
     ST R2, R12, 0         ; DP
     LDI interpret_loop
     MOV PC, R0
+    NOP
+
+word_value:
+    ; Like constant, but the cell may be rewritten with `to`.
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JNZ wvalue_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wvalue_ok:
+    LDI define_name
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LD R7, SP, 0          ; initial value
+    ADD SP, 1
+    LDI doconst
+    MOV R1, R0
+    ST R1, R2, 0          ; CFA = doconst
+    ADD R2, 1
+    ST R7, R2, 0          ; value cell
+    ADD R2, 1
+    ST R2, R12, 0         ; DP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_to:
+    ; `to name` stores the top of stack into name's value cell. Immediate so
+    ; it runs while compiling; it then emits code to store at run time.
+    LDI find_token
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 0
+    CMP R1, R0
+    JZ to_unknown
+    NOP
+    ADD R1, 1             ; value cell address
+    LDI state_var
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI 0
+    CMP R2, R0
+    JZ to_store_now
+    NOP
+    ; compiling: emit LIT <cell> and the xt of `!`
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI xt_lit
+    MOV R4, R0
+    ST R4, R3, 0
+    ADD R3, 1
+    ST R1, R3, 0          ; the value cell address
+    ADD R3, 1
+    LDI h_store_cfa
+    MOV R4, R0
+    ST R4, R3, 0          ; xt of `!`
+    ADD R3, 1
+    ST R3, R2, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+to_store_now:
+    LDI sp0_base
+    MOV R2, R0
+    LD R3, R2, 0
+    CMP SP, R3
+    JNZ to_have
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+to_have:
+    LD R4, SP, 0
+    ADD SP, 1
+    ST R4, R1, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+to_unknown:
+    LDI skip_unknown
+    MOV PC, R0
+    NOP
+
+; find_token parses the next blank-delimited token and searches the header
+; chain. Returns R1 = xt (CFA cell address) and steps >IN past the token on a
+; match, or R1 = 0 and >IN at the token start otherwise. Called with LINK.
+find_token:
+    LDI 0
+    MOV R11, R0
+ft_skip:
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ ft_none
+    NOP
+    LDI ' '
+    CMP R4, R0
+    JNZ ft_len
+    NOP
+    ADD >IN, 1
+    LDI ft_skip
+    MOV PC, R0
+    NOP
+ft_len:
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ ft_have
+    NOP
+    LDI ' '
+    CMP R4, R0
+    JZ ft_have
+    NOP
+    ADD R3, 1
+    ADD R11, 1
+    LDI ft_len
+    MOV PC, R0
+    NOP
+ft_have:
+    LDI latest
+    MOV R2, R0
+    LD R7, R2, 0
+ft_loop:
+    LDI 0
+    CMP R7, R0
+    JZ ft_none
+    NOP
+    LD R2, R7, 1
+    LDI 0x00FF
+    AND R2, R0
+    CMP R2, R11
+    JNZ ft_next
+    NOP
+    MOV R10, R7
+    ADD R10, 2
+    MOV R3, TIB
+    ADD R3, >IN
+    MOV R9, R11
+ft_cmp:
+    LD R2, R3, 0
+    LD R4, R10, 0
+    CMP R2, R4
+    JNZ ft_next
+    NOP
+    ADD R3, 1
+    ADD R10, 1
+    SUB R9, 1
+    LDI 0
+    CMP R9, R0
+    JNZ ft_cmp
+    NOP
+    MOV R1, R7
+    ADD R1, 3
+    ADD R1, R11           ; R1 = CFA cell address
+    ADD >IN, R11
+    JMP LR
+    NOP
+ft_next:
+    LD R7, R7, 0
+    LDI ft_loop
+    MOV PC, R0
+    NOP
+ft_none:
+    LDI 0
+    MOV R1, R0
+    JMP LR
     NOP
 
 ; =============================================

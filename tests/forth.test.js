@@ -344,3 +344,80 @@ test('c@ c! and here allot , cells cell+', () => {
   assert.equal(rows[5], '> 1 cells . 5 cell+ . 1  6  ok');
   assert.equal(rows[6], '>');
 });
+
+test('create builds a word whose body starts at HERE', () => {
+  const { rows } = repl(
+    'create buf\n' +
+    'buf here = .\n' +
+    'create cell 5 ,\n' +
+    'cell @ .\n'
+  );
+  assert.equal(rows[1], '> create buf ok');
+  assert.equal(rows[2], '> buf here = . 65535  ok');
+  assert.equal(rows[3], '> create cell 5 , ok');
+  assert.equal(rows[4], '> cell @ . 5  ok');
+  assert.equal(rows[5], '>');
+});
+
+test('does> attaches behaviour to a created word', () => {
+  const { rows, running } = repl(
+    ': const create , does> @ ;\n' +
+    '42 const answer\n' +
+    'answer .\n' +
+    ': get answer ;\n' +
+    'get .\n' +
+    ': arr create cells allot does> swap cells + ;\n' +
+    '4 arr a\n' +
+    '7 0 a ! 8 3 a !\n' +
+    '0 a @ . 3 a @ .\n'
+  );
+  assert.equal(rows[1], '> : const create , does> @ ; ok');
+  assert.equal(rows[2], '> 42 const answer ok');
+  assert.equal(rows[3], '> answer . 42  ok');
+  assert.equal(rows[4], '> : get answer ; ok');
+  assert.equal(rows[5], '> get . 42  ok');
+  assert.equal(rows[6], '> : arr create cells allot does> swap cells + ; ok');
+  assert.equal(rows[7], '> 4 arr a ok');
+  assert.equal(rows[8], '> 7 0 a ! 8 3 a ! ok');
+  assert.equal(rows[9], '> 0 a @ . 3 a @ . 7  8  ok');
+  assert.equal(rows[10], '>');
+  assert.ok(running);
+});
+
+test('value reads and to writes in interpret and compile state', () => {
+  const { rows } = repl(
+    '5 value v\n' +
+    'v .\n' +
+    '9 to v\n' +
+    'v .\n' +
+    ': setv to v ;\n' +
+    '42 setv\n' +
+    'v .\n' +
+    ': usev v v + ;\n' +
+    'usev .\n'
+  );
+  assert.equal(rows[1], '> 5 value v ok');
+  assert.equal(rows[2], '> v . 5  ok');
+  assert.equal(rows[3], '> 9 to v ok');
+  assert.equal(rows[4], '> v . 9  ok');
+  assert.equal(rows[5], '> : setv to v ; ok');
+  assert.equal(rows[6], '> 42 setv ok');
+  assert.equal(rows[7], '> v . 42  ok');
+  assert.equal(rows[8], '> : usev v v + ; ok');
+  assert.equal(rows[9], '> usev . 84  ok');
+  assert.equal(rows[10], '>');
+});
+
+test('to rejects an unknown name without corrupting the value', () => {
+  const { rows, running } = repl(
+    '5 value v\n' +
+    '9 to nope\n' +
+    'v .\n'
+  );
+  assert.equal(rows[1], '> 5 value v ok');
+  assert.equal(rows[2], '> 9 to nope');
+  assert.equal(rows[3], 'undefined word: nope');
+  assert.equal(rows[4], '> v . 5  ok');
+  assert.equal(rows[5], '>');
+  assert.ok(running);
+});
