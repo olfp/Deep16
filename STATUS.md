@@ -118,6 +118,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-08 | `STYLE.md`/`STATUS.md` angelegt; Workflow ab jetzt verbindlich. | Repo |
 | — | `SETS`/`CLRS` (Bit 5) als Footgun **dokumentiert** (Kap. 5), nicht im Kapitel demonstriert. | kap03, kap05 |
 | 2026-10-08 | **MOV imm2-Redesign** (`ARCHREV.md`) ins Buch übertragen: §2.1 erklärt `imm2` als Funktionsauswahl (Tabelle 2-1), §4.2 auf Funktion 2 umformuliert. Keine Messung, kein Listing und keine Spezifikations-Verweisung mussten geändert werden; Diagramme unangetastet. | kap02, kap04 |
+| 2026-10-09 | **EPUB-XHTML-Wohlgeformtheit** (Apple Books brach mit „Specification mandates value for attribute style" ab): `mermaid_filter.lua` entfernt leere SVG-Attribute (`style=""`, von Pandoc 3.7 sonst zu wertlosem `style` verkürzt) und escapet nackte `&` (SIL-OFL-Lizenzkommentar im eingebetteten `@font-face`) zu `&amp;`. Alle 11 XML-Teile wohlgeformt. | `book/mermaid_filter.lua`, `book/Deep16.epub` |
 
 ---
 
