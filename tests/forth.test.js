@@ -137,3 +137,61 @@ test('an unknown word is echoed, the line discarded, the REPL continues', () => 
   assert.equal(rows[4], '>');
   assert.ok(running, 'the REPL must keep evaluating after the error');
 });
+
+test('colon definitions compile and run', () => {
+  const { rows, running } = repl(
+    ': square dup * ;\n' +
+    '5 square .\n' +
+    ': inc 1 + ;\n' +
+    ': inc2 inc inc ;\n' +
+    '10 inc2 .\n'
+  );
+  assert.equal(rows[1], '> : square dup * ; ok');
+  assert.equal(rows[2], '> 5 square . 25  ok');
+  assert.equal(rows[3], '> : inc 1 + ; ok');
+  assert.equal(rows[4], '> : inc2 inc inc ; ok');
+  assert.equal(rows[5], '> 10 inc2 . 12  ok');
+  assert.equal(rows[6], '>');
+  assert.ok(running, 'the REPL must keep evaluating after the definitions');
+});
+
+test('a colon word may use ., emit and cr', () => {
+  const { rows } = repl(
+    ': show 5 . ;\n' +
+    ': ab 65 emit 66 emit ;\n' +
+    'show ab cr\n'
+  );
+  assert.equal(rows[1], '> : show 5 . ; ok');
+  assert.equal(rows[2], '> : ab 65 emit 66 emit ; ok');
+  assert.equal(rows[3], '> show ab cr 5 AB');
+  assert.equal(rows[4], ' ok');
+  assert.equal(rows[5], '>');
+});
+
+test('state, [ ] and immediate', () => {
+  const { rows } = repl(
+    'state .\n' +
+    ': c [ 3 4 + ] ;\n' +
+    'c .\n' +
+    ': two 2 ;\n' +
+    'immediate\n' +
+    ': four two two + ;\n' +
+    'four .\n'
+  );
+  assert.equal(rows[1], '> state . 0 ok');
+  assert.equal(rows[2], '> : c [ 3 4 + ] ; ok');
+  assert.equal(rows[3], '> c . 7  ok');
+  assert.equal(rows[4], '> : two 2 ; ok');
+  assert.equal(rows[5], '> immediate ok');
+  assert.equal(rows[6], '> : four two two + ; ok');
+  assert.equal(rows[7], '> four . 4  ok');
+  assert.equal(rows[8], '>');
+});
+
+test('an error while compiling aborts the definition', () => {
+  const { rows, running } = repl(': bad zzz ;\n1 2 + .\n');
+  assert.equal(rows[1], '> : bad zzz ;');
+  assert.equal(rows[2], 'undefined word: zzz');
+  assert.equal(rows[3], '> 1 2 + . 3  ok');
+  assert.ok(running, 'the next line must be interpreted, not compiled');
+});

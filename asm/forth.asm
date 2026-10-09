@@ -12,6 +12,7 @@
 ; Reserve R14 as LR (link register). Store stack base in memory.
 .equ KBD_STATUS 0x0060
 .equ KBD_DATA   0x0062
+.equ RSTACK_TOP 0x6F00   ; Forth return stack top (grows down)
 
 ; =============================================
 ; Forth Kernel Implementation
@@ -348,8 +349,9 @@ farpatch304:
     MOV PC, R0
     NOP
 dot_plain:
-    ADD >IN, 1
-    LDI word_dot
+    ; `.` is an ordinary dictionary word; route it through parse_word so the
+    ; compile state and immediate flag are honoured. >IN still sits on '.'.
+    LDI parse_word
     MOV PC, R0
     NOP
 print_string_skip:
@@ -467,9 +469,31 @@ parse_number_loop:
     MOV PC, R0
     NOP
 finish_number:
+    ; A number pushes its value; while compiling it becomes LIT <value>.
+    LDI state_var
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI 0
+    CMP R2, R0
+    JNZ compile_number
+    NOP
     MOV R1, R7
     SUB SP, 1
     ST R1, SP, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+compile_number:
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI xt_lit
+    MOV R4, R0
+    ST R4, R3, 0             ; LIT
+    ADD R3, 1
+    ST R7, R3, 0             ; the literal
+    ADD R3, 1
+    ST R3, R2, 0
     LDI interpret_loop
     MOV PC, R0
     NOP
@@ -540,13 +564,40 @@ find_cmp:
     CMP R9, R0
     JNZ find_cmp
     NOP
-    ; Match: the CFA cell sits at header + 2 + length + 1 (NUL from .text).
+    ; Match: the CFA (xt) cell sits at header + 2 + length + 1 (NUL from .text).
     MOV R2, R7
     ADD R2, 3
     ADD R2, R11
-    LD R1, R2, 0             ; machine code address
+    MOV R1, R2               ; R1 = xt = CFA cell address
+    LD R4, R7, 1             ; flags+len cell
+    LDI 1
+    SL R0, 15                ; R0 = 0x8000 (IMMEDIATE mask; LDI is 15-bit)
+    AND R4, R0               ; R4 = IMMEDIATE flag
     ADD >IN, R11             ; step over the token
-    MOV PC, R1               ; execute the word
+    ; While compiling, a non-immediate word is appended to the definition.
+    LDI state_var
+    MOV R3, R0
+    LD R3, R3, 0
+    LDI 0
+    CMP R3, R0
+    JZ find_execute
+    NOP
+    LDI 0
+    CMP R4, R0
+    JNZ find_execute
+    NOP
+    LDI dp_var
+    MOV R3, R0
+    LD R2, R3, 0
+    ST R1, R2, 0             ; compile the xt
+    ADD R2, 1
+    ST R2, R3, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+find_execute:
+    LDI execute_xt
+    MOV PC, R0
     NOP
 find_next:
     LD R7, R7, 0             ; follow the link field
@@ -555,6 +606,12 @@ find_next:
     NOP
 
 skip_unknown:
+    ; An error aborts any definition in progress, so the next line is
+    ; interpreted rather than compiled into the broken word.
+    LDI state_var
+    MOV R3, R0
+    LDI 0
+    ST R0, R3, 0
     ; The offending token's offset lives in >IN (R5), but the computation
     ; below reuses R5 for the column width. Park the token offset in R12
     ; (a scratch register on this path) so the bad word can be echoed.
@@ -940,12 +997,65 @@ h_plus:
     .word 1
     .text "+"
     .word word_plus
-latest:
+
+; --- P2 compiler words (chain is newest first, `latest` points at the top) ---
+h_immediate:
+    .word h_state
+    .word 0x8009          ; IMMEDIATE flag (0x8000) | length 9
+    .text "immediate"
+    .word word_immediate
+h_state:
+    .word h_bracket_end
+    .word 5
+    .text "state"
+    .word word_state
+h_bracket_end:
+    .word h_bracket_begin
+    .word 1
+    .text "]"
+    .word word_bracket_end
+h_bracket_begin:
+    .word h_semicolon
+    .word 0x8001          ; IMMEDIATE | length 1
+    .text "["
+    .word word_bracket_begin
+h_semicolon:
+    .word h_colon
+    .word 0x8001          ; IMMEDIATE | length 1
+    .word 59              ; name ";" — written as a word because ';' in .text
+    .word 0               ; starts a comment
+    .word word_semicolon
+h_colon:
     .word h_accept
+    .word 1
+    .text ":"
+    .word word_colon
+latest:
+    .word h_immediate
+
 ; BIOS runs in the shadow bank and uses R5 for its own purposes, so a
 ; primitive that calls SWI must park >IN here and reload it afterwards.
 saved_in:
     .word 0
+
+; --- P2 threading state ---
+state_var:
+    .word 0              ; 0 = interpret, 1 = compile
+dp_var:
+    .word dict_free      ; next free dictionary cell (grows upwards)
+ip_ptr:
+    .word resume_list    ; indirect-threaded instruction pointer
+rp_ptr:
+    .word RSTACK_TOP     ; Forth return stack pointer (grows down)
+xt_resume:
+    .word outer_resume   ; code of the "back to outer interpreter" word
+resume_list:
+    .word xt_resume      ; synthetic one-cell thread for execute_xt
+xt_lit:
+    .word lit
+xt_exit:
+    .word exit
+dict_free:               ; colon definitions are built upwards from here
 
 .code
 .org 0x0400
@@ -969,7 +1079,7 @@ wp_ok:
     LD R1, SP, 0
     ADD R1, R2
     ST R1, SP, 0
-    LDI interpret_loop
+    LDI next
     MOV PC, R0
     NOP
 word_mul:
@@ -992,7 +1102,7 @@ wm_ok:
     LD R1, SP, 0
     MUL R1, R2
     ST R1, SP, 0
-    LDI interpret_loop
+    LDI next
     MOV PC, R0
     NOP
 word_dup:
@@ -1005,7 +1115,7 @@ word_dup:
     LD R1, SP, 0
     SUB SP, 1
     ST R1, SP, 0
-    LDI interpret_loop
+    LDI next
     MOV PC, R0
     NOP
 wd_under:
@@ -1032,7 +1142,7 @@ word_dot:
     LDI '0'
     STS R0, ES, SCR
     ADD SCR, 1
-    LDI interpret_loop
+    LDI next
     MOV PC, R0
     NOP
 dot_nonzero:
@@ -1077,7 +1187,7 @@ dot_done:
     LDI ' '
     STS R0, ES, SCR
     ADD SCR, 1
-    LDI ok_after
+    LDI next
     MOV PC, R0
     NOP
 dot_under:
@@ -1117,7 +1227,7 @@ word_emit:
     STS R1, DS, R7      ; DS:[1] = char (R1 still holds the masked char)
     SWI
     LD >IN, R2, 0       ; N.B.: R2 is shadowed, so it survives the SWI
-    LDI interpret_loop
+    LDI next
     MOV PC, R0
     NOP
 we_under:
@@ -1136,7 +1246,7 @@ emit_do_cr:
     MUL R10, R11         ; row*width
     ADD R9, R10          ; base + row*width
     MOV SCR, R9          ; start of current line, column 0
-    LDI interpret_loop
+    LDI next
     MOV PC, R0
     NOP
 
@@ -1166,7 +1276,7 @@ emit_lf_row_done_local:
     ADD R9, R10          ; base + next_row*width
     ADD R9, R2           ; + same column
     MOV SCR, R9
-    LDI interpret_loop
+    LDI next
     MOV PC, R0
     NOP
     LDI 0
@@ -1366,7 +1476,7 @@ ws_ok:
     LD R2, SP, 1
     ST R1, SP, 1
     ST R2, SP, 0
-    LDI interpret_loop
+    LDI next
     MOV PC, R0
     NOP
 
@@ -1378,7 +1488,7 @@ word_drop:
     JZ wd2_under
     NOP
     ADD SP, 1
-    LDI interpret_loop
+    LDI next
     MOV PC, R0
     NOP
 wd2_under:
@@ -1436,7 +1546,7 @@ word_key:
     LD >IN, R2, 0       ; R2 is shadowed, so it survives the SWI
     SUB SP, 1
     ST R0, SP, 0
-    LDI interpret_loop
+    LDI next
     MOV PC, R0
     NOP
 
@@ -1501,6 +1611,233 @@ word_cr_row_done:
     ADD R9, R10
     ADD R9, R2
     MOV SCR, R9
+    LDI next
+    MOV PC, R0
+    NOP
+
+; =============================================
+; P2: Indirect-threaded code engine
+; =============================================
+; A word is addressed by its execution token (xt): the address of its CFA
+; cell. The CFA cell of a primitive holds the address of the primitive's
+; machine code; for a colon definition it holds `docol` and the threaded
+; body (a list of xts) follows immediately after the CFA cell.
+;
+; The working register W (R10) holds the xt of the word whose code is about
+; to run. It is reloaded by NEXT for every word, so primitives may use R10
+; freely. IP and the return-stack pointer live in memory because the shadow
+; bank BIOS clobbers R9-R12 and would otherwise corrupt the VM state.
+.org 0x2000
+.code
+
+next:
+    LDI ip_ptr
+    MOV R2, R0
+    LD R3, R2, 0          ; R3 = IP
+    LD R10, R3, 0         ; W = [IP] = xt of the next word
+    ADD R3, 1
+    ST R3, R2, 0          ; IP++
+    LD R4, R10, 0         ; code field = [W]
+    MOV PC, R4
+    NOP
+
+docol:
+    ; Enter a colon definition: W (R10) is its xt, body = W + 1.
+    LDI rp_ptr
+    MOV R2, R0
+    LD R3, R2, 0          ; RP
+    SUB R3, 1
+    LDI ip_ptr
+    MOV R4, R0
+    LD R1, R4, 0          ; caller's IP
+    ST R1, R3, 0          ; push IP on the return stack
+    ST R3, R2, 0          ; RP--
+    ADD R10, 1
+    ST R10, R4, 0         ; IP = body
+    LDI next
+    MOV PC, R0
+    NOP
+
+exit:
+    LDI rp_ptr
+    MOV R2, R0
+    LD R3, R2, 0
+    LD R1, R3, 0          ; pop IP
+    ADD R3, 1
+    ST R3, R2, 0
+    LDI ip_ptr
+    MOV R4, R0
+    ST R1, R4, 0          ; IP = return address
+    LDI next
+    MOV PC, R0
+    NOP
+
+lit:
+    LDI ip_ptr
+    MOV R2, R0
+    LD R3, R2, 0
+    LD R1, R3, 0          ; inline literal
+    ADD R3, 1
+    ST R3, R2, 0
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+execute_xt:
+    ; R1 = xt of a word to run from the outer interpreter. A synthetic
+    ; one-cell thread makes the word return to outer_resume via NEXT/EXIT.
+    LDI ip_ptr
+    MOV R2, R0
+    LDI resume_list
+    MOV R3, R0
+    ST R3, R2, 0          ; IP = resume_list
+    MOV R10, R1           ; W = xt
+    LD R4, R1, 0          ; code field
+    MOV PC, R4
+    NOP
+
+outer_resume:
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+; ---------------------------------------------
+; Compiler words
+; ---------------------------------------------
+word_colon:
+    ; Skip blanks, then measure the name at >IN (R10 = start, R11 = length).
+    LDI 0
+    MOV R11, R0
+colon_skip:
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R4, R3, 0
+    LDI ' '
+    CMP R4, R0
+    JNZ colon_name
+    NOP
+    ADD >IN, 1
+    LDI colon_skip
+    MOV PC, R0
+    NOP
+colon_name:
+    MOV R10, R3
+colon_len:
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ colon_len_done
+    NOP
+    LDI ' '
+    CMP R4, R0
+    JZ colon_len_done
+    NOP
+    ADD R3, 1
+    ADD R11, 1
+    LDI colon_len
+    MOV PC, R0
+    NOP
+colon_len_done:
+    ADD >IN, R11          ; step past the name
+    ; Build the header at DP: link | flags+len | name | NUL | CFA=docol
+    LDI dp_var
+    MOV R12, R0
+    LD R9, R12, 0         ; R9 = header = old DP
+    MOV R2, R9
+    LDI latest
+    MOV R3, R0
+    LD R4, R3, 0
+    ST R4, R2, 0          ; link field
+    ADD R2, 1
+    ST R11, R2, 0         ; flags+len
+    ADD R2, 1
+    MOV R1, R10
+colon_copy:
+    LD R7, R1, 0
+    ST R7, R2, 0
+    ADD R1, 1
+    ADD R2, 1
+    SUB R11, 1
+    LDI 0
+    CMP R11, R0
+    JNZ colon_copy
+    NOP
+    LDI 0
+    ST R0, R2, 0          ; NUL terminator (FIND compares lengths first)
+    ADD R2, 1
+    LDI docol
+    MOV R1, R0
+    ST R1, R2, 0          ; CFA = docol
+    ADD R2, 1
+    ST R2, R12, 0         ; DP = end of CFA
+    LDI latest
+    MOV R3, R0
+    ST R9, R3, 0          ; latest = new header
+    LDI state_var
+    MOV R3, R0
+    LDI 1
+    MOV R4, R0
+    ST R4, R3, 0          ; STATE = compiling
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_semicolon:
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI xt_exit
+    MOV R4, R0
+    ST R4, R3, 0          ; compile EXIT
+    ADD R3, 1
+    ST R3, R2, 0
+    LDI state_var
+    MOV R2, R0
+    LDI 0
+    ST R0, R2, 0          ; STATE = interpret
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_immediate:
+    LDI latest
+    MOV R2, R0
+    LD R3, R2, 0
+    LD R4, R3, 1
+    LDI 1
+    SL R0, 15                ; R0 = 0x8000
+    OR R4, R0
+    ST R4, R3, 1          ; set IMMEDIATE on the newest header
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_state:
+    LDI state_var
+    MOV R2, R0
+    LD R1, R2, 0
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_bracket_begin:
+    LDI state_var
+    MOV R2, R0
+    LDI 0
+    ST R0, R2, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_bracket_end:
+    LDI state_var
+    MOV R2, R0
+    LDI 1
+    ST R0, R2, 0
     LDI interpret_loop
     MOV PC, R0
     NOP

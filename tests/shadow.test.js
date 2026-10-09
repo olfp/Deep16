@@ -330,3 +330,33 @@ test('WASM: Forth REPL keeps evaluating lines after an unknown word', async () =
   assert.equal(steps, 600000, 'the JS REPL must stay alive across the error');
   assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the error');
 });
+
+test('WASM: Forth REPL runs colon definitions exactly like the JS core', async () => {
+  // The indirect-threading engine (NEXT/DOCOL, : and ;) must work on both
+  // cores; the WASM parity guards against core-specific register or memory
+  // differences the threaded inner interpreter could trip over.
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+  const input = ': square dup * ;\n5 square .\n: ab 65 emit 66 emit ;\nab\n';
+
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0x8000; sim.segmentRegisters.ES = 0x2000;
+  for (const ch of input) sim.enqueueKeyCode(ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+  const jsOut = screenText((a, n) => sim.memory.slice(a, a + n), SCREEN_ADDR, 960);
+
+  const wasm = await runWasm(res, { maxSteps: 600000, keys: [...input].map((ch) => ch.charCodeAt(0)) });
+  const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 960);
+
+  assert.match(jsOut, /5 square \. 25  ok/);
+  assert.match(jsOut, /abAB ok/);
+  assert.equal(wasmOut, jsOut, 'WASM colon definitions must match the JS core');
+  assert.equal(steps, 600000, 'the JS REPL must stay alive across the definitions');
+  assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the definitions');
+});
