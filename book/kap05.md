@@ -234,6 +234,13 @@ benanntes `R`-Register:
 | `1110` | `AR14` | `LR`′ | nein |
 | `1111` | `APC` | aktiver `PC` | nein (Ausnahme: nicht die andere Bank) |
 
+`APC` ist die einzige Ausnahme von der Regel „`SMV` liest die *andere* Bank":
+Es liest den aktiven `PC`, und zwar **ohne** Forwarding — der Wert ist die
+Adresse, an der gerade geholt wird, nicht das Ziel eines vorangegangenen
+Sprungs. Genau das nutzt §4.2 aus: `ALINK` (Alias `SMV LR, APC`) holt sich
+so die Rücksprungadresse, statt sie mit „eigene Adresse + 3" selbst zu
+rechnen. Dort steht auch der Vergleich zu `LINK` (`MOV LR, PC, 2`).
+
 `SMV` schreibt nie in den anderen Kontext — es ist der reine Lesezugang, den
 du für jeden Registersatz brauchst, der dir gerade nicht gehört. Geschrieben
 wird allein das Zielregister, und alle Ziele in diesem Kapitel liegen in

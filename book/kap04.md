@@ -95,18 +95,27 @@ jedem Durchlauf, auch in dem, in dem der Sprung nicht genommen wurde.
 (28 Taktschritte inklusive der 10 Boot-Schritte.)
 
 Der Ablauf hinter einem Sprung — genommen oder nicht — sieht also so
-aus:
+aus. Weil `PC` in der CPU während des Slots schon weitergestellt ist, ist
+das Diagramm bewusst mit **Ankunftsadresse `A`** beschriftet und nicht mit
+„`PC`"; `A` meint immer die Adresse des `Jcc` selbst.
 
 **`Jcc` — Ablauf mit Delay Slot**
 
 ```mermaid
 flowchart TD
-  A["Jcc ausführen"] --> B{"Bedingung erfüllt?"}
-  B -- "ja" --> S["Slot ausführen:<br/>Instruktion bei PC + 1"]
-  S --> C["PC ← Ziel"]
-  B -- "nein" --> S2["Slot ausführen:<br/>Instruktion bei PC + 1"]
-  S2 --> D["weiter: PC ← PC + 2"]
+  A0["Jcc ausführen<br/>(Adresse A)"] --> B{"Bedingung erfüllt?"}
+  B -- "ja" --> S["Slot ausführen:<br/>Instruktion bei A + 1"]
+  S --> C["PC ← Zieladresse"]
+  B -- "nein" --> S2["Slot ausführen:<br/>Instruktion bei A + 1"]
+  S2 --> D["weiter bei A + 2"]
 ```
+
+Gemessen an einem `JNZ` bei `0x0104`: Der Slot liegt bei `0x0105`, er läuft
+in **beiden** Fällen, und ein `MOV Rx, PC` **im Slot** liest `0x0106` — also
+`A + 2`, nicht die Slot-Adresse. Grund: die CPU stellt `PC` vor der
+Ausführung des Slots auf die eigene Adresse + 2; wer sie im Slot liest, sieht
+daher schon den *nächsten* Befehl, nicht den laufenden. Nach dem Lot bleibt
+es bei `0x0106` (nicht genommen) oder beim Ziel (genommen).
 
 ### Überspringen will gelernt sein
 
@@ -270,6 +279,23 @@ würde beim Rückkehren doppelt laufen. Diese Variante gibt es nicht mehr:
 `eigene Adresse + 2` ergeben hätte, lehnt der Assembler mit diesem
 Hinweis ab (§2.1, Tabelle 2-1). Gemessen steht das in jedem Aufruf
 unten: `LR` zeigt auf die Instruktion direkt hinter dem Slot.
+
+Neben dem `LINK` gibt es eine zweite, kürzere Variante: **`ALINK`** ist ein
+reines Pseudonym für `SMV LR, APC` (Spezifikation §5.2, §3.3), und `ALNK Rx`
+für `SMV Rx, APC`. Statt „eigene Adresse + 3" rechnen sie nichts — `APC` liest
+den **aktiven** `PC` direkt, und der ist in dieser Lage bereits die Adresse
+hinter dem `Jcc`. Gemessen an einem Aufruf bei Adresse `0x0100`:
+
+| Schreibweise | Pseudonym für | `LR` | Lesart |
+|---|---|---|---|
+| `LINK` | `MOV LR, PC, 2` | `0x0103` | eigene Adresse + 3 |
+| `ALINK` | `SMV LR, APC` | `0x0101` | eigene Adresse + 1 |
+
+Beide Schreibweisen sind bytegleich kodiert — gemessen ergibt `ALINK` und
+`SMV LR, APC` dasselbe Befehlswort `0xFEEF`, also wirklich dasselbe. Der
+Unterschied ist nur, ob du die Rücksprungadresse **selbst** bildest oder dir
+sie von der CPU geben lässt. Kapitel 5 führt `APC` in Tabelle 5-2 als die
+einzige Ausnahme von der Schattenbank-Regel.
 
 Der Rückweg ist `JMP LR` — ein Sprung aus dem Register heraus, alias
 `MOV PC, LR, 0`:

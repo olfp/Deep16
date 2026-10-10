@@ -167,6 +167,66 @@ allen drei Kernen. Der `ADD R2, R3` macht nebenbei deutlich, warum die Tabelle
 bei 0x0200 liegen darf: Wortadressierung aus §1.2, jeder Eintrag ein Wort,
 die Offsets zählen Wörter, nicht Bytes.
 
+### `MOV` — der Verkehrsregler der Registerbank
+
+`MOV` ist der Befehl, den du in diesem Buch bisher am häufigsten gesehen hast,
+und der einzige, der noch kein Diagramm hat. Es lohnt sich: `MOV` ist der
+**Umleiter**, nicht der Behälter. `LDI` kennt nur `R0` (§2.1), und `MOV`
+verschiebt alles, was schon da ist — von einem Register in ein anderes oder
+in `R0`.
+
+**`MOV Rd, Rs, imm2` — Quellregister nach Zielregister, optional mit Funktion**
+
+```mermaid
+block-beta
+  columns 31
+  classDef op fill:#e5e7eb,stroke:#374151
+  classDef reg fill:#dbeafe,stroke:#1d4ed8
+  classDef imm fill:#fef3c7,stroke:#b45309
+  b0["111110<br/>Opcode"]:11
+  b1["Rd<br/>4"]:7
+  b2["Rs<br/>4"]:7
+  b3["imm2<br/>2 Bit"]:4
+  class b0 op
+  class b1 b2 reg
+  class b3 imm
+```
+
+Die beiden Bits `imm2` sind **kein additives Immediate**, sondern eine
+Funktionsauswahl aus vier Möglichkeiten (Spezifikation §3.4, §5.1.2). Aus
+`R1` mit dem Wert `5` entstehen damit vier verschiedene Ergebnisse:
+
+**Tabelle 3-1: Die vier `imm2`-Funktionen von `MOV`**
+
+| `imm2` | Schreibweise | Wirkung | aus `R1` = `5` |
+|---|---|---|---|
+| `00` | `MOV Rd, Rs` | kopieren `Rs` | `5` |
+| `01` | `MOV Rd, Rs << 1` | `Rs` links schieben | `10` |
+| `10` | `MOV Rd, Rs + 2` | `Rs` plus zwei | `7` |
+| `11` | `MOV Rd, Rs << 1 + 1` | schieben, Bit 0 setzen | `11` |
+
+```assembly
+; listing 3-11: die vier MOV-Funktionen an einem Beispiel
+.org 0x0100
+
+        LSI  R1, 5           ; R1 = 5
+        MOV  R2, R1          ; Funktion 0: kopieren  -> R2 = 5
+        MOV  R3, R1 << 1     ; Funktion 1: << 1      -> R3 = 10
+        MOV  R4, R1 + 2      ; Funktion 2: plus 2    -> R4 = 7
+        MOV  R5, R1 << 1 + 1 ; Funktion 3: <<1 | 1   -> R5 = 11
+        HALT
+```
+
+Gemessen (alle drei Kerne, 16 Taktschritte): `R2` = `5`, `R3` = `10`,
+`R4` = `7`, `R5` = `11`. Genau Tabelle 3-1, Zeile für Zeile.
+
+> **Zusammengefasst:** **Jede 16-Bit-Konstante kostet zwei Instruktionen.**
+> `LDI` schreibt immer nur `R0` und fasst nur 15 Bit Muster; `MOV` verteilt
+> weiter. `LDI 0x1234` + `MOV R5, R0` ergibt `R5` = `0x1234`,
+> `LDI -4096` + `MOV R6, R0` ergibt `R6` = `0xF000`. Und weil das Muster nur
+> 15 Bit trägt, ist `16383` die größte **positive** Zahl, die auf diesem Weg
+> in ein Register kommt (§6.2).
+
 ---
 
 ## 3.2 Arithmetik und Logik: 16 Bit ohne Überraschungen
