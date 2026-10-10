@@ -153,12 +153,13 @@ Jedes Kapitel folgt gleich auf:
 
 Jede Behauptung wird **gemessen, nicht behauptet**:
 
-1. **`node tests/...`** — `npm test` (derzeit 121 Tests) muss grün sein.
+1. **`node tests/...`** — `npm test` muss grün sein.
 2. **Probe-Skript** `/tmp/opencode/probe_kapNN.mjs` — prüft jede einzelne
-   Aussage des Kapitels gegen den JS- **und** WASM-Kern (Endregister,
-   PSW, Speicher, Taktschritte). Kanonische Quelle der Messwerte.
+   Aussage des Kapitels gegen **alle drei** Kerne: JS (Referenz), Rust/WASM und
+   das Verilog-Modell (Verilator + Emscripten). Geprüft werden Endregister,
+   `PSW`, Speicher und Taktschritte. Kanonische Quelle der Messwerte.
 3. **Extractor-Skript** `/tmp/opencode/extract_kapNN.mjs` — assembliert
-   **jedes** `assembly`-Listing des `book/kapNN.md`, führt es auf beiden
+   **jedes** `assembly`-Listing des `book/kapNN.md`, führt es auf allen drei
    Kernen aus und gleicht Endzustände + Schrittanzahl gegen die
    Erwartungstabelle ab. Strukturwächter: enthält `.org 0x0100`, endet
    mit `HALT`, Listing-Nummer vorhanden.

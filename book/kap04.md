@@ -10,7 +10,7 @@ einen **Delay Slot** — und dessen Regel kennst du schon aus §1.3. Jetzt
 wird sie zur Falle.
 
 Und wie in allen Kapiteln davor gilt: keine Behauptung ohne Messung. Jede
-Zahl hier stammt aus einem Lauf über beide Kerne (JS und WASM); du kannst
+Zahl hier stammt aus einem Lauf über alle drei Kerne (JS, WASM und Verilog); du kannst
 die Listings kopieren und bekommst exakt dasselbe.
 
 ---
@@ -386,7 +386,7 @@ Was ohne die Sicherung passiert, ist ebenfalls gemessen: Lässt man das
 `MOV R5, LR` weg, laufen innerer Rückweg und äußerer Rückweg beide über
 B — `outer` kehrt nie nach `haupt_zurueck` zurück. Das Programm dreht
 eine Schleife zwischen dem `ADD R6, 1` und dem `JMP LR` in `outer`: nach
-1000 Schritten (gemessen, beide Kerne) ist es nie stehen geblieben und
+1000 Schritten (gemessen, alle drei Kerne) ist es nie stehen geblieben und
 `R8` ist noch immer 0.
 
 > **Zusammengefasst:** `LINK`/`JMP LR` ersetzen `JSR`/`RTS`, aber die
@@ -564,7 +564,7 @@ Und der Speicher ab `0x0300` hält die Tabelle:
 | `0x0304` | `0x020A` / `0x0004` | „drei" — Start, Länge 4 |
 
 Der ganze Lauf dauert **284 Taktschritte** (inklusive der 10
-Boot-Schritte) — gemessen identisch auf beiden Kernen. Jedes der drei
+Boot-Schritte) — gemessen identisch auf allen drei Kernen. Jedes der drei
 Paare ist der rote Faden für Kapitel 7: Der Forth-Parser wird genau so
 durch sein Wörterbuch laufen.
 

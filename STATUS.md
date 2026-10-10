@@ -95,6 +95,32 @@ Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
 
 ---
 
+### ✅ Kapitel 6 — `book/kap06.md`
+- §6.1 Peripherie ist Speicher: **Tabelle 6-1** Speicherkarte, **Tabelle 6-2**
+  Tastaturports, `ES = 0xF000` als Peripherie-Segment (Offsets `0x0060`,
+  `0x0062`, `0x1000`), Bildschirmzelle (Low-Byte = Zeichen, Bit 15 =
+  Reverse-Video und Cursor) mit Mermaid-Bitdiagramm, Listing 6-1/6-2.
+- §6.2 Debuggen: Delay-Slot-Falle **messbar** (`R1` = 5 statt 1, 30 statt 31
+  Schritte), LDI-Vorzeichengrenze, Debugger-Hooks `getRecentMemoryView()` /
+  `get_recent_access()`, Begründung der Doppel-Implementierung.
+- **Beispiel:** Terminal-Schleife (Listing 6-5), Tastatur → Bildschirm, mit
+  Wartebudget statt Endlosschleife.
+- Kernbefund: **nur `LDS`/`STS` dekodieren Ports** — `LD`/`ST` liefern an
+  `0xF0060` den RAM-Füllwert `0xFFFF`. Auf beiden Kernen gemessen.
+- Nebenbefund, dokumentiert statt verschwiegen: der Assembler prüft `LDI`
+  nach unten (`-16384..16383`), nach oben nur gegen die Bitbreite — so ergibt
+  `LDI 20000` auf der CPU `0xCE20` (gemessen `−12992`). Beide Kerne irren
+  sich gleich.
+- Verifikation: `npm test`, `tests/cores.test.js`, `tests/rtl.test.js`,
+  Probe `probe_kap06.mjs` 71/71, Extractor `extract_kap06.mjs` 94/94,
+  alle drei EPUB-Varianten mit 6 Kapiteln und 47 Diagrammen.
+- **Nachtrag (2026-10-10):** Absatz „Warum zwei Kerne" auf **drei** Kerne
+  umgestellt — JS, Rust/WASM und das Verilog-Modell (`VERILOG.md`). Messwerte
+  unverändert (die Schrittzahlen stimmen auch auf dem RTL-Kern), nur die
+  Begründung trägt jetzt eine Pipeline *und* zwei Interpreter.
+
+---
+
 ## Build & Tooling
 
 | Aufgabe | Befehl |
@@ -129,31 +155,52 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-09 | **Kindle-Variante gegen E016, 2. Anlauf**: PNG-Diagramme allein haben E016 **nicht** beseitigt (gegen Amazon-Hilfe geprüft: keine SVGs/Gradienten/Mathe mehr, Tabellen max. 15 Zeilen, CSS unauffällig). Ursache ist die Metadaten-Klasse, an der Amazons Parser scheitert: `<dc:language>` mit Attributen bzw. Regions-Subtag sowie die von Pandoc gesetzten Apple-Attribute `prefix="ibooks:…"`/`xml:lang` im `<package>`. `normalize_epub.py` reduziert auf `<dc:language>de</dc:language>`, entfernt beide Attribute, das `com.apple.ibooks.display-options.xml` und Calibres SVG-Umschlag des Titelbilds. Da sich das gegen Amazon nicht prüfen lässt, gibt es zwei Artefakte: `kindle` (EPUB3, Layout erhalten) und `kindle-calibre` (zusätzlich Calibre-Round-Trip — von der Community als wirksam bestätigt). | `book/build/build-epub.sh`, `book/build/normalize_epub.py`, `book/epub/Deep16-kindle.epub`, `book/epub/Deep16-kindle-calibre.epub` |
 | 2026-10-10 | **E016 gelöst — bestätigt am Gerät**: `Deep16-kindle-calibre.epub` wird von Send to Kindle akzeptiert und liest sich reflowable; Layout und Diagramme sind einwandfrei. Damit ist der Calibre-Round-Trip die entscheidende Maßnahme, `normalize_epub.py` bleibt als Absicherung (Sprache, Apple-Attribute, SVG-Titelbild). **Für Amazon ist damit `kindle-calibre` die gültige Datei**; `Deep16-kindle.epub` und `Deep16.epub` bleiben für Apple Books. | `book/epub/Deep16-kindle-calibre.epub` |
 | 2026-10-10 | **JS-Kern führt `LDS`/`STS` im Debugger mit**: `executeLDSSTS` setzte `recentMemoryAccess` nicht, das Speicherfenster zeigte nach einem `STS` auf den Bildschirm weiterhin die Brotkrume des Boot-ROMs (Adresse `0x0002`) statt `0xF1000` — der WASM-Kern (`recent_addr`) hatte es richtig. Das war die einzige Divergenz, die Kapitel 6 beim „gleiche Bitgenauigkeit"-Vergleich aufgedeckt hat; `tests/cores.test.js` 22/22 grün. | `js/deep16_simulator.js` |
-| 2026-10-10 | **Kapitel 6 „Der Simulator als Werkbank"** geschrieben: Speicherkarte (Tabelle 6-1), Tastaturports (Tabelle 6-2), Bildschirmzelle mit Bitdiagramm, die Kernfalle `LD`/`ST` sehen keine Ports, Delay-Slot-Falle messbar (`R1` = 5 statt 1), LDI-Vorzeichengrenze, Debugger-Hooks. Alle Zahlen auf JS- **und** WASM-Kern gemessen (Probe 50/50, Extractor 61/61). | `book/kap06.md`, `book/epub/*` |
+| 2026-10-10 | **Architektur-Revisionen abgeglichen**: Die Revisionsdokumente im Repo-Root sind in STATUS.md unter „Architektur-Revisionen im Repo-Root" nach Thema, Stand und Buchrelevanz eingeordnet. Zwei sind bewusst **kein** Buchthema: `GFX.md`/`GFXOVERV.md` (Grafik-Kern GCoP, Design-Phase, ferne Zukunft) und `PLANPSRAM.md` (PSRAM-Backing-Store, **nicht umgesetzt**). `SERPLAN.md` (8/9 Schritte fertig) ist Material für Kapitel 7. Der aus `VERILOG.md` folgende dritte Kern **wurde ins Buch übernommen**: Kapitel 6 §6.2 spricht jetzt von drei Kernen, und Probe (71/71) wie Extractor (94/94) messen auf JS, WASM und RTL — die Schrittzahlen stimmen auch auf dem Verilog-Kern. Vermessungs-Workflow in `STYLE.md` §7 entsprechend auf drei Kerne gestellt. | `book/kap06.md`, `STYLE.md`, `STATUS.md` |
+| 2026-10-10 | **Kapitel 6 „Der Simulator als Werkbank"** geschrieben: Speicherkarte (Tabelle 6-1), Tastaturports (Tabelle 6-2), Bildschirmzelle mit Bitdiagramm, die Kernfalle `LD`/`ST` sehen keine Ports, Delay-Slot-Falle messbar (`R1` = 5 statt 1), LDI-Mustergrenze, Debugger-Hooks. Alle Zahlen auf **allen drei** Kernen gemessen (Probe 71/71, Extractor 94/94). | `book/kap06.md`, `book/epub/*` |
 | 2026-10-10 | **`LDI`-Bereich: Vermerk zurückgenommen, Semantik festgeschrieben.** Der vormerkte „Bereichsfehler" war eine **Fehldiagnose** — die obere Grenze `0x7FFF` ist korrekt. Spec §3.4 lautet `R0 ← sign_extend(imm15)`: der Operand ist ein **15-Bit-Muster**, alle 32768 Muster sind legal, und die Vorzeichenerweiterung findet in der **CPU** statt, nicht im Assembler. `LDI 20000` → `0xCE20` (`−12992`) ist auf beiden Kernen das *richtige* Ergebnis. Ein Versuch, die Grenze auf `16383` zu ziehen, hat `forth.asm`, `swi-test.asm`, `screen_demo.asm`, `string_demo.asm` und `asm/backup` zerlegt (80 Testfehler) sowie den Disassembler-Round-Trip gebrochen — der Disassembler gibt Immediates als rohes Hex aus, das sich dann nicht wieder laden ließ. **Regel:** Assembler prüft nur, ob der Wert in ein 15-Bit-Feld passt (`0..0x7FFF` oder `-16384..-1`, dieselben Muster in zwei Schreibweisen), nicht ob er in einen Vorzeichenbereich passt. Absicherung: `tests/disassembler.test.js` prüft jetzt alle 32768 Muster auf `disassemble → assemble`, STYLE.md §9 als eingefrorener Fact präzisiert, die irreführenden TODO-Kommentare in `js/deep16_assembler.js` ersetzt. Kapitel 2/3/6 und alle EPUBs bleiben unverändert — sie hatten recht. | `js/deep16_assembler.js`, `tests/disassembler.test.js`, `STYLE.md` §9 |
 | 2026-10-10 | **`book/` aufgeräumt**: Ergebnisse nach `book/epub/`, Zwischenergebnisse (Pandoc-Stufe, Calibre-Round-Trip, Mermaid-PNGs) nach `book/build/` — bei jedem Build geleert, per `.gitignore` nicht versioniert. `book/` enthält damit nur noch Quellen (`kap*.md`), Werkzeuge (`build-epub.sh`, `mermaid_filter.lua`, `normalize_epub.py`), das Mermaid-Test-Fixture `test/` und die beiden Artefaktordner. | `book/epub/`, `book/build/`, `book/build/build-epub.sh`, `STYLE.md` §6 |
 | 2026-10-10 | **Divider neu: handgeschrieben, iterativ, Radix-4.** Drei Befunde führten dazu. **(a)** Das RTL benutzt die Verilog-Operatoren `quot32 = dividend32 / {16'h0000, opv_i}` und `rem32 = dividend32 % {...}` (`rtl/deep16_alu.sv:235-236`) — Verilog sieht **32/32**, ein Synthesizer inferiert zwei volle 32-Bit-Teiler. Die Architektur meint aber 32÷16 mit **16-Bit-Quotient und 16-Bit-Rest**; `quot32[15:0]`/`rem32[15:0]` verwerfen die oberen Hälften ohnehin. Ein echter 32÷16 braucht nur ein **18-Bit-Arbeitsregister**, nicht 33 — das war in der ersten Auslegung dieses Dokuments falsch angesetzt. **(b)** Unverändert ergäbe das ~1200–2000 LUT und **8–16 MHz**; der Teiler wäre der Taktbegrenzer des ganzen Kerns. **(c)** Iterativ **entkoppelt die Breite vom Takt**: der kritische Pfad ist nur noch *eine* Iteration (18-Bit-Kette + 2 LUT-Level + Routing = 2,2–4,5 ns), also **222–455 MHz** und bei 54 MHz 4–8× Reserve. Gewählt wird **Radix-4** (2 Dividend-Bits je Iteration, **16 statt 32 Takte**) für den Durchsatz: Misch-CPI 6,20 → **3,53**, also 8,7 → **15,3 MIPS @54 MHz**. ⚠ *Korrigiert nach der Umsetzung:* die erste Fassung nannte **8 Takte / 24,5 MIPS**. Falsch — der 32÷16-Quotient ist 32 Bit breit und wird erst am Ende auf 16 Bit gekürzt, also müssen alle 32 Dividend-Bits aus `rem = 0` verbraucht werden. Radix-4 bleibt die richtige Wahl (es halbiert die Iterationen gegenüber Radix-2), ist aber halb so schnell wie zunächst behauptet. **Gemessen: 16,0 Takte** über `ADD`. Fläche: **~300–450 LUT** (gegenüber ~100–160 für Radix-2 und ~1200–2000 für den inferierten) — bei 300–450 LUT bleibt der Fmax bei ~5–7 ns je Iteration, also ~2,6–3,7× Reserve bei 54 MHz. `DIV` (16÷16) und `DIV32` (32÷16) teilen **einen** Kern (16÷16 = 32÷16 mit Nullbits im Dividend); Quotient und Rest fallen im Restoring-Verfahren gemeinsam an, die Doppel-Operatoren entfallen. Preis: 16 Takte statt 1 je Division. **Bleibt zu erhalten:** die Sonderfälle `opv == 0 → 0xFFFF` und die Ablehnung ungerader Zielregister bei `DIV32` (`rd[0]`). Danach ist der Teiler **nicht mehr** der kritische Pfad — der ist dann der Rest von EX (228-Bit-State-Bypass, ALU mit 32 Funktionen, Schieberegister, Ergebnisauswahl), geschätzt 8–15 ns. | `rtl/deep16_alu.sv`, `rtl/deep16_core.sv` (`stall`) |
 | 2026-10-10 | **Dritter CPU-Kern in SystemVerilog** (`rtl/`, Verilator + Emscripten), 5-Stufen-Pipeline und 4KB-Cache, in der IDE als **Kern** wählbar (JS / WASM / RTL). Zwei Grundsätze haben sich als tragend erwiesen und sollten bei einem vierten Kern wiederholt werden: **(a)** Der Cache ist **per Konstruktion transparent** — bei einem Miss liefert das Top-Level weiter aus dem Speicherarray aus, die Pipeline stallt nie und die (verifizierte) Pipeline-Steuerung bleibt unangetastet. **(b)** Nebenwirkungen außerhalb von WB brauchen eine Bedingung *„verlässt die Stufe in diesem Takt"* — sonst feuert der Tastatur-Pop über die Schrittgrenze hinweg mehrfach. Drei Kernfehler dieser Runde waren jeweils **eine** fehlende Bedingung, nicht schlechte Logik: `fill_base` nach Cachebarkeit statt nach dem Miss gewaehlt, Invalidierung per `eval()` ohne posedge (stiller No-op), veraltete Zeile nach Store ohne Write-Allocate. Dazu zwei Fehler im Prüfwerkzeug selbst, die beide wie eine Kerndivergenz aussahen: `set_registers()` legt Index 15 auf den *aktiven* PC, und ein Seed, der nur einen PC setzt, laesst im Schattenkontext den anderen auf 0. **Lehre:** bei einer Divergenz zuerst *das Werkzeug* prüfen, nicht das Werk. Verifikation: Decode-Sweep 524288 Ausführungen, 0 Abweichungen (4 Seeds), `tests/fuzz.test.js` mit 60 Zufallsprogrammen, 239/239 Tests gruen. Für die Doku: `README.md` auf drei Kerne gezogen, `VERILOG.md` als Plan- und Entscheidungslog geführt. | `rtl/`, `index.html`, `js/deep16_ui_core.js`, `tests/rtl.test.js`, `tests/fuzz.test.js`, `README.md`, `VERILOG.md` |
 
-### ✅ Kapitel 6 — `book/kap06.md`
-- §6.1 Peripherie ist Speicher: **Tabelle 6-1** Speicherkarte, **Tabelle 6-2**
-  Tastaturports, `ES = 0xF000` als Peripherie-Segment (Offsets `0x0060`,
-  `0x0062`, `0x1000`), Bildschirmzelle (Low-Byte = Zeichen, Bit 15 =
-  Reverse-Video und Cursor) mit Mermaid-Bitdiagramm, Listing 6-1/6-2.
-- §6.2 Debuggen: Delay-Slot-Falle **messbar** (`R1` = 5 statt 1, 30 statt 31
-  Schritte), LDI-Vorzeichengrenze, Debugger-Hooks `getRecentMemoryView()` /
-  `get_recent_access()`, Begründung der Doppel-Implementierung.
-- **Beispiel:** Terminal-Schleife (Listing 6-5), Tastatur → Bildschirm, mit
-  Wartebudget statt Endlosschleife.
-- Kernbefund: **nur `LDS`/`STS` dekodieren Ports** — `LD`/`ST` liefern an
-  `0xF0060` den RAM-Füllwert `0xFFFF`. Auf beiden Kernen gemessen.
-- Nebenbefund, dokumentiert statt verschwiegen: der Assembler prüft `LDI`
-  nach unten (`-16384..16383`), nach oben nur gegen die Bitbreite — so ergibt
-  `LDI 20000` auf der CPU `0xCE20` (gemessen `−12992`). Beide Kerne irren
-  sich gleich.
-- Verifikation: `npm test` 190/190, `tests/cores.test.js` 22/22,
-  Probe `probe_kap06.mjs` 50/50, Extractor `extract_kap06.mjs` 61/61,
-  alle drei EPUB-Varianten mit 6 Kapiteln und 47 Diagrammen.
+## Architektur-Revisionen im Repo-Root
+
+Das Buch erzählt die Deep16 so, wie sie **heute** ist. Damit es dabei nicht
+stillschweigend veraltet, sind hier die Architektur-Dokumente aus dem
+Repo-Root eingeordnet: Thema, tatsächlicher Stand, und was daraus für das
+Buch folgt. Zwei davon sind bewusst **kein** Buchthema.
+
+| Dokument | Thema | Stand | Bedeutung für das Buch |
+|---|---|---|---|
+| `ARCHREV.md` | `MOV imm2` als Funktionsauswahl statt Addition | ✅ umgesetzt **und im Buch** | 2026-10-08 in Kap. 2 (§2.1, Tabelle 2-1) und Kap. 4 (§4.2) übertragen |
+| `VERILOG.md` | dritter Kern: Verilog → Verilator + Emscripten | ✅ Phase 0–2 abgeschlossen, dreifache Parität grün, Decode-Sweep über alle 65 536 Befehlswörter ohne Abweichung | **im Buch eingearbeitet** — Kap. 6 §6.2 spricht jetzt von drei Kernen, `STYLE.md` §7 misst auf allen drei |
+| `SERPLAN.md` | Quelltext über seriellen Port in den DeepForth-Kern (`SERLOAD`) | 🟡 7 von 9 Schritten abgeschlossen, `EVALUATE` bewusst zurückgestellt, Host-Anbindung im Browser unbestätigt | **Material für Kapitel 7** (Mini-Forth) — noch kein Kapiteltext |
+| `PLANPSRAM.md` | PSRAM-Backing-Store für die FPGA | ⛔ **nicht umgesetzt** (Plan) | ❌ **kein Buchinhalt** |
+| `GFX.md`, `GFXOVERV.md` | Grafik-Subsystem GCoP | 🟡 Design-Phase, **ferne Zukunft** | ❌ **kein Buchinhalt** |
+| `deep16_project_summary.md` | IDE-Entwicklungsstand (alt) | ⚪ überholt | — |
+
+### Warum GFX und PSRAM draußen bleiben
+
+- **`GFX.md` / `GFXOVERV.md` sind ferne Zukunft.** Beide Dokumente sagen das
+  selbst: Projekt-Status *Design-Phase / Planungsgrundlage*, „keine
+  Implementierungs-Spezifikation". Der Grafik-Co-Prozessor ist entworfen, nicht
+  gebaut; es gibt weder einen Kern noch Messwerte dazu. Solange das so bleibt,
+  darf kein Kapitel ein GCoP-Verhalten behaupten — eine ungebaute Architektur
+  zu beschreiben hieße, das Buch kaputtzuschreiben, sobald sie gebaut wird.
+  **Auslöser für eine Neubewertung:** sobald `rtl/` GCoP-Bausteine enthält,
+  gibt es Messwerte und das Thema gehört in den Buchplan (Kandidat: Anhang).
+- **`PLANPSRAM.md` ist nicht durchgeführt.** Der Plan beschreibt, den
+  Speicher-Backing-Store des RTL-Kerns vom Verilog-Array auf den PSRAM der
+  Tang Nano 9K umzuziehen. Der Ist-Stand ist unverändert: `rtl/deep16_top.sv:48`
+  deklariert weiterhin `reg [15:0] mem [0:MEM_WORDS-1]`, und die
+  `always_comb` ab Zeile 207 bedient genau dieses Array (elf kombinatorische
+  Leseports plus ein Schreibport je Takt). Nichts davon ist messbar, also
+  nichts davon darf im Buch stehen.
+  **Auslöser:** sobald Schritt 1 der Umsetzung (Memory-Interface) im RTL
+  steht, ist der Kapitel-6-Speicherkarte die PSRAM-Aufteilung hinzuzufügen.
+
+Beide bleiben hier sichtbar, damit niemand sie für vergessen hält: ein
+Revisionsdokument im Repo-Root, das nichts mit dem Buch zu tun hat, ist eine
+bewusste Entscheidung und keine Lücke.
 
 ---
 
@@ -166,7 +213,10 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 3. ✅ **Kapitel 6** abgeschlossen (Memory-Mapped I/O, Delay-Slot-Diagnose,
    JS-/WASM-Vergleich).
 4. Danach: Kapitel 7 (Mini-Forth) — die Schleife aus Listing 6-5 wird zur
-   REPL-Zeile, `asm/forth.asm` liegt dafür bereits vor.
+   REPL-Zeile, `asm/forth.asm` liegt dafür bereits vor. Material liefert
+   `SERPLAN.md`: `SERLOAD`, EOF-Statuswert und die Zeilenlängengrenze sind
+   gemessen und im Kernel getestet; offen sind nur `EVALUATE` und die
+   Bestätigung der Host-Anbindung im Browser.
 
 ---
 

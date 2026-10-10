@@ -163,7 +163,7 @@ jedem Listing des Buches wiederfindest. Danach holen vier `LD` die Wörter
 mit den Offsets 0 bis 3, drei `ADD` summieren in `R2`, und das letzte `ST`
 legt die Summe in `w[4]` ab. Die Messung endet mit `R2 = 0x0064` (100) und
 derselben Summe in Zelle `0x0204` — nach 21 Taktschritten, identisch auf
-beiden Kernen. Der `ADD R2, R3` macht nebenbei deutlich, warum die Tabelle
+allen drei Kernen. Der `ADD R2, R3` macht nebenbei deutlich, warum die Tabelle
 bei 0x0200 liegen darf: Wortadressierung aus §1.2, jeder Eintrag ein Wort,
 die Offsets zählen Wörter, nicht Bytes.
 
@@ -1137,7 +1137,7 @@ müsstest du dafür zwei Register und eine eigene Übertrags-Kette
 verschwenden, damit der Zähler je über 255 hinauskommt.
 
 Nach 200 Durchläufen ist `R5 = 0`, und die drei `ST` schreiben das Ergebnis
-nach `0x0200` (gemessen, beide Kerne identisch):
+nach `0x0200` (gemessen, alle drei Kerne identisch):
 
 | Zelle | Wert | Bedeutung |
 |-------|------|-----------|
@@ -1146,7 +1146,7 @@ nach `0x0200` (gemessen, beide Kerne identisch):
 | `R3` | `0x2710` = 10000 | Summe der ungeraden |
 | Speicher `0x0200` | `0x4E84` | Rückweg über `ST` |
 
-Die Messung zählt **1824 Taktschritte** bis zum `HALT` — auf beiden Kernen
+Die Messung zählt **1824 Taktschritte** bis zum `HALT` — auf allen drei Kernen
 exakt gleich. Und der 8-Bit-Gedanke dazu: Schon beim 23. Durchlauf hätte
 `R1` auf einer 8-Bit-CPU überlaufen (die Summe klettert über 255); hier
 läuft sie bis 20100 und kein Sonderfall stellt sich ein. Das ist die

@@ -15,7 +15,7 @@ kein vergessener Akkumulator um drei Uhr morgens. Kapitel 1 hat diesen
 Schatten-Kontext einmal am Rande erwähnt; jetzt wirst du ihn vermessen.
 
 Und wieder gilt: keine Behauptung ohne Messung. Jede Zahl in diesem Kapitel
-stammt aus einem Lauf über beide Kerne (JS und WASM), die Listings sind
+stammt aus einem Lauf über alle drei Kerne (JS, WASM und Verilog), die Listings sind
 kopierfertig, und die Encodings der neuen Befehle kommen aus
 `doc/Deep16-Arch.md` — die Semantik, die du liest, aus dem Simulator.
 
@@ -87,7 +87,7 @@ und was `SWI` an der Registerbank anstellt.
 ### Nach dem Boot zeigen die Vektoren auf uns
 
 Das Boot-ROM räumt vor, bevor es übergibt: Es schreibt die Adresse `0x0100`
-— deinen Programmstart — in die Wörter `0`, `1` und `2`. Gemessen auf beiden
+— deinen Programmstart — in die Wörter `0`, `1` und `2`. Gemessen auf allen drei
 Kernen, nachdem ein Minimalprogramm aus einem einzigen `HALT` durchgelaufen
 ist:
 
@@ -125,7 +125,7 @@ Zum Beweis liest der erste Befehl einfach nur, was dort steht:
         HALT                  ; 13 Schritte (10 davon Boot), PSW = 0x0000
 ```
 
-`R0` = `0x0100`, `R2` = `0x0002` — auf beiden Kernen identisch, in 13
+`R0` = `0x0100`, `R2` = `0x0002` — auf allen drei Kernen identisch, in 13
 Schritten. Der Vektor ist ein Wort wie jedes andere, und `LDS` aus §3.1
 reicht, um es zu lesen.
 
@@ -302,7 +302,7 @@ Drei Dinge liest du daraus:
 
 Und der Stapel? `SWI` legt **nichts** darauf. Gemessen nach dem Lauf: `SP`
 steht bei `32767` (`0x7FFF`) und die sechzehn Wörter von `0x7FF0` bis
-`0x7FFF` tragen auf beiden Kernen ausnahmslos `0xFFFF` — dort, wo die 6502
+`0x7FFF` tragen auf allen drei Kernen ausnahmslos `0xFFFF` — dort, wo die 6502
 drei Bytes geschoben hätte, ist bei der Deep16 nie etwas gewesen.
 
 ### Was `SWI` zurücksetzt
@@ -331,7 +331,7 @@ Nach zwei Aufrufen steht `R0`′ bei `0x0001` (`R10` = `0x0001`), nicht bei
 `0x0002`. Wäre die Bank nicht geleert worden, stünde dort `0x0002` — der
 Beweis, dass der Handler **jedes Mal frisch** beginnt. Gleichzeitig bleibt
 `R0` = `0x0044`: Die normale Bank hat von nichts mitbekommen, 22 Schritte
-(10 + 8 + 2 × 2), `PSW` = `0x0000`, identisch auf beiden Kernen.
+(10 + 8 + 2 × 2), `PSW` = `0x0000`, identisch auf allen drei Kernen.
 
 > **Zusammengefasst:** `SWI` ist kein Kopieren, sondern ein **Ersetzen** —
 > frischer `PSW` (`0x0020`), leere Schatten-Register, `PC` aus der
@@ -445,7 +445,7 @@ Adresse `0` ausgeführt, und das sind die drei Boot-Wörter:
 
 Die Schrittanzahl von 23 passt genau: 10 Boot + 9 eigene Befehle bis
 einschließlich `SETS` + 3 Vektorwörter + 1 `HALT`. `PC′` endet bei `0x0003`,
-`CS′` und `PSW′` bei `0` — gemessen auf beiden Kernen. Der normale `PC`
+`CS′` und `PSW′` bei `0` — gemessen auf allen drei Kernen. Der normale `PC`
 bleibt bei `0x0109` stehen; sichtbar ist das im JS-Kern, während
 `get_registers()` im WASM-Kern solange den aktiven Schatten-`PC` meldet und
 dort `0x0003` anzeigt. Beides ist derselbe Zustand, nur von zwei Seiten gelesen.
@@ -489,7 +489,7 @@ handler:
 ```
 
 **Tabelle 5-4: `LPSW` und `SMV APSW` in Listing 5-5** (21 Schritte,
-beide Kerne identisch)
+alle drei Kerne identisch)
 
 | Sicht | `LPSW` (laufend) | `SMV APSW` (geparkt) |
 |-------|------------------|----------------------|
@@ -572,7 +572,7 @@ bleibt, sieht `R9` = `0x2000`; `R0` = `0x2000` gegenüber `R12` = `0x3000`
 liefert dasselbe Paar für die bankierten Register — `LDI 0x3000` landete in
 `R0`′, nicht in `R0`.
 
-31 Schritte (10 + 13 + 2 × 4), `PSW` = `0x0000`, beide Kerne identisch.
+31 Schritte (10 + 13 + 2 × 4), `PSW` = `0x0000`, alle drei Kerne identisch.
 
 ### Ein OS-Aufruf mit zwei Banken
 
@@ -603,7 +603,7 @@ handler:
 Der Handler liest `R0` = `21` über `SMV AR0` — aus der normalen Bank, weil
 er selbst im Schatten läuft —, verdoppelt es in `R1`′ und kehrt zurück.
 Zurück in normaler Sicht liest das Hauptprogramm `R10` = `0x002A` (42) und
-sieht sein eigenes `R1` = `0x0033` unverändert an. 22 Schritte, beide Kerne
+sieht sein eigenes `R1` = `0x0033` unverändert an. 22 Schritte, alle drei Kerne
 identisch.
 
 ### Der Shadow-Block im Simulator
@@ -614,7 +614,7 @@ in einem eigenen Block namens **Shadow Registers (Interrupt Context)** mit
 `simulator.shadowRegisters`, im WASM-Kern aus `get_shadow_state()` — der
 liefert genau diese drei Wörter.
 
-Nach dem Lauf von Listing 5-2 zeigen beide Kerne dasselbe:
+Nach dem Lauf von Listing 5-2 zeigen alle drei Kerne dasselbe:
 
 ```text
 PSW′ = 0x0000    PC′ = 0x0115    CS′ = 0x0000
@@ -674,7 +674,7 @@ wieder. Das Segment ist `DS`: `SWI` hat `DS`′ auf `0` gesetzt
 wirklich dort geschrieben hat, beweist der Zähler selbst —
 `LD R10, R4, 0` liest von `0x0300` und findet `3`.
 
-Gemessen, identisch auf beiden Kernen, in 48 Schritten
+Gemessen, identisch auf allen drei Kernen, in 48 Schritten
 (10 Boot + 8 Einrichtung + 3 × 9 im Kreis + 3 zum Schluss):
 
 **Tabelle 5-5: Endzustand von Listing 5-8**

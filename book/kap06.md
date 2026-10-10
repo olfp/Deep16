@@ -7,11 +7,12 @@ wie sie auf Bildschirm und Tastatur zugreift, wie eine Adresse zum Port
 wird und wie man einen Fehler findet, der sich nicht als Fehler meldet.
 
 Dabei hilft ein Umstand, den es in den ersten fünf Kapiteln noch nicht gab:
-Der Simulator ist **zweimal** implementiert. Einmal in JavaScript, einmal in
-Rust und zu WebAssembly übersetzt. Beide Kerne rechnen dasselbe — nicht
-„ungefähr“, sondern Bit für Bit. Jede Zahl in diesem Kapitel stammt aus einem
-Lauf auf **beiden** Kernen, und wo sie unterschiedlich herauskämen, stünde es
-hier.
+Der Simulator ist **dreimal** implementiert. Einmal in JavaScript, einmal in
+Rust und zu WebAssembly übersetzt, und einmal als Verilog-Modell, das über
+Verilator läuft. Alle drei sind unabhängig voneinander geschrieben, und alle
+drei rechnen dasselbe — nicht „ungefähr“, sondern Bit für Bit. Jede Zahl in
+diesem Kapitel stammt aus einem Lauf auf **allen drei** Kernen, und wo sie
+unterschiedlich herauskämen, stünde es hier.
 
 Und noch etwas ist neu: Der Simulator ist keine Blackbox. Er hat
 Schnittstellen, mit denen du den **letzten Speicherzugriff** und den
@@ -134,7 +135,7 @@ cursor:
         .word 0x8020
 ```
 
-Gemessen (beide Kerne, 23 Schritte): `0xF1000` = `0x0041`, `0xF1001` =
+Gemessen (alle drei Kerne, 23 Schritte): `0xF1000` = `0x0041`, `0xF1001` =
 `0x8020`. Der Reiter *Screen* zeigt ein `A` mit blinkendem Cursor dahinter.
 
 ### Die Tastatur: zwei Ports, ein Pufferschlitz
@@ -150,7 +151,7 @@ Der Daten-Port arbeitet wie ein **Schlitz**, nicht wie ein Register: Jeder
 Lesevorgang nimmt genau eine Taste aus der Warteschlange und stellt sie in
 `R0x0000`, wenn nichts mehr da ist. Drei Tasten `H`, `i`, `!` (also `72`,
 `105`, `33`) ergeben deshalb vier Lesevorgänge mit den Werten `0x0048`,
-`0x0069`, `0x0021` und zuletzt `0x0000` — 19 Schritte auf beiden Kernen.
+`0x0069`, `0x0021` und zuletzt `0x0000` — 19 Schritte auf allen drei Kernen.
 Der vierte Wert ist nicht „Fehler", sondern die ehrliche Antwort auf eine
 leere Frage.
 
@@ -243,7 +244,7 @@ schleife:
         HALT
 ```
 
-Gemessen (beide Kerne): `R2` läuft von `5` auf `0`, und `R1` steht am Ende
+Gemessen (alle drei Kerne): `R2` läuft von `5` auf `0`, und `R1` steht am Ende
 bei **`5`** — in 30 Schritten. Fünfmal, weil `ADD` fünfmal im Delay Slot
 stand: viermal bei genommenem Sprung, einmal bei nicht genommenem.
 
@@ -265,50 +266,60 @@ schleife:
         HALT
 ```
 
-Gemessen (beide Kerne): `R1` = **`1`**, in 31 Schritten. Genau eine
+Gemessen (alle drei Kerne): `R1` = **`1`**, in 31 Schritten. Genau eine
 Ausführung, ein zusätzlicher Schritt. Der Unterschied zwischen 5 und 1 ist
 das ganze Kapitel über Delay Slots in einer Zahl.
 
-### Der Assembler erlaubt mehr, als die CPU meint
+### `LDI` hat kein Vorzeichen — es hat ein Muster
 
-Der zweite Fallstrick ist subtiler, weil *kein* Fehlertext erscheint.
-`LDI` belegt 15 Bit mit Vorzeichenfortsetzung, das heißt: nutzbar sind
-`−16384` bis `16383`. Nach *unten* prüft der Assembler das:
+Der zweite Fallstrick ist subtiler, weil *kein* Fehlertext erscheint. In §2.1
+hast du gelernt, dass `LDI` einen 15-Bit-Wert vorzeichenfortsetzt — und damit
+eine Grenze, die man leicht zu eng ansetzt. Die Spezifikation
+(`doc/Deep16-Arch.md` §3.4) schreibt `R0 ← sign_extend(imm15)` vor, und das
+Wortlaut ist wichtiger als er klingt: `imm15` ist ein **Muster** aus 15 Bit,
+keine vorzeichenbehaftete Zahl. Die Vorzeichenerweiterung findet in der CPU
+statt, nicht im Assembler. Damit sind **alle 32768 Muster** zulässig — du
+darfst sie entweder roh (`0..0x7FFF`) oder vorzeichenbehaftet
+(`-16384..-1`) schreiben, beides meint dasselbe Muster. Erst darüber hinaus
+weist der Assembler die Schreibweise zurück:
 
 ```text
         LDI  -16385
         → LDI immediate -16385 out of range (-16384..16383)
 ```
 
-Nach *oben* prüft er nur gegen die Bitbreite, nicht gegen den
-Vorzeichenbereich — und lässt damit Werte zu, die die CPU sofort als
-negative Zahlen liest:
+Die Folge hat einen Preis, den man leicht übersieht: Die **größte positive
+Zahl**, die in ein `LDI` passt, ist `16383`. Alles darüber wird vom
+Vorzeichenbit zu einer negativen Zahl:
 
 | Quelle | `R0` danach | gelesen als |
 |---|---|---|
 | `LDI 16383` | `0x3FFF` | `16383` ✔ |
-| `LDI 16384` | `0xC000` | `−16384` ✘ |
-| `LDI 20000` | `0xCE20` | `−12992` ✘ |
+| `LDI 16384` | `0xC000` | `−16384` |
+| `LDI 20000` | `0xCE20` | `−12992` |
 | `LDI -16384` | `0xC000` | `−16384` ✔ |
 
-Beide Kerne liefern exakt diese vier Werte. Das Programm assembliert ohne
-Mucks, läuft ohne Absturz — und rechnet mit einer negativen Zahl, wo du eine
-positive erwartet hast. Ein Budget von 20000 Poll-Durchläufen, so in einem
-Listing notiert, wird so zu einem Budget von 32764. Beide Kerne irren sich
-hier gleich — und das ist die schlimmere Variante: Zwei gleiche falsche
-Antworten wirken wie eine geprüfte Wahrheit.
+Alle drei Kerne liefern exakt diese vier Werte — und sie liefern sie
+**richtig**, denn genau so ist es spezifiziert. Der Preis ist ein anderer als
+ein Fehler: Die Zahl, die du wolltest, gibt es auf dieser Maschine nicht. Ein
+Budget von 20000 Poll-Durchläufen wird zu einem Budget, das erst nach
+**52767** Durchläufen auf null kommt (gemessen auf allen drei Kernen:
+`R10` = `0x0000` nach 316622 Schritten). Wer `LDI 20000` notiert und später
+auf `0x270C` trifft, hat zwei verschiedene Zahlen in der Hand — beide aus
+demselben Muster.
 
-> **Merke:** Alles über `0x3FFF` in ein `LDI` gehört auf den Prüfstand. Der
-> Assembler schweigt, die CPU rechnet vorzeichenbehaftet.
+> **Merke:** `LDI` transportiert ein Muster, keinen Zahlenwert. Alles über
+> `0x3FFF` kann nicht positiv sein — baue es aus zwei `LDI` oder per `ADD`
+> aus einem Muster zusammen.
 
 ### Der letzte Speicherzugriff
 
 Der zweite Ort, an dem der Simulator arbeitet, ist das Speicherfenster. Nach
 jedem Zugriff hält er fest, **was** adressiert wurde: Adresse, Basisregister,
 Offset und Segment. Im JavaScript-Kern ist das `getRecentMemoryView()`, im
-WASM-Kern `get_recent_access()`.
+WASM-Kern und im Verilog-Kern je `get_recent_access()`.
 
-Nach einem `STS R1, ES, R8` aus Listing 6-1 melden beide Kerne dieselben
+Nach einem `STS R1, ES, R8` aus Listing 6-1 melden alle drei Kerne dieselben
 sechs Werte:
 
 | Feld | Wert | Herkunft |
@@ -324,18 +335,30 @@ Das ist genau das Werkzeug für die Falle aus §6.1. Ein `LD` mit `R6 = 0x0060`
 zeigt dir im Speicherfenster den **Offset `0x0060` im Segment `DS`** — und
 damit, dass du die Portadresse verlassen hast, ohne es zu ahnen.
 
-### Warum zwei Kerne
+### Warum drei Kerne
 
-Diese Doppel-Implementierung ist unbeabsichtigt nützlich. Beide Kerne sind
-unabhängig voneinander in JavaScript und Rust geschrieben, und beide müssen
-für jedes Kapitel dieses Buches dieselben Ergebnisse liefern: Endregister,
-`PSW`, Speicherinhalt, Schrittzahl. Das ist keine Formalie — Divergenzen
-zwischen beiden Kernen haben in diesem Projekt schon echte Fehler aufgedeckt,
-etwa die Vorzeichenfortsetzung im Offset von `LD`/`ST` (§3.1).
+Diese Dreifach-Implementierung ist unbeabsichtigt nützlich. Die drei Kerne
+sind unabhängig voneinander in JavaScript, in Rust und in Verilog geschrieben,
+und alle drei müssen für jedes Kapitel dieses Buches dieselben Ergebnisse
+liefern: Endregister, `PSW`, Speicherinhalt, Schrittzahl. Das ist keine
+Formalie — Divergenzen zwischen den Kernen haben in diesem Projekt schon echte
+Fehler aufgedeckt, etwa die Vorzeichenfortsetzung im Offset von `LD`/`ST`
+(§3.1).
 
-Für dieses Kapitel heißt das: jede Tabelle oben ist zweimal gemessen, und die
-Schrittzahlen stimmen auf der Nase. Ein Kern, der dir `0xFFFF` statt `0x0001`
-liefert, wäre ein Befund. Keiner tut es.
+Der Verilog-Kern ist der jüngste. Er beschreibt die Architektur unmittelbar —
+fünf Stufen, PC als Architekturzustand, sichtbare Wirkung jedes Befehls erst im
+Write-Back — und kommt deshalb auf ganz anderem Weg zu denselben Ergebnissen
+wie die beiden verhaltensmäßigen Kerne. Dass eine Pipeline und ein
+Schritt-für-Schritt-Modell Bit für Bit übereinstimmen, ist eine stärkere
+Aussage als die Übereinstimmung zweier Interpreter. Er ist inzwischen über
+einen Sweep geprüft, der **alle 65 536 Befehlswörter** einmal ausführt und
+keine Abweichung findet. Seine eigenen Fehler hat die Entwicklung gefunden und
+behoben, nicht die anderen Kerne; der JavaScript-Kern bleibt die Referenz, an
+der die anderen beiden gemessen werden.
+
+Für dieses Kapitel heißt das: jede Tabelle oben ist dreimal gemessen, und die
+Schrittzahlen stimmen auf der Nase — auch die. Ein Kern, der dir `0xFFFF` statt
+`0x0001` liefert, wäre ein Befund. Keiner tut es.
 
 ---
 
@@ -418,7 +441,7 @@ Compare-Form, und er ist zufällig genau der Code, den die Tastatur für
 `Enter` liefert. Das funktioniert, weil `0x0A` im Immediate-Feld (0–15)
 steckt — nicht, weil der Port es so zurückgibt.
 
-**Gemessen** (JS-Kern und WASM-Kern, Tasten `H`, `i`, `!`, `Enter`):
+**Gemessen** (JS-, WASM- und Verilog-Kern, Tasten `H`, `i`, `!`, `Enter`):
 
 | Größe | Wert |
 |---|---|
@@ -463,14 +486,17 @@ Budget, ein hängendes nicht.
 5. **Delay Slots kann man zählen.** `ADD` im Slot läuft fünfmal statt einmal
    (`R1` = `5` statt `1`), kostet aber nur einen Schritt Unterschied (30
    gegen 31). Das `NOP` ist billig, die Diagnose ist es nicht.
-6. **Der Assembler schweigt zu oft.** `LDI 16384` assembleiert und ergibt
-   `0xC000`, gelesen als `−16384`. Nach unten (`LDI -16385`) rügt der
-   Assembler, nach oben lässt er alles bis `0x7FFF` durch.
+6. **`LDI` transportiert ein Muster, keinen Zahlenwert.** Die Vorzeichenerweiterung
+   macht die CPU (Spec §3.4), nicht der Assembler — alle 32768 Muster sind
+   zulässig. Die größte positive Zahl, die hineinpasst, ist `16383`;
+   `LDI 16384` ergibt gemessen `0xC000`, `LDI 20000` ergibt `0xCE20` — beide
+   korrekt, beide negativ gelesen. Wer eine größere positive Zahl braucht,
+   baut sie aus zwei `LDI` oder per `ADD`.
 7. **Der Simulator erzählt, was er tat.** `getRecentMemoryView()` (JS) und
-   `get_recent_access()` (WASM) nennen Adresse, Basisregister, Offset und
-   Segment des letzten Zugriffs — damit wird „ich lese `0xF0060`" von einer
-   Hoffnung zu einer Tatsache. Und weil beide Kerne getrennt implementiert
-   sind, ist ihre Übereinstimmung ein Test, keine Behauptung.
+   `get_recent_access()` (WASM und Verilog) nennen Adresse, Basisregister,
+   Offset und Segment des letzten Zugriffs — damit wird „ich lese `0xF0060`"
+   von einer Hoffnung zu einer Tatsache. Und weil drei getrennt implementierte
+   Kerne übereinstimmen müssen, ist ihre Einigkeit ein Test, keine Behauptung.
 
 **Nächstes Kapitel:** Kapitel 7 baut ein Mini-Forth — die Schleife aus
 Listing 6-5 wird zur Zeile des REPL, der Daten-Port zur Tastatureingabe und
