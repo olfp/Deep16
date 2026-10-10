@@ -6,14 +6,15 @@
 // recovery — on the JS core (the WASM core parity is covered by
 // shadow.test.js).
 //
-// Known quirks that are deliberately NOT pinned here because later phases
-// rework them (see the DeepForth expansion plan):
-//   - `.` terminates the input line: `1 . 2 .` discards the rest of the line,
-//   - bare strings (`"hi there`) swallow the remainder of the line.
+// Corrected after review: this file used to claim two quirks that do not
+// exist. `.` does NOT end the input line (`5 . 6 . 7 .` prints 5 6 7), and a
+// bare string is not swallowing the line — both are working features of the
+// tokenizer: a `"` opens a string that is printed to end of line, `."` prints
+// a string literal. They are pinned by tests below rather than left in prose.
 //
-// Resolved since: `0 .` prints the trailing space like every other value, and
-// `.` is signed while `u.` shows the raw cell — so `0 5 - .` gives -5 and
-// `0 5 - u.` gives 65531.
+// Still worth knowing about `.`: -32768 has no representable magnitude, so NEG
+// leaves it unchanged and the unsigned digit printer emits 32768 — the cell
+// reads `-32768`, which is the right answer.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -684,6 +685,44 @@ test('typing after a backspace keeps one cursor block', () => {
   const { rows, cursors, running } = repl('2 \b7\b8');
   assert.equal(rows[1], '> 28');
   assert.deepEqual(cursors[1], [4], 'only the current position carries the block');
+  assert.ok(running);
+});
+
+test('several dots on one line all execute', () => {
+  // Pins the correction: an old comment claimed `.` ends the input line.
+  const { rows, running } = repl('5 . 6 . 7 .\n');
+  assert.equal(rows[1], '> 5 . 6 . 7 . 5  6  7  ok');
+  assert.equal(rows[2], '>');
+  assert.ok(running);
+});
+
+test('a word after a dot still runs, so `.` does not end the line', () => {
+  const { rows, running } = repl('1 . dup .\n');
+  assert.equal(rows[1], '> 1 . dup . 1');
+  assert.equal(rows[2], 'stack underflow');
+  assert.ok(running);
+});
+
+test('." prints a string literal to the end of the line', () => {
+  const { rows, running } = repl('." hallo\n1 2 + .\n');
+  assert.equal(rows[1], '> ." hallohallo ok');
+  assert.equal(rows[2], '> 1 2 + . 3  ok');
+  assert.equal(rows[3], '>');
+  assert.ok(running);
+});
+
+test('a bare string is printed to the end of the line', () => {
+  const { rows, running } = repl('"hi there\n1 2 + .\n');
+  assert.equal(rows[1], '> "hi therehi there ok');
+  assert.equal(rows[2], '> 1 2 + . 3  ok');
+  assert.equal(rows[3], '>');
+  assert.ok(running);
+});
+
+test('. prints the most negative cell as -32768', () => {
+  const { rows, running } = repl('32767 1 + .\n32767 1 + u.\n');
+  assert.equal(rows[1], '> 32767 1 + . -32768  ok');
+  assert.equal(rows[2], '> 32767 1 + u. 32768  ok');
   assert.ok(running);
 });
 
