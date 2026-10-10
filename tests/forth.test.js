@@ -52,7 +52,17 @@ function repl(input, maxSteps = 600000) {
     }
     rows.push(s.replace(/\s+$/, ''));
   }
-  return { rows, steps, running: sim.running };
+  // Column of every cell carrying the block-cursor attribute bit (0x8000), so
+  // a cursor left behind on an earlier line shows up as a stale block.
+  const cursors = [];
+  for (let r = 0; r < 25; r++) {
+    const cols = [];
+    for (let c = 0; c < 80; c++) {
+      if (sim.memory[SCREEN_ADDR + r * 80 + c] & 0x8000) cols.push(c);
+    }
+    cursors.push(cols);
+  }
+  return { rows, cursors, steps, running: sim.running };
 }
 
 test('boots to the banner and an empty prompt', () => {
@@ -602,6 +612,58 @@ test('. prints the signed value while u. shows the raw cell', () => {
   assert.equal(rows[5], '> 32767 1 + . -32768  ok');
   assert.equal(rows[6], '> 32767 1 + u. 32768  ok');
   assert.equal(rows[7], '>');
+  assert.ok(running);
+});
+
+test('backspace edits the input buffer, not just the screen', () => {
+  // Regression: the BIOS getstr loop moved SCR back and blanked the cell but
+  // left its write pointer (R2) alone, so the erased character stayed in the
+  // buffer and the next key landed one cell past it — ",<BS>* ." became ",*".
+  const { rows, running } = repl('2 dup ,\b* .\n');
+  assert.equal(rows[1], '> 2 dup * . 4  ok');
+  assert.equal(rows[2], '>');
+  assert.ok(running);
+});
+
+test('backspace twice still edits the buffer', () => {
+  const { rows, running } = repl('2 dup ,,\b\b* .\n');
+  assert.equal(rows[1], '> 2 dup * . 4  ok');
+  assert.ok(running);
+});
+
+test('backspace on an empty line does nothing', () => {
+  const { rows, running } = repl('\b\b5 .\n');
+  assert.equal(rows[1], '> 5 . 5  ok');
+  assert.ok(running);
+});
+
+test('an error leaves no stale cursor on the input line', () => {
+  // The error paths jump to the next line without writing over the cell the
+  // cursor sits in, so they have to clear the attribute bit first. On the
+  // success path the result overwrites that cell, hence no leftover there.
+  const { rows, cursors, running } = repl('goo\n');
+  assert.equal(rows[1], '> goo');
+  assert.equal(rows[2], 'undefined word: goo');
+  assert.equal(rows[3], '>');
+  assert.deepEqual(cursors[1], [], 'no cursor block may survive on the input line');
+  assert.deepEqual(cursors[2], [], 'the error line carries no cursor');
+  assert.deepEqual(cursors[3], [2], 'the fresh prompt owns the cursor');
+  assert.ok(running);
+});
+
+test('stack underflow leaves no stale cursor either', () => {
+  const { rows, cursors, running } = repl('drop\n');
+  assert.equal(rows[1], '> drop');
+  assert.equal(rows[2], 'stack underflow');
+  assert.deepEqual(cursors[1], []);
+  assert.deepEqual(cursors[3], [2]);
+  assert.ok(running);
+});
+
+test('the success path leaves no cursor behind either', () => {
+  const { cursors, running } = repl('2 2 + .\n');
+  assert.deepEqual(cursors[1], [], 'the result overwrites the cursor cell');
+  assert.deepEqual(cursors[2], [2], 'the prompt owns the only cursor');
   assert.ok(running);
 });
 

@@ -203,11 +203,34 @@ newline_direct:
     NOP
 cursor_off:
     LDS R1, ES, SCR
-    LDI 0x7FFF
-    AND R1, R0
+    LDI 1
+    MOV R7, R0
+    SL  R7, 15           ; see clear_cursor: LDI 0x7FFF would load 0xFFFF
+    INV R7
+    AND R1, R7
     STS R1, ES, SCR
     LDI interpret_loop
     MOV PC, R0
+    NOP
+
+; clear_cursor erases the block cursor at ES:SCR and returns. The error paths
+; need it because they move SCR to the next line without writing over the cell
+; the cursor sits in — on the success path the result overwrites that cell, so
+; nothing is left behind.
+;
+; The mask must be built by hand: LDI takes a sign-extended 15-bit immediate,
+; so "LDI 0x7FFF" loads 0xFFFF and the AND would clear nothing. (The BIOS gets
+; away with the broken mask because it overwrites the cell with the character
+; right afterwards.)
+clear_cursor:
+    LDS R1, ES, SCR
+    LDI 1
+    MOV R7, R0
+    SL  R7, 15           ; R7 = 0x8000, the attribute bit
+    INV R7               ; R7 = 0x7FFF, i.e. the cell without it
+    AND R1, R7
+    STS R1, ES, SCR
+    JMP LR
     NOP
     ; Ensure Data Segment points to physical 0x0000
     LDI 0
@@ -647,6 +670,12 @@ skip_unknown:
     MOV R3, R0
     LDI 0
     ST R0, R3, 0
+    ; Drop the block cursor before SCR jumps to the next line
+    LDI clear_cursor
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
     ; The offending token's offset lives in >IN (R5), but the computation
     ; below reuses R5 for the column width. Park the token offset in R12
     ; (a scratch register on this path) so the bad word can be echoed.
@@ -733,6 +762,12 @@ err_continue:
     NOP
 
 stack_underflow_error:
+    ; Drop the block cursor before SCR jumps to the next line
+    LDI clear_cursor
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
     LDI 0x1000
     MOV R2, R0
     MOV R4, SCR
@@ -4274,6 +4309,9 @@ bios_getstr_loop:
     JZ bios_getstr_loop
     NOP
     SUB R11, 1
+    SUB R2, 1              ; R2 is the write pointer: rewind it too, otherwise
+                          ; the erased character stays in the buffer and the
+                          ; next key lands one cell past it
     SUB SCR, 1
     LDI ' '
     STS R0, ES, SCR
