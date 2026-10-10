@@ -240,6 +240,32 @@ daher nicht auf.
 | `get_recent_access`/`get_last_event`-UI-Kopplung | Bus-Tracking via Debug-Bus (0x24–0x2C) |
 | WASM-Größe | ✅ 179 KB gemessen (`rtl/pkg/deep16_rtl_gen.wasm`) |
 | Verilator-Parser-Eigenheiten | 5.032 parst `case`-Ranges falsch (`8'hC0-8'hCF` überlappt `8'h00-8'h0F`) — im Code vermieden, siehe doc/Deep16-RTL.md |
+| **Zählerzeile in der Handy-Ansicht weiterhin unsichtbar** | ⏸ **offen, zurückgestellt.** Siehe unten. |
+
+### Offen: Kern-Zählerzeile in der Handy-Ansicht (zurückgestellt)
+
+Die Zählerzeile neben der Laufanzeige wird in der Desktop-Ansicht nicht
+gesehen, in der **Handy-Ansicht überhaupt nicht** — gemeldet am 2026-10-10,
+nach dem erste Versuch (`0156aa7`) weiterhin bestätigt.
+
+Erster Versuch war die falsche Diagnose: die Zeile war nicht zu klein, sondern
+aus dem Bildbereich gedrückt, weil `.memory-panel-controls` ein Flex-Container
+ohne Umbruch ist. Der Umbruch und eine Kurzform sind eingebaut, haben das
+Problem aber **nicht** gelöst. Was tatsächlich greift, ist unbekannt.
+
+Nicht verifiziert ist bislang jedes gerenderte Bild — in dieser Umgebung gibt
+es keine Browsersteuerung. Geprüft wurde nur `updateCoreStats()` gegen die
+echten Getter des echten Kerns (`tests/ui-stats.test.js`), also die Daten, nicht
+das Layout.
+
+Ansatzpunkte für die Fortsetzung:
+
+- Sieht man die **Kurzform** (`#core-stats-mini`) und nur nicht die lange, oder
+  gar nichts? Das trennt CSS-Fehler von einem JS-Fehler.
+- Breite des Panels messen und prüfen, ob `.panel-header` die Breite begrenzt
+  oder `overflow` schneidet — der Fix zielte auf `.memory-panel-controls`, nicht
+  auf `.panel-header`.
+- Notfalls aus der Button-Reihe herausnehmen und unter die Kopfzeile setzen.
 
 ## Reihenfolge
 
