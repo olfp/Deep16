@@ -208,6 +208,20 @@
     }
 }
 
+/* The memory panel header carries Run / Halt / Step / Reset. The counter line
+   used to sit in that row and got pushed off it, because the row is a flex
+   container with an 18px gap and no wrapping. On a phone it wraps and shows the
+   short form (CPI + cache rate) instead of the full one. */
+@media (max-width: 900px) {
+    .memory-panel-controls {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    #reset-btn { margin-right: 0; }
+    .core-stats { display: none; }
+    .core-stats-mini { display: inline; }
+}
+
 @media (max-width: 480px) {
     .header-content { 
         display: grid !important; 

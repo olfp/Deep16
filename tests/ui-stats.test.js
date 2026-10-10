@@ -9,13 +9,22 @@ import vm from 'node:vm';
 import path from 'node:path';
 import { assemble, loadBrowserScripts, loadRtl, ROOT } from '/home/ubuntu/Deep16/tests/helpers.js';
 
-const captured = { text: '', title: '' };
+const captured = { text: '', title: '', mini: '', miniTitle: '' };
 globalThis.document = {
   addEventListener() {},
-  getElementById: (id) => (id === 'core-stats'
-    ? { set textContent(v) { captured.text = v; }, set title(v) { captured.title = v; },
-        get textContent() { return captured.text; } }
-    : null),
+  getElementById: (id) => {
+    if (id === 'core-stats') {
+      return { set textContent(v) { captured.text = v; }, set title(v) { captured.title = v; },
+               get textContent() { return captured.text; },
+               get title() { return captured.title; } };
+    }
+    // the narrow (phone) form of the same line
+    if (id === 'core-stats-mini') {
+      return { set textContent(v) { captured.mini = v; }, set title(v) { captured.miniTitle = v; },
+               get textContent() { return captured.mini; } };
+    }
+    return null;
+  },
   createElement: () => ({ style: {}, appendChild() {}, classList: { add() {} } }),
 };
 globalThis.window = globalThis.window || {};
@@ -41,6 +50,7 @@ test('the stats line reports only counters the active core really exports', asyn
   // render zeros, which would read like a cache that never hits.
   ui.updateCoreStats();
   assert.match(captured.text, /keine Zaehler/, `JS core rendered ${captured.text}`);
+  assert.equal(captured.mini, '', 'the narrow form must be empty without counters');
 
   const res = assemble(`
         .org 0x0100
@@ -84,4 +94,17 @@ test('the stats line reports only counters the active core really exports', asyn
               'the hit rate does not match the getters');
   }
   assert.match(captured.title, /Cache/, 'the tooltip does not explain the counters');
+
+  // The phone form carries only CPI and the cache rate - the full line does not
+  // fit next to Run/Step/Reset on a narrow header.
+  assert.ok(captured.mini.includes('CPI ' + (cycles / instr).toFixed(2)),
+            `narrow form is missing the CPI: "${captured.mini}"`);
+  if (hits + misses > 0) {
+    assert.ok(captured.mini.includes((100 * hits / (hits + misses)).toFixed(1) + '%'),
+              `narrow form is missing the hit rate: "${captured.mini}"`);
+  }
+  assert.ok(captured.mini.length < captured.text.length,
+            'the narrow form is not actually shorter than the full one');
+  assert.match(captured.miniTitle, /Cache/, 'the narrow tooltip does not explain the counters');
+  console.log('      narrow  : ' + captured.mini);
 });

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DeepCode - Deep16 (深十六) Integrated Development Environment</title>
-    <link rel="stylesheet" href="css/main.css?v=20261010-1">
+    <link rel="stylesheet" href="css/main.css?v=20261010-2">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="alternate icon" type="image/x-icon" href="favicon.ico">
 </head>
@@ -190,6 +190,7 @@ data_area:
                 <button id="run-btn" disabled>Run</button>
                 <span id="run-state-indicator" class="run-indicator run-indicator-halt">Halt</span>
                 <span id="core-stats" class="core-stats" title="Cycle, stall, flush and cache counters of the selected core"></span>
+                <span id="core-stats-mini" class="core-stats-mini" title="Cycle, stall, flush and cache counters of the selected core"></span>
                 <button id="step-btn" disabled>Step</button>
                 <button id="reset-btn" disabled>Reset</button>
                 <button id="view-toggle" class="view-toggle">Compact View</button>
@@ -388,6 +389,6 @@ data_area:
             console.warn('RTL module not loaded', e);
         }
     </script>
-    <script src="js/deep16_ui_core.js?v=20261010-3"></script>
+    <script src="js/deep16_ui_core.js?v=20261010-4"></script>
 </body>
 </html>

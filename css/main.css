@@ -2,10 +2,10 @@
 @import url('layout.css');
 @import url('header.css');
 @import url('editor.css');
-@import url('memory.css');
+@import url('memory.css?v=20261010-2');
 @import url('registers.css');
 @import url('tabs.css');
 @import url('transcript.css');
 @import url('file-menu.css');
 @import url('screen.css?v=20261010-1');
-@import url('responsive.css');
+@import url('responsive.css?v=20261010-2');

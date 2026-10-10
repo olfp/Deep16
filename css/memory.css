@@ -397,11 +397,24 @@
 
 /* Live counters of the selected core: CPI, stalls, flushes and cache hit rate.
    Only the compiled cores export these - the JS core shows the core name
-   alone, which is honest rather than showing fabricated zeros. */
+   alone, which is honest rather than showing fabricated zeros.
+
+   Two forms, one per width (see responsive.css): the full line needs more room
+   than a phone header has next to Run/Step/Reset. Both are always in the DOM;
+   only the visibility differs, so the long text stays available to a screen
+   reader and to a wider viewport. */
 .core-stats {
     font-family: 'Courier New', monospace;
     font-size: 11px;
     color: #9d9d9d;
     margin-left: 8px;
+    white-space: nowrap;
+}
+
+.core-stats-mini {
+    display: none;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #9d9d9d;
     white-space: nowrap;
 }

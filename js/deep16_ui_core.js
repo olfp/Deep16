@@ -340,6 +340,22 @@ class DeepWebUI {
         }
         el.textContent = parts.join('  |  ');
         el.title = `${label}: Zyklen, Stalls (Load-Use), verworfene Fetches, Cache-Treffer/-Misses`;
+
+        // Narrow form for phones: the header row carries Run/Step/Reset next to
+        // this, so the full line does not fit. Keep only the two numbers that
+        // change what you would do next - CPI and the cache hit rate. It is a
+        // separate element rather than a CSS trick so the full line stays
+        // readable in the DOM (and to screen readers and tests) either way.
+        const mini = document.getElementById('core-stats-mini');
+        if (mini) {
+            const short = [];
+            if (cycles !== null && instr) short.push(`CPI ${(cycles / instr).toFixed(2)}`);
+            if (hits !== null && misses !== null && (hits + misses) > 0) {
+                short.push(`Cache ${(100 * hits / (hits + misses)).toFixed(1)}%`);
+            }
+            mini.textContent = short.join(' \u00b7 ');
+            mini.title = el.title;
+        }
     }
 
     updateRunIndicator(isRunning) {
