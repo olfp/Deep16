@@ -4113,8 +4113,11 @@ bios_f2:
     JZ bios_putch_cr
     NOP
     ; regular character: clear old cursor, write char, advance, set new cursor
-    LDI 0x7FFF
+    LDI 1
     MOV R5, R0
+    SL  R5, 15             ; "LDI 0x7FFF" would sign-extend to 0xFFFF and the
+    INV R5                 ; AND would clear nothing; the char store below
+                          ; would hide the mistake
     LDS R1, ES, SCR
     AND R1, R5
     STS R1, ES, SCR
@@ -4312,6 +4315,17 @@ bios_getstr_loop:
     SUB R2, 1              ; R2 is the write pointer: rewind it too, otherwise
                           ; the erased character stays in the buffer and the
                           ; next key lands one cell past it
+    ; Clear the cursor in the cell we are about to leave. Unlike the character
+    ; echo below, backspace writes nothing over that cell, so the stale block
+    ; would stay visible. The mask cannot be "LDI 0x7FFF" — the immediate is
+    ; sign-extended to 0xFFFF and the AND would do nothing.
+    LDI 1
+    MOV R7, R0
+    SL  R7, 15             ; R7 = 0x8000, the attribute bit
+    INV R7                 ; R7 = 0x7FFF, the cell without it
+    LDS R3, ES, SCR
+    AND R3, R7
+    STS R3, ES, SCR
     SUB SCR, 1
     LDI ' '
     STS R0, ES, SCR
@@ -4328,8 +4342,10 @@ bios_store_char:
     ADD R2, 1
     ADD R11, 1
     ; echo directly: clear old cursor, write, advance, set cursor
-    LDI 0x7FFF
+    LDI 1
     MOV R5, R0
+    SL  R5, 15             ; see bios_f2: build the 0x7FFF mask by hand
+    INV R5
     LDS R3, ES, SCR
     AND R3, R5
     STS R3, ES, SCR

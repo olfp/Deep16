@@ -667,6 +667,26 @@ test('the success path leaves no cursor behind either', () => {
   assert.ok(running);
 });
 
+test('backspace leaves exactly one cursor block behind', () => {
+  // Regression: the BIOS backspace branch moved SCR back and redrew the block,
+  // but never cleared the cell it left, so the stale block survived next to the
+  // new one. The character echo hides the same mistake because the character
+  // store overwrites the old cell — backspace writes nothing over it.
+  const { rows, cursors, running } = repl('2 \b');
+  assert.equal(rows[1], '> 2');
+  assert.deepEqual(cursors[1], [3], 'a single block must remain, not two');
+  assert.ok(running);
+});
+
+test('typing after a backspace keeps one cursor block', () => {
+  // No trailing newline: the line is still being edited, so the block is the
+  // live cursor and no output has overwritten its cell yet.
+  const { rows, cursors, running } = repl('2 \b7\b8');
+  assert.equal(rows[1], '> 28');
+  assert.deepEqual(cursors[1], [4], 'only the current position carries the block');
+  assert.ok(running);
+});
+
 test('u. checks its operand', () => {
   const { rows, running } = repl('u.\n');
   assert.equal(rows[1], '> u.');
