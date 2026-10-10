@@ -63,6 +63,9 @@ module deep16_core
   input  logic [15:0] kbd_head,
   input  logic [7:0]  kbd_count,
 
+  // FSH retired in WB: the top invalidates every cache line (spec 7.4)
+  output logic        cache_flush,
+
   input  logic        dbg_en,
   input  logic        dbg_we,
   input  logic [7:0]  dbg_idx,
@@ -451,6 +454,7 @@ module deep16_core
 
   // pipeline control (combinational, driven by the EX stage)
   logic ex_kill, kill_id, flush_id;
+  logic      fsh_ex;           // this instruction is FSH
   logic      kbd_take_ex;   // this LDS reads the keyboard FIFO data port
 
   wire [15:0] pc_own1 = id_ex.pc0 + 16'd1;   // PC sources see own address + 1
@@ -460,6 +464,9 @@ module deep16_core
   // here, from the state chain - the same state the instruction reads.
   wire delay_in_ex = ctx_e.delay_active;
 
+  // FSH reaches the cache from WB, like every other side effect.
+  assign cache_flush = ctx.fsh;
+
   always_comb begin
     // ---- defaults -------------------------------------------------------
     ctx_next_ex    = ctx_e;
@@ -468,7 +475,7 @@ module deep16_core
     reg_bank       = ctx_e.psw[FLG_S];
     mem_we_ex      = 1'b0; mem_addr_ex = 21'd0; mem_wdata_ex = 16'h0000;
     mem_rd_valid_ex= 1'b0; mem_is_load_ex = 1'b0; load_rd_ex = 4'd0;
-    sh_clear_ex    = 1'b0; is_swi_ex = 1'b0;
+    sh_clear_ex    = 1'b0; is_swi_ex = 1'b0; fsh_ex = 1'b0;
     kbd_pop        = 1'b0; kbd_take_ex = 1'b0;
 
     rec_we_ex = 1'b0; rec_addr_ex = 21'd0; rec_base_ex = 16'h0000;
@@ -518,7 +525,11 @@ module deep16_core
         3'd1: begin                                             // SYS prefix
           case (id_ex.instr[2:0])
             3'd0: ;                                             // NOP
-            3'd1: ;                                             // FSH: no-op
+            3'd1: begin                                         // FSH: invalidate the cache
+              // A no-op in the behavioural cores (they have no cache), but
+              // architecturally transparent: it only drops cached copies.
+              fsh_ex = 1'b1;
+            end
             3'd2: begin                                         // SWI
               ctx_next_ex.spsw = ctx_e.psw;
               ctx_next_ex.psw  = 16'h0001 << FLG_S;   // handler PSW: S=1, rest clear
@@ -778,6 +789,9 @@ module deep16_core
 
         default: ;
       endcase
+
+      // FSH is a one-shot like the delay state: it must not stay asserted.
+      if (!fsh_ex) ctx_next_ex.fsh = 1'b0;
 
       // ---- keyboard FIFO pop ----------------------------------------------
       // The FIFO is popped from EX, not from WB, so that an LDS KBD_DATA in

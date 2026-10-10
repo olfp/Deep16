@@ -48,6 +48,7 @@ package deep16_pkg;
     logic        branch_taken;   // pending branch bookkeeping
     logic [15:0] delayed_pc, delayed_cs;
     logic        delayed_to_shadow;
+    logic        fsh;           // FSH retired: invalidate the cache (spec 7.4)
   } d16_ctx_t;
 
   localparam d16_ctx_t CTX_RESET = {
@@ -56,7 +57,8 @@ package deep16_pkg;
     16'hFFFF, 16'h0000, 16'h0000, 16'h0000,      // cs, ds, ss, es
     16'h0000, 16'h0000, 16'h0000,                // spsw, spc, scs
     16'h0000, 16'h0000, 16'h0000,                // sds, sss, ses
-    1'b0, 1'b0, 16'h0000, 16'h0000, 1'b0         // delay state
+    1'b0, 1'b0, 16'h0000, 16'h0000, 1'b0,        // delay state
+    1'b0                                         // fsh
   };
 
   // Replicates updatePSWFlags() of both behavioural cores: NZ from the low

@@ -111,6 +111,10 @@ export default async function initDeep16Rtl(options = {}) {
     get_cycle_count: () => Module._get_cycle_count(),
     get_stall_count: () => Module._get_stall_count(),
     get_flush_count: () => Module._get_flush_count(),
+    get_cache_hits: () => Module._get_cache_hits(),
+    get_cache_misses: () => Module._get_cache_misses(),
+    get_cache_penalty: () => Module._get_cache_penalty(),
+
     get_instr_count: () => Module._get_instr_count(),
     get_delay_state: () => {
       const ptr = reserve(10);
