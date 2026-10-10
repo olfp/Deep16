@@ -87,7 +87,7 @@ export async function loadWasm() {
 }
 
 // Run a program on the WASM core and return the same shape as runJs.
-export async function runWasm(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000, maxSteps = 200000, keys = [] } = {}) {
+export async function runWasm(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000, maxSteps = 200000, keys = [], serial = '', serialEof = false } = {}) {
   if (!res.success) throw new Error(`program does not assemble: ${res.errors.join('; ')}`);
   const w = await loadWasm();
   w.init(MEM_WORDS);
@@ -98,6 +98,9 @@ export async function runWasm(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es =
   // Preload the polled keyboard port (parity with Deep16Simulator.enqueueKeyCode):
   // the Forth REPL's BIOS getch/getstr read KBD_STATUS/KBD_DATA at 0xF0060/2.
   for (const code of keys) w.kbd_push(code & 0xFFFF);
+  // Serial line (SERPLAN.md): characters first, then the EOF flag.
+  for (const ch of serial) w.serial_push(ch.charCodeAt(0));
+  if (serialEof) w.serial_set_eof(true);
   let steps = 0;
   let cont = true;
   while (cont && steps < maxSteps) { cont = w.step(); steps++; }
@@ -108,6 +111,7 @@ export async function runWasm(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es =
     segments: Array.from(w.get_segments()),
     memoryAt: (addr, count) => Array.from(w.get_memory_slice(addr, count)),
     kbdPush: (code) => w.kbd_push(code & 0xFFFF),
+    serialPush: (code) => w.serial_push(code & 0xFFFF),
   };
 }
 

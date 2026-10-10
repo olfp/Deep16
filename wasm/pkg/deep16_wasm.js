@@ -63,6 +63,28 @@ export function kbd_clear() {
 }
 
 /**
+ * Push one character into the serial queue (parity with the JS core's
+ * `serialPush`). The host feeds a source in chunks while the machine polls.
+ * @param {number} code
+ */
+export function serial_push(code) {
+    wasm.serial_push(code);
+}
+
+/**
+ * Raise or lower the end-of-transmission flag. Queued characters stay
+ * readable: SER_STATUS only reports 2 once the queue has drained.
+ * @param {boolean} on
+ */
+export function serial_set_eof(on) {
+    wasm.serial_set_eof(on);
+}
+
+export function serial_clear() {
+    wasm.serial_clear();
+}
+
+/**
  * @param {number} n
  * @returns {boolean}
  */

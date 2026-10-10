@@ -11,6 +11,17 @@ export function load_program(ptr: number, data: Uint16Array): void;
  */
 export function kbd_push(code: number): void;
 export function kbd_clear(): void;
+/**
+ * Push one character into the serial queue (parity with the JS core's
+ * `serialPush`). The host feeds a source in chunks while the machine polls.
+ */
+export function serial_push(code: number): void;
+/**
+ * Raise or lower the end-of-transmission flag. Queued characters stay
+ * readable: SER_STATUS only reports 2 once the queue has drained.
+ */
+export function serial_set_eof(on: boolean): void;
+export function serial_clear(): void;
 export function run_steps(n: number): boolean;
 export function get_recent_access(): Uint32Array;
 export function get_last_event(): Uint16Array;
@@ -53,6 +64,9 @@ export interface InitOutput {
   readonly load_program: (a: number, b: number, c: number) => void;
   readonly reset: () => void;
   readonly run_steps: (a: number) => number;
+  readonly serial_clear: () => void;
+  readonly serial_push: (a: number) => void;
+  readonly serial_set_eof: (a: number) => void;
   readonly set_psw: (a: number) => void;
   readonly set_registers: (a: number, b: number) => void;
   readonly set_segments: (a: number, b: number, c: number, d: number) => void;

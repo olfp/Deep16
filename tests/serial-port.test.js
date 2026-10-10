@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  assemble, loadBrowserScripts, runJs, ROOT,
+  assemble, loadBrowserScripts, runJs, runWasm, ROOT,
 } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
@@ -170,6 +170,87 @@ test('serial: serialClear drops queued characters and the EOF flag', () => {
   sim.serialClear();
   assert.equal(sim.serBuffer.length, 0);
   assert.equal(sim.serEof, false);
+});
+
+// ---------------------------------------------------------------------------
+// Port parity: the same program and the same transfer on both cores. The serial
+// line is what the other cores have to grow, so the contract is pinned two-way
+// here instead of in a per-core file.
+//
+// The programs address the port through DS = 0xF000, which both cores decode
+// the same way and which needs no ES segment setup.
+// ---------------------------------------------------------------------------
+// The port has to be reached through ES = 0xF000: the boot ROM resets DS to 0
+// on the way in, so a DS-addressed read would land at 0x0066 and return plain
+// memory. The store side stays in DS, which keeps the results at address 8.
+function readCharsDs(n) {
+  // A loop counting down from 0 would run 65536 times, so the read block is
+  // only emitted when there is something to read.
+  const reads = n > 0 ? `
+        LDI ${n}
+        MOV R7, R0, 0
+loop:
+        LDS R2, ES, R5
+        STS R2, DS, R6
+        ADD R6, 1
+        SUB R7, 1
+        JNZ loop` : '';
+  return `
+        .org 0x0100
+main:
+        LSI R6, 8
+        LDI ${SER_DATA}
+        MOV R5, R0, 0${reads}
+        LDI ${SER_STATUS}
+        MOV R5, R0, 0
+        LDS R2, ES, R5
+        STS R2, DS, R6
+        HALT
+`;
+}
+
+// Store area for readCharsDs: one cell per character, then the status.
+function cells(get, count) {
+  const out = [];
+  for (let i = 0; i <= count; i++) out.push(get(8 + i) & 0xFFFF);
+  return out;
+}
+
+const PARITY_CASES = [
+  { label: 'one character, no EOF', n: 1, serial: 'A', eof: false, want: [0x0041, 0] },
+  { label: 'two characters, no EOF', n: 2, serial: 'AB', eof: false, want: [0x0041, 0x0042, 0] },
+  { label: 'EOF after draining', n: 2, serial: 'AB', eof: true, want: [0x0041, 0x0042, 2] },
+  { label: 'EOF with nothing queued', n: 0, serial: '', eof: true, want: [2] },
+  { label: 'EOF behind pending characters', n: 1, serial: 'AB', eof: true, want: [0x0041, 1] },
+  { label: 'empty reads keep the EOF flag', n: 2, serial: '', eof: true, want: [0, 0, 2] },
+];
+
+for (const c of PARITY_CASES) {
+  test(`serial parity: ${c.label}`, async () => {
+    const res = assemble(readCharsDs(c.n));
+    assert.ok(res.success, res.errors.join('; '));
+    const opts = { cs: 0xFFFF, es: 0xF000, maxSteps: 20000, serial: c.serial, serialEof: c.eof };
+    const { sim } = runJs(res, opts);
+    const js = cells((a) => sim.memory[a], c.n);
+    const wasm = await runWasm(res, opts);
+    const w = cells((a) => wasm.memoryAt(a, 1)[0], c.n);
+    assert.deepEqual(js, c.want, `the JS core reads something else`);
+    assert.deepEqual(w, c.want, `the WASM core reads something else`);
+  });
+}
+
+test('serial parity: WASM and JS agree cell for cell over a longer transfer', async () => {
+  const source = ': foo 41 ;\r';
+  const res = assemble(readCharsDs(source.length));
+  assert.ok(res.success, res.errors.join('; '));
+  const opts = { cs: 0xFFFF, es: 0xF000, maxSteps: 20000, serial: source, serialEof: true };
+  const { sim } = runJs(res, opts);
+  const wasm = await runWasm(res, opts);
+  const js = cells((a) => sim.memory[a], source.length);
+  const w = cells((a) => wasm.memoryAt(a, 1)[0], source.length);
+  const want = [...source].map((c) => c.charCodeAt(0)).concat([2]);
+  assert.deepEqual(js, want, 'the JS core must consume every character, then report EOF');
+  assert.deepEqual(w, js, 'both cores must consume the transfer identically');
 });
 
 // ---------------------------------------------------------------------------
