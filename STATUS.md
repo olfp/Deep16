@@ -2,6 +2,10 @@
 
 > Ständig gepflegter Arbeitsstand. Letzte Änderung: 2026-10-10.
 > Workflow-Regeln: [STYLE.md](STYLE.md).
+>
+> **2026-10-10:** Neuer Abschnitt „FPGA-Ziel Tang Nano 9K — Auslegungsbefunde"
+> und „Iterativer Teiler"; „Bekannte Mängel" ist nicht mehr leer. Für den
+> künftigen Hardware-Interrupt ist **Option 4 (Drain)** entschieden.
 
 ---
 
@@ -162,10 +166,185 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 4. Danach: Kapitel 7 (Mini-Forth) — die Schleife aus Listing 6-5 wird zur
    REPL-Zeile, `asm/forth.asm` liegt dafür bereits vor.
 
+## FPGA-Ziel Tang Nano 9K — Auslegungsbefunde
+
+**Stand 2026-10-10. Schätzung, keine Synthese** — auf dieser Maschine gibt es weder
+Yosys noch GowinE. Die Registerzahl ist exakt aus den Struct-Breiten gezählt, LUT-Zahl
+und Taktfrequenz sind Schätzungen.
+
+Zielressourcen (Sipeed-Wiki, GW1NR-9K): 8.640 LUT4, **6.480 FF**, 468 Kbit BSRAM
+(26 Blöcke), 20 × DSP 18×18, **2 PLL**, 64 Mbit PSRAM.
+
+### Passt der Kern?
+
+| Ressource | Bedarf | verfügbar | Anteil |
+|---|---|---|---|
+| FF | ~2.100 | 6.480 | **32 %** |
+| LUT4 | ~4.300 | 8.640 | **50 %** |
+| BSRAM (Cache 4 KB) | ~37 Kbit ≈ 2 Blöcke | 26 Blöcke | 8 % |
+
+Die FF-Verteilung: `ctx` 228, `if_id`+`id_ex` 100, `ex_mem`+`mem_wb` 896,
+Registerbank 688, Rest ~150. Der State-Bundle-Entwurf („EX rechnet den ganzen
+Folgezustand") kostet 2 × 228 = 456 FF allein für `ctx_next` durch die beiden
+Rückstufen — der Preis der Architektur, hier bezahlbar.
+
+### Befunde
+
+1. **Speicher passt nicht in BSRAM.** Die On-Chip-Matrix
+   (`rtl/deep16_top.sv:41`, `MEM_WORDS` in `rtl/deep16_pkg.sv:10`) belegt
+   16,8 Mbit bei 468 Kbit verfügbar — **35×**. Unverändert bestätigt:
+   PSRAM-Umbau ist Voraussetzung, nicht Kür.
+2. **`DIV`/`DIV32` schließt den Takt nicht** (`rtl/deep16_alu.sv:235`,
+   `quot32 = dividend32 / opv`). Eine 32÷16-Teilung braucht 16 sequentielle
+   Restwert-Iterationen mit je 33 Bit Vergleich/Subtraktion. Bei 54 MHz sind das
+   ~1,2 ns pro Iteration — auf diesem Baustein nicht erreichbar. Realistisch
+   40–80 ns, also ~12–25 MHz. **Das ist der einzige Befund, der die
+   Taktfrequenz des ganzen Kerns deckelt**, nicht die Ressourcen.
+   Abhilfe: iterativ über den vorhandenen `stall`-Pfad (5–6 Takte). Das
+   Interrupt-Problem stellt sich dabei **nicht** — siehe unten.
+3. **Nur 2 PLL, aber `GFX.md` §3 plant vier Taktbereiche** (54 / 74,25 / 162 /
+   371,25 MHz) bei 27-MHz-Quarz. 74,25 = 27 × 2,75 ist brüchig, braucht also ein
+   echtes PLL. 371,25 = 5 × 74,25 geht über OSER. Weg aus 2 PLL:
+   PLL1 → 74,25 (+5×), PLL2 → 162, CPU an **162/3 = 54 MHz**. Damit wird die
+   CPU-Takt aber eine *abgeleitete dritte* Domäne — eine Festlegung, die
+   `GFX.md` noch nicht getroffen hat.
+4. **Debug-Bus gehört synthesefrei.** Der `DBG_*`-Kanal (`harness.cpp`,
+   `get/set_debug_state`) ist reine Simulationsgerüstrüstung: ein
+   256-Eintrags-Mux über die ganze Maschine. Per `ifdef` entfernt spart er
+   ~800–1.200 LUTs und viel Routing.
+5. **GFX obendrauf:** Line-OAM ~600 FF, GCoP-Logik ~2.000–2.500 LUT ⇒
+   ~2.700 FF (42 %) und ~6.300–6.800 LUT (**73–79 %**). Passt, lässt aber keinen
+   Raum für die GFX-Domain-Grenze — dort ist der erste Überlauf zu erwarten.
+
+### Konfidenz
+
+* **Register: hoch** — exakt aus den Struct-Breiten gezählt.
+* **LUT: mittel** — ±25 %, ohne Synthese.
+* **54 MHz: gering** — der Baustein bringt auf mittlerer Logik ~100–150 MHz;
+  16-Bit-ALU plus breites Bypass-Netz in 18,5 ns ist *plausibel*, aber
+  ungeprüft. Der Teiler allein verhindert es heute.
+* Größte Unbekannte ist der **PSRAM-Controller**, den es noch nicht gibt.
+  Dessen Arbitrationslogik ist nicht geschätzt — und er ist der eigentliche
+  kritische Pfad des ganzen Projekts.
+
+---
+
+## Iterativer Teiler — gilt das für jeden FPGA?
+
+**Im Kern ja, mit zwei Einschränkungen.** Der Befund ist nicht FPGA-spezifisch
+zwitterhaft, sondern folgt aus einer Eigenschaft, die auf *allen* FPGAs gilt:
+
+**Es gibt keinen Teiler-Makro.** DSP-Blöcke können multiplizieren, nicht
+teilen. Eine Division ist auf jedem FPGA zwingend LUT-basiert, und die
+Restwertkette ist prinzipiell tief. Ein in einem Takt ausgerollter 32÷16-Teiler
+liegt damit auf keiner heutigen LUT-Struktur. Vergleichsweise: `MUL32` ist
+16×16→32 und passt bequem in einen DSP (20 sind vorhanden) — der Teiler ist der
+Ausreißer, nicht das Rechenwerk insgesamt.
+
+**Einschränkung 1 — „jeder" ist zu stark.** Auf einem schnellen Baustein
+(Speed-Grad -7/-8, gute Carry-Ketten) mag ein *einzelzyklisches* 16÷16 im
+Taktbereich liegen. In ASIC ist es erst recht machbar (~2.000–3.000 Gatter,
+100–200 MHz). Ein iterativer Teiler ist dort also *vorzuziehen*, nicht
+*notwendig*. Für Deep16 ist er trotzdem richtig: die Teilung ist 32÷16, und
+der Bruch ist eindeutig.
+
+**Einschränkung 2 — Durchsatz.** Iterativ heißt 1 Teilung pro N Zyklen. Wer
+viele Teilungen braucht, rollt teilweise aus (2 Bit pro Iteration) oder
+pipeliniert. Für Deep16 ist Durchsatz kein Thema.
+
+### Der eigentliche Preis — er fällt aus (2026-10-10 geprüft)
+
+Erste Einschätzung war: die Shadow-Register existieren **genau damit**, einen
+Interrupt in 2 Zyklen eintreten zu lassen (`doc/Deep16-Arch.md` §2.3); ein
+iterativer Teiler hält Zwischenergebnisse über mehrere Takte *innerhalb eines
+Befehls* und ein Interrupt mitten darin träfe auf architektonischen Zustand, den
+es noch nicht gibt. **Geprüft: das kann nicht eintreten.**
+
+1. **Es gibt keine Hardware-Interrupt-Leitung.** Kein `irq`, `int_req` oder `nmi`
+   im RTL; die Ports von `deep16_top` sind `clk/rst/i_step/i_free/o_*/kbd_*/dbg_*/cache_*`.
+2. **`SWI` ist der einzige Interrupt-Weg** — und wird in **EX** dekodiert
+   (`rtl/deep16_core.sv:546`, `is_swi_ex`).
+3. **`stall` friert die Pipeline** (`rtl/deep16_core.sv:1089-1095`): `ex_mem`,
+   `id_ex`, `if_id`, `if_pc` werden nicht weitergeschrieben, **EX hält seinen
+   Befehl**.
+4. Ein iterativer Teiler setzt `stall`, solange er iteriert → **EX hält das `DIV`
+   → kein folgender Befehl, auch kein `SWI`, erreicht EX.**
+
+**Folgerung:** Ein Interrupt kann den Teiler strukturell nie mitten im
+Flug erwischen. **Die vier Optionen sind für den heutigen Stand gegenstandslos —
+es ist nichts zu tun.** Auch die Spezifikationszusage „Interrupt latency:
+2 cycles" (`doc/Deep16-Arch.md` §1.3) bleibt unverändert *wahr*; der
+ursprünglich erwogene Zusatz „+6 Zyklen bei Division" ist nicht nötig.
+
+Der Teiler hält übrigens nur **5–6 Takte** (16 Iterationen à 33-Bit
+Vergleich/Subtraktion), nicht ~32 — die erste Schätzung war zu grob.
+
+### Entscheidung (2026-10-10): Option 4 (Drain) für den künftigen HW-Interrupt
+
+`doc/Interrupts.md` Zeile 64 spezifiziert `0x0001: HW_INT_VECTOR` — ein
+**geplantes, aber nicht gebautes** Hardware-Interrupt-System. Sobald es kommt,
+kann ein *asynchrones* IRQ mitten in einer Division eintreffen.
+
+**Festgelegt ist Option 4 (Drain).** Im Interrupt-Annahme-Pfad:
+
+    irq_pending <= irq_pending | irq_in;
+    take        <= irq_pending & PSW.I & !div_busy;   // div_busy = Teiler iteriert
+
+Kosten: **ein** zusätzliches FF (`irq_pending`) und ein UND in der
+Annahmebedingung. Worst Case steigt die Interrupt-Latenz von 2 auf 2 + ~6 Takte
+(bei 54 MHz: 37 ns → ~148 ns).
+
+**Begründung der Wahl:**
+
+* Das Problem ist für den heutigen Stand gegenstandslos (siehe oben). Option 4
+  kostet deshalb *jetzt* nichts und ist die Antwort, die man nicht neu
+  herleiten muss, wenn das HW-Interrupt-System gebaut wird.
+* Die Auswahl bindet kein Versprechen der Architektur: der Kern bleibt
+  Echtzeit-tauglich, nur die *Latenz* ist in diesem einen Fenster variabel.
+* **Option 1 (Shadow) bleibt bewusst abgelehnt**, weil sie den meistgelehrten
+  Begriff Shadow-Register auf Ausführungseinheiten-Zustand ausdehnen würde
+  (`book/kap05.md`, 730 Zeilen). Das wäre ein dauerhaftes zusätzliches
+  Versprechen in Spezifikation, Kapitel und Test — erkauft für ein Fenster, das
+  kein Deep16-Anwendungsfall enthält.
+
+Falls jemals ein echter Echtzeit-Anspruch gestellt wird, ist Option 1 der
+Ausweg: sie ist dann billig, weil der Mechanismus (Shadow-Bank) bereits
+existiert; es kommen ~60–80 FF und ein paar Muxer im SWI-Pfad dazu.
+
+Für den Teiler selbst ist der Ausweg aus dem Stall-Pfad klar: `stall` ist heute
+allein vom Load-Use-Hazard gesetzt (`rtl/deep16_core.sv:365-374`), ein Teiler
+OR-t seine eigene Bedingung dazu — derselbe Mechanismus, nur länger. Das ist
+die einzige Änderung, die für die Iterativ-Teilung überhaupt nötig ist.
+
+---
+
 ## Bekannte Mängel
 
-*Keine.* Der am 2026-10-10 vormerkte `LDI`-Bereichsfehler ist **kein
-Fehler** — die Vermerkung war eine Fehldiagnose (siehe Entscheidungs-Log).
+* **Nicht getestet:** `npm run lint:rtl` scheitert an
+  `Cannot find file containing module: 'deep16_cache'` — die Datei fehlt in der
+  Quellliste des npm-Skripts. Vorbestehend, mit `rtl/deep16_cache.sv` in der
+  Liste ist der Build lint-frei. Einzeilige Korrektur.
+* **Verhindert FPGA-Bau:** `DIV`/`DIV32` im Einzelzyklus (siehe oben).
+* Der am 2026-10-10 vormerkte `LDI`-Bereichsfehler ist **kein Fehler** —
+  die Vermerkung war eine Fehldiagnose (siehe Entscheidungs-Log).
+
+---
+
+## Geschätzte Performance (mit korrigierter Messung)
+
+`run_cycles()` (Commit `3e7b5b4`) macht die Zyklenzahl erst lesbar; vorher lag
+CPI konstant bei 2,0, weil `step()` je Befehl eine feste Pipeline-Füllphase
+zahlt. Nachgemessen, geradliniger Code:
+
+| ALU-Befehle pro Sprung | CPI | MIPS @ 54 MHz |
+|---|---|---|
+| 4 | 1,286 | 42,0 |
+| 12 | 1,133 | 47,6 |
+| 48 | 1,039 | 52,0 |
+
+Deckt den spezifizierten Bereich 1,0–1,3 (`doc/Deep16-Arch.md` §1.3). Referenz
+6502 @ 1 MHz: 0,43 MIPS. **Die Zahlen in `book/kap01.md` §1.1 (27 Mio. IPs,
+63× , 22×) stammen aus derselben Messung und sind entsprechend zu korrigieren.**
 
 ---
 
