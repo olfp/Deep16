@@ -21,7 +21,7 @@
 | 5 | Interrupts und Shadow-Register | ✅ fertig | beide Kerne | ✅ 8 SVG-Diagramme |
 | 6 | Der Simulator als Werkbank | ✅ fertig | beide Kerne | ✅ 1 SVG-Diagramm |
 | 7 | Ein Mini-Forth | ✅ fertig | beide Kerne | ✅ 1 SVG-Diagramm |
-| 8 | Terminal-Uhr / Snake-Projekt | ⏳ offen | — | — |
+| 8 | Snake auf dem Bildschirmpuffer | ✅ fertig | beide Kerne | ✅ 1 SVG-Diagramm |
 | A–D | Anhänge | ⏳ offen | — | — |
 
 Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
@@ -139,6 +139,28 @@ Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
   (fünf Listings × Eingabefälle auf allen drei Kernen), Dreikern-Gleichlauf
   31 Listings ohne Abweichung.
 
+### ✅ Kapitel 8 — `book/kap08.md` (669 Zeilen)
+- §8.1 Adressrechnung: Listing 8-1 (Zelle (2,7) → `0x10A7`), Tabelle 8-1 mit
+  den drei Randadressen, Listing 8-2 zeichnet den Rahmen (206 `*`, 1794
+  Leerzeichen, 54463 Schritte, alle drei Kerne).
+- §8.2 Scrollen: Listing 8-3 schiebt 1920 Wörter r��ckwärts; **1920/1920 Zellen
+  wie erwartet**, 0 Abweichungen zwischen den Kernen. Die letzten 80 Zellen
+  bleiben unberührt — korrekt, denn die unterste Zeile steht still.
+- §8.3 Das Spiel: Listing 8-4 (247 Zeilen, zwei Unterprogramme `feld`/`setz`).
+  Tabelle 8-3 listet **zehn gemessene Spielzüge** — einzelne Schritte, ein
+  geschlossenes Quadrat (`dswa`), eine ignorierte Taste, `Enter` als Ausstieg
+  (71 Schritte) und alle vier Randtreffer mit sichtbarem `X`.
+- **Drei Fehler, die beim Bauen real aufgetreten sind und jetzt im Buch stehen:**
+  Der Spaltenzähler stand *im Kopf* der Schleife, die ihn hochzählt (500000
+  Schritte ohne `HALT`); `LINK` ist kein Aufruf, sondern setzt nur `LR`; und
+  das Ergebnisregister der Adressrechnung wurde vom `LDI`-Scratch überschrieben
+  — das Spiel schrieb daraufhin nach `0x0110` und `0x01C4`, also in den
+  **Programmspeicher statt auf den Bildschirm**.
+- Verifikation: `npm test` 296/296, Extractor `extract_kap08.mjs` 172/172
+  (vier Listings × Fälle auf allen drei Kernen, inklusive vollständiger
+  Bildschirmprüfung aller 2000 Zellen), Dreikern-Gleichlauf 35 Listings ohne
+  Abweichung.
+
 ---
 
 ## Build & Tooling
@@ -177,6 +199,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-10 | **JS-Kern führt `LDS`/`STS` im Debugger mit**: `executeLDSSTS` setzte `recentMemoryAccess` nicht, das Speicherfenster zeigte nach einem `STS` auf den Bildschirm weiterhin die Brotkrume des Boot-ROMs (Adresse `0x0002`) statt `0xF1000` — der WASM-Kern (`recent_addr`) hatte es richtig. Das war die einzige Divergenz, die Kapitel 6 beim „gleiche Bitgenauigkeit"-Vergleich aufgedeckt hat; `tests/cores.test.js` 22/22 grün. | `js/deep16_simulator.js` |
 | 2026-10-10 | **`npm run lint:rtl` wieder benutzbar**: Die Quellliste im npm-Skript kannte weder `deep16_cache.sv` noch `deep16_divider.sv`, obwohl `deep16_top` den Cache und `deep16_core` den Teiler instanziiert — Verilator brach mit „Cannot find file containing module" ab. Die Liste entspricht jetzt der des Build-Skripts (`scripts/build_rtl_native.sh`); Lint läuft mit `-Wall` fehler- und warnungsfrei durch. | `package.json` |
 | 2026-10-10 | **Die vier offenen imm2-Punkte abgearbeitet**: **(1)** `MOV` hatte als einziger häufig benutzter Befehl **kein** Bit-Diagramm — ergänzt in Kap. 3 §3.1 mit den vier `imm2`-Funktionen (Tabelle 3-1, Listing 3-11, auf allen drei Kernen gemessen). **(2)** „Jede 16-Bit-Konstante kostet zwei Instruktionen" steht jetzt als Merksatz dort, gestützt auf die Messung `LDI 0x1234` + `MOV R5, R0` → `0x1234`. **(3)** `ALINK`/`ALNK` (Alias für `SMV Rx, APC`) fehlten im Buch — jetzt in Kap. 4 §4.2 mit Vergleichstabelle gegen `LINK` (gemessen `0x0101` gegen `0x0103`, bytegleiches Befehlswort `0xFEEF`) und Querverweis aus Tabelle 5-2 in Kap. 5. **(4)** Das `Jcc`-Ablaufdiagramm in Kap. 4 war mehrdeutig: „PC + 1" meinte die Adresse des `Jcc`, während die CPU im Slot bereits `PC + 2` ausgibt — neu beschriftet mit der **Ankunftsadresse `A`** und den gemessenen Werten (Slot `0x0105`, `MOV Rx, PC` im Slot liest `0x0106`). | `book/kap03.md`, `book/kap04.md`, `book/kap05.md` |
+| 2026-10-11 | **Kapitel 8 „Snake"** geschrieben. Der Buchplan nannte „Terminal-Uhr oder Snake"; gewählt wurde Snake, weil der Simulator **keinen Timer-Port** kennt (nur `0xF0060`/`0xF0062` und den Bildschirmpuffer) — eine Uhr wäre damit nur über eine Schleifenzählung gegangen und hätte nichts über die Maschine gezeigt. Snake nutzt Adressrechnung, Blockverschiebung, Unterprogramme und Tastatureingabe gemeinsam. Vier Listings, alle drei Kerne, Extractor 172/172. | `book/kap08.md`, `book/epub/*` |
 | 2026-10-11 | **Kapitel 7 „Ein Mini-Forth"** geschrieben, gestufter Aufbau nach Buchplan: Listing 7-1/7-2 (Zeile lesen, Wort schneiden), 7-3 (Wörterbuch mit Fehlerpfad), 7-4 (Zahl lesen und dezimal ausgeben), 7-5 (Schlussprogramm). Der Zwischenstand zu `SERPLAN.md` (Zeilenlängengrenze, EOF-Statuswert) ist für die serielle Variante noch nicht im Buch — Kapitel 8 oder Anhang D. Alle Zahlen auf JS-, WASM- und Verilog-Kern gemessen (Extractor 276/276). | `book/kap07.md`, `book/epub/*` |
 | 2026-10-10 | **Architektur-Revisionen abgeglichen**: Die Revisionsdokumente im Repo-Root sind in STATUS.md unter „Architektur-Revisionen im Repo-Root" nach Thema, Stand und Buchrelevanz eingeordnet. Zwei sind bewusst **kein** Buchthema: `GFX.md`/`GFXOVERV.md` (Grafik-Kern GCoP, Design-Phase, ferne Zukunft) und `PLANPSRAM.md` (PSRAM-Backing-Store, **nicht umgesetzt**). `SERPLAN.md` (8/9 Schritte fertig) ist Material für Kapitel 7. Der aus `VERILOG.md` folgende dritte Kern **wurde ins Buch übernommen**: Kapitel 6 §6.2 spricht jetzt von drei Kernen, und Probe (71/71) wie Extractor (94/94) messen auf JS, WASM und RTL — die Schrittzahlen stimmen auch auf dem Verilog-Kern. Vermessungs-Workflow in `STYLE.md` §7 entsprechend auf drei Kerne gestellt. | `book/kap06.md`, `STYLE.md`, `STATUS.md` |
 | 2026-10-10 | **Kapitel 6 „Der Simulator als Werkbank"** geschrieben: Speicherkarte (Tabelle 6-1), Tastaturports (Tabelle 6-2), Bildschirmzelle mit Bitdiagramm, die Kernfalle `LD`/`ST` sehen keine Ports, Delay-Slot-Falle messbar (`R1` = 5 statt 1), LDI-Mustergrenze, Debugger-Hooks. Alle Zahlen auf **allen drei** Kernen gemessen (Probe 71/71, Extractor 94/94). | `book/kap06.md`, `book/epub/*` |
