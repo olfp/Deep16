@@ -579,3 +579,44 @@ test('WASM: Forth REPL words and forget match the JS core', async () => {
   assert.equal(steps, 600000, 'the JS REPL must stay alive across words/forget');
   assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across words/forget');
 });
+
+test('WASM: Forth REPL 2/ abs min and max match the JS core', async () => {
+  // 2/ uses SRA, whose sign handling lives in the ALU2 decoder of each core,
+  // so the floor behaviour has to agree bit for bit.
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+  const input =
+    '7 2/ .\n' +
+    '0 3 - 2/ .\n' +
+    '5 abs .\n' +
+    '0 5 - abs .\n' +
+    '3 9 min .\n' +
+    '9 3 max .\n' +
+    '2/ .\n' +
+    '1 min .\n';
+
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0x8000; sim.segmentRegisters.ES = 0x2000;
+  for (const ch of input) sim.enqueueKeyCode(ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+  // 9 screen rows are needed, so the window is 960 bytes wide
+  const jsOut = screenText((a, n) => sim.memory.slice(a, a + n), SCREEN_ADDR, 960);
+
+  const wasm = await runWasm(res, { maxSteps: 600000, keys: [...input].map((ch) => ch.charCodeAt(0)) });
+  const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 960);
+
+  assert.ok(jsOut.includes('> 7 2/ . 3  ok'), '2/ halves a positive');
+  assert.ok(jsOut.includes('> 0 3 - 2/ . 65534  ok'), '2/ floors to -2');
+  assert.ok(jsOut.includes('> 0 5 - abs . 5  ok'), 'abs returns the magnitude');
+  assert.ok(jsOut.includes('> 9 3 max . 9  ok'), 'max keeps the larger operand');
+  assert.ok(jsOut.includes('stack underflow'), 'the new words check their operands');
+  assert.equal(wasmOut, jsOut, 'WASM 2//abs/min/max must match the JS core');
+  assert.equal(steps, 600000, 'the JS REPL must stay alive across the new arithmetic');
+  assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the new arithmetic');
+});

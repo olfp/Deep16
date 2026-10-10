@@ -580,3 +580,57 @@ test('forget rejects an unknown name', () => {
   assert.equal(rows[4], '> a . 1  ok');
   assert.equal(rows[5], '>');
 });
+
+test('2/ shifts arithmetically and floors like the standard requires', () => {
+  const { rows, running } = repl(
+    '7 2/ .\n' +
+    '0 3 - 2/ .\n'
+  );
+  assert.equal(rows[1], '> 7 2/ . 3  ok');
+  // -3 2/ = -2 (not -1): 65534 is -2 as an unsigned 16-bit cell
+  assert.equal(rows[2], '> 0 3 - 2/ . 65534  ok');
+  assert.equal(rows[3], '>');
+  assert.ok(running);
+});
+
+test('abs returns the magnitude', () => {
+  const { rows, running } = repl(
+    '5 abs .\n' +
+    '0 5 - abs .\n'
+  );
+  assert.equal(rows[1], '> 5 abs . 5  ok');
+  assert.equal(rows[2], '> 0 5 - abs . 5  ok');
+  assert.equal(rows[3], '>');
+  assert.ok(running);
+});
+
+test('min and max keep one operand and drop the other', () => {
+  const { rows, running } = repl(
+    '3 9 min .\n' +
+    '9 3 min .\n' +
+    '3 9 max .\n' +
+    '9 3 max .\n' +
+    '4 4 min 4 4 max + .\n'
+  );
+  assert.equal(rows[1], '> 3 9 min . 3  ok');
+  assert.equal(rows[2], '> 9 3 min . 3  ok');
+  assert.equal(rows[3], '> 3 9 max . 9  ok');
+  assert.equal(rows[4], '> 9 3 max . 9  ok');
+  // both words leave exactly one cell behind
+  assert.equal(rows[5], '> 4 4 min 4 4 max + . 8  ok');
+  assert.equal(rows[6], '>');
+  assert.ok(running);
+});
+
+test('2/, abs, min and max check their operands', () => {
+  const { rows, running } = repl(
+    '2/ .\n' +
+    '1 min .\n'
+  );
+  assert.equal(rows[1], '> 2/ .');
+  assert.equal(rows[2], 'stack underflow');
+  assert.equal(rows[3], '> 1 min .');
+  assert.equal(rows[4], 'stack underflow');
+  assert.equal(rows[5], '>');
+  assert.ok(running);
+});

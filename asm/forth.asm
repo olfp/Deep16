@@ -1174,6 +1174,30 @@ h_minus:
     .text "-"
     .word word_minus
 
+; --- additional arithmetic: 2/ abs min max ---
+; These four are the newest entries in the whole dictionary, so the oldest of
+; them links into the vocabulary chain below and forth_wl names the newest.
+h_max:
+    .word h_min
+    .word 3
+    .text "max"
+    .word word_max
+h_min:
+    .word h_abs
+    .word 3
+    .text "min"
+    .word word_min
+h_abs:
+    .word h_twoshift
+    .word 3
+    .text "abs"
+    .word word_abs
+h_twoshift:
+    .word h_forget
+    .word 2
+    .text "2/"
+    .word word_two_slash
+
 ; --- P3 control-flow words (immediate where they act at compile time) ---
 h_recurse:
     .word h_exit
@@ -1354,7 +1378,7 @@ h_fetch:
 ; --- wordlists: a vocabulary is identified by the address of its head cell,
 ; --- which chains its definitions newest-first and ends in 0.
 forth_wl:
-    .word h_forget       ; newest built-in header in the FORTH vocabulary
+    .word h_max           ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
     .word forth_wl
     .word 0, 0, 0, 0, 0, 0, 0
@@ -2078,6 +2102,114 @@ wslashmod_ok:
     ST R1, SP, 0          ; a's slot becomes the remainder
     SUB SP, 1
     ST R9, SP, 0          ; push the quotient on top
+    LDI next
+    MOV PC, R0
+    NOP
+
+; 2/ is an arithmetic right shift, so it floors as the Forth standard asks:
+; -3 2/ is -2, not -1.
+word_two_slash:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wtwoshift_under
+    NOP
+    LD R1, SP, 0
+    SRA R1, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wtwoshift_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_abs:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wabs_under
+    NOP
+    LD R1, SP, 0
+    LDI 0
+    CMP R1, R0             ; is n < 0 ?
+    JN wabs_neg
+    NOP
+    LDI next               ; n >= 0 is already its own magnitude
+    MOV PC, R0
+    NOP
+wabs_neg:
+    NEG R1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wabs_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+; min and max keep one of the two operands: b is popped first, so the result
+; slot is always a's slot.
+word_min:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wmin_ok
+    NOP
+    JN wmin_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wmin_ok:
+    LD R2, SP, 0          ; b
+    ADD SP, 1
+    LD R1, SP, 0          ; a
+    CMP R2, R1
+    JN wmin_take_b        ; b < a: the smaller one is b
+    NOP
+    LDI next              ; a <= b: a stays in its slot
+    MOV PC, R0
+    NOP
+wmin_take_b:
+    ST R2, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_max:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wmax_ok
+    NOP
+    JN wmax_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wmax_ok:
+    LD R2, SP, 0          ; b
+    ADD SP, 1
+    LD R1, SP, 0          ; a
+    CMP R2, R1
+    JN wmax_next          ; b < a: the larger one is a, already in its slot
+    NOP
+    ST R2, SP, 0          ; b >= a
+    LDI next
+    MOV PC, R0
+    NOP
+wmax_next:
     LDI next
     MOV PC, R0
     NOP
