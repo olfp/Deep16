@@ -1504,7 +1504,7 @@ word_dot:
     LDI '0'
     STS R0, ES, SCR
     ADD SCR, 1
-    LDI next
+    LDI dot_done         ; zero prints the trailing space like every other value
     MOV PC, R0
     NOP
 dot_nonzero:

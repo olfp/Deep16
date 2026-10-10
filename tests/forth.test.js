@@ -9,9 +9,13 @@
 // Known quirks that are deliberately NOT pinned here because later phases
 // rework them (see the DeepForth expansion plan):
 //   - `.` terminates the input line: `1 . 2 .` discards the rest of the line,
-//   - `0 .` prints without the trailing space and does NOT terminate the line
-//     (nonzero `.` does both) — pinned as-is in the number test,
 //   - bare strings (`"hi there`) swallow the remainder of the line.
+//
+// Resolved since: `0 .` now prints the trailing space like every other value.
+// What is still open: `.` prints the raw 16-bit cell, so a negative number
+// shows as its unsigned twin (`0 5 - .` gives 65531) and Forth's true (-1)
+// shows as 65535. The Forth standard wants `.` signed and `u.` unsigned;
+// making that change would move several pinned expectations above.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -85,7 +89,7 @@ test('the core stack words: * dup swap drop and chained arithmetic', () => {
 
 test('number printing covers zero and multi-digit values', () => {
   const { rows } = repl('0 .\n42 .\n');
-  assert.equal(rows[1], '> 0 . 0 ok'); // quirk: zero prints no trailing space
+  assert.equal(rows[1], '> 0 . 0  ok'); // zero prints the trailing space like any value
   assert.equal(rows[2], '> 42 . 42  ok');
 });
 
@@ -178,7 +182,7 @@ test('state, [ ] and immediate', () => {
     ': four two two + ;\n' +
     'four .\n'
   );
-  assert.equal(rows[1], '> state . 0 ok');
+  assert.equal(rows[1], '> state . 0  ok');
   assert.equal(rows[2], '> : c [ 3 4 + ] ; ok');
   assert.equal(rows[3], '> c . 7  ok');
   assert.equal(rows[4], '> : two 2 ; ok');
@@ -210,7 +214,7 @@ test('arithmetic words subtract, divide, take remainders and scale', () => {
   assert.equal(rows[2], '> 17 5 / . 3  ok');
   assert.equal(rows[3], '> 17 5 mod . 2  ok');
   assert.equal(rows[4], '> 17 5 /mod . . 3  2  ok');
-  assert.equal(rows[5], '> 5 negate 5 + . 0 ok');
+  assert.equal(rows[5], '> 5 negate 5 + . 0  ok');
   assert.equal(rows[6], '> 21 2* . 42  ok');
   assert.equal(rows[7], '> 4 1+ 1- . 4  ok');
   assert.equal(rows[8], '>');
@@ -225,11 +229,11 @@ test('comparisons yield the Forth true (-1) and false (0)', () => {
     '0 0= . 7 0= .\n' +
     '5 0< . 7 0> .\n'
   );
-  assert.equal(rows[1], '> 3 3 = . 3 4 = . 65535  0 ok');
-  assert.equal(rows[2], '> 3 4 < . 4 3 < . 65535  0 ok');
-  assert.equal(rows[3], '> 4 3 > . 3 4 > . 65535  0 ok');
-  assert.equal(rows[4], '> 0 0= . 7 0= . 65535  0 ok');
-  assert.equal(rows[5], '> 5 0< . 7 0> . 0 65535  ok');
+  assert.equal(rows[1], '> 3 3 = . 3 4 = . 65535  0  ok');
+  assert.equal(rows[2], '> 3 4 < . 4 3 < . 65535  0  ok');
+  assert.equal(rows[3], '> 4 3 > . 3 4 > . 65535  0  ok');
+  assert.equal(rows[4], '> 0 0= . 7 0= . 65535  0  ok');
+  assert.equal(rows[5], '> 5 0< . 7 0> . 0  65535  ok');
   assert.equal(rows[6], '>');
 });
 
@@ -308,7 +312,7 @@ test('memory words: variable, ! @ +! and a colon definition using them', () => {
   assert.equal(rows[2], '> 7 x ! x @ . 7  ok');
   assert.equal(rows[3], '> 4 x +! x @ . 11  ok');
   assert.equal(rows[4], '> variable y drop ok');
-  assert.equal(rows[5], '> y @ . 0 ok');
+  assert.equal(rows[5], '> y @ . 0  ok');
   assert.equal(rows[6], '> : inc y @ 1+ y ! ; ok');
   assert.equal(rows[7], '> inc y @ . 1  ok');
   assert.equal(rows[8], '>');
