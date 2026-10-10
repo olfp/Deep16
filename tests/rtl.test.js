@@ -168,6 +168,38 @@ test('MUL32/DIV32 pair semantics and the odd-destination refusal', async () => {
   assert.equal(rtl.registers[2], 0x0000);
 });
 
+test('back-to-back divisions each run the divider again', async () => {
+  // The iterative divider holds the pipeline for ~17 clocks per division. Its
+  // start pulse must re-arm once per DIV, not once per residence in EX: two
+  // DIVs in a row keep div_req high the whole time, so an arming scheme keyed
+  // on div_req never re-fires and the second DIV silently reuses the first
+  // quotient. Nothing else in the suite issues two divisions in a row.
+  const chain = assemble(`
+        LDI 1000
+        MOV R1, R0, 0
+        LSI R2, 7
+        DIV R1, R2
+        DIV R1, R2
+        DIV R1, R2
+        DIV R1, R2
+        HALT
+  `);
+  const { rtl } = await parity(chain, { name: 'DIV chain', cs: 0x0000 });
+  // 1000 -> 142 -> 20 -> 2 -> 0
+  assert.equal(rtl.registers[1], 0x0000);
+
+  // the same for DIV32, which takes its dividend from the R[d]:R[d+1] pair
+  const pair = assemble(`
+        LSI R2, 12
+        LSI R3, 3
+        DIV32 R2, R3
+        DIV32 R2, R3
+        DIV32 R2, R3
+        HALT
+  `);
+  await parity(pair, { name: 'DIV32 chain', cs: 0x0000 });
+});
+
 test('load/store with a negative offset', async () => {
   const res = assemble(`
         LSI SP, 15

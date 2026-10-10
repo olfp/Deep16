@@ -11,12 +11,15 @@ module deep16_alu
   input  logic [4:0]  func5,
   input  logic [15:0] rdv,        // active-bank Rd
   input  logic [15:0] opv,        // active-bank Rs (only used when is_reg)
-  input  logic [15:0] rd1_in,     // active-bank Rd+1 (DIV32 dividend low word)
   input  logic [3:0]  low4,       // Rs field / imm4
   /* verilator lint_off UNUSEDSIGNAL */
   input  logic [3:0]  rd,         // Rd field (pair alignment check)
   /* verilator lint_on UNUSEDSIGNAL */
   input  logic [15:0] psw_in,
+  // Result of the core's iterative divider (deep16_divider), valid because the
+  // core holds the pipeline on it until the quotient is ready.
+  input  logic [15:0] div_quot,
+  input  logic [15:0] div_rem,
   output logic [15:0] result,     // written to Rd
   output logic        rd_we,
   output logic        rd1_we,     // MUL32/DIV32 write Rd+1
@@ -36,13 +39,11 @@ module deep16_alu
   logic [31:0] fill_lo;           // cbit at count-1    (SLAC/RLC)
   logic [31:0] fill_hi;           // cbit at 15-count   (SRC/RRC)
   logic [31:0] sign_mask;
-  logic [31:0] quot32, rem32;
   /* verilator lint_on UNUSEDSIGNAL */
   logic [16:0] sum17;
   logic [16:0] diff17;
   logic        last32_set;      // ops that report a wider/signed result
   logic [31:0] prod32;
-  logic [31:0] dividend32;
   logic [3:0]  count;
   logic [4:0]  sh16;              // 16 - count, 5 bits wide
 
@@ -78,9 +79,6 @@ module deep16_alu
     fill_hi    = (count > 4'd0 && cbit) ? (32'h0000_0001 << (5'd15 - {1'b0, count})) : 32'h0;
     sign_mask  = rdv[15] ? (32'hFFFF_FFFF << sh16) : 32'h0;
     prod32     = rdv * opv_i;
-    dividend32 = {rdv, rd1_in};
-    quot32     = 32'h0;
-    rem32      = 32'h0;
 
     case (func5)
       // ---- logic group: NZC from the result, V from the op site ---------
@@ -222,7 +220,7 @@ module deep16_alu
         end
       end
       5'b11110: begin                                 // DIV Rd, Rs
-        result = (opv_i == 16'h0000) ? 16'hFFFF : (rdv / opv_i);
+        result = (opv_i == 16'h0000) ? 16'hFFFF : div_quot;
       end
       5'b11111: begin                                 // DIV32 R[d]:R[d+1]
         if (rd[0]) begin
@@ -232,11 +230,14 @@ module deep16_alu
         end else if (opv_i == 16'h0000) begin
           result = 16'hFFFF;
         end else begin
-          quot32  = dividend32 / {16'h0000, opv_i};
-          rem32   = dividend32 % {16'h0000, opv_i};
-          result  = quot32[15:0];
+          // Quotient and remainder come from the iterative divider in the
+          // core (deep16_divider), which holds the pipeline while it runs.
+          // Only the low 16 bits of each are architectural - Rd and Rd+1 are
+          // 16 bit - so the upper half a full 32/32 division would have
+          // produced is discarded, exactly as quot32[15:0]/rem32[15:0] did.
+          result  = div_quot;
           rd1_we  = 1'b1;
-          rd1_val = rem32[15:0];
+          rd1_val = div_rem;
         end
       end
 
