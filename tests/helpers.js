@@ -43,7 +43,7 @@ export function buildMemory(res, fill = 0xFFFF) {
 
 // Run a program on the JS core. cs defaults to 0xFFFF so the built-in ROM
 // boots the way it does in the IDE.
-export function runJs(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000, maxSteps = 200000, fill = 0xFFFF, keys = [] } = {}) {
+export function runJs(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000, maxSteps = 200000, fill = 0xFFFF, keys = [], serial = '', serialEof = false } = {}) {
   const { Deep16Simulator } = globalThis;
   if (!res.success) throw new Error(`program does not assemble: ${res.errors.join('; ')}`);
   const sim = new Deep16Simulator();
@@ -54,6 +54,9 @@ export function runJs(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000,
   sim.segmentRegisters.ES = es;
   sim.running = true;
   for (const code of keys) sim.enqueueKeyCode(code & 0xFFFF);
+  // Serial line (SERPLAN.md): preload the queue, then optionally raise EOF.
+  if (serial) sim.serialPushString(serial);
+  if (serialEof) sim.serialSetEof(true);
   let steps = 0;
   while (sim.running && steps < maxSteps) { sim.step(); steps++; }
   return { sim, steps, registers: sim.registers, memory: sim.memory };

@@ -10,6 +10,40 @@ Nicht Teil dieses Plans: Dateinamen, ein Dateisystem in der Maschine, Blöcke.
 
 ---
 
+## 0. Stand
+
+| Schritt | Inhalt | Status |
+|---------|--------|--------|
+| 1 | Port im JS-Kern | ✅ erledigt (`js/deep16_simulator.js`) |
+| 2 | Porttest | ✅ erledigt (`tests/serial-port.test.js`, 11 Tests) |
+| 3–6 | BIOS `f6`, `SERLOAD`, Kernel-Tests, `EVALUATE` | offen |
+| 7 | WASM nachziehen | ⛔ blockiert |
+| 8 | RTL nachziehen | ⛔ blockiert |
+| 9 | Host-Anbindung | offen |
+
+**Blocker Schritte 7 und 8:** In dieser Umgebung fehlen `wasm-pack` und
+`cargo`. Das WASM-Paket (`wasm/pkg/`) kann deshalb nicht neu gebaut werden, und
+für den RTL-Kern fehlt die Simulator-Toolchain. Beide Schritte brauchen eine
+Umgebung mit diesen Werkzeugen.
+
+**Korrektur an Schritt 1/2:** Der ursprüngliche Entwurf sah „Port in einem
+Kern" und danach „Paritätstest" vor — ein Paritätstest braucht aber zwei Kerne.
+Mit dem fehlenden Werkzeug ist ohnehin nur der JS-Kern baubar, deshalb ist der
+Test vorerst eine Prüfung dieses einen Kerns. Sobald WASM den Port hat, wird er
+um die Gleichheitsbehauptung erweitert.
+
+**Was Schritt 1 festlegt:**
+- `SER_STATUS` meldet `2` erst, wenn die Warteschlange leer ist. Ein EOF kann
+  Zeichen deshalb nie verdecken.
+- Ein Lesen auf `SER_DATA` verbraucht genau ein Zeichen und lässt das
+  EOF-Flag unberührt — ein leerer Lesevorgang schluckt kein EOF.
+- `reset()` leert die Leitung, damit ein Neustart keinen halben Quelltext und
+  kein altes EOF-Flag erbt.
+- Host-API: `serialPush`, `serialPushString`, `serialSetEof`, `serialClear`;
+  `runJs` nimmt `serial` und `serialEof` entgegen.
+
+---
+
 ## 1. Ausgangslage
 
 Die emulierte Maschine hat **kein Dateisystem**. Die BIOS bietet fünf
@@ -161,11 +195,12 @@ dann asynchron in Chunks, während der Simulator steppt.
 
 | Datei | Inhalt |
 |-------|--------|
+| `tests/serial-port.test.js` | **neu** — Portvertrag, vorerst JS-Kern: Status 0/1/2, Reihenfolge, **ein Lesevorgang = ein Zeichen**, EOF verdeckt keine Zeichen, leerer Lesevorgang schluckt kein EOF, Reset, `serialClear` |
 | `tests/forth.test.js` | Wort aus geladener Quelle aufrufen; Fehler in der Quelle bricht ab und der REPL lebt weiter; leere Übertragung; EOF ohne Newline; zu lange Zeile; `SERLOAD` mitten in einer Definition; `EVALUATE` über einen Puffer |
-| `tests/shadow.test.js` | JS↔WASM-Parität für `SERLOAD` und `EVALUATE` |
-| `tests/rtl.test.js` | Port-Dekodierung; **`every LDS SER_DATA consumes exactly one char`** |
+| `tests/shadow.test.js` | JS↔WASM-Parität für `SERLOAD` und `EVALUATE` (sobald WASM den Port hat) |
+| `tests/rtl.test.js` | Port-Dekodierung; **ein `LDS SER_DATA` verbraucht genau ein Zeichen** (sobald RTL gebaut werden kann) |
 
-Der RTL-Porttest ist die einzige Stelle, an der ein Fehler beim Einlesen
+Der Porttest ist die einzige Stelle, an der ein Fehler beim Einlesen
 stillschweigend Daten verschlucken würde — deshalb zuerst und einzeln.
 
 ---
@@ -173,17 +208,18 @@ stillschweigend Daten verschlucken würde — deshalb zuerst und einzeln.
 ## 8. Reihenfolge
 
 1. Port in einem Kern (Empfehlung: JS, weil die Tests dort am schnellsten sind)
-2. Paritätstest für den Port
+2. Porttest — siehe §0 zur Korrektur: ohne zweiten Kern nur eine Einzelprüfung
 3. BIOS `f6`
 4. `SERLOAD` mit `src_mode` und den drei Abfangstellen
 5. Kernel-Tests
 6. `EVALUATE`
-7. WASM nachziehen, Parität
-8. RTL nachziehen, Porttest
+7. WASM nachziehen, Parität — **Werkzeug fehlt**
+8. RTL nachziehen, Porttest — **Werkzeug fehlt**
 9. Host-Anbindung (`serial_push`, Dateidialog)
 
-Die drei Kerne ziehen am Schluss synchron nach; jeder Schritt ist einzeln
-prüfbar, und kein Schritt setzt einen anderen voraus.
+Die drei Kerne ziehen nach; jeder Schritt ist einzeln prüfbar, und kein Schritt
+setzt einen anderen voraus. Die Schritte 7 und 8 brauchen eine Umgebung mit
+`wasm-pack`/`cargo` und der RTL-Simulator-Toolchain.
 
 ---
 
