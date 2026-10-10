@@ -99,6 +99,30 @@ Ergebnis: `node scripts/rtl_sweep.mjs 4` → **524288 Wortausführungen,
 Der native/wasm-Inversion bleibt davon unberührt und weiter ungeklärt (siehe
 unten); sie ist ein Werkzeug-Thema, kein Kern-Thema.
 
+**Aufgelöst: die native/wasm-Inversion gab es nicht.** `main_native.cpp`
+parst `--run` mit `strtoul(..., 16)` — jede Schrittzahl, die ich übergab, wurde
+als Hexadezimal gelesen. `--run 400000` waren 4.194.304 Schritte, nicht
+400.000. Daraus entstand der Schein, der native Verilator-Kern sei rund
+achtmal langsamer als derselbe Code unter wasm.
+
+Korrigierte Werte (µs je retired Befehl, kleiner ist besser):
+
+| Kern | µs/Schritt | MIPS |
+|---|---|---|
+| Rust/WASM (Verhaltenskern) | 0,04 | ~25 |
+| RTL nativ (Verilator, aarch64) | 1,15 | ~0,9 |
+| RTL → WASM (Verilator/Emscripten) | 2,6 | ~0,4 |
+
+Der native Kern ist also rund 2,3× schneller als die WASM-Fassung — die
+übliche Reihenfolge. Nicht die Simulation ist der Preis, sondern der
+Verhaltenskern ist ~28× schneller als jeder taktgenaue Kern, selbst nativ
+kompiliert. Das ist der ehrliche Preis für die zyklengenaue Mikroarchitektur.
+
+`--run` ist jetzt dezimal, `--run-hex` für die alte Form; alle anderen Zahlen
+der CLI (Adressen, Segmente, `--fill`) bleiben hexadezimal. Die JSON-Ausgabe
+meldete die gelaufene Schrittzahl immer schon, sie war nur nicht mitgedacht
+worden.
+
 **Phase 3, 5, 6 stehen aus** (Cache, Resttests, Doku).
 
 ## Phase 4 — IDE-Anbindung (Kern-Auswahl steht)

@@ -5,8 +5,14 @@
 // results. It mirrors what tests/helpers.js runJs()/runRtl() do, so a failing
 // parity test can be replayed here step by step.
 //
-//   deep16_rtl [--run N] [--trace] [--cs HEX] [--ds HEX] [--ss HEX] [--es HEX]
-//               [--fill HEX] [program.txt]
+//   deep16_rtl [--run N | --run-hex N] [--trace] [--cs HEX] [--ds HEX]
+//               [--ss HEX] [--es HEX] [--fill HEX] [program.txt]
+//
+// --run takes a DECIMAL step count, unlike every other number on this command
+// line (addresses, segment registers, --fill), which is hexadecimal. The two
+// differed only invisibly, so "--run 400000" silently meant four million steps
+// and any timing taken from it was wrong by that factor. The JSON output
+// always reports the step count actually performed.
 //
 // program.txt holds one "WORD" or "ADDR WORD" pair per line (the assembler's
 // output works), hex without 0x. Without a file the program comes from stdin.
@@ -29,8 +35,13 @@ struct Word {
   uint16_t value;
 };
 
-uint32_t parse_u32(const char* s) {
+// Addresses, segment registers and --fill are hexadecimal; only the --run
+// step count is decimal (see the usage note).
+uint32_t parse_hex(const char* s) {
   return static_cast<uint32_t>(strtoul(s, nullptr, 16));
+}
+uint32_t parse_dec(const char* s) {
+  return static_cast<uint32_t>(strtoul(s, nullptr, 10));
 }
 
 std::vector<Word> read_program(const char* path) {
@@ -87,17 +98,18 @@ int main(int argc, char** argv) {
 
   for (int i = 1; i < argc; i++) {
     std::string a = argv[i];
-    if (a == "--run" && i + 1 < argc)        max_steps = parse_u32(argv[++i]);
+    if (a == "--run" && i + 1 < argc)        max_steps = parse_dec(argv[++i]);
+    else if (a == "--run-hex" && i + 1 < argc)  max_steps = parse_hex(argv[++i]);
     else if (a == "--trace")                trace = true;
-    else if (a == "--cs" && i + 1 < argc)   cs = parse_u32(argv[++i]);
-    else if (a == "--ds" && i + 1 < argc)   ds = parse_u32(argv[++i]);
-    else if (a == "--ss" && i + 1 < argc)   ss = parse_u32(argv[++i]);
-    else if (a == "--es" && i + 1 < argc)   es = parse_u32(argv[++i]);
-    else if (a == "--fill" && i + 1 < argc) fill = parse_u32(argv[++i]);
-    else if (a == "--dbg-set" && i + 1 < argc) { dbg_idx = parse_u32(argv[++i]); dbg_val = parse_u32(argv[++i]); dbg_set = true; }
-    else if (a == "--dbg" && i + 1 < argc)     { dbg_idx = parse_u32(argv[++i]); dbg_show = true; }
-    else if (a == "--dump" && i + 1 < argc)  dump_addr = parse_u32(argv[++i]);
-    else if (a == "--dump-count" && i + 1 < argc) dump_count = parse_u32(argv[++i]);
+    else if (a == "--cs" && i + 1 < argc)   cs = parse_hex(argv[++i]);
+    else if (a == "--ds" && i + 1 < argc)   ds = parse_hex(argv[++i]);
+    else if (a == "--ss" && i + 1 < argc)   ss = parse_hex(argv[++i]);
+    else if (a == "--es" && i + 1 < argc)   es = parse_hex(argv[++i]);
+    else if (a == "--fill" && i + 1 < argc) fill = parse_hex(argv[++i]);
+    else if (a == "--dbg-set" && i + 1 < argc) { dbg_idx = parse_hex(argv[++i]); dbg_val = parse_hex(argv[++i]); dbg_set = true; }
+    else if (a == "--dbg" && i + 1 < argc)     { dbg_idx = parse_hex(argv[++i]); dbg_show = true; }
+    else if (a == "--dump" && i + 1 < argc)  dump_addr = parse_hex(argv[++i]);
+    else if (a == "--dump-count" && i + 1 < argc) dump_count = parse_hex(argv[++i]);
     else if (!a.empty() && a[0] != '-')     path = argv[i];
     else {
       fprintf(stderr, "unknown option %s\n", argv[i]);
