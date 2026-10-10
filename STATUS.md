@@ -1,6 +1,6 @@
 # STATUS.md — Fortschritt des Deep16-Buchs
 
-> Ständig gepflegter Arbeitsstand. Letzte Änderung: 2026-10-10.
+> Ständig gepflegter Arbeitsstand. Letzte Änderung: 2026-10-11.
 > Workflow-Regeln: [STYLE.md](STYLE.md).
 >
 > **2026-10-10:** Neuer Abschnitt „FPGA-Ziel Tang Nano 9K — Auslegungsbefunde"
@@ -20,7 +20,7 @@
 | 4 | Flusskontrolle und Unterprogramme | ✅ fertig | beide Kerne | ✅ 4 SVG-Diagramme |
 | 5 | Interrupts und Shadow-Register | ✅ fertig | beide Kerne | ✅ 8 SVG-Diagramme |
 | 6 | Der Simulator als Werkbank | ✅ fertig | beide Kerne | ✅ 1 SVG-Diagramm |
-| 7 | Ein Mini-Forth | ⏳ offen | — | — |
+| 7 | Ein Mini-Forth | ✅ fertig | beide Kerne | ✅ 1 SVG-Diagramm |
 | 8 | Terminal-Uhr / Snake-Projekt | ⏳ offen | — | — |
 | A–D | Anhänge | ⏳ offen | — | — |
 
@@ -119,6 +119,26 @@ Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
   unverändert (die Schrittzahlen stimmen auch auf dem RTL-Kern), nur die
   Begründung trägt jetzt eine Pipeline *und* zwei Interpreter.
 
+### ✅ Kapitel 7 — `book/kap07.md` (1006 Zeilen)
+- §7.1 Die REPL-Schleife: Listing 7-1 (Zeile lesen + Echo), Listing 7-2
+  (Wort schneiden) samt der Lektion, dass `CMP R5, 32` am 4-Bit-Immediate
+  scheitert (`Immediate value 32 out of range (0-15)`).
+- §7.2 Wörterbuch: Listing 7-3 — lineare Suche über XOR-und-OR, dazu der
+  Fehlerpfad. Sieben Eingaben (`ABC`, `DEF`, `GHI`, `AB`, `ABCD`, `XYZ`,
+  `A`) mit gemessenen Opcodes und einem Fragezeichen für alles Unbekannte.
+- §7.3 Zahlen: Listing 7-4 — Ziffernprüfung per `DIV` als Türsteher,
+  Dezimalwandler mit `DIV32` (Quotient und Rest in einem Rutsch).
+- **Beispiel:** Listing 7-5, das Schlussprogramm (261 Zeilen, die drei
+  Stufen zusammengesetzt) — Zahl ausgeben oder Wörterbuch befragen.
+- Zwei Fallen, die beim Schreiben real aufgetreten sind und jetzt im Text
+  stehen: `MUL32` **überschreibt beide Operandenregister** (danach war
+  `R10` = 0 und der nächste `DIV` teilte durch Null → `0xFFFF`), und das
+  32-Bit-Paar steht **hoch in `Rd`**, niedrig in `Rd+1` — für Ergebnis
+  *und* Dividenden. Beides fällt nicht auf, es rechnet nur falsch.
+- Verifikation: `npm test` 296/296, Extractor `extract_kap07.mjs` 276/276
+  (fünf Listings × Eingabefälle auf allen drei Kernen), Dreikern-Gleichlauf
+  31 Listings ohne Abweichung.
+
 ---
 
 ## Build & Tooling
@@ -157,6 +177,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-10 | **JS-Kern führt `LDS`/`STS` im Debugger mit**: `executeLDSSTS` setzte `recentMemoryAccess` nicht, das Speicherfenster zeigte nach einem `STS` auf den Bildschirm weiterhin die Brotkrume des Boot-ROMs (Adresse `0x0002`) statt `0xF1000` — der WASM-Kern (`recent_addr`) hatte es richtig. Das war die einzige Divergenz, die Kapitel 6 beim „gleiche Bitgenauigkeit"-Vergleich aufgedeckt hat; `tests/cores.test.js` 22/22 grün. | `js/deep16_simulator.js` |
 | 2026-10-10 | **`npm run lint:rtl` wieder benutzbar**: Die Quellliste im npm-Skript kannte weder `deep16_cache.sv` noch `deep16_divider.sv`, obwohl `deep16_top` den Cache und `deep16_core` den Teiler instanziiert — Verilator brach mit „Cannot find file containing module" ab. Die Liste entspricht jetzt der des Build-Skripts (`scripts/build_rtl_native.sh`); Lint läuft mit `-Wall` fehler- und warnungsfrei durch. | `package.json` |
 | 2026-10-10 | **Die vier offenen imm2-Punkte abgearbeitet**: **(1)** `MOV` hatte als einziger häufig benutzter Befehl **kein** Bit-Diagramm — ergänzt in Kap. 3 §3.1 mit den vier `imm2`-Funktionen (Tabelle 3-1, Listing 3-11, auf allen drei Kernen gemessen). **(2)** „Jede 16-Bit-Konstante kostet zwei Instruktionen" steht jetzt als Merksatz dort, gestützt auf die Messung `LDI 0x1234` + `MOV R5, R0` → `0x1234`. **(3)** `ALINK`/`ALNK` (Alias für `SMV Rx, APC`) fehlten im Buch — jetzt in Kap. 4 §4.2 mit Vergleichstabelle gegen `LINK` (gemessen `0x0101` gegen `0x0103`, bytegleiches Befehlswort `0xFEEF`) und Querverweis aus Tabelle 5-2 in Kap. 5. **(4)** Das `Jcc`-Ablaufdiagramm in Kap. 4 war mehrdeutig: „PC + 1" meinte die Adresse des `Jcc`, während die CPU im Slot bereits `PC + 2` ausgibt — neu beschriftet mit der **Ankunftsadresse `A`** und den gemessenen Werten (Slot `0x0105`, `MOV Rx, PC` im Slot liest `0x0106`). | `book/kap03.md`, `book/kap04.md`, `book/kap05.md` |
+| 2026-10-11 | **Kapitel 7 „Ein Mini-Forth"** geschrieben, gestufter Aufbau nach Buchplan: Listing 7-1/7-2 (Zeile lesen, Wort schneiden), 7-3 (Wörterbuch mit Fehlerpfad), 7-4 (Zahl lesen und dezimal ausgeben), 7-5 (Schlussprogramm). Der Zwischenstand zu `SERPLAN.md` (Zeilenlängengrenze, EOF-Statuswert) ist für die serielle Variante noch nicht im Buch — Kapitel 8 oder Anhang D. Alle Zahlen auf JS-, WASM- und Verilog-Kern gemessen (Extractor 276/276). | `book/kap07.md`, `book/epub/*` |
 | 2026-10-10 | **Architektur-Revisionen abgeglichen**: Die Revisionsdokumente im Repo-Root sind in STATUS.md unter „Architektur-Revisionen im Repo-Root" nach Thema, Stand und Buchrelevanz eingeordnet. Zwei sind bewusst **kein** Buchthema: `GFX.md`/`GFXOVERV.md` (Grafik-Kern GCoP, Design-Phase, ferne Zukunft) und `PLANPSRAM.md` (PSRAM-Backing-Store, **nicht umgesetzt**). `SERPLAN.md` (8/9 Schritte fertig) ist Material für Kapitel 7. Der aus `VERILOG.md` folgende dritte Kern **wurde ins Buch übernommen**: Kapitel 6 §6.2 spricht jetzt von drei Kernen, und Probe (71/71) wie Extractor (94/94) messen auf JS, WASM und RTL — die Schrittzahlen stimmen auch auf dem Verilog-Kern. Vermessungs-Workflow in `STYLE.md` §7 entsprechend auf drei Kerne gestellt. | `book/kap06.md`, `STYLE.md`, `STATUS.md` |
 | 2026-10-10 | **Kapitel 6 „Der Simulator als Werkbank"** geschrieben: Speicherkarte (Tabelle 6-1), Tastaturports (Tabelle 6-2), Bildschirmzelle mit Bitdiagramm, die Kernfalle `LD`/`ST` sehen keine Ports, Delay-Slot-Falle messbar (`R1` = 5 statt 1), LDI-Mustergrenze, Debugger-Hooks. Alle Zahlen auf **allen drei** Kernen gemessen (Probe 71/71, Extractor 94/94). | `book/kap06.md`, `book/epub/*` |
 | 2026-10-10 | **`LDI`-Bereich: Vermerk zurückgenommen, Semantik festgeschrieben.** Der vormerkte „Bereichsfehler" war eine **Fehldiagnose** — die obere Grenze `0x7FFF` ist korrekt. Spec §3.4 lautet `R0 ← sign_extend(imm15)`: der Operand ist ein **15-Bit-Muster**, alle 32768 Muster sind legal, und die Vorzeichenerweiterung findet in der **CPU** statt, nicht im Assembler. `LDI 20000` → `0xCE20` (`−12992`) ist auf beiden Kernen das *richtige* Ergebnis. Ein Versuch, die Grenze auf `16383` zu ziehen, hat `forth.asm`, `swi-test.asm`, `screen_demo.asm`, `string_demo.asm` und `asm/backup` zerlegt (80 Testfehler) sowie den Disassembler-Round-Trip gebrochen — der Disassembler gibt Immediates als rohes Hex aus, das sich dann nicht wieder laden ließ. **Regel:** Assembler prüft nur, ob der Wert in ein 15-Bit-Feld passt (`0..0x7FFF` oder `-16384..-1`, dieselben Muster in zwei Schreibweisen), nicht ob er in einen Vorzeichenbereich passt. Absicherung: `tests/disassembler.test.js` prüft jetzt alle 32768 Muster auf `disassemble → assemble`, STYLE.md §9 als eingefrorener Fact präzisiert, die irreführenden TODO-Kommentare in `js/deep16_assembler.js` ersetzt. Kapitel 2/3/6 und alle EPUBs bleiben unverändert — sie hatten recht. | `js/deep16_assembler.js`, `tests/disassembler.test.js`, `STYLE.md` §9 |
