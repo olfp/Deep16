@@ -77,13 +77,27 @@ machten, die Abweichungen zu sehen: der Schatten-Seed steuerte den aktiven
 das `at`-Feld las 0x2F *nach* dem Schritt (das ist der nächste Befehl). Nach
 der Korrektur sind die Seeds 0–2 (393216 Wortausführungen) fehlerfrei.
 
-**Offener Punkt (nächste Aufgabe, blockiert Phase 2 nicht mehr):** Seed 3 des
-Sweeps — der einzige mit `PSW.S=1` — zeigt noch echte Abweichungen im
-Schattenkontext: 3724 Wörter im Normalpfad, 7895 im Delay-Slot-Pfad. Betroffen
-sind ALU-, `LDS`/`STS`- und reservierte Wörter; Symptome sind falsche
-Operanden (`R4 = 3` statt 4), abweichende Carry-Flags und ein Recent-Access,
-der auf die PSW-Seed-Adresse zeigt. Da Seeds 0–2 sauber sind, liegt die Ursache
-ausschließlich im Schattenpfad. Werkzeug: `node scripts/rtl_sweep.mjs 4`.
+**Sweep-Abgleich abgeschlossen — alle vier Seeds fehlerfrei.** Die previously
+als „3724 + 7895 Wörter im Schattenkontext" gemeldete Abweichung hatte zwei
+Ursachen, keine davon in der Ausführungslogik des Schattenpfads:
+
+1. **Der Seed selbst war unsymmetrisch.** `set_registers()` im Harness legt
+   Index 15 auf den *aktiven* PC — im Schatten-Seed also auf den Schatten-PC.
+   Der Normalbank-PC blieb 0, während der JS-Seed beide setzt. Da
+   PC-relative Adressierung im Schattenkontext den Normalbank-PC liest, lud
+   jedes PC-relative `LD` aus Adresse 0. `rtlSeed()` setzt 0x0F jetzt explizit.
+2. ** Echter RTL-Fehler im Debug-Fenster.** Das Schatten-Fenster ist als
+   0x1B–0x20 dokumentiert (R0'–R3', R13', R14'), die Verriegelung prüfte aber
+   nur `dbg_idx[3:0] >= 0xB` — das endet bei 0x1F, weil 0x20 `[7:4] == 2` hat.
+   Schatten-**R14'** war über den Debug-Bus weder schreib- noch lesbar und
+   behielt deshalb seinen Resetwert 0xFFFF. Das traf jeden ALU-Befehl mit
+   R14 als Operand.
+
+Ergebnis: `node scripts/rtl_sweep.mjs 4` → **524288 Wortausführungen,
+0 Abweichungen** (Seed 3 eingeschlossen), 232/232 Tests grün.
+
+Der native/wasm-Inversion bleibt davon unberührt und weiter ungeklärt (siehe
+unten); sie ist ein Werkzeug-Thema, kein Kern-Thema.
 
 **Phase 3, 5, 6 stehen aus** (Cache, Resttests, Doku).
 

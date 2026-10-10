@@ -102,7 +102,10 @@ module deep16_regfile (
     end
     if (dbg_we) begin
       if (dbg_idx[7:4] == 4'h0 && dbg_idx[3:0] != 4'hF) regs_q[dbg_idx[3:0]] = dbg_wdata;
-      else if (dbg_idx[7:4] == 4'h1 && dbg_idx[3:0] >= 4'hB) shad_q[dbg_shad] = dbg_wdata;
+      // The window is 0x1B..0x20 - six registers. Testing [3:0] >= 0xB alone
+      // stops at 0x1F and leaves shadow R14' (shad[5]) unreachable, because
+      // 0x20 has [7:4] == 2. Compare the whole index instead.
+      else if (dbg_idx >= 8'h1B && dbg_idx <= 8'h20) shad_q[dbg_shad] = dbg_wdata;
     end
   end
 
@@ -121,7 +124,7 @@ module deep16_regfile (
 
   always_comb begin
     if (dbg_idx[7:4] == 4'h0 && dbg_idx[3:0] != 4'hF)      dbg_rdata = regs[dbg_idx[3:0]];
-    else if (dbg_idx[7:4] == 4'h1 && dbg_idx[3:0] >= 4'hB) dbg_rdata = shad[dbg_shad];
+    else if (dbg_idx >= 8'h1B && dbg_idx <= 8'h20) dbg_rdata = shad[dbg_shad];
     else if (dbg_idx[7:4] == 4'h3 && dbg_idx[3:0] != 4'hF)
       dbg_rdata = (dbg_in_shadow && is_banked(dbg_idx[3:0])) ? shad[shad_idx(dbg_idx[3:0])]
                                                               : regs[dbg_idx[3:0]];

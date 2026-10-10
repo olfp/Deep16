@@ -153,6 +153,12 @@ function rtlSeed(seed, { delaySlot }) {
   // In a shadow seed the active PC is the shadow one, so steer it at the word
   // under test as well (0x16 = shadow PC, only the active one steers the fetch).
   if (inShadow) rtl.set_debug_state(0x16, CODE_ADDR);
+  // set_registers() routes index 15 to the *active* PC, which in a shadow seed
+  // is the shadow one - so the normal-bank PC never gets written and stays 0.
+  // The JS seed sets both, and PC-relative addressing reads the normal-bank PC
+  // in shadow context, so set it explicitly. Without this every PC-relative
+  // load in seed 3 loads from address 0.
+  rtl.set_debug_state(0x0F, CODE_ADDR);
   rtl.set_debug_state(DBG_FLAGS, 0);                               // clear delay state
   rtl.set_debug_state(0x22, 0);
   rtl.set_debug_state(0x23, 0);
