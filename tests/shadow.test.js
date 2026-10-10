@@ -544,6 +544,47 @@ test('WASM: Forth REPL vocabularies and the search order match the JS core', asy
   assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the vocabularies');
 });
 
+// Columns whose cell carries the block-cursor attribute (0x8000). memoryAt is a
+// function (addr, count) -> array for the WASM core and a slice for the JS one.
+function cursorCells(memoryAt, addr, rows = 8, cols = 40) {
+  const cells = [];
+  for (let r = 0; r < rows; r++) {
+    const line = memoryAt(addr + r * 80, cols);
+    for (let c = 0; c < cols; c++) if (line[c] & 0x8000) cells.push(`${r}:${c}`);
+  }
+  return cells;
+}
+
+test('WASM: Forth REPL backspace leaves one cursor block on both cores', async () => {
+  // The backspace path is the only place where nothing overwrites the cell the
+  // cursor is leaving, so a broken attribute mask is visible there. Pin it on
+  // both cores: a divergence between them would otherwise only show up in the
+  // browser, where one core is picked at runtime.
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+  const input = '123456\b\b\b';
+
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0x8000; sim.segmentRegisters.ES = 0x2000;
+  for (const ch of input) sim.enqueueKeyCode(ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+
+  const wasm = await runWasm(res, { maxSteps: 600000, keys: [...input].map((ch) => ch.charCodeAt(0)) });
+
+  const jsCells = cursorCells((a, n) => sim.memory.slice(a, a + n), SCREEN_ADDR);
+  const wasmCells = cursorCells(wasm.memoryAt, SCREEN_ADDR);
+
+  assert.deepEqual(jsCells, ['1:5'], 'the JS core keeps exactly one block');
+  assert.deepEqual(wasmCells, ['1:5'], 'the WASM core must behave the same');
+  assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive');
+});
+
 test('WASM: Forth REPL words and forget match the JS core', async () => {
   // words clears the screen and walks the first wordlist; forget rewrites the
   // wordlist head and reclaims HERE, so both cores must agree cell for cell.
