@@ -122,9 +122,9 @@ export default async function initDeep16Rtl(options = {}) {
     // one clock + a pipeline snapshot; for debugging without a waveform viewer
     debug_step_trace: (maxTicks = 32) => {
       const n = Math.max(1, maxTicks | 0);
-      const ptr = reserve(n * 16);
+      const ptr = reserve(n * 24);
       Module._debug_step_trace(ptr, n);
-      return copyOutU16(n * 8);
+      return copyOutU16(n * 12);
     },
     debug_tick: () => {
       const ptr = reserve(16);

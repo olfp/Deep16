@@ -107,10 +107,21 @@ aus `js/deep16_simulator.js`. Die Stellen, an denen das nichttrivial war:
   trotzdem gesetzt (wie im JS-Kern).
 * **Tastatur.** Nur `LDS` auf 0xF0060/0xF0062 sieht die FIFO; ein gewöhnliches
   `LD` auf diese Adressen liest Speicher. FIFO-Tiefe 128, Überlauf verwirft.
+  Das Pop erfolgt in **EX**, nicht in WB: so sieht ein `LDS KBD_DATA` im
+  nächsten Takt schon den nächsten Schlüssel, also ein Schlüssel pro retired
+  Befehl wie in den Verhaltenskernen. Damit ist der Pop die einzige
+  Nebenwirkung außerhalb von WB und muss Bedingung „der Befehl verlässt EX in
+  diesem Takt“ tragen: `run && !step_done && !stall`. Zwischen zwei Schritten
+  steht die Pipeline still (`step_done` hält ID/EX), und ein gehaltener Befehl
+  würde sonst über die Schrittgrenze hinweg erneut poppen.
+* **Nur R0–R3, R13, R14 sind banked.** R4–R12 gehören beiden Kontexten. Der
+  Bypass wählt deshalb `base_v = (bank && idx_banked(a)) ? s : n` — genau wie
+  `banked_read()` in der Registerdatei. Ohne diese Bedingung liefert im
+  Schattenkontext jeder Leseport auf R4–R12 den Schatten-Tap `shad[idx[2:0]]`.
 
 ## Debug-Bus
 
-Der Harness spricht den Kern über einen schmalen Debug-Bus an (0x00–0x5F),
+Der Harness spricht den Kern über einen schmalen Debug-Bus an (0x00–0x6F),
 damit Zustand und Speicher ohne Wellenformviewer lesbar sind:
 
 | Index | Inhalt |
@@ -131,6 +142,9 @@ damit Zustand und Speicher ohne Wellenformviewer lesbar sind:
 | 0x60/0x61 | Register-Schreibadresse/-wert der MEM-Stufe |
 | 0x65–0x67 | Store der MEM-Stufe (Enable, Adresse low/high) |
 | 0x68 | Leseadressen der drei EX-Ports |
+| 0x69–0x6B | Operanden r1/r2/r3 der EX-Stufe nach dem Bypass |
+| 0x6C/0x6D | Schreibinfo der MEM-/WB-Stufe (valid, Bank, we_a/we_b, wa) |
+| 0x6E | Tastatur-FIFO: `{0, kbd_pop, kbd_ready}` |
 | 0x63/0x64 | eigene Adresse und aktiver CS des Befehls in IF/ID |
 | 0x2F | aktuell ausgeführter Befehl |
 | 0x30–0x3F | Registerbank in der aktiven Sicht (Shadow, wenn PSW.S=1) |

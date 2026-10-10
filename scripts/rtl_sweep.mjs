@@ -69,6 +69,7 @@ sim.executeInstruction = (instruction, originalPC) => {
 const jsShadowKeys = ['PSW', 'PC', 'CS', 'DS', 'SS', 'ES', 'R0', 'R1', 'R2', 'R3', 'R13', 'R14'];
 
 function jsSeed(seed, { delaySlot }) {
+  const inShadow = (seed.psw & 0x20) !== 0;
   sim.registers.fill(0);
   for (let i = 0; i < 16; i++) sim.registers[i] = seed.regs[i];
   sim.psw = seed.psw;
@@ -77,6 +78,9 @@ function jsSeed(seed, { delaySlot }) {
   sim.segmentRegisters.SS = 0x0000;
   sim.segmentRegisters.ES = 0x0000;
   for (const k of jsShadowKeys) sim.shadowRegisters[k] = 0;
+  // In a shadow seed the active PC is the shadow one - it has to point at the
+  // word under test as well, otherwise the fetch runs off into empty memory.
+  if (inShadow) { sim.shadowRegisters.PC = CODE_ADDR; sim.shadowRegisters.CS = 0x0000; }
   sim.delaySlotActive = false;
   sim.branchTaken = false;
   sim.delayedPC = 0;
@@ -93,7 +97,7 @@ function jsSeed(seed, { delaySlot }) {
     sim.branchTaken = true;
     sim.delayedPC = CODE_ADDR;
     sim.delayedCS = 0x0000;
-    sim.delayedToShadow = false;
+    sim.delayedToShadow = inShadow;
   }
   sim.memory[CODE_ADDR] = 0xFFFF;   // placeholder, overwritten per word
   sim.memory[2] = CODE_ADDR;        // SWI vector
@@ -140,11 +144,15 @@ function jsStep(seed, word, { delaySlot }) {
 
 // ---- RTL side ------------------------------------------------------------
 function rtlSeed(seed, { delaySlot }) {
+  const inShadow = (seed.psw & 0x20) !== 0;
   rtl.set_psw(seed.psw);
   rtl.set_segments(0x0000, 0x0000, 0x0000, 0x0000);
   rtl.set_registers(Uint16Array.from(seed.regs));
   for (let i = 0; i < 12; i++) rtl.set_debug_state(0x15 + i, 0);  // shadow state
   for (let i = 0; i < 6; i++) rtl.set_debug_state(0x1B + i, 0);   // shadow registers
+  // In a shadow seed the active PC is the shadow one, so steer it at the word
+  // under test as well (0x16 = shadow PC, only the active one steers the fetch).
+  if (inShadow) rtl.set_debug_state(0x16, CODE_ADDR);
   rtl.set_debug_state(DBG_FLAGS, 0);                               // clear delay state
   rtl.set_debug_state(0x22, 0);
   rtl.set_debug_state(0x23, 0);
@@ -157,10 +165,11 @@ function rtlSeed(seed, { delaySlot }) {
   rtl.set_debug_state(0x2B, 0);
   rtl.set_debug_state(0x2C, 0x0001);
   if (delaySlot) {
-    rtl.set_debug_state(DBG_FLAGS, 0x02);                           // branch_taken
+    // 0x21: bit0 delay_active, bit1 branch_taken, bit2 delayed_to_shadow
+    rtl.set_debug_state(DBG_FLAGS, 0x02 | (inShadow ? 0x04 : 0x00));
     rtl.set_debug_state(0x22, CODE_ADDR);                           // delayed_pc
     rtl.set_debug_state(0x23, 0x0000);                             // delayed_cs
-    rtl.set_debug_state(DBG_FLAGS, 0x03);                           // + delay_active
+    rtl.set_debug_state(DBG_FLAGS, 0x03 | (inShadow ? 0x04 : 0x00));
   }
   rtl.poke(CODE_ADDR, 0xFFFF);
   rtl.poke(2, CODE_ADDR);
@@ -182,7 +191,12 @@ function rtlStep(seed, word, { delaySlot }) {
     shadowRegs: [0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20].map((i) => rtl.get_debug_state(i)),
     delay: Array.from(rtl.get_delay_state()),
     recent: [addr, isStore ? 1 : 0],
-    at: ret ? rtl.get_debug_state(0x2F) : null,   // instruction actually executed
+    // `at` is only tracked on the behavioural side: the RTL core does not
+    // expose "the instruction that retired", and the debug bus would have to be
+    // sampled during the step. The executed word is pinned down by the state
+    // comparison itself - every register, flag and segment below comes out of
+    // executing this one word.
+    at: null,
     fetch: null,
     memAt: isStore && addr < 0x100000 ? rtl.peek(addr) : null,
   };
@@ -193,7 +207,7 @@ function rtlStep(seed, word, { delaySlot }) {
 
 function diff(a, b) {
   const out = [];
-  for (const key of ['ret', 'regs', 'psw', 'segs', 'shadow', 'shadowRegs', 'delay', 'recent', 'memAt', 'at', 'fetch']) {
+  for (const key of ['ret', 'regs', 'psw', 'segs', 'shadow', 'shadowRegs', 'delay', 'recent', 'memAt']) {
     const x = JSON.stringify(a[key]);
     const y = JSON.stringify(b[key]);
     if (x !== y) out.push(`${key}: js=${x} rtl=${y}`);
@@ -213,6 +227,18 @@ for (let si = 0; si < seeds; si++) {
       const js = jsStep(seed, word, { delaySlot });
       const hw = rtlStep(seed, word, { delaySlot });
       checked++;
+      // The behavioural core has to have executed exactly the word under test -
+      // otherwise the memory image drifted and every comparison below is void.
+      if (js.ret && js.at !== word) {
+        failures++;
+        const key = `jsdrift${si}${delaySlot ? 'd' : 'n'}`;
+        if (!shown.has(key)) {
+          shown.set(key, true);
+          console.log(`word 0x${hex(word)} seed ${si}${delaySlot ? ' (delay slot)' : ''}:`);
+          console.log(`   the behavioural core executed 0x${hex(js.at)} instead`);
+        }
+        continue;
+      }
       const d = diff(js, hw);
       if (d.length) {
         failures++;

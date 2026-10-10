@@ -503,6 +503,62 @@ test('the RTL pipeline reports stalls and flushes, and only those', async () => 
   assert.ok(b.instrCount() > 0 && b.instrCount() <= b.steps, `retired ${b.instrCount()} in ${b.steps} steps`);
 });
 
+// Only R0-R3, R13 and R14 have a shadow copy - R4-R12 are shared between the
+// two contexts. Inside a handler (PSW.S=1) they must still read back their
+// normal value; the EX bypass used to redirect every index to the shadow tap,
+// which is invisible outside a handler and broke every program that uses one.
+test('a handler reads the registers it does not shadow', async () => {
+  const res = assemble(`
+        .org 0x0100
+main:
+        LSI R4, 2
+        LSI R6, 4
+        LDI 0x0120
+        STS R0, CS, R4       ; mem[2] = handler, the boot ROM left 0x0100 there
+        LSI R8, 0
+        LDI 0x1234
+        MOV R8, R0, 0         ; R8 = 0x1234 in the normal bank
+        SWI
+        HALT
+        .org 0x0120
+handler:
+        STS R8, DS, R6        ; store what the handler read out of R8
+        HALT
+  `);
+  const js = runJs(res, { cs: 0xFFFF });
+  const rtl = await runRtl(res, { cs: 0xFFFF });
+  assert.equal(js.sim.memory[4], 0x1234, 'the JS core should see R8 = 0x1234');
+  assert.equal(rtl.memoryAt(4, 1)[0], 0x1234, 'the RTL handler read the wrong register');
+});
+
+// The keyboard FIFO is popped in EX, so an LDS KBD_DATA in the next cycle
+// already sees the next key. Between two steps the EX stage is frozen, and a
+// held instruction must not pop again - otherwise a single read swallows the
+// whole queue and the program sees 0xFFFF for every key after the first.
+test('every LDS KBD_DATA consumes exactly one key', async () => {
+  const res = assemble(`
+        .org 0x0100
+main:
+        LSI R6, 8
+        LDI 0x0062           ; KBD_DATA
+        MOV R5, R0, 0
+        LDI 3
+        MOV R7, R0, 0
+loop:
+        LDS R2, ES, R5
+        STS R2, DS, R6
+        ADD R6, 1
+        SUB R7, 1
+        JNZ loop
+        HALT
+  `);
+  const keys = [0x0041, 0x0042, 0x0043];
+  const js = runJs(res, { cs: 0xFFFF, es: 0xF000, maxSteps: 5000, keys });
+  const rtl = await runRtl(res, { cs: 0xFFFF, es: 0xF000, maxSteps: 5000, keys });
+  assert.deepEqual(js.sim.memory.slice(8, 11), keys, 'the JS core should read A, B, C');
+  assert.deepEqual(rtl.memoryAt(8, 3), keys, 'the RTL core did not read the keys in order');
+});
+
 // ---------------------------------------------------------------------------
 // Documented divergences of the Rust/WASM core. These are pinned here so a
 // change to either core shows up as a failing test instead of a silent

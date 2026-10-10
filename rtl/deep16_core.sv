@@ -286,7 +286,10 @@ module deep16_core
       input logic [15:0] s,
       input logic       bank);
     logic [15:0] base_v;
-    base_v = bank ? s : n;
+    // Only R0-R3, R13 and R14 have a shadow copy. R4-R12 are shared between
+    // both contexts, so PSW.S must not redirect their read to the shadow bank -
+    // that is what the regfile's banked_read() does for the same reason.
+    base_v = (bank && idx_banked(a)) ? s : n;
     if (a == 4'd15) return pc_reg_val;
     if (ex_mem.valid &&
         fwd_hit(a, bank, ex_mem.reg_we_a, ex_mem.reg_wa, ex_mem.reg_we_b,
@@ -448,6 +451,7 @@ module deep16_core
 
   // pipeline control (combinational, driven by the EX stage)
   logic ex_kill, kill_id, flush_id;
+  logic      kbd_take_ex;   // this LDS reads the keyboard FIFO data port
 
   wire [15:0] pc_own1 = id_ex.pc0 + 16'd1;   // PC sources see own address + 1
 
@@ -465,7 +469,7 @@ module deep16_core
     mem_we_ex      = 1'b0; mem_addr_ex = 21'd0; mem_wdata_ex = 16'h0000;
     mem_rd_valid_ex= 1'b0; mem_is_load_ex = 1'b0; load_rd_ex = 4'd0;
     sh_clear_ex    = 1'b0; is_swi_ex = 1'b0;
-    kbd_pop        = 1'b0;
+    kbd_pop        = 1'b0; kbd_take_ex = 1'b0;
 
     rec_we_ex = 1'b0; rec_addr_ex = 21'd0; rec_base_ex = 16'h0000;
     rec_segval_ex = 16'h0000; rec_off_ex = 5'd0; rec_segid_ex = 2'd1;
@@ -643,7 +647,7 @@ module deep16_core
                     // read and pop in EX: a following LDS KBD_DATA has to see
                     // the next key, exactly like one instruction per step does
                     reg_da  = kbd_ready ? kbd_head : 16'd0;
-                    kbd_pop = kbd_ready;
+                    kbd_take_ex = 1'b1;
                   end else begin
                     mem_rd_valid_ex = 1'b1;
                     mem_is_load_ex  = 1'b1;
@@ -774,6 +778,17 @@ module deep16_core
 
         default: ;
       endcase
+
+      // ---- keyboard FIFO pop ----------------------------------------------
+      // The FIFO is popped from EX, not from WB, so that an LDS KBD_DATA in
+      // the next cycle already sees the next key - one retired instruction
+      // per key, exactly like the behavioural cores. That makes this the one
+      // side effect outside WB, so it has to be qualified by "this
+      // instruction is really leaving EX on this edge":
+      //   - step_done freezes the stage between two steps, and a held
+      //     instruction would otherwise pop again on the step's last edge,
+      //   - a load-use stall holds the instruction for another cycle.
+      kbd_pop = kbd_take_ex && run && !step_done && !stall && kbd_ready;
 
       // ---- delay-slot bookkeeping ------------------------------------------
       // A delay slot is armed by a branch and consumed by the very next
@@ -1192,6 +1207,14 @@ module deep16_core
         8'h61: dbg_rdata = ex_mem.reg_da;
         8'h62: dbg_rdata = {15'h0000, mem_wb.sh_clear};
         8'h68: dbg_rdata = {4'h0, ra1, ra2, ra3};
+        8'h69: dbg_rdata = r1;
+        8'h6A: dbg_rdata = r2;
+        8'h6B: dbg_rdata = r3;
+        8'h6C: dbg_rdata = {8'h00, ex_mem.valid, ex_mem.reg_bank,
+                            ex_mem.reg_we_b, ex_mem.reg_we_a, ex_mem.reg_wa};
+        8'h6D: dbg_rdata = {8'h00, mem_wb.valid, mem_wb.reg_bank,
+                            mem_wb.reg_we_b, mem_wb.reg_we_a, mem_wb.reg_wa};
+        8'h6E: dbg_rdata = {14'h0000, kbd_pop, kbd_ready};
         8'h65: dbg_rdata = {15'h0000, ex_mem.mem_we};
         8'h66: dbg_rdata = ex_mem.mem_addr[15:0];
         8'h67: dbg_rdata = {11'h0000, ex_mem.mem_addr[20:16]};

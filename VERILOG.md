@@ -37,7 +37,7 @@ dem JS-Core und dem Rust/WASM-Core.
   `tests/rtl.test.js` (20 Tests) und dem Decode-Sweep über alle 65536
   Befehlswörter (524288 Ausführungen, 0 Abweichungen).
 
-**Phase 2 ist implementiert, aber noch nicht abgeschlossen.** `rtl/deep16_core.sv`
+**Phase 2 ist abgeschlossen.** `rtl/deep16_core.sv`
 ist jetzt eine 5-Stufen-Pipeline (IF/ID/EX/MEM/WB) mit
 
 * Zustandsbündel `d16_ctx_t` (PC, PSW, Segmente, Shadow-Bank, Delay-Zustand),
@@ -51,23 +51,43 @@ ist jetzt eine 5-Stufen-Pipeline (IF/ID/EX/MEM/WB) mit
   ein Commit in MEM wäre einen Schritt zu früh sichtbar;
 * Exporte `get_stall_count()`, `get_flush_count()`, `get_instr_count()`.
 
-Stand der Verifikation: **223 von 224 Tests grün**, darunter die komplette
-dreifache Parität, der Decode-Sweep im Test (131072 Fälle) und die
-Beispielprogramme. CPI in geradlinigem Code ≈ 1,2 Zyklen/Befehl (vorher 3–4).
+Stand der Verifikation: **226 von 226 Tests grün**, darunter die komplette
+dreifache Parität, der Decode-Sweep im Test (131072 Fälle), die
+Beispielprogramme und der Forth-REPL. CPI in geradlinigem Code ≈ 1,2
+Zyklen/Befehl (vorher 3–4).
 
-**Offener Punkt (blockiert Phase 2):** `tests/rtl.test.js:199` (Forth-REPL auf
-dem RTL-Kern) und `scripts/rtl_sweep.mjs` mit den Seeds 0–3 divergieren. Nach
-dem Fix der ungegateten Write-Ports (siehe Commit) liegt die erste Abweichung
-im Forth-Keyhandler bei Schritt 69: ein `STS ES[R8], R7` berechnet die
-physische Adresse 0xF0020 statt 0xF1000 — im Schattenkontext und mit
-Load-Use-Stall im Nachlauf. Alle Fälle ohne diese Kombination sind sauber
-(131072 Sweep-Fälle im Test grün). Werkzeug: `node scripts/rtl_trace.mjs
-asm/forth.asm 200 --keys "1 2 + .\n"`, dann `debug_step_trace()` aus
-`rtl/pkg/deep16_rtl.js` für den Takt-für-Takt-Vergleich.
+Zwei Kernfehler aus Phase 2 sind gefunden und behoben:
 
-**Phase 3–6 stehen aus** (Cache, IDE-Anbindung, Seed-Test, Doku).
+1. **Bypass im Schattenkontext.** `fwd_val()` wählte den Schatten-Tap für
+   *jeden* Index, sobald PSW.S=1. Banked sind aber nur R0–R3, R13, R14 —
+   jeder Leseport auf R4–R12 lieferte im Handler `shad[idx[2:0]]`. Das war
+   außerhalb von Handlern unsichtbar und brach jedes Programm, das einen
+   benutzt (der Forth-Keyhandler ist einer).
+2. **Tastatur-Pop über die Schrittgrenze.** `kbd_pop` ist die einzige
+   Nebenwirkung, die nicht in WB committet (siehe unten), und war an
+   `id_ex` allein gekoppelt. Zwischen zwei `step()` hält `step_done` ID/EX —
+   der gehaltene `LDS KBD_DATA` poppte erneut und verbrauchte die ganze
+   Warteschlange. Jetzt `run && !step_done && !stall`.
 
-## Phase 2 — Pipeline-Umbau (in Arbeit)
+Beide sind als Regressionstests in `tests/rtl.test.js` festgenagelt.
+
+`scripts/rtl_sweep.mjs` hatte zusätzlich zwei eigene Fehler, die es unmöglich
+machten, die Abweichungen zu sehen: der Schatten-Seed steuerte den aktiven
+(shadow) PC nicht auf das Testwort, sodass Seed 3 nur Haltworte ausführte, und
+das `at`-Feld las 0x2F *nach* dem Schritt (das ist der nächste Befehl). Nach
+der Korrektur sind die Seeds 0–2 (393216 Wortausführungen) fehlerfrei.
+
+**Offener Punkt (nächste Aufgabe, blockiert Phase 2 nicht mehr):** Seed 3 des
+Sweeps — der einzige mit `PSW.S=1` — zeigt noch echte Abweichungen im
+Schattenkontext: 3724 Wörter im Normalpfad, 7895 im Delay-Slot-Pfad. Betroffen
+sind ALU-, `LDS`/`STS`- und reservierte Wörter; Symptome sind falsche
+Operanden (`R4 = 3` statt 4), abweichende Carry-Flags und ein Recent-Access,
+der auf die PSW-Seed-Adresse zeigt. Da Seeds 0–2 sauber sind, liegt die Ursache
+ausschließlich im Schattenpfad. Werkzeug: `node scripts/rtl_sweep.mjs 4`.
+
+**Phase 3–6 stehen aus** (Cache, IDE-Anbindung, Doku).
+
+## Phase 2 — Pipeline-Umbau (abgeschlossen)
 
 - 5 Stufen IF/ID/EX/MEM/WB, volles Forwarding (EX/MEM/WB→EX),
   Load-Use-Stall, Predict-Not-Taken + Squash des falsch-path-Fetches.

@@ -325,8 +325,10 @@ void debug_step_trace(uint16_t* out, uint32_t max_ticks) {
   g_top->i_step = 0;
   while (n < max_ticks && !g_top->o_done) {
     tick();
-    uint16_t* o = out + n * 8;
-    o[0] = dbg_read(0x50);   // run / halt / stall
+    uint16_t* o = out + n * 12;
+    o[0] = dbg_read(0x50);   // run / halt / stall - bit2 is `run`, which is
+                            // NOT the end-of-step marker (that is o_done, not
+                            // exposed on the debug bus; the loop below stops)
     o[1] = dbg_read(0x5A);   // stage occupancy (bit0 IF/ID .. bit3 WB)
     o[2] = dbg_read(0x5B);   // EX control signals
     o[3] = dbg_read(0x5C);   // instruction in IF/ID
@@ -334,6 +336,10 @@ void debug_step_trace(uint16_t* out, uint32_t max_ticks) {
     o[5] = dbg_read(0x5E);   // instruction in MEM
     o[6] = dbg_read(0x5F);   // instruction in WB (the one that retires)
     o[7] = dbg_read(0x52);   // next fetch address
+    o[8] = dbg_read(0x68);   // EX read addresses ra1/ra2/ra3
+    o[9] = dbg_read(0x69);   // EX operand r1 (after the bypass)
+    o[10] = dbg_read(0x53);  // keyboard FIFO depth
+    o[11] = dbg_read(0x6E);  // kbd pop strobe / ready
     n++;
   }
 }
