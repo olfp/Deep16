@@ -142,6 +142,9 @@ export async function runRtl(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 
     memoryAt: (addr, count) => Array.from(r.get_memory_slice(addr, count)),
     kbdPush: (code) => r.kbd_push(code & 0xFFFF),
     cycleCount: () => r.get_cycle_count(),
+    stallCount: () => r.get_stall_count(),
+    flushCount: () => r.get_flush_count(),
+    instrCount: () => r.get_instr_count(),
     stepCount: () => r.get_step_count(),
     delayState: () => Array.from(r.get_delay_state()),
   };

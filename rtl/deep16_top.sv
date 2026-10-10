@@ -42,7 +42,14 @@ module deep16_top
   logic [15:0] mem_rdata;
   logic [20:0] mem_addr;
   logic        mem_we;
+  logic [20:0] mem_waddr;
   logic [15:0] mem_wdata;
+  logic [15:0] if_rdata;
+  logic [20:0] if_addr;
+  // third read port: the SWI vector word at physical 0x0002. A constant
+  // address, so the core can know the handler entry in its execute stage
+  // instead of one cycle later.
+  logic [15:0] vec_rdata;
 
   deep16_core u_core (
     .clk       (clk),
@@ -51,9 +58,13 @@ module deep16_top
     .o_done    (o_done),
     .o_result  (o_result),
     .o_busy    (o_busy),
+    .if_addr   (if_addr),
+    .if_rdata  (if_rdata),
+    .vec_rdata (vec_rdata),
     .mem_addr  (mem_addr),
     .mem_rdata (mem_rdata),
     .mem_we    (mem_we),
+    .mem_waddr (mem_waddr),
     .mem_wdata (mem_wdata),
     .kbd_pop   (kbd_pop),
     .kbd_ready (kbd_ready),
@@ -74,13 +85,21 @@ module deep16_top
     for (int i = 0; i < ROM_WORDS; i++) mem[{11'h000, ROM_BASE} + i] = boot_rom_word(i);
   end
 
+  // Two read ports: one for the instruction fetch, one for loads and stores.
+  // A unified cache (phase 3) would have to serve both from a single port and
+  // would therefore stall the fetch on a cache miss - see doc/Deep16-RTL.md.
   always_comb begin
     mem_rdata = 16'hFFFF;
     if (mem_addr < 21'(MEM_WORDS)) mem_rdata = mem[mem_addr[19:0]];
+    if_rdata = 16'hFFFF;
+    if (if_addr < 21'(MEM_WORDS)) if_rdata = mem[if_addr[19:0]];
+    vec_rdata = mem[2];
   end
 
+  // Two read ports (instruction fetch, data) and one write port (stores, which
+  // the core commits in its write-back stage).
   always_ff @(posedge clk) begin
-    if (mem_we && mem_addr < 21'(MEM_WORDS)) mem[mem_addr[19:0]] <= mem_wdata;
+    if (mem_we && mem_waddr < 21'(MEM_WORDS)) mem[mem_waddr[19:0]] <= mem_wdata;
   end
 
   // ---- keyboard FIFO ---------------------------------------------------

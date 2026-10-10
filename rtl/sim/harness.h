@@ -40,12 +40,16 @@ uint32_t      get_cycle_count();
 
 // --- extras -----------------------------------------------------------------
 void          get_delay_state(uint16_t* out);   // 5: active, pc, cs, taken, shadow
+uint32_t      get_stall_count();                // load-use stalls (phase 2)
+uint32_t      get_flush_count();                // squashed wrong-path fetches
+uint32_t      get_instr_count();                // retired instructions
 void          poke(uint32_t addr, uint16_t value);
 uint16_t      peek(uint32_t addr);
 uint32_t      get_step_count();
 void          set_debug_state(uint8_t idx, uint16_t value);   // raw dbg write
 uint16_t      get_debug_state(uint8_t idx);                      // raw dbg read
-void          debug_tick(uint16_t* out);                          // clock + FSM state
+void          debug_tick(uint16_t* out);                          // clock + pipeline snapshot (8)
+void          debug_step_trace(uint16_t* out, uint32_t max_ticks);  // 8 words per clock
 
 }  // extern "C"
 

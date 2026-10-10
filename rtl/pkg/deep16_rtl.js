@@ -13,9 +13,10 @@
 //   rtl.get_registers();          // Uint16Array(16), R15 = active PC
 //
 // Differences to the wasm-bindgen API are additive only: get_cycle_count(),
-// get_delay_state(), poke(), peek(), get_step_count() and the raw debug bus
-// (get/set_debug_state) exist for the IDE statistics line and the decode
-// sweep, the behavioural cores simply do not have them.
+// get_stall_count(), get_flush_count(), get_instr_count(), get_delay_state(),
+// poke(), peek(), get_step_count() and the raw debug bus (get/set_debug_state)
+// exist for the IDE statistics line and the decode sweep, the behavioural
+// cores simply do not have them.
 import deep16RtlFactory from './deep16_rtl_gen.js';
 
 export default async function initDeep16Rtl(options = {}) {
@@ -106,6 +107,9 @@ export default async function initDeep16Rtl(options = {}) {
 
     // --- RTL-only extras -------------------------------------------------
     get_cycle_count: () => Module._get_cycle_count(),
+    get_stall_count: () => Module._get_stall_count(),
+    get_flush_count: () => Module._get_flush_count(),
+    get_instr_count: () => Module._get_instr_count(),
     get_delay_state: () => {
       const ptr = reserve(10);
       Module._get_delay_state(ptr);
@@ -115,6 +119,18 @@ export default async function initDeep16Rtl(options = {}) {
     poke: (addr, value) => Module._poke(addr >>> 0, value & 0xFFFF),
     peek: (addr) => Module._peek(addr >>> 0),
     get_debug_state: (idx) => Module._get_debug_state(idx & 0xFF),
+    // one clock + a pipeline snapshot; for debugging without a waveform viewer
+    debug_step_trace: (maxTicks = 32) => {
+      const n = Math.max(1, maxTicks | 0);
+      const ptr = reserve(n * 16);
+      Module._debug_step_trace(ptr, n);
+      return copyOutU16(n * 8);
+    },
+    debug_tick: () => {
+      const ptr = reserve(16);
+      Module._debug_tick(ptr);
+      return copyOutU16(8);
+    },
     set_debug_state: (idx, value) => Module._set_debug_state(idx & 0xFF, value & 0xFFFF),
   };
 }

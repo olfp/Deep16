@@ -1,50 +1,57 @@
 // Deep16 RTL - register file with the Deep16 shadow bank (spec 4.1).
 //
 // While PSW.S=1 the set {R0-R3, R13, R14} lives in the shadow bank; every other
-// register (including PC/R15) is shared. Three write ports exist because one
-// instruction can touch two registers (MUL32/DIV32 write the Rd:Rd+1 pair) and
-// the PC has the last word on collisions - the order is C > A > B, matching the
-// cores: pair write first, Rd write second, branch apply last.
+// register is shared. The program counter is *not* stored here any more: in the
+// five-stage pipeline it travels inside the state bundle (d16_ctx_t.pc) because
+// an instruction has to see the PC as the architectural state it is, so index
+// 15 of this array is unused and the core maps R15 onto the bundle.
+//
+// Every read port returns both banks raw; the bank selection happens in the EX
+// stage with the *effective* PSW of the instruction being executed, which is
+// what makes SWI/RETI sequences behave: a switch of the context in front of the
+// pipeline changes which bank a younger, already fetched instruction reads.
+// Write ports carry the bank of their own instruction for the same reason.
 module deep16_regfile (
   input  logic        clk,
   input  logic        rst,
-  input  logic        in_shadow,
 
-  // banked read ports (active view) - instruction operands
+  // read ports: raw normal and shadow values, selected by the core
   input  logic [3:0]  raddr1,
   input  logic [3:0]  raddr2,
   input  logic [3:0]  raddr3,
-  output logic [15:0] rdata1,
-  output logic [15:0] rdata2,
-  output logic [15:0] rdata3,
+  output logic [15:0] rdata1_n,
+  output logic [15:0] rdata1_s,
+  output logic [15:0] rdata2_n,
+  output logic [15:0] rdata2_s,
+  output logic [15:0] rdata3_n,
+  output logic [15:0] rdata3_s,
 
-  // raw bank taps - SMV reads the inactive bank without a register read port
+  // raw bank taps - SMV reads the inactive bank without spending a read port
   input  logic [3:0]  rn_addr,
   input  logic [3:0]  rs_addr,
   output logic [15:0] rn_rdata,
   output logic [15:0] rs_rdata,
 
-  // write ports
-  input  logic        we_c,
-  input  logic [3:0]  waddr_c,
-  input  logic [15:0] wdata_c,
+  // write ports (instruction results, committed in WB)
+  input  logic        wb_bank,        // PSW.S of the writing instruction
   input  logic        we_a,
   input  logic [3:0]  waddr_a,
   input  logic [15:0] wdata_a,
   input  logic        we_b,
   input  logic [3:0]  waddr_b,
   input  logic [15:0] wdata_b,
-  input  logic        sh_clear,      // SWI: zero the whole shadow bank
+  input  logic        sh_clear,       // SWI: zero the whole shadow bank
 
-  // debug bus: 0x00-0x0F normal bank, 0x10-0x15 shadow bank (0..3,13,14),
-  // 0x20-0x2F banked (active view) reads
+  // debug bus: 0x00-0x0E normal bank (0x0F is the core's PC),
+  // 0x1B-0x20 shadow bank (R0'-R3', R13', R14'), 0x30-0x3E active view
   input  logic        dbg_we,
   input  logic [7:0]  dbg_idx,
   input  logic [15:0] dbg_wdata,
+  input  logic        dbg_in_shadow,
   output logic [15:0] dbg_rdata
 );
 
-  logic [15:0] regs  [0:15];   // normal bank, R15 is the program counter
+  logic [15:0] regs  [0:15];   // normal bank, R0-R14
   logic [15:0] shad  [0:5];    // shadow R0', R1', R2', R3', R13', R14'
   logic [15:0] regs_q [0:15];
   logic [15:0] shad_q [0:5];
@@ -62,24 +69,22 @@ module deep16_regfile (
     endcase
   endfunction
 
-  function automatic logic [15:0] banked_read(input logic [3:0] idx);
-    banked_read = (in_shadow && is_banked(idx)) ? shad[shad_idx(idx)] : regs[idx];
-  endfunction
+  // shadow debug window: 0x1B..0x20 selects shad[0..5]
+  wire [2:0] dbg_shad = 3'(dbg_idx[3:0] - 4'hB);
 
   always_comb begin
-    rdata1   = banked_read(raddr1);
-    rdata2   = banked_read(raddr2);
-    rdata3   = banked_read(raddr3);
+    rdata1_n = regs[raddr1];
+    rdata2_n = regs[raddr2];
+    rdata3_n = regs[raddr3];
+    rdata1_s = shad[shad_idx(raddr1)];
+    rdata2_s = shad[shad_idx(raddr2)];
+    rdata3_s = shad[shad_idx(raddr3)];
     rn_rdata = regs[rn_addr];
     rs_rdata = shad[shad_idx(rs_addr)];
   end
 
-  // Write priority: B (MUL32/DIV32 low word) < A (the instruction's Rd) <
-  // C (PC increment / branch apply), then the debug bus. Every element gets a
-  // single non-blocking write per cycle, in exactly that order.
-  // shadow debug window: 0x1B..0x20 selects shad[0..5]
-  wire [2:0] dbg_shad = 3'(dbg_idx[3:0] - 4'hB);
-
+  // Write priority: B (MUL32/DIV32 low word) < A (the instruction's Rd), then
+  // the debug bus - the cores write the pair first and Rd second.
   always_comb begin
     for (int i = 0; i < 16; i++) regs_q[i] = regs[i];
     for (int i = 0; i < 6; i++)  shad_q[i] = shad[i];
@@ -88,19 +93,15 @@ module deep16_regfile (
       for (int i = 0; i < 6; i++) shad_q[i] = 16'h0000;
     end
     if (we_b) begin
-      if (in_shadow && is_banked(waddr_b)) shad_q[shad_idx(waddr_b)] = wdata_b;
-      else                                  regs_q[waddr_b] = wdata_b;
+      if (wb_bank && is_banked(waddr_b)) shad_q[shad_idx(waddr_b)] = wdata_b;
+      else                                regs_q[waddr_b] = wdata_b;
     end
     if (we_a) begin
-      if (in_shadow && is_banked(waddr_a)) shad_q[shad_idx(waddr_a)] = wdata_a;
-      else                                  regs_q[waddr_a] = wdata_a;
-    end
-    if (we_c) begin
-      if (in_shadow && is_banked(waddr_c)) shad_q[shad_idx(waddr_c)] = wdata_c;
-      else                                  regs_q[waddr_c] = wdata_c;
+      if (wb_bank && is_banked(waddr_a)) shad_q[shad_idx(waddr_a)] = wdata_a;
+      else                                regs_q[waddr_a] = wdata_a;
     end
     if (dbg_we) begin
-      if (dbg_idx[7:4] == 4'h0)      regs_q[dbg_idx[3:0]] = dbg_wdata;
+      if (dbg_idx[7:4] == 4'h0 && dbg_idx[3:0] != 4'hF) regs_q[dbg_idx[3:0]] = dbg_wdata;
       else if (dbg_idx[7:4] == 4'h1 && dbg_idx[3:0] >= 4'hB) shad_q[dbg_shad] = dbg_wdata;
     end
   end
@@ -112,7 +113,6 @@ module deep16_regfile (
       for (int i = 0; i < 16; i++) regs[i] <= 16'h0000;
       for (int i = 0; i < 6; i++)  shad[i] <= 16'h0000;
       regs[13] <= 16'h7FFF;
-      regs[15] <= 16'h0000;
     end else begin
       for (int i = 0; i < 16; i++) regs[i] <= regs_q[i];
       for (int i = 0; i < 6; i++)  shad[i] <= shad_q[i];
@@ -120,10 +120,12 @@ module deep16_regfile (
   end
 
   always_comb begin
-    if (dbg_idx[7:4] == 4'h0)      dbg_rdata = regs[dbg_idx[3:0]];
+    if (dbg_idx[7:4] == 4'h0 && dbg_idx[3:0] != 4'hF)      dbg_rdata = regs[dbg_idx[3:0]];
     else if (dbg_idx[7:4] == 4'h1 && dbg_idx[3:0] >= 4'hB) dbg_rdata = shad[dbg_shad];
-    else if (dbg_idx[7:4] == 4'h3) dbg_rdata = banked_read(dbg_idx[3:0]);
-    else                              dbg_rdata = 16'h0000;
+    else if (dbg_idx[7:4] == 4'h3 && dbg_idx[3:0] != 4'hF)
+      dbg_rdata = (dbg_in_shadow && is_banked(dbg_idx[3:0])) ? shad[shad_idx(dbg_idx[3:0])]
+                                                              : regs[dbg_idx[3:0]];
+    else                                                      dbg_rdata = 16'h0000;
   end
 
 endmodule

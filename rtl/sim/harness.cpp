@@ -42,6 +42,13 @@ enum : uint8_t {
   DBG_RECKIND= 0x2C,
   DBG_CYCLEL = 0x2D,
   DBG_CYCLEH = 0x2E,
+  DBG_INSTR  = 0x2F,
+  DBG_STALLL = 0x54,
+  DBG_STALLH = 0x55,
+  DBG_FLUSHL = 0x56,
+  DBG_FLUSHH = 0x57,
+  DBG_INSTL  = 0x58,
+  DBG_INSTH  = 0x59,
   DBG_ROM    = 0xC0,   // 0xC0..0xCF = the boot ROM words
   DBG_BANKED = 0x30,   // 0x30..0x3F = active view of the register file
 };
@@ -141,9 +148,12 @@ void reset() {
 
 int step() {
   g_top->i_step = 1;
-  tick();                       // IDLE -> FETCH
+  tick();                       // take the step request
   g_top->i_step = 0;
-  while (!g_top->o_done) tick();  // FETCH -> EXEC -> IDLE
+  // The pipeline runs until one instruction retires (or a halt word has been
+  // reached and the pipe has drained). The guard keeps a stuck pipeline from
+  // hanging the browser; a healthy step needs at most ~8 cycles.
+  for (uint32_t guard = 0; guard < 4096 && !g_top->o_done; guard++) tick();
   g_steps++;
   return g_top->o_result ? 1 : 0;
 }
@@ -250,6 +260,21 @@ uint32_t get_cycle_count() {
   return (uint32_t)dbg_read(DBG_CYCLEL) | ((uint32_t)dbg_read(DBG_CYCLEH) << 16);
 }
 
+// Pipeline statistics (phase 2). Stalls are load-use hazards, flushes are
+// instructions that were fetched before their address was known and had to be
+// discarded (the one after a delay slot, the one or two after SWI/RETI).
+uint32_t get_stall_count() {
+  return (uint32_t)dbg_read(DBG_STALLL) | ((uint32_t)dbg_read(DBG_STALLH) << 16);
+}
+
+uint32_t get_flush_count() {
+  return (uint32_t)dbg_read(DBG_FLUSHL) | ((uint32_t)dbg_read(DBG_FLUSHH) << 16);
+}
+
+uint32_t get_instr_count() {
+  return (uint32_t)dbg_read(DBG_INSTL) | ((uint32_t)dbg_read(DBG_INSTH) << 16);
+}
+
 void get_delay_state(uint16_t* out) {
   uint16_t flags = dbg_read(DBG_FLAGS);
   out[0] = flags & 1;              // delay_active
@@ -272,14 +297,45 @@ void set_debug_state(uint8_t idx, uint16_t value) { dbg_write(idx, value); }
 uint16_t get_debug_state(uint8_t idx) { return dbg_read(idx); }
 
 // --- introspection for debugging (not part of the core API) ---------------
-// Runs one clock and reports the FSM state, so a stuck step can be located
-// from a test without a waveform viewer.
+// Runs one clock and reports the pipeline state, so a stuck step can be
+// located from a test without a waveform viewer. The words are:
+//
+//   0 run/halt/stall flags   1 stage occupancy   2 EX control signals
+//   3 MEM/WB write address   4 MEM/WB write data 5 shadow R0'
+//   6 PC (R15)               7 next fetch address
 void debug_tick(uint16_t* state_out) {
   tick();
-  state_out[0] = dbg_read(0x50);   // FSM state
-  state_out[1] = dbg_read(0x51);   // halt_word/d_step/running/delay flags
-  state_out[2] = dbg_read(0x52);   // latched fetch PC
-  state_out[3] = dbg_read(0x16);   // shadow PC
+  state_out[0] = dbg_read(0x50);
+  state_out[1] = dbg_read(0x5A);
+  state_out[2] = dbg_read(0x5B);
+  state_out[3] = dbg_read(0x60);
+  state_out[4] = dbg_read(0x61);
+  state_out[5] = dbg_read(0x1B);
+  state_out[6] = dbg_read(0x0F);
+  state_out[7] = dbg_read(0x52);
+}
+
+// Runs one full step and records the pipeline state of every clock into
+// out[8 * n]. Debugging aid: shows which instruction each stage holds while a
+// step runs, which is what a divergence needs.
+void debug_step_trace(uint16_t* out, uint32_t max_ticks) {
+  uint32_t n = 0;
+  g_top->i_step = 1;
+  tick();
+  g_top->i_step = 0;
+  while (n < max_ticks && !g_top->o_done) {
+    tick();
+    uint16_t* o = out + n * 8;
+    o[0] = dbg_read(0x50);   // run / halt / stall
+    o[1] = dbg_read(0x5A);   // stage occupancy
+    o[2] = dbg_read(0x5B);   // EX control signals
+    o[3] = dbg_read(0x5C);   // instruction in IF/ID
+    o[4] = dbg_read(0x5E);   // instruction in MEM
+    o[5] = dbg_read(0x1B);   // shadow R0'
+    o[6] = dbg_read(0x0F);   // PC
+    o[7] = dbg_read(0x52);   // next fetch address
+    n++;
+  }
 }
 
 }  // extern "C"

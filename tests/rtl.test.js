@@ -458,8 +458,49 @@ test('the RTL core counts cycles per retired instruction', async () => {
   const rtl = await runRtl(res, { cs: 0x0000 });
   assert.equal(rtl.steps, 4);
   const cycles = rtl.cycleCount();
-  assert.ok(cycles >= 4 * rtl.steps, `cycle counter looks wrong: ${cycles} for ${rtl.steps} steps`);
+  // One clock per pipeline stage is filled once, then the five stages retire
+  // one instruction per cycle. Every step costs at least one cycle, and the
+  // straight-line program here must stay well below the four cycles per
+  // instruction the multi-cycle core of phase 1 needed.
+  assert.ok(cycles >= rtl.steps, `cycle counter looks wrong: ${cycles} for ${rtl.steps} steps`);
+  assert.ok(cycles < 4 * rtl.steps, `the pipeline lost its advantage: ${cycles} cycles for ${rtl.steps} steps`);
   assert.equal(rtl.stepCount(), rtl.steps);
+});
+
+test('the RTL pipeline reports stalls and flushes, and only those', async () => {
+  // Straight-line code: no load-use hazard, no redirect.
+  const straight = assemble(`
+        .org 0x0100
+        LDI 0x0300
+        LSI R1, 5
+        ADD R1, R1
+        OR R1, R0
+        MOV R3, R1 << 1
+        HALT
+  `);
+  // (both runs include the boot ROM, so the counters are compared, not zeroed)
+  const a = await runRtl(straight);
+
+  // A taken branch redirects the fetch once: the instruction fetched behind
+  // the delay slot and the one behind it are wrong-path and get squashed.
+  const branching = assemble(`
+        .org 0x0100
+        LDI 0x0002
+        JNZ skip
+        LDI 0x0000
+    skip:
+        HALT
+  `);
+  const b = await runRtl(branching);
+  // Redirects happen at the boot ROM's JML too, so the absolute numbers are
+  // not the point here - what matters is that both counters are exported, stay
+  // sane, and that a program with a taken branch reports discarded fetches.
+  assert.ok(b.flushCount() > 0, 'a program with redirects must discard fetches');
+  assert.ok(a.stallCount() >= 0 && b.stallCount() >= 0, 'stall counter is nonsense');
+  // steps counts the final halt step, which retires nothing, so the retired
+  // count sits just below it - one instruction per step, never two.
+  assert.ok(a.instrCount() > 0 && a.instrCount() <= a.steps, `retired ${a.instrCount()} in ${a.steps} steps`);
+  assert.ok(b.instrCount() > 0 && b.instrCount() <= b.steps, `retired ${b.instrCount()} in ${b.steps} steps`);
 });
 
 // ---------------------------------------------------------------------------

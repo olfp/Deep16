@@ -37,11 +37,34 @@ dem JS-Core und dem Rust/WASM-Core.
   `tests/rtl.test.js` (20 Tests) und dem Decode-Sweep über alle 65536
   Befehlswörter (524288 Ausführungen, 0 Abweichungen).
 
-**Phase 2–6 stehen aus.** Der Kern ist derzeit eine reine
-Verhaltens-Portierung mit 4 Zyklen pro Befehl — kein Forwarding, kein Cache,
-keine IDE-Anbindung.
+**Phase 2 ist implementiert, aber noch nicht abgeschlossen.** `rtl/deep16_core.sv`
+ist jetzt eine 5-Stufen-Pipeline (IF/ID/EX/MEM/WB) mit
 
-## Phase 2 — Pipeline-Umbau (nächster Schritt)
+* Zustandsbündel `d16_ctx_t` (PC, PSW, Segmente, Shadow-Bank, Delay-Zustand),
+  das in EX berechnet und aus MEM/WB in EX weitergeleitet wird — damit sieht
+  jeder Befehl exakt den Zustand aller älteren Befehle;
+* GPR-Bypass EX/MEM und WB inklusive Bank-Prüfung, Load-Use-Stall mit Blase in
+  MEM (ein Freezing von MEM wäre ein Deadlock gewesen);
+* PC als Architekturzustand: der Fetch folgt dem aktiven PC der Zustandskette,
+  der Delay-Slot-Apply findet in EX statt und leitet den Fetch um;
+* Stores, Register, Kontext, Event- und Recent-Access-Commit **alle in WB** —
+  ein Commit in MEM wäre einen Schritt zu früh sichtbar;
+* Exporte `get_stall_count()`, `get_flush_count()`, `get_instr_count()`.
+
+Stand der Verifikation: **223 von 224 Tests grün**, darunter die komplette
+dreifache Parität, der Decode-Sweep im Test (131072 Fälle) und die
+Beispielprogramme. CPI in geradlinigem Code ≈ 1,2 Zyklen/Befehl (vorher 3–4).
+
+**Offener Punkt (blockiert Phase 2):** `tests/rtl.test.js:199` (Forth-REPL auf
+dem RTL-Kern) und der Sweep mit den Seeds 0–3 im Normalpfad divergieren: der
+RTL-Kern verliert in einer SWI-Handler-Sequenz mit zwei aufeinanderfolgenden
+SWI genau **einen** Befehl (ein Schritt ohne Retire, PC bleibt stehen). Alle
+Fälle ohne den zweiten SWI sind sauber. Werkzeug: `node scripts/rtl_trace.mjs
+asm/forth.asm 200 --keys "1 2 + .\n"` zeigt die erste Abweichung.
+
+**Phase 3–6 stehen aus** (Cache, IDE-Anbindung, Seed-Test, Doku).
+
+## Phase 2 — Pipeline-Umbau (in Arbeit)
 
 - 5 Stufen IF/ID/EX/MEM/WB, volles Forwarding (EX/MEM/WB→EX),
   Load-Use-Stall, Predict-Not-Taken + Squash des falsch-path-Fetches.

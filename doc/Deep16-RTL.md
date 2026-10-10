@@ -8,7 +8,7 @@ neben `js/deep16_simulator.js` (JS) und `wasm/deep16-wasm` (Rust/WASM) im IDE.
 rtl/deep16_pkg.sv      Konstanten, PSW-Helfer, Boot-ROM
 rtl/deep16_alu.sv      kombinatorische ALU (32 ALU-Ops, NZVC)
 rtl/deep16_regfile.sv  16 GPR + Schattenbank (R0-R3, R13, R14)
-rtl/deep16_core.sv     FSM: IDLE -> FETCH -> INC -> EXEC
+rtl/deep16_core.sv     5-Stufen-Pipeline: IF / ID / EX / MEM / WB
 rtl/deep16_top.sv      Speicher (2^20 Wörter), Boot-ROM, Tastatur-FIFO
 rtl/sim/harness.cpp    C-API, spiegelt wasm/deep16-wasm/src/lib.rs
 rtl/sim/main_native.cpp CLI für den Differenz-Debug (JSON-Ausgabe)
@@ -17,14 +17,18 @@ rtl/pkg/               erzeugtes WASM-Paket (committet, wie wasm/pkg/)
 
 ## Was der Kern ist — und was noch nicht
 
-**Phase 1 (dieser Stand):** ein Multi-Zyklus-Controller. Ein `step()` ist
-**ein retireter Befehl**: `i_step` pulst, die FSM läuft FETCH → INC → EXEC,
-`o_done` meldet den Retire, `o_result` entspricht dem Rückgabewert von
-`step()` in den Verhaltenskernen. `get_cycle_count()` zählt die Takte mit.
+**Phase 2 (dieser Stand):** eine 5-Stufen-Pipeline. Ein `step()` ist
+weiterhin **ein retireter Befehl**: `i_step` pulst, die Pipeline läuft, bis in
+WB ein Befehl eintrifft, `o_result` entspricht dem Rückgabewert von `step()`
+in den Verhaltenskernen (0 = Haltwort erreicht). Geradliniger Code braucht
+≈ 1,2 Zyklen pro Befehl (der Multi-Zyklus-Kern aus Phase 1 brauchte 3–4).
 
-Noch **nicht** enthalten (bewusst, siehe `VERILOG.md` für den Plan):
+Noch **nicht** abgeschlossen bzw. enthalten:
 
-* keine 5-Stufen-Pipeline, kein Forwarding, kein Stall/Flush (Phase 2),
+* **offen:** in einer SWI-Handler-Sequenz mit zwei aufeinanderfolgenden SWI
+  verliert der Kern genau einen Befehl (ein Schritt ohne Retire). Betrifft den
+  Forth-REPL-Test und den Sweep mit den Seeds 0–3; Details und Werkzeuge in
+  `VERILOG.md`,
 * kein Cache (Phase 3) — `FSH` ist wie in den Verhaltenskernen ein No-op,
 * die IDE kennt den Kern noch nicht (Phase 4).
 
@@ -35,21 +39,40 @@ Taktzustand wie das Modell verhält — danach wird Phase 2 auf grüner Basis
 gebaut, und jede dortige Abweichung ist ein Hazard-Fehler und kein
 Portierungsfehler.
 
-## Die FSM im Detail
+## Die Pipeline im Detail
 
-| Zustand | Arbeit |
+| Stufe | Arbeit |
 |---|---|
-| `S_IDLE` | wartet auf `i_step`; holt den aktiven PC in `pc_fetch`; reaktiviert `running` (wie `step_one()` in Rust und `step()` im JS-Kern) |
-| `S_FETCH` | legt die physikalische Adresse auf den Bus, merkt sich den Befehl in `instr`, entscheidet über `halt_word` (0xFFFF im Normal-Fetch) |
-| `S_INC` | schreibt das PC-`+1` (Steuerregister bzw. Schatten-PC), löscht `delay_active` im Delay-Slot-Pfad |
-| `S_EXEC` | Dekodierung, Ausführung, Write-back, Flag-Berechnung, Branch-Apply |
+| IF | holt über `if_pc` plus aktivem CS der Zustandskette; erkennt Haltwörter (0xFFFF / außerhalb) |
+| ID | Dekodierung (rein aus dem Befehlswort); die Pipeline-Register `if_id`/`id_ex` tragen nur Befehl, eigene Adresse, aktiven CS und das Halt-Bit |
+| EX | führt aus und berechnet das **komplette Zustandsergebnis** (`d16_ctx_t`: PC, PSW, Segmente, Shadow-Bank, Delay-Zustand) sowie alle Schreib- und Speicheraktionen |
+| MEM | liest `mem_rdata` für Loads (Patch in das WB-Register), schreibt Stores, übernimmt den SWI-Vektor |
+| WB | committet alles: Zustandsbündel, Register, Speicher, Event, Recent-Access |
 
-`S_INC` ist ein eigener Zustand, weil die PC-Erhöhung und der Halt-Entscheid
-das *gelesene* Befehlswort brauchen; im selben Takt wie die Adresse, die es
-geliefert hat, ergäbe das eine kombinatorische Schleife (Verilator meldet
-`UNOPTFLAT`). Dasselbe gilt für den Datenpfad von `LD`/`LDS` und für den
-SWI-Vektor: beide lesen `mem_rdata`, ohne den Adressrechner zu beeinflussen
-(`rf_da_mux`, `spc_wd_mux`).
+Die vier Punkte, an denen die Pipeline der Verhaltensvorlage trotz Vorlauf
+rechtlich gleichbleibt:
+
+* **Zustandsbündel statt Einzelregistern.** Jeder Befehl rechnet in EX den
+  *kompletten* Zustand nach sich, der aus MEM und WB weitergeleitet wird.
+  Dadurch sieht ein Befehl alle älteren Schreibvorgänge und keine jüngeren —
+  auch die PSW-Flags, die dadurch nicht mehr vor einem abhängigen `Jcc`
+  zurückgeschrieben werden müssen.
+* **Der PC bleibt Architekturzustand.** Der Fetch hält keinen eigenen PC,
+  sondern folgt dem aktiven PC der Kette. Der Delay-Slot-Apply läuft in EX des
+  Slot-Befehls und leitet den nächsten Fetch um — dadurch stimmen auch die
+  Eckfälle (Branch im Slot, nicht genommener Branch im Slot, doppelte
+  Ausführung am Sprungziel) automatisch.
+* **Alles committet in WB.** Registerschreibungen, Stores, Kontextwechsel,
+  Event-Log und Recent-Access werden erst beim Retire sichtbar. Ein Commit in
+  MEM wäre einen Schritt zu früh — der Decode-Sweep merkt das sofort.
+* **Haltwörter werden in EX verworfen**, und der Fetch-PC wird auf das
+  Haltwort zurückgesetzt: ein erneut gestarteter Schritt findet es wieder und
+  meldet wieder `false`, genau wie die Verhaltenskerne.
+
+Ein Load-Use-Stall friert IF/ID und ID/EX ein und schiebt eine Blase nach MEM —
+MEM muss weiterlaufen, sonst erreicht der Load WB nie (Deadlock). Der Fetch
+liest `if_rdata` in einem eigenen Block; im selben Block wie der Adressrechner
+entstünde eine kombinatorische Schleife (`UNOPTFLAT`).
 
 ## Semantik, die portsensitiv war
 
@@ -101,14 +124,22 @@ damit Zustand und Speicher ohne Wellenformviewer lesbar sind:
 | 0x24–0x26 | letztes Event (Code, PC, CS) |
 | 0x27–0x2C | Recent-Access (Adresse, Basis, Offset, Segment, Store-Flag) |
 | 0x2D/0x2E | Zyklenzähler |
+| 0x54/0x55 | Stall-Zähler (Load-Use) |
+| 0x56/0x57 | Flush-Zähler (verworfene Fetches) |
+| 0x58/0x59 | Zahl der retired Befehle |
+| 0x5A–0x5D | Pipeline-Interna: Belegung, EX-Steuersignale, Halt-Bits |
+| 0x60/0x61 | Schreibadresse/-wert der MEM-Stufe |
+| 0x63/0x64 | eigene Adresse und aktiver CS des Befehls in IF/ID |
 | 0x2F | aktuell ausgeführter Befehl |
 | 0x30–0x3F | Registerbank in der aktiven Sicht (Shadow, wenn PSW.S=1) |
 | 0x3F/0x4F | zuletzt geholte Fetch-Adresse (low/high) |
-| 0x50–0x53 | FSM-Zustand, Schrittfahne, `pc_fetch`, Tastatur-FIFO-Tiefe |
+| 0x50–0x53 | Lauf-/Halt-/Stall-Flag, Delay-Flags, nächste Fetch-Adresse, Tastatur-FIFO-Tiefe |
 | 0xC0–0xCF | Boot-ROM-Wörter (der Harness setzt das ROM daraus neu) |
 
-Schreibzugriffe auf diesen Bus sind nur im Zustand `S_IDLE` wirksam, damit
-die IDE Zustand spiegeln kann, ohne einen Schritt zu zerreißen.
+Schreibzugriffe auf diesen Bus sind nur wirksam, wenn die Pipeline stillsteht
+(`run = 0`), damit die IDE Zustand spiegeln kann, ohne einen Schritt zu
+zerreißen. Solch ein Schreiben leert die Pipeline: die bereits geholten
+Befehle gehören zu einem Zustand, den der Aufrufer gerade ersetzt.
 
 ## Bauen
 
