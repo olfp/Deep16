@@ -1,4 +1,6 @@
 # Zwischenergebnisse des EPUB-Builds (Pandoc-Zwischenstufe, Calibre-Round-Trip,
-# gerenderte Mermaid-PNGs). Wird bei jedem Build neu erzeugt und nicht versioniert.
-*
-!.gitignore
+# gerenderte Mermaid-PNGs). Wird bei jedem Build neu erzeugt und nicht
+# versioniert. Die Skripte in diesem Ordner (build-epub.sh, mermaid_filter.lua,
+# normalize_epub.py) sind dagegen versionierter Quellcode.
+/intermediate/
+/mermaid-png/

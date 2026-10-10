@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
-# Aufruf: ./build-epub.sh [svg|kindle|kindle-calibre]
+# Aufruf: ./book/build/build-epub.sh [svg|kindle|kindle-calibre]
 #
 #   svg            -> epub/Deep16.epub                 Inline-SVG-Diagramme,
 #                                                     scharf fuer Apple Books/Web.
@@ -67,7 +67,7 @@ pandoc "${chapters[@]}" \
   --toc --toc-depth=2 --split-level=1 \
   --to epub3 \
   --embed-resources \
-  --lua-filter=mermaid_filter.lua \
+  --lua-filter=build/mermaid_filter.lua \
   -o "$raw"
 
 src="$raw"
@@ -85,7 +85,7 @@ fi
 
 if [[ "$mode" != svg ]]; then
   echo "→ Metadaten normalisieren …"
-  python3 normalize_epub.py "$src" "$out"
+  python3 build/normalize_epub.py "$src" "$out"
 else
   cp "$raw" "$out"
 fi

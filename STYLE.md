@@ -118,19 +118,23 @@ Jedes Kapitel folgt gleich auf:
 - Register-Rettungskonvention (§2.1, Spezifikation §6.1) gilt für alle
   Listings: Aufrufer rettet `R0–R11`, Gerufener `R12–R14`.
 
-## 6. EPUB-Build (book/build-epub.sh)
+## 6. EPUB-Build (book/build/build-epub.sh)
 
-- Befehl: `./book/build-epub.sh [svg|kindle|kindle-calibre]` aus dem Repo-Root.
-- **Ordner:** Ergebnisse nach `book/epub/`, Zwischenergebnisse (Pandoc-Stufe,
-  Calibre-Round-Trip, Mermaid-PNGs) nach `book/build/` — letzteres wird bei
-  jedem Build geleert und ist nicht versioniert (`book/build/.gitignore`).
-- Pipeline: Pandoc `--to epub3 --embed-resources --lua-filter=mermaid_filter.lua`
+- Befehl: `./book/build/build-epub.sh [svg|kindle|kindle-calibre]` aus dem
+  Repo-Root.
+- **Ordner:** Das Skript (und `mermaid_filter.lua`, `normalize_epub.py`) liegt
+  in `book/build/`, wechselt aber nach `book/`. Ergebnisse nach `book/epub/`,
+  Zwischenergebnisse (Pandoc-Stufe, Calibre-Round-Trip, Mermaid-PNGs) nach
+  `book/build/` — letztere werden bei jedem Build geleert und sind nicht
+  versioniert (`book/build/.gitignore` ignoriert nur `/intermediate/` und
+  `/mermaid-png/`, nicht die Skripte daneben).
+- Pipeline: Pandoc `--to epub3 --embed-resources --lua-filter=build/mermaid_filter.lua`
   über alle `book/kap*.md` → `book/epub/Deep16.epub` (Modus `svg`, Vorgabe).
 - `kindle` erzeugt `book/epub/Deep16-kindle.epub` mit PNG-Diagrammen,
   `kindle-calibre` zusätzlich durch Calibre geschickt →
   `book/epub/Deep16-kindle-calibre.epub`. **Nur diese Datei akzeptiert
   Send to Kindle** (Fehler E016, am Gerät bestätigt 2026-10-10).
-- Der Lua-Filter `mermaid_filter.lua` rendert jede ```` ```mermaid ````-Fence
+- Der Lua-Filter `book/build/mermaid_filter.lua` rendert jede ```` ```mermaid ````-Fence
   vorab per `mmdc` (@mermaid-js/mermaid-cli) zu SVG und bettet es als
   `RawInline` ein — der E-Reader braucht kein JavaScript.
   Chromium kommt aus `/tmp/chromium/chrome-linux/chrome`, Puppeteer-Argumente
