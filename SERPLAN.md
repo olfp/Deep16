@@ -17,11 +17,25 @@ Nicht Teil dieses Plans: Dateinamen, ein Dateisystem in der Maschine, Blöcke.
 | 1 | Port im JS-Kern | ✅ erledigt (`js/deep16_simulator.js`) |
 | 2 | Porttest | ✅ erledigt (`tests/serial-port.test.js`) |
 | 3 | BIOS `f6` | ✅ erledigt (`asm/forth.asm`) |
-| 4–5 | `SERLOAD` mit `src_mode`, Kernel-Tests | offen |
+| 4 | `SERLOAD` mit `src_mode` und den drei Abfangstellen | ✅ erledigt |
+| 5 | Kernel-Tests | ✅ erledigt (7 Tests in `tests/forth.test.js`) |
 | 6 | `EVALUATE` | offen |
 | 7 | WASM nachziehen | ⛔ blockiert |
 | 8 | RTL nachziehen | ⛔ blockiert |
 | 9 | Host-Anbindung | offen |
+
+**Was Schritt 4 festlegt:**
+- Die Zeilen landen im selben Puffer wie die Tastatureingabe (`tib_kbd`, ein Wort
+  pro Zeichen, **86 Wörter**). Both `src_mode` und der Schreibzeiger werden pro
+  Zeile zurückgesetzt — ohne das hängt die nächste Zeile an die vorherige und
+  `: a 1 ;` + `: b 2 ;` wird zu einem Token `;:;`.
+- Der Ladevorgang bricht bei EOF **ohne** den letzten Newline nicht ab: die
+  Restzeile läuft noch einmal mit `src_mode = 2`.
+- LF und CR beenden beide eine Zeile, wie am Keyboard.
+- Jeder Fehler setzt `src_mode` über den gemeinsamen Pfad `recover_prompt` auf 0
+  zurück. `stack_underflow_error` nimmt davon bewusst **nicht** Gebrauch: seine
+  Meldung endet bereits auf einer frischen Zeile, der zusätzliche Zeilenumbruch
+  würde eine Leerzeile einfügen.
 
 **Blocker Schritte 7 und 8:** In dieser Umgebung fehlen `wasm-pack` und
 `cargo`. Das WASM-Paket (`wasm/pkg/`) kann deshalb nicht neu gebaut werden, und
@@ -224,8 +238,8 @@ stillschweigend Daten verschlucken würde — deshalb zuerst und einzeln.
 1. Port in einem Kern (Empfehlung: JS, weil die Tests dort am schnellsten sind)
 2. Porttest — siehe §0 zur Korrektur: ohne zweiten Kern nur eine Einzelprüfung
 3. BIOS `f6`
-4. `SERLOAD` mit `src_mode` und den drei Abfangstellen
-5. Kernel-Tests
+4. `SERLOAD` mit `src_mode` und den drei Abfangstellen ✅
+5. Kernel-Tests ✅
 6. `EVALUATE`
 7. WASM nachziehen, Parität — **Werkzeug fehlt**
 8. RTL nachziehen, Porttest — **Werkzeug fehlt**
@@ -239,15 +253,25 @@ setzt einen anderen voraus. Die Schritte 7 und 8 brauchen eine Umgebung mit
 
 ## 9. Risiken
 
+- **Die Sektionsgrenze war die eigentliche Falle.** Der Code ab `.org 0x0400`
+  überschrieb die Sektion ab `.org 0x0100`, als `SERLOAD` den Interpreter um
+  zwanzig Wörter wachsen ließ: `.org` setzt den Adresszähler zurück, ohne
+  Fehlermeldung, und die REPL blieb nach einer geladenen Definition hängen.
+  Vorher standen nur zehn Wörter Reserve. Der Abschnitt startet jetzt bei
+  `0x0A00`, und ein Test vergleicht die aus der Listing-Ausgabe ermittelten
+  Bereiche paarweise.
 - **Der Serial-Port muss in allen drei Kernen synchron entstehen.** Ein Kern, der
   `SER_STATUS` immer `0` liefert, sieht eine Warteschlange, die leer ist — kein
   Absturz, nur stille Wirkungslosigkeit. Deshalb der Porttest je Kern.
 - **Die Doppel-Pop-Falle im RTL** ist der wahrscheinlichste Fehler beim
   Einlesen. Der Test in `tests/rtl.test.js:538` ist die Vorlage.
-- **Fehler innerhalb geladener Quellen** sind der wahrscheinlichste Stolperstein
-  für den Nutzer, nicht für die Implementierung. Deshalb brechen sie ab, statt
-  halb geladen weiterzulaufen.
-- **174 Bytes** sind eine schmale Zeile. Für echte Forth-Programme ist das wenig;
+- **Fehler innerhalb geladener Quellen brechen den Ladevorgang ab.** Vorsicht:
+  bricht die Quelle **mitten in einer Colon-Definition** ab, bleibt deren Header
+  im Wörterbuch, obwohl der Rumpf unvollständig ist. Ein späterer Aufruf dieses
+  Wortes läuft dann bis `HLT` ins Leere. Das ist **vorbestehend** und nicht von
+  `SERLOAD` verursacht — `: foo nope` gefolgt von `foo` zeigt dasselbe über die
+  Tastatur. Ein Zurückrollen des halben Headers wäre eine eigene Aufgabe.
+- **86 Wörter** sind eine schmale Zeile. Für echte Forth-Programme ist das wenig;
   das ist eine Eigenschaft des vorhandenen Puffers, keine des Plans. Wer mehr
   braucht, braucht einen größeren Puffer.
 

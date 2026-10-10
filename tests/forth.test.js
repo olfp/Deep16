@@ -30,6 +30,38 @@ test('forth.asm assembles', () => {
   assert.ok(res.success, res.errors.join('; '));
 });
 
+test('the .org sections do not overlap', () => {
+  // A load routine that grew the interpreter by twenty words once pushed the
+  // 0x0100 section past 0x0400. .org rewinds the address counter, so the code
+  // emitted after it silently overwrote interpret_done — the REPL hung after a
+  // loaded definition and the assembler reported nothing. Headroom between the
+  // sections is what keeps that from happening again unnoticed.
+  const rows = Array.isArray(res.listing) ? res.listing : [];
+  const sections = [];
+  let current = null;
+  for (const r of rows) {
+    if (typeof r.line === 'string' && r.line.trim().startsWith('.org')) {
+      if (current) sections.push(current);
+      current = { org: r.line.trim(), start: r.address, end: r.address };
+    } else if (current && typeof r.address === 'number' && r.address > current.end) {
+      current.end = r.address;
+    }
+  }
+  if (current) sections.push(current);
+  assert.ok(sections.length >= 4, 'expected the kernel sections in the listing');
+
+  for (let i = 0; i < sections.length; i++) {
+    for (let j = i + 1; j < sections.length; j++) {
+      const a = sections[i], b = sections[j];
+      const lo = Math.max(a.start, b.start), hi = Math.min(a.end, b.end);
+      assert.ok(
+        hi < lo,
+        `${a.org} (ends 0x${a.end.toString(16)}) overlaps ${b.org} (starts 0x${b.start.toString(16)})`
+      );
+    }
+  }
+});
+
 // Boot the REPL, type `input` (one '\n' per line) and return the screen
 // rows (trailing whitespace stripped), the executed step count and whether
 // the CPU is still running inside the REPL.
@@ -724,6 +756,92 @@ test('. prints the most negative cell as -32768', () => {
   assert.equal(rows[1], '> 32767 1 + . -32768  ok');
   assert.equal(rows[2], '> 32767 1 + u. 32768  ok');
   assert.ok(running);
+});
+
+// SERLOAD reads Forth source from the serial line (SERPLAN.md step 4). The
+// ports are driven from the outside; the REPL itself only sees the keystrokes.
+function replWithSerial(typed, serial, { eof = true } = {}) {
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF;
+  sim.segmentRegisters.DS = 0x0000;
+  sim.segmentRegisters.SS = 0x0000;
+  sim.segmentRegisters.ES = 0x0000;
+  for (const ch of typed) sim.enqueueKeyCode(ch === '\n' ? 10 : ch.charCodeAt(0));
+  sim.serialPushString(serial);
+  if (eof) sim.serialSetEof(true);
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 400000) { sim.step(); steps++; }
+  const rows = [];
+  for (let r = 0; r < 25; r++) {
+    let s = '';
+    for (let c = 0; c < 80; c++) {
+      s += String.fromCharCode(sim.memory[SCREEN_ADDR + r * 80 + c] & 0xFF);
+    }
+    rows.push(s.replace(/\s+$/, ''));
+  }
+  return { rows, running: sim.running };
+}
+
+test('SERLOAD defines a word from transferred source', () => {
+  const { rows, running } = replWithSerial('SERLOAD\nfoo .\n', ': foo 41 ;\n');
+  assert.equal(rows[0], 'Hello DeepForth!');
+  assert.equal(rows[1], '> SERLOAD ok');
+  assert.equal(rows[2], '> foo . 41  ok');
+  assert.equal(rows[3], '>');
+  assert.ok(running, 'the REPL must survive a load');
+});
+
+test('SERLOAD runs several transferred lines in order', () => {
+  const { rows, running } = replWithSerial('SERLOAD\n', ': a 1 ;\n: b 2 ;\na b + .\n');
+  // Each line is its own token stream: leaving the write pointer behind would
+  // have made the second definition read as a single token (":;:").
+  assert.equal(rows[1], '> SERLOAD 3  ok');
+  assert.equal(rows[2], '>');
+  assert.ok(running);
+});
+
+test('SERLOAD accepts CR as a line ending', () => {
+  const { rows, running } = replWithSerial('SERLOAD\n', ': foo 9 ;\rfoo .\r');
+  assert.equal(rows[1], '> SERLOAD 9  ok');
+  assert.ok(running);
+});
+
+test('SERLOAD with an empty transfer just returns', () => {
+  const { rows, running } = replWithSerial('SERLOAD\n1 2 + .\n', '');
+  assert.equal(rows[1], '> SERLOAD ok');
+  assert.equal(rows[2], '> 1 2 + . 3  ok');
+  assert.equal(rows[3], '>');
+  assert.ok(running);
+});
+
+test('an unknown word in the source aborts the load and the REPL lives on', () => {
+  const { rows, running } = replWithSerial('SERLOAD\n1 2 + .\n', ': foo nope\n');
+  assert.equal(rows[1], '> SERLOAD');
+  assert.equal(rows[2], 'undefined word: nope');
+  assert.equal(rows[3], '> 1 2 + . 3  ok');
+  assert.equal(rows[4], '>');
+  assert.ok(running, 'the REPL must recover from an error inside a load');
+});
+
+test('a stack underflow in the source aborts the load as well', () => {
+  const { rows, running } = replWithSerial('SERLOAD\n1 2 + .\n', 'drop\n');
+  assert.equal(rows[1], '> SERLOAD');
+  assert.equal(rows[2], 'stack underflow');
+  assert.equal(rows[3], '> 1 2 + . 3  ok');
+  assert.equal(rows[4], '>');
+  assert.ok(running);
+});
+
+test('a transferred line longer than TIB is refused', () => {
+  // 86 words fit in tib_kbd; one character more must abort the load rather
+  // than truncate the definition silently.
+  const long = ': ' + 'x'.repeat(90) + ' 1 ;\n';
+  const { rows, running } = replWithSerial('SERLOAD\n1 2 + .\n', long);
+  assert.equal(rows[2], 'line too long');
+  assert.ok(running, 'an over-long line must not wedge the machine');
 });
 
 test('u. checks its operand', () => {

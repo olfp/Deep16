@@ -14,6 +14,7 @@
 .equ KBD_DATA   0x0062
 .equ SER_STATUS 0x0064     ; 0 = idle, 1 = character pending, 2 = end of transmission
 .equ SER_DATA   0x0066     ; reading it consumes exactly one character
+.equ TIB_LIMIT 86         ; words in tib_kbd; the buffer holds one word per char
 .equ RSTACK_TOP 0x6F00   ; Forth return stack top (grows down)
 
 ; =============================================
@@ -748,6 +749,19 @@ print_bad_done:
     JMP R2
     NOP
 err_continue:
+    LDI recover_prompt
+    MOV PC, R0
+    NOP
+
+; Every error ends up here: reset any load in progress, throw the rest of the
+; line away, and offer a fresh prompt. Clearing src_mode here is what aborts a
+; SERLOAD run — the discarded characters stay in the queue and a later SERLOAD
+; would pick them up, which the caller can see and decide about.
+recover_prompt:
+    LDI src_mode
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0          ; an error ends any load in progress
     ; Discard the rest of the line: fresh line, prompt, next input.
     LDI newline_direct
     MOV R2, R0
@@ -801,6 +815,13 @@ stack_underflow_after:
     MUL R9, R12
     ADD R2, R9
     MOV SCR, R2
+    ; An error ends any load in progress. This path deliberately does not go
+    ; through recover_prompt: the message already ended on a fresh line here,
+    ; and the extra newline that recover_prompt sends would insert a blank row.
+    LDI src_mode
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
     LDI print_prompt
     MOV R2, R0
     LINK
@@ -810,6 +831,23 @@ stack_underflow_after:
     MOV PC, R0
     NOP
 interpret_done:
+    ; A load in progress owns this point: src_mode 1 means another transferred
+    ; line follows, src_mode 2 that the last one is done and the machine goes
+    ; back to being interactive.
+    LDI src_mode
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI 0
+    CMP R3, R0
+    JZ interpret_done_go
+    NOP
+    LDI 1
+    CMP R3, R0
+    JZ id_more_lines       ; nearby trampoline, see below
+    NOP
+    LDI 0
+    ST R0, R2              ; src_mode 2: the transfer is over
+interpret_done_go:
     LDI 0x1000
     MOV R2, R0
     MOV R3, SCR
@@ -903,6 +941,12 @@ ok_after:
     NOP
     ; Read next line into TIB via BIOS and then interpret
     LDI word_accept
+    MOV PC, R0
+    NOP
+; Reached only from the JZ in interpret_done. serload_loop sits outside the
+; conditional jump range, so the far hop goes through a register.
+id_more_lines:
+    LDI serload_loop
     MOV PC, R0
     NOP
 
@@ -1009,6 +1053,8 @@ unknown_word_msg:
     .text "undefined word: "
 stack_underflow_msg:
     .text "stack underflow"
+line_too_long_msg:
+    .text "line too long"
 ok_msg:
     .text " ok"
 
@@ -1214,6 +1260,11 @@ h_minus:
 ; --- additional arithmetic: u. 2/ abs min max ---
 ; These five are the newest entries in the whole dictionary, so the oldest of
 ; them links into the vocabulary chain below and forth_wl names the newest.
+h_serload:
+    .word h_udot
+    .word 7
+    .text "SERLOAD"
+    .word word_serload
 h_udot:
     .word h_max
     .word 2
@@ -1420,7 +1471,7 @@ h_fetch:
 ; --- wordlists: a vocabulary is identified by the address of its head cell,
 ; --- which chains its definitions newest-first and ends in 0.
 forth_wl:
-    .word h_udot         ; newest built-in header in the FORTH vocabulary
+    .word h_serload       ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
     .word forth_wl
     .word 0, 0, 0, 0, 0, 0, 0
@@ -1428,6 +1479,12 @@ current:
     .word forth_wl       ; wordlist new definitions are added to
 found_wl:
     .word 0              ; head cell of the wordlist FIND matched last
+src_mode:
+    .word 0              ; 0 = interactive, 1 = SERLOAD running, 2 = last line read
+ser_ptr:
+    .word 0              ; write pointer into the line buffer (TIB)
+ser_len:
+    .word 0              ; characters collected in the current line
 
 ; BIOS runs in the shadow bank and uses R5 for its own purposes, so a
 ; primitive that calls SWI must park >IN here and reload it afterwards.
@@ -1462,7 +1519,14 @@ created_xt:
 dict_free:               ; colon definitions are built upwards from here
 
 .code
-.org 0x0400
+; The second block of kernel code. It used to start at 0x0400, which left only
+; ten words of headroom after the 0x0100 section — and a load routine that grew
+; the interpreter by twenty words silently overran it: .org rewinds the address
+; counter, so everything past the boundary was overwritten by the code emitted
+; below (the REPL hung after a loaded definition, with no assembler error).
+; 0x0A00 leaves room to grow; the data section sits at 0x3000 and the threading
+; engine at 0x2000.
+.org 0x0A00
 word_plus:
     MOV R9, SP
     ADD R9, 2
@@ -3936,6 +4000,170 @@ word_forth:
     MOV R2, R0
     ST R1, R2, 0          ; FORTH becomes the first searched wordlist
     LDI next
+    MOV PC, R0
+    NOP
+
+; SERLOAD reads Forth source from the serial line and interprets it line by
+; line. The characters land in the same buffer the keyboard uses (TIB), one
+; word per character, and every line goes through the ordinary interpret_loop
+; — so the tokenizer, the search order and the compiler behave exactly as they
+; do for typed input.
+;
+; src_mode is the only piece of state the interpreter needs to know about:
+;   0  interactive — interpret_done goes to " ok" and the prompt
+;   1  a load is running, another line follows
+;   2  a load is running, this was the last line
+word_serload:
+    LDI src_mode
+    MOV R2, R0
+    LSI R3, 1
+    ST R3, R2, 0          ; src_mode = 1 (the value goes through R3, because a
+                          ; second LDI would overwrite R0 with the address)
+    ; The write pointer has to start at the line buffer. Without this it would
+    ; count from 0 and write straight into DS:[0], DS:[1], DS:[2] — the BIOS
+    ; call block and the SWI vector.
+    LDI ser_ptr
+    MOV R2, R0             ; R2 = &ser_ptr
+    LDI tib_kbd
+    ST R0, R2, 0           ; ser_ptr = tib_kbd
+serload_loop:
+    LDI ser_len
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0          ; start a fresh line
+    ; The write pointer goes back to the buffer as well: leaving it where the
+    ; previous line ended would append the next line behind this one, and the
+    ; two would read as a single token (";" followed by ":").
+    LDI ser_ptr
+    MOV R2, R0
+    LDI tib_kbd
+    ST R0, R2, 0
+serload_read:
+    ; The BIOS f6 call clobbers R5 (that is >IN), so park it. The line buffer
+    ; itself lives in memory and survives on its own.
+    LDI saved_in
+    MOV R2, R0
+    ST >IN, R2, 0
+    LDI 6
+    MOV R3, R0
+    LSI R7, 0
+    STS R3, DS, R7        ; DS:0 = 6
+    SWI
+    LD >IN, R2, 0
+    LSI R7, 0
+    LDS R1, DS, R7        ; status
+    LSI R7, 1
+    LDS R2, DS, R7        ; character
+    LDI 0
+    CMP R1, R0
+    JZ serload_read       ; nothing pending: ask again
+    NOP
+    LDI 2
+    CMP R1, R0
+    JZ serload_eof
+    NOP
+    ; Status 1: one character. LF and CR both end the line, matching the
+    ; keyboard path, so a file saved with either line ending loads the same.
+    LDI 10
+    CMP R2, R0
+    JZ serload_line
+    NOP
+    LDI 13
+    CMP R2, R0
+    JZ serload_line
+    NOP
+    ; Refuse to overrun the buffer: a truncated definition is worse than a
+    ; visible error (SERPLAN.md, decision 2). The limit goes into R11 because
+    ; R0 is reused for the address of ser_len.
+    LDI TIB_LIMIT
+    MOV R11, R0
+    LDI ser_len
+    MOV R3, R0
+    LD R1, R3, 0
+    CMP R1, R11
+    JZ line_too_long_error
+    NOP
+    ADD R1, 1
+    ST R1, R3, 0
+    LDI ser_ptr
+    MOV R4, R0
+    LD R4, R4, 0          ; write pointer
+    ST R2, R4, 0          ; one word per character
+    ADD R4, 1
+    LDI ser_ptr
+    MOV R2, R0
+    ST R4, R2, 0
+    LDI serload_read
+    MOV PC, R0
+    NOP
+serload_line:
+    ; Terminate the line and hand it to the ordinary interpreter.
+    LDI ser_ptr
+    MOV R4, R0
+    LD R4, R4, 0
+    LDI 0
+    ST R0, R4, 0
+    LDI 0
+    MOV >IN, R0
+    LDI tib_kbd
+    MOV TIB, R0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+serload_eof:
+    ; End of transmission. A trailing line without a newline still counts, so
+    ; it runs once more with src_mode 2 before the machine goes interactive.
+    LDI ser_len
+    MOV R2, R0
+    LD R1, R2, 0
+    LDI 0
+    CMP R1, R0              ; an empty tail means the transfer simply ends
+    JZ sl_eof_done        ; nearby trampoline at the end of the loader
+    NOP
+    LDI src_mode
+    MOV R2, R0
+    LSI R3, 2
+    ST R3, R2, 0          ; src_mode = 2
+    LDI serload_line
+    MOV PC, R0
+    NOP
+
+line_too_long_error:
+    LDI 0x1000
+    MOV R2, R0
+    MOV R4, SCR
+    SUB R4, R2
+    LDI 80
+    MOV R12, R0
+    MOV R9, R4
+    DIV R9, R12
+    ADD R9, 1
+    MUL R9, R12
+    ADD R2, R9
+    MOV SCR, R2
+    LDI clear_cursor
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI print_text
+    MOV R2, R0
+    LDI line_too_long_msg
+    LINK
+    JMP R2
+    NOP
+    LDI recover_prompt
+    MOV PC, R0
+    NOP
+; Reached only from the JZ in serload_eof: interpret_done lies outside the
+; conditional jump range. src_mode has to go back to 0 first, or interpret_done
+; would see a load still running and send us round the loop once more.
+sl_eof_done:
+    LDI src_mode
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI interpret_done
     MOV PC, R0
     NOP
 
