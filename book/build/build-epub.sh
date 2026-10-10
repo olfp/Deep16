@@ -46,9 +46,9 @@ case "$mode" in
     ;;
 esac
 
-chapters=(kap*.md)
+chapters=(kap*.md anhang*.md)
 if ((${#chapters[@]} == 0)); then
-  echo "keine Kapitel (book/kap*.md) gefunden" >&2
+  echo "keine Kapitel/Anhaenge (book/kap*.md book/anhang*.md) gefunden" >&2
   exit 1
 fi
 

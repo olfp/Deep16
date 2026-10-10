@@ -22,7 +22,7 @@
 | 6 | Der Simulator als Werkbank | ✅ fertig | beide Kerne | ✅ 1 SVG-Diagramm |
 | 7 | Ein Mini-Forth | ✅ fertig | beide Kerne | ✅ 1 SVG-Diagramm |
 | 8 | Snake auf dem Bildschirmpuffer | ✅ fertig | beide Kerne | ✅ 1 SVG-Diagramm |
-| A–D | Anhänge | ⏳ offen | — | — |
+| A–D | Anhänge | ✅ fertig | alle drei Kerne | ✅ 1 SVG-Diagramm |
 
 Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
 
@@ -161,6 +161,32 @@ Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
   Bildschirmprüfung aller 2000 Zellen), Dreikern-Gleichlauf 35 Listings ohne
   Abweichung.
 
+### ✅ Anhänge A–D — `book/anhang.md` (495 Zeilen)
+- **Anhang A — Befehlsreferenz** in sieben Abschnitten (Laden/Segment,
+  ALU/Schieben/MUL-DIV, Speicher, Sprünge, System, Pseudonyme, „Was es nicht
+  gibt"). **67 von 67 Beispielwörtern am Assembler gemessen.** Zwei Korrekturen
+  ergaben sich daraus, beide gegen die Intuition:
+  `LDI -1` kodiert `7FFF` (nicht `FFFF` — die CPU erweitert vorzeichenrichtig,
+  §6.2), und `JMP LR` ist `FBF8`, das Pseudonym für `MOV PC, LR, 0`.
+- **Anhang B — PSW** mit dem Spickzettel-Diagramm (aus `book/test/mmtest.md`
+  übernommen) und **Tabelle B-2**: welcher Befehl welches Flag setzt.
+  Kernaussage: Lade- und Speicherbefehle setzen **keine** Flags.
+- **Anhang C — Glossar** mit je einer Spalte „Bedeutung" und „auf dem 6502?",
+  dazu eine zweite Tabelle der 6502-Begriffe und ihrer Entsprechung.
+- **Anhang D — Quellen und Werkzeuge**: die drei Kerne, die Prüfbefehle, das
+  Simulator-Fenster, die Spezifikation (mit dem Hinweis auf ihre veraltete
+  Opcode-Tabelle), die bewusst ausgelassenen Themen **GFX, PSRAM, SERLOAD**
+  samt Wiedervorlage-Bedingung, und die Werkzeuge der Buchproduktion.
+- **Befund an der Spezifikation:** `doc/Deep16-Arch.md` ist in drei Opcode-
+  Bereichen älter als der Assembler (Schiebegruppe `110 10000`–`110 11011`
+  statt `110 10…`, `MUL`/`DIV` `110 11100`–`110 11111`, Systemgruppe ab
+  `11111111110`). Die **33 Opcode-Diagramme der Kapitel 3–6 wurden gegen den
+  Assembler geprüft und stimmen alle** — der Fehler steckt nur in der
+  Spec-Tabelle, nicht im Buch.
+- **Verifikation:** `probe_anhang_a.mjs` 67/67 Beispielwörter,
+  `probe_diagramme.mjs` 33/33 Diagramme, `probe_reject.mjs` 26/26 abgelehnte
+  6502-Befehle mit wörtlichen Fehlertexten, `npm test` 296/296.
+
 ---
 
 ## Build & Tooling
@@ -199,6 +225,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-10 | **JS-Kern führt `LDS`/`STS` im Debugger mit**: `executeLDSSTS` setzte `recentMemoryAccess` nicht, das Speicherfenster zeigte nach einem `STS` auf den Bildschirm weiterhin die Brotkrume des Boot-ROMs (Adresse `0x0002`) statt `0xF1000` — der WASM-Kern (`recent_addr`) hatte es richtig. Das war die einzige Divergenz, die Kapitel 6 beim „gleiche Bitgenauigkeit"-Vergleich aufgedeckt hat; `tests/cores.test.js` 22/22 grün. | `js/deep16_simulator.js` |
 | 2026-10-10 | **`npm run lint:rtl` wieder benutzbar**: Die Quellliste im npm-Skript kannte weder `deep16_cache.sv` noch `deep16_divider.sv`, obwohl `deep16_top` den Cache und `deep16_core` den Teiler instanziiert — Verilator brach mit „Cannot find file containing module" ab. Die Liste entspricht jetzt der des Build-Skripts (`scripts/build_rtl_native.sh`); Lint läuft mit `-Wall` fehler- und warnungsfrei durch. | `package.json` |
 | 2026-10-10 | **Die vier offenen imm2-Punkte abgearbeitet**: **(1)** `MOV` hatte als einziger häufig benutzter Befehl **kein** Bit-Diagramm — ergänzt in Kap. 3 §3.1 mit den vier `imm2`-Funktionen (Tabelle 3-1, Listing 3-11, auf allen drei Kernen gemessen). **(2)** „Jede 16-Bit-Konstante kostet zwei Instruktionen" steht jetzt als Merksatz dort, gestützt auf die Messung `LDI 0x1234` + `MOV R5, R0` → `0x1234`. **(3)** `ALINK`/`ALNK` (Alias für `SMV Rx, APC`) fehlten im Buch — jetzt in Kap. 4 §4.2 mit Vergleichstabelle gegen `LINK` (gemessen `0x0101` gegen `0x0103`, bytegleiches Befehlswort `0xFEEF`) und Querverweis aus Tabelle 5-2 in Kap. 5. **(4)** Das `Jcc`-Ablaufdiagramm in Kap. 4 war mehrdeutig: „PC + 1" meinte die Adresse des `Jcc`, während die CPU im Slot bereits `PC + 2` ausgibt — neu beschriftet mit der **Ankunftsadresse `A`** und den gemessenen Werten (Slot `0x0105`, `MOV Rx, PC` im Slot liest `0x0106`). | `book/kap03.md`, `book/kap04.md`, `book/kap05.md` |
+| 2026-10-11 | **Die vier Anhänge geschrieben** (`book/anhang.md`). Zwei Dinge, die beim Messen auffielen und deshalb jetzt dokumentiert sind: **(1)** Die Opcode-Tabelle in `doc/Deep16-Arch.md` ist in drei Bereichen veraltet — der Assembler kodiert die Schiebegruppe `110 10000`–`110 11011`, `MUL`/`DIV` `110 11100`–`110 11111` und die Systemgruppe ab `11111111110`. Die Spec wurde **nicht** geändert (sie gehört dem Parallelautor); Anhang A nennt die gemessenen Werte und weist die Abweichung aus, die 33 Opcode-Diagramme im Buch wurden gegenprüft und stimmen. **(2)** `LDI -1` kodiert `7FFF` und nicht `FFFF` — die einzige Codierung für `FFFF` ist `HLT`; genau die Lektion aus §6.2, jetzt an der Referenz sichtbar. `book/build/build-epub.sh` nimmt `anhang*.md` jetzt mit in den Build. | `book/anhang.md`, `book/build/build-epub.sh`, `book/epub/*` |
 | 2026-10-11 | **Kapitel 8 „Snake"** geschrieben. Der Buchplan nannte „Terminal-Uhr oder Snake"; gewählt wurde Snake, weil der Simulator **keinen Timer-Port** kennt (nur `0xF0060`/`0xF0062` und den Bildschirmpuffer) — eine Uhr wäre damit nur über eine Schleifenzählung gegangen und hätte nichts über die Maschine gezeigt. Snake nutzt Adressrechnung, Blockverschiebung, Unterprogramme und Tastatureingabe gemeinsam. Vier Listings, alle drei Kerne, Extractor 172/172. | `book/kap08.md`, `book/epub/*` |
 | 2026-10-11 | **Kapitel 7 „Ein Mini-Forth"** geschrieben, gestufter Aufbau nach Buchplan: Listing 7-1/7-2 (Zeile lesen, Wort schneiden), 7-3 (Wörterbuch mit Fehlerpfad), 7-4 (Zahl lesen und dezimal ausgeben), 7-5 (Schlussprogramm). Der Zwischenstand zu `SERPLAN.md` (Zeilenlängengrenze, EOF-Statuswert) ist für die serielle Variante noch nicht im Buch — Kapitel 8 oder Anhang D. Alle Zahlen auf JS-, WASM- und Verilog-Kern gemessen (Extractor 276/276). | `book/kap07.md`, `book/epub/*` |
 | 2026-10-10 | **Architektur-Revisionen abgeglichen**: Die Revisionsdokumente im Repo-Root sind in STATUS.md unter „Architektur-Revisionen im Repo-Root" nach Thema, Stand und Buchrelevanz eingeordnet. Zwei sind bewusst **kein** Buchthema: `GFX.md`/`GFXOVERV.md` (Grafik-Kern GCoP, Design-Phase, ferne Zukunft) und `PLANPSRAM.md` (PSRAM-Backing-Store, **nicht umgesetzt**). `SERPLAN.md` (8/9 Schritte fertig) ist Material für Kapitel 7. Der aus `VERILOG.md` folgende dritte Kern **wurde ins Buch übernommen**: Kapitel 6 §6.2 spricht jetzt von drei Kernen, und Probe (71/71) wie Extractor (94/94) messen auf JS, WASM und RTL — die Schrittzahlen stimmen auch auf dem Verilog-Kern. Vermessungs-Workflow in `STYLE.md` §7 entsprechend auf drei Kerne gestellt. | `book/kap06.md`, `STYLE.md`, `STATUS.md` |
