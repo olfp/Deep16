@@ -1146,6 +1146,16 @@ class Deep16Assembler {
     encodeLDI(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const imm = this.parseImmediate(parts[1], false);
+            // TODO(assembler): the positive bound is wrong. LDI's operand is a
+            // *signed* 15-bit field — the CPU sign-extends from bit 14 — so
+            // 16384..0x7FFF assembles cleanly but loads a negative value
+            // (`LDI 20000` -> 0xCE20 = -12992). The negative branch below
+            // already uses the correct bound; the positive one should be
+            // 16383 so the check mirrors encodeLSI's shape. Measured in
+            // book/kap06.md 6.2 (probe_kap06.mjs, case P4): both cores agree on
+            // the wrong value, so this is an assembler defect and not a core
+            // divergence. Fix both encodeLDI and encodeLDIFromLine, then add an
+            // assembler.test.js case for 16383 / 16384.
             if (imm >= 0) {
                 if (imm > 0x7FFF) {
                     throw new Error(`LDI immediate ${imm} out of range (0..0x7FFF)`);
@@ -1167,6 +1177,8 @@ class Deep16Assembler {
             throw new Error('LDI requires immediate value');
         }
         const imm = this.parseImmediate(rest, false);
+        // TODO(assembler): same defect as in encodeLDI above — the positive
+        // bound must be 16383, not 0x7FFF. Keep both sites in sync.
         if (imm >= 0) {
             if (imm > 0x7FFF) {
                 throw new Error(`LDI immediate ${imm} out of range (0..0x7FFF)`);

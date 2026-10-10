@@ -160,6 +160,25 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 4. Danach: Kapitel 7 (Mini-Forth) — die Schleife aus Listing 6-5 wird zur
    REPL-Zeile, `asm/forth.asm` liegt dafür bereits vor.
 
+## Bekannte Mängel (zur Korrektur vorgemerkt)
+
+1. **`LDI` prüft den Immediate-Bereich nur halb** (`js/deep16_assembler.js`,
+   `encodeLDI` und `encodeLDIFromLine`). Das Operandenfeld ist 15 Bit mit
+   **Vorzeichenfortsetzung**, die CPU setzt ab Bit 14 fort. Der negative Zweig
+   prüft korrekt gegen `-16384`, der positive nur gegen die Bitbreite
+   `0x7FFF`. Folge: `LDI 16384` … `LDI 32767` assemblieren ohne Mucks und
+   liefern auf der CPU einen **negativen** Wert — gemessen `LDI 20000` →
+   `0xCE20` = `−12992` (JS- **und** WASM-Kern, `probe_kap06.mjs` Fall P4).
+   Weil beide Kerne gleich irren, fällt es in Tests nicht auf; in
+   Kapitel 6 §6.2 ist es als Falle dokumentiert.
+   **Fix:** obere Grenze auf `16383` setzen, damit die Prüfung die Form von
+   `encodeLSI` (`-16..15`) spiegelt; beide Stellen gemeinsam, danach einen
+   Fall in `tests/assembler.test.js` für `16383`/`16384` ergänzen.
+   ⚠️ `js/deep16_assembler.js` wird parallel bearbeitet — Änderung mit dem
+   zweiten Autor abstimmen.
+
+---
+
 ## Offene Punkte (aus `book/README.md`)
 
 - Umfang pro Kapitel final kalkulieren.
