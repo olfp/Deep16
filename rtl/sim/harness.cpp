@@ -214,9 +214,10 @@ void load_program(uint32_t ptr, const uint16_t* data, uint32_t len) {
   for (uint32_t i = 0; i < len; i++) m[ptr + i] = data[i];
   rom_copy(m);
   // the ROM re-plant and every word just written must not sit behind a cached
-  // copy - drop all lines rather than track each address
+  // copy - drop all lines rather than track each address. Must clock, see
+  // invalidate_cache_line() above.
   g_top->i_cache_flush = 1;
-  g_top->eval();
+  tick();
   g_top->i_cache_flush = 0;
   dbg_write(DBG_REGS + 15, 0x0000);   // PC = 0, exactly like load_program() in
   dbg_write(DBG_CS, 0xFFFF);          // the WASM core (it re-arms the ROM CS)
@@ -305,10 +306,15 @@ void poke(uint32_t addr, uint16_t value) {
 // The cache is transparent for CPU accesses (a miss falls through to the
 // array), but a debugger write bypasses the CPU entirely - so the line it
 // touched has to be dropped or the core would keep reading a stale copy.
+//
+// This has to CLOCK, not just eval: tick() parks clk high, so a bare eval()
+// never triggers the cache's always_ff and the clear silently does nothing.
+// The pipeline is idle while the debugger drives these, so one extra edge
+// moves nothing else.
 static void invalidate_cache_line(uint32_t addr) {
   g_top->i_cache_inv = 1;
   g_top->i_cache_inv_line = (uint8_t)((addr >> 3) & 0xFF);
-  g_top->eval();
+  tick();
   g_top->i_cache_inv = 0;
 }
 

@@ -40,7 +40,7 @@ module deep16_cache
   // out-of-band invalidation: FSH, and debugger writes (poke/load_program)
   input  logic        flush_all,
   input  logic        inv_we,
-  input  logic [7:0]  inv_line,
+  input  logic [10:3]  inv_line,
 
   // statistics (spec 7.4: hit/miss counters)
   output logic [31:0] stat_hits,
@@ -70,9 +70,20 @@ module deep16_cache
   wire dm_c = (mem_addr[19:16] != 4'hF) && !mem_addr[20];
   wire wr_c = (mem_waddr[19:16] != 4'hF) && !mem_waddr[20];
 
-  wire if_hit_w = if_c && valid[if_line] && (tag[if_line] == if_addr[19:6]);
-  wire dm_hit_w = dm_c && valid[dm_line] && (tag[dm_line] == mem_addr[19:6]);
-  wire wr_hit_w = wr_c && valid[wr_line] && (tag[wr_line] == mem_waddr[19:6]);
+  // Invalidation has to take effect immediately, not on the next clock edge.
+  // The harness raises flush_all / inv_we from the debugger, where the clock
+  // is parked high and an eval() therefore never triggers the always_ff below
+  // - a purely sequential clear would silently do nothing and the next program
+  // would read the previous one's cached lines. Gating the hit combinationally
+  // makes the line miss right away; the sequential clear then tidies up.
+
+
+  wire if_hit_w = if_c && !flush_all && !(inv_we && (inv_line == if_line))
+                  && valid[if_line] && (tag[if_line] == if_addr[19:6]);
+  wire dm_hit_w = dm_c && !flush_all && !(inv_we && (inv_line == dm_line))
+                  && valid[dm_line] && (tag[dm_line] == mem_addr[19:6]);
+  wire wr_hit_w = wr_c && !flush_all && !(inv_we && (inv_line == wr_line))
+                  && valid[wr_line] && (tag[wr_line] == mem_waddr[19:6]);
 
   assign if_hit = if_hit_w;
   assign dm_hit = dm_hit_w;
@@ -85,7 +96,11 @@ module deep16_cache
   // One line can be refilled per cycle. When both ports miss in the same cycle
   // the fetch wins; the data port is refilled on its next access, and its
   // value came from memory either way.
-  assign fill_base = if_c ? if_addr[19:3] : mem_addr[19:3];
+  // The refill line must follow the port that actually MISSED, not merely a
+  // cacheable one: if the fetch is cacheable but hits while the data port
+  // misses, filling from if_addr would copy the fetch line's eight words into
+  // the data line. (Seen as LD returning the instruction word.)
+  assign fill_base = (if_c && !if_hit_w) ? if_addr[19:3] : mem_addr[19:3];
   assign miss_pulse = (if_c && !if_hit_w) || (dm_c && !dm_hit_w);
 
   integer i;
@@ -121,6 +136,13 @@ module deep16_cache
       // write-through: a hit also updates the copy. A miss just goes to
       // memory - no write-allocate.
       if (mem_we && wr_c && wr_hit_w) data[{wr_line, wr_word}] <= mem_wdata;
+
+      // ...but a store that MISSES must drop the line. The data read port can
+      // refill that very line in the same cycle (it is looking at the same
+      // address), and the refill captures memory as it was *before* the store
+      // committed. Leaving the line valid would then serve the pre-store word
+      // to the next load - seen as "ST 0xFBEF; LD" returning 0xFFFF.
+      if (mem_we && wr_c && !wr_hit_w) valid[wr_line] <= 1'b0;
 
       // Debugger write (poke / load_program): drop that one line, so an
       // out-of-band write is never hidden behind a stale copy.

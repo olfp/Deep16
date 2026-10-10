@@ -29,7 +29,7 @@ module deep16_top
   // FSH and debugger writes reach the cache from the harness / core
   input  logic        i_cache_flush,
   input  logic        i_cache_inv,
-  input  logic [7:0]  i_cache_inv_line,
+  input  logic [10:3]  i_cache_inv_line,
   output logic [31:0] o_cache_hits,
   output logic [31:0] o_cache_misses,
   output logic [31:0] o_cache_penalty
@@ -68,7 +68,7 @@ module deep16_top
   logic        cache_flush;
   logic        core_cache_flush;
   logic        cache_inv;
-  logic [7:0]  cache_inv_line;
+  logic [10:3]  cache_inv_line;
   logic [31:0] cache_hits, cache_misses;
   logic        cache_miss_pulse;
   logic [31:0] miss_penalty_cyc;
