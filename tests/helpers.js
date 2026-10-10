@@ -107,6 +107,46 @@ export async function runWasm(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es =
   };
 }
 
+// The RTL core (Verilator + Emscripten) is a third core with the same export
+// surface as the WASM one. rtl/pkg/ is committed, so no build step is needed.
+let rtl = null;
+
+export async function loadRtl() {
+  if (rtl) return rtl;
+  const mod = await import(path.join(ROOT, 'rtl/pkg/deep16_rtl.js'));
+  rtl = await mod.default({
+    wasmBinary: fs.readFileSync(path.join(ROOT, 'rtl/pkg/deep16_rtl_gen.wasm')),
+  });
+  return rtl;
+}
+
+// Run a program on the RTL core and return the same shape as runWasm.
+export async function runRtl(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000, maxSteps = 200000, keys = [] } = {}) {
+  if (!res.success) throw new Error(`program does not assemble: ${res.errors.join('; ')}`);
+  const r = await loadRtl();
+  r.init(MEM_WORDS);
+  for (const ch of res.memoryChanges) {
+    r.load_program(ch.address, new Uint16Array([ch.value & 0xFFFF]));
+  }
+  r.set_segments(cs, ds, ss, es);
+  for (const code of keys) r.kbd_push(code & 0xFFFF);
+  let steps = 0;
+  let cont = true;
+  while (cont && steps < maxSteps) { cont = r.step(); steps++; }
+  return {
+    steps,
+    registers: Array.from(r.get_registers()),
+    psw: r.get_psw(),
+    segments: Array.from(r.get_segments()),
+    shadow: Array.from(r.get_shadow_state()),
+    memoryAt: (addr, count) => Array.from(r.get_memory_slice(addr, count)),
+    kbdPush: (code) => r.kbd_push(code & 0xFFFF),
+    cycleCount: () => r.get_cycle_count(),
+    stepCount: () => r.get_step_count(),
+    delayState: () => Array.from(r.get_delay_state()),
+  };
+}
+
 // Instruction builders, so a test can bypass the assembler when it needs a
 // word the assembler (correctly) refuses to produce. specs: Deep16-Arch.md
 export const enc = {

@@ -3,9 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Deep16 - 16-bit RISC ISA with assembler, disassembler, JS/WASM simulators and a browser IDE",
+  "description": "Deep16 - 16-bit RISC ISA with assembler, disassembler, JS/WASM/RTL simulators and a browser IDE",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "build:wasm": "cd wasm/deep16-wasm && wasm-pack build --target web --out-dir ../pkg"
+    "build:wasm": "cd wasm/deep16-wasm && wasm-pack build --target web --out-dir ../pkg",
+    "build:rtl": "bash scripts/build_rtl_native.sh",
+    "build:rtl:wasm": "bash scripts/build_rtl_wasm.sh",
+    "lint:rtl": "verilator --lint-only -Wall --top-module deep16_top rtl/deep16_pkg.sv rtl/deep16_alu.sv rtl/deep16_regfile.sv rtl/deep16_core.sv rtl/deep16_top.sv",
+    "trace:rtl": "node scripts/rtl_trace.mjs",
+    "sweep:rtl": "node scripts/rtl_sweep.mjs"
   }
 }

@@ -17,3 +17,8 @@ Thumbs.db
 # The compiled WASM core in wasm/pkg/ is intentionally NOT ignored:
 # index.html loads wasm/pkg/deep16_wasm.js and wasm/pkg/deep16_wasm_bg.wasm
 # directly, so the browser IDE works without a local Rust build.
+# Verilator build directories (the generated WASM package in rtl/pkg/ is
+# intentionally NOT ignored - like wasm/pkg/ it is committed so the IDE and the
+# tests run without a local build)
+obj_dir/
+rtl/obj_wasm/
