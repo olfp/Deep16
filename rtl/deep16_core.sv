@@ -64,10 +64,14 @@ module deep16_core
   output logic [20:0] mem_waddr,
   output logic [15:0] mem_wdata,
   output logic        kbd_pop,
+  output logic        ser_pop,
 
   input  logic        kbd_ready,
   input  logic [15:0] kbd_head,
   input  logic [7:0]  kbd_count,
+  input  logic        ser_ready,
+  input  logic [15:0] ser_head,
+  input  logic [15:0] ser_status,
 
   // FSH retired in WB: the top invalidates every cache line (spec 7.4)
   output logic        cache_flush,
@@ -462,6 +466,7 @@ module deep16_core
   logic ex_kill, kill_id, flush_id;
   logic      fsh_ex;           // this instruction is FSH
   logic      kbd_take_ex;   // this LDS reads the keyboard FIFO data port
+  logic      ser_take_ex;  // this LDS reads the serial FIFO data port
 
   wire [15:0] pc_own1 = id_ex.pc0 + 16'd1;   // PC sources see own address + 1
 
@@ -483,6 +488,7 @@ module deep16_core
     mem_rd_valid_ex= 1'b0; mem_is_load_ex = 1'b0; load_rd_ex = 4'd0;
     sh_clear_ex    = 1'b0; is_swi_ex = 1'b0; fsh_ex = 1'b0;
     kbd_pop        = 1'b0; kbd_take_ex = 1'b0;
+    ser_pop        = 1'b0; ser_take_ex = 1'b0;
 
     rec_we_ex = 1'b0; rec_addr_ex = 21'd0; rec_base_ex = 16'h0000;
     rec_segval_ex = 16'h0000; rec_off_ex = 5'd0; rec_segid_ex = 2'd1;
@@ -665,6 +671,15 @@ module deep16_core
                     // the next key, exactly like one instruction per step does
                     reg_da  = kbd_ready ? kbd_head : 16'd0;
                     kbd_take_ex = 1'b1;
+                  end else if (pa_m == SER_STATUS_ADDR) begin
+                    // 2 only once the queue has drained, so the machine reads
+                    // every character before it sees the end of transmission
+                    reg_da = ser_status;
+                  end else if (pa_m == SER_DATA_ADDR) begin
+                    // one LDS consumes exactly one character and never clears
+                    // the EOF flag, so an empty read cannot swallow it
+                    reg_da  = ser_ready ? ser_head : 16'd0;
+                    ser_take_ex = 1'b1;
                   end else begin
                     mem_rd_valid_ex = 1'b1;
                     mem_is_load_ex  = 1'b1;
@@ -809,6 +824,10 @@ module deep16_core
       //     instruction would otherwise pop again on the step's last edge,
       //   - a load-use stall holds the instruction for another cycle.
       kbd_pop = kbd_take_ex && run && !step_done && !stall && kbd_ready;
+      // The serial FIFO is popped from EX for the same reason and under the
+      // same three qualifications, otherwise a held read would consume two
+      // characters.
+      ser_pop = ser_take_ex && run && !step_done && !stall && ser_ready;
 
       // ---- delay-slot bookkeeping ------------------------------------------
       // A delay slot is armed by a branch and consumed by the very next

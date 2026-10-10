@@ -22,6 +22,13 @@ module deep16_top
   input  logic [15:0] kbd_push_data,
   input  logic        kbd_clear,
 
+  // serial FIFO push (Forth source over the serial line, SERPLAN.md). The host
+  // raises serial_eof_in when the transfer is done; serial_clear drops it all.
+  input  logic        serial_in_valid,
+  input  logic [15:0] serial_in_data,
+  input  logic        serial_eof_in,
+  input  logic        serial_clear,
+
   // harness debug bus
   input  logic        dbg_en,
   input  logic        dbg_we,
@@ -42,11 +49,56 @@ module deep16_top
 
   // ---- keyboard FIFO (polled: KBD_STATUS 0xF0060, KBD_DATA 0xF0062) ----
   localparam int KBD_FIFO_DEPTH = 128;   // a power of two, so the full check fits in 8 bits
+  localparam int SER_FIFO_DEPTH = 128;   // same, so the count register stays 8 bit
   logic [15:0] kbd_fifo [0:KBD_FIFO_DEPTH-1];
   logic [7:0]  kbd_head, kbd_tail, kbd_count;
   logic [6:0]  kbd_head_i, kbd_tail_i;
   logic        kbd_ready, kbd_full, kbd_pop;
   logic [15:0] kbd_head_data;
+
+  // ---- serial FIFO (polled: SER_STATUS 0xF0064, SER_DATA 0xF0066) -------
+  // Same shape as the keyboard FIFO. ser_eof makes STATUS report 2, but only
+  // once the queue has run empty — the machine has to read every character
+  // before it ever sees the end of transmission.
+  logic [15:0] ser_fifo [0:SER_FIFO_DEPTH-1];
+  logic [7:0]  ser_head, ser_tail, ser_count;
+  logic [6:0]  ser_head_i, ser_tail_i;
+  logic        ser_ready, ser_full, ser_pop;
+  logic [15:0] ser_head_data;
+  logic        ser_eof;
+  logic [15:0] ser_status;
+
+  assign ser_status = ser_ready ? 16'd1 : (ser_eof ? 16'd2 : 16'd0);
+
+  wire ser_push = serial_in_valid && !ser_full;
+
+  always_ff @(posedge clk) begin
+    if (rst) begin
+      ser_head <= 8'd0; ser_tail <= 8'd0; ser_count <= 8'd0;
+      ser_eof  <= 1'b0;
+    end else begin
+      if (ser_push) begin
+        ser_fifo[ser_tail_i] <= serial_in_data;
+        ser_tail    <= ser_tail + 8'd1;
+        ser_count   <= ser_count + 8'd1;
+      end
+      if (ser_pop) begin
+        ser_head  <= ser_head + 8'd1;
+        ser_count <= ser_count - 8'd1;
+      end
+      if (serial_eof_in) ser_eof <= 1'b1;
+      if (serial_clear) begin
+        ser_head <= 8'd0; ser_tail <= 8'd0; ser_count <= 8'd0;
+        ser_eof  <= 1'b0;
+      end
+    end
+  end
+
+  assign ser_head_i    = ser_head[6:0];
+  assign ser_tail_i    = ser_tail[6:0];
+  assign ser_ready     = (ser_count != 8'd0);
+  assign ser_full      = (ser_count == 8'(SER_FIFO_DEPTH));
+  assign ser_head_data = ser_fifo[ser_head_i];
 
   logic [15:0] mem_rdata;
   logic [20:0] mem_addr;
@@ -102,6 +154,10 @@ module deep16_top
     .kbd_ready (kbd_ready),
     .kbd_head  (kbd_head_data),
     .kbd_count (kbd_count),
+    .ser_pop   (ser_pop),
+    .ser_ready (ser_ready),
+    .ser_head  (ser_head_data),
+    .ser_status(ser_status),
     .cache_flush (core_cache_flush),
     .dbg_en    (dbg_en),
     .dbg_we    (dbg_we),

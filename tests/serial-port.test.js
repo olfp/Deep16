@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  assemble, loadBrowserScripts, runJs, runWasm, ROOT,
+  assemble, loadBrowserScripts, loadRtl, runJs, runWasm, runRtl, MEM_WORDS, ROOT,
 } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
@@ -251,6 +251,57 @@ test('serial parity: WASM and JS agree cell for cell over a longer transfer', as
   const want = [...source].map((c) => c.charCodeAt(0)).concat([2]);
   assert.deepEqual(js, want, 'the JS core must consume every character, then report EOF');
   assert.deepEqual(w, js, 'both cores must consume the transfer identically');
+});
+
+// ---------------------------------------------------------------------------
+// The RTL core has to grow the same port. Its FIFO is popped in EX, so the
+// double-pop trap from VERILOG.md applies here as much as it did to the
+// keyboard: three LDS SER_DATA must return three characters, not one.
+// ---------------------------------------------------------------------------
+for (const c of PARITY_CASES) {
+  test(`serial RTL parity: ${c.label}`, async () => {
+    const res = assemble(readCharsDs(c.n));
+    assert.ok(res.success, res.errors.join('; '));
+    const opts = { cs: 0xFFFF, es: 0xF000, maxSteps: 20000, serial: c.serial, serialEof: c.eof };
+    const rtl = await runRtl(res, opts);
+    assert.deepEqual(cells((a) => rtl.memoryAt(a, 1)[0], c.n), c.want, 'the RTL core reads something else');
+  });
+}
+
+test('serial: every LDS SER_DATA consumes exactly one character on all three cores', async () => {
+  // The keyboard FIFO is popped in EX, so a held read can pop twice (VERILOG.md,
+  // tests/rtl.test.js:538). The serial FIFO is built the same way, so the
+  // invariant is pinned on the RTL core — the one where it can actually fail.
+  const res = assemble(readCharsDs(3));
+  assert.ok(res.success, res.errors.join('; '));
+  const opts = { cs: 0xFFFF, es: 0xF000, maxSteps: 20000, serial: 'ABC', serialEof: true };
+  const { sim } = runJs(res, opts);
+  const wasm = await runWasm(res, opts);
+  const rtl = await runRtl(res, opts);
+  const want = [0x0041, 0x0042, 0x0043, 2];
+  assert.deepEqual(cells((a) => sim.memory[a], 3), want, 'JS: three reads must return A, B, C');
+  assert.deepEqual(cells((a) => wasm.memoryAt(a, 1)[0], 3), want, 'WASM: three reads must return A, B, C');
+  assert.deepEqual(cells((a) => rtl.memoryAt(a, 1)[0], 3), want, 'RTL: three reads must return A, B, C');
+});
+
+test('serial: a machine reset clears the line on the RTL core too', async () => {
+  const res = assemble(readCharsDs(0));
+  assert.ok(res.success, res.errors.join('; '));
+  const r = await loadRtl();
+  r.init(MEM_WORDS);
+  for (const ch of 'ABC') r.serial_push(ch.charCodeAt(0));
+  r.serial_set_eof();
+  // reset() refills the memory, so the probe has to be loaded again afterwards.
+  r.reset();
+  for (const ch of res.memoryChanges) {
+    r.load_program(ch.address, new Uint16Array([ch.value & 0xFFFF]));
+  }
+  r.set_segments(0xFFFF, 0, 0, 0xF000);
+  for (let i = 0; i < 2000 && r.step(); i++) { /* run to HALT */ }
+  assert.deepEqual(
+    cells((a) => r.get_memory_slice(a, 1)[0], 0), [0],
+    'after a reset the line must be idle again, characters and EOF flag gone'
+  );
 });
 
 // ---------------------------------------------------------------------------

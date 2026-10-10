@@ -373,7 +373,7 @@ data_area:
         // so this needs no build step either. deep16_rtl.js exposes the same
         // API shape as the wasm-bindgen core, so the IDE just picks a module.
         try {
-            const rtlPromise = import('./rtl/pkg/deep16_rtl.js?v=20261010-1');
+            const rtlPromise = import('./rtl/pkg/deep16_rtl.js?v=20261010-2');
             rtlPromise.then(async (rtl) => {
                 const initPromise = rtl.default();
                 window.Deep16RtlReady = initPromise;

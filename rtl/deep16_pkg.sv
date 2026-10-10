@@ -14,6 +14,12 @@ package deep16_pkg;
   localparam logic [20:0] KBD_STATUS_ADDR = 21'h0F0060;
   localparam logic [20:0] KBD_DATA_ADDR   = 21'h0F0062;
 
+  // Serial line (SERPLAN.md): SER_STATUS 0 = idle, 1 = character pending,
+  // 2 = end of transmission once the queue has drained. SER_DATA pops exactly
+  // one character.
+  localparam logic [20:0] SER_STATUS_ADDR = 21'h0F0064;
+  localparam logic [20:0] SER_DATA_ADDR   = 21'h0F0066;
+
   // PSW bit positions (doc/Deep16-Arch.md 2.4)
   localparam int FLG_N = 0;
   localparam int FLG_Z = 1;

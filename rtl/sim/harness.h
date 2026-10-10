@@ -33,6 +33,10 @@ void          set_segments(uint16_t cs, uint16_t ds, uint16_t ss, uint16_t es);
 void          load_program(uint32_t ptr, const uint16_t* data, uint32_t len);
 void          kbd_push(uint16_t code);
 void          kbd_clear();
+// Serial line (SERPLAN.md): one character per call, then the EOF flag.
+void          serial_push(uint16_t code);
+void          serial_set_eof();
+void          serial_clear();
 void          get_recent_access(uint32_t* out);  // 6
 void          get_last_event(uint16_t* out);     // 5
 void          get_shadow_state(uint16_t* out);   // 3

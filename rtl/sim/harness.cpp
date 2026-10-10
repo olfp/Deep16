@@ -133,6 +133,10 @@ void init(uint32_t /*mem_words*/) {
   g_top->i_free = 0;
   g_top->kbd_push = 0;
   g_top->kbd_clear = 0;
+  g_top->serial_in_valid = 0;
+  g_top->serial_in_data = 0;
+  g_top->serial_eof_in = 0;
+  g_top->serial_clear = 0;
   g_top->dbg_en = 0;
   g_top->dbg_we = 0;
   g_top->dbg_idx = 0;
@@ -142,12 +146,14 @@ void init(uint32_t /*mem_words*/) {
   reset_memory();
   reset_core();
   kbd_clear();      // a fresh core has an empty keyboard FIFO, like the others
+  serial_clear();   // and an empty serial line with the EOF flag down
 }
 
 void reset() {
   reset_memory();
   reset_core();
   kbd_clear();
+  serial_clear();
   g_steps = 0;
 }
 
@@ -300,6 +306,28 @@ void kbd_clear() {
   g_top->kbd_clear = 1;
   tick();
   g_top->kbd_clear = 0;
+}
+
+// Serial line (SERPLAN.md): one character per tick, like the keyboard push.
+void serial_push(uint16_t code) {
+  g_top->serial_in_valid = 1;
+  g_top->serial_in_data = code;
+  tick();
+  g_top->serial_in_valid = 0;
+}
+
+// Raising EOF does not discard what is still queued: SER_STATUS reports 2 only
+// once the FIFO has run empty.
+void serial_set_eof() {
+  g_top->serial_eof_in = 1;
+  tick();
+  g_top->serial_eof_in = 0;
+}
+
+void serial_clear() {
+  g_top->serial_clear = 1;
+  tick();
+  g_top->serial_clear = 0;
 }
 
 void get_recent_access(uint32_t* out) {

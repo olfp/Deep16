@@ -129,7 +129,7 @@ export async function loadRtl() {
 }
 
 // Run a program on the RTL core and return the same shape as runWasm.
-export async function runRtl(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000, maxSteps = 200000, keys = [] } = {}) {
+export async function runRtl(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000, maxSteps = 200000, keys = [], serial = '', serialEof = false } = {}) {
   if (!res.success) throw new Error(`program does not assemble: ${res.errors.join('; ')}`);
   const r = await loadRtl();
   r.init(MEM_WORDS);
@@ -138,6 +138,8 @@ export async function runRtl(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 
   }
   r.set_segments(cs, ds, ss, es);
   for (const code of keys) r.kbd_push(code & 0xFFFF);
+  for (const ch of serial) r.serial_push(ch.charCodeAt(0));
+  if (serialEof) r.serial_set_eof();
   let steps = 0;
   let cont = true;
   while (cont && steps < maxSteps) { cont = r.step(); steps++; }
