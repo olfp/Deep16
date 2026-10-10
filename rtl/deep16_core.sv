@@ -72,6 +72,7 @@ module deep16_core
   input  logic        ser_ready,
   input  logic [15:0] ser_head,
   input  logic [15:0] ser_status,
+  input  logic [7:0]  ser_count,
 
   // FSH retired in WB: the top invalidates every cache line (spec 7.4)
   output logic        cache_flush,
@@ -1259,6 +1260,7 @@ module deep16_core
         8'h6D: dbg_rdata = {8'h00, mem_wb.valid, mem_wb.reg_bank,
                             mem_wb.reg_we_b, mem_wb.reg_we_a, mem_wb.reg_wa};
         8'h6E: dbg_rdata = {14'h0000, kbd_pop, kbd_ready};
+        8'h6F: dbg_rdata = {6'h00, ser_pop, ser_ready, ser_count};
         8'h65: dbg_rdata = {15'h0000, ex_mem.mem_we};
         8'h66: dbg_rdata = ex_mem.mem_addr[15:0];
         8'h67: dbg_rdata = {11'h0000, ex_mem.mem_addr[20:16]};

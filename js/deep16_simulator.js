@@ -1203,6 +1203,13 @@ class Deep16Simulator {
         this.serLastData = 0;
     }
 
+    // How many characters are still queued. The host needs this before it
+    // pushes: the RTL core has a 128 entry FIFO and silently drops a push
+    // that arrives while it is full, so feeding has to be demand-driven.
+    serialAvailable() {
+        return this.serBuffer.length;
+    }
+
     enqueueKeyEvent(e) {
         let code = 0;
         if (e.key === 'Enter') code = 10;

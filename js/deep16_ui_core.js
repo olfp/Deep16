@@ -43,6 +43,9 @@ class DeepWebUI {
         this.examples = [];
         this.loadExamplesList();
 
+        // No serial transfer is in flight yet (see queueSerialSource).
+        this.serialSource = null;
+
         this.initializeEventListeners();
         this.initializeSearchableDropdowns();
         this.initializeTabs();
@@ -138,9 +141,11 @@ class DeepWebUI {
         const runBtn = document.getElementById('run-btn');
         const stepBtn = document.getElementById('step-btn');
         const resetBtn = document.getElementById('reset-btn');
+        const serBtn = document.getElementById('serload-btn');
         if (runBtn) runBtn.disabled = false;
         if (stepBtn) stepBtn.disabled = false;
         if (resetBtn) resetBtn.disabled = false;
+        if (serBtn) serBtn.disabled = false;
         this.updateRunIndicator(false);
         this.manualAddressChange = true;
         this.updateAllDisplays();
@@ -261,6 +266,124 @@ class DeepWebUI {
         return 'JS';
     }
 
+    // ---- serial source (SERLOAD) ------------------------------------------
+    // A picked file is not pushed in one go: the RTL core's FIFO is 128 entries
+    // deep and silently drops a push that arrives while it is full, which would
+    // lose source text in the middle of a file. So the file is kept here and
+    // handed over a few characters per run tick, paced by what the machine has
+    // actually consumed. SER_FIFO_DEPTH is the smallest queue any core has.
+    static get SER_FIFO_DEPTH() { return 128; }
+    static get SER_CHUNK() { return 64; }
+
+    // Characters still queued on the active core, or NaN when that core cannot
+    // say. NaN means "unknown", and the pump then feeds a single character,
+    // which cannot overflow anything.
+    serialAvailable() {
+        if (this.compiledCoreReady()) {
+            const C = this.activeCoreModule();
+            return (typeof C.serial_available === 'function') ? C.serial_available() : NaN;
+        }
+        const s = this.simulator;
+        return (s && typeof s.serialAvailable === 'function') ? s.serialAvailable() : NaN;
+    }
+
+    // Push into the active core and mirror into the JS one, the way a
+    // keystroke is mirrored into both (see the keydown handler). Without the
+    // mirror, switching cores mid-file would deliver nothing at all.
+    serialPushCode(code) {
+        const s = this.simulator;
+        if (s && typeof s.serialPush === 'function') s.serialPush(code);
+        if (this.compiledCoreReady()) {
+            const C = this.activeCoreModule();
+            if (typeof C.serial_push === 'function') C.serial_push(code);
+        }
+    }
+
+    serialSetEof(on = true) {
+        const s = this.simulator;
+        if (s && typeof s.serialSetEof === 'function') s.serialSetEof(on);
+        if (this.compiledCoreReady()) {
+            const C = this.activeCoreModule();
+            if (typeof C.serial_set_eof === 'function') C.serial_set_eof(on);
+        }
+    }
+
+    serialClearAll() {
+        const s = this.simulator;
+        if (s && typeof s.serialClear === 'function') s.serialClear();
+        if (this.compiledCoreReady()) {
+            const C = this.activeCoreModule();
+            if (typeof C.serial_clear === 'function') C.serial_clear();
+        }
+    }
+
+    // Hand a file to the machine. Nothing is pushed yet: the kernel has to run
+    // SERLOAD first, and until then the queue only fills up.
+    queueSerialSource(file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+            // A UTF-8 BOM would arrive as three characters and become the first
+            // token of the first line. The kernel ends a line on LF as well as
+            // CR, so the text is passed on unchanged.
+            let text = String(reader.result || '');
+            if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+            if (!text) {
+                this.addTranscriptEntry(`SERLOAD: ${file.name} is empty`, "warning");
+                return;
+            }
+            this.serialSource = { name: file.name, text, pos: 0, done: false, stalled: false };
+            this.addTranscriptEntry(
+                `SERLOAD: ${file.name} queued (${text.length} chars) - type SERLOAD on the keyboard, then Run`,
+                "info");
+            this.status(`${file.name} queued for SERLOAD`);
+        };
+        reader.onerror = () => {
+            this.addTranscriptEntry(`SERLOAD: could not read ${file.name}`, "error");
+        };
+        reader.readAsText(file);
+    }
+
+    // Cancel an in-flight transfer and drop whatever is still queued.
+    cancelSerialFeed(reason = '') {
+        if (!this.serialSource && !this.serialSourceActive) return;
+        this.serialSource = null;
+        this.serialClearAll();
+        if (reason) this.addTranscriptEntry(`SERLOAD: transfer cancelled (${reason})`, "warning");
+    }
+
+    // Feed the queued file, as far as the machine's queue allows. Called from
+    // both run loops; returns the number of characters handed over.
+    pumpSerialQueue() {
+        const src = this.serialSource;
+        if (!src || src.done) return 0;
+        const avail = this.serialAvailable();
+        let room = Number.isFinite(avail) ? (DeepWebUI.SER_FIFO_DEPTH - avail) : 1;
+        room = Math.min(room, DeepWebUI.SER_CHUNK);
+        if (room <= 0) {
+            // The queue is full and only the machine can empty it. Say so once
+            // rather than on every tick.
+            if (!src.stalled) {
+                src.stalled = true;
+                this.addTranscriptEntry('SERLOAD: line is full - press Run to let the machine read', "warning");
+                this.status('Serial line full - press Run');
+            }
+            return 0;
+        }
+        src.stalled = false;
+        const start = src.pos;
+        const end = Math.min(src.text.length, src.pos + room);
+        for (; src.pos < end; src.pos++) this.serialPushCode(src.text.charCodeAt(src.pos));
+        if (src.pos >= src.text.length) {
+            src.done = true;
+            // EOF only after the last character: SER_STATUS reports 2 once the
+            // queue has drained, so nothing is truncated.
+            this.serialSetEof(true);
+            this.addTranscriptEntry(`SERLOAD: all ${src.text.length} chars sent - waiting for EOF`, "info");
+            this.status(`SERLOAD: ${src.name} sent completely`);
+        }
+        return end - start;
+    }
+
     coreAvailable(name) {
         if (name === 'wasm') return !!this.wasmAvailable && !!window.Deep16Wasm;
         if (name === 'rtl') return !!this.rtlAvailable && !!window.Deep16Rtl;
@@ -298,6 +421,9 @@ class DeepWebUI {
         }
         this.coreName = name;
         this.useWasm = name !== 'js';
+        // The new core's serial line is empty, while the JS mirror still holds
+        // whatever was fed so far. Half a file is worse than none: cancel.
+        if (this.serialSource) this.cancelSerialFeed('core changed');
         const select = document.getElementById('core-select');
         if (select) select.value = name;
         if (announce) this.addTranscriptEntry(`Core: ${this.coreLabel(name)}`, "info");
@@ -677,6 +803,19 @@ class DeepWebUI {
         document.getElementById('run-btn').addEventListener('click', () => this.run());
         document.getElementById('step-btn').addEventListener('click', () => this.step());
         document.getElementById('reset-btn').addEventListener('click', () => this.reset());
+
+        // SERLOAD: hand a source file to the Forth kernel over the serial line.
+        // The button only picks the file; the actual transfer runs through
+        // pumpSerialQueue() below while the machine steps.
+        const serBtn = document.getElementById('serload-btn');
+        const serFile = document.getElementById('serload-file');
+        if (serBtn) serBtn.addEventListener('click', () => serFile && serFile.click());
+        if (serFile) serFile.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (file) this.queueSerialSource(file);
+            // Selecting the same file again has to fire 'change' again.
+            e.target.value = '';
+        });
         
         // Add event listeners for Edit menu items
         document.getElementById('undo-btn').addEventListener('click', () => this.undo());
@@ -1639,6 +1778,9 @@ class DeepWebUI {
             }
             
             const stepsPerTick = 200;
+            // Hand the machine whatever the serial line still has room for,
+            // once per tick, paced by what it consumed since the last tick.
+            if (this.serialSource) this.pumpSerialQueue();
             let continueRunning = true;
             for (let i = 0; i < stepsPerTick && this.simulator.running; i++) {
                 const physPCCheck = ((this.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.simulator.registers[15] & 0xFFFF);
@@ -2097,6 +2239,10 @@ class DeepWebUI {
             clearInterval(this.runInterval);
             this.runInterval = null;
         }
+        // A reset empties the serial line on both the core and its JS mirror,
+        // so a half-sent file would leave the kernel waiting for a line that
+        // never comes. Drop the transfer instead of resuming into silence.
+        if (this.serialSource) this.cancelSerialFeed('machine reset');
         if (this.compiledCoreReady()) {
             try { this.activeCoreModule().reset(); } catch {}
         }
@@ -2187,6 +2333,8 @@ class DeepWebUI {
                 return;
             }
             const stepsPerTick = 200;
+            // Same cadence as the JS loop: one pump per tick, not per step.
+            if (this.serialSource) this.pumpSerialQueue();
             let cont = true;
             let lastSBit = ((this.simulator.psw & (1 << 5)) !== 0) ? 1 : 0;
             for (let i = 0; i < stepsPerTick && this.simulator.running; i++) {

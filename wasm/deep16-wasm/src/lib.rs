@@ -1050,6 +1050,14 @@ pub fn serial_clear() {
     }
 }
 
+/// How many characters are still queued. The host needs this before it pushes:
+/// the RTL core has a 128 entry FIFO and silently drops a push that arrives
+/// while it is full, so feeding has to be demand-driven.
+#[wasm_bindgen]
+pub fn serial_available() -> u32 {
+    unsafe { cpu_ref().ser.len() as u32 }
+}
+
 #[wasm_bindgen]
 pub fn run_steps(n: u32) -> bool {
     unsafe {

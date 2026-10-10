@@ -193,6 +193,8 @@ data_area:
                 <span id="core-stats-mini" class="core-stats-mini" title="Cycle, stall, flush and cache counters of the selected core"></span>
                 <button id="step-btn" disabled>Step</button>
                 <button id="reset-btn" disabled>Reset</button>
+                <button id="serload-btn" disabled title="Hand a source file to the Forth kernel over the serial line (SERPLAN.md)">SERLOAD…</button>
+                <input type="file" id="serload-file" accept=".fs,.fth,.forth,.4th,.txt" hidden>
                 <button id="view-toggle" class="view-toggle">Compact View</button>
             </div>
         </div>
@@ -350,15 +352,15 @@ data_area:
 
     <script src="js/deep16_assembler.js?v=20261006-1"></script>
     <script src="js/deep16_disassembler.js?v=20261006-1"></script>
-    <script src="js/deep16_simulator.js?v=20261006-1"></script>
+    <script src="js/deep16_simulator.js?v=20261010-3"></script>
     <script src="js/deep16_ui_registers.js?v=20261006-1"></script>
     <script src="js/deep16_ui_memory.js?v=20261006-1"></script>
     <script src="js/deep16_ui_screen.js?v=20261010-1"></script>
     <script type="module">
         try {
-            const modPromise = import('./wasm/pkg/deep16_wasm.js?v=20261010-2');
+            const modPromise = import('./wasm/pkg/deep16_wasm.js?v=20261010-3');
             modPromise.then(async (wasm) => {
-                const initPromise = wasm.default({ module_or_path: new URL('./wasm/pkg/deep16_wasm_bg.wasm?v=20261010-2', import.meta.url) });
+                const initPromise = wasm.default({ module_or_path: new URL('./wasm/pkg/deep16_wasm_bg.wasm?v=20261010-3', import.meta.url) });
                 window.Deep16WasmReady = initPromise;
                 window.Deep16Wasm = wasm;
                 await initPromise;
@@ -373,7 +375,7 @@ data_area:
         // so this needs no build step either. deep16_rtl.js exposes the same
         // API shape as the wasm-bindgen core, so the IDE just picks a module.
         try {
-            const rtlPromise = import('./rtl/pkg/deep16_rtl.js?v=20261010-2');
+            const rtlPromise = import('./rtl/pkg/deep16_rtl.js?v=20261010-3');
             rtlPromise.then(async (rtl) => {
                 const initPromise = rtl.default();
                 window.Deep16RtlReady = initPromise;
@@ -389,6 +391,6 @@ data_area:
             console.warn('RTL module not loaded', e);
         }
     </script>
-    <script src="js/deep16_ui_core.js?v=20261010-4"></script>
+    <script src="js/deep16_ui_core.js?v=20261010-5"></script>
 </body>
 </html>

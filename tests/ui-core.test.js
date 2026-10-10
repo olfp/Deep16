@@ -57,6 +57,8 @@ function makeUi(memory) {
   ui.wasmDirtyEnd = null;
   ui.transcript = [];
   ui.addTranscriptEntry = (msg, kind) => ui.transcript.push(`[${kind || 'info'}] ${msg}`);
+  // status() writes into a DOM node that does not exist in this stub.
+  ui.status = () => {};
   if (memory) {
     ui.simulator.loadProgram(memory);
     // Start at the program rather than in the boot ROM: the ROM is a fixed
@@ -179,4 +181,172 @@ test('the panels read through the active core, never a hardcoded module', () => 
     const stale = src.match(/window\.Deep16Wasm\.(?!default\b)[a-z_]+\(/g) || [];
     assert.deepEqual(stale, [], `${file} still calls the WASM module directly`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// The SERLOAD host feed (js/deep16_ui_core.js). The browser picks a file, the
+// pump hands it over a few characters at a time and raises EOF at the end. The
+// pump is paced by the queue level because the RTL FIFO drops a push that
+// arrives while it is full - a pump that ignored that would silently lose the
+// middle of a file. Here it runs against the real Forth kernel on the JS core,
+// with the same 200-steps-then-pump cadence the two run loops use.
+// ---------------------------------------------------------------------------
+
+const KERNEL = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
+
+// Load the kernel, type "SERLOAD", then feed `file` through the real pump.
+function loadThroughSerialPump(typed, file, { stepsPerTick = 200, maxSteps = 2000000 } = {}) {
+  const res = assemble(KERNEL);
+  assert.ok(res.success, res.errors.join('; '));
+  const ui = makeUi();
+  const mem = new Array(1048576).fill(0xFFFF);
+  for (const c of res.memoryChanges) mem[c.address] = c.value & 0xFFFF;
+  ui.simulator.loadProgram(mem);
+  ui.simulator.segmentRegisters.CS = 0xFFFF;
+  for (const ch of typed) ui.simulator.enqueueKeyCode(ch === '\n' ? 10 : ch.charCodeAt(0));
+  // queueSerialSource needs a FileReader; the state it would build is set here
+  // directly, which is the only part the test does not exercise.
+  ui.serialSource = { name: 'test.fs', text: file, pos: 0, done: false, stalled: false };
+
+  ui.simulator.running = true;
+  for (let i = 0; i < maxSteps && ui.simulator.running; i++) {
+    ui.simulator.step();
+    // The cadence both run loops use: 200 steps, then whatever the line takes.
+    if ((i + 1) % stepsPerTick === 0) ui.pumpSerialQueue();
+  }
+  const rows = [];
+  for (let r = 0; r < 25; r++) {
+    let s = '';
+    for (let c = 0; c < 80; c++) s += String.fromCharCode(ui.simulator.memory[0xF1000 + r * 80 + c] & 0xFF);
+    rows.push(s.replace(/\s+$/, ''));
+  }
+  return { ui, rows, transcript: ui.transcript };
+}
+
+test('the serial pump hands a file to the kernel and raises EOF at the end', () => {
+  const { ui, rows } = loadThroughSerialPump('SERLOAD\n', ': foo 41 ;\nfoo .\n');
+  // A loaded line is not echoed, so "41  ok" is what the transferred
+  // "foo ." leaves behind on the row where SERLOAD was typed - the same
+  // contract the keyboard tests pin.
+  assert.equal(rows[0], 'Hello DeepForth!');
+  assert.equal(rows[1], '> SERLOAD 41  ok', `screen was:\n${rows.join('\n')}`);
+  assert.equal(rows[2], '>', 'the REPL must come back after the file is exhausted');
+  assert.equal(ui.serialSource.done, true, 'the pump must mark the source as fully sent');
+});
+
+test('the serial pump delivers a file longer than the RTL FIFO', () => {
+  // 300 characters is well past the 128 entry RTL FIFO, which is the case that
+  // makes the queue-level pacing load-bearing: a pump that pushed everything at
+  // once would lose characters on the RTL core.
+  const lines = [];
+  for (let i = 0; i < 20; i++) lines.push(`: w${i} ${i} ;`);
+  lines.push('w7 .\n');
+  const file = lines.join('\n');
+  assert.ok(file.length > DeepWebUI.SER_FIFO_DEPTH, 'the file has to outgrow the FIFO');
+  const { rows } = loadThroughSerialPump('SERLOAD\n', file);
+  assert.equal(rows[1], '> SERLOAD 7  ok', `screen was:\n${rows.join('\n')}`);
+  assert.equal(rows[2], '>', 'the last line must be interpreted before the prompt returns');
+});
+
+test('the serial pump paces itself and says so when the line is full', () => {
+  const res = assemble(KERNEL);
+  assert.ok(res.success, res.errors.join('; '));
+  const ui = makeUi();
+  ui.serialSource = { name: 'test.fs', text: 'x'.repeat(500), pos: 0, done: false, stalled: false };
+  // Nothing runs, so nothing consumes: the pump may fill the line and no more.
+  const first = ui.pumpSerialQueue();
+  assert.equal(first, DeepWebUI.SER_CHUNK);
+  assert.equal(ui.simulator.serialAvailable(), DeepWebUI.SER_CHUNK);
+  let total = first;
+  for (let i = 0; i < 20; i++) total += ui.pumpSerialQueue();
+  assert.equal(total, DeepWebUI.SER_FIFO_DEPTH, 'the line must hold exactly one FIFO worth');
+  assert.equal(ui.pumpSerialQueue(), 0, 'a full line accepts nothing');
+  assert.equal(ui.serialSource.stalled, true, 'the pump must notice that it is blocked');
+  assert.ok(ui.transcript.some((t) => /line is full/.test(t)), `transcript was:\n${ui.transcript.join('\n')}`);
+  assert.equal(ui.serialSource.done, false, 'EOF must not be raised while characters are stuck');
+});
+
+test('the serial pump raises EOF only after the last character', () => {
+  const ui = makeUi();
+  // Longer than one chunk, so the first call cannot finish the file.
+  const text = `: foo ${'1 '.repeat(40)};\n`;
+  assert.ok(text.length > DeepWebUI.SER_CHUNK, 'the text has to outgrow one chunk');
+  ui.serialSource = { name: 'test.fs', text, pos: 0, done: false, stalled: false };
+  ui.pumpSerialQueue();
+  assert.equal(ui.simulator.serEof, false, 'EOF must not be raised while characters remain');
+  assert.equal(ui.simulator.serialAvailable(), DeepWebUI.SER_CHUNK);
+  while (!ui.serialSource.done) ui.pumpSerialQueue();
+  assert.equal(ui.simulator.serEof, true, 'EOF is raised once the last character is handed over');
+  assert.equal(ui.simulator.serialAvailable(), text.length, 'queued characters survive the EOF flag');
+});
+
+test('a short file is handed over and closed in a single call', () => {
+  const ui = makeUi();
+  const text = ': foo 1 ;\n';
+  ui.serialSource = { name: 'test.fs', text, pos: 0, done: false, stalled: false };
+  assert.equal(ui.pumpSerialQueue(), text.length);
+  assert.equal(ui.simulator.serialAvailable(), text.length);
+  assert.equal(ui.simulator.serEof, true);
+  assert.equal(ui.pumpSerialQueue(), 0, 'a finished file is not pushed again');
+});
+
+test('cancelling the feed drops the file and clears the line', () => {
+  const ui = makeUi();
+  ui.serialSource = { name: 'test.fs', text: 'abc', pos: 0, done: false, stalled: false };
+  ui.pumpSerialQueue();
+  assert.equal(ui.simulator.serialAvailable(), 3);
+  ui.cancelSerialFeed('test');
+  assert.equal(ui.serialSource, null);
+  assert.equal(ui.simulator.serialAvailable(), 0, 'the line must be empty after a cancel');
+  assert.equal(ui.pumpSerialQueue(), 0, 'a cancelled feed has nothing left to push');
+});
+
+test('a reset cancels a transfer that is still running', () => {
+  const ui = makeUi();
+  ui.runInterval = null;
+  // reset() reaches into the DOM for the address field, scrolls the memory panel
+  // from a timer and restarts the machine; stub all of it so the serial part
+  // can be checked on its own.
+  ui.memoryUI = { scrollToPC() {} };
+  ui.serialSource = { name: 'test.fs', text: 'abc', pos: 0, done: false, stalled: false };
+  ui.pumpSerialQueue();
+  ui.updateRunButton = () => {};
+  ui.updateAllDisplays = () => {};
+  ui.ensurePCCentered = () => {};
+  ui.switchTab = () => {};
+  ui.run = () => {};
+  ui.reset();
+  assert.equal(ui.serialSource, null, 'the half-sent file must be dropped, not resumed');
+  assert.equal(ui.simulator.serialAvailable(), 0);
+  assert.ok(ui.transcript.some((t) => /cancelled \(machine reset\)/.test(t)),
+            `transcript was:\n${ui.transcript.join('\n')}`);
+});
+
+test('switching the core cancels a transfer that is still running', () => {
+  const ui = makeUi();
+  ui.serialSource = { name: 'test.fs', text: 'abc', pos: 0, done: false, stalled: false };
+  ui.pumpSerialQueue();
+  // setCore('js') from 'js' is a no-op, so go via the RTL stub the tests use.
+  ui.rtlAvailable = true;
+  globalThis.window.Deep16Rtl = { set_registers() {}, set_psw() {}, set_segments() {},
+                                  init() {}, load_program() {} };
+  try {
+    assert.equal(ui.setCore('rtl', { mirror: false }), true);
+    assert.equal(ui.serialSource, null, 'the new core has an empty line, so the file is dropped');
+    assert.ok(ui.transcript.some((t) => /cancelled \(core changed\)/.test(t)),
+              `transcript was:\n${ui.transcript.join('\n')}`);
+  } finally {
+    globalThis.window.Deep16Rtl = undefined;
+  }
+});
+
+test('an unknown queue level makes the pump feed one character at a time', () => {
+  // A core that cannot report its level must not be flooded: one character per
+  // call is the only rate that cannot overflow an unseen FIFO.
+  const ui = makeUi();
+  ui.serialSource = { name: 'test.fs', text: 'abcdefghij', pos: 0, done: false, stalled: false };
+  ui.serialAvailable = () => NaN;
+  assert.equal(ui.pumpSerialQueue(), 1);
+  assert.equal(ui.pumpSerialQueue(), 1);
+  assert.equal(ui.serialSource.pos, 2);
 });

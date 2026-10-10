@@ -93,6 +93,7 @@ export default async function initDeep16Rtl(options = {}) {
     serial_push: (code) => Module._serial_push(code & 0xFFFF),
     serial_set_eof: () => Module._serial_set_eof(),
     serial_clear: () => Module._serial_clear(),
+    serial_available: () => Module._serial_available(),
 
     get_recent_access: () => {
       const ptr = reserve(24);

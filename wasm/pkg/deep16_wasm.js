@@ -7,6 +7,29 @@ export function init(mem_words) {
     wasm.init(mem_words);
 }
 
+let cachedUint16ArrayMemory0 = null;
+
+function getUint16ArrayMemory0() {
+    if (cachedUint16ArrayMemory0 === null || cachedUint16ArrayMemory0.byteLength === 0) {
+        cachedUint16ArrayMemory0 = new Uint16Array(wasm.memory.buffer);
+    }
+    return cachedUint16ArrayMemory0;
+}
+
+function getArrayU16FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
+}
+/**
+ * @returns {Uint16Array}
+ */
+export function get_shadow_state() {
+    const ret = wasm.get_shadow_state();
+    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+    return v1;
+}
+
 export function reset() {
     wasm.reset();
 }
@@ -19,15 +42,6 @@ export function reset() {
  */
 export function set_segments(cs, ds, ss, es) {
     wasm.set_segments(cs, ds, ss, es);
-}
-
-let cachedUint16ArrayMemory0 = null;
-
-function getUint16ArrayMemory0() {
-    if (cachedUint16ArrayMemory0 === null || cachedUint16ArrayMemory0.byteLength === 0) {
-        cachedUint16ArrayMemory0 = new Uint16Array(wasm.memory.buffer);
-    }
-    return cachedUint16ArrayMemory0;
 }
 
 let WASM_VECTOR_LEN = 0;
@@ -85,6 +99,17 @@ export function serial_clear() {
 }
 
 /**
+ * How many characters are still queued. The host needs this before it pushes:
+ * the RTL core has a 128 entry FIFO and silently drops a push that arrives
+ * while it is full, so feeding has to be demand-driven.
+ * @returns {number}
+ */
+export function serial_available() {
+    const ret = wasm.serial_available();
+    return ret >>> 0;
+}
+
+/**
  * @param {number} n
  * @returns {boolean}
  */
@@ -116,25 +141,11 @@ export function get_recent_access() {
     return v1;
 }
 
-function getArrayU16FromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
-}
 /**
  * @returns {Uint16Array}
  */
 export function get_last_event() {
     const ret = wasm.get_last_event();
-    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
-    return v1;
-}
-
-/**
- * @returns {Uint16Array}
- */
-export function get_shadow_state() {
-    const ret = wasm.get_shadow_state();
     var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
     return v1;

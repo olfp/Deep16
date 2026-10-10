@@ -19,10 +19,23 @@ Nicht Teil dieses Plans: Dateinamen, ein Dateisystem in der Maschine, Blöcke.
 | 3 | BIOS `f6` | ✅ erledigt (`asm/forth.asm`) |
 | 4 | `SERLOAD` mit `src_mode` und den drei Abfangstellen | ✅ erledigt |
 | 5 | Kernel-Tests | ✅ erledigt (7 Tests in `tests/forth.test.js`) |
-| 6 | `EVALUATE` | offen |
-| 7 | WASM nachziehen | ⛔ blockiert |
-| 8 | RTL nachziehen | ⛔ blockiert |
-| 9 | Host-Anbindung | offen |
+| 6 | `EVALUATE` | offen (bewusst zurückgestellt) |
+| 7 | WASM nachziehen | ✅ erledigt (`serial_push`, `serial_set_eof`, `serial_clear`, `serial_available`) |
+| 8 | RTL nachziehen | ✅ erledigt (zweite FIFO in `deep16_top.sv`) |
+| 9 | Host-Anbindung | ✅ erledigt (Dateidialog, getaktete Pumpe) |
+
+**Nachtrag zu Schritt 7/8:** Die Toolchain war vorhanden, nur nicht im `PATH`
+(`~/.cargo/bin` fehlte). Der serielle Port liegt jetzt in allen drei Kernen.
+Zusätzlich kam in Schritt 9 **`serial_available()`** hinzu — die Anzahl der
+wartenden Zeichen. Ohne sie kann der Host die 128 tiefe RTL-FIFO nicht
+verwalten: ein Schreibvorgang in eine volle FIFO wird stillschweigend
+verworfen, und eine Datei mit mehr als 128 Zeichen käme mittendrin zu Ende.
+
+**Nachtrag zu Schritt 9:** Der Host schiebt die Datei nicht auf einmal hinein.
+`pumpSerialQueue()` reicht pro Takt (10 ms, 200 Befehle) höchstens 64 Zeichen
+nach — so viel, wie die Warteschlange gerade fasst. Eine geladene Zeile wird
+nicht gespiegelt: nach `SERLOAD` steht auf der Bildschirmzeile, was die
+übertragene Zeile ausgegeben hat, nicht ihr Text.
 
 **Was Schritt 4 festlegt:**
 - Die Zeilen landen im selben Puffer wie die Tastatureingabe (`tib_kbd`, ein Wort
@@ -37,16 +50,16 @@ Nicht Teil dieses Plans: Dateinamen, ein Dateisystem in der Maschine, Blöcke.
   Meldung endet bereits auf einer frischen Zeile, der zusätzliche Zeilenumbruch
   würde eine Leerzeile einfügen.
 
-**Blocker Schritte 7 und 8:** In dieser Umgebung fehlen `wasm-pack` und
-`cargo`. Das WASM-Paket (`wasm/pkg/`) kann deshalb nicht neu gebaut werden, und
-für den RTL-Kern fehlt die Simulator-Toolchain. Beide Schritte brauchen eine
-Umgebung mit diesen Werkzeugen.
+**Blocker Schritte 7 und 8 — aufgehoben:** Es fehlten `wasm-pack` und `cargo` auf
+dem `PATH`, nicht auf der Maschine; sie liegen unter `~/.cargo/bin`. Verilator
+und Emscripten waren vorhanden. Beide Schritte sind erledigt, die Artefakte in
+`wasm/pkg/` und `rtl/pkg/` sind neu gebaut.
 
 **Korrektur an Schritt 1/2:** Der ursprüngliche Entwurf sah „Port in einem
 Kern" und danach „Paritätstest" vor — ein Paritätstest braucht aber zwei Kerne.
-Mit dem fehlenden Werkzeug ist ohnehin nur der JS-Kern baubar, deshalb ist der
-Test vorerst eine Prüfung dieses einen Kerns. Sobald WASM den Port hat, wird er
-um die Gleichheitsbehauptung erweitert.
+Deshalb war der Porttest vorerst eine Prüfung des JS-Kerns allein. Schritt 7 hat
+ihn auf WASM erweitert, Schritt 8 auf den RTL-Kern: derselbe Programmtext,
+derselbe Transfer, alle drei Kerne, mit fest verdrahteten Sollwerten.
 
 **Was Schritt 1 festlegt:**
 - `SER_STATUS` meldet `2` erst, wenn die Warteschlange leer ist. Ein EOF kann
@@ -217,16 +230,43 @@ Ein Dateidialog im Stil des vorhandenen Beispiel-Ladens (`loadExample` in
 `js/deep16_ui_core.js:2857`, der Abruf in `:2865`) genügt; die Übertragung läuft
 dann asynchron in Chunks, während der Simulator steppt.
 
+### Bedienung
+
+1. `SERLOAD…` neben **Reset** anklicken und eine Datei wählen. Sie liegt im
+   Protokoll, wartet aber noch in der Leitung.
+2. Den Kernel starten (Beispiel **forth.asm** laden, **Assemble**, **Run**).
+3. `SERLOAD` auf der Tastatur eingeben. Ab da liest der Kernel nur noch von der
+   Leitung, nicht mehr von der Tastatur.
+4. Die Datei wird im Takt übertragen; das Transkript meldet, wann alle Zeichen
+   drin sind und wann die Maschine EOF sieht.
+
+**Wie der Host bremst:** `pumpSerialQueue()` fragt vorher
+`serial_available()` und schiebt höchstens so viel nach, wie in die Warteschlange
+passt — höchstens 64 Zeichen pro Takt. Ist die Leitung voll (die Maschine
+läuft nicht oder ist langsam), meldet das Transkript einmal „line is full —
+press Run". Ein Kern, der seinen Füllstand nicht melden kann, bekommt
+vorsichtshalber ein einziges Zeichen pro Aufruf: die einzige Rate, die keine
+FIFO überlaufen kann, deren Tiefe man nicht kennt.
+
+**Was beim Wechsel passiert:** Ein **Reset** und ein **Kernwechsel** brechen
+eine laufende Übertragung ab und leeren die Leitung. Grund: die neue Maschine
+oder der neue Kern kennt die bisher geschobenen Zeichen nicht — halber Quelltext
+ist schlechter als keiner. Das Transkript sagt, dass es passiert ist.
+
+**Was die Oberfläche nicht umformatieren muss:** Der Kernel beendet eine Zeile
+sowohl mit LF als auch mit CR (`word_serload`), deshalb darf die Datei so
+weitergegeben werden, wie sie ist. Nur ein UTF-8-BOM wird abgeschnitten, weil
+er sonst als erstes Token der ersten Zeile ankäme.
+
 ---
 
 ## 7. Tests
 
 | Datei | Inhalt |
 |-------|--------|
-| `tests/serial-port.test.js` | **neu** — Portvertrag, vorerst JS-Kern: Status 0/1/2, Reihenfolge, **ein Lesevorgang = ein Zeichen**, EOF verdeckt keine Zeichen, leerer Lesevorgang schluckt kein EOF, Reset, `serialClear` |
-| `tests/forth.test.js` | Wort aus geladener Quelle aufrufen; Fehler in der Quelle bricht ab und der REPL lebt weiter; leere Übertragung; EOF ohne Newline; zu lange Zeile; `SERLOAD` mitten in einer Definition; `EVALUATE` über einen Puffer |
-| `tests/shadow.test.js` | JS↔WASM-Parität für `SERLOAD` und `EVALUATE` (sobald WASM den Port hat) |
-| `tests/rtl.test.js` | Port-Dekodierung; **ein `LDS SER_DATA` verbraucht genau ein Zeichen** (sobald RTL gebaut werden kann) |
+| `tests/serial-port.test.js` | **neu** — Portvertrag in allen drei Kernen: Status 0/1/2, Reihenfolge, **ein Lesevorgang = ein Zeichen**, EOF verdeckt keine Zeichen, leerer Lesevorgang schluckt kein EOF, Reset, `serialClear`, `serial_available` zählt herunter |
+| `tests/forth.test.js` | Wort aus geladener Quelle aufrufen; Fehler in der Quelle bricht ab und der REPL lebt weiter; leere Übertragung; EOF ohne Newline; zu lange Zeile; `SERLOAD` mitten in einer Definition |
+| `tests/ui-core.test.js` | Die Host-Pumpe: eine Datei kommt beim echten Kernel an, eine Datei länger als die FIFO auch, die Pumpe bremst sich am Füllstand, EOF erst nach dem letzten Zeichen, Reset und Kernwechsel brechen ab |
 
 Der Porttest ist die einzige Stelle, an der ein Fehler beim Einlesen
 stillschweigend Daten verschlucken würde — deshalb zuerst und einzeln.
@@ -241,13 +281,14 @@ stillschweigend Daten verschlucken würde — deshalb zuerst und einzeln.
 4. `SERLOAD` mit `src_mode` und den drei Abfangstellen ✅
 5. Kernel-Tests ✅
 6. `EVALUATE`
-7. WASM nachziehen, Parität — **Werkzeug fehlt**
-8. RTL nachziehen, Porttest — **Werkzeug fehlt**
-9. Host-Anbindung (`serial_push`, Dateidialog)
+7. WASM nachziehen, Parität ✅
+8. RTL nachziehen, Porttest ✅
+9. Host-Anbindung (Dateidialog, getaktete Pumpe) ✅
 
 Die drei Kerne ziehen nach; jeder Schritt ist einzeln prüfbar, und kein Schritt
-setzt einen anderen voraus. Die Schritte 7 und 8 brauchen eine Umgebung mit
-`wasm-pack`/`cargo` und der RTL-Simulator-Toolchain.
+setzt einen anderen voraus. `EVALUATE` bleibt als einziger offener Schritt und
+kommt bewusst später: es braucht dieselbe Schleife wie `SERLOAD` nur ohne
+Port — ohne Serial-Port ist es an dieser Stelle auch noch nirgends benutzt.
 
 ---
 

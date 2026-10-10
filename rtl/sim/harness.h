@@ -37,6 +37,7 @@ void          kbd_clear();
 void          serial_push(uint16_t code);
 void          serial_set_eof();
 void          serial_clear();
+uint32_t      serial_available();          // characters still queued (0..127)
 void          get_recent_access(uint32_t* out);  // 6
 void          get_last_event(uint16_t* out);     // 5
 void          get_shadow_state(uint16_t* out);   // 3

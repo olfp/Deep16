@@ -112,6 +112,7 @@ export async function runWasm(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es =
     memoryAt: (addr, count) => Array.from(w.get_memory_slice(addr, count)),
     kbdPush: (code) => w.kbd_push(code & 0xFFFF),
     serialPush: (code) => w.serial_push(code & 0xFFFF),
+    serialAvailable: () => w.serial_available(),
   };
 }
 
@@ -151,6 +152,7 @@ export async function runRtl(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 
     shadow: Array.from(r.get_shadow_state()),
     memoryAt: (addr, count) => Array.from(r.get_memory_slice(addr, count)),
     kbdPush: (code) => r.kbd_push(code & 0xFFFF),
+    serialAvailable: () => r.serial_available(),
     cycleCount: () => r.get_cycle_count(),
     stallCount: () => r.get_stall_count(),
     flushCount: () => r.get_flush_count(),

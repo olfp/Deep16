@@ -51,6 +51,7 @@ enum : uint8_t {
   DBG_INSTH  = 0x59,
   DBG_ROM    = 0xC0,   // 0xC0..0xCF = the boot ROM words
   DBG_BANKED = 0x30,   // 0x30..0x3F = active view of the register file
+  DBG_SER    = 0x6F,   // serial FIFO: {6'h00, ser_pop, ser_ready, ser_count}
 };
 
 // Sampled by run_cycles() at the exact retirement of the n-th instruction.
@@ -328,6 +329,13 @@ void serial_clear() {
   g_top->serial_clear = 1;
   tick();
   g_top->serial_clear = 0;
+}
+
+// How many characters the serial FIFO still holds (0..127). The host reads this
+// before pushing: the FIFO is only 128 deep and a push into a full one is
+// dropped silently, so the feed has to be paced by what the machine consumed.
+uint32_t serial_available() {
+  return (uint32_t)(dbg_read(DBG_SER) & 0x00FF);
 }
 
 void get_recent_access(uint32_t* out) {

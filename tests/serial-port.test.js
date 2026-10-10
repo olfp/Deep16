@@ -284,6 +284,35 @@ test('serial: every LDS SER_DATA consumes exactly one character on all three cor
   assert.deepEqual(cells((a) => rtl.memoryAt(a, 1)[0], 3), want, 'RTL: three reads must return A, B, C');
 });
 
+test('serial: the queue level counts down on all three cores', async () => {
+  // The host paces its pushes by this number: the RTL FIFO is 128 deep and
+  // drops a push into a full one, so a wrong count means lost source text.
+  const source = 'abcdefgh';
+  const res = assemble(readCharsDs(4));
+  assert.ok(res.success, res.errors.join('; '));
+  const opts = { cs: 0xFFFF, es: 0xF000, maxSteps: 20000, serial: source, serialEof: true };
+  const { sim } = runJs(res, opts);
+  const wasm = await runWasm(res, opts);
+  const rtl = await runRtl(res, opts);
+  assert.equal(sim.serialAvailable(), source.length - 4, 'JS: four of eight characters were read');
+  assert.equal(wasm.serialAvailable(), source.length - 4, 'WASM: four of eight characters were read');
+  assert.equal(rtl.serialAvailable(), source.length - 4, 'RTL: four of eight characters were read');
+});
+
+test('serial: serial_available reports zero on a cleared line', async () => {
+  const res = assemble(readCharsDs(0));
+  assert.ok(res.success, res.errors.join('; '));
+  const opts = { cs: 0xFFFF, es: 0xF000, maxSteps: 20000, serial: 'abc', serialEof: true };
+  const { sim } = runJs(res, opts);
+  const wasm = await runWasm(res, opts);
+  const rtl = await runRtl(res, opts);
+  assert.equal(sim.serialAvailable(), 3, 'JS: nothing was read, three are queued');
+  assert.equal(wasm.serialAvailable(), 3, 'WASM: nothing was read, three are queued');
+  assert.equal(rtl.serialAvailable(), 3, 'RTL: nothing was read, three are queued');
+  sim.serialClear();
+  assert.equal(sim.serialAvailable(), 0, 'JS: serialClear empties the queue');
+});
+
 test('serial: a machine reset clears the line on the RTL core too', async () => {
   const res = assemble(readCharsDs(0));
   assert.ok(res.success, res.errors.join('; '));

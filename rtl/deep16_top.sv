@@ -158,6 +158,7 @@ module deep16_top
     .ser_ready (ser_ready),
     .ser_head  (ser_head_data),
     .ser_status(ser_status),
+    .ser_count (ser_count),
     .cache_flush (core_cache_flush),
     .dbg_en    (dbg_en),
     .dbg_we    (dbg_we),
