@@ -12,7 +12,13 @@ class Deep16ScreenUI {
         this.flushIntervalMs = 33;
         this.flushTimerId = null;
         this.lastCursorIndex = null;
-        
+
+        // Portrait phones only get half the columns - see the matching media
+        // query in css/screen.css. Keep the predicate here in sync with it.
+        this.portraitQuery = window.matchMedia('(orientation: portrait) and (max-width: 768px)');
+        this.visibleCols = this.portraitQuery.matches ? 40 : this.screenWidth;
+        this.activePage = 0; // 0 = columns 1-40, 1 = columns 41-80
+
         this.initializeScreen();
     }
 
@@ -31,8 +37,64 @@ class Deep16ScreenUI {
             html += `</div>`;
         }
         screenDisplay.innerHTML = html;
-        
+
+        this.setupPager();
+        this.applyColumnMode();
+
         if (window.Deep16Debug) console.log(`Screen initialized: ${this.screenWidth}x${this.screenHeight} at 0x${this.screenBaseAddress.toString(16).toUpperCase()}`);
+    }
+
+    // Wire the column pager and follow viewport/orientation changes, so
+    // rotating the phone re-evaluates how many columns are visible.
+    setupPager() {
+        const prevBtn = document.getElementById('screen-page-prev');
+        const nextBtn = document.getElementById('screen-page-next');
+        if (prevBtn) prevBtn.addEventListener('click', () => this.setPage(0));
+        if (nextBtn) nextBtn.addEventListener('click', () => this.setPage(1));
+
+        const onChange = () => this.applyColumnMode();
+        if (typeof this.portraitQuery.addEventListener === 'function') {
+            this.portraitQuery.addEventListener('change', onChange);
+        } else if (typeof this.portraitQuery.addListener === 'function') {
+            this.portraitQuery.addListener(onChange); // Safari < 14
+        }
+    }
+
+    applyColumnMode() {
+        const portrait = this.portraitQuery.matches;
+        this.visibleCols = portrait ? 40 : this.screenWidth;
+        // Outside portrait the pager is hidden and all 80 columns show.
+        if (!portrait) this.activePage = 0;
+        this.setPage(this.activePage);
+    }
+
+    setPage(page) {
+        const screenDisplay = document.getElementById('screen-display');
+        if (!screenDisplay) return;
+        this.activePage = page;
+        screenDisplay.classList.toggle('page-right', page === 1);
+
+        const label = document.getElementById('screen-page-label');
+        if (label) {
+            const firstCol = page === 0 ? 1 : this.visibleCols + 1;
+            const lastCol = page === 0 ? this.visibleCols : this.screenWidth;
+            label.textContent = `${firstCol}-${lastCol} / ${this.screenWidth}`;
+        }
+        const prevBtn = document.getElementById('screen-page-prev');
+        const nextBtn = document.getElementById('screen-page-next');
+        if (prevBtn) prevBtn.disabled = page === 0;
+        if (nextBtn) nextBtn.disabled = page === 1;
+    }
+
+    // The reverse-video cursor is the only feedback a REPL gives, so the page
+    // must follow it. No-op when the cursor has not moved (or in landscape,
+    // where every column is visible anyway).
+    ensureCursorVisible() {
+        if (this.lastCursorIndex === null) return;
+        if (!this.portraitQuery.matches) return;
+        const col = this.lastCursorIndex % this.screenWidth;
+        const page = col >= this.visibleCols ? 1 : 0;
+        if (page !== this.activePage) this.setPage(page);
     }
 
     setActive(flag) {
@@ -195,6 +257,7 @@ class Deep16ScreenUI {
                         }
                     }
                 }
+                this.ensureCursorVisible();
             }
         }
     }
@@ -251,5 +314,6 @@ class Deep16ScreenUI {
             }
         }
         this.pendingUpdates.clear();
+        this.ensureCursorVisible();
     }
 }

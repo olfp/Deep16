@@ -91,6 +91,56 @@
     box-sizing: border-box;
 }
 
+/* The full address range wraps onto two lines on narrow portrait screens. */
+.screen-info-short { display: none; }
+
+/* Column pager: hidden by default, shown only where 80 columns do not fit. */
+.screen-pager {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 720px;
+    box-sizing: border-box;
+    padding: 6px 8px 0;
+}
+
+.screen-page-btn {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1;
+    min-height: 26px;
+    min-width: 44px;
+    padding: 4px 12px;
+    background: #2d2d30;
+    color: #ffffff;
+    border: 1px solid #3e3e42;
+    border-radius: 3px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.screen-page-btn:disabled {
+    background: #1e1e1e;
+    color: #555555;
+    border-color: #2d2d30;
+    cursor: default;
+}
+
+.screen-page-btn:active:not(:disabled) {
+    background: #424242;
+}
+
+.screen-page-label {
+    color: #6a9955;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    min-width: 72px;
+    text-align: center;
+}
+
 /* Retro scanline effect */
 .screen-display::before {
     content: '';
@@ -125,6 +175,46 @@
     .screen-display { width: 95%; max-width: 960px; padding: 4px; }
     .screen-char { font-size: 11px; }
     .screen-row { height: 13px; }
+}
+
+/* Portrait phones: 80 columns cannot fit the viewport. The cell width is a
+   fraction of the container (width: calc((100% - 12px) / 80)) with no lower
+   bound, so on a 375px-wide phone each cell collapses to ~4px while the
+   Courier glyph is ~6.6px wide - the characters overlap and become unreadable.
+
+   Instead of squeezing, show 40 columns at their natural advance width
+   (~8px per cell at 375px) and page to the other half. Only *visibility*
+   changes: each .screen-row still holds all 80 spans addressed by their
+   grid index (screen-char-N), so the memory path in deep16_ui_screen.js is
+   untouched and needs no index remapping.
+
+   This must stay a portrait query. In landscape the phone is wider than
+   768px, the block above does not apply, and the existing 80-column layout
+   already renders correctly. */
+@media (orientation: portrait) and (max-width: 768px) {
+    .screen-char {
+        width: calc((100% - 12px) / 40);
+        font-size: 12px;
+        letter-spacing: 0;
+    }
+    .screen-row { height: 14px; }
+
+    /* Left page: columns 1-40. Right page: columns 41-80. */
+    .screen-char:nth-child(n+41) { display: none; }
+    .screen-display.page-right .screen-char:nth-child(-n+40) { display: none; }
+
+    .screen-pager { display: flex; }
+
+    .screen-info-full { display: none; }
+    .screen-info-short { display: inline; }
+}
+
+/* Very narrow portrait (iPhone SE, 320px): 40 columns still leave under 7px
+   per cell, so step the font down rather than the column count - the pager
+   labels and the JS page logic assume a fixed 40-column split. */
+@media (orientation: portrait) and (max-width: 360px) {
+    .screen-char { font-size: 10px; }
+    .screen-row { height: 12px; }
 }
 
 /* Hidden terminal keyboard hook (iOS soft keyboard).

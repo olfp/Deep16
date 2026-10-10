@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DeepCode - Deep16 (深十六) Integrated Development Environment</title>
-    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/main.css?v=20261010-1">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="alternate icon" type="image/x-icon" href="favicon.ico">
 </head>
@@ -153,8 +153,16 @@ data_area:
                     <div class="screen-display" id="screen-display">
                         <!-- 80x25 character grid will be populated by JavaScript -->
                     </div>
+                    <div class="screen-pager" id="screen-pager">
+                        <button type="button" class="screen-page-btn" id="screen-page-prev"
+                                aria-label="Spalten 1 bis 40 anzeigen">&#9664;</button>
+                        <span class="screen-page-label" id="screen-page-label">1-40 / 80</span>
+                        <button type="button" class="screen-page-btn" id="screen-page-next"
+                                aria-label="Spalten 41 bis 80 anzeigen">&#9654;</button>
+                    </div>
                     <div class="screen-info">
-                        Memory: 0xF1000-0xF17CF (80×25 characters) | Lower byte = ASCII character
+                        <span class="screen-info-full">Memory: 0xF1000-0xF17CF (80×25 characters) | Lower byte = ASCII character</span>
+                        <span class="screen-info-short">0xF1000-0xF17CF &middot; 80&times;25 &middot; Low byte = ASCII</span>
                     </div>
                     <!-- Hidden keyboard hook: on iOS the soft keyboard only appears
                          when a real <input> receives focus inside the tap gesture.
@@ -339,7 +347,7 @@ data_area:
     <script src="js/deep16_simulator.js?v=20261006-1"></script>
     <script src="js/deep16_ui_registers.js?v=20261006-1"></script>
     <script src="js/deep16_ui_memory.js?v=20261006-1"></script>
-    <script src="js/deep16_ui_screen.js?v=20261006-1"></script>    
+    <script src="js/deep16_ui_screen.js?v=20261010-1"></script>
     <script type="module">
         try {
             const modPromise = import('./wasm/pkg/deep16_wasm.js?v=20261006-1');
