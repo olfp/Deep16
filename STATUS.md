@@ -1,6 +1,6 @@
 # STATUS.md — Fortschritt des Deep16-Buchs
 
-> Ständig gepflegter Arbeitsstand. Letzte Änderung: 2026-10-08.
+> Ständig gepflegter Arbeitsstand. Letzte Änderung: 2026-10-10.
 > Workflow-Regeln: [STYLE.md](STYLE.md).
 
 ---
@@ -14,7 +14,7 @@
 | 3 | Die ALU-Werkstatt: Befehle für Einsteiger | ✅ fertig | beide Kerne | ✅ 32 SVG-Diagramme |
 | 4 | Flusskontrolle und Unterprogramme | ✅ fertig | beide Kerne | ✅ 4 SVG-Diagramme |
 | 5 | Interrupts und Shadow-Register | ✅ fertig | beide Kerne | ✅ 8 SVG-Diagramme |
-| 6 | Der Simulator als Werkbank | ⏳ offen | — | — |
+| 6 | Der Simulator als Werkbank | ✅ fertig | beide Kerne | ✅ 1 SVG-Diagramm |
 | 7 | Ein Mini-Forth | ⏳ offen | — | — |
 | 8 | Terminal-Uhr / Snake-Projekt | ⏳ offen | — | — |
 | A–D | Anhänge | ⏳ offen | — | — |
@@ -123,7 +123,29 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-09 | **EPUB-XHTML-Wohlgeformtheit** (Apple Books brach mit „Specification mandates value for attribute style" ab): `mermaid_filter.lua` entfernt leere SVG-Attribute (`style=""`, von Pandoc 3.7 sonst zu wertlosem `style` verkürzt) und escapet nackte `&` (SIL-OFL-Lizenzkommentar im eingebetteten `@font-face`) zu `&amp;`. Alle 11 XML-Teile wohlgeformt. | `book/mermaid_filter.lua`, `book/Deep16.epub` |
 | 2026-10-09 | **Kindle-Variante gegen E016, 2. Anlauf**: PNG-Diagramme allein haben E016 **nicht** beseitigt (gegen Amazon-Hilfe geprüft: keine SVGs/Gradienten/Mathe mehr, Tabellen max. 15 Zeilen, CSS unauffällig). Ursache ist die Metadaten-Klasse, an der Amazons Parser scheitert: `<dc:language>` mit Attributen bzw. Regions-Subtag sowie die von Pandoc gesetzten Apple-Attribute `prefix="ibooks:…"`/`xml:lang` im `<package>`. `normalize_epub.py` reduziert auf `<dc:language>de</dc:language>`, entfernt beide Attribute, das `com.apple.ibooks.display-options.xml` und Calibres SVG-Umschlag des Titelbilds. Da sich das gegen Amazon nicht prüfen lässt, gibt es zwei Artefakte: `kindle` (EPUB3, Layout erhalten) und `kindle-calibre` (zusätzlich Calibre-Round-Trip — von der Community als wirksam bestätigt). | `book/build-epub.sh`, `book/normalize_epub.py`, `book/Deep16-kindle.epub`, `book/Deep16-kindle-calibre.epub` |
 | 2026-10-10 | **E016 gelöst — bestätigt am Gerät**: `Deep16-kindle-calibre.epub` wird von Send to Kindle akzeptiert und liest sich reflowable; Layout und Diagramme sind einwandfrei. Damit ist der Calibre-Round-Trip die entscheidende Maßnahme, `normalize_epub.py` bleibt als Absicherung (Sprache, Apple-Attribute, SVG-Titelbild). **Für Amazon ist damit `kindle-calibre` die gültige Datei**; `Deep16-kindle.epub` und `Deep16.epub` bleiben für Apple Books. | `book/Deep16-kindle-calibre.epub` |
+| 2026-10-10 | **JS-Kern führt `LDS`/`STS` im Debugger mit**: `executeLDSSTS` setzte `recentMemoryAccess` nicht, das Speicherfenster zeigte nach einem `STS` auf den Bildschirm weiterhin die Brotkrume des Boot-ROMs (Adresse `0x0002`) statt `0xF1000` — der WASM-Kern (`recent_addr`) hatte es richtig. Das war die einzige Divergenz, die Kapitel 6 beim „gleiche Bitgenauigkeit"-Vergleich aufgedeckt hat; `tests/cores.test.js` 22/22 grün. | `js/deep16_simulator.js` |
+| 2026-10-10 | **Kapitel 6 „Der Simulator als Werkbank"** geschrieben: Speicherkarte (Tabelle 6-1), Tastaturports (Tabelle 6-2), Bildschirmzelle mit Bitdiagramm, die Kernfalle `LD`/`ST` sehen keine Ports, Delay-Slot-Falle messbar (`R1` = 5 statt 1), LDI-Vorzeichengrenze, Debugger-Hooks. Alle Zahlen auf JS- **und** WASM-Kern gemessen (Probe 50/50, Extractor 61/61). | `book/kap06.md`, `book/epub/*` |
 | 2026-10-10 | **`book/` aufgeräumt**: Ergebnisse nach `book/epub/`, Zwischenergebnisse (Pandoc-Stufe, Calibre-Round-Trip, Mermaid-PNGs) nach `book/build/` — bei jedem Build geleert, per `.gitignore` nicht versioniert. `book/` enthält damit nur noch Quellen (`kap*.md`), Werkzeuge (`build-epub.sh`, `mermaid_filter.lua`, `normalize_epub.py`), das Mermaid-Test-Fixture `test/` und die beiden Artefaktordner. | `book/epub/`, `book/build/`, `book/build-epub.sh`, `STYLE.md` §6 |
+
+### ✅ Kapitel 6 — `book/kap06.md`
+- §6.1 Peripherie ist Speicher: **Tabelle 6-1** Speicherkarte, **Tabelle 6-2**
+  Tastaturports, `ES = 0xF000` als Peripherie-Segment (Offsets `0x0060`,
+  `0x0062`, `0x1000`), Bildschirmzelle (Low-Byte = Zeichen, Bit 15 =
+  Reverse-Video und Cursor) mit Mermaid-Bitdiagramm, Listing 6-1/6-2.
+- §6.2 Debuggen: Delay-Slot-Falle **messbar** (`R1` = 5 statt 1, 30 statt 31
+  Schritte), LDI-Vorzeichengrenze, Debugger-Hooks `getRecentMemoryView()` /
+  `get_recent_access()`, Begründung der Doppel-Implementierung.
+- **Beispiel:** Terminal-Schleife (Listing 6-5), Tastatur → Bildschirm, mit
+  Wartebudget statt Endlosschleife.
+- Kernbefund: **nur `LDS`/`STS` dekodieren Ports** — `LD`/`ST` liefern an
+  `0xF0060` den RAM-Füllwert `0xFFFF`. Auf beiden Kernen gemessen.
+- Nebenbefund, dokumentiert statt verschwiegen: der Assembler prüft `LDI`
+  nach unten (`-16384..16383`), nach oben nur gegen die Bitbreite — so ergibt
+  `LDI 20000` auf der CPU `0xCE20` (gemessen `−12992`). Beide Kerne irren
+  sich gleich.
+- Verifikation: `npm test` 190/190, `tests/cores.test.js` 22/22,
+  Probe `probe_kap06.mjs` 50/50, Extractor `extract_kap06.mjs` 61/61,
+  alle drei EPUB-Varianten mit 6 Kapiteln und 47 Diagrammen.
 
 ---
 
@@ -133,7 +155,10 @@ Voraussetzungen für den EPUB-Build (headless-Container):
    `SMV`/`APSW`; Probe → Listings → Extractor → EPUB → Push).
 2. Stichproben-Härtung Delay-Slot-Grenzfälle ist für Kap. 4 abgeschlossen
    (verschachtelte Jcc gemessen: innerer entscheidet, äußerer fällt weg).
-3. Danach: Kapitel 6 (Simulator-Werkbank, Memory-Mapped I/O).
+3. ✅ **Kapitel 6** abgeschlossen (Memory-Mapped I/O, Delay-Slot-Diagnose,
+   JS-/WASM-Vergleich).
+4. Danach: Kapitel 7 (Mini-Forth) — die Schleife aus Listing 6-5 wird zur
+   REPL-Zeile, `asm/forth.asm` liegt dafür bereits vor.
 
 ## Offene Punkte (aus `book/README.md`)
 
