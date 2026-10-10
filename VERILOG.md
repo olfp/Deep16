@@ -85,7 +85,42 @@ Operanden (`R4 = 3` statt 4), abweichende Carry-Flags und ein Recent-Access,
 der auf die PSW-Seed-Adresse zeigt. Da Seeds 0–2 sauber sind, liegt die Ursache
 ausschließlich im Schattenpfad. Werkzeug: `node scripts/rtl_sweep.mjs 4`.
 
-**Phase 3–6 stehen aus** (Cache, IDE-Anbindung, Doku).
+**Phase 3, 5, 6 stehen aus** (Cache, Resttests, Doku).
+
+## Phase 4 — IDE-Anbindung (Kern-Auswahl steht)
+
+Der dritte Kern ist jetzt in der IDE wählbar. Statt des binären
+WASM-Schalters gibt es eine Auswahl **JS / WASM (Rust) / RTL (Verilator)**;
+gespeichert wird der Kernname (`deep16_core`), das alte `deep16_use_wasm`-Flag
+wird einmalig übernommen.
+
+Die IDE redet nicht mehr direkt mit einem Modul, sondern mit dem *aktiven*
+Kern:
+
+* `this.coreName` ist die einzige gespeicherte Wahrheit (`'js' | 'wasm' | 'rtl'`),
+* `this.useWasm` bleibt als abgeleitetes Flag, weil viele Anzeigepfade darauf
+  verzweigen,
+* `activeCoreModule()` liefert das Modulobjekt des aktiven kompilierten Kerns,
+  `compiledCoreReady()` prüft zusätzlich, ob er geladen *und* gespiegelt ist,
+* `syncStateIntoWasm()` → `syncStateIntoCore()` spiegelt den JS-Kern in welchen
+  kompilierten Kern auch immer aktiv ist.
+
+Damit musste keine Verzweigung dreifach werden: alle ~100
+`window.Deep16Wasm.*`-Aufrufe gingen auf `activeCoreModule()` — auch in den
+Panels `deep16_ui_memory.js` und `deep16_ui_screen.js`, die vorher hart auf das
+WASM-Modul zugreifen konnten und sonst still den JS-Speicher angezeigt hätten.
+`tests/ui-core.test.js` sichert das ab: es fährt die echten IDE-Methoden gegen
+das echte `rtl/pkg`-Glue und prüft, dass ein gespiegeltes Programm im RTL-Kern
+dasselbe rechnet wie im JS-Kern.
+
+**Nicht abgesichert:** die Darstellung selbst. Register-, Speicher- und
+Bildschirmpanel lesen jetzt `this.ui.activeCoreModule()`, sind aber ohne
+Browser nicht durchgetestet; der Schattenzustand `[spc, scs, spsw]` ist als
+zwischen beiden kompilierten Kernen identisch beigelegt.
+
+Die Durchsatzbegrenzung der IDE (200 Schritte je 10-ms-Takt) gilt für alle
+Kerne, die ~45-fache Rohgeschwindigkeit des RTL-Kerns fällt im Bedienbetrieb
+daher nicht auf.
 
 ## Phase 2 — Pipeline-Umbau (abgeschlossen)
 

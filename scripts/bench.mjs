@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Benchmark: JS-Core vs WASM-Core auf typischem Befehlsmix.
+// Benchmark: JS-Core vs WASM-Core vs RTL-Core auf typischem Befehlsmix.
 //
 //   node scripts/bench.mjs               # Standard: 20 Mio. Schritte je Messung
 //   node scripts/bench.mjs 100000000     # mehr Schritte (stabiler, laenger)
@@ -8,21 +8,25 @@
 // Mischung aus ALU, Speichern, Schieben und Spruengen). Ein step()-Aufruf
 // fuehrt genau eine Instruktion aus (Delay Slots zaehlen mit), deshalb ist
 //   MIPS = Schritte / Zeit / 1e6
-// Die Endzustaende aller drei Messvarianten werden miteinander verglichen -
+// Die Endzustaende aller Messvarianten werden miteinander verglichen -
 // eine schnellere Ausfuehrung waere wertlos, wenn sie anders rechnet.
 //
-// Drei Varianten:
+// Varianten:
 //   JS, dichte Schleife         wie der JS-Kern intern gefahren wird
 //   WASM, pro Schritt           jeder step() ueberschreitet die JS/WASM-Grenze
 //                               (so faehrt die IDE die Box)
 //   WASM, run_steps(n)          ganzer Block in einem Aufruf - reine
 //                               Kerngeschwindigkeit ohne Grenzkosten
+//   RTL, pro Schritt            derselbe Weg, aber ein Schritt ist beim
+//                               Pipeline-Kern ein *retirierter* Befehl: er
+//                               laeuft intern so viele Takte, bis einer fertig
+//   RTL, run_steps(n)           Blockbetrieb, ohne Grenzkosten pro Schritt
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import {
-  assemble, loadBrowserScripts, buildMemory, loadWasm, ROOT, MEM_WORDS,
+  assemble, loadBrowserScripts, buildMemory, loadWasm, loadRtl, ROOT, MEM_WORDS,
 } from '../tests/helpers.js';
 
 const RUNS = 3;
@@ -91,6 +95,37 @@ function runWasmBatch(steps) {
   return { ms, n: steps, halted: !cont };
 }
 
+// --------------------------------------------------------------- RTL-Core
+// Gleiches Programm, gleiche Schrittzahl, gleicher Massstab: ein Schritt ist
+// ein retired Befehl. Der Pipeline-Kern braucht dafuer intern ~1,2-2 Taktlagen
+// und Verilator wertet pro Takt die gesamte Pipeline neu aus - beides ist der
+// Preis fuer den echten RTL-Kern und gehoert in diese Zahl, nicht drumherum.
+const rtl = await loadRtl();
+
+function freshRtl() {
+  rtl.init(MEM_WORDS);
+  for (const ch of prog.memoryChanges) {
+    rtl.load_program(ch.address, new Uint16Array([ch.value & 0xFFFF]));
+  }
+  rtl.set_segments(0xFFFF, 0x0000, 0x0000, 0x0000);
+}
+
+function runRtlStep(steps) {
+  freshRtl();
+  let n = 0;
+  const t0 = performance.now();
+  for (; n < steps; n++) { if (!rtl.step()) break; }
+  return { ms: performance.now() - t0, n };
+}
+
+function runRtlBatch(steps) {
+  freshRtl();
+  const t0 = performance.now();
+  const cont = rtl.run_steps(steps);
+  const ms = performance.now() - t0;
+  return { ms, n: steps, halted: !cont };
+}
+
 // ---------------------------------------------------------------- Messung
 function measure(fn, label) {
   const runs = [];
@@ -110,11 +145,15 @@ function measure(fn, label) {
 runJs(WARMUP);
 runWasmStep(WARMUP);
 runWasmBatch(WARMUP);
+runRtlStep(WARMUP);
+runRtlBatch(WARMUP);
 
 const results = [
   measure(runJs, 'JS, dichte Schleife'),
   measure(runWasmStep, 'WASM, pro Schritt (IDE-Weg)'),
   measure(runWasmBatch, 'WASM, run_steps (Batch)'),
+  measure(runRtlStep, 'RTL, pro Schritt (IDE-Weg)'),
+  measure(runRtlBatch, 'RTL, run_steps (Batch)'),
 ];
 const jsMips = results[0].mips;
 
@@ -134,6 +173,13 @@ function stateWasm() {
     segs: Array.from(wasm.get_segments()),
   };
 }
+function stateRtl() {
+  return {
+    regs: Array.from(rtl.get_registers()),
+    psw: rtl.get_psw() & 0xFFFF,
+    segs: Array.from(rtl.get_segments()),
+  };
+}
 
 // Frische Laeufe mit identischer Schrittzahl fuer den Zustandsvergleich.
 const jsEnd = stateJs(runJs(STEPS).sim);
@@ -141,6 +187,10 @@ runWasmStep(STEPS);
 const wasmStepEnd = stateWasm();
 runWasmBatch(STEPS);
 const wasmBatchEnd = stateWasm();
+runRtlStep(STEPS);
+const rtlStepEnd = stateRtl();
+runRtlBatch(STEPS);
+const rtlBatchEnd = stateRtl();
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -149,9 +199,11 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // PSW-Differenzen werden getrennt gemeldet: bei identischen Registern waere
 // der Befehlsfluss zwar gleich, eine Flag-Abweichung waere aber ein Bug in
 // der Flag-Logik eines der Kerne (Spec: Deep16-Arch.md, Tests: flags.test.js).
-const regsOk = same(jsEnd.regs, wasmStepEnd.regs) && same(jsEnd.regs, wasmBatchEnd.regs);
-const segsOk = same(jsEnd.segs, wasmStepEnd.segs) && same(jsEnd.segs, wasmBatchEnd.segs);
-const pswOk = jsEnd.psw === wasmStepEnd.psw && jsEnd.psw === wasmBatchEnd.psw;
+const ENDS = { wasmStep: wasmStepEnd, wasmBatch: wasmBatchEnd,
+               rtlStep: rtlStepEnd, rtlBatch: rtlBatchEnd };
+const regsOk = Object.values(ENDS).every((e) => same(jsEnd.regs, e.regs));
+const segsOk = Object.values(ENDS).every((e) => same(jsEnd.segs, e.segs));
+const pswOk = Object.values(ENDS).every((e) => jsEnd.psw === e.psw);
 const FLAG = { 1: 'N', 2: 'Z', 4: 'V', 8: 'C' };
 const pswDiff = [];
 if (!pswOk) {
@@ -175,7 +227,7 @@ for (const r of results) {
 }
 console.log('');
 if (regsOk && segsOk) {
-  console.log(`Register und Segmente aller drei Varianten nach ${STEPS.toLocaleString('de-DE')} Schritten: identisch`);
+  console.log(`Register und Segmente aller ${results.length} Varianten nach ${STEPS.toLocaleString('de-DE')} Schritten: identisch`);
   if (pswOk) {
     console.log('PSW identisch.');
   } else {
@@ -186,8 +238,9 @@ if (regsOk && segsOk) {
   }
 } else {
   console.log('ABWEICHUNG IM REGISTERZUSTAND - die Kerne rechnen unterschiedlich!');
-  console.log('  JS vs Schritt: regs ' + same(jsEnd.regs, wasmStepEnd.regs) + ', segs ' + same(jsEnd.segs, wasmStepEnd.segs));
-  console.log('  JS vs Batch:    regs ' + same(jsEnd.regs, wasmBatchEnd.regs) + ', segs ' + same(jsEnd.segs, wasmBatchEnd.segs));
+  for (const [name, e] of Object.entries(ENDS)) {
+    console.log(`  JS vs ${name}: regs ${same(jsEnd.regs, e.regs)}, segs ${same(jsEnd.segs, e.segs)}`);
+  }
   process.exit(1);
 }
 console.log('');

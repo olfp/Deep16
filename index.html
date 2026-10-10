@@ -21,8 +21,12 @@
                 </div>
                 <div class="header-spacer"></div>
                 <div class="header-right-controls">
-                    <label class="toggle-label">WASM
-                        <input type="checkbox" id="wssam-toggle" checked>
+                    <label class="toggle-label">Kern
+                        <select id="core-select">
+                            <option value="js">JS</option>
+                            <option value="wasm">WASM (Rust)</option>
+                            <option value="rtl">RTL (Verilator)</option>
+                        </select>
                     </label>
                     <div class="docs-menu">
                         <button id="docs-menu-btn">Docs ▾</button>
@@ -363,7 +367,26 @@ data_area:
         } catch (e) {
             console.warn('WASM module not loaded', e);
         }
+        // Third core: the Verilator/Emscripten RTL model. rtl/pkg/ is committed,
+        // so this needs no build step either. deep16_rtl.js exposes the same
+        // API shape as the wasm-bindgen core, so the IDE just picks a module.
+        try {
+            const rtlPromise = import('./rtl/pkg/deep16_rtl.js?v=20261010-1');
+            rtlPromise.then(async (rtl) => {
+                const initPromise = rtl.default();
+                window.Deep16RtlReady = initPromise;
+                await initPromise;
+                // The factory returns the core object itself (initDeep16Rtl is
+                // the async wrapper), so that is what the IDE stores.
+                window.Deep16Rtl = await initPromise;
+                window.dispatchEvent(new Event('deep16-rtl-ready'));
+            }).catch((e) => {
+                console.warn('RTL module not loaded', e);
+            });
+        } catch (e) {
+            console.warn('RTL module not loaded', e);
+        }
     </script>
-    <script src="js/deep16_ui_core.js?v=20261006-1"></script>
+    <script src="js/deep16_ui_core.js?v=20261010-2"></script>
 </body>
 </html>

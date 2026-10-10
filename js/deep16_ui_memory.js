@@ -83,8 +83,8 @@ isCodeAddress(address) {
 }
     
     createMemoryLine(address) {
-        const value = (this.ui.useWasm && window.Deep16Wasm && typeof window.Deep16Wasm.get_memory_word === 'function')
-            ? (window.Deep16Wasm.get_memory_word(address) & 0xFFFF)
+        const value = (this.ui.compiledCoreReady() && typeof this.ui.activeCoreModule().get_memory_word === 'function')
+            ? (this.ui.activeCoreModule().get_memory_word(address) & 0xFFFF)
             : this.ui.simulator.memory[address];
         const valueHex = value.toString(16).padStart(4, '0').toUpperCase();
     const physPC = this.getCurrentPhysPC();
@@ -128,9 +128,9 @@ isCodeAddress(address) {
         html += `<span class="memory-address">0x${address.toString(16).padStart(5, '0')}</span>`;
         const physPC = this.getCurrentPhysPC();
         let values = null;
-        if (this.ui.useWasm && window.Deep16Wasm && typeof window.Deep16Wasm.get_memory_slice === 'function') {
+        if (this.ui.compiledCoreReady() && typeof this.ui.activeCoreModule().get_memory_slice === 'function') {
             try {
-                const slice = window.Deep16Wasm.get_memory_slice(address, Math.min(8, this.ui.simulator.memory.length - address));
+                const slice = this.ui.activeCoreModule().get_memory_slice(address, Math.min(8, this.ui.simulator.memory.length - address));
                 values = Array.from(slice).map(v => v & 0xFFFF);
             } catch {}
         }
@@ -488,17 +488,17 @@ getExactSourceForAddress(address) {
 
     getCurrentPhysPC() {
         let cs = 0, pc = 0;
-        if (this.ui.useWasm && window.Deep16Wasm && typeof window.Deep16Wasm.get_psw === 'function') {
+        if (this.ui.compiledCoreReady() && typeof this.ui.activeCoreModule().get_psw === 'function') {
             try {
-                const psw = window.Deep16Wasm.get_psw() & 0xFFFF;
+                const psw = this.ui.activeCoreModule().get_psw() & 0xFFFF;
                 const sbit = (psw & (1 << 5)) !== 0;
-                if (sbit && typeof window.Deep16Wasm.get_shadow_state === 'function') {
-                    const sh = window.Deep16Wasm.get_shadow_state();
+                if (sbit && typeof this.ui.activeCoreModule().get_shadow_state === 'function') {
+                    const sh = this.ui.activeCoreModule().get_shadow_state();
                     pc = sh && sh.length >= 3 ? (sh[0] & 0xFFFF) : (this.ui.simulator.shadowRegisters.PC & 0xFFFF);
                     cs = sh && sh.length >= 3 ? (sh[1] & 0xFFFF) : (this.ui.simulator.shadowRegisters.CS & 0xFFFF);
                 } else {
-                    const segs = typeof window.Deep16Wasm.get_segments === 'function' ? window.Deep16Wasm.get_segments() : null;
-                    const regs = typeof window.Deep16Wasm.get_registers === 'function' ? window.Deep16Wasm.get_registers() : null;
+                    const segs = typeof this.ui.activeCoreModule().get_segments === 'function' ? this.ui.activeCoreModule().get_segments() : null;
+                    const regs = typeof this.ui.activeCoreModule().get_registers === 'function' ? this.ui.activeCoreModule().get_registers() : null;
                     cs = segs && segs.length >= 1 ? (segs[0] & 0xFFFF) : (this.ui.simulator.segmentRegisters.CS & 0xFFFF);
                     pc = regs && regs.length >= 16 ? (regs[15] & 0xFFFF) : (this.ui.simulator.registers[15] & 0xFFFF);
                 }

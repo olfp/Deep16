@@ -106,10 +106,10 @@ class Deep16ScreenUI {
 
     updateScreenDisplay() {
         // Update all characters from screen memory
-        if (this.ui.useWasm && this.ui.wasmAvailable && this.ui.wasmInitialized && window.Deep16Wasm) {
+        if (this.ui.compiledCoreReady()) {
             try {
-                if (typeof window.Deep16Wasm.get_memory_slice === 'function') {
-                    const slice = window.Deep16Wasm.get_memory_slice(this.screenBaseAddress, this.totalChars);
+                if (typeof this.ui.activeCoreModule().get_memory_slice === 'function') {
+                    const slice = this.ui.activeCoreModule().get_memory_slice(this.screenBaseAddress, this.totalChars);
                     for (let i = 0; i < slice.length; i++) {
                         const word = slice[i] & 0xFFFF;
                         if (word === 0xFFFF || word === 0x0000) {
@@ -121,9 +121,9 @@ class Deep16ScreenUI {
                         }
                     }
                     return;
-                } else if (typeof window.Deep16Wasm.get_memory_word === 'function') {
+                } else if (typeof this.ui.activeCoreModule().get_memory_word === 'function') {
                     for (let i = 0; i < this.totalChars; i++) {
-                        const word = window.Deep16Wasm.get_memory_word(this.screenBaseAddress + i) & 0xFFFF;
+                        const word = this.ui.activeCoreModule().get_memory_word(this.screenBaseAddress + i) & 0xFFFF;
                         if (word === 0xFFFF || word === 0x0000) {
                             this.updateCharacter(i, 32, false);
                         } else {

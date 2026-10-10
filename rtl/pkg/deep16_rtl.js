@@ -100,7 +100,9 @@ export default async function initDeep16Rtl(options = {}) {
       return copyOutU16(5);
     },
     get_shadow_state: () => {
-      const ptr = reserve(6);
+      // [spc, scs, spsw] - same order and length as the wasm-bindgen core, so
+      // the IDE can index it without knowing which core answered.
+      const ptr = reserve(3);
       Module._get_shadow_state(ptr);
       return copyOutU16(3);
     },

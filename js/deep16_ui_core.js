@@ -69,11 +69,10 @@ class DeepWebUI {
             const code = this.keyEventToCode(e);
             if (code) {
                 this.simulator.enqueueKeyCode(code);
-                // WASM core has its own polled keyboard buffer: mirror every
-                // keystroke into it while the WASM core is selected.
-                if (this.useWasm && this.wasmAvailable && this.wasmInitialized &&
-                    window.Deep16Wasm && typeof window.Deep16Wasm.kbd_push === 'function') {
-                    window.Deep16Wasm.kbd_push(code);
+                // Compiled cores have their own polled keyboard buffer: mirror
+                // every keystroke into whichever one is selected.
+                if (this.compiledCoreReady() && typeof this.activeCoreModule().kbd_push === 'function') {
+                    this.activeCoreModule().kbd_push(code);
                 }
             }
         });
@@ -150,6 +149,11 @@ class DeepWebUI {
         this.syncHeaderWidths();
         this.setupMobileLayout();
         this.wasmAvailable = typeof window.Deep16Wasm !== 'undefined';
+        this.rtlAvailable = typeof window.Deep16Rtl !== 'undefined';
+        // Three cores, one source of truth: 'js' | 'wasm' | 'rtl'. useWasm is
+        // kept as a derived flag because a lot of the display code branches on
+        // "a compiled core is active"; it is never the thing that is stored.
+        this.coreName = 'js';
         this.useWasm = false;
         this.resumeFromBreakpoint = false;
         this.wasmDirtyStart = null;
@@ -157,28 +161,50 @@ class DeepWebUI {
         this.wasmLogLimit = 64;
         this.wasmLogCount = 0;
         const wssamToggle = document.getElementById('wasm-toggle') || document.getElementById('wssam-toggle');
-        if (wssamToggle) {
+        const coreSelect = document.getElementById('core-select');
+        if (coreSelect) {
+            let desired = 'js';
+            try {
+                // new key wins; the old boolean is honoured once so an upgrade
+                // does not silently drop someone back to the JS core
+                desired = localStorage.getItem('deep16_core')
+                    || (localStorage.getItem('deep16_use_wasm') === 'true' ? 'wasm' : 'js');
+            } catch {}
+            if (!this.coreAvailable(desired)) desired = 'js';
+            this.setCore(desired, { mirror: true, announce: false });
+            coreSelect.value = this.coreName;
+            coreSelect.disabled = !(this.wasmAvailable || this.rtlAvailable);
+            coreSelect.addEventListener('change', (e) => {
+                const want = e.target.value;
+                if (!this.coreAvailable(want)) {
+                    this.addTranscriptEntry(`Core ${want} is not available`, "warning");
+                    e.target.value = this.coreName;
+                    return;
+                }
+                if (this.runInterval) { this.stop(); }
+                const ok = this.setCore(want, { mirror: true });
+                if (!ok) {
+                    this.addTranscriptEntry(`${this.coreLabel(want)} load failed; staying on ${this.coreLabel(this.coreName)}`, "warning");
+                    e.target.value = this.coreName;
+                    return;
+                }
+                try { localStorage.setItem('deep16_core', this.coreName); } catch {}
+                try { localStorage.setItem('deep16_use_wasm', this.coreName !== 'js' ? 'true' : 'false'); } catch {}
+                this.updateAllDisplays();
+            });
+        } else if (wssamToggle) {
             let desired = false;
             try { desired = localStorage.getItem('deep16_use_wasm') === 'true'; } catch {}
             wssamToggle.checked = desired;
             wssamToggle.disabled = !this.wasmAvailable;
             wssamToggle.addEventListener('change', (e) => {
                 const on = !!e.target.checked;
-                this.useWasm = on && this.wasmAvailable && !!this.wasmInitialized;
-                if (this.runInterval) { this.stop(); }
-                if (this.useWasm && window.Deep16Wasm) {
-                    // Mirror the JS core into WASM instead of resetting: the
-                    // toggle must not discard the assembled program or the
-                    // current machine state.
-                    if (this.syncStateIntoWasm()) {
-                        this.addTranscriptEntry("Program loaded into WASM core", "success");
-                    } else {
-                        this.addTranscriptEntry("WASM load failed; falling back to JS", "warning");
-                        this.useWasm = false;
-                        wssamToggle.checked = false;
-                    }
-                }
-                this.addTranscriptEntry(`WASM: ${this.useWasm ? 'ON' : 'OFF'}`, "info");
+                // Mirror the JS core into WASM instead of resetting: the
+                // toggle must not discard the assembled program or the
+                // current machine state.
+                if (on && this.wasmAvailable) { this.setCore('wasm', { mirror: true }); }
+                else { this.setCore('js', { mirror: false }); }
+                e.target.checked = this.useWasm;
                 try { localStorage.setItem('deep16_use_wasm', this.useWasm ? 'true' : 'false'); } catch {}
                 this.updateAllDisplays();
             });
@@ -189,7 +215,7 @@ class DeepWebUI {
         } else if (window.Deep16WasmReady && typeof window.Deep16WasmReady.then === 'function') {
             this.addTranscriptEntry("WASM module loading...", "info");
             window.Deep16WasmReady.then(() => {
-                this.finishWasmInit(wssamToggle);
+                this.finishWasmInit(wssamToggle, 'wasm');
             }).catch(() => {
                 this.addTranscriptEntry("WASM module failed to load", "error");
             });
@@ -197,13 +223,85 @@ class DeepWebUI {
             this.addTranscriptEntry("WASM module not available", "info");
             if (wssamToggle) { wssamToggle.disabled = true; wssamToggle.checked = false; }
         }
+        // Third core: same treatment as WASM, but the module that arrives is
+        // the RTL model. Both can finish in either order.
+        if (this.rtlAvailable) {
+            this.addTranscriptEntry("RTL module detected", "success");
+        } else if (window.Deep16RtlReady && typeof window.Deep16RtlReady.then === 'function') {
+            this.addTranscriptEntry("RTL module loading...", "info");
+            window.Deep16RtlReady.then(() => {
+                this.finishWasmInit(wssamToggle, 'rtl');
+            }).catch(() => {
+                this.addTranscriptEntry("RTL module failed to load", "error");
+            });
+        } else {
+            this.addTranscriptEntry("RTL module not available", "info");
+        }
         window.addEventListener('deep16-wasm-ready', () => {
-            this.finishWasmInit(wssamToggle);
+            this.finishWasmInit(wssamToggle, 'wasm');
             if (this.wasmInitialized && !this.simulator.running) { this.run(); }
+        });
+        window.addEventListener('deep16-rtl-ready', () => {
+            this.finishWasmInit(wssamToggle, 'rtl');
         });
         this.addTranscriptEntry("DeepCode initialized and ready", "info");
         this.initTabSizeSetting();
         this.setupEditorHighlighting();
+    }
+
+    // ---- core selection ---------------------------------------------------
+    // Three interchangeable cores. The JS core stays the source of truth: both
+    // compiled cores get a mirror of it whenever the selection changes, so
+    // switching never throws away the assembled program or the machine state.
+    // 'useWasm' stays as the derived "a compiled core is active" flag the
+    // display code branches on - the stored value is always coreName.
+    coreLabel(name) {
+        if (name === 'rtl') return 'RTL (Verilator)';
+        if (name === 'wasm') return 'WASM (Rust)';
+        return 'JS';
+    }
+
+    coreAvailable(name) {
+        if (name === 'wasm') return !!this.wasmAvailable && !!window.Deep16Wasm;
+        if (name === 'rtl') return !!this.rtlAvailable && !!window.Deep16Rtl;
+        return name === 'js';
+    }
+
+    // The module object of the active compiled core, or null for the JS core.
+    activeCoreModule() {
+        if (!this.useWasm) return null;
+        return this.coreName === 'rtl' ? window.Deep16Rtl : window.Deep16Wasm;
+    }
+
+    // True when a compiled core is selected, its module finished loading and
+    // its init mirror succeeded. Every "am I not on the JS core?" branch tests
+    // this, so a core that is still loading falls back to the JS core instead
+    // of throwing on a half-built module.
+    compiledCoreReady() {
+        if (!this.useWasm) return false;
+        const ready = this.coreName === 'rtl' ? this.rtlInitialized : this.wasmInitialized;
+        return !!ready && !!this.activeCoreModule();
+    }
+
+    // Point coreName at a core, mirroring the JS state into it first. Returns
+    // false without changing anything if that core is unavailable or the
+    // mirror failed - the caller then keeps the current core.
+    setCore(name, { mirror = true, announce = true } = {}) {
+        if (!this.coreAvailable(name)) return false;
+        if (name !== 'js' && mirror) {
+            if (!this.syncStateIntoCore()) return false;
+            // A successful mirror is what "initialised" means for a compiled
+            // core - record it here too, so selecting a core directly (rather
+            // than through finishWasmInit) cannot leave coreName set while
+            // compiledCoreReady() still says no.
+            if (name === 'rtl') this.rtlInitialized = true; else this.wasmInitialized = true;
+        }
+        this.coreName = name;
+        this.useWasm = name !== 'js';
+        const select = document.getElementById('core-select');
+        if (select) select.value = name;
+        if (announce) this.addTranscriptEntry(`Core: ${this.coreLabel(name)}`, "info");
+        return true;
     }
 
     updateRunIndicator(isRunning) {
@@ -1347,12 +1445,12 @@ class DeepWebUI {
                     }
                 }
                 // Do not modify registers or segments during Assemble
-                if (this.useWasm && window.Deep16Wasm) {
-                    if (this.syncStateIntoWasm()) {
-                        this.addTranscriptEntry("Program loaded into WASM core", "success");
+                if (this.useWasm && this.activeCoreModule()) {
+                    if (this.syncStateIntoCore()) {
+                        this.addTranscriptEntry(`Program loaded into ${this.coreLabel(this.coreName)} core`, "success");
                     } else {
-                        this.addTranscriptEntry("WASM load failed; falling back to JS", "warning");
-                        this.useWasm = false;
+                        this.addTranscriptEntry(`${this.coreLabel(this.coreName)} load failed; falling back to JS`, "warning");
+                        this.setCore('js', { mirror: false });
                     }
                 }
                 
@@ -1435,7 +1533,7 @@ class DeepWebUI {
             this.stop();
             return;
         }
-        if (this.useWasm && this.wasmAvailable && this.wasmInitialized && window.Deep16Wasm) {
+        if (this.compiledCoreReady()) {
             this.wasmRun();
         } else {
             this.jsRun();
@@ -1556,18 +1654,18 @@ class DeepWebUI {
     }
 
     getActivePhysPC() {
-        if (this.useWasm && this.wasmAvailable && this.wasmInitialized && window.Deep16Wasm) {
+        if (this.compiledCoreReady()) {
             try {
-                const psw = typeof window.Deep16Wasm.get_psw === 'function' ? (window.Deep16Wasm.get_psw() & 0xFFFF) : 0;
+                const psw = typeof this.activeCoreModule().get_psw === 'function' ? (this.activeCoreModule().get_psw() & 0xFFFF) : 0;
                 const sbit = (psw & (1 << 5)) !== 0;
-                if (sbit && typeof window.Deep16Wasm.get_shadow_state === 'function') {
-                    const sh = window.Deep16Wasm.get_shadow_state();
+                if (sbit && typeof this.activeCoreModule().get_shadow_state === 'function') {
+                    const sh = this.activeCoreModule().get_shadow_state();
                     const pc = sh && sh.length >= 3 ? (sh[0] & 0xFFFF) : (this.simulator.shadowRegisters.PC & 0xFFFF);
                     const cs = sh && sh.length >= 3 ? (sh[1] & 0xFFFF) : (this.simulator.shadowRegisters.CS & 0xFFFF);
                     return ((cs << 4) + pc) >>> 0;
                 }
-                const segs = typeof window.Deep16Wasm.get_segments === 'function' ? window.Deep16Wasm.get_segments() : null;
-                const regs = typeof window.Deep16Wasm.get_registers === 'function' ? window.Deep16Wasm.get_registers() : null;
+                const segs = typeof this.activeCoreModule().get_segments === 'function' ? this.activeCoreModule().get_segments() : null;
+                const regs = typeof this.activeCoreModule().get_registers === 'function' ? this.activeCoreModule().get_registers() : null;
                 const cs = segs && segs.length >= 1 ? (segs[0] & 0xFFFF) : (this.simulator.segmentRegisters.CS & 0xFFFF);
                 const pc = regs && regs.length >= 16 ? (regs[15] & 0xFFFF) : (this.simulator.registers[15] & 0xFFFF);
                 return ((cs << 4) + pc) >>> 0;
@@ -1615,63 +1713,63 @@ class DeepWebUI {
             this.simulator.running = true;
         }
         
-        if (this.useWasm && this.wasmAvailable && this.wasmInitialized && window.Deep16Wasm) {
+        if (this.compiledCoreReady()) {
             try {
                 if (this.wasmLogCount < this.wasmLogLimit) {
-                    const pswCur = typeof window.Deep16Wasm.get_psw === 'function' ? (window.Deep16Wasm.get_psw() & 0xFFFF) : 0;
+                    const pswCur = typeof this.activeCoreModule().get_psw === 'function' ? (this.activeCoreModule().get_psw() & 0xFFFF) : 0;
                     const sbit = (pswCur & (1 << 5)) !== 0;
                     let aboutCS = 0, aboutPC = 0;
-                    if (sbit && typeof window.Deep16Wasm.get_shadow_state === 'function') {
-                        const sh = window.Deep16Wasm.get_shadow_state();
+                    if (sbit && typeof this.activeCoreModule().get_shadow_state === 'function') {
+                        const sh = this.activeCoreModule().get_shadow_state();
                         aboutPC = sh && sh.length >= 3 ? (sh[0] & 0xFFFF) : 0;
                         aboutCS = sh && sh.length >= 3 ? (sh[1] & 0xFFFF) : 0;
-                    } else if (typeof window.Deep16Wasm.get_segments === 'function' && typeof window.Deep16Wasm.get_registers === 'function') {
-                        const segs = window.Deep16Wasm.get_segments();
-                        const regs = window.Deep16Wasm.get_registers();
+                    } else if (typeof this.activeCoreModule().get_segments === 'function' && typeof this.activeCoreModule().get_registers === 'function') {
+                        const segs = this.activeCoreModule().get_segments();
+                        const regs = this.activeCoreModule().get_registers();
                         aboutCS = segs && segs.length >= 1 ? (segs[0] & 0xFFFF) : 0;
                         aboutPC = regs && regs.length >= 16 ? (regs[15] & 0xFFFF) : 0;
                     }
                     const aboutPhys = ((aboutCS << 4) + aboutPC) >>> 0;
-                    if (typeof window.Deep16Wasm.get_memory_word === 'function') {
-                        const w = window.Deep16Wasm.get_memory_word(aboutPhys) & 0xFFFF;
-                        this.addTranscriptEntry(`WASM fetch: CS=0x${aboutCS.toString(16)}, PC=0x${aboutPC.toString(16)}, instr=0x${w.toString(16)}`, "info");
+                    if (typeof this.activeCoreModule().get_memory_word === 'function') {
+                        const w = this.activeCoreModule().get_memory_word(aboutPhys) & 0xFFFF;
+                        this.addTranscriptEntry(`${this.coreLabel(this.coreName)} fetch: CS=0x${aboutCS.toString(16)}, PC=0x${aboutPC.toString(16)}, instr=0x${w.toString(16)}`, "info");
                     }
                     this.wasmLogCount++;
                 }
             } catch {}
             try {
                 let csNow = 0, pcNow = 0;
-                if (typeof window.Deep16Wasm.get_psw === 'function' && typeof window.Deep16Wasm.get_shadow_state === 'function') {
-                    const pswNow = window.Deep16Wasm.get_psw() & 0xFFFF;
+                if (typeof this.activeCoreModule().get_psw === 'function' && typeof this.activeCoreModule().get_shadow_state === 'function') {
+                    const pswNow = this.activeCoreModule().get_psw() & 0xFFFF;
                     const sbitNow = (pswNow & (1 << 5)) !== 0;
                     if (sbitNow) {
-                        const sh = window.Deep16Wasm.get_shadow_state();
+                        const sh = this.activeCoreModule().get_shadow_state();
                         pcNow = sh && sh.length >= 3 ? (sh[0] & 0xFFFF) : 0;
                         csNow = sh && sh.length >= 3 ? (sh[1] & 0xFFFF) : 0;
                     } else {
-                        const segs = window.Deep16Wasm.get_segments();
-                        const regs = window.Deep16Wasm.get_registers();
+                        const segs = this.activeCoreModule().get_segments();
+                        const regs = this.activeCoreModule().get_registers();
                         csNow = segs && segs.length ? (segs[0] & 0xFFFF) : 0;
                         pcNow = regs && regs.length ? (regs[15] & 0xFFFF) : 0;
                     }
                 }
                 const physNow = ((csNow << 4) + pcNow) >>> 0;
-                if (typeof window.Deep16Wasm.get_memory_word === 'function') {
-                    const wNow = window.Deep16Wasm.get_memory_word(physNow) & 0xFFFF;
-                    this.addTranscriptEntry(`WASM prefetch: CS=0x${csNow.toString(16)}, PC=0x${pcNow.toString(16)}, instr=0x${wNow.toString(16)}`, "info");
+                if (typeof this.activeCoreModule().get_memory_word === 'function') {
+                    const wNow = this.activeCoreModule().get_memory_word(physNow) & 0xFFFF;
+                    this.addTranscriptEntry(`${this.coreLabel(this.coreName)} prefetch: CS=0x${csNow.toString(16)}, PC=0x${pcNow.toString(16)}, instr=0x${wNow.toString(16)}`, "info");
                 }
             } catch {}
-            const cont = window.Deep16Wasm.step();
-            const regs = window.Deep16Wasm.get_registers();
+            const cont = this.activeCoreModule().step();
+            const regs = this.activeCoreModule().get_registers();
             for (let i = 0; i < this.simulator.registers.length && i < regs.length; i++) {
                 this.simulator.registers[i] = regs[i] & 0xFFFF;
             }
-            if (typeof window.Deep16Wasm.get_psw === 'function') {
-                try { this.simulator.psw = window.Deep16Wasm.get_psw() & 0xFFFF; } catch {}
+            if (typeof this.activeCoreModule().get_psw === 'function') {
+                try { this.simulator.psw = this.activeCoreModule().get_psw() & 0xFFFF; } catch {}
             }
-            if (typeof window.Deep16Wasm.get_segments === 'function') {
+            if (typeof this.activeCoreModule().get_segments === 'function') {
                 try {
-                    const segs = window.Deep16Wasm.get_segments();
+                    const segs = this.activeCoreModule().get_segments();
                     if (segs && segs.length >= 4) {
                         this.simulator.segmentRegisters.CS = segs[0] & 0xFFFF;
                         this.simulator.segmentRegisters.DS = segs[1] & 0xFFFF;
@@ -1682,11 +1780,11 @@ class DeepWebUI {
             }
             try {
                 const sbit = (this.simulator.psw & (1 << 5)) !== 0;
-                this.addTranscriptEntry(`WASM PSW S=${sbit ? 1 : 0}`, "info");
+                this.addTranscriptEntry(`${this.coreLabel(this.coreName)} PSW S=${sbit ? 1 : 0}`, "info");
             } catch {}
-            if (typeof window.Deep16Wasm.get_recent_access === 'function') {
+            if (typeof this.activeCoreModule().get_recent_access === 'function') {
                 try {
-                    const info = window.Deep16Wasm.get_recent_access();
+                    const info = this.activeCoreModule().get_recent_access();
                     if (info && info.length >= 6) {
                         const segNames = ['CS','DS','SS','ES'];
                             const address = info[0] >>> 0;
@@ -1704,39 +1802,39 @@ class DeepWebUI {
                             type: isStore ? 'ST' : 'LD',
                             accessedAt: Date.now()
                         };
-                        if (isStore && typeof window.Deep16Wasm.get_memory_word === 'function') {
+                        if (isStore && typeof this.activeCoreModule().get_memory_word === 'function') {
                             try {
-                                const w = window.Deep16Wasm.get_memory_word(address) & 0xFFFF;
+                                const w = this.activeCoreModule().get_memory_word(address) & 0xFFFF;
                                 if (address < this.simulator.memory.length) {
                                     this.simulator.memory[address] = w;
                                 }
-                                this.addTranscriptEntry(`WASM store @0x${address.toString(16).padStart(5,'0')} = 0x${w.toString(16).padStart(4,'0').toUpperCase()} seg=${segNames[segmentIndex]}(0x${segmentValue.toString(16)})`, "info");
+                                this.addTranscriptEntry(`${this.coreLabel(this.coreName)} store @0x${address.toString(16).padStart(5,'0')} = 0x${w.toString(16).padStart(4,'0').toUpperCase()} seg=${segNames[segmentIndex]}(0x${segmentValue.toString(16)})`, "info");
                             } catch {}
                         }
                     }
                 } catch {}
             }
-            if (typeof window.Deep16Wasm.get_last_event === 'function') {
+            if (typeof this.activeCoreModule().get_last_event === 'function') {
                 try {
-                    const ev = window.Deep16Wasm.get_last_event();
+                    const ev = this.activeCoreModule().get_last_event();
                     if (ev && ev.length >= 5 && ev[0] === 2) {
                         const spc = ev[1] & 0xFFFF;
                         const scs = ev[2] & 0xFFFF;
                         const psw = ev[3] & 0xFFFF;
-                        this.addTranscriptEntry(`WASM SWI: S=1, CS'=0x${scs.toString(16)}, PC'=0x${spc.toString(16)} PSW=0x${psw.toString(16)}`, "info");
+                        this.addTranscriptEntry(`${this.coreLabel(this.coreName)} SWI: S=1, CS'=0x${scs.toString(16)}, PC'=0x${spc.toString(16)} PSW=0x${psw.toString(16)}`, "info");
                     } else if (ev && ev.length >= 5 && ((ev[0] & 0xFFF0) === 0xFFF0)) {
                         const instr = ev[0] & 0xFFFF;
                         const spc = ev[1] & 0xFFFF;
                         const scs = ev[2] & 0xFFFF;
-                        this.addTranscriptEntry(`WASM SYS fetch: instr=0x${instr.toString(16)}, CS=0x${scs.toString(16)}, PC=0x${spc.toString(16)}`, "info");
+                        this.addTranscriptEntry(`${this.coreLabel(this.coreName)} SYS fetch: instr=0x${instr.toString(16)}, CS=0x${scs.toString(16)}, PC=0x${spc.toString(16)}`, "info");
                     }
                 } catch {}
             }
             try {
                 const start = this.memoryStartAddress || 0;
                 const end = Math.min(start + 64, this.simulator.memory.length);
-                if (typeof window.Deep16Wasm.get_memory_slice === 'function') {
-                    const slice = window.Deep16Wasm.get_memory_slice(start, end - start);
+                if (typeof this.activeCoreModule().get_memory_slice === 'function') {
+                    const slice = this.activeCoreModule().get_memory_slice(start, end - start);
                     if (slice && slice.length) {
                         for (let i = 0; i < slice.length; i++) {
                             this.simulator.memory[start + i] = slice[i] & 0xFFFF;
@@ -1744,7 +1842,7 @@ class DeepWebUI {
                     }
                 }
             } catch {}
-            // Bring new PC into view on large jumps when stepping (WASM)
+            // Bring new PC into view on large jumps when stepping (${this.coreLabel(this.coreName)})
             const afterPhys = this.getActivePhysPC();
             const start2 = this.memoryStartAddress || 0;
             const end2 = Math.min(start2 + 64, this.simulator.memory.length);
@@ -1796,10 +1894,10 @@ class DeepWebUI {
             if (!cont) {
                 this.simulator.running = false;
                 this.status("Program halted");
-                this.addTranscriptEntry("Program halted after step (WASM)", "info");
+                this.addTranscriptEntry(`Program halted after step (${this.coreLabel(this.coreName)})`, "info");
                 this.updateRunButton(false);
             }
-            this.addTranscriptEntry(`Step (WASM): 0x${beforePhys.toString(16).padStart(5,'0')} -> 0x${afterPhys.toString(16).padStart(5,'0')}`, "info");
+            this.addTranscriptEntry(`Step (${this.coreLabel(this.coreName)}): 0x${beforePhys.toString(16).padStart(5,'0')} -> 0x${afterPhys.toString(16).padStart(5,'0')}`, "info");
             this.simulator.running = false;
         } else {
             const continueRunning = this.simulator.step();
@@ -1865,9 +1963,9 @@ class DeepWebUI {
         }
     }
 
-    // Copy the JS core's complete state into the WASM core: memory (ROM, the
+    // Copy the JS core's complete state into the ${this.coreLabel(this.coreName)} core: memory (ROM, the
     // assembled program, and data written by earlier runs) plus registers,
-    // PSW, segments and PC. WASM is rebuilt with init() first so no stale
+    // PSW, segments and PC. ${this.coreLabel(this.coreName)} is rebuilt with init() first so no stale
     // state survives, but neither core is reset - assembling or toggling the
     // header switch must never lose the program or the machine state the user
     // is looking at.
@@ -1875,48 +1973,67 @@ class DeepWebUI {
     // Call order matters: load_program() leaves PC=0/CS=0xFFFF behind it, and
     // set_registers() places element 15 through the current PSW.S bit, so the
     // state setters run after it with PSW set before registers.
-    syncStateIntoWasm() {
-        if (!this.wasmAvailable || !window.Deep16Wasm) { return false; }
+    // Mirror the JS core into the active compiled core (${this.coreLabel(this.coreName)} or RTL). Both
+    // expose the same API shape, so this one body serves either. Returns false
+    // if that core is not ready or refused the load.
+    syncStateIntoCore() {
+        const C = this.useWasm ? this.activeCoreModule() : (window.Deep16Wasm || window.Deep16Rtl);
+        if (!C) return false;
         try {
-            const W = window.Deep16Wasm;
-            if (typeof W.set_registers !== 'function' || typeof W.set_psw !== 'function') {
-                this.addTranscriptEntry("WASM package is out of date; run npm run build:wasm", "warning");
+            if (typeof C.set_registers !== 'function' || typeof C.set_psw !== 'function') {
+                this.addTranscriptEntry(`${this.coreLabel(this.coreName)} package is out of date; rebuild it`, "warning");
                 return false;
             }
-            W.init(this.simulator.memory.length);
-            W.load_program(0, new Uint16Array(this.simulator.memory));
+            C.init(this.simulator.memory.length);
+            C.load_program(0, new Uint16Array(this.simulator.memory));
             const seg = this.simulator.segmentRegisters;
-            W.set_segments(seg.CS & 0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
-            W.set_psw(this.simulator.psw & 0xFFFF);
-            W.set_registers(new Uint16Array(this.simulator.registers));
+            C.set_segments(seg.CS & 0xFFFF, seg.DS & 0xFFFF, seg.SS & 0xFFFF, seg.ES & 0xFFFF);
+            C.set_psw(this.simulator.psw & 0xFFFF);
+            C.set_registers(new Uint16Array(this.simulator.registers));
             this.wasmDirtyStart = null;
             this.wasmDirtyEnd = null;
             return true;
         } catch (e) {
-            if (window.Deep16Debug) console.error("WASM state sync failed", e);
+            if (window.Deep16Debug) console.error(`${this.coreLabel(this.coreName)} state sync failed`, e);
             return false;
         }
     }
 
-    // Shared tail of both async WASM init paths (the Deep16WasmReady promise
-    // and the deep16-wasm-ready event): mirror the JS core into WASM and
-    // restore the header toggle from localStorage. The JS core is the source
-    // of truth - WASM gets a copy of whatever state the page is in.
-    finishWasmInit(wssamToggle) {
-        this.wasmAvailable = true;
-        if (this.syncStateIntoWasm()) {
-            this.wasmInitialized = true;
-            let desired = false;
-            try { desired = localStorage.getItem('deep16_use_wasm') === 'true'; } catch {}
-            this.useWasm = desired;
-            if (wssamToggle) { wssamToggle.disabled = false; wssamToggle.checked = this.useWasm; }
-            this.addTranscriptEntry("WASM module loaded", "success");
-            this.addTranscriptEntry(`WASM: ${this.useWasm ? 'ON' : 'OFF'}`, "info");
+    // Shared tail of the async init paths for both compiled cores (the
+    // Deep16WasmReady/Deep16RtlReady promises and their matching events):
+    // mirror the JS core into the module, mark it ready and restore the stored
+    // selection if it names this core. The JS core is the source of truth - a
+    // compiled core always gets a copy of whatever state the page is in.
+    finishWasmInit(wssamToggle, coreName = 'wasm') {
+        const isRtl = coreName === 'rtl';
+        if (isRtl) this.rtlAvailable = true;
+        const wasSelected = this.coreName === coreName;
+        // Mirror into a temporarily selected state so syncStateIntoCore() talks
+        // to the module that just arrived.
+        const prevCore = this.coreName, prevUse = this.useWasm;
+        this.coreName = coreName;
+        this.useWasm = true;
+        const ok = this.syncStateIntoCore();
+        if (ok) {
+            if (isRtl) this.rtlInitialized = true; else this.wasmInitialized = true;
+            this.addTranscriptEntry(`${this.coreLabel(coreName)} module loaded`, "success");
+            if (!wasSelected) {
+                // This core was not the active one, so restore the selection.
+                this.coreName = prevCore;
+                this.useWasm = prevUse;
+            }
+            if (this.coreName === coreName) {
+                this.addTranscriptEntry(`Core: ${this.coreLabel(coreName)}`, "info");
+                if (wssamToggle) { wssamToggle.disabled = false; wssamToggle.checked = true; }
+            }
+            const select = document.getElementById('core-select');
+            if (select) { select.disabled = false; select.value = this.coreName; }
         } else {
-            this.useWasm = false;
-            this.wasmInitialized = false;
+            this.coreName = prevCore;
+            this.useWasm = prevUse;
+            if (isRtl) this.rtlInitialized = false; else this.wasmInitialized = false;
             if (wssamToggle) { wssamToggle.disabled = true; wssamToggle.checked = false; }
-            this.addTranscriptEntry("WASM init failed; using JS core", "warning");
+            this.addTranscriptEntry(`${this.coreLabel(coreName)} init failed; staying on ${this.coreLabel(this.coreName)}`, "warning");
         }
     }
 
@@ -1925,8 +2042,8 @@ class DeepWebUI {
             clearInterval(this.runInterval);
             this.runInterval = null;
         }
-        if (this.useWasm && this.wasmAvailable && this.wasmInitialized && window.Deep16Wasm) {
-            try { window.Deep16Wasm.reset(); } catch {}
+        if (this.compiledCoreReady()) {
+            try { this.activeCoreModule().reset(); } catch {}
         }
         
         this.simulator.reset();
@@ -1964,14 +2081,14 @@ class DeepWebUI {
     wasmRun() {
         this.simulator.running = true;
         this.lockMemoryStartWhileRunning = true;
-        this.status("Running program (WASM)...");
-        this.addTranscriptEntry("Starting WASM execution", "info");
+        this.status(`Running program (${this.coreLabel(this.coreName)})...`);
+        this.addTranscriptEntry(`Starting ${this.coreLabel(this.coreName)} execution`, "info");
         this.updateRunButton(true);
         try {
-            if (typeof window.Deep16Wasm.get_memory_slice === 'function') {
+            if (typeof this.activeCoreModule().get_memory_slice === 'function') {
                 const scanStart = 0;
                 const scanCount = Math.min(4096, this.simulator.memory.length);
-                const slice = window.Deep16Wasm.get_memory_slice(scanStart, scanCount);
+                const slice = this.activeCoreModule().get_memory_slice(scanStart, scanCount);
                 if (slice && slice.length) {
                     let hits = [];
                     for (let i = 0; i < slice.length && hits.length < 8; i++) {
@@ -1980,9 +2097,9 @@ class DeepWebUI {
                     this.addTranscriptEntry(`WASM scan: found ${hits.length} SWI opcodes${hits.length ? ' at ' + hits.map(a => '0x' + a.toString(16).padStart(5,'0')).join(', ') : ''}`, "info");
                 }
             }
-            if (typeof window.Deep16Wasm.get_memory_word === 'function') {
-                const vec = window.Deep16Wasm.get_memory_word(((0 << 4) + 2) >>> 0) & 0xFFFF;
-                this.addTranscriptEntry(`WASM vector[2]=0x${vec.toString(16).padStart(4,'0')}`, "info");
+            if (typeof this.activeCoreModule().get_memory_word === 'function') {
+                const vec = this.activeCoreModule().get_memory_word(((0 << 4) + 2) >>> 0) & 0xFFFF;
+                this.addTranscriptEntry(`${this.coreLabel(this.coreName)} vector[2]=0x${vec.toString(16).padStart(4,'0')}`, "info");
             }
         } catch {}
         if (this.resumeFromBreakpoint) {
@@ -1990,16 +2107,16 @@ class DeepWebUI {
                 let csVal = this.simulator.segmentRegisters.CS & 0xFFFF;
                 let pcVal = this.simulator.registers[15] & 0xFFFF;
                 try {
-                    const segsCur = window.Deep16Wasm.get_segments();
+                    const segsCur = this.activeCoreModule().get_segments();
                     if (segsCur && segsCur.length >= 1) csVal = segsCur[0] & 0xFFFF;
                 } catch {}
                 try {
-                    const regsCur = window.Deep16Wasm.get_registers();
+                    const regsCur = this.activeCoreModule().get_registers();
                     if (regsCur && regsCur.length >= 16) pcVal = regsCur[15] & 0xFFFF;
                 } catch {}
                 const physPCCheck = ((csVal & 0xFFFF) << 4) + (pcVal & 0xFFFF);
                 if (this.memoryUI && this.memoryUI.breakpoints && this.memoryUI.breakpoints.has(physPCCheck)) {
-                    window.Deep16Wasm.step();
+                    this.activeCoreModule().step();
                 }
             } catch {}
             this.resumeFromBreakpoint = false;
@@ -2021,27 +2138,27 @@ class DeepWebUI {
                 let csVal = this.simulator.segmentRegisters.CS & 0xFFFF;
                 let pcVal = this.simulator.registers[15] & 0xFFFF;
                 try {
-                    const segsCur = window.Deep16Wasm.get_segments();
+                    const segsCur = this.activeCoreModule().get_segments();
                     if (segsCur && segsCur.length >= 1) csVal = segsCur[0] & 0xFFFF;
                 } catch {}
                 try {
-                    const regsCur = window.Deep16Wasm.get_registers();
+                    const regsCur = this.activeCoreModule().get_registers();
                     if (regsCur && regsCur.length >= 16) pcVal = regsCur[15] & 0xFFFF;
                 } catch {}
                 try {
                     if (this.wasmLogCount < this.wasmLogLimit) {
-                        const pswCur = typeof window.Deep16Wasm.get_psw === 'function' ? (window.Deep16Wasm.get_psw() & 0xFFFF) : 0;
+                        const pswCur = typeof this.activeCoreModule().get_psw === 'function' ? (this.activeCoreModule().get_psw() & 0xFFFF) : 0;
                         const sbit = (pswCur & (1 << 5)) !== 0;
                         let aboutCS = csVal, aboutPC = pcVal;
-                        if (sbit && typeof window.Deep16Wasm.get_shadow_state === 'function') {
-                            const sh = window.Deep16Wasm.get_shadow_state();
+                        if (sbit && typeof this.activeCoreModule().get_shadow_state === 'function') {
+                            const sh = this.activeCoreModule().get_shadow_state();
                             aboutPC = sh && sh.length >= 3 ? (sh[0] & 0xFFFF) : aboutPC;
                             aboutCS = sh && sh.length >= 3 ? (sh[1] & 0xFFFF) : aboutCS;
                         }
                         const aboutPhys = ((aboutCS << 4) + aboutPC) >>> 0;
-                        if (typeof window.Deep16Wasm.get_memory_word === 'function') {
-                            const w = window.Deep16Wasm.get_memory_word(aboutPhys) & 0xFFFF;
-                            this.addTranscriptEntry(`WASM fetch: CS=0x${aboutCS.toString(16)}, PC=0x${aboutPC.toString(16)}, instr=0x${w.toString(16)}`, "info");
+                        if (typeof this.activeCoreModule().get_memory_word === 'function') {
+                            const w = this.activeCoreModule().get_memory_word(aboutPhys) & 0xFFFF;
+                            this.addTranscriptEntry(`${this.coreLabel(this.coreName)} fetch: CS=0x${aboutCS.toString(16)}, PC=0x${aboutPC.toString(16)}, instr=0x${w.toString(16)}`, "info");
                         }
                         this.wasmLogCount++;
                     }
@@ -2055,33 +2172,33 @@ class DeepWebUI {
                     this.resumeFromBreakpoint = true;
                     break;
                 }
-                const stepCont = window.Deep16Wasm.step();
+                const stepCont = this.activeCoreModule().step();
                 try {
-                    const pswCur2 = typeof window.Deep16Wasm.get_psw === 'function' ? (window.Deep16Wasm.get_psw() & 0xFFFF) : 0;
+                    const pswCur2 = typeof this.activeCoreModule().get_psw === 'function' ? (this.activeCoreModule().get_psw() & 0xFFFF) : 0;
                     const sbit2 = (pswCur2 & (1 << 5)) !== 0 ? 1 : 0;
                     if (sbit2 !== lastSBit) {
-                        this.addTranscriptEntry(`WASM PSW S=${sbit2}`, "info");
+                        this.addTranscriptEntry(`${this.coreLabel(this.coreName)} PSW S=${sbit2}`, "info");
                         lastSBit = sbit2;
                     }
-                    if (typeof window.Deep16Wasm.get_last_event === 'function') {
-                        const ev = window.Deep16Wasm.get_last_event();
+                    if (typeof this.activeCoreModule().get_last_event === 'function') {
+                        const ev = this.activeCoreModule().get_last_event();
                         if (ev && ev.length >= 5 && ev[0] === 2) {
                             const spc = ev[1] & 0xFFFF;
                             const scs = ev[2] & 0xFFFF;
                             const psw = ev[3] & 0xFFFF;
-                            this.addTranscriptEntry(`WASM SWI: S=1, CS'=0x${scs.toString(16)}, PC'=0x${spc.toString(16)} PSW=0x${psw.toString(16)}`, "info");
+                            this.addTranscriptEntry(`${this.coreLabel(this.coreName)} SWI: S=1, CS'=0x${scs.toString(16)}, PC'=0x${spc.toString(16)} PSW=0x${psw.toString(16)}`, "info");
                         }
                     }
                 } catch {}
                 // Capture store per instruction to mirror to JS memory
-                if (typeof window.Deep16Wasm.get_recent_access === 'function') {
+                if (typeof this.activeCoreModule().get_recent_access === 'function') {
                     try {
-                        const info = window.Deep16Wasm.get_recent_access();
+                        const info = this.activeCoreModule().get_recent_access();
                         if (info && info.length >= 6) {
                             const address = (info[0] >>> 0);
                             const isStore = ((info[5] >>> 0) === 1);
-                            if (isStore && typeof window.Deep16Wasm.get_memory_word === 'function') {
-                                const w = window.Deep16Wasm.get_memory_word(address) & 0xFFFF;
+                            if (isStore && typeof this.activeCoreModule().get_memory_word === 'function') {
+                                const w = this.activeCoreModule().get_memory_word(address) & 0xFFFF;
                                 if (address < this.simulator.memory.length) {
                                     this.simulator.memory[address] = w;
                                 }
@@ -2098,16 +2215,16 @@ class DeepWebUI {
                 }
                 if (!stepCont) { cont = false; break; }
             }
-            const regs = window.Deep16Wasm.get_registers();
+            const regs = this.activeCoreModule().get_registers();
             for (let i = 0; i < this.simulator.registers.length && i < regs.length; i++) {
                 this.simulator.registers[i] = regs[i] & 0xFFFF;
             }
-            if (typeof window.Deep16Wasm.get_psw === 'function') {
-                try { this.simulator.psw = window.Deep16Wasm.get_psw() & 0xFFFF; } catch {}
+            if (typeof this.activeCoreModule().get_psw === 'function') {
+                try { this.simulator.psw = this.activeCoreModule().get_psw() & 0xFFFF; } catch {}
             }
-            if (typeof window.Deep16Wasm.get_segments === 'function') {
+            if (typeof this.activeCoreModule().get_segments === 'function') {
                 try {
-                    const segs = window.Deep16Wasm.get_segments();
+                    const segs = this.activeCoreModule().get_segments();
                     if (segs && segs.length >= 4) {
                         this.simulator.segmentRegisters.CS = segs[0] & 0xFFFF;
                         this.simulator.segmentRegisters.DS = segs[1] & 0xFFFF;
@@ -2116,9 +2233,9 @@ class DeepWebUI {
                     }
                 } catch {}
             }
-            if (typeof window.Deep16Wasm.get_recent_access === 'function') {
+            if (typeof this.activeCoreModule().get_recent_access === 'function') {
                 try {
-                    const info = window.Deep16Wasm.get_recent_access();
+                    const info = this.activeCoreModule().get_recent_access();
                     if (info && info.length >= 6) {
                         const segNames = ['CS','DS','SS','ES'];
                         const address = info[0] >>> 0;
@@ -2136,9 +2253,9 @@ class DeepWebUI {
                             type: isStore ? 'ST' : 'LD',
                             accessedAt: Date.now()
                         };
-                            if (isStore && typeof window.Deep16Wasm.get_memory_word === 'function') {
+                            if (isStore && typeof this.activeCoreModule().get_memory_word === 'function') {
                                 try {
-                                    const w = window.Deep16Wasm.get_memory_word(address) & 0xFFFF;
+                                    const w = this.activeCoreModule().get_memory_word(address) & 0xFFFF;
                                     if (address < this.simulator.memory.length) {
                                         this.simulator.memory[address] = w;
                                     }
@@ -2154,14 +2271,14 @@ class DeepWebUI {
                     }
                 } catch {}
             }
-            // Sync a dirty window from WASM memory to JS memory to capture intermediate stores
+            // Sync a dirty window from ${this.coreLabel(this.coreName)} memory to JS memory to capture intermediate stores
             try {
                 if (this.wasmDirtyStart !== null && this.wasmDirtyEnd !== null) {
                     const startDirty = this.wasmDirtyStart >>> 0;
                     const endDirty = this.wasmDirtyEnd >>> 0;
                     const count = Math.min(256, (endDirty - startDirty + 1));
-                    if (count > 0 && typeof window.Deep16Wasm.get_memory_slice === 'function') {
-                        const sliceDirty = window.Deep16Wasm.get_memory_slice(startDirty, count);
+                    if (count > 0 && typeof this.activeCoreModule().get_memory_slice === 'function') {
+                        const sliceDirty = this.activeCoreModule().get_memory_slice(startDirty, count);
                         if (sliceDirty && sliceDirty.length) {
                             for (let i = 0; i < sliceDirty.length; i++) {
                                 const addr = startDirty + i;
@@ -2174,8 +2291,8 @@ class DeepWebUI {
             try {
                 const start = this.memoryStartAddress || 0;
                 const end = Math.min(start + 64, this.simulator.memory.length);
-                if (typeof window.Deep16Wasm.get_memory_slice === 'function') {
-                    const slice = window.Deep16Wasm.get_memory_slice(start, end - start);
+                if (typeof this.activeCoreModule().get_memory_slice === 'function') {
+                    const slice = this.activeCoreModule().get_memory_slice(start, end - start);
                     if (slice && slice.length) {
                         for (let i = 0; i < slice.length; i++) {
                             this.simulator.memory[start + i] = slice[i] & 0xFFFF;
@@ -2184,7 +2301,7 @@ class DeepWebUI {
                 }
             } catch {}
 
-            // One-time follow on large jump (WASM): bring PC into view even when locked
+            // One-time follow on large jump (${this.coreLabel(this.coreName)}): bring PC into view even when locked
             const physPC = this.getActivePhysPC();
             const wStart = this.memoryStartAddress || 0;
             const wEnd = Math.min(wStart + 64, this.simulator.memory.length);
@@ -2213,13 +2330,13 @@ class DeepWebUI {
                 clearInterval(this.runInterval);
                 this.simulator.running = false;
                 try {
-                    if (this.useWasm && window.Deep16Wasm && typeof window.Deep16Wasm.get_memory_slice === 'function') {
+                    if (this.compiledCoreReady() && typeof this.activeCoreModule().get_memory_slice === 'function') {
                         const addr = this.memoryStartAddress || 0;
-                        const slice = window.Deep16Wasm.get_memory_slice(addr, Math.min(16, this.simulator.memory.length - addr));
+                        const slice = this.activeCoreModule().get_memory_slice(addr, Math.min(16, this.simulator.memory.length - addr));
                         const hex = Array.from(slice).map(v => '0x' + (v & 0xFFFF).toString(16).padStart(4, '0').toUpperCase());
                         // Also log Fibonacci window for verification
                         const fibAddr = 0x0200;
-                        const fibSlice = window.Deep16Wasm.get_memory_slice(fibAddr, 16);
+                        const fibSlice = this.activeCoreModule().get_memory_slice(fibAddr, 16);
                         const fibHex = Array.from(fibSlice).map(v => '0x' + (v & 0xFFFF).toString(16).padStart(4, '0').toUpperCase());
                     }
                 } catch {}
@@ -2233,7 +2350,7 @@ class DeepWebUI {
                     this.resumeFromBreakpoint = true;
                 } else {
                     this.status("Program completed");
-                    this.addTranscriptEntry("Program execution completed (WASM)", "success");
+                    this.addTranscriptEntry(`Program execution completed (${this.coreLabel(this.coreName)})`, "success");
                 }
                 this.updateRunButton(false);
             }
@@ -2361,7 +2478,7 @@ class DeepWebUI {
         if (run && step && reset) {
             this.originalButtonParent = run.parentElement;
             if (indicator) this.originalRunIndicatorParent = indicator.parentElement;
-            // build grouped layout: [Run, Step] [Reset, View] [Docs, WASM]
+            // build grouped layout: [Run, Step] [Reset, View] [Docs, ${this.coreLabel(this.coreName)}]
             const groupRunStep = document.createElement('div');
             groupRunStep.className = 'mobile-group group-run-step';
             groupRunStep.appendChild(run);
