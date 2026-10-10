@@ -25,8 +25,8 @@ in den Verhaltenskernen (0 = Haltwort erreicht). Geradliniger Code braucht
 
 Noch **nicht** abgeschlossen bzw. enthalten:
 
-* **offen:** in einer SWI-Handler-Sequenz mit zwei aufeinanderfolgenden SWI
-  verliert der Kern genau einen Befehl (ein Schritt ohne Retire). Betrifft den
+* **offen:** im Forth-Keyhandler berechnet ein `STS ES[R8], R7` im
+  Schattenkontext die falsche Adresse (0xF0020 statt 0xF1000). Betrifft den
   Forth-REPL-Test und den Sweep mit den Seeds 0–3; Details und Werkzeuge in
   `VERILOG.md`,
 * kein Cache (Phase 3) — `FSH` ist wie in den Verhaltenskernen ein No-op,
@@ -128,7 +128,9 @@ damit Zustand und Speicher ohne Wellenformviewer lesbar sind:
 | 0x56/0x57 | Flush-Zähler (verworfene Fetches) |
 | 0x58/0x59 | Zahl der retired Befehle |
 | 0x5A–0x5D | Pipeline-Interna: Belegung, EX-Steuersignale, Halt-Bits |
-| 0x60/0x61 | Schreibadresse/-wert der MEM-Stufe |
+| 0x60/0x61 | Register-Schreibadresse/-wert der MEM-Stufe |
+| 0x65–0x67 | Store der MEM-Stufe (Enable, Adresse low/high) |
+| 0x68 | Leseadressen der drei EX-Ports |
 | 0x63/0x64 | eigene Adresse und aktiver CS des Befehls in IF/ID |
 | 0x2F | aktuell ausgeführter Befehl |
 | 0x30–0x3F | Registerbank in der aktiven Sicht (Shadow, wenn PSW.S=1) |

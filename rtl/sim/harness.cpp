@@ -327,12 +327,12 @@ void debug_step_trace(uint16_t* out, uint32_t max_ticks) {
     tick();
     uint16_t* o = out + n * 8;
     o[0] = dbg_read(0x50);   // run / halt / stall
-    o[1] = dbg_read(0x5A);   // stage occupancy
+    o[1] = dbg_read(0x5A);   // stage occupancy (bit0 IF/ID .. bit3 WB)
     o[2] = dbg_read(0x5B);   // EX control signals
     o[3] = dbg_read(0x5C);   // instruction in IF/ID
-    o[4] = dbg_read(0x5E);   // instruction in MEM
-    o[5] = dbg_read(0x1B);   // shadow R0'
-    o[6] = dbg_read(0x0F);   // PC
+    o[4] = dbg_read(0x2F);   // instruction in EX
+    o[5] = dbg_read(0x5E);   // instruction in MEM
+    o[6] = dbg_read(0x5F);   // instruction in WB (the one that retires)
     o[7] = dbg_read(0x52);   // next fetch address
     n++;
   }

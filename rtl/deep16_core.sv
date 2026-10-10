@@ -334,9 +334,14 @@ module deep16_core
     .rn_addr   (smv_idx),      .rn_rdata   (rf_inact_n),
     .rs_addr   (smv_idx),      .rs_rdata   (rf_inact_s),
     .wb_bank   (mem_wb.reg_bank),
-    .we_a      (mem_wb.reg_we_a), .waddr_a (mem_wb.reg_wa), .wdata_a (mem_wb.reg_da),
-    .we_b      (mem_wb.reg_we_b), .waddr_b (mem_wb.reg_wb), .wdata_b (mem_wb.reg_db),
-    .sh_clear  (mem_wb.sh_clear),
+    // every write port is gated with the stage's valid bit: a bubble inserted
+    // on a load-use stall keeps the fields of the instruction it replaced, and
+    // an ungated port would keep firing that stale write every cycle
+    .we_a      (mem_wb.valid && mem_wb.reg_we_a),
+    .waddr_a   (mem_wb.reg_wa), .wdata_a (mem_wb.reg_da),
+    .we_b      (mem_wb.valid && mem_wb.reg_we_b),
+    .waddr_b   (mem_wb.reg_wb), .wdata_b (mem_wb.reg_db),
+    .sh_clear  (mem_wb.valid && mem_wb.sh_clear),
     .dbg_we    (rf_dbg_we), .dbg_idx (dbg_idx), .dbg_wdata (dbg_wdata),
     .dbg_in_shadow(ctx.psw[FLG_S]),
     .dbg_rdata (rf_dbg_rdata)
@@ -1186,6 +1191,10 @@ module deep16_core
                             ex_mem.reg_we_a, ex_mem.reg_wa};
         8'h61: dbg_rdata = ex_mem.reg_da;
         8'h62: dbg_rdata = {15'h0000, mem_wb.sh_clear};
+        8'h68: dbg_rdata = {4'h0, ra1, ra2, ra3};
+        8'h65: dbg_rdata = {15'h0000, ex_mem.mem_we};
+        8'h66: dbg_rdata = ex_mem.mem_addr[15:0];
+        8'h67: dbg_rdata = {11'h0000, ex_mem.mem_addr[20:16]};
         8'h63: dbg_rdata = if_id.pc0;
         8'h64: dbg_rdata = {if_id.act_cs[14:0], if_id.halt_word};
         8'h5D: dbg_rdata = {10'h0, if_id.valid, if_id.halt_word, delay_in_ex,

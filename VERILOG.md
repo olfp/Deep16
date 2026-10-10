@@ -56,11 +56,14 @@ dreifache Parität, der Decode-Sweep im Test (131072 Fälle) und die
 Beispielprogramme. CPI in geradlinigem Code ≈ 1,2 Zyklen/Befehl (vorher 3–4).
 
 **Offener Punkt (blockiert Phase 2):** `tests/rtl.test.js:199` (Forth-REPL auf
-dem RTL-Kern) und der Sweep mit den Seeds 0–3 im Normalpfad divergieren: der
-RTL-Kern verliert in einer SWI-Handler-Sequenz mit zwei aufeinanderfolgenden
-SWI genau **einen** Befehl (ein Schritt ohne Retire, PC bleibt stehen). Alle
-Fälle ohne den zweiten SWI sind sauber. Werkzeug: `node scripts/rtl_trace.mjs
-asm/forth.asm 200 --keys "1 2 + .\n"` zeigt die erste Abweichung.
+dem RTL-Kern) und `scripts/rtl_sweep.mjs` mit den Seeds 0–3 divergieren. Nach
+dem Fix der ungegateten Write-Ports (siehe Commit) liegt die erste Abweichung
+im Forth-Keyhandler bei Schritt 69: ein `STS ES[R8], R7` berechnet die
+physische Adresse 0xF0020 statt 0xF1000 — im Schattenkontext und mit
+Load-Use-Stall im Nachlauf. Alle Fälle ohne diese Kombination sind sauber
+(131072 Sweep-Fälle im Test grün). Werkzeug: `node scripts/rtl_trace.mjs
+asm/forth.asm 200 --keys "1 2 + .\n"`, dann `debug_step_trace()` aus
+`rtl/pkg/deep16_rtl.js` für den Takt-für-Takt-Vergleich.
 
 **Phase 3–6 stehen aus** (Cache, IDE-Anbindung, Seed-Test, Doku).
 
