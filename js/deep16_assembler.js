@@ -1146,16 +1146,18 @@ class Deep16Assembler {
     encodeLDI(parts, address, lineNumber) {
         if (parts.length >= 2) {
             const imm = this.parseImmediate(parts[1], false);
-            // TODO(assembler): the positive bound is wrong. LDI's operand is a
-            // *signed* 15-bit field — the CPU sign-extends from bit 14 — so
-            // 16384..0x7FFF assembles cleanly but loads a negative value
-            // (`LDI 20000` -> 0xCE20 = -12992). The negative branch below
-            // already uses the correct bound; the positive one should be
-            // 16383 so the check mirrors encodeLSI's shape. Measured in
-            // book/kap06.md 6.2 (probe_kap06.mjs, case P4): both cores agree on
-            // the wrong value, so this is an assembler defect and not a core
-            // divergence. Fix both encodeLDI and encodeLDIFromLine, then add an
-            // assembler.test.js case for 16383 / 16384.
+            // LDI's operand is a 15-BIT PATTERN, not a signed range: spec
+            // doc/Deep16-Arch.md 3.4 (Table 2) reads `R0 <- sign_extend(imm15)`,
+            // so all 32768 patterns are legal. The sign extension happens in
+            // the CPU, not in the assembler — that is why `LDI 0x4000` yields
+            // 0xC000 (= -16384) on both cores and why that is correct, not a
+            // defect. Only values that do not fit the 15-bit field at all are
+            // rejected, and the check keeps the sign spelling too:
+            // 0..0x7FFF (raw pattern) or -16384..-1 (the same patterns, signed).
+            // `LDI 0x4000` measuring -16384 on both cores is the documented
+            // behaviour in book/kap06.md 6.2 / probe_kap06.mjs case P4, and
+            // tests/disassembler.test.js locks the round trip (the
+            // disassembler prints raw hex, which must stay assemblable).
             if (imm >= 0) {
                 if (imm > 0x7FFF) {
                     throw new Error(`LDI immediate ${imm} out of range (0..0x7FFF)`);
@@ -1177,8 +1179,9 @@ class Deep16Assembler {
             throw new Error('LDI requires immediate value');
         }
         const imm = this.parseImmediate(rest, false);
-        // TODO(assembler): same defect as in encodeLDI above — the positive
-        // bound must be 16383, not 0x7FFF. Keep both sites in sync.
+        // Same rule as in encodeLDI: imm is a 15-bit pattern, see the comment
+        // there. Both spellings (0..0x7FFF raw, -16384..-1 signed) are accepted
+        // because both denote the same 32768 patterns.
         if (imm >= 0) {
             if (imm > 0x7FFF) {
                 throw new Error(`LDI immediate ${imm} out of range (0..0x7FFF)`);

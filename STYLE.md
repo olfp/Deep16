@@ -189,7 +189,7 @@ neue Kapitel dürfen sie nutzen, aber nicht widersprechen:
 | `LD`/`ST` | setzen **keine** Flags |
 | `MUL32`/`DIV32` | Registerpaar `Rd:Rd+1`, `Rd` muss gerade sein |
 | Division durch 0 | ergibt `0xFFFF` (erkennbarer Fehlerwert) |
-| `LDI` | lädt immer `R0`, 15-Bit mit Vorzeichenfortsetzung; Werte `>0x7FFF` abgelehnt |
+| `LDI` | lädt immer `R0`; Operand ist ein **15-Bit-Muster**, kein vorzeichenbehafteter Zahlenwert — die Vorzeichenerweiterung macht die CPU, nicht der Assembler (Spec §3.4: `R0 ← sign_extend(imm15)`). Alle 32768 Muster sind zulässig, geschrieben roh `0..0x7FFF` **oder** vorzeichenbehaftet `-16384..-1`; erst `>0x7FFF` bzw. `<-16384` wird abgelehnt. `LDI 0x4000` ergibt daher gemessen `0xC000` — **korrekt, kein Defekt.** Der Disassembler gibt dasselbe Muster als Hex aus, der Round-Trip ist Pflicht (`tests/disassembler.test.js`). |
 | `SET 4` | No-op (Interrupt-Bit nur via `SETI`/`CLRI`) |
 | `SET 5`/`SETS` | **Falle:** schaltet in den Schatten-Kontext → Kapitel 5, nie im Beispiel |
 | Sprünge | nutzen den Delay Slot — Befehl danach läuft immer |

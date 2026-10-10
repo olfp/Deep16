@@ -48,6 +48,36 @@ test('round trip preserves the machine word for the ALU group', () => {
   }
 });
 
+// LDI's operand is a 15-bit PATTERN (doc/Deep16-Arch.md 3.4: `R0 <-
+// sign_extend(imm15)`), so every one of the 32768 patterns is a legal
+// immediate — the sign extension happens in the CPU. The disassembler prints
+// that pattern as raw hex, so the assembler has to accept it back. This test
+// is the guard against "fixing" the assembler into a signed-range check, which
+// would make half the disassembler output unloadable.
+test('every LDI pattern survives disassemble -> assemble', () => {
+  for (let pattern = 0; pattern <= 0x7FFF; pattern++) {
+    const word = pattern & 0xFFFF;
+    const text = dis.disassemble(word);
+    const back = assemble(`${text}\n`);
+    assert.equal(back.success, true, `${text} must assemble again (pattern 0x${word.toString(16).toUpperCase()})`);
+    assert.equal(back.memoryChanges[0].value & 0xFFFF, word, text);
+  }
+});
+
+// The boundaries of the two accepted spellings: raw 0..0x7FFF and signed
+// -16384..-1 denote the same 32768 patterns, everything outside is rejected.
+test('LDI accepts both spellings of the 15-bit field and nothing beyond', () => {
+  for (const imm of [0, 1, 0x3FFF, 0x4000, 0x4E20, 0x7FFF, -1, -4096, -16383, -16384]) {
+    const res = assemble(`LDI ${imm}\n`);
+    assert.equal(res.success, true, `LDI ${imm} should assemble: ${res.errors}`);
+  }
+  for (const imm of [0x8000, 32768, -16385, -32768, 65535]) {
+    const res = assemble(`LDI ${imm}\n`);
+    assert.equal(res.success, false, `LDI ${imm} must be rejected`);
+    assert.match(res.errors.join(), /LDI immediate .* out of range/);
+  }
+});
+
 test('MUL32/DIV32 disassemble with an even destination register', () => {
   const mul32 = assemble('MUL32 R6, R9\n').memoryChanges[0].value & 0xFFFF;
   assert.equal(dis.disassemble(mul32), 'MUL32 R6, R9');

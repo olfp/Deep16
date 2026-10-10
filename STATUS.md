@@ -125,6 +125,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-10 | **E016 gelöst — bestätigt am Gerät**: `Deep16-kindle-calibre.epub` wird von Send to Kindle akzeptiert und liest sich reflowable; Layout und Diagramme sind einwandfrei. Damit ist der Calibre-Round-Trip die entscheidende Maßnahme, `normalize_epub.py` bleibt als Absicherung (Sprache, Apple-Attribute, SVG-Titelbild). **Für Amazon ist damit `kindle-calibre` die gültige Datei**; `Deep16-kindle.epub` und `Deep16.epub` bleiben für Apple Books. | `book/epub/Deep16-kindle-calibre.epub` |
 | 2026-10-10 | **JS-Kern führt `LDS`/`STS` im Debugger mit**: `executeLDSSTS` setzte `recentMemoryAccess` nicht, das Speicherfenster zeigte nach einem `STS` auf den Bildschirm weiterhin die Brotkrume des Boot-ROMs (Adresse `0x0002`) statt `0xF1000` — der WASM-Kern (`recent_addr`) hatte es richtig. Das war die einzige Divergenz, die Kapitel 6 beim „gleiche Bitgenauigkeit"-Vergleich aufgedeckt hat; `tests/cores.test.js` 22/22 grün. | `js/deep16_simulator.js` |
 | 2026-10-10 | **Kapitel 6 „Der Simulator als Werkbank"** geschrieben: Speicherkarte (Tabelle 6-1), Tastaturports (Tabelle 6-2), Bildschirmzelle mit Bitdiagramm, die Kernfalle `LD`/`ST` sehen keine Ports, Delay-Slot-Falle messbar (`R1` = 5 statt 1), LDI-Vorzeichengrenze, Debugger-Hooks. Alle Zahlen auf JS- **und** WASM-Kern gemessen (Probe 50/50, Extractor 61/61). | `book/kap06.md`, `book/epub/*` |
+| 2026-10-10 | **`LDI`-Bereich: Vermerk zurückgenommen, Semantik festgeschrieben.** Der vormerkte „Bereichsfehler" war eine **Fehldiagnose** — die obere Grenze `0x7FFF` ist korrekt. Spec §3.4 lautet `R0 ← sign_extend(imm15)`: der Operand ist ein **15-Bit-Muster**, alle 32768 Muster sind legal, und die Vorzeichenerweiterung findet in der **CPU** statt, nicht im Assembler. `LDI 20000` → `0xCE20` (`−12992`) ist auf beiden Kernen das *richtige* Ergebnis. Ein Versuch, die Grenze auf `16383` zu ziehen, hat `forth.asm`, `swi-test.asm`, `screen_demo.asm`, `string_demo.asm` und `asm/backup` zerlegt (80 Testfehler) sowie den Disassembler-Round-Trip gebrochen — der Disassembler gibt Immediates als rohes Hex aus, das sich dann nicht wieder laden ließ. **Regel:** Assembler prüft nur, ob der Wert in ein 15-Bit-Feld passt (`0..0x7FFF` oder `-16384..-1`, dieselben Muster in zwei Schreibweisen), nicht ob er in einen Vorzeichenbereich passt. Absicherung: `tests/disassembler.test.js` prüft jetzt alle 32768 Muster auf `disassemble → assemble`, STYLE.md §9 als eingefrorener Fact präzisiert, die irreführenden TODO-Kommentare in `js/deep16_assembler.js` ersetzt. Kapitel 2/3/6 und alle EPUBs bleiben unverändert — sie hatten recht. | `js/deep16_assembler.js`, `tests/disassembler.test.js`, `STYLE.md` §9 |
 | 2026-10-10 | **`book/` aufgeräumt**: Ergebnisse nach `book/epub/`, Zwischenergebnisse (Pandoc-Stufe, Calibre-Round-Trip, Mermaid-PNGs) nach `book/build/` — bei jedem Build geleert, per `.gitignore` nicht versioniert. `book/` enthält damit nur noch Quellen (`kap*.md`), Werkzeuge (`build-epub.sh`, `mermaid_filter.lua`, `normalize_epub.py`), das Mermaid-Test-Fixture `test/` und die beiden Artefaktordner. | `book/epub/`, `book/build/`, `book/build/build-epub.sh`, `STYLE.md` §6 |
 
 ### ✅ Kapitel 6 — `book/kap06.md`
@@ -160,22 +161,10 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 4. Danach: Kapitel 7 (Mini-Forth) — die Schleife aus Listing 6-5 wird zur
    REPL-Zeile, `asm/forth.asm` liegt dafür bereits vor.
 
-## Bekannte Mängel (zur Korrektur vorgemerkt)
+## Bekannte Mängel
 
-1. **`LDI` prüft den Immediate-Bereich nur halb** (`js/deep16_assembler.js`,
-   `encodeLDI` und `encodeLDIFromLine`). Das Operandenfeld ist 15 Bit mit
-   **Vorzeichenfortsetzung**, die CPU setzt ab Bit 14 fort. Der negative Zweig
-   prüft korrekt gegen `-16384`, der positive nur gegen die Bitbreite
-   `0x7FFF`. Folge: `LDI 16384` … `LDI 32767` assemblieren ohne Mucks und
-   liefern auf der CPU einen **negativen** Wert — gemessen `LDI 20000` →
-   `0xCE20` = `−12992` (JS- **und** WASM-Kern, `probe_kap06.mjs` Fall P4).
-   Weil beide Kerne gleich irren, fällt es in Tests nicht auf; in
-   Kapitel 6 §6.2 ist es als Falle dokumentiert.
-   **Fix:** obere Grenze auf `16383` setzen, damit die Prüfung die Form von
-   `encodeLSI` (`-16..15`) spiegelt; beide Stellen gemeinsam, danach einen
-   Fall in `tests/assembler.test.js` für `16383`/`16384` ergänzen.
-   ⚠️ `js/deep16_assembler.js` wird parallel bearbeitet — Änderung mit dem
-   zweiten Autor abstimmen.
+*Keine.* Der am 2026-10-10 vormerkte `LDI`-Bereichsfehler ist **kein
+Fehler** — die Vermerkung war eine Fehldiagnose (siehe Entscheidungs-Log).
 
 ---
 
