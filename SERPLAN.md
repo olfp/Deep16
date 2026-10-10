@@ -22,7 +22,7 @@ Nicht Teil dieses Plans: Dateinamen, ein Dateisystem in der Maschine, Blöcke.
 | 6 | `EVALUATE` | offen (bewusst zurückgestellt) |
 | 7 | WASM nachziehen | ✅ erledigt (`serial_push`, `serial_set_eof`, `serial_clear`, `serial_available`) |
 | 8 | RTL nachziehen | ✅ erledigt (zweite FIFO in `deep16_top.sv`) |
-| 9 | Host-Anbindung | ✅ erledigt (Dateidialog, getaktete Pumpe) |
+| 9 | Host-Anbindung | ⚠️ gebaut, im Browser **nicht bestätigt** — siehe [STATUS.md](STATUS.md), Abschnitt „Zurückgestellt" |
 
 **Nachtrag zu Schritt 7/8:** Die Toolchain war vorhanden, nur nicht im `PATH`
 (`~/.cargo/bin` fehlte). Der serielle Port liegt jetzt in allen drei Kernen.

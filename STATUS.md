@@ -168,6 +168,58 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 4. Danach: Kapitel 7 (Mini-Forth) — die Schleife aus Listing 6-5 wird zur
    REPL-Zeile, `asm/forth.asm` liegt dafür bereits vor.
 
+---
+
+## Zurückgestellt (2026-10-10)
+
+Zwei Punkte, die am 2026-10-10 gemeldet und bewusst **nicht** jetzt bearbeitet
+wurden. Beide sind offen, keiner davon ist erledigt.
+
+### 1. `SERLOAD` funktioniert im Browser noch nicht
+
+Der Quelltext-Transfer über die serielle Leitung läuft in den Tests, im Browser
+aber nicht. Was daran **unbestätigt** ist:
+
+- **Der ganze Ablauf im Browser ist nie gelaufen.** In dieser Umgebung gab es
+  keinen steuerbaren Browser; die Pump-Logik ist nur gegen den echten Kernel auf
+  dem JS-Kern getestet (`tests/ui-core.test.js`).
+- **Der Dateidialog ist ungetestet.** `queueSerialSource` braucht einen echten
+  `FileReader`, den die Tests nicht haben — dort wird der Zustand direkt gesetzt.
+- **Unbekannt ist, an welcher Stelle es bricht**: am Dialog, an der Übergabe an
+  die Warteschlange, am Warten des Kernels oder am EOF.
+
+Erste Schritte, wenn das aufgegriffen wird:
+
+1. Im Browser `SERLOAD…` klicken und prüfen, ob die Datei überhaupt im
+   Transkript auftaucht (`addTranscriptEntry` in `queueSerialSource`). Fehlt
+   dieser Eintrag, liegt der Fehler im Dialog.
+2. Steht der Eintrag drin, prüfen, ob `pumpSerialQueue()` etwas schiebt — bzw.
+   ob sie die Meldung „line is full" bringt, weil die Maschine nicht läuft.
+3. **Reihenfolge beachten:** Erst den Kernel starten (`forth.asm` laden,
+   Assemble, Run), **dann** `SERLOAD` eintippen. Solange der Kernel nicht im
+   Lademodus ist, liest er nichts aus der Leitung — die Leitung läuft dann voll
+   und die Pumpe wartet mit der Warnung „line is full".
+
+### 2. Das mobile UI muss aufgeräumt werden
+
+Kein Fehler, sondern Struktur. Die bekannten Stellen:
+
+- **Ein Knopf muss an drei Orten eingetragen werden**: im Markup, in
+  `initializeMobileControls()` und in `restoreDesktopLayout()`. Das war genau die
+  Ursache, warum `SERLOAD` auf dem Handy verschwunden war — im Markup stand es,
+  in den beiden Layout-Funktionen nicht. Ein Test (`tests/ui-core.test.js`)
+  prüft das inzwischen für alle Knöpfe im Panel-Kopf, trägt aber nicht das
+  Markup selbst.
+- **`.memory-panel-controls` steht zweimal in `css/memory.css`** (zweimal
+  `display:flex`, einmal `gap: 4px` mit `margin-left:auto`, einmal `gap: 18px`
+  ohne) — die spätere Regel gewinnt still.
+- **Drei ineinander geschachtelte Media Queries** (768 / 900 / 480 px) mit
+  Überschneidungen; die 900-px-Regel liegt zwischen den beiden anderen.
+- **Die Knopfbreiten kommen aus JavaScript** (`--mobile-btn-w`, gesetzt in
+  `initializeMobileControls` aus der gemessenen Breite des View-Schalters).
+  Das Label muss deshalb fürs Handy gekürzt werden — `SERLOAD` tut das, aber das
+  ist kein Ort, an dem man danach suchen würde.
+
 ## FPGA-Ziel Tang Nano 9K — Auslegungsbefunde
 
 **Stand 2026-10-10. Schätzung, keine Synthese** — auf dieser Maschine gibt es weder
