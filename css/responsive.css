@@ -177,6 +177,11 @@
     /* Wide mobile: Docs and WASM side-by-side */
     .mobile-controls .group-docs-wasm .header-right-controls { flex-direction: row !important; gap: 8px; align-items: center; }
     .mobile-controls { order: 2; flex: 1; justify-content: center; }
+    /* SERLOAD rides along with the other controls here. It is a fifth fixed
+       width button, and a single nowrap row does not fit that just above the
+       480px breakpoint - so it stacks in its group, the same way the whole
+       group already stacks on a narrow phone. */
+    .mobile-controls .group-reset-view { flex-direction: column; gap: 4px; align-items: center; }
 
     .editor-header { flex-direction: row; gap: 8px; align-items: center; height: auto; }
     .editor-controls-center { flex: 1; width: auto; justify-content: flex-start; }

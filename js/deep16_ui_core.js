@@ -2674,6 +2674,7 @@ class DeepWebUI {
         const run = document.getElementById('run-btn');
         const step = document.getElementById('step-btn');
         const reset = document.getElementById('reset-btn');
+        const serload = document.getElementById('serload-btn');
         const viewToggle = document.getElementById('view-toggle');
         const headerContent = document.querySelector('.header-content');
         const rightControls = document.querySelector('.header-right-controls');
@@ -2693,6 +2694,16 @@ class DeepWebUI {
             const groupResetView = document.createElement('div');
             groupResetView.className = 'mobile-group group-reset-view';
             groupResetView.appendChild(reset);
+            // SERLOAD belongs here for the same reason the other three are
+            // moved: on a phone the memory panel header is not what anyone
+            // looks at, so a file picker left behind there is unreachable.
+            if (serload) {
+                this.originalSerloadParent = serload.parentElement;
+                groupResetView.appendChild(serload);
+                // The mobile buttons are all one fixed width, sized after the
+                // view toggle; the ellipsis would only make the label clip.
+                serload.textContent = 'SERLOAD';
+            }
             if (viewToggle) {
                 this.originalViewToggleParent = viewToggle.parentElement;
                 groupResetView.appendChild(viewToggle);
@@ -2720,7 +2731,7 @@ class DeepWebUI {
                 document.documentElement.style.setProperty('--mobile-btn-w', w + 'px');
             }
             const docsBtn = document.getElementById('docs-menu-btn');
-            [run, step, reset, viewToggle, docsBtn].forEach(b => {
+            [run, step, reset, serload, viewToggle, docsBtn].forEach(b => {
                 if (b) b.style.width = 'var(--mobile-btn-w)';
             });
             this.repositionMobileIndicator();
@@ -2818,6 +2829,7 @@ class DeepWebUI {
         const run = document.getElementById('run-btn');
         const step = document.getElementById('step-btn');
         const reset = document.getElementById('reset-btn');
+        const serload = document.getElementById('serload-btn');
         const viewToggle = document.getElementById('view-toggle');
         const rightControls = document.querySelector('.header-right-controls');
         const indicator = document.getElementById('run-state-indicator');
@@ -2831,6 +2843,15 @@ class DeepWebUI {
         if (viewToggle && this.originalViewToggleParent) {
             this.originalViewToggleParent.appendChild(viewToggle);
             viewToggle.textContent = 'Compact View';
+        }
+        // SERLOAD goes back in front of the view toggle, which is where the
+        // markup has it - appendChild would leave it behind the button that
+        // used to follow it.
+        if (serload && this.originalSerloadParent) {
+            const anchor = (viewToggle && viewToggle.parentElement === this.originalSerloadParent)
+                ? viewToggle : null;
+            this.originalSerloadParent.insertBefore(serload, anchor);
+            serload.textContent = 'SERLOAD\u2026';
         }
         if (rightControls && this.originalRightControlsParent) {
             this.originalRightControlsParent.appendChild(rightControls);

@@ -350,3 +350,159 @@ test('an unknown queue level makes the pump feed one character at a time', () =>
   assert.equal(ui.pumpSerialQueue(), 1);
   assert.equal(ui.serialSource.pos, 2);
 });
+
+// ---------------------------------------------------------------------------
+// On a phone the memory panel header is not what anyone looks at: Run, Step,
+// Reset and the view toggle are MOVED into the header groups by
+// initializeMobileControls(). SERLOAD was left behind there and was therefore
+// invisible on mobile - the control existed, worked, and could not be reached.
+// These tests drive the real functions against a small DOM model and check
+// where the button ends up, rather than grepping for its id: grepping passed
+// happily while the button was never moved.
+// ---------------------------------------------------------------------------
+
+// A node with just enough of the DOM API for the two layout functions.
+function makeEl(tag = 'div') {
+  const el = {
+    tagName: String(tag).toUpperCase(),
+    id: '',
+    className: '',
+    textContent: '',
+    style: {},
+    children: [],
+    parentElement: null,
+    offsetWidth: 50,
+    classList: { add() {}, remove() {}, toggle() {} },
+    appendChild(child) {
+      if (child.parentElement) child.parentElement.removeChild(child);
+      child.parentElement = this;
+      this.children.push(child);
+      return child;
+    },
+    insertBefore(child, ref) {
+      if (child.parentElement) child.parentElement.removeChild(child);
+      const i = ref ? this.children.indexOf(ref) : -1;
+      if (i < 0) this.children.push(child); else this.children.splice(i, 0, child);
+      child.parentElement = this;
+      return child;
+    },
+    removeChild(child) {
+      const i = this.children.indexOf(child);
+      if (i >= 0) this.children.splice(i, 1);
+      child.parentElement = null;
+      return child;
+    },
+    querySelector: () => null,
+  };
+  return el;
+}
+
+// The header as index.html has it: the buttons live in the memory panel header,
+// the file input beside them, and the Kern/Docs block in the header.
+function mobileDom() {
+  const panelControls = makeEl();
+  panelControls.className = 'memory-panel-controls';
+  const headerContent = makeEl();
+  headerContent.className = 'header-content';
+  const rightControls = makeEl();
+  rightControls.className = 'header-right-controls';
+  headerContent.appendChild(rightControls);
+
+  const ids = {};
+  for (const name of ['run-btn', 'step-btn', 'reset-btn', 'serload-btn',
+                      'view-toggle', 'docs-menu-btn']) {
+    const btn = makeEl('button');
+    btn.id = name;
+    btn.textContent = name;
+    ids[name] = btn;
+    panelControls.appendChild(btn);
+  }
+  const indicator = makeEl('span');
+  indicator.id = 'run-state-indicator';
+  ids['run-state-indicator'] = indicator;
+  panelControls.appendChild(indicator);
+  const serloadFile = makeEl('input');
+  serloadFile.id = 'serload-file';
+  ids['serload-file'] = serloadFile;
+  panelControls.appendChild(serloadFile);
+
+  const mobileCtrls = makeEl();
+  mobileCtrls.id = 'mobile-controls';
+  ids['mobile-controls'] = mobileCtrls;
+
+  return { panelControls, headerContent, rightControls, mobileCtrls, ids };
+}
+
+// Run the two functions against the model, with the globals they reach for
+// swapped in and put back afterwards.
+function withMobileDom(fn) {
+  const dom = mobileDom();
+  const prevDoc = globalThis.document;
+  const prevMatch = globalThis.window.matchMedia;
+  globalThis.document = {
+    getElementById: (id) => dom.ids[id] || null,
+    createElement: (tag) => makeEl(tag),
+    querySelector: (sel) => (sel === '.header-content' ? dom.headerContent
+                           : sel === '.header-right-controls' ? dom.rightControls : null),
+    // the button width is published as a custom property on :root
+    documentElement: { style: { setProperty() {} } },
+  };
+  globalThis.window.matchMedia = () => ({ matches: false });
+  try {
+    return fn(dom, makeUi());
+  } finally {
+    globalThis.document = prevDoc;
+    globalThis.window.matchMedia = prevMatch;
+  }
+}
+
+test('every button in the memory panel header reaches the mobile layout', () => {
+  withMobileDom((dom, ui) => {
+    ui.initializeMobileControls();
+    assert.equal(dom.mobileCtrls.children.length, 3, 'the mobile layout builds three groups');
+    const moved = dom.mobileCtrls.children.flatMap((g) => g.children);
+    for (const name of ['run-btn', 'step-btn', 'reset-btn', 'serload-btn', 'view-toggle']) {
+      assert.ok(moved.includes(dom.ids[name]),
+                `${name} is left behind in the memory panel - unreachable on a phone`);
+      assert.equal(dom.ids[name].parentElement.parentElement, dom.mobileCtrls,
+                   `${name} did not end up in a mobile group`);
+    }
+    // The file input is hidden and only ever clicked by the button, so it stays
+    // where it is - moving it would only risk breaking that click.
+    assert.equal(dom.ids['serload-file'].parentElement, dom.panelControls);
+  });
+});
+
+test('the mobile layout hands every control back to the desktop header', () => {
+  withMobileDom((dom, ui) => {
+    ui.initializeMobileControls();
+    ui.restoreDesktopLayout();
+    for (const name of ['run-btn', 'step-btn', 'reset-btn', 'serload-btn', 'view-toggle']) {
+      assert.equal(dom.ids[name].parentElement, dom.panelControls,
+                   `${name} was not moved back`);
+    }
+    assert.equal(dom.rightControls.parentElement, dom.headerContent);
+    assert.equal(dom.ids['run-state-indicator'].parentElement, dom.panelControls);
+  });
+});
+
+test('the SERLOAD label is shortened for the fixed-width mobile buttons', () => {
+  withMobileDom((dom, ui) => {
+    ui.initializeMobileControls();
+    assert.equal(dom.ids['serload-btn'].textContent, 'SERLOAD',
+                 'the ellipsis only clips at the mobile button width');
+    ui.restoreDesktopLayout();
+    assert.equal(dom.ids['serload-btn'].textContent, 'SERLOAD\u2026',
+                 'the desktop label is not restored');
+  });
+});
+
+test('SERLOAD comes back in front of the view toggle', () => {
+  withMobileDom((dom, ui) => {
+    ui.initializeMobileControls();
+    ui.restoreDesktopLayout();
+    const order = dom.panelControls.children.map((c) => c.id);
+    assert.ok(order.indexOf('serload-btn') < order.indexOf('view-toggle'),
+              `order after the round trip was: ${order.join(', ')}`);
+  });
+});
