@@ -213,6 +213,11 @@ void load_program(uint32_t ptr, const uint16_t* data, uint32_t len) {
   uint16_t* m = memory();
   for (uint32_t i = 0; i < len; i++) m[ptr + i] = data[i];
   rom_copy(m);
+  // the ROM re-plant and every word just written must not sit behind a cached
+  // copy - drop all lines rather than track each address
+  g_top->i_cache_flush = 1;
+  g_top->eval();
+  g_top->i_cache_flush = 0;
   dbg_write(DBG_REGS + 15, 0x0000);   // PC = 0, exactly like load_program() in
   dbg_write(DBG_CS, 0xFFFF);          // the WASM core (it re-arms the ROM CS)
 }
@@ -271,6 +276,10 @@ uint32_t get_flush_count() {
   return (uint32_t)dbg_read(DBG_FLUSHL) | ((uint32_t)dbg_read(DBG_FLUSHH) << 16);
 }
 
+uint32_t get_cache_hits()   { return g_top->o_cache_hits; }
+uint32_t get_cache_misses() { return g_top->o_cache_misses; }
+uint32_t get_cache_penalty(){ return g_top->o_cache_penalty; }
+
 uint32_t get_instr_count() {
   return (uint32_t)dbg_read(DBG_INSTL) | ((uint32_t)dbg_read(DBG_INSTH) << 16);
 }
@@ -284,8 +293,23 @@ void get_delay_state(uint16_t* out) {
   out[4] = (flags >> 2) & 1;       // delayed_to_shadow
 }
 
+static void invalidate_cache_line(uint32_t addr);
+
 void poke(uint32_t addr, uint16_t value) {
-  if (addr < mem_words()) memory()[addr] = value;
+  if (addr < mem_words()) {
+    memory()[addr] = value;
+    invalidate_cache_line(addr);
+  }
+}
+
+// The cache is transparent for CPU accesses (a miss falls through to the
+// array), but a debugger write bypasses the CPU entirely - so the line it
+// touched has to be dropped or the core would keep reading a stale copy.
+static void invalidate_cache_line(uint32_t addr) {
+  g_top->i_cache_inv = 1;
+  g_top->i_cache_inv_line = (uint8_t)((addr >> 3) & 0xFF);
+  g_top->eval();
+  g_top->i_cache_inv = 0;
 }
 
 uint16_t peek(uint32_t addr) { return get_memory_word(addr); }
