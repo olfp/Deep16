@@ -943,6 +943,21 @@ class Deep16Simulator {
         
         // console.log(`LDS/STS Execute: d=${d}, seg=${segNames[seg]}, rd=${this.getRegisterName(rd)}, rs=${this.getRegisterName(rs)}, address=0x${address.toString(16)}`);
         
+        // The debugger's memory window follows the last access. Without this
+        // the LDS/STS forms left the view pointing at whatever LD/ST touched
+        // earlier (the boot ROM's breadcrumb), while the WASM core tracks them
+        // (recent_addr/base/offset/seg). Same shape as executeMemoryOp, and
+        // 'LD'/'ST' keep the UI's Load/Store wording intact.
+        this.recentMemoryAccess = {
+            address: physicalAddress,
+            baseAddress: address,
+            offset: 0,
+            segment: segNames[seg],
+            segmentValue: baseSegment,
+            type: d === 0 ? 'LD' : 'ST',
+            accessedAt: Date.now()
+        };
+
         if (d === 0) { // LDS
             // Keyboard controller reads
             if (physicalAddress === this.KBD_STATUS_ADDR) {
