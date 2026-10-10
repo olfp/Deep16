@@ -41,6 +41,12 @@ module deep16_core
   input  logic        rst,
 
   input  logic        i_step,        // one pulse = run until one instruction retires
+  // Free-run: hold run high across retirements instead of stopping after one.
+  // Diagnostic only - it changes *when* the machine runs, never what it
+  // computes: every retired instruction produces the same state either way.
+  // Without it every step() pays a fixed pipeline refill, which inflates any
+  // CPI derived from get_cycle_count(). See harness run_cycles().
+  input  logic        i_free,
   output logic        o_done,
   output logic        o_result,      // 0 = the step ran into a halt word
   output logic        o_busy,
@@ -1028,7 +1034,12 @@ module deep16_core
           // of every step: the fetch picks up again where the halt word is
           halt_sticky <= 1'b0;
         end
-      end else if (step_done) begin
+      end else if (step_done && !i_free) begin
+        // In free-run the machine keeps going past a retirement: the retiring
+        // instruction leaves WB and its successor is already behind it in the
+        // pipe, so the pipeline reaches the 1-instruction-per-cycle the design
+        // is capable of. A halt word still ends the run (halt_done), and the
+        // caller is expected to drop i_free.
         run <= 1'b0;
       end
 
@@ -1067,7 +1078,7 @@ module deep16_core
 
       // ---- pipeline advance --------------------------------------------------
       if (run) begin
-        if (step_done) begin
+        if (step_done && !i_free) begin
           // the step ends here: the retiring instruction leaves WB, the rest
           // of the pipeline waits for the next i_step. The stage is cleared
           // completely - its write ports are wired to the register file and

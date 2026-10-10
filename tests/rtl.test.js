@@ -467,6 +467,92 @@ test('the RTL core counts cycles per retired instruction', async () => {
   assert.equal(rtl.stepCount(), rtl.steps);
 });
 
+test('free-run retires exactly like n steps, and reports a usable CPI', async () => {
+  // The contract of run_cycles(): same observable state as n calls of step(),
+  // but the pipeline keeps running across retirements so the cycle counter
+  // measures the core instead of the per-step refill.
+  //
+  // 16-bit down counter in R4:R5, so the loop is long enough to be worth
+  // measuring and deterministic in length.
+  const program = `
+        LSI R1, 5
+        LSI R2, 7
+        LDI 255
+        MOV R4, R0
+        MOV R5, R0
+outer:
+        ADD R1, R2
+        SUB R5, 1
+        JNZ outer
+        NOP
+        SUB R4, 1
+        JNZ outer
+        NOP
+  `;
+  const N = 100000;
+
+  const stepped = await runRtl(assemble(program), { cs: 0x0000, maxSteps: N });
+  assert.ok(stepped.steps === N,
+    `the reference run stopped early (${stepped.steps} of ${N}); the test program is wrong`);
+
+  // Same work through the free-run entry point, on a fresh machine.
+  const res = assemble(program);
+  const r = await loadRtl();
+  r.init(MEM_WORDS);
+  for (const ch of res.memoryChanges) {
+    r.load_program(ch.address, new Uint16Array([ch.value & 0xFFFF]));
+  }
+  r.set_segments(0x0000, 0, 0, 0);
+  const retired = r.run_cycles(N);
+
+  assert.equal(retired, N, 'free-run did not retire the requested number of instructions');
+  assert.deepEqual(Array.from(r.get_registers()), Array.from(stepped.registers),
+    'free-run left different registers than n steps');
+  assert.equal(r.get_psw(), stepped.psw, 'free-run left a different PSW');
+  assert.deepEqual(Array.from(r.get_segments()), Array.from(stepped.segments),
+    'free-run left different segment registers');
+  assert.deepEqual(Array.from(r.get_shadow_state()), Array.from(stepped.shadow),
+    'free-run left different shadow state');
+
+  // The point of the exercise: a CPI that is not pinned at 2.0 by the
+  // step-at-a-time refill. One taken branch per two instructions here, so the
+  // result must sit strictly between the one-per-cycle floor and 2.0.
+  assert.equal(r.get_free_instr(), N, 'free-run sampled the wrong instruction count');
+  const cpi = r.get_free_cycles() / r.get_free_instr();
+  assert.ok(cpi > 1.0, `CPI ${cpi.toFixed(3)} is below the one-per-cycle floor`);
+  assert.ok(cpi < 2.0, `CPI ${cpi.toFixed(3)} still shows the per-step refill`);
+});
+
+test('free-run leaves the core usable for further stepping', async () => {
+  // run_cycles parks the core through the ordinary step path; a following
+  // step() has to continue from exactly there - not skip, not repeat.
+  const program = `
+        LSI R1, 3
+        LSI R2, 4
+        ADD R1, R2
+        ADD R1, R2
+        ADD R1, R2
+        ADD R1, R2
+        ADD R1, R2
+        HALT
+  `;
+  const res = assemble(program);
+  const r = await loadRtl();
+  r.init(MEM_WORDS);
+  for (const ch of res.memoryChanges) {
+    r.load_program(ch.address, new Uint16Array([ch.value & 0xFFFF]));
+  }
+  r.set_segments(0x0000, 0, 0, 0);
+  r.run_cycles(3);
+  // LSI R1,3 / LSI R2,4 / ADD -> R1 = 7.
+  assert.equal(r.get_registers()[1], 7, 'unexpected register state after free-run');
+
+  // The two remaining ADDs must still execute exactly once each.
+  for (let i = 0; i < 2; i++) r.step();
+  assert.equal(r.get_registers()[1], 7 + 4 + 4,
+    'stepping after free-run skipped or repeated an instruction');
+});
+
 test('the RTL pipeline reports stalls and flushes, and only those', async () => {
   // Straight-line code: no load-use hazard, no redirect.
   const straight = assemble(`

@@ -115,6 +115,14 @@ export default async function initDeep16Rtl(options = {}) {
     get_cache_misses: () => Module._get_cache_misses(),
     get_cache_penalty: () => Module._get_cache_penalty(),
 
+    // Free-run: retire n instructions with the pipeline kept running across
+    // retirements. Same results as n * step(), but the cycle counter finally
+    // means something - step() pays a pipeline refill per instruction.
+    // After the call, get_free_cycles()/get_free_instr() is the real CPI.
+    run_cycles: (n) => Module._run_cycles(n >>> 0),
+    get_free_cycles: () => Module._get_free_cycles(),
+    get_free_instr: () => Module._get_free_instr(),
+
     get_instr_count: () => Module._get_instr_count(),
     get_delay_state: () => {
       const ptr = reserve(10);

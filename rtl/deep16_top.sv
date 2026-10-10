@@ -11,6 +11,8 @@ module deep16_top
 
   // step interface (one pulse = one retired instruction)
   input  logic        i_step,
+  // diagnostic free-run: stay running past a retirement (see deep16_core)
+  input  logic        i_free,
   output logic        o_done,
   output logic        o_result,
   output logic        o_busy,
@@ -84,6 +86,7 @@ module deep16_top
     .clk       (clk),
     .rst       (rst),
     .i_step    (i_step),
+    .i_free    (i_free),
     .o_done    (o_done),
     .o_result  (o_result),
     .o_busy    (o_busy),

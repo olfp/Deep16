@@ -52,7 +52,7 @@ em++ -O2 -std=c++17 -DVL_IGNORE_UNKNOWN_ARCH \
   -I rtl/obj_wasm -I "$VERILATOR_INC" -I "$VERILATOR_INC/vltstd" \
   -sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=deep16RtlFactory \
   -sENVIRONMENT=web,worker,node \
-  -sEXPORTED_FUNCTIONS='[_init,_reset,_step,_run_steps,_get_registers,_get_psw,_get_segments,_get_memory_slice,_get_memory_word,_set_registers,_set_psw,_set_segments,_load_program,_kbd_push,_kbd_clear,_get_recent_access,_get_last_event,_get_shadow_state,_get_cycle_count,_get_delay_state,_poke,_peek,_get_step_count,_get_debug_state,_set_debug_state,_get_stall_count,_get_flush_count,_get_instr_count,_get_cache_hits,_get_cache_misses,_get_cache_penalty,_debug_tick,_debug_step_trace,_malloc,_free]' \
+  -sEXPORTED_FUNCTIONS='[_init,_reset,_step,_run_steps,_get_registers,_get_psw,_get_segments,_get_memory_slice,_get_memory_word,_set_registers,_set_psw,_set_segments,_load_program,_kbd_push,_kbd_clear,_get_recent_access,_get_last_event,_get_shadow_state,_get_cycle_count,_get_delay_state,_poke,_peek,_get_step_count,_get_debug_state,_set_debug_state,_get_stall_count,_get_flush_count,_get_instr_count,_run_cycles,_get_free_cycles,_get_free_instr,_get_cache_hits,_get_cache_misses,_get_cache_penalty,_debug_tick,_debug_step_trace,_malloc,_free]' \
   -sEXPORTED_RUNTIME_METHODS='[HEAPU16,HEAPU32,cwrap,ccall]' \
   -sINITIAL_MEMORY=32MB \
   -o rtl/pkg/deep16_rtl_gen.js

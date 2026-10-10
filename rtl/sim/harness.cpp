@@ -53,6 +53,10 @@ enum : uint8_t {
   DBG_BANKED = 0x30,   // 0x30..0x3F = active view of the register file
 };
 
+// Sampled by run_cycles() at the exact retirement of the n-th instruction.
+static uint32_t g_fc_cycles = 0;
+static uint32_t g_fc_instr  = 0;
+
 void tick() {
   g_top->clk = 0;
   g_top->eval();
@@ -126,6 +130,7 @@ void init(uint32_t /*mem_words*/) {
   g_top->clk = 0;
   g_top->rst = 1;
   g_top->i_step = 0;
+  g_top->i_free = 0;
   g_top->kbd_push = 0;
   g_top->kbd_clear = 0;
   g_top->dbg_en = 0;
@@ -165,6 +170,67 @@ int run_steps(uint32_t n) {
   }
   return cont;
 }
+
+// Runs n instructions with the pipeline kept running across retirements.
+//
+// Diagnostic entry point, and the honest way to read a CPI. step() re-arms
+// i_step per instruction and drains the pipeline, so every instruction costs a
+// fixed refill on top of the work it does; that refill lands in
+// get_cycle_count() and inflates the apparent CPI to ~2.0 no matter what the
+// program does. Here the pipe runs on and retires one instruction per cycle,
+// which is the behaviour a 54 MHz part would show.
+//
+// The results are identical to n calls of step() - free-run changes *when* the
+// machine stops, never what it computes. The cycle/instruction counts are
+// sampled at the exact retirement of the n-th instruction, before the extra
+// clocks needed to park the core, so get_free_cycles() / n is a real CPI.
+//
+// Returns the number of retired instructions (fewer than n if a halt word ended
+// the run, matching step() returning 0).
+uint32_t run_cycles(uint32_t n) {
+  if (n == 0) { g_fc_cycles = 0; g_fc_instr = 0; return 0; }
+
+  const uint32_t c0 = get_cycle_count();
+  const uint32_t i0 = get_instr_count();
+  const uint32_t target = i0 + n;
+
+  g_top->i_step = 1;
+  g_top->i_free = 1;
+  tick();                        // request latched, run goes high
+
+  // Free-run the first n-1 retirements. Progress is measured with the retired
+  // instruction counter, not o_done: once the pipe is full o_done is high on
+  // *every* clock, so it carries no edges to count in free-run.
+  uint32_t guard = 0;
+  const uint32_t free_guard = 64 + 16 * (uint64_t)n;
+  while (get_instr_count() + 1 < target && guard < free_guard) {
+    tick(); guard++;
+  }
+
+  // The final instruction retires through the ordinary step path. That is what
+  // parks the core: with i_free low, run drops and WB is cleared exactly as
+  // after a step(), so the machine ends in the state n calls of step() would
+  // leave - same registers, same memory, and the next step() continuing
+  // correctly. Retiring it in free-run instead would leave run high with one
+  // instruction already retired, desynchronising the caller by one step.
+  g_top->i_free = 0;
+  for (guard = 0; guard < 4096 && get_instr_count() < target; guard++) tick();
+  const uint32_t done_n = get_instr_count() - i0;
+
+  g_top->i_step = 0;
+
+  // Sample here: exactly n instructions have retired (fewer on a halt word).
+  g_fc_cycles = get_cycle_count() - c0;
+  g_fc_instr  = get_instr_count()  - i0;
+
+  g_steps += n;
+  // A short count means the run ended on a halt word, matching step() returning
+  // 0 there; report it the same way.
+  return done_n >= n ? done_n : (g_top->o_result ? done_n : done_n + 1);
+}
+
+uint32_t get_free_cycles() { return g_fc_cycles; }
+uint32_t get_free_instr()  { return g_fc_instr;  }
 
 void get_registers(uint16_t* out) {
   for (int i = 0; i < 16; i++) out[i] = dbg_read(DBG_REGS + i);
