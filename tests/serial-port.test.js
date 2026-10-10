@@ -10,8 +10,10 @@
 // assertions against WASM and RTL arrive with those cores.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
-  assemble, loadBrowserScripts, runJs,
+  assemble, loadBrowserScripts, runJs, ROOT,
 } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
@@ -168,4 +170,112 @@ test('serial: serialClear drops queued characters and the EOF flag', () => {
   sim.serialClear();
   assert.equal(sim.serBuffer.length, 0);
   assert.equal(sim.serEof, false);
+});
+
+// ---------------------------------------------------------------------------
+// BIOS f6 (ser_getch). It can only be tested with the BIOS actually present in
+// memory, and the BIOS lives in asm/forth.asm. So: assemble the kernel, then
+// overlay a small stub on 0x0100 — the address the boot ROM jumps to — which
+// leaves the BIOS at 0xF8000 untouched. buildMemory applies the changes in
+// order, so the later snippet wins.
+//
+// The stub installs its own SWI trampoline: the vector at DS:[2] carries a
+// plain PC, but the BIOS sits at CS = 0xF800, so a far jump is needed (JML uses
+// the register pair R[Rx]:R[Rx+1]). The ROM hands over with DS = 0 and CS = 0.
+// ---------------------------------------------------------------------------
+const F6_STUB = (times) => `
+        .org 0x0100
+main:
+        LDI tramp
+        LSI R2, 2
+        STS R0, DS, R2        ; DS:[2] = SWI vector (the register is the base,
+                             ; so offset 2 — DS:[0] would be overwritten by the
+                             ; call block itself and the SWI would jump back
+                             ; into this stub)
+        LDI 16
+        MOV R1, R0            ; store pointer (shadowed, survives SWI)
+        LSI R7, ${times}      ; call count
+f6_loop:
+        LDI 6
+        LSI R2, 0
+        STS R0, DS, R2        ; DS:0 = 6
+        SWI
+        LSI R2, 0
+        LDS R3, DS, R2        ; DS:0 = status
+        STS R3, DS, R1
+        ADD R1, 1
+        LSI R2, 1
+        LDS R3, DS, R2        ; DS:1 = character
+        STS R3, DS, R1
+        ADD R1, 1
+        SUB R7, 1
+        JNZ f6_loop
+        HALT
+tramp:
+        LDI 0x0FFF
+        INV R0               ; R0 = 0xF000
+        MOV R2, R0
+        LDI 0x0800
+        MOV R3, R0
+        ADD R2, R3           ; R2 = 0xF800 (target CS)
+        LDI 0
+        MOV R3, R0           ; R3 = 0x0000 (target PC)
+        JML R2               ; CS <- R2, PC <- R3
+`;
+
+let kernelRes = null;
+
+function runF6(times, opts = {}) {
+  if (!kernelRes) {
+    const src = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
+    kernelRes = assemble(src);
+    assert.ok(kernelRes.success, kernelRes.errors.join('; '));
+  }
+  const stub = assemble(F6_STUB(times));
+  assert.ok(stub.success, stub.errors.join('; '));
+  const merged = {
+    success: true,
+    errors: [],
+    memoryChanges: [...kernelRes.memoryChanges, ...stub.memoryChanges],
+  };
+  return runJs(merged, { cs: 0xFFFF, es: 0xF000, maxSteps: 20000, ...opts });
+}
+
+// Store area layout for the stub: status0, char0, status1, char1, ...
+function answers(sim, times) {
+  const out = [];
+  for (let i = 0; i < times * 2; i++) out.push(sim.memory[16 + i] & 0xFFFF);
+  return out;
+}
+
+test('BIOS f6 reports the status and the queued character', () => {
+  const { sim } = runF6(1, { serial: 'A' });
+  assert.deepEqual(answers(sim, 1), [1, 0x0041], 'status 1 and the character A');
+});
+
+test('BIOS f6 walks the queue one character per call', () => {
+  const { sim } = runF6(3, { serial: 'AB' });
+  // A, B, then the drained line reporting idle
+  assert.deepEqual(answers(sim, 3), [1, 0x0041, 1, 0x0042, 0, 0]);
+});
+
+test('BIOS f6 passes the end of transmission through as status 2', () => {
+  const { sim } = runF6(1, { serial: 'AB', serialEof: true });
+  assert.deepEqual(answers(sim, 1), [1, 0x0041], 'a queued character still outranks EOF');
+  assert.equal(sim.serEof, true, 'and the EOF survives the read');
+});
+
+test('BIOS f6 reports end of transmission with no character', () => {
+  const { sim } = runF6(4, { serial: 'AB', serialEof: true });
+  // A, B, then EOF — and EOF again, because the flag is never consumed
+  assert.deepEqual(answers(sim, 4), [1, 0x0041, 1, 0x0042, 2, 0, 2, 0]);
+});
+
+test('BIOS f6 does not consume a character on an idle line', () => {
+  // Status 0 or 2 must leave SER_DATA alone: a read must consume a character,
+  // and on the RTL core an unconditional read is where a double pop creeps in.
+  const { sim } = runF6(2, { serial: 'AB', serialEof: true });
+  answers(sim, 2);
+  assert.equal(sim.serBuffer.length, 0, 'the two characters were consumed by the two reads');
+  assert.equal(sim.serEof, true, 'the EOF flag is untouched');
 });

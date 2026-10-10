@@ -12,6 +12,8 @@
 ; Reserve R14 as LR (link register). Store stack base in memory.
 .equ KBD_STATUS 0x0060
 .equ KBD_DATA   0x0062
+.equ SER_STATUS 0x0064     ; 0 = idle, 1 = character pending, 2 = end of transmission
+.equ SER_DATA   0x0066     ; reading it consumes exactly one character
 .equ RSTACK_TOP 0x6F00   ; Forth return stack top (grows down)
 
 ; =============================================
@@ -4270,7 +4272,7 @@ bios_getch_wait:
 bios_f5:
     LDI 5
     CMP R1, R0
-    JNZ bios_unknown
+    JNZ bios_f6
     NOP
     LDI 0x0FFF
     INV R0
@@ -4362,6 +4364,47 @@ bios_store_char:
 bios_getstr_done:
     LDI 0
     ST R0, R2, 0
+    RETI
+    NOP
+bios_f6:
+    LDI 6
+    CMP R1, R0
+    JNZ bios_unknown
+    NOP
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    ; 6: ser_getch -> DS:0 = status (0 idle, 1 character, 2 end of
+    ; transmission), DS:1 = character (0 unless the status is 1).
+    ; The caller polls, so this never waits and never busy-loops: the host
+    ; decides when the line is empty (SERPLAN.md §4).
+    LDI SER_STATUS
+    MOV R2, R0
+    LDS R1, ES, R2          ; R1 = status
+    LDI 0
+    MOV R3, R0
+    STS R1, DS, R3          ; DS:0 = status
+    LDI 1
+    CMP R1, R0
+    JZ bios_ser_data        ; status 1: a character is waiting
+    NOP
+    ; Status 0 or 2: report no character. Deliberately not reading SER_DATA
+    ; here — a read must consume a character, and here there is none.
+    LDI 0
+    MOV R3, R0
+    ADD R3, 1
+    STS R0, DS, R3          ; DS:1 = 0
+    RETI
+    NOP
+bios_ser_data:
+    LDI SER_DATA
+    MOV R2, R0
+    LDS R1, ES, R2          ; consumes exactly one character
+    LDI 0x00FF
+    AND R1, R0
+    LDI 1
+    MOV R3, R0
+    STS R1, DS, R3          ; DS:1 = character
     RETI
     NOP
 bios_unknown:

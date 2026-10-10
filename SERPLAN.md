@@ -15,8 +15,10 @@ Nicht Teil dieses Plans: Dateinamen, ein Dateisystem in der Maschine, Blöcke.
 | Schritt | Inhalt | Status |
 |---------|--------|--------|
 | 1 | Port im JS-Kern | ✅ erledigt (`js/deep16_simulator.js`) |
-| 2 | Porttest | ✅ erledigt (`tests/serial-port.test.js`, 11 Tests) |
-| 3–6 | BIOS `f6`, `SERLOAD`, Kernel-Tests, `EVALUATE` | offen |
+| 2 | Porttest | ✅ erledigt (`tests/serial-port.test.js`) |
+| 3 | BIOS `f6` | ✅ erledigt (`asm/forth.asm`) |
+| 4–5 | `SERLOAD` mit `src_mode`, Kernel-Tests | offen |
+| 6 | `EVALUATE` | offen |
 | 7 | WASM nachziehen | ⛔ blockiert |
 | 8 | RTL nachziehen | ⛔ blockiert |
 | 9 | Host-Anbindung | offen |
@@ -120,6 +122,18 @@ nach `DS:0`, Ergebnis nach `DS:1`" und verbraucht keinen zusätzlichen Puffer.
 
 Der Kernel fragt den Port in einer Schleife und braucht daher **kein Busy-Wait im
 BIOS**: die Warteschlangenlogik bleibt beim Host.
+
+**Festgelegt in Schritt 3:** Bei Status `0` oder `2` liest `f6` `SER_DATA`
+**nicht**. Ein Lesevorgang verbraucht ein Zeichen, und ein bedingungsloser
+Lesevorgang ist auf dem RTL-Kern genau der Ort, an dem ein Doppel-Pop entstehen
+könnte. Der Test `BIOS f6 does not consume a character on an idle line` hält
+das fest.
+
+**Eigenheit beim Testen des BIOS:** Der SWI-Vektor liegt in `DS:[2]`, nicht in
+`DS:[0]` — dort steht der Funktionscode. Das fällt auf, sobald ein Test-Stub den
+Kernel bei `0x0100` überschreibt und eine eigene Trampoline braucht: schreibt
+er nach `DS:[0]`, springt der SWI über den ROM-Breadcrumb wieder in den Stub
+hinein. Der Testaufbau in `tests/serial-port.test.js` macht es richtig.
 
 ---
 
