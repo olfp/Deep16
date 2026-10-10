@@ -304,6 +304,44 @@ class DeepWebUI {
         return true;
     }
 
+    // Live counters of the active core. Only the compiled cores export these;
+    // the JS core has no pipeline and no cache, so it shows the name alone
+    // rather than zeros that would read like a cache that never hits.
+    updateCoreStats() {
+        const el = document.getElementById('core-stats');
+        if (!el) return;
+        const label = this.coreLabel(this.coreName);
+        if (!this.compiledCoreReady()) {
+            el.textContent = `${label} - keine Zaehler`;
+            return;
+        }
+        const C = this.activeCoreModule();
+        const num = (name) => (typeof C[name] === 'function' ? C[name]() : null);
+        const instr = num('get_instr_count');
+        const cycles = num('get_cycle_count');
+        const stalls = num('get_stall_count');
+        const flushes = num('get_flush_count');
+        const hits = num('get_cache_hits');
+        const misses = num('get_cache_misses');
+
+        const parts = [label];
+        // CPI over retired instructions - the instruction count, not the step
+        // count, because the final halt step retires nothing.
+        if (instr) parts.push(`${instr} Befehle`);
+        if (cycles !== null && instr) parts.push(`CPI ${(cycles / instr).toFixed(2)}`);
+        if (cycles !== null) parts.push(`${cycles} Zyklen`);
+        if (stalls !== null && stalls) parts.push(`${stalls} Stalls`);
+        if (flushes !== null && flushes) parts.push(`${flushes} Flushes`);
+        if (hits !== null && misses !== null && (hits + misses) > 0) {
+            const rate = (100 * hits) / (hits + misses);
+            parts.push(`Cache ${rate.toFixed(1)}% (${hits}/${hits + misses})`);
+        } else if (hits !== null) {
+            parts.push('Cache -');
+        }
+        el.textContent = parts.join('  |  ');
+        el.title = `${label}: Zyklen, Stalls (Load-Use), verworfene Fetches, Cache-Treffer/-Misses`;
+    }
+
     updateRunIndicator(isRunning) {
         const el = document.getElementById('run-state-indicator');
         if (!el) return;
@@ -1525,6 +1563,7 @@ class DeepWebUI {
         this.memoryUI.updateRecentMemoryDisplay();
         this.updateSegmentNavigationFields();
         this.screenUI.updateScreenDisplay();
+        this.updateCoreStats();
     }
 
     run() {

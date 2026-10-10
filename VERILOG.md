@@ -123,7 +123,17 @@ der CLI (Adressen, Segmente, `--fill`) bleiben hexadezimal. Die JSON-Ausgabe
 meldete die gelaufene Schrittzahl immer schon, sie war nur nicht mitgedacht
 worden.
 
-**Phase 3, 5, 6 stehen aus** (Cache, Resttests, Doku).
+**Cache-Statistik in der IDE**: eine feste Zeile neben der Laufanzeige zeigt
+Kernname, retired Befehle, CPI, Zyklen, Stalls, Flushes und die Cache-Trefferquote
+(`RTL (Verilator) | 4 Befehle | CPI 3.75 | 15 Zyklen | 3 Flushes | Cache 92.6%
+(25/27)`). CPI ist Zyklen je *retired Befehl*, nicht je Schritt — der letzte
+Halt-Schritt retired nichts und würde den Mittelwert verfälschen. Zähler, die
+der aktive Kern nicht exportiert, erscheinen nicht; der JS-Kern zeigt
+„keine Zähler", statt Nullen zu malen, die sich wie ein Cache mit 0 % Treffer
+lesen würden. `tests/ui-stats.test.js` prüft die Zeile gegen die echten
+Getter des echten Kerns.
+
+**Phase 5, 6 stehen aus** (Resttests, Doku).
 
 ## Phase 4 — IDE-Anbindung (Kern-Auswahl steht)
 

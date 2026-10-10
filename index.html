@@ -189,6 +189,7 @@ data_area:
             <div class="memory-panel-controls">
                 <button id="run-btn" disabled>Run</button>
                 <span id="run-state-indicator" class="run-indicator run-indicator-halt">Halt</span>
+                <span id="core-stats" class="core-stats" title="Cycle, stall, flush and cache counters of the selected core"></span>
                 <button id="step-btn" disabled>Step</button>
                 <button id="reset-btn" disabled>Reset</button>
                 <button id="view-toggle" class="view-toggle">Compact View</button>
@@ -387,6 +388,6 @@ data_area:
             console.warn('RTL module not loaded', e);
         }
     </script>
-    <script src="js/deep16_ui_core.js?v=20261010-2"></script>
+    <script src="js/deep16_ui_core.js?v=20261010-3"></script>
 </body>
 </html>

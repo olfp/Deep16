@@ -394,3 +394,14 @@
 #memory-breakpoints-header {
     justify-content: flex-start;
 }
+
+/* Live counters of the selected core: CPI, stalls, flushes and cache hit rate.
+   Only the compiled cores export these - the JS core shows the core name
+   alone, which is honest rather than showing fabricated zeros. */
+.core-stats {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #9d9d9d;
+    margin-left: 8px;
+    white-space: nowrap;
+}
