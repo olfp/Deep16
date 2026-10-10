@@ -14,6 +14,7 @@ RTL_SOURCES=(
   rtl/deep16_alu.sv
   rtl/deep16_regfile.sv
   rtl/deep16_cache.sv
+  rtl/deep16_divider.sv
   rtl/deep16_core.sv
   rtl/deep16_top.sv
 )

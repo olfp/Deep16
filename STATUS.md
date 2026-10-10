@@ -132,7 +132,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-10 | **Kapitel 6 „Der Simulator als Werkbank"** geschrieben: Speicherkarte (Tabelle 6-1), Tastaturports (Tabelle 6-2), Bildschirmzelle mit Bitdiagramm, die Kernfalle `LD`/`ST` sehen keine Ports, Delay-Slot-Falle messbar (`R1` = 5 statt 1), LDI-Vorzeichengrenze, Debugger-Hooks. Alle Zahlen auf JS- **und** WASM-Kern gemessen (Probe 50/50, Extractor 61/61). | `book/kap06.md`, `book/epub/*` |
 | 2026-10-10 | **`LDI`-Bereich: Vermerk zurückgenommen, Semantik festgeschrieben.** Der vormerkte „Bereichsfehler" war eine **Fehldiagnose** — die obere Grenze `0x7FFF` ist korrekt. Spec §3.4 lautet `R0 ← sign_extend(imm15)`: der Operand ist ein **15-Bit-Muster**, alle 32768 Muster sind legal, und die Vorzeichenerweiterung findet in der **CPU** statt, nicht im Assembler. `LDI 20000` → `0xCE20` (`−12992`) ist auf beiden Kernen das *richtige* Ergebnis. Ein Versuch, die Grenze auf `16383` zu ziehen, hat `forth.asm`, `swi-test.asm`, `screen_demo.asm`, `string_demo.asm` und `asm/backup` zerlegt (80 Testfehler) sowie den Disassembler-Round-Trip gebrochen — der Disassembler gibt Immediates als rohes Hex aus, das sich dann nicht wieder laden ließ. **Regel:** Assembler prüft nur, ob der Wert in ein 15-Bit-Feld passt (`0..0x7FFF` oder `-16384..-1`, dieselben Muster in zwei Schreibweisen), nicht ob er in einen Vorzeichenbereich passt. Absicherung: `tests/disassembler.test.js` prüft jetzt alle 32768 Muster auf `disassemble → assemble`, STYLE.md §9 als eingefrorener Fact präzisiert, die irreführenden TODO-Kommentare in `js/deep16_assembler.js` ersetzt. Kapitel 2/3/6 und alle EPUBs bleiben unverändert — sie hatten recht. | `js/deep16_assembler.js`, `tests/disassembler.test.js`, `STYLE.md` §9 |
 | 2026-10-10 | **`book/` aufgeräumt**: Ergebnisse nach `book/epub/`, Zwischenergebnisse (Pandoc-Stufe, Calibre-Round-Trip, Mermaid-PNGs) nach `book/build/` — bei jedem Build geleert, per `.gitignore` nicht versioniert. `book/` enthält damit nur noch Quellen (`kap*.md`), Werkzeuge (`build-epub.sh`, `mermaid_filter.lua`, `normalize_epub.py`), das Mermaid-Test-Fixture `test/` und die beiden Artefaktordner. | `book/epub/`, `book/build/`, `book/build/build-epub.sh`, `STYLE.md` §6 |
-| 2026-10-10 | **Divider neu: handgeschrieben, iterativ, Radix-4.** Drei Befunde führten dazu. **(a)** Das RTL benutzt die Verilog-Operatoren `quot32 = dividend32 / {16'h0000, opv_i}` und `rem32 = dividend32 % {...}` (`rtl/deep16_alu.sv:235-236`) — Verilog sieht **32/32**, ein Synthesizer inferiert zwei volle 32-Bit-Teiler. Die Architektur meint aber 32÷16 mit **16-Bit-Quotient und 16-Bit-Rest**; `quot32[15:0]`/`rem32[15:0]` verwerfen die oberen Hälften ohnehin. Ein echter 32÷16 braucht nur ein **17-Bit-Restwertregister**, nicht 33 — das war in der ersten Auslegung dieses Dokuments falsch angesetzt. **(b)** Unverändert ergäbe das ~1200–2000 LUT und **8–16 MHz**; der Teiler wäre der Taktbegrenzer des ganzen Kerns. **(c)** Iterativ **entkoppelt die Breite vom Takt**: der kritische Pfad ist nur noch *eine* Iteration (17-Bit-Kette + 2 LUT-Level + Routing = 2,2–4,5 ns), also **222–455 MHz** und bei 54 MHz 4–8× Reserve. Gewählt wird **Radix-4** (2 Dividend-Bits je Iteration, **8 statt 16 Takte**) für den Durchsatz: Misch-CPI sinkt von 3,53 auf **2,20**, also 15,3 → **24,5 MIPS @54 MHz**. Fläche: **~250–400 LUT** (gegenüber ~100–160 für Radix-2 und ~1200–2000 für den inferierten) — bei 250–400 LUT bleibt der Fmax bei ~5–7 ns je Iteration, also ~2,6–3,7× Reserve bei 54 MHz. `DIV` (16÷16) und `DIV32` (32÷16) teilen **einen** Kern (16÷16 = 32÷16 mit Nullbits im Dividend); Quotient und Rest fallen im Restoring-Verfahren gemeinsam an, die Doppel-Operatoren entfallen. Preis: 8 Takte statt 1 je Division. **Bleibt zu erhalten:** die Sonderfälle `opv == 0 → 0xFFFF` und die Ablehnung ungerader Zielregister bei `DIV32` (`rd[0]`). Danach ist der Teiler **nicht mehr** der kritische Pfad — der ist dann der Rest von EX (228-Bit-State-Bypass, ALU mit 32 Funktionen, Schieberegister, Ergebnisauswahl), geschätzt 8–15 ns. | `rtl/deep16_alu.sv`, `rtl/deep16_core.sv` (`stall`) |
+| 2026-10-10 | **Divider neu: handgeschrieben, iterativ, Radix-4.** Drei Befunde führten dazu. **(a)** Das RTL benutzt die Verilog-Operatoren `quot32 = dividend32 / {16'h0000, opv_i}` und `rem32 = dividend32 % {...}` (`rtl/deep16_alu.sv:235-236`) — Verilog sieht **32/32**, ein Synthesizer inferiert zwei volle 32-Bit-Teiler. Die Architektur meint aber 32÷16 mit **16-Bit-Quotient und 16-Bit-Rest**; `quot32[15:0]`/`rem32[15:0]` verwerfen die oberen Hälften ohnehin. Ein echter 32÷16 braucht nur ein **18-Bit-Arbeitsregister**, nicht 33 — das war in der ersten Auslegung dieses Dokuments falsch angesetzt. **(b)** Unverändert ergäbe das ~1200–2000 LUT und **8–16 MHz**; der Teiler wäre der Taktbegrenzer des ganzen Kerns. **(c)** Iterativ **entkoppelt die Breite vom Takt**: der kritische Pfad ist nur noch *eine* Iteration (18-Bit-Kette + 2 LUT-Level + Routing = 2,2–4,5 ns), also **222–455 MHz** und bei 54 MHz 4–8× Reserve. Gewählt wird **Radix-4** (2 Dividend-Bits je Iteration, **16 statt 32 Takte**) für den Durchsatz: Misch-CPI 6,20 → **3,53**, also 8,7 → **15,3 MIPS @54 MHz**. ⚠ *Korrigiert nach der Umsetzung:* die erste Fassung nannte **8 Takte / 24,5 MIPS**. Falsch — der 32÷16-Quotient ist 32 Bit breit und wird erst am Ende auf 16 Bit gekürzt, also müssen alle 32 Dividend-Bits aus `rem = 0` verbraucht werden. Radix-4 bleibt die richtige Wahl (es halbiert die Iterationen gegenüber Radix-2), ist aber halb so schnell wie zunächst behauptet. **Gemessen: 16,0 Takte** über `ADD`. Fläche: **~300–450 LUT** (gegenüber ~100–160 für Radix-2 und ~1200–2000 für den inferierten) — bei 300–450 LUT bleibt der Fmax bei ~5–7 ns je Iteration, also ~2,6–3,7× Reserve bei 54 MHz. `DIV` (16÷16) und `DIV32` (32÷16) teilen **einen** Kern (16÷16 = 32÷16 mit Nullbits im Dividend); Quotient und Rest fallen im Restoring-Verfahren gemeinsam an, die Doppel-Operatoren entfallen. Preis: 16 Takte statt 1 je Division. **Bleibt zu erhalten:** die Sonderfälle `opv == 0 → 0xFFFF` und die Ablehnung ungerader Zielregister bei `DIV32` (`rd[0]`). Danach ist der Teiler **nicht mehr** der kritische Pfad — der ist dann der Rest von EX (228-Bit-State-Bypass, ALU mit 32 Funktionen, Schieberegister, Ergebnisauswahl), geschätzt 8–15 ns. | `rtl/deep16_alu.sv`, `rtl/deep16_core.sv` (`stall`) |
 | 2026-10-10 | **Dritter CPU-Kern in SystemVerilog** (`rtl/`, Verilator + Emscripten), 5-Stufen-Pipeline und 4KB-Cache, in der IDE als **Kern** wählbar (JS / WASM / RTL). Zwei Grundsätze haben sich als tragend erwiesen und sollten bei einem vierten Kern wiederholt werden: **(a)** Der Cache ist **per Konstruktion transparent** — bei einem Miss liefert das Top-Level weiter aus dem Speicherarray aus, die Pipeline stallt nie und die (verifizierte) Pipeline-Steuerung bleibt unangetastet. **(b)** Nebenwirkungen außerhalb von WB brauchen eine Bedingung *„verlässt die Stufe in diesem Takt"* — sonst feuert der Tastatur-Pop über die Schrittgrenze hinweg mehrfach. Drei Kernfehler dieser Runde waren jeweils **eine** fehlende Bedingung, nicht schlechte Logik: `fill_base` nach Cachebarkeit statt nach dem Miss gewaehlt, Invalidierung per `eval()` ohne posedge (stiller No-op), veraltete Zeile nach Store ohne Write-Allocate. Dazu zwei Fehler im Prüfwerkzeug selbst, die beide wie eine Kerndivergenz aussahen: `set_registers()` legt Index 15 auf den *aktiven* PC, und ein Seed, der nur einen PC setzt, laesst im Schattenkontext den anderen auf 0. **Lehre:** bei einer Divergenz zuerst *das Werkzeug* prüfen, nicht das Werk. Verifikation: Decode-Sweep 524288 Ausführungen, 0 Abweichungen (4 Seeds), `tests/fuzz.test.js` mit 60 Zufallsprogrammen, 239/239 Tests gruen. Für die Doku: `README.md` auf drei Kerne gezogen, `VERILOG.md` als Plan- und Entscheidungslog geführt. | `rtl/`, `index.html`, `js/deep16_ui_core.js`, `tests/rtl.test.js`, `tests/fuzz.test.js`, `README.md`, `VERILOG.md` |
 
 ### ✅ Kapitel 6 — `book/kap06.md`
@@ -196,11 +196,11 @@ Rückstufen — der Preis der Architektur, hier bezahlbar.
    (`rtl/deep16_top.sv:41`, `MEM_WORDS` in `rtl/deep16_pkg.sv:10`) belegt
    16,8 Mbit bei 468 Kbit verfügbar — **35×**. Unverändert bestätigt:
    PSRAM-Umbau ist Voraussetzung, nicht Kür.
-2. **`DIV`/`DIV32` schließt den Takt nicht** (`rtl/deep16_alu.sv:235-236`).
-   Heute als einzyklischer 32/32-Operator: 16 verkettete Iterationen a 33 Bit
-   ⇒ ~8–16 MHz, also **Taktbegrenzer des ganzen Kerns**. Entschieden ist ein
-   handgeschriebener **iterativer Radix-4-Teiler** mit 17-Bit-Restwert
-   (Details unten, Abschnitt „Wie schnell ohne Änderung?").
+2. ~~**`DIV`/`DIV32` schließt den Takt nicht**~~ — **behoben am 2026-10-10.**
+   War als einzyklischer 32/32-Operator ein Taktbegrenzer (~8–16 MHz). Ersetzt
+   durch `rtl/deep16_divider.sv`, einen handgeschriebenen iterativen
+   Radix-4-Kern mit 18-Bit-Arbeitsregister, geteilt von `DIV` und `DIV32`
+   (Details unten, Abschnitt „Iterativer Teiler"). Kostet 16 Takte je Division.
 3. **Nur 2 PLL, aber `GFX.md` §3 plant vier Taktbereiche** (54 / 74,25 / 162 /
    371,25 MHz) bei 27-MHz-Quarz. 74,25 = 27 × 2,75 ist brüchig, braucht also ein
    echtes PLL. 371,25 = 5 × 74,25 geht über OSER. Weg aus 2 PLL:
@@ -254,7 +254,7 @@ pipeliniert. Für Deep16 ist Durchsatz kein Thema.
 ### Wie schnell ohne Änderung? — und zwei Korrekturen (2026-10-10)
 
 **Erste Schätzung: 33 Bit pro Iteration.** Das war falsch. Eine 32÷16-Teilung
-braucht ein **17-Bit-Restwertregister** (Divisor 16 + 1 Carry), nicht 33 —
+braucht ein **18-Bit-Arbeitsregister** (Divisor 16, um 2 verschoben, + 2-Bit-Digit), nicht 33 —
 der Quotient ist 16 Bit, der Rest 16 Bit, beides passt in dieselbe
 Zwischenstufe.
 
@@ -268,34 +268,78 @@ Verilog sieht damit **32/32**, nicht 32/16 — der Divisor ist auf 32 Bit
 hochnullifiziert. Ein Synthesizer inferiert daraus **zwei** volle 32-Bit-Teiler,
 von denen nur die unteren 16 Bit benutzt werden.
 
-| Variante | Bit/Iteration | Zyklen | Logik | Fmax |
+| Variante | Arbeitsbreite | Zyklen | Logik | Fmax |
 |---|---|---|---|---|
 | unverändert (`/` + `%` inferiert) | 33 | 1 | 1200–2000 LUT + 2 Teiler | **8–16 MHz** |
-| handgeschrieben, kombinational | 17 | 1 | ~700–1100 LUT | 18–31 MHz |
-| **handgeschrieben, iterativ (gewählt)** | **17** | **8 (Radix-4)** | **~250–400 LUT** | **54+ MHz** |
+| handgeschrieben, kombinational | 18 | 1 | ~700–1100 LUT | 18–31 MHz |
+| **handgeschrieben, iterativ (gewählt)** | **18** | **16 (Radix-4)** | **~300–450 LUT** | **54+ MHz** |
+
+Die Arbeitsbreite ist **18**, nicht 17: Radix-4 schiebt den Restwert um **2**, nicht
+um 1, und addiert ein 2-Bit-Digit dazu — `4·0xFFFF−1 = 0x3FFFF` braucht 18 Bit.
 
 **Und warum iterativ die Breite entkoppelt:** der kritische Pfad ist dann nur
-noch *eine* Iteration — 17-Bit-Carry-Kette (0,5–1,0 ns) + Compare/Mux
+noch *eine* Iteration — Carry-Kette (0,5–1,0 ns) + Compare/Mux
 (0,7–1,5 ns) + Routing (1,0–2,0 ns) = **2,2–4,5 ns**, also 222–455 MHz. Bei
 54 MHz bleibt 4–8× Reserve. Genau hier liegt der eigentliche Gewinn: nicht nur
 Takt, sondern **~25–30 % des gesamten LUT-Budgets** (4.300 geschätzt) kommt
 zurück, weil ein ausgerollter Teilerarray Breite × Iterationen kostet, ein
 iterativer nur eine Iteration Breite.
 
-**Der Preis sind Zyklen, nicht Takt.** Radix-4 (2 Dividend-Bits je Iteration,
-8 statt 16 Takte) ist für den Durchsatz gewählt:
+**Der Preis sind Zyklen, nicht Takt.** Radix-4 verbraucht **2 Dividend-Bits je
+Iteration**, also 16 statt 32 Takten — die Hälfte, die Radix-2 bräuchte:
 
-    Misch-CPI  Radix-2: (5 × 1,04 + 16) / 6 = 3,53  ->  15,3 MIPS @ 54 MHz
-    Misch-CPI Radix-4: (5 × 1,04 +  8) / 6 = 2,20  ->  24,5 MIPS @ 54 MHz
+    Misch-CPI  Radix-2: (5 × 1,04 + 32) / 6 = 6,20  ->   8,7 MIPS @ 54 MHz
+    Misch-CPI Radix-4: (5 × 1,04 + 16) / 6 = 3,53  ->  15,3 MIPS @ 54 MHz
 
-### Entscheidung (2026-10-10): Radix-4, ein Kern für DIV und DIV32
+**Korrektur vom 2026-10-10 (nach der Messung).** Dieser Abschnitt behauptete
+zuvor *8 Takte* und 24,5 MIPS. Das war falsch gerechnet: der Quotient einer
+32÷16-Teilung ist **32 Bit** lang und wird erst am Ende auf 16 Bit abgeschnitten
+(`quot32[15:0]`). Man muss deshalb **alle 32 Dividend-Bits** aus `rem = 0`
+verbrauchen — 2 je Iteration ⇒ **16 Takte**. Der Trick, den Restwert mit
+`dividend[31:16]` zu seedsen, ist nur legal, wenn diese obere Hälfte bereits
+kleiner als der Divisor ist; bei kleinem Divisor ist das falsch
+(`0xFFFFFFFF / 1` hätte oben `0xFFFF` gegen Divisor `1`). Radix-4 bleibt die
+richtige Wahl — es halbiert die Iterationen gegenüber Radix-2 — ist aber nicht
+so schnell, wie hier stand.
 
-Siehe Entscheidungs-Log. Kurzform: `DIV` und `DIV32` teilen **einen** iterativen
-Radix-4-Kern (16÷16 ist 32÷16 mit Nullbits im Dividend); Quotient und Rest
-fallen gemeinsam an, die Doppel-Operatoren `/` und `%` entfallen. Der Kern setzt
-`stall` und braucht sonst nichts — weder neue Ports noch neue Shadow-Pfade.
-Zu erhalten sind `opv == 0 → 0xFFFF` und die Ablehnung ungerader Zielregister
-bei `DIV32`.
+**Gemessen:** `DIV` kostet **exakt 16,0 Takte mehr als `ADD`** (100fach
+vergleichsweise über den Zyklenzähler). Die Tabelle oben ist damit bestätigt.
+
+### Entscheidung (2026-10-10): Radix-4, ein Kern für DIV und DIV32 — **umgesetzt**
+
+Siehe Entscheidungs-Log. `DIV` und `DIV32` teilen **einen** iterativen
+Radix-4-Kern (`rtl/deep16_divider.sv`); Quotient und Rest fallen gemeinsam an,
+die Doppel-Operatoren `/` und `%` entfallen. `DIV32` mit ungeradem Zielregister
+und beide mit Divisor 0 umgehen den Kern (feste Ergebnisse) — 1 Takt statt 16.
+
+Der Kern brauchte mehr als einen `stall`, und das ist der eigentliche Punkt:
+
+* `stall` ist ein **Einzeltakt**-Mechanismus — er schiebt in jedem
+  gestallten Takt eine Blase nach MEM. `ctx_e` (der State-Bundle, den EX liest)
+  ist aber nur zwei Stufen tief: `ex_mem`, dann `mem_wb`, dann fällt er auf das
+  bereits committete `ctx` zurück. Über 16 Takte leert sich diese Kette, und EX
+  rechnet aus veraltetem State.
+* Deshalb zwei Phasen: **drain** (die ein bis zwei Instruktionen vor der DIV
+  treten normal aus, `ex_mem` bekommt eine Blase) und danach **freeze** (wenn
+  `ex_mem` und `mem_wb` leer sind, rührt sich nichts mehr — dann ist der
+  Fallback auf `ctx` legitim, weil alles davor retired ist).
+
+**Zwei Fehler, die erst die Messung gefunden hat** — beide waren vor dem
+Einchecken nicht sichtbar, und der zweite wäre in keinem bestehenden Test
+aufgefallen:
+
+1. Der Dividend für `DIV` muss ins **untere** Halbwort: `{16'h0000, r1}`.
+   `{r1, 16'h0000}` rechnet `r1·65536 / Rs` statt `r1 / Rs`. Symptom: `100/7`
+   lieferte 18724 (= `936228 mod 65536`) statt 14.
+2. Der Startpuls muss sich **pro Division** neu spannen, nicht pro Verweilzeit
+   in EX. Zwei `DIV` hintereinander halten `div_req` durchgehend hoch, ein auf
+   `!div_req` verankertes Nachspannen feuert nie — die zweite Division hätte
+   still den ersten Quotienten wiederverwendet. Kein bestehender Test stellt
+   zwei Divisionen hintereinander; `tests/rtl.test.js` hat jetzt einen.
+
+Nachgemessen: `DIV` kostet **exakt 16,0 Takte mehr als `ADD`**. Lint sauber,
+`npm test` 296/296 grün (inkl. Fuzz), plus ein eigener 22k-Fälle-Abgleich des
+Teilers gegen Verilogs eigenes `/` und `%` (`rtl/sim/divtest.cpp`).
 
 ### Der eigentliche Preis — er fällt aus (2026-10-10 geprüft)
 

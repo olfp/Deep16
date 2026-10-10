@@ -378,25 +378,95 @@ module deep16_core
     end
   end
 
+  // ---- iterative divider hold ---------------------------------------------
+  // A division takes 16 clocks longer than an ADD, which `stall` above cannot
+  // provide: that is
+  // a *one-cycle* mechanism that pushes a bubble into MEM on every stalled
+  // cycle. The state bundle EX reads (ctx_e) is only two stages deep - ex_mem,
+  // then mem_wb, then it falls back to the committed ctx. A bubble every cycle
+  // drains that chain after two clocks and EX would compute from stale state.
+  //
+  // So the division runs in two phases:
+  //
+  //   drain  - the DIV stays in EX while the one or two instructions ahead of
+  //            it retire normally. mem_wb shifts as usual, ex_mem takes a
+  //            bubble instead of the DIV. Once both are empty, ctx_e falls
+  //            through to the committed ctx - which is exactly the state the
+  //            DIV needs, because everything ahead of it has by then retired.
+  //   freeze - with ex_mem and mem_wb empty, nothing shifts at all until the
+  //            divider reports done.
+  //
+  // div_started gates start to one pulse per division, so a held instruction
+  // cannot restart the divider every clock. It is cleared when the result is
+  // *taken* (div_take) rather than when div_req falls: two DIVs back to back
+  // keep div_req high the whole time, so clearing on !div_req would never arm
+  // the second one and it would silently reuse the first quotient.
+  logic div_started;
+  wire  div_take = div_req && div_done;      // EX latches the quotient this cycle
+  always_ff @(posedge clk) begin
+    if (rst)           div_started <= 1'b0;
+    else if (!div_req) div_started <= 1'b0;
+    else if (div_take) div_started <= 1'b0;
+    else               div_started <= 1'b1;
+  end
+  wire div_start = div_req && !div_started && !div_busy;
+  wire div_drain = div_req && !div_done;
+  wire div_stall = div_drain && !ex_mem.valid && !mem_wb.valid;
+
   // ---- ALU ---------------------------------------------------------------
   logic [15:0] alu_result, alu_rd1_val;
   logic        alu_rd_we, alu_rd1_we, alu_overflow;
   logic [31:0] alu_last32;
   logic [1:0]  alu_carry_mode;
   logic        alu_carry_bit;
+  logic [15:0] div_quot, div_rem;
+  /* verilator lint_off UNUSEDSIGNAL */
+  logic        div_busy;       // waveform/debug only; done drives the hold logic
+  /* verilator lint_on UNUSEDSIGNAL */
+  logic        div_done;
 
   wire [4:0] alu_func5 = id_ex.instr[12:8];
   wire [3:0] alu_rd    = id_ex.instr[7:4];
   wire [3:0] alu_low4  = id_ex.instr[3:0];
 
+  // Which DIV flavour is in EX, and does it need the iterative divider?
+  // DIV   = func5 11110, 16/16 -> dividend {16'h0000, r1}, i.e. r1 alone.
+  //         The dividend sits in the LOW half so the quotient lands in the low
+  //         16 bits of the divider's output, which is what DIV writes to Rd.
+  //         {r1, 16'h0000} would compute r1*65536 / Rs instead.
+  // DIV32 = func5 11111, 32/16 -> dividend {r1, r3}
+  // DIV32 with an odd destination, and both flavours with a zero divisor, are
+  // fixed results that never reach the divider. The dividend select only has to
+  // test DIV32: anything else in EX is not a division.
+  wire alu_is_div   = (alu_func5 == 5'b11110);
+  wire alu_is_div32 = (alu_func5 == 5'b11111);
+  wire div_needs_hw = alu_is_div32 ? (!alu_rd[0] && (r2 != 16'h0000))
+                : alu_is_div  ?   (r2 != 16'h0000)
+                : 1'b0;
+  wire div_req      = id_ex.valid && div_needs_hw;
+  wire [31:0] div_dividend = alu_is_div32 ? {r1, r3} : {16'h0000, r1};
+
+  deep16_divider u_div (
+    .clk      (clk),
+    .rst      (rst),
+    .start    (div_start),
+    .dividend (div_dividend),
+    .divisor  (r2),
+    .busy     (div_busy),
+    .done     (div_done),
+    .quot     (div_quot),
+    .rem      (div_rem)
+  );
+
   deep16_alu u_alu (
     .func5     (alu_func5),
     .rdv       (r1),
     .opv       (r2),
-    .rd1_in    (r3),
     .low4      (alu_low4),
     .rd        (alu_rd),
     .psw_in    (ctx_e.psw),
+    .div_quot  (div_quot),
+    .div_rem   (div_rem),
     .result    (alu_result),
     .rd_we     (alu_rd_we),
     .rd1_we    (alu_rd1_we),
@@ -1016,6 +1086,12 @@ module deep16_core
   wire retire_now = run && mem_wb.valid;
   wire pipe_busy  = if_id.valid || id_ex.valid || ex_mem.valid || mem_wb.valid;
   wire halt_done  = run && halt_sticky && !pipe_busy;
+  // No suppression here on purpose. While the DIV waits, the one or two
+  // instructions ahead of it retire exactly as they would without the divider,
+  // and that retirement is what ends this step() - as it must, since a step is
+  // one retired instruction. The divider has its own clock and keeps counting
+  // across the step boundary; div_started latches so the next step() finds the
+  // same division still in flight rather than restarting it.
   wire step_done  = retire_now || halt_done;
 
   assign o_busy = run;
@@ -1105,14 +1181,24 @@ module deep16_core
           // the memory, which must not see a result twice.
           if (retire_now) mem_wb <= '0;
         end else begin
-          mem_wb <= mem_wb_n;
-          if (!stall) begin
-            ex_mem       <= ex_mem_n;
-            ex_mem.valid <= id_ex.valid && !ex_kill;
-            id_ex        <= if_id;
-            id_ex.valid  <= if_id.valid && !kill_id;
-            if_id        <= if_id_n;
-            if_pc        <= if_pc_next;
+          // A load-use stall keeps shifting WB on purpose: the bubble is the
+          // point, the load walks into WB and keeps ctx_e's chain alive.
+          // The divider does the opposite - it freezes WB once the pipe ahead
+          // of it has drained, so that chain may legitimately fall through.
+          if (!div_stall) mem_wb <= mem_wb_n;
+          if (!stall && !div_stall) begin
+            if (!div_drain) begin
+              ex_mem       <= ex_mem_n;
+              ex_mem.valid <= id_ex.valid && !ex_kill;
+              id_ex        <= if_id;
+              id_ex.valid  <= if_id.valid && !kill_id;
+              if_id        <= if_id_n;
+              if_pc        <= if_pc_next;
+            end else begin
+              // DIV is waiting in EX: it must not move on, and EX/MEM takes a
+              // bubble so the instruction before it can retire.
+              ex_mem.valid <= 1'b0;
+            end
           end else begin
             // Load-use hazard: EX holds its instruction and IF/ID holds the
             // one behind it, a bubble goes into MEM - so the load the EX
