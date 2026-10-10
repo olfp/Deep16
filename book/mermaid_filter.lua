@@ -4,11 +4,11 @@
 -- MERMAID_FORMAT=png: Rasterbilder (PNG). Amazons "Send to Kindle" lehnt
 --   eingebettete SVG-Bilder ab (Fehler E016, "not compatible with Kindle's
 --   reflowable layout"), daher nutzt der Kindle-Build PNG.
--- MERMAID_PNG_DIR: Zielordner für die PNGs (Standard ".mermaid-png"),
+-- MERMAID_PNG_DIR: Zielordner für die PNGs (Standard "build/mermaid-png"),
 --   relativ zum Arbeitsverzeichnis des Pandoc-Laufs.
 
 local png_mode = (os.getenv("MERMAID_FORMAT") or "svg") == "png"
-local png_dir = os.getenv("MERMAID_PNG_DIR") or ".mermaid-png"
+local png_dir = os.getenv("MERMAID_PNG_DIR") or "build/mermaid-png"
 local counter = 0
 local last_title = nil
 

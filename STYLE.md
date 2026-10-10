@@ -120,9 +120,16 @@ Jedes Kapitel folgt gleich auf:
 
 ## 6. EPUB-Build (book/build-epub.sh)
 
-- Befehl: `./book/build-epub.sh` aus dem Repo-Root.
+- Befehl: `./book/build-epub.sh [svg|kindle|kindle-calibre]` aus dem Repo-Root.
+- **Ordner:** Ergebnisse nach `book/epub/`, Zwischenergebnisse (Pandoc-Stufe,
+  Calibre-Round-Trip, Mermaid-PNGs) nach `book/build/` — letzteres wird bei
+  jedem Build geleert und ist nicht versioniert (`book/build/.gitignore`).
 - Pipeline: Pandoc `--to epub3 --embed-resources --lua-filter=mermaid_filter.lua`
-  über alle `book/kap*.md` → `book/Deep16.epub`.
+  über alle `book/kap*.md` → `book/epub/Deep16.epub` (Modus `svg`, Vorgabe).
+- `kindle` erzeugt `book/epub/Deep16-kindle.epub` mit PNG-Diagrammen,
+  `kindle-calibre` zusätzlich durch Calibre geschickt →
+  `book/epub/Deep16-kindle-calibre.epub`. **Nur diese Datei akzeptiert
+  Send to Kindle** (Fehler E016, am Gerät bestätigt 2026-10-10).
 - Der Lua-Filter `mermaid_filter.lua` rendert jede ```` ```mermaid ````-Fence
   vorab per `mmdc` (@mermaid-js/mermaid-cli) zu SVG und bettet es als
   `RawInline` ein — der E-Reader braucht kein JavaScript.
@@ -131,7 +138,8 @@ Jedes Kapitel folgt gleich auf:
 - **Nach jedem Build verifizieren:**
   - `zip -T` / Python-Zipfile: CRC intakt;
   - `EPUB/text/ch00N.xhtml` enthält je Kapitel so viele `<svg>` wie
-    Mermaid-Blöcke vorhanden waren;
+    Mermaid-Blöcke vorhanden waren (Modus `svg`; in den Kindle-Modi stattdessen
+    so viele `<img>` und PNG-Dateien);
   - `pre class="mermaid"` kommt **nicht** mehr vor (kein roher Quelltext);
   - TOC enthält alle Kapitel (`--toc-depth=2 --split-level=1`).
 - GitHub rendert Mermaid direkt aus dem Markdown — deshalb müssen die
