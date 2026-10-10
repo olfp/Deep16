@@ -1174,9 +1174,14 @@ h_minus:
     .text "-"
     .word word_minus
 
-; --- additional arithmetic: 2/ abs min max ---
-; These four are the newest entries in the whole dictionary, so the oldest of
+; --- additional arithmetic: u. 2/ abs min max ---
+; These five are the newest entries in the whole dictionary, so the oldest of
 ; them links into the vocabulary chain below and forth_wl names the newest.
+h_udot:
+    .word h_max
+    .word 2
+    .text "u."
+    .word word_udot
 h_max:
     .word h_min
     .word 3
@@ -1378,7 +1383,7 @@ h_fetch:
 ; --- wordlists: a vocabulary is identified by the address of its head cell,
 ; --- which chains its definitions newest-first and ends in 0.
 forth_wl:
-    .word h_max           ; newest built-in header in the FORTH vocabulary
+    .word h_udot         ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
     .word forth_wl
     .word 0, 0, 0, 0, 0, 0, 0
@@ -1484,6 +1489,9 @@ wd_under:
     LDI stack_underflow_error
     MOV PC, R0
     NOP
+; . prints the signed value, u. the raw cell. Both share print_number, which
+; prints R2 as an unsigned magnitude followed by a trailing space; the leading
+; space belongs to the caller.
 word_dot:
     LDI sp0_base
     MOV R2, R0
@@ -1498,21 +1506,82 @@ word_dot:
     STS R0, ES, SCR
     ADD SCR, 1
     LDI 0
+    CMP R2, R0          ; signed test against zero
+    JN dot_signed
+    NOP
+    LDI print_number
+    MOV R3, R0          ; R3 carries the target so R2 keeps the value
+    LINK
+    JMP R3
+    NOP
+    LDI dot_next        ; JMP LR returns here, not into the signed path
+    MOV PC, R0
+    NOP
+dot_signed:
+    LDI '-'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    NEG R2              ; magnitude; -32768 negates to itself and prints as 32768
+    LDI print_number
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+dot_next:
+    LDI next
+    MOV PC, R0
+    NOP
+dot_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+; u. displays the cell as it stands, without looking at bit 15.
+word_udot:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ udot_under
+    NOP
+    LD R1, SP, 0
+    ADD SP, 1
+    MOV R2, R1
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI print_number
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+    LDI next            ; return lands here, not into the error path
+    MOV PC, R0
+    NOP
+udot_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+; print_number prints R2 as an unsigned magnitude plus a trailing space and
+; returns to the caller; it calls nothing, so a plain JMP LR is enough.
+print_number:
+    LDI 0
     CMP R2, R0
-    JNZ dot_nonzero
+    JNZ pn_digits
     NOP
     LDI '0'
     STS R0, ES, SCR
     ADD SCR, 1
-    LDI dot_done         ; zero prints the trailing space like every other value
+    LDI pn_done
     MOV PC, R0
     NOP
-dot_nonzero:
+pn_digits:
     LDI print_buf
     MOV R10, R0         ; buffer pointer
     LDI 0
     MOV R3, R0          ; digit count
-dot_div_loop:
+pn_div_loop:
     LDI 10
     MOV R12, R0
     MOV R9, R2
@@ -1529,32 +1598,26 @@ dot_div_loop:
     ADD R3, 1           ; count++
     LDI 0
     CMP R2, R0
-    JNZ dot_div_loop
+    JNZ pn_div_loop
     NOP
-    ; print digits in reverse
-dot_print_loop:
+pn_print_loop:
     LDI 0
     CMP R3, R0
-    JZ dot_done
+    JZ pn_done
     NOP
     SUB R3, 1
     SUB R10, 1
     LD R7, R10, 0
     STS R7, ES, SCR
     ADD SCR, 1
-    LDI dot_print_loop
+    LDI pn_print_loop
     MOV PC, R0
     NOP
-dot_done:
+pn_done:
     LDI ' '
     STS R0, ES, SCR
     ADD SCR, 1
-    LDI next
-    MOV PC, R0
-    NOP
-dot_under:
-    LDI stack_underflow_error
-    MOV PC, R0
+    JMP LR
     NOP
 word_emit:
     LDI sp0_base

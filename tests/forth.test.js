@@ -11,11 +11,9 @@
 //   - `.` terminates the input line: `1 . 2 .` discards the rest of the line,
 //   - bare strings (`"hi there`) swallow the remainder of the line.
 //
-// Resolved since: `0 .` now prints the trailing space like every other value.
-// What is still open: `.` prints the raw 16-bit cell, so a negative number
-// shows as its unsigned twin (`0 5 - .` gives 65531) and Forth's true (-1)
-// shows as 65535. The Forth standard wants `.` signed and `u.` unsigned;
-// making that change would move several pinned expectations above.
+// Resolved since: `0 .` prints the trailing space like every other value, and
+// `.` is signed while `u.` shows the raw cell — so `0 5 - .` gives -5 and
+// `0 5 - u.` gives 65531.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -229,11 +227,11 @@ test('comparisons yield the Forth true (-1) and false (0)', () => {
     '0 0= . 7 0= .\n' +
     '5 0< . 7 0> .\n'
   );
-  assert.equal(rows[1], '> 3 3 = . 3 4 = . 65535  0  ok');
-  assert.equal(rows[2], '> 3 4 < . 4 3 < . 65535  0  ok');
-  assert.equal(rows[3], '> 4 3 > . 3 4 > . 65535  0  ok');
-  assert.equal(rows[4], '> 0 0= . 7 0= . 65535  0  ok');
-  assert.equal(rows[5], '> 5 0< . 7 0> . 0  65535  ok');
+  assert.equal(rows[1], '> 3 3 = . 3 4 = . -1  0  ok');
+  assert.equal(rows[2], '> 3 4 < . 4 3 < . -1  0  ok');
+  assert.equal(rows[3], '> 4 3 > . 3 4 > . -1  0  ok');
+  assert.equal(rows[4], '> 0 0= . 7 0= . -1  0  ok');
+  assert.equal(rows[5], '> 5 0< . 7 0> . 0  -1  ok');
   assert.equal(rows[6], '>');
 });
 
@@ -357,7 +355,7 @@ test('create builds a word whose body starts at HERE', () => {
     'cell @ .\n'
   );
   assert.equal(rows[1], '> create buf ok');
-  assert.equal(rows[2], '> buf here = . 65535  ok');
+  assert.equal(rows[2], '> buf here = . -1  ok');
   assert.equal(rows[3], '> create cell 5 , ok');
   assert.equal(rows[4], '> cell @ . 5  ok');
   assert.equal(rows[5], '>');
@@ -585,14 +583,44 @@ test('forget rejects an unknown name', () => {
   assert.equal(rows[5], '>');
 });
 
+test('. prints the signed value while u. shows the raw cell', () => {
+  const { rows, running } = repl(
+    '0 5 - .\n' +
+    '0 5 - u.\n' +
+    '3 3 = .\n' +
+    '3 3 = u.\n' +
+    '32767 1 + .\n' +
+    '32767 1 + u.\n'
+  );
+  assert.equal(rows[1], '> 0 5 - . -5  ok');
+  assert.equal(rows[2], '> 0 5 - u. 65531  ok');
+  // Forth's true is -1, which . now shows as such
+  assert.equal(rows[3], '> 3 3 = . -1  ok');
+  assert.equal(rows[4], '> 3 3 = u. 65535  ok');
+  // -32768 has no representable magnitude: NEG leaves it alone, so the
+  // printed number reads -32768
+  assert.equal(rows[5], '> 32767 1 + . -32768  ok');
+  assert.equal(rows[6], '> 32767 1 + u. 32768  ok');
+  assert.equal(rows[7], '>');
+  assert.ok(running);
+});
+
+test('u. checks its operand', () => {
+  const { rows, running } = repl('u.\n');
+  assert.equal(rows[1], '> u.');
+  assert.equal(rows[2], 'stack underflow');
+  assert.equal(rows[3], '>');
+  assert.ok(running);
+});
+
 test('2/ shifts arithmetically and floors like the standard requires', () => {
   const { rows, running } = repl(
     '7 2/ .\n' +
     '0 3 - 2/ .\n'
   );
   assert.equal(rows[1], '> 7 2/ . 3  ok');
-  // -3 2/ = -2 (not -1): 65534 is -2 as an unsigned 16-bit cell
-  assert.equal(rows[2], '> 0 3 - 2/ . 65534  ok');
+  // -3 2/ = -2 (not -1): 2/ floors, and . now shows the signed value
+  assert.equal(rows[2], '> 0 3 - 2/ . -2  ok');
   assert.equal(rows[3], '>');
   assert.ok(running);
 });

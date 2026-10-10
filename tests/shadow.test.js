@@ -368,7 +368,7 @@ test('WASM: Forth REPL evaluates the P3 stack, arithmetic and comparison words l
   const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
-  const input = '10 3 - .\n17 5 /mod . .\n3 4 < .\n1 2 2dup depth .\n';
+  const input = '10 3 - .\n17 5 /mod . .\n3 4 < .\n1 2 2dup depth .\n0 5 - u.\n3 3 = u.\n';
 
   const { Deep16Simulator } = globalThis;
   const sim = new Deep16Simulator();
@@ -386,8 +386,10 @@ test('WASM: Forth REPL evaluates the P3 stack, arithmetic and comparison words l
 
   assert.ok(jsOut.includes('10 3 - . 7  ok'), 'subtraction result');
   assert.ok(jsOut.includes('17 5 /mod . . 3  2  ok'), 'division with remainder');
-  assert.ok(jsOut.includes('3 4 < . 65535  ok'), 'comparison true is -1');
+  assert.ok(jsOut.includes('3 4 < . -1  ok'), 'comparison true is -1');
   assert.ok(jsOut.includes('1 2 2dup depth . 4  ok'), '2dup is one word');
+  assert.ok(jsOut.includes('0 5 - u. 65531  ok'), 'u. shows the raw cell');
+  assert.ok(jsOut.includes('3 3 = u. 65535  ok'), 'u. does not sign the true value');
   assert.equal(wasmOut, jsOut, 'WASM P3 words must match the JS core');
   assert.equal(steps, 600000, 'the JS REPL must stay alive across the P3 words');
   assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive across the P3 words');
@@ -612,7 +614,7 @@ test('WASM: Forth REPL 2/ abs min and max match the JS core', async () => {
   const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 960);
 
   assert.ok(jsOut.includes('> 7 2/ . 3  ok'), '2/ halves a positive');
-  assert.ok(jsOut.includes('> 0 3 - 2/ . 65534  ok'), '2/ floors to -2');
+  assert.ok(jsOut.includes('> 0 3 - 2/ . -2  ok'), '2/ floors to -2');
   assert.ok(jsOut.includes('> 0 5 - abs . 5  ok'), 'abs returns the magnitude');
   assert.ok(jsOut.includes('> 9 3 max . 9  ok'), 'max keeps the larger operand');
   assert.ok(jsOut.includes('stack underflow'), 'the new words check their operands');
