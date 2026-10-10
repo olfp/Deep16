@@ -133,7 +133,14 @@ der aktive Kern nicht exportiert, erscheinen nicht; der JS-Kern zeigt
 lesen würden. `tests/ui-stats.test.js` prüft die Zeile gegen die echten
 Getter des echten Kerns.
 
-**Phase 5, 6 stehen aus** (Resttests, Doku).
+**Kosten des Caches, ehrlich:** `npm test` braucht auf dieser Maschine (1 Kern,
+alles seriell) 67 s, davon 36 s allein `rtl.test.js`. Der Cache ist funktional
+transparent, aber nicht zeitlich gratis — dieselbe Lücke, die er schon in den
+MIPS-Messungen zeigt. Vor dem Cache lag `rtl.test.js` bei rund der Hälfte.
+Wer eine schnelle Schleife braucht, fährt gezielt `node --test tests/rtl.test.js`
+oder setzt `FUZZ_SEEDS` niedriger.
+
+**Phase 6 steht aus** (Doku).
 
 ## Phase 4 — IDE-Anbindung (Kern-Auswahl steht)
 
@@ -217,11 +224,16 @@ daher nicht auf.
   MOV-imm2, Shadow-Tests, Beispiele, Forth-REPL mit Tastatur, Sweep).
 - ✅ Decode-Sweep aller 65536 Wörter (in `rtl.test.js`, ausführbar mit
   4 Seeds über `scripts/rtl_sweep.mjs`).
-- ⬜ Seedierter Zufalls-Befehlsstrom-Test gegen den JS-Kern — **offen**.
-  Der Sweep deckt Einzelwörter ab, aber keine Zufallsprogramme: er führt
-  jede Codestelle getrennt aus, nie einen Befehlsstrom mit Verzweigungen,
-  Lade-Abhängigkeiten und Schattenkontext in der Folge. Genau dort sind
-  die Pipeline-Fehler dieser Session entstanden.
+- ✅ **Seedierter Zufalls-Befehlsstrom-Test** (`tests/fuzz.test.js`).
+  Zufällige Programme statt Einzelwörter: der Sweep führt jede Codestelle
+  getrennt aus und sieht damit keine *Folge*. Default 60 Seeds × 300 Schritte,
+  Wortmix halb realistisch (LD/ST, ALU, MOV, LSI, LDS/STS, SYS) halb völlig
+  beliebig. SWI-Handler hinterlegt, weil der Schattenpfad sonst nie erreicht
+  würde — 49 von 60 Seeds betreten ihn, 49 nehmen einen nicht-sequenziellen
+  Pfad. Beides wird **behauptet**, nicht angenommen: bricht die Abdeckung
+  ein, schlägt der Test fehl. Speicher wird am Ende jedes Seeds mitverglichen,
+  Register/PSW/Segmente/Schattenbank nach **jedem** Schritt.
+  `FUZZ_SEEDS=… FUZZ_STEPS=… node --test tests/fuzz.test.js` für tiefere Läufe.
 - ✅ Nativer Trace-Diff-Modus (`scripts/rtl_trace.mjs`, `obj_dir/deep16_rtl`).
 
 ## Phase 6 — Doku
