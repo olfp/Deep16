@@ -217,8 +217,11 @@ daher nicht auf.
   MOV-imm2, Shadow-Tests, Beispiele, Forth-REPL mit Tastatur, Sweep).
 - ✅ Decode-Sweep aller 65536 Wörter (in `rtl.test.js`, ausführbar mit
   4 Seeds über `scripts/rtl_sweep.mjs`).
-- ✅ Seedierter Zufalls-Befehlsstrom-Test gegen den JS-Kern — **offen**,
-  der Sweep deckt Einzelwörter ab, aber keine Zufallsprogramme.
+- ⬜ Seedierter Zufalls-Befehlsstrom-Test gegen den JS-Kern — **offen**.
+  Der Sweep deckt Einzelwörter ab, aber keine Zufallsprogramme: er führt
+  jede Codestelle getrennt aus, nie einen Befehlsstrom mit Verzweigungen,
+  Lade-Abhängigkeiten und Schattenkontext in der Folge. Genau dort sind
+  die Pipeline-Fehler dieser Session entstanden.
 - ✅ Nativer Trace-Diff-Modus (`scripts/rtl_trace.mjs`, `obj_dir/deep16_rtl`).
 
 ## Phase 6 — Doku
