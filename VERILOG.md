@@ -140,7 +140,17 @@ MIPS-Messungen zeigt. Vor dem Cache lag `rtl.test.js` bei rund der Hälfte.
 Wer eine schnelle Schleife braucht, fährt gezielt `node --test tests/rtl.test.js`
 oder setzt `FUZZ_SEEDS` niedriger.
 
-**Phase 6 steht aus** (Doku).
+**Phase 6 — abgeschlossen.** `README.md` ist auf drei Kerne gezogen
+(Core-Tabelle mit gemessenen µs/Instruction, Layout mit `rtl/`, Build-Befehle
+für beide kompilierten Kerne, Testübersicht mit Decode-Sweep und
+Zufalls-Befehlsstrom-Test, aktualisierte Lückenliste — die Tastatureingabe
+funktioniert inzwischen auf allen drei Kernen, nicht mehr nur auf JS).
+`STATUS.md` hat einen Entscheidungs-Log-Eintrag mit den zwei tragenden
+Grundsätzen und der Lehre aus dieser Runde. `doc/Deep16-RTL.md` war schon
+fertig. Der optionale Buchanschluss (Kap. 6/7, Pipeline-Statistiken) bleibt
+wie geplant nicht Teil dieser Runde.
+
+**Alle Phasen 0–6 sind abgeschlossen.**
 
 ## Phase 4 — IDE-Anbindung (Kern-Auswahl steht)
 
