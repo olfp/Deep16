@@ -2686,7 +2686,11 @@ class DeepWebUI {
         if (!filename) return;
         
         try {
-            const response = await fetch(`asm/${filename}`);
+            // cache: 'no-store' — the assets in index.html all carry a ?v= parameter, but
+// the example source has none, so the browser may serve a stale asm/forth.asm
+// and silently re-run an older kernel. Bypassing the HTTP cache costs nothing
+// for a locally served source file.
+const response = await fetch(`asm/${filename}`, { cache: 'no-store' });
             if (!response.ok) throw new Error(`File not found: ${filename}`);
             
             const source = await response.text();
