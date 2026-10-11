@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DeepCode - Deep16 (深十六) Integrated Development Environment</title>
-    <link rel="stylesheet" href="css/main.css?v=20261010-3">
+    <link rel="stylesheet" href="css/main.css?v=20261010-4">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="alternate icon" type="image/x-icon" href="favicon.ico">
 </head>
@@ -168,6 +168,15 @@ data_area:
                         <span class="screen-info-full">Memory: 0xF1000-0xF17CF (80×25 characters) | Lower byte = ASCII character</span>
                         <span class="screen-info-short">0xF1000-0xF17CF &middot; 80&times;25 &middot; Low byte = ASCII</span>
                     </div>
+                    <!-- Typing in a file. Every character of the chosen ASCII file
+                         becomes a keystroke, every line ending a Return, so the
+                         program sees exactly what a person typing it would send. -->
+                    <div class="screen-upload">
+                        <button type="button" id="file-upload-btn"
+                                title="Eine ASCII-Datei als Tastatureingaben eintippen">Datei tippen…</button>
+                        <input type="file" id="file-upload-input" accept=".fs,.fth,.forth,.4th,.txt" hidden>
+                        <span class="screen-upload-hint" id="file-upload-hint"></span>
+                    </div>
                     <!-- Hidden keyboard hook: on iOS the soft keyboard only appears
                          when a real <input> receives focus inside the tap gesture.
                          While focused, its keystrokes feed the simulator keyboard
@@ -193,8 +202,6 @@ data_area:
                 <span id="core-stats-mini" class="core-stats-mini" title="Cycle, stall, flush and cache counters of the selected core"></span>
                 <button id="step-btn" disabled>Step</button>
                 <button id="reset-btn" disabled>Reset</button>
-                <button id="serload-btn" disabled title="Hand a source file to the Forth kernel over the serial line (SERPLAN.md)">SERLOAD…</button>
-                <input type="file" id="serload-file" accept=".fs,.fth,.forth,.4th,.txt" hidden>
                 <button id="view-toggle" class="view-toggle">Compact View</button>
             </div>
         </div>
@@ -352,15 +359,15 @@ data_area:
 
     <script src="js/deep16_assembler.js?v=20261006-1"></script>
     <script src="js/deep16_disassembler.js?v=20261006-1"></script>
-    <script src="js/deep16_simulator.js?v=20261010-3"></script>
+    <script src="js/deep16_simulator.js?v=20261010-4"></script>
     <script src="js/deep16_ui_registers.js?v=20261006-1"></script>
     <script src="js/deep16_ui_memory.js?v=20261006-1"></script>
     <script src="js/deep16_ui_screen.js?v=20261010-1"></script>
     <script type="module">
         try {
-            const modPromise = import('./wasm/pkg/deep16_wasm.js?v=20261010-3');
+            const modPromise = import('./wasm/pkg/deep16_wasm.js?v=20261010-4');
             modPromise.then(async (wasm) => {
-                const initPromise = wasm.default({ module_or_path: new URL('./wasm/pkg/deep16_wasm_bg.wasm?v=20261010-3', import.meta.url) });
+                const initPromise = wasm.default({ module_or_path: new URL('./wasm/pkg/deep16_wasm_bg.wasm?v=20261010-4', import.meta.url) });
                 window.Deep16WasmReady = initPromise;
                 window.Deep16Wasm = wasm;
                 await initPromise;
@@ -375,7 +382,7 @@ data_area:
         // so this needs no build step either. deep16_rtl.js exposes the same
         // API shape as the wasm-bindgen core, so the IDE just picks a module.
         try {
-            const rtlPromise = import('./rtl/pkg/deep16_rtl.js?v=20261010-3');
+            const rtlPromise = import('./rtl/pkg/deep16_rtl.js?v=20261010-4');
             rtlPromise.then(async (rtl) => {
                 const initPromise = rtl.default();
                 window.Deep16RtlReady = initPromise;
@@ -391,6 +398,6 @@ data_area:
             console.warn('RTL module not loaded', e);
         }
     </script>
-    <script src="js/deep16_ui_core.js?v=20261010-6"></script>
+    <script src="js/deep16_ui_core.js?v=20261010-7"></script>
 </body>
 </html>

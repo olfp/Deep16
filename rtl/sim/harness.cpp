@@ -51,7 +51,7 @@ enum : uint8_t {
   DBG_INSTH  = 0x59,
   DBG_ROM    = 0xC0,   // 0xC0..0xCF = the boot ROM words
   DBG_BANKED = 0x30,   // 0x30..0x3F = active view of the register file
-  DBG_SER    = 0x6F,   // serial FIFO: {6'h00, ser_pop, ser_ready, ser_count}
+  DBG_KBD    = 0x6F,   // keyboard FIFO: {8'h00, kbd_count}
 };
 
 // Sampled by run_cycles() at the exact retirement of the n-th instruction.
@@ -134,10 +134,6 @@ void init(uint32_t /*mem_words*/) {
   g_top->i_free = 0;
   g_top->kbd_push = 0;
   g_top->kbd_clear = 0;
-  g_top->serial_in_valid = 0;
-  g_top->serial_in_data = 0;
-  g_top->serial_eof_in = 0;
-  g_top->serial_clear = 0;
   g_top->dbg_en = 0;
   g_top->dbg_we = 0;
   g_top->dbg_idx = 0;
@@ -147,14 +143,12 @@ void init(uint32_t /*mem_words*/) {
   reset_memory();
   reset_core();
   kbd_clear();      // a fresh core has an empty keyboard FIFO, like the others
-  serial_clear();   // and an empty serial line with the EOF flag down
 }
 
 void reset() {
   reset_memory();
   reset_core();
   kbd_clear();
-  serial_clear();
   g_steps = 0;
 }
 
@@ -309,33 +303,12 @@ void kbd_clear() {
   g_top->kbd_clear = 0;
 }
 
-// Serial line (SERPLAN.md): one character per tick, like the keyboard push.
-void serial_push(uint16_t code) {
-  g_top->serial_in_valid = 1;
-  g_top->serial_in_data = code;
-  tick();
-  g_top->serial_in_valid = 0;
-}
-
-// Raising EOF does not discard what is still queued: SER_STATUS reports 2 only
-// once the FIFO has run empty.
-void serial_set_eof() {
-  g_top->serial_eof_in = 1;
-  tick();
-  g_top->serial_eof_in = 0;
-}
-
-void serial_clear() {
-  g_top->serial_clear = 1;
-  tick();
-  g_top->serial_clear = 0;
-}
-
-// How many characters the serial FIFO still holds (0..127). The host reads this
-// before pushing: the FIFO is only 128 deep and a push into a full one is
-// dropped silently, so the feed has to be paced by what the machine consumed.
-uint32_t serial_available() {
-  return (uint32_t)(dbg_read(DBG_SER) & 0x00FF);
+// How many keystrokes the keyboard FIFO still holds (0..127). The host reads
+// this before pushing: the FIFO is only 128 deep and a push into a full one is
+// dropped silently, so typing a file in has to be paced by what the machine
+// consumed.
+uint32_t kbd_available() {
+  return (uint32_t)(dbg_read(DBG_KBD) & 0x00FF);
 }
 
 void get_recent_access(uint32_t* out) {

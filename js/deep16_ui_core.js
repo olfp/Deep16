@@ -43,8 +43,8 @@ class DeepWebUI {
         this.examples = [];
         this.loadExamplesList();
 
-        // No serial transfer is in flight yet (see queueSerialSource).
-        this.serialSource = null;
+        // No file is being typed in yet (see queueFileUpload).
+        this.fileUpload = null;
 
         this.initializeEventListeners();
         this.initializeSearchableDropdowns();
@@ -141,11 +141,9 @@ class DeepWebUI {
         const runBtn = document.getElementById('run-btn');
         const stepBtn = document.getElementById('step-btn');
         const resetBtn = document.getElementById('reset-btn');
-        const serBtn = document.getElementById('serload-btn');
         if (runBtn) runBtn.disabled = false;
         if (stepBtn) stepBtn.disabled = false;
         if (resetBtn) resetBtn.disabled = false;
-        if (serBtn) serBtn.disabled = false;
         this.updateRunIndicator(false);
         this.manualAddressChange = true;
         this.updateAllDisplays();
@@ -266,123 +264,149 @@ class DeepWebUI {
         return 'JS';
     }
 
-    // ---- serial source (SERLOAD) ------------------------------------------
-    // A picked file is not pushed in one go: the RTL core's FIFO is 128 entries
-    // deep and silently drops a push that arrives while it is full, which would
-    // lose source text in the middle of a file. So the file is kept here and
-    // handed over a few characters per run tick, paced by what the machine has
-    // actually consumed. SER_FIFO_DEPTH is the smallest queue any core has.
-    static get SER_FIFO_DEPTH() { return 128; }
-    static get SER_CHUNK() { return 64; }
+    // ---- typing a file in (Screen tab) ------------------------------------
+    // A picked file is not typed in one go: the RTL core's keyboard FIFO is 128
+    // entries deep and silently drops a keystroke that arrives while it is full,
+    // which would lose characters in the middle of a file. So the file is kept
+    // here and typed in a few characters per run tick, paced by what the machine
+    // has actually consumed. KBD_FIFO_DEPTH is the smallest queue any core has.
+    static get KBD_FIFO_DEPTH() { return 128; }
+    static get KBD_CHUNK() { return 64; }
 
-    // Characters still queued on the active core, or NaN when that core cannot
-    // say. NaN means "unknown", and the pump then feeds a single character,
+    // Keystrokes still queued on the active core, or NaN when that core cannot
+    // say. NaN means "unknown", and the pump then types a single character,
     // which cannot overflow anything.
-    serialAvailable() {
+    kbdAvailable() {
         if (this.compiledCoreReady()) {
             const C = this.activeCoreModule();
-            return (typeof C.serial_available === 'function') ? C.serial_available() : NaN;
+            return (typeof C.kbd_available === 'function') ? C.kbd_available() : NaN;
         }
         const s = this.simulator;
-        return (s && typeof s.serialAvailable === 'function') ? s.serialAvailable() : NaN;
+        return (s && typeof s.kbdAvailable === 'function') ? s.kbdAvailable() : NaN;
     }
 
-    // Push into the active core and mirror into the JS one, the way a
-    // keystroke is mirrored into both (see the keydown handler). Without the
-    // mirror, switching cores mid-file would deliver nothing at all.
-    serialPushCode(code) {
+    // Type one keystroke into the active core and mirror it into the JS one, the
+    // way a real keystroke is mirrored into both (see the keydown handler).
+    // Without the mirror, switching cores mid-file would drop the rest.
+    kbdPushCode(code) {
         const s = this.simulator;
-        if (s && typeof s.serialPush === 'function') s.serialPush(code);
+        if (s && typeof s.enqueueKeyCode === 'function') s.enqueueKeyCode(code);
         if (this.compiledCoreReady()) {
             const C = this.activeCoreModule();
-            if (typeof C.serial_push === 'function') C.serial_push(code);
-        }
-    }
-
-    serialSetEof(on = true) {
-        const s = this.simulator;
-        if (s && typeof s.serialSetEof === 'function') s.serialSetEof(on);
-        if (this.compiledCoreReady()) {
-            const C = this.activeCoreModule();
-            if (typeof C.serial_set_eof === 'function') C.serial_set_eof(on);
+            if (typeof C.kbd_push === 'function') C.kbd_push(code);
         }
     }
 
-    serialClearAll() {
+    kbdClearAll() {
         const s = this.simulator;
-        if (s && typeof s.serialClear === 'function') s.serialClear();
+        if (s && typeof s.kbdBuffer !== 'undefined') s.kbdBuffer = [];
         if (this.compiledCoreReady()) {
             const C = this.activeCoreModule();
-            if (typeof C.serial_clear === 'function') C.serial_clear();
+            if (typeof C.kbd_clear === 'function') C.kbd_clear();
         }
     }
 
-    // Hand a file to the machine. Nothing is pushed yet: the kernel has to run
-    // SERLOAD first, and until then the queue only fills up.
-    queueSerialSource(file) {
+    // Turn a file's text into the keystrokes the machine is to receive: one code
+    // per character, and one Return (13) per line ending. LF, CRLF and a bare CR
+    // all end a line - the browser hands over CRLF for a file written on
+    // Windows, LF for one written anywhere else, and the BIOS accepts either.
+    //
+    // The last line always gets its Return, whether the file ended with a
+    // newline or not: the Return is what executes a line, so a file ending in a
+    // newline would otherwise leave its final definition sitting unread at the
+    // prompt. A blank line inside the file is kept - someone typing it would
+    // press Return on it too.
+    fileToKeys(text) {
+        const keys = [];
+        for (let i = 0; i < text.length; i++) {
+            const ch = text.charCodeAt(i);
+            if (ch === 13) {                // CR, possibly the CRLF of a Windows file
+                keys.push(13);
+                if (text.charCodeAt(i + 1) === 10) i++;   // CRLF is one ending
+            } else if (ch === 10) {                // a bare LF
+                keys.push(13);
+            } else {
+                keys.push(ch & 0xFFFF);
+            }
+        }
+        if (keys.length && keys[keys.length - 1] !== 13) keys.push(13);
+        return keys;
+    }
+
+    // Hand a file to the machine. Nothing is typed yet: the program has to be
+    // running and waiting for input, or the characters just pile up in the queue.
+    queueFileUpload(file) {
         const reader = new FileReader();
         reader.onload = () => {
             // A UTF-8 BOM would arrive as three characters and become the first
-            // token of the first line. The kernel ends a line on LF as well as
-            // CR, so the text is passed on unchanged.
+            // token of the first line, so it goes.
             let text = String(reader.result || '');
             if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-            if (!text) {
-                this.addTranscriptEntry(`SERLOAD: ${file.name} is empty`, "warning");
+            const keys = this.fileToKeys(text);
+            if (!keys.length) {
+                this.addTranscriptEntry(`${file.name} is empty`, "warning");
+                this.setUploadHint('');
                 return;
             }
-            this.serialSource = { name: file.name, text, pos: 0, done: false, stalled: false };
+            this.fileUpload = { name: file.name, keys, pos: 0, done: false, stalled: false };
             this.addTranscriptEntry(
-                `SERLOAD: ${file.name} queued (${text.length} chars) - type SERLOAD on the keyboard, then Run`,
+                `${file.name} ready (${keys.length} keystrokes) - start the program, then it types itself in`,
                 "info");
-            this.status(`${file.name} queued for SERLOAD`);
+            this.status(`${file.name} ready to type in`);
+            this.setUploadHint(`${file.name}: ${keys.length} keystrokes ready`);
         };
         reader.onerror = () => {
-            this.addTranscriptEntry(`SERLOAD: could not read ${file.name}`, "error");
+            this.addTranscriptEntry(`Could not read ${file.name}`, "error");
         };
         reader.readAsText(file);
     }
 
-    // Cancel an in-flight transfer and drop whatever is still queued.
-    cancelSerialFeed(reason = '') {
-        if (!this.serialSource && !this.serialSourceActive) return;
-        this.serialSource = null;
-        this.serialClearAll();
-        if (reason) this.addTranscriptEntry(`SERLOAD: transfer cancelled (${reason})`, "warning");
+    setUploadHint(text) {
+        const el = document.getElementById('file-upload-hint');
+        if (el) el.textContent = text;
     }
 
-    // Feed the queued file, as far as the machine's queue allows. Called from
-    // both run loops; returns the number of characters handed over.
-    pumpSerialQueue() {
-        const src = this.serialSource;
+    // Cancel an upload that is still running and drop what is still queued.
+    cancelFileUpload(reason = '') {
+        if (!this.fileUpload) return;
+        this.fileUpload = null;
+        this.kbdClearAll();
+        this.setUploadHint('');
+        if (reason) this.addTranscriptEntry(`Upload cancelled (${reason})`, "warning");
+    }
+
+    // Type the queued file in, as far as the machine's queue allows. Called from
+    // both run loops; returns the number of keystrokes handed over.
+    pumpKeyQueue() {
+        const src = this.fileUpload;
         if (!src || src.done) return 0;
-        const avail = this.serialAvailable();
-        let room = Number.isFinite(avail) ? (DeepWebUI.SER_FIFO_DEPTH - avail) : 1;
-        room = Math.min(room, DeepWebUI.SER_CHUNK);
+        const avail = this.kbdAvailable();
+        let room = Number.isFinite(avail) ? (DeepWebUI.KBD_FIFO_DEPTH - avail) : 1;
+        room = Math.min(room, DeepWebUI.KBD_CHUNK);
         if (room <= 0) {
             // The queue is full and only the machine can empty it. Say so once
             // rather than on every tick.
             if (!src.stalled) {
                 src.stalled = true;
-                this.addTranscriptEntry('SERLOAD: line is full - press Run to let the machine read', "warning");
-                this.status('Serial line full - press Run');
+                this.addTranscriptEntry('Keyboard queue is full - press Run to let the machine read', "warning");
+                this.status('Keyboard queue full - press Run');
+                this.setUploadHint('queue full - press Run');
             }
             return 0;
         }
         src.stalled = false;
         const start = src.pos;
-        const end = Math.min(src.text.length, src.pos + room);
-        for (; src.pos < end; src.pos++) this.serialPushCode(src.text.charCodeAt(src.pos));
-        if (src.pos >= src.text.length) {
+        const end = Math.min(src.keys.length, src.pos + room);
+        for (; src.pos < end; src.pos++) this.kbdPushCode(src.keys[src.pos]);
+        if (src.pos >= src.keys.length) {
             src.done = true;
-            // EOF only after the last character: SER_STATUS reports 2 once the
-            // queue has drained, so nothing is truncated.
-            this.serialSetEof(true);
-            this.addTranscriptEntry(`SERLOAD: all ${src.text.length} chars sent - waiting for EOF`, "info");
-            this.status(`SERLOAD: ${src.name} sent completely`);
+            this.addTranscriptEntry(`${src.name}: all ${src.keys.length} keystrokes typed in`, "success");
+            this.status(`${src.name} typed in completely`);
+            this.setUploadHint(`${src.name}: typed in completely`);
         }
         return end - start;
     }
+
 
     coreAvailable(name) {
         if (name === 'wasm') return !!this.wasmAvailable && !!window.Deep16Wasm;
@@ -421,9 +445,9 @@ class DeepWebUI {
         }
         this.coreName = name;
         this.useWasm = name !== 'js';
-        // The new core's serial line is empty, while the JS mirror still holds
-        // whatever was fed so far. Half a file is worse than none: cancel.
-        if (this.serialSource) this.cancelSerialFeed('core changed');
+        // The new core's keyboard queue is empty, while the JS mirror still
+        // holds whatever was typed so far. Half a file is worse than none.
+        if (this.fileUpload) this.cancelFileUpload('core changed');
         const select = document.getElementById('core-select');
         if (select) select.value = name;
         if (announce) this.addTranscriptEntry(`Core: ${this.coreLabel(name)}`, "info");
@@ -804,16 +828,15 @@ class DeepWebUI {
         document.getElementById('step-btn').addEventListener('click', () => this.step());
         document.getElementById('reset-btn').addEventListener('click', () => this.reset());
 
-        // SERLOAD: hand a source file to the Forth kernel over the serial line.
-        // The button only picks the file; the actual transfer runs through
-        // pumpSerialQueue() below while the machine steps.
-        const serBtn = document.getElementById('serload-btn');
-        const serFile = document.getElementById('serload-file');
-        if (serBtn) serBtn.addEventListener('click', () => serFile && serFile.click());
-        if (serFile) serFile.addEventListener('change', (e) => {
+        // Typing in a file: the Screen tab button picks one, and pumpKeyQueue()
+        // types it in a few characters at a time while the machine steps.
+        const uploadBtn = document.getElementById('file-upload-btn');
+        const uploadInput = document.getElementById('file-upload-input');
+        if (uploadBtn) uploadBtn.addEventListener('click', () => uploadInput && uploadInput.click());
+        if (uploadInput) uploadInput.addEventListener('change', (e) => {
             const file = e.target.files && e.target.files[0];
-            if (file) this.queueSerialSource(file);
-            // Selecting the same file again has to fire 'change' again.
+            if (file) this.queueFileUpload(file);
+            // Picking the same file again has to fire 'change' again.
             e.target.value = '';
         });
         
@@ -1778,9 +1801,9 @@ class DeepWebUI {
             }
             
             const stepsPerTick = 200;
-            // Hand the machine whatever the serial line still has room for,
-            // once per tick, paced by what it consumed since the last tick.
-            if (this.serialSource) this.pumpSerialQueue();
+            // Type in whatever the keyboard queue still has room for, once per
+            // tick, paced by what the machine consumed since the last tick.
+            if (this.fileUpload) this.pumpKeyQueue();
             let continueRunning = true;
             for (let i = 0; i < stepsPerTick && this.simulator.running; i++) {
                 const physPCCheck = ((this.simulator.segmentRegisters.CS & 0xFFFF) << 4) + (this.simulator.registers[15] & 0xFFFF);
@@ -2239,10 +2262,10 @@ class DeepWebUI {
             clearInterval(this.runInterval);
             this.runInterval = null;
         }
-        // A reset empties the serial line on both the core and its JS mirror,
-        // so a half-sent file would leave the kernel waiting for a line that
-        // never comes. Drop the transfer instead of resuming into silence.
-        if (this.serialSource) this.cancelSerialFeed('machine reset');
+        // A reset empties the keyboard queue on both the core and its JS
+        // mirror, so half a file would go on waiting for input that never
+        // comes. Drop the upload instead of resuming into silence.
+        if (this.fileUpload) this.cancelFileUpload('machine reset');
         if (this.compiledCoreReady()) {
             try { this.activeCoreModule().reset(); } catch {}
         }
@@ -2334,7 +2357,7 @@ class DeepWebUI {
             }
             const stepsPerTick = 200;
             // Same cadence as the JS loop: one pump per tick, not per step.
-            if (this.serialSource) this.pumpSerialQueue();
+            if (this.fileUpload) this.pumpKeyQueue();
             let cont = true;
             let lastSBit = ((this.simulator.psw & (1 << 5)) !== 0) ? 1 : 0;
             for (let i = 0; i < stepsPerTick && this.simulator.running; i++) {
@@ -2674,7 +2697,6 @@ class DeepWebUI {
         const run = document.getElementById('run-btn');
         const step = document.getElementById('step-btn');
         const reset = document.getElementById('reset-btn');
-        const serload = document.getElementById('serload-btn');
         const viewToggle = document.getElementById('view-toggle');
         const headerContent = document.querySelector('.header-content');
         const rightControls = document.querySelector('.header-right-controls');
@@ -2694,16 +2716,6 @@ class DeepWebUI {
             const groupResetView = document.createElement('div');
             groupResetView.className = 'mobile-group group-reset-view';
             groupResetView.appendChild(reset);
-            // SERLOAD belongs here for the same reason the other three are
-            // moved: on a phone the memory panel header is not what anyone
-            // looks at, so a file picker left behind there is unreachable.
-            if (serload) {
-                this.originalSerloadParent = serload.parentElement;
-                groupResetView.appendChild(serload);
-                // The mobile buttons are all one fixed width, sized after the
-                // view toggle; the ellipsis would only make the label clip.
-                serload.textContent = 'SERLOAD';
-            }
             if (viewToggle) {
                 this.originalViewToggleParent = viewToggle.parentElement;
                 groupResetView.appendChild(viewToggle);
@@ -2731,7 +2743,7 @@ class DeepWebUI {
                 document.documentElement.style.setProperty('--mobile-btn-w', w + 'px');
             }
             const docsBtn = document.getElementById('docs-menu-btn');
-            [run, step, reset, serload, viewToggle, docsBtn].forEach(b => {
+            [run, step, reset, viewToggle, docsBtn].forEach(b => {
                 if (b) b.style.width = 'var(--mobile-btn-w)';
             });
             this.repositionMobileIndicator();
@@ -2829,7 +2841,6 @@ class DeepWebUI {
         const run = document.getElementById('run-btn');
         const step = document.getElementById('step-btn');
         const reset = document.getElementById('reset-btn');
-        const serload = document.getElementById('serload-btn');
         const viewToggle = document.getElementById('view-toggle');
         const rightControls = document.querySelector('.header-right-controls');
         const indicator = document.getElementById('run-state-indicator');
@@ -2843,15 +2854,6 @@ class DeepWebUI {
         if (viewToggle && this.originalViewToggleParent) {
             this.originalViewToggleParent.appendChild(viewToggle);
             viewToggle.textContent = 'Compact View';
-        }
-        // SERLOAD goes back in front of the view toggle, which is where the
-        // markup has it - appendChild would leave it behind the button that
-        // used to follow it.
-        if (serload && this.originalSerloadParent) {
-            const anchor = (viewToggle && viewToggle.parentElement === this.originalSerloadParent)
-                ? viewToggle : null;
-            this.originalSerloadParent.insertBefore(serload, anchor);
-            serload.textContent = 'SERLOAD\u2026';
         }
         if (rightControls && this.originalRightControlsParent) {
             this.originalRightControlsParent.appendChild(rightControls);

@@ -709,3 +709,37 @@ test('pinned divergence: 0xFFF1 is FSH, a no-op - not a halt', async () => {
   assert.equal(rtl.registers[0], 0x0042, 'the RTL must do the same');
   assert.equal(rtl.steps, js.steps);
 });
+// ---------------------------------------------------------------------------
+// The keyboard queue level (kbd_available). The host reads it before it types a
+// file in: this core's keyboard FIFO is 128 entries deep and drops a keystroke
+// that arrives while it is full, so typing without pacing would lose the middle
+// of a file here and on neither of the other two cores.
+// ---------------------------------------------------------------------------
+
+test('kbd_available counts down as the machine consumes keys', async () => {
+  const res = assemble(`
+        .org 0x0100
+main:
+        LDI 0x0062
+        MOV R5, R0, 0
+        LDI 2
+        MOV R7, R0, 0
+loop:
+        LDI 0x0060
+        MOV R4, R0, 0
+        LDS R1, ES, R4
+        LDI 0
+        CMP R1, R0
+        JZ loop
+        NOP
+        LDS R1, ES, R5
+        SUB R7, 1
+        JNZ loop
+        NOP
+        HALT
+`);
+  assert.ok(res.success, res.errors.join('; '));
+  // Four keystrokes queued, the program takes two: two must be left.
+  const r = await runRtl(res, { cs: 0xFFFF, es: 0xF000, maxSteps: 20000, keys: ['a', 'b', 'c', 'd'] });
+  assert.equal(r.kbdAvailable(), 2, 'two of the four keystrokes are still queued');
+});

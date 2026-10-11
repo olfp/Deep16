@@ -184,18 +184,22 @@ test('the panels read through the active core, never a hardcoded module', () => 
 });
 
 // ---------------------------------------------------------------------------
-// The SERLOAD host feed (js/deep16_ui_core.js). The browser picks a file, the
-// pump hands it over a few characters at a time and raises EOF at the end. The
-// pump is paced by the queue level because the RTL FIFO drops a push that
-// arrives while it is full - a pump that ignored that would silently lose the
-// middle of a file. Here it runs against the real Forth kernel on the JS core,
-// with the same 200-steps-then-pump cadence the two run loops use.
+// The file upload on the Screen tab (js/deep16_ui_core.js). The browser picks an
+// ASCII file and types it into the machine: every character becomes a keystroke,
+// every line ending a Return. Nothing else happens - the kernel sees the same
+// key sequence a person typing the file would produce.
+//
+// The typing is paced by the keyboard queue level, because the RTL core has a
+// 128 entry FIFO and drops a keystroke that arrives while it is full. A pump
+// that ignored that would lose the middle of a file on that core and nowhere
+// else - the worst kind of bug. Here it runs against the real Forth kernel on
+// the JS core, with the 200-steps-then-pump cadence the run loops use.
 // ---------------------------------------------------------------------------
 
 const KERNEL = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
 
-// Load the kernel, type "SERLOAD", then feed `file` through the real pump.
-function loadThroughSerialPump(typed, file, { stepsPerTick = 200, maxSteps = 2000000 } = {}) {
+// Boot the kernel and type `file` into it through the real pump.
+function typeThroughPump(file, { stepsPerTick = 200, maxSteps = 2000000, run = true } = {}) {
   const res = assemble(KERNEL);
   assert.ok(res.success, res.errors.join('; '));
   const ui = makeUi();
@@ -203,16 +207,14 @@ function loadThroughSerialPump(typed, file, { stepsPerTick = 200, maxSteps = 200
   for (const c of res.memoryChanges) mem[c.address] = c.value & 0xFFFF;
   ui.simulator.loadProgram(mem);
   ui.simulator.segmentRegisters.CS = 0xFFFF;
-  for (const ch of typed) ui.simulator.enqueueKeyCode(ch === '\n' ? 10 : ch.charCodeAt(0));
-  // queueSerialSource needs a FileReader; the state it would build is set here
+  // queueFileUpload needs a FileReader; the state it would build is set here
   // directly, which is the only part the test does not exercise.
-  ui.serialSource = { name: 'test.fs', text: file, pos: 0, done: false, stalled: false };
+  ui.fileUpload = { name: 'test.fs', keys: ui.fileToKeys(file), pos: 0, done: false, stalled: false };
 
-  ui.simulator.running = true;
+  ui.simulator.running = run;
   for (let i = 0; i < maxSteps && ui.simulator.running; i++) {
     ui.simulator.step();
-    // The cadence both run loops use: 200 steps, then whatever the line takes.
-    if ((i + 1) % stepsPerTick === 0) ui.pumpSerialQueue();
+    if ((i + 1) % stepsPerTick === 0) ui.pumpKeyQueue();
   }
   const rows = [];
   for (let r = 0; r < 25; r++) {
@@ -223,139 +225,136 @@ function loadThroughSerialPump(typed, file, { stepsPerTick = 200, maxSteps = 200
   return { ui, rows, transcript: ui.transcript };
 }
 
-test('the serial pump hands a file to the kernel and raises EOF at the end', () => {
-  const { ui, rows } = loadThroughSerialPump('SERLOAD\n', ': foo 41 ;\nfoo .\n');
-  // A loaded line is not echoed, so "41  ok" is what the transferred
-  // "foo ." leaves behind on the row where SERLOAD was typed - the same
-  // contract the keyboard tests pin.
+test('an uploaded file is typed into the kernel and its definitions work', () => {
+  // The whole point: a file goes in as if typed, and what it defines is callable.
+  const { ui, rows } = typeThroughPump(': foo 41 ;\n42 foo + .\n');
   assert.equal(rows[0], 'Hello DeepForth!');
-  assert.equal(rows[1], '> SERLOAD 41  ok', `screen was:\n${rows.join('\n')}`);
-  assert.equal(rows[2], '>', 'the REPL must come back after the file is exhausted');
-  assert.equal(ui.serialSource.done, true, 'the pump must mark the source as fully sent');
+  assert.equal(rows[1], '> : foo 41 ; ok', `screen was:\n${rows.join('\n')}`);
+  assert.equal(rows[2], '> 42 foo + . 83  ok', `screen was:\n${rows.join('\n')}`);
+  assert.equal(ui.fileUpload.done, true, 'the pump must mark the file as fully typed');
+  assert.equal(ui.simulator.kbdAvailable(), 0, 'nothing may be left in the queue');
 });
 
-test('the serial pump delivers a file longer than the RTL FIFO', () => {
-  // 300 characters is well past the 128 entry RTL FIFO, which is the case that
-  // makes the queue-level pacing load-bearing: a pump that pushed everything at
-  // once would lose characters on the RTL core.
+test('every line ending in the file becomes a Return', () => {
+  const ui = makeUi();
+  // LF, CRLF and CR all end a line: the browser gives CRLF for a file written
+  // on Windows, LF for one written anywhere else, and a bare CR shows up in
+  // files moved from a classic Mac.
+  assert.deepEqual(ui.fileToKeys('a\nb'), [97, 13, 98, 13]);
+  assert.deepEqual(ui.fileToKeys('a\r\nb'), [97, 13, 98, 13]);
+  assert.deepEqual(ui.fileToKeys('a\rb'), [97, 13, 98, 13]);
+  // The Return is what executes a line, so the last one always gets one -
+  // without it the final definition would sit unread at the prompt.
+  assert.deepEqual(ui.fileToKeys('a\n'), [97, 13]);
+  assert.deepEqual(ui.fileToKeys('a'), [97, 13]);
+  // Blank lines inside the file are kept - a person typing it would press
+  // Return on them too.
+  assert.deepEqual(ui.fileToKeys('a\n\nb'), [97, 13, 13, 98, 13]);
+});
+
+test('an uploaded file is typed far past the RTL keyboard FIFO', () => {
+  // 40 definitions is well over the 128 character keyboard FIFO, the case that
+  // makes the queue-level pacing load-bearing.
   const lines = [];
-  for (let i = 0; i < 20; i++) lines.push(`: w${i} ${i} ;`);
-  lines.push('w7 .\n');
+  for (let i = 0; i < 40; i++) lines.push(`: w${i} ${i} ;`);
+  lines.push('w7 .');
   const file = lines.join('\n');
-  assert.ok(file.length > DeepWebUI.SER_FIFO_DEPTH, 'the file has to outgrow the FIFO');
-  const { rows } = loadThroughSerialPump('SERLOAD\n', file);
-  assert.equal(rows[1], '> SERLOAD 7  ok', `screen was:\n${rows.join('\n')}`);
-  assert.equal(rows[2], '>', 'the last line must be interpreted before the prompt returns');
+  assert.ok(file.length > DeepWebUI.KBD_FIFO_DEPTH, 'the file has to outgrow the FIFO');
+  const { rows } = typeThroughPump(file);
+  // 41 lines do not fit on a 25 row screen, so this is looked up by content
+  // rather than by row number: the screen has scrolled by then.
+  assert.equal(rows.find((r) => r.includes('w7 .')), '> w7 . 7  ok',
+               `screen was:\n${rows.join('\n')}`);
+  // The REPL is idle again afterwards: the last prompt is a bare one, which is
+  // what proves the final line was executed rather than left at the prompt.
+  const prompts = rows.filter((r) => r.startsWith('>'));
+  assert.equal(prompts[prompts.length - 1], '>', 'the REPL must come back after the file');
+  // Nothing of the beginning may be left over: every line was interpreted, not
+  // just the last.
+  assert.ok(!rows.some((r) => r.includes('undefined word')),
+            `a line did not make it through:\n${rows.join('\n')}`);
 });
 
-test('the serial pump paces itself and says so when the line is full', () => {
-  const res = assemble(KERNEL);
-  assert.ok(res.success, res.errors.join('; '));
+test('the typing pump paces itself and says so when the queue is full', () => {
   const ui = makeUi();
-  ui.serialSource = { name: 'test.fs', text: 'x'.repeat(500), pos: 0, done: false, stalled: false };
-  // Nothing runs, so nothing consumes: the pump may fill the line and no more.
-  const first = ui.pumpSerialQueue();
-  assert.equal(first, DeepWebUI.SER_CHUNK);
-  assert.equal(ui.simulator.serialAvailable(), DeepWebUI.SER_CHUNK);
+  ui.fileUpload = { name: 'test.fs', keys: new Array(500).fill(120), pos: 0, done: false, stalled: false };
+  // Nothing runs, so nothing consumes: the pump may fill the queue and no more.
+  const first = ui.pumpKeyQueue();
+  assert.equal(first, DeepWebUI.KBD_CHUNK);
+  assert.equal(ui.simulator.kbdAvailable(), DeepWebUI.KBD_CHUNK);
   let total = first;
-  for (let i = 0; i < 20; i++) total += ui.pumpSerialQueue();
-  assert.equal(total, DeepWebUI.SER_FIFO_DEPTH, 'the line must hold exactly one FIFO worth');
-  assert.equal(ui.pumpSerialQueue(), 0, 'a full line accepts nothing');
-  assert.equal(ui.serialSource.stalled, true, 'the pump must notice that it is blocked');
-  assert.ok(ui.transcript.some((t) => /line is full/.test(t)), `transcript was:\n${ui.transcript.join('\n')}`);
-  assert.equal(ui.serialSource.done, false, 'EOF must not be raised while characters are stuck');
+  for (let i = 0; i < 20; i++) total += ui.pumpKeyQueue();
+  assert.equal(total, DeepWebUI.KBD_FIFO_DEPTH, 'the queue may hold exactly one FIFO worth');
+  assert.equal(ui.pumpKeyQueue(), 0, 'a full queue accepts nothing');
+  assert.equal(ui.fileUpload.stalled, true, 'the pump must notice that it is blocked');
+  assert.ok(ui.transcript.some((t) => /queue is full/.test(t)), `transcript was:\n${ui.transcript.join('\n')}`);
+  assert.equal(ui.fileUpload.done, false, 'a file that is not fully typed is not done');
 });
 
-test('the serial pump raises EOF only after the last character', () => {
+test('an unknown queue level makes the pump type one character at a time', () => {
+  // A core that cannot report its level must not be flooded: one character per
+  // call is the only rate that cannot overflow an unseen FIFO.
   const ui = makeUi();
-  // Longer than one chunk, so the first call cannot finish the file.
-  const text = `: foo ${'1 '.repeat(40)};\n`;
-  assert.ok(text.length > DeepWebUI.SER_CHUNK, 'the text has to outgrow one chunk');
-  ui.serialSource = { name: 'test.fs', text, pos: 0, done: false, stalled: false };
-  ui.pumpSerialQueue();
-  assert.equal(ui.simulator.serEof, false, 'EOF must not be raised while characters remain');
-  assert.equal(ui.simulator.serialAvailable(), DeepWebUI.SER_CHUNK);
-  while (!ui.serialSource.done) ui.pumpSerialQueue();
-  assert.equal(ui.simulator.serEof, true, 'EOF is raised once the last character is handed over');
-  assert.equal(ui.simulator.serialAvailable(), text.length, 'queued characters survive the EOF flag');
+  ui.fileUpload = { name: 'test.fs', keys: new Array(10).fill(120), pos: 0, done: false, stalled: false };
+  ui.kbdAvailable = () => NaN;
+  assert.equal(ui.pumpKeyQueue(), 1);
+  assert.equal(ui.pumpKeyQueue(), 1);
+  assert.equal(ui.fileUpload.pos, 2);
 });
 
-test('a short file is handed over and closed in a single call', () => {
+test('cancelling an upload drops the file and clears the queue', () => {
   const ui = makeUi();
-  const text = ': foo 1 ;\n';
-  ui.serialSource = { name: 'test.fs', text, pos: 0, done: false, stalled: false };
-  assert.equal(ui.pumpSerialQueue(), text.length);
-  assert.equal(ui.simulator.serialAvailable(), text.length);
-  assert.equal(ui.simulator.serEof, true);
-  assert.equal(ui.pumpSerialQueue(), 0, 'a finished file is not pushed again');
+  ui.fileUpload = { name: 'test.fs', keys: [97, 98, 99], pos: 0, done: false, stalled: false };
+  ui.pumpKeyQueue();
+  assert.equal(ui.simulator.kbdAvailable(), 3);
+  ui.cancelFileUpload('test');
+  assert.equal(ui.fileUpload, null);
+  assert.equal(ui.simulator.kbdAvailable(), 0, 'the queue must be empty after a cancel');
+  assert.equal(ui.pumpKeyQueue(), 0, 'a cancelled upload has nothing left to type');
 });
 
-test('cancelling the feed drops the file and clears the line', () => {
-  const ui = makeUi();
-  ui.serialSource = { name: 'test.fs', text: 'abc', pos: 0, done: false, stalled: false };
-  ui.pumpSerialQueue();
-  assert.equal(ui.simulator.serialAvailable(), 3);
-  ui.cancelSerialFeed('test');
-  assert.equal(ui.serialSource, null);
-  assert.equal(ui.simulator.serialAvailable(), 0, 'the line must be empty after a cancel');
-  assert.equal(ui.pumpSerialQueue(), 0, 'a cancelled feed has nothing left to push');
-});
-
-test('a reset cancels a transfer that is still running', () => {
+test('a reset cancels an upload that is still running', () => {
   const ui = makeUi();
   ui.runInterval = null;
   // reset() reaches into the DOM for the address field, scrolls the memory panel
-  // from a timer and restarts the machine; stub all of it so the serial part
-  // can be checked on its own.
+  // from a timer and restarts the machine; stub all of it so the upload can be
+  // checked on its own.
   ui.memoryUI = { scrollToPC() {} };
-  ui.serialSource = { name: 'test.fs', text: 'abc', pos: 0, done: false, stalled: false };
-  ui.pumpSerialQueue();
+  ui.fileUpload = { name: 'test.fs', keys: [97, 98, 99], pos: 0, done: false, stalled: false };
+  ui.pumpKeyQueue();
   ui.updateRunButton = () => {};
   ui.updateAllDisplays = () => {};
   ui.ensurePCCentered = () => {};
   ui.switchTab = () => {};
   ui.run = () => {};
   ui.reset();
-  assert.equal(ui.serialSource, null, 'the half-sent file must be dropped, not resumed');
-  assert.equal(ui.simulator.serialAvailable(), 0);
+  assert.equal(ui.fileUpload, null, 'a half-typed file must be dropped, not resumed');
+  assert.equal(ui.simulator.kbdAvailable(), 0);
   assert.ok(ui.transcript.some((t) => /cancelled \(machine reset\)/.test(t)),
             `transcript was:\n${ui.transcript.join('\n')}`);
 });
 
-test('switching the core cancels a transfer that is still running', () => {
+test('switching the core cancels an upload that is still running', () => {
   const ui = makeUi();
-  ui.serialSource = { name: 'test.fs', text: 'abc', pos: 0, done: false, stalled: false };
-  ui.pumpSerialQueue();
+  ui.fileUpload = { name: 'test.fs', keys: [97, 98, 99], pos: 0, done: false, stalled: false };
+  ui.pumpKeyQueue();
   // setCore('js') from 'js' is a no-op, so go via the RTL stub the tests use.
   ui.rtlAvailable = true;
   globalThis.window.Deep16Rtl = { set_registers() {}, set_psw() {}, set_segments() {},
-                                  init() {}, load_program() {} };
+                                  init() {}, load_program() {}, kbd_clear() {} };
   try {
     assert.equal(ui.setCore('rtl', { mirror: false }), true);
-    assert.equal(ui.serialSource, null, 'the new core has an empty line, so the file is dropped');
+    assert.equal(ui.fileUpload, null, 'the new core has an empty queue, so the file is dropped');
     assert.ok(ui.transcript.some((t) => /cancelled \(core changed\)/.test(t)),
               `transcript was:\n${ui.transcript.join('\n')}`);
   } finally {
     globalThis.window.Deep16Rtl = undefined;
   }
 });
-
-test('an unknown queue level makes the pump feed one character at a time', () => {
-  // A core that cannot report its level must not be flooded: one character per
-  // call is the only rate that cannot overflow an unseen FIFO.
-  const ui = makeUi();
-  ui.serialSource = { name: 'test.fs', text: 'abcdefghij', pos: 0, done: false, stalled: false };
-  ui.serialAvailable = () => NaN;
-  assert.equal(ui.pumpSerialQueue(), 1);
-  assert.equal(ui.pumpSerialQueue(), 1);
-  assert.equal(ui.serialSource.pos, 2);
-});
-
 // ---------------------------------------------------------------------------
 // On a phone the memory panel header is not what anyone looks at: Run, Step,
 // Reset and the view toggle are MOVED into the header groups by
-// initializeMobileControls(). SERLOAD was left behind there and was therefore
-// invisible on mobile - the control existed, worked, and could not be reached.
+// initializeMobileControls(). A control left behind there is invisible on mobile.
 // These tests drive the real functions against a small DOM model and check
 // where the button ends up, rather than grepping for its id: grepping passed
 // happily while the button was never moved.
@@ -409,23 +408,23 @@ function mobileDom() {
   headerContent.appendChild(rightControls);
 
   const ids = {};
-  for (const name of ['run-btn', 'step-btn', 'reset-btn', 'serload-btn',
-                      'view-toggle', 'docs-menu-btn']) {
+  for (const name of ['run-btn', 'step-btn', 'reset-btn', 'view-toggle']) {
     const btn = makeEl('button');
     btn.id = name;
     btn.textContent = name;
     ids[name] = btn;
     panelControls.appendChild(btn);
   }
+  // The Docs button lives in the header controls, not in the memory panel - the
+  // mobile layout moves that whole block as one.
+  const docsBtn = makeEl('button');
+  docsBtn.id = 'docs-menu-btn';
+  ids['docs-menu-btn'] = docsBtn;
+  rightControls.appendChild(docsBtn);
   const indicator = makeEl('span');
   indicator.id = 'run-state-indicator';
   ids['run-state-indicator'] = indicator;
   panelControls.appendChild(indicator);
-  const serloadFile = makeEl('input');
-  serloadFile.id = 'serload-file';
-  ids['serload-file'] = serloadFile;
-  panelControls.appendChild(serloadFile);
-
   const mobileCtrls = makeEl();
   mobileCtrls.id = 'mobile-controls';
   ids['mobile-controls'] = mobileCtrls;
@@ -461,15 +460,12 @@ test('every button in the memory panel header reaches the mobile layout', () => 
     ui.initializeMobileControls();
     assert.equal(dom.mobileCtrls.children.length, 3, 'the mobile layout builds three groups');
     const moved = dom.mobileCtrls.children.flatMap((g) => g.children);
-    for (const name of ['run-btn', 'step-btn', 'reset-btn', 'serload-btn', 'view-toggle']) {
+    for (const name of ['run-btn', 'step-btn', 'reset-btn', 'view-toggle']) {
       assert.ok(moved.includes(dom.ids[name]),
                 `${name} is left behind in the memory panel - unreachable on a phone`);
       assert.equal(dom.ids[name].parentElement.parentElement, dom.mobileCtrls,
                    `${name} did not end up in a mobile group`);
     }
-    // The file input is hidden and only ever clicked by the button, so it stays
-    // where it is - moving it would only risk breaking that click.
-    assert.equal(dom.ids['serload-file'].parentElement, dom.panelControls);
   });
 });
 
@@ -477,7 +473,7 @@ test('the mobile layout hands every control back to the desktop header', () => {
   withMobileDom((dom, ui) => {
     ui.initializeMobileControls();
     ui.restoreDesktopLayout();
-    for (const name of ['run-btn', 'step-btn', 'reset-btn', 'serload-btn', 'view-toggle']) {
+    for (const name of ['run-btn', 'step-btn', 'reset-btn', 'view-toggle']) {
       assert.equal(dom.ids[name].parentElement, dom.panelControls,
                    `${name} was not moved back`);
     }
@@ -486,23 +482,12 @@ test('the mobile layout hands every control back to the desktop header', () => {
   });
 });
 
-test('the SERLOAD label is shortened for the fixed-width mobile buttons', () => {
+test('the controls keep their order after the round trip through mobile', () => {
   withMobileDom((dom, ui) => {
-    ui.initializeMobileControls();
-    assert.equal(dom.ids['serload-btn'].textContent, 'SERLOAD',
-                 'the ellipsis only clips at the mobile button width');
-    ui.restoreDesktopLayout();
-    assert.equal(dom.ids['serload-btn'].textContent, 'SERLOAD\u2026',
-                 'the desktop label is not restored');
-  });
-});
-
-test('SERLOAD comes back in front of the view toggle', () => {
-  withMobileDom((dom, ui) => {
+    const before = dom.panelControls.children.map((c) => c.id);
     ui.initializeMobileControls();
     ui.restoreDesktopLayout();
-    const order = dom.panelControls.children.map((c) => c.id);
-    assert.ok(order.indexOf('serload-btn') < order.indexOf('view-toggle'),
-              `order after the round trip was: ${order.join(', ')}`);
+    assert.deepEqual(dom.panelControls.children.map((c) => c.id), before,
+                     'the desktop order must survive a resize round trip');
   });
 });

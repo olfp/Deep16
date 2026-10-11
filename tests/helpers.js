@@ -43,7 +43,7 @@ export function buildMemory(res, fill = 0xFFFF) {
 
 // Run a program on the JS core. cs defaults to 0xFFFF so the built-in ROM
 // boots the way it does in the IDE.
-export function runJs(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000, maxSteps = 200000, fill = 0xFFFF, keys = [], serial = '', serialEof = false } = {}) {
+export function runJs(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000, maxSteps = 200000, fill = 0xFFFF, keys = [] } = {}) {
   const { Deep16Simulator } = globalThis;
   if (!res.success) throw new Error(`program does not assemble: ${res.errors.join('; ')}`);
   const sim = new Deep16Simulator();
@@ -55,8 +55,6 @@ export function runJs(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000,
   sim.running = true;
   for (const code of keys) sim.enqueueKeyCode(code & 0xFFFF);
   // Serial line (SERPLAN.md): preload the queue, then optionally raise EOF.
-  if (serial) sim.serialPushString(serial);
-  if (serialEof) sim.serialSetEof(true);
   let steps = 0;
   while (sim.running && steps < maxSteps) { sim.step(); steps++; }
   return { sim, steps, registers: sim.registers, memory: sim.memory };
@@ -87,7 +85,7 @@ export async function loadWasm() {
 }
 
 // Run a program on the WASM core and return the same shape as runJs.
-export async function runWasm(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000, maxSteps = 200000, keys = [], serial = '', serialEof = false } = {}) {
+export async function runWasm(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000, maxSteps = 200000, keys = [] } = {}) {
   if (!res.success) throw new Error(`program does not assemble: ${res.errors.join('; ')}`);
   const w = await loadWasm();
   w.init(MEM_WORDS);
@@ -99,8 +97,6 @@ export async function runWasm(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es =
   // the Forth REPL's BIOS getch/getstr read KBD_STATUS/KBD_DATA at 0xF0060/2.
   for (const code of keys) w.kbd_push(code & 0xFFFF);
   // Serial line (SERPLAN.md): characters first, then the EOF flag.
-  for (const ch of serial) w.serial_push(ch.charCodeAt(0));
-  if (serialEof) w.serial_set_eof(true);
   let steps = 0;
   let cont = true;
   while (cont && steps < maxSteps) { cont = w.step(); steps++; }
@@ -111,8 +107,7 @@ export async function runWasm(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es =
     segments: Array.from(w.get_segments()),
     memoryAt: (addr, count) => Array.from(w.get_memory_slice(addr, count)),
     kbdPush: (code) => w.kbd_push(code & 0xFFFF),
-    serialPush: (code) => w.serial_push(code & 0xFFFF),
-    serialAvailable: () => w.serial_available(),
+    kbdAvailable: () => w.kbd_available(),
   };
 }
 
@@ -130,7 +125,7 @@ export async function loadRtl() {
 }
 
 // Run a program on the RTL core and return the same shape as runWasm.
-export async function runRtl(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000, maxSteps = 200000, keys = [], serial = '', serialEof = false } = {}) {
+export async function runRtl(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000, maxSteps = 200000, keys = [] } = {}) {
   if (!res.success) throw new Error(`program does not assemble: ${res.errors.join('; ')}`);
   const r = await loadRtl();
   r.init(MEM_WORDS);
@@ -139,8 +134,6 @@ export async function runRtl(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 
   }
   r.set_segments(cs, ds, ss, es);
   for (const code of keys) r.kbd_push(code & 0xFFFF);
-  for (const ch of serial) r.serial_push(ch.charCodeAt(0));
-  if (serialEof) r.serial_set_eof();
   let steps = 0;
   let cont = true;
   while (cont && steps < maxSteps) { cont = r.step(); steps++; }
@@ -152,7 +145,7 @@ export async function runRtl(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 
     shadow: Array.from(r.get_shadow_state()),
     memoryAt: (addr, count) => Array.from(r.get_memory_slice(addr, count)),
     kbdPush: (code) => r.kbd_push(code & 0xFFFF),
-    serialAvailable: () => r.serial_available(),
+    kbdAvailable: () => r.kbd_available(),
     cycleCount: () => r.get_cycle_count(),
     stallCount: () => r.get_stall_count(),
     flushCount: () => r.get_flush_count(),

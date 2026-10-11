@@ -1,7 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
 export function init(mem_words: number): void;
-export function get_shadow_state(): Uint16Array;
 export function reset(): void;
 export function set_segments(cs: number, ds: number, ss: number, es: number): void;
 export function load_program(ptr: number, data: Uint16Array): void;
@@ -13,25 +12,16 @@ export function load_program(ptr: number, data: Uint16Array): void;
 export function kbd_push(code: number): void;
 export function kbd_clear(): void;
 /**
- * Push one character into the serial queue (parity with the JS core's
- * `serialPush`). The host feeds a source in chunks while the machine polls.
+ * How many keystrokes are still queued. The host reads this before it pushes:
+ * the RTL core has a 128 entry FIFO and drops a keystroke that arrives while
+ * it is full, so typing a file in has to be paced by what the machine
+ * consumed.
  */
-export function serial_push(code: number): void;
-/**
- * Raise or lower the end-of-transmission flag. Queued characters stay
- * readable: SER_STATUS only reports 2 once the queue has drained.
- */
-export function serial_set_eof(on: boolean): void;
-export function serial_clear(): void;
-/**
- * How many characters are still queued. The host needs this before it pushes:
- * the RTL core has a 128 entry FIFO and silently drops a push that arrives
- * while it is full, so feeding has to be demand-driven.
- */
-export function serial_available(): number;
+export function kbd_available(): number;
 export function run_steps(n: number): boolean;
 export function get_recent_access(): Uint32Array;
 export function get_last_event(): Uint16Array;
+export function get_shadow_state(): Uint16Array;
 /**
  * Overwrite the register file (R0..R15) from outside, mirroring
  * `get_registers`: while the shadow set is active (PSW.S = 1) element 15 is
@@ -65,22 +55,19 @@ export interface InitOutput {
   readonly get_segments: () => [number, number];
   readonly get_shadow_state: () => [number, number];
   readonly init: (a: number) => void;
+  readonly kbd_available: () => number;
   readonly kbd_clear: () => void;
   readonly kbd_push: (a: number) => void;
   readonly load_program: (a: number, b: number, c: number) => void;
   readonly reset: () => void;
   readonly run_steps: (a: number) => number;
-  readonly serial_available: () => number;
-  readonly serial_clear: () => void;
-  readonly serial_push: (a: number) => void;
-  readonly serial_set_eof: (a: number) => void;
   readonly set_psw: (a: number) => void;
   readonly set_registers: (a: number, b: number) => void;
   readonly set_segments: (a: number, b: number, c: number, d: number) => void;
   readonly step: () => number;
   readonly __wbindgen_externrefs: WebAssembly.Table;
-  readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
+  readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_start: () => void;
 }
 

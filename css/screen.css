@@ -94,6 +94,42 @@
 /* The full address range wraps onto two lines on narrow portrait screens. */
 .screen-info-short { display: none; }
 
+/* Typing a file in. The button looks like the other screen controls, and the
+   hint beside it reports what is waiting - a queued file, a full queue, or a
+   finished one. It has to stay readable without being in the way, so it is one
+   row that wraps rather than a fixed width. */
+.screen-upload {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.screen-upload button {
+    padding: 3px 10px;
+    background: #0e639c;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    min-height: 22px;
+    box-shadow: none;
+    outline: none;
+}
+
+.screen-upload button:hover { background: #1177bb; }
+
+.screen-upload-hint {
+    color: #6a9955;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    min-height: 12px;
+}
+
 /* Column pager: hidden by default, shown only where 80 columns do not fit. */
 .screen-pager {
     display: none;

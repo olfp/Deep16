@@ -88,12 +88,7 @@ export default async function initDeep16Rtl(options = {}) {
 
     kbd_push: (code) => Module._kbd_push(code & 0xFFFF),
     kbd_clear: () => Module._kbd_clear(),
-
-    // Serial line (SERPLAN.md): characters first, then the EOF flag.
-    serial_push: (code) => Module._serial_push(code & 0xFFFF),
-    serial_set_eof: () => Module._serial_set_eof(),
-    serial_clear: () => Module._serial_clear(),
-    serial_available: () => Module._serial_available(),
+    kbd_available: () => Module._kbd_available(),
 
     get_recent_access: () => {
       const ptr = reserve(24);

@@ -56,15 +56,6 @@ class Deep16Simulator {
         this.kbdBuffer = [];
         this.kbdLastData = 0;
 
-        // Serial line. The host pushes Forth source into this queue and then
-        // raises the end-of-transmission flag. SER_STATUS answers 0 = empty,
-        // 1 = a character is pending, 2 = end of transmission. See SERPLAN.md.
-        this.SER_STATUS_ADDR = this.ioBase + 0x0064;
-        this.SER_DATA_ADDR = this.ioBase + 0x0066;
-        this.serBuffer = [];
-        this.serEof = false;
-        this.serLastData = 0;
-
         // Boot ROM, same as the WASM core's init(): a fresh machine can run
         // without an explicit loadProgram() first.
         this.autoloadROM();
@@ -110,11 +101,6 @@ class Deep16Simulator {
         // Reset keyboard buffer
         this.kbdBuffer = [];
         this.kbdLastData = 0;
-        // Reset serial line as well, so a machine restart cannot inherit a
-        // half-transferred source or a stale end-of-transmission flag.
-        this.serBuffer = [];
-        this.serEof = false;
-        this.serLastData = 0;
     }
 
     phys(seg, off) {
@@ -981,18 +967,6 @@ class Deep16Simulator {
                 const data = this.kbdBuffer.length > 0 ? (this.kbdBuffer.shift() & 0xFFFF) : 0;
                 this.kbdLastData = data;
                 this.writeGPR(rd, data);
-            } else if (physicalAddress === this.SER_STATUS_ADDR) {
-                // 2 only once the queue has drained, so the machine reads every
-                // character before it ever sees the end of transmission.
-                const status = this.serBuffer.length > 0 ? 1 : (this.serEof ? 2 : 0);
-                this.writeGPR(rd, status);
-            } else if (physicalAddress === this.SER_DATA_ADDR) {
-                // One read consumes exactly one character. Reading never clears
-                // the end-of-transmission flag, so a read on an empty queue
-                // cannot swallow the EOF the kernel is waiting for.
-                const data = this.serBuffer.length > 0 ? (this.serBuffer.shift() & 0xFFFF) : 0;
-                this.serLastData = data;
-                this.writeGPR(rd, data);
             } else if (physicalAddress < this.memory.length) {
                 this.writeGPR(rd, this.memory[physicalAddress] & 0xFFFF);
             }
@@ -1180,34 +1154,12 @@ class Deep16Simulator {
         this.kbdBuffer.push(c);
     }
 
-    // Serial line, host side (see SERPLAN.md). Characters go in one at a time;
-    // the machine polls SER_STATUS and empties the queue as it runs, so a long
-    // source has to be fed in chunks rather than in one go.
-    serialPush(code) {
-        this.serBuffer.push(code & 0xFFFF);
-    }
-
-    serialPushString(text) {
-        for (const ch of text) this.serialPush(ch.charCodeAt(0));
-    }
-
-    // Raising EOF does not discard what is still queued: SER_STATUS only
-    // reports 2 once the queue has drained.
-    serialSetEof(on = true) {
-        this.serEof = !!on;
-    }
-
-    serialClear() {
-        this.serBuffer = [];
-        this.serEof = false;
-        this.serLastData = 0;
-    }
-
-    // How many characters are still queued. The host needs this before it
-    // pushes: the RTL core has a 128 entry FIFO and silently drops a push
-    // that arrives while it is full, so feeding has to be demand-driven.
-    serialAvailable() {
-        return this.serBuffer.length;
+    // How many keystrokes are still queued. The host reads this before it
+    // pushes: the RTL core has a 128 entry FIFO and drops a keystroke that
+    // arrives while it is full, so typing a file in has to be paced by what
+    // the machine has actually consumed.
+    kbdAvailable() {
+        return this.kbdBuffer.length;
     }
 
     enqueueKeyEvent(e) {

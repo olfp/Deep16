@@ -5,13 +5,6 @@ use wasm_bindgen::prelude::*;
 const KBD_STATUS_ADDR: usize = 0xF0060;
 const KBD_DATA_ADDR: usize = 0xF0062;
 
-// Serial line that carries Forth source into the machine (SERPLAN.md).
-// SER_STATUS reads 0 while the queue is empty, 1 while a character is pending
-// and 2 once the queue has drained and the host signalled end of transmission.
-// SER_DATA pops exactly one character and never touches the EOF flag.
-const SER_STATUS_ADDR: usize = 0xF0064;
-const SER_DATA_ADDR: usize = 0xF0066;
-
 struct Cpu {
     mem: Vec<u16>,
     reg: [u16; 16],
@@ -47,9 +40,6 @@ struct Cpu {
     shift_carry_out: Option<i32>,
     kbd: Vec<u16>,
     kbd_last: u16,
-    ser: Vec<u16>,
-    ser_eof: bool,
-    ser_last: u16,
     recent_addr: usize,
     recent_base: u16,
     recent_offset: u16,
@@ -100,9 +90,6 @@ impl Cpu {
             shift_carry_out: None,
             kbd: Vec::new(),
             kbd_last: 0,
-            ser: Vec::new(),
-            ser_eof: false,
-            ser_last: 0,
             recent_addr: 0,
             recent_base: 0,
             recent_offset: 0,
@@ -148,9 +135,6 @@ impl Cpu {
         self.shift_carry_out = None;
         self.kbd.clear();
         self.kbd_last = 0;
-        self.ser.clear();
-        self.ser_eof = false;
-        self.ser_last = 0;
         self.recent_addr = 0;
         self.recent_base = 0;
         self.recent_offset = 0;
@@ -968,17 +952,6 @@ fn exec_lds_sts(c: &mut Cpu, instr: u16) {
             let data = if c.kbd.is_empty() { 0 } else { c.kbd.remove(0) & 0xFFFF };
             c.kbd_last = data;
             gp_write(c, rd, data);
-        } else if pa == SER_STATUS_ADDR {
-            // 2 only once the queue has drained, so the machine reads every
-            // character before it ever sees the end of transmission.
-            let status = if !c.ser.is_empty() { 1 } else if c.ser_eof { 2 } else { 0 };
-            gp_write(c, rd, status);
-        } else if pa == SER_DATA_ADDR {
-            // One read consumes exactly one character and never clears the EOF
-            // flag, so an empty read cannot swallow it.
-            let data = if c.ser.is_empty() { 0 } else { c.ser.remove(0) & 0xFFFF };
-            c.ser_last = data;
-            gp_write(c, rd, data);
         } else {
             let v = c.mem[pa];
             gp_write(c, rd, v);
@@ -1022,40 +995,13 @@ pub fn kbd_clear() {
     }
 }
 
-/// Push one character into the serial queue (parity with the JS core's
-/// `serialPush`). The host feeds a source in chunks while the machine polls.
+/// How many keystrokes are still queued. The host reads this before it pushes:
+/// the RTL core has a 128 entry FIFO and drops a keystroke that arrives while
+/// it is full, so typing a file in has to be paced by what the machine
+/// consumed.
 #[wasm_bindgen]
-pub fn serial_push(code: u16) {
-    unsafe {
-        cpu_mut().ser.push(code & 0xFFFF);
-    }
-}
-
-/// Raise or lower the end-of-transmission flag. Queued characters stay
-/// readable: SER_STATUS only reports 2 once the queue has drained.
-#[wasm_bindgen]
-pub fn serial_set_eof(on: bool) {
-    unsafe {
-        cpu_mut().ser_eof = on;
-    }
-}
-
-#[wasm_bindgen]
-pub fn serial_clear() {
-    unsafe {
-        let c = cpu_mut();
-        c.ser.clear();
-        c.ser_eof = false;
-        c.ser_last = 0;
-    }
-}
-
-/// How many characters are still queued. The host needs this before it pushes:
-/// the RTL core has a 128 entry FIFO and silently drops a push that arrives
-/// while it is full, so feeding has to be demand-driven.
-#[wasm_bindgen]
-pub fn serial_available() -> u32 {
-    unsafe { cpu_ref().ser.len() as u32 }
+pub fn kbd_available() -> u32 {
+    unsafe { cpu_ref().kbd.len() as u32 }
 }
 
 #[wasm_bindgen]
