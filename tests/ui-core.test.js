@@ -31,8 +31,14 @@ globalThis.window = globalThis.window || {};
 
 vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_core.js'), 'utf8'),
                     { filename: 'deep16_ui_core.js' });
+// The screen subsystem lives in its own file; the column-pager tests drive it
+// directly, so it has to be in scope here.
+vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_screen.js'), 'utf8'),
+                    { filename: 'deep16_ui_screen.js' });
 const DeepWebUI = vm.runInThisContext('DeepWebUI');
 const Deep16Simulator = vm.runInThisContext('Deep16Simulator');
+const Deep16ScreenUI = vm.runInThisContext('Deep16ScreenUI');
+assert.ok(Deep16ScreenUI, 'deep16_ui_screen.js must define Deep16ScreenUI');
 
 const PROGRAM = `
         .org 0x0100
@@ -371,7 +377,19 @@ function makeEl(tag = 'div') {
     children: [],
     parentElement: null,
     offsetWidth: 50,
-    classList: { add() {}, remove() {}, toggle() {} },
+    // A real classList, so a test can assert on a class the code sets. The
+    // stubs used to be no-ops, which would let anything pass.
+    classes: new Set(),
+    classList: {
+      add(name) { el.classes.add(name); },
+      remove(name) { el.classes.delete(name); },
+      contains(name) { return el.classes.has(name); },
+      toggle(name, force) {
+        const on = force === undefined ? !el.classes.has(name) : !!force;
+        if (on) el.classes.add(name); else el.classes.delete(name);
+        return on;
+      },
+    },
     appendChild(child) {
       if (child.parentElement) child.parentElement.removeChild(child);
       child.parentElement = this;
@@ -490,4 +508,131 @@ test('the controls keep their order after the round trip through mobile', () => 
     assert.deepEqual(dom.panelControls.children.map((c) => c.id), before,
                      'the desktop order must survive a resize round trip');
   });
+});
+// ---------------------------------------------------------------------------
+// Whether all 80 columns fit is measured where the screen is, not guessed from
+// the viewport. The screen lives in the editor panel and the memory panel beside
+// it can be dragged down far enough to clip 640 px on a desktop that is itself
+// wide - a media query would call that "room enough" and cut the text off with
+// no way to reach it.
+// ---------------------------------------------------------------------------
+
+// A tab element whose layout width the test can set.
+function screenDom(width) {
+  const tab = makeEl();
+  tab.id = 'screen-tab';
+  tab.clientWidth = width;
+  const display = makeEl();
+  display.id = 'screen-display';
+  tab.appendChild(display);
+  const ids = { 'screen-tab': tab, 'screen-display': display };
+  for (const n of ['screen-page-prev', 'screen-page-next']) {
+    const b = makeEl('button');
+    b.id = n;
+    ids[n] = b;
+  }
+  const label = makeEl('span');
+  label.id = 'screen-page-label';
+  ids['screen-page-label'] = label;
+  return { tab, display, ids };
+}
+
+// A screen UI instance with the layout-dependent fields seeded, driving the
+// real applyColumnMode() / ensureCursorVisible().
+function screenInstance(dom) {
+  const s = Object.create(Deep16ScreenUI.prototype);
+  s.screenWidth = 80;
+  s.screenHeight = 24;
+  s.requiredWidth = 640;
+  s.activePage = 0;
+  s.visibleCols = 80;
+  s.lastCursorIndex = null;
+  s.tabElement = () => dom.tab;
+  s.setPage = function (p) { this.activePage = p; };
+  return s;
+}
+
+function withScreenDom(width, fn) {
+  const dom = screenDom(width);
+  const prevDoc = globalThis.document;
+  const prevResize = globalThis.ResizeObserver;
+  const prevGet = globalThis.window.getComputedStyle;
+  globalThis.document = {
+    getElementById: (id) => dom.ids[id] || null,
+    querySelector: () => dom.tab,
+    createElement: (tag) => makeEl(tag),
+    documentElement: { style: { setProperty() {} } },
+  };
+  // No layout engine here, so the tab's padding reads as zero.
+  globalThis.window.getComputedStyle = () => ({ paddingLeft: '0px', paddingRight: '0px' });
+  globalThis.ResizeObserver = undefined;    // exercise the window-listener path
+  try {
+    return fn(dom, screenInstance(dom));
+  } finally {
+    globalThis.document = prevDoc;
+    globalThis.ResizeObserver = prevResize;
+    globalThis.window.getComputedStyle = prevGet;
+  }
+}
+
+test('all 80 columns show when the tab is wide enough', () => {
+  withScreenDom(900, (dom, s) => {
+    s.applyColumnMode();
+    assert.equal(s.visibleCols, 80, '80 columns at 8px fit in 900px');
+    assert.equal(dom.tab.classes.has('screen-narrow'), false);
+  });
+});
+
+test('the pager takes over when the tab is too narrow for 80 columns', () => {
+  withScreenDom(500, (dom, s) => {
+    s.applyColumnMode();
+    assert.equal(s.visibleCols, 40, '40 columns at 8px fit in 500px');
+    assert.equal(dom.tab.classes.has('screen-narrow'), true,
+                 'the class that shows the pager and hides columns 41-80 must be set');
+  });
+});
+
+test('exactly at the threshold all 80 columns still show', () => {
+  withScreenDom(640, (dom, s) => {
+    s.applyColumnMode();
+    assert.equal(s.visibleCols, 80, '640 px is exactly the width of the screen');
+  });
+});
+
+test('a tab with no layout yet is left alone rather than called too narrow', () => {
+  // An inactive tab has clientWidth 0. Reading that as "no room" would switch
+  // the pager on and hide half the screen for no reason.
+  withScreenDom(0, (dom, s) => {
+    s.applyColumnMode();
+    assert.equal(s.visibleCols, 80, 'a tab without layout must not trigger the pager');
+    assert.equal(dom.tab.classes.has('screen-narrow'), false);
+  });
+});
+
+test('going back to full width hides the pager again', () => {
+  withScreenDom(500, (dom, s) => {
+    s.applyColumnMode();
+    assert.equal(dom.tab.classes.has('screen-narrow'), true);
+    dom.tab.clientWidth = 900;
+    s.applyColumnMode();
+    assert.equal(dom.tab.classes.has('screen-narrow'), false);
+    assert.equal(s.visibleCols, 80);
+    assert.equal(s.activePage, 0, 'the pager returns to the first page');
+  });
+});
+
+test('the cursor follows the pager only while it is in use', () => {
+  const s = screenInstance({ tab: makeEl() });
+  // Column 70 with all 80 visible: nothing to page to.
+  s.lastCursorIndex = 70;
+  s.ensureCursorVisible();
+  assert.equal(s.activePage, 0, 'no page switch when everything is visible');
+  // Same cursor with the pager active: column 70 is on the right page.
+  s.visibleCols = 40;
+  s.ensureCursorVisible();
+  assert.equal(s.activePage, 1, 'the cursor pulls the pager along');
+  // A cursor in the first 40 goes back.
+  s.lastCursorIndex = 5;
+  s.ensureCursorVisible();
+  assert.equal(s.activePage, 0);
 });

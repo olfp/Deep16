@@ -30,10 +30,13 @@ class Deep16ScreenUI {
         // make the whole IDE stutter while a program runs.
         this.lastDrawn = new Int32Array(this.totalChars).fill(-1);
 
-        // Portrait phones only get half the columns - see the matching media
-        // query in css/screen.css. Keep the predicate here in sync with it.
-        this.portraitQuery = window.matchMedia('(orientation: portrait) and (max-width: 768px)');
-        this.visibleCols = this.portraitQuery.matches ? 40 : this.screenWidth;
+        // Whether all 80 columns fit is not a question the viewport can answer: the
+        // screen sits in the editor panel, and the memory panel next to it can
+        // be dragged down to almost nothing. So the width is measured where the
+        // screen actually is, and the pager - the same one the phone view uses -
+        // takes over when there is not enough room.
+        this.requiredWidth = 640;              // 80 columns at 8 px
+        this.visibleCols = this.screenWidth;
         this.activePage = 0; // 0 = columns 1-40, 1 = columns 41-80
 
         this.initializeScreen();
@@ -76,27 +79,55 @@ class Deep16ScreenUI {
         palette.innerHTML = html;
     }
 
-    // Wire the column pager and follow viewport/orientation changes, so
-    // rotating the phone re-evaluates how many columns are visible.
+    // Wire the column pager and re-measure whenever the panel changes size, so
+    // dragging the split or rotating the phone re-evaluates how many columns
+    // fit.
     setupPager() {
         const prevBtn = document.getElementById('screen-page-prev');
         const nextBtn = document.getElementById('screen-page-next');
         if (prevBtn) prevBtn.addEventListener('click', () => this.setPage(0));
         if (nextBtn) nextBtn.addEventListener('click', () => this.setPage(1));
 
-        const onChange = () => this.applyColumnMode();
-        if (typeof this.portraitQuery.addEventListener === 'function') {
-            this.portraitQuery.addEventListener('change', onChange);
-        } else if (typeof this.portraitQuery.addListener === 'function') {
-            this.portraitQuery.addListener(onChange); // Safari < 14
+        const host = this.tabElement();
+        if (host && typeof ResizeObserver === 'function') {
+            this.resizeObserver = new ResizeObserver(() => this.applyColumnMode());
+            this.resizeObserver.observe(host);
+        } else if (typeof window.addEventListener === 'function') {
+            window.addEventListener('resize', () => this.applyColumnMode());
         }
     }
 
+    tabElement() {
+        return document.getElementById('screen-tab')
+            || document.querySelector('.screen-tab');
+    }
+
+    // Inner width of the tab, i.e. what is actually left for the screen once
+    // the tab's own padding is off. Zero when the tab is hidden - an inactive
+    // tab has no layout, and measuring it would report "no room" and switch the
+    // pager on for the wrong reason.
+    availableWidth() {
+        const host = this.tabElement();
+        if (!host) return null;
+        const width = host.clientWidth;
+        if (!width) return null;
+        let padding = 0;
+        try {
+            const style = window.getComputedStyle(host);
+            padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+        } catch (e) { /* no layout engine: fall back to clientWidth */ }
+        return width - padding;
+    }
+
     applyColumnMode() {
-        const portrait = this.portraitQuery.matches;
-        this.visibleCols = portrait ? 40 : this.screenWidth;
-        // Outside portrait the pager is hidden and all 80 columns show.
-        if (!portrait) this.activePage = 0;
+        const available = this.availableWidth();
+        if (available === null) return;         // not laid out yet - try again later
+        const narrow = available < this.requiredWidth;
+        this.visibleCols = narrow ? 40 : this.screenWidth;
+        // With all 80 columns visible the pager is meaningless.
+        if (!narrow) this.activePage = 0;
+        const host = this.tabElement();
+        if (host) host.classList.toggle('screen-narrow', narrow);
         this.setPage(this.activePage);
     }
 
@@ -119,11 +150,11 @@ class Deep16ScreenUI {
     }
 
     // The reverse-video cursor is the only feedback a REPL gives, so the page
-    // must follow it. No-op when the cursor has not moved (or in landscape,
-    // where every column is visible anyway).
+    // must follow it. No-op when the cursor has not moved, or when all 80
+    // columns are visible anyway.
     ensureCursorVisible() {
         if (this.lastCursorIndex === null) return;
-        if (!this.portraitQuery.matches) return;
+        if (this.visibleCols >= this.screenWidth) return;
         const col = this.lastCursorIndex % this.screenWidth;
         const page = col >= this.visibleCols ? 1 : 0;
         if (page !== this.activePage) this.setPage(page);

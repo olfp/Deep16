@@ -257,37 +257,30 @@
     animation: screen-glow 3s ease-in-out infinite;
 }
 
-/* Mobile responsiveness. The cell grid is fixed (8 x 15 px per character), so
-   the screen no longer stretches to the viewport: it stays 640 px wide and the
-   page scrolls if that is more than the phone offers. Scaling the cells instead
-   would break the one thing the whole screen depends on - that cell N is always
-   the same distance from the left edge as every other row. */
-@media (max-width: 768px) {
-    .screen-display { width: 640px; padding: 0; }
-}
+/* Not enough room for all 80 columns.
+   The cell grid is fixed (8 x 15 px per character), so it cannot be squeezed
+   without the characters overlapping - that would break the one thing the
+   whole screen depends on, that cell N is always the same distance from the
+   left edge as every other row. So the screen shows 40 columns and the pager
+   reaches the other half, exactly as the phone view does.
 
-/* Portrait phones: 80 columns do not fit the viewport. Rather than squeeze the
-   cells (which makes the characters overlap), show the first 40 columns at
-   their natural 8px and page to the other half. Only *visibility* changes:
-   each .screen-row still holds all 80 spans addressed by their grid index
-   (screen-char-N), so the memory path in deep16_ui_screen.js is untouched and
-   needs no index remapping.
+   The class is set by deep16_ui_screen.js from the *measured* width of the
+   tab, not from a media query: the screen lives in the editor panel, and the
+   memory panel beside it can be dragged down far enough to clip 640 px on a
+   desktop screen that is itself wide. Only *visibility* changes - each
+   .screen-row still holds all 80 spans addressed by their grid index
+   (screen-char-N), so the memory path needs no index remapping. */
+.screen-narrow .screen-display { width: 320px; }   /* 40 columns at 8px */
+.screen-narrow .screen-menu { width: 320px; }
 
-   This must stay a portrait query. In landscape the phone is wider than 768px,
-   the block above does not apply, and all 80 columns show. */
-@media (orientation: portrait) and (max-width: 768px) {
-    .screen-display { width: 320px; }   /* 40 columns at 8px */
-    .screen-menu { width: 320px; }
+/* Left page: columns 1-40. Right page: columns 41-80. */
+.screen-narrow .screen-char:nth-child(n+41) { display: none; }
+.screen-narrow .screen-display.page-right .screen-char:nth-child(-n+40) { display: none; }
 
-    /* Left page: columns 1-40. Right page: columns 41-80. */
-    .screen-char:nth-child(n+41) { display: none; }
-    .screen-display.page-right .screen-char:nth-child(-n+40) { display: none; }
+.screen-narrow .screen-pager { display: flex; }
 
-    .screen-pager { display: flex; }
-
-    .screen-info-full { display: none; }
-    .screen-info-short { display: inline; }
-}
+.screen-narrow .screen-info-full { display: none; }
+.screen-narrow .screen-info-short { display: inline; }
 
 /* Hidden terminal keyboard hook (iOS soft keyboard).
    Must stay *focusable* (not display:none): iOS refuses to summon the keyboard
