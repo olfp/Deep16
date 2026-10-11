@@ -285,11 +285,13 @@ bewusste Entscheidung und keine Lücke.
    (verschachtelte Jcc gemessen: innerer entscheidet, äußerer fällt weg).
 3. ✅ **Kapitel 6** abgeschlossen (Memory-Mapped I/O, Delay-Slot-Diagnose,
    JS-/WASM-Vergleich).
-4. Danach: Kapitel 7 (Mini-Forth) — die Schleife aus Listing 6-5 wird zur
-   REPL-Zeile, `asm/forth.asm` liegt dafür bereits vor. Material liefert
-   `SERPLAN.md`: `SERLOAD`, EOF-Statuswert und die Zeilenlängengrenze sind
-   gemessen und im Kernel getestet; offen sind nur `EVALUATE` und die
-   Bestätigung der Host-Anbindung im Browser.
+4. ✅ **Kapitel 7** abgeschlossen (Mini-Forth, Listings 7-1 bis 7-5) und
+   ✅ **Kapitel 8** abgeschlossen (Snake, Listings 8-1 bis 8-4).
+5. ✅ **Anhänge A–D** abgeschlossen (`book/anhang.md`). Damit ist der
+   Buchplan aus `book/README.md` ausgeschöpft: 8 Kapitel + 4 Anhänge.
+6. **Offen, wenn es weitergeht:** `SERPLAN.md` Schritt 9 (`EVALUATE`) und die
+   Bestätigung von `SERLOAD` im Browser — beides Material für ein Kapitel 9
+   über den **seriellen** Forth, das das Kernprogramm des Projekts ist.
 
 ---
 
@@ -585,13 +587,25 @@ die einzige Änderung, die für die Iterativ-Teilung überhaupt nötig ist.
 
 ## Bekannte Mängel
 
-* **Nicht getestet:** `npm run lint:rtl` scheitert an
-  `Cannot find file containing module: 'deep16_cache'` — die Datei fehlt in der
-  Quellliste des npm-Skripts. Vorbestehend, mit `rtl/deep16_cache.sv` in der
-  Liste ist der Build lint-frei. Einzeilige Korrektur.
-* **Verhindert FPGA-Bau:** `DIV`/`DIV32` im Einzelzyklus (siehe oben).
+* **Keine.** Die beiden am 2026-10-10 vermerkten Punkte sind erledigt:
+  - ~~`npm run lint:rtl` scheitert an `deep16_cache`~~ — behoben am 2026-10-10,
+    die Quellliste entspricht jetzt `scripts/build_rtl_native.sh`; Lint läuft mit
+    `-Wall` fehler- **und warnungsfrei** durch.
+  - ~~`DIV`/`DIV32` im Einzelzyklus verhindert den FPGA-Bau~~ — behoben am
+    2026-10-10 durch `rtl/deep16_divider.sv` (iterativer Radix-4-Kern, 16 Takte,
+    **ein** Kern für `DIV` und `DIV32`).
 * Der am 2026-10-10 vormerkte `LDI`-Bereichsfehler ist **kein Fehler** —
   die Vermerkung war eine Fehldiagnose (siehe Entscheidungs-Log).
+
+**Was tatsächlich offen bleibt** — nicht Mängel, sondern Arbeit:
+
+| Punkt | Wo | Warum offen |
+|---|---|---|
+| Opcode-Tabelle in `doc/Deep16-Arch.md` | drei Bereiche veraltet | Die Spec gehört dem Parallelautor; Anhang A nennt die gemessenen Werte, die Buchdiagramme stimmen (33/33 geprüft) |
+| `SERLOAD` im Browser | `SERPLAN.md`, Schritt 9 | Nie im Browser gelaufen; Pump-Logik nur gegen den echten Kernel auf dem JS-Kern getestet |
+| `EVALUATE` | `SERPLAN.md` | Der letzte offene Schritt des seriellen Forth |
+| Kapitel 9 ff. | `book/README.md` | Buchplan ist mit Kapitel 8 + Anhängen ausgeschöpft |
+| `PSRAM` / `GFX` | `PLANPSRAM.md`, `GFX.md` | Nicht implementiert — bewusst kein Buchinhalt (Anhang D.4) |
 
 ---
 
