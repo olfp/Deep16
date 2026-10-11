@@ -18,6 +18,12 @@
 ; terminal default draws it, so a blank cell is written as 0x0020 and the
 ; kernel never has to store a colour of its own.
 ;
+; The order is the ANSI one, so the foreground is the LOW nibble and the
+; background the high one. A program that paints a foreground therefore masks
+; the colour with 0x0F and ORs it in; shifting the value left by four puts it
+; into the background instead, which shows up as a fully painted cell in the
+; colour that was meant for the character. See forth/hanoi.fth set-fg-attr.
+;
 ; The cursor is not a bit of its own: with both nibbles in use there is no bit
 ; left for it, and there does not need to be. Reverse video is the two nibbles
 ; swapped, so the cursor cell is the default colour reversed - black on light

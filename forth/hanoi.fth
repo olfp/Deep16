@@ -1,6 +1,9 @@
 \ Towers of Hanoi with colored disks
 \ for Deep16 Forth kernel (asm/forth.asm)
-\ Size of disk = foreground color attribute (high byte foreground nibble)
+\ Size of disk = foreground colour attribute.
+\ The high byte of a screen cell is (background << 4) | foreground - the
+\ usual ANSI order, as in an SGR sequence. Foreground is therefore the LOW
+\ nibble: mask with 15, never shift by 4.
 \ Pegs: 0=left, 1=middle, 2=right
 
 0x1000 constant screen-start
@@ -18,11 +21,13 @@
     STS R0, ES, POS
     ADD POS, 1
 
-\ Set foreground attribute to disk size (0-7), clear background
+\ Set foreground attribute to disk size (0-7), clear background.
+\ No shift: the foreground belongs in the low nibble, the background in the
+\ high one. "over 4 lshift" would put the disk size into the background and
+\ paint the whole screen in its colour.
 : set-fg-attr ( size -- )
-    dup 15 and
-    0 0 ATTR_MASK and
-    over 4 lshift
+    dup 15 and          \ size in the low nibble, where the foreground is
+    0 0 ATTR_MASK and   \ the character, attribute cleared
     OR
     STS R0, ES, POS
     ADD POS, 1

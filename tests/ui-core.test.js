@@ -844,3 +844,23 @@ test('the repaint cache still lets a changed cell through', () => {
       'and the marker goes away again when the cursor does');
   });
 });
+
+// The nibble order is pinned from the drawing end as well as in the kernel
+// tests. Written the ANSI way, the background sits high and the foreground
+// low; swap the two in the code below and the two palettes are exchanged,
+// which no other test here would notice.
+test('the low nibble is the foreground and the high one the background', () => {
+  withCells(2, (ids, s) => {
+    const fg = 5, bg = 9;                 // magenta on bright black
+    s.drawWord(0, (((bg << 4) | fg) << 8) | 0x41);
+    assert.equal(ids['screen-char-0'].style.color, s.palette[fg],
+      `palette[${fg}] must be the character colour`);
+    assert.equal(ids['screen-char-0'].style.backgroundColor, s.palette[bg],
+      `palette[${bg}] must be the background`);
+    // The mistake this guards against: the foreground shifted into the high
+    // nibble paints the cell in the character colour and puts the background
+    // on the glyph.
+    const falsch = (fg << 4) | bg;
+    assert.notEqual(falsch, (bg << 4) | fg, 'the two orders must give different cells');
+  });
+});

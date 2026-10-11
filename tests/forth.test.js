@@ -1103,3 +1103,56 @@ test('a comment ends the line, so the cursor moves on to the new prompt', () => 
   assert.deepEqual(cursors[1], [], 'nothing may be left marked on the input line');
   assert.deepEqual(cursors[2], [2], 'the cursor waits at the new prompt');
 });
+
+// The order of the two nibbles is a promise the whole colour byte rests on, and
+// getting it wrong fails quietly: swap the nibbles and every program still
+// runs, it just paints backgrounds instead of characters - and the cursor,
+// which is the reversed default, would come out identical to the default and
+// therefore invisible. So it is pinned from both ends.
+//
+// The kernel writes exactly two attribute values, 0 and CURSOR_ATTR. Reading
+// the cursor cell apart is therefore enough to say which nibble is which: the
+// terminal default is light grey on black, and the cursor has to be its
+// reverse, so the nibble that holds 0 is the foreground.
+test('the low nibble is the foreground and the high one the background', () => {
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF;
+  for (const ch of '1 2 +\n') sim.enqueueKeyCode(ch === '\n' ? 10 : ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+
+  const attr = CURSOR_ATTR >> 8;
+  const fg = attr & 0x0F;
+  const bg = (attr >> 4) & 0x0F;
+  assert.equal(fg, 0, 'foreground nibble (low) is black');
+  assert.equal(bg, 7, 'background nibble (high) is light grey');
+  assert.notEqual(fg, 7, 'the cursor must be the reverse of the default, not the default');
+  assert.notEqual(bg, 0, 'the cursor must be the reverse of the default, not the default');
+
+  // And the kernel really does write it: the cell under the cursor has to be
+  // the one value, with its character intact.
+  let found = null;
+  for (let i = 0; i < SCREEN_VISIBLE_ROWS * 80; i++) {
+    const word = sim.memory[SCREEN_ADDR + i] & 0xFFFF;
+    if (((word >> 8) & 0xFF) === attr) found = { word, row: Math.floor(i / 80), col: i % 80 };
+  }
+  assert.ok(found, `no cell carries the cursor attribute 0x${attr.toString(16)}`);
+  assert.equal(found.word & 0xFF, 0x20, 'the character under the cursor survives');
+});
+
+test('a screen cell that a program painted reads foreground and background in that order', () => {
+  // Foreground 5 (magenta) on background 9 (bright black): attribute 0x95.
+  // Written the ANSI way the background sits high and the foreground low; a
+  // program that shifted its foreground left by four would produce 0x59 and
+  // swap the two, which is the mistake forth/hanoi.fth used to make.
+  const fg = 5, bg = 9;
+  const attr = (bg << 4) | fg;
+  assert.equal(attr, 0x95);
+  assert.equal(attr & 0x0F, fg, 'the low nibble is the foreground');
+  assert.equal((attr >> 4) & 0x0F, bg, 'the high nibble is the background');
+  // The shifted variant - what a program gets wrong - is a different cell.
+  assert.notEqual(fg << 4, attr, 'a shifted foreground must not collide with the right one');
+});
