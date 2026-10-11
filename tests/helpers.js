@@ -13,6 +13,16 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 export const MEM_WORDS = 1048576;   // 20-bit address space, 16-bit words
 export const SCREEN_ADDR = 0xF1000;
 
+// The high byte the kernel writes on the cell the cursor sits on: four bits of
+// background and four of foreground, reversed against the terminal default
+// (black on light grey instead of light grey on black). There is no separate
+// cursor bit - with both nibbles in use there is no room left for one, and
+// reverse video is exactly the two nibbles swapped, so the cursor is the
+// colour itself. Mirrors CURSOR_ATTR in asm/forth.asm; the tests only ever
+// look at cell contents, never at the kernel's internals, so the two files are
+// compared by what they write, not by how.
+export const CURSOR_ATTR = 0x7000;
+
 // A top-level `class` in a script lands in the global lexical scope, not on
 // globalThis, so the classes are read back by evaluating their names.
 export function loadBrowserScripts(...files) {

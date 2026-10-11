@@ -20,7 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   assemble, loadBrowserScripts, runJs, runWasm, loadWasm,
-  buildMemory, MEM_WORDS, SCREEN_ADDR, ROOT,
+  buildMemory, MEM_WORDS, SCREEN_ADDR, ROOT, CURSOR_ATTR,
 } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
@@ -550,7 +550,7 @@ function cursorCells(memoryAt, addr, rows = 8, cols = 40) {
   const cells = [];
   for (let r = 0; r < rows; r++) {
     const line = memoryAt(addr + r * 80, cols);
-    for (let c = 0; c < cols; c++) if (line[c] & 0x8000) cells.push(`${r}:${c}`);
+    for (let c = 0; c < cols; c++) if ((line[c] & 0xFF00) === CURSOR_ATTR) cells.push(`${r}:${c}`);
   }
   return cells;
 }

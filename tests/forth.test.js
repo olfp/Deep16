@@ -19,7 +19,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { assemble, loadBrowserScripts, buildMemory, ROOT, SCREEN_ADDR } from './helpers.js';
+import { assemble, loadBrowserScripts, buildMemory, ROOT, SCREEN_ADDR, CURSOR_ATTR } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -85,13 +85,13 @@ function repl(input, maxSteps = 600000) {
     }
     rows.push(s.replace(/\s+$/, ''));
   }
-  // Column of every cell carrying the block-cursor attribute bit (0x8000), so
-  // a cursor left behind on an earlier line shows up as a stale block.
+  // Column of every cell carrying the cursor attribute, so a cursor left
+  // behind on an earlier line shows up as a stale block.
   const cursors = [];
   for (let r = 0; r < 25; r++) {
     const cols = [];
     for (let c = 0; c < 80; c++) {
-      if (sim.memory[SCREEN_ADDR + r * 80 + c] & 0x8000) cols.push(c);
+      if ((sim.memory[SCREEN_ADDR + r * 80 + c] & 0xFF00) === CURSOR_ATTR) cols.push(c);
     }
     cursors.push(cols);
   }
@@ -866,4 +866,133 @@ test('the screen buffer holds 24 visible rows at 8x15 pixels', () => {
   assert.equal(80 * 8, 640);
   assert.equal(24 * 15, 360);
   assert.equal(SCREEN_VISIBLE_ROWS * 80, 1920);
+});
+
+// The safety net for the colour-byte work. The earlier attempt to move the
+// cursor out of the cell failed only after 23 input lines, which is past every
+// test in this file - so nothing noticed until the screen came back blank on
+// the iPad. These run far enough to scroll several times and compare the
+// visible screen cell by cell.
+// The safety net for the colour-byte work. The earlier attempt to move the
+// cursor out of the cell failed only after 23 input lines, which is past every
+// other test in this file - so nothing noticed until the screen came back
+// blank on the iPad. These run far enough to scroll several times and compare
+// the visible screen cell by cell.
+const SCROLL_LINES = () => {
+  const lines = [];
+  for (let i = 0; i < 40; i++) lines.push(`: w${i} ${i} ;`);
+  lines.push('w7 .');
+  return lines.join('\n') + '\n';
+};
+
+test('after scrolling, the visible screen holds the last lines in order', () => {
+  const { rows, running } = repl(SCROLL_LINES(), 4000000);
+  assert.ok(running, 'the REPL must still be alive after 41 lines');
+
+  const visible = rows.slice(0, SCREEN_VISIBLE_ROWS);
+  const text = visible.map(r => r.trim()).filter(Boolean).join(' ').replace(/\s+/g, ' ');
+
+  // The last line typed is on screen, with its result and the next prompt.
+  assert.match(text, /w7 \. 7 ok >$/,
+    `the last line must be visible at the bottom; screen was:\n${text}`);
+  // And the first lines scrolled off the top, which is what proves the scroll
+  // ran rather than the input silently going nowhere.
+  assert.ok(!text.includes('w0'), 'w0 must have scrolled off the top');
+  assert.ok(text.includes('w39'), 'the second to last line must still be on screen');
+  // The definitions run on in order, with nothing lost in between.
+  for (let i = 19; i < 39; i++) {
+    assert.ok(text.includes(`w${i} ${i} ; ok`), `w${i} must be on screen`);
+  }
+});
+
+test('after scrolling there is exactly one cursor, right behind the last output', () => {
+  const { rows, cursors } = repl(SCROLL_LINES(), 4000000);
+  const found = [];
+  for (let r = 0; r < SCREEN_VISIBLE_ROWS; r++) {
+    for (const c of cursors[r]) found.push({ row: r, col: c });
+  }
+  assert.equal(found.length, 1,
+    `exactly one cursor expected, found ${found.map(f => `${f.row}:${f.col}`).join(', ')}`);
+
+  // It sits on the fresh prompt the kernel prints under the result, and on
+  // nothing else. The prompt occupies two cells - ">" and the space behind it
+  // - so the cursor comes to rest in column 2. Row 24 stays blank: the display
+  // shows 24 rows and the kernel never pushes its prompt out of sight.
+  const row = found[0].row;
+  assert.equal(rows.slice(row + 1).every(r => r.trim() === ''), true,
+    `something is drawn below the cursor row ${row}`);
+  assert.equal(rows[row].trim(), '>', `expected a bare prompt, found "${rows[row]}"`);
+  assert.equal(found[0].col, 2, `cursor at column ${found[0].col}, expected 2`);
+});
+
+test('the attribute byte is either 0 or the cursor attribute, and no other colour', () => {
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF;
+  for (const ch of '1 2 +\n') sim.enqueueKeyCode(ch === '\n' ? 10 : ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+
+  // With the colour byte the kernel writes no colour of its own, so a screen
+  // must carry exactly one attribute value: the cursor's. A stray high byte
+  // somewhere means a character store leaks an attribute into the cell.
+  const counts = new Map();
+  let cursorChars = [];
+  for (let i = 0; i < SCREEN_VISIBLE_ROWS * 80; i++) {
+    const word = sim.memory[SCREEN_ADDR + i] & 0xFFFF;
+    if (word === 0xFFFF) continue;            // uninitialised, never written
+    const hi = (word >> 8) & 0xFF;
+    counts.set(hi, (counts.get(hi) || 0) + 1);
+    if (hi !== 0) cursorChars.push(word & 0xFF);
+  }
+  // 0 is the blank cell, CURSOR_ATTR the cell under the cursor. Nothing else.
+  assert.deepEqual([...counts.keys()].sort((a, b) => a - b), [0, CURSOR_ATTR >> 8],
+    `unexpected attribute bytes on the screen: `
+    + `${[...counts.keys()].map(h => '0x' + h.toString(16)).join(', ')}`);
+  // The character survives the attribute write: the cursor cell is not blanked.
+  assert.equal(cursorChars.length, 1, 'exactly one cell carries the cursor attribute');
+  assert.equal(cursorChars[0], 0x20, 'the cursor sits on the blank behind "ok"');
+});
+
+// The BIOS block must keep its exact layout. This is not tidiness - it is the
+// difference between a working REPL and a dead one, found the hard way.
+//
+// swi_to_bios is a delayed far jump into CS=0xF800, and the core leaves the
+// branch state behind when it comes back. While that state is pending, the
+// next instruction is treated as the delay slot of that old branch and the old
+// target is taken again. Normally the instruction after the jump clears it. In
+// the BIOS that only works while the offsets stay where they are: take a
+// single word out of bios_clr or bios_f2 - both routes reach the putch path -
+// and the REPL survives 22 input lines, then hangs at 23 with a blank screen,
+// pointing at "LDI print_prompt". Nothing in the assembler complains and the
+// first hundred tests still pass, because none of them types 23 lines.
+//
+// So the sizes are pinned here. Every routine keeps its offset from
+// bios_entry, which is what the padding NOPs in asm/forth.asm are for. Change
+// a BIOS routine and either keep its length or pad it back - and if the
+// padding can be removed, the stale-branch handling in the core can be fixed
+// and this test can go with it.
+const BIOS_LAYOUT = {
+  bios_entry: 0x00, bios_f1: 0x09, bios_clr_loop: 0x16, bios_f2: 0x24,
+  bios_putch_cr: 0x46, bios_putch_lf: 0x52, bios_lf_scroll_copy: 0x69,
+  bios_lf_scroll_clear: 0x7a, bios_lf_row_lt: 0x86, bios_f3: 0x8c,
+  bios_putstr_loop: 0x96, bios_putstr_done: 0xa1, bios_f4: 0xa3,
+  bios_getch_wait: 0xaa, bios_f5: 0xbb, bios_getstr_loop: 0xc3,
+  bios_store_char: 0xf3, bios_getstr_done: 0x107, bios_unknown: 0x10b,
+};
+
+test('the BIOS block keeps its exact layout', () => {
+  const base = res.symbols.bios_entry;
+  assert.equal(typeof base, 'number', 'bios_entry must have an address');
+  for (const [name, offset] of Object.entries(BIOS_LAYOUT)) {
+    const actual = res.symbols[name];
+    assert.equal(typeof actual, 'number', `${name} is missing from the kernel`);
+    assert.equal(actual - base, offset,
+      `${name} moved by ${actual - base - offset} word(s) (expected 0x${offset.toString(16)}, `
+      + `got 0x${(actual - base).toString(16)}). Pad the routine back to its old length - `
+      + 'a BIOS routine that changes size leaves a stale SWI branch behind and the '
+      + 'REPL hangs after 22 lines with a blank screen.');
+  }
 });

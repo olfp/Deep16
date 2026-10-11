@@ -98,8 +98,13 @@ Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
 ### ✅ Kapitel 6 — `book/kap06.md`
 - §6.1 Peripherie ist Speicher: **Tabelle 6-1** Speicherkarte, **Tabelle 6-2**
   Tastaturports, `ES = 0xF000` als Peripherie-Segment (Offsets `0x0060`,
-  `0x0062`, `0x1000`), Bildschirmzelle (Low-Byte = Zeichen, Bit 15 =
-  Reverse-Video und Cursor) mit Mermaid-Bitdiagramm, Listing 6-1/6-2.
+  `0x0062`, `0x1000`), Bildschirmzelle (Low-Byte = Zeichen, High-Byte =
+  4 Bit Hintergrund über 4 Bit Vordergrund) mit Mermaid-Bitdiagramm,
+  Listing 6-1/6-2.
+
+  ⚠️ **Kapitel 6 beschreibt noch die alte Fassung** mit Bit 15 als
+  Reverse-Video/Cursor und einem `0x8020` als Cursorwort. Die Beschreibung und
+  Listing 6-1 gehören auf den neuen Stand gebracht.
 - §6.2 Debuggen: Delay-Slot-Falle **messbar** (`R1` = 5 statt 1, 30 statt 31
   Schritte), LDI-Vorzeichengrenze, Debugger-Hooks `getRecentMemoryView()` /
   `get_recent_access()`, Begründung der Doppel-Implementierung.
@@ -302,10 +307,12 @@ bewusste Entscheidung und keine Lücke.
 
 ---
 
-## Zurückgestellt (2026-10-10)
+## Zurückgestellt
 
-Zwei Punkte, die am 2026-10-10 gemeldet und bewusst **nicht** jetzt bearbeitet
-wurden. Beide sind offen, keiner davon ist erledigt.
+Punkte, die gemeldet und bewusst **nicht sofort** bearbeitet wurden. Punkt 1
+ist inzwischen erledigt, Punkt 4 kam am 2026-10-11 dazu und ist abgeschlossen.
+
+**Offen ist nur noch Punkt 2 (mobiles UI).**
 
 ### 1. ~~`SERLOAD` funktioniert im Browser noch nicht~~ — erledigt auf anderem Weg
 
@@ -335,29 +342,49 @@ Kein Fehler, sondern Struktur. Die bekannten Stellen:
   Ein Label muss deshalb fürs Handy gekürzt werden, damit es nicht abschneidet —
   ein Ort, an dem man danach nicht suchen würde.
 
-### 3. Das High Byte trägt noch kein volles 4+4-Bit-Farbbyte
+### 3. Die BIOS-Routinen dürfen ihre Länge nicht ändern  *(NEU, 2026-10-11)*
 
-**Stand 2026-10-11.** Das High Byte einer Bildschirmzelle ist als Farbe belegt
-(vier Bit Vordergrund, drei Bit Hintergrund), aber **Bit 15 ist weiterhin das
-Cursorbit des Kernels** — der schreibt es beim Setzen des Cursors und beim
-Löschen. Deshalb ist der Hintergrund heute drei Bit breit; die acht hellen
-Hintergründe fehlen.
+**Beim Umbau des Farbbytes gefunden.** `swi_to_bios` ist ein verzögerter
+Fernsprung nach `CS=0xF800`, und der Kern lässt beim Zurückkehren den
+Sprungzustand stehen. Solange der anhängt, gilt die *nächste* Instruktion als
+Delay-Slot **dieses alten Sprungs** und der alte Zielpunkt wird erneut genommen.
+Normalausgang ist, dass die Instruktion nach dem Sprung ihn aufräumt — im BIOS
+klappt das nur, solange die Adressen stehen bleiben.
 
-Umgekehrt gilt: **`asm/forth.asm` wurde dafür nicht geändert.** Der Versuch,
-das Cursorbit freizugeben und den Cursor aus R8 zu zeichnen, **hat den Kernel
-bei langen Eingaben zerlegt**: ab 23 eingegebenen Zeilen blieb die Maschine
-stehen und der Bildschirm leer, während der unveränderte Kernel fehlerfrei
-scrollt. Isoliert ließ sich die Ursache auf `bios_putch` und `bios_clr`
-eingrenzen (beide verlieren nur Code am Ende eines BIOS-Unterprogramms), aber
-nicht beheben — der Rückbau ist deshalb sauber zurückgenommen, statt eine
-halbe Lösung zu lassen.
+Messbar: nimmt man **ein einziges Wort** aus `bios_clr` oder `bios_f2`, läuft
+der REPL 22 Eingabezeilen einwandfrei und hängt bei der **23.** mit leerem
+Bildschirm, PC fest auf `LDI print_prompt`. Der Assembler meldet nichts, und
+alle bisherigen Tests bleiben grün, weil keiner 23 Zeilen tippt.
 
-Nötig für die 4+4-Bit-Fassung ist also weiterhin eine Kernel-Änderung: das
-Cursorbit aus `bios_f2`, `clear_cursor`, `cursor_off`, `bios_getstr`
-(Backspace und Echo) und `bios_clr` entfernen, und den Cursor im Bildschirm
-aus R8 (`SCR`) zeichnen. Die Randbedingung, die dabei zu beachten ist: die
-Aufrufer von `clear_cursor` und `cursor_off` erwarten nach dem `LINK`/`JMP`
-unveränderte Scratch-Register.
+Deshalb sind die Routinenadressen in `tests/forth.test.js` festgeschrieben
+(`the BIOS block keeps its exact layout`) und die Eingriffe in `asm/forth.asm`
+mit Füll-`NOP`s auf ihrer bisherigen Länge gehalten. Wer eine BIOS-Routine
+kürzt, muss nachpolstern — oder das Aufräumen im Kern nachziehen und den Test
+mit ihm abschaffen.
+
+### 4. Das High Byte trägt jetzt ein volles 4+4-Bit-Farbbyte
+
+**Erledigt 2026-10-11.** Vier Bit Vordergrund, vier Bit Hintergrund, alle
+sechzehn Werte beiderseits erreichbar.
+
+Der Schlüssel war die naheliegende Frage, ob „invertieren" mit zwei belegten
+Nibbles überhaupt noch etwas anderes bedeuten kann: **nein, invertieren heißt
+Vorder- und Hintergrund vertauschen.** Der Cursor ist damit keine Zusatz-
+information mehr, sondern die umgekehrte Standardfarbe — Schwarz auf Hellgrau,
+`0x70` im High Byte — und ihn zu löschen heißt, das Attribut auf `0` zu
+setzen. Ein eigenes Bit ist damit überflüssig, und genau das war die Blockade:
+vorher belegte Bit 15 den Cursor und nahm dem Hintergrund sein viertes Bit.
+
+Umgesetzt an allen sieben Stellen, die den Cursor anfassten (`cursor_on`,
+`cursor_off`, `clear_cursor`, `bios_clr`, `bios_f2` sowie Backspace und Echo
+in `bios_getstr`). Der Bildschirm zeichnet die Farbe, die er bekommt, und
+braucht keinen Sonderfall mehr; den grünen Rand als Lesehilfe setzt er als
+reine Oberflächenmarkierung `.screen-cursor`.
+
+**Die ISA-Falle dabei:** `LDI` signiert sein 15-Bit-Immediate, `LDI 0x7000`
+lädt also `0xF000`. Die Konstante wird über `LDI 0x0070` + `SL R0, 8`
+gebildet. Genau deshalb ist der erste Versuch gescheitert und nicht der
+Farbplan.
 
 Der Bildschirm ist 80×24 Zellen groß (640×360 px bei 8×15 px je Zeichen), was
 ohne Kernel-Änderung geht: der Kernel löscht weiter 80×25 Wörter, schreibt aber

@@ -105,9 +105,12 @@
     flex-shrink: 0;
 }
 
-.screen-char.reverse {
-    background: #ffffff;
-    color: #000000;
+/* The cursor cell carries the default colour reversed, so the block needs no
+   colour of its own: deep16_ui_screen.js writes both colours as inline styles
+   from the attribute, and those win over this rule. What is left here is the
+   green outline, which is a reading aid and not part of the encoding - without
+   it a cursor in a screen full of text is easy to lose. */
+.screen-char.screen-cursor {
     outline: 1px solid #00ff66;
     box-shadow: 0 0 6px rgba(0, 255, 102, 0.5);
 }

@@ -18,6 +18,16 @@ class Deep16ScreenUI {
         // "not set" and is drawn in the terminal default - that is what a cell
         // the kernel has just written to holds, so plain text stays readable
         // without the kernel having to know about colours at all.
+        //
+        // The cursor is not a bit of its own. With both nibbles in use there
+        // is no room for one, and none is needed: reverse video is the two
+        // nibbles swapped, so the kernel marks the cursor cell with the
+        // default colour reversed - black on light grey - and clearing it is
+        // the attribute back to 0. The screen therefore has no cursor case at
+        // all; it draws the colour it is given and the block appears.
+        // Mirrors CURSOR_ATTR in asm/forth.asm.
+        this.CURSOR_ATTR = 0x7000;
+
         this.palette = [
             '#000000', '#cd3131', '#0dbc79', '#e5e510', // 0 black, 1 red, 2 green, 3 yellow
             '#2472c8', '#bc3fbc', '#11a8cd', '#e5e5e5', // 4 blue, 5 magenta, 6 cyan, 7 white
@@ -270,10 +280,14 @@ class Deep16ScreenUI {
         const blank = (word === 0xFFFF || word === 0x0000);
         const charCode = blank ? 32 : (word & 0xFF);
         const attr = blank ? 0 : ((word >> 8) & 0xFF);
-        this.updateCharacter(charIndex, charCode, attr, !blank && (word & 0x8000) !== 0);
+        // The cursor is recognised from the colour, not from a bit beside it.
+        // The class below adds nothing but the outline; the colours themselves
+        // come from the attribute like any other cell.
+        this.updateCharacter(charIndex, charCode, attr,
+                             !blank && (word & 0xFF00) === this.CURSOR_ATTR);
     }
 
-    updateCharacter(charIndex, charCode, attr, cursor) {
+    updateCharacter(charIndex, charCode, attr, isCursor) {
         const charElement = document.getElementById(`screen-char-${charIndex}`);
         if (!charElement) return;
 
@@ -295,27 +309,19 @@ class Deep16ScreenUI {
         // charCode 0 remains as space
 
         charElement.textContent = displayChar;
-        // Bit 15 is the kernel's cursor marker, so it is drawn as reverse
-        // video and carries no colour of its own. That is the one bit missing
-        // from the background nibble: 3 bits of background plus 4 of foreground
-        // today, 4 and 4 once the kernel stops writing the cursor into the
-        // cell and the screen takes it from R8 instead.
-        if (cursor) {
-            charElement.classList.add('reverse');
-            charElement.style.color = '';
-            charElement.style.backgroundColor = '';
-            return;
-        }
-        charElement.classList.remove('reverse');
+        charElement.classList.toggle('screen-cursor', !!isCursor);
         // Attribute 0 means "no colour set", which leaves the terminal default
-        // alone. Anything else is the colour nibbles, written as two inline
-        // styles.
+        // alone - a blank cell and ordinary text look the same. Anything else
+        // is the two nibbles, written as two inline styles: four bits of
+        // foreground and four of background, all sixteen of each reachable.
+        // The cursor needs no case of its own: the kernel gives it the
+        // reversed default, and that is drawn here like any other colour.
         if (attr === 0) {
             charElement.style.color = '';
             charElement.style.backgroundColor = '';
         } else {
             charElement.style.color = this.palette[attr & 0x0F];
-            charElement.style.backgroundColor = this.palette[(attr >> 4) & 0x07];
+            charElement.style.backgroundColor = this.palette[(attr >> 4) & 0x0F];
         }
     }
 
@@ -364,12 +370,12 @@ class Deep16ScreenUI {
             if (this.deferUpdates) {
                 this.pendingUpdates.add(charIndex);
             } else {
-                // Draw this one cell. drawWord() also notices the cursor bit,
-                // so the block that moved here is picked up.
+                // Draw this one cell. drawWord() picks up the block, because
+                // the cursor is the cell's colour rather than a bit beside it.
                 this.drawWord(charIndex, value & 0xFFFF);
                 // The page follows the cursor, which is a cell attribute the
                 // kernel writes, so it has to be re-read from the word.
-                if ((value & 0x8000) !== 0) this.lastCursorIndex = charIndex;
+                if ((value & 0xFF00) === this.CURSOR_ATTR) this.lastCursorIndex = charIndex;
                 else if (this.lastCursorIndex === charIndex) this.lastCursorIndex = null;
                 this.ensureCursorVisible();
             }
@@ -407,7 +413,7 @@ class Deep16ScreenUI {
             if (memoryAddress < this.ui.simulator.memory.length) {
                 const word = this.ui.simulator.memory[memoryAddress] & 0xFFFF;
                 this.drawWord(charIndex, word);
-                if ((word & 0x8000) !== 0) this.lastCursorIndex = charIndex;
+                if ((word & 0xFF00) === this.CURSOR_ATTR) this.lastCursorIndex = charIndex;
                 else if (this.lastCursorIndex === charIndex) this.lastCursorIndex = null;
             }
         }

@@ -13,6 +13,18 @@
 .equ KBD_STATUS 0x0060
 .equ KBD_DATA   0x0062
 .equ TIB_LIMIT 86         ; words in tib_kbd; the buffer holds one word per char
+; The high byte of a screen word is four bits of background and four bits of
+; foreground, (bg << 4) | fg. Attribute 0 means "no colour set" and the
+; terminal default draws it, so a blank cell is written as 0x0020 and the
+; kernel never has to store a colour of its own.
+;
+; The cursor is not a bit of its own: with both nibbles in use there is no bit
+; left for it, and there does not need to be. Reverse video is the two nibbles
+; swapped, so the cursor cell is the default colour reversed - black on light
+; grey, 0x70 in the high byte - and "clear the cursor" is simply the attribute
+; back to 0. Both operations keep the character in the low byte untouched.
+.equ CURSOR_ATTR 0x7000  ; high byte 0x70: fg 0 (black) on bg 7 (light grey)
+.equ ATTR_MASK   0x00FF  ; the character alone, i.e. a cell with no attribute
 .equ RSTACK_TOP 0x6F00   ; Forth return stack top (grows down)
 
 ; =============================================
@@ -60,9 +72,9 @@ forth_start:
     
 cursor_on:
     LDS R1, ES, SCR
-    LSI R0, 1
-    SL  R0, 15
-    OR  R1, R0
+    LDI 0x0070          ; fg 0 / bg 7. Nicht LDI 0x7000: das Immediate
+    SL  R0, 8           ; ist 15 Bit und signiert, 0x7000 laege als 0xF000
+    OR  R1, R0              ; the cursor attribute, the character stays
     STS R1, ES, SCR
     LDI 3               ; BIOS putstr
     MOV R3, R0
@@ -204,12 +216,12 @@ newline_direct:
     NOP
 cursor_off:
     LDS R1, ES, SCR
-    LDI 1
+    LDI ATTR_MASK
     MOV R7, R0
-    SL  R7, 15           ; see clear_cursor: LDI 0x7FFF would load 0xFFFF
-    INV R7
-    AND R1, R7
+    AND R1, R7           ; drop the attribute, keep the character
     STS R1, ES, SCR
+    NOP                     ; Padding, siehe NOTE unten
+    NOP
     LDI interpret_loop
     MOV PC, R0
     NOP
@@ -225,12 +237,12 @@ cursor_off:
 ; right afterwards.)
 clear_cursor:
     LDS R1, ES, SCR
-    LDI 1
+    LDI ATTR_MASK
     MOV R7, R0
-    SL  R7, 15           ; R7 = 0x8000, the attribute bit
-    INV R7               ; R7 = 0x7FFF, i.e. the cell without it
-    AND R1, R7
+    AND R1, R7           ; drop the attribute, keep the character
     STS R1, ES, SCR
+    NOP                     ; Padding, siehe NOTE unten
+    NOP
     JMP LR
     NOP
     ; Ensure Data Segment points to physical 0x0000
@@ -4098,11 +4110,11 @@ bios_clr_loop:
     SUB R2, 1
     JNZ bios_clr_loop
     NOP
-    ; Place cursor at start
+    ; Place cursor at start, on top of its attribute
     LDI 0x1000
     MOV SCR, R0
-    LSI R0, 1
-    SL  R0, 15
+    LDI 0x0070          ; fg 0 / bg 7. Nicht LDI 0x7000: das Immediate
+    SL  R0, 8           ; ist 15 Bit und signiert, 0x7000 laege als 0xF000
     LDS R1, ES, SCR
     OR  R1, R0
     STS R1, ES, SCR
@@ -4129,21 +4141,20 @@ bios_f2:
     JZ bios_putch_cr
     NOP
     ; regular character: clear old cursor, write char, advance, set new cursor
-    LDI 1
+    LDI ATTR_MASK
     MOV R5, R0
-    SL  R5, 15             ; "LDI 0x7FFF" would sign-extend to 0xFFFF and the
-    INV R5                 ; AND would clear nothing; the char store below
-                          ; would hide the mistake
     LDS R1, ES, SCR
-    AND R1, R5
+    AND R1, R5              ; the cell we leave loses the cursor attribute
     STS R1, ES, SCR
-    STS R2, ES, SCR
+    STS R2, ES, SCR         ; the character alone, so no attribute of its own
     ADD SCR, 1
-    LSI R1, 1
-    SL  R1, 15
+    LDI 0x0070          ; fg 0 / bg 7. Nicht LDI 0x7000: das Immediate
+    SL  R0, 8           ; ist 15 Bit und signiert, 0x7000 laege als 0xF000
     LDS R3, ES, SCR
-    OR  R3, R1
+    OR  R3, R0              ; and the new cell gets the reversed colour
     STS R3, ES, SCR
+    NOP                     ; Padding, siehe NOTE unten
+    NOP
     RETI
     NOP
 bios_putch_cr:
@@ -4329,23 +4340,22 @@ bios_getstr_loop:
                           ; next key lands one cell past it
     ; Clear the cursor in the cell we are about to leave. Unlike the character
     ; echo below, backspace writes nothing over that cell, so the stale block
-    ; would stay visible. The mask cannot be "LDI 0x7FFF" — the immediate is
-    ; sign-extended to 0xFFFF and the AND would do nothing.
-    LDI 1
+    ; would stay visible.
+    LDI ATTR_MASK
     MOV R7, R0
-    SL  R7, 15             ; R7 = 0x8000, the attribute bit
-    INV R7                 ; R7 = 0x7FFF, the cell without it
     LDS R3, ES, SCR
-    AND R3, R7
+    AND R3, R7              ; the attribute back to 0, the character stays
     STS R3, ES, SCR
     SUB SCR, 1
     LDI ' '
     STS R0, ES, SCR
-    LSI R0, 1
-    SL  R0, 15
+    LDI 0x0070          ; fg 0 / bg 7. Nicht LDI 0x7000: das Immediate
+    SL  R0, 8           ; ist 15 Bit und signiert, 0x7000 laege als 0xF000
     LDS R3, ES, SCR
     OR  R3, R0
     STS R3, ES, SCR
+    NOP                     ; Padding, siehe NOTE unten
+    NOP
     CLRZ
     JNZ bios_getstr_loop
     NOP
@@ -4354,20 +4364,20 @@ bios_store_char:
     ADD R2, 1
     ADD R11, 1
     ; echo directly: clear old cursor, write, advance, set cursor
-    LDI 1
+    LDI ATTR_MASK
     MOV R5, R0
-    SL  R5, 15             ; see bios_f2: build the 0x7FFF mask by hand
-    INV R5
     LDS R3, ES, SCR
-    AND R3, R5
+    AND R3, R5              ; the cell we leave loses the cursor attribute
     STS R3, ES, SCR
     STS R1, ES, SCR
     ADD SCR, 1
-    LSI R0, 1
-    SL  R0, 15
+    LDI 0x0070          ; fg 0 / bg 7. Nicht LDI 0x7000: das Immediate
+    SL  R0, 8           ; ist 15 Bit und signiert, 0x7000 laege als 0xF000
     LDS R7, ES, SCR
-    OR  R7, R0
+    OR  R7, R0              ; and the new cell gets the reversed colour
     STS R7, ES, SCR
+    NOP                     ; Padding, siehe NOTE unten
+    NOP
     CLRZ
     JNZ bios_getstr_loop
     NOP

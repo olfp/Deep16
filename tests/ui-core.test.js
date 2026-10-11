@@ -746,3 +746,101 @@ test('a width that fits fewer than a readable number still shows something', () 
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// Cell colours
+//
+// The high byte is four bits of background and four of foreground. Until the
+// colour byte was completed the background was masked to three bits, because
+// bit 15 was the kernel's cursor marker and those eight bright backgrounds
+// were unreachable. The cursor is now the reversed default colour, so nothing
+// is left over - all sixteen of both are addressable.
+// ---------------------------------------------------------------------------
+
+// The real constructor, so palette and CURSOR_ATTR come from the code under
+// test rather than from a second copy in this file.
+function withCells(count, fn) {
+  const ids = {};
+  for (let i = 0; i < count; i++) {
+    const cell = makeEl('span');
+    cell.id = `screen-char-${i}`;
+    ids[cell.id] = cell;
+  }
+  const prevDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => ids[id] || null,
+    querySelector: () => null,
+    createElement: (tag) => makeEl(tag),
+  };
+  try {
+    return fn(ids, new Deep16ScreenUI({}));
+  } finally {
+    globalThis.document = prevDoc;
+  }
+}
+
+test('the background nibble reaches all sixteen colours', () => {
+  withCells(16, (ids, s) => {
+    for (let bg = 0; bg < 16; bg++) {
+      s.lastDrawn[bg] = -1;                 // bypass the repaint cache
+      s.drawWord(bg, ((bg << 4) | 7) << 8 | 0x41);   // (bg << 4) | fg
+      assert.equal(ids[`screen-char-${bg}`].style.backgroundColor, s.palette[bg],
+        `background ${bg} must use palette entry ${bg}`);
+      assert.equal(ids[`screen-char-${bg}`].style.color, s.palette[7],
+        'the foreground is unaffected by the background nibble');
+    }
+  });
+});
+
+test('the foreground nibble reaches all sixteen colours', () => {
+  withCells(16, (ids, s) => {
+    for (let fg = 0; fg < 16; fg++) {
+      s.lastDrawn[fg] = -1;
+      s.drawWord(fg, ((1 << 4) | fg) << 8 | 0x41);   // (bg << 4) | fg
+      assert.equal(ids[`screen-char-${fg}`].style.color, s.palette[fg],
+        `foreground ${fg} must use palette entry ${fg}`);
+      assert.equal(ids[`screen-char-${fg}`].style.backgroundColor, s.palette[1],
+        'the background is unaffected by the foreground nibble');
+    }
+  });
+});
+
+test('the cursor is the reversed default colour, drawn like any other cell', () => {
+  withCells(3, (ids, s) => {
+    s.drawWord(0, (s.CURSOR_ATTR | 0x20));      // a space under the cursor
+    const cell = ids['screen-char-0'];
+    assert.equal(cell.style.color, s.palette[0], 'black on ...');
+    assert.equal(cell.style.backgroundColor, s.palette[7], '... light grey');
+    assert.equal(cell.classes.has('screen-cursor'), true, 'and the outline follows');
+    assert.equal(cell.textContent, ' ', 'the character under the cursor survives');
+  });
+});
+
+test('attribute 0 is the terminal default and carries no cursor marker', () => {
+  withCells(2, (ids, s) => {
+    s.drawWord(0, 0x0041);                      // 'A', no attribute
+    const cell = ids['screen-char-0'];
+    assert.equal(cell.textContent, 'A');
+    assert.equal(cell.style.color, '');
+    assert.equal(cell.style.backgroundColor, '');
+    assert.equal(cell.classes.has('screen-cursor'), false);
+  });
+});
+
+test('the repaint cache still lets a changed cell through', () => {
+  withCells(1, (ids, s) => {
+    s.drawWord(0, 0x0041);
+    assert.equal(ids['screen-char-0'].textContent, 'A');
+    // Same word again: nothing to do.
+    ids['screen-char-0'].textContent = 'unveraendert';
+    s.drawWord(0, 0x0041);
+    assert.equal(ids['screen-char-0'].textContent, 'unveraendert',
+      'an unchanged word must not be redrawn');
+    // The cursor moves on: a different word, so the cell is redrawn.
+    s.drawWord(0, s.CURSOR_ATTR | 0x41);
+    assert.equal(ids['screen-char-0'].classes.has('screen-cursor'), true);
+    s.drawWord(0, 0x0041);
+    assert.equal(ids['screen-char-0'].classes.has('screen-cursor'), false,
+      'and the marker goes away again when the cursor does');
+  });
+});
