@@ -4,14 +4,31 @@ class Deep16ScreenUI {
         this.ui = ui;
         this.screenBaseAddress = 0xF1000; // Base address for screen memory
         this.screenWidth = 80;
-        this.screenHeight = 25;
-        this.totalChars = this.screenWidth * this.screenHeight; // 2000 characters
+        this.screenHeight = 24;
+        this.totalChars = this.screenWidth * this.screenHeight; // 1920 characters
         this.screenEndAddress = this.screenBaseAddress + this.totalChars - 1;
         this.deferUpdates = false;
         this.pendingUpdates = new Set();
         this.flushIntervalMs = 33;
         this.flushTimerId = null;
         this.lastCursorIndex = null;
+
+        // The high byte of a screen word carries four bits of foreground and
+        // four of background colour, in the usual ANSI order. Attribute 0 means
+        // "not set" and is drawn in the terminal default - that is what a cell
+        // the kernel has just written to holds, so plain text stays readable
+        // without the kernel having to know about colours at all.
+        this.palette = [
+            '#000000', '#cd3131', '#0dbc79', '#e5e510', // 0 black, 1 red, 2 green, 3 yellow
+            '#2472c8', '#bc3fbc', '#11a8cd', '#e5e5e5', // 4 blue, 5 magenta, 6 cyan, 7 white
+            '#666666', '#f14c4c', '#23d18b', '#f5f543', // 8..11 bright
+            '#3b8eea', '#d670d6', '#29b8db', '#ffffff', // 12..15 bright
+        ];
+
+        // What each cell was drawn as last time, so a refresh touches only the
+        // cells that actually changed. 1920 cells repainted on every tick would
+        // make the whole IDE stutter while a program runs.
+        this.lastDrawn = new Int32Array(this.totalChars).fill(-1);
 
         // Portrait phones only get half the columns - see the matching media
         // query in css/screen.css. Keep the predicate here in sync with it.
@@ -25,8 +42,10 @@ class Deep16ScreenUI {
     initializeScreen() {
         const screenDisplay = document.getElementById('screen-display');
         if (!screenDisplay) return;
-        
-        // Create the 80x25 character grid
+
+        // Create the 80x24 character grid. The cells are emitted without any
+        // whitespace between them: an inline-block span counts the source space
+        // as width, which would put a gap between every pair of characters.
         let html = '';
         for (let row = 0; row < this.screenHeight; row++) {
             html += `<div class="screen-row" id="screen-row-${row}">`;
@@ -39,9 +58,22 @@ class Deep16ScreenUI {
         screenDisplay.innerHTML = html;
 
         this.setupPager();
+        this.buildPalette();
         this.applyColumnMode();
 
         if (window.Deep16Debug) console.log(`Screen initialized: ${this.screenWidth}x${this.screenHeight} at 0x${this.screenBaseAddress.toString(16).toUpperCase()}`);
+    }
+
+    // The 16 squares in the menu row, in the same order the colour nibbles use.
+    // Purely a legend: it shows which palette the screen draws with.
+    buildPalette() {
+        const palette = document.getElementById('screen-palette');
+        if (!palette) return;
+        let html = '';
+        for (let i = 0; i < this.palette.length; i++) {
+            html += `<span class="screen-palette-swatch" style="background:${this.palette[i]}"></span>`;
+        }
+        palette.innerHTML = html;
     }
 
     // Wire the column pager and follow viewport/orientation changes, so
@@ -104,33 +136,20 @@ class Deep16ScreenUI {
         else { screenDisplay.classList.remove('screen-active'); }
     }
 
+    // The cursor is still bit 15 of the cell: the kernel writes it, so the
+    // screen reads it. That bit is the one thing standing between this and a
+    // full four-bit background - see updateCharacter().
     updateScreenDisplay() {
         // Update all characters from screen memory
         if (this.ui.compiledCoreReady()) {
             try {
                 if (typeof this.ui.activeCoreModule().get_memory_slice === 'function') {
                     const slice = this.ui.activeCoreModule().get_memory_slice(this.screenBaseAddress, this.totalChars);
-                    for (let i = 0; i < slice.length; i++) {
-                        const word = slice[i] & 0xFFFF;
-                        if (word === 0xFFFF || word === 0x0000) {
-                            this.updateCharacter(i, 32, false);
-                        } else {
-                            const charCode = word & 0xFF;
-                            const reverse = (word & 0x8000) !== 0;
-                            this.updateCharacter(i, charCode, reverse);
-                        }
-                    }
+                    for (let i = 0; i < slice.length; i++) this.drawWord(i, slice[i] & 0xFFFF);
                     return;
                 } else if (typeof this.ui.activeCoreModule().get_memory_word === 'function') {
                     for (let i = 0; i < this.totalChars; i++) {
-                        const word = this.ui.activeCoreModule().get_memory_word(this.screenBaseAddress + i) & 0xFFFF;
-                        if (word === 0xFFFF || word === 0x0000) {
-                            this.updateCharacter(i, 32, false);
-                        } else {
-                            const charCode = word & 0xFF;
-                            const reverse = (word & 0x8000) !== 0;
-                            this.updateCharacter(i, charCode, reverse);
-                        }
+                        this.drawWord(i, this.ui.activeCoreModule().get_memory_word(this.screenBaseAddress + i) & 0xFFFF);
                     }
                     return;
                 }
@@ -142,20 +161,24 @@ class Deep16ScreenUI {
             for (let i = 0; i < this.totalChars; i++) {
                 const memoryAddress = this.screenBaseAddress + i;
                 if (memoryAddress < this.ui.simulator.memory.length) {
-                    const wordValue = this.ui.simulator.memory[memoryAddress] & 0xFFFF;
-                    if (wordValue === 0xFFFF || wordValue === 0x0000) {
-                        this.updateCharacter(i, 32, false);
-                    } else {
-                        const charCode = wordValue & 0xFF; // Lower byte contains character
-                        const reverse = (wordValue & 0x8000) !== 0;
-                        this.updateCharacter(i, charCode, reverse);
-                    }
+                    this.drawWord(i, this.ui.simulator.memory[memoryAddress] & 0xFFFF);
                 }
             }
         }
     }
 
-    updateCharacter(charIndex, charCode, reverse) {
+    // Draw one cell, unless it already shows this word.
+    drawWord(charIndex, word) {
+        if (this.lastDrawn[charIndex] === word) return;
+        this.lastDrawn[charIndex] = word;
+        // 0xFFFF (uninitialised) and 0x0000 read as blanks, as before.
+        const blank = (word === 0xFFFF || word === 0x0000);
+        const charCode = blank ? 32 : (word & 0xFF);
+        const attr = blank ? 0 : ((word >> 8) & 0xFF);
+        this.updateCharacter(charIndex, charCode, attr, !blank && (word & 0x8000) !== 0);
+    }
+
+    updateCharacter(charIndex, charCode, attr, cursor) {
         const charElement = document.getElementById(`screen-char-${charIndex}`);
         if (!charElement) return;
 
@@ -177,10 +200,27 @@ class Deep16ScreenUI {
         // charCode 0 remains as space
 
         charElement.textContent = displayChar;
-        if (reverse) {
+        // Bit 15 is the kernel's cursor marker, so it is drawn as reverse
+        // video and carries no colour of its own. That is the one bit missing
+        // from the background nibble: 3 bits of background plus 4 of foreground
+        // today, 4 and 4 once the kernel stops writing the cursor into the
+        // cell and the screen takes it from R8 instead.
+        if (cursor) {
             charElement.classList.add('reverse');
+            charElement.style.color = '';
+            charElement.style.backgroundColor = '';
+            return;
+        }
+        charElement.classList.remove('reverse');
+        // Attribute 0 means "no colour set", which leaves the terminal default
+        // alone. Anything else is the colour nibbles, written as two inline
+        // styles.
+        if (attr === 0) {
+            charElement.style.color = '';
+            charElement.style.backgroundColor = '';
         } else {
-            charElement.classList.remove('reverse');
+            charElement.style.color = this.palette[attr & 0x0F];
+            charElement.style.backgroundColor = this.palette[(attr >> 4) & 0x07];
         }
     }
 
@@ -229,34 +269,13 @@ class Deep16ScreenUI {
             if (this.deferUpdates) {
                 this.pendingUpdates.add(charIndex);
             } else {
-                const word = value & 0xFFFF;
-                const charCode = word & 0xFF;
-                const reverse = (word & 0x8000) !== 0;
-                if (reverse) {
-                    const prevIdx = this.lastCursorIndex;
-                    if (prevIdx !== null && prevIdx !== charIndex) {
-                        const prevEl = document.getElementById(`screen-char-${prevIdx}`);
-                        if (prevEl && prevEl.textContent === ' ') {
-                            prevEl.classList.remove('reverse');
-                        }
-                    }
-                    this.lastCursorIndex = charIndex;
-                } else if (charCode === 32 && this.lastCursorIndex === charIndex) {
-                    this.lastCursorIndex = null;
-                }
-                this.updateCharacter(charIndex, charCode, reverse);
-                if (!reverse && this.lastCursorIndex === charIndex && charCode >= 32 && charCode <= 126) {
-                    const nextIndex = charIndex + 1;
-                    if (nextIndex >= 0 && nextIndex < this.totalChars) {
-                        const nextEl = document.getElementById(`screen-char-${nextIndex}`);
-                        if (nextEl && nextEl.textContent === ' ') {
-                            nextEl.classList.add('reverse');
-                            this.lastCursorIndex = nextIndex;
-                        } else {
-                            this.lastCursorIndex = nextIndex;
-                        }
-                    }
-                }
+                // Draw this one cell. drawWord() also notices the cursor bit,
+                // so the block that moved here is picked up.
+                this.drawWord(charIndex, value & 0xFFFF);
+                // The page follows the cursor, which is a cell attribute the
+                // kernel writes, so it has to be re-read from the word.
+                if ((value & 0x8000) !== 0) this.lastCursorIndex = charIndex;
+                else if (this.lastCursorIndex === charIndex) this.lastCursorIndex = null;
                 this.ensureCursorVisible();
             }
         }
@@ -291,26 +310,10 @@ class Deep16ScreenUI {
         for (const charIndex of this.pendingUpdates) {
             const memoryAddress = this.screenBaseAddress + charIndex;
             if (memoryAddress < this.ui.simulator.memory.length) {
-                const wordValue = this.ui.simulator.memory[memoryAddress] & 0xFFFF;
-                if (wordValue === 0xFFFF || wordValue === 0x0000) {
-                    this.updateCharacter(charIndex, 32, false);
-                } else {
-                    const charCode = wordValue & 0xFF;
-                    const reverse = (wordValue & 0x8000) !== 0;
-                    this.updateCharacter(charIndex, charCode, reverse);
-                    if (!reverse && this.lastCursorIndex === charIndex && charCode >= 32 && charCode <= 126) {
-                        const nextIndex = charIndex + 1;
-                        if (nextIndex >= 0 && nextIndex < this.totalChars) {
-                            const nextEl = document.getElementById(`screen-char-${nextIndex}`);
-                            if (nextEl && nextEl.textContent === ' ') {
-                                nextEl.classList.add('reverse');
-                                this.lastCursorIndex = nextIndex;
-                            } else {
-                                this.lastCursorIndex = nextIndex;
-                            }
-                        }
-                    }
-                }
+                const word = this.ui.simulator.memory[memoryAddress] & 0xFFFF;
+                this.drawWord(charIndex, word);
+                if ((word & 0x8000) !== 0) this.lastCursorIndex = charIndex;
+                else if (this.lastCursorIndex === charIndex) this.lastCursorIndex = null;
             }
         }
         this.pendingUpdates.clear();

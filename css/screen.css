@@ -10,20 +10,68 @@
     min-width: 0;
 }
 
+/* Menu row above the screen: the 16 colours the display can draw on the left,
+   the Upload button pushed to the right edge. The squares are one character
+   cell wide (8px), so the palette is exactly as long as 16 characters of the
+   screen below it. */
+.screen-menu {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 640px;
+    max-width: 100%;
+    margin: 0 auto 6px;
+}
+
+.screen-palette {
+    display: flex;
+    flex-shrink: 0;
+}
+
+.screen-palette-swatch {
+    width: 8px;
+    height: 15px;
+    flex-shrink: 0;
+}
+
+.screen-upload-btn {
+    margin-left: auto;
+    padding: 2px 12px;
+    background: #0e639c;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    min-height: 20px;
+    box-shadow: none;
+    outline: none;
+}
+
+.screen-upload-btn:hover { background: #1177bb; }
+
+/* 80 columns x 24 rows in a fixed cell grid: 8 px wide, 15 px high, which is
+   exactly 640 x 360. The font size is not chosen by eye: a monospace face
+   advances 0.6 em, so 13.3333 px puts the next glyph exactly 8 px further
+   right. The cell clips what does not fit, which keeps the grid aligned even
+   if the browser substitutes a font with a different ratio. */
 .screen-display {
     background: #000000;
     border: 1px solid #3e3e42;
     border-radius: 2px;
-    padding: 6px;
+    padding: 0;
     margin: 0 auto;
     box-shadow: 0 0 8px rgba(0, 255, 0, 0.08);
     font-family: 'Courier New', monospace;
-    font-size: 13px;
-    line-height: 1.1;
+    font-size: 13.3333px;
+    line-height: 15px;
     color: #ffffff;
-    width: 100%;
-    max-width: 720px;
+    width: 640px;
+    height: 360px;
     box-sizing: border-box;
+    overflow: hidden;
 }
 
 .screen-display.screen-active {
@@ -34,23 +82,26 @@
 .screen-row {
     display: flex;
     white-space: nowrap;
-    height: 15px; /* Slightly reduced */
-    justify-content: center; /* Center the row within fixed width */
+    height: 15px;
+    width: 640px;
+    justify-content: flex-start;
 }
 
 .screen-char {
-    width: calc((100% - 12px) / 80);
+    width: 8px;
     height: 15px;
+    line-height: 15px;
     display: inline-block;
-    text-align: center;
+    text-align: left;
     font-weight: bold;
     background: #000000;
     color: #ffffff;
     border: none;
     outline: none;
+    overflow: hidden;
     font-family: 'Courier New', monospace;
-    font-size: 13px;
-    letter-spacing: -0.5px;
+    font-size: 13.3333px;
+    letter-spacing: 0;
     flex-shrink: 0;
 }
 
@@ -206,34 +257,27 @@
     animation: screen-glow 3s ease-in-out infinite;
 }
 
-/* Mobile responsiveness */
+/* Mobile responsiveness. The cell grid is fixed (8 x 15 px per character), so
+   the screen no longer stretches to the viewport: it stays 640 px wide and the
+   page scrolls if that is more than the phone offers. Scaling the cells instead
+   would break the one thing the whole screen depends on - that cell N is always
+   the same distance from the left edge as every other row. */
 @media (max-width: 768px) {
-    .screen-display { width: 95%; max-width: 960px; padding: 4px; }
-    .screen-char { font-size: 11px; }
-    .screen-row { height: 13px; }
+    .screen-display { width: 640px; padding: 0; }
 }
 
-/* Portrait phones: 80 columns cannot fit the viewport. The cell width is a
-   fraction of the container (width: calc((100% - 12px) / 80)) with no lower
-   bound, so on a 375px-wide phone each cell collapses to ~4px while the
-   Courier glyph is ~6.6px wide - the characters overlap and become unreadable.
+/* Portrait phones: 80 columns do not fit the viewport. Rather than squeeze the
+   cells (which makes the characters overlap), show the first 40 columns at
+   their natural 8px and page to the other half. Only *visibility* changes:
+   each .screen-row still holds all 80 spans addressed by their grid index
+   (screen-char-N), so the memory path in deep16_ui_screen.js is untouched and
+   needs no index remapping.
 
-   Instead of squeezing, show 40 columns at their natural advance width
-   (~8px per cell at 375px) and page to the other half. Only *visibility*
-   changes: each .screen-row still holds all 80 spans addressed by their
-   grid index (screen-char-N), so the memory path in deep16_ui_screen.js is
-   untouched and needs no index remapping.
-
-   This must stay a portrait query. In landscape the phone is wider than
-   768px, the block above does not apply, and the existing 80-column layout
-   already renders correctly. */
+   This must stay a portrait query. In landscape the phone is wider than 768px,
+   the block above does not apply, and all 80 columns show. */
 @media (orientation: portrait) and (max-width: 768px) {
-    .screen-char {
-        width: calc((100% - 12px) / 40);
-        font-size: 12px;
-        letter-spacing: 0;
-    }
-    .screen-row { height: 14px; }
+    .screen-display { width: 320px; }   /* 40 columns at 8px */
+    .screen-menu { width: 320px; }
 
     /* Left page: columns 1-40. Right page: columns 41-80. */
     .screen-char:nth-child(n+41) { display: none; }
@@ -243,14 +287,6 @@
 
     .screen-info-full { display: none; }
     .screen-info-short { display: inline; }
-}
-
-/* Very narrow portrait (iPhone SE, 320px): 40 columns still leave under 7px
-   per cell, so step the font down rather than the column count - the pager
-   labels and the JS page logic assume a fixed 40-column split. */
-@media (orientation: portrait) and (max-width: 360px) {
-    .screen-char { font-size: 10px; }
-    .screen-row { height: 12px; }
 }
 
 /* Hidden terminal keyboard hook (iOS soft keyboard).

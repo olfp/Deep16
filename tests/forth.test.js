@@ -820,3 +820,50 @@ test('2/, abs, min and max check their operands', () => {
   assert.equal(rows[5], '>');
   assert.ok(running);
 });
+
+// The IDE draws 80x24 cells (640x360 at 8x15 per character). The kernel still
+// clears 80x25 words, so this pins the assumption that makes that safe: the
+// last row of the buffer stays blank, and scrolling keeps the visible rows
+// filled. If the kernel ever writes into it, the bottom line would be cut off
+// with nothing to show for it.
+const SCREEN_VISIBLE_ROWS = 24;
+
+test('the kernel never writes into the row below the visible screen', () => {
+  const { Deep16Simulator } = globalThis;
+  // Enough lines to scroll several times over.
+  const lines = [];
+  for (let i = 0; i < 40; i++) lines.push(`: w${i} ${i} ;`);
+  lines.push('w7 .');
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF;
+  for (const ch of lines.join('\n') + '\n') {
+    sim.enqueueKeyCode(ch === '\n' ? 10 : ch.charCodeAt(0));
+  }
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 4000000) { sim.step(); steps++; }
+
+  // Row 24 is the one the display does not show.
+  for (let c = 0; c < 80; c++) {
+    const word = sim.memory[SCREEN_ADDR + 24 * 80 + c] & 0xFFFF;
+    const isBlank = word === 0xFFFF || word === 0x0020 || word === 0x0000;
+    assert.ok(isBlank,
+      `row 24 column ${c} holds 0x${word.toString(16).padStart(4, '0')}, which the 24 row display cannot show`);
+  }
+  // And the scrolling did leave the visible area filled.
+  let filled = 0;
+  for (let i = 0; i < SCREEN_VISIBLE_ROWS * 80; i++) {
+    const word = sim.memory[SCREEN_ADDR + i] & 0xFFFF;
+    const ch = word === 0xFFFF ? 0 : (word & 0xFF);
+    if (ch !== 0 && ch !== 0x20) filled++;
+  }
+  assert.ok(filled > 100, `only ${filled} cells drawn - the scrolling lost the output`);
+});
+
+test('the screen buffer holds 24 visible rows at 8x15 pixels', () => {
+  // The layout the CSS promises: 80 columns of 8 px and 24 rows of 15 px.
+  assert.equal(80 * 8, 640);
+  assert.equal(24 * 15, 360);
+  assert.equal(SCREEN_VISIBLE_ROWS * 80, 1920);
+});

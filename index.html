@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DeepCode - Deep16 (深十六) Integrated Development Environment</title>
-    <link rel="stylesheet" href="css/main.css?v=20261010-4">
+    <link rel="stylesheet" href="css/main.css?v=20261011-1">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="alternate icon" type="image/x-icon" href="favicon.ico">
 </head>
@@ -153,6 +153,18 @@ data_area:
                 </div>
             </div>
             <div id="screen-tab" class="tab-content">
+                <div class="screen-menu">
+                    <!-- The 16 colours the screen can draw, in ANSI order: the
+                         low nibble of a cell's high byte picks the foreground,
+                         the high nibble the background. -->
+                    <div class="screen-palette" id="screen-palette" aria-hidden="true"></div>
+                    <!-- Typing a file in. Every character of the chosen ASCII file
+                         becomes a keystroke, every line ending a Return, so the
+                         program sees exactly what a person typing it would send. -->
+                    <button type="button" id="file-upload-btn" class="screen-upload-btn"
+                            title="Eine ASCII-Datei als Tastatureingaben eintippen">Upload</button>
+                    <input type="file" id="file-upload-input" accept=".fs,.fth,.forth,.4th,.txt" hidden>
+                </div>
                 <div class="screen-tab">
                     <div class="screen-display" id="screen-display">
                         <!-- 80x25 character grid will be populated by JavaScript -->
@@ -165,17 +177,8 @@ data_area:
                                 aria-label="Spalten 41 bis 80 anzeigen">&#9654;</button>
                     </div>
                     <div class="screen-info">
-                        <span class="screen-info-full">Memory: 0xF1000-0xF17CF (80×25 characters) | Lower byte = ASCII character</span>
-                        <span class="screen-info-short">0xF1000-0xF17CF &middot; 80&times;25 &middot; Low byte = ASCII</span>
-                    </div>
-                    <!-- Typing in a file. Every character of the chosen ASCII file
-                         becomes a keystroke, every line ending a Return, so the
-                         program sees exactly what a person typing it would send. -->
-                    <div class="screen-upload">
-                        <button type="button" id="file-upload-btn"
-                                title="Eine ASCII-Datei als Tastatureingaben eintippen">Datei tippen…</button>
-                        <input type="file" id="file-upload-input" accept=".fs,.fth,.forth,.4th,.txt" hidden>
-                        <span class="screen-upload-hint" id="file-upload-hint"></span>
+                        <span class="screen-info-full">Memory: 0xF1000-0xF17BF (80×24 characters) | Lower byte = ASCII, high byte = 4+4 bits colour</span>
+                        <span class="screen-info-short">0xF1000-0xF17BF &middot; 80&times;24</span>
                     </div>
                     <!-- Hidden keyboard hook: on iOS the soft keyboard only appears
                          when a real <input> receives focus inside the tap gesture.
@@ -359,10 +362,10 @@ data_area:
 
     <script src="js/deep16_assembler.js?v=20261006-1"></script>
     <script src="js/deep16_disassembler.js?v=20261006-1"></script>
-    <script src="js/deep16_simulator.js?v=20261010-4"></script>
+    <script src="js/deep16_simulator.js?v=20261011-1"></script>
     <script src="js/deep16_ui_registers.js?v=20261006-1"></script>
     <script src="js/deep16_ui_memory.js?v=20261006-1"></script>
-    <script src="js/deep16_ui_screen.js?v=20261010-1"></script>
+    <script src="js/deep16_ui_screen.js?v=20261011-1"></script>
     <script type="module">
         try {
             const modPromise = import('./wasm/pkg/deep16_wasm.js?v=20261010-4');

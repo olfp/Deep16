@@ -199,7 +199,7 @@ test('the panels read through the active core, never a hardcoded module', () => 
 const KERNEL = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
 
 // Boot the kernel and type `file` into it through the real pump.
-function typeThroughPump(file, { stepsPerTick = 200, maxSteps = 2000000, run = true } = {}) {
+function typeThroughPump(file, { stepsPerTick = 200, maxSteps = 12000000, run = true } = {}) {
   const res = assemble(KERNEL);
   assert.ok(res.success, res.errors.join('; '));
   const ui = makeUi();

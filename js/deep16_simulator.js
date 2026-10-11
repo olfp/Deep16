@@ -39,9 +39,18 @@ class Deep16Simulator {
         this.segmentRegisters.SS = 0x0000; // Stack starts at SP = 0x7FFF
         this.segmentRegisters.ES = 0x0000; // Extra segment
 
-        // Screen memory mapping
+        // Screen memory: 80 columns x 24 rows of 16 bit words, one word per character
+        // cell, at 0xF1000..0xF17BF. The low byte is the character; the high byte
+        // carries four bits of foreground colour, three of background, and bit
+        // 15 is the cursor the kernel writes.
+        //
+        // The kernel still clears 80x25 words, but it never puts anything in the
+        // last row - the display shows 24 rows, which is what the screen has
+        // room for at 8x15 pixels per character.
+        this.SCREEN_COLUMNS = 80;
+        this.SCREEN_ROWS = 24;
         this.SCREEN_MEMORY_START = 0xF1000;
-        this.SCREEN_MEMORY_END = 0xF17CF;
+        this.SCREEN_MEMORY_END = 0xF17BF;
         
         // Reference to UI for screen updates (will be set by UI)
         this.ui = null;

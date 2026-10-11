@@ -335,6 +335,34 @@ Kein Fehler, sondern Struktur. Die bekannten Stellen:
   Ein Label muss deshalb fürs Handy gekürzt werden, damit es nicht abschneidet —
   ein Ort, an dem man danach nicht suchen würde.
 
+### 3. Das High Byte trägt noch kein volles 4+4-Bit-Farbbyte
+
+**Stand 2026-10-11.** Das High Byte einer Bildschirmzelle ist als Farbe belegt
+(vier Bit Vordergrund, drei Bit Hintergrund), aber **Bit 15 ist weiterhin das
+Cursorbit des Kernels** — der schreibt es beim Setzen des Cursors und beim
+Löschen. Deshalb ist der Hintergrund heute drei Bit breit; die acht hellen
+Hintergründe fehlen.
+
+Umgekehrt gilt: **`asm/forth.asm` wurde dafür nicht geändert.** Der Versuch,
+das Cursorbit freizugeben und den Cursor aus R8 zu zeichnen, **hat den Kernel
+bei langen Eingaben zerlegt**: ab 23 eingegebenen Zeilen blieb die Maschine
+stehen und der Bildschirm leer, während der unveränderte Kernel fehlerfrei
+scrollt. Isoliert ließ sich die Ursache auf `bios_putch` und `bios_clr`
+eingrenzen (beide verlieren nur Code am Ende eines BIOS-Unterprogramms), aber
+nicht beheben — der Rückbau ist deshalb sauber zurückgenommen, statt eine
+halbe Lösung zu lassen.
+
+Nötig für die 4+4-Bit-Fassung ist also weiterhin eine Kernel-Änderung: das
+Cursorbit aus `bios_f2`, `clear_cursor`, `cursor_off`, `bios_getstr`
+(Backspace und Echo) und `bios_clr` entfernen, und den Cursor im Bildschirm
+aus R8 (`SCR`) zeichnen. Die Randbedingung, die dabei zu beachten ist: die
+Aufrufer von `clear_cursor` und `cursor_off` erwarten nach dem `LINK`/`JMP`
+unveränderte Scratch-Register.
+
+Der Bildschirm ist 80×24 Zellen groß (640×360 px bei 8×15 px je Zeichen), was
+ohne Kernel-Änderung geht: der Kernel löscht weiter 80×25 Wörter, schreibt aber
+nie in die letzte Zeile. Ein Test hält diese Annahme fest.
+
 ## FPGA-Ziel Tang Nano 9K — Auslegungsbefunde
 
 **Stand 2026-10-10. Schätzung, keine Synthese** — auf dieser Maschine gibt es weder
