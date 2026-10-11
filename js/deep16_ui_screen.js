@@ -88,18 +88,37 @@ class Deep16ScreenUI {
         if (prevBtn) prevBtn.addEventListener('click', () => this.setPage(0));
         if (nextBtn) nextBtn.addEventListener('click', () => this.setPage(1));
 
-        const host = this.tabElement();
+        // Both, not either: the observer follows the panel, the window listener
+        // is the safety net for browsers or moments where it stays silent.
+        const host = this.measureElement();
         if (host && typeof ResizeObserver === 'function') {
             this.resizeObserver = new ResizeObserver(() => this.applyColumnMode());
             this.resizeObserver.observe(host);
-        } else if (typeof window.addEventListener === 'function') {
+        }
+        if (typeof window.addEventListener === 'function') {
             window.addEventListener('resize', () => this.applyColumnMode());
         }
     }
 
-    tabElement() {
-        return document.getElementById('screen-tab')
-            || document.querySelector('.screen-tab');
+    // Two boxes, two jobs.
+        //
+        // Measured: the inner .screen-tab. It carries the padding and the
+        // `overflow: hidden` that clip the screen, so it decides whether 640 px
+        // fit. The .tab-content wrapper around it is wider by that padding, and
+        // measuring the wrong one is how a narrow iPad reports "room enough"
+        // while the text runs off the edge.
+        //
+        // Marked: the outer #screen-tab. The narrow-mode CSS has to reach both
+        // the menu row and the screen, and the menu row is a *sibling* of
+        // .screen-tab rather than a child - a class on the inner box would leave
+        // the menu at 640 px while the screen shrinks to 320.
+    measureElement() {
+        return document.querySelector('.screen-tab')
+            || document.getElementById('screen-tab');
+    }
+
+    modeElement() {
+        return document.getElementById('screen-tab');
     }
 
     // Inner width of the tab, i.e. what is actually left for the screen once
@@ -107,7 +126,7 @@ class Deep16ScreenUI {
     // tab has no layout, and measuring it would report "no room" and switch the
     // pager on for the wrong reason.
     availableWidth() {
-        const host = this.tabElement();
+        const host = this.measureElement();
         if (!host) return null;
         const width = host.clientWidth;
         if (!width) return null;
@@ -126,7 +145,7 @@ class Deep16ScreenUI {
         this.visibleCols = narrow ? 40 : this.screenWidth;
         // With all 80 columns visible the pager is meaningless.
         if (!narrow) this.activePage = 0;
-        const host = this.tabElement();
+        const host = this.modeElement();
         if (host) host.classList.toggle('screen-narrow', narrow);
         this.setPage(this.activePage);
     }

@@ -519,12 +519,18 @@ test('the controls keep their order after the round trip through mobile', () => 
 
 // A tab element whose layout width the test can set.
 function screenDom(width) {
+  // The inner .screen-tab is what gets measured - it carries the padding and
+  // the overflow that clip the screen.
+  const inner = makeEl();
+  inner.className = 'screen-tab';
+  inner.clientWidth = width;
   const tab = makeEl();
   tab.id = 'screen-tab';
-  tab.clientWidth = width;
+  tab.clientWidth = width;          // the outer wrapper, wider by the padding
   const display = makeEl();
   display.id = 'screen-display';
-  tab.appendChild(display);
+  inner.appendChild(display);
+  tab.appendChild(inner);
   const ids = { 'screen-tab': tab, 'screen-display': display };
   for (const n of ['screen-page-prev', 'screen-page-next']) {
     const b = makeEl('button');
@@ -534,7 +540,7 @@ function screenDom(width) {
   const label = makeEl('span');
   label.id = 'screen-page-label';
   ids['screen-page-label'] = label;
-  return { tab, display, ids };
+  return { tab, inner, display, ids };
 }
 
 // A screen UI instance with the layout-dependent fields seeded, driving the
@@ -547,7 +553,10 @@ function screenInstance(dom) {
   s.activePage = 0;
   s.visibleCols = 80;
   s.lastCursorIndex = null;
-  s.tabElement = () => dom.tab;
+  // measureElement() and modeElement() are deliberately NOT stubbed here: the
+  // whole point is to run the real ones against the document stub, which hands
+  // out the inner box for '.screen-tab' and the wrapper for '#screen-tab'.
+  // Stubbing them made every test pass whatever the code did.
   s.setPage = function (p) { this.activePage = p; };
   return s;
 }
@@ -559,7 +568,7 @@ function withScreenDom(width, fn) {
   const prevGet = globalThis.window.getComputedStyle;
   globalThis.document = {
     getElementById: (id) => dom.ids[id] || null,
-    querySelector: () => dom.tab,
+    querySelector: (sel) => (sel === '.screen-tab' ? dom.inner : null),
     createElement: (tag) => makeEl(tag),
     documentElement: { style: { setProperty() {} } },
   };
@@ -613,6 +622,7 @@ test('going back to full width hides the pager again', () => {
   withScreenDom(500, (dom, s) => {
     s.applyColumnMode();
     assert.equal(dom.tab.classes.has('screen-narrow'), true);
+    dom.inner.clientWidth = 900;
     dom.tab.clientWidth = 900;
     s.applyColumnMode();
     assert.equal(dom.tab.classes.has('screen-narrow'), false);
@@ -635,4 +645,60 @@ test('the cursor follows the pager only while it is in use', () => {
   s.lastCursorIndex = 5;
   s.ensureCursorVisible();
   assert.equal(s.activePage, 0);
+});
+
+// The outer wrapper is wider than the box that clips. That difference is only
+// a dozen pixels, but on a tablet sitting right at the boundary it is the
+// difference between "80 columns fit" and half the screen running off the edge.
+test('the width is measured on the clipping box, not on the wider wrapper', () => {
+  withScreenDom(640, (dom, s) => {
+    // The wrapper has room to spare, the box that actually clips does not.
+    dom.tab.clientWidth = 700;
+    dom.inner.clientWidth = 600;       // 600 < 640: the screen would be cut
+    s.applyColumnMode();
+    assert.equal(s.visibleCols, 40,
+      'the padding of .screen-tab must be counted, or the last column is cut off');
+    assert.equal(dom.tab.classes.has('screen-narrow'), true);
+  });
+});
+
+test('the narrow class lands on the wrapper so the menu row shrinks too', () => {
+  withScreenDom(400, (dom, s) => {
+    s.applyColumnMode();
+    assert.equal(dom.tab.classes.has('screen-narrow'), true,
+      '.screen-menu is a sibling of .screen-tab, so the class has to be on the '
+      + 'wrapper or the menu row stays 640px wide while the screen shrinks');
+    assert.equal(dom.inner.classes.has('screen-narrow'), false,
+      'the class belongs on the wrapper, not on the measured box');
+  });
+});
+
+// The screen UI is built while the Screen tab is still hidden - it has no
+// width then, and the measurement is skipped on purpose. The moment the tab is
+// actually shown is the first chance to find out how much room there is. On a
+// narrow iPad in portrait that is the difference between the pager and a screen
+// running off the edge.
+test('switching to the Screen tab re-measures the width', () => {
+  const prevDoc = globalThis.document;
+  const ui = makeUi();
+  let measured = 0;
+  ui.screenUI = {
+    updateScreenDisplay() {},
+    applyColumnMode() { measured++; },
+  };
+  ui.updateAssemblyListing = () => {};
+  ui.syncHeaderWidths = () => {};
+  // No tabs and no keyboard hook in this stub, so only the measuring branch runs.
+  globalThis.document = {
+    querySelectorAll: () => [],
+    getElementById: () => null,
+    activeElement: null,
+  };
+  try {
+    ui.switchTab('screen');
+  } finally {
+    globalThis.document = prevDoc;
+  }
+  assert.equal(measured, 1,
+    'the Screen tab is only measurable once it is shown - switchTab must ask');
 });

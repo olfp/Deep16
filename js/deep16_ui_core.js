@@ -1623,8 +1623,15 @@ class DeepWebUI {
 
         if (tabName === 'listing' && this.currentAssemblyResult) {
             this.updateAssemblyListing();
-        } else if (tabName === 'screen') { 
+        } else if (tabName === 'screen') {
             this.screenUI.updateScreenDisplay();
+            // The tab was hidden until now, so it had no width to measure and
+            // the pager was never asked. This is the first moment that can be
+            // answered - on a narrow iPad in portrait it is less than the 80
+            // columns need, and without this the text runs off the edge.
+            if (typeof this.screenUI.applyColumnMode === 'function') {
+                this.screenUI.applyColumnMode();
+            }
             // Entering the terminal on a touch device raises the soft keyboard
             // (clicking the tab is a user gesture, so iOS honours the focus).
             const hook = document.getElementById('terminal-kbd-hook');
