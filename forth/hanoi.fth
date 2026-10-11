@@ -5,7 +5,7 @@
 
 0x1000 constant screen-start
 80 constant ncols
-25 constant nrows
+24 constant nrows
 
 \ Set screen position (row, col). Byte offset = row*80 + col from screen start.
 : screenset ( row col -- )
