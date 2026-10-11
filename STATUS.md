@@ -175,14 +175,20 @@ Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
   dazu eine zweite Tabelle der 6502-Begriffe und ihrer Entsprechung.
 - **Anhang D — Quellen und Werkzeuge**: die drei Kerne, die Prüfbefehle, das
   Simulator-Fenster, die Spezifikation (mit dem Hinweis auf ihre veraltete
-  Opcode-Tabelle), die bewusst ausgelassenen Themen **GFX, PSRAM, SERLOAD**
+  Opcode-Tabelle), die bewusst ausgelassenen Themen **GFX, PSRAM**
   samt Wiedervorlage-Bedingung, und die Werkzeuge der Buchproduktion.
-- **Befund an der Spezifikation:** `doc/Deep16-Arch.md` ist in drei Opcode-
-  Bereichen älter als der Assembler (Schiebegruppe `110 10000`–`110 11011`
-  statt `110 10…`, `MUL`/`DIV` `110 11100`–`110 11111`, Systemgruppe ab
-  `11111111110`). Die **33 Opcode-Diagramme der Kapitel 3–6 wurden gegen den
-  Assembler geprüft und stimmen alle** — der Fehler steckt nur in der
-  Spec-Tabelle, nicht im Buch.
+- **Befund an der Spezifikation:** Die **Opcode-Tabellen der Spec stimmen mit
+  dem Assembler überein** — Schiebegruppe `110 10000`–`110 11011` (12/12),
+  `MUL`/`DIV` `110 11100`–`110 11111` (4/4), Systemgruppe ab `11111111110`
+  (4/4), jeweils durch Nachmessen des Assemblers belegt. Die frühere Notiz,
+  die drei Opcode-Bereiche für veraltet hielt, war **selber veraltet**: der
+  abweichende `MUL32`-Entwurf `[110][101][Rd4][w1][i1][Rs4]` wurde durch
+  `110 11101` ersetzt, und die Spec-Zeilen standen in **jeder** Revision
+  identisch (10 Commits zurück bis `1bce2ee`, ebenso in `old/`). Der
+  einzige verbliebene Spec-Fehler ist semantischer Natur: Tabelle 14
+  etikettierte `DIV32` als „32÷16→32-bit divide", obwohl der Quotient auf
+  16 Bit gekappt wird (siehe Entscheidungs-Log). Die **33 Opcode-Diagramme
+  der Kapitel 3–6 wurden gegen den Assembler geprüft und stimmen alle.**
 - **Verifikation:** `probe_anhang_a.mjs` 67/67 Beispielwörter,
   `probe_diagramme.mjs` 33/33 Diagramme, `probe_reject.mjs` 26/26 abgelehnte
   6502-Befehle mit wörtlichen Fehlertexten, `npm test` 296/296.
@@ -227,12 +233,13 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-10 | **Die vier offenen imm2-Punkte abgearbeitet**: **(1)** `MOV` hatte als einziger häufig benutzter Befehl **kein** Bit-Diagramm — ergänzt in Kap. 3 §3.1 mit den vier `imm2`-Funktionen (Tabelle 3-1, Listing 3-11, auf allen drei Kernen gemessen). **(2)** „Jede 16-Bit-Konstante kostet zwei Instruktionen" steht jetzt als Merksatz dort, gestützt auf die Messung `LDI 0x1234` + `MOV R5, R0` → `0x1234`. **(3)** `ALINK`/`ALNK` (Alias für `SMV Rx, APC`) fehlten im Buch — jetzt in Kap. 4 §4.2 mit Vergleichstabelle gegen `LINK` (gemessen `0x0101` gegen `0x0103`, bytegleiches Befehlswort `0xFEEF`) und Querverweis aus Tabelle 5-2 in Kap. 5. **(4)** Das `Jcc`-Ablaufdiagramm in Kap. 4 war mehrdeutig: „PC + 1" meinte die Adresse des `Jcc`, während die CPU im Slot bereits `PC + 2` ausgibt — neu beschriftet mit der **Ankunftsadresse `A`** und den gemessenen Werten (Slot `0x0105`, `MOV Rx, PC` im Slot liest `0x0106`). | `book/kap03.md`, `book/kap04.md`, `book/kap05.md` |
 | 2026-10-11 | **Die vier Anhänge geschrieben** (`book/anhang.md`). Zwei Dinge, die beim Messen auffielen und deshalb jetzt dokumentiert sind: **(1)** Die Opcode-Tabelle in `doc/Deep16-Arch.md` ist in drei Bereichen veraltet — der Assembler kodiert die Schiebegruppe `110 10000`–`110 11011`, `MUL`/`DIV` `110 11100`–`110 11111` und die Systemgruppe ab `11111111110`. Die Spec wurde **nicht** geändert (sie gehört dem Parallelautor); Anhang A nennt die gemessenen Werte und weist die Abweichung aus, die 33 Opcode-Diagramme im Buch wurden gegenprüft und stimmen. **(2)** `LDI -1` kodiert `7FFF` und nicht `FFFF` — die einzige Codierung für `FFFF` ist `HLT`; genau die Lektion aus §6.2, jetzt an der Referenz sichtbar. `book/build/build-epub.sh` nimmt `anhang*.md` jetzt mit in den Build. | `book/anhang.md`, `book/build/build-epub.sh`, `book/epub/*` |
 | 2026-10-11 | **Kapitel 8 „Snake"** geschrieben. Der Buchplan nannte „Terminal-Uhr oder Snake"; gewählt wurde Snake, weil der Simulator **keinen Timer-Port** kennt (nur `0xF0060`/`0xF0062` und den Bildschirmpuffer) — eine Uhr wäre damit nur über eine Schleifenzählung gegangen und hätte nichts über die Maschine gezeigt. Snake nutzt Adressrechnung, Blockverschiebung, Unterprogramme und Tastatureingabe gemeinsam. Vier Listings, alle drei Kerne, Extractor 172/172. | `book/kap08.md`, `book/epub/*` |
-| 2026-10-11 | **Kapitel 7 „Ein Mini-Forth"** geschrieben, gestufter Aufbau nach Buchplan: Listing 7-1/7-2 (Zeile lesen, Wort schneiden), 7-3 (Wörterbuch mit Fehlerpfad), 7-4 (Zahl lesen und dezimal ausgeben), 7-5 (Schlussprogramm). Der Zwischenstand zu `SERPLAN.md` (Zeilenlängengrenze, EOF-Statuswert) ist für die serielle Variante noch nicht im Buch — Kapitel 8 oder Anhang D. Alle Zahlen auf JS-, WASM- und Verilog-Kern gemessen (Extractor 276/276). | `book/kap07.md`, `book/epub/*` |
+| 2026-10-11 | **Kapitel 7 „Ein Mini-Forth"** geschrieben, gestufter Aufbau nach Buchplan: Listing 7-1/7-2 (Zeile lesen, Wort schneiden), 7-3 (Wörterbuch mit Fehlerpfad), 7-4 (Zahl lesen und dezimal ausgeben), 7-5 (Schlussprogramm). Der Zwischenstand zum eintippen einer Quelldatei (`SERPLAN.md`: Zeilenlängengrenze, Taktung nach Warteschlangenfüllstand) ist noch nicht im Buch — Kapitel 8 oder Anhang D. Alle Zahlen auf JS-, WASM- und Verilog-Kern gemessen (Extractor 276/276). | `book/kap07.md`, `book/epub/*` |
 | 2026-10-10 | **Architektur-Revisionen abgeglichen**: Die Revisionsdokumente im Repo-Root sind in STATUS.md unter „Architektur-Revisionen im Repo-Root" nach Thema, Stand und Buchrelevanz eingeordnet. Zwei sind bewusst **kein** Buchthema: `GFX.md`/`GFXOVERV.md` (Grafik-Kern GCoP, Design-Phase, ferne Zukunft) und `PLANPSRAM.md` (PSRAM-Backing-Store, **nicht umgesetzt**). `SERPLAN.md` (8/9 Schritte fertig) ist Material für Kapitel 7. Der aus `VERILOG.md` folgende dritte Kern **wurde ins Buch übernommen**: Kapitel 6 §6.2 spricht jetzt von drei Kernen, und Probe (71/71) wie Extractor (94/94) messen auf JS, WASM und RTL — die Schrittzahlen stimmen auch auf dem Verilog-Kern. Vermessungs-Workflow in `STYLE.md` §7 entsprechend auf drei Kerne gestellt. | `book/kap06.md`, `STYLE.md`, `STATUS.md` |
 | 2026-10-10 | **Kapitel 6 „Der Simulator als Werkbank"** geschrieben: Speicherkarte (Tabelle 6-1), Tastaturports (Tabelle 6-2), Bildschirmzelle mit Bitdiagramm, die Kernfalle `LD`/`ST` sehen keine Ports, Delay-Slot-Falle messbar (`R1` = 5 statt 1), LDI-Mustergrenze, Debugger-Hooks. Alle Zahlen auf **allen drei** Kernen gemessen (Probe 71/71, Extractor 94/94). | `book/kap06.md`, `book/epub/*` |
 | 2026-10-10 | **`LDI`-Bereich: Vermerk zurückgenommen, Semantik festgeschrieben.** Der vormerkte „Bereichsfehler" war eine **Fehldiagnose** — die obere Grenze `0x7FFF` ist korrekt. Spec §3.4 lautet `R0 ← sign_extend(imm15)`: der Operand ist ein **15-Bit-Muster**, alle 32768 Muster sind legal, und die Vorzeichenerweiterung findet in der **CPU** statt, nicht im Assembler. `LDI 20000` → `0xCE20` (`−12992`) ist auf beiden Kernen das *richtige* Ergebnis. Ein Versuch, die Grenze auf `16383` zu ziehen, hat `forth.asm`, `swi-test.asm`, `screen_demo.asm`, `string_demo.asm` und `asm/backup` zerlegt (80 Testfehler) sowie den Disassembler-Round-Trip gebrochen — der Disassembler gibt Immediates als rohes Hex aus, das sich dann nicht wieder laden ließ. **Regel:** Assembler prüft nur, ob der Wert in ein 15-Bit-Feld passt (`0..0x7FFF` oder `-16384..-1`, dieselben Muster in zwei Schreibweisen), nicht ob er in einen Vorzeichenbereich passt. Absicherung: `tests/disassembler.test.js` prüft jetzt alle 32768 Muster auf `disassemble → assemble`, STYLE.md §9 als eingefrorener Fact präzisiert, die irreführenden TODO-Kommentare in `js/deep16_assembler.js` ersetzt. Kapitel 2/3/6 und alle EPUBs bleiben unverändert — sie hatten recht. | `js/deep16_assembler.js`, `tests/disassembler.test.js`, `STYLE.md` §9 |
 | 2026-10-10 | **`book/` aufgeräumt**: Ergebnisse nach `book/epub/`, Zwischenergebnisse (Pandoc-Stufe, Calibre-Round-Trip, Mermaid-PNGs) nach `book/build/` — bei jedem Build geleert, per `.gitignore` nicht versioniert. `book/` enthält damit nur noch Quellen (`kap*.md`), Werkzeuge (`build-epub.sh`, `mermaid_filter.lua`, `normalize_epub.py`), das Mermaid-Test-Fixture `test/` und die beiden Artefaktordner. | `book/epub/`, `book/build/`, `book/build/build-epub.sh`, `STYLE.md` §6 |
 | 2026-10-10 | **Divider neu: handgeschrieben, iterativ, Radix-4.** Drei Befunde führten dazu. **(a)** Das RTL benutzt die Verilog-Operatoren `quot32 = dividend32 / {16'h0000, opv_i}` und `rem32 = dividend32 % {...}` (`rtl/deep16_alu.sv:235-236`) — Verilog sieht **32/32**, ein Synthesizer inferiert zwei volle 32-Bit-Teiler. Die Architektur meint aber 32÷16 mit **16-Bit-Quotient und 16-Bit-Rest**; `quot32[15:0]`/`rem32[15:0]` verwerfen die oberen Hälften ohnehin. Ein echter 32÷16 braucht nur ein **18-Bit-Arbeitsregister**, nicht 33 — das war in der ersten Auslegung dieses Dokuments falsch angesetzt. **(b)** Unverändert ergäbe das ~1200–2000 LUT und **8–16 MHz**; der Teiler wäre der Taktbegrenzer des ganzen Kerns. **(c)** Iterativ **entkoppelt die Breite vom Takt**: der kritische Pfad ist nur noch *eine* Iteration (18-Bit-Kette + 2 LUT-Level + Routing = 2,2–4,5 ns), also **222–455 MHz** und bei 54 MHz 4–8× Reserve. Gewählt wird **Radix-4** (2 Dividend-Bits je Iteration, **16 statt 32 Takte**) für den Durchsatz: Misch-CPI 6,20 → **3,53**, also 8,7 → **15,3 MIPS @54 MHz**. ⚠ *Korrigiert nach der Umsetzung:* die erste Fassung nannte **8 Takte / 24,5 MIPS**. Falsch — der 32÷16-Quotient ist 32 Bit breit und wird erst am Ende auf 16 Bit gekürzt, also müssen alle 32 Dividend-Bits aus `rem = 0` verbraucht werden. Radix-4 bleibt die richtige Wahl (es halbiert die Iterationen gegenüber Radix-2), ist aber halb so schnell wie zunächst behauptet. **Gemessen: 16,0 Takte** über `ADD`. Fläche: **~300–450 LUT** (gegenüber ~100–160 für Radix-2 und ~1200–2000 für den inferierten) — bei 300–450 LUT bleibt der Fmax bei ~5–7 ns je Iteration, also ~2,6–3,7× Reserve bei 54 MHz. `DIV` (16÷16) und `DIV32` (32÷16) teilen **einen** Kern (16÷16 = 32÷16 mit Nullbits im Dividend); Quotient und Rest fallen im Restoring-Verfahren gemeinsam an, die Doppel-Operatoren entfallen. Preis: 16 Takte statt 1 je Division. **Bleibt zu erhalten:** die Sonderfälle `opv == 0 → 0xFFFF` und die Ablehnung ungerader Zielregister bei `DIV32` (`rd[0]`). Danach ist der Teiler **nicht mehr** der kritische Pfad — der ist dann der Rest von EX (228-Bit-State-Bypass, ALU mit 32 Funktionen, Schieberegister, Ergebnisauswahl), geschätzt 8–15 ns. | `rtl/deep16_alu.sv`, `rtl/deep16_core.sv` (`stall`) |
+| 2026-10-11 | **MUL/DIV-Abgleich Spec ↔ drei Kerne: zwei Befunde, ein echter, ein Fehlalarm.** Anlass war die Meldung, die Opcode-Tabelle der Spec weiche für Schiebegruppe, `MUL`/`DIV` und Systemgruppe vom Assembler ab. **(1) Echter Fehler, semantisch:** Spec Tabelle 14 etikettierte `DIV32` als „32÷16→32-bit divide". Gemessen rechnet `DIV32` **32÷16 mit 16-Bit-Quotient und 16-Bit-Rest** — der Quotient wird gekappt (`0xFFFFFFFF / 1` → `Rd=0xFFFF`, nicht `0xFFFFFFFF`; `0x00012345 / 1` → `Rd=0x2345`). Das ist gewollt und in `rtl/deep16_alu.sv` sowie `rtl/deep16_divider.sv` kommentiert; nur das Etikett war falsch. Spec Tabelle 8, Anhang A und die Buchkapitel waren bereits richtig, `MUL32` trägt dasselbe Etikett und ist korrekt (32 Bit bleiben vollständig erhalten). Etikett in `doc/Deep16-Arch.md` berichtigt — die einzige angefasste Spec-Zeile, nach ausdrücklicher Freigabe, weil die Spec dem Parallelautor gehört. **(2) Fehlalarm:** die drei behaupteten Opcode-Abweichungen existieren nicht. Nachgemessen Schiebegruppe 12/12, `MUL`/`DIV` 4/4, Systemgruppe 4/4 MATCH; die Spec-Zeilen standen in **jeder** Revision identisch (10 Commits zurück bis `1bce2ee`, ebenso in `old/Deep16-Arch-M3r1.md` und `old/Deep16-Arch-v5.2.md`). Der Zusatz „statt `110 10…`" hat keine Entsprechung in irgendeiner Spec-Fassung. Historisch abweichend war nur der `MUL32`-Entwurf `[110][101][Rd4][w1][i1][Rs4]` im Assembler, ersetzt durch `110 11101` — die Doku-Aussage war damals berechtigt und wurde beim Umbau nicht nachgezogen, sie war also selbst das, was sie bei der Spec kritisiert. **Lehre:** eine Doku-Aussage über eine andere Quelle ist selbst eine Behauptung und braucht denselben Nachweis wie der Code. Verifikation: 211 gerichtete + 800 Zufallsfälle über `MUL`/`MUL32`/`DIV`/`DIV32` gegen JS-, WASM- und RTL-Kern, **0 Abweichungen**; `divtest.cpp` (Radix-4 gegen Verilogs `/` und `%`) besteht; `npm test` 296/296. **Kein Code geändert.** | `doc/Deep16-Arch.md`, `STATUS.md`, `book/anhang.md` |
 | 2026-10-10 | **Dritter CPU-Kern in SystemVerilog** (`rtl/`, Verilator + Emscripten), 5-Stufen-Pipeline und 4KB-Cache, in der IDE als **Kern** wählbar (JS / WASM / RTL). Zwei Grundsätze haben sich als tragend erwiesen und sollten bei einem vierten Kern wiederholt werden: **(a)** Der Cache ist **per Konstruktion transparent** — bei einem Miss liefert das Top-Level weiter aus dem Speicherarray aus, die Pipeline stallt nie und die (verifizierte) Pipeline-Steuerung bleibt unangetastet. **(b)** Nebenwirkungen außerhalb von WB brauchen eine Bedingung *„verlässt die Stufe in diesem Takt"* — sonst feuert der Tastatur-Pop über die Schrittgrenze hinweg mehrfach. Drei Kernfehler dieser Runde waren jeweils **eine** fehlende Bedingung, nicht schlechte Logik: `fill_base` nach Cachebarkeit statt nach dem Miss gewaehlt, Invalidierung per `eval()` ohne posedge (stiller No-op), veraltete Zeile nach Store ohne Write-Allocate. Dazu zwei Fehler im Prüfwerkzeug selbst, die beide wie eine Kerndivergenz aussahen: `set_registers()` legt Index 15 auf den *aktiven* PC, und ein Seed, der nur einen PC setzt, laesst im Schattenkontext den anderen auf 0. **Lehre:** bei einer Divergenz zuerst *das Werkzeug* prüfen, nicht das Werk. Verifikation: Decode-Sweep 524288 Ausführungen, 0 Abweichungen (4 Seeds), `tests/fuzz.test.js` mit 60 Zufallsprogrammen, 239/239 Tests gruen. Für die Doku: `README.md` auf drei Kerne gezogen, `VERILOG.md` als Plan- und Entscheidungslog geführt. | `rtl/`, `index.html`, `js/deep16_ui_core.js`, `tests/rtl.test.js`, `tests/fuzz.test.js`, `README.md`, `VERILOG.md` |
 
 ## Architektur-Revisionen im Repo-Root
@@ -246,7 +253,7 @@ Buch folgt. Zwei davon sind bewusst **kein** Buchthema.
 |---|---|---|---|
 | `ARCHREV.md` | `MOV imm2` als Funktionsauswahl statt Addition | ✅ umgesetzt **und im Buch** | 2026-10-08 in Kap. 2 (§2.1, Tabelle 2-1) und Kap. 4 (§4.2) übertragen |
 | `VERILOG.md` | dritter Kern: Verilog → Verilator + Emscripten | ✅ Phase 0–2 abgeschlossen, dreifache Parität grün, Decode-Sweep über alle 65 536 Befehlswörter ohne Abweichung | **im Buch eingearbeitet** — Kap. 6 §6.2 spricht jetzt von drei Kernen, `STYLE.md` §7 misst auf allen drei |
-| `SERPLAN.md` | Quelltext über seriellen Port in den DeepForth-Kern (`SERLOAD`) | 🟡 7 von 9 Schritten abgeschlossen, `EVALUATE` bewusst zurückgestellt, Host-Anbindung im Browser unbestätigt | **Material für Kapitel 7** (Mini-Forth) — noch kein Kapiteltext |
+| `SERPLAN.md` | Quelltext über die Tastatur in den DeepForth-Kern eintippen | 🟡 Der serielle Weg ist **verworfen** und zurückgebaut; übrig bleibt der Knopf im Screen-Tab, im Browser unbestätigt | **Material für Kapitel 7** (Mini-Forth) — noch kein Kapiteltext |
 | `PLANPSRAM.md` | PSRAM-Backing-Store für die FPGA | ⛔ **nicht umgesetzt** (Plan) | ❌ **kein Buchinhalt** |
 | `GFX.md`, `GFXOVERV.md` | Grafik-Subsystem GCoP | 🟡 Design-Phase, **ferne Zukunft** | ❌ **kein Buchinhalt** |
 | `deep16_project_summary.md` | IDE-Entwicklungsstand (alt) | ⚪ überholt | — |
@@ -289,9 +296,9 @@ bewusste Entscheidung und keine Lücke.
    ✅ **Kapitel 8** abgeschlossen (Snake, Listings 8-1 bis 8-4).
 5. ✅ **Anhänge A–D** abgeschlossen (`book/anhang.md`). Damit ist der
    Buchplan aus `book/README.md` ausgeschöpft: 8 Kapitel + 4 Anhänge.
-6. **Offen, wenn es weitergeht:** `SERPLAN.md` Schritt 9 (`EVALUATE`) und die
-   Bestätigung von `SERLOAD` im Browser — beides Material für ein Kapitel 9
-   über den **seriellen** Forth, das das Kernprogramm des Projekts ist.
+6. **Offen, wenn es weitergeht:** `EVALUATE` und die Bestätigung, dass eine
+   Quelldatei im Browser eingetippt wird — beides Material für ein Kapitel 9
+   über den Forth-Kern, der das Kernprogramm des Projekts ist.
 
 ---
 
@@ -300,41 +307,24 @@ bewusste Entscheidung und keine Lücke.
 Zwei Punkte, die am 2026-10-10 gemeldet und bewusst **nicht** jetzt bearbeitet
 wurden. Beide sind offen, keiner davon ist erledigt.
 
-### 1. `SERLOAD` funktioniert im Browser noch nicht
+### 1. ~~`SERLOAD` funktioniert im Browser noch nicht~~ — erledigt auf anderem Weg
 
-Der Quelltext-Transfer über die serielle Leitung läuft in den Tests, im Browser
-aber nicht. Was daran **unbestätigt** ist:
+Der serielle Weg ist am 2026-10-11 **verworfen und vollständig zurückgebaut**:
+Es gab eine zweite Betriebsart für etwas, das die Tastatur schon kann. Jetzt
+tippt der Knopf **„Datei tippen…"** im Screen-Tab die Datei als Tastatureingabe
+ein. Die Begründung und die Details stehen in `SERPLAN.md`.
 
-- **Der ganze Ablauf im Browser ist nie gelaufen.** In dieser Umgebung gab es
-  keinen steuerbaren Browser; die Pump-Logik ist nur gegen den echten Kernel auf
-  dem JS-Kern getestet (`tests/ui-core.test.js`).
-- **Der Dateidialog ist ungetestet.** `queueSerialSource` braucht einen echten
-  `FileReader`, den die Tests nicht haben — dort wird der Zustand direkt gesetzt.
-- **Unbekannt ist, an welcher Stelle es bricht**: am Dialog, an der Übergabe an
-  die Warteschlange, am Warten des Kernels oder am EOF.
-
-Erste Schritte, wenn das aufgegriffen wird:
-
-1. Im Browser `SERLOAD…` klicken und prüfen, ob die Datei überhaupt im
-   Transkript auftaucht (`addTranscriptEntry` in `queueSerialSource`). Fehlt
-   dieser Eintrag, liegt der Fehler im Dialog.
-2. Steht der Eintrag drin, prüfen, ob `pumpSerialQueue()` etwas schiebt — bzw.
-   ob sie die Meldung „line is full" bringt, weil die Maschine nicht läuft.
-3. **Reihenfolge beachten:** Erst den Kernel starten (`forth.asm` laden,
-   Assemble, Run), **dann** `SERLOAD` eintippen. Solange der Kernel nicht im
-   Lademodus ist, liest er nichts aus der Leitung — die Leitung läuft dann voll
-   und die Pumpe wartet mit der Warnung „line is full".
+Offen bleibt nur, dass der Ablauf **im Browser nie gelaufen ist**.
 
 ### 2. Das mobile UI muss aufgeräumt werden
 
 Kein Fehler, sondern Struktur. Die bekannten Stellen:
 
 - **Ein Knopf muss an drei Orten eingetragen werden**: im Markup, in
-  `initializeMobileControls()` und in `restoreDesktopLayout()`. Das war genau die
-  Ursache, warum `SERLOAD` auf dem Handy verschwunden war — im Markup stand es,
-  in den beiden Layout-Funktionen nicht. Ein Test (`tests/ui-core.test.js`)
-  prüft das inzwischen für alle Knöpfe im Panel-Kopf, trägt aber nicht das
-  Markup selbst.
+  `initializeMobileControls()` und in `restoreDesktopLayout()`. Genau daran ist
+  der frühere `SERLOAD`-Knopf auf dem Handy verschwunden. Ein Test
+  (`tests/ui-core.test.js`) prüft das inzwischen für alle Knöpfe im Panel-Kopf,
+  trägt aber nicht das Markup selbst.
 - **`.memory-panel-controls` steht zweimal in `css/memory.css`** (zweimal
   `display:flex`, einmal `gap: 4px` mit `margin-left:auto`, einmal `gap: 18px`
   ohne) — die spätere Regel gewinnt still.
@@ -342,8 +332,8 @@ Kein Fehler, sondern Struktur. Die bekannten Stellen:
   Überschneidungen; die 900-px-Regel liegt zwischen den beiden anderen.
 - **Die Knopfbreiten kommen aus JavaScript** (`--mobile-btn-w`, gesetzt in
   `initializeMobileControls` aus der gemessenen Breite des View-Schalters).
-  Das Label muss deshalb fürs Handy gekürzt werden — `SERLOAD` tut das, aber das
-  ist kein Ort, an dem man danach suchen würde.
+  Ein Label muss deshalb fürs Handy gekürzt werden, damit es nicht abschneidet —
+  ein Ort, an dem man danach nicht suchen würde.
 
 ## FPGA-Ziel Tang Nano 9K — Auslegungsbefunde
 
@@ -602,8 +592,8 @@ die einzige Änderung, die für die Iterativ-Teilung überhaupt nötig ist.
 | Punkt | Wo | Warum offen |
 |---|---|---|
 | Opcode-Tabelle in `doc/Deep16-Arch.md` | drei Bereiche veraltet | Die Spec gehört dem Parallelautor; Anhang A nennt die gemessenen Werte, die Buchdiagramme stimmen (33/33 geprüft) |
-| `SERLOAD` im Browser | `SERPLAN.md`, Schritt 9 | Nie im Browser gelaufen; Pump-Logik nur gegen den echten Kernel auf dem JS-Kern getestet |
-| `EVALUATE` | `SERPLAN.md` | Der letzte offene Schritt des seriellen Forth |
+| Quelldatei im Browser eintippen | `SERPLAN.md` | Nie im Browser gelaufen; die Pumpe ist nur gegen den echten Kernel auf dem JS-Kern getestet |
+| `EVALUATE` | `SERPLAN.md` | Ein Wort, das einen Puffer auswertet — ohne zweiten Eingangsweg sinnvoll |
 | Kapitel 9 ff. | `book/README.md` | Buchplan ist mit Kapitel 8 + Anhängen ausgeschöpft |
 | `PSRAM` / `GFX` | `PLANPSRAM.md`, `GFX.md` | Nicht implementiert — bewusst kein Buchinhalt (Anhang D.4) |
 

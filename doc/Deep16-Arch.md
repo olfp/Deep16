@@ -964,7 +964,7 @@ For CS access:       PA = (CS << 16) | (PC & 0xFFFF)
 | 11100 | MUL Rd, Rs | `MUL Rd, Rs` | 16×16→16-bit multiply |
 | 11101 | MUL32 Rd, Rs | `MUL32 Rd, Rs` | 16×16→32-bit multiply |
 | 11110 | DIV Rd, Rs | `DIV Rd, Rs` | 16÷16→16-bit divide |
-| 11111 | DIV32 Rd, Rs | `DIV32 Rd, Rs` | 32÷16→32-bit divide |
+| 11111 | DIV32 Rd, Rs | `DIV32 Rd, Rs` | 32÷16→16-bit quotient + 16-bit remainder (quotient truncated to 16 bit, cf. §3.9) |
 
 ---
 

@@ -218,12 +218,15 @@ Meldung `Jump target too far: -257 words from current position`.
 | `LPSW Rx` | `1111111110 11 Rx4` | `Rx ← PSW` | `FFB1` |
 | `HLT` | `1111111111111111` | Programm anhalten | `FFFF` |
 
-> **Zur Codierungstabelle in `doc/Deep16-Arch.md`:** Sie ist an drei Stellen
-> älter als der Assembler. Gemessen gilt für die Schiebegruppe
+> **Zur Codierungstabelle in `doc/Deep16-Arch.md`:** Sie stimmt mit dem
+> Assembler überein — an jeder Stelle nachgemessen. Für die Schiebegruppe
 > `110 10000` bis `110 11011` (`SL` … `RRC`), für `MUL`/`MUL32`/`DIV`/`DIV32`
 > `110 11100` bis `110 11111`, und die Systemgruppe `SET`/`CLR` beginnt bei
 > `11111111110`, `NOP` bei `1111111111110`. Die 33 Opcode-Diagramme in den
 > Kapiteln 3 bis 6 wurden gegen den Assembler geprüft und stimmen alle.
+> Einzige Abweichung war bis 2026-10-11 eine falsche Etikettierung in
+> Tabelle 14 (`DIV32` als „32÷16→32-bit divide"); der Quotient ist 16 Bit
+> breit — siehe §3.2.
 
 ---
 
@@ -456,10 +459,10 @@ solange eine Taste wartet (§6.1). Enter kommt als `10`, die Pfeiltasten als ihr
 `doc/Deep16-Arch.md` ist die normative Quelle für Codierungen und Semantik.
 Zwei Hinweise, wenn du daraus lernst:
 
-- **Die Opcode-Tabelle ist teilweise veraltet.** Für die Schiebegruppe,
-  `MUL`/`DIV` und die Systembefehle weicht sie vom Assembler ab. Was der
-  Assembler tatsächlich erzeugt, steht in **Anhang A** — dort ist jedes Wort
-  gemessen.
+- **Die Opcode-Tabellen stimmen mit dem Assembler überein.** Für die
+  Schiebegruppe, `MUL`/`DIV` und die Systembefehle nachgemessen: jedes Muster
+  aus **Anhang A** ist genau das, was der Assembler erzeugt. Was du dort
+  liest, kannst du ungeprüft übernehmen.
 - **Für die Semantik ist der Assembler nicht die Autorität**, sondern die
   Messung: Wo die Spezifikation und die drei Kerne auseinandergehen, stimmen
   in diesem Buch die drei Kerne, weil nur sie zusammen belastbar sind.
