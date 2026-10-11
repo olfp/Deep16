@@ -301,7 +301,12 @@ bewusste Entscheidung und keine Lücke.
    ✅ **Kapitel 8** abgeschlossen (Snake, Listings 8-1 bis 8-4).
 5. ✅ **Anhänge A–D** abgeschlossen (`book/anhang.md`). Damit ist der
    Buchplan aus `book/README.md` ausgeschöpft: 8 Kapitel + 4 Anhänge.
-6. **Offen, wenn es weitergeht:** `EVALUATE` und die Bestätigung, dass eine
+6. ✅ **Kommentare** (2026-10-11): `\` bis zum Zeilenende und `( … )` bis zur
+   schließenden Klammer. Beide werden vom **Tokenizer** erkannt und nicht im
+   Wörterbuch nachgeschlagen — deshalb funktionieren sie am Prompt und in einer
+   Definition gleichermaßen, denn ein Kommentar wird dem Compiler nie
+   angeboten. Details unten.
+7. **Offen, wenn es weitergeht:** `EVALUATE` und die Bestätigung, dass eine
    Quelldatei im Browser eingetippt wird — beides Material für ein Kapitel 9
    über den Forth-Kern, der das Kernprogramm des Projekts ist.
 
@@ -389,6 +394,36 @@ Farbplan.
 Der Bildschirm ist 80×24 Zellen groß (640×360 px bei 8×15 px je Zeichen), was
 ohne Kernel-Änderung geht: der Kernel löscht weiter 80×25 Wörter, schreibt aber
 nie in die letzte Zeile. Ein Test hält diese Annahme fest.
+
+### 5. Kommentare: `\` und `( … )`
+
+**Stand 2026-10-11.** Beide Formen sitzen im Tokenizer zwischen der
+Apostroph-Prüfung und dem Punkt-Token, erkannt am **ersten Zeichen** des
+Tokens. Damit braucht keine von beiden einen Wörterbucheintrag, und keine
+kann durch ein gleichnamiges Wort verdeckt werden.
+
+```forth
+( ein Kommentar ) 1 2 + .          \ und einer bis zum Zeilenende
+: sq ( n -- n2 ) dup * ;
+5 sq . 25
+```
+
+Zwei Entscheidungen, die nicht selbstverständlich sind:
+
+- **Klammern verschachteln sich nicht.** `( eins ( zwei )` endet an der ersten
+  `)`. Wer sie verschachtelt erwarten würde, bekäme verschluckten Code.
+- **Eine nicht geschlossene `(` frisst nur die restliche Zeile** und nicht jede
+  folgende `)` in der Datei. Das ist die verzeihende Lesart eines Tippfehlers.
+
+Beide Formen teilen sich nur den Absprung `comment_done` und haben je eine
+eigene Schleife. Das ist Absicht: der erste Versuch hatte **eine** Schleife mit
+einer `)`-Prüfung am Ende, und `LDI label` + `MOV PC, R0` ist in diesem Kernel
+ein *unbedingter* Sprung — die Prüfung wurde nie erreicht, toter Code, und
+`( … ) 1 2 + .` lief nie. Genau dieselbe Form von Fehler hatte vorher schon
+zwei Stunden gekostet; deshalb steht es jetzt so ausdrücklich im Quelltext.
+
+Der `0x0100`-Block darf sich dabei verschieben (nachgewiesen: eine Wortgröße
+Drift stört nichts), der BIOS-Block nicht.
 
 ## FPGA-Ziel Tang Nano 9K — Auslegungsbefunde
 

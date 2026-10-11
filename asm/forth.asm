@@ -348,10 +348,33 @@ token_start:
 check_apostrophe:
     LDI 39
     CMP R2, R0
-    JNZ check_dot_token
+    JNZ check_backslash
     NOP
     ADD >IN, 1
     LDI interpret_loop
+    MOV PC, R0
+    NOP
+check_backslash:
+    ; A backslash comments out the rest of the line. It is recognised by its
+    ; first character, exactly like the apostrophe above, so it needs no entry
+    ; in the dictionary and cannot be shadowed by a word of the same name.
+    LDI 92
+    CMP R2, R0
+    JNZ check_paren
+    NOP
+    ADD >IN, 1               ; step over the backslash itself
+    LDI comment_scan
+    MOV PC, R0
+    NOP
+check_paren:
+    ; An opening parenthesis comments out everything up to the matching close,
+    ; which may sit in the middle of a line:  1 2 + ( three ) .  works.
+    LDI 40
+    CMP R2, R0
+    JNZ check_dot_token
+    NOP
+    ADD >IN, 1               ; step over the '(' itself
+    LDI paren_scan
     MOV PC, R0
     NOP
 check_dot_token:
@@ -450,6 +473,66 @@ print_string_normal:
     NOP
 after_string:
     ADD >IN, 1
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+; ----------------------------------------------------------------------
+; Comments
+;
+; Both forms are handled by the tokenizer rather than by the dictionary, so
+; they work at the prompt and inside a definition alike - a comment is simply
+; never offered to the compiler:
+;
+;     : hypot ( a b -- c )  a a * b b * + sqrt ;
+;
+; comment_scan is entered with >IN on the first character behind the backslash
+; and paren_scan with >IN on the first character behind the '('; they share the
+; scan loop and differ only in what ends them. Both leave >IN where the scan
+; stopped, which is on the NUL for a backslash and behind the ')' for a
+; parenthesis - in both cases a position the interpret loop already knows how to
+; continue from.
+;
+; A '(' without a ')' on the same line is treated as a comment to the end of
+; the line. That is the forgiving reading of a typo: the rest of the line is
+; dropped instead of every ')' afterwards in the file being swallowed.
+comment_scan:               ; \ - up to the end of the line
+    MOV R1, TIB
+    ADD R1, >IN
+comment_eol_next:
+    LD R2, R1, 0
+    LDI 0
+    CMP R2, R0
+    JZ comment_done
+    NOP
+    ADD >IN, 1
+    ADD R1, 1
+    LDI comment_eol_next
+    MOV PC, R0
+    NOP
+paren_scan:                 ; ( - up to the ')', or the end of the line
+    MOV R1, TIB
+    ADD R1, >IN
+paren_next:
+    LD R2, R1, 0
+    LDI 0
+    CMP R2, R0
+    JZ comment_done          ; no ')' on this line: see the note above
+    NOP
+    LDI ')'
+    CMP R2, R0
+    JNZ paren_go
+    NOP
+    ADD >IN, 1               ; over the ')' - the comment ends behind it
+    LDI comment_done
+    MOV PC, R0
+    NOP
+paren_go:
+    ADD >IN, 1
+    ADD R1, 1
+    LDI paren_next
+    MOV PC, R0
+    NOP
+comment_done:
     LDI interpret_loop
     MOV PC, R0
     NOP

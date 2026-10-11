@@ -996,3 +996,110 @@ test('the BIOS block keeps its exact layout', () => {
       + 'REPL hangs after 22 lines with a blank screen.');
   }
 });
+
+// ---------------------------------------------------------------------------
+// Comments
+//
+// Both forms are recognised by the tokenizer, not looked up in the dictionary,
+// so they work at the prompt and inside a definition alike: a comment is never
+// offered to the compiler. `\` runs to the end of the line, `(` to the
+// matching `)`.
+// ---------------------------------------------------------------------------
+
+test('a backslash comments out the rest of the line', () => {
+  const { rows, running } = repl('1 2 + . \\ three is gone\n');
+  assert.equal(rows[1], '> 1 2 + . \\ three is gone 3  ok',
+    'the code before the backslash must still run');
+  assert.ok(running);
+});
+
+test('a backslash ignores a closing parenthesis', () => {
+  // The ')' belongs to the comment and must not end it early - otherwise
+  // everything after it would be executed.
+  const { rows } = repl('1 2 + . \\ one ) two\n');
+  assert.equal(rows[1], '> 1 2 + . \\ one ) two 3  ok');
+});
+
+test('a parenthesis comment ends at the closing parenthesis', () => {
+  const { rows } = repl('( this is a comment ) 1 2 + .\n');
+  assert.equal(rows[1], '> ( this is a comment ) 1 2 + . 3  ok',
+    'everything behind the ) has to run');
+});
+
+test('a parenthesis comment needs no space around it', () => {
+  assert.equal(repl('(a)1 2 + .\n').rows[1], '> (a)1 2 + . 3  ok');
+  assert.equal(repl('1 (x) 2 + .\n').rows[1], '> 1 (x) 2 + . 3  ok',
+    'a comment may sit between two words');
+});
+
+test('a parenthesis comment ends at the FIRST closing parenthesis', () => {
+  // Parentheses do not nest in Forth, and pretending they do would swallow
+  // code the programmer can see.
+  const { rows } = repl('( one ( two ) 1 2 + .\n');
+  assert.equal(rows[1], '> ( one ( two ) 1 2 + . 3  ok');
+});
+
+test('an unclosed parenthesis takes the rest of the line', () => {
+  // The forgiving reading of a typo: drop the rest of the line rather than
+  // swallow every following ')' in the file.
+  const { rows, running } = repl('( never closed\n1 2 + .\n');
+  assert.equal(rows[1], '> ( never closed ok');
+  assert.equal(rows[2], '> 1 2 + . 3  ok', 'the next line is unaffected');
+  assert.ok(running);
+});
+
+test('a line that is only a comment changes nothing', () => {
+  for (const line of ['\\ just a comment', '( just a comment )', '\\', '( )', '(a)']) {
+    const { rows, cursors } = repl(line + '\n');
+    assert.match(rows[1], /^> .* ok$/, `"${line}" should simply be accepted`);
+    const all = cursors.slice(0, SCREEN_VISIBLE_ROWS).flat();
+    assert.equal(all.length, 1, `"${line}" must leave exactly one cursor, found ${all.length}`);
+  }
+});
+
+test('a comment is recognised, not looked up as a word', () => {
+  // Without tokenizer handling both would fall through to the dictionary and
+  // come back as "undefined word", which is what happened before.
+  for (const line of ['\\', '(', '( )', '(x)']) {
+    const { rows } = repl(line + '\n');
+    assert.ok(!rows.join('\n').includes('undefined word'),
+      `"${line}" must not be reported as an unknown word`);
+  }
+});
+
+test('a comment works inside a definition', () => {
+  const { rows } = repl(': sq ( n -- n2 ) dup * ;\n5 sq .\n');
+  assert.equal(rows[1], '> : sq ( n -- n2 ) dup * ; ok',
+    'the definition must compile, comment and all');
+  assert.equal(rows[2], '> 5 sq . 25  ok', 'and it must actually square');
+});
+
+test('a backslash comments out the tail of a definition line', () => {
+  // The definition continues on the next line; the comment must not end it.
+  const { rows } = repl(': d \\ one\n 7 ;\nd .\n');
+  assert.equal(rows[3], '> d . 7  ok');
+});
+
+test('several comments in one line are all skipped', () => {
+  const { rows } = repl('( a ) ( b ) 1 2 + .\n');
+  assert.equal(rows[1], '> ( a ) ( b ) 1 2 + . 3  ok');
+});
+
+test('a comment does not disturb the stack', () => {
+  // The whole point of skipping in the tokenizer: no word is executed, so
+  // nothing is pushed and nothing is popped.
+  const { rows } = repl('1 2 + ( sum of the two ) 2 * .\n');
+  assert.equal(rows[1], '> 1 2 + ( sum of the two ) 2 * . 6  ok');
+});
+
+test('a comment ends the line, so the cursor moves on to the new prompt', () => {
+  const { rows, cursors } = repl('1 2 + \\ comment\n');
+  assert.equal(rows[1], '> 1 2 + \\ comment ok');
+  const all = cursors.slice(0, SCREEN_VISIBLE_ROWS).flat();
+  assert.equal(all.length, 1, `one cursor expected, found ${all.length}`);
+  // The comment ran to the end of the line, which is the end of the input: the
+  // cursor is not left behind on the finished line but sits at the next prompt,
+  // two cells in - ">" and the space behind it.
+  assert.deepEqual(cursors[1], [], 'nothing may be left marked on the input line');
+  assert.deepEqual(cursors[2], [2], 'the cursor waits at the new prompt');
+});
