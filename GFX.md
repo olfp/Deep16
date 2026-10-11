@@ -32,6 +32,7 @@ Korrekturen (Commit `12eebb3`) enthob einen Fehler; §1.1 dokumentiert die Korre
 | 11 | Überschriften-Kollision, Alpha-Blending-Begriff, fehlendes Clipping, fehlender Hintergrund, `Interlacing`-Flag ohne Modus, Chat-Reste am Dokumentende | **korrigiert** |
 | 12 | OAM-Scan-Budget zu optimistisch (669 statt 269 Zyklen, ~16 statt ~7 Objekte) | **korrigiert**, §4.4 |
 | 13 | Non-executable Video-RAM als Enabler für die PSRAM-Port-Aufteilung | **neu aufgenommen**, §2.4 + §9.2 |
+| 14 | Palettengruppen-Struktur: pro Zeile ein Gruppen-Zeiger, pro 16 Pixel ein Paletten-Zeiger | **neu spezifiziert**, §5.1 + §2.3 Wort 0x06 |
 
 ---
 
@@ -118,7 +119,7 @@ platzieren. Beides ist vom Linker/Assembler zu erzwingen.
     | Wort 0x04: Z-Position (8 Bit genutzt: 0 = hinten, 255 = vorn)|
     |         Bits 8–15 reserviert                                  |
     | Wort 0x05: Flags (Bit 0: Aktiv, Bit 1: Mode, Bit 2: Clip)   |
-    | Wort 0x06: Palettenbasis (Wort-Offset im BSRAM)              |
+    | Wort 0x06: Paletten-Gruppen-Basis (Index im BSRAM, §5)      |
     | Wort 0x07–0x0F: reserviert für System/Effekte               |
     +-------------------------------------------------------------+
     | Wort 0x10 – X: Zeilen-Daten (siehe §5, abhängig vom Modus)   |
@@ -284,7 +285,7 @@ trägt. **Diese Frage ist vor dem RTL-Entwurf zu beantworten (E-1).**
 
 ---
 
-## 5. Palette: Betriebsmodi (Neu gefasst)
+## 5. Palette: Betriebsmodi und Palettengruppen (Neu gefasst)
 
 Die frühere Fassung modellierte die „Palette pro 16 Pixel" als *den* Normalfall. Tatsächlich
 ist die Palettenauflösung ein **Spektrum**, und der realistische Betrieb liegt nahe dem
@@ -299,6 +300,37 @@ billigen Ende:
 Der Modus wird **pro Objekt** in Flags Bit 1 gewählt; `GLOBAL` ist der Default. Im
 `GLOBAL`-Modus liegen die Paletten im **BSRAM** (16 Farben × 16 Bit = 32 Worte) und werden
 nicht pro Zeile nachgeladen – sie kosten dann einmalig gar nichts.
+
+### 5.1 Palettengruppen-Struktur (pro Zeile ein Gruppen-Zeiger)
+
+Die Kernaussage: **Jede Objektzeile hat einen eigenen Palettengruppen-Zeiger**, und eine
+Gruppe besteht aus **einem Paletten-Zeiger pro 16 Pixel** (horizontal).
+
+```
+Objektzeile (z. B. 640 Pixel breit)
+├── Wort 0x06 → Palettengruppen-Basis (Index in BSRAM)
+│   └── Palettengruppe = 40 Zeiger à 6 Bit (640 / 16)
+│       ├── Zeiger 0  → Palette für Pixel   0–15
+│       ├── Zeiger 1  → Palette für Pixel  16–31
+│       ├── ...
+│       └── Zeiger 39 → Palette für Pixel 624–639
+```
+
+**Speicherbedarf:**
+
+| Parameter | Wert |
+|-----------|------|
+| Objektbreite (max) | 640 Pixel |
+| Granularität | 16 Pixel |
+| Paletten-Zeiger pro Zeile | **40** |
+| Paletten im BSRAM (1 Block = 1024×16) | **64** à 16 Farben |
+| Bits pro Paletten-Zeiger | **6 Bit** (0–63) |
+| Speicher pro Zeile (Paletten-Zeiger) | 40 × 6 Bit = **240 Bit = 15 Worte** |
+
+**Wo stehen die 15 Worte pro Zeile?** Nicht im Objekt-Segment – sie liegen als
+**Paletten-Pointer-Cache** im BSRAM und werden während H-Blank für die *aktiven* Zeilen
+nachgeladen (Y-Bucket liefert die aktiven Objekte, §1.1). Der Cache fasst 16 Objekte × 40
+Zeiger = 640 Zeiger = 320 Einträge à 16 Bit → **< 1 BSRAM-Block**.
 
 **Kostenbewertung `PER_16PX`:** Bei W = 640 entfallen 1280 Byte Palette auf 320 Byte
 Pixeldaten – die Palette ist **viermal so groß wie das Bild**. Das ist der Grund, warum dieser
@@ -323,7 +355,9 @@ Modus als Extremfall dokumentiert, aber nicht als Ziel geführt wird.
   * Mikrocode-ROM: 1 Block.
   * Line-Buffer: 2 × 640 Wörter à 16 Bit RGB565 = 2 × 10.240 Bit. Ein 18-Kbit-BSRAM-Block
     fasst das **mehrfach**; die Angabe „2 Blöcke" ist also konservativ und unkritisch.
-  * Paletten (Modus `GLOBAL`): 32 Worte pro Palette, mehrere Paletten in einem Block.
+  * Paletten-RAM (`GLOBAL`-Modus): 32 Worte pro Palette, mehrere Paletten in einem Block.
+  * Paletten-Pointer-Cache (§5.1): 16 Objekte × 40 Zeiger = 640 Zeiger = 320 Einträge à 16 Bit
+    → **< 1 BSRAM-Block**. Wird während H-Blank für aktive Zeilen nachgeladen.
   * Verbleibende Blöcke für Stack, Cache, Bootloader.
 
 ### 6.2 Speicherbandbreite (korrigiert)
