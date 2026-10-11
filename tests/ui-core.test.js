@@ -549,7 +549,12 @@ function screenInstance(dom) {
   const s = Object.create(Deep16ScreenUI.prototype);
   s.screenWidth = 80;
   s.screenHeight = 24;
+  s.totalChars = 80 * 24;
   s.requiredWidth = 640;
+  s.cellWidth = 8;
+  s.minVisibleCols = 20;
+  s.windowStart = -1;
+  s.windowCols = -1;
   s.activePage = 0;
   s.visibleCols = 80;
   s.lastCursorIndex = null;
@@ -557,7 +562,8 @@ function screenInstance(dom) {
   // whole point is to run the real ones against the document stub, which hands
   // out the inner box for '.screen-tab' and the wrapper for '#screen-tab'.
   // Stubbing them made every test pass whatever the code did.
-  s.setPage = function (p) { this.activePage = p; };
+  // Die echte setPage(): sie blendet die Zellen aus und setzt die Breite.
+  s.screenDisplay = dom.display;
   return s;
 }
 
@@ -595,7 +601,7 @@ test('all 80 columns show when the tab is wide enough', () => {
 test('the pager takes over when the tab is too narrow for 80 columns', () => {
   withScreenDom(500, (dom, s) => {
     s.applyColumnMode();
-    assert.equal(s.visibleCols, 40, '40 columns at 8px fit in 500px');
+    assert.equal(s.visibleCols, 62, 'as many columns as fit: floor(500/8) = 62');
     assert.equal(dom.tab.classes.has('screen-narrow'), true,
                  'the class that shows the pager and hides columns 41-80 must be set');
   });
@@ -632,19 +638,22 @@ test('going back to full width hides the pager again', () => {
 });
 
 test('the cursor follows the pager only while it is in use', () => {
-  const s = screenInstance({ tab: makeEl() });
-  // Column 70 with all 80 visible: nothing to page to.
-  s.lastCursorIndex = 70;
-  s.ensureCursorVisible();
-  assert.equal(s.activePage, 0, 'no page switch when everything is visible');
-  // Same cursor with the pager active: column 70 is on the right page.
-  s.visibleCols = 40;
-  s.ensureCursorVisible();
-  assert.equal(s.activePage, 1, 'the cursor pulls the pager along');
-  // A cursor in the first 40 goes back.
-  s.lastCursorIndex = 5;
-  s.ensureCursorVisible();
-  assert.equal(s.activePage, 0);
+  withScreenDom(320, (dom, s) => {   // 320px -> 40 columns, two pages
+    s.visibleCols = 40;
+    // Column 70 with all 80 visible: nothing to page to.
+    s.visibleCols = 80;
+    s.lastCursorIndex = 70;
+    s.ensureCursorVisible();
+    assert.equal(s.activePage, 0, 'no page switch when everything is visible');
+    // Same cursor with the pager active: column 70 is on the second page.
+    s.visibleCols = 40;
+    s.ensureCursorVisible();
+    assert.equal(s.activePage, 1, 'the cursor pulls the pager along');
+    // A cursor in the first 40 goes back.
+    s.lastCursorIndex = 5;
+    s.ensureCursorVisible();
+    assert.equal(s.activePage, 0);
+  });
 });
 
 // The outer wrapper is wider than the box that clips. That difference is only
@@ -656,8 +665,9 @@ test('the width is measured on the clipping box, not on the wider wrapper', () =
     dom.tab.clientWidth = 700;
     dom.inner.clientWidth = 600;       // 600 < 640: the screen would be cut
     s.applyColumnMode();
-    assert.equal(s.visibleCols, 40,
-      'the padding of .screen-tab must be counted, or the last column is cut off');
+    assert.equal(s.visibleCols, 75,
+      'measured on the clipping box: floor(600/8) = 75. The wider wrapper would '
+      + 'give 80 and the last column would be cut off');
     assert.equal(dom.tab.classes.has('screen-narrow'), true);
   });
 });
@@ -702,3 +712,37 @@ test('switching to the Screen tab re-measures the width', () => {
   assert.equal(measured, 1,
     'the Screen tab is only measurable once it is shown - switchTab must ask');
 });
+
+// The old narrow mode was a binary 40 or 80, which wasted up to a fifth of the
+// width: a tablet with room for 60 columns showed 40 and paged over 20 that
+// would have fitted. The count is now derived from the measured width.
+test('the column count follows the width instead of jumping 40 to 80', () => {
+  for (const [width, want] of [[480, 60], [520, 65], [560, 70], [640, 80]]) {
+    withScreenDom(width, (dom, s) => {
+      s.applyColumnMode();
+      assert.equal(s.visibleCols, want, `${width}px should show ${want} columns`);
+    });
+  }
+});
+
+test('a tablet showing 60 columns needs two pages, not one', () => {
+  withScreenDom(480, (dom, s) => {       // 60 columns
+    s.applyColumnMode();
+    assert.equal(s.pageCount(), 2, '60 of 80 columns need a second page');
+    s.setPage(1);
+    assert.equal(s.activePage, 1);
+    assert.equal(dom.display.style.width, '480px', 'the second page is as wide as the first');
+    assert.equal(dom.ids['screen-page-label'].textContent, '61-80 / 80');
+    s.setPage(5);                          // far past the end
+    assert.equal(s.activePage, 1, 'a page number beyond the last is clamped');
+  });
+});
+
+test('a width that fits fewer than a readable number still shows something', () => {
+  withScreenDom(64, (dom, s) => {        // 8 cells' worth - far too narrow
+    s.applyColumnMode();
+    assert.equal(s.visibleCols, 20, 'clamped up to the minimum, not down to nothing');
+    assert.equal(dom.tab.classes.has('screen-narrow'), true);
+  });
+});
+

@@ -36,6 +36,10 @@ class Deep16ScreenUI {
         // screen actually is, and the pager - the same one the phone view uses -
         // takes over when there is not enough room.
         this.requiredWidth = 640;              // 80 columns at 8 px
+        this.cellWidth = 8;                    // one character cell
+        this.minVisibleCols = 20;              // below this the screen is unreadable
+        this.windowStart = -1;                 // window of columns currently shown
+        this.windowCols = -1;
         this.visibleCols = this.screenWidth;
         this.activePage = 0; // 0 = columns 1-40, 1 = columns 41-80
 
@@ -138,11 +142,27 @@ class Deep16ScreenUI {
         return width - padding;
     }
 
+    // How many columns fit at 8 px each, never fewer than a readable handful.
+    columnsThatFit(available) {
+        const cols = Math.floor(available / this.cellWidth);
+        return Math.max(this.minVisibleCols, Math.min(this.screenWidth, cols));
+    }
+
+    // How many pages the pager needs at the current column count: one if
+    // everything fits, otherwise as many as it takes to cover all 80.
+    pageCount() {
+        if (this.visibleCols >= this.screenWidth) return 1;
+        return Math.ceil(this.screenWidth / this.visibleCols);
+    }
+
     applyColumnMode() {
         const available = this.availableWidth();
         if (available === null) return;         // not laid out yet - try again later
         const narrow = available < this.requiredWidth;
-        this.visibleCols = narrow ? 40 : this.screenWidth;
+        // As many columns as actually fit, not a fixed 40. On a tablet with
+        // room for 60 the screen shows 60 and the pager covers the remaining 20;
+        // a binary 40/80 would waste a fifth of the width for nothing.
+        this.visibleCols = narrow ? this.columnsThatFit(available) : this.screenWidth;
         // With all 80 columns visible the pager is meaningless.
         if (!narrow) this.activePage = 0;
         const host = this.modeElement();
@@ -153,19 +173,44 @@ class Deep16ScreenUI {
     setPage(page) {
         const screenDisplay = document.getElementById('screen-display');
         if (!screenDisplay) return;
-        this.activePage = page;
-        screenDisplay.classList.toggle('page-right', page === 1);
+        const pages = this.pageCount();
+        const clamped = Math.max(0, Math.min(pages - 1, page));
+        this.activePage = clamped;
+        screenDisplay.classList.toggle('page-right', clamped > 0);
+
+        // The window of columns this page shows. Cells outside it are hidden
+        // here rather than in CSS, because the window moves with the measured
+        // width - a :nth-child() rule cannot follow a number that comes from
+        // the layout.
+        const cols = Math.min(this.visibleCols, this.screenWidth);
+        const start = clamped * cols;
+        const end = Math.min(start + cols, this.screenWidth);
+        if (this.windowStart !== start || this.windowCols !== cols) {
+            this.windowStart = start;
+            this.windowCols = cols;
+            for (let i = 0; i < this.totalChars; i++) {
+                const inRow = i % this.screenWidth;
+                const cell = document.getElementById(`screen-char-${i}`);
+                if (!cell) continue;
+                cell.style.display = (inRow >= start && inRow < end) ? '' : 'none';
+            }
+            screenDisplay.style.width = `${cols * this.cellWidth}px`;
+            const menu = document.querySelector('.screen-menu');
+            if (menu) menu.style.width = `${cols * this.cellWidth}px`;
+        }
 
         const label = document.getElementById('screen-page-label');
         if (label) {
-            const firstCol = page === 0 ? 1 : this.visibleCols + 1;
-            const lastCol = page === 0 ? this.visibleCols : this.screenWidth;
-            label.textContent = `${firstCol}-${lastCol} / ${this.screenWidth}`;
+            const firstCol = start + 1;
+            const lastCol = end;
+            label.textContent = pages > 1
+                ? `${firstCol}-${lastCol} / ${this.screenWidth}`
+                : `${this.screenWidth} columns`;
         }
         const prevBtn = document.getElementById('screen-page-prev');
         const nextBtn = document.getElementById('screen-page-next');
-        if (prevBtn) prevBtn.disabled = page === 0;
-        if (nextBtn) nextBtn.disabled = page === 1;
+        if (prevBtn) prevBtn.disabled = clamped === 0;
+        if (nextBtn) nextBtn.disabled = clamped >= pages - 1;
     }
 
     // The reverse-video cursor is the only feedback a REPL gives, so the page

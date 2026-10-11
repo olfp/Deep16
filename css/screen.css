@@ -257,26 +257,15 @@
     animation: screen-glow 3s ease-in-out infinite;
 }
 
-/* Not enough room for all 80 columns.
-   The cell grid is fixed (8 x 15 px per character), so it cannot be squeezed
-   without the characters overlapping - that would break the one thing the
-   whole screen depends on, that cell N is always the same distance from the
-   left edge as every other row. So the screen shows 40 columns and the pager
-   reaches the other half, exactly as the phone view does.
+/* The number of columns is not a CSS question. deep16_ui_screen.js measures
+   the tab, works out how many 8 px cells fit, hides the rest per row and sets
+   the width of screen and menu row to match. A :nth-child() rule cannot follow
+   a number that comes from the layout, which is why the columns are switched
+   from script.
 
-   The class is set by deep16_ui_screen.js from the *measured* width of the
-   tab, not from a media query: the screen lives in the editor panel, and the
-   memory panel beside it can be dragged down far enough to clip 640 px on a
-   desktop screen that is itself wide. Only *visibility* changes - each
-   .screen-row still holds all 80 spans addressed by their grid index
-   (screen-char-N), so the memory path needs no index remapping. */
-.screen-narrow .screen-display { width: 320px; }   /* 40 columns at 8px */
-.screen-narrow .screen-menu { width: 320px; }
-
-/* Left page: columns 1-40. Right page: columns 41-80. */
-.screen-narrow .screen-char:nth-child(n+41) { display: none; }
-.screen-narrow .screen-display.page-right .screen-char:nth-child(-n+40) { display: none; }
-
+   What is left for CSS is only what the mode means: show the pager, and swap
+   the address line for its short form. The screen element carries
+   .screen-narrow through its wrapper #screen-tab. */
 .screen-narrow .screen-pager { display: flex; }
 
 .screen-narrow .screen-info-full { display: none; }
