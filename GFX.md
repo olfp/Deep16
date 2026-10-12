@@ -33,6 +33,8 @@ Korrekturen (Commit `12eebb3`) enthob einen Fehler; §1.1 dokumentiert die Korre
 | 12 | OAM-Scan-Budget zu optimistisch (669 statt 269 Zyklen, ~16 statt ~7 Objekte) | **korrigiert**, §4.4 |
 | 13 | Non-executable Video-RAM als Enabler für die PSRAM-Port-Aufteilung | **neu aufgenommen**, §2.4 + §9.2 |
 | 14 | Palettengruppen-Struktur: pro Zeile ein Gruppen-Zeiger, pro 16 Pixel ein Paletten-Zeiger | **neu spezifiziert**, §5.1 + §2.3 Wort 0x06 |
+| 15 | OAM-Scan hing an der Annahme „PSRAM 162 MHz" und ergab nur 6–7 Objekte | **neu gerechnet mit Deskriptoren im BSRAM:** bis zu **16 Objekte** (Line-OAM 16), Z-Sortierer wird zweite Engstelle, §4.4 |
+| 16 | Bandbreite mit 100 % Burst-Effizienz angesetzt; Metadaten konkurrierten mit Pixeldaten | **neu gerechnet:** Effizienz 44/61/74 % (IPUG943E), PSRAM trägt nur noch Pixeldaten → Worst-Case 54 %, §6.2 |
 
 ---
 
@@ -127,6 +129,12 @@ platzieren. Beides ist vom Linker/Assembler zu erzwingen.
     | Danach: 4-Bit gepackte Pixeldaten (4 Pixel pro 16-Bit-Wort)  |
     +-------------------------------------------------------------+
 
+> **Kopfblock = OAM-Eintrag (2026-10-12).** Die 16 Worte sind das *logische* Layout. In der
+> Ausführung liegen die Deskriptoren gepackt im **BSRAM** (3 Worte à 32 Nutzbits, §4.4) —
+> der Scanner liest sie dort, nicht aus der Video-Bank. Das Buffer-Segment in der Video-Bank
+> trägt damit nur noch **Pixeldaten und Zeilen-Zeiger**. Die Schreibregel CPU ↔ OAM ist offen
+> (§10 E-11).
+
 ### 2.4 Non-executable Video-RAM
 
 **Festlegung:** Ein Speicherbereich von **64 K Worten** (128 KB) wird als Video-RAM
@@ -134,7 +142,8 @@ reserviert und **als nicht-ausführbar** gekennzeichnet. Er ist weder über den
 Instruction-Fetch-Port lesbar noch als Sprungziel gültig.
 
 **Größenwahl:** 640 × 360 bei 4 Bit/Pixel = 57.600 Worte. Ein 64-K-Wort-Bereich fasst damit
-**genau einen Vollbild-Objektsatz** inklusive Kopfblöcken. Kleinere Schnitte passen ebenso.
+**genau einen Vollbild-Objektsatz** an Pixeldaten; die Kopfblöcke liegen seit dem BSRAM-OAM
+(§4.4) nicht mehr hier. Kleinere Schnitte passen ebenso.
 
 **Warum das drei Probleme gleichzeitig löst:**
 
@@ -180,6 +189,10 @@ Vier PLLs, gespeist vom 27-MHz-Onboard-Quarz:
    TMDS-Serialisierung direkt an die HDMI-Pins.
 4. **`clk_psram` (162 MHz)** – PSRAM-IP-Controller, Bereitstellung der Pixeldaten.
 
+> **Nachtrag 2026-10-12:** Die 162 MHz sind **unbelegt**. Die PSRAM-Dies können 166 MHz
+> (CL3), aber ein quelloffener 1:1-Controller auf genau dieser Platine erreicht ~83 MHz;
+> 162 MHz verlangen die Gowin-IP mit 1:2-Getriebe. Siehe §6.2, Prämissen.
+
 **Noch zu spezifizieren (offen, §10 E-3):** Der GCoP wechselt in §4 zwischen `clk_cpu`
 (H-Blank) und `clk_pixel` (Active Video). Das ist ein Moduswechsel über eine Domänengrenze
 hinweg. Er ist machbar, verlangt aber ein sauberes Handshake-/Gray-Code-Protokoll für das
@@ -198,12 +211,13 @@ ein fest in das FPGA-Block-RAM (BSRAM) eingebranntes Mikrocode-ROM gesteuert.
 Während der HDMI-Strahl unsichtbar zur nächsten Zeile springt, arbeitet der GCoP im
 Kontrollfluss-Modus auf CPU-/Speichertaktung:
 
-1. **OAM-Scan** – sequentielles Durchlaufen der Liste aktiver Grafiksegmente im RAM.
+1. **OAM-Scan** – Durchlaufen der Objekt-Deskriptoren im **BSRAM**, nicht mehr im PSRAM
+   (§4.4). Der Y-Bucket-Index liefert dabei die auf dieser Zeile aktiven Objekte.
 2. **Kollisionsprüfung** – trifft die aktuelle Zeile Y das Objekt, d. h.
    `Y_pos <= Y < Y_pos + Höhe`?
 3. **Line-OAM-Caching** – die gültigen Treffer werden in ein internes Registerarray im
-   FPGA (Distributed RAM) kopiert. Mit dem Y-Bucket-Index (§4.4) sind es höchstens ~7;
-   ein Array von 8 × 6 Registern genügt.
+   FPGA (Distributed RAM) kopiert. Mit dem Y-Bucket-Index (§4.4) sind bis zu 16 möglich;
+   ein Array von 16 Einträgen genügt.
 4. **Z-Sortierung** – die Treffer werden nach Z von hinten nach vorne priorisiert.
 5. **Zeilen-Datenzeiger holen** – je Objekt der Zeilen-Datenzeiger für die aktuelle Y-Position.
 
@@ -234,42 +248,72 @@ ist auf das horizontale Sichtfenster zu clippen; insbesondere beginnt der 16-Pix
 nicht zwangsläufig auf einer Blockgrenze. Ein Clipping-Pfad ist in der früheren Fassung
 **vollständig gefehlt** und gehört in den Entwurf.
 
-### 4.4 OAM-Scan-Budget
+### 4.4 OAM-Scan-Budget (BSRAM-OAM, neu gerechnet am 2026-10-12)
 
-> **Korrigiert in `12eebb3` → hier richtiggestellt.** Die Erstfassung dieses Abschnitts
-> rechnete mit 12,39 µs / 669 Zyklen und kam auf ~16 Objekte. Das beruhte auf dem
-> H-Blank-Fehler aus §1.1. Die korrekten Zahlen sind deutlich schlechter.
+> **Prämisse geändert.** Die Erstfassung ließ den OAM-Scan über das **PSRAM** laufen und
+> rechnete mit „PSRAM-Latenz + Burst ≈ 40 Zyklen" je Objekt. Damit hing die Objektzahl an
+> einem ungeprüften Speichertakt (162 MHz, §3) — und die Fallback-Zeile „@ 162 MHz ≈ 20
+> Objekte" war die einzige Rettung. Diese Rechnung ist ersetzt.
 
-Mit `H_blank = 4,98 µs` (§1.1):
+Die Objekt-*Deskriptoren* liegen im **BSRAM** (Dual-Port, 1 Takt Latenz). Damit ist das
+H-Blank-Budget ein reines **Zyklenbudget** und vom PSRAM-Takt unabhängig.
 
-| Größe | Wert |
+Mit `H_blank = 4,98 µs` (§1.1) bleiben **269 Zyklen @ 54 MHz** — dieselbe Gesamtsumme,
+jetzt aber vollständig auf dem Chip:
+
+```
+269  ≥  n · (W_obj + c)  +  n²/2
+```
+
+* `n` — Objekte auf dieser Zeile (der Y-Bucket liefert genau sie)
+* `W_obj` — OAM-Wörter, die der Scanner je Objekt liest
+* `c = 2` — Schleifen-, Y-Abgleich- und Einfüge-Overhead je Objekt
+* `n²/2` — Z-Sortierer, **seriell** mit dem Scan (nicht parallel)
+
+**Was der Scanner je Objekt braucht** (§2.3): X, Breite, Höhe, Z, Flags,
+Paletten-Gruppen-Basis, Zeilen-Basis — sieben Felder. Die BSRAM-Breite entscheidet, wie
+viele Takte das kostet:
+
+| OAM-Layout | Breite | Wörter je Objekt | **Objekte/Zeile** |
+|---|---|---|---|
+| voller 16-Wort-Kopf, ungepackt | 16 Bit | 16 | 11 |
+| Felder einzeln gelesen | 16 Bit | 7 | 15 |
+| **gepackt (empfohlen)** | **36 Bit** | **3** | **18** |
+
+Der BSRAM-Modus `512×36` liefert 32 Nutzbits je Takt; drei solcher Worte decken alle sieben
+Felder ab (`X|Z|Flags`, `Breite|Höhe`, `Palettenbasis|Zeilenbasis`). Rechnung für das
+gepackte Layout: `5n + n²/2 ≤ 269` → **n = 18** (90 + 162 = 252).
+
+**Der Sortierer ist jetzt die zweite Engstelle.** Bei n = 16 kostet `n²/2` = **128 der 269
+Zyklen (48 %)**. Fast die Hälfte des Budgets geht für das Sortieren drauf, nicht für den
+Speicher. Die Zeit der 40-Zyklen-Speicherzugriffe ist vorbei; die Zeit der Sortierung beginnt.
+
+**Festlegung — Line-OAM-Tiefe 16:**
+
+| Posten | Zyklen |
 |---|---|
-| H-Blank-Dauer | 4,98 µs |
-| Zyklen @ `clk_cpu` 54 MHz | **269** |
-| Kosten pro Objekt (16-Wort-Kopf, PSRAM-Latenz + Burst) | ≈ 40 Zyklen |
-| **Objekte pro Zeile @ 54 MHz** | **≈ 6 – 7** |
-| Objekte pro Zeile @ 162 MHz (Scan auf PSRAM-Takt) | ≈ 20 |
+| Scan: 16 × (3 + 2) | 80 |
+| Z-Sort: 16² / 2 | 128 |
+| **Summe** | **208 von 269 → 61 Zyklen Reserve** |
 
-**Das ist die kritischste Zahl im ganzen Dokument.** Ein Scan auf CPU-Takt erlaubt
-**6 – 7 Objekte** – nicht die früher angenommenen 16. Selbst bei 162 MHz bleiben es nur ~20.
+Ein ungepacktes Layout (16-Bit-Felder, 9 Zyklen/Objekt) käme auf 144 + 128 = **272** — über
+Budget. Das Packen ist damit keine Optimierung, sondern **Voraussetzung**.
 
-**Festlegung:** Ein Grob-Y-Bucket-Index (360 Einträge, Zeile → Objektliste) ist damit
-**zwingende Voraussetzung der ersten Stufe**, nicht deren Nachfolger. Er ist die einzige
-Variante, die eine sinnvolle Objektzahl mit 4,98 µs vereinbart. Alternative – Scan auf
-PSRAM-Takt (162 MHz) und damit ~20 Objekte – ist eine schwache Ausrede und verdrängt den
-Index vermutlich nur.
+**Folgen für die Beschlüsse aus §10:**
+* **E-6 (Y-Bucket)** bleibt entschieden und zwingend — unverändert.
+* **E-7 (Sortierverfahren)** rückt von „offen, klein" auf **die nächste Engstelle**. Wer über
+  16 Objekte hinaus will, muss den Z-Sortierer ersetzen (Bucket bzw. Einsortieren in ein
+  vorsortiertes Array), nicht den Scanner beschleunigen.
+* Die frühere Fallback-Zeile „Objekte/Zeile @ 162 MHz ≈ 20" **entfällt** — sie war nur die
+  Konsequenz daraus, den Scan im PSRAM zu halten.
 
-Zwei weitere Posten, die in dasselbe Budget gehören und bisher fehlen:
+**Nebenwirkung (neu, §10 E-11):** Liegen die Deskriptoren im BSRAM, muss die **CPU** sie dort
+aktualisieren, wenn sie ein Objekt anlegt oder bewegt — der Scanner liest denselben Block.
+Das braucht eine Regel (Ping-Pong über zwei Bänke, oder CPU schreibt nur im V-Blank, §7.2).
 
-* **Z-Sortierer** – ein Bubble-Sort über *n* Treffer kostet ~n²/2 Vergleiche. Bei n = 7 sind
-  das ~24 Vergleiche (~0,45 µs @ 54 MHz) und passen; bei n = 16 wären es ~120 (~2,2 µs) und
-  würden das Budget halb auffressen. Sortiertiefe ist damit eine *Folge* der Objektzahl.
-* **Sortierer und Scan sind seriell, nicht parallel.** Sie teilen sich dieselben 269 Zyklen.
-  Frühere Fassungen gingen von Parallelität aus – das ist im Mikrocodedesign nicht
-  vorgesehen und wäre ein zusätzlicher Grund, den Bucket-Index vorzuziehen.
-
-**Nebenwirkung:** Der OAM-Scan liest nur Objektköpfe, keine Pixeldaten. Nur er konkurriert
-mit dem GCoP-Streaming (§4.5); der Scan selbst liest ausschließlich Metadaten.
+**Entlastung für §6.2:** Der Scan liest nur Metadaten und die jetzt im BSRAM — über das
+PSRAM läuft nur noch das Pixel-Streaming. Das macht die PSRAM-Zugriffe lang und sequenziell
+und ist der Grund, warum §6.2 neu gerechnet werden konnte.
 
 ### 4.5 Memory-Arbitration (Neu, offen)
 
@@ -347,12 +391,17 @@ Modus als Extremfall dokumentiert, aber nicht als Ziel geführt wird.
   > **Zu prüfen:** Diese Schätzung stammt aus der Erstfassung und umfasst **weder** das
   > Line-OAM-Array **noch** den Z-Sortierer. Beide sind LUTRAM bzw. Logik und dürfen den
   > Aufpreis nicht ignorieren. Erneute Schätzung nach dem RTL-Entwurf nötig.
-  > *Neu:* Mit der korrigierten Objektzahl (§4.4) ist das Line-OAM **kleiner als geplant** –
-  > statt 16 Treffern je Zeile sind höchstens ~7 gleichzeitig möglich. Ein Array von
-  > 8 × 6 Registern genügt, was die Schätzung eher verbessert als verschlechtert. Der
-  > Z-Sortierer schrumpft analog (n²/2: 24 statt 120 Vergleiche).
+  > *Neu (§4.4, 2026-10-12):* Mit den Deskriptoren im BSRAM liegt die Objektzahl bei bis zu
+  > **16** je Zeile. Das Line-OAM wächst auf 16 Einträge à ~5 Wörtern (~640 FF, LUTRAM/
+  > Distributed RAM). Der Z-Sortierer wächst analog (n²/2: **128** statt 24 Vergleiche bei
+  > n = 16) und ist jetzt die **zweite Engstelle** im H-Blank-Budget. Die LUT-Schätzung von
+  > 1.200–1.500 ist damit wieder offen — der Sortierer ist der teuerste Einzelposten und
+  > braucht eine eigene Schätzung nach dem RTL-Entwurf.
 * **BSRAM:**
   * Mikrocode-ROM: 1 Block.
+  * **OAM (Objekt-Deskriptoren): 1 Block.** Gepackt 3 Worte à 32 Nutzbits je Objekt (§4.4)
+    → im Modus `512×36` rund **170 Objekte**. Die CPU schreibt diesen Block, der Scanner
+    liest ihn (offene Nebenwirkung, §10 E-11).
   * Line-Buffer: 2 × 640 Wörter à 16 Bit RGB565 = 2 × 10.240 Bit. Ein 18-Kbit-BSRAM-Block
     fasst das **mehrfach**; die Angabe „2 Blöcke" ist also konservativ und unkritisch.
   * Paletten-RAM (`GLOBAL`-Modus): 32 Worte pro Palette, mehrere Paletten in einem Block.
@@ -360,46 +409,70 @@ Modus als Extremfall dokumentiert, aber nicht als Ziel geführt wird.
     → **< 1 BSRAM-Block**. Wird während H-Blank für aktive Zeilen nachgeladen.
   * Verbleibende Blöcke für Stack, Cache, Bootloader.
 
-### 6.2 Speicherbandbreite (korrigiert)
+### 6.2 Speicherbandbreite (mit Burst-Effizienz, neu gerechnet am 2026-10-12)
 
-PSRAM liefert bei 162 MHz × 16 Bit = **324 MB/s**. Bedarf je Zeile (17,24 µs Active Video),
-gerechnet mit 4 Bit/Pixel (4 Pixel pro Wort) und den Zeilenzugriffen aus §5:
+Zwei Korrekturen gegenüber der Erstfassung. Erstens: **324 MB/s sind eine Spitze, keine
+verfügbare Bandbreite.** Gowins IP-Datenblatt (IPUG943E) nennt für die PSRAM-IP die
+Burst-**Effizienz**:
 
-| Szenario | `GLOBAL` | MB/s | `PER_16PX` | MB/s |
-|---|---|---|---|---|
-| 7 × 640 px – **neuer Worst-Case**, volle Überdeckung | 1.127 W | **131** (40 %) | 1.680 W | **195** (60 %) |
-| 7 × 320 px | 567 W | 66 (20 %) | 840 W | 97 (30 %) |
-| 7 × 160 px | 287 W | 33 (10 %) | 420 W | 49 (15 %) |
-| 7 × 80 px – typisch | 147 W | 17 (5 %) | 210 W | 24 (8 %) |
-| *(16 × 640 px – entfällt, ≥ 16 Objekte sind nicht erreichbar)* | ~~3.840 W~~ | ~~445 (137 %)~~ | | |
+| Burst-Länge | Effizienz | effektiv bei 324 MB/s Spitze |
+|---|---|---|
+| 128 Byte | 74 % | **240 MB/s** |
+| 64 Byte | 61 % | 198 MB/s |
+| 32 Byte | 44 % | 143 MB/s |
 
-**Befund – geändert gegenüber der Erstfassung:** Der zuvor angeführte
-**Bandbreiten-Engpass existiert nicht.** Er beruhte auf der Annahme von 16 gleichzeitigen
-Objekten. Mit der korrigierten OAM-Zahl (§4.4) sind aber höchstens **~7** gleichzeitig in
-Flight – der Überschreitungsfall ist nicht erreichbar.
+Kürzere Bursts sind nicht tabelliert; darunter fällt die Effizienz weiter. Die Erstfassung
+rechnete mit **100 %**.
 
-Selbst der **absolute Worst-Case** (7 Objekte über die volle Bildbreite, vollständig
-überlappend, im teuersten Modus `PER_16PX`) liegt mit **60 %** der verfügbaren Bandbreite
-klar im Budget. Reale Szenarien liegen bei **5–20 %**.
+Zweitens: **was überhaupt noch über das PSRAM läuft, hat sich geändert.** Mit OAM im BSRAM
+(§4.4) und dem Paletten-Pointer-Cache im BSRAM (§5.1) trägt die PSRAM **nur noch
+Pixeldaten**. Objektköpfe, Palettenzeiger und Sortierdaten konkurrieren nicht mehr. Der
+Zugriff ist damit **lang und sequenziell** — die beste Effizienzklasse. Die Aufteilung
+`GLOBAL` / `PER_16PX` (§5) wirkt sich auf das PSRAM **nicht mehr** aus; sie kostet nur noch
+BSRAM-Zeiger.
 
-> **Wie dieser Befund zu lesen ist:** Die Rechnung der Erstfassung war methodisch richtig,
-> ihr Eingangswert (16 Objekte) war falsch. Unter der korrigierten Objektzahl ist die
-> Bandbreite **kein limitierender Faktor** – weder im Normalfall noch im Extremfall. Das
-> verschiebt das Risiko im gesamten Dokument auf den **OAM-Scan** (§4.4), der die eigentliche
-> Engstelle bleibt.
+Bedarf je Zeile (17,24 µs Active Video), 4 Bit/Pixel, 4 Pixel je 16-Bit-Wort:
 
-> Der Wert von 60 % im neuen Worst-Case ist ohne CPU-Anteil gerechnet. Sobald die Deep16
-> CPU parallel mitliest/schreibt (§4.5), ist das die harte Obergrenze, aus der die
-> CPU-Politik abgeleitet werden muss.
+| Szenario | Wörter/Zeile | MB/s | @ 143 (44 %) | @ 198 (61 %) | @ 240 (74 %) |
+|---|---|---|---|---|---|
+| 7 × 640 px — Worst-Case, volle Überdeckung | 1.120 | 130 | 91 % | 66 % | **54 %** |
+| 7 × 320 px | 560 | 65 | 45 % | 33 % | 27 % |
+| 7 × 160 px | 280 | 33 | 23 % | 16 % | 14 % |
+| 7 × 80 px — typisch | 140 | 16 | 11 % | 8 % | 7 % |
+
+Wörter/Zeile = 7 Objekte × ⌈W/4⌉. Der teuerste Fall (7 × 640) fährt **320-Byte-Bursts je
+Objekt** und liegt damit in der **74-%-Klasse**: 130 / 240 = **54 %**. Kleine Sprites holen
+kürzere Bursts (7 × 80 px = 40 Byte = 44-%-Klasse), bewegen aber so wenig, dass es nicht
+trägt.
+
+**Befund:** Mit den Deskriptoren im BSRAM ist die PSRAM **nicht** der Engpass. Der
+Worst-Case liegt bei **54 %** der effektiven (74 % der Spitzen-)Bandbreite, typische
+Szenarien bei **7–14 %**. Das ist derselbe Schluss wie in der Erstfassung — aber jetzt mit
+abgeleiteter statt angenommener Effizienz, und die 137-%-Zeile entfällt ersatzlos, weil 16
+gleichzeitige Objekte nach §4.4 gar nicht erreichbar sind.
+
+**Prämissen, an denen die Zahlen hängen — beide unbelegt:**
+
+1. **162 MHz.** Die PSRAM-Dies sind mit 166 MHz (CL3) spezifiziert, aber das Gowin-IP sagt
+   selbst *„the actual maximum frequency may vary depending on the performance of the FPGA
+   device"*. Ein quelloffener 1:1-Controller für genau diese Platine (`GW1NR-LV9QN88PC6/15`)
+   erreicht nur ~83 MHz; 162 MHz verlangt die Gowin-IP mit 1:2-Getriebe. **Fällt der Takt,
+   skaliert diese Tabelle linear** — bei 83 MHz wäre der Worst-Case über 100 %.
+2. **74 %.** Gilt nur für durchgehende ≥128-Byte-Bursts. Ein Zeilensprung oder ein
+   Sprite-Split kostet Effizienz; bei 32-Byte-Bursts steht man bei 44 % (91 % im Worst-Case).
+
+Der Wert ist **ohne CPU-Anteil** gerechnet. Sobald die Deep16-CPU parallel mitliest oder
+schreibt (§4.5), ist er die harte Obergrenze, aus der die CPU-Politik (E-1) abgeleitet
+werden muss.
 
 ### 6.3 Zusammenfassung der Machbarkeit
 
 | Punkt | Bewertung |
 |---|---|
 | Grundkonzept (Beam-Racer, objektbasiert) | tragfähig |
-| **Bandbreite – auch absoluter Worst-Case** | **unkritisch (60 % im Extremfall, 5–20 % real)** – kein limitierender Faktor |
-| OAM-Scan @ CPU-Takt | **~6–7 Objekte – die kritische Engstelle**; Y-Bucket-Index zwingend (§4.4) |
-| Logikbedarf | Schätzung zu niedrig, aber durch kleinere Objektzahl tendenziell besser (§6.1) |
+| **Bandbreite – auch absoluter Worst-Case** | **unauffällig (54 % im Extremfall bei 74 % Burst-Effizienz, 7–14 % real)** – hängt an 162 MHz und 74 % (beide unbelegt) |
+| OAM-Scan @ CPU-Takt | **bis 16 Objekte (Line-OAM 16)**; der **Z-Sortierer** ist die zweite Engstelle (§4.4) |
+| Logikbedarf | Schätzung offen; mit 16 Objekten ist der Z-Sortierer der teuerste Einzelposten (§6.1) |
 | Non-executable Video-RAM | löst Port-Aufteilung + Fehlerklasse (§2.4), vor GFX landbar |
 | **Voraussetzung PSRAM-Umbau** | **blockierend, siehe §9** |
 
@@ -526,11 +599,12 @@ tragend; wird sie verletzt, konkurrieren CPU- und GCoP-Reads wieder um denselben
 | **E-3** | Clock-Domain-Crossing-Protokoll für das Line-OAM (§3) | RTL |
 | **E-4** | Hintergrundfarbe und Vorbelegung des Line-Buffers (§4.2) | Bildqualität |
 | **E-5** | Textmodus-Strategie FPGA ↔ JS-Emulator (§8) | Kompatibilität, UI |
-| **E-6** | ~~Max. Objektzahl fest 16 oder Y-Bucket-Index vorsehen?~~ → **entschieden: Y-Bucket-Index ist zwingend**, 4,98 µs erlauben nur 6–7 Objekte (§4.4) | Timing-Budget |
-| **E-7** | Z-Sortierung: Bubble oder Auswahl-Sortierung; Sortierer und Scan teilen sich seriell dieselben 269 Zyklen (§4.4) | Timing-Budget |
+| **E-6** | ~~Max. Objektzahl fest 16 oder Y-Bucket-Index vorsehen?~~ → **entschieden: Y-Bucket-Index ist zwingend** — mit Deskriptoren im BSRAM erlaubt 4,98 µs jetzt bis zu 16 Objekte (§4.4) | erledigt |
+| **E-7** | Z-Sortierung: Bubble oder Auswahl-Sortierung; **seit dem BSRAM-OAM die nächste Engstelle** — 128 von 269 Zyklen bei n = 16 (§4.4) | Timing-Budget |
 | **E-8** | NX-Mechanismus: base+limit gegen NX-Bit je Segment (§2.2 zeigt: Segmente sind überlappende 128-KB-Fenster) | Fetch-Pfad |
 | **E-9** | Video-Bank-Anbindung: ein Port ohne FIFO (nur bei strikt schreib-only-Regel) oder FIFO/Portdopplung für Ausnahmen (§2.4, §9.2) | PSRAM-Controller |
 | **E-10** | Kollisionsdetektion und ähnliche Lesefälle: Kopie im Haupt-RAM statt Rücklesen aus Video-RAM (§2.4) | API-Form |
+| **E-11** | CPU ↔ OAM im BSRAM: Schreibregel, solange der Scanner denselben Block liest (Ping-Pong-Bänke oder CPU schreibt nur im V-Blank) (§4.4) | RTL, Konsistenz |
 
 Nächster sinnvoller Schritt ist **nicht** die Ausarbeitung des Mikrocode-Worts. Es sind
 diese drei, in dieser Reihenfolge:

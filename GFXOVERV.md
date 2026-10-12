@@ -109,7 +109,7 @@ Dieses Bild erklärt, warum der Entwurf funktioniert: die beiden GCoP-Phasen bra
   | PHASE B   ACTIVE VIDEO                     | PHASE A   H-BLANK        |
   |                                            |                          |
   | GCoP liest Pixeldaten per Burst            | GCoP scant das OAM,      |
-  | aus der VIDEO-BANK                         | liest nur Objektkoepfe   |
+  | aus der VIDEO-BANK                         | liest Kopf im BSRAM      |
   |                                            |                          |
   | CPU frei auf der HAUPT-BANK                | CPU frei                 |
   | -> kein Konflikt                           |                          |
@@ -155,12 +155,14 @@ flowchart LR
 ## 4. GCoP-Bausteine und Pixelkette
 
 **Phase A — das knappe Budget.** 269 Zyklen bei 54 MHz, geteilt **seriell** zwischen
-Scanner, Kollisionstest und Sortierer, nicht parallel.
+Scanner, Kollisionstest und Sortierer, nicht parallel. Mit den Deskriptoren im BSRAM
+(`GFX.md` §4.4): 16 Objekte × 5 Zyklen Scan = 80, Z-Sort 16²/2 = 128, Summe **208 → 61
+Zyklen Reserve**.
 
 ```mermaid
 flowchart LR
   classDef a fill:#e5e7eb,stroke:#374151
-  S1["OAM-Scanner<br/>liest Köpfe"] --> S2["Kollision Y<br/>Y liegt in Zeile"] --> S3["Z-Sorter<br/>~24 Vergleiche"] --> S4["Line-OAM 8x6<br/>Zeilenzeiger"]
+  S1["OAM-Scanner<br/>liest Köpfe im BSRAM"] --> S2["Kollision Y<br/>Y liegt in Zeile"] --> S3["Z-Sorter<br/>~128 Vergleiche"] --> S4["Line-OAM 16<br/>Zeilenzeiger"]
   class S1,S2,S3,S4 a
 ```
 
@@ -181,7 +183,9 @@ kein Raster, kein Flimmern.
 Palette-Modi: `GLOBAL` (Default), `PER_OBJ`, `PER_16PX` (`GFX.md` §5). Der Alpha-Test
 mischt nicht; die Hintergrundfarbe ist noch offen (E-4).
 
-**Offen an dieser Stelle:** Y-Bucket-Index ist zwingend (E-6), Sortierverfahren offen (E-7).
+**Offen an dieser Stelle:** Y-Bucket-Index ist entschieden (E-6); das Sortierverfahren (E-7)
+ist seit dem BSRAM-OAM die **nächste Engstelle** — der Sortierer frisst 128 der 269 Zyklen
+(48 %).
 
 ---
 
@@ -190,7 +194,7 @@ mischt nicht; die Hintergrundfarbe ist noch offen (E-4).
 | Bank | Adressen | Konsumenten | Ports | NX | Trägt |
 |---|---|---|---|---|---|
 | Haupt | `0x00000`–`0xDFFFF` | CPU Fetch, CPU Daten | 2R+1W, Cache deckt ab | nein | Programm, Daten, Stack, Heap |
-| Video | `0xE0000`–`0xEFFFF` | GCoP Read, CPU Write (V-Blank) | **1 Port** | **ja** | Objektköpfe, Pixeldaten, Objektliste |
+| Video | `0xE0000`–`0xEFFFF` | GCoP Read, CPU Write (V-Blank) | **1 Port** | **ja** | Pixeldaten, Objektliste (Köpfe im BSRAM, §4.4) |
 | I/O | `0xF0000`–`0xFFFFF` | GCoP-Steuerregister, CPU | 1R+1W | Textpuffer ja | VDC @0xF0030, Text @0xF1000 |
 
 Die Aufteilung ist in §1 bereits als Blöcke mit NX-Zustand dargestellt; die Tabelle
@@ -212,7 +216,7 @@ Vollständige Karte in `GFX.md` §7.1.
 | `0xF0030` | `VDC_CTRL` | Enable, Reset, Interlace (reserviert) |
 | `0xF0031` | `VDC_STATUS` | Busy-in-H-Blank, VBlank-Flag, OAM-Überlauf |
 | `0xF0032` | `VDC_OAMLIST` | Segmentadresse der Objektliste → Video-Bank |
-| `0xF0033` | `VDC_OBJCOUNT` | Anzahl Objekte (~7, siehe `GFX.md` §4.4) |
+| `0xF0033` | `VDC_OBJCOUNT` | Anzahl Objekte (bis 16, siehe `GFX.md` §4.4) |
 | `0xF0034` | `VDC_BGPAL` | Basis der globalen Palette → BSRAM |
 | `0xF0035` | `VDC_BGCOLOR` | Hintergrundfarbe RGB565 (offen: E-4) |
 | `0xF0036` | `VDC_SCALING` | logische Breite/Höhe, Default 640×360 |
@@ -222,18 +226,25 @@ Vollständige Karte in `GFX.md` §7.1.
 
 ## 7. Bandbreite
 
-Nach der korrigierten Objektzahl (`GFX.md` §4.4) ist die PSRAM **kein** limitierender
-Faktor — auch nicht im Extremfall.
+Mit den Deskriptoren im BSRAM (`GFX.md` §4.4) trägt die PSRAM **nur noch Pixeldaten** — und
+die Effizienz hängt an der Burst-Länge (IPUG943E): **74 %** bei 128 Byte, 61 % bei 64 Byte,
+44 % bei 32 Byte.
 
-| Szenario | `GLOBAL` | `PER_16PX` |
-|---|---|---|
-| 7 × 640 px — **Worst-Case**, volle Überdeckung | 131 MB/s (40 %) | 195 MB/s (60 %) |
-| 7 × 160 px | 33 MB/s (10 %) | 49 MB/s (15 %) |
-| 7 × 80 px — typisch | 17 MB/s (5 %) | 24 MB/s (8 %) |
+| Szenario | Wörter/Zeile | MB/s | @ 240 (74 %) | @ 143 (44 %) |
+|---|---|---|---|---|
+| 7 × 640 px — **Worst-Case**, volle Überdeckung | 1.120 | 130 | **54 %** | 91 % |
+| 7 × 160 px | 280 | 33 | 14 % | 23 % |
+| 7 × 80 px — typisch | 140 | 16 | 7 % | 11 % |
 
-Verfügbar: 324 MB/s (162 MHz × 16 Bit). Der Wert von 60 % im Worst-Case ist ohne
-CPU-Anteil gerechnet — mit parallelem CPU-Zugriff ist das die harte Obergrenze, aus der
-die CPU-Politik abgeleitet werden muss (`GFX.md` §4.5, E-1).
+Spitze: 324 MB/s (162 MHz × 16 Bit). Der Worst-Case fährt 320-Byte-Bursts je Objekt und
+liegt damit in der 74-%-Klasse → **54 %**. Kleine Sprites holen kürzere Bursts (40 Byte =
+44-%-Klasse), bewegen aber so wenig, dass es nicht trägt. Der Wert ist ohne CPU-Anteil
+gerechnet — mit parallelem CPU-Zugriff ist das die harte Obergrenze, aus der die CPU-Politik
+abgeleitet werden muss (`GFX.md` §4.5, E-1).
+
+**Beide Prämissen sind unbelegt:** 162 MHz verlangen die Gowin-IP mit 1:2-Getriebe (ein
+quelloffener 1:1-Controller auf dieser Platine erreicht ~83 MHz); 74 % gelten nur für
+durchgehende ≥128-Byte-Bursts. Fällt der Takt, skaliert die Tabelle linear.
 
 ---
 
