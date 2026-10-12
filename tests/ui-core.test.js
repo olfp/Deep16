@@ -205,7 +205,7 @@ test('the panels read through the active core, never a hardcoded module', () => 
 const KERNEL = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
 
 // Boot the kernel and type `file` into it through the real pump.
-function typeThroughPump(file, { stepsPerTick = 200, maxSteps = 12000000, run = true } = {}) {
+function typeThroughPump(file, { stepsPerTick = 200, maxSteps = 12000000, run = true, echoWrap = false } = {}) {
   const res = assemble(KERNEL);
   assert.ok(res.success, res.errors.join('; '));
   const ui = makeUi();
@@ -213,9 +213,16 @@ function typeThroughPump(file, { stepsPerTick = 200, maxSteps = 12000000, run = 
   for (const c of res.memoryChanges) mem[c.address] = c.value & 0xFFFF;
   ui.simulator.loadProgram(mem);
   ui.simulator.segmentRegisters.CS = 0xFFFF;
+  // echoWrap reproduces what queueFileUpload builds: `0 echo`, the file, `1 echo`.
+  // Without it the test types plain text and every character is drawn.
+  const body = ui.fileToKeys(file);
+  const keys = echoWrap
+    ? [...ui.fileToKeys('0 echo\n'), ...body, ...ui.fileToKeys('1 echo\n')]
+    : body;
+  if (echoWrap) ui.echoOn = false;
   // queueFileUpload needs a FileReader; the state it would build is set here
   // directly, which is the only part the test does not exercise.
-  ui.fileUpload = { name: 'test.fs', keys: ui.fileToKeys(file), pos: 0, done: false, stalled: false };
+  ui.fileUpload = { name: 'test.fs', keys, pos: 0, done: false, stalled: false, echoRestore: echoWrap };
 
   ui.simulator.running = run;
   for (let i = 0; i < maxSteps && ui.simulator.running; i++) {
@@ -239,6 +246,47 @@ test('an uploaded file is typed into the kernel and its definitions work', () =>
   assert.equal(rows[2], '> 42 foo + . 83  ok', `screen was:\n${rows.join('\n')}`);
   assert.equal(ui.fileUpload.done, true, 'the pump must mark the file as fully typed');
   assert.equal(ui.simulator.kbdAvailable(), 0, 'nothing may be left in the queue');
+});
+
+test('loading hanoi.fth types the file in without drawing it, and what it defines works', () => {
+  // The whole point of the echo switch, end to end: the file's ten thousand
+  // keystrokes go in and nothing is drawn, because the echo is off for the whole
+  // of them - including the tail, which is what used to be printed.
+  //
+  // It used to be printed because the Screen tab counted the upload as finished
+  // when the last keystroke was handed to the queue. It runs a chunk ahead of
+  // the machine, so at that point the last page of the file was still unread,
+  // and the echo was put back on under the machine's feet.
+  const src = fs.readFileSync(path.join(ROOT, 'forth', 'hanoi.fth'), 'utf8');
+  const { ui, rows } = typeThroughPump(src, { echoWrap: true, maxSteps: 400000000 });
+  assert.equal(ui.fileUpload.done, true, 'the whole file must have been typed in');
+  assert.equal(ui.simulator.kbdAvailable(), 0, 'and read by the machine');
+
+  // No line of the file may appear on the screen. These are the distinctive
+  // ones from the tail that used to be drawn, plus one from the middle.
+  for (const needle of ['dup init', 'mv-src set!', 'mv-dst set!', 'mv-tmp set!',
+                         'hanoi ;', 'hanoi-demo', 'swap-src-tmp', 'hanoi-solve']) {
+    for (const row of rows) {
+      assert.equal(row.includes(needle), false,
+        `"${needle}" was drawn on the screen; screen was:\n${rows.join('\n')}`);
+    }
+  }
+  // The file really did go in, though: the kernel was asked to define it.
+  assert.ok(rows.some(r => r.includes('Hello DeepForth!')), 'the kernel booted');
+
+  // And it is callable, which is what "it loaded" actually means.
+  for (const c of 'hanoi-demo') ui.simulator.enqueueKeyCode(c.charCodeAt(0));
+  ui.simulator.enqueueKeyCode(13);
+  for (let i = 0; i < 4000000 && ui.simulator.running; i++) ui.simulator.step();
+  const screen = [];
+  for (let r = 0; r < 25; r++) {
+    let s = '';
+    for (let c = 0; c < 80; c++) s += String.fromCharCode(ui.simulator.memory[0xF1000 + r * 80 + c] & 0xFF);
+    screen.push(s.replace(/\s+$/, ''));
+  }
+  const text = screen.join('\n');
+  assert.ok(text.includes('from A to C'), `hanoi-demo did not run; screen was:\n${text}`);
+  assert.ok(text.includes('Disk  1'), `hanoi-demo did not move; screen was:\n${text}`);
 });
 
 test('every line ending in the file becomes a Return', () => {
@@ -1038,8 +1086,16 @@ test('an upload that finishes puts the button back and releases the memory view'
     assert.equal(ui.uploadInFlight(), false, 'but nothing is in flight any more');
     assert.equal(btn.textContent, 'Upload', 'the button has to go back to Upload');
     assert.equal(btn.classList.has('screen-upload-cancel'), false);
-    assert.equal(ui.echoOn, true, 'the echo comes back');
     assert.ok(memoryUpdates > 0, 'the memory view is refreshed once the upload is over');
+
+    // The echo is not back yet: the keystrokes have been handed over, not read.
+    assert.equal(ui.echoOn, false, 'the echo stays off until the machine has read the file');
+    assert.equal(ui.fileUpload.echoPending, true);
+
+    // Once the queue has drained - the machine caught up - the net is pulled.
+    ui.pumpKeyQueue();
+    assert.equal(ui.echoOn, true, 'the echo comes back once the queue is empty');
+    assert.equal(ui.fileUpload.echoPending, false);
 
     // And a later updateAllDisplays() must not still see it as busy.
     let memory = 0, screen = 0;
@@ -1057,6 +1113,77 @@ test('an upload that finishes puts the button back and releases the memory view'
 
 // ---------------------------------------------------------------------------
 // Upload: the echo commands it types, and the button that cancels it
+
+test('the echo is not put back on while the machine has unread keystrokes queued', () => {
+  // The tail of the file was being printed because the echo was restored the
+  // moment the last keystroke was handed to the queue. The pump runs KBD_CHUNK
+  // characters ahead of the machine, so at that moment up to KBD_FIFO_DEPTH
+  // characters - a page of the file - were still waiting to be read, and the
+  // machine typed them out with prompts.
+  //
+  // Handing over is not reading, so the net is only pulled once the queue has
+  // actually drained.
+  const ui = makeUi();
+  ui.updateEchoButton = () => {};
+  ui.setUploadHint = () => {};
+  ui.echoOn = false;
+  let queued = [];
+  ui.fileUpload = {
+    name: 'sq.fth', keys: [97, 98, 99, 100, 13], pos: 0, done: false, stalled: false,
+    echoRestore: true,
+  };
+  ui.kbdPushCode = (c) => queued.push(c);
+  // The machine is behind: three characters are still waiting to be read.
+  ui.kbdAvailable = () => 3;
+
+  ui.pumpKeyQueue();
+  assert.equal(ui.fileUpload.done, true, 'every keystroke was handed over');
+  assert.equal(ui.echoOn, false, 'but the echo must still be off');
+  assert.equal(ui.fileUpload.echoPending, true, 'the net is left pending');
+
+  // Still unread: pumping again must not pull it either.
+  ui.pumpKeyQueue();
+  assert.equal(ui.echoOn, false, 'still unread, still off');
+
+  // The machine has read them all.
+  ui.kbdAvailable = () => 0;
+  ui.pumpKeyQueue();
+  assert.equal(ui.echoOn, true, 'the echo comes back exactly once the queue is empty');
+  assert.equal(ui.fileUpload.echoPending, false, 'and the net is spent');
+});
+
+test('a file being loaded owns the keyboard: typed keys are discarded', () => {
+  // Keys typed during a load land in the same FIFO as the file itself, in the
+  // middle of a line the machine is reading, so they are read as part of that
+  // line and corrupt the load. They are dropped, not queued for later.
+  const ui = makeUi();
+  ui.screenUI = { setActive() {} };
+  ui.addTranscriptEntry = () => {};
+  ui.setUploadHint = () => {};
+  globalThis.document.activeElement = { id: 'terminal-kbd-hook', tagName: 'INPUT' };
+
+  const key = (k) => ({ key: k, ctrlKey: false, metaKey: false, altKey: false });
+
+  // Nothing loading: the key goes to the machine.
+  ui.handleTerminalKey(key('a'));
+  assert.equal(ui.simulator.kbdAvailable(), 1, 'a key with no load running reaches the machine');
+  ui.kbdClearAll();
+
+  // Loading: dropped, and not queued either.
+  ui.fileUpload = { name: 'hanoi.fth', keys: [97, 13, 98], pos: 0, done: false, stalled: false };
+  ui.uploadKeysDropped = false;
+  ui.handleTerminalKey(key('b'));
+  ui.handleTerminalKey(key('c'));
+  assert.equal(ui.simulator.kbdAvailable(), 0, 'no key may reach the queue while loading');
+  assert.equal(ui.uploadKeysDropped, true, 'and the user is told once, not per key');
+
+  // Done: the keyboard is the user's again.
+  ui.fileUpload.done = true;
+  ui.handleTerminalKey(key('d'));
+  assert.equal(ui.simulator.kbdAvailable(), 1, 'the keyboard works again once the load is over');
+  ui.kbdClearAll();
+  globalThis.document.activeElement = null;
+});
 //
 // An upload silences the echo, and the two commands that do that are part of
 // the keystroke stream rather than only poked into memory: a poke is a snapshot,

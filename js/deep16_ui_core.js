@@ -58,30 +58,7 @@ class DeepWebUI {
         // the Terminal/Screen tab) is that input. While it is focused the keys
         // still belong to the simulator, not to text entry.
         const terminalHook = document.getElementById('terminal-kbd-hook');
-        window.addEventListener('keydown', (e) => {
-            if (!this.simulator) return;
-            const active = document.activeElement;
-            const tag = active && active.tagName ? active.tagName.toUpperCase() : '';
-            const isHook = !!active && active.id === 'terminal-kbd-hook';
-            const isTextual = !!active && (
-                (tag === 'INPUT') || (tag === 'TEXTAREA') || (tag === 'SELECT') ||
-                (active.isContentEditable === true)
-            );
-            if (isTextual && !isHook) return;
-            if (isHook && (e.ctrlKey || e.metaKey || e.altKey)) return; // keep browser shortcuts (save, reload, ...)
-            if (this.screenUI && typeof this.screenUI.setActive === 'function') {
-                this.screenUI.setActive(true);
-            }
-            const code = this.keyEventToCode(e);
-            if (code) {
-                this.simulator.enqueueKeyCode(code);
-                // Compiled cores have their own polled keyboard buffer: mirror
-                // every keystroke into whichever one is selected.
-                if (this.compiledCoreReady() && typeof this.activeCoreModule().kbd_push === 'function') {
-                    this.activeCoreModule().kbd_push(code);
-                }
-            }
-        });
+        window.addEventListener('keydown', (e) => { this.handleTerminalKey(e); });
 
         // Mark screen as active when clicked; clear when focusing inputs
         const screenDisplay = document.getElementById('screen-display');
@@ -360,6 +337,50 @@ class DeepWebUI {
     // Type one keystroke into the active core and mirror it into the JS one, the
     // way a real keystroke is mirrored into both (see the keydown handler).
     // Without the mirror, switching cores mid-file would drop the rest.
+    // One browser keydown, handled. Extracted from the listener so it can be
+    // driven directly: what reaches the machine's keyboard buffer is a decision
+    // with three ways to say no (another text field has focus, the user asked
+    // for a browser shortcut, a file is being loaded), and none of them is
+    // visible from the outside otherwise.
+    handleTerminalKey(e) {
+        if (!this.simulator) return;
+        const active = document.activeElement;
+        const tag = active && active.tagName ? active.tagName.toUpperCase() : '';
+        const isHook = !!active && active.id === 'terminal-kbd-hook';
+        const isTextual = !!active && (
+            (tag === 'INPUT') || (tag === 'TEXTAREA') || (tag === 'SELECT') ||
+            (active.isContentEditable === true)
+        );
+        if (isTextual && !isHook) return;
+        if (isHook && (e.ctrlKey || e.metaKey || e.altKey)) return; // keep browser shortcuts (save, reload, ...)
+        // A file being loaded owns the keyboard. A key typed in the meantime
+        // lands in the same 128-deep FIFO as the file itself, in the middle of a
+        // line the machine is reading, so it is read as part of that line and
+        // corrupts the load. It is dropped rather than queued for later: a
+        // keystroke belonging to the middle of a half-typed word of hanoi.fth
+        // means nothing once the load is over.
+        if (this.uploadInFlight()) {
+            if (!this.uploadKeysDropped) {
+                this.uploadKeysDropped = true;
+                this.addTranscriptEntry('Keyboard is blocked while a file is being loaded - keys are discarded', "info");
+                this.setUploadHint('loading - keyboard blocked');
+            }
+            return;
+        }
+        if (this.screenUI && typeof this.screenUI.setActive === 'function') {
+            this.screenUI.setActive(true);
+        }
+        const code = this.keyEventToCode(e);
+        if (code) {
+            this.simulator.enqueueKeyCode(code);
+            // Compiled cores have their own polled keyboard buffer: mirror
+            // every keystroke into whichever one is selected.
+            if (this.compiledCoreReady() && typeof this.activeCoreModule().kbd_push === 'function') {
+                this.activeCoreModule().kbd_push(code);
+            }
+        }
+    }
+
     kbdPushCode(code) {
         const s = this.simulator;
         if (s && typeof s.enqueueKeyCode === 'function') s.enqueueKeyCode(code);
@@ -465,6 +486,7 @@ class DeepWebUI {
                 keys: [...echoOff, ...keys, ...echoOn],
                 pos: 0, done: false, stalled: false, echoRestore: true,
             };
+            this.uploadKeysDropped = false;
             this.setEchoEnabled(false);
             this.updateUploadButton();
             this.addTranscriptEntry(
@@ -536,6 +558,10 @@ class DeepWebUI {
     // both run loops; returns the number of keystrokes handed over.
     pumpKeyQueue() {
         const src = this.fileUpload;
+        // Checked before the early return below, because the point of this call
+        // after the load finishes is to be the one that finally hands the echo
+        // back once the machine has read everything.
+        this.settleUploadEcho();
         if (!src || src.done) return 0;
         const avail = this.kbdAvailable();
         let room = Number.isFinite(avail) ? (DeepWebUI.KBD_FIFO_DEPTH - avail) : 1;
@@ -560,11 +586,17 @@ class DeepWebUI {
             this.addTranscriptEntry(`${src.name}: all ${src.keys.length} keystrokes typed in`, "success");
             this.status(`${src.name} typed in completely`);
             this.setUploadHint(`${src.name}: typed in completely`);
-            // The last line has been read, so the prompt is visible again and the
-            // echo has to come back with it. The keystream's own `1 echo` does
-            // the same thing; this is the net, for a machine that never got that
-            // far.
-            if (src.echoRestore) this.setEchoEnabled(true);
+            // "Handed over" is not "read". This ran up to KBD_CHUNK characters
+            // ahead of the machine, so at this moment up to KBD_FIFO_DEPTH
+            // characters - a page of the file - were still queued and unread.
+            // Restoring the echo here turned it back on under the machine's feet
+            // and it typed out the last eight lines of the file, prompts and all.
+            //
+            // The keystream's own `1 echo` is what turns the echo on, in the right
+            // order, once the machine has actually read that line. The poke is only
+            // the net for a machine that never got that far, so it is left pending
+            // here and pulled below, once the queue has drained.
+            if (src.echoRestore) src.echoPending = true;
             // The button goes back to Upload and the memory view catches up.
             this.updateUploadButton();
             if (this.memoryUI && typeof this.memoryUI.updateMemoryDisplay === 'function') {
@@ -572,6 +604,24 @@ class DeepWebUI {
             }
         }
         return end - start;
+    }
+
+    // Put the echo back once the machine has actually read everything that was
+    // typed into it, not merely once the keystrokes were handed to the queue.
+    //
+    // This is the net for a load that never reached its closing `1 echo` - a
+    // machine stopped mid-file, say. Pulling it early is worse than not having
+    // it at all: it puts the echo back on while the tail of the file is still
+    // waiting to be read, and that tail is then printed with prompts.
+    settleUploadEcho() {
+        const src = this.fileUpload;
+        if (!src || !src.echoPending) return;
+        const avail = this.kbdAvailable();
+        // A core that does not report a queue depth cannot tell us when the
+        // machine has caught up, so the net stays pulled in after a moment.
+        if (Number.isFinite(avail) && avail > 0) return;
+        src.echoPending = false;
+        this.setEchoEnabled(true);
     }
 
 
