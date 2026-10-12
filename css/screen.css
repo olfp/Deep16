@@ -67,6 +67,15 @@
 
 .screen-echo-btn.screen-echo-off:hover { background: #555; }
 
+/* The Upload button doubles as Cancel while a file is queued or typing, and it
+   is the only progress indicator there is - red, and saying so. */
+.screen-upload-btn.screen-upload-cancel {
+    background: #a4262c;
+    font-weight: bold;
+}
+
+.screen-upload-btn.screen-upload-cancel:hover { background: #c0392f; }
+
 /* 80 columns x 24 rows in a fixed cell grid: 8 px wide, 15 px high, which is
    exactly 640 x 360. The font size is not chosen by eye: a monospace face
    advances 0.6 em, so 13.3333 px puts the next glyph exactly 8 px further

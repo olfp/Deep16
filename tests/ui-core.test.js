@@ -1008,3 +1008,118 @@ test('uploadForthSource says why the editor stayed empty', () => {
   assert.match(gesehen[0], /Upload/,
     'und es muss sagen, wo .fth-Dateien hingehören');
 });
+
+// ---------------------------------------------------------------------------
+// Upload: the echo commands it types, and the button that cancels it
+//
+// An upload silences the echo, and the two commands that do that are part of
+// the keystroke stream rather than only poked into memory: a poke is a snapshot,
+// and anything that reloads the image afterwards (Reset, a core switch, a fresh
+// assemble) puts the cell back and then the whole file is drawn on the screen.
+// ---------------------------------------------------------------------------
+
+// Minimal button stub: textContent, title, aria-pressed and a class set.
+function fakeButton() {
+  const classes = new Set();
+  return {
+    textContent: '', title: '', attrs: {},
+    setAttribute(k, v) { this.attrs[k] = v; },
+    getAttribute(k) { return this.attrs[k]; },
+    classList: {
+      toggle(c, on) { on ? classes.add(c) : classes.delete(c); },
+      has(c) { return classes.has(c); },
+    },
+  };
+}
+
+// point getElementById at the stub for one test
+function withUploadButton(btn, fn) {
+  const prev = globalThis.document.getElementById;
+  globalThis.document.getElementById = (id) => (id === 'file-upload-btn' ? btn : prev(id));
+  try { return fn(); } finally { globalThis.document.getElementById = prev; }
+}
+
+test('the Upload button becomes a red Cancel while a file is queued', () => {
+  const btn = fakeButton();
+  withUploadButton(btn, () => {
+    const ui = makeUi();
+    ui.updateEchoButton = () => {};
+    ui.setUploadHint = () => {};
+    ui.cleared = false;
+    ui.kbdClearAll = () => { ui.cleared = true; };
+
+    ui.fileUpload = null;
+    ui.echoOn = true;
+    ui.updateUploadButton();
+    assert.equal(btn.textContent, 'Upload');
+    assert.equal(btn.classList.has('screen-upload-cancel'), false);
+    assert.equal(btn.attrs['aria-pressed'], 'false');
+
+    ui.fileUpload = { name: 'hanoi.fth', keys: [], pos: 0, done: false, stalled: false, echoRestore: true };
+    ui.updateUploadButton();
+    assert.equal(btn.textContent, 'Cancel', 'the button is the only progress indicator there is');
+    assert.equal(btn.classList.has('screen-upload-cancel'), true);
+    assert.equal(btn.attrs['aria-pressed'], 'true');
+
+    ui.cancelFileUpload('cancelled by the user');
+    assert.equal(ui.fileUpload, null);
+    assert.equal(ui.cleared, true, 'the keystroke queue has to be emptied');
+    assert.equal(ui.echoOn, true, 'a cancelled load must not leave the echo off');
+    assert.equal(btn.textContent, 'Upload', 'the button goes back');
+    assert.equal(btn.classList.has('screen-upload-cancel'), false);
+    assert.ok(ui.transcript.some(t => t.includes('cancelled by the user')));
+  });
+});
+
+test('an upload types 0 echo before the file and 1 echo after it', () => {
+  const prev = globalThis.FileReader;
+  // Enough of a FileReader to run queueFileUpload's onload path.
+  globalThis.FileReader = class {
+    readAsText() { this.result = ': sq dup * ;\n'; this.onload(); }
+  };
+  try {
+    const ui = makeUi();
+    ui.setUploadHint = () => {};
+    ui.updateUploadButton = () => {};
+    ui.updateEchoButton = () => {};
+
+    ui.queueFileUpload({ name: 'sq.fth', size: 14 });
+    assert.ok(ui.fileUpload, 'the file must be queued');
+    const typed = ui.fileUpload.keys
+      .map(c => (c === 13 ? '\n' : String.fromCharCode(c))).join('');
+    assert.ok(typed.startsWith('0 echo\n'), `the stream starts with 0 echo, got ${JSON.stringify(typed.slice(0, 12))}`);
+    assert.ok(typed.includes(': sq dup * ;\n'), 'the file is in between the two commands');
+    assert.ok(typed.endsWith('1 echo\n'), `the stream ends with 1 echo, got ${JSON.stringify(typed.slice(-10))}`);
+    // The poke is the fast path, not the only one: the machine is told too.
+    assert.equal(ui.echoOn, false, 'the Screen tab state follows the stream');
+  } finally {
+    if (prev === undefined) delete globalThis.FileReader; else globalThis.FileReader = prev;
+  }
+});
+
+test('the memory display is held still while a file is typing itself in', () => {
+  const ui = makeUi();
+  let memoryUpdates = 0, screenUpdates = 0;
+  ui.registerUI = {
+    updateRegisterDisplay() {}, updatePSWDisplay() {},
+    updateSegmentRegisters() {}, updateShadowRegisters() {},
+  };
+  ui.memoryUI = {
+    updateMemoryDisplay() { memoryUpdates++; },
+    updateRecentMemoryDisplay() { memoryUpdates++; },
+  };
+  ui.updateSegmentNavigationFields = () => {};
+  ui.screenUI = { updateScreenDisplay() { screenUpdates++; } };
+  ui.updateCoreStats = () => {};
+
+  ui.fileUpload = null;
+  ui.updateAllDisplays();
+  assert.equal(memoryUpdates, 2, 'idle: both memory views refresh');
+  assert.equal(screenUpdates, 1);
+
+  memoryUpdates = 0; screenUpdates = 0;
+  ui.fileUpload = { name: 'hanoi.fth', keys: [], pos: 0, done: false, stalled: false };
+  ui.updateAllDisplays();
+  assert.equal(memoryUpdates, 0, 'while typing itself in, the memory view is not worth redrawing');
+  assert.equal(screenUpdates, 1, 'but the screen is the one being watched');
+});

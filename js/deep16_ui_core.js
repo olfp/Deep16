@@ -444,15 +444,29 @@ class DeepWebUI {
                 this.setUploadHint('');
                 return;
             }
-            this.fileUpload = { name: file.name, keys, pos: 0, done: false, stalled: false, echoRestore: true };
-            // Type the file in with the echo off. getstr would draw every
-            // character of the source as it arrives, which fills the 24 rows
-            // with a copy of the file and - because that echo path writes
-            // straight to the cursor with no row bookkeeping - walks the cursor
-            // off the bottom of the display, after which the screen never scrolls
-            // again. What the interpreter prints (" ok", and anything the words
-            // emit) still comes out, so the file's own results stay visible.
+            // `0 echo` and `1 echo` go INTO the keystroke stream rather than only
+            // being poked into memory. Poking is the fast path and keeps the
+            // button honest, but it is a snapshot: anything that reloads the
+            // memory image afterwards - a Reset, a core switch, a fresh assemble
+            // - puts the cell back to its shipped value of 1, and then the file
+            // types itself in with the echo on and the whole of it is drawn on
+            // the screen. Having the machine switch its own echo off, in stream
+            // order, right before the first character of the file, cannot be
+            // undone by anything that happens to the cell earlier.
+            //
+            // It also fixes the prompt for free. The closing `1 echo` is typed
+            // while the echo is still off, so the line is not drawn - but it
+            // does set the flag, and the REPL prints " ok" and the prompt once it
+            // sees that, which leaves the next command starting on a clean row.
+            const echoOff = this.fileToKeys('0 echo\n');
+            const echoOn = this.fileToKeys('1 echo\n');
+            this.fileUpload = {
+                name: file.name,
+                keys: [...echoOff, ...keys, ...echoOn],
+                pos: 0, done: false, stalled: false, echoRestore: true,
+            };
             this.setEchoEnabled(false);
+            this.updateUploadButton();
             this.addTranscriptEntry(
                 `${file.name} ready (${keys.length} keystrokes) - start the program, then it types itself in`,
                 "info");
@@ -470,6 +484,22 @@ class DeepWebUI {
         if (el) el.textContent = text;
     }
 
+    // The Upload button doubles as the Cancel button while a file is queued or
+    // typing. That is the only progress indicator there is: a load can sit in
+    // the queue waiting for the machine, and the hint text is small and easy to
+    // miss, so the button itself carries the state - red and reading "Cancel".
+    updateUploadButton() {
+        const btn = document.getElementById('file-upload-btn');
+        if (!btn) return;
+        const busy = !!this.fileUpload;
+        btn.textContent = busy ? 'Cancel' : 'Upload';
+        btn.classList.toggle('screen-upload-cancel', busy);
+        btn.setAttribute('aria-pressed', busy ? 'true' : 'false');
+        btn.title = busy
+            ? 'Upload abbrechen - der Rest der Datei wird nicht eingetippt'
+            : 'Eine ASCII-Datei als Tastatureingaben eintippen';
+    }
+
     // Cancel an upload that is still running and drop what is still queued.
     cancelFileUpload(reason = '') {
         const src = this.fileUpload;
@@ -477,8 +507,15 @@ class DeepWebUI {
         this.fileUpload = null;
         this.kbdClearAll();
         this.setUploadHint('');
+        this.updateUploadButton();
+        // The memory display was held still for the duration; show what the
+        // machine actually holds now.
+        if (this.memoryUI && typeof this.memoryUI.updateMemoryDisplay === 'function') {
+            this.memoryUI.updateMemoryDisplay();
+        }
         // A cancelled load would otherwise leave the echo off for good, with the
         // toggle showing "off" and the user having asked for nothing of the sort.
+        // The closing `1 echo` may never have been typed, so poke it back on.
         if (src.echoRestore) this.setEchoEnabled(true);
         if (reason) this.addTranscriptEntry(`Upload cancelled (${reason})`, "warning");
     }
@@ -512,8 +549,15 @@ class DeepWebUI {
             this.status(`${src.name} typed in completely`);
             this.setUploadHint(`${src.name}: typed in completely`);
             // The last line has been read, so the prompt is visible again and the
-            // echo has to come back with it.
+            // echo has to come back with it. The keystream's own `1 echo` does
+            // the same thing; this is the net, for a machine that never got that
+            // far.
             if (src.echoRestore) this.setEchoEnabled(true);
+            // The button goes back to Upload and the memory view catches up.
+            this.updateUploadButton();
+            if (this.memoryUI && typeof this.memoryUI.updateMemoryDisplay === 'function') {
+                this.memoryUI.updateMemoryDisplay();
+            }
         }
         return end - start;
     }
@@ -956,7 +1000,12 @@ class DeepWebUI {
         // types it in a few characters at a time while the machine steps.
         const uploadBtn = document.getElementById('file-upload-btn');
         const uploadInput = document.getElementById('file-upload-input');
-        if (uploadBtn) uploadBtn.addEventListener('click', () => uploadInput && uploadInput.click());
+        // One button, two jobs: it picks a file when nothing is queued and
+        // cancels the load when something is.
+        if (uploadBtn) uploadBtn.addEventListener('click', () => {
+            if (this.fileUpload) { this.cancelFileUpload('cancelled by the user'); return; }
+            if (uploadInput) uploadInput.click();
+        });
         if (uploadInput) uploadInput.addEventListener('change', (e) => {
             const file = e.target.files && e.target.files[0];
             if (file) this.queueFileUpload(file);
@@ -969,6 +1018,7 @@ class DeepWebUI {
         const echoBtn = document.getElementById('echo-toggle-btn');
         if (echoBtn) echoBtn.addEventListener('click', () => this.setEchoEnabled(!this.echoOn));
         this.updateEchoButton();
+        this.updateUploadButton();
         
         // Add event listeners for Edit menu items
         document.getElementById('undo-btn').addEventListener('click', () => this.undo());
@@ -1870,12 +1920,18 @@ class DeepWebUI {
     }
 
     updateAllDisplays() {
+        // While a file is typing itself in there is nothing to read in the memory
+        // view: it changes thousands of times a second and redrawing it is most
+        // of what a run tick costs. The screen display keeps updating - that is
+        // the one the user is watching. The memory view is refreshed once more
+        // when the upload ends (see pumpKeyQueue).
+        const busy = !!this.fileUpload;
         this.registerUI.updateRegisterDisplay();
         this.registerUI.updatePSWDisplay();
-        this.memoryUI.updateMemoryDisplay();
+        if (!busy) this.memoryUI.updateMemoryDisplay();
         this.registerUI.updateSegmentRegisters();
         this.registerUI.updateShadowRegisters();
-        this.memoryUI.updateRecentMemoryDisplay();
+        if (!busy) this.memoryUI.updateRecentMemoryDisplay();
         this.updateSegmentNavigationFields();
         this.screenUI.updateScreenDisplay();
         this.updateCoreStats();

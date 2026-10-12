@@ -985,6 +985,14 @@ ok_after:
     LDI ok_msg
     STS R0, DS, R7      ; DS:[1] = ok_msg
     SWI
+    ; Drop the cursor cell before the CR below walks away from it - same reason
+    ; as in word_cr. Without this every line the REPL finishes keeps a reversed
+    ; block at its end.
+    LDI clear_cursor
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
     ; Newline via BIOS: CR then LF
     LDI 2               ; BIOS putch
     MOV R3, R0
@@ -1994,6 +2002,16 @@ word_cr:
     ; scroll at the bottom row. This used to compute the row and the column here
     ; and clamp at row 24 instead of scrolling, so `cr` at the bottom of the
     ; screen left the cursor sitting on the same line forever.
+    ;
+    ; clear_cursor first: putch leaves the cursor attribute on the cell after the
+    ; last character, and CR walks away from it without cleaning up, so every
+    ; finished line used to keep a reversed block at its end. ok_after does the
+    ; same thing before its own CR.
+    LDI clear_cursor
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
     ; >IN (R5) is parked across the call: the shadow-bank BIOS clobbers R5.
     LDI saved_in
     MOV R2, R0

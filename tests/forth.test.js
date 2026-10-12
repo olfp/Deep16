@@ -1198,6 +1198,21 @@ const BIOS_LAYOUT = {
   bios_store_char: 0xf3, bios_getstr_done: 0x107, bios_unknown: 0x10b,
 };
 
+test('a finished line keeps no cursor block at its end', () => {
+  // putch leaves the cursor attribute on the cell after the last character, and
+  // a carriage return used to walk away from it without cleaning up, so every
+  // finished line ended with a reversed block. Both places that send a CR now
+  // drop the attribute first.
+  const { rows, cursors } = repl('65 emit 66 emit 67 emit cr\n');
+  assert.equal(rows[1], '> 65 emit 66 emit 67 emit crABC');
+  // Row 1 is the line that was just finished and row 2 is the " ok" the REPL
+  // put on the next one; neither may still be carrying the cursor attribute.
+  assert.deepEqual(cursors[1], [], 'the finished line kept a cursor block');
+  assert.deepEqual(cursors[2], [], 'the " ok" line kept a cursor block');
+  // The prompt's own cursor is the one legitimate one.
+  assert.deepEqual(cursors[3], [2], 'the prompt should still show its cursor');
+});
+
 test('the BIOS block keeps its exact layout', () => {
   const base = res.symbols.bios_entry;
   assert.equal(typeof base, 'number', 'bios_entry must have an address');
