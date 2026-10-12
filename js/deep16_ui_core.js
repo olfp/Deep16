@@ -484,6 +484,18 @@ class DeepWebUI {
         if (el) el.textContent = text;
     }
 
+    // True while a file is queued and not yet fully typed.
+    //
+    // The finished upload object is deliberately kept - the tests read its `done`
+    // flag afterwards - so "is there an upload" is the wrong question and
+    // `!!this.fileUpload` was the bug that mattered: it kept the button reading
+    // "Cancel" after the load, and because updateAllDisplays() takes `busy` from
+    // the same idea, it held the memory view still for good once anything had
+    // ever been typed in.
+    uploadInFlight() {
+        return !!(this.fileUpload && !this.fileUpload.done);
+    }
+
     // The Upload button doubles as the Cancel button while a file is queued or
     // typing. That is the only progress indicator there is: a load can sit in
     // the queue waiting for the machine, and the hint text is small and easy to
@@ -491,7 +503,7 @@ class DeepWebUI {
     updateUploadButton() {
         const btn = document.getElementById('file-upload-btn');
         if (!btn) return;
-        const busy = !!this.fileUpload;
+        const busy = this.uploadInFlight();
         btn.textContent = busy ? 'Cancel' : 'Upload';
         btn.classList.toggle('screen-upload-cancel', busy);
         btn.setAttribute('aria-pressed', busy ? 'true' : 'false');
@@ -1003,7 +1015,7 @@ class DeepWebUI {
         // One button, two jobs: it picks a file when nothing is queued and
         // cancels the load when something is.
         if (uploadBtn) uploadBtn.addEventListener('click', () => {
-            if (this.fileUpload) { this.cancelFileUpload('cancelled by the user'); return; }
+            if (this.uploadInFlight()) { this.cancelFileUpload('cancelled by the user'); return; }
             if (uploadInput) uploadInput.click();
         });
         if (uploadInput) uploadInput.addEventListener('change', (e) => {
@@ -1925,7 +1937,7 @@ class DeepWebUI {
         // of what a run tick costs. The screen display keeps updating - that is
         // the one the user is watching. The memory view is refreshed once more
         // when the upload ends (see pumpKeyQueue).
-        const busy = !!this.fileUpload;
+        const busy = this.uploadInFlight();
         this.registerUI.updateRegisterDisplay();
         this.registerUI.updatePSWDisplay();
         if (!busy) this.memoryUI.updateMemoryDisplay();

@@ -1009,6 +1009,52 @@ test('uploadForthSource says why the editor stayed empty', () => {
     'und es muss sagen, wo .fth-Dateien hingehören');
 });
 
+test('an upload that finishes puts the button back and releases the memory view', () => {
+  // The completion path used to mark src.done and leave this.fileUpload in
+  // place. The button then kept reading "Cancel", and because updateAllDisplays()
+  // takes `busy` from the same field, the memory view stayed held still for good
+  // once any file had been typed in.
+  const btn = fakeButton();
+  withUploadButton(btn, () => {
+    const ui = makeUi();
+    ui.updateEchoButton = () => {};
+    ui.setUploadHint = () => {};
+    ui.echoOn = false;
+    let memoryUpdates = 0;
+    ui.memoryUI = { updateMemoryDisplay() { memoryUpdates++; } };
+    ui.simulator.memory = ui.simulator.memory || [];
+    ui.fileUpload = {
+      name: 'sq.fth',
+      keys: [97, 13], pos: 0, done: false, stalled: false, echoRestore: true,
+    };
+    ui.updateUploadButton();
+    assert.equal(btn.textContent, 'Cancel');
+
+    ui.kbdAvailable = () => 0;                 // room in the queue
+    ui.kbdPushCode = () => {};
+    assert.equal(ui.pumpKeyQueue(), 2, 'both keystrokes were handed over');
+
+    assert.equal(ui.fileUpload.done, true, 'the finished object is kept for inspection');
+    assert.equal(ui.uploadInFlight(), false, 'but nothing is in flight any more');
+    assert.equal(btn.textContent, 'Upload', 'the button has to go back to Upload');
+    assert.equal(btn.classList.has('screen-upload-cancel'), false);
+    assert.equal(ui.echoOn, true, 'the echo comes back');
+    assert.ok(memoryUpdates > 0, 'the memory view is refreshed once the upload is over');
+
+    // And a later updateAllDisplays() must not still see it as busy.
+    let memory = 0, screen = 0;
+    ui.registerUI = { updateRegisterDisplay() {}, updatePSWDisplay() {},
+                      updateSegmentRegisters() {}, updateShadowRegisters() {} };
+    ui.memoryUI = { updateMemoryDisplay() { memory++; }, updateRecentMemoryDisplay() { memory++; } };
+    ui.updateSegmentNavigationFields = () => {};
+    ui.screenUI = { updateScreenDisplay() { screen++; } };
+    ui.updateCoreStats = () => {};
+    ui.updateAllDisplays();
+    assert.equal(memory, 2, 'the memory view is live again');
+    assert.equal(screen, 1);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Upload: the echo commands it types, and the button that cancels it
 //
