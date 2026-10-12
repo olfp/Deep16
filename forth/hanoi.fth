@@ -1,194 +1,268 @@
-\ Towers of Hanoi with colored disks
-\ for Deep16 Forth kernel (asm/forth.asm)
-\ Size of disk = foreground colour attribute.
-\ The high byte of a screen cell is (background << 4) | foreground - the
-\ usual ANSI order, as in an SGR sequence. Foreground is therefore the LOW
-\ nibble: mask with 15, never shift by 4.
-\ Pegs: 0=left, 1=middle, 2=right
+\ Towers of Hanoi for the Deep16 Forth kernel.
+\
+\ Reports the moves as text. It cannot draw the pegs,
+\ and that is not taste: Forth in this kernel reaches the
+\ program counter and the data stack, but not the screen.
+\ There is no word to position the cursor, none that
+\ writes a cell, and no inline assembler. `!` cannot
+\ reach it either - the screen sits at 0xF1000, a 20-bit
+\ address, while a Forth literal is 16 bits and truncates.
+\
+\ Four kernel quirks shape this file. All four are
+\ worked around rather than fixed here, because the fix
+\ belongs in the kernel.
+\
+\   1. `!` leaves its value on the stack. Inside a
+\      definition `0 p !` therefore leaves a 0 behind,
+\      and the comparison after it sees the wrong stack.
+\      set! and clr below swallow that leftover, and
+\      every store in this file goes through them.
+\
+\   2. `to` stores nothing at all. It is IMMEDIATE, so it
+\      swallows the token behind it as a name and leaves
+\      the variable untouched. Hence set! and not `to`.
+\
+\   3. `emit` of 10 is a carriage return, not a newline.
+\      It moves the cursor to column 0 of the row it is
+\      already on; 13 is the line feed. Use cr.
+\
+\   4. A line longer than 74 characters pushes the cursor
+\      onto row 24, the row the 24-row display does not
+\      show, and from there the screen never scrolls
+\      again. Keep every line here at 74 or below.
 
-0x1000 constant screen-start
-80 constant ncols
-24 constant nrows
+\ What the kernel does not have, and this file therefore
+\ does not use:
+\
+\   0x1000      no hex literals in the number scanner
+\   ." text"    not IMMEDIATE, so inside a definition it
+\               runs while the definition is COMPILED -
+\               the text would appear once, at definition
+\               time, and never when the word is called.
+\   do/loop/i   not implemented; begin/until and
+\               while/repeat are
+\   lshift,and  no bit operations at all, so not even the
+\               colour byte can be built from Forth.
+\
+\ create and allot work and are used below - a created
+\ word behaves like a variable whose data field starts at
+\ the address here had when create ran. What a variable
+\ cannot give you is a second and third cell: see the pegs
+\ below.
 
-\ Set screen position (row, col). Byte offset = row*80 + col from screen start.
-: screenset ( row col -- )
-    dup ncols * + screen-start +
-    to POS
+\ --- the pegs ---------------------------------------------------------
+\
+\ A peg is three contiguous cells holding the disk sizes
+\ from the top down, 0 meaning empty. They have to be
+\ contiguous: move shifts all three slots at once and
+\ reaches the lower two by 1 + and 2 +, so a peg has to
+\ be one address, and that is what @ and ! take.
+\
+\ create plus allot, NOT variable. A variable reserves a
+\ single cell - the cell above it is already the next
+\ word's header, and the one above that its flags and name
+\ length. Writing 1 peg-a + therefore overwrites a header
+\ and the vocabulary chain breaks with it: every word
+\ defined after that peg answers "undefined word", and
+\ the disk slots fill up with link and length values.
+\ Three cells allotted in one go are the only way to get
+\ a three-cell row out of this kernel.
 
-\ Clear the attribute byte (keep character, set attr to 0)
-: clear-attr ( -- )
-    0 0 ATTR_MASK and
-    STS R0, ES, POS
-    ADD POS, 1
+create peg-a 3 cells allot
+create peg-b 3 cells allot
+create peg-c 3 cells allot
 
-\ Set foreground attribute to disk size (0-7), clear background.
-\ No shift: the foreground belongs in the low nibble, the background in the
-\ high one. "over 4 lshift" would put the disk size into the background and
-\ paint the whole screen in its colour.
-: set-fg-attr ( size -- )
-    dup 15 and          \ size in the low nibble, where the foreground is
-    0 0 ATTR_MASK and   \ the character, attribute cleared
-    OR
-    STS R0, ES, POS
-    ADD POS, 1
+\ --- storing ----------------------------------------------------------
+\
+\ set! and clr are ! plus the drop that ! omits.
 
-\ Write a character with disk-size foreground color at current POS position.
-: disk! ( char size -- )
-    dup set-fg-attr
+: set! ( value addr -- ) ! drop ;
+: clr  ( addr -- ) 0 swap ! drop ;
 
-\ Peg states: each peg has 3 disk positions (index 0=top, 2=bottom).
-\ Value = disk size (1=smallest, 2=medium, 3=largest, 0=empty).
+\ --- output ----------------------------------------------------------
+\
+\ Text is emitted one character at a time, because the
+\ string words do not work inside a definition. Peg
+\ letters follow the pegs by address.
 
-create peg-left  3 cells allot
-create peg-mid   3 cells allot
-create peg-right 3 cells allot
+: say-disk  68 emit 105 emit 115 emit 107 emit 32 emit ;
+: say-from  32 emit 102 emit 114 emit 111 emit 109 emit 32 emit ;
+: say-to    32 emit 116 emit 111 emit 32 emit ;
 
-\ Move top disk from left peg to middle peg
-: left-to-mid ( -- )
-    peg-left 0 @
-    dup 0=
-    if
-        ." Moving disk size " .
-        0 peg-left !
-        peg-mid 0 !
-        cr
+\ 10 emit is not a newline. In this kernel 10 is the
+\ carriage return - it puts the cursor in column 0 of the
+\ row it is already on - and 13 is the line feed. cr does
+\ both, and cr it is: with 10 emit alone every move report
+\ overwrote the previous one on the same row.
+
+: newline  cr ;
+
+\ The three pegs live in variables, because report and move
+\ both read the pair of them straight out of these, and the
+\ recursion passes the peg roles round by swapping two of
+\ the three and undoing each swap the moment the recursive
+\ call returns.
+\
+\ The disk count, by contrast, rides on the DATA stack, not
+\ in a variable. A variable is global, so a recursive call
+\ overwrites it and the outer level comes back to the wrong
+\ count - which is what this did with mv-n and mv-n2, and
+\ the symptom was one move per level instead of the 2^n-1
+\ a Hanoi needs. The data stack is per-invocation and LIFO,
+\ so each level keeps its own n until it is done with it.
+
+variable mv-src
+variable mv-dst
+variable mv-tmp
+variable mv-disk
+
+\ peg-letter spends its argument and nothing else. The
+\ fall-through needs a drop of its own, and without it the
+\ peg address stayed on the stack. Every move whose target
+\ was peg-c then left that address behind, the next `1 -`
+\ counted it down instead of the disk count, and the whole
+\ recursion stopped matching the puzzle.
+\
+\ Note also that `=` gives -1 for equal and 0 for not
+\ equal. if only asks for non-zero, so that is fine here,
+\ but a true flag is not always 1 in this kernel.
+
+: peg-letter ( peg -- )
+    dup peg-a = if drop 65 emit exit then
+    dup peg-b = if drop 66 emit exit then
+    drop 67 emit ;
+
+\ The report names the two pegs the recursion has set up,
+\ read out of mv-src and mv-dst rather than off the stack,
+\ because the data stack belongs to the disk count and
+\ nothing else. It runs before the move: after the move
+\ that slot on the source is empty and there is nothing
+\ left to report.
+
+: report
+    say-disk mv-src @ @ . say-from mv-src @ peg-letter
+    say-to mv-dst @ peg-letter newline ;
+
+\ --- moving one disk --------------------------------------------------
+\
+\ One disk leaves the top of the source and lands on the
+\ top of the destination, and BOTH pegs shift: the source
+\ closes up (its other two disks move one slot towards slot
+\ 0) and the destination opens up (what was on top of it
+\ moves one slot away). Copying all three slots across,
+\ which is what this did at first, moves the whole peg
+\ instead of the top disk - and the recursion then reports
+\ 1 from A to B over and over, because peg-a still has a 1
+\ sitting in slot 0 the whole time.
+\
+\ move reads the two pegs out of mv-src and mv-dst rather
+\ than taking them off the stack, so that the data stack
+\ holds nothing but the disk count. report does the same.
+\ Both run strictly above the saved n and leave it alone -
+\ which matters more than it sounds, because hanoi counts
+\ down with `1 -` and a single stray item underneath would
+\ be what that `1 -` saw.
+\
+\ Slot 0 is read once into mv-disk before anything is
+\ written, because the shifts overwrite the very cells the
+\ later ones would otherwise read. Note the SECOND @ on the
+\ first line: mv-disk has to end up holding the DISK, not
+\ the address of the peg the disk sits on. With one @ it
+\ came back holding peg-a itself, and the last line below
+\ then dropped that address into the destination peg, and
+\ the next report read it back out as "Disk 13046" - a peg
+\ address printed as though it were a disk size.
+\
+\ Every set! here pushes the value first and the address
+\ second, because ! takes the address on TOP. A pair
+\ written the other way round stores into the wrong cell,
+\ and the two pegs end up a step out of step with each
+\ other - which is very hard to see, because the moves
+\ still come out in the right order.
+\
+\ A swap must not keep what it needs to undo itself in a
+\ variable. The undo runs AFTER the recursive call returns,
+\ and that call has run swaps of its own, so a shared cell
+\ comes back holding the inner level's value: the outer
+\ level then restores the wrong peg, and the roles are
+\ wrong from the second level down. So the two variables
+\ are swapped, the recursion runs, and they are swapped
+\ back straight - they are back in their original positions
+\ when the call returns - and no copy is kept at all.
+
+: move
+    mv-src @ @ mv-disk set!       \ the disk that travels
+    mv-src @ 1 + @ mv-src @ set!   \ src 0 <- src 1
+    mv-src @ 2 + @ mv-src @ 1 + set!   \ src 1 <- src 2
+    mv-src @ 2 + clr               \ src 2 = 0
+    mv-dst @ 1 + @ mv-dst @ 2 + set!   \ dst 2 <- dst 1
+    mv-dst @ @ mv-dst @ 1 + set!       \ dst 1 <- dst 0
+    mv-disk @ mv-dst @ set! ;      \ dst 0 <- the disk
+
+: do-move
+    report move ;
+
+\ --- the game ---------------------------------------------------------
+\
+\ At most three disks: that is what three slots hold.
+\
+\ init leaves the stack as its comment says on every
+\ path: the two `if` branches drop the copy they made
+\ for the test, the last branch spends n on peg-a.
+
+: init ( n -- )
+    peg-a clr  peg-a 1 + clr  peg-a 2 + clr
+    peg-b clr  peg-b 1 + clr  peg-b 2 + clr
+    peg-c clr  peg-c 1 + clr  peg-c 2 + clr
+    dup 3 = if drop
+        3 peg-a 2 + set!  2 peg-a 1 + set!  1 peg-a set!
+        exit
+    then
+    dup 2 = if drop
+        2 peg-a 1 + set!  1 peg-a set!
+        exit
+    then
+    peg-a set! ;
+
+\ set!, not !: a raw ! leaves the value it stored on the
+\ stack. These two run once per recursion level, so the
+\ litter would grow with the disk count.
+
+: swap-dst-tmp
+    mv-dst @ mv-tmp @ mv-dst set! mv-tmp set! ;
+
+: swap-src-tmp
+    mv-src @ mv-tmp @ mv-src set! mv-tmp set! ;
+
+\ recurse, not the word's own name: a word cannot call
+\ itself by name while it is still being compiled - the
+\ name is not in the dictionary yet and the call goes
+\ nowhere. recurse compiles the current word's own xt.
+\
+\ n rides on the data stack under everything else, which
+\ is why report, move and both swaps have to be perfectly
+\ balanced. `dup 1 -` leaves n on the stack and hands n-1
+\ to the recursive call; after do-move the same `1 -` finds
+\ n still on top and hands n-1 to the second half. If any
+\ of them leaves one item behind, that item is what this
+\ `1 -` sees, and the count stops meaning what it says.
+
+: hanoi ( n -- )
+    dup 0> if
+        dup 1 -                    \ n n-1: keep n, recurse on n-1
+        swap-dst-tmp   recurse   swap-dst-tmp
+        do-move
+        1 -                        \ back to n-1 for the second half
+        swap-src-tmp   recurse   swap-src-tmp
     else
-        ." Left peg empty" cr
-    then
+        drop
+    then ;
 
-\ Move top disk from left peg to right peg
-: left-to-right ( -- )
-    peg-left 0 @
-    dup 0=
-    if
-        ." Moving disk size " .
-        0 peg-left !
-        peg-right 0 !
-        cr
-    else
-        ." Left peg empty" cr
-    then
+: hanoi-solve ( n -- )
+    dup init
+    peg-a mv-src set!
+    peg-c mv-dst set!
+    peg-b mv-tmp set!
+    hanoi ;
 
-\ Move top disk from middle peg to left peg
-: mid-to-left ( -- )
-    peg-mid 0 @
-    dup 0=
-    if
-        ." Moving disk size " .
-        0 peg-mid !
-        peg-left 0 !
-        cr
-    else
-        ." Middle peg empty" cr
-    then
-
-\ Move top disk from middle peg to right peg
-: mid-to-right ( -- )
-    peg-mid 0 @
-    dup 0=
-    if
-        ." Moving disk size " .
-        0 peg-mid !
-        peg-right 0 !
-        cr
-    else
-        ." Middle peg empty" cr
-    then
-
-\ Move top disk from right peg to left peg
-: right-to-left ( -- )
-    peg-right 0 @
-    dup 0=
-    if
-        ." Moving disk size " .
-        0 peg-right !
-        peg-left 0 !
-        cr
-    else
-        ." Right peg empty" cr
-    then
-
-\ Move top disk from right peg to middle peg
-: right-to-mid ( -- )
-    peg-right 0 @
-    dup 0=
-    if
-        ." Moving disk size " .
-        0 peg-right !
-        peg-mid 0 !
-        cr
-    else
-        ." Right peg empty" cr
-    then
-
-\ Initialize with n disks on left peg (size 1=smallest on top, size n at bottom).
-: init-game ( n -- )
-    3 0 do peg-left i + ! loop
-    3 0 do peg-mid i + ! loop
-    3 0 do peg-right i + ! loop
-    dup 0 do
-        i 1+ peg-left i + !
-    loop
-
-\ Draw all three pegs with their disks using colored blocks.
-: draw-pegs ( -- )
-    8 10 screenset
-    peg-left 0 @ 0= if ." [ ]" peg-left 0 @ disk! else blank! then
-    8 11 screenset
-    peg-left 1 @ 0= if ." [ ]" peg-left 1 @ disk! else blank! then
-    8 12 screenset
-    peg-left 2 @ 0= if ." [ ]" peg-left 2 @ disk! else blank! then
-    8 40 screenset
-    peg-mid 0 @ 0= if ." [ ]" peg-mid 0 @ disk! else blank! then
-    8 41 screenset
-    peg-mid 1 @ 0= if ." [ ]" peg-mid 1 @ disk! else blank! then
-    8 42 screenset
-    peg-mid 2 @ 0= if ." [ ]" peg-mid 2 @ disk! else blank! then
-    8 70 screenset
-    peg-right 0 @ 0= if ." [ ]" peg-right 0 @ disk! else blank! then
-    8 71 screenset
-    peg-right 1 @ 0= if ." [ ]" peg-right 1 @ disk! else blank! then
-    8 72 screenset
-    peg-right 2 @ 0= if ." [ ]" peg-right 2 @ disk! else blank! then
-
-\ Recursive Hanoi solver with screen update after each move.
-\ Dispatches to correct move word based on peg numbers (0=left, 1=middle, 2=right).
-: hanoi ( n src dst temp -- )
-    dup 0 > if
-        hanoi 1 - src temp dst
-        \ Dispatch based on source peg
-        dup 0= if
-            dup 2= if
-                left-to-right
-            else if 1=
-                left-to-mid
-            then
-        else if 1=
-            dup 2= if
-                mid-to-right
-            else if 0=
-                mid-to-left
-            then
-        then
-        else if 2=
-            dup 0= if
-                right-to-left
-            else if 1=
-                right-to-mid
-            then
-        then
-        then
-        draw-pegs
-        hanoi 1 - temp dst src
-    then
-
-\ Solve Towers of Hanoi with 3 disks, showing each move with screen display.
-: demo-mode ( -- )
-    3 init-game
-    draw-pegs
-    3 0 2 1 hanoi
-
-\ Command words.
-
-: hanoi-demo ( -- )  demo-mode
-: hanoi-solve ( n -- )  init-game draw-pegs 3 0 2 1 hanoi
+: hanoi-demo  3 hanoi-solve ;
