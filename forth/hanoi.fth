@@ -8,7 +8,7 @@
 \ reach it either - the screen sits at 0xF1000, a 20-bit
 \ address, while a Forth literal is 16 bits and truncates.
 \
-\ Four kernel quirks shape this file. All four are
+\ Three kernel quirks shape this file. All three are
 \ worked around rather than fixed here, because the fix
 \ belongs in the kernel.
 \
@@ -22,14 +22,18 @@
 \      swallows the token behind it as a name and leaves
 \      the variable untouched. Hence set! and not `to`.
 \
-\   3. `emit` of 10 is a carriage return, not a newline.
-\      It moves the cursor to column 0 of the row it is
-\      already on; 13 is the line feed. Use cr.
-\
-\   4. A line longer than 74 characters pushes the cursor
-\      onto row 24, the row the 24-row display does not
-\      show, and from there the screen never scrolls
-\      again. Keep every line here at 74 or below.
+\   3. Nothing in Forth reaches the cursor, so cr is the
+\      only newline the kernel has, and it hands CR and LF
+\      to the BIOS putch, which owns rows and the scroll.
+\      That leaves the echo path as the one place that
+\      draws without counting columns: a line wider than
+\      the screen runs on into the next row instead of
+\      wrapping. Keep lines at 78 or below so what is typed
+\      stays readable on one row - not because anything
+\      breaks past that, which is what this comment used
+\      to claim (a 74-character limit, and a screen that
+\      stops scrolling for good), and which measuring it
+\      showed to be wrong.
 
 \ What the kernel does not have, and this file therefore
 \ does not use:
@@ -89,11 +93,10 @@ create peg-c 3 cells allot
 : say-from  32 emit 102 emit 114 emit 111 emit 109 emit 32 emit ;
 : say-to    32 emit 116 emit 111 emit 32 emit ;
 
-\ 10 emit is not a newline. In this kernel 10 is the
-\ carriage return - it puts the cursor in column 0 of the
-\ row it is already on - and 13 is the line feed. cr does
-\ both, and cr it is: with 10 emit alone every move report
-\ overwrote the previous one on the same row.
+\ CR and LF are the BIOS's business. The BIOS putch owns the carriage
+\ return (13), the line feed (10) and the scroll at the bottom row, and
+\ the kernel hands both to it without keeping a copy. So there is no
+\ newline word to reach for and nothing to write here: cr is it.
 
 : newline  cr ;
 

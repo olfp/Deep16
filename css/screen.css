@@ -52,6 +52,21 @@
 
 .screen-upload-btn:hover { background: #1177bb; }
 
+/* Sits right next to the Upload button, so it must not repeat the
+   margin-left: auto that pushes Upload out to the right edge. */
+.screen-echo-btn {
+    margin-left: 6px;
+}
+
+/* Echo off is the state you are in while a file types itself in, so it reads as
+   the button being pressed rather than as something broken. */
+.screen-echo-btn.screen-echo-off {
+    background: #444;
+    color: #bbb;
+}
+
+.screen-echo-btn.screen-echo-off:hover { background: #555; }
+
 /* 80 columns x 24 rows in a fixed cell grid: 8 px wide, 15 px high, which is
    exactly 640 x 360. The font size is not chosen by eye: a monospace face
    advances 0.6 em, so 13.3333 px puts the next glyph exactly 8 px further

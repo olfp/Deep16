@@ -163,6 +163,14 @@ data_area:
                          program sees exactly what a person typing it would send. -->
                     <button type="button" id="file-upload-btn" class="screen-upload-btn"
                             title="Eine ASCII-Datei als Tastatureingaben eintippen">Upload</button>
+                    <!-- Keyboard echo on/off. The BIOS draws every character that
+                         is typed (getstr, BIOS function 5) and nothing else does,
+                         so this writes one cell at 0xF0064 directly - no Forth
+                         word has to run, and it works while the machine is busy.
+                         echo_flag in asm/forth.asm is pinned to that address. -->
+                    <button type="button" id="echo-toggle-btn"
+                            class="screen-upload-btn screen-echo-btn" aria-pressed="true"
+                            title="Eingabe auf den Bildschirm mitschreiben">Echo: on</button>
                     <input type="file" id="file-upload-input" accept=".fs,.fth,.forth,.4th,.txt" hidden>
                 </div>
                 <div class="screen-tab">

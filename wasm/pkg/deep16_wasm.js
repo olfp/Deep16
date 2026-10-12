@@ -49,6 +49,14 @@ export function load_program(ptr, data) {
 }
 
 /**
+ * @returns {boolean}
+ */
+export function step() {
+    const ret = wasm.step();
+    return ret !== 0;
+}
+
+/**
  * Push one key code into the polled keyboard buffer (parity with the JS
  * core's `simulator.enqueueKeyCode`). Called from the IDE for every
  * keystroke while the WASM core is selected.
@@ -131,6 +139,24 @@ export function get_shadow_state() {
 }
 
 /**
+ * Write one memory word without touching anything else.
+ *
+ * load_program is not usable for this: besides the words it also clears the
+ * program counter and forces CS to 0xFFFF, because it means "a fresh program
+ * starts here". The IDE needs to poke a single cell of a machine that is
+ * already running - the BIOS keyboard-echo flag at 0xF0064, for one - and that
+ * must not disturb the core's state.
+ *
+ * Pairs with poke() in the RTL harness, so both compiled cores offer the same
+ * write path; the JS core's equivalent is a direct write to memory[].
+ * @param {number} addr
+ * @param {number} value
+ */
+export function poke(addr, value) {
+    wasm.poke(addr, value);
+}
+
+/**
  * Overwrite the register file (R0..R15) from outside, mirroring
  * `get_registers`: while the shadow set is active (PSW.S = 1) element 15 is
  * the active (shadow) PC instead of R15, so the two calls round-trip and the
@@ -200,14 +226,6 @@ export function get_memory_slice(start, count) {
 export function get_memory_word(addr) {
     const ret = wasm.get_memory_word(addr);
     return ret;
-}
-
-/**
- * @returns {boolean}
- */
-export function step() {
-    const ret = wasm.step();
-    return ret !== 0;
 }
 
 const EXPECTED_RESPONSE_TYPES = new Set(['basic', 'cors', 'default']);

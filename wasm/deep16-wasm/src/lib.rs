@@ -199,6 +199,26 @@ pub fn load_program(ptr: usize, data: Box<[u16]>) {
     }
 }
 
+/// Write one memory word without touching anything else.
+///
+/// load_program is not usable for this: besides the words it also clears the
+/// program counter and forces CS to 0xFFFF, because it means "a fresh program
+/// starts here". The IDE needs to poke a single cell of a machine that is
+/// already running - the BIOS keyboard-echo flag at 0xF0064, for one - and that
+/// must not disturb the core's state.
+///
+/// Pairs with poke() in the RTL harness, so both compiled cores offer the same
+/// write path; the JS core's equivalent is a direct write to memory[].
+#[wasm_bindgen]
+pub fn poke(addr: usize, value: u16) {
+    unsafe {
+        let c = cpu_mut();
+        if addr < c.mem.len() {
+            c.mem[addr] = value;
+        }
+    }
+}
+
 /// Overwrite the register file (R0..R15) from outside, mirroring
 /// `get_registers`: while the shadow set is active (PSW.S = 1) element 15 is
 /// the active (shadow) PC instead of R15, so the two calls round-trip and the

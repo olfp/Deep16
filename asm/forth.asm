@@ -2,8 +2,8 @@
 ; Enhanced Deep16 Forth Kernel - FIXED PARSING
 ; =============================================
 
-.org 0x0100
-.code
+; The kernel proper starts at 0x0100, further down, just before forth_start.
+; The echo cell comes first because it sits in the I/O segment.
 
 .equ SP R13
 .equ SCR R8
@@ -12,6 +12,10 @@
 ; Reserve R14 as LR (link register). Store stack base in memory.
 .equ KBD_STATUS 0x0060
 .equ KBD_DATA   0x0062
+; Echo on/off, inside the Keyboard Controller block. See echo_flag below: it is
+; pinned to an address rather than living in the kernel's data area, because the
+; Screen tab writes it from the browser with nothing of the kernel running.
+.equ ECHO_FLAG  0x0064
 .equ TIB_LIMIT 86         ; words in tib_kbd; the buffer holds one word per char
 ; The high byte of a screen word is four bits of background and four bits of
 ; foreground, (bg << 4) | fg. Attribute 0 means "no colour set" and the
@@ -34,9 +38,40 @@
 .equ RSTACK_TOP 0x6F00   ; Forth return stack top (grows down)
 
 ; =============================================
+; Terminal echo on/off (0xF0064, ES-relative)
+; =============================================
+;
+; Non-zero echoes, zero does not. This is the one screen switch that is read
+; inside the BIOS rather than by Forth, because the keyboard echo is drawn
+; there and nowhere else: accept hands the line buffer to BIOS getstr (function
+; 5) and getstr draws each character itself. Nothing in the interpreter takes
+; part, which is exactly why this cell had to be somewhere the browser can reach
+; on its own - the Screen tab switches it off around a file upload without
+; running a single Forth word.
+;
+; It sits in the Keyboard Controller block next to KBD_STATUS/KBD_DATA, and both
+; sides already address that block with ES = 0xF000: the kernel sets ES once at
+; boot (forth_start) and writes the screen through it 87 times, and the BIOS sets
+; it again before it touches the screen. Only 0xF0060 and 0xF0062 are decoded as
+; real registers; every core treats 0xF0064 as ordinary memory, so a write from
+; outside the machine lands and is read back by getstr. A cell in the kernel's
+; own data area would have been the wrong home: that address moves every time the
+; interpreter grows, and a UI that hard-codes a moving address breaks silently.
+;
+; This silences the keyboard echo and nothing else. What a program prints still
+; appears: " ok" after every line goes out through putstr, and emit sends
+; ordinary characters to putch. That is the useful half - a source file is mostly
+; its own text, and nobody wants to read it twice off a 25-row screen.
+.org 0xF0064
+echo_flag:
+    .word 1                  ; echo on, so a freshly loaded machine behaves as before
+
+; =============================================
 ; Forth Kernel Implementation
 ; =============================================
 
+.org 0x0100
+.code
 forth_start:
     ; Initialize stack pointer
     LDI 0x7FF0
@@ -917,58 +952,11 @@ stack_underflow_after:
     MOV PC, R0
     NOP
 interpret_done:
-    LDI 0x1000
-    MOV R2, R0
-    MOV R3, SCR
-    SUB R3, R2
-    LDI 80
-    MOV R4, R0
-    MOV R5, R3
-    DIV R5, R4
-    LDI 24
-    CMP R5, R0
-    JNZ ok_after
-    NOP
-    LDI 0
-    MOV R7, R0
-    LDI 1920
-    MOV R10, R0
-    LDI 80
-    MOV R12, R0
-ok_scroll_copy:
-    MOV R13, R2
-    ADD R13, R7
-    MOV R11, R2
-    ADD R11, R7
-    ADD R11, R12
-    LDS R1, ES, R11
-    STS R1, ES, R13
-    ADD R7, 1
-    CMP R7, R10
-    JNZ ok_scroll_copy
-    NOP
-    LDI 0
-    MOV R7, R0
-    LDI 80
-    MOV R9, R0
-ok_scroll_clear:
-    MOV R13, R2
-    ADD R13, R7
-    ADD R13, R10
-    LDI ' '
-    STS R0, ES, R13
-    ADD R7, 1
-    SUB R9, 1
-    LDI 0
-    CMP R9, R0
-    JNZ ok_scroll_clear
-    NOP
-    MOV SCR, R2
-    ADD SCR, R10
-    LDI ok_after
-    MOV PC, R0
-    NOP
-; No reposition on normal case; keep SCR where result ended
+    ; No repositioning and no scrolling here: the cursor stays where the line
+    ; left it, and the CR+LF that ok_after sends through BIOS putch moves to the
+    ; next row and scrolls the screen if that is the bottom one. The kernel used
+    ; to roll its own scroll first and then let putch scroll again, which is two
+    ; cursors' worth of bookkeeping for one newline.
 ok_after:
     ; Print " ok"
     LDI 3               ; BIOS putstr
@@ -1318,9 +1306,19 @@ h_minus:
     .text "-"
     .word word_minus
 
-; --- additional arithmetic: u. 2/ abs min max ---
-; These five are the newest entries in the whole dictionary, so the oldest of
-; them links into the vocabulary chain below and forth_wl names the newest.
+; --- additional arithmetic: u. 2/ abs min max, and the two echo words ---
+; These are the newest entries in the whole dictionary, so the oldest of them
+; links into the vocabulary chain below and forth_wl names the newest.
+h_echo_query:
+    .word h_echo
+    .word 5
+    .text "echo?"
+    .word word_echo_query
+h_echo:
+    .word h_udot
+    .word 4
+    .text "echo"
+    .word word_echo
 h_udot:
     .word h_max
     .word 2
@@ -1527,7 +1525,7 @@ h_fetch:
 ; --- wordlists: a vocabulary is identified by the address of its head cell,
 ; --- which chains its definitions newest-first and ends in 0.
 forth_wl:
-    .word h_udot          ; newest built-in header in the FORTH vocabulary
+    .word h_echo_query     ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
     .word forth_wl
     .word 0, 0, 0, 0, 0, 0, 0
@@ -1782,14 +1780,12 @@ word_emit:
     ADD SP, 1
     LDI 0x00FF
     AND R1, R0
-    LDI 10
-    CMP R1, R0
-    JZ emit_do_cr
-    NOP
-    LDI 13
-    CMP R1, R0
-    JZ emit_do_lf
-    NOP
+    ; Every character goes to the BIOS, 10 and 13 included. Carriage return,
+    ; line feed and the scroll at the bottom row belong to putch; the kernel
+    ; used to keep its own copies of all three (emit_do_cr, emit_do_lf and a
+    ; scroll loop), which meant three places that had to agree about where the
+    ; cursor was. Two of them clamped at the last row instead of scrolling, so
+    ; a long run of output stopped dead at the bottom of the screen.
     ; Park >IN (R5) across the BIOS call: the shadow-bank BIOS clobbers R5.
     LDI saved_in
     MOV R2, R0
@@ -1809,228 +1805,6 @@ word_emit:
     NOP
 we_under:
     LDI stack_underflow_error
-    MOV PC, R0
-    NOP
-
-emit_do_cr:
-    LDI 0x1000
-    MOV R9, R0           ; base
-    MOV R10, SCR         ; current address
-    SUB R10, R9          ; offset from base
-    LDI 80
-    MOV R11, R0          ; width
-    DIV R10, R11         ; R10=row
-    MUL R10, R11         ; row*width
-    ADD R9, R10          ; base + row*width
-    MOV SCR, R9          ; start of current line, column 0
-    LDI next
-    MOV PC, R0
-    NOP
-
-emit_do_lf:
-    LDI 0x1000
-    MOV R9, R0           ; base
-    MOV R10, SCR         ; current address
-    SUB R10, R9          ; offset from base
-    LDI 80
-    MOV R11, R0          ; width
-    MOV R2, R10          ; save offset
-    DIV R10, R11         ; R10=row
-    ; Compute column based on current row before increment
-    MOV R12, R10         ; R12=row copy
-    MUL R12, R11         ; row*width
-    SUB R2, R12          ; col = offset - row*width
-    ; Clamp to last row (24)
-    LDI 24
-    MOV R7, R0
-    CMP R10, R7
-    JN emit_lf_row_lt_local
-    NOP
-emit_lf_row_lt_local:
-    ADD R10, 1           ; next row
-emit_lf_row_done_local:
-    MUL R10, R11         ; next_row*width
-    ADD R9, R10          ; base + next_row*width
-    ADD R9, R2           ; + same column
-    MOV SCR, R9
-    LDI next
-    MOV PC, R0
-    NOP
-    LDI 0
-    MOV R7, R0
-    LDI 1920
-    MOV R5, R0
-    LDI 80
-    MOV R12, R0
-emit_lf_scroll_copy:
-    MOV R13, R9
-    ADD R13, R7
-    MOV R4, R9
-    ADD R4, R7
-    ADD R4, R12
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R13, 1
-    ADD R4, 1
-    LDS R1, ES, R4
-    STS R1, ES, R13
-    ADD R7, 8
-    LDI 24
-    MOV R3, R0
-    ADD R7, R3
-    CMP R7, R5
-    JNZ emit_lf_scroll_copy
-    NOP
-    LDI 0
-    MOV R7, R0
-    LDI 80
-    MOV R4, R0
-emit_lf_scroll_clear:
-    MOV R13, R9
-    ADD R13, R5
-    ADD R13, R7
-    LDI ' '
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    ADD R13, 1
-    STS R0, ES, R13
-    LDI 16
-    MOV R3, R0
-    ADD R7, R3
-    SUB R4, R3
-    LDI 0
-    CMP R4, R0
-    JNZ emit_lf_scroll_clear
-    NOP
-    LDI 24
-    MOV R10, R0
-emit_lf_row_lt:
-    ADD R10, 1           ; next row
-emit_lf_row_done:
-    MUL R10, R11         ; next_row*width
-    ADD R9, R10          ; base + next_row*width
-    ADD R9, R2           ; + same column
-    MOV SCR, R9
-    LDI interpret_loop
     MOV PC, R0
     NOP
 
@@ -2128,7 +1902,9 @@ word_key:
     NOP
 
 word_accept:
-    ; Use BIOS getstr to read a line into TIB with echo
+    ; Use BIOS getstr to read a line into TIB. Whether that getstr echoes the
+    ; characters on the way in is the echo_flag cell, not a fixed property: see
+    ; word_echo below.
     LDI tib_kbd
     MOV TIB, R0
     LDI 5               ; value = 5
@@ -2147,47 +1923,81 @@ word_accept:
     MOV PC, R0
     NOP
 
-word_cr:
-    ; CR
-    LDI 0x1000
-    MOV R9, R0           ; base
-    MOV R10, SCR         ; current
-    SUB R10, R9          ; offset
-    LDI 80
-    MOV R11, R0          ; width
-    DIV R10, R11         ; R10=row
-    MUL R10, R11         ; row*width
-    ADD R9, R10          ; base + row*width
-    MOV SCR, R9          ; col 0
-    ; LF same column
-    LDI 0x1000
-    MOV R9, R0           ; base
-    MOV R10, SCR         ; current
-    SUB R10, R9          ; offset
-    LDI 80
-    MOV R11, R0          ; width
-    MOV R2, R10          ; save offset
-    DIV R10, R11         ; R10=row
-    ; Compute column based on current row before increment
-    MOV R12, R10         ; R12=row copy
-    MUL R12, R11         ; row*width
-    SUB R2, R12          ; col = offset - row*width
-    ; Clamp to last row (24)
-    LDI 24
+; echo ( flag -- ) - set whether typed input is drawn on the screen.
+;
+; FIG Forth-83 has an ECHO word for exactly this, and that is where the name
+; comes from. It is not a toggle here. A toggle is fine for a person at a
+; terminal, who can see whether echo is currently on; the Screen tab has to
+; put it into a *known* state - an upload silences the echo, loads, and
+; switches it back on - and it cannot afford to guess which way round a toggle
+; would leave it. So echo takes a flag, and echo? reads it back.
+;
+; Only the keyboard echo is affected. What the program prints still goes to
+; the screen: " ok" after every line, and everything emit puts out, are drawn
+; whether this flag is 0 or not. That is the useful half of it - a source file
+; is mostly its own text, and the screen is 25 rows of it that nobody reads
+; twice.
+;
+; R7 is the scratch here, never R13: .equ SP R13, so R13 is the data stack
+; pointer and this word is reading a value off that very stack.
+word_echo:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1              ; SP == sp0_base means the stack is empty
+    JZ echo_under
+    NOP
+    LD R2, SP, 0           ; the flag the caller wants
+    ADD SP, 1
+    LDI ECHO_FLAG          ; ES is still 0xF000 from forth_start
     MOV R7, R0
-    CMP R10, R7
-    JN word_cr_row_lt
+    STS R2, ES, R7         ; store it; ! keeps the value, so this drops it
+    LDI next
+    MOV PC, R0
     NOP
-    CLRZ
-    JNZ word_cr_row_done
+echo_under:
+    LDI stack_underflow_error
+    MOV PC, R0
     NOP
-word_cr_row_lt:
-    ADD R10, 1
-word_cr_row_done:
-    MUL R10, R11
-    ADD R9, R10
-    ADD R9, R2
-    MOV SCR, R9
+
+; echo? ( -- flag ) - non-zero while typed input is drawn on the screen.
+word_echo_query:
+    LDI ECHO_FLAG          ; ES is still 0xF000 from forth_start
+    MOV R2, R0
+    LDS R1, ES, R2
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_cr:
+    ; CR LF, both through the BIOS, which owns carriage return, line feed and the
+    ; scroll at the bottom row. This used to compute the row and the column here
+    ; and clamp at row 24 instead of scrolling, so `cr` at the bottom of the
+    ; screen left the cursor sitting on the same line forever.
+    ; >IN (R5) is parked across the call: the shadow-bank BIOS clobbers R5.
+    LDI saved_in
+    MOV R2, R0
+    ST >IN, R2, 0
+    LDI 2               ; BIOS putch
+    MOV R3, R0
+    LDI 0
+    MOV R7, R0
+    STS R3, DS, R7      ; DS:[0] = 2
+    LDI 13              ; CR
+    MOV R1, R0
+    LDI 1
+    MOV R7, R0
+    STS R1, DS, R7      ; DS:[1] = 13
+    SWI
+    LDI 10              ; LF
+    MOV R1, R0
+    LDI 1
+    MOV R7, R0
+    STS R1, DS, R7      ; DS:[1] = 10
+    SWI
+    LD >IN, R2, 0
     LDI next
     MOV PC, R0
     NOP
@@ -4395,15 +4205,15 @@ bios_f5:
     MOV R11, R0      ; count
 bios_getstr_loop:
     LDI KBD_STATUS
-    MOV R4, R0
-    LDS R1, ES, R4
+    LDS R1, ES, R0         ; the offset is in R0 already, no scratch needed
     LDI 0
     CMP R1, R0
     JZ bios_getstr_loop
     NOP
+    LDI ECHO_FLAG
+    LDS R12, ES, R0        ; R12 = the echo flag, read once per keystroke
     LDI KBD_DATA
-    MOV R4, R0
-    LDS R1, ES, R4
+    LDS R1, ES, R0
     LDI 0x00FF
     AND R1, R0
     LDI 10
@@ -4427,13 +4237,19 @@ bios_getstr_loop:
     SUB R2, 1              ; R2 is the write pointer: rewind it too, otherwise
                           ; the erased character stays in the buffer and the
                           ; next key lands one cell past it
+    ; Echo off: nothing was drawn for this line, so there is nothing to erase
+    ; either, and stepping SCR back would move the cursor off a cell this run
+    ; never touched. AND R12, R12 sets Z exactly when the flag is 0 and leaves
+    ; the flag itself alone, so this is one word shorter than LDI 0 / CMP.
+    AND R12, R12
+    JZ bios_getstr_loop
+    NOP
     ; Clear the cursor in the cell we are about to leave. Unlike the character
     ; echo below, backspace writes nothing over that cell, so the stale block
     ; would stay visible.
     LDI ATTR_MASK
-    MOV R7, R0
     LDS R3, ES, SCR
-    AND R3, R7              ; the attribute back to 0, the character stays
+    AND R3, R0              ; the attribute back to 0, the character stays
     STS R3, ES, SCR
     SUB SCR, 1
     LDI ' '
@@ -4443,8 +4259,6 @@ bios_getstr_loop:
     LDS R3, ES, SCR
     OR  R3, R0
     STS R3, ES, SCR
-    NOP                     ; Padding, siehe NOTE unten
-    NOP
     CLRZ
     JNZ bios_getstr_loop
     NOP
@@ -4452,12 +4266,16 @@ bios_store_char:
     ST R1, R2, 0
     ADD R2, 1
     ADD R11, 1
-    ; echo directly: clear old cursor, write, advance, set cursor
-    LDI ATTR_MASK
-    MOV R5, R0
-    LDS R3, ES, SCR
-    AND R3, R5              ; the cell we leave loses the cursor attribute
-    STS R3, ES, SCR
+    ; Echo off: the character is in the buffer and that is all that happens.
+    ; Same one-word test as in the backspace path above.
+    AND R12, R12
+    JZ bios_getstr_loop
+    NOP
+    ; echo directly: write, advance, set cursor. The cell the cursor is leaving
+    ; is the one written here, so clearing its attribute first - as bios_f2's
+    ; putch does, for a cell that is then left behind - would be overwritten a
+    ; moment later. R1 holds the character masked to 0x00FF, so this store puts
+    ; the character down with no attribute of its own.
     STS R1, ES, SCR
     ADD SCR, 1
     LDI 0x0070          ; fg 0 / bg 7. Nicht LDI 0x7000: das Immediate
@@ -4466,6 +4284,8 @@ bios_store_char:
     OR  R7, R0              ; and the new cell gets the reversed colour
     STS R7, ES, SCR
     NOP                     ; Padding, siehe NOTE unten
+    NOP
+    NOP
     NOP
     CLRZ
     JNZ bios_getstr_loop

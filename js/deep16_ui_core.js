@@ -45,6 +45,9 @@ class DeepWebUI {
 
         // No file is being typed in yet (see queueFileUpload).
         this.fileUpload = null;
+        // Whether typed characters are drawn on the screen. The machine starts
+        // with echo on; see setEchoEnabled for the cell behind it.
+        this.echoOn = true;
 
         this.initializeEventListeners();
         this.initializeSearchableDropdowns();
@@ -273,6 +276,75 @@ class DeepWebUI {
     static get KBD_FIFO_DEPTH() { return 128; }
     static get KBD_CHUNK() { return 64; }
 
+    // ---- keyboard echo (Screen tab) --------------------------------------
+    // The BIOS draws every character that is typed: accept hands the line
+    // buffer to getstr (BIOS function 5) and getstr echoes into the screen
+    // itself. No Forth word is involved, so the Screen tab switches the echo by
+    // writing the one cell the BIOS reads on every character - it does not have
+    // to get the kernel to run anything first, and the switch works while the
+    // machine is busy, stopped, or parked at the prompt.
+    //
+    // 0xF0064 is pinned in asm/forth.asm (see the echo_flag cell) and sits in the
+    // Keyboard Controller block next to KBD_STATUS/KBD_DATA. It has to be pinned:
+    // a cell in the kernel's own data area would move every time the interpreter
+    // grew, and a UI holding a moving address breaks silently.
+    static get ECHO_FLAG_ADDR() { return 0xF0064; }
+
+    // Switch the echo on or off on the running core. The JS core is written as
+    // well when a compiled core is selected, the same way kbdPushCode mirrors a
+    // keystroke into both, so switching cores mid-session cannot lose the state.
+    //
+    // The compiled cores are written with poke(), not load_program(): the latter
+    // also clears the program counter and forces CS to 0xFFFF, because it means
+    // "a fresh program starts here". Using it here reset a running core, which
+    // the test that steps the JS and RTL cores side by side caught.
+    setEchoEnabled(on) {
+        const value = on ? 1 : 0;
+        this.echoOn = !!on;
+        if (this.simulator && this.simulator.memory) {
+            this.simulator.memory[DeepWebUI.ECHO_FLAG_ADDR] = value;
+        }
+        if (this.compiledCoreReady()) {
+            const C = this.activeCoreModule();
+            if (typeof C.poke === 'function') {
+                C.poke(DeepWebUI.ECHO_FLAG_ADDR, value);
+            }
+        }
+        this.updateEchoButton();
+        return this.echoOn;
+    }
+
+    updateEchoButton() {
+        const btn = document.getElementById('echo-toggle-btn');
+        if (!btn) return;
+        const on = !!this.echoOn;
+        btn.textContent = on ? 'Echo: on' : 'Echo: off';
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.classList.toggle('screen-echo-off', !on);
+        btn.title = on
+            ? 'Eingabe wird auf den Bildschirm mitgeschrieben - ausschalten'
+            : 'Eingabe wird nicht auf den Bildschirm mitgeschrieben';
+    }
+
+    // Read the cell back off the running core. Used after a reset, where the
+    // memory image decides the answer rather than us.
+    syncEchoFromCore() {
+        let value = null;
+        if (this.compiledCoreReady()) {
+            const C = this.activeCoreModule();
+            if (typeof C.get_memory_word === 'function') {
+                try { value = C.get_memory_word(DeepWebUI.ECHO_FLAG_ADDR) & 0xFFFF; } catch {}
+            }
+        }
+        if (value === null && this.simulator && this.simulator.memory) {
+            value = this.simulator.memory[DeepWebUI.ECHO_FLAG_ADDR] & 0xFFFF;
+        }
+        if (value === null) return this.echoOn;
+        this.echoOn = value !== 0;
+        this.updateEchoButton();
+        return this.echoOn;
+    }
+
     // Keystrokes still queued on the active core, or NaN when that core cannot
     // say. NaN means "unknown", and the pump then types a single character,
     // which cannot overflow anything.
@@ -372,7 +444,15 @@ class DeepWebUI {
                 this.setUploadHint('');
                 return;
             }
-            this.fileUpload = { name: file.name, keys, pos: 0, done: false, stalled: false };
+            this.fileUpload = { name: file.name, keys, pos: 0, done: false, stalled: false, echoRestore: true };
+            // Type the file in with the echo off. getstr would draw every
+            // character of the source as it arrives, which fills the 24 rows
+            // with a copy of the file and - because that echo path writes
+            // straight to the cursor with no row bookkeeping - walks the cursor
+            // off the bottom of the display, after which the screen never scrolls
+            // again. What the interpreter prints (" ok", and anything the words
+            // emit) still comes out, so the file's own results stay visible.
+            this.setEchoEnabled(false);
             this.addTranscriptEntry(
                 `${file.name} ready (${keys.length} keystrokes) - start the program, then it types itself in`,
                 "info");
@@ -392,10 +472,14 @@ class DeepWebUI {
 
     // Cancel an upload that is still running and drop what is still queued.
     cancelFileUpload(reason = '') {
-        if (!this.fileUpload) return;
+        const src = this.fileUpload;
+        if (!src) return;
         this.fileUpload = null;
         this.kbdClearAll();
         this.setUploadHint('');
+        // A cancelled load would otherwise leave the echo off for good, with the
+        // toggle showing "off" and the user having asked for nothing of the sort.
+        if (src.echoRestore) this.setEchoEnabled(true);
         if (reason) this.addTranscriptEntry(`Upload cancelled (${reason})`, "warning");
     }
 
@@ -427,6 +511,9 @@ class DeepWebUI {
             this.addTranscriptEntry(`${src.name}: all ${src.keys.length} keystrokes typed in`, "success");
             this.status(`${src.name} typed in completely`);
             this.setUploadHint(`${src.name}: typed in completely`);
+            // The last line has been read, so the prompt is visible again and the
+            // echo has to come back with it.
+            if (src.echoRestore) this.setEchoEnabled(true);
         }
         return end - start;
     }
@@ -469,6 +556,10 @@ class DeepWebUI {
         }
         this.coreName = name;
         this.useWasm = name !== 'js';
+        // The new core has not been told about the echo yet - its image still
+        // carries the shipped value of 1 - so write our state across rather than
+        // letting the toggle and the core disagree.
+        this.setEchoEnabled(this.echoOn);
         // The new core's keyboard queue is empty, while the JS mirror still
         // holds whatever was typed so far. Half a file is worse than none.
         if (this.fileUpload) this.cancelFileUpload('core changed');
@@ -872,6 +963,12 @@ class DeepWebUI {
             // Picking the same file again has to fire 'change' again.
             e.target.value = '';
         });
+        // Keyboard echo on/off, next to Upload. This writes the BIOS cell
+        // directly (see setEchoEnabled), so it needs no Forth word and works
+        // whether or not the kernel is at its prompt.
+        const echoBtn = document.getElementById('echo-toggle-btn');
+        if (echoBtn) echoBtn.addEventListener('click', () => this.setEchoEnabled(!this.echoOn));
+        this.updateEchoButton();
         
         // Add event listeners for Edit menu items
         document.getElementById('undo-btn').addEventListener('click', () => this.undo());
@@ -2311,6 +2408,10 @@ class DeepWebUI {
         }
         
         this.simulator.reset();
+        // A reset puts the memory image back, and the image ships the echo cell
+        // as 1. Re-read it so the button cannot go on claiming "off" over a
+        // machine that is echoing again.
+        this.syncEchoFromCore();
         this.wasmDirtyStart = null;
         this.wasmDirtyEnd = null;
         const cs0 = this.simulator.segmentRegisters.CS & 0xFFFF;

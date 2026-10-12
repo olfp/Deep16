@@ -4,6 +4,7 @@ export function init(mem_words: number): void;
 export function reset(): void;
 export function set_segments(cs: number, ds: number, ss: number, es: number): void;
 export function load_program(ptr: number, data: Uint16Array): void;
+export function step(): boolean;
 /**
  * Push one key code into the polled keyboard buffer (parity with the JS
  * core's `simulator.enqueueKeyCode`). Called from the IDE for every
@@ -23,6 +24,19 @@ export function get_recent_access(): Uint32Array;
 export function get_last_event(): Uint16Array;
 export function get_shadow_state(): Uint16Array;
 /**
+ * Write one memory word without touching anything else.
+ *
+ * load_program is not usable for this: besides the words it also clears the
+ * program counter and forces CS to 0xFFFF, because it means "a fresh program
+ * starts here". The IDE needs to poke a single cell of a machine that is
+ * already running - the BIOS keyboard-echo flag at 0xF0064, for one - and that
+ * must not disturb the core's state.
+ *
+ * Pairs with poke() in the RTL harness, so both compiled cores offer the same
+ * write path; the JS core's equivalent is a direct write to memory[].
+ */
+export function poke(addr: number, value: number): void;
+/**
  * Overwrite the register file (R0..R15) from outside, mirroring
  * `get_registers`: while the shadow set is active (PSW.S = 1) element 15 is
  * the active (shadow) PC instead of R15, so the two calls round-trip and the
@@ -40,7 +54,6 @@ export function get_psw(): number;
 export function get_segments(): Uint16Array;
 export function get_memory_slice(start: number, count: number): Uint16Array;
 export function get_memory_word(addr: number): number;
-export function step(): boolean;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -59,6 +72,7 @@ export interface InitOutput {
   readonly kbd_clear: () => void;
   readonly kbd_push: (a: number) => void;
   readonly load_program: (a: number, b: number, c: number) => void;
+  readonly poke: (a: number, b: number) => void;
   readonly reset: () => void;
   readonly run_steps: (a: number) => number;
   readonly set_psw: (a: number) => void;

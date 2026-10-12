@@ -14,6 +14,7 @@ export const kbd_available: () => number;
 export const kbd_clear: () => void;
 export const kbd_push: (a: number) => void;
 export const load_program: (a: number, b: number, c: number) => void;
+export const poke: (a: number, b: number) => void;
 export const reset: () => void;
 export const run_steps: (a: number) => number;
 export const set_psw: (a: number) => void;

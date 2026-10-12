@@ -139,6 +139,192 @@ test('emit prints the popped character', () => {
   assert.equal(rows[1], '> 65 emitA ok');
 });
 
+// ---------------------------------------------------------------------------
+// Keyboard echo
+//
+// The BIOS draws every character that is typed (getstr, BIOS function 5) and
+// nothing else does, so `echo` and the Screen tab's Echo toggle both end up
+// writing one cell the BIOS reads on every keystroke. See the echo_flag cell
+// in asm/forth.asm.
+// ---------------------------------------------------------------------------
+
+// The address the browser hard-codes. It is pinned in the I/O segment rather
+// than in the kernel's data area precisely so that this can be a constant: a
+// cell that moved with every interpreter change would break the toggle
+// silently.
+const ECHO_FLAG_ADDR = 0xF0064;
+
+test('the echo flag is a pinned cell in the Keyboard Controller block', () => {
+  const cell = res.memoryChanges.find(c => c.address === ECHO_FLAG_ADDR);
+  assert.ok(cell, 'no echo flag at 0xF0064');
+  assert.equal(cell.value & 0xFFFF, 1, 'a freshly loaded machine must echo');
+  // Next to KBD_STATUS/KBD_DATA, inside the documented 0xF0060-0xF006F block.
+  assert.ok(ECHO_FLAG_ADDR >= 0xF0060 && ECHO_FLAG_ADDR <= 0xF006F,
+    'the echo flag belongs in the Keyboard Controller block');
+  // And it must not collide with the two registers that are really decoded.
+  assert.ok(ECHO_FLAG_ADDR !== 0xF0060 && ECHO_FLAG_ADDR !== 0xF0062);
+});
+
+test('echo? reports on by default', () => {
+  const { rows } = repl('echo? .\n');
+  assert.equal(rows[1], '> echo? . 1  ok');
+});
+
+test('0 echo silences the keyboard echo and leaves the output alone', () => {
+  // `0 echo` is typed with the echo still on, so that line appears. After it,
+  // the input is no longer drawn: the row shows the prompt and what the line
+  // PRINTED, not what was typed. `42 .` prints 42 either way, so the difference
+  // is the missing "42 ." at the front of the row.
+  const { rows } = repl('0 echo\n42 .\n1 echo\n7 .\n');
+  assert.equal(rows[1], '> 0 echo ok', 'the line that switches it off is still echoed');
+  assert.equal(rows[2], '>  42  ok', 'input not echoed, output still drawn');
+  assert.equal(rows[3], '>  ok', 'the line that switches it back on is not echoed');
+  assert.equal(rows[4], '> 7 . 7  ok', 'echoing again');
+});
+
+test('echo? reads the cell the toggle writes', () => {
+  const { rows } = repl('echo? .\n0 echo\necho? .\n1 echo\necho? .\n');
+  assert.equal(rows[1], '> echo? . 1  ok');
+  assert.equal(rows[3], '>  0  ok', 'echo? has to report 0 while the echo is off');
+  assert.equal(rows[5], '> echo? . 1  ok');
+});
+
+test('echo takes its flag from the stack, like every other word', () => {
+  // `echo 0` does not switch anything off: in interpret mode the word runs
+  // before the 0 is pushed, so it underflows instead.
+  const { rows } = repl('echo\n');
+  assert.equal(rows[2], 'stack underflow');
+});
+
+// Boot to the prompt, write the cell from OUTSIDE the machine, then type. This
+// is the Screen tab's path, and the reason it does not go through a Forth word:
+// nothing of the kernel has to be running or even present for the cell to take
+// effect, because the BIOS reads it on every character it would echo.
+function replWithEchoPoke(value, input) {
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF;
+  sim.segmentRegisters.DS = 0x0000;
+  sim.segmentRegisters.SS = 0x0000;
+  sim.segmentRegisters.ES = 0x0000;
+  sim.running = true;
+  for (let i = 0; i < 400000 && sim.running; i++) sim.step();   // boot, banner, prompt, into getstr
+  sim.memory[ECHO_FLAG_ADDR] = value;                          // the poke
+  for (const ch of input) sim.enqueueKeyCode(ch === '\n' ? 10 : ch.charCodeAt(0));
+  for (let i = 0; i < 400000 && sim.running; i++) sim.step();
+  const rows = [];
+  for (let r = 0; r < 25; r++) {
+    let s = '';
+    for (let c = 0; c < 80; c++) s += String.fromCharCode(sim.memory[SCREEN_ADDR + r * 80 + c] & 0xFF);
+    rows.push(s.replace(/\s+$/, ''));
+  }
+  return { rows, screen: rows.join('\n') };
+}
+
+test('a write from outside the machine switches the echo', () => {
+  for (const value of [1, 0, 1]) {
+    const { screen } = replWithEchoPoke(value, '1234\n');
+    assert.equal(screen.includes('1234'), value !== 0,
+      `echo flag ${value} should ${value ? '' : 'not '}echo the typed text`);
+  }
+});
+
+test('the echo cell survives a reload of the kernel image', () => {
+  // The image ships the cell as 1, so a reload (and therefore a Reset) brings
+  // the echo back. The Screen tab re-reads the cell after a reset so its button
+  // cannot keep claiming "off" over a machine that is echoing again.
+  const cell = res.memoryChanges.find(c => c.address === ECHO_FLAG_ADDR);
+  assert.equal(cell.value & 0xFFFF, 1);
+  assert.equal(buildMemory(res)[ECHO_FLAG_ADDR], 1);
+});
+
+// ---------------------------------------------------------------------------
+// CR / LF, which lives in the BIOS
+//
+// Carriage return, line feed and the scroll at the bottom row belong to BIOS
+// putch (function 2). The kernel used to keep its own copies: emit sent 10 and
+// 13 to emit_do_cr/emit_do_lf, `cr` computed the row and the column itself and
+// clamped at the bottom row instead of scrolling, and interpret_done rolled a
+// second scroll of its own before printing " ok". Three places to agree about
+// where the cursor was, and they did not agree - `cr` and `emit 10` left the
+// cursor on different rows.
+// ---------------------------------------------------------------------------
+
+const SCR_BASE = 0x1000, VISIBLE_ROWS = 24, COLS = 80;
+
+// Like repl(), but reports the cursor too: SCR is R8, a word offset from the
+// screen base, and the whole point of these tests is which row it lands on.
+function replCursor(input, maxSteps = 8000000) {
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF;
+  sim.segmentRegisters.DS = 0x0000;
+  sim.segmentRegisters.SS = 0x0000;
+  sim.segmentRegisters.ES = 0x0000;
+  for (const ch of input) sim.enqueueKeyCode(ch === '\n' ? 10 : ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < maxSteps) { sim.step(); steps++; }
+  const off = (sim.registers[8] - SCR_BASE) & 0xFFFF;
+  let screen = '';
+  for (let r = 0; r < VISIBLE_ROWS; r++) {
+    for (let c = 0; c < COLS; c++) screen += String.fromCharCode(sim.memory[SCREEN_ADDR + r * COLS + c] & 0xFF);
+    screen += '\n';
+  }
+  return { row: Math.floor(off / COLS), col: off % COLS, off, screen, rows: screen.split('\n') };
+}
+
+test('cr, and emit of 10 and 13, all leave the cursor on the same row', () => {
+  // Same output, three ways of asking for a newline. They used to disagree:
+  // `cr` ended on the hidden row 24 while emit of 10 ended on row 23.
+  const variants = { cr: '65 emit cr\n', emit10: '65 emit 10 emit\n', emit13: '65 emit 13 emit\n' };
+  const seen = {};
+  for (const [name, line] of Object.entries(variants)) {
+    const r = replCursor(line.repeat(30));
+    seen[name] = r.row;
+    assert.ok(r.row < VISIBLE_ROWS,
+      `${name} left the cursor on row ${r.row}, which the ${VISIBLE_ROWS}-row display does not show`);
+  }
+  assert.equal(seen.cr, seen.emit10, 'cr and emit of 10 must agree');
+  assert.equal(seen.emit10, seen.emit13, 'emit of 10 and 13 must agree');
+});
+
+test('a long run of output scrolls the screen instead of stopping at the bottom', () => {
+  // 40 marked lines, each drawing a marker row plus the REPL's own " ok" row, so
+  // roughly 80 rows of output for a 24-row screen. The screen has to scroll: a
+  // clamped cursor keeps overwriting the first lines and the recent ones never
+  // appear at all.
+  const keys = [];
+  for (let n = 1; n <= 40; n++) {
+    const s = `77 emit ${0x30 + Math.floor(n / 10)} emit ${0x30 + n % 10} emit cr\n`;
+    for (const ch of s) keys.push(ch === '\n' ? 10 : ch.charCodeAt(0));
+  }
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF;
+  sim.segmentRegisters.DS = 0x0000; sim.segmentRegisters.SS = 0x0000; sim.segmentRegisters.ES = 0x0000;
+  for (const k of keys) sim.enqueueKeyCode(k);
+  sim.running = true;
+  for (let i = 0; i < 30000000 && sim.running; i++) sim.step();
+
+  let text = '';
+  for (let r = 0; r < VISIBLE_ROWS; r++) for (let c = 0; c < COLS; c++) text += String.fromCharCode(sim.memory[SCREEN_ADDR + r * COLS + c] & 0xFF);
+
+  const seen = [];
+  for (let n = 1; n <= 40; n++) if (text.includes('M' + String(n).padStart(2, '0'))) seen.push(n);
+  assert.ok(seen.length > 0, 'no marker survived: nothing was drawn at all');
+  assert.equal(seen[seen.length - 1], 40, 'the newest marker must be the last one still visible');
+  assert.ok(!seen.includes(1), 'the first marker is still on screen - the screen did not scroll');
+
+  const off = (sim.registers[8] - SCR_BASE) & 0xFFFF;
+  assert.ok(off < VISIBLE_ROWS * COLS,
+    `the cursor ran past the visible rows to offset ${off} - it is not scrolling`);
+});
+
+
 test('emit keeps >IN so words after it still run', () => {
   // Regression: the shadow-bank BIOS clobbers R5, which is >IN. word_emit
   // therefore used to swallow the rest of the input line.
