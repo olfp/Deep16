@@ -1335,6 +1335,18 @@ h_minus:
 ; --- additional arithmetic: u. 2/ abs min max, and the two echo words ---
 ; These are the newest entries in the whole dictionary, so the oldest of them
 ; links into the vocabulary chain below and forth_wl names the newest.
+;
+; es@ and es! are newer still, and sit above them for the same reason.
+h_es_fetch:
+    .word h_es_store
+    .word 3
+    .text "es@"
+    .word word_es_fetch
+h_es_store:
+    .word h_echo_query
+    .word 3
+    .text "es!"
+    .word word_es_store
 h_echo_query:
     .word h_echo
     .word 5
@@ -1551,7 +1563,7 @@ h_fetch:
 ; --- wordlists: a vocabulary is identified by the address of its head cell,
 ; --- which chains its definitions newest-first and ends in 0.
 forth_wl:
-    .word h_echo_query     ; newest built-in header in the FORTH vocabulary
+    .word h_es_fetch         ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
     .word forth_wl
     .word 0, 0, 0, 0, 0, 0, 0
@@ -2775,6 +2787,61 @@ wcstore_ok:
     MOV R3, R0
     AND R1, R3
     ST R1, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+; ---------------------------------------------
+; P3b: the same two words, but through ES
+; ---------------------------------------------
+; @ and ! address through DS. DS is 0 and an effective address is 16 bits, so
+; between them they reach physical 0x00000-0x0FFFF - and the screen buffer is at
+; 0xF1000, well outside that. No Forth word could touch the screen: not to draw
+; on it, not to read it, not to clear it. A Forth literal cannot even name the
+; address, because it is 16 bits too.
+;
+; ES is the second segment, and forth_start leaves it at 0xF000, so ES:0x1000 is
+; exactly the screen buffer. These two are @ and ! with ES in place of DS, which
+; is all it takes: the offset is still 16 bits, but 0x1000-0x17BF fits.
+;
+; es! leaves its value on the stack, exactly as ! does. Callers drop it.
+word_es_fetch:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ esf_under
+    NOP
+    LD R1, SP, 0           ; the ES offset
+    LDS R2, ES, R1
+    ST R2, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+esf_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_es_store:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ ess_ok
+    NOP
+    JN ess_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+ess_ok:
+    LD R1, SP, 0           ; the ES offset
+    ADD SP, 1
+    LD R2, SP, 0           ; the value
+    STS R2, ES, R1
     LDI next
     MOV PC, R0
     NOP

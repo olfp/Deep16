@@ -1189,6 +1189,38 @@ test('the attribute byte is either 0 or the cursor attribute, and no other colou
 // a BIOS routine and either keep its length or pad it back - and if the
 // padding can be removed, the stale-branch handling in the core can be fixed
 // and this test can go with it.
+test('es@ and es! reach the screen buffer, which @ and ! cannot', () => {
+  // The screen is at 0xF1000 = ES:0x1000. @ and ! address through DS, whose base
+  // is 0 and whose offset is 16 bits, so they reach 0x00000-0x0FFFF and stop.
+  // The buffer is 20 bits up, and a Forth literal cannot even name it. ES is the
+  // other segment and is left at 0xF000, so ES:0x1000 is the screen exactly.
+  //
+  // Row 10, column 0 is ES:0x1000 + 800.
+  const { rows } = repl('65 4896 es! . 4896 es@ .\n');
+  assert.equal(rows[10][0], 'A', `the store did not land; screen was:\n${rows.join('\n')}`);
+  const out = rows.find(r => r.includes('ok'));
+  assert.ok(out, `the line did not run; screen was:\n${rows.join('\n')}`);
+  // One 65 is the echo of the literal, the next two are es!'s leftover and
+  // what es@ read back. Counting them says both without pinning the spacing.
+  assert.equal((out.match(/65/g) || []).length, 3,
+    `es! must leave its value as ! does and es@ must read it back; got: ${out}`);
+
+  // A cell is a character in the low byte and an attribute in the high one:
+  // foreground in the low nibble, background in the high nibble.
+  const { rows: colour } = repl('35 3 256 * + 4896 es! drop 4896 es@ .\n');
+  assert.equal(colour[10][0], '#', 'the low byte of the cell is the character');
+  assert.equal(rows.length > 10, true);
+});
+
+test('es! is the only way in, and it cannot be reached by spelling the address', () => {
+  // The point of the pair: there is no literal, no arithmetic on literals, and
+  // no DS-relative word that gets here. `9891 es!` is not the screen either -
+  // it is a DS address, a different 32KB of memory altogether.
+  const { rows } = repl('65 9891 es! drop\n');
+  assert.equal(rows[10][0] !== 'A', true, 'ES:9891 is not the screen');
+  assert.ok(rows.some(r => r.includes('ok')), 'but it is a legal store');
+});
+
 const BIOS_LAYOUT = {
   bios_entry: 0x00, bios_f1: 0x09, bios_clr_loop: 0x16, bios_f2: 0x24,
   bios_putch_cr: 0x46, bios_putch_lf: 0x52, bios_lf_scroll_copy: 0x69,
