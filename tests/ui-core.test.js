@@ -864,3 +864,147 @@ test('the low nibble is the foreground and the high one the background', () => {
     assert.notEqual(falsch, (bg << 4) | fg, 'the two orders must give different cells');
   });
 });
+
+// ---------------------------------------------------------------------------
+// .fth files are typed into the kernel, not opened in the editor
+//
+// The editor's Assemble button runs the Deep16 machine-code assembler over
+// whatever the editor holds and writes the result straight into memory. Hand it
+// Forth source and the running kernel is assembled over. So a .fth must never
+// reach the editor - and it cannot be left to the file dialog's accept
+// attribute, because iOS Safari does not enforce that and lets any file be
+// picked from Files or iCloud Drive.
+// ---------------------------------------------------------------------------
+
+test('a .fth file is recognised as Forth source, a .asm file is not', () => {
+  const ui = makeUi();
+  for (const name of ['hanoi.fth', 'Hanoi.FTH', 'notes.forth', 'a/b/c.Fth']) {
+    assert.equal(ui.isForthSourceFile(name), true, `${name} is Forth source`);
+  }
+  for (const name of ['kernel.asm', 'prog.s', 'forth.asm', 'hanoi.txt', 'fth', '']) {
+    assert.equal(ui.isForthSourceFile(name), false, `${name || '(leer)'} is not Forth source`);
+  }
+  assert.equal(ui.isForthSourceFile(undefined), false, 'no name at all is not Forth source');
+});
+
+test('the Open dialog offers assembly files only - .fth belongs on Upload', async () => {
+  // The Upload button already carries accept=".fs,.fth,.forth,.4th,.txt".
+  // Adding .fth to Open as well would put it in a dialog that cannot do
+  // anything with it.
+  const ui = makeUi();
+  ui.editorElement = { value: '' };
+  ui.fileModified = false;
+  ui.updateFileStatus = () => {};
+  let accept = null;
+  const prevPicker = globalThis.window.showOpenFilePicker;
+  delete globalThis.window.showOpenFilePicker;
+  const prevCreate = globalThis.document.createElement;
+  globalThis.document.createElement = () => ({
+    set accept(v) { accept = v; },
+    click() { /* nur die accept-Abfrage zaehlt hier */ },
+  });
+  try {
+    await ui.loadFile();
+    assert.equal(accept, '.asm,.s', 'Open darf keine .fth anbieten');
+  } finally {
+    globalThis.document.createElement = prevCreate;
+    if (prevPicker !== undefined) globalThis.window.showOpenFilePicker = prevPicker;
+  }
+});
+
+test('opening a .fth types it in and leaves the editor alone', async () => {
+  const ui = makeUi();
+  ui.editorElement = { value: '; Inhalt, der unangetastet bleiben muss\n' };
+  ui.fileModified = false;
+  ui.updateFileStatus = () => {};
+  let confirmCalled = false;
+  const prevConfirm = globalThis.confirm;
+  globalThis.confirm = () => { confirmCalled = true; return true; };
+
+  const hochgeladen = [];
+  ui.uploadForthSource = (file) => hochgeladen.push(file);
+  // The assembler must not even be reachable from this path.
+  ui.assembler = { assemble() { throw new Error('der Assembler darf hier nicht laufen'); } };
+
+  // No showOpenFilePicker -> the plain <input type=file> fallback runs, which is
+  // the path an iPad takes.
+  const prevPicker = globalThis.window.showOpenFilePicker;
+  delete globalThis.window.showOpenFilePicker;
+  const datei = { name: 'hanoi.fth' };
+  let onchange = null;
+  const prevCreate = globalThis.document.createElement;
+  globalThis.document.createElement = () => ({
+    set accept(v) { this._accept = v; },
+    get accept() { return this._accept; },
+    set onchange(v) { onchange = v; },
+    click() { onchange({ target: { files: [datei] } }); },
+  });
+
+  try {
+    await ui.loadFile();
+    assert.deepEqual(hochgeladen, [datei], 'die Datei muss an den Upload gehen');
+    assert.equal(ui.editorElement.value, '; Inhalt, der unangetastet bleiben muss\n',
+      'der Editor darf nicht überschrieben werden');
+  } finally {
+    globalThis.confirm = prevConfirm;
+    globalThis.document.createElement = prevCreate;
+    if (prevPicker !== undefined) globalThis.window.showOpenFilePicker = prevPicker;
+  }
+});
+
+test('opening an .asm file still goes into the editor', async () => {
+  const ui = makeUi();
+  ui.editorElement = { value: '' };
+  ui.fileModified = false;
+  ui.updateFileStatus = () => {};
+  ui.renderEditorHighlight = () => {};
+  ui.setFileModified = () => {};
+  ui.currentFilename = 'start.asm';
+  ui.addTranscriptEntry = () => {};
+  let hochgeladen = 0;
+  ui.uploadForthSource = () => { hochgeladen++; };
+
+  const prevPicker = globalThis.window.showOpenFilePicker;
+  delete globalThis.window.showOpenFilePicker;
+  let onchange = null;
+  const prevCreate = globalThis.document.createElement;
+  globalThis.document.createElement = () => ({
+    set accept(v) { this._accept = v; },
+    get accept() { return this._accept; },
+    set onchange(v) { onchange = v; },
+    click() { onchange({ target: { files: [{ name: 'prog.asm' }] } }); },
+  });
+  // readAsText is called on a fresh FileReader; feed it back synchronously.
+  const prevFR = globalThis.FileReader;
+  globalThis.FileReader = class {
+    readAsText() { this.result = 'LDI 1\nHALT\n'; if (this.onload) this.onload({ target: this }); }
+  };
+
+  try {
+    await ui.loadFile();
+    assert.equal(hochgeladen, 0, 'eine .asm-Datei darf nicht getippt werden');
+    assert.equal(ui.editorElement.value, 'LDI 1\nHALT\n', 'sie landet im Editor');
+    assert.equal(ui.currentFilename, 'prog.asm');
+  } finally {
+    globalThis.document.createElement = prevCreate;
+    globalThis.FileReader = prevFR;
+    if (prevPicker !== undefined) globalThis.window.showOpenFilePicker = prevPicker;
+  }
+});
+
+test('uploadForthSource says why the editor stayed empty', () => {
+  const ui = makeUi();
+  const gesehen = [];
+  ui.addTranscriptEntry = (msg, kind) => gesehen.push(`${kind}: ${msg}`);
+  let uebergeben = null;
+  ui.queueFileUpload = (file) => { uebergeben = file; };
+  const datei = { name: 'hanoi.fth' };
+  ui.uploadForthSource(datei);
+  assert.equal(uebergeben, datei, 'die Datei muss weitergegeben werden');
+  assert.equal(gesehen.length, 1);
+  assert.match(gesehen[0], /Forth source/);
+  assert.match(gesehen[0], /hanoi\.fth/,
+    'der Grund muss im Protokoll stehen, sonst sieht ein leerer Editor aus wie Datenverlust');
+  assert.match(gesehen[0], /Upload/,
+    'und es muss sagen, wo .fth-Dateien hingehören');
+});

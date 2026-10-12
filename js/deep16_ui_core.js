@@ -316,6 +316,30 @@ class DeepWebUI {
     // newline would otherwise leave its final definition sitting unread at the
     // prompt. A blank line inside the file is kept - someone typing it would
     // press Return on it too.
+    // A .fth file is Forth source for the kernel in the Screen tab, not
+    // machine code for the editor. The two must not be mixed up: the editor's
+    // Assemble button runs the Deep16 assembler over whatever is in the
+    // editor, and its memoryChanges are written straight into memory - over the
+    // running kernel. So a .fth is typed in instead of loaded.
+    //
+    // This cannot be left to the file dialog's accept attribute: on iOS Safari
+    // that is not enforced, and any file can be picked from Files or iCloud
+    // Drive. The check has to be in the code.
+    isForthSourceFile(name) {
+        return /\.(fth|forth)$/i.test(String(name || ''));
+    }
+
+    // Type a Forth source file into the kernel instead of opening it in the
+    // editor, and say so: the editor staying empty would otherwise look like
+    // the file was lost.
+    uploadForthSource(file) {
+        this.addTranscriptEntry(
+            `${file.name} is Forth source, not assembly - typed into the kernel. `
+            + 'Forth files belong on the Upload button of the Screen tab.',
+            "info");
+        this.queueFileUpload(file);
+    }
+
     fileToKeys(text) {
         const keys = [];
         for (let i = 0; i < text.length; i++) {
@@ -628,6 +652,11 @@ class DeepWebUI {
                     }]
                 });
                 const file = await fileHandle.getFile();
+                if (this.isForthSourceFile(file.name)) {
+                    this.uploadForthSource(file);
+                    this.updateFileStatus();
+                    return;
+                }
                 const contents = await file.text();
                 this.editorElement.value = contents;
                 this.renderEditorHighlight();
@@ -642,6 +671,10 @@ class DeepWebUI {
                 input.accept = '.asm,.s';
                 input.onchange = (e) => {
                     const file = e.target.files[0];
+                    if (file && this.isForthSourceFile(file.name)) {
+                        this.uploadForthSource(file);
+                        return;
+                    }
                     if (file) {
                         const reader = new FileReader();
                         reader.onload = (e) => {
