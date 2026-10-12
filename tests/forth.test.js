@@ -170,23 +170,52 @@ test('echo? reports on by default', () => {
   assert.equal(rows[1], '> echo? . 1  ok');
 });
 
-test('0 echo silences the keyboard echo and leaves the output alone', () => {
-  // `0 echo` is typed with the echo still on, so that line appears. After it,
-  // the input is no longer drawn: the row shows the prompt and what the line
-  // PRINTED, not what was typed. `42 .` prints 42 either way, so the difference
-  // is the missing "42 ." at the front of the row.
+test('0 echo silences the keyboard echo and the REPL stops talking', () => {
+  // `0 echo` is typed with the echo still on, so it appears. After it the input
+  // is not drawn and the REPL prints neither " ok" nor a prompt, so the whole
+  // quiet stretch is a single row: what was echoed, then what the lines printed
+  // themselves. `1 echo` brings both back, so the line after it is normal again.
   const { rows } = repl('0 echo\n42 .\n1 echo\n7 .\n');
-  assert.equal(rows[1], '> 0 echo ok', 'the line that switches it off is still echoed');
-  assert.equal(rows[2], '>  42  ok', 'input not echoed, output still drawn');
-  assert.equal(rows[3], '>  ok', 'the line that switches it back on is not echoed');
-  assert.equal(rows[4], '> 7 . 7  ok', 'echoing again');
+  assert.equal(rows[1], '> 0 echo 42  ok', 'no " ok" and no prompt while the echo is off');
+  assert.equal(rows[2], '> 7 . 7  ok', 'echoing again');
+  assert.equal(rows[3], '>');
+});
+
+test('the echo flag gates the " ok" and the prompt, not what a program prints', () => {
+  // This is what a file upload needs: without it, 269 lines of hanoi.fth write
+  // 269 " ok" lines and 269 prompts past the screen, and silencing the typed
+  // characters alone only trades the source text for the same amount of noise.
+  //
+  // The quiet line still prints what the program printed - the A from emit - and
+  // then nothing at all: no " ok", no newline, no prompt. The line after it,
+  // which switches the echo back on, behaves normally again.
+  const quiet = repl('0 echo\n65 emit 1 echo\n');
+  assert.equal(quiet.rows[1], '> 0 echoA ok',
+    'the quiet line contributed only the A, with no " ok" and no prompt of its own');
+  assert.equal(quiet.rows[2], '>', 'the prompt returns once the echo is back');
+
+  // Same shape with the echo on: the middle line gets the full treatment, which
+  // is the contrast that makes the gate worth having.
+  const loud = repl('0 echo\n1 echo\n1 .\n');
+  assert.equal(loud.rows[1], '> 0 echo ok');
+  assert.equal(loud.rows[2], '> 1 . 1  ok');
+});
+
+test('errors still print while the echo is off', () => {
+  // The one thing a quiet load must never do is fail silently.
+  const unknown = repl('0 echo\nnosuchword\n1 echo\n').rows.join('\n');
+  assert.ok(unknown.includes('undefined word: nosuchword'),
+    'an undefined word must still be reported while the echo is off');
+  const under = repl('0 echo\ndrop\n1 echo\n').rows.join('\n');
+  assert.ok(under.includes('stack underflow'),
+    'so must a stack underflow');
 });
 
 test('echo? reads the cell the toggle writes', () => {
   const { rows } = repl('echo? .\n0 echo\necho? .\n1 echo\necho? .\n');
   assert.equal(rows[1], '> echo? . 1  ok');
-  assert.equal(rows[3], '>  0  ok', 'echo? has to report 0 while the echo is off');
-  assert.equal(rows[5], '> echo? . 1  ok');
+  assert.equal(rows[2], '> 0 echo 0  ok', 'the middle query has to report 0');
+  assert.equal(rows[3], '> echo? . 1  ok');
 });
 
 test('echo takes its flag from the stack, like every other word', () => {

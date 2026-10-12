@@ -958,6 +958,22 @@ interpret_done:
     ; to roll its own scroll first and then let putch scroll again, which is two
     ; cursors' worth of bookkeeping for one newline.
 ok_after:
+    ; The REPL's routine output - " ok" and the "> " prompt - is part of the
+    ; echo, so the echo flag silences it as well. Without this the flag only
+    ; hides the typed characters and a file still types itself in by writing one
+    ; " ok" and one prompt per line, which is 269 lines of scrolling for
+    ; hanoi.fth: the source text gone and the noise it replaced still there.
+    ;
+    ; Errors are deliberately NOT part of this. An undefined word or a stack
+    ; underflow still prints while the echo is off, so a load that goes wrong
+    ; says so instead of failing silently - which is the one thing a quiet load
+    ; must never do.
+    LDI ECHO_FLAG
+    LDS R7, ES, R0
+    LDI 0
+    CMP R7, R0
+    JZ interpret_next
+    NOP
     ; Print " ok"
     LDI 3               ; BIOS putstr
     MOV R3, R0
@@ -996,7 +1012,9 @@ ok_after:
     LINK
     JMP R2
     NOP
-    ; Read next line into TIB via BIOS and then interpret
+interpret_next:
+    ; Read next line into TIB via BIOS and then interpret. Reached with the echo
+    ; on and off alike: the REPL still reads, it just says less about it.
     LDI word_accept
     MOV PC, R0
     NOP
