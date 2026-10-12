@@ -1983,10 +1983,17 @@ class DeepWebUI {
 
     updateAllDisplays() {
         // While a file is typing itself in there is nothing to read in the memory
-        // view: it changes thousands of times a second and redrawing it is most
-        // of what a run tick costs. The screen display keeps updating - that is
-        // the one the user is watching. The memory view is refreshed once more
-        // when the upload ends (see pumpKeyQueue).
+        // view: it changes thousands of times a second. Measured per run tick it
+        // is also the most expensive of the three things a tick does - 246 us
+        // against 103 us for the screen scan, with the 200 simulator steps at
+        // 18 us - so holding it still for the duration is the one saving worth
+        // making here. All three together are under 4% of the 10 ms tick, which
+        // is why nothing else is skipped.
+        //
+        // The screen display keeps updating. That is the one the user is
+        // watching, and it is where the closing `1 echo` and the fresh prompt
+        // show up. The memory view is refreshed once more when the load ends
+        // (see pumpKeyQueue).
         const busy = this.uploadInFlight();
         this.registerUI.updateRegisterDisplay();
         this.registerUI.updatePSWDisplay();
