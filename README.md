@@ -136,8 +136,9 @@ tests/                the test suite
 ```
 
 Further reading: [`VERILOG.md`](VERILOG.md) is the plan and decision log for
-the RTL core; [`doc/Deep16-RTL.md`](doc/Deep16-RTL.md) documents its
-microarchitecture, debug bus and verification tooling.
+the RTL core; [`FLASHPLAN.md`](FLASHPLAN.md) is the design for a Forth block
+store on the Tang Nano 9K; [`doc/Deep16-RTL.md`](doc/Deep16-RTL.md) documents
+its microarchitecture, debug bus and verification tooling.
 
 ## State of the project
 

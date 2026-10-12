@@ -252,7 +252,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 Das Buch erzählt die Deep16 so, wie sie **heute** ist. Damit es dabei nicht
 stillschweigend veraltet, sind hier die Architektur-Dokumente aus dem
 Repo-Root eingeordnet: Thema, tatsächlicher Stand, und was daraus für das
-Buch folgt. Zwei davon sind bewusst **kein** Buchthema.
+Buch folgt. Drei davon sind bewusst **kein** Buchthema.
 
 | Dokument | Thema | Stand | Bedeutung für das Buch |
 |---|---|---|---|
@@ -260,10 +260,11 @@ Buch folgt. Zwei davon sind bewusst **kein** Buchthema.
 | `VERILOG.md` | dritter Kern: Verilog → Verilator + Emscripten | ✅ Phase 0–2 abgeschlossen, dreifache Parität grün, Decode-Sweep über alle 65 536 Befehlswörter ohne Abweichung | **im Buch eingearbeitet** — Kap. 6 §6.2 spricht jetzt von drei Kernen, `STYLE.md` §7 misst auf allen drei |
 | `SERPLAN.md` | Quelltext über die Tastatur in den DeepForth-Kern eintippen | 🟡 Der serielle Weg ist **verworfen** und zurückgebaut; übrig bleibt der Knopf im Screen-Tab, im Browser unbestätigt | **Material für Kapitel 7** (Mini-Forth) — noch kein Kapiteltext |
 | `PLANPSRAM.md` | PSRAM-Backing-Store für die FPGA | ⛔ **nicht umgesetzt** (Plan) | ❌ **kein Buchinhalt** |
+| `FLASHPLAN.md` | Forth-Blocks auf dem Tang Nano 9K (Config-Flash via MSPI) | ⛔ **nicht umgesetzt** (Design); Block = 4-KB-Sektor, 80×24-Textfenster | ❌ **kein Buchinhalt** — Kandidat für Kapitel 9, sobald gebaut |
 | `GFX.md`, `GFXOVERV.md` | Grafik-Subsystem GCoP | 🟡 Design-Phase, **ferne Zukunft** | ❌ **kein Buchinhalt** |
 | `deep16_project_summary.md` | IDE-Entwicklungsstand (alt) | ⚪ überholt | — |
 
-### Warum GFX und PSRAM draußen bleiben
+### Warum GFX, PSRAM und Flash draußen bleiben
 
 - **`GFX.md` / `GFXOVERV.md` sind ferne Zukunft.** Beide Dokumente sagen das
   selbst: Projekt-Status *Design-Phase / Planungsgrundlage*, „keine
@@ -282,8 +283,14 @@ Buch folgt. Zwei davon sind bewusst **kein** Buchthema.
   nichts davon darf im Buch stehen.
   **Auslöser:** sobald Schritt 1 der Umsetzung (Memory-Interface) im RTL
   steht, ist der Kapitel-6-Speicherkarte die PSRAM-Aufteilung hinzuzufügen.
+- **`FLASHPLAN.md` ist ein Entwurf, kein Bau.** Er beschreibt einen
+  Forth-Blockspeicher auf dem Config-Flash des Tang Nano 9K (über MSPI), mit
+  Block = 4-KB-Sektor. Es gibt weder Gerätemodell noch RTL noch Messwerte.
+  **Auslöser:** sobald das Gerätemodell im JS-Kern läuft (Phase 1), ist die
+  Kapitel-6-Speicherkarte um die Storage-Ports zu ergänzen und ein Kapitel 9
+  über den Forth-Kern möglich.
 
-Beide bleiben hier sichtbar, damit niemand sie für vergessen hält: ein
+Alle drei bleiben hier sichtbar, damit niemand sie für vergessen hält: ein
 Revisionsdokument im Repo-Root, das nichts mit dem Buch zu tun hat, ist eine
 bewusste Entscheidung und keine Lücke.
 
