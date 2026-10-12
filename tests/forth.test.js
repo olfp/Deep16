@@ -19,7 +19,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { assemble, loadBrowserScripts, buildMemory, ROOT, SCREEN_ADDR, CURSOR_ATTR } from './helpers.js';
+import { assemble, loadBrowserScripts, buildMemory, runWasm, runRtl, ROOT, SCREEN_ADDR, CURSOR_ATTR } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -1212,6 +1212,26 @@ test('es@ and es! reach the screen buffer, which @ and ! cannot', () => {
   assert.equal(rows.length > 10, true);
 });
 
+test('es@ and es! reach the screen on the compiled cores too', async () => {
+  // hanoi.fth draws the whole board through these two words, and the compiled
+  // cores decode segments themselves. If ES stores landed somewhere else there,
+  // the board would be fine on the JS core and blank on the other two - which
+  // is the kind of thing nobody sees until they switch cores.
+  const res = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'));
+  assert.ok(res.success, res.errors.join('; '));
+  // Row 10, column 0 is ES:0x1000 + 800. The kernel sets ES itself at boot, so
+  // it is passed in as 0 and forth_start puts it at 0xF000.
+  const CELL = 0xF1000 + 800;
+  const keys = [...'65 4896 es! drop\n'].map(c => (c === '\n' ? 10 : c.charCodeAt(0)));
+  const want = 'A';
+  for (const [name, run] of [['wasm', runWasm], ['rtl', runRtl]]) {
+    const r = await run(res, { keys, maxSteps: 400000 });
+    const got = String.fromCharCode(r.memoryAt(CELL, 1)[0] & 0xFF);
+    assert.equal(got, want,
+      `the ${name} core did not store through ES; ES:0x1000+800 holds ${got}`);
+  }
+});
+
 test('es! is the only way in, and it cannot be reached by spelling the address', () => {
   // The point of the pair: there is no literal, no arithmetic on literals, and
   // no DS-relative word that gets here. `9891 es!` is not the screen either -
@@ -1407,9 +1427,11 @@ test('the low nibble is the foreground and the high one the background', () => {
 
 test('a screen cell that a program painted reads foreground and background in that order', () => {
   // Foreground 5 (magenta) on background 9 (bright black): attribute 0x95.
-  // Written the ANSI way the background sits high and the foreground low; a
-  // program that shifted its foreground left by four would produce 0x59 and
-  // swap the two, which is the mistake forth/hanoi.fth used to make.
+  // Written the ANSI way the background sits high and the foreground low.
+  // forth/hanoi.fth paints cells directly now and builds them the same way -
+  // character in the low byte, attribute in the high one - so a foreground
+  // shifted left by four would come out as 0x59 and swap the two, and its
+  // disks would be the wrong colour rather than the right ones.
   const fg = 5, bg = 9;
   const attr = (bg << 4) | fg;
   assert.equal(attr, 0x95);

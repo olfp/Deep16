@@ -248,7 +248,7 @@ test('an uploaded file is typed into the kernel and its definitions work', () =>
   assert.equal(ui.simulator.kbdAvailable(), 0, 'nothing may be left in the queue');
 });
 
-test('loading hanoi.fth types the file in without drawing it, and what it defines works', () => {
+test('loading hanoi.fth types the file in silently and then draws the board', () => {
   // The whole point of the echo switch, end to end: the file's ten thousand
   // keystrokes go in and nothing is drawn, because the echo is off for the whole
   // of them - including the tail, which is what used to be printed.
@@ -277,16 +277,53 @@ test('loading hanoi.fth types the file in without drawing it, and what it define
   // And it is callable, which is what "it loaded" actually means.
   for (const c of 'hanoi-demo') ui.simulator.enqueueKeyCode(c.charCodeAt(0));
   ui.simulator.enqueueKeyCode(13);
-  for (let i = 0; i < 4000000 && ui.simulator.running; i++) ui.simulator.step();
+  for (let i = 0; i < 20000000 && ui.simulator.running; i++) ui.simulator.step();
   const screen = [];
   for (let r = 0; r < 25; r++) {
     let s = '';
     for (let c = 0; c < 80; c++) s += String.fromCharCode(ui.simulator.memory[0xF1000 + r * 80 + c] & 0xFF);
-    screen.push(s.replace(/\s+$/, ''));
+    screen.push(s);
   }
   const text = screen.join('\n');
-  assert.ok(text.includes('from A to C'), `hanoi-demo did not run; screen was:\n${text}`);
-  assert.ok(text.includes('Disk  1'), `hanoi-demo did not move; screen was:\n${text}`);
+
+  // hanoi-demo draws, it does not print. Five disks stacked on peg C, the two
+  // pegs it emptied left as bare poles, and the ground along the bottom row.
+  // The three peg columns are 12, 39 and 66 and the disks are on rows 18-22.
+  //
+  // Rows 0-3 are where the REPL's own ` ok` and prompt land when the word
+  // returns, so peg A's pole is not asserted there - the prompt writes over
+  // the cell the hardware cursor is sitting in, which is peg A's column.
+  // Pegs B and C are far from that and are asserted on every row.
+  const PEG = [12, 39, 66];
+  assert.equal(screen[23], 'X'.repeat(80),
+    `the ground must fill the bottom row; screen was:\n${text}`);
+  for (let r = 0; r <= 17; r++) {
+    for (const col of [39, 66]) {
+      assert.equal(screen[r][col], '|', `pole at column ${col} missing on row ${r}`);
+    }
+    assert.equal(screen[r].includes('#'), false, `no disk belongs above row 18 (row ${r})`);
+  }
+  // Rows 18-22 hold the five disks, widest at the bottom, each centred on peg C
+  // and covering its own pole. Pegs A and B are empty, so their poles show.
+  for (const [row, width] of [[18, 11], [19, 9], [20, 7], [21, 5], [22, 3]]) {
+    const line = screen[row];
+    const first = line.indexOf('#');
+    const last = line.lastIndexOf('#');
+    assert.equal(last - first + 1, width, `row ${row} should hold one ${width}-wide disk`);
+    assert.equal((first + last) / 2, 66, `the disk on row ${row} is not centred on peg C`);
+    assert.equal(line[12], '|', `peg A should be empty on row ${row}`);
+    assert.equal(line[39], '|', `peg B should be empty on row ${row}`);
+    assert.equal(line[66], '#', `the disk on row ${row} should cover peg C's pole`);
+  }
+  // Every disk its own colour, and coloured correctly: the character is in the
+  // low byte and the foreground in the low nibble of the high byte. Getting
+  // that second part wrong would swap the colours for background and leave the
+  // board readable but not like this.
+  const fg = (row, col) => (ui.simulator.memory[0xF1000 + row * 80 + col] >> 8) & 0x0F;
+  assert.ok([fg(18, 66), fg(19, 66), fg(20, 66), fg(21, 66), fg(22, 66)]
+    .every(c => c >= 1 && c <= 6), 'every disk must carry one of the six colours');
+  assert.equal(new Set([fg(18, 66), fg(19, 66), fg(20, 66), fg(21, 66), fg(22, 66)]).size, 5,
+    'the five disks must all be different colours');
 });
 
 test('every line ending in the file becomes a Return', () => {
