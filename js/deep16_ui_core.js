@@ -509,6 +509,22 @@ class DeepWebUI {
         if (el) el.textContent = text;
     }
 
+    // One budget for every per-instruction trace line, and true while there is
+    // one left.
+    //
+    // wasmLogLimit existed for exactly this and only the fetch line was ever
+    // spending it. The shadow-register bit and every SWI were logged without
+    // limit, and a Forth kernel flips S constantly and does a SWI for every
+    // putch - so the transcript filled with thousands of lines nobody asked
+    // for, and pushed the useful ones out of sight. They are still there when
+    // you go looking, which is what a trace is for; they are just not a flood
+    // when you are not.
+    traceBudgetLeft() {
+        if (this.wasmLogCount >= this.wasmLogLimit) return false;
+        this.wasmLogCount++;
+        return true;
+    }
+
     // One switch for every display update in the IDE.
     //
     // Turning the trace off does not stop the machine: the program runs on, the
@@ -2721,11 +2737,10 @@ class DeepWebUI {
                             aboutCS = sh && sh.length >= 3 ? (sh[1] & 0xFFFF) : aboutCS;
                         }
                         const aboutPhys = ((aboutCS << 4) + aboutPC) >>> 0;
-                        if (typeof this.activeCoreModule().get_memory_word === 'function') {
+                        if (typeof this.activeCoreModule().get_memory_word === 'function' && this.traceBudgetLeft()) {
                             const w = this.activeCoreModule().get_memory_word(aboutPhys) & 0xFFFF;
                             this.addTranscriptEntry(`${this.coreLabel(this.coreName)} fetch: CS=0x${aboutCS.toString(16)}, PC=0x${aboutPC.toString(16)}, instr=0x${w.toString(16)}`, "info");
                         }
-                        this.wasmLogCount++;
                     }
                 } catch {}
                 const physPCCheck = ((csVal & 0xFFFF) << 4) + (pcVal & 0xFFFF);
@@ -2742,8 +2757,10 @@ class DeepWebUI {
                     const pswCur2 = typeof this.activeCoreModule().get_psw === 'function' ? (this.activeCoreModule().get_psw() & 0xFFFF) : 0;
                     const sbit2 = (pswCur2 & (1 << 5)) !== 0 ? 1 : 0;
                     if (sbit2 !== lastSBit) {
-                        this.addTranscriptEntry(`${this.coreLabel(this.coreName)} PSW S=${sbit2}`, "info");
                         lastSBit = sbit2;
+                        if (this.traceBudgetLeft()) {
+                            this.addTranscriptEntry(`${this.coreLabel(this.coreName)} PSW S=${sbit2}`, "info");
+                        }
                     }
                     if (typeof this.activeCoreModule().get_last_event === 'function') {
                         const ev = this.activeCoreModule().get_last_event();
@@ -2751,7 +2768,9 @@ class DeepWebUI {
                             const spc = ev[1] & 0xFFFF;
                             const scs = ev[2] & 0xFFFF;
                             const psw = ev[3] & 0xFFFF;
-                            this.addTranscriptEntry(`${this.coreLabel(this.coreName)} SWI: S=1, CS'=0x${scs.toString(16)}, PC'=0x${spc.toString(16)} PSW=0x${psw.toString(16)}`, "info");
+                            if (this.traceBudgetLeft()) {
+                                this.addTranscriptEntry(`${this.coreLabel(this.coreName)} SWI: S=1, CS'=0x${scs.toString(16)}, PC'=0x${spc.toString(16)} PSW=0x${psw.toString(16)}`, "info");
+                            }
                         }
                     }
                 } catch {}
@@ -2872,7 +2891,11 @@ class DeepWebUI {
             const wEnd = Math.min(wStart + 64, this.simulator.memory.length);
             const wPcVisible = physPC >= wStart && physPC < wEnd;
             const wJumpedFar = Math.abs(physPC - this.lastPhysPC) > 16;
-            if (!wPcVisible && wJumpedFar) {
+            // Behind the same gate as jsRun's copy of this block, which is a
+            // second copy of the same code and had to be gated separately.
+            // This one also writes the Start input, which is why that field
+            // kept ticking on the WASM core after the JS one had stopped.
+            if (this.isTraceOn() && !wPcVisible && wJumpedFar) {
                 const windowSize = 64;
                 const memLen = this.simulator.memory.length >>> 0;
                 let targetStart = (physPC - (windowSize >> 1)) >>> 0;

@@ -332,6 +332,66 @@ test('the memory view is throttled while the machine runs, and not while it does
 });
 
 // ---------------------------------------------------------------------------
+test('the per-instruction trace has one budget, and every line spends it', () => {
+  // The fetch line was capped at wasmLogLimit from the start. The
+  // shadow-register bit and every SWI were not, and a Forth kernel flips S
+  // constantly and does a SWI for every putch - thousands of lines, pushing
+  // the useful ones out of sight.
+  const ui = makeUi();
+  ui.wasmLogLimit = 5;
+  ui.wasmLogCount = 0;
+  const lines = [];
+  for (let i = 0; i < 50; i++) if (ui.traceBudgetLeft()) lines.push(i);
+  assert.equal(lines.length, 5, `the budget must stop the flood, it allowed ${lines.length}`);
+  assert.deepEqual(lines, [0, 1, 2, 3, 4], 'and it must be spent in order, from the first line');
+  // A second run does not get a fresh allowance - the limit is per session, as
+  // it has always been.
+  assert.equal(ui.traceBudgetLeft(), false);
+
+  // And the call sites use it. Testing the helper alone is not enough: the
+  // budget was already there and already correct, and the log filled up anyway
+  // because two of the three trace lines never asked it.
+  //
+  // Scoped to wasmRun's body. step() carries its own copy of the same three
+  // lines, and those SHOULD log every step - that is what stepping is for, and
+  // it runs once per key press rather than two hundred times a second.
+  const all = fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_core.js'), 'utf8').split('\n');
+  const start = all.findIndex(l => /^ {4}wasmRun\(\) \{/.test(l));
+  assert.ok(start > 0, 'wasmRun not found in deep16_ui_core.js');
+  let stop = all.length;
+  for (let k = start + 1; k < all.length; k++) {
+    if (/^ {4}[a-zA-Z_$][a-zA-Z0-9_$]*\(/.test(all[k])) { stop = k; break; }
+  }
+  const body = all.slice(start, stop).join('\n');
+  for (const what of ['fetch: CS=', 'PSW S=', 'SWI: S=1']) {
+    assert.ok(body.includes(what), `no ${what} trace line in wasmRun - did it get renamed?`);
+  }
+  const guards = (body.match(/traceBudgetLeft\(\)/g) || []).length;
+  assert.equal(guards, 3,
+    `all three per-instruction trace lines in wasmRun must spend the budget; ${guards} do`);
+
+});
+
+test('every core\'s PC-follow is behind the trace switch', () => {
+  // jsRun and wasmRun each carry their own copy of the PC-jump block, and each
+  // one writes the Start input as well as redrawing the panel. Gating one left
+  // the other running, which is exactly how the Start field went on ticking on
+  // the WASM core after it had stopped on the JS one.
+  //
+  // A source check, because the blocks are only reachable with a compiled core
+  // attached, and the failure this guards - one copy gated, the other not - is
+  // the kind a behavioural test walks straight past.
+  const src = fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_core.js'), 'utf8');
+  const lines = src.split('\n');
+  for (const cond of ['!pcVisible && jumpedFar', '!wPcVisible && wJumpedFar']) {
+    const hits = lines.filter(l => l.includes(cond));
+    assert.equal(hits.length, 1,
+      `expected exactly one PC-jump block matching "${cond}", found ${hits.length}`);
+    assert.match(hits[0], /isTraceOn\(\)/,
+      `a PC-jump block is not behind the trace switch: ${hits[0].trim()}`);
+  }
+});
+
 test('a core that finishes loading becomes selectable, whichever one it is', () => {
   // wasmAvailable used to be assigned in exactly one place - the constructor,
   // from a typeof on window.Deep16Wasm. The module arrives by dynamic import,
