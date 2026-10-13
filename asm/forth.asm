@@ -4185,25 +4185,50 @@ forget_unknown:
 ; =============================================
 ; BIOS Implementation (at physical 0xF8000)
 ; =============================================
+.equ BIOS_FN_COUNT, 6
 .org 0xF8000
 .code
 bios_entry:
-    ; Dispatch on function code stored at DS:0
+    ; Dispatch on the function code at DS:0 through the table below. This used
+    ; to be a chain of CMP/JNZ tests, one per function, so the block's length
+    ; depended on how many functions there were and every routine had to carry
+    ; its own number.
     LDI 0
     MOV R3, R0
-    LDS R1, DS, R3
+    LDS R1, DS, R3            ; R1 = function code
+    LDI BIOS_FN_COUNT
     CMP R1, R0
-    JNZ bios_f1
+    JN bios_jtab_ok           ; in range: 0 .. BIOS_FN_COUNT-1
     NOP
+    ; Out of range. The old chain fell off the end into the last routine, so
+    ; an unknown code silently ran getstr and waited for a key.
+    ; The offset is taken, not the absolute address: a BIOS label sits at
+    ; 0xF8000+, well outside what LDI's 15-bit signed field can hold, and CS
+    ; is already 0xF800.
+    LDI bios_unknown - bios_entry
+    MOV PC, R0
+    NOP
+bios_jtab_ok:
+    MOV R3, PC                ; own address + 1, so no address is baked in
+bios_jtab_add:
+    ADD R3, BIOS_JTABLE - bios_jtab_add
+    ADD R3, R1                ; one word per entry, so the code is the index
+    LDS R1, CS, R3            ; the table sits in this segment
+    JMP R1
+    NOP
+BIOS_JTABLE:
+    .word bios_f0 - bios_entry
+    .word bios_f1 - bios_entry
+    .word bios_f2 - bios_entry
+    .word bios_f3 - bios_entry
+    .word bios_f4 - bios_entry
+    .word bios_f5 - bios_entry
+bios_f0:
     ; 0: bver -> R0 = 0x0001 (version 0.1)
     LDI 0x0001
     RETI
     NOP
 bios_f1:
-    LDI 1
-    CMP R1, R0
-    JNZ bios_f2
-    NOP
     ; 1: binit -> init screen/keyboard, clear screen
     LDI 0x0FFF
     INV R0
@@ -4232,10 +4257,6 @@ bios_clr_loop:
     RETI
     NOP
 bios_f2:
-    LDI 2
-    CMP R1, R0
-    JNZ bios_f3
-    NOP
     LDI 0x0FFF
     INV R0
     MVS ES, R0
@@ -4355,10 +4376,6 @@ bios_lf_row_lt:
     RETI
     NOP
 bios_f3:
-    LDI 3
-    CMP R1, R0
-    JNZ bios_f4
-    NOP
     LDI 0x0FFF
     INV R0
     MVS ES, R0
@@ -4382,10 +4399,6 @@ bios_putstr_done:
     RETI
     NOP
 bios_f4:
-    LDI 4
-    CMP R1, R0
-    JNZ bios_f5
-    NOP
     LDI 0x0FFF
     INV R0
     MVS ES, R0

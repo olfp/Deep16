@@ -602,10 +602,21 @@ class Deep16Assembler {
         const cleanLine = line.split(';')[0].trim();
         if (!cleanLine) return null;
 
-        const parts = cleanLine.split(/[\s,]+/).filter(part => part);
-        if (parts.length === 0) return null;
-
-        const mnemonic = parts[0].toUpperCase();
+        // Operands are comma-separated, so split on commas and let each chunk
+        // keep its internal spaces. Splitting on whitespace as well used to
+        // truncate an operand expression at its first space, so "ADD R3,
+        // BIOS_JTABLE - bios_jtab_add" arrived as the single label BIOS_JTABLE
+        // and was assembled as a jump table that pointed nowhere.
+        const chunks = cleanLine.split(',').map(c => c.trim()).filter(Boolean);
+        if (chunks.length === 0) return null;
+        const firstWords = chunks[0].split(/\s+/).filter(Boolean);
+        const mnemonic = firstWords[0].toUpperCase();
+        // The first chunk holds the mnemonic and, usually, the first operand.
+        // Keep the rest of it as one part, so "LDI ' '" and "MOV R3, a - b"
+        // survive the round trip.
+        const parts = [mnemonic];
+        if (firstWords.length > 1) parts.push(firstWords.slice(1).join(' '));
+        for (let i = 1; i < chunks.length; i++) parts.push(chunks[i]);
 
         try {
             // Handle jump instructions with label resolution

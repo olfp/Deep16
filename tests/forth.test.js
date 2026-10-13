@@ -1453,10 +1453,11 @@ test('scr! is the only way in, and it cannot be reached by spelling the address'
 });
 
 const BIOS_LAYOUT = {
-  bios_entry: 0x00, bios_f1: 0x09, bios_clr_loop: 0x16, bios_f2: 0x24,
-  bios_putch_cr: 0x46, bios_putch_lf: 0x52, bios_lf_scroll_copy: 0x69,
-  bios_lf_scroll_clear: 0x7a, bios_lf_row_lt: 0x86, bios_f3: 0x8c,
-  bios_putstr_loop: 0x96, bios_putstr_done: 0xa1, bios_f4: 0xa3,
+  bios_entry: 0x00, bios_jtab_ok: 0x0a, bios_jtab_add: 0x0b, BIOS_JTABLE: 0x10,
+  bios_f0: 0x16, bios_f1: 0x19, bios_clr_loop: 0x22, bios_f2: 0x30,
+  bios_putch_cr: 0x4e, bios_putch_lf: 0x5a, bios_lf_scroll_copy: 0x71,
+  bios_lf_scroll_clear: 0x82, bios_lf_row_lt: 0x8e, bios_f3: 0x94,
+  bios_putstr_loop: 0x9a, bios_putstr_done: 0xa5, bios_f4: 0xa7,
   bios_getch_wait: 0xaa, bios_f5: 0xbb, bios_getstr_loop: 0xc3,
   bios_store_char: 0xf3, bios_getstr_done: 0x107, bios_unknown: 0x10b,
 };
@@ -1650,4 +1651,87 @@ test('a screen cell that a program painted reads foreground and background in th
   assert.equal((attr >> 4) & 0x0F, bg, 'the high nibble is the background');
   // The shifted variant - what a program gets wrong - is a different cell.
   assert.notEqual(fg << 4, attr, 'a shifted foreground must not collide with the right one');
+});
+
+// ---------------------------------------------------------------------------
+// The BIOS dispatch table. The entry used to be a chain of "CMP R1, R0 / JNZ
+// next" tests, one per function. These drive the entry directly rather than
+// through the REPL, because the kernel's own boot sequence always calls binit
+// first and would otherwise be the only routine ever observed.
+
+// Enter the BIOS the way an SWI does - shadow mode, CS = 0xF800 - with `fn`
+// written to DS:0, and report which routine's entry address was executed.
+const dispatchTo = (fn, opts = {}) => {
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0;
+  sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0;
+  sim.segmentRegisters.ES = 0;
+  sim.memory[0] = fn;
+  if (opts.keys) for (const ch of opts.keys) sim.enqueueKeyCode(ch.charCodeAt(0));
+  sim.psw = 0x0020;
+  sim.shadowRegisters.CS = 0xF800;
+  sim.shadowRegisters.PC = res.symbols.bios_entry - res.symbols.bios_entry;
+  sim.shadowRegisters.DS = 0;
+  sim.shadowRegisters.ES = 0xF000;
+  sim.shadowRegisters.SS = 0;
+  sim.running = true;
+
+  const base = res.symbols.bios_entry;
+  const routineAt = new Map();
+  for (let i = 0; i < 6; i++) routineAt.set(res.symbols[`bios_f${i}`] - base, i);
+  let hit = null;
+  for (let i = 0; i < 2000000 && sim.running; i++) {
+    if ((sim.psw & (1 << 5)) !== 0) {
+      const off = ((sim.shadowRegisters.CS & 0xFFFF) << 4)
+        + (sim.shadowRegisters.PC & 0xFFFF) - base;
+      if (routineAt.has(off)) hit = routineAt.get(off);
+      else if (off === res.symbols.bios_unknown - base) hit = 'unknown';
+    }
+    sim.step();
+  }
+  return hit;
+};
+
+test('the jump table routes every function code to its own routine', () => {
+  for (let fn = 0; fn < 6; fn++) {
+    assert.equal(dispatchTo(fn, { keys: 'x' }), fn, `function code ${fn}`);
+  }
+});
+
+test('a function code past the table reaches bios_unknown', () => {
+  // The old chain compared 0, then 1, then 2 ... and had nothing after the
+  // last test, so every out-of-range code fell off the end into the final
+  // routine: an unknown code silently ran getstr and waited for a key.
+  for (const fn of [6, 7, 8, 64, 255]) {
+    assert.equal(dispatchTo(fn, { keys: 'x' }), 'unknown', `function code ${fn}`);
+  }
+});
+
+test('every table entry points at the routine it names', () => {
+  // If the table and the routines drift apart, the BIOS assembles cleanly and
+  // then runs the wrong code - which is exactly what a stale offset constant
+  // looks like, so the table is checked against the labels, not pinned.
+  const base = res.symbols.bios_entry;
+  const jtab = res.symbols.BIOS_JTABLE;
+  for (let i = 0; i < 6; i++) {
+    const entry = res.memoryChanges.find(c => c.address === jtab + i);
+    assert.ok(entry, `table entry ${i} is missing`);
+    assert.equal(entry.value, res.symbols[`bios_f${i}`] - base,
+      `table entry ${i} should name bios_f${i}`);
+  }
+});
+
+test('the table has exactly as many entries as there are functions', () => {
+  const base = res.symbols.bios_entry;
+  const jtab = res.symbols.BIOS_JTABLE;
+  // Entries run from BIOS_JTABLE up to the first routine, and bios_f0 sits
+  // right after them, so the span is the entry count.
+  assert.equal(res.symbols.bios_f0 - jtab, 6);
+  assert.equal(res.symbols.BIOS_FN_COUNT, 6);
+  // And bios_entry itself is still at segment offset 0, which is what lets
+  // the entry use "MOV R3, PC" and reach the table without a fixed address.
+  assert.equal(base - 0xF8000, 0);
 });
