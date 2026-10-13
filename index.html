@@ -209,6 +209,9 @@ data_area:
             <div class="memory-panel-controls">
                 <button id="run-btn" disabled>Run</button>
                 <span id="run-state-indicator" class="run-indicator run-indicator-halt">Halt</span>
+                <button type="button" id="trace-btn" class="trace-btn trace-on"
+                        aria-pressed="true"
+                        title="Panels follow the machine. Click to stop redrawing them.">Trace</button>
                 <span id="core-stats" class="core-stats" title="Cycle, stall, flush and cache counters of the selected core"></span>
                 <span id="core-stats-mini" class="core-stats-mini" title="Cycle, stall, flush and cache counters of the selected core"></span>
                 <button id="step-btn" disabled>Step</button>
@@ -372,7 +375,7 @@ data_area:
     <script src="js/deep16_disassembler.js?v=20261006-1"></script>
     <script src="js/deep16_simulator.js?v=20261011-1"></script>
     <script src="js/deep16_ui_registers.js?v=20261006-1"></script>
-    <script src="js/deep16_ui_memory.js?v=20261013-1"></script>
+    <script src="js/deep16_ui_memory.js?v=20261013-2"></script>
     <script src="js/deep16_ui_screen.js?v=20261011-5"></script>
     <script type="module">
         try {
@@ -409,6 +412,6 @@ data_area:
             console.warn('RTL module not loaded', e);
         }
     </script>
-    <script src="js/deep16_ui_core.js?v=20261012-3"></script>
+    <script src="js/deep16_ui_core.js?v=20261013-1"></script>
 </body>
 </html>

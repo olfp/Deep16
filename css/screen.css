@@ -313,3 +313,52 @@
     outline: none;
     opacity: 0;
 }
+
+/* The Trace switch, next to the run state indicator: a pill with a knob that
+   slides, in the iOS style. It is on when the panels follow the machine and off
+   when they are held still, and the machine runs either way - which is the
+   whole point of it, since a program that redraws a screen costs more in panel
+   repaints than in instructions. */
+.trace-btn {
+    position: relative;
+    width: 76px;
+    height: 22px;
+    margin-left: 8px;
+    padding: 0;
+    border: none;
+    border-radius: 11px;
+    background: #4a4a4c;
+    color: #f0f0f0;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 22px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.trace-btn::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    transition: left 0.15s ease;
+}
+
+.trace-btn.trace-on {
+    background: #2f9e4f;
+    color: #06180c;
+}
+
+.trace-btn.trace-on::before { left: 56px; }
+
+/* A load forces the trace off, so the switch is pressed in the sense of
+   "disabled" while it runs - it is not the user's choice at that moment. */
+.trace-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+}

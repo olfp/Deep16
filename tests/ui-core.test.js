@@ -190,57 +190,101 @@ test('the panels read through the active core, never a hardcoded module', () => 
 });
 
 // ---------------------------------------------------------------------------
-// Holding the memory panel still while a file loads.
+// The Trace switch: one gate in front of every panel.
 //
-// The panel is held still by a guard inside the three functions that draw it,
-// not at the call sites. Guarding the callers was tried first and did not work:
-// jsRun follows the PC when it jumps and calls renderMemoryDisplay() from
-// there, on its own, so the panel kept redrawing through the whole load - the
-// kernel jumps between the dictionary and the screen buffer thousands of times
-// while it types a file in. This drives that caller, not updateAllDisplays().
+// The memory panel was still live through a load after the guard moved inside
+// its drawing functions, so this drives the gate itself rather than any one
+// caller: whatever redraws, it has to come through isTraceOn().
 // ---------------------------------------------------------------------------
 
-test('the memory panel does not redraw while a file is being loaded', () => {
-  const memSrc = fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_memory.js'), 'utf8');
-  const memoryUI = vm.runInThisContext(memSrc, { filename: 'deep16_ui_memory.js' });
-  const Deep16MemoryUI = vm.runInThisContext('Deep16MemoryUI');
-  assert.ok(Deep16MemoryUI, 'deep16_ui_memory.js must define Deep16MemoryUI');
+test('the trace switch stops every panel, and a load stops it without asking', () => {
+  const ui = makeUi();
+  ui.traceOn = true;
+  ui.updateTraceButton = () => {};
+  assert.equal(ui.isTraceOn(), true, 'on by default');
 
-  // A stand-in for the memory panel that counts what it is asked to draw.
+  ui.traceOn = false;
+  assert.equal(ui.isTraceOn(), false, 'the user can turn it off');
+  ui.traceOn = false;
+  ui.fileUpload = { name: 'x.fth', keys: [], pos: 0, done: false };
+  assert.equal(ui.isTraceOn(), false, 'a load keeps it off');
+  ui.traceOn = true;
+  assert.equal(ui.isTraceOn(), false, 'even when the user wants it on - the load wins');
+  ui.fileUpload.done = true;
+  assert.equal(ui.isTraceOn(), true, 'and it comes back when the load is over');
+
+  // Nothing reaches the panels while it is off.
+  let touched = 0;
+  ui.registerUI = { updateRegisterDisplay() { touched++; }, updatePSWDisplay() { touched++; },
+                    updateSegmentRegisters() { touched++; }, updateShadowRegisters() { touched++; } };
+  ui.memoryUI = { updateMemoryDisplay() { touched++; }, updateRecentMemoryDisplay() { touched++; } };
+  ui.screenUI = { updateScreenDisplay() { touched++; } };
+  ui.updateSegmentNavigationFields = () => {};
+  ui.updateCoreStats = () => {};
+
+  ui.traceOn = false;
+  ui.fileUpload = null;
+  ui.updateAllDisplays();
+  assert.equal(touched, 0, 'no panel may be touched while the trace is off');
+
+  ui.traceOn = true;
+  ui.updateAllDisplays();
+  // Four register panels, the memory view and the recent-memory view, the screen.
+  assert.equal(touched, 7, 'and all of them come back when it is on');
+});
+
+test('the keyboard-queue warning goes to the log once per load, not once per stall', () => {
+  // A load that outruns the machine goes full, drains a little, full again -
+  // every tick or two. Reporting each episode put hundreds of identical lines
+  // in the transcript and pushed the useful ones out of sight.
+  const ui = makeUi();
+  ui.setUploadHint = () => {};
+  ui.status = () => {};
+  // Long enough that the pump cannot finish it in the gaps, which is the whole
+  // point: the old code finished this on its second call and only ever stalled
+  // once, so a test that passes both ways proves nothing.
+  const keys = new Array(400).fill(97);
+  ui.fileUpload = { name: 'hanoi.fth', keys, pos: 0, done: false, stalled: false };
+  ui.kbdPushCode = () => {};
+  let i = 0;
+  // Room only every fifth tick, so the load is still going after 20 of them.
+  ui.kbdAvailable = () => ((i++ % 5 === 4) ? 0 : 128);
+  for (let n = 0; n < 20; n++) ui.pumpKeyQueue();
+  assert.equal(ui.fileUpload.done, false, 'the load is still running after 20 ticks');
+  const warned = ui.transcript.filter(t => t.includes('Keyboard queue is full'));
+  assert.equal(warned.length, 1, `the log should carry one line, it carries ${warned.length}`);
+});
+
+test('holding the memory panel still', () => {
+  const memSrc = fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_memory.js'), 'utf8');
+  vm.runInThisContext(memSrc, { filename: 'deep16_ui_memory.js' });
+  const Deep16MemoryUI = vm.runInThisContext('Deep16MemoryUI');
+
   const ui = makeUi();
   ui.memoryStartAddress = 0;
   let drawn = 0;
   const panel = Object.create(Deep16MemoryUI.prototype);
   panel.ui = ui;
   panel.renderMemoryDisplay = () => { drawn++; };
-  panel.updateMemoryDisplay = Deep16MemoryUI.prototype.updateMemoryDisplay;
-  panel.updateRecentMemoryDisplay = Deep16MemoryUI.prototype.updateRecentMemoryDisplay;
   panel.uploadBusy = Deep16MemoryUI.prototype.uploadBusy;
 
-  // A DOM stub standing in for the panel's own element, so updateMemoryDisplay
-  // runs its full path and ends at renderMemoryDisplay - which is the counter.
   const host = { innerHTML: '' };
   const savedGet = globalThis.document.getElementById;
   globalThis.document.getElementById = (id) => (id === 'memory-display' ? host : null);
   try {
-    // Nothing loading: the panel is drawn.
+    ui.traceOn = true;
     ui.fileUpload = null;
-    assert.equal(panel.uploadBusy(), false, 'nothing loading');
     panel.updateMemoryDisplay();
-    assert.equal(drawn, 1, 'with nothing loading the panel is drawn');
+    assert.equal(drawn, 1, 'with the trace on the panel is drawn');
 
-    // An upload in flight - queued, not done - is what the run loop sees.
-    ui.fileUpload = { name: 'hanoi.fth', keys: [1], pos: 0, done: false, stalled: false };
-    assert.equal(panel.uploadBusy(), true, 'an unfinished upload counts as loading');
+    ui.fileUpload = { name: 'hanoi.fth', keys: [1], pos: 0, done: false };
     panel.updateMemoryDisplay();
     panel.updateRecentMemoryDisplay();
-    assert.equal(drawn, 1, 'the memory panel must not be drawn while loading');
+    assert.equal(drawn, 1, 'and it is not drawn while a load is running');
 
-    // Finished, not cancelled: done is set and the view is released again.
     ui.fileUpload.done = true;
-    assert.equal(panel.uploadBusy(), false, 'a finished upload is not loading');
     panel.updateMemoryDisplay();
-    assert.equal(drawn, 2, 'and the panel comes back');
+    assert.equal(drawn, 2, 'and it comes back when the load is over');
   } finally {
     globalThis.document.getElementById = savedGet;
   }
@@ -1387,6 +1431,18 @@ test('the memory display is held still while a file is typing itself in', () => 
   memoryUpdates = 0; screenUpdates = 0;
   ui.fileUpload = { name: 'hanoi.fth', keys: [], pos: 0, done: false, stalled: false };
   ui.updateAllDisplays();
-  assert.equal(memoryUpdates, 0, 'while typing itself in, the memory view is not worth redrawing');
-  assert.equal(screenUpdates, 1, 'but the screen is the one being watched');
+  // Nothing at all while a load runs, the screen included. It used to be the
+  // one exception, on the grounds that the screen is what the user is watching
+  // - which was true when the only alternative was redrawing the memory view,
+  // and is not now that there is a switch for the whole thing. A load is ten
+  // thousand keystrokes and a redraw per tick is ten thousand redraws nobody
+  // can read anyway; the screen catches up when the load finishes.
+  assert.equal(memoryUpdates, 0, 'the memory view is not redrawn');
+  assert.equal(screenUpdates, 0, 'and neither is the screen');
+
+  // Done: everything comes back in one go.
+  ui.fileUpload.done = true;
+  ui.updateAllDisplays();
+  assert.equal(memoryUpdates, 2, 'the memory views refresh when the load is over');
+  assert.equal(screenUpdates, 1, 'and so does the screen');
 });

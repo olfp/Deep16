@@ -262,8 +262,8 @@ isCodeAddress(address) {
     // are a dozen-odd callers of these three functions and only some of them
     // go through updateAllDisplays(); one guard inside covers all of them.
     uploadBusy() {
-        return !!(this.ui && typeof this.ui.uploadInFlight === 'function'
-                  && this.ui.uploadInFlight());
+        return !(this.ui && typeof this.ui.isTraceOn === 'function'
+                 && this.ui.isTraceOn());
     }
 
 // In deep16_ui_memory.js - Replace updateMemoryDisplay method:
@@ -499,6 +499,7 @@ getExactSourceForAddress(address) {
     }
 
     scrollToPC() {
+        if (this.uploadBusy()) return;
         const physPC = this.getCurrentPhysPC();
         this.scrollToAddress(physPC);
     }

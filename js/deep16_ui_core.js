@@ -45,6 +45,8 @@ class DeepWebUI {
 
         // No file is being typed in yet (see queueFileUpload).
         this.fileUpload = null;
+        // Panels follow the machine until the user says otherwise.
+        this.traceOn = true;
         // Whether typed characters are drawn on the screen. The machine starts
         // with echo on; see setEchoEnabled for the cell behind it.
         this.echoOn = true;
@@ -487,6 +489,7 @@ class DeepWebUI {
                 pos: 0, done: false, stalled: false, echoRestore: true,
             };
             this.uploadKeysDropped = false;
+            this.updateTraceButton();
             this.setEchoEnabled(false);
             this.updateUploadButton();
             this.addTranscriptEntry(
@@ -504,6 +507,49 @@ class DeepWebUI {
     setUploadHint(text) {
         const el = document.getElementById('file-upload-hint');
         if (el) el.textContent = text;
+    }
+
+    // One switch for every display update in the IDE.
+    //
+    // Turning the trace off does not stop the machine: the program runs on, the
+    // registers and the memory and the screen all keep changing underneath, and
+    // nothing is redrawn. That is worth having because the redraw costs more
+    // than the program does - a Forth kernel that is drawing a screenful, or
+    // typing ten thousand keystrokes, changes memory thousands of times a
+    // second and every one of those changes was building a row of markup.
+    //
+    // An upload forces it off for its own duration, which is what the upload
+    // button uses this for. The user's own setting is left alone; it is only
+    // overridden while the load runs, and the switch says so while it does.
+    isTraceOn() {
+        if (this.uploadInFlight()) return false;
+        return this.traceOn !== false;
+    }
+
+    // The Trace switch. While a load is running it reads as off and cannot be
+    // pressed: it is not the user's choice at that moment, and a switch that
+    // shows "on" while nothing is being drawn is worse than no switch.
+    updateTraceButton() {
+        const btn = document.getElementById('trace-btn');
+        if (!btn) return;
+        const forced = this.uploadInFlight();
+        const on = this.isTraceOn();
+        btn.classList.toggle('trace-on', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.disabled = forced;
+        btn.title = forced
+            ? 'Off while a file is being loaded - the panels refresh once it is done'
+            : (on ? 'Panels follow the machine. Click to stop redrawing them.'
+                  : 'Panels are held still; the machine still runs. Click to follow it again.');
+    }
+
+    toggleTrace() {
+        this.traceOn = !this.isTraceOn();
+        this.updateTraceButton();
+        // Something has changed under the panels while they were frozen, or the
+        // panels were frozen and now are not - either way they need one redraw.
+        if (this.isTraceOn()) this.updateAllDisplays();
+        else this.addTranscriptEntry('Trace off - panels held still, machine still running', "info");
     }
 
     // True while a file is queued and not yet fully typed.
@@ -542,6 +588,7 @@ class DeepWebUI {
         this.kbdClearAll();
         this.setUploadHint('');
         this.updateUploadButton();
+        this.updateTraceButton();
         // The memory display was held still for the duration; show what the
         // machine actually holds now.
         if (this.memoryUI && typeof this.memoryUI.updateMemoryDisplay === 'function') {
@@ -567,13 +614,20 @@ class DeepWebUI {
         let room = Number.isFinite(avail) ? (DeepWebUI.KBD_FIFO_DEPTH - avail) : 1;
         room = Math.min(room, DeepWebUI.KBD_CHUNK);
         if (room <= 0) {
-            // The queue is full and only the machine can empty it. Say so once
-            // rather than on every tick.
+            // The queue is full and only the machine can empty it.
             if (!src.stalled) {
                 src.stalled = true;
-                this.addTranscriptEntry('Keyboard queue is full - press Run to let the machine read', "warning");
                 this.status('Keyboard queue full - press Run');
                 this.setUploadHint('queue full - press Run');
+            }
+            // The transcript line is the one that costs, and this used to put
+            // one in per stall episode: a load that outruns the machine goes
+            // full, drains a little, full again, every tick or two, so a single
+            // hanoi.fth put hundreds of identical lines in the log and pushed
+            // the useful ones out of sight. Once per load is enough to say it.
+            if (!src.reportedFull) {
+                src.reportedFull = true;
+                this.addTranscriptEntry('Keyboard queue is full - press Run to let the machine read', "warning");
             }
             return 0;
         }
@@ -597,8 +651,10 @@ class DeepWebUI {
             // the net for a machine that never got that far, so it is left pending
             // here and pulled below, once the queue has drained.
             if (src.echoRestore) src.echoPending = true;
-            // The button goes back to Upload and the memory view catches up.
+            // The button goes back to Upload, the trace switch is the user's
+            // again, and the memory view catches up.
             this.updateUploadButton();
+            this.updateTraceButton();
             if (this.memoryUI && typeof this.memoryUI.updateMemoryDisplay === 'function') {
                 this.memoryUI.updateMemoryDisplay();
             }
@@ -1064,6 +1120,9 @@ class DeepWebUI {
         const uploadInput = document.getElementById('file-upload-input');
         // One button, two jobs: it picks a file when nothing is queued and
         // cancels the load when something is.
+        const traceBtn = document.getElementById('trace-btn');
+        if (traceBtn) traceBtn.addEventListener('click', () => { this.toggleTrace(); });
+
         if (uploadBtn) uploadBtn.addEventListener('click', () => {
             if (this.uploadInFlight()) { this.cancelFileUpload('cancelled by the user'); return; }
             if (uploadInput) uploadInput.click();
@@ -1982,6 +2041,9 @@ class DeepWebUI {
     }
 
     updateAllDisplays() {
+        // One gate for every panel. Nothing here runs when the trace is off or
+        // while a load is in flight - see isTraceOn.
+        if (!this.isTraceOn()) return;
         // While a file is typing itself in there is nothing to read in the memory
         // view: it changes thousands of times a second. Measured per run tick it
         // is also the most expensive of the three things a tick does - 246 us
