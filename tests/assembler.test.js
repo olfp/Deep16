@@ -128,3 +128,89 @@ test('LDS/STS reject a fourth operand (no offset field)', () => {
     assert.equal(assemble(`${m}\n`).success, true, m);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Label arithmetic. The evaluator used to be two regular expressions covering
+// "label + 4" and "label - 4" and nothing else, so "f0 - f1" was rejected
+// while "100 * 8" missed the expression path entirely and assembled to 100.
+
+// Assemble one .word whose operand is `expr`, with `a` at address 1 and `b`
+// at address 16, so the label arithmetic has something to say.
+const gap15 = Array.from({ length: 15 }, () => '.word 0').join('\n');
+const labelWord = (expr) => {
+  const res = assemble(`.word ${expr}\na:\n${gap15}\nb:\n`);
+  assert.equal(res.success, true, `${expr}: ${(res.errors || []).join('|')}`);
+  return res.memoryChanges[0].value;
+};
+
+test('the difference of two labels assembles', () => {
+  // The case this whole change exists for: b - a is 16 - 1.
+  assert.equal(labelWord('b - a'), 15);
+  // A word is 16 bits, so a negative difference lands as its two's complement.
+  assert.equal(labelWord('a - b'), (-15) & 0xFFFF);
+});
+
+test('labels, constants and hex combine with + - * / and parentheses', () => {
+  const cases = [
+    ['b + a', 17], ['a + 4', 5], ['b - 4', 12],
+    ['2 * b', 32], ['b / 4', 4], ['b / 3', 5],          // integer division truncates
+    ['(b - a) * 2', 30], ['b - a * 2', 14],              // * binds tighter than -
+    ['0x10 + b', 32], ['$10 + b', 32], ['0x20 - 0x10', 16],
+    ["b + 'A'", 81], ['-b + 16', 0], ['b + -4', 12],
+    ['1 + 2 + 3 + 4', 10], ['((b))', 16],
+  ];
+  for (const [expr, want] of cases) {
+    assert.equal(labelWord(expr), want, expr);
+  }
+});
+
+test('label arithmetic reaches forward references', () => {
+  // Both labels are defined after the .word that uses them, so the first pass
+  // has to read them as 0 and the second pass as their real addresses.
+  const res = assemble('.word late - early\n.word 0\nearly:\n.word 0\nlate:\n');
+  assert.equal(res.success, true, (res.errors || []).join('|'));
+  assert.equal(res.memoryChanges[0].value, 1);
+});
+
+test('label arithmetic works in an instruction operand, not just .word', () => {
+  const res = assemble(`LDI b - a\na:\n${gap15}\nb:\n`);
+  assert.equal(res.success, true, (res.errors || []).join('|'));
+  assert.equal(wordsOf(res)[0] & 0x7FFF, 15);
+});
+
+test('.equ keeps the whole expression, not just its first token', () => {
+  // ".equ D, b - a" used to be split on every separator, so D was bound to b
+  // and the "- a" was dropped without complaint.
+  const res = assemble(`.equ D, b - a\n.word 0\na:\n${gap15}\nb:\n.word D\n`);
+  assert.equal(res.success, true, (res.errors || []).join('|'));
+  const last = res.memoryChanges[res.memoryChanges.length - 1].value;
+  assert.equal(last, 15, 'D should be b - a');
+});
+
+test('.equ still binds a bare register alias and a bare number', () => {
+  // A register name becomes an alias, usable wherever a register is expected.
+  assert.equal(assemble('.equ TIB R6\nMOV TIB, R2\n').success, true);
+  assert.equal(assemble('.equ N, 40\n.word N\n').memoryChanges[0].value, 40);
+  assert.equal(assemble('.equ D, 0x20\n.word D\n').memoryChanges[0].value, 0x20);
+});
+
+test('a visible operator can no longer be quietly ignored', () => {
+  // "100 * 8" used to fall through to parseInt and assemble to 100.
+  assert.equal(labelWord('100 * 8'), 800);
+  assert.equal(labelWord('100 / 8'), 12);
+});
+
+test('an unusable expression is reported rather than assembled to a wrong number', () => {
+  for (const src of [
+    '.word a - b\n',      // neither label is ever defined
+    '.word 8 / 0\n',      // division by zero
+    '.word (1 + 2\n',     // unbalanced parenthesis
+    '.word 1 + 2)\n',     // stray closing parenthesis
+    '.word 1 @ 2\n',      // stray character
+    '.word 1 + 2 3\n',    // trailing text
+  ]) {
+    const res = assemble(src);
+    assert.equal(res.success, false, `should not assemble: ${src.trim()}`);
+    assert.match(res.errors.join(), /expression|label|Division/i, src.trim());
+  }
+});

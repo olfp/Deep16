@@ -78,10 +78,14 @@ class Deep16Assembler {
                 } else if (line.startsWith('.equ')) {
                     const cleanLine = line.split(';')[0].trim();
                     const rest = cleanLine.substring(4).trim();
-                    const parts = rest.split(/[\s,]+/).filter(p => p);
-                    if (parts.length >= 2) {
-                        const name = parts[0];
-                        const value = parts[1];
+                    // The value is everything after the name, so that
+                    // ".equ D, f0 - f1" keeps the whole expression. Splitting on
+                    // every separator kept only the first token and threw the
+                    // rest away in silence, leaving D bound to f0.
+                    const eq = rest.match(/^([^\s,]+)[\s,]+(\S[\s\S]*)$/);
+                    if (eq) {
+                        const name = eq[1];
+                        const value = eq[2].trim();
                         const upperVal = value.toUpperCase();
                         if (this.isRegister(upperVal)) {
                             this.aliases[name.toUpperCase()] = upperVal;
@@ -206,10 +210,10 @@ class Deep16Assembler {
                 } else if (lineLower.startsWith('.equ')) {
                     const cleanLine = line.split(';')[0].trim();
                     const rest = cleanLine.substring(4).trim();
-                    const parts = rest.split(/[\s,]+/).filter(p => p);
-                    if (parts.length >= 2) {
-                        const name = parts[0];
-                        const value = parts[1];
+                    const eq = rest.match(/^([^\s,]+)[\s,]+(\S[\s\S]*)$/);
+                    if (eq) {
+                        const name = eq[1];
+                        const value = eq[2].trim();
                         const upperVal = value.toUpperCase();
                         if (this.isRegister(upperVal)) {
                             this.aliases[name.toUpperCase()] = upperVal;
@@ -368,24 +372,7 @@ class Deep16Assembler {
     
         // Character constants
         if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
-            const inner = trimmed.slice(1, -1);
-            if (inner.length === 1) {
-                return inner.charCodeAt(0);
-            }
-            if (inner.startsWith('\\') && inner.length === 2) {
-                const esc = inner[1];
-                switch (esc) {
-                    case 'n': return 10;
-                    case 'r': return 13;
-                    case 't': return 9;
-                    case '0': return 0;
-                    case '\\': return 92;
-                    case "'": return 39;
-                    case '"': return 34;
-                    default: throw new Error(`Invalid character escape: \\${esc}`);
-                }
-            }
-            throw new Error(`Invalid character literal: ${value}`);
+            return this.parseCharLiteral(trimmed, value);
         }
         
         // Numeric literals (handle signed decimal and signed hex before expression logic)
@@ -397,8 +384,10 @@ class Deep16Assembler {
             return parseInt(trimmed, 16);
         }
 
-        // Handle arithmetic expressions with + and - (labels +/- constants)
-        if (trimmed.includes('+') || trimmed.includes('-')) {
+        // An operator or a parenthesis makes this a full expression. This test was
+        // "+" and "-" only, so "100 * 8" missed it and fell through to the
+        // parseInt below, which assembled it to 100 without a word of warning.
+        if (/[+\-*/()]/.test(trimmed)) {
             return this.parseExpression(trimmed, firstPass);
         }
         
@@ -408,9 +397,12 @@ class Deep16Assembler {
         } else if (trimmed.startsWith('$')) {
             return parseInt(trimmed.substring(1), 16);
         } else {
-            const num = parseInt(trimmed, 10);
-            if (!isNaN(num)) {
-                return num;
+            // A bare decimal is already handled above, so anything still here
+            // that begins with a digit is malformed. This parseInt used to
+            // take the leading number and drop the rest, so ".word 1 @ 2"
+            // assembled to 1 without a word of complaint.
+            if (/^\d+$/.test(trimmed)) {
+                return parseInt(trimmed, 10);
             }
             // Label/symbol resolution (works in both passes now)
             if (this.labels && this.labels[trimmed] !== undefined) {
@@ -430,46 +422,161 @@ class Deep16Assembler {
         }
     }
 
-    // Updated parseExpression to handle forward references
+    // Character constants, shared by the plain-literal path in parseImmediate
+    // and the expression tokenizer, so that "LDI 'a' + 1" means what it says.
+    parseCharLiteral(trimmed, original) {
+        const inner = trimmed.slice(1, -1);
+        if (inner.length === 1) {
+            return inner.charCodeAt(0);
+        }
+        if (inner.startsWith('\\') && inner.length === 2) {
+            const esc = inner[1];
+            switch (esc) {
+                case 'n': return 10;
+                case 'r': return 13;
+                case 't': return 9;
+                case '0': return 0;
+                case '\\': return 92;
+                case "'": return 39;
+                case '"': return 34;
+                default: throw new Error(`Invalid character escape: \\${esc}`);
+            }
+        }
+        throw new Error(`Invalid character literal: ${original}`);
+    }
+
+    // Resolve a name to its address. Forward references are expected in the
+    // first pass, which only fixes up addresses, so they read as 0 there and
+    // are reported in the second.
+    lookupSymbol(name, firstPass) {
+        if (this.labels && this.labels[name] !== undefined) {
+            return this.labels[name];
+        }
+        if (this.symbols && this.symbols[name] !== undefined) {
+            return this.symbols[name];
+        }
+        if (firstPass) {
+            return 0;
+        }
+        throw new Error(`Unknown label in expression: ${name}`);
+    }
+
+    // Split an expression into numbers, names, operators and parentheses.
+    // Anything else is an error here, so a stray character in an operand can
+    // never be quietly dropped.
+    tokenizeExpression(expr) {
+        const tokens = [];
+        let i = 0;
+        while (i < expr.length) {
+            const c = expr[i];
+            if (/\s/.test(c)) { i++; continue; }
+
+            if ('+-*/()'.includes(c)) { tokens.push({ type: 'op', value: c }); i++; continue; }
+
+            // Character constant, including the backslash escapes.
+            if (c === "'") {
+                const end = expr.indexOf("'", i + 1);
+                if (end === -1) throw new Error(`Unterminated character constant: ${expr}`);
+                tokens.push({ type: 'num', value: this.parseCharLiteral(expr.slice(i, end + 1), expr) });
+                i = end + 1;
+                continue;
+            }
+
+            // Hex, either 0x.. or $.., then decimal.
+            const hex = c === '$'
+                ? /^\$[0-9a-fA-F]+/.exec(expr.slice(i))
+                : /^0[xX][0-9a-fA-F]+/.exec(expr.slice(i));
+            if (hex) {
+                tokens.push({ type: 'num', value: parseInt(hex[0].replace(/^\$|^0[xX]/, ''), 16) });
+                i += hex[0].length;
+                continue;
+            }
+            const dec = /^\d+/.exec(expr.slice(i));
+            if (dec) {
+                tokens.push({ type: 'num', value: parseInt(dec[0], 10) });
+                i += dec[0].length;
+                continue;
+            }
+
+            if (/[a-zA-Z_]/.test(c)) {
+                const name = /^[a-zA-Z_][a-zA-Z0-9_]*/.exec(expr.slice(i))[0];
+                tokens.push({ type: 'id', value: name });
+                i += name.length;
+                continue;
+            }
+
+            throw new Error(`Invalid character '${c}' in expression: ${expr}`);
+        }
+        return tokens;
+    }
+
+    // Evaluate a full integer expression: labels and symbols, decimal, hex and
+    // character literals, the operators + - * / and parentheses. This used to
+    // be two regular expressions covering "label + 4" and "label - 4" only,
+    // so "f0 - f1" was rejected outright while "100 * 8" fell through to
+    // parseInt and assembled to 100 without a word of complaint.
     parseExpression(expr, firstPass) {
-        // Simple expression parser for label + number and label - number
-        const plusMatch = expr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\+\s*(\d+)$/);
-        if (plusMatch) {
-            const label = plusMatch[1];
-            const offset = parseInt(plusMatch[2]);
-            if (this.labels && this.labels[label] !== undefined) {
-                return this.labels[label] + offset;
-            }
-            if (this.symbols && this.symbols[label] !== undefined) {
-                return this.symbols[label] + offset;
-            }
-            
-            if (firstPass) {
-                return 0; // Placeholder in first pass
-            } else {
-                throw new Error(`Unknown label in expression: ${label}`);
-            }
-        }
+        const tokens = this.tokenizeExpression(expr);
+        if (tokens.length === 0) throw new Error(`Invalid expression: ${expr}`);
 
-        const minusMatch = expr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\-\s*(\d+)$/);
-        if (minusMatch) {
-            const label = minusMatch[1];
-            const offset = parseInt(minusMatch[2]);
-            if (this.labels && this.labels[label] !== undefined) {
-                return this.labels[label] - offset;
-            }
-            if (this.symbols && this.symbols[label] !== undefined) {
-                return this.symbols[label] - offset;
-            }
-            
-            if (firstPass) {
-                return 0; // Placeholder in first pass
-            } else {
-                throw new Error(`Unknown label in expression: ${label}`);
-            }
-        }
+        let pos = 0;
+        const peek = () => tokens[pos];
+        const next = () => tokens[pos++];
 
-        throw new Error(`Invalid expression: ${expr}`);
+        const parseSum = () => {
+            let value = parseProduct();
+            while (peek() && peek().type === 'op' && (peek().value === '+' || peek().value === '-')) {
+                const op = next().value;
+                const rhs = parseProduct();
+                value = op === '+' ? value + rhs : value - rhs;
+            }
+            return value;
+        };
+
+        const parseProduct = () => {
+            let value = parsePrimary();
+            while (peek() && peek().type === 'op' && (peek().value === '*' || peek().value === '/')) {
+                const op = next().value;
+                const rhs = parsePrimary();
+                if (op === '*') {
+                    value = value * rhs;
+                } else {
+                    if (rhs === 0) throw new Error(`Division by zero in expression: ${expr}`);
+                    value = Math.trunc(value / rhs);
+                }
+            }
+            return value;
+        };
+
+        const parsePrimary = () => {
+            const token = next();
+            if (!token) throw new Error(`Invalid expression: ${expr}`);
+
+            if (token.type === 'num') return token.value;
+            if (token.type === 'id') return this.lookupSymbol(token.value, firstPass);
+
+            // Unary sign, and the opening parenthesis of a bracketed sum.
+            if (token.type === 'op' && (token.value === '+' || token.value === '-')) {
+                const value = parsePrimary();
+                return token.value === '-' ? -value : value;
+            }
+            if (token.type === 'op' && token.value === '(') {
+                const value = parseSum();
+                const close = next();
+                if (!close || close.type !== 'op' || close.value !== ')') {
+                    throw new Error(`Unbalanced parenthesis in expression: ${expr}`);
+                }
+                return value;
+            }
+
+            throw new Error(`Invalid expression: ${expr}`);
+        };
+
+        const result = parseSum();
+        if (pos !== tokens.length) {
+            throw new Error(`Trailing text in expression: ${expr}`);
+        }
+        return result;
     }
 
     isRegister(value) {
