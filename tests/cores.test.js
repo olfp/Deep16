@@ -463,3 +463,59 @@ test('0xFFFF halts, 0xFFF1 (FSH) runs on (both cores)', async () => {
   assert.equal(wasm.registers[0], 7, 'WASM: 0xFFF1 must not halt');
   assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF));
 });
+// A conditional jump is a 9-bit signed offset, and all three cores add it to
+// the address of the jump AFTER the automatic +1, i.e. to the delay slot:
+//
+//   js/deep16_simulator.js     registers[15] is incremented before
+//                              executeInstruction, and executeJump reads that
+//                              already-incremented value
+//   rtl/deep16_core.sv         pc_own1 + off_jcc
+//   wasm/deep16-wasm/src/lib.rs  current_pc + off, same post-increment PC
+//
+// So the assembler has to store target-(address+1). That is easy to get wrong in
+// either direction and nothing catches it by inspection: measuring from the
+// branch instead makes every taken branch land one word PAST its label, and
+// measuring from the delay slot is the only version all three cores agree on.
+// This pins both the encoding and the effect.
+test('a taken conditional branch lands on its label', () => {
+  // The word before `loop` writes a marker. If the branch lands early, that
+  // marker is written on every pass, so the count never reaches 5.
+  // Laid out at 0 so the machine's reset PC runs it: runJs does not take an
+  // entry point, and CS=0 makes PC the physical address.
+  // R9 is set before R0 is zeroed, because CMP R1, R0 needs R0 to be the zero.
+  const src = `.org 0
+.code
+start:
+    LDI 0x77
+    MOV R9, R0
+    LDI 5
+    MOV R1, R0
+    LDI 0
+    MOV R2, R0
+loop:
+    ADD R2, 1
+    SUB R1, 1
+    CMP R1, R0
+    JNZ loop
+    NOP
+    HLT
+`;
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+
+  // The encoding itself: target minus the delay slot, signed 9-bit.
+  const jnz = res.listing.find(r => r.address === res.symbols.loop + 3);
+  assert.ok(jnz, 'the JNZ is where the loop says it is');
+  const word = res.memoryChanges.find(c => c.address === jnz.address).value & 0xFFFF;
+  let off = word & 0x1FF;
+  if (off & 0x100) off -= 0x200;
+  const want = res.symbols.loop - (jnz.address + 1);
+  assert.equal(off, want,
+    'the offset is measured from the delay slot, because a core increments PC '
+    + 'before executing the branch and adds the offset to the incremented '
+    + `value; got ${off}, want ${want}`);
+
+  const { registers } = runJs(res, { cs: 0x0000, maxSteps: 2000 });
+  assert.equal(registers[2], 5, `the loop must run five times, R2=${registers[2]}`);
+  assert.equal(registers[9], 0x77, 'the marker before the label must survive');
+});
