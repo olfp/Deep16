@@ -1344,6 +1344,51 @@ test('scr@ and scr! reach the screen on the compiled cores too', async () => {
   }
 });
 
+test('the store, to and buffer fixes hold on the compiled cores too', async () => {
+  // All three behaviours were found on the JS core, and each is checked against
+  // the JS core on its own elsewhere. This one is not that: it runs the same
+  // input on all three cores and compares them to each other, so it catches a
+  // fix that holds on the JS core and not on wasm or rtl - which for a change
+  // to how many cells a store pops is a real risk, since the three step the
+  // same memory in different ways.
+  //
+  // The long line is 100 characters and the probe after it 10 more: the key FIFO
+  // is 128 deep, and a longer pair here would drop keystrokes and read as a
+  // kernel difference that is really the harness.
+  const CASES = [
+    'variable tv\n7 tv ! depth .\n',
+    'create cv 3 ,\n5 to cv\ncv @ .\n',
+    '1 '.repeat(50) + '\nnosuchword\n',
+  ];
+  const res = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'));
+  assert.ok(res.success, res.errors.join('; '));
+
+  // memoryAt(addr, n) hands back n cells STARTING at addr, so the screen words
+  // come back already indexed from 0; the JS core's memory is flat and needs the
+  // screen offset added back.
+  const head = (cells, fromZero) => {
+    const base = fromZero ? 0 : SCREEN_ADDR;
+    const rows = [];
+    for (let r = 0; r < 6; r++) {
+      let s = '';
+      for (let c = 0; c < 80; c++) s += String.fromCharCode(cells[base + r * 80 + c] & 0xFF);
+      if (s.trim()) rows.push(s.replace(/\s+$/, ''));
+    }
+    return rows;
+  };
+
+  for (const [i, src] of CASES.entries()) {
+    const keys = [...src].map(c => (c === '\n' ? 10 : c.charCodeAt(0)));
+    const want = repl(src, 2000000).rows.filter(r => r.trim()).slice(0, 4);
+    assert.ok(want.length, `case ${i} produced nothing on the JS core`);
+    for (const [name, run] of [['wasm', runWasm], ['rtl', runRtl]]) {
+      const got = head((await run(res, { keys, maxSteps: 2000000 }))
+        .memoryAt(SCREEN_ADDR, 6 * 80), true).slice(0, 4);
+      assert.deepEqual(got, want, `case ${i} differs on the ${name} core`);
+    }
+  }
+});
+
 test('scr! is the only way in, and it cannot be reached by spelling the address', () => {
   // The point of the pair: there is no literal, no arithmetic on literals, and
   // no DS-relative word that gets here. `9891 scr!` is not the screen either -

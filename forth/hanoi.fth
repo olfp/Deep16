@@ -174,12 +174,14 @@ variable r1
 \ contiguous from slot 0 - move closes the gap it opens - so the
 \ count is the index of the first empty slot.
 \
-\ It cannot use if: see note 3 above. Instead it runs while the
-\ slot it is looking at is NOT empty, which leaves the condition
-\ on the stack for the while branch and never needs a branch of
-\ its own. It relies on peg-clr having emptied every slot past the
-\ disks, which it does; a peg with a hole in the middle would
-\ count the whole peg.
+\ It runs while the slot it is looking at is NOT empty, which leaves
+\ the condition on the stack for the while branch and needs no branch
+\ of its own. That is a choice and not a workaround: an if compiled
+\ inside a begin/while/repeat body runs on every pass, so note 3's
+\ claim that it could not was wrong. What this form does rely on is
+\ peg-clr having emptied every slot past the disks, which it does -
+\ and a peg with a hole in the middle would UNDERCOUNT, stopping at
+\ the hole rather than counting past it.
 
 : pcount ( peg -- n )
     0 ts !
@@ -230,10 +232,12 @@ variable r1
 \ disks of a peg holding n of them sit on rows 23-n to 22, counted up
 \ from the ground.
 \
-\ Its ifs are its own, which is the point of keeping it separate: a
-\ branch compiled inside a loop body runs once and not again (note 3),
-\ so this must not be inlined into peg-draw's loop. It is not - it is
-\ a word, called from there.
+\ It is a word rather than a block inside peg-draw because it is a
+\ different job: peg-draw clears the column before it draws, and do-move
+\ needs the row drawn WITHOUT that clear, since the row is bare pole with
+\ no disk on it. Note 3 once claimed an if could not be inlined into a
+\ loop body at all; that was wrong, and the separate word is here for the
+\ clear-or-not difference rather than for the compiler.
 
 : peg-row0 ( peg row -- )
     tr ! tp !
@@ -387,8 +391,10 @@ variable mv-disk
 \ reverse, walking the other way down so that a disk is read
 \ before the slot above it is overwritten.
 \
-\ Neither has an if between its begin and its repeat - see note 3
-\ - because a branch there runs once and not at all.
+\ Neither needs a branch: each loop walks a fixed number of slots and the
+\ work per slot is the same copy in both. shift-peg walks up from 0 and
+\ open-peg walks down from nd-1, because each overwrites the cell the other
+\ would read next.
 
 : shift-peg ( peg -- )
     tp !
