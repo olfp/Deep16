@@ -2149,7 +2149,11 @@ class DeepWebUI {
             const end = Math.min(start + 64, this.simulator.memory.length);
             const pcVisible = physPC >= start && physPC < end;
             const jumpedFar = Math.abs(physPC - this.lastPhysPC) > 16;
-            if (!pcVisible && jumpedFar) {
+            // Behind the same gate as the panel it belongs to. This block also
+            // writes the "Start" input, which is why the memory panel kept
+            // showing one live field after the drawing itself had stopped: the
+            // three drawing functions were all held still and this was not.
+            if (this.isTraceOn() && !pcVisible && jumpedFar) {
                 const windowSize = 64;
                 const memLen = this.simulator.memory.length >>> 0;
                 let targetStart = (physPC - (windowSize >> 1)) >>> 0;

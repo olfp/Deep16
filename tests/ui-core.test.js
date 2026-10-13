@@ -35,10 +35,16 @@ vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_core.js'), 
 // directly, so it has to be in scope here.
 vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_screen.js'), 'utf8'),
                     { filename: 'deep16_ui_screen.js' });
+// The memory panel too: its trace gate and its throttle are exercised below,
+// and re-running the file per test redeclares the class.
+vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_memory.js'), 'utf8'),
+                    { filename: 'deep16_ui_memory.js' });
 const DeepWebUI = vm.runInThisContext('DeepWebUI');
 const Deep16Simulator = vm.runInThisContext('Deep16Simulator');
 const Deep16ScreenUI = vm.runInThisContext('Deep16ScreenUI');
+const Deep16MemoryUI = vm.runInThisContext('Deep16MemoryUI');
 assert.ok(Deep16ScreenUI, 'deep16_ui_screen.js must define Deep16ScreenUI');
+assert.ok(Deep16MemoryUI, 'deep16_ui_memory.js must define Deep16MemoryUI');
 
 const PROGRAM = `
         .org 0x0100
@@ -256,10 +262,6 @@ test('the keyboard-queue warning goes to the log once per load, not once per sta
 });
 
 test('holding the memory panel still', () => {
-  const memSrc = fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_memory.js'), 'utf8');
-  vm.runInThisContext(memSrc, { filename: 'deep16_ui_memory.js' });
-  const Deep16MemoryUI = vm.runInThisContext('Deep16MemoryUI');
-
   const ui = makeUi();
   ui.memoryStartAddress = 0;
   let drawn = 0;
@@ -285,6 +287,45 @@ test('holding the memory panel still', () => {
     ui.fileUpload.done = true;
     panel.updateMemoryDisplay();
     assert.equal(drawn, 2, 'and it comes back when the load is over');
+  } finally {
+    globalThis.document.getElementById = savedGet;
+  }
+});
+
+test('the memory view is throttled while the machine runs, and not while it does not', () => {
+  // It is the most expensive thing a run tick does and the one that gains least
+  // from 100 Hz - and a stretched tick makes a drawing program look like it is
+  // running at a cell a second.
+  const ui = makeUi();
+  ui.memoryStartAddress = 0;
+  let drawn = 0;
+  const panel = Object.create(Deep16MemoryUI.prototype);
+  panel.ui = ui;
+  panel.renderMemoryDisplay = () => { drawn++; };
+
+  const host = { innerHTML: '' };
+  const savedGet = globalThis.document.getElementById;
+  globalThis.document.getElementById = (id) => (id === 'memory-display' ? host : null);
+  try {
+    ui.traceOn = true;
+    ui.fileUpload = null;
+
+    // Stopped: every call draws. Clicking around must never be swallowed.
+    ui.simulator.running = false;
+    panel.updateMemoryDisplay();
+    panel.updateMemoryDisplay();
+    assert.equal(drawn, 2, 'while stopped, every request is honoured');
+
+    // Running: at most one draw per 200 ms however often it is asked.
+    ui.simulator.running = true;
+    drawn = 0;
+    for (let i = 0; i < 50; i++) panel.updateMemoryDisplay();
+    assert.equal(drawn, 1, `50 requests in a burst must cost one draw, they cost ${drawn}`);
+
+    // And once the interval has passed it draws again.
+    panel.lastMemoryDraw = 0;
+    panel.updateMemoryDisplay();
+    assert.equal(drawn, 2, 'the throttle opens again');
   } finally {
     globalThis.document.getElementById = savedGet;
   }
@@ -404,9 +445,13 @@ test('loading hanoi.fth types the file in silently and then draws the board', ()
     }
     assert.equal(screen[r].includes('#'), false, `no disk belongs above row 18 (row ${r})`);
   }
-  // Rows 18-22 hold the five disks, widest at the bottom, each centred on peg C
-  // and covering its own pole. Pegs A and B are empty, so their poles show.
-  for (const [row, width] of [[18, 11], [19, 9], [20, 7], [21, 5], [22, 3]]) {
+  // Rows 18-22 hold the five disks, SMALLEST at the top and the widest at the
+  // bottom, each centred on peg C and covering its own pole. Pegs A and B are
+  // empty, so their poles show. The widths are what pins the order: they came
+  // out 11 at the top for a while, because fill-a stacked n-i rather than i+1,
+  // and the puzzle still solved - every disk was still moved once - so nothing
+  // else noticed.
+  for (const [row, width] of [[18, 3], [19, 5], [20, 7], [21, 9], [22, 11]]) {
     const line = screen[row];
     const first = line.indexOf('#');
     const last = line.lastIndexOf('#');

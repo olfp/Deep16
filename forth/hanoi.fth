@@ -293,14 +293,23 @@ variable r1
         ts @ 1 + ts set!
     repeat drop ;
 
-\ fill-a stacks n disks on peg A, smallest on top. Slot 0 is the
-\ top, so slot i holds n-i.
+\ fill-a stacks n disks on peg A, smallest on top.
+\
+\ Slot 0 is the top, and move takes slot 0 off one peg and puts
+\ it on slot 0 of another, so slot i has to hold disk i+1.
+\
+\ It held n-i instead, which is the same stack upside down: the
+\ largest disk went in slot 0, move therefore moved the largest
+\ one first, and the board drew the widest disk at the top. The
+\ puzzle still solved - every disk is still moved once, from one
+\ peg to another - so nothing checked the order and the mistake
+\ only showed as a picture with the big end in the air.
 
 : fill-a ( n -- )
     tn set!
     0 ts set!
     begin ts @ tn @ < while
-        tn @ ts @ - pa @ ts @ + set!
+        ts @ 1 + pa @ ts @ + set!
         ts @ 1 + ts set!
     repeat ;
 

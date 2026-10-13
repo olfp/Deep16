@@ -270,6 +270,23 @@ isCodeAddress(address) {
 
 updateMemoryDisplay() {
     if (this.uploadBusy()) return;
+    // The memory view is the most expensive thing a run tick does, and it is
+    // the one that gains least from running at the run loop's 100 ticks a
+    // second: it builds a row of markup for 64 words, disassembly and colour
+    // included, and hands the lot to innerHTML. Measured at 246 us per call
+    // with a stub DOM, and a real innerHTML assignment is two orders of that
+    // again - which stretches every tick until the machine gets through its
+    // 200 steps a second late, and a program that draws a screen then looks
+    // like it is running at a cell a second.
+    //
+    // A memory view is a table being read, not an animation. 5 Hz is plenty,
+    // and it costs a fifth of what it did. The screen display, which IS the
+    // animation, keeps the full rate.
+    if (this.ui.simulator.running) {
+        const now = Date.now();
+        if (now - (this.lastMemoryDraw || 0) < 200) return;
+        this.lastMemoryDraw = now;
+    }
     const memoryDisplay = document.getElementById('memory-display');
     if (!memoryDisplay) return;
     
@@ -541,6 +558,14 @@ getExactSourceForAddress(address) {
 
     updateRecentMemoryDisplay() {
         if (this.uploadBusy()) return;
+        // Throttled with the main view, for the same reason: it reads a
+        // window of recently written memory and rebuilds it, and the machine
+        // does not get any faster for it.
+        if (this.ui.simulator.running) {
+            const now = Date.now();
+            if (now - (this.lastRecentDraw || 0) < 200) return;
+            this.lastRecentDraw = now;
+        }
         const recentDisplay = document.getElementById('recent-memory-display');
         if (!recentDisplay) return;
         
