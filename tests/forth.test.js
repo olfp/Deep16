@@ -1189,30 +1189,30 @@ test('the attribute byte is either 0 or the cursor attribute, and no other colou
 // a BIOS routine and either keep its length or pad it back - and if the
 // padding can be removed, the stale-branch handling in the core can be fixed
 // and this test can go with it.
-test('es@ and es! reach the screen buffer, which @ and ! cannot', () => {
+test('scr@ and scr! reach the screen buffer, which @ and ! cannot', () => {
   // The screen is at 0xF1000 = ES:0x1000. @ and ! address through DS, whose base
   // is 0 and whose offset is 16 bits, so they reach 0x00000-0x0FFFF and stop.
   // The buffer is 20 bits up, and a Forth literal cannot even name it. ES is the
   // other segment and is left at 0xF000, so ES:0x1000 is the screen exactly.
   //
   // Row 10, column 0 is ES:0x1000 + 800.
-  const { rows } = repl('65 4896 es! . 4896 es@ .\n');
+  const { rows } = repl('65 4896 scr! . 4896 scr@ .\n');
   assert.equal(rows[10][0], 'A', `the store did not land; screen was:\n${rows.join('\n')}`);
   const out = rows.find(r => r.includes('ok'));
   assert.ok(out, `the line did not run; screen was:\n${rows.join('\n')}`);
-  // One 65 is the echo of the literal, the next two are es!'s leftover and
-  // what es@ read back. Counting them says both without pinning the spacing.
+  // One 65 is the echo of the literal, the next two are scr!'s leftover and
+  // what scr@ read back. Counting them says both without pinning the spacing.
   assert.equal((out.match(/65/g) || []).length, 3,
-    `es! must leave its value as ! does and es@ must read it back; got: ${out}`);
+    `scr! must leave its value as ! does and scr@ must read it back; got: ${out}`);
 
   // A cell is a character in the low byte and an attribute in the high one:
   // foreground in the low nibble, background in the high nibble.
-  const { rows: colour } = repl('35 3 256 * + 4896 es! drop 4896 es@ .\n');
+  const { rows: colour } = repl('35 3 256 * + 4896 scr! drop 4896 scr@ .\n');
   assert.equal(colour[10][0], '#', 'the low byte of the cell is the character');
   assert.equal(rows.length > 10, true);
 });
 
-test('es@ and es! reach the screen on the compiled cores too', async () => {
+test('scr@ and scr! reach the screen on the compiled cores too', async () => {
   // hanoi.fth draws the whole board through these two words, and the compiled
   // cores decode segments themselves. If ES stores landed somewhere else there,
   // the board would be fine on the JS core and blank on the other two - which
@@ -1222,7 +1222,7 @@ test('es@ and es! reach the screen on the compiled cores too', async () => {
   // Row 10, column 0 is ES:0x1000 + 800. The kernel sets ES itself at boot, so
   // it is passed in as 0 and forth_start puts it at 0xF000.
   const CELL = 0xF1000 + 800;
-  const keys = [...'65 4896 es! drop\n'].map(c => (c === '\n' ? 10 : c.charCodeAt(0)));
+  const keys = [...'65 4896 scr! drop\n'].map(c => (c === '\n' ? 10 : c.charCodeAt(0)));
   const want = 'A';
   for (const [name, run] of [['wasm', runWasm], ['rtl', runRtl]]) {
     const r = await run(res, { keys, maxSteps: 400000 });
@@ -1232,11 +1232,11 @@ test('es@ and es! reach the screen on the compiled cores too', async () => {
   }
 });
 
-test('es! is the only way in, and it cannot be reached by spelling the address', () => {
+test('scr! is the only way in, and it cannot be reached by spelling the address', () => {
   // The point of the pair: there is no literal, no arithmetic on literals, and
-  // no DS-relative word that gets here. `9891 es!` is not the screen either -
+  // no DS-relative word that gets here. `9891 scr!` is not the screen either -
   // it is a DS address, a different 32KB of memory altogether.
-  const { rows } = repl('65 9891 es! drop\n');
+  const { rows } = repl('65 9891 scr! drop\n');
   assert.equal(rows[10][0] !== 'A', true, 'ES:9891 is not the screen');
   assert.ok(rows.some(r => r.includes('ok')), 'but it is a legal store');
 });

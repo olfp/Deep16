@@ -1336,17 +1336,17 @@ h_minus:
 ; These are the newest entries in the whole dictionary, so the oldest of them
 ; links into the vocabulary chain below and forth_wl names the newest.
 ;
-; es@ and es! are newer still, and sit above them for the same reason.
-h_es_fetch:
-    .word h_es_store
-    .word 3
-    .text "es@"
-    .word word_es_fetch
-h_es_store:
+; scr@ and scr! are newer still, and sit above them for the same reason.
+h_scr_fetch:
+    .word h_scr_store
+    .word 4
+    .text "scr@"
+    .word word_scr_fetch
+h_scr_store:
     .word h_echo_query
-    .word 3
-    .text "es!"
-    .word word_es_store
+    .word 4
+    .text "scr!"
+    .word word_scr_store
 h_echo_query:
     .word h_echo
     .word 5
@@ -1563,7 +1563,7 @@ h_fetch:
 ; --- wordlists: a vocabulary is identified by the address of its head cell,
 ; --- which chains its definitions newest-first and ends in 0.
 forth_wl:
-    .word h_es_fetch         ; newest built-in header in the FORTH vocabulary
+    .word h_scr_fetch         ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
     .word forth_wl
     .word 0, 0, 0, 0, 0, 0, 0
@@ -2804,13 +2804,18 @@ wcstore_ok:
 ; exactly the screen buffer. These two are @ and ! with ES in place of DS, which
 ; is all it takes: the offset is still 16 bits, but 0x1000-0x17BF fits.
 ;
-; es! leaves its value on the stack, exactly as ! does. Callers drop it.
-word_es_fetch:
+; They are named for the screen and not for the segment because ES is not a
+; general-purpose segment here: nothing else in this kernel puts anything behind
+; it, and nothing sets it but forth_start. es@ and es! would have said how they
+; work; scr@ and scr! say what they are for.
+;
+; scr! leaves its value on the stack, exactly as ! does. Callers drop it.
+word_scr_fetch:
     LDI sp0_base
     MOV R2, R0
     LD R1, R2, 0
     CMP SP, R1
-    JZ esf_under
+    JZ scrf_under
     NOP
     LD R1, SP, 0           ; the ES offset
     LDS R2, ES, R1
@@ -2818,26 +2823,26 @@ word_es_fetch:
     LDI next
     MOV PC, R0
     NOP
-esf_under:
+scrf_under:
     LDI stack_underflow_error
     MOV PC, R0
     NOP
 
-word_es_store:
+word_scr_store:
     MOV R9, SP
     ADD R9, 2
     LDI sp0_base
     MOV R2, R0
     LD R1, R2, 0
     CMP R9, R1
-    JZ ess_ok
+    JZ scrstore_ok
     NOP
-    JN ess_ok
+    JN scrstore_ok
     NOP
     LDI stack_underflow_error
     MOV PC, R0
     NOP
-ess_ok:
+scrstore_ok:
     LD R1, SP, 0           ; the ES offset
     ADD SP, 1
     LD R2, SP, 0           ; the value

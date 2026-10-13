@@ -11,7 +11,7 @@
 \ base is 0 and whose offset is 16 bits, so between them they
 \ cover 0x00000-0x0FFFF; the buffer is 20 bits up, and a Forth
 \ literal cannot even name it. This file used to say here that
-\ drawing was impossible, and it was right until es@ and es!
+\ drawing was impossible, and it was right until scr@ and scr!
 \ arrived: the same two words with ES in place of DS. The offset
 \ is still 16 bits, which is no hindrance - the whole buffer is
 \ 0x1000 to 0x17BF.
@@ -153,15 +153,15 @@ variable r1
 \ put takes the cell's value, a row and a column.
 
 : scr ( row col -- offset ) swap 80 * + 4096 + ;
-: put ( cell row col -- ) scr es! drop ;
+: put ( cell row col -- ) scr scr! drop ;
 
 \ blank is put with a space for the cell. The value goes on AFTER scr, not
 \ before: scr spends the top two items as row and column, so a 32 pushed
 \ first would be read as the column and the address would land nowhere near
-\ row 18. The swap is what puts the value under the address for es!, which
+\ row 18. The swap is what puts the value under the address for scr!, which
 \ takes its address on top.
 
-: blank ( row col -- ) scr 32 swap es! drop ;
+: blank ( row col -- ) scr 32 swap scr! drop ;
 
 \ pcol answers which column a peg stands in. The drop on the
 \ fall-through path is not optional: without it the peg address
@@ -255,7 +255,7 @@ variable r1
 : clr-screen
     0 ts set!
     begin ts @ 1920 < while
-        32 ts @ 4096 + es! drop
+        32 ts @ 4096 + scr! drop
         ts @ 1 + ts set!
     repeat ;
 

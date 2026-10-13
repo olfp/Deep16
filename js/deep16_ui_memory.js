@@ -251,9 +251,25 @@ isCodeAddress(address) {
         return '';
     }
 
+// True while a file is being typed into the machine.
+    //
+    // The memory view is held still for the duration, and the guard belongs
+    // HERE rather than at the call sites. Guarding the callers was not enough
+    // and left the panel running through the load anyway: jsRun follows the PC
+    // when it jumps, and calls renderMemoryDisplay() from there directly, and
+    // during a load the kernel jumps constantly - between the screen buffer
+    // and the dictionary and back - so that path fired over and over. There
+    // are a dozen-odd callers of these three functions and only some of them
+    // go through updateAllDisplays(); one guard inside covers all of them.
+    uploadBusy() {
+        return !!(this.ui && typeof this.ui.uploadInFlight === 'function'
+                  && this.ui.uploadInFlight());
+    }
+
 // In deep16_ui_memory.js - Replace updateMemoryDisplay method:
 
 updateMemoryDisplay() {
+    if (this.uploadBusy()) return;
     const memoryDisplay = document.getElementById('memory-display');
     if (!memoryDisplay) return;
     
@@ -297,6 +313,7 @@ updateMemoryDisplay() {
 }
 
     renderMemoryDisplay() {
+        if (this.uploadBusy()) return;
         const memoryDisplay = document.getElementById('memory-display');
         if (!memoryDisplay) return;
     
@@ -522,6 +539,7 @@ getExactSourceForAddress(address) {
  
 
     updateRecentMemoryDisplay() {
+        if (this.uploadBusy()) return;
         const recentDisplay = document.getElementById('recent-memory-display');
         if (!recentDisplay) return;
         

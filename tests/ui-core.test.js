@@ -190,6 +190,63 @@ test('the panels read through the active core, never a hardcoded module', () => 
 });
 
 // ---------------------------------------------------------------------------
+// Holding the memory panel still while a file loads.
+//
+// The panel is held still by a guard inside the three functions that draw it,
+// not at the call sites. Guarding the callers was tried first and did not work:
+// jsRun follows the PC when it jumps and calls renderMemoryDisplay() from
+// there, on its own, so the panel kept redrawing through the whole load - the
+// kernel jumps between the dictionary and the screen buffer thousands of times
+// while it types a file in. This drives that caller, not updateAllDisplays().
+// ---------------------------------------------------------------------------
+
+test('the memory panel does not redraw while a file is being loaded', () => {
+  const memSrc = fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_memory.js'), 'utf8');
+  const memoryUI = vm.runInThisContext(memSrc, { filename: 'deep16_ui_memory.js' });
+  const Deep16MemoryUI = vm.runInThisContext('Deep16MemoryUI');
+  assert.ok(Deep16MemoryUI, 'deep16_ui_memory.js must define Deep16MemoryUI');
+
+  // A stand-in for the memory panel that counts what it is asked to draw.
+  const ui = makeUi();
+  ui.memoryStartAddress = 0;
+  let drawn = 0;
+  const panel = Object.create(Deep16MemoryUI.prototype);
+  panel.ui = ui;
+  panel.renderMemoryDisplay = () => { drawn++; };
+  panel.updateMemoryDisplay = Deep16MemoryUI.prototype.updateMemoryDisplay;
+  panel.updateRecentMemoryDisplay = Deep16MemoryUI.prototype.updateRecentMemoryDisplay;
+  panel.uploadBusy = Deep16MemoryUI.prototype.uploadBusy;
+
+  // A DOM stub standing in for the panel's own element, so updateMemoryDisplay
+  // runs its full path and ends at renderMemoryDisplay - which is the counter.
+  const host = { innerHTML: '' };
+  const savedGet = globalThis.document.getElementById;
+  globalThis.document.getElementById = (id) => (id === 'memory-display' ? host : null);
+  try {
+    // Nothing loading: the panel is drawn.
+    ui.fileUpload = null;
+    assert.equal(panel.uploadBusy(), false, 'nothing loading');
+    panel.updateMemoryDisplay();
+    assert.equal(drawn, 1, 'with nothing loading the panel is drawn');
+
+    // An upload in flight - queued, not done - is what the run loop sees.
+    ui.fileUpload = { name: 'hanoi.fth', keys: [1], pos: 0, done: false, stalled: false };
+    assert.equal(panel.uploadBusy(), true, 'an unfinished upload counts as loading');
+    panel.updateMemoryDisplay();
+    panel.updateRecentMemoryDisplay();
+    assert.equal(drawn, 1, 'the memory panel must not be drawn while loading');
+
+    // Finished, not cancelled: done is set and the view is released again.
+    ui.fileUpload.done = true;
+    assert.equal(panel.uploadBusy(), false, 'a finished upload is not loading');
+    panel.updateMemoryDisplay();
+    assert.equal(drawn, 2, 'and the panel comes back');
+  } finally {
+    globalThis.document.getElementById = savedGet;
+  }
+});
+
+// ---------------------------------------------------------------------------
 // The file upload on the Screen tab (js/deep16_ui_core.js). The browser picks an
 // ASCII file and types it into the machine: every character becomes a keystroke,
 // every line ending a Return. Nothing else happens - the kernel sees the same
