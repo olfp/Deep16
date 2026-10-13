@@ -3722,7 +3722,23 @@ word_to:
     CMP R1, R0
     JZ to_unknown
     NOP
+    ; R1 is the word's code field. A variable's data is the one cell past it,
+    ; but a CREATE'd word keeps its DOES> thread there and its data one cell
+    ; further on - so `to` has to ask which kind of word it found. Writing the
+    ; value over a created word's thread made dodoes take it for an xt and jump
+    ; there, and the interpreter died on the word's next use.
+    LD R3, R1, 0           ; the word's runtime
+    LDI dodoes
+    CMP R3, R0
+    JZ to_created
+    NOP
     ADD R1, 1             ; value cell address
+    LDI to_got_cell
+    MOV PC, R0
+    NOP
+to_created:
+    ADD R1, 2             ; past the DOES> thread
+to_got_cell:
     LDI state_var
     MOV R2, R0
     LD R2, R2, 0

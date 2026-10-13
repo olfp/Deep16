@@ -668,6 +668,37 @@ test('value reads and to writes in interpret and compile state', () => {
   assert.equal(rows[10], '>');
 });
 
+test('to reaches a created word\'s data field, not its DOES> cell', () => {
+  // A created word holds two cells behind its code field: the DOES> thread and
+  // then its data. A variable holds one. `to` adds 1 to the code field, which
+  // is a variable's data cell and a created word's DOES> cell - so `to` wrote
+  // the value into the thread, and dodoes then took it for a threaded xt and
+  // jumped there on the word's next use. The interpreter died on 0xFFFF.
+  //
+  // The store itself reported ok, so nothing looked wrong until the word ran.
+  const { rows, running } = repl(
+    'create cv 3 ,\n' +
+    '5 to cv\n' +
+    'cv @ .\n'
+  );
+  assert.equal(rows[1], '> create cv 3 , ok');
+  assert.equal(rows[2], '> 5 to cv ok');
+  assert.equal(rows[3], '> cv @ . 5  ok', `screen was:\n${rows.join('\n')}`);
+  assert.ok(running, 'the REPL must survive `to` on a created word');
+
+  // The DOES> thread itself is what the old store clobbered, so a created
+  // word that has behaviour attached must keep it across a `to`.
+  const { rows: attached } = repl(
+    ': const create , does> @ ;\n' +
+    '42 const answer\n' +
+    '9 to answer\n' +
+    'answer .\n'
+  );
+  assert.equal(attached[3], '> 9 to answer ok');
+  assert.equal(attached[4], '> answer . 9  ok',
+    `a to must not overwrite the DOES> thread; screen was:\n${attached.join('\n')}`);
+});
+
 test('to rejects an unknown name without corrupting the value', () => {
   const { rows, running } = repl(
     '5 value v\n' +
