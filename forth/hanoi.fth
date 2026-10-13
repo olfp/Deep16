@@ -26,6 +26,10 @@
 \
 \ --- what the kernel will not do ----------------------------------
 \
+\ Only 4 is still true. 1 is fixed, 2 is narrower than it says, and
+\ 3 was never a bug - all three are written up here because this
+\ file once believed otherwise and the reasons are worth keeping.
+\
 \   1. `!` used to leave its value on the stack: it popped the
 \      address and then read the value off the top without popping
 \      it, so one leftover grew per store, without bound inside a
@@ -49,9 +53,11 @@
 \      branch-free form it was rewritten into on that false belief.
 \      It answers the same either way.
 \
-\   4. The input buffer holds 86 characters, so a line longer
-\      than that is not interpreted as it was typed. Keep lines
-\      at 78 or below.
+\   4. The input buffer holds 128 characters and drops the rest, so
+\      a line longer than that is typed but cut off. Keep lines at
+\      78 or below. It was 86 and nothing checked the write against
+\      it, so a longer line ran past the end into the messages that
+\      follow the buffer and quietly overwrote them.
 \
 \ What the kernel does not have, and this file therefore does
 \ not use:
