@@ -26,27 +26,28 @@
 \
 \ --- what the kernel will not do ----------------------------------
 \
-\ These four are worked around here rather than fixed in the
-\ kernel, because the fix belongs in the kernel.
+\   1. `!` used to leave its value on the stack: it popped the
+\      address and then read the value off the top without popping
+\      it, so one leftover grew per store, without bound inside a
+\      loop and under the peg the next dup expected. Fixed in the
+\      kernel, and every store below is now a plain !.
 \
-\   1. `!` leaves its value on the stack. Inside a definition
-\      `0 p !` therefore leaves a 0 behind, and the comparison
-\      after it sees the wrong stack. set! and clr below
-\      swallow that leftover, and every store in this file goes
-\      through them.
+\   2. `to` is narrower than this file once said. It does store -
+\      at the prompt and inside a definition - and it takes the
+\      name AFTER itself, so it is `5 to tv` and not `5 tv to`.
+\      What it cannot do is reach a CREATE'd word's data field: it
+\      writes the DOES> cell, and the word then jumps through the
+\      value on its next use and the interpreter dies. peg-a and
+\      its sisters are CREATE'd, so this file uses ! and not `to`.
 \
-\   2. `to` stores nothing at all. It is IMMEDIATE, so it
-\      swallows the token behind it as a name and leaves the
-\      variable untouched. Hence set! and not `to`.
-\
-\   3. if compiled INSIDE a begin/while/repeat body runs its
-\      body only on the first pass. while, repeat, if and then
-\      all push and pop the same return stack at compile time,
-\      and inside a loop the if's patch is the wrong entry. The
-\      loop itself still runs the right number of times - only
-\      the branch inside it is lost. So no word below has an if
-\      between its begin and its repeat. An if in a word that a
-\      loop calls is fine: that is compiled outside the loop.
+\   3. Not a bug, and this file used to believe it was. An if
+\      compiled inside a begin/while/repeat body runs on every
+\      pass, not only the first. The claim rested on a loop spelled
+\      begin...repeat with no while at all - and a repeat with no
+\      while patches begin's compile-time entry as if it were the
+\      branch's and jumps into nothing. pcount below is the
+\      branch-free form it was rewritten into on that false belief.
+\      It answers the same either way.
 \
 \   4. The input buffer holds 86 characters, so a line longer
 \      than that is not interpreted as it was typed. Keep lines
@@ -100,22 +101,18 @@ create peg-c 6 cells allot
 
 \ --- storing ----------------------------------------------------------
 
-\ set! and clr are ! plus the drop that ! omits. That is also why
-\ every variable in this file is written through set! and not with
-\ a bare !: one leftover per store grows without bound inside a
-\ loop, and the growth lands under the peg the next dup expects.
-\
-\ They come before anything that uses them, which sounds obvious
-\ and was not: pa, pb and pc below are set through set!, and with
-\ these two words defined afterwards all three silently fail and
-\ the board draws from three uninitialised cells.
+\ set! and clr used to be ! and 0 swap ! plus the drop that ! omitted.
+\ ! popped the address and then read the value off the top without popping
+\ it, so one leftover grew per store - without bound inside a loop, and
+\ in a loop it landed under the peg the next dup expected. ! pops both
+\ now, so nothing in this file needs a wrapper for it any more and
+\ clr below is only 0 swap !.
 
-: set! ( value addr -- ) ! drop ;
-: clr  ( addr -- ) 0 swap ! drop ;
+: clr  ( addr -- ) 0 swap ! ;
 
-variable pa  peg-a pa set!
-variable pb  peg-b pb set!
-variable pc  peg-c pc set!
+variable pa  peg-a pa !
+variable pb  peg-b pb !
+variable pc  peg-c pc !
 
 \ --- the board --------------------------------------------------------
 
@@ -123,10 +120,10 @@ variable pc  peg-c pc set!
 \ around it: pegs 12 columns apart at 12, 39 and 66, so the widest
 \ disk (13 wide) fits three times over without touching.
 
-variable nd  6 nd set!
-variable ca  12 ca set!
-variable cb  39 cb set!
-variable cc  66 cc set!
+variable nd  6 nd !
+variable ca  12 ca !
+variable cb  39 cb !
+variable cc  66 cc !
 
 \ The colours of the disks, smallest first. A cell is the value,
 \ so a disk of size 3 reads dclr + 2. Eight entries, and a ninth
@@ -153,7 +150,7 @@ variable r1
 \ put takes the cell's value, a row and a column.
 
 : scr ( row col -- offset ) swap 80 * + 4096 + ;
-: put ( cell row col -- ) scr scr! drop ;
+: put ( cell row col -- ) scr scr! ;
 
 \ blank is put with a space for the cell. The value goes on AFTER scr, not
 \ before: scr spends the top two items as row and column, so a 32 pushed
@@ -161,7 +158,7 @@ variable r1
 \ row 18. The swap is what puts the value under the address for scr!, which
 \ takes its address on top.
 
-: blank ( row col -- ) scr 32 swap scr! drop ;
+: blank ( row col -- ) scr 32 swap scr! ;
 
 \ pcol answers which column a peg stands in. The drop on the
 \ fall-through path is not optional: without it the peg address
@@ -185,9 +182,9 @@ variable r1
 \ count the whole peg.
 
 : pcount ( peg -- n )
-    0 ts set!
+    0 ts !
     begin dup ts @ + @ 0 <> while
-        ts @ 1 + ts set!
+        ts @ 1 + ts !
     repeat drop ts @ ;
 
 \ wipe-row clears one row across the widest a disk can be, so a
@@ -201,10 +198,10 @@ variable r1
 \ disk that moves, and the pegs fill up with a stub of each one.
 
 : wipe-row
-    0 ts set!
+    0 ts !
     begin ts @ nd @ 4 * 1 + < while
         tr @ tc @ nd @ 2 * - ts @ + blank
-        ts @ 1 + ts set!
+        ts @ 1 + ts !
     repeat ;
 
 \ draw-disk draws one disk: the character's in every cell and the
@@ -216,12 +213,12 @@ variable r1
 \ at the far right - which looks like a drawing bug and is one.
 
 : draw-disk ( disk row col -- )
-    tc set! tr set! td set!
-    0 ts set!
+    tc ! tr ! td !
+    0 ts !
     begin ts @ td @ 2 * 1 + < while
         td @ 1 - 8 mod dclr + @
         tr @ tc @ td @ - ts @ + put
-        ts @ 1 + ts set!
+        ts @ 1 + ts !
     repeat ;
 
 \ peg-row draws one row of one peg: the pole, and the disk that
@@ -239,11 +236,11 @@ variable r1
 \ a word, called from there.
 
 : peg-row0 ( peg row -- )
-    tr set! tp set!
-    tp @ pcount tn set!
-    tp @ pcol tc set!
+    tr ! tp !
+    tp @ pcount tn !
+    tp @ pcol tc !
     892 tr @ tc @ put
-    tr @ 23 - tn @ + ts set!
+    tr @ 23 - tn @ + ts !
     ts @ 0 < if exit then
     ts @ tn @ < if
         tp @ ts @ + @ dup 0 <> if
@@ -269,25 +266,25 @@ variable r1
 \
 \ The dup and the over are both needed, and they are not
 \ interchangeable: dup copies the TOP of the stack, which after
-\ `dup tr set!` is the row, so `dup tp set!` stores the ROW into tp
+\ `dup tr !` is the row, so `dup tp !` stores the ROW into tp
 \ and pcol is then handed a row number. It answers with cc - the
 \ fall-through, the one column it has for a peg it does not
 \ recognise - and every disk lands on peg C.
 
 : peg-row ( peg row -- )
-    dup tr set!
-    over tp set!
-    tp @ pcol tc set!
+    dup tr !
+    over tp !
+    tp @ pcol tc !
     wipe-row peg-row0 ;
 
 \ peg-draw is all 23 rows above the ground.
 
 : peg-draw ( peg -- )
-    tp set!
-    0 tr set!
+    tp !
+    0 tr !
     begin tr @ 23 < while
         tp @ tr @ peg-row0
-        tr @ 1 + tr set!
+        tr @ 1 + tr !
     repeat ;
 
 \ cls is the BIOS's own screen clear and is about five times cheaper than
@@ -304,10 +301,10 @@ variable r1
 \ what stops a peg's wipe-row from cutting a hole in it.
 
 : draw-ground
-    0 ts set!
+    0 ts !
     begin ts @ 80 < while
         856 23 ts @ put
-        ts @ 1 + ts set!
+        ts @ 1 + ts !
     repeat ;
 
 \ draw-board starts from a blank screen. That is also what hides
@@ -328,10 +325,10 @@ variable r1
 \ --- the pegs, emptied and filled --------------------------------------
 
 : peg-clr ( peg -- )
-    0 ts set!
+    0 ts !
     begin ts @ nd @ < while
         dup ts @ + clr
-        ts @ 1 + ts set!
+        ts @ 1 + ts !
     repeat drop ;
 
 \ fill-a stacks n disks on peg A, smallest on top.
@@ -347,11 +344,11 @@ variable r1
 \ only showed as a picture with the big end in the air.
 
 : fill-a ( n -- )
-    tn set!
-    0 ts set!
+    tn !
+    0 ts !
     begin ts @ tn @ < while
-        ts @ 1 + pa @ ts @ + set!
-        ts @ 1 + ts set!
+        ts @ 1 + pa @ ts @ + !
+        ts @ 1 + ts !
     repeat ;
 
 \ init leaves nothing on the stack on any path. It used to handle
@@ -361,7 +358,7 @@ variable r1
 \ failure the pegs note above describes.
 
 : init ( n -- )
-    dup tn set!
+    dup tn !
     pa @ peg-clr pb @ peg-clr pc @ peg-clr
     tn @ fill-a ;
 
@@ -394,21 +391,21 @@ variable mv-disk
 \ - because a branch there runs once and not at all.
 
 : shift-peg ( peg -- )
-    tp set!
-    0 ts set!
+    tp !
+    0 ts !
     begin ts @ nd @ 1 - < while
-        tp @ ts @ 1 + + @ tp @ ts @ + set!
-        ts @ 1 + ts set!
+        tp @ ts @ 1 + + @ tp @ ts @ + !
+        ts @ 1 + ts !
     repeat ;
 
 : open-peg ( peg -- )
-    tp set!
-    nd @ 2 - ts set!
-    0 tn set!
+    tp !
+    nd @ 2 - ts !
+    0 tn !
     begin tn @ nd @ 1 - < while
-        tp @ ts @ + @ tp @ ts @ 1 + + set!
-        ts @ 1 - ts set!
-        tn @ 1 + tn set!
+        tp @ ts @ + @ tp @ ts @ 1 + + !
+        ts @ 1 - ts !
+        tn @ 1 + tn !
     repeat ;
 
 \ One disk leaves the top of the source and lands on the top of
@@ -445,7 +442,7 @@ variable mv-disk
 \ last line below then dropped that address into the destination
 \ peg, and the next pcount read it back out as a full peg.
 \
-\ Every set! here pushes the value first and the address second,
+\ Every store here pushes the value first and the address second,
 \ because ! takes the address on TOP. A pair written the other way
 \ round stores into the wrong cell, and the two pegs end up a step
 \ out of step with each other - which is very hard to see, because
@@ -461,11 +458,11 @@ variable mv-disk
 \ the call returns - and no copy is kept at all.
 
 : move
-    mv-src @ @ mv-disk set!       \ the disk that travels
+    mv-src @ @ mv-disk !       \ the disk that travels
     mv-src @ shift-peg            \ the source closes up
     mv-src @ nd @ 1 - + clr       \ and its top slot is empty
     mv-dst @ open-peg             \ the destination opens up
-    mv-disk @ mv-dst @ set! ;     \ and the disk lands on it
+    mv-disk @ mv-dst @ ! ;     \ and the disk lands on it
 
 \ The disk count and the roles of the three pegs. The count rides
 \ on the DATA stack, not in a variable: a variable is global, so a
@@ -487,14 +484,14 @@ variable mv-disk
 \ destination had m and its new disk lands on row 22-m.
 
 : do-move
-    23 mv-src @ pcount - r0 set!
-    22 mv-dst @ pcount - r1 set!
+    23 mv-src @ pcount - r0 !
+    22 mv-dst @ pcount - r1 !
     \ Row 23 is the ground. A source peg that is empty gives 23-0, and
     \ wiping that row would saw a gap out of the ground - hanoi never
     \ moves off an empty peg, so this only happens if do-move is driven
     \ by hand from one peg. Row 22 is the one above the ground and is
     \ the right place for the answer anyway.
-    r0 @ 23 = if 22 r0 set! then
+    r0 @ 23 = if 22 r0 ! then
     move
     mv-src @ r0 @ peg-row
     mv-dst @ r1 @ peg-row ;
@@ -502,10 +499,10 @@ variable mv-disk
 \ --- the game ---------------------------------------------------------
 
 : swap-dst-tmp
-    mv-dst @ mv-tmp @ mv-dst set! mv-tmp set! ;
+    mv-dst @ mv-tmp @ mv-dst ! mv-tmp ! ;
 
 : swap-src-tmp
-    mv-src @ mv-tmp @ mv-src set! mv-tmp set! ;
+    mv-src @ mv-tmp @ mv-src ! mv-tmp ! ;
 
 \ recurse, not the word's own name: a word cannot call itself by
 \ name while it is still being compiled - the name is not in the
@@ -532,9 +529,9 @@ variable mv-disk
 
 : hanoi-solve ( n -- )
     dup init
-    peg-a mv-src set!
-    peg-c mv-dst set!
-    peg-b mv-tmp set!
+    peg-a mv-src !
+    peg-c mv-dst !
+    peg-b mv-tmp !
     draw-board
     hanoi ;
 

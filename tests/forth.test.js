@@ -1201,11 +1201,10 @@ test('cls clears the screen through the BIOS, cursor block and all', () => {
   // there. This is the case that matters anyway: hanoi.fth calls cls in the
   // middle of a word and draws over everything except that one corner.
   //
-  // scr! leaves its value behind, so every store here drops it.
   // 35 is '#'. 66 is 'B' - which is what this used to write, so the
   // assertions below were looking for a character nothing ever put there.
   const FILL = ['4096', '4300', '4500', '4700', '4900']
-    .map(a => `35 ${a} scr! drop\n`).join('');
+    .map(a => `35 ${a} scr!\n`).join('');
   const { rows } = repl(': ctest cls 4096 scr@ ;\n' + FILL + 'ctest . cr\n');
   assert.ok(rows.some(r => /(^|\s)32(\s|$)/.test(r)),
     `cls must leave a plain space where it cleared; screen was:\n`
@@ -1216,6 +1215,29 @@ test('cls clears the screen through the BIOS, cursor block and all', () => {
   assert.equal(blank.join('\n').includes('#'), false, 'cls must leave nothing on the screen');
 });
 
+test('! , c! and scr! consume both of their operands', () => {
+  // A store popped the address off the stack and then read the value off the
+  // top without popping it, so the value stayed behind. Inside a loop that
+  // grows without bound, and forth/hanoi.fth had to route every store through
+  // set! and clr just to absorb it.
+  //
+  // depth is the only thing that can see this: a store's own effect on screen
+  // looks the same whether or not it leaves the value behind, so a test that
+  // types `7 tv !` and looks at tv passes against both kernels.
+  const { rows } = repl(
+    'variable tv\n'
+    + '7 tv ! depth .\n'          // 1 = only depth itself; a leftover makes it 2
+    + 'tv @ .\n'                  // and the value really did land
+    + ': two 65 tv c! depth . 32 4100 scr! depth . ;\n'
+    + 'two\n'                     // 1  1
+    + 'depth .\n'                 // 1, so two left nothing behind
+  );
+  assert.equal(rows[2], '> 7 tv ! depth . 1  ok');
+  assert.equal(rows[3], '> tv @ . 7  ok');
+  assert.equal(rows[5], '> two 1  1  ok');
+  assert.equal(rows[6], '> depth . 1  ok');
+});
+
 test('scr@ and scr! reach the screen buffer, which @ and ! cannot', () => {
   // The screen is at 0xF1000 = ES:0x1000. @ and ! address through DS, whose base
   // is 0 and whose offset is 16 bits, so they reach 0x00000-0x0FFFF and stop.
@@ -1223,18 +1245,18 @@ test('scr@ and scr! reach the screen buffer, which @ and ! cannot', () => {
   // other segment and is left at 0xF000, so ES:0x1000 is the screen exactly.
   //
   // Row 10, column 0 is ES:0x1000 + 800.
-  const { rows } = repl('65 4896 scr! . 4896 scr@ .\n');
+  const { rows } = repl('65 4896 scr! 4896 scr@ .\n');
   assert.equal(rows[10][0], 'A', `the store did not land; screen was:\n${rows.join('\n')}`);
   const out = rows.find(r => r.includes('ok'));
   assert.ok(out, `the line did not run; screen was:\n${rows.join('\n')}`);
-  // One 65 is the echo of the literal, the next two are scr!'s leftover and
-  // what scr@ read back. Counting them says both without pinning the spacing.
-  assert.equal((out.match(/65/g) || []).length, 3,
-    `scr! must leave its value as ! does and scr@ must read it back; got: ${out}`);
+  // One 65 is the echo of the literal, the other is what scr@ read back.
+  // A third would mean scr! had left its value behind, which it used to.
+  assert.equal((out.match(/65/g) || []).length, 2,
+    `scr! must store without leaving its value and scr@ must read it back; got: ${out}`);
 
   // A cell is a character in the low byte and an attribute in the high one:
   // foreground in the low nibble, background in the high nibble.
-  const { rows: colour } = repl('35 3 256 * + 4896 scr! drop 4896 scr@ .\n');
+  const { rows: colour } = repl('35 3 256 * + 4896 scr! 4896 scr@ .\n');
   assert.equal(colour[10][0], '#', 'the low byte of the cell is the character');
   assert.equal(rows.length > 10, true);
 });
@@ -1249,7 +1271,7 @@ test('scr@ and scr! reach the screen on the compiled cores too', async () => {
   // Row 10, column 0 is ES:0x1000 + 800. The kernel sets ES itself at boot, so
   // it is passed in as 0 and forth_start puts it at 0xF000.
   const CELL = 0xF1000 + 800;
-  const keys = [...'65 4896 scr! drop\n'].map(c => (c === '\n' ? 10 : c.charCodeAt(0)));
+  const keys = [...'65 4896 scr!\n'].map(c => (c === '\n' ? 10 : c.charCodeAt(0)));
   const want = 'A';
   for (const [name, run] of [['wasm', runWasm], ['rtl', runRtl]]) {
     const r = await run(res, { keys, maxSteps: 400000 });
@@ -1263,7 +1285,7 @@ test('scr! is the only way in, and it cannot be reached by spelling the address'
   // The point of the pair: there is no literal, no arithmetic on literals, and
   // no DS-relative word that gets here. `9891 scr!` is not the screen either -
   // it is a DS address, a different 32KB of memory altogether.
-  const { rows } = repl('65 9891 scr! drop\n');
+  const { rows } = repl('65 9891 scr!\n');
   assert.equal(rows[10][0] !== 'A', true, 'ES:9891 is not the screen');
   assert.ok(rows.some(r => r.includes('ok')), 'but it is a legal store');
 });

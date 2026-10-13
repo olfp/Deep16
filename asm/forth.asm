@@ -2744,6 +2744,7 @@ wstore_ok:
     LD R2, SP, 0          ; addr
     ADD SP, 1
     LD R1, SP, 0          ; n
+    ADD SP, 1             ; and pop it: ! is ( n addr -- )
     ST R1, R2, 0
     LDI next
     MOV PC, R0
@@ -2788,6 +2789,7 @@ wcstore_ok:
     LD R2, SP, 0          ; addr
     ADD SP, 1
     LD R1, SP, 0          ; char
+    ADD SP, 1             ; and pop it: c! is ( char addr -- )
     LDI 255
     MOV R3, R0
     AND R1, R3
@@ -2851,6 +2853,7 @@ scrstore_ok:
     LD R1, SP, 0           ; the ES offset
     ADD SP, 1
     LD R2, SP, 0           ; the value
+    ADD SP, 1              ; and pop it: scr! is ( cell offset -- )
     STS R2, ES, R1
     LDI next
     MOV PC, R0
