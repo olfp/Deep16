@@ -699,6 +699,38 @@ test('to reaches a created word\'s data field, not its DOES> cell', () => {
     `a to must not overwrite the DOES> thread; screen was:\n${attached.join('\n')}`);
 });
 
+test('a line longer than the buffer does not eat the messages after it', () => {
+  // tib_kbd was 86 words and bios_store_char never compared the write pointer
+  // against it, so a longer line ran straight past the end into the message
+  // strings that follow and overwrote them. The damage is quiet: the long line
+  // itself usually still runs, because the interpreter splits on spaces and
+  // reads whatever cells are there. What gives it away is the NEXT error.
+  const long = '1 '.repeat(60);          // 120 characters, well past 86
+  const { rows } = repl(long + '\n' + 'nosuchword\n');
+  const dump = rows.map((r, i) => `${i}: ${r}`).join('\n');
+  const err = rows.find(r => r.includes('undefined word'));
+  assert.ok(err, `the second line should have reported an unknown word; screen was:\n${dump}`);
+  assert.match(err, /undefined word: nosuchword/,
+    `a long line must not overwrite the messages that follow the buffer; screen was:\n${dump}`);
+});
+
+test('the input buffer holds a line of more than 86 characters', () => {
+  // With the write bounded, the limit is the buffer's size rather than
+  // whatever happens to follow it, so a line up to TIB_LIMIT runs as typed.
+  const line = '1 ' + '1 + '.repeat(25) + '.';
+  assert.ok(line.length > 86, `the probe must be longer than the old limit, is ${line.length}`);
+  assert.ok(line.length <= 128, `the probe must fit the new limit, is ${line.length}`);
+
+  const { rows } = repl(line + '\n');
+  const dump = rows.map((r, i) => `${i}: ${r}`).join('\n');
+  const err = rows.find(r => /undefined word|underflow|not a|error/i.test(r));
+  assert.equal(err, undefined, `a long line must not fall over; screen was:\n${dump}`);
+  const out = rows.find(r => r.includes(' ok'));
+  assert.ok(out, `the line did not run; screen was:\n${dump}`);
+  assert.match(out, /\b26\b/,
+    `25 additions on 1 should print 26; screen was:\n${dump}`);
+});
+
 test('to rejects an unknown name without corrupting the value', () => {
   const { rows, running } = repl(
     '5 value v\n' +

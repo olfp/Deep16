@@ -16,7 +16,9 @@
 ; pinned to an address rather than living in the kernel's data area, because the
 ; Screen tab writes it from the browser with nothing of the kernel running.
 .equ ECHO_FLAG  0x0064
-.equ TIB_LIMIT 86         ; words in tib_kbd; the buffer holds one word per char
+.equ TIB_LIMIT 128        ; characters tib_kbd holds, one word per character.
+                         ; tib_kbd has one more word than this, for the NUL
+                         ; that bios_getstr_done writes after the last one
 ; The high byte of a screen word is four bits of background and four bits of
 ; foreground, (bg << 4) | fg. Attribute 0 means "no colour set" and the
 ; terminal default draws it, so a blank cell is written as 0x0020 and the
@@ -1038,6 +1040,48 @@ hello_msg:
     .text "Hello DeepForth!"
 
 tib_kbd:
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
     .word 0
     .word 0
     .word 0
@@ -4431,6 +4475,15 @@ bios_getstr_loop:
     JNZ bios_getstr_loop
     NOP
 bios_store_char:
+    ; Refuse the character rather than write past the buffer. Nothing checked
+    ; the write pointer before, so a line longer than TIB_LIMIT ran on into the
+    ; message strings that follow tib_kbd and overwrote them - quietly, because
+    ; the interpreter splits on spaces and reads whatever cells are there.
+    LDI TIB_LIMIT
+    CMP R11, R0
+    JZ bios_getstr_loop      ; full: drop the key and go back for the next one.
+    NOP                      ; Count can only grow through here, so it never
+                             ; passes TIB_LIMIT and this one test is enough.
     ST R1, R2, 0
     ADD R2, 1
     ADD R11, 1
@@ -4451,10 +4504,10 @@ bios_store_char:
     LDS R7, ES, SCR
     OR  R7, R0              ; and the new cell gets the reversed colour
     STS R7, ES, SCR
-    NOP                     ; Padding, siehe NOTE unten
-    NOP
-    NOP
-    NOP
+    ; The four NOPs that used to pad the end of this routine are the four cells
+    ; the TIB_LIMIT test above now spends, so the block keeps its exact length.
+    ; There is no padding left here: anything that grows from here on has to give
+    ; a cell back somewhere inside bios_store_char, or BIOS_LAYOUT moves.
     CLRZ
     JNZ bios_getstr_loop
     NOP
