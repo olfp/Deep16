@@ -228,11 +228,20 @@ variable r1
 \ belongs on that row if there is one. The disks of a peg holding
 \ n of them sit on rows 23-n to 22, counted up from the ground.
 
-: peg-row ( peg row -- )
+\ peg-row0 draws one row of one peg without clearing it first: the
+\ pole, and the disk that belongs on that row if there is one. The
+\ disks of a peg holding n of them sit on rows 23-n to 22, counted up
+\ from the ground.
+\
+\ Its ifs are its own, which is the point of keeping it separate: a
+\ branch compiled inside a loop body runs once and not again (note 3),
+\ so this must not be inlined into peg-draw's loop. It is not - it is
+\ a word, called from there.
+
+: peg-row0 ( peg row -- )
     tr set! tp set!
     tp @ pcount tn set!
     tp @ pcol tc set!
-    wipe-row
     892 tr @ tc @ put
     tr @ 23 - tn @ + ts set!
     ts @ 0 < if exit then
@@ -242,22 +251,54 @@ variable r1
         else drop then
     then ;
 
+\ peg-row is peg-row0 after clearing the row, for a redraw in place:
+\ a disk has just left this peg and something of it is still there.
+\
+\ draw-board does NOT use this one, and that is what it is for. draw-board
+\ clears the screen itself and then draws every peg, so all 1725 blanks
+\ this would write are writing a space over a space - nearly half the
+\ cost of drawing the board, spent on nothing. do-move does use it,
+\ because there the screen is not being cleared and the row really is
+\ dirty.
+\
+\ tr and tc are set here rather than left to peg-row0, because
+\ wipe-row reads them and runs FIRST. It used to wipe the row and column
+\ of whatever peg was drawn before it - which put a gap in the ground
+\ one out of every peg row it touched, and looked for all the world
+\ like the ground itself was being drawn wrong.
+\
+\ The dup and the over are both needed, and they are not
+\ interchangeable: dup copies the TOP of the stack, which after
+\ `dup tr set!` is the row, so `dup tp set!` stores the ROW into tp
+\ and pcol is then handed a row number. It answers with cc - the
+\ fall-through, the one column it has for a peg it does not
+\ recognise - and every disk lands on peg C.
+
+: peg-row ( peg row -- )
+    dup tr set!
+    over tp set!
+    tp @ pcol tc set!
+    wipe-row peg-row0 ;
+
 \ peg-draw is all 23 rows above the ground.
 
 : peg-draw ( peg -- )
     tp set!
     0 tr set!
     begin tr @ 23 < while
-        tp @ tr @ peg-row
+        tp @ tr @ peg-row0
         tr @ 1 + tr set!
     repeat ;
 
-: clr-screen
-    0 ts set!
-    begin ts @ 1920 < while
-        32 ts @ 4096 + scr! drop
-        ts @ 1 + ts set!
-    repeat ;
+\ cls is the BIOS's own screen clear and is about five times cheaper than
+\ doing it here: a screenful from Forth is a word call and some address
+\ arithmetic per cell, roughly 29 steps, where the BIOS does five. draw-board
+\ wants exactly what cls does - clear, cursor home - so it says cls rather
+\ than repeating it badly.
+\ The screen goes blank and the cursor block at the top left is cleared by cls
+\ itself, so the board does not have to blank that cell again.
+
+: clr-screen  cls ;
 
 \ The ground is the bottom row, and drawing it before the pegs is
 \ what stops a peg's wipe-row from cutting a hole in it.

@@ -332,6 +332,41 @@ test('the memory view is throttled while the machine runs, and not while it does
 });
 
 // ---------------------------------------------------------------------------
+test('a core that finishes loading becomes selectable, whichever one it is', () => {
+  // wasmAvailable used to be assigned in exactly one place - the constructor,
+  // from a typeof on window.Deep16Wasm. The module arrives by dynamic import,
+  // so whether that test passed depended on whether the import resolved before
+  // the class was built. When it lost the race the Core menu still offered
+  // WASM, clicking it did nothing, and nothing set the flag again: RTL got the
+  // line in finishWasmInit and WASM did not.
+  // coreAvailable checks the flag AND the module global, so the module has to be
+  // there for the flag to mean anything.
+  globalThis.window.Deep16Wasm = { kbd_push() {}, get_memory_word: () => 0 };
+  globalThis.window.Deep16Rtl = { kbd_push() {}, get_memory_word: () => 0 };
+
+  const build = (coreName) => {
+    const ui = makeUi();
+    ui.wasmAvailable = false;
+    ui.rtlAvailable = false;
+    ui.syncStateIntoCore = () => true;
+    ui.updateRunButton = () => {};
+    ui.addTranscriptEntry = () => {};
+    ui.updateCoreOptions = () => {};
+    ui.status = () => {};
+    return ui;
+  };
+
+  const wasm = build('wasm');
+  assert.equal(wasm.coreAvailable('wasm'), false, 'not loaded yet, not selectable');
+  wasm.finishWasmInit(null, 'wasm');
+  assert.equal(wasm.wasmAvailable, true, 'WASM must be available once it has loaded');
+  assert.equal(wasm.coreAvailable('wasm'), true, 'and therefore selectable');
+
+  const rtl = build('rtl');
+  rtl.finishWasmInit(null, 'rtl');
+  assert.equal(rtl.rtlAvailable, true, 'RTL must be available too');
+});
+
 // The file upload on the Screen tab (js/deep16_ui_core.js). The browser picks an
 // ASCII file and types it into the machine: every character becomes a keystroke,
 // every line ending a Return. Nothing else happens - the kernel sees the same

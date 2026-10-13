@@ -1337,6 +1337,11 @@ h_minus:
 ; links into the vocabulary chain below and forth_wl names the newest.
 ;
 ; scr@ and scr! are newer still, and sit above them for the same reason.
+h_cls:
+    .word h_scr_fetch
+    .word 3
+    .text "cls"
+    .word word_cls
 h_scr_fetch:
     .word h_scr_store
     .word 4
@@ -1563,7 +1568,7 @@ h_fetch:
 ; --- wordlists: a vocabulary is identified by the address of its head cell,
 ; --- which chains its definitions newest-first and ends in 0.
 forth_wl:
-    .word h_scr_fetch         ; newest built-in header in the FORTH vocabulary
+    .word h_cls               ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
     .word forth_wl
     .word 0, 0, 0, 0, 0, 0, 0
@@ -2847,6 +2852,42 @@ scrstore_ok:
     ADD SP, 1
     LD R2, SP, 0           ; the value
     STS R2, ES, R1
+    LDI next
+    MOV PC, R0
+    NOP
+
+; cls ( -- ) - clear the screen.
+;
+; A screenful of blanks written from Forth costs about 55,000 steps: a word
+; call per cell, plus the address arithmetic and the loop. The BIOS already has
+; the same loop in assembly, five instructions a cell, so the same 2000 cells
+; are about 10,000 steps - and it is the routine that owns the buffer, so this
+; is where the work belongs.
+;
+; Function code 1 is binit, which clears 80x25 and homes the cursor. Reusing it
+; means no new BIOS entry point and no shift of the offsets BIOS_LAYOUT pins;
+; the price is that cls also homes the cursor and re-sets ES and SCR, which is
+; what a Forth cls is expected to do anyway.
+;
+; One thing binit leaves behind has to be undone: it puts the cursor attribute
+; back on, so the top-left cell would show a reversed block. Blank that one
+; cell. The cursor itself stays at the top left, which is the point of cls.
+;
+; There is no general swi word, and there should not be one: this is a job the
+; kernel does for the program, not a door left open for it. ( value -- ) is how
+; the !-family words here work; cls leaves nothing behind.
+word_cls:
+    LDI 1
+    MOV R1, R0
+    LDI 0
+    MOV R2, R0
+    STS R1, DS, R2          ; function code 1 at DS:0, the BIOS dispatch cell
+    SWI                     ; the BIOS clears; the next instruction runs after
+    LDI ' '                 ; and now the cell binit left its cursor on
+    MOV R1, R0
+    LDI 0x1000              ; ES:0x1000, the top-left cell of the buffer
+    MOV R2, R0
+    STS R1, ES, R2
     LDI next
     MOV PC, R0
     NOP

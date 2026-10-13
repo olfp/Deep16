@@ -1189,6 +1189,33 @@ test('the attribute byte is either 0 or the cursor attribute, and no other colou
 // a BIOS routine and either keep its length or pad it back - and if the
 // padding can be removed, the stale-branch handling in the core can be fixed
 // and this test can go with it.
+test('cls clears the screen through the BIOS, cursor block and all', () => {
+  // Two things it has to get right. The screen ends up blank - the obvious half.
+  // And no reversed block is left at the top left, because the BIOS routine it
+  // reuses (function code 1, binit) homes the cursor and switches its attribute
+  // back on after clearing, so cls has to blank that one cell itself.
+  //
+  // The cell has to be read from INSIDE a word. At the prompt the REPL prints
+  // ` ok` over the top-left cell straight afterwards, which hides the block -
+  // a test that just types cls and looks passes whether or not the block is
+  // there. This is the case that matters anyway: hanoi.fth calls cls in the
+  // middle of a word and draws over everything except that one corner.
+  //
+  // scr! leaves its value behind, so every store here drops it.
+  // 35 is '#'. 66 is 'B' - which is what this used to write, so the
+  // assertions below were looking for a character nothing ever put there.
+  const FILL = ['4096', '4300', '4500', '4700', '4900']
+    .map(a => `35 ${a} scr! drop\n`).join('');
+  const { rows } = repl(': ctest cls 4096 scr@ ;\n' + FILL + 'ctest . cr\n');
+  assert.ok(rows.some(r => /(^|\s)32(\s|$)/.test(r)),
+    `cls must leave a plain space where it cleared; screen was:\n`
+    + rows.map((r, i) => `${i}: ${r}`).join('\n'));
+
+  // And the whole buffer, not just the corner.
+  const { rows: blank } = repl(FILL + 'cls\n');
+  assert.equal(blank.join('\n').includes('#'), false, 'cls must leave nothing on the screen');
+});
+
 test('scr@ and scr! reach the screen buffer, which @ and ! cannot', () => {
   // The screen is at 0xF1000 = ES:0x1000. @ and ! address through DS, whose base
   // is 0 and whose offset is 16 bits, so they reach 0x00000-0x0FFFF and stop.

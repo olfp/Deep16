@@ -2554,7 +2554,14 @@ class DeepWebUI {
     // compiled core always gets a copy of whatever state the page is in.
     finishWasmInit(wssamToggle, coreName = 'wasm') {
         const isRtl = coreName === 'rtl';
-        if (isRtl) this.rtlAvailable = true;
+        // Both cores, not just RTL. wasmAvailable was otherwise only ever
+        // assigned in the constructor, from a typeof on window.Deep16Wasm - and
+        // the module arrives by dynamic import, so whether that test passes
+        // depends on whether the import resolved before this class was built.
+        // When it lost the race the Core menu offered WASM, clicking it did
+        // nothing, and nothing ever set the flag again.
+        this.rtlAvailable = true;
+        this.wasmAvailable = true;
         const wasSelected = this.coreName === coreName;
         // Mirror into a temporarily selected state so syncStateIntoCore() talks
         // to the module that just arrived.
