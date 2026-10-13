@@ -1139,6 +1139,60 @@ test('the kernel never writes into the row below the visible screen', () => {
   assert.ok(filled > 100, `only ${filled} cells drawn - the scrolling lost the output`);
 });
 
+test('scrolling blanks the row it vacated, not just the rows it copies up', () => {
+  const { Deep16Simulator } = globalThis;
+  // bios_lf_scroll_copy moves rows 1..24 into rows 0..23. Row 24 is left holding
+  // whatever was in it, and only the "clear last row" loop after the copy can
+  // wipe that. Nothing else clears it, so a stale row 24 is copied up again on
+  // every following scroll and smears its old characters over the whole screen.
+  //
+  // The test above asserts row 24 is blank, but nothing in that scenario ever
+  // puts anything there, so it passes on a kernel that never clears it at all.
+  // This one dirties row 24 first.
+  //
+  // The scrolling has to be a loop in the kernel rather than a long run of
+  // `10 emit`: a typed line cannot exceed TIB_LIMIT, and `10 emit` repeated
+  // enough times to reach the bottom runs past it.
+  const ROW24 = 0x1780;                        // ES offset: row 24
+  const lines = [
+    [0, 1, 2].map(c => `65 ${ROW24 + c} scr!`).join(' '),
+    ': dn begin dup 0 > while 10 emit 1 - repeat drop ;',
+    '30 dn',
+    '',
+  ];
+
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF;
+  for (const line of lines) {
+    for (const ch of line) sim.enqueueKeyCode(ch.charCodeAt(0));
+    sim.enqueueKeyCode(10);
+    sim.running = true;
+    for (let i = 0; i < 200000; i++) sim.step();
+  }
+  let steps = 0;
+  while (sim.running && steps < 8000000) { sim.step(); steps++; }
+
+  // scr! and scr@ take ES offsets, which start at 0x1000, so the physical
+  // address of ES:off is SCREEN_ADDR - 0x1000 + off.
+  const cell = (esOff) => sim.memory[SCREEN_ADDR - 0x1000 + esOff] & 0xFFFF;
+
+  // The scroll has to have run, or the assertion below passes for free. Nothing
+  // else on this screen can hold an 'A': the typed text is digits and `emit`,
+  // and the REPL only ever writes " ok" and "> ".
+  const rows = new Set();
+  for (let i = 0; i < SCREEN_VISIBLE_ROWS * 80; i++) {
+    if ((sim.memory[SCREEN_ADDR + i] & 0xFF) === 0x41) rows.add(Math.floor(i / 80));
+  }
+  assert.ok(rows.size > 0,
+    'the scroll did not run, so this test would pass for the wrong reason');
+
+  const left = [0, 1, 2].map(c => cell(ROW24 + c) & 0xFF);
+  assert.deepEqual(left, [32, 32, 32],
+    `the row the scroll vacated must be blanked; row 24 still holds `
+    + `${left} (${left.map(v => String.fromCharCode(v)).join('')})`);
+});
+
 test('the screen buffer holds 24 visible rows at 8x15 pixels', () => {
   // The layout the CSS promises: 80 columns of 8 px and 24 rows of 15 px.
   assert.equal(80 * 8, 640);

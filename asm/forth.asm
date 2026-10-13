@@ -4322,11 +4322,14 @@ bios_lf_scroll_copy:
     CMP R2, R5
     JNZ bios_lf_scroll_copy
     NOP
-    ; clear last row
+    ; clear last row. The down-counter goes in R12, which the copy loop above
+    ; already uses as scratch. It must not be R15: that register is PC, so
+    ; "MOV R15, Rx" is a jump, not a store, and this loop was skipped whole.
+    ; Not R6 either -- the kernel keeps the text input buffer pointer there.
     LDI 0
     MOV R2, R0
     LDI 80
-    MOV R15, R0
+    MOV R12, R0
     LDI ' '
     MOV R1, R0
 bios_lf_scroll_clear:
@@ -4335,13 +4338,14 @@ bios_lf_scroll_clear:
     ADD R13, R5
     STS R1, ES, R13
     ADD R2, 1
-    SUB R15, 1
+    SUB R12, 1
     LDI 0
-    CMP R15, R0
+    CMP R12, R0
     JNZ bios_lf_scroll_clear
     NOP
-    ; set row to last
-    LDI 24
+    ; the content moved up one row, so the cursor keeps its row index. The
+    ; last visible row is 23; row 24 is already below the screen.
+    LDI 23
     MOV R10, R0
 bios_lf_row_lt:
     MUL R10, R11
