@@ -143,8 +143,18 @@ class DeepWebUI {
         this.resumeFromBreakpoint = false;
         this.wasmDirtyStart = null;
         this.wasmDirtyEnd = null;
-        this.wasmLogLimit = 64;
+        // Per-instruction trace for the compiled cores: the fetch address, the
+        // shadow-register bit, and every SWI. It used to be 64, which is 64
+        // lines in the transcript the instant you press Run - the JS core logs
+        // nothing per instruction, so this is why the compiled cores looked
+        // like they were shouting and the JS one did not. A trace is for when
+        // you go looking for something; raise this to 64 (or 200) to go
+        // looking, and put it back to 0 when you are done.
+        this.wasmLogLimit = 0;
         this.wasmLogCount = 0;
+        // Shown in the transcript on startup, so a stale cached copy of this
+        // file is something you can read rather than something you guess at.
+        this.build = '20261013-5';
         const wssamToggle = document.getElementById('wasm-toggle') || document.getElementById('wssam-toggle');
         const coreSelect = document.getElementById('core-select');
         if (coreSelect) {
@@ -229,7 +239,7 @@ class DeepWebUI {
         window.addEventListener('deep16-rtl-ready', () => {
             this.finishWasmInit(wssamToggle, 'rtl');
         });
-        this.addTranscriptEntry("DeepCode initialized and ready", "info");
+        this.addTranscriptEntry(`DeepCode initialized and ready (build ${this.build})`, "info");
         this.initTabSizeSetting();
         this.setupEditorHighlighting();
     }

@@ -332,6 +332,34 @@ test('the memory view is throttled while the machine runs, and not while it does
 });
 
 // ---------------------------------------------------------------------------
+test('the per-instruction trace is off until somebody asks for it', () => {
+  // It used to allow 64 lines, which is 64 lines in the transcript the instant
+  // you press Run on a compiled core. The JS core logs nothing per instruction,
+  // so that is also why the compiled cores looked like they were shouting and
+  // the JS one did not - the difference was a debugging aid left switched on.
+  const src = fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_core.js'), 'utf8');
+  assert.match(src, /this\.wasmLogLimit = 0;/,
+    'the per-instruction trace must default to off; it is not a thing you want on by default');
+
+  const ui = makeUi();
+  ui.wasmLogLimit = 0;
+  ui.wasmLogCount = 0;
+  for (let i = 0; i < 500; i++) {
+    assert.equal(ui.traceBudgetLeft(), false, 'nothing gets through');
+  }
+  ui.wasmLogLimit = 64;                       // asking is one number
+  assert.equal(ui.traceBudgetLeft(), true, 'raising the limit turns it on');
+});
+
+test('the startup banner carries a build stamp', () => {
+  // A stale cached copy of this file has cost more than once, and the only way
+  // to tell was to guess. The stamp is printed where the user can read it.
+  const src = fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_core.js'), 'utf8');
+  assert.ok(src.includes('`DeepCode initialized and ready (build ${this.build})`'),
+    'the startup transcript line must carry the stamp');
+  assert.match(src, /this\.build = '\d{8}-\d+';/, 'the stamp must be a dated version');
+});
+
 test('the per-instruction trace has one budget, and every line spends it', () => {
   // The fetch line was capped at wasmLogLimit from the start. The
   // shadow-register bit and every SWI were not, and a Forth kernel flips S
