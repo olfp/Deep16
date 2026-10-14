@@ -60,8 +60,7 @@
 \      follow the buffer and quietly overwrote them.
 \
 \ What the kernel used not to have, and what this file therefore
-\ does not use. Three of these four arrived on 2026-10-14; only the
-\ loop is still missing:
+\ does not use. All four arrived on 2026-10-14:
 \   0x1000      hex literals, once missing from the number
 \               scanner, so a colour byte had to be written as
 \               decimal; $1F and 0x1F both work now
@@ -73,8 +72,15 @@
 \               call
 \   and,lshift  bit operations, once missing, so not even the
 \               colour byte could be built from Forth
-\   do/loop/i   still not implemented; begin/until and while/repeat
-\               are, and this file uses those
+\   do/loop/i   once missing. do, ?do, loop, leave and i are all
+\               here now, the frame on the return stack. This file
+\               still counts with begin/until and while/repeat:
+\               those loops were written and tested first, and
+\               rewriting a working 269-line file to use a loop
+\               that arrived afterwards would be churn, not a fix.
+\               If you do write one in do/loop here, mind that the
+\               index counts AFTER the body: 0 0 do runs the body
+\               65536 times, and ?do is the one that skips it.
 \
 \ What this file does with the newer ones anyway: the colour bytes
 \ below are still decimal, because hex literals were the later

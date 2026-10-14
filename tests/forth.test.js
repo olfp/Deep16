@@ -554,6 +554,147 @@ test('recurse compiles the current definition', () => {
   assert.equal(rows[2], '>');
 });
 
+// --- do / loop / i / leave ---------------------------------------------------
+// The loop frame lives on the return stack, four cells below everything else
+// there, because the data stack belongs to the body. These tests pin the
+// counting, the nesting, the frame's discipline around calls, and the two
+// things that went wrong while it was written: the frame was laid down in the
+// wrong order (RP landed on the wrong cell, so `loop` read the caller's return
+// address as the index and the core walked into unwritten memory), and a
+// `loop` with no `do` in front of it popped nothing and did the same.
+
+test('do/loop counts from start to limit and i is the index', () => {
+  const { rows, running } = repl(
+    ': count 10 0 do i . loop ;\ncount\n' +
+    ': from1 5 1 do i . loop ;\nfrom1\n'
+  );
+  assert.equal(rows[1], '> : count 10 0 do i . loop ; ok');
+  assert.equal(rows[2], '> count 0  1  2  3  4  5  6  7  8  9  ok');
+  assert.equal(rows[3], '> : from1 5 1 do i . loop ; ok');
+  assert.equal(rows[4], '> from1 1  2  3  4  ok');
+  assert.equal(rows[5], '>');
+  assert.ok(running);
+});
+
+test('do counts after the increment, so limit = start runs the whole cell', () => {
+  // The standard's DO compares after incrementing, so `0 0 do` does not stop:
+  // the index walks 0, 1, ... 65535 and wraps round onto the limit. The way to
+  // see that without waiting for 65536 rounds is to leave on the fourth pass.
+  const { rows, running } = repl(': wrap 0 0 do i 3 = if leave then loop 42 . ;\nwrap\n');
+  assert.equal(rows[2], '> wrap 42  ok');
+  assert.ok(running);
+});
+
+test('?do skips the loop when limit = start, and is a do otherwise', () => {
+  const { rows, running } = repl(
+    ': q0 0 0 ?do 99 . loop 42 . ;\nq0\n' +
+    ': q1 3 0 ?do i . loop 42 . ;\nq1\n' +
+    ': q2 5 3 ?do i . loop 42 . ;\nq2\n'
+  );
+  assert.equal(rows[2], '> q0 42  ok');
+  assert.equal(rows[4], '> q1 0  1  2  42  ok');
+  assert.equal(rows[6], '> q2 3  4  42  ok');
+  assert.equal(rows[7], '>');
+  assert.ok(running);
+});
+
+test('a loop keeps the data stack for the body', () => {
+  const { rows, running } = repl(': sum 0 swap 0 do i + loop ;\n10 sum .\n100 sum .\n');
+  assert.equal(rows[2], '> 10 sum . 45  ok');
+  assert.equal(rows[3], '> 100 sum . 4950  ok');
+  assert.ok(running);
+});
+
+test('loops nest, and each loop keeps its own frame', () => {
+  const { rows, running } = repl(
+    ': nest 3 0 do 3 0 do i . loop loop ;\nnest\n' +
+    ': mix 0 3 0 do 5 0 do i + loop loop ;\nmix .\n'
+  );
+  assert.equal(rows[2], '> nest 0  1  2  0  1  2  0  1  2  ok');
+  assert.equal(rows[4], '> mix . 30  ok');
+  assert.ok(running);
+});
+
+test('leave leaves the innermost loop and carries on after it', () => {
+  const { rows, running } = repl(
+    ': early 10 0 do i 3 = if leave then i . loop 42 . ;\nearly\n' +
+    ': inner 3 0 do 4 0 do i 2 = if leave then i . loop loop ;\ninner\n'
+  );
+  assert.equal(rows[2], '> early 0  1  2  42  ok');
+  assert.equal(rows[4], '> inner 0  1  0  1  0  1  ok');
+  assert.ok(running);
+});
+
+test('a loop inside a called word leaves the return stack as it found it', () => {
+  // The frame is pushed below the call frames; if the pop were off by a cell,
+  // `exit` would take the loop's limit for a return address and the REPL would
+  // stop instead of printing the next line.
+  const { rows, running } = repl(
+    ': i1 3 0 do i . loop ;\n' +
+    ': o1 5 0 do i1 loop ;\n' +
+    'o1\n' +
+    '1 2 + .\n'
+  );
+  assert.equal(rows[3], '> o1 0  1  2  0  1  2  0  1  2  0  1  2  0  1  2  ok');
+  assert.equal(rows[4], '> 1 2 + . 3  ok');
+  assert.equal(rows[5], '>');
+  assert.ok(running, 'the REPL must still be running after five loops');
+});
+
+test('a loop word can be called again and the count starts over', () => {
+  const { rows, running } = repl(': t 5 0 do i . loop ;\nt t\n');
+  assert.equal(rows[2], '> t t 0  1  2  3  4  0  1  2  3  4  ok');
+  assert.ok(running);
+});
+
+test('two loops in one definition both run', () => {
+  const { rows, running } = repl(': two 3 0 do i . loop 4 0 do i . loop ;\ntwo\n');
+  assert.equal(rows[2], '> two 0  1  2  0  1  2  3  ok');
+  assert.ok(running);
+});
+
+test('a loop with no do in front of it compiles nothing and does not stop the core', () => {
+  // Undefined by the standard. Without the check the stray `loop` popped the
+  // compile-time stack blind, patched wherever it landed and the core walked
+  // into unwritten memory — the REPL was gone, not just the definition.
+  const { rows, running } = repl(
+    ': two 3 0 do i . loop loop ;\ntwo\n' +
+    '1 2 + .\n'
+  );
+  assert.equal(rows[2], '> two 0  1  2  ok');
+  assert.equal(rows[3], '> 1 2 + . 3  ok');
+  assert.ok(running);
+});
+
+test('do checks its operands the way a binary word does', () => {
+  // (do) pops three values: limit, index and the exit address the compiler
+  // laid down. With one on the stack there is nothing to pop.
+  const { rows, running } = repl(
+    ': c 5 do ;\nc\n' +
+    '1 2 + .\n'
+  );
+  assert.equal(rows[2], '> c');
+  assert.equal(rows[3], 'stack underflow');
+  assert.equal(rows[4], '> 1 2 + . 3  ok');
+  assert.ok(running);
+});
+
+test('the loop words are in the dictionary chain with the bit words', () => {
+  const rev = Object.fromEntries(
+    Object.entries(res.symbols).filter(([k]) => k.startsWith('h_')).map(([k, v]) => [v, k]));
+  const seen = new Set();
+  let cur = cell(res.symbols.forth_wl);
+  while (cur && !seen.has(cur)) {
+    seen.add(cur);
+    cur = cell(cur);
+  }
+  assert.ok(!seen.has(cur), `dictionary chain cycles at ${rev[cur] || cur}`);
+  for (const h of ['h_and', 'h_or', 'h_xor', 'h_lshift', 'h_rshift', 'h_invert',
+                   'h_do', 'h_qdo', 'h_loop', 'h_leave', 'h_i']) {
+    assert.ok(seen.has(res.symbols[h]), `${h} is not reachable from forth_wl`);
+  }
+});
+
 test('memory words: variable, ! @ +! and a colon definition using them', () => {
   const { rows, running } = repl(
     'variable x drop\n' +

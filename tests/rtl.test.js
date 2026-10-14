@@ -480,6 +480,25 @@ test('the Forth REPL boots and answers on the RTL core', async () => {
   assert.equal(screen, waScreen, 'the RTL screen differs from the WASM core');
 });
 
+test('the RTL core runs a do/loop the same way the WASM core does', async () => {
+  // The loop frame lives on the return stack, four cells below the call frames,
+  // and `loop` drops it with one add. An off-by-a-cell pop does not fail here:
+  // `exit` takes the loop's limit for a return address and the core walks into
+  // unwritten memory, which is a halt, not a wrong number - so both cores have
+  // to come back with a prompt.
+  const res = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'));
+  assert.ok(res.success, res.errors.join('; '));
+  const keys = [...': sum 0 swap 0 do i + loop ;\n10 sum .\n: e 10 0 do i 3 = if leave then i . loop ;\ne\n']
+    .map((c) => (c === '\n' ? 10 : c.charCodeAt(0)));
+  const rtl = await runRtl(res, { cs: 0xFFFF, maxSteps: 8000000, keys });
+  const wa = await runWasm(res, { cs: 0xFFFF, maxSteps: 8000000, keys });
+  const screen = screenRows(rtl.memoryAt(SCREEN_ADDR, 25 * 80));
+  const waScreen = screenRows(wa.memoryAt(SCREEN_ADDR, 25 * 80));
+  assert.match(screen, /45/, 'the loop did not sum 0..9');
+  assert.match(screen, /0 {2}1 {2}2/, 'leave did not stop the loop at three');
+  assert.equal(screen, waScreen, 'the RTL screen differs from the WASM core');
+});
+
 test('the RTL core counts cycles per retired instruction', async () => {
   const res = assemble(`
         LDI 0x0001

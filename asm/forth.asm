@@ -1624,10 +1624,41 @@ h_minus:
 ;
 ; scr@ and scr! are newer still, and sit above them for the same reason.
 h_cls:
-    .word h_and
+    .word h_do
     .word 3
     .text "cls"
     .word word_cls
+; The loop words, inserted after h_cls for the same reason as the bit words
+; below: the headers are newest-first and forth_wl names the newest, so new
+; ones go at the head of the chain and the tail keeps its old links. `do`,
+; `loop` and `leave` are IMMEDIATE because they act while the definition is
+; being translated; what they leave behind are the runtime halves whose xts
+; are xt_do, xt_loop and xt_leave below.
+h_do:
+    .word h_qdo
+    .word 0x8002          ; IMMEDIATE | length 2
+    .text "do"
+    .word word_do
+h_qdo:
+    .word h_loop
+    .word 0x8003          ; IMMEDIATE | length 3
+    .text "?do"
+    .word word_qdo
+h_loop:
+    .word h_leave
+    .word 0x8004          ; IMMEDIATE
+    .text "loop"
+    .word word_loop
+h_leave:
+    .word h_i
+    .word 0x8005          ; IMMEDIATE
+    .text "leave"
+    .word word_leave
+h_i:
+    .word h_and
+    .word 1
+    .text "i"
+    .word word_i
 ; Bit operations, inserted after h_cls so the tail of the chain keeps its
 ; original links: h_scr_fetch is what h_cls used to point at, and h_invert now
 ; points there instead. The chain must still reach every header.
@@ -1924,10 +1955,20 @@ xt_0branch:
     .word zbranch
 xt_litstr:
     .word word_litstr
+xt_do:
+    .word word_do_rt
+xt_qdo:
+    .word word_qdo_rt
+xt_loop:
+    .word word_loop_rt
+xt_leave:
+    .word word_leave_rt
 current_xt:
     .word 0              ; xt of the definition being compiled (for recurse)
 created_xt:
     .word 0              ; xt of the newest CREATE'd word (for DOES>)
+loop_depth:
+    .word 0              ; DO/LOOP pairs open while compiling
 dict_free:               ; colon definitions are built upwards from here
 
 .code
@@ -4064,6 +4105,312 @@ word_recurse:
     ADD R3, 1
     ST R3, R2, 0
     LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+; ---------------------------------------------
+; DO / LOOP
+;
+; The loop needs a place for its two parameters that survives the body, and the
+; only such place in this kernel is the return stack: the data stack belongs to
+; the body, which may use it freely. So the loop frame lives on the RP, the
+; same place a call frame does, and the frame is four cells, pushed below
+; everything that is already there:
+;
+;     RP+0  exit      RP+2  index
+;     RP+1  body      RP+3  limit
+;
+; RP points at the FIRST cell of the frame, so that dropping it is one add.
+; A single-cell frame cannot tell the two conventions apart — `docol` writes
+; one cell and RP lands on it either way — and getting it wrong here left RP
+; one cell too low, so the pop handed the loop's limit to `exit` as a return
+; address and the core walked into unwritten memory. Nothing but `loop` and
+; `leave` touches the frame, and `exit` inside a loop is refused by the
+; standard anyway, so the two cannot collide.
+;
+; `do` is immediate: it lays down `LIT <exit>` and `xt_do`, and leaves the
+; placeholder on the compile-time RP stack that `if`/`then` also uses. The exit
+; address is not known until `loop` arrives, hence the placeholder. `loop` pops
+; it, compiles `xt_loop` and writes the address just past that cell into it.
+;
+; At run time the compiled form of `10 0 do i . loop` is
+;
+;     LIT 10   LIT 0   LIT <exit>   (do)   i   .   (loop)
+;
+; so `(do)` finds limit, index and exit on the data stack and moves them to the
+; loop frame. `(loop)` counts the index up; equal to the limit, it drops the
+; frame and falls through - IP already points past its own cell - and otherwise
+; sends IP back to the body. That is why no branch cell is needed at all.
+;
+; As with `if` and `while`, these are compile-time words: at the prompt (STATE
+; = 0) every word is executed, so a lone `10 0 do` there lays down half a
+; definition, exactly as a lone `if` does.
+;
+; A `loop` with no `do` in front of it is what the standard calls undefined, and
+; the compile-time RP stack is what would be popped from: it would hand the
+; loop a return address out of thin air, patch it, and the core would walk into
+; unwritten memory and stop — the REPL would be gone, not just the definition.
+; So `loop_depth` counts the pairs while compiling and a stray `loop` compiles
+; nothing at all. That is a smaller sin than the alternative; it is the only
+; unbalanced control word in the kernel that is checked (`then` without `if`
+; writes to one harmless cell), and it is checked here because the failure it
+; prevents is the one that takes the machine down.
+; ---------------------------------------------
+word_do:
+    LDI dp_var
+    MOV R2, R0
+    LD R1, R2, 0           ; DP
+    LDI xt_lit
+    MOV R3, R0
+    ST R3, R1, 0           ; compile LIT
+    ADD R1, 1
+    LDI 0
+    ST R0, R1, 0           ; the exit address; `loop` fills it in
+    MOV R3, R1             ; R3 = the placeholder cell
+    ADD R1, 1
+    LDI xt_do
+    MOV R4, R0
+    ST R4, R1, 0           ; compile (do)
+    ADD R1, 1
+    ST R1, R2, 0           ; DP
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    SUB R7, 1
+    ST R3, R7, 0           ; push the placeholder
+    ST R7, R4, 0
+    LDI loop_depth
+    MOV R4, R0
+    LD R7, R4, 0
+    ADD R7, 1
+    ST R7, R4, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+; ?do is `do` with one difference at run time: limit = start skips the loop
+; altogether. That case is the reason it exists - `do` counts after the
+; increment, so `0 0 do ... loop` runs the body 65536 times, once per cell
+; value, before the index wraps round onto the limit again. Everything else is
+; the same code with another xt, so the compile side differs in one
+; instruction, and the skip reuses the exit address `loop` patches in.
+word_qdo:
+    LDI dp_var
+    MOV R2, R0
+    LD R1, R2, 0           ; DP
+    LDI xt_lit
+    MOV R3, R0
+    ST R3, R1, 0           ; compile LIT
+    ADD R1, 1
+    LDI 0
+    ST R0, R1, 0           ; the exit address; `loop` fills it in
+    MOV R3, R1             ; R3 = the placeholder cell
+    ADD R1, 1
+    LDI xt_qdo
+    MOV R4, R0
+    ST R4, R1, 0           ; compile (?do)
+    ADD R1, 1
+    ST R1, R2, 0           ; DP
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    SUB R7, 1
+    ST R3, R7, 0           ; push the placeholder
+    ST R7, R4, 0
+    LDI loop_depth
+    MOV R4, R0
+    LD R7, R4, 0
+    ADD R7, 1
+    ST R7, R4, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_loop:
+    LDI loop_depth
+    MOV R4, R0
+    LD R7, R4, 0
+    LDI 0
+    CMP R7, R0
+    JZ loop_stray          ; no `do` open: compile nothing
+    NOP
+    LDI 1
+    SUB R7, 1
+    ST R7, R4, 0
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    LD R3, R7, 0           ; the placeholder DO pushed
+    ADD R7, 1
+    ST R7, R4, 0           ; pop it
+    LDI dp_var
+    MOV R2, R0
+    LD R1, R2, 0           ; DP
+    LDI xt_loop
+    MOV R4, R0
+    ST R4, R1, 0           ; compile (loop)
+    ADD R1, 1
+    ST R1, R2, 0           ; DP, which is now the cell after (loop)
+    ST R1, R3, 0           ; the exit address, and the only patch DO needs
+loop_stray:
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+; leave pops the frame and sends IP to the exit address the frame carries, so
+; the rest of the body is skipped and the cell after `loop` runs next.
+word_leave:
+    LDI dp_var
+    MOV R2, R0
+    LD R1, R2, 0
+    LDI xt_leave
+    MOV R4, R0
+    ST R4, R1, 0           ; compile (leave)
+    ADD R1, 1
+    ST R1, R2, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_do_rt:
+    ; ( limit start exit -- )  three values, so the check is SP + 3
+    LDI sp0_base
+    MOV R2, R0
+    LDI rp_ptr
+    MOV R3, R0
+    LDI ip_ptr
+    MOV R4, R0
+    MOV R9, SP
+    ADD R9, 3
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ dor_ok             ; exactly three: SP + 3 == base
+    NOP
+    JN dor_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+dor_ok:
+    LD R7, SP, 0           ; exit
+    LD R10, SP, 1          ; start, which is the first index
+    LD R11, SP, 2          ; limit
+    ADD SP, 3
+    LD R9, R4, 0           ; IP: the body starts right after this cell
+    LD R1, R3, 0           ; RP
+    SUB R1, 4
+    ST R1, R3, 0           ; RP first, while R1 still holds the frame's base
+    ST R7, R1, 0           ; exit
+    ADD R1, 1
+    ST R9, R1, 0           ; body
+    ADD R1, 1
+    ST R10, R1, 0          ; index
+    ADD R1, 1
+    ST R11, R1, 0          ; limit
+dor_next:
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_qdo_rt:
+    LDI sp0_base
+    MOV R2, R0
+    LDI rp_ptr
+    MOV R3, R0
+    LDI ip_ptr
+    MOV R4, R0
+    MOV R9, SP
+    ADD R9, 3
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ qdor_ok            ; exactly three: SP + 3 == base
+    NOP
+    JN qdor_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+qdor_ok:
+    LD R7, SP, 0           ; exit
+    LD R10, SP, 1          ; start
+    LD R11, SP, 2          ; limit
+    ADD SP, 3
+    CMP R11, R10
+    JNZ qdor_frame         ; limit <> start: run the body
+    NOP
+    ; Equal: no loop at all. Skipping the body is not enough - the (loop) that
+    ; closes it would find no frame and read whatever the return stack held.
+    ; So this jumps to the exit address `loop` patched in, which is one cell
+    ; past the (loop): the body and the loop are both skipped.
+    LDI ip_ptr
+    MOV R2, R0
+    ST R7, R2, 0           ; IP = exit
+    LDI next
+    MOV PC, R0
+    NOP
+qdor_frame:
+    LD R9, R4, 0           ; IP: the body starts right after this cell
+    LD R1, R3, 0           ; RP
+    SUB R1, 4
+    ST R1, R3, 0
+    ST R7, R1, 0           ; exit
+    ADD R1, 1
+    ST R9, R1, 0           ; body
+    ADD R1, 1
+    ST R10, R1, 0          ; index
+    ADD R1, 1
+    ST R11, R1, 0          ; limit
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_loop_rt:
+    LDI rp_ptr
+    MOV R2, R0
+    LD R1, R2, 0           ; RP
+    LD R3, R1, 2           ; index
+    ADD R3, 1
+    LD R4, R1, 3           ; limit
+    CMP R3, R4
+    JZ loop_rt_done        ; index == limit: the loop is over
+    NOP
+    ST R3, R1, 2           ; index = index + 1
+    LD R3, R1, 1           ; body
+    LDI ip_ptr
+    MOV R2, R0
+    ST R3, R2, 0           ; IP = body, and `next` carries on from there
+    LDI next
+    MOV PC, R0
+    NOP
+loop_rt_done:
+    ADD R1, 4              ; drop the four-cell frame
+    ST R1, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_leave_rt:
+    LDI rp_ptr
+    MOV R2, R0
+    LD R1, R2, 0           ; RP
+    LD R3, R1, 0           ; exit
+    ADD R1, 4              ; drop the frame
+    ST R1, R2, 0
+    LDI ip_ptr
+    MOV R2, R0
+    ST R3, R2, 0           ; IP = exit
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_i:
+    LDI rp_ptr
+    MOV R2, R0
+    LD R1, R2, 0           ; RP
+    LD R3, R1, 2           ; the innermost index
+    SUB SP, 1
+    ST R3, SP, 0
+    LDI next
     MOV PC, R0
     NOP
 
