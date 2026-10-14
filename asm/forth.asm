@@ -1532,10 +1532,43 @@ h_minus:
 ;
 ; scr@ and scr! are newer still, and sit above them for the same reason.
 h_cls:
-    .word h_scr_fetch
+    .word h_and
     .word 3
     .text "cls"
     .word word_cls
+; Bit operations, inserted after h_cls so the tail of the chain keeps its
+; original links: h_scr_fetch is what h_cls used to point at, and h_invert now
+; points there instead. The chain must still reach every header.
+h_and:
+    .word h_or
+    .word 3
+    .text "and"
+    .word word_and
+h_or:
+    .word h_xor
+    .word 2
+    .text "or"
+    .word word_or
+h_xor:
+    .word h_lshift
+    .word 3
+    .text "xor"
+    .word word_xor
+h_lshift:
+    .word h_rshift
+    .word 6
+    .text "lshift"
+    .word word_lshift
+h_rshift:
+    .word h_invert
+    .word 6
+    .text "rshift"
+    .word word_rshift
+h_invert:
+    .word h_scr_fetch
+    .word 6
+    .text "invert"
+    .word word_invert
 h_scr_fetch:
     .word h_scr_store
     .word 4
@@ -2421,6 +2454,206 @@ wabs_neg:
     NOP
 wabs_under:
     LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+; Bit operations. and/or/xor/invert are one machine instruction each, on the
+; shape word_mul uses: b is read from SP, SP is stepped up once, and that same
+; instruction reads a - so the slot a occupied becomes the result slot and SP
+; ends one above where it started, which is exactly one item for one.
+;
+; The shifts are not one instruction. SL and SR take their count as a 4-bit
+; IMMEDIATE (Table 6) with no register form, so a runtime count has to be
+; stepped one bit at a time, reloading the value from the stack each round
+; because there is nowhere to keep it that survives the shift.
+;
+; A count of 16 or more shifts every bit out, so it short-circuits to 0 rather
+; than looping. The standard leaves the count type-defined and does not
+; require a 16-bit shift to be in range; returning the total keeps the word
+; useful instead of turning a large count into a hang.
+;
+; SR is the logical shift, filling from bit 15 with zeros. Note the ISA has no
+; separate arithmetic shift - there is no way to ask for sign fill.
+
+word_and:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wand_ok
+    NOP
+    JN wand_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wand_ok:
+    LD R2, SP, 0            ; b, on top
+    ADD SP, 1
+    LD R1, SP, 0            ; a, whose slot becomes the result slot
+    AND R1, R2
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_or:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wor_ok
+    NOP
+    JN wor_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wor_ok:
+    LD R2, SP, 0
+    ADD SP, 1
+    LD R1, SP, 0
+    OR R1, R2
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_xor:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wxor_ok
+    NOP
+    JN wxor_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wxor_ok:
+    LD R2, SP, 0
+    ADD SP, 1
+    LD R1, SP, 0
+    XOR R1, R2
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+; invert works in place: one item in, one item out, so SP does not move.
+word_invert:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ winv_under
+    NOP
+    LD R1, SP, 0
+    INV R1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+winv_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+; n is on top and x below it. Stepping SP up once leaves R1 holding n and
+; makes SP point at x's slot, so x is already where the result belongs and
+; the loop only has to shift it in place.
+word_lshift:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wls_ok
+    NOP
+    JN wls_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wls_ok:
+    LD R1, SP, 0            ; n, the count, on top
+    ADD SP, 1
+    LD R2, SP, 0            ; x, already in the slot the result belongs in
+    LDI 16
+    CMP R1, R0              ; n - 16
+    JN wls_loop             ; fewer than 16: step it
+    NOP
+    LDI 0                   ; 16 or more: every bit is shifted out
+    ST R0, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wls_loop:
+    LDI 0
+    CMP R1, R0              ; count down to zero
+    JZ wls_done
+    NOP
+    LD R2, SP, 0            ; reload: R2 is both value and shift source
+    SL R2, 1
+    ST R2, SP, 0
+    SUB R1, 1
+    LDI wls_loop
+    MOV PC, R0
+    NOP
+wls_done:
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_rshift:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wrs_ok
+    NOP
+    JN wrs_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wrs_ok:
+    LD R1, SP, 0            ; n, the count, on top
+    ADD SP, 1
+    LD R2, SP, 0            ; x, already in the slot the result belongs in
+    LDI 16
+    CMP R1, R0
+    JN wrs_loop
+    NOP
+    LDI 0
+    ST R0, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wrs_loop:
+    LDI 0
+    CMP R1, R0
+    JZ wrs_done
+    NOP
+    LD R2, SP, 0
+    SR R2, 1
+    ST R2, SP, 0
+    SUB R1, 1
+    LDI wrs_loop
+    MOV PC, R0
+    NOP
+wrs_done:
+    LDI next
     MOV PC, R0
     NOP
 

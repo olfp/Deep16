@@ -1966,3 +1966,147 @@ test('a hex prefix with no digits is a word, not a zero', () => {
   // A bad digit AFTER one stops the number there, and the rest is looked up.
   assert.match(hexrepl('0x1g .').join('\n'), /undefined word: g/);
 });
+
+// ---------------------------------------------------------------------------
+// Bit operations: and, or, xor, invert, lshift, rshift. hexOut and hexrepl are
+// the shared REPL helpers above - the names are historical, the helper is not
+// hex-specific.
+//
+// These are one machine instruction each except the shifts, and two details
+// cost several attempts to pin down, so both are pinned by tests below:
+//
+//   * Stack discipline. A binary word reads b from SP, steps SP up once, and
+//     reads a through that same instruction - so a's slot becomes the result
+//     slot and SP ends one above where it started. Adding a second step-up
+//     lands on the empty-stack base, and the *next* word then reports stack
+//     underflow, several words away from the mistake.
+//
+//   * Operand order in the shifts. x is pushed first and n second, so n is on
+//     TOP. Reading the top as x makes every shift count by x and shift n,
+//     which looks plausible and is wrong: `1 100 lshift` would give 200.
+
+const cell = (addr) => {
+  const c = res.memoryChanges.find(m => m.address === addr);
+  return c ? c.value : undefined;
+};
+
+test('the bit words are in the dictionary chain, and the chain is intact', () => {
+  // Headers are newest-first and forth_wl names the newest, so the six new
+  // headers had to go between h_cls and h_scr_fetch. Repointing forth_wl at
+  // h_scr_fetch, or inserting anywhere else, walks the chain into a cycle -
+  // which is invisible until some unrelated word stops working.
+  const rev = Object.fromEntries(
+    Object.entries(res.symbols).filter(([k]) => k.startsWith('h_')).map(([k, v]) => [v, k]));
+  const seen = new Set();
+  let cur = cell(res.symbols.forth_wl);
+  while (cur && !seen.has(cur)) {
+    seen.add(cur);
+    cur = cell(cur);
+  }
+  assert.ok(!seen.has(cur), `dictionary chain cycles at ${rev[cur] || cur}`);
+  for (const h of ['h_and', 'h_or', 'h_xor', 'h_lshift', 'h_rshift', 'h_invert']) {
+    assert.ok(seen.has(res.symbols[h]), `${h} is not reachable from forth_wl`);
+  }
+  // h_store_cfa is the one header deliberately outside the chain: it is a
+  // compile-only link target, not a word.
+  const headers = Object.keys(res.symbols).filter(k => k.startsWith('h_'));
+  assert.equal(seen.size, headers.length - 1);
+  assert.equal(cell(res.symbols.forth_wl), res.symbols.h_cls,
+    'the cell at forth_wl must name the newest header');
+});
+
+test('and, or and xor are one instruction each', () => {
+  for (const [src, want] of [
+    ['12 10 and .', '8'], ['12 10 or .', '14'], ['12 10 xor .', '6'],
+    ['255 15 and .', '15'], ['255 240 or .', '255'], ['4095 255 xor .', '3840'],
+    ['0 0 or .', '0'], ['1 1 xor .', '0'], ['65535 0 xor .', '-1'],  // u. would print 65535
+    ['0xFF 0x0F and .', '15'], ['0xFF 0x10 xor .', '239'],
+    // idempotence and cancellation: what distinguishes the three from each other
+    ['4095 4095 and 4095 xor .', '0'],
+    ['4095 0 or 4095 xor .', '0'],
+    ['4095 4095 xor 4095 or .', '4095'],
+  ]) assert.equal(hexOut(src), want, src);
+});
+
+test('invert works in place', () => {
+  for (const [src, want] of [
+    ['0 invert .', '-1'], ['1 invert .', '-2'], ['65535 invert .', '0'],
+    ['255 invert .', '-256'], ['0 invert invert .', '0'],
+  ]) assert.equal(hexOut(src), want, src);
+});
+
+test('lshift and rshift count by n, which is the operand on top', () => {
+  // The paired rows are the ones that catch a swapped operand: 2 3 and 3 2
+  // give different answers only if x and n are read the right way round.
+  for (const [src, want] of [
+    ['2 3 lshift .', '16'], ['3 2 lshift .', '12'],
+    ['12 3 rshift .', '1'], ['3 12 rshift .', '0'],
+    ['1 4 lshift .', '16'], ['2 1 lshift .', '4'], ['1 0 lshift .', '1'],
+    ['1024 3 rshift .', '128'], ['65535 4 rshift .', '4095'],
+    ['255 4 rshift .', '15'], ['255 0 rshift .', '255'],
+    // rshift is logical: 32768 is positive here, so this cannot tell
+    // sign-fill from zero-fill - the ISA has no arithmetic shift to ask for.
+    ['32768 1 rshift .', '16384'],
+    ['65535 1 rshift .', '32767'],
+    // 1 << 15 is 0x8000, which . prints signed. u. shows the raw cell.
+    ['1 15 lshift u.', '32768'], ['1 15 lshift 1 xor u.', '32769'],
+  ]) assert.equal(hexOut(src), want, src);
+});
+
+test('a shift count of 16 or more shifts everything out, in both directions', () => {
+  // SL and SR take their count as a 4-bit immediate with no register form, so
+  // a runtime count is stepped one bit at a time. Left to itself that is up to
+  // 65535 rounds for a count like 100; the words short-circuit instead.
+  for (const [src, want] of [
+    ['1 16 lshift .', '0'], ['1 17 lshift .', '0'], ['1 100 lshift .', '0'],
+    ['1 65535 lshift .', '0'],
+    ['255 16 rshift .', '0'], ['255 20 rshift .', '0'], ['255 65535 rshift .', '0'],
+    // 16 is the first count that loses everything, not an arbitrary cut-off.
+    ['1 15 lshift u.', '32768'], ['65535 15 rshift u.', '1'],
+  ]) assert.equal(hexOut(src), want, src);
+});
+
+test('a bit word leaves exactly one item for two in', () => {
+  // The underflow that started this was reported by whichever word came next,
+  // so the result is consumed without being printed here and the count is
+  // checked by adding to it.
+  for (const [src, want] of [
+    ['12 10 and 5 + .', '13'], ['12 10 or 5 + .', '19'], ['12 10 xor 5 + .', '11'],
+    ['1 4 lshift 1 + .', '17'], ['1024 3 rshift 1 + .', '129'],
+    ['255 invert 1 + .', '-255'],
+  ]) assert.equal(hexOut(src), want, src);
+});
+
+test('every bit word checks its depth', () => {
+  // invert is the odd one out: it is unary, so one operand is not an error.
+  assert.match(hexrepl('invert').join('\n'), /stack underflow/, 'invert');
+  assert.equal(hexOut('1 invert .'), '-2');
+  for (const w of ['and', 'or', 'xor', 'lshift', 'rshift']) {
+    assert.match(hexrepl(w).join('\n'), /stack underflow/, w);
+    assert.match(hexrepl(`1 ${w}`).join('\n'), /stack underflow/, `1 ${w}`);
+  }
+  // The shifts need two operands where the others need two as well, so one
+  // short is an underflow, while `and` with two is just arithmetic.
+  assert.equal(hexOut('1 2 and .'), '0');
+  // Two in leaves exactly one out, so dropping it empties the stack and the
+  // next word is the one that says so. `drop` alone does not - it accepts an
+  // empty stack - so it is the . after it that reports the underflow.
+  for (const src of ['12 10 and drop .', '12 10 or drop .', '12 10 xor drop .',
+                     '1 4 lshift drop .', '1024 3 rshift drop .', '255 invert drop .']) {
+    assert.match(hexrepl(src).join('\n'), /stack underflow/, src);
+  }
+});
+
+test('the bit words compile into definitions and compose with hex', () => {
+  assert.equal(hexOut(': t 12 10 and ; t .'), '8');
+  assert.equal(hexOut(': t 1 4 lshift ; t .'), '16');
+  assert.equal(hexOut(': t 0xFF 0x0F and ; t u.'), '15');
+  assert.equal(hexOut('8 4 or 1 or .'), '13');
+  assert.equal(hexOut('0x1F 16 and .'), '16');
+  assert.equal(hexOut('255 15 and 4 lshift .'), '240');
+  // invert works on the TOP of the stack, so this inverts 10 and leaves 12
+  // underneath it.
+  assert.equal(hexOut('12 10 invert .'), '-11');
+  assert.equal(hexOut('12 10 invert 1 + .'), '-10');
+  assert.equal(hexOut('12 10 invert swap . .'), '12  -11');
+});
