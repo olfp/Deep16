@@ -29,7 +29,7 @@ export function loadBrowserScripts(...files) {
   for (const f of files) {
     vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), { filename: f });
   }
-  for (const name of ['Deep16Assembler', 'Deep16Disassembler', 'Deep16Simulator']) {
+  for (const name of ['Deep16Assembler', 'Deep16Disassembler', 'Deep16Simulator', 'Deep16Optimizer']) {
     try {
       globalThis[name] = vm.runInThisContext(name);
     } catch {
@@ -42,6 +42,13 @@ export function loadBrowserScripts(...files) {
 export function assemble(source) {
   const { Deep16Assembler } = globalThis;
   return new Deep16Assembler().assemble(source);
+}
+
+// Run the peephole optimizer over source text. The result keeps labels
+// symbolic, so it feeds straight back into assemble().
+export function optimize(source, options = {}) {
+  const { Deep16Optimizer } = globalThis;
+  return new Deep16Optimizer().optimize(source, options);
 }
 
 // Full flat memory image for the JS core.
