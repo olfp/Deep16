@@ -59,17 +59,27 @@
 \      it, so a longer line ran past the end into the messages that
 \      follow the buffer and quietly overwrote them.
 \
-\ What the kernel does not have, and this file therefore does
-\ not use:
-\   0x1000      no hex literals in the number scanner
-\   ." text"    not IMMEDIATE, so inside a definition it runs
-\               while the definition is COMPILED - the text
-\               would appear once, at definition time, and
-\               never when the word is called
-\   do/loop/i   not implemented; begin/until and while/repeat
-\               are
-\   and,lshift  no bit operations, so not even the colour byte
-\               can be built from Forth
+\ What the kernel used not to have, and what this file therefore
+\ does not use. Three of these four arrived on 2026-10-14; only the
+\ loop is still missing:
+\   0x1000      hex literals, once missing from the number
+\               scanner, so a colour byte had to be written as
+\               decimal; $1F and 0x1F both work now
+\   ." text"    once not IMMEDIATE, so inside a definition it ran
+\               while the definition was COMPILED - the text
+\               appeared once, at definition time, and never when
+\               the word was called. It is IMMEDIATE now: the text
+\               is copied into the definition and printed on the
+\               call
+\   and,lshift  bit operations, once missing, so not even the
+\               colour byte could be built from Forth
+\   do/loop/i   still not implemented; begin/until and while/repeat
+\               are, and this file uses those
+\
+\ What this file does with the newer ones anyway: the colour bytes
+\ below are still decimal, because hex literals were the later
+\ arrival and the decimals were already in place - both are the
+\ same bytes either way.
 \
 \ create and allot work and are used below - a created word
 \ behaves like a variable whose data field starts at the address

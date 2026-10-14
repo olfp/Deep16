@@ -3,6 +3,15 @@
 > Ständig gepflegter Arbeitsstand. Letzte Änderung: 2026-10-14.
 > Workflow-Regeln: [STYLE.md](STYLE.md).
 >
+> **2026-10-14 (zweiter Teil):** `."` ist als IMMEDIATE-Wort fertig — in einer
+> Definition wird der Text **beim Aufruf** gedruckt, nicht beim Übersetzen. Der
+> als „Store schreibt nicht" notierte Blocker lag drei Ebenen darüber: der
+> Assembler ließ den dritten Operanden einer dreistelligen ALU-Zeile fallen,
+> **R9 ist ein ES-Base-Register** (PSW.ER = 8 mit Dual-Bit), und ein
+> Leerzeichen im String galt als Trenner. Und von den vier „das kann der Kern
+> nicht"-Vermerken in `forth/hanoi.fth` ist der vierte (**`2dup`**) zurückgenommen:
+> der Testfall war falsch, nicht das Wort. Offen bleibt **`do`/`loop`**.
+>
 > **2026-10-14:** Am **Forth-Kern** (`asm/forth.asm`) — dem Kernprogramm des
 > Projekts — wurde die älteste Lücke geschlossen. `forth/hanoi.fth` trug vier
 > „das kann der Kernel nicht"-Vermerke; **zwei** davon sind erledigt
@@ -258,10 +267,11 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-10 | **Divider neu: handgeschrieben, iterativ, Radix-4.** Drei Befunde führten dazu. **(a)** Das RTL benutzt die Verilog-Operatoren `quot32 = dividend32 / {16'h0000, opv_i}` und `rem32 = dividend32 % {...}` (`rtl/deep16_alu.sv:235-236`) — Verilog sieht **32/32**, ein Synthesizer inferiert zwei volle 32-Bit-Teiler. Die Architektur meint aber 32÷16 mit **16-Bit-Quotient und 16-Bit-Rest**; `quot32[15:0]`/`rem32[15:0]` verwerfen die oberen Hälften ohnehin. Ein echter 32÷16 braucht nur ein **18-Bit-Arbeitsregister**, nicht 33 — das war in der ersten Auslegung dieses Dokuments falsch angesetzt. **(b)** Unverändert ergäbe das ~1200–2000 LUT und **8–16 MHz**; der Teiler wäre der Taktbegrenzer des ganzen Kerns. **(c)** Iterativ **entkoppelt die Breite vom Takt**: der kritische Pfad ist nur noch *eine* Iteration (18-Bit-Kette + 2 LUT-Level + Routing = 2,2–4,5 ns), also **222–455 MHz** und bei 54 MHz 4–8× Reserve. Gewählt wird **Radix-4** (2 Dividend-Bits je Iteration, **16 statt 32 Takte**) für den Durchsatz: Misch-CPI 6,20 → **3,53**, also 8,7 → **15,3 MIPS @54 MHz**. ⚠ *Korrigiert nach der Umsetzung:* die erste Fassung nannte **8 Takte / 24,5 MIPS**. Falsch — der 32÷16-Quotient ist 32 Bit breit und wird erst am Ende auf 16 Bit gekürzt, also müssen alle 32 Dividend-Bits aus `rem = 0` verbraucht werden. Radix-4 bleibt die richtige Wahl (es halbiert die Iterationen gegenüber Radix-2), ist aber halb so schnell wie zunächst behauptet. **Gemessen: 16,0 Takte** über `ADD`. Fläche: **~300–450 LUT** (gegenüber ~100–160 für Radix-2 und ~1200–2000 für den inferierten) — bei 300–450 LUT bleibt der Fmax bei ~5–7 ns je Iteration, also ~2,6–3,7× Reserve bei 54 MHz. `DIV` (16÷16) und `DIV32` (32÷16) teilen **einen** Kern (16÷16 = 32÷16 mit Nullbits im Dividend); Quotient und Rest fallen im Restoring-Verfahren gemeinsam an, die Doppel-Operatoren entfallen. Preis: 16 Takte statt 1 je Division. **Bleibt zu erhalten:** die Sonderfälle `opv == 0 → 0xFFFF` und die Ablehnung ungerader Zielregister bei `DIV32` (`rd[0]`). Danach ist der Teiler **nicht mehr** der kritische Pfad — der ist dann der Rest von EX (228-Bit-State-Bypass, ALU mit 32 Funktionen, Schieberegister, Ergebnisauswahl), geschätzt 8–15 ns. | `rtl/deep16_alu.sv`, `rtl/deep16_core.sv` (`stall`) |
 | 2026-10-11 | **MUL/DIV-Abgleich Spec ↔ drei Kerne: zwei Befunde, ein echter, ein Fehlalarm.** Anlass war die Meldung, die Opcode-Tabelle der Spec weiche für Schiebegruppe, `MUL`/`DIV` und Systemgruppe vom Assembler ab. **(1) Echter Fehler, semantisch:** Spec Tabelle 14 etikettierte `DIV32` als „32÷16→32-bit divide". Gemessen rechnet `DIV32` **32÷16 mit 16-Bit-Quotient und 16-Bit-Rest** — der Quotient wird gekappt (`0xFFFFFFFF / 1` → `Rd=0xFFFF`, nicht `0xFFFFFFFF`; `0x00012345 / 1` → `Rd=0x2345`). Das ist gewollt und in `rtl/deep16_alu.sv` sowie `rtl/deep16_divider.sv` kommentiert; nur das Etikett war falsch. Spec Tabelle 8, Anhang A und die Buchkapitel waren bereits richtig, `MUL32` trägt dasselbe Etikett und ist korrekt (32 Bit bleiben vollständig erhalten). Etikett in `doc/Deep16-Arch.md` berichtigt — die einzige angefasste Spec-Zeile, nach ausdrücklicher Freigabe, weil die Spec dem Parallelautor gehört. **(2) Fehlalarm:** die drei behaupteten Opcode-Abweichungen existieren nicht. Nachgemessen Schiebegruppe 12/12, `MUL`/`DIV` 4/4, Systemgruppe 4/4 MATCH; die Spec-Zeilen standen in **jeder** Revision identisch (10 Commits zurück bis `1bce2ee`, ebenso in `old/Deep16-Arch-M3r1.md` und `old/Deep16-Arch-v5.2.md`). Der Zusatz „statt `110 10…`" hat keine Entsprechung in irgendeiner Spec-Fassung. Historisch abweichend war nur der `MUL32`-Entwurf `[110][101][Rd4][w1][i1][Rs4]` im Assembler, ersetzt durch `110 11101` — die Doku-Aussage war damals berechtigt und wurde beim Umbau nicht nachgezogen, sie war also selbst das, was sie bei der Spec kritisiert. **Lehre:** eine Doku-Aussage über eine andere Quelle ist selbst eine Behauptung und braucht denselben Nachweis wie der Code. Verifikation: 211 gerichtete + 800 Zufallsfälle über `MUL`/`MUL32`/`DIV`/`DIV32` gegen JS-, WASM- und RTL-Kern, **0 Abweichungen**; `divtest.cpp` (Radix-4 gegen Verilogs `/` und `%`) besteht; `npm test` 296/296. **Kein Code geändert.** | `doc/Deep16-Arch.md`, `STATUS.md`, `book/anhang.md` |
 | 2026-10-10 | **Dritter CPU-Kern in SystemVerilog** (`rtl/`, Verilator + Emscripten), 5-Stufen-Pipeline und 4KB-Cache, in der IDE als **Kern** wählbar (JS / WASM / RTL). Zwei Grundsätze haben sich als tragend erwiesen und sollten bei einem vierten Kern wiederholt werden: **(a)** Der Cache ist **per Konstruktion transparent** — bei einem Miss liefert das Top-Level weiter aus dem Speicherarray aus, die Pipeline stallt nie und die (verifizierte) Pipeline-Steuerung bleibt unangetastet. **(b)** Nebenwirkungen außerhalb von WB brauchen eine Bedingung *„verlässt die Stufe in diesem Takt"* — sonst feuert der Tastatur-Pop über die Schrittgrenze hinweg mehrfach. Drei Kernfehler dieser Runde waren jeweils **eine** fehlende Bedingung, nicht schlechte Logik: `fill_base` nach Cachebarkeit statt nach dem Miss gewaehlt, Invalidierung per `eval()` ohne posedge (stiller No-op), veraltete Zeile nach Store ohne Write-Allocate. Dazu zwei Fehler im Prüfwerkzeug selbst, die beide wie eine Kerndivergenz aussahen: `set_registers()` legt Index 15 auf den *aktiven* PC, und ein Seed, der nur einen PC setzt, laesst im Schattenkontext den anderen auf 0. **Lehre:** bei einer Divergenz zuerst *das Werkzeug* prüfen, nicht das Werk. Verifikation: Decode-Sweep 524288 Ausführungen, 0 Abweichungen (4 Seeds), `tests/fuzz.test.js` mit 60 Zufallsprogrammen, 239/239 Tests gruen. Für die Doku: `README.md` auf drei Kerne gezogen, `VERILOG.md` als Plan- und Entscheidungslog geführt. | `rtl/`, `index.html`, `js/deep16_ui_core.js`, `tests/rtl.test.js`, `tests/fuzz.test.js`, `README.md`, `VERILOG.md` |
-| 2026-10-14 | **Hex-Literale im Zahlen-Scanner** (`0x1F`, `0X1F`, `$1F`). Bisher nur dezimal, deshalb war ein Hex-Literal ein „undefined word" — und deshalb führt `forth/hanoi.fth` seine Farbbytes als Dezimalzahlen und der Kommentar neben dem Attributcode baut die Maske von Hand. Der Präfix-Test steht **vor** dem Ziffern-Test: `'$'` sortiert unter `'0'`, ein `$FF` wäre also als Wort gelesen worden, und `0x..` muss abgefangen werden, solange `>IN` noch auf dem `'0'` steht. Ein Präfix ohne Ziffern wird als **Wort** gemeldet, nicht stillschweigend zu 0 — eine 0 ist eine Zahl, die richtig aussieht. **Registerbudget:** im Tokenizer leben R0, R1, R2, R3, R4, R7, R12 plus die Aliase R5 (`>IN`), R6 (`TIB`), R13/R14 (SP/LR); R8 ist `SCR`. Es bleiben **R9, R10, R11** und sonst nichts — zwei Fehlversuche habenjeweils R5 oder R6 gegriffen, also `>IN` selbst und `TIB`. `>IN` taugt auch nicht als „Ziffer gelesen"-Flag, weil schon das Präfix es weiterzählt: `0x .` sieht exakt aus wie eine Zahl, die am Leerzeichen endete. Suite 377/377. | `asm/forth.asm`, `tests/forth.test.js` |
+| 2026-10-14 | **Hex-Literale im Zahlen-Scanner** (`0x1F`, `0X1F`, `$1F`). Bisher nur dezimal, deshalb war ein Hex-Literal ein „undefined word" — und deshalb führt `forth/hanoi.fth` seine Farbbytes als Dezimalzahlen und der Kommentar neben dem Attributcode baut die Maske von Hand. Der Präfix-Test steht **vor** dem Ziffern-Test: `'$'` sortiert unter `'0'`, ein `$FF` wäre also als Wort gelesen worden, und `0x..` muss abgefangen werden, solange `>IN` noch auf dem `'0'` steht. Ein Präfix ohne Ziffern wird als **Wort** gemeldet, nicht stillschweigend zu 0 — eine 0 ist eine Zahl, die richtig aussieht. **Registerbudget:** im Tokenizer leben R0, R1, R2, R3, R4, R7, R12 plus die Aliase R5 (`>IN`), R6 (`TIB`), R13/R14 (SP/LR); R8 ist `SCR`. Es bleiben **R9, R10, R11** und sonst nichts — zwei Fehlversuche habenjeweils R5 oder R6 gegriffen, also `>IN` selbst und `TIB`. `>IN` taugt auch nicht als „Ziffer gelesen"-Flag, weil schon das Präfix es weiterzählt: `0x .` sieht exakt aus wie eine Zahl, die am Leerzeichen endete. Suite 377/377. ⚠ *Korrigiert am 2026-10-14:* die Liste der freien Register war falsch — **R9 ist keines**. `PSW.ER = 8` mit Dual-Bit macht R8 **und R9** zum ES-Base-Paar, jedes `ST/LD Rx, R9, n` geht über ES. Als *Wert* bleibt R9 benutzbar, als Adressregister nicht; frei sind R10 und R11. Siehe den `."`-Eintrag unten, dem dieser Fehler zugrunde lag. | `asm/forth.asm`, `tests/forth.test.js` |
 | 2026-10-14 | **Die Bitoperationen `and` `or` `xor` `invert` `lshift` `rshift`.** Die ersten vier sind je **ein** Befehl. Die Schiebungen nicht: `SL`/`SR` nehmen ihre Zahl als **4-Bit-Immediate** (Tabelle 6) und haben keine Registerform — eine Laufzeit-Zahl muss Bit für Bit getaktet werden, wobei der Wert jedes Mal wieder vom Stapel geholt wird, weil es keinen Platz gibt, der den Schiebevorgang übersteht. Eine Zahl ≥ 16 schiebt alles heraus und wird auf 0 verkürzt: `1 100 lshift` wären sonst 100 Runden, `1 65535 lshift` 65535. Der Standard lässt den Typ offen und verlangt keinen 16-Bit-Schiebebereich — die Gesamtheit zurückzugeben ist brauchbarer, als eine große Zahl in einen Hänger zu verwandeln. **Die teuerste Lektion dieser Runde, vier Fehlversuche:** ein binäres Wort liest `b` von SP, erhöht SP **einmal** und liest `a` durch dieselbe Instruktion — `a`s Platz wird damit der Ergebnisplatz. `word_mul` ist die Vorlage und tut **genau einen** Schritt. Ein zweiter Schritt landet auf der Leer-Marke, und der Fehler wird vom **nächsten** Wort gemeldet: `12 10 and .` zeigte „stack underflow", und der Unterlauf war in `.`, sechs Instruktionen weiter. Alle vier Versuche lasen das als „die Bitwörter laufen unter" und haben Prolog, Header-Verdrahtung und Befehlskodierung ausgechlossen — alle drei waren korrekt. **Zweite Falle:** in `x n lshift` liegt `n` **oben**, weil `x` zuerst gelegt wurde. Liest man das oberste als `x`, zählt jedes Schieben mit `x` und schiebt `n`; das ergab bei jedem Ergebnis `2 × n` und hat den Fehler benannt. `rshift` ist logisch (Nullen ab Bit 15); die ISA hat **keine** arithmetische Schiebung, wonach man fragen könnte. Die Header liegen zwischen `h_cls` und `h_scr_fetch`, damit der Schwanz der Kette seine alten Verbindungen behält, und `forth_wl` zeigt weiter auf `h_cls`; ein Test läuft die Kette ab und prüft Zyklusfreiheit und Vollständigkeit. **Nicht adressiert:** `drop` akzeptiert einen leeren Stapel — vorbestehend, nicht von dieser Änderung berührt. Suite 377/377. | `asm/forth.asm`, `tests/forth.test.js` |
 | 2026-10-14 | **`LWI` ergänzt** (`R0 ← b15(b15(Rx))`, Fehler, wenn es kein solches Feld gibt) und die **Türme in `hanoi.fth` auf `variable … 6 cells allot` umgestellt.** Damit fallen die beiden Umwege weg, die `hanoi.fth` sich wegen dieser Lücken selbst auferlegt hatte. Bildschirminhalte bei 3/4/5 Scheiben byteweise gleich. | `asm/forth.asm`, `forth/hanoi.fth`, `tests/assembler.test.js` |
-| 2026-10-14 | **`."` als IMMEDIATE-Wort — in Arbeit, nicht eingecheckt.** Bisher druckt `."` über den Tokenizer direkt auf den Bildschirm: in einer Definition erscheint der Text also **beim Übersetzen**, und beim Aufruf des Wortes kommt nichts. Geplanter Weg: beim Übersetzen `xt_lit`, die Textadresse, `xt_litstr` und die Zeichen in die Definition legen, zur Laufzeit `litstr` drucken. Dasselbe gilt für das nackte `"` — der Audit-Befund „`"` frisst zusätzlich das schließende `;`" ist an diesem Stand **falsch**: nachgemessen schließt `;` in beiden Formen sauber, der Fehler ist bei beiden derselbe. **Offen:** `ST R4, R9, 0` in `dotq_compile` wirkt nicht — `R9` und `R4` stimmen, der Speicher an der Zieladresse bleibt `0xFFFF`, und der Thread stirbt beim ersten `LIT`. Dasselbe Muster mit `R3` statt `R9` (`compile_number`) funktioniert. Verdacht: der Store-Encoder behandelt `R9` anders als die übrigen Register. | `asm/forth.asm` |
+| 2026-10-14 | **`."` als IMMEDIATE-Wort — fertig.** In einer Definition erscheint der Text jetzt **beim Aufruf**, nicht beim Übersetzen: beim Übersetzen wandern die Zeichen in die Definition, und es bleibt `xt_lit <adresse> xt_litstr <zeichen> 0` liegen; `litstr` druckt zur Laufzeit und schiebt den Thread über den String, wie `lit` über seine Inline-Zelle. Der Weg war im Vermerk vom selben Tag als „`ST R4, R9, 0` schreibt nicht" notiert — **die Stores waren nicht das Problem**, und die Diagnose „der Store-Encoder behandelt R9 anders" ging an der Sache vorbei. Drei Fehler lagen übereinander, jeder für sich harmlos aussehend: **(1) Der Assembler ließ den dritten Operanden einer dreistelligen ALU-Zeile ohne ein Wort fallen.** Die ALU-Gruppe ist in beiden Formen zweistellig (Spec Tabelle 6): `Rd, Rs` rechnet `Rd ← Rd OP Rs`, `Rd, imm` rechnet `Rd ← Rd OP imm`. `ADD R11, R9, 1` wurde deshalb als `R11 ← R11 + R9` übersetzt — im Wörterbuch stand danach eine Unsinnsadresse. Dreistellige Zeilen werden jetzt abgewiesen, wie `MOV … +1`. **(2) R9 ist kein freies Register.** `PSW.ER = 8` mit Dual-Bit (PSW-Setup am Dateianfang) macht **R8 und R9** zum ES-Base-Paar; jedes `ST Rx, R9, n` landete auf `ES:R9 = 0xF0000 + R9`, also auf dem **Bildschirm**. Der Zielzeiger ist jetzt R11; R9 bleibt als *Wert* in Ordnung. Damit ist die Notiz vom 2026-10-14, nach der im Tokenizer „R9, R10, R11" frei seien, **falsch** —siehe dort. **(3)** Ein Leerzeichen im String galt als Trenner und fiel stillschweigend weg. Der Sprung über den String war die vierte, erst beim Aufruf sichtbare Falle: ohne ihn liest `next` das erste Zeichen als xt und springt in den ASCII-Wert. Tests: acht Fälle in `forth.test.js` (Aufrufzeit, zwei Strings in einer Definition, Maskierung `\"`, leerer String, nacktes `"`, Mehrfachaufruf, Stapelverhalten), ein JS/WASM-Paritätsfall in `shadow.test.js` und zwei Assembler-Fälle in `assembler.test.js`. Alle drei Kerne liefern byteweise dasselbe Bild. | `asm/forth.asm`, `js/deep16_assembler.js`, `tests/forth.test.js`, `tests/shadow.test.js`, `tests/assembler.test.js` |
+| 2026-10-14 | **`2dup` und `drop` — der vermerkte Fehler war keiner.** Zwei Einträge von heute Nachmittag sind zurückgenommen, beide mit derselben Ursache: der *Testfall* war falsch, nicht das Wort. `1 2dup . . .` meldet „stack underflow" — das ist **richtig**, `2dup` braucht zwei Werte und es lag nur einer da. Nachgemessen an der ganzen Familie: `1 2 2dup . . . .` → `2 1 2 1`, `1 2 2dup depth .` → 4, `1 2 2drop . .` → underflow (der Stapel war leer, `.` bekam nichts), `2dup` auf leerem Stapel → underflow, ebenso `dup` und `drop` einzeln. Der zweite vermerkte Punkt, „`drop` nimmt einen leeren Stapel ohne Meldung", war derselbe Irrtum: `12 10 and drop` meldet `ok`, weil `and` einen Wert hinterlässt und `drop` ihn nimmt — danach ist der Stapel leer, und das folgende `.` meldet zu Recht underflow. Was den Befund erzeugt hat, ist der **Fehlerpfad**: er lässt den Datenstapel unangetastet, sodass nach einem underflow die Reste weiter unten liegen bleiben und das *nächste* Wort sie sieht. Das ist in diesem Kernel gewollt (ANS definiert den Stapel nach einem Fehler als undefiniert) und wird hier **nicht** geändert; `tests/forth.test.js` pinnt das Verhalten inzwischen an beiden Stellen. **Lehre:** ein gemeldeter Unterlauf beweist einen Unterlauf — er beweist nicht, welches Wort ihn ausgelöst hat. | `asm/forth.asm` (unverändert), `STATUS.md` |
 
 ## Architektur-Revisionen im Repo-Root
 
@@ -334,20 +344,28 @@ bewusste Entscheidung und keine Lücke.
    über den Forth-Kern, der das Kernprogramm des Projekts ist.
 8. **Der Forth-Kern ist das Kernprogramm des Projekts und war der am
    längsten liegengebliebene Teil.** `forth/hanoi.fth` trug vier „das kann der
-   Kern nicht"-Vermerke; **zwei** sind erledigt (Hex-Literale, Bitoperationen),
-   zwei bleiben. Dazu sind zwei Umwege weggefallen, die sich `hanoi.fth` wegen
-   dieser Lücken selbst auferlegt hatte (`LWI`, Türme als `variable`).
+   Kern nicht"-Vermerke; **drei** sind erledigt (Hex-Literale, Bitoperationen,
+   `."`), **einer** bleibt. Dazu sind zwei Umwege weggefallen, die sich
+   `hanoi.fth` wegen dieser Lücken selbst auferlegt hatte (`LWI`, Türme als
+   `variable`).
    Offen bleibt in dieser Reihenfolge:
-   1. **`."` als IMMEDIATE-Wort** — halb fertig, der Code steht, aber
-      `ST R4, R9, 0` schreibt nicht (siehe Entscheidungs-Log, 2026-10-14).
-      Der Wörterbuch-Teil ist ungetastet; offen ist der Store.
-   2. **`do`/`loop`** — braucht einen eigenen Loop-Parameter-Stapel neben dem
-      Datenstapel; von den vier die größte Aufgabe.
-   3. **`2dup`** — vorbestehender Fehler, auch auf HEAD: `1 2dup . . .`
-      meldet „stack underflow". Eigenständig, von den anderen unabhängig.
+   1. **`do`/`loop`** — braucht einen eigenen Loop-Parameter-Stapel neben dem
+      Datenstapel; von den vier die größte Aufgabe. Allein `do`/`loop` reicht
+      für `hanoi.fth`; `+do`/`?do`/`leave`/`i`/`j` sind die übliche Ergänzung,
+      aber keine der beiden Dateien braucht sie heute.
+   2. ~~**`."` als IMMEDIATE-Wort**~~ — erledigt am 2026-10-14. Der Text wird
+      in die Definition kopiert und beim Aufruf gedruckt; siehe
+      Entscheidungs-Log.
+   3. ~~**`2dup`**~~ — **kein Fehler.** `1 2dup` meldet zu Recht Unterlauf,
+      weil nur ein Wert auf dem Stapel liegt; der Testfall war falsch, nicht
+      das Wort. Siehe Entscheidungs-Log.
    **Methode, die sich bewährt hat:** erst die strukturelle Bedingung prüfen
    (Registerbudget, Header-Kette, SP-Disziplin), dann das Verhalten. Bei den
-   Bitwörtern hat die umgekehrte Reihenfolge vier Anläufe gekostet.
+   Bitwörtern hat die umgekehrte Reihenfolge vier Anläufe gekostet. Der
+   Satz gilt in beide Richtungen: bei `."` hat die Verhaltenssuche
+   (`ST R4, R9, 0` schreibt nicht) den Verdacht auf den Store-Encoder gelenkt,
+   der Fehler lag in drei Ebenen darüber — ein stillschweigend fallengelassener
+   Operand, ein ES-Base-Register und ein Trenner im Text.
 
 ---
 
@@ -715,22 +733,32 @@ die einzige Änderung, die für die Iterativ-Teilung überhaupt nötig ist.
     **ein** Kern für `DIV` und `DIV32`).
 * Der am 2026-10-10 vormerkte `LDI`-Bereichsfehler ist **kein Fehler** —
   die Vermerkung war eine Fehldiagnose (siehe Entscheidungs-Log).
-* **Zwei Mängel, die am 2026-10-14 bestätigt sind und nicht von der
-  jeweils laufenden Änderung stammen:**
-  - `drop` nimmt einen leeren Stapel ohne Meldung (`12 10 and drop` meldet
-    `ok`, wo ein Unterlauf stehen müsste). Vorbestehend.
-  - `1 2dup . . .` meldet „stack underflow" — auch auf HEAD. Eigener Fehler
-    in `2dup`, unabhängig von Hex-Literalen und Bitoperationen.
-* **Ein Befund, der zurückgenommen wurde:** das nackte `"` frisst angeblich
-  zusätzlich das schließende `;`. Nachgemessen am 2026-10-14 schließt `;` in
-  beiden String-Formen sauber; der Fehler ist bei `"` und `."` derselbe und
-  betrifft nur das Drucken beim Übersetzen statt beim Aufruf.
+* **Drei Mängel, die am 2026-10-14 gemeldet und am selben Tag zurückgenommen
+  wurden** — alle drei waren Fehlalarme aus falschen Testfällen:
+  - ~~`drop` nimmt einen leeren Stapel ohne Meldung~~ — `12 10 and drop`
+    hinterlässt `and` genau einen Wert, den `drop` nimmt; danach ist der
+    Stapel leer und das *folgende* `.` meldet zu Recht Unterlauf.
+  - ~~`1 2dup . . .` meldet „stack underflow"~~ — zu Recht: `2dup` braucht
+    zwei Werte, da lag einer. Nachgemessen: `1 2 2dup . . . .` → `2 1 2 1`,
+    `1 2 2dup depth .` → 4, und `2dup`/`dup`/`drop` melden auf leerem Stapel
+    alle drei Unterlauf.
+  - ~~das nackte `"` frisst zusätzlich das schließende `;`~~ — `;` schließt in
+    beiden String-Formen sauber.
+  Gemeinsame Ursache der ersten beiden: der **Fehlerpfad lässt den Datenstapel
+  unangetastet**, sodass nach einem Unterlauf Reste liegen bleiben und das
+  nächste Wort sie sieht. Das ist gewollt (ANS: Stapel nach Fehler undefiniert)
+  und wird nicht geändert.
+* **Ein echter Fehler, gefunden am 2026-10-14 und behoben:** der Assembler
+  ließ bei `ADD/SUB/CMP/… Rd, Rs, imm` den dritten Operanden **ohne Meldung**
+  fallen (die ALU-Gruppe ist in beiden Formen zweistellig, Spec Tabelle 6).
+  `ADD R11, R9, 1` wurde als `R11 ← R11 + R9` übersetzt. Dreistellige Zeilen
+  werden jetzt abgewiesen.
 
 **Was tatsächlich offen bleibt** — nicht Mängel, sondern Arbeit:
 
 | Punkt | Wo | Warum offen |
 |---|---|---|
-| **Forth-Kern: `."`, `do`/`loop`, `2dup`** | `asm/forth.asm` | Das Kernprogramm des Projekts, am längsten liegengeblieben. Zwei der vier in `hanoi.fth` vermerkten Lücken sind geschlossen; drei Punkte bleiben — Reihenfolge und Stand in „Nächste Schritte" Nr. 8 |
+| **Forth-Kern: `do`/`loop`** | `asm/forth.asm` | Das Kernprogramm des Projekts, am längsten liegengeblieben. Drei der vier in `hanoi.fth` vermerkten Lücken sind geschlossen, der vierte (`2dup`) war keiner — offen ist nur noch der Loop mit eigenem Parameter-Stapel; Reihenfolge und Stand in „Nächste Schritte" Nr. 8 |
 | Opcode-Tabelle in `doc/Deep16-Arch.md` | drei Bereiche veraltet | Die Spec gehört dem Parallelautor; Anhang A nennt die gemessenen Werte, die Buchdiagramme stimmen (33/33 geprüft) |
 | Quelldatei im Browser eintippen | `SERPLAN.md` | Nie im Browser gelaufen; die Pumpe ist nur gegen den echten Kernel auf dem JS-Kern getestet |
 | `EVALUATE` | `SERPLAN.md` | Ein Wort, das einen Puffer auswertet — ohne zweiten Eingangsweg sinnvoll |
