@@ -4186,6 +4186,7 @@ forget_unknown:
 ; BIOS Implementation (at physical 0xF8000)
 ; =============================================
 .equ BIOS_FN_COUNT, 6
+.equ BIOS_BASE, bios_entry   ; segment base; see the LDI note at the dispatch
 .org 0xF8000
 .code
 bios_entry:
@@ -4202,10 +4203,13 @@ bios_entry:
     NOP
     ; Out of range. The old chain fell off the end into the last routine, so
     ; an unknown code silently ran getstr and waited for a key.
-    ; The offset is taken, not the absolute address: a BIOS label sits at
-    ; 0xF8000+, well outside what LDI's 15-bit signed field can hold, and CS
-    ; is already 0xF800.
-    LDI bios_unknown - bios_entry
+    ; A label resolves to a 20-bit address, but LDI takes a 15-bit signed
+    ; immediate, so the delta is what fits. CS is already 0xF800, so the
+    ; segment offset is also the jump target.
+    ; MOV PC, Rx is the jump form, not ADD PC, Rx: an ALU write to R15 is a
+    ; plain store - the PC is already post-incremented, so it would land short
+    ; of the target, and it takes no delay slot.
+    LDI bios_unknown - BIOS_BASE
     MOV PC, R0
     NOP
 bios_jtab_ok:
@@ -4217,12 +4221,12 @@ bios_jtab_add:
     JMP R1
     NOP
 BIOS_JTABLE:
-    .word bios_f0 - bios_entry
-    .word bios_f1 - bios_entry
-    .word bios_f2 - bios_entry
-    .word bios_f3 - bios_entry
-    .word bios_f4 - bios_entry
-    .word bios_f5 - bios_entry
+    .word bios_f0 - BIOS_BASE
+    .word bios_f1 - BIOS_BASE
+    .word bios_f2 - BIOS_BASE
+    .word bios_f3 - BIOS_BASE
+    .word bios_f4 - BIOS_BASE
+    .word bios_f5 - BIOS_BASE
 bios_f0:
     ; 0: bver -> R0 = 0x0001 (version 0.1)
     LDI 0x0001

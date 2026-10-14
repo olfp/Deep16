@@ -19,7 +19,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { assemble, loadBrowserScripts, buildMemory, runWasm, runRtl, ROOT, SCREEN_ADDR, CURSOR_ATTR } from './helpers.js';
+import { assemble, loadBrowserScripts, buildMemory, runJs, runWasm, runRtl, ROOT, SCREEN_ADDR, CURSOR_ATTR } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -1522,6 +1522,65 @@ test('the BIOS entry reaches its table by label difference, not a fixed address'
     'the entry no longer derives its own address');
   assert.match(text, /BIOS_JTABLE - bios_jtab_add/,
     'the ADD must be the label difference to the table, not a literal offset');
+});
+
+test('BIOS_BASE names the segment base, and the deltas stay deltas', () => {
+  // A label resolves to a 20-bit address; LDI takes a 15-bit signed immediate.
+  // So "LDI bios_unknown" cannot work - the assembler rejects it outright - and
+  // every BIOS address reached through an LDI has to be written as a delta
+  // against the base. The subtraction reads like an identity, because
+  // bios_entry is at offset 0, so BIOS_BASE gives it a name and this test
+  // gives it a definition. Without one, the deltas are the first thing to be
+  // "simplified" away.
+  assert.equal(res.symbols.BIOS_BASE, res.symbols.bios_entry,
+    'BIOS_BASE must be the segment base, bios_entry');
+
+  // A bare BIOS label really is out of range, so the deltas are load-bearing
+  // rather than decorative. Checked on a block of the same shape.
+  const bare = assemble('.org 0xF8000\nbios_entry:\n  LDI bios_unknown\n'
+    + '  HLT\nbios_unknown:\n  RETI\n');
+  assert.equal(bare.success, false, 'a bare BIOS label should not fit an LDI');
+  assert.match(bare.errors.join(), /out of range/);
+
+  // And the source keeps spelling the jump target as a delta.
+  const unknown = res.listing.find(l => typeof l.address === 'number'
+    && /LDI\s+bios_unknown/.test(l.line || ''));
+  assert.ok(unknown, 'the unknown-code path no longer loads bios_unknown');
+  assert.match(unknown.line, /bios_unknown\s*-\s*BIOS_BASE/,
+    'the LDI must take the segment offset, not the 20-bit label');
+});
+
+test('MOV PC, Rx is the jump form, and ADD PC, Rx is not one', () => {
+  // Pinning the one that looks replaceable. "ADD PC, R0" assembles, is accepted
+  // by all three cores, and is wrong: an ALU write to R15 is a plain store, so
+  // the PC is already post-incremented and it lands short of the target. It
+  // takes no delay slot either. Only MOV/SOP route through the rd === 15 check
+  // that arms one.
+  const jumps = (mid) => {
+    const r = assemble('start:\n  LDI tgt\n  MOV R2, R0\n  ' + mid + '\n  HLT\n'
+      + 'tgt:\n  LDI 0x1234\n  HLT\nfall:\n  LDI 0x5678\n  HLT\n');
+    assert.equal(r.success, true, `${mid} should assemble`);
+    return r;
+  };
+  const landed = (r) => {
+    const v = r.registers[0] & 0xFFFF;
+    if (v === 0x1234) return 'jumped';
+    if (v === 0x5678) return 'fell through';
+    return `R0=0x${v.toString(16)}`;
+  };
+
+  const at = (r) => runJs(r, { cs: 0, ds: 0, ss: 0, es: 0, maxSteps: 300 });
+  const mov = jumps('MOV PC, R2');
+  const add = jumps('ADD PC, R2');
+  assert.equal(landed(at(mov)), 'jumped', 'MOV PC, R2 must reach the target');
+  assert.notEqual(landed(at(add)), 'jumped',
+    'ADD PC, R2 is a store to R15, not a jump. If this ever starts jumping, the '
+    + 'post-increment behaviour changed and the BIOS comment needs revisiting.');
+
+  // The BIOS really does use MOV PC, not ADD PC.
+  const jmp = res.listing.find(l => typeof l.address === 'number'
+    && /MOV PC, R0/.test(l.line || ''));
+  assert.ok(jmp, 'the unknown-code path no longer jumps through MOV PC, R0');
 });
 
 test('every BIOS label is distinct, ordered, and inside the block', () => {
