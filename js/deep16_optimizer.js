@@ -79,6 +79,12 @@ class Deep16Optimizer {
             this.optimizeBlock(block.insns, opts);
         }
 
+        // Which words were dropped, by original line, so a caller can point at
+        // them (or measure the dynamic saving) without diffing text.
+        this.stats.removed = records
+            .filter(r => r.kind === 'insn' && r.deleted)
+            .map(r => ({ line: r.line, text: r.raw.split(';')[0].trim() }));
+
         const out = records.map(r => this.emit(r)).filter(t => t !== null).join('\n');
         return { source: out, stats: this.stats, changed: out !== source };
     }

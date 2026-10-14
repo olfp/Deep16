@@ -118,6 +118,12 @@ test('C2: MOV Rd,Rd is deleted', () => {
   assert.deepEqual(lines(r.source), ['HLT']);
 });
 
+test('stats.removed names the dropped words by original line', () => {
+  const r = opt(`    LDI 2\n    MOV R2, R0\n    LDI 3\n    MOV R3, R0\n`);
+  assert.ok(r.stats.removed.some(x => x.text === 'MOV R2, R0'), JSON.stringify(r.stats.removed));
+  assert.ok(r.stats.removed.every(x => Number.isInteger(x.line) && x.line > 0));
+});
+
 // --------------------------------------------------------- safety guards
 
 test('a delay slot is never deleted', () => {

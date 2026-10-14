@@ -40,6 +40,9 @@ Options (all default on):
 | `maxSweeps` | rewrite passes per block (default 8) |
 | `fuseAllowed` / `deadAllowed` | narrow the work to specific rule names / mnemonics, for tests and for bisecting a miscompile |
 
+`stats.removed` lists the dropped words by original line (`{ line, text }`), so
+a caller can point at them or measure the dynamic saving without diffing text.
+
 In the browser IDE, the **Optimize** button next to **Assemble** replaces the
 editor text with the optimized source and reports the rule counts in the
 transcript. The optimizer is opt-in: nothing runs it unless asked.
@@ -155,6 +158,34 @@ directives or labels):
 | `asm/string_demo.asm` | 42 → 39 | B1×1, +2 dead |
 | `asm/far_call.asm` | 20 → 19 | B1×1 |
 | `asm/fibonacci.asm`, `screen_demo.asm`, `link_delay_slot.asm` | unchanged | copy substitutions only |
+
+## Runtime effect (measured)
+
+Executed instructions on the JS core, both kernels run until the REPL returns
+to idle (empty keyboard queue and a poll of `KBD_STATUS` at 0xF0060), same
+input on both sides. `steps` counts retired instructions, delay slots included.
+
+| workload | original | optimized | speedup |
+|----------|---------:|----------:|--------:|
+| boot to prompt | 10 500 | 10 471 | 1.003× |
+| `1 2 + .` | 14 762 | 14 667 | 1.007× |
+| `: sq dup * ;` then `5 sq .` | 20 380 | 20 213 | 1.008× |
+| `fib 18` (recursive) | 2 094 191 | 2 073 018 | 1.010× |
+| `: cnt 0 begin 1+ dup 2000 < until drop ;` | 25 034 | 24 833 | 1.008× |
+| `12345 . 9876 . 42 . 7 .` | 19 654 | 19 534 | 1.006× |
+
+DeepForth runs about **1% faster** (0.3–1.1% here). The dynamic saving is
+essentially all one instruction removed from the stack-underflow prologue that
+every primitive runs — `MOV R9, SP ; ADD R9, 2` folds to `MOV R9, SP + 2`
+(rule A3) — plus `ADD R10, 2` in the dictionary search and `LDI;MOV → LSI` in
+setup paths. The primitive bodies and the inner interpreter still dominate.
+The `<< 1` / `<< 1 + 1` rules fire zero times on the current sources: the kernel
+does not write those idioms next to a `MOV`. That is the opportunity the
+optimizer exists to take — once the Forth compiler emits `cells`/`2*` as
+`MOV Rd, Rs << 1`, A1/A2/A4/A5 start firing on the hot path.
+
+These are retired instructions, not cycles: no pipeline or cache effects are
+modelled, so the RTL core's cycle count could differ.
 
 ## Verification
 
