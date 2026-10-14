@@ -118,6 +118,67 @@ HLT
   }
 });
 
+// An SWI in a delay slot is the one case where the "pending transfer" and the
+// "instruction that is about to run" point at two different places in memory:
+// the branch armed a transfer, and then the delay slot turned out to be an SWI,
+// which replaces the PC with the interrupt vector. If the stale state survived
+// that, the handler's FIRST instruction would be taken as the branch's delay
+// slot and the old target entered instead - and since the old target is the
+// instruction after the SWI, the handler would run its body with one word
+// skipped and control would land outside it.
+//
+// The three cores differ in HOW they get this right, so the test pins the
+// behaviour, not the mechanism: JS and WASM clear delay_active in step_one
+// before dispatch, the RTL clears it on any edge that does not arm a new slot.
+test('an SWI in a delay slot runs the handler, then the branch target', async () => {
+  // The one case where the "pending transfer" and the "instruction about to
+  // run" point at two different places: the branch armed a transfer, and then
+  // its delay slot turned out to be an SWI, which replaces the PC with the
+  // interrupt vector. The handler runs first, and control must arrive at the
+  // branch's own target afterwards - not at the word after the SWI.
+  //
+  // All three cores get this right by consuming the delay state before they
+  // dispatch: JS and WASM clear delay_active at the top of step_one, and the
+  // RTL clears it on any edge that does not arm a new slot. This test pins the
+  // behaviour rather than the mechanism.
+  const src = `
+.org 0x0000
+.word 0                 ; unused
+.word 0                 ; unused
+.word handler           ; the SWI vector is read from physical 2
+.org 0x0100             ; runBoth starts here
+LDI 1
+MOV R1, R0
+LDI 2
+CMP R1, R0              ; 1 - 2 = -1, so Z = 0
+JNZ target              ; TAKEN: arms a delay slot and a transfer
+SWI                     ; <-- that delay slot
+here:
+LDI 0x11
+MOV R5, R0
+HLT
+target:
+LDI 0x22
+MOV R6, R0
+HLT
+.org 0x0200
+handler:
+LDI 0x42                ; the handler body must run in full
+MOV R4, R0              ; R4 is not banked, so the normal bank sees it
+RETI
+`;
+  const { js, wasm } = await runBoth(src);
+  for (const [name, r] of [['JS', js], ['WASM', wasm]]) {
+    assert.equal(r.registers[4] & 0xFFFF, 0x42,
+      `${name}: the handler body must run in full - a missing first instruction `
+      + 'is what a stale delay slot looks like');
+    assert.equal(r.registers[6] & 0xFFFF, 0x22,
+      `${name}: control must arrive at the taken branch's target`);
+    assert.equal(r.registers[5] & 0xFFFF, 0x0000,
+      `${name}: the fall-through path must not run - the branch was taken`);
+  }
+});
+
 // ------------------------------------------------- Shadow banking + PSW
 
 test('shadow banking: GPRs are banked, SWI parks PSW, RETI restores flags, SMV reads the inactive bank', async () => {

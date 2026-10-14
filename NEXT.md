@@ -1,4 +1,3 @@
-* ArchRev: Sollten Loads die Flags setzen? Wie ist das üblicherweise?
 * PSRAM
 * Assembler: `include` - eine andere Datei an der aktuellen Stelle
   einziehen, damit forth.asm seine eigene Quelldatei nicht mehr

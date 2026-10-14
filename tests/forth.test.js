@@ -1301,11 +1301,22 @@ test('the attribute byte is either 0 or the cursor attribute, and no other colou
 // "LDI print_prompt". Nothing in the assembler complained and the first
 // hundred tests still passed, because none of them type 23 lines.
 //
-// Two things have changed since. The dispatch is a jump table, so every call
-// is a label difference and a routine can change size freely - measured by
-// inserting a NOP after each label in turn, where only the offset pins
-// noticed. And the stale branch state itself is a core defect that the pins
-// were working around rather than fixing, so it is still worth knowing about.
+// Two things have changed since, and they retire the diagnosis above.
+//
+// The dispatch is a jump table, so every call is a label difference and a
+// routine can change size freely - measured by inserting a NOP after each label
+// in turn, where only the offset pins noticed.
+//
+// And the stale branch state turned out not to be there. Looked for it on
+// 2026-10-14: the machine never resumes in normal mode with a delay slot still
+// pending (0 of 5 BIOS exits in a full REPL run), no SWI in the kernel sits in
+// a delay slot (0 of 18), and deleting the delay slot after each of the 426
+// branches in the kernel and BIOS breaks only the two LINK/JMP pairs, which
+// fail because the call is gone, not because any state survived. All three
+// cores consume the delay state before dispatch. What the comment above
+// described was probably always the symptom of some other edit; either way the
+// mechanism it blamed is not there.
+//
 // What replaces the pins is the invariant set above: bios_entry at segment
 // offset 0, the table matching the routines, entry points off the padding.
 // If those hold, a BIOS routine may change size.

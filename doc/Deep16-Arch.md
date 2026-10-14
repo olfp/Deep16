@@ -136,6 +136,24 @@ The effective 20-bit memory address is computed as `(segment << 4) + offset`. Wh
 **PSW Reset State**: `0x0000` (Shadow bit S=0, interrupts disabled)
 - This ensures boot code runs in normal context; the shadow context is entered only via SWI (§4.4), and PSW' resets to `0x0000` as well (§4.2)
 
+**Which instructions set N/Z/V/C** (decided 2026-10-13): only the ALU group and
+the shift group. **Loads do not set flags.** `LDI`, `LSI`, `LD`, `LDS`, `MOV`,
+`MVS`, `SMV` and the `SOP` moves leave NZVC exactly as they found it; so do
+stores, the branch instructions, and `SWI`/`RETI`.
+- This is the common convention: 6502, 6809, ARM without S, RISC-V without Zicsr and
+  the Z80 all leave the flags alone across a load, because the loaded *data* is not
+  the result of the arithmetic the flags describe. MIPS is the usual counter-example,
+  and it needs `lui`+`addiu` to form an address, which is the case that argues for it.
+- The cost is that a load cannot be followed directly by a conditional branch on the
+  loaded value; test the value with `CMP` (or `TBC`, which sets only NZ) instead.
+  This is visible in the BIOS, e.g. `bios_putstr_loop` does
+  `LD R1, R2, 0` / `LDI 0` / `CMP R1, R0` rather than branching on the load.
+- It also makes `LDS` usable for the keyboard as a plain read, with no risk of
+  clobbering flags the caller is mid-way through a chain of tests with.
+- Implemented by all three cores: the JS and WASM cores gate flag update on
+  "did this instruction produce an ALU result", and the RTL only writes NZVC from
+  the ALU/shift datapath.
+
 ---
 
 ## **3. Instruction Set Architecture**

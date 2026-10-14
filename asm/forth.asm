@@ -263,8 +263,6 @@ cursor_off:
     MOV R7, R0
     AND R1, R7           ; drop the attribute, keep the character
     STS R1, ES, SCR
-    NOP                     ; historic padding, see the note at the end of
-    NOP                     ; bios_store_char
     LDI interpret_loop
     MOV PC, R0
     NOP
@@ -284,8 +282,6 @@ clear_cursor:
     MOV R7, R0
     AND R1, R7           ; drop the attribute, keep the character
     STS R1, ES, SCR
-    NOP                     ; historic padding, see the note at the end of
-    NOP                     ; bios_store_char
     JMP LR
     NOP
     ; Ensure Data Segment points to physical 0x0000
@@ -4289,8 +4285,6 @@ bios_f2:
     LDS R3, ES, SCR
     OR  R3, R0              ; and the new cell gets the reversed colour
     STS R3, ES, SCR
-    NOP                     ; historic padding, see the note at the end of
-    NOP                     ; bios_store_char
     RETI
     NOP
 bios_putch_cr:
@@ -4525,14 +4519,15 @@ bios_store_char:
     LDS R7, ES, SCR
     OR  R7, R0              ; and the new cell gets the reversed colour
     STS R7, ES, SCR
-    ; A routine used to have to keep its length, or pad back with NOPs, because the
-    ; dispatch was a chain of CMP/JNZ tests and a routine was only reached if it
-    ; sat at the offset the branch had been told about. The jump table made that
-    ; go away: every call is a label difference now, so the whole block shifts
-    ; together and a routine can change size freely. The NOPs still standing in
-    ; this file are left over from that arrangement - see the test "every BIOS
-    ; label is distinct, ordered, and inside the block" in tests/forth.test.js,
-    ; which enforces what the offsets used to.
+    ; A routine used to have to keep its length, or pad back with NOPs, because
+    ; the dispatch was a chain of CMP/JNZ tests and a routine was only reached
+    ; if it sat at the offset the branch had been told about. The jump table
+    ; made that go away: every call is a label difference now, so the whole
+    ; block shifts together and a routine can change size freely. The last of
+    ; those padding NOPs is gone; the NOP after a JMP, MOV PC or RETI stays,
+    ; because that one is the delay slot the branch needs. The test "every BIOS
+    ; label is distinct, ordered, and inside the block" in tests/forth.test.js
+    ; enforces what the offsets used to.
     CLRZ
     JNZ bios_getstr_loop
     NOP
