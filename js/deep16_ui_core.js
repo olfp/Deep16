@@ -1383,7 +1383,7 @@ class DeepWebUI {
         const ttl = document.getElementById('doc-overlay-title');
         const closeBtn = document.getElementById('doc-overlay-close');
         if (!overlay || !body || !ttl || !closeBtn) return;
-        fetch(path).then(r => r.text()).then(md => {
+        fetch(path, { cache: 'no-store' }).then(r => r.text()).then(md => {
             ttl.textContent = title;
             body.innerHTML = this.renderMarkdown(md);
             overlay.style.display = 'flex';
