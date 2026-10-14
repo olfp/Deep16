@@ -619,32 +619,6 @@ class Deep16Assembler {
         for (let i = 1; i < chunks.length; i++) parts.push(chunks[i]);
 
         try {
-            // Handle jump instructions with label resolution
-            if (mnemonic.startsWith('J') && parts.length >= 2 && !this.isRegister(parts[1])) {
-                const jumpTypes = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
-                if (jumpTypes.includes(mnemonic)) {
-                    const targetLabel = parts[1];
-                    let targetAddress = this.labels[targetLabel];
-                    
-                    if (targetAddress === undefined) {
-                        throw new Error(`Unknown label: ${targetLabel}`);
-                    }
-                    
-                    const offset = targetAddress - (address + 1);
-                    if (offset < -256 || offset > 255) {
-                        throw new Error(`Jump target too far: ${offset} words from current position`);
-                    }
-                    
-                    const conditionCodes = {
-                        'JZ': 0b000, 'JNZ': 0b001, 'JC': 0b010, 'JNC': 0b011,
-                        'JN': 0b100, 'JNN': 0b101, 'JO': 0b110, 'JNO': 0b111
-                    };
-                    
-                    const conditionCode = conditionCodes[mnemonic];
-                    return 0b1110000000000000 | (conditionCode << 9) | (offset & 0x1FF);
-                }
-            }
-            
             switch (mnemonic) {
                 case 'MOV': return this.encodeMOV(parts, address, lineNumber);
                 case 'ADD': return this.encodeALU(parts, 'ADD', address, lineNumber);
@@ -1330,33 +1304,31 @@ class Deep16Assembler {
     }
 
     // Fix jump condition encoding
+    // The single place a Jcc is encoded. It used to be duplicated: a copy of
+    // this logic sat inline in encodeInstruction, above the switch, and returned
+    // before ever reaching here. Two copies of the branch-offset contract is
+    // one too many, and the inline one was the live code, so encodeJump's
+    // error handling was untested - "Unknown jump condition" could never fire.
+    //
+    // The offset is target - (address + 1): all three cores post-increment the
+    // PC before executing, so they add the stored value to the address AFTER
+    // the branch. Pinned by "a taken conditional branch lands on its label" in
+    // tests/cores.test.js.
     encodeJump(parts, condition, address, lineNumber) {
-        if (parts.length >= 2) {
-            const targetLabel = parts[1];
-            let targetAddress = this.labels[targetLabel];
-            if (targetAddress === undefined) {
-                throw new Error(`Unknown label: ${targetLabel}`);
-            }
-            const offset = targetAddress - (address + 1);
-            if (offset < -256 || offset > 255) {
-                throw new Error(`Jump target too far: ${offset} words from current position`);
-            }
-            
-            // CORRECTED condition mapping according to Table 6.3:
-            const conditionCodes = {
-                'JZ': 0b000, 'JNZ': 0b001, 'JC': 0b010, 'JNC': 0b011,
-                'JN': 0b100, 'JNN': 0b101, 'JO': 0b110, 'JNO': 0b111
-            };
-            
-            const conditionCode = conditionCodes[parts[0].toUpperCase()];
-            if (conditionCode === undefined) {
-                throw new Error(`Unknown jump condition: ${parts[0]}`);
-            }
-            
-            // JMP: [1110][type3][target9]
-            return 0b1110000000000000 | (conditionCode << 9) | (offset & 0x1FF);
+        if (parts.length < 2) {
+            throw new Error('Jump requires target label');
         }
-        throw new Error('Jump requires target label');
+        const targetLabel = parts[1];
+        const targetAddress = this.labels[targetLabel];
+        if (targetAddress === undefined) {
+            throw new Error(`Unknown label: ${targetLabel}`);
+        }
+        const offset = targetAddress - (address + 1);
+        if (offset < -256 || offset > 255) {
+            throw new Error(`Jump target too far: ${offset} words from current position`);
+        }
+        // [1110][condition3][offset9]
+        return 0b1110000000000000 | (condition << 9) | (offset & 0x1FF);
     }
 
     encodeSET(parts, address, lineNumber) {

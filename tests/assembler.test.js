@@ -214,3 +214,49 @@ test('an unusable expression is reported rather than assembled to a wrong number
     assert.match(res.errors.join(), /expression|label|Division/i, src.trim());
   }
 });
+
+// ---------------------------------------------------------------------------
+// The Jcc encoder used to exist twice: a copy of the encoding logic sat inline
+// in encodeInstruction and returned before reaching encodeJump, so the method's
+// own error handling never ran. These pin the single copy.
+
+test('every Jcc mnemonic encodes through one encoder', () => {
+  // Each condition code, so a table that disagrees with itself cannot hide.
+  const expected = { JZ: 0b000, JNZ: 0b001, JC: 0b010, JNC: 0b011,
+                     JN: 0b100, JNN: 0b101, JO: 0b110, JNO: 0b111 };
+  for (const [name, cc] of Object.entries(expected)) {
+    const res = assemble(`${name} tgt\n.word 0\n.word 0\ntgt:\nHLT\n`);
+    assert.equal(res.success, true, name);
+    const word = res.memoryChanges.find(c => c.address === 0).value;
+    // [1110][condition3][offset9], offset = 2 so the target is two words on.
+    assert.equal(word, 0b1110000000000000 | (cc << 9) | 2, name);
+  }
+});
+
+test('a Jcc stores target - (address + 1), because the cores post-increment', () => {
+  // The contract all three cores implement, and the reason the two copies of
+  // this code were dangerous. See also "a taken conditional branch lands on its
+  // label" in tests/cores.test.js, which checks it end to end.
+  for (const [name, pad] of [['JZ', 0], ['JNZ', 1], ['JNZ', 5]]) {
+    const src = `${'NOP\n'.repeat(pad)}${name} tgt\n${'NOP\n'.repeat(9)}tgt:\nHLT\n`;
+    const res = assemble(src);
+    assert.equal(res.success, true, name);
+    const at = pad;
+    const word = res.memoryChanges.find(c => c.address === at).value;
+    assert.equal(word & 0x1FF, 9, `${name}: stored offset should be target-(addr+1) = 9`);
+  }
+});
+
+test('a Jcc error is reported rather than encoded', () => {
+  // "Unknown jump condition" used to be unreachable: the inline copy answered
+  // every Jcc before encodeJump could be called. These paths now run.
+  for (const [src, pattern] of [
+    ['JZ\n', /requires target label/],
+    ['JZ nope\n', /Unknown label: nope/],
+    ['JZ tgt\n' + '.word 0\n'.repeat(300) + 'tgt:\n', /Jump target too far/],
+  ]) {
+    const res = assemble(src);
+    assert.equal(res.success, false, `should not assemble: ${src.slice(0, 20)}`);
+    assert.match(res.errors.join('; '), pattern);
+  }
+});
