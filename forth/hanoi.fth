@@ -88,22 +88,34 @@
 \ most disks this screen can show: a 7th disk would be 15 wide
 \ and would run off the left of peg A.
 \
-\ create plus allot, NOT variable. A variable reserves a single
-\ cell - the cell above it is already the next word's header, and
-\ the one above that its flags and name length. Writing 1 peg-a +
-\ therefore overwrites a header and the vocabulary chain breaks
-\ with it: every word defined after that peg answers "undefined
-\ word", and the disk slots fill up with link and length values.
-\ ND cells allotted in one go are the only way to get a multi-cell
-\ row out of this kernel.
+\ A bare variable reserves ONE cell, and the cell above it is
+\ already the next word's header, with its flags and name length
+\ above that. Writing 1 peg-a + then overwrites a header and the
+\ vocabulary chain breaks with it: every word defined after that peg
+\ answers "undefined word", and the disk slots fill up with link and
+\ length values. So the peg needs ND cells RESERVED, and `6 cells
+\ allot` after a variable does that just as well as after a create -
+\ the dictionary steps over the allotted cells either way.
 \
-\ pa, pb and pc hold the three peg addresses, because a created
-\ word is a thing to run and this file prefers plain variables in
-\ the loops below.
+\ This used to say create plus allot was the ONLY way to get a
+\ multi-cell row out of this kernel. It is not. Variable plus allot
+\ was measured, not assumed: the board comes out byte-identical at 3,
+\ 4 and 5 disks, and the dictionary survives a write to the last
+\ allotted cell.
+\
+\ dclr below does need create, for a different reason: `,` stores
+\ at HERE, and HERE is a created word's body but is already past a
+\ variable's cell. That is the classic CREATE-and-comma idiom, and
+\ it is why the two declarations here do not look alike.
+\
+\ pa, pb and pc hold the three peg addresses, so the loops below
+\ use plain variables. A variable pushes its own address, so with
+\ `variable peg-a` the line below stores that address; a created
+\ word would have had to be RUN to produce the same thing.
 
-create peg-a 6 cells allot
-create peg-b 6 cells allot
-create peg-c 6 cells allot
+variable peg-a 6 cells allot
+variable peg-b 6 cells allot
+variable peg-c 6 cells allot
 
 \ --- storing ----------------------------------------------------------
 
