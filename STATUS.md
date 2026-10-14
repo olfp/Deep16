@@ -3,6 +3,17 @@
 > Ständig gepflegter Arbeitsstand. Letzte Änderung: 2026-10-14.
 > Workflow-Regeln: [STYLE.md](STYLE.md).
 >
+> **2026-10-14 (dritter Teil):** **`do`/`loop` sind da** — mit `?do`, `leave`
+> und `i`. Der Loop-Rahmen liegt auf dem Rückstapel, vier Zellen unter den
+> Aufrufsrahmen. Die teuerste Falle war nicht der Inhalt, sondern die
+> **Disziplin**: bei einer Zelle sind „RP zeigt auf die eben geschriebene" und
+> „RP zeigt auf den untersten Rahmen" dasselbe, bei vier nicht — der Rahmen lag
+> eine Zelle zu tief, `exit` bekam den Loop-Limit als Rücksprungadresse und die
+> Maschine blieb stehen, lange nachdem alle Werte richtig aussahen. Damit sind
+> **alle vier** „das kann der Kern nicht"-Vermerke in `forth/hanoi.fth`
+> erledigt; der vierte (`2dup`) war nie einer. Offen bleibt nur Ausstattung, die
+> kein Beispiel im Repo braucht (`+do`, `j`, `r@`/`r!`).
+>
 > **2026-10-14 (zweiter Teil):** `."` ist als IMMEDIATE-Wort fertig — in einer
 > Definition wird der Text **beim Aufruf** gedruckt, nicht beim Übersetzen. Der
 > als „Store schreibt nicht" notierte Blocker lag drei Ebenen darüber: der
@@ -271,6 +282,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-14 | **Die Bitoperationen `and` `or` `xor` `invert` `lshift` `rshift`.** Die ersten vier sind je **ein** Befehl. Die Schiebungen nicht: `SL`/`SR` nehmen ihre Zahl als **4-Bit-Immediate** (Tabelle 6) und haben keine Registerform — eine Laufzeit-Zahl muss Bit für Bit getaktet werden, wobei der Wert jedes Mal wieder vom Stapel geholt wird, weil es keinen Platz gibt, der den Schiebevorgang übersteht. Eine Zahl ≥ 16 schiebt alles heraus und wird auf 0 verkürzt: `1 100 lshift` wären sonst 100 Runden, `1 65535 lshift` 65535. Der Standard lässt den Typ offen und verlangt keinen 16-Bit-Schiebebereich — die Gesamtheit zurückzugeben ist brauchbarer, als eine große Zahl in einen Hänger zu verwandeln. **Die teuerste Lektion dieser Runde, vier Fehlversuche:** ein binäres Wort liest `b` von SP, erhöht SP **einmal** und liest `a` durch dieselbe Instruktion — `a`s Platz wird damit der Ergebnisplatz. `word_mul` ist die Vorlage und tut **genau einen** Schritt. Ein zweiter Schritt landet auf der Leer-Marke, und der Fehler wird vom **nächsten** Wort gemeldet: `12 10 and .` zeigte „stack underflow", und der Unterlauf war in `.`, sechs Instruktionen weiter. Alle vier Versuche lasen das als „die Bitwörter laufen unter" und haben Prolog, Header-Verdrahtung und Befehlskodierung ausgechlossen — alle drei waren korrekt. **Zweite Falle:** in `x n lshift` liegt `n` **oben**, weil `x` zuerst gelegt wurde. Liest man das oberste als `x`, zählt jedes Schieben mit `x` und schiebt `n`; das ergab bei jedem Ergebnis `2 × n` und hat den Fehler benannt. `rshift` ist logisch (Nullen ab Bit 15); die ISA hat **keine** arithmetische Schiebung, wonach man fragen könnte. Die Header liegen zwischen `h_cls` und `h_scr_fetch`, damit der Schwanz der Kette seine alten Verbindungen behält, und `forth_wl` zeigt weiter auf `h_cls`; ein Test läuft die Kette ab und prüft Zyklusfreiheit und Vollständigkeit. **Nicht adressiert:** `drop` akzeptiert einen leeren Stapel — vorbestehend, nicht von dieser Änderung berührt. Suite 377/377. | `asm/forth.asm`, `tests/forth.test.js` |
 | 2026-10-14 | **`LWI` ergänzt** (`R0 ← b15(b15(Rx))`, Fehler, wenn es kein solches Feld gibt) und die **Türme in `hanoi.fth` auf `variable … 6 cells allot` umgestellt.** Damit fallen die beiden Umwege weg, die `hanoi.fth` sich wegen dieser Lücken selbst auferlegt hatte. Bildschirminhalte bei 3/4/5 Scheiben byteweise gleich. | `asm/forth.asm`, `forth/hanoi.fth`, `tests/assembler.test.js` |
 | 2026-10-14 | **`."` als IMMEDIATE-Wort — fertig.** In einer Definition erscheint der Text jetzt **beim Aufruf**, nicht beim Übersetzen: beim Übersetzen wandern die Zeichen in die Definition, und es bleibt `xt_lit <adresse> xt_litstr <zeichen> 0` liegen; `litstr` druckt zur Laufzeit und schiebt den Thread über den String, wie `lit` über seine Inline-Zelle. Der Weg war im Vermerk vom selben Tag als „`ST R4, R9, 0` schreibt nicht" notiert — **die Stores waren nicht das Problem**, und die Diagnose „der Store-Encoder behandelt R9 anders" ging an der Sache vorbei. Drei Fehler lagen übereinander, jeder für sich harmlos aussehend: **(1) Der Assembler ließ den dritten Operanden einer dreistelligen ALU-Zeile ohne ein Wort fallen.** Die ALU-Gruppe ist in beiden Formen zweistellig (Spec Tabelle 6): `Rd, Rs` rechnet `Rd ← Rd OP Rs`, `Rd, imm` rechnet `Rd ← Rd OP imm`. `ADD R11, R9, 1` wurde deshalb als `R11 ← R11 + R9` übersetzt — im Wörterbuch stand danach eine Unsinnsadresse. Dreistellige Zeilen werden jetzt abgewiesen, wie `MOV … +1`. **(2) R9 ist kein freies Register.** `PSW.ER = 8` mit Dual-Bit (PSW-Setup am Dateianfang) macht **R8 und R9** zum ES-Base-Paar; jedes `ST Rx, R9, n` landete auf `ES:R9 = 0xF0000 + R9`, also auf dem **Bildschirm**. Der Zielzeiger ist jetzt R11; R9 bleibt als *Wert* in Ordnung. Damit ist die Notiz vom 2026-10-14, nach der im Tokenizer „R9, R10, R11" frei seien, **falsch** —siehe dort. **(3)** Ein Leerzeichen im String galt als Trenner und fiel stillschweigend weg. Der Sprung über den String war die vierte, erst beim Aufruf sichtbare Falle: ohne ihn liest `next` das erste Zeichen als xt und springt in den ASCII-Wert. Tests: acht Fälle in `forth.test.js` (Aufrufzeit, zwei Strings in einer Definition, Maskierung `\"`, leerer String, nacktes `"`, Mehrfachaufruf, Stapelverhalten), ein JS/WASM-Paritätsfall in `shadow.test.js` und zwei Assembler-Fälle in `assembler.test.js`. Alle drei Kerne liefern byteweise dasselbe Bild. | `asm/forth.asm`, `js/deep16_assembler.js`, `tests/forth.test.js`, `tests/shadow.test.js`, `tests/assembler.test.js` |
+| 2026-10-14 | **`do`, `?do`, `loop`, `leave`, `i` — die letzte der vier Lücken.** Der Kern hatte keinen Loop mit eigenem Parameter-Stapel; die einzige Stelle, die einen Rumpf überlebt, ist der **Rückstapel**: der Datenstapel gehört dem Rumpf, der ihn nach Belieben benutzt. Der Loop-Rahmen liegt dort wie ein Aufrufsrahmen und ist **vier Zellen** breit: `RP+0 exit`, `RP+1 body`, `RP+2 index`, `RP+3 limit`. `do` ist IMMEDIATE und legt `LIT <ausstieg>` + `xt_do` ab; die Ausstiegsadresse kennt erst `loop`, deshalb ein Platzhalter auf dem Kompilier-RP, den `if`/`then` genauso benutzt. Zur Laufzeit sieht `10 0 do i . loop` so aus: `LIT 10  LIT 0  LIT <exit>  (do)  i  .  (loop)` — beim Zählen steht `i` im Weg, deshalb schiebt es sich beim Rücksprung in den Rahmen und ersetzt die Sprungzelle durch `index++; if (index == limit) pop else IP = body`. `(loop)` fällt einfach durch, wenn IP schon hinter seiner eigenen Zelle steht: **es braucht gar keinen Sprung im Thread**, nur eine Adresse, die einmal beim Übersetzen geflickt wird. **Die teuerste Falle dieser Runde war die RP-Disziplin.** `docol` schreibt *eine* Zelle, und RP landet darauf — bei einer Zelle sind „RP zeigt auf die eben geschriebene" und „RP zeigt auf den untersten Rahmen" ununterscheidbar. Bei vier Zellen sind sie es nicht, und der Rahmen wurde zuerst in umgekehrter Reihenfolge gelegt: RP stand danach **eine Zelle zu tief**, `loop` las den Index aus der **Rücksprungadresse des Aufrufs**, und `exit` bekam beim Abbau den **Limit** als Rücksprungadresse — der Kern lief in unbeschriebenen Speicher und blieb stehen. Nicht die Werte waren falsch, sondern die Maschine war tot, und der Fehler meldete sich als „Hänger" an der falschen Stelle: die Definition lief, der Aufruf danach nicht mehr. **Zweite Falle, gleiche Gegend:** ein `loop` ohne `do` davor ist undefiniert, popped aber blind — es schlägt in den Kompilier-RP, flickt, wohin es will, und killt die Maschine. `loop_depth` zählt die Paare beim Übersetzen, ein verwaistes `loop` übersetzt gar nichts. Das ist die einzige unausgeglichene Kontrollanweisung im Kernel, die geprüft wird (`then` ohne `if` schreibt in eine harmlose Zelle), und aus genau dem Grund: der verhinderte Fehler ist der, der die Maschine mitnimmt. **`?do` ist nichtBeiwerk:** der Standard zählt **nach** dem Rumpf, `0 0 do ... loop` läuft deshalb 65536-mal, bis der Index über den Zellwert herum wieder auf dem Limit landet — der klassische 16-Bit-Fallstrick. `?do` überspringt den ganzen Loop (nicht nur den Rumpf: das passende `(loop)` fände sonst keinen Rahmen) und springt auf dieselbe Ausstiegsadresse, die `loop` ohnehin flickt. Tests: elf Fälle in `forth.test.js` (Zählen, `limit = start`, `?do`, Verschachtelung, `leave`, Rahmen über Aufrufsgrenzen, zwei Loops in einer Definition, verwaistes `loop`, Unterlauf in `(do)`, Kette), ein RTL-Fall in `rtl.test.js` und die Kette in `forth.test.js`. JS, WASM und RTL liefern byteweise dasselbe Bild. | `asm/forth.asm`, `tests/forth.test.js`, `tests/rtl.test.js`, `forth/hanoi.fth` |
 | 2026-10-14 | **`2dup` und `drop` — der vermerkte Fehler war keiner.** Zwei Einträge von heute Nachmittag sind zurückgenommen, beide mit derselben Ursache: der *Testfall* war falsch, nicht das Wort. `1 2dup . . .` meldet „stack underflow" — das ist **richtig**, `2dup` braucht zwei Werte und es lag nur einer da. Nachgemessen an der ganzen Familie: `1 2 2dup . . . .` → `2 1 2 1`, `1 2 2dup depth .` → 4, `1 2 2drop . .` → underflow (der Stapel war leer, `.` bekam nichts), `2dup` auf leerem Stapel → underflow, ebenso `dup` und `drop` einzeln. Der zweite vermerkte Punkt, „`drop` nimmt einen leeren Stapel ohne Meldung", war derselbe Irrtum: `12 10 and drop` meldet `ok`, weil `and` einen Wert hinterlässt und `drop` ihn nimmt — danach ist der Stapel leer, und das folgende `.` meldet zu Recht underflow. Was den Befund erzeugt hat, ist der **Fehlerpfad**: er lässt den Datenstapel unangetastet, sodass nach einem underflow die Reste weiter unten liegen bleiben und das *nächste* Wort sie sieht. Das ist in diesem Kernel gewollt (ANS definiert den Stapel nach einem Fehler als undefiniert) und wird hier **nicht** geändert; `tests/forth.test.js` pinnt das Verhalten inzwischen an beiden Stellen. **Lehre:** ein gemeldeter Unterlauf beweist einen Unterlauf — er beweist nicht, welches Wort ihn ausgelöst hat. | `asm/forth.asm` (unverändert), `STATUS.md` |
 
 ## Architektur-Revisionen im Repo-Root
@@ -344,28 +356,33 @@ bewusste Entscheidung und keine Lücke.
    über den Forth-Kern, der das Kernprogramm des Projekts ist.
 8. **Der Forth-Kern ist das Kernprogramm des Projekts und war der am
    längsten liegengebliebene Teil.** `forth/hanoi.fth` trug vier „das kann der
-   Kern nicht"-Vermerke; **drei** sind erledigt (Hex-Literale, Bitoperationen,
-   `."`), **einer** bleibt. Dazu sind zwei Umwege weggefallen, die sich
+   Kern nicht"-Vermerke; **alle vier** sind erledigt (Hex-Literale,
+   Bitoperationen, `."`, `do`/`loop`) — der vierte (`2dup`) war nie einer, der
+   Testfall dahinter war falsch. Dazu sind zwei Umwege weggefallen, die sich
    `hanoi.fth` wegen dieser Lücken selbst auferlegt hatte (`LWI`, Türme als
    `variable`).
-   Offen bleibt in dieser Reihenfolge:
-   1. **`do`/`loop`** — braucht einen eigenen Loop-Parameter-Stapel neben dem
-      Datenstapel; von den vier die größte Aufgabe. Allein `do`/`loop` reicht
-      für `hanoi.fth`; `+do`/`?do`/`leave`/`i`/`j` sind die übliche Ergänzung,
-      aber keine der beiden Dateien braucht sie heute.
-   2. ~~**`."` als IMMEDIATE-Wort**~~ — erledigt am 2026-10-14. Der Text wird
-      in die Definition kopiert und beim Aufruf gedruckt; siehe
-      Entscheidungs-Log.
+   1. ✅ **`."` als IMMEDIATE-Wort** — der Text wird in die Definition kopiert
+      und beim Aufruf gedruckt.
+   2. ✅ **`do`/`loop`** — mit `?do`, `leave` und `i`. Der Rahmen liegt auf dem
+      Rückstapel. `hanoi.fth` rechnet trotzdem mit `begin`/`until` und
+      `while`/`repeat`: die Schleifen dort sind geschrieben und getestet, und
+      eine funktionierende Datei umzuschreiben, nur weil das Werkzeug später
+      kam, wäre Bewegung ohne Fehlerbehebung.
    3. ~~**`2dup`**~~ — **kein Fehler.** `1 2dup` meldet zu Recht Unterlauf,
       weil nur ein Wert auf dem Stapel liegt; der Testfall war falsch, nicht
       das Wort. Siehe Entscheidungs-Log.
+   **Was an `do`/`loop` noch fehlt** (nicht auf der Liste, nur notiert):
+   `+do` (Startabstand), `j` (Index der äußeren Schleife), `u`/`unloop` und
+   die Rückstapelwörter `r@`/`r!`. Für `hanoi.fth` wird keines gebraucht.
    **Methode, die sich bewährt hat:** erst die strukturelle Bedingung prüfen
    (Registerbudget, Header-Kette, SP-Disziplin), dann das Verhalten. Bei den
    Bitwörtern hat die umgekehrte Reihenfolge vier Anläufe gekostet. Der
    Satz gilt in beide Richtungen: bei `."` hat die Verhaltenssuche
    (`ST R4, R9, 0` schreibt nicht) den Verdacht auf den Store-Encoder gelenkt,
    der Fehler lag in drei Ebenen darüber — ein stillschweigend fallengelassener
-   Operand, ein ES-Base-Register und ein Trenner im Text.
+   Operand, ein ES-Base-Register und ein Trenner im Text. Beim Loop war es die
+   andere Richtung: die Werte stimmten, und die Maschine starb trotzdem, weil
+   die **Disziplin** des Rückstapels stimmen muss, nicht nur sein Inhalt.
 
 ---
 
@@ -758,7 +775,7 @@ die einzige Änderung, die für die Iterativ-Teilung überhaupt nötig ist.
 
 | Punkt | Wo | Warum offen |
 |---|---|---|
-| **Forth-Kern: `do`/`loop`** | `asm/forth.asm` | Das Kernprogramm des Projekts, am längsten liegengeblieben. Drei der vier in `hanoi.fth` vermerkten Lücken sind geschlossen, der vierte (`2dup`) war keiner — offen ist nur noch der Loop mit eigenem Parameter-Stapel; Reihenfolge und Stand in „Nächste Schritte" Nr. 8 |
+| **Forth-Kern: `+do`, `j`, `r@`/`r!`** | `asm/forth.asm` | Der Kern hat jetzt `do`, `?do`, `loop`, `leave`, `i`. Was fehlt, ist die Ausstattung, die kein Beispiel im Repo braucht; siehe „Nächste Schritte" Nr. 8 |
 | Opcode-Tabelle in `doc/Deep16-Arch.md` | drei Bereiche veraltet | Die Spec gehört dem Parallelautor; Anhang A nennt die gemessenen Werte, die Buchdiagramme stimmen (33/33 geprüft) |
 | Quelldatei im Browser eintippen | `SERPLAN.md` | Nie im Browser gelaufen; die Pumpe ist nur gegen den echten Kernel auf dem JS-Kern getestet |
 | `EVALUATE` | `SERPLAN.md` | Ein Wort, das einen Puffer auswertet — ohne zweiten Eingangsweg sinnvoll |
