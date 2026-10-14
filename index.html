@@ -95,10 +95,11 @@
                     <!-- Examples and Assemble button -->
                     <div class="editor-controls-center">
                         <label for="example-select">Load Example:</label>
-                        <select id="example-select" style="width: 200px;">
+                        <select id="example-select">
                             <option value="">-- Loading Examples --</option>
                         </select>
                         <button id="assemble-btn">Assemble</button>
+                        <button id="optimize-btn" title="Rewrite the editor source using the peephole optimizer (OPTIMIZE.md)">Optimize</button>
                         <div class="tab-config">
                             <label class="tab-config-label" for="tab-size-input">Tab</label>
                             <input type="number" id="tab-size-input" min="2" max="8" value="4" class="tab-size-input" />
@@ -373,6 +374,7 @@ data_area:
 
     <script src="js/deep16_assembler.js?v=20261006-1"></script>
     <script src="js/deep16_disassembler.js?v=20261006-1"></script>
+    <script src="js/deep16_optimizer.js?v=20261014-1"></script>
     <script src="js/deep16_simulator.js?v=20261011-1"></script>
     <script src="js/deep16_ui_registers.js?v=20261006-1"></script>
     <script src="js/deep16_ui_memory.js?v=20261013-3"></script>

@@ -10,6 +10,8 @@ DeepCode is an integrated assembler and simulator for the Deep16 architecture. I
 - Assemble
   - Click `Assemble` to compile the source. On success, memory and symbols are updated; on errors, open the Errors tab.
   - The transcript shows assembly progress and results. Code/data segmentation is reflected in the memory view.
+- Optimize
+  - `Optimize` rewrites the editor text in place with the peephole optimizer, then reports which rules fired. It only changes the source; click `Assemble` afterwards to compile. See `OPTIMIZE.md`.
 - Simulate
   - Use `Run` to start/stop continuous execution. Use `Step` to execute exactly one instruction. Use `Reset` to reset the machine state.
   - The run-state indicator between Run and Step shows `Run` (green) or `Halt` (red).

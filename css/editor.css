@@ -160,6 +160,8 @@
     font-family: 'Courier New', monospace;
     font-size: 11px;
     height: 20px;
+    width: 200px;
+    min-width: 0;
 }
 
 .editor-controls-center select option {

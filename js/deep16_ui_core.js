@@ -1135,6 +1135,8 @@ class DeepWebUI {
     initializeEventListeners() {
         // Update these to point to the new elements in editor header
         document.getElementById('assemble-btn').addEventListener('click', () => this.assemble());
+        const optimizeBtn = document.getElementById('optimize-btn');
+        if (optimizeBtn) optimizeBtn.addEventListener('click', () => this.optimizeSource());
         document.getElementById('example-select').addEventListener('change', (e) => this.loadExample(e.target.value));
         document.getElementById('run-btn').addEventListener('click', () => this.run());
         document.getElementById('step-btn').addEventListener('click', () => this.step());
@@ -1973,6 +1975,48 @@ class DeepWebUI {
         }
 
         this.syncHeaderWidths();
+    }
+
+    // Replace the editor text with the optimized version. Source-to-source, so
+    // the labels stay symbolic and Assemble still resolves them; the optimizer
+    // never touches the simulator or a loaded image. See OPTIMIZE.md.
+    optimizeSource() {
+        const Optimizer = (typeof Deep16Optimizer !== 'undefined')
+            ? Deep16Optimizer
+            : (typeof window !== 'undefined' ? window.Deep16Optimizer : undefined);
+        if (!Optimizer) {
+            this.addTranscriptEntry("Optimizer is not loaded", "error");
+            return;
+        }
+
+        const source = this.editorElement.value;
+        let result;
+        try {
+            result = new Optimizer().optimize(source);
+        } catch (error) {
+            this.addTranscriptEntry(`Optimize failed: ${error.message}`, "error");
+            this.status("Optimize failed");
+            return;
+        }
+
+        if (!result.changed) {
+            this.addTranscriptEntry("Optimizer found nothing to change", "info");
+            this.status("Already optimized");
+            return;
+        }
+
+        this.editorElement.value = result.source;
+        this.renderEditorHighlight();
+        this.setFileModified(true);
+
+        const stats = result.stats;
+        const rules = Object.entries(stats.byRule).map(([r, n]) => `${r}×${n}`).join(" ") || "no fusions";
+        this.addTranscriptEntry(
+            `Optimized: ${stats.wordsRemoved} instruction(s) removed, `
+            + `${stats.copies} copy substitution(s) [${rules}]`,
+            "success"
+        );
+        this.status(`Optimized - ${stats.wordsRemoved} instruction(s) removed`);
     }
 
     assemble() {

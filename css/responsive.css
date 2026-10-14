@@ -178,9 +178,11 @@
     .mobile-controls .group-docs-wasm .header-right-controls { flex-direction: row !important; gap: 8px; align-items: center; }
     .mobile-controls { order: 2; flex: 1; justify-content: center; }
 
-    .editor-header { flex-direction: row; gap: 8px; align-items: center; height: auto; }
-    .editor-controls-center { flex: 1; width: auto; justify-content: flex-start; }
+    .editor-header { flex-direction: row; gap: 8px; align-items: center; height: auto; flex-wrap: wrap; }
+    .editor-controls-center { flex: 1 1 auto; width: auto; min-width: 0; justify-content: flex-start; flex-wrap: wrap; }
     .editor-controls-center button { flex: 0 0 auto; }
+    .editor-controls-center select { width: 140px; flex: 0 1 auto; }
+    .editor-controls-center .tab-config { margin-left: 0; }
     .editor-controls-center label[for="example-select"] { display: none; }
 
     #status-bar { display: none; }

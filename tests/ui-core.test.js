@@ -16,7 +16,7 @@ import vm from 'node:vm';
 import path from 'node:path';
 import { assemble, loadBrowserScripts, loadRtl, ROOT } from './helpers.js';
 
-loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
+loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js', 'js/deep16_optimizer.js');
 
 // A DOM stub just rich enough for the module-level DOMContentLoaded hook and
 // the header <select>. Anything the core-selection code reaches for beyond this
@@ -1613,4 +1613,36 @@ test('the memory display is held still while a file is typing itself in', () => 
   ui.updateAllDisplays();
   assert.equal(memoryUpdates, 2, 'the memory views refresh when the load is over');
   assert.equal(screenUpdates, 1, 'and so does the screen');
+});
+
+// The Optimize button (see OPTIMIZE.md). It is a source-to-source pass: the
+// editor text is replaced in place and the file is marked modified, but
+// nothing is assembled or loaded until the user asks.
+test('the Optimize button rewrites the editor source in place', () => {
+  const ui = makeUi();
+  const src = '        LDI 2\n        MOV R2, R0\n        LDI 3\n        MOV R3, R0\n';
+  ui.editorElement = { value: src };
+  ui.renderEditorHighlight = () => {};
+  let modified = false;
+  ui.setFileModified = (m) => { modified = m; };
+
+  ui.optimizeSource();
+
+  assert.notEqual(ui.editorElement.value, src, 'the editor text must change');
+  assert.ok(ui.editorElement.value.includes('LSI R2, 2'), ui.editorElement.value);
+  assert.equal(modified, true, 'the file must be marked modified');
+  assert.ok(ui.transcript.some((t) => t.includes('Optimized')), ui.transcript.join('\n'));
+});
+
+test('the Optimize button leaves already-optimized source alone', () => {
+  const ui = makeUi();
+  const src = '        HALT\n';
+  ui.editorElement = { value: src };
+  ui.renderEditorHighlight = () => {};
+  ui.setFileModified = () => {};
+
+  ui.optimizeSource();
+
+  assert.equal(ui.editorElement.value, src, 'nothing to fold means no edit');
+  assert.ok(ui.transcript.some((t) => t.includes('nothing to change')), ui.transcript.join('\n'));
 });
