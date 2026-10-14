@@ -330,6 +330,39 @@ test('WASM: Forth REPL evaluates typed input exactly like the JS core', async ()
   assert.equal(wasm.steps, 600000, 'the REPL must stay alive after evaluating the line');
 });
 
+test('WASM: a compiled ." prints on the CALL on both cores, byte for byte', async () => {
+  // `."` inside a definition copies the characters into the definition and
+  // threads `xt_lit <addr> xt_litstr <characters> 0`. Two strings in one
+  // definition are the interesting case: the thread has to be stepped past
+  // each one, or the second litstr reads the first string as the next word.
+  // The kernel writes its dictionary through ordinary DS-relative stores, so
+  // this is where the three cores have to agree.
+  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const res = assemble(src);
+  assert.ok(res.success, res.errors.join('; '));
+  const input = ': greet ." hallo welt" ;\ngreet\n: t ." x" 1 . ." y" ;\nt\n';
+
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0x8000; sim.segmentRegisters.ES = 0x2000;
+  for (const ch of input) sim.enqueueKeyCode(ch === '\n' ? 10 : ch.charCodeAt(0));
+  sim.running = true;
+  let steps = 0;
+  while (sim.running && steps < 600000) { sim.step(); steps++; }
+  const jsOut = screenText((a, n) => sim.memory.slice(a, a + n), SCREEN_ADDR, 480);
+
+  const wasm = await runWasm(res, { maxSteps: 600000, keys: [...input].map((ch) => (ch === '\n' ? 10 : ch.charCodeAt(0))) });
+  const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 480);
+
+  assert.match(jsOut, /> greet hallo welt ok/);
+  assert.match(jsOut, /> t x 1 {2}y ok/);
+  assert.equal(wasmOut, jsOut, 'WASM must compile and run `."` exactly like the JS core');
+  assert.equal(steps, 600000, 'the JS REPL must stay alive after the compiled strings');
+  assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive after the compiled strings');
+});
+
 test('WASM: Forth REPL reports an unknown word with the word, discards the line, and continues', async () => {
   // Regression: the kernel's unknown-word error path clobbered >IN (R5) with
   // the screen column width before echoing the offending token, so it printed

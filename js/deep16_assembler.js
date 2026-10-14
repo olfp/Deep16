@@ -1096,6 +1096,22 @@ class Deep16Assembler {
             const rd = this.parseRegister(parts[1]);
             const op = parts[2];
             const isReg = this.isRegister(op);
+            // The ALU group has two forms and no third (spec Table 6,
+            // doc/Deep16-Arch.md 3.4): `Rd, Rs` computes Rd <- Rd OP Rs,
+            // `Rd, imm` computes Rd <- Rd OP imm. Both are two-operand, so a
+            // third operand used to be dropped in silence and the line did
+            // something other than what it said: in the Forth kernel
+            // `ADD R11, R9, 1` assembled as `R11 <- R11 + R9`, which put a
+            // garbage address into a compiled string. Rejected, not ignored.
+            if (isReg && parts.length >= 4) {
+                const symbol = { ADD: '+', SUB: '-', CMP: '-', TBC: '&', OR: '|', XOR: '^', TBS: '&' }[kind] || kind;
+                throw new Error(
+                    `${kind} '${parts[1]}, ${parts[2]}, ${parts[3]}' rejected: there is no three-operand ${kind}. ` +
+                    `'${kind} ${parts[1]}, ${parts[2]}' computes ${parts[1]} <- ${parts[1]} ${symbol} ${parts[2]}, ` +
+                    `'${kind} ${parts[1]}, ${parts[3]}' computes ${parts[1]} <- ${parts[1]} ${symbol} ${parts[3]}; ` +
+                    `the operand in the middle would be dropped.`
+                );
+            }
             let func5 = null;
             if (kind === 'ADD') {
                 func5 = isReg ? 0b00000 : 0b00001;

@@ -97,6 +97,35 @@ test('CLRB rejects a register operand', () => {
   assert.match(res.errors.join(), /bit number/);
 });
 
+test('the ALU group has no three-operand form and says so', () => {
+  // The ALU group is two-operand in both of its shapes (spec Table 6,
+  // doc/Deep16-Arch.md 3.4): `Rd, Rs` computes Rd <- Rd OP Rs, `Rd, imm`
+  // computes Rd <- Rd OP imm. A three-operand line used to parse as the
+  // register form and drop the third operand without a word: in the Forth
+  // kernel `ADD R11, R9, 1` assembled as `R11 <- R11 + R9`, which put a
+  // garbage address into every compiled string.
+  for (const mnemonic of ['ADD', 'SUB', 'CMP', 'AND', 'OR', 'XOR', 'TBC', 'TBS', 'MUL', 'DIV']) {
+    const res = assemble(`${mnemonic} R3, R9, 1\n`);
+    assert.equal(res.success, false, `${mnemonic} R3, R9, 1 must be rejected`);
+    assert.match(res.errors.join(), /no three-operand/);
+    assert.equal(wordsOf(res).length, 0, `${mnemonic} must not emit a word`);
+  }
+});
+
+test('the two-operand ALU forms still assemble', () => {
+  // The rejection above must not cost the forms that do exist: `Rd, Rs` is
+  // the register form and `Rd, imm` the immediate form, and both are used all
+  // over the Forth kernel.
+  assert.equal(assemble('ADD R3, R9\n').success, true);
+  assert.equal(assemble('ADD R9, 1\n').success, true);
+  const reg = wordsOf(assemble('ADD R3, R9\n'))[0];
+  const imm = wordsOf(assemble('ADD R9, 1\n'))[0];
+  assert.equal(reg >>> 8 & 0x1F, 0b00000);
+  assert.equal(reg & 0xF, 9);
+  assert.equal(imm >>> 8 & 0x1F, 0b00001);
+  assert.equal(imm & 0xF, 1);
+});
+
 test('unknown mnemonics are reported', () => {
   const res = assemble('FLARP R1, 2\n');
   assert.equal(res.success, false);

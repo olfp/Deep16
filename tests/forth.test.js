@@ -1029,6 +1029,72 @@ test('a bare string is printed to the end of the line', () => {
   assert.ok(running);
 });
 
+// --- compiled strings -------------------------------------------------------
+// `."` used to print while the definition was being translated, so the text
+// appeared once at compile time and never when the word was called. Compiled,
+// it now copies the characters into the definition and leaves
+// `xt_lit <addr> xt_litstr <characters> 0` behind; `litstr` prints them when
+// the word runs and steps the thread past the string.
+
+test('." inside a definition prints when the word is CALLED, not when it is compiled', () => {
+  const { rows, running } = repl(': greet ." hallo welt" ;\ngreet\n');
+  // The compile line echoes the source but does NOT print "hallo welt" again.
+  assert.equal(rows[1], '> : greet ." hallo welt" ; ok');
+  assert.equal(rows[2], '> greet hallo welt ok');
+  assert.equal(rows[3], '>');
+  assert.ok(running);
+});
+
+test('a compiled string keeps its spaces and its place among other words', () => {
+  const { rows, running } = repl(': t ." x" 1 . ." y" ;\nt\n');
+  assert.equal(rows[2], '> t x 1  y ok');
+  assert.ok(running);
+});
+
+test('two compiled strings in one definition both print, in order', () => {
+  // The thread must be stepped past each string; without that, the second
+  // "litstr" reads the first string's characters as the next word of the
+  // definition and the core jumps into ASCII.
+  const { rows, running } = repl(': s1 ." a" ." b" ;\ns1\n');
+  assert.equal(rows[2], '> s1 a b ok');
+  assert.ok(running);
+});
+
+test('a compiled string may be called again', () => {
+  const { rows, running } = repl(': q ." x" ;\nq q\n');
+  assert.equal(rows[2], '> q q x x ok');
+  assert.ok(running);
+});
+
+test('a backslash-quote is unescaped while compiling, not at run time', () => {
+  const { rows, running } = repl(': e ."  say \\"hi\\"  " ;\ne\n');
+  assert.equal(rows[1], '> : e ."  say \\"hi\\"  " ; ok');
+  assert.equal(rows[2], '> e  say "hi"   ok');
+  assert.ok(running);
+});
+
+test('an empty compiled string prints nothing', () => {
+  const { rows, running } = repl(': empty ." " ;\nempty\n');
+  assert.equal(rows[2], '> empty  ok');
+  assert.ok(running);
+});
+
+test('a bare " inside a definition compiles like ."', () => {
+  const { rows, running } = repl(': bs "quoted" ;\nbs\n');
+  assert.equal(rows[1], '> : bs "quoted" ; ok');
+  assert.equal(rows[2], '> bsquoted ok');
+  assert.ok(running);
+});
+
+test('the compiled string is threaded data, so a stack word after it still sees the stack', () => {
+  // `." x" dup .` on an empty stack must still be a stack underflow: the
+  // string must not push anything of its own.
+  const { rows, running } = repl(': dup2 ." a" dup . ;\ndup2\n');
+  assert.equal(rows[2], '> dup2 a');
+  assert.equal(rows[3], 'stack underflow');
+  assert.ok(running);
+});
+
 test('. prints the most negative cell as -32768', () => {
   const { rows, running } = repl('32767 1 + .\n32767 1 + u.\n');
   assert.equal(rows[1], '> 32767 1 + . -32768  ok');

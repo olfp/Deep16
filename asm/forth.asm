@@ -379,9 +379,10 @@ token_start:
     CMP R2, R0
     JNZ check_apostrophe
     NOP
-    ; Bare string opening: advance inside string and print
+    ; Bare string opening: step inside the string. Whether it prints now or is
+    ; compiled depends on the state, so string_action decides.
     ADD >IN, 1
-    LDI print_string_skip
+    LDI string_action
     MOV PC, R0
     NOP
 check_apostrophe:
@@ -443,7 +444,7 @@ farpatch304:
     SUB R1, TIB
     MOV >IN, R1
     ADD >IN, 1
-    LDI print_string_skip
+    LDI string_action
     MOV PC, R0
     NOP
 dot_plain:
@@ -452,6 +453,97 @@ dot_plain:
     LDI parse_word
     MOV PC, R0
     NOP
+; A bare `"` and a `."` differ only in whether a dot precedes them, and both
+; arrive here with >IN on the first character inside the quotes. Interpreted,
+; they print and throw the text away. Compiled, they have to leave something
+; behind that prints the text when the word is CALLED, so the characters are
+; copied into the definition and the definition gets
+;
+;     xt_lit  <address of the characters>  xt_litstr  <characters>  0
+;
+; The address cannot be known until the three header cells have been reserved,
+; so it is reserved first and filled in afterwards.
+;
+; The destination pointer is R11, NOT R9. PSW.ER = 8 with the dual bit set
+; (see the PSW setup at the top of this file) makes R8 *and* R9 the ES-base
+; register pair, so every `ST Rx, R9, n` lands at ES:R9 = 0xF0000 + R9 — on
+; the screen, silently. R11 is neither an ER nor an SR register, so it is an
+; ordinary DS base. R9 is still usable as a *value*, which is all it is here.
+string_action:
+    LDI state_var
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI 0
+    CMP R2, R0
+    JNZ dotq_compile        ; compiling: emit code instead of printing
+    NOP
+    LDI print_string_skip
+    MOV PC, R0
+    NOP
+
+dotq_compile:
+    LDI dp_var
+    MOV R2, R0
+    LD R11, R2, 0            ; R11 = HERE, where the three header cells go
+    LDI xt_lit
+    MOV R4, R0
+    ST R4, R11, 0            ; LIT
+    ADD R11, 1
+    ADD R11, 1
+    ADD R11, 1               ; R11 = HERE + 3, where the characters start
+    MOV R9, R11              ; the characters' address, kept for the second cell
+    ST R9, R11, -2           ; the address of the characters
+    LDI xt_litstr
+    MOV R4, R0
+    ST R4, R11, -1           ; litstr
+dqc_copy:
+    MOV R10, TIB
+    ADD R10, >IN             ; the source cursor, already inside the quotes
+    LD R2, R10, 0
+    LDI '"'
+    CMP R2, R0
+    JZ dqc_end               ; the closing quote ends the string
+    NOP
+    LDI 0
+    CMP R2, R0
+    JZ dqc_end               ; so does the end of the line
+    NOP
+    LDI 92
+    CMP R2, R0
+    JNZ dqc_put
+    NOP
+    LD R3, R10, 1            ; a backslash only matters when it quotes
+    LDI '"'
+    CMP R3, R0
+    JNZ dqc_put              ; a backslash before anything else is literal
+    NOP
+    LDI '"'
+    MOV R2, R0               ; copy the quote, not the backslash
+    ST R2, R11, 0
+    ADD R11, 1
+    ADD >IN, 2               ; consume both characters
+    LDI dqc_copy
+    MOV PC, R0
+    NOP
+dqc_put:
+    ST R2, R11, 0
+    ADD R11, 1
+    ADD >IN, 1
+    LDI dqc_copy
+    MOV PC, R0
+    NOP
+dqc_end:
+    LDI 0
+    ST R0, R11, 0            ; NUL terminate, which is what litstr scans for
+    ADD R11, 1
+    LDI dp_var
+    MOV R2, R0
+    ST R11, R2, 0            ; publish HERE
+    ADD >IN, 1               ; step over the closing quote
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
 print_string_skip:
     MOV R1, TIB
     ADD R1, >IN
@@ -1830,6 +1922,8 @@ xt_branch:
     .word branch
 xt_0branch:
     .word zbranch
+xt_litstr:
+    .word word_litstr
 current_xt:
     .word 0              ; xt of the definition being compiled (for recurse)
 created_xt:
@@ -1909,6 +2003,53 @@ wd_under:
     LDI stack_underflow_error
     MOV PC, R0
     NOP
+; litstr is the runtime half of `."` and of a bare `"`. The characters were
+; copied into the definition when it was compiled, so what arrives here is
+; only their address, and this prints up to the NUL that terminates them.
+; There is no escaping to undo at this point: `." say \"hi\""` was unescaped
+; while compiling, so the copy in the definition is already `say "hi"`.
+;
+; ( addr -- )
+word_litstr:
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ lstr_under
+    NOP
+    LD R3, SP, 0             ; the address
+    ADD SP, 1
+lstr_loop:
+    LD R2, R3, 0
+    LDI 0
+    CMP R2, R0
+    JZ lstr_done
+    NOP
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD R3, 1
+    LDI lstr_loop
+    MOV PC, R0
+    NOP
+lstr_done:
+    ; The thread still sits on the first character, so the string has to be
+    ; stepped over the way `lit` steps over its inline cell: IP moves to the
+    ; cell after the NUL, which is where the next word of the definition is.
+    ; Without this, `next` reads 'h' as an xt and the core jumps into ASCII.
+    ; ip_ptr IS the IP cell — its own address is where `next` keeps it.
+    LDI ip_ptr
+    MOV R2, R0
+    MOV R4, R3               ; R3 = the address of the NUL
+    ADD R4, 1
+    ST R4, R2, 0             ; IP = one past the NUL
+    LDI next
+    MOV PC, R0
+    NOP
+lstr_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
 ; . prints the signed value, u. the raw cell. Both share print_number, which
 ; prints R2 as an unsigned magnitude followed by a trailing space; the leading
 ; space belongs to the caller.
