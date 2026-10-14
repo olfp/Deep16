@@ -1247,6 +1247,8 @@ class DeepWebUI {
                     const which = target.getAttribute('data-doc');
                     if (which === 'arch') {
                         this.openMarkdownOverlay('doc/Deep16-Arch.md', 'Deep16 Architecture');
+                    } else if (which === 'forth') {
+                        this.openMarkdownOverlay('FORTH.md', 'DeepForth Manual');
                     } else if (which === 'ide') {
                         this.openMarkdownOverlay('doc/User-man.md', 'DeepCode IDE Manual');
                     }
