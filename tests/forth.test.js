@@ -1891,3 +1891,78 @@ test('the table has exactly as many entries as there are functions', () => {
   // use "MOV R3, PC" and reach the table without a fixed address.
   assert.equal(base - 0xF8000, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Hex literals in the number scanner: 0x1F, 0X1F and $1F all mean 31. The
+// scanner had decimal only, so a hex literal was an "undefined word", and
+// forth/hanoi.fth had to write colour bytes as decimal for that reason.
+
+const hexrepl = (src) => {
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF;
+  sim.segmentRegisters.DS = 0x0000; sim.segmentRegisters.SS = 0x0000; sim.segmentRegisters.ES = 0x0000;
+  for (const ch of src + '\n') sim.enqueueKeyCode(ch === '\n' ? 10 : ch.charCodeAt(0));
+  sim.running = true;
+  for (let i = 0; i < 1500000 && sim.running; i++) sim.step();
+  const rows = [];
+  for (let r = 0; r < 6; r++) {
+    let t = '';
+    for (let c = 0; c < 60; c++) t += String.fromCharCode(sim.memory[SCREEN_ADDR + r * 80 + c] & 0xFF);
+    if (t.trim()) rows.push(t.replace(/\s+$/, '').trim());
+  }
+  return rows;
+};
+
+// The row that echoes the input, with the echoed text removed, is the output.
+const hexOut = (src) => {
+  const echo = '> ' + src;
+  for (const r of hexrepl(src)) {
+    if (r.startsWith(echo)) return r.slice(echo.length).trim().replace(/\s*ok$/, '').trim();
+  }
+  for (const r of hexrepl(src)) if (/undefined word/.test(r)) return 'undefined word';
+  return '(no output)';
+};
+
+test('hex literals are numbers, in all three spellings', () => {
+  for (const [src, want] of [
+    ['0x10 .', '16'], ['0X10 .', '16'], ['$10 .', '16'],
+    ['0x0 .', '0'], ['$0 .', '0'], ['0x7FFF .', '32767'],
+    ['0xff .', '255'], ['$FF .', '255'], ['$ff .', '255'],
+    ['0x8000 .', '-32768'],            // 16 bits, so this wraps negative
+    ['0xdeadbeef .', '-16657'],        // and so does this
+    ['0x10 0x10 + .', '32'],
+    ['0x10 2 * .', '32'],
+  ]) {
+    assert.equal(hexOut(src), want, src);
+  }
+});
+
+test('a hex literal works inside a definition, as LIT <value>', () => {
+  assert.equal(hexOut(': t $ff ; t .'), '255');
+  assert.equal(hexOut(': t 0x20 ; t .'), '32');
+  assert.equal(hexOut(': t $10 2 * ; t .'), '32');
+});
+
+test('decimal literals are unaffected, and digits still make words', () => {
+  // The scanner is shared, so the decimal path has to be checked too: 0..9 and
+  // 1+ / 2dup / 0= all begin with a digit and none of them is a number.
+  assert.equal(hexOut('4096 .'), '4096');
+  assert.equal(hexOut('0 .'), '0');
+  assert.equal(hexOut('255 .'), '255');
+  assert.equal(hexOut('1 dup . .'), '1  1');   // the number printer leads with a space
+  assert.equal(hexOut('2 3 + .'), '5');
+});
+
+test('a hex prefix with no digits is a word, not a zero', () => {
+  // "0x" and "$" used to be "undefined word", and that is the better answer
+  // than silently pushing 0 - a stray 0 is a number that looks right.
+  assert.match(hexrepl('0x .').join('\n'), /undefined word: 0x/);
+  assert.match(hexrepl('$ .').join('\n'), /undefined word: \$/);
+  // A bad digit BEFORE any hex digit means no digits at all, so the whole
+  // token is the word and is reported whole.
+  assert.match(hexrepl('0xZZ .').join('\n'), /undefined word: 0xZZ/);
+  // A bad digit AFTER one stops the number there, and the rest is looked up.
+  assert.match(hexrepl('0x1g .').join('\n'), /undefined word: g/);
+});

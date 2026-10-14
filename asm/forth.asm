@@ -579,6 +579,30 @@ check_number_or_word:
     MOV R3, TIB
     ADD R3, >IN
     LD R4, R3, 0
+    ; Hex first, before the digit test: '$' sorts below '0', so "$FF" would be
+    ; read as a word, and "0x.." has to be caught while >IN still sits on the '0'.
+    ; The peek uses R10 and R11: R5 is >IN, R6 is TIB and R13/R14 are SP/LR, so
+    ; the only free registers here are R9, R10 and R11.
+    LDI '$'
+    CMP R4, R0
+    JZ hex_prefix_one
+    NOP
+    LDI '0'
+    CMP R4, R0
+    JN word_first_is_digit
+    NOP
+    MOV R10, R3
+    ADD R10, 1
+    LD R10, R10, 0
+    LDI 'x'
+    CMP R10, R0
+    JZ hex_prefix_two
+    NOP
+    LDI 'X'
+    CMP R10, R0
+    JZ hex_prefix_two
+    NOP
+word_first_is_digit:
     LDI '0'
     CMP R4, R0
     JN parse_word            ; if ch < '0' => word
@@ -674,6 +698,136 @@ compile_number:
     ADD R3, 1
     ST R3, R2, 0
     LDI interpret_loop
+    MOV PC, R0
+    NOP
+hex_prefix_one:              ; >IN on the '$'
+    MOV R11, >IN             ; where the token began
+    LDI 0
+    MOV R9, R0               ; R9 = 0 until a digit is consumed
+    ADD >IN, 1               ; step over the prefix
+    LDI parse_hex
+    MOV PC, R0
+    NOP
+hex_prefix_two:              ; >IN on the '0' of "0x"
+    MOV R11, >IN
+    LDI 0
+    MOV R9, R0
+    ADD >IN, 2               ; step over "0x"
+    LDI parse_hex
+    MOV PC, R0
+    NOP
+parse_hex:
+    LDI 0
+    MOV R7, R0               ; the accumulator, exactly as parse_number keeps it
+parse_hex_loop:
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ parse_hex_finish      ; NUL ends the token
+    NOP
+    LDI ' '
+    CMP R4, R0
+    JZ parse_hex_finish      ; space ends the token
+    NOP
+    LDI hex_digit_value      ; R10 = the digit 0..15, or the token ends
+    MOV PC, R0
+    NOP
+parse_hex_accumulate:
+    LDI 1
+    MOV R9, R0               ; a digit was consumed
+    MOV R4, R10              ; the digit, ready for the multiply-add
+    LDI 16
+    MOV R12, R0
+    MOV R1, R7
+    MUL R1, R12
+    ADD R1, R4
+    MOV R7, R1
+    ADD >IN, 1
+    LDI parse_hex_loop
+    MOV PC, R0
+    NOP
+parse_hex_finish:
+    ; A prefix with no digits behind it was never a number: "0x", "0X" and a
+    ; bare "$" are words, and saying so beats silently pushing 0. The test is
+    ; R9, not >IN: the prefix itself moves >IN, so "0x ." would otherwise look
+    ; exactly like a number that stopped at a space. >IN goes back to where the
+    ; token started (R11) so parse_word reads the whole thing, which is what
+    ; turns "0x ." into "undefined word: 0x" rather than a silent no-op.
+    LDI 0
+    CMP R9, R0
+    JNZ hex_got_digits
+    NOP
+    MOV >IN, R11
+    LDI parse_word
+    MOV PC, R0
+    NOP
+hex_got_digits:
+    LDI state_var
+    MOV R3, R0
+    LD R3, R3, 0
+    LDI 0
+    CMP R3, R0
+    JZ parse_hex_push
+    NOP
+    LDI compile_number
+    MOV PC, R0
+    NOP
+parse_hex_push:
+    MOV R1, R7
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+; The character in R4 becomes its value 0..15 in R10. A character that is not a
+; hex digit ends the token, and where that leaves the parser decides the
+; message: "0x1g" has a digit already, so it is the number 1 followed by the
+; word "g", while "0xZZ" has none and the whole token is the word.
+hex_digit_value:
+    LDI '0'
+    CMP R4, R0
+    JN hex_digit_alpha
+    NOP
+    LDI '9'
+    CMP R0, R4
+    JN hex_digit_alpha
+    NOP
+    LDI '0'
+    SUB R4, R0
+    MOV R10, R4
+    LDI parse_hex_accumulate
+    MOV PC, R0
+    NOP
+hex_digit_alpha:
+    LDI 'a'
+    CMP R4, R0
+    JN hex_digit_upper
+    NOP
+    LDI 'f'
+    CMP R0, R4
+    JN hex_digit_upper
+    NOP
+    LDI 87                  ; 'a' is 97, and 97 - 87 = 10
+    SUB R4, R0
+    MOV R10, R4
+    LDI parse_hex_accumulate
+    MOV PC, R0
+    NOP
+hex_digit_upper:
+    LDI 'A'
+    CMP R4, R0
+    JN parse_hex_finish
+    NOP
+    LDI 'F'
+    CMP R0, R4
+    JN parse_hex_finish
+    NOP
+    LDI 55                  ; 'A' is 65, and 65 - 55 = 10
+    SUB R4, R0
+    MOV R10, R4
+    LDI parse_hex_accumulate
     MOV PC, R0
     NOP
 parse_word:
