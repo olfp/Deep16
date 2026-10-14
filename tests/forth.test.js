@@ -1288,24 +1288,27 @@ test('the attribute byte is either 0 or the cursor attribute, and no other colou
   assert.equal(cursorChars[0], 0x20, 'the cursor sits on the blank behind "ok"');
 });
 
-// The BIOS block must keep its exact layout. This is not tidiness - it is the
-// difference between a working REPL and a dead one, found the hard way.
+// This is where the BIOS's 23 pinned offsets used to live, so the reasoning
+// belongs here too - the diagnosis was right, the remedy has since changed.
 //
 // swi_to_bios is a delayed far jump into CS=0xF800, and the core leaves the
 // branch state behind when it comes back. While that state is pending, the
 // next instruction is treated as the delay slot of that old branch and the old
 // target is taken again. Normally the instruction after the jump clears it. In
-// the BIOS that only works while the offsets stay where they are: take a
-// single word out of bios_clr or bios_f2 - both routes reach the putch path -
-// and the REPL survives 22 input lines, then hangs at 23 with a blank screen,
-// pointing at "LDI print_prompt". Nothing in the assembler complains and the
-// first hundred tests still pass, because none of them types 23 lines.
+// the BIOS that only worked while the offsets stayed where they were: take a
+// single word out of a routine that reaches the putch path and the REPL
+// survived 22 input lines, then hung at 23 with a blank screen, pointing at
+// "LDI print_prompt". Nothing in the assembler complained and the first
+// hundred tests still passed, because none of them type 23 lines.
 //
-// So the sizes are pinned here. Every routine keeps its offset from
-// bios_entry, which is what the padding NOPs in asm/forth.asm are for. Change
-// a BIOS routine and either keep its length or pad it back - and if the
-// padding can be removed, the stale-branch handling in the core can be fixed
-// and this test can go with it.
+// Two things have changed since. The dispatch is a jump table, so every call
+// is a label difference and a routine can change size freely - measured by
+// inserting a NOP after each label in turn, where only the offset pins
+// noticed. And the stale branch state itself is a core defect that the pins
+// were working around rather than fixing, so it is still worth knowing about.
+// What replaces the pins is the invariant set above: bios_entry at segment
+// offset 0, the table matching the routines, entry points off the padding.
+// If those hold, a BIOS routine may change size.
 test('cls clears the screen through the BIOS, cursor block and all', () => {
   // Two things it has to get right. The screen ends up blank - the obvious half.
   // And no reversed block is left at the top left, because the BIOS routine it
@@ -1452,15 +1455,37 @@ test('scr! is the only way in, and it cannot be reached by spelling the address'
   assert.ok(rows.some(r => r.includes('ok')), 'but it is a legal store');
 });
 
-const BIOS_LAYOUT = {
-  bios_entry: 0x00, bios_jtab_ok: 0x0a, bios_jtab_add: 0x0b, BIOS_JTABLE: 0x10,
-  bios_f0: 0x16, bios_f1: 0x19, bios_clr_loop: 0x22, bios_f2: 0x30,
-  bios_putch_cr: 0x4e, bios_putch_lf: 0x5a, bios_lf_scroll_copy: 0x71,
-  bios_lf_scroll_clear: 0x82, bios_lf_row_lt: 0x8e, bios_f3: 0x94,
-  bios_putstr_loop: 0x9a, bios_putstr_done: 0xa5, bios_f4: 0xa7,
-  bios_getch_wait: 0xaa, bios_f5: 0xbb, bios_getstr_loop: 0xc3,
-  bios_store_char: 0xf3, bios_getstr_done: 0x107, bios_unknown: 0x10b,
-};
+// The BIOS used to be pinned to 23 exact offsets from bios_entry, because the
+// dispatch was a chain of "CMP R1, R0 / JNZ next" tests and a routine was only
+// reached because it happened to sit at the offset the branch had been told
+// about. Moving one broke the chain, and the failure was invisible until the
+// REPL hung on the 23rd input line.
+//
+// The jump table removed that: every call is now a label difference and the
+// table entries are computed, so a routine can change size and the whole block
+// shifts together. Verified by inserting one NOP after each label in turn -
+// only the offset pins noticed, and appending 40 words after the last routine
+// leaves the screen byte-identical.
+//
+// So the offsets are gone, replaced by the invariants that make the movement
+// safe. If one of these fails, a dependency that the jump table was supposed
+// to remove has come back, and the BIOS will assemble cleanly and misbehave.
+const BIOS_LABELS = [
+  'bios_entry', 'bios_jtab_ok', 'bios_jtab_add', 'BIOS_JTABLE',
+  'bios_f0', 'bios_f1', 'bios_clr_loop', 'bios_f2',
+  'bios_putch_cr', 'bios_putch_lf', 'bios_lf_scroll_copy',
+  'bios_lf_scroll_clear', 'bios_lf_row_lt', 'bios_f3',
+  'bios_putstr_loop', 'bios_putstr_done', 'bios_f4', 'bios_getch_wait',
+  'bios_f5', 'bios_getstr_loop', 'bios_store_char', 'bios_getstr_done',
+  'bios_unknown',
+];
+
+// The kernel also defines bios_putch_direct and friends, which share the name
+// prefix but sit in the kernel well below the BIOS. Only labels at or above
+// bios_entry belong to the block.
+const biosBlockLabels = () => BIOS_LABELS
+  .map(name => ({ name, offset: res.symbols[name] - res.symbols.bios_entry }))
+  .filter(l => typeof l.offset === 'number' && !Number.isNaN(l.offset));
 
 test('a finished line keeps no cursor block at its end', () => {
   // putch leaves the cursor attribute on the cell after the last character, and
@@ -1477,18 +1502,78 @@ test('a finished line keeps no cursor block at its end', () => {
   assert.deepEqual(cursors[3], [2], 'the prompt should still show its cursor');
 });
 
-test('the BIOS block keeps its exact layout', () => {
+test('bios_entry is the one fixed point of the BIOS block', () => {
+  // swi_to_bios reaches the BIOS with "JML 0xF800:0" - by segment and offset 0,
+  // never by a per-routine address - so the whole block is free to move except
+  // this. It is also what ".org 0xF8000" has to agree with.
+  assert.equal(res.symbols.bios_entry, 0xF8000,
+    'swi_to_bios jumps to CS=0xF800, PC=0, so bios_entry must be at 0xF8000');
+  assert.equal(res.symbols.bios_entry - 0xF8000, 0);
+});
+
+test('the BIOS entry reaches its table by label difference, not a fixed address', () => {
+  // The dispatch reads its own address with "MOV R3, PC" and adds the distance
+  // from there to the table. If that distance stops being a label difference,
+  // the table is only found at the offset it happens to sit at today.
+  const lines = res.listing.filter(l => typeof l.address === 'number'
+    && l.line && /bios_jtab_add|MOV R3, PC/.test(l.line));
+  const text = lines.map(l => l.line).join(' ');
+  assert.match(text, /MOV R3, PC/,
+    'the entry no longer derives its own address');
+  assert.match(text, /BIOS_JTABLE - bios_jtab_add/,
+    'the ADD must be the label difference to the table, not a literal offset');
+});
+
+test('every BIOS label is distinct, ordered, and inside the block', () => {
   const base = res.symbols.bios_entry;
-  assert.equal(typeof base, 'number', 'bios_entry must have an address');
-  for (const [name, offset] of Object.entries(BIOS_LAYOUT)) {
-    const actual = res.symbols[name];
-    assert.equal(typeof actual, 'number', `${name} is missing from the kernel`);
-    assert.equal(actual - base, offset,
-      `${name} moved by ${actual - base - offset} word(s) (expected 0x${offset.toString(16)}, `
-      + `got 0x${(actual - base).toString(16)}). Pad the routine back to its old length - `
-      + 'a BIOS routine that changes size leaves a stale SWI branch behind and the '
-      + 'REPL hangs after 22 lines with a blank screen.');
+  for (const name of BIOS_LABELS) {
+    assert.equal(typeof res.symbols[name], 'number', `${name} is missing from the kernel`);
+    assert.ok(res.symbols[name] >= base,
+      `${name} sits below bios_entry - it belongs to the kernel, not the BIOS`);
   }
+  const labels = biosBlockLabels().sort((a, b) => a.offset - b.offset);
+  const seen = new Map();
+  for (const { name, offset } of labels) {
+    assert.equal(seen.has(offset), false,
+      `${name} and ${seen.get(offset)} both resolve to offset 0x${offset.toString(16)} - `
+      + 'one of them is a rename that landed on an existing label');
+    seen.set(offset, name);
+  }
+  // BIOS_FN_COUNT is a constant, not an address, so it must not have leaked in
+  // as a label at a negative offset.
+  assert.equal(res.symbols.BIOS_FN_COUNT, 6);
+});
+
+test('each routine the table names starts on an instruction, not padding', () => {
+  // A label that drifts onto a padding NOP dispatches into the middle of the
+  // routine above it. The table test proves the entry points at the label;
+  // this proves the label is a real entry point.
+  const base = res.symbols.bios_entry;
+  const wordAt = (addr) => {
+    const c = res.memoryChanges.find(m => m.address === addr);
+    return c ? c.value : undefined;
+  };
+  for (let i = 0; i < res.symbols.BIOS_FN_COUNT; i++) {
+    const addr = res.symbols[`bios_f${i}`];
+    const word = wordAt(addr);
+    assert.equal(typeof word, 'number', `bios_f${i} has no word at its label`);
+    assert.notEqual(word, 0xFFF0,
+      `bios_f${i} points at a NOP - it landed in the padding above it`);
+  }
+  assert.equal(wordAt(base), 0x0000, 'bios_entry should be the first LDI of the dispatch');
+});
+
+test('the BIOS block ends in a RETI', () => {
+  // bios_unknown is the last thing in the block. If anything is appended after
+  // it, a fall-through off the end would run whatever that is.
+  const base = res.symbols.bios_entry;
+  const last = res.memoryChanges
+    .filter(m => m.address >= base)
+    .sort((a, b) => b.address - a.address)[0];
+  const retiAt = res.symbols.bios_unknown;
+  assert.equal(last.address, retiAt + 1,
+    'something follows bios_unknown - a fall-through past its RETI would run it');
+  assert.equal(last.value, 0xFFF0, 'the word after bios_unknown should be its padding NOP');
 });
 
 // ---------------------------------------------------------------------------
@@ -1729,9 +1814,10 @@ test('the table has exactly as many entries as there are functions', () => {
   const jtab = res.symbols.BIOS_JTABLE;
   // Entries run from BIOS_JTABLE up to the first routine, and bios_f0 sits
   // right after them, so the span is the entry count.
-  assert.equal(res.symbols.bios_f0 - jtab, 6);
-  assert.equal(res.symbols.BIOS_FN_COUNT, 6);
-  // And bios_entry itself is still at segment offset 0, which is what lets
-  // the entry use "MOV R3, PC" and reach the table without a fixed address.
+  assert.equal(res.symbols.bios_f0 - jtab, res.symbols.BIOS_FN_COUNT,
+    'adding a function needs a table row for it, and removing one needs a row '
+    + 'gone - otherwise an out-of-range code dispatches to a stale routine');
+  // And bios_entry itself is at segment offset 0, which is what lets the entry
+  // use "MOV R3, PC" and reach the table without a fixed address.
   assert.equal(base - 0xF8000, 0);
 });

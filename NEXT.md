@@ -10,11 +10,12 @@
   heute ab `bios_entry` im selben File wie der Kernel, obwohl er
   ein eigenes Programm ist: eigene Einsprungadresse (CS=0xF800),
   eigener Dispatch über die Funktionsnummer in DS:0, eigene
-  Symboltabelle, und der Test pinnt seine Offsets über
-  `BIOS_LAYOUT`. Er gehört in `asm/bios.asm`, und forth.asm
+  Symboltabelle. Er gehört in `asm/bios.asm`, und forth.asm
   lädt es per `include`. Zwei Nutzen: der Dispatch wird lesbar,
   ohne durch zweihundert Zeilen Interpreter davor hindurch zu
   navigieren, und ein BIOS lässt sich ändern, ohne den Kernel
-  anzufassen - was genau der Fehlerklasse hier entgegenkommt,
-  weil ein Kernel-Fix derzeit jedes Mal die BIOS-Layout-Pins
-  mitzieht.
+  anzufassen. Der zweite Punkt hat an Gewicht verloren: die
+  Offsets des BIOS waren früher über `BIOS_LAYOUT` festgenagelt,
+  weil sein Dispatch eine Kette von CMP/JNZ-Vergleichen war. Seit
+  der Sprungtabelle ist jeder Aufruf eine Label-Differenz, die
+  Offsets sind weg, und ein Kernel-Fix zieht nichts mehr mit.

@@ -263,8 +263,8 @@ cursor_off:
     MOV R7, R0
     AND R1, R7           ; drop the attribute, keep the character
     STS R1, ES, SCR
-    NOP                     ; Padding, siehe NOTE unten
-    NOP
+    NOP                     ; historic padding, see the note at the end of
+    NOP                     ; bios_store_char
     LDI interpret_loop
     MOV PC, R0
     NOP
@@ -284,8 +284,8 @@ clear_cursor:
     MOV R7, R0
     AND R1, R7           ; drop the attribute, keep the character
     STS R1, ES, SCR
-    NOP                     ; Padding, siehe NOTE unten
-    NOP
+    NOP                     ; historic padding, see the note at the end of
+    NOP                     ; bios_store_char
     JMP LR
     NOP
     ; Ensure Data Segment points to physical 0x0000
@@ -2912,9 +2912,9 @@ scrstore_ok:
 ; is where the work belongs.
 ;
 ; Function code 1 is binit, which clears 80x25 and homes the cursor. Reusing it
-; means no new BIOS entry point and no shift of the offsets BIOS_LAYOUT pins;
-; the price is that cls also homes the cursor and re-sets ES and SCR, which is
-; what a Forth cls is expected to do anyway.
+; avoids a second copy of the clear loop in the kernel; the price is that cls
+; also homes the cursor and re-sets ES and SCR, which is what a Forth cls is
+; expected to do anyway.
 ;
 ; One thing binit leaves behind has to be undone: it puts the cursor attribute
 ; back on, so the top-left cell would show a reversed block. Blank that one
@@ -4285,8 +4285,8 @@ bios_f2:
     LDS R3, ES, SCR
     OR  R3, R0              ; and the new cell gets the reversed colour
     STS R3, ES, SCR
-    NOP                     ; Padding, siehe NOTE unten
-    NOP
+    NOP                     ; historic padding, see the note at the end of
+    NOP                     ; bios_store_char
     RETI
     NOP
 bios_putch_cr:
@@ -4521,10 +4521,14 @@ bios_store_char:
     LDS R7, ES, SCR
     OR  R7, R0              ; and the new cell gets the reversed colour
     STS R7, ES, SCR
-    ; The four NOPs that used to pad the end of this routine are the four cells
-    ; the TIB_LIMIT test above now spends, so the block keeps its exact length.
-    ; There is no padding left here: anything that grows from here on has to give
-    ; a cell back somewhere inside bios_store_char, or BIOS_LAYOUT moves.
+    ; A routine used to have to keep its length, or pad back with NOPs, because the
+    ; dispatch was a chain of CMP/JNZ tests and a routine was only reached if it
+    ; sat at the offset the branch had been told about. The jump table made that
+    ; go away: every call is a label difference now, so the whole block shifts
+    ; together and a routine can change size freely. The NOPs still standing in
+    ; this file are left over from that arrangement - see the test "every BIOS
+    ; label is distinct, ordered, and inside the block" in tests/forth.test.js,
+    ; which enforces what the offsets used to.
     CLRZ
     JNZ bios_getstr_loop
     NOP
