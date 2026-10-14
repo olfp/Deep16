@@ -282,7 +282,7 @@ the shadow bank).
 
 | Instruction | Format | Binary Encoding | Register Transfer | Notes |
 |-------------|---------|-----------------|-------------------|-------|
-| **LDI** | `LDI imm` | `0 imm15` | `R0 ← sign_extend(imm15)` | Sign extends 15-bit immediate |
+| **LDI** | `LDI imm` | `0 imm15` | `R0 ← sign_extend(imm15)` | Sign extends 15-bit immediate; see §3.4 on the reachable set |
 | **LSI** | `LSI Rd, imm` | `1111110 Rd4 imm5` | `Rd ← sign_extend(imm5)` | Small immediate load |
 | **MOV Rd, Rs, imm** | `MOV Rd, Rs, imm` | `111110 Rd4 Rs4 imm2` | `Rd ← {Rs, Rs<<1, Rs+2, (Rs<<1)\|1}[imm2]` | Normal with forwarding; PC source = own+1 |
 | **MVS Rd, Sx** | `MVS Rd, Sx` | `111111110 0 Rd4 seg2` | `Rd ← Sx` | Read segment register |
@@ -296,6 +296,40 @@ disables forwarding; the architectural (non-forwarded) read lives exclusively
 in SMV (§3.3), above all `SMV Rx, APC`. A PC source always yields the
 architectural own address + 1 — what makes `LINK` (`imm2 = 2`) return past a
 delay slot (§6.2.1) and `SMV Rx, APC` work inside one (§6.2.2).
+
+**The values a single LDI can reach.** `sign_extend(imm15)` copies bit 14 of the
+field into bit 15, so the two high bits of the result are not independent — they
+are always equal. Measured over all 32768 fields, R0 takes exactly the values
+`0x0000–0x3FFF` (bits 14,15 = 0,0) and `0xC000–0xFFFF` (bits 14,15 = 1,1).
+The other two quarters, **`0x4000–0x7FFF` and `0x8000–0xBFFF`, no single LDI can
+produce**, and no field value stands for them: the field that would have bit 14
+set has bit 15 set too, and vice versa.
+
+Consequences worth writing down, because the failure is silent:
+
+- `LDI 0x4000` loads `0xC000`, and `LDI 0x7000` loads `0xF000` — not what was
+  written. Writing the low 15 bits of a `0x4xxx–0x7xxx` pattern gives the wrong
+  answer, not an error.
+- To build one, load the low 14 bits (bit 14 clear, so the value comes back
+  exactly) and set the bits that are missing: `LDI 0x3000; OR R0, 14` for
+  `0x7000`. `OR Rd, imm` is `Rd OR (1 << imm)` (§3.7); **`TBC Rd, imm` is not** —
+  it is test-and-*clear*, `Rd AND (1 << imm)` (§3.7), so it removes a bit.
+- The Forth kernel already carries this in a comment at `bios_f1`
+  (`LDI 0x0070; SL R0, 8`, because `LDI 0x7000` would be `0xF000`).
+
+**LWI is an assembler mnemonic, not an opcode.** There is no `LWI` encoding and
+no core decodes one. It exists so an author can write the 16-bit pattern they
+mean rather than the field that happens to produce it:
+
+    LWI X   assembles as   LDI b15(X)
+
+where `b15(X)` is the 15-bit field with `sign_extend(b15(X)) = X`, or *no such
+field exists* — in which case the assembler reports an error rather than
+assembling something else. By the table above, `b15(X)` exists exactly when
+bits 14 and 15 of `X` agree, and then `b15(X) = X` with the top bit cleared.
+So `LWI 0xFF00` assembles as `LDI 0x7F00`, and `LWI 0x7000` is refused with a
+recipe. Both halves of the reachable set are one instruction; the other two
+quarters need the `LDI`/`OR` pair, and `LWI` says so instead of guessing.
 
 ### **3.5 PSW Operations**
 

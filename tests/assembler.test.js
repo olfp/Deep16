@@ -260,3 +260,67 @@ test('a Jcc error is reported rather than encoded', () => {
     assert.match(res.errors.join('; '), pattern);
   }
 });
+
+// ---------------------------------------------------------------------------
+// LWI is an assembler mnemonic, not an opcode: "LWI X" assembles as
+// "LDI b15(X)", where b15(X) is the 15-bit field that sign-extends back to X,
+// and X with no such field is an error.
+
+test('LWI assembles as LDI b15(X): a pattern one LDI can express', () => {
+  const cases = [
+    // X, and the field that sign-extends to it
+    [0x0000, 0x0000], [0x00FF, 0x00FF], [0x1234, 0x1234], [0x3FFF, 0x3FFF],
+    [0xC000, 0x4000], [0xFF00, 0x7F00], [0xFFFF, 0x7FFF],
+    [-1, 0x7FFF],                                    // -1 is the pattern 0xFFFF
+  ];
+  for (const [x, field] of cases) {
+    const res = assemble(`LWI ${x}\n`);
+    assert.equal(res.success, true, `LWI ${x}`);
+    assert.equal(res.memoryChanges[0].value & 0xFFFF, field,
+      `LWI ${x} should assemble as LDI 0x${field.toString(16)}`);
+  }
+});
+
+test('LWI refuses a pattern no single LDI can reach', () => {
+  // sign_extend copies bit 14 into bit 15, so the top two bits cannot be set
+  // independently: 0x4000-0x7FFF and 0x8000-0xBFFF are unreachable.
+  for (const x of [0x4000, 0x4001, 0x7000, 0x7FFF, 0x8000, 0xABCD, 0xBFFF]) {
+    const res = assemble(`LWI ${x}\n`);
+    assert.equal(res.success, false, `LWI ${x} should be refused`);
+    assert.match(res.errors.join('; '), /not representable by LDI/);
+  }
+  // Both boundaries of the two reachable ranges still work.
+  for (const x of [0x3FFF, 0xC000]) {
+    assert.equal(assemble(`LWI ${x}\n`).success, true, `LWI ${x}`);
+  }
+});
+
+test('LWI rejects a value that is not a 16-bit pattern at all', () => {
+  for (const x of ['0x10000', '70000', '-40000']) {
+    const res = assemble(`LWI ${x}\n`);
+    assert.equal(res.success, false, `LWI ${x} should be refused`);
+    assert.match(res.errors.join('; '), /not a 16-bit pattern/);
+  }
+});
+
+test('the recipe LWI suggests for a refused pattern actually works', () => {
+  // The message has to name a sequence that assembles and runs, or it is worse
+  // than no message. Note OR Rd, imm is "Rd OR (1 << imm)"; TBC is
+  // test-and-CLEAR and would silently drop a bit.
+  for (const x of [0x4000, 0x7000, 0x8000, 0xABCD, 0xBFFF]) {
+    const err = assemble(`LWI ${x}\n`).errors[0];
+    const recipe = err.split('Build it instead: ')[1];
+    assert.ok(recipe, `no recipe offered for ${x}`);
+    assert.doesNotMatch(recipe, /\bTBC\b/, 'TBC clears a bit, it does not set one');
+    const words = wordsOf(assemble(`${recipe}\n`));
+    assert.ok(words.length >= 1, `recipe does not assemble: ${recipe}`);
+  }
+});
+
+test('LWI works inside an expression, like every other immediate', () => {
+  assert.equal(assemble('LWI 0xC000 + 0x0100\n').memoryChanges[0].value, 0x4100);
+  assert.equal(assemble('LWI 0xFF00 - 0x0100\n').memoryChanges[0].value, 0x7E00);
+  assert.equal(assemble('LWI 0x00FF + 1\n').memoryChanges[0].value, 0x0100);
+  // And it is refused through an expression too, not only as a literal.
+  assert.equal(assemble('LWI 0x4000 + 0\n').success, false);
+});

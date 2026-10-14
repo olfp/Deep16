@@ -740,6 +740,7 @@ class Deep16Assembler {
                 case 'HLT': return 0xFFFF;
                 
                 case 'LDI':  return this.encodeLDIFromLine(cleanLine, address, lineNumber);
+                case 'LWI':  return this.encodeLWIFromLine(cleanLine, address, lineNumber);
                 case 'LSI':  return this.encodeLSI(parts, address, lineNumber);
 
                 case 'LDS': return this.encodeLDSSTS(parts, false, address, lineNumber);
@@ -1262,6 +1263,75 @@ class Deep16Assembler {
             return imm & 0x7FFF;
         }
         throw new Error('LDI requires immediate value');
+    }
+
+    // LWI writes the 16-bit bit pattern the author wants in R0, instead of the
+    // 15-bit field LDI carries. It is an assembler mnemonic, not a new opcode:
+    // the ISA has no such instruction and the cores are untouched.
+    //
+    // Why it cannot be one instruction: the field is sign-extended from bit 14,
+    // so LDI reaches exactly 0x0000-0x3FFF (bit 14 clear) and 0xC000-0xFFFF
+    // (bit 14 set, which puts 1 in bit 15). The middle third, 0x4000-0xBFFF,
+    // is unreachable - measured over all 32768 fields, not inferred. That is
+    // why bios_f1 needs "LDI 0x0070; SL R0, 8" for 0x7000.
+    //
+    // So: a pattern LDI can already express is emitted as one LDI, and a
+    // pattern it cannot is an error rather than a guess.
+    // The instruction sequence that really does put `pattern` in R0, for the
+    // message above. Two LDI values must not be suggested here: writing the low
+    // 15 bits of a 0x4xxx-0x7xxx pattern gives 0xCxxx-0xFFFF, because bit 14 of
+    // the field is a sign bit, so "LDI 0x7000" loads 0xF000.
+    //
+    // The working recipe is to load the low 14 bits - bit 14 clear, so the value
+    // comes back exactly - and then set whichever of bits 14 and 15 the pattern
+    // wants. OR Rd, imm is "Rd OR (1 << imm)" (spec Table 6), so it sets one bit
+    // and leaves the rest. Note TBC is NOT that: it is test-and-clear, "Rd AND
+    // (1 << imm)", so suggesting it here would silently clear a bit instead.
+    recipeForLWIPattern(pattern) {
+        const low = pattern & 0x3FFF;
+        const parts = [`LDI 0x${low.toString(16).toUpperCase()}`];
+        if (pattern & 0x4000) parts.push('OR R0, 14');
+        if (pattern & 0x8000) parts.push('OR R0, 15');
+        return parts.join(' then ');
+    }
+
+    encodeLWIFromLine(line, address, lineNumber) {
+        const cleaned = line.split(';')[0].trim();
+        const rest = cleaned.replace(/^LWI\s+/i, '').replace(/,$/, '').trim();
+        if (!rest) {
+            throw new Error('LWI requires a 16-bit value');
+        }
+        const value = this.parseImmediate(rest, false);
+        if (value < -32768 || value > 0xFFFF) {
+            throw new Error(`LWI value ${value} is not a 16-bit pattern (-32768..65535)`);
+        }
+        const pattern = value & 0xFFFF;
+        const field = this.b15(pattern);
+        if (field === null) {
+            throw new Error(
+                `LWI ${pattern} (0x${pattern.toString(16)}) is not representable by LDI: `
+                + 'the immediate is 15 bits and sign-extended from bit 14, so one LDI can only '
+                + `put 0x0000-0x3FFF or 0xC000-0xFFFF in R0. Build it instead: ${this.recipeForLWIPattern(pattern)}`);
+        }
+        return field;
+    }
+
+    // b15(X) = the 15-bit field F for which sign_extend(F) = X, or null if there
+    // is none. This is the whole definition of LWI: "LWI X" assembles as
+    // "LDI b15(X)", and no field means no LWI.
+    //
+    // sign_extend copies bit 14 of the field into bit 15. So the two high bits
+    // of F cannot be chosen independently - they must agree, and they become
+    // bits 14 and 15 of the result:
+    //   F bits 14,15 = 0,0 -> X has bits 14,15 = 0,0   (0x0000-0x3FFF)
+    //   F bits 14,15 = 1,1 -> X has bits 14,15 = 1,1   (0xC000-0xFFFF)
+    // Asking for the other two combinations - 0x4000-0x7FFF and 0x8000-0xBFFF -
+    // is asking for a sign extension that does not exist, so there is no F.
+    // When a field does exist it is simply X with its top bit cleared.
+    b15(pattern) {
+        const value = pattern & 0xFFFF;
+        if (((value >> 14) & 0x3) === 0b01 || ((value >> 14) & 0x3) === 0b10) return null;
+        return value & 0x7FFF;
     }
 
     encodeLDIFromLine(line, address, lineNumber) {
