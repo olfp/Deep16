@@ -2000,10 +2000,33 @@ h_fmmod:
     .text "fm/mod"
     .word word_fmmod
 h_ummod:
-    .word h_see
+    .word h_case
     .word 6
     .text "um/mod"
     .word word_ummod
+; The case words. All four are IMMEDIATE: they act while the definition is being
+; translated, and what they leave in the thread is `over = (0branch) drop`
+; and branches - words the runtime already knows.
+h_case:
+    .word h_of
+    .word 0x8004          ; IMMEDIATE | length 4
+    .text "case"
+    .word word_case
+h_of:
+    .word h_endof
+    .word 0x8002          ; IMMEDIATE | length 2
+    .text "of"
+    .word word_of
+h_endof:
+    .word h_endcase
+    .word 0x8005          ; IMMEDIATE | length 5
+    .text "endof"
+    .word word_endof
+h_endcase:
+    .word h_see
+    .word 0x8007          ; IMMEDIATE | length 7
+    .text "endcase"
+    .word word_endcase
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -2353,12 +2376,27 @@ xt_plusloop:
     .word word_plusloop_rt
 xt_leave:
     .word word_leave_rt
+; `of` compiles three ordinary words into the thread, so their xts need cells of
+; their own: `over = if drop` is what `of` means. Each cell holds the xt `'`
+; would hand out - the header's CFA cell, header + 3 + the name length - rather
+; than the code label, because that is the address `see` recognises when it
+; names a thread cell. A test pins all three against `' over`, `' =` and
+; `' drop`, so renaming one of those words fails the suite instead of quietly
+; compiling the wrong address.
+xt_over:
+    .word h_over + 7
+xt_eq:
+    .word h_eq + 4
+xt_drop:
+    .word h_drop + 7
 current_xt:
     .word 0              ; xt of the definition being compiled (for recurse)
 created_xt:
     .word 0              ; xt of the newest CREATE'd word (for DOES>)
 loop_depth:
     .word 0              ; DO/LOOP pairs open while compiling
+case_depth:
+    .word 0              ; CASE/ENDCASE pairs open while compiling
 pn_lr:
     .word 0              ; print_number's return address across its putch call
 pt_lr:
@@ -8527,6 +8565,155 @@ wum_ok:
     ST R1, SP, 1
     ST R0, SP, 0
     LDI next
+    MOV PC, R0
+    NOP
+
+; ---------------------------------------------
+; Tier 2, second batch: case / of / endof / endcase
+; ---------------------------------------------
+; `case` chooses a clause by comparing a selector with each test value. In Forth
+; it is usually spelled out of words the kernel already has - `of` means
+; `over = if drop` - and that is exactly what it compiles here, so the runtime
+; needs nothing new at all. What it does need is bookkeeping on the compile-time
+; return stack: `case` pushes a marker (zero, which is no address) so `endcase`
+; knows where its clauses begin, `of` pushes the placeholder its branch is
+; patched through, and `endof` is `else` word for word.
+;
+; case_depth counts the open pairs the way loop_depth counts loops. A stray
+; `endcase` would otherwise walk up the compile-time stack patching whatever it
+; finds - call frames included - and take the machine down with it; with the
+; count it compiles nothing at all. A stray `endof` stays as harmless as a stray
+; `then`.
+
+word_case:                  ; case ( -- ) IMMEDIATE
+    LDI case_depth
+    MOV R2, R0
+    LD R1, R2, 0
+    ADD R1, 1
+    ST R1, R2, 0
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    SUB R7, 1
+    ST R7, R4, 0
+    LDI 0
+    ST R0, R7, 0            ; the marker: no clause branch is pending yet
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_of:                    ; of ( -- ) IMMEDIATE  compile: over = if drop
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0            ; HERE
+    LDI xt_over
+    MOV R4, R0
+    LD R4, R4, 0            ; the cell holds `over`'s own xt
+    ST R4, R3, 0
+    ADD R3, 1
+    LDI xt_eq
+    MOV R4, R0
+    LD R4, R4, 0
+    ST R4, R3, 0            ; the selector against the test value
+    ADD R3, 1
+    LDI xt_0branch
+    MOV R4, R0
+    ST R4, R3, 0            ; not equal: on to the next clause
+    ADD R3, 1
+    LDI 0
+    ST R0, R3, 0            ; the offset, patched by endof
+    MOV R9, R3              ; where endof will find it
+    ADD R3, 1
+    LDI xt_drop
+    MOV R4, R0
+    LD R4, R4, 0
+    ST R4, R3, 0            ; equal: the selector goes and the body runs
+    ADD R3, 1
+    ST R3, R2, 0            ; publish HERE
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    SUB R7, 1
+    ST R9, R7, 0            ; push the placeholder, as `if` does
+    ST R7, R4, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_endof:                 ; endof ( -- ) IMMEDIATE  this clause is finished
+    ; endof is `else` with another name: it patches the clause's branch to here
+    ; and leaves behind the branch that skips the rest of the case. The jump is
+    ; a tail call, so nothing of endof's own has to be undone.
+    LDI word_else
+    MOV PC, R0
+    NOP
+
+word_endcase:               ; endcase ( -- ) IMMEDIATE
+    LDI case_depth
+    MOV R2, R0
+    LD R1, R2, 0
+    LDI 0
+    CMP R1, R0
+    JNZ wec_open
+    NOP
+    LDI interpret_loop      ; no case is open: compile nothing
+    MOV PC, R0
+    NOP
+wec_open:
+    SUB R1, 1
+    ST R1, R2, 0
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0            ; HERE
+    LDI xt_drop
+    MOV R4, R0
+    LD R4, R4, 0            ; the cell holds `drop`'s own xt
+    ST R4, R3, 0            ; the default path drops the selector
+    ADD R3, 1
+    ST R3, R2, 0            ; publish HERE
+wec_resolve:
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    LD R3, R7, 0            ; the top of the compile-time stack
+    LDI 0
+    CMP R3, R0
+    JZ wec_done             ; the marker: everything above it is patched
+    NOP
+    ; Anything outside the dictionary is not a placeholder - a stale return-stack
+    ; cell, say, after a `case` that was never closed. Stop rather than write an
+    ; offset into whatever such a value points at. The two bounds are compared
+    ; with the CARRY, which is an exact unsigned test: the obvious `LDI 0x4000`
+    ; would arrive as 0xC000, because bit 14 of the immediate is its sign.
+    LDI dict_free
+    MOV R1, R0
+    CMP R3, R1
+    JC wec_stop             ; below the dictionary
+    NOP
+    LDI 0x3FFF
+    MOV R1, R0
+    CMP R1, R3
+    JC wec_stop             ; above the dictionary area
+    NOP
+    ADD R7, 1
+    ST R7, R4, 0            ; pop the placeholder
+    LDI dp_var              ; and patch it the way `then` does
+    MOV R2, R0
+    LD R2, R2, 0
+    MOV R1, R2
+    SUB R1, R3
+    ST R1, R3, 0
+    LDI wec_resolve
+    MOV PC, R0
+    NOP
+wec_stop:
+    LDI interpret_loop      ; leave the stack alone and carry on
+    MOV PC, R0
+    NOP
+wec_done:
+    ADD R7, 1
+    ST R7, R4, 0            ; pop the marker
+    LDI interpret_loop
     MOV PC, R0
     NOP
 

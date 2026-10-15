@@ -386,6 +386,10 @@ Inside a definition only; all are **imm** except `i`, `j` and `unloop`.
 | `unloop` | `( -- )` | drop the loop frame, so a following `exit` leaves the loop |
 | `i` | `( -- index )` | current loop index |
 | `j` | `( -- index )` | the index of the loop one level out |
+| `case` | `( -- )` | begin a case: pick a clause by comparing a selector |
+| `of` | `( -- )` | a clause whose test value the selector is compared with |
+| `endof` | `( -- )` | end a clause |
+| `endcase` | `( -- )` | end the case, dropping a selector that matched nothing |
 
 `do` counts after the increment, so `10 0 do … loop` runs ten times while
 `0 0 do … loop` runs 65536 times — use `?do` to skip when the bounds are equal.
@@ -394,6 +398,20 @@ the limit, so a step that does not divide the range still terminates:
 `10 0 do i . 3 +loop` prints `0 3 6 9`, and a negative step counts down to the
 limit from above. `unloop` must be followed by `exit` (or the end of the
 definition) for the loop to be left early.
+
+`case` compares the selector with each clause's test value and runs the first
+clause that matches; the selector is then dropped — by the clause that matched,
+or by `endcase` when none did. A case that answers a value therefore has to put
+the selector back where `endcase` can drop it, or keep it with `dup` in the
+default clause:
+
+```text
+: .digit  ( n -- ) case 0 of ." zero" endof 1 of ." one" endof ." many" endcase ;
+: pick2   ( n -- x ) case 1 of 100 endof 2 of 200 endof 0 swap endcase ;
+```
+
+`of` and `endof` compile nothing new: `of` is `over = if drop` and `endof` is
+`else`, so `see` prints a case as the branches it really is.
 
 ## Input, output and screen
 
@@ -446,5 +464,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 151 words. New words are added at the head of the
+That is the whole dictionary: 155 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

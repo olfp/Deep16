@@ -220,6 +220,36 @@
 > heraus; abgestürzt ist dabei nichts (geprüft: der `INT_MIN / −1`-Fall liefert
 > 0/0, kein Hänger). **6 neue Tests**, 196 in der Datei.
 >
+> **2026-10-15 (neunter Teil):** **Tier 2, zweiter Schub: `case of endof
+> endcase`** — **155 Wörter**. `case` wählt eine Klausel, indem es einen Selektor
+> mit den Testwerten vergleicht. Die vier Wörter sind **immediate** und
+> kompilieren nichts Neues: **`of` ist `over = if drop`**, `endof` ist `else`
+> Wort für Wort (ein Sprung auf `word_else`, damit der Rumpf nicht doppelt
+> dasteht), und `endcase` kompiliert ein `drop` und löst die Zweige auf. `see`
+> zeigt eine `case`-Definition deshalb als das, was sie ist: `1 over = (0branch)
+> 7 drop 65 emit (branch) 17 …`.
+> **Die Buchhaltung liegt auf dem Kompilier-Rückstapel** — derselbe wie der
+> Laufzeit-Rückstapel: `case` legt eine **Marke** ab (Null, und Null ist keine
+> Adresse), `of` den Platzhalter, den `endof` flickt. **Zwei Wächter:**
+> `case_depth` zählt die offenen Paare, damit ein verwaistes `endcase` nichts
+> tut, und die Auflöseschleife **flickt nur Adressen im Wörterbuch**
+> (`dict_free` … `0x3FFF`), damit ein nie geschlossenes `case` einen späteren
+> `endcase` nicht dazu bringt, einen Versatz irgendwohin zu schreiben.
+> **Zwei Funde, beide von den Tests gemacht:** *(1)* die vier Header hatten das
+> **IMMEDIATE-Bit nicht** — die Wörter wurden also **kompiliert** statt
+> ausgeführt, und `see` zeigte die Quelle (`case 1 of …`) statt der Zweige; der
+> `see`-Ausdruck hat es verraten. *(2)* **`LDI 0x4000` ist nicht `0x4000`** (Bit
+> 14 ist das Vorzeichen, geladen wird `0xC000`): die obere Grenze des
+> Wächter-Bereichs wurde damit negativ, der Wächter schlug bei **jeder** echten
+> Platzhalteradresse zu, `endcase` flickte nichts — und das `(branch)` eines
+> `endof` blieb auf Versatz 0 stehen, sodass die Maschine nach dem ersten `emit`
+> in unbeschriebenen Speicher lief. Jetzt entscheiden **Carry-Vergleiche** (exakt
+> unsigniert) gegen `dict_free` und `0x3FFF`.
+> **Die Standard-Regel**, die man beim Schreiben kennen muss: den Selektor
+> verwirft die passende Klausel, sonst `endcase`. Wer ein *Ergebnis* will, legt
+> es mit `0 swap endcase` unter den Selektor oder hält ihn mit `dup` in der
+> Standardklausel. **3 neue Tests**, 199 in der Datei.
+>
 > **2026-10-14 (dritter Teil):** **`do`/`loop` sind da** — mit `?do`, `leave`
 > und `i`. Der Loop-Rahmen liegt auf dem Rückstapel, vier Zellen unter den
 > Aufrufsrahmen. Die teuerste Falle war nicht der Inhalt, sondern die
@@ -509,6 +539,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-15 | **Tier 1, 5. Schub: `s"`, `pick`, `roll`** — 132 Wörter. **`s"`** ist wie `."` ein **Tokenizer**-Wort und **keine** Wörterbuch-Zelle: der Text zwischen den Anführungszeichen ist kein Token, es gibt also kein `' s"` und `forget` hat nichts zu entfernen. Der Unterschied zu `."` sitzt an genau der Stelle, die für einen Wert zählt: **das trennende Leerzeichen wird geschluckt**, `s" xy"` ist die zwei Zeichen lange Zeichenkette `xy` (ein Wert muss das sein, was dasteht), während `."` es behält, weil das Drucken der gespeicherten Zeichen die Quelle exakt zurückgeben muss. `see` stellt es wieder her (`see_str_sq` ist `s" ` **mit** Leerzeichen, dann die Zeichen, dann `"`), sodass die gedruckte Definition dasselbe bedeutet; `sb_string` nimmt die Vorsilbe jetzt in R7 und dient beiden. Interpretiert kopiert `s"` nach `sq_buf` (130 Zellen, so lang wie die längste Eingabezeile plus NUL) und antwortet `( c-addr u )`; ein zweites `s"` überschreibt den Puffer — genau die „transient buffer"-Zusage des Standards. Übersetzt entstehen **dieselben drei Zellen** wie bei `."`, nur mit `xt_sqstr` als Marke: `xt_lit <Adresse> xt_sqstr <Zeichen> 0`; `word_sqstr` misst die Länge am NUL und **setzt IP hinter den String**, denn ohne diesen Schritt läse `next` das erste Zeichen als xt. `\"` löst `copy_string` für beide auf (die Schleife ist aus `dotq_compile` herausgezogen, weil `."` und beide Hälften von `s"` sie brauchen). **Platz und Sprungweite:** der erste Code-Block hatte nur noch **22 Wörter** frei, deshalb liegt die Parser-Hälfte im zweiten (`sq_token_check`, `sq_action`, `sq_compile`, `sq_interpret`) und der Tokenizer-Zweig selbst ist sechs Wörter lang; zwei bedingte Sprünge über die Blockgrenze (2130 Wörter) und ein `JZ sb_end` in `see`, das die neuen Zeilen auf 258 Wörter schoben, mussten `LDI` + `MOV PC, R0` werden — der Assembler meldet solche Fälle, statt sie stillschweigend falsch zu kodieren. **`pick`/`roll`** kopieren bzw. bewegen die u-te Zelle (von oben gezählt) und prüfen ihre **u+1** Zellen selbst; `roll` schiebt **von unten** nach, weil ein LD/ST-Offset von −1 in fünf Bits stillschweigend 31 hieße und quer über den Stapel schriebe. **2 neue Tests**, 188 in der Datei, **483/483** im Repo. `FORTH.md`: `s"` in „Characters and strings", `pick`/`roll` im Stapel-Abschnitt, Zahl 130 → **132**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-15 | **Tier 1, 6. Schub: `<# # #s #> hold sign`** — 138 Wörter, die Tier-1-Liste ist damit **abgearbeitet**. Die sechs Wörter drucken eine Zahl nicht, sondern bauen sie in einem Halte-Bereich, den danach `type` schreibt; die Zahl ist ein **Doppel** (zwei Zellen, **hohes Halbwort oben** — die Ordnung des Standard-Beispiels `dup abs 0 <# #s rot sign #>`), und `#` teilt es durch die **aktuelle Basis**, weshalb dasselbe Idiom nach `hex` hexadezimal druckt. `hold` stellt voran (`66 hold 65 hold` ergibt `AB`). **Der Zeiger läuft von oben nach unten**, damit die Zeichen ohne Umkehren in Leserichtung stehen; mehr als **vierzig** Zeichen in einem Bild werden verworfen statt hinter den Puffer geschrieben (dieselbe Abwägung wie beim Drucker für Basis < 2), und `#`/`#s`/`#>` prüfen ihre zwei Zellen selbst. **Grenze, bewusst dokumentiert:** `#` teilt mit dem 32-Bit-`DIV`, dessen Dividend ein *vorzeichenbehaftetes* Paar ist, der `ud` des Standards aber vorzeichenlos — ein Doppel ab `0x80000000` rechnet falsch (`65535 65535 <# #s #>` gibt `/`, weil der Rest −1 ist). Jede Art, hier ein Doppel zu bauen, lässt das hohe Halbwort 0; eine vorzeichenlose 32-Bit-Division bräuchte eine eigene Korrektur um 2³¹ und wäre für ein 16-Bit-Gerät der falsche Preis. **Der Fund der Runde:** in `hld_step` stand `LDI base_var` **zwischen** dem Laden des Dividenden und `DIV32` — `LDI` schreibt R0, und R0 hält das hohe Halbwort, also dividierte die Maschine eine **Adresse** durch die Basis (`0/10` → `0xCCCC`, und `#s` lief **endlos**, weil das Doppel nie null wurde). Die Basis wird jetzt **vor** dem Dividenden geladen — genau die Reihenfolge, die `print_number` mit `LDI 0; MOV R1, R2` schon hatte. **2 neue Tests** (Idiome in Basis 10/16/2, Doppel über eine Zelle, `hold`-Reihenfolge, Puffergrenze, Tiefenprüfungen, `see`), 190 in der Datei, **485/485** im Repo. `FORTH.md`: neuer Abschnitt „Pictured numbers", Zahl 132 → **138**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-15 | **Tier 2: Doppelzellen-Arithmetik** (`s>d d+ d- dnegate m+ d= d0= d< um* m* um/mod sm/rem fm/mod`) — 151 Wörter. Ein Doppel ist **zwei Zellen mit dem hohen Halbwort oben**; `s>d` stellt das her, `d+`/`d-`/`m+`/`dnegate` tragen über das **Carry-Flag** (das sofort gelesen werden muss, weil `LDI` das ganze Nibble löscht), und `d<` vergleicht hohe Halbwörter vorzeichenbehaftet (N/V-Test wie `<`) und die niedrigen **vorzeichenlos**, wenn die hohen gleich sind. **Fund 1: `MUL32` ist unsigniert** — das hohe Halbwort eines Produkts *hängt* von den Vorzeichen ab (`3 × −4 = −12` gegen `3 × 0xFFFC = 0x0002FFF4`); `m*` korrigiert den unsignierten Wert, indem jeder negative Operand den anderen einmal abzieht (das landet ganz im hohen Halbwort). **Fund 2: die Reihenfolge der Divisionsantwort** — der Standard gibt Quotient oben (`u3`/`n3`) und Rest darunter; die erste Fassung hatte es umgekehrt, und die ersten Tests pinnten den Irrtum mit, bis eine `u.`-Zeile den Rest oben zeigte. `sm/rem` ist exakt die ISA-Division (truncate toward zero, Rest mit dem Vorzeichen des Dividenden), `fm/mod` ergänzt die Bodenkorrektur (Rest mit dem Vorzeichen des Divisors). **Grenzen:** `um/mod` ist exakt, solange der Quotient passt *und* der Divisor < `0x8000` ist (dann sind beide Operanden nicht-negativ, signiert = unsigniert); ein unsignierter Divisor ≥ `32768` kommt signiert heraus, ohne Absturz (`INT_MIN/−1` → 0/0). **6 neue Tests**, 196 in der Datei, **491/491** im Repo. `FORTH.md`: neuer Abschnitt „Double-cell numbers", Zahl 138 → **151**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
+| 2026-10-15 | **Tier 2, 2. Schub: `case`/`of`/`endof`/`endcase`** — 155 Wörter. Die vier sind **immediate** und kompilieren nur vorhandene Wörter: **`of` ist `over = if drop`**, `endof` ist `else` (per Sprung auf `word_else` geteilt, damit der Rumpf nicht zweimal dasteht), `endcase` kompiliert `drop` und löst die Zweige auf — deshalb zeigt `see` eine `case`-Definition als ihre Zweige. Buchhaltung auf dem Kompilier-Rückstapel: `case` legt eine **Marke 0** ab (keine Adresse), `of` den Platzhalter. **Wächter:** `case_depth` (wie `loop_depth`) lässt ein verwaistes `endcase` nichts tun, und die Auflöseschleife flickt nur Adressen in `[dict_free, 0x3FFF]`. Die drei `xt`-Zellen, die `of` kompiliert, halten die **echten xts** (Header + 3 + Namenslänge), damit `see` sie benennen kann; ein Test pinnt alle drei gegen `' over`, `' =`, `' drop`. **Fund 1:** den vier Headern fehlte das IMMEDIATE-Bit — die Wörter wurden kompiliert statt ausgeführt (`see` zeigte `case 1 of …`); gefunden am `see`-Ausdruck. **Fund 2:** `LDI 0x4000` lädt `0xC000` (Bit 14 = Vorzeichen), womit die Obergrenze des Wächters negativ wurde, der Wächter bei **jeder** echten Platzhalteradresse zuschlug und `endcase` nichts flickte — das `(branch)` blieb auf 0 und die Maschine lief nach dem ersten `emit` ins Leere. Jetzt Carry-Vergleiche gegen `dict_free` und `0x3FFF`. Dazu die **Standard-Regel** im Manual: den Selektor verwirft die passende Klausel, sonst `endcase`; ein Ergebnis gehört mit `0 swap endcase` darunter. **3 neue Tests**, 199 in der Datei, **494/494** im Repo. `FORTH.md`: vier Zeilen in „Control flow" plus ein Absatz zur Selektor-Regel, Zahl 151 → **155**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 
 ## Architektur-Revisionen im Repo-Root
 
@@ -645,10 +676,12 @@ bewusste Entscheidung und keine Lücke.
    `d+`, `d-`, `dnegate`, `m+`, `d=`, `d0=`, `d<`, `um*`, `m*`, `um/mod`,
    `sm/rem`, `fm/mod`; damit steht auch `: d. <# #s #> type space ;` als
    Anwenderwort da.
-   **Als Nächstes:** `case`/`of`/`endof`/`endcase` (reine Übersetzungsarbeit im
-   vorhandenen `if`/`else`-Bauplan), `evaluate` (eine Zeichenkette
-   interpretieren — Material für ein Kapitel 9), die Zeichenkettenwörter
-   (`/string compare search -trailing blank`) und `catch`/`throw`/`abort`.
+   **Als Nächstes:** `evaluate` (eine Zeichenkette interpretieren — Material für
+   ein Kapitel 9), die Zeichenkettenwörter (`/string compare search -trailing
+   blank`) und `catch`/`throw`/`abort`.
+   *Erledigt (2026-10-15, Tier 2):* auch `case`/`of`/`endof`/`endcase` — sie
+   kompilieren nur `over = if drop` und `else`, also nichts, was der Laufzeit
+   fehlte.
    **Erledigt statt vormerkt:** `<`, `>` und mit ihnen `min`/`max` sind bei
    Überlauf **nicht mehr** falsch — sie lesen N und V zusammen (`N xor V`), und
    `+loop` tut dasselbe. Der Fehler war kein fehlendes Wort, sondern ein Fehler,

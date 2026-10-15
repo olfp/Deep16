@@ -3224,6 +3224,77 @@ test('the multiplying and dividing words check their depth', () => {
   assert.equal(hexOut(': t fm/mod um/mod ; see t'), ': t fm/mod um/mod ;');
 });
 
+// ---------------------------------------------------------------------------
+// Tier 2, second batch: case / of / endof / endcase.
+//
+// `of` is worth one line: it compiles `over = if drop` and nothing else, so the
+// runtime needs no new word at all - `see` prints that expansion straight back.
+// What the four words do need is bookkeeping on the compile-time return stack,
+// which is also the runtime return stack: `case` pushes a marker (zero, which is
+// no address), `of` pushes the placeholder its branch is patched through, and
+// `endof` is `else` word for word.
+//
+// Two guards: case_depth stops a stray `endcase` the way loop_depth stops a
+// stray `loop`, and the resolve loop patches nothing that is not a dictionary
+// address - so a `case` that was never closed cannot make a later `endcase` write
+// an offset wherever it happens to guess.
+//
+// The one thing to know when writing a case: the selector is dropped by the
+// clause that matches, and by `endcase` when none did. That is the standard's
+// rule, and it is why a case that ANSWERS puts the selector back on top
+// (`0 swap endcase`) or keeps it with `dup` in the default clause.
+
+test('case runs the clause whose test value matches the selector', () => {
+  // A definition and its calls are two input lines, so the row of the second is
+  // the one to read: `repl` echoes each line and appends what `emit` wrote.
+  const t = ': t case 1 of 65 emit endof 2 of 66 emit endof 67 emit endcase ;';
+  const row = (def, call) => repl(`${def}\n${call}\n`).rows[2];
+  assert.equal(row(t, '1 t'), '> 1 tA ok');
+  assert.equal(row(t, '2 t'), '> 2 tB ok');
+  assert.equal(row(t, '9 t'), '> 9 tC ok');        // the default, selector still there
+  assert.equal(row(t, '1 t 2 t 9 t'), '> 1 t 2 t 9 tABC ok');
+  assert.equal(row(': d case 1 of 65 emit endof dup . endcase ;', '7 d'), '> 7 d 7  ok');
+  // A case that answers a value leaves the selector for endcase to drop.
+  const v = ': v case 1 of 100 endof 2 of 200 endof 0 swap endcase ;';
+  assert.equal(row(v, '1 v .'), '> 1 v . 100  ok');
+  assert.equal(row(v, '2 v .'), '> 2 v . 200  ok');
+  assert.equal(row(v, '5 v .'), '> 5 v . 0  ok');
+  // Cases nest, and the inner one needs a selector of its own.
+  const n = ': n case 1 of 2 case 2 of 65 emit endof endcase endof 67 emit endcase ;';
+  assert.equal(row(n, '1 n'), '> 1 nA ok');
+  assert.equal(row(n, '2 n'), '> 2 nC ok');
+  // `of` compares with `=`, so the base in force is the one that decides.
+  assert.equal(row(': w case 255 of 65 emit endof 66 emit endcase ;', 'hex ff w decimal'),
+    '> hex ff w decimalA ok');
+});
+
+test('a case compiles to over, =, a branch and drop', () => {
+  // The xts `of` compiles are the ones `'` hands out - header + 3 + the name
+  // length - so `see` can name them, and renaming one of those words fails here
+  // instead of quietly compiling the wrong address.
+  assert.equal(hexOut("' over ."), String(res.symbols.h_over + 7));
+  assert.equal(hexOut("' = ."), String(res.symbols.h_eq + 4));
+  assert.equal(hexOut("' drop ."), String(res.symbols.h_drop + 7));
+  // see prints the thread back the way it is built: one `over = (0branch) drop`
+  // per clause, and a `(branch)` that skips the rest of the case.
+  const seen = repl(': t case 1 of endof endcase ;\nsee t\n').rows[2];
+  assert.match(seen, /: t 1 over = \(0branch\) \d+ drop \(branch\) \d+ drop ;/);
+  // All four are immediate, so compiling a case leaves their own names out of
+  // the thread entirely - which is how the missing IMMEDIATE bit was found.
+  assert.doesNotMatch(seen, /case|endof|endcase/);
+});
+
+test('a stray case word does not take the machine down', () => {
+  // case_depth guards endcase the way loop_depth guards loop.
+  for (const src of ['case', 'endcase', 'endof', 'case endcase endcase', 'case endcase endof']) {
+    assert.doesNotMatch(hexrepl(src).join('\n'), /underflow|undefined/, src);
+  }
+  // ... and the prompt still works afterwards.
+  assert.equal(hexOut('case 42 .'), '42');
+  assert.equal(hexOut('endcase 7 .'), '7');
+  assert.equal(hexOut('endof 8 .'), '8');
+});
+
 test('a base below two stops the printer instead of running away', () => {
   // BASE is a cell, so 0 and 1 can be stored; the standard calls that
   // undefined. What gets printed is garbage - what matters is that the count
