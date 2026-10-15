@@ -1807,10 +1807,46 @@ h_bracket_char:
     .text "[char]"
     .word word_bracket_char
 h_literal:
-    .word h_see
+    .word h_tor
     .word 0x8007          ; IMMEDIATE | length 7
     .text "literal"
     .word word_literal
+; The return-stack words and `+loop`, the third Tier 1 batch, chained in here
+; for the same reason as the two batches above: the newest headers sit just
+; before h_see, so h_cls stays the head of the chain and every older link keeps
+; its old target. `+loop` is IMMEDIATE like `loop` — it acts while the
+; definition is being translated and leaves xt_plusloop behind — and the other
+; five are ordinary words.
+h_tor:
+    .word h_rfrom
+    .word 2
+    .text ">r"
+    .word word_tor
+h_rfrom:
+    .word h_rfetch
+    .word 2
+    .text "r>"
+    .word word_rfrom
+h_rfetch:
+    .word h_plusloop
+    .word 2
+    .text "r@"
+    .word word_rfetch
+h_plusloop:
+    .word h_j
+    .word 0x8005          ; IMMEDIATE | length 5
+    .text "+loop"
+    .word word_plusloop
+h_j:
+    .word h_unloop
+    .word 1
+    .text "j"
+    .word word_j
+h_unloop:
+    .word h_see
+    .word 6
+    .text "unloop"
+    .word word_unloop
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -2154,6 +2190,8 @@ xt_qdo:
     .word word_qdo_rt
 xt_loop:
     .word word_loop_rt
+xt_plusloop:
+    .word word_plusloop_rt
 xt_leave:
     .word word_leave_rt
 current_xt:
@@ -2219,12 +2257,20 @@ see_str_qdo:
     .text "?do "
 see_str_loop:
     .text "loop "
+see_str_plusloop:
+    .text "(+loop) "
 see_str_leave:
     .text "leave "
 see_str_branch:
     .text "(branch) "
 see_str_0branch:
     .text "(0branch) "
+; The return stack's base, the way sp0_base is the data stack's. It has to be a
+; cell rather than an immediate because `LDI` reads its fifteen bits as signed:
+; 0x6F00 has bit 14 set, so loading it would sign-extend to 0xEF00 and any
+; comparison against it would answer the opposite of the truth.
+rp0_base:
+    .word RSTACK_TOP
 dict_free:               ; colon definitions are built upwards from here
 
 .code
@@ -3138,6 +3184,15 @@ wrs_done:
 
 ; min and max keep one of the two operands: b is popped first, so the result
 ; slot is always a's slot.
+;
+; Which one to keep is a signed comparison, and the machine cannot answer one
+; from a single flag: `CMP a, b` sets N from the sign of a - b and V when that
+; subtraction overflowed, and a < b exactly when N and V differ. Reading N
+; alone - what `JN` does - is only right while a - b fits in a cell, and that is
+; how `0x8000 1 min` came to answer 1: -32768 - 1 overflows to +32767, so the
+; smaller operand looked like the larger one. `<`, `>`, `max` and `+loop` need
+; the same two-flag test; it is written out at each of them rather than shared,
+; because what gets compared sits in different registers in each word.
 word_min:
     MOV R9, SP
     ADD R9, 2
@@ -3155,15 +3210,21 @@ word_min:
 wmin_ok:
     LD R2, SP, 0          ; b
     ADD SP, 1
-    LD R1, SP, 0          ; a
-    CMP R2, R1
-    JN wmin_take_b        ; b < a: the smaller one is b
+    LD R1, SP, 0          ; a, and the slot the result stays in
+    CMP R1, R2            ; a - b
+    JO wmin_ovf
     NOP
-    LDI next              ; a <= b: a stays in its slot
+    JN wmin_done          ; no overflow, a - b < 0: a is the smaller one
+    NOP
+wmin_take_b:              ; a >= b
+    ST R2, SP, 0
+wmin_done:
+    LDI next
     MOV PC, R0
     NOP
-wmin_take_b:
-    ST R2, SP, 0
+wmin_ovf:
+    JN wmin_take_b        ; overflow inverted the sign, so a negative a - b
+    NOP                   ;   means a > b and b is the smaller one
     LDI next
     MOV PC, R0
     NOP
@@ -3185,15 +3246,21 @@ word_max:
 wmax_ok:
     LD R2, SP, 0          ; b
     ADD SP, 1
-    LD R1, SP, 0          ; a
-    CMP R2, R1
-    JN wmax_next          ; b < a: the larger one is a, already in its slot
+    LD R1, SP, 0          ; a, and the slot the result stays in
+    CMP R2, R1            ; b - a: keep a when b < a
+    JO wmax_ovf
     NOP
-    ST R2, SP, 0          ; b >= a
+    JN wmax_done          ; no overflow, b - a < 0: a is the larger one
+    NOP
+wmax_take_b:              ; b >= a
+    ST R2, SP, 0
+wmax_done:
     LDI next
     MOV PC, R0
     NOP
-wmax_next:
+wmax_ovf:
+    JN wmax_take_b        ; overflow inverted the sign
+    NOP
     LDI next
     MOV PC, R0
     NOP
@@ -3462,10 +3529,18 @@ wlt_ok:
     LD R2, SP, 0
     ADD SP, 1
     LD R1, SP, 0
-    CMP R1, R2
-    JN cmp_true
+    CMP R1, R2            ; a - b
+    JO wlt_ovf
+    NOP
+    JN cmp_true           ; no overflow: the sign of a - b is the answer
     NOP
     LDI cmp_false
+    MOV PC, R0
+    NOP
+wlt_ovf:
+    JN cmp_false          ; overflow inverted the sign, so a - b < 0 now
+    NOP                   ;   means a > b
+    LDI cmp_true
     MOV PC, R0
     NOP
 
@@ -3487,12 +3562,18 @@ wgt_ok:
     LD R2, SP, 0
     ADD SP, 1
     LD R1, SP, 0
-    CMP R2, R1            ; b - a
-    JZ cmp_false
+    CMP R2, R1            ; b - a: `a > b` is the same question as `b < a`
+    JO wgt_ovf
     NOP
-    JN cmp_true
+    JN cmp_true           ; no overflow, b - a < 0: a is the larger one
     NOP
-    LDI cmp_false
+    LDI cmp_false         ; equal, or b > a
+    MOV PC, R0
+    NOP
+wgt_ovf:
+    JN cmp_false          ; overflow inverted the sign
+    NOP
+    LDI cmp_true
     MOV PC, R0
     NOP
 
@@ -5838,6 +5919,10 @@ sb_loop:
     CMP R11, R0
     JZ sb_loop_rt
     NOP
+    LDI xt_plusloop
+    CMP R11, R0
+    JZ sb_plusloop_rt
+    NOP
     LDI xt_leave
     CMP R11, R0
     JZ sb_leave_rt
@@ -5904,6 +5989,19 @@ sb_qdort:
     NOP
 sb_loop_rt:
     LDI see_str_loop
+    MOV R1, R0
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 1
+    MOV R12, R0
+    LDI see_store
+    MOV PC, R0
+    NOP
+sb_plusloop_rt:
+    LDI see_str_plusloop
     MOV R1, R0
     LDI see_puts
     MOV R2, R0
@@ -6869,6 +6967,220 @@ word_bracket_char:          ; [char] ( "<spaces>name" -- ) IMMEDIATE: compile it
     JMP R2
     NOP
     LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+; ---------------------------------------------
+; Tier 1, third batch: the return stack and the stepped loop
+; ---------------------------------------------
+; `>r`, `r>` and `r@` move cells between the data stack and the return stack the
+; machine already uses for call frames and loop parameters. `>r` checks the data
+; stack it takes from; `r>` and `r@` check the return stack pointer against its
+; base, because at the prompt the pointer sits exactly on that base and a stray
+; `r>` there would read free memory and push whatever it found. From inside a
+; definition the pointer is below the base and the check passes, so taking one's
+; own call frame apart stays what the standard calls it: undefined.
+
+word_tor:                   ; >r ( x -- ) ( R: -- x )
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wtor_under
+    NOP
+    LD R1, SP, 0           ; x
+    ADD SP, 1
+    LDI rp_ptr
+    MOV R2, R0
+    LD R3, R2, 0           ; RP
+    SUB R3, 1
+    ST R3, R2, 0           ; RP first, while R3 still holds the new cell
+    ST R1, R3, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wtor_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_rfrom:                 ; r> ( -- x ) ( R: x -- )
+    LDI rp0_base
+    MOV R1, R0
+    LD R4, R1, 0           ; the return stack's base
+    LDI rp_ptr
+    MOV R2, R0
+    LD R3, R2, 0           ; RP
+    CMP R3, R4
+    JN wrfrom_ok          ; below the base: there is a frame to take from
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wrfrom_ok:
+    LD R1, R3, 0           ; x
+    ADD R3, 1
+    ST R3, R2, 0
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_rfetch:                ; r@ ( -- x ) ( R: x -- x )
+    LDI rp0_base
+    MOV R1, R0
+    LD R4, R1, 0
+    LDI rp_ptr
+    MOV R2, R0
+    LD R3, R2, 0
+    CMP R3, R4
+    JN wrfetch_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wrfetch_ok:
+    LD R1, R3, 0
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+; `do` leaves four cells per loop on the return stack, index and limit at +2 and
+; +3 of the frame. `i` reads the innermost index and `j` the one four cells
+; further up; `unloop` drops the frame without touching IP, which is what makes
+; `unloop exit` leave a loop early. Between them the frame has to be on top of
+; the return stack: a `>r` that is still open when `i`, `j` or the loop word
+; runs moves the pointer and the frame below it is what gets read. That is the
+; standard's ambiguous condition, and it is the reason the tests pair every
+; `>r` with an `r>` before the loop word.
+word_j:                     ; j ( -- n )
+    LDI rp_ptr
+    MOV R2, R0
+    LD R1, R2, 0           ; RP
+    LD R3, R1, 6           ; the outer frame starts four cells up, +2 for index
+    SUB SP, 1
+    ST R3, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_unloop:                ; unloop ( -- ) ( R: frame -- )
+    LDI rp_ptr
+    MOV R2, R0
+    LD R1, R2, 0
+    ADD R1, 4
+    ST R1, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+; `+loop` is the compile-time half: it does what `loop` does — take the
+; placeholder `do` pushed, patch the exit address into it, compile the runtime
+; word — and differs only in the xt it compiles. loop_depth is the same counter,
+; so `+loop` closes a `do` or a `?do` and a stray one compiles nothing.
+word_plusloop:
+    LDI loop_depth
+    MOV R4, R0
+    LD R7, R4, 0
+    LDI 0
+    CMP R7, R0
+    JZ wpl_stray          ; no `do` open: compile nothing, as `loop` does
+    NOP
+    LDI 1
+    SUB R7, 1
+    ST R7, R4, 0
+    LDI rp_ptr
+    MOV R4, R0
+    LD R7, R4, 0
+    LD R3, R7, 0           ; the placeholder DO pushed
+    ADD R7, 1
+    ST R7, R4, 0           ; pop it
+    LDI dp_var
+    MOV R2, R0
+    LD R1, R2, 0           ; DP
+    LDI xt_plusloop
+    MOV R4, R0
+    ST R4, R1, 0           ; compile (+loop)
+    ADD R1, 1
+    ST R1, R2, 0           ; DP, one past the cell
+    ST R1, R3, 0           ; and that address is what DO carries out
+wpl_stray:
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+; (+loop) adds n to the index and continues while the index has not reached the
+; limit: index < limit for a step of n >= 0, index >= limit for n < 0. Both are
+; signed comparisons and both take the N/V pair for the reason written out at
+; `min`. `loop` only tests for equality, so a `+loop` step that jumps over the
+; limit ends the loop here, which is what the standard asks of a "crossed the
+; boundary" test and what keeps `0 10 do ... -3 +loop` from running for ever.
+word_plusloop_rt:
+    LDI sp0_base
+    MOV R2, R0
+    MOV R9, SP
+    ADD R9, 1
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wplr_ok            ; exactly one operand: SP + 1 == base
+    NOP
+    JN wplr_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wplr_ok:
+    LD R7, SP, 0           ; n
+    ADD SP, 1
+    LDI rp_ptr
+    MOV R4, R0
+    LD R3, R4, 0           ; RP
+    LD R1, R3, 2           ; index
+    LD R2, R3, 3           ; limit
+    ADD R1, R7
+    ST R1, R3, 2           ; index = index + n
+    LDI 0
+    CMP R7, R0
+    JN wplr_down
+    NOP
+    CMP R1, R2             ; n >= 0
+    JO wplr_up_ovf
+    NOP
+    JN wplr_again          ; no overflow, index - limit < 0: still inside
+    NOP
+wplr_done:
+    ADD R3, 4              ; the loop is over: drop the frame and carry on
+    ST R3, R4, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wplr_up_ovf:
+    JN wplr_done           ; overflow inverted the sign of index - limit
+    NOP
+wplr_again:
+    LD R1, R3, 1           ; body
+    LDI ip_ptr
+    MOV R2, R0
+    ST R1, R2, 0           ; IP = body, and `next` carries on from there
+    LDI next
+    MOV PC, R0
+    NOP
+wplr_down:
+    CMP R1, R2             ; n < 0: continue while index >= limit
+    JO wplr_down_ovf
+    NOP
+    JN wplr_done           ; index < limit: the step has taken it past the end
+    NOP
+    LDI wplr_again
+    MOV PC, R0
+    NOP
+wplr_down_ovf:
+    JN wplr_again          ; overflow inverted the sign
+    NOP
+    LDI wplr_done
     MOV PC, R0
     NOP
 

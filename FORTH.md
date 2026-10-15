@@ -44,6 +44,24 @@ prints `undefined word: X` or `stack underflow` and the prompt comes back.
 | `2swap` | `( a b c d -- c d a b )` | exchange the two top pairs |
 | `depth` | `( -- n )` | number of cells on the data stack |
 
+## Return stack
+
+`>r`, `r>` and `r@` move a cell between the data stack and the return stack.
+Keeping the two in balance is the program's job: the machine also keeps call
+frames and loop parameters on the return stack, so an `r>` with nothing pushed
+reads a return address, and a `>r` left open when a loop word runs moves the
+pointer out from under the loop's own frame.
+
+| word | stack effect | meaning |
+|------|--------------|---------|
+| `>r` | `( x -- )` | move `x` from the data stack to the return stack |
+| `r>` | `( -- x )` | move the top of the return stack to the data stack |
+| `r@` | `( -- x )` | copy the top of the return stack to the data stack |
+
+`>r` needs a cell on the data stack; `r>` and `r@` need one on the return
+stack, and at the prompt the return stack is empty, so both report
+`stack underflow` rather than reading past its base.
+
 ## Arithmetic
 
 | word | stack effect | meaning |
@@ -94,12 +112,14 @@ All push `-1` for true and `0` for false.
 | `true` | `( -- -1 )` | the true flag itself |
 | `false` | `( -- 0 )` | the false flag itself |
 
-`<` and `>` are signed and read the sign of `a-b`, so they treat `0x8000` as
-negative. `u<` and `u>` read the borrow instead, which is why the same pair of
-cells can come out opposite ways: `0 1 - 1 <` is true while `0 1 - 1 u<` is
-false, and `1 0 1 - u<` is true although signed `<` would deny it. `within` is
-the unsigned form too, so a value below `lo` wraps to a large number and stays
-outside rather than being mistaken for a value above `lo`.
+`<`, `>`, `min` and `max` are signed and are right at the sign boundary, where
+the subtraction they compare overflows: `0x8000` counts as negative there, and
+so `0x8000 1 <` is true while `0x8000 1 max` is `1`. `u<` and `u>` read the
+borrow instead, which is why the same pair of cells can come out opposite ways:
+`0 1 - 1 <` is true while `0 1 - 1 u<` is false, and `1 0 1 - u<` is true
+although signed `<` would deny it. `within` is the unsigned form too, so a
+value below `lo` wraps to a large number and stays outside rather than being
+mistaken for a value above `lo`.
 
 ## Memory
 
@@ -217,7 +237,7 @@ word is.
 
 ## Control flow
 
-Inside a definition only; all are **imm** except `i`.
+Inside a definition only; all are **imm** except `i`, `j` and `unloop`.
 
 | word | stack effect | meaning |
 |------|--------------|---------|
@@ -232,11 +252,19 @@ Inside a definition only; all are **imm** except `i`.
 | `do` | `( limit start -- )` | counted loop: `limit start do … loop` |
 | `?do` | `( limit start -- )` | `do`, but skip the body if `limit = start` |
 | `loop` | `( -- )` | end `do`; increment the index and repeat |
+| `+loop` | `( n -- )` | end `do`; add `n` to the index and repeat while it is short of the limit |
 | `leave` | `( -- )` | leave the innermost loop |
+| `unloop` | `( -- )` | drop the loop frame, so a following `exit` leaves the loop |
 | `i` | `( -- index )` | current loop index |
+| `j` | `( -- index )` | the index of the loop one level out |
 
 `do` counts after the increment, so `10 0 do … loop` runs ten times while
 `0 0 do … loop` runs 65536 times — use `?do` to skip when the bounds are equal.
+`+loop` carries its own step and ends the loop at the first index that reaches
+the limit, so a step that does not divide the range still terminates:
+`10 0 do i . 3 +loop` prints `0 3 6 9`, and a negative step counts down to the
+limit from above. `unloop` must be followed by `exit` (or the end of the
+definition) for the loop to be left early.
 
 ## Input, output and screen
 
@@ -289,5 +317,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 121 words. New words are added at the head of the
+That is the whole dictionary: 127 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

@@ -72,6 +72,38 @@
 > Suite **468/468**, `FORTH.md` mit neuem Abschnitt „Names and execution" und
 > Wörterbuchzahl **121**.
 >
+> **2026-10-15 (vierter Teil):** **`<`/`>`/`min`/`max` sind repariert, und Tier 1
+> hat seinen dritten Schub** — `>r`, `r>`, `r@`, `+loop`, `j`, `unloop`, jetzt
+> **127 Wörter**. Der vorbestehende Vergleichsfehler ist zuerst weg, weil
+> `+loop` dieselbe Frage stellt: `CMP a, b` setzt N aus dem **Vorzeichen** von
+> `a-b` und V, wenn diese Differenz **überläuft**; `a < b` gilt genau dann, wenn
+> **N und V sich unterscheiden**. Nur N zu lesen — was `JN` tut — ist richtig,
+> solange `a-b` in eine Zelle passt, und `0x8000 1 <` antwortete deshalb falsch
+> (nicht „kleiner", obwohl `-32768` es ist). Jede der vier Stellen wertet jetzt
+> beide Flags aus: `JO` führt in einen zweiten Zweig, der das Vorzeichen
+> umdreht. `loop` bleibt unangetastet — es prüft auf **Gleichheit**, und die
+> stört ein Überlauf nicht.
+> **Die teuerste Falle der Runde war wieder eine Zahl, die nicht passt:**
+> `LDI RSTACK_TOP` lädt **nicht** `0x6F00`. Der Operand ist ein 15-Bit-Muster
+> und die CPU **vorzeichenerweitert** Bit 14 nach Bit 15 — `0x6F00` kommt als
+> `0xEF00` an, also als **negative** Zahl, und „RP liegt unter der Basis" war
+> damit für jeden Rückstapelzeiger wahr. Der Fehler sah aus wie „`r>` findet den
+> Stapel nicht": `5 >r r>` meldete Unterlauf, obwohl `5 >r` nachweislich
+> schrieb (`rp_ptr @` zeigte `0x6EFF`). Die Basis liegt jetzt wie `sp0_base` in
+> einer **Zelle** (`rp0_base`) — dieselbe Ursache, dieselbe Lösung, und der
+> Grund steht als Kommentar an der Zelle.
+> `>r`, `r>` und `r@` prüfen den Stapel, aus dem sie **nehmen**: `>r` den
+> Datenstapel, `r>`/`r@` den Rückstapel gegen seine Basis, damit ein `r>` am
+> Prompt „stack underflow" sagt statt freien Speicher zu lesen. Ein aus dem
+> eigenen Aufrufrahmen genommener Wert bleibt undefiniert, wie der Standard es
+> lässt. `+loop` zählt wie `loop` am **Rückstapel** und teilt dessen
+> `loop_depth`; es endet beim ersten Index **jenseits** des Limits (`index <
+> limit` für `n >= 0`, `index >= limit` für `n < 0`), und die Grenze ist
+> dieselbe signierte Frage wie oben — `0x8000 0x8000 do i . 1 +loop` läuft
+> **einmal**, nicht 65536-mal. `j` liest den Index vier Zellen weiter oben,
+> `unloop` gibt den Rahmen zurück. **7 neue Tests**, 181 in der Datei,
+> `FORTH.md` mit neuem Abschnitt „Return stack" und Zahl 121 → **127**.
+>
 > **2026-10-14 (dritter Teil):** **`do`/`loop` sind da** — mit `?do`, `leave`
 > und `i`. Der Loop-Rahmen liegt auf dem Rückstapel, vier Zellen unter den
 > Aufrufsrahmen. Die teuerste Falle war nicht der Inhalt, sondern die
@@ -356,6 +388,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-15 | **`see name` — der Decompiler.** Der Kern kann jetzt den **Bau** eines Wortes zeigen statt es auszuführen. Fünf Bauarten werden unterschieden, jede über ihr **Code-Feld** (`[CFA]`): `docol` → `: name … ;`, `dovar` → `variable name`, `doconst` → `constant name <wert>`, `dodoes` → `create name` (und `does> … ;`, wenn der DOES>-Zeiger `[CFA+1]` nicht Null ist), `dovoc` → `vocabulary name`, alles andere → `code name`. **(1) Der Thread-Ablauf** liest Zelle für Zelle ab `CFA+1` und löst jede `xt` über **umgekehrte** Suche wieder zu einem Namen auf: die Suchordnung ablaufen, je Wortliste die Header-Kette (neueste zuerst), `CFA = header + 3 + len` rechnen und mit dem Ziel vergleichen — nicht gefunden heißt `?<xt>`. Eine Zelle, die **kein** Wort benennt, ist damit keine Thread-Zelle — der Ablauf **endet** dort, statt in den Rest des Speichers zu laufen; ohne diese Schranke lief `see` bei `: n 1 2 nosuchword ;` (die Definition, deren `;` nie lief) bis zum Bildschirmrand, weil sie jeden 0xFFFF-Zellenrest als „Wort" ausgab. **(2) Inline-Zellen** erkennt der Vorgänger, sonst stünde eine Zahl oder ein Zeichen als „Wort" im Ausdruck: `lit` + Operand (signed), `lit` + Adresse + `litstr` + Zeichen (als `." … "`, bis zur NUL), `lit` + Ausstiegsadresse + `(do)`/`(?do)`, `branch`/`0branch` + Versatz, `(loop)`/`leave` je eine Zelle. **(3) Das Ende** ist die **Adresse von `xt_exit`**, nicht das Code-Feld `exit`: `;` kompiliert genau diese Adresse, `exit` seine eigene Kennung — mit dem Code-Feld als Kriterium hätte ein `exit` **mitten** in einer Definition den Rest verschluckt (`: f 1 exit 2 ;` zeigte `: f 1 ;`). **(4) Registerdisziplin:** R5 (`>IN`) und R6 (`TIB`) müssen überleben, R8 (`SCR`) ist der Ausgabezeiger und wird absichtlich weitergezählt; R9 ist wie in `."` ES-Base und nie Adressregister. Der Thread-Zeiger lebt in `see_ptr` statt in einem Register, weil `print_number` und die Namenssuche jeden Arbeitsregister-Wert zerstören; die Helfer kommen je mit einem eigenen LR-Platz aus, weil `LINK` das LR überschreibt. **(5) Ausgabe** geht als direkter `STS`-Schreibzugriff auf den Bildschirm (kein BIOS/SWI, damit RP und Register unangetastet bleiben), mit führendem Leerzeichen, weil die REPL die Eingabezeile **ohne** abschließendes Leerzeichen zurückspiegelt. **Falle, die den ersten Testlauf kostete:** `LDI ';'` ist unzulässig — der Assembler schneidet die Zeile am ersten `;` ab (`line.split(';')[0]`), dieselbe Ursache, aus der `h_semicolon` sein Semikolon als `.word 59` ablegt. **Nicht rekonstruiert (bewusst):** `if`/`then`/`begin`/`until`/`while`/`repeat` erscheinen als `(branch)`/`(0branch)` mit dem gespeicherten Versatz — die Struktur dafür bräuchte den ganzen Kontrollfluss-Baum, und der Versatz ist das, was wirklich im Wörterbuch steht. Elf Tests in `forth.test.js` pinnen die Ausgabeformen; `see` steht außerdem in der `words`-Liste. Suite 156/156 (`forth`) grün. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md`, `STATUS.md` |
 | 2026-10-15 | **Tier 1 — 22 fehlende Standardwörter (1. Schub).** Aus der Lückenliste gegen ANS CORE/CORE-EXT sind die Wörter gebaut, die einem gewöhnlichen Programm im Weg stehen: `bl true false space spaces ?dup tuck -rot 2over 2swap u< u> 0<> within 2@ 2! count c, move fill erase type`. `bl`/`true`/`false` sind gewöhnliche `doconst`-Konstanten (CFA-Zelle `doconst`, Wertzelle dahinter), damit `see` sie als `constant name <wert>` zeigt. **Die zwei echten Fehler:** *Erstens* die **Operandenreihenfolge** — `move`, `fill`, `erase`, `type` luden den ersten Operanden von `[SP]`, wo der **letzte** liegt (`( src dst u -- )` heißt `u` oben). `erase` bekam damit die Länge als Zieladresse und schrieb ~13000 Zellen ab Adresse 1 aufwärts Null; das sah wie ein Absturz aus, war aber ein Adressfehler. *Zweitens* ein **Richtungsfehler**: `count` schob mit `ADD SP, 1`, wo `SUB` gehört — bei einem Operanden und zwei Ergebnissen wächst der Stapel um eine Zelle nach unten; mit `ADD` landeten beide Ergebniszellen hinter der Leer-Marke. **Die teuerste Erkenntnis kam aus einem scheinbaren Hänger:** `variable x variable y 7 9 x 2! x @ .` blieb stehen, und kein Wort war schuld — ein `variable` besitzt **eine** Datenzelle, der Header des nächsten Wortes beginnt unmittelbar dahinter, und `2!` überschrieb den **Link** des nächsten Namens; die Suche läuft dann auf den Zahlenwert 7 zu und kehrt nicht zurück. Deshalb reservieren die Tests mit `2 allot`, und `FORTH.md` sagt es. **Struktur:** die 22 Header liegen zwischen `h_cls` und `h_see` (neueste zuerst), damit `forth_wl` weiter auf `h_cls` zeigt; die zwei Pins in `tests/forth.test.js` (Kette endet auf `h_cls`, jedes `h_*` erreichbar) decken die neuen Header automatisch ab. **Sprungweite:** bedingte Sprünge reichen ±256 Wörter, `cmp_true`/`cmp_false` liegen aber weit vor dem neuen Block — `u<`, `u>`, `within` und `0<>` springen auf lokale Marken und laden das Ziel mit `LDI <marke>`+`MOV PC, R0`. **Semantik, bewusst abweichend:** `count` antwortet `( c-addr u )` und nicht ANS' `( c-addr+1 u )` — hier ist eine Zeichenkette eine Zellenfolge bis zur Nullzelle, und `addr count type` zu drucken ist die einzige Lesart, die etwas nützt. `c,` ist identisch mit `,` (eine Zelle trägt ein Zeichen). `u<`/`u>` lesen das **Carry** (Ausleihe, exakt), `within` rechnet `(n-lo) < (hi-lo)` unsigned; die Testpaare stehen so, dass die **signierte** Antwort die andere wäre. **Vorbestehend gefunden, nicht angefasst:** `<`, `>` und mit ihnen `min`/`max` leiten ihr Ergebnis aus dem **Vorzeichen einer Differenz** ab (`JN` auf `a-b` bzw. `b-a`) — das ist genau dann falsch, wenn die Differenz überläuft: `0x8000 1 <` → `0` (richtig: `-1`), `1 0x8000 >` → `0` (richtig: `-1`), `0x8000 1 min` → `1` (richtig: `-32768`). Reparaturweg (nicht in diesem Schub): `CMP a, b` und dann `N xor V` über `JO`/`JNO` auswerten, also vier Zweige statt zwei; `print_number`, `do`/`loop` und `hanoi.fth` rechnen nicht an der Vorzeichengrenze und bleiben davon unberührt. **Tests:** 13 neue Fälle in `forth.test.js` (Konstanten, Schieber, unsigned Vergleiche, Speicher/Zeichenketten, Tiefenprüfung jedes neuen Wortes, Übersetzen in einer Definition), zusammen 169 Fälle in der Datei, **463/463** im ganzen Repo. `FORTH.md`: neue Tabellenabschnitte (Stack, Vergleich, Speicher, „Characters and strings"), Zahl 93 → **115**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-15 | **Tier 1, 2. Schub: Namen und Ausführung** (`' char execute ['] [char] literal`). `'` war bisher ein **Tokenizer**-Sonderfall und wurde **stillschweigend geschluckt** (`5 ' dup .` lief als `5 dup .`) — der Zweig ist entfernt, `'` wird nachgeschlagen und parst mit `find_token`, dem Sucher von `to`/`forget`, damit ein unbekannter Name sich genauso meldet. **Der Fund, der diese Runde bestimmt hat:** der **Hex-Erkenner** öffnete „0x" auf **jedem** ersten Zeichen, weil er nur das **zweite** auf `x` prüfte — damit war `exe` die Zahl 0xE und **`execute` die Zahl 0xEC**, und der Rest `ute` kam als unbekanntes Wort zurück: das neue Wort war am Prompt nicht benutzbar. `exit` entkam nur, weil „xi" keine Hexziffer enthält und `parse_hex_finish` einen **ziffernlosen** Präfix zurück an `parse_word` schickt. Der Wächter ist jetzt `JNZ` statt `JN`: nur eine führende `0` öffnet „0x"; gepinnt sind `0xec` = 236, `exe` und `2x` als Wörter und `exit`. **`execute` springt auf das Code-Feld, nicht in die Resume-Liste:** `execute_xt` setzt IP auf die Liste des äußeren Interpreters (richtig am Prompt, falsch **in** einer Definition); weil der Sprung das IP unangetastet lässt, schiebt die Colon-Definition ihre Rücksprungadresse selbst und `: t ['] + execute 10 + ;` gibt 13. `'` und `char` sind **nicht** immediat und parsen zur Laufzeit (`: getxt ' ; getxt dup` findet wirklich `dup`); `[']`, `[char]` und `literal` arbeiten beim Übersetzen und teilen sich den LINK-Unterprogramm `compile_lit`, der `LIT <Wert>` kompiliert. `see` zeigt deren zwei Zellen als **nackte Zahl** (`: t ['] dup ;` → `: t 12530 ;`), denn eine 16-Bit-Zahl, die zufällig auf ein Wort zeigt, ist keine Zusage. Header liegen zwischen `h_type` und `h_see`, die Kette bleibt bei `forth_wl → h_cls`; **6 neue Tests**, 174 in der Datei, **468/468** im Repo. `FORTH.md`: neuer Abschnitt „Names and execution", Zahl 115 → **121**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
+| 2026-10-15 | **Vergleichsfehler bei Überlauf behoben, Tier 1 Schub 3** (`>r r> r@ +loop j unloop`). **Der Fehler zuerst**, weil `+loop` dieselbe Frage stellt: `<`, `>`, `min` und `max` lasen nur **N** aus `a-b`, richtig aber ist `N xor V` — `0x8000 1 <` war falsch. Alle vier Stellen werten jetzt **beide** Flags aus (`JO` in einen zweiten Zweig), wie `+loop` auch; `loop` bleibt bei der **Gleichheit**, die ein Überlauf nicht stört. **Die Falle der Runde:** `LDI RSTACK_TOP` lädt **nicht** `0x6F00` — der 15-Bit-Operand wird vorzeichenerweitert (Bit 14 → Bit 15), also kam `0xEF00` an, und „RP unter der Basis" war für **jeden** Zeiger wahr. Das sah wie ein Fehler in `r>` aus (`5 >r r>` → Unterlauf, obwohl `5 >r` schrieb). Die Basis liegt jetzt in einer **Zelle** `rp0_base`, genau wie `sp0_base` — dieselbe Ursache, dieselbe Lösung, als Kommentar dort festgehalten. `>r` prüft den Datenstapel, `r>`/`r@` den Rückstapel gegen seine Basis (am Prompt: „stack underflow" statt freiem Speicher); ein angebrochener Aufrufrahmen bleibt undefiniert. `+loop` endet am ersten Index **jenseits** des Limits (`index < limit` für `n >= 0`, `index >= limit` für `n < 0`) und teilt `loop_depth` mit `loop`; `j` liest `[RP+6]`, `unloop` gibt den Rahmen frei. `see` kennt `(+loop)`. **7 neue Tests** (Vergleichsgrenze, Rückstapel in beide Richtungen, Tiefenprüfung, `+loop` positiv/negativ/über die Vorzeichengrenze, `j` zwei- und dreistufig, `unloop`, `see`), 181 in der Datei, **475/475** im Repo. `FORTH.md`: neuer Abschnitt „Return stack", Zahl 121 → **127**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 
 ## Architektur-Revisionen im Repo-Root
 
@@ -449,10 +482,10 @@ bewusste Entscheidung und keine Lücke.
       `if`/`then`/`begin`/`until` erscheinen als `(branch)`/`(0branch)` mit
       dem gespeicherten Versatz statt als rekonstruierte Struktur — dafür
       bräuchte es den ganzen Kontrollfluss-Baum. Siehe Entscheidungs-Log.
-   **Was an `do`/`loop` noch fehlt** (nicht auf der Liste, nur notiert):
-   `+loop` (Schrittweite), `j` (Index der äußeren Schleife) und `unloop`; die
-   Rückstapelwörter `r@`/`r!` kommen mit demselben Umbau. Für `hanoi.fth` wird
-   keines gebraucht — die Datei bleibt bei `begin`/`until`, solange nichts sie
+   **Was an `do`/`loop` noch fehlte**, ist mit Schub 3 nachgekommen:
+   `+loop` (Schrittweite), `j` (Index der äußeren Schleife) und `unloop`, dazu
+   die Rückstapelwörter `>r`, `r>` und `r@`. Für `hanoi.fth` wird keines
+   gebraucht — die Datei bleibt bei `begin`/`until`, solange nichts sie
    zwingt.
    **Methode, die sich bewährt hat:** erst die strukturelle Bedingung prüfen
    (Registerbudget, Header-Kette, SP-Disziplin), dann das Verhalten. Bei den
@@ -470,14 +503,17 @@ bewusste Entscheidung und keine Lücke.
    `[char]` — `'` ist dafür aus dem **Tokenizer** gefallen (`5 ' dup .` hieß
    vorher `5 dup .`), und der **Hex-Erkenner** brauchte einen Wächter, weil
    sonst `execute` als 0xEC gelesen wird (`exe` war wirklich die Zahl 14).
-   *Schub 3:* `>r`, `r>`, `r@`, `+loop`, `j`, `unloop` — dieselbe Gegend wie
-   `do`/`loop`, aber der Rückstapel gehört dann auch dem Anwender.
+   *Schub 3 (erledigt, 2026-10-15):* `>r`, `r>`, `r@`, `+loop`, `j`, `unloop` —
+   dieselbe Gegend wie `do`/`loop`, aber der Rückstapel gehört dann auch dem
+   Anwender. Dabei ist der vorbestehende Vergleichsfehler behoben worden (siehe
+   unten), weil `+loop` dieselbe signierte Frage stellt.
    *Schub 4:* `base`, `hex`, `decimal` — greift in `parse_number` **und**
    `print_number` ein und ist damit der invasivste; zuletzt, weil er nichts
    freischaltet, was die anderen nicht schon tun.
-   **Und dabei nicht vergessen:** `<`, `>` und mit ihnen `min`/`max` sind bei
-   Überlauf falsch (siehe Entscheidungs-Log) — kein fehlendes Wort, sondern ein
-   Fehler, und der gehört vor einem Tier-3-Anlauf repariert.
+   **Erledigt statt vormerkt:** `<`, `>` und mit ihnen `min`/`max` sind bei
+   Überlauf **nicht mehr** falsch — sie lesen N und V zusammen (`N xor V`), und
+   `+loop` tut dasselbe. Der Fehler war kein fehlendes Wort, sondern ein Fehler,
+   und er ist vor dem Tier-3-Anlauf repariert worden, wie hier vermerkt.
 
 ---
 

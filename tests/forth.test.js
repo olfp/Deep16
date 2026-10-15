@@ -2753,3 +2753,128 @@ test('a word whose second character is x is a word, not a hex literal', () => {
   assert.equal(hexOut('16 .'), '16');
   assert.equal(hexOut(': 2x 7 ; 2x .'), '7');
 });
+
+// ---------------------------------------------------------------------------
+// The signed comparisons at the sign boundary, and Tier 1's third batch:
+// >r r> r@ +loop j unloop.
+//
+// The comparison bug is pinned first because `+loop` shares it. `<`, `>`, `min`
+// and `max` read the sign of a - b and nothing else, so `0x8000 1 <` answered
+// false: -32768 - 1 overflows to +32767 and the sign of the result is the wrong
+// way round. None of them can be fixed with one flag — the machine has no
+// signed-compare instruction — so they read N and V together, and so does
+// +loop, whose limit test is a signed comparison of its own. `loop` is left
+// alone: it tests for equality, which overflow does not disturb.
+//
+// `+loop` compiles xt_plusloop the way `loop` compiles xt_loop, and shares its
+// loop_depth counter, so it closes a `do` or a `?do` and a stray one compiles
+// nothing at all. `>r`, `r>` and `r@` take from the data stack and the return
+// stack; the return stack is also where call frames and loop parameters live,
+// so a `>r` still open when a loop word runs moves the pointer out from under
+// the frame — the standard's ambiguous condition, and the reason every pair in
+// these tests is balanced before the loop word is reached.
+
+test('signed comparison reads the overflow flag as well as the sign', () => {
+  for (const [src, want] of [
+    // The pairs that used to answer backwards: at the boundary, and across it
+    // in both directions.
+    ['0x8000 1 < .', '-1'], ['0x8000 1 > .', '0'],
+    ['1 0x8000 < .', '0'], ['1 0x8000 > .', '-1'],
+    ['0x8000 1 min .', '-32768'], ['0x8000 1 max .', '1'],
+    ['1 0x8000 min .', '-32768'], ['1 0x8000 max .', '1'],
+    ['0x7fff 0 1 - < .', '0'], ['0x7fff 0 1 - > .', '-1'],
+    ['0 1 - 0x7fff min .', '-1'], ['0 1 - 0x7fff max .', '32767'],
+    // Equal values are neither less nor greater, boundary or not.
+    ['0x8000 0x8000 < .', '0'], ['0x8000 0x8000 > .', '0'],
+    // And the small numbers the old code got right still come out right.
+    ['3 9 min .', '3'], ['9 3 min .', '3'],
+    ['3 9 max .', '9'], ['9 3 max .', '9'],
+    ['4 4 min .', '4'], ['4 4 max .', '4'],
+    ['3 9 < .', '-1'], ['9 3 > .', '-1'], ['9 3 < .', '0'],
+  ]) assert.equal(hexOut(src), want, src);
+});
+
+test('>r, r> and r@ move cells between the data and return stacks', () => {
+  assert.equal(hexOut('5 >r r> .'), '5');
+  // r@ copies and leaves the cell, r> takes it: both read the same value.
+  assert.equal(hexOut('5 >r r@ . r> .'), '5  5');
+  // Two cells come back in the reverse order, as they would on any stack.
+  assert.equal(hexOut(': t 1 >r 2 >r r> r> ; t . .'), '1  2');
+  assert.equal(hexOut(': t 42 >r r@ . r> . ; t'), '42  42');
+  // Inside a definition a call frame is already on the return stack, and a
+  // balanced pair hands back exactly what it was given.
+  assert.equal(hexOut(': t 5 >r r> ; t .'), '5');
+  // A pair balanced inside a loop body leaves the loop's frame where it was,
+  // so i and the loop word still find it.
+  assert.equal(hexOut(': t 3 0 do i >r r> . loop ; t'), '0  1  2');
+});
+
+test('>r, r> and r@ check the stack they take from', () => {
+  assert.match(hexrepl('>r').join('\n'), /stack underflow/);
+  // At the prompt the return stack pointer sits on its base with nothing under
+  // it, so r> and r@ have no cell to read and say so. The base is a data cell
+  // rather than an immediate because LDI reads its fifteen bits as signed:
+  // 0x6F00 has bit 14 set, so loading it would arrive as 0xEF00 and every
+  // comparison against it would answer the wrong way - which is how the first
+  // version of these words came out. sp0_base is a cell for the same reason.
+  assert.equal(cell(res.symbols.rp0_base), 0x6f00);
+  assert.match(hexrepl('r>').join('\n'), /stack underflow/);
+  assert.match(hexrepl('r@').join('\n'), /stack underflow/);
+  assert.match(hexrepl('1 r>').join('\n'), /stack underflow/);
+  // One cell on the return stack is enough for both.
+  assert.equal(hexOut('9 >r r@ . r> .'), '9  9');
+});
+
+test('+loop adds its step to the index and stops at the limit', () => {
+  assert.equal(hexOut(': t 10 0 do i . 2 +loop ; t'), '0  2  4  6  8');
+  // A step that does not divide the range ends the loop at the first index at
+  // or past the limit, where `loop` would have run for ever.
+  assert.equal(hexOut(': t 10 0 do i . 3 +loop ; t'), '0  3  6  9');
+  assert.equal(hexOut(': t 10 0 do i . 4 +loop ; t'), '0  4  8');
+  // A negative step counts down and stops at the first index below the limit.
+  assert.equal(hexOut(': t 0 10 do i . 0 3 - +loop ; t'), '10  7  4  1');
+  assert.equal(hexOut(': t 0 10 do i . 0 4 - +loop ; t'), '10  6  2');
+  // A step of one is `loop` by another name.
+  assert.equal(hexOut(': t 3 0 do i . 1 +loop ; t'), '0  1  2');
+  // ?do skips the body when the limits are equal; do always runs it once.
+  assert.equal(hexOut(': t 5 0 ?do i . 2 +loop ; t'), '0  2  4');
+  assert.equal(hexOut(': t 5 5 ?do i . 2 +loop ; t'), '');
+  assert.equal(hexOut(': t 5 5 do i . 2 +loop ; t'), '5');
+  // (+loop) needs its step, like (do) its two operands.
+  assert.match(hexrepl(': t 0 0 do +loop ; t').join('\n'), /stack underflow/);
+  // A stray +loop compiles nothing at all, exactly as a stray loop does: it is
+  // a compile-time word and never reaches the runtime half.
+  assert.ok(!/underflow|undefined/.test(hexrepl('+loop').join('\n')));
+});
+
+test('+loop reads the overflow flag when it compares index and limit', () => {
+  // index - limit overflows at the sign boundary, where the raw sign would say
+  // "still inside" and the loop would never end. Starting on the boundary, one
+  // step of +1 lands on 0x8001, and 0x8001 < 0x8000 is false once the overflow
+  // flag is taken into account: one pass, not 65536.
+  assert.equal(hexOut(': t 0x8000 0x8000 do i . 1 +loop ; t'), '-32768');
+  assert.equal(hexOut(': t 0x8000 0x8000 do i . 2 +loop ; t'), '-32768');
+  // A negative step over the same boundary ends the loop too, after the pass
+  // that lands exactly on the limit.
+  assert.equal(hexOut(': t 0x7fff 0x8000 do i . 0 1 - +loop ; t'), '-32768  32767');
+});
+
+test('j reads the loop one level out and unloop leaves a loop early', () => {
+  // Two levels: j is the outer index, and it repeats for each inner pass.
+  assert.equal(hexOut(': t 2 0 do 2 0 do j . loop loop ; t'), '0  0  1  1');
+  // Three levels with distinct indices: j is the middle one, not the outermost
+  // (3) and not the innermost (5).
+  assert.equal(hexOut(': t 4 3 do 5 4 do 6 5 do j . loop loop loop ; t'), '4');
+  // unloop drops the frame without touching IP, so exit leaves from where the
+  // loop was entered; without the exit the `;` at the end does the same thing.
+  assert.equal(hexOut(': t 3 0 do i . i 1 = if unloop exit then loop ; t'), '0  1');
+  assert.equal(hexOut(': t 3 0 do i . unloop ; t'), '0');
+});
+
+test('see names (+loop), and the return-stack words decompile as themselves', () => {
+  assert.equal(hexOut(': t 3 0 do i . 2 +loop ; see t'), ': t 3 0 do i . 2 (+loop) ;');
+  assert.equal(hexOut(': t 5 0 ?do i +loop ; see t'), ': t 5 0 ?do i (+loop) ;');
+  // >r, r>, r@, j and unloop are dictionary words, so see prints their names.
+  assert.equal(hexOut(': t >r r@ r> drop ; see t'), ': t >r r@ r> drop ;');
+  assert.equal(hexOut(': t 3 0 do unloop ; see t'), ': t 3 0 do unloop ;');
+});
