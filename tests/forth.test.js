@@ -1007,6 +1007,7 @@ test('also and previous adjust the search order', () => {
 test('words lists the searched wordlist', () => {
   const { rows, running } = repl('words\n');
   const text = rows.join('');
+  assert.equal(rows[0], 'Hello DeepForth!', 'words must not clear the screen');
   assert.ok(text.includes('forget'), 'lists forget');
   assert.ok(text.includes('vocabulary'), 'lists vocabulary');
   assert.ok(text.includes('does>'), 'names split across rows survive');
@@ -1024,8 +1025,13 @@ test('words lists only the first wordlist of the search order', () => {
     ': beta 2 ;\n' +
     'words\n'
   );
-  assert.equal(rows[0], 'beta alpha  ok');
-  assert.equal(rows[1], '>');
+  // No clear: the earlier lines are still on screen, and the listing follows
+  // the echoed "words" on the input line.
+  assert.equal(rows[0], 'Hello DeepForth!');
+  const listRow = rows.find(r => r.includes('beta alpha'));
+  assert.ok(listRow, `expected "beta alpha" on screen:\n${rows.join('\n')}`);
+  assert.match(listRow, /beta alpha\s+ok$/);
+  assert.equal(rows[6], '>');
 });
 
 test('forget drops a word and everything defined after it', () => {

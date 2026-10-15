@@ -5025,37 +5025,31 @@ word_forth:
     MOV PC, R0
     NOP
 
-; words lists the names in the first wordlist of the search order. It clears
-; the screen first, so a full listing always fits; the direct ES writes never
-; call BIOS, so >IN is untouched.
+; words lists the names in the first wordlist of the search order, separated by
+; spaces and printed newest-first, through the normal output path (BIOS putch)
+; so it wraps and scrolls like any other output. It does not clear the screen
+; and never pokes the screen buffer directly.
 word_words:
-    LDI 0x0FFF
-    INV R0
-    MVS ES, R0
-    LDI 0x1000
-    MOV SCR, R0
-    LDI 2000
-    MOV R2, R0
-    LDI ' '
-    MOV R1, R0
-wwords_clear:
-    STS R1, ES, SCR
-    ADD SCR, 1
-    SUB R2, 1
-    LDI 0
-    CMP R2, R0
-    JNZ wwords_clear
-    NOP
-    LDI 0x1000
-    MOV SCR, R0
     LDI search_order
-    MOV R2, R0
-    LD R2, R2, 0          ; first wordlist head cell
+    MOV R3, R0
+    LD R3, R3, 0          ; first wordlist head-cell address
     LDI 0
-    CMP R2, R0
-    JZ wwords_ret
+    CMP R3, R0
+    JZ wwords_ret         ; empty search order
     NOP
-    LD R3, R2, 0          ; newest header
+    LD R3, R3, 0          ; newest header (0 if that wordlist is empty)
+    LDI 0
+    CMP R3, R0
+    JZ wwords_ret         ; nothing to list: print nothing at all
+    NOP
+    ; A leading space, like . and see: the REPL echoes the input line without a
+    ; trailing space, so the list would otherwise butt against the "words".
+    LDI words_emit
+    MOV R4, R0
+    LDI ' '
+    LINK
+    JMP R4
+    NOP
 wwords_hdr:
     LDI 0
     CMP R3, R0
@@ -5071,18 +5065,24 @@ wwords_char:
     CMP R2, R0
     JZ wwords_space
     NOP
-    LD R0, R1, 0
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LDI words_emit        ; call target (R4 is a scratch register)
+    MOV R4, R0
+    LD R0, R1, 0          ; the character
     ADD R1, 1
     SUB R2, 1
+    LINK
+    JMP R4
+    NOP
     LDI wwords_char
     MOV PC, R0
     NOP
 wwords_space:
+    LDI words_emit
+    MOV R4, R0
     LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     LD R3, R3, 0          ; follow the link field
     LDI wwords_hdr
     MOV PC, R0
@@ -5090,6 +5090,31 @@ wwords_space:
 wwords_ret:
     LDI next
     MOV PC, R0
+    NOP
+
+; words_emit prints the character in R0 through BIOS putch (function 2),
+; parking >IN (R5) across the call - the shadow-bank BIOS clobbers it. R1-R3
+; are shadow-bank copies and survive the BIOS, so they are left alone for the
+; caller; R4, R7 and R9 are transient scratch.
+words_emit:
+    MOV R4, R0            ; the character
+    LDI saved_in
+    MOV R7, R0
+    ST >IN, R7, 0         ; park >IN
+    LDI 2                 ; BIOS putch
+    MOV R7, R0
+    LDI 0
+    MOV R9, R0
+    STS R7, DS, R9        ; DS:[0] = 2
+    LDI 1
+    MOV R9, R0
+    STS R4, DS, R9        ; DS:[1] = the character
+    SWI
+    LDI saved_in
+    MOV R7, R0
+    LD R7, R7, 0
+    MOV >IN, R7           ; >IN back
+    JMP LR
     NOP
 
 ; forget name drops `name` and everything defined after it, reclaims the

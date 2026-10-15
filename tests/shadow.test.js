@@ -680,13 +680,12 @@ test('WASM: Forth REPL backspace leaves one cursor block on both cores', async (
 });
 
 test('WASM: Forth REPL words and forget match the JS core', async () => {
-  // words clears the screen and walks the first wordlist; forget rewrites the
-  // wordlist head and reclaims HERE, so both cores must agree cell for cell.
+  // words walks the first wordlist through the normal output path; forget
+  // rewrites the wordlist head and reclaims HERE, so both cores must agree
+  // cell for cell.
   const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
-  // words clears the screen, so it runs first and forget afterwards; the whole
-  // linear screen must still match cell for cell between the two cores.
   const input =
     ': a 1 ; : b 2 ; : c 3 ;\n' +
     'words\n' +

@@ -169,7 +169,7 @@ returns nothing.
 
 | word | stack effect | meaning |
 |------|--------------|---------|
-| `words` | `( -- )` | clear the screen and list the first wordlist |
+| `words` | `( -- )` | list the first wordlist's names, newest first |
 | `see` | `( -- )` | `see name` print how `name` is built instead of running it |
 | `forget` | `( -- )` | `forget name` drops `name` and everything after it |
 | `vocabulary` | `( -- )` | `vocabulary name` makes a new wordlist |
