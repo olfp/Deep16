@@ -19,6 +19,28 @@
 > den Rest des Speichers zu laufen (das passiert bei einer Definition, deren `;`
 > nie gelaufen ist). Details im Entscheidungs-Log.
 >
+> **2026-10-15 (zweiter Teil):** **Tier 1 — der Kern wächst zum Standard-Forth.**
+> Der erste Schub fehlender Standardwörter ist da, 22 an der Zahl: `bl true false
+> space spaces ?dup tuck -rot 2over 2swap u< u> 0<> within 2@ 2! count c, move
+> fill erase type`. Zwei Fehler dieser Runde waren **Vorzeichen- und Richtungs-
+> fehler an einer Stelle**, und beide hat erst die Probe gezeigt, nicht das Lesen:
+> **(1)** In `move`, `fill`, `erase` und `type` stand der erste Operand dort, wo
+> der **letzte** liegt — bei `erase` war der „Adress"operand damit die Länge, und
+> das Wort schrieb ~13000 Zellen ab Adresse 1 aufwärts Null. **(2)** `count` schob
+> mit `ADD SP, 1` statt `SUB`, also **hinter** die Leer-Marke; die zwei
+> Ergebniszellen lagen außerhalb des Stapels und `depth` meldete Unsinn. Beide
+> sind jetzt gepinnt. Dazu ein Befund über das Wörterbuch selbst, der als
+> „Hänger" aussah und keiner war: **ein `variable` besitzt genau eine Datenzelle,
+> und der Header des nächsten Wortes folgt unmittelbar dahinter** — ein `2!` auf
+> ein `variable` überschreibt den Link des nächsten Namens, die Suche läuft dann
+> in den Zahlenwert und kommt nicht zurück. Die Tests reservieren mit `2 allot`.
+> **Nebenbei gefunden und nicht angefasst:** `<`, `>` und mit ihnen `min`/`max`
+> lesen das **Vorzeichen einer Differenz** und sind falsch, sobald diese
+> Differenz überläuft — `0x8000 1 <` ist falsch (richtig wäre wahr), `1 0x8000 >`
+> ebenso, `0x8000 1 min` antwortet `1` statt `-32768`. Das ist vorbestehend, nicht
+> Teil dieses Schubs, und im Entscheidungs-Log mit Reparaturweg vermerkt.
+> Suite 463/463, `FORTH.md` und die Wörterbuchzahl auf **115**.
+>
 > **2026-10-14 (dritter Teil):** **`do`/`loop` sind da** — mit `?do`, `leave`
 > und `i`. Der Loop-Rahmen liegt auf dem Rückstapel, vier Zellen unter den
 > Aufrufsrahmen. Die teuerste Falle war nicht der Inhalt, sondern die
@@ -302,6 +324,8 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-14 | **`2dup` und `drop` — der vermerkte Fehler war keiner.** Zwei Einträge von heute Nachmittag sind zurückgenommen, beide mit derselben Ursache: der *Testfall* war falsch, nicht das Wort. `1 2dup . . .` meldet „stack underflow" — das ist **richtig**, `2dup` braucht zwei Werte und es lag nur einer da. Nachgemessen an der ganzen Familie: `1 2 2dup . . . .` → `2 1 2 1`, `1 2 2dup depth .` → 4, `1 2 2drop . .` → underflow (der Stapel war leer, `.` bekam nichts), `2dup` auf leerem Stapel → underflow, ebenso `dup` und `drop` einzeln. Der zweite vermerkte Punkt, „`drop` nimmt einen leeren Stapel ohne Meldung", war derselbe Irrtum: `12 10 and drop` meldet `ok`, weil `and` einen Wert hinterlässt und `drop` ihn nimmt — danach ist der Stapel leer, und das folgende `.` meldet zu Recht underflow. Was den Befund erzeugt hat, ist der **Fehlerpfad**: er lässt den Datenstapel unangetastet, sodass nach einem underflow die Reste weiter unten liegen bleiben und das *nächste* Wort sie sieht. Das ist in diesem Kernel gewollt (ANS definiert den Stapel nach einem Fehler als undefiniert) und wird hier **nicht** geändert; `tests/forth.test.js` pinnt das Verhalten inzwischen an beiden Stellen. **Lehre:** ein gemeldeter Unterlauf beweist einen Unterlauf — er beweist nicht, welches Wort ihn ausgelöst hat. | `asm/forth.asm` (unverändert), `STATUS.md` |
 | 2026-10-15 | **`see name` — der Decompiler.** Der Kern kann jetzt den **Bau** eines Wortes zeigen statt es auszuführen. Fünf Bauarten werden unterschieden, jede über ihr **Code-Feld** (`[CFA]`): `docol` → `: name … ;`, `dovar` → `variable name`, `doconst` → `constant name <wert>`, `dodoes` → `create name` (und `does> … ;`, wenn der DOES>-Zeiger `[CFA+1]` nicht Null ist), `dovoc` → `vocabulary name`, alles andere → `code name`. **(1) Der Thread-Ablauf** liest Zelle für Zelle ab `CFA+1` und löst jede `xt` über **umgekehrte** Suche wieder zu einem Namen auf: die Suchordnung ablaufen, je Wortliste die Header-Kette (neueste zuerst), `CFA = header + 3 + len` rechnen und mit dem Ziel vergleichen — nicht gefunden heißt `?<xt>`. Eine Zelle, die **kein** Wort benennt, ist damit keine Thread-Zelle — der Ablauf **endet** dort, statt in den Rest des Speichers zu laufen; ohne diese Schranke lief `see` bei `: n 1 2 nosuchword ;` (die Definition, deren `;` nie lief) bis zum Bildschirmrand, weil sie jeden 0xFFFF-Zellenrest als „Wort" ausgab. **(2) Inline-Zellen** erkennt der Vorgänger, sonst stünde eine Zahl oder ein Zeichen als „Wort" im Ausdruck: `lit` + Operand (signed), `lit` + Adresse + `litstr` + Zeichen (als `." … "`, bis zur NUL), `lit` + Ausstiegsadresse + `(do)`/`(?do)`, `branch`/`0branch` + Versatz, `(loop)`/`leave` je eine Zelle. **(3) Das Ende** ist die **Adresse von `xt_exit`**, nicht das Code-Feld `exit`: `;` kompiliert genau diese Adresse, `exit` seine eigene Kennung — mit dem Code-Feld als Kriterium hätte ein `exit` **mitten** in einer Definition den Rest verschluckt (`: f 1 exit 2 ;` zeigte `: f 1 ;`). **(4) Registerdisziplin:** R5 (`>IN`) und R6 (`TIB`) müssen überleben, R8 (`SCR`) ist der Ausgabezeiger und wird absichtlich weitergezählt; R9 ist wie in `."` ES-Base und nie Adressregister. Der Thread-Zeiger lebt in `see_ptr` statt in einem Register, weil `print_number` und die Namenssuche jeden Arbeitsregister-Wert zerstören; die Helfer kommen je mit einem eigenen LR-Platz aus, weil `LINK` das LR überschreibt. **(5) Ausgabe** geht als direkter `STS`-Schreibzugriff auf den Bildschirm (kein BIOS/SWI, damit RP und Register unangetastet bleiben), mit führendem Leerzeichen, weil die REPL die Eingabezeile **ohne** abschließendes Leerzeichen zurückspiegelt. **Falle, die den ersten Testlauf kostete:** `LDI ';'` ist unzulässig — der Assembler schneidet die Zeile am ersten `;` ab (`line.split(';')[0]`), dieselbe Ursache, aus der `h_semicolon` sein Semikolon als `.word 59` ablegt. **Nicht rekonstruiert (bewusst):** `if`/`then`/`begin`/`until`/`while`/`repeat` erscheinen als `(branch)`/`(0branch)` mit dem gespeicherten Versatz — die Struktur dafür bräuchte den ganzen Kontrollfluss-Baum, und der Versatz ist das, was wirklich im Wörterbuch steht. Elf Tests in `forth.test.js` pinnen die Ausgabeformen; `see` steht außerdem in der `words`-Liste. Suite 156/156 (`forth`) grün. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md`, `STATUS.md` |
 
+| 2026-10-15 | **Tier 1 — 22 fehlende Standardwörter (1. Schub).** Aus der Lückenliste gegen ANS CORE/CORE-EXT sind die Wörter gebaut, die einem gewöhnlichen Programm im Weg stehen: `bl true false space spaces ?dup tuck -rot 2over 2swap u< u> 0<> within 2@ 2! count c, move fill erase type`. `bl`/`true`/`false` sind gewöhnliche `doconst`-Konstanten (CFA-Zelle `doconst`, Wertzelle dahinter), damit `see` sie als `constant name <wert>` zeigt. **Die zwei echten Fehler:** *Erstens* die **Operandenreihenfolge** — `move`, `fill`, `erase`, `type` luden den ersten Operanden von `[SP]`, wo der **letzte** liegt (`( src dst u -- )` heißt `u` oben). `erase` bekam damit die Länge als Zieladresse und schrieb ~13000 Zellen ab Adresse 1 aufwärts Null; das sah wie ein Absturz aus, war aber ein Adressfehler. *Zweitens* ein **Richtungsfehler**: `count` schob mit `ADD SP, 1`, wo `SUB` gehört — bei einem Operanden und zwei Ergebnissen wächst der Stapel um eine Zelle nach unten; mit `ADD` landeten beide Ergebniszellen hinter der Leer-Marke. **Die teuerste Erkenntnis kam aus einem scheinbaren Hänger:** `variable x variable y 7 9 x 2! x @ .` blieb stehen, und kein Wort war schuld — ein `variable` besitzt **eine** Datenzelle, der Header des nächsten Wortes beginnt unmittelbar dahinter, und `2!` überschrieb den **Link** des nächsten Namens; die Suche läuft dann auf den Zahlenwert 7 zu und kehrt nicht zurück. Deshalb reservieren die Tests mit `2 allot`, und `FORTH.md` sagt es. **Struktur:** die 22 Header liegen zwischen `h_cls` und `h_see` (neueste zuerst), damit `forth_wl` weiter auf `h_cls` zeigt; die zwei Pins in `tests/forth.test.js` (Kette endet auf `h_cls`, jedes `h_*` erreichbar) decken die neuen Header automatisch ab. **Sprungweite:** bedingte Sprünge reichen ±256 Wörter, `cmp_true`/`cmp_false` liegen aber weit vor dem neuen Block — `u<`, `u>`, `within` und `0<>` springen auf lokale Marken und laden das Ziel mit `LDI <marke>`+`MOV PC, R0`. **Semantik, bewusst abweichend:** `count` antwortet `( c-addr u )` und nicht ANS' `( c-addr+1 u )` — hier ist eine Zeichenkette eine Zellenfolge bis zur Nullzelle, und `addr count type` zu drucken ist die einzige Lesart, die etwas nützt. `c,` ist identisch mit `,` (eine Zelle trägt ein Zeichen). `u<`/`u>` lesen das **Carry** (Ausleihe, exakt), `within` rechnet `(n-lo) < (hi-lo)` unsigned; die Testpaare stehen so, dass die **signierte** Antwort die andere wäre. **Vorbestehend gefunden, nicht angefasst:** `<`, `>` und mit ihnen `min`/`max` leiten ihr Ergebnis aus dem **Vorzeichen einer Differenz** ab (`JN` auf `a-b` bzw. `b-a`) — das ist genau dann falsch, wenn die Differenz überläuft: `0x8000 1 <` → `0` (richtig: `-1`), `1 0x8000 >` → `0` (richtig: `-1`), `0x8000 1 min` → `1` (richtig: `-32768`). Reparaturweg (nicht in diesem Schub): `CMP a, b` und dann `N xor V` über `JO`/`JNO` auswerten, also vier Zweige statt zwei; `print_number`, `do`/`loop` und `hanoi.fth` rechnen nicht an der Vorzeichengrenze und bleiben davon unberührt. **Tests:** 13 neue Fälle in `forth.test.js` (Konstanten, Schieber, unsigned Vergleiche, Speicher/Zeichenketten, Tiefenprüfung jedes neuen Wortes, Übersetzen in einer Definition), zusammen 169 Fälle in der Datei, **463/463** im ganzen Repo. `FORTH.md`: neue Tabellenabschnitte (Stack, Vergleich, Speicher, „Characters and strings"), Zahl 93 → **115**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
+
 ## Architektur-Revisionen im Repo-Root
 
 Das Buch erzählt die Deep16 so, wie sie **heute** ist. Damit es dabei nicht
@@ -393,10 +417,11 @@ bewusste Entscheidung und keine Lücke.
       `create … does> …`, `vocabulary`, `code`). Was **bewusst** offen bleibt:
       `if`/`then`/`begin`/`until` erscheinen als `(branch)`/`(0branch)` mit
       dem gespeicherten Versatz statt als rekonstruierte Struktur — dafür
-      bräuchte es den ganzen Kontrollfluss-Baum. Siehe Entscheidungs-Log.
-   **Was an `do`/`loop` noch fehlt** (nicht auf der Liste, nur notiert):
-   `+do` (Startabstand), `j` (Index der äußeren Schleife), `u`/`unloop` und
-   die Rückstapelwörter `r@`/`r!`. Für `hanoi.fth` wird keines gebraucht.
+      bräuchte es den ganzen Kontrollfluss-Baum. Siehe Entscheidungs-Log.   **Was an `do`/`loop` noch fehlt** (nicht auf der Liste, nur notiert):
+   `+loop` (Schrittweite), `j` (Index der äußeren Schleife) und `unloop`; die
+   Rückstapelwörter `r@`/`r!` kommen mit demselben Umbau. Für `hanoi.fth` wird
+   keines gebraucht — die Datei bleibt bei `begin`/`until`, solange nichts sie
+   zwingt.
    **Methode, die sich bewährt hat:** erst die strukturelle Bedingung prüfen
    (Registerbudget, Header-Kette, SP-Disziplin), dann das Verhalten. Bei den
    Bitwörtern hat die umgekehrte Reihenfolge vier Anläufe gekostet. Der
@@ -406,6 +431,20 @@ bewusste Entscheidung und keine Lücke.
    Operand, ein ES-Base-Register und ein Trenner im Text. Beim Loop war es die
    andere Richtung: die Werte stimmten, und die Maschine starb trotzdem, weil
    die **Disziplin** des Rückstapels stimmen muss, nicht nur sein Inhalt.
+9. **Der Weg zum Standard-Forth, in Schüben.** Das Ziel ist Tier 3, gegangen
+   wird es in Schüben, jeder mit eigener Probe und eigenem Commit.
+   *Schub 1 (erledigt, 2026-10-15):* die 22 Wörter oben.
+   *Schub 2:* `'`, `[']`, `execute`, `literal`, `char`, `[char]` — `'` fällt
+   dafür aus dem **Tokenizer**, der es heute stillschweigend verschluckt
+   (`5 ' dup .` läuft als `5 dup .`).
+   *Schub 3:* `>r`, `r>`, `r@`, `+loop`, `j`, `unloop` — dieselbe Gegend wie
+   `do`/`loop`, aber der Rückstapel gehört dann auch dem Anwender.
+   *Schub 4:* `base`, `hex`, `decimal` — greift in `parse_number` **und**
+   `print_number` ein und ist damit der invasivste; zuletzt, weil er nichts
+   freischaltet, was die anderen nicht schon tun.
+   **Und dabei nicht vergessen:** `<`, `>` und mit ihnen `min`/`max` sind bei
+   Überlauf falsch (siehe Entscheidungs-Log) — kein fehlendes Wort, sondern ein
+   Fehler, und der gehört vor einem Tier-3-Anlauf repariert.
 
 ---
 

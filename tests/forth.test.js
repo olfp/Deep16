@@ -2500,3 +2500,163 @@ test('the bit words compile into definitions and compose with hex', () => {
   assert.equal(hexOut('12 10 invert 1 + .'), '-10');
   assert.equal(hexOut('12 10 invert swap . .'), '12  -11');
 });
+
+// ---------------------------------------------------------------------------
+// Tier 1: the standard words the kernel was missing.
+//
+// BL/TRUE/FALSE, the shufflers (?dup, tuck, -rot, 2over, 2swap), the unsigned
+// comparisons (u<, u>, 0<>, within), the memory and string helpers (2@, 2!,
+// count, c,, move, fill, erase, type) and space/spaces.
+//
+// Two things are pinned here beyond the stack effects themselves:
+//
+//   * u< and u> read the carry flag, not the sign, so `0 1 - 1 u<` is false
+//     (65535 is not below 1) while the signed `<` would call it true. The
+//     signed answer looks right on small positive numbers, which is exactly
+//     why the distinguishing pairs are asserted.
+//
+//   * `count` answers the string's own address and length, not ANS's c-addr+1:
+//     a string here is a run of cells ending in a zero cell, and `addr count
+//     type` printing the string is the only reading that is worth anything.
+
+test('bl, true and false are constants', () => {
+  assert.equal(hexOut('bl .'), '32');
+  assert.equal(hexOut('true .'), '-1');
+  assert.equal(hexOut('false .'), '0');
+  // constants, so they work anywhere a value does
+  assert.equal(hexOut('bl 1 + .'), '33');
+  assert.equal(hexOut(': t true ; t .'), '-1');
+  assert.equal(hexOut(': t bl ; t 1 + .'), '33');
+  assert.equal(hexOut('false 0= .'), '-1');
+});
+
+test('?dup duplicates the top cell only when it is nonzero', () => {
+  assert.equal(hexOut('5 ?dup . .'), '5  5');
+  assert.equal(hexOut('5 ?dup + .'), '10');
+  assert.equal(hexOut('0 ?dup .'), '0');
+  assert.equal(hexOut('5 ?dup depth . .'), '2  5');
+  assert.equal(hexOut('0 ?dup depth . .'), '1  0');
+});
+
+test('tuck, -rot, 2over and 2swap shuffle the way the standard says', () => {
+  assert.equal(hexOut('1 2 tuck . . .'), '2  1  2');
+  assert.equal(hexOut('1 2 tuck depth .'), '3');
+  assert.equal(hexOut('1 2 3 -rot . . .'), '2  1  3');
+  assert.equal(hexOut('1 2 3 -rot depth .'), '3');
+  assert.equal(hexOut('1 2 3 4 2over . . . . . .'), '2  1  4  3  2  1');
+  assert.equal(hexOut('1 2 3 4 2over depth .'), '6');
+  assert.equal(hexOut('1 2 3 4 2swap . . . .'), '2  1  4  3');
+  assert.equal(hexOut('1 2 3 4 2swap depth .'), '4');
+  // tuck is swap over, so the arithmetic has to agree with the shuffle
+  assert.equal(hexOut('1 2 tuck + + .'), '5');
+  assert.equal(hexOut('1 2 3 -rot drop . .'), '1  3');
+});
+
+test('u< and u> compare unsigned, which the signed comparisons cannot fake', () => {
+  // 65535 is above 1, and above 1 is what unsigned says and signed does not
+  assert.equal(hexOut('0 1 - 1 u< .'), '0');
+  assert.equal(hexOut('0 1 - 1 u> .'), '-1');
+  assert.equal(hexOut('1 0 1 - u< .'), '-1');
+  assert.equal(hexOut('1 0 1 - u> .'), '0');
+  // equal cells are neither less nor greater
+  assert.equal(hexOut('3 3 u< .'), '0');
+  assert.equal(hexOut('3 3 u> .'), '0');
+  // the ordinary cases still read the ordinary way
+  assert.equal(hexOut('1 2 u< .'), '-1');
+  assert.equal(hexOut('2 1 u< .'), '0');
+  assert.equal(hexOut('2 1 u> .'), '-1');
+  assert.equal(hexOut('0x8000 1 u> .'), '-1');
+  // the same two cells, asked signed and unsigned, come out opposite ways
+  assert.equal(hexOut('0 1 - 1 < .'), '-1');    // signed: -1 is below 1
+  assert.equal(hexOut('0 1 - 1 u< .'), '0');    // unsigned: 65535 is not
+});
+
+test('0<> is the mirror of 0=', () => {
+  assert.equal(hexOut('5 0<> .'), '-1');
+  assert.equal(hexOut('0 0<> .'), '0');
+  assert.equal(hexOut('0 1 - 0<> .'), '-1');
+  assert.equal(hexOut('5 0<> depth . .'), '1  -1');
+});
+
+test('within is lo <= n < hi', () => {
+  assert.equal(hexOut('5 1 10 within .'), '-1');
+  assert.equal(hexOut('1 1 10 within .'), '-1');    // lo is inside
+  assert.equal(hexOut('9 1 10 within .'), '-1');
+  assert.equal(hexOut('10 1 10 within .'), '0');    // hi is outside
+  assert.equal(hexOut('0 1 10 within .'), '0');
+  // an n below lo wraps to a large unsigned value, so it stays outside
+  assert.equal(hexOut('0 1 - 0 1 within .'), '0');
+  assert.equal(hexOut('5 1 10 within depth . .'), '1  -1');
+});
+
+test('2! and 2@ store and fetch the cell pair, high cell first', () => {
+  // A variable owns exactly one data cell and the next definition's header
+  // starts right behind it, so 2! needs a two-cell destination: without the
+  // `2 allot`, the second cell lands on the next header's link, and the next
+  // name lookup walks a chain whose second link is a small number and never
+  // comes back.
+  assert.equal(hexOut('variable x 2 allot 7 9 x 2! x 2@ . .'), '9  7');
+  assert.equal(hexOut('variable x 2 allot 7 9 x 2! x @ .'), '9');
+  assert.equal(hexOut('variable x 2 allot 7 9 x 2! x 1 + @ .'), '7');
+  assert.equal(hexOut('variable x 2 allot 7 9 x 2! x 2@ depth .'), '3');
+  // a round trip through both words leaves the pair as it was
+  assert.equal(hexOut('variable x 2 allot 7 9 x 2! x 2@ . .'), '9  7');
+  // and a definition made afterwards still works, which it would not if the
+  // store had eaten the header behind the variable
+  assert.equal(hexOut('variable a 2 allot 7 9 a 2! variable z 1 z ! z @ .'), '1');
+});
+
+test('move copies cells upwards and fill and erase write a run', () => {
+  assert.equal(hexOut('variable a variable b 5 a ! a b 1 move b @ .'), '5');
+  assert.equal(hexOut('variable a variable b 5 a ! a b 1 move a @ .'), '5');
+  assert.equal(hexOut('variable f f 3 65 fill f @ .'), '65');
+  assert.equal(hexOut('variable f f 3 65 fill f 1 + @ .'), '65');
+  assert.equal(hexOut('variable f f 3 65 fill f 2 + @ .'), '65');
+  assert.equal(hexOut('variable e 9 e ! e 1 erase e @ .'), '0');
+  assert.equal(hexOut('variable e 9 e ! e 1 erase depth .'), '1');
+  // a zero count writes nothing at all
+  assert.equal(hexOut('variable f 7 f ! f 0 65 fill f @ .'), '7');
+});
+
+test('count and type print a zero-terminated string', () => {
+  assert.equal(hexOut('here 72 c, 73 c, 0 c, count type'), 'HI');
+  assert.equal(hexOut('here 72 c, 73 c, 0 c, count nip .'), '2');
+  assert.equal(hexOut('here 0 c, count nip .'), '0');
+  // an empty string prints nothing, so the row is just the ok
+  assert.equal(hexOut('here 0 c, count type'), '');
+  assert.equal(hexOut('here 65 c, 66 c, 67 c, 0 c, count type'), 'ABC');
+  assert.equal(hexOut('here 65 c, 66 c, 67 c, 0 c, count swap drop .'), '3');
+  // c, appends to the dictionary and here shows the cell it went to
+  assert.equal(hexOut('here 65 c, here swap - .'), '1');
+});
+
+test('space and spaces write blanks, and take nothing else with them', () => {
+  assert.equal(hexOut('65 emit space 66 emit'), 'A B');
+  assert.equal(hexOut('65 emit 3 spaces 66 emit'), 'A   B');
+  assert.equal(hexOut('65 emit 0 spaces 66 emit'), 'AB');
+  assert.equal(hexOut('65 emit 1 spaces 66 emit'), 'A B');
+  assert.equal(hexOut('space space 7 .'), '7');
+});
+
+test('every Tier 1 word checks its depth', () => {
+  // Each of these is one operand short of what it needs, so the word itself
+  // has to report the underflow rather than reading below the stack base.
+  const one = ['?dup', '0<>', '2@', 'count', 'c,', 'spaces'];
+  const two = ['tuck', 'u<', 'u>', 'erase', 'type'];
+  const three = ['-rot', '2!', 'move', 'fill', 'within'];
+  const four = ['2over', '2swap'];
+  for (const w of one)     assert.match(hexrepl(w).join('\n'), /stack underflow/, w);
+  for (const w of two)     assert.match(hexrepl('1 ' + w).join('\n'), /stack underflow/, w);
+  for (const w of three)   assert.match(hexrepl('1 2 ' + w).join('\n'), /stack underflow/, w);
+  for (const w of four)    assert.match(hexrepl('1 2 3 ' + w).join('\n'), /stack underflow/, w);
+});
+
+test('the Tier 1 words compile into definitions', () => {
+  assert.equal(hexOut(': t 1 2 tuck ; t . . .'), '2  1  2');
+  assert.equal(hexOut(': t 5 ?dup + ; t .'), '10');
+  assert.equal(hexOut(': t 1 2 u< ; t .'), '-1');
+  assert.equal(hexOut(': t 5 1 10 within ; t .'), '-1');
+  assert.equal(hexOut(': t bl ; t .'), '32');
+  assert.equal(hexOut(': t 3 0<> ; t .'), '-1');
+  assert.equal(hexOut(': t 0 1 - 1 u< ; t .'), '0');
+});

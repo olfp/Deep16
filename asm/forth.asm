@@ -1624,10 +1624,133 @@ h_minus:
 ;
 ; scr@ and scr! are newer still, and sit above them for the same reason.
 h_cls:
-    .word h_see
+    .word h_bl
     .word 3
     .text "cls"
     .word word_cls
+
+; --- Tier 1: the standard words the kernel was missing (newest first) ---
+; These sit between h_cls and h_see rather than at the head of the chain, which
+; keeps forth_wl naming h_cls: the chain test in tests/forth.test.js pins that,
+; and find walks the whole chain anyway, so a word is reachable from anywhere.
+;
+; BL, TRUE and FALSE are ordinary CONSTANTs: the CFA cell names doconst and the
+; value lives in the cell behind it, so SEE prints them as constants instead of
+; as code. FALSE takes no value cell - see below.
+h_bl:
+    .word h_true
+    .word 2
+    .text "bl"
+    .word doconst
+    .word 32
+h_true:
+    .word h_false
+    .word 4
+    .text "true"
+    .word doconst
+    .word 0xFFFF
+h_false:
+    .word h_space
+    .word 5
+    .text "false"
+    .word doconst
+    .word 0
+h_space:
+    .word h_spaces
+    .word 5
+    .text "space"
+    .word word_space
+h_spaces:
+    .word h_qdup
+    .word 6
+    .text "spaces"
+    .word word_spaces
+h_qdup:
+    .word h_tuck
+    .word 4
+    .text "?dup"
+    .word word_qdup
+h_tuck:
+    .word h_minusrot
+    .word 4
+    .text "tuck"
+    .word word_tuck
+h_minusrot:
+    .word h_2over
+    .word 4
+    .text "-rot"
+    .word word_minusrot
+h_2over:
+    .word h_2swap
+    .word 5
+    .text "2over"
+    .word word_2over
+h_2swap:
+    .word h_ult
+    .word 5
+    .text "2swap"
+    .word word_2swap
+h_ult:
+    .word h_ugt
+    .word 2
+    .text "u<"
+    .word word_ult
+h_ugt:
+    .word h_znoteq
+    .word 2
+    .text "u>"
+    .word word_ugt
+h_znoteq:
+    .word h_within
+    .word 3
+    .text "0<>"
+    .word word_znoteq
+h_within:
+    .word h_2fetch
+    .word 6
+    .text "within"
+    .word word_within
+h_2fetch:
+    .word h_2store
+    .word 2
+    .text "2@"
+    .word word_2fetch
+h_2store:
+    .word h_count
+    .word 2
+    .text "2!"
+    .word word_2store
+h_count:
+    .word h_ccomma
+    .word 5
+    .text "count"
+    .word word_count
+h_ccomma:
+    .word h_move
+    .word 2
+    .text "c,"
+    .word word_ccomma
+h_move:
+    .word h_fill
+    .word 4
+    .text "move"
+    .word word_move
+h_fill:
+    .word h_erase
+    .word 4
+    .text "fill"
+    .word word_fill
+h_erase:
+    .word h_type
+    .word 5
+    .text "erase"
+    .word word_erase
+h_type:
+    .word h_see
+    .word 4
+    .text "type"
+    .word word_type
+
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
 ; naming h_cls: the chain test in tests/forth.test.js pins that, and find walks
@@ -5853,6 +5976,558 @@ sb_abort:
     MOV R3, R0
     LD LR, R3, 0
     JMP LR
+    NOP
+
+; =============================================
+; Tier 1: the standard words the kernel was missing
+; =============================================
+; Small stack shufflers, unsigned comparisons, the string and memory helpers and
+; the constants BL/TRUE/FALSE. Each is a plain primitive entered through NEXT,
+; so it can be compiled into a colon definition as well as run from the outer
+; interpreter. The operand checks follow the arithmetic words above: with n
+; operands on the stack, SP + n must not sit above the empty-stack base.
+;
+; SPACE, SPACES and TYPE write the screen directly, exactly as `.`, `u.` and
+; print_number already do for their digits and their trailing blank. CR and
+; EMIT go through the BIOS instead, because the BIOS owns carriage return, line
+; feed and the scroll at the bottom row; a string without control characters in
+; it behaves the same either way.
+
+word_space:
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_spaces:                ; ( n -- )  n blanks
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wsp_under
+    NOP
+    LD R1, SP, 0
+    ADD SP, 1
+wsp_loop:
+    LDI 0
+    CMP R1, R0
+    JZ wsp_done
+    NOP
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    SUB R1, 1
+    LDI wsp_loop
+    MOV PC, R0
+    NOP
+wsp_done:
+    LDI next
+    MOV PC, R0
+    NOP
+wsp_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_qdup:                  ; ( x -- 0 | x x )  duplicate only a nonzero cell
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wqd_under
+    NOP
+    LD R1, SP, 0
+    LDI 0
+    CMP R1, R0
+    JZ wqd_done             ; zero: the single cell is already the answer
+    NOP
+    SUB SP, 1
+    ST R1, SP, 0
+wqd_done:
+    LDI next
+    MOV PC, R0
+    NOP
+wqd_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_tuck:                  ; ( a b -- b a b )
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wtk_ok
+    NOP
+    JN wtk_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wtk_ok:
+    ; ( a b -- b a b ): a and b swap places and b is copied in below them,
+    ; which is `swap over` without the intermediate state.
+    LD R1, SP, 0            ; b
+    LD R2, SP, 1            ; a
+    SUB SP, 1
+    ST R1, SP, 0            ; b on top
+    ST R2, SP, 1            ; a beneath it
+    ST R1, SP, 2            ; and b at the bottom
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_minusrot:              ; ( a b c -- c a b )
+    MOV R9, SP
+    ADD R9, 3
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wmr_ok
+    NOP
+    JN wmr_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wmr_ok:
+    LD R1, SP, 0            ; c
+    LD R2, SP, 1            ; b
+    LD R3, SP, 2            ; a
+    ST R2, SP, 0
+    ST R3, SP, 1
+    ST R1, SP, 2
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_2over:                 ; ( x1 x2 x3 x4 -- x1 x2 x3 x4 x1 x2 )
+    MOV R9, SP
+    ADD R9, 4
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ w2o_ok
+    NOP
+    JN w2o_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+w2o_ok:
+    LD R1, SP, 2            ; x2
+    LD R2, SP, 3            ; x1
+    SUB SP, 2
+    ST R1, SP, 0            ; x2 on top
+    ST R2, SP, 1            ; x1 beneath it
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_2swap:                 ; ( x1 x2 x3 x4 -- x3 x4 x1 x2 )
+    MOV R9, SP
+    ADD R9, 4
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ w2s_ok
+    NOP
+    JN w2s_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+w2s_ok:
+    LD R1, SP, 0            ; x4
+    LD R2, SP, 1            ; x3
+    LD R3, SP, 2            ; x2
+    LD R4, SP, 3            ; x1
+    ST R3, SP, 0
+    ST R4, SP, 1
+    ST R1, SP, 2
+    ST R2, SP, 3
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_ult:                   ; u< ( u1 u2 -- flag )
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wult_ok
+    NOP
+    JN wult_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wult_ok:
+    LD R2, SP, 0            ; u2
+    ADD SP, 1
+    LD R1, SP, 0            ; u1
+    ; CMP leaves the carry set when the difference borrows, and the ISA defines
+    ; that carry as "the result fell below zero" - so JC here is u1 < u2 read
+    ; unsigned, which the signed JN could not tell from an ordinary negative.
+    CMP R1, R2
+    JC wult_yes
+    NOP
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+wult_yes:
+    LDI cmp_true
+    MOV PC, R0
+    NOP
+
+word_ugt:                   ; u> ( u1 u2 -- flag )
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wugt_ok
+    NOP
+    JN wugt_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wugt_ok:
+    LD R2, SP, 0            ; u2
+    ADD SP, 1
+    LD R1, SP, 0            ; u1
+    CMP R2, R1              ; u2 - u1
+    JC wugt_yes             ; borrowed: u2 < u1, which is u1 > u2
+    NOP
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+wugt_yes:
+    LDI cmp_true
+    MOV PC, R0
+    NOP
+
+word_znoteq:                ; 0<> ( x -- flag )
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wzn_under
+    NOP
+    LD R1, SP, 0
+    LDI 0
+    CMP R1, R0
+    JNZ wzn_yes
+    NOP
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+wzn_yes:
+    LDI cmp_true
+    MOV PC, R0
+    NOP
+wzn_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_within:                ; within ( n lo hi -- flag )  lo <= n < hi
+    MOV R9, SP
+    ADD R9, 3
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wwi_ok
+    NOP
+    JN wwi_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wwi_ok:
+    ; lo <= n < hi is (n - lo) < (hi - lo) read unsigned: both sides wrap the
+    ; same way, so an n below lo needs no special case.
+    LD R1, SP, 0            ; hi
+    LD R2, SP, 1            ; lo
+    LD R3, SP, 2            ; n
+    SUB R3, R2              ; n - lo
+    SUB R1, R2              ; hi - lo
+    ADD SP, 2
+    CMP R3, R1
+    JC wwi_yes
+    NOP
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+wwi_yes:
+    LDI cmp_true
+    MOV PC, R0
+    NOP
+
+word_2fetch:                ; 2@ ( a-addr -- x1 x2 )  x2 at a-addr, x1 at a-addr+1
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ w2f_under
+    NOP
+    LD R1, SP, 0            ; a-addr
+    LD R2, R1, 1            ; x1
+    LD R3, R1, 0            ; x2
+    SUB SP, 1
+    ST R3, SP, 0            ; x2 on top
+    ST R2, SP, 1            ; x1 beneath it
+    LDI next
+    MOV PC, R0
+    NOP
+w2f_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_2store:                ; 2! ( x1 x2 a-addr -- )
+    MOV R9, SP
+    ADD R9, 3
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ w2st_ok
+    NOP
+    JN w2st_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+w2st_ok:
+    LD R1, SP, 0            ; a-addr
+    LD R2, SP, 1            ; x2
+    LD R3, SP, 2            ; x1
+    ST R2, R1, 0
+    ST R3, R1, 1
+    ADD SP, 3
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_count:                 ; count ( c-addr -- c-addr u )
+    ; A string here is a run of cells ending in a zero cell, so the length is
+    ; found by scanning and the string keeps its own address: `addr count type`
+    ; prints it. ANS count expects a count byte in front of the characters and
+    ; answers c-addr+1, but there are no counted strings here to give that
+    ; reading a meaning.
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wct_under
+    NOP
+    LD R1, SP, 0            ; c-addr
+    LDI 0
+    MOV R2, R0              ; length
+    MOV R3, R1
+wct_scan:
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ wct_done
+    NOP
+    ADD R3, 1
+    ADD R2, 1
+    LDI wct_scan
+    MOV PC, R0
+    NOP
+wct_done:
+    SUB SP, 1               ; one operand in, two cells out
+    ST R2, SP, 0            ; u on top
+    ST R1, SP, 1            ; c-addr beneath it
+    LDI next
+    MOV PC, R0
+    NOP
+wct_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_ccomma:                ; c, ( char -- )  append one cell to the dictionary
+    ; A cell holds a character, so c, and , are the same store here.
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wcc_under
+    NOP
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0
+    ST R1, R3, 0
+    ADD R3, 1
+    ST R3, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wcc_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_move:                  ; move ( src dst u -- )  copy u cells upwards
+    MOV R9, SP
+    ADD R9, 3
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wmv_ok
+    NOP
+    JN wmv_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wmv_ok:
+    LD R1, SP, 2            ; src
+    LD R2, SP, 1            ; dst
+    LD R3, SP, 0            ; u
+    ADD SP, 3
+wmv_loop:
+    LDI 0
+    CMP R3, R0
+    JZ wmv_done
+    NOP
+    LD R4, R1, 0
+    ST R4, R2, 0
+    ADD R1, 1
+    ADD R2, 1
+    SUB R3, 1
+    LDI wmv_loop
+    MOV PC, R0
+    NOP
+wmv_done:
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_fill:                  ; fill ( addr u char -- )
+    MOV R9, SP
+    ADD R9, 3
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wfl_ok
+    NOP
+    JN wfl_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wfl_ok:
+    LD R1, SP, 2            ; addr
+    LD R2, SP, 1            ; u
+    LD R3, SP, 0            ; char
+    ADD SP, 3
+wfl_loop:
+    LDI 0
+    CMP R2, R0
+    JZ wfl_done
+    NOP
+    ST R3, R1, 0
+    ADD R1, 1
+    SUB R2, 1
+    LDI wfl_loop
+    MOV PC, R0
+    NOP
+wfl_done:
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_erase:                 ; erase ( addr u -- )  fill with zero
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wer_ok
+    NOP
+    JN wer_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wer_ok:
+    LD R1, SP, 1            ; addr
+    LD R2, SP, 0            ; u
+    ADD SP, 2
+wer_loop:
+    LDI 0
+    CMP R2, R0
+    JZ wer_done
+    NOP
+    LDI 0
+    ST R0, R1, 0
+    ADD R1, 1
+    SUB R2, 1
+    LDI wer_loop
+    MOV PC, R0
+    NOP
+wer_done:
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_type:                  ; type ( c-addr u -- )  print u characters
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wty_ok
+    NOP
+    JN wty_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wty_ok:
+    LD R1, SP, 1            ; c-addr
+    LD R2, SP, 0            ; u
+    ADD SP, 2
+wty_loop:
+    LDI 0
+    CMP R2, R0
+    JZ wty_done
+    NOP
+    LD R3, R1, 0
+    LDI 0x00FF
+    AND R3, R0              ; the single character emit would print
+    STS R3, ES, SCR
+    ADD SCR, 1
+    ADD R1, 1
+    SUB R2, 1
+    LDI wty_loop
+    MOV PC, R0
+    NOP
+wty_done:
+    LDI next
+    MOV PC, R0
     NOP
 
 ; =============================================

@@ -37,6 +37,11 @@ prints `undefined word: X` or `stack underflow` and the prompt comes back.
 | `nip` | `( a b -- b )` | drop the second cell |
 | `2drop` | `( a b -- )` | discard the top two |
 | `2dup` | `( a b -- a b a b )` | duplicate the top pair |
+| `?dup` | `( x -- x \| x x )` | duplicate the top cell, but only if it is nonzero |
+| `tuck` | `( a b -- b a b )` | copy the top cell under the second |
+| `-rot` | `( a b c -- c a b )` | rotate the other way: the third cell to the top |
+| `2over` | `( a b c d -- a b c d a b )` | copy the second pair to the top |
+| `2swap` | `( a b c d -- c d a b )` | exchange the two top pairs |
 | `depth` | `( -- n )` | number of cells on the data stack |
 
 ## Arithmetic
@@ -80,8 +85,21 @@ All push `-1` for true and `0` for false.
 | `<` | `( a b -- flag )` | signed less than |
 | `>` | `( a b -- flag )` | signed greater than |
 | `0=` | `( n -- flag )` | zero |
+| `0<>` | `( n -- flag )` | nonzero |
 | `0<` | `( n -- flag )` | negative |
 | `0>` | `( n -- flag )` | positive |
+| `u<` | `( u1 u2 -- flag )` | unsigned less than |
+| `u>` | `( u1 u2 -- flag )` | unsigned greater than |
+| `within` | `( n lo hi -- flag )` | `lo <= n < hi`, read unsigned |
+| `true` | `( -- -1 )` | the true flag itself |
+| `false` | `( -- 0 )` | the false flag itself |
+
+`<` and `>` are signed and read the sign of `a-b`, so they treat `0x8000` as
+negative. `u<` and `u>` read the borrow instead, which is why the same pair of
+cells can come out opposite ways: `0 1 - 1 <` is true while `0 1 - 1 u<` is
+false, and `1 0 1 - u<` is true although signed `<` would deny it. `within` is
+the unsigned form too, so a value below `lo` wraps to a large number and stays
+outside rather than being mistaken for a value above `lo`.
 
 ## Memory
 
@@ -92,11 +110,50 @@ All push `-1` for true and `0` for false.
 | `c@` | `( addr -- c )` | fetch the low 8 bits of the cell |
 | `c!` | `( c addr -- )` | store the low 8 bits of `c` in the cell |
 | `+!` | `( n addr -- )` | add `n` to the cell at `addr` |
+| `2@` | `( addr -- x1 x2 )` | fetch the pair: `x1` at `addr+1`, `x2` at `addr` |
+| `2!` | `( x1 x2 addr -- )` | store the pair, `x2` low and `x1` high |
+| `move` | `( src dst u -- )` | copy `u` cells from `src` to `dst`, low address first |
+| `fill` | `( addr u c -- )` | store `c` in `u` cells from `addr` |
+| `erase` | `( addr u -- )` | store `0` in `u` cells from `addr` |
 | `here` | `( -- addr )` | next free dictionary cell |
 | `allot` | `( n -- )` | reserve `n` cells at `here` |
 | `,` | `( x -- )` | compile `x` at `here` and advance |
+| `c,` | `( c -- )` | same as `,`: one cell carries one character |
 | `cells` | `( n -- n )` | cells to address units (the identity) |
 | `cell+` | `( addr -- addr+1 )` | address of the next cell |
+
+`move`, `fill` and `erase` move upwards and expect `u >= 0`. Two things to
+watch: a `variable` owns exactly **one** cell, and the next definition's header
+begins right behind it, so a `2!` or a `fill` at a `variable` writes over the
+next name's link and the dictionary search never comes back — reserve the room
+first.
+
+```text
+variable x 2 allot  7 9 x 2!  x 2@ . .    \ 9 7  ok
+```
+
+## Characters and strings
+
+| word | stack effect | meaning |
+|------|--------------|---------|
+| `bl` | `( -- 32 )` | the space character |
+| `space` | `( -- )` | write one blank |
+| `spaces` | `( n -- )` | write `n` blanks |
+| `count` | `( c-addr -- c-addr u )` | length of the zero-terminated string at `c-addr` |
+| `type` | `( c-addr u -- )` | write `u` characters from `c-addr` |
+
+A string here is a run of one-character cells that ends in a zero cell, because
+one cell is one address unit. `."` writes such a string into a definition, and
+`c,` builds one by hand:
+
+```text
+here 72 c, 73 c, 0 c,  count type    \ HI  ok
+```
+
+`count` answers the string's own address and its length, which is what `type`
+wants, and not the standard `c-addr+1`: there are no counted strings here for
+that reading to mean anything. `type` masks each cell to its low 8 bits, so a
+NUL character writes nothing rather than stopping.
 
 ## Defining words
 
@@ -196,5 +253,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 93 words. New words are added at the head of the
+That is the whole dictionary: 115 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.
