@@ -6082,16 +6082,18 @@ sb_abort:
 ; interpreter. The operand checks follow the arithmetic words above: with n
 ; operands on the stack, SP + n must not sit above the empty-stack base.
 ;
-; SPACE, SPACES and TYPE write the screen directly, exactly as `.`, `u.` and
-; print_number already do for their digits and their trailing blank. CR and
-; EMIT go through the BIOS instead, because the BIOS owns carriage return, line
-; feed and the scroll at the bottom row; a string without control characters in
-; it behaves the same either way.
+; SPACE, SPACES and TYPE print through putch like every other character the
+; kernel emits (see the OUTPUT RULE at put_char). CR and EMIT reach the same
+; putch through the BIOS, which owns carriage return, line feed and the scroll
+; at the bottom row.
 
 word_space:
+    LDI put_char
+    MOV R4, R0
     LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     LDI next
     MOV PC, R0
     NOP
@@ -6110,9 +6112,12 @@ wsp_loop:
     CMP R1, R0
     JZ wsp_done
     NOP
+    LDI put_char
+    MOV R4, R0
     LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     SUB R1, 1
     LDI wsp_loop
     MOV PC, R0
@@ -6613,8 +6618,12 @@ wty_loop:
     LD R3, R1, 0
     LDI 0x00FF
     AND R3, R0              ; the single character emit would print
-    STS R3, ES, SCR
-    ADD SCR, 1
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R3
+    LINK
+    JMP R4
+    NOP
     ADD R1, 1
     SUB R2, 1
     LDI wty_loop
