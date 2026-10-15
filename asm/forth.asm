@@ -5957,6 +5957,56 @@ bios_f2:
     STS R1, ES, SCR
     STS R2, ES, SCR         ; the character alone, so no attribute of its own
     ADD SCR, 1
+    ; Implicit wrap has moved the cursor to the next row. If that row is past
+    ; the 24 visible rows (row 24 is off-screen), scroll one line and put the
+    ; cursor at the start of the last visible row. Without this a wide line
+    ; walks off the bottom of the buffer instead of scrolling.
+    LDI 0x1000
+    MOV R9, R0
+    LDI 0x1780              ; 0x1000 + 24*80: the first off-screen row
+    MOV R7, R0
+    CMP SCR, R7
+    JN putch_cursor
+    NOP
+    ; scroll: copy rows 1..24 up into 0..23, then clear row 24
+    LDI 0
+    MOV R2, R0
+    LDI 1920
+    MOV R5, R0
+    LDI 80
+    MOV R12, R0
+putch_scroll_copy:
+    MOV R13, R9
+    ADD R13, R2
+    MOV R7, R9
+    ADD R7, R2
+    ADD R7, R12
+    LDS R1, ES, R7
+    STS R1, ES, R13
+    ADD R2, 1
+    CMP R2, R5
+    JNZ putch_scroll_copy
+    NOP
+    LDI 0
+    MOV R2, R0
+    LDI 80
+    MOV R12, R0
+    LDI ' '
+    MOV R1, R0
+putch_scroll_clear:
+    MOV R13, R9
+    ADD R13, R2
+    ADD R13, R5
+    STS R1, ES, R13
+    ADD R2, 1
+    SUB R12, 1
+    LDI 0
+    CMP R12, R0
+    JNZ putch_scroll_clear
+    NOP
+    LDI 0x1730              ; 0x1000 + 23*80: the last visible row, column 0
+    MOV SCR, R0
+putch_cursor:
     LDI 0x0070          ; fg 0 / bg 7. Nicht LDI 0x7000: das Immediate
     SL  R0, 8           ; ist 15 Bit und signiert, 0x7000 laege als 0xF000
     LDS R3, ES, SCR

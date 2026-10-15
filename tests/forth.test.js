@@ -353,6 +353,37 @@ test('a long run of output scrolls the screen instead of stopping at the bottom'
     `the cursor ran past the visible rows to offset ${off} - it is not scrolling`);
 });
 
+test('a line wider than the screen wraps and scrolls at the bottom row', () => {
+  // putch advanced the cursor linearly without a scroll check, so a line wider
+  // than the screen walked off the bottom of the buffer (row 24 and beyond)
+  // instead of scrolling - which is what a wide `words` hit. Emit 300 chars
+  // with no newline after filling the screen and require the scroll.
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0xFFFF;
+  const input = '1 .\n'.repeat(20) + ': l 300 0 do 88 emit loop ;\nl\n';
+  for (const ch of input) sim.enqueueKeyCode(ch === '\n' ? 10 : ch.charCodeAt(0));
+  sim.running = true;
+  for (let i = 0; i < 30000000 && sim.running; i++) sim.step();
+
+  let text = '';
+  for (let r = 0; r < VISIBLE_ROWS; r++) {
+    for (let c = 0; c < COLS; c++) text += String.fromCharCode(sim.memory[SCREEN_ADDR + r * COLS + c] & 0xFF);
+  }
+  assert.ok(!text.includes('Hello DeepForth!'), 'the banner must have scrolled off the top');
+  assert.ok(text.includes('X'.repeat(20)), 'the tail of the wrapped line must be on screen');
+  const off = (sim.registers[8] - SCR_BASE) & 0xFFFF;
+  assert.ok(off < VISIBLE_ROWS * COLS,
+    `the cursor ran past the visible rows to offset ${off} - the wrap did not scroll`);
+  // The off-screen row 24 is the scroll's blank tail and must stay blank.
+  for (let c = 0; c < COLS; c++) {
+    const w = sim.memory[SCREEN_ADDR + 24 * COLS + c] & 0xFFFF;
+    assert.ok(w === 0x0020 || w === 0x0000 || w === 0xFFFF,
+      `row 24 column ${c} holds 0x${w.toString(16)}`);
+  }
+});
+
 
 test('emit keeps >IN so words after it still run', () => {
   // Regression: the shadow-bank BIOS clobbers R5, which is >IN. word_emit
