@@ -1901,10 +1901,42 @@ h_pick:
     .text "pick"
     .word word_pick
 h_roll:
-    .word h_see
+    .word h_lt_hash
     .word 4
     .text "roll"
     .word word_roll
+; The sixth batch: pictured numeric output, chained in at the same place. `#`
+; and `#s` are the same step twice, and `#>` closes the picture.
+h_lt_hash:
+    .word h_hash
+    .word 2
+    .text "<#"
+    .word word_lt_hash
+h_hash:
+    .word h_hash_s
+    .word 1
+    .text "#"
+    .word word_hash
+h_hash_s:
+    .word h_hash_gt
+    .word 2
+    .text "#s"
+    .word word_hash_s
+h_hash_gt:
+    .word h_hold
+    .word 2
+    .text "#>"
+    .word word_hash_gt
+h_hold:
+    .word h_sign
+    .word 4
+    .text "hold"
+    .word word_hold
+h_sign:
+    .word h_see
+    .word 4
+    .text "sign"
+    .word word_sign
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -7675,6 +7707,249 @@ wrl_under:
     LDI stack_underflow_error
     MOV PC, R0
     NOP
+
+; ---------------------------------------------
+; Tier 1, sixth batch: pictured numeric output
+; ---------------------------------------------
+; `<# # #s #> hold sign` build a number in a hold area of their own instead of
+; printing it, so a program can format what `type` will write. The number is a
+; DOUBLE, two cells with the HIGH half on top - the order `S>D` would leave, and
+; the order the standard's own `dup abs 0 <# #s rot sign #>` example assumes.
+; `#` divides that double by the CURRENT base (DIV32, so bases above ten and
+; magnitudes above 0x7FFF both come out right) and holds the remainder's digit;
+; `#s` repeats until the double is zero, at least once; `sign` holds a minus for
+; a negative single; `#>` ends the picture and answers ( c-addr u ).
+;
+; The hold area is a fixed buffer, and the cursor walks DOWN from its end, so
+; the characters come out in reading order without anything being reversed. A
+; program that holds more characters than the buffer holds sees the extra ones
+; dropped: the cursor stops at the bottom instead of writing through whatever
+; data follows, the same trade the printer makes for a base below two.
+
+word_lt_hash:               ; <# ( -- )  begin a pictured number
+    LDI hld_ptr
+    MOV R2, R0
+    LDI hld_end
+    ST R0, R2, 0            ; the cursor starts at the end of the buffer
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_hash:                  ; # ( ud1 -- ud2 )  one more digit
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wh_ok                ; exactly two cells, or more
+    NOP
+    JN wh_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wh_ok:
+    LDI hld_step
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_hash_s:                ; #s ( ud1 -- ud0 )  every digit, at least one
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ whs_ok
+    NOP
+    JN whs_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+whs_ok:
+    LDI hld_step
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LD R1, SP, 0            ; high
+    LD R3, SP, 1            ; low
+    OR R1, R3
+    LDI 0
+    CMP R1, R0
+    JNZ whs_ok              ; another digit while the double is not zero
+    NOP
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_hash_gt:               ; #> ( ud -- c-addr u )  the answer, for `type`
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ whg_ok
+    NOP
+    JN whg_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+whg_ok:
+    ; The double goes away and its two cells become ( c-addr u ).
+    LDI hld_ptr
+    MOV R2, R0
+    LD R3, R2, 0            ; the cursor: the first character held
+    LDI hld_end
+    MOV R4, R0
+    SUB R4, R3              ; and the length is everything above it
+    ST R3, SP, 1            ; c-addr into the lower of the two cells
+    ST R4, SP, 0            ; u on top
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_hold:                  ; hold ( c -- )  one character into the picture
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ whd_under
+    NOP
+    LD R4, SP, 0
+    ADD SP, 1
+    LDI 0x00FF
+    AND R4, R0              ; one character per cell, low 8 bits
+    LDI hld_put
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI next
+    MOV PC, R0
+    NOP
+whd_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_sign:                  ; sign ( n -- )  hold a minus when n is negative
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wsg_under
+    NOP
+    LD R4, SP, 0
+    ADD SP, 1
+    LDI 0
+    CMP R4, R0
+    JN wsg_neg
+    NOP
+    LDI next
+    MOV PC, R0
+    NOP
+wsg_neg:
+    LDI '-'
+    MOV R4, R0
+    LDI hld_put
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI next
+    MOV PC, R0
+    NOP
+wsg_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+; hld_put ( R4 = character ): store it one cell below the cursor and move the
+; cursor down. The cursor stops at the bottom of the buffer rather than walking
+; out of it. LINK-called, so it uses no register the callers need.
+hld_put:
+    LDI hld_ptr
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI hld_buf
+    MOV R1, R0
+    CMP R3, R1
+    JZ hld_put_done         ; the buffer is full: drop the character
+    NOP
+    SUB R3, 1
+    ST R3, R2, 0
+    ST R4, R3, 0
+hld_put_done:
+    JMP LR
+    NOP
+
+; hld_step: one digit of the picture - the body of `#`, shared with `#s`. It
+; reads the double at [SP] (high) and [SP+1] (low), divides it by the current
+; base with the 32-bit DIV and holds the remainder's digit. LR is parked while
+; it LINK-calls hld_put, because LINK overwrites it.
+hld_step:
+    LDI hld_lr
+    MOV R3, R0
+    ST LR, R3, 0
+    ; The base has to be in R12 before the dividend is read into R0:R1: LDI
+    ; writes R0, and the high half of the dividend lives there.
+    LDI base_var
+    MOV R12, R0
+    LD R12, R12, 0          ; the base
+    LD R0, SP, 0            ; the high half of the dividend
+    LD R1, SP, 1            ; the low half
+    DIV32 R0, R12           ; R0 = quotient, R1 = remainder
+    MOV R4, R1              ; the digit, before R1 is reused
+    MOV R3, R0              ; the quotient
+    LDI 0
+    ST R0, SP, 0            ; the new double is ( 0, quotient )
+    ST R3, SP, 1
+    LDI 10
+    CMP R4, R0
+    JN hld_step_dec
+    NOP
+    LDI 55                  ; 'A' is 65, so the value 10 becomes 'A'
+    ADD R4, R0
+    LDI hld_step_hold
+    MOV PC, R0
+    NOP
+hld_step_dec:
+    LDI '0'
+    ADD R4, R0
+hld_step_hold:
+    LDI hld_put
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI hld_lr
+    MOV R3, R0
+    LD LR, R3, 0
+    JMP LR
+    NOP
+
+; The hold area. `<#` points the cursor at hld_end and every character is stored
+; one cell lower, so the run `#>` answers starts at the cursor and ends at
+; hld_end - exactly the shape `type` wants.
+hld_ptr:
+    .word 0
+hld_lr:
+    .word 0
+hld_buf:
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0
+hld_end:                    ; one past the last cell of the buffer
 
 ; =============================================
 ; BIOS Implementation (at physical 0xF8000)

@@ -52,6 +52,39 @@ A base below two is undefined — the standard allows two to thirty-six — and 
 only a cell here, so it can be stored; the printer then stops after sixteen
 digits instead of dividing by zero or by one for ever.
 
+## Pictured numbers
+
+`<# #s #> type` is the other way to write a number: instead of printing it,
+these words build it in a hold area of their own.
+
+| word | stack effect | meaning |
+|------|--------------|---------|
+| `<#` | `( -- )` | begin a pictured number |
+| `#` | `( ud1 -- ud2 )` | divide the double by the base and hold one digit |
+| `#s` | `( ud1 -- ud0 )` | hold every digit, at least one |
+| `#>` | `( ud -- c-addr u )` | end the picture: the string, ready for `type` |
+| `hold` | `( c -- )` | put one character into the picture |
+| `sign` | `( n -- )` | hold a minus when `n` is negative |
+
+The number is a **double**: two cells, the high half on top. A positive number
+leaves a zero in that high cell and a negative one a minus there, which is what
+the standard's own idiom relies on. `#` divides the double by the base that is
+in force, so the same words print in whatever base is set:
+
+```text
+: .n  dup abs 0 <# #s rot sign #> type ;  \ -5  ok
+5 negate .n
+hex 255 .n                                \ FF  ok
+```
+
+`hold` prepends, so `0 0 <# 66 hold 65 hold #> type` writes `AB`. The hold area
+is a fixed buffer whose cursor walks down from its end, so nothing has to be
+reversed; more than forty characters in one picture are dropped rather than
+written past the buffer. `#` divides with the 32-bit `DIV`, whose dividend is a
+signed pair while the standard's `ud` is unsigned: a double at `0x80000000` or
+above converts wrongly. Every way of making a double here keeps the high cell at
+zero, and that is the case these words are for.
+
 ## Stack
 
 | word | stack effect | meaning |
@@ -361,5 +394,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 132 words. New words are added at the head of the
+That is the whole dictionary: 138 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

@@ -3054,6 +3054,64 @@ test('pick copies the u-th cell and roll moves it to the top', () => {
   assert.equal(hexOut(': t pick roll ; see t'), ': t pick roll ;');
 });
 
+// ---------------------------------------------------------------------------
+// Tier 1, sixth batch: pictured numeric output - <# # #s #> hold sign.
+//
+// These build a number in a hold area instead of printing it, so a program can
+// format what `type` will write. The number is a double, two cells with the
+// HIGH half on top, which is the order the standard's own
+// `dup abs 0 <# #s rot sign #>` example assumes; `#` divides that double by the
+// base that is in force, which is why the same idiom prints hex after `hex`.
+//
+// Three things are pinned beyond the words themselves:
+//
+//   * The hold area is a fixed buffer and the cursor walks DOWN from its end, so
+//     the answer is already in reading order and nothing has to be reversed. A
+//     program that holds more characters than the buffer holds sees the extra
+//     ones dropped, rather than the cursor writing through whatever data
+//     follows - the same trade the printer makes for a base below two.
+//
+//   * `#` divides with the 32-bit DIV, whose dividend is a SIGNED pair, while
+//     the standard's ud is unsigned: a double at 0x80000000 or above converts
+//     wrongly. Every way of making a double here - `dup abs 0`, or `s>d` built
+//     by hand - keeps the high cell at 0, and that is the case shown below.
+
+test('the pictured number words build a string for type', () => {
+  assert.equal(hexOut('123 0 <# #s #> type'), '123');
+  assert.equal(hexOut('0 0 <# #s #> type'), '0');        // at least one digit
+  assert.equal(hexOut(': .n dup abs 0 <# #s rot sign #> type ; 123 .n'), '123');
+  assert.equal(hexOut(': .n dup abs 0 <# #s rot sign #> type ; 5 negate .n'), '-5');
+  // The base in force decides the digits, so the same idiom prints hex.
+  assert.equal(hexOut('hex ff 0 <# #s #> type decimal'), 'FF');
+  assert.equal(hexOut('2 base ! 101 0 <# #s #> type decimal'), '101');
+  // A double wider than a cell: 5*65536 + 0x1234.
+  assert.equal(hexOut('0x1234 5 <# #s #> type'), '332340');
+  // hold prepends, so the characters come out in the order they were held.
+  assert.equal(hexOut('0 0 <# 66 hold 65 hold #> type'), 'AB');
+  // One # is one digit, and #> answers ( c-addr u ), ready for type.
+  assert.equal(hexOut('12345 0 <# # # #> nip .'), '2');
+  assert.equal(hexOut('0 0 <# # #> type'), '0');
+  assert.equal(hexOut('0 0 <# #> type'), '');
+  // sign holds nothing for a number that is not negative.
+  assert.equal(hexOut('0 0 <# 5 sign #> type'), '');
+});
+
+test('the hold area is bounded, and the picture words check their depth', () => {
+  // Forty characters fit; the rest are dropped instead of the cursor walking
+  // out of the buffer.
+  assert.equal(hexOut(': t 0 0 <# 45 0 do 65 hold loop #> nip . ; t'), '40');
+  assert.equal(hexOut(': t 0 0 <# 3 0 do 66 hold loop #> type ; t'), 'BBB');
+  // #, #s and #> each want the double; hold and sign want one cell.
+  for (const src of ['#', '#s', '#>', '1 #']) {
+    assert.match(hexrepl(src).join('\n'), /stack underflow/, src);
+  }
+  for (const src of ['hold', 'sign']) {
+    assert.match(hexrepl(src).join('\n'), /stack underflow/, src);
+  }
+  // Dictionary words, so see names them.
+  assert.equal(hexOut(': t hold sign #s #> <# ; see t'), ': t hold sign #s #> <# ;');
+});
+
 test('a base below two stops the printer instead of running away', () => {
   // BASE is a cell, so 0 and 1 can be stored; the standard calls that
   // undefined. What gets printed is garbage - what matters is that the count
