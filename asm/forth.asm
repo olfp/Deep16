@@ -1933,10 +1933,77 @@ h_hold:
     .text "hold"
     .word word_hold
 h_sign:
-    .word h_see
+    .word h_stod
     .word 4
     .text "sign"
     .word word_sign
+; The double-cell words. A double is two cells with the high half on top, which
+; is the order `#`/`#>` and the standard's own examples already use.
+h_stod:
+    .word h_dplus
+    .word 3
+    .text "s>d"
+    .word word_stod
+h_dplus:
+    .word h_dminus
+    .word 2
+    .text "d+"
+    .word word_dplus
+h_dminus:
+    .word h_dnegate
+    .word 2
+    .text "d-"
+    .word word_dminus
+h_dnegate:
+    .word h_mplus
+    .word 7
+    .text "dnegate"
+    .word word_dnegate
+h_mplus:
+    .word h_deq
+    .word 2
+    .text "m+"
+    .word word_mplus
+h_deq:
+    .word h_d0eq
+    .word 2
+    .text "d="
+    .word word_deq
+h_d0eq:
+    .word h_dlt
+    .word 3
+    .text "d0="
+    .word word_d0eq
+h_dlt:
+    .word h_umstar
+    .word 2
+    .text "d<"
+    .word word_dlt
+h_umstar:
+    .word h_mstar
+    .word 3
+    .text "um*"
+    .word word_umstar
+h_mstar:
+    .word h_smrem
+    .word 2
+    .text "m*"
+    .word word_mstar
+h_smrem:
+    .word h_fmmod
+    .word 6
+    .text "sm/rem"
+    .word word_smrem
+h_fmmod:
+    .word h_ummod
+    .word 6
+    .text "fm/mod"
+    .word word_fmmod
+h_ummod:
+    .word h_see
+    .word 6
+    .text "um/mod"
+    .word word_ummod
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -7950,6 +8017,518 @@ hld_buf:
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0
 hld_end:                    ; one past the last cell of the buffer
+
+; ---------------------------------------------
+; Tier 2, first batch: double-cell numbers
+; ---------------------------------------------
+; A double is two cells with the HIGH half on top, the order `#`/`#>` and the
+; standard's own examples already assume. `s>d` widens a single, `m+` adds a
+; single to a double, and the rest are the double forms of +, -, negate, = and
+; <. The carry flag is what makes them work: ADD sets it on carry-out and SUB on
+; borrow, and it has to be read IMMEDIATELY, because LDI clears the whole flag
+; nibble and every later instruction would overwrite it.
+
+word_stod:                  ; s>d ( n -- d )  the sign as the high cell
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wsd_under
+    NOP
+    LD R1, SP, 0            ; n
+    LDI 0
+    CMP R1, R0
+    JN wsd_neg
+    NOP
+    LDI 0
+    MOV R3, R0              ; non-negative: the high cell is zero
+    LDI wsd_push
+    MOV PC, R0
+    NOP
+wsd_neg:
+    LDI 0
+    MOV R3, R0
+    SUB R3, 1               ; negative: it is minus one
+wsd_push:
+    SUB SP, 1
+    ST R3, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wsd_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_dplus:                 ; d+ ( d1 d2 -- d3 )
+    MOV R9, SP
+    ADD R9, 4
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wdp_ok
+    NOP
+    JN wdp_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wdp_ok:
+    LD R1, SP, 3            ; a.lo
+    LD R2, SP, 1            ; b.lo
+    ADD R1, R2              ; the result's low cell; C = the carry into the high
+    LD R3, SP, 2            ; a.hi
+    LD R4, SP, 0            ; b.hi
+    JC wdp_carry
+    NOP
+    ADD R3, R4
+    LDI wdp_store
+    MOV PC, R0
+    NOP
+wdp_carry:
+    ADD R3, R4
+    ADD R3, 1
+wdp_store:
+    ADD SP, 2               ; b's two cells go away, a's slots hold the result
+    ST R3, SP, 0
+    ST R1, SP, 1
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_dminus:                ; d- ( d1 d2 -- d3 )
+    MOV R9, SP
+    ADD R9, 4
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wdm_ok
+    NOP
+    JN wdm_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wdm_ok:
+    LD R1, SP, 3            ; a.lo
+    LD R2, SP, 1            ; b.lo
+    SUB R1, R2              ; C = the borrow out of the low cell
+    LD R3, SP, 2            ; a.hi
+    LD R4, SP, 0            ; b.hi
+    JC wdm_borrow
+    NOP
+    SUB R3, R4
+    LDI wdm_store
+    MOV PC, R0
+    NOP
+wdm_borrow:
+    SUB R3, R4
+    SUB R3, 1
+wdm_store:
+    ADD SP, 2
+    ST R3, SP, 0
+    ST R1, SP, 1
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_dnegate:               ; dnegate ( d -- -d )
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wdn_ok
+    NOP
+    JN wdn_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wdn_ok:
+    LD R1, SP, 0            ; hi
+    INV R1
+    LD R3, SP, 1            ; lo
+    INV R3
+    ADD R3, 1               ; ~lo + 1, and C carries into the high cell
+    JC wdn_carry
+    NOP
+    LDI wdn_store
+    MOV PC, R0
+    NOP
+wdn_carry:
+    ADD R1, 1               ; ~hi + 1
+wdn_store:
+    ST R1, SP, 0
+    ST R3, SP, 1
+    LDI next
+    MOV PC, R0
+    NOP
+wdn_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_mplus:                 ; m+ ( d1 n -- d2 )  a single added to a double
+    MOV R9, SP
+    ADD R9, 3
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wmp_ok
+    NOP
+    JN wmp_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wmp_ok:
+    LD R1, SP, 2            ; d.lo
+    LD R2, SP, 0            ; n
+    ADD R1, R2              ; the low cell of the sum
+    ; The carry has to be caught here: every instruction after this one either
+    ; sets or clears the flags.
+    JC wmp_carry            ; the carry into the high cell
+    NOP
+    LDI 0
+    MOV R7, R0
+    LDI wmp_sign
+    MOV PC, R0
+    NOP
+wmp_carry:
+    LDI 1
+    MOV R7, R0
+wmp_sign:
+    LD R3, SP, 1            ; d.hi
+    LD R2, SP, 0            ; n again
+    LDI 0
+    MOV R4, R0              ; the sign cell: zero for n >= 0
+    CMP R2, R0
+    JN wmp_neg
+    NOP
+    LDI wmp_add
+    MOV PC, R0
+    NOP
+wmp_neg:
+    LDI 0
+    MOV R4, R0
+    SUB R4, 1               ; minus one
+wmp_add:
+    ADD R3, R4
+    ADD R3, R7              ; the high cell of the sum
+    ADD SP, 1               ; n goes away
+    ST R3, SP, 0
+    ST R1, SP, 1
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_deq:                   ; d= ( d1 d2 -- flag )
+    MOV R9, SP
+    ADD R9, 4
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wde_ok
+    NOP
+    JN wde_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wde_ok:
+    LD R1, SP, 3
+    LD R2, SP, 1
+    CMP R1, R2
+    JNZ wde_false
+    NOP
+    LD R1, SP, 2
+    LD R2, SP, 0
+    CMP R1, R2
+    JNZ wde_false
+    NOP
+wde_true:
+    ADD SP, 3
+    LDI cmp_true
+    MOV PC, R0
+    NOP
+wde_false:
+    ADD SP, 3
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+
+word_d0eq:                  ; d0= ( d -- flag )
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wdz_ok
+    NOP
+    JN wdz_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wdz_ok:
+    LD R1, SP, 0
+    LD R2, SP, 1
+    OR R1, R2
+    LDI 0
+    CMP R1, R0
+    JZ wdz_true
+    NOP
+    ADD SP, 1
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+wdz_true:
+    ADD SP, 1
+    LDI cmp_true
+    MOV PC, R0
+    NOP
+
+word_dlt:                   ; d< ( d1 d2 -- flag )
+    MOV R9, SP
+    ADD R9, 4
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wdl_ok
+    NOP
+    JN wdl_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wdl_ok:
+    ; The high cells decide, as signed values, with the same N/V test the single
+    ; `<` uses. Only if they are equal do the low cells get a say, and then the
+    ; comparison is UNSIGNED: for a negative double the high cell is negative,
+    ; so two doubles with equal high cells order like their unsigned low cells
+    ; (-2 is 0xFFFF:0xFFFE and -1 is 0xFFFF:0xFFFF).
+    LD R1, SP, 2            ; a.hi
+    LD R2, SP, 0            ; b.hi
+    CMP R1, R2
+    JO wdl_hi_ovf
+    NOP
+    JN wdl_hi_neg
+    NOP
+    JZ wdl_low
+    NOP
+    LDI wdl_false           ; a.hi > b.hi
+    MOV PC, R0
+    NOP
+wdl_hi_neg:
+    LDI wdl_true            ; a.hi < b.hi
+    MOV PC, R0
+    NOP
+wdl_hi_ovf:
+    JN wdl_false            ; the overflow inverted the sign
+    NOP
+    LDI wdl_true
+    MOV PC, R0
+    NOP
+wdl_low:
+    LD R1, SP, 3            ; a.lo
+    LD R2, SP, 1            ; b.lo
+    CMP R1, R2              ; C = borrow, so C means a.lo < b.lo unsigned
+    JC wdl_true
+    NOP
+    LDI wdl_false
+    MOV PC, R0
+    NOP
+wdl_true:
+    ADD SP, 3
+    LDI cmp_true
+    MOV PC, R0
+    NOP
+wdl_false:
+    ADD SP, 3
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+
+word_umstar:                ; um* ( u1 u2 -- ud )  the unsigned 32-bit product
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wus_ok
+    NOP
+    JN wus_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wus_ok:
+    LD R1, SP, 0            ; u2, on top
+    LD R2, SP, 1            ; u1
+    MUL32 R2, R1            ; R2:R3 = the product: R2 high, R3 low
+    ST R2, SP, 0            ; the high half on top
+    ST R3, SP, 1            ; and the low half below
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_mstar:                 ; m* ( n1 n2 -- d )  the signed 32-bit product
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wms_ok
+    NOP
+    JN wms_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wms_ok:
+    ; MUL32 is an unsigned multiply, and the high half of a product DOES depend
+    ; on the signs: 3 * -4 is -12, while 3 * 0xFFFC is 0x0002FFF4. An operand
+    ; whose top bit is set stands for itself minus 65536, and 65536 times the
+    ; other operand lands entirely in the high half - so each negative operand
+    ; costs the other one, once.
+    LD R1, SP, 0            ; n2
+    LD R2, SP, 1            ; n1
+    MUL32 R2, R1            ; R2:R3 = the unsigned product
+    LD R1, SP, 0            ; n2 again
+    LD R4, SP, 1            ; n1 again
+    LDI 0
+    CMP R4, R0              ; n1 negative?
+    JNN wms_n1_pos
+    NOP
+    SUB R2, R1              ; the high half loses n2
+wms_n1_pos:
+    LDI 0
+    CMP R1, R0              ; n2 negative?
+    JNN wms_store
+    NOP
+    SUB R2, R4              ; the high half loses n1
+wms_store:
+    ST R2, SP, 0
+    ST R3, SP, 1
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_smrem:                 ; sm/rem ( d1 n1 -- n2 n3 )  symmetric division
+    MOV R9, SP
+    ADD R9, 3
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wsr_ok
+    NOP
+    JN wsr_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wsr_ok:
+    ; The ISA's division IS symmetric: the quotient is truncated toward zero and
+    ; the remainder takes the dividend's sign, which is what sm/rem asks for. The
+    ; dividend is the pair R0:R1 (R0 even), high half first.
+    LD R0, SP, 1            ; d.hi
+    LD R1, SP, 2            ; d.lo
+    LD R12, SP, 0           ; n1
+    DIV32 R0, R12           ; R0 = quotient, R1 = remainder
+    ADD SP, 1               ; n1's cell goes away
+    ST R1, SP, 1            ; the remainder below
+    ST R0, SP, 0            ; the quotient on top, as the standard's n3
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_fmmod:                 ; fm/mod ( d1 n1 -- n2 n3 )  floored division
+    MOV R9, SP
+    ADD R9, 3
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wfm_ok
+    NOP
+    JN wfm_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wfm_ok:
+    LD R0, SP, 1
+    LD R1, SP, 2
+    LD R12, SP, 0           ; n1, still needed for the correction
+    DIV32 R0, R12           ; symmetric first
+    MOV R7, R0              ; the quotient
+    MOV R3, R1              ; the remainder
+    LDI 0
+    CMP R3, R0              ; a zero remainder needs no correction
+    JZ wfm_store
+    NOP
+    MOV R4, R3
+    XOR R4, R12             ; sign(remainder) xor sign(divisor)
+    LDI 0
+    CMP R4, R0
+    JN wfm_correct          ; the signs differ: floor is one less
+    NOP
+wfm_store:
+    ADD SP, 1
+    ST R3, SP, 1            ; the remainder below
+    ST R7, SP, 0            ; the quotient on top
+    LDI next
+    MOV PC, R0
+    NOP
+wfm_correct:
+    SUB R7, 1               ; one from the quotient
+    ADD R3, R12             ; and the divisor back onto the remainder
+    LDI wfm_store
+    MOV PC, R0
+    NOP
+
+word_ummod:                 ; um/mod ( ud u1 -- u2 u3 )  unsigned division
+    MOV R9, SP
+    ADD R9, 3
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wum_ok
+    NOP
+    JN wum_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wum_ok:
+    ; The divider is the signed one, and for a ud it is still the right answer:
+    ; a quotient that fits in a cell means the double's high half is below the
+    ; divisor, so with a divisor below 0x8000 both operands are non-negative and
+    ; the signed division IS the unsigned one. A divisor with bit 15 set - an
+    ; UNSIGNED divisor of 32768 or more - is read as negative and comes out
+    ; signed; that is the one case this word does not cover.
+    LD R0, SP, 1            ; ud.hi
+    LD R1, SP, 2            ; ud.lo
+    LD R12, SP, 0           ; u1
+    DIV32 R0, R12
+    ADD SP, 1
+    ST R1, SP, 1
+    ST R0, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
 
 ; =============================================
 ; BIOS Implementation (at physical 0xF8000)

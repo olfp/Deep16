@@ -85,6 +85,58 @@ signed pair while the standard's `ud` is unsigned: a double at `0x80000000` or
 above converts wrongly. Every way of making a double here keeps the high cell at
 zero, and that is the case these words are for.
 
+## Double-cell numbers
+
+A double is two cells with the **high half on top** — the order `#`/`#>` build
+and consume, the order `s>d` produces, and for a negative number the sign lives
+in that high cell.
+
+| word | stack effect | meaning |
+|------|--------------|---------|
+| `s>d` | `( n -- d )` | widen a single to a double |
+| `d+` | `( d1 d2 -- d3 )` | double add |
+| `d-` | `( d1 d2 -- d3 )` | double subtract |
+| `dnegate` | `( d -- -d )` | double negate |
+| `m+` | `( d1 n -- d2 )` | add a single to a double |
+| `d=` | `( d1 d2 -- flag )` | equal |
+| `d0=` | `( d -- flag )` | zero |
+| `d<` | `( d1 d2 -- flag )` | signed less than |
+| `um*` | `( u1 u2 -- ud )` | the unsigned 32-bit product |
+| `m*` | `( n1 n2 -- d )` | the signed 32-bit product |
+| `um/mod` | `( ud u1 -- u2 u3 )` | unsigned division: `u2` remainder, `u3` quotient |
+| `sm/rem` | `( d1 n1 -- n2 n3 )` | symmetric division: `n2` remainder, `n3` quotient |
+| `fm/mod` | `( d1 n1 -- n2 n3 )` | floored division, the same two cells |
+
+The divisions answer the **quotient on top** and the remainder below it, which is
+what the standard's `u3` and `n3` are. `sm/rem` truncates the quotient toward
+zero and gives the remainder the dividend's sign, so `-7 2 sm/rem` is the
+quotient `-3` and the remainder `-1`; `fm/mod` floors, so the remainder takes the
+divisor's sign and the same pair is `-4` and `1`. Both are exact.
+
+Two limits come from the divider the machine has, which is the **signed** 32÷16
+one:
+
+- `m*` is not `um*`: the high half of a product does depend on the signs
+  (`3 × -4` is `-12` while `3 × 0xFFFC` is `0x0002FFF4`), so `m*` corrects the
+  unsigned result of `MUL32`.
+- `um/mod` is exact whenever the quotient fits in a cell *and* the divisor is
+  below `0x8000`: then the double's high half is below the divisor as well, so
+  both operands are non-negative and the signed division is the unsigned one. An
+  unsigned divisor of `32768` or more is read as negative and comes out signed.
+
+The bigger double words are not here yet — `d.`, `d.r`, `d>s`, `dabs`, `dmax`,
+`dmin`, `2constant`, `2variable`. Two of them are a line each:
+
+```text
+: dabs  dup 0< if dnegate then ;        \ the high cell is where the sign is
+: d.    tuck dabs <# #s rot sign #> type space ;
+```
+
+The signed `d.` is worth reading once: `tuck` keeps the high cell for `sign`,
+`dabs` takes the absolute value of the double below it, `#s` builds the digits,
+and `rot sign` holds the minus that was kept. Without `sign` a negative double
+prints as its magnitude.
+
 ## Stack
 
 | word | stack effect | meaning |
@@ -394,5 +446,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 138 words. New words are added at the head of the
+That is the whole dictionary: 151 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

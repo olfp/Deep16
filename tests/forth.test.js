@@ -3112,6 +3112,118 @@ test('the hold area is bounded, and the picture words check their depth', () => 
   assert.equal(hexOut(': t hold sign #s #> <# ; see t'), ': t hold sign #s #> <# ;');
 });
 
+// ---------------------------------------------------------------------------
+// Tier 2, first batch: double-cell numbers.
+//
+// A double is two cells with the HIGH half on top - the order `#`/`#>` and the
+// standard's own examples use, and the order `s>d` has to produce. d+, d-, m+
+// and dnegate carry from the low cell into the high one, which is what the
+// carry flag is for: ADD sets it on a carry-out and SUB on a borrow, and it has
+// to be read immediately, because LDI clears the whole flag nibble.
+//
+// d< compares the high cells as signed values with the same N/V test the single
+// `<` uses, and only falls back to the low cells when the high ones are equal -
+// and then as UNSIGNED, because -2 is 0xFFFF:0xFFFE and -1 is 0xFFFF:0xFFFF.
+
+test('s>d widens a single, and the double words carry between the cells', () => {
+  assert.equal(hexOut('5 s>d . .'), '0  5');
+  assert.equal(hexOut('5 negate s>d . .'), '-1  -5');
+  assert.equal(hexOut('1 0 2 0 d+ . .'), '0  3');
+  assert.equal(hexOut('0xFFFF 0 1 0 d+ . .'), '1  0');    // the carry reaches the high cell
+  assert.equal(hexOut('3 0 1 0 d- . .'), '0  2');
+  assert.equal(hexOut('0 0 1 0 d- . .'), '-1  -1');       // and so does the borrow
+  assert.equal(hexOut('1 0 dnegate . .'), '-1  -1');
+  assert.equal(hexOut('0xFFFF 0 dnegate . .'), '-1  1');
+  assert.equal(hexOut('1 0 2 m+ . .'), '0  3');
+  assert.equal(hexOut('1 0 2 negate m+ . .'), '-1  -1');
+  assert.equal(hexOut('0xFFFF 0 1 m+ . .'), '1  0');
+  // s>d adds a cell and leaves two; the double words take four and leave two.
+  assert.equal(hexOut('5 s>d depth .'), '2');
+  assert.equal(hexOut('1 0 dnegate depth .'), '2');
+  assert.equal(hexOut('1 0 2 0 d+ depth .'), '2');
+  assert.equal(hexOut('1 0 2 m+ depth .'), '2');
+});
+
+test('the double comparisons answer over the sign boundary', () => {
+  assert.equal(hexOut('1 0 1 0 d= .'), '-1');
+  assert.equal(hexOut('1 0 2 0 d= .'), '0');
+  assert.equal(hexOut('0 0 d0= .'), '-1');
+  assert.equal(hexOut('0 1 d0= .'), '0');
+  assert.equal(hexOut('1 0 2 0 d< .'), '-1');
+  assert.equal(hexOut('2 0 1 0 d< .'), '0');
+  assert.equal(hexOut('5 negate s>d 1 s>d d< .'), '-1');
+  assert.equal(hexOut('0 0x8000 1 0 d< .'), '-1');        // -2^31 is below 1
+  // Equal high cells: the low cells decide, and they decide unsigned.
+  assert.equal(hexOut('2 negate s>d 1 negate s>d d< .'), '-1');
+  assert.equal(hexOut('1 negate s>d 2 negate s>d d< .'), '0');
+  // The high comparison takes the overflow flag, like the single `<`.
+  assert.equal(hexOut('0x7FFF 0xFFFF 1 0 d< .'), '-1');
+  assert.equal(hexOut('0 0x8000 0x7FFF 0 d< .'), '-1');
+});
+
+test('every double word checks its depth', () => {
+  for (const [src, want] of [
+    ['s>d', 1], ['dnegate', 2], ['d0=', 2],
+    ['d+', 4], ['d-', 4], ['d=', 4], ['d<', 4], ['m+', 3],
+  ]) {
+    assert.match(hexrepl(src).join('\n'), /stack underflow/, `${src} on an empty stack`);
+    const short = Array(want - 1).fill('1').join(' ');
+    assert.match(hexrepl(`${short} ${src}`).join('\n'), /stack underflow/,
+      `${src} with ${want - 1} cell(s)`);
+  }
+  // Dictionary words, so see names them.
+  assert.equal(hexOut(': t s>d d+ d- dnegate ; see t'), ': t s>d d+ d- dnegate ;');
+  assert.equal(hexOut(': t m+ d= d0= d< ; see t'), ': t m+ d= d0= d< ;');
+});
+
+test('the multiplying words answer the full 32-bit product', () => {
+  assert.equal(hexOut('3 4 um* . .'), '0  12');
+  assert.equal(hexOut('0xFFFF 0xFFFF um* . .'), '-2  1');      // 0xFFFE0001
+  assert.equal(hexOut('3 4 m* . .'), '0  12');
+  // The high half is where the signs show, and MUL32 is an unsigned multiply:
+  // 3 * -4 is -12, while 3 * 0xFFFC is 0x0002FFF4, so m* has to correct it.
+  assert.equal(hexOut('3 4 negate m* . .'), '-1  -12');
+  assert.equal(hexOut('0x8000 2 m* . .'), '-1  0');            // -32768 * 2
+  assert.equal(hexOut('0x8000 0x8000 m* . .'), '16384  0');    // 1073741824
+  assert.equal(hexOut('0x7FFF 0x7FFF m* . .'), '16383  1');
+  assert.equal(hexOut('0xFFFF 2 m* . .'), '-1  -2');
+  assert.equal(hexOut('2 3 negate m* . .'), '-1  -6');
+});
+
+test('the dividing words agree with each other and with the signs', () => {
+  // All three answer ( remainder quotient ) with the quotient ON TOP, which is
+  // the standard's n3.
+  // sm/rem truncates toward zero and gives the remainder the dividend's sign.
+  assert.equal(hexOut('7 0 2 sm/rem . .'), '3  1');
+  assert.equal(hexOut('7 negate s>d 2 sm/rem . .'), '-3  -1');
+  assert.equal(hexOut('7 0 2 negate sm/rem . .'), '-3  1');
+  // fm/mod floors, so the remainder takes the divisor's sign.
+  assert.equal(hexOut('7 negate s>d 2 fm/mod . .'), '-4  1');
+  assert.equal(hexOut('7 0 2 negate fm/mod . .'), '-4  -1');
+  assert.equal(hexOut('7 negate s>d 2 negate fm/mod . .'), '3  -1');
+  // An exact division needs no correction in either one.
+  assert.equal(hexOut('8 negate s>d 2 fm/mod . .'), '-4  0');
+  assert.equal(hexOut('8 0 2 fm/mod . .'), '4  0');
+  // um/mod takes the double and the divisor and answers the same two cells.
+  assert.equal(hexOut('100 0 7 um/mod . .'), '14  2');
+  assert.equal(hexOut('0 0x0001 2 um/mod u. .'), '32768  0');
+  assert.equal(hexOut('0xFFFF 0 3 um/mod . .'), '21845  0');
+  // The one case the kernel's single signed divider cannot answer: an unsigned
+  // divisor with bit 15 set is read as negative, and 65536/32768 signed is -2.
+  assert.equal(hexOut('0 0x0001 0x8000 um/mod . .'), '-2  0');
+});
+
+test('the multiplying and dividing words check their depth', () => {
+  for (const [src, want] of [['um*', 2], ['m*', 2], ['sm/rem', 3], ['fm/mod', 3], ['um/mod', 3]]) {
+    assert.match(hexrepl(src).join('\n'), /stack underflow/, `${src} on an empty stack`);
+    const short = Array(want - 1).fill('1').join(' ');
+    assert.match(hexrepl(`${short} ${src}`).join('\n'), /stack underflow/,
+      `${src} with ${want - 1} cell(s)`);
+  }
+  assert.equal(hexOut(': t um* m* sm/rem ; see t'), ': t um* m* sm/rem ;');
+  assert.equal(hexOut(': t fm/mod um/mod ; see t'), ': t fm/mod um/mod ;');
+});
+
 test('a base below two stops the printer instead of running away', () => {
   // BASE is a cell, so 0 and 1 can be stored; the standard calls that
   // undefined. What gets printed is garbage - what matters is that the count
