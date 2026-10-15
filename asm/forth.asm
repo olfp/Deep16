@@ -427,7 +427,7 @@ check_paren:
 check_dot_token:
     LDI '.'
     CMP R2, R0
-    JNZ check_number_or_word
+    JNZ check_s_token
     NOP
     MOV R3, TIB
     ADD R3, >IN
@@ -503,50 +503,16 @@ dotq_compile:
     LDI xt_litstr
     MOV R4, R0
     ST R4, R11, -1           ; litstr
-dqc_copy:
-    MOV R10, TIB
-    ADD R10, >IN             ; the source cursor, already inside the quotes
-    LD R2, R10, 0
-    LDI '"'
-    CMP R2, R0
-    JZ dqc_end               ; the closing quote ends the string
+    ; The characters, the NUL and the step over the closing quote live in
+    ; copy_string, which `s"` copies with as well.
+    LDI copy_string
+    MOV R2, R0
+    LINK
+    JMP R2
     NOP
-    LDI 0
-    CMP R2, R0
-    JZ dqc_end               ; so does the end of the line
-    NOP
-    LDI 92
-    CMP R2, R0
-    JNZ dqc_put
-    NOP
-    LD R3, R10, 1            ; a backslash only matters when it quotes
-    LDI '"'
-    CMP R3, R0
-    JNZ dqc_put              ; a backslash before anything else is literal
-    NOP
-    LDI '"'
-    MOV R2, R0               ; copy the quote, not the backslash
-    ST R2, R11, 0
-    ADD R11, 1
-    ADD >IN, 2               ; consume both characters
-    LDI dqc_copy
-    MOV PC, R0
-    NOP
-dqc_put:
-    ST R2, R11, 0
-    ADD R11, 1
-    ADD >IN, 1
-    LDI dqc_copy
-    MOV PC, R0
-    NOP
-dqc_end:
-    LDI 0
-    ST R0, R11, 0            ; NUL terminate, which is what litstr scans for
-    ADD R11, 1
     LDI dp_var
     MOV R2, R0
-    ST R11, R2, 0            ; publish HERE
-    ADD >IN, 1               ; step over the closing quote
+    ST R11, R2, 0            ; publish HERE, one past the NUL
     LDI interpret_loop
     MOV PC, R0
     NOP
@@ -681,6 +647,21 @@ comment_done:
     LDI interpret_loop
     MOV PC, R0
     NOP
+
+check_s_token:
+    ; `s"` is the string that answers an address and a length instead of
+    ; printing. It is recognised by its first two characters, like `."` above
+    ; and for the same reason: what follows it is not a token, so it can never
+    ; reach the dictionary. The branch itself is six words - this block has no
+    ; room to spare - and sq_token_check does the peeking.
+    LDI 's'
+    CMP R2, R0
+    JNZ check_number_or_word
+    NOP
+    LDI sq_token_check
+    MOV PC, R0
+    NOP
+
 check_number_or_word:
     MOV R3, TIB
     ADD R3, >IN
@@ -1907,10 +1888,23 @@ h_hex:
     .text "hex"
     .word word_hex
 h_decimal:
-    .word h_see
+    .word h_pick
     .word 7
     .text "decimal"
     .word word_decimal
+; The fifth batch, chained in at the same place for the same reason. `s"` has no
+; header at all: it is a tokenizer word like `."` and the comments, so there is
+; nothing to find in the dictionary and nothing for `forget` to remove.
+h_pick:
+    .word h_roll
+    .word 4
+    .text "pick"
+    .word word_pick
+h_roll:
+    .word h_see
+    .word 4
+    .text "roll"
+    .word word_roll
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -2248,6 +2242,8 @@ xt_0branch:
     .word zbranch
 xt_litstr:
     .word word_litstr
+xt_sqstr:
+    .word word_sqstr
 xt_do:
     .word word_do_rt
 xt_qdo:
@@ -2315,6 +2311,12 @@ see_str_dotq:
     ; the one after `."`, so a source `." x"` keeps a leading space in the
     ; thread. Printing `."` + those characters gives the source back exactly.
     .text ".\""
+see_str_sq:
+    ; With the space, because `s"` is the other way round: it swallows the one
+    ; blank that delimits the text, so the stored characters are the string
+    ; itself and the blank has to come back for the source to mean the same
+    ; thing when it is read again.
+    .text "s\" "
 see_str_do:
     .text "do "
 see_str_qdo:
@@ -2759,6 +2761,20 @@ print_buf:
     .word 0
     .word 0
     .word 0
+
+; The buffer interpreted `s"` copies into: one cell per character of the longest
+; input line the reader accepts, plus the NUL. A second `s"` overwrites it,
+; which is all the standard's transient buffer promises.
+sq_buf:
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0
 word_key:
     ; BIOS getch -> char in R0
     ; Park >IN (R5) across the BIOS call: the shadow-bank BIOS clobbers R5.
@@ -4136,6 +4152,173 @@ dovoc:
     ST R0, R2, 0
     LDI next
     MOV PC, R0
+    NOP
+
+; =============================================
+; `s"` — the string that answers instead of printing
+; =============================================
+; `s"` is recognised by the tokenizer (check_s_token in the first block) for the
+; same reason `."` is: what follows it is not a token, so it cannot reach the
+; dictionary. It differs from `."` in the one place that matters to a value: ONE
+; blank after the quote is the delimiter and is not part of the string, so
+; `s" xy"` is the two-character string `xy`. `see` puts that blank back when it
+; prints the definition, so the source still round-trips. `."` keeps the blank
+; instead, because printing the stored characters is the only thing it does.
+;
+; Interpreted, `s"` copies the characters into a buffer of its own and answers
+; ( c-addr u ). The standard allows a transient buffer, and a copy is the only
+; way to answer exactly what the compiled form answers, `\"` included.
+; Compiled, it leaves the three cells `."` leaves, with a different marker:
+;
+;     xt_lit  <address of the characters>  xt_sqstr  <characters>  0
+;
+; so the runtime half, word_sqstr, finds the characters and steps the thread
+; over them the way word_litstr does.
+
+sq_token_check:
+    ; Entered from the tokenizer with R2 = the first character of the token,
+    ; which is 's'. R3 is the address of the character after it. This routine
+    ; lives in the second code block, too far for a conditional jump to reach
+    ; the tokenizer's fall-through, so the two exits are long jumps.
+    MOV R3, TIB
+    ADD R3, >IN
+    ADD R3, 1
+    LD R4, R3, 0             ; the character after the 's'
+    LDI '"'
+    CMP R4, R0
+    JZ sq_check_quote
+    NOP
+    LDI check_number_or_word
+    MOV PC, R0
+    NOP
+sq_check_quote:
+    LD R4, R3, 1             ; the character after the quote
+    LDI ' '
+    CMP R4, R0
+    JZ sq_token
+    NOP
+    LDI skip_unknown         ; `s"x"` has no delimiter, so it is not a string
+    MOV PC, R0
+    NOP
+sq_token:
+    MOV R1, R3
+    SUB R1, TIB
+    MOV >IN, R1              ; >IN on the quote
+    ADD >IN, 2               ; past the quote and past the delimiter blank
+    LDI sq_action
+    MOV PC, R0
+    NOP
+
+sq_action:
+    LDI state_var
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI 0
+    CMP R2, R0
+    JNZ sq_compile
+    NOP
+    LDI sq_interpret
+    MOV PC, R0
+    NOP
+
+sq_compile:
+    LDI dp_var
+    MOV R2, R0
+    LD R11, R2, 0            ; HERE: the three cells go there
+    LDI xt_lit
+    MOV R4, R0
+    ST R4, R11, 0            ; LIT
+    ADD R11, 1
+    ADD R11, 1
+    ADD R11, 1               ; the characters start after the three cells
+    MOV R9, R11
+    ST R9, R11, -2           ; their address, for the LIT to push
+    LDI xt_sqstr
+    MOV R4, R0
+    ST R4, R11, -1           ; the marker, which is the runtime word
+    LDI copy_string
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI dp_var               ; R11 is one past the NUL
+    MOV R2, R0
+    ST R11, R2, 0            ; publish HERE
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+sq_interpret:
+    LDI sq_buf
+    MOV R11, R0
+    LDI copy_string
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    ; ( -- c-addr u ), the length from the two ends of the copy. R11 is one
+    ; past the NUL the copy wrote.
+    LDI sq_buf
+    MOV R2, R0
+    MOV R9, R11
+    SUB R9, R2
+    SUB R9, 1
+    SUB SP, 1
+    ST R2, SP, 0             ; c-addr
+    SUB SP, 1
+    ST R9, SP, 0             ; u, on top
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+; copy_string: copy the characters of a string literal out of the parse area
+; into the cells at R11, undoing `\"`, and write the terminating NUL. >IN ends
+; past the closing quote (or at the end of the line) and R11 one cell past the
+; NUL, so the caller can publish HERE from it. LINK-called; `."` and both halves
+; of `s"` go through here, which is also why the two agree about escapes.
+copy_string:
+cs_copy:
+    MOV R10, TIB
+    ADD R10, >IN             ; the source cursor, inside the quotes
+    LD R2, R10, 0
+    LDI '"'
+    CMP R2, R0
+    JZ cs_end                ; the closing quote ends the string
+    NOP
+    LDI 0
+    CMP R2, R0
+    JZ cs_end                ; so does the end of the line
+    NOP
+    LDI 92
+    CMP R2, R0
+    JNZ cs_put
+    NOP
+    LD R3, R10, 1            ; a backslash only matters when it quotes
+    LDI '"'
+    CMP R3, R0
+    JNZ cs_put               ; a backslash before anything else is literal
+    NOP
+    LDI '"'
+    MOV R2, R0               ; copy the quote, not the backslash
+    ST R2, R11, 0
+    ADD R11, 1
+    ADD >IN, 2               ; consume both characters
+    LDI cs_copy
+    MOV PC, R0
+    NOP
+cs_put:
+    ST R2, R11, 0
+    ADD R11, 1
+    ADD >IN, 1
+    LDI cs_copy
+    MOV PC, R0
+    NOP
+cs_end:
+    LDI 0
+    ST R0, R11, 0            ; NUL terminate: the runtime scans for it
+    ADD R11, 1
+    ADD >IN, 1               ; step over the closing quote
+    JMP LR
     NOP
 
 ; =============================================
@@ -5986,8 +6169,12 @@ sb_loop:
     ; `exit` the source put in the middle, dropping the rest of the body.
     LDI xt_exit
     CMP R11, R0
-    JZ sb_end
+    JNZ sb_not_exit          ; not the `;` marker: keep walking
     NOP
+    LDI sb_end               ; sb_end is too far for a conditional jump
+    MOV PC, R0
+    NOP
+sb_not_exit:
     LDI xt_lit
     CMP R11, R0
     JZ sb_lit
@@ -6170,6 +6357,10 @@ sb_lit:
     CMP R3, R0
     JZ sb_string
     NOP
+    LDI xt_sqstr
+    CMP R3, R0
+    JZ sb_string_sq
+    NOP
     LDI xt_do
     CMP R3, R0
     JZ sb_lit_do
@@ -6216,12 +6407,22 @@ sb_lit_qdo:
     MOV PC, R0
     NOP
 
-; A compiled string: `lit <addr> litstr <chars>` and a NUL. The characters are
+; A compiled string: `lit <addr> <marker> <chars>` and a NUL. The characters are
 ; printed in place and the walk skips to the cell after the NUL, so the string
-; bytes are never mistaken for xts.
+; bytes are never mistaken for xts. `."` and `s"` differ only in the marker and
+; in the prefix printed in front: `."` keeps its delimiter blank in the stored
+; text, `s"` does not, so its prefix is the three characters `s" `.
 sb_string:
     LDI see_str_dotq
-    MOV R1, R0
+    MOV R7, R0
+    LDI sb_string_common
+    MOV PC, R0
+    NOP
+sb_string_sq:
+    LDI see_str_sq
+    MOV R7, R0
+sb_string_common:
+    MOV R1, R7
     LDI see_puts
     MOV R2, R0
     LINK
@@ -7347,6 +7548,131 @@ word_decimal:               ; decimal ( -- )  read and print them in base 10
     LDI 10
     ST R0, R2, 0
     LDI next
+    MOV PC, R0
+    NOP
+
+; ---------------------------------------------
+; Tier 1, fifth batch: `s"` at run time, pick and roll
+; ---------------------------------------------
+; `s"` is a tokenizer word (the block at 0x0500 parses and compiles it); what is
+; left here is the compiled runtime half. The thread arrives on the address of
+; the characters - the LIT cell in front of this word pushed it - and the answer
+; is ( c-addr u ). The length is measured by scanning for the NUL the compiler
+; wrote, because the string is stored as characters and nothing else, and the
+; thread then has to be walked past them: without that, `next` reads the first
+; character as an xt and the core jumps into ASCII.
+word_sqstr:                 ; ( -- c-addr u )
+    LD R3, SP, 0            ; the address the LIT cell pushed
+    MOV R7, R3
+    LDI 0
+    MOV R9, R0              ; the length
+sqs_scan:
+    LD R2, R7, 0
+    LDI 0
+    CMP R2, R0
+    JZ sqs_done
+    NOP
+    ADD R7, 1
+    ADD R9, 1
+    LDI sqs_scan
+    MOV PC, R0
+    NOP
+sqs_done:
+    LDI ip_ptr
+    MOV R2, R0
+    MOV R4, R7
+    ADD R4, 1
+    ST R4, R2, 0            ; IP = one past the NUL
+    SUB SP, 1
+    ST R9, SP, 0            ; u, on top of the c-addr that is already there
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_pick:                  ; pick ( xu … x0 u -- xu … x0 xu )
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wpk_under            ; u itself is missing
+    NOP
+    LD R7, SP, 0            ; u
+    ADD SP, 1
+    ; u+1 cells have to be there: SP + u + 1 at or below the base, where the
+    ; empty stack sits.
+    MOV R4, SP
+    ADD R4, R7
+    ADD R4, 1
+    CMP R4, R1
+    JZ wpk_ok
+    NOP
+    JN wpk_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wpk_ok:
+    MOV R4, SP
+    ADD R4, R7
+    LD R3, R4, 0            ; the u-th cell, counting the top as 0
+    SUB SP, 1
+    ST R3, SP, 0            ; and a copy of it goes on top
+    LDI next
+    MOV PC, R0
+    NOP
+wpk_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_roll:                  ; roll ( xu … x0 u -- xu-1 … x0 xu )
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wrl_under
+    NOP
+    LD R7, SP, 0            ; u
+    ADD SP, 1
+    MOV R4, SP
+    ADD R4, R7
+    ADD R4, 1
+    CMP R4, R1
+    JZ wrl_ok
+    NOP
+    JN wrl_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wrl_ok:
+    ; The cell u places down from the top moves to the top and everything above
+    ; it slides down one place. Walking down from that cell keeps every store at
+    ; a positive offset, which matters: an LD/ST offset is five unsigned bits,
+    ; so -1 would silently encode as 31 and write across the stack.
+    MOV R4, SP
+    ADD R4, R7
+    LD R9, R4, 0            ; the value that moves to the top
+    LDI 0
+    CMP R7, R0
+    JZ wrl_finish           ; u = 0: roll does nothing
+    NOP
+wrl_shift:
+    SUB R4, 1
+    LD R3, R4, 0
+    ST R3, R4, 1            ; the cell below slides up one place
+    SUB R7, 1
+    LDI 0
+    CMP R7, R0
+    JNZ wrl_shift
+    NOP
+wrl_finish:
+    ST R9, R4, 0            ; and the saved value lands on top
+    LDI next
+    MOV PC, R0
+    NOP
+wrl_under:
+    LDI stack_underflow_error
     MOV PC, R0
     NOP
 

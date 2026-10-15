@@ -2995,6 +2995,65 @@ test('the printer writes digits in the current base', () => {
   assert.equal(hexOut(': t 16 ; hex see t decimal'), ': t 10 ;');
 });
 
+// ---------------------------------------------------------------------------
+// Tier 1, fifth batch: s", pick and roll.
+//
+// `s"` is the string that answers ( c-addr u ) instead of printing. It is a
+// tokenizer word like `."` - what follows it is not a token, so it can never
+// reach the dictionary - and it differs from `."` in the one place that matters
+// to a value: the blank that delimits the text is not part of the string, so
+// `s" xy"` is two characters and not three. `see` puts that blank back, so the
+// definition it prints still means what the source said.
+
+test('s" answers an address and a length, interpreted and compiled', () => {
+  assert.equal(hexOut('s" hello" type'), 'hello');
+  assert.equal(hexOut('s" hello" nip .'), '5');
+  assert.equal(hexOut('s" " nip .'), '0');           // the delimiter, then the quote
+  assert.equal(hexOut(': g s" hey" ; g type'), 'hey');
+  assert.equal(hexOut(': g s" hey" ; g nip .'), '3');
+  assert.equal(hexOut(': g s" hey" ; g type g type'), 'heyhey');
+  // Spaces inside the text survive; only the delimiter blank is dropped.
+  assert.equal(hexOut(': g s" a b" ; g type'), 'a b');
+  // `\"` is unescaped while the text is stored, in both halves.
+  assert.equal(hexOut(': g s" a\\"b" ; g type'), 'a"b');
+  assert.equal(hexOut(': g s" a\\"b" ; g nip .'), '3');
+  assert.equal(hexOut('s" a\\"b" type'), 'a"b');
+  // Two strings in one definition, and a string inside a loop: the runtime has
+  // to step the thread over the characters, so a wrong skip would show up as a
+  // second pass running off the end of the body.
+  assert.equal(hexOut(': g s" bb" ; : h s" a" g type type ; h'), 'bba');
+  assert.equal(hexOut(': g s" x" ; : t 3 0 do g type loop ; t'), 'xxx');
+  // The blank is the delimiter, so `s"x"` is not a string at all.
+  assert.match(hexrepl('s"x"').join('\n'), /undefined word: s"x"/);
+  // Interpreted the text lives in one buffer, and a second `s"` overwrites it;
+  // compiled the text is copied into the definition, so each one survives.
+  assert.equal(hexOut('s" aa" s" bb" type type'), 'bbbb');
+  assert.equal(hexOut(': g s" aa" ; : h s" bb" ; g type h type'), 'aabb');
+  // see prints the definition back, delimiter blank and all.
+  assert.equal(hexOut(': g s" hey" ; see g'), ': g s" hey" ;');
+  assert.equal(hexOut(': g s" a b" ; see g'), ': g s" a b" ;');
+});
+
+test('pick copies the u-th cell and roll moves it to the top', () => {
+  // pick: u counts from the top, 0 being the top cell itself.
+  assert.equal(hexOut('5 0 pick . .'), '5  5');
+  assert.equal(hexOut('1 2 0 pick . . .'), '2  2  1');
+  assert.equal(hexOut('1 2 3 2 pick . . . .'), '1  3  2  1');
+  assert.equal(hexOut(': t 1 2 3 2 pick . . . . ; t'), '1  3  2  1');
+  // roll: the u-th cell moves to the top and the ones above it slide down.
+  assert.equal(hexOut('1 2 3 2 roll . . .'), '1  3  2');
+  assert.equal(hexOut('1 2 3 4 3 roll . . . .'), '1  4  3  2');
+  assert.equal(hexOut('7 0 roll .'), '7');           // 0 roll is a no-op
+  assert.equal(hexOut(': t 1 2 3 2 roll . . . ; t'), '1  3  2');
+  // Both need u+1 cells; one short is a stack underflow reported by the word
+  // itself, not a read off the end of the stack.
+  for (const src of ['pick', '1 pick', '1 2 5 pick', '1 roll', '1 2 5 roll']) {
+    assert.match(hexrepl(src).join('\n'), /stack underflow/, src);
+  }
+  // Ordinary dictionary words, so see names them.
+  assert.equal(hexOut(': t pick roll ; see t'), ': t pick roll ;');
+});
+
 test('a base below two stops the printer instead of running away', () => {
   // BASE is a cell, so 0 and 1 can be stored; the standard calls that
   // undefined. What gets printed is garbage - what matters is that the count

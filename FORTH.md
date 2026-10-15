@@ -70,6 +70,10 @@ digits instead of dividing by zero or by one for ever.
 | `2over` | `( a b c d -- a b c d a b )` | copy the second pair to the top |
 | `2swap` | `( a b c d -- c d a b )` | exchange the two top pairs |
 | `depth` | `( -- n )` | number of cells on the data stack |
+| `pick` | `( xu … x0 u -- xu … x0 xu )` | copy the u-th cell, counting the top as 0 |
+| `roll` | `( xu … x0 u -- xu-1 … x0 xu )` | move the u-th cell to the top |
+
+`0 pick` is `dup` and `0 roll` does nothing.
 
 ## Return stack
 
@@ -188,10 +192,11 @@ variable x 2 allot  7 9 x 2!  x 2@ . .    \ 9 7  ok
 | `spaces` | `( n -- )` | write `n` blanks |
 | `count` | `( c-addr -- c-addr u )` | length of the zero-terminated string at `c-addr` |
 | `type` | `( c-addr u -- )` | write `u` characters from `c-addr` |
+| `s"` | `( "ccc" -- c-addr u )` | the text between the quotes, as a string |
 
 A string here is a run of one-character cells that ends in a zero cell, because
-one cell is one address unit. `."` writes such a string into a definition, and
-`c,` builds one by hand:
+one cell is one address unit. `."` writes such a string into a definition, `s"`
+answers one, and `c,` builds one by hand:
 
 ```text
 here 72 c, 73 c, 0 c,  count type    \ HI  ok
@@ -201,6 +206,18 @@ here 72 c, 73 c, 0 c,  count type    \ HI  ok
 wants, and not the standard `c-addr+1`: there are no counted strings here for
 that reading to mean anything. `type` masks each cell to its low 8 bits, so a
 NUL character writes nothing rather than stopping.
+
+`."` and `s"` are written into the tokenizer and not into the dictionary — the
+text between the quotes is not a token, so it could never be looked up — and
+they differ in one place. `s"` drops the single blank that delimits the text, so
+`s" xy"` is the two-character string `xy`: a value has to be what was written.
+`."` keeps that blank, because printing the stored characters is all it does and
+the source has to come back exactly as it was typed. Interpreted, `s"` answers a
+copy in a buffer of its own — a second `s"` overwrites it, which is what the
+standard means by a transient buffer — and compiled it copies the text into the
+definition, so the answer is the same on every call. `\"` is unescaped while the
+text is stored, in both halves of both words. A quote with no blank behind it is
+not a string at all: `s"x"` reports itself as an undefined word.
 
 ## Names and execution
 
@@ -344,5 +361,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 130 words. New words are added at the head of the
+That is the whole dictionary: 132 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.
