@@ -544,10 +544,20 @@ screen.
 | `scr!` | `( x off -- )` | write screen cell at ES offset `off` |
 | `echo` | `( flag -- )` | turn keyboard echo on (`-1`) or off (`0`) |
 | `echo?` | `( -- flag )` | keyboard echo state |
+| `form` | `( -- rows cols )` | the screen's shape: `24` rows, `80` columns |
 
 `accept` is the REPL's own reader, not the standard `( addr n -- n2 )`: it
 fills the input buffer and re-enters the interpreter, so it takes nothing and
 returns nothing.
+
+`form` is an extension, not standard Forth, and it answers the **visible**
+screen: 24 rows, not the 25 the BIOS clears, because row 24 is the off-screen
+row the scroll uses. Cols are on top, so `form swap drop` is the width. It lets a
+program wrap its own output, and the two listings here already use it: `words`
+and `see` never split a name or a number at the right edge. When the next token
+plus its separator space would cross column 80, they print CR+LF first and start
+the token on the next line whole — the break lands on the last space, not through
+the middle of a word.
 
 ## Dictionary and the search order
 
@@ -581,5 +591,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 179 words. New words are added at the head of the
+That is the whole dictionary: 180 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

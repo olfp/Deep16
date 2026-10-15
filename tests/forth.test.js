@@ -1041,7 +1041,7 @@ test('words lists the searched wordlist', () => {
   assert.equal(rows[0], 'Hello DeepForth!', 'words must not clear the screen');
   assert.ok(text.includes('forget'), 'lists forget');
   assert.ok(text.includes('vocabulary'), 'lists vocabulary');
-  assert.ok(text.includes('does>'), 'names split across rows survive');
+  assert.ok(text.includes('does>'), 'names are listed whole and the rows wrap at spaces');
   assert.ok(text.includes('see'), 'lists see');
   assert.ok(text.includes('dup'), 'lists primitives');
   assert.ok(text.includes(' ok'), 'the REPL still prints ok');
@@ -3650,4 +3650,61 @@ test('state is a variable, as the manual already claimed', () => {
   assert.equal(row(': peek state @ . ; immediate', ': t peek ;'), '> : t peek ; 1  ok');
   // It is a variable, so see says so.
   assert.equal(hexOut('see state'), 'variable state');
+});
+
+// ---------------------------------------------------------------------------
+// Tier 2, seventh batch: FORM, and wrapping long output at the right edge.
+//
+// The screen is 80 columns wide and the BIOS putch hard-wraps a character at
+// the edge, which splits a long word name or a long `see` line through the
+// border. FORM answers the screen's shape, ( -- rows cols ), so a program can
+// wrap its own output; the two listings that emit many short tokens - `words`
+// and `see` - now break at the space before a token instead, so nothing is ever
+// cut in half. The column comes from the screen cursor SCR, which is the one
+// place the output layer asks where it is.
+//
+// FORM is non-standard and answers the *visible* screen: 24 rows, not the 25 the
+// BIOS clears, because row 24 is the off-screen scroll staging row.
+
+test('form answers the screen shape', () => {
+  // Cols on top, rows below: `( -- rows cols )`.
+  assert.equal(hexOut('form . .'), '80  24');
+  assert.equal(hexOut('form drop .'), '24');
+  assert.equal(hexOut('form swap drop .'), '80');
+  // It is the two-inline-cell constant runtime, so see names it as one.
+  assert.equal(hexOut('see form'), '2constant form 24  80');
+  // And it is usable while defining: a definition can wrap its own output.
+  assert.equal(hexOut(': cols form swap drop ; cols .'), '80');
+});
+
+test('words breaks at the last space before the right border', () => {
+  const a = 'a'.repeat(40), b = 'b'.repeat(40);
+  const { rows } = repl(
+    'vocabulary wwrap\n' +
+    'wwrap definitions\n' +
+    `: ${a} 1 ;\n` +
+    `: ${b} 2 ;\n` +
+    'words\n'
+  );
+  // The newest name fits after the echoed "words"; the next would cross column
+  // 80, so it starts the next line whole instead of being split there.
+  assert.equal(rows[5], '> words ' + b);
+  assert.equal(rows[6], a + '  ok');
+  assert.ok(rows[5].length <= 80 && rows[6].length <= 80);
+  // The whole 40-character name is on one row: the old hard wrap would have put
+  // its first characters on the line above.
+  assert.ok(rows[6].startsWith(a), 'the second name is on one row, from column 0');
+});
+
+test('see breaks long definitions at spaces too', () => {
+  const { rows } = repl(
+    ': long 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 dup dup dup drop drop drop ;\n' +
+    'see long\n'
+  );
+  // The listing wraps after "drop" and the rest starts the next line; no name is
+  // cut at column 80 and the closing " ok" still fits.
+  assert.equal(rows[2],
+    '> see long : long 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 dup dup dup drop drop');
+  assert.equal(rows[3], 'drop ; ok');
+  assert.ok(rows[2].length < 80 && rows[3].length < 80);
 });

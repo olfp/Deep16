@@ -2197,10 +2197,21 @@ h_ddot:
     .text "d."
     .word word_ddot
 h_ddotr:
-    .word h_see
+    .word h_form
     .word 3
     .text "d.r"
     .word word_ddotr
+; FORM answers the screen's shape, ( -- rows cols ), so a program can wrap its own
+; output. It is the two-inline-cell constant runtime, the same one 2CONSTANT uses:
+; 24 is the last visible row index plus one and 80 is the width, both from the
+; screen the BIOS drives. Non-standard, so it is documented as an extension.
+h_form:
+    .word h_see
+    .word 4
+    .text "form"
+    .word doconst2
+    .word 24
+    .word 80
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -2637,6 +2648,8 @@ hd_lr:
     .word 0              ; hold_double's, across its hld_put and hld_step calls
 hd_neg:
     .word 0              ; its sign, held after the digits so the minus reads first
+wif_lr:
+    .word 0              ; wrap_if's return address, across its put_char calls
 pt_lr:
     .word 0              ; print_text's return address across its putch call
 
@@ -5467,6 +5480,107 @@ word_2variable:             ; 2variable ( "name" -- )
     NOP
 
 ; =============================================
+; Wrapping output at the right edge
+; =============================================
+; The screen is 80 columns wide and the BIOS putch hard-wraps a character at the
+; edge, which splits a long word name or a long `see` line through the border.
+; The two printing walks that emit many short tokens - `words` and `see` - break
+; at the space before a token instead: when the token plus its separator space
+; would not fit, they print CR+LF first and start the token on the next line.
+;
+; The cursor position is the machine truth, so the column comes from SCR. This
+; is the one place the output layer asks the screen where it is; a UART port
+; would change this routine alone. CRC 0x1000 is the screen's base (see the
+; BIOS), 80 its width.
+
+; wrap_if: R7 is the width of the token about to be printed. If the token plus
+; its separator space would pass the right edge, and the cursor is not already
+; at the start of a line, print CR+LF. R7 is read and destroyed; nothing else the
+; callers carry (R1-R3, R10-R12) is touched - only the registers put_char uses
+; as scratch (R0, R4, R7, R9) are, so a walker can hold its place across a call.
+wrap_if:
+    LDI wif_lr
+    ST LR, R0, 0            ; R0 = wif_lr; park LR, which put_char takes
+    MOV R9, SCR             ; the cursor, as an offset in the screen
+    LDI 0x1000
+    MOV R4, R0
+    SUB R9, R4              ; offset from the screen's base
+    LDI 80
+    MOV R4, R0              ; the screen's width
+    MOV R0, R9
+    DIV R0, R4              ; R0 = row (DIV keeps only the quotient)
+    MUL R0, R4
+    SUB R9, R0              ; R9 = column
+    LDI 0
+    CMP R9, R0
+    JZ wif_done             ; column 0: the token already starts a line
+    NOP
+    ADD R9, R7              ; the column, plus the token
+    ADD R9, 1               ; plus the space that follows it
+    CMP R9, R4              ; 80: does it still fit?
+    JN wif_done
+    NOP
+    JZ wif_done
+    NOP
+    LDI put_char
+    MOV R4, R0
+    LDI 13                  ; CR: column 0
+    LINK
+    JMP R4
+    NOP
+    LDI put_char
+    MOV R4, R0
+    LDI 10                  ; LF: next row, scrolling at the bottom
+    LINK
+    JMP R4
+    NOP
+wif_done:
+    LDI wif_lr
+    LD LR, R0, 0            ; R0 = wif_lr again
+    JMP LR
+    NOP
+
+; number_width: R2 is a magnitude; answers its digit count in the current base in
+; R12, for the wrap decision in see_num. It runs on a copy of R2, so the value
+; the caller is about to print survives. The unsigned 32-bit division is the one
+; print_number uses: the dividend's high half is zero and the dividend's low half
+; is the value, so a magnitude above 0x7FFF is not read as negative. The count
+; stops at sixteen digits, the same bound the printer and the pictured-number
+; words keep, so a base below two cannot run away.
+number_width:
+    LDI 0
+    MOV R12, R0
+    LDI 0
+    CMP R2, R0
+    JNZ nw_div
+    NOP
+    LDI 1
+    MOV R12, R0             ; zero is one digit
+    JMP LR
+    NOP
+nw_div:
+    LDI base_var
+    LD R4, R0, 0            ; the base in force (R0 = base_var's address)
+    MOV R7, R2              ; the running value, so R2 survives
+nw_step:
+    MOV R1, R7
+    LDI 0
+    DIV32 R0, R4            ; R0 = quotient, R1 = remainder
+    ADD R12, 1
+    MOV R7, R0
+    LDI 0
+    CMP R7, R0
+    JZ nw_done
+    NOP
+    LDI 16
+    CMP R12, R0
+    JNZ nw_step
+    NOP
+nw_done:
+    JMP LR
+    NOP
+
+; =============================================
 ; P2: Indirect-threaded code engine
 ; =============================================
 ; A word is addressed by its execution token (xt): the address of its CFA
@@ -6761,6 +6875,12 @@ wwords_hdr:
     LD R2, R3, 1
     LDI 0x00FF
     AND R2, R0            ; name length
+    MOV R7, R2
+    LDI wrap_if           ; break before the name if it will not fit the line
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     MOV R1, R3
     ADD R1, 2             ; name pointer
 wwords_char:
@@ -7170,13 +7290,37 @@ see_print_name:
     NOP
 
 ; see_puts: print the NUL-terminated string whose address is in R1, through
-; put_char. It disturbs R0, R4, R7 and R9 (and R5/SCR via the BIOS), so
-; see_find_name and see_body can keep their header walk in R10/R11/R12 across
-; the call; R1-R3 are shadow copies and put_char leaves them alone.
+; put_char, first measuring it and breaking to the next line if it would cross
+; the right edge. It disturbs R0, R4, R7, R9 and R12 (and R5/SCR via the BIOS),
+; so a walker can keep its place in R10/R11 across the call; R1-R3 are shadow
+; copies and put_char leaves them alone.
 see_puts:
     LDI see_lrp
     MOV R3, R0
     ST LR, R3, 0
+    ; Measure the string first: the width is what the wrap decision needs. R1 is
+    ; walked to the NUL and put back; R12 carries the count.
+    LDI 0
+    MOV R12, R0
+see_puts_measure:
+    LD R2, R1, 0
+    LDI 0
+    CMP R2, R0
+    JZ see_puts_measured
+    NOP
+    ADD R1, 1
+    ADD R12, 1
+    LDI see_puts_measure
+    MOV PC, R0
+    NOP
+see_puts_measured:
+    SUB R1, R12             ; back to the first character
+    MOV R7, R12
+    LDI wrap_if
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
 see_puts_loop:
     LD R2, R1, 0
     LDI 0
@@ -7201,7 +7345,8 @@ see_puts_done:
     NOP
 
 ; see_num: print the signed value in R2 the way "." does, then the trailing
-; space print_number adds.
+; space print_number adds. The width is the digit count plus the minus, measured
+; before anything is printed so the token can be moved to the next line whole.
 see_num:
     LDI see_lrs
     MOV R3, R0
@@ -7209,6 +7354,17 @@ see_num:
     LDI 0
     CMP R2, R0
     JN see_num_neg
+    NOP
+    LDI number_width
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+    MOV R7, R12
+    LDI wrap_if
+    MOV R3, R0
+    LINK
+    JMP R3
     NOP
     LDI print_number
     MOV R3, R0
@@ -7219,15 +7375,27 @@ see_num:
     MOV PC, R0
     NOP
 see_num_neg:
+    NEG R2
+    LDI number_width
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+    MOV R7, R12
+    ADD R7, 1              ; and the minus reads first
+    LDI wrap_if
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
     LDI put_char
     MOV R4, R0
     LDI '-'
     LINK
     JMP R4
     NOP
-    NEG R2                 ; -32768 is unrepresentable and stays put, exactly
-    LDI print_number       ; like "."; print_number then shows it unsigned
-    MOV R3, R0
+    LDI print_number       ; -32768 is unrepresentable and stays put, exactly
+    MOV R3, R0             ; like "."; print_number then shows it unsigned
     LINK
     JMP R3
     NOP
