@@ -1010,6 +1010,7 @@ test('words lists the searched wordlist', () => {
   assert.ok(text.includes('forget'), 'lists forget');
   assert.ok(text.includes('vocabulary'), 'lists vocabulary');
   assert.ok(text.includes('does>'), 'names split across rows survive');
+  assert.ok(text.includes('see'), 'lists see');
   assert.ok(text.includes('dup'), 'lists primitives');
   assert.ok(text.includes(' ok'), 'the REPL still prints ok');
   assert.ok(running);
@@ -1074,6 +1075,120 @@ test('forget rejects an unknown name', () => {
   assert.equal(rows[3], 'undefined word: nope');
   assert.equal(rows[4], '> a . 1  ok');
   assert.equal(rows[5], '>');
+});
+
+// ---------------------------------------------------------------------------
+// SEE
+//
+// `see name` decompiles a word rather than running it. A colon definition comes
+// back as `: name ... ;` by walking the thread and resolving each xt back to a
+// name; other kinds print as the word that made them. The tests below pin both
+// the shapes and the cells that carry inline data, since mistaking one for a
+// word would print a stray number or jump into the middle of a string.
+// ---------------------------------------------------------------------------
+
+test('see prints a colon definition as its source shape', () => {
+  const { rows, running } = repl(': square dup * ;\nsee square\n');
+  assert.equal(rows[1], '> : square dup * ; ok');
+  assert.equal(rows[2], '> see square : square dup * ; ok');
+  assert.equal(rows[3], '>');
+  assert.ok(running);
+});
+
+test('see prints a compiled string back as ." ... "', () => {
+  // The compiler stores the characters from the one after `."`, so the source
+  // `." hallo welt"` keeps a leading space in the thread and see prints it back.
+  const { rows } = repl(': greet ." hallo welt" ;\nsee greet\n');
+  assert.equal(rows[2], '> see greet : greet ." hallo welt" ; ok');
+});
+
+test('see decompiles do/loop and ?do', () => {
+  const { rows } = repl(': count 10 0 do i . loop ;\n: q 0 0 ?do i . loop ;\nsee count\nsee q\n');
+  assert.equal(rows[3], '> see count : count 10 0 do i . loop ; ok');
+  assert.equal(rows[4], '> see q : q 0 0 ?do i . loop ; ok');
+});
+
+test('see names the word that made a variable, constant, create or vocabulary', () => {
+  const { rows } = repl(
+    'variable x\n' +
+    'see x\n' +
+    '5 constant five\n' +
+    'see five\n' +
+    ': const create , does> @ ;\n' +
+    '42 const answer\n' +
+    'see answer\n' +
+    'vocabulary foo\n' +
+    'see foo\n'
+  );
+  assert.equal(rows[2], '> see x variable x  ok');
+  assert.equal(rows[4], '> see five constant five 5  ok');
+  assert.equal(rows[7], '> see answer create answer does> @ ; ok');
+  assert.equal(rows[9], '> see foo vocabulary foo  ok');
+});
+
+test('see calls a primitive code', () => {
+  const { rows } = repl('see dup\n');
+  assert.equal(rows[1], '> see dup code dup  ok');
+});
+
+test('see shows branches with their offset instead of rebuilding if/then', () => {
+  // if/then would need the whole control-flow structure; the offset is what is
+  // really in the dictionary, and a forward one points past the body it guards.
+  const { rows } = repl(
+    ': t dup 0 < if 1- then ;\n' +
+    'see t\n' +
+    ': c 5 begin 1- dup 0 = until ;\n' +
+    'see c\n'
+  );
+  assert.equal(rows[2], '> see t : t dup 0 < (0branch) 2 1- ; ok');
+  assert.equal(rows[4], '> see c : c 5 1- dup 0 = (0branch) -6 ; ok');
+});
+
+test('see keeps the body after a mid-definition exit', () => {
+  // `;` compiles the address of xt_exit and `exit` its own header; keying the
+  // end on that value, not on the code field, keeps the rest of the body.
+  const { rows } = repl(': f 1 exit 2 ;\nsee f\n');
+  assert.equal(rows[2], '> see f : f 1 exit 2 ; ok');
+});
+
+test('see resolves a body word through the dictionary, including recurse', () => {
+  const { rows } = repl(
+    ': sq dup * ;\n' +
+    ': cube sq sq sq ;\n' +
+    'see cube\n' +
+    ': r dup 0 > if dup 1- recurse then ;\n' +
+    'see r\n'
+  );
+  assert.equal(rows[3], '> see cube : cube sq sq sq ; ok');
+  assert.equal(rows[5], '> see r : r dup 0 > (0branch) 4 dup 1- r ; ok');
+});
+
+test('see rejects an unknown name like any other word', () => {
+  const { rows } = repl('see nope\n');
+  assert.equal(rows[1], '> see nope');
+  assert.equal(rows[2], 'undefined word: nope');
+  assert.equal(rows[3], '>');
+});
+
+test('see stops when the thread leaves the dictionary', () => {
+  // `: n 1 2 nosuchword ;` fails inside the definition, so `;` never runs and
+  // n's thread has no end marker. The cells past its last word are not thread
+  // cells; the walk must stop there and not run off into whatever the machine
+  // was initialised with.
+  const { rows, running } = repl(': n 1 2 nosuchword ;\nsee n\n');
+  assert.equal(rows[2], 'undefined word: nosuchword');
+  assert.ok(rows[3].startsWith('> see n : n 1 2 '), `unexpected output: ${rows[3]}`);
+  assert.ok(rows[3].endsWith(' ok'));
+  assert.equal(rows[4], '>');
+  assert.ok(running, 'see must not walk off the end of the dictionary');
+});
+
+test('see leaves the interpreter and the stack usable', () => {
+  const { rows, running } = repl(': square dup * ;\nsee square\n5 square .\n');
+  assert.equal(rows[2], '> see square : square dup * ; ok');
+  assert.equal(rows[3], '> 5 square . 25  ok');
+  assert.equal(rows[4], '>');
+  assert.ok(running);
 });
 
 test('. prints the signed value while u. shows the raw cell', () => {

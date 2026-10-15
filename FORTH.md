@@ -170,6 +170,7 @@ returns nothing.
 | word | stack effect | meaning |
 |------|--------------|---------|
 | `words` | `( -- )` | clear the screen and list the first wordlist |
+| `see` | `( -- )` | `see name` print how `name` is built instead of running it |
 | `forget` | `( -- )` | `forget name` drops `name` and everything after it |
 | `vocabulary` | `( -- )` | `vocabulary name` makes a new wordlist |
 | `definitions` | `( -- )` | new definitions go into the first searched wordlist |
@@ -184,5 +185,16 @@ vocabulary foo  also foo  definitions  \ define into foo
 only forth definitions                  \ back to FORTH
 ```
 
-That is the whole dictionary: 92 words. New words are added at the head of the
+`see` prints a definition the way it was written: a colon word as `: name … ;`
+(with each compiled word named, and a compiled string back as `." … "`), and
+anything else as the word that made it — `variable name`, `constant name value`,
+`create name does> …`, `vocabulary name`, or `code name` for a primitive. It
+walks the thread until the `;` the compiler put there, so an `exit` in the
+middle of a body still shows the rest. Two things are not reconstructed:
+`if`/`then`/`begin`/`until` appear as `(branch)`/`(0branch)` with the stored
+offset, and a word the current search order cannot reach prints as `?<xt>` —
+which is also where the listing stops if the thread runs past its own end (a
+definition whose `;` never ran).
+
+That is the whole dictionary: 93 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

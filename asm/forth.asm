@@ -1624,10 +1624,19 @@ h_minus:
 ;
 ; scr@ and scr! are newer still, and sit above them for the same reason.
 h_cls:
-    .word h_do
+    .word h_see
     .word 3
     .text "cls"
     .word word_cls
+; SEE is a dictionary word, so it needs a header like any other. It sits between
+; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
+; naming h_cls: the chain test in tests/forth.test.js pins that, and find walks
+; the whole chain anyway, so a word is reachable from any position.
+h_see:
+    .word h_do
+    .word 3
+    .text "see"
+    .word word_see
 ; The loop words, inserted after h_cls for the same reason as the bit words
 ; below: the headers are newest-first and forth_wl names the newest, so new
 ; ones go at the head of the chain and the tail keeps its old links. `do`,
@@ -1969,6 +1978,65 @@ created_xt:
     .word 0              ; xt of the newest CREATE'd word (for DOES>)
 loop_depth:
     .word 0              ; DO/LOOP pairs open while compiling
+
+; --- SEE: decompiler state and its fixed strings ---
+; see_cfa/see_hdr are the word under inspection, see_ptr walks its thread and
+; see_xt carries an xt into the reverse lookup. The five ..._lr cells hold a
+; return address across the helpers' nested LINKs: LINK overwrites LR, so a
+; routine that calls another keeps its own slot instead of sharing one.
+see_cfa:
+    .word 0              ; the target word's CFA (xt) cell
+see_hdr:
+    .word 0              ; the target word's header
+see_ptr:
+    .word 0              ; cell of the thread being decompiled
+see_xt:
+    .word 0              ; the xt being resolved back to a name
+see_miss:
+    .word 0              ; set by the reverse lookup when no word matched
+see_lrb:
+    .word 0              ; see_body's return address
+see_lrf:
+    .word 0              ; see_find_name's return address
+see_lrh:
+    .word 0              ; see_head's return address
+see_lrn:
+    .word 0              ; see_print_name's return address
+see_lrp:
+    .word 0              ; see_puts's return address
+see_lrs:
+    .word 0              ; see_num's return address
+see_str_colon:
+    .text ": "
+see_str_code:
+    .text "code "
+see_str_variable:
+    .text "variable "
+see_str_constant:
+    .text "constant "
+see_str_create:
+    .text "create "
+see_str_does:
+    .text "does> "
+see_str_vocab:
+    .text "vocabulary "
+see_str_dotq:
+    ; No space after the quote: the compiler stores the characters starting at
+    ; the one after `."`, so a source `." x"` keeps a leading space in the
+    ; thread. Printing `."` + those characters gives the source back exactly.
+    .text ".\""
+see_str_do:
+    .text "do "
+see_str_qdo:
+    .text "?do "
+see_str_loop:
+    .text "loop "
+see_str_leave:
+    .text "leave "
+see_str_branch:
+    .text "(branch) "
+see_str_0branch:
+    .text "(0branch) "
 dict_free:               ; colon definitions are built upwards from here
 
 .code
@@ -5061,6 +5129,705 @@ word_forget:
 forget_unknown:
     LDI skip_unknown
     MOV PC, R0
+    NOP
+
+; =============================================
+; P5: SEE, the decompiler
+; =============================================
+; `see name` prints how a word is built instead of running it. A colon
+; definition comes back as `: name ... ;`: the thread is walked cell by cell and
+; each xt is resolved back to its header, so the body prints as the words that
+; compiled it. The cells carrying inline data are recognised by the word in
+; front of them - `lit` is followed by the literal, a compiled string by
+; `litstr` and the characters (printed as `.\" text"`), `(do)`/`(?do)` by the
+; loop's exit address, and `branch`/`0branch` by their offset. The definition ends
+; at the address of `xt_exit`, which is what `;` compiles and nothing else does -
+; keying on the code field `exit` instead would also stop at an `exit` the source
+; put in the middle of a body.
+;
+; Other kinds of word print as the word that made them - variable, constant,
+; create (with its `does>` action), vocabulary - or as `code` when the CFA is
+; machine code. The name lookup runs through the search order, so a word that is
+; not currently searched prints as `?<n>`; a cell that names no word at all is
+; not a thread cell, so the walk stops there (see sb_abort).
+;
+; Register use follows the kernel: R5 (>IN) and R6 (TIB) must survive, R8 (SCR)
+; is the output cursor, R13 is the data stack. The walk keeps its place in
+; see_ptr rather than a register because print_number and the reverse lookup
+; clobber every scratch register.
+word_see:
+    ; Resolve the next token to an xt and a header.
+    LDI find_token
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 0
+    CMP R1, R0
+    JZ see_unknown
+    NOP
+    ; R1 = CFA cell address, R7 = header.
+    LDI see_cfa
+    MOV R3, R0
+    ST R1, R3, 0
+    LDI see_hdr
+    MOV R3, R0
+    ST R7, R3, 0
+    ; A leading space keeps the output off the echoed name.
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ; Dispatch on the code field.
+    LD R3, R1, 0
+    LDI docol
+    CMP R3, R0
+    JZ see_colon
+    NOP
+    LDI dovar
+    CMP R3, R0
+    JZ see_variable
+    NOP
+    LDI doconst
+    CMP R3, R0
+    JZ see_constant
+    NOP
+    LDI dodoes
+    CMP R3, R0
+    JZ see_created
+    NOP
+    LDI dovoc
+    CMP R3, R0
+    JZ see_vocabulary
+    NOP
+    ; Anything else is a primitive.
+    LDI see_str_code
+    MOV R1, R0
+    LDI see_head
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI see_done
+    MOV PC, R0
+    NOP
+
+see_colon:
+    LDI see_str_colon
+    MOV R1, R0
+    LDI see_head
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    ; CFA + 1 is the first cell of the body.
+    LDI see_cfa
+    MOV R3, R0
+    LD R3, R3, 0
+    ADD R3, 1
+    LDI see_ptr
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI see_body
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI see_done
+    MOV PC, R0
+    NOP
+
+see_variable:
+    LDI see_str_variable
+    MOV R1, R0
+    LDI see_head
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI see_done
+    MOV PC, R0
+    NOP
+
+see_constant:
+    LDI see_str_constant
+    MOV R1, R0
+    LDI see_head
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    ; The constant lives in the cell after the CFA.
+    LDI see_cfa
+    MOV R3, R0
+    LD R3, R3, 0
+    ADD R3, 1
+    LD R2, R3, 0
+    LDI see_num
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+    LDI see_done
+    MOV PC, R0
+    NOP
+
+see_created:
+    LDI see_str_create
+    MOV R1, R0
+    LDI see_head
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    ; The cell after the CFA holds the DOES> thread, 0 when there is none.
+    LDI see_cfa
+    MOV R3, R0
+    LD R3, R3, 0
+    ADD R3, 1
+    LD R2, R3, 0
+    LDI 0
+    CMP R2, R0
+    JZ see_done
+    NOP
+    LDI see_str_does
+    MOV R1, R0
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI see_cfa
+    MOV R3, R0
+    LD R3, R3, 0
+    ADD R3, 1
+    LD R2, R3, 0
+    LDI see_ptr
+    MOV R1, R0
+    ST R2, R1, 0
+    LDI see_body
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI see_done
+    MOV PC, R0
+    NOP
+
+see_vocabulary:
+    LDI see_str_vocab
+    MOV R1, R0
+    LDI see_head
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI see_done
+    MOV PC, R0
+    NOP
+
+see_done:
+    LDI next
+    MOV PC, R0
+    NOP
+
+see_unknown:
+    LDI skip_unknown
+    MOV PC, R0
+    NOP
+
+; see_head: print the prefix string in R1, then the name in see_hdr and a space,
+; so the five kind-specific entries share one line of output code.
+see_head:
+    LDI see_lrh
+    MOV R3, R0
+    ST LR, R3, 0
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI see_print_name
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI see_lrh
+    MOV R3, R0
+    LD LR, R3, 0
+    JMP LR
+    NOP
+
+; see_print_name: print the name held in the header at see_hdr, then a space.
+see_print_name:
+    LDI see_lrn
+    MOV R3, R0
+    ST LR, R3, 0
+    LDI see_hdr
+    MOV R3, R0
+    LD R1, R3, 0
+    ADD R1, 2              ; name; .text left a NUL after it
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI see_lrn
+    MOV R3, R0
+    LD LR, R3, 0
+    JMP LR
+    NOP
+
+; see_puts: print the NUL-terminated string whose address is in R1. R1, R2, R3
+; and R0 are the only registers it disturbs, which is what lets see_find_name
+; keep its header walk in R10/R11/R12 across the call.
+see_puts:
+    LDI see_lrp
+    MOV R3, R0
+    ST LR, R3, 0
+see_puts_loop:
+    LD R2, R1, 0
+    LDI 0
+    CMP R2, R0
+    JZ see_puts_done
+    NOP
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD R1, 1
+    LDI see_puts_loop
+    MOV PC, R0
+    NOP
+see_puts_done:
+    LDI see_lrp
+    MOV R3, R0
+    LD LR, R3, 0
+    JMP LR
+    NOP
+
+; see_num: print the signed value in R2 the way "." does, then the trailing
+; space print_number adds.
+see_num:
+    LDI see_lrs
+    MOV R3, R0
+    ST LR, R3, 0
+    LDI 0
+    CMP R2, R0
+    JN see_num_neg
+    NOP
+    LDI print_number
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+    LDI see_num_done
+    MOV PC, R0
+    NOP
+see_num_neg:
+    LDI '-'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    NEG R2                 ; -32768 is unrepresentable and stays put, exactly
+    LDI print_number       ; like "."; print_number then shows it unsigned
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+see_num_done:
+    LDI see_lrs
+    MOV R3, R0
+    LD LR, R3, 0
+    JMP LR
+    NOP
+
+; see_find_name: print the name of the word whose CFA cell address is in see_xt,
+; then a space. A word that the current search order does not reach prints as
+; "?<xt>", which is also what a Corrupted body would produce.
+see_find_name:
+    LDI see_lrf
+    MOV R3, R0
+    ST LR, R3, 0
+    LDI see_miss
+    MOV R3, R0
+    LDI 0
+    ST R0, R3, 0           ; cleared here, set again only if nothing matched
+    LDI see_xt
+    MOV R3, R0
+    LD R11, R3, 0          ; R11 = the target xt
+    LDI 0
+    MOV R12, R0            ; index into search_order
+sfn_wl:
+    LDI search_order
+    MOV R3, R0
+    ADD R3, R12
+    LD R3, R3, 0
+    LDI 0
+    CMP R3, R0
+    JZ sfn_none
+    NOP
+    LD R10, R3, 0          ; newest header of that wordlist
+sfn_hdr:
+    LDI 0
+    CMP R10, R0
+    JZ sfn_next_wl
+    NOP
+    LD R3, R10, 1
+    LDI 0x00FF
+    AND R3, R0             ; name length
+    MOV R4, R10
+    ADD R4, 3
+    ADD R4, R3             ; R4 = the header's CFA cell address
+    CMP R4, R11
+    JNZ sfn_next
+    NOP
+    MOV R1, R10
+    ADD R1, 2
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI sfn_done
+    MOV PC, R0
+    NOP
+sfn_next:
+    LD R10, R10, 0
+    LDI sfn_hdr
+    MOV PC, R0
+    NOP
+sfn_next_wl:
+    ADD R12, 1
+    LDI sfn_wl
+    MOV PC, R0
+    NOP
+sfn_none:
+    LDI '?'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI see_xt
+    MOV R3, R0
+    LD R2, R3, 0
+    LDI see_num
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+    ; Tell see_body no word matched: that cell cannot be a thread cell.
+    LDI see_miss
+    MOV R3, R0
+    LDI 1
+    ST R0, R3, 0
+sfn_done:
+    LDI see_lrf
+    MOV R3, R0
+    LD LR, R3, 0
+    JMP LR
+    NOP
+
+; see_body: decompile the thread at see_ptr up to (and including) its exit cell.
+; see_store advances see_ptr by the delta in R12 and loops, so no element
+; handler has to keep the pointer in a register across a helper call.
+see_body:
+    LDI see_lrb
+    MOV R3, R0
+    ST LR, R3, 0
+sb_loop:
+    LDI see_ptr
+    MOV R3, R0
+    LD R10, R3, 0
+    LD R11, R10, 0         ; the xt in the current cell
+    ; `;` compiles the address of xt_exit and nothing else does, so that value
+    ; alone marks the end. Testing the code field instead would also stop at an
+    ; `exit` the source put in the middle, dropping the rest of the body.
+    LDI xt_exit
+    CMP R11, R0
+    JZ sb_end
+    NOP
+    LDI xt_lit
+    CMP R11, R0
+    JZ sb_lit
+    NOP
+    LDI xt_do
+    CMP R11, R0
+    JZ sb_dort
+    NOP
+    LDI xt_qdo
+    CMP R11, R0
+    JZ sb_qdort
+    NOP
+    LDI xt_loop
+    CMP R11, R0
+    JZ sb_loop_rt
+    NOP
+    LDI xt_leave
+    CMP R11, R0
+    JZ sb_leave_rt
+    NOP
+    LDI xt_0branch
+    CMP R11, R0
+    JZ sb_0branch
+    NOP
+    LDI xt_branch
+    CMP R11, R0
+    JZ sb_branch
+    NOP
+    ; An ordinary name: hand the xt to the reverse lookup.
+    LDI see_xt
+    MOV R3, R0
+    ST R11, R3, 0
+    LDI see_find_name
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    ; A cell that resolves to no word is not a thread cell, so the walk has run
+    ; past the definition. That happens when `;` never compiled - the source was
+    ; still being written when something failed - and the cells beyond hold
+    ; whatever the machine was initialised with. Stop instead of walking on.
+    LDI see_miss
+    MOV R3, R0
+    LD R3, R3, 0
+    LDI 0
+    CMP R3, R0
+    JNZ sb_abort
+    NOP
+    LDI 1
+    MOV R12, R0
+    LDI see_store
+    MOV PC, R0
+    NOP
+
+sb_dort:
+    LDI see_str_do
+    MOV R1, R0
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 1
+    MOV R12, R0
+    LDI see_store
+    MOV PC, R0
+    NOP
+sb_qdort:
+    LDI see_str_qdo
+    MOV R1, R0
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 1
+    MOV R12, R0
+    LDI see_store
+    MOV PC, R0
+    NOP
+sb_loop_rt:
+    LDI see_str_loop
+    MOV R1, R0
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 1
+    MOV R12, R0
+    LDI see_store
+    MOV PC, R0
+    NOP
+sb_leave_rt:
+    LDI see_str_leave
+    MOV R1, R0
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 1
+    MOV R12, R0
+    LDI see_store
+    MOV PC, R0
+    NOP
+
+; A branch prints its mnemonic and the stored offset. Reconstructing if/then
+; would need the whole control-flow structure; the offset is what is really in
+; the dictionary, and a forward one points past the body it guards.
+sb_branch:
+    LDI see_str_branch
+    MOV R1, R0
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI see_ptr
+    MOV R3, R0
+    LD R10, R3, 0
+    LD R2, R10, 1
+    LDI see_num
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+    LDI 2
+    MOV R12, R0
+    LDI see_store
+    MOV PC, R0
+    NOP
+sb_0branch:
+    LDI see_str_0branch
+    MOV R1, R0
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI see_ptr
+    MOV R3, R0
+    LD R10, R3, 0
+    LD R2, R10, 1
+    LDI see_num
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+    LDI 2
+    MOV R12, R0
+    LDI see_store
+    MOV PC, R0
+    NOP
+
+; A literal is a `lit` cell and the value behind it. The cell past the value
+; says whether it is really something else: `litstr` means the value is the
+; address of a compiled string, and (do)/(?do) mean the value is the loop's
+; exit address, which the source never showed.
+sb_lit:
+    LD R3, R10, 2
+    LDI xt_litstr
+    CMP R3, R0
+    JZ sb_string
+    NOP
+    LDI xt_do
+    CMP R3, R0
+    JZ sb_lit_do
+    NOP
+    LDI xt_qdo
+    CMP R3, R0
+    JZ sb_lit_qdo
+    NOP
+    LD R2, R10, 1
+    LDI see_num
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+    LDI 2
+    MOV R12, R0
+    LDI see_store
+    MOV PC, R0
+    NOP
+sb_lit_do:
+    LDI see_str_do
+    MOV R1, R0
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 3
+    MOV R12, R0
+    LDI see_store
+    MOV PC, R0
+    NOP
+sb_lit_qdo:
+    LDI see_str_qdo
+    MOV R1, R0
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 3
+    MOV R12, R0
+    LDI see_store
+    MOV PC, R0
+    NOP
+
+; A compiled string: `lit <addr> litstr <chars>` and a NUL. The characters are
+; printed in place and the walk skips to the cell after the NUL, so the string
+; bytes are never mistaken for xts.
+sb_string:
+    LDI see_str_dotq
+    MOV R1, R0
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI see_ptr
+    MOV R3, R0
+    LD R10, R3, 0
+    LD R11, R10, 1         ; the characters' address
+sb_string_loop:
+    LD R2, R11, 0
+    LDI 0
+    CMP R2, R0
+    JZ sb_string_end
+    NOP
+    STS R2, ES, SCR
+    ADD SCR, 1
+    ADD R11, 1
+    LDI sb_string_loop
+    MOV PC, R0
+    NOP
+sb_string_end:
+    LDI '"'
+    STS R0, ES, SCR
+    ADD SCR, 1
+    LDI ' '
+    STS R0, ES, SCR
+    ADD SCR, 1
+    ADD R11, 1             ; R11 sits on the NUL: step past it
+    LDI see_ptr
+    MOV R3, R0
+    ST R11, R3, 0
+    LDI sb_loop
+    MOV PC, R0
+    NOP
+
+sb_end:
+    LDI 59                 ; ';' has to be a number: the line parser splits on
+    STS R0, ES, SCR        ; a ';' before it ever reads the operand, the same
+    ADD SCR, 1             ; reason h_semicolon stores it as a word
+    LDI see_lrb
+    MOV R3, R0
+    LD LR, R3, 0
+    JMP LR
+    NOP
+
+see_store:
+    LDI see_ptr
+    MOV R3, R0
+    LD R10, R3, 0
+    ADD R10, R12
+    ST R10, R3, 0
+    LDI sb_loop
+    MOV PC, R0
+    NOP
+
+; The walk met a cell that is not a thread cell (see the check above). Return
+; without the closing `;`: the definition did not end where a thread ends, and
+; printing a `;` would claim it did.
+sb_abort:
+    LDI see_lrb
+    MOV R3, R0
+    LD LR, R3, 0
+    JMP LR
     NOP
 
 ; =============================================
