@@ -2878,3 +2878,134 @@ test('see names (+loop), and the return-stack words decompile as themselves', ()
   assert.equal(hexOut(': t >r r@ r> drop ; see t'), ': t >r r@ r> drop ;');
   assert.equal(hexOut(': t 3 0 do unloop ; see t'), ': t 3 0 do unloop ;');
 });
+
+// ---------------------------------------------------------------------------
+// Tier 1, fourth batch: base, hex, decimal.
+//
+// BASE is a variable, not a constant like `state`: the scanner and the printer
+// read the same cell, so `16 base !` works and `hex` is just the polite
+// spelling. Three things are pinned beyond the two words themselves:
+//
+//   * The scanner follows the base upwards as well as downwards. Above base ten
+//     the letters A-F are digits, so a token that starts with one is a number
+//     candidate ("ff" in hex) while a name that is not all digits still goes to
+//     the dictionary (`hex dup` underflows, it does not become 0xDUP).
+//
+//   * The printer asks for the base's division instead of assuming ten. The
+//     old reciprocal (floor(u/10) = (u * 0xCCCD) >> 19) was decimal only and
+//     the ISA's DIV is signed, so a magnitude above 0x7FFF would divide wrong;
+//     the 32-bit DIV with a zero high half is the unsigned answer, which is why
+//     base two prints all sixteen digits of 65535.
+//
+//   * A base below two is undefined by the standard and is a plain cell here,
+//     so it can be stored. Dividing by one never runs out and dividing by zero
+//     answers 0xFFFF for ever; the printer stops the digit count at sixteen
+//     instead, so the buffer is not overrun and the prompt comes back.
+
+test('base is a variable, and hex and decimal set it', () => {
+  assert.equal(hexOut('base @ .'), '10');
+  assert.equal(hexOut('16 base ! base @ .'), '10');   // 16 printed in base 16
+  assert.equal(hexOut('16 base ! base @ decimal .'), '16');
+  assert.equal(hexOut('hex base @ decimal .'), '16');
+  assert.equal(hexOut('hex decimal base @ .'), '10');
+  // A real variable: see names it as one, and dovar finds its data cell right
+  // behind the code field.
+  assert.equal(hexOut('see base'), 'variable base');
+  assert.equal(cell(res.symbols.base_var), 10);
+  assert.equal(cell(res.symbols.h_base + 7), res.symbols.dovar);
+  assert.equal(res.symbols.base_var, res.symbols.h_base + 8);
+  // Ordinary words: inside a definition they run when it is called, so the
+  // base the printer uses is the one in force at the call.
+  assert.equal(hexOut(': t hex ; t base @ decimal .'), '16');
+  assert.equal(hexOut(': t hex ; t 0 1 - u. decimal'), 'FFFF');
+  // The cell survives from one line to the next.
+  assert.match(hexrepl('hex\nff .').join('\n'), /FF/);
+  assert.match(hexrepl('decimal\n255 .').join('\n'), /255/);
+});
+
+test('every built-in name can still be typed in hex mode', () => {
+  // A token that is all digits of the current base is read as a number before
+  // the dictionary is reached, so a built-in word with such a name would become
+  // unreachable the moment `hex` is in force. None of them is one: every name
+  // has a character outside 0-9A-Fa-f. The names come out of the assembled
+  // image by walking the same header chain the chain test walks, so a future
+  // word with a name like `beef` is caught here rather than at the prompt.
+  let cur = cell(res.symbols.forth_wl);
+  const numeric = [];
+  let guard = 0;
+  while (cur && guard++ < 400) {
+    const len = cell(cur + 1) & 0x7fff;
+    let name = '';
+    for (let i = 0; i < len; i++) name += String.fromCharCode(cell(cur + 2 + i));
+    if (/^[0-9A-Fa-f]+$/.test(name)) numeric.push(name);
+    cur = cell(cur);
+  }
+  assert.deepEqual(numeric, [], 'these names would read as numbers in hex mode');
+});
+
+test('the scanner reads numbers in the current base', () => {
+  // Base ten: a letter starts a word, a digit starts a number.
+  assert.equal(hexOut('10 . 255 . 0x10 . $10 .'), '10  255  16  16');
+  // Base sixteen: a letter is a digit, in either case, and the whole token has
+  // to be digits for it to be a number.
+  assert.equal(hexOut('hex ff .'), 'FF');
+  assert.equal(hexOut('hex FF .'), 'FF');
+  assert.equal(hexOut('hex Ff .'), 'FF');
+  assert.equal(hexOut('hex 10 .'), '10');
+  assert.equal(hexOut('hex ff decimal .'), '255');
+  assert.equal(hexOut('hex 1234 decimal .'), '4660');
+  assert.equal(hexOut('16 base ! ff decimal .'), '255');
+  assert.equal(hexOut('hex 1 2 + decimal .'), '3');
+  // The prefixes still mean hex whatever BASE is, and `0x` still needs its
+  // digits behind it.
+  assert.equal(hexOut('hex 0x10 decimal .'), '16');
+  // Other bases: eight, two, and a base whose digits do not include 9.
+  assert.equal(hexOut('8 base ! 17 . decimal'), '17');
+  assert.equal(hexOut('2 base ! 101 . decimal'), '101');
+  assert.match(hexrepl('8 base ! 19').join('\n'), /undefined word: 19/);
+  // A name that is not all digits keeps its meaning in every base: the
+  // dictionary is still consulted for it.
+  assert.match(hexrepl('hex dup').join('\n'), /stack underflow/);
+  assert.match(hexrepl('hex zz').join('\n'), /undefined word: zz/);
+  assert.equal(hexOut('hex 1 2 2dup + + decimal .'), '5');
+  // The one case the tokenizer cannot have both ways: a token that IS all
+  // digits is read as a number before the dictionary is reached, so a word of
+  // that name cannot be called in a base where it parses.
+  assert.equal(hexOut('hex : beef 7 ; beef decimal u.'), '48879');
+  assert.equal(hexOut('hex : beef 7 ; decimal beef .'), '7');
+});
+
+test('the printer writes digits in the current base', () => {
+  // In hex, a token IS a hex number: 0xFF is the value the letters name.
+  assert.equal(hexOut('hex 0xFF .'), 'FF');
+  assert.equal(hexOut('hex 0 1 - u.'), 'FFFF');
+  assert.equal(hexOut('hex 0 1 - .'), '-1');       // signed: minus, then magnitude
+  assert.equal(hexOut('hex 0x8000 .'), '-8000');
+  assert.equal(hexOut('hex ffff u.'), 'FFFF');
+  assert.equal(hexOut('5 2 base ! . decimal'), '101');
+  assert.equal(hexOut('5 3 base ! . decimal'), '12');
+  // Sixteen digits is what base two needs, and the magnitude above 0x7FFF is
+  // the case the signed DIV would have got wrong.
+  assert.equal(hexOut('65535 2 base ! u. decimal'), '1111111111111111');
+  assert.equal(hexOut('65535 u. 0x8000 . 0xFFFF u.'), '65535  -32768  65535');
+  // A definition prints in the base it is called in, not the one it was
+  // compiled in.
+  assert.equal(hexOut(': t 10 . ; hex t decimal'), 'A');
+  // see prints the inline literals the same way.
+  assert.equal(hexOut(': t 16 ; hex see t decimal'), ': t 10 ;');
+});
+
+test('a base below two stops the printer instead of running away', () => {
+  // BASE is a cell, so 0 and 1 can be stored; the standard calls that
+  // undefined. What gets printed is garbage - what matters is that the count
+  // ends the loop, the 32-cell buffer is not overrun, and the prompt, "ok" and
+  // the next line still work.
+  for (const src of ['65535 1 base ! . decimal 7 .', '42 0 base ! . decimal 7 .']) {
+    const out = hexrepl(src).join('\n');
+    assert.doesNotMatch(out, /underflow|undefined/, src);
+    assert.match(out, / 7 /, src);
+  }
+  // And the scanner is not fooled either: no digit is valid in base one, so a
+  // number cannot be typed there at all.
+  assert.match(hexrepl('1 base ! 5').join('\n'), /undefined word: 5/);
+});

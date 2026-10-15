@@ -250,8 +250,20 @@ class Deep16Optimizer {
             case 'MUL': case 'DIV':
                 return this.effectsALU(rec, e, true);
 
-            case 'MUL32': case 'DIV32':
+            // MUL32 writes the pair Rd:Rd+1 and reads only Rd; DIV32 reads the
+            // pair as well, because Rd:Rd+1 is the dividend it divides. Leaving
+            // the low half out of the use set makes the store that sets the
+            // dividend up look dead, and it is dropped: the quotient is then
+            // computed from whatever the register happened to hold.
+            case 'MUL32':
                 return this.effectsALU(rec, e, true, true);
+
+            case 'DIV32': {
+                const e2 = this.effectsALU(rec, e, true, true);
+                const rd = this.regName(ops[0]);
+                if (rd && rd !== 'R15') e2.uses.add('R' + (parseInt(rd.slice(1), 10) + 1));
+                return e2;
+            }
 
             // Test-only operations: no register result, flags only.
             case 'CMP': case 'TBC': case 'TBS': {

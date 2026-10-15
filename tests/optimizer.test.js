@@ -175,6 +175,19 @@ test('copy propagation never treats PC as a copyable value', () => {
   assert.ok(!/\bMOV R2, PC\b/.test(r.source), r.source);
 });
 
+test('DIV32 reads the pair it writes; MUL32 only writes it', () => {
+  // DIV32 Rd, Rs divides the pair Rd:Rd+1 by Rs, so the store that fills the
+  // low half is an input to the division. Modelling the pair as output-only
+  // made it look like a dead store and dropped it, and the quotient was then
+  // computed from whatever the register still held - Forth's number printer
+  // turned 12 into 22 that way. MUL32 has no such input: Rd:Rd+1 is its
+  // result, so the same store before a MUL32 really is dead.
+  const div = opt(`    MOV R1, R2\n    DIV32 R0, R12\n    MOV R4, R1\n`);
+  assert.ok(lines(div.source).some(l => /^MOV R1, R2$/.test(l)), div.source);
+  const mul = opt(`    MOV R1, R2\n    MUL32 R0, R3\n    MOV R4, R0\n`);
+  assert.ok(!lines(mul.source).some(l => /^MOV R1, R2$/.test(l)), mul.source);
+});
+
 // ------------------------------------------------- differential execution
 
 // Assemble and run the same program with and without the optimizer; the JS

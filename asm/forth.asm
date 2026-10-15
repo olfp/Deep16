@@ -717,14 +717,36 @@ check_number_or_word:
 word_first_is_digit:
     LDI '0'
     CMP R4, R0
-    JN parse_word            ; if ch < '0' => word
+    JN number_letter          ; below '0': a letter, or punctuation
     NOP
     LDI '9'
     CMP R0, R4
-    JN parse_word            ; if '9' < ch => word
+    JN number_letter          ; above '9': a letter, or punctuation
     NOP
     ; The first character is a digit, but the word is a number only if the
     ; whole token is digits. Words such as 2dup, 1+ or 0= start with a digit.
+    LDI number_scan
+    MOV PC, R0
+    NOP
+number_letter:
+    ; Above base ten the letters A-F are digits too, so a token that starts
+    ; with one may be a number (`FF` in hex) or a word (`dup`). number_scan
+    ; still reads the whole token and hands anything that is not all digits to
+    ; parse_word, so every name that is not a number keeps its meaning: `ff`
+    ; would shadow a word of that name, which is the standard's own "undefined"
+    ; case, but `dup` never becomes a number.
+    LDI base_var
+    MOV R2, R0
+    LD R4, R2, 0
+    LDI 10
+    CMP R4, R0
+    JN parse_word             ; base below ten: no letter is a digit
+    NOP
+    JZ parse_word             ; base ten: only 0-9 are digits
+    NOP
+    LDI number_scan
+    MOV PC, R0
+    NOP
 number_scan:
     LD R4, R3, 0
     LDI 0
@@ -735,21 +757,35 @@ number_scan:
     CMP R4, R0
     JZ parse_number          ; space ends the token => number
     NOP
-    LDI '0'
-    CMP R4, R0
-    JN parse_word            ; a non-digit makes it a word
+    ; Every character has to be a digit OF THE CURRENT BASE: 'A' is one in hex
+    ; and a word character in decimal. The digit itself comes from base_digit,
+    ; which knows 0-9 and A-F, and the base decides whether it counts here.
+    LDI base_digit
+    MOV R2, R0
+    LINK
+    JMP R2
     NOP
-    LDI '9'
-    CMP R0, R4
-    JN parse_word            ; a non-digit makes it a word
+    LDI 0
+    CMP R9, R0
+    JZ parse_word            ; not a digit at all makes it a word
     NOP
+    LDI base_var
+    MOV R2, R0
+    LD R2, R2, 0             ; the current base
+    CMP R10, R2
+    JN number_scan_next      ; value < base: a digit here
+    NOP
+    LDI parse_word           ; a digit of some other base makes it a word
+    MOV PC, R0
+    NOP
+number_scan_next:
     ADD R3, 1
     LDI number_scan
     MOV PC, R0
     NOP
 parse_number:
     LDI 0
-    MOV R7, R0
+    MOV R7, R0               ; the accumulator
 parse_number_loop:
     MOV R3, TIB
     ADD R3, >IN
@@ -762,22 +798,29 @@ parse_number_loop:
     CMP R4, R0
     JZ finish_number
     NOP
-    LDI '0'
-    CMP R4, R0
-    JN finish_number        ; ch < '0' => stop
+    LDI base_digit
+    MOV R2, R0
+    LINK
+    JMP R2
     NOP
-    LDI '9'
-    CMP R0, R4
-    JN finish_number        ; '9' < ch => stop
+    LDI 0
+    CMP R9, R0
+    JZ finish_number        ; not a digit: the number ends here
     NOP
-    ; digit in range
-    LDI '0'
-    SUB R4, R0
-    LDI 10
-    MOV R12, R0
+    LDI base_var
+    MOV R2, R0
+    LD R2, R2, 0
+    CMP R10, R2
+    JN number_digit_ok
+    NOP
+    LDI finish_number       ; a digit of some other base ends the number
+    MOV PC, R0
+    NOP
+number_digit_ok:
+    ; digit in range: acc = acc * base + digit, with the base still in R2
     MOV R1, R7
-    MUL R1, R12
-    ADD R1, R4
+    MUL R1, R2
+    ADD R1, R10
     MOV R7, R1
     ADD >IN, 1
     LDI parse_number_loop
@@ -1843,10 +1886,31 @@ h_j:
     .text "j"
     .word word_j
 h_unloop:
-    .word h_see
+    .word h_base
     .word 6
     .text "unloop"
     .word word_unloop
+; The fourth Tier 1 batch: the number base. `base` is a real VARIABLE, not a
+; constant like `state`: it carries the cell the scanner and the printer read,
+; so `16 base !` works the way the standard says. Its data cell sits directly
+; behind the CFA, which is where dovar finds it.
+h_base:
+    .word h_hex
+    .word 4
+    .text "base"
+    .word dovar
+base_var:
+    .word 10              ; decimal until something says otherwise
+h_hex:
+    .word h_decimal
+    .word 3
+    .text "hex"
+    .word word_hex
+h_decimal:
+    .word h_see
+    .word 7
+    .text "decimal"
+    .word word_decimal
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -2480,9 +2544,9 @@ udot_under:
     MOV PC, R0
     NOP
 
-; print_number prints R2 as an unsigned magnitude followed by a trailing space,
-; through putch, and returns to the caller. LR is saved because put_char is a
-; subroutine (LINK overwrites LR).
+; print_number prints R2 as an unsigned magnitude in the current base, followed
+; by a trailing space, through putch, and returns to the caller. LR is saved
+; because put_char is a subroutine (LINK overwrites LR).
 print_number:
     LDI pn_lr
     MOV R3, R0
@@ -2505,35 +2569,56 @@ pn_digits:
     MOV R10, R0         ; buffer pointer
     LDI 0
     MOV R3, R0          ; digit count
-    ; print_number prints an *unsigned* magnitude, but the ISA DIV is signed,
-    ; so a magnitude >= 0x8000 would divide wrong. Divide by 10 with the
-    ; reciprocal instead: for 16-bit u, floor(u/10) = (u * 0xCCCD) >> 19, and
-    ; the remainder is u - 10*quotient. R12 = 0xCCCD; LDI cannot load it in
-    ; one go (bit 15 set), so set bits 15 and 14 on top of 0x0CCD.
-    LDI 0x0CCD
-    OR R0, 15
-    OR R0, 14
+    LDI base_var
     MOV R12, R0
+    LD R12, R12, 0      ; the base to print in
+    ; print_number prints an *unsigned* magnitude, but the ISA DIV is signed,
+    ; so a magnitude above 0x7FFF would divide wrong. The 32-bit form with the
+    ; high half zero gives the unsigned answer instead: the dividend pair is
+    ; 0:magnitude, the divisor is the base, and the quotient/remainder pair is
+    ; value/base and value mod base. That works for every base; the reciprocal
+    ; that used to stand here (floor(u/10) = (u * 0xCCCD) >> 19) was decimal
+    ; only, and this kernel prints in the base the program asked for.
 pn_div_loop:
-    MOV R0, R2
-    MUL32 R0, R12       ; R0:R1 = R2 * 0xCCCD
-    SR R0, 3            ; R0 = R2 / 10  (product >> 19)
-    MOV R9, R0          ; R9 = quotient
+    LDI 0
+    MOV R1, R2          ; the 32-bit dividend R0:R1 = 0:magnitude
+    DIV32 R0, R12       ; R0 = quotient, R1 = remainder
+    MOV R4, R1          ; this digit's value
+    MOV R9, R0          ; the quotient, kept across the digit's own arithmetic
     LDI 10
-    MOV R7, R0
-    MUL R7, R9          ; R7 = 10 * quotient
-    MOV R4, R2
-    SUB R4, R7          ; remainder = R2 mod 10
+    CMP R4, R0
+    JN pn_digit_dec
+    NOP
+    LDI 55              ; 'A' is 65, so the value 10 becomes 'A'
+    ADD R4, R0
+    LDI pn_digit_store
+    MOV PC, R0
+    NOP
+pn_digit_dec:
     LDI '0'
     ADD R4, R0
+pn_digit_store:
     ST R4, R10, 0
     ADD R10, 1
-    MOV R2, R9          ; R2 = R2 / 10
+    MOV R2, R9          ; the next magnitude is value / base
     ADD R3, 1           ; count++
     LDI 0
     CMP R2, R0
-    JNZ pn_div_loop
+    JZ pn_print_setup   ; nothing left to divide
     NOP
+    ; Sixteen digits is the worst case for any base from two upwards, and the
+    ; buffer holds more than that. A base below two (undefined, but a cell is a
+    ; cell) would divide by zero or by one and never run out, so the count ends
+    ; the loop instead of the value: a bounded answer beats a write that walks
+    ; out of the buffer.
+    LDI 16
+    CMP R3, R0
+    JZ pn_print_setup
+    NOP
+    LDI pn_div_loop
+    MOV PC, R0
+    NOP
+pn_print_setup:
     MOV R2, R10         ; buffer pointer in a shadow register: put_char keeps R2
 pn_print_loop:
     LDI 0
@@ -7181,6 +7266,87 @@ wplr_down_ovf:
     JN wplr_again          ; overflow inverted the sign
     NOP
     LDI wplr_done
+    MOV PC, R0
+    NOP
+
+; ---------------------------------------------
+; Tier 1, fourth batch: the number base
+; ---------------------------------------------
+; base_digit ( R4 = character ) is the digit reader the scanner shares: R10
+; comes back as the value 0..15, and R9 as 1 when the character is a digit at
+; all (0-9, a-f, A-F) and 0 when it is not. The hex prefix path keeps its own
+; copy (hex_digit_value), which jumps straight into its accumulator; this one
+; is LINK-called because number_scan and parse_number both have to look at the
+; answer before deciding what to do with it.
+base_digit:
+    LDI '0'
+    CMP R4, R0
+    JN bd_alpha
+    NOP
+    LDI '9'
+    CMP R0, R4
+    JN bd_alpha
+    NOP
+    LDI '0'
+    SUB R4, R0
+    MOV R10, R4
+    LDI 1
+    MOV R9, R0
+    JMP LR
+    NOP
+bd_alpha:
+    LDI 'a'
+    CMP R4, R0
+    JN bd_upper
+    NOP
+    LDI 'f'
+    CMP R0, R4
+    JN bd_upper
+    NOP
+    LDI 87                  ; 'a' is 97, and 97 - 87 = 10
+    SUB R4, R0
+    MOV R10, R4
+    LDI 1
+    MOV R9, R0
+    JMP LR
+    NOP
+bd_upper:
+    LDI 'A'
+    CMP R4, R0
+    JN bd_none
+    NOP
+    LDI 'F'
+    CMP R0, R4
+    JN bd_none
+    NOP
+    LDI 55                  ; 'A' is 65, and 65 - 55 = 10
+    SUB R4, R0
+    MOV R10, R4
+    LDI 1
+    MOV R9, R0
+    JMP LR
+    NOP
+bd_none:
+    LDI 0
+    MOV R9, R0              ; R9 = 0: a digit of no base at all
+    JMP LR
+    NOP
+
+word_hex:                   ; hex ( -- )  read and print numbers in base 16
+    LDI base_var
+    MOV R2, R0
+    LDI 16
+    ST R0, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_decimal:               ; decimal ( -- )  read and print them in base 10
+    LDI base_var
+    MOV R2, R0
+    LDI 10
+    ST R0, R2, 0
+    LDI next
     MOV PC, R0
     NOP
 
