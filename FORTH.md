@@ -278,6 +278,13 @@ variable x 2 allot  7 9 x 2!  x 2@ . .    \ 9 7  ok
 | `count` | `( c-addr -- c-addr u )` | length of the zero-terminated string at `c-addr` |
 | `type` | `( c-addr u -- )` | write `u` characters from `c-addr` |
 | `s"` | `( "ccc" -- c-addr u )` | the text between the quotes, as a string |
+| `/string` | `( c-addr1 u1 n -- c-addr2 u2 )` | the string from character `n` on |
+| `blank` | `( c-addr u -- )` | fill `u` characters with blanks |
+| `-trailing` | `( c-addr u1 -- c-addr u2 )` | drop the blanks at the end |
+| `compare` | `( c-addr1 u1 c-addr2 u2 -- n )` | `-1`, `0` or `1`, compared unsigned |
+| `search` | `( c-addr1 u1 c-addr2 u2 -- c-addr3 u3 flag )` | find a substring |
+| `cmove` | `( c-addr1 c-addr2 u -- )` | copy `u` characters, low address first |
+| `cmove>` | `( c-addr1 c-addr2 u -- )` | copy them high address first |
 
 A string here is a run of one-character cells that ends in a zero cell, because
 one cell is one address unit. `."` writes such a string into a definition, `s"`
@@ -291,6 +298,22 @@ here 72 c, 73 c, 0 c,  count type    \ HI  ok
 wants, and not the standard `c-addr+1`: there are no counted strings here for
 that reading to mean anything. `type` masks each cell to its low 8 bits, so a
 NUL character writes nothing rather than stopping.
+
+A character is one cell, so `cmove` is `move` and `blank` is `fill` with a space —
+the two only differ where a cell holds two characters. `cmove>` is the one that
+really moves the other way, and it is what to reach for when the destination sits
+above the source, the case `move` documents as the caller's problem. `compare`
+and `search` read the cells and compare them **unsigned**, so a byte above `0x7F`
+is greater than one below it; the high byte of a character travels through a copy
+and is ignored by a comparison, exactly as `type` and `c@` ignore it. `search`
+answers the **rest of the string from the match**, so `search type` prints what is
+left after it:
+
+```text
+: a s" hello world" ;   : b s" wor" ;
+a b search . type       \ -1 world  ok
+a b search nip .        \ 5  ok
+```
 
 `."` and `s"` are written into the tokenizer and not into the dictionary — the
 text between the quotes is not a token, so it could never be looked up — and
@@ -464,5 +487,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 155 words. New words are added at the head of the
+That is the whole dictionary: 162 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

@@ -2023,10 +2023,48 @@ h_endof:
     .text "endof"
     .word word_endof
 h_endcase:
-    .word h_see
+    .word h_cmove
     .word 0x8007          ; IMMEDIATE | length 7
     .text "endcase"
     .word word_endcase
+; The string words. `cmove` and `blank` only exist because a character is a cell
+; here, which makes them `move` and `fill` with a space; `cmove>` is the one that
+; walks the other way. All seven are ordinary words.
+h_cmove:
+    .word h_cmove_gt
+    .word 5
+    .text "cmove"
+    .word word_cmove
+h_cmove_gt:
+    .word h_blank
+    .word 6
+    .text "cmove>"
+    .word word_cmove_gt
+h_blank:
+    .word h_minustrailing
+    .word 5
+    .text "blank"
+    .word word_blank
+h_minustrailing:
+    .word h_compare
+    .word 9
+    .text "-trailing"
+    .word word_minustrailing
+h_compare:
+    .word h_search
+    .word 7
+    .text "compare"
+    .word word_compare
+h_search:
+    .word h_slash_string
+    .word 6
+    .text "search"
+    .word word_search
+h_slash_string:
+    .word h_see
+    .word 7
+    .text "/string"
+    .word word_slash_string
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -8714,6 +8752,292 @@ wec_done:
     ADD R7, 1
     ST R7, R4, 0            ; pop the marker
     LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+; ---------------------------------------------
+; Tier 2, third batch: strings
+; ---------------------------------------------
+; A string here is a run of one-character cells, so a character is a cell and
+; every step from one character to the next is one address. That is why `cmove`
+; is `move` and `blank` is `fill` with a space: the two differ only in a system
+; where a cell holds two characters. `cmove>` is the one that really is
+; different - it copies from the top down, which is what makes it safe when the
+; destination is above the source, the case `move` documents as the caller's
+; problem. Comparisons read the CELLS, so the high byte of a character, which
+; `type` and `c@` mask away, travels through a copy and is ignored by a
+; comparison; and they compare UNSIGNED, which is what the standard asks for.
+
+word_cmove:                 ; cmove ( c-addr1 c-addr2 u -- )
+    LDI word_move
+    MOV PC, R0
+    NOP
+
+word_cmove_gt:              ; cmove> ( c-addr1 c-addr2 u -- )
+    MOV R9, SP
+    ADD R9, 3
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wcm_ok
+    NOP
+    JN wcm_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wcm_ok:
+    LD R1, SP, 2            ; the source
+    LD R4, SP, 1            ; the destination
+    LD R3, SP, 0            ; the count
+    ADD SP, 3               ; the operands are read; the copy may land on them
+    ADD R1, R3              ; start one past the last character, and step down
+    ADD R4, R3
+wcm_loop:
+    LDI 0
+    CMP R3, R0
+    JZ wcm_done
+    NOP
+    SUB R1, 1
+    SUB R4, 1
+    LD R9, R1, 0
+    ST R9, R4, 0
+    SUB R3, 1
+    LDI wcm_loop
+    MOV PC, R0
+    NOP
+wcm_done:
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_blank:                 ; blank ( c-addr u -- )
+    ; A blank is `fill` with a space, so push one and let fill do the work.
+    LDI 32
+    MOV R3, R0
+    SUB SP, 1
+    ST R3, SP, 0
+    LDI word_fill
+    MOV PC, R0
+    NOP
+
+word_minustrailing:         ; -trailing ( c-addr u1 -- c-addr u2 )
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wdt_ok
+    NOP
+    JN wdt_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wdt_ok:
+    LD R1, SP, 1            ; c-addr
+    LD R3, SP, 0            ; u1
+wdt_loop:
+    LDI 0
+    CMP R3, R0
+    JZ wdt_done             ; nothing left to look at
+    NOP
+    MOV R4, R1
+    ADD R4, R3
+    SUB R4, 1               ; the last character
+    LD R9, R4, 0
+    LDI 32
+    CMP R9, R0
+    JNZ wdt_done            ; not a blank: the text ends here
+    NOP
+    SUB R3, 1
+    LDI wdt_loop
+    MOV PC, R0
+    NOP
+wdt_done:
+    ST R3, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_slash_string:          ; /string ( c-addr1 u1 n -- c-addr2 u2 )
+    MOV R9, SP
+    ADD R9, 3
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wstr_ok
+    NOP
+    JN wstr_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wstr_ok:
+    LD R1, SP, 2            ; c-addr1
+    LD R3, SP, 1            ; u1
+    LD R4, SP, 0            ; n
+    ADD R1, R4              ; c-addr2 = c-addr1 + n
+    SUB R3, R4              ; u2 = u1 - n
+    ADD SP, 1               ; n's cell goes away
+    ST R1, SP, 1
+    ST R3, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_compare:               ; compare ( c-addr1 u1 c-addr2 u2 -- n )
+    MOV R9, SP
+    ADD R9, 4
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wcpr_ok
+    NOP
+    JN wcpr_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wcpr_ok:
+    LD R1, SP, 3            ; c-addr1, the first cursor
+    LD R3, SP, 2            ; u1
+    LD R4, SP, 1            ; c-addr2, the second cursor
+    LD R7, SP, 0            ; u2
+wcpr_loop:
+    LDI 0
+    CMP R3, R0
+    JZ wcpr_short1          ; the first string ran out
+    NOP
+    LDI 0
+    CMP R7, R0
+    JZ wcpr_short2          ; the second ran out
+    NOP
+    LD R2, R1, 0            ; a character of each
+    LD R9, R4, 0
+    CMP R2, R9
+    JC wcpr_less            ; the carry is a borrow: unsigned, so this is less
+    NOP
+    JNZ wcpr_greater
+    NOP
+    ADD R1, 1
+    ADD R4, 1
+    SUB R3, 1
+    SUB R7, 1
+    LDI wcpr_loop
+    MOV PC, R0
+    NOP
+wcpr_less:
+    LDI 0
+    MOV R3, R0
+    SUB R3, 1               ; -1
+    LDI wcpr_store
+    MOV PC, R0
+    NOP
+wcpr_greater:
+    LDI 1
+    MOV R3, R0
+    LDI wcpr_store
+    MOV PC, R0
+    NOP
+wcpr_short1:
+    ; The first string is out of characters, so they are equal so far: it is the
+    ; shorter one, unless the second ended with it.
+    LDI 0
+    CMP R7, R0
+    JZ wcpr_equal
+    NOP
+    LDI 0
+    MOV R3, R0
+    SUB R3, 1
+    LDI wcpr_store
+    MOV PC, R0
+    NOP
+wcpr_short2:
+    LDI 1                   ; the second is the shorter one
+    MOV R3, R0
+    LDI wcpr_store
+    MOV PC, R0
+    NOP
+wcpr_equal:
+    LDI 0
+    MOV R3, R0
+wcpr_store:
+    ADD SP, 3               ; four cells in, one out
+    ST R3, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_search:                ; search ( c-addr1 u1 c-addr2 u2 -- c-addr3 u3 flag )
+    MOV R9, SP
+    ADD R9, 4
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wsearch_ok
+    NOP
+    JN wsearch_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wsearch_ok:
+    LD R11, SP, 3           ; c-addr1, kept for both answers
+    LD R3, SP, 2            ; u1, kept for u3
+    LD R4, SP, 1            ; c-addr2
+    LD R2, SP, 0            ; u2
+    MOV R7, R4
+    ADD R7, R2              ; the needle's end
+    MOV R10, R3
+    SUB R10, R2             ; u1 - u2
+    JC wsearch_none         ; the needle is longer than the string
+    NOP
+    ADD R10, R11
+    ADD R10, 1              ; one past the last candidate
+    MOV R1, R11             ; the first candidate
+wsearch_next:
+    MOV R12, R1             ; the candidate cursor
+    LD R4, SP, 1            ; and the needle cursor, from the stack every time
+wsearch_inner:
+    CMP R4, R7
+    JZ wsearch_found        ; the needle ran out: it matched
+    NOP
+    LD R2, R4, 0            ; a character of each
+    LD R9, R12, 0
+    CMP R2, R9
+    JNZ wsearch_advance     ; a difference: try the next position
+    NOP
+    ADD R4, 1
+    ADD R12, 1
+    LDI wsearch_inner
+    MOV PC, R0
+    NOP
+wsearch_advance:
+    ADD R1, 1
+    CMP R1, R10
+    JNZ wsearch_next
+    NOP
+wsearch_none:
+    ADD SP, 1
+    ST R11, SP, 2           ; c-addr1
+    ST R3, SP, 1            ; u1
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+wsearch_found:
+    ADD SP, 1
+    ST R1, SP, 2            ; c-addr3: where the match starts
+    MOV R2, R3
+    SUB R2, R1
+    ADD R2, R11             ; u3 = u1 - (c-addr3 - c-addr1)
+    ST R2, SP, 1
+    LDI cmp_true
     MOV PC, R0
     NOP
 

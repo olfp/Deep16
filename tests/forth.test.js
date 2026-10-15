@@ -3295,6 +3295,95 @@ test('a stray case word does not take the machine down', () => {
   assert.equal(hexOut('endof 8 .'), '8');
 });
 
+// ---------------------------------------------------------------------------
+// Tier 2, third batch: string words.
+//
+// A string here is a run of one-character cells, so a character IS a cell and
+// every step from one character to the next is one address. That is why `cmove`
+// is `move` and `blank` is `fill` with a space - the two only differ where a cell
+// holds two characters - and why `/string` adds n to the address directly.
+// `cmove>` is the one that really is different: it copies from the top down,
+// which is what makes it safe when the destination is above the source, the
+// direction `move` documents as the caller's problem.
+//
+// Comparisons read the CELLS - the high byte of a character travels through a
+// copy and is ignored, the same way `type` and `c@` ignore it - and they compare
+// UNSIGNED, which is what the standard asks for.
+
+test('every label in the kernel source is defined exactly once', () => {
+  // The assembler takes the LAST definition of a repeated label and says nothing
+  // about the first, so a copy-pasted local name silently redirects an unrelated
+  // jump: `wls_ok` was both the shift word's and /string's, and all the assembler
+  // reported was that a jump had become too far. The kernel has some 800 labels
+  // in one name space, so this is worth a check of its own.
+  const seen = new Map();
+  const repeated = [];
+  src.split('\n').forEach((line, i) => {
+    const m = line.match(/^([A-Za-z_][A-Za-z0-9_]*):/);
+    if (!m) return;
+    if (seen.has(m[1])) repeated.push(`${m[1]} at lines ${seen.get(m[1])} and ${i + 1}`);
+    else seen.set(m[1], i + 1);
+  });
+  assert.deepEqual(repeated, []);
+  assert.ok(seen.size > 800, `only ${seen.size} labels: is this the kernel?`);
+});
+
+test('/string, -trailing and blank are the short ones', () => {
+  assert.equal(hexOut('s" hello" 2 /string type'), 'llo');
+  assert.equal(hexOut('s" hello" 0 /string type'), 'hello');
+  assert.equal(hexOut('s" hello" 5 /string nip .'), '0');
+  assert.equal(hexOut(': s s" hi" ; s 1 /string nip .'), '1');
+  // -trailing drops the blanks at the end and answers the same address.
+  assert.equal(hexOut('s" ab  " -trailing type'), 'ab');
+  assert.equal(hexOut('s" ab  " -trailing nip .'), '2');
+  assert.equal(hexOut('s" ab" -trailing nip .'), '2');
+  assert.equal(hexOut('s"    " -trailing nip .'), '0');
+  // blank is fill with a space: it stores 32 and takes its two arguments away.
+  assert.equal(hexOut(': t here 3 blank here c@ . here 2 + c@ . ; t'), '32  32');
+  assert.equal(hexOut(': t blank ; see t'), ': t blank ;');
+});
+
+test('cmove walks up, cmove> walks down', () => {
+  const rows = repl(': seed here 65 over c! here 66 over 1 + c! ;\n'
+    + ': f seed here here 3 + 2 cmove here 3 + 2 type ;\n'
+    + ': g seed here here 1 + 2 cmove> here 3 type ;\n'
+    + ': h seed here here 1 + 2 cmove here 3 type ;\n'
+    + 'f g h\n').rows;
+  // f copies two cells up onto clear ground; g copies the same two up ONE cell,
+  // which is only safe from the top down; h is the same move made with cmove,
+  // and it duplicates the first character the way the standard warns it will.
+  assert.equal(rows[5], '> f g hABAABAAA ok');
+});
+
+test('compare answers -1, 0 or 1, and compares unsigned', () => {
+  const defs = ': a s" abc" ; : b s" abd" ; : p s" ab" ; : q s" abc" ;';
+  const row = (call) => repl(`${defs}\n${call}\n`).rows[2];
+  assert.equal(row('a a compare .'), '> a a compare . 0  ok');
+  assert.equal(row('a b compare .'), '> a b compare . -1  ok');
+  assert.equal(row('b a compare .'), '> b a compare . 1  ok');
+  // A string that matches so far but ends first is the lesser one.
+  assert.equal(row('p q compare .'), '> p q compare . -1  ok');
+  assert.equal(row('q p compare .'), '> q p compare . 1  ok');
+  assert.equal(row(': e s" " ; e e compare .'), '> : e s" " ; e e compare . 0  ok');
+  assert.equal(row(': e s" " ; e q compare .'), '> : e s" " ; e q compare . -1  ok');
+  // Unsigned: 128 is above 127, which a signed comparison would get backwards.
+  const hi = ': hi here 128 over c! 1 ; : lo here 2 + 127 over c! 1 ;';
+  assert.equal(repl(`${hi}\nhi lo compare .\n`).rows[2], '> hi lo compare . 1  ok');
+  assert.equal(repl(`${hi}\nlo hi compare .\n`).rows[2], '> lo hi compare . -1  ok');
+});
+
+test('search answers the rest of the string from the match', () => {
+  const defs = ': a s" hello world" ; : b s" wor" ; : c s" xy" ; : d s" " ;';
+  const row = (call) => repl(`${defs}\n${call}\n`).rows[2];
+  assert.equal(row('a b search . type'), '> a b search . type -1 world ok');
+  assert.equal(row('a c search . type'), '> a c search . type 0 hello world ok');
+  // An empty needle matches at the start, and so does the whole string.
+  assert.equal(row('a d search . type'), '> a d search . type -1 hello world ok');
+  assert.equal(row('a a search . type'), '> a a search . type -1 hello world ok');
+  // The remainder is measured from the match, so its length drops with it.
+  assert.equal(row('a b search . nip .'), '> a b search . nip . -1  5  ok');
+});
+
 test('a base below two stops the printer instead of running away', () => {
   // BASE is a cell, so 0 and 1 can be stored; the standard calls that
   // undefined. What gets printed is garbage - what matters is that the count

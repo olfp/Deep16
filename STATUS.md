@@ -250,6 +250,27 @@
 > es mit `0 swap endcase` unter den Selektor oder hält ihn mit `dup` in der
 > Standardklausel. **3 neue Tests**, 199 in der Datei.
 >
+> **2026-10-15 (zehnter Teil):** **Tier 2, dritter Schub: Zeichenkettenwörter** —
+> **162 Wörter**: `cmove`, `cmove>`, `blank`, `-trailing`, `compare`, `search`,
+> `/string`. Weil hier ein **Zeichen eine Zelle** ist, sind `cmove` = `move` und
+> `blank` = `fill` mit einem Leerzeichen — sie unterscheiden sich nur dort, wo
+> eine Zelle zwei Zeichen hält — und `/string` addiert `n` direkt auf die
+> Adresse. **`cmove>`** ist das eine Wort, das wirklich anders läuft: es kopiert
+> von **oben nach unten**, die Richtung, die `move` als Aufgabe des Aufrufers
+> dokumentiert (dass `cmove` mit dem Ziel über der Quelle das erste Zeichen
+> verdoppelt, ist gepinnt). `compare` und `search` lesen Zellen und vergleichen
+> **vorzeichenlos**: 128 ist größer als 127, und `search` antwortet den **Rest
+> der Zeichenkette ab dem Treffer**, sodass `search type` druckt, was übrig
+> bleibt.
+> **Zwei Funde.** *(1)* `cmove>` setzte seine Zeiger eine Zelle zu tief an: die
+> Zeiger müssen erst um `u` erhöht und **dann** schrittweise gesenkt werden. Das
+> Ergebnis sah wie „falsche Richtung" aus, war aber eine falsche **Startlage**.
+> *(2)* Ein **doppelter Labelname**: `/string` benutzte `wls_ok`, das schon
+> `word_lshift` gehört — der Assembler nimmt die *letzte* Definition und sagt
+> nichts dazu, gemeldet wurde nur ein Sprung „zu weit". Dafür gibt es jetzt einen
+> Test, der die ~850 Labels der Quelldatei auf Eindeutigkeit prüft.
+> **5 neue Tests**, 204 in der Datei.
+>
 > **2026-10-14 (dritter Teil):** **`do`/`loop` sind da** — mit `?do`, `leave`
 > und `i`. Der Loop-Rahmen liegt auf dem Rückstapel, vier Zellen unter den
 > Aufrufsrahmen. Die teuerste Falle war nicht der Inhalt, sondern die
@@ -540,6 +561,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-15 | **Tier 1, 6. Schub: `<# # #s #> hold sign`** — 138 Wörter, die Tier-1-Liste ist damit **abgearbeitet**. Die sechs Wörter drucken eine Zahl nicht, sondern bauen sie in einem Halte-Bereich, den danach `type` schreibt; die Zahl ist ein **Doppel** (zwei Zellen, **hohes Halbwort oben** — die Ordnung des Standard-Beispiels `dup abs 0 <# #s rot sign #>`), und `#` teilt es durch die **aktuelle Basis**, weshalb dasselbe Idiom nach `hex` hexadezimal druckt. `hold` stellt voran (`66 hold 65 hold` ergibt `AB`). **Der Zeiger läuft von oben nach unten**, damit die Zeichen ohne Umkehren in Leserichtung stehen; mehr als **vierzig** Zeichen in einem Bild werden verworfen statt hinter den Puffer geschrieben (dieselbe Abwägung wie beim Drucker für Basis < 2), und `#`/`#s`/`#>` prüfen ihre zwei Zellen selbst. **Grenze, bewusst dokumentiert:** `#` teilt mit dem 32-Bit-`DIV`, dessen Dividend ein *vorzeichenbehaftetes* Paar ist, der `ud` des Standards aber vorzeichenlos — ein Doppel ab `0x80000000` rechnet falsch (`65535 65535 <# #s #>` gibt `/`, weil der Rest −1 ist). Jede Art, hier ein Doppel zu bauen, lässt das hohe Halbwort 0; eine vorzeichenlose 32-Bit-Division bräuchte eine eigene Korrektur um 2³¹ und wäre für ein 16-Bit-Gerät der falsche Preis. **Der Fund der Runde:** in `hld_step` stand `LDI base_var` **zwischen** dem Laden des Dividenden und `DIV32` — `LDI` schreibt R0, und R0 hält das hohe Halbwort, also dividierte die Maschine eine **Adresse** durch die Basis (`0/10` → `0xCCCC`, und `#s` lief **endlos**, weil das Doppel nie null wurde). Die Basis wird jetzt **vor** dem Dividenden geladen — genau die Reihenfolge, die `print_number` mit `LDI 0; MOV R1, R2` schon hatte. **2 neue Tests** (Idiome in Basis 10/16/2, Doppel über eine Zelle, `hold`-Reihenfolge, Puffergrenze, Tiefenprüfungen, `see`), 190 in der Datei, **485/485** im Repo. `FORTH.md`: neuer Abschnitt „Pictured numbers", Zahl 132 → **138**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-15 | **Tier 2: Doppelzellen-Arithmetik** (`s>d d+ d- dnegate m+ d= d0= d< um* m* um/mod sm/rem fm/mod`) — 151 Wörter. Ein Doppel ist **zwei Zellen mit dem hohen Halbwort oben**; `s>d` stellt das her, `d+`/`d-`/`m+`/`dnegate` tragen über das **Carry-Flag** (das sofort gelesen werden muss, weil `LDI` das ganze Nibble löscht), und `d<` vergleicht hohe Halbwörter vorzeichenbehaftet (N/V-Test wie `<`) und die niedrigen **vorzeichenlos**, wenn die hohen gleich sind. **Fund 1: `MUL32` ist unsigniert** — das hohe Halbwort eines Produkts *hängt* von den Vorzeichen ab (`3 × −4 = −12` gegen `3 × 0xFFFC = 0x0002FFF4`); `m*` korrigiert den unsignierten Wert, indem jeder negative Operand den anderen einmal abzieht (das landet ganz im hohen Halbwort). **Fund 2: die Reihenfolge der Divisionsantwort** — der Standard gibt Quotient oben (`u3`/`n3`) und Rest darunter; die erste Fassung hatte es umgekehrt, und die ersten Tests pinnten den Irrtum mit, bis eine `u.`-Zeile den Rest oben zeigte. `sm/rem` ist exakt die ISA-Division (truncate toward zero, Rest mit dem Vorzeichen des Dividenden), `fm/mod` ergänzt die Bodenkorrektur (Rest mit dem Vorzeichen des Divisors). **Grenzen:** `um/mod` ist exakt, solange der Quotient passt *und* der Divisor < `0x8000` ist (dann sind beide Operanden nicht-negativ, signiert = unsigniert); ein unsignierter Divisor ≥ `32768` kommt signiert heraus, ohne Absturz (`INT_MIN/−1` → 0/0). **6 neue Tests**, 196 in der Datei, **491/491** im Repo. `FORTH.md`: neuer Abschnitt „Double-cell numbers", Zahl 138 → **151**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-15 | **Tier 2, 2. Schub: `case`/`of`/`endof`/`endcase`** — 155 Wörter. Die vier sind **immediate** und kompilieren nur vorhandene Wörter: **`of` ist `over = if drop`**, `endof` ist `else` (per Sprung auf `word_else` geteilt, damit der Rumpf nicht zweimal dasteht), `endcase` kompiliert `drop` und löst die Zweige auf — deshalb zeigt `see` eine `case`-Definition als ihre Zweige. Buchhaltung auf dem Kompilier-Rückstapel: `case` legt eine **Marke 0** ab (keine Adresse), `of` den Platzhalter. **Wächter:** `case_depth` (wie `loop_depth`) lässt ein verwaistes `endcase` nichts tun, und die Auflöseschleife flickt nur Adressen in `[dict_free, 0x3FFF]`. Die drei `xt`-Zellen, die `of` kompiliert, halten die **echten xts** (Header + 3 + Namenslänge), damit `see` sie benennen kann; ein Test pinnt alle drei gegen `' over`, `' =`, `' drop`. **Fund 1:** den vier Headern fehlte das IMMEDIATE-Bit — die Wörter wurden kompiliert statt ausgeführt (`see` zeigte `case 1 of …`); gefunden am `see`-Ausdruck. **Fund 2:** `LDI 0x4000` lädt `0xC000` (Bit 14 = Vorzeichen), womit die Obergrenze des Wächters negativ wurde, der Wächter bei **jeder** echten Platzhalteradresse zuschlug und `endcase` nichts flickte — das `(branch)` blieb auf 0 und die Maschine lief nach dem ersten `emit` ins Leere. Jetzt Carry-Vergleiche gegen `dict_free` und `0x3FFF`. Dazu die **Standard-Regel** im Manual: den Selektor verwirft die passende Klausel, sonst `endcase`; ein Ergebnis gehört mit `0 swap endcase` darunter. **3 neue Tests**, 199 in der Datei, **494/494** im Repo. `FORTH.md`: vier Zeilen in „Control flow" plus ein Absatz zur Selektor-Regel, Zahl 151 → **155**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
+| 2026-10-15 | **Tier 2, 3. Schub: Zeichenkettenwörter** (`cmove cmove> blank -trailing compare search /string`) — 162 Wörter. Ein Zeichen ist hier **eine Zelle**, also ist `cmove` = `move` (per Sprung geteilt) und `blank` = `fill` mit einem Leerzeichen (der Stub schiebt 32 und springt nach `word_fill`); `/string` addiert `n` direkt. **`cmove>`** kopiert von oben nach unten (Zeiger erst um `u` erhöhen, dann senken) und ist damit für Ziel über Quelle sicher, während `cmove` dort das erste Zeichen verdoppelt (gepinnt: `ABAABAAA`). `compare` liefert −1/0/1 nach dem ersten Unterschied bzw. der Länge und vergleicht **unsigniert** (128 > 127, gepinnt); `search` antwortet **den Rest ab dem Treffer** (`( c-addr3 u3 flag )`, leerer Nadel beginnt bei 0). **Fund 1:** `cmove>` startete eine Zelle zu tief — sah wie eine Richtungs-, war eine Startlagenfrage. **Fund 2 (Werkzeug):** `/string` benutzte `wls_ok`, das schon `word_lshift` gehört; der Assembler nimmt stillschweigend die letzte Definition und meldete nur einen zu weiten Sprung. Neuer Test: **alle ~850 Labels der Quelldatei sind eindeutig**. **5 neue Tests**, 204 in der Datei, **499/499** im Repo. `FORTH.md`: sieben Zeilen und ein Absatz in „Characters and strings", Zahl 155 → **162**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 
 ## Architektur-Revisionen im Repo-Root
 
@@ -677,8 +699,10 @@ bewusste Entscheidung und keine Lücke.
    `sm/rem`, `fm/mod`; damit steht auch `: d. <# #s #> type space ;` als
    Anwenderwort da.
    **Als Nächstes:** `evaluate` (eine Zeichenkette interpretieren — Material für
-   ein Kapitel 9), die Zeichenkettenwörter (`/string compare search -trailing
-   blank`) und `catch`/`throw`/`abort`.
+   ein Kapitel 9) und `catch`/`throw`/`abort`.
+   *Erledigt (2026-10-15, Tier 2):* auch die **Zeichenkettenwörter** — `cmove`,
+   `cmove>`, `blank`, `-trailing`, `compare`, `search`, `/string`; damit ist von
+   der Liste nur noch `catch`/`throw` und `evaluate` offen.
    *Erledigt (2026-10-15, Tier 2):* auch `case`/`of`/`endof`/`endcase` — sie
    kompilieren nur `over = if drop` und `else`, also nichts, was der Laufzeit
    fehlte.
