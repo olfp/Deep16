@@ -461,7 +461,7 @@ test('a colon word may use ., emit and cr', () => {
 
 test('state, [ ] and immediate', () => {
   const { rows } = repl(
-    'state .\n' +
+    'state @ .\n' +
     ': c [ 3 4 + ] ;\n' +
     'c .\n' +
     ': two 2 ;\n' +
@@ -469,7 +469,7 @@ test('state, [ ] and immediate', () => {
     ': four two two + ;\n' +
     'four .\n'
   );
-  assert.equal(rows[1], '> state . 0  ok');
+  assert.equal(rows[1], '> state @ . 0  ok');
   assert.equal(rows[2], '> : c [ 3 4 + ] ; ok');
   assert.equal(rows[3], '> c . 7  ok');
   assert.equal(rows[4], '> : two 2 ; ok');
@@ -2882,8 +2882,8 @@ test('see names (+loop), and the return-stack words decompile as themselves', ()
 // ---------------------------------------------------------------------------
 // Tier 1, fourth batch: base, hex, decimal.
 //
-// BASE is a variable, not a constant like `state`: the scanner and the printer
-// read the same cell, so `16 base !` works and `hex` is just the polite
+// BASE is a variable, like `state` and `base` both are now: the scanner and the
+// printer read the same cell, so `16 base !` works and `hex` is just the polite
 // spelling. Three things are pinned beyond the two words themselves:
 //
 //   * The scanner follows the base upwards as well as downwards. Above base ten
@@ -3528,4 +3528,126 @@ test('a base below two stops the printer instead of running away', () => {
   // And the scanner is not fooled either: no digit is valid in base one, so a
   // number cannot be typed there at all.
   assert.match(hexrepl('1 base ! 5').join('\n'), /undefined word: 5/);
+});
+
+// ---------------------------------------------------------------------------
+// Tier 2, sixth batch: the rest of the double family, and STATE.
+//
+// d>s, dabs, dmax, dmin, 2literal, 2>r/2r>/2r@, 2constant, 2variable and the two
+// printing words d. and d.r. The comparisons share one routine, `dless`, which
+// is what d< decides with - so these tests also hold the refactored d< to its old
+// answers. d. builds its digits with the same hold-area step `#` uses, and holds
+// the minus LAST, because the buffer fills backwards: that is why `sign` is
+// called after `#s`, and why d. has to do the same to print -5 and not 5-.
+//
+// 2literal compiles two literals, in the order they were given, so the second
+// ends on top at run time. It is immediate and reads the compile-time stack, so
+// the idiom is `: t [ 3 4 ] 2literal ;`. 2constant freezes a pair (its own
+// runtime pushes both cells); 2variable allots TWO cells, so 2@ has its pair.
+//
+// `state` becomes a real variable. The manual already claimed ( -- addr ), and
+// the standard agrees; it used to push the value instead, which only worked
+// because no test read it through `@`. Its cell now sits behind its code field,
+// the way `base`'s does, so `state @` is 0 while interpreting and 1 while a
+// definition is being translated.
+
+test('d>s, dabs, dmax and dmin work on the pair', () => {
+  assert.equal(hexOut('5 s>d d>s .'), '5');
+  assert.equal(hexOut('5 negate s>d d>s .'), '-5');
+  assert.equal(hexOut('5 s>d dabs . .'), '0  5');
+  assert.equal(hexOut('5 negate s>d dabs . .'), '0  5');
+  assert.equal(hexOut('1 0 2 0 dmax . .'), '0  2');
+  assert.equal(hexOut('2 0 1 0 dmax . .'), '0  2');
+  assert.equal(hexOut('1 0 2 0 dmin . .'), '0  1');
+  assert.equal(hexOut('2 0 1 0 dmin . .'), '0  1');
+  assert.equal(hexOut('5 negate s>d 3 s>d dmax . .'), '0  3');
+  assert.equal(hexOut('5 negate s>d 3 s>d dmin . .'), '-1  -5');
+  // Across the sign boundary, where d< has to take the overflow flag.
+  assert.equal(hexOut('0 0x8000 1 0 dmax . .'), '0  1');
+  assert.equal(hexOut('0 0x8000 1 0 dmin . .'), '-32768  0');
+  // Equal high cells: the low cells decide, and unsigned.
+  assert.equal(hexOut('2 negate s>d 1 negate s>d dmax . .'), '-1  -1');
+  assert.equal(hexOut('2 negate s>d 1 negate s>d dmin . .'), '-1  -2');
+  // d>s and dabs take two and leave the same two; dmax and dmin take four.
+  assert.equal(hexOut('5 s>d d>s depth .'), '1');
+  assert.equal(hexOut('5 negate s>d dabs depth .'), '2');
+  assert.equal(hexOut('1 0 2 0 dmax depth .'), '2');
+  for (const [src, want] of [['d>s', 2], ['dabs', 2], ['dmax', 4], ['dmin', 4]]) {
+    assert.match(hexrepl(src).join('\n'), /stack underflow/, `${src} on an empty stack`);
+    const short = Array(want - 1).fill('1').join(' ');
+    assert.match(hexrepl(`${short} ${src}`).join('\n'), /stack underflow/,
+      `${src} with ${want - 1} cell(s)`);
+  }
+  // Dictionary words, so see names them.
+  assert.equal(hexOut(': t d>s dabs ; see t'), ': t d>s dabs ;');
+  assert.equal(hexOut(': t dmax dmin ; see t'), ': t dmax dmin ;');
+});
+
+test('2literal compiles two literals, the second on top', () => {
+  const row = (def, call) => repl(`${def}\n${call}\n`).rows[2];
+  assert.equal(row(': t [ 3 4 ] 2literal ;', 't . .'), '> t . . 4  3  ok');
+  assert.equal(row(': t [ 5 negate 9 ] 2literal ;', 't . .'), '> t . . 9  -5  ok');
+  // The compiled form is two literals, which is what see shows.
+  assert.equal(row(': t [ 3 4 ] 2literal ;', 'see t'), '> see t : t 3 4 ; ok');
+  // Immediate, and it takes two cells from the compile-time stack.
+  assert.match(hexrepl(': u 2literal ;').join('\n'), /stack underflow/);
+  assert.match(hexrepl('1 2literal').join('\n'), /stack underflow/);
+});
+
+test('2>r, 2r> and 2r@ move and copy a pair', () => {
+  const row = (def, call) => repl(`${def}\n${call}\n`).rows[2];
+  assert.equal(row(': t 2>r 2r> ;', '5 6 t . .'), '> 5 6 t . . 6  5  ok');
+  // 2r@ leaves the pair, so a following 2r> still finds both cells.
+  assert.equal(row(': t 1 2 2>r 2r@ 2r> ;', 't . . . .'), '> t . . . . 2  1  2  1  ok');
+  // The return stack is empty again afterwards: a leftover cell would break the
+  // return the word is in the middle of.
+  assert.equal(row(': t 2>r 2r> ;', '5 6 t 7 .'), '> 5 6 t 7 . 7  ok');
+  // Both readers check that two cells are there.
+  for (const src of ['2r>', '2r@']) {
+    assert.match(hexrepl(src).join('\n'), /stack underflow/, `${src} on an empty return stack`);
+  }
+  assert.match(hexrepl('2>r').join('\n'), /stack underflow/);
+  assert.equal(hexOut(': t 2>r 2r> 2r@ ; see t'), ': t 2>r 2r> 2r@ ;');
+});
+
+test('2constant freezes a pair and 2variable allots two cells', () => {
+  const row = (def, call) => repl(`${def}\n${call}\n`).rows[2];
+  assert.equal(row('1 2 2constant c', 'c . .'), '> c . . 2  1  ok');
+  assert.equal(row('5 negate 9 2constant n', 'n . .'), '> n . . 9  -5  ok');
+  assert.equal(row('1000 0 2constant z', 'z . .'), '> z . . 0  1000  ok');
+  // see names the defining word and prints both cells, in the order given.
+  assert.equal(row('1 2 2constant c', 'see c'), '> see c 2constant c 1  2  ok');
+  assert.equal(row('5 negate 9 2constant n', 'see n'), '> see n 2constant n -5  9  ok');
+  // 2variable starts at zero and answers the address dovar pushes.
+  assert.equal(row('2variable v', 'v 2@ . .'), '> v 2@ . . 0  0  ok');
+  assert.equal(row('2variable v', '7 8 v 2! v 2@ . .'), '> 7 8 v 2! v 2@ . . 8  7  ok');
+  assert.equal(row('2variable v', 'see v'), '> see v variable v  ok');
+  // 2constant needs its pair.
+  assert.match(hexrepl('2constant c').join('\n'), /stack underflow/);
+  assert.match(hexrepl('1 2constant c').join('\n'), /stack underflow/);
+});
+
+test('d. prints a signed double and d.r pads it', () => {
+  assert.equal(hexOut('5 s>d d.'), '5');
+  assert.equal(hexOut('5 negate s>d d.'), '-5');  // the minus reads first, not last
+  assert.equal(hexOut('0 s>d d.'), '0');
+  assert.equal(hexOut('1000 0 234 0 d+ d.'), '1234');
+  // d.r right-aligns in a field n wide; when the number is wider, it all shows.
+  assert.equal(repl('123 s>d 8 d.r\n').rows[1], '> 123 s>d 8 d.r     123 ok');
+  assert.equal(repl('5 negate s>d 6 d.r\n').rows[1], '> 5 negate s>d 6 d.r    -5 ok');
+  assert.equal(repl('1234 s>d 2 d.r\n').rows[1], '> 1234 s>d 2 d.r1234 ok');
+  // Both take a double; d.r also takes its field width.
+  assert.match(hexrepl('d.').join('\n'), /stack underflow/);
+  assert.match(hexrepl('5 d.').join('\n'), /stack underflow/);
+  assert.match(hexrepl('5 s>d d.r').join('\n'), /stack underflow/);
+});
+
+test('state is a variable, as the manual already claimed', () => {
+  assert.equal(hexOut('state @ .'), '0');
+  // While a definition is being translated it reads 1, and an immediate word is
+  // the way to look at it from inside one.
+  const row = (def, call) => repl(`${def}\n${call}\n`).rows[2];
+  assert.equal(row(': peek state @ . ; immediate', ': t peek ;'), '> : t peek ; 1  ok');
+  // It is a variable, so see says so.
+  assert.equal(hexOut('see state'), 'variable state');
 });

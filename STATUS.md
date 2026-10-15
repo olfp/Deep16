@@ -324,6 +324,34 @@
 > Rücksprung muss dort in `interpret_loop` gehen, damit der Rest der Zeile noch
 > läuft. **2 neue Tests**, 211 in der Datei.
 >
+> **2026-10-15 (dreizehnter Teil):** **Tier 2, sechster Schub: der Rest der
+> Doppelzellen, und `state` ist eine Variable** — **179 Wörter**. Zwölf neue
+> Wörter: `d>s dabs dmax dmin 2literal 2>r 2r> 2r@ 2constant 2variable d. d.r`.
+> `dmax`/`dmin` teilen sich die Vergleichsroutine `dless`, mit der auch `d<`
+> entscheidet — die alten `d<`-Tests halten den Umbau fest, und der Überlauf am
+> Vorzeichenrand (`0 0x8000` gegen `1 0`) stimmt weiterhin. `d.`/`d.r` bauen ihre
+> Ziffern **im selben Haltebereich wie `#`**, in der aktuellen Basis.
+> **Der Fund der Runde war die Reihenfolge des Minus: `d.` druckte `5-`.** Der
+> Bereich füllt sich **rückwärts** (der Zeiger sinkt), also liest sich das
+> zuletzt Gehaltene zuerst — genau deshalb ruft der Standard `sign` **nach**
+> `#s`. `hold_double` merkt sich das Vorzeichen in einer Zelle und hält das Minus
+> erst nach der Ziffernschleife.
+> **Zwei alte Fallen, beide wieder zugeschnappt.** *(1)* `hold_double` ruft
+> `hld_put` und `hld_step` über `LINK`, und `LINK` zerstört `LR`: dieselbe
+> Parkzelle wie bei `print_zstring` ist jetzt auch hier Pflicht, sonst kehrt der
+> `JMP LR` an die falsche Stelle zurück. *(2)* Ein **doppeltes Label** `pc_done`
+> (in `print_cells` und im 0x2000-Block) ließ den Assembler den weiten Sprung
+> melden — der Test über eindeutige Label hat beide Seiten; das lokale heißt
+> jetzt `pcs_done`.
+> **`state` ist jetzt wirklich eine Variable.** Der Header zeigt nicht mehr auf
+> eine Zelle, die den **Wert** schiebt, sondern auf `dovar`, und die Zelle liegt
+> direkt hinter dem Code-Feld — wie bei `base`. `state @` ist `0` beim
+> Interpretieren und `1` beim Übersetzen (ein immediate-Wort ist der Weg, das zu
+> sehen). Der alte `word_state` ist weg; der Test pinnte bisher den Wert und heißt
+> jetzt `state @ .`. **`see` nennt ein `2constant`** (`2constant name x1 x2`) über
+> eine `doconst2`-Verzweigung, statt es als `code` auszugeben.
+> **6 neue Tests**, 512 in der Suite.
+>
 > **2026-10-14 (dritter Teil):** **`do`/`loop` sind da** — mit `?do`, `leave`
 > und `i`. Der Loop-Rahmen liegt auf dem Rückstapel, vier Zellen unter den
 > Aufrufsrahmen. Die teuerste Falle war nicht der Inhalt, sondern die
@@ -617,6 +645,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-15 | **Tier 2, 3. Schub: Zeichenkettenwörter** (`cmove cmove> blank -trailing compare search /string`) — 162 Wörter. Ein Zeichen ist hier **eine Zelle**, also ist `cmove` = `move` (per Sprung geteilt) und `blank` = `fill` mit einem Leerzeichen (der Stub schiebt 32 und springt nach `word_fill`); `/string` addiert `n` direkt. **`cmove>`** kopiert von oben nach unten (Zeiger erst um `u` erhöhen, dann senken) und ist damit für Ziel über Quelle sicher, während `cmove` dort das erste Zeichen verdoppelt (gepinnt: `ABAABAAA`). `compare` liefert −1/0/1 nach dem ersten Unterschied bzw. der Länge und vergleicht **unsigniert** (128 > 127, gepinnt); `search` antwortet **den Rest ab dem Treffer** (`( c-addr3 u3 flag )`, leerer Nadel beginnt bei 0). **Fund 1:** `cmove>` startete eine Zelle zu tief — sah wie eine Richtungs-, war eine Startlagenfrage. **Fund 2 (Werkzeug):** `/string` benutzte `wls_ok`, das schon `word_lshift` gehört; der Assembler nimmt stillschweigend die letzte Definition und meldete nur einen zu weiten Sprung. Neuer Test: **alle ~850 Labels der Quelldatei sind eindeutig**. **5 neue Tests**, 204 in der Datei, **499/499** im Repo. `FORTH.md`: sieben Zeilen und ein Absatz in „Characters and strings", Zahl 155 → **162**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-15 | **Tier 2, 4. Schub: Ausnahmen** (`catch throw abort abort"`) — 166 Wörter. `catch` führt ein xt mit einem **3-Zellen-Rahmen auf dem Rückstapel** aus (voriger Handler / IP des Aufrufers / gemerkte Datenstapeltiefe); das xt wird wie von `execute` betreten, aber IP zeigt vorher auf einen **einzelligen Thread**, damit sein Ende in `word_catch_ok` landet statt im Interpreter — `throw` benutzt den zweiten Thread (`word_catch_thrown`) und dieselbe Buchhaltung ohne die Null. `throw` schneidet den Datenstapel auf die gemerkte Tiefe, setzt RP auf den Rahmen und den Handler auf den äußeren; `abort` = `-1 throw`, `abort"` (immediate, **kein** Tokenizer-Wort: `' abort"` findet es, `see` druckt es zurück) druckt seinen Text und wirft `-2`. **Die Kernel-Fehler sind Ausnahmen, solange ein Handler in Reichweite ist** (`stack_underflow_error` → `-4`, `skip_unknown` → `-13`, beide an *einer* Stelle geprüft); ohne Handler bleibt der alte Weg. **Fund 1:** `LD R1, R9, 0` liest über ES (LDI-Falle #4) — der gespeicherte IP landete im Bildschirm; neuer Test: **kein `LD`/`ST` darf R8/R9 als Basis benutzen**. **Fund 2:** `print_zstring` ist LINK-gerufen und ruft selbst `put_char` per LINK — LR war weg, es kehrte irgendwohin zurück; LR wird jetzt in `pzs_lr` geparkt (und nur R1–R3 überleben den BIOS-Aufruf, also läuft der Zeiger in R3). **5 neue Tests**, 209 in der Datei, **504/504** im Repo. `FORTH.md`: neuer Abschnitt „Exceptions", Zahl 162 → **166**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-15 | **Tier 2, 5. Schub: `evaluate`** — 167 Wörter. `evaluate` führt eine Zeichenkette durch **denselben Tokenizer** wie die Tastaturzeile (im aktuellen Zustand, also auch `:`/`;`), kopiert sie in einen **Puffer je Tiefe** (zwei Ebenen, der Standard verlangt zwei) und schließt sie mit einer Nullzelle ab; `interpret_done` erkennt eine laufende Auswertung und gibt **Quelle und Thread** zurück, statt eine Eingabeaufforderung zu drucken. Zu lange Zeilen oder eine dritte Ebene werfen `-22`. **Wichtig für `catch`:** ein unbekannter Name in einer Auswertung ist jetzt `-13` (erster erreichbarer Weg dorthin), und ein `throw` setzt die **Eingabequelle** zurück — dafür merkt sich der **catch-Rahmen** jetzt auch TIB und `>IN` (Rahmen 4 → **6 Zellen**), sonst liest der Interpreter den abgebrochenen Text noch einmal. **Drei Funde:** *(1)* `interpret_done` liegt im **engen 0x0100-Block** (19 Wörter frei); der Hook sprengte ihn und `.org 0x0500` überschrieb den Schwanz **stillschweigend**, sodass der Ablauf in `word_plus` fiel — jede Zeile endete mit Unterlauf; die Prüfung liegt jetzt im 0x0500-Block. *(2)* `SUB R1, 22` ist unmöglich (ALU-Immediate = 4 Bit) → `LDI -22`. *(3)* Bei interpretiertem `evaluate` zeigt IP auf `resume_list`, nicht auf einen Thread → der Rücksprung muss in `interpret_loop` gehen, damit der Rest der Zeile läuft. **2 neue Tests**, 211 in der Datei, **506/506** im Repo. `FORTH.md`: Zeile und Absatz in „Names and execution", Zahl 166 → **167**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
+| 2026-10-15 | **Tier 2, 6. Schub: Rest der Doppelzellen + `state` als Variable** (`d>s dabs dmax dmin 2literal 2>r 2r> 2r@ 2constant 2variable d. d.r`) — 179 Wörter. `dmax`/`dmin` teilen die Vergleichsroutine **`dless`**, mit der auch `d<` entscheidet (die alten `d<`-Tests halten den Umbau fest, inklusive Überlauf am Vorzeichenrand); `d.`/`d.r` bauen ihre Ziffern im **selben Haltebereich wie `#`** in der aktuellen Basis. **Fund der Runde: die Reihenfolge des Minus** — `d.` druckte `5-`, weil sich der Haltebereich **rückwärts** füllt und das zuletzt Gehaltene zuerst liest; genau deshalb ruft der Standard `sign` **nach** `#s`, und `hold_double` hält das Minus jetzt ebenfalls zuletzt (Vorzeichen in einer Zelle gemerkt). **Zwei alte Fallen:** *(1)* `hold_double` ruft `hld_put`/`hld_step` über `LINK`, das `LR` zerstört → Parkzelle nötig, dieselbe Falle wie bei `print_zstring`. *(2)* doppeltes Label `pc_done` (in `print_cells` und im 0x2000-Block) → lokaler Name `pcs_done`. **`state` ist jetzt eine echte Variable:** der Header zeigt auf `dovar` und die Zelle liegt direkt dahinter (wie `base`), `state @` ist `0`/`1`; `word_state` entfällt, der Test pinnt jetzt `state @ .`. **`see` nennt `2constant`** über eine `doconst2`-Verzweigung. **6 neue Tests**, 512 im Repo. `FORTH.md`: Doppelzellen-Tabelle + Prosa, `2literal`/`2>r`/`2r>`/`2r@`/`2constant`/`2variable`-Zeilen, Zahl 167 → **179**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 
 ## Architektur-Revisionen im Repo-Root
 

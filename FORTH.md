@@ -94,18 +94,24 @@ in that high cell.
 | word | stack effect | meaning |
 |------|--------------|---------|
 | `s>d` | `( n -- d )` | widen a single to a double |
+| `d>s` | `( d -- n )` | drop the high cell, keeping the low one |
 | `d+` | `( d1 d2 -- d3 )` | double add |
 | `d-` | `( d1 d2 -- d3 )` | double subtract |
 | `dnegate` | `( d -- -d )` | double negate |
+| `dabs` | `( d -- ud )` | absolute value |
 | `m+` | `( d1 n -- d2 )` | add a single to a double |
 | `d=` | `( d1 d2 -- flag )` | equal |
 | `d0=` | `( d -- flag )` | zero |
 | `d<` | `( d1 d2 -- flag )` | signed less than |
+| `dmax` | `( d1 d2 -- d )` | the larger of two |
+| `dmin` | `( d1 d2 -- d )` | the smaller of two |
 | `um*` | `( u1 u2 -- ud )` | the unsigned 32-bit product |
 | `m*` | `( n1 n2 -- d )` | the signed 32-bit product |
 | `um/mod` | `( ud u1 -- u2 u3 )` | unsigned division: `u2` remainder, `u3` quotient |
 | `sm/rem` | `( d1 n1 -- n2 n3 )` | symmetric division: `n2` remainder, `n3` quotient |
 | `fm/mod` | `( d1 n1 -- n2 n3 )` | floored division, the same two cells |
+| `d.` | `( d -- )` | print a signed double, then a space |
+| `d.r` | `( d n -- )` | print it right-aligned in a field `n` wide |
 
 The divisions answer the **quotient on top** and the remainder below it, which is
 what the standard's `u3` and `n3` are. `sm/rem` truncates the quotient toward
@@ -124,18 +130,19 @@ one:
   both operands are non-negative and the signed division is the unsigned one. An
   unsigned divisor of `32768` or more is read as negative and comes out signed.
 
-The bigger double words are not here yet — `d.`, `d.r`, `d>s`, `dabs`, `dmax`,
-`dmin`, `2constant`, `2variable`. Two of them are a line each:
+`d>s`, `dabs`, `dmax` and `dmin` are the short ones, and all four are decided by
+the high cell, which is where a double's sign lives. `dmax` and `dmin` share the
+comparison `d<` uses, so they take the overflow flag into account and answer
+correctly across the sign boundary (`0 0x8000` is the most negative double, and
+`dmax` against `1 0` picks the `1`).
 
-```text
-: dabs  dup 0< if dnegate then ;        \ the high cell is where the sign is
-: d.    tuck dabs <# #s rot sign #> type space ;
-```
-
-The signed `d.` is worth reading once: `tuck` keeps the high cell for `sign`,
-`dabs` takes the absolute value of the double below it, `#s` builds the digits,
-and `rot sign` holds the minus that was kept. Without `sign` a negative double
-prints as its magnitude.
+`d.` and `d.r` print through the **same hold area** as `<#`/`#`/`#>` and the same
+digit step, so a double prints in the current base and follows the hold rules. The
+minus is held **last**, because the buffer fills backwards — exactly why `sign` is
+called after `#s`; without that a negative double would print as `5-`. `d.r` is
+right-aligned in a field of `n`: it pads with spaces when the digits are narrower
+and prints everything when they are not, so `123 s>d 8 d.r` is `     123` and
+`1234 s>d 2 d.r` is `1234`.
 
 ## Stack
 
@@ -173,10 +180,15 @@ pointer out from under the loop's own frame.
 | `>r` | `( x -- )` | move `x` from the data stack to the return stack |
 | `r>` | `( -- x )` | move the top of the return stack to the data stack |
 | `r@` | `( -- x )` | copy the top of the return stack to the data stack |
+| `2>r` | `( x1 x2 -- )` | move two cells, the way `>r >r` would |
+| `2r>` | `( -- x1 x2 )` | move them back, in order |
+| `2r@` | `( -- x1 x2 )` | copy both, leaving the pair in place |
 
 `>r` needs a cell on the data stack; `r>` and `r@` need one on the return
 stack, and at the prompt the return stack is empty, so both report
-`stack underflow` rather than reading past its base.
+`stack underflow` rather than reading past its base. The three pair words
+(`2>r`, `2r>`, `2r@`) work the same way two cells at a time and check for two,
+and they leave the pair in the order it was given — `5 6 2>r 2r>` is `5 6`.
 
 ## Arithmetic
 
@@ -337,6 +349,7 @@ not a string at all: `s"x"` reports itself as an undefined word.
 | `[']` **imm** | `( "<spaces>name" -- )` | compile the xt of the next word |
 | `[char]` **imm** | `( "<spaces>name" -- )` | compile the first character of the next token |
 | `literal` **imm** | `( x -- )` | compile the value on the stack |
+| `2literal` **imm** | `( x1 x2 -- )` | compile two values, the second ending on top |
 | `evaluate` | `( i*x c-addr u -- j*x )` | interpret the string as a line of input |
 
 An *execution token* is the address of a word's code field, which is the cell
@@ -378,6 +391,14 @@ compiled one:
 : width [ 6 7 * ] literal ;   width .      \ 42  ok
 ```
 
+`2literal` is the pair: it takes two cells from the compile-time stack and
+compiles both, so at run time they are pushed in the same order. It reads the
+compile-time stack the same way, so the values come from between `[` and `]`:
+
+```text
+: pair [ 3 4 ] 2literal ;   pair . .        \ 4 3  ok
+```
+
 `char` reads the parse area and not the dictionary, so a token that names
 nothing still names its own first character: `char abc` is `97`. A name that is
 missing, for `'` or `[']`, is reported as `undefined word:` just as an unknown
@@ -390,13 +411,15 @@ word is.
 | `:` | `( -- )` | `: name` begin a definition |
 | `;` **imm** | `( -- )` | end the definition and stop compiling |
 | `variable` | `( -- )` | `variable name`; `name` pushes its cell address |
+| `2variable` | `( -- )` | like `variable`, but two cells: `2@` and `2!` have their pair |
 | `constant` | `( x -- )` | `constant name`; `name` pushes `x` |
+| `2constant` | `( x1 x2 -- )` | `2constant name`; `name` pushes both cells, in order |
 | `value` | `( x -- )` | like `constant`, but changeable with `to` |
 | `to` **imm** | `( x -- )` | `to name` stores `x` in a `value`'s cell |
 | `create` | `( -- )` | `create name`; `name`'s body starts at `here` |
 | `does>` | `( -- )` | attach the following code as a created word's action |
 | `immediate` | `( -- )` | mark the most recent definition immediate |
-| `state` | `( -- addr )` | address of STATE (`0` interpret, `1` compile) |
+| `state` | `( -- addr )` | address of STATE: `0` while interpreting, `1` while compiling |
 | `[` **imm** | `( -- )` | switch to interpret state |
 | `]` | `( -- )` | switch to compile state |
 | `recurse` **imm** | `( -- )` | compile a call to the definition being built |
@@ -405,6 +428,21 @@ word is.
 ```text
 : const create , does> @ ;    \ a defining word
 42 const answer answer .       \ 42  ok
+```
+
+`2constant` and `2variable` are the two-cell versions. A `2constant` has a
+runtime of its own: it pushes both cells, in the order they were given, so the
+second ends on top. A `2variable` owns **two** cells and leaves the address of
+the first, which is what `2@` and `2!` expect. `see` names both — a `2constant`
+prints as `2constant name x1 x2`, and it is still a variable that `see` reports
+like any other.
+
+`state` is a real variable. Its cell sits behind its code field the way `base`'s
+does, so `state @` is `0` while the interpreter is reading a line and `1` while a
+definition is being translated. An immediate word is the way to look at the `1`:
+
+```text
+: peek state @ . ; immediate   : t peek ;    \ t prints 1 while it is compiled
 ```
 
 ## Control flow
@@ -534,7 +572,8 @@ only forth definitions                  \ back to FORTH
 `see` prints a definition the way it was written: a colon word as `: name … ;`
 (with each compiled word named, and a compiled string back as `." … "`), and
 anything else as the word that made it — `variable name`, `constant name value`,
-`create name does> …`, `vocabulary name`, or `code name` for a primitive. It
+`2constant name x1 x2`, `create name does> …`, `vocabulary name`, or `code name`
+for a primitive. It
 walks the thread until the `;` the compiler put there, so an `exit` in the
 middle of a body still shows the rest. Two things are not reconstructed:
 `if`/`then`/`begin`/`until` appear as `(branch)`/`(0branch)` with the stored
@@ -542,5 +581,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 167 words. New words are added at the head of the
+That is the whole dictionary: 179 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

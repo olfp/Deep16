@@ -1576,7 +1576,9 @@ h_state:
     .word h_bracket_end
     .word 5
     .text "state"
-    .word word_state
+    .word dovar           ; a variable, as the standard says: `state @` works
+state_var:
+    .word 0              ; 0 = interpret, 1 = compile
 h_bracket_end:
     .word h_bracket_begin
     .word 1
@@ -2132,10 +2134,73 @@ h_abortq:
     .text "abort\""
     .word word_abortq
 h_evaluate:
-    .word h_see
+    .word h_dtos
     .word 8
     .text "evaluate"
     .word word_evaluate
+; The rest of the double family, chained in at the same place. Only 2literal is
+; immediate; the others are ordinary words, and d. and d.r print through the hold
+; area `#` uses.
+h_dtos:
+    .word h_dabs
+    .word 3
+    .text "d>s"
+    .word word_dtos
+h_dabs:
+    .word h_dmax
+    .word 4
+    .text "dabs"
+    .word word_dabs
+h_dmax:
+    .word h_dmin
+    .word 4
+    .text "dmax"
+    .word word_dmax
+h_dmin:
+    .word h_2literal
+    .word 4
+    .text "dmin"
+    .word word_dmin
+h_2literal:
+    .word h_2tor
+    .word 0x8008          ; IMMEDIATE | length 8
+    .text "2literal"
+    .word word_2literal
+h_2tor:
+    .word h_2rfrom
+    .word 3
+    .text "2>r"
+    .word word_2tor
+h_2rfrom:
+    .word h_2rfetch
+    .word 3
+    .text "2r>"
+    .word word_2rfrom
+h_2rfetch:
+    .word h_2constant
+    .word 3
+    .text "2r@"
+    .word word_2rfetch
+h_2constant:
+    .word h_2variable
+    .word 9
+    .text "2constant"
+    .word word_2constant
+h_2variable:
+    .word h_ddot
+    .word 9
+    .text "2variable"
+    .word word_2variable
+h_ddot:
+    .word h_ddotr
+    .word 2
+    .text "d."
+    .word word_ddot
+h_ddotr:
+    .word h_see
+    .word 3
+    .text "d.r"
+    .word word_ddotr
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -2451,8 +2516,6 @@ saved_in:
     .word 0
 
 ; --- P2 threading state ---
-state_var:
-    .word 0              ; 0 = interpret, 1 = compile
 dp_var:
     .word dict_free      ; next free dictionary cell (grows upwards)
 ip_ptr:
@@ -2566,6 +2629,14 @@ pn_lr:
     .word 0              ; print_number's return address across its putch call
 pzs_lr:
     .word 0              ; the same for print_zstring
+lit2_save:
+    .word 0              ; 2literal's second cell across compile_lit
+pcs_lr:
+    .word 0              ; print_cells' return address across its put_char call
+hd_lr:
+    .word 0              ; hold_double's, across its hld_put and hld_step calls
+hd_neg:
+    .word 0              ; its sign, held after the digits so the minus reads first
 pt_lr:
     .word 0              ; print_text's return address across its putch call
 
@@ -2604,6 +2675,8 @@ see_str_variable:
     .text "variable "
 see_str_constant:
     .text "constant "
+see_str_2constant:
+    .text "2constant "
 see_str_create:
     .text "create "
 see_str_does:
@@ -4414,6 +4487,18 @@ doconst:
     MOV PC, R0
     NOP
 
+doconst2:
+    ; Runtime of a 2CONSTANT: the two cells behind the code field, pushed in the
+    ; order they were given, so x2 ends on top as the input left it.
+    LD R1, R10, 1
+    LD R3, R10, 2
+    SUB SP, 2
+    ST R1, SP, 1
+    ST R3, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
 ; Runtime of a CREATE'd word. W (R10) is the xt; the cell at W+1 holds the
 ; DOES> thread that was attached (0 when there is none), and the data field
 ; begins at W+2. A plain created word behaves like a variable.
@@ -4790,6 +4875,597 @@ evc_done:
     MOV PC, R0
     NOP
 
+; ---------------------------------------------
+; Tier 2, sixth batch: the rest of the double family, and STATE
+; ---------------------------------------------
+; d>s, dabs, dmax, dmin, 2literal, 2>r/2r>/2r@, 2constant, 2variable and the two
+; printing words d. and d.r. The three comparisons share one routine, `dless`,
+; which is what d< decides with; and d. builds its digits with the same
+; hold-area step `#` uses, so a double prints in the current base and follows the
+; current hold rules. `state` becomes a variable, as the standard says and as the
+; manual already claimed: it pushes the address of the cell the compiler keeps
+; its state in, so `state @` works.
+
+word_dtos:                  ; d>s ( d -- n )  the low cell, the high one dropped
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wdts_ok
+    NOP
+    JN wdts_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wdts_ok:
+    ADD SP, 1               ; the high cell goes away
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_dabs:                  ; dabs ( d -- ud )
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wdab_ok
+    NOP
+    JN wdab_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wdab_ok:
+    LD R1, SP, 0            ; the high cell carries the sign
+    LDI 0
+    CMP R1, R0
+    JNN wdab_done
+    NOP
+    LD R3, SP, 1            ; the low cell
+    INV R1                  ; two's complement, the way dnegate does it
+    INV R3
+    ADD R3, 1
+    JC wdab_carry
+    NOP
+    ST R1, SP, 0
+    ST R3, SP, 1
+    LDI next
+    MOV PC, R0
+    NOP
+wdab_carry:
+    ADD R1, 1
+    ST R1, SP, 0
+    ST R3, SP, 1
+wdab_done:
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_2literal:              ; 2literal ( x1 x2 -- ) IMMEDIATE
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ w2lit_ok
+    NOP
+    JN w2lit_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+w2lit_ok:
+    LD R7, SP, 1            ; x1, which the thread has to push first
+    LD R3, SP, 0            ; x2
+    ADD SP, 2
+    LDI lit2_save
+    MOV R2, R0
+    ST R3, R2, 0            ; x2 waits here: compile_lit uses R2-R4
+    MOV R1, R7
+    LDI compile_lit
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI lit2_save
+    MOV R2, R0
+    LD R1, R2, 0
+    LDI compile_lit
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_2tor:                  ; 2>r ( x1 x2 -- ) ( R: -- x1 x2 )
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ w2t_ok
+    NOP
+    JN w2t_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+w2t_ok:
+    LD R1, SP, 0            ; x2, the top of the data stack
+    LD R3, SP, 1            ; x1
+    ADD SP, 2
+    LDI rp_ptr
+    MOV R4, R0
+    LD R2, R4, 0            ; RP
+    SUB R2, 2
+    ST R1, R2, 0            ; [RP] = x2, so 2r> hands it back first
+    ST R3, R2, 1            ; [RP+1] = x1
+    ST R2, R4, 0            ; RP
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_2rfrom:                ; 2r> ( -- x1 x2 ) ( R: x1 x2 -- )
+    LDI rp_ptr
+    MOV R4, R0
+    LD R2, R4, 0            ; RP
+    LDI rp0_base
+    MOV R1, R0
+    LD R1, R1, 0            ; the base the return stack grows down from
+    MOV R3, R2
+    ADD R3, 2               ; RP + 2: at the base there are exactly two cells
+    CMP R3, R1
+    JZ w2f_ok
+    NOP
+    JN w2f_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+w2f_ok:
+    LD R1, R2, 1            ; x1
+    LD R7, R2, 0            ; x2
+    ADD R2, 2
+    ST R2, R4, 0            ; RP
+    SUB SP, 2
+    ST R1, SP, 1            ; x1 deeper, as it was
+    ST R7, SP, 0            ; x2 on top
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_2rfetch:               ; 2r@ ( -- x1 x2 ) ( R: x1 x2 -- x1 x2 )
+    LDI rp_ptr
+    MOV R4, R0
+    LD R2, R4, 0
+    LDI rp0_base
+    MOV R1, R0
+    LD R1, R1, 0
+    MOV R3, R2
+    ADD R3, 2
+    CMP R3, R1
+    JZ w2rf_ok
+    NOP
+    JN w2rf_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+w2rf_ok:
+    LD R1, R2, 1
+    LD R7, R2, 0
+    SUB SP, 2
+    ST R1, SP, 1
+    ST R7, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+; dless ( R1 = a.hi, R2 = b.hi, R3 = a.lo, R4 = b.lo ) answers R7 = 1 when
+; a < b and 0 otherwise. The high cells decide as signed values, with the same
+; N/V test the single `<` uses, and only when they are equal do the low cells get
+; a say - unsigned, because -2 is 0xFFFF:0xFFFE and -1 is 0xFFFF:0xFFFF. It
+; touches neither the data stack nor a register its callers keep, except R7.
+dless:
+    CMP R1, R2              ; a.hi - b.hi
+    JO dl_hi_ovf
+    NOP
+    JN dl_true              ; no overflow: the sign of the difference is it
+    NOP
+    JZ dl_low               ; equal highs: the low cells decide
+    NOP
+    LDI dl_false
+    MOV PC, R0
+    NOP
+dl_hi_ovf:
+    JN dl_false             ; the overflow inverted the sign
+    NOP
+dl_true:
+    LDI 1
+    MOV R7, R0
+    JMP LR
+    NOP
+dl_false:
+    LDI 0
+    MOV R7, R0
+    JMP LR
+    NOP
+dl_low:
+    CMP R3, R4              ; C is a borrow: a.lo < b.lo unsigned
+    JC dl_true
+    NOP
+    LDI dl_false
+    MOV PC, R0
+    NOP
+
+; The three comparison words put dless to work. Each loads the four cells,
+; calls it, drops or keeps a pair and answers.
+word_dmax:                  ; dmax ( d1 d2 -- d )
+    MOV R9, SP
+    ADD R9, 4
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wdmax_ok
+    NOP
+    JN wdmax_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wdmax_ok:
+    LD R1, SP, 2            ; a.hi
+    LD R2, SP, 0            ; b.hi
+    LD R3, SP, 3            ; a.lo
+    LD R4, SP, 1            ; b.lo
+    LDI dless
+    MOV R9, R0
+    LINK
+    JMP R9
+    NOP
+    LDI 0
+    CMP R7, R0
+    JZ wdmax_take_a         ; a is not below b, so a is the larger one
+    NOP
+    LD R1, SP, 0            ; else b is
+    LD R3, SP, 1
+    LDI wdmax_store
+    MOV PC, R0
+    NOP
+wdmax_take_a:
+    LD R1, SP, 2
+    LD R3, SP, 3
+wdmax_store:
+    ADD SP, 2               ; two cells in, two out: a's slots hold the answer
+    ST R1, SP, 0
+    ST R3, SP, 1
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_dmin:                  ; dmin ( d1 d2 -- d )
+    MOV R9, SP
+    ADD R9, 4
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wdmin_ok
+    NOP
+    JN wdmin_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wdmin_ok:
+    LD R1, SP, 2
+    LD R2, SP, 0
+    LD R3, SP, 3
+    LD R4, SP, 1
+    LDI dless
+    MOV R9, R0
+    LINK
+    JMP R9
+    NOP
+    LDI 0
+    CMP R7, R0
+    JNZ wdmin_take_a        ; a is below b, so a is the smaller one
+    NOP
+    LD R1, SP, 0            ; else b is
+    LD R3, SP, 1
+    LDI wdmin_store
+    MOV PC, R0
+    NOP
+wdmin_take_a:
+    LD R1, SP, 2
+    LD R3, SP, 3
+wdmin_store:
+    ADD SP, 2
+    ST R1, SP, 0
+    ST R3, SP, 1
+    LDI next
+    MOV PC, R0
+    NOP
+
+; print_cells ( R7 = address, R3 = count ) prints one character per cell. R2
+; carries the cursor and R3 the count, which is what put_char keeps; LR is parked
+; because put_char takes it.
+print_cells:
+    LDI pcs_lr
+    MOV R2, R0
+    ST LR, R2, 0
+    MOV R2, R7
+pc_loop:
+    LDI 0
+    CMP R3, R0
+    JZ pcs_done
+    NOP
+    LD R1, R2, 0
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R1
+    LINK
+    JMP R4
+    NOP
+    ADD R2, 1
+    SUB R3, 1
+    LDI pc_loop
+    MOV PC, R0
+    NOP
+pcs_done:
+    LDI pcs_lr
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
+    NOP
+
+; hold_double: hold the digits of the double on the top of the data stack, in the
+; current base, with a minus held last when it is negative - the buffer fills
+; backwards, so the minus then reads first. LINK-called, and the data stack is
+; left alone: d. and d.r drop the double themselves.
+hold_double:
+    ; LR is parked: hld_put and hld_step are LINK-called, and LINK takes it.
+    LDI hd_lr
+    MOV R2, R0
+    ST LR, R2, 0
+    LDI hd_neg
+    MOV R3, R0
+    LDI 0
+    ST R0, R3, 0            ; no sign yet
+    LDI hld_ptr
+    MOV R2, R0
+    LDI hld_end
+    ST R0, R2, 0            ; the cursor starts at the end of the buffer
+    LD R1, SP, 0            ; the high cell
+    LDI 0
+    CMP R1, R0
+    JNN hd_digits
+    NOP
+    LDI hd_neg
+    MOV R3, R0
+    LDI 1
+    ST R0, R3, 0            ; remember the sign: it is held last
+    LD R1, SP, 0            ; negative: negate first
+    LD R3, SP, 1
+    INV R1
+    INV R3
+    ADD R3, 1
+    JC hd_carry
+    NOP
+    ST R1, SP, 0
+    ST R3, SP, 1
+    LDI hd_digits
+    MOV PC, R0
+    NOP
+hd_carry:
+    ADD R1, 1
+    ST R1, SP, 0
+    ST R3, SP, 1
+hd_digits:
+    LDI hld_step
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LD R1, SP, 0
+    LD R3, SP, 1
+    OR R1, R3
+    LDI 0
+    CMP R1, R0
+    JNZ hd_digits
+    NOP
+    LDI hd_neg
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI 0
+    CMP R2, R0
+    JZ hd_done
+    NOP
+    LDI '-'                ; held now, so it reads first: the buffer fills
+    MOV R4, R0             ; backwards, as `sign` relies on
+    LDI hld_put
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+hd_done:
+    LDI hd_lr
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
+    NOP
+
+word_ddot:                  ; d. ( d -- )  print the double and a space
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wdd_ok
+    NOP
+    JN wdd_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wdd_ok:
+    LDI hold_double
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI hld_ptr
+    MOV R2, R0
+    LD R7, R2, 0            ; the first character held
+    LDI hld_end
+    MOV R3, R0
+    SUB R3, R7              ; and how many there are
+    ADD SP, 2               ; the double goes away
+    LDI print_cells
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI put_char
+    MOV R4, R0
+    LDI ' '
+    LINK
+    JMP R4
+    NOP
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_ddotr:                 ; d.r ( d n -- )  print the double right-aligned
+    MOV R9, SP
+    ADD R9, 3
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wdr_ok
+    NOP
+    JN wdr_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wdr_ok:
+    LD R7, SP, 0            ; the field width
+    ADD SP, 1
+    LDI hold_double
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI hld_ptr
+    MOV R2, R0
+    LD R1, R2, 0            ; the first character
+    LDI hld_end
+    MOV R3, R0
+    SUB R3, R1              ; the length
+    ADD SP, 2               ; the double goes away
+    MOV R2, R7
+    SUB R2, R3              ; the padding: width - length
+    JC wdr_print            ; carry: the field is narrower, so there is none
+    NOP
+    LDI 0
+    CMP R2, R0
+    JZ wdr_print
+    NOP
+wdr_pad:
+    LDI put_char
+    MOV R4, R0
+    LDI ' '
+    LINK
+    JMP R4
+    NOP
+    SUB R2, 1
+    LDI 0
+    CMP R2, R0
+    JNZ wdr_pad
+    NOP
+wdr_print:
+    MOV R7, R1              ; print_cells reads the address in R7
+    LDI print_cells
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_2constant:             ; 2constant ( x1 x2 "name" -- )
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ w2c_ok
+    NOP
+    JN w2c_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+w2c_ok:
+    LDI define_name
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    ; R2 is the CFA cell and R12 the dictionary pointer
+    LD R7, SP, 0            ; x2, the top
+    LD R3, SP, 1            ; x1
+    ADD SP, 2
+    LDI doconst2
+    MOV R1, R0
+    ST R1, R2, 0            ; CFA = the runtime that pushes both
+    ADD R2, 1
+    ST R3, R2, 0            ; x1 first, so x2 ends on top
+    ADD R2, 1
+    ST R7, R2, 0            ; x2
+    ADD R2, 1
+    ST R2, R12, 0           ; DP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_2variable:             ; 2variable ( "name" -- )
+    LDI define_name
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI dovar
+    MOV R1, R0
+    ST R1, R2, 0            ; CFA = dovar
+    MOV R7, R2
+    ADD R7, 1               ; the address dovar will push
+    LDI 0
+    ST R0, R7, 0            ; the first cell
+    ST R0, R7, 1            ; and the second, so 2@ has its pair
+    ADD R2, 3               ; past the CFA and both cells
+    ST R2, R12, 0           ; DP
+    SUB SP, 1
+    ST R7, SP, 0            ; leave the address, as `variable` does
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
 ; =============================================
 ; P2: Indirect-threaded code engine
 ; =============================================
@@ -4992,16 +5668,6 @@ word_immediate:
     OR R4, R0
     ST R4, R3, 1          ; set IMMEDIATE on the newest header
     LDI interpret_loop
-    MOV PC, R0
-    NOP
-
-word_state:
-    LDI state_var
-    MOV R2, R0
-    LD R1, R2, 0
-    SUB SP, 1
-    ST R1, SP, 0
-    LDI next
     MOV PC, R0
     NOP
 
@@ -6267,6 +6933,10 @@ word_see:
     CMP R3, R0
     JZ see_constant
     NOP
+    LDI doconst2
+    CMP R3, R0
+    JZ see_2constant
+    NOP
     LDI dodoes
     CMP R3, R0
     JZ see_created
@@ -6337,6 +7007,46 @@ see_constant:
     MOV R3, R0
     LD R3, R3, 0
     ADD R3, 1
+    LD R2, R3, 0
+    LDI see_num
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+    LDI see_done
+    MOV PC, R0
+    NOP
+
+see_2constant:
+    LDI see_str_2constant
+    MOV R1, R0
+    LDI see_head
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    ; x1 then x2 live in the two cells after the CFA, in the order the runtime
+    ; pushes them.
+    LDI see_cfa
+    MOV R3, R0
+    LD R3, R3, 0
+    ADD R3, 1
+    LD R2, R3, 0
+    LDI see_num
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+    LDI put_char
+    MOV R4, R0
+    LDI ' '
+    LINK
+    JMP R4
+    NOP
+    LDI see_cfa
+    MOV R3, R0
+    LD R3, R3, 0
+    ADD R3, 2
     LD R2, R3, 0
     LDI see_num
     MOV R3, R0
