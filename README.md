@@ -116,6 +116,16 @@ node scripts/bench.mjs   # MIPS of all three cores
 Full reference: [`doc/Deep16-Arch.md`](doc/Deep16-Arch.md).
 Programming guide: [`doc/Deep16-Prog-Man.md`](doc/Deep16-Prog-Man.md).
 
+> **Output rule (hardware portability).** Every character the kernel prints goes
+> through the BIOS `putch` (function 2), and every kernel routine that prints
+> reaches it through the `put_char` / `emit` path. `putch` is the single place
+> output reaches the outside world — it drives the memory-mapped screen today
+> and a UART on hardware, and that swap must not need a change anywhere else.
+> So do **not** write the screen buffer (`ES:SCR`) from output code. The
+> exceptions are the screen-specific words (`scr@`, `scr!`, `cls`) and
+> full-screen graphics programs like `hanoi` or `snake`, which address the
+> framebuffer on purpose and simply have no UART equivalent.
+
 ## Layout
 
 ```

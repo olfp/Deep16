@@ -136,22 +136,34 @@ cursor_on:
 ; -------------------------
 ; Common subroutines
 .code
+; print_text prints the NUL-terminated string at R0 through putch (the single
+; choke point for character output) and returns via LR. LR is saved because
+; put_char is itself called with LINK.
 print_text:
     MOV R1, R0
+    LDI pt_lr
+    MOV R3, R0
+    ST LR, R3, 0
+pt_loop:
     LD R2, R1, 0
     LDI 0
     CMP R2, R0
-    JZ print_text_ret
+    JZ pt_done
     NOP
-    STS R2, ES, SCR
-    ADD SCR, 1
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R2
+    LINK
+    JMP R4
+    NOP
     ADD R1, 1
-    LDI print_text
-    MOV R2, R0
-    MOV R0, R1
-    JMP R2
+    LDI pt_loop
+    MOV PC, R0
     NOP
-print_text_ret:
+pt_done:
+    LDI pt_lr
+    MOV R3, R0
+    LD LR, R3, 0
     JMP LR
     NOP
 print_prompt:
@@ -588,16 +600,23 @@ print_string_body:
     CMP R5, R0
     JNZ print_string_normal
     NOP
+    LDI put_char
+    MOV R4, R0
     LDI '"'
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     ADD >IN, 2
     LDI print_string_body
     MOV PC, R0
     NOP
 print_string_normal:
-    STS R2, ES, SCR
-    ADD SCR, 1
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R2
+    LINK
+    JMP R4
+    NOP
     ADD >IN, 1
     LDI print_string_body
     MOV PC, R0
@@ -2101,6 +2120,10 @@ created_xt:
     .word 0              ; xt of the newest CREATE'd word (for DOES>)
 loop_depth:
     .word 0              ; DO/LOOP pairs open while compiling
+pn_lr:
+    .word 0              ; print_number's return address across its putch call
+pt_lr:
+    .word 0              ; print_text's return address across its putch call
 
 ; --- SEE: decompiler state and its fixed strings ---
 ; see_cfa/see_hdr are the word under inspection, see_ptr walks its thread and
@@ -2257,8 +2280,12 @@ lstr_loop:
     CMP R2, R0
     JZ lstr_done
     NOP
-    STS R2, ES, SCR
-    ADD SCR, 1
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R2
+    LINK
+    JMP R4
+    NOP
     ADD R3, 1
     LDI lstr_loop
     MOV PC, R0
@@ -2295,9 +2322,12 @@ word_dot:
     LD R1, SP, 0
     ADD SP, 1
     MOV R2, R1          ; value
+    LDI put_char        ; leading space, through the normal output path
+    MOV R4, R0
     LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     LDI 0
     CMP R2, R0          ; signed test against zero
     JN dot_signed
@@ -2311,9 +2341,12 @@ word_dot:
     MOV PC, R0
     NOP
 dot_signed:
+    LDI put_char
+    MOV R4, R0
     LDI '-'
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     NEG R2              ; magnitude; -32768 negates to itself and prints as 32768
     LDI print_number
     MOV R3, R0
@@ -2340,9 +2373,12 @@ word_udot:
     LD R1, SP, 0
     ADD SP, 1
     MOV R2, R1
+    LDI put_char        ; leading space, through the normal output path
+    MOV R4, R0
     LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     LDI print_number
     MOV R3, R0
     LINK
@@ -2356,16 +2392,23 @@ udot_under:
     MOV PC, R0
     NOP
 
-; print_number prints R2 as an unsigned magnitude plus a trailing space and
-; returns to the caller; it calls nothing, so a plain JMP LR is enough.
+; print_number prints R2 as an unsigned magnitude followed by a trailing space,
+; through putch, and returns to the caller. LR is saved because put_char is a
+; subroutine (LINK overwrites LR).
 print_number:
+    LDI pn_lr
+    MOV R3, R0
+    ST LR, R3, 0
     LDI 0
     CMP R2, R0
     JNZ pn_digits
     NOP
+    LDI put_char
+    MOV R4, R0
     LDI '0'
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     LDI pn_done
     MOV PC, R0
     NOP
@@ -2403,23 +2446,34 @@ pn_div_loop:
     CMP R2, R0
     JNZ pn_div_loop
     NOP
+    MOV R2, R10         ; buffer pointer in a shadow register: put_char keeps R2
 pn_print_loop:
     LDI 0
     CMP R3, R0
     JZ pn_done
     NOP
     SUB R3, 1
-    SUB R10, 1
-    LD R7, R10, 0
-    STS R7, ES, SCR
-    ADD SCR, 1
+    SUB R2, 1
+    LD R1, R2, 0        ; the digit
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R1
+    LINK
+    JMP R4
+    NOP
     LDI pn_print_loop
     MOV PC, R0
     NOP
 pn_done:
-    LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LDI put_char
+    MOV R4, R0
+    LDI ' '             ; the trailing space
+    LINK
+    JMP R4
+    NOP
+    LDI pn_lr
+    MOV R3, R0
+    LD LR, R3, 0
     JMP LR
     NOP
 word_emit:
@@ -5167,7 +5221,7 @@ word_words:
     NOP
     ; A leading space, like . and see: the REPL echoes the input line without a
     ; trailing space, so the list would otherwise butt against the "words".
-    LDI words_emit
+    LDI put_char
     MOV R4, R0
     LDI ' '
     LINK
@@ -5188,7 +5242,7 @@ wwords_char:
     CMP R2, R0
     JZ wwords_space
     NOP
-    LDI words_emit        ; call target (R4 is a scratch register)
+    LDI put_char        ; call target (R4 is a scratch register)
     MOV R4, R0
     LD R0, R1, 0          ; the character
     ADD R1, 1
@@ -5200,7 +5254,7 @@ wwords_char:
     MOV PC, R0
     NOP
 wwords_space:
-    LDI words_emit
+    LDI put_char
     MOV R4, R0
     LDI ' '
     LINK
@@ -5215,11 +5269,22 @@ wwords_ret:
     MOV PC, R0
     NOP
 
-; words_emit prints the character in R0 through BIOS putch (function 2),
-; parking >IN (R5) across the call - the shadow-bank BIOS clobbers it. R1-R3
-; are shadow-bank copies and survive the BIOS, so they are left alone for the
+; put_char prints the character in R0 through BIOS putch (function 2), parking
+; >IN (R5) across the call - the shadow-bank BIOS clobbers it. R1-R3 are
+; shadow-bank copies and survive the BIOS, so they are left alone for the
 ; caller; R4, R7 and R9 are transient scratch.
-words_emit:
+;
+; >>> OUTPUT RULE (hardware portability) <<<
+; Every character printed goes through putch (BIOS function 2), and every
+; kernel routine that prints a character reaches it through this helper (or
+; `emit`, its Forth-level twin). putch is the ONE place the kernel talks to the
+; outside world: it drives the memory-mapped screen today, and it will drive a
+; UART on hardware. That swap must not touch any other routine, so kernel code
+; must NOT write ES:SCR (the screen buffer) directly. The only exceptions are
+; the screen-specific words (scr@, scr!, cls) and full-screen graphics programs
+; like hanoi or snake, which address the framebuffer on purpose and simply do
+; not exist on a UART-only machine.
+put_char:
     MOV R4, R0            ; the character
     LDI saved_in
     MOV R7, R0
@@ -5322,9 +5387,12 @@ word_see:
     MOV R3, R0
     ST R7, R3, 0
     ; A leading space keeps the output off the echoed name.
+    LDI put_char
+    MOV R4, R0
     LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     ; Dispatch on the code field.
     LD R3, R1, 0
     LDI docol
@@ -5519,18 +5587,22 @@ see_print_name:
     LINK
     JMP R2
     NOP
+    LDI put_char
+    MOV R4, R0
     LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     LDI see_lrn
     MOV R3, R0
     LD LR, R3, 0
     JMP LR
     NOP
 
-; see_puts: print the NUL-terminated string whose address is in R1. R1, R2, R3
-; and R0 are the only registers it disturbs, which is what lets see_find_name
-; keep its header walk in R10/R11/R12 across the call.
+; see_puts: print the NUL-terminated string whose address is in R1, through
+; put_char. It disturbs R0, R4, R7 and R9 (and R5/SCR via the BIOS), so
+; see_find_name and see_body can keep their header walk in R10/R11/R12 across
+; the call; R1-R3 are shadow copies and put_char leaves them alone.
 see_puts:
     LDI see_lrp
     MOV R3, R0
@@ -5541,8 +5613,12 @@ see_puts_loop:
     CMP R2, R0
     JZ see_puts_done
     NOP
-    STS R2, ES, SCR
-    ADD SCR, 1
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R2
+    LINK
+    JMP R4
+    NOP
     ADD R1, 1
     LDI see_puts_loop
     MOV PC, R0
@@ -5573,9 +5649,12 @@ see_num:
     MOV PC, R0
     NOP
 see_num_neg:
+    LDI put_char
+    MOV R4, R0
     LDI '-'
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     NEG R2                 ; -32768 is unrepresentable and stays put, exactly
     LDI print_number       ; like "."; print_number then shows it unsigned
     MOV R3, R0
@@ -5636,9 +5715,12 @@ sfn_hdr:
     LINK
     JMP R2
     NOP
+    LDI put_char
+    MOV R4, R0
     LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     LDI sfn_done
     MOV PC, R0
     NOP
@@ -5653,9 +5735,12 @@ sfn_next_wl:
     MOV PC, R0
     NOP
 sfn_none:
+    LDI put_char
+    MOV R4, R0
     LDI '?'
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     LDI see_xt
     MOV R3, R0
     LD R2, R3, 0
@@ -5927,19 +6012,29 @@ sb_string_loop:
     CMP R2, R0
     JZ sb_string_end
     NOP
-    STS R2, ES, SCR
-    ADD SCR, 1
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R2
+    LINK
+    JMP R4
+    NOP
     ADD R11, 1
     LDI sb_string_loop
     MOV PC, R0
     NOP
 sb_string_end:
+    LDI put_char
+    MOV R4, R0
     LDI '"'
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
+    LDI put_char
+    MOV R4, R0
     LDI ' '
-    STS R0, ES, SCR
-    ADD SCR, 1
+    LINK
+    JMP R4
+    NOP
     ADD R11, 1             ; R11 sits on the NUL: step past it
     LDI see_ptr
     MOV R3, R0
@@ -6636,47 +6731,37 @@ bios_f2:
     ; the 24 visible rows (row 24 is off-screen), scroll one line and put the
     ; cursor at the start of the last visible row. Without this a wide line
     ; walks off the bottom of the buffer instead of scrolling.
-    LDI 0x1000
-    MOV R9, R0
     LDI 0x1780              ; 0x1000 + 24*80: the first off-screen row
-    MOV R7, R0
-    CMP SCR, R7
+    MOV R1, R0
+    CMP SCR, R1
     JN putch_cursor
     NOP
-    ; scroll: copy rows 1..24 up into 0..23, then clear row 24
-    LDI 0
-    MOV R2, R0
-    LDI 1920
-    MOV R5, R0
+    ; scroll: copy rows 1..24 up into 0..23, then clear row 24. Only R0-R3 and
+    ; SCR are touched; R0-R3 are shadow-bank copies, so a caller's shared
+    ; registers survive the BIOS call.
+    LDI 0x1000
+    MOV R2, R0              ; dest = base
+    MOV R3, R2
     LDI 80
-    MOV R12, R0
+    ADD R3, R0              ; src = base + 80
 putch_scroll_copy:
-    MOV R13, R9
-    ADD R13, R2
-    MOV R7, R9
-    ADD R7, R2
-    ADD R7, R12
-    LDS R1, ES, R7
-    STS R1, ES, R13
+    LD R0, R3, 0
+    ST R0, R2, 0
     ADD R2, 1
-    CMP R2, R5
+    ADD R3, 1
+    CMP R2, R1
     JNZ putch_scroll_copy
     NOP
-    LDI 0
-    MOV R2, R0
-    LDI 80
-    MOV R12, R0
+    LDI 0x17D0              ; base + 2000: end of row 24
+    MOV R3, R0
     LDI ' '
     MOV R1, R0
+    LDI 0x1780
+    MOV R2, R0
 putch_scroll_clear:
-    MOV R13, R9
-    ADD R13, R2
-    ADD R13, R5
-    STS R1, ES, R13
+    ST R1, R2, 0
     ADD R2, 1
-    SUB R12, 1
-    LDI 0
-    CMP R12, R0
+    CMP R2, R3
     JNZ putch_scroll_clear
     NOP
     LDI 0x1730              ; 0x1000 + 23*80: the last visible row, column 0
