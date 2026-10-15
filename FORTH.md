@@ -155,6 +155,42 @@ wants, and not the standard `c-addr+1`: there are no counted strings here for
 that reading to mean anything. `type` masks each cell to its low 8 bits, so a
 NUL character writes nothing rather than stopping.
 
+## Names and execution
+
+| word | stack effect | meaning |
+|------|--------------|---------|
+| `'` | `( "<spaces>name" -- xt )` | execution token of the next word |
+| `char` | `( "<spaces>name" -- c )` | first character of the next token |
+| `execute` | `( xt -- )` | run the word `xt` names |
+| `[']` **imm** | `( "<spaces>name" -- )` | compile the xt of the next word |
+| `[char]` **imm** | `( "<spaces>name" -- )` | compile the first character of the next token |
+| `literal` **imm** | `( x -- )` | compile the value on the stack |
+
+An *execution token* is the address of a word's code field, which is the cell
+the interpreter jumps through when it runs the word. `'` finds the next word and
+leaves its xt; `execute` takes one and runs it, so a word can be chosen while
+the program runs:
+
+```text
+: square dup * ;   5 ' square execute .    \ 25  ok
+```
+
+`'` and `char` are **not** immediate, so inside a definition they are compiled
+like any other word and parse when the definition runs — a definition that says
+`'` reads whatever follows its call at the prompt. `[']` and `[char]` are the
+compile-time forms and are what a definition usually wants. `literal` takes a
+value from the stack at compile time, which is how a computed number becomes a
+compiled one:
+
+```text
+: width [ 6 7 * ] literal ;   width .      \ 42  ok
+```
+
+`char` reads the parse area and not the dictionary, so a token that names
+nothing still names its own first character: `char abc` is `97`. A name that is
+missing, for `'` or `[']`, is reported as `undefined word:` just as an unknown
+word is.
+
 ## Defining words
 
 | word | stack effect | meaning |
@@ -253,5 +289,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 115 words. New words are added at the head of the
+That is the whole dictionary: 121 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

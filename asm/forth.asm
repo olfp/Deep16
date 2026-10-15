@@ -389,7 +389,7 @@ not_eol:
 token_start:
     LDI '"'
     CMP R2, R0
-    JNZ check_apostrophe
+    JNZ check_backslash
     NOP
     ; Bare string opening: step inside the string. Whether it prints now or is
     ; compiled depends on the state, so string_action decides.
@@ -397,19 +397,14 @@ token_start:
     LDI string_action
     MOV PC, R0
     NOP
-check_apostrophe:
-    LDI 39
-    CMP R2, R0
-    JNZ check_backslash
-    NOP
-    ADD >IN, 1
-    LDI interpret_loop
-    MOV PC, R0
-    NOP
 check_backslash:
     ; A backslash comments out the rest of the line. It is recognised by its
-    ; first character, exactly like the apostrophe above, so it needs no entry
+    ; first character, exactly like the parenthesis below, so it needs no entry
     ; in the dictionary and cannot be shadowed by a word of the same name.
+    ;
+    ; The apostrophe was swallowed here the same way back when `'` had nothing
+    ; behind it. It is a dictionary word now, so that branch is gone and `'`
+    ; reaches parse_word like any other token.
     LDI 92
     CMP R2, R0
     JNZ check_paren
@@ -698,9 +693,15 @@ check_number_or_word:
     CMP R4, R0
     JZ hex_prefix_one
     NOP
+    ; Only a leading '0' may open "0x". This is JNZ and not JN on purpose: JN
+    ; would let every character above '0' through to the 'x' peek below, and
+    ; then any token whose SECOND character is 'x' became a hex number. That is
+    ; how `exe` turned into 0xE and `execute` into 0xEC, leaving "ute" behind as
+    ; an undefined word: `exit` only escaped because "xi" holds no hex digit and
+    ; parse_hex_finish sends a digit-less prefix back to parse_word anyway.
     LDI '0'
     CMP R4, R0
-    JN word_first_is_digit
+    JNZ word_first_is_digit
     NOP
     MOV R10, R3
     ADD R10, 1
@@ -1765,10 +1766,51 @@ h_erase:
     .text "erase"
     .word word_erase
 h_type:
-    .word h_see
+    .word h_tick
     .word 4
     .text "type"
     .word word_type
+
+; --- Tier 1, second batch: the parsing and execution words (newest first) ---
+; `'` and `char` parse the next token at RUN time, which is where the standard
+; puts them; `[']`, `[char]` and `literal` do their work while a definition is
+; being translated and are therefore IMMEDIATE. The dictionary keeps the words
+; newest-first, so these sit between h_type and h_see and h_type points at the
+; newest of them.
+h_tick:
+    .word h_char
+    .word 1
+    .word 39              ; name "'" — a word, so the quote stays out of .text
+    .word 0
+    .word word_tick
+h_char:
+    .word h_execute
+    .word 4
+    .text "char"
+    .word word_char
+h_execute:
+    .word h_bracket_tick
+    .word 7
+    .text "execute"
+    .word word_execute
+h_bracket_tick:
+    .word h_bracket_char
+    .word 0x8003          ; IMMEDIATE | length 3
+    .word 91              ; "[']" — brackets and a quote: written as words
+    .word 39
+    .word 93
+    .word 0
+    .word word_bracket_tick
+h_bracket_char:
+    .word h_literal
+    .word 0x8006          ; IMMEDIATE | length 6
+    .text "[char]"
+    .word word_bracket_char
+h_literal:
+    .word h_see
+    .word 0x8007          ; IMMEDIATE | length 7
+    .text "literal"
+    .word word_literal
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -6631,6 +6673,202 @@ wty_loop:
     NOP
 wty_done:
     LDI next
+    MOV PC, R0
+    NOP
+
+; ---------------------------------------------
+; Tier 1, second batch: ' char execute ['] [char] literal
+; ---------------------------------------------
+; `'` and `char` are ordinary words: the standard has them parse the next token
+; at RUN time, so inside a definition they are compiled as calls and do their
+; parsing when the definition runs. `[']`, `[char]` and `literal` do their work
+; while the definition is being translated and are IMMEDIATE.
+
+word_tick:                  ; ' ( "<spaces>name" -- xt )
+    ; find_token does the parsing: it skips blanks, walks the search order and
+    ; leaves >IN past the token on a match. A miss leaves >IN on the token, so
+    ; the error path can echo it — the path `to` and `forget` already take.
+    LDI find_token
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 0
+    CMP R1, R0
+    JZ wtick_unknown
+    NOP
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wtick_unknown:
+    LDI skip_unknown
+    MOV PC, R0
+    NOP
+
+parse_char:                 ; LINK-called: R1 = first char of the next token
+    ; `char` reads the PARSE AREA, not the dictionary, so a token that names
+    ; nothing still names its own first character. Blanks are skipped, the
+    ; character is taken, and >IN then runs on to the token's end so the
+    ; interpreter sees the delimiter rather than the characters.
+    ;
+    ; The result goes to R1 and the cursor is R3, an ordinary DS base. R9 would
+    ; not do: with PSW.ER = 8 it is half of the ES base pair.
+pc_skip:
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R4, R3, 0
+    LDI ' '
+    CMP R4, R0
+    JNZ pc_take
+    NOP
+    ADD >IN, 1
+    LDI pc_skip
+    MOV PC, R0
+    NOP
+pc_take:
+    LDI 0
+    CMP R4, R0
+    JZ pc_missing            ; nothing left on this line
+    NOP
+    MOV R1, R4
+    ADD >IN, 1
+pc_eat:
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ pc_done
+    NOP
+    LDI ' '
+    CMP R4, R0
+    JZ pc_done
+    NOP
+    ADD >IN, 1
+    LDI pc_eat
+    MOV PC, R0
+    NOP
+pc_done:
+    JMP LR
+    NOP
+pc_missing:
+    ; An empty parse area. Report it the way a name that is not there is
+    ; reported, which is what `to` and `forget` do; this never returns.
+    LDI skip_unknown
+    MOV PC, R0
+    NOP
+
+word_char:                  ; char ( "<spaces>name" -- c )
+    LDI parse_char
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_execute:               ; execute ( xt -- )
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wexec_under
+    NOP
+    ; W takes the xt and the jump goes to its code field, which is exactly what
+    ; NEXT does with a compiled cell. That is what keeps the caller's thread
+    ; alive: a colon word pushes the current IP as its return address, so it
+    ; comes back into the definition that ran `execute`. execute_xt is the
+    ; wrong tool here — it points IP at the outer interpreter's resume list,
+    ; which is right only when `execute` was typed at the prompt.
+    LD R10, SP, 0
+    ADD SP, 1
+    LD R4, R10, 0
+    MOV PC, R4
+    NOP
+wexec_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+compile_lit:                ; LINK-called: compile `LIT <value>` with R1 = value
+    ; Shared by `literal`, `[']` and `[char]`. All three compile a value that is
+    ; only known while the definition is being translated, and all three leave
+    ; the same two cells behind: LIT and the value.
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI xt_lit
+    MOV R4, R0
+    ST R4, R3, 0
+    ADD R3, 1
+    ST R1, R3, 0
+    ADD R3, 1
+    ST R3, R2, 0
+    JMP LR
+    NOP
+
+word_literal:               ; literal ( x -- ) IMMEDIATE: compile x as a literal
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wlit_under
+    NOP
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI compile_lit
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+wlit_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_bracket_tick:          ; ['] ( "<spaces>name" -- ) IMMEDIATE: compile the xt
+    LDI find_token
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 0
+    CMP R1, R0
+    JZ wbt_unknown
+    NOP
+    LDI compile_lit
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+wbt_unknown:
+    LDI skip_unknown
+    MOV PC, R0
+    NOP
+
+word_bracket_char:          ; [char] ( "<spaces>name" -- ) IMMEDIATE: compile it
+    LDI parse_char
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI compile_lit
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI interpret_loop
     MOV PC, R0
     NOP
 

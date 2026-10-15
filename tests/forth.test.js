@@ -2660,3 +2660,96 @@ test('the Tier 1 words compile into definitions', () => {
   assert.equal(hexOut(': t 3 0<> ; t .'), '-1');
   assert.equal(hexOut(': t 0 1 - 1 u< ; t .'), '0');
 });
+
+// ---------------------------------------------------------------------------
+// Tier 1, second batch: ' char execute ['] [char] literal — and the tokenizer
+// fix they needed.
+//
+// `'` was dropped silently by the tokenizer until now: `5 ' dup .` ran as
+// `5 dup .`, and `' nosuch` reported the name as if it had been typed alone.
+// It is an ordinary dictionary word again, which is what lets these tests
+// talk about it at all. The tokenizer comment records what the branch did.
+//
+// `'` and `char` are NOT immediate, so inside a definition they are compiled
+// and parse when the definition runs; `[']`, `[char]` and `literal` work while
+// the definition is being translated and are immediate.
+
+test("' pushes the next word's xt, and reports a name that is not there", () => {
+  // The xt is the code field address: header + link + flags + name + NUL.
+  assert.equal(hexOut("' dup ."), String(res.symbols.h_dup + 6));
+  assert.equal(cell(res.symbols.h_dup + 6), res.symbols.word_dup);
+  // Two ticks of the same word agree, two different words do not.
+  assert.equal(hexOut("' dup ' dup = ."), '-1');
+  assert.equal(hexOut("' dup ' + = ."), '0');
+  // A constant is a word like any other, and its xt names doconst.
+  assert.equal(cell(res.symbols.h_bl + 5), res.symbols.doconst);
+  assert.equal(hexOut("' bl execute ."), '32');
+  // A name that is not there, and a line with no name at all: the report is
+  // the one `to` and `forget` give, with the offending token echoed.
+  assert.match(hexrepl("' nosuch").join('\n'), /undefined word: nosuch/);
+  assert.match(hexrepl("'").join('\n'), /undefined word/);
+  // Being non-immediate, `'` inside a definition is a call, so it parses the
+  // text that follows the call when the definition runs.
+  assert.equal(hexOut(": getxt ' ; getxt dup ."), String(res.symbols.h_dup + 6));
+});
+
+test('execute runs the xt it is given, and comes back into the caller', () => {
+  assert.equal(hexOut("5 ' dup execute . ."), '5  5');
+  assert.equal(hexOut("1 2 ' + execute ."), '3');
+  assert.equal(hexOut(": sq dup * ; 5 ' sq execute ."), '25');
+  // The point of jumping to the code field instead of to the interpreter's
+  // resume list: what follows `execute` in a definition still runs.
+  assert.equal(hexOut(": t ['] + execute 10 + ; 1 2 t ."), '13');
+  assert.equal(hexOut(": t execute 1 + ; 4 ' dup t . ."), '5  4');
+  assert.match(hexrepl('execute').join('\n'), /stack underflow/);
+});
+
+test('char takes the first character of the next token, found or not', () => {
+  assert.equal(hexOut('char A .'), '65');
+  assert.equal(hexOut('char A emit'), 'A');
+  // It reads the parse area, so a token that names nothing still names its own
+  // first character, and punctuation the tokenizer otherwise owns works too.
+  assert.equal(hexOut('char abc .'), '97');
+  assert.equal(hexOut('char ( .'), '40');
+  assert.equal(hexOut('char ; emit'), ';');
+  // Blanks before the token are skipped and the whole token is consumed.
+  assert.equal(hexOut('char     Z .'), '90');
+  assert.equal(hexOut('char a 1 . .'), '1  97');
+  assert.match(hexrepl('char').join('\n'), /undefined word/);
+  // Non-immediate like `'`, so a definition parses at run time.
+  assert.equal(hexOut(': getc char ; getc Q .'), '81');
+});
+
+test("['] compiles an xt, [char] a character, and literal a value", () => {
+  assert.equal(hexOut(": t ['] dup ; 5 t execute . ."), '5  5');
+  // What was compiled is the very xt `'` hands out at run time.
+  assert.equal(hexOut(": t ['] dup ; t ' dup = ."), '-1');
+  assert.equal(hexOut(": t [char] A ; t ."), '65');
+  assert.equal(hexOut(": t [char] A ; t emit"), 'A');
+  // `literal` takes its value from the stack while compiling, so the brackets
+  // run once and not on every call; the two cells left behind are LIT and the
+  // value, which is what `see` prints back as a plain number.
+  assert.equal(hexOut(": t [ 6 7 * ] literal ; t ."), '42');
+  assert.equal(hexOut(": t [ 65 ] literal ; t emit"), 'A');
+  assert.ok(hexOut(": t ['] dup ; see t").startsWith(`: t ${res.symbols.h_dup + 6} ;`));
+  assert.match(hexrepl("['] nosuch").join('\n'), /undefined word: nosuch/);
+  assert.match(hexrepl('literal').join('\n'), /stack underflow/);
+});
+
+test('a word whose second character is x is a word, not a hex literal', () => {
+  // The tokenizer used to open "0x" on any first character, because the hex
+  // test only peeked at the second one. So `exe` was the number 0xE and
+  // `execute` was 0xEC, leaving "ute" behind as an undefined word; `exit` only
+  // escaped because "xi" holds no hex digit and a digit-less prefix goes back
+  // to parse_word. Every one of these is a word now.
+  assert.equal(hexOut('0xec .'), '236');
+  assert.match(hexrepl('exe .').join('\n'), /undefined word: exe/);
+  assert.equal(hexOut(': exe 7 ; exe .'), '7');
+  assert.equal(hexOut(': ext 7 ; ext .'), '7');
+  assert.equal(hexOut(': t 1 exit 2 ; t .'), '1');
+  // $ and 0x still open a hex number, digits still make one, and a token that
+  // only starts like one is a word.
+  assert.equal(hexOut('$ec .'), '236');
+  assert.equal(hexOut('16 .'), '16');
+  assert.equal(hexOut(': 2x 7 ; 2x .'), '7');
+});
