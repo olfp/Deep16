@@ -219,10 +219,11 @@ module deep16_alu
           last32_set = 1'b1;
         end
       end
-      5'b11110: begin                                 // DIV Rd, Rs
-        result = (opv_i == 16'h0000) ? 16'hFFFF : div_quot;
+      5'b11110: begin                                 // DIV Rd, Rs (signed)
+        result = (opv_i == 16'h0000) ? 16'hFFFF
+               : (rdv[15] ^ opv_i[15]) ? (~div_quot + 16'd1) : div_quot;
       end
-      5'b11111: begin                                 // DIV32 R[d]:R[d+1]
+      5'b11111: begin                                 // DIV32 R[d]:R[d+1] (signed)
         if (rd[0]) begin
           last32 = 32'hFFFF_FFFF;
         last32_set = 1'b1;
@@ -231,13 +232,13 @@ module deep16_alu
           result = 16'hFFFF;
         end else begin
           // Quotient and remainder come from the iterative divider in the
-          // core (deep16_divider), which holds the pipeline while it runs.
-          // Only the low 16 bits of each are architectural - Rd and Rd+1 are
-          // 16 bit - so the upper half a full 32/32 division would have
-          // produced is discarded, exactly as quot32[15:0]/rem32[15:0] did.
-          result  = div_quot;
+          // core (deep16_divider), which held the pipeline while it ran on the
+          // operand magnitudes. Only the low 16 bits of each are architectural
+          // - Rd and Rd+1 are 16 bit - so the upper half a full 32/32 division
+          // would have produced is discarded, exactly as before.
+          result  = (rdv[15] ^ opv_i[15]) ? (~div_quot + 16'd1) : div_quot;
           rd1_we  = 1'b1;
-          rd1_val = div_rem;
+          rd1_val = rdv[15] ? (~div_rem + 16'd1) : div_rem;
         end
       end
 

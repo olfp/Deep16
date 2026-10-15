@@ -21,9 +21,9 @@ prints `undefined word: X` or `stack underflow` and the prompt comes back.
 - Numbers are unsigned decimal (`255`) or hex (`0x10`). A bare `-7` is an
   unknown word: use `0 7 -` or `7 negate`.
 - Words marked **imm** run while compiling (`if`, `do`, `;`, …).
-- `/`, `mod` and `/mod` are **unsigned**; `2/` is a signed arithmetic shift and
-  floors. Dividing by zero yields `0xFFFF`, and `mod` by zero yields the
-  dividend.
+- `/`, `mod` and `/mod` are signed and truncate toward zero; the remainder
+  takes the sign of the dividend. `2/` is an arithmetic shift and floors.
+  Dividing by zero yields `0xFFFF`, and `mod` by zero yields the dividend.
 
 ## Stack
 
@@ -46,9 +46,9 @@ prints `undefined word: X` or `stack underflow` and the prompt comes back.
 | `+` | `( a b -- a+b )` | add |
 | `-` | `( a b -- a-b )` | subtract |
 | `*` | `( a b -- a*b )` | multiply, keeping the low 16 bits |
-| `/` | `( u1 u2 -- u )` | unsigned quotient (`u2=0` gives `0xFFFF`) |
-| `mod` | `( u1 u2 -- u )` | unsigned remainder (`u2=0` gives `u1`) |
-| `/mod` | `( u1 u2 -- rem quot )` | unsigned, both at once |
+| `/` | `( n1 n2 -- quot )` | signed quotient, truncated toward zero (`n2=0` gives `0xFFFF`) |
+| `mod` | `( n1 n2 -- rem )` | signed remainder, sign of `n1` (`n2=0` gives `n1`) |
+| `/mod` | `( n1 n2 -- rem quot )` | both at once |
 | `negate` | `( n -- -n )` | two's complement negate |
 | `abs` | `( n -- \|n\| )` | magnitude (`-32768` stays itself) |
 | `min` | `( a b -- min )` | signed minimum |

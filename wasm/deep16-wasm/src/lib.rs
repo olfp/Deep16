@@ -599,22 +599,27 @@ fn exec_alu(c: &mut Cpu, instr: u16) {
             }
         }
         0b11110 => {
+            // DIV Rd, Rs - signed, truncating toward zero (spec Table 8).
             if opv == 0 { result = 0xFFFF; } else {
-                result = ((rdv / opv) & 0xFFFF) as i32;
+                let a = rdv as i16 as i32;
+                let b = opv as i16 as i32;
+                result = ((a.wrapping_div(b) as u32) & 0xFFFF) as i32;
             }
         }
         0b11111 => {
-            // DIV32: R[d] <- quotient, R[d+1] <- remainder of the 32-bit value R[d]:R[d+1]
+            // DIV32: R[d] <- quotient, R[d+1] <- remainder of the signed
+            // 32-bit value R[d]:R[d+1] over the signed 16-bit Rs.
             if rd % 2 != 0 || rd + 1 >= 16 {
                 c.last_alu_result = -1;
                 c.last_op_alu = true;
                 return;
             } else if opv == 0 { result = 0xFFFF; } else {
-                let dividend = (((gp_read(c, rd) as u32) << 16) | (gp_read(c, rd + 1) as u32)) as u64;
-                let q = (dividend / opv as u64) as u32 & 0xFFFF;
-                let r = (dividend % opv as u64) as u32 & 0xFFFF;
-                gp_write(c, rd + 1, r as u16);
-                result = q as i32;
+                let dividend = (((gp_read(c, rd) as u32) << 16) | (gp_read(c, rd + 1) as u32)) as i32;
+                let divisor = opv as i16 as i32;
+                let q = dividend.wrapping_div(divisor);
+                let r = dividend.wrapping_rem(divisor);
+                gp_write(c, rd + 1, (r as u32 & 0xFFFF) as u16);
+                result = (q as u32 & 0xFFFF) as i32;
             }
         }
         _ => { }

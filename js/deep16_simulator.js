@@ -627,23 +627,28 @@ class Deep16Simulator {
                 break;
             }
             case 0b11110: {
+                // DIV Rd, Rs - signed, truncating toward zero (spec Table 8).
                 if (opVal === 0) { result = 0xFFFF; break; }
-                result = Math.floor(rdValue / opVal) & 0xFFFF;
+                const a = (rdValue << 16) >> 16;
+                const b = (opVal << 16) >> 16;
+                result = Math.trunc(a / b) & 0xFFFF;
                 break;
             }
             case 0b11111: {
-                // DIV32: R[d] <- quotient, R[d+1] <- remainder of the 32-bit value R[d]:R[d+1]
+                // DIV32: R[d] <- quotient, R[d+1] <- remainder of the signed
+                // 32-bit value R[d]:R[d+1] over the signed 16-bit Rs.
                 if ((rd & 1) !== 0 || rd + 1 > 15) {
                     this.lastALUResult = 0xFFFFFFFF;
                     this.lastOperationWasALU = true;
                     return;
                 }
                 if (opVal === 0) { result = 0xFFFF; break; }
-                const dividend = ((this.readGPR(rd) << 16) | this.readGPR(rd + 1)) >>> 0;
-                const q = Math.floor(dividend / opVal) & 0xFFFF;
-                const r = (dividend % opVal) & 0xFFFF;
-                this.writeGPR(rd + 1, r);
-                result = q;
+                const dividend = ((this.readGPR(rd) << 16) | this.readGPR(rd + 1)) | 0;
+                const divisor = (opVal << 16) >> 16;
+                const q = Math.trunc(dividend / divisor);
+                const r = dividend - q * divisor;
+                this.writeGPR(rd + 1, r & 0xFFFF);
+                result = q & 0xFFFF;
                 break;
             }
             default: break;

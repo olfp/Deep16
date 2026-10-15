@@ -228,8 +228,8 @@ CMP R3, 0        ; Set flags based on R3 - 0
 ```assembly
 MUL R1, R2       ; R1 = R1 × R2 (16-bit result)
 MUL32 R4, R5     ; R4:R5 = R4 × R5 (R4 must be even)
-DIV R1, R2       ; R1 = R1 ÷ R2 (quotient)
-DIV32 R4, R5     ; R4 = quotient, R5 = remainder (R4 must be even)
+DIV R1, R2       ; R1 = R1 ÷ R2 (signed quotient, truncated toward zero)
+DIV32 R4, R5     ; R4 = quotient, R5 = remainder (signed; R4 must be even)
 ```
 
 ### **4.3 Logical Operations**

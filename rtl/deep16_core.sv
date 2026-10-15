@@ -437,15 +437,25 @@ module deep16_core
   wire div_needs_hw = alu_is_div32 ? (!alu_rd[0] && (r2 != 16'h0000))
                 : alu_is_div  ?   (r2 != 16'h0000)
                 : 1'b0;
-  wire div_req      = id_ex.valid && div_needs_hw;
-  wire [31:0] div_dividend = alu_is_div32 ? {r1, r3} : {16'h0000, r1};
+  // A load-use stall holds the DIV in EX while its operands are still stale, so
+  // the divider must not be armed until the load result is bypassable.
+  wire div_req      = id_ex.valid && div_needs_hw && !stall;
+
+  // Signed division (spec Table 8). The iterative divider is unsigned, so it
+  // runs on the magnitudes and the ALU re-applies the sign to the quotient
+  // (sign of Rd xor Rs) and the remainder (sign of Rd).
+  wire [15:0] div_a_mag = r1[15] ? (~r1 + 16'd1) : r1;
+  wire [15:0] div_b_mag = r2[15] ? (~r2 + 16'd1) : r2;
+  wire [31:0] div32_val = {r1, r3};
+  wire [31:0] div32_mag = r1[15] ? (~div32_val + 32'd1) : div32_val;
+  wire [31:0] div_dividend = alu_is_div32 ? div32_mag : {16'h0000, div_a_mag};
 
   deep16_divider u_div (
     .clk      (clk),
     .rst      (rst),
     .start    (div_start),
     .dividend (div_dividend),
-    .divisor  (r2),
+    .divisor  (div_b_mag),
     .busy     (div_busy),
     .done     (div_done),
     .quot     (div_quot),

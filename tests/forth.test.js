@@ -477,6 +477,37 @@ test('arithmetic words subtract, divide, take remainders and scale', () => {
   assert.ok(running);
 });
 
+test('division is signed and truncates toward zero', () => {
+  // The division family used to be unsigned: -7 / 2 read 32764 and -7 mod 2
+  // read 1. Standard Forth is signed, with the quotient truncating toward zero
+  // and the remainder taking the sign of the dividend.
+  const { rows, running } = repl(
+    '0 7 - 2 / .\n' +
+    '0 7 - 2 mod .\n' +
+    '0 7 - 2 /mod . .\n' +
+    '7 0 2 - / .\n' +
+    '0 8 - 0 3 - / .\n' +
+    '0 7 - 0 1 - / .\n'
+  );
+  assert.equal(rows[1], '> 0 7 - 2 / . -3  ok');
+  assert.equal(rows[2], '> 0 7 - 2 mod . -1  ok');
+  assert.equal(rows[3], '> 0 7 - 2 /mod . . -3  -1  ok');
+  assert.equal(rows[4], '> 7 0 2 - / . -3  ok');
+  assert.equal(rows[5], '> 0 8 - 0 3 - / . 2  ok');
+  assert.equal(rows[6], '> 0 7 - 0 1 - / . 7  ok');
+  assert.equal(rows[7], '>');
+  assert.ok(running);
+});
+
+test('division by zero is still the error value 0xFFFF', () => {
+  const { rows } = repl(
+    '5 0 / .\n' +
+    '5 0 mod .\n'
+  );
+  assert.equal(rows[1], '> 5 0 / . -1  ok');   // 0xFFFF prints as -1
+  assert.equal(rows[2], '> 5 0 mod . 5  ok');
+});
+
 test('comparisons yield the Forth true (-1) and false (0)', () => {
   const { rows } = repl(
     '3 3 = . 3 4 = .\n' +

@@ -2183,20 +2183,30 @@ pn_digits:
     MOV R10, R0         ; buffer pointer
     LDI 0
     MOV R3, R0          ; digit count
-pn_div_loop:
-    LDI 10
+    ; print_number prints an *unsigned* magnitude, but the ISA DIV is signed,
+    ; so a magnitude >= 0x8000 would divide wrong. Divide by 10 with the
+    ; reciprocal instead: for 16-bit u, floor(u/10) = (u * 0xCCCD) >> 19, and
+    ; the remainder is u - 10*quotient. R12 = 0xCCCD; LDI cannot load it in
+    ; one go (bit 15 set), so set bits 15 and 14 on top of 0x0CCD.
+    LDI 0x0CCD
+    OR R0, 15
+    OR R0, 14
     MOV R12, R0
-    MOV R9, R2
-    DIV R9, R12
-    MOV R4, R9
-    MUL R4, R12
-    MOV R7, R2
-    SUB R7, R4
+pn_div_loop:
+    MOV R0, R2
+    MUL32 R0, R12       ; R0:R1 = R2 * 0xCCCD
+    SR R0, 3            ; R0 = R2 / 10  (product >> 19)
+    MOV R9, R0          ; R9 = quotient
+    LDI 10
+    MOV R7, R0
+    MUL R7, R9          ; R7 = 10 * quotient
+    MOV R4, R2
+    SUB R4, R7          ; remainder = R2 mod 10
     LDI '0'
-    ADD R7, R0
-    ST R7, R10, 0
+    ADD R4, R0
+    ST R4, R10, 0
     ADD R10, 1
-    MOV R2, R9
+    MOV R2, R9          ; R2 = R2 / 10
     ADD R3, 1           ; count++
     LDI 0
     CMP R2, R0

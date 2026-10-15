@@ -101,6 +101,52 @@ test('JS and WASM cores agree on DIV32', async () => {
   assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF));
 });
 
+// Division is signed (spec Table 8), truncating toward zero: the quotient
+// carries sign(Rd) xor sign(Rs), the remainder the sign of the dividend.
+const SIGNED_DIV_PROGRAM = `
+.org 0x0000
+        LDI -7
+        MOV R1, R0
+        LDI 2
+        MOV R2, R0
+        DIV R1, R2          ; R1 = -3
+        LDI 7
+        MOV R3, R0
+        LDI -2
+        MOV R4, R0
+        DIV R3, R4          ; R3 = -3
+        LDI 0
+        MOV R6, R0
+        LDI 7
+        MOV R7, R0
+        LDI -2
+        MOV R8, R0
+        DIV32 R6, R8        ; R6:R7 = 7 / -2 -> q -3, r 1
+        LDI -1
+        MOV R10, R0
+        LDI -7
+        MOV R11, R0
+        LDI 2
+        MOV R12, R0
+        DIV32 R10, R12      ; R10:R11 = -7 / 2 -> q -3, r -1
+        HALT
+`;
+
+test('DIV and DIV32 are signed on both JS and WASM', async () => {
+  const res = assemble(SIGNED_DIV_PROGRAM);
+  assert.equal(res.success, true, res.errors.join('; '));
+  const js = runJs(res, { cs: 0x0000 });
+  const wasm = await runWasm(res, { cs: 0x0000 });
+  assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF));
+  assert.equal(wasm.psw & 0xFFFF, js.sim.psw & 0xFFFF, 'PSW');
+  assert.equal(js.registers[1], 0xFFFD, '-7 / 2');
+  assert.equal(js.registers[3], 0xFFFD, '7 / -2');
+  assert.equal(js.registers[6], 0xFFFD, '7 / -2 quotient');
+  assert.equal(js.registers[7], 0x0001, '7 / -2 remainder');
+  assert.equal(js.registers[10], 0xFFFD, '-7 / 2 quotient');
+  assert.equal(js.registers[11], 0xFFFF, '-7 / 2 remainder');
+});
+
 test('JS and WASM cores agree on the rest of the ALU group', async () => {
   const res = assemble(ALU_PROGRAM);
   const js = runJs(res, { cs: 0x0000, ds: 0x0100 });

@@ -200,6 +200,59 @@ test('back-to-back divisions each run the divider again', async () => {
   await parity(pair, { name: 'DIV32 chain', cs: 0x0000 });
 });
 
+test('DIV is signed on all three cores', async () => {
+  const res = assemble(`
+        LDI -7
+        MOV R1, R0
+        LDI 2
+        MOV R2, R0
+        DIV R1, R2          ; -3
+        LDI 7
+        MOV R3, R0
+        LDI -2
+        MOV R4, R0
+        DIV R3, R4          ; -3
+        LDI -8
+        MOV R5, R0
+        LDI -3
+        MOV R6, R0
+        DIV R5, R6          ; 2
+        HALT
+  `);
+  await parity(res, { name: 'signed DIV', cs: 0x0000 });
+});
+
+test('DIV32 is signed on all three cores', async () => {
+  const res = assemble(`
+        LDI -1
+        MOV R2, R0
+        LDI -7
+        MOV R3, R0
+        LDI 2
+        MOV R4, R0
+        DIV32 R2, R4        ; q -3, r -1
+        HALT
+  `);
+  await parity(res, { name: 'signed DIV32', cs: 0x0000 });
+});
+
+test('a load immediately before DIV reaches the divider', async () => {
+  // The RTL core armed the iterative divider while a load-use stall still held
+  // the DIV with stale operands, so Forth `/` read 0 on that core. The load
+  // result has to be forwarded (or the DIV held) before the divider starts.
+  const res = assemble(`
+        LDI 10
+        SUB SP, 1
+        ST R0, SP, 0
+        LSI R2, 3
+        LD R1, SP, 0
+        DIV R1, R2
+        HALT
+  `);
+  const { rtl } = await parity(res, { name: 'LD then DIV', cs: 0x0000 });
+  assert.equal(rtl.registers[1], 3, 'the loaded dividend must reach the divider');
+});
+
 test('load/store with a negative offset', async () => {
   const res = assemble(`
         LSI SP, 15

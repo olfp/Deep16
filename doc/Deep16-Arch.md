@@ -429,8 +429,16 @@ quarters need the `LDI`/`OR` pair, and `LWI` says so instead of guessing.
 |-------------|---------|-----------------|-------------------|-------|
 | **MUL Rd, Rs** | `MUL Rd, Rs` | `110 11100 Rd4 Rs4` | `Rd ← Rd × Rs` (low 16 bits) | 16×16→16-bit |
 | **MUL32 Rd, Rs** | `MUL32 Rd, Rs` | `110 11101 Rd4 Rs4` | `R[d]:R[d+1] ← Rd × Rs` | Rd must be EVEN |
-| **DIV Rd, Rs** | `DIV Rd, Rs` | `110 11110 Rd4 Rs4` | `Rd ← Rd ÷ Rs` (quotient) | 16÷16→16-bit |
-| **DIV32 Rd, Rs** | `DIV32 Rd, Rs` | `110 11111 Rd4 Rs4` | `R[d] ← quotient, R[d+1] ← remainder` | Rd must be EVEN |
+| **DIV Rd, Rs** | `DIV Rd, Rs` | `110 11110 Rd4 Rs4` | `Rd ← Rd ÷ Rs` (signed quotient) | 16÷16→16-bit, truncates toward zero |
+| **DIV32 Rd, Rs** | `DIV32 Rd, Rs` | `110 11111 Rd4 Rs4` | `R[d] ← quotient, R[d+1] ← remainder` | signed 32÷16, Rd must be EVEN |
+
+**Division is signed.** `DIV` and `DIV32` read every operand as a
+two's-complement value, truncate the quotient toward zero, and give the
+remainder the sign of the dividend (`r = a − q·b`, so `sign(r) = sign(a)`).
+A zero divisor yields `0xFFFF` in the quotient register (`DIV32` leaves its
+remainder register untouched). This is exactly the Forth `/`, `mod` and
+`/mod` contract, so the kernel needs no sign correction. `MUL`/`MUL32` are
+unaffected: a two's-complement product's low 16 bits do not depend on sign.
 
 ### **3.10 Memory Access Instructions**
 
@@ -1015,8 +1023,8 @@ For CS access:       PA = (CS << 16) | (PC & 0xFFFF)
 | 11011 | RRC Rd, count | `RRC Rd, count` | Rotate right through carry |
 | 11100 | MUL Rd, Rs | `MUL Rd, Rs` | 16×16→16-bit multiply |
 | 11101 | MUL32 Rd, Rs | `MUL32 Rd, Rs` | 16×16→32-bit multiply |
-| 11110 | DIV Rd, Rs | `DIV Rd, Rs` | 16÷16→16-bit divide |
-| 11111 | DIV32 Rd, Rs | `DIV32 Rd, Rs` | 32÷16→16-bit quotient + 16-bit remainder (quotient truncated to 16 bit, cf. §3.9) |
+| 11110 | DIV Rd, Rs | `DIV Rd, Rs` | 16÷16→16-bit signed divide, truncating toward zero |
+| 11111 | DIV32 Rd, Rs | `DIV32 Rd, Rs` | signed 32÷16→16-bit quotient + 16-bit remainder (quotient truncated to 16 bit, cf. §3.9) |
 
 ---
 
