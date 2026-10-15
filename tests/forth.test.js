@@ -3471,6 +3471,50 @@ test('abort" reports its message and throws -2', () => {
   assert.equal(row(': t 1 abort" boom" ;', 'see t'), '> see t : t 1 abort" boom" ; ok');
 });
 
+// ---------------------------------------------------------------------------
+// Tier 2, fifth batch: evaluate.
+//
+// `evaluate` interprets a string the way the keyboard line is interpreted: the
+// same tokenizer, the same words, the same state. It copies the text into a
+// buffer of its own (one per nesting level, so a nested evaluation cannot
+// overwrite the text its caller is still reading), terminates it, points TIB at
+// the copy, and lets the ordinary interpreter loop run. That loop stops at a NUL
+// cell; the end of the line then hands the outer input source and the thread
+// that was in the middle of it back, instead of printing a prompt.
+//
+// Two things fall out of that and both are pinned here: an unknown name inside
+// an evaluation reaches a handler as the standard's -13 (the interpreter is what
+// finds it, and this is the first way to reach that code at all), and a throw out
+// of an evaluation puts the input source back, so the line it was called from
+// carries on instead of re-reading the text that was abandoned.
+
+test('evaluate interprets a string as a line', () => {
+  assert.equal(hexOut('s" 1 2 + ." evaluate'), '3');
+  assert.equal(hexOut('s" 1 2 +" evaluate .'), '3');       // the line carries on
+  assert.equal(hexOut('s" : t 5 ;" evaluate t .'), '5');   // compiling inside one
+  assert.equal(hexOut(': u s" 3 4 + ." evaluate ; u'), '7');
+  assert.equal(hexOut('s" 65 emit" evaluate'), 'A');
+  // Trailing blanks are fine, and an empty string does nothing at all.
+  assert.equal(hexOut('s" 7 .   " evaluate'), '7');
+  assert.equal(hexOut('s" " evaluate'), '');
+  // The parse area is the string while it runs, so parsing words read from it.
+  assert.equal(hexOut("s\" ' dup\" evaluate ."), String(res.symbols.h_dup + 6));
+  assert.match(hexrepl('evaluate').join('\n'), /stack underflow/);
+});
+
+test('an evaluation nests, and a throw out of one puts the source back', () => {
+  const row = (def, call) => repl(`${def}\n${call}\n`).rows[2];
+  // Two levels: b evaluates the text that calls a, which evaluates its own.
+  assert.equal(row(': a s" 5 ." evaluate ; : b s" a" evaluate ;', 'b'), '> b 5  ok');
+  // A throw out of an evaluation unwinds to the handler...
+  assert.equal(row(': c s" 1 throw" evaluate ;', "' c catch ."), "> ' c catch . 1  ok");
+  // ... and the line that was running when it happened is not re-read.
+  assert.equal(repl(": c s\" 1 throw\" evaluate ;\n' c catch .\n8 .\n").rows[3], '> 8 . 8  ok');
+  // An unknown name inside an evaluation is the standard's -13 as long as a
+  // handler is in reach.
+  assert.equal(row(': c s" nosuch" evaluate ;', "' c catch ."), "> ' c catch . -13  ok");
+});
+
 test('a base below two stops the printer instead of running away', () => {
   // BASE is a cell, so 0 and 1 can be stored; the standard calls that
   // undefined. What gets printed is garbage - what matters is that the count

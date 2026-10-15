@@ -337,6 +337,7 @@ not a string at all: `s"x"` reports itself as an undefined word.
 | `[']` **imm** | `( "<spaces>name" -- )` | compile the xt of the next word |
 | `[char]` **imm** | `( "<spaces>name" -- )` | compile the first character of the next token |
 | `literal` **imm** | `( x -- )` | compile the value on the stack |
+| `evaluate` | `( i*x c-addr u -- j*x )` | interpret the string as a line of input |
 
 An *execution token* is the address of a word's code field, which is the cell
 the interpreter jumps through when it runs the word. `'` finds the next word and
@@ -345,6 +346,25 @@ the program runs:
 
 ```text
 : square dup * ;   5 ' square execute .    \ 25  ok
+```
+
+`evaluate` puts a string through the same tokenizer and the same words the
+keyboard goes through, in the state that is current, so a string can define words
+or compute. It copies the text into a buffer of its own — one per nesting level,
+so a nested evaluation cannot overwrite the text its caller is still reading —
+and terminates it, which is what the interpreter's end of line looks for. Two
+levels nest; the standard asks for two. A string longer than a line, or a third
+level, throws `-22`.
+
+An unknown name inside an evaluation reaches a `catch` as `-13` — the only way to
+get at that code, since the interpreter is what finds the name. A throw out of an
+evaluation also puts the **input source** back, so the line that was being read
+when it happened carries on instead of re-reading text that was abandoned.
+
+```text
+s" 1 2 + ." evaluate                  \ 3  ok
+: c s" nosuch" evaluate ;
+' c catch .                           \ -13  ok
 ```
 
 `'` and `char` are **not** immediate, so inside a definition they are compiled
@@ -522,5 +542,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 166 words. New words are added at the head of the
+That is the whole dictionary: 167 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

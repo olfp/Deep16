@@ -1274,6 +1274,14 @@ stack_underflow_after:
     MOV PC, R0
     NOP
 interpret_done:
+    ; A nested evaluation ends here too, so the check lives in the roomy block
+    ; and this end of the line stays as short as it was: the 0x0100 block has
+    ; only a few words to spare, and growing it past 0x0500 means the .org
+    ; there silently overwrites the tail of this one.
+    LDI eval_check
+    MOV PC, R0
+    NOP
+line_done:
     ; No repositioning and no scrolling here: the cursor stays where the line
     ; left it, and the CR+LF that ok_after sends through BIOS putch moves to the
     ; next row and scrolls the screen if that is the bottom one. The kernel used
@@ -2119,10 +2127,15 @@ h_abort:
     .text "abort"
     .word word_abort
 h_abortq:
-    .word h_see
+    .word h_evaluate
     .word 0x8006          ; IMMEDIATE | length 6
     .text "abort\""
     .word word_abortq
+h_evaluate:
+    .word h_see
+    .word 8
+    .text "evaluate"
+    .word word_evaluate
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -2467,6 +2480,43 @@ active_handler:
     .word 0              ; the innermost catch frame, or 0 for none
 throw_code_save:
     .word 0              ; the code kept across the handler lookup
+
+; --- evaluate's nested input source ---
+; `evaluate` copies its string into one of these buffers - one level each, so a
+; nested evaluation cannot overwrite the text its caller is still reading - then
+; points TIB at the copy and lets the ordinary interpreter loop run over it. That
+; loop ends at a NUL cell, which is why the copy is terminated, and the end of
+; the line hands the outer source back (see interpret_done). The depth is one of
+; the things a catch frame remembers, so a throw out of an evaluation puts it
+; back rather than leaving the next line believing it is still nested.
+eval_depth:
+    .word 0
+eval_tib:
+    .word 0, 0
+eval_in:
+    .word 0, 0
+eval_ip:
+    .word 0, 0
+eval_buf0:
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0
+eval_buf1:
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0
 xt_lit:
     .word lit
 xt_exit:
@@ -4577,6 +4627,167 @@ cs_end:
     ADD R11, 1
     ADD >IN, 1               ; step over the closing quote
     JMP LR
+    NOP
+
+; --- evaluate ------------------------------------------------------------
+; `evaluate` interprets a string the way the keyboard line is interpreted: the
+; same tokenizer, the same words, the same state. It copies the text into a
+; buffer of its own (one per nesting level, so a nested evaluation cannot
+; overwrite the text its caller is still reading), terminates it, points TIB at
+; it, and lets the ordinary interpreter loop run. That loop stops at a NUL cell,
+; which is why the copy is terminated - and interpret_done knows to hand the
+; outer source back instead of printing a prompt.
+;
+; Two levels are supported; the standard asks for two. Past that, or for a string
+; longer than a line, the exception is -22.
+
+word_evaluate:              ; evaluate ( i*x c-addr u -- j*x )
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wev_ok
+    NOP
+    JN wev_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wev_ok:
+    LD R1, SP, 1            ; c-addr
+    LD R3, SP, 0            ; u
+    ADD SP, 2               ; both are consumed
+    LDI 128                 ; a line, and so one level, is at most that long
+    MOV R7, R0
+    CMP R7, R3
+    JC wev_bad              ; carry: u is above 128
+    NOP
+    LDI eval_depth
+    MOV R2, R0
+    LD R4, R2, 0            ; the level this evaluation would use
+    LDI 2
+    MOV R7, R0
+    CMP R4, R7
+    JC wev_room             ; carry: level 0 or 1, there is a buffer for it
+    NOP
+wev_bad:
+    LDI -22                 ; -22: too long, or nested deeper than two
+    MOV R1, R0
+    LDI throw_code
+    MOV PC, R0
+    NOP
+wev_room:
+    ; Remember the source and the thread that is running.
+    LDI eval_tib
+    MOV R7, R0
+    ADD R7, R4
+    MOV R11, TIB
+    ST R11, R7, 0
+    LDI eval_in
+    MOV R7, R0
+    ADD R7, R4
+    MOV R11, >IN
+    ST R11, R7, 0
+    LDI eval_ip
+    MOV R7, R0
+    ADD R7, R4
+    LDI ip_ptr
+    MOV R11, R0
+    LD R11, R11, 0
+    ST R11, R7, 0           ; the cell that was about to run
+    ; Copy the text into this level's buffer.
+    LDI eval_buf0
+    MOV R7, R0
+    LDI 0
+    CMP R4, R0
+    JZ wev_copy
+    NOP
+    LDI eval_buf1
+    MOV R7, R0
+wev_copy:
+    MOV R11, R7             ; the destination cursor
+    MOV R12, R1             ; the source cursor
+    MOV R10, R3             ; the count
+wev_copy_loop:
+    LDI 0
+    CMP R10, R0
+    JZ wev_copied
+    NOP
+    LD R2, R12, 0
+    ST R2, R11, 0
+    ADD R12, 1
+    ADD R11, 1
+    SUB R10, 1
+    LDI wev_copy_loop
+    MOV PC, R0
+    NOP
+wev_copied:
+    LDI 0
+    ST R0, R11, 0           ; the interpreter stops at this NUL
+    ADD R4, 1
+    LDI eval_depth
+    MOV R2, R0
+    ST R4, R2, 0
+    MOV TIB, R7
+    LDI 0
+    MOV >IN, R0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+; eval_check: one line has ended (interpret_done landed here). If an evaluation
+; is running, hand the outer input source and the thread that was in the middle
+; of it back; if not, carry on into the line's end, the " ok" and the prompt,
+; which is what interpret_done used to fall into directly.
+eval_check:
+    LDI eval_depth
+    MOV R2, R0
+    LD R1, R2, 0
+    LDI 0
+    CMP R1, R0
+    JZ evc_done
+    NOP
+    SUB R1, 1
+    ST R1, R2, 0
+    LDI eval_tib
+    MOV R3, R0
+    ADD R3, R1
+    LD R7, R3, 0
+    MOV TIB, R7
+    LDI eval_in
+    MOV R3, R0
+    ADD R3, R1
+    LD R7, R3, 0
+    MOV >IN, R7
+    LDI eval_ip
+    MOV R3, R0
+    ADD R3, R1
+    LD R7, R3, 0            ; the cell that was about to run
+    ; If that cell is resume_list, evaluate was called from the keyboard line
+    ; rather than from a definition: the interpreter had just handed the word its
+    ; turn, so carrying on means going back to the interpreter loop at the outer
+    ; >IN, not jumping into a thread. Compiled, it is a real thread cell and
+    ; restoring IP is exactly right.
+    LDI resume_list
+    MOV R3, R0
+    CMP R7, R3
+    JNZ evc_thread
+    NOP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+evc_thread:
+    LDI ip_ptr
+    MOV R3, R0
+    ST R7, R3, 0
+    LDI next
+    MOV PC, R0
+    NOP
+evc_done:
+    LDI line_done
+    MOV PC, R0
     NOP
 
 ; =============================================
@@ -9168,7 +9379,7 @@ word_catch:                 ; catch ( i*x xt -- j*x 0 | i*x n )
     LDI rp_ptr
     MOV R4, R0
     LD R3, R4, 0            ; RP
-    SUB R3, 3
+    SUB R3, 6
     LDI active_handler
     MOV R2, R0
     LD R1, R2, 0            ; the handler that is active at this moment
@@ -9178,6 +9389,18 @@ word_catch:                 ; catch ( i*x xt -- j*x 0 | i*x n )
     LD R1, R11, 0           ; where the caller stands: where the xt returns to
     ST R1, R3, 1            ; RP+1
     ST SP, R3, 2            ; RP+2: the depth a throw cuts back to
+    LDI eval_depth
+    MOV R2, R0
+    LD R1, R2, 0            ; and how deep in an evaluate this catch was
+    ST R1, R3, 3            ; RP+3
+    ; The INPUT SOURCE comes along too. A throw out of an evaluation has to put
+    ; the outer source back, or the interpreter carries on reading the evaluated
+    ; text of a line that has already been abandoned.
+    ST TIB, R3, 4           ; RP+4
+    MOV R1, >IN
+    ST R1, R3, 5            ; RP+5
+    LDI active_handler
+    MOV R2, R0
     ST R3, R2, 0            ; this frame is the innermost handler now
     ST R3, R4, 0            ; RP
     LDI catch_resume_list
@@ -9224,10 +9447,18 @@ catch_end:
     LD R3, R4, 0            ; the frame
     LD R1, R3, 0            ; the handler that was active outside this catch
     LD R7, R3, 1            ; the IP to carry on at
+    LD R10, R3, 3           ; the evaluate depth it was taken at
+    LD R12, R3, 4           ; and the input source it was reading
+    LD R11, R3, 5
     LDI active_handler
     MOV R2, R0
     ST R1, R2, 0
-    ADD R3, 3
+    LDI eval_depth
+    MOV R2, R0
+    ST R10, R2, 0
+    MOV TIB, R12
+    MOV >IN, R11
+    ADD R3, 6
     ST R3, R4, 0            ; pop the frame
     LDI ip_ptr
     MOV R2, R0
@@ -9309,6 +9540,10 @@ tc_no_handler:
     MOV R2, R0
     LDI 0
     ST R0, R2, 0            ; and leave any definition in progress
+    LDI eval_depth
+    MOV R2, R0
+    LDI 0
+    ST R0, R2, 0            ; no evaluation is running any more either
     LDI uncaught_error
     MOV PC, R0
     NOP

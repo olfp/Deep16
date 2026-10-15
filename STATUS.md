@@ -298,6 +298,32 @@
 > BIOS-Aufruf überleben (deshalb läuft der Zeiger in R3, wie in `word_litstr`).
 > **5 neue Tests**, 209 in der Datei.
 >
+> **2026-10-15 (zwölfter Teil):** **Tier 2, fünfter Schub: `evaluate`** —
+> **167 Wörter**. `evaluate` schickt eine Zeichenkette durch **denselben
+> Tokenizer und dieselben Wörter** wie die Tastaturzeile, im aktuellen Zustand:
+> eine Zeichenkette kann also Wörter definieren oder rechnen. Sie wird in einen
+> **eigenen Puffer je Verschachtelungstiefe** kopiert (eine innere Auswertung darf den
+> Text, den der Aufrufer noch liest, nicht überschreiben) und mit einer
+> **Nullzelle** abgeschlossen, weil der Interpreter dort endet. Zwei Ebenen
+> verschachteln (der Standard verlangt zwei); eine zu lange Zeile oder eine
+> dritte Ebene wirft `-22`.
+> **Zwei Dinge folgen daraus, und beide sind gepinnt:** ein **unbekannter Name**
+> innerhalb einer Auswertung erreicht einen Handler als `-13` — das ist der
+> erste Weg, diesen Code überhaupt zu erreichen, denn *der Interpreter* findet
+> den Namen; und ein `throw` aus einer Auswertung setzt die **Eingabequelle**
+> zurück, sodass die Zeile, in der es passierte, weiterläuft, statt den
+> abgebrochenen Text noch einmal zu lesen.
+> **Drei Funde, alle von der Maschine.** *(1)* Der Endeverweis `interpret_done`
+> liegt im **engen 0x0100-Block** — mein `eval_check` sprengte ihn, und `.org
+> 0x0500` hat den Schwanz **stillschweigend überschrieben**, sodass der Ablauf in
+> `word_plus` fiel: jede Zeile endete mit einem Unterlauf. Die Prüfung liegt
+> jetzt im 0x0500-Block, `interpret_done` ist drei Wörter kurz. *(2)* `SUB R1, 22`
+> passt nicht: das ALU-Immediate ist **vier Bit** — `LDI -22` ist die richtige
+> Form. *(3)* Bei einer **interpretierten** Auswertung zeigt IP auf `resume_list`
+> (der Interpreter hat das Wort gerade aufgerufen), nicht auf einen Thread: der
+> Rücksprung muss dort in `interpret_loop` gehen, damit der Rest der Zeile noch
+> läuft. **2 neue Tests**, 211 in der Datei.
+>
 > **2026-10-14 (dritter Teil):** **`do`/`loop` sind da** — mit `?do`, `leave`
 > und `i`. Der Loop-Rahmen liegt auf dem Rückstapel, vier Zellen unter den
 > Aufrufsrahmen. Die teuerste Falle war nicht der Inhalt, sondern die
@@ -590,6 +616,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-15 | **Tier 2, 2. Schub: `case`/`of`/`endof`/`endcase`** — 155 Wörter. Die vier sind **immediate** und kompilieren nur vorhandene Wörter: **`of` ist `over = if drop`**, `endof` ist `else` (per Sprung auf `word_else` geteilt, damit der Rumpf nicht zweimal dasteht), `endcase` kompiliert `drop` und löst die Zweige auf — deshalb zeigt `see` eine `case`-Definition als ihre Zweige. Buchhaltung auf dem Kompilier-Rückstapel: `case` legt eine **Marke 0** ab (keine Adresse), `of` den Platzhalter. **Wächter:** `case_depth` (wie `loop_depth`) lässt ein verwaistes `endcase` nichts tun, und die Auflöseschleife flickt nur Adressen in `[dict_free, 0x3FFF]`. Die drei `xt`-Zellen, die `of` kompiliert, halten die **echten xts** (Header + 3 + Namenslänge), damit `see` sie benennen kann; ein Test pinnt alle drei gegen `' over`, `' =`, `' drop`. **Fund 1:** den vier Headern fehlte das IMMEDIATE-Bit — die Wörter wurden kompiliert statt ausgeführt (`see` zeigte `case 1 of …`); gefunden am `see`-Ausdruck. **Fund 2:** `LDI 0x4000` lädt `0xC000` (Bit 14 = Vorzeichen), womit die Obergrenze des Wächters negativ wurde, der Wächter bei **jeder** echten Platzhalteradresse zuschlug und `endcase` nichts flickte — das `(branch)` blieb auf 0 und die Maschine lief nach dem ersten `emit` ins Leere. Jetzt Carry-Vergleiche gegen `dict_free` und `0x3FFF`. Dazu die **Standard-Regel** im Manual: den Selektor verwirft die passende Klausel, sonst `endcase`; ein Ergebnis gehört mit `0 swap endcase` darunter. **3 neue Tests**, 199 in der Datei, **494/494** im Repo. `FORTH.md`: vier Zeilen in „Control flow" plus ein Absatz zur Selektor-Regel, Zahl 151 → **155**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-15 | **Tier 2, 3. Schub: Zeichenkettenwörter** (`cmove cmove> blank -trailing compare search /string`) — 162 Wörter. Ein Zeichen ist hier **eine Zelle**, also ist `cmove` = `move` (per Sprung geteilt) und `blank` = `fill` mit einem Leerzeichen (der Stub schiebt 32 und springt nach `word_fill`); `/string` addiert `n` direkt. **`cmove>`** kopiert von oben nach unten (Zeiger erst um `u` erhöhen, dann senken) und ist damit für Ziel über Quelle sicher, während `cmove` dort das erste Zeichen verdoppelt (gepinnt: `ABAABAAA`). `compare` liefert −1/0/1 nach dem ersten Unterschied bzw. der Länge und vergleicht **unsigniert** (128 > 127, gepinnt); `search` antwortet **den Rest ab dem Treffer** (`( c-addr3 u3 flag )`, leerer Nadel beginnt bei 0). **Fund 1:** `cmove>` startete eine Zelle zu tief — sah wie eine Richtungs-, war eine Startlagenfrage. **Fund 2 (Werkzeug):** `/string` benutzte `wls_ok`, das schon `word_lshift` gehört; der Assembler nimmt stillschweigend die letzte Definition und meldete nur einen zu weiten Sprung. Neuer Test: **alle ~850 Labels der Quelldatei sind eindeutig**. **5 neue Tests**, 204 in der Datei, **499/499** im Repo. `FORTH.md`: sieben Zeilen und ein Absatz in „Characters and strings", Zahl 155 → **162**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-15 | **Tier 2, 4. Schub: Ausnahmen** (`catch throw abort abort"`) — 166 Wörter. `catch` führt ein xt mit einem **3-Zellen-Rahmen auf dem Rückstapel** aus (voriger Handler / IP des Aufrufers / gemerkte Datenstapeltiefe); das xt wird wie von `execute` betreten, aber IP zeigt vorher auf einen **einzelligen Thread**, damit sein Ende in `word_catch_ok` landet statt im Interpreter — `throw` benutzt den zweiten Thread (`word_catch_thrown`) und dieselbe Buchhaltung ohne die Null. `throw` schneidet den Datenstapel auf die gemerkte Tiefe, setzt RP auf den Rahmen und den Handler auf den äußeren; `abort` = `-1 throw`, `abort"` (immediate, **kein** Tokenizer-Wort: `' abort"` findet es, `see` druckt es zurück) druckt seinen Text und wirft `-2`. **Die Kernel-Fehler sind Ausnahmen, solange ein Handler in Reichweite ist** (`stack_underflow_error` → `-4`, `skip_unknown` → `-13`, beide an *einer* Stelle geprüft); ohne Handler bleibt der alte Weg. **Fund 1:** `LD R1, R9, 0` liest über ES (LDI-Falle #4) — der gespeicherte IP landete im Bildschirm; neuer Test: **kein `LD`/`ST` darf R8/R9 als Basis benutzen**. **Fund 2:** `print_zstring` ist LINK-gerufen und ruft selbst `put_char` per LINK — LR war weg, es kehrte irgendwohin zurück; LR wird jetzt in `pzs_lr` geparkt (und nur R1–R3 überleben den BIOS-Aufruf, also läuft der Zeiger in R3). **5 neue Tests**, 209 in der Datei, **504/504** im Repo. `FORTH.md`: neuer Abschnitt „Exceptions", Zahl 162 → **166**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
+| 2026-10-15 | **Tier 2, 5. Schub: `evaluate`** — 167 Wörter. `evaluate` führt eine Zeichenkette durch **denselben Tokenizer** wie die Tastaturzeile (im aktuellen Zustand, also auch `:`/`;`), kopiert sie in einen **Puffer je Tiefe** (zwei Ebenen, der Standard verlangt zwei) und schließt sie mit einer Nullzelle ab; `interpret_done` erkennt eine laufende Auswertung und gibt **Quelle und Thread** zurück, statt eine Eingabeaufforderung zu drucken. Zu lange Zeilen oder eine dritte Ebene werfen `-22`. **Wichtig für `catch`:** ein unbekannter Name in einer Auswertung ist jetzt `-13` (erster erreichbarer Weg dorthin), und ein `throw` setzt die **Eingabequelle** zurück — dafür merkt sich der **catch-Rahmen** jetzt auch TIB und `>IN` (Rahmen 4 → **6 Zellen**), sonst liest der Interpreter den abgebrochenen Text noch einmal. **Drei Funde:** *(1)* `interpret_done` liegt im **engen 0x0100-Block** (19 Wörter frei); der Hook sprengte ihn und `.org 0x0500` überschrieb den Schwanz **stillschweigend**, sodass der Ablauf in `word_plus` fiel — jede Zeile endete mit Unterlauf; die Prüfung liegt jetzt im 0x0500-Block. *(2)* `SUB R1, 22` ist unmöglich (ALU-Immediate = 4 Bit) → `LDI -22`. *(3)* Bei interpretiertem `evaluate` zeigt IP auf `resume_list`, nicht auf einen Thread → der Rücksprung muss in `interpret_loop` gehen, damit der Rest der Zeile läuft. **2 neue Tests**, 211 in der Datei, **506/506** im Repo. `FORTH.md`: Zeile und Absatz in „Names and execution", Zahl 166 → **167**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 
 ## Architektur-Revisionen im Repo-Root
 
@@ -734,10 +761,9 @@ bewusste Entscheidung und keine Lücke.
    *Erledigt (2026-10-15, Tier 2):* die **Ausnahmen** — `catch`, `throw`,
    `abort`, `abort"`; die Kernel-Fehler selbst werfen jetzt, solange ein Handler
    in Reichweite ist.
-   **Als Nächstes:** `evaluate` (eine Zeichenkette interpretieren — dann wird
-   auch der `-13`-Wurf erreichbar und eine Quelldatei kann geladen werden) und
-   die Doppel-Restliste (`d.`, `d.r`, `d>s`, `dabs`, `dmax`, `dmin`, `2constant`,
-   `2variable`, `2literal`, `2>r`, `2r>`).
+   **Als Nächstes:** die Doppel-Restliste (`d.`, `d.r`, `d>s`, `dabs`, `dmax`,
+   `dmin`, `2constant`, `2variable`, `2literal`, `2>r`, `2r>`) — und `include`
+   beziehungsweise ein Ladepfad, für den `evaluate` jetzt die Grundlage ist.
    **Erledigt statt vormerkt:** `<`, `>` und mit ihnen `min`/`max` sind bei
    Überlauf **nicht mehr** falsch — sie lesen N und V zusammen (`N xor V`), und
    `+loop` tut dasselbe. Der Fehler war kein fehlendes Wort, sondern ein Fehler,
