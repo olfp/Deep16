@@ -1089,6 +1089,23 @@ find_next_wl:
     NOP
 
 skip_unknown:
+    ; Inside a catch an unknown name is the standard's -13, thrown from here so
+    ; the handler sees it as the exception it is. With no handler the token is
+    ; reported and the line abandoned, exactly as before.
+    LDI active_handler
+    MOV R2, R0
+    LD R1, R2, 0
+    LDI 0
+    CMP R1, R0
+    JZ sk_report
+    NOP
+    LDI 0
+    MOV R1, R0
+    SUB R1, 13              ; -13: undefined word
+    LDI throw_code
+    MOV PC, R0
+    NOP
+sk_report:
     ; An error aborts any definition in progress, so the next line is
     ; interpreted rather than compiled into the broken word.
     LDI state_var
@@ -1194,6 +1211,23 @@ recover_prompt:
     NOP
 
 stack_underflow_error:
+    ; Inside a catch a stack underflow is the standard's -4, not a message: it
+    ; unwinds to the handler and lets the program deal with it. With no handler
+    ; in reach the old behaviour stands, message and fresh prompt together.
+    LDI active_handler
+    MOV R2, R0
+    LD R1, R2, 0
+    LDI 0
+    CMP R1, R0
+    JZ su_report
+    NOP
+    LDI 0
+    MOV R1, R0
+    SUB R1, 4               ; -4: stack underflow
+    LDI throw_code
+    MOV PC, R0
+    NOP
+su_report:
     ; Drop the block cursor before SCR jumps to the next line
     LDI clear_cursor
     MOV R2, R0
@@ -1460,6 +1494,8 @@ unknown_word_msg:
     .text "undefined word: "
 stack_underflow_msg:
     .text "stack underflow"
+uncaught_msg:
+    .text "uncaught exception"
 ok_msg:
     .text " ok"
 
@@ -2061,10 +2097,32 @@ h_search:
     .text "search"
     .word word_search
 h_slash_string:
-    .word h_see
+    .word h_catch
     .word 7
     .text "/string"
     .word word_slash_string
+; The exception words. `catch` and `throw` are ordinary words; `abort` is the
+; standard's -1 throw.
+h_catch:
+    .word h_throw
+    .word 5
+    .text "catch"
+    .word word_catch
+h_throw:
+    .word h_abort
+    .word 5
+    .text "throw"
+    .word word_throw
+h_abort:
+    .word h_abortq
+    .word 5
+    .text "abort"
+    .word word_abort
+h_abortq:
+    .word h_see
+    .word 0x8006          ; IMMEDIATE | length 6
+    .text "abort\""
+    .word word_abortq
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -2392,6 +2450,23 @@ xt_resume:
     .word outer_resume   ; code of the "back to outer interpreter" word
 resume_list:
     .word xt_resume      ; synthetic one-cell thread for execute_xt
+; The exception threads. `catch` runs its xt with IP pointing at one of these
+; one-cell lists, so however the xt ends - a primitive falls back into `next`, a
+; colon word `exit`s - it arrives at the word that finishes the catch. Which of
+; the two it lands in is what tells the difference between an xt that returned
+; and one that threw.
+xt_catch_ok:
+    .word word_catch_ok
+catch_resume_list:
+    .word xt_catch_ok
+xt_catch_thrown:
+    .word word_catch_thrown
+throw_resume_list:
+    .word xt_catch_thrown
+active_handler:
+    .word 0              ; the innermost catch frame, or 0 for none
+throw_code_save:
+    .word 0              ; the code kept across the handler lookup
 xt_lit:
     .word lit
 xt_exit:
@@ -2404,6 +2479,8 @@ xt_litstr:
     .word word_litstr
 xt_sqstr:
     .word word_sqstr
+xt_abortq:
+    .word word_abortq_rt
 xt_do:
     .word word_do_rt
 xt_qdo:
@@ -2437,6 +2514,8 @@ case_depth:
     .word 0              ; CASE/ENDCASE pairs open while compiling
 pn_lr:
     .word 0              ; print_number's return address across its putch call
+pzs_lr:
+    .word 0              ; the same for print_zstring
 pt_lr:
     .word 0              ; print_text's return address across its putch call
 
@@ -2492,6 +2571,10 @@ see_str_sq:
     ; itself and the blank has to come back for the source to mean the same
     ; thing when it is read again.
     .text "s\" "
+see_str_abortq:
+    ; Same shape as `s"`, for the same reason: the parsed word swallows the
+    ; delimiting blank, so see puts it back.
+    .text "abort\" "
 see_str_do:
     .text "do "
 see_str_qdo:
@@ -6536,6 +6619,10 @@ sb_lit:
     CMP R3, R0
     JZ sb_string_sq
     NOP
+    LDI xt_abortq
+    CMP R3, R0
+    JZ sb_string_abortq
+    NOP
     LDI xt_do
     CMP R3, R0
     JZ sb_lit_do
@@ -6595,6 +6682,12 @@ sb_string:
     NOP
 sb_string_sq:
     LDI see_str_sq
+    MOV R7, R0
+    LDI sb_string_common
+    MOV PC, R0
+    NOP
+sb_string_abortq:
+    LDI see_str_abortq
     MOV R7, R0
 sb_string_common:
     MOV R1, R7
@@ -9038,6 +9131,377 @@ wsearch_found:
     ADD R2, R11             ; u3 = u1 - (c-addr3 - c-addr1)
     ST R2, SP, 1
     LDI cmp_true
+    MOV PC, R0
+    NOP
+
+; ---------------------------------------------
+; Tier 2, fourth batch: exceptions
+; ---------------------------------------------
+; `catch` runs an xt with a frame on the return stack that records where to carry
+; on, how deep the data stack was, and the frame of the catch outside it.
+; `throw` finds that frame, cuts the data stack back to the recorded depth,
+; unwinds the return stack to the frame and resumes there with the code on top -
+; which is why a throw from the bottom of a chain of calls arrives as if the
+; calls had returned. Zero is not an exception.
+;
+; The frame is three cells below the return stack pointer:
+;
+;     RP+0  the handler that was active before this catch (0 if none was)
+;     RP+1  the IP to carry on at: the caller's own thread
+;     RP+2  the data stack depth the catch was entered at
+;
+; The caught xt is entered the way `execute` enters one - W set, IP left alone -
+; except that IP first points at a one-cell thread of its own, so the xt's end
+; arrives in word_catch_ok rather than in the interpreter. A throw points IP at
+; the other thread, word_catch_thrown, which does the same bookkeeping without
+; pushing the zero. The xt itself needs to know none of this.
+
+word_catch:                 ; catch ( i*x xt -- j*x 0 | i*x n )
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wca_under            ; the xt itself is missing
+    NOP
+    LD R7, SP, 0            ; the xt
+    ADD SP, 1               ; and the data stack is at the caught depth now
+    LDI rp_ptr
+    MOV R4, R0
+    LD R3, R4, 0            ; RP
+    SUB R3, 3
+    LDI active_handler
+    MOV R2, R0
+    LD R1, R2, 0            ; the handler that is active at this moment
+    ST R1, R3, 0            ; RP+0
+    LDI ip_ptr
+    MOV R11, R0             ; NOT R9: an LD/ST through R8 or R9 goes to ES
+    LD R1, R11, 0           ; where the caller stands: where the xt returns to
+    ST R1, R3, 1            ; RP+1
+    ST SP, R3, 2            ; RP+2: the depth a throw cuts back to
+    ST R3, R2, 0            ; this frame is the innermost handler now
+    ST R3, R4, 0            ; RP
+    LDI catch_resume_list
+    MOV R1, R0
+    ST R1, R11, 0           ; IP = the thread that ends the catch
+    LD R4, R7, 0            ; the xt's code field
+    MOV R10, R7             ; W = the xt, as `execute` leaves it
+    MOV PC, R4
+    NOP
+wca_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_catch_ok:              ; the xt came back of its own accord
+    LDI catch_end
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 0
+    MOV R3, R0
+    SUB SP, 1
+    ST R3, SP, 0            ; a normal return answers zero
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_catch_thrown:          ; the xt threw: the code is already on the stack
+    LDI catch_end
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI next
+    MOV PC, R0
+    NOP
+
+; catch_end: the bookkeeping both endings share. LINK-called, and it leaves the
+; data stack alone so the caller can push what its ending wants.
+catch_end:
+    LDI rp_ptr
+    MOV R4, R0
+    LD R3, R4, 0            ; the frame
+    LD R1, R3, 0            ; the handler that was active outside this catch
+    LD R7, R3, 1            ; the IP to carry on at
+    LDI active_handler
+    MOV R2, R0
+    ST R1, R2, 0
+    ADD R3, 3
+    ST R3, R4, 0            ; pop the frame
+    LDI ip_ptr
+    MOV R2, R0
+    ST R7, R2, 0
+    JMP LR
+    NOP
+
+word_throw:                 ; throw ( k*x n -- k*x | i*x n )
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wth_under            ; the code itself is missing
+    NOP
+    LD R1, SP, 0            ; the code
+    ADD SP, 1
+    LDI throw_code
+    MOV PC, R0
+    NOP
+wth_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+; throw_code: R1 = the exception code, with the cell already off the stack. Zero
+; is not an exception. With a handler in reach, the data stack is cut back to
+; what its catch saw, the return stack is unwound to its frame, and execution
+; resumes there with the code on top; with none, the stack is emptied and the
+; line is abandoned, which is what `abort` does - but not silently.
+throw_code:
+    LDI 0
+    CMP R1, R0
+    JNZ tc_throwing
+    NOP
+    LDI next                ; 0: nothing happened
+    MOV PC, R0
+    NOP
+tc_throwing:
+    LDI throw_code_save
+    MOV R2, R0
+    ST R1, R2, 0            ; the code, across the lookup below
+    LDI active_handler
+    MOV R2, R0
+    LD R3, R2, 0            ; the innermost frame, or 0
+    LDI 0
+    CMP R3, R0
+    JZ tc_no_handler
+    NOP
+    LD R4, R3, 2            ; the depth its catch was entered at
+    MOV SP, R4
+    LDI throw_code_save
+    MOV R2, R0
+    LD R7, R2, 0
+    SUB SP, 1
+    ST R7, SP, 0            ; the code, on top of the restored stack
+    LDI rp_ptr              ; the return stack ends at the frame
+    MOV R4, R0
+    ST R3, R4, 0            ; word_catch_thrown pops it
+    LDI ip_ptr
+    MOV R2, R0
+    LDI throw_resume_list
+    MOV R1, R0
+    ST R1, R2, 0
+    LDI next
+    MOV PC, R0
+    NOP
+tc_no_handler:
+    LDI sp0_base            ; nothing is watching: empty the data stack
+    MOV R2, R0
+    LD R1, R2, 0
+    MOV SP, R1
+    LDI rp0_base            ; and the return stack, frame by frame: the word that
+    MOV R2, R0              ; threw is not going to unwind them itself
+    LD R1, R2, 0
+    LDI rp_ptr
+    MOV R2, R0
+    ST R1, R2, 0
+    LDI state_var
+    MOV R2, R0
+    LDI 0
+    ST R0, R2, 0            ; and leave any definition in progress
+    LDI uncaught_error
+    MOV PC, R0
+    NOP
+
+word_abort:                 ; abort ( i*x -- ) ( R: j*x -- )  i.e. -1 throw
+    LDI 0
+    MOV R3, R0
+    SUB R3, 1
+    SUB SP, 1
+    ST R3, SP, 0
+    LDI word_throw
+    MOV PC, R0
+    NOP
+
+; uncaught_error: a throw with no catch anywhere. It reports and hands the line
+; back to the reader, the way the stack underflow path does - the same tail,
+; because the screen bookkeeping and the fresh prompt are exactly the same.
+uncaught_error:
+    LDI print_text
+    MOV R2, R0
+    LDI uncaught_msg
+    LINK
+    JMP R2
+    NOP
+    LDI stack_underflow_after
+    MOV PC, R0
+    NOP
+
+; --- abort" --------------------------------------------------------------
+; `abort"` is the exception with a message attached: a non-zero flag prints the
+; text and throws -2 (the standard's own code for it); a zero flag throws
+; nothing. The text is parsed as a word of its own - `abort"` is an ordinary
+; immediate word, not a tokenizer case - so `' abort"` finds it and `see` can
+; print it back. One blank delimits the text, as it does for `s"`.
+
+skip_blank:                 ; step >IN over one delimiting blank, if there is one
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R4, R3, 0
+    LDI ' '
+    CMP R4, R0
+    JNZ skb_done
+    NOP
+    ADD >IN, 1
+skb_done:
+    JMP LR
+    NOP
+
+print_zstring:              ; R7 = the address; print up to the NUL
+    ; The cursor lives in R3, not R7: put_char is a BIOS call and only keeps
+    ; R1-R3 (which is why word_litstr scans the same way). LR is parked while
+    ; put_char runs, because LINK overwrites it and this routine has to return.
+    LDI pzs_lr
+    MOV R2, R0
+    ST LR, R2, 0
+    MOV R3, R7
+pzs_loop:
+    LD R2, R3, 0
+    LDI 0
+    CMP R2, R0
+    JZ pzs_done
+    NOP
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R2
+    LINK
+    JMP R4
+    NOP
+    ADD R3, 1
+    LDI pzs_loop
+    MOV PC, R0
+    NOP
+pzs_done:
+    LDI pzs_lr
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
+    NOP
+
+word_abortq:                ; abort" ( "<spaces>ccc" -- ) IMMEDIATE
+    LDI skip_blank
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI state_var
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI 0
+    CMP R2, R0
+    JNZ waqc_compile
+    NOP
+    ; Interpreting: the flag is on the stack and the text is in the line, so
+    ; copy it (which undoes \" and steps over the closing quote) and act on it.
+    LDI sq_buf
+    MOV R11, R0
+    LDI copy_string
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LD R3, SP, 0            ; the flag
+    ADD SP, 1
+    LDI 0
+    CMP R3, R0
+    JZ waqc_done            ; zero: nothing to report
+    NOP
+    LDI sq_buf
+    MOV R7, R0
+    LDI print_zstring
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 0
+    MOV R3, R0
+    SUB R3, 2               ; -2: ABORT"
+    SUB SP, 1
+    ST R3, SP, 0
+    LDI word_throw
+    MOV PC, R0
+    NOP
+waqc_done:
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+waqc_compile:
+    LDI dp_var
+    MOV R2, R0
+    LD R11, R2, 0            ; HERE: the three cells go there
+    LDI xt_lit
+    MOV R4, R0
+    ST R4, R11, 0            ; LIT
+    ADD R11, 1
+    ADD R11, 1
+    ADD R11, 1               ; the characters start after the three cells
+    MOV R9, R11
+    ST R9, R11, -2           ; their address, for the LIT to push
+    LDI xt_abortq
+    MOV R4, R0
+    ST R4, R11, -1           ; the marker, which is the runtime word
+    LDI copy_string
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI dp_var               ; R11 is one past the NUL
+    MOV R2, R0
+    ST R11, R2, 0            ; publish HERE
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+word_abortq_rt:             ; ( flag -- ) the runtime
+    LD R7, SP, 0            ; the message's address, pushed by the LIT cell
+    LD R3, SP, 1            ; the flag
+    ADD SP, 2
+    LDI 0
+    CMP R3, R0
+    JZ waqr_skip            ; zero: the message is not printed at all
+    NOP
+    LDI print_zstring       ; print the message
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 0
+    MOV R3, R0
+    SUB R3, 2               ; -2: ABORT"
+    SUB SP, 1
+    ST R3, SP, 0
+    LDI word_throw          ; and throw it: the IP is the handler's business
+    MOV PC, R0
+    NOP
+waqr_skip:
+    ; Zero: walk the thread over the message, the way litstr does, and carry on.
+waqr_scan:
+    LD R2, R7, 0
+    LDI 0
+    CMP R2, R0
+    JZ waqr_done
+    NOP
+    ADD R7, 1
+    LDI waqr_scan
+    MOV PC, R0
+    NOP
+waqr_done:
+    LDI ip_ptr
+    MOV R2, R0
+    MOV R4, R7
+    ADD R4, 1               ; one past the NUL
+    ST R4, R2, 0
+    LDI next
     MOV PC, R0
     NOP
 

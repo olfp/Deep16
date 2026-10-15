@@ -3384,6 +3384,93 @@ test('search answers the rest of the string from the match', () => {
   assert.equal(row('a b search . nip .'), '> a b search . nip . -1  5  ok');
 });
 
+// ---------------------------------------------------------------------------
+// Tier 2, fourth batch: exceptions.
+//
+// `catch` runs an xt with a frame on the return stack that records where to
+// carry on, how deep the data stack was, and the frame of the catch outside it.
+// `throw` finds that frame, cuts the data stack back to the recorded depth,
+// unwinds the return stack to it, and resumes there with the code on top - so a
+// throw from the bottom of a chain of calls arrives as if the calls had
+// returned. Zero is not an exception, and `abort` is the standard's -1 throw.
+//
+// The kernel's own errors are exceptions too while a handler is in reach: a
+// stack underflow is -4, thrown from the error routine itself instead of printed.
+// With no handler in reach both paths behave exactly as they always did, which is
+// what the old tests keep checking.
+
+test('catch runs an xt and answers 0 when it returns', () => {
+  assert.equal(hexOut("5 ' dup catch . . ."), '0  5  5');
+  assert.equal(hexOut(": t 1 2 3 ; ' t catch . . . ."), '0  3  2  1');
+  assert.equal(hexOut(": n ; ' n catch ."), '0');
+  // catch checks its own depth: the xt has to be there.
+  assert.match(hexrepl('catch').join('\n'), /stack underflow/);
+});
+
+test('throw unwinds to the catch and cuts the stack back', () => {
+  // The cell that was below the catch survives, everything the xt pushed does
+  // not, and the code lands on top.
+  assert.equal(hexOut(": t 8 1 throw ; 5 ' t catch . ."), '1  5');
+  assert.equal(hexOut(": t 5 1 throw 9 ; ' t catch ."), '1');
+  // A throw from the bottom of a call chain arrives as if the calls returned,
+  // and nested catches each take their own throw. Definitions and calls go on
+  // separate lines so the rows stay inside what hexOut can read.
+  const row = (def, call) => repl(`${def}\n${call}\n`).rows[2];
+  assert.equal(row(": inner 42 7 throw ; : outer inner 99 ;", "' outer catch ."),
+    "> ' outer catch . 7  ok");
+  assert.equal(row(": i 3 throw ; : o ['] i catch . 7 throw ;", "' o catch ."),
+    "> ' o catch . 3  7  ok");
+  assert.equal(row(": t 1 throw ; : w ['] t catch 100 + throw ;", "' w catch ."),
+    "> ' w catch . 101  ok");
+  // abort is -1 throw, and a code computed at run time is thrown as it stands.
+  assert.equal(hexOut("' abort catch ."), '-1');
+  // Zero is not an exception at all.
+  assert.equal(hexOut('5 0 throw .'), '5');
+  // throw checks its own depth.
+  assert.match(hexrepl('throw').join('\n'), /stack underflow/);
+});
+
+test('the kernel errors are exceptions while a handler is in reach', () => {
+  // A stack underflow inside a catch is the standard's -4, not a message.
+  assert.equal(hexOut(": t drop drop ; ' t catch ."), '-4');
+  // Outside one it reports and recovers the way it always did.
+  assert.match(hexrepl('drop drop').join('\n'), /stack underflow/);
+  // A throw nothing is watching is reported, and the prompt comes back.
+  const rows = repl('1 throw\n7 .\n').rows;
+  assert.match(rows[1], /uncaught exception/);
+  assert.match(rows[2], /7 .* ok/);
+});
+
+test('no instruction uses R8 or R9 as an address base', () => {
+  // PSW.ER = 8 with the dual bit set makes R8 and R9 the ES-base pair, so a load
+  // or store through either of them goes to the screen instead of the data
+  // segment. `catch` did exactly that to the instruction pointer cell and walked
+  // the machine into unwritten memory; this is the cheap way to never do it
+  // again. R8 and R9 are still fine as a destination or a value.
+  const bad = [];
+  src.split('\n').forEach((line, i) => {
+    const code = line.split(';')[0];
+    if (/\b(LD|ST)\s+R\d+\s*,\s*R[89]\s*,/.test(code)) bad.push(`${i + 1}: ${line.trim()}`);
+  });
+  assert.deepEqual(bad, []);
+});
+
+test('abort" reports its message and throws -2', () => {
+  const row = (def, call) => repl(`${def}\n${call}\n`).rows[2];
+  // A zero flag prints nothing and throws nothing.
+  assert.equal(row(': t abort" boom" ;', '0 t'), '> 0 t ok');
+  // A non-zero flag prints the message and throws -2, which a catch sees.
+  assert.equal(row(': t abort" boom" ; : c [\'] t catch ;', '1 c .'), '> 1 c .boom -2  ok');
+  // With nothing watching, the message goes out and then the code is reported.
+  assert.equal(row(': t 1 abort" boom" ;', 't'), '> tboomuncaught exception');
+  // Interpreted, the flag comes off the stack the same way.
+  assert.equal(repl('1 abort" oops"\n7 .\n').rows[1], '> 1 abort" oops"oopsuncaught exception');
+  // It is an ordinary dictionary word with a quote in its name, so `'` finds it
+  // and see prints a compiled one back with the blank the parse swallowed.
+  assert.equal(hexOut("' abort\" ."), String(res.symbols.h_abortq + 9));
+  assert.equal(row(': t 1 abort" boom" ;', 'see t'), '> see t : t 1 abort" boom" ; ok');
+});
+
 test('a base below two stops the printer instead of running away', () => {
   // BASE is a cell, so 0 and 1 can be stored; the standard calls that
   // undefined. What gets printed is garbage - what matters is that the count

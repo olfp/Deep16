@@ -271,6 +271,33 @@
 > Test, der die ~850 Labels der Quelldatei auf Eindeutigkeit prüft.
 > **5 neue Tests**, 204 in der Datei.
 >
+> **2026-10-15 (elfter Teil):** **Tier 2, vierter Schub: Ausnahmen** —
+> **166 Wörter**: `catch`, `throw`, `abort`, `abort"`. `catch` führt ein xt mit
+> einem **Rahmen auf dem Rückstapel** aus, der festhält, wo es weitergeht, wie
+> tief der Datenstapel war und welcher `catch` außen liegt; `throw` sucht diesen
+> Rahmen, **schneidet den Datenstapel auf die gemerkte Tiefe zurück**, wickelt den
+> Rückstapel bis zum Rahmen ab und setzt dort mit dem Code obenauf fort — ein
+> `throw` aus der Tiefe einer Aufrufkette kommt also an, als wären die Aufrufe
+> zurückgekehrt. Null ist keine Ausnahme, `abort` ist der `-1 throw` des
+> Standards, und `abort"` druckt seinen Text und wirft `-2`.
+> **Das xt wird so betreten wie von `execute`** (W gesetzt, IP unangetastet),
+> außer dass IP vorher auf einen **einzelligen Thread** zeigt: so landet das Ende
+> des xt in `word_catch_ok` statt im Interpreter. Ein `throw` zeigt auf den
+> anderen Thread (`word_catch_thrown`), der dieselbe Buchhaltung ohne die Null
+> macht. **Die Kernel-Fehler sind jetzt Ausnahmen**, solange ein Handler in
+> Reichweite ist: ein Stapelunterlauf wirft `-4`, ein unbekannter Name `-13`
+> (der wird erst mit `evaluate` erreichbar). Ohne Handler bleibt alles wie vorher:
+> Meldung und frische Eingabeaufforderung.
+> **Zwei Funde, beide wieder von der Maschine:** *(1)* `LDI`-Falle Nummer vier:
+> `LD R1, R9, 0` liest über **ES** — der IP des Aufrufers landete im Bildschirm,
+> der Rahmen war falsch, und die Maschine lief in den Acker. Ein neuer Test
+> verbietet jetzt **jedes** `LD`/`ST` mit R8 oder R9 als Adressbasis in der
+> Quelldatei. *(2)* `print_zstring` ist LINK-aufgerufen **und** ruft selbst per
+> LINK `put_char` — das überschreibt LR, also kehrte es irgendwohin zurück. Ein
+> LR-Platz ist jetzt geparkt; nebenbei steht dort auch, dass nur R1–R3 den
+> BIOS-Aufruf überleben (deshalb läuft der Zeiger in R3, wie in `word_litstr`).
+> **5 neue Tests**, 209 in der Datei.
+>
 > **2026-10-14 (dritter Teil):** **`do`/`loop` sind da** — mit `?do`, `leave`
 > und `i`. Der Loop-Rahmen liegt auf dem Rückstapel, vier Zellen unter den
 > Aufrufsrahmen. Die teuerste Falle war nicht der Inhalt, sondern die
@@ -562,6 +589,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-15 | **Tier 2: Doppelzellen-Arithmetik** (`s>d d+ d- dnegate m+ d= d0= d< um* m* um/mod sm/rem fm/mod`) — 151 Wörter. Ein Doppel ist **zwei Zellen mit dem hohen Halbwort oben**; `s>d` stellt das her, `d+`/`d-`/`m+`/`dnegate` tragen über das **Carry-Flag** (das sofort gelesen werden muss, weil `LDI` das ganze Nibble löscht), und `d<` vergleicht hohe Halbwörter vorzeichenbehaftet (N/V-Test wie `<`) und die niedrigen **vorzeichenlos**, wenn die hohen gleich sind. **Fund 1: `MUL32` ist unsigniert** — das hohe Halbwort eines Produkts *hängt* von den Vorzeichen ab (`3 × −4 = −12` gegen `3 × 0xFFFC = 0x0002FFF4`); `m*` korrigiert den unsignierten Wert, indem jeder negative Operand den anderen einmal abzieht (das landet ganz im hohen Halbwort). **Fund 2: die Reihenfolge der Divisionsantwort** — der Standard gibt Quotient oben (`u3`/`n3`) und Rest darunter; die erste Fassung hatte es umgekehrt, und die ersten Tests pinnten den Irrtum mit, bis eine `u.`-Zeile den Rest oben zeigte. `sm/rem` ist exakt die ISA-Division (truncate toward zero, Rest mit dem Vorzeichen des Dividenden), `fm/mod` ergänzt die Bodenkorrektur (Rest mit dem Vorzeichen des Divisors). **Grenzen:** `um/mod` ist exakt, solange der Quotient passt *und* der Divisor < `0x8000` ist (dann sind beide Operanden nicht-negativ, signiert = unsigniert); ein unsignierter Divisor ≥ `32768` kommt signiert heraus, ohne Absturz (`INT_MIN/−1` → 0/0). **6 neue Tests**, 196 in der Datei, **491/491** im Repo. `FORTH.md`: neuer Abschnitt „Double-cell numbers", Zahl 138 → **151**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-15 | **Tier 2, 2. Schub: `case`/`of`/`endof`/`endcase`** — 155 Wörter. Die vier sind **immediate** und kompilieren nur vorhandene Wörter: **`of` ist `over = if drop`**, `endof` ist `else` (per Sprung auf `word_else` geteilt, damit der Rumpf nicht zweimal dasteht), `endcase` kompiliert `drop` und löst die Zweige auf — deshalb zeigt `see` eine `case`-Definition als ihre Zweige. Buchhaltung auf dem Kompilier-Rückstapel: `case` legt eine **Marke 0** ab (keine Adresse), `of` den Platzhalter. **Wächter:** `case_depth` (wie `loop_depth`) lässt ein verwaistes `endcase` nichts tun, und die Auflöseschleife flickt nur Adressen in `[dict_free, 0x3FFF]`. Die drei `xt`-Zellen, die `of` kompiliert, halten die **echten xts** (Header + 3 + Namenslänge), damit `see` sie benennen kann; ein Test pinnt alle drei gegen `' over`, `' =`, `' drop`. **Fund 1:** den vier Headern fehlte das IMMEDIATE-Bit — die Wörter wurden kompiliert statt ausgeführt (`see` zeigte `case 1 of …`); gefunden am `see`-Ausdruck. **Fund 2:** `LDI 0x4000` lädt `0xC000` (Bit 14 = Vorzeichen), womit die Obergrenze des Wächters negativ wurde, der Wächter bei **jeder** echten Platzhalteradresse zuschlug und `endcase` nichts flickte — das `(branch)` blieb auf 0 und die Maschine lief nach dem ersten `emit` ins Leere. Jetzt Carry-Vergleiche gegen `dict_free` und `0x3FFF`. Dazu die **Standard-Regel** im Manual: den Selektor verwirft die passende Klausel, sonst `endcase`; ein Ergebnis gehört mit `0 swap endcase` darunter. **3 neue Tests**, 199 in der Datei, **494/494** im Repo. `FORTH.md`: vier Zeilen in „Control flow" plus ein Absatz zur Selektor-Regel, Zahl 151 → **155**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-15 | **Tier 2, 3. Schub: Zeichenkettenwörter** (`cmove cmove> blank -trailing compare search /string`) — 162 Wörter. Ein Zeichen ist hier **eine Zelle**, also ist `cmove` = `move` (per Sprung geteilt) und `blank` = `fill` mit einem Leerzeichen (der Stub schiebt 32 und springt nach `word_fill`); `/string` addiert `n` direkt. **`cmove>`** kopiert von oben nach unten (Zeiger erst um `u` erhöhen, dann senken) und ist damit für Ziel über Quelle sicher, während `cmove` dort das erste Zeichen verdoppelt (gepinnt: `ABAABAAA`). `compare` liefert −1/0/1 nach dem ersten Unterschied bzw. der Länge und vergleicht **unsigniert** (128 > 127, gepinnt); `search` antwortet **den Rest ab dem Treffer** (`( c-addr3 u3 flag )`, leerer Nadel beginnt bei 0). **Fund 1:** `cmove>` startete eine Zelle zu tief — sah wie eine Richtungs-, war eine Startlagenfrage. **Fund 2 (Werkzeug):** `/string` benutzte `wls_ok`, das schon `word_lshift` gehört; der Assembler nimmt stillschweigend die letzte Definition und meldete nur einen zu weiten Sprung. Neuer Test: **alle ~850 Labels der Quelldatei sind eindeutig**. **5 neue Tests**, 204 in der Datei, **499/499** im Repo. `FORTH.md`: sieben Zeilen und ein Absatz in „Characters and strings", Zahl 155 → **162**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
+| 2026-10-15 | **Tier 2, 4. Schub: Ausnahmen** (`catch throw abort abort"`) — 166 Wörter. `catch` führt ein xt mit einem **3-Zellen-Rahmen auf dem Rückstapel** aus (voriger Handler / IP des Aufrufers / gemerkte Datenstapeltiefe); das xt wird wie von `execute` betreten, aber IP zeigt vorher auf einen **einzelligen Thread**, damit sein Ende in `word_catch_ok` landet statt im Interpreter — `throw` benutzt den zweiten Thread (`word_catch_thrown`) und dieselbe Buchhaltung ohne die Null. `throw` schneidet den Datenstapel auf die gemerkte Tiefe, setzt RP auf den Rahmen und den Handler auf den äußeren; `abort` = `-1 throw`, `abort"` (immediate, **kein** Tokenizer-Wort: `' abort"` findet es, `see` druckt es zurück) druckt seinen Text und wirft `-2`. **Die Kernel-Fehler sind Ausnahmen, solange ein Handler in Reichweite ist** (`stack_underflow_error` → `-4`, `skip_unknown` → `-13`, beide an *einer* Stelle geprüft); ohne Handler bleibt der alte Weg. **Fund 1:** `LD R1, R9, 0` liest über ES (LDI-Falle #4) — der gespeicherte IP landete im Bildschirm; neuer Test: **kein `LD`/`ST` darf R8/R9 als Basis benutzen**. **Fund 2:** `print_zstring` ist LINK-gerufen und ruft selbst `put_char` per LINK — LR war weg, es kehrte irgendwohin zurück; LR wird jetzt in `pzs_lr` geparkt (und nur R1–R3 überleben den BIOS-Aufruf, also läuft der Zeiger in R3). **5 neue Tests**, 209 in der Datei, **504/504** im Repo. `FORTH.md`: neuer Abschnitt „Exceptions", Zahl 162 → **166**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 
 ## Architektur-Revisionen im Repo-Root
 
@@ -698,14 +726,18 @@ bewusste Entscheidung und keine Lücke.
    `d+`, `d-`, `dnegate`, `m+`, `d=`, `d0=`, `d<`, `um*`, `m*`, `um/mod`,
    `sm/rem`, `fm/mod`; damit steht auch `: d. <# #s #> type space ;` als
    Anwenderwort da.
-   **Als Nächstes:** `evaluate` (eine Zeichenkette interpretieren — Material für
-   ein Kapitel 9) und `catch`/`throw`/`abort`.
-   *Erledigt (2026-10-15, Tier 2):* auch die **Zeichenkettenwörter** — `cmove`,
-   `cmove>`, `blank`, `-trailing`, `compare`, `search`, `/string`; damit ist von
-   der Liste nur noch `catch`/`throw` und `evaluate` offen.
-   *Erledigt (2026-10-15, Tier 2):* auch `case`/`of`/`endof`/`endcase` — sie
+   *Erledigt (2026-10-15, Tier 2):* `case`/`of`/`endof`/`endcase` — sie
    kompilieren nur `over = if drop` und `else`, also nichts, was der Laufzeit
    fehlte.
+   *Erledigt (2026-10-15, Tier 2):* die **Zeichenkettenwörter** `cmove`,
+   `cmove>`, `blank`, `-trailing`, `compare`, `search`, `/string`.
+   *Erledigt (2026-10-15, Tier 2):* die **Ausnahmen** — `catch`, `throw`,
+   `abort`, `abort"`; die Kernel-Fehler selbst werfen jetzt, solange ein Handler
+   in Reichweite ist.
+   **Als Nächstes:** `evaluate` (eine Zeichenkette interpretieren — dann wird
+   auch der `-13`-Wurf erreichbar und eine Quelldatei kann geladen werden) und
+   die Doppel-Restliste (`d.`, `d.r`, `d>s`, `dabs`, `dmax`, `dmin`, `2constant`,
+   `2variable`, `2literal`, `2>r`, `2r>`).
    **Erledigt statt vormerkt:** `<`, `>` und mit ihnen `min`/`max` sind bei
    Überlauf **nicht mehr** falsch — sie lesen N und V zusammen (`N xor V`), und
    `+loop` tut dasselbe. Der Fehler war kein fehlendes Wort, sondern ein Fehler,

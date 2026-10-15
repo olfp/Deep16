@@ -436,6 +436,41 @@ default clause:
 `of` and `endof` compile nothing new: `of` is `over = if drop` and `endof` is
 `else`, so `see` prints a case as the branches it really is.
 
+## Exceptions
+
+| word | stack effect | meaning |
+|------|--------------|---------|
+| `catch` | `( i*x xt -- j*x 0 \| i*x n )` | run `xt`: `0` if it returns, `n` if it throws |
+| `throw` | `( k*x n -- k*x \| i*x n )` | `0` does nothing, anything else unwinds to the innermost `catch` |
+| `abort` | `( i*x -- )` | the standard's `-1 throw` |
+| `abort"` | `( flag "ccc" -- )` (imm) | print `ccc` and `-2 throw` when `flag` is non-zero |
+
+`catch` runs an xt with a frame on the return stack that records where execution
+should carry on, how deep the data stack was, and the frame of the catch outside
+it. `throw` finds that frame, cuts the data stack back to the recorded depth,
+unwinds the return stack to it, and resumes there with the code on top. A throw
+from the bottom of a chain of calls therefore arrives as if the calls had
+returned: everything the xt pushed is gone, and everything below the catch is
+untouched.
+
+The kernel's own errors are exceptions too while a handler is in reach: a stack
+underflow throws `-4`, and an unknown name throws `-13` — that one becomes
+reachable once a string can be interpreted, which needs `evaluate`. With no
+handler in reach both behave exactly as they did before, a message and a fresh
+prompt — and so does a throw that nothing is watching.
+
+```text
+: t 8 1 throw 9 ;        5 ' t catch . .     \ 1  5  ok
+: inner 42 7 throw ;
+: outer inner 99 ;       ' outer catch .     \ 7  ok
+1 throw                                       \ uncaught exception
+```
+
+`abort"` is an ordinary immediate word and not a tokenizer case, so `' abort"`
+finds it and `see` prints a compiled one back. One blank delimits its message,
+as it does for `s"`; `catch` then receives `-2` with the message already on the
+screen.
+
 ## Input, output and screen
 
 | word | stack effect | meaning |
@@ -487,5 +522,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 162 words. New words are added at the head of the
+That is the whole dictionary: 166 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.
