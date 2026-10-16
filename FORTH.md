@@ -470,6 +470,11 @@ word is.
 | `[` **imm** | `( -- )` | switch to interpret state |
 | `]` | `( -- )` | switch to compile state |
 | `recurse` **imm** | `( -- )` | compile a call to the definition being built |
+| `:noname` | `( -- xt )` | start a definition with no name; leaves its xt |
+| `compile,` | `( xt -- )` | append a call to `xt` to the definition being built |
+| `[compile]` **imm** | `( "name" -- )` | append a call to `name` whatever its immediacy |
+| `postpone` **imm** | `( "name" -- )` | compile the compilation semantics of `name` |
+| `marker` | `( "name" -- )` | `marker name`; running `name` rewinds the dictionary |
 | `exit` | `( -- )` | return from the current definition |
 
 ```text
@@ -491,6 +496,22 @@ definition is being translated. An immediate word is the way to look at the `1`:
 ```text
 : peek state @ . ; immediate   : t peek ;    \ t prints 1 while it is compiled
 ```
+
+`compile,`, `[compile]` and `postpone` are how a program builds compiling
+words. `compile,` appends the call to an xt it is handed — the one step the
+compiler itself takes — so it needs the xt at compile time, the idiom being
+`[ ' dup ] compile,` or, inside an immediate word, `['] dup compile,`.
+`[compile]` parses a name and appends a call to it even when it is immediate.
+`postpone` is the careful version: an immediate word is compiled as a call (so it
+runs while the definition is being built), and a word that is not immediate is
+compiled as `LIT <xt> COMPILE,` (so the definition compiles it when it runs).
+That is what makes `: my-if postpone if ; immediate` an alias for `if`.
+
+`:noname` starts a definition with **no header at all** — one cell holding
+`docol` — and leaves its xt, so it can be stored and run but never found by
+name. `recurse` inside it still calls it. `marker name` records where the
+dictionary and the wordlist head stand; running `name` puts both back, so the
+marker and everything defined after it are gone.
 
 ## Control flow
 
@@ -646,5 +667,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 198 words. New words are added at the head of the
+That is the whole dictionary: 203 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

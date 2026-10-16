@@ -3939,3 +3939,57 @@ test('c" compiles an inline string and is compile-only', () => {
   // Interpreting it is the standard's -14 (uncaught here).
   assert.match(repl('c" x"\n').rows[1], /uncaught exception$/);
 });
+
+// ---------------------------------------------------------------------------
+// Tier 3, third batch: the compiler and the dictionary.
+//
+// COMPILE, is the one step of the compiler, exposed. [COMPILE] parses a name and
+// appends its xt whatever its immediacy; POSTPONE does that for an immediate
+// word and, for a word that is not immediate, appends `LIT <xt> COMPILE,`, so
+// the definition being built will compile that word when it runs. :NONAME builds
+// a definition with no header at all - just a CFA cell holding docol - so its xt
+// is the cell's own address. MARKER builds an ordinary word whose runtime puts
+// the dictionary pointer and the wordlist head back.
+
+test('compile, appends a call to the xt', () => {
+  const dupX = res.symbols.h_dup + 6;
+  // From an immediate defining word, which is what it is for.
+  let rows = repl(": my-dup ['] dup compile, ; immediate\n: u my-dup ;\n5 u . .\n").rows;
+  assert.equal(rows[3], '> 5 u . . 5  5  ok');
+  rows = repl(": my-dup ['] dup compile, ; immediate\nsee my-dup\n").rows;
+  assert.equal(rows[2], `> see my-dup : my-dup ${dupX} compile, ; ok`);
+  assert.match(hexrepl('compile,').join('\n'), /stack underflow/);
+});
+
+test('[compile] compiles a call to the next word', () => {
+  assert.equal(hexOut(': t [compile] dup ; 5 t . .'), '5  5');
+  assert.equal(hexOut(': t [compile] dup ; see t'), ': t dup ;');
+  // It compiles a call, so exit returns from the definition that runs it.
+  assert.equal(hexOut(': t [compile] exit 1 . ; t 2 .'), '2');
+});
+
+test('postpone compiles the compilation semantics of a word', () => {
+  const dupX = res.symbols.h_dup + 6;
+  // An immediate word is compiled as a call, so it runs while compiling.
+  assert.equal(hexOut(': my-if postpone if ; immediate : t 1 my-if 2 . then ; t'), '2');
+  // A word that is not immediate is compiled as LIT <xt> COMPILE,.
+  assert.equal(hexOut(': t postpone dup ; immediate : u t ; 5 u . .'), '5  5');
+  assert.equal(hexOut(': t postpone dup ; immediate see t'), `: t ${dupX} compile, ;`);
+});
+
+test(':noname starts a nameless definition and leaves its xt', () => {
+  assert.equal(hexOut(':noname 42 ; execute .'), '42');
+  assert.equal(hexOut(':noname dup + ; 3 swap execute .'), '6');
+  // RECURSE inside it calls the anonymous definition.
+  assert.equal(hexOut(':noname dup 0> if 1- recurse then ; 3 swap execute .'), '0');
+});
+
+test('marker rewinds the dictionary to where it was defined', () => {
+  const rows = repl('marker m : foo 1 ; foo .\nm\nfoo .\n').rows;
+  assert.equal(rows[1], '> marker m : foo 1 ; foo . 1  ok');
+  assert.equal(rows[2], '> m ok');
+  assert.equal(rows[3], '> foo .');
+  assert.equal(rows[4], 'undefined word: foo');
+  // It removes itself too.
+  assert.equal(repl('marker m\nm\nm .\n').rows[4], 'undefined word: m');
+});

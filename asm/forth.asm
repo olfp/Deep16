@@ -2323,10 +2323,37 @@ h_parse:
     .text "parse"
     .word word_parse
 h_cquote:
-    .word h_see
+    .word h_compilecomma
     .word 0x8002          ; IMMEDIATE | length 2
     .text "c\""
     .word word_cquote
+; Tier 3, third batch. [compile] and postpone are immediate; :noname and marker
+; are ordinary words. compile, is the one step of the compiler, exposed.
+h_compilecomma:
+    .word h_bracketcompile
+    .word 8
+    .text "compile,"
+    .word word_compilecomma
+h_bracketcompile:
+    .word h_postpone
+    .word 0x8009          ; IMMEDIATE | length 9
+    .text "[compile]"
+    .word word_bracketcompile
+h_postpone:
+    .word h_noname
+    .word 0x8008          ; IMMEDIATE | length 8
+    .text "postpone"
+    .word word_postpone
+h_noname:
+    .word h_marker
+    .word 7
+    .text ":noname"
+    .word word_noname
+h_marker:
+    .word h_see
+    .word 6
+    .text "marker"
+    .word word_marker
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -2759,6 +2786,15 @@ xt_sqstr:
     .word word_sqstr
 xt_cqstr:
     .word word_cqstr
+xt_compilecomma:
+    .word h_compilecomma + 11 ; compile,'s xt (header + 3 + 8)
+; marker's snapshot, only live while one marker is being defined
+mk_head_cell:
+    .word 0
+mk_old_head:
+    .word 0
+mk_old_dp:
+    .word 0
 xt_abortq:
     .word word_abortq_rt
 xt_do:
@@ -7487,6 +7523,220 @@ cq_no_blank:
     MOV PC, R0
     NOP
 
+
+; =============================================
+; Tier 3, third batch: compiler and dictionary
+; =============================================
+; `COMPILE,`, `[COMPILE]`, `POSTPONE`, `:NONAME` and `MARKER`.
+;
+; dp_store appends the cell in R1 to the definition being built - the one step
+; `COMPILE,` is. `[COMPILE]` parses a name and appends its xt whatever its
+; immediacy; `POSTPONE` does the same for an immediate word, and for one that is
+; not immediate it appends `LIT <xt> COMPILE,`, so the current definition will
+; compile that word when it runs. find_token answers the immediacy in R9 for it.
+;
+; `:NONAME` builds a definition with **no header at all**: just a CFA cell
+; holding docol, so its xt is the cell's own address and nothing can find it by
+; name. `MARKER` builds an ordinary header whose runtime puts the dictionary
+; pointer and the wordlist head back the way they were before it.
+
+dp_store:                   ; LINK: append the call to the xt in R1
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0
+    ST R1, R3, 0
+    ADD R3, 1
+    ST R3, R2, 0
+    JMP LR
+    NOP
+
+word_compilecomma:          ; compile, ( xt -- )
+    MOV R9, SP
+    ADD R9, 1
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wcc_ok
+    NOP
+    JN wcc_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wcc_ok:
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI dp_store
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_bracketcompile:        ; [compile] ( "name" -- ) IMMEDIATE
+    LDI find_token
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 0
+    CMP R1, R0
+    JZ wbc_unknown
+    NOP
+    LDI dp_store
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+wbc_unknown:
+    LDI skip_unknown
+    MOV PC, R0
+    NOP
+
+word_postpone:              ; postpone ( "name" -- ) IMMEDIATE
+    LDI find_token
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 0
+    CMP R1, R0
+    JZ wpp_unknown
+    NOP
+    LDI 0
+    CMP R9, R0
+    JZ wpp_nonimm
+    NOP
+    ; immediate: append a call to it, which runs it while compiling
+    LDI dp_store
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+wpp_nonimm:
+    ; not immediate: append LIT <xt> COMPILE,
+    MOV R7, R1              ; the name's xt
+    LDI dp_store
+    MOV R2, R0
+    LDI xt_lit
+    MOV R1, R0              ; the LIT marker cell
+    LINK
+    JMP R2
+    NOP
+    LDI dp_store
+    MOV R2, R0
+    MOV R1, R7
+    LINK
+    JMP R2
+    NOP
+    LDI dp_store
+    MOV R2, R0
+    LDI xt_compilecomma
+    LD R1, R0, 0            ; COMPILE,'s own xt
+    LINK
+    JMP R2
+    NOP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+wpp_unknown:
+    LDI skip_unknown
+    MOV PC, R0
+    NOP
+
+word_noname:                ; :noname ( -- xt )  a definition with no header
+    LDI dp_var
+    MOV R2, R0
+    LD R7, R2, 0            ; the xt is HERE
+    LDI docol
+    MOV R3, R0
+    ST R3, R7, 0            ; the CFA cell, and nothing before it
+    LDI current_xt
+    MOV R3, R0
+    ST R7, R3, 0            ; RECURSE inside it calls this
+    MOV R3, R7
+    ADD R3, 1
+    ST R3, R2, 0            ; DP past the CFA
+    LDI state_var
+    MOV R3, R0
+    LDI 1
+    MOV R4, R0
+    ST R4, R3, 0            ; STATE = compiling
+    SUB SP, 1
+    ST R7, SP, 0            ; the xt, before the body is compiled
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+marker_rt:                  ; the runtime of a MARKER: rewind dictionary and head
+    LD R2, R10, 1           ; the wordlist head cell to restore
+    LD R3, R10, 2           ; the head it had before the marker
+    ST R3, R2, 0
+    LD R2, R10, 3           ; DP before the marker
+    LDI dp_var
+    MOV R3, R0
+    ST R2, R3, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_marker:                ; marker ( "name" -- )
+    ; Snapshot before the header exists, so the runtime can put it all back.
+    LDI current
+    MOV R2, R0
+    LD R2, R2, 0            ; the head cell of the current wordlist
+    LDI mk_head_cell
+    MOV R3, R0
+    ST R2, R3, 0
+    LD R2, R2, 0
+    LDI mk_old_head
+    MOV R3, R0
+    ST R2, R3, 0
+    LDI dp_var
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI mk_old_dp
+    MOV R3, R0
+    ST R2, R3, 0
+    LDI define_name
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    ; R2 = CFA cell address, R12 = &DP
+    LDI marker_rt
+    MOV R1, R0
+    ST R1, R2, 0            ; CFA = the runtime
+    ADD R2, 1
+    LDI mk_head_cell
+    MOV R3, R0
+    LD R4, R3, 0
+    ST R4, R2, 0            ; [W+1]
+    ADD R2, 1
+    LDI mk_old_head
+    MOV R3, R0
+    LD R4, R3, 0
+    ST R4, R2, 0            ; [W+2]
+    ADD R2, 1
+    LDI mk_old_dp
+    MOV R3, R0
+    LD R4, R3, 0
+    ST R4, R2, 0            ; [W+3]
+    ADD R2, 1
+    ST R2, R12, 0           ; publish HERE
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+
 ; =============================================
 ; P2: Indirect-threaded code engine
 ; =============================================
@@ -8589,6 +8839,19 @@ ft_cmp:
     ADD R1, 3
     ADD R1, R11           ; R1 = CFA cell address
     ADD >IN, R11
+    ; R9 = 1 when the word is immediate, 0 otherwise; POSTPONE reads it.
+    LD R4, R7, 1
+    LDI 1
+    SL R0, 15             ; 0x8000, the IMMEDIATE bit
+    AND R4, R0
+    LDI 0
+    MOV R9, R0
+    CMP R4, R0
+    JZ ft_ret
+    NOP
+    LDI 1
+    MOV R9, R0
+ft_ret:
     JMP LR
     NOP
 ft_next:
@@ -8604,6 +8867,8 @@ ft_next_wl:
 ft_none:
     LDI 0
     MOV R1, R0
+    LDI 0
+    MOV R9, R0
     JMP LR
     NOP
 
