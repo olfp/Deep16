@@ -344,7 +344,7 @@ after_print_text:
     LINK
     JMP R2
     NOP
-    LDI word_accept
+    LDI read_line
     MOV PC, R0
     NOP
 
@@ -898,7 +898,7 @@ recover_prompt:
     LINK
     JMP R2
     NOP
-    LDI word_accept
+    LDI read_line
     MOV PC, R0
     NOP
 
@@ -962,7 +962,7 @@ stack_underflow_after:
     LINK
     JMP R2
     NOP
-    LDI word_accept      ; recover: fresh prompt, then read the next line
+    LDI read_line      ; recover: fresh prompt, then read the next line
     MOV PC, R0
     NOP
 interpret_done:
@@ -1045,7 +1045,7 @@ ok_after:
 interpret_next:
     ; Read next line into TIB via BIOS and then interpret. Reached with the echo
     ; on and off alike: the REPL still reads, it just says less about it.
-    LDI word_accept
+    LDI read_line
     MOV PC, R0
     NOP
 
@@ -2508,6 +2508,18 @@ word_buf:
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+; accept's own line buffer: one whole BIOS line plus the NUL the BIOS puts after
+; it, so the caller's buffer can be smaller than the line without being overrun.
+accept_buf:
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0
 xt_lit:
     .word lit
 xt_exit:
@@ -2541,6 +2553,10 @@ in_shadow:
     .word 0
 num_neg:
     .word 0              ; 1 while a signed number is being scanned
+acc_addr:
+    .word 0              ; accept: the caller's buffer
+acc_max:
+    .word 0              ; accept: how much room is left in it
 
 ; environment queries: name cells, length, value. A name not here answers false.
 env_core:
@@ -3157,10 +3173,12 @@ word_key:
     MOV PC, R0
     NOP
 
-word_accept:
-    ; Use BIOS getstr to read a line into TIB. Whether that getstr echoes the
-    ; characters on the way in is the echo_flag cell, not a fixed property: see
-    ; word_echo below.
+read_line:
+    ; The REPL's own reader, behind the prompt: BIOS getstr fills TIB (whether it
+    ; echoes the characters on the way in is the echo_flag cell, not a fixed
+    ; property - see word_echo below), >IN goes back to 0 and the line is
+    ; interpreted. This is **not** the standard `ACCEPT`; that is word_accept,
+    ; which reads into a buffer of the caller's and answers how much it took.
     ;
     ; A fresh keyboard line also ends any `included` load that was running: the
     ; REPL only comes back here after an error (recover_prompt) or at the top of
@@ -3185,6 +3203,95 @@ word_accept:
     LDI 0
     MOV >IN, R0
     LDI interpret_loop
+    MOV PC, R0
+    NOP
+
+; accept ( c-addr +n1 -- +n2 ) is the standard reader, and a different word from
+; read_line above: it takes a buffer of the caller's and answers how many
+; characters it put there, instead of filling TIB and starting the interpreter.
+;
+; The line is read into a buffer of the kernel's own first, through the same
+; BIOS getstr, and then copied out: the BIOS stops at its own TIB_LIMIT, not at
+; +n1, so handing it the caller's buffer would run a long line past the end of
+; it. >IN (R5) and both arguments are parked across the SWI, because the
+; shadow-bank BIOS clobbers the registers it likes.
+word_accept:
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wac_ok
+    NOP
+    JN wac_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wac_ok:
+    ; R6 is TIB and R8:R9 are the ES pair, so neither can hold an argument here;
+    ; both are parked in cells before the SWI and read back afterwards.
+    LD R4, SP, 0            ; +n1
+    LDI acc_max
+    MOV R3, R0
+    ST R4, R3, 0
+    LD R4, SP, 1            ; c-addr
+    LDI acc_addr
+    MOV R3, R0
+    ST R4, R3, 0
+    ADD SP, 2
+    LDI saved_in
+    MOV R2, R0
+    ST >IN, R2, 0           ; park the parse pointer
+    LDI 5                   ; BIOS getstr
+    MOV R4, R0
+    LDI 0
+    MOV R7, R0
+    STS R4, DS, R7          ; DS:[0] = 5
+    LDI accept_buf
+    MOV R3, R0
+    LDI 1
+    MOV R7, R0
+    STS R3, DS, R7          ; DS:[1] = the kernel's line buffer
+    SWI
+    ; Nothing is expected to survive in a register across getstr - it uses R2 as
+    ; its own write pointer - so every address is materialised again here.
+    LDI saved_in
+    MOV R2, R0
+    LD >IN, R2, 0           ; put the parse pointer back
+    LDI acc_addr
+    MOV R2, R0
+    LD R1, R2, 0            ; the caller's buffer, the write pointer
+    LDI acc_max
+    MOV R2, R0
+    LD R11, R2, 0           ; what is left of the caller's room
+    LDI accept_buf
+    MOV R10, R0             ; the read pointer
+    LDI 0
+    MOV R9, R0              ; +n2
+wac_copy:
+    LD R4, R10, 0
+    LDI 0
+    CMP R4, R0
+    JZ wac_done             ; the BIOS put its NUL at the end of the line
+    NOP
+    LDI 0
+    CMP R11, R0
+    JZ wac_done             ; the caller's buffer is full
+    NOP
+    ST R4, R1, 0
+    ADD R1, 1
+    ADD R10, 1
+    ADD R9, 1
+    SUB R11, 1
+    LDI wac_copy
+    MOV PC, R0
+    NOP
+wac_done:
+    SUB SP, 1
+    ST R9, SP, 0            ; +n2, what went into the buffer
+    LDI next
     MOV PC, R0
     NOP
 

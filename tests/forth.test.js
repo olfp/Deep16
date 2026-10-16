@@ -4117,6 +4117,26 @@ test('refill has no source to read again from', () => {
   assert.equal(hexOut('refill .'), '0');
 });
 
+test('accept reads a line into the caller\'s buffer and answers its length', () => {
+  // The standard reader, and a different word from the one behind the prompt: it
+  // takes a buffer and its size and answers how much went in. The BIOS echoes
+  // the typed line, so it lands on the row accept ran on.
+  const { rows } = repl('pad 80 accept dup . pad swap type\nhello\n');
+  assert.equal(rows[1], '> pad 80 accept dup . pad swap typehello 5 hello ok');
+});
+
+test('accept never writes past the buffer it was given', () => {
+  // The BIOS stops at its own line limit, not at +n1, so the line goes into a
+  // buffer of the kernel's first and only n1 characters are copied out.
+  assert.equal(repl('pad 5 accept dup . pad swap type\nabcdefgh\n').rows[1],
+    '> pad 5 accept dup . pad swap typeabcdefgh 5 abcde ok');
+  // An empty line is length 0.
+  assert.equal(repl('pad 80 accept .\n\n').rows[1], '> pad 80 accept . 0  ok');
+  // It wants a buffer and its size.
+  assert.match(hexrepl('accept').join('\n'), /stack underflow/);
+  assert.match(hexrepl('pad accept').join('\n'), /stack underflow/);
+});
+
 test('save-input and restore-input round-trip the input source', () => {
   // ( >in tib 2 ): here the offset is 10, just past "save-input".
   assert.equal(hexOut('save-input . . .'), `2  10  ${res.symbols.tib_kbd}`);

@@ -613,7 +613,7 @@ screen.
 | `u.` | `( u -- )` | print `u` unsigned, then a space |
 | `cr` | `( -- )` | carriage return + line feed |
 | `key` | `( -- c )` | wait for a key and push its low byte |
-| `accept` | `( -- )` | read the next input line into the buffer and interpret it |
+| `accept` | `( c-addr +n1 -- +n2 )` | read a line from the keyboard, at most `+n1` characters, into `c-addr` |
 | `cls` | `( -- )` | clear the screen and home the cursor |
 | `scr@` | `( off -- x )` | read screen cell at ES offset `off` |
 | `scr!` | `( x off -- )` | write screen cell at ES offset `off` |
@@ -634,9 +634,12 @@ screen.
 | `quit` | `( -- )` | empty the return stack, end the line, await the next |
 | `environment?` | `( c-addr u -- false \| i*x true )` | answer an environment query |
 
-`accept` is the REPL's own reader, not the standard `( addr n -- n2 )`: it
-fills the input buffer and re-enters the interpreter, so it takes nothing and
-returns nothing.
+`accept` is the standard reader: `( c-addr +n1 -- +n2 )` reads a line from the
+keyboard into the caller's buffer — at most `+n1` characters, since the BIOS
+reads the whole line into a buffer of its own first — and answers how much it
+put there. The line is echoed as it is typed unless the echo is off, and a line
+longer than `+n1` is simply cut. The routine behind the prompt is a different
+one: it fills the input buffer, resets `>in`, and starts the interpreter.
 
 `>in` is where the standard's model does not fit cleanly: the pointer into the
 input buffer is the **register** `R5`, not a cell, so there is nothing whose
