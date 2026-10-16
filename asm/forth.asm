@@ -7799,7 +7799,6 @@ scan_sign_go:
     LDI 1
     ST R0, R2, 0            ; remember the sign
     ADD >IN, 1              ; the scan starts on the first digit
-    ADD R3, 1               ; number_scan reads through R3, not >IN
     LDI number_scan
     MOV PC, R0
     NOP
@@ -7889,6 +7888,15 @@ number_letter:
     MOV PC, R0
     NOP
 number_scan:
+    ; The look-ahead cursor. number_scan walks R3 and leaves >IN alone, so a
+    ; token that turns out to be a word (2dup, 1+) is still whole for
+    ; parse_word; only parse_number commits >IN. R3 is derived here, from the
+    ; same TIB + >IN that every other reader uses, so a caller can never hand
+    ; the scan a stale start - the loop is a separate label because deriving
+    ; R3 there would reset it and never advance.
+    MOV R3, TIB
+    ADD R3, >IN
+number_scan_loop:
     LD R4, R3, 0
     LDI 0
     CMP R4, R0
@@ -7921,7 +7929,7 @@ number_scan:
     NOP
 number_scan_next:
     ADD R3, 1
-    LDI number_scan
+    LDI number_scan_loop
     MOV PC, R0
     NOP
 parse_number:
