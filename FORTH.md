@@ -312,12 +312,12 @@ variable x 2 allot  7 9 x 2!  x 2@ . .    \ 9 7  ok
 | `bl` | `( -- 32 )` | the space character |
 | `space` | `( -- )` | write one blank |
 | `spaces` | `( n -- )` | write `n` blanks |
-| `count` | `( c-addr -- c-addr u )` | length of the zero-terminated string at `c-addr` |
+| `count` | `( c-addr -- c-addr+1 u )` | the characters and length of the counted string at `c-addr` |
 | `char+` | `( c-addr -- c-addr+1 )` | the next character (one cell), so `1+` |
 | `chars` | `( n -- n )` | characters to address units (the identity) |
 | `type` | `( c-addr u -- )` | write `u` characters from `c-addr` |
 | `s"` | `( "ccc" -- c-addr u )` | the text between the quotes, as a string |
-| `c"` **imm** | `( "ccc" -- )` | compile an inline string; at run time it pushes its address |
+| `c"` **imm** | `( "ccc" -- )` | compile an inline counted string; at run time it pushes its address |
 | `/string` | `( c-addr1 u1 n -- c-addr2 u2 )` | the string from character `n` on |
 | `blank` | `( c-addr u -- )` | fill `u` characters with blanks |
 | `-trailing` | `( c-addr u1 -- c-addr u2 )` | drop the blanks at the end |
@@ -326,25 +326,25 @@ variable x 2 allot  7 9 x 2!  x 2@ . .    \ 9 7  ok
 | `cmove` | `( c-addr1 c-addr2 u -- )` | copy `u` characters, low address first |
 | `cmove>` | `( c-addr1 c-addr2 u -- )` | copy them high address first |
 
-A string here is a run of one-character cells that ends in a zero cell, because
-one cell is one address unit. `."` writes such a string into a definition, `s"`
-answers one, and `c,` builds one by hand:
+Two shapes of string live here, because one cell is one address unit. The
+ordinary one is what `type`, `compare`, `search` and `s"` use: a slice of
+one-character cells, given as an address and a length. The **counted** one is
+what `word`, `find` and `c"` use, as ANS CORE asks: the length in the first cell
+and the characters behind it, so a zero character is allowed inside it:
 
 ```text
-here 72 c, 73 c, 0 c,  count type    \ HI  ok
+here 2 c, 72 c, 73 c,  count type    \ HI  ok
 ```
 
-`count` answers the string's own address and its length, which is what `type`
-wants, and not the standard `c-addr+1`: there are no counted strings here for
-that reading to mean anything. `type` masks each cell to its low 8 bits, so a
-NUL character writes nothing rather than stopping.
+`count` turns the first into the second: it reads the length from the first cell
+and answers `c-addr+1` with it, which is exactly what `type` wants. `type` masks
+each cell to its low 8 bits, so a NUL character writes nothing rather than
+stopping.
 
-`word`, `find` and `c"` follow the same convention rather than the standard's
-counted *byte*. `bl word` parses the next token into a NUL-terminated buffer and
-answers its address, so `bl word count type` echoes what was typed; `find` looks
-up exactly what `word` produced, and `c"` compiles an inline NUL-terminated
-string. A counted string with the length in the first cell would be a second
-representation with nothing to build it, so these three keep the kernel's.
+`bl word` parses the next token into a counted buffer and answers its address, so
+`bl word count type` echoes what was typed; `find` reads the length from that
+first cell, and `c"` compiles one inline. The buffer `word` fills is also
+NUL-terminated, so the cell after the characters is a zero either way.
 
 A character is one cell, so `cmove` is `move` and `blank` is `fill` with a space —
 the two only differ where a cell holds two characters. `cmove>` is the one that
@@ -624,7 +624,7 @@ screen.
 | `u.r` | `( u width -- )` | the same, unsigned |
 | `.(` **imm** | `( "ccc)" -- )` | write the text up to the next `)` |
 | `source-id` | `( -- -1 )` | the input source: `-1`, the keyboard |
-| `word` | `( char -- c-addr )` | parse the next token, delimited by `char`, into a buffer |
+| `word` | `( char -- c-addr )` | parse the next token, delimited by `char`, into a counted buffer |
 | `parse` | `( char -- c-addr u )` | the input up to the next `char`, as a slice of the line |
 | `>in` | `( -- addr )` | the parse offset, as a writable cell (see below) |
 | `source` | `( -- c-addr u )` | the input line and its length |

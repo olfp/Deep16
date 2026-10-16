@@ -2507,6 +2507,7 @@ word_buf:
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 xt_lit:
     .word lit
 xt_exit:
@@ -2671,6 +2672,11 @@ see_str_abortq:
     ; Same shape as `s"`, for the same reason: the parsed word swallows the
     ; delimiting blank, so see puts it back.
     .text "abort\" "
+see_str_cq:
+    ; `c"` compiles a counted string, like `word` builds one: the length in the
+    ; first cell and the characters behind it. The printed source is the same
+    ; form again.
+    .text "c\" "
 see_str_do:
     .text "do "
 see_str_qdo:
@@ -6396,8 +6402,12 @@ sb_not_exit:
     LD R3, R3, 0
     LDI 0
     CMP R3, R0
-    JNZ sb_abort
+    JZ sb_miss_there
     NOP
+    LDI sb_abort
+    MOV PC, R0
+    NOP
+sb_miss_there:
     LDI 1
     MOV R12, R0
     LDI see_store
@@ -6536,6 +6546,10 @@ sb_lit:
     CMP R3, R0
     JZ sb_string_abortq
     NOP
+    LDI xt_cqstr
+    CMP R3, R0
+    JZ sb_string_cq
+    NOP
     LDI xt_do
     CMP R3, R0
     JZ sb_lit_do
@@ -6591,6 +6605,29 @@ sb_string:
     LDI see_str_dotq
     MOV R7, R0
     LDI sb_string_common
+    MOV PC, R0
+    NOP
+; `c"` stores a counted string, so its LIT pushed the count cell and the
+; characters sit one behind it; the rest of the walk is the same.
+sb_string_cq:
+    LDI see_str_cq
+    MOV R7, R0
+    LDI sb_string_cq_common
+    MOV PC, R0
+    NOP
+sb_string_cq_common:
+    MOV R1, R7
+    LDI see_puts
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI see_ptr
+    MOV R3, R0
+    LD R10, R3, 0
+    LD R11, R10, 1
+    ADD R11, 1
+    LDI sb_string_loop
     MOV PC, R0
     NOP
 sb_string_sq:
@@ -6980,22 +7017,8 @@ word_find:                  ; find ( c-addr -- c-addr 0 | xt 1 | xt -1 )
     MOV PC, R0
     NOP
 wf_ok:
-    LD R7, SP, 0            ; the name, kept for the not-found answer
-    LDI 0
-    MOV R11, R0
-    MOV R3, R7
-wf_measure:
-    LD R4, R3, 0
-    LDI 0
-    CMP R4, R0
-    JZ wf_measured
-    NOP
-    ADD R3, 1
-    ADD R11, 1
-    LDI wf_measure
-    MOV PC, R0
-    NOP
-wf_measured:
+    LD R7, SP, 0            ; the counted string, kept for the not-found answer
+    LD R11, R7, 0           ; its length: the first cell, as ANS FIND wants
     LDI 0
     MOV R12, R0             ; search-order index
 wf_wl:
@@ -7020,6 +7043,7 @@ wf_hdr:
     JNZ wf_next
     NOP
     MOV R3, R7
+    ADD R3, 1               ; the counted string's characters
     MOV R1, R10
     ADD R1, 2               ; the header's name
     MOV R9, R11
@@ -7156,7 +7180,8 @@ word_word:                  ; word ( char -- c-addr )  text to the delimiter
 ww_ok:
     LD R2, SP, 0            ; the delimiter
     LDI word_buf
-    MOV R11, R0             ; the destination
+    MOV R11, R0
+    ADD R11, 1              ; the characters go behind the count cell
     MOV R1, TIB
     ADD R1, >IN
 ww_skip:
@@ -7184,7 +7209,7 @@ ww_copy:
     CMP R4, R2
     JZ ww_done
     NOP
-    LDI 63                  ; word_buf holds 63 characters and a NUL
+    LDI 63                  ; word_buf holds 63 characters, behind the count cell
     CMP R9, R0
     JZ ww_skip_store        ; full: keep advancing, do not copy
     NOP
@@ -7198,7 +7223,10 @@ ww_skip_store:
     NOP
 ww_done:
     LDI 0
-    ST R0, R11, 0           ; NUL-terminate
+    ST R0, R11, 0           ; NUL after the characters
+    LDI word_buf
+    MOV R3, R0
+    ST R9, R3, 0            ; and the count in the first cell
     LD R4, R1, 0
     LDI 0
     CMP R4, R0
@@ -7218,18 +7246,22 @@ ww_noeol:
     MOV PC, R0
     NOP
 ww_empty:
+    LDI word_buf
+    MOV R3, R0
     LDI 0
-    ST R0, R11, 0
+    ST R0, R3, 0            ; the count of an empty token ...
+    ST R0, R3, 1            ; ... and its NUL
     LDI word_buf
     ST R0, SP, 0
     LDI next
     MOV PC, R0
     NOP
 
-word_cqstr:                 ; the C" runtime: skip the inline string
+word_cqstr:                 ; the C" runtime: skip the inline counted string
     LDI ip_ptr
     MOV R2, R0
-    LD R7, R2, 0            ; IP = the first character
+    LD R7, R2, 0            ; IP = the count cell
+    ADD R7, 1               ; past it, on the first character
 cw_scan:
     LD R3, R7, 0
     LDI 0
@@ -7273,23 +7305,29 @@ cq_compile:
 cq_no_blank:
     LDI dp_var
     MOV R2, R0
-    LD R11, R2, 0           ; HERE: LIT, the address, the marker, then the text
+    LD R11, R2, 0           ; HERE: LIT, the address, the marker, the counted string
     LDI xt_lit
     MOV R4, R0
     ST R4, R11, 0
     ADD R11, 1
     ADD R11, 1
-    ADD R11, 1
-    MOV R9, R11
-    ST R9, R11, -2          ; the address the LIT will push
+    ADD R11, 1              ; R11 = the count cell, which is what the LIT pushes
+    MOV R7, R11             ; held in R7: R9 as a store base goes through ES
+    ST R7, R11, -2          ; the address the LIT will push
     LDI xt_cqstr
     MOV R4, R0
     ST R4, R11, -1          ; the marker, which is the runtime word
+    ADD R11, 1              ; the characters go behind the count cell
     LDI copy_string
     MOV R2, R0
     LINK
     JMP R2
     NOP
+    ; The count is the span the copy filled: R7 + 1 up to the NUL now in R11 - 1.
+    MOV R4, R11
+    SUB R4, R7
+    SUB R4, 2
+    ST R4, R7, 0            ; the count in the first cell
     LDI dp_var
     MOV R2, R0
     ST R11, R2, 0           ; publish HERE
@@ -9939,12 +9977,11 @@ w2st_ok:
     MOV PC, R0
     NOP
 
-word_count:                 ; count ( c-addr -- c-addr u )
-    ; A string here is a run of cells ending in a zero cell, so the length is
-    ; found by scanning and the string keeps its own address: `addr count type`
-    ; prints it. ANS count expects a count byte in front of the characters and
-    ; answers c-addr+1, but there are no counted strings here to give that
-    ; reading a meaning.
+word_count:                 ; count ( c-addr -- c-addr+1 u )
+    ; The counted string ANS CORE uses: the length in the first cell and the
+    ; characters behind it, so `addr count type` prints it. `word` and `c"` build
+    ; one; the strings that `s"` answers and `type` eats are the plain
+    ; ( c-addr u ) pairs, and this is where one becomes the other.
     LDI sp0_base
     MOV R2, R0
     LD R1, R2, 0
@@ -9952,24 +9989,11 @@ word_count:                 ; count ( c-addr -- c-addr u )
     JZ wct_under
     NOP
     LD R1, SP, 0            ; c-addr
-    LDI 0
-    MOV R2, R0              ; length
-    MOV R3, R1
-wct_scan:
-    LD R4, R3, 0
-    LDI 0
-    CMP R4, R0
-    JZ wct_done
-    NOP
-    ADD R3, 1
-    ADD R2, 1
-    LDI wct_scan
-    MOV PC, R0
-    NOP
-wct_done:
+    LD R2, R1, 0            ; u, from the first cell
+    ADD R1, 1               ; the characters themselves
     SUB SP, 1               ; one operand in, two cells out
     ST R2, SP, 0            ; u on top
-    ST R1, SP, 1            ; c-addr beneath it
+    ST R1, SP, 1            ; c-addr+1 beneath it
     LDI next
     MOV PC, R0
     NOP

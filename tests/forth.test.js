@@ -1190,6 +1190,12 @@ test('see prints a compiled string back as ." ... "', () => {
   assert.equal(rows[2], '> see greet : greet ." hallo welt" ; ok');
 });
 
+test('see prints a compiled c" string back as c" ... "', () => {
+  // `c"` compiles a counted string, like `word` builds one.
+  assert.equal(repl(': t c" hi there" ;\nsee t\n').rows[2], '> see t : t c" hi there" ; ok');
+  assert.equal(repl(': t c" " ;\nsee t\n').rows[2], '> see t : t c" " ; ok');
+});
+
 test('see decompiles do/loop and ?do', () => {
   const { rows } = repl(': count 10 0 do i . loop ;\n: q 0 0 ?do i . loop ;\nsee count\nsee q\n');
   assert.equal(rows[3], '> see count : count 10 0 do i . loop ; ok');
@@ -2686,14 +2692,15 @@ test('move copies cells upwards and fill and erase write a run', () => {
   assert.equal(hexOut('variable f 7 f ! f 0 65 fill f @ .'), '7');
 });
 
-test('count and type print a zero-terminated string', () => {
-  assert.equal(hexOut('here 72 c, 73 c, 0 c, count type'), 'HI');
-  assert.equal(hexOut('here 72 c, 73 c, 0 c, count nip .'), '2');
+test('count hands the characters of a counted string to type', () => {
+  // The length is the first cell and the characters follow it: that is what
+  // `word` and `c"` build and what `count` reads. `c,` can build one by hand.
+  assert.equal(hexOut('here 2 c, 72 c, 73 c, count type'), 'HI');
+  assert.equal(hexOut('here 2 c, 72 c, 73 c, count nip .'), '2');
   assert.equal(hexOut('here 0 c, count nip .'), '0');
   // an empty string prints nothing, so the row is just the ok
   assert.equal(hexOut('here 0 c, count type'), '');
-  assert.equal(hexOut('here 65 c, 66 c, 67 c, 0 c, count type'), 'ABC');
-  assert.equal(hexOut('here 65 c, 66 c, 67 c, 0 c, count swap drop .'), '3');
+  assert.equal(hexOut('here 3 c, 65 c, 66 c, 67 c, count type'), 'ABC');
   // c, appends to the dictionary and here shows the cell it went to
   assert.equal(hexOut('here 65 c, here swap - .'), '1');
 });
@@ -3974,12 +3981,13 @@ test('>number converts a string into a double', () => {
   assert.match(hexrepl('0 0 >number').join('\n'), /stack underflow/);
 });
 
-test('word parses a token into a NUL-terminated buffer', () => {
+test('word parses a token into a counted buffer', () => {
   assert.equal(hexOut('bl word hello count type'), 'hello');
   // It parses at run time, from whatever the line holds.
   assert.equal(hexOut(': t bl word count type ; t world'), 'world');
-  // count answers ( c-addr u ) for the copy.
+  // The first cell holds the length, as ANS WORD says, so count hands it on.
   assert.equal(hexOut('bl word abc count nip .'), '3');
+  assert.equal(hexOut('bl word abc @ .'), '3');
   assert.match(hexrepl('word').join('\n'), /stack underflow/);
 });
 
@@ -4002,8 +4010,10 @@ test('find looks a name up in the search order', () => {
 
 test('c" compiles an inline string and is compile-only', () => {
   assert.equal(hexOut(': t c" hi" ; t count type'), 'hi');
-  // The address is the characters themselves.
-  assert.equal(hexOut(': t c" hi" ; t @ .'), '104');
+  // The address is the counted string: the length in the first cell and the
+  // characters behind it, exactly like `word` builds.
+  assert.equal(hexOut(': t c" hi" ; t @ .'), '2');
+  assert.equal(hexOut(': t c" hi" ; t 1 + @ .'), '104');
   // Interpreting it is the standard's -14 (uncaught here).
   assert.match(repl('c" x"\n').rows[1], /uncaught exception$/);
 });
