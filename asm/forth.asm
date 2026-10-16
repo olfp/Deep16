@@ -663,309 +663,12 @@ check_s_token:
     NOP
 
 check_number_or_word:
-    MOV R3, TIB
-    ADD R3, >IN
-    LD R4, R3, 0
-    ; Hex first, before the digit test: '$' sorts below '0', so "$FF" would be
-    ; read as a word, and "0x.." has to be caught while >IN still sits on the '0'.
-    ; The peek uses R10 and R11: R5 is >IN, R6 is TIB and R13/R14 are SP/LR, so
-    ; the only free registers here are R9, R10 and R11.
-    LDI '$'
-    CMP R4, R0
-    JZ hex_prefix_one
-    NOP
-    ; Only a leading '0' may open "0x". This is JNZ and not JN on purpose: JN
-    ; would let every character above '0' through to the 'x' peek below, and
-    ; then any token whose SECOND character is 'x' became a hex number. That is
-    ; how `exe` turned into 0xE and `execute` into 0xEC, leaving "ute" behind as
-    ; an undefined word: `exit` only escaped because "xi" holds no hex digit and
-    ; parse_hex_finish sends a digit-less prefix back to parse_word anyway.
-    LDI '0'
-    CMP R4, R0
-    JNZ word_first_is_digit
-    NOP
-    MOV R10, R3
-    ADD R10, 1
-    LD R10, R10, 0
-    LDI 'x'
-    CMP R10, R0
-    JZ hex_prefix_two
-    NOP
-    LDI 'X'
-    CMP R10, R0
-    JZ hex_prefix_two
-    NOP
-word_first_is_digit:
-    LDI '0'
-    CMP R4, R0
-    JN number_letter          ; below '0': a letter, or punctuation
-    NOP
-    LDI '9'
-    CMP R0, R4
-    JN number_letter          ; above '9': a letter, or punctuation
-    NOP
-    ; The first character is a digit, but the word is a number only if the
-    ; whole token is digits. Words such as 2dup, 1+ or 0= start with a digit.
-    LDI number_scan
+    ; The number scanner is a unit of its own now and lives in the roomy block;
+    ; this three-word stub keeps the interpreter's short branch landing here.
+    LDI scan_number
     MOV PC, R0
     NOP
-number_letter:
-    ; Above base ten the letters A-F are digits too, so a token that starts
-    ; with one may be a number (`FF` in hex) or a word (`dup`). number_scan
-    ; still reads the whole token and hands anything that is not all digits to
-    ; parse_word, so every name that is not a number keeps its meaning: `ff`
-    ; would shadow a word of that name, which is the standard's own "undefined"
-    ; case, but `dup` never becomes a number.
-    LDI base_var
-    MOV R2, R0
-    LD R4, R2, 0
-    LDI 10
-    CMP R4, R0
-    JN parse_word             ; base below ten: no letter is a digit
-    NOP
-    JZ parse_word             ; base ten: only 0-9 are digits
-    NOP
-    LDI number_scan
-    MOV PC, R0
-    NOP
-number_scan:
-    LD R4, R3, 0
-    LDI 0
-    CMP R4, R0
-    JZ parse_number          ; NUL ends the token => number
-    NOP
-    LDI ' '
-    CMP R4, R0
-    JZ parse_number          ; space ends the token => number
-    NOP
-    ; Every character has to be a digit OF THE CURRENT BASE: 'A' is one in hex
-    ; and a word character in decimal. The digit itself comes from base_digit,
-    ; which knows 0-9 and A-F, and the base decides whether it counts here.
-    LDI base_digit
-    MOV R2, R0
-    LINK
-    JMP R2
-    NOP
-    LDI 0
-    CMP R9, R0
-    JZ parse_word            ; not a digit at all makes it a word
-    NOP
-    LDI base_var
-    MOV R2, R0
-    LD R2, R2, 0             ; the current base
-    CMP R10, R2
-    JN number_scan_next      ; value < base: a digit here
-    NOP
-    LDI parse_word           ; a digit of some other base makes it a word
-    MOV PC, R0
-    NOP
-number_scan_next:
-    ADD R3, 1
-    LDI number_scan
-    MOV PC, R0
-    NOP
-parse_number:
-    LDI 0
-    MOV R7, R0               ; the accumulator
-parse_number_loop:
-    MOV R3, TIB
-    ADD R3, >IN
-    LD R4, R3, 0
-    LDI 0
-    CMP R4, R0
-    JZ finish_number
-    NOP
-    LDI ' '
-    CMP R4, R0
-    JZ finish_number
-    NOP
-    LDI base_digit
-    MOV R2, R0
-    LINK
-    JMP R2
-    NOP
-    LDI 0
-    CMP R9, R0
-    JZ finish_number        ; not a digit: the number ends here
-    NOP
-    LDI base_var
-    MOV R2, R0
-    LD R2, R2, 0
-    CMP R10, R2
-    JN number_digit_ok
-    NOP
-    LDI finish_number       ; a digit of some other base ends the number
-    MOV PC, R0
-    NOP
-number_digit_ok:
-    ; digit in range: acc = acc * base + digit, with the base still in R2
-    MOV R1, R7
-    MUL R1, R2
-    ADD R1, R10
-    MOV R7, R1
-    ADD >IN, 1
-    LDI parse_number_loop
-    MOV PC, R0
-    NOP
-finish_number:
-    ; A number pushes its value; while compiling it becomes LIT <value>.
-    LDI state_var
-    MOV R2, R0
-    LD R2, R2, 0
-    LDI 0
-    CMP R2, R0
-    JNZ compile_number
-    NOP
-    MOV R1, R7
-    SUB SP, 1
-    ST R1, SP, 0
-    LDI interpret_loop
-    MOV PC, R0
-    NOP
-compile_number:
-    LDI dp_var
-    MOV R2, R0
-    LD R3, R2, 0
-    LDI xt_lit
-    MOV R4, R0
-    ST R4, R3, 0             ; LIT
-    ADD R3, 1
-    ST R7, R3, 0             ; the literal
-    ADD R3, 1
-    ST R3, R2, 0
-    LDI interpret_loop
-    MOV PC, R0
-    NOP
-hex_prefix_one:              ; >IN on the '$'
-    MOV R11, >IN             ; where the token began
-    LDI 0
-    MOV R9, R0               ; R9 = 0 until a digit is consumed
-    ADD >IN, 1               ; step over the prefix
-    LDI parse_hex
-    MOV PC, R0
-    NOP
-hex_prefix_two:              ; >IN on the '0' of "0x"
-    MOV R11, >IN
-    LDI 0
-    MOV R9, R0
-    ADD >IN, 2               ; step over "0x"
-    LDI parse_hex
-    MOV PC, R0
-    NOP
-parse_hex:
-    LDI 0
-    MOV R7, R0               ; the accumulator, exactly as parse_number keeps it
-parse_hex_loop:
-    MOV R3, TIB
-    ADD R3, >IN
-    LD R4, R3, 0
-    LDI 0
-    CMP R4, R0
-    JZ parse_hex_finish      ; NUL ends the token
-    NOP
-    LDI ' '
-    CMP R4, R0
-    JZ parse_hex_finish      ; space ends the token
-    NOP
-    LDI hex_digit_value      ; R10 = the digit 0..15, or the token ends
-    MOV PC, R0
-    NOP
-parse_hex_accumulate:
-    LDI 1
-    MOV R9, R0               ; a digit was consumed
-    MOV R4, R10              ; the digit, ready for the multiply-add
-    LDI 16
-    MOV R12, R0
-    MOV R1, R7
-    MUL R1, R12
-    ADD R1, R4
-    MOV R7, R1
-    ADD >IN, 1
-    LDI parse_hex_loop
-    MOV PC, R0
-    NOP
-parse_hex_finish:
-    ; A prefix with no digits behind it was never a number: "0x", "0X" and a
-    ; bare "$" are words, and saying so beats silently pushing 0. The test is
-    ; R9, not >IN: the prefix itself moves >IN, so "0x ." would otherwise look
-    ; exactly like a number that stopped at a space. >IN goes back to where the
-    ; token started (R11) so parse_word reads the whole thing, which is what
-    ; turns "0x ." into "undefined word: 0x" rather than a silent no-op.
-    LDI 0
-    CMP R9, R0
-    JNZ hex_got_digits
-    NOP
-    MOV >IN, R11
-    LDI parse_word
-    MOV PC, R0
-    NOP
-hex_got_digits:
-    LDI state_var
-    MOV R3, R0
-    LD R3, R3, 0
-    LDI 0
-    CMP R3, R0
-    JZ parse_hex_push
-    NOP
-    LDI compile_number
-    MOV PC, R0
-    NOP
-parse_hex_push:
-    MOV R1, R7
-    SUB SP, 1
-    ST R1, SP, 0
-    LDI interpret_loop
-    MOV PC, R0
-    NOP
-; The character in R4 becomes its value 0..15 in R10. A character that is not a
-; hex digit ends the token, and where that leaves the parser decides the
-; message: "0x1g" has a digit already, so it is the number 1 followed by the
-; word "g", while "0xZZ" has none and the whole token is the word.
-hex_digit_value:
-    LDI '0'
-    CMP R4, R0
-    JN hex_digit_alpha
-    NOP
-    LDI '9'
-    CMP R0, R4
-    JN hex_digit_alpha
-    NOP
-    LDI '0'
-    SUB R4, R0
-    MOV R10, R4
-    LDI parse_hex_accumulate
-    MOV PC, R0
-    NOP
-hex_digit_alpha:
-    LDI 'a'
-    CMP R4, R0
-    JN hex_digit_upper
-    NOP
-    LDI 'f'
-    CMP R0, R4
-    JN hex_digit_upper
-    NOP
-    LDI 87                  ; 'a' is 97, and 97 - 87 = 10
-    SUB R4, R0
-    MOV R10, R4
-    LDI parse_hex_accumulate
-    MOV PC, R0
-    NOP
-hex_digit_upper:
-    LDI 'A'
-    CMP R4, R0
-    JN parse_hex_finish
-    NOP
-    LDI 'F'
-    CMP R0, R4
-    JN parse_hex_finish
-    NOP
-    LDI 55                  ; 'A' is 65, and 65 - 55 = 10
-    SUB R4, R0
-    MOV R10, R4
-    LDI parse_hex_accumulate
-    MOV PC, R0
-    NOP
+
 parse_word:
     MOV R3, TIB
     ADD R3, >IN
@@ -2841,6 +2544,8 @@ mk_old_dp:
 ; `>IN` is the register R5; this cell mirrors it, written by the tokenizer.
 in_var:
     .word 0
+num_neg:
+    .word 0              ; 1 while a signed number is being scanned
 
 ; environment queries: name cells, length, value. A name not here answers false.
 env_core:
@@ -8037,6 +7742,402 @@ wtb_ok:
     MOV PC, R0
     NOP
 
+; the number scanner. It sat in the tokenizer's block until the sign handling
+; needed room; it is a unit, so it moved whole. The token entry is a stub up
+; there that jumps here.
+;
+; A leading '-' can open a negative number: -5, -1, -FF in hex. The token stays
+; a word when what follows the sign is not a digit of the base in force - -rot,
+; -, and also -$10 and -0x10, because the sign is not allowed to combine with a
+; hex prefix.
+scan_number:
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R4, R3, 0
+    LDI '-'
+    CMP R4, R0
+    JNZ scan_unsigned
+    NOP
+    MOV R10, R3
+    ADD R10, 1
+    LD R10, R10, 0          ; the character after the sign
+    LDI '0'
+    CMP R10, R0
+    JN scan_sign_letter
+    NOP
+    LDI '9'
+    CMP R0, R10
+    JN scan_sign_letter
+    NOP
+    LDI scan_sign_go
+    MOV PC, R0
+    NOP
+scan_sign_letter:
+    ; above base ten a letter is a digit too, so -FF is a number in hex
+    LDI base_var
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI 10
+    CMP R2, R0
+    JZ scan_unsigned         ; base ten or below: the sign opens a word
+    NOP
+    JN scan_unsigned
+    NOP
+    MOV R4, R10
+    LDI base_digit
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 0
+    CMP R9, R0
+    JZ scan_unsigned         ; not a hex letter: a word
+    NOP
+scan_sign_go:
+    LDI num_neg
+    MOV R2, R0
+    LDI 1
+    ST R0, R2, 0            ; remember the sign
+    ADD >IN, 1              ; the scan starts on the first digit
+    ADD R3, 1               ; number_scan reads through R3, not >IN
+    LDI number_scan
+    MOV PC, R0
+    NOP
+
+; The scanner gave up on the token. If a sign had been taken, put >IN back on it
+; and forget the sign, so the whole token is looked up as the word it is.
+scan_word:
+    LDI num_neg
+    MOV R2, R0
+    LD R4, R2, 0
+    LDI 0
+    CMP R4, R0
+    JZ scan_word_plain
+    NOP
+    SUB >IN, 1
+    LDI 0
+    ST R0, R2, 0
+scan_word_plain:
+    LDI parse_word
+    MOV PC, R0
+    NOP
+
+scan_unsigned:
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R4, R3, 0
+    ; Hex first, before the digit test: '$' sorts below '0', so "$FF" would be
+    ; read as a word, and "0x.." has to be caught while >IN still sits on the '0'.
+    ; The peek uses R10 and R11: R5 is >IN, R6 is TIB and R13/R14 are SP/LR, so
+    ; the only free registers here are R9, R10 and R11.
+    LDI '$'
+    CMP R4, R0
+    JZ hex_prefix_one
+    NOP
+    ; Only a leading '0' may open "0x". This is JNZ and not JN on purpose: JN
+    ; would let every character above '0' through to the 'x' peek below, and
+    ; then any token whose SECOND character is 'x' became a hex number. That is
+    ; how `exe` turned into 0xE and `execute` into 0xEC, leaving "ute" behind as
+    ; an undefined word: `exit` only escaped because "xi" holds no hex digit and
+    ; parse_hex_finish sends a digit-less prefix back to parse_word anyway.
+    LDI '0'
+    CMP R4, R0
+    JNZ word_first_is_digit
+    NOP
+    MOV R10, R3
+    ADD R10, 1
+    LD R10, R10, 0
+    LDI 'x'
+    CMP R10, R0
+    JZ hex_prefix_two
+    NOP
+    LDI 'X'
+    CMP R10, R0
+    JZ hex_prefix_two
+    NOP
+word_first_is_digit:
+    LDI '0'
+    CMP R4, R0
+    JN number_letter          ; below '0': a letter, or punctuation
+    NOP
+    LDI '9'
+    CMP R0, R4
+    JN number_letter          ; above '9': a letter, or punctuation
+    NOP
+    ; The first character is a digit, but the word is a number only if the
+    ; whole token is digits. Words such as 2dup, 1+ or 0= start with a digit.
+    LDI number_scan
+    MOV PC, R0
+    NOP
+number_letter:
+    ; Above base ten the letters A-F are digits too, so a token that starts
+    ; with one may be a number (`FF` in hex) or a word (`dup`). number_scan
+    ; still reads the whole token and hands anything that is not all digits to
+    ; parse_word, so every name that is not a number keeps its meaning: `ff`
+    ; would shadow a word of that name, which is the standard's own "undefined"
+    ; case, but `dup` never becomes a number.
+    LDI base_var
+    MOV R2, R0
+    LD R4, R2, 0
+    LDI 10
+    CMP R4, R0
+    JN scan_word             ; base below ten: no letter is a digit
+    NOP
+    JZ scan_word             ; base ten: only 0-9 are digits
+    NOP
+    LDI number_scan
+    MOV PC, R0
+    NOP
+number_scan:
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ parse_number          ; NUL ends the token => number
+    NOP
+    LDI ' '
+    CMP R4, R0
+    JZ parse_number          ; space ends the token => number
+    NOP
+    ; Every character has to be a digit OF THE CURRENT BASE: 'A' is one in hex
+    ; and a word character in decimal. The digit itself comes from base_digit,
+    ; which knows 0-9 and A-F, and the base decides whether it counts here.
+    LDI base_digit
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 0
+    CMP R9, R0
+    JZ scan_word            ; not a digit at all makes it a word
+    NOP
+    LDI base_var
+    MOV R2, R0
+    LD R2, R2, 0             ; the current base
+    CMP R10, R2
+    JN number_scan_next      ; value < base: a digit here
+    NOP
+    LDI scan_word           ; a digit of some other base makes it a word
+    MOV PC, R0
+    NOP
+number_scan_next:
+    ADD R3, 1
+    LDI number_scan
+    MOV PC, R0
+    NOP
+parse_number:
+    LDI 0
+    MOV R7, R0               ; the accumulator
+parse_number_loop:
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ finish_number
+    NOP
+    LDI ' '
+    CMP R4, R0
+    JZ finish_number
+    NOP
+    LDI base_digit
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI 0
+    CMP R9, R0
+    JZ finish_number        ; not a digit: the number ends here
+    NOP
+    LDI base_var
+    MOV R2, R0
+    LD R2, R2, 0
+    CMP R10, R2
+    JN number_digit_ok
+    NOP
+    LDI finish_number       ; a digit of some other base ends the number
+    MOV PC, R0
+    NOP
+number_digit_ok:
+    ; digit in range: acc = acc * base + digit, with the base still in R2
+    MOV R1, R7
+    MUL R1, R2
+    ADD R1, R10
+    MOV R7, R1
+    ADD >IN, 1
+    LDI parse_number_loop
+    MOV PC, R0
+    NOP
+finish_number:
+    ; A leading minus left a sign to apply, and it is cleared for the next one.
+    LDI num_neg
+    MOV R4, R0
+    LD R2, R4, 0
+    LDI 0
+    CMP R2, R0
+    JZ finish_number_plain
+    NOP
+    NEG R7
+    LDI 0
+    ST R0, R4, 0
+finish_number_plain:
+    ; A number pushes its value; while compiling it becomes LIT <value>.
+    LDI state_var
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI 0
+    CMP R2, R0
+    JNZ compile_number
+    NOP
+    MOV R1, R7
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+compile_number:
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI xt_lit
+    MOV R4, R0
+    ST R4, R3, 0             ; LIT
+    ADD R3, 1
+    ST R7, R3, 0             ; the literal
+    ADD R3, 1
+    ST R3, R2, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+hex_prefix_one:              ; >IN on the '$'
+    MOV R11, >IN             ; where the token began
+    LDI 0
+    MOV R9, R0               ; R9 = 0 until a digit is consumed
+    ADD >IN, 1               ; step over the prefix
+    LDI parse_hex
+    MOV PC, R0
+    NOP
+hex_prefix_two:              ; >IN on the '0' of "0x"
+    MOV R11, >IN
+    LDI 0
+    MOV R9, R0
+    ADD >IN, 2               ; step over "0x"
+    LDI parse_hex
+    MOV PC, R0
+    NOP
+parse_hex:
+    LDI 0
+    MOV R7, R0               ; the accumulator, exactly as parse_number keeps it
+parse_hex_loop:
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ parse_hex_finish      ; NUL ends the token
+    NOP
+    LDI ' '
+    CMP R4, R0
+    JZ parse_hex_finish      ; space ends the token
+    NOP
+    LDI hex_digit_value      ; R10 = the digit 0..15, or the token ends
+    MOV PC, R0
+    NOP
+parse_hex_accumulate:
+    LDI 1
+    MOV R9, R0               ; a digit was consumed
+    MOV R4, R10              ; the digit, ready for the multiply-add
+    LDI 16
+    MOV R12, R0
+    MOV R1, R7
+    MUL R1, R12
+    ADD R1, R4
+    MOV R7, R1
+    ADD >IN, 1
+    LDI parse_hex_loop
+    MOV PC, R0
+    NOP
+parse_hex_finish:
+    ; A prefix with no digits behind it was never a number: "0x", "0X" and a
+    ; bare "$" are words, and saying so beats silently pushing 0. The test is
+    ; R9, not >IN: the prefix itself moves >IN, so "0x ." would otherwise look
+    ; exactly like a number that stopped at a space. >IN goes back to where the
+    ; token started (R11) so parse_word reads the whole thing, which is what
+    ; turns "0x ." into "undefined word: 0x" rather than a silent no-op.
+    LDI 0
+    CMP R9, R0
+    JNZ hex_got_digits
+    NOP
+    MOV >IN, R11
+    LDI parse_word
+    MOV PC, R0
+    NOP
+hex_got_digits:
+    LDI state_var
+    MOV R3, R0
+    LD R3, R3, 0
+    LDI 0
+    CMP R3, R0
+    JZ parse_hex_push
+    NOP
+    LDI compile_number
+    MOV PC, R0
+    NOP
+parse_hex_push:
+    MOV R1, R7
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+; The character in R4 becomes its value 0..15 in R10. A character that is not a
+; hex digit ends the token, and where that leaves the parser decides the
+; message: "0x1g" has a digit already, so it is the number 1 followed by the
+; word "g", while "0xZZ" has none and the whole token is the word.
+hex_digit_value:
+    LDI '0'
+    CMP R4, R0
+    JN hex_digit_alpha
+    NOP
+    LDI '9'
+    CMP R0, R4
+    JN hex_digit_alpha
+    NOP
+    LDI '0'
+    SUB R4, R0
+    MOV R10, R4
+    LDI parse_hex_accumulate
+    MOV PC, R0
+    NOP
+hex_digit_alpha:
+    LDI 'a'
+    CMP R4, R0
+    JN hex_digit_upper
+    NOP
+    LDI 'f'
+    CMP R0, R4
+    JN hex_digit_upper
+    NOP
+    LDI 87                  ; 'a' is 97, and 97 - 87 = 10
+    SUB R4, R0
+    MOV R10, R4
+    LDI parse_hex_accumulate
+    MOV PC, R0
+    NOP
+hex_digit_upper:
+    LDI 'A'
+    CMP R4, R0
+    JN parse_hex_finish
+    NOP
+    LDI 'F'
+    CMP R0, R4
+    JN parse_hex_finish
+    NOP
+    LDI 55                  ; 'A' is 65, and 65 - 55 = 10
+    SUB R4, R0
+    MOV R10, R4
+    LDI parse_hex_accumulate
+    MOV PC, R0
+    NOP
 ; =============================================
 ; P2: Indirect-threaded code engine
 ; =============================================

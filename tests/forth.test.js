@@ -585,6 +585,57 @@ test('words whose names start with a digit are not split into number + word', ()
   assert.equal(rows[4], '>');
 });
 
+// A leading '-' opens a negative literal, but only where a digit follows it. It
+// used to be handed straight to the dictionary, so `-5` was an undefined word:
+// the scanner tested for '0'..'9' and never looked at the sign. The sign may
+// also open a letter digit above base ten (-FF in hex) but it deliberately does
+// NOT combine with a hex prefix: -$10 and -0x10 stay words.
+test('a leading minus makes a number literal when a digit follows', () => {
+  const { rows, running } = repl(
+    '-5 .\n' +
+    '0 5 - .\n' +
+    '-1 5 * .\n' +
+    '5 -3 + .\n' +
+    '-9 negate .\n' +
+    '-32768 .\n' +
+    'hex -FF . decimal\n' +
+    ': t -7 ; t .\n'
+  );
+  assert.equal(rows[1], '> -5 . -5  ok');
+  assert.equal(rows[2], '> 0 5 - . -5  ok');
+  assert.equal(rows[3], '> -1 5 * . -5  ok');
+  assert.equal(rows[4], '> 5 -3 + . 2  ok');
+  assert.equal(rows[5], '> -9 negate . 9  ok');
+  assert.equal(rows[6], '> -32768 . -32768  ok');
+  assert.equal(rows[7], '> hex -FF . decimal -FF  ok');
+  assert.equal(rows[8], '> : t -7 ; t . -7  ok');
+  assert.equal(rows[9], '>');
+  assert.ok(running, 'the REPL must come back after a signed literal');
+});
+
+test('a minus that no digit follows is still a word', () => {
+  // `-` and `-rot` are dictionary words, and a sign is not allowed to reach a
+  // hex prefix, so these lines must all come back as undefined words rather
+  // than as numbers.
+  const { rows, running } = repl(
+    '-abc\n' +
+    '-0x10\n' +
+    '-$10\n' +
+    '1 2 - .\n' +
+    '1 2 3 -rot . . .\n'
+  );
+  assert.equal(rows[1], '> -abc');
+  assert.equal(rows[2], 'undefined word: -abc');
+  assert.equal(rows[3], '> -0x10');
+  assert.equal(rows[4], 'undefined word: -0x10');
+  assert.equal(rows[5], '> -$10');
+  assert.equal(rows[6], 'undefined word: -$10');
+  assert.equal(rows[7], '> 1 2 - . -1  ok');
+  assert.equal(rows[8], '> 1 2 3 -rot . . . 2  1  3  ok');
+  assert.equal(rows[9], '>');
+  assert.ok(running, 'the REPL must come back after the sign words');
+});
+
 test('control flow: if then else pick a branch at run time', () => {
   const { rows, running } = repl(
     ': t if 111 . then ; 1 t 0 t\n' +

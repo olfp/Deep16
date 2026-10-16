@@ -8,7 +8,7 @@ prints `undefined word: X` or `stack underflow` and the prompt comes back.
 ```text
 : square dup * ;      \ compile a word
 5 square .            \ 25  ok
-0 7 - 2/ .            \ -4  ok   (there are no negative literals)
+-7 2/ .               \ -4  ok   (the sign is part of the literal)
 ```
 
 ## Conventions
@@ -19,8 +19,11 @@ prints `undefined word: X` or `stack underflow` and the prompt comes back.
 - **One cell is one address unit** (a 16-bit word): `cells` is the identity and
   `cell+` adds 1. Memory is word-addressed, not byte-addressed.
 - Numbers are read in `base` — decimal until `hex` says otherwise. `0x10` and
-  `$10` are hex whatever `base` is. There are no negative literals: write
-  `0 7 -` or `7 negate` instead of `-7`.
+  `$10` are hex whatever `base` is. A leading `-` makes the literal negative
+  (`-7`), but only where a digit follows it: `-rot` is still the word `-rot`,
+  and `-$10` and `-0x10` are words too, because the sign is not allowed to
+  combine with a hex prefix. Above base ten a letter digit counts as well, so
+  `hex -FF` is -255.
 - Words marked **imm** run while compiling (`if`, `do`, `;`, …).
 - `/`, `mod` and `/mod` are signed and truncate toward zero; the remainder
   takes the sign of the dividend. `2/` is an arithmetic shift and floors.
@@ -40,10 +43,13 @@ Both the scanner and the printer read `base`, which is a variable.
 In base sixteen `ff`, `FF` and `Ff` are all 255, and `0x10` and `$10` stay hex
 in every base. A token is a number only if every character is a digit of the
 current base; anything else is looked up as a word, so `hex dup` is still `dup`
-(and reports the empty stack) while `hex zz` is `undefined word: zz`. The one
-token that cannot have both readings is a name that is all digits in the
-current base: `hex : beef 7 ; beef` reads 0xBEEF, so define names like that in
-decimal, where they keep their meaning.
+(and reports the empty stack) while `hex zz` is `undefined word: zz`. A `-`
+before the digits makes it negative: `-7` is a literal, while `-`, `-rot` and
+`-$10` are words, because the sign has to be followed by a digit of the current
+base (`hex -FF` is a number, `decimal -FF` is not). The one token that cannot
+have both readings is a name that is all digits in the current base: `hex : beef
+7 ; beef` reads 0xBEEF, so define names like that in decimal, where they keep
+their meaning.
 
 Printing follows the base as well: `hex 0 1 - u.` prints `FFFF`, `hex 0x8000 .`
 prints `-8000`, and `65535 2 base ! u. decimal` prints sixteen ones. Printing
