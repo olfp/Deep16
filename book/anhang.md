@@ -21,11 +21,16 @@ Diese Befehle bewegen Werte zwischen Registern und dem Speicher. Sie setzen
 | Befehl | Codierung | Wirkung | Beispielwort |
 |---|---|---|---|
 | `LDI imm` | `0000 0 imm15` | `R0 ← sign_extend(imm15)` | `LDI 0x1234` = `1234`; `LDI -1` = `7FFF` |
-| `LSI Rd, imm` | `1111110 Rd4 imm5` | `R0 ← sign_extend(imm5)`, dann `Rd ← R0` | `LSI R3, 5` = `FC65` |
+| `LSI Rd, imm` | `1111110 Rd4 imm5` | `Rd ← sign_extend(imm5)` (schreibt `Rd`, nicht `R0`) | `LSI R3, 5` = `FC65` |
 | `MOV Rd, Rs, imm2` | `111110 Rd4 Rs4 imm2` | `imm2` wählt die Funktion (Tabelle A-2) | `MOV R2, R1` = `F884` |
-| `MVS Sx, Rd` | `111111110 0 Rd4 seg2` | Segmentregister `Sx ← Rd` | `MVS ES, R0` = `FF43` |
-| `MVS Rd, Sx` | `111111110 1 Rd4 seg2` | `Rd ←` Segmentregister `Sx` | `MVS R1, ES` = `FF07` |
+| `MVS Sx, Rd` | `111111110 1 Rd4 seg2` | Segmentregister `Sx ← Rd` | `MVS ES, R0` = `FF43` |
+| `MVS Rd, Sx` | `111111110 0 Rd4 seg2` | `Rd ←` Segmentregister `Sx` | `MVS R1, ES` = `FF07` |
 | `SMV Rx, alt` | `11111110 Rx4 alt4` | `Rx ←` Wert aus der **anderen** Bank | `SMV R5, AR0` = `FE58` |
+
+Die `d`-Bitwahl bei `MVS`: **`0` liest** das Segmentregister in ein GPR
+(`MVS Rd, Sx`), **`1` schreibt** ein GPR ins Segmentregister
+(`MVS Sx, Rd`) — am Beispielwort ablesbar (`MVS R1, ES` = `FF07`, `d = 0`;
+`MVS ES, R0` = `FF43`, `d = 1`).
 
 **Tabelle A-2: Die vier `imm2`-Funktionen von `MOV`** (Spezifikation §3.4, §5.1.2)
 
