@@ -1,0 +1,424 @@
+# D16MINI — a BRAM-only Deep16 with a UART console
+
+> **Status: plan. No RTL written.** This document specifies a *small* Deep16 that
+> actually fits the Tang Nano 9K and boots DeepForth, with **no PSRAM, no cache
+> and no framebuffer** — memory is on-chip BSRAM, the console is a UART.
+>
+> Companion documents: [`PLANPSRAM.md`](PLANPSRAM.md) (the full 1 MB machine that
+> this deliberately is *not*), [`VERILOG.md`](VERILOG.md) (the current three-core
+> RTL), [`SERPLAN.md`](SERPLAN.md) (why the earlier serial path was dropped),
+> [`FLASHPLAN.md`](FLASHPLAN.md) (blocks-on-flash, out of scope here).
+>
+> Baseline measured 2026-10-16 against the working tree
+> (`asm/forth.asm` @ 12,622 lines).
+
+---
+
+## 0. Goal and non-goals
+
+**Goal.** A synthesizable Deep16 that boots DeepForth and talks over a UART,
+using **nothing but the 468 Kbit of BSRAM** for main memory and **no external
+memory controller**. The smallest machine that is still DeepForth.
+
+**Non-goals.**
+
+- No PSRAM, no SDRAM controller, no `mem_stall` machinery (`PLANPSRAM.md` §3–6).
+- No cache. The memory is small and single-cycle-ish; a cache buys nothing.
+- No framebuffer. The 80×25 screen at `0xF1000` **is deleted**, not emulated.
+  Output is a UART; input is a UART.
+- No 1 MB address space. D16MINI sees ~26 K words; the 20-bit ISA map is not
+  backed. This is the whole trade.
+- No block store (`FLASHPLAN.md`), no graphics (`GFX.md`), no speed target.
+
+**The one sentence.** DeepForth's kernel image plus a working dictionary fits in
+BSRAM; give it a UART and a BSRAM, drop everything else.
+
+---
+
+## 1. Board facts (GW1NR-LV9QN88PC6/I5, Tang Nano 9K)
+
+| Resource | Value | Note |
+|---|---|---|
+| LUT4 / FF | 8,640 / 6,480 | core needs ≈4,300 LUT / ≈2,100 FF today (`STATUS.md`) |
+| **BSRAM** | **468 Kbit = 26 × 18 Kbit** | the entire RAM budget |
+| DSP | 20 × 18×18 | `MUL` |
+| PLL | 2 | not needed if the CPU runs at 27 MHz |
+| Crystal | 27 MHz | clk source |
+| On-board USB-UART | via the BL61x debugger, **FPGA pins 17 (TX) / 18 (RX)**, bank 2 | 115200 8N1 in Sipeed examples |
+| PSRAM | 64 Mbit | **unused** |
+
+> The UART pin numbers and pin mode (single/dual-purpose) must be confirmed
+> against the Sipeed pinout / DS117 and frozen in the `.cst`. They are stated
+> from the Sipeed/Lushay examples, not verified on this machine.
+
+---
+
+## 2. The number that decides everything
+
+| | Words (16-bit) | Bytes | Addresses |
+|---|---:|---:|---|
+| **BSRAM, repo convention** (26 blocks × 1024 × 16) | **26,624** | 52 KiB | `0x0000–0x67FF` |
+| BSRAM, theoretical (468 Kbit ÷ 16, width waste ignored) | 29,952 | 58.5 KiB | `0x0000–0x74FF` |
+| Deep16 ISA map | 1,048,576 | 2 MiB | `0x00000–0xFFFFF` |
+
+26,624 words is **2.5 %** of the ISA map. Deep16 effectively becomes a **15-bit
+machine**: the whole RAM window fits inside a single 32 K-word (15-bit) address.
+
+### What DeepForth needs of it (measured, this tree)
+
+| Item | Extent | Words |
+|---|---|---:|
+| Kernel image `forth_start`…`dict_free` (`0x0100–0x3B03`) | 12,622-line source | **14,852** |
+| `dict_free` (new definitions grow up from here) | `0x3B04` | — |
+| Headroom `dict_free` → top of BSRAM (`0x6800`) | `0x3B04–0x67FF` | **11,516** |
+| Screen buffer | `0xF1000`, 2000 words | **deleted** |
+
+The image grows a little with every Tier-3 word added (it was 0x3A62 three
+commits ago); treat `dict_free` as a moving target and leave slack.
+
+### The verdict
+
+- The kernel **fits** with ~11.5 K words of dictionary to spare — comfortable.
+- **Today's exact memory map does not fit.** The kernel's fixed stack addresses
+  (`SP = 0x7FF0`, `RSTACK_TOP = 0x6F00`) and the BIOS at `0xF8000` sit *above*
+  `0x6800`. Both must move (see §3). This is the single largest correctness
+  item: a machine that "almost fits" is a machine that runs off the top of RAM.
+- Because the framebuffer is deleted, the 2 BSRAM blocks a screen would cost are
+  *not* spent here — but the BIOS and boot ROM still need somewhere to live.
+
+---
+
+## 3. Proposed memory map
+
+The cleanest D16MINI keeps **everything the CPU executes or reads in one low
+window**, so the core has a single `pa < RAM_WORDS` test and no high-address
+ROM decode.
+
+```
+0x00000 - 0x067FF   RAM       26 BSRAM blocks (26,624 words)
+   0x00100 - 0x03B03   kernel image (code + data + built-in words)
+   0x03B04 - 0x05FFF   user dictionary  (grows up, ~9.6 K words)
+   0x06000 - 0x067FF   stacks          (return 0x6000↑, data 0x67F0↓)
+0x0F0000 - 0x0F006F   MMIO       UART (+ optionally the polled-key regs)
+0x0FFFF0 - 0x0FFFFF   boot ROM   16 words, LUT ROM (reset vector lives here)
+```
+
+Two consequences:
+
+1. **Relocate the BIOS into the window.** `asm/forth.asm` assembles the BIOS at
+   `.org 0xF8000` and `swi_to_bios` builds `CS = 0xF800`. Move the BIOS (≈297
+   words) to a low `.org` (e.g. `0x6000`… but that is the stack region above, so
+   pick `0x5F00` and re-fit the stacks), and change the far-jump segment in
+   `swi_to_bios`. This keeps the core ignorant of `0xF8000`.
+2. **Move the stacks** to the top of the window (`RSTACK_TOP`, the `sp0_base`
+   data cell) — they are constants in the kernel, not hardware.
+
+Alternative, if the kernel must not move: keep the BIOS at `0xF8000` and give it
+its own LUT ROM decode, teaching the core that `0xF8000` is fetchable while
+`0x6800…0xF7FFF` is not. That is more core plumbing for less kernel churn; the
+first option is recommended for a *mini* machine.
+
+The boot ROM stays at `0xFFFF0` because the core's reset state is `CS=0xFFFF,
+PC=0`; keeping it preserves identical boot behaviour with the three emulators.
+It is 16 words of LUT ROM.
+
+---
+
+## 4. RTL work
+
+### 4.1 Memory: array → BSRAM
+
+`rtl/deep16_top.sv:41` is `reg [15:0] mem [0:MEM_WORDS-1]` — **16.8 Mbit**, 35×
+the whole chip. It must go.
+
+- Instantiate/infer **26 blocks at 1024×16**, true dual port: **port A =
+  instruction fetch, port B = data read + write**.
+- Delete `deep16_cache.sv` from this build. That removes the **8 combinational
+  refill reads** (`deep16_top.sv:163-164`) which are the reason the port count is
+  11 today.
+- Turn the SWI vector into a **register** fed by the write path (the `mem[2]`
+  read, `deep16_top.sv:160`, is a wasted port) — `PLANPSRAM.md` §1 recommends
+  this and it applies here too.
+
+### 4.2 The real difficulty: registered reads
+
+The core reads memory **combinationally in the same cycle it presents the
+address**:
+
+- IF fetch: `if_rdata` from `if_addr` (`deep16_top.sv:156-158`), consumed same cycle.
+- Data load: `mem_addr` is driven from `ex_mem` (`deep16_core.sv:1066`) and
+  `mem_rdata` is latched in the same cycle (`deep16_core.sv:1048-1049`).
+
+**Gowin BSRAM read data is registered (one clock later).** So even BRAM-only
+needs the interface change `PLANPSRAM.md` §A calls "memory interface honesty":
+
+- Drive the data-read BSRAM address from **EX** (the address is known there), so
+  the registered output lands in **MEM** where it is consumed. The load-use stall
+  and the MEM→WB capture stay as they are.
+- Give the fetch its own address/return path (the BRAM output register becomes
+  effectively the IF/ID fetch latch, or a 1-cycle fetch is added). This is the
+  same shape as the PSRAM plan but at **latency 1**, so no stall machinery, no
+  SWI-in-flight logic, no write buffer.
+- Keep `MEM_WORDS`/`RAM_WORDS` as the decode bound; the core's halt test
+  (`deep16_core.sv:994`, `:669`) must use the RAM bound, not 1,048,576.
+
+> This is the central risk. It is *not* "drop in a BSRAM"; it is the same class of
+> change as the PSRAM move, minus the controller and minus the bus turnaround.
+
+### 4.3 Strip the simulation scaffolding
+
+- The **debug bus** (`dbg_*`, the 256-entry mux) is Verilator/IDE plumbing;
+  `STATUS.md` §4 puts it at 800–1,200 LUT. Put it behind `` `ifdef `` and drop it
+  from the board build.
+- `i_step` / `i_free` are a single-step handshake. On hardware tie **`i_step=1`,
+  `i_free=1`** (free-run) and reset, or add a trivial start bit. No test harness
+  reads `o_done` on the board.
+
+### 4.4 New board top + constraints
+
+Nothing board-shaped exists today.
+
+- `rtl/deep16_board.sv`: 27 MHz `clk` in, reset button, optional LED heartbeat,
+  UART RX/TX, and the D16MINI `deep16_top`.
+- Clock: run the CPU at **27 MHz directly** (no PLL needed for Forth over UART).
+- Reset synchroniser.
+- A **`.cst`** pin-constraint file: clock, reset/button, LED, UART pins 17/18.
+  None exists in the repo.
+- A **memory-init file** (`.mi`) so the assembled kernel is in BSRAM at power-up
+  (see §6).
+
+### 4.5 UART peripheral
+
+There is **no UART anywhere in the repo** (verified: no `uart`/`serial`/`F0040`
+in `js/`, `wasm/`, or `rtl/`).
+
+- TX: divider from 27 MHz → 115200 (÷234, 0.16 % error) or an oversampled RX.
+- RX: oversample + a small **RX FIFO**, because the polled console must not drop
+  a byte between polls (the existing keyboard FIFO is 128 deep,
+  `deep16_top.sv:44`; a serial console wants at least that much foundation).
+- MMIO decode added to the core's `LDS`/`STS` path next to
+  `KBD_STATUS_ADDR`/`KBD_DATA_ADDR` (`deep16_core.sv:740-746`), and mirrored in
+  the JS/WASM cores for parity and emulator testing.
+
+---
+
+## 5. Peripheral contract
+
+The manual already reserves a UART at `0xF0040–0xF004F`
+(`doc/Deep16-Prog-Man.md` §7.1) and even shows `serial_putc` — but **no core
+implements it**. D16MINI can adopt that address instead of inventing one:
+
+| Offset | Name | R/W | Meaning |
+|---|---|---|---|
+| `0xF0040` | `UART_STAT` | R | b0 = RX ready, b1 = TX ready (else busy), b2 = RX overrun |
+| `0xF0042` | `UART_DATA` | R/W | read pops RX; write starts TX |
+| `0xF0044` | `UART_DIV` | R/W | baud divider (optional; a constant is fine) |
+| `0xF0046` | `UART_CTRL` | W | reset RX FIFO / enable (optional) |
+
+`LDS`/`STS` only — `LD`/`ST` must keep returning the RAM fill value for ports,
+exactly as the keyboard ports already behave (the `0xFxxxx` non-cacheable rule,
+`deep16_cache.sv:13`).
+
+---
+
+## 6. Boot and loading
+
+The kernel image must be in BSRAM when the FPGA configures.
+
+- **Recommended for bring-up:** generate a `.mi` / BSRAM-init from the assembled
+  image (plus the boot ROM in LUTs). No loader, no host, instant boot.
+- Later alternative: a small ROM loader that takes the image over the UART.
+- Note the current "load a program" path (`loadProgram` in `rtl/sim`,
+  `js/deep16_simulator.js`) is a **simulation** facility; it does not exist as
+  hardware.
+- DeepForth's own "Datei tippen…" source loader is **browser-only** (`SERPLAN.md`);
+  on the board a source file arrives by typing into the UART, or the image is
+  baked in. There is no on-board mass storage in this design.
+
+---
+
+## 7. Kernel / console work
+
+The kernel is written so output *should* funnel through one place, and the
+comment says so — but it does not, and the framebuffer is threaded through the
+whole BIOS.
+
+### 7.1 Two output paths, not one
+
+- `put_char` → BIOS `putch` (f2) → writes **screen cells**, attributes, cursor,
+  scroll (`asm/forth.asm`, BIOS `bios_f2`).
+- BIOS **`putstr` (f3) writes `ES:SCR` directly**, bypassing `putch` — the boot
+  banner and `bios_putstr_direct` use it. So the "one place" rule is already
+  broken; there are two.
+- BIOS **`getstr` (f5)** reads `KBD_STATUS`/`KBD_DATA` *and* echoes to the screen
+  with cursor handling; **`getch` (f4)** reads the keyboard.
+- **`binit` (f1)** clears 2000 screen cells and homes the cursor.
+
+### 7.2 Screen-only words and the `SCR` pointer
+
+`wrap_if` reads `SCR` (R8) to find the column and wraps at 80; `form` returns
+`24 80`; `scr@`/`scr!` address the framebuffer; `cls` calls `binit` and repaints
+the top-left cursor cell; the cursor attribute `0x7000` is written in `putch`,
+`getstr` and `bios_putch_lf`. None of this exists on a UART.
+
+### 7.3 Plan: one source, two consoles
+
+- Add **conditional assembly** (`.if`/`.else`/`.endif`, maybe `.define`) to
+  `js/deep16_assembler.js` — it has `.org`/`.word`/`.text`/`.equ` only. This is
+  the clean way to build a screen kernel and a UART kernel from one 12,000-line
+  source; a delimited-region substitution in a build script is the fallback.
+- The **UART BIOS** replaces f1–f5 in place, keeping the calling convention
+  (`DS:[0]=fn`, `DS:[1]=arg`) so `put_char`, `print_text`, `emit`, `key`,
+  `accept` and the interpreter's prompt are unchanged:
+  - `putch` → poll `UART_STAT.b1`, write `UART_DATA`; CR/LF are just bytes; **no
+    scroll, no cursor, no attributes**.
+  - `putstr` → TX loop.
+  - `getstr`/`getch` → poll `UART_STAT.b0`, read `UART_DATA`, echo by TX,
+    backspace = send `BS SP BS`.
+  - `binit` → send a clear (ANSI `ESC[2J ESC[H`) or nothing.
+- **Make `wrap_if` a no-op** and give `form` a UART-appropriate answer (e.g.
+  `0 0` → "no columns"), then `scr@`/`scr!`/`cls` for the screen build only.
+- **Move the stacks** (§3) and the **BIOS `.org`** (§3).
+
+Nothing in the emulator's `forth.test.js` should change for the **screen build**;
+the UART build gets its own tests (§8).
+
+---
+
+## 8. Verification
+
+- **Keep** the three-core ISA parity (JS/WASM/RTL) — the instruction set is
+  untouched.
+- Add a **UART model** to the Verilator harness (`rtl/sim/harness.cpp`) mirroring
+  the JS/WASM core model, plus a **loopback test**: the same UART-kernel build
+  must emit byte-identical output on all three cores.
+- Add a **UART-console test** parallel to `forth.test.js` (which asserts on the
+  80×25 screen and cannot test a screenless build).
+- Memory: a **registered-read parity test** — run the existing fuzz/sweep against
+  the BSRAM-latency model; behaviour must be identical to the combinational
+  model. (This is `PLANPSRAM.md` §7's latency-invariance idea reduced to the one
+  latency that matters here: 1.)
+- **Not verifiable on this machine:** synthesis, timing closure, fit, and the
+  real UART pins — there is no Gowin toolchain here.
+
+---
+
+## 9. Phases
+
+Each phase ends green and committable. Phases 1–3 need no hardware.
+
+| Phase | Work | Hardware? |
+|---|---|---|
+| **1** | Assembler conditionals; UART kernel variant; UART model in JS + WASM; emulator UART-console tests. Advisory only: the ISA and screen build stay green. | no |
+| **2** | Memory interface honesty (`PLANPSRAM.md` §A): registered reads, `vec` as a register, drop the cache behind a build flag; BSRAM memory model in Verilator; latency-invariance at latency 1. | no |
+| **3** | UART RTL + MMIO in all three cores; BSRAM inference (26 blocks); board top, clock, reset, constraints; `.mi` init; simulate. | no |
+| **4** | Gowin synthesis, timing closure at 27 MHz, `program`-over-JTAG, UART bring-up, boot the real DeepForth. | **yes** |
+
+Phase 2 is deliberately separate from Phase 1: one changes the memory model, the
+other the console, and a regression must be locatable.
+
+---
+
+## 10. Risks
+
+| Risk | Mitigation |
+|---|---|
+| Combinational→registered memory breaks the pipeline (fetch and load) | Phase 2 alone, on video-off; latency-invariance test; keep the array model as reference |
+| `dict_free` drifts upward as Tier-3 words land | leave the 11.5 K-word slack; assert at assemble time that `dict_free < STACK_BASE` |
+| Two output paths (`putch`, `putstr`) and screen-coupled words missed | grep-gate: the UART build must contain **no** write to `ES:SCR`; a test asserts it |
+| BIOS far-jump / segment change breaks SWI | re-run the full forth suite; BIOS `.org` is one constant |
+| No Gowin toolchain here | treat synthesis/timing as Phase 4 unknowns, not assumptions |
+| UART RX byte loss between polls | RX FIFO; test with a buffered stream like the keyboard FIFO test |
+| `.cst` UART pins / pin mode wrong | confirm against DS117 + Sipeed pinout before Phase 4 |
+
+---
+
+## 11. What is missing today — the gap list
+
+Everything below is *absent*, not merely untested. Grouped by area.
+
+### A. Toolchain and project
+
+- **No FPGA toolchain and no synthesis.** No Gowin EDK/Yosys in this environment;
+  fit, timing and `.fs` generation cannot be done or verified here.
+- **No board top-level.** `deep16_top` is a simulation module; there is no clock,
+  reset, PLL or pin wrapper.
+- **No constraints file** (`.cst`), no project file, no memory-init (`.mi`).
+- **No hardware load path.** The kernel is loaded by `loadProgram` (Verilator/IDE
+  only); there is no way to get an image into BSRAM at power-up.
+
+### B. RTL memory
+
+- `deep16_top.sv:41` memory is a **16.8 Mbit Verilog array** — 35× the chip, not
+  synthesizable to 468 Kbit BSRAM.
+- Memory is **read combinationally** (IF fetch and MEM data in the same cycle:
+  `deep16_core.sv:1066` + `:1048-1049`, `deep16_top.sv:156-158`). BSRAM reads are
+  registered — the interface must change for *any* FPGA memory, PSRAM or BSRAM.
+- The read bus is **11 reads/cycle** (cache refill ×8, fetch, data, SWI vector,
+  `deep16_top.sv:150-165`); a BSRAM has 2 ports. The cache and refill path must go.
+- The **SWI vector is a dedicated array read** (`mem[2]`) rather than a register.
+- The core's decode treats **everything below `MEM_WORDS` as memory**
+  (`deep16_core.sv:669`, `:732`); a small RAM window plus ROM/MMIO needs explicit
+  decode, and the halt test (`:994`) is written against the 1 M-word bound.
+- The **debug bus** (256-entry mux) is simulation scaffolding with no `` `ifdef ``
+  to remove it (≈800–1,200 LUT per `STATUS.md`).
+- The `i_step`/`i_free` **single-step handshake** is simulation-shaped.
+
+### C. UART (nothing exists)
+
+- **No UART RTL** anywhere: no TX, RX, baud divider, oversampler or FIFO.
+- **No UART MMIO** in any of the three cores; only `KBD_STATUS_ADDR` /
+  `KBD_DATA_ADDR` are decoded and everything else is plain array memory.
+- **Doc/reality mismatch:** `doc/Deep16-Prog-Man.md` §7.1–7.2 specifies a UART at
+  `0xF0040–0xF004F` and shows `serial_putc`, but no core implements it.
+- **Stale README:** `README.md` lists `tests/serial-port.test.js`; **the file does
+  not exist** (`tests/` has 15 files, no serial test).
+- The keyboard is a **PS/2-shaped polled port** with a 128-entry FIFO; there is no
+  serial input path and no overrun handling.
+
+### D. Kernel / console (screen-coupled)
+
+- BIOS **`putch` (f2)** writes the framebuffer: cells, cursor attribute, CR/LF,
+  and a **scroll loop** — all meaningless without a screen.
+- BIOS **`putstr` (f3)** is a **second direct framebuffer writer** (`STS R1, ES,
+  SCR`), so the "one choke point" assumption in the comments and README is false.
+- BIOS **`getstr` (f5)** reads the keyboard **and echoes to the framebuffer** with
+  cursor/backspace handling; **`getch` (f4)** reads the keyboard.
+- BIOS **`binit` (f1)** clears 2,000 screen cells and homes a cursor.
+- **`wrap_if`** computes the column from `SCR` and wraps at 80; **`form`** returns
+  `24 80`; **`scr@`/`scr!`** address `ES:SCR`; **`cls`** calls `binit` and repaints
+  a cursor cell. All screen-only.
+- The output pointer is the **register `R8` (`SCR`)**, threaded through many
+  routines; a UART has no such pointer.
+- **No console-abstraction build:** `js/deep16_assembler.js` has no conditionals,
+  so today it cannot produce a screen kernel and a UART kernel from one source.
+- The kernel's fixed addresses (**stacks** at `0x6F00`/`0x7FF0`, **BIOS** at
+  `0xF8000`, **boot ROM** at `0xFFFF0`) sit outside a 26 K-word BSRAM window and
+  must be relaid.
+- **No on-board way to enter source.** SERLOAD was removed (`SERPLAN.md`); the
+  "Datei tippen…" loader is a browser feature. On real hardware, source arrives
+  by typing into the console or not at all.
+
+### E. Tests / tooling
+
+- **No UART test, no loopback, no hardware-in-the-loop test.**
+- `forth.test.js` asserts against the **80×25 screen**; it cannot exercise a
+  screenless build.
+- **No BSRAM/registered-latency model** in the Verilator harness — the current
+  model is the zero-latency array.
+
+---
+
+## 12. Decisions still open
+
+1. **BIOS location** — relocate into the low RAM window (recommended) vs. keep at
+   `0xF8000` with a LUT-ROM decode.
+2. **Conditional assembly** in the assembler (recommended) vs. a build-time
+   substitution script for the console variant.
+3. **Stack bases** — new constants once the BIOS placement is fixed.
+4. **Boot** — BSRAM init from `.mi` (recommended) vs. a UART loader ROM.
+5. **Keep the keyboard ports?** Dead on hardware; harmless in the map. Lean: keep
+   the addresses, wire nothing.
+6. **UART address** — adopt the documented `0xF0040` (recommended) or start clean.
+7. **`form` / `wrap_if` on UART** — `0 0` and a no-op, or keep 24 lines and never
+   wrap. Cosmetic; pick when writing the UART BIOS.

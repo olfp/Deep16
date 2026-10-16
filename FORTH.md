@@ -464,6 +464,7 @@ word is.
 | `value` | `( x -- )` | like `constant`, but changeable with `to` |
 | `to` **imm** | `( x -- )` | `to name` stores `x` in a `value`'s cell |
 | `create` | `( -- )` | `create name`; `name`'s body starts at `here` |
+| `>body` | `( xt -- addr )` | the data field of a `create`d word (its CFA + 2) |
 | `does>` | `( -- )` | attach the following code as a created word's action |
 | `immediate` | `( -- )` | mark the most recent definition immediate |
 | `state` | `( -- addr )` | address of STATE: `0` while interpreting, `1` while compiling |
@@ -619,10 +620,32 @@ screen.
 | `source-id` | `( -- -1 )` | the input source: `-1`, the keyboard |
 | `word` | `( char -- c-addr )` | parse the next token, delimited by `char`, into a buffer |
 | `parse` | `( char -- c-addr u )` | the input up to the next `char`, as a slice of the line |
+| `>in` | `( -- addr )` | a cell mirroring the parse offset (see below) |
+| `source` | `( -- c-addr u )` | the input line and its length |
+| `refill` | `( -- flag )` | `0`: there is no further source to read |
+| `save-input` | `( -- >in tib 2 )` | the input-source state, for `restore-input` |
+| `restore-input` | `( >in tib 2 -- flag )` | put it back; `0` when it worked |
+| `quit` | `( -- )` | empty the return stack, end the line, await the next |
+| `environment?` | `( c-addr u -- false \| i*x true )` | answer an environment query |
 
 `accept` is the REPL's own reader, not the standard `( addr n -- n2 )`: it
 fills the input buffer and re-enters the interpreter, so it takes nothing and
 returns nothing.
+
+`>in` is the one place the standard's model does not fit: the pointer into the
+input buffer is the **register** `R5`, not a cell, so there is nothing whose
+address it could answer. `>in` returns the address of `in_var`, a cell the
+tokenizer writes whenever it moves the pointer, so `>in @` reads the live offset
+(just past the word that ran it). A store to that cell is accepted but does not
+move the parse pointer — that is a documented limit, not a fault. `source`
+measures the line the BIOS read up to its NUL; `refill` answers `0`, because that
+line is the only source and a word cannot read another one from the middle of it.
+`save-input`/`restore-input` save and put back `(>in, tib)` — the count is `2`,
+and any other count is refused with `-1`. `quit` empties the return stack,
+returns to interpretation and ends the line, which is the outer interpreter
+waiting for the next one. `environment?` answers `CORE`, `CORE-EXT`, `MAX-N`,
+`MAX-U`, `ADDRESS-UNIT-BITS` and `/COUNTED-STRING` (case-insensitively) and is
+false for anything else.
 
 `form` is an extension, not standard Forth, and it answers the **visible**
 screen: 24 rows, not the 25 the BIOS clears, because row 24 is the off-screen
@@ -667,5 +690,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 203 words. New words are added at the head of the
+That is the whole dictionary: 211 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

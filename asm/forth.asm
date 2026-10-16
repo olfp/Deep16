@@ -2350,10 +2350,53 @@ h_noname:
     .text ":noname"
     .word word_noname
 h_marker:
-    .word h_see
+    .word h_in
     .word 6
     .text "marker"
     .word word_marker
+; Tier 3, fourth batch: the input source. >IN is the one approximation - an
+; address that reads the live offset, but a store to it does not move the parse
+; pointer, which is the register R5 here.
+h_in:
+    .word h_source
+    .word 3
+    .text ">in"
+    .word word_in
+h_source:
+    .word h_refill
+    .word 6
+    .text "source"
+    .word word_source
+h_refill:
+    .word h_saveinput
+    .word 6
+    .text "refill"
+    .word word_refill
+h_saveinput:
+    .word h_restoreinput
+    .word 10
+    .text "save-input"
+    .word word_saveinput
+h_restoreinput:
+    .word h_quit
+    .word 13
+    .text "restore-input"
+    .word word_restoreinput
+h_quit:
+    .word h_environment
+    .word 4
+    .text "quit"
+    .word word_quit
+h_environment:
+    .word h_tobody
+    .word 12
+    .text "environment?"
+    .word word_environment
+h_tobody:
+    .word h_see
+    .word 5
+    .text ">body"
+    .word word_tobody
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -2794,6 +2837,31 @@ mk_head_cell:
 mk_old_head:
     .word 0
 mk_old_dp:
+    .word 0
+; `>IN` is the register R5; this cell mirrors it, written by the tokenizer.
+in_var:
+    .word 0
+
+; environment queries: name cells, length, value. A name not here answers false.
+env_core:
+    .text "CORE"
+env_coreext:
+    .text "CORE-EXT"
+env_maxn:
+    .text "MAX-N"
+env_maxu:
+    .text "MAX-U"
+env_aub:
+    .text "ADDRESS-UNIT-BITS"
+env_counted:
+    .text "/COUNTED-STRING"
+env_table:
+    .word env_core, 4, 0xFFFF
+    .word env_coreext, 8, 0xFFFF
+    .word env_maxn, 5, 32767
+    .word env_maxu, 5, 0xFFFF
+    .word env_aub, 17, 16
+    .word env_counted, 14, 255
     .word 0
 xt_abortq:
     .word word_abortq_rt
@@ -7361,6 +7429,9 @@ wpa_store:
     MOV R2, R3
     SUB R2, TIB
     MOV >IN, R2
+    LDI in_var
+    MOV R3, R0
+    ST R2, R3, 0            ; mirror for `>IN @`
     ST R7, SP, 0            ; c-addr over the delimiter
     SUB SP, 1
     ST R1, SP, 0            ; u on top
@@ -7438,6 +7509,9 @@ ww_noeol:
     MOV R2, R1
     SUB R2, TIB
     MOV >IN, R2
+    LDI in_var
+    MOV R3, R0
+    ST R2, R3, 0            ; mirror for `>IN @`
     LDI word_buf
     ST R0, SP, 0            ; the answer replaces the delimiter
     LDI next
@@ -7737,6 +7811,232 @@ word_marker:                ; marker ( "name" -- )
     MOV PC, R0
     NOP
 
+
+; =============================================
+; Tier 3, fourth batch: the input source
+; =============================================
+; `>IN`, `SOURCE`, `REFILL`, `SAVE-INPUT`, `RESTORE-INPUT`, `QUIT` and
+; `ENVIRONMENT?`. This kernel's input pointer is the register R5, not a cell,
+; so `>IN` is the one place the standard's address is approximated: `in_var` is
+; a mirror the tokenizer writes whenever it moves the pointer, so `>IN @` reads
+; the live offset, while a store to it is accepted but does not move the parse
+; pointer. `SOURCE` measures the line to its NUL; `REFILL` answers false, because
+; the line the BIOS read is the only source and a word cannot read another one
+; mid-line. `QUIT` empties the return stack, returns to interpretation and ends
+; the line, which is the outer interpreter waiting for the next one.
+
+word_in:                    ; >in ( -- addr )
+    LDI in_var
+    MOV R1, R0
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_source:                ; source ( -- c-addr u )  the line, and its length
+    MOV R1, TIB
+    LDI 0
+    MOV R3, R0
+    MOV R2, R1
+src_scan:
+    LD R4, R2, 0
+    LDI 0
+    CMP R4, R0
+    JZ src_done
+    NOP
+    ADD R2, 1
+    ADD R3, 1
+    LDI src_scan
+    MOV PC, R0
+    NOP
+src_done:
+    SUB SP, 2
+    ST R1, SP, 1            ; c-addr
+    ST R3, SP, 0            ; u
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_refill:                ; refill ( -- flag )  no source to read again from
+    LDI 0
+    MOV R1, R0
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_saveinput:             ; save-input ( -- >in tib 2 )
+    MOV R1, TIB
+    MOV R2, >IN
+    SUB SP, 3
+    ST R1, SP, 2            ; TIB
+    ST R2, SP, 1            ; >IN
+    LDI 2
+    ST R0, SP, 0            ; how many cells follow
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_restoreinput:          ; restore-input ( >in tib 2 -- flag )
+    MOV R9, SP
+    ADD R9, 1
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ rin_ok
+    NOP
+    JN rin_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+rin_ok:
+    LD R1, SP, 0            ; n
+    ADD SP, 1
+    LDI 2
+    CMP R1, R0
+    JNZ rin_bad             ; only this kernel's own format is understood
+    NOP
+    LD R2, SP, 0            ; >IN
+    LD R3, SP, 1            ; TIB
+    ADD SP, 2
+    MOV >IN, R2
+    MOV TIB, R3
+    SUB SP, 1
+    LDI 0
+    ST R0, SP, 0            ; restored
+    LDI next
+    MOV PC, R0
+    NOP
+rin_bad:
+    SUB SP, 1
+    LDI -1
+    ST R0, SP, 0            ; could not restore
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_quit:                  ; quit ( -- )  empty the return stack, end the line
+    LDI rp0_base
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI rp_ptr
+    MOV R3, R0
+    ST R2, R3, 0
+    LDI state_var
+    MOV R3, R0
+    LDI 0
+    ST R0, R3, 0            ; interpretation state
+    LDI line_done
+    MOV PC, R0
+    NOP
+
+word_environment:           ; environment? ( c-addr u -- false | i*x true )
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ env_ok
+    NOP
+    JN env_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+env_ok:
+    LD R7, SP, 1            ; the query string
+    LD R11, SP, 0           ; its length
+    LDI env_table
+    MOV R12, R0
+env_next:
+    LD R2, R12, 0           ; a name, or 0 at the end of the table
+    LDI 0
+    CMP R2, R0
+    JZ env_none
+    NOP
+    LD R3, R12, 1
+    CMP R3, R11
+    JNZ env_skip
+    NOP
+    MOV R1, R2              ; name cursor
+    MOV R4, R7              ; query cursor
+    MOV R9, R11
+env_cmp:
+    LDI 0
+    CMP R9, R0
+    JZ env_hit
+    NOP
+    LD R2, R4, 0
+    LDI 'a'                 ; fold the query to upper case: the names are upper
+    CMP R2, R0
+    JN env_folded
+    NOP
+    LDI 'z'
+    CMP R0, R2
+    JN env_folded
+    NOP
+    LDI 32
+    SUB R2, R0
+env_folded:
+    LD R3, R1, 0
+    CMP R2, R3
+    JNZ env_skip
+    NOP
+    ADD R4, 1
+    ADD R1, 1
+    SUB R9, 1
+    LDI env_cmp
+    MOV PC, R0
+    NOP
+env_hit:
+    LD R2, R12, 2           ; the value, with true above it
+    ST R2, SP, 1
+    LDI -1
+    ST R0, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+env_skip:
+    ADD R12, 3
+    LDI env_next
+    MOV PC, R0
+    NOP
+env_none:
+    ADD SP, 1
+    LDI 0
+    ST R0, SP, 0            ; not a query this kernel answers
+    LDI next
+    MOV PC, R0
+    NOP
+
+
+word_tobody:                ; >body ( xt -- addr )  a CREATE'd word's data field
+    MOV R9, SP
+    ADD R9, 1
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wtb_ok
+    NOP
+    JN wtb_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wtb_ok:
+    LD R1, SP, 0            ; the xt: the CFA cell address
+    ADD R1, 2               ; CREATE reserves one cell for the DOES> pointer
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
 ; =============================================
 ; P2: Indirect-threaded code engine
 ; =============================================
@@ -7810,6 +8110,9 @@ lit:
 execute_xt:
     ; R1 = xt of a word to run from the outer interpreter. A synthetic
     ; one-cell thread makes the word return to outer_resume via NEXT/EXIT.
+    LDI in_var
+    MOV R2, R0
+    ST >IN, R2, 0         ; mirror the input pointer for `>IN @`
     LDI ip_ptr
     MOV R2, R0
     LDI resume_list
@@ -8839,6 +9142,9 @@ ft_cmp:
     ADD R1, 3
     ADD R1, R11           ; R1 = CFA cell address
     ADD >IN, R11
+    LDI in_var
+    MOV R3, R0
+    ST >IN, R3, 0           ; mirror for `>IN @`
     ; R9 = 1 when the word is immediate, 0 otherwise; POSTPONE reads it.
     LD R4, R7, 1
     LDI 1

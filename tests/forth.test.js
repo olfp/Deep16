@@ -3993,3 +3993,65 @@ test('marker rewinds the dictionary to where it was defined', () => {
   // It removes itself too.
   assert.equal(repl('marker m\nm\nm .\n').rows[4], 'undefined word: m');
 });
+
+// ---------------------------------------------------------------------------
+// Tier 3, fourth batch: the input source.
+//
+// This kernel's input pointer is the register R5, not a cell, so >IN is the one
+// approximation: `in_var` is a mirror the tokenizer writes whenever it moves the
+// pointer, so `>in @` reads the live offset, while a store to it is accepted but
+// does not move the parse pointer. SOURCE measures the line to its NUL; REFILL
+// answers false, because the line the BIOS read is the only source; QUIT empties
+// the return stack, returns to interpretation and ends the line.
+
+test('>in reads the parse offset', () => {
+  // Inside a word it is the offset just past the call that ran it: the second
+  // line is "t", so after parsing "t" the offset is 1.
+  assert.equal(repl(': t >in @ . ;\nt\n').rows[2], '> t 1  ok');
+});
+
+test('source answers the line and its length', () => {
+  assert.equal(hexOut('source nip .'), '12');                  // "source nip ." is 12
+  assert.equal(hexOut('source drop .'), String(res.symbols.tib_kbd));
+});
+
+test('refill has no source to read again from', () => {
+  assert.equal(hexOut('refill .'), '0');
+});
+
+test('save-input and restore-input round-trip the input source', () => {
+  // ( >in tib 2 ): here the offset is 10, just past "save-input".
+  assert.equal(hexOut('save-input . . .'), `2  10  ${res.symbols.tib_kbd}`);
+  // Inside a definition nothing parses between the two, so the restore is a
+  // no-op and answers success.
+  assert.equal(hexOut(': t save-input restore-input . ; t'), '0');
+  // Only this kernel's own n = 2 is understood; anything else is refused.
+  assert.equal(hexOut('0 0 3 restore-input .'), '-1');
+  assert.match(hexrepl('restore-input').join('\n'), /stack underflow/);
+});
+
+test('quit empties the return stack and ends the line', () => {
+  const rows = repl(': t 1 . quit 2 . ;\nt 3 .\n4 .\n').rows;
+  assert.equal(rows[1], '> : t 1 . quit 2 . ; ok');
+  assert.equal(rows[2], '> t 3 . 1  ok');        // 1 printed, then the line ends
+  assert.equal(rows[3], '> 4 . 4  ok');          // the next line is read afresh
+});
+
+test('environment? answers a few queries', () => {
+  assert.equal(hexOut('s" CORE" environment? . .'), '-1  -1');
+  assert.equal(hexOut('s" MAX-N" environment? . .'), '-1  32767');
+  // The query is compared without regard to case.
+  assert.equal(hexOut('s" max-n" environment? . .'), '-1  32767');
+  assert.equal(hexOut('s" ADDRESS-UNIT-BITS" environment? . .'), '-1  16');
+  // An unknown query is just false.
+  assert.equal(hexOut('s" NOPE" environment? .'), '0');
+  assert.match(hexrepl('environment?').join('\n'), /stack underflow/);
+});
+
+test('>body answers a CREATE word data field', () => {
+  // CREATE reserves one cell for the DOES> pointer, so the body is two cells
+  // past the code field. It is the address the created word itself pushes.
+  assert.equal(hexOut("create x 5 , ' x >body @ ."), '5');
+  assert.equal(hexOut("create x ' x >body x = ."), '-1');
+  assert.match(hexrepl('>body').join('\n'), /stack underflow/);
+});
