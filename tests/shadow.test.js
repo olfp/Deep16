@@ -336,7 +336,8 @@ test('WASM: a compiled ." prints on the CALL on both cores, byte for byte', asyn
   // definition are the interesting case: the thread has to be stepped past
   // each one, or the second litstr reads the first string as the next word.
   // The kernel writes its dictionary through ordinary DS-relative stores, so
-  // this is where the three cores have to agree.
+  // this is where the three cores have to agree. The text butts against the
+  // echoed word because `."` drops the blank that delimits it, as `s"` does.
   const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
@@ -356,8 +357,8 @@ test('WASM: a compiled ." prints on the CALL on both cores, byte for byte', asyn
   const wasm = await runWasm(res, { maxSteps: 600000, keys: [...input].map((ch) => (ch === '\n' ? 10 : ch.charCodeAt(0))) });
   const wasmOut = screenText(wasm.memoryAt, SCREEN_ADDR, 480);
 
-  assert.match(jsOut, /> greet hallo welt ok/);
-  assert.match(jsOut, /> t x 1 {2}y ok/);
+  assert.match(jsOut, /> greethallo welt ok/);
+  assert.match(jsOut, /> tx 1 y ok/);
   assert.equal(wasmOut, jsOut, 'WASM must compile and run `."` exactly like the JS core');
   assert.equal(steps, 600000, 'the JS REPL must stay alive after the compiled strings');
   assert.equal(wasm.steps, 600000, 'the WASM REPL must stay alive after the compiled strings');

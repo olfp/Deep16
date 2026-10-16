@@ -1184,8 +1184,8 @@ test('see prints a colon definition as its source shape', () => {
 });
 
 test('see prints a compiled string back as ." ... "', () => {
-  // The compiler stores the characters from the one after `."`, so the source
-  // `." hallo welt"` keeps a leading space in the thread and see prints it back.
+  // `."` drops the one blank that delimits the text, as `s"` does, so see has to
+  // put it back for the printed definition to mean the same string.
   const { rows } = repl(': greet ." hallo welt" ;\nsee greet\n');
   assert.equal(rows[2], '> see greet : greet ." hallo welt" ; ok');
 });
@@ -1410,19 +1410,24 @@ test('a bare string is printed to the end of the line', () => {
 // it now copies the characters into the definition and leaves
 // `xt_lit <addr> xt_litstr <characters> 0` behind; `litstr` prints them when
 // the word runs and steps the thread past the string.
+//
+// The one blank that delimits the text is dropped in both forms, exactly as `s"`
+// drops it, so `." x"` is the string `x`: the printed text butts against the
+// echoed word when a definition runs at the prompt, which is why the rows below
+// read `> greethallo welt`.
 
 test('." inside a definition prints when the word is CALLED, not when it is compiled', () => {
   const { rows, running } = repl(': greet ." hallo welt" ;\ngreet\n');
   // The compile line echoes the source but does NOT print "hallo welt" again.
   assert.equal(rows[1], '> : greet ." hallo welt" ; ok');
-  assert.equal(rows[2], '> greet hallo welt ok');
+  assert.equal(rows[2], '> greethallo welt ok');
   assert.equal(rows[3], '>');
   assert.ok(running);
 });
 
 test('a compiled string keeps its spaces and its place among other words', () => {
   const { rows, running } = repl(': t ." x" 1 . ." y" ;\nt\n');
-  assert.equal(rows[2], '> t x 1  y ok');
+  assert.equal(rows[2], '> tx 1 y ok');
   assert.ok(running);
 });
 
@@ -1431,27 +1436,39 @@ test('two compiled strings in one definition both print, in order', () => {
   // "litstr" reads the first string's characters as the next word of the
   // definition and the core jumps into ASCII.
   const { rows, running } = repl(': s1 ." a" ." b" ;\ns1\n');
-  assert.equal(rows[2], '> s1 a b ok');
+  assert.equal(rows[2], '> s1ab ok');
   assert.ok(running);
 });
 
 test('a compiled string may be called again', () => {
   const { rows, running } = repl(': q ." x" ;\nq q\n');
-  assert.equal(rows[2], '> q q x x ok');
+  assert.equal(rows[2], '> q qxx ok');
   assert.ok(running);
 });
 
 test('a backslash-quote is unescaped while compiling, not at run time', () => {
   const { rows, running } = repl(': e ."  say \\"hi\\"  " ;\ne\n');
   assert.equal(rows[1], '> : e ."  say \\"hi\\"  " ; ok');
-  assert.equal(rows[2], '> e  say "hi"   ok');
+  // Two blanks before "say" lose one to the delimiter; the two behind it stay.
+  assert.equal(rows[2], '> e say "hi"   ok');
   assert.ok(running);
 });
 
 test('an empty compiled string prints nothing', () => {
   const { rows, running } = repl(': empty ." " ;\nempty\n');
-  assert.equal(rows[2], '> empty  ok');
+  assert.equal(rows[2], '> empty ok');
   assert.ok(running);
+});
+
+test('a string drops the one blank that delimits it, in every form', () => {
+  // `." x"`, `" x"` and `s" x"` all mean the text x; a second blank belongs to
+  // the text and stays. `."` used to disagree with itself: interpreted it
+  // skipped every leading blank, compiled it kept every one.
+  assert.equal(repl('91 emit ." x" 93 emit\n').rows[1], '> 91 emit ." x" 93 emit[x] ok');
+  assert.equal(repl('91 emit ."  xy" 93 emit\n').rows[1], '> 91 emit ."  xy" 93 emit[ xy] ok');
+  assert.equal(repl(': t 91 emit ."  xy" 93 emit ;\nt\n').rows[2], '> t[ xy] ok');
+  assert.equal(repl('91 emit " xy" 93 emit\n').rows[1], '> 91 emit " xy" 93 emit[xy] ok');
+  assert.equal(repl(': b 91 emit " xy" 93 emit ;\nb\n').rows[2], '> b[xy] ok');
 });
 
 test('a bare " inside a definition compiles like ."', () => {
@@ -1465,7 +1482,7 @@ test('the compiled string is threaded data, so a stack word after it still sees 
   // `." x" dup .` on an empty stack must still be a stack underflow: the
   // string must not push anything of its own.
   const { rows, running } = repl(': dup2 ." a" dup . ;\ndup2\n');
-  assert.equal(rows[2], '> dup2 a');
+  assert.equal(rows[2], '> dup2a');
   assert.equal(rows[3], 'stack underflow');
   assert.ok(running);
 });

@@ -363,16 +363,16 @@ a b search nip .        \ 5  ok
 ```
 
 `."` and `s"` are written into the tokenizer and not into the dictionary — the
-text between the quotes is not a token, so it could never be looked up — and
-they differ in one place. `s"` drops the single blank that delimits the text, so
-`s" xy"` is the two-character string `xy`: a value has to be what was written.
-`."` keeps that blank, because printing the stored characters is all it does and
-the source has to come back exactly as it was typed. Interpreted, `s"` answers a
-copy in a buffer of its own — a second `s"` overwrites it, which is what the
-standard means by a transient buffer — and compiled it copies the text into the
-definition, so the answer is the same on every call. `\"` is unescaped while the
-text is stored, in both halves of both words. A quote with no blank behind it is
-not a string at all: `s"x"` reports itself as an undefined word.
+text between the quotes is not a token, so it could never be looked up. Both
+drop the single blank that delimits the text, so `s" xy"` is the two-character
+string `xy` and `." xy"` prints `xy`: what is written between the quotes is what
+the value is and what the printout shows, and a blank that belongs to the text
+needs a second blank in the source. Interpreted, `s"` answers a copy in a buffer
+of its own — a second `s"` overwrites it, which is what the standard means by a
+transient buffer — and compiled it copies the text into the definition, so the
+answer is the same on every call. `\"` is unescaped while the text is stored, in
+both halves of both words. A quote with no blank behind it is not a string at
+all: `s"x"` reports itself as an undefined word.
 
 ## Names and execution
 

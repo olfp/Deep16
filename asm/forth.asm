@@ -391,9 +391,19 @@ token_start:
     CMP R2, R0
     JNZ check_backslash
     NOP
-    ; Bare string opening: step inside the string. Whether it prints now or is
-    ; compiled depends on the state, so string_action decides.
+    ; Bare string opening: step inside the string and drop the one blank that
+    ; delimits the text, the way `s"` and `."` do, so `" x"` and `"x"` both mean
+    ; the text `x`. Whether it prints now or is compiled is string_action's call.
     ADD >IN, 1
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R3, R3, 0
+    LDI ' '
+    CMP R3, R0
+    JNZ bare_string_no_blank
+    NOP
+    ADD >IN, 1
+bare_string_no_blank:
     LDI string_action
     MOV PC, R0
     NOP
@@ -450,7 +460,7 @@ farpatch304:
     MOV R1, R3
     SUB R1, TIB
     MOV >IN, R1
-    ADD >IN, 1
+    ADD >IN, 2               ; past the quote and the delimiter blank
     LDI string_action
     MOV PC, R0
     NOP
@@ -461,10 +471,11 @@ dot_plain:
     MOV PC, R0
     NOP
 ; A bare `"` and a `."` differ only in whether a dot precedes them, and both
-; arrive here with >IN on the first character inside the quotes. Interpreted,
-; they print and throw the text away. Compiled, they have to leave something
-; behind that prints the text when the word is CALLED, so the characters are
-; copied into the definition and the definition gets
+; arrive here with >IN past the quote and past the one blank that delimits the
+; text, so the text is what was written between them. Interpreted, they print it
+; and throw it away. Compiled, they have to leave something behind that prints
+; the text when the word is CALLED, so the characters are copied into the
+; definition and the definition gets
 ;
 ;     xt_lit  <address of the characters>  xt_litstr  <characters>  0
 ;
@@ -484,7 +495,7 @@ string_action:
     CMP R2, R0
     JNZ dotq_compile        ; compiling: emit code instead of printing
     NOP
-    LDI print_string_skip
+    LDI print_string_body
     MOV PC, R0
     NOP
 
@@ -517,28 +528,6 @@ dotq_compile:
     MOV PC, R0
     NOP
 
-print_string_skip:
-    MOV R1, TIB
-    ADD R1, >IN
-psk_loop:
-    LD R2, R1, 0
-    LDI 0
-    CMP R2, R0
-    JZ after_string
-    NOP
-    LDI ' '
-    CMP R2, R0
-    JNZ psk_go
-    NOP
-    ADD >IN, 1
-    ADD R1, 1
-    LDI psk_loop
-    MOV PC, R0
-    NOP
-psk_go:
-    LDI print_string_body
-    MOV PC, R0
-    NOP
 print_string_body:
     MOV R1, TIB
     ADD R1, >IN
@@ -2667,10 +2656,11 @@ see_str_does:
 see_str_vocab:
     .text "vocabulary "
 see_str_dotq:
-    ; No space after the quote: the compiler stores the characters starting at
-    ; the one after `."`, so a source `." x"` keeps a leading space in the
-    ; thread. Printing `."` + those characters gives the source back exactly.
-    .text ".\""
+    ; With the space, like `s"`: the parsed word swallows the one blank that
+    ; delimits the text, so the stored characters are the string itself and the
+    ; blank has to come back for the source to mean the same when it is read
+    ; again.
+    .text ".\" "
 see_str_sq:
     ; With the space, because `s"` is the other way round: it swallows the one
     ; blank that delimits the text, so the stored characters are the string
