@@ -422,7 +422,9 @@ its own, so a line may itself `evaluate` without losing the text), and continues
 at the next line when one ends, so a whole file produces a single ` ok` and a
 single prompt. Newlines separate the lines; blank lines and comments are just
 short harmless lines. It is the load path for a file that has been read into
-memory, and it is what the browser uses to run a source file in one go.
+memory, and it is what the browser uses to run a source file in one go. A loaded
+line may call `refill` to take the load's next line by hand — the same step the
+loader takes when a line ends.
 
 It drives the input buffer itself, so it must run at the top level: called from
 inside an `evaluate`, or while another `included` is running, it throws `-22`, as
@@ -628,7 +630,7 @@ screen.
 | `parse` | `( char -- c-addr u )` | the input up to the next `char`, as a slice of the line |
 | `>in` | `( -- addr )` | the parse offset, as a writable cell (see below) |
 | `source` | `( -- c-addr u )` | the input line and its length |
-| `refill` | `( -- flag )` | `0`: there is no further source to read |
+| `refill` | `( -- flag )` | make the next line of the input source current |
 | `save-input` | `( -- >in tib 2 )` | the input-source state, for `restore-input` |
 | `restore-input` | `( >in tib 2 -- flag )` | put it back; `0` when it worked |
 | `quit` | `( -- )` | empty the return stack, end the line, await the next |
@@ -649,8 +651,13 @@ tokenizer writes whenever it moves the pointer, so `>in @` reads the live offset
 interpreter remembers the offset it last wrote there, so it can tell a hand store
 from its own pointer moves and reads on from wherever the cell was put —
 `80 >in !` ends the line, and a word may skip over the rest of it. `source`
-measures the line the BIOS read up to its NUL; `refill` answers `0`, because that
-line is the only source and a word cannot read another one from the middle of it.
+measures the line the BIOS read up to its NUL. `refill` makes the next line of
+whatever is being read current and answers true: at the keyboard it reads
+another line, and inside a load (`included`) it hands over the next line of the
+buffer, answering false once the buffer is spent. A string source (`evaluate`)
+has no next line, so there `refill` is `0`. The line that called `refill` is
+replaced by the new one, so the rest of it does not run — that is what makes the
+answer the next line's to consume.
 `save-input`/`restore-input` save and put back `(>in, tib)` — the count is `2`,
 and any other count is refused with `-1`. `quit` empties the return stack,
 returns to interpretation and ends the line, which is the outer interpreter

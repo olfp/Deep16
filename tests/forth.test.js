@@ -4113,8 +4113,50 @@ test('source answers the line and its length', () => {
   assert.equal(hexOut('source drop .'), String(res.symbols.tib_kbd));
 });
 
-test('refill has no source to read again from', () => {
-  assert.equal(hexOut('refill .'), '0');
+test('refill makes the next line of the keyboard available', () => {
+  // The line that called refill is replaced by the one it read, so the rest of
+  // it is gone and the flag is left for whatever the new line runs.
+  assert.equal(repl('refill\n. 111 .\n').rows[1], '> refill. 111 . -1  111  ok');
+});
+
+test('refill answers false when the source is a string', () => {
+  // `evaluate` reads a string: one line, and it is already here.
+  assert.equal(repl('s" refill ." evaluate\n').rows[1], '> s" refill ." evaluate 0  ok');
+});
+
+test('refill reads the next line of a load, and false at its end', () => {
+  const addr = 0x5000;                 // free memory, below the stacks
+  const boot = (source) => {
+    const { Deep16Simulator } = globalThis;
+    const sim = new Deep16Simulator();
+    sim.loadProgram(buildMemory(res));
+    sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+    sim.segmentRegisters.SS = 0; sim.segmentRegisters.ES = 0;
+    for (let i = 0; i < source.length; i++) sim.memory[addr + i] = source.charCodeAt(i) & 0xFF;
+    return sim;
+  };
+  const run = (source, input) => {
+    const sim = boot(source);
+    for (const ch of input) sim.enqueueKeyCode(ch === '\n' ? 10 : ch.charCodeAt(0));
+    sim.running = true;
+    for (let i = 0; i < 4000000 && sim.running; i++) sim.step();
+    const rows = [];
+    for (let r = 0; r < 25; r++) {
+      let s = '';
+      for (let c = 0; c < 80; c++) s += String.fromCharCode(sim.memory[SCREEN_ADDR + r * 80 + c] & 0xFF);
+      rows.push(s.replace(/\s+$/, ''));
+    }
+    return rows;
+  };
+  // A load whose second line calls refill: the third line becomes current and
+  // the flag is consumed there.
+  const src = '111 .\nrefill\n. 333 .\n';
+  assert.match(run(src, `${addr} ${src.length} included\n`)[1], /included 111  -1  333  ok$/);
+  // Nothing behind it: false, and the flag waits for the next line.
+  const last = '111 .\nrefill\n';
+  const rows = run(last, `${addr} ${last.length} included\n. 444 .\n`);
+  assert.match(rows[1], /included 111  ok$/);
+  assert.equal(rows[2], '> . 444 . 0  444  ok');
 });
 
 test('accept reads a line into the caller\'s buffer and answers its length', () => {

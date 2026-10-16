@@ -2481,6 +2481,9 @@ inc_ptr:
     .word 0              ; the next line to read
 inc_end:
     .word 0              ; one past the last character
+inc_refill:
+    .word 0              ; 1 while `refill` asks include_line for a line, which
+                         ; then answers instead of driving the load itself
 inc_buf:
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -5010,7 +5013,26 @@ include_fin:
     MOV R2, R0
     LDI 0
     ST R0, R2, 0            ; the load is over
+    ; A `refill` asked for this line, so it wants the answer back rather than the
+    ; line ending: false, there is no further source.
+    LDI inc_refill
+    MOV R3, R0
+    LD R3, R3, 0
+    LDI 0
+    CMP R3, R0
+    JNZ include_refill_no
+    NOP
     LDI line_done
+    MOV PC, R0
+    NOP
+include_refill_no:
+    LDI inc_refill
+    MOV R3, R0
+    LDI 0
+    ST R0, R3, 0            ; driving the load from eval_check again
+    SUB SP, 1
+    ST R0, SP, 0            ; false
+    LDI next
     MOV PC, R0
     NOP
 include_have:
@@ -5062,10 +5084,34 @@ include_settib:
     MOV TIB, R0
     LDI 0
     MOV >IN, R0
+    ; A `refill` asked for this line: answer true and let the outer interpreter
+    ; carry on from the new line. Otherwise the line is the load's next one.
+    LDI inc_refill
+    MOV R3, R0
+    LD R3, R3, 0
+    LDI 0
+    CMP R3, R0
+    JNZ include_refill_yes
+    NOP
     LDI interpret_loop
     MOV PC, R0
     NOP
+include_refill_yes:
+    LDI inc_refill
+    MOV R3, R0
+    LDI 0
+    ST R0, R3, 0            ; driving the load from eval_check again
+    LDI -1
+    SUB SP, 1
+    ST R0, SP, 0            ; true
+    LDI next
+    MOV PC, R0
+    NOP
 include_toolong:
+    LDI inc_refill
+    MOV R3, R0
+    LDI 0
+    ST R0, R3, 0            ; and no answer is owed
     LDI inc_state
     MOV R2, R0
     LDI 0
@@ -7703,11 +7749,57 @@ src_done:
     MOV PC, R0
     NOP
 
-word_refill:                ; refill ( -- flag )  no source to read again from
+word_refill:                ; refill ( -- flag )
+    ; The next line of whatever is being read: a load's buffer, the keyboard, or
+    ; nothing at all when the source is a string (`evaluate`), which has no
+    ; lines to give.
+    LDI inc_state
+    MOV R2, R0
+    LD R2, R2, 0
     LDI 0
-    MOV R1, R0
+    CMP R2, R0
+    JNZ refill_include
+    NOP
+    LDI eval_depth
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI 0
+    CMP R2, R0
+    JNZ refill_none         ; a string is one line, and it is already here
+    NOP
+    ; The keyboard is the source. Read the next line into TIB, as the prompt
+    ; does, and answer true: an empty line is still a line.
+    LDI tib_kbd
+    MOV TIB, R0
+    LDI 5                   ; BIOS getstr
+    MOV R4, R0
+    LDI 0
+    MOV R7, R0
+    STS R4, DS, R7          ; DS:[0] = 5
+    LDI 1
+    MOV R7, R0
+    STS TIB, DS, R7         ; DS:[1] = TIB
+    SWI
+    LDI 0
+    MOV >IN, R0
+    LDI -1
     SUB SP, 1
-    ST R1, SP, 0
+    ST R0, SP, 0            ; true
+    LDI next
+    MOV PC, R0
+    NOP
+refill_include:
+    ; Let include_line read the line and answer through its own exits.
+    LDI inc_refill
+    MOV R2, R0
+    LDI 1
+    ST R0, R2, 0
+    LDI include_line
+    MOV PC, R0
+    NOP
+refill_none:
+    SUB SP, 1
+    ST R0, SP, 0            ; false
     LDI next
     MOV PC, R0
     NOP
