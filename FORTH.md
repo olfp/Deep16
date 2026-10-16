@@ -356,6 +356,7 @@ not a string at all: `s"x"` reports itself as an undefined word.
 | `literal` **imm** | `( x -- )` | compile the value on the stack |
 | `2literal` **imm** | `( x1 x2 -- )` | compile two values, the second ending on top |
 | `evaluate` | `( i*x c-addr u -- j*x )` | interpret the string as a line of input |
+| `included` | `( i*x c-addr u -- j*x )` | interpret the buffer as source, one line at a time |
 
 An *execution token* is the address of a word's code field, which is the cell
 the interpreter jumps through when it runs the word. `'` finds the next word and
@@ -383,6 +384,23 @@ when it happened carries on instead of re-reading text that was abandoned.
 s" 1 2 + ." evaluate                  \ 3  ok
 : c s" nosuch" evaluate ;
 ' c catch .                           \ -13  ok
+```
+
+`included` loads a buffer of **source text** rather than one line: it walks the
+buffer, evaluates each line through the same machinery `evaluate` uses (a copy of
+its own, so a line may itself `evaluate` without losing the text), and continues
+at the next line when one ends, so a whole file produces a single ` ok` and a
+single prompt. Newlines separate the lines; blank lines and comments are just
+short harmless lines. It is the load path for a file that has been read into
+memory, and it is what the browser uses to run a source file in one go.
+
+It drives the input buffer itself, so it must run at the top level: called from
+inside an `evaluate`, or while another `included` is running, it throws `-22`, as
+it does for a line longer than 128 characters. An error in a loaded line (`-13`
+included) ends the load and hands the keyboard back:
+
+```text
+1024 40 included        \ the 40 characters at 1024 as source, line by line
 ```
 
 `'` and `char` are **not** immediate, so inside a definition they are compiled
@@ -596,5 +614,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 180 words. New words are added at the head of the
+That is the whole dictionary: 181 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

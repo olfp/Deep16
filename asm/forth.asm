@@ -2206,12 +2206,17 @@ h_ddotr:
 ; 24 is the last visible row index plus one and 80 is the width, both from the
 ; screen the BIOS drives. Non-standard, so it is documented as an extension.
 h_form:
-    .word h_see
+    .word h_included
     .word 4
     .text "form"
     .word doconst2
     .word 24
     .word 80
+h_included:
+    .word h_see
+    .word 8
+    .text "included"
+    .word word_included
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -2582,6 +2587,29 @@ eval_buf0:
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0
 eval_buf1:
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0
+; --- included: interpret a buffer of source text, one line at a time ---
+; `included` takes the same copy-and-interpret path `evaluate` uses, but the end
+; of one line does not return to the caller: eval_check, finding no evaluation
+; running, looks at inc_state and reads the next line instead. The buffer is its
+; own, so a line that calls `evaluate` cannot overwrite the text still being
+; read, and a load takes no evaluation depth - its limit is that it needs the top
+; level, because it drives TIB itself.
+inc_state:
+    .word 0              ; non-zero while `included` is loading
+inc_ptr:
+    .word 0              ; the next line to read
+inc_end:
+    .word 0              ; one past the last character
+inc_buf:
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -3195,6 +3223,15 @@ word_accept:
     ; Use BIOS getstr to read a line into TIB. Whether that getstr echoes the
     ; characters on the way in is the echo_flag cell, not a fixed property: see
     ; word_echo below.
+    ;
+    ; A fresh keyboard line also ends any `included` load that was running: the
+    ; REPL only comes back here after an error (recover_prompt) or at the top of
+    ; the next line, and a failed line must not be resumed after the user has
+    ; typed the recovery line.
+    LDI inc_state
+    MOV R2, R0
+    LDI 0
+    ST R0, R2, 0
     LDI tib_kbd
     MOV TIB, R0
     LDI 5               ; value = 5
@@ -4845,8 +4882,21 @@ eval_check:
     LD R1, R2, 0
     LDI 0
     CMP R1, R0
-    JZ evc_done
+    JNZ evc_pop             ; an evaluation is running: pop it
     NOP
+    ; No evaluation is running. An `included` load may still be, in which case
+    ; the next line is read from its buffer instead of the line ending.
+    LDI inc_state
+    MOV R3, R0
+    LD R3, R3, 0
+    LDI 0
+    CMP R3, R0
+    JNZ include_line
+    NOP
+    LDI line_done
+    MOV PC, R0
+    NOP
+evc_pop:
     SUB R1, 1
     ST R1, R2, 0
     LDI eval_tib
@@ -4883,8 +4933,155 @@ evc_thread:
     LDI next
     MOV PC, R0
     NOP
-evc_done:
+
+; =============================================
+; included: interpret a buffer of source, line by line
+; =============================================
+; `included ( i*x c-addr u -- j*x )` walks a buffer and evaluates it the way the
+; keyboard line is evaluated, one line at a time. Each line is copied into
+; inc_buf and terminated with a NUL, because the interpreter stops at a NUL and
+; the newlines in the buffer are not one. When a line ends, eval_check finds no
+; evaluation running and calls include_line again; the load ends when the buffer
+; is spent, and the " ok" the REPL prints at the end belongs to the line that was
+; running when it started - the one that said `included`.
+;
+; It drives TIB itself and takes no evaluation depth, so it must be at the top
+; level: called from inside an `evaluate`, or while another load is running, it
+; throws -22. A line longer than 128 characters throws the same -22 `evaluate`
+; throws for too long a string.
+
+include_line:
+    LDI inc_ptr
+    MOV R2, R0
+    LD R1, R2, 0            ; the cursor
+    LDI inc_end
+    MOV R3, R0
+    LD R7, R3, 0            ; one past the last character
+    CMP R1, R7
+    JC include_have         ; carry = borrow: cursor < end, chars remain
+    NOP
+include_fin:
+    LDI inc_state
+    MOV R2, R0
+    LDI 0
+    ST R0, R2, 0            ; the load is over
     LDI line_done
+    MOV PC, R0
+    NOP
+include_have:
+    LDI inc_buf
+    MOV R11, R0             ; the destination cursor
+    LDI 0
+    MOV R9, R0              ; characters copied
+include_copy:
+    CMP R1, R7
+    JC include_copy_body
+    NOP
+    ; end of buffer: this line runs to the end
+    LDI inc_ptr
+    MOV R2, R0
+    ST R7, R2, 0
+    LDI include_settib
+    MOV PC, R0
+    NOP
+include_copy_body:
+    LD R4, R1, 0
+    LDI 10
+    CMP R4, R0
+    JZ include_line_end
+    NOP
+    LDI 13
+    CMP R4, R0
+    JZ include_line_end
+    NOP
+    LDI 128
+    CMP R9, R0
+    JZ include_toolong      ; a full line already: one more would overflow
+    NOP
+    ST R4, R11, 0
+    ADD R11, 1
+    ADD R1, 1
+    ADD R9, 1
+    LDI include_copy
+    MOV PC, R0
+    NOP
+include_line_end:
+    ADD R1, 1               ; past the newline (or the CR of a CRLF)
+    LDI inc_ptr
+    MOV R2, R0
+    ST R1, R2, 0
+include_settib:
+    LDI 0
+    ST R0, R11, 0           ; the interpreter stops at this NUL
+    LDI inc_buf
+    MOV TIB, R0
+    LDI 0
+    MOV >IN, R0
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+include_toolong:
+    LDI inc_state
+    MOV R2, R0
+    LDI 0
+    ST R0, R2, 0            ; give up the load, then report
+    LDI -22
+    MOV R1, R0
+    LDI throw_code
+    MOV PC, R0
+    NOP
+
+word_included:              ; included ( i*x c-addr u -- j*x )
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ win_ok
+    NOP
+    JN win_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+win_ok:
+    LDI inc_state
+    MOV R2, R0
+    LD R1, R2, 0
+    LDI 0
+    CMP R1, R0
+    JNZ win_busy            ; a load is already running
+    NOP
+    LDI eval_depth
+    MOV R2, R0
+    LD R1, R2, 0
+    LDI 0
+    CMP R1, R0
+    JNZ win_busy            ; an evaluation owns TIB
+    NOP
+    LD R1, SP, 1            ; c-addr
+    LD R3, SP, 0            ; u
+    ADD SP, 2
+    LDI inc_ptr
+    MOV R2, R0
+    ST R1, R2, 0
+    LDI inc_end
+    MOV R2, R0
+    MOV R4, R1
+    ADD R4, R3
+    ST R4, R2, 0            ; one past the last byte
+    LDI inc_state
+    MOV R2, R0
+    LDI 1
+    ST R0, R2, 0            ; loading
+    LDI include_line
+    MOV PC, R0
+    NOP
+win_busy:
+    LDI -22
+    MOV R1, R0
+    LDI throw_code
     MOV PC, R0
     NOP
 

@@ -3753,3 +3753,69 @@ test('a wrapped line leaves no stray cursor block', () => {
   const many = repl('words\n');
   assert.equal(many.cursors.slice(0, SCREEN_VISIBLE_ROWS).flat().length, 1);
 });
+
+// ---------------------------------------------------------------------------
+// Tier 2, eighth batch: included - load a buffer of source text.
+//
+// `included ( i*x c-addr u -- j*x )` walks a buffer and evaluates it the way the
+// keyboard line is evaluated, one line at a time. Each line is copied into a
+// buffer of its own and NUL-terminated (the interpreter stops at a NUL, and the
+// newlines in the source are not one); when a line ends, eval_check finds no
+// evaluation running and reads the next line instead of finishing, so a whole
+// file produces one " ok" and one prompt. It drives TIB itself and takes no
+// evaluation depth, so it needs the top level and throws -22 otherwise, as it
+// does for a line longer than 128 characters.
+//
+// The harness has to write the source into memory before typing, so this test
+// boots its own machine rather than using repl().
+
+test('included interprets a buffer of source, line by line', () => {
+  const addr = 0x5000;                 // free memory, below the stacks
+  const boot = (source) => {
+    const { Deep16Simulator } = globalThis;
+    const sim = new Deep16Simulator();
+    sim.loadProgram(buildMemory(res));
+    sim.segmentRegisters.CS = 0xFFFF; sim.segmentRegisters.DS = 0;
+    sim.segmentRegisters.SS = 0; sim.segmentRegisters.ES = 0;
+    for (let i = 0; i < source.length; i++) sim.memory[addr + i] = source.charCodeAt(i) & 0xFF;
+    return sim;
+  };
+  const type = (sim, input) => {
+    for (const ch of input) sim.enqueueKeyCode(ch === '\n' ? 10 : ch.charCodeAt(0));
+    sim.running = true;
+    for (let i = 0; i < 4000000 && sim.running; i++) sim.step();
+    const rows = [];
+    for (let r = 0; r < 25; r++) {
+      let s = '';
+      for (let c = 0; c < 80; c++) s += String.fromCharCode(sim.memory[SCREEN_ADDR + r * 80 + c] & 0xFF);
+      rows.push(s.replace(/\s+$/, ''));
+    }
+    return rows;
+  };
+
+  // Three lines - print, define, use - and a single " ok" at the end.
+  let rows = type(boot('1 2 + .\n: sq dup * ;\n5 sq .\n'), `${addr} 28 included\n`);
+  assert.equal(rows[1], `> ${addr} 28 included 3  25  ok`);
+  assert.equal(rows[2], '>');
+
+  // Blank lines and comments are just short lines; CR and LF both end one.
+  assert.match(type(boot('1 2 + .\n\n\\ c\n7 8 + .\n'), `${addr} 21 included\n`)[1], /included 3  15  ok$/);
+  assert.match(type(boot('1 2 + .\r\n3 4 + .\r\n'), `${addr} 18 included\n`)[1], /included 3  7  ok$/);
+
+  // A line may call evaluate: inc_buf is separate, so the text is not lost.
+  assert.match(type(boot('s" 9 9 + ." evaluate\n1 2 + .\n'), `${addr} 29 included\n`)[1],
+    /included 18  3  ok$/);
+
+  // An undefined word ends the load and hands the keyboard back; the next line
+  // is read normally rather than resuming the buffer.
+  rows = type(boot('1 2 + .\nnosuchword\n3 4 + .\n'), `${addr} 27 included\n99 .\n`);
+  assert.match(rows[1], /included 3$/);
+  assert.equal(rows[2], 'undefined word: nosuchword');
+  assert.equal(rows[3], '> 99 . 99  ok');
+
+  // Too long a line, an `included` inside an `evaluate`, and an `included` while
+  // one is running all throw the standard's -22 (uncaught here).
+  assert.match(type(boot('1 2 + .\n' + 'x'.repeat(130) + '\n'), `${addr} 139 included\n`)[1], /uncaught exception$/);
+  assert.match(type(boot('1 2 + .\n'), `s" ${addr} 8 included" evaluate\n`)[1], /uncaught exception$/);
+  assert.match(type(boot(`${addr} 5 included\n`), `${addr} 17 included\n`)[1], /uncaught exception$/);
+});
