@@ -80,10 +80,10 @@ hex 255 .n                                \ FF  ok
 `hold` prepends, so `0 0 <# 66 hold 65 hold #> type` writes `AB`. The hold area
 is a fixed buffer whose cursor walks down from its end, so nothing has to be
 reversed; more than forty characters in one picture are dropped rather than
-written past the buffer. `#` divides with the 32-bit `DIV`, whose dividend is a
-signed pair while the standard's `ud` is unsigned: a double at `0x80000000` or
-above converts wrongly. Every way of making a double here keeps the high cell at
-zero, and that is the case these words are for.
+written past the buffer. `#` divides with the kernel's **exact unsigned** 32÷16
+(`udiv`), so the whole unsigned 32-bit range converts, in any base:
+`0xFFFF 0xFFFF <# #s #> type` is `4294967295`, and the quotient it keeps is a
+full double, not one cell.
 
 ## Double-cell numbers
 
@@ -119,16 +119,21 @@ zero and gives the remainder the dividend's sign, so `-7 2 sm/rem` is the
 quotient `-3` and the remainder `-1`; `fm/mod` floors, so the remainder takes the
 divisor's sign and the same pair is `-4` and `1`. Both are exact.
 
-Two limits come from the divider the machine has, which is the **signed** 32÷16
+One limit comes from the divider the machine has, which is the **signed** 32÷16
 one:
 
 - `m*` is not `um*`: the high half of a product does depend on the signs
   (`3 × -4` is `-12` while `3 × 0xFFFC` is `0x0002FFF4`), so `m*` corrects the
   unsigned result of `MUL32`.
-- `um/mod` is exact whenever the quotient fits in a cell *and* the divisor is
-  below `0x8000`: then the double's high half is below the divisor as well, so
-  both operands are non-negative and the signed division is the unsigned one. An
-  unsigned divisor of `32768` or more is read as negative and comes out signed.
+
+`um/mod` does **not** share that limit. The kernel's `udiv` divides unsigned
+32÷16 exactly: for a divisor below `0x8000` it is two signed `DIV32` steps (a
+zero high half keeps the first dividend positive, and its remainder stays below
+the divisor, so the second dividend is positive too), and for a divisor of
+`0x8000` or more, which the signed divider would read as negative, it divides a
+bit at a time. So `0 0x0001 0x8000 um/mod` is `2 0` where it used to be `-2 0`,
+and any divisor up to `0xFFFF` is exact. The quotient is still one cell, as the
+standard's `u3` is; a quotient that needs more is undefined.
 
 `d>s`, `dabs`, `dmax` and `dmin` are the short ones, and all four are decided by
 the high cell, which is where a double's sign lives. `dmax` and `dmin` share the

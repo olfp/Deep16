@@ -686,6 +686,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-15 | **`form` + Umbruch an der rechten Kante** — 180 Wörter. `form ( -- rows cols )` = `24 80` (sichtbare Zeilen; Zeile 24 ist die Scroll-Reserve) über den `doconst2`-Laufzeitkern; erste nichstandard-Erweiterung. `words` und `see` brechen jetzt **an der letzten Lücke vor dem Rand**: passt das nächste Token samt Trenn-Leerzeichen nicht, kommt vorher CR+LF, das Token beginnt ganz in der nächsten Zeile — kein Wort wird durchtrennt. Die Spalte kommt aus `SCR` (einzige Bildschirmabfrage der Ausgabe; UART-Port ändert nur diese Routine). **Drei Funde:** *(1)* `wrap_if` ruft `put_char` über `LINK` → `LR` parken (wie `print_zstring`/`hold_double`), sonst hängen `words`/`see`. *(2)* **`DIV` gibt nur den Quotienten** (Rest nur bei `DIV32` in `Rd+1`) → Spalte = `Offset − row*80` wie in `bios_putch_cr`. *(3)* `R9` als `LD`/`ST`-Basis geht über `ES` → Zellbasis `R10`; der R8/R9-Test fing es. Helfer (`wrap_if`, `number_width`) im 0x0500-Block, weil 0x2000 auf **40 freie Wörter** fiel. **3 neue Tests**, 515 im Repo. `FORTH.md`: `form`-Zeile + Absatz, Zahl 179 → **180**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-16 | **Umbruch ließ Cursor-Reste stehen** (vom Nutzer gesehen). Ein normales `putch` setzt das Cursor-Attribut auf die Zelle, auf die es vorrückt; **CR/LF bewegen nur `SCR`**, also blieb das Attribut am Ende jeder umbrochenen Zeile liegen und die neue Zeile bekam keins (10 Cursor-Zellen nach `words`, davon 9 Reste). `wrap_if` löscht die Zelle jetzt vor dem Umbruch — **inline mit `R4`**, nicht über `clear_cursor`, weil `see_puts` seinen Zeiger in `R1` über den Aufruf trägt und `clear_cursor` `R1` benutzt. Dieselbe Regel, die `ok_after` und `word_cr` schon befolgen. **1 neuer Test** (zählt die Cursor-Zellen: jetzt genau eine), 516 im Repo. | `asm/forth.asm`, `tests/forth.test.js` |
 | 2026-10-16 | **Opcode-Referenz geprüft; zwei echte Fehler im Buch behoben.** Die Spec (`doc/Deep16-Arch.md`) wurde gegen den Assembler nachgemessen: Schiebegruppe `110 10000`–`110 11011` (12/12), `MUL`/`MUL32`/`DIV`/`DIV32` (4/4) und System-/Flag-Gruppe (8/8) stimmen — die Meldung „drei Bereiche veraltet" war ein **Fehlalarm** (so bereits am 2026-10-11 im Log zurückgenommen). **Echt waren zwei Fehler in `book/anhang.md` Tabelle A-1:** `LSI Rd, imm` schreibt **`Rd`** direkt (der Simulator `writeGPR(rd, imm)`; die Zeile behauptete einen Umweg über `R0`), und die beiden `MVS`-Zeilen hatten das `d`-Bit vertauscht — `0` liest das Segmentregister in ein GPR (`MVS Rd, Sx`, `FF07`), `1` schreibt eines hinein (`MVS Sx, Rd`, `FF43`). Beide Zeilen sind korrigiert, eine `d`-Bit-Notiz ergänzt; die drei EPUBs neu gebaut. | `book/anhang.md`, `book/epub/*`, `STATUS.md` |
+| 2026-10-16 | **Exakte vorzeichenlose 32÷16-Division** (`udiv`) — 180 Wörter (keine neuen). `um/mod` war bis jetzt nur exakt, solange der Divisor < `0x8000` war (der signierte `DIV32` liest einen Divisor ≥ `0x8000` als negativ), und `#`/`#s` konnten nur ein Doppel unterhalb `Basis*65536` drucken, weil der Quotient in **eine** Zelle gelegt wurde. Neuer LINK-Helfer **`udiv`** (R0:R1 Dividend, R12 Divisor → R0:R1 Quotient, R4 Rest, clobbert R2/R3/R7/R9/R10/R11): für Divisor < `0x8000` **zwei signierte `DIV32`-Schritte** — Null im hohen Halbwort hält den ersten Dividenden positiv, sein Rest bleibt unter dem Divisor, also ist auch der zweite Dividend (Rest:Tief) positiv; für Divisor ≥ `0x8000` eine **bitweise restaurierende Division** (16 Schritte, Rest in 16 Bit; ist sein oberstes Bit gesetzt, liegt der verschobene Wert über `0xFFFF` und damit sicher über dem Divisor, also wird unbedingt subtrahiert, und der 0x10000-Übertrag hebt sich genau auf). `#` behält jetzt den **vollen 32-Bit-Quotienten** (32÷16 → 32-Bit-Quotient). `um/mod` gibt weiter eine Zelle aus, wie der Standard-`u3`; ein Quotient, der mehr braucht, ist undefiniert. **Zwei Funde:** *(1)* `TBC Rd, imm` setzt `Z`, wenn das Bit **gesetzt** ist — entgegen der Registerform (`Z` bei Null) und entgegen meiner Annahme; beide Bittestellen sprangen falsch. Jetzt über `SL`/Carry getestet (eindeutig). *(2)* `udiv` zerstört `R7`, und **`d.r` hält seine Feldbreite genau dort** — `hld_step` parkt `R7` jetzt in `hld_r7`. **Verifikation:** 250 Zufallsfälle Divisor ≥ `0x8000` (0 Abweichungen, BigInt-Referenz), 117 < `0x8000` (0), 200 dezimale + 200 hexadezimale Zufallsdoppel über den vollen 32-Bit-Bereich (0); **2 neue Tests**, 222 in `forth.test.js`, `d.r`-Polsterung wieder gepinnt. `FORTH.md`: die `um/mod`-Grenze und der `#`-Absatz richtiggestellt. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 
 ## Architektur-Revisionen im Repo-Root
 
@@ -744,12 +745,12 @@ also **unter `0x4000`** liegen — das erklärt die drei Code-Blöcke und die
 Datengrenze, und es ist der Grund, warum `RSTACK_TOP` in einer Zelle (`rp0_base`)
 steht, statt direkt geladen zu werden.
 
-| Bereich | Größe | Inhalt | Frei |
+| Bereich | Größe | Inhalt | Frei* |
 |---|---|---|---|
 | `0x0000–0x00FF` | 256 | Niedrigspeicher; `DS:0`/`DS:1` = BIOS-Funktion/Argument | — |
 | `0x0100–0x0500` | 1024 | **Code-Block 1**: `forth_start`, Tokenizer, `interpret_loop`, Fehler-Tail (`ok_after`, `line_done`, `interpret_done`) | **19** |
-| `0x0500–0x2000` | 6912 | **Code-Block 2**: `word_plus` ff., Tokenizer-Helfer, Zahlenausgabe, Schleifen, Doppelzellen, `evaluate`, Umbruch-Helfer; Puffer `print_buf`, `sq_buf` | **4538** |
-| `0x2000–0x3000` | 4096 | **Code-Block 3 / Threading**: `next`, die indirekt-gefädelte Maschine, viele Primitive, `see`, `words`, `hld_buf` | **40** |
+| `0x0500–0x2000` | 6912 | **Code-Block 2**: `word_plus` ff., Tokenizer-Helfer, Zahlenausgabe, Schleifen, Doppelzellen, `evaluate`, Umbruch- und Divisions-Helfer (`udiv`); Puffer `print_buf`, `sq_buf` | **4478** |
+| `0x2000–0x3000` | 4096 | **Code-Block 3 / Threading**: `next`, die indirekt-gefädelte Maschine, viele Primitive, `see`, `words`, `hld_buf` | **28** |
 | `0x3000–0x4000` | 4096 | **Daten + Wörterbuch**: `sp0_base`, `tib_kbd`, Header-Kette, Variablen, eval-Puffer; `dict_free` wächst nach oben | **1998** |
 | `0x4000–0x6F00` | — | frei | — |
 | `0x6F00` | | **Rückstapel-Oberkante** (wächst nach unten) | |
@@ -759,11 +760,13 @@ steht, statt direkt geladen zu werden.
 | `0xF1000–0xF17CF` | 2000 | **Bildschirm** 80×25 Wörter (24 sichtbar + Scroll-Reservezeile) | |
 | `0xF8000` | | **BIOS** (`CS=0xF800`) | |
 
+\* Stand 2026-10-16; die Zahl wandert mit jedem Schub.
+
 **Die Grenzen sind hart.** `.org` setzt den Adresszähler und **wickelt still
 zurück** — deshalb gibt es den Test „die .org-Abschnitte überlappen nicht".
 Bedingte Sprünge reichen nur ±256 Wörter; ein Unterprogramm muss seine lokalen
 Sprungmarken also im selben Block halten, während Aufrufe über Blockgrenzen mit
-`LDI <marke>` + `MOV PC, R0` gehen. Der `0x2000`-Block ist mit **40 Wörtern**
+`LDI <marke>` + `MOV PC, R0` gehen. Der `0x2000`-Block ist mit **28 Wörtern**
 fast voll, der `0x0100`-Block mit **19** ebenfalls knapp (**dessen** Tail ist der
 heiße Ausgang des Interpreters — der frühere Überlauf überschrieb
 `interpret_done` ohne einen einzigen Assemblerfehler). Das **Wörterbuch** endet
@@ -884,12 +887,16 @@ erreichbar, in sich geschlossen.
    **Cursor-Fix** dazu (der Umbruch löschte die Cursor-Zelle vorher nicht und
    ließ an jeder umbrochenen Zeile einen reversen Block stehen), und **STATUS
    aufgefrischt**.
-   **Als Nächstes:** die exakte **vorzeichenlose 32÷16-Division** (`um/mod`, `#`
-   für Divisoren ≥ `0x8000`), dann der **Ladepfad** (`include` über `evaluate`)
-   und schließlich der **Tier-3-Block**: die restlichen CORE/CORE-EXT-Wörter
+   **Als Nächstes:** der **Ladepfad** (`include` über `evaluate`) und dann der
+   **Tier-3-Block**: die restlichen CORE/CORE-EXT-Wörter
    (`WORD PARSE FIND >BODY >IN SOURCE SOURCE-ID REFILL SAVE-INPUT RESTORE-INPUT
    COMPILE, [COMPILE] POSTPONE :NONAME MARKER PAD UNUSED QUIT ENVIRONMENT? */
    */MOD CHAR+ CHARS .R U.R ALIGN ALIGNED >NUMBER .( C"`).
+   *Erledigt (2026-10-16):* die **exakte vorzeichenlose 32÷16-Division**
+   (`udiv`): `um/mod` ist jetzt für **jeden** Divisor exakt, auch für einen
+   ≥ `0x8000`, und `#`/`#s` drucken den vollen 32-Bit-Bereich. Dazu STATUS
+   aufgefrischt und die Opcode-Referenz geprüft (die Spec stimmt mit dem
+   Assembler; zwei echte Fehler im Buch behoben).
    **Erledigt statt vormerkt:** `<`, `>` und mit ihnen `min`/`max` sind bei
    Überlauf **nicht mehr** falsch — sie lesen N und V zusammen (`N xor V`), und
    `+loop` tut dasselbe. Der Fehler war kein fehlendes Wort, sondern ein Fehler,

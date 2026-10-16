@@ -5589,6 +5589,102 @@ nw_done:
     JMP LR
     NOP
 
+; udiv: exact UNSIGNED 32÷16. In: R0 = dividend high, R1 = dividend low,
+; R12 = divisor (non-zero). Out: R0 = quotient high, R1 = quotient low,
+; R4 = remainder. It clobbers R2, R3, R7, R9, R10, R11; every other register the
+; callers carry is left alone. Nothing is called, so LR is safe too.
+;
+; The machine's divider is SIGNED, so it is used only where its operands are
+; non-negative. Two cases:
+;
+;  * Divisor below 0x8000: the answer is two signed DIV32 steps. A zero high
+;    half keeps the first dividend positive, and its remainder is below the
+;    divisor, so the second dividend's high half is positive too. Both quotients
+;    and the final remainder are then the unsigned answer, q = qH*65536 + qL.
+;    That covers every real base and gives `#` its full 32-bit quotient.
+;
+;  * Divisor 0x8000 or more: the divider would read it as negative, so the
+;    division is done a bit at a time (restoring, sixteen steps). The remainder
+;    is a 16-bit cell; when its top bit is set the shifted value is above
+;    0xFFFF and therefore certainly above the divisor, so the subtraction is
+;    unconditional and the 0x10000 the shift produced cancels the borrow.
+udiv:
+    MOV R9, R12
+    SL R9, 1                ; C = bit 15 of the divisor
+    JC udiv_slow            ; set: 0x8000 or more, the signed divider would
+    NOP                     ; read it as negative
+    MOV R7, R1              ; hold the low half across the first divide
+    MOV R1, R0
+    LDI 0                   ; (0 : high) / divisor - a positive 32-bit dividend
+    DIV32 R0, R12           ; R0 = quotient high, R1 = remainder
+    MOV R3, R0
+    MOV R0, R1
+    MOV R1, R7
+    DIV32 R0, R12           ; (remainder : low) / divisor
+    MOV R4, R1              ; the remainder
+    MOV R1, R0              ; the quotient low
+    MOV R0, R3              ; the quotient high
+    JMP LR
+    NOP
+
+udiv_slow:
+    MOV R7, R0              ; remainder = dividend high
+    LDI 0
+    MOV R11, R0             ; quotient high = 0
+    MOV R3, R1              ; the low half, to be shifted out bit by bit
+    CMP R7, R12
+    JC udiv_slow_init       ; carry = borrow: remainder < divisor, no subtract
+    NOP
+    SUB R7, R12
+    LDI 1
+    MOV R11, R0             ; one whole divisor went in
+udiv_slow_init:
+    LDI 0
+    MOV R10, R0             ; quotient low = 0
+    LDI 16
+    MOV R9, R0              ; sixteen dividend bits to shift in
+udiv_loop:
+    MOV R2, R3
+    SR R2, 15               ; the next dividend bit
+    SL R3, 1
+    MOV R0, R7
+    SL R0, 1                ; C = the remainder's top bit
+    JC udiv_ovf
+    NOP
+    SL R7, 1
+    OR R7, R2
+    CMP R7, R12
+    JC udiv_nosub           ; carry = borrow: still below the divisor
+    NOP
+    SUB R7, R12
+    SL R10, 1
+    ADD R10, 1
+    LDI udiv_next
+    MOV PC, R0
+    NOP
+udiv_nosub:
+    SL R10, 1
+    LDI udiv_next
+    MOV PC, R0
+    NOP
+udiv_ovf:
+    SL R7, 1
+    OR R7, R2
+    SUB R7, R12
+    SL R10, 1
+    ADD R10, 1
+udiv_next:
+    SUB R9, 1
+    LDI 0
+    CMP R9, R0
+    JNZ udiv_loop
+    NOP
+    MOV R4, R7              ; the remainder
+    MOV R1, R10             ; the quotient low
+    MOV R0, R11             ; the quotient high
+    JMP LR
+    NOP
+
 ; =============================================
 ; P2: Indirect-threaded code engine
 ; =============================================
@@ -9229,25 +9325,34 @@ hld_put_done:
 
 ; hld_step: one digit of the picture - the body of `#`, shared with `#s`. It
 ; reads the double at [SP] (high) and [SP+1] (low), divides it by the current
-; base with the 32-bit DIV and holds the remainder's digit. LR is parked while
-; it LINK-calls hld_put, because LINK overwrites it.
+; base with the exact unsigned udiv (so the whole 32-bit range prints, in any
+; base) and holds the remainder's digit. LR is parked while it LINK-calls
+; hld_put, because LINK overwrites it.
 hld_step:
     LDI hld_lr
     MOV R3, R0
     ST LR, R3, 0
+    LDI hld_r7
+    MOV R2, R0
+    ST R7, R2, 0            ; udiv clobbers R7; `d.r` keeps its field width there
     ; The base has to be in R12 before the dividend is read into R0:R1: LDI
     ; writes R0, and the high half of the dividend lives there.
     LDI base_var
     MOV R12, R0
     LD R12, R12, 0          ; the base
+    LDI udiv
+    MOV R2, R0
     LD R0, SP, 0            ; the high half of the dividend
     LD R1, SP, 1            ; the low half
-    DIV32 R0, R12           ; R0 = quotient, R1 = remainder
-    MOV R4, R1              ; the digit, before R1 is reused
-    MOV R3, R0              ; the quotient
-    LDI 0
-    ST R0, SP, 0            ; the new double is ( 0, quotient )
-    ST R3, SP, 1
+    LINK
+    JMP R2
+    NOP
+    ; udiv answers the exact UNSIGNED 32÷16: R0 = quotient high, R1 = quotient
+    ; low, R4 = remainder - which is the digit. The new double is the whole
+    ; 32-bit quotient, so `#` prints a full unsigned double, not only one below
+    ; base*65536.
+    ST R0, SP, 0
+    ST R1, SP, 1
     LDI 10
     CMP R4, R0
     JN hld_step_dec
@@ -9266,6 +9371,9 @@ hld_step_hold:
     LINK
     JMP R2
     NOP
+    LDI hld_r7
+    MOV R2, R0
+    LD R7, R2, 0
     LDI hld_lr
     MOV R3, R0
     LD LR, R3, 0
@@ -9278,7 +9386,9 @@ hld_step_hold:
 hld_ptr:
     .word 0
 hld_lr:
-    .word 0
+    .word 0              ; hld_step's return address across its hld_put call
+hld_r7:
+    .word 0              ; and the caller's R7, which udiv clobbers
 hld_buf:
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -9780,19 +9890,22 @@ word_ummod:                 ; um/mod ( ud u1 -- u2 u3 )  unsigned division
     MOV PC, R0
     NOP
 wum_ok:
-    ; The divider is the signed one, and for a ud it is still the right answer:
-    ; a quotient that fits in a cell means the double's high half is below the
-    ; divisor, so with a divisor below 0x8000 both operands are non-negative and
-    ; the signed division IS the unsigned one. A divisor with bit 15 set - an
-    ; UNSIGNED divisor of 32768 or more - is read as negative and comes out
-    ; signed; that is the one case this word does not cover.
+    ; Exact unsigned 32÷16 through udiv: two signed DIV32 steps for a divisor
+    ; below 0x8000, a bit-at-a-time restoring division above it, so a divisor of
+    ; 32768 or more is no longer read as negative. The quotient is one cell, as
+    ; the standard's u3 is; a quotient that needs more is undefined and its low
+    ; cell is what comes out, exactly as before.
+    LDI udiv
+    MOV R2, R0
     LD R0, SP, 1            ; ud.hi
     LD R1, SP, 2            ; ud.lo
     LD R12, SP, 0           ; u1
-    DIV32 R0, R12
+    LINK
+    JMP R2
+    NOP
     ADD SP, 1
-    ST R1, SP, 1
-    ST R0, SP, 0
+    ST R4, SP, 1            ; u2, the remainder
+    ST R1, SP, 0            ; u3, the quotient
     LDI next
     MOV PC, R0
     NOP

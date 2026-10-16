@@ -3071,10 +3071,9 @@ test('pick copies the u-th cell and roll moves it to the top', () => {
 //     ones dropped, rather than the cursor writing through whatever data
 //     follows - the same trade the printer makes for a base below two.
 //
-//   * `#` divides with the 32-bit DIV, whose dividend is a SIGNED pair, while
-//     the standard's ud is unsigned: a double at 0x80000000 or above converts
-//     wrongly. Every way of making a double here - `dup abs 0`, or `s>d` built
-//     by hand - keeps the high cell at 0, and that is the case shown below.
+//   * `#` divides with the exact unsigned udiv, so a double at 0x80000000 or
+//     above converts correctly, in any base - the quotient is a full 32-bit
+//     double now, not a single cell.
 
 test('the pictured number words build a string for type', () => {
   assert.equal(hexOut('123 0 <# #s #> type'), '123');
@@ -3086,6 +3085,13 @@ test('the pictured number words build a string for type', () => {
   assert.equal(hexOut('2 base ! 101 0 <# #s #> type decimal'), '101');
   // A double wider than a cell: 5*65536 + 0x1234.
   assert.equal(hexOut('0x1234 5 <# #s #> type'), '332340');
+  // The whole unsigned 32-bit range, which the old single-cell quotient could
+  // not hold: the quotient has to be a double here.
+  assert.equal(hexOut('0xFFFF 0xFFFF <# #s #> type'), '4294967295');
+  assert.equal(hexOut('0 0x8000 <# #s #> type'), '2147483648');
+  assert.equal(hexOut('0x4240 0x000F <# #s #> type'), '1000000');   // 1e6
+  assert.equal(hexOut('hex 0xFFFF 0xFFFF <# #s #> type decimal'), 'FFFFFFFF');
+  assert.equal(hexOut('hex 0 0x8000 <# #s #> type decimal'), '80000000');
   // hold prepends, so the characters come out in the order they were held.
   assert.equal(hexOut('0 0 <# 66 hold 65 hold #> type'), 'AB');
   // One # is one digit, and #> answers ( c-addr u ), ready for type.
@@ -3208,9 +3214,26 @@ test('the dividing words agree with each other and with the signs', () => {
   assert.equal(hexOut('100 0 7 um/mod . .'), '14  2');
   assert.equal(hexOut('0 0x0001 2 um/mod u. .'), '32768  0');
   assert.equal(hexOut('0xFFFF 0 3 um/mod . .'), '21845  0');
-  // The one case the kernel's single signed divider cannot answer: an unsigned
-  // divisor with bit 15 set is read as negative, and 65536/32768 signed is -2.
-  assert.equal(hexOut('0 0x0001 0x8000 um/mod . .'), '-2  0');
+  // An unsigned divisor with bit 15 set used to be read as negative (65536/32768
+  // came out -2); udiv divides it exactly. The full set is in its own test.
+  assert.equal(hexOut('0 0x0001 0x8000 um/mod . .'), '2  0');
+});
+
+test('um/mod is exact for an unsigned divisor of 0x8000 or more', () => {
+  // The divider is signed, so a divisor with bit 15 set would be read as
+  // negative; udiv divides a bit at a time instead. A quotient that needs more
+  // than one cell is undefined, so every case here keeps it in a cell.
+  assert.equal(hexOut('0xFFFF 0 0x8000 um/mod . .'), '1  32767');  // 65535 / 32768
+  assert.equal(hexOut('0xC000 0 0x8000 um/mod . .'), '1  16384');  // 49152 / 32768
+  assert.equal(hexOut('0x0000 0x7FFF 0x8000 um/mod u. .'), '65534  0');
+  assert.equal(hexOut('0 0x0001 0xFFFF um/mod . .'), '1  1');       // 65536 / 65535
+  assert.equal(hexOut('0x0000 0x0004 0xFFFF um/mod . .'), '4  4');  // 262144 / 65535
+  assert.equal(hexOut('0xFFFF 0 0xFFFF um/mod . .'), '1  0');
+  assert.equal(hexOut('0xFFFE 0 0xFFFF um/mod . u.'), '0  65534');   // a full-cell remainder
+  assert.equal(hexOut('0 0x0000 0xFFFF um/mod . .'), '0  0');
+  // Ordinary divisors take the fast path and are unchanged.
+  assert.equal(hexOut('100 0 7 um/mod . .'), '14  2');
+  assert.equal(hexOut('0 0x0001 3 um/mod . .'), '21845  1');
 });
 
 test('the multiplying and dividing words check their depth', () => {
