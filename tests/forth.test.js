@@ -3708,3 +3708,25 @@ test('see breaks long definitions at spaces too', () => {
   assert.equal(rows[3], 'drop ; ok');
   assert.ok(rows[2].length < 80 && rows[3].length < 80);
 });
+
+test('a wrapped line leaves no stray cursor block', () => {
+  // A regular putch sets the cursor attribute on the cell it advanced to, but CR
+  // and LF only move SCR. A break that does not drop the block first strands a
+  // reversed cell at the end of every wrapped line - visible on the screen, and
+  // invisible to the row text. The break clears it, exactly as ok_after does.
+  const a = 'a'.repeat(40), b = 'b'.repeat(40);
+  const { rows, cursors } = repl(
+    'vocabulary wwrap\n' +
+    'wwrap definitions\n' +
+    `: ${a} 1 ;\n` +
+    `: ${b} 2 ;\n` +
+    'words\n'
+  );
+  assert.equal(rows[5], '> words ' + b);          // this line ends at the break
+  assert.deepEqual(cursors[5], [], 'no cursor block at the end of a wrapped line');
+  assert.equal(cursors.slice(0, SCREEN_VISIBLE_ROWS).flat().length, 1,
+    'the wrapped listing must leave exactly one cursor');
+  // The long default listing wraps many times and still ends with one.
+  const many = repl('words\n');
+  assert.equal(many.cursors.slice(0, SCREEN_VISIBLE_ROWS).flat().length, 1);
+});

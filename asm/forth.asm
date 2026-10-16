@@ -5522,6 +5522,15 @@ wrap_if:
     NOP
     JZ wif_done
     NOP
+    ; Drop the cursor block before the break walks away from it. A regular putch
+    ; sets the cursor attribute on the cell it advanced to; CR and LF only move
+    ; SCR, so without this every wrapped line keeps a reversed block at its end
+    ; (the same reason ok_after and word_cr clear it first). R4, not R1: see_puts
+    ; carries the string pointer in R1 across this call.
+    LDS R4, ES, SCR
+    LDI ATTR_MASK
+    AND R4, R0
+    STS R4, ES, SCR
     LDI put_char
     MOV R4, R0
     LDI 13                  ; CR: column 0
