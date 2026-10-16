@@ -35,6 +35,7 @@ Both the scanner and the printer read `base`, which is a variable.
 | `base` | `( -- addr )` | the cell holding the current base: 10 at boot |
 | `hex` | `( -- )` | read and print in base 16 (`16 base !`) |
 | `decimal` | `( -- )` | read and print in base 10 (`10 base !`) |
+| `>number` | `( ud1 c-addr1 u1 -- ud2 c-addr2 u2 )` | convert the leading digits into `ud1`, in the current base |
 
 In base sixteen `ff`, `FF` and `Ff` are all 255, and `0x10` and `$10` stay hex
 in every base. A token is a number only if every character is a digit of the
@@ -51,6 +52,14 @@ onwards, but the scanner stops at `F`, so such a digit cannot be typed back in.
 A base below two is undefined — the standard allows two to thirty-six — and is
 only a cell here, so it can be stored; the printer then stops after sixteen
 digits instead of dividing by zero or by one for ever.
+
+`>number` is the scanner's own step, exposed: it folds the leading digits of a
+string into the double it is given (multiply by the base, add the digit) and
+answers the rest of the string, so it stops at the first character that is not a
+digit of the current base. `0 0 s" 123" >number` leaves `123`, and
+`hex 0 0 s" ff" >number` leaves `255`. It takes the same digit vocabulary the
+scanner does — `0`-`9` and `A`-`F`/`a`-`f` — so a base above sixteen cannot be
+typed in even though the printer can write it.
 
 ## Pictured numbers
 
@@ -302,6 +311,7 @@ variable x 2 allot  7 9 x 2!  x 2@ . .    \ 9 7  ok
 | `chars` | `( n -- n )` | characters to address units (the identity) |
 | `type` | `( c-addr u -- )` | write `u` characters from `c-addr` |
 | `s"` | `( "ccc" -- c-addr u )` | the text between the quotes, as a string |
+| `c"` **imm** | `( "ccc" -- )` | compile an inline string; at run time it pushes its address |
 | `/string` | `( c-addr1 u1 n -- c-addr2 u2 )` | the string from character `n` on |
 | `blank` | `( c-addr u -- )` | fill `u` characters with blanks |
 | `-trailing` | `( c-addr u1 -- c-addr u2 )` | drop the blanks at the end |
@@ -322,6 +332,13 @@ here 72 c, 73 c, 0 c,  count type    \ HI  ok
 wants, and not the standard `c-addr+1`: there are no counted strings here for
 that reading to mean anything. `type` masks each cell to its low 8 bits, so a
 NUL character writes nothing rather than stopping.
+
+`word`, `find` and `c"` follow the same convention rather than the standard's
+counted *byte*. `bl word` parses the next token into a NUL-terminated buffer and
+answers its address, so `bl word count type` echoes what was typed; `find` looks
+up exactly what `word` produced, and `c"` compiles an inline NUL-terminated
+string. A counted string with the length in the first cell would be a second
+representation with nothing to build it, so these three keep the kernel's.
 
 A character is one cell, so `cmove` is `move` and `blank` is `fill` with a space —
 the two only differ where a cell holds two characters. `cmove>` is the one that
@@ -579,6 +596,8 @@ screen.
 | `u.r` | `( u width -- )` | the same, unsigned |
 | `.(` **imm** | `( "ccc)" -- )` | write the text up to the next `)` |
 | `source-id` | `( -- -1 )` | the input source: `-1`, the keyboard |
+| `word` | `( char -- c-addr )` | parse the next token, delimited by `char`, into a buffer |
+| `parse` | `( char -- c-addr u )` | the input up to the next `char`, as a slice of the line |
 
 `accept` is the REPL's own reader, not the standard `( addr n -- n2 )`: it
 fills the input buffer and re-enters the interpreter, so it takes nothing and
@@ -606,6 +625,7 @@ the middle of a word.
 | `previous` | `( -- )` | drop the first search-order entry |
 | `only` | `( -- )` | search order is FORTH alone |
 | `forth` | `( -- )` | make the FORTH wordlist the first searched |
+| `find` | `( c-addr -- c-addr 0 \| xt 1 \| xt -1 )` | look a name up in the search order |
 | `unused` | `( -- u )` | dictionary cells left before `0x4000` |
 
 ```text
@@ -626,5 +646,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 193 words. New words are added at the head of the
+That is the whole dictionary: 198 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

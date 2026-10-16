@@ -2290,7 +2290,7 @@ h_starslash:
     .word h_nip + 6       ; */ drops the remainder
     .word xt_exit
 h_starslashmod:
-    .word h_see
+    .word h_tonumber
     .word 5
     .text "*/MOD"
     .word docol
@@ -2299,6 +2299,34 @@ h_starslashmod:
     .word h_rfrom + 5
     .word h_smrem + 9
     .word xt_exit
+; Tier 3, second batch. The strings are this kernel's (one cell per character,
+; NUL-terminated), so FIND looks for `bl word`'s answer and `c" abc" count type`
+; prints `abc`. C" is compile-only: it throws -14 when the state is interpreting.
+h_tonumber:
+    .word h_find
+    .word 7
+    .text ">number"
+    .word word_tonumber
+h_find:
+    .word h_word
+    .word 4
+    .text "find"
+    .word word_find
+h_word:
+    .word h_parse
+    .word 4
+    .text "word"
+    .word word_word
+h_parse:
+    .word h_cquote
+    .word 5
+    .text "parse"
+    .word word_parse
+h_cquote:
+    .word h_see
+    .word 0x8002          ; IMMEDIATE | length 2
+    .text "c\""
+    .word word_cquote
 
 ; SEE is a dictionary word, so it needs a header like any other. It sits between
 ; h_cls and h_do rather than at the head of the chain, which keeps forth_wl
@@ -2712,6 +2740,11 @@ pad_buf:
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+word_buf:
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 xt_lit:
     .word lit
 xt_exit:
@@ -2724,6 +2757,8 @@ xt_litstr:
     .word word_litstr
 xt_sqstr:
     .word word_sqstr
+xt_cqstr:
+    .word word_cqstr
 xt_abortq:
     .word word_abortq_rt
 xt_do:
@@ -7042,6 +7077,413 @@ wdp_done:
     SUB R2, TIB
     MOV >IN, R2             ; leave >IN after the parsed text
     LDI next
+    MOV PC, R0
+    NOP
+
+
+; =============================================
+; Tier 3, second batch: parsing and conversion
+; =============================================
+; `>NUMBER`, `FIND`, `WORD`, `PARSE` and `C"`. The strings follow this kernel's
+; convention rather than the standard's counted byte: a string is one character
+; per cell, terminated by a zero cell - what `count`, `type`, `s"` and `."`
+; already use. So `bl word count type` echoes the token and `c" abc" count type`
+; prints `abc`; a counted *byte* is not something this machine has anywhere.
+
+word_tonumber:              ; >number ( ud1 c-addr1 u1 -- ud2 c-addr2 u2 )
+    MOV R9, SP
+    ADD R9, 4
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ tn_ok
+    NOP
+    JN tn_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+tn_ok:
+    LD R11, SP, 0           ; u1
+    LD R7, SP, 1            ; c-addr1
+    LD R3, SP, 2            ; ud1.lo
+    LD R2, SP, 3            ; ud1.hi
+    LDI base_var
+    MOV R12, R0
+    LD R12, R12, 0          ; the base in force
+tn_loop:
+    LDI 0
+    CMP R11, R0
+    JZ tn_done              ; nothing left to convert
+    NOP
+    LD R4, R7, 0            ; the character
+    LDI base_digit          ; R10 = value, R9 = is-a-hex-digit (R4 is the input)
+    MOV R1, R0
+    LINK
+    JMP R1
+    NOP
+    LDI 0
+    CMP R9, R0
+    JZ tn_done              ; not a digit at all
+    NOP
+    CMP R10, R12
+    JC tn_digit             ; carry = borrow: the digit is below the base
+    NOP
+    LDI tn_done
+    MOV PC, R0
+    NOP
+tn_digit:
+    ; ud = ud*base + digit, in the low 32 bits
+    MOV R1, R2              ; keep ud.hi
+    MOV R2, R3              ; the low half
+    MUL32 R2, R12           ; R2:R3 = low*base
+    MOV R0, R1
+    MUL32 R0, R12           ; R0:R1 = high*base
+    ADD R3, R10             ; the product's low half, plus the digit
+    JNC tn_nocarry
+    NOP
+    ADD R2, 1               ; carry into the middle
+tn_nocarry:
+    ADD R1, R2              ; the new high half
+    MOV R2, R1
+    ADD R7, 1
+    SUB R11, 1
+    LDI tn_loop
+    MOV PC, R0
+    NOP
+tn_done:
+    ST R3, SP, 2
+    ST R2, SP, 3
+    ST R7, SP, 1
+    ST R11, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_find:                  ; find ( c-addr -- c-addr 0 | xt 1 | xt -1 )
+    MOV R9, SP
+    ADD R9, 1
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wf_ok
+    NOP
+    JN wf_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wf_ok:
+    LD R7, SP, 0            ; the name, kept for the not-found answer
+    LDI 0
+    MOV R11, R0
+    MOV R3, R7
+wf_measure:
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ wf_measured
+    NOP
+    ADD R3, 1
+    ADD R11, 1
+    LDI wf_measure
+    MOV PC, R0
+    NOP
+wf_measured:
+    LDI 0
+    MOV R12, R0             ; search-order index
+wf_wl:
+    LDI search_order
+    MOV R2, R0
+    ADD R2, R12
+    LD R2, R2, 0
+    LDI 0
+    CMP R2, R0
+    JZ wf_none
+    NOP
+    LD R10, R2, 0           ; newest header of this wordlist
+wf_hdr:
+    LDI 0
+    CMP R10, R0
+    JZ wf_next_wl
+    NOP
+    LD R2, R10, 1
+    LDI 0x00FF
+    AND R2, R0              ; the header's name length
+    CMP R2, R11
+    JNZ wf_next
+    NOP
+    MOV R3, R7
+    MOV R1, R10
+    ADD R1, 2               ; the header's name
+    MOV R9, R11
+wf_cmp:
+    LDI 0
+    CMP R9, R0
+    JZ wf_match
+    NOP
+    LD R2, R3, 0
+    LD R4, R1, 0
+    CMP R2, R4
+    JNZ wf_next
+    NOP
+    ADD R3, 1
+    ADD R1, 1
+    SUB R9, 1
+    LDI wf_cmp
+    MOV PC, R0
+    NOP
+wf_match:
+    MOV R1, R10
+    ADD R1, 3
+    ADD R1, R11             ; the xt: header + 3 + the name length
+    LD R2, R10, 1
+    LDI 1
+    SL R0, 15               ; 0x8000, the IMMEDIATE bit
+    AND R2, R0
+    LDI -1
+    MOV R4, R0              ; -1: not immediate
+    LDI 0
+    CMP R2, R0
+    JZ wf_push
+    NOP
+    LDI 1
+    MOV R4, R0              ; 1: immediate
+wf_push:
+    SUB SP, 2
+    ST R7, SP, 2
+    ST R1, SP, 1
+    ST R4, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wf_next:
+    LD R10, R10, 0
+    LDI wf_hdr
+    MOV PC, R0
+    NOP
+wf_next_wl:
+    ADD R12, 1
+    LDI wf_wl
+    MOV PC, R0
+    NOP
+wf_none:
+    SUB SP, 1
+    ST R7, SP, 1
+    LDI 0
+    ST R0, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_parse:                 ; parse ( char -- c-addr u )
+    MOV R9, SP
+    ADD R9, 1
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wpa_ok
+    NOP
+    JN wpa_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wpa_ok:
+    LD R2, SP, 0            ; the delimiter
+    MOV R1, TIB
+    ADD R1, >IN
+    MOV R7, R1              ; where the text starts
+    MOV R3, R1              ; the scanner
+wpa_scan:
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ wpa_eol
+    NOP
+    CMP R4, R2
+    JZ wpa_found
+    NOP
+    ADD R3, 1
+    LDI wpa_scan
+    MOV PC, R0
+    NOP
+wpa_found:
+    MOV R1, R3
+    SUB R1, R7              ; u
+    ADD R3, 1               ; step past the delimiter, for >IN
+    LDI wpa_store
+    MOV PC, R0
+    NOP
+wpa_eol:
+    MOV R1, R3
+    SUB R1, R7
+wpa_store:
+    MOV R2, R3
+    SUB R2, TIB
+    MOV >IN, R2
+    ST R7, SP, 0            ; c-addr over the delimiter
+    SUB SP, 1
+    ST R1, SP, 0            ; u on top
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_word:                  ; word ( char -- c-addr )  text to the delimiter
+    MOV R9, SP
+    ADD R9, 1
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ ww_ok
+    NOP
+    JN ww_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+ww_ok:
+    LD R2, SP, 0            ; the delimiter
+    LDI word_buf
+    MOV R11, R0             ; the destination
+    MOV R1, TIB
+    ADD R1, >IN
+ww_skip:
+    LD R4, R1, 0
+    LDI 0
+    CMP R4, R0
+    JZ ww_empty             ; the line ended: an empty token
+    NOP
+    CMP R4, R2
+    JNZ ww_copy_setup
+    NOP
+    ADD R1, 1               ; a leading delimiter: skip it
+    LDI ww_skip
+    MOV PC, R0
+    NOP
+ww_copy_setup:
+    LDI 0
+    MOV R9, R0              ; characters copied
+ww_copy:
+    LD R4, R1, 0
+    LDI 0
+    CMP R4, R0
+    JZ ww_done
+    NOP
+    CMP R4, R2
+    JZ ww_done
+    NOP
+    LDI 63                  ; word_buf holds 63 characters and a NUL
+    CMP R9, R0
+    JZ ww_skip_store        ; full: keep advancing, do not copy
+    NOP
+    ST R4, R11, 0
+    ADD R11, 1
+    ADD R9, 1
+ww_skip_store:
+    ADD R1, 1
+    LDI ww_copy
+    MOV PC, R0
+    NOP
+ww_done:
+    LDI 0
+    ST R0, R11, 0           ; NUL-terminate
+    LD R4, R1, 0
+    LDI 0
+    CMP R4, R0
+    JZ ww_noeol
+    NOP
+    ADD R1, 1               ; step past the delimiter
+ww_noeol:
+    MOV R2, R1
+    SUB R2, TIB
+    MOV >IN, R2
+    LDI word_buf
+    ST R0, SP, 0            ; the answer replaces the delimiter
+    LDI next
+    MOV PC, R0
+    NOP
+ww_empty:
+    LDI 0
+    ST R0, R11, 0
+    LDI word_buf
+    ST R0, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_cqstr:                 ; the C" runtime: skip the inline string
+    LDI ip_ptr
+    MOV R2, R0
+    LD R7, R2, 0            ; IP = the first character
+cw_scan:
+    LD R3, R7, 0
+    LDI 0
+    CMP R3, R0
+    JZ cw_done
+    NOP
+    ADD R7, 1
+    LDI cw_scan
+    MOV PC, R0
+    NOP
+cw_done:
+    MOV R4, R7
+    ADD R4, 1
+    ST R4, R2, 0            ; IP past the NUL; the LIT cell left the address
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_cquote:                ; c" "ccc" IMMEDIATE compile-only: an inline string
+    LDI state_var
+    MOV R2, R0
+    LD R1, R2, 0
+    LDI 0
+    CMP R1, R0
+    JNZ cq_compile
+    NOP
+    LDI -14                 ; -14: interpreting a compile-only word
+    MOV R1, R0
+    LDI throw_code
+    MOV PC, R0
+    NOP
+cq_compile:
+    MOV R1, TIB
+    ADD R1, >IN
+    LD R2, R1, 0
+    LDI ' '                 ; drop one blank, as `s"` does
+    CMP R2, R0
+    JNZ cq_no_blank
+    NOP
+    ADD >IN, 1
+cq_no_blank:
+    LDI dp_var
+    MOV R2, R0
+    LD R11, R2, 0           ; HERE: LIT, the address, the marker, then the text
+    LDI xt_lit
+    MOV R4, R0
+    ST R4, R11, 0
+    ADD R11, 1
+    ADD R11, 1
+    ADD R11, 1
+    MOV R9, R11
+    ST R9, R11, -2          ; the address the LIT will push
+    LDI xt_cqstr
+    MOV R4, R0
+    ST R4, R11, -1          ; the marker, which is the runtime word
+    LDI copy_string
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI dp_var
+    MOV R2, R0
+    ST R11, R2, 0           ; publish HERE
+    LDI interpret_loop
     MOV PC, R0
     NOP
 

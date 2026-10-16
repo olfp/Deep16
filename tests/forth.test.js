@@ -3879,3 +3879,63 @@ test('.( prints up to the closing paren, at compile time too', () => {
   // An unterminated .( stops at the end of the line instead of eating the rest.
   assert.equal(repl('.( no close\n').rows[1], '> .( no close no close ok');
 });
+
+// ---------------------------------------------------------------------------
+// Tier 3, second batch: parsing and conversion.
+//
+// Strings here follow the kernel's convention, not the standard's counted byte:
+// one character per cell, terminated by a zero cell - what count, type, s" and
+// ." already use. So `bl word count type` echoes the token, and FIND looks for
+// exactly what WORD produced. `parse` is different again: its answer is a slice
+// of the input line, not copied or terminated, so `type` is what uses it.
+
+test('>number converts a string into a double', () => {
+  assert.equal(hexOut('0 0 s" 123" >number drop drop . .'), '123  0');
+  // It stops at the first character that is not a digit of the base in force and
+  // answers the rest of the string (u2).
+  assert.equal(hexOut('0 0 s" 12x" >number drop drop . .'), '12  0');
+  assert.equal(hexOut('0 0 s" 12x" >number .'), '1');
+  assert.equal(hexOut('0 0 s" abc" >number .'), '3');
+  // The base decides which characters are digits.
+  assert.equal(hexOut('hex 0 0 s" ff" >number drop drop . . decimal'), 'FF  0');
+  assert.equal(hexOut('2 base ! 0 0 s" 1011" >number decimal drop drop . .'), '11  0');
+  // It folds into the double it was given: (0x10000)*16 + 0x23.
+  assert.equal(hexOut('hex 1 0 s" 23" >number drop drop . . decimal'), '23  100');
+  // It wants the double and the string.
+  assert.match(hexrepl('>number').join('\n'), /stack underflow/);
+  assert.match(hexrepl('0 0 >number').join('\n'), /stack underflow/);
+});
+
+test('word parses a token into a NUL-terminated buffer', () => {
+  assert.equal(hexOut('bl word hello count type'), 'hello');
+  // It parses at run time, from whatever the line holds.
+  assert.equal(hexOut(': t bl word count type ; t world'), 'world');
+  // count answers ( c-addr u ) for the copy.
+  assert.equal(hexOut('bl word abc count nip .'), '3');
+  assert.match(hexrepl('word').join('\n'), /stack underflow/);
+});
+
+test('parse answers a slice of the input line, up to a delimiter', () => {
+  // The delimiter is not part of the slice; the leading blank after `parse` is,
+  // which is why the row shows it. No copy, no terminator - type is the word.
+  assert.equal(repl('char , parse abc, type\n').rows[1], '> char , parse abc, type abc ok');
+  assert.match(hexrepl('parse').join('\n'), /stack underflow/);
+});
+
+test('find looks a name up in the search order', () => {
+  // ( c-addr -- c-addr 0 | xt 1 | xt -1 ): 1 immediate, -1 not, 0 not found.
+  assert.equal(hexOut('bl word dup find swap drop .'), '-1');
+  assert.equal(hexOut('bl word if find swap drop .'), '1');
+  assert.equal(hexOut('bl word zzzzz find swap drop .'), '0');
+  // The xt is the one ' answers.
+  assert.equal(hexOut("bl word dup find drop nip ' dup = ."), '-1');
+  assert.match(hexrepl('find').join('\n'), /stack underflow/);
+});
+
+test('c" compiles an inline string and is compile-only', () => {
+  assert.equal(hexOut(': t c" hi" ; t count type'), 'hi');
+  // The address is the characters themselves.
+  assert.equal(hexOut(': t c" hi" ; t @ .'), '104');
+  // Interpreting it is the standard's -14 (uncaught here).
+  assert.match(repl('c" x"\n').rows[1], /uncaught exception$/);
+});
