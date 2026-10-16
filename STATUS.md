@@ -1,6 +1,6 @@
 # STATUS.md — Fortschritt des Deep16-Buchs
 
-> Ständig gepflegter Arbeitsstand. Letzte Änderung: 2026-10-15.
+> Ständig gepflegter Arbeitsstand. Letzte Änderung: 2026-10-16.
 > Workflow-Regeln: [STYLE.md](STYLE.md).
 >
 > **2026-10-15:** **`see name`** — der Kern kann jetzt ein Wort **auseinandernehmen**
@@ -735,6 +735,47 @@ bewusste Entscheidung und keine Lücke.
 
 ---
 
+## Speicherkarte des Forth-Kerns
+
+`LDI` lädt **kein** Ziel ≥ `0x4000`: das 15-Bit-Immediate wird vorzeichenerweitert,
+`0x4000` wird `0xC000`. Jede Marke, die der Kern per `LDI <marke>` erreicht, muss
+also **unter `0x4000`** liegen — das erklärt die drei Code-Blöcke und die
+Datengrenze, und es ist der Grund, warum `RSTACK_TOP` in einer Zelle (`rp0_base`)
+steht, statt direkt geladen zu werden.
+
+| Bereich | Größe | Inhalt | Frei |
+|---|---|---|---|
+| `0x0000–0x00FF` | 256 | Niedrigspeicher; `DS:0`/`DS:1` = BIOS-Funktion/Argument | — |
+| `0x0100–0x0500` | 1024 | **Code-Block 1**: `forth_start`, Tokenizer, `interpret_loop`, Fehler-Tail (`ok_after`, `line_done`, `interpret_done`) | **19** |
+| `0x0500–0x2000` | 6912 | **Code-Block 2**: `word_plus` ff., Tokenizer-Helfer, Zahlenausgabe, Schleifen, Doppelzellen, `evaluate`, Umbruch-Helfer; Puffer `print_buf`, `sq_buf` | **4538** |
+| `0x2000–0x3000` | 4096 | **Code-Block 3 / Threading**: `next`, die indirekt-gefädelte Maschine, viele Primitive, `see`, `words`, `hld_buf` | **40** |
+| `0x3000–0x4000` | 4096 | **Daten + Wörterbuch**: `sp0_base`, `tib_kbd`, Header-Kette, Variablen, eval-Puffer; `dict_free` wächst nach oben | **1998** |
+| `0x4000–0x6F00` | — | frei | — |
+| `0x6F00` | | **Rückstapel-Oberkante** (wächst nach unten) | |
+| `0x7FF0` | | **Datenstapel-Oberkante** (wächst nach unten) | |
+| `0x8000–0xEFFFF` | | frei (nur über Zeiger erreichbar) | |
+| `0xF0000` (ES) | | E/A: Tastatur `0xF0060/62`, Echo-Flag `0xF0064` | |
+| `0xF1000–0xF17CF` | 2000 | **Bildschirm** 80×25 Wörter (24 sichtbar + Scroll-Reservezeile) | |
+| `0xF8000` | | **BIOS** (`CS=0xF800`) | |
+
+**Die Grenzen sind hart.** `.org` setzt den Adresszähler und **wickelt still
+zurück** — deshalb gibt es den Test „die .org-Abschnitte überlappen nicht".
+Bedingte Sprünge reichen nur ±256 Wörter; ein Unterprogramm muss seine lokalen
+Sprungmarken also im selben Block halten, während Aufrufe über Blockgrenzen mit
+`LDI <marke>` + `MOV PC, R0` gehen. Der `0x2000`-Block ist mit **40 Wörtern**
+fast voll, der `0x0100`-Block mit **19** ebenfalls knapp (**dessen** Tail ist der
+heiße Ausgang des Interpreters — der frühere Überlauf überschrieb
+`interpret_done` ohne einen einzigen Assemblerfehler). Das **Wörterbuch** endet
+ebenfalls hart bei `0x4000`, weil Header per `LDI` adressiert werden.
+
+**Vorgehen bei Platzmangel:** neuer Code geht in den **0x0500-Block**; reicht
+das nicht, zieht ein **geschlossenes Teilsystem** als Ganzes dorthin um — `see`
+(`see_body`/`see_puts`/`see_num`/`see_find_name` samt Zeichenketten, ca.
+`0x23f7–0x2700`) ist der naheliegende Kandidat: groß, nur über den Einstieg
+erreichbar, in sich geschlossen.
+
+---
+
 ## Nächste Schritte
 
 1. ✅ **Kapitel 5** abgeschlossen (Interrupts, Shadow-Register, `SWI`/`RETI`,
@@ -752,9 +793,12 @@ bewusste Entscheidung und keine Lücke.
    Wörterbuch nachgeschlagen — deshalb funktionieren sie am Prompt und in einer
    Definition gleichermaßen, denn ein Kommentar wird dem Compiler nie
    angeboten. Details unten.
-7. **Offen, wenn es weitergeht:** `EVALUATE` und die Bestätigung, dass eine
-   Quelldatei im Browser eingetippt wird — beides Material für ein Kapitel 9
-   über den Forth-Kern, der das Kernprogramm des Projekts ist.
+7. ✅ **`EVALUATE`** (2026-10-15): führt eine Zeichenkette durch **denselben
+   Tokenizer und dieselben Wörter** wie die Tastaturzeile, im aktuellen Zustand
+   — zwei Ebenen verschachteln, `-13` (unbekannter Name) und `-22` (zu lang/zu
+   tief) sind Ausnahmen. Offen bleibt nur die Bestätigung, dass eine Quelldatei
+   im Browser eingetippt wird (`SERPLAN.md`): Material für ein Kapitel 9 über den
+   Forth-Kern, der das Kernprogramm des Projekts ist.
 8. **Der Forth-Kern ist das Kernprogramm des Projekts und war der am
    längsten liegengebliebene Teil.** `forth/hanoi.fth` trug vier „das kann der
    Kern nicht"-Vermerke; **alle vier** sind erledigt (Hex-Literale,
@@ -829,9 +873,22 @@ bewusste Entscheidung und keine Lücke.
    *Erledigt (2026-10-15, Tier 2):* die **Ausnahmen** — `catch`, `throw`,
    `abort`, `abort"`; die Kernel-Fehler selbst werfen jetzt, solange ein Handler
    in Reichweite ist.
-   **Als Nächstes:** die Doppel-Restliste (`d.`, `d.r`, `d>s`, `dabs`, `dmax`,
-   `dmin`, `2constant`, `2variable`, `2literal`, `2>r`, `2r>`) — und `include`
-   beziehungsweise ein Ladepfad, für den `evaluate` jetzt die Grundlage ist.
+   *Erledigt (2026-10-15, Tier 2):* die **Doppel-Restliste** — `d>s`, `dabs`,
+   `dmax`, `dmin`, `2literal`, `2>r`, `2r>`, `2r@`, `2constant`, `2variable`,
+   `d.`, `d.r`; dabei wurde **`state` eine echte Variable** (Zelle hinter dem
+   Code-Feld, `state @` ist `0`/`1`, wie `base`).
+   *Erledigt (2026-10-15):* **`form`** und der **Umbruch an der rechten Kante** —
+   `words` und `see` brechen an der letzten Lücke vor dem Rand statt mitten durch
+   ein Wort; die Spalte kommt aus `SCR`. *Erledigt (2026-10-16):* der
+   **Cursor-Fix** dazu (der Umbruch löschte die Cursor-Zelle vorher nicht und
+   ließ an jeder umbrochenen Zeile einen reversen Block stehen), und **STATUS
+   aufgefrischt**.
+   **Als Nächstes:** die exakte **vorzeichenlose 32÷16-Division** (`um/mod`, `#`
+   für Divisoren ≥ `0x8000`), dann der **Ladepfad** (`include` über `evaluate`)
+   und schließlich der **Tier-3-Block**: die restlichen CORE/CORE-EXT-Wörter
+   (`WORD PARSE FIND >BODY >IN SOURCE SOURCE-ID REFILL SAVE-INPUT RESTORE-INPUT
+   COMPILE, [COMPILE] POSTPONE :NONAME MARKER PAD UNUSED QUIT ENVIRONMENT? */
+   */MOD CHAR+ CHARS .R U.R ALIGN ALIGNED >NUMBER .( C"`).
    **Erledigt statt vormerkt:** `<`, `>` und mit ihnen `min`/`max` sind bei
    Überlauf **nicht mehr** falsch — sie lesen N und V zusammen (`N xor V`), und
    `+loop` tut dasselbe. Der Fehler war kein fehlendes Wort, sondern ein Fehler,
@@ -1228,10 +1285,9 @@ die einzige Änderung, die für die Iterativ-Teilung überhaupt nötig ist.
 
 | Punkt | Wo | Warum offen |
 |---|---|---|
-| **Forth-Kern: `+do`, `j`, `r@`/`r!`** | `asm/forth.asm` | Der Kern hat jetzt `do`, `?do`, `loop`, `leave`, `i`. Was fehlt, ist die Ausstattung, die kein Beispiel im Repo braucht; siehe „Nächste Schritte" Nr. 8 |
+| **Forth-Kern: der Rest von CORE/CORE-EXT** | `asm/forth.asm` | `j`, `r@` und `+loop` sind da (Tier 1/2 abgeschlossen). Offen ist der **Tier-3-Block**: `WORD PARSE FIND >BODY >IN SOURCE SOURCE-ID REFILL SAVE-INPUT RESTORE-INPUT COMPILE, [COMPILE] POSTPONE :NONAME MARKER PAD UNUSED QUIT ENVIRONMENT? */ */MOD CHAR+ CHARS .R U.R ALIGN ALIGNED >NUMBER .( C"`, dazu die exakte vorzeichenlose 32÷16-Division und der Ladepfad. Siehe „Nächste Schritte" Nr. 9 |
 | Opcode-Tabelle in `doc/Deep16-Arch.md` | drei Bereiche veraltet | Die Spec gehört dem Parallelautor; Anhang A nennt die gemessenen Werte, die Buchdiagramme stimmen (33/33 geprüft) |
 | Quelldatei im Browser eintippen | `SERPLAN.md` | Nie im Browser gelaufen; die Pumpe ist nur gegen den echten Kernel auf dem JS-Kern getestet |
-| `EVALUATE` | `SERPLAN.md` | Ein Wort, das einen Puffer auswertet — ohne zweiten Eingangsweg sinnvoll |
 | Kapitel 9 ff. | `book/README.md` | Buchplan ist mit Kapitel 8 + Anhängen ausgeschöpft |
 | `PSRAM` / `GFX` | `PLANPSRAM.md`, `GFX.md` | Nicht implementiert — bewusst kein Buchinhalt (Anhang D.4) |
 
