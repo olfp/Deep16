@@ -213,6 +213,8 @@ and they leave the pair in the order it was given — `5 6 2>r 2r>` is `5 6`.
 | `1-` | `( n -- n-1 )` | decrement |
 | `2*` | `( n -- n*2 )` | shift left one bit |
 | `2/` | `( n -- n/2 )` | arithmetic shift right (floors) |
+| `*/` | `( n1 n2 n3 -- quot )` | `n1*n2/n3`, the product formed as a double |
+| `*/MOD` | `( n1 n2 n3 -- rem quot )` | both at once, same double product |
 
 ## Bit and logic
 
@@ -274,6 +276,9 @@ mistaken for a value above `lo`.
 | `c,` | `( c -- )` | same as `,`: one cell carries one character |
 | `cells` | `( n -- n )` | cells to address units (the identity) |
 | `cell+` | `( addr -- addr+1 )` | address of the next cell |
+| `align` | `( -- )` | nothing: every address is cell-aligned here |
+| `aligned` | `( addr -- a-addr )` | the identity, for the same reason |
+| `pad` | `( -- addr )` | a transient scratch region (128 cells) |
 
 `move`, `fill` and `erase` move upwards and expect `u >= 0`. Two things to
 watch: a `variable` owns exactly **one** cell, and the next definition's header
@@ -293,6 +298,8 @@ variable x 2 allot  7 9 x 2!  x 2@ . .    \ 9 7  ok
 | `space` | `( -- )` | write one blank |
 | `spaces` | `( n -- )` | write `n` blanks |
 | `count` | `( c-addr -- c-addr u )` | length of the zero-terminated string at `c-addr` |
+| `char+` | `( c-addr -- c-addr+1 )` | the next character (one cell), so `1+` |
+| `chars` | `( n -- n )` | characters to address units (the identity) |
 | `type` | `( c-addr u -- )` | write `u` characters from `c-addr` |
 | `s"` | `( "ccc" -- c-addr u )` | the text between the quotes, as a string |
 | `/string` | `( c-addr1 u1 n -- c-addr2 u2 )` | the string from character `n` on |
@@ -568,6 +575,10 @@ screen.
 | `echo` | `( flag -- )` | turn keyboard echo on (`-1`) or off (`0`) |
 | `echo?` | `( -- flag )` | keyboard echo state |
 | `form` | `( -- rows cols )` | the screen's shape: `24` rows, `80` columns |
+| `.r` | `( n width -- )` | print `n` right-aligned in `width` columns, then a space |
+| `u.r` | `( u width -- )` | the same, unsigned |
+| `.(` **imm** | `( "ccc)" -- )` | write the text up to the next `)` |
+| `source-id` | `( -- -1 )` | the input source: `-1`, the keyboard |
 
 `accept` is the REPL's own reader, not the standard `( addr n -- n2 )`: it
 fills the input buffer and re-enters the interpreter, so it takes nothing and
@@ -595,6 +606,7 @@ the middle of a word.
 | `previous` | `( -- )` | drop the first search-order entry |
 | `only` | `( -- )` | search order is FORTH alone |
 | `forth` | `( -- )` | make the FORTH wordlist the first searched |
+| `unused` | `( -- u )` | dictionary cells left before `0x4000` |
 
 ```text
 vocabulary foo  also foo  definitions  \ define into foo
@@ -614,5 +626,5 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 181 words. New words are added at the head of the
+That is the whole dictionary: 193 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.

@@ -688,6 +688,7 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-16 | **Opcode-Referenz geprüft; zwei echte Fehler im Buch behoben.** Die Spec (`doc/Deep16-Arch.md`) wurde gegen den Assembler nachgemessen: Schiebegruppe `110 10000`–`110 11011` (12/12), `MUL`/`MUL32`/`DIV`/`DIV32` (4/4) und System-/Flag-Gruppe (8/8) stimmen — die Meldung „drei Bereiche veraltet" war ein **Fehlalarm** (so bereits am 2026-10-11 im Log zurückgenommen). **Echt waren zwei Fehler in `book/anhang.md` Tabelle A-1:** `LSI Rd, imm` schreibt **`Rd`** direkt (der Simulator `writeGPR(rd, imm)`; die Zeile behauptete einen Umweg über `R0`), und die beiden `MVS`-Zeilen hatten das `d`-Bit vertauscht — `0` liest das Segmentregister in ein GPR (`MVS Rd, Sx`, `FF07`), `1` schreibt eines hinein (`MVS Sx, Rd`, `FF43`). Beide Zeilen sind korrigiert, eine `d`-Bit-Notiz ergänzt; die drei EPUBs neu gebaut. | `book/anhang.md`, `book/epub/*`, `STATUS.md` |
 | 2026-10-16 | **Exakte vorzeichenlose 32÷16-Division** (`udiv`) — 180 Wörter (keine neuen). `um/mod` war bis jetzt nur exakt, solange der Divisor < `0x8000` war (der signierte `DIV32` liest einen Divisor ≥ `0x8000` als negativ), und `#`/`#s` konnten nur ein Doppel unterhalb `Basis*65536` drucken, weil der Quotient in **eine** Zelle gelegt wurde. Neuer LINK-Helfer **`udiv`** (R0:R1 Dividend, R12 Divisor → R0:R1 Quotient, R4 Rest, clobbert R2/R3/R7/R9/R10/R11): für Divisor < `0x8000` **zwei signierte `DIV32`-Schritte** — Null im hohen Halbwort hält den ersten Dividenden positiv, sein Rest bleibt unter dem Divisor, also ist auch der zweite Dividend (Rest:Tief) positiv; für Divisor ≥ `0x8000` eine **bitweise restaurierende Division** (16 Schritte, Rest in 16 Bit; ist sein oberstes Bit gesetzt, liegt der verschobene Wert über `0xFFFF` und damit sicher über dem Divisor, also wird unbedingt subtrahiert, und der 0x10000-Übertrag hebt sich genau auf). `#` behält jetzt den **vollen 32-Bit-Quotienten** (32÷16 → 32-Bit-Quotient). `um/mod` gibt weiter eine Zelle aus, wie der Standard-`u3`; ein Quotient, der mehr braucht, ist undefiniert. **Zwei Funde:** *(1)* `TBC Rd, imm` setzt `Z`, wenn das Bit **gesetzt** ist — entgegen der Registerform (`Z` bei Null) und entgegen meiner Annahme; beide Bittestellen sprangen falsch. Jetzt über `SL`/Carry getestet (eindeutig). *(2)* `udiv` zerstört `R7`, und **`d.r` hält seine Feldbreite genau dort** — `hld_step` parkt `R7` jetzt in `hld_r7`. **Verifikation:** 250 Zufallsfälle Divisor ≥ `0x8000` (0 Abweichungen, BigInt-Referenz), 117 < `0x8000` (0), 200 dezimale + 200 hexadezimale Zufallsdoppel über den vollen 32-Bit-Bereich (0); **2 neue Tests**, 222 in `forth.test.js`, `d.r`-Polsterung wieder gepinnt. `FORTH.md`: die `um/mod`-Grenze und der `#`-Absatz richtiggestellt. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-16 | **`included` — der Ladepfad** — 181 Wörter. `included ( i*x c-addr u -- j*x )` wertet einen **Puffer Quelltext** Zeile für Zeile aus, aufgebaut auf `evaluate`: jede Zeile kommt in einen **eigenen Puffer** (`inc_buf`, 128 Zeichen, NUL-terminiert — der Interpreter endet an einer Nullzelle, die Zeilenumbrüche der Quelle sind keine) und läuft durch denselben `interpret_loop`. Das Neue ist das **Zeilenende**: `eval_check` findet keine Auswertung laufen und liest dann — statt die Zeile zu beenden — die **nächste Zeile** aus dem Puffer (`include_line`). So ergibt eine ganze Datei **ein** ` ok` und **eine** Eingabeaufforderung. Umbrüche trennen; Leerzeilen und Kommentare sind einfach kurze Zeilen. **Grenzen:** der Puffer wird selbst getrieben und verbraucht keine Auswertungstiefe, also muss `included` auf der **obersten Ebene** laufen; aus einer Auswertung heraus oder während ein Ladepfad schon läuft → `-22`, ebenso eine Zeile über 128 Zeichen. Ein Fehler in einer Zeile (z. B. `-13`) **beendet den Ladevorgang** und gibt die Tastatur zurück (`word_accept` löscht `inc_state`). **2 Funde:** *(1)* Der `inc_state`-Räumpunkt lag zuerst in `recover_prompt` — der liegt im **engen 0x0100-Block**, und die 6 Wörter schoben ein `JZ interpret_done` in `parse_word` auf 258 Wörter (über die ±256-Grenze, der Assembler meldete es). Jetzt steht das Räumen in `word_accept` im **0x0500-Block**. *(2)* `inc_buf` musste ein **eigener** Puffer sein: die Zeile eines Ladepfads kann `evaluate` rufen, und das benutzt `eval_buf0` — mit einem gemeinsamen Puffer wäre der eben gelesene Text überschrieben. **Verifikation:** drei Zeilen (drucken/definieren/benutzen) → ein ` ok`; Leerzeilen, Kommentare, CRLF; eine Zeile, die `evaluate` ruft; ein unbekanntes Wort beendet den Ladevorgang; zu lange Zeile, `included` in `evaluate`, verschachteltes `included` → je `-22`. **1 neuer Test** (eigener Boot, weil der Puffer vor dem Tippen in den Speicher muss), 223 in `forth.test.js`. `FORTH.md`: `included`-Zeile + Absatz in „Names and execution", Zahl 180 → **181**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
+| 2026-10-16 | **`see` umgezogen, dann Tier-3-Schub A** — **193 Wörter**. Zuerst wanderte der ganze Dekompilierer (`word_see`, `see_body`, `sb_*`, `see_find_name`, `see_num`, `see_puts` — ca. 16 KB Quelltext) vom engen **0x2000**-Block in den **0x0500**-Block; das gab dem 0x2000-Block die **747 Wörter** zurück (von 28), ohne eine Zeile Logik zu ändern (nur die neuen Header-Ziele per `LDI`). Dann der Schub: `*/`, `*/MOD`, `CHAR+`, `CHARS`, `ALIGN`, `ALIGNED`, `PAD`, `UNUSED`, `SOURCE-ID`, `.R`, `U.R`, `.(`. **Die ersten sechs sind reine gefädelte Rümpfe** (`docol` + Xt-Zellen + `xt_exit`, wie `;` sie kompiliert) — kein neuer Laufzeitcode: `*/` ist `>r m* r> sm/rem nip`, `*/MOD` ist `>r m* r> sm/rem`, `CHAR+` ist `1+`, und `CHARS`/`ALIGN`/`ALIGNED` sind **leer**, weil ein Zeichen hier eine Zelle ist und jede Adresse damit ausgerichtet. `PAD` antwortet einen 128-Zellen-Puffer, `UNUSED` rechnet `0x4000 − HERE`, `SOURCE-ID` ist die Konstante `-1`, `.R`/`U.R` richten über `number_width` + `print_number` rechtsbündig aus (Feldbreite, kein Abschneiden), `.(` parst bis `)` und druckt, immediat. **Zwei Funde:** *(1)* `*/MOD` trug die **Länge 4** statt 5 — der Wörterbucheintrag hieß damit „*/MO" und war nicht auffindbar; der `see`-Durchlauf und die Suche zeigten es. *(2)* Die erste Rumpffassung war `m* sm/rem …`, aber der **Divisor liegt oben**: `m*` multipliziert die beiden obersten, also die falschen; jetzt wird er mit `>r`/`r>` über die Multiplikation gerettet. Dazu eine Label-Kollision (`wdr_ok`, `wdr_pad` gab es schon in `d.r`) — der Assembler meldete weite Sprünge, umbenannt auf `wnr_*`. **3 neue Tests**, 226 in `forth.test.js`. `FORTH.md`: Zeilen in Arithmetic/Memory/Characters/I-O/Dictionary, Zahl 181 → **193**. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 
 ## Architektur-Revisionen im Repo-Root
 
@@ -750,9 +751,9 @@ steht, statt direkt geladen zu werden.
 |---|---|---|---|
 | `0x0000–0x00FF` | 256 | Niedrigspeicher; `DS:0`/`DS:1` = BIOS-Funktion/Argument | — |
 | `0x0100–0x0500` | 1024 | **Code-Block 1**: `forth_start`, Tokenizer, `interpret_loop`, Fehler-Tail (`ok_after`, `line_done`, `interpret_done`) | **19** |
-| `0x0500–0x2000` | 6912 | **Code-Block 2**: `word_plus` ff., Tokenizer-Helfer, Zahlenausgabe, Schleifen, Doppelzellen, `evaluate`, `included`, Umbruch- und Divisions-Helfer (`udiv`); Puffer `print_buf`, `sq_buf` | **4346** |
-| `0x2000–0x3000` | 4096 | **Code-Block 3 / Threading**: `next`, die indirekt-gefädelte Maschine, viele Primitive, `see`, `words`, `hld_buf` | **28** |
-| `0x3000–0x4000` | 4096 | **Daten + Wörterbuch**: `sp0_base`, `tib_kbd`, Header-Kette, Variablen, eval-/include-Puffer; `dict_free` wächst nach oben | **1854** |
+| `0x0500–0x2000` | 6912 | **Code-Block 2**: `word_plus` ff., Tokenizer-Helfer, Zahlenausgabe, Schleifen, Doppelzellen, `evaluate`, `included`, `see`, Umbruch-, Divisions- und `.R`/`.(`-Helfer; Puffer `print_buf`, `sq_buf` | **3455** |
+| `0x2000–0x3000` | 4096 | **Code-Block 3 / Threading**: `next`, die indirekt-gefädelte Maschine, viele Primitive, `words`, `hld_buf` | **747** |
+| `0x3000–0x4000` | 4096 | **Daten + Wörterbuch**: `sp0_base`, `tib_kbd`, Header-Kette, Variablen, eval-/include-/pad-Puffer; `dict_free` wächst nach oben | **1607** |
 | `0x4000–0x6F00` | — | frei | — |
 | `0x6F00` | | **Rückstapel-Oberkante** (wächst nach unten) | |
 | `0x7FF0` | | **Datenstapel-Oberkante** (wächst nach unten) | |
@@ -767,17 +768,17 @@ steht, statt direkt geladen zu werden.
 zurück** — deshalb gibt es den Test „die .org-Abschnitte überlappen nicht".
 Bedingte Sprünge reichen nur ±256 Wörter; ein Unterprogramm muss seine lokalen
 Sprungmarken also im selben Block halten, während Aufrufe über Blockgrenzen mit
-`LDI <marke>` + `MOV PC, R0` gehen. Der `0x2000`-Block ist mit **28 Wörtern**
-fast voll, der `0x0100`-Block mit **19** ebenfalls knapp (**dessen** Tail ist der
-heiße Ausgang des Interpreters — der frühere Überlauf überschrieb
-`interpret_done` ohne einen einzigen Assemblerfehler). Das **Wörterbuch** endet
-ebenfalls hart bei `0x4000`, weil Header per `LDI` adressiert werden.
+`LDI <marke>` + `MOV PC, R0` gehen. Der `0x0100`-Block ist mit **19 Wörtern**
+knapp (**dessen** Tail ist der heiße Ausgang des Interpreters — der frühere
+Überlauf überschrieb `interpret_done` ohne einen einzigen Assemblerfehler), der
+`0x2000`-Block nach dem Umzug von `see` wieder bei **747**. Das **Wörterbuch**
+endet ebenfalls hart bei `0x4000`, weil Header per `LDI` adressiert werden.
 
-**Vorgehen bei Platzmangel:** neuer Code geht in den **0x0500-Block**; reicht
-das nicht, zieht ein **geschlossenes Teilsystem** als Ganzes dorthin um — `see`
-(`see_body`/`see_puts`/`see_num`/`see_find_name` samt Zeichenketten, ca.
-`0x23f7–0x2700`) ist der naheliegende Kandidat: groß, nur über den Einstieg
-erreichbar, in sich geschlossen.
+**Was schon umgezogen ist:** `see` (der ganze Dekompilierer samt Zeichenketten)
+saß bis zum 2026-10-16 im `0x2000`-Block und liegt jetzt im `0x0500`-Block; das
+gab dem engen Block ~720 Wörter zurück. Neuer Code geht weiterhin bevorzugt in
+den **0x0500-Block**; reicht der nicht mehr, zieht das nächste geschlossene
+Teilsystem als Ganzes um.
 
 ---
 
@@ -901,6 +902,14 @@ erreichbar, in sich geschlossen.
    einen Puffer Quelltext Zeile für Zeile aus (auf `evaluate` aufgebaut, eine
    Zeile = ein Durchlauf), sodass eine ganze Datei ein einziges ` ok` und eine
    Eingabeaufforderung ergibt.
+   *Erledigt (2026-10-16):* **Tier 3, Schub A** — `*/`, `*/MOD`, `CHAR+`,
+   `CHARS`, `ALIGN`, `ALIGNED`, `PAD`, `UNUSED`, `SOURCE-ID`, `.R`, `U.R`, `.(`.
+   Dabei wurde außerdem `see` vom engen `0x2000`- in den `0x0500`-Block
+   verschoben (~747 Wörter zurück).
+   **Als Nächstes:** die restlichen Tier-3-Schübe — **B** (`WORD`, `PARSE`,
+   `FIND`, `>NUMBER`, `C"`), **C** (`COMPILE,`, `[COMPILE]`, `POSTPONE`,
+   `:NONAME`, `MARKER`) und **D** (`>IN`, `SOURCE`, `REFILL`, `SAVE-INPUT`,
+   `RESTORE-INPUT`, `QUIT`, `ENVIRONMENT?`).
    **Erledigt statt vormerkt:** `<`, `>` und mit ihnen `min`/`max` sind bei
    Überlauf **nicht mehr** falsch — sie lesen N und V zusammen (`N xor V`), und
    `+loop` tut dasselbe. Der Fehler war kein fehlendes Wort, sondern ein Fehler,

@@ -3819,3 +3819,63 @@ test('included interprets a buffer of source, line by line', () => {
   assert.match(type(boot('1 2 + .\n'), `s" ${addr} 8 included" evaluate\n`)[1], /uncaught exception$/);
   assert.match(type(boot(`${addr} 5 included\n`), `${addr} 17 included\n`)[1], /uncaught exception$/);
 });
+
+// ---------------------------------------------------------------------------
+// Tier 3, first batch: the small standard words.
+//
+// */ and */MOD are threaded bodies, not new code: the divisor is on top, so they
+// keep it on the return stack across m* and bring it back for sm/rem; */ then
+// drops the remainder. CHAR+ is 1+, and CHARS/ALIGN/ALIGNED are empty bodies -
+// on this machine a character is a cell, so nothing changes. PAD, UNUSED,
+// SOURCE-ID, .R, U.R and .( need a little code of their own.
+
+test('the small Tier-3 words: */ */MOD CHAR+ CHARS ALIGN ALIGNED PAD UNUSED SOURCE-ID', () => {
+  // */ and */MOD: (n1*n2)/n3, exact in the double, integer result.
+  assert.equal(hexOut('10 2 3 */ .'), '6');
+  assert.equal(hexOut('100 3 7 */ .'), '42');
+  assert.equal(hexOut('9 negate 2 3 */ .'), '-6');
+  assert.equal(hexOut('10 2 3 */MOD . .'), '6  2');
+  assert.equal(hexOut('9 negate 2 3 */MOD . .'), '-6  0');
+  // CHAR+ / CHARS / ALIGN / ALIGNED: a character is a cell here.
+  assert.equal(hexOut('65 char+ .'), '66');
+  assert.equal(hexOut('3 chars .'), '3');
+  assert.equal(hexOut('7 aligned .'), '7');
+  assert.equal(hexOut('align 1 2 + .'), '3');
+  // PAD is a real, writable region.
+  assert.equal(hexOut('pad 5 over ! @ .'), '5');
+  // UNUSED is 0x4000 - HERE: positive, and below 0x4000.
+  assert.equal(hexOut('unused 0 > .'), '-1');
+  assert.equal(hexOut('unused 0x4000 < .'), '-1');
+  assert.equal(hexOut('source-id .'), '-1');
+  // The threaded bodies decompile as the words they are made of.
+  assert.equal(hexOut('see */'), ': */ >r m* r> sm/rem nip ;');
+  assert.equal(hexOut('see */MOD'), ': */MOD >r m* r> sm/rem ;');
+  assert.equal(hexOut('see chars'), ': chars ;');
+  assert.equal(hexOut('see char+'), ': char+ 1+ ;');
+  assert.equal(hexOut('see source-id'), 'constant source-id -1');
+  // The words that take operands check their depth; the empty bodies cannot.
+  for (const [src, want] of [['*/', 3], ['*/MOD', 3], ['char+', 1], ['.r', 2], ['u.r', 2]]) {
+    assert.match(hexrepl(src).join('\n'), /stack underflow/, `${src} on an empty stack`);
+    const short = Array(want - 1).fill('1').join(' ');
+    assert.match(hexrepl(`${short} ${src}`).join('\n'), /stack underflow/, `${src} with ${want - 1} cell(s)`);
+  }
+});
+
+test('.r and u.r right-align a number in a field', () => {
+  assert.equal(repl('123 8 .r\n').rows[1], '> 123 8 .r     123  ok');
+  assert.equal(repl('5 negate 8 .r\n').rows[1], '> 5 negate 8 .r      -5  ok');
+  // Wider than the field: printed whole, never truncated.
+  assert.equal(repl('12345 3 .r\n').rows[1], '> 12345 3 .r12345  ok');
+  assert.equal(repl('123 8 u.r\n').rows[1], '> 123 8 u.r     123  ok');
+  // u.r reads the cell unsigned.
+  assert.equal(repl('0xFFFF 8 u.r\n').rows[1], '> 0xFFFF 8 u.r   65535  ok');
+});
+
+test('.( prints up to the closing paren, at compile time too', () => {
+  // The blank after .( is part of the text, exactly like ." keeps it.
+  assert.equal(repl('.( hi there)5 .\n').rows[1], '> .( hi there)5 . hi there 5  ok');
+  // Immediate: inside a definition it prints while the line is compiled.
+  assert.equal(repl(': t .( x) ; t\n').rows[1], '> : t .( x) ; t x ok');
+  // An unterminated .( stops at the end of the line instead of eating the rest.
+  assert.equal(repl('.( no close\n').rows[1], '> .( no close no close ok');
+});
