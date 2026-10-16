@@ -73,19 +73,19 @@
 \   and,lshift  bit operations, once missing, so not even the
 \               colour byte could be built from Forth
 \   do/loop/i   once missing. do, ?do, loop, leave and i are all
-\               here now, the frame on the return stack. This file
-\               still counts with begin/until and while/repeat:
-\               those loops were written and tested first, and
-\               rewriting a working 269-line file to use a loop
-\               that arrived afterwards would be churn, not a fix.
-\               If you do write one in do/loop here, mind that the
-\               index counts AFTER the body: 0 0 do runs the body
-\               65536 times, and ?do is the one that skips it.
+\               here now, the frame on the return stack, and this
+\               file counts with them: a loop that walked a fixed
+\               number of slots and kept its own index in a
+\               variable now says `do ... loop` and reads i, and
+\               open-peg steps down with `-1 +loop`. What none of
+\               them want is `loop`'s post-body index - 0 0 do
+\               still runs the body 65536 times - so every limit
+\               here is pushed before its start.
 \
-\ What this file does with the newer ones anyway: the colour bytes
-\ below are still decimal, because hex literals were the later
-\ arrival and the decimals were already in place - both are the
-\ same bytes either way.
+\ The colour bytes are written in hex now - 0x323 and so on - which
+\ is what they are: character in the low byte, foreground in the low
+\ nibble of the high byte. The decimals they replaced were the same
+\ bytes, and the '|' and 'X' cells below are 0x37C and 0x358.
 \
 \ create and allot work and are used below - a created word
 \ behaves like a variable whose data field starts at the address
@@ -124,10 +124,10 @@
 \ variable's cell. That is the classic CREATE-and-comma idiom, and
 \ it is why the two declarations here do not look alike.
 \
-\ pa, pb and pc hold the three peg addresses, so the loops below
-\ use plain variables. A variable pushes its own address, so with
-\ `variable peg-a` the line below stores that address; a created
-\ word would have had to be RUN to produce the same thing.
+\ pa, pb and pc hold the three peg addresses. They are values, so
+\ the store happens where they are defined and `pa` reads the
+\ address back with no @ - and, unlike `variable`, with no stray
+\ address left on the stack at definition time.
 
 variable peg-a 6 cells allot
 variable peg-b 6 cells allot
@@ -144,9 +144,9 @@ variable peg-c 6 cells allot
 
 : clr  ( addr -- ) 0 swap ! ;
 
-variable pa  peg-a pa !
-variable pb  peg-b pb !
-variable pc  peg-c pc !
+peg-a value pa
+peg-b value pb
+peg-c value pc
 
 \ --- the board --------------------------------------------------------
 
@@ -155,28 +155,29 @@ variable pc  peg-c pc !
 \ disk (13 wide) fits three times over without touching.
 
 variable nd  6 nd !
-variable ca  12 ca !
-variable cb  39 cb !
-variable cc  66 cc !
+12 value ca
+39 value cb
+66 value cc
 
 \ The colours of the disks, smallest first. A cell is the value,
 \ so a disk of size 3 reads dclr + 2. Eight entries, and a ninth
 \ disk takes the first colour again.
 
 create dclr
-    803 , 1059 , 1315 , 1571 , 291 , 547 , 2339 , 2595 ,  8 cells allot
+    0x323 , 0x423 , 0x523 , 0x623 , 0x123 , 0x223 , 0x923 , 0xA23 ,
+    8 cells allot
 
 \ Scratch, for the drawing loops. None of them may be live across
 \ a call to another word below that also uses one - they are all
 \ leaf helpers except peg-row, which is the only one that reads
 \ tc and tn after calling anything.
 
-variable ts
-variable tr
-variable tc
-variable td
-variable tn
-variable tp
+0 value ts
+0 value tr
+0 value tc
+0 value td
+0 value tn
+0 value tp
 variable r0
 variable r1
 
@@ -194,15 +195,18 @@ variable r1
 
 : blank ( row col -- ) scr 32 swap scr! ;
 
-\ pcol answers which column a peg stands in. The drop on the
-\ fall-through path is not optional: without it the peg address
-\ stays on the stack, and the caller that expected only a column
-\ finds an address under it.
+\ pcol answers which column a peg stands in: a case over the peg
+\ address, the last column as the default. `of` drops the selector
+\ when it matches; when nothing did, endcase drops whatever is on
+\ top - which is why the default swaps, leaving the column in the
+\ selector's place. Without the swap the drop takes the column.
 
 : pcol ( peg -- col )
-    dup pa @ = if drop ca @ exit then
-    dup pb @ = if drop cb @ exit then
-    drop cc @ ;
+    case
+        pa of ca endof
+        pb of cb endof
+        cc swap
+    endcase ;
 
 \ pcount is how many disks are on a peg. The disks are always
 \ contiguous from slot 0 - move closes the gap it opens - so the
@@ -218,10 +222,10 @@ variable r1
 \ the hole rather than counting past it.
 
 : pcount ( peg -- n )
-    0 ts !
-    begin dup ts @ + @ 0 <> while
-        ts @ 1 + ts !
-    repeat drop ts @ ;
+    0 to ts
+    begin dup ts + @ 0<> while
+        ts 1+ to ts
+    repeat drop ts ;
 
 \ wipe-row clears one row across the widest a disk can be, so a
 \ disk that has just left its peg leaves nothing behind.
@@ -234,11 +238,9 @@ variable r1
 \ disk that moves, and the pegs fill up with a stub of each one.
 
 : wipe-row
-    0 ts !
-    begin ts @ nd @ 4 * 1 + < while
-        tr @ tc @ nd @ 2 * - ts @ + blank
-        ts @ 1 + ts !
-    repeat ;
+    nd @ 4 * 1+ 0 do
+        tr tc nd @ 2* - i + blank
+    loop ;
 
 \ draw-disk draws one disk: the character's in every cell and the
 \ colour is the disk's own, taken from dclr by size.
@@ -249,13 +251,11 @@ variable r1
 \ at the far right - which looks like a drawing bug and is one.
 
 : draw-disk ( disk row col -- )
-    tc ! tr ! td !
-    0 ts !
-    begin ts @ td @ 2 * 1 + < while
-        td @ 1 - 8 mod dclr + @
-        tr @ tc @ td @ - ts @ + put
-        ts @ 1 + ts !
-    repeat ;
+    to tc to tr to td
+    td 2* 1+ 0 do
+        td 1- 8 mod dclr + @
+        tr tc td - i + put
+    loop ;
 
 \ peg-row draws one row of one peg: the pole, and the disk that
 \ belongs on that row if there is one. The disks of a peg holding
@@ -274,15 +274,15 @@ variable r1
 \ clear-or-not difference rather than for the compiler.
 
 : peg-row0 ( peg row -- )
-    tr ! tp !
-    tp @ pcount tn !
-    tp @ pcol tc !
-    892 tr @ tc @ put
-    tr @ 23 - tn @ + ts !
-    ts @ 0 < if exit then
-    ts @ tn @ < if
-        tp @ ts @ + @ dup 0 <> if
-            tr @ tc @ draw-disk
+    to tr to tp
+    tp pcount to tn
+    tp pcol to tc
+    0x37C tr tc put
+    tr 23 - tn + to ts
+    ts 0 < if exit then
+    ts tn < if
+        tp ts + @ dup 0<> if
+            tr tc draw-disk
         else drop then
     then ;
 
@@ -304,26 +304,24 @@ variable r1
 \
 \ The dup and the over are both needed, and they are not
 \ interchangeable: dup copies the TOP of the stack, which after
-\ `dup tr !` is the row, so `dup tp !` stores the ROW into tp
-\ and pcol is then handed a row number. It answers with cc - the
-\ fall-through, the one column it has for a peg it does not
+\ `dup to tr` is the row, so `dup to tp` would store the ROW into
+\ tp and pcol is then handed a row number. It answers with cc -
+\ the fall-through, the one column it has for a peg it does not
 \ recognise - and every disk lands on peg C.
 
 : peg-row ( peg row -- )
-    dup tr !
-    over tp !
-    tp @ pcol tc !
+    dup to tr
+    over to tp
+    tp pcol to tc
     wipe-row peg-row0 ;
 
 \ peg-draw is all 23 rows above the ground.
 
 : peg-draw ( peg -- )
-    tp !
-    0 tr !
-    begin tr @ 23 < while
-        tp @ tr @ peg-row0
-        tr @ 1 + tr !
-    repeat ;
+    to tp
+    23 0 do
+        tp i peg-row0
+    loop ;
 
 \ cls is the BIOS's own screen clear and is about five times cheaper than
 \ doing it here: a screenful from Forth is a word call and some address
@@ -339,11 +337,9 @@ variable r1
 \ what stops a peg's wipe-row from cutting a hole in it.
 
 : draw-ground
-    0 ts !
-    begin ts @ 80 < while
-        856 23 ts @ put
-        ts @ 1 + ts !
-    repeat ;
+    80 0 do
+        0x358 23 i put
+    loop ;
 
 \ draw-board starts from a blank screen. That is also what hides
 \ the cursor: the block sits in the cell at the hardware cursor
@@ -358,16 +354,14 @@ variable r1
 
 : draw-board
     clr-screen draw-ground
-    pa @ peg-draw pb @ peg-draw pc @ peg-draw ;
+    pa peg-draw pb peg-draw pc peg-draw ;
 
 \ --- the pegs, emptied and filled --------------------------------------
 
 : peg-clr ( peg -- )
-    0 ts !
-    begin ts @ nd @ < while
-        dup ts @ + clr
-        ts @ 1 + ts !
-    repeat drop ;
+    nd @ 0 do
+        dup i + clr
+    loop drop ;
 
 \ fill-a stacks n disks on peg A, smallest on top.
 \
@@ -382,23 +376,24 @@ variable r1
 \ only showed as a picture with the big end in the air.
 
 : fill-a ( n -- )
-    tn !
-    0 ts !
-    begin ts @ tn @ < while
-        ts @ 1 + pa @ ts @ + !
-        ts @ 1 + ts !
-    repeat ;
+    0 do
+        i 1+ pa i + !
+    loop ;
 
-\ init leaves nothing on the stack on any path. It used to handle
-\ 1, 2 and 3 disks in three separate branches, which capped the
-\ puzzle at three; the loop does any number up to nd, and taking
-\ n above nd writes past peg A into the dictionary, which is the
-\ failure the pegs note above describes.
+\ init leaves nothing on the stack, and now it says so: the `dup`
+\ that sat before `tn !` survived the fix to `!` and left a copy of
+\ n behind, which hanoi-solve then handed on. It also guards the
+\ count it used to trust - n above nd would write past peg A into
+\ the dictionary, the failure the pegs note above describes - so
+\ that is an abort now rather than a broken dictionary. The loop
+\ does any number from 1 to nd; it replaced three branches that
+\ capped the puzzle at three.
 
 : init ( n -- )
-    dup tn !
-    pa @ peg-clr pb @ peg-clr pc @ peg-clr
-    tn @ fill-a ;
+    dup nd @ > abort" too many disks"
+    to tn
+    pa peg-clr pb peg-clr pc peg-clr
+    tn fill-a ;
 
 \ --- moving one disk --------------------------------------------------
 \
@@ -431,22 +426,17 @@ variable mv-disk
 \ would read next.
 
 : shift-peg ( peg -- )
-    tp !
-    0 ts !
-    begin ts @ nd @ 1 - < while
-        tp @ ts @ 1 + + @ tp @ ts @ + !
-        ts @ 1 + ts !
-    repeat ;
+    to tp
+    nd @ 1- 0 do
+        tp i 1+ + @ tp i + !
+    loop ;
 
 : open-peg ( peg -- )
-    tp !
-    nd @ 2 - ts !
-    0 tn !
-    begin tn @ nd @ 1 - < while
-        tp @ ts @ + @ tp @ ts @ 1 + + !
-        ts @ 1 - ts !
-        tn @ 1 + tn !
-    repeat ;
+    to tp
+    nd @ 1- 0 do
+        nd @ 2 - i - to ts
+        tp ts + @  tp ts 1+ + !
+    loop ;
 
 \ One disk leaves the top of the source and lands on the top of
 \ the destination, and BOTH pegs shift: the source closes up (its
