@@ -2544,6 +2544,11 @@ mk_old_dp:
 ; `>IN` is the register R5; this cell mirrors it, written by the tokenizer.
 in_var:
     .word 0
+; What execute_xt last wrote into in_var. The two part only when a word moved the
+; pointer by hand (`>IN !`): in_var then holds the new offset, in_shadow the one
+; the kernel left, and outer_resume adopts the cell.
+in_shadow:
+    .word 0
 num_neg:
     .word 0              ; 1 while a signed number is being scanned
 
@@ -8222,6 +8227,9 @@ execute_xt:
     LDI in_var
     MOV R2, R0
     ST >IN, R2, 0         ; mirror the input pointer for `>IN @`
+    LDI in_shadow
+    MOV R2, R0
+    ST >IN, R2, 0         ; and remember it, so a hand store can be told apart
     LDI ip_ptr
     MOV R2, R0
     LDI resume_list
@@ -8233,6 +8241,21 @@ execute_xt:
     NOP
 
 outer_resume:
+    ; A word may have stored a new offset into `>IN`'s cell. in_var follows the
+    ; pointer whenever the kernel moves it, so it differs from in_shadow - what
+    ; execute_xt left there - only when a word moved the pointer by hand; then
+    ; the cell wins and the line is read on from where it was put.
+    LDI in_var
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI in_shadow
+    MOV R3, R0
+    LD R3, R3, 0
+    CMP R2, R3
+    JZ outer_pointer_kept
+    NOP
+    MOV >IN, R2
+outer_pointer_kept:
     LDI interpret_loop
     MOV PC, R0
     NOP

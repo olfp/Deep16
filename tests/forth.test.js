@@ -4048,17 +4048,37 @@ test('marker rewinds the dictionary to where it was defined', () => {
 // ---------------------------------------------------------------------------
 // Tier 3, fourth batch: the input source.
 //
-// This kernel's input pointer is the register R5, not a cell, so >IN is the one
-// approximation: `in_var` is a mirror the tokenizer writes whenever it moves the
-// pointer, so `>in @` reads the live offset, while a store to it is accepted but
-// does not move the parse pointer. SOURCE measures the line to its NUL; REFILL
-// answers false, because the line the BIOS read is the only source; QUIT empties
-// the return stack, returns to interpretation and ends the line.
+// This kernel's input pointer is the register R5, not a cell, so `>IN` answers
+// the address of `in_var`, a mirror the tokenizer writes whenever it moves the
+// pointer: `>in @` reads the live offset. A store into the cell is honoured too:
+// `execute_xt` also records the offset in `in_shadow`, so `outer_resume` can tell
+// the cases apart. While the two agree, the kernel's own move stands - a word
+// that advances the pointer without mirroring it (`:` compiles a name) must not
+// be undone; once they differ, a word either stored by hand or mirrored a move of
+// its own, and the cell wins, so the line is read on from where it was put.
+// SOURCE measures the line to its NUL; REFILL answers false, because the line the
+// BIOS read is the only source; QUIT empties the return stack, returns to
+// interpretation and ends the line.
 
 test('>in reads the parse offset', () => {
   // Inside a word it is the offset just past the call that ran it: the second
   // line is "t", so after parsing "t" the offset is 1.
   assert.equal(repl(': t >in @ . ;\nt\n').rows[2], '> t 1  ok');
+});
+
+test('a store to >in moves the parse pointer', () => {
+  // End the line from the middle: the rest of it is never read, so `3 4 .`
+  // prints nothing. A store used to be accepted and ignored.
+  assert.equal(repl('1 2 80 >in ! 3 4 .\n').rows[1], '> 1 2 80 >in ! 3 4 . ok');
+  // A compiled store is honoured the same way.
+  assert.equal(repl(': cut 80 >in ! ;\n1 2 cut 3 4 .\n').rows[2], '> 1 2 cut 3 4 . ok');
+});
+
+test('a store to >in can land in the middle of the line', () => {
+  // `jump` adds four to the offset, which steps over "11" and lands on "22":
+  // one cell is left, not two, so the depth is 1.
+  assert.equal(repl(': jump >in @ 4 + >in ! ;\njump 11 22 depth .\n').rows[2],
+    '> jump 11 22 depth . 1  ok');
 });
 
 test('source answers the line and its length', () => {

@@ -626,7 +626,7 @@ screen.
 | `source-id` | `( -- -1 )` | the input source: `-1`, the keyboard |
 | `word` | `( char -- c-addr )` | parse the next token, delimited by `char`, into a buffer |
 | `parse` | `( char -- c-addr u )` | the input up to the next `char`, as a slice of the line |
-| `>in` | `( -- addr )` | a cell mirroring the parse offset (see below) |
+| `>in` | `( -- addr )` | the parse offset, as a writable cell (see below) |
 | `source` | `( -- c-addr u )` | the input line and its length |
 | `refill` | `( -- flag )` | `0`: there is no further source to read |
 | `save-input` | `( -- >in tib 2 )` | the input-source state, for `restore-input` |
@@ -638,12 +638,14 @@ screen.
 fills the input buffer and re-enters the interpreter, so it takes nothing and
 returns nothing.
 
-`>in` is the one place the standard's model does not fit: the pointer into the
+`>in` is where the standard's model does not fit cleanly: the pointer into the
 input buffer is the **register** `R5`, not a cell, so there is nothing whose
 address it could answer. `>in` returns the address of `in_var`, a cell the
 tokenizer writes whenever it moves the pointer, so `>in @` reads the live offset
-(just past the word that ran it). A store to that cell is accepted but does not
-move the parse pointer — that is a documented limit, not a fault. `source`
+(just past the word that ran it). A **store** into that cell is honoured: the
+interpreter remembers the offset it last wrote there, so it can tell a hand store
+from its own pointer moves and reads on from wherever the cell was put —
+`80 >in !` ends the line, and a word may skip over the rest of it. `source`
 measures the line the BIOS read up to its NUL; `refill` answers `0`, because that
 line is the only source and a word cannot read another one from the middle of it.
 `save-input`/`restore-input` save and put back `(>in, tib)` — the count is `2`,

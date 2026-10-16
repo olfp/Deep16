@@ -1,34 +1,64 @@
-# D16MINI — a BRAM-only Deep16 with a UART console
+# D16MINI — a BRAM-only Deep16 with a serial console
 
-> **Status: plan. No RTL written.** This document specifies a *small* Deep16 that
-> actually fits the Tang Nano 9K and boots DeepForth, with **no PSRAM, no cache
-> and no framebuffer** — memory is on-chip BSRAM, the console is a UART.
+> **Status: plan. No RTL written.** D16MINI is a *small* Deep16 that actually
+> fits the Tang Nano 9K and boots DeepForth: **no PSRAM, no cache, no
+> framebuffer** — memory is on-chip BSRAM, the console is a UART, and a host
+> terminal owns the screen.
 >
-> Companion documents: [`PLANPSRAM.md`](PLANPSRAM.md) (the full 1 MB machine that
-> this deliberately is *not*), [`VERILOG.md`](VERILOG.md) (the current three-core
-> RTL), [`SERPLAN.md`](SERPLAN.md) (why the earlier serial path was dropped),
-> [`FLASHPLAN.md`](FLASHPLAN.md) (blocks-on-flash, out of scope here).
+> This document unifies the earlier *D16MINI* (the machine) and *D16LIGHT* (the
+> serial front end) drafts into one.
 >
-> Baseline measured 2026-10-16 against the working tree
-> (`asm/forth.asm` @ 12,622 lines).
+> Companion documents: [`PLANPSRAM.md`](PLANPSRAM.md) (the full 1 MB machine this
+> deliberately is *not*), [`VERILOG.md`](VERILOG.md) (the current three-core RTL),
+> [`SERPLAN.md`](SERPLAN.md) (the discarded serial *source loader* — unrelated to
+> the console here), [`FLASHPLAN.md`](FLASHPLAN.md) (blocks-on-flash, out of
+> scope).
+>
+> Baseline measured 2026-10-16 against the working tree (`asm/forth.asm` @ 12,622
+> lines).
 
 ---
 
-## 0. Goal and non-goals
+## 0. Goal, decisions, non-goals
 
 **Goal.** A synthesizable Deep16 that boots DeepForth and talks over a UART,
 using **nothing but the 468 Kbit of BSRAM** for main memory and **no external
-memory controller**. The smallest machine that is still DeepForth.
+memory controller**. The smallest machine that is still DeepForth, with the
+screen replaced by a serial terminal.
+
+### Decisions
+
+**Machine**
+
+| # | Decision |
+|---|---|
+| M1 | BRAM-only: no PSRAM, no SDRAM controller, no `mem_stall` machinery. |
+| M2 | **No cache** — the memory is small and near-single-cycle. |
+| M3 | **No framebuffer** — `0xF1000` is deleted, not emulated. |
+| M4 | No 1 MB address space: ~26 K words, a 15-bit machine. |
+| M5 | Relocate the stacks and the BIOS into the low RAM window. |
+| M6 | Boot ROM stays a 16-word LUT ROM at `0xFFFF0` (identical reset). |
+| M7 | One kernel source, two builds, selected by conditional assembly. |
+
+**Console** (locked 2026-10-16)
+
+| # | Decision |
+|---|---|
+| C1 | **Dumb byte pipe.** The host terminal owns the screen, cursor and wrapping. The machine keeps no 80×25 array and no cursor. |
+| C2 | **Drop colours.** No attributes, no SGR; `CURSOR_ATTR` is gone. |
+| C3 | **`form` returns `24 80`** (nominal); `wrap_if` is disabled; the host autowraps. |
+| C4 | **Consume-and-drop** terminal escape sequences on input (arrow keys never enter the line buffer). |
+| C5 | **Keep the "Datei tippen…" injection** — the browser uploader feeds UART RX in simulation. |
+| C6 | **Baud 115200 8N1; TX FIFO 64 deep; RX FIFO 128 deep.** |
 
 **Non-goals.**
 
-- No PSRAM, no SDRAM controller, no `mem_stall` machinery (`PLANPSRAM.md` §3–6).
-- No cache. The memory is small and single-cycle-ish; a cache buys nothing.
-- No framebuffer. The 80×25 screen at `0xF1000` **is deleted**, not emulated.
-  Output is a UART; input is a UART.
-- No 1 MB address space. D16MINI sees ~26 K words; the 20-bit ISA map is not
-  backed. This is the whole trade.
+- No PSRAM, cache, or memory controller.
+- No framebuffer, shadow buffer, or cell-address translation (§7.8 is the
+  rejected alternative).
+- No colours/attributes; no cursor or scroll bookkeeping in the machine.
 - No block store (`FLASHPLAN.md`), no graphics (`GFX.md`), no speed target.
+- No ISA change, and no change to the Forth *language* — the console is a swap.
 
 **The one sentence.** DeepForth's kernel image plus a working dictionary fits in
 BSRAM; give it a UART and a BSRAM, drop everything else.
@@ -53,7 +83,7 @@ BSRAM; give it a UART and a BSRAM, drop everything else.
 
 ---
 
-## 2. The number that decides everything
+## 2. Memory budget: the number that decides everything
 
 | | Words (16-bit) | Bytes | Addresses |
 |---|---:|---:|---|
@@ -71,9 +101,10 @@ machine**: the whole RAM window fits inside a single 32 K-word (15-bit) address.
 | Kernel image `forth_start`…`dict_free` (`0x0100–0x3B03`) | 12,622-line source | **14,852** |
 | `dict_free` (new definitions grow up from here) | `0x3B04` | — |
 | Headroom `dict_free` → top of BSRAM (`0x6800`) | `0x3B04–0x67FF` | **11,516** |
+| BIOS (`bios_entry`, relocated out of `0xF8000`) | ≈`0x5F00`, 297 words | relocated |
 | Screen buffer | `0xF1000`, 2000 words | **deleted** |
 
-The image grows a little with every Tier-3 word added (it was 0x3A62 three
+The image grows a little with every Tier-3 word added (it was `0x3A62` three
 commits ago); treat `dict_free` as a moving target and leave slack.
 
 ### The verdict
@@ -81,23 +112,24 @@ commits ago); treat `dict_free` as a moving target and leave slack.
 - The kernel **fits** with ~11.5 K words of dictionary to spare — comfortable.
 - **Today's exact memory map does not fit.** The kernel's fixed stack addresses
   (`SP = 0x7FF0`, `RSTACK_TOP = 0x6F00`) and the BIOS at `0xF8000` sit *above*
-  `0x6800`. Both must move (see §3). This is the single largest correctness
-  item: a machine that "almost fits" is a machine that runs off the top of RAM.
+  `0x6800`. Both must move (§3). This is the single largest correctness item: a
+  machine that "almost fits" runs off the top of RAM.
 - Because the framebuffer is deleted, the 2 BSRAM blocks a screen would cost are
-  *not* spent here — but the BIOS and boot ROM still need somewhere to live.
+  *not* spent — but the BIOS still needs somewhere to live.
 
 ---
 
 ## 3. Proposed memory map
 
 The cleanest D16MINI keeps **everything the CPU executes or reads in one low
-window**, so the core has a single `pa < RAM_WORDS` test and no high-address
-ROM decode.
+window**, so the core has a single `pa < RAM_WORDS` test and no high-address ROM
+decode.
 
 ```
 0x00000 - 0x067FF   RAM       26 BSRAM blocks (26,624 words)
    0x00100 - 0x03B03   kernel image (code + data + built-in words)
-   0x03B04 - 0x05FFF   user dictionary  (grows up, ~9.6 K words)
+   0x03B04 - 0x05EFF   user dictionary  (grows up, ~9.1 K words)
+   0x05F00 - 0x0602x   BIOS (relocated copy of bios_entry)
    0x06000 - 0x067FF   stacks          (return 0x6000↑, data 0x67F0↓)
 0x0F0000 - 0x0F006F   MMIO       UART (+ optionally the polled-key regs)
 0x0FFFF0 - 0x0FFFFF   boot ROM   16 words, LUT ROM (reset vector lives here)
@@ -107,20 +139,19 @@ Two consequences:
 
 1. **Relocate the BIOS into the window.** `asm/forth.asm` assembles the BIOS at
    `.org 0xF8000` and `swi_to_bios` builds `CS = 0xF800`. Move the BIOS (≈297
-   words) to a low `.org` (e.g. `0x6000`… but that is the stack region above, so
-   pick `0x5F00` and re-fit the stacks), and change the far-jump segment in
-   `swi_to_bios`. This keeps the core ignorant of `0xF8000`.
+   words) to a low `.org` and change the far-jump segment. This keeps the core
+   ignorant of `0xF8000`.
 2. **Move the stacks** to the top of the window (`RSTACK_TOP`, the `sp0_base`
    data cell) — they are constants in the kernel, not hardware.
 
 Alternative, if the kernel must not move: keep the BIOS at `0xF8000` and give it
-its own LUT ROM decode, teaching the core that `0xF8000` is fetchable while
-`0x6800…0xF7FFF` is not. That is more core plumbing for less kernel churn; the
-first option is recommended for a *mini* machine.
+its own LUT-ROM decode, teaching the core that `0xF8000` is fetchable while
+`0x6800…0xF7FFF` is not. More core plumbing for less kernel churn; option M5 is
+recommended for a *mini* machine.
 
 The boot ROM stays at `0xFFFF0` because the core's reset state is `CS=0xFFFF,
-PC=0`; keeping it preserves identical boot behaviour with the three emulators.
-It is 16 words of LUT ROM.
+PC=0`; keeping it preserves identical boot behaviour with the three emulators. It
+is 16 words of LUT ROM.
 
 ---
 
@@ -156,9 +187,9 @@ needs the interface change `PLANPSRAM.md` §A calls "memory interface honesty":
   the registered output lands in **MEM** where it is consumed. The load-use stall
   and the MEM→WB capture stay as they are.
 - Give the fetch its own address/return path (the BRAM output register becomes
-  effectively the IF/ID fetch latch, or a 1-cycle fetch is added). This is the
-  same shape as the PSRAM plan but at **latency 1**, so no stall machinery, no
-  SWI-in-flight logic, no write buffer.
+  effectively the IF/ID fetch latch, or a 1-cycle fetch is added). Same shape as
+  the PSRAM plan, but at **latency 1** — no stall machinery, no SWI-in-flight
+  logic, no write buffer.
 - Keep `MEM_WORDS`/`RAM_WORDS` as the decode bound; the core's halt test
   (`deep16_core.sv:994`, `:669`) must use the RAM bound, not 1,048,576.
 
@@ -174,7 +205,28 @@ needs the interface change `PLANPSRAM.md` §A calls "memory interface honesty":
   `i_free=1`** (free-run) and reset, or add a trivial start bit. No test harness
   reads `o_done` on the board.
 
-### 4.4 New board top + constraints
+### 4.4 UART peripheral
+
+There is **no UART anywhere in the repo** (verified: no `uart`/`serial`/`F0040`
+in `js/`, `wasm/`, or `rtl/`). New module `rtl/deep16_uart.sv`:
+
+- **TX**: shift register, start/stop bits, a **64-byte FIFO** so `putstr` does
+  not stall per character.
+- **RX**: **16× oversampler**, centre-sample, start-bit detect, assemble the
+  byte, push to a **128-byte FIFO** (the depth the keyboard FIFO already uses,
+  `deep16_top.sv:44`); **overrun** flag.
+- **Baud**: 27 MHz ÷ 115200 = 234.375 → divisor **234** (0.16 % error, well
+  inside UART tolerance). Run the CPU at 27 MHz; no PLL.
+- **Pins**: FPGA **17 (TX) / 18 (RX)**, bank 2 (confirm before the `.cst`).
+
+Integration:
+
+- Add the decode beside the keyboard decode in `deep16_core.sv:740-746`, with new
+  core ports: `uart_rx_ready`, `uart_rx_data`, `uart_tx_we`, `uart_tx_data`.
+- Mirror the identical port in the **JS and WASM cores** for parity and to let the
+  whole thing be built and tested before hardware.
+
+### 4.5 Board top, clock, reset, constraints
 
 Nothing board-shaped exists today.
 
@@ -185,39 +237,31 @@ Nothing board-shaped exists today.
 - A **`.cst`** pin-constraint file: clock, reset/button, LED, UART pins 17/18.
   None exists in the repo.
 - A **memory-init file** (`.mi`) so the assembled kernel is in BSRAM at power-up
-  (see §6).
-
-### 4.5 UART peripheral
-
-There is **no UART anywhere in the repo** (verified: no `uart`/`serial`/`F0040`
-in `js/`, `wasm/`, or `rtl/`).
-
-- TX: divider from 27 MHz → 115200 (÷234, 0.16 % error) or an oversampled RX.
-- RX: oversample + a small **RX FIFO**, because the polled console must not drop
-  a byte between polls (the existing keyboard FIFO is 128 deep,
-  `deep16_top.sv:44`; a serial console wants at least that much foundation).
-- MMIO decode added to the core's `LDS`/`STS` path next to
-  `KBD_STATUS_ADDR`/`KBD_DATA_ADDR` (`deep16_core.sv:740-746`), and mirrored in
-  the JS/WASM cores for parity and emulator testing.
+  (§6).
 
 ---
 
-## 5. Peripheral contract
+## 5. MMIO contract
 
 The manual already reserves a UART at `0xF0040–0xF004F`
 (`doc/Deep16-Prog-Man.md` §7.1) and even shows `serial_putc` — but **no core
-implements it**. D16MINI can adopt that address instead of inventing one:
+implements it**. Adopt that address instead of inventing one. `ES = 0xF000`, as
+the BIOS already sets.
 
 | Offset | Name | R/W | Meaning |
 |---|---|---|---|
-| `0xF0040` | `UART_STAT` | R | b0 = RX ready, b1 = TX ready (else busy), b2 = RX overrun |
-| `0xF0042` | `UART_DATA` | R/W | read pops RX; write starts TX |
-| `0xF0044` | `UART_DIV` | R/W | baud divider (optional; a constant is fine) |
-| `0xF0046` | `UART_CTRL` | W | reset RX FIFO / enable (optional) |
+| `0x0040` | `UART_STAT` | R | b0 RX-ready, b1 TX-ready, b2 RX-overrun, b3 TX-idle |
+| `0x0042` | `UART_DATA` | R/W | read pops RX; write pushes TX |
+| `0x0044` | `UART_DIV` | R/W | baud divisor (frozen 234; register kept for testability) |
+| `0x0046` | `UART_CTRL` | W | b0 reset RX FIFO, b1 reset TX FIFO |
 
-`LDS`/`STS` only — `LD`/`ST` must keep returning the RAM fill value for ports,
-exactly as the keyboard ports already behave (the `0xFxxxx` non-cacheable rule,
+This is deliberately the **same shape as the keyboard port** (`0x0060`/`0x0062`):
+a status word then a data word, via `LDS`/`STS`. `LD`/`ST` keep returning the RAM
+fill value for ports, exactly as today (`0xFxxxx` is non-cacheable,
 `deep16_cache.sv:13`).
+
+The keyboard ports (`0xF0060`/`0xF0062`) stay decoded but are **dead on the
+board** — the UART replaces the keyboard as well as the screen.
 
 ---
 
@@ -228,78 +272,212 @@ The kernel image must be in BSRAM when the FPGA configures.
 - **Recommended for bring-up:** generate a `.mi` / BSRAM-init from the assembled
   image (plus the boot ROM in LUTs). No loader, no host, instant boot.
 - Later alternative: a small ROM loader that takes the image over the UART.
-- Note the current "load a program" path (`loadProgram` in `rtl/sim`,
+- The current "load a program" path (`loadProgram` in `rtl/sim`,
   `js/deep16_simulator.js`) is a **simulation** facility; it does not exist as
   hardware.
 - DeepForth's own "Datei tippen…" source loader is **browser-only** (`SERPLAN.md`);
   on the board a source file arrives by typing into the UART, or the image is
-  baked in. There is no on-board mass storage in this design.
+  baked in. There is no on-board mass storage in this design. (In simulation the
+  injection is kept — §7.7, decision C5.)
 
 ---
 
-## 7. Kernel / console work
+## 7. The serial terminal front end (console)
 
-The kernel is written so output *should* funnel through one place, and the
-comment says so — but it does not, and the framebuffer is threaded through the
-whole BIOS.
+### 7.1 What the "screen buffer front end" is today
 
-### 7.1 Two output paths, not one
+The kernel has **no single output chokepoint**, though `README.md` and the
+comment above `put_char` claim one. The real coupling, by call site:
 
-- `put_char` → BIOS `putch` (f2) → writes **screen cells**, attributes, cursor,
-  scroll (`asm/forth.asm`, BIOS `bios_f2`).
-- BIOS **`putstr` (f3) writes `ES:SCR` directly**, bypassing `putch` — the boot
-  banner and `bios_putstr_direct` use it. So the "one place" rule is already
-  broken; there are two.
-- BIOS **`getstr` (f5)** reads `KBD_STATUS`/`KBD_DATA` *and* echoes to the screen
-  with cursor handling; **`getch` (f4)** reads the keyboard.
-- **`binit` (f1)** clears 2000 screen cells and homes the cursor.
+**Output**
 
-### 7.2 Screen-only words and the `SCR` pointer
+| Path | Reaches the screen by |
+|---|---|
+| `word_emit` | BIOS `putch` (f2) |
+| `print_text`, `print_prompt` | `put_char` → BIOS f2 |
+| `newline_direct`, `word_cr` | BIOS f2 (CR, then LF) |
+| `bios_putch_direct`, `bios_putstr_direct` | BIOS f2 / **f3** |
+| **BIOS `putstr` (f3)** | **writes `ES:SCR` directly** — the second writer |
+| **BIOS `putch` (f2)** | cell write + attribute + cursor + scroll |
+| `clear_cursor`, `cursor_off` | `AND ATTR_MASK` on `ES:SCR` |
+| `after_print_text` | `SCR` row arithmetic |
+| `wrap_if` | column computed from `SCR`, wraps at 80 |
+| `word_cls` | BIOS f1 + blanks the top-left cell |
+| `word_scr_fetch`, `word_scr_store` | `ES:SCR` |
 
-`wrap_if` reads `SCR` (R8) to find the column and wraps at 80; `form` returns
-`24 80`; `scr@`/`scr!` address the framebuffer; `cls` calls `binit` and repaints
-the top-left cursor cell; the cursor attribute `0x7000` is written in `putch`,
-`getstr` and `bios_putch_lf`. None of this exists on a UART.
+The live output pointer is the register **`R8` (`SCR`)**.
 
-### 7.3 Plan: one source, two consoles
+**Input**
 
-- Add **conditional assembly** (`.if`/`.else`/`.endif`, maybe `.define`) to
-  `js/deep16_assembler.js` — it has `.org`/`.word`/`.text`/`.equ` only. This is
-  the clean way to build a screen kernel and a UART kernel from one 12,000-line
-  source; a delimited-region substitution in a build script is the fallback.
-- The **UART BIOS** replaces f1–f5 in place, keeping the calling convention
-  (`DS:[0]=fn`, `DS:[1]=arg`) so `put_char`, `print_text`, `emit`, `key`,
-  `accept` and the interpreter's prompt are unchanged:
-  - `putch` → poll `UART_STAT.b1`, write `UART_DATA`; CR/LF are just bytes; **no
-    scroll, no cursor, no attributes**.
-  - `putstr` → TX loop.
-  - `getstr`/`getch` → poll `UART_STAT.b0`, read `UART_DATA`, echo by TX,
-    backspace = send `BS SP BS`.
-  - `binit` → send a clear (ANSI `ESC[2J ESC[H`) or nothing.
-- **Make `wrap_if` a no-op** and give `form` a UART-appropriate answer (e.g.
-  `0 0` → "no columns"), then `scr@`/`scr!`/`cls` for the screen build only.
-- **Move the stacks** (§3) and the **BIOS `.org`** (§3).
+| Path | Reads by |
+|---|---|
+| `word_key` | BIOS `getch` (f4) |
+| `word_accept` | BIOS `getstr` (f5) into `TIB` |
+| BIOS `getch` (f4), `getstr` (f5) | poll `KBD_STATUS`/`KBD_DATA` = `0xF0060`/`0xF0062` |
+| BIOS `getstr` | also **echoes into the screen** with cursor/backspace handling |
 
-Nothing in the emulator's `forth.test.js` should change for the **screen build**;
-the UART build gets its own tests (§8).
+`ECHO_FLAG` (`0xF0064`) gates that echo; `word_echo` sets it.
+
+**The honest boundary is BIOS f0–f5.** The front end must also close the
+`ES:SCR` leaks in §7.4.
+
+### 7.2 Architecture
+
+Three layers, split so the FPGA stays trivial and the terminal logic stays
+editable:
+
+```
+DeepForth ──► console layer (kernel BIOS f0–f5) ──► UART MMIO ──► deep16_uart ──► pins 17/18
+     ▲                     │                                                          │
+     └─────────────────────┴──────────────  host terminal (VT100)  ◄──────────────────┘
+                                             or SerialTerminal model (sim / IDE)
+```
+
+- **Hardware** (`deep16_uart.sv`, §4.4): a dumb byte pipe. TX/RX FIFOs, baud
+  divider. No screen, no cursor, no attributes.
+- **Console layer** (kernel BIOS): turns the old cell/attribute/cursor model into
+  plain bytes plus a minimal ANSI subset. **This is the front end.**
+- **Host terminal**: owns the screen. In simulation, a `SerialTerminal` model
+  owns it instead.
+
+Because the host owns the screen (C1), the machine stores **no** terminal state
+beyond a byte FIFO. That is the whole point of the design.
+
+### 7.3 Console BIOS: same functions, serial bodies
+
+Same **function numbers and calling convention** (`DS:[0]=fn`, `DS:[1]=arg`), so
+`put_char`, `print_text`, `emit`, `key`, `accept`, the prompt and the interpreter
+are **not touched**:
+
+| BIOS | Today (screen) | D16MINI (serial) |
+|---|---|---|
+| f0 `bver` | `R0 = 1` | unchanged |
+| f1 `binit` | clear 2000 cells, home cursor | **emit `ESC[2J`**; host homes |
+| f2 `putch` | cell write + attribute + cursor + scroll | **TX one byte** |
+| f3 `putstr` | direct `ES:SCR` cell writes | **TX loop** |
+| f4 `getch` | poll keyboard | **poll `UART_STAT.b0`, read `UART_DATA`** |
+| f5 `getstr` | keyboard + screen echo + cursor/BS | **RX line + TX echo + `BS SP BS`** |
+
+f5 keeps its current shape — accumulate into `TIB`, end on CR **or** LF, refuse
+past `TIB_LIMIT`, NUL-terminate — with only the source and the erase changed:
+source `0x0060/0x0062` → `0x0040/0x0042`; erase `ES:SCR` manipulation →
+`BS SP BS` on the wire. `ECHO_FLAG` keeps its meaning (the host should have local
+echo **off**).
+
+### 7.4 Kernel helpers to neutralise
+
+| Helper | Today | D16MINI (serial) |
+|---|---|---|
+| `put_char`, `print_text`, `print_prompt` | BIOS f2 | unchanged (still f2) |
+| `newline_direct`, `word_cr` | f2 CR then f2 LF | unchanged (bytes are bytes) |
+| `clear_cursor`, `cursor_off` | `AND ATTR_MASK` on `ES:SCR` | **no-op** |
+| `after_print_text` | `SCR` row math → next line | **emit CR+LF** (keeps the banner on its own line) |
+| `wrap_if` | column from `SCR`, wrap at 80 | **no-op** (`JMP LR`) — host autowraps |
+| `word_cls` | f1 + blank top-left cell | **f1 only** |
+| `word_scr_fetch`, `word_scr_store` | `ES:SCR` | **removed** (screen-only) |
+| `form` | `24 80` | **`24 80`** (nominal; decision C3) |
+
+Consequences:
+
+- **`R8` (`SCR`) becomes a free register** — nothing needs a live screen pointer.
+- `scr@`/`scr!` and colour attributes are gone (C2); full-screen programs
+  (`hanoi`, `snake`) do not run here — already carved out in `README.md:125`.
+- The keyboard FIFO's role is now the UART **RX FIFO**.
+
+### 7.5 Protocol
+
+The minimal VT100 subset — enough for a REPL, nothing more.
+
+**Emitted by the machine**
+
+| Bytes | Meaning |
+|---|---|
+| printable ASCII | the character |
+| `CR` `LF` (0x0D 0x0A) | end of line — a terminal renders it correctly |
+| `BS SP BS` (0x08 0x20 0x08) | erase the previous character (backspace) |
+| `ESC[2J` | clear screen (`binit` / `cls`) |
+
+**Accepted by the machine**
+
+| Input | Action |
+|---|---|
+| printable ASCII | store + echo |
+| `CR` or `LF` | end line (the existing `bios_getstr` rule) |
+| `BS` (0x08) or `DEL` (0x7F) | erase one char (rewind buffer, `BS SP BS`) |
+| `ESC …` sequence | **consumed and dropped** (C4) — arrows, function keys |
+| everything else | ignored |
+
+Optional later, not in this design: `Ctrl-C` = break; `ESC[A`/`ESC[B` = command
+history.
+
+### 7.6 Build switch: one source, two consoles
+
+Add **conditional assembly** to `js/deep16_assembler.js` — it has only
+`.org`/`.word`/`.text`/`.equ` today:
+
+```
+.if CONSOLE_UART
+    ; UART BIOS f0–f5, neutralised helpers (§7.3, §7.4)
+.else
+    ; the existing screen BIOS and helpers, unchanged
+.endif
+```
+
+`CONSOLE_UART` selects the build. The screen path is compiled byte-for-byte as
+today, so the emulator, the IDE and `tests/forth.test.js` keep working.
+
+If adding conditionals is deferred, the fallback is a delimited-region
+substitution in the build script — but the assembler feature is small, reusable,
+and also serves the book.
+
+### 7.7 Simulation / IDE front end
+
+This is what makes the design buildable **now**, before a board.
+
+- **`SerialTerminal` model** (in `tests/helpers.js`): captures the TX byte stream,
+  feeds RX, and parses the §7.5 subset back into an 80×25 view.
+- **IDE Screen tab** renders the `SerialTerminal` for the UART build instead of
+  reading `mem[0xF1000]`. The visual experience survives with no framebuffer.
+- **Input injection (C5):** the existing "Datei tippen…" uploader
+  (`fileToKeys` → key pump) feeds **UART RX** in the UART build, exactly as it
+  feeds the keyboard FIFO in the screen build. The 128-entry RX FIFO is the same
+  depth, so the pump's flow control still applies.
+- `sim.enqueueKeyCode` (the IDE keyboard) also maps to UART RX.
+
+### 7.8 The rejected alternative (kept for the record)
+
+A **zero-kernel-change adapter**: keep `0xF1000` decoded to a shadow 2000-cell
+buffer (not RAM), watch cell writes, and emit `ESC[row;colH` + char derived from
+the address. The kernel stays byte-for-byte unchanged.
+
+Rejected because it **keeps a screen buffer** (the thing we are removing), needs
+row/col decode, produces verbose cursor positioning, and merely relocates the
+attribute problem. Decision C1 chose the dumb pipe instead.
 
 ---
 
 ## 8. Verification
 
-- **Keep** the three-core ISA parity (JS/WASM/RTL) — the instruction set is
-  untouched.
-- Add a **UART model** to the Verilator harness (`rtl/sim/harness.cpp`) mirroring
-  the JS/WASM core model, plus a **loopback test**: the same UART-kernel build
-  must emit byte-identical output on all three cores.
-- Add a **UART-console test** parallel to `forth.test.js` (which asserts on the
-  80×25 screen and cannot test a screenless build).
-- Memory: a **registered-read parity test** — run the existing fuzz/sweep against
-  the BSRAM-latency model; behaviour must be identical to the combinational
-  model. (This is `PLANPSRAM.md` §7's latency-invariance idea reduced to the one
-  latency that matters here: 1.)
-- **Not verifiable on this machine:** synthesis, timing closure, fit, and the
-  real UART pins — there is no Gowin toolchain here.
+| # | Test | Gate |
+|---|---|---|
+| 1 | Byte-exact boot: banner, `>`, prompt | matches the expected stream |
+| 2 | Evaluated line: `3 4 + .` | `3 4 + . 7  ok\r\n> ` |
+| 3 | Line editing: type, `BS`, type, `CR` | buffer correct, wire shows `BS SP BS` |
+| 4 | Escape handling: `ESC[A` mid-line | dropped, buffer unchanged |
+| 5 | Clear: `cls` | wire contains `ESC[2J` |
+| 6 | **Three-core parity** | identical byte stream on JS, WASM, RTL |
+| 7 | **Guard: no framebuffer writes** | the UART build stores nothing into `0xF1000–0xF17CF` |
+| 8 | Injection: upload a source file | arrives via UART RX, definitions run |
+| 9 | **Memory latency** | registered-read model behaves identically to the combinational array at latency 1 |
+| 10 | Existing `forth.test.js` (screen build) | stays green, untouched |
+
+Test 7 is the mechanism that pins the two output paths (§7.1) closed — the thing
+the "one chokepoint" comment only asserted. Test 9 is `PLANPSRAM.md` §7's
+latency-invariance idea reduced to the one latency that matters here.
+
+> `README.md:74` lists `tests/serial-port.test.js`, which **does not exist**. The
+> new test file is `tests/serial-console.test.js`; correct the README entry when
+> it lands.
 
 ---
 
@@ -309,13 +487,13 @@ Each phase ends green and committable. Phases 1–3 need no hardware.
 
 | Phase | Work | Hardware? |
 |---|---|---|
-| **1** | Assembler conditionals; UART kernel variant; UART model in JS + WASM; emulator UART-console tests. Advisory only: the ISA and screen build stay green. | no |
-| **2** | Memory interface honesty (`PLANPSRAM.md` §A): registered reads, `vec` as a register, drop the cache behind a build flag; BSRAM memory model in Verilator; latency-invariance at latency 1. | no |
-| **3** | UART RTL + MMIO in all three cores; BSRAM inference (26 blocks); board top, clock, reset, constraints; `.mi` init; simulate. | no |
-| **4** | Gowin synthesis, timing closure at 27 MHz, `program`-over-JTAG, UART bring-up, boot the real DeepForth. | **yes** |
+| **1** | Assembler conditionals; UART console BIOS + neutralised helpers; UART model in JS + WASM; `SerialTerminal`; tests 1–8. Screen build stays green. | no |
+| **2** | Memory interface honesty (§4.2): registered reads, `vec` as a register, drop the cache behind a build flag; BSRAM/registered model in Verilator; test 9. | no |
+| **3** | Real `deep16_uart.sv`; core MMIO ports; BSRAM inference (26 blocks); board top, clock, reset, `.cst`; `.mi` init; simulate. | no |
+| **4** | Gowin synthesis, timing closure at 27 MHz, `program`-over-JTAG, terminal bring-up (picocom @115200), boot the real DeepForth. | **yes** |
 
-Phase 2 is deliberately separate from Phase 1: one changes the memory model, the
-other the console, and a regression must be locatable.
+Phase 1 (console) and Phase 2 (memory) are deliberately separate: one changes
+the console, the other the memory model, and a regression must be locatable.
 
 ---
 
@@ -323,12 +501,15 @@ other the console, and a regression must be locatable.
 
 | Risk | Mitigation |
 |---|---|
-| Combinational→registered memory breaks the pipeline (fetch and load) | Phase 2 alone, on video-off; latency-invariance test; keep the array model as reference |
+| Combinational→registered memory breaks the pipeline (fetch and load) | Phase 2 alone; test 9; keep the array model as reference |
 | `dict_free` drifts upward as Tier-3 words land | leave the 11.5 K-word slack; assert at assemble time that `dict_free < STACK_BASE` |
-| Two output paths (`putch`, `putstr`) and screen-coupled words missed | grep-gate: the UART build must contain **no** write to `ES:SCR`; a test asserts it |
+| Two output paths (`putch`, `putstr`) / a third `ES:SCR` writer missed | test 7; grep-gate on `0xF1000` stores |
+| `after_print_text` left as SCR math → prompt glued to the banner | explicit CR+LF in §7.4 |
+| Escape sequences leak into the line buffer | consume-and-drop state in f5 (§7.5), test 4 |
+| Host local echo left on → doubled input | document host setup; initiation banner |
+| RX byte loss between polls | 128-byte RX FIFO; injection test 8 mirrors the existing FIFO-brake test |
 | BIOS far-jump / segment change breaks SWI | re-run the full forth suite; BIOS `.org` is one constant |
-| No Gowin toolchain here | treat synthesis/timing as Phase 4 unknowns, not assumptions |
-| UART RX byte loss between polls | RX FIFO; test with a buffered stream like the keyboard FIFO test |
+| No Gowin toolchain here | synthesis/timing are Phase 4 unknowns, not assumptions |
 | `.cst` UART pins / pin mode wrong | confirm against DS117 + Sipeed pinout before Phase 4 |
 
 ---
@@ -353,7 +534,7 @@ Everything below is *absent*, not merely untested. Grouped by area.
   synthesizable to 468 Kbit BSRAM.
 - Memory is **read combinationally** (IF fetch and MEM data in the same cycle:
   `deep16_core.sv:1066` + `:1048-1049`, `deep16_top.sv:156-158`). BSRAM reads are
-  registered — the interface must change for *any* FPGA memory, PSRAM or BSRAM.
+  registered — the interface must change for *any* FPGA memory.
 - The read bus is **11 reads/cycle** (cache refill ×8, fetch, data, SWI vector,
   `deep16_top.sv:150-165`); a BSRAM has 2 ports. The cache and refill path must go.
 - The **SWI vector is a dedicated array read** (`mem[2]`) rather than a register.
@@ -364,7 +545,7 @@ Everything below is *absent*, not merely untested. Grouped by area.
   to remove it (≈800–1,200 LUT per `STATUS.md`).
 - The `i_step`/`i_free` **single-step handshake** is simulation-shaped.
 
-### C. UART (nothing exists)
+### C. UART / console (nothing exists)
 
 - **No UART RTL** anywhere: no TX, RX, baud divider, oversampler or FIFO.
 - **No UART MMIO** in any of the three cores; only `KBD_STATUS_ADDR` /
@@ -372,34 +553,26 @@ Everything below is *absent*, not merely untested. Grouped by area.
 - **Doc/reality mismatch:** `doc/Deep16-Prog-Man.md` §7.1–7.2 specifies a UART at
   `0xF0040–0xF004F` and shows `serial_putc`, but no core implements it.
 - **Stale README:** `README.md` lists `tests/serial-port.test.js`; **the file does
-  not exist** (`tests/` has 15 files, no serial test).
-- The keyboard is a **PS/2-shaped polled port** with a 128-entry FIFO; there is no
-  serial input path and no overrun handling.
-
-### D. Kernel / console (screen-coupled)
-
-- BIOS **`putch` (f2)** writes the framebuffer: cells, cursor attribute, CR/LF,
-  and a **scroll loop** — all meaningless without a screen.
-- BIOS **`putstr` (f3)** is a **second direct framebuffer writer** (`STS R1, ES,
-  SCR`), so the "one choke point" assumption in the comments and README is false.
-- BIOS **`getstr` (f5)** reads the keyboard **and echoes to the framebuffer** with
-  cursor/backspace handling; **`getch` (f4)** reads the keyboard.
-- BIOS **`binit` (f1)** clears 2,000 screen cells and homes a cursor.
-- **`wrap_if`** computes the column from `SCR` and wraps at 80; **`form`** returns
-  `24 80`; **`scr@`/`scr!`** address `ES:SCR`; **`cls`** calls `binit` and repaints
-  a cursor cell. All screen-only.
-- The output pointer is the **register `R8` (`SCR`)**, threaded through many
-  routines; a UART has no such pointer.
+  not exist**.
+- The keyboard is a **PS/2-shaped polled port** with a 128-entry FIFO (no serial
+  input path, no overrun handling).
+- Kernel: BIOS **`putch` (f2)** writes the framebuffer (cursor, attributes, CR/LF,
+  scroll); BIOS **`putstr` (f3)** is a **second direct framebuffer writer**, so
+  the "one choke point" assumption is false; BIOS **`getstr` (f5)** reads the
+  keyboard and echoes to the framebuffer; BIOS **`binit` (f1)** clears 2,000
+  cells. Screen-only kernel words: **`wrap_if`** (column from `SCR`, wrap at 80),
+  **`form`** (`24 80`), **`scr@`/`scr!`**, **`cls`**, plus the cursor helpers
+  (`clear_cursor`, `cursor_off`, `after_print_text`). The output pointer is the
+  **register `R8` (`SCR`)**.
 - **No console-abstraction build:** `js/deep16_assembler.js` has no conditionals,
-  so today it cannot produce a screen kernel and a UART kernel from one source.
+  so it cannot produce a screen kernel and a UART kernel from one source.
 - The kernel's fixed addresses (**stacks** at `0x6F00`/`0x7FF0`, **BIOS** at
   `0xF8000`, **boot ROM** at `0xFFFF0`) sit outside a 26 K-word BSRAM window and
   must be relaid.
 - **No on-board way to enter source.** SERLOAD was removed (`SERPLAN.md`); the
-  "Datei tippen…" loader is a browser feature. On real hardware, source arrives
-  by typing into the console or not at all.
+  "Datei tippen…" loader is a browser feature.
 
-### E. Tests / tooling
+### D. Tests / tooling
 
 - **No UART test, no loopback, no hardware-in-the-loop test.**
 - `forth.test.js` asserts against the **80×25 screen**; it cannot exercise a
@@ -411,14 +584,15 @@ Everything below is *absent*, not merely untested. Grouped by area.
 
 ## 12. Decisions still open
 
-1. **BIOS location** — relocate into the low RAM window (recommended) vs. keep at
-   `0xF8000` with a LUT-ROM decode.
+The six console decisions (C1–C6) are locked (§0). These machine items remain:
+
+1. **BIOS location** — relocate into the low RAM window (M5, recommended) vs.
+   keep at `0xF8000` with a LUT-ROM decode.
 2. **Conditional assembly** in the assembler (recommended) vs. a build-time
    substitution script for the console variant.
 3. **Stack bases** — new constants once the BIOS placement is fixed.
 4. **Boot** — BSRAM init from `.mi` (recommended) vs. a UART loader ROM.
 5. **Keep the keyboard ports?** Dead on hardware; harmless in the map. Lean: keep
    the addresses, wire nothing.
-6. **UART address** — adopt the documented `0xF0040` (recommended) or start clean.
-7. **`form` / `wrap_if` on UART** — `0 0` and a no-op, or keep 24 lines and never
-   wrap. Cosmetic; pick when writing the UART BIOS.
+6. **FIFO/baud beyond C6** — C6 fixes 115200 / TX 64 / RX 128; revisit only if a
+   hardware measurement demands it.
