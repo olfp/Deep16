@@ -13,6 +13,7 @@
     "trace:rtl": "node scripts/rtl_trace.mjs",
     "sweep:rtl": "node scripts/rtl_sweep.mjs",
     "serve": "node scripts/serve.mjs",
+    "image": "node scripts/make_image.mjs",
     "ui:shot": "node scripts/ui-shot.mjs"
   },
   "devDependencies": {

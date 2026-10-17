@@ -362,7 +362,7 @@ The keyboard ports `0xF0060`/`0xF0062` stay decoded but dead (§5).
 
 ### 6.5 The generator
 
-`scripts/make_image.mjs` (new), run from `npm run image`:
+`scripts/make_image.mjs` — **done**, `npm run image` writes `artifacts/image/`:
 
 1. Assemble `asm/forth.asm` with `{ CONSOLE_UART: 1 }` — the UART build; the
    screen build is emulator-only.
