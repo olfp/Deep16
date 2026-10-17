@@ -1011,6 +1011,17 @@ module deep16_core
   // word, and the data port only produces it while the SWI sits in MEM.
   logic        mem_late, if_redirect;
 
+  // The instruction memory is synchronous (BSRAM): the word on the bus now is
+  // the one asked for last cycle. `if_cs_q`/`if_pc_q` are the segment and PC the
+  // read was issued for; when they still match this cycle's if_pa the word is
+  // the one we want, otherwise it is stale and the fetch holds for a cycle
+  // (re-issuing the current address) - which is also how a segment change
+  // catches up. This is a prefetch: the address presented is the *next* one, so
+  // the registered word lands exactly where the combinational array used to.
+  logic [15:0] if_cs_q, if_pc_q;
+  logic        if_hit;        // the registered word is for this cycle's if_pa
+  logic [15:0] if_next_pc;    // the PC the memory read is being issued for
+
   always_comb begin
     if_cs          = ctx_next_ex.psw[FLG_S] ? ctx_next_ex.scs : ctx_next_ex.cs;
     if_pa          = {if_cs, 4'h0} + {5'b00000, if_pc};
@@ -1019,7 +1030,17 @@ module deep16_core
     if_redirect    = redirect_ex || mem_late;
     if_pc_next     = if_redirect ? (mem_late ? mem_rdata : redirect_pc_ex)
                                   : (if_pc + 16'd1);
-    if_addr        = if_pa;
+    // The word on the bus is the one asked for last cycle; if_hit says whether
+    // that request was for this cycle's if_pa (a segment change makes it stale).
+    if_hit         = (if_cs_q == if_cs) && (if_pc_q == if_pc);
+    // Issue for the next cycle: hold while the pipeline is stalled, take a
+    // redirect target (even on a stale word), else advance - or re-issue the
+    // current address when the word was stale but the PC did not move.
+    if_next_pc     = (stall || div_stall) ? if_pc
+                   : if_redirect          ? if_pc_next
+                   : if_hit               ? if_pc_next
+                                          : if_pc;
+    if_addr        = {if_cs, 4'h0} + {5'b00000, if_next_pc};
   end
 
   // The word test needs the memory read data, so it lives in its own block:
@@ -1093,10 +1114,11 @@ module deep16_core
   end
 
   // ---- data ports ---------------------------------------------------------
-  // The read port serves the MEM stage; the write port serves WB. Stores
-  // therefore become visible exactly when their instruction retires, which is
-  // what the single-step cores do - a store in MEM would already be visible
-  // one step early.
+  // The memory is synchronous, so the read address is issued one stage earlier
+  // than the data is used: presented in EX, the registered word arrives in MEM
+  // - exactly where the combinational array used to deliver it. The write port
+  // still serves WB, so stores become visible when their instruction retires,
+  // which is what the single-step cores do.
   always_comb begin
     mem_addr  = ex_mem.mem_rd_valid ? ex_mem.mem_addr : 21'd0;
     mem_we    = mem_wb.valid && mem_wb.mem_we;
@@ -1124,6 +1146,8 @@ module deep16_core
     if (rst) begin
       ctx             <= CTX_RESET;
       if_pc           <= 16'h0000;
+      if_cs_q         <= 16'h0000;
+      if_pc_q         <= 16'hFFFF;   // never matches the reset fetch: one miss
       if_id           <= '0;
       id_ex           <= '0;
       ex_mem          <= '0;
@@ -1146,6 +1170,11 @@ module deep16_core
       o_done          <= 1'b0;
       o_result        <= 1'b1;
     end else begin
+      // The instruction memory read issued this cycle; remember what it was for,
+      // so next cycle's if_hit test can tell whether the word is stale.
+      if_cs_q <= if_cs;
+      if_pc_q <= if_next_pc;
+
       // ---- step handshake --------------------------------------------------
       if (!run) begin
         if (i_step) begin
@@ -1214,10 +1243,14 @@ module deep16_core
             if (!div_drain) begin
               ex_mem       <= ex_mem_n;
               ex_mem.valid <= id_ex.valid && !ex_kill;
-              id_ex        <= if_id;
-              id_ex.valid  <= if_id.valid && !kill_id;
-              if_id        <= if_id_n;
-              if_pc        <= if_pc_next;
+              id_ex       <= if_id;
+              id_ex.valid <= if_id.valid && !kill_id;
+              // A stale prefetch leaves IF/ID with a bubble (the address is
+              // re-issued, or a redirect target is taken); a good word is
+              // captured as usual.
+              if (if_hit) if_id <= if_id_n;
+              else        if_id <= '0;
+              if_pc        <= if_next_pc;
             end else begin
               // DIV is waiting in EX: it must not move on, and EX/MEM takes a
               // bubble so the instruction before it can retire.

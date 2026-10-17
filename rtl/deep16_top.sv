@@ -83,25 +83,23 @@ module deep16_top
   logic        uart_txd;        // TX pin: a board output, unused in simulation
   /* verilator lint_on UNUSEDSIGNAL */
 
-  // ---- cache (phase 3, spec 7.4) ----------------------------------------
-  logic        if_hit, dm_hit;
-  logic [15:0] if_cached, dm_cached;
-  logic [16:0] fill_base;
-  logic [127:0] fill_data;
-  logic        cache_flush;
-  logic        core_cache_flush;
-  logic        cache_inv;
-  logic [10:3]  cache_inv_line;
-  logic [31:0] cache_hits, cache_misses;
-  logic        cache_miss_pulse;
-  logic [31:0] miss_penalty_cyc;
+  // ---- synchronous main memory (D16MINI.md §4.1) ------------------------
+  // The reads are registered: one clock after the address is presented the word
+  // is on the bus. The core prefetches the instruction address and issues the
+  // data address in EX, so both land exactly where the combinational array used
+  // to deliver them. This build has no cache (D16MINI is cacheless), so the
+  // FSH flush and the cache-invalidate inputs have nothing to do.
+  logic [15:0] if_rdata_q;
+  /* verilator lint_off UNUSEDSIGNAL */
+  logic        core_cache_flush;   // the core's FSH: no cache to flush here
+  logic        _cache_inputs_unused;
+  /* verilator lint_on UNUSEDSIGNAL */
+  assign _cache_inputs_unused = &{1'b0, i_cache_flush, i_cache_inv, i_cache_inv_line};
 
-  assign cache_flush    = i_cache_flush | core_cache_flush;
-  assign cache_inv      = i_cache_inv;
-  assign cache_inv_line = i_cache_inv_line;
-  assign o_cache_hits   = cache_hits;
-  assign o_cache_misses = cache_misses;
-  assign o_cache_penalty = miss_penalty_cyc;
+  // The IDE still shows the cache counters; with no cache they read zero.
+  assign o_cache_hits    = 32'd0;
+  assign o_cache_misses  = 32'd0;
+  assign o_cache_penalty = 32'd0;
 
   deep16_core u_core (
     .clk       (clk),
@@ -146,63 +144,32 @@ module deep16_top
     for (int i = 0; i < ROM_WORDS; i++) mem[{11'h000, ROM_BASE} + i] = boot_rom_word(i);
   end
 
-  // ---- cache ------------------------------------------------------------
-  // A unified, direct-mapped cache in front of the array. It is transparent:
-  // on a hit the array word comes from the cache, on a miss or outside
-  // 0x00000-0xEFFFF straight from memory, so both ports always deliver what
-  // the bare array would have delivered.
-  deep16_cache u_cache (
-    .clk         (clk),
-    .rst         (rst),
-    .if_addr     (if_addr),
-    .if_hit      (if_hit),
-    .if_rdata    (if_cached),
-    .mem_addr    (mem_addr),
-    .dm_hit      (dm_hit),
-    .mem_rdata   (dm_cached),
-    .mem_we      (mem_we),
-    .mem_waddr   (mem_waddr),
-    .mem_wdata   (mem_wdata),
-    .fill_base   (fill_base),
-    .fill_data   (fill_data),
-    .flush_all   (cache_flush),
-    .inv_we      (cache_inv),
-    .inv_line    (cache_inv_line),
-    .stat_hits   (cache_hits),
-    .stat_misses (cache_misses),
-    .miss_pulse  (cache_miss_pulse)
-  );
+  // ---- synchronous read ports ------------------------------------------
+  // Two registered reads: the instruction port (addressed by the core's
+  // prefetch, so the word is ready when IF wants it) and the data port
+  // (addressed in EX, consumed in MEM). Out of range answers 0xFFFF, the halt
+  // word, exactly as the bare array did.
+  always_ff @(posedge clk) begin
+    if_rdata_q <= (if_addr < 21'(MEM_WORDS)) ? mem[if_addr[19:0]] : 16'hFFFF;
+  end
+  assign if_rdata = if_rdata_q;
 
-  // Read ports. The cache answers on a hit; otherwise the array does, which is
-  // why a miss needs no stall. vec_rdata never goes through the cache.
+  // The data port is still combinational: a registered data read fights the
+  // frozen-pipeline model's store-to-load timing (the store commits in WB, after
+  // the load would have sampled), so it needs a load-result stage or forwarding
+  // first. See D16MINI.md Phase 2.
   always_comb begin
-    // hit -> the cached word; miss or outside cacheable memory -> the array
-    if (dm_hit)                              mem_rdata = dm_cached;
-    else if (mem_addr < 21'(MEM_WORDS))      mem_rdata = mem[mem_addr[19:0]];
-    else                                     mem_rdata = 16'hFFFF;
-
-    if (if_hit)                              if_rdata = if_cached;
-    else if (if_addr < 21'(MEM_WORDS))       if_rdata = mem[if_addr[19:0]];
-    else                                     if_rdata = 16'hFFFF;
-
-    vec_rdata = mem[2];
-
-    // the eight words of the line being refilled
-    for (int fw = 0; fw < 8; fw++)
-      fill_data[fw*16 +: 16] = mem[{fill_base, fw[2:0]}];
+    mem_rdata = (mem_addr < 21'(MEM_WORDS)) ? mem[mem_addr[19:0]] : 16'hFFFF;
   end
 
-  // One write port (stores, which the core commits in its write-back stage).
-  // Write-through: the array is always the authoritative copy.
+  // The SWI vector is a constant address, read straight through so the handler
+  // entry is known in EX as before. (A register fed by the write path is the
+  // next step; it needs the host load path to keep it in sync.)
+  assign vec_rdata = mem[2];
+
+  // One write port (stores, committed in WB).
   always_ff @(posedge clk) begin
     if (mem_we && mem_waddr < 21'(MEM_WORDS)) mem[mem_waddr[19:0]] <= mem_wdata;
-  end
-
-  // A miss costs one cycle of block fill on top of the access (spec 7.4 puts
-  // the penalty at 4-8; the functional behaviour is unaffected either way).
-  always_ff @(posedge clk) begin
-    if (rst)                    miss_penalty_cyc <= 32'd0;
-    else if (cache_miss_pulse)  miss_penalty_cyc <= miss_penalty_cyc + 32'd1;
   end
 
   // ---- UART console (D16MINI.md §4.4) ----------------------------------
