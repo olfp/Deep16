@@ -86,7 +86,6 @@ class Deep16ScreenUI {
         screenDisplay.innerHTML = html;
 
         this.setupPager();
-        this.setupConsoleView();
         this.buildPalette();
         this.applyColumnMode();
 
@@ -255,16 +254,10 @@ class Deep16ScreenUI {
 
     // ---- console view: screen buffer vs. terminal output ------------------
 
-    setupConsoleView() {
-        const btn = document.getElementById('console-view-btn');
-        if (btn) btn.addEventListener('click', () => this.toggleConsoleView());
-        this.updateConsoleViewButton();
-        this.updateConsoleInfo();
-    }
-
-    // The one switch. 'screen' shows the memory buffer, 'terminal' shows the
-    // UART stream. Switching forces a full repaint because the two views share
-    // the same DOM cells but not their contents.
+    // 'screen' shows the memory buffer, 'terminal' shows the UART stream. The
+    // mode is owned by the IDE (the global Console: button); this just renders
+    // it. Switching forces a full repaint because the two views share the same
+    // DOM cells but not their contents.
     setConsoleView(mode) {
         const next = (mode === 'terminal') ? 'terminal' : 'screen';
         if (next === this.mode) return this.mode;
@@ -272,24 +265,10 @@ class Deep16ScreenUI {
         this.lastDrawn.fill(-1);
         this.lastTermDrawn.fill(-1);
         this.lastCursorIndex = null;
-        this.updateConsoleViewButton();
         this.updateConsoleInfo();
         this.updateScreenDisplay();
         this.applyColumnMode();
         return this.mode;
-    }
-
-    toggleConsoleView() {
-        return this.setConsoleView(this.mode === 'terminal' ? 'screen' : 'terminal');
-    }
-
-    updateConsoleViewButton() {
-        const btn = document.getElementById('console-view-btn');
-        if (!btn) return;
-        const term = this.mode === 'terminal';
-        btn.textContent = term ? 'View: Terminal' : 'View: Screen';
-        btn.setAttribute('aria-pressed', term ? 'true' : 'false');
-        btn.classList.toggle('screen-view-terminal', term);
     }
 
     // The info line and the colour legend only make sense for the screen. In

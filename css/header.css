@@ -55,6 +55,30 @@
     gap: 6px;
 }
 
+/* The one global console-mode switch (screen buffer vs. serial terminal). It
+   lives in the header beside the core selector because it changes the build as
+   well as the display; terminal mode reads as the button being pressed. */
+.console-mode-btn {
+    background: #0e639c;
+    border: 1px solid #3e3e42;
+    color: #ffffff;
+    padding: 4px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    min-height: 24px;
+}
+
+.console-mode-btn:hover { background: #1177bb; }
+
+.console-mode-btn.console-mode-terminal {
+    background: #444;
+    color: #bbb;
+}
+
+.console-mode-btn.console-mode-terminal:hover { background: #555; }
+
 #wssam-toggle {
     width: 16px;
     height: 16px;

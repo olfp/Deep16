@@ -1,7 +1,8 @@
-// The Screen tab's console switch and UART input routing (deep16_ui_core.js +
-// deep16_ui_screen.js). The class constructor is DOM-heavy, so the instance is
-// built from the prototype and the fields the methods touch are seeded by hand,
-// the same way tests/ui-core.test.js does it.
+// The IDE's global console mode (deep16_ui_core.js + deep16_ui_screen.js): one
+// switch that picks the assembler build, the Screen tab display and the input
+// route together. The class constructor is DOM-heavy, so the instance is built
+// from the prototype and the fields the methods touch are seeded by hand, the
+// same way tests/ui-core.test.js does it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -15,7 +16,7 @@ function fakeEl() {
            setAttribute() {}, getAttribute() { return null; },
            addEventListener() {}, appendChild() {}, focus() {} };
 }
-const els = { 'core-select': fakeEl(), 'console-view-btn': fakeEl() };
+const els = { 'core-select': fakeEl(), 'console-mode-btn': fakeEl() };
 globalThis.document = {
   addEventListener() {},
   getElementById: (id) => els[id] || null,
@@ -44,6 +45,7 @@ function makeUi() {
   ui.rtlInitialized = false;
   ui.wasmDirtyStart = null;
   ui.wasmDirtyEnd = null;
+  ui.consoleView = 'screen';
   ui.transcript = [];
   ui.addTranscriptEntry = (msg, kind) => ui.transcript.push(`[${kind || 'info'}] ${msg}`);
   ui.status = () => {};
@@ -56,27 +58,29 @@ function makeUi() {
   return ui;
 }
 
-test('the console view starts on the screen buffer', () => {
+test('the console mode starts on the screen buffer', () => {
   const ui = makeUi();
-  assert.equal(ui.screenUI.mode, 'screen');
   assert.equal(ui.consoleMode(), 'screen');
+  assert.equal(ui.screenUI.mode, 'screen');
   assert.ok(ui.screenUI.terminal, 'the terminal model must exist');
 });
 
-test('toggling switches the mode and the button label', () => {
+test('terminal mode updates the button, the view and the build', () => {
   const ui = makeUi();
-  ui.screenUI.setConsoleView('terminal');
-  assert.equal(ui.screenUI.mode, 'terminal');
+  ui.setConsoleMode('terminal');
   assert.equal(ui.consoleMode(), 'terminal');
-  assert.equal(els['console-view-btn'].textContent, 'View: Terminal');
-  ui.screenUI.toggleConsoleView();
-  assert.equal(ui.screenUI.mode, 'screen');
-  assert.equal(els['console-view-btn'].textContent, 'View: Screen');
+  assert.equal(ui.screenUI.mode, 'terminal');
+  assert.equal(els['console-mode-btn'].textContent, 'Console: Terminal');
+  assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1 });
+  ui.toggleConsoleMode();
+  assert.equal(ui.consoleMode(), 'screen');
+  assert.equal(els['console-mode-btn'].textContent, 'Console: Screen');
+  assert.deepEqual(ui.assembleDefines(), {});
 });
 
 test('bytes emitted by the core land in the terminal view', () => {
   const ui = makeUi();
-  ui.screenUI.setConsoleView('terminal');
+  ui.setConsoleMode('terminal');
   // What the machine would put on the wire: "Hi\r\n>"
   ui.simulator.uartTx.push(0x48, 0x69, 0x0D, 0x0A, 0x3E);
   ui.pumpConsole();
@@ -88,7 +92,7 @@ test('bytes emitted by the core land in the terminal view', () => {
 
 test('keys route to the UART RX in terminal mode', () => {
   const ui = makeUi();
-  ui.screenUI.setConsoleView('terminal');
+  ui.setConsoleMode('terminal');
   ui.kbdPushCode(65);                       // 'A'
   assert.equal(ui.simulator.uartRxAvailable(), 1, 'the key is in the UART RX');
   assert.equal(ui.simulator.kbdAvailable(), 0, 'and not in the keyboard FIFO');
@@ -105,7 +109,7 @@ test('keys route to the keyboard FIFO in screen mode', () => {
 
 test('clearing the queue clears whichever one is routed', () => {
   const ui = makeUi();
-  ui.screenUI.setConsoleView('terminal');
+  ui.setConsoleMode('terminal');
   ui.kbdPushCode(1);
   ui.kbdPushCode(2);
   ui.kbdClearAll();
@@ -114,7 +118,7 @@ test('clearing the queue clears whichever one is routed', () => {
 
 test('an uploaded file types itself into the UART in terminal mode', () => {
   const ui = makeUi();
-  ui.screenUI.setConsoleView('terminal');
+  ui.setConsoleMode('terminal');
   ui.fileUpload = {
     name: 't.fs', keys: ui.fileToKeys('hi\n'), pos: 0, done: false, stalled: false,
   };

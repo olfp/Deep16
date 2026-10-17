@@ -205,6 +205,10 @@ class DeepWebUI {
             });
             this.useWasm = wssamToggle.checked && this.wasmAvailable && !!this.wasmInitialized;
         }
+        // The global console mode (screen buffer vs. serial terminal), read from
+        // storage before the first display so the initial build/display agree.
+        this.setupConsoleMode();
+
         if (this.wasmAvailable) {
             this.addTranscriptEntry("WASM module detected", "success");
         } else if (window.Deep16WasmReady && typeof window.Deep16WasmReady.then === 'function') {
@@ -354,11 +358,67 @@ class DeepWebUI {
         return (s && typeof s.kbdAvailable === 'function') ? s.kbdAvailable() : NaN;
     }
 
-    // Which console the Screen tab is showing, and therefore where input goes.
-    // The mode lives on the screen UI because that is what the View button
-    // flips; this is only the reader.
+    // The IDE's one global console mode: 'screen' (the 0xF1000 buffer, the
+    // default build) or 'terminal' (the serial CONSOLE_UART build, the UART
+    // port and the terminal view). It drives three things at once - what the
+    // assembler builds, what the Screen tab shows and where input goes - which
+    // is why it is a mode and not three separate switches.
     consoleMode() {
+        if (this.consoleView === 'terminal') return 'terminal';
+        if (this.consoleView === 'screen') return 'screen';
+        // Not set yet (a hand-built instance): fall back to the screen UI.
         return (this.screenUI && this.screenUI.mode === 'terminal') ? 'terminal' : 'screen';
+    }
+
+    // The defines the global mode hands the assembler. Terminal mode compiles
+    // the serial BIOS (asm/forth.asm's .ifdef CONSOLE_UART branch); the screen
+    // build is the default and passes nothing.
+    assembleDefines() {
+        return this.consoleMode() === 'terminal' ? { CONSOLE_UART: 1 } : {};
+    }
+
+    setConsoleMode(mode) {
+        const next = (mode === 'terminal') ? 'terminal' : 'screen';
+        const changed = this.consoleMode() !== next;
+        this.consoleView = next;
+        if (this.screenUI && typeof this.screenUI.setConsoleView === 'function') {
+            this.screenUI.setConsoleView(next);
+        }
+        this.updateConsoleModeButton();
+        try { localStorage.setItem('deep16_console', next); } catch {}
+        if (changed && typeof this.addTranscriptEntry === 'function') {
+            this.addTranscriptEntry(next === 'terminal'
+                ? 'Terminal mode: Assemble builds the serial (CONSOLE_UART) kernel and the Screen tab shows the UART output'
+                : 'Screen mode: Assemble builds the memory-mapped screen kernel', 'info');
+        }
+        return next;
+    }
+
+    toggleConsoleMode() {
+        return this.setConsoleMode(this.consoleMode() === 'terminal' ? 'screen' : 'terminal');
+    }
+
+    updateConsoleModeButton() {
+        const btn = document.getElementById('console-mode-btn');
+        if (!btn) return;
+        const terminal = this.consoleMode() === 'terminal';
+        btn.textContent = terminal ? 'Console: Terminal' : 'Console: Screen';
+        btn.setAttribute('aria-pressed', terminal ? 'true' : 'false');
+        btn.classList.toggle('console-mode-terminal', terminal);
+    }
+
+    // Read the stored mode once and wire the header button. Called from the
+    // constructor, after the screen UI exists.
+    setupConsoleMode() {
+        const btn = document.getElementById('console-mode-btn');
+        let desired = 'screen';
+        try { desired = localStorage.getItem('deep16_console') === 'terminal' ? 'terminal' : 'screen'; } catch {}
+        this.consoleView = desired;
+        if (this.screenUI && typeof this.screenUI.setConsoleView === 'function') {
+            this.screenUI.setConsoleView(desired);
+        }
+        this.updateConsoleModeButton();
+        if (btn) btn.addEventListener('click', () => this.toggleConsoleMode());
     }
 
     // Machine -> host. Everything the active core has emitted on its UART since
@@ -2090,7 +2150,7 @@ class DeepWebUI {
         this.addTranscriptEntry("Starting assembly", "info");
 
         try {
-            const result = this.assembler.assemble(source);
+            const result = this.assembler.assemble(source, { defines: this.assembleDefines() });
             if (window.Deep16Debug) console.log("Assembly result:", result);
             
             this.currentAssemblyResult = result;

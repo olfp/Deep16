@@ -118,7 +118,7 @@ async function checkMenuFits(page, label) {
   const rows = await page.evaluate(() => {
     const tab = document.getElementById('screen-tab');
     const tabRect = tab ? tab.getBoundingClientRect() : { left: 0, right: 0 };
-    return ['console-view-btn', 'file-upload-btn', 'echo-toggle-btn'].map((id) => {
+    return ['file-upload-btn', 'echo-toggle-btn'].map((id) => {
       const el = document.getElementById(id);
       if (!el) return { id, missing: true };
       const r = el.getBoundingClientRect();
@@ -140,11 +140,41 @@ async function checkMenuFits(page, label) {
   }
 }
 
+// Load the Forth kernel into the editor, assemble it in the current console
+// mode, type a line into the UART and run the JS core directly. The IDE's own
+// run loop is paced for a person (200 steps per tick) and would take half a
+// minute to reach the prompt; stepping the model here is the same machine, just
+// not throttled.
+async function runForthRepl(page) {
+  const source = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
+  await page.evaluate((text) => { document.getElementById('editor').value = text; }, source);
+  const assembled = await page.evaluate(() => {
+    window.deepWebUI.assemble();
+    return window.deepWebUI.currentAssemblyResult && window.deepWebUI.currentAssemblyResult.success;
+  });
+  check(assembled === true, 'desktop: the Forth kernel assembles in terminal mode');
+  return page.evaluate(() => {
+    const ui = window.deepWebUI;
+    for (const ch of '3 4 + .\n') ui.kbdPushCode(ch === '\n' ? 13 : ch.charCodeAt(0));
+    ui.simulator.running = true;
+    for (let i = 0; i < 800000 && ui.simulator.running; i++) {
+      ui.simulator.step();
+      if (ui.simulator.uartTx.length) ui.pumpConsole();
+    }
+    ui.screenUI.updateScreenDisplay();
+    const rows = ui.screenUI.terminal.text().map((r) => r.replace(/\s+$/, ''));
+    return { mode: ui.consoleMode(), row0: rows[0], row1: rows[1], row2: rows[2] };
+  });
+}
+
 // --------------------------------------------------------------------------
 // one pass over one viewport
 // --------------------------------------------------------------------------
 async function runView(browser, base, { name, viewport, isMobile }) {
-  const page = await browser.newPage();
+  // A fresh context per view, so localStorage (the persisted console mode, core
+  // selection) does not leak from one viewport's run into the next.
+  const context = await browser.createBrowserContext();
+  const page = await context.newPage();
   const pageErrors = [];
   page.on('pageerror', (e) => pageErrors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
@@ -163,16 +193,21 @@ async function runView(browser, base, { name, viewport, isMobile }) {
   await page.click('[data-tab="screen"]').catch(() => {});
   await new Promise((r) => setTimeout(r, 400));
 
-  const before = await page.$eval('#console-view-btn', (el) => el.textContent.trim()).catch(() => null);
-  check(before === 'View: Screen', `${name}: the console view starts on the screen buffer`);
+  const before = await page.$eval('#console-mode-btn', (el) => el.textContent.trim()).catch(() => null);
+  check(before === 'Console: Screen', `${name}: the console mode starts on the screen buffer`);
+  const headerVisible = await page.$eval('#console-mode-btn',
+    (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
+              return s.display !== 'none' && r.width > 0 && r.left >= 0 && r.right <= innerWidth; })
+    .catch(() => false);
+  check(headerVisible, `${name}: the Console: button is visible in the header`);
   await checkMenuFits(page, name);
   await page.screenshot({ path: path.join(OUT, `${name}-screen.png`) });
 
   // Flip to the terminal and feed it a stream through the real render path.
-  await page.click('#console-view-btn').catch(() => {});
+  await page.click('#console-mode-btn').catch(() => {});
   await new Promise((r) => setTimeout(r, 300));
-  const after = await page.$eval('#console-view-btn', (el) => el.textContent.trim()).catch(() => null);
-  check(after === 'View: Terminal', `${name}: the button flips to the terminal`);
+  const after = await page.$eval('#console-mode-btn', (el) => el.textContent.trim()).catch(() => null);
+  check(after === 'Console: Terminal', `${name}: the button flips to the terminal`);
 
   const rendered = await page.evaluate(() => {
     const ui = window.deepWebUI;
@@ -190,8 +225,21 @@ async function runView(browser, base, { name, viewport, isMobile }) {
   check(rendered && rendered.cell0 === 'H', `${name}: the grid cell follows the stream`);
   await page.screenshot({ path: path.join(OUT, `${name}-terminal.png`) });
 
+  // The real thing, on the desktop pass only (it is the slow part): assemble
+  // the serial kernel and read a live REPL off the terminal.
+  if (!isMobile) {
+    const repl = await runForthRepl(page);
+    check(repl.mode === 'terminal', 'desktop: the mode is terminal for the REPL');
+    check(repl.row0 === 'Hello DeepForth!',
+      `desktop: the serial kernel boots to the banner (got ${JSON.stringify(repl.row0)})`);
+    check(repl.row1 === '> 3 4 + . 7  ok',
+      `desktop: a line evaluates over the UART (got ${JSON.stringify(repl.row1)})`);
+    await page.screenshot({ path: path.join(OUT, 'desktop-repl.png') });
+  }
+
   check(pageErrors.length === 0, `${name}: no page or console errors${pageErrors.length ? ' - ' + pageErrors.join('; ') : ''}`);
   await page.close();
+  await context.close();
 }
 
 // --------------------------------------------------------------------------
