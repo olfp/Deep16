@@ -377,23 +377,27 @@ class DeepWebUI {
         return this.consoleMode() === 'terminal' ? { CONSOLE_UART: 1 } : {};
     }
 
+    // Terminal mode needs a core that actually talks UART. The compiled cores
+    // do not yet (the mirror is a later phase), and running there shows an empty
+    // terminal, so fall back to the JS core and say so. Called from every entry
+    // point - switching the mode, loading, and Run - because the mode is
+    // persisted and can be 'terminal' before any switch happens.
+    ensureTerminalCore() {
+        if (this.consoleMode() !== 'terminal') return;
+        if (!(this.compiledCoreReady && this.compiledCoreReady())) return;
+        const C = this.activeCoreModule && this.activeCoreModule();
+        if (C && typeof C.uart_tx_take === 'function') return;
+        if (typeof this.addTranscriptEntry === 'function') {
+            this.addTranscriptEntry('Terminal mode runs on the JS core for now - the compiled cores have no UART yet', 'warning');
+        }
+        try { this.setCore('js', { mirror: true }); } catch {}
+    }
+
     setConsoleMode(mode, { rebuild = false } = {}) {
         const next = (mode === 'terminal') ? 'terminal' : 'screen';
         const changed = this.consoleMode() !== next;
         this.consoleView = next;
-
-        // The terminal needs a core that actually talks UART. The compiled
-        // cores do not yet (the mirror is a later phase), so rather than show an
-        // empty terminal, run this on the JS core and say so.
-        if (next === 'terminal' && this.compiledCoreReady && this.compiledCoreReady()) {
-            const C = this.activeCoreModule && this.activeCoreModule();
-            if (!C || typeof C.uart_tx_take !== 'function') {
-                if (typeof this.addTranscriptEntry === 'function') {
-                    this.addTranscriptEntry('Terminal mode runs on the JS core for now - the compiled cores have no UART yet', 'warning');
-                }
-                try { this.setCore('js', { mirror: true }); } catch {}
-            }
-        }
+        this.ensureTerminalCore();
 
         if (this.screenUI && typeof this.screenUI.setConsoleView === 'function') {
             this.screenUI.setConsoleView(next);
@@ -435,6 +439,7 @@ class DeepWebUI {
         let desired = 'screen';
         try { desired = localStorage.getItem('deep16_console') === 'terminal' ? 'terminal' : 'screen'; } catch {}
         this.consoleView = desired;
+        this.ensureTerminalCore();
         if (this.screenUI && typeof this.screenUI.setConsoleView === 'function') {
             this.screenUI.setConsoleView(desired);
         }
@@ -2227,6 +2232,8 @@ class DeepWebUI {
                 
                 this.status("Assembly successful! Program loaded.");
                 this.addTranscriptEntry("Assembly successful - program loaded", "success");
+                // Remember what is loaded, so Run can tell a stale image apart.
+                this.lastAssembledSource = source;
                 document.getElementById('run-btn').disabled = false;
                 document.getElementById('step-btn').disabled = false;
                 document.getElementById('reset-btn').disabled = false;
@@ -2312,6 +2319,18 @@ class DeepWebUI {
         if (this.simulator.running) {
             this.stop();
             return;
+        }
+        // A terminal-mode run must not land on a core with no UART.
+        this.ensureTerminalCore();
+        if (this.consoleMode() === 'terminal' && typeof this.addTranscriptEntry === 'function') {
+            this.addTranscriptEntry(`Terminal mode: running on ${this.coreLabel(this.coreName)}`, 'info');
+        }
+        // In terminal mode, run what the editor says: loading the kernel and
+        // pressing Run without Assemble used to run the previous program and
+        // show an empty terminal. (Screen mode keeps the explicit Assemble.)
+        if (this.consoleMode() === 'terminal' && this.editorElement &&
+            this.editorElement.value.trim() && this.editorElement.value !== this.lastAssembledSource) {
+            try { this.assemble(); } catch {}
         }
         if (this.compiledCoreReady()) {
             this.wasmRun();

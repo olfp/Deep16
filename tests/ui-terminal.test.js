@@ -100,6 +100,23 @@ test('keys route to the UART RX in terminal mode', () => {
   assert.equal(ui.simulator.uartRx[0], 65, 'the byte survives unmasked to the port');
 });
 
+test('terminal mode falls back to the JS core when the active core has no UART', () => {
+  const ui = makeUi();
+  ui.coreName = 'rtl';
+  ui.useWasm = true;                         // compiledCoreReady() gates on this
+  ui.rtlAvailable = true;
+  ui.rtlInitialized = true;
+  globalThis.window.Deep16Rtl = {};          // loaded, but with no uart_tx_take
+  let switched = null;
+  ui.setCore = (name) => { switched = name; ui.coreName = name; return true; };
+  try {
+    ui.setConsoleMode('terminal');
+    assert.equal(switched, 'js', 'a core with no UART must fall back to JS');
+  } finally {
+    delete globalThis.window.Deep16Rtl;
+  }
+});
+
 test('keys route to the keyboard FIFO in screen mode', () => {
   const ui = makeUi();
   ui.kbdPushCode(66);                       // 'B'
