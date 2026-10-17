@@ -14,6 +14,11 @@ package deep16_pkg;
   localparam logic [20:0] KBD_STATUS_ADDR = 21'h0F0060;
   localparam logic [20:0] KBD_DATA_ADDR   = 21'h0F0062;
 
+  // UART console (D16MINI.md §5). The manual already reserves this block.
+  localparam logic [20:0] UART_STATUS_ADDR = 21'h0F0040;
+  localparam logic [20:0] UART_DATA_ADDR   = 21'h0F0042;
+  localparam logic [20:0] UART_CTRL_ADDR   = 21'h0F0046;
+
   // PSW bit positions (doc/Deep16-Arch.md 2.4)
   localparam int FLG_N = 0;
   localparam int FLG_Z = 1;

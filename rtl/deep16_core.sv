@@ -68,6 +68,17 @@ module deep16_core
   input  logic [15:0] kbd_head,
   input  logic [7:0]  kbd_count,
 
+  // UART console port (D16MINI.md §4.4/§5): status/data/control at 0xF0040/42/46,
+  // read and written in EX like the keyboard port, so a following LDS sees the
+  // next byte.
+  output logic        uart_tx_we,
+  output logic [15:0] uart_tx_data,
+  output logic        uart_rx_take,
+  output logic        uart_ctrl_we,
+  output logic [15:0] uart_ctrl_data,
+  input  logic [15:0] uart_status,
+  input  logic [15:0] uart_rx_data,
+
   // FSH retired in WB: the top invalidates every cache line (spec 7.4)
   output logic        cache_flush,
 
@@ -541,6 +552,8 @@ module deep16_core
   logic ex_kill, kill_id, flush_id;
   logic      fsh_ex;           // this instruction is FSH
   logic      kbd_take_ex;   // this LDS reads the keyboard FIFO data port
+  logic      uart_tx_we_ex, uart_take_ex, uart_ctrl_we_ex;
+  logic [15:0] uart_tx_data_ex, uart_ctrl_data_ex;
 
   wire [15:0] pc_own1 = id_ex.pc0 + 16'd1;   // PC sources see own address + 1
 
@@ -552,6 +565,10 @@ module deep16_core
   // FSH reaches the cache from WB, like every other side effect.
   assign cache_flush = ctx.fsh;
 
+  // UART write payloads are plain wires; the strobes are qualified below.
+  assign uart_tx_data   = uart_tx_data_ex;
+  assign uart_ctrl_data = uart_ctrl_data_ex;
+
   always_comb begin
     // ---- defaults -------------------------------------------------------
     ctx_next_ex    = ctx_e;
@@ -562,6 +579,8 @@ module deep16_core
     mem_rd_valid_ex= 1'b0; mem_is_load_ex = 1'b0; load_rd_ex = 4'd0;
     sh_clear_ex    = 1'b0; is_swi_ex = 1'b0; fsh_ex = 1'b0;
     kbd_pop        = 1'b0; kbd_take_ex = 1'b0;
+    uart_tx_we_ex  = 1'b0; uart_take_ex = 1'b0; uart_ctrl_we_ex = 1'b0;
+    uart_tx_data_ex= 16'h0000; uart_ctrl_data_ex = 16'h0000;
 
     rec_we_ex = 1'b0; rec_addr_ex = 21'd0; rec_base_ex = 16'h0000;
     rec_segval_ex = 16'h0000; rec_off_ex = 5'd0; rec_segid_ex = 2'd1;
@@ -744,13 +763,25 @@ module deep16_core
                     // the next key, exactly like one instruction per step does
                     reg_da  = kbd_ready ? kbd_head : 16'd0;
                     kbd_take_ex = 1'b1;
+                  end else if (pa_m == UART_STATUS_ADDR) begin
+                    reg_da = uart_status;
+                  end else if (pa_m == UART_DATA_ADDR) begin
+                    // read and pop in EX, like the keyboard data port
+                    reg_da = uart_rx_data;
+                    uart_take_ex = 1'b1;
                   end else begin
                     mem_rd_valid_ex = 1'b1;
                     mem_is_load_ex  = 1'b1;
                     load_rd_ex      = f_rd;
                   end
                 end else begin                                  // STS
-                  mem_we_ex = 1'b1; mem_wdata_ex = r3;
+                  if (pa_m == UART_DATA_ADDR) begin
+                    uart_tx_we_ex = 1'b1; uart_tx_data_ex = r3;
+                  end else if (pa_m == UART_CTRL_ADDR) begin
+                    uart_ctrl_we_ex = 1'b1; uart_ctrl_data_ex = r3;
+                  end else begin
+                    mem_we_ex = 1'b1; mem_wdata_ex = r3;
+                  end
                 end
               end
             end
@@ -888,6 +919,10 @@ module deep16_core
       //     instruction would otherwise pop again on the step's last edge,
       //   - a load-use stall holds the instruction for another cycle.
       kbd_pop = kbd_take_ex && run && !step_done && !stall && kbd_ready;
+      // The UART strobes are side effects outside WB too, qualified the same way.
+      uart_tx_we   = uart_tx_we_ex   && run && !step_done && !stall;
+      uart_rx_take = uart_take_ex     && run && !step_done && !stall;
+      uart_ctrl_we = uart_ctrl_we_ex  && run && !step_done && !stall;
 
       // ---- delay-slot bookkeeping ------------------------------------------
       // A delay slot is armed by a branch and consumed by the very next

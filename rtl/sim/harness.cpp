@@ -311,6 +311,40 @@ uint32_t kbd_available() {
   return (uint32_t)(dbg_read(DBG_KBD) & 0x00FF);
 }
 
+// ---- UART console ---------------------------------------------------------
+// The host injects RX bytes directly (no line bit-banging) and drains what the
+// CPU transmitted from the monitor FIFO.
+void uart_rx_push(uint16_t code) {
+  g_top->uart_rx_push = 1;
+  g_top->uart_rx_push_data = code;
+  tick();
+  g_top->uart_rx_push = 0;
+}
+
+void uart_rx_clear() {
+  g_top->uart_host_ctrl_we = 1;
+  g_top->uart_host_ctrl_data = 1;   // b0: reset the RX FIFO
+  tick();
+  g_top->uart_host_ctrl_we = 0;
+}
+
+uint32_t uart_rx_available() {
+  return (uint32_t)(g_top->uart_rx_avail & 0xFFFF);
+}
+
+uint32_t uart_tx_available() {
+  return (uint32_t)(g_top->uart_tx_avail & 0xFFFF);
+}
+
+uint32_t uart_tx_take() {
+  if ((g_top->uart_tx_avail & 0xFFFF) == 0) return 0xFFFF;
+  uint32_t b = (uint32_t)(g_top->uart_tx_data_out & 0xFF);
+  g_top->uart_tx_take = 1;
+  tick();
+  g_top->uart_tx_take = 0;
+  return b;
+}
+
 void get_recent_access(uint32_t* out) {
   uint32_t addr = (uint32_t)dbg_read(DBG_RECLO) |
                   ((uint32_t)dbg_read(DBG_RECHI) & 0x1Fu) << 16;

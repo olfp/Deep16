@@ -90,6 +90,23 @@ export default async function initDeep16Rtl(options = {}) {
     kbd_clear: () => Module._kbd_clear(),
     kbd_available: () => Module._kbd_available(),
 
+    // UART console (D16MINI.md §4.4): the RTL core speaks the same serial port
+    // as the JS and WASM cores, so terminal mode works on all three.
+    uart_rx_push: (code) => Module._uart_rx_push(code & 0xFFFF),
+    uart_rx_clear: () => Module._uart_rx_clear(),
+    uart_rx_available: () => Module._uart_rx_available(),
+    uart_tx_available: () => Module._uart_tx_available(),
+    // Drain every byte transmitted since the last call.
+    uart_tx_take: () => {
+      const out = [];
+      while (Module._uart_tx_available() > 0) {
+        const b = Module._uart_tx_take();
+        if (b === 0xFFFF) break;
+        out.push(b & 0xFF);
+      }
+      return out;
+    },
+
     get_recent_access: () => {
       const ptr = reserve(24);
       Module._get_recent_access(ptr);

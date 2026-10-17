@@ -22,6 +22,17 @@ module deep16_top
   input  logic [15:0] kbd_push_data,
   input  logic        kbd_clear,
 
+  // UART console (D16MINI.md §4.4): the host injects RX bytes here and drains
+  // what the CPU transmitted. On the board these become real pins instead.
+  input  logic        uart_rx_push,
+  input  logic [15:0] uart_rx_push_data,
+  input  logic        uart_tx_take,
+  input  logic        uart_host_ctrl_we,     // host FIFO reset (IDE), OR-ed with the CPU's
+  input  logic [15:0] uart_host_ctrl_data,
+  output logic [15:0] uart_tx_data_out,
+  output logic [15:0] uart_tx_avail,
+  output logic [15:0] uart_rx_avail,
+
   // harness debug bus
   input  logic        dbg_en,
   input  logic        dbg_we,
@@ -61,6 +72,16 @@ module deep16_top
   // IDE installs the handler by poking address 2, and a cached copy would be
   // one FSH away from being stale.
   logic [15:0] vec_rdata;
+
+  // ---- UART console ------------------------------------------------------
+  logic        uart_tx_we, uart_rx_take, uart_ctrl_we;
+  logic [15:0] uart_tx_data, uart_ctrl_data;
+  logic [15:0] uart_status, uart_rx_data;
+  logic [15:0] uart_rx_count;
+  /* verilator lint_off UNUSEDSIGNAL */
+  logic [15:0] uart_tx_count;   // counts only; the host reads the monitor FIFO
+  logic        uart_txd;        // TX pin: a board output, unused in simulation
+  /* verilator lint_on UNUSEDSIGNAL */
 
   // ---- cache (phase 3, spec 7.4) ----------------------------------------
   logic        if_hit, dm_hit;
@@ -102,6 +123,13 @@ module deep16_top
     .kbd_ready (kbd_ready),
     .kbd_head  (kbd_head_data),
     .kbd_count (kbd_count),
+    .uart_tx_we    (uart_tx_we),
+    .uart_tx_data  (uart_tx_data),
+    .uart_rx_take  (uart_rx_take),
+    .uart_ctrl_we  (uart_ctrl_we),
+    .uart_ctrl_data(uart_ctrl_data),
+    .uart_status   (uart_status),
+    .uart_rx_data  (uart_rx_data),
     .cache_flush (core_cache_flush),
     .dbg_en    (dbg_en),
     .dbg_we    (dbg_we),
@@ -176,6 +204,47 @@ module deep16_top
     if (rst)                    miss_penalty_cyc <= 32'd0;
     else if (cache_miss_pulse)  miss_penalty_cyc <= miss_penalty_cyc + 32'd1;
   end
+
+  // ---- UART console (D16MINI.md §4.4) ----------------------------------
+  // In simulation the receiver is fed by uart_rx_push; on the board uart_rxd is
+  // the pin. TX goes to the pin and to a small monitor FIFO the host drains, so
+  // reading the console never competes with the shift engine for the TX FIFO.
+  deep16_uart u_uart (
+    .clk          (clk),
+    .rst          (rst),
+    .tx_we        (uart_tx_we),
+    .tx_data      (uart_tx_data),
+    .rx_take      (uart_rx_take),
+    .ctrl_we      (uart_ctrl_we | uart_host_ctrl_we),
+    .ctrl_data    (uart_host_ctrl_we ? uart_host_ctrl_data : uart_ctrl_data),
+    .status       (uart_status),
+    .rx_data      (uart_rx_data),
+    .rx_push      (uart_rx_push),
+    .rx_push_data (uart_rx_push_data),
+    .tx_count_o   (uart_tx_count),
+    .rx_count_o   (uart_rx_count),
+    .uart_txd     (uart_txd),
+    .uart_rxd     (1'b1)
+  );
+
+  localparam int UTX_DEPTH = 256;
+  logic [15:0] utx_mem [0:UTX_DEPTH-1];
+  logic [7:0]  utx_head, utx_tail, utx_count;
+  always_ff @(posedge clk) begin
+    if (rst) begin
+      utx_head <= 8'd0; utx_tail <= 8'd0; utx_count <= 8'd0;
+    end else if (uart_tx_we) begin
+      utx_mem[utx_tail] <= uart_tx_data;
+      utx_tail  <= utx_tail + 8'd1;
+      utx_count <= utx_count + 8'd1;
+    end else if (uart_tx_take && utx_count != 8'd0) begin
+      utx_head  <= utx_head + 8'd1;
+      utx_count <= utx_count - 8'd1;
+    end
+  end
+  assign uart_tx_data_out = (utx_count != 8'd0) ? utx_mem[utx_head] : 16'h0000;
+  assign uart_tx_avail    = {8'h00, utx_count};
+  assign uart_rx_avail    = uart_rx_count;
 
   // ---- keyboard FIFO ---------------------------------------------------
   always_ff @(posedge clk) begin

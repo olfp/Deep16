@@ -34,6 +34,13 @@ void          load_program(uint32_t ptr, const uint16_t* data, uint32_t len);
 void          kbd_push(uint16_t code);
 void          kbd_clear();
 uint32_t      kbd_available();              // keystrokes still queued (0..127)
+
+// UART console (D16MINI.md §4.4): the host injects RX bytes and drains TX.
+void          uart_rx_push(uint16_t code);
+void          uart_rx_clear();
+uint32_t      uart_rx_available();
+uint32_t      uart_tx_available();
+uint32_t      uart_tx_take();               // next transmitted byte, or 0xFFFF
 void          get_recent_access(uint32_t* out);  // 6
 void          get_last_event(uint16_t* out);     // 5
 void          get_shadow_state(uint16_t* out);   // 3
