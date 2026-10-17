@@ -319,6 +319,15 @@ clear_cursor:
     JMP R2
     NOP
 after_print_text:
+.ifdef CONSOLE_UART
+    ; The terminal owns the line, so there is no cursor to move: end the banner
+    ; line and let the reader start on a fresh row.
+    LDI newline_direct
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+.else
     ; Advance to start of next line (column 0)
     LDI 0x1000
     MOV R8, R0           
@@ -332,6 +341,7 @@ after_print_text:
     MUL R11, R10         
     ADD R8, R11          
     MOV SCR, R8          
+.endif
     ; Prepare input buffer and counters
     LDI tib_kbd
     MOV TIB, R0
@@ -12642,6 +12652,251 @@ bios_f0:
     LDI 0x0001
     RETI
     NOP
+
+; =============================================
+; UART console BIOS (CONSOLE_UART) - D16MINI.md §7.3
+; =============================================
+; The serial build of the same six functions, with the same calling convention
+; (DS:[0] = function, DS:[1] = argument), so nothing above this block changes:
+; only what "the screen" is. The port is at ES:0x0040 (status: b0 RX-ready,
+; b1 TX-ready) and ES:0x0042 (data), the same shape as the keyboard port at
+; 0x0060/0x0062. Nothing here touches SCR or the 0xF1000 buffer.
+;
+; The screen build below is byte-for-byte what it always was: with CONSOLE_UART
+; undefined the whole `.ifdef` branch is dropped before either pass runs.
+.ifdef CONSOLE_UART
+
+; uart_tx: send the byte in R1 (low 8 bits) once the TX FIFO has room. Clobbers
+; R0, R3, R7. Entered with LINK, returns via JMP LR. The target is a segment
+; offset, not an absolute address, because LDI's immediate is only 15 bits and
+; this block lives at 0xF8000.
+uart_tx:
+    LDI 0x0040
+    MOV R3, R0
+uart_tx_wait:
+    LDS R7, ES, R3
+    LDI 2
+    AND R7, R0
+    JZ uart_tx_wait
+    NOP
+    LDI 0x00FF
+    AND R1, R0
+    LDI 0x0042
+    MOV R3, R0
+    STS R1, ES, R3
+    JMP LR
+    NOP
+
+bios_f1:
+    ; 1: binit -> clear the terminal (ANSI ESC[2J)
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 27                  ; ESC
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI '['
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI '2'
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 'J'
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    RETI
+    NOP
+
+bios_f2:
+    ; 2: putch (char from DS:1) -> one byte on the UART. CR, LF and every other
+    ; byte go out as-is; the host terminal owns what they do.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 1
+    MOV R3, R0
+    LDS R1, DS, R3
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    RETI
+    NOP
+
+bios_f3:
+    ; 3: putstr (address in DS:1, NUL-terminated) -> bytes on the UART
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 1
+    MOV R3, R0
+    LDS R2, DS, R3          ; R2 = string address
+uart_putstr_loop:
+    LD R1, R2, 0
+    LDI 0
+    CMP R1, R0
+    JZ uart_putstr_done
+    NOP
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    ADD R2, 1
+    CLRZ
+    JNZ uart_putstr_loop
+    NOP
+uart_putstr_done:
+    RETI
+    NOP
+
+bios_f4:
+    ; 4: getch -> DS:1 = one byte from the UART
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+uart_getch_wait:
+    LDI 0x0040
+    MOV R2, R0
+    LDS R1, ES, R2
+    LDI 1
+    AND R1, R0
+    JZ uart_getch_wait
+    NOP
+    LDI 0x0042
+    MOV R2, R0
+    LDS R1, ES, R2
+    LDI 0x00FF
+    AND R1, R0
+    LDI 1
+    MOV R3, R0
+    STS R1, DS, R3
+    RETI
+    NOP
+
+bios_f5:
+    ; 5: getstr (buffer addr in DS:1); echo over the UART. CR or LF ends the
+    ; line, BS (0x08) and DEL (0x7F) erase, and the erase is "BS SP BS" on the
+    ; wire because the terminal, not this code, owns the screen.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 1
+    MOV R3, R0
+    LDS R2, DS, R3          ; R2 = buffer
+    LDI 0
+    MOV R11, R0             ; count
+uart_getstr_loop:
+    LDI 0x0040
+    MOV R3, R0
+uart_getstr_wait:
+    LDS R1, ES, R3
+    LDI 1
+    AND R1, R0
+    JZ uart_getstr_wait
+    NOP
+    LDI ECHO_FLAG
+    LDS R12, ES, R0         ; R12 = echo flag (R0 = 0x64)
+    LDI 0x0042
+    MOV R3, R0
+    LDS R1, ES, R3          ; R1 = the received byte
+    LDI 0x00FF
+    AND R1, R0
+    LDI 10
+    CMP R1, R0
+    JZ uart_getstr_done
+    NOP
+    LDI 13
+    CMP R1, R0
+    JZ uart_getstr_done
+    NOP
+    LDI 8
+    CMP R1, R0
+    JZ uart_bs
+    NOP
+    LDI 0x007F
+    CMP R1, R0
+    JNZ uart_store
+    NOP
+uart_bs:
+    LDI 0
+    CMP R11, R0
+    JZ uart_getstr_loop
+    NOP
+    SUB R11, 1
+    SUB R2, 1
+    ; Echo off: nothing was drawn, so there is nothing to erase either.
+    AND R12, R12
+    JZ uart_getstr_loop
+    NOP
+    LDI 8
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI ' '
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 8
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    CLRZ
+    JNZ uart_getstr_loop
+    NOP
+uart_store:
+    LDI TIB_LIMIT
+    CMP R11, R0
+    JZ uart_getstr_loop      ; full: drop the byte, keep reading
+    NOP
+    ST R1, R2, 0
+    ADD R2, 1
+    ADD R11, 1
+    AND R12, R12
+    JZ uart_getstr_loop
+    NOP
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    CLRZ
+    JNZ uart_getstr_loop
+    NOP
+uart_getstr_done:
+    LDI 0
+    ST R0, R2, 0
+    RETI
+    NOP
+
+.else
+
 bios_f1:
     ; 1: binit -> init screen/keyboard, clear screen
     LDI 0x0FFF
@@ -12990,6 +13245,8 @@ bios_getstr_done:
     ST R0, R2, 0
     RETI
     NOP
+.endif
+
 bios_unknown:
     RETI
     NOP

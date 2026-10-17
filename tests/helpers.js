@@ -39,9 +39,9 @@ export function loadBrowserScripts(...files) {
   return globalThis;
 }
 
-export function assemble(source) {
+export function assemble(source, options) {
   const { Deep16Assembler } = globalThis;
-  return new Deep16Assembler().assemble(source);
+  return new Deep16Assembler().assemble(source, options);
 }
 
 // Run the peephole optimizer over source text. The result keeps labels

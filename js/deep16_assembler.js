@@ -7,7 +7,7 @@ class Deep16Assembler {
         this.aliases = {};
     }
 
-    assemble(source) {
+    assemble(source, options = {}) {
         this.labels = {};
         this.symbols = {};
         this.unresolvedRefs = [];
@@ -20,7 +20,10 @@ class Deep16Assembler {
         let address = 0;
 
         if (window.Deep16Debug) console.log('=== ASSEMBLER FIRST PASS ===');
-        const lines = source.split('\n');
+        // Conditional assembly is resolved first: inactive branches become empty
+        // lines, so both passes below (and their line numbers) see the source
+        // the caller actually asked for.
+        const lines = this.applyConditionals(source.split('\n'), options.defines, errors);
         
         // First pass: collect ALL labels and calculate addresses
         for (let i = 0; i < lines.length; i++) {
@@ -277,6 +280,56 @@ class Deep16Assembler {
                l.startsWith('.text') ||
                l.startsWith('.string') ||
                l.startsWith('.equ'); 
+    }
+
+    // Conditional assembly: `.if NAME` / `.ifdef NAME` / `.ifndef NAME` (and the
+    // `.ifnot` alias), `.else`, `.endif`, with NAME taken from the caller's
+    // `defines`. It is resolved before either pass: a line in an inactive branch
+    // is replaced with an empty string, not removed, so the pass line numbers
+    // still match the source. Nesting is tracked on a stack.
+    applyConditionals(lines, defines, errors) {
+        const defined = new Set();
+        const add = (name) => { if (typeof name === 'string') defined.add(name.trim().toUpperCase()); };
+        if (Array.isArray(defines)) defines.forEach(add);
+        else if (defines && typeof defines === 'object') {
+            for (const [key, value] of Object.entries(defines)) if (value) add(key);
+        }
+
+        const out = lines.slice();
+        const stack = [];
+        let active = true;
+        for (let i = 0; i < lines.length; i++) {
+            // Only directives matter here, so a comment split is harmless: a
+            // non-matching line is never interpreted.
+            const code = lines[i].split(';')[0].trim();
+            const m = /^\.(ifdef|ifndef|ifnot|if|else|endif)\b(.*)$/i.exec(code);
+            if (!m) {
+                if (!active) out[i] = '';
+                continue;
+            }
+            const kind = m[1].toLowerCase();
+            const name = m[2].trim().toUpperCase();
+            out[i] = '';
+            if (kind === 'if' || kind === 'ifdef') {
+                stack.push({ parent: active, cond: defined.has(name), seenElse: false });
+                active = active && defined.has(name);
+            } else if (kind === 'ifnot' || kind === 'ifndef') {
+                stack.push({ parent: active, cond: !defined.has(name), seenElse: false });
+                active = active && !defined.has(name);
+            } else if (kind === 'else') {
+                const frame = stack[stack.length - 1];
+                if (!frame) { errors.push(`Line ${i + 1}: .else without .if`); continue; }
+                if (frame.seenElse) { errors.push(`Line ${i + 1}: duplicate .else`); continue; }
+                frame.seenElse = true;
+                active = frame.parent && !frame.cond;
+            } else { // endif
+                const frame = stack.pop();
+                if (!frame) { errors.push(`Line ${i + 1}: .endif without .if`); continue; }
+                active = frame.parent;
+            }
+        }
+        if (stack.length) errors.push(`Unterminated .if (${stack.length} still open)`);
+        return out;
     }
 
     parseRegister(reg) {

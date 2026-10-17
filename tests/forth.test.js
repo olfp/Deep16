@@ -3416,11 +3416,35 @@ test('every label in the kernel source is defined exactly once', () => {
   // in one name space, so this is worth a check of its own.
   const seen = new Map();
   const repeated = [];
+  // Conditional assembly makes a repeated label legal when the two definitions
+  // sit in opposite branches of one `.if`/`.else` (the UART and screen BIOS both
+  // define bios_f1..f5). Track each definition's branch context; two definitions
+  // are a mistake only when they can be active at the same time, i.e. no shared
+  // conditional group puts them on different sides.
+  const stack = [];
+  let groupId = 0;
+  const context = () => stack.map((f) => ({ id: f.id, side: f.side }));
+  const mutuallyExclusive = (a, b) => a.some((x) => b.some((y) => x.id === y.id && x.side !== y.side));
   src.split('\n').forEach((line, i) => {
+    const code = line.split(';')[0].trim();
+    const d = /^\.(ifdef|ifndef|ifnot|if|else|endif)\b/i.exec(code);
+    if (d) {
+      const kind = d[1].toLowerCase();
+      if (kind === 'else') { if (stack.length) stack[stack.length - 1].side = 1; }
+      else if (kind === 'endif') { stack.pop(); }
+      else stack.push({ id: ++groupId, side: 0 });
+      return;
+    }
     const m = line.match(/^([A-Za-z_][A-Za-z0-9_]*):/);
     if (!m) return;
-    if (seen.has(m[1])) repeated.push(`${m[1]} at lines ${seen.get(m[1])} and ${i + 1}`);
-    else seen.set(m[1], i + 1);
+    const prev = seen.get(m[1]);
+    if (prev) {
+      if (!mutuallyExclusive(prev.ctx, context())) {
+        repeated.push(`${m[1]} at lines ${prev.line} and ${i + 1}`);
+      }
+    } else {
+      seen.set(m[1], { line: i + 1, ctx: context() });
+    }
   });
   assert.deepEqual(repeated, []);
   assert.ok(seen.size > 800, `only ${seen.size} labels: is this the kernel?`);
