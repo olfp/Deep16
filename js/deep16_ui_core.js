@@ -2322,6 +2322,12 @@ class DeepWebUI {
                 return;
             }
             
+            // Drain the UART once per tick. The screen buffer updates per write
+            // (checkScreenUpdate), but the terminal has no such hook and the run
+            // loop does not call updateAllDisplays while the machine runs - so
+            // without this the serial output only appeared once the program
+            // stopped.
+            this.pumpConsole();
             const stepsPerTick = 200;
             // Type in whatever the keyboard queue still has room for, once per
             // tick, paced by what the machine consumed since the last tick.
@@ -2892,8 +2898,9 @@ class DeepWebUI {
                 this.updateRunButton(false);
                 return;
             }
-            const stepsPerTick = 200;
             // Same cadence as the JS loop: one pump per tick, not per step.
+            this.pumpConsole();
+            const stepsPerTick = 200;
             if (this.fileUpload) this.pumpKeyQueue();
             let cont = true;
             let lastSBit = ((this.simulator.psw & (1 << 5)) !== 0) ? 1 : 0;

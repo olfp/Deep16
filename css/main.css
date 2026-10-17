@@ -1,6 +1,6 @@
 /* main.css - Deep16 IDE Main Stylesheet */
-@import url('layout.css');
-@import url('header.css');
+@import url('layout.css?v=20261017-3');
+@import url('header.css?v=20261017-3');
 @import url('editor.css?v=20261014-1');
 @import url('memory.css?v=20261010-2');
 @import url('registers.css');

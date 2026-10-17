@@ -6,6 +6,13 @@
     padding: 10px;
     gap: 10px;
     box-sizing: border-box;
+    /* Keep the header at the top even if a browser still scrolls the page (iOS
+       Safari can, when its toolbars change the visible height). No-op where the
+       body never scrolls. */
+    position: sticky;
+    top: 0;
+    z-index: 900;
+    background: #1e1e1e;
 }
 
 :root {

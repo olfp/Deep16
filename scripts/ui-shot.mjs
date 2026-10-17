@@ -140,31 +140,66 @@ async function checkMenuFits(page, label) {
   }
 }
 
+// The header (logo, title, Console: button) must sit at the very top and the
+// page must not scroll. On iOS Safari `100vh` is taller than the visible area,
+// which used to push the header off the top; this asserts against that.
+async function checkHeaderPinned(page, label) {
+  const r = await page.evaluate(async () => {
+    const rect = () => document.querySelector('.header-container').getBoundingClientRect();
+    window.scrollTo(0, 0);
+    const top0 = Math.round(rect().top);
+    window.scrollTo(0, 100000);          // try to push the header off the top
+    await new Promise((res) => requestAnimationFrame(res));
+    const topAfter = Math.round(rect().top);
+    const logo = document.querySelector('.deep16-logo');
+    const logoShown = !!logo && getComputedStyle(logo).display !== 'none';
+    const lr = logoShown ? logo.getBoundingClientRect() : null;
+    const logoOk = !logoShown || (lr.top >= 0 && lr.bottom <= innerHeight);
+    window.scrollTo(0, 0);
+    return { top0, topAfter, logoOk };
+  });
+  check(r.top0 >= 0 && r.top0 < 4, `${label}: the header is at the top (top=${r.top0})`);
+  check(r.topAfter >= 0 && r.topAfter < 4,
+    `${label}: the header stays at the top after scrolling (top=${r.topAfter})`);
+  check(r.logoOk, `${label}: the logo is inside the viewport`);
+}
+
 // Load the Forth kernel into the editor, assemble it in the current console
-// mode, type a line into the UART and run the JS core directly. The IDE's own
-// run loop is paced for a person (200 steps per tick) and would take half a
-// minute to reach the prompt; stepping the model here is the same machine, just
-// not throttled.
+// mode, then drive the real UI: press Run, wait for the prompt, type a line and
+// read it back off the terminal. No stepping of the model by hand - this is the
+// path a person takes, throttle and all.
 async function runForthRepl(page) {
   const source = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
+  // assemble() directly: the Assemble button lives in the Editor tab, which the
+  // Screen tab has hidden by now, so a click on it would go nowhere.
   await page.evaluate((text) => { document.getElementById('editor').value = text; }, source);
-  const assembled = await page.evaluate(() => {
-    window.deepWebUI.assemble();
-    return window.deepWebUI.currentAssemblyResult && window.deepWebUI.currentAssemblyResult.success;
-  });
+  await page.evaluate(() => window.deepWebUI.assemble());
+  const assembled = await page.evaluate(() =>
+    !!(window.deepWebUI.currentAssemblyResult && window.deepWebUI.currentAssemblyResult.success));
   check(assembled === true, 'desktop: the Forth kernel assembles in terminal mode');
-  return page.evaluate(() => {
-    const ui = window.deepWebUI;
-    for (const ch of '3 4 + .\n') ui.kbdPushCode(ch === '\n' ? 13 : ch.charCodeAt(0));
-    ui.simulator.running = true;
-    for (let i = 0; i < 800000 && ui.simulator.running; i++) {
-      ui.simulator.step();
-      if (ui.simulator.uartTx.length) ui.pumpConsole();
-    }
-    ui.screenUI.updateScreenDisplay();
-    const rows = ui.screenUI.terminal.text().map((r) => r.replace(/\s+$/, ''));
-    return { mode: ui.consoleMode(), row0: rows[0], row1: rows[1], row2: rows[2] };
+
+  // Clear the synthetic stream the earlier check left on the terminal, so the
+  // rows below are the kernel's own output.
+  await page.evaluate(() => {
+    window.deepWebUI.screenUI.terminal.reset();
+    window.deepWebUI.screenUI.lastTermDrawn.fill(-1);
   });
+
+  // Run only if it is not already running: #run-btn toggles, and the page
+  // auto-runs once on load.
+  await page.evaluate(() => { const ui = window.deepWebUI; if (!ui.simulator.running) ui.run(); });
+  await new Promise((r) => setTimeout(r, 1500));           // boot to the prompt
+  await page.evaluate(() => {
+    for (const ch of '3 4 + .\n') window.deepWebUI.kbdPushCode(ch === '\n' ? 13 : ch.charCodeAt(0));
+  });
+  await new Promise((r) => setTimeout(r, 1500));           // echo and evaluate
+  const result = await page.evaluate(() => {
+    const ui = window.deepWebUI;
+    const rows = ui.screenUI.terminal.text().map((r) => r.replace(/\s+$/, ''));
+    return { mode: ui.consoleMode(), running: ui.simulator.running, row0: rows[0], row1: rows[1], row2: rows[2] };
+  });
+  await page.evaluate(() => { const ui = window.deepWebUI; if (ui.simulator.running) ui.stop(); });
+  return result;
 }
 
 // --------------------------------------------------------------------------
@@ -192,6 +227,8 @@ async function runView(browser, base, { name, viewport, isMobile }) {
 
   await page.click('[data-tab="screen"]').catch(() => {});
   await new Promise((r) => setTimeout(r, 400));
+
+  await checkHeaderPinned(page, name);
 
   const before = await page.$eval('#console-mode-btn', (el) => el.textContent.trim()).catch(() => null);
   check(before === 'Console: Screen', `${name}: the console mode starts on the screen buffer`);
@@ -256,6 +293,7 @@ async function runView(browser, base, { name, viewport, isMobile }) {
   });
   try {
     await runView(browser, base, { name: 'desktop', viewport: { width: 1400, height: 950 }, isMobile: false });
+    await runView(browser, base, { name: 'ipad', viewport: { width: 1024, height: 768 }, isMobile: true });
     await runView(browser, base, { name: 'mobile', viewport: { width: 390, height: 844 }, isMobile: true });
   } finally {
     await browser.close();
