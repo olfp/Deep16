@@ -98,10 +98,10 @@ machine**: the whole RAM window fits inside a single 32 K-word (15-bit) address.
 
 | Item | Extent | Words |
 |---|---|---:|
-| Kernel image `forth_start`…`dict_free` (`0x0100–0x3B03`) | 12,622-line source | **14,852** |
-| `dict_free` (new definitions grow up from here) | `0x3B04` | — |
-| Headroom `dict_free` → top of BSRAM (`0x6800`) | `0x3B04–0x67FF` | **11,516** |
-| BIOS (`bios_entry`, relocated out of `0xF8000`) | ≈`0x5F00`, 297 words | relocated |
+| Kernel image `forth_start`…`dict_free` (`0x0100–0x3BA8`) | 12,6xx-line source | **15,017** |
+| `dict_free` (new definitions grow up from here) | `0x3BA9` | — |
+| Headroom `dict_free` → BIOS (`0x5F00`) | `0x3BA9–0x5EFF` | **9,047** |
+| BIOS (UART build, relocated) | `0x5F00`, 222 words | §3 |
 | Screen buffer | `0xF1000`, 2000 words | **deleted** |
 
 The image grows a little with every Tier-3 word added (it was `0x3A62` three
@@ -109,49 +109,51 @@ commits ago); treat `dict_free` as a moving target and leave slack.
 
 ### The verdict
 
-- The kernel **fits** with ~11.5 K words of dictionary to spare — comfortable.
-- **Today's exact memory map does not fit.** The kernel's fixed stack addresses
-  (`SP = 0x7FF0`, `RSTACK_TOP = 0x6F00`) and the BIOS at `0xF8000` sit *above*
-  `0x6800`. Both must move (§3). This is the single largest correctness item: a
-  machine that "almost fits" runs off the top of RAM.
-- Because the framebuffer is deleted, the 2 BSRAM blocks a screen would cost are
-  *not* spent — but the BIOS still needs somewhere to live.
+- The kernel **fits** with ~9 K words of dictionary to spare — comfortable.
+- **The fixed addresses had to move**: the stacks (`SP = 0x7FF0`, `RSTACK_TOP =
+  0x6F00`) and the BIOS at `0xF8000` all sat above `0x6800`. §3 relocates them —
+  done, and green.
+- The framebuffer is deleted, so the 2 BSRAM blocks a screen would cost are not
+  spent.
 
 ---
 
-## 3. Proposed memory map
+## 3. Memory map — decided (M5)
 
-The cleanest D16MINI keeps **everything the CPU executes or reads in one low
-window**, so the core has a single `pa < RAM_WORDS` test and no high-address ROM
-decode.
+Everything the CPU executes or reads lives in **one low window**, so the core has
+a single `pa < RAM_WORDS` test and no high-address ROM decode.
 
 ```
 0x00000 - 0x067FF   RAM       26 BSRAM blocks (26,624 words)
-   0x00100 - 0x03B03   kernel image (code + data + built-in words)
-   0x03B04 - 0x05EFF   user dictionary  (grows up, ~9.1 K words)
-   0x05F00 - 0x0602x   BIOS (relocated copy of bios_entry)
+   0x00100 - 0x03BA8   kernel image (code + data + built-in words)
+   0x03BA9 - 0x05EFF   user dictionary  (grows up, ~9.0 K words)
+   0x05F00 - 0x05FDD   BIOS (222 words, UART build; segment 0x05F0)
    0x06000 - 0x067FF   stacks          (return 0x6000↑, data 0x67F0↓)
-0x0F0000 - 0x0F006F   MMIO       UART (+ optionally the polled-key regs)
+0x0F0000 - 0x0F006F   MMIO       UART (+ the echo flag at 0xF0064)
 0x0FFFF0 - 0x0FFFFF   boot ROM   16 words, LUT ROM (reset vector lives here)
 ```
 
-Two consequences:
+Measured 2026-10-17 from the working tree. The kernel and dictionary addresses
+drift as words are added; the BIOS and stack bases are fixed.
 
-1. **Relocate the BIOS into the window.** `asm/forth.asm` assembles the BIOS at
-   `.org 0xF8000` and `swi_to_bios` builds `CS = 0xF800`. Move the BIOS (≈297
-   words) to a low `.org` and change the far-jump segment. This keeps the core
-   ignorant of `0xF8000`.
-2. **Move the stacks** to the top of the window (`RSTACK_TOP`, the `sp0_base`
-   data cell) — they are constants in the kernel, not hardware.
+**Decided — was M5.** Relocate the BIOS and both stacks into the window, in the
+`CONSOLE_UART` build only. The screen build keeps its 1 MB layout (BIOS at
+`0xF8000`, stacks `0x6F00` / `0x7FF0`) and stays **byte-identical**.
 
-Alternative, if the kernel must not move: keep the BIOS at `0xF8000` and give it
-its own LUT-ROM decode, teaching the core that `0xF8000` is fetchable while
-`0x6800…0xF7FFF` is not. More core plumbing for less kernel churn; option M5 is
-recommended for a *mini* machine.
+- **BIOS** — `.org 0x5F00`, 222 words, segment `0x05F0`. The code is
+  base-independent: every internal jump is a `label - BIOS_BASE` delta or a
+  relative branch, so only the `.org` and `swi_to_bios`'s segment change.
+- **Stacks** — `RSTACK_TOP = 0x6000`; the data stack top is `0x67F0`, loaded from
+  a cell, because `0x67F0` has bit 14 set and `LDI` would sign-extend it to
+  `0xE7F0` — the trap the kernel already documents for `RSTACK_TOP`.
+- Screen build `31991c35…`, UART build `2e34012f…` (assembled-image hashes).
 
-The boot ROM stays at `0xFFFF0` because the core's reset state is `CS=0xFFFF,
-PC=0`; keeping it preserves identical boot behaviour with the three emulators. It
-is 16 words of LUT ROM.
+Alternative kept for the record: leave the BIOS at `0xF8000` with its own LUT-ROM
+decode, teaching the core that `0xF8000` is fetchable while `0x6800…0xF7FFF` is
+not. More core plumbing for less kernel churn; rejected for a *mini* machine.
+
+The boot ROM stays at `0xFFFF0` (the core's reset state is `CS=0xFFFF, PC=0`), so
+reset behaviour stays identical with the three emulators. 16 words of LUT ROM.
 
 ---
 
@@ -277,7 +279,7 @@ moment the FPGA comes up. No host, no boot sequence.
 | Region | Addresses | In the image? |
 |---|---|---|
 | Kernel (UART build) | `0x0100–0x3B03` | yes — the assembled words |
-| BIOS (relocated, §3) | ≈`0x5F00` | yes — **once M5 is fixed** |
+| BIOS (relocated, §3) | `0x5F00` | yes |
 | SWI vector | `0x0002` | no: the kernel installs it at run time |
 | Dictionary, stacks | above `dict_free` | no: run-time RAM, filled `0xFFFF` |
 | Screen | `0xF1000` | deleted (C1) |
@@ -694,8 +696,8 @@ Everything below is *absent*, not merely untested. Grouped by area.
 
 The six console decisions (C1–C6) are locked (§0). These machine items remain:
 
-1. **BIOS location** — relocate into the low RAM window (M5, recommended) vs.
-   keep at `0xF8000` with a LUT-ROM decode.
+1. ~~**BIOS location**~~ — **decided**: relocated into the low window (BIOS
+   `0x5F00`, stacks `0x6000` / `0x67F0`), `CONSOLE_UART` build only. §3.
 2. **Conditional assembly** in the assembler (recommended) vs. a build-time
    substitution script for the console variant.
 3. **Stack bases** — new constants once the BIOS placement is fixed.

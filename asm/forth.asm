@@ -37,7 +37,14 @@
 ; back to 0. Both operations keep the character in the low byte untouched.
 .equ CURSOR_ATTR 0x7000  ; high byte 0x70: fg 0 (black) on bg 7 (light grey)
 .equ ATTR_MASK   0x00FF  ; the character alone, i.e. a cell with no attribute
+; D16MINI places the whole machine in the 26K-word BSRAM window (0x0000-0x67FF),
+; so the BIOS and both stacks move down. The screen build keeps the 1 MB layout:
+; its BIOS stays at 0xF8000 and its stacks at 0x6F00 / 0x7FF0.
+.ifdef CONSOLE_UART
+.equ RSTACK_TOP 0x6000   ; Forth return stack top (grows down), below the BIOS
+.else
 .equ RSTACK_TOP 0x6F00   ; Forth return stack top (grows down)
+.endif
 
 ; =============================================
 ; Terminal echo on/off (0xF0064, ES-relative)
@@ -76,8 +83,15 @@ echo_flag:
 .code
 forth_start:
     ; Initialize stack pointer
+.ifdef CONSOLE_UART
+    LDI sp_top
+    MOV R2, R0
+    LD R0, R2, 0
+    MOV SP, R0
+.else
     LDI 0x7FF0
     MOV SP, R0
+.endif
     LDI sp0_base
     MOV R2, R0
     ST  SP, R2, 0
@@ -360,13 +374,19 @@ after_print_text:
 
 ; Bridge SWI handler: set CS to BIOS segment and jump to offset 0
 swi_to_bios:
-    ; Build target CS=0xF800 and PC=0 and far jump via JML
+    ; Build the target CS and PC=0 and far jump via JML
+.ifdef CONSOLE_UART
+    ; D16MINI: the BIOS is relocated into the low window, segment 0x05F0.
+    LDI 0x05F0
+    MOV R2, R0           ; R2 = 0x05F0 (target CS)
+.else
     LDI 0x0FFF
     INV R0               ; R0 = 0xF000
     MOV R2, R0           ; R2 = 0xF000
     LDI 0x0800
     MOV R3, R0           ; R3 = 0x0800
     ADD R2, R3           ; R2 = 0xF800 (target CS)
+.endif
     LDI 0
     MOV R3, R0           ; R3 = 0x0000 (target PC)
     JML R2               ; delayed far jump to CS=R2, PC=R3
@@ -1066,6 +1086,13 @@ interpret_next:
 .org 0x3000
 sp0_base:
     .word 0
+.ifdef CONSOLE_UART
+; The data stack top for D16MINI. 0x67F0 has bit 14 set, so `LDI 0x67F0` would
+; sign-extend to 0xE7F0 - the same trap RSTACK_TOP documents. It lives in a cell
+; and is loaded with LD, like rp0_base.
+sp_top:
+    .word 0x67F0
+.endif
 hello_msg:
     .text "Hello DeepForth!"
 
@@ -12603,11 +12630,18 @@ waqr_done:
     NOP
 
 ; =============================================
-; BIOS Implementation (at physical 0xF8000)
+; BIOS Implementation. The screen build keeps it at physical 0xF8000; D16MINI
+; relocates it into the low window (segment 0x05F0) so the whole machine fits the
+; 26K-word BSRAM (the code itself is base-independent: every internal jump is a
+; delta or a relative branch).
 ; =============================================
 .equ BIOS_FN_COUNT, 6
 .equ BIOS_BASE, bios_entry   ; segment base; see the LDI note at the dispatch
+.ifdef CONSOLE_UART
+.org 0x5F00
+.else
 .org 0xF8000
+.endif
 .code
 bios_entry:
     ; Dispatch on the function code at DS:0 through the table below. This used
