@@ -110,10 +110,15 @@ aus `js/deep16_simulator.js`. Die Stellen, an denen das nichttrivial war:
   Das Pop erfolgt in **EX**, nicht in WB: so sieht ein `LDS KBD_DATA` im
   nächsten Takt schon den nächsten Schlüssel, also ein Schlüssel pro retired
   Befehl wie in den Verhaltenskernen. Damit ist der Pop die einzige
-  Nebenwirkung außerhalb von WB und muss Bedingung „der Befehl verlässt EX in
-  diesem Takt“ tragen: `run && !step_done && !stall`. Zwischen zwei Schritten
-  steht die Pipeline still (`step_done` hält ID/EX), und ein gehaltener Befehl
-  würde sonst über die Schrittgrenze hinweg erneut poppen.
+  Nebenwirkung außerhalb von WB und muss die Bedingung „der Befehl verlässt EX
+  in diesem Takt“ tragen: `run && !step_freeze && !stall`. `step_freeze` ist
+  `step_done && !i_free`: nur im Einzelschrittmodus hält die Pipeline ihren
+  Stand am Retirement-Takt (siehe Pipeline-Advance); im Free-Run (`i_step=1`,
+  `i_free=1`, so wie das Board es verdrahtet) retired die Maschine in fast
+  jedem Takt, `step_done` ist also fast immer hoch. Eine Sperre auf
+  `step_done` allein macht die Konsole auf dem Board stumm — und kein
+  `step()`-Test sieht das. Dieselbe Bedingung tragen die UART-Strobes
+  (`uart_tx_we`, `uart_rx_take`, `uart_ctrl_we`).
 * **Nur R0–R3, R13, R14 sind banked.** R4–R12 gehören beiden Kontexten. Der
   Bypass wählt deshalb `base_v = (bank && idx_banked(a)) ? s : n` — genau wie
   `banked_read()` in der Registerdatei. Ohne diese Bedingung liefert im

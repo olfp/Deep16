@@ -134,6 +134,7 @@ void init(uint32_t /*mem_words*/) {
   g_top->i_free = 0;
   g_top->kbd_push = 0;
   g_top->kbd_clear = 0;
+  g_top->uart_rxd = 1;          // idle: the pin is not the RX source in simulation
   g_top->dbg_en = 0;
   g_top->dbg_we = 0;
   g_top->dbg_idx = 0;

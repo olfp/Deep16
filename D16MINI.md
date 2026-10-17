@@ -1,6 +1,10 @@
 # D16MINI — a BRAM-only Deep16 with a serial console
 
-> **Status: plan. No RTL written.** D16MINI is a *small* Deep16 that actually
+> **Status: the machine runs.** The console, the memory interface, the board top,
+> the constraints and the boot image are all in the tree, and the board build
+> boots DeepForth on Verilator and prints the banner over the UART *pins*
+> (`npm run sim:board`). What is left is Gowin synthesis and the real board —
+> everything that needs hardware. D16MINI is a *small* Deep16 that actually
 > fits the Tang Nano 9K and boots DeepForth: **no PSRAM, no cache, no
 > framebuffer** — memory is on-chip BSRAM, the console is a UART, and a host
 > terminal owns the screen.
@@ -173,6 +177,15 @@ the whole chip. It must go.
   read, `deep16_top.sv:160`, is a wasted port) — `PLANPSRAM.md` §1 recommends
   this and it applies here too.
 
+**Done.** `mem` is now `RAM_WORDS` words: 26,624 behind `` `ifdef D16MINI ``
+(the board build), the 1 MB array otherwise (simulation). One read decode
+(`mem_at`) serves both: RAM, then the 16-word boot ROM, then the echo register,
+then the `0xFFFF` fill — so an address the board cannot back halts the machine
+instead of fetching garbage. The explicit-primitive fallback below stays the
+fallback; whether Gowin infers 26 BSRAM blocks *and* honours the init is still
+unconfirmed. The SWI vector register is still `mem[2]` (a register fed by the
+write path is the next step).
+
 ### 4.2 The real difficulty: registered reads
 
 The core reads memory **combinationally in the same cycle it presents the
@@ -207,6 +220,22 @@ needs the interface change `PLANPSRAM.md` §A calls "memory interface honesty":
   `i_free=1`** (free-run) and reset, or add a trivial start bit. No test harness
   reads `o_done` on the board.
 
+**Done (partly).** The board ties `i_step=1`, `i_free=1`; the monitor FIFO the
+IDE drains is behind `` `ifndef D16MINI `` and is not built for the board. The
+debug bus is still instantiated and tied off (`dbg_en=0`) — the `` `ifdef `` that
+drops its 256-entry mux is the remaining saving.
+
+**The free-run tie-off found a real bug.** The EX-side strobes (`kbd_pop`,
+`uart_tx_we`, `uart_rx_take`, `uart_ctrl_we`) were qualified by `!step_done`.
+`step_done` is the *retirement* event, and in free-run the machine retires on
+almost every clock, so the console was mute on the board while every `step()`
+based test stayed green (in single-step, `step_done` is high for one cycle per
+step and the strobes happen to fire on another). The freeze the gate meant is
+`step_done && !i_free` — the pipeline only holds its stage on the retiring edge
+*in step mode*. `deep16_core.sv` now names that `step_freeze` and gates on it;
+`tests/rtl-uart.test.js` runs the kernel in free-run so the regression cannot
+come back.
+
 ### 4.4 UART peripheral
 
 There is **no UART anywhere in the repo** (verified: no `uart`/`serial`/`F0040`
@@ -240,6 +269,17 @@ Nothing board-shaped exists today.
   None exists in the repo.
 - The **boot image** — a BSRAM init so the assembled kernel is running at
   power-up (§6).
+
+**Done.** `rtl/deep16_board.sv` (reset synchroniser, free-run tie-offs, UART pins,
+LED heartbeat), `rtl/deep16_board.cst` (pins 52 / 4 / 17 / 18 / 10),
+`rtl/deep16_board.sdc` (the 27 MHz clock, the async button and RX pin), and the
+`$readmemh` init in `deep16_top` behind `` `ifdef D16MINI ``. `npm run lint:board`
+lints the board build and `npm run sim:board` runs it on Verilator with the real
+image and reads the UART pin.
+
+**Every pin is a documented value, not a measured one** (no board here): confirm
+the set against the Sipeed pinout and the schematic before Phase 4. The UART pair
+decides whether the console works at all.
 
 ---
 
@@ -310,6 +350,11 @@ into it; the plan takes the first:
 The generator emits the image in **both** formats from one set of words, so
 Verilator and the board see the same memory.
 
+**Done.** The array is `RAM_WORDS` words behind `` `ifdef D16MINI `` and its
+`initial` does `$readmemh("image.hex", mem)` then seeds the echo register. The
+explicit-primitive fallback stays the fallback; the `.mi` is emitted and waiting
+for the EDK, and the inference risk is unchanged (no toolchain here).
+
 ### 6.2.1 The flash never sees a copy
 
 There is **no runtime copy from flash to RAM, and no loader.** The `.mi` /
@@ -359,6 +404,10 @@ the kernel actually touches:
   on the board because there is no browser poking it (§7.7).
 
 The keyboard ports `0xF0060`/`0xF0062` stay decoded but dead (§5).
+
+**Done.** The board build decodes `0xF0064` as a one-word register (`echo_flag`),
+initialised to 1 and written by the store path; `mem_at` reads it back. In
+simulation it stays an ordinary cell, as before.
 
 ### 6.5 The generator
 
@@ -580,10 +629,18 @@ attribute problem. Decision C1 chose the dumb pipe instead.
 | 8 | Injection: upload a source file | arrives via UART RX, definitions run |
 | 9 | **Memory latency** | registered-read model behaves identically to the combinational array at latency 1 |
 | 10 | Existing `forth.test.js` (screen build) | stays green, untouched |
+| 11 | **Free-run console** | the kernel's banner comes out with `i_step=1, i_free=1` (the board's tie-off), not only under `step()` |
+| 12 | **Board boot image** | `npm run sim:board`: the board build, the real image, the window decode, and the UART *pins* — banner decoded off `uart_txd` |
+| 13 | Boot image validity | `tests/image.test.js`: every word in the window, the `0xFFFF` fill, the BIOS at `0x5F00`, the one MMIO word kept out |
 
 Test 7 is the mechanism that pins the two output paths (§7.1) closed — the thing
 the "one chokepoint" comment only asserted. Test 9 is `PLANPSRAM.md` §7's
 latency-invariance idea reduced to the one latency that matters here.
+
+Tests 11 and 12 exist because the step-based tests could not see the free-run
+strobes (§4.3): the board mutes the console and every `step()` test still passes.
+Test 11 lives in the ordinary suite; test 12 needs Verilator and `g++`, so it is
+a separate command.
 
 > `README.md:74` lists `tests/serial-port.test.js`, which **does not exist**. The
 > new test file is `tests/serial-console.test.js`; correct the README entry when
@@ -597,13 +654,18 @@ Each phase ends green and committable. Phases 1–3 need no hardware.
 
 | Phase | Work | Hardware? |
 |---|---|---|
-| **1** | Assembler conditionals; UART console BIOS + neutralised helpers; UART model in JS + WASM; `SerialTerminal`; tests 1–8. Screen build stays green. | no |
-| **2** | Memory interface honesty (§4.2): registered reads, `vec` as a register, drop the cache behind a build flag; BSRAM/registered model in Verilator; test 9. | no |
-| **3** | Real `deep16_uart.sv`; core MMIO ports; BSRAM inference (26 blocks); board top, clock, reset, `.cst`; `.mi` init; simulate. | no |
+| **1** ✅ | Assembler conditionals; UART console BIOS + neutralised helpers; UART model in JS + WASM; `SerialTerminal`; tests 1–8. Screen build stays green. | no |
+| **2** ✅ | Memory interface honesty (§4.2): registered reads, `vec` as a register, drop the cache behind a build flag; BSRAM/registered model in Verilator; test 9. | no |
+| **3** ✅ | Real `deep16_uart.sv`; core MMIO ports; the 26-block window + decode + echo register + boot image behind `` `ifdef D16MINI ``; board top, clock, reset, `.cst`/`.sdc`; `.mi` init; tests 11–13 and `npm run sim:board`. | no |
 | **4** | Gowin synthesis, timing closure at 27 MHz, `program`-over-JTAG, terminal bring-up (picocom @115200), boot the real DeepForth. | **yes** |
 
 Phase 1 (console) and Phase 2 (memory) are deliberately separate: one changes
 the console, the other the memory model, and a regression must be locatable.
+
+Phase 3 is done *except* for the two things that need the toolchain: confirming
+that Gowin infers 26 BSRAM blocks with the init, and closing timing. The board
+simulation (`npm run sim:board`) is the strongest check available here — it is
+the whole bring-up path minus the vendor tools.
 
 ---
 
@@ -626,69 +688,65 @@ the console, the other the memory model, and a regression must be locatable.
 
 ## 11. What is missing today — the gap list
 
-Everything below is *absent*, not merely untested. Grouped by area.
+This list was written before the work started and is kept as the record: struck
+through means done, plain means still absent. The residue is short and named at
+the end.
 
 ### A. Toolchain and project
 
 - **No FPGA toolchain and no synthesis.** No Gowin EDK/Yosys in this environment;
-  fit, timing and `.fs` generation cannot be done or verified here.
-- **No board top-level.** `deep16_top` is a simulation module; there is no clock,
-  reset, PLL or pin wrapper.
-- **No constraints file** (`.cst`), no project file, no memory-init (`.mi`).
-- **No hardware load path.** The kernel is loaded by `loadProgram` (Verilator/IDE
-  only); there is no way to get an image into BSRAM at power-up.
+  fit, timing and `.fs` generation cannot be done or verified here. *(still true)*
+- ~~No board top-level~~ — `rtl/deep16_board.sv`.
+- ~~No constraints file (`.cst`), no project file, no memory-init (`.mi`)~~ —
+  `rtl/deep16_board.cst`, `rtl/deep16_board.sdc`, `artifacts/image/image.mi`.
+- ~~No hardware load path~~ — the image is a synthesis input (§6.2.1), so no
+  runtime loader is needed for bring-up.
 
 ### B. RTL memory
 
-- `deep16_top.sv:41` memory is a **16.8 Mbit Verilog array** — 35× the chip, not
-  synthesizable to 468 Kbit BSRAM.
-- Memory is **read combinationally** (IF fetch and MEM data in the same cycle:
-  `deep16_core.sv:1066` + `:1048-1049`, `deep16_top.sv:156-158`). BSRAM reads are
-  registered — the interface must change for *any* FPGA memory.
-- The read bus is **11 reads/cycle** (cache refill ×8, fetch, data, SWI vector,
-  `deep16_top.sv:150-165`); a BSRAM has 2 ports. The cache and refill path must go.
-- The **SWI vector is a dedicated array read** (`mem[2]`) rather than a register.
-- The core's decode treats **everything below `MEM_WORDS` as memory**
-  (`deep16_core.sv:669`, `:732`); a small RAM window plus ROM/MMIO needs explicit
-  decode, and the halt test (`:994`) is written against the 1 M-word bound.
-- The **debug bus** (256-entry mux) is simulation scaffolding with no `` `ifdef ``
-  to remove it (≈800–1,200 LUT per `STATUS.md`).
-- The `i_step`/`i_free` **single-step handshake** is simulation-shaped.
+- ~~`deep16_top.sv:41` memory is a 16.8 Mbit Verilog array~~ — `RAM_WORDS`:
+  26,624 behind `` `ifdef D16MINI ``, the 1 MB array for simulation.
+- ~~Memory is read combinationally~~ — registered reads, phase 2.
+- ~~The read bus is 11 reads/cycle~~ — the cache is gone; one fetch port, one
+  data port, plus the direct `mem[2]`.
+- The **SWI vector is still a dedicated array read** (`mem[2]`) rather than a
+  register.
+- ~~The core's decode treats everything below `MEM_WORDS` as memory~~ — the board
+  build decodes RAM / boot ROM / echo register / fill in the top, so the core's
+  bound is unchanged and an unbacked address reads the halt word.
+- The **debug bus** (256-entry mux) is still built and tied off — the `` `ifdef ``
+  to drop it is left.
+- ~~The `i_step`/`i_free` single-step handshake~~ — the board ties free-run, and
+  doing so found the `step_done` strobe bug (§4.3).
 
-### C. UART / console (nothing exists)
+### C. UART / console
 
-- **No UART RTL** anywhere: no TX, RX, baud divider, oversampler or FIFO.
-- **No UART MMIO** in any of the three cores; only `KBD_STATUS_ADDR` /
-  `KBD_DATA_ADDR` are decoded and everything else is plain array memory.
-- **Doc/reality mismatch:** `doc/Deep16-Prog-Man.md` §7.1–7.2 specifies a UART at
-  `0xF0040–0xF004F` and shows `serial_putc`, but no core implements it.
-- **Stale README:** `README.md` lists `tests/serial-port.test.js`; **the file does
-  not exist**.
-- The keyboard is a **PS/2-shaped polled port** with a 128-entry FIFO (no serial
-  input path, no overrun handling).
-- Kernel: BIOS **`putch` (f2)** writes the framebuffer (cursor, attributes, CR/LF,
-  scroll); BIOS **`putstr` (f3)** is a **second direct framebuffer writer**, so
-  the "one choke point" assumption is false; BIOS **`getstr` (f5)** reads the
-  keyboard and echoes to the framebuffer; BIOS **`binit` (f1)** clears 2,000
-  cells. Screen-only kernel words: **`wrap_if`** (column from `SCR`, wrap at 80),
-  **`form`** (`24 80`), **`scr@`/`scr!`**, **`cls`**, plus the cursor helpers
-  (`clear_cursor`, `cursor_off`, `after_print_text`). The output pointer is the
-  **register `R8` (`SCR`)**.
-- **No console-abstraction build:** `js/deep16_assembler.js` has no conditionals,
-  so it cannot produce a screen kernel and a UART kernel from one source.
-- The kernel's fixed addresses (**stacks** at `0x6F00`/`0x7FF0`, **BIOS** at
-  `0xF8000`, **boot ROM** at `0xFFFF0`) sit outside a 26 K-word BSRAM window and
-  must be relaid.
-- **No on-board way to enter source.** SERLOAD was removed (`SERPLAN.md`); the
-  "Datei tippen…" loader is a browser feature.
+- ~~No UART RTL~~ — `rtl/deep16_uart.sv`.
+- ~~No UART MMIO in any of the three cores~~ — JS, WASM and RTL all decode it.
+- ~~Doc/reality mismatch~~ — the cores implement the manual's `0xF0040` block.
+- ~~Stale README: `tests/serial-port.test.js` does not exist~~ — fixed.
+- ~~No console-abstraction build~~ — `CONSOLE_UART` in the assembler.
+- ~~The kernel's fixed addresses (stacks, BIOS) sit outside the window~~ — M5.
+- The keyboard ports stay decoded but dead on the board (intended).
+- **No on-board way to enter source** — still true: the image is the bring-up
+  path; the UART loader is §6.6.
 
 ### D. Tests / tooling
 
-- **No UART test, no loopback, no hardware-in-the-loop test.**
-- `forth.test.js` asserts against the **80×25 screen**; it cannot exercise a
-  screenless build.
-- **No BSRAM/registered-latency model** in the Verilator harness — the current
-  model is the zero-latency array.
+- ~~No UART test, no loopback~~ — `tests/uart-kernel.test.js`,
+  `tests/rtl-uart.test.js` (including the free-run case), `tests/ui-terminal.test.js`.
+- ~~No BSRAM/registered-latency model~~ — the registered-read model, plus
+  `npm run sim:board` for the whole board build.
+
+### The residue
+
+1. **Gowin synthesis** — infer the 26 BSRAM blocks with the init, close timing at
+   27 MHz, produce the `.fs`. Needs the toolchain (§10).
+2. **Confirm the pins** in `rtl/deep16_board.cst`.
+3. The **SWI vector register** and the **debug-bus `` `ifdef ``** — both small.
+4. **Rust/WASM UART parity** for the three-core test 6.
+5. Optional: the **UART loader** (§6.6), so the kernel can change without a
+   re-synthesis.
 
 ---
 
@@ -698,13 +756,16 @@ The six console decisions (C1–C6) are locked (§0). These machine items remain
 
 1. ~~**BIOS location**~~ — **decided**: relocated into the low window (BIOS
    `0x5F00`, stacks `0x6000` / `0x67F0`), `CONSOLE_UART` build only. §3.
-2. **Conditional assembly** in the assembler (recommended) vs. a build-time
-   substitution script for the console variant.
-3. **Stack bases** — new constants once the BIOS placement is fixed.
-4. **Boot image** — one SV array with `$readmemh` + `.mi` (recommended) vs.
-   explicit Gowin BSRAM primitives; and `ECHO_FLAG` as an MMIO register
-   (recommended) vs. moved into RAM. Detail in §6.
+2. ~~**Conditional assembly** in the assembler vs. a build-time substitution~~ —
+   **decided**: the assembler does it (`.ifdef` / `.equ`), one source, two builds.
+3. ~~**Stack bases**~~ — **decided**: `RSTACK_TOP = 0x6000`, data stack `0x67F0`
+   from a cell (§3).
+4. ~~**Boot image**~~ — **decided**: one SV array with `$readmemh` + `.mi`, and
+   `ECHO_FLAG` as an MMIO register. Both are in the tree (§6.2, §6.4); the
+   explicit-primitive memory stays the fallback if inference misbehaves.
 5. **Keep the keyboard ports?** Dead on hardware; harmless in the map. Lean: keep
-   the addresses, wire nothing.
+   the addresses, wire nothing. *(unchanged)*
 6. **FIFO/baud beyond C6** — C6 fixes 115200 / TX 64 / RX 128; revisit only if a
-   hardware measurement demands it.
+   hardware measurement demands it. *(unchanged)*
+7. **The `.cst` pin numbers** — the documented values are in; only the board can
+   confirm them.

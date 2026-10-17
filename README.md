@@ -73,6 +73,9 @@ Coverage, by file:
 | `wasm-state.test.js` | WASM core state round trips |
 | `terminal.test.js` | the serial terminal model (CR/LF/BS, `ESC[2J`, scroll, wrap) |
 | `uart.test.js` | the JS core's UART port (`0xF0040`/`0xF0042`) |
+| `uart-kernel.test.js` | the serial kernel end to end on the JS core |
+| `rtl-uart.test.js` | the same kernel on the RTL core, stepped **and** in free-run |
+| `image.test.js` | the D16MINI boot image: content, `0xFFFF` fill, BIOS address, the one MMIO word kept out |
 | **`rtl.test.js`** | **three-way parity, decode sweep, the pipeline** |
 | **`fuzz.test.js`** | **random *programs* against all three cores** |
 | `ui-core.test.js`, `ui-stats.test.js` | the IDE's core selection and counter line |
@@ -97,6 +100,25 @@ npm run sweep:rtl    # 524288 word executions, 4 seeds — must report 0
 npm run trace:rtl -- asm/forth.asm 200 --keys "1 2 + .\n"
 node scripts/bench.mjs   # MIPS of all three cores
 ```
+
+## The D16MINI board build (Tang Nano 9K)
+
+The BRAM-only machine of [`D16MINI.md`](D16MINI.md) is a second build of the same
+RTL, selected by `` `ifdef D16MINI ``: 26 BSRAM blocks instead of the 1 MB array,
+the window decode, the echo register, and the kernel baked into the bitstream
+(no loader). Three commands, none of which need the vendor toolchain:
+
+```sh
+npm run image       # assemble the boot image -> artifacts/image/
+npm run lint:board  # lint the board build (npm run lint:mini for the top alone)
+npm run sim:board   # run the board on Verilator with the real image, and
+                    # decode the banner off the UART *pins*
+```
+
+`npm run sim:board` is the whole bring-up path minus Gowin: it caught a bug the
+step-based tests could not (the console was mute in free-run). What is left needs
+the board itself — synthesis, timing, and confirming the pins in
+`rtl/deep16_board.cst`.
 
 ## Architecture in one page
 

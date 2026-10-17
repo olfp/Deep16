@@ -1,0 +1,27 @@
+// deep16_board.cst - Tang Nano 9K (GW1NR-LV9QN88PC6/I5) pin constraints.
+//
+// D16MINI.md §4.5. Five pins: the 27 MHz oscillator, the reset button, the two
+// UART pins of the on-board USB bridge, and one LED.
+//
+// CONFIRM EVERY PIN against the Sipeed Tang Nano 9K pinout and the board
+// schematic before the first build. There is no board and no Gowin toolchain
+// here, so these are the documented values, not a measured ones. The UART pair
+// in particular decides whether the console works at all.
+
+// 27 MHz oscillator
+IO_LOC "clk" 52;
+IO_PORT "clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+// S1 button, active low
+IO_LOC "rst_n" 4;
+IO_PORT "rst_n" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+// USB-UART bridge (the debugger chip): FPGA TX -> bridge RX, bridge TX -> FPGA RX
+IO_LOC "uart_txd" 17;
+IO_PORT "uart_txd" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC "uart_rxd" 18;
+IO_PORT "uart_rxd" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+// On-board LED, the heartbeat
+IO_LOC "led" 10;
+IO_PORT "led" IO_TYPE=LVCMOS33 DRIVE=8;

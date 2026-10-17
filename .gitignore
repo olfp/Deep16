@@ -24,4 +24,5 @@ artifacts/
 # intentionally NOT ignored - like wasm/pkg/ it is committed so the IDE and the
 # tests run without a local build)
 obj_dir/
+obj_board/
 rtl/obj_wasm/

@@ -10,10 +10,13 @@
     "build:rtl": "bash scripts/build_rtl_native.sh",
     "build:rtl:wasm": "bash scripts/build_rtl_wasm.sh",
     "lint:rtl": "verilator --lint-only -Wall --top-module deep16_top rtl/deep16_pkg.sv rtl/deep16_alu.sv rtl/deep16_regfile.sv rtl/deep16_cache.sv rtl/deep16_divider.sv rtl/deep16_uart.sv rtl/deep16_core.sv rtl/deep16_top.sv",
+    "lint:mini": "verilator --lint-only -Wall -DD16MINI --top-module deep16_top rtl/deep16_pkg.sv rtl/deep16_alu.sv rtl/deep16_regfile.sv rtl/deep16_cache.sv rtl/deep16_divider.sv rtl/deep16_uart.sv rtl/deep16_core.sv rtl/deep16_top.sv",
+    "lint:board": "verilator --lint-only -Wall -DD16MINI --top-module deep16_board rtl/deep16_pkg.sv rtl/deep16_alu.sv rtl/deep16_regfile.sv rtl/deep16_cache.sv rtl/deep16_divider.sv rtl/deep16_uart.sv rtl/deep16_core.sv rtl/deep16_top.sv rtl/deep16_board.sv",
     "trace:rtl": "node scripts/rtl_trace.mjs",
     "sweep:rtl": "node scripts/rtl_sweep.mjs",
     "serve": "node scripts/serve.mjs",
     "image": "node scripts/make_image.mjs",
+    "sim:board": "bash scripts/build_board_sim.sh",
     "ui:shot": "node scripts/ui-shot.mjs"
   },
   "devDependencies": {

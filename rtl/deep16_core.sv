@@ -921,14 +921,18 @@ module deep16_core
       // per key, exactly like the behavioural cores. That makes this the one
       // side effect outside WB, so it has to be qualified by "this
       // instruction is really leaving EX on this edge":
-      //   - step_done freezes the stage between two steps, and a held
-      //     instruction would otherwise pop again on the step's last edge,
+      //   - the single-step freeze holds the stage between two steps, and a
+      //     held instruction would otherwise pop again on the step's last edge,
       //   - a load-use stall holds the instruction for another cycle.
-      kbd_pop = kbd_take_ex && run && !step_done && !stall && kbd_ready;
+      // The freeze is `step_done && !i_free`: in free-run the machine retires
+      // every cycle, so step_done is high almost always while the pipe still
+      // advances - gating on step_done alone would mute the console on the
+      // board, where there is no step handshake at all.
+      kbd_pop = kbd_take_ex && run && !step_freeze && !stall && kbd_ready;
       // The UART strobes are side effects outside WB too, qualified the same way.
-      uart_tx_we   = uart_tx_we_ex   && run && !step_done && !stall;
-      uart_rx_take = uart_take_ex     && run && !step_done && !stall;
-      uart_ctrl_we = uart_ctrl_we_ex  && run && !step_done && !stall;
+      uart_tx_we   = uart_tx_we_ex   && run && !step_freeze && !stall;
+      uart_rx_take = uart_take_ex     && run && !step_freeze && !stall;
+      uart_ctrl_we = uart_ctrl_we_ex  && run && !step_freeze && !stall;
 
       // ---- delay-slot bookkeeping ------------------------------------------
       // A delay slot is armed by a branch and consumed by the very next
@@ -1141,6 +1145,10 @@ module deep16_core
   // across the step boundary; div_started latches so the next step() finds the
   // same division still in flight rather than restarting it.
   wire step_done  = retire_now || halt_done;
+  // The single-step freeze: in step mode the pipeline holds its stage on the
+  // retiring edge (see the pipeline advance below); in free-run it never does.
+  // EX-side strobes must be gated by this, not by step_done.
+  wire step_freeze = step_done && !i_free;
 
   assign o_busy = run;
 
@@ -1235,7 +1243,7 @@ module deep16_core
 
       // ---- pipeline advance --------------------------------------------------
       if (run) begin
-        if (step_done && !i_free) begin
+        if (step_freeze) begin
           // the step ends here: the retiring instruction leaves WB, the rest
           // of the pipeline waits for the next i_step. The stage is cleared
           // completely - its write ports are wired to the register file and
