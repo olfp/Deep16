@@ -65,6 +65,22 @@ class Deep16Simulator {
         this.kbdBuffer = [];
         this.kbdLastData = 0;
 
+        // UART console (D16MINI.md §5): status, data, divisor, control in the
+        // I/O segment, the same shape as the keyboard port. The machine emits a
+        // byte by storing to UART_DATA and reads one by loading UART_DATA; the
+        // IDE drains uartTx into the SerialTerminal and pushes host input into
+        // uartRx. Bytes are 8 bit - the console is a byte pipe.
+        this.UART_STATUS_ADDR = this.ioBase + 0x0040;
+        this.UART_DATA_ADDR   = this.ioBase + 0x0042;
+        this.UART_DIV_ADDR    = this.ioBase + 0x0044;
+        this.UART_CTRL_ADDR   = this.ioBase + 0x0046;
+        this.UART_FIFO_DEPTH  = 128;    // the RX FIFO depth (D16MINI decision C6)
+        this.UART_TX_CAP      = 65536;  // bound on an undrained TX backlog
+        this.uartDiv = 234;             // 27 MHz / 115200, what the FPGA will use
+        this.uartTx = [];               // emitted, not yet drained by the host
+        this.uartRx = [];               // received, not yet read by the machine
+        this.uartRxOverrun = false;
+
         // Boot ROM, same as the WASM core's init(): a fresh machine can run
         // without an explicit loadProgram() first.
         this.autoloadROM();
@@ -110,6 +126,12 @@ class Deep16Simulator {
         // Reset keyboard buffer
         this.kbdBuffer = [];
         this.kbdLastData = 0;
+
+        // Reset the UART console: FIFOs empty, divisor back to the default.
+        this.uartDiv = 234;
+        this.uartTx = [];
+        this.uartRx = [];
+        this.uartRxOverrun = false;
     }
 
     phys(seg, off) {
@@ -981,11 +1003,28 @@ class Deep16Simulator {
                 const data = this.kbdBuffer.length > 0 ? (this.kbdBuffer.shift() & 0xFFFF) : 0;
                 this.kbdLastData = data;
                 this.writeGPR(rd, data);
+            } else if (physicalAddress === this.UART_STATUS_ADDR) {
+                this.writeGPR(rd, this.uartStatus());
+            } else if (physicalAddress === this.UART_DATA_ADDR) {
+                const data = this.uartRx.length > 0 ? (this.uartRx.shift() & 0xFFFF) : 0;
+                this.writeGPR(rd, data);
             } else if (physicalAddress < this.memory.length) {
                 this.writeGPR(rd, this.memory[physicalAddress] & 0xFFFF);
             }
         } else { // STS
-            if (physicalAddress < this.memory.length) {
+            // UART ports are decoded here rather than written to RAM: they are
+            // registers, the same way the keyboard status/data reads are.
+            if (physicalAddress === this.UART_DATA_ADDR) {
+                const value = this.readGPR(rd);
+                this.uartTx.push(value & 0xFF);   // the line carries eight bits
+                if (this.uartTx.length > this.UART_TX_CAP) this.uartTx.shift();
+            } else if (physicalAddress === this.UART_DIV_ADDR) {
+                this.uartDiv = this.readGPR(rd) & 0xFFFF;
+            } else if (physicalAddress === this.UART_CTRL_ADDR) {
+                const value = this.readGPR(rd);
+                if (value & 0x1) { this.uartRx = []; this.uartRxOverrun = false; }
+                if (value & 0x2) { this.uartTx = []; }
+            } else if (physicalAddress < this.memory.length) {
                 const value = this.readGPR(rd);
                 this.memory[physicalAddress] = value;
                 // console.log(`STS: [${segNames[seg]}:${this.getRegisterName(rs)}] -> phys 0x${physicalAddress.toString(16)} = 0x${value.toString(16)}`);
@@ -1174,6 +1213,49 @@ class Deep16Simulator {
     // the machine has actually consumed.
     kbdAvailable() {
         return this.kbdBuffer.length;
+    }
+
+    // --- UART console (D16MINI.md §5) ---------------------------------------
+    // The mirror of the keyboard hooks above, for the serial console build. The
+    // IDE drains uartTx into the SerialTerminal and pushes host input into
+    // uartRx; a program talks to the port with LDS/STS at 0xF0040/0xF0042.
+
+    // Status word: b0 RX-ready, b1 TX-ready, b2 RX-overrun, b3 TX-idle. This
+    // core's TX never blocks, so b1 and b3 are always set.
+    uartStatus() {
+        let status = 0x02 | 0x08;
+        if (this.uartRx.length > 0) status |= 0x01;
+        if (this.uartRxOverrun) status |= 0x04;
+        return status & 0xFFFF;
+    }
+
+    // Host -> machine. The FIFO is 128 deep; a byte that arrives while it is
+    // full is dropped and the overrun flag is set, exactly as the RTL FIFO
+    // will behave. The IDE paces itself with uartRxAvailable(), so this should
+    // never fire in practice.
+    uartRxPush(code) {
+        if (this.uartRx.length >= this.UART_FIFO_DEPTH) {
+            this.uartRxOverrun = true;
+            return;
+        }
+        this.uartRx.push(code & 0xFF);
+    }
+
+    uartRxAvailable() {
+        return this.uartRx.length;
+    }
+
+    uartRxClear() {
+        this.uartRx = [];
+        this.uartRxOverrun = false;
+    }
+
+    // Machine -> host. Returns everything emitted since the last call and
+    // clears the backlog, so the caller drains exactly once per byte.
+    uartTxTake() {
+        const out = this.uartTx;
+        this.uartTx = [];
+        return out;
     }
 
     enqueueKeyEvent(e) {

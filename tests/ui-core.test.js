@@ -31,6 +31,10 @@ globalThis.window = globalThis.window || {};
 
 vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_core.js'), 'utf8'),
                     { filename: 'deep16_ui_core.js' });
+// The terminal model the screen can switch to; the screen constructor builds
+// one, so it has to be in scope before deep16_ui_screen.js runs.
+vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', 'deep16_terminal.js'), 'utf8'),
+                    { filename: 'deep16_terminal.js' });
 // The screen subsystem lives in its own file; the column-pager tests drive it
 // directly, so it has to be in scope here.
 vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_screen.js'), 'utf8'),

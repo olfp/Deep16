@@ -71,10 +71,12 @@ Coverage, by file:
 | `examples.test.js` | all seven programs in `asm/` |
 | `forth.test.js` | the Forth kernel, including the keyboard port |
 | `wasm-state.test.js` | WASM core state round trips |
-| `serial-port.test.js` | the serial port |
+| `terminal.test.js` | the serial terminal model (CR/LF/BS, `ESC[2J`, scroll, wrap) |
+| `uart.test.js` | the JS core's UART port (`0xF0040`/`0xF0042`) |
 | **`rtl.test.js`** | **three-way parity, decode sweep, the pipeline** |
 | **`fuzz.test.js`** | **random *programs* against all three cores** |
 | `ui-core.test.js`, `ui-stats.test.js` | the IDE's core selection and counter line |
+| `ui-terminal.test.js` | the Screen tab's screen/terminal switch and input routing |
 
 Two of those earn their keep differently. `rtl.test.js` runs a **decode sweep**
 — every one of the 65536 instruction words, from four register/PSW seeds, each

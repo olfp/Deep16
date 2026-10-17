@@ -338,12 +338,56 @@ class DeepWebUI {
     // say. NaN means "unknown", and the pump then types a single character,
     // which cannot overflow anything.
     kbdAvailable() {
+        if (this.consoleMode() === 'terminal') {
+            if (this.compiledCoreReady()) {
+                const C = this.activeCoreModule();
+                return (typeof C.uart_rx_available === 'function') ? C.uart_rx_available() : NaN;
+            }
+            const s = this.simulator;
+            return (s && typeof s.uartRxAvailable === 'function') ? s.uartRxAvailable() : NaN;
+        }
         if (this.compiledCoreReady()) {
             const C = this.activeCoreModule();
             return (typeof C.kbd_available === 'function') ? C.kbd_available() : NaN;
         }
         const s = this.simulator;
         return (s && typeof s.kbdAvailable === 'function') ? s.kbdAvailable() : NaN;
+    }
+
+    // Which console the Screen tab is showing, and therefore where input goes.
+    // The mode lives on the screen UI because that is what the View button
+    // flips; this is only the reader.
+    consoleMode() {
+        return (this.screenUI && this.screenUI.mode === 'terminal') ? 'terminal' : 'screen';
+    }
+
+    // Machine -> host. Everything the active core has emitted on its UART since
+    // the last call, drained exactly once. A compiled core without UART hooks
+    // yet (the RTL/WASM mirror is a later phase) simply yields nothing.
+    takeConsoleBytes() {
+        if (this.compiledCoreReady()) {
+            const C = this.activeCoreModule();
+            if (typeof C.uart_tx_take === 'function') {
+                try {
+                    const bytes = C.uart_tx_take();
+                    return bytes ? Array.from(bytes) : [];
+                } catch { return []; }
+            }
+            return [];
+        }
+        const s = this.simulator;
+        if (s && typeof s.uartTxTake === 'function') return s.uartTxTake();
+        return [];
+    }
+
+    // Drain the UART into the terminal model. Called every display tick so the
+    // backlog never grows while a program is running, and on entering the tab.
+    pumpConsole() {
+        const bytes = this.takeConsoleBytes();
+        if (bytes.length && this.screenUI && typeof this.screenUI.feedConsole === 'function') {
+            this.screenUI.feedConsole(bytes);
+        }
+        return bytes.length;
     }
 
     // Type one keystroke into the active core and mirror it into the JS one, the
@@ -383,27 +427,42 @@ class DeepWebUI {
             this.screenUI.setActive(true);
         }
         const code = this.keyEventToCode(e);
-        if (code) {
-            this.simulator.enqueueKeyCode(code);
-            // Compiled cores have their own polled keyboard buffer: mirror
-            // every keystroke into whichever one is selected.
-            if (this.compiledCoreReady() && typeof this.activeCoreModule().kbd_push === 'function') {
-                this.activeCoreModule().kbd_push(code);
-            }
-        }
+        // One place decides where a keystroke goes: the keyboard FIFO for the
+        // screen build, the UART RX for the serial build (kbdPushCode).
+        if (code) this.kbdPushCode(code);
     }
 
     kbdPushCode(code) {
         const s = this.simulator;
-        if (s && typeof s.enqueueKeyCode === 'function') s.enqueueKeyCode(code);
+        const terminal = this.consoleMode() === 'terminal';
+        if (s) {
+            if (terminal && typeof s.uartRxPush === 'function') s.uartRxPush(code);
+            else if (typeof s.enqueueKeyCode === 'function') s.enqueueKeyCode(code);
+        }
         if (this.compiledCoreReady()) {
             const C = this.activeCoreModule();
-            if (typeof C.kbd_push === 'function') C.kbd_push(code);
+            if (terminal) {
+                // The UART build polls the port, not the keyboard. Until a
+                // compiled core exposes uart_rx_push, fall back to the keyboard
+                // so a core switch mid-session cannot drop the keystroke.
+                if (typeof C.uart_rx_push === 'function') C.uart_rx_push(code);
+                else if (typeof C.kbd_push === 'function') C.kbd_push(code);
+            } else if (typeof C.kbd_push === 'function') {
+                C.kbd_push(code);
+            }
         }
     }
 
     kbdClearAll() {
         const s = this.simulator;
+        if (this.consoleMode() === 'terminal') {
+            if (s && typeof s.uartRxClear === 'function') s.uartRxClear();
+            if (this.compiledCoreReady()) {
+                const C = this.activeCoreModule();
+                if (typeof C.uart_rx_clear === 'function') C.uart_rx_clear();
+            }
+            return;
+        }
         if (s && typeof s.kbdBuffer !== 'undefined') s.kbdBuffer = [];
         if (this.compiledCoreReady()) {
             const C = this.activeCoreModule();
@@ -1955,6 +2014,9 @@ class DeepWebUI {
         if (tabName === 'listing' && this.currentAssemblyResult) {
             this.updateAssemblyListing();
         } else if (tabName === 'screen') {
+            // Catch up on anything emitted since the last tick before drawing,
+            // so the tab opens on the current terminal state.
+            this.pumpConsole();
             this.screenUI.updateScreenDisplay();
             // The tab was hidden until now, so it had no width to measure and
             // the pager was never asked. This is the first moment that can be
@@ -2113,6 +2175,10 @@ class DeepWebUI {
     }
 
     updateAllDisplays() {
+        // Drain the UART every tick, before the trace gate: the terminal view is
+        // what the user is watching, and an undrained backlog must not grow
+        // while the other panels are paused.
+        this.pumpConsole();
         // One gate for every panel. Nothing here runs when the trace is off or
         // while a load is in flight - see isTraceOn.
         if (!this.isTraceOn()) return;

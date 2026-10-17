@@ -76,6 +76,21 @@
 
 .screen-upload-btn.screen-upload-cancel:hover { background: #c0392f; }
 
+/* The console switch (screen buffer vs. terminal) sits with the palette on the
+   left; Upload keeps the margin-left:auto that pushes it to the right edge. */
+.screen-view-btn {
+    margin-left: 0;
+}
+
+/* Terminal mode is a different console, so it reads as the button being
+   pressed rather than as something broken. */
+.screen-view-btn.screen-view-terminal {
+    background: #444;
+    color: #bbb;
+}
+
+.screen-view-btn.screen-view-terminal:hover { background: #555; }
+
 /* 80 columns x 24 rows in a fixed cell grid: 8 px wide, 15 px high, which is
    exactly 640 x 360. The font size is not chosen by eye: a monospace face
    advances 0.6 em, so 13.3333 px puts the next glyph exactly 8 px further
@@ -297,6 +312,22 @@
 
 .screen-narrow .screen-info-full { display: none; }
 .screen-narrow .screen-info-short { display: inline; }
+
+/* On a phone the menu row cannot hold the 128 px colour legend and three
+   buttons: it used to run off both edges, clipping the palette on the left and
+   "Echo: on" on the right while "View: Screen" squeezed onto two lines. Let the
+   row wrap, drop the legend - it is a reading aid, not a control - and stop the
+   buttons from shrinking their text. The console switch, Upload and Echo all
+   stay reachable. */
+.screen-narrow .screen-menu {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    height: auto;
+}
+.screen-narrow .screen-palette { display: none; }
+.screen-narrow .screen-upload-btn { margin-left: 0; white-space: nowrap; }
+.screen-narrow .screen-view-btn,
+.screen-narrow .screen-echo-btn { margin-left: 0; white-space: nowrap; }
 
 /* Hidden terminal keyboard hook (iOS soft keyboard).
    Must stay *focusable* (not display:none): iOS refuses to summon the keyboard

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DeepCode - Deep16 (深十六) Integrated Development Environment</title>
-    <link rel="stylesheet" href="css/main.css?v=20261014-1">
+    <link rel="stylesheet" href="css/main.css?v=20261017-1">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="alternate icon" type="image/x-icon" href="favicon.ico">
 </head>
@@ -160,6 +160,13 @@ data_area:
                          low nibble of a cell's high byte picks the foreground,
                          the high nibble the background. -->
                     <div class="screen-palette" id="screen-palette" aria-hidden="true"></div>
+                    <!-- Which console the screen shows: the memory-mapped buffer
+                         at 0xF1000, or the UART byte stream rendered as a
+                         terminal. The same switch routes input (keys go to the
+                         keyboard FIFO or the UART RX). See deep16_ui_screen.js. -->
+                    <button type="button" id="console-view-btn" class="screen-upload-btn screen-view-btn"
+                            aria-pressed="false"
+                            title="Bildschirmpuffer oder Terminalausgabe anzeigen">View: Screen</button>
                     <!-- Typing a file in. Every character of the chosen ASCII file
                          becomes a keystroke, every line ending a Return, so the
                          program sees exactly what a person typing it would send. -->
@@ -379,7 +386,8 @@ data_area:
     <script src="js/deep16_simulator.js?v=20261011-1"></script>
     <script src="js/deep16_ui_registers.js?v=20261006-1"></script>
     <script src="js/deep16_ui_memory.js?v=20261013-3"></script>
-    <script src="js/deep16_ui_screen.js?v=20261011-5"></script>
+    <script src="js/deep16_terminal.js?v=20261017-1"></script>
+    <script src="js/deep16_ui_screen.js?v=20261017-1"></script>
     <script type="module">
         try {
             const modPromise = import('./wasm/pkg/deep16_wasm.js?v=20261010-4');

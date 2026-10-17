@@ -14,6 +14,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Screenshots from scripts/ui-shot.mjs (npm run ui:shot)
+artifacts/
+
 # The compiled WASM core in wasm/pkg/ is intentionally NOT ignored:
 # index.html loads wasm/pkg/deep16_wasm.js and wasm/pkg/deep16_wasm_bg.wasm
 # directly, so the browser IDE works without a local Rust build.

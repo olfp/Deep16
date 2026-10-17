@@ -53,6 +53,17 @@ class Deep16ScreenUI {
         this.visibleCols = this.screenWidth;
         this.activePage = 0; // 0 = columns 1-40, 1 = columns 41-80
 
+        // Which console the view shows: 'screen' is the memory-mapped buffer at
+        // 0xF1000, 'terminal' is the UART byte stream rendered by SerialTerminal.
+        // The same switch decides which way input is routed (see deep16_ui_core).
+        this.mode = 'screen';
+        this.terminal = (typeof SerialTerminal === 'function')
+            ? new SerialTerminal(this.screenWidth, this.screenHeight)
+            : null;
+        // Separate repaint cache for the terminal: a terminal cell is one
+        // character plus the cursor flag, not a 16-bit screen word.
+        this.lastTermDrawn = new Int32Array(this.totalChars).fill(-1);
+
         this.initializeScreen();
     }
 
@@ -75,6 +86,7 @@ class Deep16ScreenUI {
         screenDisplay.innerHTML = html;
 
         this.setupPager();
+        this.setupConsoleView();
         this.buildPalette();
         this.applyColumnMode();
 
@@ -241,10 +253,75 @@ class Deep16ScreenUI {
         else { screenDisplay.classList.remove('screen-active'); }
     }
 
+    // ---- console view: screen buffer vs. terminal output ------------------
+
+    setupConsoleView() {
+        const btn = document.getElementById('console-view-btn');
+        if (btn) btn.addEventListener('click', () => this.toggleConsoleView());
+        this.updateConsoleViewButton();
+        this.updateConsoleInfo();
+    }
+
+    // The one switch. 'screen' shows the memory buffer, 'terminal' shows the
+    // UART stream. Switching forces a full repaint because the two views share
+    // the same DOM cells but not their contents.
+    setConsoleView(mode) {
+        const next = (mode === 'terminal') ? 'terminal' : 'screen';
+        if (next === this.mode) return this.mode;
+        this.mode = next;
+        this.lastDrawn.fill(-1);
+        this.lastTermDrawn.fill(-1);
+        this.lastCursorIndex = null;
+        this.updateConsoleViewButton();
+        this.updateConsoleInfo();
+        this.updateScreenDisplay();
+        this.applyColumnMode();
+        return this.mode;
+    }
+
+    toggleConsoleView() {
+        return this.setConsoleView(this.mode === 'terminal' ? 'screen' : 'terminal');
+    }
+
+    updateConsoleViewButton() {
+        const btn = document.getElementById('console-view-btn');
+        if (!btn) return;
+        const term = this.mode === 'terminal';
+        btn.textContent = term ? 'View: Terminal' : 'View: Screen';
+        btn.setAttribute('aria-pressed', term ? 'true' : 'false');
+        btn.classList.toggle('screen-view-terminal', term);
+    }
+
+    // The info line and the colour legend only make sense for the screen. In
+    // terminal mode there are no colours (D16MINI decision C2), so the legend
+    // is hidden and the address line is replaced.
+    updateConsoleInfo() {
+        const term = this.mode === 'terminal';
+        const full = document.querySelector ? document.querySelector('.screen-info-full') : null;
+        const short = document.querySelector ? document.querySelector('.screen-info-short') : null;
+        if (full) {
+            full.textContent = term
+                ? 'Terminal 80\u00d724 \u00b7 UART console (0xF0042 data, 0xF0040 status)'
+                : 'Memory: 0xF1000-0xF17BF (80\u00d724 characters) | Lower byte = ASCII, high byte = 4+4 bits colour';
+        }
+        if (short) {
+            short.textContent = term ? 'Terminal \u00b7 80\u00d724' : '0xF1000-0xF17BF \u00b7 80\u00d724';
+        }
+        const palette = document.getElementById('screen-palette');
+        if (palette) palette.style.display = term ? 'none' : '';
+    }
+
+    // Feed bytes the machine emitted on its UART. Called by the IDE, which owns
+    // the drain from the active core.
+    feedConsole(bytes) {
+        if (this.terminal && bytes && bytes.length) this.terminal.writeBytes(bytes);
+    }
+
     // The cursor is still bit 15 of the cell: the kernel writes it, so the
     // screen reads it. That bit is the one thing standing between this and a
     // full four-bit background - see updateCharacter().
     updateScreenDisplay() {
+        if (this.mode === 'terminal') { this.updateTerminalDisplay(); return; }
         // Update all characters from screen memory
         if (this.ui.compiledCoreReady()) {
             try {
@@ -270,6 +347,24 @@ class Deep16ScreenUI {
                 }
             }
         }
+    }
+
+    // Draw the whole grid from the terminal model, cursor included. The key is
+    // (character, cursor-on-this-cell) packed into one int so a cell repaints
+    // when either changes, and not otherwise.
+    updateTerminalDisplay() {
+        if (!this.terminal) return;
+        const cursor = this.terminal.cursorIndex();
+        for (let i = 0; i < this.totalChars; i++) {
+            const ch = this.terminal.charAt(i) & 0x7F;
+            const isCursor = (i === cursor) ? 1 : 0;
+            const key = (ch << 1) | isCursor;
+            if (this.lastTermDrawn[i] === key) continue;
+            this.lastTermDrawn[i] = key;
+            this.updateCharacter(i, ch, 0, isCursor === 1);
+        }
+        this.lastCursorIndex = cursor;
+        this.ensureCursorVisible();
     }
 
     // Draw one cell, unless it already shows this word.
