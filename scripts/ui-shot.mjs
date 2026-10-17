@@ -195,9 +195,26 @@ async function runForthRepl(page) {
   await new Promise((r) => setTimeout(r, 1500));           // echo and evaluate
   const result = await page.evaluate(() => {
     const ui = window.deepWebUI;
-    const rows = ui.screenUI.terminal.text().map((r) => r.replace(/\s+$/, ''));
-    return { mode: ui.consoleMode(), running: ui.simulator.running, row0: rows[0], row1: rows[1], row2: rows[2] };
+    // Read the DOM cells, not the model: the point is that the view repainted
+    // while the machine was running, which used to only happen on a tab switch.
+    const readRow = (r) => {
+      let s = '';
+      for (let c = 0; c < 80; c++) {
+        const el = document.getElementById(`screen-char-${r * 80 + c}`);
+        s += el ? (el.textContent || ' ') : ' ';
+      }
+      return s.replace(/\s+$/, '');
+    };
+    const ci = ui.screenUI.terminal.cursorIndex();
+    const cel = document.getElementById(`screen-char-${ci}`);
+    return {
+      mode: ui.consoleMode(), running: ui.simulator.running,
+      row0: readRow(0), row1: readRow(1), row2: readRow(2),
+      cursorBg: cel ? getComputedStyle(cel).backgroundColor : null,
+    };
   });
+  check(result.cursorBg === 'rgb(255, 255, 255)',
+    `desktop: the terminal cursor is a white block (got ${result.cursorBg})`);
   await page.evaluate(() => { const ui = window.deepWebUI; if (ui.simulator.running) ui.stop(); });
   return result;
 }

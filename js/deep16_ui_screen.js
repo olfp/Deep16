@@ -340,10 +340,23 @@ class Deep16ScreenUI {
             const key = (ch << 1) | isCursor;
             if (this.lastTermDrawn[i] === key) continue;
             this.lastTermDrawn[i] = key;
-            this.updateCharacter(i, ch, 0, isCursor === 1);
+            if (isCursor) this.drawTerminalCursor(i, ch);
+            else this.updateCharacter(i, ch, 0, false);
         }
         this.lastCursorIndex = cursor;
         this.ensureCursorVisible();
+    }
+
+    // The host terminal's cursor is a solid block - reverse video, white on
+    // black - not the screen build's reversed colour or the green outline the
+    // screen buffer uses. The character under it stays, inverted.
+    drawTerminalCursor(charIndex, charCode) {
+        const el = document.getElementById(`screen-char-${charIndex}`);
+        if (!el) return;
+        el.textContent = (charCode >= 32 && charCode <= 126) ? String.fromCharCode(charCode) : ' ';
+        el.classList.remove('screen-cursor');
+        el.style.color = '#000000';
+        el.style.backgroundColor = '#ffffff';
     }
 
     // Draw one cell, unless it already shows this word.
@@ -437,8 +450,12 @@ class Deep16ScreenUI {
         return address >= this.screenBaseAddress && address <= this.screenEndAddress;
     }
 
-    // Handle memory writes to screen area
+    // Handle memory writes to screen area. In terminal mode the terminal owns
+    // the DOM cells, so a write to the (now unused) 0xF1000 buffer must not draw
+    // over them - the serial kernel still pokes that buffer for its cursor, and
+    // those writes were clobbering the terminal output.
     handleScreenMemoryWrite(address, value) {
+        if (this.mode === 'terminal') return;
         if (this.isScreenMemory(address)) {
             const charIndex = address - this.screenBaseAddress;
             if (this.deferUpdates) {
@@ -481,6 +498,7 @@ class Deep16ScreenUI {
     }
 
     flushPending() {
+        if (this.mode === 'terminal') { this.pendingUpdates.clear(); return; }
         if (this.pendingUpdates.size === 0) return;
         for (const charIndex of this.pendingUpdates) {
             const memoryAddress = this.screenBaseAddress + charIndex;

@@ -469,6 +469,12 @@ class DeepWebUI {
         const bytes = this.takeConsoleBytes();
         if (bytes.length && this.screenUI && typeof this.screenUI.feedConsole === 'function') {
             this.screenUI.feedConsole(bytes);
+            // The screen buffer repaints itself per write (checkScreenUpdate);
+            // the terminal has no such hook, so repaint it here whenever new
+            // bytes arrived - otherwise the view only catches up on a tab switch.
+            if (this.consoleMode() === 'terminal' && typeof this.screenUI.updateScreenDisplay === 'function') {
+                this.screenUI.updateScreenDisplay();
+            }
         }
         return bytes.length;
     }
