@@ -90,6 +90,7 @@ module deep16_top
   // to deliver them. This build has no cache (D16MINI is cacheless), so the
   // FSH flush and the cache-invalidate inputs have nothing to do.
   logic [15:0] if_rdata_q;
+  logic [15:0] mem_rdata_q;
   /* verilator lint_off UNUSEDSIGNAL */
   logic        core_cache_flush;   // the core's FSH: no cache to flush here
   logic        _cache_inputs_unused;
@@ -145,22 +146,17 @@ module deep16_top
   end
 
   // ---- synchronous read ports ------------------------------------------
-  // Two registered reads: the instruction port (addressed by the core's
-  // prefetch, so the word is ready when IF wants it) and the data port
-  // (addressed in EX, consumed in MEM). Out of range answers 0xFFFF, the halt
-  // word, exactly as the bare array did.
+  // Two registered reads, one clock of latency each. The instruction port is
+  // addressed by the core's prefetch, so the word is ready when IF wants it.
+  // The data port is addressed in MEM and its word lands in WB - exactly where
+  // the load's register write and bypass read it (see the core's mem_wb_wdata).
+  // Out of range answers 0xFFFF, the halt word, as the bare array did.
   always_ff @(posedge clk) begin
-    if_rdata_q <= (if_addr < 21'(MEM_WORDS)) ? mem[if_addr[19:0]] : 16'hFFFF;
+    if_rdata_q  <= (if_addr  < 21'(MEM_WORDS)) ? mem[if_addr[19:0]]  : 16'hFFFF;
+    mem_rdata_q <= (mem_addr < 21'(MEM_WORDS)) ? mem[mem_addr[19:0]] : 16'hFFFF;
   end
-  assign if_rdata = if_rdata_q;
-
-  // The data port is still combinational: a registered data read fights the
-  // frozen-pipeline model's store-to-load timing (the store commits in WB, after
-  // the load would have sampled), so it needs a load-result stage or forwarding
-  // first. See D16MINI.md Phase 2.
-  always_comb begin
-    mem_rdata = (mem_addr < 21'(MEM_WORDS)) ? mem[mem_addr[19:0]] : 16'hFFFF;
-  end
+  assign if_rdata  = if_rdata_q;
+  assign mem_rdata = mem_rdata_q;
 
   // The SWI vector is a constant address, read straight through so the handler
   // entry is known in EX as before. (A register fed by the write path is the

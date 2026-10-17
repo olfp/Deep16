@@ -299,6 +299,12 @@ module deep16_core
   // shadow bank it still holds the user PC the handler was entered from.
   wire [15:0] pc_reg_val = ctx_e.psw[FLG_S] ? ctx_e.pc : (ctx_e.pc + 16'd1);
 
+  // The data written to the register file in WB. A load's word is on the memory
+  // bus now (the synchronous read), so it is taken from there rather than from
+  // the pipeline register.
+  wire [15:0] mem_wb_wdata = (mem_wb.valid && mem_wb.mem_is_load && mem_wb.reg_we_a)
+                             ? mem_rdata : mem_wb.reg_da;
+
   function automatic logic [15:0] fwd_val(
       input logic [3:0] a,
       input logic [15:0] n,
@@ -317,7 +323,7 @@ module deep16_core
     if (mem_wb.valid &&
         fwd_hit(a, bank, mem_wb.reg_we_a, mem_wb.reg_wa, mem_wb.reg_we_b,
                 mem_wb.reg_wb, mem_wb.reg_bank))
-      return (mem_wb.reg_we_a && mem_wb.reg_wa == a) ? mem_wb.reg_da : mem_wb.reg_db;
+      return (mem_wb.reg_we_a && mem_wb.reg_wa == a) ? mem_wb_wdata : mem_wb.reg_db;
     return base_v;
   endfunction
 
@@ -360,7 +366,7 @@ module deep16_core
     // on a load-use stall keeps the fields of the instruction it replaced, and
     // an ungated port would keep firing that stale write every cycle
     .we_a      (mem_wb.valid && mem_wb.reg_we_a),
-    .waddr_a   (mem_wb.reg_wa), .wdata_a (mem_wb.reg_da),
+    .waddr_a   (mem_wb.reg_wa), .wdata_a (mem_wb_wdata),
     .we_b      (mem_wb.valid && mem_wb.reg_we_b),
     .waddr_b   (mem_wb.reg_wb), .wdata_b (mem_wb.reg_db),
     .sh_clear  (mem_wb.valid && mem_wb.sh_clear),
@@ -1026,7 +1032,11 @@ module deep16_core
     if_cs          = ctx_next_ex.psw[FLG_S] ? ctx_next_ex.scs : ctx_next_ex.cs;
     if_pa          = {if_cs, 4'h0} + {5'b00000, if_pc};
     if_valid       = run && !halt_sticky;
-    mem_late       = ex_mem.valid && ex_mem.pc_from_port;
+    // A load into R15 (or a SWI vector through the data port) redirects the
+    // fetch to the loaded word. With the synchronous read that word is on the
+    // bus in WB, one stage later than it used to be, so the redirect is taken
+    // from there.
+    mem_late       = mem_wb.valid && mem_wb.pc_from_port;
     if_redirect    = redirect_ex || mem_late;
     if_pc_next     = if_redirect ? (mem_late ? mem_rdata : redirect_pc_ex)
                                   : (if_pc + 16'd1);
@@ -1098,19 +1108,11 @@ module deep16_core
     ex_mem_n.evt_spc   = evt_spc_ex;
     ex_mem_n.evt_scs   = evt_scs_ex;
 
-    // MEM -> WB, with the patches that need the memory read data of this cycle
+    // MEM -> WB. A load's data arrives one clock after MEM (the synchronous
+    // read) - i.e. in WB - so it is not captured here. mem_wb_wdata below picks
+    // it up for the register write and the bypass, and the load-to-PC update
+    // happens in the WB write.
     mem_wb_n        = ex_mem;
-    if (ex_mem.valid) begin
-      if (ex_mem.mem_rd_valid && ex_mem.mem_is_load) begin
-        mem_wb_n.reg_da = mem_rdata;         // load data
-        // LD R15 writes the program counter, and the PC lives in the state
-        // bundle - so the loaded word goes there instead of the register file.
-        // A delay-slot transfer was applied after the instruction and wins,
-        // exactly as it does in the cores.
-        if (ex_mem.load_rd == 4'd15 && !ex_mem.appl_pc)
-          mem_wb_n.ctx_next.pc = mem_rdata;
-      end
-    end
   end
 
   // ---- data ports ---------------------------------------------------------
@@ -1209,6 +1211,12 @@ module deep16_core
       // idle cycle must never commit anything.
       if (run && mem_wb.valid) begin
         ctx           <= mem_wb.ctx_next;
+        // A load into R15 is the program counter, and the PC lives in the state
+        // bundle. The word is on the memory bus now, so it goes there instead of
+        // the register file; a delay-slot transfer applied after the instruction
+        // wins, exactly as it does in the cores.
+        if (mem_wb.mem_is_load && (mem_wb.load_rd == 4'd15) && !mem_wb.appl_pc)
+          ctx.pc <= mem_rdata;
         instr_count   <= instr_count + 32'd1;
         if (mem_wb.evt_we) begin
           last_event_code <= mem_wb.evt_code;
@@ -1404,6 +1412,7 @@ module deep16_core
                             mem_wb.reg_we_b, mem_wb.reg_we_a, mem_wb.reg_wa};
         8'h6E: dbg_rdata = {14'h0000, kbd_pop, kbd_ready};
         8'h6F: dbg_rdata = {8'h00, kbd_count};  // keyboard FIFO depth: the host
+
                                                 // reads this to pace typing a file
         8'h65: dbg_rdata = {15'h0000, ex_mem.mem_we};
         8'h66: dbg_rdata = ex_mem.mem_addr[15:0];
