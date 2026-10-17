@@ -236,8 +236,8 @@ Nothing board-shaped exists today.
 - Reset synchroniser.
 - A **`.cst`** pin-constraint file: clock, reset/button, LED, UART pins 17/18.
   None exists in the repo.
-- A **memory-init file** (`.mi`) so the assembled kernel is in BSRAM at power-up
-  (§6).
+- The **boot image** — a BSRAM init so the assembled kernel is running at
+  power-up (§6).
 
 ---
 
@@ -265,20 +265,106 @@ board** — the UART replaces the keyboard as well as the screen.
 
 ---
 
-## 6. Boot and loading
+## 6. Boot and loading — the boot image
 
-The kernel image must be in BSRAM when the FPGA configures.
+The kernel image must be in BSRAM when the FPGA configures. The board has no
+loader and no mass storage (§11.D), so the image is **baked into the bitstream**:
+one BSRAM init, applied at configuration, and the machine is running DeepForth the
+moment the FPGA comes up. No host, no boot sequence.
 
-- **Recommended for bring-up:** generate a `.mi` / BSRAM-init from the assembled
-  image (plus the boot ROM in LUTs). No loader, no host, instant boot.
-- Later alternative: a small ROM loader that takes the image over the UART.
-- The current "load a program" path (`loadProgram` in `rtl/sim`,
-  `js/deep16_simulator.js`) is a **simulation** facility; it does not exist as
-  hardware.
-- DeepForth's own "Datei tippen…" source loader is **browser-only** (`SERPLAN.md`);
-  on the board a source file arrives by typing into the UART, or the image is
-  baked in. There is no on-board mass storage in this design. (In simulation the
-  injection is kept — §7.7, decision C5.)
+### 6.1 What the image contains
+
+| Region | Addresses | In the image? |
+|---|---|---|
+| Kernel (UART build) | `0x0100–0x3B03` | yes — the assembled words |
+| BIOS (relocated, §3) | ≈`0x5F00` | yes — **once M5 is fixed** |
+| SWI vector | `0x0002` | no: the kernel installs it at run time |
+| Dictionary, stacks | above `dict_free` | no: run-time RAM, filled `0xFFFF` |
+| Screen | `0xF1000` | deleted (C1) |
+| MMIO (UART, echo flag) | `0xF0040–0xF0064` | no: registers (§5, §6.4) |
+| Boot ROM | `0xFFFF0` | no: 16 words in LUTs (§6.3) |
+
+**The fill value is `0xFFFF`, everywhere.** BSRAM init leaves unspecified words at
+`0x0000`, which is `LDI 0` — the machine would *run forever* instead of halting.
+The simulation fills all of RAM with `0xFFFF` (the halt word), so the image must
+too: every unused word of all 26 blocks, not just the gap around the kernel. This
+is the one detail that silently changes behaviour if it is missed.
+
+### 6.2 How the RAM is built, and how it is initialised
+
+The memory is the 26-block synchronous BSRAM of §4.1. Two ways to get the image
+into it; the plan takes the first:
+
+- **One SV array, two init files (chosen).** Keep the single `reg [15:0] mem
+  [...]` in `deep16_top.sv`, and give it a `$readmemh` init for Verilator and an
+  `INIT_FILE` / `.mi` for Gowin. One source, no second memory model to keep in
+  step. The open risk is inference — whether Gowin infers 26 BSRAM blocks *and*
+  honours the init — which can only be confirmed on the first synthesis (there is
+  no toolchain here).
+- **Explicit Gowin primitives** (`DPB`/`SDPB`, 26 instantiations, per-block
+  `INIT_FILE`). Deterministic and reviewable, at the cost of a hand-written memory
+  behind `` `ifdef SYNTHESIS ``. The fallback if inference misbehaves.
+
+The generator emits the image in **both** formats from one set of words, so
+Verilator and the board see the same memory.
+
+### 6.3 The boot ROM
+
+The 16-word ROM at `0xFFFF0` (`BOOT_ROM_PACKED`, `deep16_pkg.sv`) stays a **LUT
+ROM**, not part of the image: it zeroes `DS`/`SS`, plants the entry point `0x0100`
+at physical 0–2, and jumps to `0000:0100`. Keeping it preserves the core's reset
+behaviour byte-for-byte with the three emulators.
+
+One overlap to note: the ROM writes RAM at 0–2 *after* configuration, so it
+overwrites the image there. Harmless — the kernel re-installs the SWI vector at
+address 2 itself — but it means those three words are not the image's to keep.
+
+### 6.4 The I/O cells need a hardware home
+
+The core treats every address below `MEM_WORDS` as memory, so the top must
+**decode the `0xF0000` page explicitly** and answer the fill elsewhere. Two cells
+the kernel actually touches:
+
+- **UART** `0xF0040–0xF0046` — `deep16_uart.sv` (§5).
+- **`ECHO_FLAG`** `0xF0064` — the keyboard-echo flag the BIOS `getstr` reads. As
+  the map stands it is **neither RAM nor MMIO**: outside the 26 K window and
+  outside the UART's decode. A read would return the fill (`0xFFFF` → echo always
+  "on") and a write would vanish, so the echo toggle would silently stop working.
+  Give it a one-word MMIO register at `0xF0064` — simplest, and it keeps the
+  kernel's pinned address — or move it into the kernel's data area, which is safe
+  on the board because there is no browser poking it (§7.7).
+
+The keyboard ports `0xF0060`/`0xF0062` stay decoded but dead (§5).
+
+### 6.5 The generator
+
+`scripts/make_image.mjs` (new), run from `npm run image`:
+
+1. Assemble `asm/forth.asm` with `{ CONSOLE_UART: 1 }` — the UART build; the
+   screen build is emulator-only.
+2. Map the `memoryChanges` into the D16MINI window (§3), with the BIOS relocated
+   as M5 dictates.
+3. Fill all 26 blocks with `0xFFFF`, then lay the words down.
+4. Emit `$readmemh` (Verilator) and `.mi` (Gowin), plus a small manifest: the
+   address range, the fill, and a build id (a hash of the source and the defines).
+5. Assert `dict_free < STACK_BASE` (§2) and that nothing landed outside the
+   window — a build that silently overruns must fail, not boot into garbage.
+
+The image is **final only once M5 (BIOS placement) is fixed**: the BIOS words go
+in at whatever low address it is relocated to.
+
+### 6.6 Later: a UART loader
+
+Baking the image in is the bring-up path. A small ROM loader that takes an image
+over the UART — the console already exists — is the later alternative, so the
+kernel can change without a re-synthesis. Out of scope for the first board.
+
+The current "load a program" path (`loadProgram` in `rtl/sim`,
+`js/deep16_simulator.js`) is a **simulation** facility; it is not a hardware
+loader. DeepForth's own "Datei tippen…" source loader is **browser-only**
+(`SERPLAN.md`): on the board a source file arrives by typing into the UART, or it
+is already in the image. There is no on-board mass storage in this design. (In
+simulation the injection is kept — §7.7, decision C5.)
 
 ---
 
@@ -591,7 +677,9 @@ The six console decisions (C1–C6) are locked (§0). These machine items remain
 2. **Conditional assembly** in the assembler (recommended) vs. a build-time
    substitution script for the console variant.
 3. **Stack bases** — new constants once the BIOS placement is fixed.
-4. **Boot** — BSRAM init from `.mi` (recommended) vs. a UART loader ROM.
+4. **Boot image** — one SV array with `$readmemh` + `.mi` (recommended) vs.
+   explicit Gowin BSRAM primitives; and `ECHO_FLAG` as an MMIO register
+   (recommended) vs. moved into RAM. Detail in §6.
 5. **Keep the keyboard ports?** Dead on hardware; harmless in the map. Lean: keep
    the addresses, wire nothing.
 6. **FIFO/baud beyond C6** — C6 fixes 115200 / TX 64 / RX 128; revisit only if a
