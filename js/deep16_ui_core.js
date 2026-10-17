@@ -377,38 +377,59 @@ class DeepWebUI {
         return this.consoleMode() === 'terminal' ? { CONSOLE_UART: 1 } : {};
     }
 
-    setConsoleMode(mode) {
+    setConsoleMode(mode, { rebuild = false } = {}) {
         const next = (mode === 'terminal') ? 'terminal' : 'screen';
         const changed = this.consoleMode() !== next;
         this.consoleView = next;
+
+        // The terminal needs a core that actually talks UART. The compiled
+        // cores do not yet (the mirror is a later phase), so rather than show an
+        // empty terminal, run this on the JS core and say so.
+        if (next === 'terminal' && this.compiledCoreReady && this.compiledCoreReady()) {
+            const C = this.activeCoreModule && this.activeCoreModule();
+            if (!C || typeof C.uart_tx_take !== 'function') {
+                if (typeof this.addTranscriptEntry === 'function') {
+                    this.addTranscriptEntry('Terminal mode runs on the JS core for now - the compiled cores have no UART yet', 'warning');
+                }
+                try { this.setCore('js', { mirror: true }); } catch {}
+            }
+        }
+
         if (this.screenUI && typeof this.screenUI.setConsoleView === 'function') {
             this.screenUI.setConsoleView(next);
         }
         this.updateConsoleModeButton();
         try { localStorage.setItem('deep16_console', next); } catch {}
+
         if (changed && typeof this.addTranscriptEntry === 'function') {
             this.addTranscriptEntry(next === 'terminal'
                 ? 'Terminal mode: Assemble builds the serial (CONSOLE_UART) kernel and the Screen tab shows the UART output'
                 : 'Screen mode: Assemble builds the memory-mapped screen kernel', 'info');
         }
+        // The build follows the mode, so rebuild whatever is in the editor - the
+        // alternative is a terminal that shows nothing because the loaded image
+        // is still the screen build.
+        if (changed && rebuild && this.editorElement && this.editorElement.value.trim()) {
+            try { this.assemble(); } catch {}
+        }
         return next;
     }
 
     toggleConsoleMode() {
-        return this.setConsoleMode(this.consoleMode() === 'terminal' ? 'screen' : 'terminal');
+        return this.setConsoleMode(this.consoleMode() === 'terminal' ? 'screen' : 'terminal', { rebuild: true });
     }
 
     updateConsoleModeButton() {
         const btn = document.getElementById('console-mode-btn');
         if (!btn) return;
         const terminal = this.consoleMode() === 'terminal';
-        btn.textContent = terminal ? 'Console: Terminal' : 'Console: Screen';
+        btn.textContent = terminal ? 'Terminal' : 'Screen';
         btn.setAttribute('aria-pressed', terminal ? 'true' : 'false');
-        btn.classList.toggle('console-mode-terminal', terminal);
+        btn.classList.toggle('settings-terminal', terminal);
     }
 
-    // Read the stored mode once and wire the header button. Called from the
-    // constructor, after the screen UI exists.
+    // Read the stored mode once and wire the settings-menu toggle. Called from
+    // the constructor, after the screen UI exists.
     setupConsoleMode() {
         const btn = document.getElementById('console-mode-btn');
         let desired = 'screen';
@@ -418,7 +439,9 @@ class DeepWebUI {
             this.screenUI.setConsoleView(desired);
         }
         this.updateConsoleModeButton();
-        if (btn) btn.addEventListener('click', () => this.toggleConsoleMode());
+        // stopPropagation so the click does not reach the document handler that
+        // closes every dropdown - the settings menu stays open to show the change.
+        if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); this.toggleConsoleMode(); });
     }
 
     // Machine -> host. Everything the active core has emitted on its UART since
@@ -1376,12 +1399,24 @@ class DeepWebUI {
             });
         }
 
+        // Settings menu: the core selector and the console mode behind a cog.
+        const settingsMenuBtn = document.getElementById('settings-menu-btn');
+        const settingsDropdown = document.getElementById('settings-dropdown');
+        if (settingsMenuBtn && settingsDropdown) {
+            settingsMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                settingsDropdown.classList.toggle('show');
+            });
+        }
+
         // Close dropdowns when clicking elsewhere
         document.addEventListener('click', () => {
             document.getElementById('file-dropdown').classList.remove('show');
             document.getElementById('edit-dropdown').classList.remove('show');
             const dd = document.getElementById('docs-dropdown');
             if (dd) dd.classList.remove('show');
+            const sd = document.getElementById('settings-dropdown');
+            if (sd) sd.classList.remove('show');
         });
 
         window.addEventListener('resize', () => this.syncHeaderWidths());

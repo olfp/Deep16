@@ -1,0 +1,30 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DeepCode">
+  <!-- DeepCode IDE mark: the Deep16 mouse on an app badge, with circuit traces
+       that read as a chip. Flat, scalable, no text - it survives being 24 px. -->
+  <defs>
+    <linearGradient id="dcbg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1287d4"/>
+      <stop offset="1" stop-color="#0b5a8f"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#dcbg)"/>
+  <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="13.25" fill="none" stroke="#7fc4f0" stroke-width="1.5" opacity="0.5"/>
+
+  <g stroke="#a9d6f5" stroke-width="1.4" stroke-linecap="round" opacity="0.55">
+    <path d="M9 22h7"/><path d="M9 42h7"/>
+    <path d="M48 22h7"/><path d="M48 42h7"/>
+    <path d="M22 9v7"/><path d="M42 9v7"/>
+    <path d="M22 48v7"/><path d="M42 48v7"/>
+  </g>
+
+  <g fill="#eaf5ff">
+    <circle cx="23" cy="22" r="6.5"/>
+    <circle cx="41" cy="22" r="6.5"/>
+    <ellipse cx="32" cy="34" rx="13" ry="12.5"/>
+  </g>
+  <g fill="#12324d">
+    <circle cx="27" cy="32" r="2.1"/>
+    <circle cx="37" cy="32" r="2.1"/>
+  </g>
+  <circle cx="32" cy="38.5" r="1.7" fill="#ff6b6b"/>
+</svg>

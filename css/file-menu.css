@@ -57,6 +57,77 @@
     background: #3e3e42;
 }
 
+/* Settings: the core selector and the console mode behind a cog, so the header
+   stays a logo and a title. */
+.settings-menu {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+#settings-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0e639c;
+    border: 1px solid #3e3e42;
+    color: #ffffff;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    min-height: 24px;
+}
+
+#settings-menu-btn:hover { background: #1177bb; }
+
+.settings-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    background: #2d2d30;
+    border: 1px solid #3e3e42;
+    border-radius: 4px;
+    min-width: 190px;
+    z-index: 1000;
+    padding: 6px;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.settings-dropdown.show { display: flex; }
+
+.settings-dropdown select {
+    background: #1e1e1e;
+    border: 1px solid #3e3e42;
+    color: #d4d4d4;
+    padding: 3px 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    width: 100%;
+}
+
+.settings-toggle {
+    background: #0e639c;
+    border: 1px solid #3e3e42;
+    color: #ffffff;
+    padding: 5px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    width: 100%;
+}
+
+.settings-toggle:hover { background: #1177bb; }
+
+.settings-toggle.settings-terminal {
+    background: #444;
+    color: #bbb;
+}
+
+.settings-toggle.settings-terminal:hover { background: #555; }
+
 /* Edit menu specific styles */
 .menu-divider {
     height: 1px;

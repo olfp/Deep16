@@ -230,13 +230,17 @@ async function runView(browser, base, { name, viewport, isMobile }) {
 
   await checkHeaderPinned(page, name);
 
-  const before = await page.$eval('#console-mode-btn', (el) => el.textContent.trim()).catch(() => null);
-  check(before === 'Console: Screen', `${name}: the console mode starts on the screen buffer`);
-  const headerVisible = await page.$eval('#console-mode-btn',
+  // The settings cog holds the core selector and the console mode.
+  const settingsVisible = await page.$eval('#settings-menu-btn',
     (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
               return s.display !== 'none' && r.width > 0 && r.left >= 0 && r.right <= innerWidth; })
     .catch(() => false);
-  check(headerVisible, `${name}: the Console: button is visible in the header`);
+  check(settingsVisible, `${name}: the settings cog is visible in the header`);
+  await page.click('#settings-menu-btn').catch(() => {});
+  await new Promise((r) => setTimeout(r, 150));
+
+  const before = await page.$eval('#console-mode-btn', (el) => el.textContent.trim()).catch(() => null);
+  check(before === 'Screen', `${name}: the console mode starts on the screen buffer`);
   await checkMenuFits(page, name);
   await page.screenshot({ path: path.join(OUT, `${name}-screen.png`) });
 
@@ -244,7 +248,9 @@ async function runView(browser, base, { name, viewport, isMobile }) {
   await page.click('#console-mode-btn').catch(() => {});
   await new Promise((r) => setTimeout(r, 300));
   const after = await page.$eval('#console-mode-btn', (el) => el.textContent.trim()).catch(() => null);
-  check(after === 'Console: Terminal', `${name}: the button flips to the terminal`);
+  check(after === 'Terminal', `${name}: the console mode flips to the terminal`);
+  await page.click('#settings-menu-btn').catch(() => {});   // close the menu again
+  await new Promise((r) => setTimeout(r, 150));
 
   const rendered = await page.evaluate(() => {
     const ui = window.deepWebUI;

@@ -70,11 +70,11 @@ test('terminal mode updates the button, the view and the build', () => {
   ui.setConsoleMode('terminal');
   assert.equal(ui.consoleMode(), 'terminal');
   assert.equal(ui.screenUI.mode, 'terminal');
-  assert.equal(els['console-mode-btn'].textContent, 'Console: Terminal');
+  assert.equal(els['console-mode-btn'].textContent, 'Terminal');
   assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1 });
   ui.toggleConsoleMode();
   assert.equal(ui.consoleMode(), 'screen');
-  assert.equal(els['console-mode-btn'].textContent, 'Console: Screen');
+  assert.equal(els['console-mode-btn'].textContent, 'Screen');
   assert.deepEqual(ui.assembleDefines(), {});
 });
 

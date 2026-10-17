@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DeepCode - Deep16 (深十六) Integrated Development Environment</title>
-    <link rel="stylesheet" href="css/main.css?v=20261017-3">
+    <link rel="stylesheet" href="css/main.css?v=20261017-4">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="alternate icon" type="image/x-icon" href="favicon.ico">
 </head>
@@ -13,28 +13,39 @@
         <div class="header">
             <div class="header-content">
                 <div class="logo-container">
-                    <img src="gfx/Deep16_mouse.svg" alt="Deep16 Mouse Logo" class="deep16-logo">
+                    <img src="gfx/deepcode-logo.svg" alt="DeepCode logo" class="deep16-logo">
                 </div>
                 <div class="header-text">
-                    <h1>DeepCode - Deep16 (深十六) IDE</h1>
-                    <div class="subtitle">Architecture Milestone 2 - Integrated Assembler & Simulator</div>
+                    <h1>DeepCode IDE</h1>
+                    <div class="subtitle">Deep16 assembler &amp; simulator</div>
                 </div>
                 <div class="header-spacer"></div>
                 <div class="header-right-controls">
-                    <label class="toggle-label">Kern
-                        <select id="core-select">
-                            <option value="js">JS</option>
-                            <option value="wasm">WASM (Rust)</option>
-                            <option value="rtl">RTL (Verilator)</option>
-                        </select>
-                    </label>
-                    <!-- The IDE's one global mode switch: screen buffer or
-                         serial terminal. It sets the assembler build (screen
-                         vs. CONSOLE_UART), the Screen tab's display and where
-                         input goes, all together. See deep16_ui_core.js. -->
-                    <button type="button" id="console-mode-btn" class="console-mode-btn"
-                            aria-pressed="false"
-                            title="Screen buffer or serial terminal - sets the build, the display and the input route">Console: Screen</button>
+                    <!-- The core selector and the console mode live behind a cog,
+                         so the header stays a logo and a title. The console mode
+                         (screen buffer vs. serial terminal) sets the assembler
+                         build, the Screen tab's display and the input route
+                         together. See deep16_ui_core.js. -->
+                    <div class="settings-menu">
+                        <button type="button" id="settings-menu-btn" class="settings-menu-btn"
+                                aria-label="Settings" title="Settings">
+                            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                                <path fill="currentColor" d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42H9.6a.5.5 0 0 0-.5.42l-.36 2.54a7 7 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.2 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96a7 7 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64ZM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6Z"/>
+                            </svg>
+                        </button>
+                        <div class="settings-dropdown" id="settings-dropdown">
+                            <div class="menu-label">Core</div>
+                            <select id="core-select">
+                                <option value="js">JS</option>
+                                <option value="wasm">WASM (Rust)</option>
+                                <option value="rtl">RTL (Verilator)</option>
+                            </select>
+                            <div class="menu-label">Console</div>
+                            <button type="button" id="console-mode-btn" class="settings-toggle"
+                                    aria-pressed="false"
+                                    title="Screen buffer or serial terminal - sets the build, the display and the input route">Screen</button>
+                        </div>
+                    </div>
                     <div class="docs-menu">
                         <button id="docs-menu-btn">Docs ▾</button>
                         <div class="docs-dropdown" id="docs-dropdown">
@@ -426,6 +437,6 @@ data_area:
             console.warn('RTL module not loaded', e);
         }
     </script>
-    <script src="js/deep16_ui_core.js?v=20261017-2"></script>
+    <script src="js/deep16_ui_core.js?v=20261017-3"></script>
 </body>
 </html>
