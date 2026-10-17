@@ -308,6 +308,28 @@ into it; the plan takes the first:
 The generator emits the image in **both** formats from one set of words, so
 Verilator and the board see the same memory.
 
+### 6.2.1 The flash never sees a copy
+
+There is **no runtime copy from flash to RAM, and no loader.** The `.mi` /
+`$readmemh` is a *synthesis input*: Gowin EDK bakes the BSRAM initial contents
+into the **bitstream** as configuration data. That bitstream sits in the config
+SPI flash (`FLASHPLAN.md` §1, its region reserved in §2) — the boot image rides
+inside it and needs no region of its own — and the FPGA's configuration
+controller loads it at power-up. When configuration completes the 26 blocks
+already hold the kernel, and the CPU starts on `forth_start`. "Flash → RAM" *is*
+the configuration, done before the first clock the CPU sees.
+
+The init data is bitstream payload: the full window at `0xFFFF` is ~52 KB against
+a ~1–2 MB GW1NR-9 bitstream, a few percent — which is why the "fill everything"
+of §6.1 is cheap rather than expensive.
+
+A *copy* appears only in the two deferred alternatives: the UART loader (§6.6),
+or a flash-resident image read back over MSPI by a ROM loader (`FLASHPLAN.md`).
+
+> Caveat: the init-bits-in-bitstream mechanism is Gowin-tool behaviour that
+> cannot be checked here (no toolchain). §6.2 already flags that inference must
+> be confirmed on the first synthesis.
+
 ### 6.3 The boot ROM
 
 The 16-word ROM at `0xFFFF0` (`BOOT_ROM_PACKED`, `deep16_pkg.sv`) stays a **LUT
