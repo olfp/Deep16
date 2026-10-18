@@ -64,7 +64,14 @@ module deep16_core
   output logic        kbd_pop,
   input  logic        kbd_ready,
   input  logic [15:0] kbd_head,
+  // the depth is only read by the debug bus, which the board does not build
+`ifdef D16MINI
+  /* verilator lint_off UNUSEDSIGNAL */
+`endif
   input  logic [7:0]  kbd_count,
+`ifdef D16MINI
+  /* verilator lint_on UNUSEDSIGNAL */
+`endif
 
   // UART console port (D16MINI.md §4.4/§5): status/data/control at 0xF0040/42/46,
   // read and written in EX like the keyboard port, so a following LDS sees the
@@ -80,12 +87,20 @@ module deep16_core
   // FSH retired in WB: the top invalidates every cache line (spec 7.4)
   output logic        cache_flush,
 
+  // The debug bus (harness/IDE state seeding and observation). The board build
+  // ties it off and does not build it (§4.3), so the inputs read as unused there.
+`ifdef D16MINI
+  /* verilator lint_off UNUSEDSIGNAL */
+`endif
   input  logic        dbg_en,
   input  logic        dbg_we,
   input  logic [7:0]  dbg_idx,
   input  logic [15:0] dbg_wdata,
   output logic [15:0] dbg_rdata
 );
+`ifdef D16MINI
+  /* verilator lint_on UNUSEDSIGNAL */
+`endif
 
   // ------------------------------------------------------------------ state
   d16_ctx_t    ctx;              // committed architectural state
@@ -95,12 +110,21 @@ module deep16_core
   logic [31:0] flush_count;
   logic [31:0] instr_count;
 
+  // The event log and the recent-access record are read only through the debug
+  // bus - the IDE's event and access views. On the board that bus is not built,
+  // so they are dead registers the synthesizer prunes; Verilator just notes it.
+`ifdef D16MINI
+  /* verilator lint_off UNUSEDSIGNAL */
+`endif
   logic [15:0] last_event_code, last_event_spc, last_event_scs;
   logic [20:0] recent_addr;
   logic [15:0] recent_base, recent_seg_val;
   logic [4:0]  recent_offset;
   logic [1:0]  recent_seg_idx;
   logic        recent_is_store;
+`ifdef D16MINI
+  /* verilator lint_on UNUSEDSIGNAL */
+`endif
 
   logic run;                     // the pipeline advances while a step is in flight
   logic halt_sticky;             // a halt word was reached; the fetch stays put
@@ -250,8 +274,16 @@ module deep16_core
   // ---- regfile reads with the EX/MEM and WB bypass -----------------------
   logic [15:0] rf1_n, rf1_s, rf2_n, rf2_s, rf3_n, rf3_s;
   logic [15:0] rf_inact_n, rf_inact_s;
+`ifndef D16MINI
+  // Debug-bus plumbing - the harness/IDE state seeding. The board build has
+  // none of it (§4.3): the whole bus is behind `ifndef D16MINI`.
   logic        rf_dbg_we;
   logic [15:0] rf_dbg_rdata;
+`else
+  /* verilator lint_off UNUSEDSIGNAL */
+  logic [15:0] rf_dbg_rdata_unused;   // the regfile's debug read, not used here
+  /* verilator lint_on UNUSEDSIGNAL */
+`endif
 
   // SMV reads the inactive bank; its register index is pure decode.
   logic [3:0] smv_idx;
@@ -368,9 +400,16 @@ module deep16_core
     .we_b      (mem_wb.valid && mem_wb.reg_we_b),
     .waddr_b   (mem_wb.reg_wb), .wdata_b (mem_wb.reg_db),
     .sh_clear  (mem_wb.valid && mem_wb.sh_clear),
+`ifndef D16MINI
     .dbg_we    (rf_dbg_we), .dbg_idx (dbg_idx), .dbg_wdata (dbg_wdata),
     .dbg_in_shadow(ctx.psw[FLG_S]),
     .dbg_rdata (rf_dbg_rdata)
+`else
+    // tied off, so the regfile's debug port is dead logic and gets pruned
+    .dbg_we    (1'b0), .dbg_idx (8'h00), .dbg_wdata (16'h0000),
+    .dbg_in_shadow(1'b0),
+    .dbg_rdata (rf_dbg_rdata_unused)
+`endif
   );
 
   // ---- load-use hazard ---------------------------------------------------
@@ -1318,6 +1357,7 @@ module deep16_core
         end
       end
 
+`ifndef D16MINI
       // ---- debug writes (harness state seeding, CPU idle only) -------------
       if (dbg_en && dbg_we && !run) begin
         case (dbg_idx)
@@ -1367,10 +1407,13 @@ module deep16_core
         ex_mem <= '0;
         mem_wb <= '0;
       end
+`endif
     end
   end
 
   // ------------------------------------------------------------- debug reads
+  // Simulation scaffolding, all of it: the board build answers nothing (§4.3).
+`ifndef D16MINI
   assign rf_dbg_we = dbg_en && dbg_we &&
                      ((dbg_idx < 8'h0F) ||
                       (dbg_idx >= 8'h1B && dbg_idx <= 8'h20));
@@ -1464,5 +1507,8 @@ module deep16_core
       endcase
     end
   end
+`else
+  assign dbg_rdata = 16'h0000;
+`endif
 
 endmodule

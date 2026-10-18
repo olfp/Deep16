@@ -236,10 +236,15 @@ needs the interface change `PLANPSRAM.md` §A calls "memory interface honesty":
   `i_free=1`** (free-run) and reset, or add a trivial start bit. No test harness
   reads `o_done` on the board.
 
-**Done (partly).** The board ties `i_step=1`, `i_free=1`; the monitor FIFO the
-IDE drains is behind `` `ifndef D16MINI `` and is not built for the board. The
-debug bus is still instantiated and tied off (`dbg_en=0`) — the `` `ifdef `` that
-drops its 256-entry mux is the remaining saving.
+**Done.** The board ties `i_step=1`, `i_free=1`; the monitor FIFO the IDE drains
+is behind `` `ifndef D16MINI `` and is not built for the board; and the whole
+**debug bus** is behind `` `ifndef D16MINI `` — the 256-entry read mux, the
+state-seeding write block, the register file's debug port (tied off, so its logic
+is dead) and the `dbg_rdata` answer. The board build's core is ~25 % smaller for
+it. The event log, the recent-access record and the keyboard depth are read only
+through that bus, so on the board they are dead registers the synthesizer prunes;
+Verilator notes it, and the board build carries a scoped lint suppression for
+exactly those signals rather than for the file.
 
 **The free-run tie-off found a real bug.** The EX-side strobes (`kbd_pop`,
 `uart_tx_we`, `uart_rx_take`, `uart_ctrl_we`) were qualified by `!step_done`.
@@ -741,8 +746,8 @@ the end.
   bound is unchanged and an unbacked address reads the halt word.
 - ~~The SWI vector is a dedicated array read (`mem[2]`)~~ — read through the data
   port now (§4.1), so the array is two-port.
-- The **debug bus** (256-entry mux) is still built and tied off — the `` `ifdef ``
-  to drop it is left.
+- ~~The debug bus (256-entry mux)~~ — behind `` `ifndef D16MINI `` and dropped from
+  the board build (§4.3), with the register file's debug port tied off.
 - ~~The `i_step`/`i_free` single-step handshake~~ — the board ties free-run, and
   doing so found the `step_done` strobe bug (§4.3).
 
@@ -770,9 +775,8 @@ the end.
 1. **Gowin synthesis** — infer the 26 BSRAM blocks with the init, close timing at
    27 MHz, produce the `.fs`. Needs the toolchain (§10).
 2. **Confirm the pins** in `rtl/deep16_board.cst`.
-3. The **debug-bus `` `ifdef ``** — small, and the last LUT saving.
-4. **Rust/WASM UART parity** for the three-core test 6.
-5. Optional: the **UART loader** (§6.6), so the kernel can change without a
+3. **Rust/WASM UART parity** for the three-core test 6.
+4. Optional: the **UART loader** (§6.6), so the kernel can change without a
    re-synthesis.
 
 ---
