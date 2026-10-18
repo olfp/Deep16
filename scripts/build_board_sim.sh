@@ -2,10 +2,12 @@
 # Build and run the D16MINI board build on Verilator.
 #
 # The bring-up path without a board and without Gowin: the 26-block window, the
-# boot image, the window decode and the UART pins, all in one simulation. The
-# image is regenerated first, so what runs is what the bitstream would hold.
+# boot image, the window decode and the UART pins *both ways* - it waits for the
+# banner, then types a line into the receive pin and checks that it comes back
+# echoed and evaluated. The image is regenerated first, so what runs is what the
+# bitstream would hold.
 #
-# `npm run sim:board` (or scripts/build_board_sim.sh [expected-string]).
+# `npm run sim:board` (or scripts/build_board_sim.sh [expected-banner]).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

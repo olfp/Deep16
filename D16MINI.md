@@ -273,6 +273,13 @@ Integration:
 - Mirror the identical port in the **JS and WASM cores** for parity and to let the
   whole thing be built and tested before hardware.
 
+**Done** — `rtl/deep16_uart.sv` is in, with those depths and the divisor 234, and
+all three cores decode `0xF0040`/`0xF0042` (the Rust/WASM core is the exception:
+it has no UART yet, see §11). The transmit pin is covered by `npm run sim:board`;
+the **receive pin** — start-bit detect, oversampling, centre sampling — exists
+nowhere else, so it is covered there too, by typing a line into `uart_rxd` and
+checking the echo and the evaluation.
+
 ### 4.5 Board top, clock, reset, constraints
 
 Nothing board-shaped exists today.
@@ -650,7 +657,7 @@ attribute problem. Decision C1 chose the dumb pipe instead.
 | 9 | **Memory latency** | registered-read model behaves identically to the combinational array at latency 1 |
 | 10 | Existing `forth.test.js` (screen build) | stays green, untouched |
 | 11 | **Free-run console** | the kernel's banner comes out with `i_step=1, i_free=1` (the board's tie-off), not only under `step()` |
-| 12 | **Board boot image** | `npm run sim:board`: the board build, the real image, the window decode, and the UART *pins* — banner decoded off `uart_txd` |
+| 12 | **Board boot image and console** | `npm run sim:board`: the board build, the real image, the window decode, and the UART *pins* both ways — the banner decoded off `uart_txd`, then a line typed into `uart_rxd` echoed and evaluated (`3 4 + .` → `7  ok`) |
 | 13 | Boot image validity | `tests/image.test.js`: every word in the window, the `0xFFFF` fill, the BIOS at `0x5F00`, the one MMIO word kept out |
 
 Test 7 is the mechanism that pins the two output paths (§7.1) closed — the thing

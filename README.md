@@ -111,14 +111,15 @@ the window decode, and the kernel baked into the bitstream
 ```sh
 npm run image       # assemble the boot image -> artifacts/image/
 npm run lint:board  # lint the board build (npm run lint:mini for the top alone)
-npm run sim:board   # run the board on Verilator with the real image, and
-                    # decode the banner off the UART *pins*
+npm run sim:board   # run the board on Verilator with the real image: decode the
+                    # banner off the TX pin, then type a line into the RX pin
+                    # and check it is echoed and evaluated
 ```
 
 `npm run sim:board` is the whole bring-up path minus Gowin: it caught a bug the
-step-based tests could not (the console was mute in free-run). What is left needs
-the board itself — synthesis, timing, and confirming the pins in
-`rtl/deep16_board.cst`.
+step-based tests could not (the console was mute in free-run), and it is the only
+place the UART's *receive pin* is exercised. What is left needs the board itself
+— synthesis, timing, and confirming the pins in `rtl/deep16_board.cst`.
 
 ## Architecture in one page
 
