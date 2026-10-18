@@ -7,6 +7,71 @@ export function init(mem_words) {
     wasm.init(mem_words);
 }
 
+/**
+ * @param {number} n
+ * @returns {boolean}
+ */
+export function run_steps(n) {
+    const ret = wasm.run_steps(n);
+    return ret !== 0;
+}
+
+let cachedUint32ArrayMemory0 = null;
+
+function getUint32ArrayMemory0() {
+    if (cachedUint32ArrayMemory0 === null || cachedUint32ArrayMemory0.byteLength === 0) {
+        cachedUint32ArrayMemory0 = new Uint32Array(wasm.memory.buffer);
+    }
+    return cachedUint32ArrayMemory0;
+}
+
+function getArrayU32FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
+/**
+ * @returns {Uint32Array}
+ */
+export function get_recent_access() {
+    const ret = wasm.get_recent_access();
+    var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+    return v1;
+}
+
+let cachedUint16ArrayMemory0 = null;
+
+function getUint16ArrayMemory0() {
+    if (cachedUint16ArrayMemory0 === null || cachedUint16ArrayMemory0.byteLength === 0) {
+        cachedUint16ArrayMemory0 = new Uint16Array(wasm.memory.buffer);
+    }
+    return cachedUint16ArrayMemory0;
+}
+
+function getArrayU16FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
+}
+/**
+ * @returns {Uint16Array}
+ */
+export function get_last_event() {
+    const ret = wasm.get_last_event();
+    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+    return v1;
+}
+
+/**
+ * @returns {Uint16Array}
+ */
+export function get_shadow_state() {
+    const ret = wasm.get_shadow_state();
+    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+    return v1;
+}
+
 export function reset() {
     wasm.reset();
 }
@@ -19,15 +84,6 @@ export function reset() {
  */
 export function set_segments(cs, ds, ss, es) {
     wasm.set_segments(cs, ds, ss, es);
-}
-
-let cachedUint16ArrayMemory0 = null;
-
-function getUint16ArrayMemory0() {
-    if (cachedUint16ArrayMemory0 === null || cachedUint16ArrayMemory0.byteLength === 0) {
-        cachedUint16ArrayMemory0 = new Uint16Array(wasm.memory.buffer);
-    }
-    return cachedUint16ArrayMemory0;
 }
 
 let WASM_VECTOR_LEN = 0;
@@ -83,56 +139,39 @@ export function kbd_available() {
 }
 
 /**
- * @param {number} n
- * @returns {boolean}
+ * @param {number} code
  */
-export function run_steps(n) {
-    const ret = wasm.run_steps(n);
-    return ret !== 0;
+export function uart_rx_push(code) {
+    wasm.uart_rx_push(code);
 }
 
-let cachedUint32ArrayMemory0 = null;
-
-function getUint32ArrayMemory0() {
-    if (cachedUint32ArrayMemory0 === null || cachedUint32ArrayMemory0.byteLength === 0) {
-        cachedUint32ArrayMemory0 = new Uint32Array(wasm.memory.buffer);
-    }
-    return cachedUint32ArrayMemory0;
+export function uart_rx_clear() {
+    wasm.uart_rx_clear();
 }
 
-function getArrayU32FromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return getUint32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
-}
 /**
- * @returns {Uint32Array}
+ * @returns {number}
  */
-export function get_recent_access() {
-    const ret = wasm.get_recent_access();
-    var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-    return v1;
+export function uart_rx_available() {
+    const ret = wasm.uart_rx_available();
+    return ret >>> 0;
 }
 
-function getArrayU16FromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
-}
 /**
+ * @returns {number}
+ */
+export function uart_tx_available() {
+    const ret = wasm.uart_tx_available();
+    return ret >>> 0;
+}
+
+/**
+ * Everything transmitted since the last call, drained exactly once. Same shape
+ * the RTL glue presents, so the IDE feeds either core the same way.
  * @returns {Uint16Array}
  */
-export function get_last_event() {
-    const ret = wasm.get_last_event();
-    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
-    return v1;
-}
-
-/**
- * @returns {Uint16Array}
- */
-export function get_shadow_state() {
-    const ret = wasm.get_shadow_state();
+export function uart_tx_take() {
+    const ret = wasm.uart_tx_take();
     var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
     return v1;

@@ -75,6 +75,7 @@ Coverage, by file:
 | `uart.test.js` | the JS core's UART port (`0xF0040`/`0xF0042`) |
 | `uart-kernel.test.js` | the serial kernel end to end on the JS core |
 | `rtl-uart.test.js` | the same kernel on the RTL core, stepped **and** in free-run |
+| `console-parity.test.js` | the banner, a typed line and a backspace byte-identical on JS, WASM and RTL |
 | `image.test.js` | the D16MINI boot image: content, `0xFFFF` fill, BIOS address, the one MMIO word kept out |
 | **`rtl.test.js`** | **three-way parity, decode sweep, the pipeline** |
 | **`fuzz.test.js`** | **random *programs* against all three cores** |

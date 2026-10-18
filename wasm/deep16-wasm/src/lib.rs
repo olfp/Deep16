@@ -5,6 +5,18 @@ use wasm_bindgen::prelude::*;
 const KBD_STATUS_ADDR: usize = 0xF0060;
 const KBD_DATA_ADDR: usize = 0xF0062;
 
+// Serial console (D16MINI.md §5): the same shape as the keyboard port, at the
+// block the manual reserves. The host pushes bytes into the receive FIFO and
+// drains what the machine transmitted; a program talks to the port with
+// LDS/STS. Bytes are eight bit - the console is a byte pipe.
+const UART_STATUS_ADDR: usize = 0xF0040;
+const UART_DATA_ADDR: usize = 0xF0042;
+const UART_DIV_ADDR: usize = 0xF0044;
+const UART_CTRL_ADDR: usize = 0xF0046;
+const UART_FIFO_DEPTH: usize = 128;   // the RX depth (D16MINI decision C6)
+const UART_TX_CAP: usize = 65536;     // bound on an undrained TX backlog
+const UART_DIV_DEFAULT: u16 = 234;    // 27 MHz / 115200, what the FPGA uses
+
 struct Cpu {
     mem: Vec<u16>,
     reg: [u16; 16],
@@ -40,6 +52,10 @@ struct Cpu {
     shift_carry_out: Option<i32>,
     kbd: Vec<u16>,
     kbd_last: u16,
+    uart_div: u16,
+    uart_tx: Vec<u16>,
+    uart_rx: Vec<u16>,
+    uart_rx_overrun: bool,
     recent_addr: usize,
     recent_base: u16,
     recent_offset: u16,
@@ -90,6 +106,10 @@ impl Cpu {
             shift_carry_out: None,
             kbd: Vec::new(),
             kbd_last: 0,
+            uart_div: UART_DIV_DEFAULT,
+            uart_tx: Vec::new(),
+            uart_rx: Vec::new(),
+            uart_rx_overrun: false,
             recent_addr: 0,
             recent_base: 0,
             recent_offset: 0,
@@ -135,6 +155,10 @@ impl Cpu {
         self.shift_carry_out = None;
         self.kbd.clear();
         self.kbd_last = 0;
+        self.uart_div = UART_DIV_DEFAULT;
+        self.uart_tx.clear();
+        self.uart_rx.clear();
+        self.uart_rx_overrun = false;
         self.recent_addr = 0;
         self.recent_base = 0;
         self.recent_offset = 0;
@@ -950,6 +974,16 @@ fn exec_instruction(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
     }
 }
 
+// UART status word: b0 RX-ready, b1 TX-ready, b2 RX-overrun, b3 TX-idle. This
+// core's transmit never blocks, so b1 and b3 are always set - on the RTL the
+// 64 byte FIFO is the only thing that can clear them.
+fn uart_status(c: &Cpu) -> u16 {
+    let mut status = 0x02 | 0x08;
+    if !c.uart_rx.is_empty() { status |= 0x01; }
+    if c.uart_rx_overrun { status |= 0x04; }
+    status
+}
+
 fn exec_lds_sts(c: &mut Cpu, instr: u16) {
     // [11110][d1][seg2][Rd4][Rs4]
     let d = (instr >> 10) & 0x1;
@@ -966,24 +1000,48 @@ fn exec_lds_sts(c: &mut Cpu, instr: u16) {
         _ => if in_shadow { c.ses } else { c.es },
     };
     let pa = phys(segv, base);
-    if pa >= c.mem.len() { return; }
+    // The polled ports are registers, not memory, and the manual reserves them
+    // outside any RAM window: decode them before the range test, exactly as the
+    // JS core does (it tests the ports ahead of its memory bounds). Everything
+    // else is a plain access through the active-bank view.
     if d == 0 {
-        // Polled keyboard controller (parity with the JS core): STATUS is 1
-        // while a key is pending, DATA pops the next key. Anything else is a
-        // plain memory load through the active-bank view.
+        // STATUS is 1 while a byte is waiting, DATA pops the next one.
         if pa == KBD_STATUS_ADDR {
             gp_write(c, rd, if c.kbd.is_empty() { 0 } else { 1 });
         } else if pa == KBD_DATA_ADDR {
             let data = if c.kbd.is_empty() { 0 } else { c.kbd.remove(0) & 0xFFFF };
             c.kbd_last = data;
             gp_write(c, rd, data);
+        } else if pa == UART_STATUS_ADDR {
+            gp_write(c, rd, uart_status(c));
+        } else if pa == UART_DATA_ADDR {
+            // read and pop, like the keyboard data port: a following LDS sees
+            // the next byte
+            let data = if c.uart_rx.is_empty() { 0 } else { c.uart_rx.remove(0) & 0xFFFF };
+            gp_write(c, rd, data);
         } else {
+            if pa >= c.mem.len() { return; }
             let v = c.mem[pa];
             gp_write(c, rd, v);
         }
     } else {
-        let v = gp_read(c, rd);
-        c.mem[pa] = v;
+        // The UART's data/divisor/control are registers too; a store to anything
+        // else in range is a plain memory write.
+        if pa == UART_DATA_ADDR {
+            let v = gp_read(c, rd);
+            c.uart_tx.push(v & 0xFF);          // the line carries eight bits
+            if c.uart_tx.len() > UART_TX_CAP { c.uart_tx.remove(0); }
+        } else if pa == UART_DIV_ADDR {
+            c.uart_div = gp_read(c, rd);
+        } else if pa == UART_CTRL_ADDR {
+            let v = gp_read(c, rd);
+            if v & 0x1 != 0 { c.uart_rx.clear(); c.uart_rx_overrun = false; }
+            if v & 0x2 != 0 { c.uart_tx.clear(); }
+        } else {
+            if pa >= c.mem.len() { return; }
+            let v = gp_read(c, rd);
+            c.mem[pa] = v;
+        }
     }
     c.recent_addr = pa;
     c.recent_base = base as u16;
@@ -1027,6 +1085,53 @@ pub fn kbd_clear() {
 #[wasm_bindgen]
 pub fn kbd_available() -> u32 {
     unsafe { cpu_ref().kbd.len() as u32 }
+}
+
+// --- serial console (D16MINI.md §5) -----------------------------------------
+// The mirror of the keyboard hooks, for the console build: the host pushes
+// bytes into the receive FIFO and drains what the machine transmitted. The
+// receive FIFO is 128 deep; a byte that arrives while it is full is dropped and
+// the overrun flag is set, exactly as the RTL FIFO behaves.
+
+#[wasm_bindgen]
+pub fn uart_rx_push(code: u16) {
+    unsafe {
+        let c = cpu_mut();
+        if c.uart_rx.len() >= UART_FIFO_DEPTH {
+            c.uart_rx_overrun = true;
+            return;
+        }
+        c.uart_rx.push(code & 0xFF);
+    }
+}
+
+#[wasm_bindgen]
+pub fn uart_rx_clear() {
+    unsafe {
+        let c = cpu_mut();
+        c.uart_rx.clear();
+        c.uart_rx_overrun = false;
+    }
+}
+
+#[wasm_bindgen]
+pub fn uart_rx_available() -> u32 {
+    unsafe { cpu_ref().uart_rx.len() as u32 }
+}
+
+#[wasm_bindgen]
+pub fn uart_tx_available() -> u32 {
+    unsafe { cpu_ref().uart_tx.len() as u32 }
+}
+
+/// Everything transmitted since the last call, drained exactly once. Same shape
+/// the RTL glue presents, so the IDE feeds either core the same way.
+#[wasm_bindgen]
+pub fn uart_tx_take() -> Box<[u16]> {
+    unsafe {
+        let c = cpu_mut();
+        c.uart_tx.drain(..).collect()
+    }
 }
 
 #[wasm_bindgen]

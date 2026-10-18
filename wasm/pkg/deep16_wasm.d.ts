@@ -1,6 +1,10 @@
 /* tslint:disable */
 /* eslint-disable */
 export function init(mem_words: number): void;
+export function run_steps(n: number): boolean;
+export function get_recent_access(): Uint32Array;
+export function get_last_event(): Uint16Array;
+export function get_shadow_state(): Uint16Array;
 export function reset(): void;
 export function set_segments(cs: number, ds: number, ss: number, es: number): void;
 export function load_program(ptr: number, data: Uint16Array): void;
@@ -19,10 +23,15 @@ export function kbd_clear(): void;
  * consumed.
  */
 export function kbd_available(): number;
-export function run_steps(n: number): boolean;
-export function get_recent_access(): Uint32Array;
-export function get_last_event(): Uint16Array;
-export function get_shadow_state(): Uint16Array;
+export function uart_rx_push(code: number): void;
+export function uart_rx_clear(): void;
+export function uart_rx_available(): number;
+export function uart_tx_available(): number;
+/**
+ * Everything transmitted since the last call, drained exactly once. Same shape
+ * the RTL glue presents, so the IDE feeds either core the same way.
+ */
+export function uart_tx_take(): Uint16Array;
 /**
  * Write one memory word without touching anything else.
  *
@@ -79,9 +88,14 @@ export interface InitOutput {
   readonly set_registers: (a: number, b: number) => void;
   readonly set_segments: (a: number, b: number, c: number, d: number) => void;
   readonly step: () => number;
+  readonly uart_rx_available: () => number;
+  readonly uart_rx_clear: () => void;
+  readonly uart_rx_push: (a: number) => void;
+  readonly uart_tx_available: () => number;
+  readonly uart_tx_take: () => [number, number];
   readonly __wbindgen_externrefs: WebAssembly.Table;
-  readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
+  readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_start: () => void;
 }
 

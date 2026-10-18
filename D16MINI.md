@@ -279,8 +279,7 @@ Integration:
   whole thing be built and tested before hardware.
 
 **Done** — `rtl/deep16_uart.sv` is in, with those depths and the divisor 234, and
-all three cores decode `0xF0040`/`0xF0042` (the Rust/WASM core is the exception:
-it has no UART yet, see §11). The transmit pin is covered by `npm run sim:board`;
+all three cores decode `0xF0040`/`0xF0042`. The transmit pin is covered by `npm run sim:board`;
 the **receive pin** — start-bit detect, oversampling, centre sampling — exists
 nowhere else, so it is covered there too, by typing a line into `uart_rxd` and
 checking the echo and the evaluation.
@@ -656,7 +655,7 @@ attribute problem. Decision C1 chose the dumb pipe instead.
 | 3 | Line editing: type, `BS`, type, `CR` | buffer correct, wire shows `BS SP BS` |
 | 4 | Escape handling: `ESC[A` mid-line | dropped, buffer unchanged |
 | 5 | Clear: `cls` | wire contains `ESC[2J` |
-| 6 | **Three-core parity** | identical byte stream on JS, WASM, RTL |
+| 6 | **Three-core parity** | identical byte stream on JS, WASM and RTL (`tests/console-parity.test.js`: the banner, a typed line, a backspace) |
 | 7 | **Guard: no framebuffer writes** | the UART build stores nothing into `0xF1000–0xF17CF` |
 | 8 | Injection: upload a source file | arrives via UART RX, definitions run |
 | 9 | **Memory latency** | registered-read model behaves identically to the combinational array at latency 1 |
@@ -766,7 +765,9 @@ the end.
 ### D. Tests / tooling
 
 - ~~No UART test, no loopback~~ — `tests/uart-kernel.test.js`,
-  `tests/rtl-uart.test.js` (including the free-run case), `tests/ui-terminal.test.js`.
+  `tests/rtl-uart.test.js` (including the free-run case),
+  `tests/console-parity.test.js` (all three cores byte-identical) and
+  `tests/ui-terminal.test.js`.
 - ~~No BSRAM/registered-latency model~~ — the registered-read model, plus
   `npm run sim:board` for the whole board build.
 
@@ -775,8 +776,7 @@ the end.
 1. **Gowin synthesis** — infer the 26 BSRAM blocks with the init, close timing at
    27 MHz, produce the `.fs`. Needs the toolchain (§10).
 2. **Confirm the pins** in `rtl/deep16_board.cst`.
-3. **Rust/WASM UART parity** for the three-core test 6.
-4. Optional: the **UART loader** (§6.6), so the kernel can change without a
+3. Optional: the **UART loader** (§6.6), so the kernel can change without a
    re-synthesis.
 
 ---

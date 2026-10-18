@@ -377,8 +377,9 @@ class DeepWebUI {
         return this.consoleMode() === 'terminal' ? { CONSOLE_UART: 1 } : {};
     }
 
-    // Terminal mode needs a core that actually talks UART. The compiled cores
-    // do not yet (the mirror is a later phase), and running there shows an empty
+    // Terminal mode needs a core that actually talks UART. All three do now
+    // (the JS core, the Rust/WASM core and the RTL core decode 0xF0040/42), but
+    // a stub or a half-loaded core may not - running there would show an empty
     // terminal, so fall back to the JS core and say so. Called from every entry
     // point - switching the mode, loading, and Run - because the mode is
     // persisted and can be 'terminal' before any switch happens.
@@ -388,7 +389,7 @@ class DeepWebUI {
         const C = this.activeCoreModule && this.activeCoreModule();
         if (C && typeof C.uart_tx_take === 'function') return;
         if (typeof this.addTranscriptEntry === 'function') {
-            this.addTranscriptEntry('Terminal mode runs on the JS core for now - the compiled cores have no UART yet', 'warning');
+            this.addTranscriptEntry('This core has no UART - terminal mode runs on the JS core', 'warning');
         }
         try { this.setCore('js', { mirror: true }); } catch {}
     }
