@@ -51,11 +51,9 @@ module deep16_core
   output logic        o_result,      // 0 = the step ran into a halt word
   output logic        o_busy,
 
-  // instruction fetch port, plus the SWI vector word (a constant-address
-  // read, so the handler entry is known already in EX)
+  // instruction fetch port
   output logic [20:0] if_addr,
   input  logic [15:0] if_rdata,
-  input  logic [15:0] vec_rdata,
   // data read port: loads and the SWI vector word, read in MEM
   output logic [20:0] mem_addr,
   input  logic [15:0] mem_rdata,
@@ -648,10 +646,18 @@ module deep16_core
               ctx_next_ex.sss  = 16'h0000;
               ctx_next_ex.ses  = 16'h0000;
               is_swi_ex       = 1'b1;
-              ctx_next_ex.spc = vec_rdata;            // vector word at 0000:0002
+              // The handler entry is the vector word at physical 0002, and it is
+              // read through the *data port* - exactly like a load into R15. The
+              // address is issued here, the word lands in WB, pc_from_port makes
+              // the fetch take the redirect from there, and the WB write patches
+              // the shadow PC. ctx_next_ex.spc therefore stays the *old* shadow
+              // PC this cycle (the fetch does not use it: PSW.S is set, so the
+              // active CS is already scs = 0, and the PC comes from mem_late).
+              mem_addr_ex     = 21'd2;
+              mem_rd_valid_ex = 1'b1;
               sh_clear_ex     = 1'b1;
               evt_we_ex       = 1'b1; evt_code_ex = 16'd2; evt_scs_ex = 16'h0000;
-              evt_spc_ex      = vec_rdata;
+              // evt_spc is the same word; it is patched from the read in WB.
             end
             3'd3: begin                                         // RETI
               if (ctx_e.psw[FLG_S]) begin
@@ -983,14 +989,16 @@ module deep16_core
       // its transfer stays pending while the slot runs.
       //
       // Two of them take their target from the data port (the SWI vector word
-      // and a load into R15), which only produces the word in MEM; the fetch
-      // picks those up one stage later, marked by pc_from_port.
+      // and a load into R15). The read is issued while the instruction sits in
+      // MEM and the word arrives in WB, so the fetch picks those up one stage
+      // later, marked by pc_from_port - the WB write patches the PC (or the
+      // shadow PC, for the SWI) from the same word.
       act_pc_in     = ctx_e.psw[FLG_S] ? ctx_e.spc : ctx_e.pc;
       act_pc_out    = ctx_next_ex.psw[FLG_S] ? ctx_next_ex.spc : ctx_next_ex.pc;
       act_cs_in     = ctx_e.psw[FLG_S] ? ctx_e.scs : ctx_e.cs;
       act_cs_out    = ctx_next_ex.psw[FLG_S] ? ctx_next_ex.scs : ctx_next_ex.cs;
       load_to_pc_ex = mem_rd_valid_ex && mem_is_load_ex && (load_rd_ex == 4'd15);
-      pc_from_port_ex = load_to_pc_ex;
+      pc_from_port_ex = load_to_pc_ex || is_swi_ex;
       redirect_ex   = pc_from_port_ex ||
                       (act_pc_out != act_pc_in + 16'd1) ||
                       (act_cs_out != act_cs_in);
@@ -1017,9 +1025,12 @@ module deep16_core
   logic        if_halt_word;
   logic        if_valid;
   logic [15:0] if_pc_next;
-  // A SWI redirect becomes visible one stage later: its target is the vector
-  // word, and the data port only produces it while the SWI sits in MEM.
-  logic        mem_late, if_redirect;
+  // A redirect whose target comes from the data port (the SWI vector word, a
+  // load into R15) is not known in EX - the word only lands in WB. Until then
+  // the fetch must not take the stale target, and nothing may enter the pipeline
+  // behind the redirecting instruction: pc_pending spans that instruction's EX
+  // and MEM cycles, mem_late is its WB cycle.
+  logic        mem_late, if_redirect, pc_pending;
 
   // The instruction memory is synchronous (BSRAM): the word on the bus now is
   // the one asked for last cycle. `if_cs_q`/`if_pc_q` are the segment and PC the
@@ -1039,18 +1050,21 @@ module deep16_core
     // A load into R15 (or a SWI vector through the data port) redirects the
     // fetch to the loaded word. With the synchronous read that word is on the
     // bus in WB, one stage later than it used to be, so the redirect is taken
-    // from there.
+    // from there - and not from the (still stale) target in EX.
     mem_late       = mem_wb.valid && mem_wb.pc_from_port;
-    if_redirect    = redirect_ex || mem_late;
+    pc_pending     = pc_from_port_ex || ex_mem.pc_from_port;
+    if_redirect    = (redirect_ex && !pc_from_port_ex) || mem_late;
     if_pc_next     = if_redirect ? (mem_late ? mem_rdata : redirect_pc_ex)
                                   : (if_pc + 16'd1);
     // The word on the bus is the one asked for last cycle; if_hit says whether
     // that request was for this cycle's if_pa (a segment change makes it stale).
     if_hit         = (if_cs_q == if_cs) && (if_pc_q == if_pc);
-    // Issue for the next cycle: hold while the pipeline is stalled, take a
-    // redirect target (even on a stale word), else advance - or re-issue the
-    // current address when the word was stale but the PC did not move.
+    // Issue for the next cycle: hold while the pipeline is stalled or while a
+    // port redirect is still in flight, take a redirect target (even on a stale
+    // word), else advance - or re-issue the current address when the word was
+    // stale but the PC did not move.
     if_next_pc     = (stall || div_stall) ? if_pc
+                   : (pc_pending && !mem_late) ? if_pc
                    : if_redirect          ? if_pc_next
                    : if_hit               ? if_pc_next
                                           : if_pc;
@@ -1068,9 +1082,10 @@ module deep16_core
   always_comb begin
     if_id_n           = if_id;
     // A redirect whose target only arrives with the data port (SWI vector, a
-    // load into R15) also invalidates the fetch of this cycle: if_pc still
-    // holds the old address until the word is on the bus.
-    if_id_n.valid     = if_valid && !flush_id && !mem_late;
+    // load into R15) also invalidates the fetch for as long as it is in flight:
+    // if_pc still holds the old address until the word is on the bus, so
+    // anything fetched in that window is wrong-path and must not be captured.
+    if_id_n.valid     = if_valid && !flush_id && !pc_pending && !mem_late;
     if_id_n.instr     = if_rdata;
     if_id_n.pc0       = if_pc;
     if_id_n.act_cs    = if_cs;
@@ -1225,10 +1240,15 @@ module deep16_core
         // wins, exactly as it does in the cores.
         if (mem_wb.mem_is_load && (mem_wb.load_rd == 4'd15) && !mem_wb.appl_pc)
           ctx.pc <= mem_rdata;
+        // The SWI's vector word arrives the same way. PSW.S is already set by
+        // the time it lands, so the active PC is the *shadow* PC - that is what
+        // the handler entry goes into, and what RETI later restores from.
+        if (mem_wb.is_swi && !mem_wb.appl_spc)
+          ctx.spc <= mem_rdata;
         instr_count   <= instr_count + 32'd1;
         if (mem_wb.evt_we) begin
           last_event_code <= mem_wb.evt_code;
-          last_event_spc  <= mem_wb.evt_spc;
+          last_event_spc  <= mem_wb.is_swi ? mem_rdata : mem_wb.evt_spc;
           last_event_scs  <= mem_wb.evt_scs;
         end
         if (mem_wb.rec_we) begin
@@ -1249,6 +1269,15 @@ module deep16_core
           // completely - its write ports are wired to the register file and
           // the memory, which must not see a result twice.
           if (retire_now) mem_wb <= '0;
+          // A redirect whose target arrives with the data port lands exactly on
+          // this edge: the SWI's vector word is read in its own MEM cycle and
+          // used in WB - which is where the SWI retires. Freezing the fetch
+          // here would drop the target, so the redirect is applied regardless;
+          // whatever is on the bus this cycle is wrong-path either way.
+          if (if_redirect) begin
+            if_pc <= if_next_pc;
+            if_id <= '0;
+          end
         end else begin
           // A load-use stall keeps shifting WB on purpose: the bubble is the
           // point, the load walks into WB and keeps ctx_e's chain alive.

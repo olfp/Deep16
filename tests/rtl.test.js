@@ -348,6 +348,60 @@ test('SWI enters the handler and RETI restores the context', async () => {
   await parity(res, { name: 'SWI/RETI', cs: 0x0000 });
 });
 
+// The SWI vector is read through the *data port* (deep16_core.sv, the SWI
+// branch): the word is issued in the SWI's MEM cycle and becomes the handler
+// entry in WB, one stage later than the old combinational read of mem[2]. Two
+// things go wrong if the fetch does not respect that: it takes the still-stale
+// target in EX (whatever sits at physical 0), and the wrong-path words fetched
+// while the read is in flight enter the pipe - a halt word directly behind the
+// SWI used to stop the machine before the handler ever ran.
+test('the SWI vector comes from the data port, with a halt word behind it', async () => {
+  const res = assemble(`
+        .org 0x0100
+main:
+        LSI R6, 8
+        LSI R4, 2
+        LDI 0x0120
+        STS R0, CS, R4        ; mem[2] = handler
+        LDI 0x1234
+        MOV R8, R0, 0         ; R8 is not shadowed, so the handler still sees it
+        SWI
+        HALT                  ; a halt word directly behind the SWI
+        .org 0x0120
+handler:
+        STS R8, DS, R6        ; DS:8 = 0x1234 - proof the handler ran
+        RETI                  ; back to the normal context, so the cores end alike
+        HALT
+  `);
+  const { rtl } = await parity(res, { name: 'SWI vector via the data port', cs: 0xFFFF });
+  assert.equal(rtl.memoryAt(8, 1)[0], 0x1234, 'the handler did not run');
+});
+
+// The other redirect that takes its target from the data port: a load into R15.
+// It shares the fetch handling with the SWI and had no test of its own.
+test('a load into R15 redirects through the data port', async () => {
+  const res = assemble(`
+        .org 0x0100
+main:
+        LSI R6, 8
+        LDI 0x0120
+        MOV R3, R0, 0         ; R3 = 0x0120 (the target)
+        LDI 0x0140
+        MOV R4, R0, 0         ; R4 = 0x0140 (a cell holding it)
+        STS R3, DS, R4        ; mem[0x140] = 0x0120
+        LDI 0x1234
+        MOV R8, R0, 0         ; R8 = 0x1234
+        LD R15, R4, 0         ; jump through the loaded word
+        HALT                  ; must not run
+        .org 0x0120
+target:
+        STS R8, DS, R6        ; DS:8 = 0x1234
+        HALT
+  `);
+  const { rtl } = await parity(res, { name: 'load into R15', cs: 0xFFFF });
+  assert.equal(rtl.memoryAt(8, 1)[0], 0x1234, 'the loaded target did not run');
+});
+
 test('shadow banking: SPSW enters the shadow set, SMV reads across', async () => {
   const res = assemble(`
         LDI 0x1111

@@ -104,12 +104,6 @@ module deep16_top
   logic [15:0] mem_wdata;
   logic [15:0] if_rdata;
   logic [20:0] if_addr;
-  // third read port: the SWI vector word at physical 0x0002. A constant
-  // address, so the core can know the handler entry in its execute stage
-  // instead of one cycle later. Deliberately NOT served from the cache: the
-  // IDE installs the handler by poking address 2, and a cached copy would be
-  // one FSH away from being stale.
-  logic [15:0] vec_rdata;
 
   // ---- UART console ------------------------------------------------------
   logic        uart_tx_we, uart_rx_take, uart_ctrl_we;
@@ -152,7 +146,6 @@ module deep16_top
     .o_busy    (o_busy),
     .if_addr   (if_addr),
     .if_rdata  (if_rdata),
-    .vec_rdata (vec_rdata),
     .mem_addr  (mem_addr),
     .mem_rdata (mem_rdata),
     .mem_we    (mem_we),
@@ -208,10 +201,11 @@ module deep16_top
   assign if_rdata  = if_rdata_q;
   assign mem_rdata = mem_rdata_q;
 
-  // The SWI vector is a constant address, read straight through so the handler
-  // entry is known in EX as before. (A register fed by the write path is the
-  // next step; it needs the host load path to keep it in sync.)
-  assign vec_rdata = mem[2];
+  // The SWI vector used to be read here combinationally (`mem[2]`), a third
+  // asynchronous port on the array - which no BSRAM has, so it kept the whole
+  // memory out of block RAM. The core now reads it through the data port like a
+  // load into R15 (deep16_core.sv, the SWI branch), so the array is strictly
+  // two-port: one fetch read, one data read/write.
 
   // One write port (stores, committed in WB). On the board the echo register is
   // the one MMIO cell the CPU writes; a store anywhere else outside the window

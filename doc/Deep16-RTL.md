@@ -46,7 +46,7 @@ Portierungsfehler.
 | IF | holt über `if_pc` plus aktivem CS der Zustandskette; erkennt Haltwörter (0xFFFF / außerhalb) |
 | ID | Dekodierung (rein aus dem Befehlswort); die Pipeline-Register `if_id`/`id_ex` tragen nur Befehl, eigene Adresse, aktiven CS und das Halt-Bit |
 | EX | führt aus und berechnet das **komplette Zustandsergebnis** (`d16_ctx_t`: PC, PSW, Segmente, Shadow-Bank, Delay-Zustand) sowie alle Schreib- und Speicheraktionen |
-| MEM | liest `mem_rdata` für Loads (Patch in das WB-Register), schreibt Stores, übernimmt den SWI-Vektor |
+| MEM | liest `mem_rdata` für Loads **und den SWI-Vektor** (Adresse 0002, Patch in das WB-Register), schreibt Stores |
 | WB | committet alles: Zustandsbündel, Register, Speicher, Event, Recent-Access |
 
 Die vier Punkte, an denen die Pipeline der Verhaltensvorlage trotz Vorlauf
@@ -73,6 +73,15 @@ Ein Load-Use-Stall friert IF/ID und ID/EX ein und schiebt eine Blase nach MEM �
 MEM muss weiterlaufen, sonst erreicht der Load WB nie (Deadlock). Der Fetch
 liest `if_rdata` in einem eigenen Block; im selben Block wie der Adressrechner
 entstünde eine kombinatorische Schleife (`UNOPTFLAT`).
+
+Ein Umlenkziel, das erst mit dem **Datenport** kommt (der SWI-Vektor aus 0002
+und ein Load nach R15), ist in EX noch unbekannt: die Adresse wird in MEM
+ausgegeben, das Wort steht in WB. Bis dahin darf der Fetch weder das
+(veraltete) Ziel nehmen noch ein Wort hinter dem umlenkenden Befehl in die
+Pipeline lassen — `pc_pending` überspannt dessen EX- und MEM-Takt, `mem_late`
+seinen WB-Takt. Der Umlenktakt ist zugleich der Retire-Takt des SWI, also
+genau der Takt, an dem der Einzelschrittmodus die Pipeline einfriert; das Ziel
+wird dort trotzdem angewendet, sonst ginge es verloren.
 
 ## Semantik, die portsensitiv war
 

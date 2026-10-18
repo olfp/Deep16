@@ -177,14 +177,30 @@ the whole chip. It must go.
   read, `deep16_top.sv:160`, is a wasted port) — `PLANPSRAM.md` §1 recommends
   this and it applies here too.
 
+**Done — differently, and better.** The vector is now read through the **data
+port**, like a load into R15: the SWI issues address `0x0002` in its MEM cycle,
+the word lands in WB, `pc_from_port` makes the fetch take the redirect from
+there, and the WB write patches the shadow PC (and the event's `spc`). No
+register, no shadow, no host-write path — the vector stays ordinary RAM and a
+`poke(2)` still installs a handler. That removes the asynchronous `mem[2]` read,
+so the array is strictly two-port: one fetch read, one data read/write. The
+`deep16_core.sv` comments had described this all along (and the `is_swi` bit in
+the MEM bundle — "the vector word is patched in from MEM" — had been carried,
+unread, waiting for it).
+
+Making it work needed two fetch fixes, both of which the LD-R15 path had needed
+too and neither of which had a test: the fetch must not take the still-stale
+target in EX (`if_redirect`), and nothing may enter the pipe while the read is
+in flight (`pc_pending`) — a halt word directly behind an `SWI` used to stop the
+machine before the handler ran. `tests/rtl.test.js` now covers both redirects.
+
 **Done.** `mem` is now `RAM_WORDS` words: 26,624 behind `` `ifdef D16MINI ``
 (the board build), the 1 MB array otherwise (simulation). One read decode
 (`mem_at`) serves both: RAM, then the 16-word boot ROM, then the echo register,
 then the `0xFFFF` fill — so an address the board cannot back halts the machine
 instead of fetching garbage. The explicit-primitive fallback below stays the
 fallback; whether Gowin infers 26 BSRAM blocks *and* honours the init is still
-unconfirmed. The SWI vector register is still `mem[2]` (a register fed by the
-write path is the next step).
+unconfirmed.
 
 ### 4.2 The real difficulty: registered reads
 
@@ -707,13 +723,13 @@ the end.
 - ~~`deep16_top.sv:41` memory is a 16.8 Mbit Verilog array~~ — `RAM_WORDS`:
   26,624 behind `` `ifdef D16MINI ``, the 1 MB array for simulation.
 - ~~Memory is read combinationally~~ — registered reads, phase 2.
-- ~~The read bus is 11 reads/cycle~~ — the cache is gone; one fetch port, one
-  data port, plus the direct `mem[2]`.
-- The **SWI vector is still a dedicated array read** (`mem[2]`) rather than a
-  register.
+- ~~The read bus is 11 reads/cycle~~ — the cache is gone; one fetch port and one
+  data read/write port, and nothing else (the direct `mem[2]` read is gone too).
 - ~~The core's decode treats everything below `MEM_WORDS` as memory~~ — the board
   build decodes RAM / boot ROM / echo register / fill in the top, so the core's
   bound is unchanged and an unbacked address reads the halt word.
+- ~~The SWI vector is a dedicated array read (`mem[2]`)~~ — read through the data
+  port now (§4.1), so the array is two-port.
 - The **debug bus** (256-entry mux) is still built and tied off — the `` `ifdef ``
   to drop it is left.
 - ~~The `i_step`/`i_free` single-step handshake~~ — the board ties free-run, and
@@ -743,7 +759,7 @@ the end.
 1. **Gowin synthesis** — infer the 26 BSRAM blocks with the init, close timing at
    27 MHz, produce the `.fs`. Needs the toolchain (§10).
 2. **Confirm the pins** in `rtl/deep16_board.cst`.
-3. The **SWI vector register** and the **debug-bus `` `ifdef ``** — both small.
+3. The **debug-bus `` `ifdef ``** — small, and the last LUT saving.
 4. **Rust/WASM UART parity** for the three-core test 6.
 5. Optional: the **UART loader** (§6.6), so the kernel can change without a
    re-synthesis.
