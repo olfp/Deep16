@@ -56,14 +56,11 @@ module deep16_top
   // ---- main memory (D16MINI.md §4.1, §6.2) -----------------------------
   // Two builds of one array. The board build (`D16MINI`) shrinks it to the 26
   // BSRAM blocks of the window and decodes the whole map: RAM, the 16-word boot
-  // ROM (a LUT, not part of the image), the one-word echo register, and the
-  // 0xFFFF fill everywhere else (§6.4). The simulation build keeps the 1 MB
-  // array, where everything below MEM_WORDS is memory, the boot ROM is planted
-  // in the array, and 0xF0064 is an ordinary cell.
+  // ROM (a LUT, not part of the image), and the 0xFFFF fill everywhere else.
+  // The simulation build keeps the 1 MB array, where everything below MEM_WORDS
+  // is memory and the boot ROM is planted in the array.
 `ifdef D16MINI
   localparam int RAM_WORDS = 26624;               // 26 blocks x 1024 words
-  localparam logic [20:0] ECHO_ADDR = 21'h0F0064; // the kernel's echo cell (§6.4)
-  logic [15:0] echo_flag;                         // an MMIO word on the board
 `else
   localparam int RAM_WORDS = MEM_WORDS;
 `endif
@@ -71,17 +68,20 @@ module deep16_top
 
   reg [15:0] mem [0:RAM_WORDS-1] /*verilator public*/;
 
-  // One read decode for every port: RAM, then ROM, then the echo register, then
-  // the fill. The fill is the halt word, so an address the board cannot back
-  // stops the machine instead of fetching garbage.
+  // One read decode for every port: RAM, then ROM, then the fill. The fill is
+  // the halt word, so an address the board cannot back stops the machine instead
+  // of fetching garbage.
+  //
+  // Everything the board does not back reads the fill and drops its writes -
+  // including the kernel's echo cell at 0xF0064 (D16MINI.md §6.4): on the board
+  // it reads 0xFFFF, so echo stays on, and a toggle write goes nowhere. Echo is
+  // software's business if it is wanted; it has no hardware home.
   function automatic logic [15:0] mem_at(input logic [20:0] a);
 `ifdef D16MINI
     if (a < 21'(RAM_WORDS))
       mem_at = mem[a[ADDR_BITS-1:0]];
     else if (a >= 21'(ROM_BASE) && a < 21'(ROM_BASE + ROM_WORDS))
       mem_at = boot_rom_word(int'(a) - int'(ROM_BASE));
-    else if (a == ECHO_ADDR)
-      mem_at = echo_flag;
     else
       mem_at = 16'hFFFF;
 `else
@@ -182,7 +182,6 @@ module deep16_top
     // the path is resolved by the tool at elaboration/run time - run the
     // simulation from artifacts/image/, as scripts/build_board_sim.sh does.
     $readmemh("image.hex", mem);
-    echo_flag = 16'h0001;               // echo on, the kernel's default
 `else
     for (int i = 0; i < ROM_WORDS; i++) mem[{11'h000, ROM_BASE} + i] = boot_rom_word(i);
 `endif
@@ -207,18 +206,12 @@ module deep16_top
   // load into R15 (deep16_core.sv, the SWI branch), so the array is strictly
   // two-port: one fetch read, one data read/write.
 
-  // One write port (stores, committed in WB). On the board the echo register is
-  // the one MMIO cell the CPU writes; a store anywhere else outside the window
-  // is dropped.
+  // One write port (stores, committed in WB). A store outside the window is
+  // dropped - there is no MMIO cell to write: the UART is decoded in the core,
+  // and everything else the board does not back is read-only fill.
   always_ff @(posedge clk) begin
-    if (mem_we) begin
-      if (mem_waddr < 21'(RAM_WORDS))
-        mem[mem_waddr[ADDR_BITS-1:0]] <= mem_wdata;
-`ifdef D16MINI
-      else if (mem_waddr == ECHO_ADDR)
-        echo_flag <= mem_wdata;
-`endif
-    end
+    if (mem_we && mem_waddr < 21'(RAM_WORDS))
+      mem[mem_waddr[ADDR_BITS-1:0]] <= mem_wdata;
   end
 
   // ---- UART console (D16MINI.md §4.4) ----------------------------------

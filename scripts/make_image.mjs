@@ -29,7 +29,9 @@ export const WINDOW = 0x6800;      // 26 BSRAM blocks x 1024 words (§2)
 export const FILL   = 0xFFFF;      // the halt word, everywhere unused (§6.1)
 export const BIOS_BASE  = 0x5F00;  // must match asm/forth.asm and D16MINI.md §3
 export const STACK_BASE = 0x6000;  // RSTACK_TOP: the dictionary stays below it
-export const ECHO_FLAG  = 0xF0064; // MMIO register on hardware, not RAM (§6.4)
+export const ECHO_FLAG  = 0xF0064; // the kernel's echo cell: outside the window,
+                                   // so the board neither backs nor decodes it
+                                   // (D16MINI.md §6.4) - it is expected here
 
 function loadAssembler() {
   globalThis.window = globalThis.window || {};
@@ -80,9 +82,9 @@ export function checkImage(img) {
   if (img.dictFree >= STACK_BASE) fail.push(`dict_free 0x${img.dictFree.toString(16)} reaches the stacks (0x${STACK_BASE.toString(16)})`);
   if (img.biosEntry !== BIOS_BASE) fail.push(`BIOS at 0x${img.biosEntry.toString(16)}, expected 0x${BIOS_BASE.toString(16)}`);
   if (img.biosEntry + img.biosWords > STACK_BASE) fail.push(`BIOS (${img.biosWords} words) overruns the stacks`);
-  // The only word outside the window is the echo flag, which is an MMIO
-  // register on hardware (§6.4) - anything else means the kernel grew a high
-  // address the board cannot back.
+  // The only word outside the window is the kernel's echo cell, which the board
+  // neither backs nor decodes (§6.4) - anything else means the kernel grew a
+  // high address the board cannot back.
   const unexpected = img.outOfWindow.filter((a) => a !== ECHO_FLAG);
   if (unexpected.length) fail.push(`words outside the window: ${unexpected.map((a) => '0x' + a.toString(16)).join(', ')}`);
   if (fail.length) throw new Error('boot image is not valid:\n  - ' + fail.join('\n  - '));
@@ -146,7 +148,7 @@ if (isMain) {
   const kb = (img.words.length * 2 / 1024).toFixed(0);
   console.log(`boot image: ${img.words.length} words (${kb} KiB), fill 0xFFFF, build ${img.build}`);
   console.log(`  dict_free 0x${img.dictFree.toString(16)}  BIOS 0x${img.biosEntry.toString(16)} (${img.biosWords} words)  stacks 0x${STACK_BASE.toString(16)}`);
-  console.log(`  outside the window (MMIO, not RAM): ${img.outOfWindow.map((a) => '0x' + a.toString(16)).join(', ') || 'none'}`);
+  console.log(`  outside the window (dropped: the board does not back it): ${img.outOfWindow.map((a) => '0x' + a.toString(16)).join(', ') || 'none'}`);
   if (!check) console.log(`  wrote ${path.relative(ROOT, outDir)}/image.{hex,mi,manifest.json}`);
   else console.log('  --check: nothing written');
 }

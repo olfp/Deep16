@@ -133,7 +133,8 @@ a single `pa < RAM_WORDS` test and no high-address ROM decode.
    0x03BA9 - 0x05EFF   user dictionary  (grows up, ~9.0 K words)
    0x05F00 - 0x05FDD   BIOS (222 words, UART build; segment 0x05F0)
    0x06000 - 0x067FF   stacks          (return 0x6000↑, data 0x67F0↓)
-0x0F0000 - 0x0F006F   MMIO       UART (+ the echo flag at 0xF0064)
+0x0F0000 - 0x0F006F   MMIO       UART (the kernel's echo cell at 0xF0064
+                                 is not backed: §6.4)
 0x0FFFF0 - 0x0FFFFF   boot ROM   16 words, LUT ROM (reset vector lives here)
 ```
 
@@ -196,8 +197,7 @@ machine before the handler ran. `tests/rtl.test.js` now covers both redirects.
 
 **Done.** `mem` is now `RAM_WORDS` words: 26,624 behind `` `ifdef D16MINI ``
 (the board build), the 1 MB array otherwise (simulation). One read decode
-(`mem_at`) serves both: RAM, then the 16-word boot ROM, then the echo register,
-then the `0xFFFF` fill — so an address the board cannot back halts the machine
+(`mem_at`) serves both: RAM, then the 16-word boot ROM, then the `0xFFFF` fill — so an address the board cannot back halts the machine
 instead of fetching garbage. The explicit-primitive fallback below stays the
 fallback; whether Gowin infers 26 BSRAM blocks *and* honours the init is still
 unconfirmed.
@@ -339,7 +339,7 @@ moment the FPGA comes up. No host, no boot sequence.
 | SWI vector | `0x0002` | no: the kernel installs it at run time |
 | Dictionary, stacks | above `dict_free` | no: run-time RAM, filled `0xFFFF` |
 | Screen | `0xF1000` | deleted (C1) |
-| MMIO (UART, echo flag) | `0xF0040–0xF0064` | no: registers (§5, §6.4) |
+| MMIO (UART) | `0xF0040–0xF0046` | no: registers (§5); `0xF0064` is not backed (§6.4) |
 | Boot ROM | `0xFFFF0` | no: 16 words in LUTs (§6.3) |
 
 **The fill value is `0xFFFF`, everywhere.** BSRAM init leaves unspecified words at
@@ -367,7 +367,7 @@ The generator emits the image in **both** formats from one set of words, so
 Verilator and the board see the same memory.
 
 **Done.** The array is `RAM_WORDS` words behind `` `ifdef D16MINI `` and its
-`initial` does `$readmemh("image.hex", mem)` then seeds the echo register. The
+`initial` does `$readmemh("image.hex", mem)`. The
 explicit-primitive fallback stays the fallback; the `.mi` is emitted and waiting
 for the EDK, and the inference risk is unchanged (no toolchain here).
 
@@ -411,19 +411,23 @@ The core treats every address below `MEM_WORDS` as memory, so the top must
 the kernel actually touches:
 
 - **UART** `0xF0040–0xF0046` — `deep16_uart.sv` (§5).
-- **`ECHO_FLAG`** `0xF0064` — the keyboard-echo flag the BIOS `getstr` reads. As
-  the map stands it is **neither RAM nor MMIO**: outside the 26 K window and
-  outside the UART's decode. A read would return the fill (`0xFFFF` → echo always
-  "on") and a write would vanish, so the echo toggle would silently stop working.
-  Give it a one-word MMIO register at `0xF0064` — simplest, and it keeps the
-  kernel's pinned address — or move it into the kernel's data area, which is safe
-  on the board because there is no browser poking it (§7.7).
+- **`ECHO_FLAG`** `0xF0064` — the keyboard-echo flag the BIOS `getstr` reads. It
+  is **neither RAM nor MMIO**: outside the 26 K window and outside the UART's
+  decode.
+
+**Decided: the echo flag gets no hardware at all.** It stays where the kernel put
+it, outside the window, and the board simply does not back it: a read answers the
+fill (`0xFFFF`, i.e. echo "on") and a write is dropped, so the toggle is inert.
+That is the *default* behaviour anyway, and it costs nothing. If echo is wanted
+later it becomes software's business — the cell moves into the kernel's data
+area, which is safe on the board because there is no browser poking it (§7.7).
+The first cut had a one-word MMIO register at `0xF0064`; it is gone.
+
+So the board's decode is just RAM, the boot ROM and the fill — no MMIO cell to
+read or write. `scripts/make_image.mjs` still reports `0xF0064` as the one word
+outside the window, and asserts that nothing *else* is.
 
 The keyboard ports `0xF0060`/`0xF0062` stay decoded but dead (§5).
-
-**Done.** The board build decodes `0xF0064` as a one-word register (`echo_flag`),
-initialised to 1 and written by the store path; `mem_at` reads it back. In
-simulation it stays an ordinary cell, as before.
 
 ### 6.5 The generator
 
@@ -672,7 +676,7 @@ Each phase ends green and committable. Phases 1–3 need no hardware.
 |---|---|---|
 | **1** ✅ | Assembler conditionals; UART console BIOS + neutralised helpers; UART model in JS + WASM; `SerialTerminal`; tests 1–8. Screen build stays green. | no |
 | **2** ✅ | Memory interface honesty (§4.2): registered reads, `vec` as a register, drop the cache behind a build flag; BSRAM/registered model in Verilator; test 9. | no |
-| **3** ✅ | Real `deep16_uart.sv`; core MMIO ports; the 26-block window + decode + echo register + boot image behind `` `ifdef D16MINI ``; board top, clock, reset, `.cst`/`.sdc`; `.mi` init; tests 11–13 and `npm run sim:board`. | no |
+| **3** ✅ | Real `deep16_uart.sv`; core MMIO ports; the 26-block window + decode + boot image behind `` `ifdef D16MINI ``; board top, clock, reset, `.cst`/`.sdc`; `.mi` init; tests 11–13 and `npm run sim:board`. | no |
 | **4** | Gowin synthesis, timing closure at 27 MHz, `program`-over-JTAG, terminal bring-up (picocom @115200), boot the real DeepForth. | **yes** |
 
 Phase 1 (console) and Phase 2 (memory) are deliberately separate: one changes
@@ -726,7 +730,7 @@ the end.
 - ~~The read bus is 11 reads/cycle~~ — the cache is gone; one fetch port and one
   data read/write port, and nothing else (the direct `mem[2]` read is gone too).
 - ~~The core's decode treats everything below `MEM_WORDS` as memory~~ — the board
-  build decodes RAM / boot ROM / echo register / fill in the top, so the core's
+  build decodes RAM / boot ROM / fill in the top, so the core's
   bound is unchanged and an unbacked address reads the halt word.
 - ~~The SWI vector is a dedicated array read (`mem[2]`)~~ — read through the data
   port now (§4.1), so the array is two-port.
@@ -777,8 +781,9 @@ The six console decisions (C1–C6) are locked (§0). These machine items remain
 3. ~~**Stack bases**~~ — **decided**: `RSTACK_TOP = 0x6000`, data stack `0x67F0`
    from a cell (§3).
 4. ~~**Boot image**~~ — **decided**: one SV array with `$readmemh` + `.mi`, and
-   `ECHO_FLAG` as an MMIO register. Both are in the tree (§6.2, §6.4); the
-   explicit-primitive memory stays the fallback if inference misbehaves.
+   no hardware for `ECHO_FLAG` (it stays software's business, §6.4). The image is
+   in the tree (§6.2); the explicit-primitive memory stays the fallback if
+   inference misbehaves.
 5. **Keep the keyboard ports?** Dead on hardware; harmless in the map. Lean: keep
    the addresses, wire nothing. *(unchanged)*
 6. **FIFO/baud beyond C6** — C6 fixes 115200 / TX 64 / RX 128; revisit only if a

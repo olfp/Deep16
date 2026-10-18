@@ -2,7 +2,7 @@
 //
 // The image is a synthesis input, so it cannot be run here - but its content can
 // be checked exactly: every assembled word in the window, the 0xFFFF fill, the
-// BIOS at its fixed address, and the one MMIO word that must stay out.
+// BIOS at its fixed address, and the one word that must stay out.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -41,7 +41,8 @@ test('the BIOS sits at its fixed address', () => {
 });
 
 test('the only word outside the window is the echo flag', () => {
-  assert.deepEqual(img.outOfWindow, [ECHO_FLAG], 'the echo flag is MMIO on hardware, not RAM');
+  assert.deepEqual(img.outOfWindow, [ECHO_FLAG],
+                   'the kernel echo cell is outside the window, so the board drops it');
 });
 
 test('checkImage accepts a good image', () => {

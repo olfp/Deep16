@@ -105,7 +105,7 @@ node scripts/bench.mjs   # MIPS of all three cores
 
 The BRAM-only machine of [`D16MINI.md`](D16MINI.md) is a second build of the same
 RTL, selected by `` `ifdef D16MINI ``: 26 BSRAM blocks instead of the 1 MB array,
-the window decode, the echo register, and the kernel baked into the bitstream
+the window decode, and the kernel baked into the bitstream
 (no loader). Three commands, none of which need the vendor toolchain:
 
 ```sh
