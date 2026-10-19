@@ -554,14 +554,29 @@ against. On the full Forth image the two agree for 1.9 M instructions. Both bugs
 above were found that way — the step mode hides them because it drains the
 pipeline between instructions.
 
-**What is left is area, not depth.** The remaining top paths are only a level or
-two of logic whose routes cost 5–9 ns per net: `ctx.psw.S` → fetch-segment mux →
-address adder → BSRAM ADB, and `mem_wb.reg_we_a` → `if_pc.CE`, both ~82 ns. At
-98 % CLS the placer cannot bring related cells together, so 27 MHz needs area
-reduction first — the register file (three read ports plus the shadow bank,
-~1 k LUTs), the UART (~0.9 k), and the unused cache/debug residue are the
-candidates — or the 20K part. Until then the 6.75 MHz divided clock stays the
-bring-up path; the bitstream still closes with zero violations.
+**Step D1: the SMV taps.** SMV reads the inactive bank and had two dedicated
+raw read ports (`rn_addr`/`rs_addr`) in the register file. Its port-1 read was
+the *destination*, which SMV never needs, so the source moved onto port 1 and
+the two taps (and their read muxes) are gone. The held-instruction refresh now
+writes the field the reader's bank selects, because port 1 serves both roles.
+Measured at the 27 MHz target: logic 7,593 → 7,275, CLS 4,219 → 4,176 (97 %),
+Fmax **12.163 → 14.132 MHz**. The taps were on the critical path, not just in
+the area budget.
+
+**What is left is area, not depth.** The remaining top paths are short logic
+whose routes dominate: `id_ex.ra1` → load-use compare → `if_pc.CE` (~71 ns) and
+`ctx.psw.S` → fetch-segment mux → address adder → BSRAM ADB. At 97 % CLS the
+placer still cannot bring related cells together, so 27 MHz needs more area
+reduction — the register file's write network (a full per-register mux over both
+write ports and the debug port), the UART (~0.9 k), and the unused cache/debug
+residue are the candidates — or the 20K part.
+
+**A 13.5 MHz board clock already closes.** Constraining `clk_cpu` at
+`divide_by 2` (13.5 MHz, 74 ns) gives zero setup/hold violations and Fmax
+17.4 MHz on the same design, so the oscillator can be divided by two instead of
+four once the board RTL, the UART's `CLK_HZ` and the board testbench's bit time
+are updated. Until then the 6.75 MHz divided clock stays the bring-up path; the
+bitstream still closes with zero violations.
 
 The committed RTL WASM package (`rtl/pkg/`) has **not** been rebuilt for the
 redirect change — Emscripten is not installed on this machine. `npm test` still

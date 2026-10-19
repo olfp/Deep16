@@ -26,12 +26,6 @@ module deep16_regfile (
   output logic [15:0] rdata3_n,
   output logic [15:0] rdata3_s,
 
-  // raw bank taps - SMV reads the inactive bank without spending a read port
-  input  logic [3:0]  rn_addr,
-  input  logic [3:0]  rs_addr,
-  output logic [15:0] rn_rdata,
-  output logic [15:0] rs_rdata,
-
   // write ports (instruction results, committed in WB)
   input  logic        wb_bank,        // PSW.S of the writing instruction
   input  logic        we_a,
@@ -79,8 +73,6 @@ module deep16_regfile (
     rdata1_s = shad[shad_idx(raddr1)];
     rdata2_s = shad[shad_idx(raddr2)];
     rdata3_s = shad[shad_idx(raddr3)];
-    rn_rdata = regs[rn_addr];
-    rs_rdata = shad[shad_idx(rs_addr)];
   end
 
   // Write priority: B (MUL32/DIV32 low word) < A (the instruction's Rd), then

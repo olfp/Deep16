@@ -150,10 +150,9 @@ module deep16_core
     // one the instruction sees depends on its PSW, which lives in the context
     // chain and is only settled in EX. ra/rd_en travel along for the load-use
     // hazard compare and the EX forwarding.
-    logic [3:0]  ra1, ra2, ra3, rsmi;
+    logic [3:0]  ra1, ra2, ra3;
     logic        rd_en1, rd_en2, rd_en3;
     logic [15:0] op1_n, op1_s, op2_n, op2_s, op3_n, op3_s;
-    logic [15:0] opn_n, opn_s;   // the SMV read of the inactive bank
   } front_t;
 
   // Everything EX produces, consumed by MEM and committed in WB.
@@ -258,23 +257,14 @@ module deep16_core
 
   // ---- register read addresses ------------------------------------------
   typedef struct packed {
-    logic [3:0] a1, a2, a3, smv;
+    logic [3:0] a1, a2, a3;
     logic       e1, e2, e3;
   } rd_t;
 
   /* verilator lint_off UNUSEDSIGNAL */
   function automatic rd_t read_addrs(input idec_t d, input logic [15:0] w);
     rd_t r;
-    r = '{a1: 4'd0, a2: 4'd0, a3: 4'd0, smv: 4'd0, e1: 1'b0, e2: 1'b0, e3: 1'b0};
-    // SMV reads the inactive bank; its register index is pure decode.
-    case (w[3:0])
-      4'h9:  r.smv = 4'd1;
-      4'hA:  r.smv = 4'd2;
-      4'hB:  r.smv = 4'd3;
-      4'hD:  r.smv = 4'd13;
-      4'hE:  r.smv = 4'd14;
-      default: r.smv = 4'd0;
-    endcase
+    r = '{a1: 4'd0, a2: 4'd0, a3: 4'd0, e1: 1'b0, e2: 1'b0, e3: 1'b0};
     case (d.cls)
       3'd3: begin                                // LD/ST: base + ST source
         r.a1 = w[8:5];   r.e1 = 1'b1;
@@ -293,7 +283,17 @@ module deep16_core
           end
           4'd2: begin r.a1 = w[5:2]; r.e1 = 1'b1; end  // MOV
           4'd3: begin r.a1 = w[8:5]; r.e1 = 1'b1; end  // LSI
-          4'd4: begin r.a1 = w[7:4]; r.e1 = 1'b1; end  // SMV
+          4'd4: begin                            // SMV: source sits in the
+            r.e1 = 1'b1;                         // *inactive* bank, and port 1
+            case (w[3:0])                        // is otherwise unused here
+              4'h9:  r.a1 = 4'd1;
+              4'hA:  r.a1 = 4'd2;
+              4'hB:  r.a1 = 4'd3;
+              4'hD:  r.a1 = 4'd13;
+              4'hE:  r.a1 = 4'd14;
+              default: r.a1 = 4'd0;
+            endcase
+          end
           4'd5: begin r.a1 = w[5:2]; r.e1 = 1'b1; end  // MVS
           4'd6: begin r.a1 = w[3:0]; r.e1 = 1'b1; end  // SOP
           4'd8: begin                            // JML
@@ -329,7 +329,6 @@ module deep16_core
 
   // ---- regfile reads with the EX/MEM and WB bypass -----------------------
   logic [15:0] rf1_n, rf1_s, rf2_n, rf2_s, rf3_n, rf3_s;
-  logic [15:0] rf_inact_n, rf_inact_s;
 `ifndef D16MINI
   // Debug-bus plumbing - the harness/IDE state seeding. The board build has
   // none of it (§4.3): the whole bus is behind `ifndef D16MINI`.
@@ -419,7 +418,7 @@ module deep16_core
     r2      = fwd_ex(id_ex.ra2, in_shadow, id_ex.op2_n, id_ex.op2_s);
     r3      = fwd_ex(id_ex.ra3, in_shadow, id_ex.op3_n, id_ex.op3_s);
     // SMV taps the inactive bank, so it wants the opposite bank
-    r_inact = fwd_ex(id_ex.rsmi, ~in_shadow, id_ex.opn_n, id_ex.opn_s);
+    r_inact = fwd_ex(id_ex.ra1, ~in_shadow, id_ex.op1_n, id_ex.op1_s);
   end
 
   deep16_regfile u_regfile (
@@ -428,8 +427,6 @@ module deep16_core
     .raddr1    (id_rd.a1),     .rdata1_n   (rf1_n),      .rdata1_s(rf1_s),
     .raddr2    (id_rd.a2),     .rdata2_n   (rf2_n),      .rdata2_s(rf2_s),
     .raddr3    (id_rd.a3),     .rdata3_n   (rf3_n),      .rdata3_s(rf3_s),
-    .rn_addr   (id_rd.smv),    .rn_rdata   (rf_inact_n),
-    .rs_addr   (id_rd.smv),    .rs_rdata   (rf_inact_s),
     .wb_bank   (mem_wb.reg_bank),
     // every write port is gated with the stage's valid bit: a bubble inserted
     // on a load-use stall keeps the fields of the instruction it replaced, and
@@ -456,7 +453,6 @@ module deep16_core
   // selects the bank and forwards from EX/MEM and MEM/WB.
   logic        id_sh_clear;
   logic [15:0] id_op1_n, id_op1_s, id_op2_n, id_op2_s, id_op3_n, id_op3_s;
-  logic [15:0] id_opn_n, id_opn_s;
 
   always_comb begin
     // The SWI zeroes the shadow bank; reads see the zero before it commits.
@@ -468,8 +464,6 @@ module deep16_core
     id_op2_s = id_fwd_wb(id_rd.a2, 1'b1, id_sh_clear ? 16'h0000 : rf2_s);
     id_op3_n = id_fwd_wb(id_rd.a3, 1'b0, rf3_n);
     id_op3_s = id_fwd_wb(id_rd.a3, 1'b1, id_sh_clear ? 16'h0000 : rf3_s);
-    id_opn_n = id_fwd_wb(id_rd.smv, 1'b0, rf_inact_n);
-    id_opn_s = id_fwd_wb(id_rd.smv, 1'b1, id_sh_clear ? 16'h0000 : rf_inact_s);
   end
 
   front_t id_ex_n;
@@ -479,14 +473,12 @@ module deep16_core
     id_ex_n.ra1    = id_rd.a1;
     id_ex_n.ra2    = id_rd.a2;
     id_ex_n.ra3    = id_rd.a3;
-    id_ex_n.rsmi   = id_rd.smv;
     id_ex_n.rd_en1 = id_rd.e1;
     id_ex_n.rd_en2 = id_rd.e2;
     id_ex_n.rd_en3 = id_rd.e3;
     id_ex_n.op1_n  = id_op1_n;   id_ex_n.op1_s = id_op1_s;
     id_ex_n.op2_n  = id_op2_n;   id_ex_n.op2_s = id_op2_s;
     id_ex_n.op3_n  = id_op3_n;   id_ex_n.op3_s = id_op3_s;
-    id_ex_n.opn_n  = id_opn_n;   id_ex_n.opn_s = id_opn_s;
   end
 
   // The hazard compare and the debug view still name the EX instruction's
@@ -1431,11 +1423,16 @@ module deep16_core
           // The stage cleared above may be the one EX is forwarding from.
           // Keep what EX sees now: with the operands in flip-flops there is no
           // register-file read to fall back on, and the held instruction would
-          // otherwise execute the stale ID-time value on the next step.
-          id_ex.op1_n <= r1; id_ex.op1_s <= r1;
-          id_ex.op2_n <= r2; id_ex.op2_s <= r2;
-          id_ex.op3_n <= r3; id_ex.op3_s <= r3;
-          id_ex.opn_n <= r_inact; id_ex.opn_s <= r_inact;
+          // otherwise execute the stale ID-time value on the next step. Each
+          // field is written with the bank its reader selects: port 1 also
+          // serves SMV, which reads the *other* bank.
+          if (in_shadow) begin
+            id_ex.op1_s <= r1; id_ex.op2_s <= r2; id_ex.op3_s <= r3;
+            id_ex.op1_n <= r_inact;
+          end else begin
+            id_ex.op1_n <= r1; id_ex.op2_n <= r2; id_ex.op3_n <= r3;
+            id_ex.op1_s <= r_inact;
+          end
           // A redirect whose target arrives with the data port lands exactly on
           // this edge: the SWI's vector word is read in its own MEM cycle and
           // used in WB - which is where the SWI retires. Freezing the fetch
@@ -1487,10 +1484,13 @@ module deep16_core
           // is exactly that), and the ID-time capture would then be stale with
           // no register-file read left to fall back on.
           if (stall || div_stall || div_drain) begin
-            id_ex.op1_n <= r1; id_ex.op1_s <= r1;
-            id_ex.op2_n <= r2; id_ex.op2_s <= r2;
-            id_ex.op3_n <= r3; id_ex.op3_s <= r3;
-            id_ex.opn_n <= r_inact; id_ex.opn_s <= r_inact;
+            if (in_shadow) begin
+              id_ex.op1_s <= r1; id_ex.op2_s <= r2; id_ex.op3_s <= r3;
+              id_ex.op1_n <= r_inact;
+            end else begin
+              id_ex.op1_n <= r1; id_ex.op2_n <= r2; id_ex.op3_n <= r3;
+              id_ex.op1_s <= r_inact;
+            end
           end
         end
         // A halt word stops the fetch for good. The address is rewound onto
