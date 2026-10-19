@@ -1,13 +1,14 @@
 # D16MINI — a BRAM-only Deep16 with a serial console
 
-> **Status: the machine runs.** The console, the memory interface, the board top,
-> the constraints and the boot image are all in the tree, and the board build
+> **Status: the bitstream exists.** The console, the memory interface, the board
+> top, the constraints and the boot image are all in the tree; the board build
 > boots DeepForth on Verilator and prints the banner over the UART *pins*
-> (`npm run sim:board`). What is left is Gowin synthesis and the real board —
-> everything that needs hardware. D16MINI is a *small* Deep16 that actually
-> fits the Tang Nano 9K and boots DeepForth: **no PSRAM, no cache, no
-> framebuffer** — memory is on-chip BSRAM, the console is a UART, and a host
-> terminal owns the screen.
+> (`npm run sim:board`), and `npm run synth:gowin` now produces
+> `fpga/gowin/impl/pnr/deep16_board.fs` — placed, routed, timing met at
+> 6.75 MHz, with the kernel baked into the BSRAM. What is left is the real board.
+> D16MINI is a *small* Deep16 that actually fits the Tang Nano 9K and boots
+> DeepForth: **no PSRAM, no cache, no framebuffer** — memory is on-chip BSRAM,
+> the console is a UART, and a host terminal owns the screen.
 >
 > This document unifies the earlier *D16MINI* (the machine) and *D16LIGHT* (the
 > serial front end) drafts into one.
@@ -305,19 +306,23 @@ Nothing board-shaped exists today.
 
 - `rtl/deep16_board.sv`: 27 MHz `clk` in, reset button, optional LED heartbeat,
   UART RX/TX, and the D16MINI `deep16_top`.
-- Clock: run the CPU at **27 MHz directly** (no PLL needed for Forth over UART).
-- Reset synchroniser.
+- Clock: the CPU runs at **6.75 MHz, the 27 MHz oscillator divided by four**.
+  A 27 MHz CPU does not close timing (§4.7); the divider is a two-bit counter and
+  the UART's divisor is told the divided frequency, so 115200 stays correct. No
+  PLL (the chip's two are left alone).
+- Reset synchroniser in the CPU clock domain.
 - A **`.cst`** pin-constraint file: clock, reset/button, LED, UART pins 17/18.
   None exists in the repo.
 - The **boot image** — a BSRAM init so the assembled kernel is running at
   power-up (§6).
 
-**Done.** `rtl/deep16_board.sv` (reset synchroniser, free-run tie-offs, UART pins,
-LED heartbeat), `rtl/deep16_board.cst` (pins 52 / 4 / 17 / 18 / 10),
-`rtl/deep16_board.sdc` (the 27 MHz clock, the async button and RX pin), and the
-`$readmemh` init in `deep16_top` behind `` `ifdef D16MINI ``. `npm run lint:board`
-lints the board build and `npm run sim:board` runs it on Verilator with the real
-image and reads the UART pin.
+**Done.** `rtl/deep16_board.sv` (CPU clock divider, reset synchroniser, free-run
+tie-offs, UART pins, LED heartbeat), `rtl/deep16_board.cst` (pins 52 / 4 / 17 /
+18 / 10), `rtl/deep16_board.sdc` (the 27 MHz master and the `divide_by 4`
+generated `clk_cpu`, plus the async button and RX pin), and the `$readmemh` init
+in `deep16_top` behind `` `ifdef D16MINI ``. `npm run lint:board` lints the board
+build; `npm run sim:board` runs it on Verilator with the real image and reads the
+UART pin; `npm run synth:gowin` builds the bitstream (§4.7).
 
 **Every pin is a documented value, not a measured one** (no board here): confirm
 the set against the Sipeed pinout and the schematic before Phase 4. The UART pair
@@ -511,6 +516,36 @@ as LUT data (`I0`–`I3`), never on a `.CLK` pin. It accounts for 3 endpoints, n
 the 1,713. `-fix_gated_and_generated_clocks 1` does not remove it and neither does
 a `set_false_path` on the pin; the warnings and those three endpoints should be
 read as noise until the toolchain offers a lever.
+
+**Bring-up clock: 6.75 MHz, and the bitstream is green.** The board now divides
+the oscillator by four in `deep16_board.sv` (a two-bit counter, 50 % duty) and
+runs the whole machine from it; `deep16_top` gives the UART the divided frequency
+(`ifdef D16MINI` → `6_750_000`, divisor 59) so 115200 is unchanged in real time.
+`rtl/deep16_board.sdc` declares the divided domain explicitly —
+`create_generated_clock ... -divide_by 4 [get_pins {clk_div_1_s0/Q}]` — because
+otherwise the tool infers `clk_div[1]` as a clock it "was not created" (TA1132)
+and times the CPU at its 50 MHz default. Measured on that constraint:
+
+```
+clk       27.000 MHz   Fmax 246.3 MHz   0 setup / 0 hold violations
+clk_cpu    6.750 MHz   Fmax  10.0 MHz   0 setup / 0 hold violations
+id_ex.valid (artifact) 50.000 MHz       3 endpoints only (see above)
+```
+
+The design closes with ~49 % margin, and `npm run synth:gowin` emits
+**`fpga/gowin/impl/pnr/deep16_board.fs`** (3.5 MB, LUT 6,424/8,640, BSRAM 24/26,
+CLS 4,058/4,320). The boot image is in the bitstream: 688 of the 1,476
+`INIT_RAM_xx` parameters on the BSRAM instances are kernel content, the rest the
+`0xFFFF` fill. The Verilator board sim passes at the divided clock (132,508
+clocks; the testbench's bit time is 236 pin clocks = 59 × 4, and its receiver now
+arms on an idle line so the UART's un-clocked reset value is not taken for a
+start bit).
+
+To program it: open **Gowin Programmer**, add `deep16_board.fs`, connect the Tang
+Nano 9K, and "Program/Configure" — the *SRAM* option is enough to try it (the
+bitstream loads the BSRAM, so the kernel runs immediately); program the external
+flash for persistence across power cycles. The console is the on-board USB-UART
+at 115200 8N1.
 
 ---
 
@@ -985,15 +1020,14 @@ the end.
 
 ### The residue
 
-1. **Gowin synthesis** — measured (§4.7). The SystemVerilog parses, the logic
-   fits (LUT 6,499/8,640) and the flow routes a bitstream, but the vendor tool's
-   BSRAM granularity caps a 16-bit RAM at 24,576 words (24 blocks), so the window
-   is now 24 blocks (BIOS `0x5700`, stacks `0x5800`). **Timing is the item left
-   open**: 10.630 MHz against 27 MHz after the redirect-target change. The
-   remaining cone is EX's next-state (register file → shadow segment) in front of
-   the BSRAM address; closing it means reading the operands in ID and registering
-   them into ID/EX. Until then, run at 6.75 MHz (a `CLKDIV` and `CLK_HZ` =
-   6_750_000).
+1. **Gowin synthesis** — done for bring-up (§4.7). The SystemVerilog parses, the
+   logic fits (LUT 6,424/8,640), the window is 24 BSRAM blocks (BIOS `0x5700`,
+   stacks `0x5800`), and `npm run synth:gowin` emits a timed bitstream at
+   6.75 MHz (the oscillator divided by four) with the kernel baked into BSRAM.
+   **What is still open is 27 MHz**: the machine measures ~10.6 MHz after the
+   redirect-target change, and the remaining cone is EX's next-state (register
+   file → shadow segment) in front of the BSRAM address. Closing it means reading
+   the operands in ID and registering them into ID/EX.
 2. **Confirm the pins** in `rtl/deep16_board.cst`.
 3. **The reported combinational loop** (§4.6) — probably a mapping artifact, but
    unverified.

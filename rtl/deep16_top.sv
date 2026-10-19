@@ -281,7 +281,15 @@ module deep16_top
   // In simulation the receiver is fed by uart_rx_push; on the board uart_rxd is
   // the pin. TX goes to the pin and to a small monitor FIFO the host drains, so
   // reading the console never competes with the shift engine for the TX FIFO.
-  deep16_uart u_uart (
+  // The console's baud divisor is derived from the clock. The board runs the
+  // machine at 27 MHz / 4 (deep16_board.sv, D16MINI.md §4.7); the simulation
+  // builds keep 27 MHz because their clock is a step tick, not an oscillator.
+`ifdef D16MINI
+  localparam int UART_CLK_HZ = 6_750_000;
+`else
+  localparam int UART_CLK_HZ = 27_000_000;
+`endif
+  deep16_uart #(.CLK_HZ(UART_CLK_HZ)) u_uart (
     .clk          (clk),
     .rst          (rst),
     .tx_we        (uart_tx_we),

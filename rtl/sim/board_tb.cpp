@@ -30,19 +30,28 @@
 
 namespace {
 
-// Bit time of the console, from the UART's own divisor: 27 MHz / 115200.
-constexpr int CLK_PER_BIT = 234;
+// Bit time of the console in 27 MHz pin clocks. The board divides the
+// oscillator by four and the UART's divisor is 59 CPU clocks (6.75 MHz / 115200
+// rounds to 59), so one bit is 59 * 4 = 236 clocks of this testbench.
+constexpr int CLK_PER_BIT = 236;
 
 // A minimal 8N1 receiver for the TX pin: wait for the start edge, sample the
 // eight data bits at their centres, take the stop bit.
 struct UartRx {
   enum { IDLE, START, DATA, STOP } state = IDLE;
   int cnt = 0, bit = 0, data = 0;
+  bool armed = false;   // the line has been high at least once since time 0
   std::string out;
 
   void tick(int txd) {
     switch (state) {
-      case IDLE:  if (txd == 0) { state = START; cnt = 0; } break;
+      // At time 0 the TX pin is still 0 - the UART's reset value has not been
+      // clocked out yet - and taking that for a start bit mis-frames the first
+      // burst. Wait until the line has been high once.
+      case IDLE:
+        if (txd == 1) armed = true;
+        else if (armed) { state = START; cnt = 0; }
+        break;
       case START: if (++cnt >= CLK_PER_BIT / 2) { state = DATA; cnt = 0; bit = 0; data = 0; } break;
       case DATA:
         if (++cnt >= CLK_PER_BIT) {
