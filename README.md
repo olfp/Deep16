@@ -115,12 +115,20 @@ npm run lint:board  # lint the board build (npm run lint:mini for the top alone)
 npm run sim:board   # run the board on Verilator with the real image: decode the
                     # banner off the TX pin, then type a line into the RX pin
                     # and check it is echoed and evaluated
+npm run synth:board # synthesise it with the open-source flow (needs the OSS CAD
+                    # Suite on PATH); see D16MINI.md §4.6 for what it reports
 ```
 
-`npm run sim:board` is the whole bring-up path minus Gowin: it caught a bug the
-step-based tests could not (the console was mute in free-run), and it is the only
-place the UART's *receive pin* is exercised. What is left needs the board itself
-— synthesis, timing, and confirming the pins in `rtl/deep16_board.cst`.
+`npm run sim:board` is the whole bring-up path minus the tools: it caught a bug
+the step-based tests could not (the console was mute in free-run), and it is the
+only place the UART's *receive pin* is exercised.
+
+`npm run synth:board` is the license-free synthesis route — Yosys → nextpnr
+(Apicula) → `gowin_pack`. It confirms that the boot image lands in BSRAM's init,
+and it currently **stops at place & route**: the memory needs two read ports,
+the flow duplicates it for the second, and 52 blocks do not fit in 26
+(D16MINI.md §4.6). What is left needs the board itself — the vendor tool, timing,
+and confirming the pins in `rtl/deep16_board.cst`.
 
 ## Architecture in one page
 

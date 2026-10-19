@@ -26,3 +26,4 @@ artifacts/
 obj_dir/
 obj_board/
 rtl/obj_wasm/
+build/

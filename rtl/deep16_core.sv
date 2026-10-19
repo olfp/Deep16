@@ -128,6 +128,9 @@ module deep16_core
 
   logic run;                     // the pipeline advances while a step is in flight
   logic halt_sticky;             // a halt word was reached; the fetch stays put
+  // Declared here rather than with the step control below: slang requires
+  // declarations before use (the EX strobes read it), Verilator does not.
+  logic step_freeze;
 
   // --------------------------------------------------------------- pipeline
   // IF/ID and ID/EX carry the instruction plus the two pieces of context the
@@ -449,6 +452,13 @@ module deep16_core
   // *taken* (div_take) rather than when div_req falls: two DIVs back to back
   // keep div_req high the whole time, so clearing on !div_req would never arm
   // the second one and it would silently reuse the first quotient.
+  // Declared here, not with the ALU block below: slang (and so the open-source
+  // flow) requires declarations before use, where Verilator does not.
+  wire         div_req;
+  /* verilator lint_off UNUSEDSIGNAL */
+  logic        div_busy;       // waveform/debug only; done drives the hold logic
+  /* verilator lint_on UNUSEDSIGNAL */
+  logic        div_done;
   logic div_started;
   wire  div_take = div_req && div_done;      // EX latches the quotient this cycle
   always_ff @(posedge clk) begin
@@ -468,10 +478,6 @@ module deep16_core
   logic [1:0]  alu_carry_mode;
   logic        alu_carry_bit;
   logic [15:0] div_quot, div_rem;
-  /* verilator lint_off UNUSEDSIGNAL */
-  logic        div_busy;       // waveform/debug only; done drives the hold logic
-  /* verilator lint_on UNUSEDSIGNAL */
-  logic        div_done;
 
   wire [4:0] alu_func5 = id_ex.instr[12:8];
   wire [3:0] alu_rd    = id_ex.instr[7:4];
@@ -493,7 +499,7 @@ module deep16_core
                 : 1'b0;
   // A load-use stall holds the DIV in EX while its operands are still stale, so
   // the divider must not be armed until the load result is bypassable.
-  wire div_req      = id_ex.valid && div_needs_hw && !stall;
+  assign div_req    = id_ex.valid && div_needs_hw && !stall;
 
   // Signed division (spec Table 8). The iterative divider is unsigned, so it
   // runs on the magnitudes and the ALU re-applies the sign to the quotient
@@ -1202,7 +1208,7 @@ module deep16_core
   // The single-step freeze: in step mode the pipeline holds its stage on the
   // retiring edge (see the pipeline advance below); in free-run it never does.
   // EX-side strobes must be gated by this, not by step_done.
-  wire step_freeze = step_done && !i_free;
+  assign step_freeze = step_done && !i_free;
 
   assign o_busy = run;
 

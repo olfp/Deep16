@@ -68,26 +68,25 @@ module deep16_top
 
   reg [15:0] mem [0:RAM_WORDS-1] /*verilator public*/;
 
-  // One read decode for every port: RAM, then ROM, then the fill. The fill is
-  // the halt word, so an address the board cannot back stops the machine instead
-  // of fetching garbage.
-  //
   // Everything the board does not back reads the fill and drops its writes -
   // including the kernel's echo cell at 0xF0064 (D16MINI.md §6.4): on the board
   // it reads 0xFFFF, so echo stays on, and a toggle write goes nowhere. Echo is
   // software's business if it is wanted; it has no hardware home.
-  function automatic logic [15:0] mem_at(input logic [20:0] a);
+  //
+  // The RAM read itself is *unconditional*, and this decode runs after the read
+  // register (see the read ports below). That matters: with the decode folded
+  // into the read - `(a < RAM_WORDS) ? mem[a] : fill` - the open-source flow
+  // stops recognising the array as block RAM and falls back to LUT RAM, which is
+  // eight times the chip's logic. Reading mem[] first and muxing the ROM and the
+  // fill behind the register keeps the memory a plain two-port RAM.
 `ifdef D16MINI
-    if (a < 21'(RAM_WORDS))
-      mem_at = mem[a[ADDR_BITS-1:0]];
-    else if (a >= 21'(ROM_BASE) && a < 21'(ROM_BASE + ROM_WORDS))
-      mem_at = boot_rom_word(int'(a) - int'(ROM_BASE));
+  function automatic logic [15:0] non_ram(input logic [20:0] a);
+    if (a >= 21'(ROM_BASE) && a < 21'(ROM_BASE + ROM_WORDS))
+      non_ram = boot_rom_word(int'(a) - int'(ROM_BASE));
     else
-      mem_at = 16'hFFFF;
-`else
-    mem_at = (a < 21'(RAM_WORDS)) ? mem[a[ADDR_BITS-1:0]] : 16'hFFFF;
-`endif
+      non_ram = 16'hFFFF;
   endfunction
+`endif
 
   // ---- keyboard FIFO (polled: KBD_STATUS 0xF0060, KBD_DATA 0xF0062) ----
   localparam int KBD_FIFO_DEPTH = 128;   // a power of two, so the full check fits in 8 bits
@@ -120,8 +119,8 @@ module deep16_top
   // data address in EX, so both land exactly where the combinational array used
   // to deliver them. This build has no cache (D16MINI is cacheless), so the
   // FSH flush and the cache-invalidate inputs have nothing to do.
-  logic [15:0] if_rdata_q;
-  logic [15:0] mem_rdata_q;
+  logic [15:0] if_ram_q;
+  logic [15:0] mem_ram_q;
   /* verilator lint_off UNUSEDSIGNAL */
   logic        core_cache_flush;   // the core's FSH: no cache to flush here
   logic        _unused_inputs;
@@ -175,30 +174,47 @@ module deep16_top
   // ROM on reset() / load_program(). On the board the array comes from the boot
   // image: the configuration bitstream loads it before the first clock (§6.2.1),
   // so there is no runtime copy and no loader.
+`ifdef D16MINI
+  initial begin
+    // The image is the *whole* window - the generator fills every unused word
+    // with 0xFFFF before it lays the kernel down - so there is no fill loop
+    // here. That matters: a 26,624-iteration loop is past slang's unroll limit,
+    // and the open-source flow could not elaborate the design with it in place.
+    // `npm run image` writes the file, and the path resolves against the tool's
+    // working directory - run from artifacts/image/, as build_board_sim.sh does.
+    $readmemh("image.hex", mem);
+  end
+`else
   initial begin
     for (int i = 0; i < RAM_WORDS; i++) mem[i] = 16'hFFFF;
-`ifdef D16MINI
-    // The image is a synthesis input (§6.2.1): `npm run image` writes it, and
-    // the path is resolved by the tool at elaboration/run time - run the
-    // simulation from artifacts/image/, as scripts/build_board_sim.sh does.
-    $readmemh("image.hex", mem);
-`else
     for (int i = 0; i < ROM_WORDS; i++) mem[{11'h000, ROM_BASE} + i] = boot_rom_word(i);
-`endif
   end
+`endif
 
   // ---- synchronous read ports ------------------------------------------
   // Two registered reads, one clock of latency each. The instruction port is
   // addressed by the core's prefetch, so the word is ready when IF wants it.
   // The data port is addressed in MEM and its word lands in WB - exactly where
   // the load's register write and bypass read it (see the core's mem_wb_wdata).
-  // Out of range answers 0xFFFF, the halt word, as the bare array did.
+  //
+  // The read of mem[] is unconditional - the ROM/fill decode sits behind the
+  // register - so the array stays a plain two-port RAM (see non_ram above). The
+  // index is the low ADDR_BITS bits of the address: for an address the board
+  // cannot back the read is out of the array and its value is discarded by the
+  // mux, which is a don't-care rather than a hazard.
   always_ff @(posedge clk) begin
-    if_rdata_q  <= mem_at(if_addr);
-    mem_rdata_q <= mem_at(mem_addr);
+    if_ram_q  <= mem[if_addr[ADDR_BITS-1:0]];
+    mem_ram_q <= mem[mem_addr[ADDR_BITS-1:0]];
   end
-  assign if_rdata  = if_rdata_q;
-  assign mem_rdata = mem_rdata_q;
+`ifdef D16MINI
+  assign if_rdata  = (if_addr  < 21'(RAM_WORDS)) ? if_ram_q  : non_ram(if_addr);
+  assign mem_rdata = (mem_addr < 21'(RAM_WORDS)) ? mem_ram_q : non_ram(mem_addr);
+`else
+  // The simulation build keeps the boot ROM inside the array, so anything past
+  // it is just the fill - no separate decode.
+  assign if_rdata  = (if_addr  < 21'(RAM_WORDS)) ? if_ram_q  : 16'hFFFF;
+  assign mem_rdata = (mem_addr < 21'(RAM_WORDS)) ? mem_ram_q : 16'hFFFF;
+`endif
 
   // The SWI vector used to be read here combinationally (`mem[2]`), a third
   // asynchronous port on the array - which no BSRAM has, so it kept the whole

@@ -308,6 +308,71 @@ image and reads the UART pin.
 the set against the Sipeed pinout and the schematic before Phase 4. The UART pair
 decides whether the console works at all.
 
+### 4.6 The open-source synthesis — measured (2026-10-19)
+
+The board build was taken through the license-free flow — Yosys `read_slang` →
+`synth_gowin` → nextpnr-himbaechel (Apicula) → `gowin_pack`, the OSS CAD Suite —
+rather than the vendor tools. `npm run synth:board` is that flow. Three results,
+one of them decisive.
+
+**The boot image survives into the BSRAM.** The memory is inferred as 26 blocks'
+worth of `DPX9B` (the Gowin block primitive) with **64 `INIT_RAM_xx` parameters
+per block, 42 of the 52 block-halves carrying non-fill content** — the kernel,
+baked in exactly as §6.2.1 claims. The plan's central bet holds: no loader, no
+copy, the configuration *is* the load.
+
+**Two portability fixes were needed to get there**, both of which make the RTL
+better rather than merely Yosys-shaped:
+
+- **Declarations before use.** slang rejects `div_req`/`div_done`/`div_busy` and
+  `step_freeze` being used before they are declared. Verilator tolerates it; the
+  declarations now sit where they belong.
+- **The RAM read must be unconditional.** With the decode folded into the read —
+  `(a < RAM_WORDS) ? mem[a] : fill` — the flow stops recognising the array as
+  block RAM and falls back to LUT RAM: **13,320 `RAM16SDP4` and ~69,000 LUTs**,
+  eight times the chip. Reading `mem[]` first and muxing the ROM and the fill
+  *behind* the read register keeps it a plain two-port RAM (4,824 LUT4s). That is
+  why `non_ram()` sits where it does in `deep16_top.sv`.
+
+**And then it does not fit.** nextpnr places nothing and fails:
+
+```
+LUT4:   10508/   8640   121%
+BSRAM:      52/     26   200%
+ERROR: Unable to place cell 'u_top.mem.0.9',
+       no BELs remaining to implement cell type 'DP'
+```
+
+The BSRAM number is not a width or depth artifact — it is the **port count**. The
+memory is read twice and written once per cycle (instruction fetch, data read,
+store), and a Gowin BSRAM block has **two ports**. Measured on minimal cases at
+the real geometry (26,624 × 16, fully initialised):
+
+| memory | BSRAM blocks |
+|---|---|
+| 1 read + 1 write | **26** — fits exactly |
+| 2 reads + 1 write | **52** — does not fit |
+
+So the plan's §4.1 assumption — "port A = instruction fetch, port B = data read +
+write" — is not what the tools do with a two-read-port memory: Yosys *duplicates*
+it, one copy per read port, and the chip has half the blocks that needs. The
+hardware could in principle share the store with a read port (the block's
+read-during-write modes exist for it), but neither tool does that for you, and
+the vendor tool has not been measured here.
+
+The logic is over budget too, by a fifth (10,508 LUT4 against 8,640), though that
+is the kind of margin a commercial synthesizer usually closes.
+
+Two smaller notes: nextpnr reports a **combinational loop** through the UART
+strobes (`uart_tx_we` and friends) and refuses to time the design — Verilator
+lints clean, so it is probably a mapping artifact, but it is unverified. And the
+run needs `--vopt family=GW1N-9`; without it nextpnr refuses the device.
+
+**The open question this leaves is a design one, not a tooling one**: how does the
+machine reach its memory with one read port? A fetch line buffer, a split
+instruction/data space, or accepting a stall per fetch — §11 lists it. Until it
+is answered, the D16MINI memory does not fit the 26 blocks it was sized for.
+
 ---
 
 ## 5. MMIO contract
@@ -377,10 +442,13 @@ into it; the plan takes the first:
 The generator emits the image in **both** formats from one set of words, so
 Verilator and the board see the same memory.
 
-**Done.** The array is `RAM_WORDS` words behind `` `ifdef D16MINI `` and its
-`initial` does `$readmemh("image.hex", mem)`. The
-explicit-primitive fallback stays the fallback; the `.mi` is emitted and waiting
-for the EDK, and the inference risk is unchanged (no toolchain here).
+**Done — and measured.** The array is `RAM_WORDS` words behind `` `ifdef D16MINI ``
+and its `initial` does `$readmemh("image.hex", mem)`. The open-source flow infers
+it as Gowin BSRAM blocks with the image in their `INIT_RAM_xx` parameters
+(§4.6), so the init is not the risk it was thought to be — the *port count* is.
+The explicit-primitive fallback stays the fallback, and the `.mi` is emitted and
+waiting for the EDK. Note also that the RAM read has to be unconditional for the
+inference to happen at all (§4.6).
 
 ### 6.2.1 The flash never sees a copy
 
@@ -712,7 +780,9 @@ the whole bring-up path minus the vendor tools.
 | Host local echo left on → doubled input | document host setup; initiation banner |
 | RX byte loss between polls | 128-byte RX FIFO; injection test 8 mirrors the existing FIFO-brake test |
 | BIOS far-jump / segment change breaks SWI | re-run the full forth suite; BIOS `.org` is one constant |
-| No Gowin toolchain here | synthesis/timing are Phase 4 unknowns, not assumptions |
+| **The memory needs more BSRAM blocks than the chip has** | **measured** in the open-source flow (§4.6): 2 read ports + 1 write → the flow duplicates, 52 blocks against 26. Fix by reaching memory with one read port (§11) |
+| **The logic is ~20 % over the LUT budget** | 10,508 LUT4 against 8,640 in the open flow (§4.6); a commercial synthesizer usually closes that margin — unverified |
+| No Gowin toolchain here | the open-source flow answers what it can (§4.6); vendor fit, timing and the licence are Phase 4 unknowns, not assumptions |
 | `.cst` UART pins / pin mode wrong | confirm against DS117 + Sipeed pinout before Phase 4 |
 
 ---
@@ -773,10 +843,21 @@ the end.
 
 ### The residue
 
-1. **Gowin synthesis** — infer the 26 BSRAM blocks with the init, close timing at
-   27 MHz, produce the `.fs`. Needs the toolchain (§10).
-2. **Confirm the pins** in `rtl/deep16_board.cst`.
-3. Optional: the **UART loader** (§6.6), so the kernel can change without a
+1. **The memory's port count (§4.6).** The design needs two reads and a write per
+   cycle; a Gowin BSRAM block has two ports, and the open-source flow duplicates
+   the memory for the second read — 52 blocks where 26 exist. Until the machine
+   reaches its memory with one read port (a fetch line buffer, a split
+   instruction/data space, or a stall per fetch), the D16MINI memory does not fit
+   the blocks it was sized for. **This is the one item that can still be answered
+   here.**
+2. **Gowin synthesis** — whether the vendor tool maps the memory better than
+   Yosys does (it has read-during-write modes the open flow did not use), closes
+   the ~20 % LUT overage, and closes timing at 27 MHz. Needs the toolchain and a
+   licence (§10).
+3. **Confirm the pins** in `rtl/deep16_board.cst`.
+4. **The reported combinational loop** (§4.6) — probably a mapping artifact, but
+   unverified.
+5. Optional: the **UART loader** (§6.6), so the kernel can change without a
    re-synthesis.
 
 ---

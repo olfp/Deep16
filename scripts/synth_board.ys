@@ -1,0 +1,20 @@
+# Yosys synthesis for the D16MINI board build (GW1NR-9 / Tang Nano 9K).
+#
+# Run from a directory that holds image.hex: $readmemh resolves against the
+# working directory (scripts/synth_board.sh arranges that). read_slang, not
+# read_verilog: the design is SystemVerilog with a package, which Yosys's own
+# frontend cannot parse.
+
+read_slang -D D16MINI \
+  ../../rtl/deep16_pkg.sv \
+  ../../rtl/deep16_alu.sv \
+  ../../rtl/deep16_regfile.sv \
+  ../../rtl/deep16_cache.sv \
+  ../../rtl/deep16_divider.sv \
+  ../../rtl/deep16_uart.sv \
+  ../../rtl/deep16_core.sv \
+  ../../rtl/deep16_top.sv \
+  ../../rtl/deep16_board.sv
+
+synth_gowin -top deep16_board -json ../../build/board.json
+stat
