@@ -19,7 +19,8 @@
     "sim:board": "bash scripts/build_board_sim.sh",
     "ui:shot": "node scripts/ui-shot.mjs",
     "synth:board": "bash scripts/synth_board.sh",
-    "synth:gowin": "bash scripts/build_gowin.sh"
+    "synth:gowin": "bash scripts/build_gowin.sh",
+    "flash": "bash scripts/flash_board.sh"
   },
   "devDependencies": {
     "puppeteer-core": "^25.14.0"
