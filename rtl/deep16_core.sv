@@ -1103,6 +1103,12 @@ module deep16_core
     mem_late       = mem_wb.valid && mem_wb.pc_from_port;
     pc_pending     = pc_from_port_ex || ex_mem.pc_from_port;
     if_redirect    = (redirect_ex && !pc_from_port_ex) || mem_late;
+    // The redirect target is deliberately *not* muxed into the address
+    // presented to memory. That mux was ctx_next_ex -> redirect_pc_ex ->
+    // if_addr -> BSRAM ADB, the 27 MHz critical path (§4.7). The target is
+    // registered into if_pc below, and the wrong-path word issued on the
+    // redirect cycle is dropped by the if_hit miss - one cycle per taken
+    // redirect, instead of a path that cannot meet 37 ns.
     if_pc_next     = if_redirect ? (mem_late ? mem_rdata : redirect_pc_ex)
                                   : (if_pc + 16'd1);
     // The word on the bus is the one asked for last cycle; if_hit says whether
@@ -1110,13 +1116,11 @@ module deep16_core
     // and if_preempted says a load took the read port and the word is not ours.
     if_hit         = (if_cs_q == if_cs) && (if_pc_q == if_pc) && !if_preempted;
     // Issue for the next cycle: hold while the pipeline is stalled or while a
-    // port redirect is still in flight, take a redirect target (even on a stale
-    // word), else advance - or re-issue the current address when the word was
-    // stale but the PC did not move.
+    // port redirect is still in flight, else advance - or re-issue the current
+    // address when the word was stale. Nothing EX produces is in this cone.
     if_next_pc     = (stall || div_stall) ? if_pc
                    : (pc_pending && !mem_late) ? if_pc
-                   : if_redirect          ? if_pc_next
-                   : if_hit               ? if_pc_next
+                   : if_hit               ? (if_pc + 16'd1)
                                           : if_pc;
     if_addr        = {if_cs, 4'h0} + {5'b00000, if_next_pc};
   end
@@ -1326,7 +1330,7 @@ module deep16_core
           // here would drop the target, so the redirect is applied regardless;
           // whatever is on the bus this cycle is wrong-path either way.
           if (if_redirect) begin
-            if_pc <= if_next_pc;
+            if_pc <= if_pc_next;
             if_id <= '0;
           end
         end else begin
@@ -1346,7 +1350,9 @@ module deep16_core
               // captured as usual.
               if (if_hit) if_id <= if_id_n;
               else        if_id <= '0;
-              if_pc        <= if_next_pc;
+              // A redirect target is registered here, not presented to the
+              // memory this cycle (see the if_pc_next note above).
+              if_pc        <= if_redirect ? if_pc_next : if_next_pc;
             end else begin
               // DIV is waiting in EX: it must not move on, and EX/MEM takes a
               // bubble so the instruction before it can retire.

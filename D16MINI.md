@@ -472,10 +472,36 @@ read, the execute result *and* the next fetch address all have to settle inside
 one 37 ns cycle, and they do not. **The same design closes timing cleanly at
 6.75 MHz** (27/4): with the clock constraint set to 148.148 ns the report shows
 *zero* violated endpoints and Fmax 9.532 MHz — so the analysis is sound and the
-gap is real, not a modelling artifact. Two ways out: run the CPU from a divided
-clock for bring-up (a `CLKDIV`, `CLK_HZ` to 6_750_000 — still 58 cycles per
-115200 baud bit), or add the address register stage the fetch path is missing
-(and absorb the extra cycle in IF).
+gap is real, not a modelling artifact.
+
+**The redirect target is out of the fetch address.** The first step of the
+pipelining work registers the EX redirect target into `if_pc` instead of muxing
+it into the address presented to memory; the wrong-path word issued on the
+redirect cycle is dropped by the `if_hit` miss, costing one cycle per taken
+redirect (the board sim goes 98,430 → 99,372 clocks, +1 %). Measured:
+Fmax **9.014 → 10.630 MHz**, worst path 34 → 30 levels, and the six native
+differential programs (fibonacci, far call, delay slot, SWI, string ops, a
+400k-step benchmark) still match the JS core exactly.
+
+**That is not enough, and the rest is an execute-stage problem.**
+The new critical path is `id_ex.valid` → `ra2` decode →
+`ctx_next_ex.spc` → `ra1` → register file → `ctx_next_ex.scs` → `if_cs` →
+`if_addr` adder → BSRAM ADB: EX's next-state cone is still in front of the
+address. Taking `if_cs` from the committed `ctx` instead of `ctx_next_ex` was
+tried and **breaks the boot** — the `if_hit` test cannot see a segment change
+that has not committed, so a wrong-segment word is accepted (the board sim prints
+nothing). The segment has to stay next-state. Reaching 27 MHz therefore needs the
+execute stage split: read the register operands in ID and register them into
+ID/EX, so EX starts from flip-flops instead of the register-file mux. That is a
+pipeline change on the scale of the original port, not a fetch tweak. Until it is
+done, the 6.75 MHz divided clock is the bring-up path.
+
+The committed RTL WASM package (`rtl/pkg/`) has **not** been rebuilt for the
+redirect change — Emscripten is not installed on this machine. `npm test` still
+passes because it loads the committed package, so it exercises the old netlist;
+run `npm run build:rtl:wasm` before trusting it for this change. The native
+Verilator harness (`npm run build:rtl` + `rtl/sim/main_native.cpp`) and
+`npm run sim:board` were rebuilt and are what the numbers above come from.
 
 **The second clock is an artifact.** The STA tool infers a second clock on
 `u_top/u_core/id_ex.valid` (TA1132, "determined to be a clock but was not
@@ -963,9 +989,11 @@ the end.
    fits (LUT 6,499/8,640) and the flow routes a bitstream, but the vendor tool's
    BSRAM granularity caps a 16-bit RAM at 24,576 words (24 blocks), so the window
    is now 24 blocks (BIOS `0x5700`, stacks `0x5800`). **Timing is the item left
-   open**: 9.0–9.5 MHz against 27 MHz, from the single-cycle
-   execute/address path; the design closes at 6.75 MHz. Fix is a divided clock
-   for bring-up or pipelining the path.
+   open**: 10.630 MHz against 27 MHz after the redirect-target change. The
+   remaining cone is EX's next-state (register file → shadow segment) in front of
+   the BSRAM address; closing it means reading the operands in ID and registering
+   them into ID/EX. Until then, run at 6.75 MHz (a `CLKDIV` and `CLK_HZ` =
+   6_750_000).
 2. **Confirm the pins** in `rtl/deep16_board.cst`.
 3. **The reported combinational loop** (§4.6) — probably a mapping artifact, but
    unverified.
