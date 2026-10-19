@@ -47,8 +47,10 @@
 ; D16MINI.md §2 and §4.7.
 .ifdef CONSOLE_UART
 .equ RSTACK_TOP 0x5800   ; Forth return stack top (grows down), below the BIOS
+.equ DICT_LIMIT 0x5600   ; the dictionary ceiling: the BIOS begins here
 .else
 .equ RSTACK_TOP 0x6F00   ; Forth return stack top (grows down)
+.equ DICT_LIMIT 0x4000   ; the screen build's ceiling, as it always was
 .endif
 
 ; =============================================
@@ -306,11 +308,25 @@ after_print_text:
     MOV >IN, R0
     LDI 0
     MOV R11, R0
+.ifdef CONSOLE_UART
+    ; With a boot script in the image the prompt comes from read_line once the
+    ; script has run: a script line prints no prompt of its own (the echo is
+    ; off for those), so standing one here would leave a prompt with nothing
+    ; after it.
+    LDI boot_ptr
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI 0
+    CMP R2, R0
+    JNZ forth_read
+    NOP
+.endif
     LDI print_prompt
     MOV R2, R0
     LINK
     JMP R2
     NOP
+forth_read:
     LDI read_line
     MOV PC, R0
     NOP
@@ -1023,6 +1039,19 @@ sp_top:
 ; 80 is `form`'s nominal width (D16MINI.md C3).
 out_col:
     .word 0
+; The ANSI state the column counter keeps: 0 idle, 1 saw ESC, 2 inside a CSI.
+; uart_tx charges no columns while it is non-zero (D16MINI.md §5).
+out_esc:
+    .word 0
+; The boot script cursor and its one-shot flag. They live down here with the
+; other console cells because they are reached with `LDI`, whose immediate is
+; 15 bits and signed: a cell above 0x4000 would sign-extend and point at the
+; wrong place (the blob itself is above 0x4000, which is why only its address
+; is stored, never loaded as an immediate).
+boot_ptr:
+    .word boot_script
+boot_done:
+    .word 0
 .endif
 hello_msg:
     .text "Hello DeepForth!"
@@ -1373,6 +1402,11 @@ h_minus:
 ; links into the vocabulary chain below and forth_wl names the newest.
 ;
 ; scr@ and scr! are newer still, and sit above them for the same reason.
+h_keyq:
+    .word h_cls
+    .word 4
+    .text "key?"
+    .word word_keyq
 h_cls:
     .word h_bl
     .word 3
@@ -2357,7 +2391,7 @@ h_fetch:
 ; --- wordlists: a vocabulary is identified by the address of its head cell,
 ; --- which chains its definitions newest-first and ends in 0.
 forth_wl:
-    .word h_cls               ; newest built-in header in the FORTH vocabulary
+    .word h_keyq              ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
     .word forth_wl
     .word 0, 0, 0, 0, 0, 0, 0
@@ -2680,6 +2714,105 @@ see_str_0branch:
 ; cell rather than an immediate because `LDI` reads its fifteen bits as signed:
 ; 0x6F00 has bit 14 set, so loading it would sign-extend to 0xEF00 and any
 ; comparison against it would answer the opposite of the truth.
+.ifdef CONSOLE_UART
+; ---- the boot script --------------------------------------------------------
+; Forth source, baked into the image and read by read_line before the keyboard
+; on every boot: it defines `demo`, `free` and `mem`, and prints the memory
+; summary under the banner. The text between the markers is GENERATED from
+; forth/demo.fth by scripts/embed_forth.mjs - edit that file, not this block
+; (`node scripts/embed_forth.mjs`, and tests/forth.test.js fails if they drift).
+; One `.text` per source line: each emits the characters (one cell each) and a
+; NUL, which is what read_line walks.
+boot_script:
+; >>> generated from forth/demo.fth - do not edit here <<<
+    .text " 256 constant kernel-base    \\ 0x0100: forth_start, where the kernel is laid"
+    .text "22016 constant dict-limit    \\ 0x5600: the BIOS begins, so the dictionary ends"
+    .text "24576 constant window-words  \\ 0x6000: the whole BSRAM window, 48 KiB"
+    .text ": free ( -- u )     dict-limit here - ;"
+    .text ": .addr ( u -- )    hex 0 u.r decimal ;"
+    .text ": .bar ( u n -- )   \\ n cells: u of them hashes, the rest dashes"
+    .text "  2dup min dup 0 ?do 35 emit loop"
+    .text "  - 0 max 0 ?do 45 emit loop drop ;"
+    .text ": mem ( -- )"
+    .text "  cr .\" D16MINI memory map\" cr"
+    .text "  .\"   window   0000-5FFF   24576 words, 48 KiB BSRAM\" cr"
+    .text "  .\"   image    0100-\" here 1- .addr .\"     \" here kernel-base - . .\" words\" cr"
+    .text "  .\"            (kernel, data and the baked demo source)\" cr"
+    .text "  .\"   free     \" here .addr .\" -55FF     \" free . .\" words\" cr"
+    .text "  .\"   BIOS     5600-57FF   reserved for the UART console\" cr"
+    .text "  .\"   stacks   5800-5FFF   2048 words (RP 5800 up, SP 5FF0 down)\" cr"
+    .text "  .\"   UART F0040-F004F      boot ROM FFFF0-FFFFF (16 words)\" cr"
+    .text "  cr"
+    .text "  .\" [\" here 1024 / 24 .bar .\" ] \" here 1024 / 100 * 24 / . .\" % used, \""
+    .text "  free . .\" free\" cr ;"
+    .text ": boot.msg ( -- )"
+    .text "  .\" D16MINI  \" window-words . .\" words of BSRAM, \" free . .\" free\" cr ;"
+    .text "40 constant stars"
+    .text "200 constant z-near"
+    .text "  3400 constant z-far"
+    .text "create sx stars cells allot"
+    .text "create sy stars cells allot"
+    .text "create sz stars cells allot"
+    .text "create px stars cells allot     \\ last drawn column, 0 when nothing is drawn"
+    .text "create py stars cells allot"
+    .text "variable seed drop"
+    .text "variable ci drop                     \\ the star in hand"
+    .text "variable cx drop                     \\ its projected column"
+    .text "variable cy drop                     \\ its projected row"
+    .text ": rnd ( -- x )       seed @ 25173 * 13849 + dup seed ! ;"
+    .text ": rnd% ( n -- x )    rnd 32767 and swap mod ;"
+    .text ": esc ( -- )         27 emit ;"
+    .text ": .d ( n -- )      dup 10 < if 48 + emit exit then"
+    .text "                   10 /mod recurse 48 + emit ;"
+    .text ": at ( row col -- )  esc 91 emit swap .d 59 emit .d 72 emit ;"
+    .text ": reset-star ( i -- )"
+    .text "  ci !"
+    .text "  1600 rnd% 800 -  sx ci @ cells + !"
+    .text "  1200 rnd% 600 -  sy ci @ cells + !"
+    .text "  3200 rnd% z-near + sz ci @ cells + !"
+    .text "  0 px ci @ cells + !  0 py ci @ cells + ! ;"
+    .text ": init ( -- )        12345 seed !  stars 0 do i reset-star loop ;"
+    .text ": erase-star ( i -- )"
+    .text "  ci !"
+    .text "  px ci @ cells + @ ?dup if"
+    .text "    py ci @ cells + @ swap at 32 emit"
+    .text "  then"
+    .text "  0 px ci @ cells + !  0 py ci @ cells + ! ;"
+    .text ": project ( i -- )"
+    .text "  ci !"
+    .text "  sx ci @ cells + @ 40 * sz ci @ cells + @ / 40 + cx !"
+    .text "  sy ci @ cells + @ 20 * sz ci @ cells + @ / 12 + cy ! ;"
+    .text ": glyph ( -- c )"
+    .text "  ci @ sz cells + @ 700 < if 35 exit then"
+    .text "  ci @ sz cells + @ 1400 < if 42 exit then"
+    .text "  ci @ sz cells + @ 2400 < if 58 exit then"
+    .text "  46 ;"
+    .text ": draw ( i -- )"
+    .text "  dup erase-star"
+    .text "  project"
+    .text "  cx @ 1 80 within cy @ 1 25 within and if"
+    .text "    cy @ cx @ at glyph emit"
+    .text "    cx @ px ci @ cells + !  cy @ py ci @ cells + !"
+    .text "  then ;"
+    .text ": frame ( -- )"
+    .text "  stars 0 do"
+    .text "    i sz cells + @ z-near - dup 0< if drop i reset-star"
+    .text "    else sz i cells + ! then"
+    .text "    i draw"
+    .text "  loop ;"
+    .text ": demo ( -- )"
+    .text "  esc 91 emit 63 emit 49 emit 48 emit 52 emit 57 emit 104 emit   \\ ESC[?1049h"
+    .text "  cls"
+    .text "  init"
+    .text "  begin frame key? until"
+    .text "  key drop"
+    .text "  esc 91 emit 48 emit 109 emit                                   \\ ESC[0m"
+    .text "  esc 91 emit 63 emit 49 emit 48 emit 52 emit 57 emit 108 emit   \\ ESC[?1049l"
+    .text "  cr ;"
+    .text "boot.msg"
+; <<< end generated >>>
+    .text ""              ; the empty line that ends the script
+.endif
 rp0_base:
     .word RSTACK_TOP
 dict_free:               ; colon definitions are built upwards from here
@@ -3120,6 +3253,30 @@ word_key:
     MOV PC, R0
     NOP
 
+word_keyq:
+    ; key? ( -- flag )  is a byte waiting on the console? The UART status word
+    ; (D16MINI.md §5) has RX-ready in bit 0, and the kernel keeps ES = 0xF000
+    ; from forth_start, so this is one LDS and a test. `key` blocks; this is
+    ; what a program polls to stay interruptible - the starfield demo uses it
+    ; to stop on any key.
+    SUB SP, 1               ; the slot cmp_true/cmp_false write their answer to
+    LDI 0x0040
+    MOV R2, R0
+    LDS R1, ES, R2
+    LDI 1
+    AND R1, R0
+    LDI 0
+    CMP R1, R0
+    JZ keyq_none
+    NOP
+    LDI cmp_true
+    MOV PC, R0
+    NOP
+keyq_none:
+    LDI cmp_false
+    MOV PC, R0
+    NOP
+
 read_line:
     ; The REPL's own reader, behind the prompt: BIOS getstr fills TIB (whether it
     ; echoes the characters on the way in is the echo_flag cell, not a fixed
@@ -3135,6 +3292,84 @@ read_line:
     MOV R2, R0
     LDI 0
     ST R0, R2, 0
+.ifdef CONSOLE_UART
+    ; ---- the boot script --------------------------------------------------
+    ; The demo source is baked into the image (forth/demo.fth, through
+    ; scripts/embed_forth.mjs) and is read here, once, before the keyboard: its
+    ; lines are handed to the interpreter with the echo off, so the REPL prints
+    ; neither a prompt nor an " ok" for them. It defines `demo`, `free` and
+    ; `mem`, and prints the memory summary. When it runs out, rl_kbd puts the
+    ; echo back and stands the prompt the script's lines never reached.
+    LDI boot_ptr
+    MOV R2, R0
+    LD R3, R2, 0            ; the next line's address
+    LDI 0
+    CMP R3, R0
+    JNZ rl_first            ; a script is there
+    NOP
+    LDI boot_done           ; no script: the prompt forth_start stood is the one
+    MOV R3, R0              ; the user should see, so do not stand another
+    LDI 1
+    ST R0, R3, 0
+    LDI rl_kbd
+    MOV PC, R0
+    NOP
+rl_first:
+    LD R1, R3, 0            ; its first character (one cell per character)
+    LDI 0
+    CMP R1, R0
+    JZ rl_kbd               ; the empty line after the last one ends the script
+    NOP
+    MOV R4, R3              ; walk to this line's NUL
+rl_scan:
+    LD R1, R4, 0
+    LDI 0
+    CMP R1, R0
+    JZ rl_scanned
+    NOP
+    ADD R4, 1
+    LDI rl_scan
+    MOV PC, R0
+    NOP
+rl_scanned:
+    ADD R4, 1
+    ST R4, R2, 0            ; the cursor is the line after this one
+    MOV TIB, R3
+    LDI 0
+    MOV >IN, R0
+    LDI 0
+    MOV R1, R0
+    LDI ECHO_FLAG
+    MOV R7, R0
+    STS R1, ES, R7          ; a script line is not typed, so nothing of the
+    LDI interpret_loop      ; REPL's line chatter belongs to it
+    MOV PC, R0
+    NOP
+rl_kbd:
+    ; The script is done, or there never was one. Put the echo back, and - once
+    ; - stand the prompt: whatever the user typed last was answered by ok_after
+    ; with the echo off, which prints no prompt at all.
+    LDI boot_done
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI 0
+    CMP R3, R0
+    JNZ rl_read
+    NOP
+    LDI 1
+    ST R0, R2, 0
+    LDI 1
+    MOV R1, R0
+    LDI ECHO_FLAG
+    MOV R7, R0
+    STS R1, ES, R7
+    LDI print_prompt
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+rl_read:
+.endif
     LDI tib_kbd
     MOV TIB, R0
     MOV R1, TIB          ; BIOS getstr: the buffer is the parameter
@@ -6805,9 +7040,14 @@ word_pad:                   ; pad ( -- addr )  the transient scratch region
     MOV PC, R0
     NOP
 
-word_unused:                ; unused ( -- u )  dictionary cells left below 0x4000
-    LDI 0x2000              ; 0x4000 has bit 14 set, so LDI cannot hold it;
-    SL R0, 1                ; 0x2000 shifted left once is 0x4000
+word_unused:                ; unused ( -- u )  dictionary cells left below the BIOS
+.ifdef CONSOLE_UART
+    LDI 0x2B00              ; DICT_LIMIT 0x5600, halved: the value has bit 14
+    SL R0, 1                ; set, so LDI cannot hold it (it would sign-extend)
+.else
+    LDI 0x2000              ; DICT_LIMIT 0x4000, halved for the same reason
+    SL R0, 1
+.endif
     MOV R1, R0
     LDI dp_var
     MOV R2, R0
@@ -12597,11 +12837,74 @@ uart_tx_wait:
     LDI 0x0042
     MOV R3, R0
     STS R1, ES, R3
+    ; ---- ANSI escapes are not columns ------------------------------------
+    ; The counter is meant to model what the terminal shows, and a cursor
+    ; address (ESC[r;cH) shows nothing: counting its bytes would push the
+    ; column past the edge mid-sequence and the hard wrap below would fire in
+    ; the middle of a cursor-addressed screen. So a sequence is tracked with a
+    ; three-way state (0 idle, 1 saw ESC, 2 inside a CSI) and none of its bytes
+    ; count. Entering a sequence also resets the column, because where the
+    ; cursor lands is not knowable here - resetting can only under-count, and
+    ; under-counting never wraps early.
+    LDI out_esc
+    MOV R7, R0
+    LD R9, R7, 0            ; R9 = escape state
+    LDI 0
+    CMP R9, R0
+    JZ utx_esc_start        ; idle: this byte may be the ESC that opens one
+    NOP
+    LDI 1
+    CMP R9, R0
+    JNZ utx_esc_csi         ; state 2: inside the parameters
+    NOP
+    ; state 1: the byte after ESC. '[' opens a CSI, anything else ends it.
+    LDI 0x005B
+    CMP R1, R0
+    JZ utx_esc_open
+    NOP
+    LDI 0
+    MOV R9, R0
+    LDI utx_esc_put - BIOS_BASE
+    MOV PC, R0
+    NOP
+utx_esc_open:
+    LDI 2
+    MOV R9, R0
+    LDI utx_esc_put - BIOS_BASE
+    MOV PC, R0
+    NOP
+utx_esc_csi:
+    LDI 0x0040              ; parameters are 0x20-0x3F; 0x40-0x7E is the final
+    AND R1, R0
+    JZ utx_esc_put          ; bit 6 clear: still a parameter
+    NOP
+    LDI 0
+    MOV R9, R0              ; the final byte: the sequence is over
+utx_esc_put:
+    ST R9, R7, 0
+    JMP LR
+    NOP
+utx_esc_start:
+    LDI 27
+    CMP R1, R0
+    JNZ utx_col_begin       ; an ordinary byte: count it
+    NOP
+    LDI 1
+    MOV R9, R0
+    ST R9, R7, 0            ; ESC: remember it, and forget the column
+    LDI out_col
+    MOV R7, R0
+    LDI 0
+    ST R0, R7, 0
+    JMP LR
+    NOP
     ; ---- output column (wrap_if reads it) --------------------------------
-    ; Every console byte goes through here - putch, putstr and the getstr echo
-    ; - so this is the one place the column needs counting. R1 still holds the
-    ; character; R0, R3, R7 and R10 are this routine's scratch (R2 stays live in
-    ; putstr's loop, R11/R12 in getstr's).
+    ; Every console byte that is not part of an escape gets here - putch,
+    ; putstr and the getstr echo all pass through uart_tx - so this is the one
+    ; place the column needs counting. R1 still holds the character; R0, R3, R7,
+    ; R9 and R10 are this routine's scratch (R2 stays live in putstr's loop,
+    ; R11/R12 in getstr's).
+utx_col_begin:
     LDI out_col
     MOV R7, R0
     LD R3, R7, 0            ; R3 = column

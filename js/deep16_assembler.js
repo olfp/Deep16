@@ -38,14 +38,14 @@ class Deep16Assembler {
                     currentSegment = 'code';
                 } else if (line.startsWith('.data')) {
                     currentSegment = 'data';
-                } else if (line.split(';')[0].trim().endsWith(':')) {
-                    const label = line.split(';')[0].trim().slice(0, -1).trim();
+                } else if (this.stripComment(line).trim().endsWith(':')) {
+                    const label = this.stripComment(line).trim().slice(0, -1).trim();
                     this.labels[label] = address;
                     this.symbols[label] = address;
                     segmentMap.set(address, currentSegment);
                     if (window.Deep16Debug) console.log(`LABEL: ${label} at 0x${address.toString(16)}`);
                 } else if (line.startsWith('.word')) {
-                    const cleanLine = line.split(';')[0].trim();
+                    const cleanLine = this.stripComment(line).trim();
                     const tokens = cleanLine.substring(5).trim().split(',').map(v => v.trim()).filter(v => v);
                     for (const tok of tokens) {
                         const m = tok.match(/^(.+)\*(\d+)$/);
@@ -57,7 +57,7 @@ class Deep16Assembler {
                         }
                     }
                 } else if (line.startsWith('.text')) {
-                    const cleanLine = line.split(';')[0].trim();
+                    const cleanLine = this.stripComment(line).trim();
                     const textContent = cleanLine.substring(5).trim();
                     const stringValue = this.parseStringLiteral(textContent);
                     for (let j = 0; j < stringValue.length; j++) {
@@ -68,7 +68,7 @@ class Deep16Assembler {
                     segmentMap.set(address, 'data');
                     address++;
                 } else if (line.startsWith('.string')) {
-                    const cleanLine = line.split(';')[0].trim();
+                    const cleanLine = this.stripComment(line).trim();
                     const textContent = cleanLine.substring(7).trim();
                     const stringValue = this.parseStringLiteral(textContent);
                     const words = Math.ceil(stringValue.length / 2);
@@ -79,7 +79,7 @@ class Deep16Assembler {
                     segmentMap.set(address, 'data');
                     address++;
                 } else if (line.startsWith('.equ')) {
-                    const cleanLine = line.split(';')[0].trim();
+                    const cleanLine = this.stripComment(line).trim();
                     const rest = cleanLine.substring(4).trim();
                     // The value is everything after the name, so that
                     // ".equ D, f0 - f1" keeps the whole expression. Splitting on
@@ -134,10 +134,10 @@ class Deep16Assembler {
                 } else if (lineLower.startsWith('.data')) {
                     currentSegment = 'data';
                     assemblyListing.push({ line: originalLine, segment: currentSegment });
-                } else if (line.split(';')[0].trim().endsWith(':')) {
+                } else if (this.stripComment(line).trim().endsWith(':')) {
                     assemblyListing.push({ address: address, line: originalLine, segment: currentSegment });
                 } else if (lineLower.startsWith('.word')) {
-                    const cleanLine = line.split(';')[0].trim();
+                    const cleanLine = this.stripComment(line).trim();
                     const tokens = cleanLine.substring(5).trim().split(',').map(v => v.trim()).filter(v => v);
                     let total = 0;
                     for (const tok of tokens) {
@@ -160,7 +160,7 @@ class Deep16Assembler {
                     }
                     if (window.Deep16Debug) console.log(`DATA (pass2): ${total} words at 0x${address.toString(16)}`);
                 } else if (lineLower.startsWith('.text')) {
-                    const cleanLine = line.split(';')[0].trim();
+                    const cleanLine = this.stripComment(line).trim();
                     const textContent = cleanLine.substring(5).trim();
                     const stringValue = this.parseStringLiteral(textContent);
                     if (window.Deep16Debug) console.log(`TEXT (pass2): "${stringValue}" at 0x${address.toString(16)}`);
@@ -185,7 +185,7 @@ class Deep16Assembler {
                     });
                     address++;
                 } else if (lineLower.startsWith('.string')) {
-                    const cleanLine = line.split(';')[0].trim();
+                    const cleanLine = this.stripComment(line).trim();
                     const textContent = cleanLine.substring(7).trim();
                     const stringValue = this.parseStringLiteral(textContent);
                     if (window.Deep16Debug) console.log(`STRING (pass2): "${stringValue}" at 0x${address.toString(16)}`);
@@ -211,7 +211,7 @@ class Deep16Assembler {
                     });
                     address++;
                 } else if (lineLower.startsWith('.equ')) {
-                    const cleanLine = line.split(';')[0].trim();
+                    const cleanLine = this.stripComment(line).trim();
                     const rest = cleanLine.substring(4).trim();
                     const eq = rest.match(/^([^\s,]+)[\s,]+(\S[\s\S]*)$/);
                     if (eq) {
@@ -250,7 +250,7 @@ class Deep16Assembler {
                     segment: currentSegment
                 });
                 // Still advance address to maintain alignment
-                if (!line.startsWith('.') && !line.split(';')[0].trim().endsWith(':')) {
+                if (!line.startsWith('.') && !this.stripComment(line).trim().endsWith(':')) {
                     address++;
                 }
             }
@@ -362,18 +362,40 @@ class Deep16Assembler {
         throw new Error(`Invalid register: ${reg}`);
     }
 
+
+    // `;` starts a comment, but not inside a string literal: `.text ";"` is the
+    // word name, not a comment (which is how the semicolon header had to be
+    // written before this existed). Walk the line, honouring \" and \\.
+    stripComment(text) {
+        let inString = false;
+        for (let i = 0; i < text.length; i++) {
+            const c = text[i];
+            if (inString) {
+                if (c === '\\') i++;
+                else if (c === '"') inString = false;
+            } else if (c === '"') {
+                inString = true;
+            } else if (c === ';') {
+                return text.slice(0, i);
+            }
+        }
+        return text;
+    }
+
     parseStringLiteral(text) {
         const trimmed = text.trim();
         if (!trimmed.startsWith('"')) {
             throw new Error('String literal must be enclosed in double quotes');
         }
 
+        // Walk the escapes rather than looking at the previous character:
+        // `\\` is an escaped backslash, so a quote behind it still closes the
+        // string (`.text "\\"` is one backslash, which the boot script's
+        // comment lines are made of).
         let endIdx = -1;
         for (let i = 1; i < trimmed.length; i++) {
-            if (trimmed[i] === '"' && trimmed[i - 1] !== '\\') {
-                endIdx = i;
-                break;
-            }
+            if (trimmed[i] === '\\') { i++; continue; }
+            if (trimmed[i] === '"') { endIdx = i; break; }
         }
         if (endIdx === -1) {
             throw new Error('String literal must be enclosed in double quotes');
@@ -652,7 +674,7 @@ class Deep16Assembler {
     }
 
     encodeInstruction(line, address, lineNumber) {
-        const cleanLine = line.split(';')[0].trim();
+        const cleanLine = this.stripComment(line).trim();
         if (!cleanLine) return null;
 
         // Operands are comma-separated, so split on commas and let each chunk
@@ -1365,7 +1387,7 @@ class Deep16Assembler {
     }
 
     encodeLWIFromLine(line, address, lineNumber) {
-        const cleaned = line.split(';')[0].trim();
+        const cleaned = this.stripComment(line).trim();
         const rest = cleaned.replace(/^LWI\s+/i, '').replace(/,$/, '').trim();
         if (!rest) {
             throw new Error('LWI requires a 16-bit value');
@@ -1404,7 +1426,7 @@ class Deep16Assembler {
     }
 
     encodeLDIFromLine(line, address, lineNumber) {
-        const cleaned = line.split(';')[0].trim();
+        const cleaned = this.stripComment(line).trim();
         const rest = cleaned.replace(/^LDI\s+/i, '').replace(/,$/, '').trim();
         if (!rest) {
             throw new Error('LDI requires immediate value');

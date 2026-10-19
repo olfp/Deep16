@@ -112,10 +112,11 @@ machine**: the whole RAM window fits inside a single 32 K-word (15-bit) address.
 
 | Item | Extent | Words |
 |---|---|---:|
-| Kernel image `forth_start`…`dict_free` (`0x0100–0x3BA7`) | 13,1xx-line source | **15,016** |
-| `dict_free` (new definitions grow up from here) | `0x3BA8` | — |
-| Headroom `dict_free` → BIOS (`0x5600`) | `0x3BA8–0x55FF` | **6,744** |
-| BIOS (UART build, relocated) | `0x5600`, 272 words | §3 |
+| Kernel image `forth_start`…`dict_free` (`0x0100–0x481D`) | 13,1xx-line source + `forth/demo.fth` | **18,206** |
+| `dict_free` (new definitions grow up from here) | `0x481E` | — |
+| Free `dict_free` → BIOS (`0x5600`) | `0x481E–0x55FF` | **3,554** |
+| …of which the boot script's own definitions take | at boot, HERE ends at `0x4DBB` | 1,437 |
+| BIOS (UART build, relocated) | `0x5600`, 319 words | §3 |
 | Screen buffer | `0xF1000`, 2000 words | **deleted** |
 
 The image grows a little with every Tier-3 word added (it was `0x3A62` three
@@ -140,9 +141,11 @@ a single `pa < RAM_WORDS` test and no high-address ROM decode.
 
 ```
 0x00000 - 0x05FFF   RAM       24 BSRAM blocks (24,576 words)
-   0x00100 - 0x03BA7   kernel image (code + data + built-in words)
-   0x03BA8 - 0x056FF   user dictionary  (grows up, ~7.0 K words)
-   0x05600 - 0x0570F   BIOS (272 words, UART build; segment 0x0560)
+   0x00100 - 0x0481D   kernel image (code, data and the baked demo source)
+   0x0481E - 0x055FF   free: the dictionary, and room for the boot script's
+                       own definitions (it compiles to ~1.4 K words at boot)
+   0x05600 - 0x057FF   BIOS region (319 words used, UART build;
+                       segment 0x0560)
    0x05800 - 0x05FFF   stacks          (return 0x5800↑, data 0x5FF0↓)
 0x0F0000 - 0x0F006F   MMIO       UART (the kernel's echo cell at 0xF0064
                                  is not backed: §6.4)
@@ -306,7 +309,14 @@ point for console bytes, whether they come from `putch`, `putstr` or the getstr
 echo — maintains `out_col`, zero on CR/LF, one less on BS, and one more otherwise.
 At the 80th column it emits **CR+LF itself** (a wrapping CR, then the LF it owes)
 and returns the column to 0, so a line never exceeds 80 columns even if the
-terminal is wider than the machine or does not autowrap. `wrap_if` reads the same
+terminal is wider than the machine or does not autowrap.
+
+ANSI sequences are **not** columns. The same routine keeps a three-way state
+(`out_esc`: idle / after ESC / inside a CSI) and charges nothing for the bytes of
+a sequence; entering one resets the column, because where the cursor lands is not
+knowable there and under-counting never wraps early. Without that, the ~9-byte
+cursor address a graphical demo writes per cell would trip the hard wrap every
+nine cells and scroll the canvas. `wrap_if` reads the same
 cell in the `CONSOLE_UART` build (the screen build still asks `SCR`) and breaks
 `words`/`see` at a space *before* that hard edge, so the terminal never splits a
 name. `tests/console-parity.test.js` pins both: the list's breaks fall on spaces,
@@ -473,8 +483,9 @@ lets the flow reach routing. The UART pair and the clock (banks 2 and 1) keep
 **The window has been shrunk to match.** `RAM_WORDS` is 24,576, the BIOS moved to
 `0x5600` (segment `0x0560`), the stacks to `0x5800` / data stack top `0x5FF0`, and
 `WINDOW` / `BIOS_BASE` / `STACK_BASE` in `scripts/make_image.mjs` with them (§3).
-The image is 48 KiB with `dict_free` at `0x3BA8`, so the dictionary keeps
-7,000 words. Re-measured on that design: LUT 6,499/8,640 (82 %), registers
+The image is 48 KiB with `dict_free` at `0x481E`, so the dictionary keeps
+3,554 words before the boot script compiles itself (2,117 after). Re-measured on
+that design: LUT 6,499/8,640 (82 %), registers
 2,695/6,693, BSRAM 24/26, SSRAM 8, CLS 4,095/4,320, DSP 0.5 — synthesised with
 default options, placed, routed and turned into a bitstream with no attribute
 help at all.
@@ -547,9 +558,9 @@ id_ex.valid (artifact) 50.000 MHz       3 endpoints only (see above)
 
 The design closes with ~49 % margin, and `npm run synth:gowin` emits
 **`fpga/gowin/impl/pnr/deep16_board.fs`** (3.5 MB, LUT 6,424/8,640, BSRAM 24/26,
-CLS 4,058/4,320). The boot image is in the bitstream: 688 of the 1,476
-`INIT_RAM_xx` parameters on the BSRAM instances are kernel content, the rest the
-`0xFFFF` fill. The Verilator board sim passes at the divided clock (132,508
+CLS 4,058/4,320). The boot image is in the bitstream: 800 of the 1,476
+`INIT_RAM_xx` parameters on the BSRAM instances are kernel content (the demo
+source included), the rest the `0xFFFF` fill. The Verilator board sim passes at the divided clock (132,508
 clocks; the testbench's bit time is 236 pin clocks = 59 × 4, and its receiver now
 arms on an idle line so the UART's un-clocked reset value is not taken for a
 start bit).
@@ -911,6 +922,39 @@ This is what makes the design buildable **now**, before a board.
   feeds the keyboard FIFO in the screen build. The 128-entry RX FIFO is the same
   depth, so the pump's flow control still applies.
 - `sim.enqueueKeyCode` (the IDE keyboard) also maps to UART RX.
+
+### 7.9 The boot script, `free`, `mem` and `demo`
+
+The image carries a **Forth boot script**. `forth/demo.fth` is the source;
+`scripts/embed_forth.mjs` bakes it into `asm/forth.asm` between two markers, one
+`.text` line per source line, and `tests/boot-script.test.js` runs the generator
+with `--check` so the two cannot drift. `read_line` serves those lines to the
+interpreter before the keyboard on every boot, with the echo off: a script line
+prints no prompt and no ` ok`, and the REPL stands its prompt once when the
+script runs out. Compiling it costs about **1.1 M instructions** — 0.16 s at
+6.75 MHz, invisible next to the UART coming up.
+
+It defines three words:
+
+| word | effect |
+|---|---|
+| `free ( -- u )` | dictionary cells left below the BIOS (`0x5600 - HERE`); 2,117 at boot |
+| `mem ( -- )` | the memory map, with an ASCII usage bar over the window |
+| `demo ( -- )` | the starfield: forty stars flying out of the middle of an 80×24 terminal |
+
+`key? ( -- flag )` is a kernel word rather than a script one — it has to read the
+UART status at `ES:0x0040` — and is what lets `demo` stop on any key instead of
+running for a fixed time.
+
+The starfield is integer-only: a 16-bit LCG feeds `rnd`, `x*40/z` and `y*20/z`
+project the star (the ranges keep the product inside a cell, so no `*/`), and
+each frame erases the old cell and draws the new one with a cursor address. Its
+glyph is chosen by depth (`.` `:` `*` `#`). It runs in the alternate screen
+buffer and restores it on exit. The machine keeps its canvas inside columns 1–79
+— column 80 is where the hard wrap lives — and the BIOS's escape-aware column
+counter is what makes cursor addressing safe at all. `tests/boot-script.test.js`
+pins the invariants: every cursor address on screen, no CR+LF during the run, and
+a clean exit on a key.
 
 ### 7.8 The rejected alternative (kept for the record)
 

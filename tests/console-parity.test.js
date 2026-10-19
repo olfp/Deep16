@@ -24,12 +24,20 @@ const uart = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8
 
 const rowsOf = (term) => term.text().map((r) => r.replace(/\s+$/, ''));
 
+// These tests are about the console, not the boot script: the image now carries
+// forth/demo.fth (read_line interprets it before the keyboard) and compiling it
+// costs ~1M steps, which would dominate the suite. Zeroing `boot_ptr` boots
+// straight to the REPL, exactly as the kernel did before the script existed.
+// tests/boot-script.test.js is where the script itself is exercised.
+const bootPtr = uart.symbols.boot_ptr;
+
 // Boot the kernel, type `input` into the UART RX, and read the terminal grid
 // and the raw TX byte stream back. The step caps differ only in cost: the RTL
 // needs several clocks per instruction, the behavioural cores one step each.
-function bootJs(input, maxSteps = 40000) {
+function bootJs(input, maxSteps = 40000, script = false) {
   const sim = new globalThis.Deep16Simulator();
   sim.loadProgram(buildMemory(uart));
+  if (!script) sim.memory[bootPtr] = 0;
   sim.segmentRegisters.CS = 0xFFFF;
   for (const ch of input) sim.uartRxPush(ch === '\n' ? 13 : ch.charCodeAt(0));
   const term = new SerialTerminal();
@@ -47,12 +55,13 @@ function bootJs(input, maxSteps = 40000) {
   return { rows: rowsOf(term), stream };
 }
 
-async function bootWasm(input, maxSteps = 40000) {
+async function bootWasm(input, maxSteps = 40000, script = false) {
   const w = await loadWasm();
   w.init(MEM_WORDS);
   for (const c of uart.memoryChanges) {
     w.load_program(c.address, new Uint16Array([c.value & 0xFFFF]));
   }
+  if (!script) w.load_program(bootPtr, new Uint16Array([0]));
   w.set_segments(0xFFFF, 0, 0, 0);
   for (const ch of input) w.uart_rx_push(ch === '\n' ? 13 : ch.charCodeAt(0));
   const term = new SerialTerminal();
@@ -66,12 +75,13 @@ async function bootWasm(input, maxSteps = 40000) {
   return { rows: rowsOf(term), stream };
 }
 
-async function bootRtl(input, maxSteps = 60000) {
+async function bootRtl(input, maxSteps = 60000, script = false) {
   const r = await loadRtl();
   r.init(MEM_WORDS);
   for (const c of uart.memoryChanges) {
     r.load_program(c.address, new Uint16Array([c.value & 0xFFFF]));
   }
+  if (!script) r.load_program(bootPtr, new Uint16Array([0]));
   r.set_segments(0xFFFF, 0, 0, 0);
   for (const ch of input) r.uart_rx_push(ch === '\n' ? 13 : ch.charCodeAt(0));
   const term = new SerialTerminal();

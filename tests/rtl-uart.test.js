@@ -21,6 +21,7 @@ async function boot(input, maxSteps = 60000) {
   const r = await loadRtl();
   r.init(1048576);
   for (const c of uart.memoryChanges) r.load_program(c.address, new Uint16Array([c.value & 0xFFFF]));
+  r.load_program(uart.symbols.boot_ptr, new Uint16Array([0]));   // no demo script
   r.set_segments(0xFFFF, 0x0000, 0x0000, 0x0000);
   for (const ch of input) r.uart_rx_push(ch === '\n' ? 13 : ch.charCodeAt(0));
   const term = new SerialTerminal();
@@ -54,6 +55,7 @@ test('the serial kernel prints in free-run, the mode the board uses', async () =
   const r = await loadRtl();
   r.init(1048576);
   for (const c of uart.memoryChanges) r.load_program(c.address, new Uint16Array([c.value & 0xFFFF]));
+  r.load_program(uart.symbols.boot_ptr, new Uint16Array([0]));   // no demo script
   r.set_segments(0xFFFF, 0x0000, 0x0000, 0x0000);
   const term = new SerialTerminal();
   const rows = () => term.text().map((x) => x.replace(/\s+$/, ''));

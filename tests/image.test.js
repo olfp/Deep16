@@ -36,9 +36,10 @@ test('every assembled word in the window is in the image', () => {
 test('the BIOS sits at its fixed address', () => {
   assert.equal(img.biosEntry, BIOS_BASE);
   // 222 words before the calling convention moved from memory to registers; the
-  // register form is the shorter of the two (updated with that change). 272
-  // after uart_tx grew the output-column counter and the hard wrap (§4.4).
-  assert.equal(img.biosWords, 272, 'the UART BIOS size');
+  // register form is the shorter of the two (updated with that change). 319
+  // after uart_tx grew the output-column counter, the hard wrap and the ANSI
+  // state (§4.4).
+  assert.equal(img.biosWords, 319, 'the UART BIOS size');
   assert.equal(img.words[BIOS_BASE], res.memoryChanges.find((c) => c.address === BIOS_BASE).value);
   assert.ok(BIOS_BASE + img.biosWords <= STACK_BASE, 'the BIOS must not reach the stacks');
 });
