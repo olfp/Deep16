@@ -54,13 +54,17 @@ module deep16_top
 );
 
   // ---- main memory (D16MINI.md §4.1, §6.2) -----------------------------
-  // Two builds of one array. The board build (`D16MINI`) shrinks it to the 26
+  // Two builds of one array. The board build (`D16MINI`) shrinks it to the 24
   // BSRAM blocks of the window and decodes the whole map: RAM, the 16-word boot
   // ROM (a LUT, not part of the image), and the 0xFFFF fill everywhere else.
   // The simulation build keeps the 1 MB array, where everything below MEM_WORDS
   // is memory and the boot ROM is planted in the array.
 `ifdef D16MINI
-  localparam int RAM_WORDS = 26624;               // 26 blocks x 1024 words
+  // 24 blocks, not the 26 the part has: GowinSynthesis infers a 16-bit RAM as
+  // four 4-bit-wide, 4,096-deep slices, so the depth rounds up to 4,096 and
+  // 26,624 words measure 28 blocks. 24,576 (24 blocks) is the vendor ceiling
+  // (§4.7). nextpnr's 26 was Yosys' 1,024-word packing, not the chip's.
+  localparam int RAM_WORDS = 24576;               // 24 blocks x 1024 words
 `else
   localparam int RAM_WORDS = MEM_WORDS;
 `endif
@@ -188,7 +192,7 @@ module deep16_top
   initial begin
     // The image is the *whole* window - the generator fills every unused word
     // with 0xFFFF before it lays the kernel down - so there is no fill loop
-    // here. That matters: a 26,624-iteration loop is past slang's unroll limit,
+    // here. That matters: a 24,576-iteration loop is past slang's unroll limit,
     // and the open-source flow could not elaborate the design with it in place.
     // `npm run image` writes the file, and the path resolves against the tool's
     // working directory - run from artifacts/image/, as build_board_sim.sh does.

@@ -10,7 +10,7 @@
 // (§6.2.1), so the CPU starts on the kernel with no loader and no copy.
 //
 // Build with `-DD16MINI` (Verilator) / the matching project define (Gowin): it
-// is what shrinks deep16_top's memory to the 26 BSRAM blocks and turns on the
+// is what shrinks deep16_top's memory to the 24 BSRAM blocks and turns on the
 // window decode.
 module deep16_board (
   input  logic clk,        // 27 MHz oscillator, pin 52

@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildImage, checkImage, imageHex, WINDOW, FILL, BIOS_BASE, ECHO_FLAG }
+import { buildImage, checkImage, imageHex, WINDOW, FILL, BIOS_BASE, STACK_BASE, ECHO_FLAG }
   from '../scripts/make_image.mjs';
 import { assemble, loadBrowserScripts, ROOT } from './helpers.js';
 
@@ -18,7 +18,7 @@ const res = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'
                      { defines: { CONSOLE_UART: 1 } });
 
 test('the image is the whole window, filled with the halt word', () => {
-  assert.equal(img.words.length, WINDOW, '26 BSRAM blocks x 1024 words');
+  assert.equal(img.words.length, WINDOW, 'the whole BSRAM window');
   // Every word not written by the program is 0xFFFF (the halt word), not 0.
   const written = new Set(res.memoryChanges.filter((c) => c.address < WINDOW).map((c) => c.address));
   for (let a = 0; a < WINDOW; a++) {
@@ -39,7 +39,7 @@ test('the BIOS sits at its fixed address', () => {
   // register form is the shorter of the two (updated with that change).
   assert.equal(img.biosWords, 212, 'the UART BIOS size');
   assert.equal(img.words[BIOS_BASE], res.memoryChanges.find((c) => c.address === BIOS_BASE).value);
-  assert.ok(BIOS_BASE + img.biosWords <= 0x6000, 'the BIOS must not reach the stacks');
+  assert.ok(BIOS_BASE + img.biosWords <= STACK_BASE, 'the BIOS must not reach the stacks');
 });
 
 test('the only word outside the window is the echo flag', () => {
@@ -52,8 +52,9 @@ test('checkImage accepts a good image', () => {
 });
 
 test('checkImage rejects a dictionary that reaches the stacks', () => {
-  assert.throws(() => checkImage({ ...img, dictFree: 0x6000 }), /reaches the stacks/);
-  assert.throws(() => checkImage({ ...img, biosEntry: 0xF8000 }), /expected 0x5f00/);
+  assert.throws(() => checkImage({ ...img, dictFree: STACK_BASE }), /reaches the stacks/);
+  assert.throws(() => checkImage({ ...img, biosEntry: 0xF8000 }),
+                new RegExp(`expected 0x${BIOS_BASE.toString(16)}`));
   assert.throws(() => checkImage({ ...img, outOfWindow: [0xF8000] }), /outside the window/);
 });
 

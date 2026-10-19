@@ -39,7 +39,7 @@ screen replaced by a serial terminal.
 | M1 | BRAM-only: no PSRAM, no SDRAM controller, no `mem_stall` machinery. |
 | M2 | **No cache** — the memory is small and near-single-cycle. |
 | M3 | **No framebuffer** — `0xF1000` is deleted, not emulated. |
-| M4 | No 1 MB address space: ~26 K words, a 15-bit machine. |
+| M4 | No 1 MB address space: ~24 K words, a 15-bit machine. |
 | M5 | Relocate the stacks and the BIOS into the low RAM window. |
 | M6 | Boot ROM stays a 16-word LUT ROM at `0xFFFF0` (identical reset). |
 | M7 | One kernel source, two builds, selected by conditional assembly. |
@@ -91,11 +91,20 @@ BSRAM; give it a UART and a BSRAM, drop everything else.
 
 | | Words (16-bit) | Bytes | Addresses |
 |---|---:|---:|---|
-| **BSRAM, repo convention** (26 blocks × 1024 × 16) | **26,624** | 52 KiB | `0x0000–0x67FF` |
+| **BSRAM, usable** (24 blocks × 1024 × 16) | **24,576** | 48 KiB | `0x0000–0x5FFF` |
+| BSRAM, vendor-tool ceiling — see below | 24,576 | 48 KiB | `0x0000–0x5FFF` |
 | BSRAM, theoretical (468 Kbit ÷ 16, width waste ignored) | 29,952 | 58.5 KiB | `0x0000–0x74FF` |
 | Deep16 ISA map | 1,048,576 | 2 MiB | `0x00000–0xFFFFF` |
 
-26,624 words is **2.5 %** of the ISA map. Deep16 effectively becomes a **15-bit
+The part has **26** BSRAM blocks, but the vendor synthesiser cannot use the last
+two for a 16-bit memory: GowinSynthesis infers a RAM as 4-bit-wide, 4,096-deep
+slices, so a 16-bit array costs four blocks per 4,096 words and the depth rounds
+up — 26,624 words measures **28** blocks. **24,576 words (24 blocks) is the
+ceiling**, and that is what the window is sized to now. Measured on this tree;
+§4.7 has the numbers. nextpnr's 26/26 was Yosys' 1,024-word packing, not the
+chip's.
+
+24,576 words is **2.3 %** of the ISA map. Deep16 effectively becomes a **15-bit
 machine**: the whole RAM window fits inside a single 32 K-word (15-bit) address.
 
 ### What DeepForth needs of it (measured, this tree)
@@ -104,8 +113,8 @@ machine**: the whole RAM window fits inside a single 32 K-word (15-bit) address.
 |---|---|---:|
 | Kernel image `forth_start`…`dict_free` (`0x0100–0x3BA6`) | 13,1xx-line source | **15,015** |
 | `dict_free` (new definitions grow up from here) | `0x3BA7` | — |
-| Headroom `dict_free` → BIOS (`0x5F00`) | `0x3BA7–0x5EFF` | **9,049** |
-| BIOS (UART build, relocated) | `0x5F00`, 212 words | §3 |
+| Headroom `dict_free` → BIOS (`0x5700`) | `0x3BA7–0x56FF` | **7,001** |
+| BIOS (UART build, relocated) | `0x5700`, 212 words | §3 |
 | Screen buffer | `0xF1000`, 2000 words | **deleted** |
 
 The image grows a little with every Tier-3 word added (it was `0x3A62` three
@@ -113,12 +122,13 @@ commits ago); treat `dict_free` as a moving target and leave slack.
 
 ### The verdict
 
-- The kernel **fits** with ~9 K words of dictionary to spare — comfortable.
+- The kernel **fits** with ~7 K words of dictionary to spare — comfortable.
 - **The fixed addresses had to move**: the stacks (`SP = 0x7FF0`, `RSTACK_TOP =
-  0x6F00`) and the BIOS at `0xF8000` all sat above `0x6800`. §3 relocates them —
+  0x6F00`) and the BIOS at `0xF8000` all sat above `0x6000`. §3 relocates them —
   done, and green.
 - The framebuffer is deleted, so the 2 BSRAM blocks a screen would cost are not
-  spent.
+  spent — and those two blocks are exactly the ones the vendor tool cannot reach
+  for the main array anyway.
 
 ---
 
@@ -128,35 +138,37 @@ Everything the CPU executes or reads lives in **one low window**, so the core ha
 a single `pa < RAM_WORDS` test and no high-address ROM decode.
 
 ```
-0x00000 - 0x067FF   RAM       26 BSRAM blocks (26,624 words)
+0x00000 - 0x05FFF   RAM       24 BSRAM blocks (24,576 words)
    0x00100 - 0x03BA6   kernel image (code + data + built-in words)
-   0x03BA7 - 0x05EFF   user dictionary  (grows up, ~9.0 K words)
-   0x05F00 - 0x05FD3   BIOS (212 words, UART build; segment 0x05F0)
-   0x06000 - 0x067FF   stacks          (return 0x6000↑, data 0x67F0↓)
+   0x03BA7 - 0x056FF   user dictionary  (grows up, ~7.0 K words)
+   0x05700 - 0x057D3   BIOS (212 words, UART build; segment 0x0570)
+   0x05800 - 0x05FFF   stacks          (return 0x5800↑, data 0x5FF0↓)
 0x0F0000 - 0x0F006F   MMIO       UART (the kernel's echo cell at 0xF0064
                                  is not backed: §6.4)
 0x0FFFF0 - 0x0FFFFF   boot ROM   16 words, LUT ROM (reset vector lives here)
 ```
 
 Measured 2026-10-19 from the working tree. The kernel and dictionary addresses
-drift as words are added; the BIOS and stack bases are fixed.
+drift as words are added; the BIOS and stack bases are fixed. The window is 24
+blocks rather than the part's 26 because of the vendor tool's BSRAM granularity
+(§2, §4.7) — this map moved down 2,048 words when that was measured.
 
 **Decided — was M5.** Relocate the BIOS and both stacks into the window, in the
 `CONSOLE_UART` build only. The screen build keeps its 1 MB layout (BIOS at
 `0xF8000`, stacks `0x6F00` / `0x7FF0`) and stays **byte-identical**.
 
-- **BIOS** — `.org 0x5F00`, 212 words, segment `0x05F0`. The code is
+- **BIOS** — `.org 0x5700`, 212 words, segment `0x0570`. The code is
   base-independent: every internal jump is a `label - BIOS_BASE` delta or a
   relative branch, so only the `.org` and `swi_to_bios`'s segment change.
-- **Stacks** — `RSTACK_TOP = 0x6000`; the data stack top is `0x67F0`, loaded from
-  a cell, because `0x67F0` has bit 14 set and `LDI` would sign-extend it to
-  `0xE7F0` — the trap the kernel already documents for `RSTACK_TOP`.
+- **Stacks** — `RSTACK_TOP = 0x5800`; the data stack top is `0x5FF0`, loaded from
+  a cell, because `0x5FF0` has bit 14 set and `LDI` would sign-extend it to
+  `0xDFF0` — the trap the kernel already documents for `RSTACK_TOP`.
 - Both builds changed again with the register calling convention (§7.3): the
   screen build is no longer byte-identical to what it was. `node
   scripts/make_image.mjs` prints the current image's `build` hash.
 
 Alternative kept for the record: leave the BIOS at `0xF8000` with its own LUT-ROM
-decode, teaching the core that `0xF8000` is fetchable while `0x6800…0xF7FFF` is
+decode, teaching the core that `0xF8000` is fetchable while `0x6000…0xF7FFF` is
 not. More core plumbing for less kernel churn; rejected for a *mini* machine.
 
 The boot ROM stays at `0xFFFF0` (the core's reset state is `CS=0xFFFF, PC=0`), so
@@ -198,12 +210,12 @@ target in EX (`if_redirect`), and nothing may enter the pipe while the read is
 in flight (`pc_pending`) — a halt word directly behind an `SWI` used to stop the
 machine before the handler ran. `tests/rtl.test.js` now covers both redirects.
 
-**Done.** `mem` is now `RAM_WORDS` words: 26,624 behind `` `ifdef D16MINI ``
+**Done.** `mem` is now `RAM_WORDS` words: 24,576 behind `` `ifdef D16MINI ``
 (the board build), the 1 MB array otherwise (simulation). One read decode
 (`mem_at`) serves both: RAM, then the 16-word boot ROM, then the `0xFFFF` fill — so an address the board cannot back halts the machine
 instead of fetching garbage. The explicit-primitive fallback below stays the
-fallback; whether Gowin infers 26 BSRAM blocks *and* honours the init is still
-unconfirmed.
+fallback; GowinSynthesis does infer BSRAM and honours the init, but its
+granularity caps a 16-bit array at 24 blocks — §4.7.
 
 ### 4.2 The real difficulty: registered reads
 
@@ -443,10 +455,35 @@ or embedded port". Sipeed's own Tang Nano 9K constraints (`picotiny.cst`) omit
 lets the flow reach routing. The UART pair and the clock (banks 2 and 1) keep
 `LVCMOS33`.
 
-The 24,576 probe synthesised the *existing* kernel, whose BIOS still sits at
-`0x5F00` and stacks at `0x6000`, so that bitstream is a resource measurement and
-not a bootable image: the window has to shrink by 2,048 words (BIOS to `0x5700`,
-stacks to `0x5800`) before the numbers describe a working board.
+**The window has been shrunk to match.** `RAM_WORDS` is 24,576, the BIOS moved to
+`0x5700` (segment `0x0570`), the stacks to `0x5800` / data stack top `0x5FF0`, and
+`WINDOW` / `BIOS_BASE` / `STACK_BASE` in `scripts/make_image.mjs` with them (§3).
+The image is 48 KiB with `dict_free` still `0x3BA7`, so the dictionary keeps
+7,001 words. Re-measured on that design: LUT 6,499/8,640 (82 %), registers
+2,695/6,693, BSRAM 24/26, SSRAM 8, CLS 4,095/4,320, DSP 0.5 — synthesised with
+default options, placed, routed and turned into a bitstream with no attribute
+help at all.
+
+**Timing.** At 27 MHz: Fmax **9.0–9.5 MHz**, 1,713 violated endpoints on `clk`,
+TNS −58,422 ns. The critical path is ~101 ns / 34 logic levels, from the
+context/PSW and register-file read cone (`ctx_next_ex.psw_15`,
+`ra1_3`, `r1_*`) into the BSRAM address port (`mem_mem_*.ADB`). The CPU computes
+its operand read, execute result and memory address in one cycle; 27 MHz wants
+that under 37 ns. **The same design closes timing cleanly at 6.75 MHz** (27/4):
+with the clock constraint set to 148.148 ns the report shows *zero* violated
+endpoints and Fmax 9.532 MHz — so the analysis is sound and the gap is real, not
+a modelling artifact. Two ways out: run the CPU from a divided clock for
+bring-up (a `CLKDIV`, `CLK_HZ` to 6_750_000 — still 58 cycles per 115200 baud
+bit), or pipeline the execute/address path.
+
+**The doubty clock is an artifact.** The STA tool infers a second clock on
+`u_top/u_core/id_ex.valid` (TA1132, "determined to be a clock but was not
+created") and constrains it at 50 MHz. The netlist shows why to distrust that:
+`id_ex.valid_s0` is a plain `DFFRE` clocked by `clk_d`, and the net appears only
+as LUT data (`I0`–`I3`), never on a `.CLK` pin. It accounts for 3 endpoints, not
+the 1,713. `-fix_gated_and_generated_clocks 1` does not remove it and neither does
+a `set_false_path` on the pin; the warnings and those three endpoints should be
+read as noise until the toolchain offers a lever.
 
 ---
 
@@ -486,7 +523,7 @@ moment the FPGA comes up. No host, no boot sequence.
 | Region | Addresses | In the image? |
 |---|---|---|
 | Kernel (UART build) | `0x0100–0x3B03` | yes — the assembled words |
-| BIOS (relocated, §3) | `0x5F00` | yes |
+| BIOS (relocated, §3) | `0x5700` | yes |
 | SWI vector | `0x0002` | no: the kernel installs it at run time |
 | Dictionary, stacks | above `dict_free` | no: run-time RAM, filled `0xFFFF` |
 | Screen | `0xF1000` | deleted (C1) |
@@ -507,9 +544,9 @@ into it; the plan takes the first:
 - **One SV array, two init files (chosen).** Keep the single `reg [15:0] mem
   [...]` in `deep16_top.sv`, and give it a `$readmemh` init for Verilator and an
   `INIT_FILE` / `.mi` for Gowin. One source, no second memory model to keep in
-  step. The open risk is inference — whether Gowin infers 26 BSRAM blocks *and*
+  step. The open risk is inference — whether Gowin infers the blocks *and*
   honours the init — which can only be confirmed on the first synthesis (there is
-  no toolchain here).
+  no toolchain here). **Confirmed**, at 24 blocks — §4.7.
 - **Explicit Gowin primitives** (`DPB`/`SDPB`, 26 instantiations, per-block
   `INIT_FILE`). Deterministic and reviewable, at the cost of a hand-written memory
   behind `` `ifdef SYNTHESIS ``. The fallback if inference misbehaves.
@@ -566,7 +603,7 @@ the kernel actually touches:
 
 - **UART** `0xF0040–0xF0046` — `deep16_uart.sv` (§5).
 - **`ECHO_FLAG`** `0xF0064` — the keyboard-echo flag the BIOS `getstr` reads. It
-  is **neither RAM nor MMIO**: outside the 26 K window and outside the UART's
+  is **neither RAM nor MMIO**: outside the 24 K window and outside the UART's
   decode.
 
 **Decided: the echo flag gets no hardware at all.** It stays where the kernel put
@@ -806,7 +843,7 @@ attribute problem. Decision C1 chose the dumb pipe instead.
 | 10 | Existing `forth.test.js` (screen build) | stays green, untouched |
 | 11 | **Free-run console** | the kernel's banner comes out with `i_step=1, i_free=1` (the board's tie-off), not only under `step()` |
 | 12 | **Board boot image and console** | `npm run sim:board`: the board build, the real image, the window decode, and the UART *pins* both ways — the banner decoded off `uart_txd`, then a line typed into `uart_rxd` echoed and evaluated (`3 4 + .` → `7  ok`) |
-| 13 | Boot image validity | `tests/image.test.js`: every word in the window, the `0xFFFF` fill, the BIOS at `0x5F00`, the one MMIO word kept out |
+| 13 | Boot image validity | `tests/image.test.js`: every word in the window, the `0xFFFF` fill, the BIOS at `0x5700`, the one MMIO word kept out |
 
 Test 7 is the mechanism that pins the two output paths (§7.1) closed — the thing
 the "one chokepoint" comment only asserted. Test 9 is `PLANPSRAM.md` §7's
@@ -837,10 +874,11 @@ Each phase ends green and committable. Phases 1–3 need no hardware.
 Phase 1 (console) and Phase 2 (memory) are deliberately separate: one changes
 the console, the other the memory model, and a regression must be locatable.
 
-Phase 3 is done *except* for the two things that need the toolchain: confirming
-that Gowin infers 26 BSRAM blocks with the init, and closing timing. The board
-simulation (`npm run sim:board`) is the strongest check available here — it is
-the whole bring-up path minus the vendor tools.
+Phase 3 is done *except* for the two things that need the toolchain: they are
+both measured now (§4.7) — Gowin infers the memory as BSRAM and bakes the init
+in, at 24 blocks rather than 26; and timing does **not** close at 27 MHz. The
+board simulation (`npm run sim:board`) is the strongest check available here — it
+is the whole bring-up path minus the vendor tools.
 
 ---
 
@@ -883,7 +921,7 @@ the end.
 ### B. RTL memory
 
 - ~~`deep16_top.sv:41` memory is a 16.8 Mbit Verilog array~~ — `RAM_WORDS`:
-  26,624 behind `` `ifdef D16MINI ``, the 1 MB array for simulation.
+  24,576 behind `` `ifdef D16MINI ``, the 1 MB array for simulation.
 - ~~Memory is read combinationally~~ — registered reads, phase 2.
 - ~~The read bus is 11 reads/cycle~~ — the cache is gone; one fetch port and one
   data read/write port, and nothing else (the direct `mem[2]` read is gone too).
@@ -920,11 +958,13 @@ the end.
 
 ### The residue
 
-1. **Gowin synthesis** — measured (§4.7). The systemverilog parses, the logic
-   fits (LUT 6,887/8,640) and the flow routes, but the vendor tool's BSRAM
-   granularity caps a 16-bit RAM at 24,576 words (24 blocks), so the 26,624-word
-   window has to shrink by 2,048 words before a bitstream can boot. Timing at
-   27 MHz is not closed (9.8 MHz, with a spurious derived clock in the report).
+1. **Gowin synthesis** — measured (§4.7). The SystemVerilog parses, the logic
+   fits (LUT 6,499/8,640) and the flow routes a bitstream, but the vendor tool's
+   BSRAM granularity caps a 16-bit RAM at 24,576 words (24 blocks), so the window
+   is now 24 blocks (BIOS `0x5700`, stacks `0x5800`). **Timing is the item left
+   open**: 9.0–9.5 MHz against 27 MHz, from the single-cycle
+   execute/address path; the design closes at 6.75 MHz. Fix is a divided clock
+   for bring-up or pipelining the path.
 2. **Confirm the pins** in `rtl/deep16_board.cst`.
 3. **The reported combinational loop** (§4.6) — probably a mapping artifact, but
    unverified.
@@ -938,10 +978,10 @@ the end.
 The six console decisions (C1–C6) are locked (§0). These machine items remain:
 
 1. ~~**BIOS location**~~ — **decided**: relocated into the low window (BIOS
-   `0x5F00`, stacks `0x6000` / `0x67F0`), `CONSOLE_UART` build only. §3.
+   `0x5700`, stacks `0x5800` / `0x5FF0`), `CONSOLE_UART` build only. §3.
 2. ~~**Conditional assembly** in the assembler vs. a build-time substitution~~ —
    **decided**: the assembler does it (`.ifdef` / `.equ`), one source, two builds.
-3. ~~**Stack bases**~~ — **decided**: `RSTACK_TOP = 0x6000`, data stack `0x67F0`
+3. ~~**Stack bases**~~ — **decided**: `RSTACK_TOP = 0x5800`, data stack `0x5FF0`
    from a cell (§3).
 4. ~~**Boot image**~~ — **decided**: one SV array with `$readmemh` + `.mi`, and
    no hardware for `ECHO_FLAG` (it stays software's business, §6.4). The image is

@@ -2,8 +2,9 @@
 // scripts/make_image.mjs - build the D16MINI boot image from asm/forth.asm.
 //
 // D16MINI.md §6.5. The image is the UART (CONSOLE_UART) kernel laid into the
-// 26K-word BSRAM window (0x0000-0x67FF) and filled with 0xFFFF, so a run off the
+// 24K-word BSRAM window (0x0000-0x5FFF) and filled with 0xFFFF, so a run off the
 // end of memory hits the halt word instead of `LDI 0` forever (§6.1).
+// (24K, not 26 - GowinSynthesis' BSRAM granularity; §2 and §4.7.)
 //
 // The image is a *synthesis* input - Gowin bakes it into the bitstream, so the
 // configuration itself is the "flash to RAM" step (§6.2.1). Two files:
@@ -25,10 +26,10 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export const WINDOW = 0x6800;      // 26 BSRAM blocks x 1024 words (§2)
+export const WINDOW = 0x6000;      // 24 BSRAM blocks x 1024 words (§2, §4.7)
 export const FILL   = 0xFFFF;      // the halt word, everywhere unused (§6.1)
-export const BIOS_BASE  = 0x5F00;  // must match asm/forth.asm and D16MINI.md §3
-export const STACK_BASE = 0x6000;  // RSTACK_TOP: the dictionary stays below it
+export const BIOS_BASE  = 0x5700;  // must match asm/forth.asm and D16MINI.md §3
+export const STACK_BASE = 0x5800;  // RSTACK_TOP: the dictionary stays below it
 export const ECHO_FLAG  = 0xF0064; // the kernel's echo cell: outside the window,
                                    // so the board neither backs nor decodes it
                                    // (D16MINI.md §6.4) - it is expected here
