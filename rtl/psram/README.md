@@ -56,7 +56,16 @@ output frequency (or its 90-degree phase shift).
 
 **Diagnostic build: logic and UART on the 27 MHz crystal, PLL only for `clk_p`.**
 `clk_freq`/`FREQ` = 27 MHz, so the baud is exact regardless of the PLL, and the
-controller's 90-degree clock is the PLL's `CLKOUTP` (FBDIV=IDIV=0, PSDA=4).
+controller's 90-degree clock is the PLL's `CLKOUTP`.
+
+**Root cause of the failures: the rPLL's VCO.** `VCO = CLKOUT x ODIV` and the
+VCO must sit in the part's range (~400-1200 MHz). The first builds set
+`ODIV=1/2`, so the VCO was 27/13.5 MHz: the PLL never locked, there was no
+valid 90-degree shift, and the reads sampled at the wrong edge ("Read wrong
+data"), while everything clocked from the crystal looked fine. With
+`ODIV=16` (VCO 432 MHz) the timing report shows `CLKOUTP` rising at 9.259 ns
+of a 37.037 ns period - exactly 90 degrees. For a 13.5 MHz controller clock the
+same rule gives `ODIV=32` (VCO 432).
 
 ```
 Logic 1,070 (13 %)  CLS 647 (15 %)  Registers 478
