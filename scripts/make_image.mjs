@@ -28,7 +28,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const WINDOW = 0x6000;      // 24 BSRAM blocks x 1024 words (§2, §4.7)
 export const FILL   = 0xFFFF;      // the halt word, everywhere unused (§6.1)
-export const BIOS_BASE  = 0x5700;  // must match asm/forth.asm and D16MINI.md §3
+export const BIOS_BASE  = 0x5600;  // must match asm/forth.asm and D16MINI.md §3
 export const STACK_BASE = 0x5800;  // RSTACK_TOP: the dictionary stays below it
 export const ECHO_FLAG  = 0xF0064; // the kernel's echo cell: outside the window,
                                    // so the board neither backs nor decodes it

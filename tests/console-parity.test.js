@@ -110,6 +110,23 @@ test('the banner and the prompt are byte-identical on all three cores', async ()
   assert.deepEqual(rtl.stream, js.stream, 'RTL byte stream diverges');
 });
 
+test('a line that fills the width hard-wraps at 80 columns', async () => {
+  // No wrap_if here: `emit` just puts bytes out. The console BIOS must break
+  // the line itself at 80, because the terminal may be wider than the machine
+  // (or not autowrap at all).
+  const input = ': t 90 0 do 65 emit loop ; t\n';
+  const js = bootJs(input, 200000);
+  const wa = await bootWasm(input, 200000);
+  const rtl = await bootRtl(input, 1000000);
+  const lines = Buffer.from(js.stream).toString('latin1').split('\r\n');
+  for (const l of lines) assert.ok(l.length <= 80, `line of ${l.length} columns`);
+  const a = lines.reduce((n, l) => n + (l.match(/A/g) || []).length, 0);
+  assert.equal(a, 90, 'all 90 characters came out');
+  assert.ok(lines.filter((l) => l.includes('A')).length >= 2, 'the run wrapped');
+  assert.deepEqual(wa.stream, js.stream, 'WASM byte stream diverges');
+  assert.deepEqual(rtl.stream, js.stream, 'RTL byte stream diverges');
+});
+
 test('a typed line is echoed and evaluated identically on all three cores', async () => {
   const { js, wa, rtl } = await threeWay('3 4 + .\n', '> 3 4 + . 7  ok');
   assert.equal(js.rows[1], '> 3 4 + . 7  ok');
@@ -150,6 +167,7 @@ test('words breaks at a space before the terminal edge', async () => {
       assert.equal(l[col - 1], ' ', `autowrap at column ${col} splits a token: ${JSON.stringify(l.slice(0, 90))}`);
     }
   }
+  for (const l of lines) assert.ok(l.length <= 80, `line of ${l.length} columns`);
   assert.deepEqual(wa.stream, js.stream, 'WASM byte stream diverges');
   assert.deepEqual(rtl.stream, js.stream, 'RTL byte stream diverges');
 });

@@ -51,7 +51,7 @@ screen replaced by a serial terminal.
 |---|---|
 | C1 | **Dumb byte pipe.** The host terminal owns the screen, cursor and wrapping. The machine keeps no 80×25 array and no cursor. |
 | C2 | **Drop colours.** No attributes, no SGR; `CURSOR_ATTR` is gone. |
-| C3 | **`form` returns `24 80`** (nominal); `wrap_if` breaks at a space before column 80, using the column the console BIOS counts (`out_col`). The host wraps anything that still reaches the edge. |
+| C3 | **`form` returns `24 80`** (nominal). `wrap_if` breaks at a space before column 80 using the column the console BIOS counts (`out_col`), and the BIOS hard-wraps with CR+LF at 80 whatever the caller does — a line never exceeds 80 columns, even on a wider terminal. |
 | C4 | **Consume-and-drop** terminal escape sequences on input (arrow keys never enter the line buffer). |
 | C5 | **Keep the "Datei tippen…" injection** — the browser uploader feeds UART RX in simulation. |
 | C6 | **Baud 115200 8N1; TX FIFO 64 deep; RX FIFO 128 deep.** |
@@ -114,8 +114,8 @@ machine**: the whole RAM window fits inside a single 32 K-word (15-bit) address.
 |---|---|---:|
 | Kernel image `forth_start`…`dict_free` (`0x0100–0x3BA7`) | 13,1xx-line source | **15,016** |
 | `dict_free` (new definitions grow up from here) | `0x3BA8` | — |
-| Headroom `dict_free` → BIOS (`0x5700`) | `0x3BA8–0x56FF` | **7,000** |
-| BIOS (UART build, relocated) | `0x5700`, 248 words | §3 |
+| Headroom `dict_free` → BIOS (`0x5600`) | `0x3BA8–0x55FF` | **6,744** |
+| BIOS (UART build, relocated) | `0x5600`, 272 words | §3 |
 | Screen buffer | `0xF1000`, 2000 words | **deleted** |
 
 The image grows a little with every Tier-3 word added (it was `0x3A62` three
@@ -142,7 +142,7 @@ a single `pa < RAM_WORDS` test and no high-address ROM decode.
 0x00000 - 0x05FFF   RAM       24 BSRAM blocks (24,576 words)
    0x00100 - 0x03BA7   kernel image (code + data + built-in words)
    0x03BA8 - 0x056FF   user dictionary  (grows up, ~7.0 K words)
-   0x05700 - 0x057F7   BIOS (248 words, UART build; segment 0x0570)
+   0x05600 - 0x0570F   BIOS (272 words, UART build; segment 0x0560)
    0x05800 - 0x05FFF   stacks          (return 0x5800↑, data 0x5FF0↓)
 0x0F0000 - 0x0F006F   MMIO       UART (the kernel's echo cell at 0xF0064
                                  is not backed: §6.4)
@@ -158,7 +158,7 @@ blocks rather than the part's 26 because of the vendor tool's BSRAM granularity
 `CONSOLE_UART` build only. The screen build keeps its 1 MB layout (BIOS at
 `0xF8000`, stacks `0x6F00` / `0x7FF0`) and stays **byte-identical**.
 
-- **BIOS** — `.org 0x5700`, 248 words, segment `0x0570`. The code is
+- **BIOS** — `.org 0x5600`, 272 words, segment `0x0560`. The code is
   base-independent: every internal jump is a `label - BIOS_BASE` delta or a
   relative branch, so only the `.org` and `swi_to_bios`'s segment change.
 - **Stacks** — `RSTACK_TOP = 0x5800`; the data stack top is `0x5FF0`, loaded from
@@ -303,11 +303,15 @@ checking the echo and the evaluation.
 
 The console BIOS also counts its **output column**: `uart_tx` — the single choke
 point for console bytes, whether they come from `putch`, `putstr` or the getstr
-echo — maintains `out_col`, resetting it on CR/LF and at the 80th byte, where the
-host autowraps. `wrap_if` reads that cell in the `CONSOLE_UART` build (the screen
-build still asks `SCR`) and breaks `words`/`see` at a space before column 80, so
-the terminal never splits a name. `tests/console-parity.test.js` pins it: every
-autowrap of the list must fall on a space, on all three cores.
+echo — maintains `out_col`, zero on CR/LF, one less on BS, and one more otherwise.
+At the 80th column it emits **CR+LF itself** (a wrapping CR, then the LF it owes)
+and returns the column to 0, so a line never exceeds 80 columns even if the
+terminal is wider than the machine or does not autowrap. `wrap_if` reads the same
+cell in the `CONSOLE_UART` build (the screen build still asks `SCR`) and breaks
+`words`/`see` at a space *before* that hard edge, so the terminal never splits a
+name. `tests/console-parity.test.js` pins both: the list's breaks fall on spaces,
+and a 90-character `emit` run hard-wraps at 80 with every byte intact — on all
+three cores.
 
 ### 4.5 Board top, clock, reset, constraints
 
@@ -467,7 +471,7 @@ lets the flow reach routing. The UART pair and the clock (banks 2 and 1) keep
 `LVCMOS33`.
 
 **The window has been shrunk to match.** `RAM_WORDS` is 24,576, the BIOS moved to
-`0x5700` (segment `0x0570`), the stacks to `0x5800` / data stack top `0x5FF0`, and
+`0x5600` (segment `0x0560`), the stacks to `0x5800` / data stack top `0x5FF0`, and
 `WINDOW` / `BIOS_BASE` / `STACK_BASE` in `scripts/make_image.mjs` with them (§3).
 The image is 48 KiB with `dict_free` at `0x3BA8`, so the dictionary keeps
 7,000 words. Re-measured on that design: LUT 6,499/8,640 (82 %), registers
@@ -594,7 +598,7 @@ moment the FPGA comes up. No host, no boot sequence.
 | Region | Addresses | In the image? |
 |---|---|---|
 | Kernel (UART build) | `0x0100–0x3B03` | yes — the assembled words |
-| BIOS (relocated, §3) | `0x5700` | yes |
+| BIOS (relocated, §3) | `0x5600` | yes |
 | SWI vector | `0x0002` | no: the kernel installs it at run time |
 | Dictionary, stacks | above `dict_free` | no: run-time RAM, filled `0xFFFF` |
 | Screen | `0xF1000` | deleted (C1) |
@@ -914,7 +918,7 @@ attribute problem. Decision C1 chose the dumb pipe instead.
 | 10 | Existing `forth.test.js` (screen build) | stays green, untouched |
 | 11 | **Free-run console** | the kernel's banner comes out with `i_step=1, i_free=1` (the board's tie-off), not only under `step()` |
 | 12 | **Board boot image and console** | `npm run sim:board`: the board build, the real image, the window decode, and the UART *pins* both ways — the banner decoded off `uart_txd`, then a line typed into `uart_rxd` echoed and evaluated (`3 4 + .` → `7  ok`) |
-| 13 | Boot image validity | `tests/image.test.js`: every word in the window, the `0xFFFF` fill, the BIOS at `0x5700`, the one MMIO word kept out |
+| 13 | Boot image validity | `tests/image.test.js`: every word in the window, the `0xFFFF` fill, the BIOS at `0x5600`, the one MMIO word kept out |
 
 Test 7 is the mechanism that pins the two output paths (§7.1) closed — the thing
 the "one chokepoint" comment only asserted. Test 9 is `PLANPSRAM.md` §7's
@@ -1030,7 +1034,7 @@ the end.
 ### The residue
 
 1. **Gowin synthesis** — done for bring-up (§4.7). The SystemVerilog parses, the
-   logic fits (LUT 6,424/8,640), the window is 24 BSRAM blocks (BIOS `0x5700`,
+   logic fits (LUT 6,424/8,640), the window is 24 BSRAM blocks (BIOS `0x5600`,
    stacks `0x5800`), and `npm run synth:gowin` emits a timed bitstream at
    6.75 MHz (the oscillator divided by four) with the kernel baked into BSRAM.
    **What is still open is 27 MHz**: the machine measures ~10.6 MHz after the
@@ -1050,7 +1054,7 @@ the end.
 The six console decisions (C1–C6) are locked (§0). These machine items remain:
 
 1. ~~**BIOS location**~~ — **decided**: relocated into the low window (BIOS
-   `0x5700`, stacks `0x5800` / `0x5FF0`), `CONSOLE_UART` build only. §3.
+   `0x5600`, stacks `0x5800` / `0x5FF0`), `CONSOLE_UART` build only. §3.
 2. ~~**Conditional assembly** in the assembler vs. a build-time substitution~~ —
    **decided**: the assembler does it (`.ifdef` / `.equ`), one source, two builds.
 3. ~~**Stack bases**~~ — **decided**: `RSTACK_TOP = 0x5800`, data stack `0x5FF0`

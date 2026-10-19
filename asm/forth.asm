@@ -319,9 +319,9 @@ after_print_text:
 swi_to_bios:
     ; Build the target CS and PC=0 and far jump via JML
 .ifdef CONSOLE_UART
-    ; D16MINI: the BIOS is relocated into the low window, segment 0x0570.
-    LDI 0x0570
-    MOV R2, R0           ; R2 = 0x0570 (target CS)
+    ; D16MINI: the BIOS is relocated into the low window, segment 0x0560.
+    LDI 0x0560
+    MOV R2, R0           ; R2 = 0x0560 (target CS)
 .else
     LDI 0x0FFF
     INV R0               ; R0 = 0xF000
@@ -12495,14 +12495,14 @@ waqr_done:
 
 ; =============================================
 ; BIOS Implementation. The screen build keeps it at physical 0xF8000; D16MINI
-; relocates it into the low window (segment 0x0570) so the whole machine fits the
+; relocates it into the low window (segment 0x0560) so the whole machine fits the
 ; 24K-word BSRAM (the code itself is base-independent: every internal jump is a
 ; delta or a relative branch).
 ; =============================================
 .equ BIOS_FN_COUNT, 6
 .equ BIOS_BASE, bios_entry   ; segment base; see the LDI note at the dispatch
 .ifdef CONSOLE_UART
-.org 0x5700
+.org 0x5600
 .else
 .org 0xF8000
 .endif
@@ -12581,6 +12581,9 @@ bios_f0:
 ; offset, not an absolute address, because LDI's immediate is only 15 bits and
 ; this block lives at 0xF8000.
 uart_tx:
+    LDI 0
+    MOV R10, R0             ; R10 = 0: not in the middle of a hard wrap
+uart_tx_send:
     LDI 0x0040
     MOV R3, R0
 uart_tx_wait:
@@ -12597,8 +12600,8 @@ uart_tx_wait:
     ; ---- output column (wrap_if reads it) --------------------------------
     ; Every console byte goes through here - putch, putstr and the getstr echo
     ; - so this is the one place the column needs counting. R1 still holds the
-    ; character; only R0, R3 and R7 are touched, which uart_tx already
-    ; documents as its scratch set (R2 stays live in putstr's loop).
+    ; character; R0, R3, R7 and R10 are this routine's scratch (R2 stays live in
+    ; putstr's loop, R11/R12 in getstr's).
     LDI out_col
     MOV R7, R0
     LD R3, R7, 0            ; R3 = column
@@ -12619,8 +12622,8 @@ uart_tx_wait:
     CMP R3, R0
     JN utx_col_store
     NOP
-    LDI 0
-    MOV R3, R0              ; the 80th column: the host wraps here
+    LDI 80
+    MOV R3, R0              ; hold at the last column until the wrap
     LDI utx_col_store - BIOS_BASE
     MOV PC, R0
     NOP
@@ -12638,7 +12641,37 @@ utx_col_zero:
     MOV R3, R0
 utx_col_store:
     ST R3, R7, 0
+    ; ---- hard wrap ------------------------------------------------------
+    ; A line that reaches column 80 ends here, whatever the caller thinks. The
+    ; terminal may be wider than the machine's 80 columns - or not autowrap at
+    ; all - so the CR+LF is emitted by the machine. R10 says a wrapping CR has
+    ; just gone out and its LF is owed; CR and LF bytes reset the column above,
+    ; so a caller's own newline never wraps twice.
+    LDI 1
+    CMP R10, R0
+    JZ utx_wrap_lf
+    NOP
+    LDI 80
+    CMP R3, R0
+    JZ utx_wrap_cr
+    NOP
     JMP LR
+    NOP
+utx_wrap_cr:
+    LDI 1
+    MOV R10, R0
+    LDI 13
+    MOV R1, R0
+    LDI uart_tx_send - BIOS_BASE
+    MOV PC, R0
+    NOP
+utx_wrap_lf:
+    LDI 0
+    MOV R10, R0
+    LDI 10
+    MOV R1, R0
+    LDI uart_tx_send - BIOS_BASE
+    MOV PC, R0
     NOP
 
 bios_f1:
