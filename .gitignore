@@ -27,3 +27,10 @@ obj_dir/
 obj_board/
 rtl/obj_wasm/
 build/
+
+# Gowin EDA project output. fpga/gowin/deep16_board.gprj is committed (the
+# device, file list and D16MINI define); the generated impl/ tree and the
+# per-user state are not.
+fpga/gowin/impl/
+fpga/gowin/src/
+fpga/gowin/*.gprj.user

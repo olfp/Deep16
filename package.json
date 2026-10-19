@@ -18,7 +18,8 @@
     "image": "node scripts/make_image.mjs",
     "sim:board": "bash scripts/build_board_sim.sh",
     "ui:shot": "node scripts/ui-shot.mjs",
-    "synth:board": "bash scripts/synth_board.sh"
+    "synth:board": "bash scripts/synth_board.sh",
+    "synth:gowin": "bash scripts/build_gowin.sh"
   },
   "devDependencies": {
     "puppeteer-core": "^25.14.0"
