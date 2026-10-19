@@ -520,18 +520,29 @@ Fmax **9.014 → 10.630 MHz**, worst path 34 → 30 levels, and the six native
 differential programs (fibonacci, far call, delay slot, SWI, string ops, a
 400k-step benchmark) still match the JS core exactly.
 
-**That is not enough, and the rest is an execute-stage problem.**
-The new critical path is `id_ex.valid` → `ra2` decode →
-`ctx_next_ex.spc` → `ra1` → register file → `ctx_next_ex.scs` → `if_cs` →
-`if_addr` adder → BSRAM ADB: EX's next-state cone is still in front of the
-address. Taking `if_cs` from the committed `ctx` instead of `ctx_next_ex` was
-tried and **breaks the boot** — the `if_hit` test cannot see a segment change
-that has not committed, so a wrong-segment word is accepted (the board sim prints
-nothing). The segment has to stay next-state. Reaching 27 MHz therefore needs the
-execute stage split: read the register operands in ID and register them into
-ID/EX, so EX starts from flip-flops instead of the register-file mux. That is a
-pipeline change on the scale of the original port, not a fetch tweak. Until it is
-done, the 6.75 MHz divided clock is the bring-up path.
+**Step A: the fetch segment from the committed context.** Taking `if_cs` from
+`ctx` instead of `ctx_next_ex` removes the EX next-state cone from the address,
+but on its own it **breaks the boot**: `if_hit` cannot see a segment change that
+has not committed, so a wrong-segment word is accepted. The fix is `if_hold`:
+while any of ID/EX, EX/MEM or MEM/WB carries an effective fetch segment different
+from `ctx`, the fetch is held — PC frozen, capture suppressed. The hold compares
+the *effective* segment (`psw.S ? scs : cs`), so a write to the inactive bank
+costs nothing, and it is stage based rather than a pipelined flag because the MEM
+stage can stretch. The halt test also has to look only at words that are actually
+captured (`if_hit`): the first version halted on the boot ROM's jump, where
+`{old CS, new PC}` is `0x100000` for a cycle. Measured on the same tree at the
+27 MHz target: Fmax **9.204 → 10.760 MHz**, TNS −48.4 → −34.8 µs, violated
+endpoints 1,707 → 1,642, levels 28 → 31. All six native differential programs and
+the board sim pass. That is +17 %, still 2.5× short of 27 MHz.
+
+**The rest is an execute-stage and area problem.** After step A the top paths are
+`id_ex.valid` → `ra2` decode → `ctx_next_ex` → … → BSRAM ADB (~100 ns) and the
+same cone into `if_pc`: EX's next-state is still in front of both. With CLS at
+94 % the routes alone are 5–9 ns per net, so the design is area-bound as much as
+depth-bound. The next step is the execute split — read the register operands in
+ID and register them into ID/EX so EX starts from flip-flops — and some area
+trimming before 27 MHz is realistic. Until then the 6.75 MHz divided clock stays
+the bring-up path.
 
 The committed RTL WASM package (`rtl/pkg/`) has **not** been rebuilt for the
 redirect change — Emscripten is not installed on this machine. `npm test` still
@@ -564,8 +575,8 @@ and times the CPU at its 50 MHz default. Measured on that constraint:
 
 ```
 clk       27.000 MHz   Fmax 246.3 MHz   0 setup / 0 hold violations
-clk_cpu    6.750 MHz   Fmax  10.0 MHz   0 setup / 0 hold violations
-id_ex.valid (artifact) 50.000 MHz       3 endpoints only (see above)
+clk_cpu    6.750 MHz   Fmax  9.4 MHz    0 setup / 0 hold violations
+id_ex.valid_art 1 MHz  (artifact)       0 setup / 0 hold violations
 ```
 
 The design closes with ~49 % margin, and `npm run synth:gowin` emits

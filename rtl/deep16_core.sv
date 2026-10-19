@@ -1091,9 +1091,30 @@ module deep16_core
   logic [15:0] if_cs_q, if_pc_q;
   logic        if_hit;        // the registered word is for this cycle's if_pa
   logic [15:0] if_next_pc;    // the PC the memory read is being issued for
+  // A segment write in flight: hold the fetch until it commits, so the segment
+  // can come from the committed context instead of EX's next state (§4.7
+  // step A). Only the *effective* fetch segment reaches the address, so that
+  // is what each in-flight stage is compared on - a bank write that leaves the
+  // active segment alone costs nothing.
+  logic        if_hold;
+  function automatic logic fetch_seg_diff(input logic s, input logic [15:0] cs,
+                                          input logic [15:0] scs);
+    return (s ? scs : cs) != (ctx.psw[FLG_S] ? ctx.scs : ctx.cs);
+  endfunction
 
   always_comb begin
-    if_cs          = ctx_next_ex.psw[FLG_S] ? ctx_next_ex.scs : ctx_next_ex.cs;
+    // The fetch segment is the *committed* one. Taking it from ctx_next_ex put
+    // the whole EX next-state cone (register file, shadow bank) in front of the
+    // BSRAM address. The price is that a segment write is seen one stage later:
+    // while it is in flight the fetch is held (if_hold), so no wrong-segment
+    // word is ever captured.
+    if_hold        = (id_ex.valid  && fetch_seg_diff(ctx_next_ex.psw[FLG_S],
+                                                    ctx_next_ex.cs, ctx_next_ex.scs)) ||
+                     (ex_mem.valid && fetch_seg_diff(ex_mem.ctx_next.psw[FLG_S],
+                                                    ex_mem.ctx_next.cs, ex_mem.ctx_next.scs)) ||
+                     (mem_wb.valid && fetch_seg_diff(mem_wb.ctx_next.psw[FLG_S],
+                                                    mem_wb.ctx_next.cs, mem_wb.ctx_next.scs));
+    if_cs          = ctx.psw[FLG_S] ? ctx.scs : ctx.cs;
     if_pa          = {if_cs, 4'h0} + {5'b00000, if_pc};
     if_valid       = run && !halt_sticky;
     // A load into R15 (or a SWI vector through the data port) redirects the
@@ -1129,7 +1150,11 @@ module deep16_core
   // merged with the address block above, the fetch port would fold back into
   // itself (the same trap phase 1 documents for the data port).
   always_comb begin
-    if_halt_word = (if_pa >= 21'(MEM_WORDS)) || (if_rdata == 16'hFFFF);
+    // Only a word that is actually being captured can halt the machine. With
+    // the segment taken from the committed context (step A) the address is
+    // {old CS, new PC} for the cycle a redirect lands ahead of the commit; that
+    // is wrong-path and may point outside memory, which is not a halt.
+    if_halt_word = if_hit && ((if_pa >= 21'(MEM_WORDS)) || (if_rdata == 16'hFFFF));
   end
 
   // ---- register contents of the next pipeline stage ----------------------
@@ -1139,7 +1164,7 @@ module deep16_core
     // load into R15) also invalidates the fetch for as long as it is in flight:
     // if_pc still holds the old address until the word is on the bus, so
     // anything fetched in that window is wrong-path and must not be captured.
-    if_id_n.valid     = if_valid && !flush_id && !pc_pending && !mem_late;
+    if_id_n.valid     = if_valid && !flush_id && !pc_pending && !mem_late && !if_hold;
     if_id_n.instr     = if_rdata;
     if_id_n.pc0       = if_pc;
     if_id_n.act_cs    = if_cs;
@@ -1352,7 +1377,12 @@ module deep16_core
               else        if_id <= '0;
               // A redirect target is registered here, not presented to the
               // memory this cycle (see the if_pc_next note above).
-              if_pc        <= if_redirect ? if_pc_next : if_next_pc;
+              // A segment write in flight holds the PC - but not the address:
+              // the hold must stay out of the BSRAM address cone. The word
+              // fetched meanwhile is wrong-path and dropped by if_hold.
+              if_pc        <= if_redirect ? if_pc_next
+                           : if_hold      ? if_pc
+                                          : if_next_pc;
             end else begin
               // DIV is waiting in EX: it must not move on, and EX/MEM takes a
               // bubble so the instruction before it can retire.
