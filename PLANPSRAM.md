@@ -57,6 +57,26 @@ onboard PSRAM, cache and write buffer in BSRAM.
 > cheap area probes (UART FIFOs, register-file writes) were both washes. The
 > alternative is the 20K part, where the IP, cache and future graphics fit with
 > more than half the logic free.
+>
+> **Fit probe (2026-10-19): the IP fits after all.** The official IP was
+> instantiated in `deep16_board` (user interface tied off) with its 27->148.5 MHz
+> PLL and placed beside the whole machine: PnR completes with
+> **Logic 8,316/8,640 (97 %), CLS 4,308/4,320 (100 %), 0 violations on clk and
+> clk_cpu**. The earlier "663 CLS on top of 4,163" estimate was pessimistic - the
+> fitter packs the IP into the core's spare capacity, leaving only 12 CLS.
+> Two consequences:
+>
+> - The structural trim target collapses from ~650 CLS to roughly **100-150
+>   CLS**: enough room for the cache/stall logic and for the IP's own 13
+>   marginal paths on its 74.25 MHz clock (TNS -12.6 ns when placed beside the
+>   full core; the standalone IP test closes them because it has room).
+> - Most of that room appears for free when the 24K-word BSRAM memory is
+>   removed: PSRAM replaces it, and its address decode, read pipeline and
+>   bypass logic go with it. In other words the trim and the integration are
+>   the same step.
+>
+> The 20K is therefore no longer needed for PSRAM; it remains the option for
+> graphics and for 27 MHz.
 
 ## 0. Goal and non-goals
 
