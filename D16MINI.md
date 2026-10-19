@@ -102,9 +102,9 @@ machine**: the whole RAM window fits inside a single 32 K-word (15-bit) address.
 
 | Item | Extent | Words |
 |---|---|---:|
-| Kernel image `forth_start`…`dict_free` (`0x0100–0x3BA7`) | 13,150-line source | **15,016** |
-| `dict_free` (new definitions grow up from here) | `0x3BA8` | — |
-| Headroom `dict_free` → BIOS (`0x5F00`) | `0x3BA8–0x5EFF` | **9,048** |
+| Kernel image `forth_start`…`dict_free` (`0x0100–0x3BA6`) | 13,1xx-line source | **15,015** |
+| `dict_free` (new definitions grow up from here) | `0x3BA7` | — |
+| Headroom `dict_free` → BIOS (`0x5F00`) | `0x3BA7–0x5EFF` | **9,049** |
 | BIOS (UART build, relocated) | `0x5F00`, 212 words | §3 |
 | Screen buffer | `0xF1000`, 2000 words | **deleted** |
 
@@ -129,8 +129,8 @@ a single `pa < RAM_WORDS` test and no high-address ROM decode.
 
 ```
 0x00000 - 0x067FF   RAM       26 BSRAM blocks (26,624 words)
-   0x00100 - 0x03BA7   kernel image (code + data + built-in words)
-   0x03BA8 - 0x05EFF   user dictionary  (grows up, ~9.0 K words)
+   0x00100 - 0x03BA6   kernel image (code + data + built-in words)
+   0x03BA7 - 0x05EFF   user dictionary  (grows up, ~9.0 K words)
    0x05F00 - 0x05FD3   BIOS (212 words, UART build; segment 0x05F0)
    0x06000 - 0x067FF   stacks          (return 0x6000↑, data 0x67F0↓)
 0x0F0000 - 0x0F006F   MMIO       UART (the kernel's echo cell at 0xF0064

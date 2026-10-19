@@ -2355,13 +2355,10 @@ current:
 found_wl:
     .word 0              ; head cell of the wordlist FIND matched last
 
-; BIOS runs in the shadow bank and uses R5 for its own purposes, so a
-; primitive that calls SWI must park >IN here and reload it afterwards.
-saved_in:
-    .word 0
 ; R1 is the register the BIOS reads a call's first parameter from, and the
 ; kernel's printing routines keep their own pointers in it, so put_char parks
-; the caller's R1 here for the duration of the call as well.
+; the caller's R1 here for the duration of the call. >IN needs no such cell:
+; the BIOS never writes R5.
 saved_r1:
     .word 0
 
@@ -3005,15 +3002,9 @@ word_emit:
     ; scroll loop), which meant three places that had to agree about where the
     ; cursor was. Two of them clamped at the last row instead of scrolling, so
     ; a long run of output stopped dead at the bottom of the screen.
-    ; Park >IN (R5) across the BIOS call: R5 is not one of the banked
-    ; registers, so the handler has no copy of its own and overwrites it. R2
-    ; *is* banked, which is why it can carry the park cell across untouched.
-    LDI saved_in
-    MOV R2, R0
-    ST >IN, R2, 0
+    ; >IN (R5) needs no parking: the BIOS never writes it.
     LDI 2                ; BIOS putch; the masked char is already in R1, where
     SWI                  ; putch reads its parameter
-    LD >IN, R2, 0        ; R2 is banked, so it survives the SWI
     LDI next
     MOV PC, R0
     NOP
@@ -3109,15 +3100,9 @@ sq_buf:
     .word 0, 0
 word_key:
     ; BIOS getch -> the key comes back in the handler's R0
-    ; Park >IN (R5) across the BIOS call: R5 is not banked, so the handler has
-    ; no copy of its own.
-    LDI saved_in
-    MOV R2, R0
-    ST >IN, R2, 0
     LDI 4                ; BIOS getch
     SWI
     SMV R0, AR0          ; bring it home into the caller's R0
-    LD >IN, R2, 0        ; R2 is banked, so it survives the SWI
     SUB SP, 1
     ST R0, SP, 0
     LDI next
@@ -3179,16 +3164,10 @@ wac_ok:
     LD R2, SP, 1            ; c-addr. R2 and R3 are banked, so the handler
     LD R3, SP, 0            ; +n1     cannot disturb them across the SWI
     ADD SP, 2
-    LDI saved_in
-    MOV R4, R0
-    ST >IN, R4, 0           ; park the parse pointer (R4 is scratch from here)
     LDI accept_buf
     MOV R1, R0              ; BIOS getstr: read the whole line into our buffer
     LDI 5
     SWI
-    LDI saved_in
-    MOV R4, R0
-    LD >IN, R4, 0           ; put the parse pointer back
     LDI accept_buf
     MOV R10, R0             ; the read pointer
     LDI 0
@@ -3281,11 +3260,7 @@ word_cr:
     LINK
     JMP R2
     NOP
-    ; >IN (R5) is parked across the call: it is not banked, so the handler
-    ; overwrites it. R2 carries the park cell, and R2 is banked itself.
-    LDI saved_in
-    MOV R2, R0
-    ST >IN, R2, 0
+    ; >IN (R5) needs no parking: the BIOS never writes it
     LDI 13               ; CR
     MOV R1, R0
     LDI 2                ; BIOS putch
@@ -3294,7 +3269,6 @@ word_cr:
     MOV R1, R0
     LDI 2
     SWI
-    LD >IN, R2, 0
     LDI next
     MOV PC, R0
     NOP
@@ -9656,10 +9630,10 @@ wwords_ret:
     NOP
 
 ; put_char prints the character in R0 through BIOS putch (function 2). The
-; character travels in R1, which is where putch reads its parameter; >IN (R5) is
-; parked across the call, because R5 is not banked and the handler overwrites it.
-; The rest of R0-R3 are banked as well and survive the call, but put_char spends
-; R1 itself, so a caller must not expect that one back.
+; character travels in R1, which is where putch reads its parameter, and the
+; caller's R1 is parked for the duration because the printing routines keep
+; pointers of their own there. >IN (R5) needs no parking - the BIOS never writes
+; it. The rest of R0-R3 are banked as well and survive the call.
 ;
 ; >>> OUTPUT RULE (hardware portability) <<<
 ; Every character printed goes through putch (BIOS function 2), and every
@@ -9672,23 +9646,14 @@ wwords_ret:
 ; like hanoi or snake, which address the framebuffer on purpose and simply do
 ; not exist on a UART-only machine.
 put_char:
-    MOV R9, R0            ; the character: R0 is needed to load the cells below
+    MOV R9, R0            ; the character: R0 is needed to load the cell below
     LDI saved_r1
     MOV R7, R0
     ST R1, R7, 0          ; park the caller's R1: putch reads its parameter from
     MOV R1, R9            ; R1, and the printing routines keep pointers of their
                           ; own there
-    LDI saved_in
-    MOV R7, R0
-    ST >IN, R7, 0         ; park >IN: R5 is not banked, so the handler
-                          ; overwrites it. R7 does not have to survive - the
-                          ; address is loaded again after the SWI.
     LDI 2                 ; BIOS putch
     SWI
-    LDI saved_in
-    MOV R7, R0
-    LD R7, R7, 0
-    MOV >IN, R7           ; >IN back
     LDI saved_r1
     MOV R7, R0
     LD R1, R7, 0          ; and the caller's R1 back
@@ -12524,6 +12489,11 @@ bios_entry:
     ; function number and R1..R3 are its parameters. The answer travels the other
     ; way - the handler leaves it in its own R0 and the caller reads it back with
     ; SMV Rx, AR0, because RETI copies nothing (spec 4.9).
+    ;
+    ; What a caller may keep across the call: R0-R3 and R13/R14 are banked, so
+    ; its copies survive; R4, R7 and R9-R12 are the handler's scratch; SCR (R8)
+    ; is the shared cursor and is meant to change. R5 (>IN) and R6 (TIB) the
+    ; handler never writes - which is why no call site has to park >IN.
     SMV R1, AR0               ; R1 = function code
     LDI BIOS_FN_COUNT
     CMP R1, R0
@@ -12848,9 +12818,9 @@ bios_f2:
     NOP
     ; regular character: clear old cursor, write char, advance, set new cursor
     LDI ATTR_MASK
-    MOV R5, R0
+    MOV R3, R0
     LDS R1, ES, SCR
-    AND R1, R5              ; the cell we leave loses the cursor attribute
+    AND R1, R3              ; the cell we leave loses the cursor attribute
     STS R1, ES, SCR
     STS R2, ES, SCR         ; the character alone, so no attribute of its own
     ADD SCR, 1
@@ -12940,7 +12910,7 @@ bios_putch_lf:
     LDI 0
     MOV R2, R0
     LDI 1920
-    MOV R5, R0
+    MOV R3, R0
     LDI 80
     MOV R12, R0
 bios_lf_scroll_copy:
@@ -12952,7 +12922,7 @@ bios_lf_scroll_copy:
     LDS R1, ES, R7
     STS R1, ES, R13
     ADD R2, 1
-    CMP R2, R5
+    CMP R2, R3
     JNZ bios_lf_scroll_copy
     NOP
     ; clear last row. The down-counter goes in R12, which the copy loop above
@@ -12968,7 +12938,7 @@ bios_lf_scroll_copy:
 bios_lf_scroll_clear:
     MOV R13, R9
     ADD R13, R2
-    ADD R13, R5
+    ADD R13, R3
     STS R1, ES, R13
     ADD R2, 1
     SUB R12, 1

@@ -2341,7 +2341,7 @@ test('a function code past the table reaches bios_unknown', () => {
 // them in its own R1..R3, the handler reads them with SMV, and the answer goes
 // back in the handler's R0 for the caller to collect. Both directions need the
 // banked registers, so this enters the BIOS by hand the way an SWI leaves it.
-const enterBios = (fn, { r1 = 0, r3 = 0 } = {}) => {
+const enterBios = (fn, { r1 = 0, r3 = 0, r5 = 0, scr = 0x1000, pre } = {}) => {
   const { Deep16Simulator } = globalThis;
   const sim = new Deep16Simulator();
   sim.loadProgram(buildMemory(res));
@@ -2350,7 +2350,9 @@ const enterBios = (fn, { r1 = 0, r3 = 0 } = {}) => {
   sim.registers[0] = fn;                 // the caller's function number
   sim.registers[1] = r1;                 // the caller's first parameter
   sim.registers[3] = r3;
-  sim.registers[8] = 0x1000;             // SCR: the cursor, shared with the screen
+  sim.registers[5] = r5;                 // >IN, which the BIOS must not touch
+  sim.registers[8] = scr;                // SCR: the cursor, shared with the screen
+  if (pre) pre(sim);
   sim.psw = 0x0020;                      // the handler's context, after SWI
   sim.shadowRegisters.CS = 0xF800;
   sim.shadowRegisters.PC = res.symbols.bios_entry - res.symbols.bios_entry;
@@ -2382,6 +2384,25 @@ test('a BIOS answer comes back in the handler\'s R0, not the caller\'s', () => {
     'the handler must leave its answer in R0');
   assert.equal(sim.registers[0] & 0xFFFF, 0,
     'the caller\'s R0 must survive the call');
+});
+
+test('the BIOS never writes >IN, so no call site has to park it', () => {
+  // R5 is not banked, so a handler that used it would overwrite the caller's
+  // parse pointer - which is why every call site used to park it in a cell. The
+  // last place that did was this one, the scroll path (R3 now).
+  const IN = 0x1234;
+  // putch on an ordinary character.
+  assert.equal(enterBios(2, { r1: 0x41, r5: IN }).registers[5] & 0xFFFF, IN,
+    'putch must not touch >IN');
+  // And on a line feed at the last visible row, which is what scrolls: row 1 is
+  // marked first, so the assertion below proves that path really ran.
+  const MARK = 0x5A41;
+  const sim = enterBios(2, { r1: 10, r5: IN, scr: 0x1730, pre: (s) => {
+    s.memory[SCREEN_ADDR + 80] = MARK;
+  } });
+  assert.equal(sim.registers[5] & 0xFFFF, IN, 'the scroll path must not touch >IN');
+  assert.equal(sim.memory[SCREEN_ADDR] & 0xFFFF, MARK,
+    'the scroll must have copied row 1 into row 0');
 });
 
 test('key answers the key it read, through the BIOS getch call', () => {
