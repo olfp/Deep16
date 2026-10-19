@@ -5,7 +5,7 @@
 > boots DeepForth on Verilator and prints the banner over the UART *pins*
 > (`npm run sim:board`), and `npm run synth:gowin` now produces
 > `fpga/gowin/impl/pnr/deep16_board.fs` — placed, routed, timing met at
-> 6.75 MHz, with the kernel baked into the BSRAM. What is left is the real board.
+> 13.5 MHz, with the kernel baked into the BSRAM. What is left is the real board.
 > D16MINI is a *small* Deep16 that actually fits the Tang Nano 9K and boots
 > DeepForth: **no PSRAM, no cache, no framebuffer** — memory is on-chip BSRAM,
 > the console is a UART, and a host terminal owns the screen.
@@ -286,8 +286,8 @@ in `js/`, `wasm/`, or `rtl/`). New module `rtl/deep16_uart.sv`:
 - **RX**: **16× oversampler**, centre-sample, start-bit detect, assemble the
   byte, push to a **128-byte FIFO** (the depth the keyboard FIFO already uses,
   `deep16_top.sv:44`); **overrun** flag.
-- **Baud**: the CPU runs at 6.75 MHz (the 27 MHz oscillator divided by four,
-  §4.7), so the divisor is **59** — 6.75 MHz ÷ 59 = 114.4 kBd, 0.7 % error,
+- **Baud**: the CPU runs at 13.5 MHz (the 27 MHz oscillator divided by two,
+  §4.7), so the divisor is **117** — 13.5 MHz ÷ 117 = 115.4 kBd, 0.16 % error,
   well inside UART tolerance. No PLL.
 - **One writer per FIFO count.** A push and a pop can land in the same cycle
   (the CPU pushes while the shifter takes a byte), and two non-blocking
@@ -337,7 +337,7 @@ Nothing board-shaped exists today.
 
 - `rtl/deep16_board.sv`: 27 MHz `clk` in, reset button, optional LED heartbeat,
   UART RX/TX, and the D16MINI `deep16_top`.
-- Clock: the CPU runs at **6.75 MHz, the 27 MHz oscillator divided by four**.
+- Clock: the CPU runs at **13.5 MHz, the 27 MHz oscillator divided by two**.
   A 27 MHz CPU does not close timing (§4.7); the divider is a two-bit counter and
   the UART's divisor is told the divided frequency, so 115200 stays correct. No
   PLL (the chip's two are left alone).
@@ -349,7 +349,7 @@ Nothing board-shaped exists today.
 
 **Done.** `rtl/deep16_board.sv` (CPU clock divider, reset synchroniser, free-run
 tie-offs, UART pins, LED heartbeat), `rtl/deep16_board.cst` (pins 52 / 4 / 17 /
-18 / 10), `rtl/deep16_board.sdc` (the 27 MHz master and the `divide_by 4`
+18 / 10), `rtl/deep16_board.sdc` (the 27 MHz master and the `divide_by 2`
 generated `clk_cpu`, plus the async button and RX pin), and the `$readmemh` init
 in `deep16_top` behind `` `ifdef D16MINI ``. `npm run lint:board` lints the board
 build; `npm run sim:board` runs it on Verilator with the real image and reads the
@@ -571,12 +571,11 @@ reduction — the register file's write network (a full per-register mux over bo
 write ports and the debug port), the UART (~0.9 k), and the unused cache/debug
 residue are the candidates — or the 20K part.
 
-**A 13.5 MHz board clock already closes.** Constraining `clk_cpu` at
-`divide_by 2` (13.5 MHz, 74 ns) gives zero setup/hold violations and Fmax
-17.4 MHz on the same design, so the oscillator can be divided by two instead of
-four once the board RTL, the UART's `CLK_HZ` and the board testbench's bit time
-are updated. Until then the 6.75 MHz divided clock stays the bring-up path; the
-bitstream still closes with zero violations.
+**The board now runs at 13.5 MHz.** Constraining `clk_cpu` at `divide_by 2`
+(13.5 MHz, 74 ns) gives zero setup/hold violations, so the oscillator is divided
+by two instead of four: `deep16_board.sv` takes `clk_div[0]`, the UART's
+`CLK_HZ` is 13,500,000 (divisor 117) and the board testbench's bit time is 234
+pin clocks. The bitstream closes with zero violations and Fmax 16.9 MHz.
 
 The committed RTL WASM package (`rtl/pkg/`) has **not** been rebuilt for the
 redirect change — Emscripten is not installed on this machine. `npm test` still
@@ -598,24 +597,25 @@ That is for the report's sake, not the hardware: leaving it at 50 MHz makes any
 "no violations" gate fail and pushes the real critical paths out of the top of
 the timing report.
 
-**Bring-up clock: 6.75 MHz, and the bitstream is green.** The board now divides
-the oscillator by four in `deep16_board.sv` (a two-bit counter, 50 % duty) and
-runs the whole machine from it; `deep16_top` gives the UART the divided frequency
-(`ifdef D16MINI` → `6_750_000`, divisor 59) so 115200 is unchanged in real time.
-`rtl/deep16_board.sdc` declares the divided domain explicitly —
-`create_generated_clock ... -divide_by 4 [get_pins {clk_div_1_s0/Q}]` — because
-otherwise the tool infers `clk_div[1]` as a clock it "was not created" (TA1132)
-and times the CPU at its 50 MHz default. Measured on that constraint:
+**Bring-up clock: 13.5 MHz, and the bitstream is green.** The board divides the
+oscillator by two in `deep16_board.sv` (a two-bit counter, 50 % duty) and runs
+the whole machine from it; `deep16_top` gives the UART the divided frequency
+(`ifdef D16MINI` → `13_500_000`, divisor 117 = 115.4 kBd, 0.16 %) so 115200 is
+unchanged in real time. `rtl/deep16_board.sdc` declares the divided domain
+explicitly — `create_generated_clock ... -divide_by 2 [get_pins
+{clk_div_0_s0/Q}]` — because otherwise the tool infers `clk_div[0]` as a clock
+it "was not created" (TA1132) and times the CPU at its 50 MHz default. Measured
+on that constraint:
 
 ```
 clk       27.000 MHz   Fmax 246.3 MHz   0 setup / 0 hold violations
-clk_cpu    6.750 MHz   Fmax  9.4 MHz    0 setup / 0 hold violations
-id_ex.valid_art 1 MHz  (artifact)       0 setup / 0 hold violations
+clk_cpu   13.500 MHz   Fmax  16.9 MHz   0 setup / 0 hold violations
+id_ex_valid_art 1 MHz  (artifact)       0 setup / 0 hold violations
 ```
 
-The design closes with ~49 % margin, and `npm run synth:gowin` emits
-**`fpga/gowin/impl/pnr/deep16_board.fs`** (3.5 MB, LUT 6,424/8,640, BSRAM 24/26,
-CLS 4,058/4,320). The boot image is in the bitstream: 800 of the 1,476
+The design closes with ~25 % margin, and `npm run synth:gowin` emits
+**`fpga/gowin/impl/pnr/deep16_board.fs`** (3.5 MB, LUT 7,275/8,640, BSRAM 24/26,
+CLS 4,176/4,320). The boot image is in the bitstream: 800 of the 1,476
 `INIT_RAM_xx` parameters on the BSRAM instances are kernel content (the demo
 source included), the rest the `0xFFFF` fill. The Verilator board sim passes at the divided clock (132,508
 clocks; the testbench's bit time is 236 pin clocks = 59 × 4, and its receiver now
@@ -988,8 +988,8 @@ The image carries a **Forth boot script**. `forth/demo.fth` is the source;
 with `--check` so the two cannot drift. `read_line` serves those lines to the
 interpreter before the keyboard on every boot, with the echo off: a script line
 prints no prompt and no ` ok`, and the REPL stands its prompt once when the
-script runs out. Compiling it costs about **1.1 M instructions** — 0.16 s at
-6.75 MHz, invisible next to the UART coming up.
+script runs out. Compiling it costs about **1.1 M instructions** — 0.08 s at
+13.5 MHz, invisible next to the UART coming up.
 
 It defines three words:
 
@@ -1157,13 +1157,14 @@ the end.
 ### The residue
 
 1. **Gowin synthesis** — done for bring-up (§4.7). The SystemVerilog parses, the
-   logic fits (LUT 6,424/8,640), the window is 24 BSRAM blocks (BIOS `0x5600`,
+   logic fits (LUT 7,275/8,640), the window is 24 BSRAM blocks (BIOS `0x5600`,
    stacks `0x5800`), and `npm run synth:gowin` emits a timed bitstream at
-   6.75 MHz (the oscillator divided by four) with the kernel baked into BSRAM.
-   **What is still open is 27 MHz**: the machine measures ~10.6 MHz after the
-   redirect-target change, and the remaining cone is EX's next-state (register
-   file → shadow segment) in front of the BSRAM address. Closing it means reading
-   the operands in ID and registering them into ID/EX.
+   13.5 MHz (the oscillator divided by two) with the kernel baked into BSRAM.
+   **What is still open is 27 MHz**: after steps A, C and D1 the machine
+   measures 14.1 MHz, and the remaining cones are the load-use compare into
+   `if_pc.CE` and the fetch-segment mux into the BSRAM address. Closing it needs
+   the rest of the area work (the register file's write network, the UART) or the
+   20K part.
 2. **Confirm the pins** in `rtl/deep16_board.cst`.
 3. **The reported combinational loop** (§4.6) — probably a mapping artifact, but
    unverified.

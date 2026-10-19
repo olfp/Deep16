@@ -31,9 +31,9 @@
 namespace {
 
 // Bit time of the console in 27 MHz pin clocks. The board divides the
-// oscillator by four and the UART's divisor is 59 CPU clocks (6.75 MHz / 115200
-// rounds to 59), so one bit is 59 * 4 = 236 clocks of this testbench.
-constexpr int CLK_PER_BIT = 236;
+// oscillator by two and the UART's divisor is 117 CPU clocks (13.5 MHz / 115200
+// rounds to 117), so one bit is 117 * 2 = 234 clocks of this testbench.
+constexpr int CLK_PER_BIT = 234;
 
 // A minimal 8N1 receiver for the TX pin: wait for the start edge, sample the
 // eight data bits at their centres, take the stop bit.

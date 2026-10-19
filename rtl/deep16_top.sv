@@ -282,10 +282,10 @@ module deep16_top
   // the pin. TX goes to the pin and to a small monitor FIFO the host drains, so
   // reading the console never competes with the shift engine for the TX FIFO.
   // The console's baud divisor is derived from the clock. The board runs the
-  // machine at 27 MHz / 4 (deep16_board.sv, D16MINI.md §4.7); the simulation
+  // machine at 27 MHz / 2 (deep16_board.sv, D16MINI.md §4.7); the simulation
   // builds keep 27 MHz because their clock is a step tick, not an oscillator.
 `ifdef D16MINI
-  localparam int UART_CLK_HZ = 6_750_000;
+  localparam int UART_CLK_HZ = 13_500_000;
 `else
   localparam int UART_CLK_HZ = 27_000_000;
 `endif

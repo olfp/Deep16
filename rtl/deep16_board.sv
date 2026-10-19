@@ -4,8 +4,8 @@
 // on-board USB bridge, and an LED. No PLL, no PSRAM, no framebuffer - the
 // console is the UART and a host terminal owns the screen.
 //
-// The CPU does not meet 27 MHz (D16MINI.md §4.7: ~10.6 MHz worst case), so the
-// oscillator is divided by four and the whole machine runs at 6.75 MHz, which
+// The CPU does not meet 27 MHz (D16MINI.md §4.7: 14.1 MHz worst case), so the
+// oscillator is divided by two and the whole machine runs at 13.5 MHz, which
 // closes timing with margin. The divider is a two-bit counter on the 27 MHz
 // clock; the UART is told the divided frequency so 115200 stays correct.
 //
@@ -25,10 +25,11 @@ module deep16_board (
   output logic led         // heartbeat: a live board is visibly alive
 );
 
-  // ---- clock: 27 MHz / 4 = 6.75 MHz ------------------------------------
-  // clk_div[1] is 6.75 MHz at 50 % duty. The machine measures ~10.0 MHz worst
-  // case (D16MINI.md §4.7), so this leaves ~49 % margin. The divider is the
-  // only logic in the 27 MHz domain; the UART is told the divided frequency.
+  // ---- clock: 27 MHz / 2 = 13.5 MHz ------------------------------------
+  // clk_div[0] is 13.5 MHz at 50 % duty. The machine measures 14.1 MHz worst
+  // case (D16MINI.md §4.7), so this leaves ~4 % margin - the next step is
+  // area reduction, not a faster divided clock. The divider is the only logic
+  // in the 27 MHz domain; the UART is told the divided frequency.
   logic [1:0] clk_div;
   logic       clk_cpu;
 
@@ -36,7 +37,7 @@ module deep16_board (
     if (!rst_n) clk_div <= 2'd0;
     else        clk_div <= clk_div + 2'd1;
   end
-  assign clk_cpu = clk_div[1];
+  assign clk_cpu = clk_div[0];
 
   // ---- reset -----------------------------------------------------------
   // The button is asynchronous. Register it in the CPU clock domain, then hold
