@@ -1,4 +1,10 @@
-# PSRAM (HyperRAM) controller — vendored
+# PSRAM (HyperRAM) controller — vendored, **not used**
+
+> **Status: rejected on hardware.** This controller fails on the Tang Nano 9K
+> at 27 MHz, at 81 MHz and with upstream PR #10, matching its own issues #4
+> (broken below 30 MHz) and #5 ("Read wrong data"; the official IP works).
+> The Gowin official "PSRAM Memory Interface HS" IP is the working path; this
+> directory is kept for reference.
 
 `psram_controller.v` is **vendored**, not written here.
 

@@ -39,6 +39,24 @@ onboard PSRAM, cache and write buffer in BSRAM.
 > shifted clock from one rPLL, so the cache needs no CDC. A standalone 13.5 MHz
 > self-test (1 MiB write/read, UART + LEDs) builds with zero timing violations;
 > see that directory's README for the measured numbers.
+>
+> **Hardware verification (2026-10-19): the part is good, the area is not.**
+> The official HS IP was exercised on the board with a full-window test: a
+> single-byte, address-dependent pattern written and read back at every
+> 16-byte-aligned address of the 2 MB window (131,072 locations). It **passes**
+> (LED slow blink), so the part, the pins, both dies and the address lines are
+> verified. The open-source controller was then rejected on hardware: it fails
+> at 27 MHz, at 81 MHz and with upstream PR #10, matching its own issues #4
+> (broken below 30 MHz) and #5 ("Read wrong data", official IP works).
+>
+> The IP is a fixed 16-bit block: disconnecting the second die's lanes to halve
+> the PHY fails place & route (CK0018, unconnected IODELAY), so there is no
+> pruning shortcut. Its cost stays **CLS 663 / LUT ~1,100**. The cache and write
+> buffer add roughly 150 CLS, so hosting PSRAM on the 9K needs about **650 CLS
+> of core reduction (~20 %)** on top of a core already at 4,163/4,320 - the two
+> cheap area probes (UART FIFOs, register-file writes) were both washes. The
+> alternative is the 20K part, where the IP, cache and future graphics fit with
+> more than half the logic free.
 
 ## 0. Goal and non-goals
 
