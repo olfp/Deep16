@@ -2094,7 +2094,13 @@ test('each routine the table names starts on an instruction, not padding', () =>
     assert.notEqual(word, 0xFFF0,
       `bios_f${i} points at a NOP - it landed in the padding above it`);
   }
-  assert.equal(wordAt(base), 0x0000, 'bios_entry should be the first LDI of the dispatch');
+  assert.equal(typeof wordAt(base), 'number', 'bios_entry has no word at its label');
+  // The dispatch opens by reading the function number out of the caller's R0 -
+  // the one place it can come from now. Every listing line at that address is
+  // joined, because the label and its comment sit there too.
+  const head = res.listing.filter(l => l.address === base).map(l => l.line).join(' ');
+  assert.match(head, /SMV R1, AR0/,
+    'bios_entry should start by reading the caller\'s R0');
 });
 
 test('the BIOS block ends in a RETI', () => {
@@ -2278,8 +2284,10 @@ test('a screen cell that a program painted reads foreground and background in th
 // through the REPL, because the kernel's own boot sequence always calls binit
 // first and would otherwise be the only routine ever observed.
 
-// Enter the BIOS the way an SWI does - shadow mode, CS = 0xF800 - with `fn`
-// written to DS:0, and report which routine's entry address was executed.
+// Enter the BIOS the way an SWI does - shadow mode, CS = 0xF800 - with the
+// function number in the *caller's* R0 (the bank an SWI interrupts; while
+// PSW.S=1 the handler's own R0 is the shadow one), and report which routine's
+// entry address was executed.
 const dispatchTo = (fn, opts = {}) => {
   const { Deep16Simulator } = globalThis;
   const sim = new Deep16Simulator();
@@ -2288,7 +2296,7 @@ const dispatchTo = (fn, opts = {}) => {
   sim.segmentRegisters.DS = 0;
   sim.segmentRegisters.SS = 0;
   sim.segmentRegisters.ES = 0;
-  sim.memory[0] = fn;
+  sim.registers[0] = fn;                // the caller's R0
   if (opts.keys) for (const ch of opts.keys) sim.enqueueKeyCode(ch.charCodeAt(0));
   sim.psw = 0x0020;
   sim.shadowRegisters.CS = 0xF800;
@@ -2327,6 +2335,61 @@ test('a function code past the table reaches bios_unknown', () => {
   for (const fn of [6, 7, 8, 64, 255]) {
     assert.equal(dispatchTo(fn, { keys: 'x' }), 'unknown', `function code ${fn}`);
   }
+});
+
+// The parameters travel the same way the function number does: the caller leaves
+// them in its own R1..R3, the handler reads them with SMV, and the answer goes
+// back in the handler's R0 for the caller to collect. Both directions need the
+// banked registers, so this enters the BIOS by hand the way an SWI leaves it.
+const enterBios = (fn, { r1 = 0, r3 = 0 } = {}) => {
+  const { Deep16Simulator } = globalThis;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(buildMemory(res));
+  sim.segmentRegisters.CS = 0; sim.segmentRegisters.DS = 0;
+  sim.segmentRegisters.SS = 0; sim.segmentRegisters.ES = 0;
+  sim.registers[0] = fn;                 // the caller's function number
+  sim.registers[1] = r1;                 // the caller's first parameter
+  sim.registers[3] = r3;
+  sim.registers[8] = 0x1000;             // SCR: the cursor, shared with the screen
+  sim.psw = 0x0020;                      // the handler's context, after SWI
+  sim.shadowRegisters.CS = 0xF800;
+  sim.shadowRegisters.PC = res.symbols.bios_entry - res.symbols.bios_entry;
+  sim.shadowRegisters.DS = 0;
+  sim.shadowRegisters.ES = 0xF000;
+  sim.shadowRegisters.SS = 0;
+  sim.running = true;
+  // Stop at the RETI, before the normal PC runs whatever it was left pointing
+  // at - the state the handler left is what this is about.
+  for (let i = 0; i < 200000 && sim.running && (sim.psw & (1 << 5)) !== 0; i++) sim.step();
+  return sim;
+};
+
+test('a BIOS parameter arrives in the caller\'s R1', () => {
+  // putch (function 2) takes its character there. SCR is not banked - it is the
+  // shared cursor, which is the point of it - so the write lands at the cell the
+  // caller's SCR names, and the shadow ES the handler set carries it to 0xF1000.
+  const sim = enterBios(2, { r1: 0x41 });      // 'A'
+  assert.equal(sim.memory[SCREEN_ADDR] & 0xFF, 0x41,
+    'putch must read its character from the caller\'s R1');
+});
+
+test('a BIOS answer comes back in the handler\'s R0, not the caller\'s', () => {
+  // bver (function 0) answers with the version. It is in the *handler's* R0 -
+  // the caller reads it home with SMV Rx, AR0 - and the caller's own R0, which
+  // carried the function number, is untouched, because R0-R3 are banked.
+  const sim = enterBios(0);
+  assert.equal(sim.shadowRegisters.R0 & 0xFFFF, 0x0001,
+    'the handler must leave its answer in R0');
+  assert.equal(sim.registers[0] & 0xFFFF, 0,
+    'the caller\'s R0 must survive the call');
+});
+
+test('key answers the key it read, through the BIOS getch call', () => {
+  // getch (function 4) is the one routine the kernel calls whose answer it
+  // wants: word_key reads it home with SMV R0, AR0. The byte queued behind the
+  // line is what key takes.
+  assert.equal(repl('key .\nA').rows[1], '> key . 65  ok');
+  assert.equal(repl(': t key . ;\nt\nB').rows[2], '> t 66  ok');
 });
 
 test('every table entry points at the routine it names', () => {

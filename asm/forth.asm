@@ -120,29 +120,21 @@ forth_start:
     MOV R1, R0
     STS R1, DS, R2
 
+    ; BIOS binit, which takes no parameters: the function number is the whole
+    ; message, so it is set with the LDI that loads it.
     LDI 1
-    MOV R3, R0
-    LDI 0
-    MOV R7, R0
-    STS R3, DS, R7
     SWI
-    
+
 cursor_on:
     LDS R1, ES, SCR
     LDI 0x0070          ; fg 0 / bg 7. Nicht LDI 0x7000: das Immediate
     SL  R0, 8           ; ist 15 Bit und signiert, 0x7000 laege als 0xF000
     OR  R1, R0              ; the cursor attribute, the character stays
     STS R1, ES, SCR
-    LDI 3               ; BIOS putstr
-    MOV R3, R0
-    LDI 0
-    MOV R7, R0
-    STS R3, DS, R7      ; DS:[0] = 3
-    LDI 1
-    MOV R7, R0
-    LDI hello_msg
-    STS R0, DS, R7      ; DS:[1] = hello_msg
-    SWI
+    LDI hello_msg        ; BIOS putstr: the address is the parameter ...
+    MOV R1, R0
+    LDI 3                ; ... and the function number goes in R0 last, since
+    SWI                  ; the LDI that loads it writes R0
     LDI after_print_text
     MOV PC, R0
     NOP
@@ -181,79 +173,37 @@ pt_done:
     JMP LR
     NOP
 print_prompt:
-    LDI 2               ; BIOS putch
-    MOV R3, R0
-    LDI 0               ; DS offset 0
-    MOV R7, R0
-    STS R3, DS, R7      ; DS:[0] = 2
-    LDI 1               ; DS offset 1
-    MOV R7, R0
-    LDI '>'
-    STS R0, DS, R7      ; DS:[1] = '>'
+    LDI '>'              ; BIOS putch
+    MOV R1, R0
+    LDI 2
     SWI
-    LDI 2               ; BIOS putch
-    MOV R3, R0
-    LDI 0               ; DS offset 0
-    MOV R7, R0
-    STS R3, DS, R7      ; DS:[0] = 2
-    LDI 1               ; DS offset 1
-    MOV R7, R0
     LDI ' '
-    STS R0, DS, R7      ; DS:[1] = ' '
+    MOV R1, R0
+    LDI 2
     SWI
     JMP LR
     NOP
 bios_putch_direct:
-    MOV R2, R0           ; park the character: R0 is rebuilt below
-    LDI 2
-    MOV R3, R0
-    LDI 0
-    MOV R7, R0
-    STS R3, DS, R7
-    LDI 1
-    MOV R7, R0
-    MOV R0, R2
-    STS R0, DS, R7
+    MOV R1, R0           ; the character is the parameter
+    LDI 2                ; BIOS putch
     SWI
     JMP LR
     NOP
 bios_putstr_direct:
-    MOV R2, R0           ; park the string address: R0 is rebuilt below
-    LDI 3
-    MOV R3, R0
-    LDI 0
-    MOV R7, R0
-    STS R3, DS, R7
-    LDI 1
-    MOV R7, R0
-    MOV R0, R2
-    STS R0, DS, R7
+    MOV R1, R0           ; the string address is the parameter
+    LDI 3                ; BIOS putstr
     SWI
     JMP LR
     NOP
 bios_getch_direct:
-    LDI 4
-    MOV R3, R0
-    LDI 0
-    MOV R7, R0
-    STS R3, DS, R7
+    LDI 4                ; BIOS getch, which answers in its own R0
     SWI
-    LDI 1
-    MOV R7, R0
-    LDS R0, DS, R7
+    SMV R0, AR0          ; so the key comes home into the caller's R0
     JMP LR
     NOP
 bios_getstr_direct:
-    MOV R2, R0           ; park the buffer address: R0 is rebuilt below
-    LDI 5
-    MOV R3, R0
-    LDI 0
-    MOV R7, R0
-    STS R3, DS, R7
-    LDI 1
-    MOV R7, R0
-    MOV R0, R2
-    STS R0, DS, R7
+    MOV R1, R0           ; the buffer address is the parameter
+    LDI 5                ; BIOS getstr
     SWI
     JMP LR
     NOP
@@ -261,25 +211,13 @@ newline_direct:
     ; CR + LF via BIOS putch so the cursor moves to a fresh line (with
     ; scrolling on the last row). Same newline the interpreter prints
     ; after " ok".
-    LDI 2               ; BIOS putch
-    MOV R3, R0
-    LDI 0               ; DS offset 0
-    MOV R7, R0
-    STS R3, DS, R7
-    LDI 1
-    MOV R7, R0
-    LDI 13              ; CR
-    STS R0, DS, R7
+    LDI 13               ; CR
+    MOV R1, R0
+    LDI 2                ; BIOS putch
     SWI
-    LDI 2               ; BIOS putch
-    MOV R3, R0
-    LDI 0
-    MOV R7, R0
-    STS R3, DS, R7
-    LDI 1
-    MOV R7, R0
-    LDI 10              ; LF
-    STS R0, DS, R7
+    LDI 10               ; LF
+    MOV R1, R0
+    LDI 2
     SWI
     JMP LR
     NOP
@@ -1027,15 +965,9 @@ ok_after:
     JZ interpret_next
     NOP
     ; Print " ok"
-    LDI 3               ; BIOS putstr
-    MOV R3, R0
-    LDI 0               ; DS offset 0
-    MOV R7, R0
-    STS R3, DS, R7      ; DS:[0] = 3
-    LDI 1               ; DS offset 1
-    MOV R7, R0
-    LDI ok_msg
-    STS R0, DS, R7      ; DS:[1] = ok_msg
+    LDI ok_msg           ; BIOS putstr
+    MOV R1, R0
+    LDI 3
     SWI
     ; Drop the cursor cell before the CR below walks away from it - same reason
     ; as in word_cr. Without this every line the REPL finishes keeps a reversed
@@ -1046,25 +978,13 @@ ok_after:
     JMP R2
     NOP
     ; Newline via BIOS: CR then LF
-    LDI 2               ; BIOS putch
-    MOV R3, R0
-    LDI 0               ; DS offset 0
-    MOV R7, R0
-    STS R3, DS, R7      ; DS:[0] = 2
-    LDI 1               ; DS offset 1
-    MOV R7, R0
-    LDI 13              ; CR
-    STS R0, DS, R7      ; DS:[1] = 13
+    LDI 13               ; CR
+    MOV R1, R0
+    LDI 2                ; BIOS putch
     SWI
-    LDI 2               ; BIOS putch
-    MOV R3, R0
-    LDI 0               ; DS offset 0
-    MOV R7, R0
-    STS R3, DS, R7      ; DS:[0] = 2
-    LDI 1               ; DS offset 1
-    MOV R7, R0
-    LDI 10              ; LF
-    STS R0, DS, R7      ; DS:[1] = 10
+    LDI 10               ; LF
+    MOV R1, R0
+    LDI 2
     SWI
     ; Prompt
     LDI print_prompt
@@ -2439,6 +2359,11 @@ found_wl:
 ; primitive that calls SWI must park >IN here and reload it afterwards.
 saved_in:
     .word 0
+; R1 is the register the BIOS reads a call's first parameter from, and the
+; kernel's printing routines keep their own pointers in it, so put_char parks
+; the caller's R1 here for the duration of the call as well.
+saved_r1:
+    .word 0
 
 ; --- P2 threading state ---
 dp_var:
@@ -2593,10 +2518,6 @@ in_shadow:
     .word 0
 num_neg:
     .word 0              ; 1 while a signed number is being scanned
-acc_addr:
-    .word 0              ; accept: the caller's buffer
-acc_max:
-    .word 0              ; accept: how much room is left in it
 
 ; environment queries: name cells, length, value. A name not here answers false.
 env_core:
@@ -3084,20 +3005,15 @@ word_emit:
     ; scroll loop), which meant three places that had to agree about where the
     ; cursor was. Two of them clamped at the last row instead of scrolling, so
     ; a long run of output stopped dead at the bottom of the screen.
-    ; Park >IN (R5) across the BIOS call: the shadow-bank BIOS clobbers R5.
+    ; Park >IN (R5) across the BIOS call: R5 is not one of the banked
+    ; registers, so the handler has no copy of its own and overwrites it. R2
+    ; *is* banked, which is why it can carry the park cell across untouched.
     LDI saved_in
     MOV R2, R0
     ST >IN, R2, 0
-    LDI 2               ; value = 2
-    MOV R3, R0
-    LDI 0               ; offset = 0
-    MOV R7, R0
-    STS R3, DS, R7      ; DS:[0] = 2
-    LDI 1               ; offset = 1
-    MOV R7, R0
-    STS R1, DS, R7      ; DS:[1] = char (R1 still holds the masked char)
-    SWI
-    LD >IN, R2, 0       ; N.B.: R2 is shadowed, so it survives the SWI
+    LDI 2                ; BIOS putch; the masked char is already in R1, where
+    SWI                  ; putch reads its parameter
+    LD >IN, R2, 0        ; R2 is banked, so it survives the SWI
     LDI next
     MOV PC, R0
     NOP
@@ -3192,21 +3108,16 @@ sq_buf:
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0
 word_key:
-    ; BIOS getch -> char in R0
-    ; Park >IN (R5) across the BIOS call: the shadow-bank BIOS clobbers R5.
+    ; BIOS getch -> the key comes back in the handler's R0
+    ; Park >IN (R5) across the BIOS call: R5 is not banked, so the handler has
+    ; no copy of its own.
     LDI saved_in
     MOV R2, R0
     ST >IN, R2, 0
-    LDI 4               ; value = 4
-    MOV R4, R0
-    LDI 0               ; offset = 0
-    MOV R7, R0
-    STS R4, DS, R7      ; DS:[0] = 4
+    LDI 4                ; BIOS getch
     SWI
-    LDI 1               ; offset = 1
-    MOV R7, R0
-    LDS R0, DS, R7      ; R0 = DS:[1]
-    LD >IN, R2, 0       ; R2 is shadowed, so it survives the SWI
+    SMV R0, AR0          ; bring it home into the caller's R0
+    LD >IN, R2, 0        ; R2 is banked, so it survives the SWI
     SUB SP, 1
     ST R0, SP, 0
     LDI next
@@ -3230,14 +3141,8 @@ read_line:
     ST R0, R2, 0
     LDI tib_kbd
     MOV TIB, R0
-    LDI 5               ; value = 5
-    MOV R4, R0
-    LDI 0               ; offset = 0
-    MOV R7, R0
-    STS R4, DS, R7      ; DS:[0] = 5
-    LDI 1               ; offset = 1
-    MOV R7, R0
-    STS TIB, DS, R7     ; DS:[1] = TIB
+    MOV R1, TIB          ; BIOS getstr: the buffer is the parameter
+    LDI 5
     SWI
     ; reset input index
     LDI 0
@@ -3253,8 +3158,9 @@ read_line:
 ; The line is read into a buffer of the kernel's own first, through the same
 ; BIOS getstr, and then copied out: the BIOS stops at its own TIB_LIMIT, not at
 ; +n1, so handing it the caller's buffer would run a long line past the end of
-; it. >IN (R5) and both arguments are parked across the SWI, because the
-; shadow-bank BIOS clobbers the registers it likes.
+; it. The two arguments need no parking: R2 and R3 are *banked*, so the handler
+; works on copies of its own and cannot disturb them. >IN (R5) is not banked and
+; still needs the park cell.
 word_accept:
     MOV R9, SP
     ADD R9, 2
@@ -3270,42 +3176,19 @@ word_accept:
     MOV PC, R0
     NOP
 wac_ok:
-    ; R6 is TIB and R8:R9 are the ES pair, so neither can hold an argument here;
-    ; both are parked in cells before the SWI and read back afterwards.
-    LD R4, SP, 0            ; +n1
-    LDI acc_max
-    MOV R3, R0
-    ST R4, R3, 0
-    LD R4, SP, 1            ; c-addr
-    LDI acc_addr
-    MOV R3, R0
-    ST R4, R3, 0
+    LD R2, SP, 1            ; c-addr. R2 and R3 are banked, so the handler
+    LD R3, SP, 0            ; +n1     cannot disturb them across the SWI
     ADD SP, 2
     LDI saved_in
-    MOV R2, R0
-    ST >IN, R2, 0           ; park the parse pointer
-    LDI 5                   ; BIOS getstr
     MOV R4, R0
-    LDI 0
-    MOV R7, R0
-    STS R4, DS, R7          ; DS:[0] = 5
+    ST >IN, R4, 0           ; park the parse pointer (R4 is scratch from here)
     LDI accept_buf
-    MOV R3, R0
-    LDI 1
-    MOV R7, R0
-    STS R3, DS, R7          ; DS:[1] = the kernel's line buffer
+    MOV R1, R0              ; BIOS getstr: read the whole line into our buffer
+    LDI 5
     SWI
-    ; Nothing is expected to survive in a register across getstr - it uses R2 as
-    ; its own write pointer - so every address is materialised again here.
     LDI saved_in
-    MOV R2, R0
-    LD >IN, R2, 0           ; put the parse pointer back
-    LDI acc_addr
-    MOV R2, R0
-    LD R1, R2, 0            ; the caller's buffer, the write pointer
-    LDI acc_max
-    MOV R2, R0
-    LD R11, R2, 0           ; what is left of the caller's room
+    MOV R4, R0
+    LD >IN, R4, 0           ; put the parse pointer back
     LDI accept_buf
     MOV R10, R0             ; the read pointer
     LDI 0
@@ -3317,14 +3200,14 @@ wac_copy:
     JZ wac_done             ; the BIOS put its NUL at the end of the line
     NOP
     LDI 0
-    CMP R11, R0
+    CMP R3, R0
     JZ wac_done             ; the caller's buffer is full
     NOP
-    ST R4, R1, 0
-    ADD R1, 1
+    ST R4, R2, 0
+    ADD R2, 1
     ADD R10, 1
     ADD R9, 1
-    SUB R11, 1
+    SUB R3, 1
     LDI wac_copy
     MOV PC, R0
     NOP
@@ -3398,26 +3281,18 @@ word_cr:
     LINK
     JMP R2
     NOP
-    ; >IN (R5) is parked across the call: the shadow-bank BIOS clobbers R5.
+    ; >IN (R5) is parked across the call: it is not banked, so the handler
+    ; overwrites it. R2 carries the park cell, and R2 is banked itself.
     LDI saved_in
     MOV R2, R0
     ST >IN, R2, 0
-    LDI 2               ; BIOS putch
-    MOV R3, R0
-    LDI 0
-    MOV R7, R0
-    STS R3, DS, R7      ; DS:[0] = 2
-    LDI 13              ; CR
+    LDI 13               ; CR
     MOV R1, R0
-    LDI 1
-    MOV R7, R0
-    STS R1, DS, R7      ; DS:[1] = 13
+    LDI 2                ; BIOS putch
     SWI
-    LDI 10              ; LF
+    LDI 10               ; LF
     MOV R1, R0
-    LDI 1
-    MOV R7, R0
-    STS R1, DS, R7      ; DS:[1] = 10
+    LDI 2
     SWI
     LD >IN, R2, 0
     LDI next
@@ -4485,11 +4360,8 @@ scrstore_ok:
 ; the !-family words here work; cls leaves nothing behind.
 word_cls:
     LDI 1
-    MOV R1, R0
-    LDI 0
-    MOV R2, R0
-    STS R1, DS, R2          ; function code 1 at DS:0, the BIOS dispatch cell
-    SWI                     ; the BIOS clears; the next instruction runs after
+    SWI                     ; BIOS binit, with no parameters: the function
+                            ; number is the whole call
     LDI ' '                 ; and now the cell binit left its cursor on
     MOV R1, R0
     LDI 0x1000              ; ES:0x1000, the top-left cell of the buffer
@@ -7808,14 +7680,8 @@ word_refill:                ; refill ( -- flag )
     ; does, and answer true: an empty line is still a line.
     LDI tib_kbd
     MOV TIB, R0
-    LDI 5                   ; BIOS getstr
-    MOV R4, R0
-    LDI 0
-    MOV R7, R0
-    STS R4, DS, R7          ; DS:[0] = 5
-    LDI 1
-    MOV R7, R0
-    STS TIB, DS, R7         ; DS:[1] = TIB
+    MOV R1, TIB             ; BIOS getstr: the buffer is the parameter
+    LDI 5
     SWI
     LDI 0
     MOV >IN, R0
@@ -9789,10 +9655,11 @@ wwords_ret:
     MOV PC, R0
     NOP
 
-; put_char prints the character in R0 through BIOS putch (function 2), parking
-; >IN (R5) across the call - the shadow-bank BIOS clobbers it. R1-R3 are
-; shadow-bank copies and survive the BIOS, so they are left alone for the
-; caller; R4, R7 and R9 are transient scratch.
+; put_char prints the character in R0 through BIOS putch (function 2). The
+; character travels in R1, which is where putch reads its parameter; >IN (R5) is
+; parked across the call, because R5 is not banked and the handler overwrites it.
+; The rest of R0-R3 are banked as well and survive the call, but put_char spends
+; R1 itself, so a caller must not expect that one back.
 ;
 ; >>> OUTPUT RULE (hardware portability) <<<
 ; Every character printed goes through putch (BIOS function 2), and every
@@ -9805,23 +9672,26 @@ wwords_ret:
 ; like hanoi or snake, which address the framebuffer on purpose and simply do
 ; not exist on a UART-only machine.
 put_char:
-    MOV R4, R0            ; the character
+    MOV R9, R0            ; the character: R0 is needed to load the cells below
+    LDI saved_r1
+    MOV R7, R0
+    ST R1, R7, 0          ; park the caller's R1: putch reads its parameter from
+    MOV R1, R9            ; R1, and the printing routines keep pointers of their
+                          ; own there
     LDI saved_in
     MOV R7, R0
-    ST >IN, R7, 0         ; park >IN
+    ST >IN, R7, 0         ; park >IN: R5 is not banked, so the handler
+                          ; overwrites it. R7 does not have to survive - the
+                          ; address is loaded again after the SWI.
     LDI 2                 ; BIOS putch
-    MOV R7, R0
-    LDI 0
-    MOV R9, R0
-    STS R7, DS, R9        ; DS:[0] = 2
-    LDI 1
-    MOV R9, R0
-    STS R4, DS, R9        ; DS:[1] = the character
     SWI
     LDI saved_in
     MOV R7, R0
     LD R7, R7, 0
     MOV >IN, R7           ; >IN back
+    LDI saved_r1
+    MOV R7, R0
+    LD R1, R7, 0          ; and the caller's R1 back
     JMP LR
     NOP
 
@@ -12644,13 +12514,17 @@ waqr_done:
 .endif
 .code
 bios_entry:
-    ; Dispatch on the function code at DS:0 through the table below. This used
-    ; to be a chain of CMP/JNZ tests, one per function, so the block's length
-    ; depended on how many functions there were and every routine had to carry
-    ; its own number.
-    LDI 0
-    MOV R3, R0
-    LDS R1, DS, R3            ; R1 = function code
+    ; Dispatch on the function code in the **caller's** R0 through the table
+    ; below. This used to be a chain of CMP/JNZ tests, one per function, so the
+    ; block's length depended on how many functions there were and every routine
+    ; had to carry its own number.
+    ;
+    ; The handler runs in the shadow bank, so the caller's registers are the
+    ; *inactive* ones and SMV is the only way to reach them (spec 3.3): R0 is the
+    ; function number and R1..R3 are its parameters. The answer travels the other
+    ; way - the handler leaves it in its own R0 and the caller reads it back with
+    ; SMV Rx, AR0, because RETI copies nothing (spec 4.9).
+    SMV R1, AR0               ; R1 = function code
     LDI BIOS_FN_COUNT
     CMP R1, R0
     JN bios_jtab_ok           ; in range: 0 .. BIOS_FN_COUNT-1
@@ -12682,7 +12556,8 @@ BIOS_JTABLE:
     .word bios_f4 - BIOS_BASE
     .word bios_f5 - BIOS_BASE
 bios_f0:
-    ; 0: bver -> R0 = 0x0001 (version 0.1)
+    ; 0: bver -> the handler's R0 = 0x0001 (version 0.1), which the caller picks
+    ; up with SMV Rx, AR0.
     LDI 0x0001
     RETI
     NOP
@@ -12691,13 +12566,15 @@ bios_f0:
 ; UART console BIOS (CONSOLE_UART) - D16MINI.md §7.3
 ; =============================================
 ; The serial build of the same six functions, with the same calling convention
-; (DS:[0] = function, DS:[1] = argument), so nothing above this block changes:
-; only what "the screen" is. The port is at ES:0x0040 (status: b0 RX-ready,
-; b1 TX-ready) and ES:0x0042 (data), the same shape as the keyboard port at
-; 0x0060/0x0062. Nothing here touches SCR or the 0xF1000 buffer.
+; (function number in the caller's R0, parameters in R1..R3, the answer in the
+; handler's R0), so nothing above this block changes: only what "the screen" is.
+; The port is at ES:0x0040 (status: b0 RX-ready, b1 TX-ready) and ES:0x0042
+; (data), the same shape as the keyboard port at 0x0060/0x0062. Nothing here
+; touches SCR or the 0xF1000 buffer.
 ;
-; The screen build below is byte-for-byte what it always was: with CONSOLE_UART
-; undefined the whole `.ifdef` branch is dropped before either pass runs.
+; The screen build below is byte-for-byte what it always was - apart from how
+; the parameters arrive: with CONSOLE_UART undefined the whole `.ifdef` branch is
+; dropped before either pass runs.
 .ifdef CONSOLE_UART
 
 ; uart_tx: send the byte in R1 (low 8 bits) once the TX FIFO has room. Clobbers
@@ -12758,14 +12635,13 @@ bios_f1:
     NOP
 
 bios_f2:
-    ; 2: putch (char from DS:1) -> one byte on the UART. CR, LF and every other
-    ; byte go out as-is; the host terminal owns what they do.
+    ; 2: putch (the character arrives in the caller's R1) -> one byte on the
+    ; UART. CR, LF and every other byte go out as-is; the host terminal owns
+    ; what they do.
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-    LDI 1
-    MOV R3, R0
-    LDS R1, DS, R3
+    SMV R1, AR1
     LDI uart_tx - BIOS_BASE
     MOV R4, R0
     LINK
@@ -12775,13 +12651,12 @@ bios_f2:
     NOP
 
 bios_f3:
-    ; 3: putstr (address in DS:1, NUL-terminated) -> bytes on the UART
+    ; 3: putstr (the address arrives in the caller's R1, NUL-terminated) ->
+    ; bytes on the UART
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-    LDI 1
-    MOV R3, R0
-    LDS R2, DS, R3          ; R2 = string address
+    SMV R2, AR1             ; R2 = string address
 uart_putstr_loop:
     LD R1, R2, 0
     LDI 0
@@ -12802,7 +12677,7 @@ uart_putstr_done:
     NOP
 
 bios_f4:
-    ; 4: getch -> DS:1 = one byte from the UART
+    ; 4: getch -> the handler's R0 = one byte from the UART
     LDI 0x0FFF
     INV R0
     MVS ES, R0
@@ -12819,22 +12694,19 @@ uart_getch_wait:
     LDS R1, ES, R2
     LDI 0x00FF
     AND R1, R0
-    LDI 1
-    MOV R3, R0
-    STS R1, DS, R3
+    MOV R0, R1              ; the byte is the answer
     RETI
     NOP
 
 bios_f5:
-    ; 5: getstr (buffer addr in DS:1); echo over the UART. CR or LF ends the
-    ; line, BS (0x08) and DEL (0x7F) erase, and the erase is "BS SP BS" on the
-    ; wire because the terminal, not this code, owns the screen.
+    ; 5: getstr (the buffer address arrives in the caller's R1); echo over the
+    ; UART. CR or LF ends the line, BS (0x08) and DEL (0x7F) erase, and the
+    ; erase is "BS SP BS" on the wire because the terminal, not this code, owns
+    ; the screen.
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-    LDI 1
-    MOV R3, R0
-    LDS R2, DS, R3          ; R2 = buffer
+    SMV R2, AR1             ; R2 = buffer
     LDI 0
     MOV R11, R0             ; count
 uart_getstr_loop:
@@ -12963,10 +12835,9 @@ bios_f2:
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-    ; 2: putch (char from DS:1) with CR/LF handling and scroll
-    LDI 1
-    MOV R3, R0
-    LDS R2, DS, R3      ; R2=char
+    ; 2: putch (the character arrives in the caller's R1) with CR/LF handling
+    ; and scroll
+    SMV R2, AR1         ; R2 = char
     LDI 10
     CMP R2, R0
     JZ bios_putch_lf
@@ -13120,10 +12991,8 @@ bios_f3:
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-    ; 3: putstr (address in DS:1, null-terminated)
-    LDI 1
-    MOV R3, R0
-    LDS R2, DS, R3
+    ; 3: putstr (the address arrives in the caller's R1, null-terminated)
+    SMV R2, AR1
 bios_putstr_loop:
     LD R1, R2, 0
     LDI 0
@@ -13143,7 +13012,7 @@ bios_f4:
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-    ; 4: getch -> R0 = keycode (low byte)
+    ; 4: getch -> the handler's R0 = keycode (low byte)
 bios_getch_wait:
     LDI KBD_STATUS
     MOV R2, R0
@@ -13157,20 +13026,15 @@ bios_getch_wait:
     LDS R1, ES, R2
     LDI 0x00FF
     AND R1, R0
-    ; Store result to DS:1 for caller
-    LDI 1
-    MOV R3, R0
-    STS R1, DS, R3
+    MOV R0, R1              ; the key is the answer
     RETI
     NOP
 bios_f5:
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-    ; 5: getstr (buffer addr in DS:1), echo
-    LDI 1
-    MOV R3, R0
-    LDS R2, DS, R3   ; buf
+    ; 5: getstr (the buffer address arrives in the caller's R1), echo
+    SMV R2, AR1      ; buf
     LDI 0
     MOV R11, R0      ; count
 bios_getstr_loop:
