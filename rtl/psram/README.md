@@ -47,14 +47,26 @@ domain crossing:
 ## Status
 
 A standalone self-test (the upstream test top: write/read 1 MiB, report over
-UART and LEDs) was built with this repo's Gowin 1.9.12 flow at 13.5 MHz:
+UART and LEDs) builds with this repo's Gowin 1.9.12 flow.
+
+**First attempt, 13.5 MHz from the PLL: UART garbage.** Logic, controller and
+UART all ran from the PLL's 13.5 MHz output and the console decoded noise - the
+baud divisor and the actual clock disagreed, so the rPLL is the suspect at that
+output frequency (or its 90-degree phase shift).
+
+**Diagnostic build: logic and UART on the 27 MHz crystal, PLL only for `clk_p`.**
+`clk_freq`/`FREQ` = 27 MHz, so the baud is exact regardless of the PLL, and the
+controller's 90-degree clock is the PLL's `CLKOUTP` (FBDIV=IDIV=0, PSDA=4).
 
 ```
-Logic 1,086 (13 %)  CLS 647 (15 %)  Registers 492
-clk_cpu 13.5 MHz + 90-degree CLKOUTP: 0 setup / 0 hold violations
+Logic 1,070 (13 %)  CLS 647 (15 %)  Registers 478
+27 MHz + CLKOUTP: 0 setup / 0 hold violations
 bitstream: artifacts/psram-ctl-test/impl/pnr/psram_ctl_test.fs (not committed)
 ```
 
-It is not yet instantiated by `deep16_board`. The next step is the board
-integration: PLL + controller + a power-on self-test, then the 4-way cache and
-the `mem_stall` path that make PSRAM the machine's memory.
+That isolates the two questions: if the UART is clean but the memory test fails,
+the phase shift is the problem; if the UART is still noise, it is the test's
+UART path rather than the PLL. Once the controller is proven, decide whether to
+run it at 27 MHz with a CDC to the 13.5 MHz CPU or retry the PLL at 13.5.
+
+It is not yet instantiated by `deep16_board`.
