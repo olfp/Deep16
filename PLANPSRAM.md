@@ -30,6 +30,15 @@ onboard PSRAM, cache and write buffer in BSRAM.
 >
 > This supersedes §12's bank/row/column geometry; the cache geometry (§10)
 > and the latency-invariance test (§7) are unaffected.
+>
+> **Controller decision (2026-10-19): option 1, the small open-source
+> controller** (`rtl/psram/`, vendored from zf3/psram-tang-nano-9k, Apache-2.0).
+> It is non-bursting (12-cycle read, 7-cycle write, one word per transaction),
+> so a line refill is eight transactions; accepted because the official IP does
+> not fit the 97 %-CLS core. It runs 1:1 at 13.5 MHz with a 90-degree phase
+> shifted clock from one rPLL, so the cache needs no CDC. A standalone 13.5 MHz
+> self-test (1 MiB write/read, UART + LEDs) builds with zero timing violations;
+> see that directory's README for the measured numbers.
 
 ## 0. Goal and non-goals
 
