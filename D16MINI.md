@@ -309,7 +309,10 @@ image and reads the UART pin.
 
 **Every pin is a documented value, not a measured one** (no board here): confirm
 the set against the Sipeed pinout and the schematic before Phase 4. The UART pair
-decides whether the console works at all.
+decides whether the console works at all. The five pins now match Sipeed's own
+Tang Nano 9K constraints (`picotiny.cst`: clock 52, UART 17/18, button 4, and a
+bank-3 GPIO on 10), including the bank-3 detail that those two pins carry no
+`IO_TYPE` — stating one fails place & route (§4.7).
 
 ### 4.6 The open-source synthesis — measured (2026-10-19)
 
@@ -391,6 +394,59 @@ and friends) and refuses to time the design; Verilator lints clean, so it is
 probably a mapping artifact, but with the design over-utilised the flow does not
 complete, so **no Fmax has been measured**. The run needs `--vopt family=GW1N-9`;
 without it nextpnr refuses the device.
+
+### 4.7 The vendor synthesis — measured (2026-10-19)
+
+Gowin EDA **1.9.12.04** (macOS), the residue item of §11. The project is
+`fpga/gowin/`, `npm run synth:gowin` is the flow, and every number below is from
+this machine. GowinSynthesis takes the RTL as **SystemVerilog 2017** with no
+language workaround; the two things the project needs are the `-verilog_std
+sysv2017` option and `fpga/gowin/d16mini.sv`, because the tool has no
+command-line macro option and `D16MINI` must be a `` `define `` in the first file
+of the list.
+
+**The vendor tool's BSRAM granularity is four times coarser than the open
+flow's, and that decides the window.** GowinSynthesis infers a RAM as 4-bit-wide,
+4,096-deep slices:
+
+```
+blocks = ceil(width / 4) x ceil(depth / 4096)
+```
+
+so a 16-bit memory costs four blocks per 4,096 words and the depth rounds up to a
+multiple of 4,096. Measured on a minimal RAM (one registered read, one write,
+`syn_ramstyle="block_ram"`): 16,384 words → 16 blocks, 24,576 → 24, 25,600 and
+26,624 → **28**, 30,720 → 32. The device has 26. **The window as specified
+(26,624 words) cannot be mapped by the vendor tool; its ceiling for a 16-bit RAM
+is 24,576 words (24 blocks).** nextpnr's 26/26 was Yosys' 1,024-word packing, not
+a property of the chip.
+
+**With a 24-block memory the logic fits.** Synthesising `RAM_WORDS=24,576` with
+the small FIFOs in logic (`-ram_style registers`, `mem` forced to block RAM):
+LUT **6,887/8,640** (80 %), registers **3,207/6,693** (48 %), BSRAM 24/26, DSP 1.
+Place & route completes and a bitstream is generated. That answers half of the
+residue: **a commercial synthesizer does close the ~20 % LUT overage.**
+
+**Timing does not close at 27 MHz, and part of the report is an artifact.** Fmax
+measures **9.808 MHz** (setup slack −90.4 ns, 3,273 violated endpoints); the
+critical paths run from the register file (`ra3_2_s8`) into the BSRAM address
+ports (`mem_mem_*.ADB`). The tool also infers `u_top/u_core/id_ex.valid` as a
+clock — TA1132, "determined to be a clock but was not created" — and times part
+of the design against it; there is no `posedge id_ex.valid` in the RTL, so the
+gated/generated-clock option or a false path is owed before the number is
+trusted. Treat 9.8 MHz as how far this path misses, not as a measured Fmax.
+
+**Bank 3 takes no `IO_TYPE`.** `LVCMOS33` on `rst_n` (pin 4) and `led` (pin 10)
+fails place & route with CT1136, "Bank 3 vccio(1.8) is locked by other constraint
+or embedded port". Sipeed's own Tang Nano 9K constraints (`picotiny.cst`) omit
+`IO_TYPE` for those pins and `rtl/deep16_board.cst` now does too, which is what
+lets the flow reach routing. The UART pair and the clock (banks 2 and 1) keep
+`LVCMOS33`.
+
+The 24,576 probe synthesised the *existing* kernel, whose BIOS still sits at
+`0x5F00` and stacks at `0x6000`, so that bitstream is a resource measurement and
+not a bootable image: the window has to shrink by 2,048 words (BIOS to `0x5700`,
+stacks to `0x5800`) before the numbers describe a working board.
 
 ---
 
@@ -864,10 +920,11 @@ the end.
 
 ### The residue
 
-1. **Gowin synthesis** — whether the vendor tool closes the ~20 % LUT overage
-   (10,245 against 8,640) and closes timing at 27 MHz; the open flow cannot place
-   the design while it is over-utilised, so no Fmax has been measured. Needs the
-   toolchain and a licence (§10).
+1. **Gowin synthesis** — measured (§4.7). The systemverilog parses, the logic
+   fits (LUT 6,887/8,640) and the flow routes, but the vendor tool's BSRAM
+   granularity caps a 16-bit RAM at 24,576 words (24 blocks), so the 26,624-word
+   window has to shrink by 2,048 words before a bitstream can boot. Timing at
+   27 MHz is not closed (9.8 MHz, with a spurious derived clock in the report).
 2. **Confirm the pins** in `rtl/deep16_board.cst`.
 3. **The reported combinational loop** (§4.6) — probably a mapping artifact, but
    unverified.
