@@ -545,9 +545,13 @@ Verilator harness (`npm run build:rtl` + `rtl/sim/main_native.cpp`) and
 created") and constrains it at 50 MHz. The netlist shows why to distrust that:
 `id_ex.valid_s0` is a plain `DFFRE` clocked by `clk_d`, and the net appears only
 as LUT data (`I0`–`I3`), never on a `.CLK` pin. It accounts for 3 endpoints, not
-the 1,713. `-fix_gated_and_generated_clocks 1` does not remove it and neither does
-a `set_false_path` on the pin; the warnings and those three endpoints should be
-read as noise until the toolchain offers a lever.
+the 1,713. `-fix_gated_and_generated_clocks 1` does not remove it and a
+`set_false_path` on the pin is ignored (the clock is "not created"); what does
+work is owning it — `rtl/deep16_board.sdc` creates `id_ex_valid_art` at 1 MHz on
+`id_ex.valid_s0/Q`, which replaces the inferred 50 MHz and leaves no violation.
+That is for the report's sake, not the hardware: leaving it at 50 MHz makes any
+"no violations" gate fail and pushes the real critical paths out of the top of
+the timing report.
 
 **Bring-up clock: 6.75 MHz, and the bitstream is green.** The board now divides
 the oscillator by four in `deep16_board.sv` (a two-bit counter, 50 % duty) and
