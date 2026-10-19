@@ -581,6 +581,21 @@ rewrite only added the synchronous-read prefetch and its validity logic. The
 UART's LUTs are its shifter, oversampler and control - not its queues. The
 prototype was reverted; the board sim and all differentials passed with it.
 
+**The register-file write network is not an area item either (measured).** The
+other candidate was the `regs_q` staging copy: 22 entries, each with a mux over
+the two write ports, the debug port and the shadow clear. Replacing it with a
+decoded enable per entry (debug > A > B > clear, same priority) came out
+flat-to-worse: logic 7,273 → 7,262 (−11), CLS 4,163 → 4,171 (noise), and at the
+27 MHz target Fmax **14.132 → 12.772 MHz**. A two-write-port register file on
+LUTs needs that per-entry mux anyway; the tool had already built the staging
+copy as exactly that, and the enable-based form placed worse. Reverted.
+
+**Two negative results, one lesson:** the tool already maps the obvious
+structures well (FIFOs to distributed RAM, write ports to per-entry muxes), so
+the remaining 7.2 k LUTs are the core's own operand/segment selects, context
+chain and ISA case - structural, not mis-mapped primitives. Cutting them means
+pipeline changes, not style.
+
 **The board now runs at 13.5 MHz.** Constraining `clk_cpu` at `divide_by 2`
 (13.5 MHz, 74 ns) gives zero setup/hold violations, so the oscillator is divided
 by two instead of four: `deep16_board.sv` takes `clk_div[0]`, the UART's
