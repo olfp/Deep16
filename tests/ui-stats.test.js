@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
-import { assemble, loadBrowserScripts, loadRtl, ROOT } from '/home/ubuntu/Deep16/tests/helpers.js';
+import { assemble, loadBrowserScripts, loadRtl, ROOT } from './helpers.js';
 
 const captured = { text: '', title: '', mini: '', miniTitle: '' };
 globalThis.document = {
