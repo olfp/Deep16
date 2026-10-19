@@ -554,11 +554,29 @@ clocks; the testbench's bit time is 236 pin clocks = 59 × 4, and its receiver n
 arms on an idle line so the UART's un-clocked reset value is not taken for a
 start bit).
 
-To program it: open **Gowin Programmer**, add `deep16_board.fs`, connect the Tang
-Nano 9K, and "Program/Configure" — the *SRAM* option is enough to try it (the
-bitstream loads the BSRAM, so the kernel runs immediately); program the external
-flash for persistence across power cycles. The console is the on-board USB-UART
-at 115200 8N1.
+To program it, open **Gowin Programmer** and connect the Tang Nano 9K. Which
+file and which mode matters:
+
+- **SRAM** ("SRAM Program") — the volatile one, enough to try the design, since
+  the bitstream loads the BSRAM and the kernel runs immediately. The Programmer
+  accepts the plain-text bitstream here: `deep16_board.fs`.
+- **External flash** (persistent across power cycles) — the config flash wants
+  the *binary* bitstream, not the text one: **`deep16_board.bin`** (434 KiB; the
+  tool also emits `.binx`, the same binary with a header). Feeding it the
+  `.fs` writes 3.5 MB of ASCII into the flash and the board does not start.
+  Settings that Sipeed's own FAQ pins for this board: operation
+  `exFlash Erase, Program thru GAO-Bridge`, Flash Device **Generic Flash**,
+  frequency **2.5 MHz**, **no Verify** in the operation, start address
+  `0x000000`. Power-cycle afterwards — configuration happens at power-up, so the
+  reset button is not enough.
+- **`openFPGALoader`** is the more predictable route on a Mac
+  (`brew install openfpgaloader`): `openFPGALoader -b tangnano9k -f
+  impl/pnr/deep16_board.fs` writes the flash (`-f`), while omitting `-f` loads
+  SRAM. Use 0.13.1 or newer; older versions report a CRC error writing this
+  board's flash.  The board's debugger shows up as two serial ports
+  (`/dev/cu.usbserial-*`, channel B is the console).
+
+The console is the on-board USB-UART at 115200 8N1.
 
 ---
 
