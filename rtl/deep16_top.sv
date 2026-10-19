@@ -98,11 +98,13 @@ module deep16_top
 
   logic [15:0] mem_rdata;
   logic [20:0] mem_addr;
+  logic        mem_rd;
   logic        mem_we;
   logic [20:0] mem_waddr;
   logic [15:0] mem_wdata;
   logic [15:0] if_rdata;
   logic [20:0] if_addr;
+  logic        if_preempted;
 
   // ---- UART console ------------------------------------------------------
   logic        uart_tx_we, uart_rx_take, uart_ctrl_we;
@@ -119,8 +121,14 @@ module deep16_top
   // data address in EX, so both land exactly where the combinational array used
   // to deliver them. This build has no cache (D16MINI is cacheless), so the
   // FSH flush and the cache-invalidate inputs have nothing to do.
-  logic [15:0] if_ram_q;
-  logic [15:0] mem_ram_q;
+  // the one read port's registered result, the address it was read for, and
+  // whether that address was a load's (rather than the fetch's), plus the
+  // store-to-load bypass condition and the store's data
+  logic [15:0] ram_q;
+  logic [20:0] ram_raddr_q;
+  logic        ram_was_data_q;
+  logic        ram_hit_q;
+  logic [15:0] ram_store_q;
   /* verilator lint_off UNUSEDSIGNAL */
   logic        core_cache_flush;   // the core's FSH: no cache to flush here
   logic        _unused_inputs;
@@ -145,7 +153,9 @@ module deep16_top
     .o_busy    (o_busy),
     .if_addr   (if_addr),
     .if_rdata  (if_rdata),
+    .if_preempted(if_preempted),
     .mem_addr  (mem_addr),
+    .mem_rd    (mem_rd),
     .mem_rdata (mem_rdata),
     .mem_we    (mem_we),
     .mem_waddr (mem_waddr),
@@ -197,38 +207,71 @@ module deep16_top
   // The data port is addressed in MEM and its word lands in WB - exactly where
   // the load's register write and bypass read it (see the core's mem_wb_wdata).
   //
+  // There is only **one** read port, shared. A load's data read takes it and the
+  // instruction fetch yields that cycle - `if_preempted` turns the preempt into a
+  // fetch bubble (one stall per load). That is what makes the memory fit: a Gowin
+  // BSRAM block has two ports, and a second read port makes the flow duplicate
+  // the whole array (52 blocks against the chip's 26). The hardware could share
+  // a port between a read and a write, but neither tool does that for you, so the
+  // sharing is done here.
+  //
   // The read of mem[] is unconditional - the ROM/fill decode sits behind the
-  // register - so the array stays a plain two-port RAM (see non_ram above). The
-  // index is the low ADDR_BITS bits of the address: for an address the board
-  // cannot back the read is out of the array and its value is discarded by the
-  // mux, which is a don't-care rather than a hazard.
-  always_ff @(posedge clk) begin
-    if_ram_q  <= mem[if_addr[ADDR_BITS-1:0]];
-    mem_ram_q <= mem[mem_addr[ADDR_BITS-1:0]];
-  end
-`ifdef D16MINI
-  assign if_rdata  = (if_addr  < 21'(RAM_WORDS)) ? if_ram_q  : non_ram(if_addr);
-  assign mem_rdata = (mem_addr < 21'(RAM_WORDS)) ? mem_ram_q : non_ram(mem_addr);
-`else
-  // The simulation build keeps the boot ROM inside the array, so anything past
-  // it is just the fill - no separate decode.
-  assign if_rdata  = (if_addr  < 21'(RAM_WORDS)) ? if_ram_q  : 16'hFFFF;
-  assign mem_rdata = (mem_addr < 21'(RAM_WORDS)) ? mem_ram_q : 16'hFFFF;
-`endif
+  // register - so the array stays a plain RAM (see non_ram above). The index is
+  // the low ADDR_BITS bits of the address: for an address the board cannot back
+  // the read is out of the array and its value is discarded by the decode, which
+  // is a don't-care rather than a hazard.
+  //
+  // A store in WB and a load in MEM are one instruction apart, and the array
+  // write lands a cycle after the load's read - so a load straight behind a store
+  // to the same address would read the *old* word. Stepped runs never see it (the
+  // store has retired), free-run does, so the read result is bypassed from the
+  // store here.
+  wire        ram_rd_data = mem_rd;
+  wire [20:0] ram_raddr   = ram_rd_data ? mem_addr : if_addr;
+  wire        ram_hit     = ram_rd_data && mem_we && (mem_waddr == mem_addr);
 
-  // The SWI vector used to be read here combinationally (`mem[2]`), a third
-  // asynchronous port on the array - which no BSRAM has, so it kept the whole
-  // memory out of block RAM. The core now reads it through the data port like a
-  // load into R15 (deep16_core.sv, the SWI branch), so the array is strictly
-  // two-port: one fetch read, one data read/write.
-
-  // One write port (stores, committed in WB). A store outside the window is
-  // dropped - there is no MMIO cell to write: the UART is decoded in the core,
-  // and everything else the board does not back is read-only fill.
   always_ff @(posedge clk) begin
+    // the RAM read itself, plain and unconditional: a muxed read - the obvious
+    // `hit ? bypass : mem[addr]` - stops the flow inferring block RAM
+    ram_q          <= mem[ram_raddr[ADDR_BITS-1:0]];
+    ram_raddr_q    <= ram_raddr;
+    ram_was_data_q <= ram_rd_data;
+    ram_hit_q      <= ram_hit;
+    ram_store_q    <= mem_wdata;
+    // the write port (stores, committed in WB); a store outside the window is
+    // dropped - there is no MMIO cell to write, since the UART is decoded in the
+    // core and everything else the board does not back is read-only fill
     if (mem_we && mem_waddr < 21'(RAM_WORDS))
       mem[mem_waddr[ADDR_BITS-1:0]] <= mem_wdata;
   end
+
+  // The read result belongs to whoever asked for it: the fetch, or the load. The
+  // store-to-load bypass is applied here, behind the read register, so the RAM
+  // read stays unconditional.
+  wire [15:0] ram_decoded = (ram_raddr_q < 21'(RAM_WORDS)) ? ram_q
+`ifdef D16MINI
+                          : non_ram(ram_raddr_q);
+`else
+                          : 16'hFFFF;
+`endif
+  wire [15:0] ram_data = ram_hit_q ? ram_store_q : ram_decoded;
+
+  // The fetch's word is not on the bus the cycle after a load took the port;
+  // the core ignores it and re-issues (deep16_core.sv, if_hit).
+  assign if_preempted = ram_was_data_q;
+  assign if_rdata     = ram_was_data_q ? 16'hFFFF : ram_data;
+  assign mem_rdata    = ram_was_data_q ? ram_data : 16'hFFFF;
+
+  // The SWI vector used to be read here combinationally (`mem[2]`), a third
+  // asynchronous port on the array - which no BSRAM has, so it kept the whole
+  // memory out of block RAM. The core reads it through the data port like a load
+  // into R15 now (deep16_core.sv, the SWI branch), so the array is strictly
+  // two-port: one shared read, one write.
+
+  // The write port (stores, committed in WB) shares the array with the read
+  // above; a store outside the window is dropped - there is no MMIO cell to
+  // write: the UART is decoded in the core, and everything else the board does
+  // not back is read-only fill.
 
   // ---- UART console (D16MINI.md §4.4) ----------------------------------
   // In simulation the receiver is fed by uart_rx_push; on the board uart_rxd is

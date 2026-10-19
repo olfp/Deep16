@@ -184,7 +184,8 @@ the word lands in WB, `pc_from_port` makes the fetch take the redirect from
 there, and the WB write patches the shadow PC (and the event's `spc`). No
 register, no shadow, no host-write path — the vector stays ordinary RAM and a
 `poke(2)` still installs a handler. That removes the asynchronous `mem[2]` read,
-so the array is strictly two-port: one fetch read, one data read/write. The
+so the array is strictly two-port — one *shared* read (fetch or a load) and one
+write, which is what makes it fit (§4.6). The
 `deep16_core.sv` comments had described this all along (and the `is_swi` bit in
 the MEM bundle — "the vector word is patched in from MEM" — had been carried,
 unread, waiting for it).
@@ -334,7 +335,7 @@ better rather than merely Yosys-shaped:
   *behind* the read register keeps it a plain two-port RAM (4,824 LUT4s). That is
   why `non_ram()` sits where it does in `deep16_top.sv`.
 
-**And then it does not fit.** nextpnr places nothing and fails:
+**Two reads do not fit.** nextpnr could not place it:
 
 ```
 LUT4:   10508/   8640   121%
@@ -344,7 +345,7 @@ ERROR: Unable to place cell 'u_top.mem.0.9',
 ```
 
 The BSRAM number is not a width or depth artifact — it is the **port count**. The
-memory is read twice and written once per cycle (instruction fetch, data read,
+memory was read twice and written once per cycle (instruction fetch, data read,
 store), and a Gowin BSRAM block has **two ports**. Measured on minimal cases at
 the real geometry (26,624 × 16, fully initialised):
 
@@ -353,25 +354,41 @@ the real geometry (26,624 × 16, fully initialised):
 | 1 read + 1 write | **26** — fits exactly |
 | 2 reads + 1 write | **52** — does not fit |
 
-So the plan's §4.1 assumption — "port A = instruction fetch, port B = data read +
-write" — is not what the tools do with a two-read-port memory: Yosys *duplicates*
-it, one copy per read port, and the chip has half the blocks that needs. The
-hardware could in principle share the store with a read port (the block's
-read-during-write modes exist for it), but neither tool does that for you, and
-the vendor tool has not been measured here.
+Yosys does not share a port between a read and a write; it *duplicates* the array,
+one copy per read port, and the chip has half the blocks that needs. The plan's
+§4.1 assumption — "port A = instruction fetch, port B = data read + write" — is
+therefore not something the tool does for you.
 
-The logic is over budget too, by a fifth (10,508 LUT4 against 8,640), though that
-is the kind of margin a commercial synthesizer usually closes.
+**Fixed: one read port, shared.** A load's data read takes the read port and the
+instruction fetch yields that cycle — `if_preempted` turns the preempt into a
+fetch bubble, which is a one-cycle stall per load. The store keeps the second port
+(the write), so a store and a load never share one and no write buffer is needed.
+Measured again:
 
-Two smaller notes: nextpnr reports a **combinational loop** through the UART
-strobes (`uart_tx_we` and friends) and refuses to time the design — Verilator
-lints clean, so it is probably a mapping artifact, but it is unverified. And the
-run needs `--vopt family=GW1N-9`; without it nextpnr refuses the device.
+```
+BSRAM:      26/     26   100%      <- exactly the chip
+LUT4:   10245/   8640   118%
+```
 
-**The open question this leaves is a design one, not a tooling one**: how does the
-machine reach its memory with one read port? A fetch line buffer, a split
-instruction/data space, or accepting a stall per fetch — §11 lists it. Until it
-is answered, the D16MINI memory does not fit the 26 blocks it was sized for.
+The stall is cheap: `npm run sim:board` went from 97,868 to 98,432 clocks, +0.6 %.
+The design now fits BSRAM **exactly**, which is the number that decided the plan.
+
+**And it exposed a real bug.** The same work found that a **load one instruction
+behind a store to the same address read the old word**: the store commits in WB
+and the array write lands a cycle after the load's read. Stepped runs never see it
+(the store has retired before the load executes), so it survived the entire test
+suite — free-run, the board's mode, showed it immediately (0xFFFF where the JS
+core gives 0x1234). The read result is now bypassed from the store, applied
+*behind* the read register so the RAM read stays unconditional. There is a
+free-run regression test for it in `tests/rtl.test.js`.
+
+**Still open.** The logic is over budget by a fifth (10,245 LUT4 against 8,640),
+which is the kind of margin a commercial synthesizer usually closes — unverified.
+nextpnr reports a **combinational loop** through the UART strobes (`uart_tx_we`
+and friends) and refuses to time the design; Verilator lints clean, so it is
+probably a mapping artifact, but with the design over-utilised the flow does not
+complete, so **no Fmax has been measured**. The run needs `--vopt family=GW1N-9`;
+without it nextpnr refuses the device.
 
 ---
 
@@ -780,8 +797,9 @@ the whole bring-up path minus the vendor tools.
 | Host local echo left on → doubled input | document host setup; initiation banner |
 | RX byte loss between polls | 128-byte RX FIFO; injection test 8 mirrors the existing FIFO-brake test |
 | BIOS far-jump / segment change breaks SWI | re-run the full forth suite; BIOS `.org` is one constant |
-| **The memory needs more BSRAM blocks than the chip has** | **measured** in the open-source flow (§4.6): 2 read ports + 1 write → the flow duplicates, 52 blocks against 26. Fix by reaching memory with one read port (§11) |
-| **The logic is ~20 % over the LUT budget** | 10,508 LUT4 against 8,640 in the open flow (§4.6); a commercial synthesizer usually closes that margin — unverified |
+| ~~**The memory needs more BSRAM blocks than the chip has**~~ | **fixed** (§4.6): the read port is shared between the fetch and data loads, and the memory now fits BSRAM exactly — 26/26 |
+| **A load behind a store read the old word in free-run** | **fixed** (§4.6): the read result is bypassed from the store, with a free-run regression test in `tests/rtl.test.js` |
+| **The logic is ~20 % over the LUT budget** | 10,245 LUT4 against 8,640 in the open flow (§4.6); a commercial synthesizer usually closes that margin — unverified |
 | No Gowin toolchain here | the open-source flow answers what it can (§4.6); vendor fit, timing and the licence are Phase 4 unknowns, not assumptions |
 | `.cst` UART pins / pin mode wrong | confirm against DS117 + Sipeed pinout before Phase 4 |
 
@@ -843,21 +861,14 @@ the end.
 
 ### The residue
 
-1. **The memory's port count (§4.6).** The design needs two reads and a write per
-   cycle; a Gowin BSRAM block has two ports, and the open-source flow duplicates
-   the memory for the second read — 52 blocks where 26 exist. Until the machine
-   reaches its memory with one read port (a fetch line buffer, a split
-   instruction/data space, or a stall per fetch), the D16MINI memory does not fit
-   the blocks it was sized for. **This is the one item that can still be answered
-   here.**
-2. **Gowin synthesis** — whether the vendor tool maps the memory better than
-   Yosys does (it has read-during-write modes the open flow did not use), closes
-   the ~20 % LUT overage, and closes timing at 27 MHz. Needs the toolchain and a
-   licence (§10).
-3. **Confirm the pins** in `rtl/deep16_board.cst`.
-4. **The reported combinational loop** (§4.6) — probably a mapping artifact, but
+1. **Gowin synthesis** — whether the vendor tool closes the ~20 % LUT overage
+   (10,245 against 8,640) and closes timing at 27 MHz; the open flow cannot place
+   the design while it is over-utilised, so no Fmax has been measured. Needs the
+   toolchain and a licence (§10).
+2. **Confirm the pins** in `rtl/deep16_board.cst`.
+3. **The reported combinational loop** (§4.6) — probably a mapping artifact, but
    unverified.
-5. Optional: the **UART loader** (§6.6), so the kernel can change without a
+4. Optional: the **UART loader** (§6.6), so the kernel can change without a
    re-synthesis.
 
 ---

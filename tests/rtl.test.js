@@ -402,6 +402,37 @@ target:
   assert.equal(rtl.memoryAt(8, 1)[0], 0x1234, 'the loaded target did not run');
 });
 
+// A store commits in WB and the array write lands a cycle after a load's read,
+// so a load *straight behind* a store to the same address used to read the old
+// word. Stepped runs never see it - the store has retired by the time the load
+// executes - so it survived the whole suite and only free-run (the board's mode)
+// shows it. The read result is now bypassed from the store.
+test('a load behind a store sees the stored word in free-run', async () => {
+  const res = assemble(`
+        .org 0x0100
+        LDI 0x0140
+        MOV R4, R0            ; R4 = 0x140
+        LDI 0x1234
+        MOV R8, R0            ; R8 = 0x1234
+        STS R8, DS, R4        ; mem[0x140] = 0x1234
+        LDS R9, DS, R4        ; straight back, one instruction behind the store
+        LDI 0x0142
+        MOV R5, R0            ; R5 = 0x142
+        STS R9, DS, R5        ; mem[0x142] = what the load saw
+        HALT
+  `);
+  const js = runJs(res, { cs: 0xFFFF });
+  assert.equal(js.memory[0x142], 0x1234, 'the JS core sees the stored word');
+  const r = await loadRtl();
+  r.init(MEM_WORDS);
+  for (const c of res.memoryChanges) {
+    r.load_program(c.address, new Uint16Array([c.value & 0xFFFF]));
+  }
+  r.set_segments(0xFFFF, 0x0000, 0x0000, 0x0000);
+  for (let i = 0; i < 40; i++) r.run_cycles(20);   // free-run, not step()
+  assert.equal(r.get_memory_word(0x142), 0x1234, 'the free-run load read the stale word');
+});
+
 test('shadow banking: SPSW enters the shadow set, SMV reads across', async () => {
   const res = assemble(`
         LDI 0x1111

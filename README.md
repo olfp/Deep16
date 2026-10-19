@@ -125,10 +125,11 @@ only place the UART's *receive pin* is exercised.
 
 `npm run synth:board` is the license-free synthesis route — Yosys → nextpnr
 (Apicula) → `gowin_pack`. It confirms that the boot image lands in BSRAM's init,
-and it currently **stops at place & route**: the memory needs two read ports,
-the flow duplicates it for the second, and 52 blocks do not fit in 26
-(D16MINI.md §4.6). What is left needs the board itself — the vendor tool, timing,
-and confirming the pins in `rtl/deep16_board.cst`.
+and that the memory fits the chip's 26 blocks **exactly** once the read port is
+shared between the fetch and data loads. It stops at place & route while the
+logic is ~20 % over the LUT budget (D16MINI.md §4.6). What is left needs the
+board itself — the vendor tool, timing, and confirming the pins in
+`rtl/deep16_board.cst`.
 
 ## Architecture in one page
 

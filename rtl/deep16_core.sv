@@ -51,11 +51,15 @@ module deep16_core
   output logic        o_result,      // 0 = the step ran into a halt word
   output logic        o_busy,
 
-  // instruction fetch port
+  // instruction fetch port. `if_preempted` tells the core the word on if_rdata
+  // is not its own this cycle: the memory has one read port and a load took it,
+  // so the fetch treats the cycle as a miss, holds the address and re-issues.
   output logic [20:0] if_addr,
   input  logic [15:0] if_rdata,
+  input  logic        if_preempted,
   // data read port: loads and the SWI vector word, read in MEM
   output logic [20:0] mem_addr,
+  output logic        mem_rd,          // the data port is reading this cycle
   input  logic [15:0] mem_rdata,
   // data write port: stores commit in WB, like every other architectural write
   output logic        mem_we,
@@ -1102,8 +1106,9 @@ module deep16_core
     if_pc_next     = if_redirect ? (mem_late ? mem_rdata : redirect_pc_ex)
                                   : (if_pc + 16'd1);
     // The word on the bus is the one asked for last cycle; if_hit says whether
-    // that request was for this cycle's if_pa (a segment change makes it stale).
-    if_hit         = (if_cs_q == if_cs) && (if_pc_q == if_pc);
+    // that request was for this cycle's if_pa (a segment change makes it stale),
+    // and if_preempted says a load took the read port and the word is not ours.
+    if_hit         = (if_cs_q == if_cs) && (if_pc_q == if_pc) && !if_preempted;
     // Issue for the next cycle: hold while the pipeline is stalled or while a
     // port redirect is still in flight, take a redirect target (even on a stale
     // word), else advance - or re-issue the current address when the word was
@@ -1187,6 +1192,7 @@ module deep16_core
   // which is what the single-step cores do.
   always_comb begin
     mem_addr  = ex_mem.mem_rd_valid ? ex_mem.mem_addr : 21'd0;
+    mem_rd    = ex_mem.mem_rd_valid;
     mem_we    = mem_wb.valid && mem_wb.mem_we;
     mem_waddr = mem_wb.mem_addr;
     mem_wdata = mem_wb.mem_wdata;
