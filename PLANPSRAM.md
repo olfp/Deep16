@@ -3,6 +3,34 @@
 Target: Tang Nano 9K (Gowin GW1NR-9). Full 1,048,576-word address space in
 onboard PSRAM, cache and write buffer in BSRAM.
 
+> **Hardware correction (measured 2026-10-19).** The QN88P's embedded 64 Mbit
+> part is a **HyperRAM** (HyperBus: CK/CK#, CS#, DQ, RWDS), not the
+> SDRAM-with-banks part §12 assumed - that description belongs to the QN88
+> (SDRAM) package. Consequences:
+>
+> - Gowin's **"PSRAM Memory Interface HS" IP** (v1) is installed and supports
+>   this device. A public Tang Nano 9K example (`zf3/some-tang-nano-9k-examples`,
+>   `02.psram`) commits the generated IP netlist, the 27->148.5 MHz PLL and a
+>   working top. **It builds with Gowin 1.9.12 here**: memory clock 148.5 MHz,
+>   user clock 74.25 MHz, all clocks close with zero violations, and the PSRAM
+>   ports bind to the dedicated pads automatically (no `.cst` entries).
+> - **Its cost is the problem.** The IP alone is LUT 1,054 (13 %), **CLS 663
+>   (16 %)**, SSRAM 18, registers 564. The board build is already at CLS
+>   4,163/4,320 (97 %), so the official IP does **not** fit beside the current
+>   core. Either ~500 CLS must come out of the core, the small open-source
+>   controller (zf3/psram-tang-nano-9k, <200 LUs, non-bursting, 12-cycle read)
+>   is used instead, or the 20K part hosts the design.
+> - The IP is a command/burst interface: `addr[20:0]`, `cmd` (1 = write),
+>   `cmd_en`, `wr_data[63:0]`, `data_mask[7:0]`, `rd_data[63:0]`,
+>   `rd_data_valid`, `init_calib`; `BURST_MODE=16` (16 bytes = one 8-word cache
+>   line per transaction).
+> - The user interface runs at 74.25 MHz while the CPU runs at 13.5 MHz, so the
+>   cache/PSRAM boundary needs a clock-domain crossing; the PLL uses one of the
+>   chip's two.
+>
+> This supersedes §12's bank/row/column geometry; the cache geometry (§10)
+> and the latency-invariance test (§7) are unaffected.
+
 ## 0. Goal and non-goals
 
 **Goal.** Move the Deep16 memory backing store from a Verilog array to the
