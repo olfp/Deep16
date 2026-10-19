@@ -439,14 +439,11 @@ LUT **6,887/8,640** (80 %), registers **3,207/6,693** (48 %), BSRAM 24/26, DSP 1
 Place & route completes and a bitstream is generated. That answers half of the
 residue: **a commercial synthesizer does close the ~20 % LUT overage.**
 
-**Timing does not close at 27 MHz, and part of the report is an artifact.** Fmax
-measures **9.808 MHz** (setup slack −90.4 ns, 3,273 violated endpoints); the
-critical paths run from the register file (`ra3_2_s8`) into the BSRAM address
-ports (`mem_mem_*.ADB`). The tool also infers `u_top/u_core/id_ex.valid` as a
-clock — TA1132, "determined to be a clock but was not created" — and times part
-of the design against it; there is no `posedge id_ex.valid` in the RTL, so the
-gated/generated-clock option or a false path is owed before the number is
-trusted. Treat 9.8 MHz as how far this path misses, not as a measured Fmax.
+**Timing does not close at 27 MHz.** Measured on the real (shrunk) design below:
+Fmax 9.0–9.5 MHz and 1,713 violated endpoints. The tool options do not help —
+`-opt_goal timing -timing_driven 1` makes it slightly *worse* (7.96 MHz), while
+`-pipe 1`, `-retiming 1 -retiming_resource all` and
+`-fix_gated_and_generated_clocks 1` change nothing.
 
 **Bank 3 takes no `IO_TYPE`.** `LVCMOS33` on `rst_n` (pin 4) and `led` (pin 10)
 fails place & route with CT1136, "Bank 3 vccio(1.8) is locked by other constraint
@@ -466,17 +463,21 @@ help at all.
 
 **Timing.** At 27 MHz: Fmax **9.0–9.5 MHz**, 1,713 violated endpoints on `clk`,
 TNS −58,422 ns. The critical path is ~101 ns / 34 logic levels, from the
-context/PSW and register-file read cone (`ctx_next_ex.psw_15`,
-`ra1_3`, `r1_*`) into the BSRAM address port (`mem_mem_*.ADB`). The CPU computes
-its operand read, execute result and memory address in one cycle; 27 MHz wants
-that under 37 ns. **The same design closes timing cleanly at 6.75 MHz** (27/4):
-with the clock constraint set to 148.148 ns the report shows *zero* violated
-endpoints and Fmax 9.532 MHz — so the analysis is sound and the gap is real, not
-a modelling artifact. Two ways out: run the CPU from a divided clock for
-bring-up (a `CLKDIV`, `CLK_HZ` to 6_750_000 — still 58 cycles per 115200 baud
-bit), or pipeline the execute/address path.
+context/PSW and register-file read cone (`ctx_next_ex.psw_15`, `ra1_3`, `r1_*`)
+through the fetch-address adder into the BSRAM address port
+(`mem_mem_*.ADB`). Structurally that is `if_addr = {if_cs, 4'h0} +
+{5'b0, if_next_pc}` (`deep16_core.sv:1121`) reaching the top's `ram_raddr` mux
+combinationally, while the BSRAM address is a synchronous input: the operand
+read, the execute result *and* the next fetch address all have to settle inside
+one 37 ns cycle, and they do not. **The same design closes timing cleanly at
+6.75 MHz** (27/4): with the clock constraint set to 148.148 ns the report shows
+*zero* violated endpoints and Fmax 9.532 MHz — so the analysis is sound and the
+gap is real, not a modelling artifact. Two ways out: run the CPU from a divided
+clock for bring-up (a `CLKDIV`, `CLK_HZ` to 6_750_000 — still 58 cycles per
+115200 baud bit), or add the address register stage the fetch path is missing
+(and absorb the extra cycle in IF).
 
-**The doubty clock is an artifact.** The STA tool infers a second clock on
+**The second clock is an artifact.** The STA tool infers a second clock on
 `u_top/u_core/id_ex.valid` (TA1132, "determined to be a clock but was not
 created") and constrains it at 50 MHz. The netlist shows why to distrust that:
 `id_ex.valid_s0` is a plain `DFFRE` clocked by `clk_d`, and the net appears only
