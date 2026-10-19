@@ -127,3 +127,29 @@ test('backspace is handled identically on all three cores', async () => {
   assert.deepEqual(wa.stream, js.stream, 'WASM byte stream diverges');
   assert.deepEqual(rtl.stream, js.stream, 'RTL byte stream diverges');
 });
+
+test('words breaks at a space before the terminal edge', async () => {
+  // The UART has no cursor to ask, so the console BIOS counts its output
+  // column (uat_tx -> out_col) and wrap_if breaks the list at a space before
+  // a name would run past column 80. Without it the whole list is one long
+  // line and the host autowraps through the names.
+  // The list is long, and the RTL cap counts clocks, not instructions: the JS
+  // finishes its output at ~111k steps, the RTL at ~740k clocks.
+  const input = 'words\n';
+  const js = bootJs(input, 200000);
+  const wa = await bootWasm(input, 200000);
+  const rtl = await bootRtl(input, 1000000);
+  const lines = Buffer.from(js.stream).toString('latin1').split('\r\n');
+  assert.ok(lines.length > 10, 'the list wrapped onto several lines');
+  // A kernel line may be longer than 80 only where a token plus its separator
+  // lands exactly on the edge: the host then autowraps after the space. So
+  // every 80th column of such a line must be that space - a non-space there
+  // means the terminal split a name.
+  for (const l of lines) {
+    for (let col = 80; col < l.length; col += 80) {
+      assert.equal(l[col - 1], ' ', `autowrap at column ${col} splits a token: ${JSON.stringify(l.slice(0, 90))}`);
+    }
+  }
+  assert.deepEqual(wa.stream, js.stream, 'WASM byte stream diverges');
+  assert.deepEqual(rtl.stream, js.stream, 'RTL byte stream diverges');
+});

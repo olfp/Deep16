@@ -1017,6 +1017,12 @@ sp0_base:
 ; and is loaded with LD, like rp0_base.
 sp_top:
     .word 0x5FF0
+; The console's output column. uart_tx counts it as it emits, wrap_if reads it
+; to break `words`/`see` at a space before the terminal autowraps. The host owns
+; the actual wrapping; this is only the machine's own idea of where it is, and
+; 80 is `form`'s nominal width (D16MINI.md C3).
+out_col:
+    .word 0
 .endif
 hello_msg:
     .text "Hello DeepForth!"
@@ -5677,6 +5683,20 @@ word_2variable:             ; 2variable ( "name" -- )
 wrap_if:
     LDI wif_lr
     ST LR, R0, 0            ; R0 = wif_lr; park LR, which put_char takes
+.ifdef CONSOLE_UART
+    ; The terminal build has no screen to ask. uart_tx counts the column as it
+    ; emits - resetting on CR/LF and at the 80th byte, where the host autowraps
+    ; - so a list breaks at the space before a name would run past the edge
+    ; instead of letting the terminal split the name.
+    ; R0 is the load base: the kernel runs with PSW.ER = 8 / DE = 1, so R8 and
+    ; R9 are extra-segment registers and a load through them would go to ES.
+    ; R0 is scratch here anyway, and wrap_if must not touch a register its
+    ; callers or the interpreter are carrying.
+    LDI out_col
+    LD R9, R0, 0            ; R9 = column
+    LDI 80
+    MOV R4, R0              ; R4 = width
+.else
     MOV R9, SCR             ; the cursor, as an offset in the screen
     LDI 0x1000
     MOV R4, R0
@@ -5687,6 +5707,7 @@ wrap_if:
     DIV R0, R4              ; R0 = row (DIV keeps only the quotient)
     MUL R0, R4
     SUB R9, R0              ; R9 = column
+.endif
     LDI 0
     CMP R9, R0
     JZ wif_done             ; column 0: the token already starts a line
@@ -5698,15 +5719,18 @@ wrap_if:
     NOP
     JZ wif_done
     NOP
+.ifndef CONSOLE_UART
     ; Drop the cursor block before the break walks away from it. A regular putch
     ; sets the cursor attribute on the cell it advanced to; CR and LF only move
     ; SCR, so without this every wrapped line keeps a reversed block at its end
     ; (the same reason ok_after and word_cr clear it first). R4, not R1: see_puts
-    ; carries the string pointer in R1 across this call.
+    ; carries the string pointer in R1 across this call. The console build has
+    ; no screen buffer, so this is skipped there.
     LDS R4, ES, SCR
     LDI ATTR_MASK
     AND R4, R0
     STS R4, ES, SCR
+.endif
     LDI put_char
     MOV R4, R0
     LDI 13                  ; CR: column 0
@@ -12570,6 +12594,50 @@ uart_tx_wait:
     LDI 0x0042
     MOV R3, R0
     STS R1, ES, R3
+    ; ---- output column (wrap_if reads it) --------------------------------
+    ; Every console byte goes through here - putch, putstr and the getstr echo
+    ; - so this is the one place the column needs counting. R1 still holds the
+    ; character; only R0, R3 and R7 are touched, which uart_tx already
+    ; documents as its scratch set (R2 stays live in putstr's loop).
+    LDI out_col
+    MOV R7, R0
+    LD R3, R7, 0            ; R3 = column
+    LDI 13
+    CMP R1, R0
+    JZ utx_col_zero
+    NOP
+    LDI 10
+    CMP R1, R0
+    JZ utx_col_zero
+    NOP
+    LDI 8
+    CMP R1, R0
+    JZ utx_col_back
+    NOP
+    ADD R3, 1
+    LDI 80
+    CMP R3, R0
+    JN utx_col_store
+    NOP
+    LDI 0
+    MOV R3, R0              ; the 80th column: the host wraps here
+    LDI utx_col_store - BIOS_BASE
+    MOV PC, R0
+    NOP
+utx_col_back:
+    LDI 0
+    CMP R3, R0
+    JZ utx_col_store
+    NOP
+    SUB R3, 1
+    LDI utx_col_store - BIOS_BASE
+    MOV PC, R0
+    NOP
+utx_col_zero:
+    LDI 0
+    MOV R3, R0
+utx_col_store:
+    ST R3, R7, 0
     JMP LR
     NOP
 

@@ -26,11 +26,11 @@ set_option -verilog_std sysv2017
 # include dir, then the IDE project dir, then the include path (SUG550).
 set_option -include_path $root/artifacts/image
 
-# Synthesise, place & route, and emit the bitstream. `run all` names its
-# outputs after the default base ("project"), so the two steps are separate to
-# keep impl/pnr/deep16_board.fs. The board runs at 6.75 MHz (the oscillator
-# divided by four), which is what rtl/deep16_board.sdc constrains; D16MINI.md
-# §4.7.
+# Synthesise, place & route, and emit the bitstream. The base name is pinned:
+# without it the tool falls back to "project" on some runs. The board runs at
+# 6.75 MHz (the oscillator divided by four), which is what
+# rtl/deep16_board.sdc constrains; D16MINI.md §4.7.
+set_option -output_base_name deep16_board
 run syn
 run pnr
 run close

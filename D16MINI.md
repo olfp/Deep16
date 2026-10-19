@@ -51,7 +51,7 @@ screen replaced by a serial terminal.
 |---|---|
 | C1 | **Dumb byte pipe.** The host terminal owns the screen, cursor and wrapping. The machine keeps no 80×25 array and no cursor. |
 | C2 | **Drop colours.** No attributes, no SGR; `CURSOR_ATTR` is gone. |
-| C3 | **`form` returns `24 80`** (nominal); `wrap_if` is disabled; the host autowraps. |
+| C3 | **`form` returns `24 80`** (nominal); `wrap_if` breaks at a space before column 80, using the column the console BIOS counts (`out_col`). The host wraps anything that still reaches the edge. |
 | C4 | **Consume-and-drop** terminal escape sequences on input (arrow keys never enter the line buffer). |
 | C5 | **Keep the "Datei tippen…" injection** — the browser uploader feeds UART RX in simulation. |
 | C6 | **Baud 115200 8N1; TX FIFO 64 deep; RX FIFO 128 deep.** |
@@ -112,10 +112,10 @@ machine**: the whole RAM window fits inside a single 32 K-word (15-bit) address.
 
 | Item | Extent | Words |
 |---|---|---:|
-| Kernel image `forth_start`…`dict_free` (`0x0100–0x3BA6`) | 13,1xx-line source | **15,015** |
-| `dict_free` (new definitions grow up from here) | `0x3BA7` | — |
-| Headroom `dict_free` → BIOS (`0x5700`) | `0x3BA7–0x56FF` | **7,001** |
-| BIOS (UART build, relocated) | `0x5700`, 212 words | §3 |
+| Kernel image `forth_start`…`dict_free` (`0x0100–0x3BA7`) | 13,1xx-line source | **15,016** |
+| `dict_free` (new definitions grow up from here) | `0x3BA8` | — |
+| Headroom `dict_free` → BIOS (`0x5700`) | `0x3BA8–0x56FF` | **7,000** |
+| BIOS (UART build, relocated) | `0x5700`, 248 words | §3 |
 | Screen buffer | `0xF1000`, 2000 words | **deleted** |
 
 The image grows a little with every Tier-3 word added (it was `0x3A62` three
@@ -140,9 +140,9 @@ a single `pa < RAM_WORDS` test and no high-address ROM decode.
 
 ```
 0x00000 - 0x05FFF   RAM       24 BSRAM blocks (24,576 words)
-   0x00100 - 0x03BA6   kernel image (code + data + built-in words)
-   0x03BA7 - 0x056FF   user dictionary  (grows up, ~7.0 K words)
-   0x05700 - 0x057D3   BIOS (212 words, UART build; segment 0x0570)
+   0x00100 - 0x03BA7   kernel image (code + data + built-in words)
+   0x03BA8 - 0x056FF   user dictionary  (grows up, ~7.0 K words)
+   0x05700 - 0x057F7   BIOS (248 words, UART build; segment 0x0570)
    0x05800 - 0x05FFF   stacks          (return 0x5800↑, data 0x5FF0↓)
 0x0F0000 - 0x0F006F   MMIO       UART (the kernel's echo cell at 0xF0064
                                  is not backed: §6.4)
@@ -158,7 +158,7 @@ blocks rather than the part's 26 because of the vendor tool's BSRAM granularity
 `CONSOLE_UART` build only. The screen build keeps its 1 MB layout (BIOS at
 `0xF8000`, stacks `0x6F00` / `0x7FF0`) and stays **byte-identical**.
 
-- **BIOS** — `.org 0x5700`, 212 words, segment `0x0570`. The code is
+- **BIOS** — `.org 0x5700`, 248 words, segment `0x0570`. The code is
   base-independent: every internal jump is a `label - BIOS_BASE` delta or a
   relative branch, so only the `.org` and `swi_to_bios`'s segment change.
 - **Stacks** — `RSTACK_TOP = 0x5800`; the data stack top is `0x5FF0`, loaded from
@@ -283,8 +283,9 @@ in `js/`, `wasm/`, or `rtl/`). New module `rtl/deep16_uart.sv`:
 - **RX**: **16× oversampler**, centre-sample, start-bit detect, assemble the
   byte, push to a **128-byte FIFO** (the depth the keyboard FIFO already uses,
   `deep16_top.sv:44`); **overrun** flag.
-- **Baud**: 27 MHz ÷ 115200 = 234.375 → divisor **234** (0.16 % error, well
-  inside UART tolerance). Run the CPU at 27 MHz; no PLL.
+- **Baud**: the CPU runs at 6.75 MHz (the 27 MHz oscillator divided by four,
+  §4.7), so the divisor is **59** — 6.75 MHz ÷ 59 = 114.4 kBd, 0.7 % error,
+  well inside UART tolerance. No PLL.
 - **Pins**: FPGA **17 (TX) / 18 (RX)**, bank 2 (confirm before the `.cst`).
 
 Integration:
@@ -294,11 +295,19 @@ Integration:
 - Mirror the identical port in the **JS and WASM cores** for parity and to let the
   whole thing be built and tested before hardware.
 
-**Done** — `rtl/deep16_uart.sv` is in, with those depths and the divisor 234, and
-all three cores decode `0xF0040`/`0xF0042`. The transmit pin is covered by `npm run sim:board`;
+**Done** — `rtl/deep16_uart.sv` is in, with those depths (the divisor follows
+the clock, §4.7), and all three cores decode `0xF0040`/`0xF0042`. The transmit pin is covered by `npm run sim:board`;
 the **receive pin** — start-bit detect, oversampling, centre sampling — exists
 nowhere else, so it is covered there too, by typing a line into `uart_rxd` and
 checking the echo and the evaluation.
+
+The console BIOS also counts its **output column**: `uart_tx` — the single choke
+point for console bytes, whether they come from `putch`, `putstr` or the getstr
+echo — maintains `out_col`, resetting it on CR/LF and at the 80th byte, where the
+host autowraps. `wrap_if` reads that cell in the `CONSOLE_UART` build (the screen
+build still asks `SCR`) and breaks `words`/`see` at a space before column 80, so
+the terminal never splits a name. `tests/console-parity.test.js` pins it: every
+autowrap of the list must fall on a space, on all three cores.
 
 ### 4.5 Board top, clock, reset, constraints
 
@@ -460,8 +469,8 @@ lets the flow reach routing. The UART pair and the clock (banks 2 and 1) keep
 **The window has been shrunk to match.** `RAM_WORDS` is 24,576, the BIOS moved to
 `0x5700` (segment `0x0570`), the stacks to `0x5800` / data stack top `0x5FF0`, and
 `WINDOW` / `BIOS_BASE` / `STACK_BASE` in `scripts/make_image.mjs` with them (§3).
-The image is 48 KiB with `dict_free` still `0x3BA7`, so the dictionary keeps
-7,001 words. Re-measured on that design: LUT 6,499/8,640 (82 %), registers
+The image is 48 KiB with `dict_free` at `0x3BA8`, so the dictionary keeps
+7,000 words. Re-measured on that design: LUT 6,499/8,640 (82 %), registers
 2,695/6,693, BSRAM 24/26, SSRAM 8, CLS 4,095/4,320, DSP 0.5 — synthesised with
 default options, placed, routed and turned into a bitstream with no attribute
 help at all.
@@ -805,7 +814,7 @@ echo **off**).
 | `newline_direct`, `word_cr` | f2 CR then f2 LF | unchanged (bytes are bytes) |
 | `clear_cursor`, `cursor_off` | `AND ATTR_MASK` on `ES:SCR` | **no-op** |
 | `after_print_text` | `SCR` row math → next line | **emit CR+LF** (keeps the banner on its own line) |
-| `wrap_if` | column from `SCR`, wrap at 80 | **no-op** (`JMP LR`) — host autowraps |
+| `wrap_if` | column from `SCR`, wrap at 80 | column from the BIOS's `out_col` counter, still wraps at 80 (§4.4) |
 | `word_cls` | f1 + blank top-left cell | **f1 only** |
 | `word_scr_fetch`, `word_scr_store` | `ES:SCR` | **removed** (screen-only) |
 | `form` | `24 80` | **`24 80`** (nominal; decision C3) |
