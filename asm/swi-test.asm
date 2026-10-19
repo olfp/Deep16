@@ -62,12 +62,12 @@ print_loop1:
 after_message1:
 
     ; Call OS function 0 (GET_VERSION) via SWI
-    LDI 0              ; Function number 0 = GET_VERSION
+    LDI 0              ; Function number 0 = GET_VERSION, in the caller's R0
     SWI                ; Software interrupt
     
-    ; The handler returned the version in its shadow R0' (spec 4.3: LDI in a
-    ; handler uses R0'), so read the banked register back after RETI.
-    SMV R10, AR0       ; Save version number in R10 (reads R0')
+    ; The handler read that number with SMV R2, AR0 and answered in its own R0.
+    ; RETI copies nothing, so the caller brings the answer home itself.
+    SMV R10, AR0       ; Save version number in R10 (reads the handler's R0)
     
     ; Display result without subroutine call
     LDI message2
@@ -123,13 +123,27 @@ halt:
 ; =============================================
 ; SWI Handler (Runs in Shadow Context)
 ; =============================================
+; The calling convention: the caller leaves the function number in its own R0
+; and the parameters in R1..R3; while PSW.S=1 the handler's own R0-R3 are the
+; *shadow* bank, so SMV is the only door to the caller's registers (spec 3.3).
+; The answer goes back the other way: the handler writes its own R0 and the
+; caller collects it with SMV Rx, AR0 after RETI, which copies nothing (4.9).
 
 swi_handler:
-    LDI 0x0001
+    SMV R2, AR0        ; R2 = the function number the caller asked for
+    LDI 0
+    CMP R2, R0
+    JNZ swi_unknown    ; only function 0, GET_VERSION, exists here
+    NOP
+    LDI 0x0001         ; the handler's own R0: the version, read back by SMV
     LSI R1, 0
     OR R1, 0        ; set bit 0
     OR R1, 1        ; set bit 1
     OR R1, 2        ; set bit 2 -> R1 = 7 (OR Rd, imm takes a bit index)
+    RETI
+    NOP
+swi_unknown:
+    LDI '?'            ; an unknown function answers with a question mark
     RETI
     NOP
 

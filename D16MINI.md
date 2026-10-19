@@ -102,10 +102,10 @@ machine**: the whole RAM window fits inside a single 32 K-word (15-bit) address.
 
 | Item | Extent | Words |
 |---|---|---:|
-| Kernel image `forth_start`…`dict_free` (`0x0100–0x3BA8`) | 12,6xx-line source | **15,017** |
-| `dict_free` (new definitions grow up from here) | `0x3BA9` | — |
-| Headroom `dict_free` → BIOS (`0x5F00`) | `0x3BA9–0x5EFF` | **9,047** |
-| BIOS (UART build, relocated) | `0x5F00`, 222 words | §3 |
+| Kernel image `forth_start`…`dict_free` (`0x0100–0x3BA7`) | 13,150-line source | **15,016** |
+| `dict_free` (new definitions grow up from here) | `0x3BA8` | — |
+| Headroom `dict_free` → BIOS (`0x5F00`) | `0x3BA8–0x5EFF` | **9,048** |
+| BIOS (UART build, relocated) | `0x5F00`, 212 words | §3 |
 | Screen buffer | `0xF1000`, 2000 words | **deleted** |
 
 The image grows a little with every Tier-3 word added (it was `0x3A62` three
@@ -129,29 +129,31 @@ a single `pa < RAM_WORDS` test and no high-address ROM decode.
 
 ```
 0x00000 - 0x067FF   RAM       26 BSRAM blocks (26,624 words)
-   0x00100 - 0x03BA8   kernel image (code + data + built-in words)
-   0x03BA9 - 0x05EFF   user dictionary  (grows up, ~9.0 K words)
-   0x05F00 - 0x05FDD   BIOS (222 words, UART build; segment 0x05F0)
+   0x00100 - 0x03BA7   kernel image (code + data + built-in words)
+   0x03BA8 - 0x05EFF   user dictionary  (grows up, ~9.0 K words)
+   0x05F00 - 0x05FD3   BIOS (212 words, UART build; segment 0x05F0)
    0x06000 - 0x067FF   stacks          (return 0x6000↑, data 0x67F0↓)
 0x0F0000 - 0x0F006F   MMIO       UART (the kernel's echo cell at 0xF0064
                                  is not backed: §6.4)
 0x0FFFF0 - 0x0FFFFF   boot ROM   16 words, LUT ROM (reset vector lives here)
 ```
 
-Measured 2026-10-17 from the working tree. The kernel and dictionary addresses
+Measured 2026-10-19 from the working tree. The kernel and dictionary addresses
 drift as words are added; the BIOS and stack bases are fixed.
 
 **Decided — was M5.** Relocate the BIOS and both stacks into the window, in the
 `CONSOLE_UART` build only. The screen build keeps its 1 MB layout (BIOS at
 `0xF8000`, stacks `0x6F00` / `0x7FF0`) and stays **byte-identical**.
 
-- **BIOS** — `.org 0x5F00`, 222 words, segment `0x05F0`. The code is
+- **BIOS** — `.org 0x5F00`, 212 words, segment `0x05F0`. The code is
   base-independent: every internal jump is a `label - BIOS_BASE` delta or a
   relative branch, so only the `.org` and `swi_to_bios`'s segment change.
 - **Stacks** — `RSTACK_TOP = 0x6000`; the data stack top is `0x67F0`, loaded from
   a cell, because `0x67F0` has bit 14 set and `LDI` would sign-extend it to
   `0xE7F0` — the trap the kernel already documents for `RSTACK_TOP`.
-- Screen build `31991c35…`, UART build `2e34012f…` (assembled-image hashes).
+- Both builds changed again with the register calling convention (§7.3): the
+  screen build is no longer byte-identical to what it was. `node
+  scripts/make_image.mjs` prints the current image's `build` hash.
 
 Alternative kept for the record: leave the BIOS at `0xF8000` with its own LUT-ROM
 decode, teaching the core that `0xF8000` is fetchable while `0x6800…0xF7FFF` is
@@ -620,7 +622,8 @@ beyond a byte FIFO. That is the whole point of the design.
 
 ### 7.3 Console BIOS: same functions, serial bodies
 
-Same **function numbers and calling convention** (`DS:[0]=fn`, `DS:[1]=arg`), so
+Same **function numbers and calling convention** (the function number in the
+caller's `R0`, parameters in `R1..R3`, the answer in the handler's `R0`), so
 `put_char`, `print_text`, `emit`, `key`, `accept`, the prompt and the interpreter
 are **not touched**:
 
