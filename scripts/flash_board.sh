@@ -19,7 +19,11 @@ cd "$(dirname "$0")/.."
 FS="fpga/gowin/impl/pnr/deep16_board.fs"
 SRAM=0
 for arg in "$@"; do
-  [ "$arg" = "--sram" ] && SRAM=1
+  case "$arg" in
+    --sram) SRAM=1 ;;
+    "") ;;
+    *) echo "unknown argument: $arg" >&2; echo "usage: npm run flash [-- --sram]" >&2; exit 2 ;;
+  esac
 done
 
 if ! command -v openFPGALoader >/dev/null 2>&1; then
@@ -29,6 +33,13 @@ fi
 
 if [ ! -f "$FS" ]; then
   echo "no bitstream at $FS - run 'npm run synth:gowin' first" >&2
+  exit 1
+fi
+
+# Read-only pre-flight: a clearer message than libftdi's when the board is not
+# there (or its FT2232 is still held by a serial terminal).
+if ! openFPGALoader -b tangnano9k --detect >/dev/null 2>&1; then
+  echo "no Tang Nano 9K detected - plugged in? try 'openFPGALoader -b tangnano9k --detect'" >&2
   exit 1
 fi
 
