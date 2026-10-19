@@ -78,4 +78,15 @@ the phase shift is the problem; if the UART is still noise, it is the test's
 UART path rather than the PLL. Once the controller is proven, decide whether to
 run it at 27 MHz with a CDC to the 13.5 MHz CPU or retry the PLL at 13.5.
 
+**The 27 MHz run failed at read ~1,062** (not the first), with 198 writes already
+having taken the rare 2x/refresh path: a phase error would fail at read 1, so the
+suspect is the rare-latency path, not the clock. To separate that from the
+controller itself, the upstream author's exact 81 MHz point was built: with the
+print module removed (`NO_UART_PRINT`) **every clock closes with 0 violations**;
+with the print module the only failing paths are inside it (`print_buffer*`,
+`print_seq*`), which is why that switch exists upstream. Two bitstreams are in
+`artifacts/psram-ctl-test/`: `psram_81_led.fs` (LED-only: steady = fail, slow
+blink = pass, fast blink = running) and `psram_81_uart.fs` (print included, its
+timing marginal).
+
 It is not yet instantiated by `deep16_board`.
