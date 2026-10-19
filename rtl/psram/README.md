@@ -89,4 +89,15 @@ with the print module the only failing paths are inside it (`print_buffer*`,
 blink = pass, fast blink = running) and `psram_81_uart.fs` (print included, its
 timing marginal).
 
+**Known upstream limitations (from its issue tracker).** Issue #4 reports the
+controller is broken *below 30 MHz* ("Read wrong data"), which is why the
+27 MHz and 13.5 MHz builds failed no matter the PLL phase. Issue #5 ("Example
+test code fails with Read wrong data") is open and notes that the Gowin
+official IP works on the same board. PR #10 ("Fix problems when running at
+81 MHz") is an unmerged one-byte configuration fix (CR byte `0x8f` -> `0x9f`).
+The 81 MHz builds here include that fix.
+
+**LED polarity:** the Tang Nano 9K LEDs are active-low; the test display now
+inverts so a lit LED reads as 1 in `{error, TEST_DONE, state[3:0]}`.
+
 It is not yet instantiated by `deep16_board`.
