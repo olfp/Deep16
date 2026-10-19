@@ -131,11 +131,36 @@ int main(int argc, char** argv) {
     if (typed && rx.out.find(echo) != std::string::npos) break;
   }
 
-  std::printf("--- UART output (%zu bytes after %ld clocks) ---\n%s\n",
-              rx.out.size(), clocks, rx.out.c_str());
   const bool gotBanner = rx.out.find(banner) != std::string::npos;
   const bool gotEcho   = rx.out.find(echo) != std::string::npos;
-  if (!(gotBanner && gotEcho)) {
+
+  // Second exchange: a burst. `mem` prints ~400 bytes through a 64-byte TX FIFO,
+  // which is what caught the FIFO count being written twice in one cycle (a
+  // simultaneous push and pop lost one of them, the ring wrapped and bytes went
+  // missing). The three strings below include the chunk that used to vanish.
+  rx.out.clear();
+  bool asked = false;
+  bool gotMap = false;
+  for (; clocks < LIMIT && !gotMap; clocks++) {
+    top->uart_rxd = tx.level();
+    top->clk = 0; top->eval();
+    const int txd = top->uart_txd;
+    top->clk = 1; top->eval();
+    rx.tick(txd);
+    tx.tick();
+    if (!asked && rx.out.find(prompt) != std::string::npos) {
+      tx.send(std::string("mem") + "\r");
+      asked = true;
+    }
+    gotMap = rx.out.find("D16MINI memory map") != std::string::npos &&
+             rx.out.find("window   0000-5FFF   24576 words, 48 KiB BSRAM") != std::string::npos &&
+             rx.out.find("image    0100-") != std::string::npos &&
+             rx.out.find("stacks   5800-5FFF   2048 words") != std::string::npos;
+  }
+
+  std::printf("--- UART output (%zu bytes after %ld clocks) ---\n%s\n",
+              rx.out.size(), clocks, rx.out.c_str());
+  if (!(gotBanner && gotEcho && gotMap)) {
     // The first place to look when nothing came out: did the machine run at all,
     // and where is it? (The board exposes no debug bus on purpose.)
     auto* t = top->deep16_board->u_top;
@@ -147,8 +172,10 @@ int main(int argc, char** argv) {
                 (unsigned)t->__PVT__u_uart__DOT__tx_count,
                 (unsigned)t->mem[0x100]);
   }
-  std::printf("%s: banner %s, typed line %s\n", (gotBanner && gotEcho) ? "PASS" : "FAIL",
-              gotBanner ? "ok" : "MISSING", gotEcho ? "ok" : "MISSING");
+  std::printf("%s: banner %s, typed line %s, memory map %s\n",
+              (gotBanner && gotEcho && gotMap) ? "PASS" : "FAIL",
+              gotBanner ? "ok" : "MISSING", gotEcho ? "ok" : "MISSING",
+              gotMap ? "ok" : "MISSING");
   delete top;
-  return (gotBanner && gotEcho) ? 0 : 1;
+  return (gotBanner && gotEcho && gotMap) ? 0 : 1;
 }

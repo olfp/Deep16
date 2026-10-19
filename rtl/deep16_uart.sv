@@ -63,6 +63,22 @@ module deep16_uart #(
   // ---- divisor / control -------------------------------------------------
   logic [15:0] div_reg;
 
+  // FIFO events, one cycle ahead of the registers: the CPU can push while the
+  // shifter pops, and the count has to reflect both. Two non-blocking
+  // assignments to tx_count in one always_ff would lose one of them - the
+  // count under-reports occupancy, the ring wraps and queued bytes are
+  // overwritten. That only shows under load: an 80x24 memory map is enough.
+  wire tx_push = tx_we && (tx_count != TX_DEPTH[6:0]);
+  wire tx_pop  = !tx_busy && (tx_count != 7'd0);
+  wire tx_reset = ctrl_we && ctrl_data[1];
+  // The same for RX: a byte can be popped by the CPU in the cycle another one
+  // arrives from the line (or the host), and one lost count is enough to wrap
+  // the ring under a paste.
+  wire rx_pop  = rx_take && (rx_count != 8'd0);
+  wire rx_stop = rx_busy && (rx_timer == div_reg - 16'd1) && (rx_bit > 4'd8);
+  wire rx_enq  = rx_push || rx_stop;
+  wire rx_reset = ctrl_we && ctrl_data[0];
+
   // Push helper: a byte into the RX FIFO, dropping it (and flagging) when full.
   task automatic rx_enqueue(input logic [7:0] byte_in);
     if (rx_count == RX_DEPTH[7:0]) begin
@@ -70,7 +86,6 @@ module deep16_uart #(
     end else begin
       rx_mem[rx_tail[6:0]] <= byte_in;
       rx_tail  <= rx_tail + 8'd1;
-      rx_count <= rx_count + 8'd1;
     end
   endtask
 
@@ -91,10 +106,9 @@ module deep16_uart #(
       end
 
       // ---- TX push ----
-      if (tx_we && tx_count != TX_DEPTH[6:0]) begin
+      if (tx_push) begin
         tx_mem[tx_tail[5:0]] <= tx_data[7:0];
         tx_tail  <= tx_tail + 7'd1;
-        tx_count <= tx_count + 7'd1;
       end
 
       // ---- TX shift engine ----
@@ -111,20 +125,28 @@ module deep16_uart #(
         end else begin
           tx_timer <= tx_timer + 16'd1;
         end
-      end else if (tx_count != 7'd0) begin
+      end else if (tx_pop) begin
         tx_shift <= {1'b1, tx_mem[tx_head[5:0]], 1'b0};   // stop, data, start
         tx_head  <= tx_head + 7'd1;
-        tx_count <= tx_count - 7'd1;
         tx_busy  <= 1'b1;
         tx_bit   <= 4'd0;
         tx_timer <= 16'd0;
         uart_txd <= 1'b0;                     // start bit
       end
 
+      // The one writer of tx_count: both events in one cycle leave it alone.
+      // A ctrl reset still wins (and clears head/tail above).
+      if (!tx_reset) begin
+        case ({tx_push, tx_pop})
+          2'b10:   tx_count <= tx_count + 7'd1;
+          2'b01:   tx_count <= tx_count - 7'd1;
+          default: ;                       // both, or neither
+        endcase
+      end
+
       // ---- RX pop ----
-      if (rx_take && rx_count != 8'd0) begin
-        rx_head  <= rx_head + 8'd1;
-        rx_count <= rx_count - 8'd1;
+      if (rx_pop) begin
+        rx_head <= rx_head + 8'd1;
       end
 
       // ---- RX injection (host) ----
@@ -152,6 +174,16 @@ module deep16_uart #(
         rx_bit   <= 4'd0;
         rx_shift <= 8'd0;
         rx_timer <= div_reg >> 1;             // skip to the start bit's centre
+      end
+
+      // The one writer of rx_count. A simultaneous take and arrival keeps it
+      // as it is; a ctrl reset wins (it cleared head/tail above).
+      if (!rx_reset) begin
+        case ({rx_enq, rx_pop})
+          2'b10:   rx_count <= rx_count + 8'd1;
+          2'b01:   rx_count <= rx_count - 8'd1;
+          default: ;
+        endcase
       end
     end
   end

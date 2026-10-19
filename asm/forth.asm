@@ -979,6 +979,24 @@ ok_after:
     ; underflow still prints while the echo is off, so a load that goes wrong
     ; says so instead of failing silently - which is the one thing a quiet load
     ; must never do.
+.ifdef CONSOLE_UART
+    ; A boot-script line prints nothing: no " ok", no prompt. This is a kernel
+    ; cell, not ECHO_FLAG - the console build does not back 0xF0064 (§6.4), so a
+    ; write there is dropped and the flag can never be turned off on the board.
+    LDI boot_quiet
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI 0
+    CMP R3, R0
+    JZ ok_echo
+    NOP
+    LDI 0
+    ST R0, R2, 0
+    LDI interpret_next
+    MOV PC, R0
+    NOP
+ok_echo:
+.endif
     LDI ECHO_FLAG
     LDS R7, ES, R0
     LDI 0
@@ -1051,6 +1069,12 @@ out_esc:
 boot_ptr:
     .word boot_script
 boot_done:
+    .word 0
+; Set while read_line is serving a boot-script line: ok_after checks it instead
+; of ECHO_FLAG, because the console build's echo cell at 0xF0064 is outside the
+; BSRAM window by design (§6.4) and a write to it is dropped - the flag can
+; never be turned off on the board.
+boot_quiet:
     .word 0
 .endif
 hello_msg:
@@ -3337,12 +3361,12 @@ rl_scanned:
     MOV TIB, R3
     LDI 0
     MOV >IN, R0
-    LDI 0
+    LDI 1
     MOV R1, R0
-    LDI ECHO_FLAG
+    LDI boot_quiet
     MOV R7, R0
-    STS R1, ES, R7          ; a script line is not typed, so nothing of the
-    LDI interpret_loop      ; REPL's line chatter belongs to it
+    ST R1, R7, 0            ; a script line is not typed: ok_after prints no
+    LDI interpret_loop      ; " ok" and no prompt for it
     MOV PC, R0
     NOP
 rl_kbd:

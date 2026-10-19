@@ -289,6 +289,14 @@ in `js/`, `wasm/`, or `rtl/`). New module `rtl/deep16_uart.sv`:
 - **Baud**: the CPU runs at 6.75 MHz (the 27 MHz oscillator divided by four,
   §4.7), so the divisor is **59** — 6.75 MHz ÷ 59 = 114.4 kBd, 0.7 % error,
   well inside UART tolerance. No PLL.
+- **One writer per FIFO count.** A push and a pop can land in the same cycle
+  (the CPU pushes while the shifter takes a byte), and two non-blocking
+  assignments to `tx_count` in one `always_ff` lose one of them: the count
+  under-reports occupancy, the ring wraps and queued bytes are overwritten.
+  The same for `rx_count`. Both counts now have a single case-driven update.
+  It only shows under load — a 400-byte `mem` was enough to lose a chunk, and
+  the demo's exit sequences with it. `npm run sim:board` types `mem` and
+  requires the whole map, at the pin.
 - **Pins**: FPGA **17 (TX) / 18 (RX)**, bank 2 (confirm before the `.cst`).
 
 Integration:
