@@ -571,6 +571,16 @@ reduction — the register file's write network (a full per-register mux over bo
 write ports and the debug port), the UART (~0.9 k), and the unused cache/debug
 residue are the candidates — or the 20K part.
 
+**The UART FIFOs are not an area item (measured).** A prototype moved the
+64-byte TX and 128-byte RX FIFOs into BSRAM (one block, a prefetch read at
+`head + pop`). It came out *worse*: logic 7,273 → 7,357, LUT 6,661 → 6,776,
+CLS 4,163 → 4,212, BSRAM 24/26 → 25/26. The resource report says why: the tool
+had already inferred both FIFOs as **distributed RAM** (8 `SSRAM(RAM16)` units),
+not as flip-flops plus 64:1/128:1 read muxes, so their storage cost no CLS. The
+rewrite only added the synchronous-read prefetch and its validity logic. The
+UART's LUTs are its shifter, oversampler and control - not its queues. The
+prototype was reverted; the board sim and all differentials passed with it.
+
 **The board now runs at 13.5 MHz.** Constraining `clk_cpu` at `divide_by 2`
 (13.5 MHz, 74 ns) gives zero setup/hold violations, so the oscillator is divided
 by two instead of four: `deep16_board.sv` takes `clk_div[0]`, the UART's
