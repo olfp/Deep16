@@ -535,14 +535,33 @@ captured (`if_hit`): the first version halted on the boot ROM's jump, where
 endpoints 1,707 → 1,642, levels 28 → 31. All six native differential programs and
 the board sim pass. That is +17 %, still 2.5× short of 27 MHz.
 
-**The rest is an execute-stage and area problem.** After step A the top paths are
-`id_ex.valid` → `ra2` decode → `ctx_next_ex` → … → BSRAM ADB (~100 ns) and the
-same cone into `if_pc`: EX's next-state is still in front of both. With CLS at
-94 % the routes alone are 5–9 ns per net, so the design is area-bound as much as
-depth-bound. The next step is the execute split — read the register operands in
-ID and register them into ID/EX so EX starts from flip-flops — and some area
-trimming before 27 MHz is realistic. Until then the 6.75 MHz divided clock stays
-the bring-up path.
+**Step C: the operands move to ID.** The register read was the head of the
+remaining cone (`id_ex.instr` → `ra` decode → regfile → ALU/next state →
+address). ID now decodes the read addresses from `if_id`, reads *both* banks raw,
+applies the WB bypass there, and registers the operands into ID/EX; EX selects
+the bank with `ctx_e.psw.S` and forwards from EX/MEM and MEM/WB. Two things had
+to be handled: a held EX instruction (load-use stall, divider drain, step
+freeze) must refresh its operands, because a producer can retire while it waits
+and the ID-time capture would then be stale; and `div_req` had to be
+class-gated — an SOP word such as `INV` (0xFF80, func5 = 11111) was taken for
+DIV32 and armed the iterative divider. Measured at the 27 MHz target: Fmax
+**10.760 → 12.163 MHz**, levels 31 → 25, TNS −34.8 → −26.3 µs. Cost: logic
+7,121 → 7,593 (83 → 88 %) and **CLS 4,219/4,320 (98 %)**.
+
+A free-run/step differential is now part of the loop: `deep16_rtl --free N`
+free-runs the pipeline, while `--run N` is the step mode the JS core is checked
+against. On the full Forth image the two agree for 1.9 M instructions. Both bugs
+above were found that way — the step mode hides them because it drains the
+pipeline between instructions.
+
+**What is left is area, not depth.** The remaining top paths are only a level or
+two of logic whose routes cost 5–9 ns per net: `ctx.psw.S` → fetch-segment mux →
+address adder → BSRAM ADB, and `mem_wb.reg_we_a` → `if_pc.CE`, both ~82 ns. At
+98 % CLS the placer cannot bring related cells together, so 27 MHz needs area
+reduction first — the register file (three read ports plus the shadow bank,
+~1 k LUTs), the UART (~0.9 k), and the unused cache/debug residue are the
+candidates — or the 20K part. Until then the 6.75 MHz divided clock stays the
+bring-up path; the bitstream still closes with zero violations.
 
 The committed RTL WASM package (`rtl/pkg/`) has **not** been rebuilt for the
 redirect change — Emscripten is not installed on this machine. `npm test` still

@@ -5,8 +5,14 @@
 // results. It mirrors what tests/helpers.js runJs()/runRtl() do, so a failing
 // parity test can be replayed here step by step.
 //
-//   deep16_rtl [--run N | --run-hex N] [--trace] [--cs HEX] [--ds HEX]
-//               [--ss HEX] [--es HEX] [--fill HEX] [program.txt]
+//   deep16_rtl [--run N | --run-hex N | --free N] [--trace] [--uart]
+//               [--cs HEX] [--ds HEX] [--ss HEX] [--es HEX] [--fill HEX]
+//               [program.txt]
+//
+// --free N free-runs the pipeline for N retirements (no step drain) and
+// --uart dumps what the console transmitted; together they reproduce the board
+// from the native harness. The step and free modes must agree at every N - a
+// difference is a pipeline bug that the step mode hides.
 //
 // --run takes a DECIMAL step count, unlike every other number on this command
 // line (addresses, segment registers, --fill), which is hexadecimal. The two
@@ -92,6 +98,8 @@ int main(int argc, char** argv) {
   uint16_t cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000;
   bool trace = false;
   uint32_t dump_addr = 0, dump_count = 0;
+  uint32_t free_steps = 0;
+  bool dump_uart = false;
   uint32_t dbg_idx = 0, dbg_val = 0;
   bool dbg_set = false, dbg_show = false;
   const char* path = nullptr;
@@ -101,6 +109,8 @@ int main(int argc, char** argv) {
     if (a == "--run" && i + 1 < argc)        max_steps = parse_dec(argv[++i]);
     else if (a == "--run-hex" && i + 1 < argc)  max_steps = parse_hex(argv[++i]);
     else if (a == "--trace")                trace = true;
+    else if (a == "--free" && i + 1 < argc) free_steps = parse_dec(argv[++i]);
+    else if (a == "--uart")                 dump_uart = true;
     else if (a == "--cs" && i + 1 < argc)   cs = parse_hex(argv[++i]);
     else if (a == "--ds" && i + 1 < argc)   ds = parse_hex(argv[++i]);
     else if (a == "--ss" && i + 1 < argc)   ss = parse_hex(argv[++i]);
@@ -148,7 +158,11 @@ int main(int argc, char** argv) {
 
   uint32_t steps = 0;
   int cont = 1;
-  while (cont && steps < max_steps) {
+  if (free_steps) {
+    steps = run_cycles(free_steps);
+    cont = (int)steps == (int)free_steps;
+  }
+  while (!free_steps && cont && steps < max_steps) {
     cont = step();
     steps++;
     if (trace) {
@@ -165,5 +179,11 @@ int main(int argc, char** argv) {
   get_segments(segs);
   get_shadow_state(shadow);
   dump_json("", regs, get_psw(), segs, shadow, steps, cont);
+  if (dump_uart) {
+    uint32_t avail = uart_tx_available();
+    printf("UART(%u):", avail);
+    for (uint32_t i = 0; i < avail; i++) printf("%02x", uart_tx_take() & 0xFF);
+    printf("\n");
+  }
   return 0;
 }

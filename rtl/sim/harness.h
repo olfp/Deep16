@@ -22,6 +22,7 @@ void          init(uint32_t mem_words);
 void          reset();
 int           step();                    // 1 = continue, 0 = halted
 int           run_steps(uint32_t n);
+uint32_t      run_cycles(uint32_t n);       // free-run: n retirements, pipeline kept full
 void          get_registers(uint16_t* out);      // 16, R15 = active PC
 uint16_t      get_psw();
 void          get_segments(uint16_t* out);       // 4, active bank

@@ -146,6 +146,14 @@ module deep16_core
     logic [15:0] pc0;
     logic [15:0] act_cs;
     logic        halt_word;      // fetched word was 0xFFFF / outside memory
+    // Register operands, read in ID (27 MHz step C). Both banks are raw: which
+    // one the instruction sees depends on its PSW, which lives in the context
+    // chain and is only settled in EX. ra/rd_en travel along for the load-use
+    // hazard compare and the EX forwarding.
+    logic [3:0]  ra1, ra2, ra3, rsmi;
+    logic        rd_en1, rd_en2, rd_en3;
+    logic [15:0] op1_n, op1_s, op2_n, op2_s, op3_n, op3_s;
+    logic [15:0] opn_n, opn_s;   // the SMV read of the inactive bank
   } front_t;
 
   // Everything EX produces, consumed by MEM and committed in WB.
@@ -203,79 +211,120 @@ module deep16_core
   // Stage 3: execute
   // =====================================================================
   // ---- instruction class (pure function of the word) --------------------
-  logic [2:0]  cls;
-  logic [3:0]  ext_id;
+  // A function now: ID needs it too, to decode the register operands it reads
+  // (27 MHz step C - the read used to sit in EX, at the head of the critical
+  // cone id_ex.instr -> regfile -> ALU -> next state -> address).
+  typedef struct packed {
+    logic [2:0] cls;
+    logic [3:0] ext;
+  } idec_t;
 
-  always_comb begin
-    cls    = 3'd0;
-    ext_id = 4'd10;
-    if (id_ex.valid) begin
+  /* verilator lint_off UNUSEDSIGNAL */
+  // (each class only looks at some of the word's bits; that is the point)
+  function automatic idec_t decode(input logic valid, input logic [15:0] w);
+    idec_t d;
+    d = '{cls: 3'd0, ext: 4'd10};
+    if (valid) begin
       // SYS prefix is 13 bits: 0xFFF0..0xFFF7. Words 0xFFF8..0xFFFF are
       // reserved and decode to nothing, exactly like the JS core's chain.
-      if (id_ex.instr[15:3] == 13'h1FFE)                 cls = 3'd1;   // SYS prefix
-      else if (!id_ex.instr[15])                         cls = 3'd2;   // LDI
-      else if (id_ex.instr[15:14] == 2'b10)              cls = 3'd3;   // LD/ST
+      if (w[15:3] == 13'h1FFE)                     d.cls = 3'd1;   // SYS prefix
+      else if (!w[15])                             d.cls = 3'd2;   // LDI
+      else if (w[15:14] == 2'b10)                  d.cls = 3'd3;   // LD/ST
       else begin
-        case (id_ex.instr[15:13])
-          3'b110: cls = 3'd4;                                     // ALU
-          3'b111: begin                                            // extended
-            cls = 3'd5;
+        case (w[15:13])
+          3'b110: d.cls = 3'd4;                                    // ALU
+          3'b111: begin                                           // extended
+            d.cls = 3'd5;
             // ordered exactly like the cores' extended chain
-            if      (id_ex.instr[15:12] == 4'b1110)       ext_id = 4'd0;  // Jcc
-            else if (id_ex.instr[15:11] == 5'b11110)      ext_id = 4'd1;  // LDS/STS
-            else if (id_ex.instr[15:10] == 6'b111110)     ext_id = 4'd2;  // MOV
-            else if (id_ex.instr[15:9]  == 7'b1111110)    ext_id = 4'd3;  // LSI
-            else if (id_ex.instr[15:8]  == 8'b11111110)   ext_id = 4'd4;  // SMV
-            else if (id_ex.instr[15:7]  == 9'b111111110)  ext_id = 4'd5;  // MVS
-            else if (id_ex.instr[15:6]  == 10'b1111111110) ext_id = 4'd6; // SOP
-            else if (id_ex.instr[15:5]  == 11'b11111111110) ext_id = 4'd7; // SET/CLR
-            else if (id_ex.instr[15:4]  == 12'b111111111110) ext_id = 4'd8; // JML
-            else if (id_ex.instr[15:3]  == 13'b1111111111110) ext_id = 4'd9; // SYS
-            else                                   ext_id = 4'd10; // reserved
+            if      (w[15:12] == 4'b1110)          d.ext = 4'd0;  // Jcc
+            else if (w[15:11] == 5'b11110)         d.ext = 4'd1;  // LDS/STS
+            else if (w[15:10] == 6'b111110)        d.ext = 4'd2;  // MOV
+            else if (w[15:9]  == 7'b1111110)       d.ext = 4'd3;  // LSI
+            else if (w[15:8]  == 8'b11111110)      d.ext = 4'd4;  // SMV
+            else if (w[15:7]  == 9'b111111110)     d.ext = 4'd5;  // MVS
+            else if (w[15:6]  == 10'b1111111110)   d.ext = 4'd6;  // SOP
+            else if (w[15:5]  == 11'b11111111110)  d.ext = 4'd7;  // SET/CLR
+            else if (w[15:4]  == 12'b111111111110) d.ext = 4'd8;  // JML
+            else if (w[15:3]  == 13'b1111111111110) d.ext = 4'd9; // SYS
+            else                                   d.ext = 4'd10; // reserved
           end
-          default: cls = 3'd0;
+          default: d.cls = 3'd0;
         endcase
       end
     end
-  end
+    return d;
+  endfunction
+  /* verilator lint_on UNUSEDSIGNAL */
 
   // ---- register read addresses ------------------------------------------
-  logic [3:0] ra1, ra2, ra3;
-  logic       rd_en1, rd_en2, rd_en3;
+  typedef struct packed {
+    logic [3:0] a1, a2, a3, smv;
+    logic       e1, e2, e3;
+  } rd_t;
 
-  always_comb begin
-    ra1 = 4'd0; ra2 = 4'd0; ra3 = 4'd0;
-    rd_en1 = 1'b0; rd_en2 = 1'b0; rd_en3 = 1'b0;
-    case (cls)
+  /* verilator lint_off UNUSEDSIGNAL */
+  function automatic rd_t read_addrs(input idec_t d, input logic [15:0] w);
+    rd_t r;
+    r = '{a1: 4'd0, a2: 4'd0, a3: 4'd0, smv: 4'd0, e1: 1'b0, e2: 1'b0, e3: 1'b0};
+    // SMV reads the inactive bank; its register index is pure decode.
+    case (w[3:0])
+      4'h9:  r.smv = 4'd1;
+      4'hA:  r.smv = 4'd2;
+      4'hB:  r.smv = 4'd3;
+      4'hD:  r.smv = 4'd13;
+      4'hE:  r.smv = 4'd14;
+      default: r.smv = 4'd0;
+    endcase
+    case (d.cls)
       3'd3: begin                                // LD/ST: base + ST source
-        ra1 = id_ex.instr[8:5];   rd_en1 = 1'b1;
-        ra3 = id_ex.instr[12:9];  rd_en3 = 1'b1;
+        r.a1 = w[8:5];   r.e1 = 1'b1;
+        r.a3 = w[12:9];  r.e3 = 1'b1;
       end
       3'd4: begin                                // ALU: Rd, Rs, Rd+1
-        ra1 = id_ex.instr[7:4];           rd_en1 = 1'b1;
-        ra2 = id_ex.instr[3:0];           rd_en2 = 1'b1;
-        ra3 = id_ex.instr[7:4] + 4'd1;    rd_en3 = 1'b1;
+        r.a1 = w[7:4];            r.e1 = 1'b1;
+        r.a2 = w[3:0];            r.e2 = 1'b1;
+        r.a3 = w[7:4] + 4'd1;     r.e3 = 1'b1;
       end
       3'd5: begin
-        case (ext_id)
+        case (d.ext)
           4'd1: begin                            // LDS/STS
-            ra1 = id_ex.instr[3:0]; rd_en1 = 1'b1;
-            ra3 = id_ex.instr[7:4]; rd_en3 = 1'b1;
+            r.a1 = w[3:0];  r.e1 = 1'b1;
+            r.a3 = w[7:4];  r.e3 = 1'b1;
           end
-          4'd2: begin ra1 = id_ex.instr[5:2]; rd_en1 = 1'b1; end  // MOV
-          4'd3: begin ra1 = id_ex.instr[8:5]; rd_en1 = 1'b1; end  // LSI
-          4'd4: begin ra1 = id_ex.instr[7:4]; rd_en1 = 1'b1; end  // SMV
-          4'd5: begin ra1 = id_ex.instr[5:2]; rd_en1 = 1'b1; end  // MVS
-          4'd6: begin ra1 = id_ex.instr[3:0]; rd_en1 = 1'b1; end  // SOP
+          4'd2: begin r.a1 = w[5:2]; r.e1 = 1'b1; end  // MOV
+          4'd3: begin r.a1 = w[8:5]; r.e1 = 1'b1; end  // LSI
+          4'd4: begin r.a1 = w[7:4]; r.e1 = 1'b1; end  // SMV
+          4'd5: begin r.a1 = w[5:2]; r.e1 = 1'b1; end  // MVS
+          4'd6: begin r.a1 = w[3:0]; r.e1 = 1'b1; end  // SOP
           4'd8: begin                            // JML
-            ra1 = id_ex.instr[3:0];             rd_en1 = 1'b1;
-            ra2 = id_ex.instr[3:0] + 4'd1;      rd_en2 = 1'b1;
+            r.a1 = w[3:0];            r.e1 = 1'b1;
+            r.a2 = w[3:0] + 4'd1;     r.e2 = 1'b1;
           end
           default: ;
         endcase
       end
       default: ;
     endcase
+    return r;
+  endfunction
+  /* verilator lint_on UNUSEDSIGNAL */
+
+  logic [2:0]  cls;
+  logic [3:0]  ext_id;
+  idec_t       idec_ex;
+
+  always_comb begin
+    idec_ex = decode(id_ex.valid, id_ex.instr);
+    cls     = idec_ex.cls;
+    ext_id  = idec_ex.ext;
+  end
+
+  idec_t id_dec;
+  rd_t   id_rd;
+
+  always_comb begin
+    id_dec = decode(if_id.valid, if_id.instr);
+    id_rd  = read_addrs(id_dec, if_id.instr);
   end
 
   // ---- regfile reads with the EX/MEM and WB bypass -----------------------
@@ -291,19 +340,6 @@ module deep16_core
   logic [15:0] rf_dbg_rdata_unused;   // the regfile's debug read, not used here
   /* verilator lint_on UNUSEDSIGNAL */
 `endif
-
-  // SMV reads the inactive bank; its register index is pure decode.
-  logic [3:0] smv_idx;
-  always_comb begin
-    case (id_ex.instr[3:0])
-      4'h9:  smv_idx = 4'd1;
-      4'hA:  smv_idx = 4'd2;
-      4'hB:  smv_idx = 4'd3;
-      4'hD:  smv_idx = 4'd13;
-      4'hE:  smv_idx = 4'd14;
-      default: smv_idx = 4'd0;
-    endcase
-  end
 
   function automatic logic idx_banked(input logic [3:0] idx);
     idx_banked = (idx == 4'd0)  || (idx == 4'd1)  || (idx == 4'd2) || (idx == 4'd3)
@@ -342,15 +378,23 @@ module deep16_core
   wire [15:0] mem_wb_wdata = (mem_wb.valid && mem_wb.mem_is_load && mem_wb.reg_we_a)
                              ? mem_rdata : mem_wb.reg_da;
 
-  function automatic logic [15:0] fwd_val(
-      input logic [3:0] a,
-      input logic [15:0] n,
-      input logic [15:0] s,
-      input logic       bank);
+  // WB forwarding for the ID read: the instruction retiring this cycle has not
+  // written the array yet, so its value is muxed in here. Without it an
+  // instruction right behind a WB writer would read the stale word.
+  function automatic logic [15:0] id_fwd_wb(input logic [3:0] a, input logic bank,
+                                            input logic [15:0] base);
+    if (mem_wb.valid &&
+        fwd_hit(a, bank, mem_wb.reg_we_a, mem_wb.reg_wa, mem_wb.reg_we_b,
+                mem_wb.reg_wb, mem_wb.reg_bank))
+      return (mem_wb.reg_we_a && mem_wb.reg_wa == a) ? mem_wb_wdata : mem_wb.reg_db;
+    return base;
+  endfunction
+
+  // EX side: the operands are in flip-flops now. Pick the bank with the
+  // instruction's own PSW and forward from the two younger stages.
+  function automatic logic [15:0] fwd_ex(input logic [3:0] a, input logic bank,
+                                         input logic [15:0] n, input logic [15:0] s);
     logic [15:0] base_v;
-    // Only R0-R3, R13 and R14 have a shadow copy. R4-R12 are shared between
-    // both contexts, so PSW.S must not redirect their read to the shadow bank -
-    // that is what the regfile's banked_read() does for the same reason.
     base_v = (bank && idx_banked(a)) ? s : n;
     if (a == 4'd15) return pc_reg_val;
     if (ex_mem.valid &&
@@ -364,40 +408,28 @@ module deep16_core
     return base_v;
   endfunction
 
-  // Shadow registers read as zero right after the SWI that cleared them, even
-  // while older instructions of the handler are still travelling.
-  logic sh_clear_bypass;
-
-  function automatic logic [15:0] shadow_read(input logic [15:0] s);
-    if (sh_clear_bypass) return 16'h0000;
-    return s;
-  endfunction
-
-  always_comb begin
-    sh_clear_bypass = (ex_mem.valid && ex_mem.sh_clear) ||
-                      (mem_wb.valid  && mem_wb.sh_clear);
-  end
-
   logic [15:0] r1, r2, r3, r_inact;
   logic        in_shadow;
 
+
+
   always_comb begin
     in_shadow = ctx_e.psw[FLG_S];
-    r1      = fwd_val(ra1, rf1_n, shadow_read(rf1_s), in_shadow);
-    r2      = fwd_val(ra2, rf2_n, shadow_read(rf2_s), in_shadow);
-    r3      = fwd_val(ra3, rf3_n, shadow_read(rf3_s), in_shadow);
+    r1      = fwd_ex(id_ex.ra1, in_shadow, id_ex.op1_n, id_ex.op1_s);
+    r2      = fwd_ex(id_ex.ra2, in_shadow, id_ex.op2_n, id_ex.op2_s);
+    r3      = fwd_ex(id_ex.ra3, in_shadow, id_ex.op3_n, id_ex.op3_s);
     // SMV taps the inactive bank, so it wants the opposite bank
-    r_inact = fwd_val(smv_idx, rf_inact_n, shadow_read(rf_inact_s), ~in_shadow);
+    r_inact = fwd_ex(id_ex.rsmi, ~in_shadow, id_ex.opn_n, id_ex.opn_s);
   end
 
   deep16_regfile u_regfile (
     .clk       (clk),
     .rst       (rst),
-    .raddr1    (ra1),          .rdata1_n   (rf1_n),      .rdata1_s(rf1_s),
-    .raddr2    (ra2),          .rdata2_n   (rf2_n),      .rdata2_s(rf2_s),
-    .raddr3    (ra3),          .rdata3_n   (rf3_n),      .rdata3_s(rf3_s),
-    .rn_addr   (smv_idx),      .rn_rdata   (rf_inact_n),
-    .rs_addr   (smv_idx),      .rs_rdata   (rf_inact_s),
+    .raddr1    (id_rd.a1),     .rdata1_n   (rf1_n),      .rdata1_s(rf1_s),
+    .raddr2    (id_rd.a2),     .rdata2_n   (rf2_n),      .rdata2_s(rf2_s),
+    .raddr3    (id_rd.a3),     .rdata3_n   (rf3_n),      .rdata3_s(rf3_s),
+    .rn_addr   (id_rd.smv),    .rn_rdata   (rf_inact_n),
+    .rs_addr   (id_rd.smv),    .rs_rdata   (rf_inact_s),
     .wb_bank   (mem_wb.reg_bank),
     // every write port is gated with the stage's valid bit: a bubble inserted
     // on a load-use stall keeps the fields of the instruction it replaced, and
@@ -418,6 +450,49 @@ module deep16_core
     .dbg_rdata (rf_dbg_rdata_unused)
 `endif
   );
+
+  // ---- ID operands, registered into ID/EX (27 MHz step C) ---------------
+  // Read both banks raw; the write retiring this cycle is bypassed here. EX
+  // selects the bank and forwards from EX/MEM and MEM/WB.
+  logic        id_sh_clear;
+  logic [15:0] id_op1_n, id_op1_s, id_op2_n, id_op2_s, id_op3_n, id_op3_s;
+  logic [15:0] id_opn_n, id_opn_s;
+
+  always_comb begin
+    // The SWI zeroes the shadow bank; reads see the zero before it commits.
+    id_sh_clear = (ex_mem.valid && ex_mem.sh_clear) ||
+                  (mem_wb.valid && mem_wb.sh_clear);
+    id_op1_n = id_fwd_wb(id_rd.a1, 1'b0, rf1_n);
+    id_op1_s = id_fwd_wb(id_rd.a1, 1'b1, id_sh_clear ? 16'h0000 : rf1_s);
+    id_op2_n = id_fwd_wb(id_rd.a2, 1'b0, rf2_n);
+    id_op2_s = id_fwd_wb(id_rd.a2, 1'b1, id_sh_clear ? 16'h0000 : rf2_s);
+    id_op3_n = id_fwd_wb(id_rd.a3, 1'b0, rf3_n);
+    id_op3_s = id_fwd_wb(id_rd.a3, 1'b1, id_sh_clear ? 16'h0000 : rf3_s);
+    id_opn_n = id_fwd_wb(id_rd.smv, 1'b0, rf_inact_n);
+    id_opn_s = id_fwd_wb(id_rd.smv, 1'b1, id_sh_clear ? 16'h0000 : rf_inact_s);
+  end
+
+  front_t id_ex_n;
+
+  always_comb begin
+    id_ex_n        = if_id;
+    id_ex_n.ra1    = id_rd.a1;
+    id_ex_n.ra2    = id_rd.a2;
+    id_ex_n.ra3    = id_rd.a3;
+    id_ex_n.rsmi   = id_rd.smv;
+    id_ex_n.rd_en1 = id_rd.e1;
+    id_ex_n.rd_en2 = id_rd.e2;
+    id_ex_n.rd_en3 = id_rd.e3;
+    id_ex_n.op1_n  = id_op1_n;   id_ex_n.op1_s = id_op1_s;
+    id_ex_n.op2_n  = id_op2_n;   id_ex_n.op2_s = id_op2_s;
+    id_ex_n.op3_n  = id_op3_n;   id_ex_n.op3_s = id_op3_s;
+    id_ex_n.opn_n  = id_opn_n;   id_ex_n.opn_s = id_opn_s;
+  end
+
+  // The hazard compare and the debug view still name the EX instruction's
+  // read indices; they are the registered ones now.
+  wire [3:0] ra1 = id_ex.ra1, ra2 = id_ex.ra2, ra3 = id_ex.ra3;
+  wire       rd_en1 = id_ex.rd_en1, rd_en2 = id_ex.rd_en2, rd_en3 = id_ex.rd_en3;
 
   // ---- load-use hazard ---------------------------------------------------
   // Only a memory load produces its result late (in MEM). Everything else -
@@ -498,7 +573,11 @@ module deep16_core
   // test DIV32: anything else in EX is not a division.
   wire alu_is_div   = (alu_func5 == 5'b11110);
   wire alu_is_div32 = (alu_func5 == 5'b11111);
-  wire div_needs_hw = alu_is_div32 ? (!alu_rd[0] && (r2 != 16'h0000))
+  // Class-gated: func5 is only the ALU function in the ALU class. Without the
+  // gate an SOP word such as 0xFF80 (INV, func5 = 11111) looked like DIV32 and
+  // armed the iterative divider, freezing the pipeline for 16 clocks.
+  wire div_needs_hw = (cls != 3'd4) ? 1'b0
+                : alu_is_div32 ? (!alu_rd[0] && (r2 != 16'h0000))
                 : alu_is_div  ?   (r2 != 16'h0000)
                 : 1'b0;
   // A load-use stall holds the DIV in EX while its operands are still stale, so
@@ -1349,6 +1428,14 @@ module deep16_core
           // completely - its write ports are wired to the register file and
           // the memory, which must not see a result twice.
           if (retire_now) mem_wb <= '0;
+          // The stage cleared above may be the one EX is forwarding from.
+          // Keep what EX sees now: with the operands in flip-flops there is no
+          // register-file read to fall back on, and the held instruction would
+          // otherwise execute the stale ID-time value on the next step.
+          id_ex.op1_n <= r1; id_ex.op1_s <= r1;
+          id_ex.op2_n <= r2; id_ex.op2_s <= r2;
+          id_ex.op3_n <= r3; id_ex.op3_s <= r3;
+          id_ex.opn_n <= r_inact; id_ex.opn_s <= r_inact;
           // A redirect whose target arrives with the data port lands exactly on
           // this edge: the SWI's vector word is read in its own MEM cycle and
           // used in WB - which is where the SWI retires. Freezing the fetch
@@ -1368,7 +1455,7 @@ module deep16_core
             if (!div_drain) begin
               ex_mem       <= ex_mem_n;
               ex_mem.valid <= id_ex.valid && !ex_kill;
-              id_ex       <= if_id;
+              id_ex       <= id_ex_n;
               id_ex.valid <= if_id.valid && !kill_id;
               // A stale prefetch leaves IF/ID with a bubble (the address is
               // re-issued, or a redirect target is taken); a good word is
@@ -1394,6 +1481,16 @@ module deep16_core
             // instruction waits for walks on to WB and can be bypassed from
             // there. Freezing MEM instead would deadlock the machine.
             ex_mem.valid <= 1'b0;
+          end
+          // A held EX instruction refreshes what it sees into its operand
+          // registers. A producer can retire while it waits (the load-use case
+          // is exactly that), and the ID-time capture would then be stale with
+          // no register-file read left to fall back on.
+          if (stall || div_stall || div_drain) begin
+            id_ex.op1_n <= r1; id_ex.op1_s <= r1;
+            id_ex.op2_n <= r2; id_ex.op2_s <= r2;
+            id_ex.op3_n <= r3; id_ex.op3_s <= r3;
+            id_ex.opn_n <= r_inact; id_ex.opn_s <= r_inact;
           end
         end
         // A halt word stops the fetch for good. The address is rewound onto
