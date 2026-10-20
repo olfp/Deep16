@@ -22,7 +22,7 @@ here window-words < 0= constant psram?   \ the kernel moved the dictionary up
 \ BSRAM board, 0xFFF0 (the boot ROM starts there) when the dictionary is in
 \ PSRAM. `unused` already reports the cells left, so free is just that.
 \ ---- memory -------------------------------------------------------------
-: free ( -- u )         unused ;
+: free ( -- d )    unused 0 ;   \ lo, hi=0: unsigned, so d. prints it whole
 : .addr ( u -- )    hex 0 u.r decimal ;
 : u. ( u -- )       0 u.r ;
 
@@ -32,13 +32,13 @@ here window-words < 0= constant psram?   \ the kernel moved the dictionary up
     ."   memory   00000-FFFFF  1048576 words, 2 MiB HyperRAM (PSRAM board)" cr
     ."   image    0000-5FFF   24576 words (kernel, data, boot script, BIOS, stacks)" cr
     ."   dict     " dict-base .addr ." -" here 1- .addr
-    ."   " here dict-base - u. ." words, " free u. ." free" cr
+    ."   " here dict-base - u. ." words, " free d. ." free" cr
     ."   UART F0040-F004F   boot ROM FFFF0-FFFFF" cr
   else
     ."   window   0000-5FFF   24576 words, 48 KiB BSRAM" cr
     ."   image    0100-" here 1- .addr ."     " here kernel-base - u. ." words" cr
     ."            (kernel, data and the baked demo source)" cr
-    ."   free     " here .addr ." -55FF     " free u. ." words" cr
+    ."   free     " here .addr ." -55FF     " free d. ." words" cr
     ."   BIOS     5600-57FF   reserved for the UART console" cr
     ."   stacks   5800-5FFF   2048 words (RP 5800 up, SP 5FF0 down)" cr
     ."   UART F0040-F004F      boot ROM FFFF0-FFFFF (16 words)" cr
@@ -47,9 +47,9 @@ here window-words < 0= constant psram?   \ the kernel moved the dictionary up
 
 : boot.msg ( -- )
   psram? if
-    ." Deep16   1048576 words of PSRAM, " free u. ." free" cr
+    ." Deep16   1048576 words of PSRAM, " free d. ." free" cr
   else
-    ." D16MINI  " window-words u. ." words of BSRAM, " free u. ." free" cr
+    ." D16MINI  " window-words u. ." words of BSRAM, " free d. ." free" cr
   then ;
 
 \ ---- the starfield demo -------------------------------------------------

@@ -62,7 +62,7 @@ test('the boot script compiles at boot and prints the summary', () => {
 });
 
 test('free is the dictionary headroom, and unused agrees with it', () => {
-  const out = run('free u. unused u.');
+  const out = run('free d. unused u.');
   const nums = [...out.matchAll(/(\d+)/g)].map((m) => Number(m[1]));
   assert.ok(nums.length >= 2, `expected two numbers: ${JSON.stringify(out)}`);
   assert.equal(nums[0], limit() - here());
@@ -75,7 +75,7 @@ test('mem prints the map', () => {
     assert.ok(out.includes(needle), `mem does not mention ${needle}: ${JSON.stringify(out)}`);
   }
   // The dictionary line carries the range and the free count.
-  assert.match(out, /dict\s+[0-9A-F]+ -[0-9A-F]+\s+\d+ words, \d+ free/,
+  assert.match(out, /dict\s+[0-9A-F]+ -[0-9A-F]+\s+\d+ words,\s+\d+\s+free/,
                `no dictionary line: ${JSON.stringify(out)}`);
 });
 

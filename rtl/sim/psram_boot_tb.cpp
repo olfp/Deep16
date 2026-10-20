@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
     static int phase = 0;
     if (done_seen && phase == 0 && t_ns > 20000000LL) { uart_send("mem\r"); phase = 1; }
     else if (phase == 1 && tx_idx >= tx_qlen && t_ns > 60000000LL) {
-      uart_send("free .\r"); phase = 2;
+      uart_send("free d.\r"); phase = 2;
     }
     static int last_st = -1, last_op = -1, last_rdq = -1, last_hw = -1;
     if (top->dbg_en && rise && top->dbg_breq && top->dbg_bwe) {

@@ -223,5 +223,7 @@ The ceiling is 0xFFF0, not the full megaword: Forth addresses are 16-bit
 offsets within a segment, so one dictionary can hold 64K words. Above that the
 addressing would need segment switching in the kernel, which is not done.
 
-Note that `.` is signed, so `free .` prints a negative number once the headroom
-passes 32767; `free u.` (or `mem`) prints it unsigned.
+`free` returns the headroom as a **double** (`unused 0`: low cell, high cell 0),
+so `free d.` prints it whole and unsigned. A plain `free .` still sees only the
+low cell, and `.` is signed, so it prints a negative number once the headroom
+passes 32767 - use `d.` (or `u.`).
