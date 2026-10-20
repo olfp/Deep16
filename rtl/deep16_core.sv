@@ -47,6 +47,9 @@ module deep16_core
   // Without it every step() pays a fixed pipeline refill, which inflates any
   // CPI derived from get_cycle_count(). See harness run_cycles().
   input  logic        i_free,
+  // A memory transaction is outstanding: freeze IF/ID/EX, let WB drain. The
+  // top pulses this while the data/fetch word is still in flight.
+  input  logic        mem_stall,
   output logic        o_done,
   output logic        o_result,      // 0 = the step ran into a halt word
   output logic        o_busy,
@@ -1054,11 +1057,11 @@ module deep16_core
       // every cycle, so step_done is high almost always while the pipe still
       // advances - gating on step_done alone would mute the console on the
       // board, where there is no step handshake at all.
-      kbd_pop = kbd_take_ex && run && !step_freeze && !stall && kbd_ready;
+      kbd_pop = kbd_take_ex && run && !step_freeze && !stall && !mem_stall && kbd_ready;
       // The UART strobes are side effects outside WB too, qualified the same way.
-      uart_tx_we   = uart_tx_we_ex   && run && !step_freeze && !stall;
-      uart_rx_take = uart_take_ex     && run && !step_freeze && !stall;
-      uart_ctrl_we = uart_ctrl_we_ex  && run && !step_freeze && !stall;
+      uart_tx_we   = uart_tx_we_ex   && run && !step_freeze && !stall && !mem_stall;
+      uart_rx_take = uart_take_ex     && run && !step_freeze && !stall && !mem_stall;
+      uart_ctrl_we = uart_ctrl_we_ex  && run && !step_freeze && !stall && !mem_stall;
 
       // ---- delay-slot bookkeeping ------------------------------------------
       // A delay slot is armed by a branch and consumed by the very next
@@ -1210,7 +1213,7 @@ module deep16_core
     // Issue for the next cycle: hold while the pipeline is stalled or while a
     // port redirect is still in flight, else advance - or re-issue the current
     // address when the word was stale. Nothing EX produces is in this cone.
-    if_next_pc     = (stall || div_stall) ? if_pc
+    if_next_pc     = (stall || div_stall || mem_stall) ? if_pc
                    : (pc_pending && !mem_late) ? if_pc
                    : if_hit               ? (if_pc + 16'd1)
                                           : if_pc;
@@ -1303,7 +1306,7 @@ module deep16_core
   // =====================================================================
   wire retire_now = run && mem_wb.valid;
   wire pipe_busy  = if_id.valid || id_ex.valid || ex_mem.valid || mem_wb.valid;
-  wire halt_done  = run && halt_sticky && !pipe_busy;
+  wire halt_done  = run && halt_sticky && !pipe_busy && !mem_stall;
   // No suppression here on purpose. While the DIV waits, the one or two
   // instructions ahead of it retire exactly as they would without the divider,
   // and that retirement is what ends this step() - as it must, since a step is
@@ -1414,7 +1417,20 @@ module deep16_core
 
       // ---- pipeline advance --------------------------------------------------
       if (run) begin
-        if (step_freeze) begin
+        if (mem_stall) begin
+          // A memory transaction is in flight: hold IF/ID/EX (the address the
+          // top is fetching stays put) and let WB drain with a bubble. The
+          // instruction in WB commits above; the load in MEM waits here until
+          // its word arrives.
+          mem_wb <= '0;
+          if (in_shadow) begin
+            id_ex.op1_s <= r1; id_ex.op2_s <= r2; id_ex.op3_s <= r3;
+            id_ex.op1_n <= r_inact;
+          end else begin
+            id_ex.op1_n <= r1; id_ex.op2_n <= r2; id_ex.op3_n <= r3;
+            id_ex.op1_s <= r_inact;
+          end
+        end else if (step_freeze) begin
           // the step ends here: the retiring instruction leaves WB, the rest
           // of the pipeline waits for the next i_step. The stage is cleared
           // completely - its write ports are wired to the register file and

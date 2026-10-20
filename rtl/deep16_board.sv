@@ -23,6 +23,15 @@ module deep16_board (
   input  logic uart_rxd,   // from the on-board USB-UART bridge
   output logic uart_txd,   // to the on-board USB-UART bridge
   output logic led         // heartbeat: a live board is visibly alive
+`ifdef PSRAM
+  // PSRAM (HyperRAM) pads - magic names, bound to the package's dedicated pads.
+  , output logic [1:0] O_psram_ck
+  , output logic [1:0] O_psram_ck_n
+  , output logic [1:0] O_psram_cs_n
+  , output logic [1:0] O_psram_reset_n
+  , inout  wire  [1:0] IO_psram_rwds
+  , inout  wire  [15:0] IO_psram_dq
+`endif
 );
 
   // ---- clock: 27 MHz / 2 = 13.5 MHz ------------------------------------
@@ -38,6 +47,44 @@ module deep16_board (
     else        clk_div <= clk_div + 2'd1;
   end
   assign clk_cpu = clk_div[0];
+
+`ifdef PSRAM
+  // 27 -> 148.5 MHz for the PSRAM IP; its user clock comes back as clk_out.
+  wire psram_mem_clk, psram_lock, psram_clk_out, psram_calib;
+  psram_pll u_psram_pll(
+    .clkout (psram_mem_clk),
+    .lock   (psram_lock),
+    .clkoutd(),
+    .clkin  (clk)
+  );
+  wire [20:0] ip_addr;
+  wire        ip_cmd, ip_cmd_en;
+  wire [63:0] ip_wr_data, ip_rd_data;
+  wire [7:0]  ip_mask;
+  wire        ip_rd_valid;
+
+  PSRAM_Memory_Interface_HS_Top u_psram (
+    .clk          (clk),
+    .memory_clk   (psram_mem_clk),
+    .pll_lock     (psram_lock),
+    .rst_n        (rst_n),
+    .O_psram_ck   (O_psram_ck),
+    .O_psram_ck_n (O_psram_ck_n),
+    .IO_psram_rwds(IO_psram_rwds),
+    .IO_psram_dq  (IO_psram_dq),
+    .O_psram_reset_n(O_psram_reset_n),
+    .O_psram_cs_n (O_psram_cs_n),
+    .addr         (ip_addr),
+    .wr_data      (ip_wr_data),
+    .rd_data      (ip_rd_data),
+    .rd_data_valid(ip_rd_valid),
+    .cmd          (ip_cmd),
+    .cmd_en       (ip_cmd_en),
+    .data_mask    (ip_mask),
+    .clk_out      (psram_clk_out),
+    .init_calib   (psram_calib)
+  );
+`endif
 
   // ---- reset -----------------------------------------------------------
   // The button is asynchronous. Register it in the CPU clock domain, then hold
@@ -106,6 +153,17 @@ module deep16_board (
     .o_cache_hits    (cache_hits),
     .o_cache_misses  (cache_misses),
     .o_cache_penalty (cache_penalty)
+`ifdef PSRAM
+    , .psram_clk    (psram_clk_out)
+    , .psram_calib   (psram_calib)
+    , .ip_addr       (ip_addr)
+    , .ip_cmd        (ip_cmd)
+    , .ip_cmd_en     (ip_cmd_en)
+    , .ip_wr_data    (ip_wr_data)
+    , .ip_mask       (ip_mask)
+    , .ip_rd_data    (ip_rd_data)
+    , .ip_rd_valid   (ip_rd_valid)
+`endif
   );
 
   // ---- heartbeat -------------------------------------------------------

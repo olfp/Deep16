@@ -51,6 +51,18 @@ module deep16_top
   output logic [31:0] o_cache_hits,
   output logic [31:0] o_cache_misses,
   output logic [31:0] o_cache_penalty
+`ifdef PSRAM
+  // PSRAM (board only): the IP's user clock and status, and its user interface.
+  , input  logic        psram_clk      // IP clk_out (74.25 MHz)
+  , input  logic        psram_calib    // IP init_calib
+  , output logic [20:0] ip_addr
+  , output logic        ip_cmd
+  , output logic        ip_cmd_en
+  , output logic [63:0] ip_wr_data
+  , output logic [7:0]  ip_mask
+  , input  logic [63:0] ip_rd_data
+  , input  logic        ip_rd_valid
+`endif
 );
 
   // ---- main memory (D16MINI.md §4.1, §6.2) -----------------------------
@@ -109,6 +121,9 @@ module deep16_top
   logic [15:0] if_rdata;
   logic [20:0] if_addr;
   logic        if_preempted;
+  // Set by the PSRAM path while a transaction is in flight; the BSRAM build
+  // always has its word next cycle, so it stays low.
+  logic        mem_stall;
 
   // ---- UART console ------------------------------------------------------
   logic        uart_tx_we, uart_rx_take, uart_ctrl_we;
@@ -147,11 +162,19 @@ module deep16_top
   assign o_cache_misses  = 32'd0;
   assign o_cache_penalty = 32'd0;
 
+`ifdef PSRAM
+  logic boot_done;
+  wire  core_rst = rst || !boot_done;
+`else
+  wire  core_rst = rst;
+`endif
+
   deep16_core u_core (
     .clk       (clk),
-    .rst       (rst),
+    .rst       (core_rst),
     .i_step    (i_step),
     .i_free    (i_free),
+    .mem_stall (mem_stall),
     .o_done    (o_done),
     .o_result  (o_result),
     .o_busy    (o_busy),
@@ -249,6 +272,26 @@ module deep16_top
       mem[mem_waddr[ADDR_BITS-1:0]] <= mem_wdata;
   end
 
+`ifdef PSRAM
+  // ---- PSRAM backing store (board build) --------------------------------
+  // The BSRAM array stays as the boot image; this copies it into PSRAM, then
+  // serves the core one transaction at a time through the bridge.
+  logic [14:0] img_addr;
+  logic [15:0] img_q;
+  always_ff @(posedge clk) img_q <= mem[img_addr];
+
+  deep16_psram_mem u_psram_mem (
+    .clk_cpu(clk), .rst(rst), .clk_ip(psram_clk), .calib(psram_calib),
+    .img_addr(img_addr), .img_data(img_q),
+    .if_addr(if_addr), .if_rdata(if_rdata), .if_preempted(if_preempted),
+    .mem_addr(mem_addr), .mem_rd(mem_rd), .mem_rdata(mem_rdata),
+    .mem_we(mem_we), .mem_waddr(mem_waddr), .mem_wdata(mem_wdata),
+    .mem_stall(mem_stall), .boot_done(boot_done),
+    .ip_addr(ip_addr), .ip_cmd(ip_cmd), .ip_cmd_en(ip_cmd_en),
+    .ip_wr_data(ip_wr_data), .ip_mask(ip_mask),
+    .ip_rd_data(ip_rd_data), .ip_rd_valid(ip_rd_valid)
+  );
+`else
   // The read result belongs to whoever asked for it: the fetch, or the load. The
   // store-to-load bypass is applied here, behind the read register, so the RAM
   // read stays unconditional.
@@ -263,8 +306,12 @@ module deep16_top
   // The fetch's word is not on the bus the cycle after a load took the port;
   // the core ignores it and re-issues (deep16_core.sv, if_hit).
   assign if_preempted = ram_was_data_q;
+`ifndef PSRAM
+  assign mem_stall = 1'b0;
+`endif
   assign if_rdata     = ram_was_data_q ? 16'hFFFF : ram_data;
   assign mem_rdata    = ram_was_data_q ? ram_data : 16'hFFFF;
+`endif
 
   // The SWI vector used to be read here combinationally (`mem[2]`), a third
   // asynchronous port on the array - which no BSRAM has, so it kept the whole
