@@ -20,6 +20,13 @@ onboard PSRAM, cache and write buffer in BSRAM.
 >   (`deep16_core.sv`): fetch tags must hold during a transaction, and
 >   `mem_late` redirects must be applied in the stall branch. `rtl/psram/README.md`
 >   has the details and `rtl/sim/psram_boot_tb.sv` reproduces the whole boot.
+> - **Dictionary in PSRAM (2026-10-20):** the kernel probes word `0x6000` at
+>   boot; when it reads back, the dictionary starts there with a ceiling of
+>   `0xFFF0` (the top of segment 0, below the boot ROM). One image serves both
+>   boards: the BSRAM machine fails the probe and keeps the old layout. `free`
+>   reads the ceiling cell and `mem` prints the map it finds. The 1 MiB is not
+>   one dictionary: Forth addresses are 16-bit offsets, so 64K words is the
+>   ceiling until the kernel learns segment switching.
 > - **Cache in, measured (2026-10-20, tag `v0.15-cache`):** 512 lines x 2 words,
 >   direct-mapped, write-through with update-on-hit, tags in BSRAM. Boot sim:
 >   94 % hit rate, 6.1 cycles/instruction (was ~17), 883k instructions in the
