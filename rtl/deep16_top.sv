@@ -62,6 +62,8 @@ module deep16_top
   , input  logic        psram_busy
   , output logic        o_boot_done    // loader finished, core released
   , output logic        o_boot_err     // a PSRAM read-back did not match
+  , output logic        o_core_halt    // diagnostic: the core hit a halt word
+  , output logic [31:0] o_core_instrs  // diagnostic: retired instructions
 `endif
 );
 
@@ -167,9 +169,14 @@ module deep16_top
   wire  core_rst = rst || !boot_done;
   assign o_boot_done = boot_done;
   assign o_boot_err  = boot_err;
+  assign o_core_halt   = core_halt;
+  assign o_core_instrs = core_instrs;
 `else
   wire  core_rst = rst;
 `endif
+
+  logic        core_halt;
+  logic [31:0] core_instrs;
 
   deep16_core u_core (
     .clk       (clk),
@@ -180,6 +187,8 @@ module deep16_top
     .o_done    (o_done),
     .o_result  (o_result),
     .o_busy    (o_busy),
+    .o_halt    (core_halt),
+    .o_instr_count(core_instrs),
     .if_addr   (if_addr),
     .if_rdata  (if_rdata),
     .if_preempted(if_preempted),

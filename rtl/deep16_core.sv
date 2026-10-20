@@ -53,6 +53,8 @@ module deep16_core
   output logic        o_done,
   output logic        o_result,      // 0 = the step ran into a halt word
   output logic        o_busy,
+  output logic        o_halt,        // a halt word was reached (fetch stays put)
+  output logic [31:0] o_instr_count, // retired instructions (board diagnostics)
 
   // instruction fetch port. `if_preempted` tells the core the word on if_rdata
   // is not its own this cycle: the memory has one read port and a load took it,
@@ -1320,6 +1322,8 @@ module deep16_core
   assign step_freeze = step_done && !i_free;
 
   assign o_busy = run;
+  assign o_halt = halt_sticky;
+  assign o_instr_count = instr_count;
 
   always_ff @(posedge clk) begin
     if (rst) begin

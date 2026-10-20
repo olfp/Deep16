@@ -22,7 +22,7 @@ module deep16_board (
   input  logic rst_n,      // S1 button, active low
   input  logic uart_rxd,   // from the on-board USB-UART bridge
   output logic uart_txd,   // to the on-board USB-UART bridge
-  output logic led         // heartbeat: a live board is visibly alive
+  output logic [5:0] led   // 0 heartbeat, 1 run, 2 halt, 3..5 instruction activity
 `ifdef PSRAM
   // PSRAM (HyperRAM) pads - magic names, bound to the package's dedicated pads.
   , output logic [1:0] O_psram_ck
@@ -61,6 +61,8 @@ module deep16_board (
   );
 
   wire        psram_read, psram_write, psram_busy, o_boot_done, o_boot_err;
+  wire        o_core_halt;
+  wire [31:0] o_core_instrs;
   wire [21:0] psram_addr;
   wire [15:0] psram_din, psram_dout;
 
@@ -161,6 +163,8 @@ module deep16_board (
     , .psram_busy   (psram_busy)
     , .o_boot_done  (o_boot_done)
     , .o_boot_err   (o_boot_err)
+    , .o_core_halt  (o_core_halt)
+    , .o_core_instrs(o_core_instrs)
 `endif
   );
 
@@ -173,11 +177,19 @@ module deep16_board (
     else        hb <= hb + 25'd1;
   end
 `ifdef PSRAM
-  // slow heartbeat = loader finished and the core was released;
-  // fast blink = still loading / stuck before boot.
-  assign led = o_boot_err ? 1'b1 : (o_boot_done ? hb[24] : hb[21]);
+  // All LEDs are active low (0 = lit).
+  //   led[0] heartbeat: slow blink = loader done, fast blink = loading
+  //   led[1] lit = the core is running (o_busy)
+  //   led[2] lit = the core halted on 0xFFFF
+  //   led[3..5] blink = instructions retiring (bits 9, 13, 17)
+  assign led[0] = o_boot_err ? 1'b1 : (o_boot_done ? hb[24] : hb[21]);
+  assign led[1] = ~o_busy;
+  assign led[2] = ~o_core_halt;
+  assign led[3] = ~o_core_instrs[9];
+  assign led[4] = ~o_core_instrs[13];
+  assign led[5] = ~o_core_instrs[17];
 `else
-  assign led = hb[24];
+  assign led = {5'b11111, hb[24]};
 `endif
 
   // The board reads the console from the pin and has no debug bus or cache, so
