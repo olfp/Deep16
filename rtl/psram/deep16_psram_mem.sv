@@ -93,7 +93,8 @@ module deep16_psram_mem #(
   logic [19:0] op_addr;
   logic [15:0] op_wdata, rd_q;
   logic        store_lat;
-  logic        ver_pending;   // the pending read is the boot verify
+  logic        ver_pending;   // the pending read is a boot verify
+  logic        ver_idx;       // 0 = image word 0, 1 = boot ROM word 1 (0xFFFF1)
   logic [19:0] store_addr;
   logic [15:0] store_data;
 
@@ -107,7 +108,7 @@ module deep16_psram_mem #(
     breq <= 1'b0;
     if (rst) begin
       st <= S_BOOT_WAIT; bi <= 15'd0; ri <= 5'd0; boot_rom <= 1'b0; boot_q <= 1'b0;
-      boot_err <= 1'b0; ver_pending <= 1'b0;
+      boot_err <= 1'b0; ver_pending <= 1'b0; ver_idx <= 1'b0;
       op_is_load <= 0; op_is_store <= 0; op_is_fetch <= 0;
       op_addr <= 20'd0; op_wdata <= 16'd0; rd_q <= 16'd0;
       store_lat <= 0; store_addr <= 20'd0; store_data <= 16'd0;
@@ -159,12 +160,12 @@ module deep16_psram_mem #(
         end
 
         S_VER_SET: begin
-          img_addr <= 15'd0;                 // BSRAM read of the expected word
+          img_addr <= 15'd0;                 // BSRAM read of image word 0
           st <= S_VER_RD;
         end
         S_VER_RD: begin
           op_is_load <= 1'b1; op_is_store <= 1'b0; op_is_fetch <= 1'b0;
-          op_addr <= 20'd0;
+          op_addr <= ver_idx ? 20'hFFFF1 : 20'h00000;
           ver_pending <= 1'b1;
           st <= S_CMD;
         end
@@ -200,9 +201,17 @@ module deep16_psram_mem #(
           rd_q <= brdata;
           if (ver_pending) begin
             ver_pending <= 1'b0;
-            if (brdata != img_data) boot_err <= 1'b1;   // read-back mismatch
-            boot_q <= 1'b1;                             // release the core either way
-            st <= S_IDLE;
+            // word 0 against the BSRAM image; word 0xFFFF1 against the boot ROM
+            if ((!ver_idx && (brdata != img_data)) ||
+                ( ver_idx && (brdata != BOOT_ROM[16 +: 16])))
+              boot_err <= 1'b1;
+            if (!ver_idx) begin
+              ver_idx <= 1'b1;
+              st <= S_VER_SET;               // second verify
+            end else begin
+              boot_q <= 1'b1;                // release the core either way
+              st <= S_IDLE;
+            end
           end else begin
             st <= S_PRESENT;
           end
