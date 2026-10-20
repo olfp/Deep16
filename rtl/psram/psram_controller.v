@@ -158,7 +158,7 @@ always @(posedge clk) begin
     cfg_now     <= rst_done & ~rst_done_p1;// Rising Edge Detect
 
     if (rst_cnt != INIT_TIME) begin      // count to 160 us
-        rst_cnt  <= rst_cnt[14:0] + 1;
+        rst_cnt  <= rst_cnt + 1'b1;   // Deep16: full width (the [14:0] slice never fits below ~51 MHz)
         rst_done <= 0;
         cfg_busy <= 1;
     end else begin

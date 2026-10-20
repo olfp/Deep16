@@ -19,7 +19,7 @@ module deep16_psram_mem #(
   input  logic        clk_cpu,
   input  logic        rst,
   input  logic        clk_ip,
-  input  logic        calib,        // IP initialised (ip domain)
+  input  logic        ctl_dout_valid,   // unused, kept for interface symmetry
 
   // boot image read port (on-chip BSRAM)
   output logic [14:0] img_addr,
@@ -38,14 +38,13 @@ module deep16_psram_mem #(
   output logic        mem_stall,
   output logic        boot_done,
 
-  // to the bridge / IP
-  output logic [20:0] ip_addr,
-  output logic        ip_cmd,
-  output logic        ip_cmd_en,
-  output logic [63:0] ip_wr_data,
-  output logic [7:0]  ip_mask,
-  input  logic [63:0] ip_rd_data,
-  input  logic        ip_rd_valid
+  // to the controller (clk_ip domain)
+  output logic        ctl_read,
+  output logic        ctl_write,
+  output logic [21:0] ctl_addr,
+  output logic [15:0] ctl_din,
+  input  logic [15:0] ctl_dout,
+  input  logic        ctl_busy
 );
 
   // ---- bridge -----------------------------------------------------------
@@ -54,20 +53,22 @@ module deep16_psram_mem #(
   logic [15:0] bwdata, brdata;
   logic        bready, bbusy;
 
-  deep16_psram_bridge u_bridge (
+  logic init_ok_ctl;
+
+  psram_word_bridge u_bridge (
     .clk_cpu(clk_cpu), .rst_cpu(rst),
-    .clk_ip (clk_ip),  .rst_ip (rst),
+    .clk_ctl(clk_ip),  .rst_ctl(rst),
     .req(breq), .we(bwe), .addr(baddr), .wdata(bwdata),
     .rdata(brdata), .ready(bready), .busy(bbusy),
-    .ip_addr(ip_addr), .ip_cmd(ip_cmd), .ip_cmd_en(ip_cmd_en),
-    .ip_wr_data(ip_wr_data), .ip_mask(ip_mask),
-    .ip_rd_data(ip_rd_data), .ip_rd_valid(ip_rd_valid)
+    .ctl_read(ctl_read), .ctl_write(ctl_write),
+    .ctl_addr(ctl_addr), .ctl_din(ctl_din), .ctl_dout(ctl_dout), .ctl_busy(ctl_busy),
+    .init_ok(init_ok_ctl)
   );
 
-  // calib lives in the IP clock domain: synchronise it in
-  logic calib_m, calib_s;
+  // init_ok lives in the controller clock domain: synchronise it in
+  logic init_m, init_s;
   always_ff @(posedge clk_cpu) begin
-    calib_m <= calib; calib_s <= calib_m;
+    init_m <= init_ok_ctl; init_s <= init_m;
   end
 
   // ---- sequencer --------------------------------------------------------
@@ -103,7 +104,7 @@ module deep16_psram_mem #(
     end else begin
       case (st)
         // ---- boot image -> PSRAM ---------------------------------------
-        S_BOOT_WAIT: if (calib_s) begin
+        S_BOOT_WAIT: if (init_s) begin
           img_addr <= bi;                    // image read has 1-cycle latency
           st <= S_BOOT_RD;
         end

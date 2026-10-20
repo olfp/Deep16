@@ -49,41 +49,39 @@ module deep16_board (
   assign clk_cpu = clk_div[0];
 
 `ifdef PSRAM
-  // 27 -> 148.5 MHz for the PSRAM IP; its user clock comes back as clk_out.
-  wire psram_mem_clk, psram_lock, psram_clk_out, psram_calib;
+  // 27 -> 51 MHz for the open-source controller (the point that works on this
+  // board); CLKOUTP is the 90-degree clock the PHY needs.
+  wire psram_clk, psram_clk_p, psram_lock;
   psram_pll u_psram_pll(
-    .clkout (psram_mem_clk),
+    .clkout (psram_clk),
+    .clkoutp(psram_clk_p),
     .lock   (psram_lock),
     .clkoutd(),
     .clkin  (clk)
   );
-  wire [20:0] ip_addr;
-  wire        ip_cmd, ip_cmd_en;
-  wire [63:0] ip_wr_data, ip_rd_data;
-  wire [7:0]  ip_mask;
-  wire        ip_rd_valid;
 
-  PSRAM_Memory_Interface_HS_Top u_psram (
-    .clk          (clk),
-    .memory_clk   (psram_mem_clk),
-    .pll_lock     (psram_lock),
-    .rst_n        (rst_n),
-    .O_psram_ck   (O_psram_ck),
-    .O_psram_ck_n (O_psram_ck_n),
+  wire        psram_read, psram_write, psram_busy;
+  wire [21:0] psram_addr;
+  wire [15:0] psram_din, psram_dout;
+
+  PsramController #(.FREQ(51_000_000), .LATENCY(3)) u_psram_ctrl (
+    .clk        (psram_clk),
+    .clk_p      (psram_clk_p),
+    .resetn     (rst_n),
+    .read       (psram_read),
+    .write      (psram_write),
+    .addr       (psram_addr),
+    .din        (psram_din),
+    .byte_write (1'b0),
+    .dout       (psram_dout),
+    .busy       (psram_busy),
+    .O_psram_ck (O_psram_ck),
     .IO_psram_rwds(IO_psram_rwds),
-    .IO_psram_dq  (IO_psram_dq),
-    .O_psram_reset_n(O_psram_reset_n),
-    .O_psram_cs_n (O_psram_cs_n),
-    .addr         (ip_addr),
-    .wr_data      (ip_wr_data),
-    .rd_data      (ip_rd_data),
-    .rd_data_valid(ip_rd_valid),
-    .cmd          (ip_cmd),
-    .cmd_en       (ip_cmd_en),
-    .data_mask    (ip_mask),
-    .clk_out      (psram_clk_out),
-    .init_calib   (psram_calib)
+    .IO_psram_dq(IO_psram_dq),
+    .O_psram_cs_n(O_psram_cs_n)
   );
+  assign O_psram_ck_n    = 2'b00;      // single-ended clock (the tested setup)
+  assign O_psram_reset_n = {2{rst_n}};
 `endif
 
   // ---- reset -----------------------------------------------------------
@@ -154,15 +152,13 @@ module deep16_board (
     .o_cache_misses  (cache_misses),
     .o_cache_penalty (cache_penalty)
 `ifdef PSRAM
-    , .psram_clk    (psram_clk_out)
-    , .psram_calib   (psram_calib)
-    , .ip_addr       (ip_addr)
-    , .ip_cmd        (ip_cmd)
-    , .ip_cmd_en     (ip_cmd_en)
-    , .ip_wr_data    (ip_wr_data)
-    , .ip_mask       (ip_mask)
-    , .ip_rd_data    (ip_rd_data)
-    , .ip_rd_valid   (ip_rd_valid)
+    , .psram_clk    (psram_clk)
+    , .psram_read   (psram_read)
+    , .psram_write  (psram_write)
+    , .psram_addr   (psram_addr)
+    , .psram_din    (psram_din)
+    , .psram_dout   (psram_dout)
+    , .psram_busy   (psram_busy)
 `endif
   );
 

@@ -6,9 +6,10 @@
 //Device: GW1NR-9C
 //Created Time: Thu Mar 10 14:54:10 2022
 
-module psram_pll (clkout, lock, clkoutd, clkin);
+module psram_pll (clkout, clkoutp, lock, clkoutd, clkin);
 
 output clkout;
+output clkoutp;
 output lock;
 output clkoutd;
 input clkin;
@@ -22,7 +23,7 @@ assign gw_gnd = 1'b0;
 rPLL rpll_inst (
     .CLKOUT(clkout),
     .LOCK(lock),
-    .CLKOUTP(clkoutp_o),
+    .CLKOUTP(clkoutp),
     .CLKOUTD(clkoutd),
     .CLKOUTD3(clkoutd3_o),
     .RESET(gw_gnd),
@@ -40,14 +41,14 @@ rPLL rpll_inst (
 defparam rpll_inst.FCLKIN = "27";
 defparam rpll_inst.DYN_IDIV_SEL = "false";
 //defparam rpll_inst.IDIV_SEL = 8;
-defparam rpll_inst.IDIV_SEL = 1;
+defparam rpll_inst.IDIV_SEL = 8;    // 51 MHz: 27 * 17 / 9
 defparam rpll_inst.DYN_FBDIV_SEL = "false";
-//defparam rpll_inst.FBDIV_SEL = 52;
-defparam rpll_inst.FBDIV_SEL = 10;
+//defparam rpll_inst.FBDIV_SEL = 16;
+defparam rpll_inst.FBDIV_SEL = 16;
 defparam rpll_inst.DYN_ODIV_SEL = "false";
-defparam rpll_inst.ODIV_SEL = 4;
-defparam rpll_inst.PSDA_SEL = "0000";
-defparam rpll_inst.DYN_DA_EN = "true";
+defparam rpll_inst.ODIV_SEL = 8;
+defparam rpll_inst.PSDA_SEL = "0100";
+defparam rpll_inst.DYN_DA_EN = "false";
 defparam rpll_inst.DUTYDA_SEL = "1000";
 defparam rpll_inst.CLKOUT_FT_DIR = 1'b1;
 defparam rpll_inst.CLKOUTP_FT_DIR = 1'b1;

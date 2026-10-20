@@ -1,0 +1,44 @@
+// psram_word_model - behavioural model of the open-source controller's word
+// interface, for Verilator tests of the bridge.
+//
+// read/write pulse -> busy for RDLAT (read) or WRLAT (write) clocks; the read
+// word appears on dout when busy falls. Address is a byte address.
+module psram_word_model #(
+  parameter int RDLAT = 12,
+  parameter int WRLAT = 7,
+  parameter int WORDS = 1 << 20
+) (
+  input  logic        clk,
+  input  logic        rst_n,
+  input  logic        read,
+  input  logic        write,
+  input  logic [21:0] addr,
+  input  logic [15:0] din,
+  output logic [15:0] dout,
+  output logic        busy
+);
+  logic [15:0] mem [0:WORDS-1];
+  logic [5:0]  cnt;
+  logic        is_wr;
+  logic [19:0] wa;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      busy <= 1'b0; cnt <= 6'd0; is_wr <= 1'b0; wa <= 20'd0; dout <= 16'd0;
+    end else if (!busy) begin
+      if (read || write) begin
+        busy  <= 1'b1;
+        cnt   <= read ? 6'(RDLAT) : 6'(WRLAT);
+        is_wr <= write;
+        wa    <= addr >> 1;
+        if (write) mem[addr>>1] <= din;
+      end
+    end else begin
+      if (cnt <= 6'd1) begin
+        busy <= 1'b0;
+        if (!is_wr) dout <= mem[wa];
+      end
+      cnt <= cnt - 6'd1;
+    end
+  end
+endmodule

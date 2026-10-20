@@ -12,3 +12,5 @@
 // Gowin EDA 1.9.12.04 on macOS.
 
 `define D16MINI
+
+`define PSRAM

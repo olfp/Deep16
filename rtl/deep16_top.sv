@@ -52,16 +52,14 @@ module deep16_top
   output logic [31:0] o_cache_misses,
   output logic [31:0] o_cache_penalty
 `ifdef PSRAM
-  // PSRAM (board only): the IP's user clock and status, and its user interface.
-  , input  logic        psram_clk      // IP clk_out (74.25 MHz)
-  , input  logic        psram_calib    // IP init_calib
-  , output logic [20:0] ip_addr
-  , output logic        ip_cmd
-  , output logic        ip_cmd_en
-  , output logic [63:0] ip_wr_data
-  , output logic [7:0]  ip_mask
-  , input  logic [63:0] ip_rd_data
-  , input  logic        ip_rd_valid
+  // PSRAM (board only): the open-source controller's word interface.
+  , input  logic        psram_clk      // controller clock (51 MHz)
+  , output logic        psram_read
+  , output logic        psram_write
+  , output logic [21:0] psram_addr
+  , output logic [15:0] psram_din
+  , input  logic [15:0] psram_dout
+  , input  logic        psram_busy
 `endif
 );
 
@@ -281,15 +279,15 @@ module deep16_top
   always_ff @(posedge clk) img_q <= mem[img_addr];
 
   deep16_psram_mem u_psram_mem (
-    .clk_cpu(clk), .rst(rst), .clk_ip(psram_clk), .calib(psram_calib),
+    .clk_cpu(clk), .rst(rst), .clk_ip(psram_clk), .ctl_dout_valid(1'b0),
     .img_addr(img_addr), .img_data(img_q),
     .if_addr(if_addr), .if_rdata(if_rdata), .if_preempted(if_preempted),
     .mem_addr(mem_addr), .mem_rd(mem_rd), .mem_rdata(mem_rdata),
     .mem_we(mem_we), .mem_waddr(mem_waddr), .mem_wdata(mem_wdata),
     .mem_stall(mem_stall), .boot_done(boot_done),
-    .ip_addr(ip_addr), .ip_cmd(ip_cmd), .ip_cmd_en(ip_cmd_en),
-    .ip_wr_data(ip_wr_data), .ip_mask(ip_mask),
-    .ip_rd_data(ip_rd_data), .ip_rd_valid(ip_rd_valid)
+    .ctl_read(psram_read), .ctl_write(psram_write),
+    .ctl_addr(psram_addr), .ctl_din(psram_din),
+    .ctl_dout(psram_dout), .ctl_busy(psram_busy)
   );
 `else
   // The read result belongs to whoever asked for it: the fetch, or the load. The
