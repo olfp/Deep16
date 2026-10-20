@@ -77,6 +77,20 @@ onboard PSRAM, cache and write buffer in BSRAM.
 >
 > The 20K is therefore no longer needed for PSRAM; it remains the option for
 > graphics and for 27 MHz.
+>
+> **IP user interface, from IPUG943 (the installed HTML is only a summary).**
+> - `addr` is a **word address in 4-byte units** (single channel = two x8 dies);
+>   a burst covers `burst/2` addresses.
+> - One burst-16 command moves **32 bytes = 16 Deep16 words**, as **4 beats** of
+>   64 bits on `wr_data`/`rd_data`.
+> - `data_mask[7:0]` is per beat; **1 means masked** (`~8'h01` writes byte 0).
+> - `cmd` = 1 write, 0 read; `cmd_en` with `cmd`/`addr` valid; **Tcmd = 14 user
+>   clocks** between commands at burst 16; read data is 4 `rd_data_valid` beats
+>   after ~6 clocks of initial latency; `init_calib` gates the first access.
+>
+> So the minimum memory unit is a 32-byte line, not a word: the "no cache"
+> machine still needs a 16-word line buffer per channel. That is the bridge's
+> job, and it is also the seed of the real cache.
 
 ## 0. Goal and non-goals
 
