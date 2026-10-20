@@ -102,9 +102,9 @@ npm run trace:rtl -- asm/forth.asm 200 --keys "1 2 + .\n"
 node scripts/bench.mjs   # MIPS of all three cores
 ```
 
-## The D16MINI board build (Tang Nano 9K) — 1.0
+## The D16MINI board build (Tang Nano 9K) — 1.1
 
-`D16MINI 1.0` is the machine that runs on the board: the Forth kernel on the RTL
+`D16MINI 1.1` is the machine that runs on the board: the Forth kernel on the RTL
 core, backed by the Tang Nano 9K's embedded **64 Mbit HyperRAM**, with the console
 on the on-board USB-UART. It is a second build of the same RTL, selected by
 `` `ifdef D16MINI ``.
