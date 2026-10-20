@@ -34,3 +34,6 @@ build/
 fpga/gowin/impl/
 fpga/gowin/src/
 fpga/gowin/*.gprj.user
+
+# Verilator build dir for the PSRAM bridge test
+obj_psram/
