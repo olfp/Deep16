@@ -31,7 +31,12 @@ module psram_boot_tb (
   output logic        dbg_memlate,
   output logic        dbg_redir,
   output logic [15:0] dbg_ifpc,
-  output logic [15:0] dbg_memrdat
+  output logic [15:0] dbg_memrdat,
+  output logic [19:0] dbg_baddr,
+  output logic        dbg_bwe,
+  output logic        dbg_breq,
+  output logic [31:0] dbg_hits,
+  output logic [31:0] dbg_misses
 );
   logic        psram_read, psram_write, psram_busy;
   logic [21:0] psram_addr;
@@ -97,6 +102,11 @@ module psram_boot_tb (
   assign dbg_redir   = u_top.u_core.if_redirect;
   assign dbg_ifpc    = u_top.u_core.if_pc;
   assign dbg_memrdat = u_top.mem_rdata;
+  assign dbg_baddr   = u_top.u_psram_mem.baddr;
+  assign dbg_bwe     = u_top.u_psram_mem.bwe;
+  assign dbg_breq    = u_top.u_psram_mem.breq;
+  assign dbg_hits    = u_top.u_psram_mem.hit_count;
+  assign dbg_misses  = u_top.u_psram_mem.miss_count;
 
   psram_word_model #(.WORDS(1 << 20)) u_model (
     .clk  (clk_ip),

@@ -305,6 +305,7 @@ module deep16_top
     .mem_addr(mem_addr), .mem_rd(mem_rd), .mem_rdata(mem_rdata),
     .mem_we(mem_we), .mem_waddr(mem_waddr), .mem_wdata(mem_wdata),
     .mem_stall(mem_stall), .boot_done(boot_done), .boot_err(boot_err),
+    .cache_flush(core_cache_flush),
     .ctl_read(psram_read), .ctl_write(psram_write),
     .ctl_addr(psram_addr), .ctl_din(psram_din),
     .ctl_dout(psram_dout), .ctl_busy(psram_busy)

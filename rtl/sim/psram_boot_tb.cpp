@@ -81,6 +81,9 @@ int main(int argc, char** argv) {
     last_clk = top->clk;
     if (rise) uart_tick();
     static int last_st = -1, last_op = -1, last_rdq = -1, last_hw = -1;
+    if (top->dbg_en && rise && top->dbg_breq && top->dbg_bwe) {
+      std::printf("WRITE addr=%05x\n", (unsigned)top->dbg_baddr);
+    }
     if (top->dbg_en && rise) {
       if ((int)top->dbg_st != last_st || (int)top->dbg_op != last_op ||
           (int)top->dbg_rdq != last_rdq || (int)top->dbg_hw != last_hw) {
@@ -126,6 +129,13 @@ int main(int argc, char** argv) {
               (int)top->boot_done, (int)top->boot_err, (int)top->core_halt,
               top->instrs, top->if_addr);
   std::printf("console (%d bytes):\n%.*s\n", console_len, console_len, console);
+  unsigned long long reads = (unsigned long long)top->dbg_hits + top->dbg_misses;
+  std::printf("cache: %u hits / %u misses (%.1f %% hit), %.2f cycles/instr "
+              "(%u instrs in %lld ns at 13.5 MHz)\n",
+              top->dbg_hits, top->dbg_misses,
+              reads ? 100.0 * top->dbg_hits / reads : 0.0,
+              top->instrs ? (double)t_ns / 74.0 / top->instrs : 0.0,
+              top->instrs, t_ns);
   top->final();
   delete top;
   return 0;

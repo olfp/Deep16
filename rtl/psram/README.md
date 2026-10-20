@@ -176,3 +176,26 @@ cd artifacts/image && ../../obj_psram_boot/psram_boot_tb
 ```
 
 It prints `boot_done=1 boot_err=0 halt=0` and the banner.
+
+## The cache
+
+`deep16_psram_mem` now carries a write-through cache in front of the bridge:
+512 lines x 2 words (1,024 words of data, one BSRAM block, plus a 512-entry tag
+block), direct-mapped.
+
+- Two-word lines are deliberate. A fill costs what the individual reads cost, so
+  a longer line would make the first pass through fresh code slower than the
+  uncached machine; the cache earns its keep on reuse, and Forth is all reuse.
+- Write-through with update-on-hit. The cache always matches PSRAM, so code
+  compiled into the dictionary is coherent the moment it is stored; FSH only
+  dumps the tags (512 cycles, stalled).
+- The tag array is uninitialised at power-up, so the loader clears it before the
+  boot read-back.
+
+Measured in `psram_boot_tb` over the boot window: **94 % hit rate**, 6.1
+cycles/instruction (was ~17), 883k instructions in the same simulated time
+instead of 311k. On the board: Logic 7,923/8,640, CLS 4,270/4,320,
+**BSRAM 26/26**, 0 violations.
+
+The hit path is three CPU cycles (lookup, compare, present). Presenting from the
+lookup cycle would make it two; that is the next cheap win if it still fits.
