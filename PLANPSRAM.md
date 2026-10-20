@@ -20,12 +20,15 @@ onboard PSRAM, cache and write buffer in BSRAM.
 >   (`deep16_core.sv`): fetch tags must hold during a transaction, and
 >   `mem_late` redirects must be applied in the stall branch. `rtl/psram/README.md`
 >   has the details and `rtl/sim/psram_boot_tb.sv` reproduces the whole boot.
-> - **Consequence for §4.3:** the cache is now required for speed, and its
->   refill is 8 word transactions (no burst). The shape decision (4-way, 512
->   lines, 8-word line, write-through) stands; the numbers in §4.3 and §10 were
->   measured against the controller's burst path and need re-measuring once the
->   cache is in. Until then the machine is correct but slow: every instruction
->   costs a full transaction.
+> - **Cache in, measured (2026-10-20, tag `v0.15-cache`):** 512 lines x 2 words,
+>   direct-mapped, write-through with update-on-hit, tags in BSRAM. Boot sim:
+>   94 % hit rate, 6.1 cycles/instruction (was ~17), 883k instructions in the
+>   boot window instead of 311k. Board: BSRAM 26/26, CLS 4,270/4,320.
+>   The shape differs from §4.3/§10 (which assumed 4-way, 8-word lines and the
+>   official IP's burst refill): with a word-only controller a longer line only
+>   makes first-touch code slower, so lines stay 2 words and the win comes from
+>   reuse. The 4-way/8 KiB numbers no longer apply until the controller gets a
+>   linear burst.
 
 > **Hardware correction (measured 2026-10-19).** The QN88P's embedded 64 Mbit
 > part is a **HyperRAM** (HyperBus: CK/CK#, CS#, DQ, RWDS), not the
