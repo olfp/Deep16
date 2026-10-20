@@ -3,6 +3,30 @@
 Target: Tang Nano 9K (Gowin GW1NR-9). Full 1,048,576-word address space in
 onboard PSRAM, cache and write buffer in BSRAM.
 
+> **Status (measured 2026-10-20): booting on hardware.** The open-source
+> controller runs at 51 MHz, the image is copied from BSRAM at power-on, and the
+> kernel reaches the console ("Hello DeepForth!"). Build 7,772 LUT (90 %), CLS
+> 4,268/4,320, 0 violations. Tag `v0.14-psram-boot`.
+>
+> What it took, and what changed in this plan:
+>
+> - The machine runs **word-at-a-time** through a toggle CDC
+>   (`psram_word_bridge.sv`) and a serial sequencer (`deep16_psram_mem.sv`):
+>   store, then load, then fetch, one transaction per core advance. No burst
+>   interface is used, so §4's burst refill and §5's row policy are future work.
+> - The boot ROM is served from a local constant (`0xFFFF0..0xFFFFF`); it is not
+>   in PSRAM.
+> - Two core bugs surfaced only when `mem_stall` is used, both fixed
+>   (`deep16_core.sv`): fetch tags must hold during a transaction, and
+>   `mem_late` redirects must be applied in the stall branch. `rtl/psram/README.md`
+>   has the details and `rtl/sim/psram_boot_tb.sv` reproduces the whole boot.
+> - **Consequence for §4.3:** the cache is now required for speed, and its
+>   refill is 8 word transactions (no burst). The shape decision (4-way, 512
+>   lines, 8-word line, write-through) stands; the numbers in §4.3 and §10 were
+>   measured against the controller's burst path and need re-measuring once the
+>   cache is in. Until then the machine is correct but slow: every instruction
+>   costs a full transaction.
+
 > **Hardware correction (measured 2026-10-19).** The QN88P's embedded 64 Mbit
 > part is a **HyperRAM** (HyperBus: CK/CK#, CS#, DQ, RWDS), not the
 > SDRAM-with-banks part §12 assumed - that description belongs to the QN88
