@@ -108,11 +108,14 @@ module deep16_psram_mem #(
     S_CLR       = 5'd5, S_VER      = 5'd6, S_VER2     = 5'd7,
     S_IDLE      = 5'd8, S_LOOK     = 5'd9, S_FILL_REQ = 5'd10,
     S_FILL_WAIT = 5'd11, S_PRESENT = 5'd12, S_STORE_CACHE = 5'd13,
-    S_STORE     = 5'd14, S_STORE_W = 5'd15, S_FLUSH    = 5'd16;
+    S_STORE     = 5'd14, S_STORE_W = 5'd15, S_FLUSH    = 5'd16,
+    S_VRFY_SET  = 5'd17, S_VRFY_RD  = 5'd18, S_VRFY_WT  = 5'd19,
+    S_VRFY_CHK  = 5'd20;
 
   logic [4:0]  st;
   logic [14:0] bi;              // boot image index
   logic [8:0]  clr_i;           // tag clear index
+  logic [1:0]  retry;           // image copy attempts
   logic        clr_boot;        // the tag clear precedes the boot
   logic        boot_q;
   logic        op_is_load, op_is_store, op_is_fetch;
@@ -156,7 +159,7 @@ module deep16_psram_mem #(
     if (rst) begin
       st <= S_BOOT_WAIT; bi <= 15'd0; boot_q <= 1'b0;
       boot_err <= 1'b0; ver_pending <= 1'b0; flush_pending <= 1'b0;
-      clr_i <= 9'd0; clr_boot <= 1'b0;
+      clr_i <= 9'd0; clr_boot <= 1'b0; retry <= 2'd0;
       op_is_load <= 0; op_is_store <= 0; op_is_fetch <= 0;
       op_addr <= 20'd0; op_wdata <= 16'd0; rd_q <= 16'd0;
       store_lat <= 0; store_addr <= 20'd0; store_data <= 16'd0;
@@ -181,15 +184,49 @@ module deep16_psram_mem #(
         end
         S_BOOT_WT: if (bbusy) begin
           if (bi == 15'(IMG_WORDS-1)) begin
-            // image done: the tag array is uninitialised, so clear it before
-            // anything is allowed to hit
+            // image done: read the whole thing back before trusting it. A
+            // marginal PSRAM write or a lost handshake leaves one word wrong,
+            // and the machine then boots into a corrupt dictionary - the
+            // banner prints, then nothing works. One retry on the first
+            // mismatch, then carry on with boot_err set if it persists.
+            bi <= 15'd0;
+            st <= S_VRFY_SET;
+          end else begin
+            bi <= bi + 15'd1;
+            img_addr <= bi + 15'd1;
+            st <= S_BOOT_RD;                 // next image word
+          end
+        end
+
+        // ---- image read-back -------------------------------------------
+        S_VRFY_SET: begin
+          img_addr <= bi;                    // BSRAM side of the compare
+          st <= S_VRFY_RD;
+        end
+        S_VRFY_RD: st <= S_VRFY_WT;          // let the BSRAM read land
+        S_VRFY_WT: if (!bbusy) begin
+          breq <= 1'b1; bwe <= 1'b0; baddr <= {5'b00000, bi};
+          st <= S_VRFY_CHK;
+        end
+        S_VRFY_CHK: if (bready) begin
+          if (brdata != img_data) begin
+            if (retry == 2'd0) begin
+              retry <= retry + 2'd1;         // one more copy, then trust it
+              bi <= 15'd0;
+              st <= S_BOOT_WAIT;
+            end else begin
+              boot_err <= 1'b1;              // persistent: report and go on
+              clr_i <= 9'd0;
+              clr_boot <= 1'b1;
+              st <= S_CLR;
+            end
+          end else if (bi == 15'(IMG_WORDS-1)) begin
             clr_i <= 9'd0;
             clr_boot <= 1'b1;
             st <= S_CLR;
           end else begin
             bi <= bi + 15'd1;
-            img_addr <= bi + 15'd1;
-            st <= S_BOOT_RD;                 // next image word
+            st <= S_VRFY_SET;
           end
         end
 

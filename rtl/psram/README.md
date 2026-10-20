@@ -227,3 +227,18 @@ addressing would need segment switching in the kernel, which is not done.
 so `free d.` prints it whole and unsigned. A plain `free .` still sees only the
 low cell, and `.` is signed, so it prints a negative number once the headroom
 passes 32767 - use `d.` (or `u.`).
+
+## The copy is verified
+
+The loader reads the whole image back from PSRAM after copying it and compares
+it with the BSRAM source. The first mismatch re-copies the image once; a second
+mismatch sets `boot_err` (heartbeat LED steady) and boots anyway.
+
+This exists because one board hung after the banner with a transient bad copy —
+the same bitstream and the same image booted correctly on the next flash, and
+the script's first bytes were provably intact, so a single wrong word elsewhere
+in the dictionary was the only consistent explanation. The verify costs about
+22 ms of boot (14.5 ms copy + verify) and 41 CLS of the 4,320.
+
+`BOOT_DIAG=1 npm run image` adds a one-line boot diagnostic (probe result plus
+the script's first bytes) for bring-up; the normal image does not carry it.
