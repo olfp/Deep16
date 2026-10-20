@@ -124,10 +124,10 @@ What is in it:
   segment 0, below the boot ROM), leaving about **39,000 free words** instead of
   the 2,116 of the BSRAM window. One image serves both boards: the BSRAM build
   fails the probe and keeps the old layout.
-- **Console.** 115200 8N1, received through a synchronised pin and a 128-byte
-  FIFO; the terminal is homed and cleared (`ESC[H ESC[2J ESC[3J`) before the
+- **Console.** 115200 8N1, received through a synchronised pin and a 64-byte
+  SSRAM FIFO; the terminal is homed and cleared (`ESC[H ESC[2J ESC[3J`) before the
   banner, and the prompt is printed once the baked boot script has compiled.
-- **Resources.** Logic 8,017 / 8,640 (93 %), CLS 4,279 / 4,320, registers 3,195 /
+- **Resources.** Logic 7,273 / 8,640 (85 %), CLS 3,870 / 4,320, registers 3,195 /
   6,771, **BSRAM 26/26**, 0 timing violations at 13.5 MHz.
 
 Build and flash (vendor toolchain for the bitstream):

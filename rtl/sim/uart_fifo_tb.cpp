@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
   top->rst = 0;
   for (int i = 0; i < 4; i++) tick();
 
-  // 200 bytes into a 128-deep FIFO, one per cycle.
+  // 200 bytes into the 64-deep FIFO, one per cycle.
   for (int i = 0; i < 200; i++) {
     top->push = 1; top->push_data = (uint16_t)(i & 0xFF);
     tick();
@@ -25,12 +25,12 @@ int main(int argc, char** argv) {
   }
 
   unsigned count = top->count & 0xFFFF;
-  std::printf("after 200 pushes: count = %u (want 128), overrun = %u\n",
+  std::printf("after 200 pushes: count = %u (want 64), overrun = %u\n",
               count, (top->status >> 2) & 1);
-  if (count != 128) { std::printf("FAIL count\n"); fails++; }
+  if (count != 64) { std::printf("FAIL count\n"); fails++; }
   if (((top->status >> 2) & 1) != 1) { std::printf("FAIL overrun flag\n"); fails++; }
 
-  // Drain: the first 128 bytes must be 0..127, in order.
+  // Drain: the first 64 bytes must be 0..63, in order.
   int got = 0;
   for (;;) {
     bool ready = (top->status & 1) != 0;
@@ -43,8 +43,8 @@ int main(int argc, char** argv) {
     got++;
     if (got > 300) break;              // a desynced count would never empty
   }
-  std::printf("drained %d bytes (want 128), count now %u\n", got, top->count & 0xFFFF);
-  if (got != 128) { std::printf("FAIL drain\n"); fails++; }
+  std::printf("drained %d bytes (want 64), count now %u\n", got, top->count & 0xFFFF);
+  if (got != 64) { std::printf("FAIL drain\n"); fails++; }
   if ((top->count & 0xFFFF) != 0) { std::printf("FAIL count not empty\n"); fails++; }
 
   top->final();

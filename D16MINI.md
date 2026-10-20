@@ -286,15 +286,21 @@ in `js/`, `wasm/`, or `rtl/`). New module `rtl/deep16_uart.sv`:
 - **TX**: shift register, start/stop bits, a **64-byte FIFO** so `putstr` does
   not stall per character.
 - **RX**: centre-sampled 8N1, start-bit detect, assemble the byte, push to a
-  **128-byte FIFO** (the depth the keyboard FIFO already uses,
-  `deep16_top.sv:44`); **overrun** flag. The pin is asynchronous to the CPU
-  clock, so it goes through **two synchronising flops** before the receiver
-  looks at it: the start-edge detector samples every cycle, and one metastable
-  sample there starts a frame late or aborts a real one, which comes out as
+  **64-byte FIFO**; **overrun** flag. The pin is asynchronous to the CPU clock,
+  so it goes through **two synchronising flops** before the receiver looks at
+  it: the start-edge detector samples every cycle, and one metastable sample
+  there starts a frame late or aborts a real one, which comes out as
   "sometimes the echo is mangled". A full FIFO **drops the surplus without
   counting it** — counting a dropped byte left `rx_count` above the depth with
   the head out of step, and every read after that returned the wrong slot
-  (`npm run test:uart` is the regression: 200 bytes into the 128-deep FIFO).
+  (`npm run test:uart` is the regression: 200 bytes into the queue).
+- **Why 64 and not 128.** The array must infer as **SSRAM** (distributed RAM)
+  or it becomes flip-flops: 128 deep does not infer in this flow, 64 does.
+  Measured on the 1.0 build: 128 deep = 1,024 FFs + 176 LUTs = **419 CLS** of
+  the 4,320; 64 deep with one write port = 8 `RAM16` primitives = **10 CLS**,
+  a **409 CLS** saving (4,279 → 3,870) at the cost of a shorter queue. The
+  single write port matters too: two `rx_enqueue` call sites (line receiver and
+  host injection) were two write ports, and a RAM has one.
 - **Baud**: the CPU runs at 13.5 MHz (the 27 MHz oscillator divided by two,
   §4.7), so the divisor is **117** — 13.5 MHz ÷ 117 = 115.4 kBd, 0.16 % error,
   well inside UART tolerance. No PLL.

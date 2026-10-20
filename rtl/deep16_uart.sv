@@ -14,7 +14,7 @@ module deep16_uart #(
   parameter int CLK_HZ   = 27_000_000,
   parameter int BAUD     = 115200,
   parameter int TX_DEPTH = 64,
-  parameter int RX_DEPTH = 128
+  parameter int RX_DEPTH = 64
 ) (
   input  logic        clk,
   input  logic        rst,
@@ -53,7 +53,8 @@ module deep16_uart #(
 
   // ---- receiver ----------------------------------------------------------
   logic [7:0]  rx_mem [0:RX_DEPTH-1];
-  logic [7:0]  rx_head, rx_tail, rx_count;   // RX_DEPTH = 128 -> 8 bits
+  logic [7:0]  rx_head, rx_tail, rx_count;
+  localparam int RX_AW = $clog2(RX_DEPTH);   // 64 entries -> 6 index bits
   logic [7:0]  rx_shift;
   logic [15:0] rx_timer;
   logic [3:0]  rx_bit;
@@ -95,15 +96,13 @@ module deep16_uart #(
   wire rx_enq  = (rx_push || rx_stop) && (rx_count != RX_DEPTH[7:0]);
   wire rx_reset = ctrl_we && ctrl_data[0];
 
-  // Push helper: a byte into the RX FIFO, dropping it (and flagging) when full.
-  task automatic rx_enqueue(input logic [7:0] byte_in);
-    if (rx_count == RX_DEPTH[7:0]) begin
-      rx_overrun <= 1'b1;
-    end else begin
-      rx_mem[rx_tail[6:0]] <= byte_in;
-      rx_tail  <= rx_tail + 8'd1;
-    end
-  endtask
+  // One write port. The line receiver and the host injection used to be two
+  // rx_enqueue call sites, which is two write ports to the same array - a RAM
+  // has one, so the synthesiser gave up and built 128 x 8 out of 1,024
+  // flip-flops instead of 16 RAM16 primitives. Muxing the two sources before
+  // the write lets it infer SSRAM.
+  wire        rx_wr    = (rx_push || rx_stop) && (rx_count != RX_DEPTH[7:0]);
+  wire [7:0]  rx_wdata = rx_push ? rx_push_data[7:0] : rx_shift;
 
   always_ff @(posedge clk) begin
     if (rst) begin
@@ -165,8 +164,13 @@ module deep16_uart #(
         rx_head <= rx_head + 8'd1;
       end
 
-      // ---- RX injection (host) ----
-      if (rx_push) rx_enqueue(rx_push_data[7:0]);
+      // ---- RX write (one port, both sources) ----
+      if (rx_wr) begin
+        rx_mem[rx_tail[RX_AW-1:0]] <= rx_wdata;
+        rx_tail <= rx_tail + 8'd1;
+      end else if (rx_push || rx_stop) begin
+        rx_overrun <= 1'b1;                  // full: drop it, do not count it
+      end
 
       // ---- RX line engine (8N1, sampled at the bit centre) ----
       if (rx_busy) begin
@@ -179,8 +183,7 @@ module deep16_uart #(
             rx_shift <= {rxd_sync, rx_shift[7:1]};   // LSB first
             rx_bit   <= rx_bit + 4'd1;
           end else begin
-            rx_busy <= 1'b0;                  // stop bit
-            rx_enqueue(rx_shift);
+            rx_busy <= 1'b0;                  // stop bit; rx_wr stores it below
           end
         end else begin
           rx_timer <= rx_timer + 16'd1;
@@ -204,7 +207,7 @@ module deep16_uart #(
     end
   end
 
-  assign rx_data  = (rx_count != 8'd0) ? {8'h00, rx_mem[rx_head[6:0]]} : 16'h0000;
+  assign rx_data  = (rx_count != 8'd0) ? {8'h00, rx_mem[rx_head[RX_AW-1:0]]} : 16'h0000;
   assign status   = {12'h000,
                      (tx_count == 7'd0 && !tx_busy),   // b3 tx idle
                      rx_overrun,                       // b2 rx overrun
