@@ -128,7 +128,7 @@ module deep16_psram_mem #(
         end
         S_BOOT_WT: if (bbusy) begin
           if (bi == 15'(IMG_WORDS-1)) begin
-            st <= S_VER_SET;                 // read word 0 back before booting
+            st <= S_VER_SET;                 // read 0x0100 back before booting
           end else begin
             bi <= bi + 15'd1;
             img_addr <= bi + 15'd1;
@@ -137,12 +137,12 @@ module deep16_psram_mem #(
         end
 
         S_VER_SET: begin
-          img_addr <= 15'd0;                 // BSRAM read of image word 0
+          img_addr <= 15'h0100;              // BSRAM read of the kernel entry word
           st <= S_VER_RD;
         end
         S_VER_RD: begin
           op_is_load <= 1'b1; op_is_store <= 1'b0; op_is_fetch <= 1'b0;
-          op_addr <= 20'h00000;
+          op_addr <= 20'h00100;
           ver_pending <= 1'b1;
           st <= S_CMD;
         end
@@ -186,7 +186,7 @@ module deep16_psram_mem #(
           rd_q <= brdata;
           if (ver_pending) begin
             ver_pending <= 1'b0;
-            if (brdata != img_data) boot_err <= 1'b1;   // word 0 vs BSRAM image
+            if (brdata != img_data) boot_err <= 1'b1;   // entry word vs BSRAM image
             boot_q <= 1'b1;                  // release the core
             st <= S_IDLE;
           end else begin

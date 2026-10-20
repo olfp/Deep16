@@ -96,6 +96,13 @@ module deep16_board (
   logic [15:0] rst_hold;
   logic        rst;
 
+  // diagnostic fetch address (PSRAM builds drive it; unused otherwise)
+`ifdef PSRAM
+  wire [20:0] dbg_if_addr;
+`else
+  wire [20:0] dbg_if_addr = 21'd0;
+`endif
+
   always_ff @(posedge clk_cpu or negedge rst_n) begin
     if (!rst_n) begin
       rst_sync <= 4'b0000;
@@ -165,6 +172,7 @@ module deep16_board (
     , .o_boot_err   (o_boot_err)
     , .o_core_halt  (o_core_halt)
     , .o_core_instrs(o_core_instrs)
+    , .o_dbg_if_addr(dbg_if_addr)
 `endif
   );
 
@@ -197,7 +205,8 @@ module deep16_board (
   /* verilator lint_off UNUSEDSIGNAL */
   logic _unused;
   assign _unused = &{1'b0, o_done, o_result, o_busy, cache_hits, cache_misses,
-                     cache_penalty, tx_data_out, tx_avail, rx_avail, dbg_rdata};
+                     cache_penalty, tx_data_out, tx_avail, rx_avail, dbg_rdata,
+                     dbg_if_addr};
   /* verilator lint_on UNUSEDSIGNAL */
 
 endmodule

@@ -15,12 +15,17 @@ module psram_word_model #(
   input  logic [21:0] addr,
   input  logic [15:0] din,
   output logic [15:0] dout,
-  output logic        busy
+  output logic        busy,
+  // debug peek (simulation only)
+  input  logic [19:0] peek_addr,
+  output logic [15:0] peek_data
 );
   logic [15:0] mem [0:WORDS-1];
   logic [5:0]  cnt;
   logic        is_wr;
   logic [19:0] wa;
+
+  assign peek_data = mem[peek_addr];
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin

@@ -119,3 +119,60 @@ The 81 MHz builds here include that fix.
 inverts so a lit LED reads as 1 in `{error, TEST_DONE, state[3:0]}`.
 
 It is not yet instantiated by `deep16_board`.
+
+## Bring-up on the board: how the machine boots
+
+The machine fetches every instruction, load and store through
+`deep16_psram_mem` one word at a time. The loader copies the image from the
+on-chip BSRAM into PSRAM, reads the kernel entry word at `0x0100` back, and only
+then releases the core; the boot ROM at `0xFFFF0..0xFFFFF` is served from the
+local constant, not from PSRAM.
+
+The six on-board LEDs (active low, pins 10/11/13/14/15/16) show:
+
+| LED | meaning |
+|---|---|
+| 0 | heartbeat: slow blink = booted, fast = loading, off = read-back mismatch |
+| 1 | core running |
+| 2 | core halted on `0xFFFF` |
+| 3..5 | retired instructions (counter bits 9, 13, 17) |
+
+## Two core bugs the serial memory exposed
+
+Both are invisible on the BSRAM machine, where `mem_stall` is always 0.
+
+1. **Stale fetch tags across a segment change.** `if_cs_q`/`if_pc_q` were
+   re-latched every cycle. The serial memory issues the fetch for the address
+   current at the start of the transaction, but a `JML` that commits meanwhile
+   changes `if_cs`; the tags then matched the stale word (read for
+   `{old CS, new PC}`, truncated to an address in the image) against a fetch
+   that wanted `{new CS, new PC}`. The boot ROM's jump to `0000:0100` read
+   `0xFFFF` filler that way and halted. Fixed by holding the tags while
+   `mem_stall` is high.
+
+2. **`mem_late` redirects lost in a stall.** The SWI vector word and a load into
+   PC redirect through `mem_rdata` when the instruction is in WB. With a serial
+   memory every WB cycle is a `mem_stall` cycle, and the stall branch skipped
+   the advance block that applies `if_redirect` - so every SWI fell through and
+   ran the next instruction in line. Fixed by applying the redirect in the
+   stall branch as well.
+
+## Verifying the boot without a board
+
+`rtl/sim/psram_boot_tb.sv` instantiates the real top (D16MINI + PSRAM) against
+`psram_word_model`, whose memory starts erased, so the loader copy is exercised
+too. It decodes the console pin and reports the halt address when the core
+halts. Build and run:
+
+```
+node scripts/make_image.mjs
+verilator --cc --exe --build -O2 -DD16MINI -DPSRAM --top-module psram_boot_tb \
+  -Mdir obj_psram_boot rtl/deep16_pkg.sv rtl/deep16_alu.sv rtl/deep16_regfile.sv \
+  rtl/deep16_cache.sv rtl/deep16_divider.sv rtl/deep16_uart.sv rtl/deep16_core.sv \
+  rtl/deep16_top.sv rtl/psram/psram_word_bridge.sv rtl/psram/psram_word_model.sv \
+  rtl/psram/deep16_psram_mem.sv rtl/sim/psram_boot_tb.sv rtl/sim/psram_boot_tb.cpp \
+  -o psram_boot_tb
+cd artifacts/image && ../../obj_psram_boot/psram_boot_tb
+```
+
+It prints `boot_done=1 boot_err=0 halt=0` and the banner.

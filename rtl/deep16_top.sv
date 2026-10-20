@@ -64,6 +64,7 @@ module deep16_top
   , output logic        o_boot_err     // a PSRAM read-back did not match
   , output logic        o_core_halt    // diagnostic: the core hit a halt word
   , output logic [31:0] o_core_instrs  // diagnostic: retired instructions
+  , output logic [20:0] o_dbg_if_addr  // diagnostic: fetch address presented
 `endif
 );
 
@@ -123,6 +124,8 @@ module deep16_top
   logic [15:0] if_rdata;
   logic [20:0] if_addr;
   logic        if_preempted;
+  logic        core_halt;
+  logic [31:0] core_instrs;
   // Set by the PSRAM path while a transaction is in flight; the BSRAM build
   // always has its word next cycle, so it stays low.
   logic        mem_stall;
@@ -156,8 +159,14 @@ module deep16_top
   /* verilator lint_on UNUSEDSIGNAL */
   // Inputs the board build does not use: no cache to flush, and the monitor FIFO
   // that uart_tx_take drains is not built there.
+`ifdef PSRAM
   assign _unused_inputs = &{1'b0, i_cache_flush, i_cache_inv, i_cache_inv_line,
                             uart_tx_take};
+`else
+  // the board-only diagnostics have no reader in the BSRAM builds
+  assign _unused_inputs = &{1'b0, i_cache_flush, i_cache_inv, i_cache_inv_line,
+                            uart_tx_take, core_halt, core_instrs};
+`endif
 
   // The IDE still shows the cache counters; with no cache they read zero.
   assign o_cache_hits    = 32'd0;
@@ -171,12 +180,10 @@ module deep16_top
   assign o_boot_err  = boot_err;
   assign o_core_halt   = core_halt;
   assign o_core_instrs = core_instrs;
+  assign o_dbg_if_addr = if_addr;
 `else
   wire  core_rst = rst;
 `endif
-
-  logic        core_halt;
-  logic [31:0] core_instrs;
 
   deep16_core u_core (
     .clk       (clk),

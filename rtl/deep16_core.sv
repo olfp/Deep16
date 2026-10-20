@@ -1355,8 +1355,19 @@ module deep16_core
     end else begin
       // The instruction memory read issued this cycle; remember what it was for,
       // so next cycle's if_hit test can tell whether the word is stale.
-      if_cs_q <= if_cs;
-      if_pc_q <= if_next_pc;
+      //
+      // While a serial memory transaction is in flight (mem_stall) the tags must
+      // *hold*: the transaction was issued for the address that was current when
+      // it started. The PC is frozen during the stall, but a segment write that
+      // commits meanwhile changes if_cs - and re-latching the tags would then
+      // match the stale word (issued for {old CS, new PC}) against a fetch that
+      // now wants {new CS, new PC}. That is exactly the JML-to-0x0100 boot path:
+      // the word read from the truncated address 0x0F0 (0xFFFF filler) was
+      // captured as the kernel's first instruction and halted the machine.
+      if (!mem_stall) begin
+        if_cs_q <= if_cs;
+        if_pc_q <= if_next_pc;
+      end
 
       // ---- step handshake --------------------------------------------------
       if (!run) begin
@@ -1427,6 +1438,16 @@ module deep16_core
           // instruction in WB commits above; the load in MEM waits here until
           // its word arrives.
           mem_wb <= '0;
+          // A redirect whose target arrives with the data port (the SWI vector
+          // word, a load into PC) lands in WB - and with a serial memory WB is
+          // always a stall cycle, so the advance branch below never sees it.
+          // Apply it here: mem_late disappears with mem_wb on the next edge and
+          // the redirect would be lost, leaving the fetch on the old path (the
+          // SWI would fall through instead of entering the BIOS).
+          if (if_redirect) begin
+            if_pc <= if_pc_next;
+            if_id <= '0;
+          end
           if (in_shadow) begin
             id_ex.op1_s <= r1; id_ex.op2_s <= r2; id_ex.op3_s <= r3;
             id_ex.op1_n <= r_inact;
