@@ -60,6 +60,7 @@ module deep16_top
   , output logic [15:0] psram_din
   , input  logic [15:0] psram_dout
   , input  logic        psram_busy
+  , output logic        o_boot_done    // loader finished, core released
 `endif
 );
 
@@ -163,6 +164,7 @@ module deep16_top
 `ifdef PSRAM
   logic boot_done;
   wire  core_rst = rst || !boot_done;
+  assign o_boot_done = boot_done;
 `else
   wire  core_rst = rst;
 `endif

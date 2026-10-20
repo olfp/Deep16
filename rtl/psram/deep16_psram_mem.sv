@@ -47,6 +47,11 @@ module deep16_psram_mem #(
   input  logic        ctl_busy
 );
 
+  // Boot ROM words (deep16_pkg's BOOT_ROM_PACKED, kept local so this module
+  // needs no package function call).
+  localparam logic [255:0] BOOT_ROM = 256'hFFF1FFF1FFF1FFF1FFF1FFF1FFF0FFE0A202A201A200D818FC21FF42FF410000;
+  wire [15:0] boot_rom_word_ri = BOOT_ROM[16*ri +: 16];
+
   // ---- bridge -----------------------------------------------------------
   logic        breq, bwe;
   logic [19:0] baddr;
@@ -74,11 +79,13 @@ module deep16_psram_mem #(
   // ---- sequencer --------------------------------------------------------
   localparam logic [3:0] S_BOOT_WAIT = 4'd0, S_BOOT_RD = 4'd1, S_BOOT_WR = 4'd2,
                          S_BOOT_WT = 4'd3, S_IDLE = 4'd4, S_CMD = 4'd5,
-                         S_BOOT_RD2 = 4'd10,
+                         S_BOOT_RD2 = 4'd10, S_BOOT_ROM = 4'd11,
                          S_WAIT = 4'd6, S_PRESENT = 4'd7, S_STORE = 4'd8,
                          S_STORE_W = 4'd9;
   logic [3:0]  st;
   logic [14:0] bi;              // boot image index
+  logic [4:0]  ri;              // boot ROM index (16 words at 0xFFFF0)
+  logic        boot_rom;        // 0 = image pass, 1 = ROM pass
   logic        boot_q;
   logic        op_is_load, op_is_store, op_is_fetch;
   logic [19:0] op_addr;
@@ -96,7 +103,7 @@ module deep16_psram_mem #(
   always_ff @(posedge clk_cpu) begin
     breq <= 1'b0;
     if (rst) begin
-      st <= S_BOOT_WAIT; bi <= 15'd0; boot_q <= 1'b0;
+      st <= S_BOOT_WAIT; bi <= 15'd0; ri <= 5'd0; boot_rom <= 1'b0; boot_q <= 1'b0;
       op_is_load <= 0; op_is_store <= 0; op_is_fetch <= 0;
       op_addr <= 20'd0; op_wdata <= 16'd0; rd_q <= 16'd0;
       store_lat <= 0; store_addr <= 20'd0; store_data <= 16'd0;
@@ -119,14 +126,33 @@ module deep16_psram_mem #(
           st <= S_BOOT_WT;
         end
         S_BOOT_WT: if (bbusy) begin
-          if (bi == 15'(IMG_WORDS-1)) begin
-            boot_q <= 1'b1;
-            st <= S_IDLE;
+          if (!boot_rom) begin
+            if (bi == 15'(IMG_WORDS-1)) begin
+              // image done: now copy the 16-word boot ROM to 0xFFFF0
+              boot_rom <= 1'b1;
+              ri <= 5'd0;
+              st <= S_BOOT_ROM;
+            end else begin
+              bi <= bi + 15'd1;
+              img_addr <= bi + 15'd1;
+              st <= S_BOOT_RD;               // next image word
+            end
           end else begin
-            bi <= bi + 15'd1;
-            img_addr <= bi + 15'd1;
-            st <= S_BOOT_RD;                 // next image word
+            if (ri == 5'd15) begin
+              boot_q <= 1'b1;
+              st <= S_IDLE;
+            end else begin
+              ri <= ri + 5'd1;
+              st <= S_BOOT_ROM;
+            end
           end
+        end
+
+        S_BOOT_ROM: begin
+          // the core's reset vector lives at 0xFFFF0; copy the ROM words there
+          op_wdata <= boot_rom_word_ri;
+          op_addr  <= {5'b01111, 15'h7FF0} + {15'd0, ri};   // 0xFFFF0 + ri
+          st <= S_BOOT_WR;
         end
 
         // ---- normal operation ------------------------------------------

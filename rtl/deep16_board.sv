@@ -60,7 +60,7 @@ module deep16_board (
     .clkin  (clk)
   );
 
-  wire        psram_read, psram_write, psram_busy;
+  wire        psram_read, psram_write, psram_busy, o_boot_done;
   wire [21:0] psram_addr;
   wire [15:0] psram_din, psram_dout;
 
@@ -159,6 +159,7 @@ module deep16_board (
     , .psram_din    (psram_din)
     , .psram_dout   (psram_dout)
     , .psram_busy   (psram_busy)
+    , .o_boot_done  (o_boot_done)
 `endif
   );
 
@@ -170,7 +171,13 @@ module deep16_board (
     if (!rst_n) hb <= 25'd0;
     else        hb <= hb + 25'd1;
   end
+`ifdef PSRAM
+  // slow heartbeat = loader finished and the core was released;
+  // fast blink = still loading / stuck before boot.
+  assign led = o_boot_done ? hb[24] : hb[21];
+`else
   assign led = hb[24];
+`endif
 
   // The board reads the console from the pin and has no debug bus or cache, so
   // these are deliberately unread.
