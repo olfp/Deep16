@@ -242,3 +242,31 @@ in the dictionary was the only consistent explanation. The verify costs about
 
 `BOOT_DIAG=1 npm run image` adds a one-line boot diagnostic (probe result plus
 the script's first bytes) for bring-up; the normal image does not carry it.
+
+## The boot image is read-only at runtime
+
+The image array in BSRAM is the *source* the loader copies from, and **a button
+reset does not reconfigure the FPGA** — BSRAM keeps whatever it held. That made
+two things go wrong together:
+
+1. The top's write port was still live, so every store the kernel made inside
+   `0x0000–0x5FFF` (its own `boot_ptr`, `boot_done`, the wordlist head, `HERE`…)
+   also landed in the image. After the first boot the BSRAM image was last
+   boot's variables. A button reset re-copied *that*, the verify compared PSRAM
+   against the same corrupted source and passed, and the machine came up with
+   `boot_done = 1` and `boot_ptr` pointing past the script: banner, no summary,
+   no prompt, interpretation hanging. A power cycle restored BSRAM from the
+   bitstream, which is why unplugging worked and the reset button did not.
+2. The cache tags (also BSRAM) survived the reset, so the loader and the core
+   could hit last boot's lines.
+
+Fixes:
+
+- The image write is gated with `!boot_done`. Keeping the write port (rather
+  than deleting it) matters: with no write port the flow stops inferring BSRAM
+  and builds the image out of LUTs — 15,008 LUTs, over the device.
+- The tag clear now runs **before** the copy, not after.
+
+Regression: `rtl/sim/psram_boot_tb` presses reset without reconfiguring and
+boots a second time; it must print banner, summary and prompt again. Before the
+fix the second boot stopped after the banner, exactly like the board.

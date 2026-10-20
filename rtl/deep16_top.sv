@@ -283,11 +283,29 @@ module deep16_top
     ram_was_data_q <= ram_rd_data;
     ram_hit_q      <= ram_hit;
     ram_store_q    <= mem_wdata;
-    // the write port (stores, committed in WB); a store outside the window is
+    // The write port (stores, committed in WB); a store outside the window is
     // dropped - there is no MMIO cell to write, since the UART is decoded in the
-    // core and everything else the board does not back is read-only fill
+    // core and everything else the board does not back is read-only fill.
+    //
+    // On the PSRAM board this array is the *boot image*, not the memory: every
+    // store already lands in PSRAM through deep16_psram_mem. Writing it here as
+    // well corrupted the image with the running system's own cells (boot_ptr,
+    // boot_done, the wordlist head), so a button reset - which does not
+    // reconfigure the FPGA and therefore keeps BSRAM - re-copied last boot's
+    // variables and came up with no script and no prompt. A power cycle
+    // restored BSRAM from the bitstream, which is why only the reset button
+    // showed it.
+`ifdef PSRAM
+    // boot_done is a real signal, not a constant, so the array keeps its write
+    // port and stays BSRAM; removing the port made the flow give up and build
+    // the whole image out of LUTs. The core is held in reset until boot_done,
+    // so this store path is dead exactly when the kernel runs.
+    if (mem_we && !boot_done && mem_waddr < 21'(RAM_WORDS))
+      mem[mem_waddr[ADDR_BITS-1:0]] <= mem_wdata;
+`else
     if (mem_we && mem_waddr < 21'(RAM_WORDS))
       mem[mem_waddr[ADDR_BITS-1:0]] <= mem_wdata;
+`endif
   end
 
 `ifdef PSRAM

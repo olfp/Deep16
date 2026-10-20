@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
+#include <string>
 #include "Vpsram_boot_tb.h"
 #include "verilated.h"
 
@@ -114,11 +115,39 @@ int main(int argc, char** argv) {
     bool rise = (!last_clk && top->clk);
     last_clk = top->clk;
     if (rise) { uart_tick(); uart_tx_tick(); }
+    // ---- script: type a line during boot, then press the reset button -----
+    // The reset pulse is the interesting part: BSRAM (the cache tags and data)
+    // is not cleared by rst, only by reconfiguration, so this is a button
+    // reset. A second boot must come up exactly like the first.
     static int phase = 0;
-    if (done_seen && phase == 0 && t_ns > 300000000LL) { uart_send("the quick brown fox jumps over the lazy dog\r"); phase = 1; }
-    else if (phase == 1 && tx_idx >= tx_qlen && t_ns > 60000000LL) {
-      phase = 2;   // the pangram is the whole test
+    static long long reset_start = 0;
+    static size_t mark2 = 0;
+    static bool second_checked = false;
+    if (done_seen && phase == 0 && t_ns > 300000000LL) {
+      uart_send("the quick brown fox jumps over the lazy dog\r");
+      phase = 1;
+    } else if (phase == 1 && tx_idx >= tx_qlen && t_ns > 600000000LL) {
+      phase = 2;
+    } else if (phase == 2 && t_ns > 2200000000LL) {
+      mark2 = console_len;
+      top->rst = 1;
+      reset_start = t_ns;
+      phase = 3;
+      std::printf("\n[button reset at %lld ms]\n", t_ns / 1000000);
+    } else if (phase == 3 && t_ns > reset_start + 1000) {
+      top->rst = 0;
+      phase = 4;
+    } else if (phase == 4 && !second_checked && t_ns > 5200000000LL) {
+      second_checked = true;
+      std::string second(console + mark2, (size_t)console_len - mark2);
+      bool banner = second.find("Hello DeepForth!") != std::string::npos;
+      bool summary = second.find("free") != std::string::npos;
+      bool prompt = second.find("> ") != std::string::npos;
+      std::printf("\n[second boot after reset: banner=%d summary=%d prompt=%d -> %s]\n",
+                  (int)banner, (int)summary, (int)prompt,
+                  (banner && summary && prompt) ? "OK" : "FAIL");
     }
+
     static int last_st = -1, last_op = -1, last_rdq = -1, last_hw = -1;
     if (top->dbg_en && rise && top->dbg_breq && top->dbg_bwe) {
       std::printf("WRITE addr=%05x\n", (unsigned)top->dbg_baddr);
@@ -156,8 +185,8 @@ int main(int argc, char** argv) {
   }
 
   std::printf("\n---- psram contents (word : value) ----\n");
-  for (unsigned a : {0x00000u, 0x00002u, 0x00010u, 0x00012u, 0x00100u, 0x00101u,
-                     0x037c1u, 0x037c2u, 0x04a06u, 0x05600u, 0x06000u, 0x06707u, 0x0ffffu}) {
+  for (unsigned a : {0x00000u, 0x00002u, 0x00100u, 0x03004u, 0x03005u, 0x03006u,
+                     0x037b5u, 0x037c1u, 0x037c2u, 0x037c3u, 0x04a06u, 0x06000u, 0x0ffffu}) {
     top->peek_addr = a;
     top->eval();
     std::printf("  %05x : %04x\n", a, (unsigned)top->peek_data);

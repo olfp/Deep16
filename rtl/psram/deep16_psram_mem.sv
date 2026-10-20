@@ -116,7 +116,6 @@ module deep16_psram_mem #(
   logic [14:0] bi;              // boot image index
   logic [8:0]  clr_i;           // tag clear index
   logic [1:0]  retry;           // image copy attempts
-  logic        clr_boot;        // the tag clear precedes the boot
   logic        boot_q;
   logic        op_is_load, op_is_store, op_is_fetch;
   logic [19:0] op_addr;
@@ -157,9 +156,9 @@ module deep16_psram_mem #(
     if (cache_flush) flush_pending <= 1'b1;
 
     if (rst) begin
-      st <= S_BOOT_WAIT; bi <= 15'd0; boot_q <= 1'b0;
+      st <= S_CLR; bi <= 15'd0; boot_q <= 1'b0; clr_i <= 9'd0;
       boot_err <= 1'b0; ver_pending <= 1'b0; flush_pending <= 1'b0;
-      clr_i <= 9'd0; clr_boot <= 1'b0; retry <= 2'd0;
+      retry <= 2'd0;
       op_is_load <= 0; op_is_store <= 0; op_is_fetch <= 0;
       op_addr <= 20'd0; op_wdata <= 16'd0; rd_q <= 16'd0;
       store_lat <= 0; store_addr <= 20'd0; store_data <= 16'd0;
@@ -216,14 +215,10 @@ module deep16_psram_mem #(
               st <= S_BOOT_WAIT;
             end else begin
               boot_err <= 1'b1;              // persistent: report and go on
-              clr_i <= 9'd0;
-              clr_boot <= 1'b1;
-              st <= S_CLR;
+              st <= S_VER;
             end
           end else if (bi == 15'(IMG_WORDS-1)) begin
-            clr_i <= 9'd0;
-            clr_boot <= 1'b1;
-            st <= S_CLR;
+            st <= S_VER;
           end else begin
             bi <= bi + 15'd1;
             st <= S_VRFY_SET;
@@ -233,7 +228,7 @@ module deep16_psram_mem #(
         // ---- tag clear (boot) and flush (FSH) --------------------------
         S_CLR: begin
           ctag_mem[clr_i] <= 16'h0000;
-          if (clr_i == 9'(LINES-1)) st <= S_VER;
+          if (clr_i == 9'(LINES-1)) st <= S_BOOT_WAIT;
           else clr_i <= clr_i + 9'd1;
         end
         S_FLUSH: begin
