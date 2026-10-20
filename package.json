@@ -17,6 +17,7 @@
     "serve": "node scripts/serve.mjs",
     "image": "node scripts/make_image.mjs",
     "sim:board": "bash scripts/build_board_sim.sh",
+    "test:uart": "verilator --cc --exe --build -O2 --top-module uart_fifo_tb -Mdir obj_uart_fifo rtl/deep16_uart.sv rtl/sim/uart_fifo_tb.sv rtl/sim/uart_fifo_tb.cpp -o uart_fifo_tb && ./obj_uart_fifo/uart_fifo_tb",
     "ui:shot": "node scripts/ui-shot.mjs",
     "synth:board": "bash scripts/synth_board.sh",
     "synth:gowin": "bash scripts/build_gowin.sh",

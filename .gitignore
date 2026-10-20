@@ -39,3 +39,4 @@ fpga/gowin/*.gprj.user
 obj_psram/
 obj_psram_word/
 obj_psram_boot/
+obj_uart_fifo/

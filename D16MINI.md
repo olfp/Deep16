@@ -283,9 +283,16 @@ in `js/`, `wasm/`, or `rtl/`). New module `rtl/deep16_uart.sv`:
 
 - **TX**: shift register, start/stop bits, a **64-byte FIFO** so `putstr` does
   not stall per character.
-- **RX**: **16× oversampler**, centre-sample, start-bit detect, assemble the
-  byte, push to a **128-byte FIFO** (the depth the keyboard FIFO already uses,
-  `deep16_top.sv:44`); **overrun** flag.
+- **RX**: centre-sampled 8N1, start-bit detect, assemble the byte, push to a
+  **128-byte FIFO** (the depth the keyboard FIFO already uses,
+  `deep16_top.sv:44`); **overrun** flag. The pin is asynchronous to the CPU
+  clock, so it goes through **two synchronising flops** before the receiver
+  looks at it: the start-edge detector samples every cycle, and one metastable
+  sample there starts a frame late or aborts a real one, which comes out as
+  "sometimes the echo is mangled". A full FIFO **drops the surplus without
+  counting it** — counting a dropped byte left `rx_count` above the depth with
+  the head out of step, and every read after that returned the wrong slot
+  (`npm run test:uart` is the regression: 200 bytes into the 128-deep FIFO).
 - **Baud**: the CPU runs at 13.5 MHz (the 27 MHz oscillator divided by two,
   §4.7), so the divisor is **117** — 13.5 MHz ÷ 117 = 115.4 kBd, 0.16 % error,
   well inside UART tolerance. No PLL.

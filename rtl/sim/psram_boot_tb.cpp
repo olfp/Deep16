@@ -61,31 +61,36 @@ static void uart_tick() {
   }
 }
 
-// ---- UART transmitter into the console (115200, 13.5 MHz) ----------------
-static char tx_queue[256];
+// ---- UART transmitter into the console -----------------------------------
+// A real host's bit time is 13.5 MHz / 115200 = 117.1875 cycles, i.e. not a
+// whole number: the receiver must tolerate the fractional drift. Driving the
+// pin at exactly 117 cycles would hide any phase sensitivity, so the line is
+// recomputed every CPU cycle from the absolute time of the start edge.
+static char tx_queue[512];
 static int  tx_qlen = 0, tx_idx = 0;
-static int  tx_state = 0, tx_cnt = 0, tx_bit = 0;
-static unsigned tx_byte = 0;
+static double tx_t0 = -1.0;      // start edge of the byte being sent (cycles)
+static double tx_now = 0.0;      // CPU cycles since reset
+static const double TX_BIT = 117.1875;
 
 static void uart_send(const char* s) { while (*s) tx_queue[tx_qlen++] = *s++; }
 
 static void uart_tx_tick() {
-  if (tx_state == 0) {
-    if (tx_idx >= tx_qlen) { top->uart_rx_in = 1; return; }
-    tx_byte = (unsigned char)tx_queue[tx_idx];
-    tx_state = 1; tx_cnt = 0; tx_bit = 0;
+  tx_now += 1.0;
+  if (tx_t0 >= 0.0) {
+    double k = (tx_now - tx_t0) / TX_BIT;
+    if (k >= 10.0) {
+      top->uart_rx_in = 1;
+      tx_t0 = -1.0;
+      tx_idx++;
+    } else if (k < 1.0) {
+      top->uart_rx_in = 0;                       // start bit
+    } else if (k < 9.0) {
+      top->uart_rx_in = (tx_queue[tx_idx] >> ((int)k - 1)) & 1;
+    } else {
+      top->uart_rx_in = 1;                       // stop bit
+    }
   }
-  tx_cnt++;
-  if (tx_state == 1) {            // start bit
-    top->uart_rx_in = 0;
-    if (tx_cnt >= BIT) { tx_state = 2; tx_cnt = 0; }
-  } else if (tx_state == 2) {     // data bits
-    top->uart_rx_in = (tx_byte >> tx_bit) & 1;
-    if (tx_cnt >= BIT) { tx_cnt = 0; tx_bit++; if (tx_bit == 8) tx_state = 3; }
-  } else if (tx_state == 3) {     // stop bit
-    top->uart_rx_in = 1;
-    if (tx_cnt >= BIT) { tx_state = 0; tx_cnt = 0; tx_idx++; }
-  }
+  if (tx_t0 < 0.0 && tx_idx < tx_qlen) tx_t0 = tx_now;   // next byte starts now
 }
 
 int main(int argc, char** argv) {
@@ -110,9 +115,9 @@ int main(int argc, char** argv) {
     last_clk = top->clk;
     if (rise) { uart_tick(); uart_tx_tick(); }
     static int phase = 0;
-    if (done_seen && phase == 0 && t_ns > 20000000LL) { uart_send("mem\r"); phase = 1; }
+    if (done_seen && phase == 0 && t_ns > 20000000LL) { uart_send("the quick brown fox jumps over the lazy dog\r"); phase = 1; }
     else if (phase == 1 && tx_idx >= tx_qlen && t_ns > 60000000LL) {
-      uart_send("free d.\r"); phase = 2;
+      phase = 2;   // the pangram is the whole test
     }
     static int last_st = -1, last_op = -1, last_rdq = -1, last_hw = -1;
     if (top->dbg_en && rise && top->dbg_breq && top->dbg_bwe) {

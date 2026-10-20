@@ -63,6 +63,18 @@ module deep16_uart #(
   // ---- divisor / control -------------------------------------------------
   logic [15:0] div_reg;
 
+  // ---- input synchroniser ------------------------------------------------
+  // uart_rxd comes from the USB-UART bridge and is asynchronous to clk. The
+  // receiver's start-edge detector looks at it every cycle, so one metastable
+  // sample can start a frame late (or abort a real one) and the byte comes out
+  // with several bits wrong - the "sometimes the echo is mangled" report.
+  // Two flops, and the state machine uses only the synchronised copy.
+  logic rxd_meta, rxd_sync;
+  always_ff @(posedge clk) begin
+    if (rst) begin rxd_meta <= 1'b1; rxd_sync <= 1'b1; end
+    else begin rxd_meta <= uart_rxd; rxd_sync <= rxd_meta; end
+  end
+
   // FIFO events, one cycle ahead of the registers: the CPU can push while the
   // shifter pops, and the count has to reflect both. Two non-blocking
   // assignments to tx_count in one always_ff would lose one of them - the
@@ -76,7 +88,11 @@ module deep16_uart #(
   // the ring under a paste.
   wire rx_pop  = rx_take && (rx_count != 8'd0);
   wire rx_stop = rx_busy && (rx_timer == div_reg - 16'd1) && (rx_bit > 4'd8);
-  wire rx_enq  = rx_push || rx_stop;
+  // Count only what actually enters: rx_enqueue drops a byte when the FIFO is
+  // full, and counting that one anyway left rx_count above the depth with the
+  // head and tail out of step - every later read then returned the wrong slot,
+  // which shows up as mangled input after a paste or typing during boot.
+  wire rx_enq  = (rx_push || rx_stop) && (rx_count != RX_DEPTH[7:0]);
   wire rx_reset = ctrl_we && ctrl_data[0];
 
   // Push helper: a byte into the RX FIFO, dropping it (and flagging) when full.
@@ -157,10 +173,10 @@ module deep16_uart #(
         if (rx_timer == div_reg - 16'd1) begin
           rx_timer <= 16'd0;
           if (rx_bit == 4'd0) begin
-            if (uart_rxd) rx_busy <= 1'b0;    // false start: the line went high
+            if (rxd_sync) rx_busy <= 1'b0;    // false start: the line went high
             else rx_bit <= 4'd1;
           end else if (rx_bit <= 4'd8) begin
-            rx_shift <= {uart_rxd, rx_shift[7:1]};   // LSB first
+            rx_shift <= {rxd_sync, rx_shift[7:1]};   // LSB first
             rx_bit   <= rx_bit + 4'd1;
           end else begin
             rx_busy <= 1'b0;                  // stop bit
@@ -169,7 +185,7 @@ module deep16_uart #(
         end else begin
           rx_timer <= rx_timer + 16'd1;
         end
-      end else if (!uart_rxd) begin
+      end else if (!rxd_sync) begin
         rx_busy  <= 1'b1;                     // start edge
         rx_bit   <= 4'd0;
         rx_shift <= 8'd0;
