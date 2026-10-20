@@ -46,10 +46,13 @@ function loadAssembler() {
 
 // Assemble the kernel and lay it into the window. Returns the words plus the
 // facts the assertions and the manifest need.
+export const DEFINES = { CONSOLE_UART: 1 };
+if (process.env.BOOT_DIAG) DEFINES.BOOT_DIAG = 1;     // boot diagnostic build
+
 export function buildImage() {
   const Deep16Assembler = loadAssembler();
   const source = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
-  const res = new Deep16Assembler().assemble(source, { defines: { CONSOLE_UART: 1 } });
+  const res = new Deep16Assembler().assemble(source, { defines: DEFINES });
   if (!res.success) throw new Error('forth.asm does not assemble: ' + res.errors.join('; '));
 
   const words = new Uint16Array(WINDOW).fill(FILL);
@@ -113,7 +116,7 @@ export function manifest(img) {
   return JSON.stringify({
     project: 'D16MINI',
     source: 'asm/forth.asm',
-    defines: { CONSOLE_UART: 1 },
+    defines: DEFINES,
     base: '0x00000',
     window: `0x${(WINDOW - 1).toString(16)}`,
     words: WINDOW,

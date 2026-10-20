@@ -323,6 +323,7 @@ after_print_text:
     ST  R0, R2, 0
 boot_no_psram:
 
+.ifdef BOOT_DIAG
     ; ---- TEMPORARY BOOT DIAGNOSTIC -------------------------------------
     ; One character for the memory probe (P = PSRAM found, B = not), then the
     ; first 8 cells of the baked script at 0x2000, which should read "here con".
@@ -370,6 +371,7 @@ diag_chars:
 
 
 
+.endif
 .ifdef CONSOLE_UART
     ; The terminal owns the line, so there is no cursor to move: end the banner
     ; line and let the reader start on a fresh row.
