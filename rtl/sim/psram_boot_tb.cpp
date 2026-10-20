@@ -163,6 +163,13 @@ int main(int argc, char** argv) {
               (int)top->boot_done, (int)top->boot_err, (int)top->core_halt,
               top->instrs, top->if_addr);
   std::printf("console (%d bytes):\n%.*s\n", console_len, console_len, console);
+  {
+    static const unsigned char want[11] = {27, '[', 'H', 27, '[', '2', 'J', 27, '[', '3', 'J'};
+    bool ok = console_len >= 11;
+    for (int i = 0; ok && i < 11; i++) ok = (unsigned char)console[i] == want[i];
+    std::printf("console starts with ESC[H ESC[2J ESC[3J: %s\n", ok ? "yes" : "NO");
+  }
+
   unsigned long long reads = (unsigned long long)top->dbg_hits + top->dbg_misses;
   std::printf("cache: %u hits / %u misses (%.1f %% hit), %.2f cycles/instr "
               "(%u instrs in %lld ns at 13.5 MHz)\n",

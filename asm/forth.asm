@@ -134,11 +134,18 @@ forth_start:
     SWI
 
 cursor_on:
+.ifndef CONSOLE_UART
+    ; The bitmap build draws its own block cursor, so the top-left cell gets
+    ; the reverse attribute. A terminal has a real cursor and the cell is not
+    ; memory there: ES:SCR would land at 0xF1000 in PSRAM.
     LDS R1, ES, SCR
     LDI 0x0070          ; fg 0 / bg 7. Nicht LDI 0x7000: das Immediate
     SL  R0, 8           ; ist 15 Bit und signiert, 0x7000 laege als 0xF000
     OR  R1, R0              ; the cursor attribute, the character stays
     STS R1, ES, SCR
+.endif
+    ; binit above has just cleared and homed the terminal, so the banner is the
+    ; first thing on an empty screen.
     LDI hello_msg        ; BIOS putstr: the address is the parameter ...
     MOV R1, R0
     LDI 3                ; ... and the function number goes in R0 last, since
@@ -4658,12 +4665,15 @@ scrstore_ok:
 word_cls:
     LDI 1
     SWI                     ; BIOS binit, with no parameters: the function
-                            ; number is the whole call
-    LDI ' '                 ; and now the cell binit left its cursor on
-    MOV R1, R0
+                            ; number is the whole call. On the terminal that is
+                            ; home + erase display + erase scrollback.
+.ifndef CONSOLE_UART
+    LDI ' '                 ; the bitmap build: and now the cell binit left its
+    MOV R1, R0              ; cursor on
     LDI 0x1000              ; ES:0x1000, the top-left cell of the buffer
     MOV R2, R0
     STS R1, ES, R2
+.endif
     LDI next
     MOV PC, R0
     NOP
@@ -13052,32 +13062,88 @@ utx_wrap_lf:
     NOP
 
 bios_f1:
-    ; 1: binit -> clear the terminal (ANSI ESC[2J)
+    ; 1: binit -> clear the terminal: home, erase display, erase scrollback.
+    ;
+    ; ANSI ED (ESC[2J) erases the display but does NOT move the cursor, so a
+    ; terminal that only got the 2J drew the banner wherever the cursor
+    ; happened to be. The bitmap build homes by setting SCR = 0x1000; the
+    ; terminal needs ESC[H for the same thing. 3J also drops the scrollback so
+    ; a fresh boot starts on an empty screen; terminals that do not know it
+    ; ignore the sequence.
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-    LDI 27                  ; ESC
+    LDI 27                 ; ESC
     MOV R1, R0
     LDI uart_tx - BIOS_BASE
     MOV R4, R0
     LINK
     JMP R4
     NOP
-    LDI '['
+    LDI '['                ; '['
     MOV R1, R0
     LDI uart_tx - BIOS_BASE
     MOV R4, R0
     LINK
     JMP R4
     NOP
-    LDI '2'
+    LDI 'H'                ; 'H' (home: ED does not move the cursor)
     MOV R1, R0
     LDI uart_tx - BIOS_BASE
     MOV R4, R0
     LINK
     JMP R4
     NOP
-    LDI 'J'
+    LDI 27                 ; ESC
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI '['                ; '['
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI '2'                ; '2'
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 'J'                ; 'J' (erase display)
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 27                 ; ESC
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI '['                ; '['
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI '3'                ; '3'
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 'J'                ; 'J' (erase scrollback)
     MOV R1, R0
     LDI uart_tx - BIOS_BASE
     MOV R4, R0

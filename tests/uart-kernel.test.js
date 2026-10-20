@@ -70,8 +70,11 @@ test('the UART kernel boots to the banner and the prompt', () => {
   const { rows, stream } = repl('');
   assert.equal(rows[0], 'Hello DeepForth!', `terminal was:\n${rows.join('\n')}`);
   assert.equal(rows[1], '>');
-  // binit clears with ESC[2J, so the stream starts with it.
-  assert.deepEqual(stream.slice(0, 4), [27, 0x5B, 0x32, 0x4A], 'binit must send ESC[2J');
+  // binit homes (ESC[H), erases the display (ESC[2J) and the scrollback
+  // (ESC[3J), so the banner is the first thing on an empty screen.
+  assert.deepEqual(stream.slice(0, 11),
+                   [27, 0x5B, 0x48, 27, 0x5B, 0x32, 0x4A, 27, 0x5B, 0x33, 0x4A],
+                   'binit must send ESC[H ESC[2J ESC[3J');
 });
 
 test('a line typed into the UART is echoed and evaluated', () => {

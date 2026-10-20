@@ -913,7 +913,7 @@ are **not touched**:
 | BIOS | Today (screen) | D16MINI (serial) |
 |---|---|---|
 | f0 `bver` | `R0 = 1` | unchanged |
-| f1 `binit` | clear 2000 cells, home cursor | **emit `ESC[2J`**; host homes |
+| f1 `binit` | clear 2000 cells, home cursor | **emit `ESC[H` `ESC[2J` `ESC[3J`** (home, erase display, erase scrollback) |
 | f2 `putch` | cell write + attribute + cursor + scroll | **TX one byte** |
 | f3 `putstr` | direct `ES:SCR` cell writes | **TX loop** |
 | f4 `getch` | poll keyboard | **poll `UART_STAT.b0`, read `UART_DATA`** |
@@ -933,6 +933,7 @@ echo **off**).
 | `newline_direct`, `word_cr` | f2 CR then f2 LF | unchanged (bytes are bytes) |
 | `clear_cursor`, `cursor_off` | `AND ATTR_MASK` on `ES:SCR` | **no-op** |
 | `after_print_text` | `SCR` row math → next line | **emit CR+LF** (keeps the banner on its own line) |
+| `cursor_on` (forth_start) | set the cursor attribute on `ES:SCR` | **skipped** — a terminal has a real cursor, and `ES:SCR` would be a PSRAM write |
 | `wrap_if` | column from `SCR`, wrap at 80 | column from the BIOS's `out_col` counter, still wraps at 80 (§4.4) |
 | `word_cls` | f1 + blank top-left cell | **f1 only** |
 | `word_scr_fetch`, `word_scr_store` | `ES:SCR` | **removed** (screen-only) |
@@ -956,7 +957,7 @@ The minimal VT100 subset — enough for a REPL, nothing more.
 | printable ASCII | the character |
 | `CR` `LF` (0x0D 0x0A) | end of line — a terminal renders it correctly |
 | `BS SP BS` (0x08 0x20 0x08) | erase the previous character (backspace) |
-| `ESC[2J` | clear screen (`binit` / `cls`) |
+| `ESC[H` `ESC[2J` `ESC[3J` | home, clear the display, drop the scrollback (`binit` / `cls`) |
 
 **Accepted by the machine**
 
@@ -1058,7 +1059,7 @@ attribute problem. Decision C1 chose the dumb pipe instead.
 | 2 | Evaluated line: `3 4 + .` | `3 4 + . 7  ok\r\n> ` |
 | 3 | Line editing: type, `BS`, type, `CR` | buffer correct, wire shows `BS SP BS` |
 | 4 | Escape handling: `ESC[A` mid-line | dropped, buffer unchanged |
-| 5 | Clear: `cls` | wire contains `ESC[2J` |
+| 5 | Clear: `cls` | wire contains `ESC[H` `ESC[2J` `ESC[3J` |
 | 6 | **Three-core parity** | identical byte stream on JS, WASM and RTL (`tests/console-parity.test.js`: the banner, a typed line, a backspace) |
 | 7 | **Guard: no framebuffer writes** | the UART build stores nothing into `0xF1000–0xF17CF` |
 | 8 | Injection: upload a source file | arrives via UART RX, definitions run |
