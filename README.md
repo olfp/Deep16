@@ -102,34 +102,49 @@ npm run trace:rtl -- asm/forth.asm 200 --keys "1 2 + .\n"
 node scripts/bench.mjs   # MIPS of all three cores
 ```
 
-## The D16MINI board build (Tang Nano 9K)
+## The D16MINI board build (Tang Nano 9K) — 1.0
 
-The BRAM-only machine of [`D16MINI.md`](D16MINI.md) is a second build of the same
-RTL, selected by `` `ifdef D16MINI ``: 24 BSRAM blocks instead of the 1 MB array,
-the window decode, and the kernel baked into the bitstream
-(no loader). Three commands, none of which need the vendor toolchain:
+`D16MINI 1.0` is the machine that runs on the board: the Forth kernel on the RTL
+core, backed by the Tang Nano 9K's embedded **64 Mbit HyperRAM**, with the console
+on the on-board USB-UART. It is a second build of the same RTL, selected by
+`` `ifdef D16MINI ``.
+
+What is in it:
+
+- **Memory.** 1,048,576 words (2 MiB) of PSRAM through the open-source
+  controller at 51 MHz. The CPU runs at 13.5 MHz (27 MHz / 2). At power-on the
+  loader copies the 24,576-word image from BSRAM into PSRAM, **reads it all back
+  and compares** it with the source, re-copying once on a mismatch, then releases
+  the core (36 ms).
+- **Cache.** 512 lines x 2 words, direct-mapped, write-through with update on
+  hit, in front of the word-at-a-time bridge. Two BSRAM blocks: 1,024 words of
+  data and 512 tags.
+- **Dictionary in PSRAM.** The kernel probes word `0x6000` at boot; when it
+  reads back, `HERE` moves there and the ceiling becomes `0xFFF0` (the top of
+  segment 0, below the boot ROM), leaving about **39,000 free words** instead of
+  the 2,116 of the BSRAM window. One image serves both boards: the BSRAM build
+  fails the probe and keeps the old layout.
+- **Console.** 115200 8N1, received through a synchronised pin and a 128-byte
+  FIFO; the terminal is homed and cleared (`ESC[H ESC[2J ESC[3J`) before the
+  banner, and the prompt is printed once the baked boot script has compiled.
+- **Resources.** Logic 8,017 / 8,640 (93 %), CLS 4,279 / 4,320, registers 3,195 /
+  6,771, **BSRAM 26/26**, 0 timing violations at 13.5 MHz.
+
+Build and flash (vendor toolchain for the bitstream):
 
 ```sh
-npm run image       # assemble the boot image -> artifacts/image/
-npm run lint:board  # lint the board build (npm run lint:mini for the top alone)
-npm run sim:board   # run the board on Verilator with the real image: decode the
-                    # banner off the TX pin, then type a line into the RX pin
-                    # and check it is echoed and evaluated
-npm run synth:board # synthesise it with the open-source flow (needs the OSS CAD
-                    # Suite on PATH); see D16MINI.md §4.6 for what it reports
+npm run image         # assemble the boot image -> artifacts/image/
+npm run synth:gowin   # Gowin: synthesise, place, route, pack
+openFPGALoader -m fpga/gowin/impl/pnr/deep16_board.fs
 ```
 
-`npm run sim:board` is the whole bring-up path minus the tools: it caught a bug
-the step-based tests could not (the console was mute in free-run), and it is the
-only place the UART's *receive pin* is exercised.
+Without a board, `npm run sim:board` runs the BSRAM build on Verilator and
+`rtl/sim/psram_boot_tb.sv` the PSRAM machine against a word model, decoding the
+console and typing into the RX pin. `BOOT_DIAG=1 npm run image` adds a one-line
+bring-up diagnostic (probe result and the script's first bytes).
 
-`npm run synth:board` is the license-free synthesis route — Yosys → nextpnr
-(Apicula) → `gowin_pack`. It confirms that the boot image lands in BSRAM's init,
-and that the memory fits the chip's 26 blocks **exactly** once the read port is
-shared between the fetch and data loads. It stops at place & route while the
-logic is ~20 % over the LUT budget (D16MINI.md §4.6). What is left needs the
-board itself — the vendor tool, timing, and confirming the pins in
-`rtl/deep16_board.cst`.
+The earlier BRAM-only machine is preserved at tag **`v0.13.5mhz`**: 24 BSRAM
+blocks, the kernel baked into the bitstream, no loader and no PSRAM.
 
 ## Architecture in one page
 

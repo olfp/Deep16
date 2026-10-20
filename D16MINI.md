@@ -1,14 +1,16 @@
-# D16MINI — a BRAM-only Deep16 with a serial console
+# D16MINI — Deep16 on the Tang Nano 9K, with a serial console
 
-> **Status: the bitstream exists.** The console, the memory interface, the board
-> top, the constraints and the boot image are all in the tree; the board build
-> boots DeepForth on Verilator and prints the banner over the UART *pins*
-> (`npm run sim:board`), and `npm run synth:gowin` now produces
-> `fpga/gowin/impl/pnr/deep16_board.fs` — placed, routed, timing met at
-> 13.5 MHz, with the kernel baked into the BSRAM. What is left is the real board.
-> D16MINI is a *small* Deep16 that actually fits the Tang Nano 9K and boots
-> DeepForth: **no PSRAM, no cache, no framebuffer** — memory is on-chip BSRAM,
-> the console is a UART, and a host terminal owns the screen.
+> **D16MINI 1.0 — shipped.** The board runs DeepForth from the embedded HyperRAM:
+> 1 M words of PSRAM behind the open-source controller at 51 MHz, a 512 x 2
+> write-through cache, the dictionary moved into PSRAM (~39,000 free words
+> instead of 2,116), and a boot copy that is read back and verified. Console on
+> the on-board USB-UART at 115200, terminal homed and cleared before the banner.
+> Logic 8,017/8,640, CLS 4,279/4,320, BSRAM 26/26, 0 violations. The BRAM-only
+> machine this document was written around is preserved at tag `v0.13.5mhz`.
+>
+> The sections below are the original plan and history; where they say "no PSRAM,
+> no cache" they describe the 0.13 machine. The 1.0 memory map is in README's
+> board section and in `rtl/psram/README.md`.
 >
 > This document unifies the earlier *D16MINI* (the machine) and *D16LIGHT* (the
 > serial front end) drafts into one.
