@@ -1,8 +1,20 @@
 # PSRAM (HyperRAM) controller — vendored, **not used**
 
-> **Status: rejected on hardware.** This controller fails on the Tang Nano 9K
-> at 27 MHz, at 81 MHz and with upstream PR #10, matching its own issues #4
-> (broken below 30 MHz) and #5 ("Read wrong data"; the official IP works).
+> **Status: rejected on hardware — including the pristine upstream design.**
+> The unmodified upstream project (their test top, their PLL at 81 MHz, their
+> UART print) was built with our toolchain and flashed: it prints
+> `FAIL. Read wrong data.` exactly like the modified builds. So the failure is
+> not caused by our changes; the design as committed does not run on this board
+> with Gowin 1.9.12. Matches its own issues #4 (broken below 30 MHz) and #5
+> ("Read wrong data"; the official IP works on the same board).
+>
+> Real bugs found and fixed while investigating (kept in the analysis, not in
+> the vendored file): the 1x/2x latency indicator is sampled after the memory
+> has released RWDS (it is driven during the CA), the write data-mask preamble
+> is missing, and the init delay counter is hardcoded to 15 bits so it never
+> elapsed below ~30 MHz. None of that made it work - the remaining failure is
+> the DDR PHY/CA layer.
+>
 > The Gowin official "PSRAM Memory Interface HS" IP is the working path; this
 > directory is kept for reference.
 
