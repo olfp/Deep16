@@ -9,6 +9,7 @@ module psram_boot_tb (
   input  logic        clk,        // 13.5 MHz CPU clock
   input  logic        clk_ip,     // 51 MHz controller clock
   input  logic        rst,
+  input  logic        uart_rx_in,
   output logic        uart_txd,
   output logic        boot_done,
   output logic        boot_err,
@@ -62,7 +63,7 @@ module psram_boot_tb (
     .uart_tx_avail(),
     .uart_rx_avail(),
     .uart_txd (uart_txd),
-    .uart_rxd (1'b1),
+    .uart_rxd (uart_rx_in),
     .dbg_en   (1'b0),
     .dbg_we   (1'b0),
     .dbg_idx  (8'h00),

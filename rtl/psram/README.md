@@ -199,3 +199,29 @@ instead of 311k. On the board: Logic 7,923/8,640, CLS 4,270/4,320,
 
 The hit path is three CPU cycles (lookup, compare, present). Presenting from the
 lookup cycle would make it two; that is the next cheap win if it still fits.
+
+## The dictionary uses the PSRAM
+
+The kernel probes word `0x6000` at boot (two NOPs between the store and the
+load: the BSRAM top's store-to-load bypass would otherwise answer the load from
+the store, outside the window and all, and every board would look like it had
+PSRAM). If the word reads back, the dictionary moves to `0x6000` and its ceiling
+to `0xFFF0` - the top of segment 0, below the boot ROM. On the BSRAM board the
+probe fails and the old layout stands, so one image runs on both.
+
+`free` is `unused`, which reads the ceiling cell; `mem` prints the map it finds:
+
+```
+Deep16 memory map
+  memory   00000-FFFFF  1048576 words, 2 MiB HyperRAM (PSRAM board)
+  image    0000-5FFF   24576 words (kernel, data, boot script, BIOS, stacks)
+  dict     6000 -6690   1681 words, 39263 free
+  UART F0040-F004F   boot ROM FFFF0-FFFFF
+```
+
+The ceiling is 0xFFF0, not the full megaword: Forth addresses are 16-bit
+offsets within a segment, so one dictionary can hold 64K words. Above that the
+addressing would need segment switching in the kernel, which is not done.
+
+Note that `.` is signed, so `free .` prints a negative number once the headroom
+passes 32767; `free u.` (or `mem`) prints it unsigned.

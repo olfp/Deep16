@@ -17,7 +17,9 @@ loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'),
                         { defines: { CONSOLE_UART: 1 } });
 const sym = kernel.symbols;
-const DICT_LIMIT = 0x5600;
+// The ceiling is a kernel cell now: the boot probe raises it when the machine
+// has memory past the 24K window (the JS core has the full 1 MB).
+const limit = () => sim.memory[sym.dict_limit_var];
 
 const sim = new globalThis.Deep16Simulator();
 sim.loadProgram(buildMemory(kernel));
@@ -52,30 +54,29 @@ const here = () => sim.memory[sym.dp_var];
 
 test('the boot script compiles at boot and prints the summary', () => {
   assert.match(bootText, /Hello DeepForth!/);
-  const line = bootText.split('\r\n').find((l) => l.startsWith('D16MINI'));
+  const line = bootText.split('\r\n').find((l) => l.startsWith('Deep16') || l.startsWith('D16MINI'));
   assert.ok(line, `no summary line in ${JSON.stringify(bootText.slice(0, 200))}`);
   const free = Number((line.match(/,\s*(\d+) free/) || [])[1]);
-  assert.equal(free, DICT_LIMIT - here(), 'the summary free count is here-based');
+  assert.equal(free, limit() - here(), 'the summary free count is here-based');
   assert.ok(free > 1000, `only ${free} words free - the script grew too far`);
 });
 
 test('free is the dictionary headroom, and unused agrees with it', () => {
-  const out = run('free . unused .');
+  const out = run('free u. unused u.');
   const nums = [...out.matchAll(/(\d+)/g)].map((m) => Number(m[1]));
   assert.ok(nums.length >= 2, `expected two numbers: ${JSON.stringify(out)}`);
-  assert.equal(nums[0], DICT_LIMIT - here());
+  assert.equal(nums[0], limit() - here());
   assert.equal(nums[1], nums[0], 'unused and free must report the same ceiling');
 });
 
-test('mem prints the map and the bar', () => {
+test('mem prints the map', () => {
   const out = run('mem');
-  for (const needle of ['D16MINI memory map', '0000-5FFF', '5600-57FF', '5800-5FFF',
-                        'UART F0040', 'FFFF0']) {
+  for (const needle of ['Deep16 memory map', '00000-FFFFF', 'UART F0040', 'FFFF0']) {
     assert.ok(out.includes(needle), `mem does not mention ${needle}: ${JSON.stringify(out)}`);
   }
-  const bar = out.split('\r\n').find((l) => l.startsWith('['));
-  assert.ok(bar, 'no usage bar');
-  assert.match(bar, /^\[[#-]+\]\s+\d+\s+% used,\s+\d+ free/);
+  // The dictionary line carries the range and the free count.
+  assert.match(out, /dict\s+[0-9A-F]+ -[0-9A-F]+\s+\d+ words, \d+ free/,
+               `no dictionary line: ${JSON.stringify(out)}`);
 });
 
 test('key? polls the console without consuming the byte', () => {

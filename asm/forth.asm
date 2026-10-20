@@ -127,6 +127,7 @@ forth_start:
     MOV R1, R0
     STS R1, DS, R2
 
+
     ; BIOS binit, which takes no parameters: the function number is the whole
     ; message, so it is set with the LDI that loads it.
     LDI 1
@@ -278,6 +279,45 @@ clear_cursor:
     JMP R2
     NOP
 after_print_text:
+    ; ---- is there memory above the 24K window? -------------------------
+    ; The same image runs on the 24K BSRAM board and on the PSRAM board.
+    ; Probe word 0x6000: if it reads back what we write, the dictionary moves
+    ; up there and may grow to the top of segment 0 (the boot ROM starts at
+    ; 0xFFF0). Otherwise it stays below the BIOS, as it always did.
+    ;
+    ; The two NOPs are load-bearing: the BSRAM top's store-to-load bypass
+    ; answers a load from a store that is still in WB, outside the window and
+    ; all, so every board would look like it had PSRAM.
+    LDI 0x3000
+    SL  R0, 1               ; 0x6000: LDI's immediate is 15-bit signed
+    MOV R2, R0
+    LDI 0x1234
+    ST  R0, R2, 0
+    NOP
+    NOP
+    LD  R1, R2, 0
+    CMP R1, R0
+    JNZ boot_no_psram
+    NOP
+    LDI dp_var
+    MOV R2, R0
+    LDI 0x3000
+    SL  R0, 1
+    ST  R0, R2, 0           ; HERE = 0x6000
+    LDI dict_base_var
+    MOV R2, R0
+    LDI 0x3000
+    SL  R0, 1
+    ST  R0, R2, 0           ; dictionary base = 0x6000
+    LDI dict_limit_var
+    MOV R2, R0
+    LDI 0x7FF8
+    SL  R0, 1               ; 0xFFF0
+    ST  R0, R2, 0
+boot_no_psram:
+
+
+
 .ifdef CONSOLE_UART
     ; The terminal owns the line, so there is no cursor to move: end the banner
     ; line and let the reader start on a fresh row.
@@ -2434,6 +2474,10 @@ saved_r1:
 ; --- P2 threading state ---
 dp_var:
     .word dict_free      ; next free dictionary cell (grows upwards)
+dict_base_var:
+    .word dict_free      ; where the dictionary starts (the probe moves it up)
+dict_limit_var:
+    .word DICT_LIMIT     ; its ceiling; the boot probe raises it when PSRAM is there
 ip_ptr:
     .word resume_list    ; indirect-threaded instruction pointer
 rp_ptr:
@@ -2749,28 +2793,37 @@ see_str_0branch:
 ; NUL, which is what read_line walks.
 boot_script:
 ; >>> generated from forth/demo.fth - do not edit here <<<
+    .text "here constant dict-base     \\ where this script's definitions begin"
     .text " 256 constant kernel-base    \\ 0x0100: forth_start, where the kernel is laid"
-    .text "22016 constant dict-limit    \\ 0x5600: the BIOS begins, so the dictionary ends"
-    .text "24576 constant window-words  \\ 0x6000: the whole BSRAM window, 48 KiB"
-    .text ": free ( -- u )     dict-limit here - ;"
+    .text "24576 constant window-words  \\ 0x6000: past the 24K BSRAM window"
+    .text "here window-words < 0= constant psram?   \\ the kernel moved the dictionary up"
+    .text ": free ( -- u )         unused ;"
     .text ": .addr ( u -- )    hex 0 u.r decimal ;"
-    .text ": .bar ( u n -- )   \\ n cells: u of them hashes, the rest dashes"
-    .text "  2dup min dup 0 ?do 35 emit loop"
-    .text "  - 0 max 0 ?do 45 emit loop drop ;"
+    .text ": u. ( u -- )       0 u.r ;"
     .text ": mem ( -- )"
-    .text "  cr .\" D16MINI memory map\" cr"
-    .text "  .\"   window   0000-5FFF   24576 words, 48 KiB BSRAM\" cr"
-    .text "  .\"   image    0100-\" here 1- .addr .\"     \" here kernel-base - . .\" words\" cr"
-    .text "  .\"            (kernel, data and the baked demo source)\" cr"
-    .text "  .\"   free     \" here .addr .\" -55FF     \" free . .\" words\" cr"
-    .text "  .\"   BIOS     5600-57FF   reserved for the UART console\" cr"
-    .text "  .\"   stacks   5800-5FFF   2048 words (RP 5800 up, SP 5FF0 down)\" cr"
-    .text "  .\"   UART F0040-F004F      boot ROM FFFF0-FFFFF (16 words)\" cr"
-    .text "  cr"
-    .text "  .\" [\" here 1024 / 24 .bar .\" ] \" here 1024 / 100 * 24 / . .\" % used, \""
-    .text "  free . .\" free\" cr ;"
+    .text "  cr .\" Deep16 memory map\" cr"
+    .text "  psram? if"
+    .text "    .\"   memory   00000-FFFFF  1048576 words, 2 MiB HyperRAM (PSRAM board)\" cr"
+    .text "    .\"   image    0000-5FFF   24576 words (kernel, data, boot script, BIOS, stacks)\" cr"
+    .text "    .\"   dict     \" dict-base .addr .\" -\" here 1- .addr"
+    .text "    .\"   \" here dict-base - u. .\" words, \" free u. .\" free\" cr"
+    .text "    .\"   UART F0040-F004F   boot ROM FFFF0-FFFFF\" cr"
+    .text "  else"
+    .text "    .\"   window   0000-5FFF   24576 words, 48 KiB BSRAM\" cr"
+    .text "    .\"   image    0100-\" here 1- .addr .\"     \" here kernel-base - u. .\" words\" cr"
+    .text "    .\"            (kernel, data and the baked demo source)\" cr"
+    .text "    .\"   free     \" here .addr .\" -55FF     \" free u. .\" words\" cr"
+    .text "    .\"   BIOS     5600-57FF   reserved for the UART console\" cr"
+    .text "    .\"   stacks   5800-5FFF   2048 words (RP 5800 up, SP 5FF0 down)\" cr"
+    .text "    .\"   UART F0040-F004F      boot ROM FFFF0-FFFFF (16 words)\" cr"
+    .text "  then"
+    .text "  cr ;"
     .text ": boot.msg ( -- )"
-    .text "  .\" D16MINI  \" window-words . .\" words of BSRAM, \" free . .\" free\" cr ;"
+    .text "  psram? if"
+    .text "    .\" Deep16   1048576 words of PSRAM, \" free u. .\" free\" cr"
+    .text "  else"
+    .text "    .\" D16MINI  \" window-words u. .\" words of BSRAM, \" free u. .\" free\" cr"
+    .text "  then ;"
     .text "40 constant stars"
     .text "200 constant z-near"
     .text "  3400 constant z-far"
@@ -7064,15 +7117,10 @@ word_pad:                   ; pad ( -- addr )  the transient scratch region
     MOV PC, R0
     NOP
 
-word_unused:                ; unused ( -- u )  dictionary cells left below the BIOS
-.ifdef CONSOLE_UART
-    LDI 0x2B00              ; DICT_LIMIT 0x5600, halved: the value has bit 14
-    SL R0, 1                ; set, so LDI cannot hold it (it would sign-extend)
-.else
-    LDI 0x2000              ; DICT_LIMIT 0x4000, halved for the same reason
-    SL R0, 1
-.endif
-    MOV R1, R0
+word_unused:                ; unused ( -- u )  dictionary cells left below the ceiling
+    LDI dict_limit_var      ; the boot probe set this: 0x5600 on the BSRAM
+    MOV R1, R0              ; board, 0xFFF0 when PSRAM holds the dictionary
+    LD R1, R1, 0
     LDI dp_var
     MOV R2, R0
     LD R2, R2, 0            ; HERE
@@ -12044,13 +12092,15 @@ wec_resolve:
     ; offset into whatever such a value points at. The two bounds are compared
     ; with the CARRY, which is an exact unsigned test: the obvious `LDI 0x4000`
     ; would arrive as 0xC000, because bit 14 of the immediate is its sign.
-    LDI dict_free
+    LDI dict_base_var
     MOV R1, R0
+    LD R1, R1, 0
     CMP R3, R1
     JC wec_stop             ; below the dictionary
     NOP
-    LDI 0x3FFF
+    LDI dict_limit_var
     MOV R1, R0
+    LD R1, R1, 0
     CMP R1, R3
     JC wec_stop             ; above the dictionary area
     NOP

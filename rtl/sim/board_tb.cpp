@@ -152,7 +152,7 @@ int main(int argc, char** argv) {
       tx.send(std::string("mem") + "\r");
       asked = true;
     }
-    gotMap = rx.out.find("D16MINI memory map") != std::string::npos &&
+    gotMap = rx.out.find("Deep16 memory map") != std::string::npos &&
              rx.out.find("window   0000-5FFF   24576 words, 48 KiB BSRAM") != std::string::npos &&
              rx.out.find("image    0100-") != std::string::npos &&
              rx.out.find("stacks   5800-5FFF   2048 words") != std::string::npos;

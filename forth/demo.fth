@@ -13,33 +13,44 @@
 \ that are not fixed addresses - where the kernel and the dictionary end - come
 \ from `here` at run time.
 
+here constant dict-base     \ where this script's definitions begin
  256 constant kernel-base    \ 0x0100: forth_start, where the kernel is laid
-22016 constant dict-limit    \ 0x5600: the BIOS begins, so the dictionary ends
-24576 constant window-words  \ 0x6000: the whole BSRAM window, 48 KiB
+24576 constant window-words  \ 0x6000: past the 24K BSRAM window
+here window-words < 0= constant psram?   \ the kernel moved the dictionary up
 
+\ The limit is the kernel's own ceiling cell: 0x5600 below the BIOS on the
+\ BSRAM board, 0xFFF0 (the boot ROM starts there) when the dictionary is in
+\ PSRAM. `unused` already reports the cells left, so free is just that.
 \ ---- memory -------------------------------------------------------------
-: free ( -- u )     dict-limit here - ;
+: free ( -- u )         unused ;
 : .addr ( u -- )    hex 0 u.r decimal ;
-: .bar ( u n -- )   \ n cells: u of them hashes, the rest dashes
-  2dup min dup 0 ?do 35 emit loop
-  - 0 max 0 ?do 45 emit loop drop ;
+: u. ( u -- )       0 u.r ;
 
 : mem ( -- )
-  cr ." D16MINI memory map" cr
-  ."   window   0000-5FFF   24576 words, 48 KiB BSRAM" cr
-  ."   image    0100-" here 1- .addr ."     " here kernel-base - . ." words" cr
-  ."            (kernel, data and the baked demo source)" cr
-  ."   free     " here .addr ." -55FF     " free . ." words" cr
-  ."   BIOS     5600-57FF   reserved for the UART console" cr
-  ."   stacks   5800-5FFF   2048 words (RP 5800 up, SP 5FF0 down)" cr
-  ."   UART F0040-F004F      boot ROM FFFF0-FFFFF (16 words)" cr
-  cr
-  ." [" here 1024 / 24 .bar ." ] " here 1024 / 100 * 24 / . ." % used, "
-  free . ." free" cr ;
+  cr ." Deep16 memory map" cr
+  psram? if
+    ."   memory   00000-FFFFF  1048576 words, 2 MiB HyperRAM (PSRAM board)" cr
+    ."   image    0000-5FFF   24576 words (kernel, data, boot script, BIOS, stacks)" cr
+    ."   dict     " dict-base .addr ." -" here 1- .addr
+    ."   " here dict-base - u. ." words, " free u. ." free" cr
+    ."   UART F0040-F004F   boot ROM FFFF0-FFFFF" cr
+  else
+    ."   window   0000-5FFF   24576 words, 48 KiB BSRAM" cr
+    ."   image    0100-" here 1- .addr ."     " here kernel-base - u. ." words" cr
+    ."            (kernel, data and the baked demo source)" cr
+    ."   free     " here .addr ." -55FF     " free u. ." words" cr
+    ."   BIOS     5600-57FF   reserved for the UART console" cr
+    ."   stacks   5800-5FFF   2048 words (RP 5800 up, SP 5FF0 down)" cr
+    ."   UART F0040-F004F      boot ROM FFFF0-FFFFF (16 words)" cr
+  then
+  cr ;
 
-\ ---- the boot summary ---------------------------------------------------
 : boot.msg ( -- )
-  ." D16MINI  " window-words . ." words of BSRAM, " free . ." free" cr ;
+  psram? if
+    ." Deep16   1048576 words of PSRAM, " free u. ." free" cr
+  else
+    ." D16MINI  " window-words u. ." words of BSRAM, " free u. ." free" cr
+  then ;
 
 \ ---- the starfield demo -------------------------------------------------
 \ Forty stars fly out of the middle of the terminal. Integers only: x*scale/z

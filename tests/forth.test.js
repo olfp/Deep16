@@ -4026,9 +4026,11 @@ test('the small Tier-3 words: */ */MOD CHAR+ CHARS ALIGN ALIGNED PAD UNUSED SOUR
   assert.equal(hexOut('align 1 2 + .'), '3');
   // PAD is a real, writable region.
   assert.equal(hexOut('pad 5 over ! @ .'), '5');
-  // UNUSED is 0x4000 - HERE: positive, and below 0x4000.
-  assert.equal(hexOut('unused 0 > .'), '-1');
-  assert.equal(hexOut('unused 0x4000 < .'), '-1');
+  // UNUSED is the headroom to the kernel's ceiling cell. It is layout
+  // dependent now (the PSRAM build moves the dictionary and raises the
+  // ceiling), so only non-zero is asserted: `>` is signed and a large
+  // headroom reads as negative.
+  assert.equal(hexOut('unused 0<> .'), '-1');
   assert.equal(hexOut('source-id .'), '-1');
   // The threaded bodies decompile as the words they are made of.
   assert.equal(hexOut('see */'), ': */ >r m* r> sm/rem nip ;');
