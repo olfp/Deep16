@@ -146,6 +146,11 @@ bring-up diagnostic (probe result and the script's first bytes).
 The earlier BRAM-only machine is preserved at tag **`v0.13.5mhz`**: 24 BSRAM
 blocks, the kernel baked into the bitstream, no loader and no PSRAM.
 
+**Versions.** DeepForth, the BIOS and the FPGA are versioned separately from the
+next bump; the planned `ver` word prints all three (`DeepForth x.y  BIOS x.y
+ FPGA x.y`). See [`VERSIONING.md`](VERSIONING.md) for the rule, the tuple
+format and the single-source generator.
+
 ## Architecture in one page
 
 - **Registers** `R0`–`R15`, `R15` is the PC. 16-bit words.
