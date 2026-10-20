@@ -323,6 +323,51 @@ after_print_text:
     ST  R0, R2, 0
 boot_no_psram:
 
+    ; ---- TEMPORARY BOOT DIAGNOSTIC -------------------------------------
+    ; One character for the memory probe (P = PSRAM found, B = not), then the
+    ; first 8 cells of the baked script at 0x2000, which should read "here con".
+    ; Everything after the banner is silent until the script has compiled, so
+    ; this is the only way to see whether the image in PSRAM is what was copied.
+    LDI 'B'
+    MOV R4, R0
+    LDI dp_var
+    MOV R2, R0
+    LD R1, R2, 0
+    LDI 0x3000
+    SL  R0, 1
+    CMP R1, R0
+    JNZ diag_probe
+    NOP
+    LDI 'P'
+    MOV R4, R0
+diag_probe:
+    MOV R1, R4
+    LDI 2
+    SWI
+    LDI ':'
+    MOV R1, R0
+    LDI 2
+    SWI
+    LDI boot_script
+    MOV R2, R0
+    LDI 8
+    MOV R3, R0
+diag_chars:
+    LD R1, R2, 0
+    LDI 2
+    SWI
+    ADD R2, 1
+    SUB R3, 1
+    LDI 0
+    CMP R3, R0
+    JNZ diag_chars
+    NOP
+    LDI newline_direct
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+
 
 
 .ifdef CONSOLE_UART
