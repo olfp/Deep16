@@ -115,7 +115,7 @@ int main(int argc, char** argv) {
     last_clk = top->clk;
     if (rise) { uart_tick(); uart_tx_tick(); }
     static int phase = 0;
-    if (done_seen && phase == 0 && t_ns > 20000000LL) { uart_send("the quick brown fox jumps over the lazy dog\r"); phase = 1; }
+    if (done_seen && phase == 0 && t_ns > 300000000LL) { uart_send("the quick brown fox jumps over the lazy dog\r"); phase = 1; }
     else if (phase == 1 && tx_idx >= tx_qlen && t_ns > 60000000LL) {
       phase = 2;   // the pangram is the whole test
     }
