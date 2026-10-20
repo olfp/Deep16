@@ -37,6 +37,7 @@ module deep16_psram_mem #(
   input  logic [15:0] mem_wdata,
   output logic        mem_stall,
   output logic        boot_done,
+  output logic        boot_err,     // a read-back did not match
 
   // to the controller (clk_ip domain)
   output logic        ctl_read,
@@ -80,6 +81,7 @@ module deep16_psram_mem #(
   localparam logic [3:0] S_BOOT_WAIT = 4'd0, S_BOOT_RD = 4'd1, S_BOOT_WR = 4'd2,
                          S_BOOT_WT = 4'd3, S_IDLE = 4'd4, S_CMD = 4'd5,
                          S_BOOT_RD2 = 4'd10, S_BOOT_ROM = 4'd11,
+                         S_VER_SET = 4'd12, S_VER_RD = 4'd13, S_VER_WT = 4'd14,
                          S_WAIT = 4'd6, S_PRESENT = 4'd7, S_STORE = 4'd8,
                          S_STORE_W = 4'd9;
   logic [3:0]  st;
@@ -91,6 +93,7 @@ module deep16_psram_mem #(
   logic [19:0] op_addr;
   logic [15:0] op_wdata, rd_q;
   logic        store_lat;
+  logic        ver_pending;   // the pending read is the boot verify
   logic [19:0] store_addr;
   logic [15:0] store_data;
 
@@ -104,6 +107,7 @@ module deep16_psram_mem #(
     breq <= 1'b0;
     if (rst) begin
       st <= S_BOOT_WAIT; bi <= 15'd0; ri <= 5'd0; boot_rom <= 1'b0; boot_q <= 1'b0;
+      boot_err <= 1'b0; ver_pending <= 1'b0;
       op_is_load <= 0; op_is_store <= 0; op_is_fetch <= 0;
       op_addr <= 20'd0; op_wdata <= 16'd0; rd_q <= 16'd0;
       store_lat <= 0; store_addr <= 20'd0; store_data <= 16'd0;
@@ -139,8 +143,7 @@ module deep16_psram_mem #(
             end
           end else begin
             if (ri == 5'd15) begin
-              boot_q <= 1'b1;
-              st <= S_IDLE;
+              st <= S_VER_SET;              // read word 0 back before booting
             end else begin
               ri <= ri + 5'd1;
               st <= S_BOOT_ROM;
@@ -153,6 +156,17 @@ module deep16_psram_mem #(
           op_wdata <= boot_rom_word_ri;
           op_addr  <= {5'b01111, 15'h7FF0} + {15'd0, ri};   // 0xFFFF0 + ri
           st <= S_BOOT_WR;
+        end
+
+        S_VER_SET: begin
+          img_addr <= 15'd0;                 // BSRAM read of the expected word
+          st <= S_VER_RD;
+        end
+        S_VER_RD: begin
+          op_is_load <= 1'b1; op_is_store <= 1'b0; op_is_fetch <= 1'b0;
+          op_addr <= 20'd0;
+          ver_pending <= 1'b1;
+          st <= S_CMD;
         end
 
         // ---- normal operation ------------------------------------------
@@ -184,7 +198,14 @@ module deep16_psram_mem #(
 
         S_WAIT: if (bready) begin
           rd_q <= brdata;
-          st <= S_PRESENT;
+          if (ver_pending) begin
+            ver_pending <= 1'b0;
+            if (brdata != img_data) boot_err <= 1'b1;   // read-back mismatch
+            boot_q <= 1'b1;                             // release the core either way
+            st <= S_IDLE;
+          end else begin
+            st <= S_PRESENT;
+          end
         end
 
         S_PRESENT: begin

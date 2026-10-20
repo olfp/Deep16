@@ -61,6 +61,7 @@ module deep16_top
   , input  logic [15:0] psram_dout
   , input  logic        psram_busy
   , output logic        o_boot_done    // loader finished, core released
+  , output logic        o_boot_err     // a PSRAM read-back did not match
 `endif
 );
 
@@ -162,9 +163,10 @@ module deep16_top
   assign o_cache_penalty = 32'd0;
 
 `ifdef PSRAM
-  logic boot_done;
+  logic boot_done, boot_err;
   wire  core_rst = rst || !boot_done;
   assign o_boot_done = boot_done;
+  assign o_boot_err  = boot_err;
 `else
   wire  core_rst = rst;
 `endif
@@ -286,7 +288,7 @@ module deep16_top
     .if_addr(if_addr), .if_rdata(if_rdata), .if_preempted(if_preempted),
     .mem_addr(mem_addr), .mem_rd(mem_rd), .mem_rdata(mem_rdata),
     .mem_we(mem_we), .mem_waddr(mem_waddr), .mem_wdata(mem_wdata),
-    .mem_stall(mem_stall), .boot_done(boot_done),
+    .mem_stall(mem_stall), .boot_done(boot_done), .boot_err(boot_err),
     .ctl_read(psram_read), .ctl_write(psram_write),
     .ctl_addr(psram_addr), .ctl_din(psram_din),
     .ctl_dout(psram_dout), .ctl_busy(psram_busy)

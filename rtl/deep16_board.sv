@@ -60,7 +60,7 @@ module deep16_board (
     .clkin  (clk)
   );
 
-  wire        psram_read, psram_write, psram_busy, o_boot_done;
+  wire        psram_read, psram_write, psram_busy, o_boot_done, o_boot_err;
   wire [21:0] psram_addr;
   wire [15:0] psram_din, psram_dout;
 
@@ -160,6 +160,7 @@ module deep16_board (
     , .psram_dout   (psram_dout)
     , .psram_busy   (psram_busy)
     , .o_boot_done  (o_boot_done)
+    , .o_boot_err   (o_boot_err)
 `endif
   );
 
@@ -174,7 +175,7 @@ module deep16_board (
 `ifdef PSRAM
   // slow heartbeat = loader finished and the core was released;
   // fast blink = still loading / stuck before boot.
-  assign led = o_boot_done ? hb[24] : hb[21];
+  assign led = o_boot_err ? 1'b1 : (o_boot_done ? hb[24] : hb[21]);
 `else
   assign led = hb[24];
 `endif
