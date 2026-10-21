@@ -147,3 +147,107 @@ print(fbnest)
 fbsingle = 0
 while fbsingle < 10 do fbsingle = fbsingle + 1 ; break end
 print(fbsingle)
+
+-- functions: parameters, return, nested calls
+function fadd(a, b)
+  return a + b
+end
+ffnadd = fadd(2, 3)
+print(ffnadd)          -- 5
+
+function fdouble(v)
+  return v * 2
+end
+function fquad(v)
+  return fdouble(fdouble(v))
+end
+ffnquad = fquad(3)
+print(ffnquad)         -- 12
+
+function fsumto(n)
+  acc = 0
+  for k = 1, n do
+    acc = acc + k
+  end
+  return acc
+end
+ffnsum = fsumto(4)
+print(ffnsum)          -- 10
+
+-- return out of a while loop
+function ffirstbig(limit)
+  i = 0
+  while i < 10 do
+    i = i + 1
+    if i > limit then
+      return i
+    end
+  end
+  return -1
+end
+ffnfirst = ffirstbig(3)
+print(ffnfirst)        -- 4
+
+-- return out of an if/elseif chain
+function fclassify(n)
+  if n > 0 then
+    return 1
+  elseif n < 0 then
+    return -1
+  end
+  return 0
+end
+ffnclass = fclassify(-9)
+print(ffnclass)        -- -1
+
+-- return out of a for loop
+function ffindstop(n)
+  for j = 1, 10 do
+    if j = n then
+      return j * 100
+    end
+  end
+  return 0
+end
+ffnfind = ffindstop(4)
+print(ffnfind)         -- 400
+
+-- break inside a function loop
+function fbreaksum(n)
+  acc = 0
+  for k = 1, 10 do
+    if k = n then
+      break
+    end
+    acc = acc + k
+  end
+  return acc
+end
+ffnbrk = fbreaksum(4)
+print(ffnbrk)          -- 6
+
+-- procedure: no return yields 0
+function faddto(n)
+  fntotal = fntotal + n
+end
+fntotal = 0
+faddto(5)
+faddto(2)
+print(fntotal)         -- 7
+ffnproc = faddto(1)
+print(ffnproc)         -- 0
+ffnfinal = fntotal     -- 8
+
+-- zero-argument function with an empty body
+function fnothing()
+end
+ffnnothing = fnothing()
+print(ffnnothing)      -- 0
+
+-- a function may be called before its definition in the source
+ffnlater = flater(6)
+print(ffnlater)        -- 7
+function flater(v)
+  return v + 1
+end
+

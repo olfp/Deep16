@@ -1,9 +1,10 @@
 \ LILA compiler (host prototype)
 \ Supported: assignments, infix expressions with parentheses and unary minus,
-\ print, if/elseif/while/for, and break.
+\ print, if/elseif/while/for, break, and functions.
 \ Expressions are translated to postfix Forth.  LILA variables are stored as
 \ Forth variables named `lila-var-<name>`, so LILA names do not collide with
-\ the host Forth word set.
+\ the host Forth word set.  Function parameters are stored as
+\ `lila-var-<function>-<parameter>`.
 
 create lila-buf 4096 allot
 create lila-lhs 256 allot
@@ -41,6 +42,17 @@ create for-tail 256 allot
 variable for-depth
 create for-end-vars 64 cells allot
 create for-step-vars 64 cells allot
+\ Functions: every function has its own Forth variables for its parameters,
+\ a return value, and a return flag.  Function bodies become top-level words
+\ in defs-buf, like loop bodies.
+create fn-name 64 allot
+create fn-params 16 64 * allot
+variable fn-param-count
+variable fn-active
+\ Function calls in expressions: name stack and one flag per open parenthesis.
+create call-names 64 64 * allot
+variable call-top
+create paren-args 64 allot
 
 code-buf0 code-buf !
 
@@ -133,25 +145,31 @@ code-buf0 code-buf !
     lila-buf count + 1- c@ bl <> if s"  " lila-buf buf+ then
   then ;
 
-: emit-operand ( c-addr u -- )
-  2dup is-number? if
-    lila-buf buf+
+: param? { c-addr u -- flag }
+  fn-active @ 0= if false exit then
+  fn-param-count @ 0 ?do
+    c-addr u  i 64 * fn-params + count compare 0= if
+      true unloop exit
+    then
+  loop false ;
+
+: emit-operand { c-addr u -- }
+  c-addr u is-number? if
+    c-addr u lila-buf buf+
   else
-    2dup keyword? if
-      lila-buf buf+
+    c-addr u keyword? if
+      c-addr u lila-buf buf+
     else
       s"  lila-var-" lila-buf buf+
-      lila-buf buf+
+      c-addr u param? if
+        fn-name count lila-buf buf+
+        s" -" lila-buf buf+
+      then
+      c-addr u lila-buf buf+
       s"  @" lila-buf buf+
     then
   then
   append-space ;
-
-: flush-tok ( -- )
-  tok-len @ 0= if exit then
-  tok-buf tok-len @ emit-operand
-  0 tok-len !
-  0 expect-operand ! ;
 
 : emit-operator ( ch -- )
   dup [char] ~ = if
@@ -164,20 +182,120 @@ code-buf0 code-buf !
 : push-op ( ch -- )  op-top @ op-stack + c!  1 op-top +! ;
 : top-op ( -- ch )  op-top @ 0= if 0 else op-top @ 1- op-stack + c@ then ;
 : pop-op ( -- )  top-op  -1 op-top +!  emit-operator ;
+: marker-open? { ch -- flag }
+  ch [char] ( =  ch [char] { = or ;
 : pop-while { prec -- }
   begin
     op-top @ 0> if
-      top-op dup [char] ( = if drop false else op-precedence prec >= then
+      top-op dup marker-open? if drop false else op-precedence prec >= then
     else false then
   while
     pop-op
   repeat ;
 : pop-all ( -- )
   begin
-    op-top @ 0> if top-op [char] ( <> else false then
+    op-top @ 0> if top-op marker-open? 0= else false then
   while
     pop-op
   repeat ;
+
+: call-push { c-addr u -- }
+  u 63 > if s" lila: function name too long" lila-error then
+  call-top @ 64 >= if s" lila: calls nested too deeply" lila-error then
+  c-addr u call-top @ 64 * call-names + place
+  1 call-top +! ;
+: call-pop-emit ( -- )
+  call-top @ 0= if s" lila: call stack underflow" lila-error then
+  -1 call-top +!
+  append-space
+  s" lila-fn-" lila-buf buf+
+  call-top @ 64 * call-names + count lila-buf buf+
+  s"  " lila-buf buf+ ;
+
+: innermost-marker ( -- ch idx )
+  op-top @ 0 ?do
+    op-top @ 1- i -
+    dup op-stack + c@
+    dup marker-open? if
+      swap unloop exit
+    then
+    drop drop
+  loop
+  -1 -1 ;
+
+\ Record that the innermost call has at least one argument.  This makes
+\ zero-argument calls such as f() distinguishable from a missing operand.
+: mark-arg ( -- )
+  op-top @ 0 ?do
+    op-top @ 1- i -
+    dup op-stack + c@ [char] { = if
+      paren-args + 1 swap c!
+      unloop exit
+    then
+    drop
+  loop ;
+
+: flush-tok ( -- )
+  tok-len @ 0= if exit then
+  tok-buf tok-len @ emit-operand
+  mark-arg
+  0 tok-len !
+  0 expect-operand ! ;
+
+: open-group ( -- )
+  flush-tok
+  expect-operand @ 0= if
+    s" lila: operator expected before (" lila-error
+  then
+  [char] ( push-op
+  0 op-top @ 1- paren-args + c! ;
+
+: open-call ( -- )
+  tok-buf tok-len @ identifier? 0= if
+    s" lila: invalid function name" lila-error
+  then
+  tok-buf tok-len @ call-push
+  0 tok-len !
+  [char] { push-op
+  0 op-top @ 1- paren-args + c!
+  1 expect-operand ! ;
+
+: close-paren ( -- )
+  flush-tok
+  innermost-marker { ch idx }
+  ch 0< if s" lila: unmatched )" lila-error then
+  ch [char] { = if
+    idx paren-args + c@ 0= if
+      expect-operand @ if
+        -1 op-top +!
+        call-pop-emit
+        0 expect-operand !
+        mark-arg
+        exit
+      then
+    then
+  then
+  expect-operand @ if
+    s" lila: operand expected before )" lila-error
+  then
+  -1 pop-while
+  -1 op-top +!
+  ch [char] { = if
+    call-pop-emit
+    mark-arg
+  then
+  0 expect-operand ! ;
+
+: comma ( -- )
+  flush-tok
+  innermost-marker { ch idx }
+  ch [char] { <> if s" lila: comma outside call" lila-error then
+  expect-operand @ if
+    s" lila: operand expected before ," lila-error
+  then
+  -1 pop-while
+  1 idx paren-args + c!
+  1 expect-operand ! ;
 
 : transform-expr { c-addr u -- }
   lila-buf buf-reset  0 tok-len !  0 op-top !  1 expect-operand !
@@ -187,44 +305,34 @@ code-buf0 code-buf !
       drop flush-tok
     else
       dup [char] ( = if
-        drop flush-tok
-        expect-operand @ 0= if
-          s" lila: operator expected before (" lila-error
-        then
-        [char] ( push-op
+        drop
+        tok-len @ 0> if open-call else open-group then
       else
         dup [char] ) = if
-          drop flush-tok
-          expect-operand @ if
-            s" lila: operand expected before )" lila-error
-          then
-          begin
-            op-top @ 0> if top-op [char] ( <> else false then
-          while
-            pop-op
-          repeat
-          op-top @ 0= if s" lila: unmatched )" lila-error then
-          -1 op-top +!
-          0 expect-operand !
+          drop close-paren
         else
-          dup op-char? if
-            flush-tok
-            dup [char] - = expect-operand @ and if
-              drop [char] ~ push-op
-            else
-              expect-operand @ if
-                s" lila: operand expected before operator" lila-error
-              then
-              dup op-precedence pop-while
-              push-op
-              1 expect-operand !
-            then
+          dup [char] , = if
+            drop comma
           else
-            tok-len @ 0= expect-operand @ 0= and if
-              s" lila: operator expected" lila-error
+            dup op-char? if
+              flush-tok
+              dup [char] - = expect-operand @ and if
+                drop [char] ~ push-op
+              else
+                expect-operand @ if
+                  s" lila: operand expected before operator" lila-error
+                then
+                dup op-precedence pop-while
+                push-op
+                1 expect-operand !
+              then
+            else
+              tok-len @ 0= expect-operand @ 0= and if
+                s" lila: operator expected" lila-error
+              then
+              tok-buf tok-len @ + c!
+              tok-len @ 1+ tok-len !
             then
-            tok-buf tok-len @ + c!
-            tok-len @ 1+ tok-len !
           then
         then
       then
@@ -248,12 +356,18 @@ code-buf0 code-buf !
   then ;
 
 : lila-store-lhs { c-addr u -- }
-  c-addr u trim
+  c-addr u trim to u to c-addr
   s" lila-var-" lila-name place
-  lila-name +place
+  c-addr u param? if
+    fn-name count lila-name +place
+    s" -" lila-name +place
+  then
+  c-addr u lila-name +place
   lila-name count lila-lhs place
-  lila-name find nip 0= if
-    s" variable " lila-name count s+ evaluate drop
+  c-addr u param? 0= if
+    lila-name find nip 0= if
+      s" variable " lila-name count s+ evaluate drop
+    then
   then ;
 
 : assignment? { line len -- flag }
@@ -392,6 +506,29 @@ code-buf0 code-buf !
   code-loop-break-id
   s" ! EXIT " code+ ;
 
+: compile-return { line len -- }
+  fn-active @ 0= if s" lila: return outside function" lila-error then
+  line len 6 /string trim
+  dup 0= if
+    2drop s" 0 " code+
+  else
+    compile-expr
+  then
+  s"  lila-fn-" code+ fn-name count code+ s" -val ! 1 lila-fn-" code+
+  fn-name count code+ s" -ret ! EXIT " code+ ;
+
+: call-stmt? { c-addr u -- flag }
+  c-addr u trim to u to c-addr
+  c-addr u s" (" split-at if
+    2drop trim identifier?
+  else
+    2drop 2drop false
+  then ;
+
+: compile-call-stmt { line len -- }
+  line len compile-expr
+  s"  drop " code+ ;
+
 : compile-stmt-code { line len -- }
   line len trim
   2dup s" break" compare 0= if
@@ -400,8 +537,20 @@ code-buf0 code-buf !
   2dup s" print" string-prefix? if
     compile-print-code exit
   then
+  2dup s" return" compare 0= if
+    2drop compile-return exit
+  then
+  2dup s" return " string-prefix? if
+    compile-return exit
+  then
+  2dup s" function " string-prefix? if
+    2drop s" lila: function must be top-level" lila-error
+  then
   2dup assignment? if
     compile-assign-code exit
+  then
+  2dup call-stmt? if
+    compile-call-stmt exit
   then
   code+
   s"  " code+ ;
@@ -414,6 +563,131 @@ code-buf0 code-buf !
   else
     2drop compile-stmt-code
   then ;
+
+: strip-end { c-addr u -- c-addr' u' flag }
+  u 3 >= if
+    c-addr u + 3 - 3 s" end" compare 0= if
+      u 3 = if c-addr u 3 - true exit then
+      c-addr u + 4 - c@ bl = if c-addr u 3 - true exit then
+    then
+  then
+  c-addr u false ;
+
+: declare-fn-vars ( -- )
+  s" variable lila-fn-" defs+ fn-name count defs+ s" -ret " defs+
+  s" variable lila-fn-" defs+ fn-name count defs+ s" -val " defs+ ;
+
+: fn-set-name { c-addr u -- }
+  c-addr u trim to u to c-addr
+  u 0= if s" lila: invalid function name" lila-error then
+  c-addr u identifier? 0= if s" lila: invalid function name" lila-error then
+  u 63 > if s" lila: function name too long" lila-error then
+  c-addr u fn-name place ;
+
+: fn-header { c-addr u -- params plen body blen }
+  c-addr u s" (" split-at 0= if
+    2drop 2drop s" lila: function needs a parameter list" lila-error
+  then
+  2over fn-set-name
+  2swap 2drop
+  s" )" split-at 0= if
+    2drop 2drop s" lila: function needs )" lila-error
+  then
+  2swap ;
+
+: declare-param { c-addr u -- }
+  s" variable lila-var-" defs+ fn-name count defs+ s" -" defs+
+  c-addr u defs+
+  s"  " defs+ ;
+
+: add-param { c-addr u -- }
+  c-addr u trim to u to c-addr
+  u 0= if s" lila: empty parameter" lila-error then
+  c-addr u identifier? 0= if s" lila: invalid parameter" lila-error then
+  fn-param-count @ 16 >= if s" lila: too many parameters" lila-error then
+  c-addr u  fn-param-count @ 64 * fn-params + place
+  c-addr u declare-param
+  1 fn-param-count +! ;
+
+: parse-params { c-addr u -- }
+  c-addr u trim to u to c-addr
+  u 0= if exit then
+  c-addr u s" ," split-at if
+    2swap
+    2dup add-param
+    2drop
+    recurse
+  else
+    2drop 2drop
+    c-addr u add-param
+  then ;
+
+: function-body-start ( -- )
+  code-push
+  code-top @ 1- 65536 * body-bufs + code-buf !
+  0 code-len ! ;
+
+: emit-fn-prologue ( -- )
+  s" 0 lila-fn-" defs+ fn-name count defs+ s" -ret ! " defs+
+  fn-param-count @ 0 ?do
+    fn-param-count @ 1- i - 64 * fn-params + count
+    s" lila-var-" defs+ fn-name count defs+ s" -" defs+
+    defs+
+    s"  ! " defs+
+  loop ;
+
+: emit-fn-epilogue ( -- )
+  s" lila-fn-" defs+ fn-name count defs+ s" -ret @ IF lila-fn-" defs+
+  fn-name count defs+ s" -val @ ELSE 0 THEN " defs+ ;
+
+\ The body is its own word so `return` can EXIT it from anywhere, including
+\ a nested loop body.  The wrapper stores the arguments and always reaches
+\ the epilogue, so every call leaves exactly one result.
+: function-end ( -- )
+  s" : lila-fn-body-" defs+
+  load-serial @ defs-number
+  s" -" defs+
+  fn-name count defs+
+  s"  " defs+
+  code-buf @ code-len @ defs+
+  s"  ; " defs+
+  s" : lila-fn-" defs+ fn-name count defs+ s"  " defs+
+  emit-fn-prologue
+  s" lila-fn-body-" defs+
+  load-serial @ defs-number
+  s" -" defs+
+  fn-name count defs+
+  s"  " defs+
+  emit-fn-epilogue
+  s" ; " defs+
+  code-pop
+  0 fn-active !
+  0 fn-param-count ! ;
+
+: lila-compile-function { line len -- }
+  fn-active @ if
+    s" lila: nested functions are not supported" lila-error
+  then
+  block-top @ 0<> if
+    s" lila: function must be top-level" lila-error
+  then
+  line len 9 /string trim fn-header
+  fn-active on
+  declare-fn-vars
+  parse-params
+  function-body-start
+  trim
+  dup 0= if
+    2drop
+    [char] n block-push
+    exit
+  then
+  strip-end 0= if
+    2drop 2drop
+    s" lila: function body must end with end or start on a new line" lila-error
+  then
+  compile-block
+  function-end ;
 
 : lila-compile-else ( -- )
   block-top@ [char] i <> if s" lila: else without if" lila-error then
@@ -440,6 +714,16 @@ code-buf0 code-buf !
     s" lila: elseif without then" lila-error
   then ;
 
+: emit-fn-ret-check ( -- )
+  fn-active @ if
+    s" lila-fn-" code+ fn-name count code+ s" -ret @ IF EXIT THEN " code+
+  then ;
+
+: emit-fn-cond ( -- )
+  fn-active @ if
+    s" lila-fn-" code+ fn-name count code+ s" -ret @ 0= AND " code+
+  then ;
+
 : lila-compile-end ( -- )
   block-top @ 0= if s" lila: end without block" lila-error then
   block-extra@
@@ -449,12 +733,19 @@ code-buf0 code-buf !
     loop-body-end
     s" REPEAT " code+
     -1 for-depth +!
+    emit-fn-ret-check
     exit
   then
   dup [char] w = if
     drop drop
     loop-body-end
     s" REPEAT " code+
+    emit-fn-ret-check
+    exit
+  then
+  dup [char] n = if
+    drop drop
+    function-end
     exit
   then
   dup [char] i = over [char] e = or if
@@ -509,7 +800,9 @@ code-buf0 code-buf !
     s" ! BEGIN " code+
     2over compile-expr
     code-loop-break
-    s" @ 0= AND WHILE " code+
+    s" @ 0= AND " code+
+    emit-fn-cond
+    s" WHILE " code+
     2swap 2drop
     trim
     dup 0= if
@@ -596,6 +889,7 @@ code-buf0 code-buf !
         s"  @ " code+
         code-for-end
         s" @ >= THEN " code+
+        emit-fn-cond
         s" ELSE 0 THEN WHILE " code+
         for-tail count trim
         dup 0= if
@@ -633,6 +927,7 @@ code-buf0 code-buf !
   line len strip-cr strip-comment
   dup 0= if 2drop exit then
   2dup s" break" compare 0= if 2drop lila-compile-break exit then
+  2dup s" function " string-prefix? if lila-compile-function exit then
   2dup s" if " string-prefix? if lila-compile-if exit then
   2dup s" elseif " string-prefix? if lila-compile-elseif exit then
   2dup s" while " string-prefix? if lila-compile-while exit then
@@ -649,7 +944,10 @@ code-buf0 code-buf !
   0 code-top !
   0 body-id-top !
   0 block-top !
-  0 for-depth ! ;
+  0 for-depth !
+  0 fn-active !
+  0 fn-param-count !
+  0 call-top ! ;
 
 : lila-compile-finish ( -- )
   block-top @ 0<> if s" lila: unterminated block" lila-error then

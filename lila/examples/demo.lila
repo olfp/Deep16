@@ -27,3 +27,15 @@ for i = 1, 10 do
   total = total + i
 end
 print(total)
+
+-- functions and procedures
+function square(v)
+  return v * v
+end
+print(square(7))
+
+function addto(v)
+  total = total + v
+end
+addto(5)
+print(total)

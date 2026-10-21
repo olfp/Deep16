@@ -57,5 +57,37 @@ lila-var-fbi @ 4 check=
 lila-var-fbnest @ 33 check=
 lila-var-fbsingle @ 1 check=
 
+\ functions and procedures
+s" function add(a, b) return a + b end" lila-eval
+s" fnadd = add(2, 3)" lila-eval           lila-var-fnadd @ 5 check=
+s" fnmul = add(1, 2) * 4" lila-eval       lila-var-fnmul @ 12 check=
+s" fnnest = add(add(1, 2), 4)" lila-eval  lila-var-fnnest @ 7 check=
+s" function fortytwo() return 42 end" lila-eval
+s" fnzero = fortytwo()" lila-eval         lila-var-fnzero @ 42 check=
+s" function inc(p) p = p + 1 ; return p end" lila-eval
+s" fnp = inc(6)" lila-eval                lila-var-fnp @ 7 check=
+s" fnproc = 0" lila-eval
+s" function bump(n) fnproc = fnproc + n end" lila-eval
+s" bump(5)" lila-eval
+s" bump(2)" lila-eval                     lila-var-fnproc @ 7 check=
+s" if fortytwo() > 0 then fncond = 1 else fncond = 0 end" lila-eval
+lila-var-fncond @ 1 check=
+s" function double(x) return x * 2 end" lila-eval
+s" function quad(x) return double(double(x)) end" lila-eval
+s" fnquad = quad(3)" lila-eval            lila-var-fnquad @ 12 check=
+
+\ functions loaded from a file
+lila-var-ffnadd @   5 check=
+lila-var-ffnquad @  12 check=
+lila-var-ffnsum @   10 check=
+lila-var-ffnfirst @ 4 check=
+lila-var-ffnclass @ -1 check=
+lila-var-ffnfind @  400 check=
+lila-var-ffnbrk @   6 check=
+lila-var-fntotal @  8 check=
+lila-var-ffnproc @  0 check=
+lila-var-ffnnothing @ 0 check=
+lila-var-ffnlater @ 7 check=
+
 ." lila tests passed" cr
 bye
