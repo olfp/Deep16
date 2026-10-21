@@ -135,13 +135,14 @@ What is in it:
 - **Resources.** The default build bakes the packed image into BSRAM: Logic
   8,173 / 8,640 (95 %), CLS 4,211 / 4,320 (98 %), registers 2,577 / 6,771,
   **BSRAM 20/26** (16 packed image + 2 cache + 2 screen), 0 TNS.
-- **User-flash build (SRAM-verified; config-flash persistence open).** `npm run synth:flash` moves the
+- **User-flash build (verified, persistent).** `npm run synth:flash` moves the
   boot image to the on-die 608 Kbit user flash: **BSRAM 4/26 (22 free)**, CLS
   4,303/4,320 (100 %), Logic 8,288. The one-time `npm run synth:installer`
-  bitstream writes the image. The installer is loaded to SRAM (`-m`) and must show LED1 PASS; the final build
-  boots in SRAM. Writing the final to the external config flash (`-f`) currently
-  makes the next power-up unresponsive; that is being investigated. The packed
-  build remains the persistent default; see `USERFLASH.md`.
+  bitstream writes the image. The installer is loaded to SRAM (`-m`) and must show LED1 PASS; the persistent
+  final configuration is `deep16_board_flash.bin` written with the Gowin
+  Programmer (External Flash). Do not use `openFPGALoader -f` on the USER_FLASH
+  `.fs`; the packed build remains the openFPGALoader-friendly fallback. See
+  `USERFLASH.md`.
 
 Build and flash (vendor toolchain for the bitstream):
 

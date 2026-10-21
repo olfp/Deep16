@@ -1,43 +1,36 @@
 # User-flash boot loader
 
-Status: **SRAM boot verified; config-flash persistence under investigation.**
-Installer LED1 PASS and the final USER_FLASH build boots correctly when loaded
-with `-m`. Writing the final build to the external configuration flash (`-f`)
-makes the board unresponsive on the next power-up. The packed-BSRAM build is the
-persistent default and the fallback.
+Status: **verified, and persistent on the board.**
 
-> **Keep the two-stage order:** the installer is an **SRAM-only** step (`-m`);
-> its LED1 must be steady PASS before the final build is tried, and the final
-> build must be tried in SRAM (`-m`) before it is written to the config flash
-> (`-f`). A bad header/CRC holds the core (no UART, LEDs off), which looks like
-> a dead board but is not. The recovery command is
-> `openFPGALoader -f fpga/gowin/impl/pnr/deep16_board.fs`.
+The working path is:
 
-The boot image normally lives in 16 BSRAM blocks, which is why the image is
-range-packed. This path moves it to the **on-die 608 Kbit user flash**
-(`FLASH608K`, 76 KB) instead. The final bitstream then has **4/26 BSRAM**
-(cache 2 + DVI 2), leaving **22 blocks free**.
+```sh
+# 1. install the image once (SRAM, volatile)
+openFPGALoader -m fpga/gowin/impl/pnr/deep16_installer.fs
+#    LED1 steady = PASS
 
-## Why there are two bitstreams
-
-The FLASH608K has **no initial value**, and the Gowin programmer cannot write
-it: only FPGA logic can reach it (UG295). So the image needs a one-time
-**installer**:
-
-```
-1. npm run synth:installer
-   openFPGALoader -m fpga/gowin/impl/pnr/deep16_installer.fs
-      -> erases 25 pages, programs 12,352 words, verifies
-      -> LED1 steady = PASS, LED2 steady = FAIL
-2. npm run synth:flash
-   openFPGALoader -f fpga/gowin/impl/pnr/deep16_board_flash.fs
-      -> the machine boots from the user flash
+# 2. persistent final configuration:
+#    Gowin Programmer -> External Flash -> fpga/gowin/impl/pnr/deep16_board_flash.bin
+#    power cycle -> LED0 slow blink, terminal + DVI live
 ```
 
-The installer is loaded to **SRAM** (`-m`), so it does not persist; the final
-bitstream goes to the configuration flash (`-f`). The user flash keeps the image
-across reconfiguration and power cycles. If the kernel changes, rebuild and
-re-run the installer once.
+`deep16_board_flash.bin` (the raw 444 KB bitstream) is the file to write to the
+external configuration flash. **Do not use `openFPGALoader -f` with the
+USER_FLASH `.fs`:** the `.fs` package contains the user-flash section, so that
+write erases/overwrites the on-die image and leaves the config boot broken
+(LED0 off, no UART). The packed `deep16_board.fs` is fine with
+`openFPGALoader -f` because it has no user-flash section; it remains the
+fallback.
+
+SRAM tests remain useful:
+
+```sh
+openFPGALoader -m fpga/gowin/impl/pnr/deep16_board_flash.fs   # volatile test
+```
+
+The user flash keeps the image across reconfiguration and power cycles. If the
+kernel/image changes, re-run the installer (`-m`); the persistent `.bin` only
+needs replacing if the loader/RTL changes.
 
 ## Image format
 
@@ -122,42 +115,14 @@ fpga/gowin/deep16_board_flash.*  final project
 ```
 
 
-## Config-flash persistence (open issue)
+## Two fixes that made it work
 
-`-m` (SRAM) works. `-f` (external config flash) followed by a power cycle does
-not. The bitstream is the same, so the difference is in the config-boot path or
-the loader's first read after a cold configuration.
-
-The final build now reports on LED0:
-
-| LED0 | meaning |
-|---|---|
-| slow blink | booted |
-| fast blink | loader still working (PSRAM init or flash read not finished) |
-| steady lit | boot error (user-flash header/CRC/verify failed) |
-| off | FPGA did not configure from the config flash |
-
-Diagnostic order:
-
-1. `-f` the packed `deep16_board.fs`; power cycle. If that boots, the config
-   flash path is healthy and only the USER_FLASH bitstream is affected.
-2. `-f` the final `deep16_board_flash.fs`; power cycle; note LED0.
-3. Load the final with `-m` again. If it still boots, the user flash survived;
-   if not, the user flash was erased/invalidated by the config boot.
-4. Load the installer with `-m`; LED1 PASS means the user flash is still valid
-   and writable, LED2 means it is not.
-
-## The board sequence that worked
-
-```sh
-openFPGALoader -m fpga/gowin/impl/pnr/deep16_installer.fs   # LED1 PASS, ~4 s
-openFPGALoader -m fpga/gowin/impl/pnr/deep16_board_flash.fs # first test
-openFPGALoader -f fpga/gowin/impl/pnr/deep16_board_flash.fs # persist
-```
-
-The read cycle fix was the key: SE low pulse, SE high, Tacc and a 10 us
-recovery (UG295 figure 3-7); the write order is figure 3-8. Without the SE
-pulse the installer's read-back failed with LED2.
+1. **Read cycle:** SE low pulse, SE high, Tacc and a 10 us recovery (UG295
+   figure 3-7); the write order is figure 3-8. Without the SE pulse the
+   installer's read-back failed with LED2.
+2. **Configuration medium:** the `.fs` user-flash section must not be used for
+   the external flash write. The `.bin` with the Gowin Programmer leaves the
+   installed image alone and boots.
 
 ## If the board looks dead
 
