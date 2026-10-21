@@ -31,6 +31,9 @@ export const FILL   = 0xFFFF;      // the halt word, everywhere unused (§6.1)
 export const IMG_BLOCK_WORDS = 0x4000; // 16 BSRAM blocks: the packed-image budget
 export const BIOS_BASE  = 0x5600;  // must match asm/forth.asm and D16MINI.md §3
 export const STACK_BASE = 0x5800;  // RSTACK_TOP: the dictionary stays below it
+export const FLASH_MAGIC  = 0x44313646; // 'D16F', first 32-bit word of the flash header
+export const FLASH_FORMAT = 1;         // header format
+export const FLASH_HDR_WORDS = 64;     // 32-bit words reserved before the image
 export const ECHO_FLAG  = 0xF0064; // the kernel's echo cell: outside the window,
                                    // so the board neither backs nor decodes it
                                    // (D16MINI.md §6.4) - it is expected here
@@ -171,6 +174,47 @@ export function checkPacked(img, packed) {
 }
 
 
+// CRC-16/CCITT-FALSE over the flat image, low byte then high byte of each
+// 16-bit word, MSB first inside each byte. The RTL loader uses exactly this.
+export function crc16Bytes(bytes) {
+  let crc = 0xFFFF;
+  for (const b of bytes) {
+    crc ^= (b & 0xFF) << 8;
+    for (let i = 0; i < 8; i++) {
+      crc = ((crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1)) & 0xFFFF;
+    }
+  }
+  return crc & 0xFFFF;
+}
+
+export function crc16(words) {
+  const bytes = [];
+  for (const w of words) bytes.push(w & 0xFF, (w >> 8) & 0xFF);
+  return crc16Bytes(bytes);
+}
+
+// The user-flash image: a 64-word header, then the flat 16-bit image packed
+// two words per 32-bit flash word. Header word 0 = magic, 1 = format,
+// 2 = image words, 3 = CRC16, 4 = build id (0), 5..7 = reserved.
+export function flashImage(img) {
+  const crc = crc16(img.words);
+  const words = new Uint32Array(FLASH_HDR_WORDS + img.words.length / 2);
+  words[0] = FLASH_MAGIC;
+  words[1] = FLASH_FORMAT;
+  words[2] = img.words.length;
+  words[3] = crc;
+  words[4] = parseInt(img.build.slice(0, 8), 16) >>> 0;
+  words[5] = 0; words[6] = 0; words[7] = 0;
+  for (let i = 0; i < img.words.length; i += 2) {
+    words[FLASH_HDR_WORDS + i / 2] = (img.words[i] | (img.words[i + 1] << 16)) >>> 0;
+  }
+  return { words, crc };
+}
+
+export function flashHex(flash) {
+  return Array.from(flash.words).map((w) => w.toString(16).padStart(8, '0')).join('\n') + '\n';
+}
+
 export function manifest(img) {
   const pack = packImage(img);
   return JSON.stringify({
@@ -191,6 +235,12 @@ export function manifest(img) {
       words: pack.words.length,
       blocks: Math.ceil(pack.words.length / 1024),
       ranges: pack.ranges.length,
+    },
+    flash: {
+      format: '64-word header, then flat image, two 16-bit words per 32-bit word',
+      words: flashImage(img).words.length,
+      header_words: FLASH_HDR_WORDS,
+      crc16: `0x${flashImage(img).crc.toString(16).padStart(4, '0')}`,
     },
   }, null, 2) + '\n';
 }
@@ -222,6 +272,8 @@ if (isMain) {
     // the image so the Gowin include path and the board sims both find it.
     fs.copyFileSync(path.join(ROOT, 'rtl', 'dvi', 'font8x15.hex'),
                     path.join(outDir, 'font8x15.hex'));
+    // User-flash image for the installer / preloaded flash model.
+    fs.writeFileSync(path.join(outDir, 'image.flash.hex'), flashHex(flashImage(img)));
   }
   const kb = (img.words.length * 2 / 1024).toFixed(0);
   console.log(`boot image: ${img.words.length} words (${kb} KiB), fill 0xFFFF, build ${img.build}`);
@@ -230,6 +282,8 @@ if (isMain) {
   const pack = packImage(img);
   console.log(`  packed: ${pack.ranges.length} ranges, ${pack.words.length} words ` +
               `(${Math.ceil(pack.words.length / 1024)} BSRAM blocks of ${IMG_BLOCK_WORDS / 1024})`);
-  if (!check) console.log(`  wrote ${path.relative(ROOT, outDir)}/image{,-packed}.hex, image.mi, image.manifest.json`);
+  const flash = flashImage(img);
+  console.log(`  user flash: ${flash.words.length} x 32-bit words, CRC16 0x${flash.crc.toString(16).padStart(4, '0')}`);
+  if (!check) console.log(`  wrote ${path.relative(ROOT, outDir)}/image{,-packed}.hex, image.mi, image.flash.hex, image.manifest.json`);
   else console.log('  --check: nothing written');
 }

@@ -93,7 +93,9 @@ module deep16_top
 `endif
   localparam int ADDR_BITS = $clog2(RAM_WORDS);
 
+`ifndef USER_FLASH
   reg [15:0] mem [0:RAM_WORDS-1] /*verilator public*/;
+`endif
 
   // Everything the board does not back reads the fill and drops its writes -
   // including the kernel's echo cell at 0xF0064 (D16MINI.md §6.4): on the board
@@ -238,6 +240,7 @@ module deep16_top
   // image: the configuration bitstream loads it before the first clock (§6.2.1),
   // so there is no runtime copy and no loader.
 `ifdef D16MINI
+`ifndef USER_FLASH
   initial begin
     // The image is the *whole* window - the generator fills every unused word
     // with 0xFFFF before it lays the kernel down - so there is no fill loop
@@ -254,6 +257,7 @@ module deep16_top
     $readmemh("image.hex", mem);
 `endif
   end
+`endif
 `else
   initial begin
     for (int i = 0; i < RAM_WORDS; i++) mem[i] = 16'hFFFF;
@@ -286,6 +290,7 @@ module deep16_top
   // to the same address would read the *old* word. Stepped runs never see it (the
   // store has retired), free-run does, so the read result is bypassed from the
   // store here.
+`ifndef USER_FLASH
   wire        ram_rd_data = mem_rd;
   wire [20:0] ram_raddr   = ram_rd_data ? mem_addr : if_addr;
   wire        ram_hit     = ram_rd_data && mem_we && (mem_waddr == mem_addr);
@@ -322,18 +327,25 @@ module deep16_top
       mem[mem_waddr[ADDR_BITS-1:0]] <= mem_wdata;
 `endif
   end
+`endif
 
 `ifdef PSRAM
   // ---- PSRAM backing store (board build) --------------------------------
   // The BSRAM array stays as the boot image; this copies it into PSRAM, then
   // serves the core one transaction at a time through the bridge.
+`ifndef USER_FLASH
   logic [13:0] img_addr;              // packed image: 16,384 words
   logic [15:0] img_q;
   always_ff @(posedge clk) img_q <= mem[img_addr];
+`endif
 
   deep16_psram_mem u_psram_mem (
     .clk_cpu(clk), .rst(rst), .clk_ip(psram_clk), .ctl_dout_valid(1'b0),
+`ifdef USER_FLASH
+    .img_addr(), .img_data(16'd0),
+`else
     .img_addr(img_addr), .img_data(img_q),
+`endif
     .if_addr(if_addr), .if_rdata(if_rdata), .if_preempted(if_preempted),
     .mem_addr(mem_addr), .mem_rd(mem_rd), .mem_rdata(mem_rdata),
     .mem_we(mem_we), .mem_waddr(mem_waddr), .mem_wdata(mem_wdata),

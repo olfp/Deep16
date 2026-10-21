@@ -1,0 +1,15 @@
+<?xml version="1" encoding="UTF-8"?>
+<!DOCTYPE gowin-fpga-project>
+<Project>
+    <Template>FPGA</Template>
+    <Version>5</Version>
+    <Device name="GW1NR-9C" pn="GW1NR-LV9QN88PC6/I5">gw1nr9c-004</Device>
+    <FileList>
+        <File path="d16install.sv" type="file.verilog" enable="1"/>
+        <File path="../../rtl/flash/flash608k_core.sv" type="file.verilog" enable="1"/>
+        <File path="../../rtl/flash/flash608k_ctrl.sv" type="file.verilog" enable="1"/>
+        <File path="../../rtl/flash/flash_installer.sv" type="file.verilog" enable="1"/>
+        <File path="deep16_installer.cst" type="file.cst" enable="1"/>
+        <File path="deep16_installer.sdc" type="file.sdc" enable="1"/>
+    </FileList>
+</Project>

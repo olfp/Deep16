@@ -8,8 +8,10 @@
 > and a black-and-white mirror of the same terminal on the HDMI connector
 > (80x24 cells in 640x480@60). The boot image is range-packed (16 BSRAM blocks),
 > and cache fills use a two-word HyperRAM burst. Logic 8,173/8,640, CLS
-> 4,211/4,320 (98%), BSRAM 20/26. The BRAM-only machine this document was
-> written around is preserved at tag `v0.13.5mhz`.
+> 4,211/4,320 (98%), BSRAM 20/26. An optional user-flash build moves the image
+> to the on-die 608 Kbit flash (BSRAM 4/26, 22 free; see `USERFLASH.md`). The
+> BRAM-only machine this document was written around is preserved at tag
+> `v0.13.5mhz`.
 >
 > The sections below are the original plan and history; where they say "no PSRAM,
 > no cache" they describe the 0.13 machine. The 1.0 memory map is in README's

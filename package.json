@@ -22,7 +22,11 @@
     "synth:board": "bash scripts/synth_board.sh",
     "synth:gowin": "bash scripts/build_gowin.sh",
     "flash": "bash scripts/flash_board.sh",
-    "sim:dvi": "bash scripts/build_dvi_sim.sh"
+    "sim:dvi": "bash scripts/build_dvi_sim.sh",
+    "synth:installer": "bash scripts/build_installer.sh",
+    "synth:flash": "bash scripts/build_gowin_flash.sh",
+    "sim:flash": "bash scripts/build_flash_sim.sh",
+    "sim:installer": "bash scripts/build_installer_sim.sh"
   },
   "devDependencies": {
     "puppeteer-core": "^25.14.0"

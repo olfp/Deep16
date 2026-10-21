@@ -1,0 +1,110 @@
+# User-flash boot loader
+
+Status: **implemented and simulated; board installation pending.**
+
+The boot image normally lives in 16 BSRAM blocks, which is why the image is
+range-packed. This path moves it to the **on-die 608 Kbit user flash**
+(`FLASH608K`, 76 KB) instead. The final bitstream then has **4/26 BSRAM**
+(cache 2 + DVI 2), leaving **22 blocks free**.
+
+## Why there are two bitstreams
+
+The FLASH608K has **no initial value**, and the Gowin programmer cannot write
+it: only FPGA logic can reach it (UG295). So the image needs a one-time
+**installer**:
+
+```
+1. npm run synth:installer
+   openFPGALoader -m fpga/gowin/impl/pnr/deep16_installer.fs
+      -> erases 25 pages, programs 12,352 words, verifies
+      -> LED1 steady = PASS, LED2 steady = FAIL
+2. npm run synth:flash
+   openFPGALoader -f fpga/gowin/impl/pnr/deep16_board_flash.fs
+      -> the machine boots from the user flash
+```
+
+The installer is loaded to **SRAM** (`-m`), so it does not persist; the final
+bitstream goes to the configuration flash (`-f`). The user flash keeps the image
+across reconfiguration and power cycles. If the kernel changes, rebuild and
+re-run the installer once.
+
+## Image format
+
+`scripts/make_image.mjs` writes `image.flash.hex`:
+
+```
+32-bit word 0..7   header
+  0  magic 'D16F' (0x44313646)
+  1  format 1
+  2  image length in 16-bit words (24,576)
+  3  CRC-16/CCITT-FALSE over the flat image
+  4  build id (first 32 bits of the source hash)
+  5..7 reserved
+word 64..12351    the flat image, two 16-bit words per 32-bit flash word
+```
+
+The image is 48 KB; the user flash is 76 KB (304 rows x 64 x 32 bits). The
+installer uses rows 0..192, i.e. **25 pages of 2 KB**; the rest stays free.
+
+## Boot loader
+
+`rtl/flash/flash_boot.sv` runs after the cache tags are cleared:
+
+1. read the 8-word header and check magic/format/length;
+2. copy 12,288 32-bit flash words as 24,576 PSRAM words, computing the same
+   CRC-16 as the generator;
+3. compare the CRC, then read every flash word back and compare it with PSRAM;
+4. one retry on the first mismatch; a bad header/CRC or a persistent mismatch
+   sets `boot_err` and the core stays held (heartbeat steady, nothing boots);
+5. hand the entry word (0x0100) to the cache path, which releases the core.
+
+Measured in `psram_boot_tb`: **boot_done at 72.8 ms**, second boot after a button
+reset OK, `boot_err=0`.
+
+The flash controller (`flash608k_ctrl.v`) follows the sequence in Gowin's own
+FLASH608K simulation model: PROG/ERASE leads, NVSTR is the data-storage level,
+YE is the write pulse; erase is 120 ms per page.
+
+## Installer
+
+`rtl/flash/flash_installer.sv` is a standalone top with the `image.flash.hex`
+ROM. It has no CPU and no PSRAM: erase 25 pages, program 12,352 words (each one
+16 us), then compare all of them. The 32-bit ROM uses all 26 BSRAM blocks of the
+installer bitstream (one-time build, so that is fine).
+
+LEDs are active low: 0 blinks while working, 1 steady = PASS, 2 steady = FAIL.
+
+## Simulation
+
+```
+npm run sim:installer   # blank model -> program -> PASS + header/image check
+npm run sim:flash       # preloaded model -> boot -> second boot
+```
+
+Both use `rtl/flash/flash608k_model.sv`; the Gowin builds use the hard
+`FLASH608K` primitive.
+
+## Fit
+
+| Build | BSRAM | CLS | Logic |
+|---|---:|---:|---:|
+| packed BSRAM (baseline) | 20/26 | 4,211/4,320 | 8,173/8,640 |
+| **user flash (final)** | **4/26** | 4,304/4,320 (100%) | 8,353/8,640 (97%) |
+| installer (one-time) | 26/26 | 3,444/4,320 (80%) | 6,648/8,640 (77%) |
+
+The final build trades the CLS margin for **22 free BSRAM blocks**: only **16 CLS** remain. The flash loader/CRC cost 93 CLS over the packed baseline. The colour
+mode now has the blocks it needs; the remaining constraint is CLS.
+
+## Files
+
+```
+rtl/flash/flash608k_model.sv     behavioural FLASH608K (Verilator)
+rtl/flash/flash608k_core.sv      primitive/model wrapper
+rtl/flash/flash608k_ctrl.sv      read / program / page-erase timing
+rtl/flash/flash_boot.sv          boot copy + CRC + verify
+rtl/flash/flash_installer.sv     one-time installer top
+fpga/gowin/d16install.sv         installer defines
+fpga/gowin/d16flash.sv           final build defines (USER_FLASH)
+fpga/gowin/deep16_installer.*    installer project
+fpga/gowin/deep16_board_flash.*  final project
+```

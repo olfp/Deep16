@@ -42,3 +42,6 @@ obj_psram_boot/
 obj_uart_fifo/
 obj_dvi_text/
 obj_tmds/
+obj_flash/
+obj_flash_install/
+obj_psram_flash/

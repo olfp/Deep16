@@ -69,6 +69,25 @@ module deep16_psram_mem #(
 
   logic init_ok_ctl;
 
+`ifdef USER_FLASH
+  // The flash boot loader shares the PSRAM bridge while the machine is held.
+  logic        fb_start, fb_done, fb_err;
+  logic [15:0] fb_entry;
+  logic        fb_breq, fb_bwe;
+  logic [19:0] fb_baddr;
+  logic [15:0] fb_bwdata;
+  logic        boot_active_q;
+  wire         breq_m  = boot_active_q ? fb_breq  : breq;
+  wire         bwe_m   = boot_active_q ? fb_bwe   : bwe;
+  wire  [19:0] baddr_m = boot_active_q ? fb_baddr : baddr;
+  wire  [15:0] bwdata_m= boot_active_q ? fb_bwdata: bwdata;
+`else
+  wire         breq_m  = breq;
+  wire         bwe_m   = bwe;
+  wire  [19:0] baddr_m = baddr;
+  wire  [15:0] bwdata_m= bwdata;
+`endif
+
   // `rst` is synchronous to clk_cpu. The controller domain needs the deassert
   // synchronised to its own clock, or the async reset inputs are timed as data
   // paths across the two domains (Gowin reports them as setup/hold violations).
@@ -78,7 +97,7 @@ module deep16_psram_mem #(
   psram_word_bridge u_bridge (
     .clk_cpu(clk_cpu), .rst_cpu(rst),
     .clk_ctl(clk_ip),  .rst_ctl(rst_ip_sync[1]),
-    .req(breq), .we(bwe), .burst(breq_burst), .addr(baddr), .wdata(bwdata),
+    .req(breq_m), .we(bwe_m), .burst(breq_burst), .addr(baddr_m), .wdata(bwdata_m),
     .rdata(brdata), .rdata2(brdata2), .ready(bready), .busy(bbusy),
     .ctl_read(ctl_read), .ctl_write(ctl_write), .ctl_burst(ctl_burst),
     .ctl_addr(ctl_addr), .ctl_din(ctl_din), .ctl_dout(ctl_dout),
@@ -131,9 +150,20 @@ module deep16_psram_mem #(
     S_PRESENT    = 5'd22, S_STORE_CACHE = 5'd23,
     S_STORE      = 5'd24, S_STORE_W = 5'd25,
     S_FLUSH      = 5'd26, S_INIT    = 5'd27,
-    S_FILL_WR2   = 5'd28;
+    S_FILL_WR2   = 5'd28,
+    S_FSTART     = 5'd29, S_FBOOT   = 5'd30, S_FERR = 5'd31;
 
   logic [4:0]  st;
+
+`ifdef USER_FLASH
+  flash_boot #(.CLK_HZ(13_500_000)) u_flash_boot (
+    .clk(clk_cpu), .rst(rst), .start(fb_start),
+    .done(fb_done), .err(fb_err), .entry_exp(fb_entry),
+    .breq(fb_breq), .bwe(fb_bwe), .baddr(fb_baddr), .bwdata(fb_bwdata),
+    .brdata(brdata), .bready(bready), .bbusy(bbusy)
+  );
+`endif
+
   logic [14:0] bi;              // destination index (0..IMG_WORDS-1)
   logic [13:0] src;             // payload cursor in the packed image
   logic [4:0]  count;           // ranges in the packed image
@@ -197,12 +227,44 @@ module deep16_psram_mem #(
       op_addr <= 20'd0; op_wdata <= 16'd0; rd_q <= 16'd0;
       store_lat <= 0; store_addr <= 20'd0; store_data <= 16'd0;
       img_addr <= 14'd0;
+`ifdef USER_FLASH
+      boot_active_q <= 1'b0; fb_start <= 1'b0;
+`endif
       hit_count <= 32'd0; miss_count <= 32'd0;
     end else begin
       case (st)
         // ---- wait for the controller's power-on init --------------------
-        S_INIT: if (init_s) st <= S_CNT_SET;
+        S_INIT: if (init_s) begin
+`ifdef USER_FLASH
+          st <= S_FSTART;
+`else
+          st <= S_CNT_SET;
+`endif
+        end
 
+`ifdef USER_FLASH
+        // ---- flash boot: the image lives in the on-die FLASH608K --------
+        S_FSTART: begin
+          boot_active_q <= 1'b1;
+          fb_start <= 1'b1;
+          st <= S_FBOOT;
+        end
+        S_FBOOT: begin
+          fb_start <= 1'b0;
+          if (fb_done) begin
+            boot_active_q <= 1'b0;
+            entry_exp <= fb_entry;
+            st <= S_VER;
+          end else if (fb_err) begin
+            boot_active_q <= 1'b0;
+            boot_err <= 1'b1;
+            st <= S_FERR;
+          end
+        end
+        S_FERR: st <= S_FERR;
+`endif
+
+`ifndef USER_FLASH
         // ---- packed image header: count and range table ------------------
         S_CNT_SET: begin
           img_addr <= 14'd0;                 // word 0 is the range count
@@ -311,6 +373,8 @@ module deep16_psram_mem #(
             st <= S_DECIDE;
           end
         end
+
+`endif
 
         // ---- tag clear (boot) and flush (FSH) --------------------------
         S_CLR: begin

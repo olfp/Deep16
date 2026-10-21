@@ -132,9 +132,13 @@ What is in it:
   60) as black-and-white DVI. It parses the ANSI the kernel emits, scrolls with a
   circular row offset and draws a block cursor. Two BSRAM blocks; no CPU cost and
   no PSRAM traffic. `ver` works as usual, and `FORTH.md` has the word list.
-- **Resources.** Logic 8,173 / 8,640 (95 %), CLS 4,211 / 4,320 (98 %), registers
-  2,577 / 6,771, **BSRAM 20/26** (16 packed image + 2 cache + 2 screen),
-  0 TNS on the clocked domains. The 109-CLS margin is the next constraint.
+- **Resources.** The default build bakes the packed image into BSRAM: Logic
+  8,173 / 8,640 (95 %), CLS 4,211 / 4,320 (98 %), registers 2,577 / 6,771,
+  **BSRAM 20/26** (16 packed image + 2 cache + 2 screen), 0 TNS.
+- **User-flash build (optional).** `npm run synth:flash` moves the boot image
+  to the on-die 608 Kbit user flash: **BSRAM 4/26 (22 free)**, CLS 4,304/4,320
+  (100 %), Logic 8,353. The one-time `npm run synth:installer` bitstream writes
+  the image; see `USERFLASH.md`.
 
 Build and flash (vendor toolchain for the bitstream):
 

@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildImage, checkImage, imageHex, packImage, expandImage, checkPacked,
+         crc16Bytes, crc16, flashImage, flashHex, FLASH_MAGIC, FLASH_FORMAT, FLASH_HDR_WORDS,
          IMG_BLOCK_WORDS, WINDOW, FILL, BIOS_BASE, STACK_BASE, ECHO_FLAG }
   from '../scripts/make_image.mjs';
 import { assemble, loadBrowserScripts, ROOT } from './helpers.js';
@@ -92,4 +93,26 @@ test('the packed image fits 16 BSRAM blocks', () => {
 test('checkPacked rejects an image over the block budget', () => {
   const huge = { words: Array(WINDOW).fill(0x1234), ranges: Array(WINDOW).fill([0, 0]) };
   assert.throws(() => checkPacked(img, huge), /over the/);
+});
+
+test('CRC-16/CCITT-FALSE matches the standard check value', () => {
+  assert.equal(crc16Bytes([...Buffer.from('123456789')]), 0x29B1);
+  // The 16-bit-word form processes low byte then high byte.
+  assert.equal(crc16([0x3231, 0x3433, 0x3635, 0x3837]), crc16Bytes([...Buffer.from('12345678')]));
+});
+
+test('the user-flash image has a header and round-trips the flat image', () => {
+  const flash = flashImage(img);
+  assert.equal(flash.words.length, FLASH_HDR_WORDS + WINDOW / 2);
+  assert.equal(flash.words[0], FLASH_MAGIC);
+  assert.equal(flash.words[1], FLASH_FORMAT);
+  assert.equal(flash.words[2], WINDOW);
+  assert.equal(flash.words[3], flash.crc);
+  for (let i = 0; i < WINDOW; i += 2) {
+    const w = flash.words[FLASH_HDR_WORDS + i / 2];
+    assert.equal(w & 0xFFFF, img.words[i], `low half ${i}`);
+    assert.equal((w >>> 16) & 0xFFFF, img.words[i + 1], `high half ${i}`);
+  }
+  const parsed = flashHex(flash).trim().split('\n').map((h) => parseInt(h, 16));
+  assert.deepEqual(parsed, Array.from(flash.words));
 });

@@ -4,7 +4,9 @@ Target: DVI (4 TMDS pairs, second rPLL free) at **640×480@60**, pixel clock
 25.2 MHz (27 MHz x 14/3/5), 252 Mbit/s per lane. Active text area **640×360** =
 80 columns x 24 rows of **8×15** cells, centred with borders.
 
-Budget today: **109 CLS free**, 20/26 BSRAM (2 used by the DVI console).
+Budget today: **109 CLS free**, 20/26 BSRAM in the default build. With the
+user-flash loader (`USERFLASH.md`): **4/26 BSRAM (22 free)**, but only 16 CLS
+free.
 
 ## a) Black and white text, 8×15 — **implemented**
 
@@ -48,8 +50,7 @@ tile reads (2 words per cell row) + 640 palette lookups (one per pixel) = ~840
 BSRAM reads against 1,600 slots at 50 MHz — **52 %**, feasible at 1 read per
 pixel with a 2:1 BSRAM-to-pixel clock ratio.
 
-Verdict: **96-tile indexed colour fits the block budget exactly** (6 of the 6
-free blocks after B/W text took 2), **but not the area**: 220–280 CLS against
-109 free. 256 tiles needs 11 blocks, so it needs either a smaller tile bank, a
-coarser tile format, or the user-flash loader (which would free the 16 image
-blocks). B/W text is working; colour needs an area diet first.
+Verdict: the user-flash build gives the colour mode its **blocks** (6 of 22
+free) but not its **area**: 220–280 CLS against 16 free. 256 tiles needs 11
+blocks, so it has the blocks too. B/W text is working; colour needs a CLS diet
+first, independent of where the boot image lives.
