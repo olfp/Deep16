@@ -112,3 +112,16 @@ fit alongside this without a diet).
 doubled to 15 rows. Two rows share one 16-bit word; the low byte is the even
 row, the high byte the odd row, MSB leftmost. 96 glyphs (0x20..0x7F), 8 words
 per glyph.
+
+Any 8x15 BDF can replace it:
+
+```
+node scripts/bdf_to_font.mjs font.bdf rtl/dvi/font8x15.hex
+npm run synth:gowin
+```
+
+The converter centres a shorter bitmap vertically. A good candidate is
+`ntwk/nixedsys-font` (8x15, 384 glyphs, 96 printable ASCII), but that repository
+has **no licence file** (GitHub reports `license: null`), so it should not be
+committed here without the author's permission. `scripts/bdf_to_font.mjs` only
+converts a file it is given; the licence stays the caller's responsibility.
