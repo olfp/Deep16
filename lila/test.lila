@@ -1,0 +1,30 @@
+-- LILA file-loader test program
+fx = 2
+fy = fx + 3
+print(fy)
+
+if fx > 0 then
+  fsum = 0
+  fi = 0
+  while fi < 3 do
+    fsum = fsum + fi
+    fi = fi + 1
+  end
+else
+  fsum = -1
+end
+print(fsum)
+
+if fx < 0 then fneg = 1 else fneg = 0 end
+print(fneg)
+
+-- nested multi-line blocks: if inside while
+fmax = 0
+fj = 0
+while fj < 3 do
+  if fj > fmax then
+    fmax = fj
+  end
+  fj = fj + 1
+end
+print(fmax)

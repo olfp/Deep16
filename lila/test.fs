@@ -23,5 +23,13 @@ s" i = 0" lila-eval
 s" while i < 3 do i = i + 1 end" lila-eval          lila-var-i @ 3 check=
 s" if i > 0 then j = 2 ; k = j + 1 end" lila-eval  lila-var-k @ 3 check=
 
+\ file loader: multi-line if/else, nested while, comments, single-line blocks
+s" lila/test.lila" lila-load
+lila-var-fy @    5 check=
+lila-var-fsum @  3 check=
+lila-var-fi @    3 check=
+lila-var-fneg @  0 check=
+lila-var-fmax @  2 check=
+
 ." lila tests passed" cr
 bye

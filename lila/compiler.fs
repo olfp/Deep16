@@ -4,18 +4,27 @@
 \ Forth variables named `lila-var-<name>`, so LILA names do not collide with
 \ the host Forth word set.
 
-create lila-buf 512 allot
+create lila-buf 4096 allot
 create lila-lhs 256 allot
 create lila-name 256 allot
 create tok-buf 64 allot
 variable tok-len
 create op-stack 64 allot
 variable op-top
-create code-buf 1024 allot
+create code-buf 65536 allot
+variable code-len
+variable lila-fid
+create line-buf 65536 allot
+create block-stack 64 allot
+variable block-top
 
-: code-reset ( -- )  0 code-buf c! ;
-: code+ ( c-addr u -- )  code-buf +place ;
-: code-eval ( -- )  code-buf count evaluate ;
+: code-reset ( -- )  0 code-len ! ;
+: code+ { c-addr u -- }
+  u 0> if
+    c-addr code-buf code-len @ + u move
+    code-len @ u + code-len !
+  then ;
+: code-eval ( -- )  code-buf code-len @ evaluate ;
 
 : buf-reset ( buf -- )  0 swap c! ;
 : buf+ ( c-addr u buf -- )  +place ;
@@ -257,6 +266,120 @@ create code-buf 1024 allot
   else
     2drop compile-stmt-code
   then ;
+
+: lila-error ( c-addr u -- )  cr type cr abort ;
+
+: strip-cr ( c-addr u -- c-addr' u' )
+  dup 0> if
+    2dup + 1- c@ 13 = if 1- then
+  then ;
+
+: strip-comment ( c-addr u -- c-addr' u' )
+  s" --" split-at 2drop drop trim ;
+
+: block-push ( ch -- )  block-top @ block-stack + c!  1 block-top +! ;
+: block-pop ( -- ch )  -1 block-top +!  block-top @ block-stack + c@ ;
+: block-top@ ( -- ch )
+  block-top @ 0= if 0 else block-top @ 1- block-stack + c@ then ;
+: block-set-top ( ch -- )
+  block-top @ 0= if drop else block-top @ 1- block-stack + c! then ;
+
+: lila-compile-else ( -- )
+  block-top@ [char] i <> if s" lila: else without if" lila-error then
+  s" ELSE " code+
+  [char] e block-set-top ;
+
+: lila-compile-end ( -- )
+  block-top @ 0= if s" lila: end without block" lila-error then
+  block-pop
+  dup [char] w = if drop s" REPEAT " code+ exit then
+  dup [char] i = over [char] e = or if drop s" THEN " code+ exit then
+  drop s" lila: bad block type" lila-error ;
+
+: lila-compile-if { line len -- }
+  line len 3 /string trim
+  s" then" split-at if
+    ( cond clen rest rlen )
+    2over compile-expr
+    s" IF " code+
+    2swap 2drop
+    trim
+    dup 0= if
+      2drop [char] i block-push exit
+    then
+    s" end" split-at if
+      ( body blen tail tlen )
+      2drop
+      s" else" split-at if
+        ( thenbody tlen elsebody elen )
+        2swap
+        compile-block
+        s" ELSE " code+
+        compile-block
+        s" THEN " code+
+      else
+        2drop
+        compile-block
+        s" THEN " code+
+      then
+    else
+      2drop 2drop
+      s" lila: if body must end with end or start on a new line" lila-error
+    then
+  else
+    2drop 2drop
+    s" lila: if without then" lila-error
+  then ;
+
+: lila-compile-while { line len -- }
+  line len 5 /string trim
+  s" do" split-at if
+    ( cond clen rest rlen )
+    s" BEGIN " code+
+    2over compile-expr
+    s" WHILE " code+
+    2swap 2drop
+    trim
+    dup 0= if
+      2drop [char] w block-push exit
+    then
+    s" end" split-at if
+      2drop
+      compile-block
+      s" REPEAT " code+
+    else
+      2drop 2drop
+      s" lila: while body must end with end or start on a new line" lila-error
+    then
+  else
+    2drop 2drop
+    s" lila: while without do" lila-error
+  then ;
+
+: lila-compile-line { line len -- }
+  line len strip-cr strip-comment
+  dup 0= if 2drop exit then
+  2dup s" if " string-prefix? if lila-compile-if exit then
+  2dup s" while " string-prefix? if lila-compile-while exit then
+  2dup s" else" compare 0= if 2drop lila-compile-else exit then
+  2dup s" end" compare 0= if 2drop lila-compile-end exit then
+  compile-block ;
+
+: lila-load { c-addr u -- }
+  code-reset
+  s" :noname " code+
+  0 block-top !
+  c-addr u r/o open-file throw lila-fid !
+  begin
+    line-buf 65536 lila-fid @ read-line throw
+  while
+    line-buf swap lila-compile-line
+  repeat
+  drop
+  lila-fid @ close-file throw
+  block-top @ 0<> if s" lila: unterminated block" lila-error then
+  s" ; execute" code+
+  code-eval ;
 
 : lila-if { line len -- }
   line len 3 /string trim
