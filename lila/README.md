@@ -23,7 +23,8 @@ s" lila/examples/demo.lila" lila-load
 ```
 
 `lila-load` reads a LILA source file, compiles it to Forth, and executes it.
-A single statement can also be evaluated interactively:
+A single line can also be evaluated interactively, including one-line
+`if`/`while`/`for` blocks:
 
 ```forth
 s" x = 5" lila-eval
@@ -91,8 +92,9 @@ parentheses, and unary minus.  LILA variables are prefixed in Forth as
 
 ## Limitations
 
-- `lila-eval` handles one statement or one single-line `if`/`while` block;
-  use `lila-load` for `for`, `elseif`, and `break`.
+- `lila-eval` handles one source line.  Use `lila-load` for multi-line blocks
+  and `elseif` chains.
+- `lila-eval` compiles LILA; use gforth directly to define Forth words.
 - No functions, tables, or strings yet.
 - Variables are global.
 - A variable must be assigned before it is read.

@@ -25,6 +25,12 @@ s" if x < 0 then u = 1 else u = 0 end" lila-eval   lila-var-u @ 0 check=
 s" i = 0" lila-eval
 s" while i < 3 do i = i + 1 end" lila-eval          lila-var-i @ 3 check=
 s" if i > 0 then j = 2 ; k = j + 1 end" lila-eval  lila-var-k @ 3 check=
+s" evsum = 0" lila-eval
+s" for evi = 1, 4 do evsum = evsum + evi end" lila-eval  lila-var-evsum @ 10 check=
+s" evn = 0" lila-eval
+s" while evn < 10 do evn = evn + 1 ; break end" lila-eval  lila-var-evn @ 1 check=
+s" evb = 0" lila-eval
+s" for evj = 1, 10 do evb = evb + evj ; break end" lila-eval  lila-var-evb @ 1 check=
 
 \ file loader: multi-line if/else, nested while, comments, single-line blocks
 s" lila/test.lila" lila-load

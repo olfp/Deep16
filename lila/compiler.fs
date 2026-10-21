@@ -263,31 +263,6 @@ code-buf0 code-buf !
     2drop 2drop false
   then ;
 
-: lila-assign { line len -- }
-  line len s" =" split-at if
-    ( lhs llen rhs rlen )
-    2over lila-store-lhs
-    trim transform-expr
-    s"  " lila-buf +place
-    lila-lhs count lila-buf +place
-    s"  !" lila-buf +place
-    2drop
-    lila-buf count evaluate
-  else
-    2drop 2drop
-  then ;
-
-: lila-print { line len -- }
-  line len trim
-  dup 0> if
-    over c@ [char] ( = if
-      1 /string strip-trailing-paren
-    then
-  then
-  transform-expr
-  s"  ." lila-buf +place
-  lila-buf count evaluate ;
-
 : compile-expr ( c-addr u -- )
   transform-expr
   lila-buf count code+
@@ -666,7 +641,7 @@ code-buf0 code-buf !
   2dup s" end" compare 0= if 2drop lila-compile-end exit then
   compile-block ;
 
-: lila-load { c-addr u -- }
+: lila-compile-reset ( -- )
   1 load-serial +!
   code-base
   0 defs-len !
@@ -674,7 +649,19 @@ code-buf0 code-buf !
   0 code-top !
   0 body-id-top !
   0 block-top !
-  0 for-depth !
+  0 for-depth ! ;
+
+: lila-compile-finish ( -- )
+  block-top @ 0<> if s" lila: unterminated block" lila-error then
+  for-depth @ 0<> if s" lila: unbalanced for loop" lila-error then
+  code-top @ 0<> if s" lila: code stack not empty" lila-error then
+  body-id-top @ 0<> if s" lila: body stack not empty" lila-error then
+  s" ; execute" code+
+  defs-len @ 0> if defs-buf defs-len @ evaluate then
+  code-eval ;
+
+: lila-load { c-addr u -- }
+  lila-compile-reset
   s" :noname " code+
   c-addr u r/o open-file throw lila-fid !
   begin
@@ -684,84 +671,10 @@ code-buf0 code-buf !
   repeat
   drop
   lila-fid @ close-file throw
-  block-top @ 0<> if s" lila: unterminated block" lila-error then
-  for-depth @ 0<> if s" lila: unbalanced for loop" lila-error then
-  code-top @ 0<> if s" lila: code stack not empty" lila-error then
-  body-id-top @ 0<> if s" lila: body stack not empty" lila-error then
-  s" ; execute" code+
-  defs-len @ 0> if defs-buf defs-len @ evaluate then
-  code-eval ;
-
-: lila-if { line len -- }
-  line len 3 /string trim
-  s" then" split-at if
-    s" end" split-at if
-      ( cond clen body blen tail tlen )
-      2drop
-      code-base
-      s" :noname " code+
-      2over compile-expr
-      s" IF " code+
-      s" else" split-at if
-        ( cond clen thenbody tlen elsebody elen )
-        2swap
-        compile-block
-        s" ELSE " code+
-        compile-block
-        s" THEN " code+
-        s" ; execute" code+
-        2drop
-        code-eval
-      else
-        2drop
-        compile-block
-        s" THEN " code+
-        s" ; execute" code+
-        2drop
-        code-eval
-      then
-    else
-      2drop 2drop 2drop
-    then
-  else
-    2drop 2drop
-  then ;
-
-: lila-while { line len -- }
-  line len 5 /string trim
-  s" do" split-at if
-    s" end" split-at if
-      ( cond clen body blen tail tlen )
-      2drop
-      code-base
-      s" :noname " code+
-      s" BEGIN " code+
-      2over compile-expr
-      s" WHILE " code+
-      compile-block
-      s" REPEAT " code+
-      s" ; execute" code+
-      2drop
-      code-eval
-    else
-      2drop 2drop 2drop
-    then
-  else
-    2drop 2drop
-  then ;
+  lila-compile-finish ;
 
 : lila-eval { line len -- }
-  line len trim
-  2dup s" if " string-prefix? if
-    lila-if exit
-  then
-  2dup s" while " string-prefix? if
-    lila-while exit
-  then
-  2dup s" print" string-prefix? if
-    5 /string trim lila-print exit
-  then
-  2dup assignment? if
-    lila-assign exit
-  then
-  evaluate ;
+  lila-compile-reset
+  s" :noname " code+
+  line len lila-compile-line
+  lila-compile-finish ;
