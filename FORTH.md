@@ -622,7 +622,7 @@ screen.
 | `echo` | `( flag -- )` | turn keyboard echo on (`-1`) or off (`0`) |
 | `echo?` | `( -- flag )` | keyboard echo state |
 | `form` | `( -- rows cols )` | the screen's shape: `24` rows, `80` columns |
-| `.r` | `( n width -- )` | print `n` right-aligned in `width` columns, then a space |
+| `.r` | `( n width -- )` | print `n` right-aligned in `width` columns |
 | `u.r` | `( u width -- )` | the same, unsigned |
 | `.(` **imm** | `( "ccc)" -- )` | write the text up to the next `)` |
 | `source-id` | `( -- -1 )` | the input source: `-1`, the keyboard |

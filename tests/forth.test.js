@@ -4047,13 +4047,13 @@ test('the small Tier-3 words: */ */MOD CHAR+ CHARS ALIGN ALIGNED PAD UNUSED SOUR
 });
 
 test('.r and u.r right-align a number in a field', () => {
-  assert.equal(repl('123 8 .r\n').rows[1], '> 123 8 .r     123  ok');
-  assert.equal(repl('5 negate 8 .r\n').rows[1], '> 5 negate 8 .r      -5  ok');
+  assert.equal(repl('123 8 .r\n').rows[1], '> 123 8 .r     123 ok');
+  assert.equal(repl('5 negate 8 .r\n').rows[1], '> 5 negate 8 .r      -5 ok');
   // Wider than the field: printed whole, never truncated.
-  assert.equal(repl('12345 3 .r\n').rows[1], '> 12345 3 .r12345  ok');
-  assert.equal(repl('123 8 u.r\n').rows[1], '> 123 8 u.r     123  ok');
+  assert.equal(repl('12345 3 .r\n').rows[1], '> 12345 3 .r12345 ok');
+  assert.equal(repl('123 8 u.r\n').rows[1], '> 123 8 u.r     123 ok');
   // u.r reads the cell unsigned.
-  assert.equal(repl('0xFFFF 8 u.r\n').rows[1], '> 0xFFFF 8 u.r   65535  ok');
+  assert.equal(repl('0xFFFF 8 u.r\n').rows[1], '> 0xFFFF 8 u.r   65535 ok');
 });
 
 test('.( prints up to the closing paren, at compile time too', () => {

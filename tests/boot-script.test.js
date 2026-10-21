@@ -75,7 +75,7 @@ test('mem prints the map', () => {
     assert.ok(out.includes(needle), `mem does not mention ${needle}: ${JSON.stringify(out)}`);
   }
   // The dictionary line carries the range and the free count.
-  assert.match(out, /dict\s+[0-9A-F]+ -[0-9A-F]+\s+\d+ words,\s+\d+\s+free/,
+  assert.match(out, /dict\s+[0-9A-F]+-[0-9A-F]+\s+\d+ words,\s+\d+\s+free/,
                `no dictionary line: ${JSON.stringify(out)}`);
 });
 

@@ -2739,6 +2739,8 @@ case_depth:
     .word 0              ; CASE/ENDCASE pairs open while compiling
 pn_lr:
     .word 0              ; print_number's return address across its putch call
+pn_space_flag:
+    .word 1              ; 1 = print_number appends its trailing space (default)
 pzs_lr:
     .word 0              ; the same for print_zstring
 lit2_save:
@@ -2853,7 +2855,7 @@ boot_script:
     .text "here window-words < 0= constant psram?   \\ the kernel moved the dictionary up"
     .text ": free ( -- d )    unused 0 ;   \\ lo, hi=0: unsigned, so d. prints it whole"
     .text ": .addr ( u -- )    hex 0 u.r decimal ;"
-    .text ": u. ( u -- )       0 u.r ;"
+    .text ": u. ( u -- )       0 u.r space ;"
     .text ": mem ( -- )"
     .text "  cr .\" Deep16 memory map\" cr"
     .text "  psram? if"
@@ -3249,12 +3251,22 @@ pn_print_loop:
     MOV PC, R0
     NOP
 pn_done:
+    ; The trailing space is optional: `.r`/`u.r` clear pn_space_flag so the
+    ; field ends exactly at the number, matching gforth.
+    LDI pn_space_flag
+    MOV R3, R0
+    LD R3, R3, 0
+    LDI 0
+    CMP R3, R0
+    JZ pn_done_nospace
+    NOP
     LDI put_char
     MOV R4, R0
     LDI ' '             ; the trailing space
     LINK
     JMP R4
     NOP
+pn_done_nospace:
     LDI pn_lr
     MOV R3, R0
     LD LR, R3, 0
@@ -5884,6 +5896,14 @@ word_ddot:                  ; d. ( d -- )  print the double and a space
     MOV PC, R0
     NOP
 wdd_ok:
+    ; Leading space, like `.` and `u.`: the REPL echoes the input line without
+    ; a trailing space, so the number would otherwise butt against the word.
+    LDI put_char
+    MOV R4, R0
+    LDI ' '
+    LINK
+    JMP R4
+    NOP
     LDI hold_double
     MOV R2, R0
     LINK
@@ -7232,11 +7252,20 @@ wur_pad:
     JNZ wur_pad
     NOP
 wur_print:
+    ; `.r`/`u.r` must not append print_number's trailing space.
+    LDI pn_space_flag
+    MOV R3, R0
+    LDI 0
+    ST R0, R3, 0
     LDI print_number
     MOV R10, R0
     LINK
     JMP R10
     NOP
+    LDI pn_space_flag
+    MOV R3, R0
+    LDI 1
+    ST R0, R3, 0
     LDI next
     MOV PC, R0
     NOP
@@ -7313,11 +7342,19 @@ wnr_sign:
     JMP R4
     NOP
 wnr_digits:
+    LDI pn_space_flag
+    MOV R3, R0
+    LDI 0
+    ST R0, R3, 0
     LDI print_number
     MOV R10, R0
     LINK
     JMP R10
     NOP
+    LDI pn_space_flag
+    MOV R3, R0
+    LDI 1
+    ST R0, R3, 0
     LDI next
     MOV PC, R0
     NOP

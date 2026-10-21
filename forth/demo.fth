@@ -24,7 +24,7 @@ here window-words < 0= constant psram?   \ the kernel moved the dictionary up
 \ ---- memory -------------------------------------------------------------
 : free ( -- d )    unused 0 ;   \ lo, hi=0: unsigned, so d. prints it whole
 : .addr ( u -- )    hex 0 u.r decimal ;
-: u. ( u -- )       0 u.r ;
+: u. ( u -- )       0 u.r space ;
 
 : mem ( -- )
   cr ." Deep16 memory map" cr
@@ -76,8 +76,7 @@ variable cy drop                     \ its projected row
 : rnd ( -- x )       seed @ 25173 * 13849 + dup seed ! ;
 : rnd% ( n -- x )    rnd 32767 and swap mod ;
 : esc ( -- )         27 emit ;
-\ u.r prints a trailing space, which is fine in a table and fatal inside an
-\ escape sequence (ESC[9 ;48 H is not a cursor address). Print the digits here.
+\ u.r no longer prints a trailing space (gforth alignment), so u. adds one.
 : .d ( n -- )      dup 10 < if 48 + emit exit then
                    10 /mod recurse 48 + emit ;
 : at ( row col -- )  esc 91 emit swap .d 59 emit .d 72 emit ;
