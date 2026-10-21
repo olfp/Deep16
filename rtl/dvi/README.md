@@ -100,7 +100,7 @@ Logic 8,173/8,640 (95%)   CLS 4,211/4,320 (98%)
 Registers 2,577/6,771     BSRAM 20/26 (16 image + 2 cache + 2 DVI)
 rPLL 2/2                  0 TNS on every clocked domain
 
-With the optional user-flash loader (`USERFLASH.md`) the image is not in
+With the verified user-flash loader (`USERFLASH.md`) the image is not in
 BSRAM: **BSRAM 4/26**, CLS 4,303/4,320 (100%).
 ```
 

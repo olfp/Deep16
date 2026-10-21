@@ -5,8 +5,8 @@ Target: DVI (4 TMDS pairs, second rPLL free) at **640×480@60**, pixel clock
 80 columns x 24 rows of **8×15** cells, centred with borders.
 
 Budget today: **109 CLS free**, 20/26 BSRAM in the default build. With the
-user-flash loader (`USERFLASH.md`): **4/26 BSRAM (22 free)**, but only 16 CLS
-free.
+verified user-flash loader (`USERFLASH.md`): **4/26 BSRAM (22 free)**, but only
+17 CLS free.
 
 ## a) Black and white text, 8×15 — **implemented**
 

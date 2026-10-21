@@ -1,14 +1,14 @@
 # User-flash boot loader
 
-Status: **implemented and simulated; board installation failed once and is on
-hold. The packed-BSRAM build is the safe default.**
+Status: **verified on hardware.** Installer LED1 PASS, the final USER_FLASH
+build boots from the user flash, terminal and DVI work. The packed-BSRAM build
+remains the default and the fallback.
 
-> **Before touching this path again:** the final USER_FLASH build intentionally
-> holds the core (no UART, LEDs off) when the user flash header/CRC is bad, so it
-> looks like a dead board. The installer is an **SRAM-only** step (`-m`); its
-> LED1 must be steady PASS before the final build is tried, and the final build
-> must be tried in SRAM (`-m`) before it is ever written to the config flash
-> (`-f`). The recovered board runs
+> **Keep the two-stage order:** the installer is an **SRAM-only** step (`-m`);
+> its LED1 must be steady PASS before the final build is tried, and the final
+> build must be tried in SRAM (`-m`) before it is written to the config flash
+> (`-f`). A bad header/CRC holds the core (no UART, LEDs off), which looks like
+> a dead board but is not. The recovery command is
 > `openFPGALoader -f fpga/gowin/impl/pnr/deep16_board.fs`.
 
 The boot image normally lives in 16 BSRAM blocks, which is why the image is
@@ -119,6 +119,18 @@ fpga/gowin/deep16_installer.*    installer project
 fpga/gowin/deep16_board_flash.*  final project
 ```
 
+
+## The board sequence that worked
+
+```sh
+openFPGALoader -m fpga/gowin/impl/pnr/deep16_installer.fs   # LED1 PASS, ~4 s
+openFPGALoader -m fpga/gowin/impl/pnr/deep16_board_flash.fs # first test
+openFPGALoader -f fpga/gowin/impl/pnr/deep16_board_flash.fs # persist
+```
+
+The read cycle fix was the key: SE low pulse, SE high, Tacc and a 10 us
+recovery (UG295 figure 3-7); the write order is figure 3-8. Without the SE
+pulse the installer's read-back failed with LED2.
 
 ## If the board looks dead
 

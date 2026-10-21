@@ -249,7 +249,7 @@ Measured in `psram_boot_tb` over the boot window: **99.6 % hit rate**, 6.3
 cycles/instruction (was ~17). On the board with the DVI text console: Logic
 8,173/8,640 (95 %), CLS 4,211/4,320 (98 %), registers 2,577/6,771,
 **BSRAM 20/26** (16 image + 2 cache + 2 screen, **6 free**). The screen costs
-2 blocks and +203 CLS; see `rtl/dvi/README.md`. With the optional user-flash
+2 blocks and +203 CLS; see `rtl/dvi/README.md`. With the verified user-flash
 loader (`USERFLASH.md`) the image leaves BSRAM: **BSRAM 4/26, 22 free**, at
 CLS 4,303/4,320.
 
