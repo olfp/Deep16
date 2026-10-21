@@ -7,7 +7,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildImage, checkImage, imageHex, WINDOW, FILL, BIOS_BASE, STACK_BASE, ECHO_FLAG }
+import { buildImage, checkImage, imageHex, packImage, expandImage, checkPacked,
+         IMG_BLOCK_WORDS, WINDOW, FILL, BIOS_BASE, STACK_BASE, ECHO_FLAG }
   from '../scripts/make_image.mjs';
 import { assemble, loadBrowserScripts, ROOT } from './helpers.js';
 
@@ -64,4 +65,31 @@ test('the $readmemh form round-trips', () => {
   const parsed = imageHex(img).trim().split(/\s+/).map((h) => parseInt(h, 16));
   assert.equal(parsed.length, WINDOW);
   assert.deepEqual(parsed, Array.from(img.words));
+});
+
+test('range packing expands back to the flat image exactly', () => {
+  const packed = packImage(img);
+  assert.equal(checkPacked(img, packed), true);
+  const back = expandImage(packed.words);
+  assert.deepEqual(Array.from(back.words), Array.from(img.words));
+  assert.equal(back.src, packed.words.length, 'every payload word is consumed');
+});
+
+test('the packed image fits 16 BSRAM blocks', () => {
+  const packed = packImage(img);
+  assert.ok(packed.words.length <= IMG_BLOCK_WORDS,
+            `${packed.words.length} words do not fit ${IMG_BLOCK_WORDS}`);
+  assert.ok(packed.ranges.length <= 31, 'the count fits the loader register');
+  // The format is count, then (start,end) pairs, then contiguous payload.
+  assert.equal(packed.words[0], packed.ranges.length);
+  const payload = packed.words.length - 1 - 2 * packed.ranges.length;
+  assert.equal(payload, packed.ranges.reduce((n, [s, e]) => n + e - s + 1, 0));
+  for (let r = 1; r < packed.ranges.length; r++) {
+    assert.ok(packed.ranges[r - 1][1] + 1 < packed.ranges[r][0], 'ranges are disjoint and ascending');
+  }
+});
+
+test('checkPacked rejects an image over the block budget', () => {
+  const huge = { words: Array(WINDOW).fill(0x1234), ranges: Array(WINDOW).fill([0, 0]) };
+  assert.throws(() => checkPacked(img, huge), /over the/);
 });

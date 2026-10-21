@@ -5,8 +5,10 @@
 > write-through cache, the dictionary moved into PSRAM (~39,000 free words
 > instead of 2,116), and a boot copy that is read back and verified. Console on
 > the on-board USB-UART at 115200, terminal homed and cleared before the banner.
-> Logic 7,273/8,640, CLS 3,870/4,320, BSRAM 26/26, 0 violations. The BRAM-only
-> machine this document was written around is preserved at tag `v0.13.5mhz`.
+> The boot image is range-packed (16 BSRAM blocks, 8 free), and cache fills use
+> a two-word HyperRAM burst. Logic 7,485/8,640, CLS 4,008/4,320, BSRAM 18/26.
+> The BRAM-only machine this document was written around is preserved at tag
+> `v0.13.5mhz`.
 >
 > The sections below are the original plan and history; where they say "no PSRAM,
 > no cache" they describe the 0.13 machine. The 1.0 memory map is in README's

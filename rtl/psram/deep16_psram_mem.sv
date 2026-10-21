@@ -28,7 +28,7 @@ module deep16_psram_mem #(
   input  logic        ctl_dout_valid,   // unused, kept for interface symmetry
 
   // boot image read port (on-chip BSRAM)
-  output logic [14:0] img_addr,
+  output logic [13:0] img_addr,   // packed image: 16,384 words (16 blocks)
   input  logic [15:0] img_data,
 
   // core memory interface
@@ -49,9 +49,11 @@ module deep16_psram_mem #(
   // to the controller (clk_ip domain)
   output logic        ctl_read,
   output logic        ctl_write,
+  output logic        ctl_burst,
   output logic [21:0] ctl_addr,
   output logic [15:0] ctl_din,
   input  logic [15:0] ctl_dout,
+  input  logic [15:0] ctl_dout2,
   input  logic        ctl_busy
 );
 
@@ -60,20 +62,27 @@ module deep16_psram_mem #(
   localparam logic [255:0] BOOT_ROM = 256'hFFF1FFF1FFF1FFF1FFF1FFF1FFF0FFE0A202A201A200D818FC21FF42FF410000;
 
   // ---- bridge -----------------------------------------------------------
-  logic        breq, bwe;
+  logic        breq, bwe, breq_burst;
   logic [19:0] baddr;
-  logic [15:0] bwdata, brdata;
+  logic [15:0] bwdata, brdata, brdata2;
   logic        bready, bbusy;
 
   logic init_ok_ctl;
 
+  // `rst` is synchronous to clk_cpu. The controller domain needs the deassert
+  // synchronised to its own clock, or the async reset inputs are timed as data
+  // paths across the two domains (Gowin reports them as setup/hold violations).
+  logic [1:0] rst_ip_sync;
+  always_ff @(posedge clk_ip) rst_ip_sync <= {rst_ip_sync[0], rst};
+
   psram_word_bridge u_bridge (
     .clk_cpu(clk_cpu), .rst_cpu(rst),
-    .clk_ctl(clk_ip),  .rst_ctl(rst),
-    .req(breq), .we(bwe), .addr(baddr), .wdata(bwdata),
-    .rdata(brdata), .ready(bready), .busy(bbusy),
-    .ctl_read(ctl_read), .ctl_write(ctl_write),
-    .ctl_addr(ctl_addr), .ctl_din(ctl_din), .ctl_dout(ctl_dout), .ctl_busy(ctl_busy),
+    .clk_ctl(clk_ip),  .rst_ctl(rst_ip_sync[1]),
+    .req(breq), .we(bwe), .burst(breq_burst), .addr(baddr), .wdata(bwdata),
+    .rdata(brdata), .rdata2(brdata2), .ready(bready), .busy(bbusy),
+    .ctl_read(ctl_read), .ctl_write(ctl_write), .ctl_burst(ctl_burst),
+    .ctl_addr(ctl_addr), .ctl_din(ctl_din), .ctl_dout(ctl_dout),
+    .ctl_dout2(ctl_dout2), .ctl_busy(ctl_busy),
     .init_ok(init_ok_ctl)
   );
 
@@ -102,18 +111,38 @@ module deep16_psram_mem #(
   logic        cache_hit, store_hit;
 
   // ---- sequencer --------------------------------------------------------
+  // Boot: clear the cache tags, read the packed image's range table from
+  // BSRAM, then walk the 24,576-word destination. Each destination word is
+  // either a payload word from the packed image or the 0xFFFF fill; the verify
+  // repeats the same walk and compares PSRAM against the expected word.
   localparam logic [4:0]
-    S_BOOT_WAIT = 5'd0, S_BOOT_RD  = 5'd1, S_BOOT_RD2 = 5'd2,
-    S_BOOT_WR   = 5'd3, S_BOOT_WT  = 5'd4,
-    S_CLR       = 5'd5, S_VER      = 5'd6, S_VER2     = 5'd7,
-    S_IDLE      = 5'd8, S_LOOK     = 5'd9, S_FILL_REQ = 5'd10,
-    S_FILL_WAIT = 5'd11, S_PRESENT = 5'd12, S_STORE_CACHE = 5'd13,
-    S_STORE     = 5'd14, S_STORE_W = 5'd15, S_FLUSH    = 5'd16,
-    S_VRFY_SET  = 5'd17, S_VRFY_RD  = 5'd18, S_VRFY_WT  = 5'd19,
-    S_VRFY_CHK  = 5'd20;
+    S_CLR        = 5'd0,
+    S_CNT_SET    = 5'd1, S_CNT_RD   = 5'd2, S_CNT_GET = 5'd3,
+    S_RS_RD      = 5'd4, S_RS_GET   = 5'd5,
+    S_RE_RD      = 5'd6, S_RE_GET   = 5'd7,
+    S_DECIDE     = 5'd8,
+    S_PAY_RD     = 5'd9, S_PAY_GET  = 5'd10,
+    S_WR         = 5'd11, S_WR_W    = 5'd12,
+    S_VSTART     = 5'd13,
+    S_CHK_REQ    = 5'd14, S_CHK_WAIT = 5'd15,
+    S_VER        = 5'd16, S_VER2    = 5'd17,
+    S_IDLE       = 5'd18, S_LOOK    = 5'd19,
+    S_FILL_REQ   = 5'd20, S_FILL_WAIT = 5'd21,
+    S_PRESENT    = 5'd22, S_STORE_CACHE = 5'd23,
+    S_STORE      = 5'd24, S_STORE_W = 5'd25,
+    S_FLUSH      = 5'd26, S_INIT    = 5'd27,
+    S_FILL_WR2   = 5'd28;
 
   logic [4:0]  st;
-  logic [14:0] bi;              // boot image index
+  logic [14:0] bi;              // destination index (0..IMG_WORDS-1)
+  logic [13:0] src;             // payload cursor in the packed image
+  logic [4:0]  count;           // ranges in the packed image
+  logic [4:0]  r;               // current range
+  logic [4:0]  p;               // current pair (header index)
+  logic [14:0] range_start, range_end;
+  logic [15:0] boot_data;       // the word being copied / expected by the verify
+  logic [15:0] entry_exp;       // expected word at the kernel entry (0x0100)
+  logic        is_verify;
   logic [8:0]  clr_i;           // tag clear index
   logic [1:0]  retry;           // image copy attempts
   logic        boot_q;
@@ -125,7 +154,8 @@ module deep16_psram_mem #(
   logic        flush_pending;
   logic [19:0] store_addr;
   logic [15:0] store_data;
-  logic        fill_lo;
+
+  localparam logic [15:0] FILL = 16'hFFFF;
 
   // Counters for the boot simulation; the synthesizer prunes them when nothing
   // reads them.
@@ -153,66 +183,123 @@ module deep16_psram_mem #(
 
   always_ff @(posedge clk_cpu) begin
     breq <= 1'b0;
+    breq_burst <= 1'b0;
     if (cache_flush) flush_pending <= 1'b1;
 
     if (rst) begin
       st <= S_CLR; bi <= 15'd0; boot_q <= 1'b0; clr_i <= 9'd0;
       boot_err <= 1'b0; ver_pending <= 1'b0; flush_pending <= 1'b0;
       retry <= 2'd0;
+      count <= 5'd0; r <= 5'd0; p <= 5'd0; src <= 14'd0;
+      range_start <= 15'd0; range_end <= 15'd0;
+      boot_data <= FILL; entry_exp <= 16'd0; is_verify <= 1'b0;
       op_is_load <= 0; op_is_store <= 0; op_is_fetch <= 0;
       op_addr <= 20'd0; op_wdata <= 16'd0; rd_q <= 16'd0;
       store_lat <= 0; store_addr <= 20'd0; store_data <= 16'd0;
-      img_addr <= 15'd0; fill_lo <= 1'b0;
+      img_addr <= 14'd0;
       hit_count <= 32'd0; miss_count <= 32'd0;
     end else begin
       case (st)
-        // ---- boot image -> PSRAM ---------------------------------------
-        S_BOOT_WAIT: if (init_s) begin
-          img_addr <= bi;                    // image read has 1-cycle latency
-          st <= S_BOOT_RD;
+        // ---- wait for the controller's power-on init --------------------
+        S_INIT: if (init_s) st <= S_CNT_SET;
+
+        // ---- packed image header: count and range table ------------------
+        S_CNT_SET: begin
+          img_addr <= 14'd0;                 // word 0 is the range count
+          st <= S_CNT_RD;
         end
-        S_BOOT_RD: st <= S_BOOT_RD2;     // registered BSRAM read latency
-        S_BOOT_RD2: begin
-          op_wdata <= img_data;
-          op_addr  <= {5'b00000, bi};
-          st <= S_BOOT_WR;
+        S_CNT_RD: st <= S_CNT_GET;           // registered BSRAM read latency
+        S_CNT_GET: begin
+          count <= img_data[4:0];
+          src   <= 14'({img_data[4:0], 1'b0}) + 14'd1;  // payload after count + pairs
+          bi    <= 15'd0;
+          r     <= 5'd0;
+          p     <= 5'd0;
+          is_verify <= 1'b0;
+          img_addr <= 14'd1;                 // first pair's start
+          // count == 0 is legal (an all-fill image): skip the table walk.
+          st <= (img_data[4:0] == 5'd0) ? S_DECIDE : S_RS_RD;
         end
-        S_BOOT_WR: if (!bbusy) begin
-          breq <= 1'b1; bwe <= 1'b1; baddr <= op_addr; bwdata <= op_wdata;
-          st <= S_BOOT_WT;
+
+        // ---- one (start, end) pair --------------------------------------
+        S_RS_RD: st <= S_RS_GET;
+        S_RS_GET: begin
+          range_start <= img_data[14:0];
+          img_addr <= 14'({p, 1'b0}) + 14'd2;  // this pair's end
+          st <= S_RE_RD;
         end
-        S_BOOT_WT: if (bbusy) begin
+        S_RE_RD: st <= S_RE_GET;
+        S_RE_GET: begin
+          range_end <= img_data[14:0];
+          p <= p + 5'd1;
+          st <= S_DECIDE;
+        end
+
+        // ---- one destination word: payload or fill ----------------------
+        S_DECIDE: begin
+          if (r < count && bi > range_end) begin
+            // past this range: read the next pair, or fall through to fill
+            if ((r + 5'd1) < count) begin
+              r <= r + 5'd1;
+              img_addr <= 14'({p, 1'b0}) + 14'd1;
+              st <= S_RS_RD;
+            end else begin
+              r <= r + 5'd1;                 // r == count: everything is fill
+              st <= S_DECIDE;
+            end
+          end else if (r < count && bi >= range_start) begin
+            // inside the current range (bi <= range_end): fetch its payload
+            img_addr <= src;
+            st <= S_PAY_RD;
+          end else begin
+            boot_data <= FILL;
+            st <= is_verify ? S_CHK_REQ : S_WR;
+          end
+        end
+        S_PAY_RD: st <= S_PAY_GET;           // BSRAM read latency
+        S_PAY_GET: begin
+          boot_data <= img_data;
+          src <= src + 14'd1;
+          st <= is_verify ? S_CHK_REQ : S_WR;
+        end
+
+        // ---- copy one word to PSRAM -------------------------------------
+        S_WR: if (!bbusy) begin
+          breq <= 1'b1; bwe <= 1'b1; baddr <= {5'd0, bi}; bwdata <= boot_data;
+          st <= S_WR_W;
+        end
+        S_WR_W: if (bbusy) begin
           if (bi == 15'(IMG_WORDS-1)) begin
-            // image done: read the whole thing back before trusting it. A
-            // marginal PSRAM write or a lost handshake leaves one word wrong,
-            // and the machine then boots into a corrupt dictionary - the
-            // banner prints, then nothing works. One retry on the first
-            // mismatch, then carry on with boot_err set if it persists.
             bi <= 15'd0;
-            st <= S_VRFY_SET;
+            st <= S_VSTART;                  // copy done: verify from the top
           end else begin
             bi <= bi + 15'd1;
-            img_addr <= bi + 15'd1;
-            st <= S_BOOT_RD;                 // next image word
+            st <= S_DECIDE;
           end
         end
 
-        // ---- image read-back -------------------------------------------
-        S_VRFY_SET: begin
-          img_addr <= bi;                    // BSRAM side of the compare
-          st <= S_VRFY_RD;
+        // ---- verify one word against the same walk ----------------------
+        S_VSTART: begin
+          is_verify <= 1'b1;
+          bi <= 15'd0; r <= 5'd0; p <= 5'd0;
+          src <= 14'({count, 1'b0}) + 14'd1;
+          img_addr <= 14'd1;
+          st <= (count == 5'd0) ? S_DECIDE : S_RS_RD;
         end
-        S_VRFY_RD: st <= S_VRFY_WT;          // let the BSRAM read land
-        S_VRFY_WT: if (!bbusy) begin
-          breq <= 1'b1; bwe <= 1'b0; baddr <= {5'b00000, bi};
-          st <= S_VRFY_CHK;
+        S_CHK_REQ: if (!bbusy && !bready) begin
+          // !bready matters: the previous write's completion pulse may still be
+          // high this cycle, and its rdata is not ours.
+          breq <= 1'b1; bwe <= 1'b0; baddr <= {5'd0, bi};
+          st <= S_CHK_WAIT;
         end
-        S_VRFY_CHK: if (bready) begin
-          if (brdata != img_data) begin
+        S_CHK_WAIT: if (bready) begin
+          if (bi == 15'h0100) entry_exp <= boot_data;   // for the S_VER check
+          if (brdata != boot_data) begin
             if (retry == 2'd0) begin
               retry <= retry + 2'd1;         // one more copy, then trust it
+              is_verify <= 1'b0;
               bi <= 15'd0;
-              st <= S_BOOT_WAIT;
+              st <= S_CNT_SET;
             end else begin
               boot_err <= 1'b1;              // persistent: report and go on
               st <= S_VER;
@@ -221,14 +308,14 @@ module deep16_psram_mem #(
             st <= S_VER;
           end else begin
             bi <= bi + 15'd1;
-            st <= S_VRFY_SET;
+            st <= S_DECIDE;
           end
         end
 
         // ---- tag clear (boot) and flush (FSH) --------------------------
         S_CLR: begin
           ctag_mem[clr_i] <= 16'h0000;
-          if (clr_i == 9'(LINES-1)) st <= S_BOOT_WAIT;
+          if (clr_i == 9'(LINES-1)) st <= S_INIT;
           else clr_i <= clr_i + 9'd1;
         end
         S_FLUSH: begin
@@ -241,7 +328,8 @@ module deep16_psram_mem #(
 
         // ---- boot read-back: the kernel entry word through the cache ---
         S_VER: begin
-          img_addr <= 15'h0100;
+          // No BSRAM address here any more: the packed image has no word at
+          // 0x0100. The verify walker saved the expected entry word instead.
           op_addr  <= 20'h00100;
           op_is_load <= 1'b1; op_is_store <= 1'b0; op_is_fetch <= 1'b0;
           ver_pending <= 1'b1;
@@ -290,28 +378,32 @@ module deep16_psram_mem #(
             st <= S_PRESENT;
           end else begin
             miss_count <= miss_count + 32'd1;
-            fill_lo <= 1'b0;              // low word first
             st <= S_FILL_REQ;
           end
         end
 
-        // ---- line fill (two words) ------------------------------------
-        S_FILL_REQ: if (!bbusy) begin
-          // low word first, then the high one
-          breq <= 1'b1; bwe <= 1'b0;
-          baddr <= {op_addr[19:1], fill_lo};
+        // ---- line fill: one two-word burst ----------------------------
+        S_FILL_REQ: if (!bbusy && !bready) begin
+          // As in S_CHK_REQ: after a store, busy drops on the same cycle the
+          // completion pulse rises, so issuing then would latch the old rdata.
+          breq <= 1'b1; bwe <= 1'b0; breq_burst <= 1'b1;
+          baddr <= {op_addr[19:1], 1'b0};   // the line is even-aligned
           st <= S_FILL_WAIT;
         end
         S_FILL_WAIT: if (bready) begin
-          cache_mem[{op_addr[9:1], fill_lo}] <= brdata;
-          if (fill_lo == op_addr[0]) rd_q <= brdata;   // the word that was asked for
-          if (!fill_lo) begin
-            fill_lo <= 1'b1;
-            st <= S_FILL_REQ;
-          end else begin
-            ctag_mem[op_addr[9:1]] <= {1'b1, 5'b0, op_addr[19:10]};
-            st <= S_PRESENT;
-          end
+          // The burst returns both words of the line. One transaction per miss
+          // instead of two is the whole point of the controller extension.
+          // The two words go in on consecutive cycles: two different addresses
+          // written in one always_ff edge cannot be inferred as BSRAM, and the
+          // flow then builds the whole cache from 16,384 flip-flops.
+          cache_mem[{op_addr[9:1], 1'b0}] <= brdata;
+          rd_q <= op_addr[0] ? brdata2 : brdata;
+          st <= S_FILL_WR2;
+        end
+        S_FILL_WR2: begin
+          cache_mem[{op_addr[9:1], 1'b1}] <= brdata2;
+          ctag_mem[op_addr[9:1]] <= {1'b1, 5'b0, op_addr[19:10]};
+          st <= S_PRESENT;
         end
 
         S_PRESENT: begin
@@ -324,7 +416,7 @@ module deep16_psram_mem #(
           end
           if (ver_pending) begin
             ver_pending <= 1'b0;
-            if (rd_q != img_data) boot_err <= 1'b1;   // entry word vs BSRAM image
+            if (rd_q != entry_exp) boot_err <= 1'b1;  // entry word vs the packed image
             boot_q <= 1'b1;                           // release the core
           end
           st <= S_IDLE;

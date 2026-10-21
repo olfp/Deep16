@@ -56,9 +56,11 @@ module deep16_top
   , input  logic        psram_clk      // controller clock (51 MHz)
   , output logic        psram_read
   , output logic        psram_write
+  , output logic        psram_burst     // two-word read (cache fill)
   , output logic [21:0] psram_addr
   , output logic [15:0] psram_din
   , input  logic [15:0] psram_dout
+  , input  logic [15:0] psram_dout2
   , input  logic        psram_busy
   , output logic        o_boot_done    // loader finished, core released
   , output logic        o_boot_err     // a PSRAM read-back did not match
@@ -79,7 +81,13 @@ module deep16_top
   // four 4-bit-wide, 4,096-deep slices, so the depth rounds up to 4,096 and
   // 26,624 words measure 28 blocks. 24,576 (24 blocks) is the vendor ceiling
   // (§4.7). nextpnr's 26 was Yosys' 1,024-word packing, not the chip's.
+  // The PSRAM build only keeps the *packed* image in this array (16,384 words
+  // = 16 blocks), so the loader's source no longer costs 24 blocks.
+  `ifdef PSRAM
+  localparam int RAM_WORDS = 16384;               // 16 blocks x 1024 words
+  `else
   localparam int RAM_WORDS = 24576;               // 24 blocks x 1024 words
+  `endif
 `else
   localparam int RAM_WORDS = MEM_WORDS;
 `endif
@@ -237,7 +245,14 @@ module deep16_top
     // and the open-source flow could not elaborate the design with it in place.
     // `npm run image` writes the file, and the path resolves against the tool's
     // working directory - run from artifacts/image/, as build_board_sim.sh does.
+    //
+    // The PSRAM build reads the range-packed form (16 blocks instead of 24);
+    // the loader in deep16_psram_mem expands it into PSRAM.
+`ifdef PSRAM
+    $readmemh("image-packed.hex", mem);
+`else
     $readmemh("image.hex", mem);
+`endif
   end
 `else
   initial begin
@@ -312,7 +327,7 @@ module deep16_top
   // ---- PSRAM backing store (board build) --------------------------------
   // The BSRAM array stays as the boot image; this copies it into PSRAM, then
   // serves the core one transaction at a time through the bridge.
-  logic [14:0] img_addr;
+  logic [13:0] img_addr;              // packed image: 16,384 words
   logic [15:0] img_q;
   always_ff @(posedge clk) img_q <= mem[img_addr];
 
@@ -324,9 +339,9 @@ module deep16_top
     .mem_we(mem_we), .mem_waddr(mem_waddr), .mem_wdata(mem_wdata),
     .mem_stall(mem_stall), .boot_done(boot_done), .boot_err(boot_err),
     .cache_flush(core_cache_flush),
-    .ctl_read(psram_read), .ctl_write(psram_write),
+    .ctl_read(psram_read), .ctl_write(psram_write), .ctl_burst(psram_burst),
     .ctl_addr(psram_addr), .ctl_din(psram_din),
-    .ctl_dout(psram_dout), .ctl_busy(psram_busy)
+    .ctl_dout(psram_dout), .ctl_dout2(psram_dout2), .ctl_busy(psram_busy)
   );
 `else
   // The read result belongs to whoever asked for it: the fetch, or the load. The

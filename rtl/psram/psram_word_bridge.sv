@@ -16,9 +16,11 @@ module psram_word_bridge (
   // CPU side
   input  logic        req,
   input  logic        we,
+  input  logic        burst,      // read two words under one CA
   input  logic [19:0] addr,
   input  logic [15:0] wdata,
   output logic [15:0] rdata,
+  output logic [15:0] rdata2,     // second word of a burst read
   output logic        ready,      // one clk_cpu pulse
   output logic        busy,       // request in flight
 
@@ -27,7 +29,9 @@ module psram_word_bridge (
   output logic        ctl_write,
   output logic [21:0] ctl_addr,
   output logic [15:0] ctl_din,
+  output logic        ctl_burst,  // level: held for the whole transaction
   input  logic [15:0] ctl_dout,
+  input  logic [15:0] ctl_dout2,
   input  logic        ctl_busy,
   output logic        init_ok      // controller finished its power-on init
 );
@@ -35,19 +39,24 @@ module psram_word_bridge (
   // ---- CPU side ---------------------------------------------------------
   logic        req_tgl, ack_meta, ack_sync;
   logic [19:0] req_addr;
-  logic        req_we;
+  logic        req_we, req_burst;
   logic [15:0] req_wdata;
   logic        busy_q, ready_q;
-  logic [15:0] rdata_q;
+  logic [15:0] rdata_q, rdata2_q;
 
   assign busy  = busy_q;
   assign ready = ready_q;
   assign rdata = rdata_q;
+  assign rdata2 = rdata2_q;
+  // The controller samples `burst` during the read state, not only at the
+  // command, so it must be a level that stays stable for the transaction.
+  assign ctl_burst = req_burst;
 
   always_ff @(posedge clk_cpu) begin
     if (rst_cpu) begin
       req_tgl <= 1'b0; busy_q <= 1'b0; ready_q <= 1'b0;
       ack_meta <= 1'b0; ack_sync <= 1'b0; rdata_q <= 16'd0;
+      rdata2_q <= 16'd0; req_burst <= 1'b0;
       req_addr <= 20'd0; req_we <= 1'b0; req_wdata <= 16'd0;
     end else begin
       ack_meta <= ack_tgl;
@@ -56,6 +65,7 @@ module psram_word_bridge (
       if (req && !busy_q) begin
         req_addr  <= addr;
         req_we    <= we;
+        req_burst <= burst && !we;      // writes are single-word
         req_wdata <= wdata;
         req_tgl   <= ~req_tgl;
         busy_q    <= 1'b1;
@@ -63,7 +73,8 @@ module psram_word_bridge (
       if (busy_q && (ack_sync == req_tgl)) begin
         busy_q  <= 1'b0;
         ready_q <= 1'b1;
-        rdata_q <= rdata_ip;
+        rdata_q  <= rdata_ip;
+        rdata2_q <= rdata2_ip;
       end
     end
   end
@@ -71,7 +82,7 @@ module psram_word_bridge (
   // ---- controller side --------------------------------------------------
   logic        ack_tgl;
   logic        req_meta0, req_meta1;
-  logic [15:0] rdata_ip;
+  logic [15:0] rdata_ip, rdata2_ip;
   logic        init_done;
 
   always_ff @(posedge clk_ctl) begin
@@ -87,7 +98,8 @@ module psram_word_bridge (
     if (rst_ctl) begin
       cst <= C_IDLE; ack_tgl <= 1'b0; init_done <= 1'b0;
       ctl_read <= 1'b0; ctl_write <= 1'b0;
-      ctl_addr <= 22'd0; ctl_din <= 16'd0; rdata_ip <= 16'd0;
+      ctl_addr <= 22'd0; ctl_din <= 16'd0;
+      rdata_ip <= 16'd0; rdata2_ip <= 16'd0;
     end else begin
       ctl_read  <= 1'b0;
       ctl_write <= 1'b0;
@@ -102,9 +114,10 @@ module psram_word_bridge (
         end
         C_CMD: if (ctl_busy) cst <= C_WAIT;      // controller started
         C_WAIT: if (!ctl_busy) begin
-          rdata_ip <= ctl_dout;
-          ack_tgl  <= ~ack_tgl;
-          cst      <= C_IDLE;
+          rdata_ip  <= ctl_dout;
+          rdata2_ip <= ctl_dout2;
+          ack_tgl   <= ~ack_tgl;
+          cst       <= C_IDLE;
         end
         default: cst <= C_IDLE;
       endcase

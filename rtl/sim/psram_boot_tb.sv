@@ -39,9 +39,9 @@ module psram_boot_tb (
   output logic [31:0] dbg_hits,
   output logic [31:0] dbg_misses
 );
-  logic        psram_read, psram_write, psram_busy;
+  logic        psram_read, psram_write, psram_burst, psram_busy;
   logic [21:0] psram_addr;
-  logic [15:0] psram_din, psram_dout;
+  logic [15:0] psram_din, psram_dout, psram_dout2;
 
   deep16_top u_top (
     .clk       (clk),
@@ -78,9 +78,11 @@ module psram_boot_tb (
     .psram_clk   (clk_ip),
     .psram_read  (psram_read),
     .psram_write (psram_write),
+    .psram_burst (psram_burst),
     .psram_addr  (psram_addr),
     .psram_din   (psram_din),
     .psram_dout  (psram_dout),
+    .psram_dout2 (psram_dout2),
     .psram_busy  (psram_busy),
     .o_boot_done (boot_done),
     .o_boot_err  (boot_err),
@@ -89,7 +91,7 @@ module psram_boot_tb (
     .o_dbg_if_addr(if_addr)
   );
 
-  assign dbg_st   = u_top.u_psram_mem.st;   // 6 bits, always
+  assign dbg_st   = {1'b0, u_top.u_psram_mem.st};   // 6 bits, always
   assign dbg_op   = u_top.u_psram_mem.op_addr;
   assign dbg_rdq  = u_top.u_psram_mem.rd_q;
   assign dbg_brd  = u_top.u_psram_mem.brdata;
@@ -114,9 +116,12 @@ module psram_boot_tb (
     .rst_n(~rst),
     .read (psram_read),
     .write(psram_write),
+    .burst(psram_burst),
     .addr (psram_addr),
     .din  (psram_din),
+    .din2 (16'h0000),          // cache fills are reads
     .dout (psram_dout),
+    .dout2(psram_dout2),
     .busy (psram_busy),
     .peek_addr(peek_addr),
     .peek_data(peek_data)

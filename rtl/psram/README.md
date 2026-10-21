@@ -1,29 +1,27 @@
-# PSRAM (HyperRAM) controller — vendored, **not used**
+# PSRAM (HyperRAM) controller — vendored, **in use**
 
-> **Status: rejected on hardware — including the pristine upstream design.**
-> The unmodified upstream project (their test top, their PLL at 81 MHz, their
-> UART print) was built with our toolchain and flashed: it prints
-> `FAIL. Read wrong data.` exactly like the modified builds. So the failure is
-> not caused by our changes; the design as committed does not run on this board
-> with Gowin 1.9.12. Matches its own issues #4 (broken below 30 MHz) and #5
-> ("Read wrong data"; the official IP works on the same board).
+> **Status: works in the integrated machine at 51 MHz.** The failures recorded
+> during bring-up were at 13.5/27 MHz; upstream issue #4 reports the controller
+> broken below ~30 MHz, and Deep16 now runs it at **51 MHz** from `psram_pll`
+> (VCO 408 MHz). The machine boots, verifies the image and runs DeepForth from
+> it. The historical notes are kept below because they explain the clock choice.
 >
-> Real bugs found and fixed while investigating (kept in the analysis, not in
-> the vendored file): the 1x/2x latency indicator is sampled after the memory
-> has released RWDS (it is driven during the CA), the write data-mask preamble
-> is missing, and the init delay counter is hardcoded to 15 bits so it never
-> elapsed below ~30 MHz. None of that made it work - the remaining failure is
-> the DDR PHY/CA layer.
+> **Local changes:** the two-word burst (`burst`, `din2`, `dout2`) described
+> below, and the full-width init delay counter (the original 15-bit slice never
+> elapsed below ~30 MHz). Everything else is upstream's.
 >
-> The Gowin official "PSRAM Memory Interface HS" IP is the working path; this
-> directory is kept for reference.
+> Earlier attempts, including the pristine upstream self-test, printed
+> `FAIL. Read wrong data.` below 30 MHz. The failure was the clock, not the FSM:
+> with the PLL VCO in range and the controller at 51 MHz, the integrated design
+> runs. The Gowin official IP remains the fallback if a future board revision
+> ever breaks this one.
 
-`psram_controller.v` is **vendored**, not written here.
+`psram_controller.v` is **vendored** from the project below, with the two local
+changes above.
 
 - Source: <https://github.com/zf3/psram-tang-nano-9k>, `src/psram_controller.v`
 - Author: Feng Zhou, 2022
 - License: Apache License 2.0 — see `LICENSE.txt` in this directory.
-- Not modified.
 
 ## Why this one
 
@@ -33,10 +31,10 @@ the SDRAM-style part `PLANPSRAM.md` §12 originally described. Gowin's official
 (16 %) / LUT 1,054 / SSRAM 18** on its own, and the board build already sits at
 CLS 4,163/4,320 (97 %). This controller is under 200 logic units, so it fits.
 
-Trade-off accepted: it is **non-bursting**. A read is 12 cycles (1x latency) and
-a write 7; an 8-word cache-line refill is therefore eight transactions
-(~96 cycles) instead of one burst. The cache hides most of it; the alternative
-(official IP) does not fit.
+The original controller is **non-bursting**; Deep16 adds a two-word burst (see
+below). A single read is 12 cycles (1x latency) and a write 7. The cache line is
+two words, so one burst now fills a line instead of two transactions; longer
+bursts are not used, and the alternative (official IP) does not fit.
 
 ## Interface
 
@@ -46,6 +44,8 @@ resetn
 read, write    // one-cycle request, `busy` while the transaction runs
 addr[21:0]     // BYTE address (word address << 1)
 din[15:0], byte_write, dout[15:0]
+burst          // Deep16 extension: two words under one CA (one CS assertion)
+din2[15:0], dout2[15:0]   // the second word; ignored when burst is low
 busy
 O_psram_ck[1:0], IO_psram_rwds[1:0], IO_psram_dq[15:0], O_psram_cs_n[1:0]
 ```
@@ -55,12 +55,14 @@ the package's dedicated pads, so they need **no `.cst` entries**.
 
 ## Clocking (chosen)
 
-Run the controller 1:1 with the CPU at **13.5 MHz** so the cache needs no clock
-domain crossing:
+The controller runs at **51 MHz** (27 x 17 / 9, VCO 408 MHz) from the rPLL, with
+`CLKOUTP` as the 90-degree DDR clock; the CPU stays at 13.5 MHz and
+`psram_word_bridge` crosses the boundary with a toggle/ack handshake:
 
-- one rPLL: 27 MHz in, `CLKOUT` = 13.5 MHz (`FBDIV_SEL=0, IDIV_SEL=1`),
-  `CLKOUTP` = 90° (`PSDA_SEL="0100"`);
-- `FREQ=13_500_000`, `LATENCY=3` (the part's tACC for ≤ 83 MHz).
+- one rPLL: `IDIV_SEL=8`, `FBDIV_SEL=16`, `ODIV_SEL=8`, `PSDA_SEL="0100"`;
+- `FREQ=51_000_000`, `LATENCY=3` (the part's tACC for ≤ 83 MHz);
+- the button reset is synchronised into the controller domain before it reaches
+  the bridge (reset removal is a real timing path otherwise).
 
 ## Status
 
@@ -91,10 +93,11 @@ Logic 1,070 (13 %)  CLS 647 (15 %)  Registers 478
 bitstream: artifacts/psram-ctl-test/impl/pnr/psram_ctl_test.fs (not committed)
 ```
 
-That isolates the two questions: if the UART is clean but the memory test fails,
+That isolated the two questions: if the UART is clean but the memory test fails,
 the phase shift is the problem; if the UART is still noise, it is the test's
-UART path rather than the PLL. Once the controller is proven, decide whether to
-run it at 27 MHz with a CDC to the 13.5 MHz CPU or retry the PLL at 13.5.
+UART path rather than the PLL. The machine now runs the controller at **51 MHz**
+(the VCO in range, above the upstream ~30 MHz floor) with the word bridge as the
+CDC to the 13.5 MHz CPU.
 
 **The 27 MHz run failed at read ~1,062** (not the first), with 198 writes already
 having taken the rare 2x/refresh path: a phase error would fail at read 1, so the
@@ -118,15 +121,61 @@ The 81 MHz builds here include that fix.
 **LED polarity:** the Tang Nano 9K LEDs are active-low; the test display now
 inverts so a lit LED reads as 1 in `{error, TEST_DONE, state[3:0]}`.
 
-It is not yet instantiated by `deep16_board`.
+`deep16_board` instantiates it at 51 MHz; `psram_word_bridge` crosses the
+request/ack handshake into the 13.5 MHz CPU domain, and the reset is
+synchronised into the controller domain there.
+
+## Two-word bursts
+
+`burst` transfers two consecutive words under one CA and one CS assertion. It
+was added for the two-word cache line: a miss is now one transaction instead of
+two. With `burst` low the controller behaves exactly as before, which is why the
+single-word loader/verify path is unaffected.
+
+- **Read.** After the first word's RWDS transition, the FSM stays in `READ_ST`
+  and captures `dout2` on the next transition, then closes the transaction. The
+  second word follows the first while CS stays low, as HyperRAM streams data.
+- **Write.** `WRITE2_ST` emits the second data word in the next cycle and then
+  closes. Deep16 does not use burst writes (the cache is write-through, one word
+  at a time), but the path is there and is exercised only by the model.
+- **Not simulatable at the PHY.** The controller drives the DDR pads through
+  Gowin ODDR/IDDR primitives, so the burst timing can only be confirmed on the
+  board. The *logic above it* (bridge, cache fill, model) is simulated: the boot
+  regression runs with burst fills enabled and the model returns both words.
 
 ## Bring-up on the board: how the machine boots
 
 The machine fetches every instruction, load and store through
-`deep16_psram_mem` one word at a time. The loader copies the image from the
-on-chip BSRAM into PSRAM, reads the kernel entry word at `0x0100` back, and only
-then releases the core; the boot ROM at `0xFFFF0..0xFFFFF` is served from the
-local constant, not from PSRAM.
+`deep16_psram_mem` one word at a time (cache fills use the two-word burst). The
+loader expands the **range-packed** image from the on-chip BSRAM into PSRAM,
+verifies the whole 24,576-word window, reads the kernel entry word at `0x0100`
+back through the cache, and only then releases the core; the boot ROM at
+`0xFFFF0..0xFFFFF` is served from the local constant, not from PSRAM.
+
+## The boot image is range-packed
+
+The flat image is 24,576 words, but only the non-`0xFFFF` runs are real content
+(10 ranges, ~15.7k words). Gowin pads BSRAM depth to 4,096-word slices, so a
+flat 24,576-word image costs 24 blocks and a 16,390-word "payload + chunk map"
+image would cost 20; the ranges fit in **16,384 words = 16 blocks**, leaving 8
+blocks free for the screen.
+
+Format (written by `scripts/make_image.mjs`, consumed by `deep16_psram_mem`):
+
+```
+word 0        range count N
+words 1..2N   (start, end) pairs, inclusive, ascending
+words 2N+1..  the contents of each range, concatenated
+```
+
+The loader walks destination addresses `0..24575` once: inside a range it reads
+the next payload word from BSRAM, otherwise it writes `0xFFFF`. The verify walks
+the same state machine and compares PSRAM with the expected word. Only BSRAM
+addresses are packed; the PSRAM destination layout is unchanged.
+
+`artifacts/image/image.hex` remains the flat image for the BSRAM-only build and
+for the tests; the packed form is `image-packed.hex`, which the PSRAM build
+`$readmemh`s into its 16-block array.
 
 The six on-board LEDs (active low, pins 10/11/13/14/15/16) show:
 
@@ -192,10 +241,14 @@ block), direct-mapped.
 - The tag array is uninitialised at power-up, so the loader clears it before the
   boot read-back.
 
-Measured in `psram_boot_tb` over the boot window: **94 % hit rate**, 6.1
-cycles/instruction (was ~17), 883k instructions in the same simulated time
-instead of 311k. On the board: Logic 7,923/8,640, CLS 4,270/4,320,
-**BSRAM 26/26**, 0 violations.
+A miss fills both words with **one two-word burst** (the controller extension
+above); the two cache writes are serialised into consecutive cycles because two
+different addresses written on one edge makes Gowin fall back to flip-flops.
+
+Measured in `psram_boot_tb` over the boot window: **99.6 % hit rate**, 6.3
+cycles/instruction (was ~17). On the board: Logic 7,485/8,640 (87 %), CLS
+4,008/4,320 (93 %), registers 2,298/6,771, **BSRAM 18/26** (16 image + 2 cache,
+**8 free**).
 
 The hit path is three CPU cycles (lookup, compare, present). Presenting from the
 lookup cycle would make it two; that is the next cheap win if it still fits.
@@ -230,15 +283,17 @@ passes 32767 - use `d.` (or `u.`).
 
 ## The copy is verified
 
-The loader reads the whole image back from PSRAM after copying it and compares
-it with the BSRAM source. The first mismatch re-copies the image once; a second
-mismatch sets `boot_err` (heartbeat LED steady) and boots anyway.
+The loader walks the whole 24,576-word destination after copying it and
+compares each word with what the packed image says it should be (a payload word
+or the fill). The first mismatch re-copies the image once; a second mismatch
+sets `boot_err` (heartbeat LED steady) and boots anyway.
 
 This exists because one board hung after the banner with a transient bad copy —
 the same bitstream and the same image booted correctly on the next flash, and
 the script's first bytes were provably intact, so a single wrong word elsewhere
-in the dictionary was the only consistent explanation. The verify costs about
-22 ms of boot (14.5 ms copy + verify) and 41 CLS of the 4,320.
+in the dictionary was the only consistent explanation. Copy plus verify takes
+about **37 ms** of the boot (the range walk reads BSRAM only for payload words;
+the destination writes and verify reads are the same 24,576 transactions).
 
 `BOOT_DIAG=1 npm run image` adds a one-line boot diagnostic (probe result plus
 the script's first bytes) for bring-up; the normal image does not carry it.

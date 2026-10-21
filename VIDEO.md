@@ -4,7 +4,7 @@ Target: DVI (4 TMDS pairs, second rPLL free) at **640×480@60**, pixel clock
 25.2 MHz (27 MHz x 14/15), bit clock 252 MHz. Active text area **640×360** =
 80 columns x 24 rows of **8×15** cells, centred with borders.
 
-Budget today: 424 CLS free, 26/26 BSRAM (range-packed image would free ~8).
+Budget today: 312 CLS free, 18/26 BSRAM (**8 free** after range packing).
 
 ## a) Black and white text, 8×15
 

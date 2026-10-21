@@ -113,9 +113,9 @@ What is in it:
 
 - **Memory.** 1,048,576 words (2 MiB) of PSRAM through the open-source
   controller at 51 MHz. The CPU runs at 13.5 MHz (27 MHz / 2). At power-on the
-  loader copies the 24,576-word image from BSRAM into PSRAM, **reads it all back
-  and compares** it with the source, re-copying once on a mismatch, then releases
-  the core (36 ms).
+  loader expands the range-packed image (16 BSRAM blocks instead of 24) into
+  PSRAM, **walks the whole 24,576-word window back and compares** it with the
+  packed source, re-copying once on a mismatch, then releases the core (37 ms).
 - **Cache.** 512 lines x 2 words, direct-mapped, write-through with update on
   hit, in front of the word-at-a-time bridge. Two BSRAM blocks: 1,024 words of
   data and 512 tags.
@@ -127,8 +127,9 @@ What is in it:
 - **Console.** 115200 8N1, received through a synchronised pin and a 64-byte
   SSRAM FIFO; the terminal is homed and cleared (`ESC[H ESC[2J ESC[3J`) before the
   banner, and the prompt is printed once the baked boot script has compiled.
-- **Resources.** Logic 7,273 / 8,640 (85 %), CLS 3,870 / 4,320, registers 3,195 /
-  6,771, **BSRAM 26/26**, 0 timing violations at 13.5 MHz.
+- **Resources.** Logic 7,485 / 8,640 (87 %), CLS 4,008 / 4,320 (93 %), registers
+  2,298 / 6,771, **BSRAM 18/26** (16 packed image + 2 cache, **8 free**), 0 TNS
+  on the clocked domains at 13.5 MHz.
 
 Build and flash (vendor toolchain for the bitstream):
 

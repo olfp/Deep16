@@ -60,11 +60,11 @@ module deep16_board (
     .clkin  (clk)
   );
 
-  wire        psram_read, psram_write, psram_busy, o_boot_done, o_boot_err;
+  wire        psram_read, psram_write, psram_burst, psram_busy, o_boot_done, o_boot_err;
   wire        o_core_halt;
   wire [31:0] o_core_instrs;
   wire [21:0] psram_addr;
-  wire [15:0] psram_din, psram_dout;
+  wire [15:0] psram_din, psram_dout, psram_dout2;
 
   PsramController #(.FREQ(51_000_000), .LATENCY(3)) u_psram_ctrl (
     .clk        (psram_clk),
@@ -75,7 +75,10 @@ module deep16_board (
     .addr       (psram_addr),
     .din        (psram_din),
     .byte_write (1'b0),
+    .burst      (psram_burst),
+    .din2       (16'h0000),          // writes are single-word (write-through)
     .dout       (psram_dout),
+    .dout2      (psram_dout2),
     .busy       (psram_busy),
     .O_psram_ck (O_psram_ck),
     .IO_psram_rwds(IO_psram_rwds),
@@ -164,9 +167,11 @@ module deep16_board (
     , .psram_clk    (psram_clk)
     , .psram_read   (psram_read)
     , .psram_write  (psram_write)
+    , .psram_burst  (psram_burst)
     , .psram_addr   (psram_addr)
     , .psram_din    (psram_din)
     , .psram_dout   (psram_dout)
+    , .psram_dout2  (psram_dout2)
     , .psram_busy   (psram_busy)
     , .o_boot_done  (o_boot_done)
     , .o_boot_err   (o_boot_err)

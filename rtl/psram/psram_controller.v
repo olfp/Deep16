@@ -2,11 +2,14 @@
 // PSRAM/HyperRAM controller for Tang Nano 9K / Gowin GW1NR-LV9QN88PC6/15.
 // Feng Zhou, 2022.8
 //
-// This is a word or byte based, non-bursting controller for accessing the on-chip HyperRAM.
+// This is a word or byte based controller for accessing the on-chip HyperRAM.
 // - 1:1 clock design. Memory and main logic work under the same clock.
 // - Low latency. Under default settings, write latency is 7 cycles (1x) or 10 cycles (2x). 
 //   Read latency is 12 cycles (1x) or 15 cycles(2x). In my test, 2x latency happens about 
 //   0.05% of time.
+// - Deep16 extension: `burst` transfers two 16-bit words under one CA (one CS
+//   assertion), for cache-line fills. `din2`/`dout2` are the second word. With
+//   `burst` low the timing is exactly the original single-word transaction.
 
 module PsramController #(
     parameter FREQ=81_000_000,// Actual clk frequency, to time 150us initialization delay
@@ -22,7 +25,10 @@ module PsramController #(
     input [15:0] din,         // Data word to write
     input byte_write,         // When writing, only write one byte instead of the whole word. 
                               // addr[0]==1 means we write the upper half of din. lower half otherwise.
+    input burst,              // Deep16: transfer two words in one transaction
+    input [15:0] din2,        // second word to write (burst)
     output reg [15:0] dout,   // Last read data. Read is always word-based.
+    output reg [15:0] dout2,  // second read word (burst)
     output busy,              // 1 while an operation is in progress
 
     // HyperRAM physical interface. Gowin interface is for 2 dies. 
@@ -39,11 +45,13 @@ localparam [2:0] CONFIG_ST= 3'd1;
 localparam [2:0] IDLE_ST = 3'd2;
 localparam [2:0] READ_ST = 3'd3;
 localparam [2:0] WRITE_ST = 3'd4;
+localparam [2:0] WRITE2_ST = 3'd5;
 
 reg cfg_now, dq_oen, ram_cs_n, ck_e, ck_e_p;
 reg wait_for_rd_data;
+reg rd_word0;               // burst read: first word has been captured
 reg ub;                     // 1 for upper byte
-reg [15:0] w_din;
+reg [15:0] w_din, w_din2;
 reg [23:0] cycles_sr;       // shift register counting cycles
 reg [63:0] dq_sr;           // shifts left 8-bit every cycle
 
@@ -100,7 +108,9 @@ always @(posedge clk) begin
             ck_e <= 1;
             dq_oen <= 0;
             wait_for_rd_data <= 0;
+            rd_word0 <= 0;
             w_din <= din;
+            w_din2 <= din2;
             cycles_sr <= 32'b10;    // start from cycle 1
             state <= write ? WRITE_ST : READ_ST;
         end
@@ -113,11 +123,24 @@ always @(posedge clk) begin
         end 
         if (cycles_sr[9])
             wait_for_rd_data <= 1;
-        if (wait_for_rd_data && (rwds_in_ris ^ rwds_in_fal)) begin     // sample rwds falling edge to get a word / \_
+        if (rd_word0) begin
+            // Burst: keep CS/clock running and capture the next word on the
+            // following RWDS transition, then close the transaction.
+            if (rwds_in_ris ^ rwds_in_fal) begin
+                dout2 <= {dq_in_ris, dq_in_fal};
+                ram_cs_n <= 1;
+                ck_e <= 0;
+                state <= IDLE_ST;
+            end
+        end else if (wait_for_rd_data && (rwds_in_ris ^ rwds_in_fal)) begin  // sample rwds transition to get a word / \_
             dout <= {dq_in_ris, dq_in_fal};
-            ram_cs_n <= 1;
-            ck_e <= 0;
-            state <= IDLE_ST;
+            if (burst) begin
+                rd_word0 <= 1;      // keep CS/clock running for the second word
+            end else begin
+                ram_cs_n <= 1;
+                ck_e <= 0;
+                state <= IDLE_ST;
+            end
         end
     end
 
@@ -133,14 +156,21 @@ always @(posedge clk) begin
             rwds_out_ris <= byte_write ? ~addr[0] : 1'b0;       // RWDS is data mask (1 means not writing)
             rwds_out_fal <= byte_write ? addr[0] : 1'b0;
             dq_sr[63:48] <= w_din;
-            state <= IDLE_ST;
+            state <= burst ? WRITE2_ST : IDLE_ST;
         end
+    end
+
+    if (state == WRITE2_ST) begin
+        // One more data cycle for the second word; CS falls after it.
+        dq_sr[63:48] <= w_din2;
+        state <= IDLE_ST;
     end
 
     if (~resetn) begin
         state <= INIT_ST;
         ram_cs_n <= 1;
         ck_e <= 0;
+        rd_word0 <= 0;
     end 
 end
 

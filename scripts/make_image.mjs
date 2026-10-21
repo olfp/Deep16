@@ -28,6 +28,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const WINDOW = 0x6000;      // 24 BSRAM blocks x 1024 words (§2, §4.7)
 export const FILL   = 0xFFFF;      // the halt word, everywhere unused (§6.1)
+export const IMG_BLOCK_WORDS = 0x4000; // 16 BSRAM blocks: the packed-image budget
 export const BIOS_BASE  = 0x5600;  // must match asm/forth.asm and D16MINI.md §3
 export const STACK_BASE = 0x5800;  // RSTACK_TOP: the dictionary stays below it
 export const ECHO_FLAG  = 0xF0064; // the kernel's echo cell: outside the window,
@@ -112,7 +113,66 @@ export function imageMi(img) {
   return out;
 }
 
+// Range packing (deep16_psram_mem's loader format).
+//
+// The flat image is 24,576 words of which only ~15.7k are not FILL: the
+// dictionary has reserved gaps, the stacks are empty, and the BIOS sits above
+// them. Storing only the non-FILL runs in the BSRAM image costs 16 blocks
+// instead of 24 (Gowin pads BSRAM depth to 4,096-word slices, so 24,576 rounds
+// up to 24 blocks while 15,700 fits in 16). The loader walks the runs and
+// writes FILL everywhere else; the verify walks the same runs.
+//
+//   word 0            range count N
+//   words 1..2N       (start, end) pairs, inclusive, ascending
+//   words 2N+1..       the contents of each range, concatenated
+export function packImage(img) {
+  const ranges = [];
+  for (let i = 0; i < img.words.length;) {
+    if (img.words[i] === FILL) { i++; continue; }
+    const start = i;
+    while (i < img.words.length && img.words[i] !== FILL) i++;
+    ranges.push([start, i - 1]);
+  }
+  const words = [ranges.length];
+  for (const [s, e] of ranges) words.push(s, e);
+  for (const [s, e] of ranges) for (let a = s; a <= e; a++) words.push(img.words[a]);
+  return { words, ranges };
+}
+
+// The inverse, used by the tests: a packed image must expand exactly.
+export function expandImage(packed) {
+  const count = packed[0];
+  const words = new Uint16Array(WINDOW).fill(FILL);
+  let src = 1 + 2 * count;
+  for (let r = 0; r < count; r++) {
+    const start = packed[1 + 2 * r], end = packed[2 + 2 * r];
+    for (let a = start; a <= end; a++) words[a] = packed[src++];
+  }
+  return { words, src };
+}
+
+// The one invariant packing must never break: the loader's 16 blocks hold it,
+// and expanding it gives back the flat image exactly.
+export function checkPacked(img, packed) {
+  const fail = [];
+  if (packed.words.length > IMG_BLOCK_WORDS)
+    fail.push(`packed image is ${packed.words.length} words, over the ${IMG_BLOCK_WORDS}-word (16-block) budget`);
+  // The count lives in one word; the loader reads it into a 5-bit register.
+  if (packed.ranges.length > 31) fail.push(`${packed.ranges.length} ranges do not fit the header counter`);
+  const back = expandImage(packed.words).words;
+  for (let a = 0; a < WINDOW; a++) {
+    if (back[a] !== img.words[a]) {
+      fail.push(`range expansion differs at 0x${a.toString(16)}: 0x${back[a].toString(16)} vs 0x${img.words[a].toString(16)}`);
+      break;
+    }
+  }
+  if (fail.length) throw new Error('packed boot image is not valid:\n  - ' + fail.join('\n  - '));
+  return true;
+}
+
+
 export function manifest(img) {
+  const pack = packImage(img);
   return JSON.stringify({
     project: 'D16MINI',
     source: 'asm/forth.asm',
@@ -126,6 +186,12 @@ export function manifest(img) {
     bios_words: img.biosWords,
     stack_base: `0x${STACK_BASE.toString(16)}`,
     build: img.build,
+    pack: {
+      format: 'count, (start,end) pairs, payload ranges',
+      words: pack.words.length,
+      blocks: Math.ceil(pack.words.length / 1024),
+      ranges: pack.ranges.length,
+    },
   }, null, 2) + '\n';
 }
 
@@ -144,15 +210,22 @@ if (isMain) {
   const outDir = path.resolve(ROOT, String(argValue('--out', 'artifacts/image')));
   const check = argValue('--check', false);
   if (!check) {
+    const packed = packImage(img);
+    checkPacked(img, packed);
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, 'image.hex'), imageHex(img));
     fs.writeFileSync(path.join(outDir, 'image.mi'), imageMi(img));
+    fs.writeFileSync(path.join(outDir, 'image-packed.hex'),
+                     imageHex({ words: packed.words }));
     fs.writeFileSync(path.join(outDir, 'image.manifest.json'), manifest(img));
   }
   const kb = (img.words.length * 2 / 1024).toFixed(0);
   console.log(`boot image: ${img.words.length} words (${kb} KiB), fill 0xFFFF, build ${img.build}`);
   console.log(`  dict_free 0x${img.dictFree.toString(16)}  BIOS 0x${img.biosEntry.toString(16)} (${img.biosWords} words)  stacks 0x${STACK_BASE.toString(16)}`);
   console.log(`  outside the window (dropped: the board does not back it): ${img.outOfWindow.map((a) => '0x' + a.toString(16)).join(', ') || 'none'}`);
-  if (!check) console.log(`  wrote ${path.relative(ROOT, outDir)}/image.{hex,mi,manifest.json}`);
+  const pack = packImage(img);
+  console.log(`  packed: ${pack.ranges.length} ranges, ${pack.words.length} words ` +
+              `(${Math.ceil(pack.words.length / 1024)} BSRAM blocks of ${IMG_BLOCK_WORDS / 1024})`);
+  if (!check) console.log(`  wrote ${path.relative(ROOT, outDir)}/image{,-packed}.hex, image.mi, image.manifest.json`);
   else console.log('  --check: nothing written');
 }
