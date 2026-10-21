@@ -2380,8 +2380,8 @@ test('a BIOS answer comes back in the handler\'s R0, not the caller\'s', () => {
   // the caller reads it home with SMV Rx, AR0 - and the caller's own R0, which
   // carried the function number, is untouched, because R0-R3 are banked.
   const sim = enterBios(0);
-  assert.equal(sim.shadowRegisters.R0 & 0xFFFF, 0x0001,
-    'the handler must leave its answer in R0');
+  assert.equal(sim.shadowRegisters.R0 & 0xFFFF, 0x0100,
+    'the handler must leave the BIOS 1.0 pair in R0');
   assert.equal(sim.registers[0] & 0xFFFF, 0,
     'the caller\'s R0 must survive the call');
 });

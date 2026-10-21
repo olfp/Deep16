@@ -21,6 +21,11 @@ here window-words < 0= constant psram?   \ the kernel moved the dictionary up
 \ The limit is the kernel's own ceiling cell: 0x5600 below the BIOS on the
 \ BSRAM board, 0xFFF0 (the boot ROM starts there) when the dictionary is in
 \ PSRAM. `unused` already reports the cells left, so free is just that.
+\ ---- version ------------------------------------------------------------
+\ The release tuple (VERSIONING.md): DeepForth / BIOS / FPGA. `bver` (BIOS
+\ function 0) returns the same BIOS pair as a number, 0x0100.
+: ver ( -- )    ." DeepForth 1.1  BIOS 1.0  FPGA 1.1" cr ;
+
 \ ---- memory -------------------------------------------------------------
 : free ( -- d )    unused 0 ;   \ lo, hi=0: unsigned, so d. prints it whole
 : .addr ( u -- )    hex 0 u.r decimal ;

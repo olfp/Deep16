@@ -118,6 +118,12 @@ test('demo runs the starfield and stops on any key', () => {
   assert.match(out.slice(-40), /\r\n ok\r\n> $/);
 });
 
+test('ver prints the release tuple', () => {
+  const out = run('ver');
+  assert.match(out, /DeepForth 1\.1 {2}BIOS 1\.0 {2}FPGA 1\.1/,
+               `unexpected version line: ${JSON.stringify(out)}`);
+});
+
 test('asm/forth.asm carries the current forth/demo.fth', () => {
   execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'embed_forth.mjs'), '--check'],
                { cwd: ROOT, stdio: 'pipe' });

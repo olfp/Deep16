@@ -2853,6 +2853,7 @@ boot_script:
     .text " 256 constant kernel-base    \\ 0x0100: forth_start, where the kernel is laid"
     .text "24576 constant window-words  \\ 0x6000: past the 24K BSRAM window"
     .text "here window-words < 0= constant psram?   \\ the kernel moved the dictionary up"
+    .text ": ver ( -- )    .\" DeepForth 1.1  BIOS 1.0  FPGA 1.1\" cr ;"
     .text ": free ( -- d )    unused 0 ;   \\ lo, hi=0: unsigned, so d. prints it whole"
     .text ": .addr ( u -- )    hex 0 u.r decimal ;"
     .text ": u. ( u -- )       0 u.r space ;"
@@ -12963,9 +12964,9 @@ BIOS_JTABLE:
     .word bios_f4 - BIOS_BASE
     .word bios_f5 - BIOS_BASE
 bios_f0:
-    ; 0: bver -> the handler's R0 = 0x0001 (version 0.1), which the caller picks
-    ; up with SMV Rx, AR0.
-    LDI 0x0001
+    ; 0: bver -> the handler's R0 = 0x0100 (BIOS 1.0, major << 8 | minor),
+    ; which the caller picks up with SMV Rx, AR0. `ver` prints the same pair.
+    LDI 0x0100
     RETI
     NOP
 

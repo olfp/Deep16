@@ -929,7 +929,7 @@ are **not touched**:
 
 | BIOS | Today (screen) | D16MINI (serial) |
 |---|---|---|
-| f0 `bver` | `R0 = 1` | unchanged |
+| f0 `bver` | `R0 = 0x0100` | BIOS 1.0 as major << 8 \| minor |
 | f1 `binit` | clear 2000 cells, home cursor | **emit `ESC[H` `ESC[2J` `ESC[3J`** (home, erase display, erase scrollback) |
 | f2 `putch` | cell write + attribute + cursor + scroll | **TX one byte** |
 | f3 `putstr` | direct `ES:SCR` cell writes | **TX loop** |
