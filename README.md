@@ -137,7 +137,7 @@ What is in it:
   **BSRAM 20/26** (16 packed image + 2 cache + 2 screen), 0 TNS.
 - **User-flash build (experimental, on hold).** `npm run synth:flash` moves the
   boot image to the on-die 608 Kbit user flash: **BSRAM 4/26 (22 free)**, CLS
-  4,304/4,320 (100 %), Logic 8,353. The one-time `npm run synth:installer`
+  4,303/4,320 (100 %), Logic 8,288. The one-time `npm run synth:installer`
   bitstream writes the image. One board attempt failed: the installer must be
   loaded to SRAM (`-m`) and show LED1 PASS, and the final build must be tried in
   SRAM before it is written to config flash. The packed build remains the

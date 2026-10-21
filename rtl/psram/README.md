@@ -251,7 +251,7 @@ cycles/instruction (was ~17). On the board with the DVI text console: Logic
 **BSRAM 20/26** (16 image + 2 cache + 2 screen, **6 free**). The screen costs
 2 blocks and +203 CLS; see `rtl/dvi/README.md`. With the optional user-flash
 loader (`USERFLASH.md`) the image leaves BSRAM: **BSRAM 4/26, 22 free**, at
-CLS 4,304/4,320.
+CLS 4,303/4,320.
 
 The hit path is three CPU cycles (lookup, compare, present). Presenting from the
 lookup cycle would make it two; that is the next cheap win if it still fits.

@@ -62,10 +62,9 @@ module flash_boot #(
   logic        f_read, f_done, f_busy;
   logic [31:0] f_rdata;
 
-  flash608k_ctrl #(.CLK_HZ(CLK_HZ)) u_flash (
+  flash608k_read #(.CLK_HZ(CLK_HZ)) u_flash (
     .clk(clk), .rst(rst),
-    .addr(f_addr), .wdata(32'd0),
-    .read(f_read), .prog_req(1'b0), .erase(1'b0),
+    .addr(f_addr), .read(f_read),
     .rdata(f_rdata), .busy(f_busy), .done(f_done)
   );
 

@@ -25,7 +25,7 @@
         <File path="../../rtl/dvi/dvi_text.sv" type="file.verilog" enable="1"/>
 
         <File path="../../rtl/flash/flash608k_core.sv" type="file.verilog" enable="1"/>
-        <File path="../../rtl/flash/flash608k_ctrl.sv" type="file.verilog" enable="1"/>
+        <File path="../../rtl/flash/flash608k_read.sv" type="file.verilog" enable="1"/>
         <File path="../../rtl/flash/flash_boot.sv" type="file.verilog" enable="1"/>
 
         <File path="../../rtl/deep16_board.cst" type="file.cst" enable="1"/>

@@ -10,7 +10,7 @@ verilator --cc --exe --build -O2 -Wno-fatal -DD16MINI -DPSRAM -DUSER_FLASH -DFLA
   rtl/deep16_pkg.sv rtl/deep16_alu.sv rtl/deep16_regfile.sv rtl/deep16_cache.sv \
   rtl/deep16_divider.sv rtl/deep16_uart.sv rtl/deep16_core.sv rtl/deep16_top.sv \
   rtl/psram/psram_word_bridge.sv rtl/psram/psram_word_model.sv rtl/psram/deep16_psram_mem.sv \
-  rtl/flash/flash608k_model.sv rtl/flash/flash608k_core.sv rtl/flash/flash608k_ctrl.sv rtl/flash/flash_boot.sv \
+  rtl/flash/flash608k_model.sv rtl/flash/flash608k_core.sv rtl/flash/flash608k_read.sv rtl/flash/flash_boot.sv \
   rtl/sim/psram_boot_tb.sv rtl/sim/psram_boot_tb.cpp -o psram_boot_tb
 ROOT="$(pwd)"
 cd artifacts/image

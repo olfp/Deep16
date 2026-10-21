@@ -67,8 +67,9 @@ installer uses rows 0..192, i.e. **25 pages of 2 KB**; the rest stays free.
    sets `boot_err` and the core stays held (heartbeat steady, nothing boots);
 5. hand the entry word (0x0100) to the cache path, which releases the core.
 
-Measured in `psram_boot_tb`: **boot_done at 72.8 ms**, second boot after a button
-reset OK, `boot_err=0`.
+Measured in `psram_boot_tb`: **boot_done at 454.8 ms**, second boot after a
+button reset OK, `boot_err=0`. The 10 us read recovery per flash word dominates
+(24,704 reads in copy + verify); the packed build is still 37 ms.
 
 The flash controller (`flash608k_ctrl.v`) follows the sequence in Gowin's own
 FLASH608K simulation model: PROG/ERASE leads, NVSTR is the data-storage level,
@@ -98,10 +99,10 @@ Both use `rtl/flash/flash608k_model.sv`; the Gowin builds use the hard
 | Build | BSRAM | CLS | Logic |
 |---|---:|---:|---:|
 | packed BSRAM (baseline) | 20/26 | 4,211/4,320 | 8,173/8,640 |
-| **user flash (final)** | **4/26** | 4,304/4,320 (100%) | 8,353/8,640 (97%) |
-| installer (one-time) | 26/26 | 3,444/4,320 (80%) | 6,648/8,640 (77%) |
+| **user flash (final)** | **4/26** | 4,303/4,320 (100%) | 8,288/8,640 (96%) |
+| installer (one-time) | 26/26 | 3,445/4,320 (80%) | 6,679/8,640 (78%) |
 
-The final build trades the CLS margin for **22 free BSRAM blocks**: only **16 CLS** remain. The flash loader/CRC cost 93 CLS over the packed baseline. The colour
+The final build trades the CLS margin for **22 free BSRAM blocks**: only **17 CLS** remain. The flash loader/CRC cost 92 CLS over the packed baseline. The colour
 mode now has the blocks it needs; the remaining constraint is CLS.
 
 ## Files
