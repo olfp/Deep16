@@ -91,12 +91,12 @@ reference is not vendored); re-run it if the encoder is ever changed.
 ## Fit (with the packed image and the two-word PSRAM burst)
 
 ```
-Logic 8,306/8,640 (97%)   CLS 4,242/4,320 (99%)
+Logic 8,229/8,640 (96%)   CLS 4,206/4,320 (98%)
 Registers 2,577/6,771     BSRAM 20/26 (16 image + 2 cache + 2 DVI)
 rPLL 2/2                  0 TNS on every clocked domain
 ```
 
-The margin is tight: 78 CLS. Any further logic needs an area trade first (the
+The margin is tight: 114 CLS. Any further logic needs an area trade first (the
 colour mode in `VIDEO.md` estimates 6 BSRAM blocks and more CLS, so it will not
 fit alongside this without a diet).
 

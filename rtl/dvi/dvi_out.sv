@@ -112,7 +112,10 @@ module dvi_out (
   logic [2:0]  hve_q;
   always_ff @(posedge clk_pixel) begin
     rgb_q <= {r, g, b};
-    hve_q <= {de, vsync, hsync};
+    // The control symbols in the reference designs carry the sync pulse as a
+    // high level (the monitor derives polarity from the pulse position), while
+    // dvi_text drives the standard active-low levels. Invert here.
+    hve_q <= {de, ~vsync, ~hsync};
   end
 
   logic [9:0] tmds_b, tmds_g, tmds_r;

@@ -132,9 +132,9 @@ What is in it:
   60) as black-and-white DVI. It parses the ANSI the kernel emits, scrolls in
   vertical blanking and draws a block cursor. Two BSRAM blocks; no CPU cost and
   no PSRAM traffic. `ver` works as usual, and `FORTH.md` has the word list.
-- **Resources.** Logic 8,306 / 8,640 (97 %), CLS 4,242 / 4,320 (99 %), registers
+- **Resources.** Logic 8,229 / 8,640 (96 %), CLS 4,206 / 4,320 (98 %), registers
   2,577 / 6,771, **BSRAM 20/26** (16 packed image + 2 cache + 2 screen),
-  0 TNS on the clocked domains. The 78-CLS margin is the next constraint.
+  0 TNS on the clocked domains. The 114-CLS margin is the next constraint.
 
 Build and flash (vendor toolchain for the bitstream):
 

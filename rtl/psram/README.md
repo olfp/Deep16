@@ -247,9 +247,9 @@ different addresses written on one edge makes Gowin fall back to flip-flops.
 
 Measured in `psram_boot_tb` over the boot window: **99.6 % hit rate**, 6.3
 cycles/instruction (was ~17). On the board with the DVI text console: Logic
-8,306/8,640 (97 %), CLS 4,242/4,320 (99 %), registers 2,577/6,771,
+8,229/8,640 (96 %), CLS 4,206/4,320 (98 %), registers 2,577/6,771,
 **BSRAM 20/26** (16 image + 2 cache + 2 screen, **6 free**). The screen costs
-2 blocks and +234 CLS; see `rtl/dvi/README.md`.
+2 blocks and +198 CLS; see `rtl/dvi/README.md`.
 
 The hit path is three CPU cycles (lookup, compare, present). Presenting from the
 lookup cycle would make it two; that is the next cheap win if it still fits.

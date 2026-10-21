@@ -4,7 +4,7 @@ Target: DVI (4 TMDS pairs, second rPLL free) at **640×480@60**, pixel clock
 25.2 MHz (27 MHz x 14/3/5), 252 Mbit/s per lane. Active text area **640×360** =
 80 columns x 24 rows of **8×15** cells, centred with borders.
 
-Budget today: **78 CLS free**, 20/26 BSRAM (2 used by the DVI console).
+Budget today: **114 CLS free**, 20/26 BSRAM (2 used by the DVI console).
 
 ## a) Black and white text, 8×15 — **implemented**
 
@@ -15,8 +15,8 @@ Budget today: **78 CLS free**, 20/26 BSRAM (2 used by the DVI console).
 | sync + renderer + prefetch + cursor | part of the measured total |
 | terminal mirror: UART RX, ANSI parser, scroll | part of the measured total |
 | TMDS: 3 encoders + clock lane + OSER10/ELVDS | part of the measured total |
-| **Measured total** | **2 blocks, +234 CLS** over the pre-DVI build |
-| **New budget** | **4,242 / 4,320 CLS (99 %)**, Logic 8,306/8,640 |
+| **Measured total** | **2 blocks, +198 CLS** over the pre-DVI build |
+| **New budget** | **4,206 / 4,320 CLS (98 %)**, Logic 8,229/8,640 |
 
 Per scanline: 40 cell-pair reads + 80 font-row reads = 120 BSRAM reads, against
 800 pixel clocks — 15 % of the slots at one read per pixel clock.
@@ -24,7 +24,7 @@ Per scanline: 40 cell-pair reads + 80 font-row reads = 120 BSRAM reads, against
 the kernel emits, scrolls in vertical blanking and draws a blinking block
 cursor. See `rtl/dvi/README.md`.
 
-The 78-CLS margin is thin: the colour mode below cannot be added without taking
+The 114-CLS margin is thin: the colour mode below cannot be added without taking
 area back first. The terminal parser and the sync/renderer prefetch are the
 obvious candidates; the TMDS encoder is already the compact spec form.
 
@@ -50,6 +50,6 @@ pixel with a 2:1 BSRAM-to-pixel clock ratio.
 
 Verdict: **96-tile indexed colour fits the block budget exactly** (6 of the 6
 free blocks after B/W text took 2), **but not the area**: 220–280 CLS against
-78 free. 256 tiles needs 11 blocks, so it needs either a smaller tile bank, a
+114 free. 256 tiles needs 11 blocks, so it needs either a smaller tile bank, a
 coarser tile format, or the user-flash loader (which would free the 16 image
 blocks). B/W text is working; colour needs an area diet first.
