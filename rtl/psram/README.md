@@ -270,3 +270,28 @@ Fixes:
 Regression: `rtl/sim/psram_boot_tb` presses reset without reconfiguring and
 boots a second time; it must print banner, summary and prompt again. Before the
 fix the second boot stopped after the banner, exactly like the board.
+
+## Where the cycles go (CPI)
+
+Measured on the PSRAM boot window: **4.6 clk_cpu cycles per retired instruction**
+(5.3 M instructions, 99 % cache hits). It is an average over a real workload, not
+a pipeline depth or a fixed cost per instruction; a tight cached loop reads ~3.
+
+The core is a four-stage pipeline with forwarding, so the datapath itself could
+sustain one instruction per cycle. The **memory interface is not pipelined**: one
+word transaction at a time, and the core is frozen (`mem_stall`) until the word is
+presented. Each completed word releases exactly one pipeline advance.
+
+| Event | clk_cpu cycles |
+|---|---|
+| cache hit fetch (`S_IDLE → S_LOOK → S_PRESENT`) | 3 |
+| cache miss (two-word fill, ~12 x 51 MHz + CDC) | ~13 + present |
+| load (one transaction, also costs the fetch slot) | 3–4 |
+| store (write-through transaction) | 3–5 |
+| load-use stall, branch redirect | 1–2 each |
+
+So ~3 (fetch) + ~1.0 (data) + ~0.6 (hazards). Without the cache the same machine
+measured ~17, which is the proof that the limiter is memory, not the pipeline.
+Deeper/wider pipelines buy nothing here; decode-in-ID only shortens the cycle
+time (Fmax), not the cycle count. The levers, in payoff order: present from the
+lookup cycle (3 → 2), a write buffer, burst fills, a bigger cache.
