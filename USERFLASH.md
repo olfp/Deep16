@@ -1,6 +1,15 @@
 # User-flash boot loader
 
-Status: **implemented and simulated; board installation pending.**
+Status: **implemented and simulated; board installation failed once and is on
+hold. The packed-BSRAM build is the safe default.**
+
+> **Before touching this path again:** the final USER_FLASH build intentionally
+> holds the core (no UART, LEDs off) when the user flash header/CRC is bad, so it
+> looks like a dead board. The installer is an **SRAM-only** step (`-m`); its
+> LED1 must be steady PASS before the final build is tried, and the final build
+> must be tried in SRAM (`-m`) before it is ever written to the config flash
+> (`-f`). The recovered board runs
+> `openFPGALoader -f fpga/gowin/impl/pnr/deep16_board.fs`.
 
 The boot image normally lives in 16 BSRAM blocks, which is why the image is
 range-packed. This path moves it to the **on-die 608 Kbit user flash**
@@ -108,3 +117,26 @@ fpga/gowin/d16flash.sv           final build defines (USER_FLASH)
 fpga/gowin/deep16_installer.*    installer project
 fpga/gowin/deep16_board_flash.*  final project
 ```
+
+
+## If the board looks dead
+
+The FPGA is not bricked by this design. Recover with JTAG:
+
+```sh
+openFPGALoader --detect                       # should show GW1N(R)-9C
+openFPGALoader -m fpga/gowin/impl/pnr/deep16_board.fs   # safe packed build, SRAM
+openFPGALoader -f fpga/gowin/impl/pnr/deep16_board.fs   # persist it
+```
+
+The USER_FLASH build holds the core on a bad header/CRC (heartbeat LED off in
+the current build), so no UART and no DVI is expected — that is not a brick.
+It also cannot repair itself: the installer is the only writer of the user
+flash.
+
+## HDMI +5V caveat (observed on the board)
+
+With the monitor connected, the board's power LED went out; unplugging HDMI
+restored it. The monitor is loading or back-feeding the HDMI +5V pin, which is
+independent of this RTL. Use USB power, try another monitor/cable or an HDMI
+cable with the +5V wire removed, and unplug HDMI first if the power LED drops.
