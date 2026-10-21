@@ -2,35 +2,33 @@
 
 Status: **verified, and persistent on the board.**
 
-The working path is:
+The working sequence is:
 
 ```sh
 # 1. install the image once (SRAM, volatile)
 openFPGALoader -m fpga/gowin/impl/pnr/deep16_installer.fs
 #    LED1 steady = PASS
 
-# 2. persistent final configuration:
-#    Gowin Programmer -> External Flash -> fpga/gowin/impl/pnr/deep16_board_flash.bin
-#    power cycle -> LED0 slow blink, terminal + DVI live
+# 2. write the final configuration to the external config flash
+npm run flash:flash          # Gowin programmer_cli, bscan, ~3.5 min, no GUI
+#    equivalent:
+#    programmer_cli --device GW1NR-9C --run 13 \
+#      --fsFile <abs>/fpga/gowin/impl/pnr/deep16_board_flash.fs --cable-index 1
+# 3. power cycle -> LED0 slow blink, terminal + DVI live
 ```
 
-`deep16_board_flash.bin` (the raw 444 KB bitstream) is the file to write to the
-external configuration flash. **Do not use `openFPGALoader -f` with the
-USER_FLASH `.fs`:** the `.fs` package contains the user-flash section, so that
-write erases/overwrites the on-die image and leaves the config boot broken
-(LED0 off, no UART). The packed `deep16_board.fs` is fine with
-`openFPGALoader -f` because it has no user-flash section; it remains the
-fallback.
+`npm run flash:flash` wraps `scripts/flash_gowin_flash.sh`. It writes the
+configuration to the external flash in *bscan* mode and leaves the on-die
+FLASH608K image alone. **The Gowin Programmer GUI is not needed.**
 
-SRAM tests remain useful:
+**Do not use `openFPGALoader -f` for the USER_FLASH `.fs`.** Its `.fs` parser
+writes the user-flash section, so the board boots only in SRAM; the feature is
+not equivalent to the vendor flow. `--user-flash` in openFPGALoader is
+LittleBee (GW1NSR-4C) only and must not be used on the 9K. The packed
+`deep16_board.fs` remains the openFPGALoader-friendly fallback.
 
-```sh
-openFPGALoader -m fpga/gowin/impl/pnr/deep16_board_flash.fs   # volatile test
-```
-
-The user flash keeps the image across reconfiguration and power cycles. If the
-kernel/image changes, re-run the installer (`-m`); the persistent `.bin` only
-needs replacing if the loader/RTL changes.
+`deep16_board_flash.bin` is still the file for the Gowin GUI (External Flash)
+if you ever prefer it; the CLI script uses the `.fs` that the same build emits.
 
 ## Image format
 

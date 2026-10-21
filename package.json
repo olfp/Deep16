@@ -26,7 +26,8 @@
     "synth:installer": "bash scripts/build_installer.sh",
     "synth:flash": "bash scripts/build_gowin_flash.sh",
     "sim:flash": "bash scripts/build_flash_sim.sh",
-    "sim:installer": "bash scripts/build_installer_sim.sh"
+    "sim:installer": "bash scripts/build_installer_sim.sh",
+    "flash:flash": "bash scripts/flash_gowin_flash.sh"
   },
   "devDependencies": {
     "puppeteer-core": "^25.14.0"
