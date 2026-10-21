@@ -1,5 +1,5 @@
 \ LILA compiler (host prototype)
-\ Supported: assignments, infix expressions, print, single-line if/while.
+\ Supported: assignments, infix expressions, print, if/elseif/while/for.
 \ Expressions are translated to postfix Forth.  LILA variables are stored as
 \ Forth variables named `lila-var-<name>`, so LILA names do not collide with
 \ the host Forth word set.
@@ -16,7 +16,15 @@ variable code-len
 variable lila-fid
 create line-buf 65536 allot
 create block-stack 64 allot
+create block-extra 64 cells allot
 variable block-top
+create for-start 256 allot
+create for-end 256 allot
+create for-step 256 allot
+create for-tail 256 allot
+variable for-depth
+create for-end-vars 64 cells allot
+create for-step-vars 64 cells allot
 
 : code-reset ( -- )  0 code-len ! ;
 : code+ { c-addr u -- }
@@ -277,24 +285,72 @@ variable block-top
 : strip-comment ( c-addr u -- c-addr' u' )
   s" --" split-at 2drop drop trim ;
 
-: block-push ( ch -- )  block-top @ block-stack + c!  1 block-top +! ;
+: block-push ( ch -- )
+  block-top @ 64 >= if s" lila: blocks nested too deeply" lila-error then
+  block-top @ block-stack + c!
+  0 block-top @ cells block-extra + !
+  1 block-top +! ;
 : block-pop ( -- ch )  -1 block-top +!  block-top @ block-stack + c@ ;
 : block-top@ ( -- ch )
   block-top @ 0= if 0 else block-top @ 1- block-stack + c@ then ;
 : block-set-top ( ch -- )
   block-top @ 0= if drop else block-top @ 1- block-stack + c! then ;
+: block-extra@ ( -- n )
+  block-top @ 0= if 0 else block-top @ 1- cells block-extra + @ then ;
+: block-extra+! ( n -- )
+  block-top @ 0= if drop else block-top @ 1- cells block-extra + +! then ;
+: block-set-extra ( n -- )
+  block-top @ 0= if drop else block-top @ 1- cells block-extra + ! then ;
+
+: code-number ( n -- )  0 <# #s #> code+ ;
+: code-for-end ( -- )
+  s" for-end-vars " code+ for-depth @ code-number s"  cells + " code+ ;
+: code-for-step ( -- )
+  s" for-step-vars " code+ for-depth @ code-number s"  cells + " code+ ;
+: code-lila-var ( -- )  lila-lhs count code+ ;
 
 : lila-compile-else ( -- )
   block-top@ [char] i <> if s" lila: else without if" lila-error then
   s" ELSE " code+
   [char] e block-set-top ;
 
+: lila-compile-elseif { line len -- }
+  block-top@ [char] i <> if s" lila: elseif without if" lila-error then
+  line len 7 /string trim
+  s" then" split-at if
+    ( cond clen rest rlen )
+    s" ELSE " code+
+    2over compile-expr
+    s" IF " code+
+    2swap 2drop
+    trim
+    dup 0<> if
+      2drop s" lila: elseif body must start on a new line" lila-error
+    then
+    2drop
+    1 block-extra+!
+  else
+    2drop 2drop
+    s" lila: elseif without then" lila-error
+  then ;
+
 : lila-compile-end ( -- )
   block-top @ 0= if s" lila: end without block" lila-error then
+  block-extra@
   block-pop
-  dup [char] w = if drop s" REPEAT " code+ exit then
-  dup [char] i = over [char] e = or if drop s" THEN " code+ exit then
-  drop s" lila: bad block type" lila-error ;
+  dup [char] f = if
+    drop drop
+    s" REPEAT " code+
+    -1 for-depth +!
+    exit
+  then
+  dup [char] w = if drop drop s" REPEAT " code+ exit then
+  dup [char] i = over [char] e = or if
+    drop
+    1+ 0 ?do s" THEN " code+ loop
+    exit
+  then
+  drop drop s" lila: bad block type" lila-error ;
 
 : lila-compile-if { line len -- }
   line len 3 /string trim
@@ -356,11 +412,101 @@ variable block-top
     s" lila: while without do" lila-error
   then ;
 
+: lila-compile-for { line len -- }
+  line len 4 /string trim
+  s" =" split-at if
+    ( var vlen rest rlen )
+    2over trim identifier? 0= if
+      2drop 2drop s" lila: invalid for variable" lila-error
+    then
+    2over lila-store-lhs
+    2swap 2drop
+    s" do" split-at if
+      ( ranges rlen tail tlen )
+      for-tail place
+      trim
+      s" ," split-at if
+        ( start slen rest2 rlen2 )
+        2over for-start place
+        2swap 2drop
+        s" ," split-at if
+          ( end elen step plen )
+          2over for-end place
+          2swap 2drop
+          for-step place
+        else
+          2drop
+          for-end place
+          s" 1" for-step place
+        then
+        for-depth @ 64 >= if
+          s" lila: for loops nested too deeply" lila-error
+        then
+        for-end count compile-expr
+        code-for-end
+        s" ! " code+
+        for-step count compile-expr
+        code-for-step
+        s" ! " code+
+        for-start count compile-expr
+        code-for-step
+        s" @ - " code+
+        code-lila-var
+        s"  ! " code+
+        s" BEGIN " code+
+        code-lila-var
+        s"  @ " code+
+        code-for-step
+        s" @ + " code+
+        code-lila-var
+        s"  ! " code+
+        code-for-step
+        s" @ 0> IF " code+
+        code-lila-var
+        s"  @ " code+
+        code-for-end
+        s" @ <= ELSE " code+
+        code-lila-var
+        s"  @ " code+
+        code-for-end
+        s" @ >= THEN " code+
+        s" WHILE " code+
+        for-tail count trim
+        dup 0= if
+          2drop
+          [char] f block-push
+          for-depth @ block-set-extra
+          1 for-depth +!
+          exit
+        then
+        s" end" split-at if
+          2drop
+          compile-block
+          s" REPEAT " code+
+        else
+          2drop 2drop
+          s" lila: for body must end with end or start on a new line" lila-error
+        then
+      else
+        2drop 2drop
+        s" lila: for needs start, end" lila-error
+      then
+    else
+      2drop 2drop
+      s" lila: for without do" lila-error
+    then
+  else
+    2drop 2drop
+    s" lila: for without =" lila-error
+  then ;
+
 : lila-compile-line { line len -- }
   line len strip-cr strip-comment
   dup 0= if 2drop exit then
   2dup s" if " string-prefix? if lila-compile-if exit then
+  2dup s" elseif " string-prefix? if lila-compile-elseif exit then
   2dup s" while " string-prefix? if lila-compile-while exit then
+  2dup s" for " string-prefix? if lila-compile-for exit then
   2dup s" else" compare 0= if 2drop lila-compile-else exit then
   2dup s" end" compare 0= if 2drop lila-compile-end exit then
   compile-block ;
@@ -369,6 +515,7 @@ variable block-top
   code-reset
   s" :noname " code+
   0 block-top !
+  0 for-depth !
   c-addr u r/o open-file throw lila-fid !
   begin
     line-buf 65536 lila-fid @ read-line throw
@@ -378,6 +525,7 @@ variable block-top
   drop
   lila-fid @ close-file throw
   block-top @ 0<> if s" lila: unterminated block" lila-error then
+  for-depth @ 0<> if s" lila: unbalanced for loop" lila-error then
   s" ; execute" code+
   code-eval ;
 

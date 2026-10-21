@@ -28,3 +28,60 @@ while fj < 3 do
   fj = fj + 1
 end
 print(fmax)
+
+-- elseif chain
+fcase = 2
+if fcase = 1 then
+  fgrade = 10
+elseif fcase = 2 then
+  fgrade = 20
+elseif fcase = 3 then
+  fgrade = 30
+else
+  fgrade = 40
+end
+print(fgrade)
+
+-- for loops, including a step
+ffor = 0
+for fk = 1, 3 do
+  ffor = ffor + fk
+end
+print(ffor)
+
+fstep = 0
+for fk = 1, 5, 2 do
+  fstep = fstep + fk
+end
+print(fstep)
+
+-- negative step
+fdown = 0
+for fk = 3, 1, -1 do
+  fdown = fdown + fk
+end
+print(fdown)
+
+-- changing the loop variable changes the next iteration
+fmod = 0
+for fk = 1, 10 do
+  if fk = 3 then
+    fk = 8
+  end
+  fmod = fmod + 1
+end
+print(fmod)
+
+-- single-line for
+fsingle = 0
+for fk = 1, 3 do fsingle = fsingle + fk end
+print(fsingle)
+
+-- nested for
+fnest = 0
+for fa = 1, 2 do
+  for fb = 1, 2 do
+    fnest = fnest + fa * fb
+  end
+end
+print(fnest)

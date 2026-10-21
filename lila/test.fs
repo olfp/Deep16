@@ -30,6 +30,13 @@ lila-var-fsum @  3 check=
 lila-var-fi @    3 check=
 lila-var-fneg @  0 check=
 lila-var-fmax @  2 check=
+lila-var-fgrade @ 20 check=
+lila-var-ffor @  6 check=
+lila-var-fstep @ 9 check=
+lila-var-fdown @ 6 check=
+lila-var-fmod @  5 check=
+lila-var-fsingle @ 6 check=
+lila-var-fnest @ 9 check=
 
 ." lila tests passed" cr
 bye
