@@ -100,6 +100,7 @@ int main(int argc, char** argv) {
   top->clk = 0; top->clk_ip = 0; top->rst = 1; top->uart_rx_in = 1;
   for (int i = 0; i < 400; i++) tick();
   top->rst = 0;
+  top->dbg_en = 1;
   for (int i = 0; i < 400; i++) tick();
 
   top->peek_addr = 0; top->dbg_en = 0;
@@ -149,6 +150,11 @@ int main(int argc, char** argv) {
     }
 
     static int last_st = -1, last_op = -1, last_rdq = -1, last_hw = -1;
+    static int ntr = 0;
+    if (rise && (int)top->dbg_st != last_st && ntr < 30) {
+      last_st = top->dbg_st; ntr++;
+      std::printf("T st=%02x\n", (unsigned)top->dbg_st);
+    }
     if (top->dbg_en && rise && top->dbg_breq && top->dbg_bwe) {
       std::printf("WRITE addr=%05x\n", (unsigned)top->dbg_baddr);
     }

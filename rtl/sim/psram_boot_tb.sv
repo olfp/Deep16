@@ -19,7 +19,7 @@ module psram_boot_tb (
   input  logic [19:0] peek_addr,
   output logic [15:0] peek_data,
   input  logic        dbg_en,
-  output logic [3:0]  dbg_st,
+  output logic [5:0]  dbg_st,
   output logic [19:0] dbg_op,
   output logic [15:0] dbg_rdq,
   output logic [15:0] dbg_brd,
@@ -89,7 +89,7 @@ module psram_boot_tb (
     .o_dbg_if_addr(if_addr)
   );
 
-  assign dbg_st   = dbg_en ? u_top.u_psram_mem.st : 4'hF;
+  assign dbg_st   = u_top.u_psram_mem.st;   // 6 bits, always
   assign dbg_op   = u_top.u_psram_mem.op_addr;
   assign dbg_rdq  = u_top.u_psram_mem.rd_q;
   assign dbg_brd  = u_top.u_psram_mem.brdata;
