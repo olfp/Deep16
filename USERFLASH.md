@@ -142,8 +142,7 @@ openFPGALoader -m fpga/gowin/impl/pnr/deep16_board.fs   # safe packed build, SRA
 openFPGALoader -f fpga/gowin/impl/pnr/deep16_board.fs   # persist it
 ```
 
-The USER_FLASH build holds the core on a bad header/CRC (heartbeat LED off in
-the current build), so no UART and no DVI is expected — that is not a brick.
+The USER_FLASH build holds the core on a bad header/CRC (LED0 steady lit in the current build), so no UART and no DVI is expected — that is not a brick.
 It also cannot repair itself: the installer is the only writer of the user
 flash.
 

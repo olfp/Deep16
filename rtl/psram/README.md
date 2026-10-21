@@ -181,7 +181,7 @@ The six on-board LEDs (active low, pins 10/11/13/14/15/16) show:
 
 | LED | meaning |
 |---|---|
-| 0 | heartbeat: slow blink = booted, fast = loading, off = read-back mismatch |
+| 0 | slow blink = booted, fast = loading, steady lit = read-back/boot error |
 | 1 | core running |
 | 2 | core halted on `0xFFFF` |
 | 3..5 | retired instructions (counter bits 9, 13, 17) |
