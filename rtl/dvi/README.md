@@ -107,11 +107,14 @@ fit alongside this without a diet).
 
 ## Font
 
-`font8x15.hex` is generated from the public-domain `font8x8_basic` table
-(Daniel Hepper / Marcel Sondaar / IBM public-domain VGA fonts), each row
-doubled to 15 rows. Two rows share one 16-bit word; the low byte is the even
-row, the high byte the odd row, MSB leftmost. 96 glyphs (0x20..0x7F), 8 words
-per glyph.
+`font8x15.hex` is the **Nixedsys** 8x15 bitmap font
+(github.com/ntwk/nixedsys-font), generated from its BDF by
+`scripts/bdf_to_font.mjs`. Two rows share one 16-bit word; the low byte is the
+even row, the high byte the odd row, MSB leftmost. 96 glyphs (0x20..0x7F), 8
+words per glyph. It was chosen for its Fixedsys look; see `FONT-NOTICE.md` for
+its (non-commercial) provenance. The public-domain `font8x8`-derived font is
+still available from the converter's description and can be substituted at any
+time.
 
 Any 8x15 BDF can replace it:
 
