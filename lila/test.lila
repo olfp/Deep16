@@ -85,3 +85,65 @@ for fa = 1, 2 do
   end
 end
 print(fnest)
+
+-- parenthesized expressions and unary minus
+fparen = (1 + 2) * (3 + 4)
+print(fparen)
+
+fprec = 2 * (3 + 4) - 5
+print(fprec)
+
+fnegexpr = -(1 + 2)
+print(fnegexpr)
+
+if (fx + 1) > 2 then
+  fcond = 1
+else
+  fcond = 0
+end
+print(fcond)
+
+-- parentheses in for bounds
+frange = 0
+for fp = (1), (2 + 2) do
+  frange = frange + fp
+end
+print(frange)
+
+-- break out of a while loop
+fbrk = 0
+while fbrk < 10 do
+  fbrk = fbrk + 1
+  if fbrk = 3 then
+    break
+  end
+end
+print(fbrk)
+
+-- break out of a for loop
+fbsum = 0
+for fbi = 1, 10 do
+  if fbi = 4 then
+    break
+  end
+  fbsum = fbsum + fbi
+end
+print(fbsum)
+
+-- break only exits the inner loop
+fbnest = 0
+for fa = 1, 3 do
+  for fb2 = 1, 3 do
+    if fb2 = 2 then
+      break
+    end
+    fbnest = fbnest + 1
+  end
+  fbnest = fbnest + 10
+end
+print(fbnest)
+
+-- break in a single-line loop body
+fbsingle = 0
+while fbsingle < 10 do fbsingle = fbsingle + 1 ; break end
+print(fbsingle)

@@ -14,6 +14,9 @@ s" n = -3" lila-eval         lila-var-n @ -3 check=
 s" q = x-3" lila-eval        lila-var-q @ 2 check=
 s" r = x + -3" lila-eval     lila-var-r @ 2 check=
 s" s = 10 / 2" lila-eval     lila-var-s @ 5 check=
+s" p = (1 + 2) * (3 + 4)" lila-eval  lila-var-p @ 21 check=
+s" pp = ((2 + 3) * (4 - 1)) / 5" lila-eval  lila-var-pp @ 3 check=
+s" pn = -(1 + 2)" lila-eval  lila-var-pn @ -3 check=
 s" 2 3 +" lila-eval          5 check=   \ Forth pass-through
 
 \ control flow: single-line forms, with ';' separating body statements
@@ -37,6 +40,16 @@ lila-var-fdown @ 6 check=
 lila-var-fmod @  5 check=
 lila-var-fsingle @ 6 check=
 lila-var-fnest @ 9 check=
+lila-var-fparen @ 21 check=
+lila-var-fprec @  9 check=
+lila-var-fnegexpr @ -3 check=
+lila-var-fcond @ 1 check=
+lila-var-frange @ 10 check=
+lila-var-fbrk @ 3 check=
+lila-var-fbsum @ 6 check=
+lila-var-fbi @ 4 check=
+lila-var-fbnest @ 33 check=
+lila-var-fbsingle @ 1 check=
 
 ." lila tests passed" cr
 bye
