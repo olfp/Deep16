@@ -44,9 +44,13 @@ the two font rows. The renderer prefetches the next pair and both glyphs during
 the current pair; pair 0 of the next line is prefetched during horizontal
 blanking. All reads fit easily in 16 pixel clocks.
 
-Scrolling is deferred to vertical blanking, where the renderer is idle. A clear
-writes 960 words in 38 us. A four-byte receive queue covers the UART while a
-clear or scroll runs.
+Scrolling uses a **circular row offset**: on LF at the bottom, `row_off`
+advances and one 80-cell row is cleared (40 words, 1.6 us). The renderer maps
+logical row R to memory row `(R + row_off) % 24`, so there is no copy and no
+UART byte can land on a stale bottom row while a copy waits for blanking (the
+bug that overwrote ` ok` with the prompt on the board). A clear writes 960
+words in 38 us. A four-byte receive queue covers the UART while a clear or row
+clear runs.
 
 The parser handles what the UART BIOS emits: `CR`, `LF`, `BS`, printable ASCII,
 `ESC[H`, `ESC[r;cH`, `ESC[2J/3J`, `ESC[K` (ignored), SGR (`m`, ignored) and the
@@ -81,8 +85,9 @@ npm run sim:dvi
 
 `rtl/sim/dvi_text_tb` drives the UART at 115200 (219 pixel clocks per bit),
 sends a short ANSI session, checks the packed cell words, compares the rendered
-`H` against the font ROM, checks a blank row, and verifies one frame is 525
-lines / 800 clocks / 307,200 `de` pixels. The PHY itself (PLL, OSER10, ELVDS)
+`H` against the font ROM, checks a blank row, verifies one frame is 525 lines / 800 clocks / 307,200
+`de` pixels, and sends 28 lines plus ` ok` / prompt to pin the scroll path: the
+` ok` must stay on the row above the prompt. The PHY itself (PLL, OSER10, ELVDS)
 is Gowin-only and cannot be simulated; board confirmation is the last step.
 
 The TMDS encoder check against `hdl-util/hdmi` is a development test (that
@@ -91,12 +96,12 @@ reference is not vendored); re-run it if the encoder is ever changed.
 ## Fit (with the packed image and the two-word PSRAM burst)
 
 ```
-Logic 8,229/8,640 (96%)   CLS 4,206/4,320 (98%)
+Logic 8,173/8,640 (95%)   CLS 4,211/4,320 (98%)
 Registers 2,577/6,771     BSRAM 20/26 (16 image + 2 cache + 2 DVI)
 rPLL 2/2                  0 TNS on every clocked domain
 ```
 
-The margin is tight: 114 CLS. Any further logic needs an area trade first (the
+The margin is tight: 109 CLS. Any further logic needs an area trade first (the
 colour mode in `VIDEO.md` estimates 6 BSRAM blocks and more CLS, so it will not
 fit alongside this without a diet).
 

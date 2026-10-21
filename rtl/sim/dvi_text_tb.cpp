@@ -145,6 +145,45 @@ int main(int argc, char** argv) {
   check("pixels per frame with de", de_pixels, 640L * 480L);
   check("clock cycles per frame", cycles, 800L * 525L);
 
+  // Cell read helper: logical row + the current circular row offset.
+  auto cell = [&](int logical_row, int col) -> uint16_t {
+    const int off = top->dbg_row_off;
+    top->dbg_addr = ((logical_row + off) % 24) * 40 + (col >> 1);
+    top->eval();
+    return (col & 1) ? ((top->dbg_cell >> 8) & 0xFF) : (top->dbg_cell & 0xFF);
+  };
+
+  // Hard wrap: 80 columns hold at the last column, then CR+LF moves to the
+  // next row. The " ok" must not land on the 80-column row.
+  send("\x1b[H\x1b[2J");
+  for (int i = 0; i < 6000; i++) tick();
+  for (int i = 0; i < 80; i++) send_byte('Z');
+  send("\r\n ok\r\n> ");
+  for (int i = 0; i < 6000; i++) tick();
+  check("hard wrap: first column", cell(0, 0), 'Z');
+  check("hard wrap: 80th column", cell(0, 79), 'Z');
+  check("ok row starts with a space", cell(1, 0), ' ');
+  check("o on the row after 80 columns", cell(1, 1), 'o');
+  check("k on the row after 80 columns", cell(1, 2), 'k');
+  check("prompt below ok", cell(2, 0), '>');
+
+  // Scroll regression: a long stream must scroll immediately (row offset plus
+  // a one-row clear), and the REPL's " ok" must stay on its own row instead of
+  // being overwritten by the next prompt. This is the board bug that lost the
+  // 'o' and moved "> " onto the last words line.
+  send("\x1b[H\x1b[2J");
+  for (int i = 0; i < 6000; i++) tick();          // let the clear finish
+  for (int line = 0; line < 28; line++) send("0123456789\r\n");
+  send(" ok\r\n> ");
+  for (int i = 0; i < 6000; i++) tick();          // row clear + prompt
+
+  check("scroll advanced the row offset", top->dbg_row_off, 6);
+  check("space before ok", cell(22, 0), ' ');
+  check("o in ok", cell(22, 1), 'o');
+  check("k in ok", cell(22, 2), 'k');
+  check("prompt first char", cell(23, 0), '>');
+  check("prompt second char", cell(23, 1), ' ');
+
   top->final();
   delete top;
   std::printf(fails ? "FAILED (%d)\n" : "PASS\n", fails);

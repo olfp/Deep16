@@ -23,7 +23,10 @@ module dvi_text_tb (
   output logic [6:0]  dbg_col,
   output logic [1:0]  dbg_esc,
   output logic        dbg_busy,
-  output logic [2:0]  dbg_fifo
+  output logic [2:0]  dbg_fifo,
+  input  logic [9:0]  dbg_addr,
+  output logic [15:0] dbg_cell,
+  output logic [4:0]  dbg_row_off
 );
   dvi_text u_text (
     .clk    (clk),
@@ -45,7 +48,9 @@ module dvi_text_tb (
   assign dbg_row  = u_text.cur_row;
   assign dbg_col  = u_text.cur_col;
   assign dbg_esc  = u_text.esc_state;
-  assign dbg_busy = u_text.clear_active || u_text.scroll_active;
+  assign dbg_busy = u_text.clear_active || u_text.row_clear_active;
   assign dbg_fifo = u_text.fifo_count;
+  assign dbg_cell = u_text.cells[dbg_addr];
+  assign dbg_row_off = u_text.row_off;
 
 endmodule

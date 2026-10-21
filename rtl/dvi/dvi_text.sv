@@ -125,8 +125,22 @@ module dvi_text #(
   logic [7:0] glyph_even_cur,  glyph_odd_cur;
   logic       pf_ready;
 
-  wire [9:0] row_base = 10'(ty) * 10'd40;
-  wire [9:0] cur_row_base = 10'(cur_row) * 10'd40;  // terminal writes, not scanout
+  // The 24 text rows are a circular buffer: scrolling only moves row_off and
+  // clears one row. Copying 960 words was both slow and unsafe - the UART kept
+  // writing to the old bottom row while the copy waited for vertical blanking,
+  // which is what overwrote " ok" with the prompt.
+  logic [4:0] row_off;
+  wire [5:0] scan_sum   = {1'b0, ty} + {1'b0, row_off};
+  wire [5:0] nscan_sum  = {1'b0, next_ty} + {1'b0, row_off};
+  wire [5:0] term_sum   = {1'b0, cur_row} + {1'b0, row_off};
+  // 5-bit subtraction is modulo 32, which is exactly what the 6-bit sum needs:
+  // for 24..46 it wraps 0..22, and below 24 the value is already in range.
+  wire [4:0] scan_row   = (scan_sum  >= 6'd24) ? (scan_sum[4:0]  - 5'd24) : scan_sum[4:0];
+  wire [4:0] nscan_row  = (nscan_sum >= 6'd24) ? (nscan_sum[4:0] - 5'd24) : nscan_sum[4:0];
+  wire [4:0] term_row   = (term_sum  >= 6'd24) ? (term_sum[4:0]  - 5'd24) : term_sum[4:0];
+  wire [9:0] row_base      = 10'(scan_row) * 10'd40;
+  wire [9:0] pf_row_base   = 10'(nscan_row) * 10'd40;
+  wire [9:0] cur_row_base  = 10'(term_row) * 10'd40;  // terminal writes
   wire [7:0] pf = 8'(x - 10'(H_ACTIVE));   // 0..159 during the blank
 
   // Font word for a character at the current glyph row: glyphs are 96 x 15,
@@ -145,10 +159,8 @@ module dvi_text #(
 
   always_comb begin
     rd_addr = 10'd0;
-    if (scroll_active) begin
-      rd_addr = (scroll_i < 10'd920) ? (scroll_i + 10'd40) : 10'd0;
-    end else if (!active_x) begin
-      if (next_is_text && pf == 8'd0) rd_addr = 10'(next_ty) * 10'd40;
+    if (!active_x) begin
+      if (next_is_text && pf == 8'd0) rd_addr = pf_row_base;
     end else if (phase == 4'd1 && pair < 6'd39) begin
       rd_addr = row_base + {4'd0, pair} + 10'd1;
     end
@@ -255,21 +267,16 @@ module dvi_text #(
 
   logic        clear_pending, clear_active;
   logic [9:0]  clear_i;
-  logic        scroll_pending, scroll_active;
-  logic [9:0]  scroll_i;
-  logic        scroll_phase;
-  logic        scroll_we;
-  logic [9:0]  scroll_waddr;
-  logic [15:0] scroll_wdata;
+  logic        row_clear_pending, row_clear_active;
+  logic [9:0]  row_clear_base, row_clear_i;
   logic        term_we;
   logic [9:0]  term_waddr;
   logic        term_byte;
   logic [7:0]  term_char;
 
-  wire busy = clear_active || scroll_active;
+  wire busy = clear_active || row_clear_active;
   wire pop_now = !busy && (fifo_count != 3'd0);
   wire push_now = rx_valid && (fifo_count != 3'd4);
-  wire vblank = (y >= 10'(V_ACTIVE));
   wire [7:0] rx_byte = fifo[fifo_rd];
 
   // One write port for the cell memory: the parser, the clear loop and the
@@ -284,11 +291,11 @@ module dvi_text #(
       cell_waddr = clear_i;
       cell_wmask = 2'b11;
       cell_wdata = 16'h2020;
-    end else if (scroll_we) begin
+    end else if (row_clear_active) begin
       cell_we = 1'b1;
-      cell_waddr = scroll_waddr;
+      cell_waddr = row_clear_base + row_clear_i;
       cell_wmask = 2'b11;
-      cell_wdata = scroll_wdata;
+      cell_wdata = 16'h2020;
     end else if (term_we) begin
       cell_we = 1'b1;
       cell_waddr = term_waddr;
@@ -304,14 +311,13 @@ module dvi_text #(
       esc_state <= 2'd0; csi_param <= 8'd0; csi_np <= 2'd0;
       csi_p0 <= 8'd0; csi_p1 <= 8'd0; csi_priv <= 1'b0;
       clear_pending <= 1'b0; clear_active <= 1'b0; clear_i <= 10'd0;
-      scroll_pending <= 1'b0; scroll_active <= 1'b0; scroll_i <= 10'd0;
-      scroll_phase <= 1'b0; scroll_we <= 1'b0;
-      scroll_waddr <= 10'd0; scroll_wdata <= 16'd0;
+      row_off <= 5'd0;
+      row_clear_pending <= 1'b0; row_clear_active <= 1'b0;
+      row_clear_base <= 10'd0; row_clear_i <= 10'd0;
       term_we <= 1'b0; term_char <= 8'd32;
       term_waddr <= 10'd0; term_byte <= 1'b0;
     end else begin
       term_we  <= 1'b0;
-      scroll_we <= 1'b0;
 
       if (push_now) begin
         fifo[fifo_wr] <= rx_shift;
@@ -319,13 +325,15 @@ module dvi_text #(
       end
 
       // ---- clear ------------------------------------------------------
-      if (clear_pending && !clear_active && !scroll_active) begin
+      if (clear_pending && !clear_active && !row_clear_active) begin
         clear_active <= 1'b1;
         clear_pending <= 1'b0;
         clear_i <= 10'd0;
       end else if (clear_active) begin
         if (clear_i == 10'(CELL_WORDS - 1)) begin
           clear_active <= 1'b0;
+          row_off <= 5'd0;
+          row_clear_pending <= 1'b0;
           cur_row <= 5'd0;
           cur_col <= 7'd0;
         end else begin
@@ -333,30 +341,14 @@ module dvi_text #(
         end
       end
 
-      // ---- scroll (vertical blank only) -------------------------------
-      if (scroll_pending && !scroll_active && !clear_active && vblank) begin
-        scroll_active <= 1'b1;
-        scroll_pending <= 1'b0;
-        scroll_i <= 10'd0;
-        scroll_phase <= 1'b0;
-      end else if (scroll_active) begin
-        if (!scroll_phase) begin
-          scroll_phase <= 1'b1;
-        end else begin
-          scroll_we <= 1'b1;
-          scroll_waddr <= scroll_i;
-          scroll_wdata <= (scroll_i < 10'd920) ? cell_q : 16'h2020;
-          scroll_phase <= 1'b0;
-          if (scroll_i == 10'd959) begin
-            scroll_active <= 1'b0;
-            scroll_pending <= 1'b0;
-            scroll_i <= 10'd0;
-            cur_row <= 5'd23;
-            cur_col <= 7'd0;
-          end else begin
-            scroll_i <= scroll_i + 10'd1;
-          end
-        end
+      // ---- scroll: advance the row offset, clear the new bottom row ----
+      if (row_clear_pending && !row_clear_active && !clear_active) begin
+        row_clear_active <= 1'b1;
+        row_clear_pending <= 1'b0;
+        row_clear_i <= 10'd0;
+      end else if (row_clear_active) begin
+        if (row_clear_i == 10'(COLS / 2 - 1)) row_clear_active <= 1'b0;
+        else row_clear_i <= row_clear_i + 10'd1;
       end
 
       // ---- parser -----------------------------------------------------
@@ -370,8 +362,13 @@ module dvi_text #(
             end else if (rx_byte == 8'h0D) begin
               cur_col <= 7'd0;
             end else if (rx_byte == 8'h0A) begin
-              if (cur_row == 5'd23) scroll_pending <= 1'b1;
-              else cur_row <= cur_row + 5'd1;
+              if (cur_row == 5'd23) begin
+                row_off <= (row_off == 5'd23) ? 5'd0 : row_off + 5'd1;
+                row_clear_pending <= 1'b1;
+                row_clear_base <= 10'(row_off) * 10'd40;  // old bottom row
+              end else begin
+                cur_row <= cur_row + 5'd1;
+              end
             end else if (rx_byte == 8'h08) begin
               if (cur_col != 7'd0) begin
                 cur_col <= cur_col - 7'd1;

@@ -129,12 +129,12 @@ What is in it:
   banner, and the prompt is printed once the baked boot script has compiled.
 - **Screen.** A hardware terminal mirror listens to the same `uart_txd` and
   scans an 80 x 24 cell image (8 x 15 cells, 640 x 360 centred in 640 x 480 @
-  60) as black-and-white DVI. It parses the ANSI the kernel emits, scrolls in
-  vertical blanking and draws a block cursor. Two BSRAM blocks; no CPU cost and
+  60) as black-and-white DVI. It parses the ANSI the kernel emits, scrolls with a
+  circular row offset and draws a block cursor. Two BSRAM blocks; no CPU cost and
   no PSRAM traffic. `ver` works as usual, and `FORTH.md` has the word list.
-- **Resources.** Logic 8,229 / 8,640 (96 %), CLS 4,206 / 4,320 (98 %), registers
+- **Resources.** Logic 8,173 / 8,640 (95 %), CLS 4,211 / 4,320 (98 %), registers
   2,577 / 6,771, **BSRAM 20/26** (16 packed image + 2 cache + 2 screen),
-  0 TNS on the clocked domains. The 114-CLS margin is the next constraint.
+  0 TNS on the clocked domains. The 109-CLS margin is the next constraint.
 
 Build and flash (vendor toolchain for the bitstream):
 
