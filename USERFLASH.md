@@ -1,8 +1,10 @@
 # User-flash boot loader
 
-Status: **verified on hardware.** Installer LED1 PASS, the final USER_FLASH
-build boots from the user flash, terminal and DVI work. The packed-BSRAM build
-remains the default and the fallback.
+Status: **SRAM boot verified; config-flash persistence under investigation.**
+Installer LED1 PASS and the final USER_FLASH build boots correctly when loaded
+with `-m`. Writing the final build to the external configuration flash (`-f`)
+makes the board unresponsive on the next power-up. The packed-BSRAM build is the
+persistent default and the fallback.
 
 > **Keep the two-stage order:** the installer is an **SRAM-only** step (`-m`);
 > its LED1 must be steady PASS before the final build is tried, and the final
@@ -119,6 +121,31 @@ fpga/gowin/deep16_installer.*    installer project
 fpga/gowin/deep16_board_flash.*  final project
 ```
 
+
+## Config-flash persistence (open issue)
+
+`-m` (SRAM) works. `-f` (external config flash) followed by a power cycle does
+not. The bitstream is the same, so the difference is in the config-boot path or
+the loader's first read after a cold configuration.
+
+The final build now reports on LED0:
+
+| LED0 | meaning |
+|---|---|
+| slow blink | booted |
+| fast blink | loader still working (PSRAM init or flash read not finished) |
+| steady lit | boot error (user-flash header/CRC/verify failed) |
+| off | FPGA did not configure from the config flash |
+
+Diagnostic order:
+
+1. `-f` the packed `deep16_board.fs`; power cycle. If that boots, the config
+   flash path is healthy and only the USER_FLASH bitstream is affected.
+2. `-f` the final `deep16_board_flash.fs`; power cycle; note LED0.
+3. Load the final with `-m` again. If it still boots, the user flash survived;
+   if not, the user flash was erased/invalidated by the config boot.
+4. Load the installer with `-m`; LED1 PASS means the user flash is still valid
+   and writable, LED2 means it is not.
 
 ## The board sequence that worked
 
