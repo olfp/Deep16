@@ -34,8 +34,8 @@ s" print(x + 1)" lila-eval
 ## Supported syntax
 
 Assignments, infix arithmetic, comparison, `print`, `if`/`elseif`/`while`,
-numeric `for` loops, `break`, and functions.  Blocks may span lines or stay
-on one line:
+numeric `for` loops, `break`, functions, tables, and strings.  Blocks may span
+lines or stay on one line:
 
 ```lisp
 -- LILA comment
@@ -73,6 +73,9 @@ while x < 10 do x = x + 1 end
 for i = 1, 3 do y = y + i end
 function twice(v) return v * 2 end
 function inc(a) a = a + 1 ; return a end
+t = {}
+t["a"] = 1
+print("hi")
 ```
 
 `break` exits the innermost `while` or `for` loop.  Breaking out of a loop
@@ -121,6 +124,37 @@ function definitions are compiled before the main program runs.  A function
 body may call functions that were defined earlier (or are already loaded), but
 not one defined later.
 
+Tables are created with `{}` and use string keys:
+
+```lisp
+scores = {}
+scores["alice"] = 10
+scores["bob"] = 7
+print(scores["alice"] + scores["bob"])   -- 17
+```
+
+Reading a missing key yields `0`.  Keys may be string literals or string
+variables.  Values are a single cell: a number or another table.  A table can
+be stored in another table and read with chained brackets
+(`outer["inner"]["x"]`), but nested assignment is not supported; assign
+through the inner table variable instead.
+
+A string variable is written with a string literal:
+
+```lisp
+name = "lila"
+print(name)              -- lila
+scores[name] = 3
+print(scores["lila"])    -- 3
+```
+
+Strings are `c-addr u` pairs at the Forth level (the compiler stores them in a
+two-cell `lila-str-<name>` buffer).  Assigning one string variable to another
+copies both cells; the string data itself is immutable.  Strings can be
+printed and used as table keys.  They cannot yet be concatenated, compared, or
+used as table values.  `--` inside a string literal is part of the string, not
+a comment.
+
 A body may contain several statements separated by `;`:
 
 ```lisp
@@ -143,7 +177,15 @@ Forth as `lila-var-<name>`.
   another function.  Function calls must form an acyclic graph.
 - Functions must be defined at top level, and a function body may only call a
   function defined earlier (or already loaded).
-- No tables or strings yet.
+- Tables hold at most 64 keys and are never freed.  Inserting into a full
+  table aborts with `lila: table full`.
+- Nested table assignment such as `t["a"]["b"] = 1` is not supported; assign
+  through the inner table variable instead.
+- Strings cannot be concatenated, compared, or stored as table values, and a
+  literal cannot contain a `"`.  Function parameters are single cells, so
+  strings cannot be passed to functions yet.  A name assigned a string literal
+  stays a string variable; assigning it a number later is not supported.
+  At most 64 string variables are tracked.
 - Variables are global, except function parameters.  A variable must be
   assigned before it is read.
 - In a single-line loop body, `break` works as a plain statement, but nested

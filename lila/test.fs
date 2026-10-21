@@ -89,5 +89,36 @@ lila-var-ffnproc @  0 check=
 lila-var-ffnnothing @ 0 check=
 lila-var-ffnlater @ 7 check=
 
+\ tables and strings from lila-eval
+s\" tab = {}" lila-eval
+s\" tab[\"k\"] = 3" lila-eval
+s\" tabv = tab[\"k\"] + 1" lila-eval        lila-var-tabv @ 4 check=
+s\" tab[\"k\"] = 8" lila-eval
+s\" tabw = tab[\"k\"]" lila-eval            lila-var-tabw @ 8 check=
+s\" tabm = tab[\"no\"]" lila-eval           lila-var-tabm @ 0 check=
+s\" tab[\"two words\"] = 2" lila-eval
+s\" tabx = tab[\"two words\"]" lila-eval    lila-var-tabx @ 2 check=
+s\" tab[\"\"] = 4" lila-eval
+s\" tabe = tab[\"\"]" lila-eval             lila-var-tabe @ 4 check=
+s\" tabcopy = tab" lila-eval
+s\" tabc = tabcopy[\"k\"]" lila-eval        lila-var-tabc @ 8 check=
+s\" greet = \"hey\"" lila-eval
+s\" tab[greet] = 6" lila-eval
+s\" tabg = tab[greet]" lila-eval           lila-var-tabg @ 6 check=
+s\" print(\"ok\")" lila-eval
+
+\ table and string checks from test.lila
+lila-var-ft @ s" a" table-get drop           9 check=
+lila-var-ft @ s" b" table-get drop           7 check=
+lila-var-ft @ s" hello world" table-get drop 11 check=
+lila-var-ft @ s" " table-get drop            3 check=
+lila-var-ft @ s" hello" table-get drop      21 check=
+lila-var-ftabsum @   12 check=
+lila-var-ftabmiss @   0 check=
+lila-var-fnested @    4 check=
+lila-var-fparam @     8 check=
+lila-str-fstr 2@  s" world" compare 0 check=
+lila-str-fstr2 2@ s" hello" compare 0 check=
+
 ." lila tests passed" cr
 bye

@@ -4,7 +4,7 @@
 
 : hash-string ( c-addr u nbuckets -- idx )
   >r 0 -rot
-  over + swap do i c@ + 31 * loop
+  over + swap ?do i c@ + 31 * loop
   r> mod ;
 
 : table-new ( nbuckets -- table )
@@ -29,35 +29,33 @@
   a1 u1 a2 u2 compare 0= ;
 
 : table-get { table key-addr key-len -- value flag }
-  table @  ( nbuckets )
-  key-addr key-len table @ hash-string  ( idx )
-  begin
-    dup table @ < while
-    table swap slot-addr  ( idx slot )
+  table @ { n }
+  key-addr key-len n hash-string { idx }
+  n 0 ?do
+    table idx slot-addr
     dup slot-occupied if
       dup slot-key-addr over slot-key-len
       key-addr key-len key= if
-        slot-value swap drop true exit
+        slot-value true unloop exit
       then
+      drop
     else
-      2drop 0 false exit
+      drop 0 false unloop exit
     then
-    drop
-    1+ table @ mod
-  repeat
-  2drop 0 false ;
+    idx 1+ n mod to idx
+  loop
+  0 false ;
 
 : table-set { table key-addr key-len value -- }
-  table @
-  key-addr key-len table @ hash-string
-  begin
-    dup table @ < while
-    table swap slot-addr
+  table @ { n }
+  key-addr key-len n hash-string { idx }
+  n 0 ?do
+    table idx slot-addr
     dup slot-occupied if
       dup slot-key-addr over slot-key-len
       key-addr key-len key= if
         value swap 2 cells + !   \ update value
-        drop exit
+        unloop exit
       then
       drop
     else
@@ -65,8 +63,8 @@
       key-len over cell+ !
       value over 2 cells + !
       1 over 3 cells + !
-      2drop exit
+      unloop exit
     then
-    1+ table @ mod
-  repeat
-  2drop ;
+    idx 1+ n mod to idx
+  loop
+  abort" lila: table full" ;

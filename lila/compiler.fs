@@ -53,6 +53,14 @@ variable fn-active
 create call-names 64 64 * allot
 variable call-top
 create paren-args 64 allot
+\ String literals and string variables.  Strings are c-addr u pairs; a LILA
+\ string variable is a two-cell Forth buffer named `lila-str-<name>`.
+create str-buf 1024 allot
+variable str-len
+create em-buf 2048 allot
+create str-vars 64 64 * allot
+variable str-var-count
+variable in-string
 
 code-buf0 code-buf !
 
@@ -77,6 +85,19 @@ code-buf0 code-buf !
 
 : buf-reset ( buf -- )  0 swap c! ;
 : buf+ ( c-addr u buf -- )  +place ;
+
+: em-reset ( -- )  0 em-buf c! ;
+: em+ ( c-addr u -- )  em-buf +place ;
+: em-char ( ch -- )
+  em-buf c@ 2040 >= if s" lila: literal too long" lila-error then
+  em-buf count + c!
+  em-buf c@ 1+ em-buf c! ;
+: s-lit-em { c-addr u -- }
+  s" s" em+
+  [char] " em-char
+  bl em-char
+  c-addr u em+
+  [char] " em-char ;
 
 : trim { c-addr u -- c-addr' u' }
   begin
@@ -153,6 +174,31 @@ code-buf0 code-buf !
     then
   loop false ;
 
+: string-var? { c-addr u -- flag }
+  c-addr u trim to u to c-addr
+  str-var-count @ 0 ?do
+    c-addr u  i 64 * str-vars + count compare 0= if
+      true unloop exit
+    then
+  loop false ;
+
+: string-literal? { c-addr u -- flag }
+  c-addr u trim to u to c-addr
+  u 2 < if false exit then
+  c-addr c@ [char] " <> if false exit then
+  c-addr u + 1- c@ [char] " <> if false exit then
+  u 2 - 0 ?do
+    c-addr i 1+ + c@ [char] " = if false unloop exit then
+  loop
+  true ;
+
+: emit-string { c-addr u -- }
+  append-space
+  em-reset
+  c-addr u s-lit-em
+  em-buf count lila-buf buf+
+  append-space ;
+
 : emit-operand { c-addr u -- }
   c-addr u is-number? if
     c-addr u lila-buf buf+
@@ -160,13 +206,19 @@ code-buf0 code-buf !
     c-addr u keyword? if
       c-addr u lila-buf buf+
     else
-      s"  lila-var-" lila-buf buf+
-      c-addr u param? if
-        fn-name count lila-buf buf+
-        s" -" lila-buf buf+
+      c-addr u string-var? if
+        s"  lila-str-" lila-buf buf+
+        c-addr u lila-buf buf+
+        s"  2@ " lila-buf buf+
+      else
+        s"  lila-var-" lila-buf buf+
+        c-addr u param? if
+          fn-name count lila-buf buf+
+          s" -" lila-buf buf+
+        then
+        c-addr u lila-buf buf+
+        s"  @" lila-buf buf+
       then
-      c-addr u lila-buf buf+
-      s"  @" lila-buf buf+
     then
   then
   append-space ;
@@ -183,7 +235,7 @@ code-buf0 code-buf !
 : top-op ( -- ch )  op-top @ 0= if 0 else op-top @ 1- op-stack + c@ then ;
 : pop-op ( -- )  top-op  -1 op-top +!  emit-operator ;
 : marker-open? { ch -- flag }
-  ch [char] ( =  ch [char] { = or ;
+  ch [char] ( =  ch [char] { = or  ch [char] [ = or ;
 : pop-while { prec -- }
   begin
     op-top @ 0> if
@@ -297,47 +349,97 @@ code-buf0 code-buf !
   1 idx paren-args + c!
   1 expect-operand ! ;
 
+: open-index ( -- )
+  flush-tok
+  expect-operand @ if s" lila: table expected before [" lila-error then
+  [char] [ push-op
+  0 op-top @ 1- paren-args + c!
+  1 expect-operand ! ;
+
+: close-index ( -- )
+  flush-tok
+  innermost-marker { ch idx }
+  ch [char] [ <> if s" lila: unmatched ]" lila-error then
+  expect-operand @ if s" lila: key expected before ]" lila-error then
+  -1 pop-while
+  -1 op-top +!
+  s"  table-get drop " lila-buf buf+
+  mark-arg
+  0 expect-operand ! ;
+
 : transform-expr { c-addr u -- }
   lila-buf buf-reset  0 tok-len !  0 op-top !  1 expect-operand !
+  0 in-string !  0 str-len !
   c-addr u bounds ?do
     i c@
-    dup bl = if
-      drop flush-tok
-    else
-      dup [char] ( = if
-        drop
-        tok-len @ 0> if open-call else open-group then
+    dup [char] " = if
+      drop
+      in-string @ if
+        str-buf str-len @ emit-string
+        mark-arg
+        0 expect-operand !
+        0 in-string !
       else
-        dup [char] ) = if
-          drop close-paren
+        expect-operand @ 0= if
+          s" lila: operator expected before string" lila-error
+        then
+        -1 in-string !
+        0 str-len !
+      then
+    else
+      in-string @ if
+        str-len @ 1023 >= if s" lila: string literal too long" lila-error then
+        str-buf str-len @ + c!
+        1 str-len +!
+      else
+        dup bl = if
+          drop flush-tok
         else
-          dup [char] , = if
-            drop comma
+          dup [char] ( = if
+            drop
+            tok-len @ 0> if open-call else open-group then
           else
-            dup op-char? if
-              flush-tok
-              dup [char] - = expect-operand @ and if
-                drop [char] ~ push-op
-              else
-                expect-operand @ if
-                  s" lila: operand expected before operator" lila-error
-                then
-                dup op-precedence pop-while
-                push-op
-                1 expect-operand !
-              then
+            dup [char] ) = if
+              drop close-paren
             else
-              tok-len @ 0= expect-operand @ 0= and if
-                s" lila: operator expected" lila-error
+              dup [char] [ = if
+                drop open-index
+              else
+                dup [char] ] = if
+                  drop close-index
+                else
+                  dup [char] , = if
+                    drop comma
+                  else
+                    dup op-char? if
+                      flush-tok
+                      dup [char] - = expect-operand @ and if
+                        drop [char] ~ push-op
+                      else
+                        expect-operand @ if
+                          s" lila: operand expected before operator" lila-error
+                        then
+                        dup op-precedence pop-while
+                        push-op
+                        1 expect-operand !
+                      then
+                    else
+                      tok-len @ 0= expect-operand @ 0= and if
+                        s" lila: operator expected" lila-error
+                      then
+                      tok-buf tok-len @ + c!
+                      tok-len @ 1+ tok-len !
+                    then
+                  then
+                then
               then
-              tok-buf tok-len @ + c!
-              tok-len @ 1+ tok-len !
             then
           then
         then
       then
     then
   loop
+  in-string @ if s" lila: unterminated string" lila-error then
   flush-tok
   expect-operand @ if s" lila: operand expected" lila-error then
   pop-all
@@ -377,22 +479,134 @@ code-buf0 code-buf !
     2drop 2drop false
   then ;
 
+: table-lhs? { c-addr u -- flag }
+  c-addr u trim to u to c-addr
+  u 2 < if false exit then
+  c-addr u + 1- c@ [char] ] <> if false exit then
+  c-addr u s" [" split-at if
+    2drop trim identifier?
+  else
+    2drop 2drop false
+  then ;
+
+: table-assign? { line len -- flag }
+  line len s" =" split-at if
+    2drop table-lhs?
+  else
+    2drop 2drop false
+  then ;
+
+: build-str-name { c-addr u -- }
+  c-addr u trim to u to c-addr
+  s" lila-str-" lila-name place
+  c-addr u lila-name +place ;
+
+: register-string-var { c-addr u -- }
+  c-addr u trim to u to c-addr
+  u 0= if s" lila: empty string variable" lila-error then
+  u 63 > if s" lila: string variable name too long" lila-error then
+  c-addr u string-var? if exit then
+  str-var-count @ 64 >= if s" lila: too many string variables" lila-error then
+  c-addr u  str-var-count @ 64 * str-vars + place
+  1 str-var-count +! ;
+
+: declare-str-var ( -- )
+  lila-name find nip 0= if
+    s" create " lila-name count s+ s"  2 cells allot" s+ evaluate drop
+  then ;
+
+: string-expr? { c-addr u -- flag }
+  c-addr u string-literal? if true exit then
+  c-addr u string-var? ;
+
 : compile-expr ( c-addr u -- )
   transform-expr
   lila-buf count code+
   s"  " code+ ;
 
+: compile-rhs { c-addr u -- }
+  c-addr u trim to u to c-addr
+  c-addr u s" {}" compare 0= if
+    s"  64 table-new " code+
+  else
+    c-addr u compile-expr
+  then ;
+
+: code-lila-var ( -- )  lila-lhs count code+ ;
+
+: code-var-ref { c-addr u -- }
+  s"  lila-var-" code+
+  c-addr u param? if fn-name count code+ s" -" code+ then
+  c-addr u code+
+  s"  @ " code+ ;
+
+: string-content { c-addr u -- c-addr' u' }
+  c-addr u trim 1 /string 1- ;
+
+: code-string-key { c-addr u -- }
+  c-addr u string-literal? if
+    em-reset c-addr u string-content s-lit-em em-buf count code+ s"  " code+
+  else
+    c-addr u string-var? 0= if
+      s" lila: table key must be a string" lila-error
+    then
+    c-addr u build-str-name
+    s"  " code+ lila-name count code+ s"  2@ " code+
+  then ;
+
+: parse-table-lhs { c-addr u -- key klen }
+  c-addr u trim 1- to u
+  c-addr u s" [" split-at 0= if
+    s" lila: table name expected" lila-error
+  then
+  2over trim identifier? 0= if
+    2drop 2drop 2drop s" lila: invalid table name" lila-error
+  then
+  2over trim lila-lhs place
+  2swap 2drop
+  trim ;
+
+: table-assign-code { lhs llen rhs rlen -- }
+  lhs llen parse-table-lhs
+  lila-lhs count code-var-ref
+  code-string-key
+  rhs rlen compile-rhs
+  s"  table-set " code+ ;
+
+: compile-table-assign { line len -- }
+  line len s" =" split-at if
+    table-assign-code
+  else
+    2drop 2drop s" lila: table assignment needs =" lila-error
+  then ;
+
+: assign-code { lhs llen rhs rlen -- }
+  rhs rlen string-literal? if
+    lhs llen register-string-var
+    lhs llen build-str-name
+    declare-str-var
+    rhs rlen compile-expr
+    s"  " code+ lila-name count code+ s"  2! " code+
+  else
+    rhs rlen string-var? if
+      rhs rlen build-str-name
+      em-reset s"  " em+ lila-name count em+ s"  2@ " em+
+      lhs llen register-string-var
+      lhs llen build-str-name
+      declare-str-var
+      em-buf count code+
+      s"  " code+ lila-name count code+ s"  2! " code+
+    else
+      lhs llen lila-store-lhs
+      rhs rlen compile-rhs
+      code-lila-var
+      s"  ! " code+
+    then
+  then ;
+
 : compile-assign-code { line len -- }
   line len s" =" split-at if
-    ( lhs llen rhs rlen )
-    2over lila-store-lhs
-    trim transform-expr
-    s"  " lila-buf +place
-    lila-lhs count lila-buf +place
-    s"  !" lila-buf +place
-    2drop
-    lila-buf count code+
-    s"  " code+
+    assign-code
   else
     2drop 2drop
   then ;
@@ -404,18 +618,39 @@ code-buf0 code-buf !
       1 /string strip-trailing-paren
     then
   then
-  transform-expr
-  s"  ." lila-buf +place
-  lila-buf count code+
-  s"  " code+ ;
+  2dup string-expr? if
+    compile-expr
+    s"  type " code+
+  else
+    compile-expr
+    s"  . " code+
+  then ;
 
 : strip-cr ( c-addr u -- c-addr' u' )
   dup 0> if
     2dup + 1- c@ 13 = if 1- then
   then ;
 
-: strip-comment ( c-addr u -- c-addr' u' )
-  s" --" split-at 2drop drop trim ;
+: comment-at? { c-addr u i -- flag }
+  i 1+ u >= if false exit then
+  c-addr i + c@ [char] - <> if false exit then
+  c-addr i 1+ + c@ [char] - = ;
+
+: strip-comment { c-addr u -- c-addr' u' }
+  0 0 { i q }
+  begin i u < while
+    c-addr i + c@ [char] " = if
+      q 0= to q
+    else
+      q 0= if
+        c-addr u i comment-at? if
+          c-addr i trim exit
+        then
+      then
+    then
+    i 1+ to i
+  repeat
+  c-addr u trim ;
 
 : block-push ( ch -- )
   block-top @ 64 >= if s" lila: blocks nested too deeply" lila-error then
@@ -439,7 +674,6 @@ code-buf0 code-buf !
   s" for-end-vars " code+ for-depth @ code-number s"  cells + " code+ ;
 : code-for-step ( -- )
   s" for-step-vars " code+ for-depth @ code-number s"  cells + " code+ ;
-: code-lila-var ( -- )  lila-lhs count code+ ;
 
 : code-push ( -- )
   code-top @ 64 >= if s" lila: code nesting too deep" lila-error then
@@ -546,6 +780,9 @@ code-buf0 code-buf !
   2dup s" function " string-prefix? if
     2drop s" lila: function must be top-level" lila-error
   then
+  2dup table-assign? if
+    compile-table-assign exit
+  then
   2dup assignment? if
     compile-assign-code exit
   then
@@ -555,8 +792,31 @@ code-buf0 code-buf !
   code+
   s"  " code+ ;
 
+: find-delim { c-addr u ch -- idx }
+  0 0 { i q -- }
+  begin i u < while
+    c-addr i + c@ [char] " = if
+      q 0= to q
+    else
+      q 0= if
+        c-addr i + c@ ch = if i exit then
+      then
+    then
+    i 1+ to i
+  repeat
+  -1 ;
+
+: split-stmt { c-addr u -- lhs llen rhs rlen flag }
+  c-addr u [char] ; find-delim { idx -- }
+  idx 0< if
+    c-addr u 0 0 false exit
+  then
+  c-addr idx
+  c-addr idx + 1+  u idx - 1-
+  true ;
+
 : compile-block { c-addr u -- }
-  c-addr u s" ;" split-at if
+  c-addr u split-stmt if
     2over compile-stmt-code
     2swap 2drop
     recurse

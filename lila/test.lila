@@ -251,3 +251,51 @@ function flater(v)
   return v + 1
 end
 
+-- tables: string keys, missing keys, overwrite, aliasing
+ft = {}
+ft["a"] = 5
+ft["b"] = 7
+ftabsum = ft["a"] + ft["b"]
+print(ftabsum)          -- 12
+ftabmiss = ft["nope"]
+print(ftabmiss)         -- 0
+ft["a"] = 9
+print(ft["a"])          -- 9
+ftalias = ft
+print(ftalias["b"])     -- 7
+ft["hello world"] = 11
+print(ft["hello world"]) -- 11
+ft[""] = 3
+print(ft[""])           -- 3
+
+-- nested tables through an intermediate variable
+fouter = {}
+finner = {}
+fouter["inner"] = finner
+finner["x"] = 4
+fnested = fouter["inner"]["x"]
+print(fnested)          -- 4
+
+-- tables as function parameters
+function fgetx(tbl)
+  return tbl["x"]
+end
+function fputx(tbl, v)
+  tbl["x"] = v
+end
+fputx(finner, 8)
+fparam = fgetx(finner)
+print(fparam)           -- 8
+
+-- strings: literals, variables, table keys
+fstr = "hello"
+print(fstr)
+fstr2 = fstr
+print(fstr2)
+ft[fstr] = 21
+print(ft[fstr])         -- 21
+print(ft["hello"])      -- 21
+fstr = "world"
+print(fstr)
+print(ft["hello"])      -- 21
+print("dash -- inside")

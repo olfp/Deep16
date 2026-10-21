@@ -39,3 +39,12 @@ function addto(v)
 end
 addto(5)
 print(total)
+
+-- tables and strings
+scores = {}
+scores["alice"] = 10
+scores["bob"] = 7
+print(scores["alice"] + scores["bob"])
+
+name = "lila"
+print(name)
