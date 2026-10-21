@@ -14,3 +14,5 @@
 `define D16MINI
 
 `define PSRAM
+
+`define DVI

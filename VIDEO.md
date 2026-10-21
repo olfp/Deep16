@@ -1,24 +1,32 @@
 # Video: what a text screen costs
 
 Target: DVI (4 TMDS pairs, second rPLL free) at **640×480@60**, pixel clock
-25.2 MHz (27 MHz x 14/15), bit clock 252 MHz. Active text area **640×360** =
+25.2 MHz (27 MHz x 14/3/5), 252 Mbit/s per lane. Active text area **640×360** =
 80 columns x 24 rows of **8×15** cells, centred with borders.
 
-Budget today: 312 CLS free, 18/26 BSRAM (**8 free** after range packing).
+Budget today: **78 CLS free**, 20/26 BSRAM (2 used by the DVI console).
 
-## a) Black and white text, 8×15
+## a) Black and white text, 8×15 — **implemented**
 
 | Item | Cost |
 |---|---|
-| 1,920 cells, 8-bit character | 960 words = **1 BSRAM block** |
-| font, 96 glyphs x 15 bytes | 1,440 B = 720 words = **1 block** |
-| renderer (cell fetch, glyph row, 8-bit shift, sync) | ~60–90 CLS |
-| TMDS: 1 active encoder + 2 zero encoders + serializers | ~60–80 CLS |
-| **Total** | **2 blocks, ~120–170 CLS** |
+| 1,920 cells, two per 16-bit word | 960 words = **1 BSRAM block** |
+| font, 96 glyphs x 15 rows, two per word | 768 words = **1 block** |
+| sync + renderer + prefetch + cursor | part of the measured total |
+| terminal mirror: UART RX, ANSI parser, scroll | part of the measured total |
+| TMDS: 3 encoders + clock lane + OSER10/ELVDS | part of the measured total |
+| **Measured total** | **2 blocks, +234 CLS** over the pre-DVI build |
+| **New budget** | **4,242 / 4,320 CLS (99 %)**, Logic 8,306/8,640 |
 
-Per scanline: 80 cell reads + 80 font-byte reads = 160 BSRAM reads, against 800
-pixel clocks at 25.2 MHz with BSRAM at 50 MHz (1,600 slots) — 10 % used.
-**Zero PSRAM traffic.** Fits comfortably; this is the first milestone.
+Per scanline: 40 cell-pair reads + 80 font-row reads = 120 BSRAM reads, against
+800 pixel clocks — 15 % of the slots at one read per pixel clock.
+**Zero PSRAM traffic.** The console mirrors the UART at 115200, parses the ANSI
+the kernel emits, scrolls in vertical blanking and draws a blinking block
+cursor. See `rtl/dvi/README.md`.
+
+The 78-CLS margin is thin: the colour mode below cannot be added without taking
+area back first. The terminal parser and the sync/renderer prefetch are the
+obvious candidates; the TMDS encoder is already the compact spec form.
 
 ## b) Indexed colour text/tile, 4-bit indices
 
@@ -40,7 +48,8 @@ tile reads (2 words per cell row) + 640 palette lookups (one per pixel) = ~840
 BSRAM reads against 1,600 slots at 50 MHz — **52 %**, feasible at 1 read per
 pixel with a 2:1 BSRAM-to-pixel clock ratio.
 
-Verdict: **96-tile indexed colour fits the current area and (after range packing)
-the block budget**; 256 tiles needs either a smaller tile bank, a coarser tile
-format, or more free blocks. B/W text is the safe first step, colour is the
-second.
+Verdict: **96-tile indexed colour fits the block budget exactly** (6 of the 6
+free blocks after B/W text took 2), **but not the area**: 220–280 CLS against
+78 free. 256 tiles needs 11 blocks, so it needs either a smaller tile bank, a
+coarser tile format, or the user-flash loader (which would free the 16 image
+blocks). B/W text is working; colour needs an area diet first.

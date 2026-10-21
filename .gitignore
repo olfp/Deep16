@@ -40,3 +40,5 @@ obj_psram/
 obj_psram_word/
 obj_psram_boot/
 obj_uart_fifo/
+obj_dvi_text/
+obj_tmds/

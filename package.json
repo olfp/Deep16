@@ -21,7 +21,8 @@
     "ui:shot": "node scripts/ui-shot.mjs",
     "synth:board": "bash scripts/synth_board.sh",
     "synth:gowin": "bash scripts/build_gowin.sh",
-    "flash": "bash scripts/flash_board.sh"
+    "flash": "bash scripts/flash_board.sh",
+    "sim:dvi": "bash scripts/build_dvi_sim.sh"
   },
   "devDependencies": {
     "puppeteer-core": "^25.14.0"

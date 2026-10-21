@@ -39,3 +39,15 @@ IO_LOC "led[4]" 15;
 IO_PORT "led[4]" DRIVE=8;
 IO_LOC "led[5]" 16;
 IO_PORT "led[5]" DRIVE=8;
+
+// HDMI/DVI output (Tang Nano 9K pins). Lane 0 = blue, 1 = green, 2 = red,
+// 3 = clock. The ELVDS_OBUF primitive drives the n side, so only the p pin of
+// each pair is constrained (the same convention as the upstream example).
+IO_LOC "hdmi_tx_p[0]" 71,70;
+IO_PORT "hdmi_tx_p[0]" PULL_MODE=NONE DRIVE=8;
+IO_LOC "hdmi_tx_p[1]" 73,72;
+IO_PORT "hdmi_tx_p[1]" PULL_MODE=NONE DRIVE=8;
+IO_LOC "hdmi_tx_p[2]" 75,74;
+IO_PORT "hdmi_tx_p[2]" PULL_MODE=NONE DRIVE=8;
+IO_LOC "hdmi_tx_p[3]" 69,68;
+IO_PORT "hdmi_tx_p[3]" PULL_MODE=NONE DRIVE=8;

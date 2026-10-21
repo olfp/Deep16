@@ -32,6 +32,12 @@ module deep16_board (
   , inout  wire  [1:0] IO_psram_rwds
   , inout  wire  [15:0] IO_psram_dq
 `endif
+`ifdef DVI
+  // HDMI/DVI pairs: lane 0 blue, 1 green, 2 red, 3 clock (Tang Nano 9K pins
+  // 71/70, 73/72, 75/74, 69/68; the ELVDS buffers drive the n side).
+  , output logic [3:0] hdmi_tx_p
+  , output logic [3:0] hdmi_tx_n
+`endif
 );
 
   // ---- clock: 27 MHz / 2 = 13.5 MHz ------------------------------------
@@ -117,6 +123,55 @@ module deep16_board (
     end
   end
   assign rst = (rst_hold != 16'd0);
+
+`ifdef DVI
+  // ---- DVI/HDMI text console -------------------------------------------
+  // A second PLL makes the 25.2 MHz pixel clock (640x480@60) and the 126 MHz
+  // serializer clock. The console mirror listens to the same uart_txd the USB
+  // bridge sees, so it shows exactly what a host terminal would.
+  wire dvi_pclk, dvi_clk5, dvi_lock;
+  dvi_pll u_dvi_pll (
+    .clk       (clk),
+    .clk_pixel (dvi_pclk),
+    .clk_5x    (dvi_clk5),
+    .lock      (dvi_lock)
+  );
+
+  // `rst` is synchronous to clk_cpu; give the pixel domain its own deassert.
+  logic       dvi_rst;
+  logic [1:0] dvi_rst_sync;
+  always_ff @(posedge dvi_pclk) dvi_rst_sync <= {dvi_rst_sync[0], rst};
+  assign dvi_rst = dvi_rst_sync[1] | ~dvi_lock;   // hold until the PLL locks
+
+  logic [7:0] dvi_r, dvi_g, dvi_b;
+  logic       dvi_hs, dvi_vs, dvi_de;
+
+  dvi_text u_dvi_text (
+    .clk     (dvi_pclk),
+    .rst     (dvi_rst),
+    .uart_rx (uart_txd),
+    .red     (dvi_r),
+    .green   (dvi_g),
+    .blue    (dvi_b),
+    .hsync   (dvi_hs),
+    .vsync   (dvi_vs),
+    .de      (dvi_de)
+  );
+
+  dvi_out u_dvi_out (
+    .clk_pixel  (dvi_pclk),
+    .clk_5x     (dvi_clk5),
+    .rst        (dvi_rst),
+    .r          (dvi_r),
+    .g          (dvi_g),
+    .b          (dvi_b),
+    .hsync      (dvi_hs),
+    .vsync      (dvi_vs),
+    .de         (dvi_de),
+    .hdmi_tx_p  (hdmi_tx_p),
+    .hdmi_tx_n  (hdmi_tx_n)
+  );
+`endif
 
   // ---- the machine -----------------------------------------------------
   logic        o_done, o_result, o_busy;

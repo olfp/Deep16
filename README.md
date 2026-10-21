@@ -106,8 +106,8 @@ node scripts/bench.mjs   # MIPS of all three cores
 
 `D16MINI 1.1` is the machine that runs on the board: the Forth kernel on the RTL
 core, backed by the Tang Nano 9K's embedded **64 Mbit HyperRAM**, with the console
-on the on-board USB-UART. It is a second build of the same RTL, selected by
-`` `ifdef D16MINI ``.
+on the on-board USB-UART and a black-and-white mirror of it on the HDMI
+connector. It is a second build of the same RTL, selected by `` `ifdef D16MINI ``.
 
 What is in it:
 
@@ -127,9 +127,14 @@ What is in it:
 - **Console.** 115200 8N1, received through a synchronised pin and a 64-byte
   SSRAM FIFO; the terminal is homed and cleared (`ESC[H ESC[2J ESC[3J`) before the
   banner, and the prompt is printed once the baked boot script has compiled.
-- **Resources.** Logic 7,485 / 8,640 (87 %), CLS 4,008 / 4,320 (93 %), registers
-  2,298 / 6,771, **BSRAM 18/26** (16 packed image + 2 cache, **8 free**), 0 TNS
-  on the clocked domains at 13.5 MHz.
+- **Screen.** A hardware terminal mirror listens to the same `uart_txd` and
+  scans an 80 x 24 cell image (8 x 15 cells, 640 x 360 centred in 640 x 480 @
+  60) as black-and-white DVI. It parses the ANSI the kernel emits, scrolls in
+  vertical blanking and draws a block cursor. Two BSRAM blocks; no CPU cost and
+  no PSRAM traffic. `ver` works as usual, and `FORTH.md` has the word list.
+- **Resources.** Logic 8,306 / 8,640 (97 %), CLS 4,242 / 4,320 (99 %), registers
+  2,577 / 6,771, **BSRAM 20/26** (16 packed image + 2 cache + 2 screen),
+  0 TNS on the clocked domains. The 78-CLS margin is the next constraint.
 
 Build and flash (vendor toolchain for the bitstream):
 

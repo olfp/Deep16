@@ -218,6 +218,10 @@ if (isMain) {
     fs.writeFileSync(path.join(outDir, 'image-packed.hex'),
                      imageHex({ words: packed.words }));
     fs.writeFileSync(path.join(outDir, 'image.manifest.json'), manifest(img));
+    // The DVI text renderer reads its font with $readmemh too; keep it beside
+    // the image so the Gowin include path and the board sims both find it.
+    fs.copyFileSync(path.join(ROOT, 'rtl', 'dvi', 'font8x15.hex'),
+                    path.join(outDir, 'font8x15.hex'));
   }
   const kb = (img.words.length * 2 / 1024).toFixed(0);
   console.log(`boot image: ${img.words.length} words (${kb} KiB), fill 0xFFFF, build ${img.build}`);
