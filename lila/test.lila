@@ -323,3 +323,69 @@ fcopy = fmsg
 print(fcopy)             -- n=42!
 ft["k" + "2"] = 17
 print(ft["k2"])          -- 17
+
+-- string parameters and string results
+function fgreet2(name$)
+  return "hello, " + name$
+end
+ffnstr = fgreet2("lila")
+print(ffnstr)              -- hello, lila
+
+function fshout(msg$)
+  return msg$ + "!"
+end
+ffnshout = fshout(fgreet2("world"))
+print(ffnshout)            -- hello, world!
+
+function fecho2(a$, n)
+  return a$ + a$
+end
+ffe = fecho2("ab", 2)
+print(ffe)                 -- abab
+
+function fexclaim(s$)
+  s$ = s$ + "!"
+  return s$
+end
+ffex = fexclaim("hey")
+print(ffex)                -- hey!
+
+function fzed()
+  return "zed"
+end
+ffzed = fzed()
+print(ffzed)               -- zed
+fzed()                     -- string result discarded
+
+print(fgreet2("x"))        -- hello, x
+
+-- strings as table values
+fnames = {}
+fnames["first"] = "alice"
+print(fnames["first"])          -- alice
+print(length(fnames["first"]))  -- 5
+fnames["first"] = fnames["first"] + "!"
+print(fnames["first"])          -- alice!
+fnamecopy = fnames
+ffncopyname = fnamecopy["first"]
+print(ffncopyname)              -- alice!
+fmissinglength = length(fnames["missing"])
+print(fmissinglength)           -- 0
+ffnfullname = fnames["first"] + "?"
+print(ffnfullname)              -- alice!?
+if fnames["first"] = "alice!" then
+  ffnnameok = 1
+else
+  ffnnameok = 0
+end
+print(ffnnameok)                -- 1
+
+-- a function writing a string into a table parameter
+function fputstr(tbl, s$)
+  tbl["value"] = s$
+end
+fmarked = {}
+fmarked["kind"] = "string"
+fputstr(fmarked, "bob")
+print(fmarked["value"])         -- bob
+print(length(fmarked["value"])) -- 3

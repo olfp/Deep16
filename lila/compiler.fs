@@ -47,8 +47,22 @@ create for-step-vars 64 cells allot
 \ in defs-buf, like loop bodies.
 create fn-name 64 allot
 create fn-params 16 64 * allot
+create fn-param-types 16 allot
 variable fn-param-count
 variable fn-active
+variable fn-ret-type
+variable fn-ret-seen
+\ Function signatures: parameter types and return type, used to check calls.
+create sig-names 64 64 * allot
+create sig-parm-types 64 16 * allot
+create sig-pcnt 64 allot
+create sig-ret 64 allot
+variable sig-count
+\ Calls to functions not defined yet; a string-returning function must be
+\ defined before the first call to it.
+create early-calls 64 64 * allot
+variable early-count
+create call-arg-types 16 allot
 \ Function calls in expressions: name stack and one flag per open parenthesis.
 create call-names 64 64 * allot
 variable call-top
@@ -62,6 +76,20 @@ create em-buf 2048 allot
 create str-vars 64 64 * allot
 variable str-var-count
 variable in-string
+\ The name of the last simple operand emitted.  It lets a following `[` know
+\ which table is being indexed when the table value type is static.
+create last-op-name 64 allot
+create index-names 16 64 * allot
+create index-name-buf 256 allot
+variable index-top
+\ Table value types: 0 = numbers, 1 = strings, 2 = not known yet.
+create table-reg-names 64 64 * allot
+create table-reg-types 64 allot
+variable table-reg-count
+\ Flags set by `compile-rhs` so an assignment can register the target table.
+variable rhs-table-new
+variable rhs-table-alias
+variable rhs-alias-type
 
 code-buf0 code-buf !
 
@@ -88,6 +116,24 @@ variable expr-type
   a1 addr u1 move
   a2 addr u1 + u2 move
   addr r> ;
+
+\ Table values are single cells.  A string value is stored as a pointer to a
+\ two-cell descriptor (c-addr, u), allocated when the value is stored.
+\ Keep this word free of locals: using locals together with >r corrupts the
+\ descriptor under gforth.
+: lila-box-str ( addr len -- ptr )
+  2 cells allocate throw dup >r 2! r> ;
+
+: lila-table-get-str { table keyaddr keylen -- addr u }
+  table keyaddr keylen table-get if
+    2@
+  else
+    drop 0 0
+  then ;
+
+: lila-table-set-str { table keyaddr keylen saddr slen -- }
+  table keyaddr keylen saddr slen lila-box-str
+  table-set ;
 
 : code-reset ( -- )  0 code-len ! ;
 : code-base ( -- )  code-buf0 code-buf !  0 code-len ! ;
@@ -189,14 +235,138 @@ variable expr-type
     lila-buf count + 1- c@ bl <> if s"  " lila-buf buf+ then
   then ;
 
-: param? { c-addr u -- flag }
+: param-index { c-addr u -- idx }
   c-addr u trim to u to c-addr
-  fn-active @ 0= if false exit then
+  fn-active @ 0= if -1 exit then
   fn-param-count @ 0 ?do
     c-addr u  i 64 * fn-params + count compare 0= if
+      i unloop exit
+    then
+  loop -1 ;
+
+: param? { c-addr u -- flag }
+  c-addr u param-index 0>= ;
+
+: str-param? { c-addr u -- flag }
+  c-addr u param-index { idx -- }
+  idx 0< if false exit then
+  idx fn-param-types + c@ 1 = ;
+
+: param-string-name? { c-addr u -- flag }
+  u 0> if c-addr u + 1- c@ [char] $ = else false then ;
+
+: build-param-name { c-addr u -- }
+  c-addr u trim to u to c-addr
+  s" lila-var-" lila-name place
+  fn-name count lila-name +place
+  s" -" lila-name +place
+  c-addr u lila-name +place ;
+
+: table-key { c-addr u -- }
+  c-addr u trim to u to c-addr
+  s" lila-var-" lila-name place
+  c-addr u param? if
+    fn-name count lila-name +place
+    s" -" lila-name +place
+  then
+  c-addr u lila-name +place ;
+
+: table-type-find { c-addr u -- type found }
+  c-addr u table-key
+  table-reg-count @ 0 ?do
+    lila-name count i 64 * table-reg-names + count compare 0= if
+      i table-reg-types + c@ true unloop exit
+    then
+  loop
+  0 false ;
+
+: table-type-set { c-addr u t -- }
+  c-addr u table-key
+  table-reg-count @ 0 ?do
+    lila-name count i 64 * table-reg-names + count compare 0= if
+      t i table-reg-types + c!
+      unloop exit
+    then
+  loop
+  table-reg-count @ 64 >= if s" lila: too many tables" lila-error then
+  lila-name count table-reg-count @ 64 * table-reg-names + place
+  t table-reg-count @ table-reg-types + c!
+  1 table-reg-count +! ;
+
+: table-type-forget { c-addr u -- }
+  c-addr u table-key
+  table-reg-count @ 0 ?do
+    lila-name count i 64 * table-reg-names + count compare 0= if
+      -1 table-reg-count +!
+      table-reg-count @ i <> if
+        table-reg-count @ 64 * table-reg-names + i 64 * table-reg-names + 64 move
+        table-reg-count @ table-reg-types + c@ i table-reg-types + c!
+      then
+      unloop exit
+    then
+  loop ;
+
+: sig-find { c-addr u -- idx }
+  c-addr u trim to u to c-addr
+  sig-count @ 0 ?do
+    c-addr u i 64 * sig-names + count compare 0= if
+      i unloop exit
+    then
+  loop -1 ;
+
+: sig-register ( -- )
+  fn-name count sig-find { idx -- }
+  idx 0< if
+    sig-count @ 64 >= if s" lila: too many functions" lila-error then
+    sig-count @ to idx
+    fn-name count idx 64 * sig-names + place
+    1 sig-count +!
+  then
+  fn-param-count @ idx sig-pcnt + c!
+  fn-ret-type @ idx sig-ret + c!
+  fn-param-count @ 0 ?do
+    fn-param-types i + c@ idx 16 * i + sig-parm-types + c!
+  loop ;
+
+: record-early-call { c-addr u -- }
+  c-addr u trim to u to c-addr
+  early-count @ 64 >= if s" lila: too many early calls" lila-error then
+  c-addr u early-count @ 64 * early-calls + place
+  1 early-count +! ;
+
+: early-called? { c-addr u -- flag }
+  c-addr u trim to u to c-addr
+  early-count @ 0 ?do
+    c-addr u i 64 * early-calls + count compare 0= if
       true unloop exit
     then
   loop false ;
+
+: call-result-type { n -- type }
+  n 0 ?do
+    type-pop  n 1- i - call-arg-types + c!
+  loop
+  call-top @ 1- 64 * call-names + count sig-find { idx -- }
+  idx 0>= if
+    n idx sig-pcnt + c@ <> if
+      s" lila: wrong number of arguments" lila-error
+    then
+    n 0 ?do
+      call-arg-types i + c@
+      idx 16 * i + sig-parm-types + c@ <> if
+        s" lila: argument type does not match parameter" lila-error
+      then
+    loop
+    idx sig-ret + c@
+  else
+    n 0 ?do
+      call-arg-types i + c@ if
+        s" lila: a function called with strings must be defined first" lila-error
+      then
+    loop
+    call-top @ 1- 64 * call-names + count record-early-call
+    0
+  then ;
 
 : string-var? { c-addr u -- flag }
   c-addr u trim to u to c-addr
@@ -212,9 +382,11 @@ variable expr-type
   c-addr u s-lit-em
   em-buf count lila-buf buf+
   append-space
+  0 last-op-name c!
   1 type-push ;
 
 : emit-operand { c-addr u -- }
+  0 last-op-name c!
   c-addr u is-number? if
     c-addr u lila-buf buf+
     0 type-push
@@ -223,24 +395,35 @@ variable expr-type
       c-addr u lila-buf buf+
       0 type-push
     else
-      c-addr u param? if
+      c-addr u str-param? if
         s"  lila-var-" lila-buf buf+
         fn-name count lila-buf buf+
         s" -" lila-buf buf+
         c-addr u lila-buf buf+
-        s"  @" lila-buf buf+
-        0 type-push
+        s"  2@ " lila-buf buf+
+        1 type-push
       else
-        c-addr u string-var? if
-          s"  lila-str-" lila-buf buf+
-          c-addr u lila-buf buf+
-          s"  2@ " lila-buf buf+
-          1 type-push
-        else
+        c-addr u param? if
           s"  lila-var-" lila-buf buf+
+          fn-name count lila-buf buf+
+          s" -" lila-buf buf+
           c-addr u lila-buf buf+
           s"  @" lila-buf buf+
+          c-addr u last-op-name place
           0 type-push
+        else
+          c-addr u string-var? if
+            s"  lila-str-" lila-buf buf+
+            c-addr u lila-buf buf+
+            s"  2@ " lila-buf buf+
+            1 type-push
+          else
+            s"  lila-var-" lila-buf buf+
+            c-addr u lila-buf buf+
+            s"  @" lila-buf buf+
+            c-addr u last-op-name place
+            0 type-push
+          then
         then
       then
     then
@@ -421,8 +604,9 @@ variable expr-type
       idx arg-counts + c@ 0= if
         expect-operand @ if
           -1 op-top +!
+          0 call-result-type type-push
+          0 last-op-name c!
           call-pop-emit
-          0 type-push
           0 expect-operand !
           mark-arg
           exit
@@ -437,14 +621,11 @@ variable expr-type
   -1 op-top +!
   ch [char] { = if
     idx paren-args + c@ if
-      idx arg-counts + c@ 1+ 0 ?do
-        type-pop 0<> if
-          s" lila: string arguments are not supported" lila-error
-        then
-      loop
+      idx arg-counts + c@ 1+ { n -- }
+      n call-result-type type-push
     then
+    0 last-op-name c!
     call-pop-emit
-    0 type-push
     mark-arg
   then
   0 expect-operand ! ;
@@ -464,6 +645,9 @@ variable expr-type
 : open-index ( -- )
   flush-tok
   expect-operand @ if s" lila: table expected before [" lila-error then
+  index-top @ 16 >= if s" lila: table indexes nested too deeply" lila-error then
+  last-op-name count index-top @ 64 * index-names + place
+  1 index-top +!
   [char] [ push-op
   0 op-top @ 1- paren-args + c!
   1 expect-operand ! ;
@@ -477,14 +661,41 @@ variable expr-type
   -1 op-top +!
   type-pop 0= if s" lila: table key must be a string" lila-error then
   type-pop 0<> if s" lila: table expected before [" lila-error then
-  s"  table-get drop " lila-buf buf+
-  0 type-push
+  index-top @ 0= if s" lila: internal index stack underflow" lila-error then
+  -1 index-top +!
+  index-top @ 64 * index-names + count index-name-buf place
+  index-name-buf c@ 0= if
+    s"  table-get drop " lila-buf buf+
+    0 type-push
+  else
+    index-name-buf count table-type-find
+    if
+      dup 1 = if
+        drop
+        index-name-buf count 1 table-type-set
+        s"  lila-table-get-str " lila-buf buf+
+        1 type-push
+      else
+        drop
+        index-name-buf count 0 table-type-set
+        s"  table-get drop " lila-buf buf+
+        0 type-push
+      then
+    else
+      drop
+      index-name-buf count 0 table-type-set
+      s"  table-get drop " lila-buf buf+
+      0 type-push
+    then
+  then
   mark-arg
+  0 last-op-name c!
   0 expect-operand ! ;
 
 : transform-expr { c-addr u -- }
   lila-buf buf-reset  0 tok-len !  0 op-top !  1 expect-operand !
   0 in-string !  0 str-len !  0 type-top !
+  0 last-op-name c!  0 index-top !
   c-addr u bounds ?do
     i c@
     dup [char] " = if
@@ -638,11 +849,21 @@ variable expr-type
   s"  " code+ ;
 
 : compile-rhs { c-addr u -- }
+  0 rhs-table-new !  0 rhs-table-alias !
   c-addr u trim to u to c-addr
   c-addr u s" {}" compare 0= if
+    -1 rhs-table-new !
     s"  64 table-new " code+
     0 expr-type !
   else
+    c-addr u identifier? if
+      c-addr u table-type-find if
+        rhs-alias-type !
+        -1 rhs-table-alias !
+      else
+        drop
+      then
+    then
     c-addr u compile-expr
   then ;
 
@@ -677,8 +898,24 @@ variable expr-type
   compile-expr
   expr-type @ 0= if s" lila: table key must be a string" lila-error then
   rhs rlen compile-rhs
-  expr-type @ if s" lila: table values cannot be strings" lila-error then
-  s"  table-set " code+ ;
+  lila-lhs count table-type-find
+  if
+    dup 0= expr-type @ 1 = and if
+      s" lila: table already holds numbers" lila-error
+    then
+    dup 1 = expr-type @ 0= and if
+      s" lila: table already holds strings" lila-error
+    then
+    drop
+  else
+    drop
+  then
+  lila-lhs count expr-type @ table-type-set
+  expr-type @ if
+    s"  lila-table-set-str " code+
+  else
+    s"  table-set " code+
+  then ;
 
 : compile-table-assign { line len -- }
   line len s" =" split-at if
@@ -690,14 +927,22 @@ variable expr-type
 : assign-code { lhs llen rhs rlen -- }
   rhs rlen compile-rhs
   expr-type @ if
-    lhs llen param? if
-      s" lila: string parameters are not supported" lila-error
+    lhs llen str-param? if
+      lhs llen build-param-name
+      s"  " code+ lila-name count code+ s"  2! " code+
+    else
+      lhs llen param? if
+        s" lila: a numeric parameter cannot hold a string" lila-error
+      then
+      lhs llen register-string-var
+      lhs llen build-str-name
+      declare-str-var
+      s"  " code+ lila-name count code+ s"  2! " code+
     then
-    lhs llen register-string-var
-    lhs llen build-str-name
-    declare-str-var
-    s"  " code+ lila-name count code+ s"  2! " code+
   else
+    lhs llen str-param? if
+      s" lila: a string parameter cannot hold a number" lila-error
+    then
     lhs llen param? 0= if
       lhs llen string-var? if
         s" lila: a string variable cannot hold a number" lila-error
@@ -706,6 +951,15 @@ variable expr-type
     lhs llen lila-store-lhs
     code-lila-var
     s"  ! " code+
+    rhs-table-new @ if
+      lhs llen 2 table-type-set
+    else
+      rhs-table-alias @ if
+        lhs llen rhs-alias-type @ table-type-set
+      else
+        lhs llen table-type-forget
+      then
+    then
   then ;
 
 : compile-assign-code { line len -- }
@@ -844,11 +1098,24 @@ variable expr-type
   line len 6 /string trim
   dup 0= if
     2drop s" 0 " code+
+    0 expr-type !
   else
     compile-expr
-    expr-type @ if s" lila: functions cannot return strings" lila-error then
   then
-  s"  lila-fn-" code+ fn-name count code+ s" -val ! 1 lila-fn-" code+
+  fn-ret-seen @ if
+    expr-type @ fn-ret-type @ <> if
+      s" lila: inconsistent return types" lila-error
+    then
+  else
+    expr-type @ fn-ret-type !
+    -1 fn-ret-seen !
+  then
+  s"  lila-fn-" code+ fn-name count code+
+  expr-type @ if
+    s" -val 2! 1 lila-fn-" code+
+  else
+    s" -val ! 1 lila-fn-" code+
+  then
   fn-name count code+ s" -ret ! EXIT " code+ ;
 
 : call-stmt? { c-addr u -- flag }
@@ -861,7 +1128,7 @@ variable expr-type
 
 : compile-call-stmt { line len -- }
   line len compile-expr
-  s"  drop " code+ ;
+  expr-type @ if s"  2drop " code+ else s"  drop " code+ then ;
 
 : compile-stmt-code { line len -- }
   line len trim
@@ -935,7 +1202,7 @@ variable expr-type
 
 : declare-fn-vars ( -- )
   s" variable lila-fn-" defs+ fn-name count defs+ s" -ret " defs+
-  s" variable lila-fn-" defs+ fn-name count defs+ s" -val " defs+ ;
+  s" create lila-fn-" defs+ fn-name count defs+ s" -val 2 cells allot " defs+ ;
 
 : fn-set-name { c-addr u -- }
   c-addr u trim to u to c-addr
@@ -956,9 +1223,18 @@ variable expr-type
   2swap ;
 
 : declare-param { c-addr u -- }
-  s" variable lila-var-" defs+ fn-name count defs+ s" -" defs+
+  c-addr u param-string-name? if
+    s" create lila-var-" defs+
+  else
+    s" variable lila-var-" defs+
+  then
+  fn-name count defs+ s" -" defs+
   c-addr u defs+
-  s"  " defs+ ;
+  c-addr u param-string-name? if
+    s"  2 cells allot " defs+
+  else
+    s"  " defs+
+  then ;
 
 : add-param { c-addr u -- }
   c-addr u trim to u to c-addr
@@ -966,6 +1242,8 @@ variable expr-type
   c-addr u identifier? 0= if s" lila: invalid parameter" lila-error then
   fn-param-count @ 16 >= if s" lila: too many parameters" lila-error then
   c-addr u  fn-param-count @ 64 * fn-params + place
+  c-addr u param-string-name? if 1 else 0 then
+  fn-param-count @ fn-param-types + c!
   c-addr u declare-param
   1 fn-param-count +! ;
 
@@ -993,17 +1271,32 @@ variable expr-type
     fn-param-count @ 1- i - 64 * fn-params + count
     s" lila-var-" defs+ fn-name count defs+ s" -" defs+
     defs+
-    s"  ! " defs+
+    fn-param-count @ 1- i - fn-param-types + c@ if
+      s"  2! " defs+
+    else
+      s"  ! " defs+
+    then
   loop ;
 
 : emit-fn-epilogue ( -- )
   s" lila-fn-" defs+ fn-name count defs+ s" -ret @ IF lila-fn-" defs+
-  fn-name count defs+ s" -val @ ELSE 0 THEN " defs+ ;
+  fn-name count defs+ s" -val " defs+
+  fn-ret-type @ if
+    s" 2@ ELSE 0 0 THEN " defs+
+  else
+    s" @ ELSE 0 THEN " defs+
+  then ;
 
 \ The body is its own word so `return` can EXIT it from anywhere, including
 \ a nested loop body.  The wrapper stores the arguments and always reaches
 \ the epilogue, so every call leaves exactly one result.
 : function-end ( -- )
+  fn-ret-type @ if
+    fn-name count early-called? if
+      s" lila: a string-returning function was called before its definition" lila-error
+    then
+  then
+  sig-register
   s" : lila-fn-body-" defs+
   load-serial @ defs-number
   s" -" defs+
@@ -1033,6 +1326,7 @@ variable expr-type
   then
   line len 9 /string trim fn-header
   fn-active on
+  0 fn-ret-type !  0 fn-ret-seen !
   declare-fn-vars
   parse-params
   function-body-start
@@ -1313,6 +1607,7 @@ variable expr-type
   0 for-depth !
   0 fn-active !
   0 fn-param-count !
+  0 early-count !
   0 call-top ! ;
 
 : lila-compile-finish ( -- )

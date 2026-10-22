@@ -1,4 +1,4 @@
--- LILA demo: expressions, elseif, while, for, and break
+-- LILA demo: expressions, control flow, functions, tables, and strings
 x = 5
 y = (x + 1) * 2 - 1
 print(y)
@@ -51,3 +51,29 @@ print(name)
 message = "hello, " + name
 print(message)
 print(length(message))
+
+-- string parameters and string results
+function greet(who$)
+  return "hello, " + who$
+end
+print(greet("world"))
+
+function exclaim(s$)
+  s$ = s$ + "!"
+  return s$
+end
+print(exclaim("hey"))
+
+-- strings as table values
+people = {}
+people["first"] = "alice"
+print(people["first"])
+print(length(people["first"]))
+people["first"] = people["first"] + "!"
+print(people["first"] + "?")
+
+function putname(tbl, s$)
+  tbl["value"] = s$
+end
+putname(people, "bob")
+print(people["value"])

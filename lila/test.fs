@@ -143,5 +143,58 @@ lila-var-fmatch @ 1 check=
 lila-str-fmsg 2@  s" n=42!" compare 0 check=
 lila-var-ft @ s" k2" table-get drop 17 check=
 
+\ string parameters and string returns from test.lila
+lila-str-ffnstr 2@   s" hello, lila" compare 0 check=
+lila-str-ffnshout 2@ s" hello, world!" compare 0 check=
+lila-str-ffe 2@      s" abab" compare 0 check=
+lila-str-ffex 2@     s" hey!" compare 0 check=
+lila-str-ffzed 2@    s" zed" compare 0 check=
+
+\ strings as table values from test.lila
+lila-var-fnames @ s" first" lila-table-get-str s" alice!" compare 0 check=
+lila-str-ffncopyname 2@ s" alice!" compare 0 check=
+lila-var-fmissinglength @ 0 check=
+lila-str-ffnfullname 2@ s" alice!?" compare 0 check=
+lila-var-ffnnameok @ 1 check=
+lila-var-fmarked @ s" value" lila-table-get-str s" bob" compare 0 check=
+
+\ expected compiler errors, with output suppressed
+: quiet-eval ( c-addr u -- flag )
+  outfile-id >r
+  s" /dev/null" w/o open-file throw dup >r to outfile-id
+  ['] lila-eval catch
+  r> close-file throw
+  r> to outfile-id
+  0<> ;
+
+: quiet-compile-line ( c-addr u -- flag )
+  outfile-id >r
+  s" /dev/null" w/o open-file throw dup >r to outfile-id
+  ['] lila-compile-line catch
+  r> close-file throw
+  r> to outfile-id
+  0<> ;
+
+: expect-error ( flag -- )
+  0= if ." lila test FAILED: expected an error" cr bye then ;
+
+s\" function estring(s$) return s$ end" lila-eval
+s" en = estring(3)" quiet-eval expect-error
+
+s\" function emix(n) return 1 ; return \"s\" end" quiet-eval expect-error
+
+s\" etab = {}" lila-eval
+s\" etab[\"a\"] = 1" lila-eval
+s\" etab[\"b\"] = \"x\"" quiet-eval expect-error
+
+s" function eargs(a, b) return a + b end" lila-eval
+s" eargsn = eargs(1)" quiet-eval expect-error
+
+lila-compile-reset
+s" :noname " code+
+s" eearly = elater()" lila-compile-line
+s\" function elater() return \"z\" end" quiet-compile-line expect-error
+lila-compile-reset
+
 ." lila tests passed" cr
 bye
