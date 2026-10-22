@@ -187,6 +187,12 @@ s\" etab = {}" lila-eval
 s\" etab[\"a\"] = 1" lila-eval
 s\" etab[\"b\"] = \"x\"" quiet-eval expect-error
 
+\ a numeric read of a table that a function filled with strings aborts
+s\" ert = {}" lila-eval
+s\" function ertput(tbl, s$) tbl[\"x\"] = s$ end" lila-eval
+s\" ertput(ert, \"v\")" lila-eval
+s\" ertn = ert[\"x\"]" quiet-eval expect-error
+
 s" function eargs(a, b) return a + b end" lila-eval
 s" eargsn = eargs(1)" quiet-eval expect-error
 

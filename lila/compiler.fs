@@ -125,15 +125,30 @@ variable expr-type
   2 cells allocate throw dup >r 2! r> ;
 
 : lila-table-get-str { table keyaddr keylen -- addr u }
+  table table-kind@ 0 = if s" lila: table holds numbers" lila-error then
   table keyaddr keylen table-get if
     2@
   else
     drop 0 0
   then ;
 
+: lila-table-get-num { table keyaddr keylen -- value }
+  table table-kind@ 1 = if s" lila: table holds strings" lila-error then
+  table keyaddr keylen table-get if
+  else
+    2drop 0
+  then ;
+
 : lila-table-set-str { table keyaddr keylen saddr slen -- }
+  table table-kind@ 0 = if s" lila: table holds numbers" lila-error then
   table keyaddr keylen saddr slen lila-box-str
-  table-set ;
+  table-set
+  1 table table-kind! ;
+
+: lila-table-set-num { table keyaddr keylen value -- }
+  table table-kind@ 1 = if s" lila: table holds strings" lila-error then
+  0 table table-kind!
+  table keyaddr keylen value table-set ;
 
 : code-reset ( -- )  0 code-len ! ;
 : code-base ( -- )  code-buf0 code-buf !  0 code-len ! ;
@@ -665,7 +680,7 @@ variable expr-type
   -1 index-top +!
   index-top @ 64 * index-names + count index-name-buf place
   index-name-buf c@ 0= if
-    s"  table-get drop " lila-buf buf+
+    s"  lila-table-get-num " lila-buf buf+
     0 type-push
   else
     index-name-buf count table-type-find
@@ -678,13 +693,13 @@ variable expr-type
       else
         drop
         index-name-buf count 0 table-type-set
-        s"  table-get drop " lila-buf buf+
+        s"  lila-table-get-num " lila-buf buf+
         0 type-push
       then
     else
       drop
       index-name-buf count 0 table-type-set
-      s"  table-get drop " lila-buf buf+
+      s"  lila-table-get-num " lila-buf buf+
       0 type-push
     then
   then
@@ -914,7 +929,7 @@ variable expr-type
   expr-type @ if
     s"  lila-table-set-str " code+
   else
-    s"  table-set " code+
+    s"  lila-table-set-num " code+
   then ;
 
 : compile-table-assign { line len -- }

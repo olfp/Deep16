@@ -1,6 +1,7 @@
 \ LILA hash tables with string keys (c-addr u)
-\ Table layout: [nbuckets][buckets*]  (2 header cells)
+\ Table layout: [nbuckets][buckets*][value-kind]  (3 header cells)
 \ Slot layout: [key-addr][key-len][value][occupied] (4 cells)
+\ The value kind is 0 for numbers, 1 for strings, and 2 when not known yet.
 
 : hash-string ( c-addr u nbuckets -- idx )
   >r 0 -rot
@@ -8,13 +9,17 @@
   r> mod ;
 
 : table-new ( nbuckets -- table )
-  2 cells allocate throw
+  3 cells allocate throw
   >r
   dup r@ !
   4 * cells allocate throw
   r@ cell+ !
+  2 r@ 2 cells + !
   r@ cell+ @  r@ @ 4 * cells  0 fill
   r> ;
+
+: table-kind@ ( table -- kind )  2 cells + @ ;
+: table-kind! ( table kind -- )  2 cells + ! ;
 
 : slot-addr ( table idx -- addr )
   swap cell+ @  swap 4 * cells + ;

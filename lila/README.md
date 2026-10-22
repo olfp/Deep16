@@ -216,8 +216,10 @@ print(t["value"])        -- bob
 Table value kinds are tracked per variable name, not per runtime table.
 Reading a table whose kind is not known yet defaults to a numeric read and
 fixes the kind to numeric, so assign a string value first if the table is meant
-to hold strings.  Likewise, the caller must already know that a table holds
-strings before passing it to a function that writes string values.
+to hold strings.  Each table also carries a runtime kind, so reading a
+string-valued table as a number aborts with `lila: table holds strings`
+instead of returning a pointer.  Likewise, the caller must already know that a
+table holds strings before passing it to a function that writes string values.
 
 A string variable is written with a string literal:
 
@@ -284,7 +286,8 @@ parentheses, unary minus, function calls, string concatenation with `+`, and
   table aborts with `lila: table full`.  A table's value kind is fixed by its
   first value assignment; mixing numbers and strings in one table is an error.
   A table passed to a function that writes string values must already be
-  string-valued at the call site.  Reading a string value through a table
+  string-valued at the call site; if it is not, a later numeric read aborts
+  with `lila: table holds strings`.  Reading a string value through a table
   parameter works only after that function has itself stored a string in that
   parameter.
 - Nested table assignment such as `t["a"]["b"] = 1` is not supported; assign
