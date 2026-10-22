@@ -48,3 +48,6 @@ print(scores["alice"] + scores["bob"])
 
 name = "lila"
 print(name)
+message = "hello, " + name
+print(message)
+print(length(message))

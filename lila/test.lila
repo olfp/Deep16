@@ -299,3 +299,27 @@ fstr = "world"
 print(fstr)
 print(ft["hello"])      -- 21
 print("dash -- inside")
+
+-- string expressions: concatenation, length, comparison
+fgreet = "hello" + ", " + fstr
+print(fgreet)            -- hello, world
+print(length(fgreet))    -- 12
+print(len(""))           -- 0
+print("abc" = "abc")     -- -1
+print("abc" = "abd")     -- 0
+print("abc" < "abd")     -- -1
+print("b" > "a")         -- -1
+if fstr = "world" then
+  fmatch = 1
+else
+  fmatch = 0
+end
+print(fmatch)            -- 1
+fmsg = "n=" + "42"
+print(fmsg)              -- n=42
+print(length(fmsg) + 1)  -- 5
+fmsg = fmsg + "!"
+fcopy = fmsg
+print(fcopy)             -- n=42!
+ft["k" + "2"] = 17
+print(ft["k2"])          -- 17

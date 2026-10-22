@@ -120,5 +120,28 @@ lila-var-fparam @     8 check=
 lila-str-fstr 2@  s" world" compare 0 check=
 lila-str-fstr2 2@ s" hello" compare 0 check=
 
+\ string expressions: concatenation, length, comparison
+s\" sa = \"foo\"" lila-eval
+s\" sb = sa + \"bar\"" lila-eval
+s\" sc = \"x\" + \"y\" + \"z\"" lila-eval
+s\" print(sc)" lila-eval
+s\" sl = length(sc)" lila-eval              lila-var-sl @ 3 check=
+s\" sl2 = len(\"hello\") + 1" lila-eval      lila-var-sl2 @ 6 check=
+s\" scmp1 = \"abc\" = \"abc\"" lila-eval     lila-var-scmp1 @ -1 check=
+s\" scmp2 = \"abc\" = \"abd\"" lila-eval     lila-var-scmp2 @ 0 check=
+s\" scmp3 = \"abc\" < \"abd\"" lila-eval     lila-var-scmp3 @ -1 check=
+s\" scmp4 = \"b\" > \"a\"" lila-eval         lila-var-scmp4 @ -1 check=
+s\" stab = {}" lila-eval
+s\" stab[\"k\" + \"2\"] = 17" lila-eval
+s\" stabv = stab[\"k2\"]" lila-eval          lila-var-stabv @ 17 check=
+s\" scond = 0" lila-eval
+s\" if sa = \"foo\" then scond = 1 end" lila-eval  lila-var-scond @ 1 check=
+
+\ string-expression checks from test.lila
+lila-str-fgreet 2@ s" hello, world" compare 0 check=
+lila-var-fmatch @ 1 check=
+lila-str-fmsg 2@  s" n=42!" compare 0 check=
+lila-var-ft @ s" k2" table-get drop 17 check=
+
 ." lila tests passed" cr
 bye

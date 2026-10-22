@@ -33,9 +33,9 @@ s" print(x + 1)" lila-eval
 
 ## Supported syntax
 
-Assignments, infix arithmetic, comparison, `print`, `if`/`elseif`/`while`,
-numeric `for` loops, `break`, functions, tables, and strings.  Blocks may span
-lines or stay on one line:
+Assignments, infix arithmetic, string concatenation and comparison, `print`,
+`if`/`elseif`/`while`, numeric `for` loops, `break`, functions, tables, and
+strings.  Blocks may span lines or stay on one line:
 
 ```lisp
 -- LILA comment
@@ -76,6 +76,8 @@ function inc(a) a = a + 1 ; return a end
 t = {}
 t["a"] = 1
 print("hi")
+print("a" + "b")
+print(length("hello"))
 ```
 
 `break` exits the innermost `while` or `for` loop.  Breaking out of a loop
@@ -133,11 +135,11 @@ scores["bob"] = 7
 print(scores["alice"] + scores["bob"])   -- 17
 ```
 
-Reading a missing key yields `0`.  Keys may be string literals or string
-variables.  Values are a single cell: a number or another table.  A table can
-be stored in another table and read with chained brackets
-(`outer["inner"]["x"]`), but nested assignment is not supported; assign
-through the inner table variable instead.
+Reading a missing key yields `0`.  Keys may be any string expression, such as
+a literal, a string variable, or a concatenation.  Values are a single cell: a
+number or another table.  A table can be stored in another table and read with
+chained brackets (`outer["inner"]["x"]`), but nested assignment is not
+supported; assign through the inner table variable instead.
 
 A string variable is written with a string literal:
 
@@ -150,10 +152,31 @@ print(scores["lila"])    -- 3
 
 Strings are `c-addr u` pairs at the Forth level (the compiler stores them in a
 two-cell `lila-str-<name>` buffer).  Assigning one string variable to another
-copies both cells; the string data itself is immutable.  Strings can be
-printed and used as table keys.  They cannot yet be concatenated, compared, or
-used as table values.  `--` inside a string literal is part of the string, not
-a comment.
+copies both cells; the string data itself is immutable.
+
+Strings can be concatenated with `+`, compared with `<`, `>` and `=`, and
+measured with `length(s)` (or `len(s)`):
+
+```lisp
+name = "lila"
+greeting = "hello, " + name
+print(greeting)                  -- hello, lila
+print(length(greeting))          -- 11
+print(greeting = "hello, lila")  -- -1
+if name = "lila" then
+  print("match")
+end
+```
+
+`+` requires both operands to be strings or both to be numbers; the comparison
+operators likewise compare either two strings or two numbers.  String
+comparisons are lexicographic and yield `-1`, `0`, or `1`.  Concatenation
+allocates a new buffer and never frees it, so avoid building strings inside
+long-running loops.  Strings can be printed and used as table keys; they
+cannot yet be stored as table values, passed as function arguments, or returned
+from functions.  `length` and `len` are built-ins and cannot be used as
+function names.  `--` inside a string literal is part of the string, not a
+comment.
 
 A body may contain several statements separated by `;`:
 
@@ -162,8 +185,8 @@ if x > 0 then y = 1 ; z = y + 1 end
 ```
 
 Blocks nest.  Expressions support `+ - * /`, comparisons `< > =`,
-parentheses, unary minus, and function calls.  LILA variables are prefixed in
-Forth as `lila-var-<name>`.
+parentheses, unary minus, function calls, string concatenation with `+`, and
+`length(s)`.  LILA variables are prefixed in Forth as `lila-var-<name>`.
 
 ## Limitations
 
@@ -181,11 +204,11 @@ Forth as `lila-var-<name>`.
   table aborts with `lila: table full`.
 - Nested table assignment such as `t["a"]["b"] = 1` is not supported; assign
   through the inner table variable instead.
-- Strings cannot be concatenated, compared, or stored as table values, and a
-  literal cannot contain a `"`.  Function parameters are single cells, so
-  strings cannot be passed to functions yet.  A name assigned a string literal
-  stays a string variable; assigning it a number later is not supported.
-  At most 64 string variables are tracked.
+- Strings cannot be stored as table values, passed as function arguments, or
+  returned from functions.  A literal cannot contain a `"`, and there are no
+  escape sequences.  Concatenation allocates and never frees its result.  A
+  name assigned a string literal stays a string variable; assigning it a
+  number later is not supported.  At most 64 string variables are tracked.
 - Variables are global, except function parameters.  A variable must be
   assigned before it is read.
 - In a single-line loop body, `break` works as a plain statement, but nested
