@@ -171,7 +171,7 @@ stores, the branch instructions, and `SWI`/`RETI`.
 | 11110 | 5 | LDS/STS | `[11110][d1][seg2][Rd4][Rs4]` | Segment access in MEM |
 | 111110 | 6 | MOV | `[111110][Rd4][Rs4][imm2]` | Register copy / `<<1` / `+2` / `<<1\|1` via imm2 function select |
 | 1111110 | 7 | LSI | `[1111110][Rd4][imm5]` | Full pipeline |
-| 11111110 | 8 | SMV | `[11111110][Rx4][alt_sel4]` | Shadow register access (read-only) |
+| 11111110 | 8 | SMV | `[11111110][Rx4][alt_sel4]` | Shadow register read, or write to the inactive R0..R3 |
 | 111111110 | 9 | MVS | `[111111110][d1][Rd4][seg2]` | Segment access in MEM |
 | 1111111110 | 10 | SOP | `[1111111110][type2][Rx4]` | Single operand and PSW ops |
 | 11111111110 | 11 | SET/CLR | `[11111111110][d1][imm4]` | PSW bit operations |
@@ -187,8 +187,9 @@ stores, the branch instructions, and `SWI`/`RETI`.
 **ILL Trap Overview:**
 - **Replaces NMI** at vector address 0x0000
 - **Triggers on**: Unimplemented instructions (including all FPU instructions)
-- **Behavior**: Similar to SWI, but the handler reads the interrupted PC with
-  `MOV Rx, PC` (PC is not banked, §4.1) to locate the trapped instruction
+- **Behavior**: Similar to SWI. In the banked implementation the trap places
+  the interrupted PC (the word after the trapped instruction) in the shadow
+  **R14/LR**, so the handler fetches the opcode at `LR-1` with `MOV Rx, LR`
 - **Critical restriction**: ILL must NOT occur in interrupt context (PSW.S=1)
   - If attempted, results in double fault (processor reset)
 
@@ -213,10 +214,11 @@ R1'   ← 0
 R2'   ← 0
 R3'   ← 0
 R13'  ← 0
-R14'  ← 0
+R14'  ← interrupted PC ; implementation: the word AFTER the trapped one
 PC'   ← Mem[0x0000]  ; Jump to ILL handler at vector 0
-; The interrupted PC stays in normal PC (it is not part of the GP shadow set,
-; §4.1), pointing at the instruction AFTER the trapped instruction
+; The interrupted PC also stays in the normal PC; RETI returns to it. The
+; handler reads the trapped opcode from [R14'-1] and the caller's R0..R3 with
+; SMV. The new SMV write form puts results back into the caller's bank.
 ```
 
 **FPU Emulation Process:**
@@ -226,15 +228,26 @@ PC'   ← Mem[0x0000]  ; Jump to ILL handler at vector 0
 3. Emulates operation using normal integer registers
 4. Returns with RETI
 
+**D16nano DIV/DIV32 implementation.** The reduced core3 has no iterative
+divider. It raises this ILL for a DIV/DIV32 that the full core would have sent
+to the divider (non-zero divisor, valid destination); the zero-divisor and
+odd-DIV32 cases keep the ALU's fixed result. The kernel installs the handler at
+vector 0 (`asm/forth_nano.asm`, `ill_handler` at 0x5000) and emulates the
+instruction with the software divide. R13/R14 destinations cannot be written
+from the handler and are documented as unsupported. The full D16 keeps the
+hardware divider.
+
 ### **3.3 SMV Instruction (Shadow Register Access)**
 
 **Table F: SMV Alternate Register Selection (Extended)**
 
 The selector is code-canonical: it matches both simulator cores and the
-assembler. SMV reads the **inactive** context's register into `Rx` — except
-`APC`, which reads the **active (architectural)** PC. The destination write
-always uses active-bank semantics (while `PSW.S=1` a GP destination lands in
-the shadow bank).
+assembler. `SMV Rx, ARy` reads the **inactive** context's register into `Rx` —
+except `APC`, which reads the **active (architectural)** PC. The write form
+`SMV ARy, Rx` stores the **active** `Rx` into the **inactive** bank's `R[y]`;
+that is what an ILL handler needs to update the interrupted context's R0..R3.
+The destination write of a read always uses active-bank semantics (while
+`PSW.S=1` a GP destination lands in the shadow bank).
 
 | alt_sel | Alternate Register | Syntax | Operation |
 |---------|-------------------|--------|-----------|
@@ -242,13 +255,15 @@ the shadow bank).
 | 0001 | ADS | `SMV Rx, ADS` | `Rx ← inactive DS` |
 | 0010 | ASS | `SMV Rx, ASS` | `Rx ← inactive SS` |
 | 0011 | AES | `SMV Rx, AES` | `Rx ← inactive ES` |
-| 0100 | APSW | `SMV Rx, APSW` | `Rx ← inactive PSW` |
-| 0101–0111 | *reserved* | *reserved* | *reserved* |
+| 0100 | AR0 | `SMV AR0, Rx` | `inactive R0 ← active Rx` |
+| 0101 | AR1 | `SMV AR1, Rx` | `inactive R1 ← active Rx` |
+| 0110 | AR2 | `SMV AR2, Rx` | `inactive R2 ← active Rx` |
+| 0111 | AR3 | `SMV AR3, Rx` | `inactive R3 ← active Rx` |
 | 1000 | AR0 | `SMV Rx, AR0` | `Rx ← inactive R0` |
 | 1001 | AR1 | `SMV Rx, AR1` | `Rx ← inactive R1` |
 | 1010 | AR2 | `SMV Rx, AR2` | `Rx ← inactive R2` |
 | 1011 | AR3 | `SMV Rx, AR3` | `Rx ← inactive R3` |
-| 1100 | *reserved* | *reserved* | *reserved* |
+| 1100 | APSW | `SMV Rx, APSW` | `Rx ← inactive PSW` |
 | 1101 | AR13/ASP | `SMV Rx, AR13` | `Rx ← inactive R13 (SP')` |
 | 1110 | AR14/ALR | `SMV Rx, AR14` | `Rx ← inactive R14 (LR')` |
 | 1111 | APC | `SMV Rx, APC` | `Rx ← active PC` (architectural PC) |
@@ -606,8 +621,9 @@ PC'   ← Mem[interrupt_vector]  ; Jump to handler
 3. **Double fault condition**: ILL occurring while already in interrupt context (PSW.S=1)
 
 #### **ILL Handler Requirements**
-- **Must find the trapped instruction**: `MOV R0, PC` (PC is not banked) gives
-  the interrupted PC, which points at the instruction after the trapped one
+- **Must find the trapped instruction**: the trap leaves the interrupted PC
+  (the instruction after the trapped one) in the shadow LR; `MOV R0, LR` reads
+  it, and `LD R1, R0, -1` fetches the opcode
 - **Must check for double fault** by reading APSW.S bit
 - **Can emulate instructions** (e.g., FPU operations)
 - **Must return with RETI** to restore normal context
@@ -615,8 +631,8 @@ PC'   ← Mem[interrupt_vector]  ; Jump to handler
 #### **ILL Handler Example**
 ```assembly
 ILL_HANDLER:
-    ; Get trapped instruction address
-    MOV  R0, PC       ; R0 = interrupted PC (address after trapped instruction)
+    ; Get trapped instruction address (the trap parked it in the shadow LR)
+    MOV  R0, LR       ; R0 = interrupted PC (address after trapped instruction)
     SMV  R1, ACS      ; R1 = code segment of trapped instruction
     MVS  DS, R1	      ; DS = CS of trapped intr., for mem read
     

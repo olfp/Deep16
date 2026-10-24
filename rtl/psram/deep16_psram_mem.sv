@@ -42,6 +42,8 @@ module deep16_psram_mem #(
   input  logic [20:0] mem_waddr,
   input  logic [15:0] mem_wdata,
   output logic        mem_stall,
+  output logic        mem_valid,   // the data port read word is in rd_q this cycle
+  output logic        mem_store_ack, // a data-port store has been written to PSRAM
   output logic        boot_done,
   output logic        boot_err,     // the boot read-back did not match
   input  logic        cache_flush,  // FSH retired in WB
@@ -156,7 +158,12 @@ module deep16_psram_mem #(
   logic [4:0]  st;
 
 `ifdef USER_FLASH
-  flash_boot #(.CLK_HZ(13_500_000)) u_flash_boot (
+`ifdef D16NANO
+  localparam int FLASH_CLK_HZ = 6_750_000;   // the reduced core's board clock
+`else
+  localparam int FLASH_CLK_HZ = 13_500_000;
+`endif
+  flash_boot #(.CLK_HZ(FLASH_CLK_HZ)) u_flash_boot (
     .clk(clk_cpu), .rst(rst), .start(fb_start),
     .done(fb_done), .err(fb_err), .entry_exp(fb_entry),
     .breq(fb_breq), .bwe(fb_bwe), .baddr(fb_baddr), .bwdata(fb_bwdata),
@@ -207,11 +214,16 @@ module deep16_psram_mem #(
   assign store_hit = ctag_q[15] && (ctag_q[9:0] == store_addr[19:10]);
   assign boot_done = boot_q;
   assign mem_stall = boot_q ? (st != S_PRESENT) : 1'b1;
+  assign mem_valid = boot_q && (st == S_PRESENT) && op_is_load && !op_is_store;
+  assign mem_store_ack = (st == S_STORE_W) && bbusy;
   assign if_preempted = !(boot_q && st == S_PRESENT && op_is_fetch && !op_is_load && !op_is_store);
   assign if_rdata = rd_q;
   assign mem_rdata = rd_q;
 
   always_ff @(posedge clk_cpu) begin
+`ifdef D16CORE3_DBG
+    if (mem_we) $display("PSRAM we st=%0d slat=%d addr=%05x data=%04x busy=%d", st, store_lat, mem_waddr, mem_wdata, bbusy);
+`endif
     breq <= 1'b0;
     breq_burst <= 1'b0;
     if (cache_flush) flush_pending <= 1'b1;

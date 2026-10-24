@@ -10,7 +10,7 @@ class Deep16Disassembler {
         this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
         this.systemOps = ['NOP', 'FSH', 'SWI', 'RETI', 'SETI', 'CLRI', '', ''];
         this.segmentNames = ['CS', 'DS', 'SS', 'ES'];
-        this.smvSources = ['ACS','ADS','ASS','AES','APSW','','','','AR0','AR1','AR2','AR3','','AR13','AR14','APC'];
+        this.smvSources = ['ACS','ADS','ASS','AES','','','','','AR0','AR1','AR2','AR3','APSW','AR13','AR14','APC'];
     }
 
 disassemble(instruction) {
@@ -129,9 +129,13 @@ disassembleSOP(instruction) {
     disassembleSMV(instruction) {
         const rx = (instruction >>> 4) & 0xF;
         const alt = instruction & 0xF;
+        // 0100..0111 is the write form: SMV ARy, Rx.
+        if (alt >= 0x4 && alt <= 0x7) {
+            return `SMV AR${alt & 0x3}, ${this.registerNames[rx]}`;
+        }
         const names = {
-            0x0: 'ACS', 0x1: 'ADS', 0x2: 'ASS', 0x3: 'AES', 0x4: 'APSW',
-            0x8: 'AR0', 0x9: 'AR1', 0xA: 'AR2', 0xB: 'AR3', 0xD: 'AR13', 0xE: 'AR14', 0xF: 'APC'
+            0x0: 'ACS', 0x1: 'ADS', 0x2: 'ASS', 0x3: 'AES',
+            0x8: 'AR0', 0x9: 'AR1', 0xA: 'AR2', 0xB: 'AR3', 0xC: 'APSW', 0xD: 'AR13', 0xE: 'AR14', 0xF: 'APC'
         };
         const srcName = names[alt] || `ALT${alt}`;
         // Spec Table R: ALNK Rx = SMV Rx, APC (architectural read of the

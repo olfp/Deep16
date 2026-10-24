@@ -15,6 +15,8 @@ test('the expected examples are present', () => {
     'far_call.asm',
     'fibonacci.asm',
     'forth.asm',
+    'forth_nano.asm',
+    'gfx_demo.asm',
     'link_delay_slot.asm',
     'screen_demo.asm',
     'string_demo.asm',
@@ -30,9 +32,9 @@ for (const file of EXAMPLES) {
     assert.ok(res.memoryChanges.length > 0, 'no words were emitted');
   });
 
-  // forth.asm is a REPL: it prints its banner and then waits for keyboard
-  // input, so it never reaches HALT. It only has to keep running.
-  const mustHalt = file !== 'forth.asm';
+  // forth.asm and its D16nano variant are REPLs: they print a banner and
+  // wait for input, so they never reach HALT. They only have to keep running.
+  const mustHalt = file !== 'forth.asm' && file !== 'forth_nano.asm';
 
   test(`${file} runs`, () => {
     const src = fs.readFileSync(path.join(ASM_DIR, file), 'utf8');

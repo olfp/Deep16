@@ -1,9 +1,9 @@
 // dvi_out - three TMDS channels plus the clock lane for a DVI/HDMI sink.
 //
-// The pixel clock is only 25.2 MHz, so the encoder does its work combinationally
-// in one pixel clock instead of the 18-stage pipeline a 100 MHz pixel clock
-// needs. OSER10 serializes each 10-bit TMDS word at 5x the pixel clock (DDR),
-// and the ELVDS buffers drive the board's HDMI pairs.
+// The text build runs at 25.2 MHz and the D16nano tile build at 74.25 MHz
+// (720p60). The encoder is pipelined in two stages so the same RTL closes at
+// both rates; OSER10 serializes each 10-bit TMDS word at 5x the pixel clock
+// (DDR), and the ELVDS buffers drive the board's HDMI pairs.
 //
 // Channel order matches the Tang Nano 9K's HDMI connector: lane 0 = blue,
 // lane 1 = green, lane 2 = red, lane 3 = the clock. The sync and blanking
@@ -17,13 +17,17 @@ module tmds_encoder (
   input  logic        de,
   output logic [9:0]  tmds
 );
-  // HDMI spec 5.4 (Figure 5-7), evaluated combinationally per pixel. The
-  // running disparity is the only state. This is the same formulation as
-  // hdl-util/hdmi's tmds_channel and the DVI white paper, and it is checked
-  // against that reference in rtl/sim/tmds_tb (not committed).
+  // HDMI spec 5.4 (Figure 5-7), pipelined in two stages so the 74.25 MHz
+  // 720p pixel clock closes: stage 1 builds q_m and its one/zero counts,
+  // stage 2 applies the running disparity. Standard data and blanking both
+  // pass through the same pipeline, so the sync stays aligned with the pixels.
   logic [3:0]        n1d;
   logic [8:0]        q_m;
   logic signed [4:0] n1q, n0q;
+  logic [8:0]        q_m_r;
+  logic signed [4:0] n1q_r, n0q_r;
+  logic              de_r;
+  logic [1:0]        ctrl_r;
   logic signed [5:0] acc;
   logic signed [5:0] acc_add;
   logic [9:0]        q_out;
@@ -56,21 +60,39 @@ module tmds_encoder (
     n1q = $signed({1'b0, 4'(q_m[0]) + 4'(q_m[1]) + 4'(q_m[2]) + 4'(q_m[3]) +
                          4'(q_m[4]) + 4'(q_m[5]) + 4'(q_m[6]) + 4'(q_m[7])});
     n0q = 5'sd8 - n1q;
+  end
 
-    if (acc == 6'sd0 || n1q == n0q) begin
-      if (q_m[8]) begin
-        q_out   = {~q_m[8], q_m[8], q_m[7:0]};
-        acc_add = n1q - n0q;
-      end else begin
-        q_out   = {~q_m[8], q_m[8], ~q_m[7:0]};
-        acc_add = n0q - n1q;
-      end
-    end else if ((acc > 0 && n1q > n0q) || (acc < 0 && n1q < n0q)) begin
-      q_out   = {1'b1, q_m[8], ~q_m[7:0]};
-      acc_add = (n0q - n1q) + (q_m[8] ? 6'sd2 : 6'sd0);
+  always_ff @(posedge clk) begin
+    if (rst) begin
+      q_m_r  <= 9'd0;
+      n1q_r  <= 5'sd0;
+      n0q_r  <= 5'sd0;
+      de_r   <= 1'b0;
+      ctrl_r <= 2'b00;
     end else begin
-      q_out   = {1'b0, q_m[8], q_m[7:0]};
-      acc_add = (n1q - n0q) - (q_m[8] ? 6'sd0 : 6'sd2);
+      q_m_r  <= q_m;
+      n1q_r  <= n1q;
+      n0q_r  <= n0q;
+      de_r   <= de;
+      ctrl_r <= ctrl;
+    end
+  end
+
+  always_comb begin
+    if (acc == 6'sd0 || n1q_r == n0q_r) begin
+      if (q_m_r[8]) begin
+        q_out   = {~q_m_r[8], q_m_r[8], q_m_r[7:0]};
+        acc_add = n1q_r - n0q_r;
+      end else begin
+        q_out   = {~q_m_r[8], q_m_r[8], ~q_m_r[7:0]};
+        acc_add = n0q_r - n1q_r;
+      end
+    end else if ((acc > 0 && n1q_r > n0q_r) || (acc < 0 && n1q_r < n0q_r)) begin
+      q_out   = {1'b1, q_m_r[8], ~q_m_r[7:0]};
+      acc_add = (n0q_r - n1q_r) + (q_m_r[8] ? 6'sd2 : 6'sd0);
+    end else begin
+      q_out   = {1'b0, q_m_r[8], q_m_r[7:0]};
+      acc_add = (n1q_r - n0q_r) - (q_m_r[8] ? 6'sd0 : 6'sd2);
     end
   end
 
@@ -78,8 +100,8 @@ module tmds_encoder (
     if (rst) begin
       tmds <= 10'b1101010100;
       acc  <= 6'sd0;
-    end else if (!de) begin
-      case (ctrl)
+    end else if (!de_r) begin
+      case (ctrl_r)
         2'b00: tmds <= 10'b1101010100;
         2'b01: tmds <= 10'b0010101011;
         2'b10: tmds <= 10'b0101010100;
@@ -91,6 +113,7 @@ module tmds_encoder (
       acc  <= acc + acc_add;
     end
   end
+
 endmodule
 
 module dvi_out (

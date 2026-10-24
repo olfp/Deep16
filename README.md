@@ -235,8 +235,11 @@ Known gaps, all verified rather than assumed:
 
 - **The FPU does not exist.** `doc/Deep16-FPU.md` specifies 732 lines of it;
   no core contains a line of floating-point code.
-- **No ILL trap.** Described in `doc/Deep16-Arch.md` §3.2 and §4.7, implemented
-  nowhere.
+- **ILL trap: DIV/DIV32 only, D16nano only.** The reduced core3 traps
+  DIV/DIV32 (the full D16 keeps the hardware divider); the D16nano kernel
+  installs a vector-0 handler in `asm/forth_nano.asm` that emulates them with
+  the software divide. The general undefined-opcode/FPU trap and the full-D16
+  trap are still missing (`doc/Deep16-Arch.md` §3.2/§4.7).
 - **Hardware-interrupt handling exists only in the JS core.** The JS core has
   `handleHardwareInterrupt()`; `lib.rs` and the RTL core have neither, so
   generated interrupts behave differently. Everything a program triggers

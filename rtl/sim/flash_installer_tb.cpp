@@ -19,9 +19,9 @@ int main(int argc, char** argv) {
   for (int i = 0; i < 20; i++) tick();
   top->rst_n = 1;
 
-  // 25 page erases at 120 ms + 12,352 programs at ~23 us = ~3.3 s at 27 MHz.
+  // 25 page erases at 120 ms + 12,352 programs = ~3.3 s at 27 MHz.
   bool pass = false, fail = false;
-  for (long i = 0; i < 120000000 && !pass && !fail; i++) {
+  for (long i = 0; i < 200000000 && !pass && !fail; i++) {
     tick();
     // LED 1 is active low on PASS, LED 2 on FAIL.
     if (((top->led >> 1) & 1) == 0) pass = true;

@@ -402,7 +402,7 @@ test('cr moves the " ok" onto the next row', () => {
 
 test('stack underflow is reported and the REPL continues', () => {
   const { rows, running } = repl('+\n1 2 + .\n');
-  assert.equal(rows[1], '> +');
+  assert.equal(rows[1], '> + Err');
   assert.equal(rows[2], 'stack underflow');
   assert.equal(rows[3], '> 1 2 + . 3  ok');
   assert.equal(rows[4], '>');
@@ -415,14 +415,14 @@ test('tokens are resolved through the dictionary (no single-char fast path)', ()
   // Now the whole token goes through FIND and is either a known word or
   // reported as unknown.
   const { rows } = repl('+foo\n1 2 + 3 * .\n');
-  assert.equal(rows[1], '> +foo');
+  assert.equal(rows[1], '> +foo Err');
   assert.equal(rows[2], 'undefined word: +foo');
   assert.equal(rows[3], '> 1 2 + 3 * . 9  ok');
 });
 
 test('an unknown word is echoed, the line discarded, the REPL continues', () => {
   const { rows, running } = repl('HELLO\n1 2 + .\n');
-  assert.equal(rows[1], '> HELLO');
+  assert.equal(rows[1], '> HELLO Err');
   assert.equal(rows[2], 'undefined word: HELLO');
   assert.equal(rows[3], '> 1 2 + . 3  ok');
   assert.equal(rows[4], '>');
@@ -481,7 +481,7 @@ test('state, [ ] and immediate', () => {
 
 test('an error while compiling aborts the definition', () => {
   const { rows, running } = repl(': bad zzz ;\n1 2 + .\n');
-  assert.equal(rows[1], '> : bad zzz ;');
+  assert.equal(rows[1], '> : bad zzz ; Err');
   assert.equal(rows[2], 'undefined word: zzz');
   assert.equal(rows[3], '> 1 2 + . 3  ok');
   assert.ok(running, 'the next line must be interpreted, not compiled');
@@ -624,11 +624,11 @@ test('a minus that no digit follows is still a word', () => {
     '1 2 - .\n' +
     '1 2 3 -rot . . .\n'
   );
-  assert.equal(rows[1], '> -abc');
+  assert.equal(rows[1], '> -abc Err');
   assert.equal(rows[2], 'undefined word: -abc');
-  assert.equal(rows[3], '> -0x10');
+  assert.equal(rows[3], '> -0x10 Err');
   assert.equal(rows[4], 'undefined word: -0x10');
-  assert.equal(rows[5], '> -$10');
+  assert.equal(rows[5], '> -$10 Err');
   assert.equal(rows[6], 'undefined word: -$10');
   assert.equal(rows[7], '> 1 2 - . -1  ok');
   assert.equal(rows[8], '> 1 2 3 -rot . . . 2  1  3  ok');
@@ -786,7 +786,7 @@ test('do checks its operands the way a binary word does', () => {
     ': c 5 do ;\nc\n' +
     '1 2 + .\n'
   );
-  assert.equal(rows[2], '> c');
+  assert.equal(rows[2], '> c Err');
   assert.equal(rows[3], 'stack underflow');
   assert.equal(rows[4], '> 1 2 + . 3  ok');
   assert.ok(running);
@@ -992,7 +992,7 @@ test('to rejects an unknown name without corrupting the value', () => {
     'v .\n'
   );
   assert.equal(rows[1], '> 5 value v ok');
-  assert.equal(rows[2], '> 9 to nope');
+  assert.equal(rows[2], '> 9 to nope Err');
   assert.equal(rows[3], 'undefined word: nope');
   assert.equal(rows[4], '> v . 5  ok');
   assert.equal(rows[5], '>');
@@ -1032,7 +1032,7 @@ test('only forth definitions hides words from a vocabulary', () => {
   assert.equal(rows[3], '> : bar 42 ; ok');
   assert.equal(rows[4], '> bar . 42  ok');
   assert.equal(rows[5], '> only forth definitions ok');
-  assert.equal(rows[6], '> bar .');
+  assert.equal(rows[6], '> bar . Err');
   assert.equal(rows[7], 'undefined word: bar');
   assert.equal(rows[8], '> 1 2 + . 3  ok');
   assert.equal(rows[9], '>');
@@ -1081,7 +1081,7 @@ test('also and previous adjust the search order', () => {
   assert.equal(rows[7], '> previous ok');
   assert.equal(rows[8], '> definitions ok');
   assert.equal(rows[9], '> : z 1 ; ok');
-  assert.equal(rows[10], '> b .');
+  assert.equal(rows[10], '> b . Err');
   assert.equal(rows[11], 'undefined word: b');
   assert.equal(rows[12], '>');
 });
@@ -1127,9 +1127,9 @@ test('forget drops a word and everything defined after it', () => {
   assert.equal(rows[1], '> : a 1 ; : b 2 ; : c 3 ; ok');
   assert.equal(rows[2], '> forget b ok');
   assert.equal(rows[3], '> a . 1  ok');
-  assert.equal(rows[4], '> b .');
+  assert.equal(rows[4], '> b . Err');
   assert.equal(rows[5], 'undefined word: b');
-  assert.equal(rows[6], '> c .');
+  assert.equal(rows[6], '> c . Err');
   assert.equal(rows[7], 'undefined word: c');
   assert.equal(rows[8], '>');
   assert.ok(running);
@@ -1147,7 +1147,7 @@ test('forget a vocabulary returns to FORTH and reclaims space', () => {
   );
   assert.equal(rows[4], '> only forth definitions ok');
   assert.equal(rows[5], '> forget foo ok');
-  assert.equal(rows[6], '> foo .');
+  assert.equal(rows[6], '> foo . Err');
   assert.equal(rows[7], 'undefined word: foo');
   assert.equal(rows[8], '> 1 2 + . 3  ok');
   assert.equal(rows[9], '>');
@@ -1159,7 +1159,7 @@ test('forget rejects an unknown name', () => {
     'forget nope\n' +
     'a .\n'
   );
-  assert.equal(rows[2], '> forget nope');
+  assert.equal(rows[2], '> forget nope Err');
   assert.equal(rows[3], 'undefined word: nope');
   assert.equal(rows[4], '> a . 1  ok');
   assert.equal(rows[5], '>');
@@ -1259,7 +1259,7 @@ test('see resolves a body word through the dictionary, including recurse', () =>
 
 test('see rejects an unknown name like any other word', () => {
   const { rows } = repl('see nope\n');
-  assert.equal(rows[1], '> see nope');
+  assert.equal(rows[1], '> see nope Err');
   assert.equal(rows[2], 'undefined word: nope');
   assert.equal(rows[3], '>');
 });
@@ -1334,7 +1334,7 @@ test('an error leaves no stale cursor on the input line', () => {
   // cursor sits in, so they have to clear the attribute bit first. On the
   // success path the result overwrites that cell, hence no leftover there.
   const { rows, cursors, running } = repl('goo\n');
-  assert.equal(rows[1], '> goo');
+  assert.equal(rows[1], '> goo Err');
   assert.equal(rows[2], 'undefined word: goo');
   assert.equal(rows[3], '>');
   assert.deepEqual(cursors[1], [], 'no cursor block may survive on the input line');
@@ -1345,7 +1345,7 @@ test('an error leaves no stale cursor on the input line', () => {
 
 test('stack underflow leaves no stale cursor either', () => {
   const { rows, cursors, running } = repl('drop\n');
-  assert.equal(rows[1], '> drop');
+  assert.equal(rows[1], '> drop Err');
   assert.equal(rows[2], 'stack underflow');
   assert.deepEqual(cursors[1], []);
   assert.deepEqual(cursors[3], [2]);
@@ -1389,7 +1389,7 @@ test('several dots on one line all execute', () => {
 
 test('a word after a dot still runs, so `.` does not end the line', () => {
   const { rows, running } = repl('1 . dup .\n');
-  assert.equal(rows[1], '> 1 . dup . 1');
+  assert.equal(rows[1], '> 1 . dup . 1  Err');
   assert.equal(rows[2], 'stack underflow');
   assert.ok(running);
 });
@@ -1488,7 +1488,7 @@ test('the compiled string is threaded data, so a stack word after it still sees 
   // `." x" dup .` on an empty stack must still be a stack underflow: the
   // string must not push anything of its own.
   const { rows, running } = repl(': dup2 ." a" dup . ;\ndup2\n');
-  assert.equal(rows[2], '> dup2a');
+  assert.equal(rows[2], '> dup2a Err');
   assert.equal(rows[3], 'stack underflow');
   assert.ok(running);
 });
@@ -1503,7 +1503,7 @@ test('. prints the most negative cell as -32768', () => {
 
 test('u. checks its operand', () => {
   const { rows, running } = repl('u.\n');
-  assert.equal(rows[1], '> u.');
+  assert.equal(rows[1], '> u. Err');
   assert.equal(rows[2], 'stack underflow');
   assert.equal(rows[3], '>');
   assert.ok(running);
@@ -1555,9 +1555,9 @@ test('2/, abs, min and max check their operands', () => {
     '2/ .\n' +
     '1 min .\n'
   );
-  assert.equal(rows[1], '> 2/ .');
+  assert.equal(rows[1], '> 2/ . Err');
   assert.equal(rows[2], 'stack underflow');
-  assert.equal(rows[3], '> 1 min .');
+  assert.equal(rows[3], '> 1 min . Err');
   assert.equal(rows[4], 'stack underflow');
   assert.equal(rows[5], '>');
   assert.ok(running);
@@ -3643,8 +3643,9 @@ test('the kernel errors are exceptions while a handler is in reach', () => {
   assert.match(hexrepl('drop drop').join('\n'), /stack underflow/);
   // A throw nothing is watching is reported, and the prompt comes back.
   const rows = repl('1 throw\n7 .\n').rows;
-  assert.match(rows[1], /uncaught exception/);
-  assert.match(rows[2], /7 .* ok/);
+  assert.equal(rows[1], '> 1 throw Err');
+  assert.equal(rows[2], 'uncaught exception');
+  assert.match(rows[3], /7 .* ok/);
 });
 
 test('no instruction uses R8 or R9 as an address base', () => {
@@ -3668,9 +3669,13 @@ test('abort" reports its message and throws -2', () => {
   // A non-zero flag prints the message and throws -2, which a catch sees.
   assert.equal(row(': t abort" boom" ; : c [\'] t catch ;', '1 c .'), '> 1 c .boom -2  ok');
   // With nothing watching, the message goes out and then the code is reported.
-  assert.equal(row(': t 1 abort" boom" ;', 't'), '> tboomuncaught exception');
+  const uncaught = repl(': t 1 abort" boom" ;\nt\n').rows;
+  assert.equal(uncaught[2], '> tboom Err');
+  assert.equal(uncaught[3], 'uncaught exception');
   // Interpreted, the flag comes off the stack the same way.
-  assert.equal(repl('1 abort" oops"\n7 .\n').rows[1], '> 1 abort" oops"oopsuncaught exception');
+  const interpreted = repl('1 abort" oops"\n7 .\n').rows;
+  assert.equal(interpreted[1], '> 1 abort" oops"oops Err');
+  assert.equal(interpreted[2], 'uncaught exception');
   // It is an ordinary dictionary word with a quote in its name, so `'` finds it
   // and see prints a compiled one back with the blank the parse swallowed.
   assert.equal(hexOut("' abort\" ."), String(res.symbols.h_abortq + 9));
@@ -3992,15 +3997,15 @@ test('included interprets a buffer of source, line by line', () => {
   // An undefined word ends the load and hands the keyboard back; the next line
   // is read normally rather than resuming the buffer.
   rows = type(boot('1 2 + .\nnosuchword\n3 4 + .\n'), `${addr} 27 included\n99 .\n`);
-  assert.match(rows[1], /included 3$/);
+  assert.match(rows[1], /included 3\s+Err$/);
   assert.equal(rows[2], 'undefined word: nosuchword');
   assert.equal(rows[3], '> 99 . 99  ok');
 
   // Too long a line, an `included` inside an `evaluate`, and an `included` while
   // one is running all throw the standard's -22 (uncaught here).
-  assert.match(type(boot('1 2 + .\n' + 'x'.repeat(130) + '\n'), `${addr} 139 included\n`)[1], /uncaught exception$/);
-  assert.match(type(boot('1 2 + .\n'), `s" ${addr} 8 included" evaluate\n`)[1], /uncaught exception$/);
-  assert.match(type(boot(`${addr} 5 included\n`), `${addr} 17 included\n`)[1], /uncaught exception$/);
+  assert.match(type(boot('1 2 + .\n' + 'x'.repeat(130) + '\n'), `${addr} 139 included\n`)[2], /uncaught exception$/);
+  assert.match(type(boot('1 2 + .\n'), `s" ${addr} 8 included" evaluate\n`)[2], /uncaught exception$/);
+  assert.match(type(boot(`${addr} 5 included\n`), `${addr} 17 included\n`)[2], /uncaught exception$/);
 });
 
 // ---------------------------------------------------------------------------
@@ -4125,7 +4130,7 @@ test('c" compiles an inline string and is compile-only', () => {
   assert.equal(hexOut(': t c" hi" ; t @ .'), '2');
   assert.equal(hexOut(': t c" hi" ; t 1 + @ .'), '104');
   // Interpreting it is the standard's -14 (uncaught here).
-  assert.match(repl('c" x"\n').rows[1], /uncaught exception$/);
+  assert.equal(repl('c" x"\n').rows[2], 'uncaught exception');
 });
 
 // ---------------------------------------------------------------------------
@@ -4176,7 +4181,7 @@ test('marker rewinds the dictionary to where it was defined', () => {
   const rows = repl('marker m : foo 1 ; foo .\nm\nfoo .\n').rows;
   assert.equal(rows[1], '> marker m : foo 1 ; foo . 1  ok');
   assert.equal(rows[2], '> m ok');
-  assert.equal(rows[3], '> foo .');
+  assert.equal(rows[3], '> foo . Err');
   assert.equal(rows[4], 'undefined word: foo');
   // It removes itself too.
   assert.equal(repl('marker m\nm\nm .\n').rows[4], 'undefined word: m');

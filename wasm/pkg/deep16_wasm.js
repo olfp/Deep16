@@ -1,19 +1,109 @@
 let wasm;
 
 /**
- * @param {number} mem_words
+ * Overwrite the PSW. Call before `set_registers`, which interprets its last
+ * element through the S bit, exactly as `get_registers` reports it.
+ * @param {number} psw
  */
-export function init(mem_words) {
-    wasm.init(mem_words);
+export function set_psw(psw) {
+    wasm.set_psw(psw);
 }
 
 /**
- * @param {number} n
  * @returns {boolean}
  */
-export function run_steps(n) {
-    const ret = wasm.run_steps(n);
+export function step() {
+    const ret = wasm.step();
     return ret !== 0;
+}
+
+/**
+ * Push one key code into the polled keyboard buffer (parity with the JS
+ * core's `simulator.enqueueKeyCode`). Called from the IDE for every
+ * keystroke while the WASM core is selected.
+ * @param {number} code
+ */
+export function kbd_push(code) {
+    wasm.kbd_push(code);
+}
+
+/**
+ * @returns {number}
+ */
+export function uart_tx_available() {
+    const ret = wasm.uart_tx_available();
+    return ret >>> 0;
+}
+
+let cachedUint16ArrayMemory0 = null;
+
+function getUint16ArrayMemory0() {
+    if (cachedUint16ArrayMemory0 === null || cachedUint16ArrayMemory0.byteLength === 0) {
+        cachedUint16ArrayMemory0 = new Uint16Array(wasm.memory.buffer);
+    }
+    return cachedUint16ArrayMemory0;
+}
+
+let WASM_VECTOR_LEN = 0;
+
+function passArray16ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 2, 2) >>> 0;
+    getUint16ArrayMemory0().set(arg, ptr / 2);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
+/**
+ * @param {number} ptr
+ * @param {Uint16Array} data
+ */
+export function load_program(ptr, data) {
+    const ptr0 = passArray16ToWasm0(data, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    wasm.load_program(ptr, ptr0, len0);
+}
+
+/**
+ * @returns {number}
+ */
+export function uart_rx_available() {
+    const ret = wasm.uart_rx_available();
+    return ret >>> 0;
+}
+
+function getArrayU16FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
+}
+/**
+ * @returns {Uint16Array}
+ */
+export function get_registers() {
+    const ret = wasm.get_registers();
+    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+    return v1;
+}
+
+/**
+ * How many keystrokes are still queued. The host reads this before it pushes:
+ * the RTL core has a 128 entry FIFO and drops a keystroke that arrives while
+ * it is full, so typing a file in has to be paced by what the machine
+ * consumed.
+ * @returns {number}
+ */
+export function kbd_available() {
+    const ret = wasm.kbd_available();
+    return ret >>> 0;
+}
+
+/**
+ * @returns {Uint16Array}
+ */
+export function get_last_event() {
+    const ret = wasm.get_last_event();
+    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+    return v1;
 }
 
 let cachedUint32ArrayMemory0 = null;
@@ -39,27 +129,33 @@ export function get_recent_access() {
     return v1;
 }
 
-let cachedUint16ArrayMemory0 = null;
-
-function getUint16ArrayMemory0() {
-    if (cachedUint16ArrayMemory0 === null || cachedUint16ArrayMemory0.byteLength === 0) {
-        cachedUint16ArrayMemory0 = new Uint16Array(wasm.memory.buffer);
-    }
-    return cachedUint16ArrayMemory0;
-}
-
-function getArrayU16FromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
-}
 /**
  * @returns {Uint16Array}
  */
-export function get_last_event() {
-    const ret = wasm.get_last_event();
+export function get_segments() {
+    const ret = wasm.get_segments();
     var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
     return v1;
+}
+
+export function kbd_clear() {
+    wasm.kbd_clear();
+}
+
+/**
+ * @returns {number}
+ */
+export function get_psw() {
+    const ret = wasm.get_psw();
+    return ret;
+}
+
+/**
+ * @param {number} code
+ */
+export function uart_rx_push(code) {
+    wasm.uart_rx_push(code);
 }
 
 /**
@@ -72,109 +168,38 @@ export function get_shadow_state() {
     return v1;
 }
 
-export function reset() {
-    wasm.reset();
-}
-
 /**
- * @param {number} cs
- * @param {number} ds
- * @param {number} ss
- * @param {number} es
+ * Overwrite the register file (R0..R15) from outside, mirroring
+ * `get_registers`: while the shadow set is active (PSW.S = 1) element 15 is
+ * the active (shadow) PC instead of R15, so the two calls round-trip and the
+ * saved user PC stays untouched. Call `set_psw` first - element 15 is placed
+ * according to the PSW.S bit that is current at call time.
+ * @param {Uint16Array} regs
  */
-export function set_segments(cs, ds, ss, es) {
-    wasm.set_segments(cs, ds, ss, es);
-}
-
-let WASM_VECTOR_LEN = 0;
-
-function passArray16ToWasm0(arg, malloc) {
-    const ptr = malloc(arg.length * 2, 2) >>> 0;
-    getUint16ArrayMemory0().set(arg, ptr / 2);
-    WASM_VECTOR_LEN = arg.length;
-    return ptr;
-}
-/**
- * @param {number} ptr
- * @param {Uint16Array} data
- */
-export function load_program(ptr, data) {
-    const ptr0 = passArray16ToWasm0(data, wasm.__wbindgen_malloc);
+export function set_registers(regs) {
+    const ptr0 = passArray16ToWasm0(regs, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
-    wasm.load_program(ptr, ptr0, len0);
+    wasm.set_registers(ptr0, len0);
 }
 
 /**
+ * @param {number} n
  * @returns {boolean}
  */
-export function step() {
-    const ret = wasm.step();
+export function run_steps(n) {
+    const ret = wasm.run_steps(n);
     return ret !== 0;
 }
 
 /**
- * Push one key code into the polled keyboard buffer (parity with the JS
- * core's `simulator.enqueueKeyCode`). Called from the IDE for every
- * keystroke while the WASM core is selected.
- * @param {number} code
+ * @param {number} mem_words
  */
-export function kbd_push(code) {
-    wasm.kbd_push(code);
-}
-
-export function kbd_clear() {
-    wasm.kbd_clear();
-}
-
-/**
- * How many keystrokes are still queued. The host reads this before it pushes:
- * the RTL core has a 128 entry FIFO and drops a keystroke that arrives while
- * it is full, so typing a file in has to be paced by what the machine
- * consumed.
- * @returns {number}
- */
-export function kbd_available() {
-    const ret = wasm.kbd_available();
-    return ret >>> 0;
-}
-
-/**
- * @param {number} code
- */
-export function uart_rx_push(code) {
-    wasm.uart_rx_push(code);
+export function init(mem_words) {
+    wasm.init(mem_words);
 }
 
 export function uart_rx_clear() {
     wasm.uart_rx_clear();
-}
-
-/**
- * @returns {number}
- */
-export function uart_rx_available() {
-    const ret = wasm.uart_rx_available();
-    return ret >>> 0;
-}
-
-/**
- * @returns {number}
- */
-export function uart_tx_available() {
-    const ret = wasm.uart_tx_available();
-    return ret >>> 0;
-}
-
-/**
- * Everything transmitted since the last call, drained exactly once. Same shape
- * the RTL glue presents, so the IDE feeds either core the same way.
- * @returns {Uint16Array}
- */
-export function uart_tx_take() {
-    const ret = wasm.uart_tx_take();
-    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
-    return v1;
 }
 
 /**
@@ -196,51 +221,35 @@ export function poke(addr, value) {
 }
 
 /**
- * Overwrite the register file (R0..R15) from outside, mirroring
- * `get_registers`: while the shadow set is active (PSW.S = 1) element 15 is
- * the active (shadow) PC instead of R15, so the two calls round-trip and the
- * saved user PC stays untouched. Call `set_psw` first - element 15 is placed
- * according to the PSW.S bit that is current at call time.
- * @param {Uint16Array} regs
+ * @param {number} cs
+ * @param {number} ds
+ * @param {number} ss
+ * @param {number} es
  */
-export function set_registers(regs) {
-    const ptr0 = passArray16ToWasm0(regs, wasm.__wbindgen_malloc);
-    const len0 = WASM_VECTOR_LEN;
-    wasm.set_registers(ptr0, len0);
+export function set_segments(cs, ds, ss, es) {
+    wasm.set_segments(cs, ds, ss, es);
 }
 
 /**
- * Overwrite the PSW. Call before `set_registers`, which interprets its last
- * element through the S bit, exactly as `get_registers` reports it.
- * @param {number} psw
- */
-export function set_psw(psw) {
-    wasm.set_psw(psw);
-}
-
-/**
- * @returns {Uint16Array}
- */
-export function get_registers() {
-    const ret = wasm.get_registers();
-    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
-    return v1;
-}
-
-/**
+ * @param {number} addr
  * @returns {number}
  */
-export function get_psw() {
-    const ret = wasm.get_psw();
+export function get_memory_word(addr) {
+    const ret = wasm.get_memory_word(addr);
     return ret;
 }
 
+export function reset() {
+    wasm.reset();
+}
+
 /**
+ * Everything transmitted since the last call, drained exactly once. Same shape
+ * the RTL glue presents, so the IDE feeds either core the same way.
  * @returns {Uint16Array}
  */
-export function get_segments() {
-    const ret = wasm.get_segments();
+export function uart_tx_take() {
+    const ret = wasm.uart_tx_take();
     var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
     return v1;
@@ -256,15 +265,6 @@ export function get_memory_slice(start, count) {
     var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
     return v1;
-}
-
-/**
- * @param {number} addr
- * @returns {number}
- */
-export function get_memory_word(addr) {
-    const ret = wasm.get_memory_word(addr);
-    return ret;
 }
 
 const EXPECTED_RESPONSE_TYPES = new Set(['basic', 'cors', 'default']);

@@ -415,9 +415,15 @@ class Deep16Optimizer {
             }
 
             // SMV Rx, <shadow> reads a shadow register into Rx.
+            // SMV ARy, Rx writes the *inactive* bank's R[y] from the active Rx,
+            // so the first operand is not a GPR and the second is a use.
             case 'SMV': {
-                const rx = this.regName(rec.ops[0]);
-                if (rx) e.defs.add(rx);
+                const dest = this.regName(rec.ops[0]);
+                if (dest) e.defs.add(dest);
+                else {
+                    const rs = this.regName(rec.ops[1]);
+                    if (rs) e.uses.add(rs);
+                }
                 return this.sideEffect(e);
             }
 

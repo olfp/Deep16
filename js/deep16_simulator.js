@@ -9,6 +9,13 @@ class Deep16Simulator {
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R3: 0, R13: 0, R14: 0 };
         this.psw = 0;
         this.running = false;
+        // D16nano: DIV/DIV32 are not in the core; trap them to the ILL vector
+        // so a handler can emulate them. The full D16 leaves this false and
+        // uses the hardware divide.
+        this.d16nano = false;
+        // D16nano benchmark time base: one step is one instruction (the JS core
+        // is not cycle-accurate). The board exposes the real CPU cycle counter.
+        this.cycleCount = 0;
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
         this.lastALUOverflow = false;
@@ -113,6 +120,7 @@ class Deep16Simulator {
         this.shiftCarryOut = null;
         this.segmentRegisters = { CS: 0xFFFF, DS: 0x0000, SS: 0x0000, ES: 0x0000 };
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R3: 0, R13: 0, R14: 0 };
+        this.cycleCount = 0;
         
         // Reset delay slot state
         this.delaySlotActive = false;
@@ -171,6 +179,7 @@ class Deep16Simulator {
 
     step() {
         if (!this.running) return false;
+        this.cycleCount = (this.cycleCount + 1) >>> 0;
 
         const inShadow = (this.psw & (1 << 5)) !== 0;
         // Handle delay slot if active
@@ -650,6 +659,9 @@ class Deep16Simulator {
             }
             case 0b11110: {
                 // DIV Rd, Rs - signed, truncating toward zero (spec Table 8).
+                // On the D16nano a non-zero divisor traps to the ILL vector;
+                // the zero-divisor case keeps the ALU's fixed result.
+                if (this.d16nano && opVal !== 0) { this.executeILL(); return; }
                 if (opVal === 0) { result = 0xFFFF; break; }
                 const a = (rdValue << 16) >> 16;
                 const b = (opVal << 16) >> 16;
@@ -664,6 +676,7 @@ class Deep16Simulator {
                     this.lastOperationWasALU = true;
                     return;
                 }
+                if (this.d16nano && opVal !== 0) { this.executeILL(); return; }
                 if (opVal === 0) { result = 0xFFFF; break; }
                 const dividend = ((this.readGPR(rd) << 16) | this.readGPR(rd + 1)) | 0;
                 const divisor = (opVal << 16) >> 16;
@@ -917,6 +930,20 @@ class Deep16Simulator {
                 this.writeGPR(rx, inShadowView ? this.segmentRegisters.ES : this.shadowRegisters.ES);
                 break;
             case 0b0100:
+            case 0b0101:
+            case 0b0110:
+            case 0b0111: {
+                // SMV ARy, Rx: store the *active* Rx into the *inactive* bank's
+                // R[y]. In handler context (S=1) that is the caller's normal
+                // bank; in normal context it is the shadow bank. This is the
+                // primitive the ILL handler needs to write the caller's R0..R3.
+                const y = alt & 0x3;
+                const value = this.readGPR(rx);
+                if (inShadowView) this.registers[y] = value & 0xFFFF;
+                else               this.shadowRegisters['R' + y] = value & 0xFFFF;
+                break;
+            }
+            case 0b1100:
                 // APSW: shadowRegisters.PSW holds the *other* context's PSW --
                 // the interrupted PSW during handler execution, PSW' (0x0000
                 // after RETI, spec 4.9) in normal view (spec 4.8).
@@ -1008,6 +1035,10 @@ class Deep16Simulator {
             } else if (physicalAddress === this.UART_DATA_ADDR) {
                 const data = this.uartRx.length > 0 ? (this.uartRx.shift() & 0xFFFF) : 0;
                 this.writeGPR(rd, data);
+            } else if (this.d16nano && physicalAddress === 0xF0068) {
+                this.writeGPR(rd, this.cycleCount & 0xFFFF);
+            } else if (this.d16nano && physicalAddress === 0xF006A) {
+                this.writeGPR(rd, (this.cycleCount >>> 16) & 0xFFFF);
             } else if (physicalAddress < this.memory.length) {
                 this.writeGPR(rd, this.memory[physicalAddress] & 0xFFFF);
             }
@@ -1080,6 +1111,35 @@ class Deep16Simulator {
         this.shadowRegisters.R13 = 0x0000;
         this.shadowRegisters.R14 = 0x0000;
         const pa = this.phys(0, 2);
+        const target = pa < this.memory.length ? (this.memory[pa] & 0xFFFF) : 0xFFFF;
+        this.shadowRegisters.PC = target;
+        this.flushPipeline();
+    }
+
+    /**
+     * ILL trap entry (spec 3.2/4.7): same fresh-context sequence as SWI, but
+     * vector 0 and the shadow LR carries the interrupted PC (the instruction
+     * after the trapped one) so the handler can fetch the opcode at LR-1.
+     * A trap while already in the handler is a double fault.
+     */
+    executeILL() {
+        if ((this.psw & (1 << 5)) !== 0) {
+            this.running = false;
+            return;
+        }
+        this.shadowRegisters.PSW = this.psw & 0xFFFF;
+        this.psw = 0x0020;
+        this.shadowRegisters.CS = 0x0000;
+        this.shadowRegisters.DS = 0x0000;
+        this.shadowRegisters.SS = 0x0000;
+        this.shadowRegisters.ES = 0x0000;
+        this.shadowRegisters.R0 = 0x0000;
+        this.shadowRegisters.R1 = 0x0000;
+        this.shadowRegisters.R2 = 0x0000;
+        this.shadowRegisters.R3 = 0x0000;
+        this.shadowRegisters.R13 = 0x0000;
+        this.shadowRegisters.R14 = this.registers[15] & 0xFFFF;
+        const pa = this.phys(0, 0);
         const target = pa < this.memory.length ? (this.memory[pa] & 0xFFFF) : 0xFFFF;
         this.shadowRegisters.PC = target;
         this.flushPipeline();

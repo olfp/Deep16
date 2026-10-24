@@ -23,13 +23,23 @@ import vm from 'node:vm';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { writeTileFont } from './make_tile_font.mjs';
+import { buildDemo, checkDemo, writeDemo, DEMO_BASE } from './make_demo.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export const WINDOW = 0x6000;      // 24 BSRAM blocks x 1024 words (§2, §4.7)
+export const NANO = !!process.env.D16NANO;
+// D16D is the user-flash colour demo: the kernel gains the gfx BIOS call
+// and word, and the flat image grows to 32K so the demo block rides at
+// 0x6000. The packed BSRAM console is built without it (the tile kernel
+// already fills the 16-block budget).
+export const D16D = !!process.env.D16D;
+// The flat image is the 24K window. The D16D demo sits at 0x4E00, in the gap
+// between the BIOS code and the Forth stacks, so both sizes stay 24K.
+export const WINDOW = 0x6000;
 export const FILL   = 0xFFFF;      // the halt word, everywhere unused (§6.1)
 export const IMG_BLOCK_WORDS = 0x4000; // 16 BSRAM blocks: the packed-image budget
-export const BIOS_BASE  = 0x5600;  // must match asm/forth.asm and D16MINI.md §3
+export const BIOS_BASE  = process.env.D16NANO ? 0x4A00 : 0x5600;  // must match the kernel's .org
 export const STACK_BASE = 0x5800;  // RSTACK_TOP: the dictionary stays below it
 export const FLASH_MAGIC  = 0x44313646; // 'D16F', first 32-bit word of the flash header
 export const FLASH_FORMAT = 1;         // header format
@@ -51,13 +61,16 @@ function loadAssembler() {
 // Assemble the kernel and lay it into the window. Returns the words plus the
 // facts the assertions and the manifest need.
 export const DEFINES = { CONSOLE_UART: 1 };
+if (NANO) DEFINES.D16NANO = 1;                       // D16nano: software divide
+if (D16D) DEFINES.D16D = 1;                          // gfx BIOS call + word
 if (process.env.BOOT_DIAG) DEFINES.BOOT_DIAG = 1;     // boot diagnostic build
 
 export function buildImage() {
   const Deep16Assembler = loadAssembler();
-  const source = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
+  const sourceName = NANO ? 'forth_nano.asm' : 'forth.asm';
+  const source = fs.readFileSync(path.join(ROOT, 'asm', sourceName), 'utf8');
   const res = new Deep16Assembler().assemble(source, { defines: DEFINES });
-  if (!res.success) throw new Error('forth.asm does not assemble: ' + res.errors.join('; '));
+  if (!res.success) throw new Error(`${sourceName} does not assemble: ` + res.errors.join('; '));
 
   const words = new Uint16Array(WINDOW).fill(FILL);
   const outOfWindow = new Set();
@@ -75,11 +88,21 @@ export function buildImage() {
     return hi - sym.bios_entry + 1;
   })();
 
+  // The D16D demo block lives at PSRAM 0x4E00 (BIOS segment 0x04A0), in the
+  // free gap above the BIOS and below the stacks. It rides in the same 24K
+  // flat image, so the standard flash loader/installer copy and verify it.
+  let demo = null;
+  if (D16D) {
+    demo = buildDemo();
+    checkDemo(demo);
+    for (let i = 0; i < demo.size; i++) words[DEMO_BASE + i] = demo.words[i];
+  }
+
   const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
 
   return {
     words, outOfWindow: [...outOfWindow].sort((a, b) => a - b),
-    dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build,
+    dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build, demo,
   };
 }
 
@@ -95,6 +118,8 @@ export function checkImage(img) {
   // high address the board cannot back.
   const unexpected = img.outOfWindow.filter((a) => a !== ECHO_FLAG);
   if (unexpected.length) fail.push(`words outside the window: ${unexpected.map((a) => '0x' + a.toString(16)).join(', ')}`);
+  if (D16D && !img.demo) fail.push('D16D image has no demo block');
+  if (D16D && img.demo) checkDemo(img.demo);
   if (fail.length) throw new Error('boot image is not valid:\n  - ' + fail.join('\n  - '));
   return true;
 }
@@ -211,12 +236,25 @@ export function flashImage(img) {
   return { words, crc };
 }
 
+// The installer ROM is sized at build time. The standard image fills it; the
+// D16nano image leaves room for the demo at 0x6000 and pads the tail with the
+// erased value, so the on-die flash beyond the programmed words stays FILL.
+export const INSTALLER_WORDS = 12352;
+
+export function installerFlash(img) {
+  const flash = flashImage(img);
+  const out = new Uint32Array(INSTALLER_WORDS).fill(0xFFFFFFFF);
+  for (let i = 0; i < Math.min(out.length, flash.words.length); i++) out[i] = flash.words[i];
+  return out;
+}
+
 export function flashHex(flash) {
-  return Array.from(flash.words).map((w) => w.toString(16).padStart(8, '0')).join('\n') + '\n';
+  const words = Array.isArray(flash) || flash instanceof Uint32Array ? flash : flash.words;
+  return Array.from(words).map((w) => w.toString(16).padStart(8, '0')).join('\n') + '\n';
 }
 
 export function manifest(img) {
-  const pack = packImage(img);
+  const pack = D16D ? null : packImage({ words: img.words });
   return JSON.stringify({
     project: 'D16MINI',
     source: 'asm/forth.asm',
@@ -230,18 +268,24 @@ export function manifest(img) {
     bios_words: img.biosWords,
     stack_base: `0x${STACK_BASE.toString(16)}`,
     build: img.build,
-    pack: {
+    pack: pack ? {
       format: 'count, (start,end) pairs, payload ranges',
       words: pack.words.length,
       blocks: Math.ceil(pack.words.length / 1024),
       ranges: pack.ranges.length,
-    },
+    } : null,
     flash: {
       format: '64-word header, then flat image, two 16-bit words per 32-bit word',
+      image_words: img.words.length,
       words: flashImage(img).words.length,
+      installer_words: INSTALLER_WORDS,
       header_words: FLASH_HDR_WORDS,
       crc16: `0x${flashImage(img).crc.toString(16).padStart(4, '0')}`,
     },
+    demo: img.demo ? {
+      source: 'asm/gfx_demo.asm', base: `0x${DEMO_BASE.toString(16)}`, size: img.demo.size,
+      entry: img.demo.entry, build: img.demo.build,
+    } : null,
   }, null, 2) + '\n';
 }
 
@@ -259,31 +303,67 @@ if (isMain) {
   checkImage(img);
   const outDir = path.resolve(ROOT, String(argValue('--out', 'artifacts/image')));
   const check = argValue('--check', false);
+  // The packed 16-block BSRAM image exists only for the packed console. The
+  // D16D user-flash build does not load it (the kernel with the gfx additions is
+  // over the 16-block budget); its state is the flat 32K flash image.
+  const kernel = { words: new Uint16Array(img.words.length).fill(FILL) };
+  kernel.words.set(img.words.subarray(0, 0x6000));
   if (!check) {
-    const packed = packImage(img);
-    checkPacked(img, packed);
     fs.mkdirSync(outDir, { recursive: true });
-    fs.writeFileSync(path.join(outDir, 'image.hex'), imageHex(img));
-    fs.writeFileSync(path.join(outDir, 'image.mi'), imageMi(img));
-    fs.writeFileSync(path.join(outDir, 'image-packed.hex'),
-                     imageHex({ words: packed.words }));
+    fs.writeFileSync(path.join(outDir, 'image.hex'), imageHex(kernel));
+    fs.writeFileSync(path.join(outDir, 'image.mi'), imageMi(kernel));
+    if (!D16D) {
+      const packed = packImage(kernel);
+      checkPacked(kernel, packed);
+      fs.writeFileSync(path.join(outDir, 'image-packed.hex'),
+                       imageHex({ words: packed.words }));
+    } else {
+      // The D16D image is user-flash only; do not leave a stale packed image
+      // from an earlier build where the flash bitstream might find it.
+      try { fs.unlinkSync(path.join(outDir, 'image-packed.hex')); } catch { /* none */ }
+    }
     fs.writeFileSync(path.join(outDir, 'image.manifest.json'), manifest(img));
     // The DVI text renderer reads its font with $readmemh too; keep it beside
     // the image so the Gowin include path and the board sims both find it.
     fs.copyFileSync(path.join(ROOT, 'rtl', 'dvi', 'font8x15.hex'),
                     path.join(outDir, 'font8x15.hex'));
+    // The tile engine's 32-word 4bpp bank and its palette, generated from the
+    // same 8x15 font so the text console and the tile console cannot drift.
+    writeTileFont(outDir, path.join(ROOT, 'rtl', 'dvi', 'font8x15.hex'));
     // User-flash image for the installer / preloaded flash model.
-    fs.writeFileSync(path.join(outDir, 'image.flash.hex'), flashHex(flashImage(img)));
+    const installerWords = installerFlash(img);
+    fs.writeFileSync(path.join(outDir, 'image.flash.hex'), flashHex(installerWords));
+    // User-flash image for the Gowin Programmer's "User Flash Initialization"
+    // (Embedded Flash Mode): the full 608 Kbit FLASH608K, with the installer's
+    // 12,352 words at 0 and 0xFF beyond. This is the same data
+    // deep16_installer.fs writes.
+    const USER_FLASH_BYTES = 0x13000;   // 608 Kbit
+    const userFlash = Buffer.alloc(USER_FLASH_BYTES, 0xFF);
+    for (let i = 0; i < installerWords.length && i * 4 + 4 <= USER_FLASH_BYTES; i++)
+      userFlash.writeUInt32LE(installerWords[i] >>> 0, i * 4);
+    fs.writeFileSync(path.join(outDir, 'image.flash.bin'), userFlash);
+    if (img.demo) writeDemo(outDir, img.demo);
   }
   const kb = (img.words.length * 2 / 1024).toFixed(0);
   console.log(`boot image: ${img.words.length} words (${kb} KiB), fill 0xFFFF, build ${img.build}`);
   console.log(`  dict_free 0x${img.dictFree.toString(16)}  BIOS 0x${img.biosEntry.toString(16)} (${img.biosWords} words)  stacks 0x${STACK_BASE.toString(16)}`);
   console.log(`  outside the window (dropped: the board does not back it): ${img.outOfWindow.map((a) => '0x' + a.toString(16)).join(', ') || 'none'}`);
-  const pack = packImage(img);
-  console.log(`  packed: ${pack.ranges.length} ranges, ${pack.words.length} words ` +
-              `(${Math.ceil(pack.words.length / 1024)} BSRAM blocks of ${IMG_BLOCK_WORDS / 1024})`);
+  if (D16D) {
+    console.log('  packed: not built (D16D user-flash image; the gfx kernel is over 16 blocks)');
+  } else {
+    const pack = packImage(kernel);
+    console.log(`  packed: ${pack.ranges.length} ranges, ${pack.words.length} words ` +
+                `(${Math.ceil(pack.words.length / 1024)} BSRAM blocks of ${IMG_BLOCK_WORDS / 1024})`);
+  }
   const flash = flashImage(img);
-  console.log(`  user flash: ${flash.words.length} x 32-bit words, CRC16 0x${flash.crc.toString(16).padStart(4, '0')}`);
-  if (!check) console.log(`  wrote ${path.relative(ROOT, outDir)}/image{,-packed}.hex, image.mi, image.flash.hex, image.manifest.json`);
+  console.log(`  user flash: ${flash.words.length} x 32-bit words, installer ${INSTALLER_WORDS}, CRC16 0x${flash.crc.toString(16).padStart(4, '0')}`);
+  console.log(`  user-flash init file: image.flash.bin (0x13000 = 608 Kbit, 0xFF padded)`);
+  if (img.demo) console.log(`  demo: ${img.demo.size} words at 0x${DEMO_BASE.toString(16)} (D16D)`);
+  if (!check) {
+    const files = D16D
+      ? 'image.hex, image.mi, image.flash.hex, image.flash.bin, demo.hex, image.manifest.json'
+      : 'image.hex, image-packed.hex, image.mi, image.flash.hex, image.flash.bin, image.manifest.json';
+    console.log(`  wrote ${path.relative(ROOT, outDir)}/${files}`);
+  }
   else console.log('  --check: nothing written');
 }

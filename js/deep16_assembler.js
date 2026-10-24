@@ -902,9 +902,24 @@ class Deep16Assembler {
         throw new Error('MVS requires destination register and segment register');
     }
 
-    // Encode SMV instruction (updated 8-bit encoding)
+    // Encode SMV instruction (updated 8-bit encoding).
+    //
+    // Reads:  SMV Rx, ARy / ACS / ADS / ASS / AES / APSW / AR13 / AR14 / APC
+    //         alt_sel = 1000+y for AR0..AR3, 1100 for APSW (moved from 0100).
+    // Writes: SMV ARy, Rx  (destination first)
+    //         alt_sel = 0100+y for AR0..AR3.
+    //
+    // A write stores the *active* Rx into the *inactive* bank's R[y]. The
+    // destination-first spelling is deliberate: it keeps the read form
+    // unambiguous and mirrors the special-register-first notation.
     encodeSMV(parts, address, lineNumber) {
         if (parts.length >= 3) {
+            const write = /^AR([0-3])$/i.exec(parts[1]);
+            if (write) {
+                const y = Number(write[1]);
+                const rx = this.parseRegister(parts[2]);
+                return 0b1111111000000000 | (rx << 4) | (0b0100 | y);
+            }
             const rx = this.parseRegister(parts[1]);
             const alt = parts[2].toUpperCase();
             const altMap = {
@@ -912,7 +927,7 @@ class Deep16Assembler {
                 'ADS': 0b0001,
                 'ASS': 0b0010,
                 'AES': 0b0011,
-                'APSW': 0b0100,
+                'APSW': 0b1100,
                 'AR0': 0b1000,
                 'AR1': 0b1001,
                 'AR2': 0b1010,
@@ -924,7 +939,7 @@ class Deep16Assembler {
             if (!(alt in altMap)) {
                 throw new Error(`Invalid SMV source: ${alt}`);
             }
-        return 0b1111111000000000 | (rx << 4) | altMap[alt];
+            return 0b1111111000000000 | (rx << 4) | altMap[alt];
         }
         throw new Error('SMV requires destination register and source');
     }

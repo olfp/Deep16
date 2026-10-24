@@ -782,7 +782,24 @@ fn exec_smv(c: &mut Cpu, instr: u16) {
         0b0001 => { gp_write(c, rx, if in_shadow { c.ds } else { c.sds }); }
         0b0010 => { gp_write(c, rx, if in_shadow { c.ss } else { c.sss }); }
         0b0011 => { gp_write(c, rx, if in_shadow { c.es } else { c.ses }); }
-        0b0100 => {
+        0b0100 | 0b0101 | 0b0110 | 0b0111 => {
+            // SMV ARy, Rx: store the *active* Rx into the *inactive* bank's
+            // R[y]. In handler context (S=1) that is the caller's normal bank;
+            // in normal context it is the shadow bank.
+            let value = gp_read(c, rx);
+            let y = (alt & 0x3) as usize;
+            if in_shadow {
+                c.reg[y] = value;
+            } else {
+                match y {
+                    0 => c.sr0 = value,
+                    1 => c.sr1 = value,
+                    2 => c.sr2 = value,
+                    _ => c.sr3 = value,
+                }
+            }
+        }
+        0b1100 => {
             // APSW: spsw holds the *other* context's PSW -- the interrupted PSW
             // during handler execution, PSW' (0x0000 after RETI, spec 4.9) in
             // normal view (spec 4.8).

@@ -1,13 +1,10 @@
 /* tslint:disable */
 /* eslint-disable */
-export function init(mem_words: number): void;
-export function run_steps(n: number): boolean;
-export function get_recent_access(): Uint32Array;
-export function get_last_event(): Uint16Array;
-export function get_shadow_state(): Uint16Array;
-export function reset(): void;
-export function set_segments(cs: number, ds: number, ss: number, es: number): void;
-export function load_program(ptr: number, data: Uint16Array): void;
+/**
+ * Overwrite the PSW. Call before `set_registers`, which interprets its last
+ * element through the S bit, exactly as `get_registers` reports it.
+ */
+export function set_psw(psw: number): void;
 export function step(): boolean;
 /**
  * Push one key code into the polled keyboard buffer (parity with the JS
@@ -15,7 +12,10 @@ export function step(): boolean;
  * keystroke while the WASM core is selected.
  */
 export function kbd_push(code: number): void;
-export function kbd_clear(): void;
+export function uart_tx_available(): number;
+export function load_program(ptr: number, data: Uint16Array): void;
+export function uart_rx_available(): number;
+export function get_registers(): Uint16Array;
 /**
  * How many keystrokes are still queued. The host reads this before it pushes:
  * the RTL core has a 128 entry FIFO and drops a keystroke that arrives while
@@ -23,15 +23,24 @@ export function kbd_clear(): void;
  * consumed.
  */
 export function kbd_available(): number;
+export function get_last_event(): Uint16Array;
+export function get_recent_access(): Uint32Array;
+export function get_segments(): Uint16Array;
+export function kbd_clear(): void;
+export function get_psw(): number;
 export function uart_rx_push(code: number): void;
-export function uart_rx_clear(): void;
-export function uart_rx_available(): number;
-export function uart_tx_available(): number;
+export function get_shadow_state(): Uint16Array;
 /**
- * Everything transmitted since the last call, drained exactly once. Same shape
- * the RTL glue presents, so the IDE feeds either core the same way.
+ * Overwrite the register file (R0..R15) from outside, mirroring
+ * `get_registers`: while the shadow set is active (PSW.S = 1) element 15 is
+ * the active (shadow) PC instead of R15, so the two calls round-trip and the
+ * saved user PC stays untouched. Call `set_psw` first - element 15 is placed
+ * according to the PSW.S bit that is current at call time.
  */
-export function uart_tx_take(): Uint16Array;
+export function set_registers(regs: Uint16Array): void;
+export function run_steps(n: number): boolean;
+export function init(mem_words: number): void;
+export function uart_rx_clear(): void;
 /**
  * Write one memory word without touching anything else.
  *
@@ -45,24 +54,15 @@ export function uart_tx_take(): Uint16Array;
  * write path; the JS core's equivalent is a direct write to memory[].
  */
 export function poke(addr: number, value: number): void;
-/**
- * Overwrite the register file (R0..R15) from outside, mirroring
- * `get_registers`: while the shadow set is active (PSW.S = 1) element 15 is
- * the active (shadow) PC instead of R15, so the two calls round-trip and the
- * saved user PC stays untouched. Call `set_psw` first - element 15 is placed
- * according to the PSW.S bit that is current at call time.
- */
-export function set_registers(regs: Uint16Array): void;
-/**
- * Overwrite the PSW. Call before `set_registers`, which interprets its last
- * element through the S bit, exactly as `get_registers` reports it.
- */
-export function set_psw(psw: number): void;
-export function get_registers(): Uint16Array;
-export function get_psw(): number;
-export function get_segments(): Uint16Array;
-export function get_memory_slice(start: number, count: number): Uint16Array;
+export function set_segments(cs: number, ds: number, ss: number, es: number): void;
 export function get_memory_word(addr: number): number;
+export function reset(): void;
+/**
+ * Everything transmitted since the last call, drained exactly once. Same shape
+ * the RTL glue presents, so the IDE feeds either core the same way.
+ */
+export function uart_tx_take(): Uint16Array;
+export function get_memory_slice(start: number, count: number): Uint16Array;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -94,8 +94,8 @@ export interface InitOutput {
   readonly uart_tx_available: () => number;
   readonly uart_tx_take: () => [number, number];
   readonly __wbindgen_externrefs: WebAssembly.Table;
-  readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
+  readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_start: () => void;
 }
 

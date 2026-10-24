@@ -1,34 +1,29 @@
 #!/usr/bin/env bash
-# scripts/flash_gowin_flash.sh - persistent USER_FLASH config via the Gowin CLI.
+# scripts/flash_gowin_flash.sh - persistent standard build via openFPGALoader.
 #
-# Writes the *configuration* to the external SPI flash in bscan mode and leaves
-# the on-die FLASH608K image alone. This is the CLI equivalent of the Gowin
-# Programmer's External Flash operation, without the GUI.
+# One command writes both halves:
+#   -f <standard .fs>        FPGA configuration (external config flash)
+#   --user-flash <raw .bin>  on-die 608 Kbit user flash (D16 kernel image)
 #
-# Why not openFPGALoader: its .fs parser writes the user-flash section, so the
-# USER_FLASH .fs boots only in SRAM. Its --user-flash option is LittleBee-only.
+# Both survive a power cycle. The .fs and image.flash.bin must come from the
+# same standard build:
+#   npm run synth:flash
 #
-# The board's USB-JTAG cable is the FT2CH (--cable-index 1). Takes ~3.5 minutes.
-# The on-die image is installed separately, once, with:
-#   openFPGALoader -m fpga/gowin/impl/pnr/deep16_installer.fs
+# The deep16_installer.fs remains the fallback for the user-flash half.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
-GOWIN_APP="${GOWIN_APP:-/Applications/GowinIDE.app}"
-PROGRAMMER="$GOWIN_APP/Contents/Resources/Gowin_EDA/Programmer/bin/programmer_cli"
 FS="$ROOT/fpga/gowin/impl/pnr/deep16_board_flash.fs"
-[ -x "$PROGRAMMER" ] || { echo "programmer_cli not found: $PROGRAMMER" >&2; exit 1; }
-[ -f "$FS" ] || { echo "missing $FS - run npm run synth:flash first" >&2; exit 1; }
+USER="$ROOT/artifacts/image/image.flash.bin"
 
-DYLD_LIBRARY_PATH="$GOWIN_APP/Contents/Resources/Gowin_EDA/IDE/lib" \
-DYLD_FRAMEWORK_PATH="$GOWIN_APP/Contents/Resources/Gowin_EDA/IDE/lib" \
-  "$PROGRAMMER" \
-    --device GW1NR-9C \
-    --run 13 \
-    --fsFile "$FS" \
-    --cable-index 1
+# Regenerate the standard user image so it matches this standard configuration.
+node "$ROOT/scripts/make_image.mjs" >/dev/null
+command -v openFPGALoader >/dev/null 2>&1 || { echo "openFPGALoader not found" >&2; exit 1; }
+[ -f "$FS" ]   || { echo "missing $FS - run npm run synth:flash first" >&2; exit 1; }
+[ -f "$USER" ] || { echo "missing $USER - run npm run synth:flash first" >&2; exit 1; }
+
+openFPGALoader -f "$FS" --user-flash "$USER"
 
 echo
-echo "final written to the external config flash."
-echo "power-cycle (or run: programmer_cli --device GW1NR-9C --run 1 --cable-index 1)."
-echo "if LED0 is steady lit, the on-die image is missing: run the installer with -m."
+echo "configuration + on-die user flash written."
+echo "power-cycle the board."

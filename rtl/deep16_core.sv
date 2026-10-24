@@ -66,6 +66,10 @@ module deep16_core
   output logic [20:0] mem_addr,
   output logic        mem_rd,          // the data port is reading this cycle
   input  logic [15:0] mem_rdata,
+  /* verilator lint_off UNUSEDSIGNAL */   // the reduced core uses these; this one does not
+  input  logic        mem_valid,   // the data port word above is valid this cycle
+  input  logic        mem_store_ack, // a store has been written to memory
+  /* verilator lint_on UNUSEDSIGNAL */
   // data write port: stores commit in WB, like every other architectural write
   output logic        mem_we,
   output logic [20:0] mem_waddr,
@@ -171,6 +175,7 @@ module deep16_core
     logic [3:0]  reg_wa, reg_wb;
     logic [15:0] reg_da, reg_db;
     logic        reg_bank;       // PSW.S of the writing instruction
+    logic        reg_bank_b;     // bank of the B port (SMV: inactive bank)
     logic        mem_we;
     logic [20:0] mem_addr;
     logic [15:0] mem_wdata;
@@ -288,9 +293,11 @@ module deep16_core
           end
           4'd2: begin r.a1 = w[5:2]; r.e1 = 1'b1; end  // MOV
           4'd3: begin r.a1 = w[8:5]; r.e1 = 1'b1; end  // LSI
-          4'd4: begin                            // SMV: source sits in the
-            r.e1 = 1'b1;                         // *inactive* bank, and port 1
-            case (w[3:0])                        // is otherwise unused here
+          4'd4: begin                            // SMV: reads tap the
+            r.e1 = 1'b1;                         // *inactive* bank; the write
+            if (w[3:0] >= 4'h4 && w[3:0] <= 4'h7) // form takes its source from
+              r.a1 = w[7:4];                      // the *active* bank
+            else case (w[3:0])
               4'h9:  r.a1 = 4'd1;
               4'hA:  r.a1 = 4'd2;
               4'hB:  r.a1 = 4'd3;
@@ -356,18 +363,24 @@ module deep16_core
   function automatic logic fwd_hit(
       input logic [3:0] a,
       input logic       bank,
-      input logic       we,
+      input logic       we_a,
       input logic [3:0] wa,
       input logic       we_b,
       input logic [3:0] wb,
-      input logic       wbank);
+      input logic       wbank_a,
+      input logic       wbank_b);
     logic hit;
     hit = 1'b0;
-    if (we) begin
-      if      (wa == a) hit = 1'b1;
-      else if (we_b && wb == a) hit = 1'b1;
+    if (we_a && wa == a) hit = 1'b1;
+    else if (we_b && wb == a) hit = 1'b1;
+    if (hit && idx_banked(a)) begin
+      // A hit on the A port uses wbank_a; a hit on B uses wbank_b. A and B
+      // never write the same index in one instruction (A is Rd, B is Rd+1 or
+      // the SMV destination), so the first matching port is the one that
+      // matters.
+      if (we_a && wa == a) hit = (wbank_a == bank);
+      else                 hit = (wbank_b == bank);
     end
-    if (hit && idx_banked(a) && (wbank != bank)) hit = 1'b0;
     return hit;
   endfunction
 
@@ -389,7 +402,7 @@ module deep16_core
                                             input logic [15:0] base);
     if (mem_wb.valid &&
         fwd_hit(a, bank, mem_wb.reg_we_a, mem_wb.reg_wa, mem_wb.reg_we_b,
-                mem_wb.reg_wb, mem_wb.reg_bank))
+                mem_wb.reg_wb, mem_wb.reg_bank, mem_wb.reg_bank_b))
       return (mem_wb.reg_we_a && mem_wb.reg_wa == a) ? mem_wb_wdata : mem_wb.reg_db;
     return base;
   endfunction
@@ -403,11 +416,17 @@ module deep16_core
     if (a == 4'd15) return pc_reg_val;
     if (ex_mem.valid &&
         fwd_hit(a, bank, ex_mem.reg_we_a, ex_mem.reg_wa, ex_mem.reg_we_b,
-                ex_mem.reg_wb, ex_mem.reg_bank))
-      return (ex_mem.reg_we_a && ex_mem.reg_wa == a) ? ex_mem.reg_da : ex_mem.reg_db;
+                ex_mem.reg_wb, ex_mem.reg_bank, ex_mem.reg_bank_b))
+      // A load's word is not in reg_da: EX leaves that at 0 and the synchronous
+      // read delivers it on mem_rdata during MEM. Forwarding reg_da for a load
+      // made the held EX instruction read 0 whenever the memory stalled - every
+      // D16nano load-use pair over PSRAM, seen first as the tile console
+      // writing at the row without the scroll offset.
+      return (ex_mem.reg_we_a && ex_mem.reg_wa == a)
+             ? (ex_mem.mem_is_load ? mem_rdata : ex_mem.reg_da) : ex_mem.reg_db;
     if (mem_wb.valid &&
         fwd_hit(a, bank, mem_wb.reg_we_a, mem_wb.reg_wa, mem_wb.reg_we_b,
-                mem_wb.reg_wb, mem_wb.reg_bank))
+                mem_wb.reg_wb, mem_wb.reg_bank, mem_wb.reg_bank_b))
       return (mem_wb.reg_we_a && mem_wb.reg_wa == a) ? mem_wb_wdata : mem_wb.reg_db;
     return base_v;
   endfunction
@@ -433,6 +452,7 @@ module deep16_core
     .raddr2    (id_rd.a2),     .rdata2_n   (rf2_n),      .rdata2_s(rf2_s),
     .raddr3    (id_rd.a3),     .rdata3_n   (rf3_n),      .rdata3_s(rf3_s),
     .wb_bank   (mem_wb.reg_bank),
+    .wb_bank_b (mem_wb.reg_bank_b),
     // every write port is gated with the stage's valid bit: a bubble inserted
     // on a load-use stall keeps the fields of the instruction it replaced, and
     // an ungated port would keep firing that stale write every cycle
@@ -579,7 +599,14 @@ module deep16_core
                 : 1'b0;
   // A load-use stall holds the DIV in EX while its operands are still stale, so
   // the divider must not be armed until the load result is bypassable.
+`ifdef D16NANO
+  // D16nano: the ISA's DIV/DIV32 are not implemented. The kernel image
+  // (asm/forth_nano.asm) divides in software, so the iterative unit and its
+  // pipeline hold logic can be left out entirely.
+  assign div_req    = 1'b0;
+`else
   assign div_req    = id_ex.valid && div_needs_hw && !stall;
+`endif
 
   // Signed division (spec Table 8). The iterative divider is unsigned, so it
   // runs on the magnitudes and the ALU re-applies the sign to the quotient
@@ -590,6 +617,12 @@ module deep16_core
   wire [31:0] div32_mag = r1[15] ? (~div32_val + 32'd1) : div32_val;
   wire [31:0] div_dividend = alu_is_div32 ? div32_mag : {16'h0000, div_a_mag};
 
+`ifdef D16NANO
+  assign div_busy = 1'b0;
+  assign div_done = 1'b1;
+  assign div_quot = 16'hFFFF;
+  assign div_rem  = 16'h0000;
+`else
   deep16_divider u_div (
     .clk      (clk),
     .rst      (rst),
@@ -601,6 +634,7 @@ module deep16_core
     .quot     (div_quot),
     .rem      (div_rem)
   );
+`endif
 
   deep16_alu u_alu (
     .func5     (alu_func5),
@@ -643,6 +677,7 @@ module deep16_core
   logic [3:0]  reg_wa, reg_wb;
   logic [15:0] reg_da, reg_db;
   logic      reg_bank;
+  logic      reg_bank_b;
   logic      mem_we_ex;
   logic [20:0] mem_addr_ex;
   logic [15:0] mem_wdata_ex;
@@ -704,6 +739,7 @@ module deep16_core
     reg_we_a       = 1'b0; reg_wa = 4'd0; reg_da = 16'h0000;
     reg_we_b       = 1'b0; reg_wb = 4'd0; reg_db = 16'h0000;
     reg_bank       = ctx_e.psw[FLG_S];
+    reg_bank_b     = ctx_e.psw[FLG_S];
     mem_we_ex      = 1'b0; mem_addr_ex = 21'd0; mem_wdata_ex = 16'h0000;
     mem_rd_valid_ex= 1'b0; mem_is_load_ex = 1'b0; load_rd_ex = 4'd0;
     sh_clear_ex    = 1'b0; is_swi_ex = 1'b0; fsh_ex = 1'b0;
@@ -954,16 +990,29 @@ module deep16_core
 
             4'd4: begin                                         // SMV Rd, <alt>
               f_rx = id_ex.instr[7:4];
-              reg_we_a = 1'b1; reg_wa = f_rx;
               case (id_ex.instr[3:0])
-                4'h0: reg_da = ctx_e.psw[FLG_S] ? ctx_e.cs  : ctx_e.scs;
-                4'h1: reg_da = ctx_e.psw[FLG_S] ? ctx_e.ds  : ctx_e.sds;
-                4'h2: reg_da = ctx_e.psw[FLG_S] ? ctx_e.ss  : ctx_e.sss;
-                4'h3: reg_da = ctx_e.psw[FLG_S] ? ctx_e.es  : ctx_e.ses;
-                4'h4: reg_da = ctx_e.spsw;                     // APSW
-                4'h8, 4'h9, 4'hA, 4'hB, 4'hD, 4'hE: reg_da = r_inact;
-                4'hF: reg_da = pc_own1;                        // APC
-                default: reg_we_a = 1'b0;
+                4'h0: begin reg_we_a = 1'b1; reg_wa = f_rx;
+                       reg_da = ctx_e.psw[FLG_S] ? ctx_e.cs  : ctx_e.scs; end
+                4'h1: begin reg_we_a = 1'b1; reg_wa = f_rx;
+                       reg_da = ctx_e.psw[FLG_S] ? ctx_e.ds  : ctx_e.sds; end
+                4'h2: begin reg_we_a = 1'b1; reg_wa = f_rx;
+                       reg_da = ctx_e.psw[FLG_S] ? ctx_e.ss  : ctx_e.sss; end
+                4'h3: begin reg_we_a = 1'b1; reg_wa = f_rx;
+                       reg_da = ctx_e.psw[FLG_S] ? ctx_e.es  : ctx_e.ses; end
+                // SMV ARy, Rx: write the inactive bank from the active Rx.
+                4'h4, 4'h5, 4'h6, 4'h7: begin
+                  reg_we_b   = 1'b1;
+                  reg_wb     = {2'b00, id_ex.instr[1:0]};
+                  reg_db     = r1;
+                  reg_bank_b = ~ctx_e.psw[FLG_S];
+                end
+                4'hC: begin reg_we_a = 1'b1; reg_wa = f_rx;
+                       reg_da = ctx_e.spsw; end                  // APSW (moved)
+                4'h8, 4'h9, 4'hA, 4'hB, 4'hD, 4'hE: begin
+                  reg_we_a = 1'b1; reg_wa = f_rx; reg_da = r_inact; end
+                4'hF: begin reg_we_a = 1'b1; reg_wa = f_rx;
+                       reg_da = pc_own1; end                     // APC
+                default: ;
               endcase
             end
 
@@ -1261,6 +1310,7 @@ module deep16_core
     ex_mem_n.reg_wb     = reg_wb;
     ex_mem_n.reg_db     = reg_db;
     ex_mem_n.reg_bank   = reg_bank;
+    ex_mem_n.reg_bank_b = reg_bank_b;
     ex_mem_n.mem_we     = mem_we_ex;
     ex_mem_n.mem_addr   = mem_addr_ex;
     ex_mem_n.mem_wdata  = mem_wdata_ex;
@@ -1448,8 +1498,19 @@ module deep16_core
             if_pc <= if_pc_next;
             if_id <= '0;
           end
+          // Shared registers (R4-R12) live in the normal slots even while the
+          // shadow bank is active. Writing their refreshed value into the _s
+          // slot left the slot the ALU reads (_n) at the stale ID capture - a
+          // shadow-bank load-use pair over the serial PSRAM (a BIOS call right
+          // after a load) then computed with 0. Only banked registers take the
+          // _s slot; port 1 also carries SMV's other-bank value.
           if (in_shadow) begin
-            id_ex.op1_s <= r1; id_ex.op2_s <= r2; id_ex.op3_s <= r3;
+            if (idx_banked(id_ex.ra1)) id_ex.op1_s <= r1;
+            else                       id_ex.op1_n <= r1;
+            if (idx_banked(id_ex.ra2)) id_ex.op2_s <= r2;
+            else                       id_ex.op2_n <= r2;
+            if (idx_banked(id_ex.ra3)) id_ex.op3_s <= r3;
+            else                       id_ex.op3_n <= r3;
             id_ex.op1_n <= r_inact;
           end else begin
             id_ex.op1_n <= r1; id_ex.op2_n <= r2; id_ex.op3_n <= r3;
@@ -1467,8 +1528,19 @@ module deep16_core
           // otherwise execute the stale ID-time value on the next step. Each
           // field is written with the bank its reader selects: port 1 also
           // serves SMV, which reads the *other* bank.
+          // Shared registers (R4-R12) live in the normal slots even while the
+          // shadow bank is active. Writing their refreshed value into the _s
+          // slot left the slot the ALU reads (_n) at the stale ID capture - a
+          // shadow-bank load-use pair over the serial PSRAM (a BIOS call right
+          // after a load) then computed with 0. Only banked registers take the
+          // _s slot; port 1 also carries SMV's other-bank value.
           if (in_shadow) begin
-            id_ex.op1_s <= r1; id_ex.op2_s <= r2; id_ex.op3_s <= r3;
+            if (idx_banked(id_ex.ra1)) id_ex.op1_s <= r1;
+            else                       id_ex.op1_n <= r1;
+            if (idx_banked(id_ex.ra2)) id_ex.op2_s <= r2;
+            else                       id_ex.op2_n <= r2;
+            if (idx_banked(id_ex.ra3)) id_ex.op3_s <= r3;
+            else                       id_ex.op3_n <= r3;
             id_ex.op1_n <= r_inact;
           end else begin
             id_ex.op1_n <= r1; id_ex.op2_n <= r2; id_ex.op3_n <= r3;
@@ -1526,7 +1598,12 @@ module deep16_core
           // no register-file read left to fall back on.
           if (stall || div_stall || div_drain) begin
             if (in_shadow) begin
-              id_ex.op1_s <= r1; id_ex.op2_s <= r2; id_ex.op3_s <= r3;
+              if (idx_banked(id_ex.ra1)) id_ex.op1_s <= r1;
+              else                       id_ex.op1_n <= r1;
+              if (idx_banked(id_ex.ra2)) id_ex.op2_s <= r2;
+              else                       id_ex.op2_n <= r2;
+              if (idx_banked(id_ex.ra3)) id_ex.op3_s <= r3;
+              else                       id_ex.op3_n <= r3;
               id_ex.op1_n <= r_inact;
             end else begin
               id_ex.op1_n <= r1; id_ex.op2_n <= r2; id_ex.op3_n <= r3;

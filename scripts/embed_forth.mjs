@@ -18,6 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = path.join(ROOT, 'forth', 'demo.fth');
 const TARGET = path.join(ROOT, 'asm', 'forth.asm');
+const TARGETS = [TARGET, path.join(ROOT, 'asm', 'forth_nano.asm')];
 const BEGIN = '; >>> generated from forth/demo.fth - do not edit here <<<';
 const END = '; <<< end generated >>>';
 export const MAX_LINE = 120;
@@ -59,21 +60,25 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
   const check = process.argv.includes('--check');
   const source = fs.readFileSync(SOURCE, 'utf8');
-  const asm = fs.readFileSync(TARGET, 'utf8');
-  const next = embed(asm, source);
-  if (check) {
+  let stale = [];
+  for (const target of TARGETS) {
+    const asm = fs.readFileSync(target, 'utf8');
+    const next = embed(asm, source);
+    const name = path.relative(ROOT, target);
     if (next !== asm) {
-      console.error('asm/forth.asm is out of date with forth/demo.fth - run node scripts/embed_forth.mjs');
+      if (check) stale.push(name);
+      else { fs.writeFileSync(target, next); console.log(`embedded forth/demo.fth into ${name}`); }
+    }
+  }
+  if (check) {
+    if (stale.length) {
+      console.error(`${stale.join(', ')} out of date with forth/demo.fth - run node scripts/embed_forth.mjs`);
       process.exit(1);
     }
     console.log('boot script is current');
-  } else if (next === asm) {
+  } else if (!stale.length) {
     console.log('boot script is current');
-  } else {
-    fs.writeFileSync(TARGET, next);
-    const lines = source.replace(/\r\n?/g, '\n').split('\n').length;
-    console.log(`embedded forth/demo.fth (${lines} lines) into asm/forth.asm`);
   }
 }
 
-export { SOURCE, TARGET, BEGIN, END, escape, ROOT, pathToFileURL };
+export { SOURCE, TARGET, TARGETS, BEGIN, END, escape, ROOT, pathToFileURL };

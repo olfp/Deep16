@@ -14,7 +14,8 @@ module deep16_uart #(
   parameter int CLK_HZ   = 27_000_000,
   parameter int BAUD     = 115200,
   parameter int TX_DEPTH = 64,
-  parameter int RX_DEPTH = 64
+  parameter int RX_DEPTH = 64,
+  parameter bit RX_ONLY  = 1'b0
 ) (
   input  logic        clk,
   input  logic        rst,
@@ -81,8 +82,8 @@ module deep16_uart #(
   // assignments to tx_count in one always_ff would lose one of them - the
   // count under-reports occupancy, the ring wraps and queued bytes are
   // overwritten. That only shows under load: an 80x24 memory map is enough.
-  wire tx_push = tx_we && (tx_count != TX_DEPTH[6:0]);
-  wire tx_pop  = !tx_busy && (tx_count != 7'd0);
+  wire tx_push = !RX_ONLY && tx_we && (tx_count != TX_DEPTH[6:0]);
+  wire tx_pop  = !RX_ONLY && !tx_busy && (tx_count != 7'd0);
   wire tx_reset = ctrl_we && ctrl_data[1];
   // The same for RX: a byte can be popped by the CPU in the cycle another one
   // arrives from the line (or the host), and one lost count is enough to wrap
@@ -121,13 +122,15 @@ module deep16_uart #(
       end
 
       // ---- TX push ----
-      if (tx_push) begin
+      if (!RX_ONLY && tx_push) begin
         tx_mem[tx_tail[5:0]] <= tx_data[7:0];
         tx_tail  <= tx_tail + 7'd1;
       end
 
       // ---- TX shift engine ----
-      if (tx_busy) begin
+      if (RX_ONLY) begin
+        uart_txd <= 1'b1;
+      end else if (tx_busy) begin
         if (tx_timer == div_reg - 16'd1) begin
           tx_timer <= 16'd0;
           if (tx_bit == 4'd9) begin
@@ -209,9 +212,9 @@ module deep16_uart #(
 
   assign rx_data  = (rx_count != 8'd0) ? {8'h00, rx_mem[rx_head[RX_AW-1:0]]} : 16'h0000;
   assign status   = {12'h000,
-                     (tx_count == 7'd0 && !tx_busy),   // b3 tx idle
+                     RX_ONLY ? 1'b1 : (tx_count == 7'd0 && !tx_busy), // b3 tx idle
                      rx_overrun,                       // b2 rx overrun
-                     (tx_count != TX_DEPTH[6:0]),      // b1 tx ready
+                     RX_ONLY ? 1'b1 : (tx_count != TX_DEPTH[6:0]),    // b1 tx ready
                      (rx_count != 8'd0)};              // b0 rx ready
   assign tx_count_o = {9'h000, tx_count};
   assign rx_count_o = {8'h00, rx_count};

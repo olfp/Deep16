@@ -223,13 +223,12 @@ benanntes `R`-Register:
 | `0001` | `ADS` | `DS`′ | nein |
 | `0010` | `ASS` | `SS`′ | nein |
 | `0011` | `AES` | `ES`′ | ja — Listing 5-6 |
-| `0100` | `APSW` | `PSW`′ | ja — Listing 5-5 |
-| `0101`–`0111` | — | reserviert | |
+| `0100`–`0111` | `AR0`–`AR3` | schreibt aktives `Rx` in die inaktive Bank | — |
 | `1000` | `AR0` | `R0`′ | ja — Listings 5-2, 5-3, 5-7 |
 | `1001` | `AR1` | `R1`′ | ja — Listings 5-2, 5-6 |
 | `1010` | `AR2` | `R2`′ | nein |
 | `1011` | `AR3` | `R3`′ | ja — Listing 5-8 |
-| `1100` | — | reserviert | |
+| `1100` | `APSW` | `PSW`′ | ja — Listing 5-5 |
 | `1101` | `AR13` | `SP`′ | nein |
 | `1110` | `AR14` | `LR`′ | nein |
 | `1111` | `APC` | aktiver `PC` | nein (Ausnahme: nicht die andere Bank) |

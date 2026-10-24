@@ -8,6 +8,11 @@ console: a hardware mirror of the terminal on the Tang Nano 9K's HDMI connector,
 black, actually) with a blinking block cursor. The CPU and kernel are untouched;
 the screen listens to the same `uart_txd` pin the USB-UART bridge sees.
 
+The **D16nano tile build** (`dvi_tile`, below) drives standard
+**1280 x 720 @ 60 Hz** (1650 x 750 at 74.25 MHz): a 640 x 360 renderer at
+25.5 MHz is repeated 2x2 by the scan path. The timing table in this section
+describes the `dvi_text` build, which keeps 640 x 480 @ 60.
+
 ```
 UART TX (115200) -> dvi_text: receiver -> ANSI parser -> cell RAM (80x24)
                                                    |
@@ -58,8 +63,9 @@ The parser handles what the UART BIOS emits: `CR`, `LF`, `BS`, printable ASCII,
 
 ## TMDS
 
-`tmds_encoder` is the HDMI 5.4 algorithm evaluated combinationally and
-registered once; at 25.2 MHz the combinational path is not a concern. It was
+`tmds_encoder` is the HDMI 5.4 algorithm pipelined in two stages: stage 1
+builds `q_m` and its one/zero counts, stage 2 applies the running disparity.
+The same RTL closes at 25.2 MHz (text) and 74.25 MHz (tile/720p). It was
 checked against `hdl-util/hdmi`'s `tmds_channel` on 200,000 random pixels
 (de/blank and all control combinations) with zero mismatches. Channel order:
 lane 0 blue (carries hsync/vsync), lane 1 green, lane 2 red, lane 3 clock.
@@ -107,6 +113,145 @@ BSRAM: **BSRAM 4/26**, CLS 4,303/4,320 (100%).
 The margin is tight: 109 CLS. Any further logic needs an area trade first (the
 colour mode in `VIDEO.md` estimates 6 BSRAM blocks and more CLS, so it will not
 fit alongside this without a diet).
+
+## Tile engine (text mode, first board build)
+
+`dvi_tile` is the NES-shaped screen the text console grows into. It drives
+standard **1280 x 720 @ 60 Hz** (1650 x 750 at 74.25 MHz). The render side
+fills 640 x 360 at 25.5 MHz (the ready/free handshake locks its nominal 43.9 us line to the scan's 44.44 us); the scan side reads each line
+buffer twice horizontally and shows each source line on two output lines, so
+every source pixel is a 2x2 block. It replaces the packed character cells
+with:
+
+* an **82 x 26 tilemap of pure 16-bit tile addresses** (80 x 24 visible plus one
+  tile of margin on every side; 2,132 words = 3 BSRAM blocks),
+* **96 tiles of 32 words**: 30 words of 8x15 4bpp pixels, word 30 is the palette
+  pointer, word 31 is flags (H/V flip, priority). The tile address is
+  `(ch - 0x20) * 32`; the tilemap never stores indices or attributes.
+* a **16-entry RGB332 palette** (128 bits of distributed ROM for now),
+* a **line-buffer renderer**: line N is scanned from one 640-byte buffer while
+  line N+1 is built from the tilemap/tile bank into the other. The scan is a
+  plain 640x8 read, so palette lookups cannot stall the pixel clock.
+* `scroll_x`/`scroll_y` inputs and the 26-row margin are present for the game
+  path; the terminal parser leaves them at zero.
+
+The UART terminal parser is unchanged in behaviour, but writes tile addresses
+instead of ASCII. `scripts/make_tile_font.mjs` expands the same Nixedsys 8x15
+font into the 32-word tile bank and writes `tilefont.hex`/`tilepal.hex` beside
+the boot image; `make_image` does this automatically.
+
+```
+npm run sim:dvi:tile     # Verilator: tilemap write, H pixels, sync, 80-column wrap
+npm run synth:tile       # Gowin: deep16_board_tile.fs
+```
+
+Measured on the Tang Nano 9K (23 Oct 2026), after the three-stage D16nano core:
+
+```
+packed image, console only (no sprite bank)
+  CLS 3,648/4,320 (672 free)   Logic 6,770/8,640   Registers 2,303
+  BSRAM 26/26 (16 image + 2 PSRAM + 8 tile), SSRAM 144 (PSRAM tags + UART)
+
+user-flash image, eight 32x32 sprites + D16D demo
+  CLS 3,936/4,320 (384 free)   Logic 7,262/8,640   Registers 2,483
+  BSRAM 12/26 (tile 7 + sprite 2 + PSRAM 2 + tags 1), SSRAM 176
+```
+
+The packed 8x32 build does **not** fit: the 128-tile bank falls out of BSRAM
+into distributed RAM, and the PSRAM tag cache then falls out of distributed RAM
+into flip-flops (8,192 DFF against the 6,771 limit). The user-flash build
+removes the 16-block CPU image, so the tag cache (1 block) and the bank
+(2 blocks) both get real BSRAM. That is the build in use; the installer and the
+persistent configuration are described in `USERFLASH.md`. The three-stage core
+is `rtl/deep16_core3.sv` (IF/ID/EX-commit, 6.75 MHz on the board); the standard
+D16 machine keeps the five-stage 13.5 MHz core. The core3 raises the ILL trap
+for DIV/DIV32 (it has no iterative divider); the D16nano kernel installs
+vector 0 and emulates them in `ill_handler` at 0x5000. Results return through
+the SMV write form, the caller's shared R4..R12 are saved on the data stack,
+and R13/R14 destinations are documented as unsupported. The full D16 keeps the
+hardware divider.
+
+## Sprites
+
+The sprite engine is in the same `dvi_tile` pixel domain, so a sprite pixel and
+a tile pixel cost the same lookup:
+
+* **Eight sprites, 32x32, 4bpp.** Sprite palette index 0 is transparent; OAM
+  bit 15 puts the sprite behind background index 0; sprite 0 wins priority.
+* **OAM** is 16 words at `0xF5000`: two words per sprite,
+  `w0 = {behind, vflip, hflip, group[2:0], x[9:0]}`,
+  `w1 = {1'b0, enable, y[9:0]}`. The palette is at `0xF5080`.
+* **Pattern bank** at `0xF4000..0xF47FF`: 128 8x8 4bpp tiles (2,048 words,
+  2 BSRAM blocks). A 32x32 sprite is 16 tiles; `tile = group*16 + (row/8)*4 +
+  column`, `word = tile*16 + (row%8)*2 + half`.
+* **Per-line row cache.** During the blanking the loader fetches the eight
+  4-pixel words of each sprite's row into an 8x8x16 row cache (the flow infers
+  distributed RAM: eight read ports, one write port). The fill selects the
+  word and nibble from `fx - x0`; there is no per-pixel shift register. Hflip
+  is a read-side word/nibble XOR, Vflip is applied to the row index in the
+  loader. The loader uses two cycles per word and fits the 160-pixel blanking
+  (eight sprites, eight words each).
+* The CPU window is the same tile FIFO as the tilemap/bank; the board's pixel
+  domain samples it through the existing synchroniser.
+
+The DVI test exercises 32x32 rows, Hflip, Vflip, the behind bit, transparency
+and the eight-sprite priority chain (`npm run sim:dvi:tile`).
+
+The tested persistent flash writes both the FPGA configuration and the on-die
+user image in one command (see `USERFLASH.md`):
+
+```sh
+npm run synth:tile       # 24K D16D image + tile .fs + image.flash.bin
+npm run flash:tile       # openFPGALoader -f <tile.fs> --user-flash <image.flash.bin>
+# then power-cycle
+```
+
+`-f` writes the configuration; the explicit `--user-flash image.flash.bin`
+writes the 608 Kbit user flash (the D16D kernel/demo). `-m` alone is SRAM only.
+The `.fs` and `image.flash.bin` must come from the same D16D build. The packed
+`deep16_board_tile.gprj` is the historical console-only build; the current
+eight-sprite source needs the user-flash blocks.
+
+## Colour demo (`D16D`)
+
+The user-flash build carries a separate demo block at PSRAM `0x4E00`
+(`CS=0x04A0`), in the gap between the BIOS code (ends at `0x4D2F`) and the
+Forth stacks (`0x5800`), inside the same 24K flat image and CRC as the kernel.
+Type `gfx` at the Forth prompt:
+
+* the demo fills the 128-tile sprite bank with eight colour-phase patterns,
+* paints a diagonal `#` field in the 82x26 tilemap,
+* runs eight 32x32 sprites in a wave with `scroll_x`/`scroll_y` moving,
+* returns on any UART key.
+
+The BIOS function 6 owns the transition. It parks the Forth's `R5` (`>IN`) and
+`R6` (TIB), checks the `0x0D16` header at `0x4E00` (`DS=0x04A0`, offset
+`0x400`), jumps to entry `0x404` in the same segment, and on return clears the
+tilemap, homes the scroll/cursor, disables all OAM slots, resets the kernel's
+`tile_row`/`tile_off`/`tile_col`/`out_col` cells and `RETI`s. The interpreter
+then prints ` ok` at the top-left; the UART host sees the same output.
+
+The runtime dictionary stays at PSRAM `0x6000`; the demo at `0x4E00` is below
+it and does not move it. The 24K flat image and the proven 12,352-word /
+25-page installer are unchanged from the plain console; only the demo words
+at `0x4E00` are added. The 16-block packed BSRAM image is built without D16D
+(the gfx additions take the tile kernel over the budget); the demo lives only
+in the user-flash image.
+
+```
+npm run synth:tile   # 24K D16D image + tile .fs + 608 Kbit image.flash.bin
+npm run flash:tile   # openFPGALoader -f <tile.fs> --user-flash <image.flash.bin>
+# power-cycle
+```
+
+The user image is the standard 12,352-word / 25-page image, unchanged from the
+plain console; `npm run installer:tile` remains the fallback that writes it via
+`openFPGALoader -m fpga/gowin/impl/pnr/deep16_installer.fs` (LED1 steady =
+PASS). The `.fs` is the tile configuration (external SPI config flash); the
+`image.flash.bin` is the full 77,824-byte (608 Kbit) on-die user-flash image
+from the same build. The Gowin Programmer GUI is an alternative, not the tested
+route: the `.fs` in External Flash Mode, the same `image.flash.bin` in User
+Flash Initialization.
 
 ## Font
 

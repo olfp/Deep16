@@ -44,14 +44,14 @@ module flash_installer (
 
   logic [3:0]  st;
   logic [19:0] wait_cnt;
-  logic [4:0]  page;
+  logic [5:0]  page;
   logic [13:0] i;
   logic [23:0] hb;
 
   always_ff @(posedge clk) begin
     hb <= hb + 24'd1;
     if (!rst_n) begin
-      st <= S_WAIT; wait_cnt <= 20'd0; page <= 5'd0; i <= 14'd0;
+      st <= S_WAIT; wait_cnt <= 20'd0; page <= 6'd0; i <= 14'd0;
       img_a <= 14'd0; flash_addr <= 15'd0; flash_wdata <= 32'd0;
       flash_read <= 1'b0; flash_prog <= 1'b0; flash_erase <= 1'b0; hb <= 24'd0;
     end else begin
@@ -70,11 +70,11 @@ module flash_installer (
           st <= S_E_WAIT;
         end
         S_E_WAIT: if (flash_done) begin
-          if (page == 5'(PAGES - 1)) begin
+          if (page == 6'(PAGES - 1)) begin
             i <= 14'd0;
             st <= S_P_LOAD;
           end else begin
-            page <= page + 5'd1;
+            page <= page + 6'd1;
             st <= S_E_SET;
           end
         end
@@ -114,6 +114,9 @@ module flash_installer (
         end
         S_V_WAIT: if (flash_done) begin
           if (flash_rdata != img_q) begin
+`ifdef D16D_DBG
+            $display("INSTALLER MISMATCH i=%0d got=%08x exp=%08x", i, flash_rdata, img_q);
+`endif
             st <= S_FAIL;
           end else if (i == 14'(FLASH_WORDS - 1)) begin
             st <= S_PASS;

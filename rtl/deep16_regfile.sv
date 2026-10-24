@@ -28,6 +28,8 @@ module deep16_regfile (
 
   // write ports (instruction results, committed in WB)
   input  logic        wb_bank,        // PSW.S of the writing instruction
+  input  logic        wb_bank_b,      // bank for the B port (SMV writes the
+                                      // *inactive* bank)
   input  logic        we_a,
   input  logic [3:0]  waddr_a,
   input  logic [15:0] wdata_a,
@@ -85,8 +87,8 @@ module deep16_regfile (
       for (int i = 0; i < 6; i++) shad_q[i] = 16'h0000;
     end
     if (we_b) begin
-      if (wb_bank && is_banked(waddr_b)) shad_q[shad_idx(waddr_b)] = wdata_b;
-      else                                regs_q[waddr_b] = wdata_b;
+      if (wb_bank_b && is_banked(waddr_b)) shad_q[shad_idx(waddr_b)] = wdata_b;
+      else                                  regs_q[waddr_b] = wdata_b;
     end
     if (we_a) begin
       if (wb_bank && is_banked(waddr_a)) shad_q[shad_idx(waddr_a)] = wdata_a;

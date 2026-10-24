@@ -29,7 +29,7 @@ here window-words < 0= constant psram?   \ the kernel moved the dictionary up
 \ ---- memory -------------------------------------------------------------
 : free ( -- d )    unused 0 ;   \ lo, hi=0: unsigned, so d. prints it whole
 : .addr ( u -- )    hex 0 u.r decimal ;
-: u. ( u -- )       0 u.r space ;
+: u. ( u -- )       0 u.r ;
 
 : mem ( -- )
   cr ." Deep16 memory map" cr
@@ -37,11 +37,11 @@ here window-words < 0= constant psram?   \ the kernel moved the dictionary up
     ."   memory   00000-FFFFF  1048576 words, 2 MiB HyperRAM (PSRAM board)" cr
     ."   image    0000-5FFF   24576 words (kernel, data, boot script, BIOS, stacks)" cr
     ."   dict     " dict-base .addr ." -" here 1- .addr
-    ."   " here dict-base - u. ." words, " free d. ." free" cr
+    ."   " here dict-base - u. ."  words, " free d. ." free" cr
     ."   UART F0040-F004F   boot ROM FFFF0-FFFFF" cr
   else
     ."   window   0000-5FFF   24576 words, 48 KiB BSRAM" cr
-    ."   image    0100-" here 1- .addr ."     " here kernel-base - u. ." words" cr
+    ."   image    0100-" here 1- .addr ."     " here kernel-base - u. ."  words" cr
     ."            (kernel, data and the baked demo source)" cr
     ."   free     " here .addr ." -55FF     " free d. ." words" cr
     ."   BIOS     5600-57FF   reserved for the UART console" cr
@@ -54,7 +54,7 @@ here window-words < 0= constant psram?   \ the kernel moved the dictionary up
   psram? if
     ." Deep16   1048576 words of PSRAM, " free d. ." free" cr
   else
-    ." D16MINI  " window-words u. ." words of BSRAM, " free d. ." free" cr
+    ." D16MINI  " window-words u. ."  words of BSRAM, " free d. ." free" cr
   then ;
 
 \ ---- the starfield demo -------------------------------------------------
@@ -81,7 +81,8 @@ variable cy drop                     \ its projected row
 : rnd ( -- x )       seed @ 25173 * 13849 + dup seed ! ;
 : rnd% ( n -- x )    rnd 32767 and swap mod ;
 : esc ( -- )         27 emit ;
-\ u.r no longer prints a trailing space (gforth alignment), so u. adds one.
+\ The baked u. prints no leading space: Return separates it from the input and
+\ the REPL's " ok" supplies the following space.
 : .d ( n -- )      dup 10 < if 48 + emit exit then
                    10 /mod recurse 48 + emit ;
 : at ( row col -- )  esc 91 emit swap .d 59 emit .d 72 emit ;

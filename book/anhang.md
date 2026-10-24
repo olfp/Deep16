@@ -57,13 +57,12 @@ Die `d`-Bitwahl bei `MVS`: **`0` liest** das Segmentregister in ein GPR
 | `0001` | `ADS` | `DS`′ | `FE51` |
 | `0010` | `ASS` | `SS`′ | `FE52` |
 | `0011` | `AES` | `ES`′ | `FE53` |
-| `0100` | `APSW` | `PSW`′ | `FE54` |
-| `0101`–`0111` | — | reserviert | — |
+| `0100`–`0111` | `AR0`–`AR3` (schreiben) | aktives `Rx` → inaktive Bank | `FE54` |
 | `1000` | `AR0` | `R0`′ | `FE58` |
 | `1001` | `AR1` | `R1`′ | `FE59` |
 | `1010` | `AR2` | `R2`′ | `FE5A` |
 | `1011` | `AR3` | `R3`′ | `FE5B` |
-| `1100` | — | reserviert | — |
+| `1100` | `APSW` | `PSW`′ | `FE5C` |
 | `1101` | `AR13` | `SP`′ | `F25D` |
 | `1110` | `AR14` | `LR`′ | `F25E` |
 | `1111` | `APC` | aktiver `PC` | `FE5F` |

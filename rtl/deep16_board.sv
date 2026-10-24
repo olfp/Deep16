@@ -52,7 +52,13 @@ module deep16_board (
     if (!rst_n) clk_div <= 2'd0;
     else        clk_div <= clk_div + 2'd1;
   end
+`ifdef D16NANO
+  // The reduced core is the area lever: 27 MHz / 4 = 6.75 MHz. The standard
+  // D16 machine stays at 13.5 MHz.
+  assign clk_cpu = clk_div[1];
+`else
   assign clk_cpu = clk_div[0];
+`endif
 
 `ifdef PSRAM
   // 27 -> 51 MHz for the open-source controller (the point that works on this
@@ -126,15 +132,18 @@ module deep16_board (
 
 `ifdef DVI
   // ---- DVI/HDMI text console -------------------------------------------
-  // A second PLL makes the 25.2 MHz pixel clock (640x480@60) and the 126 MHz
-  // serializer clock. The console mirror listens to the same uart_txd the USB
-  // bridge sees, so it shows exactly what a host terminal would.
-  wire dvi_pclk, dvi_clk5, dvi_lock;
+  // A second PLL makes the pixel and 5x serializer clocks. The text build
+  // uses 25.2/126 MHz (800x525, 640x480@60); the tile build uses 74.25/371.25
+  // MHz (1650x750, 1280x720@60) and renders at the PSRAM PLL's 25.5 MHz
+  // CLKOUTD. The console mirror listens to the same uart_txd the USB bridge
+  // sees, so it shows exactly what a host terminal would.
+  wire dvi_pclk, dvi_clk5, dvi_render_clk, dvi_lock;
   dvi_pll u_dvi_pll (
-    .clk       (clk),
-    .clk_pixel (dvi_pclk),
-    .clk_5x    (dvi_clk5),
-    .lock      (dvi_lock)
+    .clk        (clk),
+    .clk_pixel  (dvi_pclk),
+    .clk_5x     (dvi_clk5),
+    .clk_render (dvi_render_clk),
+    .lock       (dvi_lock)
   );
 
   // `rst` is synchronous to clk_cpu; give the pixel domain its own deassert.
@@ -143,9 +152,105 @@ module deep16_board (
   always_ff @(posedge dvi_pclk) dvi_rst_sync <= {dvi_rst_sync[0], rst};
   assign dvi_rst = dvi_rst_sync[1] | ~dvi_lock;   // hold until the PLL locks
 
+`ifdef DVI_TILE
+  // The render side runs at 24.75 MHz from the DVI PLL (serial / 15).
+  logic       dvi_rst_render;
+  logic [1:0] dvi_rst_render_sync;
+  always_ff @(posedge dvi_render_clk)
+    dvi_rst_render_sync <= {dvi_rst_render_sync[0], rst};
+  assign dvi_rst_render = dvi_rst_render_sync[1] | ~dvi_lock;
+`endif
+
   logic [7:0] dvi_r, dvi_g, dvi_b;
   logic       dvi_hs, dvi_vs, dvi_de;
 
+`ifdef DVI_TILE
+  logic        dvi_cpu_we, dvi_cpu_ctrl;
+  logic [1:0]  dvi_cpu_tgt;
+  logic [11:0] dvi_cpu_addr;
+  logic [15:0] dvi_cpu_data;
+`ifdef D16NANO
+  // Tile/control writes cross from the 13.5 MHz CPU to the 25.5 MHz render
+  // domain. Sixteen entries of {ctrl,addr,data}; the BIOS writes one entry per
+  // store and the render side drains one per render clock. No CPU stall is needed:
+  // the consumer is nearly twice as fast as the producer, and a dropped entry
+  // at full is a renderer glitch, not a memory corruption (the PSRAM mirror is
+  // still written by the store).
+  localparam int TF_DEPTH = 16;
+  localparam int TF_AW    = 4;
+  logic [15:0] tf_data [0:TF_DEPTH-1];
+  logic [11:0] tf_addr [0:TF_DEPTH-1];
+  logic [1:0]  tf_tgt  [0:TF_DEPTH-1];
+  logic        tf_ctrl [0:TF_DEPTH-1];
+  logic [TF_AW:0] tf_wbin, tf_rbin;
+  logic [TF_AW:0] tf_wgray, tf_rgray;
+  logic [TF_AW:0] tf_rg_s0, tf_rg_s1;   // read pointer -> write domain
+  logic [TF_AW:0] tf_wg_s0, tf_wg_s1;   // write pointer -> read domain
+
+  wire [TF_AW:0] tf_wbin_n = tf_wbin + (tile_we ? 1'b1 : 1'b0);
+  wire [TF_AW:0] tf_wgray_n = (tf_wbin_n >> 1) ^ tf_wbin_n;
+  wire [TF_AW:0] tf_rbin_n = tf_rbin + (dvi_cpu_we ? 1'b1 : 1'b0);
+  wire [TF_AW:0] tf_rgray_n = (tf_rbin_n >> 1) ^ tf_rbin_n;
+  wire           tf_full  = (tf_wgray_n == {~tf_rg_s1[TF_AW:TF_AW-1],
+                                            tf_rg_s1[TF_AW-2:0]});
+  wire           tf_we    = tile_we && !tf_full;
+  wire           tf_empty = (tf_rgray == tf_wg_s1);
+
+  always_ff @(posedge clk_cpu) begin
+    if (rst) begin
+      tf_wbin <= '0; tf_wgray <= '0; tf_rg_s0 <= '0; tf_rg_s1 <= '0;
+    end else begin
+      tf_rg_s0 <= tf_rgray;
+      tf_rg_s1 <= tf_rg_s0;
+      if (tf_we) begin
+        tf_data[tf_wbin[TF_AW-1:0]] <= tile_data;
+        tf_addr[tf_wbin[TF_AW-1:0]] <= tile_addr;
+        tf_tgt [tf_wbin[TF_AW-1:0]] <= tile_tgt;
+        tf_ctrl[tf_wbin[TF_AW-1:0]] <= tile_ctrl;
+        tf_wbin  <= tf_wbin_n;
+        tf_wgray <= tf_wgray_n;
+      end
+    end
+  end
+
+  always_ff @(posedge dvi_render_clk) begin
+    if (dvi_rst_render) begin
+      tf_rbin <= '0; tf_rgray <= '0; tf_wg_s0 <= '0; tf_wg_s1 <= '0;
+    end else begin
+      tf_wg_s0 <= tf_wgray;
+      tf_wg_s1 <= tf_wg_s0;
+      if (dvi_cpu_we) begin
+        tf_rbin  <= tf_rbin_n;
+        tf_rgray <= tf_rgray_n;
+      end
+    end
+  end
+
+  assign dvi_cpu_we   = !tf_empty;
+  assign dvi_cpu_ctrl = tf_ctrl[tf_rbin[TF_AW-1:0]];
+  assign dvi_cpu_tgt  = tf_tgt [tf_rbin[TF_AW-1:0]];
+  assign dvi_cpu_addr = tf_addr[tf_rbin[TF_AW-1:0]];
+  assign dvi_cpu_data = tf_data[tf_rbin[TF_AW-1:0]];
+`endif
+
+  dvi_tile u_dvi_tile (
+    .clk_render (dvi_render_clk),
+    .clk_pixel  (dvi_pclk),
+    .rst_render (dvi_rst_render),
+    .rst_pixel  (dvi_rst),
+    .cpu_we   (dvi_cpu_we),
+    .cpu_ctrl (dvi_cpu_ctrl),
+    .cpu_tgt  (dvi_cpu_tgt),
+    .cpu_addr (dvi_cpu_addr),
+    .cpu_data (dvi_cpu_data),
+    .red      (dvi_r),
+    .green    (dvi_g),
+    .blue     (dvi_b),
+    .hsync    (dvi_hs),
+    .vsync    (dvi_vs),
+    .de       (dvi_de)
+  );
+`else
   dvi_text u_dvi_text (
     .clk     (dvi_pclk),
     .rst     (dvi_rst),
@@ -157,6 +262,7 @@ module deep16_board (
     .vsync   (dvi_vs),
     .de      (dvi_de)
   );
+`endif
 
   dvi_out u_dvi_out (
     .clk_pixel  (dvi_pclk),
@@ -174,6 +280,12 @@ module deep16_board (
 `endif
 
   // ---- the machine -----------------------------------------------------
+`ifdef D16NANO
+  logic        tile_we, tile_ctrl;
+  logic [1:0]  tile_tgt;
+  logic [11:0] tile_addr;
+  logic [15:0] tile_data;
+`endif
   logic        o_done, o_result, o_busy;
   logic [31:0] cache_hits, cache_misses, cache_penalty;
   logic [15:0] tx_data_out, tx_avail, rx_avail, dbg_rdata;
@@ -204,10 +316,17 @@ module deep16_board (
     .uart_tx_avail      (tx_avail),
     .uart_rx_avail      (rx_avail),
     .uart_txd           (uart_txd),
-    .uart_rxd           (uart_rxd),
+    .uart_rxd           (uart_rxd)
+`ifdef D16NANO
+    , .tile_we          (tile_we)
+    , .tile_ctrl        (tile_ctrl)
+    , .tile_tgt         (tile_tgt)
+    , .tile_addr        (tile_addr)
+    , .tile_data        (tile_data)
+`endif
 
     // no debug bus, no cache management on the board
-    .dbg_en    (1'b0),
+    , .dbg_en    (1'b0),
     .dbg_we    (1'b0),
     .dbg_idx   (8'h00),
     .dbg_wdata (16'h0000),
@@ -250,12 +369,34 @@ module deep16_board (
   //   led[1] lit = the core is running (o_busy)
   //   led[2] lit = the core halted on 0xFFFF
   //   led[3..5] blink = instructions retiring (bits 9, 13, 17)
+`ifdef DVI_TILE
+  // DVI bring-up LEDs (active low): led3 lit = DVI PLL locked, led4 blinking
+  // = 74.25 MHz pixel clock alive, led5 blinking = 24.75 MHz render clock alive.
+  logic [5:0] ren_hb;
+  logic       ft_prev;
+  always_ff @(posedge dvi_render_clk) begin
+    if (dvi_rst_render) begin ren_hb <= 6'd0; ft_prev <= 1'b0; end
+    else begin
+      ft_prev <= u_dvi_tile.frame_toggle;
+      if (u_dvi_tile.frame_toggle && !ft_prev) ren_hb <= ren_hb + 6'd1;
+    end
+  end
+  // led3 lit = DVI PLL locked; led5 blinking = the renderer is producing
+  // frames (render clock + fill path alive). led0/1/2 are the CPU status.
+  assign led[0] = o_boot_err ? 1'b1 : (o_boot_done ? hb[24] : hb[21]);
+  assign led[1] = ~o_busy;
+  assign led[2] = ~o_core_halt;
+  assign led[3] = ~dvi_lock;
+  assign led[4] = ~o_core_instrs[13];
+  assign led[5] = ~ren_hb[5];
+`else
   assign led[0] = o_boot_err ? 1'b1 : (o_boot_done ? hb[24] : hb[21]);
   assign led[1] = ~o_busy;
   assign led[2] = ~o_core_halt;
   assign led[3] = ~o_core_instrs[9];
   assign led[4] = ~o_core_instrs[13];
   assign led[5] = ~o_core_instrs[17];
+`endif
 `else
   assign led = {5'b11111, hb[24]};
 `endif

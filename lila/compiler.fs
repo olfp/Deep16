@@ -93,8 +93,6 @@ variable rhs-alias-type
 
 code-buf0 code-buf !
 
-: lila-error ( c-addr u -- )  cr type cr abort ;
-
 \ Expression types: 0 = number, 1 = string (c-addr u).
 create expr-types 128 allot
 variable type-top
@@ -109,25 +107,22 @@ variable expr-type
   -1 type-top +!
   expr-types type-top @ + c@ ;
 
-\ Runtime helper for `+` on strings.  The result is allocated and never freed.
+\ Runtime helper for `+` on strings.  The result is a GC-managed string.
+create lila-str-total 0 ,
 : lila-str-concat { a1 u1 a2 u2 -- addr u }
   u1 u2 + 0= if s" " exit then
-  u1 u2 + dup >r allocate throw { addr -- }
+  u1 u2 + dup lila-str-total !
+  0 gc-alloc { addr -- }
   a1 addr u1 move
   a2 addr u1 + u2 move
-  addr r> ;
+  addr lila-str-total @ ;
 
 \ Table values are single cells.  A string value is stored as a pointer to a
-\ two-cell descriptor (c-addr, u), allocated when the value is stored.
-\ Keep this word free of locals: using locals together with >r corrupts the
-\ descriptor under gforth.
-: lila-box-str ( addr len -- ptr )
-  2 cells allocate throw dup >r 2! r> ;
-
+\ GC-managed string payload.
 : lila-table-get-str { table keyaddr keylen -- addr u }
   table table-kind@ 0 = if s" lila: table holds numbers" lila-error then
   table keyaddr keylen table-get if
-    2@
+    dup gc-size-of
   else
     drop 0 0
   then ;
@@ -141,8 +136,9 @@ variable expr-type
 
 : lila-table-set-str { table keyaddr keylen saddr slen -- }
   table table-kind@ 0 = if s" lila: table holds numbers" lila-error then
-  table keyaddr keylen saddr slen lila-box-str
-  table-set
+  slen 0 gc-alloc { obj -- }
+  saddr obj slen move
+  table keyaddr keylen obj table-set
   1 table table-kind! ;
 
 : lila-table-set-num { table keyaddr keylen value -- }
@@ -811,7 +807,8 @@ variable expr-type
   lila-name count lila-lhs place
   c-addr u param? 0= if
     lila-name find nip 0= if
-      s" variable " lila-name count s+ evaluate drop
+      s" variable " lila-name count s+ evaluate
+      1 lila-gc-register-root
     then
   then ;
 
@@ -855,7 +852,8 @@ variable expr-type
 
 : declare-str-var ( -- )
   lila-name find nip 0= if
-    s" create " lila-name count s+ s"  2 cells allot" s+ evaluate drop
+    s" 2variable " lila-name count s+ evaluate
+    2 lila-gc-register-root
   then ;
 
 : compile-expr ( c-addr u -- )
@@ -1200,10 +1198,12 @@ variable expr-type
 : compile-block { c-addr u -- }
   c-addr u split-stmt if
     2over compile-stmt-code
+    s"  lila-gc-maybe " code+
     2swap 2drop
     recurse
   else
     2drop compile-stmt-code
+    s"  lila-gc-maybe " code+
   then ;
 
 : strip-end { c-addr u -- c-addr' u' flag }
@@ -1216,8 +1216,9 @@ variable expr-type
   c-addr u false ;
 
 : declare-fn-vars ( -- )
-  s" variable lila-fn-" defs+ fn-name count defs+ s" -ret " defs+
-  s" create lila-fn-" defs+ fn-name count defs+ s" -val 2 cells allot " defs+ ;
+  s" variable lila-fn-" defs+ fn-name count defs+ s" -ret drop " defs+
+  s" 2variable lila-fn-" defs+ fn-name count defs+ s" -val " defs+
+  s" 2 lila-gc-register-root " defs+ ;
 
 : fn-set-name { c-addr u -- }
   c-addr u trim to u to c-addr
@@ -1239,16 +1240,16 @@ variable expr-type
 
 : declare-param { c-addr u -- }
   c-addr u param-string-name? if
-    s" create lila-var-" defs+
+    s" 2variable lila-var-" defs+
   else
     s" variable lila-var-" defs+
   then
   fn-name count defs+ s" -" defs+
   c-addr u defs+
   c-addr u param-string-name? if
-    s"  2 cells allot " defs+
+    s"  2 lila-gc-register-root " defs+
   else
-    s"  " defs+
+    s"  1 lila-gc-register-root " defs+
   then ;
 
 : add-param { c-addr u -- }
@@ -1282,6 +1283,8 @@ variable expr-type
 
 : emit-fn-prologue ( -- )
   s" 0 lila-fn-" defs+ fn-name count defs+ s" -ret ! " defs+
+  s" 0 lila-fn-" defs+ fn-name count defs+ s" -val ! " defs+
+  s" 0 lila-fn-" defs+ fn-name count defs+ s" -val cell+ ! " defs+
   fn-param-count @ 0 ?do
     fn-param-count @ 1- i - 64 * fn-params + count
     s" lila-var-" defs+ fn-name count defs+ s" -" defs+

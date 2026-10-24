@@ -887,28 +887,35 @@ sk_report:
     MOV R3, R0
     LDI 0
     ST R0, R3, 0
-    ; Drop the block cursor before SCR jumps to the next line
+    ; Report " Err" after the input, then the message on a fresh line.
+    ; The token's offset lives in >IN (R5); park it in R12 before the console
+    ; calls, which use R5 as their column scratch.
     LDI clear_cursor
     MOV R2, R0
     LINK
     JMP R2
     NOP
-    ; The offending token's offset lives in >IN (R5), but the computation
-    ; below reuses R5 for the column width. Park the token offset in R12
-    ; (a scratch register on this path) so the bad word can be echoed.
-    MOV R12, R5
-    LDI 0x1000
+    LDI print_text
     MOV R2, R0
-    MOV R4, SCR
-    SUB R4, R2
-    LDI 80
-    MOV R5, R0
-    MOV R9, R4
-    DIV R9, R5
-    ADD R9, 1
-    MUL R9, R5
-    ADD R2, R9
-    MOV SCR, R2
+    LDI err_marker_msg
+    LINK
+    JMP R2
+    NOP
+    ; The marker just moved the block cursor: clear it before the newline,
+    ; which walks away without writing over the cell it sits on.
+    LDI clear_cursor
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI newline_direct
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    ; The BIOS newline uses R12 as scratch, so re-park the token offset from
+    ; >IN (which the BIOS leaves alone) before printing the message.
+    MOV R12, R5
     LDI print_text
     MOV R2, R0
     LDI unknown_word_msg
@@ -971,6 +978,11 @@ err_continue:
 ; prompt.
 recover_prompt:
     ; Discard the rest of the line: fresh line, prompt, next input.
+    LDI clear_cursor
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
     LDI newline_direct
     MOV R2, R0
     LINK
@@ -1003,24 +1015,30 @@ stack_underflow_error:
     MOV PC, R0
     NOP
 su_report:
-    ; Drop the block cursor before SCR jumps to the next line
+    ; Report " Err" after the input, then the message on a fresh line.
     LDI clear_cursor
     MOV R2, R0
     LINK
     JMP R2
     NOP
-    LDI 0x1000
+    LDI print_text
     MOV R2, R0
-    MOV R4, SCR
-    SUB R4, R2
-    LDI 80
-    MOV R12, R0          ; width (R5 is >IN — leave it alone)
-    MOV R9, R4
-    DIV R9, R12
-    ADD R9, 1
-    MUL R9, R12
-    ADD R2, R9
-    MOV SCR, R2
+    LDI err_marker_msg
+    LINK
+    JMP R2
+    NOP
+    ; The marker just moved the block cursor: clear it before the newline,
+    ; which walks away without writing over the cell it sits on.
+    LDI clear_cursor
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI newline_direct
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
     LDI print_text
     MOV R2, R0
     LDI stack_underflow_msg
@@ -1028,24 +1046,7 @@ su_report:
     JMP R2
     NOP
 stack_underflow_after:
-    LDI 0x1000
-    MOV R2, R0
-    MOV R4, SCR
-    SUB R4, R2
-    LDI 80
-    MOV R12, R0          ; width (R5 is >IN — leave it alone)
-    MOV R9, R4
-    DIV R9, R12
-    ADD R9, 1
-    MUL R9, R12
-    ADD R2, R9
-    MOV SCR, R2
-    LDI print_prompt
-    MOV R2, R0
-    LINK
-    JMP R2
-    NOP
-    LDI read_line      ; recover: fresh prompt, then read the next line
+    LDI recover_prompt
     MOV PC, R0
     NOP
 interpret_done:
@@ -1305,6 +1306,8 @@ tib_kbd:
     .word 0
     .word 0
 
+err_marker_msg:
+    .text " Err"
 unknown_word_msg:
     .text "undefined word: "
 stack_underflow_msg:
@@ -2856,18 +2859,18 @@ boot_script:
     .text ": ver ( -- )    .\" DeepForth 1.1  BIOS 1.0  FPGA 1.1\" cr ;"
     .text ": free ( -- d )    unused 0 ;   \\ lo, hi=0: unsigned, so d. prints it whole"
     .text ": .addr ( u -- )    hex 0 u.r decimal ;"
-    .text ": u. ( u -- )       0 u.r space ;"
+    .text ": u. ( u -- )       0 u.r ;"
     .text ": mem ( -- )"
     .text "  cr .\" Deep16 memory map\" cr"
     .text "  psram? if"
     .text "    .\"   memory   00000-FFFFF  1048576 words, 2 MiB HyperRAM (PSRAM board)\" cr"
     .text "    .\"   image    0000-5FFF   24576 words (kernel, data, boot script, BIOS, stacks)\" cr"
     .text "    .\"   dict     \" dict-base .addr .\" -\" here 1- .addr"
-    .text "    .\"   \" here dict-base - u. .\" words, \" free d. .\" free\" cr"
+    .text "    .\"   \" here dict-base - u. .\"  words, \" free d. .\" free\" cr"
     .text "    .\"   UART F0040-F004F   boot ROM FFFF0-FFFFF\" cr"
     .text "  else"
     .text "    .\"   window   0000-5FFF   24576 words, 48 KiB BSRAM\" cr"
-    .text "    .\"   image    0100-\" here 1- .addr .\"     \" here kernel-base - u. .\" words\" cr"
+    .text "    .\"   image    0100-\" here 1- .addr .\"     \" here kernel-base - u. .\"  words\" cr"
     .text "    .\"            (kernel, data and the baked demo source)\" cr"
     .text "    .\"   free     \" here .addr .\" -55FF     \" free d. .\" words\" cr"
     .text "    .\"   BIOS     5600-57FF   reserved for the UART console\" cr"
@@ -2879,7 +2882,7 @@ boot_script:
     .text "  psram? if"
     .text "    .\" Deep16   1048576 words of PSRAM, \" free d. .\" free\" cr"
     .text "  else"
-    .text "    .\" D16MINI  \" window-words u. .\" words of BSRAM, \" free d. .\" free\" cr"
+    .text "    .\" D16MINI  \" window-words u. .\"  words of BSRAM, \" free d. .\" free\" cr"
     .text "  then ;"
     .text "40 constant stars"
     .text "200 constant z-near"
@@ -12724,6 +12727,30 @@ word_abort:                 ; abort ( i*x -- ) ( R: j*x -- )  i.e. -1 throw
 ; back to the reader, the way the stack underflow path does - the same tail,
 ; because the screen bookkeeping and the fresh prompt are exactly the same.
 uncaught_error:
+    ; Report " Err" after the input, then the message on a fresh line.
+    LDI clear_cursor
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI print_text
+    MOV R2, R0
+    LDI err_marker_msg
+    LINK
+    JMP R2
+    NOP
+    ; The marker just moved the block cursor: clear it before the newline,
+    ; which walks away without writing over the cell it sits on.
+    LDI clear_cursor
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    LDI newline_direct
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
     LDI print_text
     MOV R2, R0
     LDI uncaught_msg

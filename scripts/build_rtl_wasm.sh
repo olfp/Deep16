@@ -12,7 +12,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-VERILATOR_INC="$(verilator -V 2>/dev/null | awk -F= '/VERILATOR_ROOT/ {print $2}')/include"
+VERILATOR_ROOT_DIR="$(verilator -V 2>/dev/null | awk -F= '/VERILATOR_ROOT/ {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | head -1)"
+VERILATOR_INC="$VERILATOR_ROOT_DIR/include"
 if [ ! -d "$VERILATOR_INC" ]; then
   VERILATOR_INC=/usr/share/verilator/include
 fi
@@ -48,6 +49,7 @@ fi
 
 em++ -O2 -std=c++17 -DVL_IGNORE_UNKNOWN_ARCH \
   rtl/sim/harness.cpp \
+  rtl/sim/verilator_wasm_stubs.cpp \
   $MODEL_SRCS \
   "$VERILATOR_INC/verilated.cpp" \
   "$VERILATOR_INC/verilated_threads.cpp" \
