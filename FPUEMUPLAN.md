@@ -17,7 +17,7 @@ The plan is therefore:
 
 1. Add the general undefined-opcode ILL trap (a prerequisite, not a side
    quest — today reserved words are NOPs, which is a bug on its own).
-2. Add one SYS instruction, **`SAP` — Set Alternate PSW**, so an emulating
+2. Add one SYS instruction, **`SAP` — Set Alternate PSW Flags**, so an emulating
    handler can deliver condition codes to the interrupted code.
 3. Build the soft-float routines as ordinary callable subroutines and test
    them directly.
@@ -81,7 +81,7 @@ is the worst possible place to debug soft-float.
 
 ---
 
-## 3. `SAP` — Set Alternate PSW
+## 3. `SAP` — Set Alternate PSW Flags
 
 ### 3.1 Encoding
 
