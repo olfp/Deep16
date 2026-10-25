@@ -39,6 +39,15 @@ This enabke implementing ILL, first for DIV/DIV32.
   its software divide for its own Forth words. Only binaries containing a real
   DIV/DIV32 reach the handler.
 
+## Known gap: DIV/DIV32 condition codes
+
+The handler does **not** reproduce the NZVC flags the full core sets from the
+quotient (Z = quotient == 0, N = quotient[15], C = V = 0). The zero-divisor
+and odd-DIV32-destination cases never trap, so their flags are already right;
+only a normal trapping division loses them. Nothing tests this and the kernel
+does not branch on flags right after a division, so it has gone unnoticed.
+`SAP` — see `FPUEMUPLAN.md` §3 and §4 — closes it.
+
 ## Benchmark (TODO once the board build is exercised)
 
 - Measure DIV and DIV32 through the trap vs the hardware divider on the full
