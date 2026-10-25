@@ -69,6 +69,7 @@ Anchors:
 | D2 | The FPU keeps the spec's encodings `0xFFF8..0xFFFE`. They are *not* assembler macros and *not* a Forth-only library. |
 | D3 | The general undefined-opcode trap is implemented **before** the FPU work (§5). |
 | D4 | Soft-float routines are written and tested as plain subroutines first; the trap is wired last (§11). |
+| D5 | `SAPF imm4` is **not** adopted. `LDI R0, n` + `SAP` already covers static sites; `APC`/`ALINK` are not spent on it (§3.7). |
 
 D1 was chosen over "RETI merges flags" because that would make condition
 codes stop being part of the interrupted context — a semantic debt that
@@ -176,6 +177,57 @@ sap_done:
 ```
 
 (`OR` takes a bit *index*, so `OR R1, 1` sets bit 1.)
+
+### 3.7 Alternative considered: `SAPF imm4` in the SMV space
+
+Proposal: drop `SMV Rx, APC` (freeing alt_sel `1111`), move `ALINK` to a SYS
+opcode, and encode `SAPF imm4` — set the alternate PSW flags from a 4-bit
+immediate — in the freed SMV slot.
+
+**Fact check on the premise.** `SMV Rx, APC` is not ALINK-only:
+
+- `ALNK Rx` is the general form; `ALINK` is `SMV LR, APC`
+  (`assembler:752-758`).
+- It is used by `asm/link_delay_slot.asm`, which is in the examples suite
+  (`tests/examples.test.js:20`).
+- `APC` reads the **active** PC (`pc_own1`, `core.sv:722,1014`) — own+1 with
+  no forwarding. So inside a handler it reads the *handler's* PC, not the
+  interrupted one. It is a normal-context call primitive, not a handler
+  primitive: a cell that needs the caller's address uses the LR the trap
+  already wrote, not APC.
+
+So the exchange is: lose the documented 2-cycle call idiom and the general
+architectural-PC read (`Arch §6.2.2`) in return for one word saved at each
+*static* flag-delivery site.
+
+**Why that is a poor trade.**
+
+- `LDI R0, n` followed by `SAP` already *is* `SAPF n`: `LDI` writes `R0`, and
+  `R0` is exactly the nibble source. The immediate form saves one word and
+  one cycle per static site — three sites in the FCMP handler.
+- At *dynamic* sites it is worse. DIV's flags come from the quotient, so
+  `SAPF` needs a 16-entry table plus a computed jump (or a two-branch chain)
+  where `SAP` needs six instructions of nibble building. And the quotient
+  still has to be preserved across `ill_put_dispatch`, so the "no register to
+  clobber" advantage does not materialise.
+- ALINK-as-SYS is feasible — SYS executes in a delay slot and would read the
+  same `pc_own1` — but it is churn in the one decode path where PC reads are
+  timing-sensitive, and it costs `ALNK Rx`.
+
+**If an immediate form is still wanted**, the cheap routes are, in order:
+
+1. An assembler-level `SAPF imm4` that emits `LDI n` + `SAP` (two words). The
+   assembler is one source line = one word today (`LWI` rejects rather than
+   expands), so this is a small assembler change — still no encoding spent,
+   no instruction removed.
+2. A real single-word `SAPF` in the **AR14** slot (`1110`), not APC. Its only
+   user is `ill_get_r14` (`forth_nano.asm:15103`), one stub for the case
+   `ILLTRAP.md` already documents as unsupported. Then `SAP` (SYS `0xFFF6`,
+   dynamic) and `SAPF` (SMV `1110`, static) both exist, and ALINK, ALNK and
+   APC are untouched.
+
+**Outcome: `SAP` stands.** `SAPF` is not adopted. If it is ever revisited,
+take `AR14`, never `APC`.
 
 ---
 
