@@ -46,7 +46,7 @@ quotient (Z = quotient == 0, N = quotient[15], C = V = 0). The zero-divisor
 and odd-DIV32-destination cases never trap, so their flags are already right;
 only a normal trapping division loses them. Nothing tests this and the kernel
 does not branch on flags right after a division, so it has gone unnoticed.
-`SAP` — see `FPUEMUPLAN.md` §3 and §4 — closes it.
+`SAPF` — see `FPUEMUPLAN.md` §3 and §4 — closes it.
 
 ## Benchmark (TODO once the board build is exercised)
 

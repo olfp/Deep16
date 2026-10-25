@@ -17,7 +17,7 @@ The plan is therefore:
 
 1. Add the general undefined-opcode ILL trap (a prerequisite, not a side
    quest — today reserved words are NOPs, which is a bug on its own).
-2. Add one SYS instruction, **`SAP` — Set Alternate PSW Flags**, so an emulating
+2. Add one SYS instruction, **`SAPF` — Set Alternate PSW Flags**, so an emulating
    handler can deliver condition codes to the interrupted code.
 3. Build the soft-float routines as ordinary callable subroutines and test
    them directly.
@@ -65,11 +65,11 @@ Anchors:
 
 | # | Decision |
 |---|---|
-| D1 | FCMP delivers condition codes through **`SAP`**, a new SYS instruction (§3). Not through a RETI semantic change. |
+| D1 | FCMP delivers condition codes through **`SAPF`**, a new SYS instruction (§3). Not through a RETI semantic change. |
 | D2 | The FPU keeps the spec's encodings `0xFFF8..0xFFFE`. They are *not* assembler macros and *not* a Forth-only library. |
 | D3 | The general undefined-opcode trap is implemented **before** the FPU work (§5). |
 | D4 | Soft-float routines are written and tested as plain subroutines first; the trap is wired last (§11). |
-| D5 | `SAPF imm4` is **not** adopted. `LDI R0, n` + `SAP` already covers static sites; `APC`/`ALINK` are not spent on it (§3.7). |
+| D5 | An immediate form (`SAPFI imm4`) is **not** adopted. `LDI R0, n` + `SAPF` already covers static sites; `APC`/`ALINK` are not spent on it (§3.7). |
 
 D1 was chosen over "RETI merges flags" because that would make condition
 codes stop being part of the interrupted context — a semantic debt that
@@ -81,7 +81,7 @@ is the worst possible place to debug soft-float.
 
 ---
 
-## 3. `SAP` — Set Alternate PSW Flags
+## 3. `SAPF` — Set Alternate PSW Flags
 
 ### 3.1 Encoding
 
@@ -89,8 +89,8 @@ SYS sub-opcode 6, word **`0xFFF6`**. Sub-op 7 (`0xFFF7`) stays free.
 
 | File | Change |
 |---|---|
-| `js/deep16_assembler.js` | `SAP` (no operands) → `encodeSystem(6)` |
-| `js/deep16_disassembler.js:11` | `systemOps[6] = 'SAP'` |
+| `js/deep16_assembler.js` | `SAPF` (no operands) → `encodeSystem(6)` |
+| `js/deep16_disassembler.js:11` | `systemOps[6] = 'SAPF'` |
 | `rtl/deep16_core.sv` | SYS `case` → `3'd6` |
 | `rtl/deep16_core3.sv` | same |
 | `js/deep16_simulator.js` | same |
@@ -100,15 +100,15 @@ SYS sub-opcode 6, word **`0xFFF6`**. Sub-op 7 (`0xFFF7`) stays free.
 ### 3.2 Semantics
 
 ```
-SAP:  spsw[3:0] <- R0[3:0]        ; R0 of the handler bank
+SAPF:  spsw[3:0] <- R0[3:0]        ; R0 of the handler bank
       spsw[15:4] unchanged
 ```
 
 Flags are `N=0, Z=1, V=2, C=3`. `spsw` is the PSW saved by the trap; `RETI`
-restores it. So `SAP` is the only way a handler can hand condition codes
+restores it. So `SAPF` is the only way a handler can hand condition codes
 back to the interrupted instruction.
 
-Ungated: `SAP` outside a handler writes a stale `spsw`, which the next trap
+Ungated: `SAPF` outside a handler writes a stale `spsw`, which the next trap
 overwrites at entry. Nothing consumes `spsw` except `RETI` with `S == 1` and
 the `SMV Rx, APSW` read.
 
@@ -119,8 +119,8 @@ inside a handler, the interrupted PSW (`Arch §3.3` table, §4.8;
 `rtl/deep16_core.sv:1009-1010`, `js/deep16_simulator.js:947`,
 `wasm/…/lib.rs:803-806`). There is no write form.
 
-A full-word `SAP` would therefore have to be used as a read-modify-write:
-`SMV R0, APSW`, mask, OR in the nibble, `SAP`. Three problems with that:
+A full-word `SAPF` would therefore have to be used as a read-modify-write:
+`SMV R0, APSW`, mask, OR in the nibble, `SAPF`. Three problems with that:
 
 - It is three to five instructions per delivery instead of one.
 - It requires the handler to hold a `0xFFF0` mask in a register.
@@ -133,12 +133,12 @@ Only the condition codes are writable; bits 15:4 are preserved by hardware.
 ### 3.4 Why the source is a register, not the current flags
 
 The alternative — `spsw[3:0] <- psw[3:0]` — is cheaper for DIV (`CMP Q, 0`
-then `SAP`) but cannot express everything:
+then `SAPF`) but cannot express everything:
 
 - `V` is only ever set by add/sub overflow, so `V=1` with `Z=0, N=0, C=0`
   is unreachable from ALU flags. FCMP's "unordered" needs exactly that.
 - It is fragile: any flag-setting instruction inserted between the `CMP` and
-  the `SAP` silently changes the delivered value.
+  the `SAPF` silently changes the delivered value.
 
 An explicit nibble in `R0` is immune to both. `R0` is the right carrier
 because `sh_clear` wipes the shadow bank's `R0..R3` on entry, so it is
@@ -150,11 +150,11 @@ cycles against a ~400-cycle software divide.
 
 ### 3.5 Placement rules in a handler
 
-- Build the nibble in `R0` last; `SAP` may sit anywhere after that. The
+- Build the nibble in `R0` last; `SAPF` may sit anywhere after that. The
   handler's own PSW flags are irrelevant to it.
 - `ill_put_dispatch` (`asm/forth_nano.asm:15036`) clobbers `R0..R3`, so a
   nibble built before the write-back must be saved across it.
-- `SAP` must precede `RETI`.
+- `SAPF` must precede `RETI`.
 
 ### 3.6 Worked example — DIV (§4)
 
@@ -172,16 +172,20 @@ sap_done:
     ; ... park R1, write the destination, restore R4..R12 ...
     LD   R0, SP, 0      ; nibble back
     ADD  SP, 1
-    SAP
+    SAPF
     RETI
 ```
 
 (`OR` takes a bit *index*, so `OR R1, 1` sets bit 1.)
 
-### 3.7 Alternative considered: `SAPF imm4` in the SMV space
+### 3.7 Alternative considered: an immediate form (`SAPFI imm4`)
+
+> Naming note: the adopted instruction is **`SAPF`**, register-sourced. The
+> immediate variant discussed in this section was proposed under the same
+> working name; it is called **`SAPFI imm4`** here to keep the two apart.
 
 Proposal: drop `SMV Rx, APC` (freeing alt_sel `1111`), move `ALINK` to a SYS
-opcode, and encode `SAPF imm4` — set the alternate PSW flags from a 4-bit
+opcode, and encode `SAPFI imm4` — set the alternate PSW flags from a 4-bit
 immediate — in the freed SMV slot.
 
 **Fact check on the premise.** `SMV Rx, APC` is not ALINK-only:
@@ -202,12 +206,12 @@ architectural-PC read (`Arch §6.2.2`) in return for one word saved at each
 
 **Why that is a poor trade.**
 
-- `LDI R0, n` followed by `SAP` already *is* `SAPF n`: `LDI` writes `R0`, and
-  `R0` is exactly the nibble source. The immediate form saves one word and
+- `LDI R0, n` followed by `SAPF` already *is* `SAPFI n`: `LDI` writes `R0`,
+  and `R0` is exactly the nibble source. The immediate form saves one word and
   one cycle per static site — three sites in the FCMP handler.
 - At *dynamic* sites it is worse. DIV's flags come from the quotient, so
-  `SAPF` needs a 16-entry table plus a computed jump (or a two-branch chain)
-  where `SAP` needs six instructions of nibble building. And the quotient
+  `SAPFI` needs a 16-entry table plus a computed jump (or a two-branch chain)
+  where `SAPF` needs six instructions of nibble building. And the quotient
   still has to be preserved across `ill_put_dispatch`, so the "no register to
   clobber" advantage does not materialise.
 - ALINK-as-SYS is feasible — SYS executes in a delay slot and would read the
@@ -216,17 +220,17 @@ architectural-PC read (`Arch §6.2.2`) in return for one word saved at each
 
 **If an immediate form is still wanted**, the cheap routes are, in order:
 
-1. An assembler-level `SAPF imm4` that emits `LDI n` + `SAP` (two words). The
-   assembler is one source line = one word today (`LWI` rejects rather than
-   expands), so this is a small assembler change — still no encoding spent,
-   no instruction removed.
-2. A real single-word `SAPF` in the **AR14** slot (`1110`), not APC. Its only
+1. An assembler-level `SAPFI imm4` that emits `LDI n` + `SAPF` (two words).
+   The assembler is one source line = one word today (`LWI` rejects rather
+   than expands), so this is a small assembler change — still no encoding
+   spent, no instruction removed.
+2. A real single-word `SAPFI` in the **AR14** slot (`1110`), not APC. Its only
    user is `ill_get_r14` (`forth_nano.asm:15103`), one stub for the case
-   `ILLTRAP.md` already documents as unsupported. Then `SAP` (SYS `0xFFF6`,
-   dynamic) and `SAPF` (SMV `1110`, static) both exist, and ALINK, ALNK and
+   `ILLTRAP.md` already documents as unsupported. Then `SAPF` (SYS `0xFFF6`,
+   dynamic) and `SAPFI` (SMV `1110`, static) both exist, and ALINK, ALNK and
    APC are untouched.
 
-**Outcome: `SAP` stands.** `SAPF` is not adopted. If it is ever revisited,
+**Outcome: `SAPF` stands.** `SAPFI` is not adopted. If it is ever revisited,
 take `AR14`, never `APC`.
 
 ---
@@ -266,10 +270,10 @@ interrupted PSW today.
 
 ### 4.3 The fix
 
-`SAP`, exactly as in §3.6, inserted after the write-back and before `RETI`
+`SAPF`, exactly as in §3.6, inserted after the write-back and before `RETI`
 in both `ill_div16` and `ill_div32`.
 
-Note that `CMP Q, 0` alone would produce the right nibble *if* SAP read the
+Note that `CMP Q, 0` alone would produce the right nibble *if* `SAPF` read the
 current flags; with the register form the nibble is built explicitly, as
 above. It is six instructions, against ~400 for the software divide.
 
@@ -353,7 +357,7 @@ registers.
    scratch; read `F0` with `SMV Rx, AR2` / `SMV Rx, AR3`.
 5. Call the routine.
 6. Write the result with `SMV AR2, Rx` / `SMV AR3, Rx` (FCMP writes
-   nothing; it uses `SAP` instead).
+   nothing; it uses `SAPF` instead).
 7. Restore `R4..R12`, `RETI`.
 
 The existing scaffolding is directly reusable: opcode fetch through the
@@ -446,7 +450,7 @@ Usable for teaching and demos; not for real-time.
 
 | Item | LUT | FF |
 |---|---|---|
-| `SAP` × 4 cores | 10–20 each | 0 |
+| `SAPF` × 4 cores | 10–20 each | 0 |
 | Undefined-opcode trap | 15–25 each | 2 each |
 | Handler + library | 0 | 0 |
 
@@ -478,9 +482,9 @@ kernel is loaded at `0x5000`, so it competes with the demo area there.
 
 | Phase | Work | Exit criterion |
 |---|---|---|
-| P0 | `SAP` in assembler, disassembler, both RTL cores, JS, WASM; arch doc | Encoding tests + a shadow-bank test that `SAP` sets the restored flags |
+| P0 | `SAPF` in assembler, disassembler, both RTL cores, JS, WASM; arch doc | Encoding tests + a shadow-bank test that `SAPF` sets the restored flags |
 | P1 | General undefined-opcode trap in all four cores | A reserved word traps on every core; double fault is diagnosable |
-| P2 | `SAP` in the DIV/DIV32 handler (§4) | `divtest` compares flags against `div16_call` |
+| P2 | `SAPF` in the DIV/DIV32 handler (§4) | `divtest` compares flags against `div16_call` |
 | P3 | Soft-float layer 1+2 as subroutines, plus a direct test harness | Golden-vector tests pass on JS and RTL |
 | P4 | FPU decode + dispatch in the ILL handler (FADD/FSUB/FMUL/FCMP) | `tests/ill-trap.test.js` covers the four ops |
 | P5 | FDIV, FSQRT | ditto |
@@ -493,9 +497,9 @@ and can proceed in parallel with them.
 
 ## 12. Test plan
 
-- **Encoding**: `SAP` assembles to `0xFFF6` and round-trips through the
+- **Encoding**: `SAPF` assembles to `0xFFF6` and round-trips through the
   disassembler; assembler rejects operands.
-- **SAP semantics**: set the shadow `R0` nibble, trap, `SAP`, `RETI`, then
+- **SAPF semantics**: set the shadow `R0` nibble, trap, `SAPF`, `RETI`, then
   branch on each of N/Z/V/C in the caller. Four cases plus "unchanged".
 - **Reserved-opcode trap**: execute `0xFFF8..0xFFFE` and assert vector 0 is
   taken and `LR-1` points at the trapped word, on all four cores.
@@ -517,7 +521,7 @@ and can proceed in parallel with them.
 |---|---|
 | Soft-float bugs only reproduce inside a trap, whose failure mode is a reset | D4: layers 1–2 are plain subroutines, tested directly |
 | Three cores diverge on trap semantics | One shared test vector file, all cores |
-| `SAP` nibble clobbered by the dispatch helper | Park it on the caller's stack (§3.5); test it |
+| `SAPF` nibble clobbered by the dispatch helper | Park it on the caller's stack (§3.5); test it |
 | IEEE edge cases balloon the code | Decide §8 first, write it into the spec |
 | FPU work delays the real targets (timer, raster IRQ) | P0–P2 are small and independent; P3+ can wait |
 
