@@ -48,6 +48,59 @@ only a normal trapping division loses them. Nothing tests this and the kernel
 does not branch on flags right after a division, so it has gone unnoticed.
 `SAPF` — see `FPUEMUPLAN.md` §3 and §4 — closes it.
 
+## NIO — the last free SYS opcode
+
+`SYS` is class 1 (`w[15:3] == 13'h1FFE`), i.e. `0xFFF0..0xFFF7`, with the low
+three bits selecting the operation (`rtl/deep16_core3.sv:445-495`). Sub-ops 0-5
+are taken (NOP, FSH, SWI, RETI, SETI, CLRI), 6 is `SAPF` (`FPUEMUPLAN.md` §3),
+and 7 — `0xFFF7` — is the only fully free word left in the ISA: the FPU range
+`0xFFF8..0xFFFE` and HALT (`0xFFFF`) are allocated, and nothing else in the
+65,536 words is unused. `doc/Deep16-Arch.md` §9.2 still describes this word as
+"could be SYSCALL for OS".
+
+Decision: sub-op 7 is **NIO** — *Non-implemented Opcode* — and it raises the
+ILL trap instead of acting as a NOP.
+
+Reasons:
+
+- A reserved word that silently NOPs hides bugs. Anything that decodes into the
+  last hole — a mis-assembled word, a corrupt image, an experiment that never
+  landed — currently falls through and the CPU continues with whatever happens
+  to be in the registers.
+- It gives the kernel a deliberate assertion/stub: put `NIO` where code is
+  supposed to be and an unfinished path faults loudly at a known PC instead of
+  doing nothing. That is worth more than the single word it costs.
+- The trap then covers every hole in the encoding, at the same time the FPU
+  words start trapping (`FPUEMUPLAN.md` P1). Two mechanisms that both mean "not
+  implemented" should not disagree.
+
+It is **not** an FPU opcode and must not become one: the seven-word FPU range
+stays as specified, so `NIO` cannot be used to smuggle in an eighth operation.
+
+Implementation notes:
+
+- Decode: `cls == 1 && instr[2:0] == 3'd7` takes the same undefined-opcode path
+  as an `ext_id == 10` word — vector 0, `LR = pc_own1`, opcode readable at
+  `LR-1`. Ungated: there is no mode in which NOP is the better answer.
+- The SYS `case` in `deep16_core3.sv` currently has no `default`, so sub-op 7
+  falls through. `SAPF` (6) and `NIO` (7) both need explicit arms; the
+  five-stage core needs the same treatment in its SYS decode.
+- Assembler: mnemonic `NIO`, no operands, encodes `0xFFF7`.
+- Disassembler: slot 7 of the SYS table (`js/deep16_disassembler.js:11`).
+- Ungated means a stray `0xFFF7` in a delay slot also faults, which is the
+  intended behaviour but makes `LR-1` the delay-slot word rather than the
+  branch that led to it.
+- The trap is not re-entrant: `NIO` inside a handler is a double fault, so it
+  cannot serve as a debugger break from handler code.
+- The full D16 core has no trap yet, so `NIO` NOPs there. Same P1 gap as the
+  FPU words; do not fix one without the other.
+- `0xFFFF` (HALT) is decoded before instruction decode and is unaffected.
+
+Open: whether the handler reports `NIO` distinctly from an undefined FPU word.
+It already fetches the trapped opcode at `LR-1`, so distinguishing `0xFFF7` is
+a comparison and a message, not new logic — but a distinct fault code is more
+useful than a single "illegal instruction" for debugging a half-finished build.
+
 ## Benchmark (TODO once the board build is exercised)
 
 - Measure DIV and DIV32 through the trap vs the hardware divider on the full
