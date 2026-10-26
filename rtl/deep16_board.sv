@@ -371,6 +371,22 @@ module deep16_board (
 `ifdef DVI_TILE
   // DVI bring-up LEDs (active low): led3 lit = DVI PLL locked, led5 blinking =
   // the renderer produces frames. led0/1/2 are CPU status; led4 is CPU activity.
+  // Render-clock heartbeat: proves the 24.75 MHz CLKOUTD3/CLKDIV domain is
+  // alive even if the renderer itself never reaches its first frame.
+  logic [3:0] q0, q1, q2, q3, q4, q5;
+  always_ff @(posedge dvi_render_clk) begin
+    if (dvi_rst_render) begin
+      q0 <= 4'd0; q1 <= 4'd0; q2 <= 4'd0; q3 <= 4'd0; q4 <= 4'd0; q5 <= 4'd0;
+    end else begin
+      q0 <= q0 + 4'd1;
+      if (q0 == 4'hF) q1 <= q1 + 4'd1;
+      if (q0 == 4'hF && q1 == 4'hF) q2 <= q2 + 4'd1;
+      if (q0 == 4'hF && q1 == 4'hF && q2 == 4'hF) q3 <= q3 + 4'd1;
+      if (q0 == 4'hF && q1 == 4'hF && q2 == 4'hF && q3 == 4'hF) q4 <= q4 + 4'd1;
+      if (q0 == 4'hF && q1 == 4'hF && q2 == 4'hF && q3 == 4'hF && q4 == 4'hF)
+        q5 <= q5 + 4'd1;
+    end
+  end
   // Latches, not blinks, so a single event is visible even if the renderer or
   // scan stops after a few lines.
   logic frame_seen, ft_prev;
@@ -381,11 +397,12 @@ module deep16_board (
       if (u_dvi_tile.frame_toggle != ft_prev) frame_seen <= 1'b1;
     end
   end
-  // led3 = DVI PLL lock; led4 = scan path started; led5 = the renderer has
-  // produced at least one frame. led0/1/2 are CPU status.
+  // led2 blinking = 24.75 MHz render clock alive; led3 = DVI PLL lock;
+  // led4 = scan path started; led5 = the renderer produced a frame.
+  // led0/1 are CPU status.
   assign led[0] = o_boot_err ? 1'b1 : (o_boot_done ? hb[24] : hb[21]);
   assign led[1] = ~o_busy;
-  assign led[2] = ~o_core_halt;
+  assign led[2] = ~q5[3];
   assign led[3] = ~dvi_lock;
   assign led[4] = ~u_dvi_tile.started;
   assign led[5] = ~frame_seen;

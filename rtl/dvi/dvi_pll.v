@@ -58,11 +58,7 @@ module dvi_pll (
   defparam rpll_inst.ODIV_SEL = 4;
 `endif
   defparam rpll_inst.PSDA_SEL = "0000";
-`ifdef DVI_TILE
-  defparam rpll_inst.DYN_DA_EN = "true";
-`else
   defparam rpll_inst.DYN_DA_EN = "false";
-`endif
   defparam rpll_inst.DUTYDA_SEL = "1000";
   defparam rpll_inst.CLKOUT_FT_DIR = 1'b1;
   defparam rpll_inst.CLKOUTP_FT_DIR = 1'b1;
