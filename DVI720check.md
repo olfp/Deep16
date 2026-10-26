@@ -301,3 +301,25 @@ tile build. The current tile placement closes `dvi_render` at 26.9 MHz but
 `dvi_pixel` at 72.5 MHz (3 endpoints, about -1.0 ns); the next board test will
 show whether that marginal path causes seams or a picture. If the picture
 appears with seams, the remaining work is to pipeline the last pixel path.
+
+## 13. Root cause of the no-frame / no-scan state
+
+The board LEDs (render clock alive, DVI lock lit, yet no renderer frame and no
+scan start) exposed a startup race, not a PHY problem.
+
+The scan domain's `free_toggle` has reset value `3'b111`, but the pixel-domain
+reset is gated by the asynchronous PLL lock (`dvi_rst = rst_sync | ~dvi_lock`).
+The pixel clock only starts when the PLL locks; the first pixel clock could see
+`dvi_rst` already low, so the scan's reset branch never ran and `free_toggle`
+stayed at its power-up value `0`. The renderer then saw `line_free = false` at
+the first line 0, held `rx/ry` in `render_stall`, and never reached the frame
+toggle; the scan therefore never started. That is exactly the observed LED
+pattern.
+
+The D16 tile now initializes the handshake flops at declaration
+(`free_toggle = 3'b111`, `ready_toggle/frame_toggle/armed/free_seen/wr_buf = 0`)
+so the renderer sees the buffers free even if the first reset pulse is missed.
+The proper follow-up is the P2 synchronous reset-release hold; it was deferred
+only because its reset fanout cost pixel-domain timing. With the initialization
+the current placement closes `dvi_pixel` at 76.28 MHz and `dvi_render` at
+25.57 MHz, 0 TNS.

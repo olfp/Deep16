@@ -88,13 +88,13 @@ module dvi_tile #(
   // scan side shows line N on two 720p lines and then frees it. Only the
   // toggles cross the clock boundary; the BSRAM has independent clocks.
   localparam logic [3:0] F_IDLE = 4'd0;
-  logic [1:0]  wr_buf;
-  logic [2:0]  free_seen;        // per buffer, render domain
-  logic [2:0]  free_s0, free_s1; // free_toggle synchronised into render
-  logic [2:0]  free_toggle;      // per buffer, scan domain
-  logic [2:0]  ready_toggle;     // per buffer, render domain
-  logic        frame_toggle;     // toggles at the render frame boundary
-  logic        armed;
+  logic [1:0]  wr_buf = 2'd0;
+  logic [2:0]  free_seen = 3'd0;        // per buffer, render domain
+  logic [2:0]  free_s0, free_s1;       // free_toggle synchronised into render
+  logic [2:0]  free_toggle = 3'b111;    // per buffer, scan domain: initially free
+  logic [2:0]  ready_toggle = 3'd0;     // per buffer, render domain
+  logic        frame_toggle = 1'b0;     // toggles at the render frame boundary
+  logic        armed = 1'b0;
   logic [3:0]  fstate;
 
   wire [2:0] free_sync = free_s1;
