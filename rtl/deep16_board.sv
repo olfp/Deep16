@@ -371,21 +371,24 @@ module deep16_board (
 `ifdef DVI_TILE
   // DVI bring-up LEDs (active low): led3 lit = DVI PLL locked, led5 blinking =
   // the renderer produces frames. led0/1/2 are CPU status; led4 is CPU activity.
-  logic [5:0] ren_hb;
-  logic       ft_prev;
+  // Latches, not blinks, so a single event is visible even if the renderer or
+  // scan stops after a few lines.
+  logic frame_seen, ft_prev;
   always_ff @(posedge dvi_render_clk) begin
-    if (dvi_rst_render) begin ren_hb <= 6'd0; ft_prev <= 1'b0; end
+    if (dvi_rst_render) begin frame_seen <= 1'b0; ft_prev <= 1'b0; end
     else begin
       ft_prev <= u_dvi_tile.frame_toggle;
-      if (u_dvi_tile.frame_toggle && !ft_prev) ren_hb <= ren_hb + 6'd1;
+      if (u_dvi_tile.frame_toggle != ft_prev) frame_seen <= 1'b1;
     end
   end
+  // led3 = DVI PLL lock; led4 = scan path started; led5 = the renderer has
+  // produced at least one frame. led0/1/2 are CPU status.
   assign led[0] = o_boot_err ? 1'b1 : (o_boot_done ? hb[24] : hb[21]);
   assign led[1] = ~o_busy;
   assign led[2] = ~o_core_halt;
   assign led[3] = ~dvi_lock;
-  assign led[4] = ~o_core_instrs[13];
-  assign led[5] = ~ren_hb[5];
+  assign led[4] = ~u_dvi_tile.started;
+  assign led[5] = ~frame_seen;
 `else
   assign led[0] = o_boot_err ? 1'b1 : (o_boot_done ? hb[24] : hb[21]);
   assign led[1] = ~o_busy;
