@@ -10,7 +10,7 @@ the screen listens to the same `uart_txd` pin the USB-UART bridge sees.
 
 The **D16nano tile build** (`dvi_tile`, below) drives standard
 **1280 x 720 @ 60 Hz** (1650 x 750 at 74.25 MHz): a 640 x 360 renderer at
-25.5 MHz is repeated 2x2 by the scan path. The timing table in this section
+24.75 MHz is repeated 2x2 by the scan path. The timing table in this section
 describes the `dvi_text` build, which keeps 640 x 480 @ 60.
 
 ```
@@ -118,7 +118,7 @@ fit alongside this without a diet).
 
 `dvi_tile` is the NES-shaped screen the text console grows into. It drives
 standard **1280 x 720 @ 60 Hz** (1650 x 750 at 74.25 MHz). The render side
-fills 640 x 360 at 25.5 MHz (the ready/free handshake locks its nominal 43.9 us line to the scan's 44.44 us); the scan side reads each line
+fills 640 x 360 at 24.75 MHz (1100 clocks = 44.44 us, exactly two output lines); the scan side reads each line
 buffer twice horizontally and shows each source line on two output lines, so
 every source pixel is a 2x2 block. It replaces the packed character cells
 with:

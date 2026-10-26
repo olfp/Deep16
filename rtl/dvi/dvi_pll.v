@@ -22,14 +22,13 @@ module dvi_pll (
 );
 
   wire clk_serial;
-  wire clk_pixel_d;
   wire clk_render_3;
 
   rPLL rpll_inst (
     .CLKOUT   (clk_serial),
     .LOCK     (lock),
     .CLKOUTP  (),
-    .CLKOUTD  (clk_pixel_d),
+    .CLKOUTD  (),
     .CLKOUTD3 (clk_render_3),
     .RESET    (1'b0),
     .RESET_P  (1'b0),
@@ -69,27 +68,19 @@ module dvi_pll (
   defparam rpll_inst.CLKOUT_BYPASS = "false";
   defparam rpll_inst.CLKOUTP_BYPASS = "false";
   defparam rpll_inst.CLKOUTD_BYPASS = "false";
-`ifdef DVI_TILE
-  // CLKOUTD = CLKOUT / 5 = 74.25 MHz (the OSER10 PCLK).
-  defparam rpll_inst.DYN_SDIV_SEL = 5;
-`else
   defparam rpll_inst.DYN_SDIV_SEL = 2;
-`endif
   defparam rpll_inst.CLKOUTD_SRC = "CLKOUT";
   defparam rpll_inst.CLKOUTD3_SRC = "CLKOUT";
   defparam rpll_inst.DEVICE = "GW1NR-9C";
 
-`ifdef DVI_TILE
-  // 371.25 / 5 from the rPLL's CLKOUTD, not a CLKDIV at 371.25 MHz.
-  assign clk_pixel = clk_pixel_d;
-`else
+  // Gowin's companion divider for OSER10 PCLK: 371.25 / 5 = 74.25 MHz.
+  // This is the reference project's arrangement and the text build's path.
   CLKDIV #(.DIV_MODE("5"), .GSREN("false")) pixel_div (
     .CLKOUT (clk_pixel),
     .HCLKIN (clk_serial),
     .RESETN (lock),
     .CALIB  (1'b1)
   );
-`endif
 
   // CLKOUTD3 = serial / 3 = 123.75 MHz; /5 gives the 24.75 MHz renderer clock.
   CLKDIV #(.DIV_MODE("5"), .GSREN("false")) render_div (

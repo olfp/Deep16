@@ -240,3 +240,41 @@ led4 description once P1 lands.
    Logic / BSRAM numbers in `rtl/dvi/README.md`?
 3. Should P0 be done unconditionally (both builds on the same clock path) or
    only if 480p is confirmed working?
+
+---
+
+## 11. Update 2026-10-26 (after the heartbeat build)
+
+The P0 clock change is in the tree; P1/P2 are not in the final timing-clean
+build, and the test-pattern fallback was removed to get timing closure.
+
+* **P1 (diagnostic heartbeat)** — a temporary pixel-domain heartbeat was built,
+  with a second heartbeat on the CLKDIV path. The board read: `led[3]` lit,
+  the CLKDIV /5 heartbeat fast blink, the rPLL CLKOUTD /5 heartbeat **very
+  fast** (not 74.25 MHz), and the renderer LED off. That identified the
+  CLKOUTD path as wrong and the CLKDIV path as the one to use.
+* **P0 (applied)** — the tile pixel clock now uses the reference/Gowin
+  companion arrangement, `CLKDIV(DIV_MODE=5, CALIB=1, RESETN=lock)` from
+  371.25 MHz, for both builds. The CLKOUTD divider is no longer used for
+  `clk_pixel`.
+* **P1 in the production build** — the heartbeat was removed after diagnosis:
+  both the 24-bit counter and a 4-bit cascade version cost pixel-domain
+  timing. `led[3]` lock and `led[5]` renderer-frame heartbeat remain. A
+  separate bring-up build can restore the pixel heartbeat if needed.
+* **P2 (deferred)** — the lock-registered three-clock reset hold was
+  implemented and measured: it pushed the pixel domain from ~75.5 to
+  ~67.7 MHz Fmax (three endpoints). The original asynchronous release is
+  back for now; revisit with a global reset buffer.
+* **Test-pattern fallback (removed)** — the ~0.11 s timeout counter (24-bit or
+  cascade) was the remaining pixel-domain timing path. The production build
+  now starts the scan only on a real `ready`/`frame` from the renderer; `led[5]`
+  tells whether frames are being produced.
+* **Encoder** — the pipelined TMDS encoder was checked against a reference
+  model: 0 mismatches over 50,000 random samples. It is not the fault.
+* **P4** — the 25.5/43.9 µs prose and the timeout comment are fixed; the
+  renderer is documented at 24.75 MHz.
+
+The next board test is the CLKDIV pixel clock, no test pattern, with `led[5]`
+as the renderer-frame indicator. If the pixel clock is alive and the monitor
+still shows nothing, the remaining unproven parts are the OSER10 at 371.25 MHz
+and the HDMI PHY; a lower-rate 720p test is the next fallback.

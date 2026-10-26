@@ -700,8 +700,6 @@ module dvi_tile #(
   logic [2:0]  tail;         // last pixels of the line, registered
   logic        started;
   logic        line_valid;
-  logic        test_mode;
-  logic [23:0] boot_wait;
   logic [2:0]  ready_seen;
   logic        frame_seen;
   logic [2:0]  ready_s0, ready_s1;
@@ -744,8 +742,6 @@ module dvi_tile #(
       ready_seen <= 3'b0;
       frame_seen <= 1'b0;
       free_toggle <= 3'b111;
-      test_mode <= 1'b0;
-      boot_wait <= 24'd0;
     end else if (!started) begin
       // Wait for line 0 and the render frame boundary. Address 0 has been
       // standing for a while, so lb_q already holds source pixel 0.
@@ -756,17 +752,6 @@ module dvi_tile #(
         line_valid <= 1'b1;
         pix_hold <= lb_q;
         src_x <= 10'd1;
-      end else begin
-        boot_wait <= boot_wait + 24'd1;
-        if (boot_wait[23]) begin
-          // No renderer after ~0.23 s: run the 720p timing with a visible
-          // test pattern so the PHY can be checked independently.
-          started <= 1'b1;
-          line_valid <= 1'b1;
-          test_mode <= 1'b1;
-          pix_hold <= 8'hE0;
-          src_x <= 10'd1;
-        end
       end
     end else if (!scan_line_end) begin
       sx <= sx + 12'd1;
@@ -805,8 +790,7 @@ module dvi_tile #(
   assign vsync = ~(sy >= 10'(O_V_ACTIVE + O_V_FRONT) &&
                    sy <  10'(O_V_ACTIVE + O_V_FRONT + O_V_SYNC));
 
-  wire [7:0] test_pix = sx[7] ? 8'hE0 : 8'h1C;   // red/green vertical bars
-  wire [7:0] pix = test_mode ? test_pix : (line_valid ? pix_hold : 8'h00);
+  wire [7:0] pix = line_valid ? pix_hold : 8'h00;
   assign red   = {pix[7:5], pix[7:5], pix[6:5]};
   assign green = {pix[4:2], pix[4:2], pix[3:2]};
   assign blue  = {pix[1:0], pix[1:0], pix[1:0], pix[1:0]};

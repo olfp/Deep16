@@ -134,8 +134,8 @@ module deep16_board (
   // ---- DVI/HDMI text console -------------------------------------------
   // A second PLL makes the pixel and 5x serializer clocks. The text build
   // uses 25.2/126 MHz (800x525, 640x480@60); the tile build uses 74.25/371.25
-  // MHz (1650x750, 1280x720@60) and renders at the PSRAM PLL's 25.5 MHz
-  // CLKOUTD. The console mirror listens to the same uart_txd the USB bridge
+  // MHz (1650x750, 1280x720@60) and renders at the DVI PLL's 24.75 MHz
+  // (serial / 15). The console mirror listens to the same uart_txd the USB bridge
   // sees, so it shows exactly what a host terminal would.
   wire dvi_pclk, dvi_clk5, dvi_render_clk, dvi_lock;
   dvi_pll u_dvi_pll (
@@ -170,8 +170,7 @@ module deep16_board (
   logic [11:0] dvi_cpu_addr;
   logic [15:0] dvi_cpu_data;
 `ifdef D16NANO
-  // Tile/control writes cross from the 13.5 MHz CPU to the 25.5 MHz render
-  // domain. Sixteen entries of {ctrl,addr,data}; the BIOS writes one entry per
+  // Tile/control writes cross from the CPU to the 24.75 MHz render domain. Sixteen entries of {ctrl,addr,data}; the BIOS writes one entry per
   // store and the render side drains one per render clock. No CPU stall is needed:
   // the consumer is nearly twice as fast as the producer, and a dropped entry
   // at full is a renderer glitch, not a memory corruption (the PSRAM mirror is
@@ -370,8 +369,8 @@ module deep16_board (
   //   led[2] lit = the core halted on 0xFFFF
   //   led[3..5] blink = instructions retiring (bits 9, 13, 17)
 `ifdef DVI_TILE
-  // DVI bring-up LEDs (active low): led3 lit = DVI PLL locked, led4 blinking
-  // = 74.25 MHz pixel clock alive, led5 blinking = 24.75 MHz render clock alive.
+  // DVI bring-up LEDs (active low): led3 lit = DVI PLL locked, led5 blinking =
+  // the renderer produces frames. led0/1/2 are CPU status; led4 is CPU activity.
   logic [5:0] ren_hb;
   logic       ft_prev;
   always_ff @(posedge dvi_render_clk) begin
@@ -381,8 +380,6 @@ module deep16_board (
       if (u_dvi_tile.frame_toggle && !ft_prev) ren_hb <= ren_hb + 6'd1;
     end
   end
-  // led3 lit = DVI PLL locked; led5 blinking = the renderer is producing
-  // frames (render clock + fill path alive). led0/1/2 are the CPU status.
   assign led[0] = o_boot_err ? 1'b1 : (o_boot_done ? hb[24] : hb[21]);
   assign led[1] = ~o_busy;
   assign led[2] = ~o_core_halt;

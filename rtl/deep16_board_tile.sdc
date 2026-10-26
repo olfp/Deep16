@@ -14,7 +14,7 @@ set_false_path -from [get_ports {rst_n uart_rxd}]
 # (74.25 MHz, DVI PLL / 5) are asynchronous. The handshake uses 2-FF toggles
 # and the line buffer is a dual-clock BSRAM, so cross-domain paths are not timed.
 create_generated_clock -name dvi_render -source [get_ports {clk}] -multiply_by 11 -divide_by 12 [get_pins {u_dvi_pll/render_div/CLKOUT}]
-create_generated_clock -name dvi_pixel  -source [get_ports {clk}] -multiply_by 11 -divide_by 4 [get_pins {u_dvi_pll/rpll_inst/CLKOUTD}]
+create_generated_clock -name dvi_pixel  -source [get_ports {clk}] -multiply_by 55 -divide_by 20 [get_pins {u_dvi_pll/pixel_div/CLKOUT}]
 set_clock_groups -asynchronous -group [get_clocks {dvi_render}] -group [get_clocks {dvi_pixel}]
 
 # The CPU-to-tile FIFO is a gray-code async FIFO and the reset chains are

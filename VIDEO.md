@@ -3,7 +3,7 @@
 Target: DVI (4 TMDS pairs, second rPLL free). The text build is
 **640×480@60** at 25.2 MHz with the 80×24 text (640×360, 8×15 cells) centred
 with borders. The D16nano tile build is **1280×720@60**: its renderer fills
-640×360 at 25.5 MHz and the scan path repeats every pixel and every line 2×2
+640×360 at 24.75 MHz and the scan path repeats every pixel and every line 2×2
 at 74.25 MHz (1650×750).
 
 Budget today: **109 CLS free**, 20/26 BSRAM in the default build. With the
@@ -69,7 +69,7 @@ tile console + D16D colour demo, 8 sprites x 32x32, 128-tile bank
 ```
 
 The tile console drives a standard **1280×720 @ 60 Hz** signal. The render
-side fills 640×360 at 25.5 MHz; the scan side reads each line buffer twice
+side fills 640×360 at 24.75 MHz; the scan side reads each line buffer twice
 horizontally and repeats each source line on two output lines, so the DVI
 signal is 1650×750 at 74.25 MHz. Every pixel is a crisp 2×2 block. The
 `dvi_text` build above keeps 640×480@60.
