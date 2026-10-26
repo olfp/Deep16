@@ -278,3 +278,26 @@ The next board test is the CLKDIV pixel clock, no test pattern, with `led[5]`
 as the renderer-frame indicator. If the pixel clock is alive and the monitor
 still shows nothing, the remaining unproven parts are the OSER10 at 371.25 MHz
 and the HDMI PHY; a lower-rate 720p test is the next fallback.
+
+## 12. Reference board test, 2026-10-26
+
+The reference project was cloned to a sibling checkout, built with the
+installed Gowin 1.9.12 flow, and flashed with `openFPGALoader -f` (external
+config flash only; the D16 user flash was untouched).
+
+Result: **the monitor locks at 1280x720@60 Hz and the SVO test card is stable.**
+The card shows bright vertical seams at some (~30%) tile borders; those are the
+reference's own pixel-domain artifacts (the project has no timing constraints),
+not a missing display.
+
+This confirms the display, cable, HDMI pins, 371.25 MHz PLL, OSER10 data lanes
+and 720p receiver path. The structural difference that mattered is the **clock
+lane**: the reference drives `clk_pixel` directly into the ELVDS buffer, while
+the D16 tile build used a fourth OSER10 with `1111100000`.
+
+The D16 build now does the same direct `clk_pixel` clock lane and uses the
+reference's PLL/CLKDIV IP settings (`DYN_DA_EN=true`, `CLKDIV CALIB=0`) for the
+tile build. The current tile placement closes `dvi_render` at 26.9 MHz but
+`dvi_pixel` at 72.5 MHz (3 endpoints, about -1.0 ns); the next board test will
+show whether that marginal path causes seams or a picture. If the picture
+appears with seams, the remaining work is to pipeline the last pixel path.

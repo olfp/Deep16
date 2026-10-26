@@ -58,7 +58,11 @@ module dvi_pll (
   defparam rpll_inst.ODIV_SEL = 4;
 `endif
   defparam rpll_inst.PSDA_SEL = "0000";
+`ifdef DVI_TILE
+  defparam rpll_inst.DYN_DA_EN = "true";
+`else
   defparam rpll_inst.DYN_DA_EN = "false";
+`endif
   defparam rpll_inst.DUTYDA_SEL = "1000";
   defparam rpll_inst.CLKOUT_FT_DIR = 1'b1;
   defparam rpll_inst.CLKOUTP_FT_DIR = 1'b1;
@@ -74,12 +78,18 @@ module dvi_pll (
   defparam rpll_inst.DEVICE = "GW1NR-9C";
 
   // Gowin's companion divider for OSER10 PCLK: 371.25 / 5 = 74.25 MHz.
-  // This is the reference project's arrangement and the text build's path.
+  // The tile build matches the working reference (CALIB low); the text build
+  // keeps the historical high value that already works at 25.2 MHz.
+`ifdef DVI_TILE
+  localparam bit PIXEL_CALIB = 1'b0;
+`else
+  localparam bit PIXEL_CALIB = 1'b1;
+`endif
   CLKDIV #(.DIV_MODE("5"), .GSREN("false")) pixel_div (
     .CLKOUT (clk_pixel),
     .HCLKIN (clk_serial),
     .RESETN (lock),
-    .CALIB  (1'b1)
+    .CALIB  (PIXEL_CALIB)
   );
 
   // CLKOUTD3 = serial / 3 = 123.75 MHz; /5 gives the 24.75 MHz renderer clock.

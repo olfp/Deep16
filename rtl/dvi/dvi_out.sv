@@ -149,7 +149,7 @@ module dvi_out (
   tmds_encoder enc_r (.clk(clk_pixel), .rst(rst), .data(rgb_q[23:16]),
                       .ctrl(2'b00), .de(hve_q[2]), .tmds(tmds_r));
 
-  logic [3:0] serial;
+  logic [2:0] serial;
   OSER10 #(.GSREN("false"), .LSREN("true")) ser_b (
     .PCLK(clk_pixel), .FCLK(clk_5x), .RESET(rst), .Q(serial[0]),
     .D0(tmds_b[0]), .D1(tmds_b[1]), .D2(tmds_b[2]), .D3(tmds_b[3]),
@@ -165,15 +165,13 @@ module dvi_out (
     .D0(tmds_r[0]), .D1(tmds_r[1]), .D2(tmds_r[2]), .D3(tmds_r[3]),
     .D4(tmds_r[4]), .D5(tmds_r[5]), .D6(tmds_r[6]), .D7(tmds_r[7]),
     .D8(tmds_r[8]), .D9(tmds_r[9]));
-  // Clock lane: the fixed 10-bit clock pattern (five ones, five zeros).
-  OSER10 #(.GSREN("false"), .LSREN("true")) ser_clk (
-    .PCLK(clk_pixel), .FCLK(clk_5x), .RESET(rst), .Q(serial[3]),
-    .D0(1'b1), .D1(1'b1), .D2(1'b1), .D3(1'b1), .D4(1'b1),
-    .D5(1'b0), .D6(1'b0), .D7(1'b0), .D8(1'b0), .D9(1'b0));
-
+  // Clock lane: the reference 720p project drives the 74.25 MHz pixel clock
+  // straight into the ELVDS buffer.  At 25.2 MHz the fourth OSER10 also worked,
+  // but at 371.25 MHz the direct clock is the arrangement confirmed on the
+  // board (the reference test card locks at 1280x720@60).
   ELVDS_OBUF obuf_b (.I(serial[0]), .O(hdmi_tx_p[0]), .OB(hdmi_tx_n[0]));
   ELVDS_OBUF obuf_g (.I(serial[1]), .O(hdmi_tx_p[1]), .OB(hdmi_tx_n[1]));
   ELVDS_OBUF obuf_r (.I(serial[2]), .O(hdmi_tx_p[2]), .OB(hdmi_tx_n[2]));
-  ELVDS_OBUF obuf_c (.I(serial[3]), .O(hdmi_tx_p[3]), .OB(hdmi_tx_n[3]));
+  ELVDS_OBUF obuf_c (.I(clk_pixel), .O(hdmi_tx_p[3]), .OB(hdmi_tx_n[3]));
 
 endmodule
