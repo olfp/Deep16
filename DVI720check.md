@@ -1,9 +1,9 @@
 # DVI 720p bring-up check
 
-Status: **analysis only, nothing changed.** The 720p D16nano build has never
-produced a confirmed picture on a monitor. This note compares it against a
-third-party Tang Nano 9K HDMI project that is claimed to work at 1280x720, so
-the board time that is left is spent on the paths that are actually unproven.
+Status: **resolved 2026-10-26.** The D16nano tile build now shows the console
+at **1280x720@60** on the HDMI monitor. The original analysis is kept below as
+the bring-up record; sections 11-14 record the fixes and the final board
+result.
 
 Reference under review:
 <https://github.com/zf3/some-tang-nano-9k-examples/tree/main/01.hdmi>
@@ -323,3 +323,22 @@ The proper follow-up is the P2 synchronous reset-release hold; it was deferred
 only because its reset fanout cost pixel-domain timing. With the initialization
 the current placement closes `dvi_pixel` at 76.28 MHz and `dvi_render` at
 25.57 MHz, 0 TNS.
+
+
+## 14. Board result, 2026-10-26
+
+The D16nano tile build now shows the Forth console at **1280x720@60** on the
+monitor. Final fixes:
+
+* pixel clock from the Gowin `CLKDIV /5` companion path, not `CLKOUTD /5`;
+* direct `clk_pixel` clock lane into the ELVDS buffer, as in the reference;
+* reference PLL/CLKDIV IP settings for the tile build;
+* line-buffer handshake power-up initialization (`free_toggle = 3'b111`,
+  ready/frame/armed = 0), because the asynchronous PLL-lock reset release
+  could miss the scan's reset branch and leave the renderer stalled at line 0.
+
+The reference test card confirmed the monitor, cable, HDMI pins, 371.25 MHz
+PLL and OSER10 data lanes. The D16 console confirms the complete tile render,
+scan, 2x2 pixel repeat and TMDS path at 720p. The bring-up LEDs remain as
+documented in section 12 (led2 render clock, led3 DVI lock, led4 scan started,
+led5 first rendered frame).
