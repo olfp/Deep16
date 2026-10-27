@@ -34,7 +34,7 @@ test('sprite bank holds three bird pages plus the shared cloud', () => {
       cloud, `page ${page} cloud matches page 0`);
   }
 
-  // Page 0 groups 0..1 belong to the colour demo (written at runtime).
+  // Page 0 groups 0..1 are unused (the colour demo was removed).
   for (const g of [0, 1, 8, 9, 16, 17]) {
     const slice = words.slice(g * GROUP_WORDS, (g + 1) * GROUP_WORDS);
     assert.ok(slice.every((v) => v === 0), `group ${g} stays free`);

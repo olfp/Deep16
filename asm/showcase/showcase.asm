@@ -1,17 +1,16 @@
 ; showcase.asm - the D16D showcase menu and Flappy game.
 ;
 ; Image layout (all offsets in the BIOS segment 0x04A0, physical = 0x4A00+off):
-;   0x0330  menu header + trampoline (BIOS gfx entry)
+;   0x0334  trampoline (BIOS gfx entry; the header is at 0x3E4)
 ;   0x0339  menu strings, cloud table and the game palette
-;   0x0400  colour demo (asm/gfx_demo.asm, separate block)
 ;   0x04D5  game state cells (uninitialised; the game writes them)
 ;   0x0500  menu code, then the default palette at 0x05E0
 ;   0x05CB  bird body/belly colours and the dizzy sprite-group table
 ;   0x0A00  game helpers, map drawing, game loop and death sequence
 ;
 ; The BIOS parks R5/R6 and jumps to the menu trampoline with R12 = gfx_back.
-; The menu saves that return, launches the game/colour demo with R12 pointing
-; at menu_after, and finally returns to the BIOS.
+; The menu saves that return, launches Flappy with R12 pointing at menu_after,
+; and finally returns to the BIOS when Q (Forth) is chosen.
 
 .equ SEG_DEMO 0x04A0
 .equ SEG_TILE -0x0F00          ; 0xF100: tilemap
@@ -67,10 +66,11 @@
 .equ T_CLOUD_R    0x0DA0
 .equ RESTORE_TAB  0x0500
 .equ RESTORE_PAL  0x05E0
-.equ COLOR_ENTRY  0x0404
 
 ; ---- header and trampoline (BIOS function 6) -------------------------
-.org 0x330
+; The header sits in the free gap after the cloud/palette data; the four words
+; at 0x330 belong to the BIOS, which needs them for the UART console mirror.
+.org 0x3E4
     .word 0x0D16, 1, 0x334, 0
 .org 0x334
 trampoline:
@@ -83,15 +83,13 @@ trampoline:
 ; ---- strings and palettes (gap 0x339..0x3FF, above the trampoline) ----
 .org 0x339
 str_menu_title:
-    .text "D16 SHOW 28"
+    .text "D16 SHOW 29"
 str_menu_f:
     .text "F  FLAPPY"
-str_menu_c:
-    .text "C  COLOUR DEMO"
 str_menu_q:
-    .text "Q  CONSOLE"
+    .text "Q  FORTH"
 str_menu_auto:
-    .text "AUTOPLAY 10s"
+    .text "AUTORUN FLAPPY 10s"
 str_flappy:
     .text "FLAPPY"
 str_press_space:
@@ -193,18 +191,6 @@ menu_redraw:
     MOV R9, R0
     LDI 30
     MOV R10, R0
-    LDI str_menu_c
-    MOV R8, R0
-    LDI draw_text
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-
-    LDI 14
-    MOV R9, R0
-    LDI 30
-    MOV R10, R0
     LDI str_menu_q
     MOV R8, R0
     LDI draw_text
@@ -267,16 +253,6 @@ menu_wait:
     MOV R3, R0
     CMP R1, R3
     JZ menu_play
-    NOP
-    LDI 0x43
-    MOV R3, R0
-    CMP R1, R3
-    JZ menu_color
-    NOP
-    LDI 0x63
-    MOV R3, R0
-    CMP R1, R3
-    JZ menu_color
     NOP
     LDI 0x51
     MOV R3, R0
@@ -351,15 +327,6 @@ menu_launch_game:
     LDI menu_after
     MOV R12, R0
     LDI game_entry
-    MOV PC, R0
-    NOP
-
-menu_color:
-    LDI SEG_DEMO
-    MVS DS, R0
-    LDI menu_after
-    MOV R12, R0
-    LDI COLOR_ENTRY
     MOV PC, R0
     NOP
 

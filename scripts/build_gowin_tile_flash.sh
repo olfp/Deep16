@@ -3,8 +3,8 @@
 #
 # The 16 BSRAM-block CPU image is replaced by the on-die FLASH608K copy, which
 # frees the blocks the PSRAM tag cache and the 128-tile sprite bank need. The
-# D16D demo is in the 24K image at 0x4E00; the user image (the D16D kernel) is
-# the full 608 Kbit image.flash.bin.
+# D16D showcase is in the 24K image's BIOS segment; the user image (the D16D
+# kernel) is the full 608 Kbit image.flash.bin.
 #
 # This target builds the .fs and writes image.flash.bin; flash the pair with:
 #   npm run flash:tile

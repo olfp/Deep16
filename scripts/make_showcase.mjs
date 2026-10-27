@@ -3,11 +3,11 @@
 //
 // Both sources are concatenated so the menu and game share labels, constants
 // and string data. The result is sparse: only the words the source actually
-// defines are returned, so make_image can leave the colour demo, the game
-// state cells and the ILL/divtest blocks alone.
+// defines are returned, so make_image can leave the game state cells and the
+// ILL/divtest blocks alone.
 //
 // Offsets are segment offsets in the BIOS segment 0x04A0:
-//   0x330  header + trampoline
+//   0x334  trampoline (the BIOS jumps here)
 //   0x339  strings and palettes
 //   0x500  menu code
 //   0x5E0  default palette
@@ -22,12 +22,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SHOWCASE_MAGIC = 0x0D16;
 export const SHOWCASE_FORMAT = 1;
 export const SHOWCASE_ENTRY = 0x334;
-export const SHOWCASE_HEADER = 0x330;
+export const SHOWCASE_HEADER = 0x3E4;
 export const SHOWCASE_SEG = 0x04A0;
 export const SHOWCASE_SEG_BASE = 0x4A00;      // physical base of the segment
 export const MENU_LIMIT = 0x5E0;              // menu may use 0x500..0x5DF
 export const GAME_LIMIT = 0x0E00;             // game may use 0xA00..0xDFF
-export const COLOR_BASE = 0x400;              // colour demo block
 export const STATE_BASE = 0x4D5;              // game state cells
 export const RESTORE_BASE = 0x500;            // menu code starts here
 
@@ -66,15 +65,13 @@ export function buildShowcase() {
 export function checkShowcase(showcase) {
   const fail = [];
   const at = (a) => showcase.words.find((w) => w[0] === a)?.[1];
-  if (at(SHOWCASE_HEADER) !== SHOWCASE_MAGIC) fail.push('magic missing at 0x330');
+  if (at(SHOWCASE_HEADER) !== SHOWCASE_MAGIC) fail.push('magic missing at 0x3E4');
   if (at(SHOWCASE_HEADER + 1) !== SHOWCASE_FORMAT) fail.push('format is not 1');
   if (at(SHOWCASE_HEADER + 2) !== SHOWCASE_ENTRY) fail.push('entry is not 0x334');
 
-  // The sparse writes must not touch the colour demo, the game state cells,
-  // the ILL/divtest blocks, the stacks, or the top of the image.
+  // The sparse writes must not touch the game state cells, the ILL/divtest
+  // blocks, the stacks, or the top of the image.
   for (const [a] of showcase.words) {
-    if (a >= COLOR_BASE && a < STATE_BASE)
-      fail.push(`write into the colour-demo block at 0x${a.toString(16)}`);
     if (a >= STATE_BASE && a < RESTORE_BASE)
       fail.push(`write into the game state cells at 0x${a.toString(16)}`);
     if (a >= 0x600 && a < 0xA00)

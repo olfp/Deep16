@@ -53,7 +53,7 @@ time. `0x0000`–`0x00FF` is the zero page / boot staging area.
 | Display | `0xF1000` cell/attribute RAM | DVI text mirror, own cell RAM | `0xF1000` tilemap + tile engine |
 | Console | UART `0xF0040` | UART `0xF0040` | UART `0xF0040` |
 | Boot script | none | `demo.fth` baked in image | `demo.fth` baked in image |
-| D16D demo | none | none | `0x4E00` |
+| D16D showcase | none | none | BIOS segment `0x4A00` (trampoline `0x334`, header `0x3E4`) |
 
 The D16MINI and D16nano images both probe word **`0x6000`**. When it reads back,
 the kernel moves `HERE` to `0x6000` and raises the dictionary ceiling to
@@ -102,10 +102,14 @@ user flash, copied to PSRAM at boot. The dictionary then continues at `0x6000`.
 | `0x02000`–`0x02FFF` | threading engine `next` and built-in word code |
 | `0x03000`–`0x049F8` | kernel data, boot script, built-in headers, `rp0_base` |
 | `0x049F9`–`0x049FF` | static `dict_free` … BIOS (7 words) |
-| `0x04A00`–`0x04D2F` | BIOS code (segment `0x04A0`) |
-| `0x04D30`–`0x04DFF` | gap |
-| `0x04E00`–`0x04ED4` | D16D demo block (header + code, 213 words) |
-| `0x04ED5`–`0x04FFF` | gap |
+| `0x04A00`–`0x04D31` | BIOS code (segment `0x04A0`) |
+| `0x04D32`–`0x04D33` | free (2 words) |
+| `0x04D34`–`0x04D38` | D16D trampoline |
+| `0x04D39`–`0x04DE7` | D16D strings, palette, cloud table, header |
+| `0x04DE8`–`0x04DFF` | gap |
+| `0x04E00`–`0x04ED4` | free (former colour-demo block) |
+| `0x04ED5`–`0x04EFE` | game state cells |
+| `0x04F00`–`0x04FE0` | menu code and default palette |
 | `0x05000`–`0x052FF` | ILL trap handler (DIV/DIV32 emulation) |
 | `0x05300`–`0x053FF` | `divtest` word code + string (`divtest_ok_str` at `0x532E`) |
 | `0x05400`–`0x057FF` | reserved gap |
@@ -139,10 +143,13 @@ user flash, copied to PSRAM at boot. The dictionary then continues at `0x6000`.
 | `word_divtest` | `0x5300` | `divtest` code |
 | `divtest_ok_str` | `0x532E` | `divtest ok` string |
 
-The D16D demo at `0x4E00` has a four-word header (`0x0D16`, format 1, entry
-offset 4, reserved); the BIOS function 6 (`gfx`) checks it, parks the Forth
-R5/R6, jumps to `CS:0x04A0` entry `0x404` (`0x4E04`), and on return clears the
-tilemap/scroll/OAM/cursor.
+The D16D showcase lives in the BIOS segment: a four-word header at `0x3E4`
+(`0x0D16`, format 1, entry `0x334`), a trampoline at `0x334`, the menu code at
+`0x500` and the game at `0xA00`. BIOS function 6 (`gfx`) checks the header,
+parks the Forth R5/R6, jumps to the entry, and on return clears the
+tilemap/scroll/OAM/cursor. The board's kernel calls it during boot, so the
+menu is the power-on screen (Flappy, Forth, or Flappy automatically after ten
+seconds).
 
 ### 4.2 D16nano stack cells
 
@@ -160,15 +167,15 @@ tilemap/scroll/OAM/cursor.
   live there.
 * The ceiling is `0xFFF0`; `free` reports about 39,212 words after the baked
   script definitions (the exact number depends on the script/word set).
-* The D16D demo at `0x4E00` is **not** in the dictionary; it is a fixed BIOS-gap
-  block in the image/PSRAM.
+* The D16D showcase is **not** in the dictionary; it is a fixed block in the
+  BIOS segment of the image/PSRAM.
 
 ---
 
 ## 5. D16MINI UART build
 
 24,576-word image (`0x0000`–`0x5FFF`), PSRAM-backed; same boot-script/PSRAM
-dictionary behaviour as D16nano, without the tile engine or D16D demo.
+dictionary behaviour as D16nano, without the tile engine or D16D showcase.
 
 | Range | Contents |
 |---|---|
@@ -284,7 +291,7 @@ tile engine and the PSRAM/Forth mirror at the same address.
 | `0xF2004` | control 2 | smooth `scroll_x` (0..15), latched with control 4 at the frame boundary |
 | `0xF2006` | control 3 | smooth `scroll_y` (0..30) |
 | `0xF2008` | control 4 | b0 write bank, b1 display bank (display bank and `scroll_x` swap at the render frame boundary) |
-| `0xF200A` | control 5 | sprite group page (b1:0): 0 Red + colour demo, 1 Purple, 2 Yellow |
+| `0xF200A` | control 5 | sprite group page (b1:0): 0 Red, 1 Purple, 2 Yellow |
 | `0xF3000`–`0xF3BFF` | tile bank | 96 tiles × 32 words; 30 words of 8×15 4bpp, word 30 palette pointer, word 31 flags |
 | `0xF4000`–`0xF47FF` | sprite bank | 8 groups × 128 8×8 4bpp patterns × 16 words, selected by the control-5 page; the bank holds 24 groups (3 pages), preloaded |
 | `0xF5000`–`0xF500F` | OAM | 8 sprites × 2 words: `w0={behind,vflip,hflip,group[2:0],x[9:0]}`, `w1={xsign,3'b0,enable,y[9:0]}` |
@@ -351,7 +358,7 @@ flash is not used.
 | Physical die | 4 MB = 2 M words |
 | CPU-visible window | `0x00000`–`0xFFFFF`, 1 M words = 2 MB |
 | Boot image | `0x00000`–`0x05FFF`, 24,576 words |
-| D16D demo | `0x04E00`–`0x04ED4` (inside the image) |
+| D16D showcase | BIOS segment blocks `0x04D34`–`0x057E9` (inside the image) |
 | Runtime dictionary | `0x06000`–`0x0FFEF`, grows up; ceiling `0xFFF0` |
 | Boot ROM | `0x0FFFF0`–`0x0FFFFF` |
 | Unmapped PSRAM | the upper 1 M words of die 0 are not in the 20-bit CPU window |

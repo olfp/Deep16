@@ -3,7 +3,7 @@
 #
 # One command writes both halves:
 #   -f <tile .fs>            FPGA configuration (external config flash)
-#   --user-flash <raw .bin>  on-die 608 Kbit user flash (D16D kernel + demo)
+#   --user-flash <raw .bin>  on-die 608 Kbit user flash (D16D kernel + showcase)
 #
 # Both survive a power cycle. This is the tested route on the Tang Nano 9K;
 # the Gowin Embedded Flash Mode GUI is an alternative, and the
@@ -28,4 +28,4 @@ openFPGALoader -f "$FS" --user-flash "$USER"
 
 echo
 echo "configuration + on-die user flash written."
-echo "power-cycle the board: the tile console should come up and 'gfx' runs the demo."
+echo "power-cycle the board: it boots into the D16D menu (Flappy / Forth / autorun)."

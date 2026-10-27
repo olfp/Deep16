@@ -7,7 +7,7 @@
 //               rel 3..5  bedazzled poses
 //               rel 6..7  wing poses
 //
-// Page 0 rel 0..1 are left for the colour demo, which writes them at runtime.
+// Page 0 rel 0..1 are unused (the colour demo was removed).
 // The cloud is duplicated on all three pages so the same OAM group works
 // whichever bird is picked.
 import fs from 'node:fs';

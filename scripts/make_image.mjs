@@ -26,18 +26,17 @@ import { fileURLToPath } from 'node:url';
 import { writeTileFont } from './make_tile_font.mjs';
 import { writeBirdSprite } from './make_bird_sprite.mjs';
 import { writePs2Map } from './make_ps2map.mjs';
-import { buildDemo, checkDemo, writeDemo, DEMO_BASE } from './make_demo.mjs';
 import { buildShowcase, checkShowcase, SHOWCASE_SEG_BASE } from './make_showcase.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const NANO = !!process.env.D16NANO;
-// D16D is the user-flash colour demo: the kernel gains the gfx BIOS call
-// and word, and the flat image grows to 32K so the demo block rides at
-// 0x6000. The packed BSRAM console is built without it (the tile kernel
-// already fills the 16-block budget).
+// D16D is the user-flash Flappy showcase: the kernel gains the gfx BIOS call
+// and word, and the showcase menu/game block rides in the BIOS segment. The
+// packed BSRAM console is built without it (the tile kernel already fills the
+// 16-block budget).
 export const D16D = !!process.env.D16D;
-// The flat image is the 24K window. The D16D demo sits at 0x4E00, in the gap
+// The flat image is the 24K window; the showcase sits in the BIOS segment
 // between the BIOS code and the Forth stacks, so both sizes stay 24K.
 export const WINDOW = 0x6000;
 export const FILL   = 0xFFFF;      // the halt word, everywhere unused (§6.1)
@@ -91,10 +90,9 @@ export function buildImage() {
     return hi - sym.bios_entry + 1;
   })();
 
-  // The D16D demo block lives at PSRAM 0x4E00 (BIOS segment 0x04A0), in the
-  // free gap above the BIOS and below the stacks. It rides in the same 24K
-  // flat image, so the standard flash loader/installer copy and verify it.
-  let demo = null;
+  // The D16D showcase block lives in the BIOS segment 0x04A0, in the free gap
+  // above the BIOS and below the stacks. It rides in the same 24K flat image,
+  // so the standard flash loader/installer copy and verify it.
   let showcase = null;
   if (D16D) {
     showcase = buildShowcase();
@@ -104,20 +102,16 @@ export function buildImage() {
       if (pa < WINDOW) words[pa] = value;
       else outOfWindow.add(pa);
     }
-    demo = buildDemo();
-    checkDemo(demo);
-    for (let i = 0; i < demo.size; i++) words[DEMO_BASE + i] = demo.words[i];
   }
 
   const build = crypto.createHash('sha256')
     .update(source)
     .update(showcase?.build ?? '')
-    .update(demo?.build ?? '')
     .digest('hex').slice(0, 16);
 
   return {
     words, outOfWindow: [...outOfWindow].sort((a, b) => a - b),
-    dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build, demo, showcase,
+    dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build, showcase,
   };
 }
 
@@ -133,8 +127,6 @@ export function checkImage(img) {
   // high address the board cannot back.
   const unexpected = img.outOfWindow.filter((a) => a !== ECHO_FLAG);
   if (unexpected.length) fail.push(`words outside the window: ${unexpected.map((a) => '0x' + a.toString(16)).join(', ')}`);
-  if (D16D && !img.demo) fail.push('D16D image has no colour demo block');
-  if (D16D && img.demo) checkDemo(img.demo);
   if (D16D && !img.showcase) fail.push('D16D image has no showcase block');
   if (D16D && img.showcase) checkShowcase(img.showcase);
   if (fail.length) throw new Error('boot image is not valid:\n  - ' + fail.join('\n  - '));
@@ -299,10 +291,6 @@ export function manifest(img) {
       header_words: FLASH_HDR_WORDS,
       crc16: `0x${flashImage(img).crc.toString(16).padStart(4, '0')}`,
     },
-    demo: img.demo ? {
-      source: 'asm/gfx_demo.asm', base: `0x${DEMO_BASE.toString(16)}`, size: img.demo.size,
-      entry: img.demo.entry, build: img.demo.build,
-    } : null,
     showcase: img.showcase ? {
       source: 'asm/showcase/showcase.asm + asm/showcase/flappy_game.asm',
       base: `0x${SHOWCASE_SEG_BASE.toString(16)}`,
@@ -369,7 +357,6 @@ if (isMain) {
     for (let i = 0; i < installerWords.length && i * 4 + 4 <= USER_FLASH_BYTES; i++)
       userFlash.writeUInt32LE(installerWords[i] >>> 0, i * 4);
     fs.writeFileSync(path.join(outDir, 'image.flash.bin'), userFlash);
-    if (img.demo) writeDemo(outDir, img.demo);
   }
   const kb = (img.words.length * 2 / 1024).toFixed(0);
   console.log(`boot image: ${img.words.length} words (${kb} KiB), fill 0xFFFF, build ${img.build}`);
@@ -385,10 +372,9 @@ if (isMain) {
   const flash = flashImage(img);
   console.log(`  user flash: ${flash.words.length} x 32-bit words, installer ${INSTALLER_WORDS}, CRC16 0x${flash.crc.toString(16).padStart(4, '0')}`);
   console.log(`  user-flash init file: image.flash.bin (0x13000 = 608 Kbit, 0xFF padded)`);
-  if (img.demo) console.log(`  demo: ${img.demo.size} words at 0x${DEMO_BASE.toString(16)} (D16D)`);
   if (!check) {
     const files = D16D
-      ? 'image.hex, image.mi, image.flash.hex, image.flash.bin, demo.hex, image.manifest.json'
+      ? 'image.hex, image.mi, image.flash.hex, image.flash.bin, image.manifest.json'
       : 'image.hex, image-packed.hex, image.mi, image.flash.hex, image.flash.bin, image.manifest.json';
     console.log(`  wrote ${path.relative(ROOT, outDir)}/${files}`);
   }

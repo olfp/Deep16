@@ -53,10 +53,10 @@
 .equ DICT_LIMIT 0x4000   ; the screen build's ceiling, as it always was
 .endif
 
-; The PSRAM dictionary move to 0x6000 (the 24K window's edge). The D16D demo
-; sits below it at 0x4E00, in the BIOS segment gap, so the dictionary base is
-; the same for both builds.
-.equ PSRAM_BASE_HI 0x3000   ; 0x6000; the D16D demo lives at 0x4E00
+; The PSRAM dictionary move to 0x6000 (the 24K window's edge). The D16D
+; showcase lives below it in the BIOS segment, so the dictionary base is the
+; same for both builds.
+.equ PSRAM_BASE_HI 0x3000   ; 0x6000
 
 ; =============================================
 ; Terminal echo on/off (0xF0064, ES-relative)
@@ -147,6 +147,13 @@ forth_start:
     ; message, so it is set with the LDI that loads it.
     LDI 1
     SWI
+
+.ifdef D16D
+    ; Boot straight into the showcase menu: Flappy, Forth, or Flappy
+    ; automatically after ten seconds.  Q returns here and the banner follows.
+    LDI 6
+    SWI
+.endif
 
 cursor_on:
 .ifndef CONSOLE_UART
@@ -3511,9 +3518,9 @@ sq_buf:
     .word 0, 0
 .ifdef D16D
 word_gfx:
-    ; gfx ( -- )  run the D16D colour demo and return to a restored console.
-    ; The BIOS handler saves the Forth's R5/R6, far-jumps to CS=0x0600, and
-    ; clears the tilemap/scroll/OAM before RETI.
+    ; gfx ( -- )  run the D16D showcase menu and return to a restored console.
+    ; The BIOS handler saves the Forth's R5/R6, runs the menu from the BIOS
+    ; segment, and clears the tilemap/scroll/OAM before RETI.
     LDI 6                ; BIOS gfx
     SWI
     LDI next
@@ -13415,6 +13422,13 @@ uart_tx:
     MOV R7, R0
     LD R11, R7, 0
 uart_tx_keep:
+    ; Mirror every console byte to the UART as well, so a terminal sees the
+    ; same banner, prompt and echo as the tile screen.  The helper lives in
+    ; the free tail of the 0x5000 ILL block.
+    LDI uart_mirror - BIOS_BASE
+    MOV PC, R0
+    NOP
+utx_mirror_return:
     ; putstr entry: R11 already holds the column. The tile column lives in a
     ; register for the whole string so the PSRAM-backed cell cannot break the
     ; banner between characters.
@@ -14223,10 +14237,10 @@ uart_getstr_done:
 
 .ifdef D16D
 ; ---- 6: gfx ---------------------------------------------------------
-; Run the D16D showcase menu at 0x4D30 (offset 0x330), then put the tile
+; Run the D16D showcase menu at 0x4D34 (offset 0x334), then put the tile
 ; console back: clear the 82x26 tilemap, home the scroll/cursor, disable all
 ; sprites, reset the kernel's cursor cells, restore DS and the Forth's R5/R6,
-; RETI. The menu enters the Flappy game or the colour demo and returns here.
+; RETI. The menu enters the Flappy game and returns here; Q returns to the console.
 bios_f6:
     ; park the two shared registers the Forth owns across every BIOS call
     LDI gfx_r5
@@ -14235,10 +14249,10 @@ bios_f6:
     LDI gfx_r6
     MOV R2, R0
     ST R6, R2, 0
-    ; header: magic at 0x4D30, entry at 0x4D32 (segment 0x04A0, offset 0x330)
+    ; header: magic at 0x4DE4, entry at 0x4DE6 (segment 0x04A0, offset 0x3E4)
     LDI 0x04A0
     MVS DS, R0
-    LDI 0x0330
+    LDI 0x03E4
     MOV R2, R0
     LD R1, R2, 0
     LDI 0x0D16
@@ -15238,3 +15252,32 @@ divtest_ok_str:
     .text "divtest ok"
 divtest_fail_str:
     .text "divtest fail"
+
+; ============================================================
+; UART console mirror
+; ============================================================
+; uart_tx_keep jumps here for every console byte, then returns to
+; utx_mirror_return.  The 0x5000 ILL/divtest block ends at 0x5345; its tail is
+; free in the D16nano image, and the D16D showcase reserves but never writes
+; 0x600..0x9FF (physical 0x5000..0x53FF).
+.ifdef CONSOLE_UART
+.org 0x5380
+uart_mirror:
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0             ; ES = 0xF000
+uart_mirror_wait:
+    LDI 0x0040
+    MOV R3, R0
+    LDS R4, ES, R3         ; status
+    LDI 2
+    AND R4, R0             ; b1 = TX ready
+    JZ uart_mirror_wait
+    NOP
+    LDI 0x0042
+    MOV R3, R0
+    STS R1, ES, R3         ; send the byte
+    LDI utx_mirror_return - BIOS_BASE
+    MOV PC, R0
+    NOP
+.endif

@@ -16,7 +16,6 @@ test('the expected examples are present', () => {
     'fibonacci.asm',
     'forth.asm',
     'forth_nano.asm',
-    'gfx_demo.asm',
     'link_delay_slot.asm',
     'screen_demo.asm',
     'string_demo.asm',
