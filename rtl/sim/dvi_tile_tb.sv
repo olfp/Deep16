@@ -17,6 +17,8 @@ module dvi_tile_tb (
   output logic        hsync,
   output logic        vsync,
   output logic        de,
+  output logic        vblank,
+  output logic        frame_tick,
   output logic [11:0] dbg_x,
   output logic [9:0]  dbg_y,
   output logic [15:0] dbg_cell0,
@@ -25,8 +27,11 @@ module dvi_tile_tb (
   output logic [6:0]  dbg_col,
   output logic [4:0]  dbg_row_off,
   output logic [3:0]  dbg_scroll_x,
+  output logic [3:0]  dbg_scroll_x_next,
   output logic [4:0]  dbg_scroll_y,
   output logic [3:0]  dbg_fill,
+  output logic        dbg_wpage,
+  output logic        dbg_dpage,
   input  logic [11:0] dbg_addr,
   output logic [15:0] dbg_cell
 );
@@ -48,7 +53,9 @@ module dvi_tile_tb (
     .blue     (blue),
     .hsync    (hsync),
     .vsync    (vsync),
-    .de       (de)
+    .de       (de),
+    .vblank   (vblank),
+    .frame_tick (frame_tick)
   );
 
   assign dbg_x       = u_tile.sx;
@@ -59,8 +66,11 @@ module dvi_tile_tb (
   assign dbg_col     = u_tile.cur_col;
   assign dbg_row_off = u_tile.row_off;
   assign dbg_scroll_x = u_tile.scroll_x;
+  assign dbg_scroll_x_next = u_tile.scroll_x_next;
   assign dbg_scroll_y = u_tile.scroll_y;
   assign dbg_fill    = u_tile.fstate;
-  assign dbg_cell    = u_tile.tilemap[dbg_addr];
+  assign dbg_wpage   = u_tile.map_wpage;
+  assign dbg_dpage   = u_tile.map_dpage;
+  assign dbg_cell    = u_tile.tilemap[13'(dbg_addr)];
 
 endmodule

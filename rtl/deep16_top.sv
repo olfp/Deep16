@@ -45,6 +45,9 @@ module deep16_top
   output logic [1:0]  tile_tgt,
   output logic [11:0] tile_addr,
   output logic [15:0] tile_data,
+  // Read-only display status from the tile engine, synchronised into the CPU
+  // domain by the board. bit 0 = vblank level, bit 1 = frame toggle.
+  input  logic [15:0] tile_status,
 `endif
 
   // harness debug bus
@@ -383,7 +386,8 @@ module deep16_top
   // unused I/O cells 0xF0068/0xF006A (the keyboard block uses 0x60..0x64).
 `ifdef D16NANO
   logic [15:0] psram_mem_rdata;
-  assign mem_rdata = (mem_addr == 21'h0F0068) ? core_cycles[15:0] :
+  assign mem_rdata = (mem_addr == 21'h0F0066) ? tile_status :
+                     (mem_addr == 21'h0F0068) ? core_cycles[15:0] :
                      (mem_addr == 21'h0F006A) ? core_cycles[31:16] :
                      psram_mem_rdata;
 `else
@@ -433,16 +437,18 @@ module deep16_top
   //   0xF1000  tilemap (82x26)     0xF3000  tile bank (96 x 32, writable)
   //   0xF4000  sprite bank        0xF5000  OAM (0x00..0x1F), palette (0x80..0x8F)
   //   0xF2000/2/4/6  cursor, row offset, scroll_x, scroll_y
+  //   0xF2008        tilemap page select (bit 0 write, bit 1 display)
   wire tile_hit = mem_we && (mem_waddr >= 21'h0F1000) && (mem_waddr <= 21'h0F1853);
   wire bank_hit = mem_we && (mem_waddr >= 21'h0F3000) && (mem_waddr <= 21'h0F3BFF);
   wire spr_hit  = mem_we && (mem_waddr >= 21'h0F4000) && (mem_waddr <= 21'h0F47FF);
   wire attr_hit = mem_we && (mem_waddr >= 21'h0F5000) && (mem_waddr <= 21'h0F50FF);
   wire ctrl_hit = mem_we && ((mem_waddr == 21'h0F2000) || (mem_waddr == 21'h0F2002) ||
-                             (mem_waddr == 21'h0F2004) || (mem_waddr == 21'h0F2006));
+                             (mem_waddr == 21'h0F2004) || (mem_waddr == 21'h0F2006) ||
+                             (mem_waddr == 21'h0F2008));
   assign tile_we   = tile_hit || bank_hit || spr_hit || attr_hit || ctrl_hit;
   assign tile_ctrl = ctrl_hit;
   assign tile_tgt  = tile_hit ? 2'd0 : bank_hit ? 2'd1 : spr_hit ? 2'd2 : 2'd3;
-  assign tile_addr = ctrl_hit ? {9'd0, mem_waddr[2:0]} : mem_waddr[11:0];
+  assign tile_addr = ctrl_hit ? {8'd0, mem_waddr[3:0]} : mem_waddr[11:0];
   assign tile_data = mem_wdata;
 `endif
 

@@ -20,6 +20,7 @@
 module deep16_board (
   input  logic clk,        // 27 MHz oscillator, pin 52
   input  logic rst_n,      // S1 button, active low
+  input  logic btn,        // S2 button, active low
   input  logic uart_rxd,   // from the on-board USB-UART bridge
   output logic uart_txd,   // to the on-board USB-UART bridge
   output logic [5:0] led   // 0 heartbeat, 1 run, 2 halt, 3..5 instruction activity
@@ -165,6 +166,7 @@ module deep16_board (
   logic       dvi_hs, dvi_vs, dvi_de;
 
 `ifdef DVI_TILE
+  logic        dvi_vblank, dvi_frame_tick;
   logic        dvi_cpu_we, dvi_cpu_ctrl;
   logic [1:0]  dvi_cpu_tgt;
   logic [11:0] dvi_cpu_addr;
@@ -247,7 +249,9 @@ module deep16_board (
     .blue     (dvi_b),
     .hsync    (dvi_hs),
     .vsync    (dvi_vs),
-    .de       (dvi_de)
+    .de       (dvi_de),
+    .vblank   (dvi_vblank),
+    .frame_tick (dvi_frame_tick)
   );
 `else
   dvi_text u_dvi_text (
@@ -278,6 +282,34 @@ module deep16_board (
   );
 `endif
 
+  // ---- display status ---------------------------------------------------
+  // vblank and frame_tick come from the scan clock domain. A two-flop
+  // synchroniser makes the 16-bit status safe to read from the CPU domain;
+  // the frame bit is a toggle, so no multi-bit CDC is involved.
+`ifdef D16NANO
+  logic [15:0] tile_status;
+  logic [1:0]  btn_sync;
+  logic [15:0] rx_avail;
+  logic        uart_ready_q;
+  always_ff @(posedge clk_cpu) begin
+    btn_sync     <= {btn_sync[0], ~btn};
+    uart_ready_q <= (rx_avail != 16'd0);
+  end
+`ifdef DVI_TILE
+  logic [1:0] dvi_vblank_sync, dvi_frame_sync;
+  always_ff @(posedge clk_cpu) begin
+    dvi_vblank_sync <= {dvi_vblank_sync[0], dvi_vblank};
+    dvi_frame_sync  <= {dvi_frame_sync[0],  dvi_frame_tick};
+  end
+  // bit 3 is the UART RX-ready level, bit 2 the S2 button: both give the game
+  // an input path that does not depend on the UART data read.
+  assign tile_status = {12'b0, uart_ready_q, btn_sync[1],
+                        dvi_frame_sync[1], dvi_vblank_sync[1]};
+`else
+  assign tile_status = {12'b0, uart_ready_q, btn_sync[1], 2'b00};
+`endif
+`endif
+
   // ---- the machine -----------------------------------------------------
 `ifdef D16NANO
   logic        tile_we, tile_ctrl;
@@ -287,7 +319,7 @@ module deep16_board (
 `endif
   logic        o_done, o_result, o_busy;
   logic [31:0] cache_hits, cache_misses, cache_penalty;
-  logic [15:0] tx_data_out, tx_avail, rx_avail, dbg_rdata;
+  logic [15:0] tx_data_out, tx_avail, dbg_rdata;
 
   deep16_top u_top (
     .clk  (clk_cpu),
@@ -322,6 +354,7 @@ module deep16_board (
     , .tile_tgt         (tile_tgt)
     , .tile_addr        (tile_addr)
     , .tile_data        (tile_data)
+    , .tile_status      (tile_status)
 `endif
 
     // no debug bus, no cache management on the board

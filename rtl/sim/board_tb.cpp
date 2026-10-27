@@ -99,6 +99,7 @@ struct UartTx {
 int main(int argc, char** argv) {
   Verilated::commandArgs(argc, argv);
   auto* top = new Vdeep16_board;
+  top->btn = 1;                  // S2 released
 
   // Power-up: the button is held, the line is idle high.
   top->clk = 0; top->rst_n = 0; top->uart_rxd = 1;

@@ -16,5 +16,7 @@ set_option -verilog_std sysv2017
 set_option -include_path $root/artifacts/image
 set_option -output_base_name deep16_board_tile_flash
 run syn
+set_option -place_option 3
+set_option -route_option 1
 run pnr
 run close

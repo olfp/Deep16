@@ -19,6 +19,10 @@ IO_PORT "clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 IO_LOC "rst_n" 4;
 IO_PORT "rst_n" PULL_MODE=UP;
 
+// S2 button, active low, also bank 3.
+IO_LOC "btn" 3;
+IO_PORT "btn" PULL_MODE=UP;
+
 // USB-UART bridge (the debugger chip): FPGA TX -> bridge RX, bridge TX -> FPGA RX
 IO_LOC "uart_txd" 17;
 IO_PORT "uart_txd" IO_TYPE=LVCMOS33 DRIVE=8;

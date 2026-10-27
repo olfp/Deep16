@@ -232,14 +232,14 @@ int main(int argc, char** argv) {
   // ---- horizontal smooth scroll -----------------------------------------
   write_tile(1, 0x0420);                   // A in map column 1
   write_ctrl(4, 8);                        // scroll one tile to the left
-  check("scroll_x register takes 8", top->dbg_scroll_x, 8);
+  check("scroll_x next register takes 8", top->dbg_scroll_x_next, 8);
   bool cap_a_s = false, seen_a_s[15][8] = {};
   bool cap_a_px[15][8] = {};
   sample_cell(0, 0, cap_a_px, seen_a_s, &cap_a_s);
   check("column 1 tiles at x=0 after an 8-pixel scroll",
         compare_cell(tile, a_base, cap_a_px, seen_a_s, "Ascroll") ? 1 : 0, 1);
   write_ctrl(4, 0);
-  check("scroll_x register back to 0", top->dbg_scroll_x, 0);
+  check("scroll_x next register back to 0", top->dbg_scroll_x_next, 0);
 
   // ---- sprites: 16x16, transparency, behind, palette ---------------------
   // Palette 2 = green, 3 = blue. Sprite 0 (front) is an index-2 grid with
@@ -304,6 +304,43 @@ int main(int argc, char** argv) {
   sample_pixel(17, 100, &r, &g, &b, &seen);
   check("sprite 0 still beats sprite 7 (green)",
         r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
+
+  // ---- tilemap double buffer and scan status -----------------------------
+  // Put the H into bank 1 while bank 0 (the solid red tile) is displayed.
+  write_ctrl(8, 1);                       // write page 1, display page 0
+  write_tile(0, 0x0500);
+  check("map write page is 1", top->dbg_wpage, 1);
+  check("map display page still 0", top->dbg_dpage, 0);
+  bool cap_old[15][8] = {}, seen_old[15][8] = {};
+  bool white_old = false;
+  sample_cell(0, 0, cap_old, seen_old, &white_old);
+  bool old_solid = true;
+  for (int rr = 0; rr < 15; rr++)
+    for (int cc = 0; cc < 8; cc++)
+      if (!seen_old[rr][cc] || !cap_old[rr][cc]) old_solid = false;
+  check("back-buffer write leaves the visible map alone", old_solid ? 1 : 0, 1);
+
+  // Ask for bank 1, wait for the render frame boundary, then sample it.
+  write_ctrl(8, 2);                       // write page 0, display page 1
+  for (int i = 0; i < 1650 * 750 * 2; i++) tick();
+  check("map display page latches at the frame boundary", top->dbg_dpage, 1);
+  bool cap_new[15][8] = {}, seen_new[15][8] = {};
+  bool white_new = false;
+  sample_cell(0, 0, cap_new, seen_new, &white_new);
+  check("swapped-in tilemap renders the H",
+        compare_cell(tile, h_base, cap_new, seen_new, "newpage") ? 1 : 0, 1);
+
+  // Scan status: vblank must be visible and the frame toggle must move.
+  int ft_prev = top->frame_tick;
+  int ft_changes = 0;
+  bool vblank_seen = false;
+  for (int i = 0; i < 1650 * 750 * 2; i++) {
+    tick();
+    if (top->frame_tick != ft_prev) { ft_changes++; ft_prev = top->frame_tick; }
+    if (top->vblank) vblank_seen = true;
+  }
+  check("vblank level is observable", vblank_seen ? 1 : 0, 1);
+  check("frame toggle changes across frames", ft_changes >= 1 ? 1 : 0, 1);
 
   delete top;
   if (fails) { std::printf("%d failure(s)\n", fails); return 1; }

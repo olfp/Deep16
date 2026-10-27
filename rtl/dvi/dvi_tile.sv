@@ -43,7 +43,7 @@ module dvi_tile #(
   parameter int CELL_H     = 15,
   parameter int TILE_COLS  = 82,
   parameter int TILE_ROWS  = 26,
-  parameter int TILE_COUNT = 96,
+  parameter int TILE_COUNT = 128,
   parameter int TILE_AW    = 12
 ) (
   input  logic        clk_render, // 24.75 MHz fill/render clock
@@ -61,7 +61,12 @@ module dvi_tile #(
   output logic [7:0]  blue,
   output logic        hsync,
   output logic        vsync,
-  output logic        de
+  output logic        de,
+  // Read-side telemetry for the CPU: a vertical-blank level and a one-bit
+  // frame toggle. Both are generated in the scan clock domain and synchronised
+  // by the board into the CPU domain.
+  output logic        vblank,
+  output logic        frame_tick
 );
   localparam int O_H_TOTAL = O_H_ACTIVE + O_H_FRONT + O_H_SYNC + O_H_BACK; // 1650
   localparam int O_V_TOTAL = O_V_ACTIVE + O_V_FRONT + O_V_SYNC + O_V_BACK; // 750
@@ -167,7 +172,11 @@ module dvi_tile #(
   // ---- memories ----------------------------------------------------------
   // Every memory below has one write port (the CPU window, via the board
   // FIFO) and one read port (the fill/render path), so each stays one BSRAM.
-  logic [15:0] tilemap  [0:TM_WORDS-1];
+  //
+  // The tilemap has two banks. Bank 0 is the console's map; a game writes the
+  // next frame into the other bank and asks for a display swap at a frame
+  // boundary. That keeps a 2,132-word redraw off the visible map entirely.
+  logic [15:0] tilemap [0:2*TM_WORDS-1];
   logic [15:0] tilefont [0:TILE_WORDS-1];
   logic [15:0] sprite   [0:SPR_WORDS-1];
   // OAM and palette are plain registers, not memories: they are tiny and
@@ -179,6 +188,7 @@ module dvi_tile #(
   logic [7:0]  linebuf  [0:LB_DEPTH-1];
   initial begin
     $readmemh("tilefont.hex", tilefont);
+    $readmemh("birdsprite.hex", sprite);
     $readmemh("tilepal.hex", pal_init);
     for (int i = 0; i < 16; i++) pal_bits[i*8 +: 8] = pal_init[i][7:0];
   end
@@ -212,14 +222,19 @@ module dvi_tile #(
   //   3 OAM/pal   0xF5000..  (OAM 0x00..0x0F, palette 0x80..0x8F)
   logic [4:0] row_off;
   logic [3:0] scroll_x;   // 0..15: pixel offset into the 82-column map
+  logic [3:0] scroll_x_next; // latched with the map page at the frame boundary
   logic [4:0] scroll_y;   // 0..30: pixel offset into the 26-row map
+  logic       map_wpage;  // CPU writes target this bank
+  logic       map_dpage;  // fill/render reads this bank
+  logic       map_dpage_next;
 
   /* verilator lint_off MULTIDRIVEN */   // power-up palette + runtime CPU writes
   always_ff @(posedge clk_render) begin
     if (rst_render) oam_bits <= '0;
     else if (cpu_we && !cpu_ctrl) begin
       case (cpu_tgt)
-        2'd0: if (cpu_addr < 12'(TM_WORDS)) tilemap[cpu_addr] <= cpu_data;
+        2'd0: if (cpu_addr < 12'(TM_WORDS))
+                tilemap[(map_wpage ? 13'(TM_WORDS) : 13'd0) + 13'(cpu_addr)] <= cpu_data;
         2'd1: if (cpu_addr < 12'(TILE_WORDS)) tilefont[cpu_addr] <= cpu_data;
         2'd2: if (cpu_addr < 12'(SPR_WORDS)) sprite[cpu_addr[10:0]] <= cpu_data;
         2'd3: begin
@@ -231,7 +246,7 @@ module dvi_tile #(
         default: ;
       endcase
     end
-    tm_q <= tilemap[tm_raddr];
+    tm_q <= tilemap[(map_dpage ? 13'(TM_WORDS) : 13'd0) + 13'(tm_raddr)];
     spr_q <= sprite[spr_raddr];
   end
   /* verilator lint_on MULTIDRIVEN */
@@ -242,19 +257,43 @@ module dvi_tile #(
       cur_col   <= 7'd0;
       cursor_en <= 1'b1;
       row_off   <= 5'd0;
-      scroll_x  <= 4'd0;
+      scroll_x_next <= 4'd0;
       scroll_y  <= 5'd0;
+      map_wpage <= 1'b0;
+      map_dpage_next <= 1'b0;
     end else if (cpu_we && cpu_ctrl) begin
-      case (cpu_addr[2:1])
-        2'd0: begin
+      // 0x00 cursor, 0x02 row offset, 0x04 scroll_x, 0x06 scroll_y,
+      // 0x08 {display page, write page}. The display page and scroll_x are
+      // latched together at the render frame boundary below; the console sees
+      // one frame of latency there, and a game can swap a freshly drawn map
+      // and its matching pixel offset atomically.
+      case (cpu_addr[3:0])
+        4'h0: begin
           cur_row   <= cpu_data[12:8];
           cur_col   <= cpu_data[7:1];
           cursor_en <= cpu_data[0];
         end
-        2'd1: row_off  <= cpu_data[4:0];
-        2'd2: scroll_x <= cpu_data[3:0];
-        2'd3: scroll_y <= cpu_data[4:0];
+        4'h2: row_off  <= cpu_data[4:0];
+        4'h4: scroll_x_next <= cpu_data[3:0];
+        4'h6: scroll_y <= cpu_data[4:0];
+        4'h8: begin
+          map_wpage      <= cpu_data[0];
+          map_dpage_next <= cpu_data[1];
+        end
+        default: ;
       endcase
+    end
+  end
+
+  // The console starts on bank 0. A swap request takes effect only at the
+  // render frame boundary, so no line is ever composed from two maps.
+  always_ff @(posedge clk_render) begin
+    if (rst_render) begin
+      map_dpage <= 1'b0;
+      scroll_x  <= 4'd0;
+    end else if (render_line_end && !render_stall && (ry == 10'(R_V_TOTAL - 1))) begin
+      map_dpage <= map_dpage_next;
+      scroll_x  <= scroll_x_next;
     end
   end
 
@@ -789,6 +828,24 @@ module dvi_tile #(
                    sx < 12'(O_H_ACTIVE + O_H_FRONT + O_H_SYNC));
   assign vsync = ~(sy >= 10'(O_V_ACTIVE + O_V_FRONT) &&
                    sy <  10'(O_V_ACTIVE + O_V_FRONT + O_V_SYNC));
+
+  // CPU-visible timing. vblank is a level (30 output lines); frame_tick is a
+  // one-bit toggle at the end of every output frame. Both are registered in
+  // the scan domain and crossed to the CPU by the board's 2FF synchronisers.
+  logic vblank_r;
+  logic frame_tick_r;
+  always_ff @(posedge clk_pixel) begin
+    if (rst_pixel) begin
+      vblank_r <= 1'b0;
+      frame_tick_r <= 1'b0;
+    end else begin
+      vblank_r <= started && (sy >= 10'(O_V_ACTIVE));
+      if (scan_line_end && (sy == 10'(O_V_TOTAL - 1)))
+        frame_tick_r <= ~frame_tick_r;
+    end
+  end
+  assign vblank     = vblank_r;
+  assign frame_tick = frame_tick_r;
 
   wire [7:0] pix = line_valid ? pix_hold : 8'h00;
   assign red   = {pix[7:5], pix[7:5], pix[6:5]};

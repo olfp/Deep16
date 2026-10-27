@@ -244,13 +244,17 @@ path. `0xF0064` is ordinary RAM in the 1 MiB screen build but **not backed** on
 the 24K UART boards: reads return `0xFFFF`, writes are dropped. The D16nano
 kernel keeps its console/quiet state in kernel cells (`boot_quiet`, `line_out`).
 
-### 7.3 D16nano cycle counter
+### 7.3 D16nano cycle counter and display status
 
 | Address | Meaning |
 |---|---|
+| `0xF0066` | read-only display status: b0 `vblank`, b1 frame toggle |
 | `0xF0068` | low 16 bits of the 32-bit CPU cycle counter (read-only) |
 | `0xF006A` | high 16 bits (read-only) |
 | `0xF006C`–`0xF006F` | reserved |
+
+`vblank` is the 30-line vertical blank level; the frame bit toggles once per
+output frame. Both are synchronised from the pixel domain into the CPU domain.
 
 This is the benchmark time base; it is not a writable register.
 
@@ -261,11 +265,12 @@ tile engine and the PSRAM/Forth mirror at the same address.
 
 | Address | Window | Contents |
 |---|---|---|
-| `0xF1000`–`0xF1853` | tilemap | 82×26 16-bit tile addresses; visible 80×24 plus one-tile margin |
+| `0xF1000`–`0xF1853` | tilemap | 82×26 16-bit tile addresses; visible 80×24 plus one-tile margin; two banks |
 | `0xF2000` | control 0 | `{row[4:0], col[6:0], enable}` cursor |
 | `0xF2002` | control 1 | circular row offset (0..25) |
-| `0xF2004` | control 2 | smooth `scroll_x` (0..15) |
+| `0xF2004` | control 2 | smooth `scroll_x` (0..15), latched with control 4 at the frame boundary |
 | `0xF2006` | control 3 | smooth `scroll_y` (0..30) |
+| `0xF2008` | control 4 | b0 write bank, b1 display bank (display bank and `scroll_x` swap at the render frame boundary) |
 | `0xF3000`–`0xF3BFF` | tile bank | 96 tiles × 32 words; 30 words of 8×15 4bpp, word 30 palette pointer, word 31 flags |
 | `0xF4000`–`0xF47FF` | sprite bank | 128 8×8 4bpp patterns × 16 words |
 | `0xF5000`–`0xF500F` | OAM | 8 sprites × 2 words: `w0={behind,vflip,hflip,group[2:0],x[9:0]}`, `w1={enable,y[9:0]}` |
