@@ -14223,10 +14223,10 @@ uart_getstr_done:
 
 .ifdef D16D
 ; ---- 6: gfx ---------------------------------------------------------
-; Run the D16D demo at PSRAM 0x6000 (CS=0x0600), then put the tile console
-; back: clear the 82x26 tilemap, home the scroll/cursor, disable all sprites,
-; reset the kernel's cursor cells, restore DS and the Forth's R5/R6, RETI.
-; The demo returns by JML to gfx_back with R12 = its offset.
+; Run the D16D showcase menu at 0x4D30 (offset 0x330), then put the tile
+; console back: clear the 82x26 tilemap, home the scroll/cursor, disable all
+; sprites, reset the kernel's cursor cells, restore DS and the Forth's R5/R6,
+; RETI. The menu enters the Flappy game or the colour demo and returns here.
 bios_f6:
     ; park the two shared registers the Forth owns across every BIOS call
     LDI gfx_r5
@@ -14235,10 +14235,10 @@ bios_f6:
     LDI gfx_r6
     MOV R2, R0
     ST R6, R2, 0
-    ; header: magic at 0x4E00, entry at 0x4E02 (segment 0x04A0, offset 0x400)
+    ; header: magic at 0x4D30, entry at 0x4D32 (segment 0x04A0, offset 0x330)
     LDI 0x04A0
     MVS DS, R0
-    LDI 0x0400
+    LDI 0x0330
     MOV R2, R0
     LD R1, R2, 0
     LDI 0x0D16

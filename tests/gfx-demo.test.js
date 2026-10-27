@@ -53,11 +53,12 @@ test('D16D demo fills the sprite bank, OAM and tilemap, then far-returns', () =>
 
   // Pattern bank: group 0 tile 0 word 0 uses colour 1 (0x1111).
   assert.equal(sim.memory[0xF4000], 0x1111, 'first pattern word');
-  assert.ok(sim.memory[0xF4000 + 2047] !== 0xFFFF, 'last bank word written');
+  assert.ok(sim.memory[0xF4000 + 48 * 16 - 1] !== 0xFFFF,
+            'last colour-demo pattern word written (groups 3..7 hold the bird)');
 
-  // Eight OAM slots, all enabled (bit 10 of w1) and in group 0..7.
-  for (let i = 0; i < 8; i++) {
-    assert.equal(sim.memory[0xF5000 + i * 2] & 0x3FF, [40, 112, 184, 256, 328, 400, 472, 544][i],
+  // Three OAM slots, all enabled (bit 10 of w1) and in group 0..2.
+  for (let i = 0; i < 3; i++) {
+    assert.equal(sim.memory[0xF5000 + i * 2] & 0x3FF, [40, 112, 184][i],
                  `sprite ${i} x`);
     assert.equal((sim.memory[0xF5000 + i * 2] >> 10) & 7, i, `sprite ${i} group`);
     assert.equal(sim.memory[0xF5001 + i * 2] & 0x0400, 0x0400, `sprite ${i} enabled`);

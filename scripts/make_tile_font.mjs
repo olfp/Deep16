@@ -21,11 +21,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { artTiles } from './make_art.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const TILE_WORDS = 32;
-export const TILE_COUNT = 96;       // printable ASCII 0x20..0x7F
+export const FONT_TILES = 96;       // printable ASCII 0x20..0x7F
+export const TILE_COUNT = 128;      // 96 font glyphs + 32 game-art tiles
 export const TILE_BANK_WORDS = TILE_WORDS * TILE_COUNT;
 
 // One 8x15 glyph, two rows per 16-bit word, low byte even row, MSB leftmost.
@@ -36,27 +38,41 @@ export function readFontWords(file = path.join(ROOT, 'rtl', 'dvi', 'font8x15.hex
     if (!line || line.startsWith('/') || line.startsWith('#')) continue;
     words.push(parseInt(line, 16) & 0xFFFF);
   }
-  if (words.length !== TILE_COUNT * 8) {
-    throw new Error(`${file}: expected ${TILE_COUNT * 8} font words, got ${words.length}`);
+  if (words.length !== FONT_TILES * 8) {
+    throw new Error(`${file}: expected ${FONT_TILES * 8} font words, got ${words.length}`);
   }
   return words;
 }
 
-// 96 tiles x 32 words. Glyph pixels become palette index 1, background 0.
+// One indexed 8x15 art tile at tileIndex.
+function writeIndexedTile(out, tileIndex, grid) {
+  const base = tileIndex * TILE_WORDS;
+  for (let r = 0; r < 15; r++) {
+    const p = grid[r];
+    out[base + 2*r]     = (p[0] | (p[1] << 4) | (p[2] << 8) | (p[3] << 12)) & 0xFFFF;
+    out[base + 2*r + 1] = (p[4] | (p[5] << 4) | (p[6] << 8) | (p[7] << 12)) & 0xFFFF;
+  }
+  out[base + 30] = 0;   // palette pointer (the shared palette)
+  out[base + 31] = 0;   // flags
+}
+
+// TILE_COUNT x 32 words. Glyph pixels become palette index 1, background 0.
+// Tiles 96..109 carry the converted free-art pack; the rest stay blank.
 export function tileFontWords(fontWords, palette = 0) {
-  const out = [];
-  for (let tile = 0; tile < TILE_COUNT; tile++) {
+  const out = new Array(TILE_WORDS * TILE_COUNT).fill(0);
+  for (let tile = 0; tile < FONT_TILES; tile++) {
     for (let r = 0; r < 15; r++) {
       const w = fontWords[tile * 8 + (r >> 1)];
       const row = (r & 1) ? (w >> 8) & 0xFF : w & 0xFF;
       const p = [];
       for (let c = 0; c < 8; c++) p.push(((row >> (7 - c)) & 1) ? 1 : 0);
-      out.push((p[0] | (p[1] << 4) | (p[2] << 8) | (p[3] << 12)) & 0xFFFF);
-      out.push((p[4] | (p[5] << 4) | (p[6] << 8) | (p[7] << 12)) & 0xFFFF);
+      out[tile * TILE_WORDS + 2*r]     = (p[0] | (p[1] << 4) | (p[2] << 8) | (p[3] << 12)) & 0xFFFF;
+      out[tile * TILE_WORDS + 2*r + 1] = (p[4] | (p[5] << 4) | (p[6] << 8) | (p[7] << 12)) & 0xFFFF;
     }
-    out.push(palette & 0xF);   // word 30: palette pointer
-    out.push(0x0000);          // word 31: flags
+    out[tile * TILE_WORDS + 30] = palette & 0xF;
+    out[tile * TILE_WORDS + 31] = 0x0000;
   }
+  artTiles().forEach((grid, i) => writeIndexedTile(out, 96 + i, grid));
   return out;
 }
 

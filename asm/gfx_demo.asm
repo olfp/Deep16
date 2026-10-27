@@ -9,10 +9,10 @@
 ; clears the tilemap/scroll/OAM and returns to Forth.
 ;
 ; What it draws:
-;   * 128 8x8 4bpp pattern tiles (eight 32x32 sprites) generated as colour
-;     bands, one colour phase per sprite group;
+;   * 48 8x8 4bpp pattern tiles (three 32x32 sprites) generated as colour
+;     bands; groups 3..5 are the dizzy poses and 6..7 the game bird frames;
 ;   * a scrolling '#' field in the 82x26 tilemap;
-;   * eight sprites bobbing in a wave, updated every frame.
+;   * three sprites bobbing in a wave, updated every frame.
 ; Any UART key returns to the console.
 ;
 ; Registers: R5 (>IN) and R6 (TIB) are the Forth's; the BIOS saves/restores
@@ -66,7 +66,7 @@ pat_word:
     JNZ pat_word
     NOP
     ADD R3, 1
-    LDI 128
+    LDI 48
     CMP R3, R0
     JNZ pat_tile
     NOP
@@ -108,7 +108,7 @@ tm_blank:
     JNZ tm_row
     NOP
 
-    ; ---- OAM: eight 32x32 sprites ------------------------------------
+    ; ---- OAM: three 32x32 sprites ------------------------------------
     LDI SEG_OAM
     MVS ES, R0
     LDI 0
@@ -134,7 +134,7 @@ oam_loop:
     ADD R7, 1
     STS R6, ES, R7
     ADD R3, 1
-    LDI 8
+    LDI 3
     CMP R3, R0
     JNZ oam_loop
     NOP
@@ -188,7 +188,7 @@ spr_anim:
     ADD R5, 1                  ; w1 address
     STS R7, ES, R5
     ADD R3, 1
-    LDI 8
+    LDI 3
     CMP R3, R0
     JNZ spr_anim
     NOP

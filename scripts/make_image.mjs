@@ -24,7 +24,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { writeTileFont } from './make_tile_font.mjs';
+import { writeBirdSprite } from './make_bird_sprite.mjs';
 import { buildDemo, checkDemo, writeDemo, DEMO_BASE } from './make_demo.mjs';
+import { buildShowcase, checkShowcase, SHOWCASE_SEG_BASE } from './make_showcase.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -92,17 +94,29 @@ export function buildImage() {
   // free gap above the BIOS and below the stacks. It rides in the same 24K
   // flat image, so the standard flash loader/installer copy and verify it.
   let demo = null;
+  let showcase = null;
   if (D16D) {
+    showcase = buildShowcase();
+    checkShowcase(showcase);
+    for (const [addr, value] of showcase.words) {
+      const pa = SHOWCASE_SEG_BASE + addr;
+      if (pa < WINDOW) words[pa] = value;
+      else outOfWindow.add(pa);
+    }
     demo = buildDemo();
     checkDemo(demo);
     for (let i = 0; i < demo.size; i++) words[DEMO_BASE + i] = demo.words[i];
   }
 
-  const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
+  const build = crypto.createHash('sha256')
+    .update(source)
+    .update(showcase?.build ?? '')
+    .update(demo?.build ?? '')
+    .digest('hex').slice(0, 16);
 
   return {
     words, outOfWindow: [...outOfWindow].sort((a, b) => a - b),
-    dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build, demo,
+    dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build, demo, showcase,
   };
 }
 
@@ -118,8 +132,10 @@ export function checkImage(img) {
   // high address the board cannot back.
   const unexpected = img.outOfWindow.filter((a) => a !== ECHO_FLAG);
   if (unexpected.length) fail.push(`words outside the window: ${unexpected.map((a) => '0x' + a.toString(16)).join(', ')}`);
-  if (D16D && !img.demo) fail.push('D16D image has no demo block');
+  if (D16D && !img.demo) fail.push('D16D image has no colour demo block');
   if (D16D && img.demo) checkDemo(img.demo);
+  if (D16D && !img.showcase) fail.push('D16D image has no showcase block');
+  if (D16D && img.showcase) checkShowcase(img.showcase);
   if (fail.length) throw new Error('boot image is not valid:\n  - ' + fail.join('\n  - '));
   return true;
 }
@@ -286,6 +302,13 @@ export function manifest(img) {
       source: 'asm/gfx_demo.asm', base: `0x${DEMO_BASE.toString(16)}`, size: img.demo.size,
       entry: img.demo.entry, build: img.demo.build,
     } : null,
+    showcase: img.showcase ? {
+      source: 'asm/showcase/showcase.asm + asm/showcase/flappy_game.asm',
+      base: `0x${SHOWCASE_SEG_BASE.toString(16)}`,
+      min: `0x${img.showcase.min.toString(16)}`,
+      max: `0x${img.showcase.max.toString(16)}`,
+      build: img.showcase.build,
+    } : null,
   }, null, 2) + '\n';
 }
 
@@ -330,6 +353,7 @@ if (isMain) {
     // The tile engine's 32-word 4bpp bank and its palette, generated from the
     // same 8x15 font so the text console and the tile console cannot drift.
     writeTileFont(outDir, path.join(ROOT, 'rtl', 'dvi', 'font8x15.hex'));
+    writeBirdSprite(outDir);
     // User-flash image for the installer / preloaded flash model.
     const installerWords = installerFlash(img);
     fs.writeFileSync(path.join(outDir, 'image.flash.hex'), flashHex(installerWords));
