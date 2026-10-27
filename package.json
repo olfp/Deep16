@@ -11,7 +11,7 @@
     "build:rtl:wasm": "bash scripts/build_rtl_wasm.sh",
     "lint:rtl": "verilator --lint-only -Wall --top-module deep16_top rtl/deep16_pkg.sv rtl/deep16_alu.sv rtl/deep16_regfile.sv rtl/deep16_cache.sv rtl/deep16_divider.sv rtl/deep16_uart.sv rtl/deep16_core.sv rtl/deep16_top.sv",
     "lint:mini": "verilator --lint-only -Wall -DD16MINI --top-module deep16_top rtl/deep16_pkg.sv rtl/deep16_alu.sv rtl/deep16_regfile.sv rtl/deep16_cache.sv rtl/deep16_divider.sv rtl/deep16_uart.sv rtl/deep16_core.sv rtl/deep16_top.sv",
-    "lint:board": "verilator --lint-only -Wall -DD16MINI --top-module deep16_board rtl/deep16_pkg.sv rtl/deep16_alu.sv rtl/deep16_regfile.sv rtl/deep16_cache.sv rtl/deep16_divider.sv rtl/deep16_uart.sv rtl/deep16_core.sv rtl/deep16_top.sv rtl/deep16_board.sv",
+    "lint:board": "verilator --lint-only -Wall -DD16MINI --top-module deep16_board rtl/deep16_pkg.sv rtl/deep16_alu.sv rtl/deep16_regfile.sv rtl/deep16_cache.sv rtl/deep16_divider.sv rtl/deep16_uart.sv rtl/ps2_rx.sv rtl/deep16_timer.sv rtl/deep16_spi.sv rtl/deep16_core.sv rtl/deep16_top.sv rtl/deep16_board.sv",
     "trace:rtl": "node scripts/rtl_trace.mjs",
     "sweep:rtl": "node scripts/rtl_sweep.mjs",
     "serve": "node scripts/serve.mjs",
@@ -32,7 +32,11 @@
     "sim:flash": "bash scripts/build_flash_sim.sh",
     "sim:installer": "bash scripts/build_installer_sim.sh",
     "flash:flash": "bash scripts/flash_gowin_flash.sh",
-    "flash:tile": "bash scripts/flash_gowin_tile_flash.sh"
+    "flash:tile": "bash scripts/flash_gowin_tile_flash.sh",
+    "sim:ps2": "bash scripts/build_ps2_sim.sh",
+    "sim:timer": "bash scripts/build_timer_sim.sh",
+    "sim:spi": "bash scripts/build_spi_sim.sh",
+    "sim:uarttx": "bash scripts/build_uart_tx_sim.sh"
   },
   "devDependencies": {
     "puppeteer-core": "^25.14.0"

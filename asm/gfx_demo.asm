@@ -9,10 +9,11 @@
 ; clears the tilemap/scroll/OAM and returns to Forth.
 ;
 ; What it draws:
-;   * 48 8x8 4bpp pattern tiles (three 32x32 sprites) generated as colour
-;     bands; groups 3..5 are the dizzy poses and 6..7 the game bird frames;
+;   * 32 8x8 4bpp pattern tiles (two 32x32 sprites) generated as colour
+;     bands, in groups 0..1; group 2 holds the game's cloud and groups
+;     3..7 the game bird, so the demo must not write past group 1;
 ;   * a scrolling '#' field in the 82x26 tilemap;
-;   * three sprites bobbing in a wave, updated every frame.
+;   * two sprites bobbing in a wave, updated every frame.
 ; Any UART key returns to the console.
 ;
 ; Registers: R5 (>IN) and R6 (TIB) are the Forth's; the BIOS saves/restores
@@ -30,6 +31,14 @@
 entry:
     LDI SEG_DEMO
     MVS DS, R0
+
+    ; The game leaves the sprite page on the bird it last picked; this demo
+    ; only uses groups 0..1, so select page 0 first.
+    LDI SEG_CTRL
+    MVS ES, R0
+    LSI R2, 0x0A
+    LSI R3, 0
+    STS R3, ES, R2
 
     ; ---- pattern bank: 128 tiles x 16 words ---------------------------
     LDI SEG_SPR
@@ -66,7 +75,7 @@ pat_word:
     JNZ pat_word
     NOP
     ADD R3, 1
-    LDI 48
+    LDI 32
     CMP R3, R0
     JNZ pat_tile
     NOP
@@ -108,7 +117,7 @@ tm_blank:
     JNZ tm_row
     NOP
 
-    ; ---- OAM: three 32x32 sprites ------------------------------------
+    ; ---- OAM: two 32x32 sprites --------------------------------------
     LDI SEG_OAM
     MVS ES, R0
     LDI 0
@@ -134,7 +143,7 @@ oam_loop:
     ADD R7, 1
     STS R6, ES, R7
     ADD R3, 1
-    LDI 3
+    LDI 2
     CMP R3, R0
     JNZ oam_loop
     NOP
@@ -188,7 +197,7 @@ spr_anim:
     ADD R5, 1                  ; w1 address
     STS R7, ES, R5
     ADD R3, 1
-    LDI 3
+    LDI 2
     CMP R3, R0
     JNZ spr_anim
     NOP
@@ -229,6 +238,6 @@ pat_tab:
     .word 0x0000, 0x1111, 0x2222, 0x3333, 0x4444, 0x5555, 0x6666, 0x7777
     .word 0x8888, 0x9999, 0xAAAA, 0xBBBB, 0xCCCC, 0xDDDD, 0xEEEE, 0xFFFF
 spr_x:
-    .word 40, 112, 184, 256, 328, 400, 472, 544
+    .word 40, 184, 112, 256, 328, 400, 472, 544
 wave:
     .word 0, 4, 8, 12, 16, 20, 24, 28, 31, 28, 24, 20, 16, 12, 8, 4

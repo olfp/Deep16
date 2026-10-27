@@ -49,6 +49,14 @@ module deep16_top
   // domain by the board. bit 0 = vblank level, bit 1 = frame toggle.
   input  logic [15:0] tile_status,
 `endif
+`ifdef D16_PERIPH
+  // SPI master (SD card / external flash). The board maps these to the SD
+  // socket and one free header pin; the protocol runs in software.
+  output logic        spi_sck,
+  output logic        spi_mosi,
+  input  logic        spi_miso,
+  output logic [1:0]  spi_cs_n,
+`endif
 
   // harness debug bus
   input  logic        dbg_en,
@@ -130,10 +138,14 @@ module deep16_top
 `endif
 
   // ---- keyboard FIFO (polled: KBD_STATUS 0xF0060, KBD_DATA 0xF0062) ----
-  localparam int KBD_FIFO_DEPTH = 128;   // a power of two, so the full check fits in 8 bits
+  // 16 entries is plenty for human typing and keeps the FIFO out of the area
+  // budget: at 128 entries it was the largest SSRAM consumer in the build,
+  // even though the board tied kbd_push to 0. The count stays 8-bit because
+  // the debug bus and the core's status port read it as a word.
+  localparam int KBD_FIFO_DEPTH = 16;
   logic [15:0] kbd_fifo [0:KBD_FIFO_DEPTH-1];
-  logic [7:0]  kbd_head, kbd_tail, kbd_count;
-  logic [6:0]  kbd_head_i, kbd_tail_i;
+  logic [3:0]  kbd_head, kbd_tail;
+  logic [7:0]  kbd_count;
   logic        kbd_ready, kbd_full, kbd_pop;
   logic [15:0] kbd_head_data;
 
@@ -144,6 +156,75 @@ module deep16_top
   logic        mem_valid, mem_store_ack;
   logic [20:0] mem_waddr;
   logic [15:0] mem_wdata;
+`ifdef PSRAM
+  logic        mem_store_ack_raw;   // PSRAM bridge ack before peripheral bypass
+`endif
+`ifdef D16_PERIPH
+  // Timer/SPI stores are claimed by the top-level devices: they must not reach
+  // the PSRAM dictionary (0xF0020/0xF0080 are inside the Forth ceiling) and
+  // they acknowledge the core immediately. periph_we_q makes the device write
+  // a single-cycle strobe even if the core holds mem_we for another cycle.
+  wire timer_hit = (mem_waddr >= 21'h0F0020) && (mem_waddr <= 21'h0F002F);
+  wire spi_hit   = (mem_waddr >= 21'h0F0080) && (mem_waddr <= 21'h0F008F);
+  wire periph_we = mem_we && (timer_hit || spi_hit);
+  wire mem_we_mem = mem_we && !periph_we;
+  logic periph_we_q;
+`else
+  wire  mem_we_mem = mem_we;
+`endif
+
+`ifdef D16_PERIPH
+  // ---- timer and SPI MMIO ----------------------------------------------
+  // Both are top-level devices: a store is decoded here and a load is muxed
+  // into mem_rdata, so the CPU core needs no new I/O instruction. The timer
+  // is the 0xF0020 block; SPI is the 0xF0080 block.
+  logic        timer_we, spi_we;
+  logic [3:0]  timer_addr, spi_addr;
+  logic [15:0] timer_rdata, spi_rdata;
+  logic [20:0] io_raddr_q;   // address whose data-port word is now valid
+
+  always_ff @(posedge clk) begin
+    if (rst) io_raddr_q <= 21'd0;
+    else if (mem_rd) io_raddr_q <= mem_addr;
+  end
+
+  wire timer_sel = (io_raddr_q >= 21'h0F0020) && (io_raddr_q <= 21'h0F002F);
+  wire spi_sel   = (io_raddr_q >= 21'h0F0080) && (io_raddr_q <= 21'h0F008F);
+
+  always_ff @(posedge clk) begin
+    if (rst) periph_we_q <= 1'b0;
+    else     periph_we_q <= periph_we;
+  end
+
+  assign timer_we   = periph_we && !periph_we_q && timer_hit;
+  assign spi_we     = periph_we && !periph_we_q && spi_hit;
+  // A load uses the registered read address, a store mem_waddr; the two never
+  // coincide, and the registered address is the one the data port is returning.
+  assign timer_addr = mem_we ? mem_waddr[3:0] : io_raddr_q[3:0];
+  assign spi_addr   = mem_we ? mem_waddr[3:0] : io_raddr_q[3:0];
+
+  deep16_timer #(.CLK_HZ(6_750_000)) u_timer (
+    .clk   (clk),
+    .rst   (rst),
+    .we    (timer_we),
+    .addr  (timer_addr),
+    .wdata (mem_wdata),
+    .rdata (timer_rdata)
+  );
+
+  deep16_spi u_spi (
+    .clk   (clk),
+    .rst   (rst),
+    .we    (spi_we),
+    .addr  (spi_addr),
+    .wdata (mem_wdata),
+    .rdata (spi_rdata),
+    .sck   (spi_sck),
+    .mosi  (spi_mosi),
+    .cs_n  (spi_cs_n),
+    .miso  (spi_miso)
+  );
+`endif
   logic [15:0] if_rdata;
   logic [20:0] if_addr;
   logic        if_preempted;
@@ -345,14 +426,15 @@ module deep16_top
     // port and stays BSRAM; removing the port made the flow give up and build
     // the whole image out of LUTs. The core is held in reset until boot_done,
     // so this store path is dead exactly when the kernel runs.
-    if (mem_we && !boot_done && mem_waddr < 21'(RAM_WORDS))
+    if (mem_we_mem && !boot_done && mem_waddr < 21'(RAM_WORDS))
       mem[mem_waddr[ADDR_BITS-1:0]] <= mem_wdata;
 `else
-    if (mem_we && mem_waddr < 21'(RAM_WORDS))
+    if (mem_we_mem && mem_waddr < 21'(RAM_WORDS))
       mem[mem_waddr[ADDR_BITS-1:0]] <= mem_wdata;
 `endif
   end
 `endif
+
 
 `ifdef PSRAM
   // ---- PSRAM backing store (board build) --------------------------------
@@ -374,19 +456,27 @@ module deep16_top
     .if_addr(if_addr), .if_rdata(if_rdata), .if_preempted(if_preempted),
     .mem_addr(mem_addr), .mem_rd(mem_rd), .mem_rdata(psram_mem_rdata),
     .mem_valid(mem_valid),
-    .mem_store_ack(mem_store_ack),
-    .mem_we(mem_we), .mem_waddr(mem_waddr), .mem_wdata(mem_wdata),
+    .mem_store_ack(mem_store_ack_raw),
+    .mem_we(mem_we_mem), .mem_waddr(mem_waddr), .mem_wdata(mem_wdata),
     .mem_stall(mem_stall), .boot_done(boot_done), .boot_err(boot_err),
     .cache_flush(core_cache_flush),
     .ctl_read(psram_read), .ctl_write(psram_write), .ctl_burst(psram_burst),
     .ctl_addr(psram_addr), .ctl_din(psram_din),
     .ctl_dout(psram_dout), .ctl_dout2(psram_dout2), .ctl_busy(psram_busy)
   );
+`ifdef D16_PERIPH
+  // A timer/SPI store is acknowledged by the top-level device, not by PSRAM.
+  assign mem_store_ack = mem_store_ack_raw || periph_we;
+`else
+  assign mem_store_ack = mem_store_ack_raw;
+`endif
   // D16nano benchmark time base: the core's 32-bit CPU cycle counter at the
   // unused I/O cells 0xF0068/0xF006A (the keyboard block uses 0x60..0x64).
 `ifdef D16NANO
   logic [15:0] psram_mem_rdata;
-  assign mem_rdata = (mem_addr == 21'h0F0066) ? tile_status :
+  assign mem_rdata = timer_sel ? timer_rdata :
+                     spi_sel ? spi_rdata :
+                     (mem_addr == 21'h0F0066) ? tile_status :
                      (mem_addr == 21'h0F0068) ? core_cycles[15:0] :
                      (mem_addr == 21'h0F006A) ? core_cycles[31:16] :
                      psram_mem_rdata;
@@ -412,7 +502,13 @@ module deep16_top
   assign mem_stall = 1'b0;
 `endif
   assign if_rdata     = ram_was_data_q ? 16'hFFFF : ram_data;
+`ifdef D16_PERIPH
+  assign mem_rdata    = timer_sel ? timer_rdata :
+                        spi_sel ? spi_rdata :
+                        (ram_was_data_q ? ram_data : 16'hFFFF);
+`else
   assign mem_rdata    = ram_was_data_q ? ram_data : 16'hFFFF;
+`endif
   logic mem_rd_d, mem_we_d;
   always_ff @(posedge clk) mem_rd_d <= mem_rd;
   always_ff @(posedge clk) mem_we_d <= mem_we;
@@ -438,13 +534,14 @@ module deep16_top
   //   0xF4000  sprite bank        0xF5000  OAM (0x00..0x1F), palette (0x80..0x8F)
   //   0xF2000/2/4/6  cursor, row offset, scroll_x, scroll_y
   //   0xF2008        tilemap page select (bit 0 write, bit 1 display)
+  //   0xF200A        sprite group page (0 Red/demo, 1 Purple, 2 Yellow)
   wire tile_hit = mem_we && (mem_waddr >= 21'h0F1000) && (mem_waddr <= 21'h0F1853);
   wire bank_hit = mem_we && (mem_waddr >= 21'h0F3000) && (mem_waddr <= 21'h0F3BFF);
   wire spr_hit  = mem_we && (mem_waddr >= 21'h0F4000) && (mem_waddr <= 21'h0F47FF);
   wire attr_hit = mem_we && (mem_waddr >= 21'h0F5000) && (mem_waddr <= 21'h0F50FF);
   wire ctrl_hit = mem_we && ((mem_waddr == 21'h0F2000) || (mem_waddr == 21'h0F2002) ||
                              (mem_waddr == 21'h0F2004) || (mem_waddr == 21'h0F2006) ||
-                             (mem_waddr == 21'h0F2008));
+                             (mem_waddr == 21'h0F2008) || (mem_waddr == 21'h0F200A));
   assign tile_we   = tile_hit || bank_hit || spr_hit || attr_hit || ctrl_hit;
   assign tile_ctrl = ctrl_hit;
   assign tile_tgt  = tile_hit ? 2'd0 : bank_hit ? 2'd1 : spr_hit ? 2'd2 : 2'd3;
@@ -466,12 +563,22 @@ module deep16_top
 `else
   localparam int UART_CLK_HZ = 27_000_000;
 `endif
-`ifdef D16NANO
-  localparam bit UART_RX_ONLY = 1'b1;
+`ifdef D16_PERIPH
+  // D16nano tile/user-flash: one-byte TX holding register, enough for a
+  // polled byte and for X/YMODEM later. The RX FIFO stays 64 bytes.
+  localparam bit UART_RX_ONLY  = 1'b0;
+  localparam int UART_TX_DEPTH = 1;
+`elsif D16NANO
+  // The older packed-image tile build keeps its RX-only console: it has no
+  // room for the transmitter and does not need it.
+  localparam bit UART_RX_ONLY  = 1'b1;
+  localparam int UART_TX_DEPTH = 1;
 `else
-  localparam bit UART_RX_ONLY = 1'b0;
+  localparam bit UART_RX_ONLY  = 1'b0;
+  localparam int UART_TX_DEPTH = 64;
 `endif
-  deep16_uart #(.CLK_HZ(UART_CLK_HZ), .RX_ONLY(UART_RX_ONLY)) u_uart (
+  deep16_uart #(.CLK_HZ(UART_CLK_HZ), .TX_DEPTH(UART_TX_DEPTH),
+                .RX_ONLY(UART_RX_ONLY)) u_uart (
     .clk          (clk),
     .rst          (rst),
     .tx_we        (uart_tx_we),
@@ -519,23 +626,21 @@ module deep16_top
   // ---- keyboard FIFO ---------------------------------------------------
   always_ff @(posedge clk) begin
     if (kbd_clear) begin
-      kbd_head  <= 8'd0;
-      kbd_tail  <= 8'd0;
+      kbd_head  <= 4'd0;
+      kbd_tail  <= 4'd0;
       kbd_count <= 8'd0;
     end else if (kbd_push && !kbd_full) begin
-      kbd_fifo[kbd_tail_i] <= kbd_push_data;
-      kbd_tail  <= kbd_tail + 8'd1;
+      kbd_fifo[kbd_tail] <= kbd_push_data;
+      kbd_tail  <= kbd_tail + 4'd1;
       kbd_count <= kbd_count + 8'd1;
     end else if (kbd_pop && kbd_ready) begin
-      kbd_head  <= kbd_head + 8'd1;
+      kbd_head  <= kbd_head + 4'd1;
       kbd_count <= kbd_count - 8'd1;
     end
   end
 
   assign kbd_ready     = (kbd_count != 8'd0);
-  assign kbd_full      = (kbd_count == 8'd128);
-  assign kbd_head_i     = kbd_head[6:0];
-  assign kbd_tail_i     = kbd_tail[6:0];
-  assign kbd_head_data = kbd_fifo[kbd_head_i];
+  assign kbd_full      = (kbd_count == 8'd16);
+  assign kbd_head_data = kbd_fifo[kbd_head];
 
 endmodule

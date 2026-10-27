@@ -7,7 +7,10 @@
 ;
 ; The menu is the title screen. F starts play; the menu's idle timer starts the
 ; same game in attract mode. There is no text overlay during play: the double-
-; buffered map and the bird sprite are the whole scene.
+; buffered map holds the pipes and ground, the bird and the four cloud sprites
+; are OAM, so the clouds can drift at their own speed (parallax).  Every reset
+; picks Red, Purple or Yellow from the cycle counter and a play counter, and
+; sets palette 2/13 plus the sprite page.
 
 .org 0x0A00
 
@@ -220,28 +223,6 @@ map_fill:
     JNZ map_fill
     NOP
 
-    ; clouds behind the pipes (rows 3 and 6)
-    LSI R6, 0
-cloud_draw_loop:
-    LDI G_CLOUD_X
-    MOV R2, R0
-    ADD R2, R6
-    LDS R8, DS, R2
-    LDI cloud_rows
-    MOV R2, R0
-    ADD R2, R6
-    LDS R9, DS, R2
-    LDI draw_cloud
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    ADD R6, 1
-    LSI R4, 4
-    CMP R6, R4
-    JNZ cloud_draw_loop
-    NOP
-
     ; four pipes, one call each. draw_pipe keeps its scratch in R0/R4 and
     ; never touches R6, so R6 can carry the loop index.
     LSI R6, 0
@@ -425,6 +406,56 @@ start_play:
     NOP
 
 reset_play:
+    ; pick a bird: low cycle counter + games played, reduced mod 3.  The play
+    ; counter makes consecutive restarts differ even if a run always takes the
+    ; same number of cycles.
+    LDI SEG_UART
+    MVS ES, R0
+    LDI 0x28
+    MOV R2, R0
+    LDS R1, ES, R2             ; 0xF0068 low cycle counter
+    LSI R3, 15
+    AND R1, R3
+    LDI G_PLAYS
+    MOV R2, R0
+    LD R3, R2, 0
+    ADD R3, 1
+    LSI R4, 7
+    AND R3, R4
+    ST R3, R2, 0
+    ADD R1, R3
+pick_mod:
+    LSI R3, 3
+    CMP R1, R3
+    JC pick_done
+    NOP
+    SUB R1, R3
+    LDI pick_mod
+    MOV PC, R0
+    NOP
+pick_done:
+    ; R1 = 0 red, 1 purple, 2 yellow
+    MOV R4, R1
+    SL R4, 1
+    LDI bird_colors
+    MOV R5, R0
+    ADD R5, R4
+    LDS R6, DS, R5
+    ADD R5, 1
+    LDS R7, DS, R5
+    LDI SEG_OAM
+    MVS ES, R0
+    LDI 0x82
+    MOV R2, R0
+    STS R6, ES, R2             ; body
+    LDI 0x8D
+    MOV R2, R0
+    STS R7, ES, R2             ; belly
+    LDI SEG_CTRL
+    MVS ES, R0
+    LSI R2, 0x0A
+    STS R1, ES, R2             ; sprite page = chosen bird
+
     LSI R2, 0
     LDI G_WORLD
     MOV R3, R0
@@ -557,6 +588,13 @@ play_loop:
     ; bird's row, and before the map redraw work.  set_bird also applies the
     ; dizzy / upside-down death pose.
     LDI set_bird
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
+    ; the cloud sprites move at their own speed (parallax)
+    LDI set_clouds
     MOV R4, R0
     LINK
     JMP R4
@@ -818,11 +856,6 @@ play_step:
     LINK
     JMP R4
     NOP
-    LDI clouds_step
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
     LDI G_TMP
     MOV R2, R0
     LD R1, R2, 0
@@ -854,76 +887,74 @@ play_alive:
     NOP
 
 ; =====================================================================
-; Cloud helper and scroll recycler
+; Cloud sprites
 ; =====================================================================
-; R8 = cloud world x, R9 = row. Draws three cloud tiles.
-draw_cloud:
-    LDI 82
-    MOV R1, R0
-    LDI G_DRAW_ORIGIN
+; Four 32x32 clouds at half the pipe speed.  They are behind-sprites, so the
+; tilemap (pipes, ground) occludes them and they only show against the sky.
+; OAM slots 1..4; slot 0 is the bird.
+;
+; w0 = behind | group 2 | x[9:0]
+; w1 = xsign | enable | y[9:0]
+; The x sign bit is w1[11], which the sprite engine needs to clip a sprite
+; that crosses the left edge (0 -> right, 1 -> negative).
+set_clouds:
+    LDI SEG_OAM
+    MVS ES, R0
+    LDI 0x4400
+    MOV R9, R0
+    SL R9, 1                   ; 0x8800 = behind | group 2
+    LDI G_WORLD
     MOV R2, R0
-    LD R2, R2, 0
-    CMP R8, R2
-    JC cloud_done
-    NOP
-    MOV R0, R8
-    SUB R0, R2
-    SR R0, 3
-    MOV R2, R0
-    LDI 79
-    MOV R3, R0
-    CMP R3, R2
-    JC cloud_done
-    NOP
-    MOV R3, R9
-    SL R3, 6
-    MOV R4, R9
-    SL R4, 4
-    ADD R3, R4
-    MOV R4, R9
-    SL R4, 1
-    ADD R3, R4
-    ADD R3, R2
-    LDI T_CLOUD_L
-    MOV R4, R0
-    STS R4, ES, R3
-    LDI T_CLOUD_M
-    MOV R4, R0
-    ADD R3, 1
-    STS R4, ES, R3
-    LDI T_CLOUD_R
-    MOV R4, R0
-    ADD R3, 1
-    STS R4, ES, R3
-cloud_done:
-    JMP LR
-    NOP
-
-clouds_step:
-    LSI R6, 0
-cloud_loop:
+    LD R8, R2, 0
+    SR R8, 1                   ; clouds run at half the world speed
+    LSI R6, 0                  ; cloud index
+    LSI R7, 2                  ; OAM word of sprite 1
+sc_loop:
     LDI G_CLOUD_X
     MOV R2, R0
     ADD R2, R6
-    LD R3, R2, 0
-    LDI G_WORLD
-    MOV R4, R0
-    LD R4, R4, 0
-    LDI 40
-    MOV R5, R0
-    ADD R5, R3
-    CMP R5, R4
-    JNC cloud_next
+    LD R3, R2, 0               ; cloud world base
+    MOV R5, R3
+    SUB R5, R8                 ; screen x
+    MOV R4, R5
+    LDI 32
+    MOV R1, R0
+    ADD R4, R1                 ; screen + 32, negative when fully off the left
+    JNN sc_keep
     NOP
     LDI 800
-    MOV R5, R0
-    ADD R3, R5
+    MOV R4, R0
+    ADD R3, R4                 ; base += 800
     ST R3, R2, 0
-cloud_next:
+    ADD R5, R4                 ; screen x += 800
+sc_keep:
+    LDI cloud_y
+    MOV R4, R0
+    ADD R4, R6
+    LDS R4, DS, R4             ; sprite y
+    LDI 0x0400
+    MOV R3, R0
+    OR R4, R3                  ; enable
+    MOV R3, R5
+    AND R3, R3
+    JNN sc_pos
+    NOP
+    LDI 0x0800
+    MOV R3, R0
+    OR R4, R3                  ; negative x
+sc_pos:
+    LDI 0x3FF
+    MOV R3, R0
+    AND R5, R3                 ; x[9:0]
+    OR R5, R9                  ; behind | group 2
+    STS R5, ES, R7
+    ADD R7, 1
+    STS R4, ES, R7
+    ADD R7, 1
     ADD R6, 1
-    LSI R4, 4
-    CMP R6, R4
-    JNZ cloud_loop
+    LSI R3, 4
+    CMP R6, R3
+    JNZ sc_loop
     NOP
     JMP LR
     NOP
@@ -1177,7 +1208,3 @@ exit_showcase:
     NOP
     MOV PC, R12
     NOP
-
-; Sprite groups for the dizzy pose, a ping-pong through three frames.
-dizzy_groups:
-    .word 3, 4, 5, 4

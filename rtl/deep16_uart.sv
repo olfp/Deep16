@@ -43,6 +43,13 @@ module deep16_uart #(
 );
 
   localparam int DIV = (CLK_HZ + BAUD / 2) / BAUD;   // 27 MHz / 115200 = 234
+  // A one-entry TX FIFO has no index bits; the function returns 0 there and
+  // the normal bit slice otherwise. A bare 6-bit index into a [0:0] array is
+  // rejected by Verilator -Wall (and would index out of range at runtime).
+  localparam int TX_AW = (TX_DEPTH > 1) ? $clog2(TX_DEPTH) : 1;
+  function automatic integer tx_idx(input logic [6:0] p);
+    tx_idx = (TX_DEPTH > 1) ? int'(p[TX_AW-1:0]) : 0;
+  endfunction
 
   // ---- transmitter -------------------------------------------------------
   logic [7:0]  tx_mem [0:TX_DEPTH-1];
@@ -123,7 +130,7 @@ module deep16_uart #(
 
       // ---- TX push ----
       if (!RX_ONLY && tx_push) begin
-        tx_mem[tx_tail[5:0]] <= tx_data[7:0];
+        tx_mem[tx_idx(tx_tail)] <= tx_data[7:0];
         tx_tail  <= tx_tail + 7'd1;
       end
 
@@ -144,7 +151,7 @@ module deep16_uart #(
           tx_timer <= tx_timer + 16'd1;
         end
       end else if (tx_pop) begin
-        tx_shift <= {1'b1, tx_mem[tx_head[5:0]], 1'b0};   // stop, data, start
+        tx_shift <= {1'b1, tx_mem[tx_idx(tx_head)], 1'b0};   // stop, data, start
         tx_head  <= tx_head + 7'd1;
         tx_busy  <= 1'b1;
         tx_bit   <= 4'd0;

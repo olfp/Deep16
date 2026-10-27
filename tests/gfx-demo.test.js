@@ -53,12 +53,12 @@ test('D16D demo fills the sprite bank, OAM and tilemap, then far-returns', () =>
 
   // Pattern bank: group 0 tile 0 word 0 uses colour 1 (0x1111).
   assert.equal(sim.memory[0xF4000], 0x1111, 'first pattern word');
-  assert.ok(sim.memory[0xF4000 + 48 * 16 - 1] !== 0xFFFF,
-            'last colour-demo pattern word written (groups 3..7 hold the bird)');
+  assert.ok(sim.memory[0xF4000 + 32 * 16 - 1] !== 0xFFFF,
+            'last colour-demo pattern word written (group 2 is the cloud, 3..7 the bird)');
 
-  // Three OAM slots, all enabled (bit 10 of w1) and in group 0..2.
-  for (let i = 0; i < 3; i++) {
-    assert.equal(sim.memory[0xF5000 + i * 2] & 0x3FF, [40, 112, 184][i],
+  // Two OAM slots, all enabled (bit 10 of w1) and in group 0..1.
+  for (let i = 0; i < 2; i++) {
+    assert.equal(sim.memory[0xF5000 + i * 2] & 0x3FF, [40, 184][i],
                  `sprite ${i} x`);
     assert.equal((sim.memory[0xF5000 + i * 2] >> 10) & 7, i, `sprite ${i} group`);
     assert.equal(sim.memory[0xF5001 + i * 2] & 0x0400, 0x0400, `sprite ${i} enabled`);
@@ -78,4 +78,5 @@ test('D16D demo fills the sprite bank, OAM and tilemap, then far-returns', () =>
   // Scroll registers were written during the frame (phase 0 writes 0).
   assert.equal(sim.memory[0xF2004], 0, 'scroll_x');
   assert.equal(sim.memory[0xF2006], 0, 'scroll_y');
+  assert.equal(sim.memory[0xF200A], 0, 'sprite page 0');
 });

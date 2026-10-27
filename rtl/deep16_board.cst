@@ -29,6 +29,29 @@ IO_PORT "uart_txd" IO_TYPE=LVCMOS33 DRIVE=8;
 IO_LOC "uart_rxd" 18;
 IO_PORT "uart_rxd" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 
+// PS/2 keyboard. These are the 3.3 V side of the external level shifter; the
+// keyboard side is 5 V open-collector. Pins 76/77 are on the J6 header and in
+// the 3.3 V bank. Both are inputs to the FPGA; the design never drives them.
+IO_LOC "ps2_clk" 76;
+IO_PORT "ps2_clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+IO_LOC "ps2_data" 77;
+IO_PORT "ps2_data" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+// SPI. Pins 36..39 are the on-board microSD socket (SCLK, MOSI, CS, MISO),
+// 3.3 V; the SD card is driven in SPI mode. spi_cs_n[1] is a free J6 pin for a
+// separate external SPI flash on the same bus (the on-board configuration
+// flash is not used here). All are 3.3 V bank pins.
+IO_LOC "spi_sck" 36;
+IO_PORT "spi_sck" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC "spi_mosi" 37;
+IO_PORT "spi_mosi" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC "spi_cs_n[0]" 38;
+IO_PORT "spi_cs_n[0]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC "spi_miso" 39;
+IO_PORT "spi_miso" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+IO_LOC "spi_cs_n[1]" 25;
+IO_PORT "spi_cs_n[1]" IO_TYPE=LVCMOS33 DRIVE=8;
+
 // On-board LEDs. The six are on pins 10/11/13/14/15/16; all are bank 3 like
 // the button, so no IO_TYPE. Active low.
 IO_LOC "led[0]" 10;

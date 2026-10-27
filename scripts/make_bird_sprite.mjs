@@ -1,17 +1,26 @@
 #!/usr/bin/env node
-// scripts/make_bird_sprite.mjs - bake the bird into the sprite bank: two
-// wing poses in groups 6..7 and the three bedazzled poses in groups 3..5.
-// Groups 0..2 stay for the colour demo; the game never writes the sprite bank
-// at runtime.
+// scripts/make_bird_sprite.mjs - bake the three birds and the cloud into the
+// sprite bank.  Groups are absolute; the game selects a page (0 red, 1 purple,
+// 2 yellow) and keeps using relative groups 3..7 for the bird:
+//
+//   page 0/1/2  rel 2  cloud
+//               rel 3..5  bedazzled poses
+//               rel 6..7  wing poses
+//
+// Page 0 rel 0..1 are left for the colour demo, which writes them at runtime.
+// The cloud is duplicated on all three pages so the same OAM group works
+// whichever bird is picked.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { birdFrames, dizzyFrames } from './make_art.mjs';
+import { BIRD_ORDER, birdFrames, dizzyFrames, cloudSprite } from './make_art.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const BIRD_GROUPS = [6, 7];
 export const DIZZY_GROUPS = [3, 4, 5];
-export const SPRITE_WORDS = 128 * 16;
+export const CLOUD_GROUP = 2;
+export const SPRITE_GROUPS = 24;
+export const SPRITE_WORDS = SPRITE_GROUPS * 16 * 16;
 
 function writeFrame(words, group, g) {
   const base = group * 16 * 16;            // 16 tiles x 16 words
@@ -35,10 +44,14 @@ function writeFrame(words, group, g) {
 
 export function birdSpriteWords() {
   const words = new Array(SPRITE_WORDS).fill(0);
-  // Frames 2 and 3 are near-duplicates of 1, so two poses carry the wing beat.
-  birdFrames().slice(0, BIRD_GROUPS.length)
-    .forEach((g, fi) => writeFrame(words, BIRD_GROUPS[fi], g));
-  dizzyFrames().forEach((g, fi) => writeFrame(words, DIZZY_GROUPS[fi], g));
+  BIRD_ORDER.forEach((colour, page) => {
+    const base = page * 8;                 // page = 8 groups
+    writeFrame(words, base + CLOUD_GROUP, cloudSprite());
+    dizzyFrames(colour).forEach((g, i) => writeFrame(words, base + DIZZY_GROUPS[i], g));
+    // Frames 2 and 3 are near-duplicates of 1, so two poses carry the wing beat.
+    birdFrames(colour).slice(0, BIRD_GROUPS.length)
+      .forEach((g, i) => writeFrame(words, base + BIRD_GROUPS[i], g));
+  });
   return words;
 }
 
@@ -54,5 +67,5 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
   const out = path.resolve(process.argv[2] ?? path.join(ROOT, 'artifacts', 'image'));
   const n = writeBirdSprite(out);
-  console.log(`wrote ${path.relative(ROOT, out)}/birdsprite.hex (${n} words, wing ${BIRD_GROUPS.join(',')} + dizzy ${DIZZY_GROUPS.join(',')})`);
+  console.log(`wrote ${path.relative(ROOT, out)}/birdsprite.hex (${n} words, ${BIRD_ORDER.length} pages + cloud)`);
 }

@@ -27,7 +27,12 @@ const G_BIRD_Y = 0x4EDB;
 const G_DEATH = 0x4EFD;
 const G_DEATH_TIMER = 0x4EFE;
 const G_TMP = 0x4EEF;
+const G_PLAYS = 0x4EDD;
+const CONTROL = 0xF200A;
+const PAL_BODY = 0xF5082;
+const PAL_BELLY = 0xF508D;
 const RET_PC = 0x0777;
+const BIRD_COLOURS = [[0x84, 0xf1], [0xae, 0xb6], [0xfc, 0xf4]];
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -51,6 +56,8 @@ function start(mode) {
   sim.running = true;
   sim.memory[G_START_MODE] = mode;
   sim.memory[UART_STATUS] = 0;
+  sim.memory[G_PLAYS] = 0;
+  sim.cycleCount = 0;
   return sim;
 }
 
@@ -126,6 +133,24 @@ test('showcase block stays inside the game block', () => {
   assert.ok(showcase.max < 0x0DF0, 'keeps a margin below the 0xE00 stack guard');
 });
 
+test('the reset picks a bird, its palette and its sprite page', () => {
+  const r = run({ mode: 1, frames: 20 });
+  const page = r.sim.memory[CONTROL] & 3;
+  assert.ok(page <= 2, `sprite page ${page}`);
+  assert.equal(r.sim.memory[PAL_BODY], BIRD_COLOURS[page][0], 'body palette entry');
+  assert.equal(r.sim.memory[PAL_BELLY], BIRD_COLOURS[page][1], 'belly palette entry');
+
+  // The four cloud sprites are behind the map, in group 2, enabled.
+  for (let i = 1; i <= 4; i++) {
+    const w0 = r.sim.memory[OAM_BASE + i * 2];
+    const w1 = r.sim.memory[OAM_BASE + i * 2 + 1];
+    assert.equal((w0 >> 15) & 1, 1, `cloud ${i} behind`);
+    assert.equal((w0 >> 10) & 7, 2, `cloud ${i} group`);
+    assert.equal(w1 & 0x0400, 0x0400, `cloud ${i} enabled`);
+    assert.ok((w1 & 0x3FF) === 45 || (w1 & 0x3FF) === 90, `cloud ${i} row`);
+  }
+});
+
 test('attract mode flies without dying', () => {
   const r = run({ mode: 1, frames: 220 });
   const deaths = r.transitions.filter((t) => t.death === 1);
@@ -136,6 +161,13 @@ test('attract mode flies without dying', () => {
   // turned into a 2 px up/down buzz. It now taps like a key press, so the
   // bird changes direction a few times, not on almost every frame.
   assert.ok(r.reversals < 30, `autopilot does not buzz (${r.reversals} direction changes)`);
+});
+
+test('a cloud crossing the left edge carries the x sign bit', () => {
+  const r = run({ mode: 1, frames: 280 });
+  let sign = 0;
+  for (let i = 1; i <= 4; i++) sign |= (r.sim.memory[OAM_BASE + i * 2 + 1] >> 11) & 1;
+  assert.equal(sign, 1, 'cloud x sign bit set at least once');
 });
 
 test('a hit shows dizzy, then the vflipped fall, then attract', () => {

@@ -17,6 +17,9 @@
         <File path="../../rtl/deep16_cache.sv" type="file.verilog" enable="1"/>
         <File path="../../rtl/deep16_divider.sv" type="file.verilog" enable="1"/>
         <File path="../../rtl/deep16_uart.sv" type="file.verilog" enable="1"/>
+        <File path="../../rtl/ps2_rx.sv" type="file.verilog" enable="1"/>
+        <File path="../../rtl/deep16_timer.sv" type="file.verilog" enable="1"/>
+        <File path="../../rtl/deep16_spi.sv" type="file.verilog" enable="1"/>
         <File path="../../rtl/deep16_core.sv" type="file.verilog" enable="1"/>
         <File path="../../rtl/deep16_core3.sv" type="file.verilog" enable="1"/>
         <File path="../../rtl/deep16_top.sv" type="file.verilog" enable="1"/>

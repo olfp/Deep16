@@ -25,6 +25,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { writeTileFont } from './make_tile_font.mjs';
 import { writeBirdSprite } from './make_bird_sprite.mjs';
+import { writePs2Map } from './make_ps2map.mjs';
 import { buildDemo, checkDemo, writeDemo, DEMO_BASE } from './make_demo.mjs';
 import { buildShowcase, checkShowcase, SHOWCASE_SEG_BASE } from './make_showcase.mjs';
 
@@ -354,6 +355,8 @@ if (isMain) {
     // same 8x15 font so the text console and the tile console cannot drift.
     writeTileFont(outDir, path.join(ROOT, 'rtl', 'dvi', 'font8x15.hex'));
     writeBirdSprite(outDir);
+    // PS/2 Set-2 -> ASCII map: a BSRAM pROM read by rtl/ps2_rx.sv.
+    writePs2Map(outDir);
     // User-flash image for the installer / preloaded flash model.
     const installerWords = installerFlash(img);
     fs.writeFileSync(path.join(outDir, 'image.flash.hex'), flashHex(installerWords));

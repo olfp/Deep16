@@ -75,8 +75,13 @@ module dvi_tile #(
 
   localparam int TM_WORDS   = TILE_COLS * TILE_ROWS;                // 2,132
   localparam int TM_AW      = 12;
-  localparam int TILE_WORDS = TILE_COUNT * 32;                      // 3,072
-  localparam int SPR_WORDS  = 128 * 16;                             // 2,048
+  localparam int TILE_WORDS = TILE_COUNT * 32;                      // 4,096
+  localparam int TILE_CPU_WORDS = 96 * 32;                          // CPU sees 96 glyph tiles
+  // 24 sprite groups: page 0 Red + demo, page 1 Purple, page 2 Yellow.
+  // The CPU window covers one page (8 groups); the rest are preloaded.
+  localparam int SPR_GROUPS = 24;
+  localparam int SPR_WORDS  = SPR_GROUPS * 256;                    // 6,144
+  localparam int SPR_PAGE_WORDS = 8 * 256;                         // 2,048
   localparam int NSPR       = 8;
   localparam int OAM_WORDS  = NSPR * 2;
   localparam int LB_DEPTH   = 3 * 1024;                            // three 1024-byte slots
@@ -200,11 +205,13 @@ module dvi_tile #(
   // flops are a plain 8x8x16 register file: no per-pixel shift mux and no
   // variable part-select write. Hflip is a read-side word/nibble reversal.
   logic [15:0] spw [0:NSPR-1][0:7];
-  logic [79:0]  spx0_bits;                // 8 x 10-bit x positions
+  // 8 x 11-bit x positions, biased by +32 so a sprite can cross the left
+  // edge: negative x is stored as (x - 1024 + 32).
+  logic [87:0]  spx0_bits;
   logic [7:0]   spon_bits, spbh_bits, sphf_bits;
 
   // Sprite bank read port (one word fetched per loader request).
-  logic [10:0] spr_raddr;
+  logic [12:0] spr_raddr;
   logic [15:0] spr_q;
 
 
@@ -218,7 +225,7 @@ module dvi_tile #(
   // scroll registers; all other writes go to the window selected by cpu_tgt:
   //   0 tilemap   0xF1000..  (2,132 words)
   //   1 tile bank 0xF3000..  (96 x 32 words, writable for the demo)
-  //   2 sprites   0xF4000..  (128 x 16 words, 8x8 4bpp patterns)
+  //   2 sprites   0xF4000..  (one page: 8 groups x 128 patterns x 16 words)
   //   3 OAM/pal   0xF5000..  (OAM 0x00..0x0F, palette 0x80..0x8F)
   logic [4:0] row_off;
   logic [3:0] scroll_x;   // 0..15: pixel offset into the 82-column map
@@ -227,6 +234,7 @@ module dvi_tile #(
   logic       map_wpage;  // CPU writes target this bank
   logic       map_dpage;  // fill/render reads this bank
   logic       map_dpage_next;
+  logic [1:0] sprite_page; // sprite group page (0 Red/demo, 1 Purple, 2 Yellow)
 
   /* verilator lint_off MULTIDRIVEN */   // power-up palette + runtime CPU writes
   always_ff @(posedge clk_render) begin
@@ -235,8 +243,9 @@ module dvi_tile #(
       case (cpu_tgt)
         2'd0: if (cpu_addr < 12'(TM_WORDS))
                 tilemap[(map_wpage ? 13'(TM_WORDS) : 13'd0) + 13'(cpu_addr)] <= cpu_data;
-        2'd1: if (cpu_addr < 12'(TILE_WORDS)) tilefont[cpu_addr] <= cpu_data;
-        2'd2: if (cpu_addr < 12'(SPR_WORDS)) sprite[cpu_addr[10:0]] <= cpu_data;
+        2'd1: if (cpu_addr < 12'(TILE_CPU_WORDS)) tilefont[cpu_addr] <= cpu_data;
+        2'd2: if (cpu_addr < 12'(SPR_PAGE_WORDS))
+                sprite[{sprite_page, cpu_addr[10:0]}] <= cpu_data;
         2'd3: begin
           if (cpu_addr[7:0] < 8'(OAM_WORDS))
             oam_bits[cpu_addr[3:0]*16 +: 16] <= cpu_data;
@@ -261,9 +270,11 @@ module dvi_tile #(
       scroll_y  <= 5'd0;
       map_wpage <= 1'b0;
       map_dpage_next <= 1'b0;
+      sprite_page <= 2'd0;
     end else if (cpu_we && cpu_ctrl) begin
       // 0x00 cursor, 0x02 row offset, 0x04 scroll_x, 0x06 scroll_y,
-      // 0x08 {display page, write page}. The display page and scroll_x are
+      // 0x08 {display page, write page}, 0x0A sprite group page.  The display
+      // page and scroll_x are
       // latched together at the render frame boundary below; the console sees
       // one frame of latency there, and a game can swap a freshly drawn map
       // and its matching pixel offset atomically.
@@ -280,6 +291,7 @@ module dvi_tile #(
           map_wpage      <= cpu_data[0];
           map_dpage_next <= cpu_data[1];
         end
+        4'hA: sprite_page <= cpu_data[1:0];
         default: ;
       endcase
     end
@@ -405,31 +417,35 @@ module dvi_tile #(
     endcase
   end
   // ---- sprite compositor ------------------------------------------------
+  // Sprite x is biased by +32 so a negative x (stored in w1[11]) can clip at
+  // the left edge.  Both sides of the compare carry the bias, so the pixel
+  // offset d is unchanged.
+  wire [10:0] fxb = {1'b0, fx[9:0]} + 11'd32;
   function automatic logic [5:0] spr_cand(input logic [3:0] nib,
-                                          input logic on, input logic [9:0] x0,
+                                          input logic on, input logic [10:0] x0,
                                           input logic bh);
     logic ok;
-    ok = on && (fx >= x0) && ((fx - x0) < 10'd32);
+    ok = on && (fxb >= x0) && ((fxb - x0) < 11'd32);
     spr_cand = {ok && (nib != 4'd0), bh, nib};
   endfunction
 
-  wire [9:0] sx0 = spx0_bits[0  +: 10];
-  wire [9:0] sx1 = spx0_bits[10 +: 10];
-  wire [9:0] sx2 = spx0_bits[20 +: 10];
-  wire [9:0] sx3 = spx0_bits[30 +: 10];
-  wire [9:0] sx4 = spx0_bits[40 +: 10];
-  wire [9:0] sx5 = spx0_bits[50 +: 10];
-  wire [9:0] sx6 = spx0_bits[60 +: 10];
-  wire [9:0] sx7 = spx0_bits[70 +: 10];
+  wire [10:0] sx0 = spx0_bits[0  +: 11];
+  wire [10:0] sx1 = spx0_bits[11 +: 11];
+  wire [10:0] sx2 = spx0_bits[22 +: 11];
+  wire [10:0] sx3 = spx0_bits[33 +: 11];
+  wire [10:0] sx4 = spx0_bits[44 +: 11];
+  wire [10:0] sx5 = spx0_bits[55 +: 11];
+  wire [10:0] sx6 = spx0_bits[66 +: 11];
+  wire [10:0] sx7 = spx0_bits[77 +: 11];
 
-  wire [9:0] d0 = fx[9:0] - sx0;
-  wire [9:0] d1 = fx[9:0] - sx1;
-  wire [9:0] d2 = fx[9:0] - sx2;
-  wire [9:0] d3 = fx[9:0] - sx3;
-  wire [9:0] d4 = fx[9:0] - sx4;
-  wire [9:0] d5 = fx[9:0] - sx5;
-  wire [9:0] d6 = fx[9:0] - sx6;
-  wire [9:0] d7 = fx[9:0] - sx7;
+  wire [10:0] d0 = fxb - sx0;
+  wire [10:0] d1 = fxb - sx1;
+  wire [10:0] d2 = fxb - sx2;
+  wire [10:0] d3 = fxb - sx3;
+  wire [10:0] d4 = fxb - sx4;
+  wire [10:0] d5 = fxb - sx5;
+  wire [10:0] d6 = fxb - sx6;
+  wire [10:0] d7 = fxb - sx7;
 
   wire [2:0] w0 = d0[4:2] ^ {3{sphf_bits[0]}};
   wire [1:0] nb0 = d0[1:0] ^ {2{sphf_bits[0]}};
@@ -638,7 +654,7 @@ module dvi_tile #(
   //
   // OAM, two words per sprite (16 words):
   //   w0 = {behind, vflip, hflip, group[2:0], x[9:0]}
-  //   w1 = {1'b0, enable, y[9:0]}   (bit 10 = enable, bits 9:0 = y)
+  //   w1 = {xsign, 3'b0, enable, y[9:0]}  (bit 11 = negative x, bit 10 = enable)
   // A 32x32 sprite is 4x4 8x8 patterns: tile = group*16 + (row/8)*4 + column.
   // Pattern word = tile*16 + (row%8)*2 + (column%4)/4; low nibble leftmost.
   localparam logic [1:0] L_IDLE  = 2'd0,
@@ -650,23 +666,23 @@ module dvi_tile #(
   logic [2:0]  lspr;
   logic [3:0]  lw;
   logic [9:0]  lline;
-  logic [2:0]  lgrp;
+  logic [4:0]  lgrp;
   logic        lcap;
   logic [4:0]  lrow;
-  logic [10:0] laddr;
+  logic [12:0] laddr;
 
   wire [3:0]  loidx = {lspr, 1'b0};
   wire [15:0] loam0 = oam_bits[loidx*16 +: 16];
-  wire [10:0] loam1 = oam_bits[4'(loidx + 4'd1)*16 +: 11];
+  wire [11:0] loam1 = oam_bits[4'(loidx + 4'd1)*16 +: 12];
 
   assign spr_raddr = laddr;
 
-  logic [6:0] ltile;
+  logic [8:0] ltile;
   always_comb begin
-    ltile = {lgrp, 4'b0} + {3'b0, lrow[4:3], 2'b0} + {5'b0, lw[2:1]};
-    laddr = 11'd0;
+    ltile = {lgrp, 4'b0} + {5'b0, lrow[4:3], 2'b0} + {7'b0, lw[2:1]};
+    laddr = 13'd0;
     if (lstate == L_REQ)
-      laddr = 11'({ltile, 4'd0} + {7'd0, lrow[2:0], 1'b0} + {10'd0, lw[0]});
+      laddr = 13'({ltile, 4'd0} + {9'd0, lrow[2:0], 1'b0} + {12'd0, lw[0]});
   end
 
   always_ff @(posedge clk_render) begin
@@ -674,9 +690,9 @@ module dvi_tile #(
       lstate <= L_IDLE; lspr <= 3'd0; lw <= 4'd0; lline <= 10'd0;
       for (int i = 0; i < NSPR; i++)
         for (int j = 0; j < 8; j++) spw[i][j] <= 16'd0;
-      lgrp <= 3'd0; lcap <= 1'b0; lrow <= 5'd0;
+      lgrp <= 5'd0; lcap <= 1'b0; lrow <= 5'd0;
       for (int i = 0; i < NSPR; i++) begin
-        spx0_bits[i*10 +: 10] <= 10'd0;
+        spx0_bits[i*11 +: 11] <= 11'd0;
         spon_bits[i] <= 1'b0; spbh_bits[i] <= 1'b0; sphf_bits[i] <= 1'b0;
       end
     end else begin
@@ -687,7 +703,7 @@ module dvi_tile #(
           lstate <= L_SPR;
         end
         L_SPR: begin
-          lgrp <= loam0[12:10];
+          lgrp <= {sprite_page, loam0[12:10]};
           if (!loam1[10] || (lline < loam1[9:0]) ||
               ((lline - loam1[9:0]) >= 10'd32)) begin
             spon_bits[lspr] <= 1'b0;
@@ -696,7 +712,10 @@ module dvi_tile #(
           end else begin
             spon_bits[lspr]  <= 1'b1;
             lcap        <= 1'b1;
-            spx0_bits[lspr*10 +: 10] <= loam0[9:0];
+            // Bias by +32; a negative x is x-1024+32 = x-992.
+            spx0_bits[lspr*11 +: 11] <= loam1[11]
+              ? ({1'b0, loam0[9:0]} - 11'd992)
+              : ({1'b0, loam0[9:0]} + 11'd32);
             spbh_bits[lspr]  <= loam0[15];
             sphf_bits[lspr]  <= loam0[13];
             lrow        <= loam0[14] ? (5'd31 - 5'(lline - loam1[9:0]))

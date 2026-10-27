@@ -342,6 +342,36 @@ int main(int argc, char** argv) {
   check("vblank level is observable", vblank_seen ? 1 : 0, 1);
   check("frame toggle changes across frames", ft_changes >= 1 ? 1 : 0, 1);
 
+  // ---- sprite groups: page select and negative-x clipping -----------------
+  // Page 1 group 0 gets a blue pattern; page 0 group 0 is the green pattern
+  // from the sprite tests above. The same OAM entry must change colour when
+  // the page changes.
+  write_ctrl(8, 0);                          // map write page 0
+  write_ctrl(10, 1);                         // sprite page 1
+  check("sprite page register takes 1", top->dbg_spage, 1);
+  for (int w = 0; w < 64; w++) write_win(2, w, 0x0444);   // page 1, group 0
+  write_win(3, 0, 16 | (0 << 10));           // sprite 0: x=16, group 0
+  write_win(3, 1, 160 | (1 << 10));          // y=160, enable
+  sample_pixel(17, 160, &r, &g, &b, &seen);
+  check("page 1 selects the second sprite bank (blue)",
+        r * 1000 + g * 10 + b, 0 * 1000 + 0 * 10 + 255);
+
+  write_ctrl(10, 0);                         // sprite page 0
+  sample_pixel(17, 160, &r, &g, &b, &seen);
+  check("page 0 selects the first sprite bank (green)",
+        r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
+
+  // Negative x: x=1000 means -24 with the sign bit in w1[11]. Only the
+  // sprite's pixels 24..31 can land on screen x=0..7.
+  write_win(3, 0, 1000 | (0 << 10));
+  write_win(3, 1, 160 | (1 << 10) | (1 << 11));
+  sample_pixel(0, 160, &r, &g, &b, &seen);
+  check("negative-x sprite clips at the left edge (green)",
+        r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
+  sample_pixel(8, 160, &r, &g, &b, &seen);
+  check("negative-x sprite stops at its 32-pixel width (background red)",
+        r * 1000 + g * 10 + b, 255 * 1000 + 0 * 10 + 0);
+
   delete top;
   if (fails) { std::printf("%d failure(s)\n", fails); return 1; }
   std::printf("all CPU tile console checks passed\n");

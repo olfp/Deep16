@@ -22,6 +22,9 @@ RTL_SOURCES=(
   rtl/deep16_cache.sv
   rtl/deep16_divider.sv
   rtl/deep16_uart.sv
+  rtl/ps2_rx.sv
+  rtl/deep16_timer.sv
+  rtl/deep16_spi.sv
   rtl/deep16_core.sv
   rtl/deep16_top.sv
   rtl/deep16_board.sv

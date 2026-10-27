@@ -69,9 +69,11 @@ few thousand in the 24K window.
 | `0x00000`–`0x00002` | boot entry staging / SWI vector (runtime; vector at 2) |
 | `0x00000`–`0x000FF` | zero page, interrupt vector area |
 | `0x00100` | `forth_start`, conventional program/kernel entry |
+| `0x0F0020`–`0x0F002F` | timer: 32-bit ms counter, compare, status (D16nano) |
 | `0x0F0040`–`0x0F004F` | UART console |
 | `0x0F0060`–`0x0F0064` | keyboard FIFO / echo cell (build-specific) |
 | `0x0F0068`–`0x0F006B` | D16nano 32-bit CPU cycle counter (read-only) |
+| `0x0F0080`–`0x0F008F` | SPI master: SD / external flash (D16nano) |
 | `0x0F1000` | display window (screen RAM or tilemap, build-specific) |
 | `0x0F2000`–`0x0F2006` | tile control registers (tile build only) |
 | `0x0F3000`–`0x0F3BFF` | tile bank (tile build only) |
@@ -230,6 +232,13 @@ The UART is 115200 8N1 on the board. `ES = 0xF000`, so the BIOS addresses these
 as `0x0040`, `0x0042`, `0x0046`. The boot ROM/BIOS and the JS/WASM cores decode
 the same addresses.
 
+The **D16nano user-flash tile build** now has a one-byte TX holding register:
+status bits b1 (TX ready) and b3 (TX idle) are live, and a write to
+`UART_DATA` starts an 8N1 byte. The tile console remains the CPU's display;
+the UART TX is a second output for a host terminal and for future X/YMODEM
+transfers. The D16MINI text build keeps the 64-byte TX FIFO; the older packed
+tile build stays RX-only.
+
 ### 7.2 Keyboard and echo
 
 | Address | Name | Access | Meaning |
@@ -238,11 +247,15 @@ the same addresses.
 | `0xF0062` | `KBD_DATA` | R | pop a key |
 | `0xF0064` | `ECHO_FLAG` | R/W | screen/keyboard echo |
 
-The keyboard FIFO is used by the simulation and the screen/IDE front end. On the
-UART-only boards the UART is the input; the keyboard ports are not the console
-path. `0xF0064` is ordinary RAM in the 1 MiB screen build but **not backed** on
-the 24K UART boards: reads return `0xFFFF`, writes are dropped. The D16nano
-kernel keeps its console/quiet state in kernel cells (`boot_quiet`, `line_out`).
+The keyboard FIFO is 16 entries. It is used by the simulation and the
+screen/IDE front end, and on the D16nano board it is also written by the PS/2
+receiver (`rtl/ps2_rx.sv`): every decoded ASCII byte is pushed into this FIFO
+*and* into the UART RX FIFO, so both the architectural keyboard port and the
+UART console see the key. The D16nano BIOS still polls the UART, so the PS/2
+path needs no BIOS change. `0xF0064` is ordinary RAM in the 1 MiB screen build
+but **not backed** on the 24K UART boards: reads return `0xFFFF`, writes are
+dropped. The D16nano kernel keeps its console/quiet state in kernel cells
+(`boot_quiet`, `line_out`).
 
 ### 7.3 D16nano cycle counter and display status
 
@@ -271,20 +284,60 @@ tile engine and the PSRAM/Forth mirror at the same address.
 | `0xF2004` | control 2 | smooth `scroll_x` (0..15), latched with control 4 at the frame boundary |
 | `0xF2006` | control 3 | smooth `scroll_y` (0..30) |
 | `0xF2008` | control 4 | b0 write bank, b1 display bank (display bank and `scroll_x` swap at the render frame boundary) |
+| `0xF200A` | control 5 | sprite group page (b1:0): 0 Red + colour demo, 1 Purple, 2 Yellow |
 | `0xF3000`–`0xF3BFF` | tile bank | 96 tiles × 32 words; 30 words of 8×15 4bpp, word 30 palette pointer, word 31 flags |
-| `0xF4000`–`0xF47FF` | sprite bank | 128 8×8 4bpp patterns × 16 words |
-| `0xF5000`–`0xF500F` | OAM | 8 sprites × 2 words: `w0={behind,vflip,hflip,group[2:0],x[9:0]}`, `w1={enable,y[9:0]}` |
+| `0xF4000`–`0xF47FF` | sprite bank | 8 groups × 128 8×8 4bpp patterns × 16 words, selected by the control-5 page; the bank holds 24 groups (3 pages), preloaded |
+| `0xF5000`–`0xF500F` | OAM | 8 sprites × 2 words: `w0={behind,vflip,hflip,group[2:0],x[9:0]}`, `w1={xsign,3'b0,enable,y[9:0]}` |
 | `0xF5080`–`0xF508F` | palette | 16 × RGB332 entries |
 | rest of `0xF5000`–`0xF50FF` | — | reserved |
 
 Tile address convention: `(character - 0x20) * 32`. A 32×32 sprite is 16 8×8
 tiles; `tile = group*16 + (row/8)*4 + column`. Sprite palette index 0 is
 transparent; OAM bit 15 puts the sprite behind background index 0; sprite 0 wins
-priority.
+priority. OAM w1 bit 11 marks a negative sprite x; the compositor biases both
+x and the beam position by +32, so a sprite can cross the left edge and be
+clipped instead of vanishing.
 
 The **DVI tile build** uses the tilemap at `0xF1000`. The **screen build** uses
 the same address for its cell/attribute array; the two never coexist. The
 **D16MINI UART** build does not back `0xF1000`.
+
+### 7.5 Timer (`0xF0020`–`0xF002F`, D16nano)
+
+A 32-bit millisecond counter with a 32-bit compare and a sticky match flag. It
+is polled; the IRQ-enable bit is stored for a later SIC, but no interrupt is
+wired into the CPU yet.
+
+| Address | Name | Access | Meaning |
+|---|---|---|---|
+| `0xF0020` | `TIMER_CTRL` | R/W | b0 enable, b1 clear match (write), b2 IRQ enable |
+| `0xF0022` | `TIMER_VALUE_LO` | R | milliseconds, low 16 bits |
+| `0xF0024` | `TIMER_VALUE_HI` | R | milliseconds, high 16 bits |
+| `0xF0026` | `TIMER_CMP_LO` | R/W | compare, low 16 bits |
+| `0xF0028` | `TIMER_CMP_HI` | R/W | compare, high 16 bits |
+| `0xF002A` | `TIMER_STATUS` | R | b0 match, b1 running, b2 IRQ enable |
+
+The counter starts at reset with enable set; the compare resets to
+`0xFFFFFFFF`, so a fresh machine never matches until software writes a compare.
+At 6.75 MHz the prescaler is 6750 cycles; the 32-bit count wraps after 49.7
+days.
+
+### 7.6 SPI master (`0xF0080`–`0xF008F`, D16nano)
+
+One byte-wide mode-0 master, MSB first, with two active-low chip selects. The
+protocol (SD commands, flash erase/program, CRC) is software.
+
+| Address | Name | Access | Meaning |
+|---|---|---|---|
+| `0xF0080` | `SPI_CTRL` | R/W | b1:0 chip selects (1 = asserted; CS0 = SD, CS1 = external flash) |
+| `0xF0082` | `SPI_STATUS` | R | b0 busy, b1 done, b3:2 chip selects |
+| `0xF0084` | `SPI_DATA` | R/W | write a byte to start; read the byte received last |
+| `0xF0086` | `SPI_DIV` | R/W | half-period divider; SCK = CPU clock / (2 × (DIV+1)) |
+
+DIV resets to 0 (3.375 MHz at 6.75 MHz); write 8 for the ~375 kHz SD
+initialisation clock. The SD socket is on pins 36 (SCK), 37 (MOSI), 38 (CS0),
+39 (MISO); CS1 is pin 25 for an external flash. The on-board configuration
+flash is not used.
 
 ---
 

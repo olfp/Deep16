@@ -15,3 +15,4 @@
 // kernel image (asm/forth_nano.asm). The D16D demo/gfx words live in the
 // kernel image (asm/gfx_demo.asm at 0x4E00); the bitstream itself is unchanged.
 `define D16NANO
+`define D16_PERIPH

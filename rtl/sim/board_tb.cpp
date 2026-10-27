@@ -22,7 +22,9 @@
 // Built and run by scripts/build_board_sim.sh; the image must be in the working
 // directory ($readmemh resolves at run time), which the script arranges.
 #include <cstdio>
+#include <cstdint>
 #include <string>
+#include <vector>
 #include "Vdeep16_board.h"
 #include "Vdeep16_board_deep16_board.h"
 #include "Vdeep16_board_deep16_top.h"
@@ -94,6 +96,69 @@ struct UartTx {
   }
 };
 
+// A bit-level PS/2 keyboard transmitter. Scan codes are queued; each one is
+// sent as the 11-bit frame start, data[7:0], odd parity, stop. The clock is
+// driven high for the data setup, low for the receiver's sampling edge, then
+// high again. The half-bit is 40 board clocks, much faster than a real
+// keyboard but many CPU clocks long, so the receiver's synchronisers see it.
+struct Ps2Tx {
+  std::vector<uint8_t> pending;
+  uint16_t frame = 0;
+  int bit = 0, phase = 0, cnt = 0;
+  bool sending = false;
+  int clk = 1, data = 1;
+
+  static constexpr int HALF = 40;
+
+  void send(const std::vector<uint8_t>& codes) {
+    pending.insert(pending.end(), codes.begin(), codes.end());
+  }
+
+  int level_clk() const { return clk; }
+  int level_data() const { return data; }
+
+  void tick() {
+    if (!sending) {
+      clk = 1;
+      data = 1;
+      if (pending.empty()) return;
+      const uint8_t b = pending.front();
+      pending.erase(pending.begin());
+      int ones = 0;
+      for (int i = 0; i < 8; i++) ones += (b >> i) & 1;
+      const int parity = (ones & 1) ? 0 : 1;       // odd parity
+      frame = static_cast<uint16_t>((1u << 10) | (parity << 9) | (b << 1));
+      bit = 0;
+      phase = 0;
+      cnt = 0;
+      sending = true;
+      data = frame & 1;
+      clk = 1;
+      return;
+    }
+
+    if (++cnt >= HALF) {
+      cnt = 0;
+      if (phase == 0) {
+        clk = 0;                 // falling edge: the receiver samples data
+        phase = 1;
+      } else if (phase == 1) {
+        clk = 1;
+        phase = 2;
+      } else {
+        if (++bit >= 11) {
+          sending = false;
+          clk = 1;
+          data = 1;
+        } else {
+          data = (frame >> bit) & 1;
+          phase = 0;
+        }
+      }
+    }
+  }
+};
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -101,8 +166,10 @@ int main(int argc, char** argv) {
   auto* top = new Vdeep16_board;
   top->btn = 1;                  // S2 released
 
-  // Power-up: the button is held, the line is idle high.
+  // Power-up: the button is held, both serial lines are idle high.
+  Ps2Tx ps2;
   top->clk = 0; top->rst_n = 0; top->uart_rxd = 1;
+  top->ps2_clk = 1; top->ps2_data = 1;
   for (int i = 0; i < 32; i++) { top->clk = 0; top->eval(); top->clk = 1; top->eval(); }
   top->rst_n = 1;
 
@@ -120,11 +187,14 @@ int main(int argc, char** argv) {
   const long LIMIT = 40'000'000;
   for (; clocks < LIMIT; clocks++) {
     top->uart_rxd = tx.level();
+    top->ps2_clk = ps2.level_clk();
+    top->ps2_data = ps2.level_data();
     top->clk = 0; top->eval();
     const int txd = top->uart_txd;
     top->clk = 1; top->eval();
     rx.tick(txd);
     tx.tick();
+    ps2.tick();
     if (!typed && rx.out.find(prompt) != std::string::npos) {
       tx.send(std::string(line) + "\r");   // CR ends the line, as a terminal sends it
       typed = true;
@@ -135,20 +205,48 @@ int main(int argc, char** argv) {
   const bool gotBanner = rx.out.find(banner) != std::string::npos;
   const bool gotEcho   = rx.out.find(echo) != std::string::npos;
 
-  // Second exchange: a burst. `mem` prints ~400 bytes through a 64-byte TX FIFO,
-  // which is what caught the FIFO count being written twice in one cycle (a
-  // simultaneous push and pop lost one of them, the ring wrapped and bytes went
-  // missing). The three strings below include the chunk that used to vanish.
+  // Third exchange: type `1 2 + .` through the PS/2 pins. The board feeds the
+  // decoded ASCII into the UART RX FIFO, so the kernel's normal input path and
+  // echo must produce the same kind of line as the UART did.
   rx.out.clear();
-  bool asked = false;
-  bool gotMap = false;
-  for (; clocks < LIMIT && !gotMap; clocks++) {
+  const std::vector<uint8_t> ps2Line = {
+    0x16, 0x29, 0x1E, 0x29,                          // 1 2
+    0x12, 0x55, 0xF0, 0x55, 0xF0, 0x12,              // + (Shift + =)
+    0x29, 0x49, 0x5A                                 // space . Enter
+  };
+  ps2.send(ps2Line);
+  bool gotPs2 = false;
+  for (; clocks < LIMIT && !gotPs2; clocks++) {
     top->uart_rxd = tx.level();
+    top->ps2_clk = ps2.level_clk();
+    top->ps2_data = ps2.level_data();
     top->clk = 0; top->eval();
     const int txd = top->uart_txd;
     top->clk = 1; top->eval();
     rx.tick(txd);
     tx.tick();
+    ps2.tick();
+    gotPs2 = rx.out.find("1 2 + . 3  ok") != std::string::npos;
+  }
+
+  // Second exchange: a burst. `mem` prints ~400 bytes through a 64-byte TX FIFO,
+  // which is what caught the FIFO count being written twice in one cycle (a
+  // simultaneous push and pop lost one of them, the ring wrapped and bytes went
+  // missing). The three strings below include the chunk that used to vanish.
+  // rx.out still contains the prompt from the PS/2 line, so `asked` fires
+  // without waiting for another one.
+  bool asked = false;
+  bool gotMap = false;
+  for (; clocks < LIMIT && !gotMap; clocks++) {
+    top->uart_rxd = tx.level();
+    top->ps2_clk = ps2.level_clk();
+    top->ps2_data = ps2.level_data();
+    top->clk = 0; top->eval();
+    const int txd = top->uart_txd;
+    top->clk = 1; top->eval();
+    rx.tick(txd);
+    tx.tick();
+    ps2.tick();
     if (!asked && rx.out.find(prompt) != std::string::npos) {
       tx.send(std::string("mem") + "\r");
       asked = true;
@@ -161,7 +259,7 @@ int main(int argc, char** argv) {
 
   std::printf("--- UART output (%zu bytes after %ld clocks) ---\n%s\n",
               rx.out.size(), clocks, rx.out.c_str());
-  if (!(gotBanner && gotEcho && gotMap)) {
+  if (!(gotBanner && gotEcho && gotPs2 && gotMap)) {
     // The first place to look when nothing came out: did the machine run at all,
     // and where is it? (The board exposes no debug bus on purpose.)
     auto* t = top->deep16_board->u_top;
@@ -173,10 +271,10 @@ int main(int argc, char** argv) {
                 (unsigned)t->__PVT__u_uart__DOT__tx_count,
                 (unsigned)t->mem[0x100]);
   }
-  std::printf("%s: banner %s, typed line %s, memory map %s\n",
-              (gotBanner && gotEcho && gotMap) ? "PASS" : "FAIL",
+  std::printf("%s: banner %s, typed line %s, PS/2 line %s, memory map %s\n",
+              (gotBanner && gotEcho && gotPs2 && gotMap) ? "PASS" : "FAIL",
               gotBanner ? "ok" : "MISSING", gotEcho ? "ok" : "MISSING",
-              gotMap ? "ok" : "MISSING");
+              gotPs2 ? "ok" : "MISSING", gotMap ? "ok" : "MISSING");
   delete top;
-  return (gotBanner && gotEcho && gotMap) ? 0 : 1;
+  return (gotBanner && gotEcho && gotPs2 && gotMap) ? 0 : 1;
 }

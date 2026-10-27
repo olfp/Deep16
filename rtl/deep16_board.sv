@@ -1,8 +1,9 @@
 // deep16_board.sv - Tang Nano 9K wrapper for D16MINI (D16MINI.md §4.5).
 //
 // The whole board: a 27 MHz oscillator, one reset button, the UART pins of the
-// on-board USB bridge, and an LED. No PLL, no PSRAM, no framebuffer - the
-// console is the UART and a host terminal owns the screen.
+// on-board USB bridge, a PS/2 keyboard pair through an external 5 V -> 3.3 V
+// level shifter, and the LEDs. No PLL is added for the keyboard: the PS/2
+// receiver oversamples at the CPU clock.
 //
 // The CPU does not meet 27 MHz (D16MINI.md §4.7: 14.1 MHz worst case), so the
 // oscillator is divided by two and the whole machine runs at 13.5 MHz, which
@@ -10,9 +11,11 @@
 // clock; the UART is told the divided frequency so 115200 stays correct.
 //
 // Everything simulation-shaped is tied off here: i_step/i_free free-run, the
-// keyboard FIFO is empty and dead, the debug bus is off, and there is no cache
-// to manage. The memory comes from the boot image baked into the bitstream
-// (§6.2.1), so the CPU starts on the kernel with no loader and no copy.
+// debug bus is off, and there is no cache to manage. The PS/2 receiver is the
+// one live input besides the UART: its ASCII bytes feed both the UART RX FIFO
+// and the architectural keyboard FIFO. The memory comes from the boot image
+// baked into the bitstream (§6.2.1) or the user flash, so the CPU starts on the
+// kernel with no loader and no copy.
 //
 // Build with `-DD16MINI` (Verilator) / the matching project define (Gowin): it
 // is what shrinks deep16_top's memory to the 24 BSRAM blocks and turns on the
@@ -21,6 +24,12 @@ module deep16_board (
   input  logic clk,        // 27 MHz oscillator, pin 52
   input  logic rst_n,      // S1 button, active low
   input  logic btn,        // S2 button, active low
+  input  logic ps2_clk,    // PS/2 clock, 3.3 V side of the level shifter
+  input  logic ps2_data,   // PS/2 data,  3.3 V side of the level shifter
+  output logic spi_sck,    // SPI clock: SD socket / external flash
+  output logic spi_mosi,   // SPI MOSI
+  input  logic spi_miso,   // SPI MISO
+  output logic [1:0] spi_cs_n, // SPI chip selects: [0] SD, [1] external flash
   input  logic uart_rxd,   // from the on-board USB-UART bridge
   output logic uart_txd,   // to the on-board USB-UART bridge
   output logic [5:0] led   // 0 heartbeat, 1 run, 2 halt, 3..5 instruction activity
@@ -286,10 +295,10 @@ module deep16_board (
   // vblank and frame_tick come from the scan clock domain. A two-flop
   // synchroniser makes the 16-bit status safe to read from the CPU domain;
   // the frame bit is a toggle, so no multi-bit CDC is involved.
+  logic [15:0] rx_avail;   // UART RX FIFO depth: status bit 3 and the PS/2 path
 `ifdef D16NANO
   logic [15:0] tile_status;
   logic [1:0]  btn_sync;
-  logic [15:0] rx_avail;
   logic        uart_ready_q;
   always_ff @(posedge clk_cpu) begin
     btn_sync     <= {btn_sync[0], ~btn};
@@ -309,6 +318,36 @@ module deep16_board (
   assign tile_status = {12'b0, uart_ready_q, btn_sync[1], 2'b00};
 `endif
 `endif
+
+  // ---- PS/2 keyboard ---------------------------------------------------
+  // The keyboard's 5 V open-collector clock/data lines reach the FPGA through
+  // the external level shifter board; the pins here are the 3.3 V side. The
+  // receiver runs in the CPU clock domain and its ASCII output feeds both the
+  // UART RX FIFO (the D16nano console) and the architectural keyboard FIFO
+  // (0xF0060/0xF0062), so the existing BIOS and game input paths need no
+  // change.
+`ifdef D16NANO
+  localparam int PS2_CLK_HZ = 6_750_000;
+`else
+  localparam int PS2_CLK_HZ = 13_500_000;
+`endif
+  logic       ps2_valid, ps2_frame_error;
+  logic [7:0] ps2_ascii, ps2_scan_code;
+  logic [3:0] ps2_modifiers;
+
+  ps2_rx #(.CLK_HZ(PS2_CLK_HZ)) u_ps2 (
+    .clk         (clk_cpu),
+    .rst         (rst),
+    .ps2_clk     (ps2_clk),
+    .ps2_data    (ps2_data),
+    .valid       (ps2_valid),
+    .ascii       (ps2_ascii),
+    .scan_code   (ps2_scan_code),
+    .modifiers   (ps2_modifiers),
+    .frame_error (ps2_frame_error)
+  );
+
+  wire ps2_key = ps2_valid && (ps2_ascii != 8'h00);
 
   // ---- the machine -----------------------------------------------------
 `ifdef D16NANO
@@ -332,14 +371,17 @@ module deep16_board (
     .o_result (o_result),
     .o_busy   (o_busy),
 
-    // no keyboard: the console is the UART, the screen ports are dead (§5)
-    .kbd_push      (1'b0),
-    .kbd_push_data (16'h0000),
-    .kbd_clear     (1'b0),
+    // PS/2 keys arrive on both doors: the D16nano BIOS polls the UART RX
+    // FIFO, while the 0xF0060/62 port stays available for software that uses
+    // the architectural keyboard interface. On this build only one of them is
+    // read, so a key is not consumed twice.
+    .kbd_push      (ps2_key),
+    .kbd_push_data ({8'h00, ps2_ascii}),
+    .kbd_clear     (rst),
 
     // the console is the pins; the host push/take path is a simulation facility
-    .uart_rx_push       (1'b0),
-    .uart_rx_push_data  (16'h0000),
+    .uart_rx_push       (ps2_key),
+    .uart_rx_push_data  ({8'h00, ps2_ascii}),
     .uart_tx_take       (1'b0),
     .uart_host_ctrl_we  (1'b0),
     .uart_host_ctrl_data(16'h0000),
@@ -355,6 +397,12 @@ module deep16_board (
     , .tile_addr        (tile_addr)
     , .tile_data        (tile_data)
     , .tile_status      (tile_status)
+`endif
+`ifdef D16_PERIPH
+    , .spi_sck          (spi_sck)
+    , .spi_mosi         (spi_mosi)
+    , .spi_miso         (spi_miso)
+    , .spi_cs_n         (spi_cs_n)
 `endif
 
     // no debug bus, no cache management on the board
@@ -386,6 +434,13 @@ module deep16_board (
     , .o_dbg_if_addr(dbg_if_addr)
 `endif
   );
+
+`ifndef D16_PERIPH
+  // The text build has no SPI master; park the socket pins idle.
+  assign spi_sck  = 1'b0;
+  assign spi_mosi = 1'b0;
+  assign spi_cs_n = 2'b11;
+`endif
 
   // ---- heartbeat -------------------------------------------------------
   // The top bit of a free-running counter: ~0.8 Hz, so a powered board blinks
@@ -455,9 +510,10 @@ module deep16_board (
   // these are deliberately unread.
   /* verilator lint_off UNUSEDSIGNAL */
   logic _unused;
-  assign _unused = &{1'b0, o_done, o_result, o_busy, cache_hits, cache_misses,
+  assign _unused = &{1'b0, btn, o_done, o_result, o_busy, cache_hits, cache_misses,
                      cache_penalty, tx_data_out, tx_avail, rx_avail, dbg_rdata,
-                     dbg_if_addr};
+                     dbg_if_addr, ps2_frame_error, ps2_scan_code, ps2_modifiers,
+                     spi_miso};
   /* verilator lint_on UNUSEDSIGNAL */
 
 endmodule

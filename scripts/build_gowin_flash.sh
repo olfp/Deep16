@@ -17,5 +17,5 @@ DYLD_LIBRARY_PATH="$GOWIN_EDA/lib" \
 DYLD_FRAMEWORK_PATH="$GOWIN_EDA/lib" \
   "$GW_SH" "$ROOT/fpga/gowin/build_flash.tcl"
 echo "user-flash bitstream: fpga/gowin/impl/pnr/deep16_board_flash.fs"
-echo "persistent config: write fpga/gowin/impl/pnr/deep16_board_flash.bin with the" 
+echo "persistent config: write fpga/gowin/impl/pnr/deep16_board_flash.bin with the" \
      "Gowin Programmer (External Flash); do not use openFPGALoader -f on the .fs"

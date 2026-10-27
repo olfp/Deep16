@@ -6,6 +6,7 @@
 ;   0x0400  colour demo (asm/gfx_demo.asm, separate block)
 ;   0x04D5  game state cells (uninitialised; the game writes them)
 ;   0x0500  menu code, then the default palette at 0x05E0
+;   0x05CB  bird body/belly colours and the dizzy sprite-group table
 ;   0x0A00  game helpers, map drawing, game loop and death sequence
 ;
 ; The BIOS parks R5/R6 and jumps to the menu trampoline with R12 = gfx_back.
@@ -28,7 +29,7 @@
 .equ G_BACK       0x04DA
 .equ G_BIRD_Y     0x04DB
 .equ G_BIRD_VY    0x04DC
-.equ G_SCORE      0x04DD
+.equ G_PLAYS      0x04DD       ; games played, seeds the bird pick
 .equ G_BEST       0x04DE
 .equ G_PIPE_X     0x04DF
 .equ G_PIPE_GAP   0x04E3
@@ -82,7 +83,7 @@ trampoline:
 ; ---- strings and palettes (gap 0x339..0x3FF, above the trampoline) ----
 .org 0x339
 str_menu_title:
-    .text "D16 SHOW 27"
+    .text "D16 SHOW 28"
 str_menu_f:
     .text "F  FLAPPY"
 str_menu_c:
@@ -121,8 +122,19 @@ pal_art:
     .word 0x00D5, 0x008E, 0x004C, 0x00B9
     .word 0x0000, 0x00DF, 0x0017, 0x00F4
     .word 0x0074, 0x00F1, 0x0028, 0x00DA
-cloud_rows:
-    .word 3, 6, 3, 6
+cloud_y:
+    .word 45, 90, 45, 90
+
+.org 0x5CB
+; Body and belly palette entries per bird, picked at every reset.  Index 2 is
+; the body, 13 the belly; the dizzy flower/star keep 5/11.
+bird_colors:
+    .word 0x0084, 0x00F1       ; red
+    .word 0x00AE, 0x00B6       ; purple
+    .word 0x00FC, 0x00F4       ; yellow
+; Sprite groups for the dizzy pose, a ping-pong through three frames.
+dizzy_groups:
+    .word 3, 4, 5, 4
 
 .org 0x5E0
 pal_default:
