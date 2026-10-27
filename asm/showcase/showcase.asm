@@ -3,6 +3,8 @@
 ; Image layout (all offsets in the BIOS segment 0x04A0, physical = 0x4A00+off):
 ;   0x0334  trampoline (BIOS gfx entry; the header is at 0x3E4)
 ;   0x0339  menu strings, cloud table and the game palette
+;   0x0400  per-bird weight helpers and the S2 edge detector
+;           (the former colour-demo block)
 ;   0x04D5  game state cells (uninitialised; the game writes them)
 ;   0x0500  menu code, then the default palette at 0x05E0
 ;   0x05CB  bird body/belly colours and the dizzy sprite-group table
@@ -38,16 +40,17 @@
 .equ G_OVER_TIMER 0x04ED
 .equ G_DRAW_ORIGIN 0x04EE
 .equ G_TMP        0x04EF
-.equ G_TMP2       0x04F0
-.equ G_KEY        0x04F1
+.equ G_FALL_TICK  0x04F0       ; per-bird fall cadence counter
+.equ G_FLAP_TICK  0x04F1       ; per-bird flap cadence counter
 .equ G_FRAME      0x04F2
 .equ G_BTN        0x04F3
 .equ G_BTN_HOLD   0x04F4
-.equ G_FLAP_TIMER 0x04F6
+.equ G_FLAP_TIMER 0x04F6       ; frames of lift left; the only flap request
 .equ G_CLOUD_X    0x04F8       ; four cloud world x values
 .equ G_BIRD_ANIM  0x04FC       ; sprite-frame counter
 .equ G_DEATH      0x04FD       ; 0 alive, 1 dizzy, 2 falling, 3 on ground
 .equ G_DEATH_TIMER 0x04FE
+.equ G_BIRD_COLOR 0x04FF       ; 0 red, 1 purple (light), 2 yellow (heavy)
 
 ; Game-art tiles, baked at 96.. from the free art pack.
 .equ T_PIPE_L     0x0C00

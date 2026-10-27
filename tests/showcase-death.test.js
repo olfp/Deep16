@@ -24,6 +24,7 @@ const UART_STATUS = 0xF0066;       // b1 frame, b3 UART byte waiting
 const OAM_BASE = 0xF5000;
 const G_START_MODE = 0x4D5;
 const G_BIRD_Y = 0x4EDB;
+const G_BIRD_VY = 0x4EDC;
 const G_DEATH = 0x4EFD;
 const G_DEATH_TIMER = 0x4EFE;
 const G_TMP = 0x4EEF;
@@ -63,7 +64,7 @@ function start(mode) {
 
 // Runs up to `frames` game frames. `hitAt` forces a pipe hit, `keyAt`/`key`
 // push one UART byte. Returns the frame log and the final machine state.
-function run({ mode = 1, frames = 260, hitAt = -1, keyAt = -1, key = 0 } = {}) {
+function run({ mode = 1, frames = 260, hitAt = -1, keyAt = -1, key = 0, holdS2 = 0 } = {}) {
   const sim = start(mode);
   let status = 0;
   let lastFrame = 0;
@@ -78,12 +79,16 @@ function run({ mode = 1, frames = 260, hitAt = -1, keyAt = -1, key = 0 } = {}) {
   let prevY = -1;
   let lastDir = 0;
   let reversals = 0;
+  let flapFrames = 0;                // frames the bird was moving up at full tilt
 
   for (let step = 0; step < (frames + 8) * FRAME_PERIOD; step++) {
     if (step % FRAME_PERIOD === 0) {
       status ^= 2;
-      sim.memory[UART_STATUS] = (sim.memory[UART_STATUS] & ~2) | status;
+      // Bit 3 is the UART byte-ready flag: the test sets it for the key frame
+      // only, as the hardware clears it once the byte is read.
+      sim.memory[UART_STATUS] = (sim.memory[UART_STATUS] & ~(2 | 8)) | status;
     }
+    if (holdS2 && frame < holdS2) sim.memory[UART_STATUS] |= 4;   // S2 held
     if (frame === hitAt) sim.memory[G_TMP] = 1;
     if (frame === keyAt) {
       sim.memory[UART_STATUS] |= 8;
@@ -95,6 +100,8 @@ function run({ mode = 1, frames = 260, hitAt = -1, keyAt = -1, key = 0 } = {}) {
     if (frameBit !== lastFrame) {
       lastFrame = frameBit;
       frame++;
+      // -384 is the flap speed; count game frames spent there, not CPU steps.
+      if (sim.memory[G_BIRD_VY] === 0xFE80) flapFrames++;
     }
 
     const death = sim.memory[G_DEATH];
@@ -125,7 +132,8 @@ function run({ mode = 1, frames = 260, hitAt = -1, keyAt = -1, key = 0 } = {}) {
     if (frame >= frames) break;
   }
 
-  return { sim, frame, transitions, deathGroups, quitFrame, landedY, minY, maxY, reversals };
+  return { sim, frame, transitions, deathGroups, quitFrame, landedY, minY, maxY, reversals,
+           flapFrames };
 }
 
 test('showcase block stays inside the game block', () => {
@@ -149,6 +157,20 @@ test('the reset picks a bird, its palette and its sprite page', () => {
     assert.equal(w1 & 0x0400, 0x0400, `cloud ${i} enabled`);
     assert.ok((w1 & 0x3FF) === 45 || (w1 & 0x3FF) === 90, `cloud ${i} row`);
   }
+});
+
+test('holding S2 gives one flap, not a climb to the ceiling', () => {
+  const r = run({ mode: 0, frames: 120, holdS2: 100 });
+  assert.ok(r.minY > 40, `bird keeps altitude while S2 is held (min ${r.minY})`);
+  assert.ok(r.sim.memory[G_BIRD_Y] > 100, 'not pinned to the ceiling');
+});
+
+test('one UART key gives one flap, not a climb to the ceiling', () => {
+  const r = run({ mode: 0, frames: 60, keyAt: 10, key: 0x78 });
+  // The flap timer holds -384 for a handful of frames; a repeated flap (the
+  // R10 clobber bug) pinned it there for the whole run.
+  assert.ok(r.flapFrames <= 10, `one key flaps a few frames (${r.flapFrames})`);
+  assert.ok(r.minY > 40, `bird does not climb to the ceiling (min ${r.minY})`);
 });
 
 test('attract mode flies without dying', () => {

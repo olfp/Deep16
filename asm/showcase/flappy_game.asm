@@ -455,6 +455,12 @@ pick_done:
     MVS ES, R0
     LSI R2, 0x0A
     STS R1, ES, R2             ; sprite page = chosen bird
+    ; per-bird weight state: colour and the two cadence counters
+    LDI weight_init
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
 
     LSI R2, 0
     LDI G_WORLD
@@ -796,13 +802,18 @@ play_check_button:
     LDI 0x26
     MOV R2, R0
     LDS R1, ES, R2             ; 0xF0066: b3 UART key ready, b2 S2
+    ; S2 is a level: turn it into a one-frame pulse so a held button gives one
+    ; flap, not a continuous climb.  UART bytes stay one flap per byte.
+    LDI s2_edge
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI 0x0C
     MOV R3, R0
     AND R1, R3
     JZ play_no_key
     NOP
-    LDI 1
-    MOV R10, R0                ; R10: flap request for physics_step
     LDI 0
     MOV R11, R0                ; R11: manual mode (no autopilot)
     LSI R3, 6
@@ -980,9 +991,9 @@ physics_step:
 physics_max:
     MOV R1, R3
 physics_after_gravity:
-    AND R10, R10
-    JNZ physics_flap_now
-    NOP
+    ; G_FLAP_TIMER is the whole flap request: the key and the autopilot arm it,
+    ; and each frame here spends one.  It used to be a register, but R10 is
+    ; scratch for the draw helpers and a stale value meant a flap every frame.
     LDI G_FLAP_TIMER
     MOV R3, R0
     LD R4, R3, 0
@@ -992,14 +1003,20 @@ physics_after_gravity:
     SUB R4, 1
     ST R4, R3, 0
 physics_flap_now:
-    LDI 0
-    MOV R10, R0                ; consume the one-shot request
     LDI -384
     MOV R1, R0
 physics_no_flap:
     ST R1, R2, 0
     MOV R3, R1
     SRA R3, 8
+    ; A light bird gets a little more lift and falls a little less; a heavy
+    ; bird the reverse.  R3 is the signed per-frame dy; the helper adjusts it
+    ; in place and returns through pw_ret (no LINK: physics_step's LR owns the
+    ; return to the caller).
+    LDI physics_weight
+    MOV PC, R0
+    NOP
+pw_ret:
     LDI G_BIRD_Y
     MOV R4, R0
     LD R5, R4, 0
@@ -1183,7 +1200,6 @@ auto_next:
     NOP
     ; same lift as a key tap: six more frames of flap, so the autopilot
     ; corrects in one gentle hop instead of a one-frame twitch
-    LSI R10, 1
     LSI R3, 6
     LDI G_FLAP_TIMER
     MOV R2, R0
@@ -1191,7 +1207,6 @@ auto_next:
     JMP LR
     NOP
 auto_no_flap:
-    LSI R10, 0
     JMP LR
     NOP
 
@@ -1207,4 +1222,119 @@ exit_showcase:
     JMP R4
     NOP
     MOV PC, R12
+    NOP
+
+; =====================================================================
+; Per-bird weight helpers, in the freed colour-demo block (0x400..0x4D4).
+; R3 is the signed per-frame dy from physics_step.  Red (0) is the reference;
+; Purple (1) falls 0.9x and lifts 1.1x; Yellow (2) falls 1.1x and lifts 0.9x.
+; =====================================================================
+.org 0x400
+weight_init:
+    LDI G_BIRD_COLOR
+    MOV R2, R0
+    ST R1, R2, 0
+    LSI R3, 0
+    LDI G_FALL_TICK
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI G_FLAP_TICK
+    MOV R2, R0
+    ST R3, R2, 0
+    JMP LR
+    NOP
+
+.org 0x420
+physics_weight:
+    LDI G_BIRD_COLOR
+    MOV R6, R0
+    LD R7, R6, 0
+    AND R7, R7
+    JZ pw_done
+    NOP
+    MOV R6, R3
+    AND R6, R6
+    JN pw_flap
+    NOP
+    JZ pw_done
+    NOP
+    ; fall: one pixel, but every tenth fall frame Purple drops one less and
+    ; Yellow one more.
+    LDI G_FALL_TICK
+    MOV R8, R0
+    LD R9, R8, 0
+    ADD R9, 1
+    LDI 10
+    MOV R5, R0             ; R5: cadence limit
+    CMP R9, R5
+    JC pw_fall_store
+    NOP
+    LSI R9, 0
+    LSI R5, 1
+    CMP R7, R5
+    JNZ pw_fall_heavy
+    NOP
+    SUB R3, R5
+    LDI pw_fall_store
+    MOV PC, R0
+    NOP
+pw_fall_heavy:
+    ADD R3, R5
+pw_fall_store:
+    ST R9, R8, 0
+    LDI pw_done
+    MOV PC, R0
+    NOP
+pw_flap:
+    ; flap: -2 pixels, but every fifth flap frame Purple gets one more and
+    ; Yellow one less.
+    LDI G_FLAP_TICK
+    MOV R8, R0
+    LD R9, R8, 0
+    ADD R9, 1
+    LSI R5, 5
+    CMP R9, R5
+    JC pw_flap_store
+    NOP
+    LSI R9, 0
+    LSI R5, 1
+    CMP R7, R5
+    JNZ pw_flap_heavy
+    NOP
+    SUB R3, R5
+    LDI pw_flap_store
+    MOV PC, R0
+    NOP
+pw_flap_heavy:
+    ADD R3, R5
+pw_flap_store:
+    ST R9, R8, 0
+pw_done:
+    LDI pw_ret
+    MOV PC, R0
+    NOP
+
+; S2 edge: R1 is the 0xF0066 status.  Keep bit 2 only on a 0 -> 1 press and
+; remember the level in G_BTN_HOLD.  Called from play_check_button.
+.org 0x490
+s2_edge:
+    LDI 4
+    MOV R3, R0
+    AND R3, R1             ; current S2
+    LDI G_BTN_HOLD
+    MOV R2, R0
+    LD R5, R2, 0           ; previous
+    ST R3, R2, 0
+    CMP R3, R5
+    JZ s2_edge_off         ; still held or still released
+    NOP
+    AND R3, R3
+    JZ s2_edge_off         ; released
+    NOP
+    JMP LR                 ; new press: leave bit 2 set
+s2_edge_off:
+    LDI 0xFB
+    MOV R2, R0
+    AND R1, R2             ; clear bit 2
+    JMP LR
     NOP
