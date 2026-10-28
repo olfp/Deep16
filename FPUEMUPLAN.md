@@ -85,7 +85,8 @@ is the worst possible place to debug soft-float.
 
 ### 3.1 Encoding
 
-SYS sub-opcode 6, word **`0xFFF6`**. Sub-op 7 (`0xFFF7`) stays free.
+SYS sub-opcode 6, word **`0xFFF6`**. Sub-op 7 (`0xFFF7`) is **`NIO`**, the
+non-implemented-opcode trap (`ILLTRAP.md`), not free.
 
 | File | Change |
 |---|---|
