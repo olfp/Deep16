@@ -486,26 +486,34 @@ only the SPI slave.
 
 1. **1K or 4K?** It decides variant A vs B at the margin, and it is the only
    question that changes the architecture rather than a constant.
-2. **Is MISO status needed**, or is the sound link write-only? Status lets a
+2. **Which USB keyboards do you actually have?** The core is low-speed only
+   (§7.1), so this is the gating fact for the whole keyboard half: a gaming or
+   wireless keyboard may not enumerate at all. Test before committing the board.
+3. **Is MISO status needed**, or is the sound link write-only? Status lets a
    game sync a visual to the end of a crash; with a CS it is safe and ~10 LUT4.
-3. **E0 extended keys — fix `ps2_rx` now?** Arrows and nav keys do not work on
+4. **E0 extended keys — fix `ps2_rx` now?** Arrows and nav keys do not work on
    either path today. One decoder change, two new vector sets. Recommended
    before the effects library grows a menu that needs them.
-4. **Auto-repeat in the companion** (PS/2-faithful, ~40 LUT4) — confirmed? The
+5. **Auto-repeat in the companion** (PS/2-faithful, ~40 LUT4) — confirmed? The
    alternative, repeat in the 9K's decoder, changes behaviour for both sources.
-5. **24 kHz or 15 kHz?** 24 kHz costs nothing and sounds better (§4.4).
-6. **Which effects are mandatory?** If crash must be a *recorded* sample, the
+6. **Does the physical PS/2 port stay** once the companion works? Keeping it
+   costs `u_ps2`'s 95 LUT and 1 BSRAM, and it is the only fallback for a
+   keyboard that does not enumerate. Removing *all* of it frees ~50 CLS, but
+   only if the companion also takes over the Set-2 decode — variant B keeps
+   the decoder and frees 15-25. It also makes the companion load-bearing.
+7. **24 kHz or 15 kHz?** 24 kHz costs nothing and sounds better (§4.4).
+8. **Which effects are mandatory?** If crash must be a *recorded* sample, the
    design needs the DMC-style channel and sample memory (~+120 LUT4, +1-2
    BSRAM) and the 1K is out.
-7. **Four voices or three?** Three (two pulse + noise) is ~40 LUT4 smaller and
+9. **Four voices or three?** Three (two pulse + noise) is ~40 LUT4 smaller and
    still does effects; four gives the triangle bass a home.
-8. **Does the game need per-event volume/pitch** (distance, size of the thing
-   hit), or is a fixed preset per event enough?
-9. **I2C — reserve now, and for what first?** RTC and OLED are the two that
-   justify a master; otherwise the pins stay undocumented spares.
-10. **Does the companion take power from the 9K's 3V3 header** or from its own
+10. **Does the game need per-event volume/pitch** (distance, size of the thing
+    hit), or is a fixed preset per event enough?
+11. **I2C — reserve now, and for what first?** RTC and OLED are the two that
+    justify a master; otherwise the pins stay undocumented spares.
+12. **Does the companion take power from the 9K's 3V3 header** or from its own
     USB? Check the 9K regulator's headroom and the current of the companion's
     LDO before wiring.
-11. **Is the APU to be written portable to the 20K from the start** (no
+13. **Is the APU to be written portable to the 20K from the start** (no
     companion-specific assumptions in the register map, a wrappable top), or
     is it allowed to bake in the 12 MHz clock?
