@@ -189,4 +189,39 @@ variable blk drop
 
 : sd ( -- )              sd-init ?dup if ." SD init error " . else ." SD card ready" then cr ;
 
+\ ---- source from the user flash -------------------------------------------
+\ The on-die FLASH608K has a CPU read port at 0xF00A0 (one 32-bit word per
+\ request): 0xA0 the word address, 0xA2 bit 0 starts a read and reads back
+\ busy, 0xA4/0xA6 the two halves. The read takes ~16 us, so Forth polls.
+0xA0 constant flash-addr
+0xA2 constant flash-go
+0xA4 constant flash-lo
+0xA6 constant flash-hi
+: flash@ ( word -- lo hi )
+  flash-addr es!
+  1 flash-go es!
+  begin flash-go es@ 1 and 0= until
+  flash-lo es@ flash-hi es@ ;
+
+\ A screen is one 2 KB flash page: 512 32-bit words, four characters each.
+\ The characters are unpacked one per cell (the form `included` reads) into a
+\ 2048-cell buffer. Pages 0..12 are free; the image ends in page 24.
+create screen-buf 2048 cells allot
+: !chars ( lo hi a -- )
+  >r
+  over 0xff and r@ c!
+  over 8 rshift r@ 1+ c!
+  dup 0xff and r@ 2 + c!
+  8 rshift r@ 3 + c!
+  drop r> drop ;
+: screen ( n -- )
+  dup 0 13 within 0= if ." screen: 0..12" cr drop exit then
+  512 * 0x3200 +
+  screen-buf 512 0 do
+    over i + flash@
+    2 pick i 4 * + !chars
+  loop
+  2drop
+  screen-buf 2048 included ;
+
 boot.msg

@@ -1,14 +1,19 @@
 // flash_boot - copy the flat boot image from the on-die FLASH608K into PSRAM.
 //
 // The user flash starts blank, so this loader expects the image installed by
-// the flash_installer bitstream: a 64-word header (magic, format, image words,
-// CRC16), then the flat 24,576-word image packed two words per 32-bit flash
-// word. It copies, computes the same CRC-16/CCITT-FALSE as the generator,
-// verifies PSRAM against the flash, and hands the entry word to the caller.
+// the flash_installer bitstream or the programmer: a 64-word header (magic,
+// format, image words, CRC16), then the flat 24,576-word image packed two words
+// per 32-bit flash word (and, with D16SEG, the copies that go to DS and to the
+// BIOS segment). It copies while computing the same CRC-16/CCITT-FALSE as the
+// generator, compares the result with the header, and hands the entry word to
+// the caller.
 //
-// One retry on the first PSRAM mismatch. A bad header or a persistent CRC
-// failure sets `err` and the machine stays in reset (the heartbeat LED shows
-// boot_err); the installer bitstream has to be run again.
+// The CRC covers the flash read, which is the path that can fail (the PSRAM
+// write is checked by the cache's own write-through and by the machine running).
+// A read-back verify of PSRAM used to follow it; it cost 12 states and was
+// dropped to pay for the flash read port. A bad header or a CRC mismatch sets
+// `err` and the machine stays in reset (the heartbeat LED shows boot_err); the
+// installer bitstream has to be run again.
 module flash_boot #(
   parameter int CLK_HZ = 13_500_000
 ) (
@@ -24,9 +29,14 @@ module flash_boot #(
   output logic        bwe,
   output logic [19:0] baddr,
   output logic [15:0] bwdata,
-  input  logic [15:0] brdata,
   input  logic        bready,
-  input  logic        bbusy
+  input  logic        bbusy,
+
+  // CPU read port: one 32-bit word per request, after the boot is done
+  input  logic        u_req,
+  input  logic [14:0] u_addr,
+  output logic [31:0] u_data,
+  output logic        u_busy
 );
   localparam logic [31:0] MAGIC  = 32'h44313646;   // 'D16F'
   localparam logic [31:0] FORMAT = 32'd1;
@@ -42,28 +52,23 @@ module flash_boot #(
     S_CRC_LOAD = 6'd6, S_CRC_BIT = 6'd7,
     S_WR0 = 6'd8, S_WR0W = 6'd9, S_WR1 = 6'd10, S_WR1W = 6'd11,
     S_CRC_CHK = 6'd12,
-    S_V_REQ = 6'd13, S_V_WAIT = 6'd14,
-    S_V_RD0 = 6'd15, S_V_RD0W = 6'd16, S_V_RD1 = 6'd17, S_V_RD1W = 6'd18,
     S_DONE = 6'd19, S_ERR = 6'd20,
+    S_U_WAIT = 6'd33,
     S_WR_B0 = 6'd21, S_WR_B0W = 6'd22,
     S_WR_B1 = 6'd23, S_WR_B1W = 6'd24,
-    S_V_B0 = 6'd25, S_V_B0W = 6'd26,
-    S_V_B1 = 6'd27, S_V_B1W = 6'd28,
     S_WR_D0 = 6'd29, S_WR_D0W = 6'd30,
-    S_WR_D1 = 6'd31, S_WR_D1W = 6'd32,
-    S_V_D0 = 6'd33, S_V_D0W = 6'd34,
-    S_V_D1 = 6'd35, S_V_D1W = 6'd36;
+    S_WR_D1 = 6'd31, S_WR_D1W = 6'd32;
 
   logic [5:0]  st;
   logic [2:0]  hdr_i;
   logic [13:0] img_i;
-  logic [31:0] img_word, v_word;
+  logic [31:0] img_word;
   logic [31:0] hdr_magic, hdr_format, hdr_words, hdr_crc;
   logic [15:0] crc;
   logic [1:0]  crc_byte;
   logic [2:0]  crc_bit;
   logic [7:0]  crc_b;
-  logic        retried;
+
 
   // flash controller
   logic [14:0] f_addr;
@@ -91,7 +96,8 @@ module flash_boot #(
       hdr_i <= 3'd0; img_i <= 14'd0;
       hdr_magic <= 32'd0; hdr_format <= 32'd0; hdr_words <= 32'd0; hdr_crc <= 32'd0;
       crc <= 16'hFFFF; crc_byte <= 2'd0; crc_bit <= 3'd0;
-      retried <= 1'b0; entry_exp <= 16'd0;
+      entry_exp <= 16'd0;
+      u_data <= 32'd0; u_busy <= 1'b0;
       f_addr <= 15'd0; f_read <= 1'b0;
       breq <= 1'b0; bwe <= 1'b0; baddr <= 20'd0; bwdata <= 16'd0;
     end else begin
@@ -124,7 +130,6 @@ module flash_boot #(
           if (hdr_magic == MAGIC && hdr_format == FORMAT && hdr_words == 32'(IMG_WORDS)) begin
             img_i <= 14'd0;
             crc <= 16'hFFFF;
-            retried <= 1'b0;
             st <= S_CP_REQ;
           end else begin
             err <= 1'b1;
@@ -140,6 +145,9 @@ module flash_boot #(
         end
         S_CP_WAIT: if (f_done) begin
           img_word <= f_rdata;
+          // The word at 0x0100 is the kernel's entry point; the core is
+          // released with it (this used to be taken from the verify pass).
+          if (img_i == 14'h0080) entry_exp <= f_rdata[15:0];
           crc_byte <= 2'd0;
           st <= S_CRC_LOAD;
         end
@@ -232,140 +240,31 @@ module flash_boot #(
 
         S_CRC_CHK: begin
           if (crc == hdr_crc[15:0]) begin
-            img_i <= 14'd0;
-            st <= S_V_REQ;
+            done <= 1'b1;
+            st <= S_DONE;
           end else begin
             err <= 1'b1;
             st <= S_ERR;
           end
         end
 
-        // ---- verify PSRAM against flash ---------------------------------
-        S_V_REQ: begin
-          f_addr <= 15'(FLASH_IMG + 32'(img_i));
-          f_read <= 1'b1;
-          st <= S_V_WAIT;
-        end
-        S_V_WAIT: if (f_done) begin
-          v_word <= f_rdata;
-          st <= S_V_RD0;
-        end
-        S_V_RD0: if (!bbusy && !bready) begin
-          breq <= 1'b1; bwe <= 1'b0;
-          baddr <= {5'd0, img_i, 1'b0};
-          st <= S_V_RD0W;
-        end
-        S_V_RD0W: if (bready) begin
-          if (brdata != v_word[15:0]) begin
-            if (!retried) begin
-              retried <= 1'b1; img_i <= 14'd0; crc <= 16'hFFFF; st <= S_CP_REQ;
-            end else begin err <= 1'b1; st <= S_ERR; end
-          end else begin
-            if (baddr == 20'h00100) entry_exp <= v_word[15:0];
-            st <= S_V_RD1;
+        // Boot is done; the CPU owns the read port from here. One request per
+        // word: latch the address, pulse the read, and hold busy until the
+        // controller delivers the word.
+        S_DONE: begin
+          done <= 1'b1;
+          if (u_req) begin
+            f_addr <= u_addr;
+            f_read <= 1'b1;
+            u_busy <= 1'b1;
+            st     <= S_U_WAIT;
           end
         end
-        S_V_RD1: if (!bbusy && !bready) begin
-          breq <= 1'b1; bwe <= 1'b0;
-          baddr <= {5'd0, img_i, 1'b1};
-          st <= S_V_RD1W;
+        S_U_WAIT: if (f_done) begin
+          u_data <= f_rdata;
+          u_busy <= 1'b0;
+          st     <= S_DONE;
         end
-        S_V_RD1W: if (bready) begin
-          if (brdata != v_word[31:16]) begin
-            if (!retried) begin
-              retried <= 1'b1; img_i <= 14'd0; crc <= 16'hFFFF; st <= S_CP_REQ;
-            end else begin err <= 1'b1; st <= S_ERR; end
-          end
-`ifdef D16SEG
-          else if (img_i >= 14'h1800 && img_i <= 14'h2BEE) begin
-            st <= S_V_D0;
-          end
-          else if (img_i >= 14'h2500 && img_i < 14'h2C00) begin
-            st <= S_V_B0;
-          end
-`endif
-          else if (img_i == 14'(IMG_PAIRS - 1)) begin
-            done <= 1'b1;
-            st <= S_DONE;
-          end else begin
-            img_i <= img_i + 14'd1;
-            st <= S_V_REQ;
-          end
-        end
-
-`ifdef D16SEG
-        // Verify the DS=0x1000 copy.
-        S_V_D0: if (!bbusy && !bready) begin
-          breq <= 1'b1; bwe <= 1'b0;
-          baddr <= 20'h10000 + {5'd0, img_i, 1'b0};
-          st <= S_V_D0W;
-        end
-        S_V_D0W: if (bready) begin
-          if (brdata != v_word[15:0]) begin
-            if (!retried) begin
-              retried <= 1'b1; img_i <= 14'd0; crc <= 16'hFFFF; st <= S_CP_REQ;
-            end else begin err <= 1'b1; st <= S_ERR; end
-          end else begin
-            st <= S_V_D1;
-          end
-        end
-        S_V_D1: if (!bbusy && !bready) begin
-          breq <= 1'b1; bwe <= 1'b0;
-          baddr <= 20'h10001 + {5'd0, img_i, 1'b0};
-          st <= S_V_D1W;
-        end
-        S_V_D1W: if (bready) begin
-          if (brdata != v_word[31:16]) begin
-            if (!retried) begin
-              retried <= 1'b1; img_i <= 14'd0; crc <= 16'hFFFF; st <= S_CP_REQ;
-            end else begin err <= 1'b1; st <= S_ERR; end
-          end else if (img_i >= 14'h2500 && img_i < 14'h2C00) begin
-            st <= S_V_B0;
-          end else if (img_i == 14'(IMG_PAIRS - 1)) begin
-            done <= 1'b1;
-            st <= S_DONE;
-          end else begin
-            img_i <= img_i + 14'd1;
-            st <= S_V_REQ;
-          end
-        end
-
-        // Verify the BIOS-segment copy as well.
-        S_V_B0: if (!bbusy && !bready) begin
-          breq <= 1'b1; bwe <= 1'b0;
-          baddr <= 20'h2B600 + {5'd0, img_i, 1'b0};
-          st <= S_V_B0W;
-        end
-        S_V_B0W: if (bready) begin
-          if (brdata != v_word[15:0]) begin
-            if (!retried) begin
-              retried <= 1'b1; img_i <= 14'd0; crc <= 16'hFFFF; st <= S_CP_REQ;
-            end else begin err <= 1'b1; st <= S_ERR; end
-          end else begin
-            st <= S_V_B1;
-          end
-        end
-        S_V_B1: if (!bbusy && !bready) begin
-          breq <= 1'b1; bwe <= 1'b0;
-          baddr <= 20'h2B601 + {5'd0, img_i, 1'b0};
-          st <= S_V_B1W;
-        end
-        S_V_B1W: if (bready) begin
-          if (brdata != v_word[31:16]) begin
-            if (!retried) begin
-              retried <= 1'b1; img_i <= 14'd0; crc <= 16'hFFFF; st <= S_CP_REQ;
-            end else begin err <= 1'b1; st <= S_ERR; end
-          end else if (img_i == 14'(IMG_PAIRS - 1)) begin
-            done <= 1'b1;
-            st <= S_DONE;
-          end else begin
-            img_i <= img_i + 14'd1;
-            st <= S_V_REQ;
-          end
-        end
-`endif
-
-        S_DONE: done <= 1'b1;
         S_ERR:  err  <= 1'b1;
         default: st <= S_ERR;
       endcase

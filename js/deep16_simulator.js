@@ -162,6 +162,12 @@ class Deep16Simulator {
         // SdCard above for what it does and does not cover.
         this.spi = { cs: 0, div: 0, rx: 0xff, done: 0 };
         this.sdCard = new SdCard();
+        // On-die user flash: the whole 608 Kbit (19,456 32-bit words), with the
+        // CPU read port at 0xF00A0 (flash@ / screen in forth/demo.fth). The
+        // loader is not modelled; a test that needs the image calls
+        // loadProgram like the boot ROM would.
+        this.flash = new Uint32Array(19456).fill(0xFFFFFFFF);
+        this.flashPort = { addr: 0, data: 0xFFFFFFFF, busy: 0 };
         // D16nano benchmark time base: one step is one instruction (the JS core
         // is not cycle-accurate). The board exposes the real CPU cycle counter.
         this.cycleCount = 0;
@@ -292,6 +298,8 @@ class Deep16Simulator {
         // SPI master and the card on it.
         this.spi = { cs: 0, div: 0, rx: 0xff, done: 0 };
         this.sdCard = new SdCard();
+        // The flash contents are non-volatile; only the read port resets.
+        this.flashPort = { addr: 0, data: 0xFFFFFFFF, busy: 0 };
     }
 
     phys(seg, off) {
@@ -1193,6 +1201,8 @@ class Deep16Simulator {
                 this.writeGPR(rd, (this.cycleCount >>> 16) & 0xFFFF);
             } else if (physicalAddress >= 0xF0080 && physicalAddress <= 0xF0087) {
                 this.writeGPR(rd, this.spiRead(physicalAddress - 0xF0080));
+            } else if (physicalAddress >= 0xF00A0 && physicalAddress <= 0xF00A7) {
+                this.writeGPR(rd, this.flashRead(physicalAddress - 0xF00A0));
             } else if (physicalAddress < this.memory.length) {
                 this.writeGPR(rd, this.memory[physicalAddress] & 0xFFFF);
             }
@@ -1211,6 +1221,8 @@ class Deep16Simulator {
                 if (value & 0x2) { this.uartTx = []; }
             } else if (physicalAddress >= 0xF0080 && physicalAddress <= 0xF0087) {
                 this.spiWrite(physicalAddress - 0xF0080, this.readGPR(rd));
+            } else if (physicalAddress >= 0xF00A0 && physicalAddress <= 0xF00A7) {
+                this.flashWrite(physicalAddress - 0xF00A0, this.readGPR(rd));
             } else if (physicalAddress < this.memory.length) {
                 const value = this.readGPR(rd);
                 this.memory[physicalAddress] = value;
@@ -1466,6 +1478,35 @@ class Deep16Simulator {
                 break;
             case 6:
                 this.spi.div = value & 0xff;
+                break;
+            default:
+                break;
+        }
+    }
+
+    // --- on-die user flash read port (0xF00A0) ---------------------------
+    // 0xA0 the 15-bit word address, 0xA2 bit 0 starts a read and reads back
+    // busy, 0xA4/0xA6 the low/high halves. The RTL read takes ~16 us; the JS
+    // core is instruction-stepped, so the word is ready at once and busy is
+    // never seen set. A driver that polls busy still works.
+    flashRead(off) {
+        switch (off) {
+            case 0: return this.flashPort.addr & 0xffff;
+            case 2: return this.flashPort.busy & 0x1;
+            case 4: return this.flashPort.data & 0xffff;
+            case 6: return (this.flashPort.data >>> 16) & 0xffff;
+            default: return 0;
+        }
+    }
+
+    flashWrite(off, value) {
+        switch (off) {
+            case 0:
+                this.flashPort.addr = value & 0x7fff;
+                break;
+            case 2:
+                if (value & 0x1)
+                    this.flashPort.data = this.flash[this.flashPort.addr] >>> 0;
                 break;
             default:
                 break;

@@ -65,10 +65,11 @@ kernel, which is why the installer had to be re-run.
 
 ## D16D tile demo
 
-The tile build uses the same 24K flat image as the plain console. The demo sits
-at `0x4E00` in the BIOS segment gap (`CS=DS=0x04A0`), the runtime dictionary
-stays at `0x6000`, and the user image is the standard 12,352-word / 25-page
-image. `npm run synth:tile` generates the tile `.fs` and
+The tile build uses the same 24K flat image as the plain console, but `D16SEG`
+scatters it: `CS=0` flat code, `DS=0x1000` data and dictionary (base `0x5800`),
+`SS=0x2000` stack, and `CS=0x3000` for the BIOS/demo copied from image
+`0x4A00..0x57FF`. The user image is the standard 12,352-word / 25-page image;
+the source screens follow at page 25 (`0x3200`). `npm run synth:tile` generates the tile `.fs` and
 `artifacts/image/image.flash.bin`; `npm run flash:tile` writes both; a power
 cycle gives the tile console and `gfx`. `npm run installer:tile` remains the
 installer fallback for the user-flash half.
@@ -94,11 +95,14 @@ installer fallback for the user-flash half.
   4  build id (first 32 bits of the source hash)
   5..7 reserved
 word 64..12351    the flat image, two 16-bit words per 32-bit flash word
+word 12800..      source screens, one 2 KB page each: 512 words of four
+                  characters (screens/flash/*.fth, page n at 12800 + n*512)
 ```
 
 The flat image is 48 KB; the user flash is 76 KB (608 Kbit, 304 rows x 64 x
 32 bits). The installer uses **25 pages of 2 KB** for both the plain and D16D
-images; the D16D demo at 0x4E00 is inside the same 24K image.
+images; the D16D demo at 0x4E00 is inside the same 24K image. The 13 pages
+after it (`0x3200`..`0x49FF`) are free and hold the source screens.
 
 The **external SPI flash** holds the FPGA configuration (written by `-f`); the
 **on-die 608 Kbit FLASH608K** holds the D16 user image (written by
@@ -112,18 +116,30 @@ does not fit the 76 KB user flash.
 1. read the 8-word header and check magic/format/length;
 2. copy 12,288 32-bit flash words as 24,576 PSRAM words, computing the same
    CRC-16 as the generator;
-3. compare the CRC, then read every flash word back and compare it with PSRAM;
-4. one retry on the first mismatch; a bad header/CRC or a persistent mismatch
-   sets `boot_err` and the core stays held (heartbeat steady, nothing boots);
-5. hand the entry word (0x0100) to the cache path, which releases the core.
+3. compare the CRC (the read-back verify was dropped to pay for the CPU read
+   port); a bad header or CRC sets `boot_err` and the core stays held
+   (heartbeat steady, nothing boots);
+4. hand the entry word (0x0100) to the cache path, which releases the core.
 
-Measured in `psram_boot_tb`: **boot_done at 454.8 ms**, second boot after a
-button reset OK, `boot_err=0`. The 10 us read recovery per flash word dominates
-(24,704 reads in copy + verify); the packed build is still 37 ms.
+Measured in `psram_boot_tb` before the verify was removed: **boot_done at
+454.8 ms**, second boot after a button reset OK, `boot_err=0`. The 10 us read
+recovery per flash word dominates; dropping the verify halved the reads (12,296
+instead of 24,704), and the port adds no boot-time read.
 
 The flash controller (`flash608k_ctrl.v`) follows the sequence in Gowin's own
 FLASH608K simulation model: PROG/ERASE leads, NVSTR is the data-storage level,
 YE is the write pulse; erase is 120 ms per page.
+
+## CPU read port and source screens
+
+`flash_boot` also gives the CPU the read controller after boot: `0xF00A0`
+address, `0xF00A2` start/busy, `0xF00A4`/`0xF00A6` the two halves (`MEMMAP.md`
+§7.7). One word per request, ~16 us. The boot-script words are
+`flash@ ( word -- lo hi )` and `screen ( n -- )`; a screen is one 2 KB page, 512
+words of four characters, unpacked into a 2,048-cell buffer and run through
+`included`. `screens/flash/*.fth` are baked into `image.flash.bin` at
+`0x3200 + n*512` by `npm run image`, so `npm run flash:tile` writes them; the
+installer bitstream writes only the 25-page image.
 
 ## Installer
 
@@ -148,14 +164,13 @@ Both use `rtl/flash/flash608k_model.sv`; the Gowin builds use the hard
 
 | Build | BSRAM | CLS | Logic |
 |---|---:|---:|---:|
-| packed BSRAM (baseline) | 20/26 | 4,211/4,320 | 8,173/8,640 |
-| **user flash standard (final)** | **4/26** | 4,303/4,320 | 8,288/8,640 |
-| **tile user flash + D16D demo** | **12/26** | 3,936/4,320 | 7,262/8,640 |
+| **tile user flash + D16D (28 Oct 2026)** | **23/26** | **4,237/4,320** | **8,283/8,640** |
 | installer (one-time) | 26/26 | 3,445/4,320 | 6,679/8,640 |
 
-The tile build trades BSRAM for the 128-tile sprite bank and the PSRAM cache,
-but the 3-stage D16nano core leaves 427 CLS free. The standard user-flash build
-still has only 17 CLS left.
+The tile build trades BSRAM for the sprite bank and the PSRAM cache. It now has
+**83 CLS free**: the read-back verify freed 83 CLS and the flash read port spent
+6 of them. The older standard user-flash and packed rows were measured before
+the segmented map and are archived (`archive/24k-bsram/README.md`).
 
 ## Files
 
@@ -163,7 +178,7 @@ still has only 17 CLS left.
 rtl/flash/flash608k_model.sv     behavioural FLASH608K (Verilator)
 rtl/flash/flash608k_core.sv      primitive/model wrapper
 rtl/flash/flash608k_ctrl.sv      read / program / page-erase timing
-rtl/flash/flash_boot.sv          boot copy + CRC + verify
+rtl/flash/flash_boot.sv          boot copy + CRC + CPU read port
 rtl/flash/flash_installer.sv     one-time installer top
 fpga/gowin/d16install.sv         installer defines
 fpga/gowin/d16flash.sv           final build defines (USER_FLASH)

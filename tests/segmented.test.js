@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { assemble, loadBrowserScripts, MEM_WORDS, ROOT } from './helpers.js';
+import { packScreen, SCREEN_BASE } from '../scripts/make_screens.mjs';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -145,6 +146,30 @@ test('the 64K data stack holds 20000 cells', () => {
   assert.ok(sim.running);
 });
 
+// ---- user flash -----------------------------------------------------------
+// The CPU read port is at 0xF00A0 (js/deep16_simulator.js models it) and the
+// screens are the same pages scripts/make_image.mjs bakes into image.flash.bin.
+test('flash@ reads a 32-bit word, low half first', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'hello.fth'), 'utf8');
+  const { words } = packScreen(source);
+  for (let i = 0; i < words.length; i++) sim.flash[SCREEN_BASE + i] = words[i];
+  const w0 = words[0];
+  assert.equal(number(line('0x3200 flash@ drop . cr'), '0x3200 flash@ drop . cr'), w0 & 0xffff);
+  assert.equal(number(line('0x3200 flash@ nip . cr'), '0x3200 flash@ nip . cr'), (w0 >>> 16) & 0xffff);
+});
+
+test('a source screen loads from the user flash', () => {
+  assert.match(line('0 screen'), / ok/);
+  const t = line('hello');
+  assert.match(t, /hello from the user flash/);
+  assert.ok(sim.running);
+});
+
+test('an out-of-range screen number is refused', () => {
+  assert.match(line('13 screen'), /screen: 0\.\.12/);
+  assert.ok(sim.running);
+});
+
 // ---- SD card --------------------------------------------------------------
 // The card is on SPI CS0 (0xF0080) and the simulator models it byte by byte
 // (SdCard in js/deep16_simulator.js), so these run the driver's own command
@@ -201,7 +226,9 @@ test('a seven-sector source file loads from the card and runs', () => {
     }
   }
   assert.match(line(`20 ${sectors} include`), / ok/);
-  assert.match(line("' demo . cr"), /' demo \. cr \d+ /, 'demo was not defined');
+  // The xt is an address and prints signed: the boot script's 2 KB screen
+  // buffer pushes the card-loaded definitions past 0x7FFF.
+  assert.match(line("' demo . cr"), /' demo \. cr -?\d+ /, 'demo was not defined');
 
   out = '';
   for (const ch of 'demo\n') sim.uartRxPush(ch === '\n' ? 13 : ch.charCodeAt(0));

@@ -156,6 +156,18 @@ module deep16_top
   logic        mem_valid, mem_store_ack;
   logic [20:0] mem_waddr;
   logic [15:0] mem_wdata;
+  // CPU read port into the on-die user flash. Only the D16_PERIPH + USER_FLASH
+  // build drives it; anything else ties it off (deep16_psram_mem ties its
+  // outputs off when USER_FLASH is absent). Every PSRAM build declares it, and
+  // the flash-less ones hold it at zero.
+`ifdef PSRAM
+  logic [14:0] flash_a;
+  logic        flash_req;
+  logic [31:0] flash_data;
+  logic        flash_busy;
+  logic        flash_sel;
+  logic [15:0] flash_rdata;
+`endif
 `ifdef PSRAM
   logic        mem_store_ack_raw;   // PSRAM bridge ack before peripheral bypass
 `endif
@@ -166,7 +178,14 @@ module deep16_top
   // a single-cycle strobe even if the core holds mem_we for another cycle.
   wire timer_hit = (mem_waddr >= 21'h0F0020) && (mem_waddr <= 21'h0F002F);
   wire spi_hit   = (mem_waddr >= 21'h0F0080) && (mem_waddr <= 21'h0F008F);
-  wire periph_we = mem_we && (timer_hit || spi_hit);
+`ifdef USER_FLASH
+  wire flash_hit = (mem_waddr >= 21'h0F00A0) && (mem_waddr <= 21'h0F00A7);
+`endif
+  wire periph_we = mem_we && (timer_hit || spi_hit
+`ifdef USER_FLASH
+                              || flash_hit
+`endif
+                              );
   wire mem_we_mem = mem_we && !periph_we;
   logic periph_we_q;
 `else
@@ -224,6 +243,40 @@ module deep16_top
     .cs_n  (spi_cs_n),
     .miso  (spi_miso)
   );
+
+`ifdef USER_FLASH
+  // ---- user-flash read port (0xF00A0..0xF00A7) --------------------------
+  // 0xA0 word address (15 bits), 0xA2 bit 0 starts a read and reads back busy,
+  // 0xA4/0xA6 the low/high halves of the 32-bit word. One word per request:
+  // the read controller takes ~16 us at 6.75 MHz (T5US + T10US), so Forth
+  // polls the busy bit. flash_boot owns the controller; this is its CPU face.
+  wire [3:0] flash_off  = mem_we ? mem_waddr[3:0] : io_raddr_q[3:0];
+  wire       flash_we   = periph_we && !periph_we_q && flash_hit;
+  assign     flash_sel  = (io_raddr_q >= 21'h0F00A0) && (io_raddr_q <= 21'h0F00A7);
+
+  always_ff @(posedge clk) begin
+    if (rst) begin
+      flash_a   <= 15'd0;
+      flash_req <= 1'b0;
+    end else begin
+      flash_req <= 1'b0;
+      if (flash_we) begin
+        if (flash_off == 4'h0) flash_a   <= mem_wdata[14:0];
+        if (flash_off == 4'h2) flash_req <= mem_wdata[0];
+      end
+    end
+  end
+
+  always_comb begin
+    case (flash_off)
+      4'h0:    flash_rdata = {1'b0, flash_a};
+      4'h2:    flash_rdata = {15'd0, flash_busy};
+      4'h4:    flash_rdata = flash_data[15:0];
+      4'h6:    flash_rdata = flash_data[31:16];
+      default: flash_rdata = 16'd0;
+    endcase
+  end
+`endif
 `endif
   logic [15:0] if_rdata;
   logic [20:0] if_addr;
@@ -460,21 +513,42 @@ module deep16_top
     .mem_we(mem_we_mem), .mem_waddr(mem_waddr), .mem_wdata(mem_wdata),
     .mem_stall(mem_stall), .boot_done(boot_done), .boot_err(boot_err),
     .cache_flush(core_cache_flush),
+    .flash_req(flash_req), .flash_addr(flash_a),
+    .flash_data(flash_data), .flash_busy(flash_busy),
     .ctl_read(psram_read), .ctl_write(psram_write), .ctl_burst(psram_burst),
     .ctl_addr(psram_addr), .ctl_din(psram_din),
     .ctl_dout(psram_dout), .ctl_dout2(psram_dout2), .ctl_busy(psram_busy)
   );
 `ifdef D16_PERIPH
-  // A timer/SPI store is acknowledged by the top-level device, not by PSRAM.
+  // A timer/SPI/flash store is acknowledged by the top-level device, not by
+  // PSRAM.
   assign mem_store_ack = mem_store_ack_raw || periph_we;
 `else
   assign mem_store_ack = mem_store_ack_raw;
+`endif
+`ifdef PSRAM
+`ifdef USER_FLASH
+`ifndef D16_PERIPH
+  // No peripheral decode in this build: the flash read port is unused.
+  assign flash_a     = 15'd0;
+  assign flash_req   = 1'b0;
+  assign flash_sel   = 1'b0;
+  assign flash_rdata = 16'd0;
+`endif
+`else
+  // No user flash in this build: there is no port to decode.
+  assign flash_a     = 15'd0;
+  assign flash_req   = 1'b0;
+  assign flash_sel   = 1'b0;
+  assign flash_rdata = 16'd0;
+`endif
 `endif
   // D16nano benchmark time base: the core's 32-bit CPU cycle counter at the
   // unused I/O cells 0xF0068/0xF006A (the keyboard block uses 0x60..0x64).
 `ifdef D16NANO
   logic [15:0] psram_mem_rdata;
-  assign mem_rdata = timer_sel ? timer_rdata :
+  assign mem_rdata = flash_sel ? flash_rdata :
+                     timer_sel ? timer_rdata :
                      spi_sel ? spi_rdata :
                      (mem_addr == 21'h0F0066) ? tile_status :
                      (mem_addr == 21'h0F0068) ? core_cycles[15:0] :

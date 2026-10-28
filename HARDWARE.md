@@ -67,12 +67,11 @@ does not define `D16_PERIPH`.
   a write to `0xF0042` starts an 8N1 byte at the fixed baud divisor. This is the
   path for future X/YMODEM host transfers. The tile console still owns the
   screen; the UART TX is a second output, not a replacement.
-- **Measured cost** (tile/user-flash build, 27 Oct 2026, after PS/2, timer, SPI,
-  UART TX and the three-bird sprite bank): Logic 8,208 / 8,640 (95 %),
-  CLS 4,242 / 4,320 (**99 %**), registers 2,965 / 6,771, BSRAM 23 / 26,
-  I/O 26 / 71. **78 CLS and 3 BSRAM blocks remain**; this is the last feature
-  batch that fits without a diet. The tile build closes `dvi_pixel` at
-  79.292 MHz (TNS 0) with place 0 / route 1.
+- **Measured cost** (tile/user-flash build, 28 Oct 2026, after PS/2, timer, SPI,
+  UART TX, the three-bird sprite bank, the segmented map and the flash read
+  port): Logic 8,283 / 8,640 (96 %), CLS **4,237 / 4,320** (**99 %, 83 free**),
+  registers 2,985 / 6,771, BSRAM 23 / 26, I/O 26 / 71. The tile build closes
+  `dvi_pixel` at 79.292 MHz (TNS 0) with place 0 / route 1.
 - **Tests:** `npm run sim:timer`, `npm run sim:spi`, `npm run sim:uarttx`;
   `npm test` is the CPU suite. The 24K BSRAM builds (and `sim:board`) are
   retired - see `archive/24k-bsram/README.md`.
@@ -120,12 +119,13 @@ costs zero CLS and is testable in the JS core.
 - **Image cost.** The boot script is now baked packed, **two characters per
   cell** (`embed_forth.mjs`, the assembler's `.string`), and `read_line`
   unpacks a line into `tib_kbd`; that halved the script's data-section cost and
-  paid for the SD driver. Tile build after the change: `dict_free 0x45E0`, so
-  1,056 words remain before the BIOS at `0x4A00`. The tile build reports
-  `free` ~34,840 (the 6,144-cell include buffer and the driver's own
-  definitions); the flat D16MINI builds are archived. Resources are unchanged:
-  Logic 8,483 / 8,640, CLS **4,314 / 4,320**, registers 2,969 / 6,771,
-  BSRAM 23 / 26.
+  paid for the SD driver. Tile build after the SD driver: `dict_free 0x45E0`
+  (1,056 words before the BIOS at `0x4A00`). Adding the flash `screen` code and
+  its 2,048-cell unpack buffer moves it to `dict_free 0x471F`, so 737 words
+  remain before the BIOS; the runtime dictionary reports `free` 32,578. The
+  flat D16MINI builds are archived. Resources at that point:
+  Logic 8,483 / 8,640, CLS **4,314 / 4,320**. The loader's read-back verify was
+  then dropped and the flash read port added: 4,237 CLS, 8,283 logic.
 - **Tests.** `tests/segmented.test.js` boots the segmented image in the JS core
   against a byte-level SD model (`SdCard` in `js/deep16_simulator.js`, wired to
   the SPI registers at `0xF0080`): identification, a sector written and read
@@ -191,13 +191,12 @@ in `d16tile_flash.sv`. The text and packed builds keep the old flat map.
   copy at `DS=0x04A0`, and the BIOS f6 restores `DS=0x1000` on return.
 - **Vectors:** SWI/ILL vectors are written through `CS=0` to physical 0/2;
   they cannot use the new DS.
-- **Loader:** `flash_boot` now writes the flat image, the `DS=0x1000` data
-  copy, and the `0x3000` BIOS/demo copy, and verifies all three. The extra
-  logic is gated by `D16SEG`; the text build's loader is unchanged.
-- **Measured tile build:** Logic 8,483 / 8,640 (**99 %**), CLS 4,314 / 4,320
-  (**100 %, 6 CLS free**), registers 2,969 / 6,771, BSRAM 23 / 26, I/O 26 / 71.
-  This is the last RTL addition that fits; the SD driver must be
-  software/dictionary, not new logic.
+- **Loader:** `flash_boot` writes the flat image, the `DS=0x1000` data copy,
+  and the `0x3000` BIOS/demo copy. The CRC covers the flash read; the read-back
+  verify was dropped to pay for the CPU read port. The extra logic is gated by
+  `D16SEG`; the text build's loader is unchanged.
+- **Measured tile build:** Logic 8,283 / 8,640 (96 %), CLS 4,237 / 4,320
+  (**99 %, 83 free**), registers 2,985 / 6,771, BSRAM 23 / 26, I/O 26 / 71.
 - **Simulation:** `tests/segmented.test.js` scatters the image the way
   `flash_boot` does and boots it in the JS core: banner, `free`, arithmetic,
   1,000-deep recursion, `catch`/`throw`, and 20,000 cells on the data stack.
@@ -210,8 +209,9 @@ in `d16tile_flash.sv`. The text and packed builds keep the old flat map.
   `flash:tile` must regenerate the user image with `D16SEG=1`; it now does.
   If `free` still reports 39,212, the old flat user image is still in the
   on-die flash even though the segmented bitstream is loaded.
-- **Still to do:** the SD card driver and block layer on top of the SPI master,
-  using the free `DS 0x0000..0x1FFF` buffer area.
+- **Done:** the SD driver/block layer, `include`, and the user-flash read port
+  with `flash@`/`screen` (2 KB source screens). The next features (timer
+  interrupt, raster interrupt, audio) are budgeted in `SLIMPLAN.md`.
 
 ## USB keyboard attachment (alternative)
 

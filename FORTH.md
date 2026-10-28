@@ -762,3 +762,29 @@ stage that failed (`255` = an idle bus).
 Sector numbers are 16 bits — 32 MB of the card, a block system's own limit as
 much as the driver's. The card is the only thing on SPI CS0 (`0xF0080`); CS1 is
 left for the external flash, and the on-board configuration flash is not touched.
+
+## Source screens in the user flash (boot-script words)
+
+The on-die FLASH608K holds the boot image in 32-bit words 0..12,351; the 13
+pages after it (`0x3200`..`0x49FF`) hold 2 KB source screens. The CPU read port
+is at `0xF00A0` (`MEMMAP.md` §7.7), and these words drive it:
+
+| word | stack effect | meaning |
+|---|---|---|
+| `flash@ ( word -- lo hi )` | read one 32-bit flash word, low half first (polls busy) |
+| `screen ( n -- )` | read screen `n` (0..12) and interpret it as source |
+| `screen-buf ( -- a )` | the 2,048-cell unpack buffer |
+
+```text
+0 screen          \ load screens/flash/hello.fth (screen 0)
+13 screen         \ screen: 0..12
+```
+
+A screen is 512 32-bit flash words, four characters each. `screen` unpacks it
+one character per cell and runs it through `included`, so the same line rules
+apply: LF separated, at most 128 characters. `scripts/make_screens.mjs --flash`
+packs one source file into one page (LF padded) and prints the `dd` command;
+`npm run image` bakes `screens/flash/*.fth` into `image.flash.bin` at
+`0x3200 + n*512`, in filename order. The installer bitstream writes only the
+25-page image, so the screens come with `npm run flash:tile` (or the standalone
+`dd`).
