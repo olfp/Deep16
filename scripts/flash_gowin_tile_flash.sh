@@ -19,7 +19,7 @@ USER="$ROOT/artifacts/image/image.flash.bin"
 
 # Regenerate the D16D user image so a prior standard make_image cannot leave a
 # mismatched kernel next to the tile configuration.
-D16NANO=1 D16D=1 node "$ROOT/scripts/make_image.mjs" >/dev/null
+D16NANO=1 D16D=1 D16SEG=1 node "$ROOT/scripts/make_image.mjs" >/dev/null
 command -v openFPGALoader >/dev/null 2>&1 || { echo "openFPGALoader not found" >&2; exit 1; }
 [ -f "$FS" ]   || { echo "missing $FS - run npm run synth:tile first" >&2; exit 1; }
 [ -f "$USER" ] || { echo "missing $USER - run npm run synth:tile first" >&2; exit 1; }

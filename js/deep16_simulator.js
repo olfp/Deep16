@@ -1,3 +1,148 @@
+// A minimal SD card on the SPI bus (D16nano, 0xF0080).
+//
+// It is a byte-level model: every exchange is one byte in and one byte out, so
+// a driver's own command framing, token waiting, CRC bytes and busy polling are
+// what gets exercised, not a sector-level shortcut. Commands answered are the
+// ones a block driver needs: CMD0, CMD8, CMD55/ACMD41, CMD58, CMD16, CMD17 and
+// CMD24. The card reports SDHC (CCS=1), so its command argument is a block
+// number; `sectors` holds whatever has been written and reads back as zeros.
+class SdCard {
+    constructor() {
+        this.sectors = new Map();
+        this.reset();
+    }
+
+    // A fresh card: identification state again, nothing written.
+    reset() {
+        this.ocr = 0x40ff8000;       // SDHC, 3.3 V, CCS = 1
+        this.ready = false;          // out of the idle state?
+        this.acmd = false;           // the next command is an ACMD
+        this.acmd41 = 0;
+        this.deselect();
+    }
+
+    // CS went high: the card stops driving the bus and forgets a half-received
+    // command. It does *not* go back to the idle state - a selected card keeps
+    // its state across the CS frames of a transaction.
+    deselect() {
+        this.cmd = [];
+        this.out = [];
+        this.state = 'idle';
+        this.writing = null;
+        this.writingAddr = 0;
+        this.wi = 0;
+        this.wc = 0;
+    }
+
+    sector(n) {
+        let s = this.sectors.get(n);
+        if (!s) { s = new Uint8Array(512); this.sectors.set(n, s); }
+        return s;
+    }
+
+    // One 8-bit transfer: what the card drives during it, and what it saw.
+    exchange(mosi) {
+        const miso = this.out.length ? this.out.shift() : 0xff;
+        this.consume(mosi & 0xff);
+        return miso;
+    }
+
+    consume(b) {
+        if (this.state === 'writeToken') {
+            if (b === 0xfe) { this.state = 'writeData'; this.wi = 0; }
+            return;
+        }
+        if (this.state === 'writeData') {
+            this.writing[this.wi++] = b;
+            if (this.wi === 512) { this.state = 'writeCrc'; this.wc = 0; }
+            return;
+        }
+        if (this.state === 'writeCrc') {
+            if (++this.wc === 2) {
+                this.sectors.set(this.writingAddr, this.writing);
+                this.out.push(0x05, 0x00, 0xff);   // accepted, busy, then idle
+                this.state = 'idle';
+                this.writing = null;
+            }
+            return;
+        }
+        // Idle: a command starts with 0b01xxxxxx, anything else is a filler
+        // byte the host clocks while it waits.
+        if (this.cmd.length === 0 && (b & 0xc0) !== 0x40) return;
+        this.cmd.push(b);
+        if (this.cmd.length === 6) {
+            const c = this.cmd;
+            this.cmd = [];
+            this.command(c);
+        }
+    }
+
+    command(b) {
+        const idx = b[0] & 0x3f;
+        const arg = (((b[1] << 24) | (b[2] << 16) | (b[3] << 8) | b[4]) >>> 0);
+        const app = this.acmd;
+        this.acmd = false;
+        const r1 = this.ready ? 0x00 : 0x01;
+        switch (idx) {
+            case 0:                                   // GO_IDLE_STATE
+                this.ready = false;
+                this.acmd41 = 0;
+                this.out.push(0x01);
+                break;
+            case 8:                                   // SEND_IF_COND: R7 echo
+                // The echo is only legal with that exact argument (and its
+                // CRC). A mangled argument comes back as a parameter error,
+                // which is what a real card does - and what hid a broken
+                // argument helper until it was run on a card.
+                if (arg !== 0x1aa) { this.out.push(0x41); break; }
+                this.out.push(0x01, 0x00, 0x00, 0x01, 0xaa);
+                break;
+            case 55:                                  // APP_CMD
+                this.acmd = true;
+                this.out.push(r1);
+                break;
+            case 41:                                  // ACMD41: SD_SEND_OP_COND
+                if (!app) { this.out.push(0x04); break; }
+                // A high-capacity card only leaves idle when the host says it
+                // supports high capacity (HCS, bit 30); with HCS clear it
+                // stays busy forever, exactly as the board's card did.
+                if ((this.ocr & 0x40000000) && !(arg & 0x40000000)) {
+                    this.out.push(0x01);
+                    break;
+                }
+                if (++this.acmd41 >= 2) this.ready = true;
+                this.out.push(this.ready ? 0x00 : 0x01);
+                break;
+            case 58:                                  // READ_OCR: R3
+                this.out.push(r1,
+                    (this.ocr >>> 24) & 0xff, (this.ocr >>> 16) & 0xff,
+                    (this.ocr >>> 8) & 0xff, this.ocr & 0xff);
+                break;
+            case 16:                                  // SET_BLOCKLEN
+                this.out.push(r1);
+                break;
+            case 17: {                                // READ_SINGLE_BLOCK
+                if (!this.ready) { this.out.push(0x01); break; }
+                const s = this.sector(arg);
+                this.out.push(0x00, 0xfe);
+                for (let i = 0; i < 512; i++) this.out.push(s[i]);
+                this.out.push(0xff, 0xff);            // CRC, unchecked
+                break;
+            }
+            case 24:                                  // WRITE_SINGLE_BLOCK
+                if (!this.ready) { this.out.push(0x01); break; }
+                this.writingAddr = arg;
+                this.writing = new Uint8Array(512);
+                this.out.push(0x00);
+                this.state = 'writeToken';
+                break;
+            default:
+                this.out.push(0x04);                  // illegal command
+                break;
+        }
+    }
+}
+
 // Deep16 Simulator - Complete CPU Execution and State Management with Delay Slot
 class Deep16Simulator {
     constructor() {
@@ -13,6 +158,10 @@ class Deep16Simulator {
         // so a handler can emulate them. The full D16 leaves this false and
         // uses the hardware divide.
         this.d16nano = false;
+        // SPI master (0xF0080) with an SD card on CS0. Byte-level model: see
+        // SdCard above for what it does and does not cover.
+        this.spi = { cs: 0, div: 0, rx: 0xff, done: 0 };
+        this.sdCard = new SdCard();
         // D16nano benchmark time base: one step is one instruction (the JS core
         // is not cycle-accurate). The board exposes the real CPU cycle counter.
         this.cycleCount = 0;
@@ -140,6 +289,9 @@ class Deep16Simulator {
         this.uartTx = [];
         this.uartRx = [];
         this.uartRxOverrun = false;
+        // SPI master and the card on it.
+        this.spi = { cs: 0, div: 0, rx: 0xff, done: 0 };
+        this.sdCard = new SdCard();
     }
 
     phys(seg, off) {
@@ -1039,6 +1191,8 @@ class Deep16Simulator {
                 this.writeGPR(rd, this.cycleCount & 0xFFFF);
             } else if (this.d16nano && physicalAddress === 0xF006A) {
                 this.writeGPR(rd, (this.cycleCount >>> 16) & 0xFFFF);
+            } else if (physicalAddress >= 0xF0080 && physicalAddress <= 0xF0087) {
+                this.writeGPR(rd, this.spiRead(physicalAddress - 0xF0080));
             } else if (physicalAddress < this.memory.length) {
                 this.writeGPR(rd, this.memory[physicalAddress] & 0xFFFF);
             }
@@ -1055,6 +1209,8 @@ class Deep16Simulator {
                 const value = this.readGPR(rd);
                 if (value & 0x1) { this.uartRx = []; this.uartRxOverrun = false; }
                 if (value & 0x2) { this.uartTx = []; }
+            } else if (physicalAddress >= 0xF0080 && physicalAddress <= 0xF0087) {
+                this.spiWrite(physicalAddress - 0xF0080, this.readGPR(rd));
             } else if (physicalAddress < this.memory.length) {
                 const value = this.readGPR(rd);
                 this.memory[physicalAddress] = value;
@@ -1279,6 +1435,42 @@ class Deep16Simulator {
     // The mirror of the keyboard hooks above, for the serial console build. The
     // IDE drains uartTx into the SerialTerminal and pushes host input into
     // uartRx; a program talks to the port with LDS/STS at 0xF0040/0xF0042.
+
+    // --- SPI master (0xF0080) ---------------------------------------------
+    // CTRL (cs), STATUS (busy/done/cs), DATA (write starts a transfer, read is
+    // the byte received last) and DIV. The transfer is instant here, so busy
+    // is never set; a driver that polls it still works.
+    spiRead(off) {
+        switch (off) {
+            case 0: return this.spi.cs & 0x3;
+            case 2: return ((this.spi.cs & 0x3) << 2) | (this.spi.done ? 0x2 : 0x0);
+            case 4: return this.spi.rx;
+            case 6: return this.spi.div;
+            default: return 0;
+        }
+    }
+
+    spiWrite(off, value) {
+        switch (off) {
+            case 0: {
+                const cs = value & 0x3;
+                if ((this.spi.cs & 0x1) && !(cs & 0x1) && this.sdCard) this.sdCard.deselect();
+                this.spi.cs = cs;
+                break;
+            }
+            case 4:
+                this.spi.rx = (this.spi.cs & 0x1) && this.sdCard
+                    ? this.sdCard.exchange(value & 0xff)
+                    : 0xff;
+                this.spi.done = 1;
+                break;
+            case 6:
+                this.spi.div = value & 0xff;
+                break;
+            default:
+                break;
+        }
+    }
 
     // Status word: b0 RX-ready, b1 TX-ready, b2 RX-overrun, b3 TX-idle. This
     // core's TX never blocks, so b1 and b3 are always set.

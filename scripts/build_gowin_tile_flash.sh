@@ -18,7 +18,7 @@ GOWIN_EDA="$GOWIN_APP/Contents/Resources/Gowin_EDA/IDE"
 GW_SH="$GOWIN_EDA/bin/gw_sh"
 [ -x "$GW_SH" ] || { echo "gw_sh not found: $GW_SH" >&2; exit 1; }
 
-D16NANO=1 D16D=1 node scripts/make_image.mjs
+D16NANO=1 D16D=1 D16SEG=1 node scripts/make_image.mjs
 
 export DEEP16_ROOT="$ROOT"
 DYLD_LIBRARY_PATH="$GOWIN_EDA/lib" \

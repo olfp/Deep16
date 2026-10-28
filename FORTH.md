@@ -279,6 +279,8 @@ mistaken for a value above `lo`.
 | `!` | `( x addr -- )` | store `x` in the cell at `addr` |
 | `c@` | `( addr -- c )` | fetch the low 8 bits of the cell |
 | `c!` | `( c addr -- )` | store the low 8 bits of `c` in the cell |
+| `es@` | `( off -- x )` | fetch the cell at ES offset `off` |
+| `es!` | `( x off -- )` | store `x` at ES offset `off` |
 | `+!` | `( n addr -- )` | add `n` to the cell at `addr` |
 | `2@` | `( addr -- x1 x2 )` | fetch the pair: `x1` at `addr+1`, `x2` at `addr` |
 | `2!` | `( x1 x2 addr -- )` | store the pair, `x2` low and `x1` high |
@@ -304,6 +306,11 @@ first.
 ```text
 variable x 2 allot  7 9 x 2!  x 2@ . .    \ 9 7  ok
 ```
+
+`es@` and `es!` are the same two operations through **ES**, which the kernel
+keeps at `0xF000` — the MMIO segment. `@`/`!` cannot reach a peripheral, because
+DS points at the kernel's own data (segment 0 in the flat builds, `0x1000` on
+the board); `0x80 es@` reads the SPI control register, for example.
 
 ## Characters and strings
 
@@ -708,5 +715,50 @@ offset, and a word the current search order cannot reach prints as `?<xt>` —
 which is also where the listing stops if the thread runs past its own end (a
 definition whose `;` never ran).
 
-That is the whole dictionary: 211 words. New words are added at the head of the
+That is the whole dictionary: 213 words. New words are added at the head of the
 current wordlist and found newest-first; `forget` rewinds to a name.
+
+## SD card and blocks (boot-script words)
+
+These are not part of the image's kernel dictionary: they are compiled by
+`forth/demo.fth` at boot, so they appear in `words` only after the boot script
+has run.
+
+| word | stack effect | meaning |
+|---|---|---|
+| `sd ( -- )` | print whether the card answered, running `sd-init` |
+| `sd-init ( -- n )` | reset and identify the card; `0` when it is ready |
+| `sd-clk ( -- a )` | the identification clock divider (32 = ~100 kHz), a cell to store into |
+| `sd-r1 ( -- a )` | the raw response byte of the stage that failed (`255` = an idle bus) |
+| `sd-read ( n -- n )` | read sector `n` into `sd-buf`; `0` when it worked |
+| `sd-write ( n -- n )` | write `sd-buf` to sector `n`; `0` when it worked |
+| `sd-buf ( -- a )` | the 512-cell sector buffer (one character per cell) |
+| `blk ( -- a )` | the sector currently in the buffer, `-1` before the first `block` |
+| `block ( n -- a )` | sector `n`, read on a miss, then `sd-buf` |
+| `include ( first count -- )` | read `count` sectors and interpret them as one source file |
+| `save-block ( -- n )` | write `blk`'s buffer back to the card |
+
+```text
+sd                     \ SD card ready
+5 block 40 type cr     \ sector 5, first 40 characters
+```
+
+A screen is one 512-byte sector of text: lines separated by LF, the rest of the
+sector padded with LF (an empty line is a no-op). `include 1 7` loads the seven
+sectors from sector 1 as one file; the payload limit is 11 sectors.
+`scripts/make_screens.mjs` pads sources into such a blob and prints the sector
+range and the `dd` command.
+
+`sd-init`'s error codes name the stage that failed: `1` CMD0, `2` the CMD8
+echo, `3` the init poll, `4` CMD58, `5` the read token, `6` the write response.
+CMD0 is retried three times with a fresh 80-clock preamble, at the `sd-clk`
+divider (32 is ~100 kHz; a smaller number is faster, `64` slower), and every
+command gets its own CS edge. **CMD8 is optional**: a card that does not answer
+it is a v1 card, and CMD58's CCS bit decides block or byte addressing, so only
+a wrong echo stops the init. The poll then tries ACMD41 with HCS=1, ACMD41
+with HCS=0 and finally CMD1 (MMC), 1,024 tries each, and gives up as soon as
+the card stops answering. `sd-r1 @` keeps the raw byte the card sent in the
+stage that failed (`255` = an idle bus).
+Sector numbers are 16 bits — 32 MB of the card, a block system's own limit as
+much as the driver's. The card is the only thing on SPI CS0 (`0xF0080`); CS1 is
+left for the external flash, and the on-board configuration flash is not touched.

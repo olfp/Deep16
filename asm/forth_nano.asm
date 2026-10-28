@@ -46,17 +46,30 @@
 ; and 26,624 words measure 28 blocks. 24,576 (24 blocks) is the ceiling there;
 ; D16MINI.md §2 and §4.7.
 .ifdef CONSOLE_UART
+.ifdef D16SEG
+; Segmented map: every return-stack access is LD/ST through DS, so the return
+; stack has to be a DS offset window, not a segment of its own. It cannot sit at
+; 0x5800 any more: that is the dictionary base in this map and the dictionary
+; grows up, so a deep call would overwrite compiled code (0x5FF0 left only ~300
+; cells). It lives at 0x2FF0 down instead, between the SD buffer area
+; (DS 0x0000-0x1FFF) and the kernel data (DS 0x3000-): 4K frames.
+.equ RSTACK_TOP 0x2FF0
+.else
 .equ RSTACK_TOP 0x5800   ; Forth return stack top (grows down), below the BIOS
+.endif
 .equ DICT_LIMIT 0x4A00   ; nano tile BIOS is larger; it starts here
 .else
 .equ RSTACK_TOP 0x6F00   ; Forth return stack top (grows down)
 .equ DICT_LIMIT 0x4000   ; the screen build's ceiling, as it always was
 .endif
 
-; The PSRAM dictionary move to 0x6000 (the 24K window's edge). The D16D
-; showcase lives below it in the BIOS segment, so the dictionary base is the
-; same for both builds.
-.equ PSRAM_BASE_HI 0x3000   ; 0x6000
+; The PSRAM dictionary move. The segmented build keeps the BIOS/demo data at
+; DS 0x4A00..0x57DC and starts the dictionary at 0x5800.
+.ifdef D16SEG
+.equ PSRAM_BASE_HI 0x2C00   ; 0x5800: dictionary base in the segmented map
+.else
+.equ PSRAM_BASE_HI 0x3000   ; 0x6000: the 24K window's edge
+.endif
 
 ; =============================================
 ; Terminal echo on/off (0xF0064, ES-relative)
@@ -95,6 +108,12 @@ echo_flag:
 .code
 forth_start:
     ; Initialize stack pointer
+.ifdef D16SEG
+    LDI 0x1000
+    MVS DS, R0               ; kernel data + dictionary segment
+    LDI 0x2000
+    MVS SS, R0               ; data stack lives in segment 0x2000
+.endif
 .ifdef CONSOLE_UART
     LDI sp_top
     MOV R2, R0
@@ -124,13 +143,21 @@ forth_start:
     ; Ready for screen output at ES:SCR
 
     ; Install SWI vector early to enable BIOS calls
+.ifdef D16SEG
+    LDI 0x1000
+.else
     LDI 0
+.endif
     MVS DS, R0
     LDI 2
     MOV R2, R0
     LDI swi_to_bios
     MOV R1, R0
+.ifdef D16SEG
+    STS R1, CS, R2           ; vectors live at physical 0/2 in CS=0
+.else
     STS R1, DS, R2
+.endif
 
     ; Install the ILL vector at 0: DIV/DIV32 trap here on the nano core.
     LDI 0x1000
@@ -141,7 +168,11 @@ forth_start:
     ADD R1, R0
     LDI 0
     MOV R2, R0
+.ifdef D16SEG
+    STS R1, CS, R2           ; vectors live at physical 0/2 in CS=0
+.else
     STS R1, DS, R2
+.endif
 
     ; BIOS binit, which takes no parameters: the function number is the whole
     ; message, so it is set with the LDI that loads it.
@@ -294,17 +325,29 @@ clear_cursor:
     JMP LR
     NOP
 .endif
-    ; Ensure Data Segment points to physical 0x0000
+    ; Ensure Data/Code/Stack segments are correct
+.ifdef D16SEG
+    LDI 0x1000
+    MVS DS, R0
+    LDI 0
+    MVS CS, R0
+    LDI 0x2000
+    MVS SS, R0
+.else
     LDI 0
     MVS DS, R0
-    ; Ensure Code/Stack segments are also 0x0000 for correct jumps/stack
     MVS SS, R0
     MVS CS, R0
+.endif
     LDI 2
     MOV R2, R0
     LDI swi_to_bios
     MOV R1, R0
+.ifdef D16SEG
+    STS R1, CS, R2           ; vectors live at physical 0/2 in CS=0
+.else
     STS R1, DS, R2
+.endif
 
     ; Print greeting only
     LDI hello_msg
@@ -465,6 +508,15 @@ forth_read:
 swi_to_bios:
     ; Build the target CS and PC=0 and far jump via JML
 .ifdef CONSOLE_UART
+.ifdef D16SEG
+    ; Segmented BIOS: the code is copied to segment 0x3000 at its source
+    ; offset 0 (the loader strips the 0x4A00 base), so the entry is CS=0x3000,
+    ; PC=0.
+    LDI 0x3000
+    MOV R2, R0
+    LDI 0
+    MOV R3, R0
+.else
 .ifdef D16NANO
     ; D16nano tile BIOS sits at 0x4A00 (segment 0x04A0).
     LDI 0x04A0
@@ -474,6 +526,9 @@ swi_to_bios:
     LDI 0x0560
     MOV R2, R0
 .endif
+    LDI 0
+    MOV R3, R0           ; R3 = 0x0000 (target PC)
+.endif
 .else
     LDI 0x0FFF
     INV R0               ; R0 = 0xF000
@@ -481,9 +536,9 @@ swi_to_bios:
     LDI 0x0800
     MOV R3, R0           ; R3 = 0x0800
     ADD R2, R3           ; R2 = 0xF800 (target CS)
-.endif
     LDI 0
     MOV R3, R0           ; R3 = 0x0000 (target PC)
+.endif
     JML R2               ; delayed far jump to CS=R2, PC=R3
 
 ; =============================================
@@ -1201,12 +1256,23 @@ interpret_next:
 .org 0x3000
 sp0_base:
     .word 0
+; rp0_base has to stay below 0x4000: `r>`, `r@`, `2>r`, `2r>`, `2r@`, `catch` and
+; `throw` reach it with `LDI`, whose 15-bit immediate sign-extends anything from
+; 0x4000 up. It used to sit at the end of the data section, and once the boot
+; script had pushed the data past 0x4000 every one of them read a wrong cell:
+; `5 >r r> .` threw a stack underflow. It is one cell here instead.
+rp0_base:
+    .word RSTACK_TOP
 .ifdef CONSOLE_UART
 ; The data stack top for D16MINI. 0x5FF0 has bit 14 set, so `LDI 0x5FF0` would
 ; sign-extend to 0xDFF0 - the same trap RSTACK_TOP documents. It lives in a cell
 ; and is loaded with LD, like rp0_base.
 sp_top:
+.ifdef D16SEG
+    .word 0xFFF0
+.else
     .word 0x5FF0
+.endif
 ; The console's output column. uart_tx counts it as it emits, wrap_if reads it
 ; to break `words`/`see` at a space before the terminal autowraps. The host owns
 ; the actual wrapping; this is only the machine's own idea of where it is, and
@@ -2615,12 +2681,18 @@ h_divtest:
     .word 7
     .text "divtest"
     .word word_divtest
+h_esstore:
+    .word h_divtest
+    .word 3
+    .text "es!"
+    .word word_esstore
+h_esfetch:
+    .word h_esstore
+    .word 3
+    .text "es@"
+    .word word_esfetch
 forth_wl:
-.ifdef D16D
-    .word h_divtest           ; newest built-in header in the FORTH vocabulary
-.else
-    .word h_divtest           ; newest built-in header in the FORTH vocabulary
-.endif
+    .word h_esfetch           ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
     .word forth_wl
     .word 0, 0, 0, 0, 0, 0, 0
@@ -2975,106 +3047,137 @@ see_str_0branch:
 ; NUL, which is what read_line walks.
 boot_script:
 ; >>> generated from forth/demo.fth - do not edit here <<<
-    .text "here constant dict-base     \\ where this script's definitions begin"
-    .text " 256 constant kernel-base    \\ 0x0100: forth_start, where the kernel is laid"
-    .text "24576 constant window-words  \\ 0x6000: past the 24K BSRAM window"
-    .text "here window-words < 0= constant psram?   \\ the kernel moved the dictionary up"
-    .text ": ver ( -- )    .\" DeepForth 1.1  BIOS 1.0  FPGA 1.1\" cr ;"
-    .text ": free ( -- d )    unused 0 ;   \\ lo, hi=0: unsigned, so d. prints it whole"
-    .text ": .addr ( u -- )    hex 0 u.r decimal ;"
-    .text ": u. ( u -- )       0 u.r ;"
-    .text ": mem ( -- )"
-    .text "  cr .\" Deep16 memory map\" cr"
-    .text "  psram? if"
-    .text "    .\"   memory   00000-FFFFF  1048576 words, 2 MiB HyperRAM (PSRAM board)\" cr"
-    .text "    .\"   image    0000-5FFF   24576 words (kernel, data, boot script, BIOS, stacks)\" cr"
-    .text "    .\"   dict     \" dict-base .addr .\" -\" here 1- .addr"
-    .text "    .\"   \" here dict-base - u. .\"  words, \" free d. .\" free\" cr"
-    .text "    .\"   UART F0040-F004F   boot ROM FFFF0-FFFFF\" cr"
-    .text "  else"
-    .text "    .\"   window   0000-5FFF   24576 words, 48 KiB BSRAM\" cr"
-    .text "    .\"   image    0100-\" here 1- .addr .\"     \" here kernel-base - u. .\"  words\" cr"
-    .text "    .\"            (kernel, data and the baked demo source)\" cr"
-    .text "    .\"   free     \" here .addr .\" -55FF     \" free d. .\" words\" cr"
-    .text "    .\"   BIOS     5600-57FF   reserved for the UART console\" cr"
-    .text "    .\"   stacks   5800-5FFF   2048 words (RP 5800 up, SP 5FF0 down)\" cr"
-    .text "    .\"   UART F0040-F004F      boot ROM FFFF0-FFFFF (16 words)\" cr"
-    .text "  then"
-    .text "  cr ;"
-    .text ": boot.msg ( -- )"
-    .text "  psram? if"
-    .text "    .\" Deep16   1048576 words of PSRAM, \" free d. .\" free\" cr"
-    .text "  else"
-    .text "    .\" D16MINI  \" window-words u. .\"  words of BSRAM, \" free d. .\" free\" cr"
-    .text "  then ;"
-    .text "40 constant stars"
-    .text "200 constant z-near"
-    .text "  3400 constant z-far"
-    .text "create sx stars cells allot"
-    .text "create sy stars cells allot"
-    .text "create sz stars cells allot"
-    .text "create px stars cells allot     \\ last drawn column, 0 when nothing is drawn"
-    .text "create py stars cells allot"
-    .text "variable seed drop"
-    .text "variable ci drop                     \\ the star in hand"
-    .text "variable cx drop                     \\ its projected column"
-    .text "variable cy drop                     \\ its projected row"
-    .text ": rnd ( -- x )       seed @ 25173 * 13849 + dup seed ! ;"
-    .text ": rnd% ( n -- x )    rnd 32767 and swap mod ;"
-    .text ": esc ( -- )         27 emit ;"
-    .text ": .d ( n -- )      dup 10 < if 48 + emit exit then"
-    .text "                   10 /mod recurse 48 + emit ;"
-    .text ": at ( row col -- )  esc 91 emit swap .d 59 emit .d 72 emit ;"
-    .text ": reset-star ( i -- )"
-    .text "  ci !"
-    .text "  1600 rnd% 800 -  sx ci @ cells + !"
-    .text "  1200 rnd% 600 -  sy ci @ cells + !"
-    .text "  3200 rnd% z-near + sz ci @ cells + !"
-    .text "  0 px ci @ cells + !  0 py ci @ cells + ! ;"
-    .text ": init ( -- )        12345 seed !  stars 0 do i reset-star loop ;"
-    .text ": erase-star ( i -- )"
-    .text "  ci !"
-    .text "  px ci @ cells + @ ?dup if"
-    .text "    py ci @ cells + @ swap at 32 emit"
-    .text "  then"
-    .text "  0 px ci @ cells + !  0 py ci @ cells + ! ;"
-    .text ": project ( i -- )"
-    .text "  ci !"
-    .text "  sx ci @ cells + @ 40 * sz ci @ cells + @ / 40 + cx !"
-    .text "  sy ci @ cells + @ 20 * sz ci @ cells + @ / 12 + cy ! ;"
-    .text ": glyph ( -- c )"
-    .text "  ci @ sz cells + @ 700 < if 35 exit then"
-    .text "  ci @ sz cells + @ 1400 < if 42 exit then"
-    .text "  ci @ sz cells + @ 2400 < if 58 exit then"
-    .text "  46 ;"
-    .text ": draw ( i -- )"
-    .text "  dup erase-star"
-    .text "  project"
-    .text "  cx @ 1 80 within cy @ 1 25 within and if"
-    .text "    cy @ cx @ at glyph emit"
-    .text "    cx @ px ci @ cells + !  cy @ py ci @ cells + !"
-    .text "  then ;"
-    .text ": frame ( -- )"
-    .text "  stars 0 do"
-    .text "    i sz cells + @ z-near - dup 0< if drop i reset-star"
-    .text "    else sz i cells + ! then"
-    .text "    i draw"
-    .text "  loop ;"
-    .text ": demo ( -- )"
-    .text "  esc 91 emit 63 emit 49 emit 48 emit 52 emit 57 emit 104 emit   \\ ESC[?1049h"
-    .text "  cls"
-    .text "  init"
-    .text "  begin frame key? until"
-    .text "  key drop"
-    .text "  esc 91 emit 48 emit 109 emit                                   \\ ESC[0m"
-    .text "  esc 91 emit 63 emit 49 emit 48 emit 52 emit 57 emit 108 emit   \\ ESC[?1049l"
-    .text "  cr ;"
-    .text "boot.msg"
+    .string "here constant dict-base     \\ where this script's definitions begin"
+    .string " 256 constant kernel-base    \\ 0x0100: forth_start, where the kernel is laid"
+    .string "24576 constant window-words  \\ 0x6000: past the 24K BSRAM window"
+    .string "unused 0x4000 u> constant psram?   \\ the PSRAM probe raised the ceiling"
+    .string ": ver ( -- )    .\" DeepForth 1.1  BIOS 1.0  FPGA 1.1\" cr ;"
+    .string ": free ( -- d )    unused 0 ;   \\ lo, hi=0: unsigned, so d. prints it whole"
+    .string ": .addr ( u -- )    hex 0 u.r decimal ;"
+    .string ": u. ( u -- )       0 u.r ;"
+    .string ": mem ( -- )"
+    .string "  cr .\" Deep16 memory map\" cr"
+    .string "  psram? if"
+    .string "    .\"   memory   00000-FFFFF  1048576 words, 2 MiB HyperRAM (PSRAM board)\" cr"
+    .string "    .\"   image    0000-5FFF   24576 words (kernel, data, boot script, BIOS)\" cr"
+    .string "    .\"   dict     \" dict-base .addr .\" -\" here 1- .addr"
+    .string "    .\"   \" here dict-base - u. .\"  words, \" free d. .\" free\" cr"
+    .string "    .\"   UART F0040-F004F   boot ROM FFFF0-FFFFF\" cr"
+    .string "  else"
+    .string "    .\"   window   0000-5FFF   24576 words, 48 KiB BSRAM\" cr"
+    .string "    .\"   image    0100-\" here 1- .addr .\"     \" here kernel-base - u. .\"  words\" cr"
+    .string "    .\"            (kernel, data and the baked demo source)\" cr"
+    .string "    .\"   free     \" here .addr .\" -55FF     \" free d. .\" words\" cr"
+    .string "    .\"   BIOS     5600-57FF   reserved for the UART console\" cr"
+    .string "    .\"   stacks   5800-5FFF   2048 words (RP 5800 up, SP 5FF0 down)\" cr"
+    .string "    .\"   UART F0040-F004F      boot ROM FFFF0-FFFFF (16 words)\" cr"
+    .string "  then"
+    .string "  cr ;"
+    .string ": boot.msg ( -- )"
+    .string "  psram? if"
+    .string "    .\" Deep16   1048576 words of PSRAM, \" free d. .\" free\" cr"
+    .string "  else"
+    .string "    .\" D16MINI  \" window-words u. .\"  words of BSRAM, \" free d. .\" free\" cr"
+    .string "  then ;"
+    .string "0x80 constant spi-ctrl"
+    .string "0x82 constant spi-stat"
+    .string "0x84 constant spi-data"
+    .string "0x86 constant spi-div"
+    .string "create sd-buf 6144 cells allot      \\ a staging sector in front of 11 payload sectors"
+    .string "variable sd-hi drop"
+    .string "variable sd-lo drop"
+    .string "variable sd-hc drop"
+    .string "variable sd-res drop"
+    .string "variable sd-r1 drop"
+    .string "variable sd-clk drop"
+    .string "variable sd-c drop"
+    .string "variable blk drop"
+    .string "32 sd-clk !                \\ the identification clock: ~100 kHz, the safe end"
+    .string "-1 blk !"
+    .string ": cs! ( f -- )      1 and spi-ctrl es! ;"
+    .string ": spi> ( c -- c )   spi-data es! begin spi-stat es@ 1 and 0= until"
+    .string "                    spi-data es@ 0xff and ;"
+    .string ": spi! ( c -- )     spi> drop ;"
+    .string ": >arg ( hi lo -- ) sd-lo ! sd-hi ! ;"
+    .string ": arg4 ( -- )       sd-hi @ dup 8 rshift spi! 0xff and spi!"
+    .string "                    sd-lo @ dup 8 rshift spi! 0xff and spi! ;"
+    .string ": sd-wait ( -- b )  0x100 begin 0xff spi> dup 0xff <> if nip exit then drop"
+    .string "                    1- dup 0= if drop 0xff exit then again ;"
+    .string ": sd-token ( -- b ) 0x8000 begin 0xff spi> dup 0xff <> if nip exit then drop"
+    .string "                    1- dup 0= if drop 0xff exit then again ;"
+    .string ": sd-idle ( -- )    0x8000 begin 0xff spi> 0xff = if drop 1"
+    .string "                    else 1- dup 0= then until ;"
+    .string ": sd-cmd ( n crc -- r1 )  1 cs! swap 0x40 or spi! arg4 spi! sd-wait ;"
+    .string ": sd-arg ( n -- )   sd-hc @ if sd-lo ! 0 sd-hi ! exit then"
+    .string "                    dup 9 lshift sd-lo ! 7 rshift sd-hi ! ;"
+    .string ": sd-bytes ( n -- ) 0 do 0xff spi> 0xff and sd-buf i + c! loop ;"
+    .string ": sd-poll ( -- f )"
+    .string "  1 sd-res !"
+    .string "  0x400 0 do"
+    .string "    0 cs!  sd-c @ 41 = if 55 0xff sd-cmd drop then"
+    .string "    0 cs!  sd-c @ 0xff sd-cmd dup sd-r1 !"
+    .string "    dup 0xff = if drop leave then"
+    .string "    0= if 0 sd-res ! leave then"
+    .string "  loop"
+    .string "  sd-res @ 0= ;"
+    .string ": sd-init ( -- n )"
+    .string "  0 sd-hc !  sd-clk @ spi-div es!  0 cs!  0x10 0 do 0xff spi! loop"
+    .string "  1 sd-res !"
+    .string "  3 0 do"
+    .string "    0 0x95 sd-cmd dup sd-r1 ! 1 = if 0 sd-res ! leave then"
+    .string "    0 cs!  0x10 0 do 0xff spi! loop"
+    .string "  loop"
+    .string "  sd-res @ if 0 cs! 1 exit then"
+    .string "  0 cs!"
+    .string "  0 0x1aa >arg  8 0x87 sd-cmd dup sd-r1 !"
+    .string "  1 = if"
+    .string "    0xff spi! 0xff spi!"
+    .string "    0xff spi> dup sd-r1 ! 1 <> if 0 cs! 2 exit then"
+    .string "    0xff spi> 0xaa <> if 0 cs! 2 exit then"
+    .string "  then"
+    .string "  0x4000 0 >arg  41 sd-c !"
+    .string "  sd-poll 0= if"
+    .string "    0 0 >arg  sd-poll 0= if"
+    .string "      0 0 >arg  1 sd-c !  sd-poll 0= if 0 cs! 3 exit then"
+    .string "    then"
+    .string "  then"
+    .string "  0 cs!  58 0xff sd-cmd dup sd-r1 ! if 0 cs! 4 exit then"
+    .string "  0xff spi> 0x40 and if 1 sd-hc ! then"
+    .string "  0xff spi! 0xff spi! 0xff spi!"
+    .string "  0 cs!  0 0x200 >arg  16 0xff sd-cmd drop"
+    .string "  0 spi-div es!  0 cs!  0 ;"
+    .string ": sd-read ( n -- n )"
+    .string "  sd-arg  17 0xff sd-cmd ?dup if 0 cs! exit then"
+    .string "  sd-token dup sd-r1 ! 0xfe <> if 0 cs! 5 exit then"
+    .string "  512 sd-bytes  0xff spi! 0xff spi!"
+    .string "  0 cs!  0 ;"
+    .string ": sd-write ( n -- n )"
+    .string "  sd-arg  24 0xff sd-cmd ?dup if 0 cs! exit then"
+    .string "  0xfe spi!"
+    .string "  512 0 do sd-buf i + c@ 0xff and spi! loop"
+    .string "  0xff spi! 0xff spi!"
+    .string "  sd-wait dup sd-r1 ! 0x1f and 5 <> if 0 cs! 6 exit then"
+    .string "  sd-idle  0 cs!  0 ;"
+    .string ": block ( n -- a )"
+    .string "  dup blk @ = if drop sd-buf exit then"
+    .string "  dup sd-read ?dup if .\" SD read error \" . cr drop sd-buf exit then"
+    .string "  dup blk ! drop sd-buf ;"
+    .string ": save-block ( -- n )    blk @ sd-write ;"
+    .string ": include ( first count -- )"
+    .string "  dup 11 > if .\" include: at most 11 sectors\" cr 2drop exit then"
+    .string "  dup 512 * >r"
+    .string "  0 ?do"
+    .string "    -1 blk !"
+    .string "    dup i + sd-read drop"
+    .string "    sd-buf  sd-buf 512 + i 512 * +  512 move"
+    .string "  loop"
+    .string "  drop r>"
+    .string "  sd-buf 512 + swap included ;"
+    .string ": sd ( -- )              sd-init ?dup if .\" SD init error \" . else .\" SD card ready\" then cr ;"
+    .string "boot.msg"
 ; <<< end generated >>>
     .text ""              ; the empty line that ends the script
 .endif
-rp0_base:
-    .word RSTACK_TOP
 dict_free:               ; colon definitions are built upwards from here
 
 .code
@@ -3601,26 +3704,47 @@ read_line:
     MOV PC, R0
     NOP
 rl_first:
-    LD R1, R3, 0            ; its first character (one cell per character)
+    LD R1, R3, 0            ; the line's first packed pair (two chars per cell)
     LDI 0
     CMP R1, R0
     JZ rl_kbd               ; the empty line after the last one ends the script
     NOP
-    MOV R4, R3              ; walk to this line's NUL
+    ; The baked script packs two characters per cell, high byte first, and ends
+    ; the line with a 0 cell (scripts/embed_forth.mjs). Unpack it into tib_kbd:
+    ; the tokenizer reads TIB as one character per cell.
+    LDI tib_kbd
+    MOV R10, R0             ; where the next character goes
 rl_scan:
-    LD R1, R4, 0
+    LD R1, R3, 0            ; the next pair
     LDI 0
     CMP R1, R0
     JZ rl_scanned
     NOP
-    ADD R4, 1
+    MOV R7, R1
+    SR R1, 8                ; high byte: the first character of the pair
+    ST R1, R10, 0
+    ADD R10, 1
+    SL R7, 8
+    SR R7, 8                ; low byte: the second, 0 on an odd-length line
+    LDI 0
+    CMP R7, R0
+    JZ rl_last
+    NOP
+    ST R7, R10, 0
+    ADD R10, 1
+    ADD R3, 1
     LDI rl_scan
     MOV PC, R0
     NOP
+rl_last:
+    ADD R3, 1               ; the odd pair is unpacked; its 0 cell is next
 rl_scanned:
-    ADD R4, 1
-    ST R4, R2, 0            ; the cursor is the line after this one
-    MOV TIB, R3
+    ADD R3, 1               ; step over the 0 cell that ends the line
+    ST R3, R2, 0            ; the cursor is the line after this one
+    LDI 0
+    ST R0, R10, 0           ; NUL-terminate the unpacked line
+    LDI tib_kbd
+    MOV TIB, R0
     LDI 0
     MOV >IN, R0
     LDI 1
@@ -9097,6 +9221,51 @@ hex_digit_upper:
 ; to run. It is reloaded by NEXT for every word, so primitives may use R10
 ; freely. IP and the return-stack pointer live in memory because the shadow
 ; bank BIOS clobbers R9-R12 and would otherwise corrupt the VM state.
+; es@ and es! are @ and ! through ES, which is the MMIO segment (0xF000):
+; DS points at the kernel's data and cannot reach 0xF0080, so the Forth that
+; talks to a peripheral - the SD card driver in forth/demo.fth - needs these.
+word_esfetch:               ; es@ ( addr -- x )
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wesfetch_under
+    NOP
+    LD R1, SP, 0            ; the offset inside ES
+    LDS R2, ES, R1
+    ST R2, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+wesfetch_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_esstore:               ; es! ( x addr -- )
+    MOV R9, SP
+    ADD R9, 2
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP R9, R1
+    JZ wesstore_ok
+    NOP
+    JN wesstore_ok
+    NOP
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+wesstore_ok:
+    LD R2, SP, 0            ; the offset inside ES
+    ADD SP, 1
+    LD R1, SP, 0            ; the value
+    ADD SP, 1
+    STS R1, ES, R2
+    LDI next
+    MOV PC, R0
+    NOP
+
 .org 0x2000
 .code
 
@@ -13345,6 +13514,15 @@ waqr_done:
 .endif
 .code
 bios_entry:
+.ifdef D16SEG
+    ; SWI enters with shadow SS=0/DS=0. The Forth data stack is in 0x2000 and
+    ; the kernel/BIOS data is in 0x1000, so the shadow context must match
+    ; before the first push or data access.
+    LDI 0x1000
+    MVS DS, R0
+    LDI 0x2000
+    MVS SS, R0
+.endif
     ; Dispatch on the function code in the **caller's** R0 through the table
     ; below. This used to be a chain of CMP/JNZ tests, one per function, so the
     ; block's length depended on how many functions there were and every routine
@@ -14267,7 +14445,11 @@ bios_f6:
 
 gfx_none:
     ; no demo in this image (the packed BSRAM console): leave the screen alone
+.ifdef D16SEG
+    LDI 0x1000
+.else
     LDI 0
+.endif
     MVS DS, R0
     LDI gfx_r5
     MOV R2, R0
@@ -14280,7 +14462,11 @@ gfx_none:
 
 gfx_back:
     ; CS is the BIOS segment again. DS still holds 0x0600 from the demo.
+.ifdef D16SEG
+    LDI 0x1000
+.else
     LDI 0
+.endif
     MVS DS, R0
     LDI gfx_r5
     MOV R2, R0
@@ -14755,6 +14941,14 @@ bios_unknown:
 .org 0x5000
 .code
 ill_handler:
+.ifdef D16SEG
+    ; The ILL entry has shadow SS=0/DS=0; use the segmented data stack and
+    ; the data segment before touching ill_pc_save.
+    LDI 0x1000
+    MVS DS, R0
+    LDI 0x2000
+    MVS SS, R0
+.endif
     MOV R3, LR                  ; R3 = interrupted PC (after the trapped word)
     LDI ill_pc_save
     ST R3, R0, 0                ; Rs=R15 reads this cell
@@ -14782,8 +14976,13 @@ ill_handler:
     SMV R1, ACS
     MVS DS, R1
     LD R2, R3, -1
+.ifdef D16SEG
+    LDI 0x1000
+    MVS DS, R0                  ; DS = kernel data segment for the handler
+.else
     LSI R0, 0
     MVS DS, R0                  ; DS = 0 for the handler's data stack/code
+.endif
     ; ---- decode Rd and Rs -----------------------------------------------
     MOV R0, R2
     SR R0, 4

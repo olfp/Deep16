@@ -74,11 +74,144 @@ does not define `D16_PERIPH`.
   batch that fits without a diet. The tile build closes `dvi_pixel` at
   79.292 MHz (TNS 0) with place 0 / route 1.
 - **Tests:** `npm run sim:timer`, `npm run sim:spi`, `npm run sim:uarttx`;
-  `npm run sim:board` covers PS/2 and the board; `npm test` is the CPU suite.
-- **Not in this slice:** timer interrupt / SIC, SD or flash protocol in
+  `npm test` is the CPU suite. The 24K BSRAM builds (and `sim:board`) are
+  retired - see `archive/24k-bsram/README.md`.
+- **Not in this slice:** timer interrupt / SIC, an SD or flash protocol in
   hardware, and the external flash chip itself. The timer and SPI are polled.
-  The SPI master is verified with a loopback; the SD card needs its software
-  initialisation (CMD0/CMD8/ACMD41/CMD17/24) before a real card can be read.
+  The SPI master is verified with a loopback; the SD protocol is now software,
+  below.
+
+## SD card driver (software, 2026-10-28)
+
+The SD card needs no new RTL: `rtl/deep16_spi.sv` is a byte master and the
+protocol is the **Forth driver in the boot script** (`forth/demo.fth`), so it
+costs zero CLS and is testable in the JS core.
+
+- **Registers and segment.** The SPI registers are ES-relative (ES = `0xF000`),
+  so two kernel primitives were added for Forth: **`es@` ( off -- x )** and
+  **`es!` ( x off -- )**. They are the only kernel change; everything else is
+  boot-script Forth. `es@`/`es!` exist in both kernels (`forth.asm` and
+  `forth_nano.asm`).
+- **Identification** at **~100 kHz** (`sd-clk`, default 32 — one step below
+  the 400 kHz the spec allows): 80 clocks with CS high, then CMD0, retried
+  three times with a fresh 80-clock preamble because the first command after
+  power-up is the one that fails on some cards; then CMD8 (with the `0x1AA`
+  echo), the init poll, CMD58 (OCR, CCS → block vs byte addressing) and CMD16
+  (512-byte blocks). Then the divider goes to 0 (3.375 MHz). Every command is
+  framed by its own CS low→high edge. `sd-clk @` is the knob — `32 sd-clk !
+  sd` re-runs it at another divider with no rebuild.
+- **The init poll** tries the three ways a card can be brought out of idle:
+  ACMD41 with HCS=1 (SDHC/SDXC), ACMD41 with HCS=0 (SDSC v1, which rejects the
+  high-capacity bit), then CMD1 (MMC, which has no ACMD41). Each is bounded at
+  1,024 tries and gives up as soon as the card stops answering, so a dead card
+  reports in about a second instead of hanging.
+- **Words** (all documented in `FORTH.md`): `sd` (report the card),
+  `sd-init`, `sd-read ( sector -- n )`, `sd-write ( sector -- n )`, `sd-buf`,
+  `blk`, `block ( sector -- addr )` (read on a miss), `save-block`.
+  `sd-init` returns `0` when ready, otherwise the stage that failed:
+  1 CMD0, 2 the CMD8 echo, 3 ACMD41, 4 CMD58, 5 the read token, 6 the write
+  response. CMD8 is optional (a v1 card ignores it; CMD58's CCS picks block or
+  byte addressing), every command gets its own CS edge, and `sd-r1 @` holds the
+  raw byte the card sent in that stage, so `255` means nothing was on the bus.
+- **Sector size and reach.** One 512-byte sector per call, held as **512
+  characters, one per cell**, in a dictionary buffer (`sd-buf`, 512 words of
+  `free`). Sector numbers are 16 bits: 32 MB of the card, which is also what a
+  Forth block system asks for.
+- **Image cost.** The boot script is now baked packed, **two characters per
+  cell** (`embed_forth.mjs`, the assembler's `.string`), and `read_line`
+  unpacks a line into `tib_kbd`; that halved the script's data-section cost and
+  paid for the SD driver. Tile build after the change: `dict_free 0x45E0`, so
+  1,056 words remain before the BIOS at `0x4A00`. The tile build reports
+  `free` ~34,840 (the 6,144-cell include buffer and the driver's own
+  definitions); the flat D16MINI builds are archived. Resources are unchanged:
+  Logic 8,483 / 8,640, CLS **4,314 / 4,320**, registers 2,969 / 6,771,
+  BSRAM 23 / 26.
+- **Tests.** `tests/segmented.test.js` boots the segmented image in the JS core
+  against a byte-level SD model (`SdCard` in `js/deep16_simulator.js`, wired to
+  the SPI registers at `0xF0080`): identification, a sector written and read
+  back, `block`'s cache and `save-block`, and a card that never answers (the
+  driver reports `SD init error 1` instead of hanging). The model answers
+  CMD0/8/55/41/58/16/17/24 and reports SDHC; the RTL master keeps its own
+  loopback test (`npm run sim:spi`).
+- **Source from the card.** `include ( first count -- )` reads `count` 512-byte
+  sectors and hands them to `included`, so a source file is a run of sectors:
+  lines separated by LF, the tail padded with LF. The starfield now lives on the
+  card (`screens/starfield.fth`, seven sectors) instead of in the image; its
+  load line is `1 7 include`. `scripts/make_screens.mjs` pads one or more `.fth`
+  files into a sector-aligned blob, prints each file's `first count` and the
+  `dd` line that writes it to the card. Up to 11 sectors (5.5 KiB) per include;
+  the payload sits above a staging sector in `sd-buf`, so a read never
+  overwrites a sector already moved into place. A load cannot be looped over:
+  `included` ends the line it was called from, which is why one call takes the
+  whole run.
+- **Board test.** `npm run flash:tile`, then:
+
+  ```text
+  sd                  \ SD card ready
+  0 sd-init . cr      \ 0
+  sd-r1 @ . cr        \ 0
+  ```
+  If it reports a stage, `sd-r1 @ .` says what the card answered and
+  `8 sd-clk ! sd` / `64 sd-clk ! sd` change the identification clock.
+  ```text
+  65 sd-buf c! 5 sd-buf 1+ c! 3 sd-write . cr    \ 0
+  0 sd-buf c! 0 sd-buf 1+ c!
+  3 sd-read . cr                                  \ 0
+  sd-buf c@ . sd-buf 1+ c@ . cr                   \ 65 5
+  ```
+  `block`/`save-block` behave the same way; `blk` holds the sector in the
+  buffer (`-1` before the first `block`).
+- **Not yet:** more than one buffer, a FAT or file layer, `include` from the
+  card, and 32-bit sector numbers.
+
+## Segment-base split (`D16SEG`, second slice)
+
+The tile/user-flash build enables the segmented map with `` `define D16SEG ``
+in `d16tile_flash.sv`. The text and packed builds keep the old flat map.
+
+- **Kernel code:** `CS=0`, code at `0x0100`; ILL/divtest code also in `CS=0`
+  at `0x5000`/`0x5300`.
+- **Kernel data + dictionary:** `DS=0x1000`.
+  - `0x0000..0x1FFF` — SD block/sector buffers, still unused.
+  - `0x2000..0x2FFF` — return stack, top `0x2FF0` down, 4,080 frames.
+  - `0x3000..0x49F8` — kernel data and the boot script.
+  - `0x4A00..0x57DC` — BIOS/demo data copy.
+  - `0x5800..0xFFEF` — dictionary, about **42K words**.
+- **Data stack:** `SS=0x2000`, top `0xFFF0`, 64K words. The BIOS and ILL
+  handlers set their shadow `SS` to `0x2000` before using the caller's stack.
+- **Return stack:** a DS offset window at `0x2FF0` down. It cannot be a segment
+  of its own: every return-stack access is `LD`/`ST` through DS, so it has to
+  stay a DS offset. It also has to stay *below* the dictionary (`0x5800`, grows
+  up). The first segmented build kept it at `0x5FF0` with the dictionary
+  starting at `0x5800`; that left only ~300 calls of headroom, so
+  `1000 deep` overwrote the word it was running and froze the machine.
+- **BIOS code:** `CS=0x3000`, copied by the loader from the flat image's
+  `0x4A00..0x57FF` to `0x30000..0x30DFF`; SWI target `0x3000:0`. BIOS/demo
+  data is in `DS=0x1000`; the D16D demo still uses the flat segment-0 data
+  copy at `DS=0x04A0`, and the BIOS f6 restores `DS=0x1000` on return.
+- **Vectors:** SWI/ILL vectors are written through `CS=0` to physical 0/2;
+  they cannot use the new DS.
+- **Loader:** `flash_boot` now writes the flat image, the `DS=0x1000` data
+  copy, and the `0x3000` BIOS/demo copy, and verifies all three. The extra
+  logic is gated by `D16SEG`; the text build's loader is unchanged.
+- **Measured tile build:** Logic 8,483 / 8,640 (**99 %**), CLS 4,314 / 4,320
+  (**100 %, 6 CLS free**), registers 2,969 / 6,771, BSRAM 23 / 26, I/O 26 / 71.
+  This is the last RTL addition that fits; the SD driver must be
+  software/dictionary, not new logic.
+- **Simulation:** `tests/segmented.test.js` scatters the image the way
+  `flash_boot` does and boots it in the JS core: banner, `free`, arithmetic,
+  1,000-deep recursion, `catch`/`throw`, and 20,000 cells on the data stack.
+  It is the only coverage of this map without the board.
+- **Hardware status:** the previous slice (data/dictionary segment) booted on
+  the board, ran Flappy, `1 2 + .`, `ver` and the UART, and reported `free`
+  41,260 — but `1000 deep` froze, which is the return-stack/dictionary
+  collision above. The return-stack move is source-only and needs the next
+  board test.
+  `flash:tile` must regenerate the user image with `D16SEG=1`; it now does.
+  If `free` still reports 39,212, the old flat user image is still in the
+  on-die flash even though the segmented bitstream is loaded.
+- **Still to do:** the SD card driver and block layer on top of the SPI master,
+  using the free `DS 0x0000..0x1FFF` buffer area.
 
 ## USB keyboard attachment (alternative)
 

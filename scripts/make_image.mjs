@@ -64,6 +64,7 @@ function loadAssembler() {
 // facts the assertions and the manifest need.
 export const DEFINES = { CONSOLE_UART: 1 };
 if (NANO) DEFINES.D16NANO = 1;                       // D16nano: software divide
+if (process.env.D16SEG) DEFINES.D16SEG = 1;          // segmented data stack (tile build)
 if (D16D) DEFINES.D16D = 1;                          // gfx BIOS call + word
 if (process.env.BOOT_DIAG) DEFINES.BOOT_DIAG = 1;     // boot diagnostic build
 
@@ -120,6 +121,7 @@ export function buildImage() {
 export function checkImage(img) {
   const fail = [];
   if (img.dictFree >= STACK_BASE) fail.push(`dict_free 0x${img.dictFree.toString(16)} reaches the stacks (0x${STACK_BASE.toString(16)})`);
+  if (img.dictFree > img.biosEntry) fail.push(`dict_free 0x${img.dictFree.toString(16)} runs into the BIOS at 0x${img.biosEntry.toString(16)}`);
   if (img.biosEntry !== BIOS_BASE) fail.push(`BIOS at 0x${img.biosEntry.toString(16)}, expected 0x${BIOS_BASE.toString(16)}`);
   if (img.biosEntry + img.biosWords > STACK_BASE) fail.push(`BIOS (${img.biosWords} words) overruns the stacks`);
   // The only word outside the window is the kernel's echo cell, which the board

@@ -4,9 +4,13 @@
 // The D16MINI kernel carries a Forth boot script: read_line reads it before the
 // keyboard, once per boot, so the demo source is the program that is running -
 // no loader, no upload, nothing to keep in step at the console. The text lives
-// between two markers in asm/forth.asm, one `.text` directive per source line
-// (each emits the characters, one cell each, and a NUL, which is what read_line
-// walks).
+// between two markers in asm/forth.asm.
+//
+// The script is baked with the assembler's `.string`, which packs two characters
+// per cell (high byte first) and ends the line with a 0 cell. One cell per
+// character cost the data section 3,610 words for 3,610 characters; packing
+// halves that, and the freed words are what the SD driver's Forth lives in.
+// read_line unpacks a line into tib_kbd before interpreting it.
 //
 // Usage:
 //   node scripts/embed_forth.mjs            # rewrite the block
@@ -40,7 +44,7 @@ export function block(source) {
     // times what the code does, and nobody reads the baked copy - the file is
     // the source. Inline comments stay, they are part of the line.
     if (line.trim() === '' || line.trim().startsWith('\\')) return;
-    out.push(`    .text "${escape(line)}"`);
+    out.push(`    .string "${escape(line)}"`);
   });
   return out.join('\n');
 }

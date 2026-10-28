@@ -29,7 +29,7 @@ export function loadBrowserScripts(...files) {
   for (const f of files) {
     vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), { filename: f });
   }
-  for (const name of ['Deep16Assembler', 'Deep16Disassembler', 'Deep16Simulator', 'Deep16Optimizer']) {
+  for (const name of ['Deep16Assembler', 'Deep16Disassembler', 'Deep16Simulator', 'Deep16Optimizer', 'SdCard']) {
     try {
       globalThis[name] = vm.runInThisContext(name);
     } catch {

@@ -35,6 +35,13 @@ function pump(limit) {
   for (let i = 0; i < limit && sim.running; i++) sim.step();
 }
 
+// The boot script compiles before the first prompt; wait for it rather than
+// counting steps (the packed source costs a few instructions per character).
+function boot() {
+  for (let i = 0; i < 6_000_000 && !sim.memory[sym.boot_done]; i += 1000) pump(1000);
+  pump(100_000);
+}
+
 function press(ch) {
   sim.uartRxPush(ch === '\n' ? 13 : ch.charCodeAt(0));
   pump(80000);
@@ -45,7 +52,7 @@ function cell(row, col) {
 }
 
 test('a bottom-row line feed clears the row that scrolls in', () => {
-  pump(1400000);
+  boot();
   assert.equal(sim.memory[sym.tile_row], 2, 'banner and prompt occupy two rows');
   assert.equal(sim.memory[sym.tile_off], 0);
 

@@ -48,7 +48,7 @@ time. `0x0000`–`0x00FF` is the zero page / boot staging area.
 | CPU image | 1 MiB flat array | 24K-word image, PSRAM-backed | 24K-word user-flash image, PSRAM-backed |
 | BIOS entry | `0xF8000` | `0x5600` | `0x4A00` |
 | Dictionary ceiling | `0x4000` | `0x5600` initially; PSRAM raises it to `0xFFF0` | `0x4A00` initially; PSRAM raises it to `0xFFF0` |
-| Return stack top | `0x6F00` (grows up) | `0x5800` (grows up) | `0x5800` (grows up) |
+| Return stack top | `0x6F00` (grows down) | `0x5800` (grows down) | `0x5800` (grows down) |
 | Data stack top | `0x7FF0` (grows down) | `0x5FF0` (grows down) | `0x5FF0` (grows down) |
 | Display | `0xF1000` cell/attribute RAM | DVI text mirror, own cell RAM | `0xF1000` tilemap + tile engine |
 | Console | UART `0xF0040` | UART `0xF0040` | UART `0xF0040` |
@@ -59,6 +59,11 @@ The D16MINI and D16nano images both probe word **`0x6000`**. When it reads back,
 the kernel moves `HERE` to `0x6000` and raises the dictionary ceiling to
 `0xFFF0` (below the boot ROM), giving roughly 39,000 free words instead of the
 few thousand in the 24K window.
+
+Both stacks grow **down**. The flat 24K image puts the return stack top at
+`0x5800`, only 144 words above the end of the D16MINI BIOS (`0x576F`) and 1,136
+above the D16nano BIOS (`0x538F`): a deeply nested line can overwrite the BIOS.
+The `D16SEG` build fixes the layout instead of the constant — see §4.4.
 
 ---
 
@@ -113,7 +118,7 @@ user flash, copied to PSRAM at boot. The dictionary then continues at `0x6000`.
 | `0x05000`–`0x052FF` | ILL trap handler (DIV/DIV32 emulation) |
 | `0x05300`–`0x053FF` | `divtest` word code + string (`divtest_ok_str` at `0x532E`) |
 | `0x05400`–`0x057FF` | reserved gap |
-| `0x05800`–`0x05FEF` | Forth stacks: return stack from `0x5800` up, data stack from `0x5FF0` down |
+| `0x05800`–`0x05FEF` | Forth stacks: return stack from `0x5800` down, data stack from `0x5FF0` down |
 | `0x05FF0`–`0x05FFF` | stack top cells / slack |
 | `0x06000`–`0x0FFEF` | PSRAM dictionary, grows up from `0x6000`; Forth segment-0 ceiling `0xFFF0` |
 | `0x10000`–`0x0FFFFF` | other 20-bit segments, unused by Forth; boot ROM at `0xFFFF0`–`0xFFFFF` |
@@ -155,9 +160,13 @@ seconds).
 
 * `sp0_base` (`0x3000`) is the data-stack empty/base cell.
 * `sp_top` (`0x3001`) holds `0x5FF0`; `SP` starts there and grows down.
-* `rp0_base` (`0x49F8`) holds `0x5800`; the return stack grows up from there.
+* `rp0_base` (`0x49F8`) holds `0x5800`; the return stack grows **down** from
+  there, so it descends into the reserved gap at `0x5400`–`0x57FF` and then
+  into the BIOS data. It has 1,136 words before it reaches the end of the BIOS
+  at `0x538F`.
 * The stacks share the `0x5800`–`0x5FFF` window; a deep mixed recursion can
-  collide, as on the other builds.
+  collide, as on the other builds. The `D16SEG` build gives each stack its own
+  window instead (§4.4).
 
 ### 4.3 D16nano dictionary
 
@@ -169,6 +178,46 @@ seconds).
   script definitions (the exact number depends on the script/word set).
 * The D16D showcase is **not** in the dictionary; it is a fixed block in the
   BIOS segment of the image/PSRAM.
+* The `D16SEG` build moves the dictionary base to `0x5800`, so `free` reports
+  about 41,260 words (§4.4).
+
+### 4.4 Segmented map (`D16SEG`, current board)
+
+`D16SEG` is defined in `fpga/gowin/d16tile_flash.sv`; the text and packed
+builds keep the flat map above. `rtl/flash/flash_boot.sv` scatters the flat
+image into these segments and verifies every copy:
+
+| Segment | Physical | Contents |
+|---|---|---|
+| `CS=0x0000` | `0x00000` | kernel code `0x0100`–`0x2FFF`, zero page/vectors, ILL handler `0x5000`, `divtest` `0x5300` |
+| `DS=0x1000` | `0x10000` | kernel data and boot script `0x3000`–`0x49F8`; BIOS/demo data `0x4A00`–`0x57DC`; dictionary `0x5800`–`0xFFEF` |
+| `SS=0x2000` | `0x20000` | data stack, top `0xFFF0`, 64K words |
+| `CS=0x3000` | `0x30000` | BIOS code + D16D showcase, from image `0x4A00`–`0x57FF` |
+| `ES=0xF000` | `0xF0000` | MMIO, boot ROM `0xFFFF0`–`0xFFFFF` |
+
+Within `DS=0x1000`:
+
+| Offset | Contents |
+|---|---|
+| `0x0000`–`0x1FFF` | free: the SD driver keeps its sector buffer in the dictionary instead (`sd-buf`), so this window is still unclaimed |
+| `0x2000`–`0x2FFF` | return stack, top `0x2FF0` down, 4,080 frames |
+| `0x3000`–`0x49F8` | kernel data, boot script, built-in headers, `rp0_base` |
+| `0x4A00`–`0x57DC` | BIOS and D16D data |
+| `0x5800`–`0xFFEF` | dictionary, grows up, ~42K words |
+
+Notes:
+
+* The return stack is **not** a segment of its own: `docol`, `exit`, `>r`,
+  `r>`, `r@`, `catch`/`throw` and the compile-time branches all reach it with
+  `LD`/`ST` through DS, so it has to be a DS offset window. It must stay below
+  `0x5800` because the dictionary grows up from there.
+* The BIOS and ILL handlers run in the shadow bank with `SS=0`/`DS=0`, so both
+  set `DS=0x1000` and `SS=0x2000` on entry.
+* The SWI/ILL vectors stay at physical `0`/`2` and are written through `CS=0`.
+* The D16D demo keeps its own `DS=0x04A0` (the flat segment-0 copy of the BIOS
+  block); BIOS function 6 restores `DS=0x1000` on return.
+* `tests/segmented.test.js` boots this map in the JS core (scatter + banner,
+  1,000-deep recursion, `catch`/`throw`, 20,000 data-stack cells).
 
 ---
 
@@ -183,7 +232,7 @@ dictionary behaviour as D16nano, without the tile engine or D16D showcase.
 | `0x00100`–`0x049D5` | kernel image + boot script + built-in headers (`dict_free = 0x49D6`) |
 | `0x049D6`–`0x055FF` | dictionary / boot-script growth before BIOS |
 | `0x05600`–`0x057FF` | BIOS (segment `0x0560`) |
-| `0x05800`–`0x05FEF` | stacks: return `0x5800` up, data `0x5FF0` down |
+| `0x05800`–`0x05FEF` | stacks: return `0x5800` down, data `0x5FF0` down |
 | `0x06000`–`0x0FFEF` | PSRAM dictionary after the PSRAM probe; ceiling `0xFFF0` |
 | `0x10000`–`0x0FFFFF` | other 20-bit segments, unused by Forth; boot ROM at `0xFFFF0` |
 | `0x0F0040`–`0x0F0046` | UART |
@@ -345,6 +394,14 @@ DIV resets to 0 (3.375 MHz at 6.75 MHz); write 8 for the ~375 kHz SD
 initialisation clock. The SD socket is on pins 36 (SCK), 37 (MOSI), 38 (CS0),
 39 (MISO); CS1 is pin 25 for an external flash. The on-board configuration
 flash is not used.
+
+The Forth side is the **SD driver in the boot script** (`forth/demo.fth`): it
+reaches these registers with `es@`/`es!` (ES = `0xF000`), bit-bangs CMD0, CMD8,
+CMD55/ACMD41, CMD58 and CMD16 to identify the card, then CMD17/CMD24 for one
+512-byte sector at a time. `sd-init`, `sd-read`, `sd-write`, `sd-buf`, `blk`,
+`block`, `save-block` and `include` are documented in `FORTH.md`; the sector buffer is 512
+cells of dictionary, one character per cell, so it is usable as text directly.
+Sector numbers are 16 bits (32 MB of the card).
 
 ---
 

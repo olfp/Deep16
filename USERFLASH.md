@@ -24,7 +24,7 @@ npm run flash:tile
 For the plain standard build:
 
 ```sh
-npm run synth:flash
+npm run synth:tile      # the archived 24K flash build was `synth:flash`
 npm run flash:flash
 # openFPGALoader -f fpga/gowin/impl/pnr/deep16_board_flash.fs \
 #   --user-flash artifacts/image/image.flash.bin
@@ -138,7 +138,7 @@ LEDs are active low: 0 blinks while working, 1 steady = PASS, 2 steady = FAIL.
 
 ```
 npm run sim:installer   # blank model -> program -> PASS + header/image check
-npm run sim:flash       # preloaded model -> boot -> second boot
+npm run sim:flash       # archived with the 24K builds
 ```
 
 Both use `rtl/flash/flash608k_model.sv`; the Gowin builds use the hard

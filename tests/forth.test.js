@@ -2559,8 +2559,8 @@ test('the bit words are in the dictionary chain, and the chain is intact', () =>
   // compile-only link target, not a word.
   const headers = Object.keys(res.symbols).filter(k => k.startsWith('h_'));
   assert.equal(seen.size, headers.length - 1);
-  assert.equal(cell(res.symbols.forth_wl), res.symbols.h_keyq,
-    'the cell at forth_wl must name the newest header (key?)');
+  assert.equal(cell(res.symbols.forth_wl), res.symbols.h_esfetch,
+    'the cell at forth_wl must name the newest header (es@)');
 });
 
 test('and, or and xor are one instruction each', () => {

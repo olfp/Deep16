@@ -16,3 +16,4 @@
 // kernel image (asm/gfx_demo.asm at 0x4E00); the bitstream itself is unchanged.
 `define D16NANO
 `define D16_PERIPH
+`define D16SEG

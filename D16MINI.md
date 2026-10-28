@@ -1027,24 +1027,47 @@ This is what makes the design buildable **now**, before a board.
   depth, so the pump's flow control still applies.
 - `sim.enqueueKeyCode` (the IDE keyboard) also maps to UART RX.
 
-### 7.9 The boot script, `free`, `mem` and `demo`
+### 7.9 The boot script, `free`, `mem`, `demo` and the SD card
 
 The image carries a **Forth boot script**. `forth/demo.fth` is the source;
 `scripts/embed_forth.mjs` bakes it into `asm/forth.asm` between two markers, one
-`.text` line per source line, and `tests/boot-script.test.js` runs the generator
-with `--check` so the two cannot drift. `read_line` serves those lines to the
-interpreter before the keyboard on every boot, with the echo off: a script line
-prints no prompt and no ` ok`, and the REPL stands its prompt once when the
-script runs out. Compiling it costs about **1.1 M instructions** — 0.08 s at
-13.5 MHz, invisible next to the UART coming up.
+`.string` line per source line, and `tests/boot-script.test.js` runs the
+generator with `--check` so the two cannot drift. A `.string` packs **two
+characters per cell** and ends the line with a `0` cell: one cell per character
+cost 3,610 words of the data section, and packing halved that. `read_line`
+unpacks each line into `tib_kbd` before interpreting it, so the tokenizer still
+sees one character per cell. `read_line` serves those lines to the interpreter
+before the keyboard on every boot, with the echo off: a script line prints no
+prompt and no ` ok`, and the REPL stands its prompt once when the script runs
+out. The unpacking and the compiling together cost about **2 M instructions** —
+0.15 s at 13.5 MHz, invisible next to the UART coming up.
 
-It defines three words:
+It defines these words:
 
 | word | effect |
 |---|---|
-| `free ( -- u )` | dictionary cells left below the BIOS (`0x5600 - HERE`); 2,117 at boot |
+| `free ( -- u )` | dictionary cells left below the ceiling (`unused`); ~37,900 at boot, ~39,760 on the segmented board build |
 | `mem ( -- )` | the memory map, with an ASCII usage bar over the window |
 | `demo ( -- )` | the starfield: forty stars flying out of the middle of an 80×24 terminal |
+| `sd`, `sd-init`, `sd-read`, `sd-write`, `sd-buf`, `sd-clk`, `sd-r1` | the SD card on SPI CS0 (§7.6, `FORTH.md`) |
+| `include ( first count -- )` | read `count` sectors of source from the card and interpret them |
+| `blk`, `block`, `save-block` | one-sector block layer over `sd-buf` |
+
+The starfield is no longer in the image: it is `screens/starfield.fth` on the
+SD card, seven sectors, loaded with `1 7 include` (`scripts/make_screens.mjs`
+pads it and prints the write command). The 24K BSRAM builds this section used to
+describe are archived in `archive/24k-bsram/`.
+
+The SD driver is Forth over the memory-mapped SPI master: it bit-bangs the
+command frames, waits for response and data tokens, and keeps one 512-byte
+sector as 512 characters in a dictionary buffer (`sd-buf`, allocated by the
+script, so it costs 512 words of `free`). `sd-init` runs the SD identification
+sequence (CMD0, CMD8, ACMD41, CMD58, CMD16) at ~100 kHz, retrying CMD0 three
+times, then switches to the fast clock; the error names the stage that failed
+and `sd-r1` holds the byte the card sent. `sd-read` and
+`sd-write` are single-sector CMD17/CMD24. Sector numbers are 16 bits, so 32 MB
+of the card is addressable. On the board the card is the only device on CS0
+(pin 38); CS1 (pin 25) is left for an external flash.
 
 `key? ( -- flag )` is a kernel word rather than a script one — it has to read the
 UART status at `ES:0x0040` — and is what lets `demo` stop on any key instead of

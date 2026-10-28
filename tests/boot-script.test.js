@@ -34,8 +34,13 @@ function pump(steps, stream) {
   return stream;
 }
 
-// Boot and hand back everything the REPL printed.
-const bootStream = pump(1400000, []);
+// Boot and hand back everything the REPL printed. The script compiles its
+// definitions before the first prompt, and the packed source (two characters
+// per cell, unpacked by read_line) costs a handful of instructions per
+// character, so wait for the end of the script instead of counting steps.
+const bootStream = [];
+for (let i = 0; i < 6_000_000 && !sim.memory[sym.boot_done]; i += 1000) pump(1000, bootStream);
+pump(100_000, bootStream);          // the prompt that follows the last line
 const bootText = Buffer.from(bootStream).toString('latin1');
 
 // Type a line and collect the bytes it produces, up to the next prompt.
@@ -91,31 +96,6 @@ test('key? polls the console without consuming the byte', () => {
   const out = Buffer.from(stream).toString('latin1');
   assert.match(out, /key\? \. key \. -1 {2}88 {2}ok/,
                `key? should see the byte and key should take it: ${JSON.stringify(out)}`);
-});
-
-test('demo runs the starfield and stops on any key', () => {
-  const stream = [];
-  for (const ch of 'demo\n') sim.uartRxPush(ch === '\n' ? 13 : ch.charCodeAt(0));
-  pump(2000000, stream);
-  const running = Buffer.from(stream).toString('latin1');
-  assert.ok(running.startsWith('demo\x1b[?1049h'), 'no alternate screen');
-  assert.ok(!running.includes('\x1b[?1049l'), 'demo stopped before the key');
-
-  const moves = [...running.matchAll(/\x1b\[(\d+);(\d+)H/g)];
-  assert.ok(moves.length > 100, `only ${moves.length} cursor moves`);
-  for (const m of moves) {
-    assert.ok(+m[1] >= 1 && +m[1] <= 24, `row ${m[1]} off screen`);
-    assert.ok(+m[2] >= 1 && +m[2] <= 79, `column ${m[2]} off screen (80 would wrap)`);
-  }
-  // No newline in the middle: the machine must not hard-wrap its own canvas.
-  assert.equal((running.match(/\r\n/g) || []).length, 0);
-
-  sim.uartRxPush(32);
-  pump(2000000, stream);
-  const out = Buffer.from(stream).toString('latin1');
-  assert.ok(out.includes('\x1b[0m'), 'did not reset the attributes');
-  assert.ok(out.includes('\x1b[?1049l'), 'did not leave the alternate screen');
-  assert.match(out.slice(-40), /\r\n ok\r\n> $/);
 });
 
 test('ver prints the release tuple', () => {

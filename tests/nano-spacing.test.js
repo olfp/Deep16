@@ -44,8 +44,11 @@ test('Return separates the D16nano input from its output', () => {
     return out.replace(/\s+$/, '');
   };
 
-  pump(1500000);
-  // Banner, memory summary, then the prompt.
+  // Banner, memory summary, then the prompt: wait for the boot script to
+  // finish rather than counting steps (the packed source costs a few
+  // instructions per character in read_line).
+  for (let i = 0; i < 6_000_000 && !sim.memory[sym.boot_done]; i += 1000) pump(1000);
+  pump(100_000);
   assert.equal(sim.memory[sym.tile_row], 2);
 
   press('123 u.\n');

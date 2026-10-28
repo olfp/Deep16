@@ -135,7 +135,10 @@ What is in it:
 - **Resources.** The default build bakes the packed image into BSRAM: Logic
   8,173 / 8,640 (95 %), CLS 4,211 / 4,320 (98 %), registers 2,577 / 6,771,
   **BSRAM 20/26** (16 packed image + 2 cache + 2 screen), 0 TNS.
-- **User-flash build (verified, persistent).** `npm run synth:flash` moves the
+- **Archived:** the 24K BSRAM builds (`synth:board`, `synth:flash`,
+  `synth:tile:packed`) and their `sim:board`/`sim:flash` regressions are retired;
+  see `archive/24k-bsram/README.md`. The tile build is the board.
+- **User-flash build (verified, persistent).** `npm run synth:tile` moves the
   boot image to the on-die 608 Kbit user flash: **BSRAM 4/26 (22 free)**, CLS
   4,303/4,320 (100 %), Logic 8,288. The one-time `npm run synth:installer`
   bitstream writes the image. The installer is loaded to SRAM (`-m`) and must show LED1 PASS; the persistent
@@ -147,14 +150,13 @@ What is in it:
 Build and flash (vendor toolchain for the bitstream):
 
 ```sh
-npm run image         # assemble the boot image -> artifacts/image/
-npm run synth:gowin   # Gowin: synthesise, place, route, pack
-openFPGALoader -m fpga/gowin/impl/pnr/deep16_board.fs
+npm run synth:tile    # Gowin: image + bitstream (deep16_board_tile_flash.fs)
+npm run flash:tile    # write the bitstream and the user-flash image
 ```
 
-Without a board, `npm run sim:board` runs the BSRAM build on Verilator and
-`rtl/sim/psram_boot_tb.sv` the PSRAM machine against a word model, decoding the
-console and typing into the RX pin. `BOOT_DIAG=1 npm run image` adds a one-line
+Without a board, `npm test` runs the segmented map and the SD driver in the JS
+core (`tests/segmented.test.js`): the scattered image, the data and return
+stacks, and the SD driver against a byte-level card model. `BOOT_DIAG=1 npm run image` adds a one-line
 bring-up diagnostic (probe result and the script's first bytes).
 
 The earlier BRAM-only machine is preserved at tag **`v0.13.5mhz`**: 24 BSRAM

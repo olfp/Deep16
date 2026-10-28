@@ -24,7 +24,10 @@ function boot() {
   sim.segmentRegisters.CS = 0xffff;
   sim.d16nano = true;
   sim.running = true;
-  for (let i = 0; i < 1400000 && sim.running; i++) sim.step();
+  for (let i = 0; i < 6_000_000 && sim.running && !sim.memory[kernel.symbols.boot_done]; i++) {
+    sim.step();
+  }
+  for (let i = 0; i < 100_000 && sim.running; i++) sim.step();
   assert.ok(sim.running, 'kernel did not boot to the REPL');
   return sim;
 }
