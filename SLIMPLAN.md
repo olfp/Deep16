@@ -6,7 +6,7 @@ one with sprites, the D16D demo, SD, PS/2 and the HDMI console) is at
 raster interrupt and audio. This note records the budget, the levers, and the
 one measurement that decides how hard the diet is.
 
-Companions: `AUDIPLAN.md` (what the audio actually needs), `HARDWARE.md`
+Companions: `AUDIOPLAN.md` (what the audio actually needs), `HARDWARE.md`
 (current fit report and what is already built), `DVI720check.md` (why the tile
 build exists), `doc/Interrupts.md` (the ISA interrupt model).
 
@@ -43,7 +43,7 @@ Estimates, ±40 % until a synthesis report exists.
 | 15 kHz tick counter | 8–12 | 450 cycles; 450 divides 6750, so it stays in lock with the ms timebase |
 | Raster IRQ (line compare + CDC into the CPU domain) | 10–20 | the tile engine already has the line counter |
 | Minimal 2-source SIC (pending + cause/ack) | 8–12 | needed once there are two sources |
-| Audio (sigma-delta + sample/volume regs, no FIFO) | 30–40 | `AUDIPLAN.md` §2, §4 |
+| Audio (sigma-delta + sample/volume regs, no FIFO) | 30–40 | `AUDIOPLAN.md` §2, §4 |
 | **total** | **68–104** | |
 
 With placement margin the target is to free **150–200 CLS ≈ 300–400 LUT4**.
@@ -149,7 +149,7 @@ and a 16-bit prescaler. A 16+16 timer wraps at 65.5 s and frees **~40 LUT4 ≈
 
 - **BSRAM-only cuts** (`SPR_GROUPS 24→8`, `TILE_COUNT 128→96`, tilemap
   82×26→80×24, the keyboard FIFO) free blocks, not CLS. Useful if audio wants
-  a FIFO block (`AUDIPLAN.md` §4), not for the interrupt work.
+  a FIFO block (`AUDIOPLAN.md` §4), not for the interrupt work.
 - **The debug bus is already free.** The board ties `dbg_en`/`dbg_we` to 0
   (`rtl/deep16_board.sv:408-412`), so the register file's debug port is
   constant-folded out. Nothing to reclaim.
