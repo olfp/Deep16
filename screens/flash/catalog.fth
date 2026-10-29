@@ -123,11 +123,22 @@ variable nm-l drop
 0xB2 constant sic-enable
 0xB4 constant sic-status     \ b0 IRQ, b1 any pending
 0xB6 constant sic-scratch
-: irq-on ( -- )        2 sic-enable es! ;   \ timer tick only, for now
+0xB8 constant sic-raster
+: irq-on ( -- )        2 sic-enable es! ;   \ timer tick only
 : irq-off ( -- )       0 sic-enable es! ;
 : irq-clear ( mask -- ) sic-pending es! ;
 : ticks ( -- n )       sic-scratch es@ ;
 : irq? ( -- f )        sic-status es@ 1 and ;
+\ Raster: control 7 at 0xF200E selects the scan line (0..359), then
+\ raster-on enables SIC bit 3.  raster-ticks is the handler's count.
+0x200E constant raster-ctrl
+: raster-line! ( n -- ) raster-ctrl es! ;
+: raster-on ( -- )      8 sic-enable es! ;
+: raster-off ( -- )     0 sic-enable es! ;
+: raster-ticks ( -- n ) sic-raster es@ ;
+\ Per-row fine scroll, control 6: ( fine row -- ) with fine 0..7, row 0..25.
+: row-scroll! ( fine row -- ) swap 3 lshift or 0x100 or 0x200C es! ;
+: row-scroll-off ( -- )    0 0x200C es! ;
 
 \ ---- I2S sound, 0xF00A0 ------------------------------------------------
 \ 128-sample FIFO, 21.09375 kHz (6.75 MHz / 10 / 32), BCLK/LRCLK/DIN on

@@ -31,6 +31,25 @@ static void tick() {
   top->clk = 1; top->eval();
 }
 
+static void wait_frame() {
+  int prev = top->frame_tick;
+  for (long i = 0; i < 3000000; i++) {
+    tick();
+    if (top->frame_tick != prev) return;
+  }
+  std::printf("FAIL frame_tick did not move\n");
+  fails++;
+}
+
+static int count_raster(long n) {
+  int count = 0, prev = top->raster_toggle;
+  for (long i = 0; i < n; i++) {
+    tick();
+    if (top->raster_toggle != prev) { count++; prev = top->raster_toggle; }
+  }
+  return count;
+}
+
 static void write_tile(int addr, uint16_t data) {
   top->cpu_we = 1; top->cpu_ctrl = 0; top->cpu_tgt = 0;
   top->cpu_addr = addr & 0xFFF; top->cpu_data = data;
@@ -240,6 +259,60 @@ int main(int argc, char** argv) {
         compare_cell(tile, a_base, cap_a_px, seen_a_s, "Ascroll") ? 1 : 0, 1);
   write_ctrl(4, 0);
   check("scroll_x next register back to 0", top->dbg_scroll_x_next, 0);
+
+  // ---- per-row fine scroll (control 6) ----------------------------------
+  wait_frame();
+  write_ctrl(0x0C, (1 << 8) | (5 << 3) | 3);
+  write_ctrl(0x0C, (1 << 8) | (6 << 3) | 5);
+  check("row scroll is still latched off mid-frame", top->dbg_row_scroll_en, 0);
+  wait_frame();
+  wait_frame();
+  check("row scroll enable latched", top->dbg_row_scroll_en, 1);
+
+  int fpix5 = -1, fpix6 = -1, fpix7 = -1;
+  for (long i = 0; i < 1500000 && (fpix5 < 0 || fpix6 < 0 || fpix7 < 0); i++) {
+    tick();
+    if (top->dbg_fill == 7) {
+      if (top->dbg_ftrow == 5 && fpix5 < 0) fpix5 = top->dbg_fpix;
+      if (top->dbg_ftrow == 6 && fpix6 < 0) fpix6 = top->dbg_fpix;
+      if (top->dbg_ftrow == 7 && fpix7 < 0) fpix7 = top->dbg_fpix;
+    }
+  }
+  check("fill row 5 uses fine 3", fpix5, 3);
+  check("fill row 6 uses fine 5", fpix6, 5);
+  check("fill row 7 keeps global fine 0", fpix7, 0);
+
+  // Global scroll_x=8 and row fine=2 must add to a 10-pixel offset.
+  write_ctrl(4, 8);
+  write_ctrl(0x0C, (1 << 8) | (5 << 3) | 2);
+  wait_frame();
+  wait_frame();
+  int fcol5 = -1;
+  fpix5 = -1;
+  for (long i = 0; i < 1500000 && (fpix5 < 0 || fcol5 < 0); i++) {
+    tick();
+    if (top->dbg_fill == 7 && top->dbg_ftrow == 5 && fpix5 < 0) {
+      fpix5 = top->dbg_fpix; fcol5 = top->dbg_fcol;
+    }
+  }
+  check("row 5 coarse column with scroll_x=8", fcol5, 1);
+  check("row 5 fine phase with scroll_x=8", fpix5, 2);
+
+  write_ctrl(0x0C, 0);                      // disable the table
+  write_ctrl(4, 0);
+  wait_frame();
+  wait_frame();
+  check("row scroll disabled again", top->dbg_row_scroll_en, 0);
+
+  // ---- raster line compare (control 7) ----------------------------------
+  write_ctrl(0x0E, 100);
+  check("raster line register takes 100", top->dbg_raster_line, 100);
+  wait_frame();
+  check("raster toggles once in a frame", count_raster(1400000), 1);
+  write_ctrl(0x0E, 1000);                   // beyond R_V_TOTAL: never matches
+  wait_frame();
+  check("raster line beyond the frame never fires", count_raster(1400000), 0);
+  write_ctrl(0x0E, 0);
 
   // ---- sprites: 16x16, transparency, behind, palette ---------------------
   // Palette 2 = green, 3 = blue. Sprite 0 (front) is an index-2 grid with

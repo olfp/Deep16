@@ -171,6 +171,25 @@ the SMV write form, the caller's shared R4..R12 are saved on the data stack,
 and R13/R14 destinations are documented as unsupported. The full D16 keeps the
 hardware divider.
 
+## Per-row fine scroll and raster IRQ (control 6/7)
+
+Two control registers extend the tile engine without touching the map or OAM
+format:
+
+* **control 6, `0xF200C`**: `{en, row[4:0], fine[2:0]}`. The CPU writes the
+  next table; the frame boundary copies it to the live table. The fill uses
+  `row_scroll[live_row]` in place of `scroll_x[2:0]`; the global coarse column
+  is still `scroll_x >> 3`. `en = 0` is the old single-scroll behaviour.
+  A mid-frame write never changes the current frame; the tables are two 32x16
+  SSRAM arrays.
+* **control 7, `0xF200E`**: a 10-bit source line 0..359. The engine toggles
+  `raster_toggle` at the end of that line; the board's two-flop synchroniser
+  turns the toggle into one `clk_cpu` pulse for SIC bit 3. A line at or beyond
+  `R_V_TOTAL` never fires.
+
+`npm run sim:dvi:tile` covers both: independent row phases, the frame-boundary
+latch, global+row offsets, the disabled path, and one raster toggle per frame.
+
 ## Sprites
 
 The sprite engine is in the same `dvi_tile` pixel domain, so a sprite pixel and

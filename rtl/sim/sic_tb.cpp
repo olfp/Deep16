@@ -82,10 +82,12 @@ int main(int argc, char** argv) {
   write_reg(0x0, 0xF);
   expect("all pending cleared", read_reg(0x0), 0);
 
-  // Scratch is independent of the pending bits.
+  // Scratch and the raster counter are independent of the pending bits.
   write_reg(0x6, 0x1234);
   expect("scratch readback", read_reg(0x6), 0x1234);
-  expect("unknown offset reads zero", read_reg(0x8), 0);
+  write_reg(0x8, 0x5678);
+  expect("raster readback", read_reg(0x8), 0x5678);
+  expect("unknown offset reads zero", read_reg(0xA), 0);
 
   // Disabling the source drops the level but keeps pending.
   top->src = 1 << 3; tick(); top->src = 0; tick();

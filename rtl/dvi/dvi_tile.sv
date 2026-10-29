@@ -66,7 +66,16 @@ module dvi_tile #(
   // frame toggle. Both are generated in the scan clock domain and synchronised
   // by the board into the CPU domain.
   output logic        vblank,
-  output logic        frame_tick
+  output logic        frame_tick,
+  // One toggle per frame when the render line reaches control 7. The board
+  // synchronises it into the CPU domain for SIC source bit 3.
+  output logic        raster_toggle,
+  // Test-only telemetry (the board leaves these unconnected).
+  output logic        dbg_row_scroll_en,
+  output logic [3:0]  dbg_fpix,
+  output logic [6:0]  dbg_fcol,
+  output logic [4:0]  dbg_ftrow,
+  output logic [9:0]  dbg_raster_line
 );
   localparam int O_H_TOTAL = O_H_ACTIVE + O_H_FRONT + O_H_SYNC + O_H_BACK; // 1650
   localparam int O_V_TOTAL = O_V_ACTIVE + O_V_FRONT + O_V_SYNC + O_V_BACK; // 750
@@ -229,6 +238,21 @@ module dvi_tile #(
   logic [3:0] scroll_x;   // 0..15: pixel offset into the 82-column map
   logic [3:0] scroll_x_next; // latched with the map page at the frame boundary
   logic [4:0] scroll_y;   // 0..30: pixel offset into the 26-row map
+  // Per-row fine scroll (control 6). Two 32x16 SDPB tables: the CPU writes
+  // the next table, the frame boundary copies it to the live table, and the
+  // fill reads the live table with one cycle of latency.
+  logic [15:0] row_scroll_mem  [0:31];
+  logic [15:0] row_scroll_next [0:31];
+  logic [15:0] row_scroll_q, row_scroll_next_q;
+  logic [4:0]  rs_raddr, rs_waddr, rs_next_raddr, rs_next_waddr;
+  logic [15:0] rs_wdata, rs_next_wdata;
+  logic        rs_we, rs_next_we;
+  logic        rs_init;
+  logic [4:0]  rs_init_i;
+  logic        rs_copy;
+  logic [4:0]  rs_copy_i;
+  logic        row_scroll_en, row_scroll_en_next;
+  logic [9:0] raster_line;       // control 7: line compare for the raster IRQ
   logic       map_wpage;  // CPU writes target this bank
   logic       map_dpage;  // fill/render reads this bank
   logic       map_dpage_next;
@@ -256,6 +280,12 @@ module dvi_tile #(
     tm_q <= tilemap[(map_dpage ? 13'(TM_WORDS) : 13'd0) + 13'(tm_raddr)];
     spr_q <= sprite[spr_raddr];
   end
+
+  always_ff @(posedge clk_render) begin
+    if (rst_render) raster_toggle <= 1'b0;
+    else if (render_line_end && !render_stall && (ry == raster_line))
+      raster_toggle <= ~raster_toggle;
+  end
   /* verilator lint_on MULTIDRIVEN */
 
   always_ff @(posedge clk_render) begin
@@ -269,6 +299,8 @@ module dvi_tile #(
       map_wpage <= 1'b0;
       map_dpage_next <= 1'b0;
       sprite_page <= 2'd0;
+      row_scroll_en_next <= 1'b0;
+      raster_line <= 10'd0;
     end else if (cpu_we && cpu_ctrl) begin
       // 0x00 cursor, 0x02 row offset, 0x04 scroll_x, 0x06 scroll_y,
       // 0x08 {display page, write page}, 0x0A sprite write page.  The display
@@ -290,6 +322,8 @@ module dvi_tile #(
           map_dpage_next <= cpu_data[1];
         end
         4'hA: sprite_page <= (cpu_data[1:0] == 2'd3) ? 2'd0 : cpu_data[1:0];
+        4'hC: row_scroll_en_next <= cpu_data[8];
+        4'hE: raster_line <= cpu_data[9:0];
         default: ;
       endcase
     end
@@ -301,10 +335,54 @@ module dvi_tile #(
     if (rst_render) begin
       map_dpage <= 1'b0;
       scroll_x  <= 4'd0;
+      row_scroll_en <= 1'b0;
     end else if (render_line_end && !render_stall && (ry == 10'(R_V_TOTAL - 1))) begin
       map_dpage <= map_dpage_next;
       scroll_x  <= scroll_x_next;
+      row_scroll_en <= row_scroll_en_next;
     end
+  end
+
+  // ---- per-row fine table: two SDPB tables + the frame-boundary copy ----
+  // rs_init writes 32 zero entries after reset; rs_copy walks 26 entries at
+  // the frame boundary; the CPU writes one next-table entry per control 6.
+  wire rs_cpu_wr = cpu_we && cpu_ctrl && (cpu_addr[3:0] == 4'hC) &&
+                   (cpu_data[7:3] < 5'd26);
+  wire [4:0] rs_cpu_row = cpu_data[7:3];
+
+  always_ff @(posedge clk_render) begin
+    if (rst_render) begin
+      rs_init <= 1'b1; rs_init_i <= 5'd0; rs_copy <= 1'b0; rs_copy_i <= 5'd0;
+    end else begin
+      if (rs_init) begin
+        if (rs_init_i == 5'd31) rs_init <= 1'b0;
+        else rs_init_i <= rs_init_i + 5'd1;
+      end
+      if (render_line_end && !render_stall && (ry == 10'(R_V_TOTAL - 1))) begin
+        rs_copy <= 1'b1; rs_copy_i <= 5'd0;
+      end else if (rs_copy) begin
+        if (rs_copy_i == 5'd26) rs_copy <= 1'b0;
+        else rs_copy_i <= rs_copy_i + 5'd1;
+      end
+    end
+  end
+
+  assign rs_next_we    = rs_init || rs_cpu_wr;
+  assign rs_next_waddr = rs_init ? rs_init_i : rs_cpu_row;
+  assign rs_next_wdata = rs_init ? 16'd0 : {13'd0, cpu_data[2:0]};
+  assign rs_next_raddr = rs_copy_i;          // read the next table for the copy
+
+  assign rs_we    = rs_init || (rs_copy && (rs_copy_i != 5'd0));
+  assign rs_waddr = rs_init ? rs_init_i : (rs_copy_i - 5'd1);
+  assign rs_wdata = rs_init ? 16'd0 : row_scroll_next_q;
+
+  always_ff @(posedge clk_render) begin
+    if (rs_we) row_scroll_mem[rs_waddr] <= rs_wdata;
+    row_scroll_q <= row_scroll_mem[rs_raddr];
+  end
+  always_ff @(posedge clk_render) begin
+    if (rs_next_we) row_scroll_next[rs_next_waddr] <= rs_next_wdata;
+    row_scroll_next_q <= row_scroll_next[rs_next_raddr];
   end
 
   logic [TILE_AW-1:0] tf_raddr;
@@ -563,7 +641,7 @@ module dvi_tile #(
         fgy <= fill_gy_val;
         frow <= wrap_rows({1'b0, fill_trow_val} + {1'b0, row_off});
         fcol <= 7'(scroll_x >> 3);
-        fpix <= 4'(scroll_x[2:0]);
+        rs_raddr <= fill_trow_val;          // live table read, data next cycle
         nstate <= N_IDLE;
         fstate <= F_FIRST_CELL;
       end else begin
@@ -587,6 +665,10 @@ module dvi_tile #(
           end
           F_FIRST_ROW1_Q: begin
             frow1 <= tf_q;
+            // The live table read was issued at start_fill; by now its data
+            // is stable and F_PIX is about to consume the first pixel.
+            fpix <= row_scroll_en ? {1'b0, row_scroll_q[2:0]}
+                                  : 4'(scroll_x[2:0]);
             fstate <= F_PIX;
             nstate <= N_CELL;
             ncol <= 7'(fcol + 7'd1);
@@ -810,6 +892,12 @@ module dvi_tile #(
       frame_s0 <= frame_toggle; frame_s1 <= frame_s0;
     end
   end
+
+  assign dbg_row_scroll_en = row_scroll_en;
+  assign dbg_fpix         = fpix;
+  assign dbg_fcol         = fcol;
+  assign dbg_ftrow        = ftrow;
+  assign dbg_raster_line  = raster_line;
 
   assign lb_raddr = (!started) ? 12'd0 : {scan_buf, src_x};
 

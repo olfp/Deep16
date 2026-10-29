@@ -13,6 +13,10 @@ module deep16_top
   input  logic        i_step,
   // diagnostic free-run: stay running past a retirement (see deep16_core)
   input  logic        i_free,
+`ifdef D16_NANO
+  // One clk_cpu pulse when the tile engine reaches the control-7 raster line.
+  input  logic        raster_irq,
+`endif
   output logic        o_done,
   output logic        o_result,
   output logic        o_busy,
@@ -235,6 +239,11 @@ module deep16_top
 
   // Four-source SIC: only the 15 kHz timer is wired in this slice; the raster,
   // audio and keyboard bits are decoded but stay 0 until their sources land.
+`ifdef D16_NANO
+  wire raster_src = raster_irq;
+`else
+  wire raster_src = 1'b0;
+`endif
   deep16_sic u_sic (
     .clk   (clk),
     .rst   (rst),
@@ -242,7 +251,7 @@ module deep16_top
     .addr  (sic_addr),
     .wdata (mem_wdata),
     .rdata (sic_rdata),
-    .src   ({2'b00, timer_tick, 1'b0}),
+    .src   ({raster_src, 1'b0, timer_tick, 1'b0}),
     .irq   (sic_irq)
   );
 
@@ -613,13 +622,16 @@ module deep16_top
   //   0xF2000/2/4/6  cursor, row offset, scroll_x, scroll_y
   //   0xF2008        tilemap page select (bit 0 write, bit 1 display)
   //   0xF200A        sprite write page (0 Red/demo, 1 Purple, 2 Yellow)
+  //   0xF200C        control 6: per-row fine scroll
+  //   0xF200E        control 7: raster line compare
   wire tile_hit = mem_we && (mem_waddr >= 21'h0F1000) && (mem_waddr <= 21'h0F1853);
   wire bank_hit = mem_we && (mem_waddr >= 21'h0F3000) && (mem_waddr <= 21'h0F3BFF);
   wire spr_hit  = mem_we && (mem_waddr >= 21'h0F4000) && (mem_waddr <= 21'h0F47FF);
   wire attr_hit = mem_we && (mem_waddr >= 21'h0F5000) && (mem_waddr <= 21'h0F50FF);
   wire ctrl_hit = mem_we && ((mem_waddr == 21'h0F2000) || (mem_waddr == 21'h0F2002) ||
                              (mem_waddr == 21'h0F2004) || (mem_waddr == 21'h0F2006) ||
-                             (mem_waddr == 21'h0F2008) || (mem_waddr == 21'h0F200A));
+                             (mem_waddr == 21'h0F2008) || (mem_waddr == 21'h0F200A) ||
+                             (mem_waddr == 21'h0F200C) || (mem_waddr == 21'h0F200E));
   assign tile_we   = tile_hit || bank_hit || spr_hit || attr_hit || ctrl_hit;
   assign tile_ctrl = ctrl_hit;
   assign tile_tgt  = tile_hit ? 2'd0 : bank_hit ? 2'd1 : spr_hit ? 2'd2 : 2'd3;

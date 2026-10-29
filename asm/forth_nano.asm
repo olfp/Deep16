@@ -15481,12 +15481,13 @@ ill_save_sp:
 ; ============================================================
 ; IRQ handler (hardware vector 1)
 ; ============================================================
-; The SIC at 0xF00B0 asserts one level IRQ. This first slice enables only the
-; 15 kHz timer (bit 1); the handler clears that bit and bumps SCRATCH (0xB6),
-; which the Forth word `ticks` reads. The entry is a synthetic SWI: shadow
-; bank, DS=SS=ES=0, I=0, and the parked instruction's PC, so RETI re-runs the
-; instruction the IRQ interrupted. R0..R3 are the handler's shadow scratch;
-; SWI/ILL runs with I=0, so an IRQ never nests on them.
+; The SIC at 0xF00B0 asserts one level IRQ.  Priority is raster (bit 3)
+; before timer (bit 1); the handler services the highest pending source and
+; leaves the other bit set, so the level re-enters after RETI.  Raster bumps
+; RASTER (0xB8), timer bumps SCRATCH (0xB6).  The entry is a synthetic SWI:
+; shadow bank, DS=SS=ES=0, I=0, and the parked instruction's PC, so RETI
+; re-runs the instruction the IRQ interrupted.  R0..R3 are the handler's
+; shadow scratch; SWI/ILL runs with I=0, so an IRQ never nests on them.
 .org 0x51A0
 .code
 irq_handler:
@@ -15499,7 +15500,22 @@ irq_handler:
     MVS ES, R0               ; ES = 0xF000, the MMIO segment
     LDI 0xB0
     MOV R2, R0
-    LDS R1, ES, R2           ; SIC PENDING (dispatch reads it later)
+    LDS R1, ES, R2           ; SIC PENDING
+    LSI R3, 8
+    AND R1, R3               ; raster pending?
+    JZ irq_timer
+    NOP
+    LSI R3, 8
+    STS R3, ES, R2           ; W1C: clear the raster bit
+    LDI 0xB8
+    MOV R2, R0
+    LDS R1, ES, R2
+    ADD R1, 1
+    STS R1, ES, R2           ; RASTER = raster interrupt count
+    RETI
+    NOP
+irq_timer:
+    ; R2 is still 0xB0 from the pending read.
     LSI R3, 2
     STS R3, ES, R2           ; W1C: clear the timer bit
     LDI 0xB6

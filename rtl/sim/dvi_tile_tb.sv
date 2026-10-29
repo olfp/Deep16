@@ -19,6 +19,12 @@ module dvi_tile_tb (
   output logic        de,
   output logic        vblank,
   output logic        frame_tick,
+  output logic        raster_toggle,
+  output logic        dbg_row_scroll_en,
+  output logic [3:0]  dbg_fpix,
+  output logic [6:0]  dbg_fcol,
+  output logic [4:0]  dbg_ftrow,
+  output logic [9:0]  dbg_raster_line,
   output logic [11:0] dbg_x,
   output logic [9:0]  dbg_y,
   output logic [15:0] dbg_cell0,
@@ -56,7 +62,13 @@ module dvi_tile_tb (
     .vsync    (vsync),
     .de       (de),
     .vblank   (vblank),
-    .frame_tick (frame_tick)
+    .frame_tick (frame_tick),
+    .raster_toggle (raster_toggle),
+    .dbg_row_scroll_en (dbg_row_scroll_en),
+    .dbg_fpix (dbg_fpix),
+    .dbg_fcol (dbg_fcol),
+    .dbg_ftrow (dbg_ftrow),
+    .dbg_raster_line (dbg_raster_line)
   );
 
   assign dbg_x       = u_tile.sx;

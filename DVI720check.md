@@ -466,3 +466,34 @@ The move frees **15 CLS**. The boot is ~0.37 s in `sim:flashboot` (3.375 MHz
 SPI; the on-die loader was ~0.18 s). `sim:flashboot` checks the entry word,
 the flat image and both D16SEG copies against `image.flash.hex`; `sim:bootspi`
 checks the reader through the real SPI master.
+
+## 21. 2026-10-29: raster IRQ and per-row fine scroll
+
+Two tile-engine features landed together because they share the control block:
+
+* **control 7** (`0xF200E`) selects a source raster line; the engine toggles
+  `raster_toggle` at the end of that line, the board synchronises the toggle
+  into `clk_cpu`, and SIC bit 3 latches one pulse. The handler services raster
+  before timer and increments `SIC_RASTER` (`0xB8`).
+* **control 6** (`0xF200C`) writes `{en, row[4:0], fine[2:0]}` into a 32x16
+  next table; the frame boundary copies it to the live table, and the fill
+  uses the live row phase in place of `scroll_x[2:0]`. `en=0` is the old path.
+
+| | before | after |
+|---|---:|---:|
+| CLS | 4,279 / 4,320 (41 free) | **4,281 / 4,320 (39 free)** |
+| LUT / ALU / FF | 6,596 / 759 / 2,971 | 6,560 / 769 / 3,012 |
+| BSRAM / SSRAM | 24 / 180 | 24 / 184 |
+| dvi_pixel | 82.280 MHz | **78.262 MHz**, TNS 0 |
+| dvi_render | 30.594 | **30.343 MHz**, TNS 0 |
+| psram_clk | 83.011 | **77.841 MHz**, TNS 0 |
+| clk_cpu | 16.603 | **15.345 MHz**, TNS 0 |
+
+The 26:1 fine-table read mux the plan feared did not materialise: the 32x16
+tables map to SSRAM/registers, so the two features cost only **2 CLS**. The
+DVI still closes with TNS 0 on both clocks; `psram_clk` remains above 51 MHz.
+
+`sim:dvi:tile` checks the raster toggle and the mid-frame latch, independent
+rows, global+row offsets and the disabled path. `sim:sic` checks the `RASTER`
+register, and the segmented test checks the handler's raster-before-timer
+priority. Board flash pending.

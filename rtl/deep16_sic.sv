@@ -4,6 +4,7 @@
 //  0xB2 ENABLE   R/W
 //  0xB4 STATUS   R  b0 IRQ (any pending & enable), b1 any pending
 //  0xB6 SCRATCH  R/W 16-bit software counter (the ISR uses it for the tick)
+//  0xB8 RASTER   R/W 16-bit raster counter (the ISR increments it)
 //
 // Bits: 3 raster, 2 audio, 1 timer, 0 keyboard.  Priority is fixed high to low
 // (raster, audio, timer, keyboard); the SIC asserts one level IRQ and the
@@ -21,13 +22,14 @@ module deep16_sic (
   output logic        irq
 );
   logic [3:0]  pending, enable;
-  logic [15:0] scratch;
+  logic [15:0] scratch, raster;
 
   always_ff @(posedge clk) begin
     if (rst) begin
       pending <= 4'd0;
       enable  <= 4'd0;
       scratch <= 16'd0;
+      raster  <= 16'd0;
     end else begin
       pending <= pending | src;
       if (we) begin
@@ -35,6 +37,7 @@ module deep16_sic (
           4'h0: pending <= (pending & ~wdata[3:0]) | src;
           4'h2: enable  <= wdata[3:0];
           4'h6: scratch <= wdata;
+          4'h8: raster  <= wdata;
           default: ;
         endcase
       end
@@ -49,6 +52,7 @@ module deep16_sic (
       4'h2: rdata = {12'b0, enable};
       4'h4: rdata = {14'b0, |pending, irq};
       4'h6: rdata = scratch;
+      4'h8: rdata = raster;
       default: rdata = 16'h0000;
     endcase
   end

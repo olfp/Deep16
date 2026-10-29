@@ -839,16 +839,20 @@ into the sound window `0xE0000` and `sfx!` streams it.
 
 The SIC at `0xF00B0` has one IRQ vector (`0x0001`), a 4-bit sticky pending
 register and an enable mask. The kernel's handler at `0x51A0` runs in the
-shadow bank with interrupts disabled; it clears the serviced bit and returns
-with `RETI`, so the interrupted instruction re-runs. Only the timer source is
-wired in this build: raster, audio and keyboard are reserved bits.
+shadow bank with interrupts disabled; it services raster before timer, clears
+the serviced bit and returns with `RETI`, so the interrupted instruction
+re-runs. The timer and raster sources are wired; audio and keyboard are
+reserved bits.
 
 | word | effect |
 |---|---|
 | `irq-on` | enable the 15 kHz timer source |
+| `raster-line! ( n -- )` | control 7: scan line 0..359 |
+| `raster-on` / `raster-off` | enable / disable raster source bit 3 |
 | `irq-off` | disable every source |
 | `irq-clear ( mask -- )` | write-1-to-clear pending bits |
-| `ticks ( -- n )` | interrupts the handler has serviced |
+| `ticks ( -- n )` | timer interrupts the handler has serviced |
+| `raster-ticks ( -- n )` | raster interrupts the handler has serviced |
 | `irq? ( -- f )` | true while an enabled source is pending |
 
 Bits: **3 raster, 2 audio, 1 timer, 0 keyboard**. Priority is high to low in
@@ -860,6 +864,11 @@ irq-on
 1 2 + . cr          \ the console keeps working with the timer running
 ticks . cr          \ serviced IRQs so far
 irq-off
+
+200 raster-line!    \ fire once per frame at source line 200
+raster-on
+raster-ticks . cr   \ climbs once per frame during normal-mode code
+raster-off
 ```
 
 `ticks` is the number of IRQs the handler has serviced, not a free-running

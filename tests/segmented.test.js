@@ -316,3 +316,28 @@ test('W1C clears only the bits written', () => {
   assert.equal(sim.sicPending, 0);
   assert.ok(sim.running);
 });
+
+test('the raster SIC source increments RASTER and outranks the timer', () => {
+  line('irq-off');
+  line('0 sic-scratch es!');
+  line('0 sic-raster es!');
+  line('100 raster-line!');
+  assert.equal(number(line('raster-ticks . cr'), 'raster-ticks . cr'), 0);
+
+  sim.raiseIRQ(3);
+  line('raster-on');
+  assert.equal(number(line('raster-ticks . cr'), 'raster-ticks . cr'), 1, 'one raster handled');
+  assert.equal(sim.sicPending & 8, 0, 'the raster bit was cleared');
+  assert.equal(number(line('irq? . cr'), 'irq? . cr'), 0, 'no source left pending');
+
+  // Both sources enabled and pending: the handler services raster first and
+  // leaves the timer bit set; the level re-enters for the timer.
+  sim.raiseIRQ(1);
+  sim.raiseIRQ(3);
+  line('10 sic-enable es!');
+  assert.equal(number(line('raster-ticks . cr'), 'raster-ticks . cr'), 2);
+  assert.equal(number(line('ticks . cr'), 'ticks . cr'), 1);
+  assert.equal(sim.sicPending, 0, 'both bits cleared');
+  line('irq-off');
+  assert.equal(sim.sicEnable, 0);
+});

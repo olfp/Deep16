@@ -348,6 +348,8 @@ tile engine and the PSRAM/Forth mirror at the same address.
 | `0xF2006` | control 3 | smooth `scroll_y` (0..30) |
 | `0xF2008` | control 4 | b0 write bank, b1 display bank (display bank and `scroll_x` swap at the render frame boundary) |
 | `0xF200A` | control 5 | sprite **write** page (b1:0): 0 Red, 1 Purple, 2 Yellow; 3 clamps to 0 |
+| `0xF200C` | control 6 | per-row fine scroll: `{en, row[4:0], fine[2:0]}`; latched at the frame boundary |
+| `0xF200E` | control 7 | raster line compare 0..359 (`b9:0`); one SIC bit-3 pulse per frame |
 | `0xF3000`–`0xF3BFF` | tile bank | 96 tiles × 32 words; 30 words of 8×15 4bpp, word 30 palette pointer, word 31 flags |
 | `0xF4000`–`0xF47FF` | sprite bank | 8 groups × 16 patterns × 16 words, selected by the control-5 **write** page; the bank holds 24 groups (3 pages), preloaded. The renderer uses the absolute OAM group. |
 | `0xF5000`–`0xF500F` | OAM | 8 sprites × 2 words: `w0={behind,vflip,hflip,free,enable,xsign,x[9:0]}`, `w1={group[4:0],free,y[9:0]}` |
@@ -425,14 +427,16 @@ to low: raster, audio, timer, keyboard.
 | `0xF00B0` | `SIC_PENDING` | R / W1C | b3 raster, b2 audio, b1 timer, b0 keyboard; write 1 clears |
 | `0xF00B2` | `SIC_ENABLE` | R/W | source mask; IRQ = any pending & enable |
 | `0xF00B4` | `SIC_STATUS` | R | b0 IRQ level, b1 any pending (ignores enable) |
-| `0xF00B6` | `SIC_SCRATCH` | R/W | the ISR's free 16-bit counter (`ticks`) |
+| `0xF00B6` | `SIC_SCRATCH` | R/W | the ISR's timer counter (`ticks`) |
+| `0xF00B8` | `SIC_RASTER` | R/W | the ISR's raster counter (`raster-ticks`) |
 
 The hardware vector is `0x0001`; the kernel installs `irq_handler` (`0x51A0`)
-there at boot. The handler clears the serviced pending bit and, for this first
-slice, increments `SIC_SCRATCH` for the 15 kHz timer. Raster, audio and keyboard
-sources are decoded but tied off until their sources land. Forth words in the
-catalog slice: `irq-on` (timer bit), `irq-off`, `irq-clear` (mask), `ticks`
-and `irq?`.
+there at boot. The handler services raster (bit 3) before timer (bit 1): it
+clears the serviced bit and increments `SIC_RASTER` or `SIC_SCRATCH`; the
+other pending bit stays set and re-enters after `RETI`. Audio and keyboard are
+decoded but still tied off. Forth words in the catalog slice: `irq-on` (timer),
+`raster-line!` (control 7), `raster-on`/`raster-off`, `irq-off`, `irq-clear`
+(mask), `ticks`, `raster-ticks` and `irq?`.
 ---
 
 ## 8. PSRAM and storage

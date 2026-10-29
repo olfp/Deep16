@@ -250,6 +250,8 @@ module deep16_board (
   assign dvi_cpu_data = tf_data[tf_rbin[TF_AW-1:0]];
 `endif
 
+  logic dvi_raster_toggle;
+
   dvi_tile u_dvi_tile (
     .clk_render (dvi_render_clk),
     .clk_pixel  (dvi_pclk),
@@ -267,8 +269,25 @@ module deep16_board (
     .vsync    (dvi_vs),
     .de       (dvi_de),
     .vblank   (dvi_vblank),
-    .frame_tick (dvi_frame_tick)
+    .frame_tick (dvi_frame_tick),
+    .raster_toggle (dvi_raster_toggle)
   );
+
+`ifdef D16_NANO
+  // The render-domain raster toggle is asynchronous to clk_cpu. Two flops and
+  // an edge detect turn it into one clk_cpu pulse for SIC bit 3.
+  logic        raster_irq;
+  logic [1:0]  raster_sync;
+  logic        raster_seen;
+  always_ff @(posedge clk_cpu) begin
+    if (rst) begin raster_sync <= 2'b00; raster_seen <= 1'b0; end
+    else begin
+      raster_sync <= {raster_sync[0], dvi_raster_toggle};
+      raster_seen <= raster_sync[1];
+    end
+  end
+  assign raster_irq = raster_sync[1] ^ raster_seen;
+`endif
 `else
   dvi_text u_dvi_text (
     .clk     (dvi_pclk),
@@ -373,6 +392,13 @@ module deep16_board (
   logic [1:0] spi_cs_i;
 `endif
 
+`ifdef D16_NANO
+`ifndef DVI_TILE
+  logic raster_irq;
+  assign raster_irq = 1'b0;
+`endif
+`endif
+
   deep16_top u_top (
     .clk  (clk_cpu),
     .rst  (rst),
@@ -380,6 +406,9 @@ module deep16_board (
     // free-run: one retired instruction after another, no step handshake
     .i_step   (1'b1),
     .i_free   (1'b1),
+`ifdef D16_NANO
+    .raster_irq (raster_irq),
+`endif
     .o_done   (o_done),
     .o_result (o_result),
     .o_busy   (o_busy),

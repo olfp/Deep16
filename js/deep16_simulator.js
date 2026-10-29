@@ -272,6 +272,7 @@ class Deep16Simulator {
         this.sicPending = 0;
         this.sicEnable = 0;
         this.sicScratch = 0;
+        this.sicRaster = 0;
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
         this.lastALUOverflow = false;
@@ -402,6 +403,7 @@ class Deep16Simulator {
         this.sicPending = 0;
         this.sicEnable = 0;
         this.sicScratch = 0;
+        this.sicRaster = 0;
     }
 
     phys(seg, off) {
@@ -1559,6 +1561,7 @@ class Deep16Simulator {
             case 0x4: return ((this.sicPending & this.sicEnable) !== 0 ? 1 : 0)
                              | (this.sicPending !== 0 ? 2 : 0);
             case 0x6: return this.sicScratch & 0xFFFF;
+            case 0x8: return this.sicRaster & 0xFFFF;
             default:  return 0;
         }
     }
@@ -1568,6 +1571,7 @@ class Deep16Simulator {
             case 0x0: this.sicPending &= ~(value & 0xF); break;   // W1C
             case 0x2: this.sicEnable = value & 0xF; break;
             case 0x6: this.sicScratch = value & 0xFFFF; break;
+            case 0x8: this.sicRaster = value & 0xFFFF; break;
             default: break;
         }
     }

@@ -208,8 +208,10 @@ sfx-off     \ stop
 - **Owner map**: `R0'` raster (SAPF builds its nibble in `R0'` only inside the
   saved/restored cold context), `R1'`/`R2'` audio ring/phase, `R3'` timer,
   `SP'` common handler stack; keyboard uses memory.
-- **Timer** 15 kHz tick (450 cycles) and the ms timebase.
-- **Raster** line compare from the tile engine, CDC into the CPU domain.
+- **Timer** 15 kHz tick (450 cycles) and the ms timebase; SIC bit 1,
+  `SCRATCH` 0xB6.
+- **Raster** control 7 (`0xF200E`) line compare in the tile engine, toggle +
+  CDC into the CPU domain, SIC bit 3, `RASTER` 0xB8.
 - **Keyboard** PS/2 byte ready.
 - **Audio** FIFO low, threshold 32, burst 64.
 
@@ -224,8 +226,8 @@ sfx-off     \ stop
 | palette RAM + linebuf pipeline (measured) | +85 | **106** |
 | timer IRQ + SIC (measured) | −80 | **26** |
 | boot move to config flash (measured) | +15 | **41** |
-| raster source | −10…−20 | 21–31 |
-| keyboard + audio sources | −10…−20 | 1–21 |
+| raster + per-row fine scroll (measured) | −2 | **39** |
+| keyboard + audio sources | −10…−20 | 19–29 |
 | 6 OAM slots | +15…+28 | later |
 | register file (last) | +~250 | |
 
@@ -241,8 +243,10 @@ The timer IRQ + SIC came in at **80 CLS**, not the 32 the old note guessed, so
 the tile build went back to **26 free** with the timer source only. The boot
 move then recovered **15 CLS**: the boot image is at config-flash `0x100000`,
 the on-die FLASH608K reader is gone, and the loader reuses the SPI master.
-**41 free** now, enough for the raster source; keyboard and audio follow.
-The 6 OAM slots stay a later margin.
+**41 free** then. The raster line compare plus the control-6 per-row fine
+scroll came in at **2 CLS** (4,281 / 4,320, **39 free**) because the 32x16
+fine table maps to SSRAM/registers rather than the 26:1 LUT mux the plan
+feared. Keyboard and audio follow. The 6 OAM slots stay a later margin.
 
 ### 6.1 Boot move result (measured)
 
@@ -266,6 +270,34 @@ full header/CRC/flat/DS/BIOS copy path, `sim:bootspi` the reader. The 2 MB
 block protect covers both the bitstream and the boot image; the slices at
 `0x200000` stay writable.
 
+### 6.2 Raster source and per-row fine scroll (measured)
+
+**Raster:** control 7 at `0xF200E` selects a source line 0..359. The tile
+engine toggles `raster_toggle` at that line's end; the board synchronises the
+toggle into `clk_cpu` and makes one pulse, which latches SIC bit 3. The
+handler services bit 3 before bit 1 and increments `SIC_RASTER` (`0xB8`).
+
+**Per-row fine scroll:** control 6 at `0xF200C` writes `{en, row[4:0],
+fine[2:0]}` into the next table; the frame boundary copies it to the live
+table, and the fill uses the live row phase instead of `scroll_x[2:0]`. The
+global `scroll_x[3:1]` coarse column still applies. The two 32x16 tables map
+to SSRAM/registers, not block RAM. `en=0` is the old behaviour.
+
+| | before | after |
+|---|---:|---:|
+| CLS | 4,279 / 4,320 (41 free) | **4,281 / 4,320 (39 free)** |
+| LUT / ALU / FF | 6,596 / 759 / 2,971 | 6,560 / 769 / 3,012 |
+| BSRAM / SSRAM | 24 / 180 | 24 / 184 |
+| dvi_pixel | 82.280 MHz | **78.262 MHz**, TNS 0 |
+| dvi_render | 30.594 | **30.343 MHz**, TNS 0 |
+| psram_clk | 83.011 | **77.841 MHz**, TNS 0 |
+| clk_cpu | 16.603 | **15.345 MHz**, TNS 0 |
+
+`sim:dvi:tile` covers the raster toggle, the per-row latch (mid-frame write
+does not shear), independent rows, global+row offsets and the disabled path.
+`sim:sic` covers the `RASTER` register; the segmented test drives the handler
+and its raster-before-timer priority. Not yet board-flashed.
+
 ## 7. Phases
 
 1. **Bring-up** (this phase): MSPI GPIOs, pin mux, JEDEC ID, status, BP=2 MB,
@@ -278,8 +310,8 @@ block protect covers both the bitstream and the boot image; the slices at
    save/restore, BIOS audit, tests; measured 127 free.
 4. **I2S** (done, §4): 21.09 kHz, 128×16 BSRAM FIFO, FIFO-low IRQ output,
    sound window, square-wave `beep`, J5 5/6/7.
-5. **Interrupts**: timer + SIC done; boot move done (measured 41 free);
-   raster, keyboard and audio sources are next.
+5. **Interrupts**: timer + SIC done; boot move done; raster source and the
+   per-row fine scroll done (measured 39 free); keyboard and audio next.
 6. **When out of CLS**: 6 OAM slots, then the register file.
 
 ## 8. Phase 1 result (measured, verified on the board)
