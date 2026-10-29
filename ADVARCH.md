@@ -173,10 +173,12 @@ cells; 16-bit sum.
 
 ## 5. Interrupts and ARCHREV
 
-- **ARCHREV §2 SAPF** (`0xFFF6`): `spsw[3:0] ← R0'[3:0]`; 5–9 CLS.
+- **ARCHREV §2 SAPF** (`0xFFF6`): `spsw[3:0] ← R0'[3:0]` — implemented.
 - **ARCHREV §3 no shadow zeroing**: `R0'..R3'`/`SP'` persist; SWI/ILL/IRQ share
-  the bank; cold DIV/FPU paths save/restore it; no handler assumes zeros.
-- **Net tile build**: ~+15 CLS planning (+7…+31).
+  the bank; cold DIV/FPU paths save/restore it; no handler assumes zeros —
+  implemented. The kernel ILL handler saves the bank on the reserved 0x5200
+  stack (SP' is set by SWI function 0xFF at boot) and restores it before RETI.
+- **Measured**: **127 CLS free** (was 42), §10/ARCHREV §5.
 - **SIC priority high → low**: raster, audio, timer, keyboard.
 - **Owner map**: `R0'` raster (SAPF builds its nibble in `R0'` only inside the
   saved/restored cold context), `R1'`/`R2'` audio ring/phase, `R3'` timer,
@@ -190,16 +192,14 @@ cells; 16-bit sum.
 
 | step | CLS | free |
 |---|---:|---:|
-| now | | 83 |
-| remove on-die flash CPU port | +6 | 89 |
-| config-flash mux + slice layer | −2 | 87 |
-| ARCHREV §2+§3 | +15 | 102 |
-| I2S + FIFO | −35…−40 | 62–67 |
-| timer IRQ | −20…−32 | 30–47 |
-| 4-source SIC | −12…−16 | 14–35 |
-| raster + keyboard | −14…−28 | −14…21 |
-| boot move | +15…+20 | 1–41 |
-| 6 OAM slots | +15…+28 | 16–69 |
+| measured after 2b | | 42 |
+| ARCHREV §2+§3 (measured) | +85 | **127** |
+| I2S + FIFO (estimate) | −35…−40 | 87–92 |
+| timer IRQ | −20…−32 | 55–72 |
+| 4-source SIC | −12…−16 | 39–60 |
+| raster + keyboard | −14…−28 | 11–46 |
+| boot move | +15…+20 | 26–66 |
+| 6 OAM slots | +15…+28 | 41–94 |
 | register file (last) | +~250 | |
 
 The full secondary goal needs the boot move; 6 slots are the margin if the high
@@ -213,8 +213,8 @@ ends land. The boot move is deferred until CLS runs out.
    512 is now slice 0).
 2. **Slice layer** (done, §10): directory, header/flags/rate, types, JS
    `SpiFlash`, tests; remove the on-die flash CPU port (`flash@`/old `screen`).
-3. **ARCHREV §2+§3**: SAPF + no zeroing, software save/restore, BIOS audit,
-   tests; measure.
+3. **ARCHREV §2+§3** (done, ARCHREV §5): SAPF + no zeroing, software
+   save/restore, BIOS audit, tests; measured 127 free.
 4. **I2S**: 21.09 kHz, FIFO, FIFO-low IRQ, sound window, μ-law/PCM player,
    J5 5/6/7.
 5. **Interrupts**: timer, raster, keyboard, audio, SIC4, persistent bank.

@@ -47,6 +47,32 @@ function runProgram(sim, source) {
   return sim;
 }
 
+test('the ILL handler preserves the persistent handler bank (ARCHREV §3)', () => {
+  const sim = boot();
+  // A hot handler's bank: the ILL path must save and restore all of it.
+  sim.shadowRegisters.R0 = 0xAAAA;
+  sim.shadowRegisters.R1 = 0xBBBB;
+  sim.shadowRegisters.R2 = 0xCCCC;
+  sim.shadowRegisters.R3 = 0xDDDD;
+  sim.shadowRegisters.R13 = 0x5200;
+  runProgram(sim, `
+.org 0x4f00
+    LDI 100
+    MOV R1, R0
+    LDI 7
+    MOV R2, R0
+    MOV R0, R1
+    DIV R0, R2          ; trap: the handler runs and returns
+    HALT
+  `);
+  assert.equal(sim.shadowRegisters.R0 & 0xFFFF, 0xAAAA, "R0'");
+  assert.equal(sim.shadowRegisters.R1 & 0xFFFF, 0xBBBB, "R1'");
+  assert.equal(sim.shadowRegisters.R2 & 0xFFFF, 0xCCCC, "R2'");
+  assert.equal(sim.shadowRegisters.R3 & 0xFFFF, 0xDDDD, "R3'");
+  assert.equal(sim.shadowRegisters.R13 & 0xFFFF, 0x5200, "SP'");
+  assert.equal(sim.registers[0] & 0xFFFF, 14, 'the quotient still reaches the caller');
+});
+
 test('DIV traps and writes a caller R0 destination through SMV', () => {
   const sim = boot();
   runProgram(sim, `

@@ -341,7 +341,7 @@ module deep16_core3
   logic [15:0] mem_wdata_ex;
   logic      mem_rd_valid_ex, mem_is_load_ex;
   logic [3:0]  load_rd_ex;
-  logic      sh_clear_ex, is_swi_ex;
+  logic      is_swi_ex;
   logic      rec_we_ex;
   logic [20:0] rec_addr_ex;
   logic [15:0] rec_base_ex, rec_segval_ex;
@@ -393,7 +393,7 @@ module deep16_core3
     reg_bank_b     = ctx.psw[FLG_S];
     mem_we_ex      = 1'b0; mem_addr_ex = 21'd0; mem_wdata_ex = 16'h0000;
     mem_rd_valid_ex= 1'b0; mem_is_load_ex = 1'b0; load_rd_ex = 4'd0;
-    sh_clear_ex    = 1'b0; is_swi_ex = 1'b0; fsh_ex = 1'b0;
+    is_swi_ex = 1'b0; fsh_ex = 1'b0;
     kbd_take_ex    = 1'b0;
     uart_tx_we_ex  = 1'b0; uart_take_ex = 1'b0; uart_ctrl_we_ex = 1'b0;
     uart_tx_data_ex= 16'h0000; uart_ctrl_data_ex = 16'h0000;
@@ -467,7 +467,6 @@ module deep16_core3
               // active CS is already scs = 0, and the PC comes from mem_late).
               mem_addr_ex     = 21'd2;
               mem_rd_valid_ex = 1'b1;
-              sh_clear_ex     = 1'b1;
               evt_we_ex       = 1'b1; evt_code_ex = 16'd2; evt_scs_ex = 16'h0000;
               // evt_spc is the same word; it is patched from the read in WB.
             end
@@ -488,6 +487,10 @@ module deep16_core3
             3'd5: begin                                         // CLRI
               ctx_next.psw = ctx.psw & ~(16'h0001 << FLG_I);
               psw_we_ex = 1'b1;
+            end
+            3'd6: begin                                         // SAPF
+              // spsw[N,Z,V,C] <- R0'[3:0]; bits 15:4 are hardware-preserved
+              ctx_next.spsw[3:0] = ex.op1_s[3:0];
             end
             default: ;
           endcase
@@ -765,7 +768,6 @@ module deep16_core3
         reg_we_a   = 1'b0; reg_wa = 4'd0; reg_da = 16'h0000;
         reg_we_b   = 1'b1; reg_wb = 4'd14; reg_db = pc_own1;
         reg_bank_b = 1'b1;                // shadow R14 = interrupted PC
-        sh_clear_ex = 1'b1;               // clear shadow R0..R3/R13 first
         is_swi_ex   = 1'b1;               // reuse the SWI vector fetch path
         mem_addr_ex = 21'd0;              // ILL vector at physical 0
         mem_rd_valid_ex = 1'b1; mem_is_load_ex = 1'b0;
@@ -916,7 +918,6 @@ module deep16_core3
     .waddr_a   (reg_wa), .wdata_a (wb_data_a),
     .we_b      (commit && reg_we_b),
     .waddr_b   (reg_wb), .wdata_b (reg_db),
-    .sh_clear  (commit && sh_clear_ex),
     .dbg_we    (1'b0), .dbg_idx (8'h00), .dbg_wdata (16'h0000),
     .dbg_in_shadow (1'b0), .dbg_rdata (rf_dbg_rdata_unused)
   );

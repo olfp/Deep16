@@ -141,9 +141,10 @@ then `SAPF`) but cannot express everything:
 - It is fragile: any flag-setting instruction inserted between the `CMP` and
   the `SAPF` silently changes the delivered value.
 
-An explicit nibble in `R0` is immune to both. `R0` is the right carrier
-because `sh_clear` wipes the shadow bank's `R0..R3` on entry, so it is
-scratch by construction and cannot disturb the caller.
+An explicit nibble in `R0` is immune to both. `R0'` is scratch *with respect
+to the interrupted context* - the banks are separate - but since ARCHREV §3
+it may carry a previous handler's persistent value, so a handler that owns
+`R0'` must not use it as the `SAPF` carrier.
 
 Cost: the handler must build the nibble and, where the value has to survive
 a table dispatch (which uses `R0..R3`), park it on the caller's stack. A few
@@ -302,7 +303,7 @@ ill_double = ex.valid && cls == 5 && ext_id == 10 &&  ctx.psw[FLG_S];
 ```
 
 Entry (identical to `ill_div`): `spsw <- psw`, `psw <- 0x0020`, shadow
-segments zeroed, `sh_clear`, `reg_we_b` writes R14 of the shadow bank with
+segments zeroed, `reg_we_b` writes R14 of the shadow bank with
 `pc_own1` (the instruction *after* the trapped one, so the handler reads the
 opcode at `LR-1`), `mem_addr = 0` (vector 0), `branch_taken = 0`,
 `delay_active = 0`, `flags_we = 0`.

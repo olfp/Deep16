@@ -40,19 +40,17 @@ CS'   ← 0         ; Interrupts run in segment 0
 DS'   ← 0
 SS'   ← 0  
 ES'   ← 0
-R0'   ← 0         ; Initialize shadow registers
-R1'   ← 0
-R2'   ← 0
-R13'  ← 0
-R14'  ← 0
 PC'   ← Mem[interrupt_vector]  ; Jump to handler
+; R0'..R3' and SP' are NOT written: the handler bank persists (ARCHREV §3).
+; LR' is untouched for SWI and set to the interrupted PC for ILL.
 ; Hardware automatically uses shadow registers (PSW'.S=1)
 ```
 
 ### Key Characteristics
 1. **PSW' is NOT copied from PSW** - set to `0x0020` (S=1, I=0)
 2. **All shadow segments set to 0** - interrupts run in segment 0
-3. **Shadow GP registers initialized to 0** - clean context
+3. **Shadow GP registers persist** - the handler bank is a context, not a
+   clean slate; no handler may assume `R0'..R3'`/`SP'` are zero
 4. **PC' gets handler address** from interrupt vector table
 5. **Context switch via PSW'.S=1** - hardware handles all muxing
 
@@ -71,7 +69,8 @@ PC'   ← Mem[interrupt_vector]  ; Jump to handler
 - All instructions automatically use **shadow registers** (PSW'.S=1)
 - Segments fixed at 0 unless modified by handler
 - Interrupts disabled (PSW'.I=0) during handler execution
-- Clean register context: all shadow registers initialized to 0
+- Persistent register context: `R0'..R3'`/`SP'` keep their values across
+  entries (ARCHREV §3)
 
 ### Accessing Interrupted State
 - `SMV R0, APSW` accesses **normal PSW** (interrupted state)
@@ -97,7 +96,7 @@ PC'   ← Mem[interrupt_vector]  ; Jump to handler
 ```assembly
 interrupt_handler:
     ; Running in shadow context (PSW'.S=1)
-    ; All shadow registers initialized to 0
+    ; R0'..R3'/SP' keep the previous handler's values (ARCHREV §3)
     
     ; Use shadow registers directly
     LDI  0x1234      ; Uses R0' (shadow R0)
@@ -218,10 +217,10 @@ end
 - **Hardware-managed context** switching via PSW'.S
 - **Fast interrupt entry/exit** - minimal cycles
 
-### 2. Clean Context Separation
-- **Interrupt handlers** run in clean, initialized context
+### 2. Persistent Context Separation
+- **Interrupt handlers** run in their own bank, persistent across entries
 - **Normal execution** completely isolated from interrupts
-- **Predictable state** - all shadows initialized to 0
+- **Predictable state** - the handler owns R0'..R3'/SP' and initializes them once
 
 ### 3. Debugging Support
 - **SMV provides symmetric access** to both contexts
@@ -245,7 +244,8 @@ end
 ```assembly
 .equ TIMER_REG 0x0022
 timer_isr:
-    ; R0', R1', R2', SP', LR' already available as 0
+    ; R0', R1', R2', SP' keep the handler's previous values; initialize
+    ; them once, before the first interrupt, and keep them across calls
     LDI  TIMER_REG    ; R0' = timer address
     MVS  ES, R0       ; ES' = timer segment
     LDS  R1, ES, R0   ; R1' = timer value
@@ -262,6 +262,20 @@ check_interrupt:
     SMV  R3, AR0      ; R3 = R0' (shadow R0 value)
     ; ... debug display ...
 ```
+
+### Persistent Handler Bank
+
+`R0'..R3'` and `SP'` are a **persistent handler context**: a timer or audio
+ISR keeps its ring pointer, phase accumulator and stack there and reloads
+nothing. They are shared by SWI, ILL and hardware IRQs, so a synchronous trap
+taken inside a hot handler would destroy that state. The cold paths
+(`ill_handler`, the BIOS/FPU emulation) therefore save and restore the bank
+around their work. The rule is:
+
+- no handler assumes a zeroed bank;
+- a handler that owns a banked register must not use it as a scratch carrier
+  for a call or trap (one owner per register);
+- a cold path saves `R0'..R3'`/`SP'` on entry and restores them before `RETI`.
 
 ### Nested Interrupt Support
 ```assembly
@@ -294,8 +308,8 @@ nested_isr:
 - Reserve space for future expansion
 
 ### 4. Stack Usage
-- Shadow SP (R13') initialized to 0
-- Set up stack in interrupt handler if needed
+- Shadow SP (R13') persists across entries; it is the handler's stack
+- The kernel reserves 0x5200 for the ILL save and sets SP' there at boot
 - Use negative offsets for clean access: `LD R1, [SP-4]`
 
 ## Limitations and Considerations

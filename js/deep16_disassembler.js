@@ -8,7 +8,7 @@ class Deep16Disassembler {
         ];
         this.shiftOps = ['SL','SLA','SLAC','SLC','SR','SRC','SRA','SRAC','ROL','RLC','ROR','RRC'];
         this.jumpConditions = ['JZ', 'JNZ', 'JC', 'JNC', 'JN', 'JNN', 'JO', 'JNO'];
-        this.systemOps = ['NOP', 'FSH', 'SWI', 'RETI', 'SETI', 'CLRI', '', ''];
+        this.systemOps = ['NOP', 'FSH', 'SWI', 'RETI', 'SETI', 'CLRI', 'SAPF', ''];
         this.segmentNames = ['CS', 'DS', 'SS', 'ES'];
         this.smvSources = ['ACS','ADS','ASS','AES','','','','','AR0','AR1','AR2','AR3','APSW','AR13','AR14','APC'];
     }

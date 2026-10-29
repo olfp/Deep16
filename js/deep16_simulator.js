@@ -1346,6 +1346,10 @@ class Deep16Simulator {
             case 0b101: // CLRI (spec Table 5)
                 this.psw &= ~(1 << 4);
                 break;
+            case 0b110: // SAPF (ARCHREV §2)
+                this.shadowRegisters.PSW =
+                    (this.shadowRegisters.PSW & 0xFFF0) | (this.shadowRegisters.R0 & 0x000F);
+                break;
             default:
         }
     }
@@ -1362,12 +1366,7 @@ class Deep16Simulator {
         this.shadowRegisters.DS = 0x0000;
         this.shadowRegisters.SS = 0x0000;
         this.shadowRegisters.ES = 0x0000;
-        this.shadowRegisters.R0 = 0x0000;
-        this.shadowRegisters.R1 = 0x0000;
-        this.shadowRegisters.R2 = 0x0000;
-        this.shadowRegisters.R3 = 0x0000;
-        this.shadowRegisters.R13 = 0x0000;
-        this.shadowRegisters.R14 = 0x0000;
+        // ARCHREV §3: the shadow bank persists across trap entries.
         const pa = this.phys(0, 2);
         const target = pa < this.memory.length ? (this.memory[pa] & 0xFFFF) : 0xFFFF;
         this.shadowRegisters.PC = target;
@@ -1391,11 +1390,7 @@ class Deep16Simulator {
         this.shadowRegisters.DS = 0x0000;
         this.shadowRegisters.SS = 0x0000;
         this.shadowRegisters.ES = 0x0000;
-        this.shadowRegisters.R0 = 0x0000;
-        this.shadowRegisters.R1 = 0x0000;
-        this.shadowRegisters.R2 = 0x0000;
-        this.shadowRegisters.R3 = 0x0000;
-        this.shadowRegisters.R13 = 0x0000;
+        // ARCHREV §3: the shadow bank persists; only LR' is set.
         this.shadowRegisters.R14 = this.registers[15] & 0xFFFF;
         const pa = this.phys(0, 0);
         const target = pa < this.memory.length ? (this.memory[pa] & 0xFFFF) : 0xFFFF;
@@ -1454,12 +1449,7 @@ class Deep16Simulator {
         this.shadowRegisters.DS = 0x0000;
         this.shadowRegisters.SS = 0x0000;
         this.shadowRegisters.ES = 0x0000;
-        this.shadowRegisters.R0 = 0x0000;
-        this.shadowRegisters.R1 = 0x0000;
-        this.shadowRegisters.R2 = 0x0000;
-        this.shadowRegisters.R3 = 0x0000;
-        this.shadowRegisters.R13 = 0x0000;
-        this.shadowRegisters.R14 = 0x0000;
+        // ARCHREV §3: the shadow bank persists across trap entries.
         const pa = this.phys(0, vector & 0xFFFF);
         const target = pa < this.memory.length ? (this.memory[pa] & 0xFFFF) : 0xFFFF;
         this.shadowRegisters.PC = target;

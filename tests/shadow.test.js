@@ -75,6 +75,70 @@ async function runBoth(src, maxSteps = 50000) {
   };
 }
 
+// ------------------------------------------------- ARCHREV §2/§3
+
+test('SAPF copies R0\'[3:0] into spsw and preserves bits 15:4', async () => {
+  const SAPF_PROGRAM = `
+.org 0x0100
+    LDI 0x0A
+    SMV AR0, R0          ; R0' = 0xA
+    LDI 0x1210
+    SPSW R0              ; interrupted PSW: 0x1210 (S=0)
+    LDI 2
+    MOV R2, R0
+    LDI sapf_handler
+    MOV R1, R0
+    STS R1, CS, R2       ; SWI vector
+    SWI
+    HLT
+sapf_handler:
+    SAPF                 ; spsw[3:0] <- R0'[3:0]
+    SMV R1, APSW         ; spsw
+    SMV AR1, R1          ; answer in the caller's R1
+    RETI
+    NOP
+`;
+  const { js, wasm } = await runBoth(SAPF_PROGRAM);
+  for (const [name, r] of [['js', js], ['wasm', wasm]]) {
+    assert.equal(r.registers[1] & 0xFFFF, 0x121A, `${name}: spsw low nibble`);
+    assert.equal(r.psw & 0xFFFF, 0x121A, `${name}: RETI delivers the SAPF flags`);
+  }
+});
+
+test('the shadow bank persists across SWI entries (ARCHREV §3)', async () => {
+  const PERSIST_PROGRAM = `
+.org 0x0100
+    LDI 2
+    MOV R2, R0
+    LDI bump
+    MOV R1, R0
+    STS R1, CS, R2
+    LDI 0x55
+    SMV AR0, R0          ; R0' = 0x55
+    LDI 0x22
+    SMV AR2, R0          ; R2' = 0x22
+    LDI 0x33
+    SMV AR3, R0          ; R3' = 0x33
+    SWI
+    SWI
+    SMV R1, AR0          ; read the shadow bank back into the normal one
+    SMV R2, AR2
+    SMV R3, AR3
+    HLT
+bump:
+    LSI R1, 1
+    ADD R0, R1           ; R0' += 1 on every entry
+    RETI
+    NOP
+`;
+  const { js, wasm } = await runBoth(PERSIST_PROGRAM);
+  for (const [name, r] of [['js', js], ['wasm', wasm]]) {
+    assert.equal(r.registers[1] & 0xFFFF, 0x57, `${name}: R0' persists and increments`);
+    assert.equal(r.registers[2] & 0xFFFF, 0x22, `${name}: R2' survives`);
+    assert.equal(r.registers[3] & 0xFFFF, 0x33, `${name}: R3' survives`);
+  }
+});
+
 // ---------------------------------------------------------------- Jcc delays
 
 test('Jcc delay slot: the instruction after a taken conditional jump still runs', async () => {

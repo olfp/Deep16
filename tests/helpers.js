@@ -151,10 +151,20 @@ export async function runRtl(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 
     r.load_program(ch.address, new Uint16Array([ch.value & 0xFFFF]));
   }
   r.set_segments(cs, ds, ss, es);
-  for (const code of keys) r.kbd_push(code & 0xFFFF);
+  // The board keyboard FIFO is 16 deep and a push into a full one is dropped
+  // silently. Preloading a whole typed line would lose everything past the
+  // first 16 keys, so pace the pushes by the space the core reports - exactly
+  // how the harness comment says a typed file has to be fed in.
+  const pending = keys.map((code) => code & 0xFFFF);
+  const kbdDepth = 16;
+  while (pending.length && r.kbd_available() < kbdDepth) r.kbd_push(pending.shift());
   let steps = 0;
   let cont = true;
-  while (cont && steps < maxSteps) { cont = r.step(); steps++; }
+  while (cont && steps < maxSteps) {
+    cont = r.step();
+    steps++;
+    while (pending.length && r.kbd_available() < kbdDepth) r.kbd_push(pending.shift());
+  }
   return {
     steps,
     registers: Array.from(r.get_registers()),

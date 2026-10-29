@@ -174,6 +174,19 @@ forth_start:
     STS R1, DS, R2
 .endif
 
+    ; The ILL handler saves the persistent shadow bank on SP' before it
+    ; switches to the caller's stack. Function 0xFF of the SWI bridge sets
+    ; SP' to the reserved area above the handler (0x5000..0x52FF); 0x5200 is
+    ; above the 15-bit immediate's sign bit, so build it from 0x1200 + 0x4000.
+    LDI 0x1200
+    MOV R1, R0
+    LDI 0x1000
+    SL R0, 1
+    SL R0, 1
+    ADD R1, R0
+    LDI 0xFF
+    SWI
+
     ; BIOS binit, which takes no parameters: the function number is the whole
     ; message, so it is set with the LDI that loads it.
     LDI 1
@@ -506,6 +519,19 @@ forth_read:
 
 ; Bridge SWI handler: set CS to BIOS segment and jump to offset 0
 swi_to_bios:
+    ; Boot-time helper: function 0xFF sets SP' from the caller's R1 and
+    ; returns. The first ILL trap saves the persistent bank on SP', so it needs
+    ; a valid stack before any handler runs; ARCHREV §3.
+    SMV R2, AR0
+    LDI 0xFF
+    CMP R2, R0
+    JNZ swi_to_bios_normal
+    NOP
+    SMV R2, AR1
+    MOV R13, R2
+    RETI
+    NOP
+swi_to_bios_normal:
     ; Build the target CS and PC=0 and far jump via JML
 .ifdef CONSOLE_UART
 .ifdef D16SEG
@@ -14917,6 +14943,30 @@ bios_unknown:
 .org 0x5000
 .code
 ill_handler:
+    ; ARCHREV §3: the shadow bank persists across traps. Save R0'..R3' and SP'
+    ; before this handler clobbers them, so a trap taken inside another handler
+    ; returns with that handler's context intact. SS/DS are still 0 here (the
+    ; entry cleared them) and SP' is the reserved stack at 0x5200, so the save
+    ; area is in segment 0 beside this handler.
+    SUB SP, 1
+    ST R0, SP, 0
+    SUB SP, 1
+    ST R1, SP, 0
+    SUB SP, 1
+    ST R2, SP, 0
+    SUB SP, 1
+    ST R3, SP, 0
+    MOV R0, SP
+    ADD R0, 4
+    SUB SP, 1
+    ST R0, SP, 0                ; [S-5] = the old SP'
+    ; ill_save_sp sits above 0x4000, so LDI would sign-extend it; build the
+    ; address from PC instead.
+    MOV R1, PC
+ill_save_addr_lr:
+    LDI ill_save_sp - ill_save_addr_lr
+    ADD R1, R0
+    ST SP, R1, 0                ; remember the five-cell save area
 .ifdef D16SEG
     ; The ILL entry has shadow SS=0/DS=0; use the segmented data stack and
     ; the data segment before touching ill_pc_save.
@@ -14925,6 +14975,7 @@ ill_handler:
     LDI 0x2000
     MVS SS, R0
 .endif
+    SMV R13, AR13               ; SP' = caller's data stack
     MOV R3, LR                  ; R3 = interrupted PC (after the trapped word)
     LDI ill_pc_save
     ST R3, R0, 0                ; Rs=R15 reads this cell
@@ -15067,7 +15118,11 @@ ill_d16_put_disp:
     MOV PC, R3
     NOP
 ill_after_d16_put:
-    RETI
+    MOV R1, PC
+ill_d16_ret_lr:
+    LDI ill_return - ill_d16_ret_lr
+    ADD R1, R0
+    MOV PC, R1
     NOP
 
 ; ---- DIV32 Rd, Rs -------------------------------------------------------
@@ -15182,7 +15237,11 @@ ill_d32_pr_disp:
     MOV PC, R3
     NOP
 ill_after_d32_pr:
-    RETI
+    MOV R1, PC
+ill_d32_ret_lr:
+    LDI ill_return - ill_d32_ret_lr
+    ADD R1, R0
+    MOV PC, R1
     NOP
 
 ; ---- unknown trapped word: skip it ------------------------------------
@@ -15206,6 +15265,34 @@ ill_unknown:
     ADD SP, 1
     LD R4, SP, 0
     ADD SP, 1
+    MOV R1, PC
+ill_unk_ret_lr:
+    LDI ill_return - ill_unk_ret_lr
+    ADD R1, R0
+    MOV PC, R1
+    NOP
+
+ill_return:
+    ; Restore R0'..R3' and SP' from the entry save, then return. DS/SS are
+    ; the kernel segments here; the save area is in segment 0.
+    LDI 0
+    MVS DS, R0
+    MVS SS, R0
+    MOV R1, PC
+ill_ret_addr_lr:
+    LDI ill_save_sp - ill_ret_addr_lr
+    ADD R1, R0
+    LD R13, R1, 0               ; SP' = S-5
+    LD R0, SP, 0                ; R0 = the old SP' (S)
+    ADD SP, 1
+    LD R3, SP, 0
+    ADD SP, 1
+    LD R2, SP, 0
+    ADD SP, 1
+    LD R1, SP, 0
+    ADD SP, 1
+    LD R0, SP, 0                ; the caller's R0'
+    ADD SP, 1                   ; SP' = S
     RETI
     NOP
 
@@ -15367,6 +15454,10 @@ ill_put_table:
     .word ill_put_r4,  ill_put_r5,  ill_put_r6,  ill_put_r7
     .word ill_put_r8,  ill_put_r9,  ill_put_r10, ill_put_r11
     .word ill_put_r12, ill_put_none, ill_put_none, ill_put_none
+
+; ---- the saved handler bank (segment 0, beside the handler) -----------
+ill_save_sp:
+    .word 0
 
 ; ============================================================
 ; divtest: verify the ILL DIV trap against the software divide

@@ -782,6 +782,33 @@ test('the RTL pipeline reports stalls and flushes, and only those', async () => 
 // two contexts. Inside a handler (PSW.S=1) they must still read back their
 // normal value; the EX bypass used to redirect every index to the shadow tap,
 // which is invisible outside a handler and broke every program that uses one.
+test('RTL core5: SAPF sets spsw[3:0] from R0\' and preserves the upper bits', async () => {
+  const res = assemble(`
+.org 0x0000
+    LDI 2
+    MOV R2, R0
+    LDI sapf_handler
+    MOV R1, R0
+    STS R1, CS, R2
+    LDI 0x0A
+    SMV AR0, R0
+    LDI 0x1210
+    SPSW R0
+    SWI
+    HALT
+sapf_handler:
+    SAPF
+    SMV R1, APSW
+    SMV AR1, R1
+    RETI
+    NOP
+`);
+  assert.ok(res.success, res.errors.join('; '));
+  const rtl = await runRtl(res, { cs: 0x0000 });
+  assert.equal(rtl.registers[1] & 0xFFFF, 0x121A);
+  assert.equal(rtl.psw & 0xFFFF, 0x121A);
+});
+
 test('a handler reads the registers it does not shadow', async () => {
   const res = assemble(`
         .org 0x0100

@@ -170,7 +170,6 @@ module deep16_core
     logic [15:0] instr;          // for the debug view of the later stages
     d16_ctx_t    ctx_next;       // the whole architectural state after EX
     logic        is_swi;         // the vector word is patched in from MEM
-    logic        sh_clear;       // SWI zeroes the shadow GPR bank
     logic        reg_we_a, reg_we_b;
     logic [3:0]  reg_wa, reg_wb;
     logic [15:0] reg_da, reg_db;
@@ -460,7 +459,6 @@ module deep16_core
     .waddr_a   (mem_wb.reg_wa), .wdata_a (mem_wb_wdata),
     .we_b      (mem_wb.valid && mem_wb.reg_we_b),
     .waddr_b   (mem_wb.reg_wb), .wdata_b (mem_wb.reg_db),
-    .sh_clear  (mem_wb.valid && mem_wb.sh_clear),
 `ifndef D16MINI
     .dbg_we    (rf_dbg_we), .dbg_idx (dbg_idx), .dbg_wdata (dbg_wdata),
     .dbg_in_shadow(ctx.psw[FLG_S]),
@@ -476,19 +474,15 @@ module deep16_core
   // ---- ID operands, registered into ID/EX (27 MHz step C) ---------------
   // Read both banks raw; the write retiring this cycle is bypassed here. EX
   // selects the bank and forwards from EX/MEM and MEM/WB.
-  logic        id_sh_clear;
   logic [15:0] id_op1_n, id_op1_s, id_op2_n, id_op2_s, id_op3_n, id_op3_s;
 
   always_comb begin
-    // The SWI zeroes the shadow bank; reads see the zero before it commits.
-    id_sh_clear = (ex_mem.valid && ex_mem.sh_clear) ||
-                  (mem_wb.valid && mem_wb.sh_clear);
     id_op1_n = id_fwd_wb(id_rd.a1, 1'b0, rf1_n);
-    id_op1_s = id_fwd_wb(id_rd.a1, 1'b1, id_sh_clear ? 16'h0000 : rf1_s);
+    id_op1_s = id_fwd_wb(id_rd.a1, 1'b1, rf1_s);
     id_op2_n = id_fwd_wb(id_rd.a2, 1'b0, rf2_n);
-    id_op2_s = id_fwd_wb(id_rd.a2, 1'b1, id_sh_clear ? 16'h0000 : rf2_s);
+    id_op2_s = id_fwd_wb(id_rd.a2, 1'b1, rf2_s);
     id_op3_n = id_fwd_wb(id_rd.a3, 1'b0, rf3_n);
-    id_op3_s = id_fwd_wb(id_rd.a3, 1'b1, id_sh_clear ? 16'h0000 : rf3_s);
+    id_op3_s = id_fwd_wb(id_rd.a3, 1'b1, rf3_s);
   end
 
   front_t id_ex_n;
@@ -683,7 +677,7 @@ module deep16_core
   logic [15:0] mem_wdata_ex;
   logic      mem_rd_valid_ex, mem_is_load_ex;
   logic [3:0]  load_rd_ex;
-  logic      sh_clear_ex, is_swi_ex;
+  logic      is_swi_ex;
   logic      rec_we_ex;
   logic [20:0] rec_addr_ex;
   logic [15:0] rec_base_ex, rec_segval_ex;
@@ -742,7 +736,7 @@ module deep16_core
     reg_bank_b     = ctx_e.psw[FLG_S];
     mem_we_ex      = 1'b0; mem_addr_ex = 21'd0; mem_wdata_ex = 16'h0000;
     mem_rd_valid_ex= 1'b0; mem_is_load_ex = 1'b0; load_rd_ex = 4'd0;
-    sh_clear_ex    = 1'b0; is_swi_ex = 1'b0; fsh_ex = 1'b0;
+    is_swi_ex = 1'b0; fsh_ex = 1'b0;
     kbd_pop        = 1'b0; kbd_take_ex = 1'b0;
     uart_tx_we_ex  = 1'b0; uart_take_ex = 1'b0; uart_ctrl_we_ex = 1'b0;
     uart_tx_data_ex= 16'h0000; uart_ctrl_data_ex = 16'h0000;
@@ -816,7 +810,6 @@ module deep16_core
               // active CS is already scs = 0, and the PC comes from mem_late).
               mem_addr_ex     = 21'd2;
               mem_rd_valid_ex = 1'b1;
-              sh_clear_ex     = 1'b1;
               evt_we_ex       = 1'b1; evt_code_ex = 16'd2; evt_scs_ex = 16'h0000;
               // evt_spc is the same word; it is patched from the read in WB.
             end
@@ -837,6 +830,10 @@ module deep16_core
             3'd5: begin                                         // CLRI
               ctx_next_ex.psw = ctx_e.psw & ~(16'h0001 << FLG_I);
               psw_we_ex = 1'b1;
+            end
+            3'd6: begin                                         // SAPF
+              // spsw[N,Z,V,C] <- R0'[3:0]; bits 15:4 are hardware-preserved
+              ctx_next_ex.spsw[3:0] = id_ex.op1_s[3:0];
             end
             default: ;
           endcase
@@ -1302,7 +1299,6 @@ module deep16_core
     ex_mem_n.instr      = id_ex.instr;
     ex_mem_n.ctx_next   = ctx_next_ex;
     ex_mem_n.is_swi     = is_swi_ex;
-    ex_mem_n.sh_clear   = sh_clear_ex;
     ex_mem_n.reg_we_a   = reg_we_a;
     ex_mem_n.reg_wa     = reg_wa;
     ex_mem_n.reg_da     = reg_da;
@@ -1744,7 +1740,6 @@ module deep16_core
         8'h60: dbg_rdata = {9'h000, ex_mem.reg_bank, ex_mem.reg_we_b,
                             ex_mem.reg_we_a, ex_mem.reg_wa};
         8'h61: dbg_rdata = ex_mem.reg_da;
-        8'h62: dbg_rdata = {15'h0000, mem_wb.sh_clear};
         8'h68: dbg_rdata = {4'h0, ra1, ra2, ra3};
         8'h69: dbg_rdata = r1;
         8'h6A: dbg_rdata = r2;

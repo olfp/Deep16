@@ -1206,12 +1206,7 @@ fn exec_sys(c: &mut Cpu, instr: u16) -> bool {
             c.sds = 0x0000;
             c.sss = 0x0000;
             c.ses = 0x0000;
-            c.sr0 = 0x0000;
-            c.sr1 = 0x0000;
-            c.sr2 = 0x0000;
-            c.sr3 = 0x0000;
-            c.sr13 = 0x0000;
-            c.sr14 = 0x0000;
+            // ARCHREV §3: the shadow bank persists across trap entries.
             let pa = phys(0, 2u32);
             let target = if pa < c.mem.len() { c.mem[pa] & 0xFFFF } else { 0xFFFF };
             c.spc = target;
@@ -1239,6 +1234,10 @@ fn exec_sys(c: &mut Cpu, instr: u16) -> bool {
         }
         5 => { /* CLRI */
             c.psw &= !(1 << 4);
+            false
+        }
+        6 => { /* SAPF (ARCHREV §2) */
+            c.spsw = (c.spsw & 0xFFF0) | (c.sr0 & 0x000F);
             false
         }
         _ => false,

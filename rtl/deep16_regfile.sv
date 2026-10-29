@@ -36,7 +36,6 @@ module deep16_regfile (
   input  logic        we_b,
   input  logic [3:0]  waddr_b,
   input  logic [15:0] wdata_b,
-  input  logic        sh_clear,       // SWI: zero the whole shadow bank
 
   // debug bus: 0x00-0x0E normal bank (0x0F is the core's PC),
   // 0x1B-0x20 shadow bank (R0'-R3', R13', R14'), 0x30-0x3E active view
@@ -83,9 +82,6 @@ module deep16_regfile (
     for (int i = 0; i < 16; i++) regs_q[i] = regs[i];
     for (int i = 0; i < 6; i++)  shad_q[i] = shad[i];
 
-    if (sh_clear) begin
-      for (int i = 0; i < 6; i++) shad_q[i] = 16'h0000;
-    end
     if (we_b) begin
       if (wb_bank_b && is_banked(waddr_b)) shad_q[shad_idx(waddr_b)] = wdata_b;
       else                                  regs_q[waddr_b] = wdata_b;

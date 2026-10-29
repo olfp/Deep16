@@ -9,9 +9,9 @@ rewritten — a later entry that supersedes part of an earlier one says so.
 | Entry | Date | Change | Status |
 |---|---|---|---|
 | §1 | 2026-10-08 | `MOV imm2` is a four-way function select | implemented |
-| §2 | 2026-10-29 | `SAPF` (`0xFFF6`) — set alternate PSW flags | decided, not implemented |
-| §3 | 2026-10-29 | trap entry no longer zeroes the shadow bank | decided, not implemented |
-| §4 | 2026-10-29 | area cost of §2 and §3 | estimated, not measured |
+| §2 | 2026-10-29 | `SAPF` (`0xFFF6`) — set alternate PSW flags | implemented |
+| §3 | 2026-10-29 | trap entry no longer zeroes the shadow bank | implemented |
+| §4 | 2026-10-29 | area cost of §2 and §3 | measured, §5 |
 
 ## 1. `MOV imm2` redesign (2026-10-08)
 
@@ -278,7 +278,7 @@ A dedicated third register bank would remove the sharing problem, but it needs
 
 ## 4. Area cost of §2 and §3 (2026-10-29)
 
-Estimated, ±40 % until synthesised. Baseline is the measured 28 Oct tile build:
+Estimate, ±40 % (measured in §5). Baseline is the measured 28 Oct tile build:
 **4,237 / 4,320 CLS, 83 free**, 1.70 LUT4 per slice (`SLIMPLAN.md` §1, §3).
 
 ### Per component
@@ -345,3 +345,30 @@ Re-run `synth:tile` and `synth:board` and read three rows of
 
 ~15 CLS does not fund an I2S transmitter (35–40) plus a timer IRQ (20–32). With
 the shifter merge in `SLIMPLAN.md` §3 (20–40) it does, without cutting sprites.
+
+## 5. Measured result (2026-10-29)
+
+§2+§3 landed together on the tile build, measured after the phase-2b source
+changes:
+
+| | before | after |
+|---|---:|---:|
+| CLS | 4,278 / 4,320 (42 free) | **4,193 / 4,320 (127 free)** |
+| dvi_pixel | 84.777 MHz | **83.419 MHz**, TNS 0 |
+| dvi_render | 26.801 MHz | **26.198 MHz**, TNS 0 |
+| clk_cpu / psram_clk | 18.576 / 88.931 | **19.469 / 104.490** |
+
+That is **85 CLS back**, more than the 15 the estimate promised: removing the
+`sh_clear` priority level also unpacks the register file and removes the ID
+forwarding bypass, and the retime's placement shifted with it. The new headroom
+is what the I2S FIFO and the timer/raster/keyboard interrupts will spend.
+
+The kernel change is small: `SAPF` is in all three cores and the tools,
+`ill_handler` saves/restores `R0'..R3'`/`SP'` (the handler stack is the
+reserved 0x5200 block, initialized by SWI function 0xFF at boot), and the SWI
+bridge no longer assumes a zeroed bank. `tests/shadow.test.js` and
+`tests/ill-trap.test.js` cover the SAPF nibble, persistence across traps and
+the handler-bank save. `npm test`: **671 pass**.
+
+The same RTL is rebuilt into `rtl/pkg` and `wasm/pkg`; the committed cores
+agree on the new semantics (the fuzz parity test runs all three).

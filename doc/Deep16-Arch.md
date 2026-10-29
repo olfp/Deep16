@@ -209,11 +209,11 @@ CS'   ← 0         ; Interrupts run in segment 0
 DS'   ← 0
 SS'   ← 0  
 ES'   ← 0
-R0'   ← 0         ; Initialize shadow registers
-R1'   ← 0
-R2'   ← 0
-R3'   ← 0
-R13'  ← 0
+R0'   ← untouched ; the handler bank persists (ARCHREV §3)
+R1'   ← untouched
+R2'   ← untouched
+R3'   ← untouched
+R13'  ← untouched
 R14'  ← interrupted PC ; implementation: the word AFTER the trapped one
 PC'   ← Mem[0x0000]  ; Jump to ILL handler at vector 0
 ; The interrupted PC also stays in the normal PC; RETI returns to it. The
@@ -365,8 +365,8 @@ quarters need the `LDI`/`OR` pair, and `LWI` says so instead of guessing.
 | **RETI** | `RETI` | `1111111111110 011` | Return from interrupt | Restores normal context |
 | **SETI** | `SETI` | `1111111111110 100` | `PSW[4] ← 1` | Enable interrupts |
 | **CLRI** | `CLRI` | `1111111111110 101` | `PSW[4] ← 0` | Disable interrupts |
-| *Reserved* | - | `1111111111110 110` | Reserved | Future use |
-| *Reserved* | - | `1111111111110 111` | Reserved | Future use |
+| **SAPF** | `SAPF` | `1111111111110 110` | `PSW'[3:0] ← R0'[3:0]` | Alternate flags; bits 15:4 preserved (ARCHREV §2) |
+| *NIO* | - | `1111111111110 111` | Reserved | Non-implemented-opcode trap, future |
 
 ### **3.6 Single Operand and PSW Instructions (SOP)**
 
@@ -575,20 +575,17 @@ CS'   ← 0         ; Interrupts run in segment 0
 DS'   ← 0
 SS'   ← 0  
 ES'   ← 0
-R0'   ← 0         ; Initialize shadow registers
-R1'   ← 0
-R2'   ← 0
-R3'   ← 0
-R13'  ← 0
-R14'  ← 0
 PC'   ← Mem[interrupt_vector]  ; Jump to handler
+; R0'..R3' and SP' are NOT written (ARCHREV §3): the handler bank persists.
+; LR' is untouched for SWI; ILL sets it to the interrupted PC.
 ; Hardware automatically uses shadow registers (PSW'.S=1)
 ```
 
 #### **Key Characteristics**
 1. **PSW' is NOT copied from PSW** - set to `0x0020` (S=1, I=0)
 2. **All shadow segments set to 0** - interrupts run in segment 0
-3. **Shadow GP registers initialized to 0** - clean context
+3. **Shadow GP registers persist** - the handler bank is a context; no
+   handler may assume `R0'..R3'`/`SP'` are zero (ARCHREV §3)
 4. **PC' gets handler address** from interrupt vector table
 5. **Context switch via PSW'.S=1** - hardware handles all muxing
 
@@ -663,7 +660,7 @@ DOUBLE_FAULT:
 - All instructions automatically use **shadow registers** (PSW'.S=1)
 - Segments fixed at 0 unless modified by handler
 - Interrupts disabled (PSW'.I=0) during handler execution
-- Clean register context: all shadow registers initialized to 0
+- Persistent register context: R0'..R3'/SP' keep their values (ARCHREV §3)
 
 #### **Accessing Interrupted State**
 - `SMV R0, APSW` accesses **normal PSW** (interrupted state)
@@ -676,7 +673,7 @@ DOUBLE_FAULT:
 ```assembly
 interrupt_handler:
     ; Running in shadow context (PSW'.S=1)
-    ; All shadow registers initialized to 0
+    ; R0'..R3'/SP' keep the previous handler's values (ARCHREV §3)
     
     ; Use shadow registers directly
     LDI  0x1234      ; Uses R0' (shadow R0)
@@ -722,10 +719,10 @@ register banks are verified by `tests/shadow.test.js` on both cores.
 - **Hardware-managed context** switching via PSW'.S
 - **Fast interrupt entry/exit** - minimal cycles
 
-#### **2. Clean Context Separation**
-- **Interrupt handlers** run in clean, initialized context
+#### **2. Persistent Context Separation**
+- **Interrupt handlers** run in their own bank, persistent across entries
 - **Normal execution** completely isolated from interrupts
-- **Predictable state** - all shadows initialized to 0
+- **Predictable state** - the handler owns R0'..R3'/SP' and initializes them once
 
 #### **3. Debugging Support**
 - **SMV provides symmetric access** to both contexts
@@ -992,10 +989,10 @@ For CS access:       PA = (CS << 16) | (PC & 0xFFFF)
 
 ### **9.2 Additional Reserved Encodings**
 
-**For future SYS extensions:**
+**SYS space:**
 ```
-1111111111110 110: Reserved (could be BREAK for debugger)
-1111111111110 111: Reserved (could be SYSCALL for OS)
+1111111111110 110: SAPF (set alternate PSW flags, ARCHREV §2)
+1111111111110 111: NIO (reserved, non-implemented-opcode trap)
 ```
 
 **Unused prefix patterns:**
