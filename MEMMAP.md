@@ -46,7 +46,7 @@ page / boot staging area.
 
 | | Screen / IDE | D16MINI (UART) | D16nano (tile) |
 |---|---|---|---|
-| CPU image | 1 MiB flat array | 24K-word image, PSRAM-backed | 24K-word user-flash image, PSRAM-backed |
+| CPU image | 1 MiB flat array | 24K-word image, PSRAM-backed | 24K-word config-flash image (1 MB), PSRAM-backed |
 | BIOS entry | `0xF8000` | `0x5600` | `0x4A00` |
 | Dictionary ceiling | `0x4000` | `0x5600` initially; PSRAM raises it to `0xFFF0` | `0x4A00` initially; PSRAM raises it to `0xFFF0` |
 | Return stack top | `0x6F00` (grows down) | `0x5800` (grows down) | `0x5800` (grows down) |
@@ -98,8 +98,9 @@ block.
 
 ## 4. D16nano tile build (current board)
 
-The D16nano uses a 24,576-word flat image (`0x0000`–`0x5FFF`) in the on-die
-user flash, copied to PSRAM at boot. The dictionary then continues at `0x6000`.
+The D16nano uses a 24,576-word flat image (`0x0000`–`0x5FFF`) in the **config
+flash at 1 MB** (`0x100000`), copied to PSRAM at boot by the SPI-master boot
+loader. The dictionary then continues at `0x6000`.
 
 | Range | Contents |
 |---|---|
@@ -117,7 +118,9 @@ user flash, copied to PSRAM at boot. The dictionary then continues at `0x6000`.
 | `0x04E00`–`0x04ED4` | free (former colour-demo block) |
 | `0x04ED5`–`0x04EFE` | game state cells |
 | `0x04F00`–`0x04FE0` | menu code and default palette |
-| `0x05000`–`0x052FF` | ILL trap handler (DIV/DIV32 emulation) |
+| `0x05000`–`0x0519F` | ILL trap handler (DIV/DIV32 emulation) |
+| `0x051A0`–`0x051B5` | IRQ handler (hardware vector 1) |
+| `0x051B6`–`0x052FF` | free |
 | `0x05300`–`0x053FF` | `divtest` word code + string (`divtest_ok_str` at `0x532E`) |
 | `0x05400`–`0x057FF` | reserved gap |
 | `0x05800`–`0x05FEF` | Forth stacks: return stack from `0x5800` down, data stack from `0x5FF0` down |
@@ -447,35 +450,43 @@ and `irq?`.
 | Boot ROM | `0x0FFFF0`–`0x0FFFFF` |
 | Unmapped PSRAM | the upper 1 M words of die 0 are not in the 20-bit CPU window |
 
-The 24K image is copied from user flash/packed BSRAM into PSRAM `0x0000`–
-`0x5FFF`; the loader compares the CRC (the read-back verify was dropped). The
-dictionary probe at `0x6000` moves `HERE` into PSRAM; on a non-PSRAM/B RAM-only
-build the probe fails and the dictionary stays below the BIOS.
+The 24K image is copied from the config-flash boot image into PSRAM `0x0000`–
+`0x5FFF`; the loader checks the image CRC. The dictionary probe at `0x6000`
+moves `HERE` into PSRAM; on a non-PSRAM/BSRAM-only build the probe fails and
+the dictionary stays below the BIOS.
 
-### 8.2 User flash (on-die FLASH608K)
+### 8.2 Boot image (config flash, 1 MB)
 
 | Item | Value |
 |---|---|
-| Size | 608 Kbit = 76 KB = `0x13000` bytes |
-| Header | 8 × 32-bit words at flash words 0..7 |
+| Flash byte range | `0x100000`–`0x112FFF` (76 KB = 608 Kbit) |
+| Header | 8 × 32-bit words at image words 0..7 |
 | Header fields | magic `'D16F'` `0x44313646`, format 1, image length 24,576 words, CRC-16/CCITT-FALSE, build id, reserved |
-| Flat image | flash words 64..12,351; two 16-bit CPU words per 32-bit flash word |
+| Flat image | image words 64..12,351; two 16-bit CPU words per 32-bit flash word |
 | Remainder | `0xFF` |
-| Installer pages | 25 × 2 KB (image only; source slices are separate) |
+| Transport | mode-0 SPI `0x03` reads through the shared SPI master at boot |
 
-The boot loader reads the header, copies 12,288 32-bit words as 24,576 PSRAM
-words, checks the CRC, and then hands `0x0100` to the core. A bad header or CRC
-sets `boot_err` and holds the core (LED heartbeat steady). The CPU does not
-read the on-die flash: the read port was removed in phase 2a, and non-removable
-storage moves to the on-board config flash (`ADVARCH.md`).
+The loader reads the header, copies 12,288 32-bit words as 24,576 PSRAM words,
+checks the CRC, and hands `0x0100` to the core. A bad header or CRC sets
+`boot_err` and holds the core (LED heartbeat steady). The on-die FLASH608K
+read controller was deleted; the on-die flash is now only the installer
+fallback (below).
 
 ### 8.3 FPGA configuration flash
 
 The `.fs` bitstream (e.g. `deep16_board_tile_flash.fs`) goes to the **external
-SPI configuration flash** with `openFPGALoader -f`; the CPU reaches it only
-through the SPI master (CS1), not as memory. The on-die user flash is written
-separately with `--user-flash artifacts/image/image.flash.bin`. Both are
-persistent; the `.fs` and `image.flash.bin` must come from the same build.
+SPI configuration flash** at byte 0 with `openFPGALoader -f`. The boot image is
+written at `0x100000` with `--external-flash -o 0x100000`; the slices follow at
+`0x200000`. The CPU reaches the flash only through the SPI master (CS1), not
+as memory.
+
+The 2 MB block protect (BP = `0x38`) covers the bitstream and the boot image;
+the upper 2 MB (slices) stays writable. `npm run flash:tile` unprotects, writes
+all three, and the boot script's `cf-protect` re-arms the guard.
+
+The on-die FLASH608K is still available to the installer bitstream
+(`npm run installer:tile` / `sim:installer`), but the tile build no longer
+reads it.
 
 The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 512–1023) is the **slice area**:

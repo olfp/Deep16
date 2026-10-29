@@ -15,13 +15,13 @@ is the ISA change that pays for the interrupt work.
 | D4 | **512 slices**, 4 KB each, at `0x200000 + n*0x1000`. One slice = one P25Q32U sector = 2048 cells. |
 | D5 | **Slice 0 is the master directory** (type 7, WP). Data slices are 1..511. |
 | D6 | **Header**: WP, magic 5, flags/rate, type, link, 12-char name; payload from cell 8. |
-| D7 | **The on-die user flash keeps the boot image for now.** The 68-LUT read controller stays until CLS runs out; then the boot image moves to the config flash at 1 MB and the on-die path is deleted. |
+| D7 | **Boot image moved to the config flash at 1 MB** (done, §6.1): the on-die FLASH608K read controller is deleted and the loader reuses the SPI master. The installer bitstream remains the fallback. |
 | D8 | **I2S at 21.094 kHz** (6.75 MHz / 10 / 32), MAX98357A on J5 pins 5/6/7 (FPGA 25/26/27). 128 × 16 FIFO in FFs. |
 | D9 | **Audio FIFO low is the fourth IRQ**; FIFO low threshold 32, burst 64. |
 | D10 | **SIC priority high → low: raster, audio, timer, keyboard.** |
 | D11 | **Sound window 0xE0000–0xEFFFF** (64K cells, segment `0xE000`), just below the I/O area. |
 | D12 | **ARCHREV §2+§3 together**: SAPF plus no shadow-bank zeroing; net ~+15 CLS on the tile build. |
-| D13 | **Flat OAM group pointer** implemented (8 slots access all 24 groups); **deferred**: 6 more OAM slots (only for >8 visible sprites), boot move, then the register file. |
+| D13 | **Flat OAM group pointer** implemented (8 slots access all 24 groups); **boot move done**; **deferred**: 6 more OAM slots (only for >8 visible sprites), then the register file. |
 
 ## 2. Config flash access
 
@@ -221,8 +221,9 @@ sfx-off     \ stop
 | flat OAM pointer (measured) | −5 | **21** |
 | palette RAM + linebuf pipeline (measured) | +85 | **106** |
 | timer IRQ + SIC (measured) | −80 | **26** |
-| raster + keyboard + audio sources | −20…−40 | −14…6 |
-| boot move (now needed for the rest) | +15…+20 | 1…26 |
+| boot move to config flash (measured) | +15 | **41** |
+| raster source | −10…−20 | 21–31 |
+| keyboard + audio sources | −10…−20 | 1–21 |
 | 6 OAM slots | +15…+28 | later |
 | register file (last) | +~250 | |
 
@@ -235,10 +236,33 @@ all **24 groups**; the 6 extra slots are only for more than 8 visible sprites
 and are not needed for that goal.
 
 The timer IRQ + SIC came in at **80 CLS**, not the 32 the old note guessed, so
-the tile build is back to **26 free** with the timer source only. The palette
-RAM/pipeline recovered the I2S and flat-pointer spend, but the three remaining
-sources (raster, keyboard, audio) plus their dispatch will need the boot move
-(+15…+20) and/or a diet. The 6 OAM slots stay a later margin.
+the tile build went back to **26 free** with the timer source only. The boot
+move then recovered **15 CLS**: the boot image is at config-flash `0x100000`,
+the on-die FLASH608K reader is gone, and the loader reuses the SPI master.
+**41 free** now, enough for the raster source; keyboard and audio follow.
+The 6 OAM slots stay a later margin.
+
+### 6.1 Boot move result (measured)
+
+The 24K boot image moved from the on-die FLASH608K to the config flash at
+`0x100000`. The new `boot_spi_read` drives the **existing** SPI master with
+mode-0 `0x03` reads while the core is held; `flash_boot` keeps the header,
+CRC and D16SEG scatter logic. The 68-LUT on-die read controller and the
+FLASH608K primitive are gone.
+
+| | before | after |
+|---|---:|---:|
+| CLS | 4,294 / 4,320 (26 free) | **4,279 / 4,320 (41 free)** |
+| LUT / ALU / FF | 6,577 / 761 / 2,968 | 6,596 / 759 / 2,971 |
+| BSRAM | 24 / 26 | 24 / 26 (FLASH608K gone) |
+| dvi_pixel | 78.956 MHz | **82.280 MHz**, TNS 0 |
+| dvi_render | 30.937 MHz | **30.594 MHz**, TNS 0 |
+| psram_clk | 87.255 MHz | **83.011 MHz**, TNS 0 |
+
+The cost is ~0.2 s more boot (SPI at 3.375 MHz); `sim:flashboot` covers the
+full header/CRC/flat/DS/BIOS copy path, `sim:bootspi` the reader. The 2 MB
+block protect covers both the bitstream and the boot image; the slices at
+`0x200000` stay writable.
 
 ## 7. Phases
 
@@ -252,9 +276,9 @@ sources (raster, keyboard, audio) plus their dispatch will need the boot move
    save/restore, BIOS audit, tests; measured 127 free.
 4. **I2S** (done, §4): 21.09 kHz, 128×16 BSRAM FIFO, FIFO-low IRQ output,
    sound window, square-wave `beep`, J5 5/6/7.
-5. **Interrupts**: timer + SIC done (measured 26 free); raster, keyboard and
-   audio sources are next, after the boot move/diet.
-6. **When out of CLS**: boot move, then 6 OAM slots, then the register file.
+5. **Interrupts**: timer + SIC done; boot move done (measured 41 free);
+   raster, keyboard and audio sources are next.
+6. **When out of CLS**: 6 OAM slots, then the register file.
 
 ## 8. Phase 1 result (measured, verified on the board)
 

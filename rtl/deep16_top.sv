@@ -162,6 +162,11 @@ module deep16_top
   logic [15:0] mem_wdata;
 `ifdef PSRAM
   logic        mem_store_ack_raw;   // PSRAM bridge ack before peripheral bypass
+  // Config-flash boot read: the loader shares the SPI master until boot_done.
+  logic        boot_active;
+  logic        boot_spi_we;
+  logic [3:0]  boot_spi_addr;
+  logic [15:0] boot_spi_wdata, boot_spi_rdata;
 `endif
 `ifdef D16_PERIPH
   // Timer/SPI stores are claimed by the top-level devices: they must not reach
@@ -241,18 +246,32 @@ module deep16_top
     .irq   (sic_irq)
   );
 
+  // Config-flash boot read: the loader shares the SPI master and its pins
+  // until boot_done, then the CPU owns them.
+`ifdef USER_FLASH
+  wire        spi_we_m    = boot_active ? boot_spi_we    : spi_we;
+  wire [3:0]  spi_addr_m  = boot_active ? boot_spi_addr  : spi_addr;
+  wire [15:0] spi_wdata_m = boot_active ? boot_spi_wdata : mem_wdata;
+  assign boot_spi_rdata = spi_rdata;   // the loader reads STATUS/DATA too
+`else
+  wire        spi_we_m    = spi_we;
+  wire [3:0]  spi_addr_m  = spi_addr;
+  wire [15:0] spi_wdata_m = mem_wdata;
+`endif
+
   deep16_spi u_spi (
     .clk   (clk),
     .rst   (rst),
-    .we    (spi_we),
-    .addr  (spi_addr),
-    .wdata (mem_wdata),
+    .we    (spi_we_m),
+    .addr  (spi_addr_m),
+    .wdata (spi_wdata_m),
     .rdata (spi_rdata),
     .sck   (spi_sck),
     .mosi  (spi_mosi),
     .cs_n  (spi_cs_n),
     .miso  (spi_miso)
   );
+
 
   logic i2s_irq_unused;
   deep16_i2s u_i2s (
@@ -512,6 +531,9 @@ module deep16_top
     .mem_we(mem_we_mem), .mem_waddr(mem_waddr), .mem_wdata(mem_wdata),
     .mem_stall(mem_stall), .boot_done(boot_done), .boot_err(boot_err),
     .cache_flush(core_cache_flush),
+    .boot_active(boot_active),
+    .boot_spi_we(boot_spi_we), .boot_spi_addr(boot_spi_addr),
+    .boot_spi_wdata(boot_spi_wdata), .boot_spi_rdata(boot_spi_rdata),
     .ctl_read(psram_read), .ctl_write(psram_write), .ctl_burst(psram_burst),
     .ctl_addr(psram_addr), .ctl_din(psram_din),
     .ctl_dout(psram_dout), .ctl_dout2(psram_dout2), .ctl_busy(psram_busy)
@@ -620,7 +642,7 @@ module deep16_top
   localparam int UART_CLK_HZ = 27_000_000;
 `endif
 `ifdef D16_PERIPH
-  // D16nano tile/user-flash: one-byte TX holding register, enough for a
+  // D16nano tile/config-flash: one-byte TX holding register, enough for a
   // polled byte and for X/YMODEM later. The RX FIFO stays 64 bytes.
   localparam bit UART_RX_ONLY  = 1'b0;
   localparam int UART_TX_DEPTH = 1;

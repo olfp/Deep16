@@ -44,7 +44,7 @@ The board build now has a receive-only PS/2 keyboard port:
 
 ## Timer, SPI and UART TX (implemented 2026-10-27)
 
-These are built only in the **D16nano tile/user-flash** build (`D16NANO` plus
+These are built only in the **D16nano tile/config-flash** build (`D16NANO` plus
 `D16_PERIPH`); the older D16MINI text build is already at 4,305/4,320 CLS and
 does not instantiate them. The packed-image tile experiment stays RX-only and
 does not define `D16_PERIPH`.
@@ -70,12 +70,12 @@ does not define `D16_PERIPH`.
   a write to `0xF0042` starts an 8N1 byte at the fixed baud divisor. This is the
   path for future X/YMODEM host transfers. The tile console still owns the
   screen; the UART TX is a second output, not a replacement.
-- **Current tile build** (29 Oct 2026, after the timer IRQ + SIC): CLS
-  **4,294 / 4,320 (26 free)**, LUT 6,577 + 761 ALU, FF 2,968, BSRAM 24 / 26;
-  `dvi_pixel` **78.956 MHz**, `dvi_render` **30.937 MHz**, `psram_clk`
-  **87.255 MHz**, `clk_cpu` 15.790, all clocks TNS 0 (`place_option 0`,
-  `route_option 1`).
-- **Measured cost** (tile/user-flash build, 28 Oct 2026, after PS/2, timer, SPI,
+- **Current tile build** (29 Oct 2026, after the boot move to the config
+  flash at 1 MB): CLS **4,279 / 4,320 (41 free)**, LUT 6,596 + 759 ALU,
+  FF 2,971, BSRAM 24 / 26; `dvi_pixel` **82.280 MHz**, `dvi_render`
+  **30.594 MHz**, `psram_clk` **83.011 MHz**, `clk_cpu` 16.603, all clocks
+  TNS 0 (`place_option 0`, `route_option 1`).
+- **Measured cost** (tile/config-flash build, 28 Oct 2026, after PS/2, timer, SPI,
   UART TX, the three-bird sprite bank, the segmented map and the flash read
   port): Logic 8,283 / 8,640 (96 %), CLS **4,237 / 4,320** (**99 %, 83 free**),
   registers 2,985 / 6,771, BSRAM 23 / 26, I/O 26 / 71. The tile build closes
@@ -174,7 +174,7 @@ costs zero CLS and is testable in the JS core.
 
 ## Segment-base split (`D16SEG`, second slice)
 
-The tile/user-flash build enables the segmented map with `` `define D16SEG ``
+The tile/config-flash build enables the segmented map with `` `define D16SEG ``
 in `d16tile_flash.sv`. The text and packed builds keep the old flat map.
 
 - **Kernel code:** `CS=0`, code at `0x0100`; ILL/divtest code also in `CS=0`
@@ -221,10 +221,11 @@ in `d16tile_flash.sv`. The text and packed builds keep the old flat map.
   `flash:tile` must regenerate the user image with `D16SEG=1`; it now does.
   If `free` still reports 39,212, the old flat user image is still in the
   on-die flash even though the segmented bitstream is loaded.
-- **Done:** the SD driver/block layer, `include`, and the config-flash SPI
-  bring-up (JEDEC ID, BP=2 MB, sector program/read). The on-die flash CPU read
-  port (`flash@`/`screen`) was removed in phase 2a; the 4 KB slice layer moves
-  to the config flash next (`ADVARCH.md`).
+- **Done:** the SD driver/block layer, `include`, the config-flash SPI
+  bring-up (JEDEC ID, BP=2 MB, sector program/read) and the 4 KB slice layer.
+  The on-die flash CPU read port was removed in phase 2a; the boot image now
+  lives in the config flash at 1 MB, and the on-die FLASH608K is only the
+  installer fallback.
 
 ## USB keyboard attachment (alternative)
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # scripts/build_gowin_tile_flash.sh - build the persistent USER_FLASH tile build.
 #
-# The 16 BSRAM-block CPU image is replaced by the on-die FLASH608K copy, which
-# frees the blocks the PSRAM tag cache and the 128-tile sprite bank need. The
-# D16D showcase is in the 24K image's BIOS segment; the user image (the D16D
-# kernel) is the full 608 Kbit image.flash.bin.
+# The 16 BSRAM-block CPU image is replaced by the config-flash boot copy at
+# 0x100000, which frees the blocks the PSRAM tag cache and the 128-tile sprite
+# bank need. The D16D showcase is in the 24K image's BIOS segment; the boot
+# image is the full 608 Kbit image.flash.bin.
 #
 # This target builds the .fs and writes image.flash.bin; flash the pair with:
 #   npm run flash:tile
@@ -26,5 +26,5 @@ DYLD_FRAMEWORK_PATH="$GOWIN_EDA/lib" \
   "$GW_SH" "$ROOT/fpga/gowin/build_tile_flash.tcl"
 
 echo "tile configuration: fpga/gowin/impl/pnr/deep16_board_tile_flash.fs"
-echo "user flash image:    artifacts/image/image.flash.bin (608 Kbit)"
-echo "flash both with:     npm run flash:tile   (then power-cycle)"
+echo "boot image:          artifacts/image/image.flash.bin (608 Kbit, config flash 0x100000)"
+echo "flash all three with: npm run flash:tile   (then power-cycle)"

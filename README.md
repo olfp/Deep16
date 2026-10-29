@@ -138,19 +138,19 @@ What is in it:
 - **Archived:** the 24K BSRAM builds (`synth:board`, `synth:flash`,
   `synth:tile:packed`) and their `sim:board`/`sim:flash` regressions are retired;
   see `archive/24k-bsram/README.md`. The tile build is the board.
-- **User-flash tile build (verified, persistent).** `npm run synth:tile` moves
-  the boot image to the on-die 608 Kbit user flash and builds the tile
-  bitstream; the on-board 4 MB config flash is the non-removable store for
-  4 KB slices (phase 1 verified: JEDEC ID, BP=2 MB, sector program/read).
-  `npm run flash:tile` writes the bitstream and user image with
-  openFPGALoader (`-f` + `--user-flash image.flash.bin`). See `USERFLASH.md`
+- **Config-flash tile build (verified, persistent).** `npm run synth:tile`
+  builds the tile bitstream and the 24K boot image; the on-board 4 MB config
+  flash holds the bitstream at 0, the boot image at 1 MB and 4 KB source
+  slices at 2 MB (BP = `0x38` protects the first 2 MB). `npm run flash:tile`
+  writes all three with openFPGALoader (`-f` + `-o 0x100000` + `-o 0x200000`).
+  See `USERFLASH.md`
   and `ADVARCH.md`.
 
 Build and flash (vendor toolchain for the bitstream):
 
 ```sh
 npm run synth:tile    # Gowin: image + bitstream (deep16_board_tile_flash.fs)
-npm run flash:tile    # write the bitstream and the user-flash image
+npm run flash:tile    # write the bitstream, 1 MB boot image and slices
 ```
 
 Without a board, `npm test` runs the segmented map and the SD driver in the JS

@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # scripts/flash_gowin_tile_flash.sh - persistent tile build via openFPGALoader.
 #
-# One command writes both halves:
-#   -f <tile .fs>            FPGA configuration (external config flash)
-#   --user-flash <raw .bin>  on-die 608 Kbit user flash (D16D kernel + showcase)
-#   -o 0x200000 <slices.bin> the config-flash slices (upper, writable half)
+# One command writes the whole config flash:
+#   -f <tile .fs>             FPGA configuration at 0
+#   -o 0x100000 <boot .bin>   the D16D kernel + showcase boot image
+#   -o 0x200000 <slices.bin>  the source slices (upper, writable half)
 #
-# Both survive a power cycle. This is the tested route on the Tang Nano 9K;
-# the Gowin Embedded Flash Mode GUI is an alternative, and the
-# deep16_installer.fs remains the fallback for the user-flash half.
+# The boot image is at 1 MB, inside the 2 MB block protect, so a slice
+# writer cannot corrupt it. Both survive a power cycle. This is the tested
+# route on the Tang Nano 9K; the on-die 608 Kbit user flash is no longer used
+# by the tile build.
 #
 # The .fs and the image.flash.bin must come from the same D16D build:
 #   npm run synth:tile
@@ -25,11 +26,12 @@ command -v openFPGALoader >/dev/null 2>&1 || { echo "openFPGALoader not found" >
 [ -f "$FS" ]   || { echo "missing $FS - run npm run synth:tile first" >&2; exit 1; }
 [ -f "$USER" ] || { echo "missing $USER - run npm run synth:tile first" >&2; exit 1; }
 
-openFPGALoader --unprotect-flash -f "$FS" --user-flash "$USER"
+openFPGALoader --unprotect-flash -f "$FS"
+openFPGALoader -f --external-flash --file-type bin -o 0x100000 "$USER"
 
-# The slices go last: the bitstream write must not be able to disturb them.
+# The slices go last: the bitstream/boot writes must not disturb them.
 bash "$ROOT/scripts/flash_slices.sh"
 
 echo
-echo "configuration + on-die user flash + slices written."
+echo "configuration + boot image (1 MB) + slices written."
 echo "power-cycle the board: it boots into the D16D menu (Flappy / Forth / autorun)."

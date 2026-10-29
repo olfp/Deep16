@@ -1,23 +1,19 @@
-// flash_boot - copy the flat boot image from the on-die FLASH608K into PSRAM.
+// flash_boot - copy the flat boot image from the config flash (1 MB) into PSRAM.
 //
-// The user flash starts blank, so this loader expects the image installed by
-// the flash_installer bitstream or the programmer: a 64-word header (magic,
-// format, image words, CRC16), then the flat 24,576-word image packed two words
-// per 32-bit flash word (and, with D16SEG, the copies that go to DS and to the
-// BIOS segment). It copies while computing the same CRC-16/CCITT-FALSE as the
+// The config flash holds the image at 1 MB: a 64-word header (magic, format,
+// image words, CRC16), then the flat 24,576-word image packed two words per
+// 32-bit flash word (and, with D16SEG, the copies that go to DS and to the BIOS
+// segment). It copies while computing the same CRC-16/CCITT-FALSE as the
 // generator, compares the result with the header, and hands the entry word to
-// the caller.
+// the caller. boot_spi_read drives the shared SPI master for the source words.
 //
 // The CRC covers the flash read, which is the path that can fail (the PSRAM
 // write is checked by the cache's own write-through and by the machine running).
 // A read-back verify of PSRAM used to follow it; it cost 12 states (the CPU
 // read port that paid for it was removed again in phase 2a). A bad header or a
-// CRC mismatch sets
-// `err` and the machine stays in reset (the heartbeat LED shows boot_err); the
-// installer bitstream has to be run again.
-module flash_boot #(
-  parameter int CLK_HZ = 13_500_000
-) (
+// A bad header or CRC sets `err` and the machine stays in reset (the heartbeat
+// LED shows boot_err); rewrite the boot image at config-flash 0x100000.
+module flash_boot (
   input  logic        clk,
   input  logic        rst,
   input  logic        start,        // tags are clear, begin
@@ -31,7 +27,13 @@ module flash_boot #(
   output logic [19:0] baddr,
   output logic [15:0] bwdata,
   input  logic        bready,
-  input  logic        bbusy
+  input  logic        bbusy,
+
+  // The config-flash read shares the SPI master (deep16_spi) with the CPU.
+  output logic        spi_we,
+  output logic [3:0]  spi_addr,
+  output logic [15:0] spi_wdata,
+  input  logic [15:0] spi_rdata
 );
   localparam logic [31:0] MAGIC  = 32'h44313646;   // 'D16F'
   localparam logic [31:0] FORMAT = 32'd1;
@@ -69,10 +71,12 @@ module flash_boot #(
   logic        f_read, f_done, f_busy;
   logic [31:0] f_rdata;
 
-  flash608k_read #(.CLK_HZ(CLK_HZ)) u_flash (
+  boot_spi_read #(.BASE(24'h100000)) u_flash (
     .clk(clk), .rst(rst),
-    .addr(f_addr), .read(f_read),
-    .rdata(f_rdata), .busy(f_busy), .done(f_done)
+    .start(f_read), .addr(f_addr),
+    .rdata(f_rdata), .busy(f_busy), .done(f_done),
+    .spi_we(spi_we), .spi_addr(spi_addr), .spi_wdata(spi_wdata),
+    .spi_rdata(spi_rdata)
   );
 
   always_comb begin

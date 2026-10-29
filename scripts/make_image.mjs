@@ -347,18 +347,18 @@ if (isMain) {
     writeBirdSprite(outDir);
     // PS/2 Set-2 -> ASCII map: a BSRAM pROM read by rtl/ps2_rx.sv.
     writePs2Map(outDir);
-    // User-flash image for the installer / preloaded flash model.
+    // The same words serve the on-die installer fallback and the config-flash
+    // boot image at 0x100000.
     const installerWords = installerFlash(img);
     fs.writeFileSync(path.join(outDir, 'image.flash.hex'), flashHex(installerWords));
-    // User-flash image for the Gowin Programmer's "User Flash Initialization"
-    // (Embedded Flash Mode): the full 608 Kbit FLASH608K, with the installer's
-    // 12,352 words at 0 and 0xFF beyond. This is the same data
-    // deep16_installer.fs writes.
-    const USER_FLASH_BYTES = 0x13000;   // 608 Kbit
-    const userFlash = Buffer.alloc(USER_FLASH_BYTES, 0xFF);
-    for (let i = 0; i < installerWords.length && i * 4 + 4 <= USER_FLASH_BYTES; i++)
-      userFlash.writeUInt32LE(installerWords[i] >>> 0, i * 4);
-    fs.writeFileSync(path.join(outDir, 'image.flash.bin'), userFlash);
+    // Full 76 KB boot image for config-flash 0x100000 (and the installer's
+    // User Flash Initialization): the installer's 12,352 words at 0, 0xFF
+    // beyond, little-endian.
+    const BOOT_BYTES = 0x13000;   // 608 Kbit
+    const bootImage = Buffer.alloc(BOOT_BYTES, 0xFF);
+    for (let i = 0; i < installerWords.length && i * 4 + 4 <= BOOT_BYTES; i++)
+      bootImage.writeUInt32LE(installerWords[i] >>> 0, i * 4);
+    fs.writeFileSync(path.join(outDir, 'image.flash.bin'), bootImage);
   }
   const kb = (img.words.length * 2 / 1024).toFixed(0);
   console.log(`boot image: ${img.words.length} words (${kb} KiB), fill 0xFFFF, build ${img.build}`);
@@ -372,8 +372,8 @@ if (isMain) {
                 `(${Math.ceil(pack.words.length / 1024)} BSRAM blocks of ${IMG_BLOCK_WORDS / 1024})`);
   }
   const flash = flashImage(img);
-  console.log(`  user flash: ${flash.words.length} x 32-bit words, installer ${INSTALLER_WORDS}, CRC16 0x${flash.crc.toString(16).padStart(4, '0')}`);
-  console.log(`  user-flash init file: image.flash.bin (0x13000 = 608 Kbit, 0xFF padded)`);
+  console.log(`  boot image: ${flash.words.length} x 32-bit words, installer ${INSTALLER_WORDS}, CRC16 0x${flash.crc.toString(16).padStart(4, '0')}`);
+  console.log(`  config-flash boot file: image.flash.bin (0x13000 = 608 Kbit, 0xFF padded)`);
   if (!check) {
     const files = D16D
       ? 'image.hex, image.mi, image.flash.hex, image.flash.bin, image.manifest.json'

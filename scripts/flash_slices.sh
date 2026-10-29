@@ -4,8 +4,9 @@
 # The slices live in the upper, writable half of the on-board P25Q32U:
 #   slice n at 0x200000 + n * 0x1000     (sector 512 + n)
 # Slice 0 is the master directory; scripts/make_slices.mjs builds the image
-# from screens/flash/*.fth. The lower half (bitstream + kernel) is untouched,
-# so this is safe with the BP = 0x38 / lower-2-MB block protect in place.
+# from screens/flash/*.fth. The lower half (bitstream + boot image at 0x100000)
+# is untouched, so this is safe with the BP = 0x38 / lower-2-MB block protect
+# in place.
 #
 # `--external-flash` is what makes openFPGALoader accept a raw .bin and write
 # the board's SPI flash through the FPGA's BSCAN bridge; `-f` selects flash

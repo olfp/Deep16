@@ -443,3 +443,26 @@ The cost is **80 CLS**, mostly the core's IRQ mux and the SIC decode, so only
 diet before they go in. `sim:irq` covers the core entry (the parked store
 re-runs), `sim:sic` covers W1C/priority/scratch, and the timer test covers the
 tick.
+
+## 20. 2026-10-29: boot image moved to the config flash
+
+The 24K boot image left the on-die FLASH608K and now lives in the config flash
+at `0x100000`. `boot_spi_read` sends mode-0 `0x03` reads through the existing
+`deep16_spi` master while the core is held; `flash_boot` keeps the header, CRC
+and D16SEG scatter. The on-die read controller and the FLASH608K primitive are
+deleted.
+
+| | timer build | boot move |
+|---|---:|---:|
+| CLS | 4,294 / 4,320 (26 free) | **4,279 / 4,320 (41 free)** |
+| LUT / ALU | 6,577 / 761 | 6,596 / 759 |
+| FF | 2,968 | 2,971 |
+| dvi_pixel | 78.956 MHz | **82.280 MHz**, TNS 0 |
+| dvi_render | 30.937 MHz | **30.594 MHz**, TNS 0 |
+| psram_clk | 87.255 MHz | **83.011 MHz**, TNS 0 |
+| clk_cpu | 15.790 MHz | 16.603 MHz, TNS 0 |
+
+The move frees **15 CLS**. The boot is ~0.37 s in `sim:flashboot` (3.375 MHz
+SPI; the on-die loader was ~0.18 s). `sim:flashboot` checks the entry word,
+the flat image and both D16SEG copies against `image.flash.hex`; `sim:bootspi`
+checks the reader through the real SPI master.

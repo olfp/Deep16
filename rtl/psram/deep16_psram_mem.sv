@@ -48,6 +48,14 @@ module deep16_psram_mem #(
   output logic        boot_err,     // the boot read-back did not match
   input  logic        cache_flush,  // FSH retired in WB
 
+  // Config-flash boot read: the loader drives the shared SPI master while
+  // boot_active is high (the CPU is held in reset).
+  output logic        boot_active,
+  output logic        boot_spi_we,
+  output logic [3:0]  boot_spi_addr,
+  output logic [15:0] boot_spi_wdata,
+  input  logic [15:0] boot_spi_rdata,
+
   // to the controller (clk_ip domain)
   output logic        ctl_read,
   output logic        ctl_write,
@@ -158,18 +166,22 @@ module deep16_psram_mem #(
   logic [4:0]  st;
 
 `ifdef USER_FLASH
-`ifdef D16NANO
-  localparam int FLASH_CLK_HZ = 6_750_000;   // the reduced core's board clock
-`else
-  localparam int FLASH_CLK_HZ = 13_500_000;
-`endif
-  flash_boot #(.CLK_HZ(FLASH_CLK_HZ)) u_flash_boot (
+  flash_boot u_flash_boot (
     .clk(clk_cpu), .rst(rst), .start(fb_start),
     .done(fb_done), .err(fb_err), .entry_exp(fb_entry),
     .breq(fb_breq), .bwe(fb_bwe), .baddr(fb_baddr), .bwdata(fb_bwdata),
-    .bready(bready), .bbusy(bbusy)
+    .bready(bready), .bbusy(bbusy),
+    .spi_we(boot_spi_we), .spi_addr(boot_spi_addr),
+    .spi_wdata(boot_spi_wdata), .spi_rdata(boot_spi_rdata)
   );
+`else
+  assign boot_spi_we    = 1'b0;
+  assign boot_spi_addr  = 4'd0;
+  assign boot_spi_wdata = 16'd0;
 `endif
+
+  // The CPU owns the SPI master only after the loader is done.
+  assign boot_active = !boot_q;
 
   logic [14:0] bi;              // destination index (0..IMG_WORDS-1)
   logic [13:0] src;             // payload cursor in the packed image
@@ -255,7 +267,7 @@ module deep16_psram_mem #(
         end
 
 `ifdef USER_FLASH
-        // ---- flash boot: the image lives in the on-die FLASH608K --------
+        // ---- flash boot: the image lives in the config flash at 1 MB ---
         S_FSTART: begin
           boot_active_q <= 1'b1;
           fb_start <= 1'b1;
