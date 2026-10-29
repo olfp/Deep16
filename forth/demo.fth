@@ -251,11 +251,11 @@ create screen-buf 2048 cells allot
   >r >r 8 lshift or r> r> 8 lshift or ;
 : cf-write ( sector lo hi -- )
   cf-wren  2 cs! 2 spi!  rot 0 cf-addr
+  over 0xff and spi!
+  over 8 rshift 0xff and spi!
   dup 0xff and spi!
-  dup 8 rshift 0xff and spi!
-  swap dup 0xff and spi!
   8 rshift 0xff and spi!
-  drop 0 cs! cf-wait ;
+  2drop 0 cs! cf-wait ;
 : cf-erase ( sector -- ) cf-wren 2 cs! 0x20 spi! 0 cf-addr 0 cs! cf-wait ;
 : cf-test ( -- )
   ." config flash id: " cf-id
@@ -265,7 +265,7 @@ create screen-buf 2048 cells allot
   512 cf-erase
   512 0x1234 0xabcd cf-write
   512 cf-read
-  ." read back (hi lo): " hex . . decimal cr
-  ." protected word: " 256 cf-erase 256 cf-read hex . . decimal cr ;
+  ." read back (hi lo): " hex u. u. decimal cr
+  ." protected word: " 256 cf-erase 256 cf-read hex u. u. decimal cr ;
 
 boot.msg
