@@ -180,7 +180,154 @@ one that leaves room for a raster IRQ later.
 - Mono costs nothing extra: put the same sample in both slots, or use the `SD`
   strap to take one channel.
 
-## 7. Quality
+## 7. PCM streaming: size, rate matching and placement
+
+Streaming a waveform instead of computing it changes the currency of the
+problem: **memory becomes the cost and the CPU nearly disappears**.
+
+### 7.1 Size
+
+Bytes = rate × seconds × (bits / 8). The machine is word-addressed, so 8-bit
+samples pack two per 16-bit word (4-bit packs four).
+
+| Effect | Duration | 8 kHz 8-bit | 11 kHz 8-bit | 8 kHz 4-bit ADPCM |
+|---|---|---|---|---|
+| blip / beep | 60 ms | **480 B** | 660 B | 240 B |
+| coin / pickup | 200 ms | 1.6 kB | 2.2 kB | 800 B |
+| laser | 250 ms | 2.0 kB | 2.8 kB | 1.0 kB |
+| hit / collision | 120 ms | 960 B | 1.3 kB | 480 B |
+| crash | 600 ms | **4.8 kB** | 6.6 kB | 2.4 kB |
+| explosion | 900 ms | 7.2 kB | 9.9 kB | 3.6 kB |
+
+A realistic set — blip, coin, laser, hit, jump, powerup, crash, explosion — is
+**~20 kB at 8 kHz / 8-bit** (10,000 words), ~27 kB at 11 kHz, ~10 kB with
+ADPCM. Against the machine's pools:
+
+| Pool | Size | A 20 kB library is |
+|---|---|---|
+| dictionary `free` (runtime) | 32,578 words ≈ 65 kB | 31 % |
+| PSRAM | 1 M words ≈ 2 MB | 1 % |
+| SD card (16-bit sectors) | 32 MB reachable | 0.06 % |
+| on-die image flash | 608 Kbit ≈ 76 kB | would not fit with the kernel |
+
+### 7.2 Quality per byte
+
+- **8 kHz / 8-bit linear** is telephone-grade: fine for anything with a
+  transient, hiss on long decays.
+- **8-bit µ-law** is the best value: same bytes, roughly 12-bit perceived,
+  decoding is a 256-byte table lookup (2 instructions per sample).
+- **4-bit IMA ADPCM** halves it again. Excellent for crashes and explosions,
+  where noise masks the error; poor for beeps, where it is a tunable buzz.
+  The decoder is 6–8 instructions per sample.
+- **6 kHz** only for thumps and noise; tonal effects get dull.
+- **Above 11 kHz is wasted for effects** — the amp and speaker give up first.
+
+Rule of thumb: **tonal → 8-bit at 11 kHz; noise → 4-bit at 8 kHz.**
+
+### 7.3 Why streaming is cheaper than synthesis
+
+| Per output sample | Cycles |
+|---|---|
+| cache miss amortised (12 cycles per 2-word line = 4 samples) | ~3 |
+| unpack a byte (shift + and) | 2 |
+| store to the I2S FIFO | 1 |
+| **total** | **~6** |
+
+At 11.1 kHz that is **~1 % of the machine per voice**, against ~20
+cycles/sample for synthesis at the same rate (~3.3 %), and ~8 % per voice at
+26 kHz. Four streaming voices cost less than one synthesised voice at full
+rate, and they sound better. Bandwidth is not a factor either: 11 kB/s against
+a PSRAM path that delivers far more.
+
+### 7.4 Rate matching
+
+Playback is a pure copy **only if the stored rate divides the I2S rate**.
+Choose from `6.75 MHz / (32 N)`:
+
+| N | fs | Bytes/s at 8-bit | Use |
+|---|---|---|---|
+| 26 | 8.11 kHz | 8.1 k | effects, cheapest |
+| 19 | 11.10 kHz | 11.1 k | effects, cleaner |
+| 10 | 21.09 kHz | 21.1 k | music and effects |
+| 8 | 26.37 kHz | 26.4 k | music |
+
+Make the divider part of the play call, so a buffer header carries its own
+rate: `{rate_div, length, loop_point, flags}`. Effects then play at 8.11 or
+11.10 kHz and music at 26.37 kHz, with the MAX98357A relocking each time.
+Resampling 8 kHz up to 26.37 kHz with linear interpolation costs ~15–18
+cycles/sample — as expensive as synthesis — and pre-expanding costs 3.3x the
+storage. Matching avoids both.
+
+### 7.5 Where the bytes live
+
+- **Playback source: PSRAM**, addressed with plain `LD`, cacheable, ~1 % CPU.
+- **Flash is storage, not a source.** `flash@ ( word -- lo hi )` is a polled
+  MMIO round trip — address, go, wait for busy, two reads — plus the call:
+  ~40–70 cycles per 16-bit word, i.e. two samples. Copying a 4.8 kB crash out
+  of flash costs ~130k cycles (20 ms) once: fine at load time, a stutter at
+  play time.
+- **SD is storage too**: 512-byte sectors, ~1.2 ms per sector, and one sector
+  is 46 ms of 8 kHz audio. Right for a library loaded on demand, wrong for
+  per-sample access.
+
+So: library on the card or in flash → loaded into PSRAM at boot or on demand →
+streamed from there. At 20–30 kB the whole set fits the free dictionary, so
+the simple version is "load everything at boot".
+
+**A dedicated sound segment.** The 65 kB dictionary is not the right place for
+a sample library, and it does not have to be. A 16-bit segment value plus a
+16-bit offset gives a 64K-word (128 kB) window — `phys = (seg << 4) + offset`
+(`doc/Deep16-Arch.md:70`), and `MVS DS, Rx` sets a segment register in one
+instruction (`asm/forth_nano.asm:113`). So:
+
+- one window holds **64K words = 128 kB = 16.4 s of 8 kHz 8-bit audio**, or
+  about thirty crash-length effects;
+- the whole range above the dictionary (`0x10000..0xFFFFF`) is free, which is
+  15 windows = 1.9 MB = **four minutes** of the same audio, without touching
+  data-segment space at all;
+- **loader:** `MVS ES, Rx` points ES at the window, and the existing `es!`
+  primitive writes it (ES is the I/O segment, `asm/forth_nano.asm:2687`),
+  while DS stays the dictionary;
+- **player:** `MVS DS, Rx` points DS at the window and plain `LD` streams it,
+  while ES stays the I/O segment for the DAC port — both registers useful at
+  once, one `MVS` per phase, no extra segment register, no new encoding, no
+  LUTs.
+
+Two constraints: a Forth word called from inside the player while DS is
+repointed would read the wrong data, so the player must be self-contained
+(state in registers, no dictionary access); and calls and stacks still work,
+because they use SS, not DS.
+
+One cache note: the PSRAM cache is 512 lines × 2 words = **2 kB**, so a 4.8 kB
+crash streams straight through. No reuse means no waste, but each play evicts
+the interpreter's lines — about 256 extra misses, ~3,000 cycles, a third of a
+millisecond. Irrelevant.
+
+### 7.6 What you lose versus synthesis
+
+- **No pitch variation** without resampling. `SFX n` replays at the recorded
+  pitch; a rising laser needs three variants or the interpolator.
+- **Volume** is one multiply per sample (~3 cycles), so distance-attenuated
+  effects are nearly free.
+- **Loop points** need one word in the header, not a feature.
+- **Fixed content**: 20 kB buys eight sounds, not eight sounds plus a music
+  engine. Music still wants the synthesiser at 26 kHz; the two coexist because
+  the divider is per-stream.
+
+### 7.7 A starting budget
+
+| | Words | Bytes |
+|---|---|---|
+| 8 effects, 8 kHz 8-bit, 40–900 ms | ~8,000 | 16 kB |
+| voice/prop buffer (128 samples, double-buffered) | 128 | 256 B |
+| Forth player + headers | ~200 | 400 B |
+| **total** | **~8,300** | **~17 kB** |
+
+That leaves ~24,000 words of dictionary free — or nothing at all, if the set
+lives in its own segment — and the CPU cost is under 1 % per voice at
+11.1 kHz.
+
+## 8. Quality
 
 At 26.37 kHz the Nyquist limit is 13.2 kHz, so a 1 kHz sawtooth's harmonics
 above 13 kHz fold back. It sounds "8-bit gritty", which may be exactly right.
@@ -189,7 +336,7 @@ If it is not, a **global one-pole tilt** after the mix costs three instructions
 per sample (~4 cycles, 1.5 %):
 
 ```
-tmp = mix - prev
+tmp = mix — prev
 tmp = tmp >> k
 prev = prev + tmp
 ```
@@ -202,12 +349,12 @@ The envelope table from §2 should be **exponential, not linear**: the same
 code, a different table. Linearity is the cheapest upgrade to a crash, where
 the decay *is* the effect.
 
-## 8. Versus the companion
+## 9. Versus the companion
 
 | | 9K software PCM | Companion APU (`COMPANION.md`) |
 |---|---|---|
 | 9K CLS | 35–40 | ~1 (`cs_n[2]`) |
-| 9K CPU | 11–34 % while sounding | 0 % |
+| 9K CPU | 1–4 % streamed, 11–34 % synthesised | 0 % |
 | Voices | 1–4, envelopes, noise | 4 hardware voices + sweep |
 | Sample rate | 16.2–52.7 kHz, none standard | 24 kHz (chosen) |
 | Extra hardware | MAX98357A (~$5) + 3 wires | second board + 4 wires |
@@ -218,18 +365,20 @@ The companion buys CPU and hardware envelopes; this route buys the feature
 without a board. For the 9K as the cheap machine, software PCM is the only
 option that needs no second bitstream.
 
-## 9. When to choose which
+## 10. When to choose which
 
 - **Choose software PCM** if sound is beeps, effects and a title tune, if the
   game can afford 15–25 %, and if the 9K must stay a single board. Recipe:
   26.367 kHz, 128-sample FIFO, polled mix, zero-order hold on underrun.
+  Stream recorded effects (§7) and synthesise the music: streaming costs ~1 %
+  per voice, synthesis ~8 %.
 - **Choose the companion** if sound must be free (0 % CPU), if four independent
   hardware envelopes and sweeps are wanted, or if the 9K has no room at all.
 - **Choose neither, use the 20K** if 42–48 kHz four-voice music is the goal:
   the 20K runs the core at 13.5 MHz, which halves every percentage in §2, and
   has 20,736 LUT4 for the serialiser and an APU.
 
-## 10. Open questions
+## 11. Open questions
 
 1. **Is 26.37 kHz acceptable** as the machine's only rate? If recorded audio is
    ever wanted, this decision is permanent.
@@ -248,3 +397,7 @@ option that needs no second bitstream.
    consumes 35–40 of the 83 free CLS and the interrupts want 30–44?
 8. **What is the third wire budget on the header?** BCLK, LRCLK, DIN are three
    pins; check against `rtl/deep16_board.cst` and the free J6 list.
+9. **Which window becomes the sound segment**, and does the player repoint DS
+   while the loader repoints ES (§7.5)? One `MVS` per phase and no new
+   register, but it needs a rule so nothing else assumes DS is the dictionary
+   during playback.
