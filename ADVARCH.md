@@ -71,10 +71,12 @@ slice load/save ≈ 10 ms / 60–90 ms.
 
 ### 2.4 Protection
 
-`BP4..0 = 0 1 1 1 0` protects `0x000000–0x1FFFFF` (bitstream and, later, the
-kernel image). The slices at `0x200000+` are unprotected. `openFPGALoader
---unprotect-flash` is required to rewrite the bitstream; the design sets BP
-again after boot. The slice writer also checks `n < 512`.
+`BP4..0 = 0 1 1 1 0` (`0x38`) protects `0x000000–0x1FFFFF`: the bitstream
+and the boot image at `0x100000`. The slices at `0x200000+` are unprotected.
+`openFPGALoader --unprotect-flash` does **not** clear this P25Q32H's BP
+(`RDSR` stays `0x38`), so run `cf-unprotect` on the board before a
+config-flash boot-image write; the design sets BP again after boot. The slice
+writer also checks `n < 512`.
 
 ## 3. Slice format
 
@@ -419,7 +421,14 @@ the configuration half is written in the same pass; after boot run
 
 ## 11. Bring-up test
 
-After the build and flash:
+Before flashing, from the running console:
+
+```text
+cf-unprotect
+cf-status hex . decimal   \ 0: the config flash is writable
+```
+
+Then `npm run flash:tile` and power-cycle. After the build and flash:
 
 ```text
 cf-id                 \ JEDEC ID, expect 85 60 16 (Puya P25Q32U)

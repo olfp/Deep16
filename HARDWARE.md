@@ -152,7 +152,9 @@ costs zero CLS and is testable in the JS core.
   overwrites a sector already moved into place. A load cannot be looped over:
   `included` ends the line it was called from, which is why one call takes the
   whole run.
-- **Board test.** `npm run flash:tile`, then:
+- **Board test.** On the running console run `cf-unprotect` and confirm
+  `cf-status hex . decimal` reads 0, then `npm run flash:tile` (power-cycle
+  after), then:
 
   ```text
   sd                  \ SD card ready

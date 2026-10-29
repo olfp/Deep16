@@ -481,8 +481,11 @@ written at `0x100000` with `--external-flash -o 0x100000`; the slices follow at
 as memory.
 
 The 2 MB block protect (BP = `0x38`) covers the bitstream and the boot image;
-the upper 2 MB (slices) stays writable. `npm run flash:tile` unprotects, writes
-all three, and the boot script's `cf-protect` re-arms the guard.
+the upper 2 MB (slices) stays writable. `openFPGALoader --unprotect-flash` does
+not clear this P25Q32H's BP, so run `cf-unprotect` on the board first
+(`cf-status` must read 0); `npm run flash:tile` then writes all three and the
+boot script's `cf-protect` re-arms the guard. The script verifies the
+`0x100000` image after writing.
 
 The on-die FLASH608K is still available to the installer bitstream
 (`npm run installer:tile` / `sim:installer`), but the tile build no longer

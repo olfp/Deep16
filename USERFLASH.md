@@ -13,8 +13,9 @@ build; it remains only for the one-time installer fallback below.
 | `0x200000`–`0x3FFFFF` | source slices, 4 KB each (`0x200000 + n*0x1000`) | writable |
 
 `BP = 0x38` protects the lower 2 MB (bitstream and boot image). The slices sit
-above it, so `cf-erase`/slice writes cannot corrupt the boot. `npm run
-flash:tile` clears BP with `--unprotect-flash`, writes all three regions, and
+above it, so `cf-erase`/slice writes cannot corrupt the boot. Run
+`cf-unprotect` on the board first (the host `--unprotect-flash` does not clear
+this P25Q32H's BP); `npm run flash:tile` then writes all three regions, and
 the boot script's `cf-protect` re-arms the guard.
 
 ## Boot image
@@ -68,14 +69,26 @@ catalog 5–7 (editor, `dir`/`find`, `p-screen`, I2S and IRQ words). The boot
 script loads the SD driver and the catalog before the prompt, so `sd`, `dir`,
 `find`, `beep`, `irq-on` and `4 screen` are available at power-on.
 
+The boot script's `cf-protect` sets BP = `0x38` after boot, so every later
+`npm run flash:tile` must start with `cf-unprotect` on the board. The script
+verifies the `0x100000` image after writing and aborts with that instruction if
+the write was dropped.
+
 ## Flash (tested)
 
 ```sh
 cd /Users/olf/Projects/Trae/Deep16/Deep16
 
 npm run synth:tile         # .fs + image.flash.bin
+
+# On the board, at the Forth console:
+#   cf-unprotect
+#   cf-status hex . decimal      \ must read 0
+#
+# openFPGALoader --unprotect-flash does NOT clear this P25Q32H's BP; the raw
+# boot-image write at 0x100000 is silently dropped while BP = 0x38.
 npm run flash:tile         # .fs + boot image at 0x100000 + slices at 0x200000
-# power-cycle
+# power-cycle, then cf-protect -> 38
 ```
 
 What `flash:tile` runs:

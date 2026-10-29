@@ -141,9 +141,10 @@ What is in it:
 - **Config-flash tile build (verified, persistent).** `npm run synth:tile`
   builds the tile bitstream and the 24K boot image; the on-board 4 MB config
   flash holds the bitstream at 0, the boot image at 1 MB and 4 KB source
-  slices at 2 MB (BP = `0x38` protects the first 2 MB). `npm run flash:tile`
-  writes all three with openFPGALoader (`-f` + `-o 0x100000` + `-o 0x200000`).
-  See `USERFLASH.md`
+  slices at 2 MB (BP = `0x38` protects the first 2 MB). Run `cf-unprotect` on
+  the board first (`--unprotect-flash` does not clear this chip's BP), then
+  `npm run flash:tile` writes all three with openFPGALoader
+  (`-f` + `-o 0x100000` + `-o 0x200000`). See `USERFLASH.md`
   and `ADVARCH.md`.
 
 Build and flash (vendor toolchain for the bitstream):
