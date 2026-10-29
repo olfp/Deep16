@@ -350,9 +350,12 @@ Bugs found and fixed while bringing it up:
 - `included` now resets the return stack when a load ends: a load called from
   `screen` or `p-screen` ends the line, so the caller's frame is stale.
 
-Not flashed yet: the bitstream is unchanged since the DVI retime, so only the
-user image and `slices.bin` need writing (`npm run flash:tile`, or
-`npm run flash:slices` to leave the configuration alone).
+The slice image was written on the board and read back byte-for-byte
+(`npm run flash:slices`; the command needs `-f --external-flash --file-type
+bin -o 0x200000`). The user image still needs `cf-unprotect` and
+`npm run flash:tile`: the bitstream is unchanged since the DVI retime, but
+openFPGALoader writes the configuration half in the same pass and the 2 MB BP
+must be clear for that.
 
 ## 11. Bring-up test
 
