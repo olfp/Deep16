@@ -18,8 +18,8 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 #   -o 0x200000 artifacts/image/slices.bin
 ```
 
-The current image is 7 slices / 28 KB: directory 0, SD driver 1–3, hello 4,
-catalog 5–6. The boot script loads the SD driver and the catalog before the
+The current image is 8 slices / 32 KB: directory 0, SD driver 1–3, hello 4,
+catalog 5–7 (editor, `dir`/`find`, `p-screen`, I2S words). The boot script loads the SD driver and the catalog before the
 prompt, so `sd`, `dir`, `find` and `4 screen` are available at power-on. The
 slice write leaves the bitstream untouched; `npm run flash:tile` writes the
 configuration, the user image and the slices in one go.

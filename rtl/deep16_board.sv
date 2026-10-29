@@ -36,6 +36,9 @@ module deep16_board (
   output logic cfg_cs_n,   // config flash MCS_N (MSPI pin 60)
   input  logic uart_rxd,   // from the on-board USB-UART bridge
   output logic uart_txd,   // to the on-board USB-UART bridge
+  output logic i2s_bclk,   // I2S bit clock   (J5 pin 5, FPGA 25)
+  output logic i2s_lrclk,  // I2S word select (J5 pin 6, FPGA 26)
+  output logic i2s_din,    // I2S data        (J5 pin 7, FPGA 27)
   output logic [5:0] led   // 0 heartbeat, 1 run, 2 halt, 3..5 instruction activity
 `ifdef PSRAM
   // PSRAM (HyperRAM) pads - magic names, bound to the package's dedicated pads.
@@ -413,6 +416,9 @@ module deep16_board (
     , .spi_mosi         (spi_mosi_i)
     , .spi_miso         (spi_miso_i)
     , .spi_cs_n         (spi_cs_i)
+    , .i2s_bclk         (i2s_bclk)
+    , .i2s_lrclk        (i2s_lrclk)
+    , .i2s_din          (i2s_din)
 `endif
 
     // no debug bus, no cache management on the board
@@ -444,6 +450,12 @@ module deep16_board (
     , .o_dbg_if_addr(dbg_if_addr)
 `endif
   );
+
+`ifndef D16_PERIPH
+  assign i2s_bclk  = 1'b0;
+  assign i2s_lrclk = 1'b0;
+  assign i2s_din   = 1'b0;
+`endif
 
 `ifdef D16_PERIPH
   // One SPI master, two pin sets. spi_cs_i[0] is the SD CS, spi_cs_i[1] the

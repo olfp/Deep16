@@ -56,6 +56,10 @@ module deep16_top
   output logic        spi_mosi,
   input  logic        spi_miso,
   output logic [1:0]  spi_cs_n,
+  // I2S output: BCLK/LRCLK/DIN to the MAX98357A on J5 5/6/7.
+  output logic        i2s_bclk,
+  output logic        i2s_lrclk,
+  output logic        i2s_din,
 `endif
 
   // harness debug bus
@@ -166,7 +170,8 @@ module deep16_top
   // a single-cycle strobe even if the core holds mem_we for another cycle.
   wire timer_hit = (mem_waddr >= 21'h0F0020) && (mem_waddr <= 21'h0F002F);
   wire spi_hit   = (mem_waddr >= 21'h0F0080) && (mem_waddr <= 21'h0F008F);
-  wire periph_we = mem_we && (timer_hit || spi_hit);
+  wire i2s_hit   = (mem_waddr[19:4] == 16'hF00A);
+  wire periph_we = mem_we && (timer_hit || spi_hit || i2s_hit);
   wire mem_we_mem = mem_we && !periph_we;
   logic periph_we_q;
 `else
@@ -178,9 +183,9 @@ module deep16_top
   // Both are top-level devices: a store is decoded here and a load is muxed
   // into mem_rdata, so the CPU core needs no new I/O instruction. The timer
   // is the 0xF0020 block; SPI is the 0xF0080 block.
-  logic        timer_we, spi_we;
-  logic [3:0]  timer_addr, spi_addr;
-  logic [15:0] timer_rdata, spi_rdata;
+  logic        timer_we, spi_we, i2s_we;
+  logic [3:0]  timer_addr, spi_addr, i2s_addr;
+  logic [15:0] timer_rdata, spi_rdata, i2s_rdata;
   logic [20:0] io_raddr_q;   // address whose data-port word is now valid
 
   always_ff @(posedge clk) begin
@@ -190,6 +195,7 @@ module deep16_top
 
   wire timer_sel = (io_raddr_q >= 21'h0F0020) && (io_raddr_q <= 21'h0F002F);
   wire spi_sel   = (io_raddr_q >= 21'h0F0080) && (io_raddr_q <= 21'h0F008F);
+  wire i2s_sel   = (io_raddr_q[19:4] == 16'hF00A);
 
   always_ff @(posedge clk) begin
     if (rst) periph_we_q <= 1'b0;
@@ -198,10 +204,12 @@ module deep16_top
 
   assign timer_we   = periph_we && !periph_we_q && timer_hit;
   assign spi_we     = periph_we && !periph_we_q && spi_hit;
+  assign i2s_we     = periph_we && !periph_we_q && i2s_hit;
   // A load uses the registered read address, a store mem_waddr; the two never
   // coincide, and the registered address is the one the data port is returning.
   assign timer_addr = mem_we ? mem_waddr[3:0] : io_raddr_q[3:0];
   assign spi_addr   = mem_we ? mem_waddr[3:0] : io_raddr_q[3:0];
+  assign i2s_addr   = mem_we ? mem_waddr[3:0] : io_raddr_q[3:0];
 
   deep16_timer #(.CLK_HZ(6_750_000)) u_timer (
     .clk   (clk),
@@ -223,6 +231,20 @@ module deep16_top
     .mosi  (spi_mosi),
     .cs_n  (spi_cs_n),
     .miso  (spi_miso)
+  );
+
+  logic i2s_irq_unused;
+  deep16_i2s u_i2s (
+    .clk      (clk),
+    .rst      (rst),
+    .we       (i2s_we),
+    .addr     (i2s_addr),
+    .wdata    (mem_wdata),
+    .rdata    (i2s_rdata),
+    .bclk     (i2s_bclk),
+    .lrclk    (i2s_lrclk),
+    .din      (i2s_din),
+    .fifo_irq (i2s_irq_unused)
   );
 `endif
   logic [15:0] if_rdata;
@@ -476,6 +498,7 @@ module deep16_top
   logic [15:0] psram_mem_rdata;
   assign mem_rdata = timer_sel ? timer_rdata :
                      spi_sel ? spi_rdata :
+                     i2s_sel ? i2s_rdata :
                      (mem_addr == 21'h0F0066) ? tile_status :
                      (mem_addr == 21'h0F0068) ? core_cycles[15:0] :
                      (mem_addr == 21'h0F006A) ? core_cycles[31:16] :
@@ -505,6 +528,7 @@ module deep16_top
 `ifdef D16_PERIPH
   assign mem_rdata    = timer_sel ? timer_rdata :
                         spi_sel ? spi_rdata :
+                        i2s_sel ? i2s_rdata :
                         (ram_was_data_q ? ram_data : 16'hFFFF);
 `else
   assign mem_rdata    = ram_was_data_q ? ram_data : 16'hFFFF;

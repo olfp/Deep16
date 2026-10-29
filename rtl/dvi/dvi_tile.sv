@@ -767,6 +767,7 @@ module dvi_tile #(
   // counter's combinational compare at the line-end edge.
   logic        line_next_q;
   logic [1:0]  buf_next_q;
+  logic [2:0]  sel_next_q;      // one-hot buf_next_q, registered with it
 
   wire scan_line_end = (sx == 12'(O_H_TOTAL - 1));
   wire [9:0] sy_next = (sy == 10'(O_V_TOTAL - 1)) ? 10'd0 : sy + 10'd1;
@@ -775,6 +776,7 @@ module dvi_tile #(
                    (((sy + 10'd1) < 10'(O_V_ACTIVE)) && !sy_next[0]);
   wire preload = tail[1] | tail[2];
   wire [1:0] scan_buf = preload ? next_buf : rd_buf;
+  wire [2:0] ready_diff = ready_s1 ^ ready_seen;
 
   always_ff @(posedge clk_pixel) begin
     if (rst_pixel) tail <= 3'b0;
@@ -807,12 +809,14 @@ module dvi_tile #(
       free_toggle <= 3'b111;
       line_next_q <= 1'b0;
       buf_next_q <= 2'd0;
+      sel_next_q <= 3'b000;
     end else begin
       // Registered line-pair control: next_line/next_buf are stable for the
       // whole line, so the ready_seen enable is not a combinational path from
       // the sy counter at the line-end edge.
       line_next_q <= next_line;
       buf_next_q  <= next_buf;
+      sel_next_q  <= 3'b001 << next_buf;
 
       if (!started) begin
         // Wait for line 0 and the render frame boundary. Address 0 has been
@@ -844,14 +848,15 @@ module dvi_tile #(
           free_toggle[rd_buf] <= ~free_toggle[rd_buf];
 
         // At the end of a line pair, latch the next source line's buffer.
+        // The per-buffer compare is precomputed from the registered toggles and
+        // the buffer select is a registered one-hot, so the ready_seen clock
+        // enable is not a 3:1 mux + XOR from buf_next_q.
         if (line_next_q) begin
-          rd_buf <= buf_next_q;
-          if (ready_s1[buf_next_q] != ready_seen[buf_next_q]) begin
-            ready_seen[buf_next_q] <= ready_s1[buf_next_q];
-            line_valid <= 1'b1;
-          end else begin
-            line_valid <= 1'b0;
-          end
+          rd_buf     <= buf_next_q;
+          line_valid <= |(ready_diff & sel_next_q);
+          if (sel_next_q[0] && ready_diff[0]) ready_seen[0] <= ready_s1[0];
+          if (sel_next_q[1] && ready_diff[1]) ready_seen[1] <= ready_s1[1];
+          if (sel_next_q[2] && ready_diff[2]) ready_seen[2] <= ready_s1[2];
         end
       end
     end

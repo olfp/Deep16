@@ -45,6 +45,7 @@ obj_dvi_tile/
 obj_ps2/
 obj_timer/
 obj_spi/
+obj_i2s/
 obj_uart_tx/
 obj_tmds/
 obj_flash/

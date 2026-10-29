@@ -155,14 +155,23 @@ cells; 16-bit sum.
 
 ## 4. I2S and audio
 
-- **21.09375 kHz** (N=10). BCLK 0.675 MHz. CPU: 9 / 15 / 21 / 28 % for 1/2/3/4
-  synthesised voices.
-- **128 × 16 FIFO in FFs** (2,048 FFs, no CLS, 6.1 ms). Low threshold 32,
-  burst 64; zero-order hold on underrun.
+**Implemented** (phase 4, `rtl/deep16_i2s.sv`):
+
+- **21.09375 kHz**: BCLK = 6.75 MHz / 10 = 675 kHz, LRCLK = BCLK / 32.
+  The rate is fixed; the slice rate code is metadata for now.
+- **128 × 16 FIFO** in **one BSRAM** (not FFs: 2,048 FFs plus the 128:1
+  read path did not fit the 4,320-CLS device; one free BSRAM did). Low-water
+  threshold 32; the FIFO-low IRQ is an output, not yet wired into the CPU.
 - **Pins:** J5 5/6/7 = FPGA 25/26/27 = BCLK/LRCLK/DIN. MAX98357A at 3.3 V, no
   MCLK, no I2C.
-- **MMIO** in the freed `0xF00A0` block: FIFO data/status, divider, enable,
-  FIFO-low IRQ.
+- **MMIO** at `0xF00A0` (the `--external-flash` slice area is unrelated):
+
+  | addr | name | access |
+  |---|---|---|
+  | `0xA0` | DATA | W push a signed 16-bit sample; R the level (0..128) |
+  | `0xA2` | CTRL | W b0 enable, b1 reset, b2 loop, b3 irq enable |
+  | `0xA4` | STATUS | R b0 empty, b1 full, b2 low, b3 underrun, b4 running, b5 irq |
+
 - **Sound window** `0xE0000–0xEFFFF` (segment `0xE000`, 64K cells = 128 KB):
   μ-law table cells 0..127, samples from 128. Loader uses `ES=0xE000`;
   player/ISR uses `DS=0xE000`, `ES=0xF000`, and restores `DS=0x1000`.
@@ -170,6 +179,20 @@ cells; 16-bit sum.
   96.7 ms. Rate code 4 default; 6 (42.19) available per slice.
 - **Flash is storage only**: the slice loader copies into the sound window,
   the player streams from PSRAM.
+- The first board test fills 128 samples with a square (164.8 Hz) and sets
+  loop; the hardware repeats the buffer, so the CPU is free. `beep`/`sfx-off`
+  are in the catalog slice.
+
+**Measured (2026-10-29).** CLS **4,294 / 4,320 (26 free)**, dvi_pixel
+**76.974 MHz** (TNS 0), dvi_render 27.936, clk_cpu 18.949, psram_clk 92.135.
+The fit needed the second DVI retime (`DVI720check.md` §16) and the BSRAM
+FIFO; the 128×16 FF FIFO plus its read path was over the device. Board test:
+
+```text
+beep        \ 164.8 Hz square, 128-sample hardware loop
+sound       \ level and status
+sfx-off     \ stop
+```
 
 ## 5. Interrupts and ARCHREV
 
@@ -194,16 +217,22 @@ cells; 16-bit sum.
 |---|---:|---:|
 | measured after 2b | | 42 |
 | ARCHREV §2+§3 (measured) | +85 | **127** |
-| I2S + FIFO (estimate) | −35…−40 | 87–92 |
-| timer IRQ | −20…−32 | 55–72 |
-| 4-source SIC | −12…−16 | 39–60 |
-| raster + keyboard | −14…−28 | 11–46 |
-| boot move | +15…+20 | 26–66 |
-| 6 OAM slots | +15…+28 | 41–94 |
+| I2S + FIFO (measured) | −101 | **26** |
+| boot move (first) | +15…+20 | 41–46 |
+| timer IRQ | −20…−32 | 9–26 |
+| 4-source SIC | −12…−16 | −7…14 |
+| raster + keyboard | −14…−28 | −35…0 |
+| 6 OAM slots | +15…+28 | later |
 | register file (last) | +~250 | |
 
-The full secondary goal needs the boot move; 6 slots are the margin if the high
-ends land. The boot move is deferred until CLS runs out.
+The I2S came in at **101 CLS**, not the 35–40 the old note guessed, so the
+interrupt estimates no longer fit in the 26 that are left. Phase 5 needs the
+boot move (+15–20) and/or a diet (the 24-group sprite bank is the obvious
+place) before the timer/raster/keyboard blocks go in.
+
+The secondary goal still needs the boot move; the 6 OAM slots are a later
+margin. The boot move is no longer deferrable: the I2S used the headroom that
+the 2b/ARCHREV plan had reserved for the interrupt blocks.
 
 ## 7. Phases
 
@@ -215,8 +244,8 @@ ends land. The boot move is deferred until CLS runs out.
    `SpiFlash`, tests; remove the on-die flash CPU port (`flash@`/old `screen`).
 3. **ARCHREV §2+§3** (done, ARCHREV §5): SAPF + no zeroing, software
    save/restore, BIOS audit, tests; measured 127 free.
-4. **I2S**: 21.09 kHz, FIFO, FIFO-low IRQ, sound window, μ-law/PCM player,
-   J5 5/6/7.
+4. **I2S** (done, §4): 21.09 kHz, 128×16 BSRAM FIFO, FIFO-low IRQ output,
+   sound window, square-wave `beep`, J5 5/6/7.
 5. **Interrupts**: timer, raster, keyboard, audio, SIC4, persistent bank.
 6. **When out of CLS**: boot move, then 6 OAM slots, then the register file.
 
@@ -245,7 +274,7 @@ The boot-script source now ends at `dict_free 0x49D6`, only **42 cells** below
 the BIOS at `0x4A00`. Phase 2 must remove the on-die `flash@`/`screen` source
 and move the SD driver/`include` to a source slice before adding the slice
 layer, or the image will not build. The SD driver source (slices 1..3) and
-the catalog (slices 5..6) are auto-loaded at boot (`1 screen`, `5 screen`) so
+the catalog (slices 5..7) are auto-loaded at boot (`1 screen`, `5 screen`) so
 `sd`/`include`/`dir` exist at the prompt.
 
 Board test (tio, 115200):
@@ -309,7 +338,7 @@ this 42-free base.
 
 ## 10. Phase 2b result: the slice layer (board-verified)
 
-The on-board config flash now carries a 7-slice, 28 KB source image at
+The on-board config flash now carries an 8-slice, 32 KB source image at
 `0x200000` (sector 512), built by `scripts/make_slices.mjs`:
 
 | slice | object | chars |
@@ -317,7 +346,7 @@ The on-board config flash now carries a 7-slice, 28 KB source image at
 | 0 | master directory (WP) | 255 entries |
 | 1..3 | `sd.fth` - the SD/block driver | 4,695 |
 | 4 | `hello.fth` | 350 |
-| 5..6 | `catalog.fth` - slice editor, `dir`/`find`, `p-screen` | 3,593 |
+| 5..7 | `catalog.fth` - editor, `dir`/`find`, `p-screen`, sound | 4,516 |
 
 At boot the script reads the SD source, interprets it (so `sd`, `block`,
 `include` exist), then reads the catalog. The boot source ends at

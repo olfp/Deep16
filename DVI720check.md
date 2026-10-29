@@ -357,3 +357,18 @@ The board changes (config-flash pin mux, removals) moved the DVI placement:
 
 Result: `dvi_pixel` **84.777 MHz** (6 levels, TNS 0), `dvi_render` 26.801 MHz,
 all clocks close. The tile simulation passes.
+
+## 16. 2026-10-29: one-hot line-pair select (I2S placement)
+
+The I2S build placed `dvi_pixel` at **70.969 MHz** (TNS −0.780, 2 endpoints).
+The failing path was again the line-pair handshake but one level deeper:
+`buf_next_q_0 → ready_seen_*/CE` through the 3:1 `ready_seen[buf_next_q]`
+mux and the toggle XOR.
+
+Fix: register a one-hot `sel_next_q` beside `buf_next_q`, precompute the
+per-buffer `ready_diff = ready_s1 ^ ready_seen`, and write each `ready_seen`
+bit under `line_next_q && sel_next_q[i] && ready_diff[i]`. The CE is now one
+AND from the registered select, not a mux + XOR from `buf_next_q`.
+
+Result: `dvi_pixel` **76.974 MHz** (9 levels, TNS 0) with the I2S in the
+netlist; CLS 4,294 / 4,320 (26 free). The tile simulation passes.

@@ -146,6 +146,14 @@ test('a directory entry can be removed', () => {
   assert.ok(sim.running);
 });
 
+test('the I2S words load from the catalog', () => {
+  assert.match(line('sound'), /I2S level/);
+  line('beep');
+  assert.ok(sim.running);
+  line('sfx-off');
+  assert.ok(sim.running);
+});
+
 test('the block protect is settable and clearable', () => {
   assert.equal(number(line('cf-status 0x38 and . cr'), 'cf-status 0x38 and . cr'), 0);
   line('cf-protect');

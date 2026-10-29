@@ -79,6 +79,15 @@ IO_PORT "led[4]" DRIVE=8;
 IO_LOC "led[5]" 16;
 IO_PORT "led[5]" DRIVE=8;
 
+// I2S output to the MAX98357A on J5 5/6/7 (BCLK/LRCLK/DIN). Pin 25 was the
+// second SPI CS before the config flash moved to the MSPI pins 59..62.
+IO_LOC "i2s_bclk" 25;
+IO_PORT "i2s_bclk" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC "i2s_lrclk" 26;
+IO_PORT "i2s_lrclk" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC "i2s_din" 27;
+IO_PORT "i2s_din" IO_TYPE=LVCMOS33 DRIVE=8;
+
 // HDMI/DVI output (Tang Nano 9K pins). Lane 0 = blue, 1 = green, 2 = red,
 // 3 = clock. The ELVDS_OBUF primitive drives the n side, so only the p pin of
 // each pair is constrained (the same convention as the upstream example).

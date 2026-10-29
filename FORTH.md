@@ -773,7 +773,7 @@ master directory; `scripts/make_slices.mjs` packs `screens/flash/*.fth` into
 `artifacts/image/slices.bin` and `npm run flash:slices` writes it at
 `0x200000`.
 
-The boot script loads the SD driver (slices 1..3) and the catalog (5..6):
+The boot script loads the SD driver (slices 1..3) and the catalog (5..7):
 
 ```text
 1 screen               \ the SD/block driver: sd, block, include
@@ -805,3 +805,32 @@ follow it on the same line.
 
 The SD card's `include ( first count -- )` remains the other source path: it
 reads 512-byte sectors (not slices) from the card and interprets them.
+
+## Sound: I2S on J5 5/6/7
+
+The D16nano drives a MAX98357A from `0xF00A0` (BCLK/LRCLK/DIN on FPGA 25/26/27,
+J5 pins 5/6/7). The rate is fixed at 21.09375 kHz (6.75 MHz / 10 / 32) and the
+128-sample FIFO runs in hardware; the CPU only pushes samples.
+
+| word | effect |
+|---|---|
+| `sfx! ( s -- )` | push one signed 16-bit sample |
+| `sfx-level ( -- n )` | samples queued (0..128) |
+| `sfx-status ( -- n )` | b0 empty, b1 full, b2 low, b3 underrun, b4 running, b5 irq |
+| `sfx-ctl! ( c -- )` | b0 enable, b1 reset, b2 loop, b3 irq enable |
+| `sfx-on` / `sfx-off` | enable / stop |
+| `sfx-reset` | clear pointers, level and flags |
+| `sfx-loop` | enable + loop: repeat the 128-sample buffer |
+| `beep` | fill 128 samples with a 164.8 Hz square and loop it |
+| `sound` | print the level and status |
+
+```text
+beep        \ a low square tone until sfx-off
+sound       \ I2S level 128  status 0
+sfx-off
+```
+
+The FIFO is one BSRAM slice; the low-water mark is fixed at 32 and the
+FIFO-low IRQ is an output for the future SIC. A slice of type `0x0A` (μ-law)
+or `0x05` (PCM) is 4,080 or 2,040 samples; the loader copies it into the
+sound window `0xE0000` and `sfx!` streams it.

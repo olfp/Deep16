@@ -114,3 +114,28 @@ variable nm-l drop
   dup 8 = if drop 0 p-screen exit then
   dup 2 = if drop sprite-slice exit then
   drop drop ." slice: unsupported type" cr ;
+
+\ ---- I2S sound, 0xF00A0 ------------------------------------------------
+\ 128-sample FIFO, 21.09375 kHz (6.75 MHz / 10 / 32), BCLK/LRCLK/DIN on
+\ J5 5/6/7 (FPGA 25/26/27).  DATA read = level, STATUS bits:
+\ b0 empty b1 full b2 low b3 underrun b4 running b5 irq.
+0xA0 constant i2s-data
+0xA2 constant i2s-ctrl
+0xA4 constant i2s-status
+: sfx! ( s -- )       i2s-data es! ;
+: sfx-level ( -- n )  i2s-data es@ ;
+: sfx-status ( -- n ) i2s-status es@ ;
+: sfx-ctl! ( c -- )   i2s-ctrl es! ;
+: sfx-reset ( -- )    2 sfx-ctl! ;
+: sfx-off ( -- )      0 sfx-ctl! ;
+: sfx-on ( -- )       1 sfx-ctl! ;
+: sfx-loop ( -- )     5 sfx-ctl! ;
+: sound ( -- )
+  ." I2S level " sfx-level u. ."  status " sfx-status hex u. decimal cr ;
+\ A 128-sample square at 21.09375 kHz / 128 = 164.8 Hz, looped in hardware.
+: beep ( -- )
+  2 sfx-ctl!
+  128 0 do
+    i 64 < if 0x2000 else -8192 then sfx!
+  loop
+  5 sfx-ctl! ;

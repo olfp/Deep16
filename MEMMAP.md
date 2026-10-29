@@ -79,6 +79,7 @@ The `D16SEG` build fixes the layout instead of the constant — see §4.4.
 | `0x0F0060`–`0x0F0064` | keyboard FIFO / echo cell (build-specific) |
 | `0x0F0068`–`0x0F006B` | D16nano 32-bit CPU cycle counter (read-only) |
 | `0x0F0080`–`0x0F008F` | SPI master: SD / external flash (D16nano) |
+| `0x0F00A0`–`0x0F00AF` | I2S: DATA/CTRL/STATUS (D16nano) |
 | `0x0F1000` | display window (screen RAM or tilemap, build-specific) |
 | `0x0F2000`–`0x0F2006` | tile control registers (tile build only) |
 | `0x0F3000`–`0x0F3BFF` | tile bank (tile build only) |
@@ -466,7 +467,7 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x200000` | slice 0: the master directory |
 | `0x201000`–`0x203FFF` | slices 1–3: the SD driver source |
 | `0x204000` | slice 4: `hello.fth` |
-| `0x205000`–`0x206FFF` | slices 5–6: the catalog/editor source |
+| `0x205000`–`0x207FFF` | slices 5–7: catalog/editor, `p-screen`, sound |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and
