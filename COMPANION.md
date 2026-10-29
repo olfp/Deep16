@@ -10,7 +10,8 @@ the 9K's fabric, and what the companion contains. Companion area figures are
 ±40 % until the companion is synthesised.
 
 Companions: `SLIMPLAN.md` (the 9K's area budget), `AUDIOPLAN.md` (the on-die
-audio design this replaces), `HARDWARE.md` (PS/2, SPI, the USB core
+audio design this replaces), `SOFTPCM.md` (the 9K-only alternative: I2S plus
+software synthesis, 15–34 % CPU), `HARDWARE.md` (PS/2, SPI, the USB core
 reference), `doc/Interrupts.md` (the interrupt model).
 
 ## 0. The recommendation, in one paragraph
