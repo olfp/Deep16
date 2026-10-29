@@ -15,6 +15,15 @@ void tick() {
 
 void idle(int n) { for (int i = 0; i < n; i++) tick(); }
 
+int count_ticks(int n) {
+  int count = 0;
+  for (int i = 0; i < n; i++) {
+    tick();
+    if (top->tick) count++;
+  }
+  return count;
+}
+
 void write_reg(uint8_t addr, uint16_t value) {
   top->addr = addr; top->wdata = value; top->we = 1; tick();
   top->we = 0; tick();
@@ -73,17 +82,18 @@ int main(int argc, char** argv) {
   idle(1000);
   expect("no re-match before next compare", read_reg(0xA) & 1, 0);
 
-  // Stop: the value must not change.
+  // Stop: the value must not change, and the 15 kHz tick stops too.
   write_reg(0x0, 0x0000);
   uint16_t stopped = read_reg(0x2);
-  idle(1500);
+  expect("tick silent while stopped", count_ticks(500), 0);
   expect("value held while stopped", read_reg(0x2), stopped);
   expect("STATUS running low", (read_reg(0xA) >> 1) & 1, 0);
 
-  // Start again: it must advance.
+  // Start again: it must advance and tick at 1 MHz / 67 = 14.9 kHz.
   write_reg(0x0, 0x0001);
   idle(1005);
   expect_range("value advances after start", read_reg(0x2), (uint16_t)(stopped + 1), (uint16_t)(stopped + 3));
+  expect_range("15 kHz tick count in 1 ms", count_ticks(1000), 14, 15);
 
   delete top;
   std::printf("%s\n", fails ? "FAIL" : "PASS");

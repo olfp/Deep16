@@ -220,10 +220,9 @@ sfx-off     \ stop
 | I2S + FIFO (measured) | −101 | **26** |
 | flat OAM pointer (measured) | −5 | **21** |
 | palette RAM + linebuf pipeline (measured) | +85 | **106** |
-| timer IRQ | −20…−32 | 74–86 |
-| 4-source SIC | −12…−16 | 58–74 |
-| raster + keyboard | −14…−28 | 30–60 |
-| boot move (now optional) | +15…+20 | 45–66 |
+| timer IRQ + SIC (measured) | −80 | **26** |
+| raster + keyboard + audio sources | −20…−40 | −14…6 |
+| boot move (now needed for the rest) | +15…+20 | 1…26 |
 | 6 OAM slots | +15…+28 | later |
 | register file (last) | +~250 | |
 
@@ -235,10 +234,11 @@ move is optional again. The flat pointer gives all **8 OAM slots** access to
 all **24 groups**; the 6 extra slots are only for more than 8 visible sprites
 and are not needed for that goal.
 
-The secondary goal no longer needs the boot move immediately; the 6 OAM slots
-are a later margin. The palette RAM/pipeline recovered more than the I2S and
-the flat OAM pointer spent, so the timer/SIC/raster work can go in on the
-current 106-free base.
+The timer IRQ + SIC came in at **80 CLS**, not the 32 the old note guessed, so
+the tile build is back to **26 free** with the timer source only. The palette
+RAM/pipeline recovered the I2S and flat-pointer spend, but the three remaining
+sources (raster, keyboard, audio) plus their dispatch will need the boot move
+(+15…+20) and/or a diet. The 6 OAM slots stay a later margin.
 
 ## 7. Phases
 
@@ -252,7 +252,8 @@ current 106-free base.
    save/restore, BIOS audit, tests; measured 127 free.
 4. **I2S** (done, §4): 21.09 kHz, 128×16 BSRAM FIFO, FIFO-low IRQ output,
    sound window, square-wave `beep`, J5 5/6/7.
-5. **Interrupts**: timer, raster, keyboard, audio, SIC4, persistent bank.
+5. **Interrupts**: timer + SIC done (measured 26 free); raster, keyboard and
+   audio sources are next, after the boot move/diet.
 6. **When out of CLS**: boot move, then 6 OAM slots, then the register file.
 
 ## 8. Phase 1 result (measured, verified on the board)

@@ -36,8 +36,9 @@ otherwise.
 DS/SS, puts `0x0100` in R1, writes the entry at physical 0..2 and jumps to
 `0000:0100`.
 
-The **SWI vector** is physical `0x0002`; the kernel installs its handler at run
-time. `0x0000`–`0x00FF` is the zero page / boot staging area.
+The vectors are physical `0x0000` (ILL), `0x0001` (hardware IRQ) and `0x0002`
+(SWI); the kernel installs all three at run time. `0x0000`–`0x00FF` is the zero
+page / boot staging area.
 
 ---
 
@@ -145,6 +146,7 @@ user flash, copied to PSRAM at boot. The dictionary then continues at `0x6000`.
 | `rp0_base` | `0x49F8` | return-stack base cell (`0x5800`) |
 | `dict_free` | `0x49F9` | first statically free word |
 | `bios_entry` | `0x4A00` | BIOS entry / dispatch |
+| `irq_handler` | `0x51A0` | hardware IRQ (vector 1) handler |
 | `ill_handler` | `0x5000` | ILL trap handler |
 | `word_divtest` | `0x5300` | `divtest` code |
 | `divtest_ok_str` | `0x532E` | `divtest ok` string |
@@ -191,7 +193,7 @@ was dropped for the read port):
 
 | Segment | Physical | Contents |
 |---|---|---|
-| `CS=0x0000` | `0x00000` | kernel code `0x0100`–`0x2FFF`, zero page/vectors, ILL handler `0x5000`, `divtest` `0x5300` |
+| `CS=0x0000` | `0x00000` | kernel code `0x0100`–`0x2FFF`, zero page/vectors, ILL handler `0x5000`, IRQ handler `0x51A0`, `divtest` `0x5300` |
 | `DS=0x1000` | `0x10000` | kernel data and boot script `0x3000`–`0x49F8`; BIOS/demo data `0x4A00`–`0x57DC`; dictionary `0x5800`–`0xFFEF` |
 | `SS=0x2000` | `0x20000` | data stack, top `0xFFF0`, 64K words |
 | `CS=0x3000` | `0x30000` | BIOS code + D16D showcase, from image `0x4A00`–`0x57FF` |
@@ -215,7 +217,7 @@ Notes:
   `0x5800` because the dictionary grows up from there.
 * The BIOS and ILL handlers run in the shadow bank with `SS=0`/`DS=0`, so both
   set `DS=0x1000` and `SS=0x2000` on entry.
-* The SWI/ILL vectors stay at physical `0`/`2` and are written through `CS=0`.
+* The SWI/ILL/IRQ vectors stay at physical `0`/`2`/`1` and are written through `CS=0`.
 * The D16D demo keeps its own `DS=0x04A0` (the flat segment-0 copy of the BIOS
   block); BIOS function 6 restores `DS=0x1000` on return.
 * `tests/segmented.test.js` boots this map in the JS core (scatter + banner,
@@ -362,9 +364,10 @@ the same address for its cell/attribute array; the two never coexist. The
 
 ### 7.5 Timer (`0xF0020`–`0xF002F`, D16nano)
 
-A 32-bit millisecond counter with a 32-bit compare and a sticky match flag. It
-is polled; the IRQ-enable bit is stored for a later SIC, but no interrupt is
-wired into the CPU yet.
+A 32-bit millisecond counter with a 32-bit compare, a sticky match flag and a
+15 kHz tick (450 cycles at 6.75 MHz). The match flag is polled; the tick drives
+SIC pending bit 1. The timer CTRL b2 IRQ-enable bit is still stored but the SIC
+does not use it: the SIC ENABLE mask selects the source.
 
 | Address | Name | Access | Meaning |
 |---|---|---|---|
@@ -406,11 +409,27 @@ cells of dictionary, one character per cell, so it is usable as text directly.
 Sector numbers are 16 bits (32 MB of the card).
 
 
-### 7.7 `0xF00A0` (`0xF00A0`–`0xF00A7`)
+### 7.7 I2S and the SIC (`0xF00A0`–`0xF00BF`, D16nano)
 
-Freed in phase 2a when the on-die flash CPU read port was removed. The area is
-reserved for the I2S block (`ADVARCH.md`). The SPI config-flash driver uses
-`0xF0080` and CS1.
+`0xF00A0`–`0xF00AF` is the I2S block (DATA, CTRL, STATUS and the FIFO). The
+SPI config-flash driver uses `0xF0080` and CS1.
+
+The SIC at `0xF00B0` has one level IRQ into core3, with a fixed priority high
+to low: raster, audio, timer, keyboard.
+
+| Address | Name | Access | Meaning |
+|---|---|---|---|
+| `0xF00B0` | `SIC_PENDING` | R / W1C | b3 raster, b2 audio, b1 timer, b0 keyboard; write 1 clears |
+| `0xF00B2` | `SIC_ENABLE` | R/W | source mask; IRQ = any pending & enable |
+| `0xF00B4` | `SIC_STATUS` | R | b0 IRQ level, b1 any pending (ignores enable) |
+| `0xF00B6` | `SIC_SCRATCH` | R/W | the ISR's free 16-bit counter (`ticks`) |
+
+The hardware vector is `0x0001`; the kernel installs `irq_handler` (`0x51A0`)
+there at boot. The handler clears the serviced pending bit and, for this first
+slice, increments `SIC_SCRATCH` for the 15 kHz timer. Raster, audio and keyboard
+sources are decoded but tied off until their sources land. Forth words in the
+catalog slice: `irq-on` (timer bit), `irq-off`, `irq-clear` (mask), `ticks`
+and `irq?`.
 ---
 
 ## 8. PSRAM and storage

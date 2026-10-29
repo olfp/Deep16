@@ -416,3 +416,30 @@ Result with `place_option 0`, `route_option 1`:
 The palette experiment freed **85 CLS** as well as fixing the fill path, so
 the interrupt blocks now fit without the boot move. The tile simulation
 passes; this is the image to flash.
+
+## 19. 2026-10-29: timer IRQ + SIC
+
+The SIC (`rtl/deep16_sic.sv`, `0xF00B0`) adds a 4-bit sticky pending register
+with W1C, an enable mask and one level IRQ. The timer's new 15 kHz tick
+(450 cycles) drives source bit 1. Core3 takes the IRQ at the ID boundary only
+when PSW.I=1, the core is in the normal bank and the instruction is not a delay
+slot; a synthetic SWI reads vector 1 and restores the parked PC, so the
+interrupted instruction re-runs after RETI. The kernel handler at `0x51A0`
+clears the timer bit and increments `SIC SCRATCH`; Forth exposes `irq-on`,
+`irq-off`, `irq-clear`, `ticks` and `irq?`.
+
+| | value |
+|---|---|
+| CLS | **4,294 / 4,320 (26 free)** |
+| LUT / ALU / FF | 6,577 / 761 / 2,968 |
+| BSRAM | 24 / 26 |
+| dvi_render | **30.937 MHz**, TNS 0 |
+| dvi_pixel | **78.956 MHz**, TNS 0 |
+| psram_clk | **87.255 MHz**, TNS 0 |
+| clk_cpu | 15.790 MHz (6.75 required), TNS 0 |
+
+The cost is **80 CLS**, mostly the core's IRQ mux and the SIC decode, so only
+26 CLS are left. The raster/keyboard/audio sources need the boot move or a
+diet before they go in. `sim:irq` covers the core entry (the parked store
+re-runs), `sim:sic` covers W1C/priority/scratch, and the timer test covers the
+tick.

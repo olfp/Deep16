@@ -831,6 +831,33 @@ sfx-off
 ```
 
 The FIFO is one BSRAM slice; the low-water mark is fixed at 32 and the
-FIFO-low IRQ is an output for the future SIC. A slice of type `0x0A` (μ-law)
-or `0x05` (PCM) is 4,080 or 2,040 samples; the loader copies it into the
-sound window `0xE0000` and `sfx!` streams it.
+FIFO-low IRQ is an output for the SIC (bit 2, not wired yet). A slice of type
+`0x0A` (μ-law) or `0x05` (PCM) is 4,080 or 2,040 samples; the loader copies it
+into the sound window `0xE0000` and `sfx!` streams it.
+
+## Interrupts: the SIC and the 15 kHz timer
+
+The SIC at `0xF00B0` has one IRQ vector (`0x0001`), a 4-bit sticky pending
+register and an enable mask. The kernel's handler at `0x51A0` runs in the
+shadow bank with interrupts disabled; it clears the serviced bit and returns
+with `RETI`, so the interrupted instruction re-runs. Only the timer source is
+wired in this build: raster, audio and keyboard are reserved bits.
+
+| word | effect |
+|---|---|
+| `irq-on` | enable the 15 kHz timer source |
+| `irq-off` | disable every source |
+| `irq-clear ( mask -- )` | write-1-to-clear pending bits |
+| `ticks ( -- n )` | interrupts the handler has serviced |
+| `irq? ( -- f )` | true while an enabled source is pending |
+
+Bits: **3 raster, 2 audio, 1 timer, 0 keyboard**. Priority is high to low in
+that order; one handler reads `PENDING` and dispatches. `ticks` is the SIC
+SCRATCH counter (`0xF00B6`), so it needs no kernel variable.
+
+```text
+irq-on
+1 2 + . cr          \ the console keeps working with the timer running
+ticks . cr          \ a number close to 15000 per second
+irq-off
+```

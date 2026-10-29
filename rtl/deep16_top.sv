@@ -171,7 +171,8 @@ module deep16_top
   wire timer_hit = (mem_waddr >= 21'h0F0020) && (mem_waddr <= 21'h0F002F);
   wire spi_hit   = (mem_waddr >= 21'h0F0080) && (mem_waddr <= 21'h0F008F);
   wire i2s_hit   = (mem_waddr[19:4] == 16'hF00A);
-  wire periph_we = mem_we && (timer_hit || spi_hit || i2s_hit);
+  wire sic_hit   = (mem_waddr[19:4] == 16'hF00B);
+  wire periph_we = mem_we && (timer_hit || spi_hit || i2s_hit || sic_hit);
   wire mem_we_mem = mem_we && !periph_we;
   logic periph_we_q;
 `else
@@ -183,9 +184,10 @@ module deep16_top
   // Both are top-level devices: a store is decoded here and a load is muxed
   // into mem_rdata, so the CPU core needs no new I/O instruction. The timer
   // is the 0xF0020 block; SPI is the 0xF0080 block.
-  logic        timer_we, spi_we, i2s_we;
-  logic [3:0]  timer_addr, spi_addr, i2s_addr;
-  logic [15:0] timer_rdata, spi_rdata, i2s_rdata;
+  logic        timer_we, spi_we, i2s_we, sic_we;
+  logic [3:0]  timer_addr, spi_addr, i2s_addr, sic_addr;
+  logic [15:0] timer_rdata, spi_rdata, i2s_rdata, sic_rdata;
+  logic        sic_irq;
   logic [20:0] io_raddr_q;   // address whose data-port word is now valid
 
   always_ff @(posedge clk) begin
@@ -196,6 +198,7 @@ module deep16_top
   wire timer_sel = (io_raddr_q >= 21'h0F0020) && (io_raddr_q <= 21'h0F002F);
   wire spi_sel   = (io_raddr_q >= 21'h0F0080) && (io_raddr_q <= 21'h0F008F);
   wire i2s_sel   = (io_raddr_q[19:4] == 16'hF00A);
+  wire sic_sel   = (io_raddr_q[19:4] == 16'hF00B);
 
   always_ff @(posedge clk) begin
     if (rst) periph_we_q <= 1'b0;
@@ -205,11 +208,15 @@ module deep16_top
   assign timer_we   = periph_we && !periph_we_q && timer_hit;
   assign spi_we     = periph_we && !periph_we_q && spi_hit;
   assign i2s_we     = periph_we && !periph_we_q && i2s_hit;
+  assign sic_we     = periph_we && !periph_we_q && sic_hit;
   // A load uses the registered read address, a store mem_waddr; the two never
   // coincide, and the registered address is the one the data port is returning.
   assign timer_addr = mem_we ? mem_waddr[3:0] : io_raddr_q[3:0];
   assign spi_addr   = mem_we ? mem_waddr[3:0] : io_raddr_q[3:0];
   assign i2s_addr   = mem_we ? mem_waddr[3:0] : io_raddr_q[3:0];
+  assign sic_addr   = mem_we ? mem_waddr[3:0] : io_raddr_q[3:0];
+
+  logic timer_tick;
 
   deep16_timer #(.CLK_HZ(6_750_000)) u_timer (
     .clk   (clk),
@@ -217,7 +224,21 @@ module deep16_top
     .we    (timer_we),
     .addr  (timer_addr),
     .wdata (mem_wdata),
-    .rdata (timer_rdata)
+    .rdata (timer_rdata),
+    .tick  (timer_tick)
+  );
+
+  // Four-source SIC: only the 15 kHz timer is wired in this slice; the raster,
+  // audio and keyboard bits are decoded but stay 0 until their sources land.
+  deep16_sic u_sic (
+    .clk   (clk),
+    .rst   (rst),
+    .we    (sic_we),
+    .addr  (sic_addr),
+    .wdata (mem_wdata),
+    .rdata (sic_rdata),
+    .src   ({2'b00, timer_tick, 1'b0}),
+    .irq   (sic_irq)
   );
 
   deep16_spi u_spi (
@@ -246,6 +267,12 @@ module deep16_top
     .din      (i2s_din),
     .fifo_irq (i2s_irq_unused)
   );
+`endif
+`ifndef D16_PERIPH
+  /* verilator lint_off UNUSEDSIGNAL */
+  logic sic_irq;          // no SIC in this profile: the core's IRQ stays low
+  assign sic_irq = 1'b0;
+  /* verilator lint_on UNUSEDSIGNAL */
 `endif
   logic [15:0] if_rdata;
   logic [20:0] if_addr;
@@ -321,6 +348,9 @@ module deep16_top
 `endif
     .clk       (clk),
     .rst       (core_rst),
+`ifdef D16NANO
+    .irq       (sic_irq),
+`endif
     .i_step    (i_step),
     .i_free    (i_free),
     .mem_stall (mem_stall),
@@ -499,6 +529,7 @@ module deep16_top
   assign mem_rdata = timer_sel ? timer_rdata :
                      spi_sel ? spi_rdata :
                      i2s_sel ? i2s_rdata :
+                     sic_sel ? sic_rdata :
                      (mem_addr == 21'h0F0066) ? tile_status :
                      (mem_addr == 21'h0F0068) ? core_cycles[15:0] :
                      (mem_addr == 21'h0F006A) ? core_cycles[31:16] :
@@ -529,6 +560,7 @@ module deep16_top
   assign mem_rdata    = timer_sel ? timer_rdata :
                         spi_sel ? spi_rdata :
                         i2s_sel ? i2s_rdata :
+                        sic_sel ? sic_rdata :
                         (ram_was_data_q ? ram_data : 16'hFFFF);
 `else
   assign mem_rdata    = ram_was_data_q ? ram_data : 16'hFFFF;

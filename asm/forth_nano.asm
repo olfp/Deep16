@@ -137,9 +137,12 @@ forth_start:
     LPSW R12
     LDI 0x07FF
     AND R12, R0
-    LDI 0x4000      ; Sign-extends to 0xC000 (DE=1, ER=8)
+    LDI 0x4010      ; Sign-extends to 0xC010 (DE=1, ER=8, I=1)
     OR  R12, R0
     SPSW R12
+    ; Interrupts are enabled in PSW from here on, but the SIC ENABLE is still
+    ; zero, so no IRQ can fire until `irq-on` sets a source. SWI/ILL entries
+    ; run with I=0 and RETI restores this PSW.
     ; Ready for screen output at ES:SCR
 
     ; Install SWI vector early to enable BIOS calls
@@ -170,6 +173,22 @@ forth_start:
     MOV R2, R0
 .ifdef D16SEG
     STS R1, CS, R2           ; vectors live at physical 0/2 in CS=0
+.else
+    STS R1, DS, R2
+.endif
+
+    ; Install the IRQ vector at 1: the SIC/timer handler at 0x51A0. The SIC
+    ; ENABLE is still zero, so nothing can fire yet.
+    LDI 0x1000
+    SL R0, 1
+    SL R0, 1                 ; R0 = 0x4000
+    MOV R1, R0
+    LDI irq_handler - 0x4000
+    ADD R1, R0               ; R1 = irq_handler
+    LDI 1
+    MOV R2, R0
+.ifdef D16SEG
+    STS R1, CS, R2
 .else
     STS R1, DS, R2
 .endif
@@ -15458,6 +15477,38 @@ ill_put_table:
 ; ---- the saved handler bank (segment 0, beside the handler) -----------
 ill_save_sp:
     .word 0
+
+; ============================================================
+; IRQ handler (hardware vector 1)
+; ============================================================
+; The SIC at 0xF00B0 asserts one level IRQ. This first slice enables only the
+; 15 kHz timer (bit 1); the handler clears that bit and bumps SCRATCH (0xB6),
+; which the Forth word `ticks` reads. The entry is a synthetic SWI: shadow
+; bank, DS=SS=ES=0, I=0, and the parked instruction's PC, so RETI re-runs the
+; instruction the IRQ interrupted. R0..R3 are the handler's shadow scratch;
+; SWI/ILL runs with I=0, so an IRQ never nests on them.
+.org 0x51A0
+.code
+irq_handler:
+    LDI 0x1000
+    MVS DS, R0               ; kernel data segment
+    LDI 0x2000
+    MVS SS, R0               ; data stack segment
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0               ; ES = 0xF000, the MMIO segment
+    LDI 0xB0
+    MOV R2, R0
+    LDS R1, ES, R2           ; SIC PENDING (dispatch reads it later)
+    LSI R3, 2
+    STS R3, ES, R2           ; W1C: clear the timer bit
+    LDI 0xB6
+    MOV R2, R0
+    LDS R1, ES, R2
+    ADD R1, 1
+    STS R1, ES, R2           ; SCRATCH = tick count
+    RETI
+    NOP
 
 ; ============================================================
 ; divtest: verify the ILL DIV trap against the software divide

@@ -115,6 +115,20 @@ variable nm-l drop
   dup 2 = if drop sprite-slice exit then
   drop drop ." slice: unsupported type" cr ;
 
+\ ---- interrupts, 0xF00B0 ----------------------------------------------
+\ The SIC has one level IRQ: pending bits stick, ENABLE selects sources and
+\ the kernel's handler at vector 1 clears the serviced bit. Bits: 0 keyboard,
+\ 1 timer, 2 audio, 3 raster. SCRATCH is the handler's tick counter.
+0xB0 constant sic-pending    \ read; writing a 1 clears that bit
+0xB2 constant sic-enable
+0xB4 constant sic-status     \ b0 IRQ, b1 any pending
+0xB6 constant sic-scratch
+: irq-on ( -- )        2 sic-enable es! ;   \ timer tick only, for now
+: irq-off ( -- )       0 sic-enable es! ;
+: irq-clear ( mask -- ) sic-pending es! ;
+: ticks ( -- n )       sic-scratch es@ ;
+: irq? ( -- f )        sic-status es@ 1 and ;
+
 \ ---- I2S sound, 0xF00A0 ------------------------------------------------
 \ 128-sample FIFO, 21.09375 kHz (6.75 MHz / 10 / 32), BCLK/LRCLK/DIN on
 \ J5 5/6/7 (FPGA 25/26/27).  DATA read = level, STATUS bits:

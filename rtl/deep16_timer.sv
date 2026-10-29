@@ -1,8 +1,8 @@
 // deep16_timer.sv - the D16nano system timer at 0xF0020.
 //
 // A 32-bit millisecond counter with a 32-bit compare value and a sticky match
-// flag. It is polled for now; the IRQ-enable bit is stored so a later SIC can
-// use it without changing this register map.
+// flag, plus the 15 kHz tick that drives SIC source bit 1. The compare flag is
+// polled; the tick is a one-cycle pulse every 450 clocks at 6.75 MHz.
 //
 //   0x20 CTRL      R/W  b0 enable, b1 clear match (write), b2 irq enable
 //   0x22 VALUE_LO  R    milliseconds, low 16 bits
@@ -22,12 +22,15 @@ module deep16_timer #(
   input  logic        we,
   input  logic [3:0]  addr,
   input  logic [15:0] wdata,
-  output logic [15:0] rdata
+  output logic [15:0] rdata,
+  output logic        tick           // 15 kHz, one clk pulse
 );
   localparam int DIV = (CLK_HZ + 500) / 1000;   // clock cycles per millisecond
+  localparam int TICK_DIV = (CLK_HZ + 7_500) / 15_000;
 
   logic        enable, irq_en, match;
   logic [15:0] prescale;
+  logic [15:0] tick_prescale;
   logic [31:0] ms_count, compare;
 
   always_ff @(posedge clk) begin
@@ -36,9 +39,12 @@ module deep16_timer #(
       irq_en   <= 1'b0;
       match    <= 1'b0;
       prescale <= 16'd0;
+      tick_prescale <= 16'd0;
+      tick     <= 1'b0;
       ms_count <= 32'd0;
       compare  <= 32'hFFFF_FFFF;      // no match until programmed
     end else begin
+      tick <= 1'b0;
       if (we) begin
         case (addr)
           4'h0: begin
@@ -59,6 +65,12 @@ module deep16_timer #(
           if (ms_count + 32'd1 == compare) match <= 1'b1;
         end else begin
           prescale <= prescale + 16'd1;
+        end
+        if (tick_prescale >= 16'(TICK_DIV - 1)) begin
+          tick_prescale <= 16'd0;
+          tick <= 1'b1;
+        end else begin
+          tick_prescale <= tick_prescale + 16'd1;
         end
       end
     end

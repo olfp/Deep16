@@ -43,6 +43,8 @@ obj_uart_fifo/
 obj_dvi_text/
 obj_dvi_tile/
 obj_ps2/
+obj_sic/
+obj_core3_irq/
 obj_timer/
 obj_spi/
 obj_i2s/

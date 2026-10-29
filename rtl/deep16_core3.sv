@@ -21,6 +21,10 @@ module deep16_core3
 (
   input  logic        clk,
   input  logic        rst,
+  // Level interrupt request from the SIC. Taken at an instruction boundary
+  // (the ID stage) when PSW.I is set, the core is in the normal bank and the
+  // instruction is not a delay slot; the parked instruction runs after RETI.
+  input  logic        irq,
 
   input  logic        i_step,        // one pulse = run until one instruction retires
   // Free-run: hold run high across retirements instead of stopping after one.
@@ -216,6 +220,7 @@ module deep16_core3
     } front_t;
 
   front_t ex;
+  logic   ex_irq;        // EX holds the synthetic IRQ entry, not a fetched word
 
   // ------------------------------------------------------------- decode
   idec_t id_dec;
@@ -458,14 +463,19 @@ module deep16_core3
               ctx_next.sss  = 16'h0000;
               ctx_next.ses  = 16'h0000;
               is_swi_ex       = 1'b1;
-              // The handler entry is the vector word at physical 0002, and it is
-              // read through the *data port* - exactly like a load into R15. The
-              // address is issued here, the word lands in WB, pc_from_port makes
-              // the fetch take the redirect from there, and the WB write patches
-              // the shadow PC. ctx_next.spc therefore stays the *old* shadow
-              // PC this cycle (the fetch does not use it: PSW.S is set, so the
-              // active CS is already scs = 0, and the PC comes from mem_late).
-              mem_addr_ex     = 21'd2;
+              // The handler entry is the vector word at physical 0002 (SWI) or
+              // 0001 (hardware IRQ), and it is read through the *data port* -
+              // exactly like a load into R15. The address is issued here, the
+              // word lands in WB, pc_from_port makes the fetch take the
+              // redirect from there, and the WB write patches the shadow PC.
+              // ctx_next.spc therefore stays the *old* shadow PC this cycle.
+              mem_addr_ex     = ex_irq ? 21'd1 : 21'd2;
+              if (ex_irq) begin
+                // An IRQ is taken before the parked instruction runs, so the
+                // normal PC returns to that instruction, not to the next one.
+                ctx_next.pc = ex.pc0;
+                ctx_next.cs = ex.act_cs;
+              end
               mem_rd_valid_ex = 1'b1;
               evt_we_ex       = 1'b1; evt_code_ex = 16'd2; evt_scs_ex = 16'h0000;
               // evt_spc is the same word; it is patched from the read in WB.
@@ -950,6 +960,7 @@ module deep16_core3
       recent_seg_idx  <= 2'd1;
       recent_is_store <= 1'b0;
       ex.valid <= 1'b0;
+      ex_irq   <= 1'b0;
     end else begin
       o_done   <= 1'b0;
       if (run) cycle_count <= cycle_count + 32'd1;
@@ -1039,12 +1050,21 @@ module deep16_core3
             end
           end
           F_ID: begin
-            ex.ra1    <= id_rd.a1;
-            ex.ra2    <= id_rd.a2;
-            ex.ra3    <= id_rd.a3;
-            ex.op1_n  <= rf1_n; ex.op1_s <= rf1_s;
-            ex.op2_n  <= rf2_n; ex.op2_s <= rf2_s;
-            ex.op3_n  <= rf3_n; ex.op3_s <= rf3_s;
+            if (irq && ctx.psw[FLG_I] && !ctx.psw[FLG_S] && !ctx.delay_active) begin
+              // Interrupt at the instruction boundary: replace the decoded word
+              // with a synthetic SWI entry. The fetch already captured its PC
+              // and CS, so the handler returns to this instruction.
+              ex.instr <= 16'hFFF2;       // SYS SWI (vector selected by ex_irq)
+              ex_irq   <= 1'b1;
+            end else begin
+              ex.ra1    <= id_rd.a1;
+              ex.ra2    <= id_rd.a2;
+              ex.ra3    <= id_rd.a3;
+              ex.op1_n  <= rf1_n; ex.op1_s <= rf1_s;
+              ex.op2_n  <= rf2_n; ex.op2_s <= rf2_s;
+              ex.op3_n  <= rf3_n; ex.op3_s <= rf3_s;
+              ex_irq   <= 1'b0;
+            end
             fsm       <= F_EXEC;
           end
           F_EXEC: begin

@@ -287,3 +287,32 @@ test('a seven-sector source file loads from the card and runs', () => {
   assert.ok(out.includes('\x1b[?1049l'), 'did not leave the alternate screen');
   assert.match(out.slice(-40), /\r\n ok\r\n> $/);
 });
+
+test('the timer SIC takes vector 1 and the handler counts ticks', () => {
+  // irq-on enables the timer bit. The step loop polls the level at instruction
+  // boundaries, exactly like the core's ID-stage entry, so the pending source
+  // is taken as soon as the enable write retires.
+  line('irq-off');
+  line('0 sic-scratch es!');
+  assert.equal(number(line('ticks . cr'), 'ticks . cr'), 0);
+
+  sim.raiseIRQ(1);
+  line('irq-on');
+  assert.equal(number(line('ticks . cr'), 'ticks . cr'), 1, 'one tick was handled');
+  assert.equal(sim.sicPending & 2, 0, 'the timer bit was cleared');
+  assert.equal(number(line('irq? . cr'), 'irq? . cr'), 0, 'no source left pending');
+
+  line('irq-off');
+  assert.equal(sim.sicEnable, 0, 'irq-off clears ENABLE');
+});
+
+test('W1C clears only the bits written', () => {
+  sim.raiseIRQ(0);
+  sim.raiseIRQ(1);
+  sim.raiseIRQ(2);
+  line('2 irq-clear');
+  assert.equal(sim.sicPending, 0b101, 'keyboard and audio stay pending');
+  line('5 irq-clear');
+  assert.equal(sim.sicPending, 0);
+  assert.ok(sim.running);
+});

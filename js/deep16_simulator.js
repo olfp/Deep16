@@ -267,6 +267,11 @@ class Deep16Simulator {
         // D16nano benchmark time base: one step is one instruction (the JS core
         // is not cycle-accurate). The board exposes the real CPU cycle counter.
         this.cycleCount = 0;
+        // SIC at 0xF00B0 (D16nano): sticky pending bits, enable mask and the
+        // ISR scratch counter. Bits 3 raster, 2 audio, 1 timer, 0 keyboard.
+        this.sicPending = 0;
+        this.sicEnable = 0;
+        this.sicScratch = 0;
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
         this.lastALUOverflow = false;
@@ -394,6 +399,9 @@ class Deep16Simulator {
         // SPI master and the card on it.
         this.spi = { cs: 0, div: 0, rx: 0xff, done: 0 };
         this.sdCard = new SdCard();
+        this.sicPending = 0;
+        this.sicEnable = 0;
+        this.sicScratch = 0;
     }
 
     phys(seg, off) {
@@ -436,6 +444,13 @@ class Deep16Simulator {
         this.cycleCount = (this.cycleCount + 1) >>> 0;
 
         const inShadow = (this.psw & (1 << 5)) !== 0;
+        // Hardware IRQ at an instruction boundary. The RTL ignores the level
+        // in the shadow bank and during a delay slot; I is clear in handlers.
+        // Taking the vector is the whole step, like an instruction that never
+        // retires - the parked instruction runs after RETI.
+        if (!inShadow && (this.psw & (1 << 4)) && !this.delaySlotActive && this.irqLine()) {
+            if (this.handleHardwareInterrupt(1)) return true;
+        }
         // Handle delay slot if active
         if (this.delaySlotActive) {
             this.delaySlotActive = false;
@@ -1295,6 +1310,8 @@ class Deep16Simulator {
                 this.writeGPR(rd, (this.cycleCount >>> 16) & 0xFFFF);
             } else if (physicalAddress >= 0xF0080 && physicalAddress <= 0xF0087) {
                 this.writeGPR(rd, this.spiRead(physicalAddress - 0xF0080));
+            } else if (physicalAddress >= 0xF00B0 && physicalAddress <= 0xF00BF) {
+                this.writeGPR(rd, this.sicRead(physicalAddress - 0xF00B0));
             } else if (physicalAddress < this.memory.length) {
                 this.writeGPR(rd, this.memory[physicalAddress] & 0xFFFF);
             }
@@ -1313,6 +1330,8 @@ class Deep16Simulator {
                 if (value & 0x2) { this.uartTx = []; }
             } else if (physicalAddress >= 0xF0080 && physicalAddress <= 0xF0087) {
                 this.spiWrite(physicalAddress - 0xF0080, this.readGPR(rd));
+            } else if (physicalAddress >= 0xF00B0 && physicalAddress <= 0xF00BF) {
+                this.sicWrite(physicalAddress - 0xF00B0, this.readGPR(rd));
             } else if (physicalAddress < this.memory.length) {
                 const value = this.readGPR(rd);
                 this.memory[physicalAddress] = value;
@@ -1527,6 +1546,39 @@ class Deep16Simulator {
     // The mirror of the keyboard hooks above, for the serial console build. The
     // IDE drains uartTx into the SerialTerminal and pushes host input into
     // uartRx; a program talks to the port with LDS/STS at 0xF0040/0xF0042.
+
+    // --- SIC (0xF00B0) ----------------------------------------------------
+    // The same register map as rtl/deep16_sic.sv: PENDING is W1C, ENABLE masks
+    // the sources, STATUS reports the aggregated level and any pending bit,
+    // SCRATCH is the ISR's free 16-bit counter. The JS core has no timer, so a
+    // test raises a bit with raiseIRQ() and takes the vector explicitly.
+    sicRead(off) {
+        switch (off & 0xF) {
+            case 0x0: return this.sicPending & 0xF;
+            case 0x2: return this.sicEnable & 0xF;
+            case 0x4: return ((this.sicPending & this.sicEnable) !== 0 ? 1 : 0)
+                             | (this.sicPending !== 0 ? 2 : 0);
+            case 0x6: return this.sicScratch & 0xFFFF;
+            default:  return 0;
+        }
+    }
+
+    sicWrite(off, value) {
+        switch (off & 0xF) {
+            case 0x0: this.sicPending &= ~(value & 0xF); break;   // W1C
+            case 0x2: this.sicEnable = value & 0xF; break;
+            case 0x6: this.sicScratch = value & 0xFFFF; break;
+            default: break;
+        }
+    }
+
+    raiseIRQ(bit) {
+        this.sicPending |= (1 << bit) & 0xF;
+    }
+
+    irqLine() {
+        return (this.sicPending & this.sicEnable) !== 0;
+    }
 
     // --- SPI master (0xF0080) ---------------------------------------------
     // CTRL (cs), STATUS (busy/done/cs), DATA (write starts a transfer, read is
