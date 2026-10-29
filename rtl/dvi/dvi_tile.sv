@@ -184,18 +184,16 @@ module dvi_tile #(
   logic [15:0] tilemap [0:2*TM_WORDS-1];
   logic [15:0] tilefont [0:TILE_WORDS-1];
   logic [15:0] sprite   [0:SPR_WORDS-1];
-  // OAM and palette are plain registers, not memories: they are tiny and
-  // read from several places, and the flow would otherwise spend a dozen
-  // RAM16 primitives on each read port.
+  // OAM stays a register file; the palette is a small RAM (16 x 16, low 8
+  // bits are RGB332) so the fill reads it through a registered port instead of
+  // a 16:1 mux on the line-buffer write path.
   logic [255:0] oam_bits;                 // 16 words of 16 bits (8 sprites x 2)
-  logic [127:0] pal_bits;                 // 16 entries of RGB332
-  logic [15:0]  pal_init [0:15];
+  logic [15:0]  pal_mem [0:15];
   logic [7:0]  linebuf  [0:LB_DEPTH-1];
   initial begin
     $readmemh("tilefont.hex", tilefont);
     $readmemh("birdsprite.hex", sprite);
-    $readmemh("tilepal.hex", pal_init);
-    for (int i = 0; i < 16; i++) pal_bits[i*8 +: 8] = pal_init[i][7:0];
+    $readmemh("tilepal.hex", pal_mem);
   end
 
   // Sprite row cache: one 32-pixel line per sprite, 8 words of 4 pixels.
@@ -250,7 +248,7 @@ module dvi_tile #(
           if (cpu_addr[7:0] < 8'(OAM_WORDS))
             oam_bits[cpu_addr[3:0]*16 +: 16] <= cpu_data;
           else if (cpu_addr[7:0] >= 8'h80 && cpu_addr[7:0] <= 8'h8F)
-            pal_bits[cpu_addr[3:0]*8 +: 8] <= cpu_data[7:0];
+            pal_mem[cpu_addr[3:0]] <= {8'h00, cpu_data[7:0]};
         end
         default: ;
       endcase
@@ -316,11 +314,31 @@ module dvi_tile #(
 
   logic             lb_we;
   logic [LB_AW-1:0] lb_waddr;
-  logic [7:0]       lb_wdata;
   logic [LB_AW-1:0] lb_raddr;
   logic [7:0]       lb_q;
+  // The palette read is registered; the line-buffer write is delayed two
+  // render clocks so the palette RAM address is not on the BSRAM DI path.
+  logic             lb_we_q, lb_we_qq;
+  logic [LB_AW-1:0] lb_waddr_q, lb_waddr_qq;
+  logic [7:0]       lb_wdata_q;
+  logic [15:0]      pal_q;
+  logic             pal_cursor_q;
+  logic [3:0]       pal_idx;
+  logic             pal_cursor;
 
-  always_ff @(posedge clk_render) if (lb_we) linebuf[lb_waddr] <= lb_wdata;
+  assign pal_idx    = sprite_win ? sc[3:0] : pix_index;
+  assign pal_cursor = !sprite_win && cursor_fill;
+
+  always_ff @(posedge clk_render) begin
+    pal_q        <= pal_mem[pal_idx];
+    pal_cursor_q <= pal_cursor;
+    lb_we_q      <= lb_we;
+    lb_waddr_q   <= lb_waddr;
+    lb_we_qq     <= lb_we_q;
+    lb_waddr_qq  <= lb_waddr_q;
+    lb_wdata_q   <= pal_q[7:0] ^ {8{pal_cursor_q}};
+  end
+  always_ff @(posedge clk_render) if (lb_we_qq) linebuf[lb_waddr_qq] <= lb_wdata_q;
   always_ff @(posedge clk_pixel)  lb_q <= linebuf[lb_raddr];
 
   // 24-row circular terminal window inside a 26-row map. The two extra rows
@@ -507,8 +525,6 @@ module dvi_tile #(
 
   assign lb_we    = fill_pixel;
   assign lb_waddr = {wr_buf, fx[9:0]};
-  assign lb_wdata = sprite_win ? pal_bits[sc[3:0]*8 +: 8]
-                  : (pal_bits[pix_index*8 +: 8] ^ {8{cursor_fill}});
 
   // =====================================================================
   // Fill sequencer

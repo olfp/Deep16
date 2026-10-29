@@ -21,7 +21,7 @@ is the ISA change that pays for the interrupt work.
 | D10 | **SIC priority high → low: raster, audio, timer, keyboard.** |
 | D11 | **Sound window 0xE0000–0xEFFFF** (64K cells, segment `0xE000`), just below the I/O area. |
 | D12 | **ARCHREV §2+§3 together**: SAPF plus no shadow-bank zeroing; net ~+15 CLS on the tile build. |
-| D13 | **Flat OAM group pointer** implemented (8 slots access all 24 groups); **deferred**: boot move, then 6 more OAM slots (only for >8 visible sprites), then the register file. |
+| D13 | **Flat OAM group pointer** implemented (8 slots access all 24 groups); **deferred**: 6 more OAM slots (only for >8 visible sprites), boot move, then the register file. |
 
 ## 2. Config flash access
 
@@ -219,24 +219,26 @@ sfx-off     \ stop
 | ARCHREV §2+§3 (measured) | +85 | **127** |
 | I2S + FIFO (measured) | −101 | **26** |
 | flat OAM pointer (measured) | −5 | **21** |
-| boot move (first) | +15…+20 | 36–41 |
-| timer IRQ | −20…−32 | 4–21 |
-| 4-source SIC | −12…−16 | −12…9 |
-| raster + keyboard | −14…−28 | −40…−19 |
+| palette RAM + linebuf pipeline (measured) | +85 | **106** |
+| timer IRQ | −20…−32 | 74–86 |
+| 4-source SIC | −12…−16 | 58–74 |
+| raster + keyboard | −14…−28 | 30–60 |
+| boot move (now optional) | +15…+20 | 45–66 |
 | 6 OAM slots | +15…+28 | later |
 | register file (last) | +~250 | |
 
 The I2S came in at **101 CLS**, not the 35–40 the old note guessed, and the
-flat OAM pointer cost another 5, so the interrupt estimates no longer fit in
-the 21 that are left. Phase 5 needs the boot move (+15–20) and/or a diet before
-the timer/raster/keyboard blocks go in. The flat pointer gives all **8 OAM
-slots** access to all **24 groups**; the 6 extra slots are only for more than
-8 visible sprites and are not needed for that goal.
+flat OAM pointer cost another 5. The palette RAM + registered line-buffer
+write then recovered **85** (the 16:1 palette mux and the pROM/register
+shadow), so the interrupt estimates now fit in the 106 that are left. The boot
+move is optional again. The flat pointer gives all **8 OAM slots** access to
+all **24 groups**; the 6 extra slots are only for more than 8 visible sprites
+and are not needed for that goal.
 
-The secondary goal still needs the boot move; the 6 OAM slots are a later
-margin. The boot move is no longer deferrable: the I2S and the flat OAM
-pointer used the headroom that the 2b/ARCHREV plan had reserved for the
-interrupt blocks.
+The secondary goal no longer needs the boot move immediately; the 6 OAM slots
+are a later margin. The palette RAM/pipeline recovered more than the I2S and
+the flat OAM pointer spent, so the timer/SIC/raster work can go in on the
+current 106-free base.
 
 ## 7. Phases
 

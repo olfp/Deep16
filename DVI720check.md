@@ -387,3 +387,32 @@ The flat OAM group pointer re-placed the `fx_1 → linebuf DI` palette path at
 The palette mux in the line-buffer write data path is still the pressure
 point; the palette-BSRAM retime (registered palette + one-cycle delayed
 line-buffer write) is the next timing experiment and is in the todo list.
+
+## 18. 2026-10-29: palette RAM + registered line-buffer write
+
+The flat OAM pointer build with `place_option 0` failed at `dvi_render`
+24.455 MHz (the `fx_1 → linebuf DI` palette path, 40.848 ns). `place_option 1`
+closed the DVI but dropped `psram_clk` to **55.342 MHz**; the board did not
+boot that image (PSRAM margin), which is why §17 is not the shipping build.
+
+The palette was a 128-bit register (`pal_bits`) plus a 16:1 mux in front of
+the line-buffer write. It is now a 16×16 RAM (`pal_mem`, low 8 bits RGB332,
+initialised from `tilepal.hex`), read on a registered port. The line-buffer
+write (`we`/address/data) is delayed two `clk_render` cycles to align with the
+registered palette; the last pixel of a line still lands long before the scan
+reads it.
+
+Result with `place_option 0`, `route_option 1`:
+
+| | value |
+|---|---|
+| CLS | **4,214 / 4,320 (106 free)** |
+| LUT / ALU / FF | 6,309 / 759 / 2,936 |
+| BSRAM | 24 / 26 (palette is 2 RAM16 in SSRAM) |
+| dvi_render | **32.278 MHz**, TNS 0 |
+| dvi_pixel | **86.152 MHz**, TNS 0 |
+| psram_clk | **83.996 MHz**, TNS 0 |
+
+The palette experiment freed **85 CLS** as well as fixing the fill path, so
+the interrupt blocks now fit without the boot move. The tile simulation
+passes; this is the image to flash.
