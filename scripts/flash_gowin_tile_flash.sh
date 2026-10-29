@@ -24,7 +24,7 @@ command -v openFPGALoader >/dev/null 2>&1 || { echo "openFPGALoader not found" >
 [ -f "$FS" ]   || { echo "missing $FS - run npm run synth:tile first" >&2; exit 1; }
 [ -f "$USER" ] || { echo "missing $USER - run npm run synth:tile first" >&2; exit 1; }
 
-openFPGALoader -f "$FS" --user-flash "$USER"
+openFPGALoader --unprotect-flash -f "$FS" --user-flash "$USER"
 
 echo
 echo "configuration + on-die user flash written."

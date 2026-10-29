@@ -26,10 +26,14 @@ module deep16_board (
   input  logic btn,        // S2 button, active low
   input  logic ps2_clk,    // PS/2 clock, 3.3 V side of the level shifter
   input  logic ps2_data,   // PS/2 data,  3.3 V side of the level shifter
-  output logic spi_sck,    // SPI clock: SD socket / external flash
+  output logic spi_sck,    // SPI clock: SD socket
   output logic spi_mosi,   // SPI MOSI
   input  logic spi_miso,   // SPI MISO
-  output logic [1:0] spi_cs_n, // SPI chip selects: [0] SD, [1] external flash
+  output logic spi_cs_n,   // SPI CS0: microSD
+  output logic cfg_sck,    // config flash MCLK (MSPI pin 59, GPIO after DONE)
+  output logic cfg_mosi,   // config flash MO   (MSPI pin 61)
+  input  logic cfg_miso,   // config flash MI   (MSPI pin 62)
+  output logic cfg_cs_n,   // config flash MCS_N (MSPI pin 60)
   input  logic uart_rxd,   // from the on-board USB-UART bridge
   output logic uart_txd,   // to the on-board USB-UART bridge
   output logic [5:0] led   // 0 heartbeat, 1 run, 2 halt, 3..5 instruction activity
@@ -360,6 +364,12 @@ module deep16_board (
   logic [31:0] cache_hits, cache_misses, cache_penalty;
   logic [15:0] tx_data_out, tx_avail, dbg_rdata;
 
+`ifdef D16_PERIPH
+  // One SPI master, two pin sets (see the mux below the instance).
+  logic       spi_sck_i, spi_mosi_i, spi_miso_i;
+  logic [1:0] spi_cs_i;
+`endif
+
   deep16_top u_top (
     .clk  (clk_cpu),
     .rst  (rst),
@@ -399,10 +409,10 @@ module deep16_board (
     , .tile_status      (tile_status)
 `endif
 `ifdef D16_PERIPH
-    , .spi_sck          (spi_sck)
-    , .spi_mosi         (spi_mosi)
-    , .spi_miso         (spi_miso)
-    , .spi_cs_n         (spi_cs_n)
+    , .spi_sck          (spi_sck_i)
+    , .spi_mosi         (spi_mosi_i)
+    , .spi_miso         (spi_miso_i)
+    , .spi_cs_n         (spi_cs_i)
 `endif
 
     // no debug bus, no cache management on the board
@@ -435,11 +445,30 @@ module deep16_board (
 `endif
   );
 
-`ifndef D16_PERIPH
-  // The text build has no SPI master; park the socket pins idle.
+`ifdef D16_PERIPH
+  // One SPI master, two pin sets. spi_cs_i[0] is the SD CS, spi_cs_i[1] the
+  // config-flash CS; when the flash is selected its pins carry SCK/MOSI/MISO
+  // and the SD socket idles.
+  wire        cfg_sel = ~spi_cs_i[1];
+
+  assign spi_cs_n = spi_cs_i[0];
+  assign cfg_cs_n = spi_cs_i[1];
+  assign spi_sck   = cfg_sel ? 1'b0 : spi_sck_i;
+  assign spi_mosi  = cfg_sel ? 1'b0 : spi_mosi_i;
+  assign cfg_sck   = cfg_sel ? spi_sck_i : 1'b0;
+  assign cfg_mosi  = cfg_sel ? spi_mosi_i : 1'b0;
+  assign spi_miso_i = cfg_sel ? cfg_miso : spi_miso;
+`else
+  // The text build has no SPI master; park all SPI pins idle.
   assign spi_sck  = 1'b0;
   assign spi_mosi = 1'b0;
-  assign spi_cs_n = 2'b11;
+  assign spi_cs_n = 1'b1;
+  assign cfg_sck  = 1'b0;
+  assign cfg_mosi = 1'b0;
+  assign cfg_cs_n = 1'b1;
+  /* verilator lint_off UNUSEDSIGNAL */
+  wire _unused_cfg_miso = cfg_miso;
+  /* verilator lint_on UNUSEDSIGNAL */
 `endif
 
   // ---- heartbeat -------------------------------------------------------

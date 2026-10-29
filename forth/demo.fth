@@ -80,7 +80,7 @@ variable blk drop
 -1 blk !
 
 \ CS0 asserted (1) or released (0); one byte out and the byte that came in.
-: cs! ( f -- )      1 and spi-ctrl es! ;
+: cs! ( f -- )      3 and spi-ctrl es! ;   \ CS0 = SD, CS1 = config flash
 : spi> ( c -- c )   spi-data es! begin spi-stat es@ 1 and 0= until
                     spi-data es@ 0xff and ;
 : spi! ( c -- )     spi> drop ;
@@ -223,5 +223,49 @@ create screen-buf 2048 cells allot
   loop
   2drop
   screen-buf 2048 included ;
+
+\ ---- config flash, SPI CS1 (0xF0080) -------------------------------------
+\ The on-board 4 MB P25Q32U shares SCK/MOSI/MISO with the SD card; the board
+\ routes the master to its MSPI pins while CS1 is low. This is the phase-1
+\ bring-up: JEDEC ID, status, BP = lower 2 MB, and a test 4 KB sector at
+\ 0x200000 (sector 512, above the protected bitstream region). A cell is 16
+\ bits, so a flash address is a sector number (0..1023) plus a 12-bit offset;
+\ the address bytes are sector>>4, ((sector&15)<<4)|(off>>8), off&255.
+: cf-addr ( sector off -- )
+  over 4 rshift 0xff and spi!
+  over 0xf and 4 lshift
+  over 8 rshift 0xf and or spi!
+  0xff and spi! drop ;
+: cf-wren ( -- )    0 spi-div es! 2 cs! 6 spi! 0 cs! ;
+: cf-status ( -- b ) 0 spi-div es! 2 cs! 5 spi! spi> 0 cs! ;
+: cf-wait ( -- )    begin cf-status 1 and 0= until ;
+: cf-id ( -- )
+  0 spi-div es!  2 cs! 0x9f spi!  hex spi> . spi> . spi> .  decimal
+  0 cs! cr ;
+\ BP4..0 = 0 1 1 1 0: the lower 2 MB (bitstream and future kernel) is
+\ read-only; the slices at sector 512+ stay writable.
+: cf-protect ( -- ) cf-wren  2 cs! 1 spi! 0x38 spi!  0 cs! cf-wait ;
+: cf-read ( sector -- lo hi )
+  0 spi-div es!  2 cs! 3 spi!  0 cf-addr
+  spi> spi> spi> spi> 0 cs!
+  >r >r 8 lshift or r> r> 8 lshift or ;
+: cf-write ( sector lo hi -- )
+  cf-wren  2 cs! 2 spi!  rot 0 cf-addr
+  dup 0xff and spi!
+  dup 8 rshift 0xff and spi!
+  swap dup 0xff and spi!
+  8 rshift 0xff and spi!
+  drop 0 cs! cf-wait ;
+: cf-erase ( sector -- ) cf-wren 2 cs! 0x20 spi! 0 cf-addr 0 cs! cf-wait ;
+: cf-test ( -- )
+  ." config flash id: " cf-id
+  ." status: " cf-status hex . decimal cr
+  cf-protect
+  ." after BP: " cf-status hex . decimal cr
+  512 cf-erase
+  512 0x1234 0xabcd cf-write
+  512 cf-read
+  ." read back (hi lo): " hex . . decimal cr
+  ." protected word: " 256 cf-erase 256 cf-read hex . . decimal cr ;
 
 boot.msg
