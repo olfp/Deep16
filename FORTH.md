@@ -858,6 +858,22 @@ SCRATCH counter (`0xF00B6`), so it needs no kernel variable.
 ```text
 irq-on
 1 2 + . cr          \ the console keeps working with the timer running
-ticks . cr          \ a number close to 15000 per second
+ticks . cr          \ serviced IRQs so far
 irq-off
 ```
+
+`ticks` is the number of IRQs the handler has serviced, not a free-running
+timer. The console spends most of its time inside the BIOS keyboard SWI with
+`PSW.I=0`, and the IRQ entry only runs in the normal bank, so a pending tick
+coalesces into one while you type. A busy loop shows the real rate:
+
+```text
+: spin 20000 0 do loop ;
+: now ( -- n ) 0x22 es@ ;
+: rate ( -- ) now >r spin now r> - ticks swap . ." ms, " . ." ticks" cr ;
+irq-on rate irq-off
+```
+
+The tick count should be about 15 times the millisecond figure. Flappy is
+unaffected: it runs inside the `gfx` SWI with `I=0`, so the timer IRQ is off
+for the whole game.
