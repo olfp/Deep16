@@ -1,10 +1,24 @@
-# ARCHREV — MOV imm2 Redesign (2026-10-08)
+# ARCHREV — architecture revision log
+
+Short, dated records of Deep16 architecture changes: what changed, why, and
+what breaks. Normative text lives in `doc/Deep16-Arch.md`; the long-form
+rationale for each entry stays in its own design note (`doc/Changes.md`,
+`FPUEMUPLAN.md`, `doc/Interrupts.md`). Entries are chronological and are never
+rewritten — a later entry that supersedes part of an earlier one says so.
+
+| Entry | Date | Change | Status |
+|---|---|---|---|
+| §1 | 2026-10-08 | `MOV imm2` is a four-way function select | implemented |
+| §2 | 2026-10-29 | `SAPF` (`0xFFF6`) — set alternate PSW flags | decided, not implemented |
+| §3 | 2026-10-29 | trap entry no longer zeroes the shadow bank | decided, not implemented |
+
+## 1. `MOV imm2` redesign (2026-10-08)
 
 Short record of the `MOV Rd, Rs, imm2` redesign: what changed, why, and what
 it breaks. Normative text: `doc/Deep16-Arch.md` (Tables 1/2, §3.3, §5.1.2,
 Table R, §6.2); longer rationale: `doc/Changes.md` §14.
 
-## What changed
+### What changed
 
 **1. imm2 is now a four-way function select** (was `Rs + imm2`):
 
@@ -51,7 +65,7 @@ bookkeeping order.
 (re-assemblable); `SMV Rx, APC` prints as `ALNK Rx` / `ALINK`; the old
 imm2=3 alias branch is gone (`0xFBBF` is now `MOV R14, PC << 1 + 1`).
 
-## Migration
+### Migration
 
 | Before | After |
 |--------|-------|
@@ -66,7 +80,7 @@ imm2=3 alias branch is gone (`0xFBBF` is now `MOV R14, PC << 1 + 1`).
 SMV form), so previously assembled binaries must be reassembled. Assembly
 sources need no change except old `, 1`/`, 3`/`+1`/`+3` spellings.
 
-## Files
+### Files
 
 - `js/deep16_simulator.js` — delay-slot PC increment order; new imm2 table
 - `wasm/deep16-wasm/src/lib.rs` — new imm2 table (`exec_mov`); pkg rebuilt
@@ -78,7 +92,7 @@ sources need no change except old `, 1`/`, 3`/`+1`/`+3` spellings.
   `deep16_project_summary.md` — spec/text updates
 - `tests/mov-imm2.test.js` — new tests (below)
 
-## Tests (`tests/mov-imm2.test.js`)
+### Tests (`tests/mov-imm2.test.js`)
 
 - imm2 function table on both cores (including wrap cases)
 - delay-slot PC reads on both cores, asserting LR: `SMV LR, APC`, `ALNK LR`,
@@ -89,3 +103,170 @@ sources need no change except old `, 1`/`, 3`/`+1`/`+3` spellings.
 - assembler accept/reject matrix with hint-message assertions
 - constant reachability: all 65536 values arithmetically, sampled values
   executed on both cores
+
+## 2. `SAPF` — Set Alternate PSW Flags (2026-10-29)
+
+### What changed
+
+Word `0xFFF6` (SYS sub-op 6) becomes an instruction; today it falls through
+the SYS `case` to a NOP.
+
+| | |
+|---|---|
+| Encoding | SYS, low three bits `110` — word `0xFFF6` |
+| Semantics | `spsw[3:0] ← R0'[3:0]`, `spsw[15:4]` unchanged |
+| Flags | `N=0, Z=1, V=2, C=3` |
+| Operands | none — the source is the handler bank's `R0` |
+| Gating | none |
+
+The SYS block is now **full**: 0 NOP, 1 FSH, 2 SWI, 3 RETI, 4 SETI, 5 CLRI,
+6 `SAPF`, 7 `NIO` (the non-implemented-opcode trap, `ILLTRAP.md`). `NIO` is
+deliberately not the 8th FPU opcode.
+
+### Why
+
+`RETI` restores `spsw`, so condition codes reach the interrupted instruction
+only through `spsw` — and there is no other write path: `SMV Rx, APSW` reads
+it, nothing writes it. Two emulated instructions need exactly that:
+
+- the **DIV/DIV32 trap** in `rtl/deep16_core3.sv`: the core has no divider, the
+  instruction traps, and the handler must return `N/Z/V/C` as if the ALU had
+  produced the quotient. This closes the DIV flag gap recorded in `ILLTRAP.md`;
+- **FCMP** in the soft-float library, where "unordered" needs `V=1` with
+  `N=0, Z=0, C=0` (`FLOATIMPL.md` §8).
+
+### Why flags only, and why from a register
+
+- **Flags only.** `spsw` is readable, so a full-word form would be a
+  read-modify-write (`SMV R0, APSW`, mask, merge, write): three to five
+  instructions instead of one, plus a `0xFFF0` mask to hold. Worse, a handler
+  bug that let `S` through would write `S=1` into the return PSW and `RETI`
+  would never leave the shadow context. Bits 15:4 are hardware-preserved, so
+  `S` cannot be written by construction.
+- **From `R0'`, not from the live flags.** `V=1` with `N=0, Z=0, C=0` is
+  unreachable from ALU flags (only add/sub set `V`), and a flag-sourced form
+  would be corrupted by any flag-setting instruction inserted between the
+  comparison and the `SAPF`. An explicit nibble in `R0` is immune to both.
+
+### What it breaks
+
+Nothing in the field. `0xFFF6` executed as NOP, so no source depends on its
+behaviour and no binary changes meaning except code that deliberately encoded
+it. Cost is a nibble write port into `spsw` — single-digit LUT4.
+
+### Interaction with §3
+
+The original rationale called `R0` scratch "because `sh_clear` wipes the
+shadow bank on entry". After §3 the wipe is gone. `R0'` is still scratch *with
+respect to the interrupted context* — the banks are separate — but it may now
+carry a previous handler's persistent value, so a handler that owns `R0'`
+across invocations must not use it as the `SAPF` carrier. One owner per
+register, documented with the handler.
+
+### Files
+
+| File | Change |
+|---|---|
+| `js/deep16_assembler.js` | `SAPF` (no operands) → `encodeSystem(6)` |
+| `js/deep16_disassembler.js` | `systemOps[6] = 'SAPF'` |
+| `rtl/deep16_core.sv` | SYS `case` → `3'd6` |
+| `rtl/deep16_core3.sv` | SYS `case` → `3'd6` |
+| `js/deep16_simulator.js` | SYS sub-op 6 |
+| `wasm/deep16-wasm/src/lib.rs` | SYS sub-op 6 |
+| `doc/Deep16-Arch.md` | §3.3 and §4.9 opcode tables, SYS row |
+
+### Tests
+
+- assemble/disassemble round trip; `0xFFF6` and `0xFFF7` no longer read as NOP;
+- all three cores: `spsw[3:0]` takes `R0'[3:0]`, bits 15:4 are unchanged, and
+  `SMV Rx, APSW` observes the new nibble;
+- `SAPF` then `RETI` delivers the flags to the interrupted instruction;
+- the DIV handler's quotient flags, and FCMP's unordered result.
+
+## 3. No shadow-bank zeroing on trap entry (2026-10-29)
+
+### What changed
+
+Trap entry stops writing the shadow general registers. Everything else in the
+entry sequence is unchanged.
+
+| Entry step | Before | After |
+|---|---|---|
+| `spsw ← psw` | yes | yes |
+| `psw ← 0x0020` (S=1, I=0, flags clear) | yes | yes |
+| `sCS/sDS/sSS/sES ← 0` | yes | yes |
+| `PC' ← vector` | yes | yes |
+| `R0'..R3' ← 0` | yes | **no** |
+| `R13'` (SP') `← 0` | yes | **no** |
+| `R14'` (LR') | SWI: 0, ILL: interrupted PC | SWI: untouched, ILL: interrupted PC (unchanged) |
+
+### Why
+
+The zeroing costs **no cycles**: it is six register writes on an edge the entry
+already uses. Its cost is architectural — it makes the shadow bank *ephemeral*,
+so every handler rebuilds its state from memory on every entry. That is the
+largest fixed cost of a short ISR, and it is the reason a 450-cycle tick cannot
+afford a handler.
+
+Without the wipe, `R0'..R3'` and `SP'` become a **persistent handler context**:
+a timer or audio ISR keeps a ring pointer, a phase accumulator, a counter and
+its stack there and reloads nothing.
+
+| Per ISR entry | Cycles |
+|---|---|
+| today: reload pointer + counter from PSRAM (12-cycle non-bursting, cached after the first pass) | 20–30 |
+| after §3: already in registers | 0 |
+
+At 10 kHz that is roughly 9 % → 5–6 % of the CPU and at 15 kHz 13 % → 8 %,
+before the handler's own work (`AUDIOPLAN.md` §6.1). For the ~400-cycle ILL
+emulation it is 7 %; for a 60-cycle tick it is 40 %. The `SLIMPLAN.md`
+interrupt plan assumes the tick case.
+
+### What breaks — the rules this creates
+
+1. **No handler may assume `R0'..R3'` or `SP'` are zero.** Both kernel entry
+   paths already comply: `ill_handler` (`asm/forth_nano.asm:14969`) writes
+   `R0..R3` and takes `SP'` from `AR13` before use, and `swi_to_bios`
+   (`:508`) builds its target in `R2`/`R3`; neither reads a banked register it
+   has not written. The BIOS body still needs an audit for the same rule.
+2. **All handlers share one shadow bank.** SWI, ILL and (later) a hardware IRQ
+   run in the same context. A synchronous trap taken *inside* a hot handler is
+   reachable — `I=0` blocks IRQs but not a DIV/FPU trap — and would destroy the
+   hot handler's persistent registers. The cold paths must therefore save and
+   restore `R0'..R3'`/`SP'` around their work: ~6 stores + 6 loads, 30–40
+   cycles against a ~400-cycle emulation, invisible. Without that, the change
+   buys nothing and breaks the first ISR that used it.
+3. **Double fault is unchanged**: the ILL entry still refuses to trap when
+   `S=1`.
+
+### What this does not decide
+
+A dedicated third register bank would remove the sharing problem, but it needs
+16 registers plus an encoding, and the encoding tree has no spare word
+(`FLOATIMPL.md` §14). Not worth it; rule 2 is the cheaper answer.
+
+### Files
+
+| File | Change |
+|---|---|
+| `rtl/deep16_regfile.sv` | drop the `sh_clear` port and the clear branch (`:39`, `:86`) |
+| `rtl/deep16_core.sv` | drop `sh_clear` plumbing and the `id_sh_clear` forwarding bypass (`:463`, `:479-491`) |
+| `rtl/deep16_core3.sv` | drop `sh_clear_ex` (`:470` SWI, `:770` ILL) |
+| `js/deep16_simulator.js` | drop the six zero stores in `executeSWI`, `executeILL`, `executeInterrupt` (`:1275`, `:1304`, `:1367`) |
+| `wasm/deep16-wasm/src/lib.rs` | same in `exec_sys` SWI and the ILL / interrupt entry |
+| `asm/forth_nano.asm` | `ill_handler` and the SWI bridge save/restore `R0'..R3'`/`SP'` (rule 2) |
+| `doc/Interrupts.md` | entry sequence: delete the zero lines, add the persistence rule |
+| `doc/Deep16-Arch.md` | §4.4 entry sequence |
+| `FPUEMUPLAN.md` §3.4 | the "`sh_clear` wipes the shadow bank" sentence (§2 above) |
+| `tests/shadow.test.js` | stop asserting zeros; add persistence and parity cases |
+
+### Tests
+
+- entry leaves `R0'..R3'`/`SP'` untouched — RTL, JS and WASM agree;
+- a handler writes a value, `RETI`, and a second trap sees it: the persistence
+  the change exists for;
+- a DIV (or FPU trap) inside a handler, then `RETI`, leaves the outer handler's
+  banked registers intact — the rule-2 defence, and the test that fails if the
+  save/restore is ever dropped;
+- existing behaviour unchanged: `tests/shadow.test.js`,
+  `tests/ill-trap.test.js` and `npm test` stay green.
