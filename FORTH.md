@@ -870,10 +870,14 @@ coalesces into one while you type. A busy loop shows the real rate:
 ```text
 : spin 20000 0 do loop ;
 : now ( -- n ) 0x22 es@ ;
-: rate ( -- ) now >r spin now r> - ticks swap . ." ms, " . ." ticks" cr ;
+: rate ( -- )
+  ticks >r  now >r  spin  now r> -  ticks r> -
+  swap . ." ms, " . ." ticks" cr ;
 irq-on rate irq-off
 ```
 
-The tick count should be about 15 times the millisecond figure. Flappy is
+The **delta** should be about 15 times the millisecond figure. Reading
+`ticks` without subtracting its starting value includes the console time
+before the loop, which looks like a few percent extra. Flappy is
 unaffected: it runs inside the `gfx` SWI with `I=0`, so the timer IRQ is off
 for the whole game.
