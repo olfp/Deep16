@@ -258,7 +258,39 @@ clear the P25Q32U BP on this board (`cf-status` still 38 after a reflash), so
 `cf-unprotect` (WRSR 0x00) was added; use it before a bitstream update, then
 `cf-protect`/`cf-test` re-arms the guard.
 
-## 9. Phase 1 test
+## 9. Phase 2a result (code only, not flashed)
+
+Removed the on-die flash CPU path (top decode, psram_mem ports, flash_boot
+u_*), the user-flash `flash@`/`screen`/`screen-buf`, the JS flash model and
+the three user-flash tests. `npm test`: 662 pass. The boot-script source ends
+at **`dict_free 0x4897`**, 361 cells below the BIOS.
+
+| | value |
+|---|---|
+| CLS | 4,259 / 4,320 (61 free) |
+| Logic / LUT | 8,252 / 6,442 + 742 ALU |
+| FF | 2,936 |
+| dvi_pixel Fmax | **65.973 MHz** — TNS **−4.090 ns**, 3 endpoints |
+| clk_cpu / dvi_render | 19.510 / 28.255 MHz |
+
+The 15 CLS came back, but the DVI got **worse**: the netlist change moved the
+pixel path from 72.755 to 65.973 MHz. The Fmax gate fails, so this bitstream
+was **not flashed**; the board stays on the phase-1 image (72.755).
+
+The placement is the problem, not the logic count: removing a small block
+shifted the DVI from 79.26 → 72.755 → 65.973 across three netlists. The next
+step is a DVI decision, not more features:
+
+- **revert only the 2a RTL removal** (keep the source/JS/test diet; the port's
+  ~6 CLS returns), which restores the 72.755 placement, then continue 2b;
+- **or fix the pixel path** (pipeline the last pixel stage / region), which is
+  the real 720p fix, then bring the port removal back;
+- **or 480p**, the last resort.
+
+The ARCHREV §3 is a CLS/ISA change, not a DVI fix; it may shift the placement
+by luck, but it should not be the DVI plan.
+
+## 10. Phase 1 test
 
 After the build and flash:
 
@@ -279,7 +311,7 @@ test. A Forth cell is 16 bits, so the flash address is a sector number
 If the flash ID is wrong, check the MSPI option, the pin mode of 59–62 and
 `cfg_sel`; if the SD breaks, check the CS1 select and the MISO mux.
 
-## 10. Open items
+## 11. Open items
 
 - The slice allocator: scan-for-blank (simple) or a free list in the directory.
 - The RLL encoder worst case for an 8-group page.

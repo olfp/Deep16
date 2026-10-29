@@ -17,7 +17,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { assemble, loadBrowserScripts, MEM_WORDS, ROOT } from './helpers.js';
-import { packScreen, SCREEN_BASE } from '../scripts/make_screens.mjs';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -143,30 +142,6 @@ test('the 64K data stack holds 20000 cells', () => {
   line(': drop-n ( n -- ) 0 ?do drop loop ;');
   assert.equal(number(line('20000 push-n depth . cr'), '20000 push-n depth . cr'), 20000);
   assert.equal(number(line('20000 drop-n depth . cr'), '20000 drop-n depth . cr'), 0);
-  assert.ok(sim.running);
-});
-
-// ---- user flash -----------------------------------------------------------
-// The CPU read port is at 0xF00A0 (js/deep16_simulator.js models it) and the
-// screens are the same pages scripts/make_image.mjs bakes into image.flash.bin.
-test('flash@ reads a 32-bit word, low half first', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'hello.fth'), 'utf8');
-  const { words } = packScreen(source);
-  for (let i = 0; i < words.length; i++) sim.flash[SCREEN_BASE + i] = words[i];
-  const w0 = words[0];
-  assert.equal(number(line('0x3200 flash@ drop . cr'), '0x3200 flash@ drop . cr'), w0 & 0xffff);
-  assert.equal(number(line('0x3200 flash@ nip . cr'), '0x3200 flash@ nip . cr'), (w0 >>> 16) & 0xffff);
-});
-
-test('a source screen loads from the user flash', () => {
-  assert.match(line('0 screen'), / ok/);
-  const t = line('hello');
-  assert.match(t, /hello from the user flash/);
-  assert.ok(sim.running);
-});
-
-test('an out-of-range screen number is refused', () => {
-  assert.match(line('13 screen'), /screen: 0\.\.12/);
   assert.ok(sim.running);
 });
 

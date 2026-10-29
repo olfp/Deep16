@@ -48,12 +48,6 @@ module deep16_psram_mem #(
   output logic        boot_err,     // the boot read-back did not match
   input  logic        cache_flush,  // FSH retired in WB
 
-  // CPU read port into the on-die user flash (USER_FLASH builds only)
-  input  logic        flash_req,
-  input  logic [14:0] flash_addr,
-  output logic [31:0] flash_data,
-  output logic        flash_busy,
-
   // to the controller (clk_ip domain)
   output logic        ctl_read,
   output logic        ctl_write,
@@ -173,13 +167,8 @@ module deep16_psram_mem #(
     .clk(clk_cpu), .rst(rst), .start(fb_start),
     .done(fb_done), .err(fb_err), .entry_exp(fb_entry),
     .breq(fb_breq), .bwe(fb_bwe), .baddr(fb_baddr), .bwdata(fb_bwdata),
-    .bready(bready), .bbusy(bbusy),
-    .u_req(flash_req), .u_addr(flash_addr),
-    .u_data(flash_data), .u_busy(flash_busy)
+    .bready(bready), .bbusy(bbusy)
   );
-`else
-  assign flash_data = 32'd0;
-  assign flash_busy = 1'b0;
 `endif
 
   logic [14:0] bi;              // destination index (0..IMG_WORDS-1)

@@ -139,11 +139,12 @@ What is in it:
   `synth:tile:packed`) and their `sim:board`/`sim:flash` regressions are retired;
   see `archive/24k-bsram/README.md`. The tile build is the board.
 - **User-flash tile build (verified, persistent).** `npm run synth:tile` moves
-  the boot image and the 2 KB source screens to the on-die 608 Kbit user flash
-  and builds the tile bitstream: **BSRAM 23/26**, CLS 4,237/4,320 (99 %,
-  **83 free**), Logic 8,283. `npm run flash:tile` writes both halves with
-  openFPGALoader (`-f` + `--user-flash image.flash.bin`); the installer
-  bitstream remains the fallback for the user-flash half. See `USERFLASH.md`.
+  the boot image to the on-die 608 Kbit user flash and builds the tile
+  bitstream; the on-board 4 MB config flash is the non-removable store for
+  4 KB slices (phase 1 verified: JEDEC ID, BP=2 MB, sector program/read).
+  `npm run flash:tile` writes the bitstream and user image with
+  openFPGALoader (`-f` + `--user-flash image.flash.bin`). See `USERFLASH.md`
+  and `ADVARCH.md`.
 
 Build and flash (vendor toolchain for the bitstream):
 

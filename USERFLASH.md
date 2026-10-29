@@ -95,14 +95,15 @@ installer fallback for the user-flash half.
   4  build id (first 32 bits of the source hash)
   5..7 reserved
 word 64..12351    the flat image, two 16-bit words per 32-bit flash word
-word 12800..      source screens, one 2 KB page each: 512 words of four
-                  characters (screens/flash/*.fth, page n at 12800 + n*512)
+word 12800..      legacy baked screens (unreachable after the phase-2a read-port
+                  removal; the 4 KB config-flash slices replace them)
 ```
 
 The flat image is 48 KB; the user flash is 76 KB (608 Kbit, 304 rows x 64 x
 32 bits). The installer uses **25 pages of 2 KB** for both the plain and D16D
 images; the D16D demo at 0x4E00 is inside the same 24K image. The 13 pages
-after it (`0x3200`..`0x49FF`) are free and hold the source screens.
+after it (`0x3200`..`0x49FF`) are legacy screen slots; the CPU read port that
+used them was removed in phase 2a, and the config-flash slices replace them.
 
 The **external SPI flash** holds the FPGA configuration (written by `-f`); the
 **on-die 608 Kbit FLASH608K** holds the D16 user image (written by
@@ -130,16 +131,14 @@ The flash controller (`flash608k_ctrl.v`) follows the sequence in Gowin's own
 FLASH608K simulation model: PROG/ERASE leads, NVSTR is the data-storage level,
 YE is the write pulse; erase is 120 ms per page.
 
-## CPU read port and source screens
+## CPU read port removed (phase 2a)
 
-`flash_boot` also gives the CPU the read controller after boot: `0xF00A0`
-address, `0xF00A2` start/busy, `0xF00A4`/`0xF00A6` the two halves (`MEMMAP.md`
-§7.7). One word per request, ~16 us. The boot-script words are
-`flash@ ( word -- lo hi )` and `screen ( n -- )`; a screen is one 2 KB page, 512
-words of four characters, unpacked into a 2,048-cell buffer and run through
-`included`. `screens/flash/*.fth` are baked into `image.flash.bin` at
-`0x3200 + n*512` by `npm run image`, so `npm run flash:tile` writes them; the
-installer bitstream writes only the 25-page image.
+The on-die read port at `0xF00A0` and the boot-script `flash@`/`screen` words
+were removed: they cost 6–15 CLS and the DVI placement could not afford it.
+The FLASH608K is boot storage only again (`flash_boot` + `flash608k_read`).
+The on-board 4 MB P25Q32U config flash is the non-removable store for 4 KB
+slices (`ADVARCH.md`); the `image.flash.bin` screen pages at `0x3200` are no
+longer reachable and will be replaced by the slice image.
 
 ## Installer
 
@@ -178,7 +177,7 @@ the segmented map and are archived (`archive/24k-bsram/README.md`).
 rtl/flash/flash608k_model.sv     behavioural FLASH608K (Verilator)
 rtl/flash/flash608k_core.sv      primitive/model wrapper
 rtl/flash/flash608k_ctrl.sv      read / program / page-erase timing
-rtl/flash/flash_boot.sv          boot copy + CRC + CPU read port
+rtl/flash/flash_boot.sv          boot copy + CRC (no CPU read port)
 rtl/flash/flash_installer.sv     one-time installer top
 fpga/gowin/d16install.sv         installer defines
 fpga/gowin/d16flash.sv           final build defines (USER_FLASH)

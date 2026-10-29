@@ -193,10 +193,14 @@ in `d16tile_flash.sv`. The text and packed builds keep the old flat map.
   they cannot use the new DS.
 - **Loader:** `flash_boot` writes the flat image, the `DS=0x1000` data copy,
   and the `0x3000` BIOS/demo copy. The CRC covers the flash read; the read-back
-  verify was dropped to pay for the CPU read port. The extra logic is gated by
-  `D16SEG`; the text build's loader is unchanged.
-- **Measured tile build:** Logic 8,283 / 8,640 (96 %), CLS 4,237 / 4,320
-  (**99 %, 83 free**), registers 2,985 / 6,771, BSRAM 23 / 26, I/O 26 / 71.
+  verify was dropped; the CPU read port it paid for was removed again in
+  phase 2a. The extra logic is gated by `D16SEG`; the text build's loader is
+  unchanged.
+- **Measured tile build (28 Oct phase-1 image):** Logic 8,283 / 8,640
+  (96 %), CLS 4,237 / 4,320 (99 %, 83 free), registers 2,985 / 6,771,
+  BSRAM 23 / 26, I/O 26 / 71. The config-flash bridge adds the mux/pins:
+  4,274 / 46 free in the flashed phase-1 build. Phase 2a (code only) is
+  4,259 / 61 free but its dvi_pixel placement is 65.973 MHz; it is not flashed.
 - **Simulation:** `tests/segmented.test.js` scatters the image the way
   `flash_boot` does and boots it in the JS core: banner, `free`, arithmetic,
   1,000-deep recursion, `catch`/`throw`, and 20,000 cells on the data stack.
@@ -209,9 +213,10 @@ in `d16tile_flash.sv`. The text and packed builds keep the old flat map.
   `flash:tile` must regenerate the user image with `D16SEG=1`; it now does.
   If `free` still reports 39,212, the old flat user image is still in the
   on-die flash even though the segmented bitstream is loaded.
-- **Done:** the SD driver/block layer, `include`, and the user-flash read port
-  with `flash@`/`screen` (2 KB source screens). The next features (timer
-  interrupt, raster interrupt, audio) are budgeted in `SLIMPLAN.md`.
+- **Done:** the SD driver/block layer, `include`, and the config-flash SPI
+  bring-up (JEDEC ID, BP=2 MB, sector program/read). The on-die flash CPU read
+  port (`flash@`/`screen`) was removed in phase 2a; the 4 KB slice layer moves
+  to the config flash next (`ADVARCH.md`).
 
 ## USB keyboard attachment (alternative)
 

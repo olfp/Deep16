@@ -10,8 +10,9 @@
 //
 // The CRC covers the flash read, which is the path that can fail (the PSRAM
 // write is checked by the cache's own write-through and by the machine running).
-// A read-back verify of PSRAM used to follow it; it cost 12 states and was
-// dropped to pay for the flash read port. A bad header or a CRC mismatch sets
+// A read-back verify of PSRAM used to follow it; it cost 12 states (the CPU
+// read port that paid for it was removed again in phase 2a). A bad header or a
+// CRC mismatch sets
 // `err` and the machine stays in reset (the heartbeat LED shows boot_err); the
 // installer bitstream has to be run again.
 module flash_boot #(
@@ -30,13 +31,7 @@ module flash_boot #(
   output logic [19:0] baddr,
   output logic [15:0] bwdata,
   input  logic        bready,
-  input  logic        bbusy,
-
-  // CPU read port: one 32-bit word per request, after the boot is done
-  input  logic        u_req,
-  input  logic [14:0] u_addr,
-  output logic [31:0] u_data,
-  output logic        u_busy
+  input  logic        bbusy
 );
   localparam logic [31:0] MAGIC  = 32'h44313646;   // 'D16F'
   localparam logic [31:0] FORMAT = 32'd1;
@@ -53,7 +48,6 @@ module flash_boot #(
     S_WR0 = 6'd8, S_WR0W = 6'd9, S_WR1 = 6'd10, S_WR1W = 6'd11,
     S_CRC_CHK = 6'd12,
     S_DONE = 6'd19, S_ERR = 6'd20,
-    S_U_WAIT = 6'd33,
     S_WR_B0 = 6'd21, S_WR_B0W = 6'd22,
     S_WR_B1 = 6'd23, S_WR_B1W = 6'd24,
     S_WR_D0 = 6'd29, S_WR_D0W = 6'd30,
@@ -97,7 +91,6 @@ module flash_boot #(
       hdr_magic <= 32'd0; hdr_format <= 32'd0; hdr_words <= 32'd0; hdr_crc <= 32'd0;
       crc <= 16'hFFFF; crc_byte <= 2'd0; crc_bit <= 3'd0;
       entry_exp <= 16'd0;
-      u_data <= 32'd0; u_busy <= 1'b0;
       f_addr <= 15'd0; f_read <= 1'b0;
       breq <= 1'b0; bwe <= 1'b0; baddr <= 20'd0; bwdata <= 16'd0;
     end else begin
@@ -248,23 +241,7 @@ module flash_boot #(
           end
         end
 
-        // Boot is done; the CPU owns the read port from here. One request per
-        // word: latch the address, pulse the read, and hold busy until the
-        // controller delivers the word.
-        S_DONE: begin
-          done <= 1'b1;
-          if (u_req) begin
-            f_addr <= u_addr;
-            f_read <= 1'b1;
-            u_busy <= 1'b1;
-            st     <= S_U_WAIT;
-          end
-        end
-        S_U_WAIT: if (f_done) begin
-          u_data <= f_rdata;
-          u_busy <= 1'b0;
-          st     <= S_DONE;
-        end
+        S_DONE: done <= 1'b1;
         S_ERR:  err  <= 1'b1;
         default: st <= S_ERR;
       endcase

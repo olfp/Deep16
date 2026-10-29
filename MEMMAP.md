@@ -79,7 +79,6 @@ The `D16SEG` build fixes the layout instead of the constant — see §4.4.
 | `0x0F0060`–`0x0F0064` | keyboard FIFO / echo cell (build-specific) |
 | `0x0F0068`–`0x0F006B` | D16nano 32-bit CPU cycle counter (read-only) |
 | `0x0F0080`–`0x0F008F` | SPI master: SD / external flash (D16nano) |
-| `0x0F00A0`–`0x0F00A7` | user-flash read port (`flash@`, `screen`; D16nano) |
 | `0x0F1000` | display window (screen RAM or tilemap, build-specific) |
 | `0x0F2000`–`0x0F2006` | tile control registers (tile build only) |
 | `0x0F3000`–`0x0F3BFF` | tile bank (tile build only) |
@@ -406,23 +405,11 @@ cells of dictionary, one character per cell, so it is usable as text directly.
 Sector numbers are 16 bits (32 MB of the card).
 
 
-### 7.7 User-flash read port (`0xF00A0`–`0xF00A7`, tile build)
+### 7.7 `0xF00A0` (`0xF00A0`–`0xF00A7`)
 
-One 32-bit flash word per request, sharing `flash_boot`'s read controller. A
-read takes about 16 us at 6.75 MHz (5 us setup + 10 us recovery), so software
-polls the busy bit.
-
-| Address | Name | Access | Meaning |
-|---|---|---|---|
-| `0xF00A0` | `FLASH_ADDR` | R/W | 15-bit flash word address |
-| `0xF00A2` | `FLASH_GO` | W/R | write bit 0 to start a read; read bit 0 = busy |
-| `0xF00A4` | `FLASH_DATA_LO` | R | low 16 bits of the last 32-bit word |
-| `0xF00A6` | `FLASH_DATA_HI` | R | high 16 bits |
-
-The boot-script words are `flash@ ( word -- lo hi )` and `screen ( n -- )`
-(`FORTH.md`). The port is compiled only with `USER_FLASH`; the tile build's
-source screens live at `0x3200 + n*512` in flash words.
-
+Freed in phase 2a when the on-die flash CPU read port was removed. The area is
+reserved for the I2S block (`ADVARCH.md`). The SPI config-flash driver uses
+`0xF0080` and CS1.
 ---
 
 ## 8. PSRAM and storage
@@ -453,15 +440,14 @@ build the probe fails and the dictionary stays below the BIOS.
 | Header | 8 × 32-bit words at flash words 0..7 |
 | Header fields | magic `'D16F'` `0x44313646`, format 1, image length 24,576 words, CRC-16/CCITT-FALSE, build id, reserved |
 | Flat image | flash words 64..12,351; two 16-bit CPU words per 32-bit flash word |
-| Source screens | pages 25..37 (`0x3200`..`0x49FF`), 13 × 2 KB, four characters per 32-bit word |
 | Remainder | `0xFF` |
 | Installer pages | 25 × 2 KB (image only; the screens come with `--user-flash`) |
 
 The boot loader reads the header, copies 12,288 32-bit words as 24,576 PSRAM
 words, checks the CRC, and then hands `0x0100` to the core. A bad header or CRC
-sets `boot_err` and holds the core (LED heartbeat steady). After boot the CPU
-reads the same controller through the port in §7.7; that is how `screen` loads a
-2 KB page.
+sets `boot_err` and holds the core (LED heartbeat steady). The CPU does not
+read the on-die flash: the read port was removed in phase 2a, and non-removable
+storage moves to the on-board config flash (`ADVARCH.md`).
 
 ### 8.3 FPGA configuration flash
 
