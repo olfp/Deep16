@@ -11,6 +11,7 @@ rewritten — a later entry that supersedes part of an earlier one says so.
 | §1 | 2026-10-08 | `MOV imm2` is a four-way function select | implemented |
 | §2 | 2026-10-29 | `SAPF` (`0xFFF6`) — set alternate PSW flags | decided, not implemented |
 | §3 | 2026-10-29 | trap entry no longer zeroes the shadow bank | decided, not implemented |
+| §4 | 2026-10-29 | area cost of §2 and §3 | estimated, not measured |
 
 ## 1. `MOV imm2` redesign (2026-10-08)
 
@@ -152,7 +153,8 @@ it, nothing writes it. Two emulated instructions need exactly that:
 
 Nothing in the field. `0xFFF6` executed as NOP, so no source depends on its
 behaviour and no binary changes meaning except code that deliberately encoded
-it. Cost is a nibble write port into `spsw` — single-digit LUT4.
+it. Cost is a nibble write port into `spsw`: **5–9 CLS**, which §3 pays for
+several times over (§4).
 
 ### Interaction with §3
 
@@ -207,6 +209,9 @@ already uses. Its cost is architectural — it makes the shadow bank *ephemeral*
 so every handler rebuilds its state from memory on every entry. That is the
 largest fixed cost of a short ISR, and it is the reason a 450-cycle tick cannot
 afford a handler.
+
+Area is a **gain**, not a cost: §3 removes logic from the register file and
+from the core's forwarding path (§4).
 
 Without the wipe, `R0'..R3'` and `SP'` become a **persistent handler context**:
 a timer or audio ISR keeps a ring pointer, a phase accumulator, a counter and
@@ -270,3 +275,73 @@ A dedicated third register bank would remove the sharing problem, but it needs
   save/restore is ever dropped;
 - existing behaviour unchanged: `tests/shadow.test.js`,
   `tests/ill-trap.test.js` and `npm test` stay green.
+
+## 4. Area cost of §2 and §3 (2026-10-29)
+
+Estimated, ±40 % until synthesised. Baseline is the measured 28 Oct tile build:
+**4,237 / 4,320 CLS, 83 free**, 1.70 LUT4 per slice (`SLIMPLAN.md` §1, §3).
+
+### Per component
+
+| Change | LUT4 | CLS | Where |
+|---|---|---|---|
+| §2 `SAPF`: SYS decode + `spsw` nibble write port | 8–16 | 5–9 | both cores |
+| §3 regfile: drop the `sh_clear` priority level | 24–48 | 14–28 | both builds |
+| §3 core3: `sh_clear_ex` plumbing and bypass | 4–8 | 2–5 | tile build only |
+| §3 core5: `id_sh_clear` forwarding bypass (3 × 16-bit) + plumbing | 30–50 | 18–30 | text build only |
+
+`sh_clear` sits at the top of a four-level write-priority chain for the six
+16-bit shadow registers (`rtl/deep16_regfile.sv:86-95`: clear, MUL32 low word,
+Rd, debug). Removing one level is about one LUT4 per two destination bits over
+96 bits — a dense, regular block, which is exactly the logic that frees whole
+slices rather than scattered LUTs.
+
+The text build gains more because the five-stage core carries the
+`id_sh_clear` forwarding bypass on three operand ports
+(`rtl/deep16_core.sv:479-491`); core3 has no such path.
+
+### Net per build
+
+| Build | Core | §2 | §3 | Net | Free before → after |
+|---|---|---|---|---|---|
+| tile / user-flash (`D16NANO`) | core3 | +5…+9 | −16…−33 | **−7…−31** | 83 → **~90–114** |
+| D16MINI text (`D16MINI`) | core5 | +5…+9 | −32…−58 | **−23…−53** | 15 → **~40–68** |
+
+Planning figures: **~15 CLS back on the tile build, ~35 on the text build.**
+
+**Land §2 and §3 in one commit.** Alone, §2 costs 5–9 CLS in a build that has
+83 free — affordable, but pointless to pay separately when §3 gives several
+times as much back. Together the tile build never sees the cost.
+
+### What does not change
+
+- **Registers:** the six shadow registers stay (96 FFs). §3 removes a write
+  path, not the bank. No FF change.
+- **BSRAM, DSP, pins:** untouched.
+- **Packability:** CLS is a packing quantity at 99 % slice occupancy. A dense
+  removal from the regfile frees slices; a scattered addition in the SYS decode
+  frees none. That asymmetry favours the good end of the range when both land
+  together, and is the reason §2 alone is the worst order.
+
+### Software side
+
+- `ill_handler` gains the §3 rule-2 save/restore, ~12 instructions (±24 image
+  words, 48 bytes); `swi_to_bios` ~8. Image space, not fabric.
+- **Cycle budget:** ISR entry drops 20–30 cycles — at 15 kHz 13 % → ~8 % of the
+  CPU, at 10 kHz 9 % → 5–6 %.
+
+### How to verify
+
+Re-run `synth:tile` and `synth:board` and read three rows of
+`impl/gwsynthesis/*_syn_rsc.xml`:
+
+1. `u_regfile` should drop ~24–48 LUT. If it drops nothing, the clear was
+   folded into the FF reset and §3's saving is only the core-side bypass.
+2. `u_core` (text) should drop ~30–50 LUT; `u_core3` (tile) roughly flat apart
+   from the SAPF nibble port.
+3. Total CLS and LUT4: whether ~15 freed CLS is real or absorbed by packing.
+
+### Interaction with the interrupt plan
+
+~15 CLS does not fund an I2S transmitter (35–40) plus a timer IRQ (20–32). With
+the shifter merge in `SLIMPLAN.md` §3 (20–40) it does, without cutting sprites.
