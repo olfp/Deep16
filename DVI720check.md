@@ -342,3 +342,18 @@ PLL and OSER10 data lanes. The D16 console confirms the complete tile render,
 scan, 2x2 pixel repeat and TMDS path at 720p. The bring-up LEDs remain as
 documented in section 12 (led2 render clock, led3 DVI lock, led4 scan started,
 led5 first rendered frame).
+
+## 15. 2026-10-29: line-pair control retime
+
+The board changes (config-flash pin mux, removals) moved the DVI placement:
+79.26 → 72.755 → 65.973 MHz. Two fixes:
+
+* **`psram_clk` named and grouped as asynchronous with `clk_cpu`.** The PSRAM
+  bridge is a request/ack handshake and its read data is synchronized, so the
+  cross-domain paths must not drive placement.
+* **`next_line`/`next_buf` registered (`line_next_q`/`buf_next_q`).** The
+  failing path was `sy_1 → ready_seen_*/CE`; the line-pair control is stable
+  for a whole line, so the enable now comes from the registered control.
+
+Result: `dvi_pixel` **84.777 MHz** (6 levels, TNS 0), `dvi_render` 26.801 MHz,
+all clocks close. The tile simulation passes.

@@ -258,37 +258,47 @@ clear the P25Q32U BP on this board (`cf-status` still 38 after a reflash), so
 `cf-unprotect` (WRSR 0x00) was added; use it before a bitstream update, then
 `cf-protect`/`cf-test` re-arms the guard.
 
-## 9. Phase 2a result (code only, not flashed)
+## 9. Phase 2a result: the DVI retime (gate passes)
 
 Removed the on-die flash CPU path (top decode, psram_mem ports, flash_boot
 u_*), the user-flash `flash@`/`screen`/`screen-buf`, the JS flash model and
-the three user-flash tests. `npm test`: 662 pass. The boot-script source ends
-at **`dict_free 0x4897`**, 361 cells below the BIOS.
+the three user-flash tests. `npm test`: 662 pass; the tile sim passes. The
+boot-script source ends at **`dict_free 0x4897`**, 361 cells below the BIOS.
+
+The first build without the port put `dvi_pixel` at **65.973 MHz** (TNS
+−4.090). Two fixes recovered it:
+
+- **`psram_clk` constraint.** The 51 MHz PSRAM PLL is now a named clock in an
+  asynchronous group with `clk_cpu` (the bridge is a handshake; the read data
+  is synchronized). The false CDC paths no longer drive placement:
+  `dvi_pixel` 65.973 → **71.308 MHz**.
+- **Line-pair control retime.** `next_line`/`next_buf` are registered
+  (`line_next_q`/`buf_next_q`) and the `ready_seen` enable uses those, not a
+  combinational path from `sy`. The last failing path was
+  `sy_1 → ready_seen_*/CE` at −0.743 ns.
+
+Final measured, same netlist otherwise:
 
 | | value |
 |---|---|
-| CLS | 4,259 / 4,320 (61 free) |
-| Logic / LUT | 8,252 / 6,442 + 742 ALU |
-| FF | 2,936 |
-| dvi_pixel Fmax | **65.973 MHz** — TNS **−4.090 ns**, 3 endpoints |
-| clk_cpu / dvi_render | 19.510 / 28.255 MHz |
+| CLS | **4,278 / 4,320 (42 free)** |
+| Logic / LUT | 8,297 / 6,485 + 744 ALU |
+| FF | 2,939 |
+| dvi_pixel | **84.777 MHz**, TNS **0** (6 levels) |
+| dvi_render | 26.801 MHz, TNS 0 |
+| clk_cpu / psram_clk | 18.576 / 88.931 MHz, TNS 0 |
 
-The 15 CLS came back, but the DVI got **worse**: the netlist change moved the
-pixel path from 72.755 to 65.973 MHz. The Fmax gate fails, so this bitstream
-was **not flashed**; the board stays on the phase-1 image (72.755).
+The DVI now has ~10.5 MHz of margin (14 % of the period) instead of failing.
+The retime cost ~19 CLS (4,259 → 4,278); the net against the phase-1 4,274 is
++4 CLS, with the source diet and the port gone.
 
-The placement is the problem, not the logic count: removing a small block
-shifted the DVI from 79.26 → 72.755 → 65.973 across three netlists. The next
-step is a DVI decision, not more features:
+The board is **not flashed yet**: the current image has the config-flash BP at
+`38`, so run `cf-unprotect` first, then `npm run flash:tile`. The 2a bitstream
+is safe to flash and the DVI gate passes; after boot, `cf-test`/`cf-protect`
+re-arms the 2 MB guard.
 
-- **revert only the 2a RTL removal** (keep the source/JS/test diet; the port's
-  ~6 CLS returns), which restores the 72.755 placement, then continue 2b;
-- **or fix the pixel path** (pipeline the last pixel stage / region), which is
-  the real 720p fix, then bring the port removal back;
-- **or 480p**, the last resort.
-
-The ARCHREV §3 is a CLS/ISA change, not a DVI fix; it may shift the placement
-by luck, but it should not be the DVI plan.
+Phase 2b (slice layer + SD-driver source slice + JS `SpiFlash`) is next, on
+this 42-free base.
 
 ## 10. Phase 1 test
 

@@ -762,6 +762,11 @@ module dvi_tile #(
   logic        frame_seen;
   logic [2:0]  ready_s0, ready_s1;
   logic        frame_s0, frame_s1;
+  // The line-pair control is registered: next_line/next_buf are stable for the
+  // whole line, so the ready_seen clock enable must not be timed from the sy
+  // counter's combinational compare at the line-end edge.
+  logic        line_next_q;
+  logic [1:0]  buf_next_q;
 
   wire scan_line_end = (sx == 12'(O_H_TOTAL - 1));
   wire [9:0] sy_next = (sy == 10'(O_V_TOTAL - 1)) ? 10'd0 : sy + 10'd1;
@@ -800,43 +805,53 @@ module dvi_tile #(
       ready_seen <= 3'b0;
       frame_seen <= 1'b0;
       free_toggle <= 3'b111;
-    end else if (!started) begin
-      // Wait for line 0 and the render frame boundary. Address 0 has been
-      // standing for a while, so lb_q already holds source pixel 0.
-      if ((ready_s1[0] != ready_seen[0]) && (frame_s1 != frame_seen)) begin
-        started <= 1'b1;
-        ready_seen[0] <= ready_s1[0];
-        frame_seen <= frame_s1;
-        line_valid <= 1'b1;
-        pix_hold <= lb_q;
-        src_x <= 10'd1;
-      end
-    end else if (!scan_line_end) begin
-      sx <= sx + 12'd1;
-      if (tail[0]) begin
-        src_x <= 10'd0;       // preload the next line's source 0
-      end else if (sx[0]) begin
-        pix_hold <= lb_q;     // hold this source pixel for the next two outputs
-        src_x <= src_x + 10'd1;
-      end
+      line_next_q <= 1'b0;
+      buf_next_q <= 2'd0;
     end else begin
-      sx <= 12'd0;
-      sy <= sy_next;
-      pix_hold <= lb_q;       // source 0 of the next line
-      src_x <= 10'd1;
+      // Registered line-pair control: next_line/next_buf are stable for the
+      // whole line, so the ready_seen enable is not a combinational path from
+      // the sy counter at the line-end edge.
+      line_next_q <= next_line;
+      buf_next_q  <= next_buf;
 
-      // The current source line was shown twice: release its buffer.
-      if (sy[0] && (sy < 10'(O_V_ACTIVE)))
-        free_toggle[rd_buf] <= ~free_toggle[rd_buf];
-
-      // At the end of a line pair, latch the next source line's buffer.
-      if (next_line) begin
-        rd_buf <= next_buf;
-        if (ready_s1[next_buf] != ready_seen[next_buf]) begin
-          ready_seen[next_buf] <= ready_s1[next_buf];
+      if (!started) begin
+        // Wait for line 0 and the render frame boundary. Address 0 has been
+        // standing for a while, so lb_q already holds source pixel 0.
+        if ((ready_s1[0] != ready_seen[0]) && (frame_s1 != frame_seen)) begin
+          started <= 1'b1;
+          ready_seen[0] <= ready_s1[0];
+          frame_seen <= frame_s1;
           line_valid <= 1'b1;
-        end else begin
-          line_valid <= 1'b0;
+          pix_hold <= lb_q;
+          src_x <= 10'd1;
+        end
+      end else if (!scan_line_end) begin
+        sx <= sx + 12'd1;
+        if (tail[0]) begin
+          src_x <= 10'd0;       // preload the next line's source 0
+        end else if (sx[0]) begin
+          pix_hold <= lb_q;     // hold this source pixel for the next two outputs
+          src_x <= src_x + 10'd1;
+        end
+      end else begin
+        sx <= 12'd0;
+        sy <= sy_next;
+        pix_hold <= lb_q;       // source 0 of the next line
+        src_x <= 10'd1;
+
+        // The current source line was shown twice: release its buffer.
+        if (sy[0] && (sy < 10'(O_V_ACTIVE)))
+          free_toggle[rd_buf] <= ~free_toggle[rd_buf];
+
+        // At the end of a line pair, latch the next source line's buffer.
+        if (line_next_q) begin
+          rd_buf <= buf_next_q;
+          if (ready_s1[buf_next_q] != ready_seen[buf_next_q]) begin
+            ready_seen[buf_next_q] <= ready_s1[buf_next_q];
+            line_valid <= 1'b1;
+          end else begin
+            line_valid <= 1'b0;
+          end
         end
       end
     end

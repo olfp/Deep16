@@ -10,6 +10,12 @@ create_generated_clock -name clk_cpu -source [get_ports {clk}] -divide_by 4 [get
 
 set_false_path -from [get_ports {rst_n uart_rxd}]
 
+# The PSRAM PLL output (51 MHz) and clk_cpu are a request/ack handshake; the
+# read data is synchronized. Name the PLL clock so the false cross-domain paths
+# can be excluded from placement.
+create_generated_clock -name psram_clk -source [get_ports {clk}] -multiply_by 17 -divide_by 9 [get_pins {u_psram_pll/rpll_inst/CLKOUT}]
+set_clock_groups -asynchronous -group [get_clocks {psram_clk}] -group [get_clocks {clk_cpu}]
+
 # The tile renderer (24.75 MHz, DVI PLL / 15) and the 720p scan/TMDS side
 # (74.25 MHz, DVI PLL / 5) are asynchronous. The handshake uses 2-FF toggles
 # and the line buffer is a dual-clock BSRAM, so cross-domain paths are not timed.
