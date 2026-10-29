@@ -6,6 +6,24 @@ The tested one-command flash writes both halves of the machine: the **FPGA
 configuration** (external config flash) and the **D16 kernel/user image** (the
 on-die 608 Kbit FLASH608K). Both survive a power cycle.
 
+## Slices in the config flash
+
+The config flash's upper 2 MB holds the source/slice image at `0x200000`
+(sectors 512+). It is separate from both the bitstream (lower 2 MB, BP = `38`)
+and the on-die user flash:
+
+```sh
+npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
+# openFPGALoader -f --external-flash --file-type bin \
+#   -o 0x200000 artifacts/image/slices.bin
+```
+
+The current image is 7 slices / 28 KB: directory 0, SD driver 1–3, hello 4,
+catalog 5–6. The boot script loads the SD driver and the catalog before the
+prompt, so `sd`, `dir`, `find` and `4 screen` are available at power-on. The
+slice write leaves the bitstream untouched; `npm run flash:tile` writes the
+configuration, the user image and the slices in one go.
+
 ## Flash (tested)
 
 ```sh
@@ -37,6 +55,7 @@ What the flags do:
 | `-m` | FPGA SRAM | no (tile runs until power-off) |
 | `-f <build>.fs` | FPGA configuration (external config flash) | **yes** |
 | `--user-flash image.flash.bin` | on-die 608 Kbit FLASH608K user flash | **yes** |
+| `-o 0x200000 slices.bin` | config-flash slice area (upper 2 MB) | **yes** |
 | `programmer_cli --run 1` | FPGA SRAM | no |
 | `programmer_cli --run 13` | external config flash (Gowin CLI path) | yes, but the openFPGALoader route is the tested one |
 

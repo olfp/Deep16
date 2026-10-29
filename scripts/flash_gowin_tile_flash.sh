@@ -4,6 +4,7 @@
 # One command writes both halves:
 #   -f <tile .fs>            FPGA configuration (external config flash)
 #   --user-flash <raw .bin>  on-die 608 Kbit user flash (D16D kernel + showcase)
+#   -o 0x200000 <slices.bin> the config-flash slices (upper, writable half)
 #
 # Both survive a power cycle. This is the tested route on the Tang Nano 9K;
 # the Gowin Embedded Flash Mode GUI is an alternative, and the
@@ -26,6 +27,9 @@ command -v openFPGALoader >/dev/null 2>&1 || { echo "openFPGALoader not found" >
 
 openFPGALoader --unprotect-flash -f "$FS" --user-flash "$USER"
 
+# The slices go last: the bitstream write must not be able to disturb them.
+bash "$ROOT/scripts/flash_slices.sh"
+
 echo
-echo "configuration + on-die user flash written."
+echo "configuration + on-die user flash + slices written."
 echo "power-cycle the board: it boots into the D16D menu (Flappy / Forth / autorun)."

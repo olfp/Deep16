@@ -764,9 +764,44 @@ much as the driver's. The card is the only thing on SPI CS0 (`0xF0080`); CS1 is
 the on-board 4 MB P25Q32U config flash, shared through the same master
 (`ADVARCH.md`).
 
-## Source screens (planned: config-flash slices)
+## Source screens: config-flash slices
 
 The on-die flash CPU read port and its `flash@`/`screen` words were removed in
-phase 2a. Source screens, packed screens, sprite sets and audio move to the
-on-board config flash as 4 KB slices; the slice words are the next phase
-(`ADVARCH.md`). Until then the SD card's `include` is the source path.
+phase 2a. Sources now live in the on-board 4 MB P25Q32U config flash (SPI CS1)
+as **4 KB slices** at `0x200000`, in the unprotected upper half. Slice 0 is the
+master directory; `scripts/make_slices.mjs` packs `screens/flash/*.fth` into
+`artifacts/image/slices.bin` and `npm run flash:slices` writes it at
+`0x200000`.
+
+The boot script loads the SD driver (slices 1..3) and the catalog (5..6):
+
+```text
+1 screen               \ the SD/block driver: sd, block, include
+5 screen               \ the slice editor: dir, find, slice-create, ...
+4 screen               \ hello.fth
+hello                  \ hello from the user flash
+```
+
+`screen ( n -- )` follows the link chain, concatenates 2040 characters per
+slice into `text-buf` (8,192 cells, four slices) and interprets the result.
+The source slices are LF-padded, so each 2040-character chunk ends on a line
+boundary. `screen` ends its line: `1 screen` does not return to the words that
+follow it on the same line.
+
+| word | effect |
+|---|---|
+| `slice ( n -- a )` | read slice `n` into `slice-buf` |
+| `slice-valid? ( a -- f )` | magic `5` and a live header |
+| `slice-type ( a -- t )` / `slice-link ( a -- n )` | header fields |
+| `screen ( n -- )` | chain + concatenate + interpret |
+| `dir` | list the master directory |
+| `find ( addr len -- n )` | first slice of a named entry, `0xFFFF` if absent |
+| `slice-create ( n t -- )` | blank header + payload in `slice-buf` |
+| `slice-name! ( addr len -- )` | write the name into `slice-buf` |
+| `slice-flush` | erase + program the current slice (refuses WP) |
+| `dir-add ( n -- )` / `dir-remove ( n -- )` | edit the directory |
+| `p-screen ( n which -- )` | run one 1020-cell half of a type-8 packed source |
+| `sprite-slice ( n -- )` | copy a type-2 sprite slice to the sprite bank |
+
+The SD card's `include ( first count -- )` remains the other source path: it
+reads 512-byte sectors (not slices) from the card and interprets them.

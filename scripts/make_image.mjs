@@ -26,7 +26,6 @@ import { fileURLToPath } from 'node:url';
 import { writeTileFont } from './make_tile_font.mjs';
 import { writeBirdSprite } from './make_bird_sprite.mjs';
 import { writePs2Map } from './make_ps2map.mjs';
-import { loadScreens, SCREEN_BASE, SCREEN_WORDS, SCREEN_PAGES } from './make_screens.mjs';
 import { buildShowcase, checkShowcase, SHOWCASE_SEG_BASE } from './make_showcase.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -265,7 +264,7 @@ export function flashHex(flash) {
   return Array.from(words).map((w) => w.toString(16).padStart(8, '0')).join('\n') + '\n';
 }
 
-export function manifest(img, screens = []) {
+export function manifest(img) {
   const pack = D16D ? null : packImage({ words: img.words });
   return JSON.stringify({
     project: 'D16MINI',
@@ -293,11 +292,6 @@ export function manifest(img, screens = []) {
       installer_words: INSTALLER_WORDS,
       header_words: FLASH_HDR_WORDS,
       crc16: `0x${flashImage(img).crc.toString(16).padStart(4, '0')}`,
-      screens: screens.map((s) => ({
-        screen: s.index,
-        file: path.relative(ROOT, s.file),
-        word: `0x${(SCREEN_BASE + s.index * SCREEN_WORDS).toString(16)}`,
-      })),
     },
     showcase: img.showcase ? {
       source: 'asm/showcase/showcase.asm + asm/showcase/flappy_game.asm',
@@ -323,9 +317,6 @@ if (isMain) {
   checkImage(img);
   const outDir = path.resolve(ROOT, String(argValue('--out', 'artifacts/image')));
   const check = argValue('--check', false);
-  const screens = loadScreens(path.join(ROOT, 'screens', 'flash'));
-  if (screens.length > SCREEN_PAGES)
-    throw new Error(`${screens.length} flash screens: pages 0..${SCREEN_PAGES - 1} are free`);
   // The packed 16-block BSRAM image exists only for the packed console. The
   // D16D user-flash build does not load it (the kernel with the gfx additions is
   // over the 16-block budget); its state is the flat 32K flash image.
@@ -345,7 +336,7 @@ if (isMain) {
       // from an earlier build where the flash bitstream might find it.
       try { fs.unlinkSync(path.join(outDir, 'image-packed.hex')); } catch { /* none */ }
     }
-    fs.writeFileSync(path.join(outDir, 'image.manifest.json'), manifest(img, screens));
+    fs.writeFileSync(path.join(outDir, 'image.manifest.json'), manifest(img));
     // The DVI text renderer reads its font with $readmemh too; keep it beside
     // the image so the Gowin include path and the board sims both find it.
     fs.copyFileSync(path.join(ROOT, 'rtl', 'dvi', 'font8x15.hex'),
@@ -367,13 +358,6 @@ if (isMain) {
     const userFlash = Buffer.alloc(USER_FLASH_BYTES, 0xFF);
     for (let i = 0; i < installerWords.length && i * 4 + 4 <= USER_FLASH_BYTES; i++)
       userFlash.writeUInt32LE(installerWords[i] >>> 0, i * 4);
-    // Source screens: one 2 KB page each, four characters per 32-bit word.
-    // They live in the free pages after the 25-page image (0x3200 onward).
-    for (const s of screens) {
-      const base = SCREEN_BASE + s.index * SCREEN_WORDS;
-      for (let i = 0; i < SCREEN_WORDS; i++)
-        userFlash.writeUInt32LE(s.words[i] >>> 0, (base + i) * 4);
-    }
     fs.writeFileSync(path.join(outDir, 'image.flash.bin'), userFlash);
   }
   const kb = (img.words.length * 2 / 1024).toFixed(0);
@@ -390,10 +374,6 @@ if (isMain) {
   const flash = flashImage(img);
   console.log(`  user flash: ${flash.words.length} x 32-bit words, installer ${INSTALLER_WORDS}, CRC16 0x${flash.crc.toString(16).padStart(4, '0')}`);
   console.log(`  user-flash init file: image.flash.bin (0x13000 = 608 Kbit, 0xFF padded)`);
-  if (screens.length) {
-    const list = screens.map((s) => `${s.index}:${s.name}`).join(' ');
-    console.log(`  flash screens: ${screens.length} page(s) at 0x${SCREEN_BASE.toString(16)} - ${list}`);
-  }
   if (!check) {
     const files = D16D
       ? 'image.hex, image.mi, image.flash.hex, image.flash.bin, image.manifest.json'

@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { assemble, loadBrowserScripts, MEM_WORDS, ROOT } from './helpers.js';
+import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -47,8 +48,10 @@ function scattered() {
   return mem;
 }
 
+const slices = buildSlices();
 const sim = new globalThis.Deep16Simulator();
 sim.loadProgram(scattered());
+sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
 sim.segmentRegisters.CS = 0xffff;   // the boot ROM zeroes DS/SS and enters 0:0x0100
 sim.running = true;
 
@@ -83,7 +86,7 @@ function number(echoed, text) {
 }
 
 const boot = (() => {
-  for (let i = 0; i < 8_000_000 && !out.includes('> '); i++) step(1);
+  for (let i = 0; i < 20_000_000 && !out.includes('> '); i++) step(1);
   return out;
 })();
 // The kernel's cells live in DS=0x1000, not in the flat copy the assembler wrote
@@ -105,6 +108,59 @@ test('the scattered image boots into the segmented map', () => {
 test('the dictionary is the PSRAM segment and reports its free count', () => {
   assert.ok(boot.includes(`${limit() - here()} free`), 'the summary prints free = limit - here');
   assert.ok(here() >= 0x5800 && here() < limit(), 'here is inside the dictionary range');
+});
+
+test('the config flash identifies and the directory is readable', () => {
+  // The boot script loads the SD driver (slices 1..3) and the catalog
+  // (slices 5..7) from the config flash; the directory lists all three.
+  assert.match(boot, /> /);
+  const id = line('cf-id');
+  assert.match(id, /85 60 16/);
+  const d = line('dir');
+  assert.match(d, /hello/);
+  assert.match(d, /catalog/);
+  assert.match(d, /sd/);
+});
+
+test('screen 4 loads the hello slice', () => {
+  assert.match(line('4 screen'), / ok/);
+  assert.match(line('hello'), /hello from the user flash/);
+  assert.ok(sim.running);
+});
+
+test('a slice created and flushed reads back and enters the directory', () => {
+  line('8 3 slice-create');
+  line('s" test" slice-name!');
+  line('slice-flush');
+  assert.equal(number(line('8 slice slice-type . cr'), '8 slice slice-type . cr'), 3);
+  line('8 dir-add');
+  assert.match(line('dir'), /test/);
+  assert.equal(number(line('s" test" find . cr'), 's" test" find . cr'), 8);
+  assert.ok(sim.running);
+});
+
+test('a directory entry can be removed', () => {
+  line('8 dir-remove');
+  assert.doesNotMatch(line('dir'), /\btest\b/);
+  assert.equal(number(line('s" test" find . cr'), 's" test" find . cr'), -1);
+  assert.ok(sim.running);
+});
+
+test('the block protect is settable and clearable', () => {
+  assert.equal(number(line('cf-status 0x38 and . cr'), 'cf-status 0x38 and . cr'), 0);
+  line('cf-protect');
+  assert.equal(number(line('cf-status 0x38 and . cr'), 'cf-status 0x38 and . cr'), 0x38);
+  line('cf-unprotect');
+  assert.equal(number(line('cf-status 0x38 and . cr'), 'cf-status 0x38 and . cr'), 0);
+});
+
+test('a packed screen unpacks with p-screen', () => {
+  line('9 8 slice-create');
+  line('s" pair" slice-name!');
+  line('slice-flush');
+  assert.match(line('9 0 p-screen'), / ok/);
+  assert.match(line('9 1 p-screen'), / ok/);
+  assert.ok(sim.running);
 });
 
 test('arithmetic still works in the new segments', () => {

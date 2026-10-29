@@ -2931,6 +2931,8 @@ pn_lr:
     .word 0              ; print_number's return address across its putch call
 pn_space_flag:
     .word 1              ; 1 = print_number appends its trailing space (default)
+dotr_neg:
+    .word 0              ; .r's sign flag across the padding putch calls
 nw_lr:
     .word 0              ; number_width's return address across the software divide
 pn_r7:
@@ -3055,6 +3057,12 @@ boot_script:
     .string ": free ( -- d )    unused 0 ;   \\ lo, hi=0: unsigned, so d. prints it whole"
     .string ": .addr ( u -- )    hex 0 u.r decimal ;"
     .string ": u. ( u -- )       0 u.r ;"
+    .string ": boot.msg ( -- )"
+    .string "  psram? if"
+    .string "    .\" Deep16   1048576 words of PSRAM, \" free d. .\" free\" cr"
+    .string "  else"
+    .string "    .\" D16MINI  \" window-words u. .\"  words of BSRAM, \" free d. .\" free\" cr"
+    .string "  then ;"
     .string ": mem ( -- )"
     .string "  cr .\" Deep16 memory map\" cr"
     .string "  psram? if"
@@ -3073,107 +3081,14 @@ boot_script:
     .string "    .\"   UART F0040-F004F      boot ROM FFFF0-FFFFF (16 words)\" cr"
     .string "  then"
     .string "  cr ;"
-    .string ": boot.msg ( -- )"
-    .string "  psram? if"
-    .string "    .\" Deep16   1048576 words of PSRAM, \" free d. .\" free\" cr"
-    .string "  else"
-    .string "    .\" D16MINI  \" window-words u. .\"  words of BSRAM, \" free d. .\" free\" cr"
-    .string "  then ;"
     .string "0x80 constant spi-ctrl"
     .string "0x82 constant spi-stat"
     .string "0x84 constant spi-data"
     .string "0x86 constant spi-div"
-    .string "create sd-buf 6144 cells allot      \\ a staging sector in front of 11 payload sectors"
-    .string "variable sd-hi drop"
-    .string "variable sd-lo drop"
-    .string "variable sd-hc drop"
-    .string "variable sd-res drop"
-    .string "variable sd-r1 drop"
-    .string "variable sd-clk drop"
-    .string "variable sd-c drop"
-    .string "variable blk drop"
-    .string "32 sd-clk !                \\ the identification clock: ~100 kHz, the safe end"
-    .string "-1 blk !"
-    .string ": cs! ( f -- )      3 and spi-ctrl es! ;   \\ CS0 = SD, CS1 = config flash"
+    .string ": cs! ( f -- )      3 and spi-ctrl es! ;"
     .string ": spi> ( c -- c )   spi-data es! begin spi-stat es@ 1 and 0= until"
     .string "                    spi-data es@ 0xff and ;"
     .string ": spi! ( c -- )     spi> drop ;"
-    .string ": >arg ( hi lo -- ) sd-lo ! sd-hi ! ;"
-    .string ": arg4 ( -- )       sd-hi @ dup 8 rshift spi! 0xff and spi!"
-    .string "                    sd-lo @ dup 8 rshift spi! 0xff and spi! ;"
-    .string ": sd-wait ( -- b )  0x100 begin 0xff spi> dup 0xff <> if nip exit then drop"
-    .string "                    1- dup 0= if drop 0xff exit then again ;"
-    .string ": sd-token ( -- b ) 0x8000 begin 0xff spi> dup 0xff <> if nip exit then drop"
-    .string "                    1- dup 0= if drop 0xff exit then again ;"
-    .string ": sd-idle ( -- )    0x8000 begin 0xff spi> 0xff = if drop 1"
-    .string "                    else 1- dup 0= then until ;"
-    .string ": sd-cmd ( n crc -- r1 )  1 cs! swap 0x40 or spi! arg4 spi! sd-wait ;"
-    .string ": sd-arg ( n -- )   sd-hc @ if sd-lo ! 0 sd-hi ! exit then"
-    .string "                    dup 9 lshift sd-lo ! 7 rshift sd-hi ! ;"
-    .string ": sd-bytes ( n -- ) 0 do 0xff spi> 0xff and sd-buf i + c! loop ;"
-    .string ": sd-poll ( -- f )"
-    .string "  1 sd-res !"
-    .string "  0x400 0 do"
-    .string "    0 cs!  sd-c @ 41 = if 55 0xff sd-cmd drop then"
-    .string "    0 cs!  sd-c @ 0xff sd-cmd dup sd-r1 !"
-    .string "    dup 0xff = if drop leave then"
-    .string "    0= if 0 sd-res ! leave then"
-    .string "  loop"
-    .string "  sd-res @ 0= ;"
-    .string ": sd-init ( -- n )"
-    .string "  0 sd-hc !  sd-clk @ spi-div es!  0 cs!  0x10 0 do 0xff spi! loop"
-    .string "  1 sd-res !"
-    .string "  3 0 do"
-    .string "    0 0x95 sd-cmd dup sd-r1 ! 1 = if 0 sd-res ! leave then"
-    .string "    0 cs!  0x10 0 do 0xff spi! loop"
-    .string "  loop"
-    .string "  sd-res @ if 0 cs! 1 exit then"
-    .string "  0 cs!"
-    .string "  0 0x1aa >arg  8 0x87 sd-cmd dup sd-r1 !"
-    .string "  1 = if"
-    .string "    0xff spi! 0xff spi!"
-    .string "    0xff spi> dup sd-r1 ! 1 <> if 0 cs! 2 exit then"
-    .string "    0xff spi> 0xaa <> if 0 cs! 2 exit then"
-    .string "  then"
-    .string "  0x4000 0 >arg  41 sd-c !"
-    .string "  sd-poll 0= if"
-    .string "    0 0 >arg  sd-poll 0= if"
-    .string "      0 0 >arg  1 sd-c !  sd-poll 0= if 0 cs! 3 exit then"
-    .string "    then"
-    .string "  then"
-    .string "  0 cs!  58 0xff sd-cmd dup sd-r1 ! if 0 cs! 4 exit then"
-    .string "  0xff spi> 0x40 and if 1 sd-hc ! then"
-    .string "  0xff spi! 0xff spi! 0xff spi!"
-    .string "  0 cs!  0 0x200 >arg  16 0xff sd-cmd drop"
-    .string "  0 spi-div es!  0 cs!  0 ;"
-    .string ": sd-read ( n -- n )"
-    .string "  sd-arg  17 0xff sd-cmd ?dup if 0 cs! exit then"
-    .string "  sd-token dup sd-r1 ! 0xfe <> if 0 cs! 5 exit then"
-    .string "  512 sd-bytes  0xff spi! 0xff spi!"
-    .string "  0 cs!  0 ;"
-    .string ": sd-write ( n -- n )"
-    .string "  sd-arg  24 0xff sd-cmd ?dup if 0 cs! exit then"
-    .string "  0xfe spi!"
-    .string "  512 0 do sd-buf i + c@ 0xff and spi! loop"
-    .string "  0xff spi! 0xff spi!"
-    .string "  sd-wait dup sd-r1 ! 0x1f and 5 <> if 0 cs! 6 exit then"
-    .string "  sd-idle  0 cs!  0 ;"
-    .string ": block ( n -- a )"
-    .string "  dup blk @ = if drop sd-buf exit then"
-    .string "  dup sd-read ?dup if .\" SD read error \" . cr drop sd-buf exit then"
-    .string "  dup blk ! drop sd-buf ;"
-    .string ": save-block ( -- n )    blk @ sd-write ;"
-    .string ": include ( first count -- )"
-    .string "  dup 11 > if .\" include: at most 11 sectors\" cr 2drop exit then"
-    .string "  dup 512 * >r"
-    .string "  0 ?do"
-    .string "    -1 blk !"
-    .string "    dup i + sd-read drop"
-    .string "    sd-buf  sd-buf 512 + i 512 * +  512 move"
-    .string "  loop"
-    .string "  drop r>"
-    .string "  sd-buf 512 + swap included ;"
-    .string ": sd ( -- )              sd-init ?dup if .\" SD init error \" . else .\" SD card ready\" then cr ;"
     .string ": cf-addr ( sector off -- )"
     .string "  over 4 rshift 0xff and spi!"
     .string "  over 0xf and 4 lshift"
@@ -3187,28 +3102,38 @@ boot_script:
     .string "  decimal 0 cs! cr ;"
     .string ": cf-protect ( -- ) cf-wren  2 cs! 1 spi! 0x38 spi!  0 cs! cf-wait ;"
     .string ": cf-unprotect ( -- ) cf-wren  2 cs! 1 spi! 0x00 spi!  0 cs! cf-wait ;"
-    .string ": cf-read ( sector -- lo hi )"
-    .string "  0 spi-div es!  2 cs! 3 spi!  0 cf-addr"
-    .string "  0xff spi> 0xff spi> 0xff spi> 0xff spi> 0 cs!"
-    .string "  >r >r 8 lshift or r> r> 8 lshift or ;"
-    .string ": cf-write ( sector lo hi -- )"
-    .string "  cf-wren  2 cs! 2 spi!  rot 0 cf-addr"
-    .string "  over 0xff and spi!"
-    .string "  over 8 rshift 0xff and spi!"
-    .string "  dup 0xff and spi!"
-    .string "  8 rshift 0xff and spi!"
-    .string "  drop 0 cs! cf-wait ;"
     .string ": cf-erase ( sector -- ) cf-wren 2 cs! 0x20 spi! 0 cf-addr 0 cs! cf-wait ;"
-    .string ": cf-test ( -- )"
-    .string "  .\" config flash id: \" cf-id"
-    .string "  .\" status: \" cf-status hex . decimal cr"
-    .string "  cf-protect"
-    .string "  .\" after BP: \" cf-status hex . decimal cr"
-    .string "  512 cf-erase"
-    .string "  512 0x1234 0xabcd cf-write"
-    .string "  512 cf-read"
-    .string "  .\" read back (hi lo): \" hex u. u. decimal cr"
-    .string "  .\" protected word: \" 256 cf-erase 256 cf-read hex u. u. decimal cr ;"
+    .string "create slice-buf 2048 cells allot"
+    .string "create text-buf 8192 cells allot        \\ up to three 2040-char source slices"
+    .string "variable slice-sec drop"
+    .string "variable slice-wp drop"
+    .string ": cf-read-burst ( sector -- )"
+    .string "  0 spi-div es!  2 cs! 3 spi!  0 cf-addr"
+    .string "  slice-buf 2048 0 do"
+    .string "    0xff spi> 0xff spi> 8 lshift or   over i cells + !"
+    .string "  loop drop 0 cs! ;"
+    .string ": slice ( n -- a )"
+    .string "  dup 0 511 within 0= if .\" slice: 0..511\" cr drop slice-buf exit then"
+    .string "  dup slice-sec !  512 + cf-read-burst"
+    .string "  slice-buf dup @ 0x8000 and slice-wp ! ;"
+    .string ": slice-valid? ( a -- f )"
+    .string "  @ dup 0xffff = if drop 0 exit then  0x7000 and 0x5000 = ;"
+    .string ": slice-type ( a -- t )   @ 0xff and ;"
+    .string ": slice-link ( a -- n )   1 cells + @ ;"
+    .string ": screen ( n -- )"
+    .string "  dup 0 511 within 0= if .\" screen: 0..511\" cr drop exit then"
+    .string "  0 >r  begin"
+    .string "    r@ 8160 < 0= if .\" screen: too long\" cr r> 2drop exit then"
+    .string "    dup slice  ( n a )"
+    .string "    dup slice-valid? 0= if 2drop r> drop exit then"
+    .string "    dup 8 cells +  text-buf r@ cells +  2040 move"
+    .string "    slice-link  ( n n' )"
+    .string "    r> 2040 + >r"
+    .string "    dup 0xffff = if drop drop r> text-buf swap included exit then"
+    .string "    nip"
+    .string "  again ;"
+    .string "1 screen"
+    .string "5 screen"
     .string "boot.msg"
 ; <<< end generated >>>
     .text ""              ; the empty line that ends the script
@@ -5635,6 +5560,16 @@ include_fin:
     CMP R3, R0
     JNZ include_refill_no
     NOP
+    ; A load runs at the top level and drives TIB. If `included` was called
+    ; from a colon word (screen, p-screen), that word's return address and any
+    ; frame it held are stale now: the load ends the line, not the call. Put RP
+    ; back on its base so the REPL and catch/throw start clean.
+    LDI rp0_base
+    MOV R1, R0
+    LD R4, R1, 0
+    LDI rp_ptr
+    MOV R2, R0
+    ST R4, R2, 0
     LDI line_done
     MOV PC, R0
     NOP
@@ -7852,6 +7787,10 @@ wnr_ok:
     MOV R11, R0             ; negative
     NEG R2                  ; the magnitude (-32768 stays put, as everywhere)
 wnr_count:
+    ; Keep the sign in a cell: the padding below calls the BIOS putch, which
+    ; clobbers R11 (only R1 is parked by put_char).
+    LDI dotr_neg
+    ST R11, R0, 0
     LDI number_width
     MOV R10, R0
     LINK
@@ -7885,6 +7824,8 @@ wnr_pad_loop:
     JNZ wnr_pad_loop
     NOP
 wnr_sign:
+    LDI dotr_neg
+    LD R11, R0, 0
     LDI 0
     CMP R11, R0
     JZ wnr_digits

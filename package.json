@@ -28,7 +28,8 @@
     "sim:ps2": "bash scripts/build_ps2_sim.sh",
     "sim:timer": "bash scripts/build_timer_sim.sh",
     "sim:spi": "bash scripts/build_spi_sim.sh",
-    "sim:uarttx": "bash scripts/build_uart_tx_sim.sh"
+    "sim:uarttx": "bash scripts/build_uart_tx_sim.sh",
+    "flash:slices": "bash scripts/flash_slices.sh"
   },
   "devDependencies": {
     "puppeteer-core": "^25.14.0"

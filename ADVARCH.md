@@ -129,19 +129,24 @@ Continuation directories use the link.
 
 ### 3.3 API
 
+Implemented in the boot script (the editor in `catalog.fth` builds on it):
+
 ```text
 slice ( n -- a )              read 4 KB into the 2048-cell buffer
+slice-valid? ( a -- f )       magic 5 and a live header
 slice-type ( a -- t )
-slice-name ( a -- addr len )
-slice-next ( a -- n )
-slice-create ( n t -- )       header + blank payload
-slice-flush ( -- )            erase + program; refuses WP
-screen ( n which -- )         type 3/8: 2040 chars into the include buffer
-sprite-slice ( n -- )         type 2/9: 6 or 8 groups to the sprite bank
-play ( n -- )                 type 0x0A/0x05: load the sound window and play
-bin-load ( n -- )             type 0x0B: chunks into PSRAM
-flash-protect ( -- )          BP = 2 MB
+slice-link ( a -- n )         the next slice in the chain
+screen ( n -- )               follow the chain, concatenate 2040 cells/slice
+                              into text-buf, interpret the result
+cf-erase                      sector erase
+cf-protect / cf-unprotect     BP = 2 MB / clear BP
 ```
+
+Catalog words (`5 screen`): `cf-page ( sector cell -- )` (256-byte page
+program), `slice-create ( n t -- )`, `slice-name!`, `slice-flush`, `dir`,
+`find`, `dir-add`, `dir-remove`, `slice-alloc`,
+`p-screen ( n which -- )` (packed source, type 8), `sprite-slice` (type 2),
+`slice-run ( n -- )`. `slice-flush` refuses a WP slice.
 
 Packed source: screen 0 = cells 8..1027, screen 1 = 1028..2047, 2 chars/cell.
 RLL: PackBits, bit 7=1 literal `(n&0x7F)+1`, bit 7=0 repeat, `0x00` end.
@@ -204,9 +209,10 @@ ends land. The boot move is deferred until CLS runs out.
 
 1. **Bring-up** (this phase): MSPI GPIOs, pin mux, JEDEC ID, status, BP=2 MB,
    test sector at `0x200000`, SD still works. Forth words `cf-id`,
-   `cf-status`, `cf-protect`, `cf-test`.
-2. **Slice layer**: directory, header/flags/rate, types, JS `SpiFlash`, tests;
-   remove the on-die flash CPU port (`flash@`/old `screen`).
+   `cf-status`, `cf-protect`, `cf-test` (`cf-test` was removed in 2b: sector
+   512 is now slice 0).
+2. **Slice layer** (done, §10): directory, header/flags/rate, types, JS
+   `SpiFlash`, tests; remove the on-die flash CPU port (`flash@`/old `screen`).
 3. **ARCHREV §2+§3**: SAPF + no zeroing, software save/restore, BIOS audit,
    tests; measure.
 4. **I2S**: 21.09 kHz, FIFO, FIFO-low IRQ, sound window, μ-law/PCM player,
@@ -238,8 +244,9 @@ choices are a DVI retime or a 480p fallback, not more features.
 The boot-script source now ends at `dict_free 0x49D6`, only **42 cells** below
 the BIOS at `0x4A00`. Phase 2 must remove the on-die `flash@`/`screen` source
 and move the SD driver/`include` to a source slice before adding the slice
-layer, or the image will not build. The slice 1 source is auto-loaded at boot
-(`1 screen`) so `sd`/`include` still exist at the prompt.
+layer, or the image will not build. The SD driver source (slices 1..3) and
+the catalog (slices 5..6) are auto-loaded at boot (`1 screen`, `5 screen`) so
+`sd`/`include`/`dir` exist at the prompt.
 
 Board test (tio, 115200):
 
@@ -248,15 +255,15 @@ cf-id                     85 60 16
 cf-status hex . decimal   38          (2 MB BP set)
 cf-test                   status 38, after BP 38,
                           read back ABCD 1234,
-                          protected word FFFF FFFF
+                          protected word FFFF FFFF   (removed in 2b)
 sd                        SD card ready
 ```
 
-The `38` is the 2 MB block protect; the test writes sector 512 above it. The
+The `38` is the 2 MB block protect; the test wrote sector 512 above it. The
 protected sector 256 is unchanged. `openFPGALoader --unprotect-flash` did not
 clear the P25Q32U BP on this board (`cf-status` still 38 after a reflash), so
 `cf-unprotect` (WRSR 0x00) was added; use it before a bitstream update, then
-`cf-protect`/`cf-test` re-arms the guard.
+`cf-protect` re-arms the guard (and `dir`/slices exercise the upper half).
 
 ## 9. Phase 2a result: the DVI retime (gate passes)
 
@@ -294,34 +301,85 @@ The retime cost ~19 CLS (4,259 → 4,278); the net against the phase-1 4,274 is
 
 The board is **not flashed yet**: the current image has the config-flash BP at
 `38`, so run `cf-unprotect` first, then `npm run flash:tile`. The 2a bitstream
-is safe to flash and the DVI gate passes; after boot, `cf-test`/`cf-protect`
-re-arms the 2 MB guard.
+is safe to flash and the DVI gate passes; after boot, `cf-protect` re-arms
+the 2 MB guard.
 
 Phase 2b (slice layer + SD-driver source slice + JS `SpiFlash`) is next, on
 this 42-free base.
 
-## 10. Phase 1 test
+## 10. Phase 2b result: the slice layer (simulator-verified)
+
+The on-board config flash now carries a 7-slice, 28 KB source image at
+`0x200000` (sector 512), built by `scripts/make_slices.mjs`:
+
+| slice | object | chars |
+|---:|---|---:|
+| 0 | master directory (WP) | 255 entries |
+| 1..3 | `sd.fth` - the SD/block driver | 4,695 |
+| 4 | `hello.fth` | 350 |
+| 5..6 | `catalog.fth` - slice editor, `dir`/`find`, `p-screen` | 3,593 |
+
+At boot the script reads the SD source, interprets it (so `sd`, `block`,
+`include` exist), then reads the catalog. The boot source ends at
+**`dict_free 0x4325`** (17,189 cells free); the image is still 24,576 words.
+The JS core models the P25Q32U byte by byte (`SpiFlash` on CS1: 0x9F, 0x05,
+0x06, 0x03, 0x02, 0x20, 0x01, the 2 MB BP, little-endian cells).
+
+`tests/segmented.test.js` now covers the flash path: `cf-id`, `dir`, loading
+`hello` with `4 screen`, creating/flushing/reading a slice, `dir-add`/`find`,
+the BP protect/unprotect round trip, `dir-remove` and `p-screen`. `npm test`:
+**668 pass**.
+
+Bugs found and fixed while bringing it up:
+
+- `screen` used `begin ... repeat` without a `while`; this kernel's `repeat`
+  pops two control cells, so the branch offset was built from a stale cell and
+  overwrote the body with `here-orig`. Changed to `begin ... again` with
+  explicit `exit`s and an 8,160-cell guard.
+- `slice-valid?` kept the address on the stack (`dup @` instead of `@ dup`),
+  leaking one cell per slice load.
+- `dir` and `find` used `over` with a one-item stack; the entry pointer is now
+  `dup i 8 * cells +`.
+- `slice-flush` erased/programmed sector `slice-sec`, not `slice-sec + 512`.
+- `slice-name!` and `name=` stored the length where the address belonged;
+  `dir-add` moved the temporary entry the wrong way; `p-screen`'s range check
+  excluded page 1. `slice-create` now LF-fills a blank source.
+- `.r` lost its sign across the padding `putch` (the UART BIOS clobbers R11);
+  the sign is kept in `dotr_neg`. `dir` uses `u.r` for the non-negative
+  type/slice columns.
+- `included` now resets the return stack when a load ends: a load called from
+  `screen` or `p-screen` ends the line, so the caller's frame is stale.
+
+Not flashed yet: the bitstream is unchanged since the DVI retime, so only the
+user image and `slices.bin` need writing (`npm run flash:tile`, or
+`npm run flash:slices` to leave the configuration alone).
+
+## 11. Bring-up test
 
 After the build and flash:
 
 ```text
 cf-id                 \ JEDEC ID, expect 85 60 16 (Puya P25Q32U)
-cf-status hex . decimal
-cf-test               \ protect, erase/program/read 0x200000, protected read
+cf-status hex . decimal   \ BP = 38 (lower 2 MB) after cf-protect
+dir                   \ 3 entries: sd 1, hello 4, catalog 5
+4 screen              \ load hello.fth
+hello                 \ hello from the user flash
 sd                    \ SD card ready
+8 3 slice-create      \ create slice 8 as a source, name it, flush, dir-add
+s" test" find .       \ 8
+cf-protect            \ re-arm the 2 MB guard
 ```
 
-The `cf-test` writes at sector **512** = `0x200000` (above the protected
-2 MB). The erase at sector **256** = `0x100000` is inside the protected region
-and must leave the data unchanged. The bitstream at 0 is never touched by the
-test. A Forth cell is 16 bits, so the flash address is a sector number
-(0..1023) plus a 12-bit offset; `cf-addr` sends `sector>>4`,
-`((sector&15)<<4)|(off>>8)`, `off&255`.
+A Forth cell is 16 bits, so the flash address is a sector number (0..1023)
+plus a 12-bit offset; `cf-addr` sends `sector>>4`,
+`((sector&15)<<4)|(off>>8)`, `off&255`. Slices start at sector **512** =
+`0x200000`, above the protected 2 MB; the erase at sector 256 = `0x100000`
+must never be issued by slice code (it is inside the bitstream guard).
 
 If the flash ID is wrong, check the MSPI option, the pin mode of 59–62 and
 `cfg_sel`; if the SD breaks, check the CS1 select and the MISO mux.
 
-## 11. Open items
+## 12. Open items
 
 - The slice allocator: scan-for-blank (simple) or a free list in the directory.
 - The RLL encoder worst case for an 8-group page.

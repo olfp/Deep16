@@ -143,6 +143,106 @@ class SdCard {
     }
 }
 
+
+// The on-board P25Q32U (4 MB) on SPI CS1. Byte-level: the config-flash
+// driver's commands and addresses are exercised; WIP is instant. It models
+// 0x9F, 0x05, 0x06, 0x03, 0x02, 0x20 and 0x01, the 2 MB block protect, and
+// little-endian cell order.
+class SpiFlash {
+    constructor() {
+        this.mem = new Uint8Array(4 * 1024 * 1024).fill(0xff);
+        this.reset();
+    }
+
+    reset() {
+        this.cs = false;
+        this.wren = false;
+        this.sr = 0;
+        this.state = 'cmd';
+        this.cmd = 0;
+        this.addr = 0;
+        this.n = 0;
+        this.buf = [];
+    }
+
+    select() {
+        this.cs = true;
+        this.state = 'cmd';
+        this.cmd = 0;
+        this.addr = 0;
+        this.n = 0;
+        this.buf = [];
+    }
+
+    deselect() {
+        this.finish();
+        this.cs = false;
+    }
+
+    finish() {
+        const protectedPage = (this.sr & 0x38) && this.addr < 0x200000;
+        if (this.cmd === 0x06) {
+            this.wren = true;
+        } else if (this.cmd === 0x01 && this.buf.length) {
+            this.sr = this.buf[0] & 0xff;
+            this.wren = false;
+        } else if (this.cmd === 0x02 && this.wren && this.buf.length && !protectedPage) {
+            for (let i = 0; i < this.buf.length; i++)
+                this.mem[(this.addr + i) & 0x3fffff] &= this.buf[i];
+            this.wren = false;
+        } else if (this.cmd === 0x20 && this.wren && !protectedPage) {
+            const base = this.addr & ~0xfff;
+            for (let i = 0; i < 4096; i++) this.mem[(base + i) & 0x3fffff] = 0xff;
+            this.wren = false;
+        }
+        this.buf = [];
+    }
+
+    exchange(mosi) {
+        const b = mosi & 0xff;
+        switch (this.state) {
+            case 'cmd':
+                this.cmd = b;
+                this.addr = 0;
+                this.n = 0;
+                this.buf = [];
+                if (b === 0x03 || b === 0x02 || b === 0x20) this.state = 'addr';
+                else if (b === 0x05) this.state = 'status';
+                else if (b === 0x9f) this.state = 'id';
+                else if (b === 0x01) this.state = 'sr';
+                else this.state = 'done';
+                return 0xff;
+            case 'addr':
+                this.addr = ((this.addr << 8) | b) & 0xffffff;
+                if (++this.n === 3) {
+                    if (this.cmd === 0x03) this.state = 'read';
+                    else if (this.cmd === 0x02) this.state = 'program';
+                    else this.state = 'done';
+                }
+                return 0xff;
+            case 'read': {
+                const v = this.mem[this.addr & 0x3fffff];
+                this.addr = (this.addr + 1) & 0xffffff;
+                return v;
+            }
+            case 'program':
+                this.buf.push(b);
+                return 0xff;
+            case 'status':
+                return this.sr;
+            case 'id': {
+                const id = [0x85, 0x60, 0x16];
+                return this.n < id.length ? id[this.n++] : 0xff;
+            }
+            case 'sr':
+                this.buf.push(b);
+                return 0xff;
+            default:
+                return 0xff;
+        }
+    }
+}
+
 // Deep16 Simulator - Complete CPU Execution and State Management with Delay Slot
 class Deep16Simulator {
     constructor() {
@@ -162,6 +262,8 @@ class Deep16Simulator {
         // SdCard above for what it does and does not cover.
         this.spi = { cs: 0, div: 0, rx: 0xff, done: 0 };
         this.sdCard = new SdCard();
+        // On-board P25Q32U config flash on SPI CS1.
+        this.spiFlash = new SpiFlash();
         // D16nano benchmark time base: one step is one instruction (the JS core
         // is not cycle-accurate). The board exposes the real CPU cycle counter.
         this.cycleCount = 0;
@@ -1455,13 +1557,18 @@ class Deep16Simulator {
             case 0: {
                 const cs = value & 0x3;
                 if ((this.spi.cs & 0x1) && !(cs & 0x1) && this.sdCard) this.sdCard.deselect();
+                if (!(this.spi.cs & 0x2) && (cs & 0x2) && this.spiFlash) this.spiFlash.select();
+                if ((this.spi.cs & 0x2) && !(cs & 0x2) && this.spiFlash) this.spiFlash.deselect();
                 this.spi.cs = cs;
                 break;
             }
             case 4:
-                this.spi.rx = (this.spi.cs & 0x1) && this.sdCard
-                    ? this.sdCard.exchange(value & 0xff)
-                    : 0xff;
+                if ((this.spi.cs & 0x2) && this.spiFlash)
+                    this.spi.rx = this.spiFlash.exchange(value & 0xff);
+                else if ((this.spi.cs & 0x1) && this.sdCard)
+                    this.spi.rx = this.sdCard.exchange(value & 0xff);
+                else
+                    this.spi.rx = 0xff;
                 this.spi.done = 1;
                 break;
             case 6:

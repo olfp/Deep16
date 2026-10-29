@@ -441,7 +441,7 @@ build the probe fails and the dictionary stays below the BIOS.
 | Header fields | magic `'D16F'` `0x44313646`, format 1, image length 24,576 words, CRC-16/CCITT-FALSE, build id, reserved |
 | Flat image | flash words 64..12,351; two 16-bit CPU words per 32-bit flash word |
 | Remainder | `0xFF` |
-| Installer pages | 25 × 2 KB (image only; the screens come with `--user-flash`) |
+| Installer pages | 25 × 2 KB (image only; source slices are separate) |
 
 The boot loader reads the header, copies 12,288 32-bit words as 24,576 PSRAM
 words, checks the CRC, and then hands `0x0100` to the core. A bad header or CRC
@@ -452,10 +452,26 @@ storage moves to the on-board config flash (`ADVARCH.md`).
 ### 8.3 FPGA configuration flash
 
 The `.fs` bitstream (e.g. `deep16_board_tile_flash.fs`) goes to the **external
-SPI configuration flash** with `openFPGALoader -f`; it is not CPU-addressable.
-The on-die user flash is written separately with
-`--user-flash artifacts/image/image.flash.bin`. Both are persistent; the `.fs`
-and `image.flash.bin` must come from the same build.
+SPI configuration flash** with `openFPGALoader -f`; the CPU reaches it only
+through the SPI master (CS1), not as memory. The on-die user flash is written
+separately with `--user-flash artifacts/image/image.flash.bin`. Both are
+persistent; the `.fs` and `image.flash.bin` must come from the same build.
+
+The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
+512–1023) is the **slice area**:
+
+| byte range | contents |
+|---|---|
+| `0x200000` + `n × 0x1000` | slice `n`, 4 KB = 2048 cells |
+| `0x200000` | slice 0: the master directory |
+| `0x201000`–`0x203FFF` | slices 1–3: the SD driver source |
+| `0x204000` | slice 4: `hello.fth` |
+| `0x205000`–`0x206FFF` | slices 5–6: the catalog/editor source |
+
+`scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
+`npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and
+the reserved kernel region) stays under BP = `0x38`, so a slice write cannot
+touch it.
 
 ### 8.4 BSRAM (physical, not the CPU map)
 

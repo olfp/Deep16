@@ -31,6 +31,13 @@ unused 0x4000 u> constant psram?   \ the PSRAM probe raised the ceiling
 : .addr ( u -- )    hex 0 u.r decimal ;
 : u. ( u -- )       0 u.r ;
 
+: boot.msg ( -- )
+  psram? if
+    ." Deep16   1048576 words of PSRAM, " free d. ." free" cr
+  else
+    ." D16MINI  " window-words u. ."  words of BSRAM, " free d. ." free" cr
+  then ;
+
 : mem ( -- )
   cr ." Deep16 memory map" cr
   psram? if
@@ -50,152 +57,25 @@ unused 0x4000 u> constant psram?   \ the PSRAM probe raised the ceiling
   then
   cr ;
 
-: boot.msg ( -- )
-  psram? if
-    ." Deep16   1048576 words of PSRAM, " free d. ." free" cr
-  else
-    ." D16MINI  " window-words u. ."  words of BSRAM, " free d. ." free" cr
-  then ;
-
-\ ---- SD card, SPI CS0 (0xF0080) -------------------------------------------
-\ One 512-byte sector, held as 512 characters, one per cell, in a dictionary
-\ buffer - not at address 0, where the flat builds keep the vectors and kernel.
-\ The registers are ES-relative (ES = 0xF000), so the driver uses es@ and es!.
-\ Block numbers are 16 bits: 32 MB of the card, which is a Forth block system's
-\ own limit as much as this driver's.
+\ ---- SPI master (0xF0080): SD card CS0, config flash CS1 ----------------
+\ The registers are ES-relative (ES = 0xF000); one byte at a time, protocol
+\ in software. CS0 is the microSD, CS1 the on-board P25Q32U.
 0x80 constant spi-ctrl
 0x82 constant spi-stat
 0x84 constant spi-data
 0x86 constant spi-div
-create sd-buf 6144 cells allot      \ a staging sector in front of 11 payload sectors
-variable sd-hi drop
-variable sd-lo drop
-variable sd-hc drop
-variable sd-res drop
-variable sd-r1 drop
-variable sd-clk drop
-variable sd-c drop
-variable blk drop
-32 sd-clk !                \ the identification clock: ~100 kHz, the safe end
--1 blk !
 
 \ CS0 asserted (1) or released (0); one byte out and the byte that came in.
-: cs! ( f -- )      3 and spi-ctrl es! ;   \ CS0 = SD, CS1 = config flash
+: cs! ( f -- )      3 and spi-ctrl es! ;
 : spi> ( c -- c )   spi-data es! begin spi-stat es@ 1 and 0= until
                     spi-data es@ 0xff and ;
 : spi! ( c -- )     spi> drop ;
-\ The 32-bit command argument, sent high byte first.
-: >arg ( hi lo -- ) sd-lo ! sd-hi ! ;
-: arg4 ( -- )       sd-hi @ dup 8 rshift spi! 0xff and spi!
-                    sd-lo @ dup 8 rshift spi! 0xff and spi! ;
-\ 0xFF is an idle bus, so a response is the first byte that is not 0xFF.
-: sd-wait ( -- b )  0x100 begin 0xff spi> dup 0xff <> if nip exit then drop
-                    1- dup 0= if drop 0xff exit then again ;
-: sd-token ( -- b ) 0x8000 begin 0xff spi> dup 0xff <> if nip exit then drop
-                    1- dup 0= if drop 0xff exit then again ;
-: sd-idle ( -- )    0x8000 begin 0xff spi> 0xff = if drop 1
-                    else 1- dup 0= then until ;
-: sd-cmd ( n crc -- r1 )  1 cs! swap 0x40 or spi! arg4 spi! sd-wait ;
-\ CMD17/CMD24 take a block number on SDHC and a byte address before it.
-: sd-arg ( n -- )   sd-hc @ if sd-lo ! 0 sd-hi ! exit then
-                    dup 9 lshift sd-lo ! 7 rshift sd-hi ! ;
-: sd-bytes ( n -- ) 0 do 0xff spi> 0xff and sd-buf i + c! loop ;
-
-\ Poll the init command in sd-c (41 = ACMD41 after CMD55, 1 = CMD1 for an MMC)
-\ with the argument in sd-hi/sd-lo. True when the card left idle: a v1 card
-\ wants HCS=0 and an MMC has no ACMD41, so one loop serves all three attempts.
-\ sd-r1 keeps the last response.
-: sd-poll ( -- f )
-  1 sd-res !
-  0x400 0 do
-    0 cs!  sd-c @ 41 = if 55 0xff sd-cmd drop then
-    0 cs!  sd-c @ 0xff sd-cmd dup sd-r1 !
-    dup 0xff = if drop leave then
-    0= if 0 sd-res ! leave then
-  loop
-  sd-res @ 0= ;
-
-\ 0 is ready, otherwise the stage that failed: 1 CMD0, 2 the CMD8 echo, 3 the
-\ init poll, 4 CMD58, 5 the read token, 6 the write response. CMD8 is optional
-\ (a card that does not answer it is a v1 card; CMD58's CCS decides addressing),
-\ CMD0 is retried three times, and every command gets its own CS edge.
-: sd-init ( -- n )
-  0 sd-hc !  sd-clk @ spi-div es!  0 cs!  0x10 0 do 0xff spi! loop
-  1 sd-res !
-  3 0 do
-    0 0x95 sd-cmd dup sd-r1 ! 1 = if 0 sd-res ! leave then
-    0 cs!  0x10 0 do 0xff spi! loop
-  loop
-  sd-res @ if 0 cs! 1 exit then
-  0 cs!
-  0 0x1aa >arg  8 0x87 sd-cmd dup sd-r1 !
-  1 = if
-    0xff spi! 0xff spi!
-    0xff spi> dup sd-r1 ! 1 <> if 0 cs! 2 exit then
-    0xff spi> 0xaa <> if 0 cs! 2 exit then
-  then
-  0x4000 0 >arg  41 sd-c !
-  sd-poll 0= if
-    0 0 >arg  sd-poll 0= if
-      0 0 >arg  1 sd-c !  sd-poll 0= if 0 cs! 3 exit then
-    then
-  then
-  0 cs!  58 0xff sd-cmd dup sd-r1 ! if 0 cs! 4 exit then
-  0xff spi> 0x40 and if 1 sd-hc ! then
-  0xff spi! 0xff spi! 0xff spi!
-  0 cs!  0 0x200 >arg  16 0xff sd-cmd drop
-  0 spi-div es!  0 cs!  0 ;
-
-: sd-read ( n -- n )
-  sd-arg  17 0xff sd-cmd ?dup if 0 cs! exit then
-  sd-token dup sd-r1 ! 0xfe <> if 0 cs! 5 exit then
-  512 sd-bytes  0xff spi! 0xff spi!
-  0 cs!  0 ;
-
-: sd-write ( n -- n )
-  sd-arg  24 0xff sd-cmd ?dup if 0 cs! exit then
-  0xfe spi!
-  512 0 do sd-buf i + c@ 0xff and spi! loop
-  0xff spi! 0xff spi!
-  sd-wait dup sd-r1 ! 0x1f and 5 <> if 0 cs! 6 exit then
-  sd-idle  0 cs!  0 ;
-
-\ The block layer: sector n is read once and then stays in sd-buf.
-: block ( n -- a )
-  dup blk @ = if drop sd-buf exit then
-  dup sd-read ?dup if ." SD read error " . cr drop sd-buf exit then
-  dup blk ! drop sd-buf ;
-: save-block ( -- n )    blk @ sd-write ;
-
-\ ---- source from the card ------------------------------------------------
-\ A screen is one 512-byte sector of text: lines separated by LF, the rest of
-\ the sector padded with LF (an empty line is a no-op; a tail of zeros would be
-\ one over-long line, and a load throws -22 past 128 characters).
-\ include ( first count -- ) reads count sectors and interprets them as one
-\ source file. sd-buf is the staging sector in front of the payload - sector i
-\ lands at 512*(i+1) - so a read never overwrites one already moved into place.
-\ The payload is 11 sectors; the length goes on the return stack because `do`
-\ eats the count. -1 blk ! because the load overwrites the block buffer.
-: include ( first count -- )
-  dup 11 > if ." include: at most 11 sectors" cr 2drop exit then
-  dup 512 * >r
-  0 ?do
-    -1 blk !
-    dup i + sd-read drop
-    sd-buf  sd-buf 512 + i 512 * +  512 move
-  loop
-  drop r>
-  sd-buf 512 + swap included ;
-
-: sd ( -- )              sd-init ?dup if ." SD init error " . else ." SD card ready" then cr ;
 
 \ ---- config flash, SPI CS1 (0xF0080) -------------------------------------
 \ The on-board 4 MB P25Q32U shares SCK/MOSI/MISO with the SD card; the board
-\ routes the master to its MSPI pins while CS1 is low. This is the phase-1
-\ bring-up: JEDEC ID, status, BP = lower 2 MB, and a test 4 KB sector at
-\ 0x200000 (sector 512, above the protected bitstream region). A cell is 16
-\ bits, so a flash address is a sector number (0..1023) plus a 12-bit offset;
-\ the address bytes are sector>>4, ((sector&15)<<4)|(off>>8), off&255.
+\ routes the master to its MSPI pins while CS1 is low. A cell is 16 bits, so
+\ a flash address is a sector number (0..1023) plus a 12-bit offset; the
+\ address bytes are sector>>4, ((sector&15)<<4)|(off>>8), off&255.
 : cf-addr ( sector off -- )
   over 4 rshift 0xff and spi!
   over 0xf and 4 lshift
@@ -211,27 +91,49 @@ variable blk drop
 \ read-only; the slices at sector 512+ stay writable.
 : cf-protect ( -- ) cf-wren  2 cs! 1 spi! 0x38 spi!  0 cs! cf-wait ;
 : cf-unprotect ( -- ) cf-wren  2 cs! 1 spi! 0x00 spi!  0 cs! cf-wait ;
-: cf-read ( sector -- lo hi )
-  0 spi-div es!  2 cs! 3 spi!  0 cf-addr
-  0xff spi> 0xff spi> 0xff spi> 0xff spi> 0 cs!
-  >r >r 8 lshift or r> r> 8 lshift or ;
-: cf-write ( sector lo hi -- )
-  cf-wren  2 cs! 2 spi!  rot 0 cf-addr
-  over 0xff and spi!
-  over 8 rshift 0xff and spi!
-  dup 0xff and spi!
-  8 rshift 0xff and spi!
-  drop 0 cs! cf-wait ;
 : cf-erase ( sector -- ) cf-wren 2 cs! 0x20 spi! 0 cf-addr 0 cs! cf-wait ;
-: cf-test ( -- )
-  ." config flash id: " cf-id
-  ." status: " cf-status hex . decimal cr
-  cf-protect
-  ." after BP: " cf-status hex . decimal cr
-  512 cf-erase
-  512 0x1234 0xabcd cf-write
-  512 cf-read
-  ." read back (hi lo): " hex u. u. decimal cr
-  ." protected word: " 256 cf-erase 256 cf-read hex u. u. decimal cr ;
+
+\ ---- config-flash slices: 4 KB = 2048 cells, sector 512 + n -------------
+\ Header word0: bit15 WP, bits14:12 magic 5, bits11:8 flags/rate, bits7:0
+\ type. Cell 1 link, cells 2..7 name (12 chars, 2/cell), payload from cell 8.
+create slice-buf 2048 cells allot
+create text-buf 8192 cells allot        \ up to three 2040-char source slices
+variable slice-sec drop
+variable slice-wp drop
+
+: cf-read-burst ( sector -- )
+  0 spi-div es!  2 cs! 3 spi!  0 cf-addr
+  slice-buf 2048 0 do
+    0xff spi> 0xff spi> 8 lshift or   over i cells + !
+  loop drop 0 cs! ;
+
+\ The slice words the boot needs are here, before `screen`; the editor in
+\ catalog.fth builds on them.
+: slice ( n -- a )
+  dup 0 511 within 0= if ." slice: 0..511" cr drop slice-buf exit then
+  dup slice-sec !  512 + cf-read-burst
+  slice-buf dup @ 0x8000 and slice-wp ! ;
+: slice-valid? ( a -- f )
+  @ dup 0xffff = if drop 0 exit then  0x7000 and 0x5000 = ;
+: slice-type ( a -- t )   @ 0xff and ;
+: slice-link ( a -- n )   1 cells + @ ;
+
+: screen ( n -- )
+  dup 0 511 within 0= if ." screen: 0..511" cr drop exit then
+  0 >r  begin
+    r@ 8160 < 0= if ." screen: too long" cr r> 2drop exit then
+    dup slice  ( n a )
+    dup slice-valid? 0= if 2drop r> drop exit then
+    dup 8 cells +  text-buf r@ cells +  2040 move
+    slice-link  ( n n' )
+    r> 2040 + >r
+    dup 0xffff = if drop drop r> text-buf swap included exit then
+    nip
+  again ;
+
+
+\ load the SD driver and the catalog from the config flash
+1 screen
+5 screen
 
 boot.msg
