@@ -237,17 +237,17 @@ create screen-buf 2048 cells allot
   over 8 rshift 0xf and or spi!
   0xff and spi! drop ;
 : cf-wren ( -- )    0 spi-div es! 2 cs! 6 spi! 0 cs! ;
-: cf-status ( -- b ) 0 spi-div es! 2 cs! 5 spi! spi> 0 cs! ;
+: cf-status ( -- b ) 0 spi-div es! 2 cs! 5 spi! 0xff spi> 0 cs! ;
 : cf-wait ( -- )    begin cf-status 1 and 0= until ;
 : cf-id ( -- )
-  0 spi-div es!  2 cs! 0x9f spi!  hex spi> . spi> . spi> .  decimal
-  0 cs! cr ;
+  0 spi-div es!  2 cs! 0x9f spi!  hex 0xff spi> . 0xff spi> . 0xff spi> .
+  decimal 0 cs! cr ;
 \ BP4..0 = 0 1 1 1 0: the lower 2 MB (bitstream and future kernel) is
 \ read-only; the slices at sector 512+ stay writable.
 : cf-protect ( -- ) cf-wren  2 cs! 1 spi! 0x38 spi!  0 cs! cf-wait ;
 : cf-read ( sector -- lo hi )
   0 spi-div es!  2 cs! 3 spi!  0 cf-addr
-  spi> spi> spi> spi> 0 cs!
+  0xff spi> 0xff spi> 0xff spi> 0xff spi> 0 cs!
   >r >r 8 lshift or r> r> 8 lshift or ;
 : cf-write ( sector lo hi -- )
   cf-wren  2 cs! 2 spi!  rot 0 cf-addr
