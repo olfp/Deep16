@@ -245,6 +245,7 @@ create screen-buf 2048 cells allot
 \ BP4..0 = 0 1 1 1 0: the lower 2 MB (bitstream and future kernel) is
 \ read-only; the slices at sector 512+ stay writable.
 : cf-protect ( -- ) cf-wren  2 cs! 1 spi! 0x38 spi!  0 cs! cf-wait ;
+: cf-unprotect ( -- ) cf-wren  2 cs! 1 spi! 0x00 spi!  0 cs! cf-wait ;
 : cf-read ( sector -- lo hi )
   0 spi-div es!  2 cs! 3 spi!  0 cf-addr
   0xff spi> 0xff spi> 0xff spi> 0xff spi> 0 cs!
@@ -255,7 +256,7 @@ create screen-buf 2048 cells allot
   over 8 rshift 0xff and spi!
   dup 0xff and spi!
   8 rshift 0xff and spi!
-  2drop 0 cs! cf-wait ;
+  drop 0 cs! cf-wait ;
 : cf-erase ( sector -- ) cf-wren 2 cs! 0x20 spi! 0 cf-addr 0 cs! cf-wait ;
 : cf-test ( -- )
   ." config flash id: " cf-id
