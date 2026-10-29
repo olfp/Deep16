@@ -111,8 +111,9 @@ function run({ mode = 1, frames = 260, hitAt = -1, keyAt = -1, key = 0, holdS2 =
       lastDeath = death;
     }
     if (death === 1 || death === 2 || death === 3) {
-      const bits = sim.memory[OAM_BASE];
-      deathGroups.add(`${(bits >> 10) & 7}:${(bits >> 14) & 1}`);
+      const w0 = sim.memory[OAM_BASE];
+      const w1 = sim.memory[OAM_BASE + 1];
+      deathGroups.add(`${(w1 >> 11) & 7}:${(w0 >> 14) & 1}`);
     }
     if (frame > 2) {
       const y = sim.memory[G_BIRD_Y];
@@ -141,20 +142,26 @@ test('showcase block stays inside the game block', () => {
   assert.ok(showcase.max < 0x0DF0, 'keeps a margin below the 0xE00 stack guard');
 });
 
-test('the reset picks a bird, its palette and its sprite page', () => {
+test('the reset picks a bird, its palette and its write page', () => {
   const r = run({ mode: 1, frames: 20 });
   const page = r.sim.memory[CONTROL] & 3;
-  assert.ok(page <= 2, `sprite page ${page}`);
+  assert.ok(page <= 2, `sprite write page ${page}`);
   assert.equal(r.sim.memory[PAL_BODY], BIRD_COLOURS[page][0], 'body palette entry');
   assert.equal(r.sim.memory[PAL_BELLY], BIRD_COLOURS[page][1], 'belly palette entry');
 
-  // The four cloud sprites are behind the map, in group 2, enabled.
+  // The bird OAM group is absolute: page * 8 + a pose in 3..7.
+  const birdW1 = r.sim.memory[OAM_BASE + 1];
+  const birdGroup = (birdW1 >> 11) & 0x1f;
+  assert.ok(birdGroup >= page * 8 + 3 && birdGroup <= page * 8 + 7,
+            `bird group ${birdGroup} for page ${page}`);
+
+  // The four cloud sprites are behind the map, in absolute group 2, enabled.
   for (let i = 1; i <= 4; i++) {
     const w0 = r.sim.memory[OAM_BASE + i * 2];
     const w1 = r.sim.memory[OAM_BASE + i * 2 + 1];
     assert.equal((w0 >> 15) & 1, 1, `cloud ${i} behind`);
-    assert.equal((w0 >> 10) & 7, 2, `cloud ${i} group`);
-    assert.equal(w1 & 0x0400, 0x0400, `cloud ${i} enabled`);
+    assert.equal((w1 >> 11) & 0x1f, 2, `cloud ${i} group`);
+    assert.equal(w0 & 0x0800, 0x0800, `cloud ${i} enabled`);
     assert.ok((w1 & 0x3FF) === 45 || (w1 & 0x3FF) === 90, `cloud ${i} row`);
   }
 });
@@ -188,7 +195,7 @@ test('attract mode flies without dying', () => {
 test('a cloud crossing the left edge carries the x sign bit', () => {
   const r = run({ mode: 1, frames: 280 });
   let sign = 0;
-  for (let i = 1; i <= 4; i++) sign |= (r.sim.memory[OAM_BASE + i * 2 + 1] >> 11) & 1;
+  for (let i = 1; i <= 4; i++) sign |= (r.sim.memory[OAM_BASE + i * 2] >> 10) & 1;
   assert.equal(sign, 1, 'cloud x sign bit set at least once');
 });
 

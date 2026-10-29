@@ -558,7 +558,7 @@ module deep16_top
   //   0xF4000  sprite bank        0xF5000  OAM (0x00..0x1F), palette (0x80..0x8F)
   //   0xF2000/2/4/6  cursor, row offset, scroll_x, scroll_y
   //   0xF2008        tilemap page select (bit 0 write, bit 1 display)
-  //   0xF200A        sprite group page (0 Red/demo, 1 Purple, 2 Yellow)
+  //   0xF200A        sprite write page (0 Red/demo, 1 Purple, 2 Yellow)
   wire tile_hit = mem_we && (mem_waddr >= 21'h0F1000) && (mem_waddr <= 21'h0F1853);
   wire bank_hit = mem_we && (mem_waddr >= 21'h0F3000) && (mem_waddr <= 21'h0F3BFF);
   wire spr_hit  = mem_we && (mem_waddr >= 21'h0F4000) && (mem_waddr <= 21'h0F47FF);

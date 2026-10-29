@@ -70,6 +70,10 @@ does not define `D16_PERIPH`.
   a write to `0xF0042` starts an 8N1 byte at the fixed baud divisor. This is the
   path for future X/YMODEM host transfers. The tile console still owns the
   screen; the UART TX is a second output, not a replacement.
+- **Current tile build** (29 Oct 2026, after I2S + flat OAM pointer):
+  CLS **4,299 / 4,320 (21 free)**, LUT 6,617 + 760 ALU, FF 3,004,
+  BSRAM 24 / 26; `dvi_pixel` **80.643 MHz**, `dvi_render` **26.584 MHz**,
+  all clocks TNS 0 (`place_option 1`).
 - **Measured cost** (tile/user-flash build, 28 Oct 2026, after PS/2, timer, SPI,
   UART TX, the three-bird sprite bank, the segmented map and the flash read
   port): Logic 8,283 / 8,640 (96 %), CLS **4,237 / 4,320** (**99 %, 83 free**),

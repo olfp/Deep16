@@ -342,17 +342,17 @@ tile engine and the PSRAM/Forth mirror at the same address.
 | `0xF2004` | control 2 | smooth `scroll_x` (0..15), latched with control 4 at the frame boundary |
 | `0xF2006` | control 3 | smooth `scroll_y` (0..30) |
 | `0xF2008` | control 4 | b0 write bank, b1 display bank (display bank and `scroll_x` swap at the render frame boundary) |
-| `0xF200A` | control 5 | sprite group page (b1:0): 0 Red, 1 Purple, 2 Yellow |
+| `0xF200A` | control 5 | sprite **write** page (b1:0): 0 Red, 1 Purple, 2 Yellow; 3 clamps to 0 |
 | `0xF3000`–`0xF3BFF` | tile bank | 96 tiles × 32 words; 30 words of 8×15 4bpp, word 30 palette pointer, word 31 flags |
-| `0xF4000`–`0xF47FF` | sprite bank | 8 groups × 128 8×8 4bpp patterns × 16 words, selected by the control-5 page; the bank holds 24 groups (3 pages), preloaded |
-| `0xF5000`–`0xF500F` | OAM | 8 sprites × 2 words: `w0={behind,vflip,hflip,group[2:0],x[9:0]}`, `w1={xsign,3'b0,enable,y[9:0]}` |
+| `0xF4000`–`0xF47FF` | sprite bank | 8 groups × 16 patterns × 16 words, selected by the control-5 **write** page; the bank holds 24 groups (3 pages), preloaded. The renderer uses the absolute OAM group. |
+| `0xF5000`–`0xF500F` | OAM | 8 sprites × 2 words: `w0={behind,vflip,hflip,free,enable,xsign,x[9:0]}`, `w1={group[4:0],free,y[9:0]}` |
 | `0xF5080`–`0xF508F` | palette | 16 × RGB332 entries |
 | rest of `0xF5000`–`0xF50FF` | — | reserved |
 
 Tile address convention: `(character - 0x20) * 32`. A 32×32 sprite is 16 8×8
 tiles; `tile = group*16 + (row/8)*4 + column`. Sprite palette index 0 is
 transparent; OAM bit 15 puts the sprite behind background index 0; sprite 0 wins
-priority. OAM w1 bit 11 marks a negative sprite x; the compositor biases both
+priority. OAM w0 bit 10 marks a negative sprite x; the compositor biases both
 x and the beam position by +32, so a sprite can cross the left edge and be
 clipped instead of vanishing.
 

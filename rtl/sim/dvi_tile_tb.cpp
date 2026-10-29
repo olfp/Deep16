@@ -252,10 +252,10 @@ int main(int argc, char** argv) {
   // TOP=0, map row 6 is y=90..104, the row the sprite at y=100 sits on.
   for (int w = 0; w < 32; w++) write_win(1, 90 * 32 + w, 0x0000);
   write_tile(6 * 82 + 2, 90 * 32);                             // row 6, col 2
-  write_win(3, 0, 16 | (0 << 10));                             // sprite 0: x=16, group 0
-  write_win(3, 1, 100 | (1 << 10));                            // y=100, enable
-  write_win(3, 2, 16 | (1 << 10) | (1 << 15));                 // sprite 1: group 1, behind
-  write_win(3, 3, 100 | (1 << 10));
+  write_win(3, 0, 16 | 0x0800);                                // sprite 0: x=16, enable
+  write_win(3, 1, 100 | (0 << 11));                            // y=100, group 0
+  write_win(3, 2, 16 | 0x0800 | (1 << 15));                    // sprite 1: behind, enable
+  write_win(3, 3, 100 | (1 << 11));                            // y=100, group 1
   write_ctrl(0, 0);                                            // cursor off
 
   int r = 0, g = 0, b = 0; bool seen = false;
@@ -285,12 +285,12 @@ int main(int argc, char** argv) {
   // Lowest-priority sprite 7, same place as sprite 0, solid blue.
   for (int w = 64 * 16; w < 68 * 16; w++) write_win(2, w, 0x0444);
 
-  write_win(3, 4, 60 | (2 << 10) | (1 << 13));                // sprite 2: hflip
-  write_win(3, 5, 100 | (1 << 10));
-  write_win(3, 6, 100 | (3 << 10) | (1 << 14));               // sprite 3: vflip
-  write_win(3, 7, 100 | (1 << 10));
-  write_win(3, 14, 16 | (4 << 10));                           // sprite 7: group 4
-  write_win(3, 15, 100 | (1 << 10));
+  write_win(3, 4, 60 | 0x0800 | (1 << 13));                   // sprite 2: hflip, enable
+  write_win(3, 5, 100 | (2 << 11));                           // y=100, group 2
+  write_win(3, 6, 100 | 0x0800 | (1 << 14));                  // sprite 3: vflip, enable
+  write_win(3, 7, 100 | (3 << 11));                           // y=100, group 3
+  write_win(3, 14, 16 | 0x0800);                              // sprite 7: x=16, enable
+  write_win(3, 15, 100 | (4 << 11));                          // y=100, group 4
 
   sample_pixel(17, 116, &r, &g, &b, &seen);
   check("32x32 sprite reads its second 8-row band (blue)",
@@ -342,29 +342,38 @@ int main(int argc, char** argv) {
   check("vblank level is observable", vblank_seen ? 1 : 0, 1);
   check("frame toggle changes across frames", ft_changes >= 1 ? 1 : 0, 1);
 
-  // ---- sprite groups: page select and negative-x clipping -----------------
-  // Page 1 group 0 gets a blue pattern; page 0 group 0 is the green pattern
-  // from the sprite tests above. The same OAM entry must change colour when
-  // the page changes.
+  // ---- flat sprite groups: absolute group and negative-x clipping ---------
+  // Group 8 is page 1 group 0; it gets a blue pattern. Page 0 group 0 is the
+  // green pattern from the tests above. The OAM pointer selects the group
+  // directly; the page register is only the CPU write window.
   write_ctrl(8, 0);                          // map write page 0
-  write_ctrl(10, 1);                         // sprite page 1
-  check("sprite page register takes 1", top->dbg_spage, 1);
-  for (int w = 0; w < 64; w++) write_win(2, w, 0x0444);   // page 1, group 0
-  write_win(3, 0, 16 | (0 << 10));           // sprite 0: x=16, group 0
-  write_win(3, 1, 160 | (1 << 10));          // y=160, enable
+  write_ctrl(10, 1);                         // sprite write page 1
+  check("sprite write page takes 1", top->dbg_spage, 1);
+  for (int w = 0; w < 64; w++) write_win(2, w, 0x0444);   // page 1, group 0 = absolute 8
+  write_win(3, 0, 16 | 0x0800);              // sprite 0: x=16, enable
+  write_win(3, 1, 160 | (8 << 11));          // y=160, absolute group 8
   sample_pixel(17, 160, &r, &g, &b, &seen);
-  check("page 1 selects the second sprite bank (blue)",
+  check("absolute group 8 selects page 1 (blue)",
         r * 1000 + g * 10 + b, 0 * 1000 + 0 * 10 + 255);
 
-  write_ctrl(10, 0);                         // sprite page 0
+  write_win(3, 1, 160 | (0 << 11));          // same sprite, absolute group 0
   sample_pixel(17, 160, &r, &g, &b, &seen);
-  check("page 0 selects the first sprite bank (green)",
+  check("absolute group 0 selects page 0 (green)",
         r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
 
-  // Negative x: x=1000 means -24 with the sign bit in w1[11]. Only the
+  // A group past the 24-group bank disables the sprite; page 3 is not a
+  // valid write page and clamps to 0.
+  write_win(3, 1, 160 | (24 << 11));
+  sample_pixel(17, 160, &r, &g, &b, &seen);
+  check("group 24 is out of range and draws nothing",
+        r * 1000 + g * 10 + b, 255 * 1000 + 0 * 10 + 0);
+  write_ctrl(10, 3);
+  check("sprite write page 3 clamps to 0", top->dbg_spage, 0);
+
+  // Negative x: x=1000 means -24 with the sign bit in w0[10]. Only the
   // sprite's pixels 24..31 can land on screen x=0..7.
-  write_win(3, 0, 1000 | (0 << 10));
-  write_win(3, 1, 160 | (1 << 10) | (1 << 11));
+  write_win(3, 0, 1000 | 0x0800 | 0x0400);
+  write_win(3, 1, 160 | (0 << 11));
   sample_pixel(0, 160, &r, &g, &b, &seen);
   check("negative-x sprite clips at the left edge (green)",
         r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);

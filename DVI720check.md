@@ -372,3 +372,18 @@ AND from the registered select, not a mux + XOR from `buf_next_q`.
 
 Result: `dvi_pixel` **76.974 MHz** (9 levels, TNS 0) with the I2S in the
 netlist; CLS 4,294 / 4,320 (26 free). The tile simulation passes.
+
+## 17. 2026-10-29: flat OAM pointer and the palette fill path
+
+The flat OAM group pointer re-placed the `fx_1 → linebuf DI` palette path at
+40.848 ns, so `dvi_render` fell to **24.455 MHz** (TNS −1.392) and
+`dvi_pixel` to 74.083 (TNS −0.030). The logic is unchanged; it is placement.
+
+`place_option 1` recovered it:
+
+* `dvi_render` **26.584 MHz**, `dvi_pixel` **80.643 MHz**, all clocks TNS 0;
+* CLS **4,299 / 4,320 (21 free)**, BSRAM 24 / 26.
+
+The palette mux in the line-buffer write data path is still the pressure
+point; the palette-BSRAM retime (registered palette + one-cycle delayed
+line-buffer write) is the next timing experiment and is in the todo list.

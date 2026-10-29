@@ -51,6 +51,7 @@
 .equ G_DEATH      0x04FD       ; 0 alive, 1 dizzy, 2 falling, 3 on ground
 .equ G_DEATH_TIMER 0x04FE
 .equ G_BIRD_COLOR 0x04FF       ; 0 red, 1 purple (light), 2 yellow (heavy)
+.equ G_BIRD_GROUP 0x04F5       ; G_BIRD_COLOR * 8, the flat OAM group base
 
 ; Game-art tiles, baked at 96.. from the free art pack.
 .equ T_PIPE_L     0x0C00

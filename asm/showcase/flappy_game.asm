@@ -10,7 +10,7 @@
 ; buffered map holds the pipes and ground, the bird and the four cloud sprites
 ; are OAM, so the clouds can drift at their own speed (parallax).  Every reset
 ; picks Red, Purple or Yellow from the cycle counter and a play counter, and
-; sets palette 2/13 plus the sprite page.
+; sets palette 2/13 plus the sprite write page.
 
 .org 0x0A00
 
@@ -180,28 +180,31 @@ sb_alive:
     ADD R4, R5
     LSI R6, 0
 sb_emit:
+    ; R4 = relative group 3..7, R6 = vflip.  The OAM group is absolute:
+    ; the bird colour is the CPU write page, so add colour*8.
+    LDI G_BIRD_GROUP
+    MOV R5, R0
+    LD R5, R5, 0
+    ADD R4, R5                 ; absolute group
     MOV R5, R4
-    SL R5, 10
+    SL R5, 11                  ; group << 11
+    LDI G_BIRD_Y
+    MOV R7, R0
+    LD R7, R7, 0
+    OR R5, R7                  ; group<<11 | y
+    LSI R2, 1
+    STS R5, ES, R2             ; w1
+    LDI 0x0860                 ; enable | x=96
+    MOV R5, R0
     AND R6, R6
     JZ sb_novflip
     NOP
     LDI 0x4000
     MOV R7, R0
-    OR R5, R7
+    OR R5, R7                  ; vflip
 sb_novflip:
-    LDI 0x60
-    MOV R7, R0
-    OR R5, R7
     LSI R2, 0
-    STS R5, ES, R2             ; group<<10 | x=96 (plus vflip when dead)
-    LDI G_BIRD_Y
-    MOV R4, R0
-    LD R5, R4, 0
-    LDI 0x0400
-    MOV R3, R0
-    OR R5, R3
-    LSI R2, 1
-    STS R5, ES, R2
+    STS R5, ES, R2             ; w0
     JMP LR
     NOP
 
@@ -904,16 +907,16 @@ play_alive:
 ; tilemap (pipes, ground) occludes them and they only show against the sky.
 ; OAM slots 1..4; slot 0 is the bird.
 ;
-; w0 = behind | group 2 | x[9:0]
-; w1 = xsign | enable | y[9:0]
-; The x sign bit is w1[11], which the sprite engine needs to clip a sprite
+; w0 = behind | enable | xsign | x[9:0]
+; w1 = group 2 | y[9:0]
+; The x sign bit is w0[10], which the sprite engine needs to clip a sprite
 ; that crosses the left edge (0 -> right, 1 -> negative).
 set_clouds:
     LDI SEG_OAM
     MVS ES, R0
     LDI 0x4400
     MOV R9, R0
-    SL R9, 1                   ; 0x8800 = behind | group 2
+    SL R9, 1                   ; 0x8800 = behind | enable
     LDI G_WORLD
     MOV R2, R0
     LD R8, R2, 0
@@ -943,21 +946,22 @@ sc_keep:
     MOV R4, R0
     ADD R4, R6
     LDS R4, DS, R4             ; sprite y
-    LDI 0x0400
+    LDI 0x1000
     MOV R3, R0
-    OR R4, R3                  ; enable
+    OR R4, R3                  ; group 2 << 11
+    LSI R1, 0                  ; xsign flag
     MOV R3, R5
     AND R3, R3
     JNN sc_pos
     NOP
-    LDI 0x0800
-    MOV R3, R0
-    OR R4, R3                  ; negative x
+    LDI 0x0400
+    MOV R1, R0                 ; negative x
 sc_pos:
     LDI 0x3FF
     MOV R3, R0
     AND R5, R3                 ; x[9:0]
-    OR R5, R9                  ; behind | group 2
+    OR R5, R9                  ; behind | enable
+    OR R5, R1                  ; negative x
     STS R5, ES, R7
     ADD R7, 1
     STS R4, ES, R7
@@ -1234,6 +1238,13 @@ weight_init:
     LDI G_BIRD_COLOR
     MOV R2, R0
     ST R1, R2, 0
+    MOV R2, R1
+    SL R2, 1
+    SL R2, 1
+    SL R2, 1                   ; page * 8
+    LDI G_BIRD_GROUP
+    MOV R3, R0
+    ST R2, R3, 0
     LSI R3, 0
     LDI G_FALL_TICK
     MOV R2, R0

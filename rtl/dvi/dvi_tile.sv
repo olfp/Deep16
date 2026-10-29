@@ -225,7 +225,7 @@ module dvi_tile #(
   // scroll registers; all other writes go to the window selected by cpu_tgt:
   //   0 tilemap   0xF1000..  (2,132 words)
   //   1 tile bank 0xF3000..  (96 x 32 words, writable for the demo)
-  //   2 sprites   0xF4000..  (one page: 8 groups x 128 patterns x 16 words)
+  //   2 sprites   0xF4000..  (one write page: 8 groups x 16 patterns x 16 words)
   //   3 OAM/pal   0xF5000..  (OAM 0x00..0x0F, palette 0x80..0x8F)
   logic [4:0] row_off;
   logic [3:0] scroll_x;   // 0..15: pixel offset into the 82-column map
@@ -234,7 +234,7 @@ module dvi_tile #(
   logic       map_wpage;  // CPU writes target this bank
   logic       map_dpage;  // fill/render reads this bank
   logic       map_dpage_next;
-  logic [1:0] sprite_page; // sprite group page (0 Red/demo, 1 Purple, 2 Yellow)
+  logic [1:0] sprite_page; // sprite write page (0 Red/demo, 1 Purple, 2 Yellow)
 
   /* verilator lint_off MULTIDRIVEN */   // power-up palette + runtime CPU writes
   always_ff @(posedge clk_render) begin
@@ -273,7 +273,7 @@ module dvi_tile #(
       sprite_page <= 2'd0;
     end else if (cpu_we && cpu_ctrl) begin
       // 0x00 cursor, 0x02 row offset, 0x04 scroll_x, 0x06 scroll_y,
-      // 0x08 {display page, write page}, 0x0A sprite group page.  The display
+      // 0x08 {display page, write page}, 0x0A sprite write page.  The display
       // page and scroll_x are
       // latched together at the render frame boundary below; the console sees
       // one frame of latency there, and a game can swap a freshly drawn map
@@ -291,7 +291,7 @@ module dvi_tile #(
           map_wpage      <= cpu_data[0];
           map_dpage_next <= cpu_data[1];
         end
-        4'hA: sprite_page <= cpu_data[1:0];
+        4'hA: sprite_page <= (cpu_data[1:0] == 2'd3) ? 2'd0 : cpu_data[1:0];
         default: ;
       endcase
     end
@@ -653,8 +653,8 @@ module dvi_tile #(
   // 160-pixel blanking with room to spare.
   //
   // OAM, two words per sprite (16 words):
-  //   w0 = {behind, vflip, hflip, group[2:0], x[9:0]}
-  //   w1 = {xsign, 3'b0, enable, y[9:0]}  (bit 11 = negative x, bit 10 = enable)
+  //   w0 = {behind, vflip, hflip, 1'b0, enable, xsign, x[9:0]}
+  //   w1 = {group[4:0], 1'b0, y[9:0]}  (flat group 0..23; 24..31 disabled)
   // A 32x32 sprite is 4x4 8x8 patterns: tile = group*16 + (row/8)*4 + column.
   // Pattern word = tile*16 + (row%8)*2 + (column%4)/4; low nibble leftmost.
   localparam logic [1:0] L_IDLE  = 2'd0,
@@ -673,7 +673,9 @@ module dvi_tile #(
 
   wire [3:0]  loidx = {lspr, 1'b0};
   wire [15:0] loam0 = oam_bits[loidx*16 +: 16];
-  wire [11:0] loam1 = oam_bits[4'(loidx + 4'd1)*16 +: 12];
+  wire [15:0] loam1 = oam_bits[4'(loidx + 4'd1)*16 +: 16];
+  wire [4:0]  loam_group = loam1[15:11];
+  wire        loam_group_ok = (loam_group < 5'd24);
 
   assign spr_raddr = laddr;
 
@@ -703,8 +705,8 @@ module dvi_tile #(
           lstate <= L_SPR;
         end
         L_SPR: begin
-          lgrp <= {sprite_page, loam0[12:10]};
-          if (!loam1[10] || (lline < loam1[9:0]) ||
+          lgrp <= loam_group;
+          if (!loam0[11] || !loam_group_ok || (lline < loam1[9:0]) ||
               ((lline - loam1[9:0]) >= 10'd32)) begin
             spon_bits[lspr] <= 1'b0;
             lcap       <= 1'b0;
@@ -713,7 +715,7 @@ module dvi_tile #(
             spon_bits[lspr]  <= 1'b1;
             lcap        <= 1'b1;
             // Bias by +32; a negative x is x-1024+32 = x-992.
-            spx0_bits[lspr*11 +: 11] <= loam1[11]
+            spx0_bits[lspr*11 +: 11] <= loam0[10]
               ? ({1'b0, loam0[9:0]} - 11'd992)
               : ({1'b0, loam0[9:0]} + 11'd32);
             spbh_bits[lspr]  <= loam0[15];

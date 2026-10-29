@@ -21,7 +21,7 @@ is the ISA change that pays for the interrupt work.
 | D10 | **SIC priority high → low: raster, audio, timer, keyboard.** |
 | D11 | **Sound window 0xE0000–0xEFFFF** (64K cells, segment `0xE000`), just below the I/O area. |
 | D12 | **ARCHREV §2+§3 together**: SAPF plus no shadow-bank zeroing; net ~+15 CLS on the tile build. |
-| D13 | **Deferred**: boot move, then 6 OAM slots, then the register file, only when CLS runs out. |
+| D13 | **Flat OAM group pointer** implemented (8 slots access all 24 groups); **deferred**: boot move, then 6 more OAM slots (only for >8 visible sprites), then the register file. |
 
 ## 2. Config flash access
 
@@ -218,21 +218,25 @@ sfx-off     \ stop
 | measured after 2b | | 42 |
 | ARCHREV §2+§3 (measured) | +85 | **127** |
 | I2S + FIFO (measured) | −101 | **26** |
-| boot move (first) | +15…+20 | 41–46 |
-| timer IRQ | −20…−32 | 9–26 |
-| 4-source SIC | −12…−16 | −7…14 |
-| raster + keyboard | −14…−28 | −35…0 |
+| flat OAM pointer (measured) | −5 | **21** |
+| boot move (first) | +15…+20 | 36–41 |
+| timer IRQ | −20…−32 | 4–21 |
+| 4-source SIC | −12…−16 | −12…9 |
+| raster + keyboard | −14…−28 | −40…−19 |
 | 6 OAM slots | +15…+28 | later |
 | register file (last) | +~250 | |
 
-The I2S came in at **101 CLS**, not the 35–40 the old note guessed, so the
-interrupt estimates no longer fit in the 26 that are left. Phase 5 needs the
-boot move (+15–20) and/or a diet (the 24-group sprite bank is the obvious
-place) before the timer/raster/keyboard blocks go in.
+The I2S came in at **101 CLS**, not the 35–40 the old note guessed, and the
+flat OAM pointer cost another 5, so the interrupt estimates no longer fit in
+the 21 that are left. Phase 5 needs the boot move (+15–20) and/or a diet before
+the timer/raster/keyboard blocks go in. The flat pointer gives all **8 OAM
+slots** access to all **24 groups**; the 6 extra slots are only for more than
+8 visible sprites and are not needed for that goal.
 
 The secondary goal still needs the boot move; the 6 OAM slots are a later
-margin. The boot move is no longer deferrable: the I2S used the headroom that
-the 2b/ARCHREV plan had reserved for the interrupt blocks.
+margin. The boot move is no longer deferrable: the I2S and the flat OAM
+pointer used the headroom that the 2b/ARCHREV plan had reserved for the
+interrupt blocks.
 
 ## 7. Phases
 
