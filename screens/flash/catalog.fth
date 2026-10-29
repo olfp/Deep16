@@ -44,10 +44,11 @@ variable nm-l drop
     8 rshift dup 32 127 within if emit else drop then
   loop drop ;
 : dir ( -- )
+  cr ." type slice  name" cr
   0 slice 255 0 do
     dup i 8 * cells +  ( a e )
     dup 1 cells + @ dup 0xffff <> if
-      ."   " over @ 0xff and 4 u.r  ."  " dup 4 u.r  ."  " over .name cr
+      ."   " over @ 0xff and 4 u.r  ."  " dup 5 u.r  ."  " over .name cr
     then 2drop
   loop drop ;
 : name= ( addr len e -- f )
