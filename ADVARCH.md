@@ -307,7 +307,7 @@ the 2 MB guard.
 Phase 2b (slice layer + SD-driver source slice + JS `SpiFlash`) is next, on
 this 42-free base.
 
-## 10. Phase 2b result: the slice layer (simulator-verified)
+## 10. Phase 2b result: the slice layer (board-verified)
 
 The on-board config flash now carries a 7-slice, 28 KB source image at
 `0x200000` (sector 512), built by `scripts/make_slices.mjs`:
@@ -350,12 +350,12 @@ Bugs found and fixed while bringing it up:
 - `included` now resets the return stack when a load ends: a load called from
   `screen` or `p-screen` ends the line, so the caller's frame is stale.
 
-The slice image was written on the board and read back byte-for-byte
-(`npm run flash:slices`; the command needs `-f --external-flash --file-type
-bin -o 0x200000`). The user image still needs `cf-unprotect` and
-`npm run flash:tile`: the bitstream is unchanged since the DVI retime, but
-openFPGALoader writes the configuration half in the same pass and the 2 MB BP
-must be clear for that.
+The board now runs the phase-2b image: `dir` lists sd/hello/catalog,
+`4 screen` loads `hello.fth`, and the slice area reads back byte-for-byte
+(`npm run flash:slices`, `openFPGALoader -f --external-flash --file-type bin
+-o 0x200000`). A full `npm run flash:tile` needs `cf-unprotect` first, because
+the configuration half is written in the same pass; after boot run
+`cf-protect` to re-arm the 2 MB BP (the slices at `0x200000+` stay writable).
 
 ## 11. Bring-up test
 
