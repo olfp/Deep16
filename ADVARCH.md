@@ -214,9 +214,9 @@ ends land. The boot move is deferred until CLS runs out.
 5. **Interrupts**: timer, raster, keyboard, audio, SIC4, persistent bank.
 6. **When out of CLS**: boot move, then 6 OAM slots, then the register file.
 
-## 8. Phase 1 result (measured)
+## 8. Phase 1 result (measured, verified on the board)
 
-Built and flashed 2026-10-29.
+Built, flashed and verified 2026-10-29.
 
 | | value |
 |---|---|
@@ -235,10 +235,28 @@ this one is 0.55 ns short. The next phase must record Fmax as well as CLS, and
 the ARCHREV §3 removal is the first chance to recover it. If it does not, the
 choices are a DVI retime or a 480p fallback, not more features.
 
-The boot-script source now ends at `dict_free 0x499D`, only **99 cells** below
+The boot-script source now ends at `dict_free 0x49D6`, only **42 cells** below
 the BIOS at `0x4A00`. Phase 2 must remove the on-die `flash@`/`screen` source
-(and possibly move the SD driver to a slice) before adding the slice layer, or
-the image will not build.
+and move the SD driver/`include` to a source slice before adding the slice
+layer, or the image will not build. The slice 1 source is auto-loaded at boot
+(`1 screen`) so `sd`/`include` still exist at the prompt.
+
+Board test (tio, 115200):
+
+```text
+cf-id                     85 60 16
+cf-status hex . decimal   38          (2 MB BP set)
+cf-test                   status 38, after BP 38,
+                          read back ABCD 1234,
+                          protected word FFFF FFFF
+sd                        SD card ready
+```
+
+The `38` is the 2 MB block protect; the test writes sector 512 above it. The
+protected sector 256 is unchanged. `openFPGALoader --unprotect-flash` did not
+clear the P25Q32U BP on this board (`cf-status` still 38 after a reflash), so
+`cf-unprotect` (WRSR 0x00) was added; use it before a bitstream update, then
+`cf-protect`/`cf-test` re-arms the guard.
 
 ## 9. Phase 1 test
 
