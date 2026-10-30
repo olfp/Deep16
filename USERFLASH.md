@@ -15,8 +15,9 @@ build; it remains only for the one-time installer fallback below.
 `BP = 0x38` protects the lower 2 MB (bitstream and boot image). The slices sit
 above it, so `cf-erase`/slice writes cannot corrupt the boot. Run
 `cf-unprotect` on the board first (the host `--unprotect-flash` does not clear
-this P25Q32H's BP); `npm run flash:tile` then writes all three regions, and
-the boot script's `cf-protect` re-arms the guard.
+this P25Q32H's BP); `npm run flash:tile` then writes all three regions. The
+boot script defines `cf-protect` but does not call it: run it on the board
+after the power-cycle to re-arm the guard.
 
 ## Boot image
 
@@ -69,8 +70,9 @@ catalog 5–8 (editor, `dir`/`find`, `p-screen`, I2S, IRQ and palette words). Th
 script loads the SD driver and the catalog before the prompt, so `sd`, `dir`,
 `find`, `beep`, `irq-on` and `4 screen` are available at power-on.
 
-The boot script's `cf-protect` sets BP = `0x38` after boot, so every later
-`npm run flash:tile` must start with `cf-unprotect` on the board. The script
+Run `cf-protect` on the board after the power-cycle: it sets BP = `0x38`, so
+every later `npm run flash:tile` must start with `cf-unprotect` on the board.
+The boot script defines the word but does not call it automatically. The script
 verifies the `0x100000` image after writing and aborts with that instruction if
 the write was dropped.
 
