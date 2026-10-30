@@ -138,7 +138,8 @@ What is in it:
 - **Archived:** the 24K BSRAM builds (`synth:board`, `synth:flash`,
   `synth:tile:packed`) and their `sim:board`/`sim:flash` regressions are retired;
   see `archive/24k-bsram/README.md`. The tile build is the board.
-- **Config-flash tile build (verified, persistent).** `npm run synth:tile`
+- **Config-flash FiT graphics build (verified, persistent).** The tile layer is
+  named **FiT** (*Frogger inspired tile-based*). `npm run synth:tile`
   builds the tile bitstream and the 24K boot image; the on-board 4 MB config
   flash holds the bitstream at 0, the boot image at 1 MB and 4 KB source
   slices at 2 MB (BP = `0x38` protects the first 2 MB). Run `cf-unprotect` on

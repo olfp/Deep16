@@ -334,7 +334,10 @@ output frame. Both are synchronised from the pixel domain into the CPU domain.
 
 This is the benchmark time base; it is not a writable register.
 
-### 7.4 Tile engine (`D16nano`/`DVI_TILE`)
+### 7.4 FiT tile engine (`D16nano`/`DVI_TILE`)
+
+**FiT** (*Frogger inspired tile-based*) is the 82×26 tile/sprite layer: tilemap,
+4bpp tile bank, eight 32×32 sprites, palette banks and text styles.
 
 Each memory has its own 4K-word page; the CPU window is write-through to the
 tile engine and the PSRAM/Forth mirror at the same address.
