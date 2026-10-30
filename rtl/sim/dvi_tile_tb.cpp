@@ -363,6 +363,19 @@ int main(int argc, char** argv) {
   check("bold smears the stroke one pixel right",
         tr * 1000 + tg * 10 + tb, 0 * 1000 + 255 * 10 + 0);
 
+  // The same styles must follow a non-default pair (pair 3: green paper,
+  // yellow ink), not just the black/white console pair.
+  write_win(3, 0x86, 0x001C);
+  write_win(3, 0x87, 0x00FC);
+  write_tile(0, 0x8000 | (3 << 12) | 0x0500 | 4);
+  sample_pixel(0, 14, &tr, &tg, &tb, &tseen);
+  check("underline uses pair 3's ink",
+        tr * 1000 + tg * 10 + tb, 255 * 1000 + 255 * 10 + 0);
+  write_tile(0, 0x8000 | (3 << 12) | 0x0500 | 2);
+  sample_pixel(7, 3, &tr, &tg, &tb, &tseen);
+  check("bold uses pair 3's ink",
+        tr * 1000 + tg * 10 + tb, 255 * 1000 + 255 * 10 + 0);
+
   // The style bits live in tile-address bits 4:0, which the fill must mask.
   write_tile(0, 0x0500 | 2);                // mode 0 with a stray style bit
   sample_pixel(1, 3, &tr, &tg, &tb, &tseen);
