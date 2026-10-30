@@ -837,6 +837,12 @@ Bold is a real one-pixel smear in the tile engine (`2 style`). A cheaper
 look is to reserve a bright-ink pair and select it with `attr`; the palette
 has eight pairs, so pair 7 can be the bold one.
 
+The style applies to characters written **after** the command; the command
+line itself is echoed with the old attribute, so the effect starts with the
+prompt and the next line. The underline is drawn in the pair's ink, so use a
+contrasting paper/ink pair to see it (black paper and yellow or white ink
+works well; green paper with yellow ink blends).
+
 ## Sound: I2S on J5 5/6/7
 
 The D16nano drives a MAX98357A from `0xF00A0` (BCLK/LRCLK/DIN on FPGA 25/26/27,

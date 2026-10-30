@@ -561,6 +561,11 @@ single hold-violated endpoint on the `clk_cpu -> clk` divider crossing is
 unchanged (the per-clock TNS table is 0).
 
 `sim:dvi:tile` checks underline, bold, the row above the underline, the
-art-cell style mask, and the plain-text baseline. `npm test` checks that the
-BIOS writes the style bits into the tilemap cell and that the catalog words
-compose `text_attr`. Board flash pending.
+art-cell style mask, the plain-text baseline, and both styles with pair 3
+(green paper, yellow ink). `npm test` checks that the BIOS writes the style
+bits into the tilemap cell and that the catalog words compose `text_attr`.
+Board-verified 30 Oct 2026: underline and bold work with the default pair and
+with pair 3; a high-contrast paper/ink pair is needed to see the underline,
+because it is drawn in the pair's ink colour. The command line that sets the
+style is echoed with the old attribute, so the effect starts with the prompt
+and the next line.
