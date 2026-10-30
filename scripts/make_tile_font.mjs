@@ -103,8 +103,11 @@ export function writeTileFont(outDir, fontFile) {
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, 'tilefont.hex'),
                    tiles.map((w) => w.toString(16).padStart(4, '0')).join('\n') + '\n');
-  fs.writeFileSync(path.join(outDir, 'tilepal.hex'),
-                   PALETTE_RGB332.map((b) => b.toString(16).padStart(2, '0')).join('\n') + '\n');
+  // Three banks for the tile engine: text pairs, art, sprites. The default
+  // table is the same in all three; games overwrite the art/sprite banks.
+  const bank3 = [...PALETTE_RGB332, ...PALETTE_RGB332, ...PALETTE_RGB332];
+  fs.writeFileSync(path.join(outDir, 'tilepal3.hex'),
+                   bank3.map((b) => b.toString(16).padStart(2, '0')).join('\n') + '\n');
   return tiles.length;
 }
 
@@ -113,5 +116,5 @@ if (isMain) {
   const out = path.resolve(process.argv[2] ?? path.join(ROOT, 'artifacts', 'image'));
   const n = writeTileFont(out);
   console.log(`wrote ${path.relative(ROOT, out)}/tilefont.hex (${n} words, ` +
-              `${TILE_COUNT} tiles x ${TILE_WORDS} words) and tilepal.hex`);
+              `${TILE_COUNT} tiles x ${TILE_WORDS} words) and tilepal3.hex`);
 }

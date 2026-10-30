@@ -82,7 +82,7 @@ The `D16SEG` build fixes the layout instead of the constant — see §4.4.
 | `0x0F0080`–`0x0F008F` | SPI master: SD / external flash (D16nano) |
 | `0x0F00A0`–`0x0F00AF` | I2S: DATA/CTRL/STATUS (D16nano) |
 | `0x0F1000` | display window (screen RAM or tilemap, build-specific) |
-| `0x0F2000`–`0x0F2006` | tile control registers (tile build only) |
+| `0x0F2000`–`0x0F200E` | tile control registers (tile build only) |
 | `0x0F3000`–`0x0F3BFF` | tile bank (tile build only) |
 | `0x0F4000`–`0x0F47FF` | sprite bank (tile build only) |
 | `0x0F5000`–`0x0F50FF` | OAM / palette window (tile build only) |
@@ -110,8 +110,8 @@ loader. The dictionary then continues at `0x6000`.
 | `0x02000`–`0x02FFF` | threading engine `next` and built-in word code |
 | `0x03000`–`0x049F8` | kernel data, boot script, built-in headers, `rp0_base` |
 | `0x049F9`–`0x049FF` | static `dict_free` … BIOS (7 words) |
-| `0x04A00`–`0x04D31` | BIOS code (segment `0x04A0`) |
-| `0x04D32`–`0x04D33` | free (2 words) |
+| `0x04A00`–`0x04D2F` | BIOS code (segment `0x04A0`) |
+| `0x04D30`–`0x04D33` | free (4 words) |
 | `0x04D34`–`0x04D38` | D16D trampoline |
 | `0x04D39`–`0x04DE7` | D16D strings, palette, cloud table, header |
 | `0x04DE8`–`0x04DFF` | gap |
@@ -341,7 +341,7 @@ tile engine and the PSRAM/Forth mirror at the same address.
 
 | Address | Window | Contents |
 |---|---|---|
-| `0xF1000`–`0xF1853` | tilemap | 82×26 16-bit tile addresses; visible 80×24 plus one-tile margin; two banks |
+| `0xF1000`–`0xF1853` | tilemap | 82×26 16-bit cells: `{mode, pair[2:0], tile[11:0]}`; visible 80×24 plus one-tile margin; two banks |
 | `0xF2000` | control 0 | `{row[4:0], col[6:0], enable}` cursor |
 | `0xF2002` | control 1 | circular row offset (0..25) |
 | `0xF2004` | control 2 | smooth `scroll_x` (0..15), latched with control 4 at the frame boundary |
@@ -353,15 +353,24 @@ tile engine and the PSRAM/Forth mirror at the same address.
 | `0xF3000`–`0xF3BFF` | tile bank | 96 tiles × 32 words; 30 words of 8×15 4bpp, word 30 palette pointer, word 31 flags |
 | `0xF4000`–`0xF47FF` | sprite bank | 8 groups × 16 patterns × 16 words, selected by the control-5 **write** page; the bank holds 24 groups (3 pages), preloaded. The renderer uses the absolute OAM group. |
 | `0xF5000`–`0xF500F` | OAM | 8 sprites × 2 words: `w0={behind,vflip,hflip,free,enable,xsign,x[9:0]}`, `w1={group[4:0],free,y[9:0]}` |
-| `0xF5080`–`0xF508F` | palette | 16 × RGB332 entries |
+| `0xF5080`–`0xF508F` | text palette | 8 pairs: entry `2p` = paper, `2p+1` = ink |
+| `0xF5090`–`0xF509F` | art palette | 16 × RGB332 entries for mode-0 tiles |
+| `0xF50A0`–`0xF50AF` | sprite palette | 16 × RGB332 entries shared by all eight sprites |
 | rest of `0xF5000`–`0xF50FF` | — | reserved |
 
-Tile address convention: `(character - 0x20) * 32`. A 32×32 sprite is 16 8×8
-tiles; `tile = group*16 + (row/8)*4 + column`. Sprite palette index 0 is
-transparent; OAM bit 15 puts the sprite behind background index 0; sprite 0 wins
-priority. OAM w0 bit 10 marks a negative sprite x; the compositor biases both
-x and the beam position by +32, so a sprite can cross the left edge and be
-clipped instead of vanishing.
+Tile cell convention: mode 0 (`bit 15 = 0`) is the old art cell, where
+`bits 11:0` are a 32-word-aligned tile address and the 4bpp pixel index reads
+the art palette. Mode 1 (`bit 15 = 1`) is a text pair cell:
+`0x8000 | (pair << 12) | ((character - 0x20) * 32)`; `pix[0]` selects paper
+(entry `2p`) or ink (entry `2p+1`) from the text bank. The console's current
+pair lives at `0x3BEE` (`text_attr`, `0x8000 | pair << 12`), and the catalog
+words `PAL!`, `ART-PAL!`, `SPRITE-PAL!`, `ATTR` and `ATTR@` drive the banks.
+
+A 32×32 sprite is 16 8×8 tiles; `tile = group*16 + (row/8)*4 + column`.
+Sprite palette index 0 is transparent; OAM bit 15 puts the sprite behind
+background index 0; sprite 0 wins priority. OAM w0 bit 10 marks a negative
+sprite x; the compositor biases both x and the beam position by +32, so a
+sprite can cross the left edge and be clipped instead of vanishing.
 
 The **DVI tile build** uses the tilemap at `0xF1000`. The **screen build** uses
 the same address for its cell/attribute array; the two never coexist. The
@@ -504,7 +513,7 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x200000` | slice 0: the master directory |
 | `0x201000`–`0x203FFF` | slices 1–3: the SD driver source |
 | `0x204000` | slice 4: `hello.fth` |
-| `0x205000`–`0x207FFF` | slices 5–7: catalog/editor, `p-screen`, sound |
+| `0x205000`–`0x208FFF` | slices 5–8: catalog/editor, `p-screen`, sound, palettes |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and

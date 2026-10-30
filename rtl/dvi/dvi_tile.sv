@@ -193,16 +193,15 @@ module dvi_tile #(
   logic [15:0] tilemap [0:2*TM_WORDS-1];
   logic [15:0] tilefont [0:TILE_WORDS-1];
   logic [15:0] sprite   [0:SPR_WORDS-1];
-  // OAM stays a register file; the palette is a small RAM (16 x 16, low 8
-  // bits are RGB332) so the fill reads it through a registered port instead of
-  // a 16:1 mux on the line-buffer write path.
+  // OAM stays a register file; the palette is one 64x16 BSRAM split into
+  // three banks: text 0..15, art 16..31, sprites 32..47. Low 8 bits are RGB332.
   logic [255:0] oam_bits;                 // 16 words of 16 bits (8 sprites x 2)
-  logic [15:0]  pal_mem [0:15];
+  logic [15:0]  pal_mem [0:63];
   logic [7:0]  linebuf  [0:LB_DEPTH-1];
   initial begin
     $readmemh("tilefont.hex", tilefont);
     $readmemh("birdsprite.hex", sprite);
-    $readmemh("tilepal.hex", pal_mem);
+    $readmemh("tilepal3.hex", pal_mem);
   end
 
   // Sprite row cache: one 32-pixel line per sprite, 8 words of 4 pixels.
@@ -271,8 +270,8 @@ module dvi_tile #(
         2'd3: begin
           if (cpu_addr[7:0] < 8'(OAM_WORDS))
             oam_bits[cpu_addr[3:0]*16 +: 16] <= cpu_data;
-          else if (cpu_addr[7:0] >= 8'h80 && cpu_addr[7:0] <= 8'h8F)
-            pal_mem[cpu_addr[3:0]] <= {8'h00, cpu_data[7:0]};
+          else if (cpu_addr[7:0] >= 8'h80 && cpu_addr[7:0] <= 8'hAF)
+            pal_mem[{cpu_addr[5:4], cpu_addr[3:0]}] <= {8'h00, cpu_data[7:0]};
         end
         default: ;
       endcase
@@ -401,14 +400,19 @@ module dvi_tile #(
   logic [7:0]       lb_wdata_q;
   logic [15:0]      pal_q;
   logic             pal_cursor_q;
-  logic [3:0]       pal_idx;
+  logic [5:0]       pal_raddr;
   logic             pal_cursor;
+  logic [3:0]       fpal, fnpal;       // {mode, pair[2:0]} of the filled cell
 
-  assign pal_idx    = sprite_win ? sc[3:0] : pix_index;
+  // Text pair mode reads the text bank (entries 2p/2p+1); art mode reads the
+  // art bank; every sprite reads the shared sprite bank.
+  assign pal_raddr  = sprite_win ? {2'b10, sc[3:0]} :
+                      fpal[3]    ? {2'b00, fpal[2:0], pix_index[0]} :
+                                   {2'b01, pix_index};
   assign pal_cursor = !sprite_win && cursor_fill;
 
   always_ff @(posedge clk_render) begin
-    pal_q        <= pal_mem[pal_idx];
+    pal_q        <= pal_mem[pal_raddr];
     pal_cursor_q <= pal_cursor;
     lb_we_q      <= lb_we;
     lb_waddr_q   <= lb_waddr;
@@ -613,6 +617,8 @@ module dvi_tile #(
       fx <= 10'd0;
       fline <= 10'd0;
       fcol <= 7'd0;
+      fpal <= 4'd0;
+      fnpal <= 4'd0;
       fpix <= 4'd0;
       ftrow <= 5'd0;
       fgy <= 4'd0;
@@ -651,6 +657,7 @@ module dvi_tile #(
           end
           F_FIRST_CELL_Q: begin
             fcell <= tm_q[11:0];
+            fpal  <= tm_q[15:12];
             fstate <= F_FIRST_ROW0;
           end
           F_FIRST_ROW0: begin
@@ -683,6 +690,7 @@ module dvi_tile #(
               end
               N_CELL_Q: begin
                 fncell <= tm_q[11:0];
+                fnpal  <= tm_q[15:12];
                 nstate <= N_ROW0;
               end
               N_ROW0: begin
@@ -709,6 +717,7 @@ module dvi_tile #(
                 fstate <= F_DONE;
               end else if (fpix == 4'd7) begin
                 fcell <= fncell;
+                fpal  <= fnpal;
                 frow0 <= fnrow0;
                 frow1 <= fnrow1;
                 fcol <= 7'(fcol + 7'd1);

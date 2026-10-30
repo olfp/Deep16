@@ -110,19 +110,25 @@ wait_frame_loop:
     JMP LR
     NOP
 
-; R8 = palette table offset in DS (16 words). Writes all 16 entries.
+; R8 = palette table offset in DS (16 words). The art bank is 0x90 and the
+; shared sprite bank 0xA0; the console's text bank (0x80) is untouched. Both
+; banks get the same 16 entries, so one pass writes both.
 set_palette:
     LDI SEG_OAM
     MVS ES, R0
-    LDI 0x80
+    LDI 0x90
     MOV R2, R0
+    LDI 0xA0
+    MOV R3, R0
     LDI 16
     MOV R5, R0
 set_pal_loop:
     LDS R4, DS, R8
     STS R4, ES, R2
+    STS R4, ES, R3
     ADD R8, 1
     ADD R2, 1
+    ADD R3, 1
     SUB R5, 1
     JNZ set_pal_loop
     NOP
@@ -448,10 +454,10 @@ pick_done:
     LDS R7, DS, R5
     LDI SEG_OAM
     MVS ES, R0
-    LDI 0x82
+    LDI 0xA2
     MOV R2, R0
-    STS R6, ES, R2             ; body
-    LDI 0x8D
+    STS R6, ES, R2             ; body (shared sprite bank)
+    LDI 0xAD
     MOV R2, R0
     STS R7, ES, R2             ; belly
     LDI SEG_CTRL

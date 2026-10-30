@@ -3,8 +3,8 @@
 The tile build has a sprite layer on top of the tilemap: **eight 32x32
 sprites, 4 bits per pixel**, composited into the same 640x360 frame the tiles
 draw into. Each sprite has its own x/y, a pattern group, an enable bit and
-hardware H/V flip; the whole layer shares one 16-entry RGB332 palette with the
-tiles.
+hardware H/V flip; the whole layer shares one 16-entry RGB332 sprite palette,
+separate from the text and art banks (§4).
 
 The Flappy showcase (`asm/showcase/flappy_game.asm`) is the reference
 implementation: a bird, four parallax clouds and three animated poses.
@@ -17,15 +17,17 @@ All sprite memory is word-addressed, written by the CPU like ordinary RAM.
 |---|---|---|
 | `0xF4000`–`0xF47FF` | 2,048 | sprite pattern bank, **one page** (8 groups) |
 | `0xF5000`–`0xF500F` | 16 | OAM, two words per sprite |
-| `0xF5080`–`0xF508F` | 16 | palette, RGB332 |
+| `0xF5080`–`0xF508F` | 16 | text palette bank: eight paper/ink pairs |
+| `0xF5090`–`0xF509F` | 16 | art palette bank (mode-0 tiles) |
+| `0xF50A0`–`0xF50AF` | 16 | sprite palette bank, RGB332 |
 | `0xF200A` | 1 | control 5: sprite **write** page, bits 1:0 |
 
 The bank at `0xF4000` is a **write** window, not the whole memory: the
 hardware holds 24 groups (3 pages of 8) and control 5 selects which page the
 CPU writes. The renderer uses the absolute OAM group 0..23, so the write page
 never constrains what is on screen. Page 3 is not a page and clamps to 0. OAM
-and palette are plain registers: they are write-only from the CPU and can be
-updated at any time.
+is a register file and the palette banks are writable RAM; both can be updated
+at any time.
 
 ## 2. OAM: where a sprite is and what it shows
 
@@ -101,18 +103,28 @@ There are two ways to get art into the bank:
 
 ## 4. Palette
 
-16 entries of **RGB332** (`RRRGGGBB`) at `0xF5080 + index`, shared by tiles
-and sprites. Sprite pixels are indices 0–15 into that table.
+Three banks of 16 **RGB332** (`RRRGGGBB`) entries share one 64 x 16 BSRAM:
+
+| window | bank | used by |
+|---|---|---|
+| `0xF5080`–`0xF508F` | text | pair-mode tile cells, eight `paper`/`ink` pairs |
+| `0xF5090`–`0xF509F` | art | mode-0 tile cells (`pix[3:0]`) |
+| `0xF50A0`–`0xF50AF` | sprite | every sprite, shared by all eight slots |
+
+Sprite pixels are indices 0–15 into the sprite bank. A mode-1 text cell
+`0x8000 | (pair << 12) | tile` reads text entry `2p` when `pix[0]=0` (paper)
+and `2p+1` when `pix[0]=1` (ink), so one glyph image renders in eight colours.
 
 * Index 0 is **transparent for sprites**, and the showcase also uses it for
   the sky, so an empty sprite pixel shows the sky.
-* Changing an entry changes every pixel of that index, tile and sprite alike.
-  The showcase picks a bird by writing entries 2 (body) and 13 (belly) on
-  reset, while all three birds share the same pattern layout and differ only
+* Changing an entry changes every pixel of that index in its bank. The
+  showcase picks a bird by writing sprite-bank entries 2 (body) and 13 (belly)
+  on reset, while all three birds share the same pattern layout and differ only
   in the page.
-* Power-up colours come from `tilepal.hex`. Leaving Flappy restores the
-  console palette, and the BIOS `gfx` handler clears OAM, so the console
-  comes back with no sprites.
+* Power-up colours come from `tilepal3.hex` (the same 16 entries copied into
+  all three banks). Leaving Flappy restores the art and sprite banks to the
+  default and leaves the console text bank alone; the BIOS `gfx` handler
+  clears OAM, so the console comes back with no sprites.
 
 ## 5. A sprite in six steps
 

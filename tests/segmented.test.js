@@ -34,7 +34,9 @@ const BIOS_HI = 0x57ff;
 const RSTACK_TOP = 0x2ff0;
 
 const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
-                        { defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1 } });
+                        // D16D matches the board build: the catalog's `text-attr`
+                        // constant is fixed to the D16D kernel cell 0x3BEE.
+                        { defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1 } });
 const sym = kernel.symbols;
 
 function scattered() {
@@ -112,7 +114,7 @@ test('the dictionary is the PSRAM segment and reports its free count', () => {
 
 test('the config flash identifies and the directory is readable', () => {
   // The boot script loads the SD driver (slices 1..3) and the catalog
-  // (slices 5..7) from the config flash; the directory lists all three.
+  // (slices 5..8) from the config flash; the directory lists all three.
   assert.match(boot, /> /);
   const id = line('cf-id');
   assert.match(id, /85 60 16/);
@@ -129,18 +131,18 @@ test('screen 4 loads the hello slice', () => {
 });
 
 test('a slice created and flushed reads back and enters the directory', () => {
-  line('8 3 slice-create');
+  line('10 3 slice-create');
   line('s" test" slice-name!');
   line('slice-flush');
-  assert.equal(number(line('8 slice slice-type . cr'), '8 slice slice-type . cr'), 3);
-  line('8 dir-add');
+  assert.equal(number(line('10 slice slice-type . cr'), '10 slice slice-type . cr'), 3);
+  line('10 dir-add');
   assert.match(line('dir'), /test/);
-  assert.equal(number(line('s" test" find . cr'), 's" test" find . cr'), 8);
+  assert.equal(number(line('s" test" find . cr'), 's" test" find . cr'), 10);
   assert.ok(sim.running);
 });
 
 test('a directory entry can be removed', () => {
-  line('8 dir-remove');
+  line('10 dir-remove');
   assert.doesNotMatch(line('dir'), /\btest\b/);
   assert.equal(number(line('s" test" find . cr'), 's" test" find . cr'), -1);
   assert.ok(sim.running);
@@ -154,6 +156,23 @@ test('the I2S words load from the catalog', () => {
   assert.ok(sim.running);
 });
 
+test('the palette words write the three banks and the console pair', () => {
+  line('0x1C 0xFC 3 pal!');
+  assert.equal(sim.memory[0xF5086], 0x1C, 'text pair 3 paper (entry 6)');
+  assert.equal(sim.memory[0xF5087], 0xFC, 'text pair 3 ink (entry 7)');
+  line('0x03 0xFF 0 art-pal!');
+  assert.equal(sim.memory[0xF5090], 0x03, 'art pair 0 paper');
+  assert.equal(sim.memory[0xF5091], 0xFF, 'art pair 0 ink');
+  line('0xE0 0x1C 5 sprite-pal!');
+  assert.equal(sim.memory[0xF50AA], 0xE0, 'sprite pair 5 paper (entry 10)');
+  assert.equal(sim.memory[0xF50AB], 0x1C, 'sprite pair 5 ink (entry 11)');
+  line('5 attr');
+  assert.equal(ds(0x3BEE), 0xD000, 'ATTR composes 0x8000 | pair << 12');
+  assert.equal(number(line('attr@ . cr'), 'attr@ . cr'), 5);
+  line('0 attr');
+  assert.ok(sim.running);
+});
+
 test('the block protect is settable and clearable', () => {
   assert.equal(number(line('cf-status 0x38 and . cr'), 'cf-status 0x38 and . cr'), 0);
   line('cf-protect');
@@ -163,11 +182,11 @@ test('the block protect is settable and clearable', () => {
 });
 
 test('a packed screen unpacks with p-screen', () => {
-  line('9 8 slice-create');
+  line('11 8 slice-create');
   line('s" pair" slice-name!');
   line('slice-flush');
-  assert.match(line('9 0 p-screen'), / ok/);
-  assert.match(line('9 1 p-screen'), / ok/);
+  assert.match(line('11 0 p-screen'), / ok/);
+  assert.match(line('11 1 p-screen'), / ok/);
   assert.ok(sim.running);
 });
 

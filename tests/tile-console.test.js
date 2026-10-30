@@ -71,15 +71,16 @@ test('a bottom-row line feed clears the row that scrolls in', () => {
   // nothing else.
   const physical = (ROWS - 1 + 1) % ROWS;
   const first = cell(physical, 0);
-  assert.notEqual(first, 0x500, 'the Hello tile must have been cleared, not wrapped');
+  assert.notEqual(first & 0x0FFF, 0x500, 'the Hello tile must have been cleared, not wrapped');
   let text = '';
   for (let c = 0; c < 20; c++) {
     const tile = cell(physical, c);
-    text += tile === SPACE_TILE ? ' ' : String.fromCharCode(tile / 32 + 0x20);
+    const blank = (tile & 0x0FFF) === SPACE_TILE;
+    text += blank ? ' ' : String.fromCharCode(((tile >> 5) & 0x7F) + 0x20);
   }
   assert.equal(text.trimEnd(), '>', `bottom row after the scroll is ${JSON.stringify(text)}`);
   for (let c = 2; c < COLS - 1; c++) {
-    assert.equal(cell(physical, c), SPACE_TILE, `cell ${c} of the scrolled-in row is not blank`);
+    assert.equal(cell(physical, c) & 0x0FFF, SPACE_TILE, `cell ${c} of the scrolled-in row is not blank`);
   }
 
   // The next line feed must scroll again; the old bug also wedged the offset

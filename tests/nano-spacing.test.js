@@ -39,7 +39,8 @@ test('Return separates the D16nano input from its output', () => {
     let out = '';
     for (let c = 0; c < 80; c++) {
       const tile = sim.memory[TILEMAP + r * COLS + c] & 0xFFFF;
-      out += tile === SPACE_TILE ? ' ' : String.fromCharCode(tile / 32 + 0x20);
+      const blank = (tile & 0x0FFF) === SPACE_TILE;
+      out += blank ? ' ' : String.fromCharCode(((tile >> 5) & 0x7F) + 0x20);
     }
     return out.replace(/\s+$/, '');
   };

@@ -248,6 +248,15 @@ scroll came in at **2 CLS** (4,281 / 4,320, **39 free**) because the 32x16
 fine table maps to SSRAM/registers rather than the 26:1 LUT mux the plan
 feared. Keyboard and audio follow. The 6 OAM slots stay a later margin.
 
+The text/art/sprite palette banks and COLORTEXT pair mode then cost **30 CLS
+and 2 BSRAM**: 4,311 / 4,320 (**9 free**), BSRAM **26 / 26**, SSRAM 190. The
+16 x 16 palette moved from distributed SSRAM to one 64 x 16 BSRAM split into
+three banks, so the tile build now has no BSRAM to spare. This is the
+"comfortable" colour scope (text pairs + art + one shared sprite bank); the
+1bpp font, generated underline and italic shear in `COLORTEXT.md` §6 do not
+fit in the remaining 9 CLS and are not implemented. Any later work that needs
+a block or more than a handful of CLS has to reclaim it elsewhere first.
+
 ### 6.1 Boot move result (measured)
 
 The 24K boot image moved from the on-die FLASH608K to the config flash at
@@ -339,7 +348,7 @@ The boot-script source now ends at `dict_free 0x49D6`, only **42 cells** below
 the BIOS at `0x4A00`. Phase 2 must remove the on-die `flash@`/`screen` source
 and move the SD driver/`include` to a source slice before adding the slice
 layer, or the image will not build. The SD driver source (slices 1..3) and
-the catalog (slices 5..7) are auto-loaded at boot (`1 screen`, `5 screen`) so
+the catalog (slices 5..8) are auto-loaded at boot (`1 screen`, `5 screen`) so
 `sd`/`include`/`dir` exist at the prompt.
 
 Board test (tio, 115200):
@@ -403,7 +412,7 @@ this 42-free base.
 
 ## 10. Phase 2b result: the slice layer (board-verified)
 
-The on-board config flash now carries an 8-slice, 32 KB source image at
+The on-board config flash now carries a 9-slice, 36 KB source image at
 `0x200000` (sector 512), built by `scripts/make_slices.mjs`:
 
 | slice | object | chars |
@@ -411,11 +420,11 @@ The on-board config flash now carries an 8-slice, 32 KB source image at
 | 0 | master directory (WP) | 255 entries |
 | 1..3 | `sd.fth` - the SD/block driver | 4,695 |
 | 4 | `hello.fth` | 350 |
-| 5..7 | `catalog.fth` - editor, `dir`/`find`, `p-screen`, sound | 4,516 |
+| 5..8 | `catalog.fth` - editor, `dir`/`find`, `p-screen`, sound, palettes | 6,431 |
 
 At boot the script reads the SD source, interprets it (so `sd`, `block`,
 `include` exist), then reads the catalog. The boot source ends at
-**`dict_free 0x4325`** (17,189 cells free); the image is still 24,576 words.
+**`dict_free 0x4326`** (22,178 cells free); the image is still 24,576 words.
 The JS core models the P25Q32U byte by byte (`SpiFlash` on CS1: 0x9F, 0x05,
 0x06, 0x03, 0x02, 0x20, 0x01, the 2 MB BP, little-endian cells).
 

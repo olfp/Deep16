@@ -123,22 +123,29 @@ buffer twice horizontally and shows each source line on two output lines, so
 every source pixel is a 2x2 block. It replaces the packed character cells
 with:
 
-* an **82 x 26 tilemap of pure 16-bit tile addresses** (80 x 24 visible plus one
-  tile of margin on every side; 2,132 words = 3 BSRAM blocks),
+* an **82 x 26 tilemap of 16-bit cells** (80 x 24 visible plus one
+  tile of margin on every side; 2,132 words = 3 BSRAM blocks). `bit 15 = 0`
+  is an art cell whose low 12 bits are a 32-word-aligned tile address;
+  `bit 15 = 1` is a text pair cell,
+  `0x8000 | (pair << 12) | tile address`.
 * **96 tiles of 32 words**: 30 words of 8x15 4bpp pixels, word 30 is the palette
   pointer, word 31 is flags (H/V flip, priority). The tile address is
   `(ch - 0x20) * 32`; the tilemap never stores indices or attributes.
-* a **16-entry RGB332 palette** (128 bits of distributed ROM for now),
+* **three 16-entry RGB332 palette banks** in one 64 x 16 BSRAM: text
+  (`0xF5080`-`0xF508F`, eight paper/ink pairs), art (`0xF5090`-`0xF509F`) and
+  the shared sprite bank (`0xF50A0`-`0xF50AF`). Text cells use `pix[0]` to
+  select entry `2p` (paper) or `2p+1` (ink); mode-0 tiles read the art bank;
+  every sprite reads the sprite bank.
 * a **line-buffer renderer**: line N is scanned from one 640-byte buffer while
   line N+1 is built from the tilemap/tile bank into the other. The scan is a
   plain 640x8 read, so palette lookups cannot stall the pixel clock.
 * `scroll_x`/`scroll_y` inputs and the 26-row margin are present for the game
   path; the terminal parser leaves them at zero.
 
-The UART terminal parser is unchanged in behaviour, but writes tile addresses
+The UART terminal parser is unchanged in behaviour, but writes text pair cells
 instead of ASCII. `scripts/make_tile_font.mjs` expands the same Nixedsys 8x15
-font into the 32-word tile bank and writes `tilefont.hex`/`tilepal.hex` beside
-the boot image; `make_image` does this automatically.
+font into the 32-word tile bank and writes `tilefont.hex` and `tilepal3.hex`
+beside the boot image; `make_image` does this automatically.
 
 ```
 npm run sim:dvi:tile     # Verilator: tilemap write, H pixels, sync, 80-column wrap
@@ -199,7 +206,8 @@ a tile pixel cost the same lookup:
   bit 15 puts the sprite behind background index 0; sprite 0 wins priority.
 * **OAM** is 16 words at `0xF5000`: two words per sprite,
   `w0 = {behind, vflip, hflip, group[2:0], x[9:0]}`,
-  `w1 = {1'b0, enable, y[9:0]}`. The palette is at `0xF5080`.
+  `w1 = {1'b0, enable, y[9:0]}`. The shared sprite palette bank is at
+  `0xF50A0`.
 * **Pattern bank** at `0xF4000..0xF47FF`: 128 8x8 4bpp tiles (2,048 words,
   2 BSRAM blocks). A 32x32 sprite is 16 tiles; `tile = group*16 + (row/8)*4 +
   column`, `word = tile*16 + (row%8)*2 + half`.

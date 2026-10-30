@@ -64,8 +64,8 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 #   -o 0x200000 artifacts/image/slices.bin
 ```
 
-The current image is 8 slices / 32 KB: directory 0, SD driver 1–3, hello 4,
-catalog 5–7 (editor, `dir`/`find`, `p-screen`, I2S and IRQ words). The boot
+The current image is 9 slices / 36 KB: directory 0, SD driver 1–3, hello 4,
+catalog 5–8 (editor, `dir`/`find`, `p-screen`, I2S, IRQ and palette words). The boot
 script loads the SD driver and the catalog before the prompt, so `sd`, `dir`,
 `find`, `beep`, `irq-on` and `4 screen` are available at power-on.
 

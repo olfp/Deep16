@@ -140,6 +140,17 @@ variable nm-l drop
 : row-scroll! ( fine row -- ) swap 3 lshift or 0x100 or 0x200C es! ;
 : row-scroll-off ( -- )    0 0x200C es! ;
 
+\ ---- text/art/sprite palette banks, 0xF5080/90/A0 -----------------------
+\ The text bank holds 8 pairs (2p paper, 2p+1 ink); art cells read the art
+\ bank; sprites read the sprite bank. The console ATTR selects the text pair.
+\ 0x3BEE is the D16D kernel cell immediately before boot_script.
+0x3BEE constant text-attr
+: pal! ( bg ink pair -- )        dup 2* 0x5080 + >r drop r@ 1+ es! r> es! ;
+: art-pal! ( bg ink pair -- )    dup 2* 0x5090 + >r drop r@ 1+ es! r> es! ;
+: sprite-pal! ( bg ink pair -- ) dup 2* 0x50A0 + >r drop r@ 1+ es! r> es! ;
+: attr ( pair -- )      7 and 12 lshift 0x8000 or text-attr ! ;
+: attr@ ( -- pair )     text-attr @ 12 rshift 7 and ;
+
 \ ---- I2S sound, 0xF00A0 ------------------------------------------------
 \ 128-sample FIFO, 21.09375 kHz (6.75 MHz / 10 / 32), BCLK/LRCLK/DIN on
 \ J5 5/6/7 (FPGA 25/26/27).  DATA read = level, STATUS bits:

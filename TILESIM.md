@@ -107,7 +107,7 @@ current state rather than a blank.
 ## 3. Video ROM
 
 On the board the tile bank, sprite bank and palette are BSRAM initial contents
-(`$readmemh` of `tilefont.hex`, `birdsprite.hex`, `tilepal.hex`,
+(`$readmemh` of `tilefont.hex`, `birdsprite.hex`, `tilepal3.hex`,
 `rtl/dvi/dvi_tile.sv:189-193`). CPU memory does not contain them and PSRAM reads
 stay `0xFFFF`, so they are engine state, never seeded into the CPU address
 space.

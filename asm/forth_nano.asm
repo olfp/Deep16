@@ -3092,6 +3092,11 @@ see_str_0branch:
 ; (`node scripts/embed_forth.mjs`, and tests/forth.test.js fails if they drift).
 ; One `.text` per source line: each emits the characters (one cell each) and a
 ; NUL, which is what read_line walks.
+; Current console text pair (0..7). The BIOS tile writer reads this cell and
+; composes 0x8000 | pair<<12 | glyph address; the catalog's ATTR writes it.
+; The high bits are precomputed here so the tile writer is one LDI/LD/OR.
+text_attr:
+    .word 0x8000
 boot_script:
 ; >>> generated from forth/demo.fth - do not edit here <<<
     .string "here constant dict-base     \\ where this script's definitions begin"
@@ -13950,10 +13955,15 @@ utx_char:
     CMP R1, R0
     JC utx_done
     NOP
-    ; tile address (ch - 0x20) * 32
+    ; tile address (ch - 0x20) * 32, then pair mode:
+    ; text_attr already holds 0x8000 | pair<<12, so one OR sets mode and pair.
     LDI 0x20
     SUB R1, R0
     SL R1, 5
+    LDI text_attr
+    MOV R7, R0
+    LD R4, R7, 0
+    OR R1, R4
     ; physical row = (tile_row + tile_off) % 24
     LDI tile_row
     MOV R7, R0
@@ -14475,9 +14485,7 @@ gfx_none:
     LDI gfx_r5
     MOV R2, R0
     LD R5, R2, 0
-    LDI gfx_r6
-    MOV R2, R0
-    LD R6, R2, 0
+    LD R6, R2, 1
     RETI
     NOP
 
@@ -14492,17 +14500,14 @@ gfx_back:
     LDI gfx_r5
     MOV R2, R0
     LD R5, R2, 0
-    LDI gfx_r6
-    MOV R2, R0
-    LD R6, R2, 0
+    LD R6, R2, 1
 
     ; clear 82*26 tilemap words
     LDI -0x0F00                ; 0xF100
     MVS ES, R0
     LDI 0
-    MOV R2, R0
-    LDI 0
     MOV R3, R0
+    MOV R2, R3
     LDI 2132
     MOV R4, R0
 gfx_clear:
@@ -14526,15 +14531,13 @@ gfx_clear:
     STS R3, ES, R2             ; scroll_y
     LDI 1
     MOV R4, R0
-    LDI 0
-    MOV R2, R0
+    MOV R2, R3
     STS R4, ES, R2             ; cursor ctrl = (0<<8)|(0<<1)|1
 
     ; disable the eight OAM slots (the pattern bank need not be cleared)
     LDI -0x0B00                ; 0xF500
     MVS ES, R0
-    LDI 0
-    MOV R2, R0
+    MOV R2, R3
     LDI 16
     MOV R4, R0
 gfx_oam:
@@ -14544,21 +14547,19 @@ gfx_oam:
     JNZ gfx_oam
     NOP
 
-    ; the kernel's cursor cells: top-left, column 0
+    ; the kernel's cursor cells: out_col, out_esc, tile_row, tile_off, tile_col
     LDI 0
     MOV R2, R0
-    LDI tile_row
-    MOV R3, R0
-    ST R2, R3, 0
-    LDI tile_off
-    MOV R3, R0
-    ST R2, R3, 0
-    LDI tile_col
-    MOV R3, R0
-    ST R2, R3, 0
     LDI out_col
     MOV R3, R0
+    LDI 5
+    MOV R4, R0
+gfx_cells:
     ST R2, R3, 0
+    ADD R3, 1
+    SUB R4, 1
+    JNZ gfx_cells
+    NOP
     RETI
     NOP
 

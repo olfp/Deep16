@@ -71,6 +71,9 @@ test('Q returns from the menu to the Forth console', () => {
     if (text.includes('Hello DeepForth!')) break;
   }
   assert.match(text, /Hello DeepForth!/, 'the console banner reached the UART');
+  // gfx_back must home the console cursor cells, not just clear the tilemap.
+  const topLeft = sim.memory[cell(0, 0)] & 0xFFFF;
+  assert.equal(topLeft & 0x0FFF, glyph('H'), 'the console starts at the top-left after Q');
 });
 
 test('the idle menu autoruns Flappy after ten seconds', () => {

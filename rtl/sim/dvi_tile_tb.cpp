@@ -230,7 +230,7 @@ int main(int argc, char** argv) {
   write_ctrl(2, 0);                        // row offset back to 0
   write_ctrl(0, 0);                        // cursor off
   // Palette entry 1 = RGB332 0xE0 (full red), then a solid index-1 tile 0.
-  write_win(3, 0x81, 0x00E0);
+  write_win(3, 0x91, 0x00E0);
   for (int w = 0; w < 32; w++) write_win(1, w, (w < 30) ? 0x1111 : 0x0000);
   write_tile(0, 0x0000);                   // map cell 0 -> tile 0
   bool cap_solid = false;
@@ -314,11 +314,44 @@ int main(int argc, char** argv) {
   check("raster line beyond the frame never fires", count_raster(1400000), 0);
   write_ctrl(0x0E, 0);
 
+  // ---- text/art/sprite palette banks and pair mode ----------------------
+  // Text bank pair 0 = black/green, pair 1 = black/blue; art bank entry 1 =
+  // red; the sprite bank is tested below. The H glyph is 4bpp; pair mode
+  // reduces its ink to the pair's odd entry.
+  write_win(3, 0x80, 0x0000);
+  write_win(3, 0x81, 0x001C);
+  write_win(3, 0x82, 0x0000);
+  write_win(3, 0x83, 0x0003);
+  write_win(3, 0x91, 0x00E0);
+
+  write_tile(0, 0x8000 | 0x0500);           // mode 1, pair 0, H glyph
+  int hx = -1, hy = -1;
+  for (int yy = 0; yy < 15 && hx < 0; yy++) {
+    for (int xx = 0; xx < 8; xx++) {
+      const uint16_t w = tile[h_base + 2 * yy + (xx >= 4 ? 1 : 0)];
+      if (((w >> (4 * (xx & 3))) & 0xF) != 0) { hx = xx; hy = yy; break; }
+    }
+  }
+  int tr = 0, tg = 0, tb = 0; bool tseen = false;
+  sample_pixel(hx, hy, &tr, &tg, &tb, &tseen);
+  check("pair 0 text ink is text-bank green", tr * 1000 + tg * 10 + tb, 0 * 1000 + 255 * 10 + 0);
+
+  write_tile(0, 0x8000 | (1 << 12) | 0x0500);   // pair 1
+  sample_pixel(hx, hy, &tr, &tg, &tb, &tseen);
+  check("pair 1 text ink is text-bank blue", tr * 1000 + tg * 10 + tb, 0 * 1000 + 0 * 10 + 255);
+
+  write_tile(0, 0x0500);                    // mode 0: art bank red
+  sample_pixel(hx, hy, &tr, &tg, &tb, &tseen);
+  check("mode 0 glyph uses the art bank (red)", tr * 1000 + tg * 10 + tb, 255 * 1000 + 0 * 10 + 0);
+
+  // Restore the solid red tile the double-buffer test expects.
+  write_tile(0, 0x0000);
+
   // ---- sprites: 16x16, transparency, behind, palette ---------------------
   // Palette 2 = green, 3 = blue. Sprite 0 (front) is an index-2 grid with
   // every fourth pixel transparent; sprite 1 (behind) is solid index 3.
-  write_win(3, 0x82, 0x001C);
-  write_win(3, 0x83, 0x0003);
+  write_win(3, 0xA2, 0x001C);
+  write_win(3, 0xA3, 0x0003);
   for (int w = 0; w < 64; w++)     write_win(2, w, 0x0222);   // group 0 tiles 0..3
   for (int w = 256; w < 320; w++)  write_win(2, w, 0x3333);   // group 1 tiles 16..19
   // A blank background tile (index 0) under the sprite's left half. With
@@ -348,7 +381,7 @@ int main(int argc, char** argv) {
   // ---- 32x32 rows, flips, and the full eight-sprite priority chain -------
   // Palette 4 = blue. Group 0 tiles 8..11 are the second 8-row band of the
   // first sprite, so a sample at y=116 must read a different pattern row.
-  write_win(3, 0x84, 0x0003);
+  write_win(3, 0xA4, 0x0003);
   for (int w = 128; w < 192; w++) write_win(2, w, 0x0444);   // group 0, row band 2
   // Hflip sprite: only pattern word 7 carries a pixel, so the leftmost
   // displayed pixel can only be green if the word and nibble are reversed.

@@ -773,7 +773,7 @@ master directory; `scripts/make_slices.mjs` packs `screens/flash/*.fth` into
 `artifacts/image/slices.bin` and `npm run flash:slices` writes it at
 `0x200000`.
 
-The boot script loads the SD driver (slices 1..3) and the catalog (5..7):
+The boot script loads the SD driver (slices 1..3) and the catalog (5..8):
 
 ```text
 1 screen               \ the SD/block driver: sd, block, include
@@ -805,6 +805,28 @@ follow it on the same line.
 
 The SD card's `include ( first count -- )` remains the other source path: it
 reads 512-byte sectors (not slices) from the card and interprets them.
+
+### Tile console colours
+
+The console writes text cells as `0x8000 | (pair << 12) | glyph`. The text
+palette bank holds eight paper/ink pairs; `attr` chooses the pair for every
+character that follows, and the three `*pal!` words write the banks at
+`0xF5080`/`0xF5090`/`0xF50A0`. Writes are not frame-latched, so change them
+during vblank or at a screen transition.
+
+| word | effect |
+|---|---|
+| `pal! ( bg ink pair -- )` | write text-bank pair `p`: paper `2p`, ink `2p+1` |
+| `art-pal! ( bg ink pair -- )` | write the art-bank pair used by mode-0 tiles |
+| `sprite-pal! ( bg ink pair -- )` | write the shared sprite-bank pair |
+| `attr ( pair -- )` | select the console pair (`0..7`) |
+| `attr@ ( -- pair )` | read the current console pair |
+
+```text
+0x1C 0xFC 3 pal!        \ text pair 3: green paper, yellow ink
+3 attr                  \ the rest of the console uses pair 3
+attr@ .                 \ 3  ok
+```
 
 ## Sound: I2S on J5 5/6/7
 

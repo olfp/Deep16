@@ -497,3 +497,33 @@ DVI still closes with TNS 0 on both clocks; `psram_clk` remains above 51 MHz.
 rows, global+row offsets and the disabled path. `sim:sic` checks the `RASTER`
 register, and the segmented test checks the handler's raster-before-timer
 priority. Board flash pending.
+
+## 22. 2026-10-30: text/art/sprite palette banks and pair mode
+
+The 16 x 16 palette RAM moved to one 64 x 16 BSRAM split into three banks:
+text `0..15` (eight paper/ink pairs), art `16..31` and the shared sprite bank
+`32..47`. The CPU window is `0xF5080`-`0xF50AF`; the text bank keeps the
+console colours and the game only writes the art and sprite banks. A text
+tilemap cell now carries `0x8000 | (pair << 12) | tile address`; the fill
+reads entry `2p`/`2p+1` selected by `pix[0]`, while mode-0 cells still read the
+art bank and sprites read the sprite bank. The BIOS composes the pair from
+`text_attr` (`0x3BEE`, default `0x8000`) so the console path costs one `OR`.
+
+| | raster build | palette + pair |
+|---|---:|---:|
+| CLS | 4,281 / 4,320 (39 free) | **4,311 / 4,320 (9 free)** |
+| LUT / ALU / FF | 6,560 / 769 / 3,012 | 6,628 / 769 / 3,014 |
+| BSRAM / SSRAM | 24 / 184 | **26 / 190** |
+| dvi_pixel | 78.262 MHz | **86.108 MHz**, TNS 0 |
+| dvi_render | 30.343 | **27.013 MHz**, TNS 0 |
+| psram_clk | 77.841 | **72.888 MHz**, TNS 0 |
+| clk_cpu | 15.345 | **20.435 MHz**, TNS 0 |
+
+The three banks cost **30 CLS and both free BSRAM blocks**, so the build is now
+at 100 % BSRAM and 9 CLS. `dvi_render` still closes (27.013 > 24.75 MHz), but a
+single hold-violated endpoint remains on the `clk_cpu -> clk` clock-divider
+crossing (TNS is 0 for every constrained clock; the path is the divider's own
+asynchronous source). `sim:dvi:tile` checks pair 0/1, the art fallback and the
+sprite bank; `npm test` covers the console text cells and the game palette
+writes. The full COLORTEXT 1bpp font, underline and italic styles do not fit in
+9 CLS and are left as design in `COLORTEXT.md` §6. Board flash pending.
