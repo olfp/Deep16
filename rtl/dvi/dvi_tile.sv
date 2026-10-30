@@ -403,17 +403,19 @@ module dvi_tile #(
   logic [5:0]       pal_raddr;
   logic             pal_cursor;
   logic [3:0]       fpal, fnpal;       // {mode, pair[2:0]} of the filled cell
-  logic [1:0]       fsty, fnsty;       // {underline, bold} of the filled cell
+  logic [2:0]       fsty, fnsty;       // {underline, bold, italic page}
   logic             prev_ink;          // raw ink of the previous pixel
-  logic             txt_ink;           // styled ink bit for pair mode
+  logic             txt_raw, txt_ink;  // 1bpp glyph ink, then underline+bold
+  logic [7:0]       txt_byte;          // the two 1bpp rows in the fetched word
 
-  // Text pair mode reads the text bank (entries 2p/2p+1); art mode reads the
-  // art bank; every sprite reads the shared sprite bank.  The style bits only
-  // apply to text cells (mode 1): underline forces the whole descender row to
-  // ink, bold smears an ink pixel one pixel to the right.
-  assign txt_ink    = pix_index[0] |
-                      (fpal[3] & fsty[1] & (fgy == 4'd14)) |
-                      (fpal[3] & fsty[0] & prev_ink);
+  // The 1bpp text page stores two glyph rows per word, MSB leftmost.  Art
+  // cells still use the 4bpp nibble and read the art bank.  Underline forces
+  // the whole descender row to ink; bold smears an ink pixel one to the right.
+  assign txt_byte   = fgy[0] ? frow0[15:8] : frow0[7:0];
+  assign txt_raw    = fpal[3] ? txt_byte[~fpix[2:0]] : pix_index[0];
+  assign txt_ink    = txt_raw |
+                      (fpal[3] & fsty[2] & (fgy == 4'd14)) |
+                      (fpal[3] & fsty[1] & prev_ink);
   assign pal_raddr  = sprite_win ? {2'b10, sc[3:0]} :
                       fpal[3]    ? {2'b00, fpal[2:0], txt_ink} :
                                    {2'b01, pix_index};
@@ -482,6 +484,17 @@ module dvi_tile #(
   wire [11:0] fill_cell_addr = fill_base + 12'(fcol);
   wire [11:0] next_cell_addr = fill_base + 12'(ncol);
   wire [11:0] fill_row_addr = fcell + {7'b0, fgy, 1'b0};
+  // Text cells carry the glyph index in bits 11:5; the 1bpp page address is
+  // index*8 + page*768 + (row >> 1). Art cells keep the raw 32-word tile
+  // address and the 4bpp two-word row.
+  wire [11:0] txt_row_addr = {2'b00, fcell[11:5], 3'b0} +
+                             12'h020 +                       // tile 0 is blank art
+                             (fsty[0] ? 12'h300 : 12'h000) +
+                             {9'b0, fgy[3:1]};
+  wire [11:0] txt_next_row_addr = {2'b00, fncell[11:5], 3'b0} +
+                                  12'h020 +
+                                  (fnsty[0] ? 12'h300 : 12'h000) +
+                                  {9'b0, fgy[3:1]};
 
   wire fill_stall = (fstate == F_PIX) && (fpix == 4'd7) &&
                     (fx != 10'(H_ACTIVE - 1)) && (nstate != N_READY);
@@ -511,13 +524,13 @@ module dvi_tile #(
     tf_raddr = 12'd0;
     case (fstate)
       F_FIRST_CELL: tm_raddr = fill_cell_addr;
-      F_FIRST_ROW0: tf_raddr = fill_row_addr;
-      F_FIRST_ROW1: tf_raddr = fill_row_addr + 12'd1;
+      F_FIRST_ROW0: tf_raddr = fpal[3] ? txt_row_addr : fill_row_addr;
+      F_FIRST_ROW1: tf_raddr = fpal[3] ? txt_row_addr : fill_row_addr + 12'd1;
       F_PIX: begin
         case (nstate)
           N_CELL: tm_raddr = next_cell_addr;
-          N_ROW0: tf_raddr = fncell + {7'b0, fgy, 1'b0};
-          N_ROW1: tf_raddr = fncell + {7'b0, fgy, 1'b0} + 12'd1;
+          N_ROW0: tf_raddr = fnpal[3] ? txt_next_row_addr : fncell + {7'b0, fgy, 1'b0};
+          N_ROW1: tf_raddr = fnpal[3] ? txt_next_row_addr : fncell + {7'b0, fgy, 1'b0} + 12'd1;
           default: ;
         endcase
       end
@@ -627,8 +640,8 @@ module dvi_tile #(
       fcol <= 7'd0;
       fpal <= 4'd0;
       fnpal <= 4'd0;
-      fsty <= 2'd0;
-      fnsty <= 2'd0;
+      fsty <= 3'd0;
+      fnsty <= 3'd0;
       prev_ink <= 1'b0;
       fpix <= 4'd0;
       ftrow <= 5'd0;
@@ -669,7 +682,7 @@ module dvi_tile #(
           F_FIRST_CELL_Q: begin
             fcell <= {tm_q[11:5], 5'b0};   // mask the style bits out of the tile
             fpal  <= tm_q[15:12];
-            fsty  <= tm_q[2:1];
+            fsty  <= tm_q[2:0];
             fstate <= F_FIRST_ROW0;
           end
           F_FIRST_ROW0: begin
@@ -704,7 +717,7 @@ module dvi_tile #(
               N_CELL_Q: begin
                 fncell <= {tm_q[11:5], 5'b0};
                 fnpal  <= tm_q[15:12];
-                fnsty  <= tm_q[2:1];
+                fnsty  <= tm_q[2:0];
                 nstate <= N_ROW0;
               end
               N_ROW0: begin
@@ -744,7 +757,7 @@ module dvi_tile #(
               end else begin
                 fpix <= fpix + 4'd1;
                 fx <= fx + 10'd1;
-                prev_ink <= pix_index[0];
+                prev_ink <= txt_raw;
               end
             end
           end

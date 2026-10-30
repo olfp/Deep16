@@ -90,7 +90,7 @@ test('a bottom-row line feed clears the row that scrolls in', () => {
   assert.equal(sim.memory[sym.tile_row], ROWS - 1);
 });
 
-test('the text attribute carries underline and bold into the tilemap cell', () => {
+test('the text attribute carries underline, bold and italic into the tilemap cell', () => {
   const styled = (ch, style) => 0x8000 | style | ((ch.charCodeAt(0) - 0x20) * 32);
   const has = (value) => {
     for (let r = 0; r < ROWS; r++)
@@ -107,6 +107,10 @@ test('the text attribute carries underline and bold into the tilemap cell', () =
   press('B');
   assert.ok(has(styled('B', 2)), 'bold bit reached the cell');
 
+  sim.memory[sym.text_attr] = 0x8000 | 1;    // italic page
+  press('C');
+  assert.ok(has(styled('C', 1)), 'italic page bit reached the cell');
+
   sim.memory[sym.text_attr] = 0x8000;
-  press('\n');                               // clear the AB line buffer
+  press('\n');                               // clear the ABC line buffer
 });

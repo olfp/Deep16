@@ -184,6 +184,10 @@ test('the palette words write the three banks and the console pair', () => {
   assert.equal(ds(0x3BEE), 0x8006, 'ATTR keeps the style bits');
   line('0 style');
   assert.equal(ds(0x3BEE), 0x8000, 'STYLE 0 clears the style bits');
+  line('1 style');
+  assert.equal(ds(0x3BEE), 0x8001, 'STYLE adds the italic page bit 0');
+  assert.equal(number(line('style@ . cr'), 'style@ . cr'), 1);
+  line('0 style');
   assert.ok(sim.running);
 });
 

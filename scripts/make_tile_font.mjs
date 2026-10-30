@@ -1,23 +1,20 @@
 #!/usr/bin/env node
-// scripts/make_tile_font.mjs - turn the 8x15 text font into the tile engine's
-// 32-word 4bpp tiles.
+// scripts/make_tile_font.mjs - build the tile bank's text pages and art.
 //
-// Tile format (VIDEO.md / the D16nano plan):
+// Text is two 1-bit pages, 8 words per glyph (two rows per word, MSB leftmost):
+// tile 0 is a blank 32-word art tile, the regular page starts at word 32 and
+// the italic page at word 800. A text cell's bits 11:5 are the glyph index;
+// the fill reads 32 + index*8 + page*768 + (row >> 1).
 //
+// The 32 game-art tiles stay 32 words of 4bpp pixels at tile address 0x0C00:
 //   words  0..29   15 rows x 2 words, four 4bpp pixels per word
 //                  word 2r+0 = pixels 0..3, pixel 0 in bits 3:0
 //                  word 2r+1 = pixels 4..7, pixel 4 in bits 3:0
 //   word   30      palette pointer (bits 3:0; 16 palettes)
 //   word   31      flags (bit 0 H flip, bit 1 V flip, bit 2 priority)
 //
-// The text tiles use palette 0 and index 1 on the glyph, index 0 on the
-// background. A character maps to tile address (ch - 0x20) * 32, which is what
-// the console parser writes into the tilemap: the tilemap holds pure 16-bit
-// tile addresses, never indices and never attributes.
-//
-// The palette side is a 16-entry RGB332 table for the first text build. The
-// palette pointer in each tile is already in place, so the per-tile 16-palette
-// bank drops in without changing the tile format.
+// The palette side is a 16-entry RGB332 table copied into the text, art and
+// sprite banks.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,7 +24,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const TILE_WORDS = 32;
 export const FONT_TILES = 96;       // printable ASCII 0x20..0x7F
-export const TILE_COUNT = 128;      // 96 font glyphs + 32 game-art tiles
+export const FONT_PAGE_WORDS = FONT_TILES * 8;   // 1bpp: 8 words per glyph
+export const FONT_BASE = 32;        // tile 0 is the blank 32-word art tile
+export const FONT_PAGE_COUNT = 2;   // regular, then the italic page
+export const ART_BASE = FONT_TILES * TILE_WORDS; // 3,072, unchanged
+export const TILE_COUNT = 128;      // 96 font slots + 32 game-art tiles
 export const TILE_BANK_WORDS = TILE_WORDS * TILE_COUNT;
 
 // One 8x15 glyph, two rows per 16-bit word, low byte even row, MSB leftmost.
@@ -56,21 +57,37 @@ function writeIndexedTile(out, tileIndex, grid) {
   out[base + 31] = 0;   // flags
 }
 
-// TILE_COUNT x 32 words. Glyph pixels become palette index 1, background 0.
-// Tiles 96..109 carry the converted free-art pack; the rest stay blank.
-export function tileFontWords(fontWords, palette = 0) {
-  const out = new Array(TILE_WORDS * TILE_COUNT).fill(0);
-  for (let tile = 0; tile < FONT_TILES; tile++) {
-    for (let r = 0; r < 15; r++) {
-      const w = fontWords[tile * 8 + (r >> 1)];
-      const row = (r & 1) ? (w >> 8) & 0xFF : w & 0xFF;
-      const p = [];
-      for (let c = 0; c < 8; c++) p.push(((row >> (7 - c)) & 1) ? 1 : 0);
-      out[tile * TILE_WORDS + 2*r]     = (p[0] | (p[1] << 4) | (p[2] << 8) | (p[3] << 12)) & 0xFFFF;
-      out[tile * TILE_WORDS + 2*r + 1] = (p[4] | (p[5] << 4) | (p[6] << 8) | (p[7] << 12)) & 0xFFFF;
+// One 1bpp page: the font source is already 8 words per glyph, two rows per
+// word, MSB leftmost. The italic page is a font-build-time shear placeholder
+// (two pixels at the top, one in the middle, none at the baseline); a designed
+// italic BDF can replace it without touching the RTL.
+export function fontPage(fontWords, { italic = false } = {}) {
+  const out = new Array(FONT_PAGE_WORDS).fill(0);
+  for (let i = 0; i < FONT_PAGE_WORDS; i++) {
+    let w = fontWords[i] & 0xFFFF;
+    if (italic) {
+      const row0 = 2 * (i % 8);
+      const row1 = row0 + 1;
+      const s0 = row0 < 5 ? 2 : row0 < 10 ? 1 : 0;
+      const s1 = row1 < 5 ? 2 : row1 < 10 ? 1 : 0;
+      const lo = (w & 0xFF) >> s0;
+      const hi = ((w >> 8) & 0xFF) >> s1;
+      w = ((hi & 0xFF) << 8) | (lo & 0xFF);
     }
-    out[tile * TILE_WORDS + 30] = palette & 0xF;
-    out[tile * TILE_WORDS + 31] = 0x0000;
+    out[i] = w;
+  }
+  return out;
+}
+
+// Two 1bpp pages at 0..1,535, then the 32 art tiles at 3,072. The gap stays
+// zero; the art base is unchanged so the game constants do not move.
+export function tileFontWords(fontWords) {
+  const out = new Array(TILE_WORDS * TILE_COUNT).fill(0);
+  const regular = fontPage(fontWords);
+  const italic  = fontPage(fontWords, { italic: true });
+  for (let i = 0; i < FONT_PAGE_WORDS; i++) {
+    out[FONT_BASE + i] = regular[i];
+    out[FONT_BASE + FONT_PAGE_WORDS + i] = italic[i];
   }
   artTiles().forEach((grid, i) => writeIndexedTile(out, 96 + i, grid));
   return out;
@@ -116,5 +133,5 @@ if (isMain) {
   const out = path.resolve(process.argv[2] ?? path.join(ROOT, 'artifacts', 'image'));
   const n = writeTileFont(out);
   console.log(`wrote ${path.relative(ROOT, out)}/tilefont.hex (${n} words, ` +
-              `${TILE_COUNT} tiles x ${TILE_WORDS} words) and tilepal3.hex`);
+              `${FONT_PAGE_COUNT} x ${FONT_PAGE_WORDS}-word 1bpp pages + art) and tilepal3.hex`);
 }

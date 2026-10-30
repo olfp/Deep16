@@ -110,9 +110,10 @@ static void sample_cell(int row, int col, bool cap[15][8], bool seen[15][8], boo
     const int x0 = col * 16;
     if (y >= y0 && y < y0 + 30 && x >= x0 && x < x0 + 16 &&
         ((y - y0) & 1) == 0 && ((x - x0) & 1) == 0) {
-      cap[(y - y0) / 2][(x - x0) / 2] = top->red != 0;
+      const bool lit = (top->red | top->green | top->blue) != 0;
+      cap[(y - y0) / 2][(x - x0) / 2] = lit;
       seen[(y - y0) / 2][(x - x0) / 2] = true;
-      if (top->red != 0) *any_white = true;
+      if (lit) *any_white = true;
     }
   }
 }
@@ -121,12 +122,10 @@ static bool compare_cell(const std::vector<uint16_t>& tile, int base,
                          bool cap[15][8], bool seen[15][8], const char* name) {
   bool ok = true;
   for (int r = 0; r < 15; r++) {
-    const uint16_t w0 = tile[base + 2 * r];
-    const uint16_t w1 = tile[base + 2 * r + 1];
+    const uint16_t w = tile[base + (r >> 1)];      // 1bpp: two rows per word
+    const uint8_t row = (r & 1) ? (w >> 8) & 0xFF : w & 0xFF;
     for (int c = 0; c < 8; c++) {
-      const uint16_t w = (c < 4) ? w0 : w1;
-      const int idx = (w >> (4 * (c & 3))) & 0xF;
-      const bool exp = idx != 0;
+      const bool exp = ((row >> (7 - c)) & 1) != 0;
       if (!seen[r][c]) ok = false;
       if (cap[r][c] != exp) {
         std::printf("FAIL %s pixel r%d c%d: got %d expected %d\n",
@@ -151,24 +150,24 @@ int main(int argc, char** argv) {
 
   // H tile at tilemap[0]; visible cursor at row 0 column 1 so it does not
   // overlap the sampled cell.
-  const int h_base = (0x48 - 0x20) * 32;
-  const int a_base = (0x41 - 0x20) * 32;
-  write_tile(0, 0x0500);
+  const int h_base = 32 + (0x48 - 0x20) * 8; // tile 0 is blank; pages at 32
+  const int a_base = 32 + (0x41 - 0x20) * 8;
+  write_tile(0, 0x8000 | 0x0500);
   write_ctrl(0, (0 << 8) | (1 << 1) | 1);   // row 0, col 1, cursor on
   write_ctrl(2, 0);                         // row offset 0
 
-  check("tilemap[0] holds the H tile address", top->dbg_cell0, 0x0500);
+  check("tilemap[0] holds the H tile address", top->dbg_cell0, 0x8500);
 
   auto tile = read_hex("tilefont.hex");
   bool cap_h[15][8] = {}, seen_h[15][8] = {};
   bool white = false;
   sample_cell(0, 0, cap_h, seen_h, &white);
-  check("glyph H matches the 4bpp tile bank",
+  check("glyph H matches the 1bpp page",
         compare_cell(tile, h_base, cap_h, seen_h, "H") ? 1 : 0, 1);
   check("H is not blank", white ? 1 : 0, 1);
 
   // A tile at map column 1 must render at screen x=8..15.
-  write_tile(1, 0x0420);
+  write_tile(1, 0x8000 | 0x0420);
   write_ctrl(0, 0);              // cursor off for the renderer check
   bool cap_c1[15][8] = {}, seen_c1[15][8] = {};
   bool white_c1 = false;
@@ -210,7 +209,7 @@ int main(int argc, char** argv) {
 
   // Scroll: put A in tilemap row 1, then move the row offset by one. The A
   // must appear on visible row 0 and the H (tilemap row 0) on visible row 23.
-  write_tile(82, 0x0420);
+  write_tile(82, 0x8000 | 0x0420);
   write_ctrl(2, 1);
   bool cap_a[15][8] = {}, seen_a[15][8] = {};
   bool white_a = false;
@@ -232,7 +231,7 @@ int main(int argc, char** argv) {
   // Palette entry 1 = RGB332 0xE0 (full red), then a solid index-1 tile 0.
   write_win(3, 0x91, 0x00E0);
   for (int w = 0; w < 32; w++) write_win(1, w, (w < 30) ? 0x1111 : 0x0000);
-  write_tile(0, 0x0000);                   // map cell 0 -> tile 0
+  write_tile(0, 0x0000);                   // map cell 0 -> solid art tile 0
   bool cap_solid = false;
   unsigned solid_r = 0, solid_g = 0, solid_b = 0;
   for (int i = 0; i < 3000000; i++) {
@@ -249,7 +248,7 @@ int main(int argc, char** argv) {
   check("palette blue is zero", (long)solid_b, 0);
 
   // ---- horizontal smooth scroll -----------------------------------------
-  write_tile(1, 0x0420);                   // A in map column 1
+  write_tile(1, 0x8000 | 0x0420);          // A in map column 1
   write_ctrl(4, 8);                        // scroll one tile to the left
   check("scroll_x next register takes 8", top->dbg_scroll_x_next, 8);
   bool cap_a_s = false, seen_a_s[15][8] = {};
@@ -328,8 +327,9 @@ int main(int argc, char** argv) {
   int hx = -1, hy = -1;
   for (int yy = 0; yy < 15 && hx < 0; yy++) {
     for (int xx = 0; xx < 8; xx++) {
-      const uint16_t w = tile[h_base + 2 * yy + (xx >= 4 ? 1 : 0)];
-      if (((w >> (4 * (xx & 3))) & 0xF) != 0) { hx = xx; hy = yy; break; }
+      const uint16_t w = tile[h_base + (yy >> 1)];
+      const uint8_t row = (yy & 1) ? (w >> 8) & 0xFF : w & 0xFF;
+      if (((row >> (7 - xx)) & 1) != 0) { hx = xx; hy = yy; break; }
     }
   }
   int tr = 0, tg = 0, tb = 0; bool tseen = false;
@@ -340,7 +340,7 @@ int main(int argc, char** argv) {
   sample_pixel(hx, hy, &tr, &tg, &tb, &tseen);
   check("pair 1 text ink is text-bank blue", tr * 1000 + tg * 10 + tb, 0 * 1000 + 0 * 10 + 255);
 
-  write_tile(0, 0x0500);                    // mode 0: art bank red
+  write_tile(0, 0x0000);                    // mode 0: solid art tile 0, art bank red
   sample_pixel(hx, hy, &tr, &tg, &tb, &tseen);
   check("mode 0 glyph uses the art bank (red)", tr * 1000 + tg * 10 + tb, 255 * 1000 + 0 * 10 + 0);
 
@@ -377,7 +377,7 @@ int main(int argc, char** argv) {
         tr * 1000 + tg * 10 + tb, 255 * 1000 + 255 * 10 + 0);
 
   // The style bits live in tile-address bits 4:0, which the fill must mask.
-  write_tile(0, 0x0500 | 2);                // mode 0 with a stray style bit
+  write_tile(0, 0x0000 | 2);                // mode 0 with a stray style bit
   sample_pixel(1, 3, &tr, &tg, &tb, &tseen);
   check("art cells ignore the style bits in the low address bits",
         tr * 1000 + tg * 10 + tb, 255 * 1000 + 0 * 10 + 0);
@@ -392,8 +392,9 @@ int main(int argc, char** argv) {
   write_win(3, 0xA3, 0x0003);
   for (int w = 0; w < 64; w++)     write_win(2, w, 0x0222);   // group 0 tiles 0..3
   for (int w = 256; w < 320; w++)  write_win(2, w, 0x3333);   // group 1 tiles 16..19
-  // A blank background tile (index 0) under the sprite's left half. With
-  // TOP=0, map row 6 is y=90..104, the row the sprite at y=100 sits on.
+  // The sprite's row (map row 6) has a blank tile 90 under its left half and
+  // the solid art tile 96 around it, so the behind sprite is visible at x=19
+  // and hidden at x=27. TOP=0: y=90..104 is map row 6.
   for (int w = 0; w < 32; w++) write_win(1, 90 * 32 + w, 0x0000);
   write_tile(6 * 82 + 2, 90 * 32);                             // row 6, col 2
   write_win(3, 0, 16 | 0x0800);                                // sprite 0: x=16, enable
@@ -452,7 +453,7 @@ int main(int argc, char** argv) {
   // ---- tilemap double buffer and scan status -----------------------------
   // Put the H into bank 1 while bank 0 (the solid red tile) is displayed.
   write_ctrl(8, 1);                       // write page 1, display page 0
-  write_tile(0, 0x0500);
+  write_tile(0, 0x8000 | 0x0500);
   check("map write page is 1", top->dbg_wpage, 1);
   check("map display page still 0", top->dbg_dpage, 0);
   bool cap_old[15][8] = {}, seen_old[15][8] = {};

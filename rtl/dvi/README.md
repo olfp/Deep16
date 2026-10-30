@@ -117,7 +117,7 @@ fit alongside this without a diet).
 ## FiT graphics (text mode, first board build)
 
 **FiT** — *Frogger inspired tile-based* — is the name of this graphics layer:
-the 82×26 tilemap, the 32-word 4bpp tile bank, the eight 32×32 sprites, the
+the 82×26 tilemap, two 1bpp text pages plus 32-word 4bpp art, the eight 32×32 sprites, the
 three palette banks and the pair-mode text styles. `dvi_tile` is the module
 that implements it.
 
@@ -141,11 +141,13 @@ with:
   the shared sprite bank (`0xF50A0`-`0xF50AF`). Text cells use `pix[0]` to
   select entry `2p` (paper) or `2p+1` (ink); mode-0 tiles read the art bank;
   every sprite reads the sprite bank.
-* **text styles in the cell's low bits**: bit 2 is a generated underline (row
-  14 forced to ink) and bit 1 is a bold smear (each ink pixel repeated one to
-  the right). The tile address is 32-word aligned, so the fill masks bits 4:0
-  out of the fetch and art cells are unaffected. No BIOS change is needed: it
-  already ORs the whole `text_attr` word into the cell.
+* **two 1-bit text pages**: tile 0 is a blank 32-word art tile; the regular
+  1bpp page starts at word 32 (96 glyphs x 8 words) and the italic page at word
+  800. Text cells address `32 + index*8 + page*768 + row/2`; art tiles stay at
+  `0x0C00`. The cell's low bits are style: bit 2 underline, bit 1 bold smear,
+  bit 0 italic page. The tile address is 32-word aligned, so the fill masks
+  bits 4:0 out of the art fetch. No BIOS change is needed: it already ORs the
+  whole `text_attr` word into the cell.
 * a **line-buffer renderer**: line N is scanned from one 640-byte buffer while
   line N+1 is built from the tilemap/tile bank into the other. The scan is a
   plain 640x8 read, so palette lookups cannot stall the pixel clock.
@@ -182,6 +184,11 @@ COLORTEXT underline + bold (30 Oct 2026, place_option 1):
   CLS 4,289/4,320 (31 free)  Logic 7,352/8,640   Registers 3,009
   BSRAM 26/26, SSRAM 190
   dvi_render 32.405 MHz, dvi_pixel 86.713 MHz, psram_clk 94.458 MHz (TNS 0)
+
+1bpp regular + italic pages, art unmoved (30 Oct 2026, place_option 1):
+  CLS 4,309/4,320 (11 free)  Logic 7,410/8,640   Registers 3,011
+  BSRAM 26/26, SSRAM 190
+  dvi_render 30.125 MHz, dvi_pixel 78.013 MHz, psram_clk 86.351 MHz (TNS 0)
 ```
 
 The packed 8x32 build does **not** fit: the 128-tile bank falls out of BSRAM

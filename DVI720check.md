@@ -570,3 +570,34 @@ with pair 3; a high-contrast paper/ink pair is needed to see the underline,
 because it is drawn in the pair's ink colour. The command line that sets the
 style is echoed with the old attribute, so the effect starts with the prompt
 and the next line.
+
+## 24. 2026-10-30: 1-bit regular and italic text pages
+
+The shear was replaced by a real second font page. Tile 0 stays a blank
+32-word art tile (the console's cleared cells are mode 0 tile 0), the regular
+1bpp page starts at word 32 and the italic page at word 800; the 32 art tiles
+stay at `0x0C00`. A text cell's bits 11:5 are the glyph index, and the fill
+reads `32 + index*8 + page*768 + (row >> 1)`; `STYLE` bit 0 selects the italic
+page. The BIOS is unchanged: `utx_char` already writes `(ch - 0x20) << 5`.
+
+The regular page is the existing `font8x15.hex` data (8 words per glyph); the
+prototype italic page is a font-build-time two-step shear, so a designed
+italic font can replace it without touching the RTL.
+
+| | underline + bold | 1bpp pages |
+|---|---:|---:|
+| CLS | 4,289 / 4,320 (31 free) | **4,309 / 4,320 (11 free)** |
+| LUT / ALU | 6,607 / 745 | 6,665 / 745 |
+| FF | 3,009 | 3,011 |
+| BSRAM / SSRAM | 26 / 190 | 26 / 190 |
+| dvi_render | 32.405 MHz | **30.125 MHz** |
+| dvi_pixel | 86.713 MHz | **78.013 MHz** |
+| psram_clk | 94.458 MHz | **86.351 MHz** |
+
+The two pages and the page-select fetch cost **20 CLS** over underline+bold
+(and 3 CLS less than the shear prototype), leaving 11 free. BSRAM is unchanged
+because the art stays at `0x0C00`; moving the art to `0x0600` and shrinking the
+bank to 2,560 words would free one block, at the cost of the game's `T_*`
+constants. `sim:dvi:tile` checks the 1bpp H/A glyphs, the blank tile 0, the
+underline/bold/italic styles and the art-cell mask; `npm test` passes 678.
+Board flash pending.
