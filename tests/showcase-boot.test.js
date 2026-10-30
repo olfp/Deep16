@@ -39,12 +39,12 @@ function toMenu(sim) {
   let steps = 0;
   // The menu draws the title, F, Q and finally the autorun line; waiting for
   // the last one means the whole menu is on screen and the wait loop started.
-  while (sim.running && steps < 400000 && sim.memory[cell(19, 29)] !== glyph('A')) {
+  while (sim.running && steps < 400000 && (sim.memory[cell(19, 29)] & 0x0FFF) !== glyph('A')) {
     sim.step();
     steps++;
   }
-  assert.equal(sim.memory[cell(19, 29)], glyph('A'), 'menu finished drawing');
-  assert.equal(sim.memory[cell(5, 34)], glyph('D'), 'menu title was drawn');
+  assert.equal(sim.memory[cell(19, 29)] & 0x0FFF, glyph('A'), 'menu finished drawing');
+  assert.equal(sim.memory[cell(5, 34)] & 0x0FFF, glyph('D'), 'menu title was drawn');
   return steps;
 }
 
@@ -52,11 +52,11 @@ test('the board boots into the Flappy / Forth menu', () => {
   assert.ok(kernel.success, kernel.errors.join('; '));
   const sim = boot();
   toMenu(sim);
-  assert.equal(sim.memory[cell(5, 35)], glyph('1'), 'D16 title');
-  assert.equal(sim.memory[cell(5, 44)], glyph('9'), 'SHOW 29');
-  assert.equal(sim.memory[cell(10, 30)], glyph('F'), 'F FLAPPY');
-  assert.equal(sim.memory[cell(12, 30)], glyph('Q'), 'Q FORTH');
-  assert.equal(sim.memory[cell(19, 29)], glyph('A'), 'AUTORUN');
+  assert.equal(sim.memory[cell(5, 35)] & 0x0FFF, glyph('1'), 'D16 title');
+  assert.equal(sim.memory[cell(5, 44)] & 0x0FFF, glyph('9'), 'SHOW 29');
+  assert.equal(sim.memory[cell(10, 30)] & 0x0FFF, glyph('F'), 'F FLAPPY');
+  assert.equal(sim.memory[cell(12, 30)] & 0x0FFF, glyph('Q'), 'Q FORTH');
+  assert.equal(sim.memory[cell(19, 29)] & 0x0FFF, glyph('A'), 'AUTORUN');
 });
 
 test('Q returns from the menu to the Forth console', () => {

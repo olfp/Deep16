@@ -155,9 +155,9 @@ with:
   path; the terminal parser leaves them at zero.
 
 The UART terminal parser is unchanged in behaviour, but writes text pair cells
-instead of ASCII. `scripts/make_tile_font.mjs` expands the same Nixedsys 8x15
-font into the 32-word tile bank and writes `tilefont.hex` and `tilepal3.hex`
-beside the boot image; `make_image` does this automatically.
+instead of ASCII. `scripts/make_tile_font.mjs` writes the **UW ttyp0 8x15**
+regular and italic 1bpp pages into the tile bank and writes `tilefont.hex` and
+`tilepal3.hex` beside the boot image; `make_image` does this automatically.
 
 ```
 npm run sim:dvi:tile     # Verilator: tilemap write, H pixels, sync, 80-column wrap
@@ -309,24 +309,29 @@ Flash Initialization.
 
 ## Font
 
-`font8x15.hex` is the **Nixedsys** 8x15 bitmap font
-(github.com/ntwk/nixedsys-font), generated from its BDF by
-`scripts/bdf_to_font.mjs`. Two rows share one 16-bit word; the low byte is the
-even row, the high byte the odd row, MSB leftmost. 96 glyphs (0x20..0x7F), 8
-words per glyph. It was chosen for its Fixedsys look; see `FONT-NOTICE.md` for
-its (non-commercial) provenance. The public-domain `font8x8`-derived font is
-still available from the converter's description and can be substituted at any
-time.
+The FiT tile build uses **UW ttyp0 8x15**:
 
-Any 8x15 BDF can replace it:
+- `ttyp0-8x15.hex` — the regular 1bpp page (96 glyphs, 8 words per glyph)
+- `ttyp0-8x15-italic.hex` — the designed italic page
+
+Each word holds two rows, low byte even, high byte odd, MSB leftmost. The
+regular page sits at tile-bank word 32 and the italic at word 800; tile 0 is
+the blank 32-word art tile. `1 style` selects the italic page; `2 style` is the
+one-pixel bold smear, so there is no third page.
+
+The pages are generated from the ttyp0 package's 8x15 BDFs (the 8x16 base made
+shallow plus the 8x15 variants) and contain only printable ASCII. See
+`FONT-NOTICE.md` for the ttyp0 copyright and licence. The old
+`font8x15.hex` (Nixedsys) is no longer used by the tile build; it remains as
+the generic converter default and test fixture.
+
+Any 8x15 BDF can replace the page:
 
 ```
-node scripts/bdf_to_font.mjs font.bdf rtl/dvi/font8x15.hex
-npm run synth:gowin
+node scripts/bdf_to_font.mjs font.bdf rtl/dvi/ttyp0-8x15.hex
+node scripts/make_tile_font.mjs
+npm run synth:tile
 ```
 
-The converter centres a shorter bitmap vertically. A good candidate is
-`ntwk/nixedsys-font` (8x15, 384 glyphs, 96 printable ASCII), but that repository
-has **no licence file** (GitHub reports `license: null`), so it should not be
-committed here without the author's permission. `scripts/bdf_to_font.mjs` only
-converts a file it is given; the licence stays the caller's responsibility.
+`scripts/bdf_to_font.mjs` only converts the file it is given; the font licence
+stays the caller's responsibility.

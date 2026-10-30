@@ -343,7 +343,7 @@ if (isMain) {
                     path.join(outDir, 'font8x15.hex'));
     // The tile engine's 32-word 4bpp bank and its palette, generated from the
     // same 8x15 font so the text console and the tile console cannot drift.
-    writeTileFont(outDir, path.join(ROOT, 'rtl', 'dvi', 'font8x15.hex'));
+    writeTileFont(outDir);   // ttyp0 8x15 regular + italic pages
     writeBirdSprite(outDir);
     // PS/2 Set-2 -> ASCII map: a BSRAM pROM read by rtl/ps2_rx.sv.
     writePs2Map(outDir);

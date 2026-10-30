@@ -57,10 +57,9 @@ function writeIndexedTile(out, tileIndex, grid) {
   out[base + 31] = 0;   // flags
 }
 
-// One 1bpp page: the font source is already 8 words per glyph, two rows per
-// word, MSB leftmost. The italic page is a font-build-time shear placeholder
-// (two pixels at the top, one in the middle, none at the baseline); a designed
-// italic BDF can replace it without touching the RTL.
+// One 1bpp page: the source is 8 words per glyph, two rows per word, MSB
+// leftmost. fontPage() is only the fallback when no separate italic page is
+// supplied; the FiT build passes the designed ttyp0 italic page instead.
 export function fontPage(fontWords, { italic = false } = {}) {
   const out = new Array(FONT_PAGE_WORDS).fill(0);
   for (let i = 0; i < FONT_PAGE_WORDS; i++) {
@@ -80,11 +79,12 @@ export function fontPage(fontWords, { italic = false } = {}) {
 }
 
 // Two 1bpp pages at 0..1,535, then the 32 art tiles at 3,072. The gap stays
-// zero; the art base is unchanged so the game constants do not move.
-export function tileFontWords(fontWords) {
+// zero; the art base is unchanged so the game constants do not move. The
+// regular and italic pages come from ttyp0-8x15*.hex by default.
+export function tileFontWords(fontWords, italicWords = fontPage(fontWords, { italic: true })) {
   const out = new Array(TILE_WORDS * TILE_COUNT).fill(0);
   const regular = fontPage(fontWords);
-  const italic  = fontPage(fontWords, { italic: true });
+  const italic  = italicWords;
   for (let i = 0; i < FONT_PAGE_WORDS; i++) {
     out[FONT_BASE + i] = regular[i];
     out[FONT_BASE + FONT_PAGE_WORDS + i] = italic[i];
@@ -114,9 +114,12 @@ export const PALETTE_RGB332 = [
   0xFF, // 15 bright white
 ];
 
-export function writeTileFont(outDir, fontFile) {
+export function writeTileFont(outDir,
+                              fontFile = path.join(ROOT, 'rtl', 'dvi', 'ttyp0-8x15.hex'),
+                              italicFile = path.join(ROOT, 'rtl', 'dvi', 'ttyp0-8x15-italic.hex')) {
   const font = readFontWords(fontFile);
-  const tiles = tileFontWords(font);
+  const italic = italicFile ? readFontWords(italicFile) : undefined;
+  const tiles = tileFontWords(font, italic);
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, 'tilefont.hex'),
                    tiles.map((w) => w.toString(16).padStart(4, '0')).join('\n') + '\n');
@@ -131,7 +134,7 @@ export function writeTileFont(outDir, fontFile) {
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const out = path.resolve(process.argv[2] ?? path.join(ROOT, 'artifacts', 'image'));
-  const n = writeTileFont(out);
+  const n = writeTileFont(out, process.argv[3], process.argv[4]);
   console.log(`wrote ${path.relative(ROOT, out)}/tilefont.hex (${n} words, ` +
               `${FONT_PAGE_COUNT} x ${FONT_PAGE_WORDS}-word 1bpp pages + art) and tilepal3.hex`);
 }

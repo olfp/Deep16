@@ -81,6 +81,9 @@ draw_text_loop:
     NOP
     SUB R0, R1
     SL R0, 5
+    LSI R3, 1
+    SL R3, 15
+    OR R0, R3
     STS R0, ES, R2
     ADD R8, 1
     ADD R2, 1

@@ -601,3 +601,24 @@ bank to 2,560 words would free one block, at the cost of the game's `T_*`
 constants. `sim:dvi:tile` checks the 1bpp H/A glyphs, the blank tile 0, the
 underline/bold/italic styles and the art-cell mask; `npm test` passes 678.
 Board flash pending.
+
+## 25. 2026-10-30: ttyp0 8×15 pages and the menu text fix
+
+The two 1bpp text pages are now **UW ttyp0 8×15** regular and italic, generated
+from the package's 8×15 BDFs (`mkshallow` 8×16 base + the 8×15 variants, then
+`bdfmangle`). The page layout, CLS, BSRAM and timing are unchanged:
+**4,309 / 4,320 CLS**, BSRAM 26/26, SSRAM 190; dvi_render 30.125, dvi_pixel
+78.013, psram_clk 86.351 MHz, all TNS 0. `STYLE` bit 0 selects the designed
+italic page; `STYLE` bit 1 stays the one-pixel bold smear, so there is no third
+page.
+
+The showcase menu and HUD use the shared `draw_text`, which still wrote a
+mode-0 cell; with the 1bpp pages that renders the font as 4bpp art (the
+multicoloured menu). `draw_text` now sets bit 15 (`LSI R3,1; SL R3,15; OR
+R0,R3`), so the menu writes mode-1 pair-0 cells; `showcase.max` moves from
+0xDF3 to 0xDF6, still under the 0xE00 limit. The showcase-boot test masks the
+low 12 bits of the menu cells.
+
+`npm test` passes 678; `sim:dvi:tile` checks the ttyp0 H/A pages, the blank
+tile 0, underline, bold smears and the designed italic page. `FONT-NOTICE.md`
+carries the ttyp0 copyright and licence. Board flash pending.

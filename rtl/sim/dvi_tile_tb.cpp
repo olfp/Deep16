@@ -152,6 +152,7 @@ int main(int argc, char** argv) {
   // overlap the sampled cell.
   const int h_base = 32 + (0x48 - 0x20) * 8; // tile 0 is blank; pages at 32
   const int a_base = 32 + (0x41 - 0x20) * 8;
+  const int hi_base = 32 + 768 + (0x48 - 0x20) * 8;
   write_tile(0, 0x8000 | 0x0500);
   write_ctrl(0, (0 << 8) | (1 << 1) | 1);   // row 0, col 1, cursor on
   write_ctrl(2, 0);                         // row offset 0
@@ -375,6 +376,14 @@ int main(int argc, char** argv) {
   sample_pixel(7, 3, &tr, &tg, &tb, &tseen);
   check("bold uses pair 3's ink",
         tr * 1000 + tg * 10 + tb, 255 * 1000 + 255 * 10 + 0);
+
+  // STYLE bit 0 selects the italic page at word 800.
+  write_tile(0, 0x8000 | 0x0500 | 1);
+  bool cap_it[15][8] = {}, seen_it[15][8] = {};
+  bool white_it = false;
+  sample_cell(0, 0, cap_it, seen_it, &white_it);
+  check("italic selects the designed italic page",
+        compare_cell(tile, hi_base, cap_it, seen_it, "Hitalic") ? 1 : 0, 1);
 
   // The style bits live in tile-address bits 4:0, which the fill must mask.
   write_tile(0, 0x0000 | 2);                // mode 0 with a stray style bit
