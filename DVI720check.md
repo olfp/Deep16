@@ -556,7 +556,9 @@ The logic is **16 CLS smaller** at the same `place_option 0`. The default
 placement then failed `dvi_pixel` by 0.047 ns (two endpoints, a line-buffer
 placement artifact), so the branch switches the tile TCL to `place_option 1`.
 That gives **4,289 / 4,320 (31 free)** with `dvi_render` 32.405,
-`dvi_pixel` 86.713 and `psram_clk` 94.458, all TNS 0; BSRAM stays 26/26.
+`dvi_pixel` 86.713 and `psram_clk` 94.458, all TNS 0; BSRAM stays 26/26. The
+single hold-violated endpoint on the `clk_cpu -> clk` divider crossing is
+unchanged (the per-clock TNS table is 0).
 
 `sim:dvi:tile` checks underline, bold, the row above the underline, the
 art-cell style mask, and the plain-text baseline. `npm test` checks that the
