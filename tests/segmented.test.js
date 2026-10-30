@@ -169,7 +169,21 @@ test('the palette words write the three banks and the console pair', () => {
   line('5 attr');
   assert.equal(ds(0x3BEE), 0xD000, 'ATTR composes 0x8000 | pair << 12');
   assert.equal(number(line('attr@ . cr'), 'attr@ . cr'), 5);
+
+  // STYLE preserves the pair; ATTR preserves the style; ATTR! sets both.
+  line('4 style');
+  assert.equal(ds(0x3BEE), 0xD004, 'STYLE adds underline bit 2');
+  assert.equal(number(line('style@ . cr'), 'style@ . cr'), 4);
+  line('2 style');
+  assert.equal(ds(0x3BEE), 0xD002, 'STYLE replaces underline with bold bit 1');
+  line('5 6 attr!');
+  assert.equal(ds(0x3BEE), 0xD006, 'ATTR! sets pair 5 and both style bits');
+  assert.equal(number(line('attr@ . cr'), 'attr@ . cr'), 5);
+  assert.equal(number(line('style@ . cr'), 'style@ . cr'), 6);
   line('0 attr');
+  assert.equal(ds(0x3BEE), 0x8006, 'ATTR keeps the style bits');
+  line('0 style');
+  assert.equal(ds(0x3BEE), 0x8000, 'STYLE 0 clears the style bits');
   assert.ok(sim.running);
 });
 

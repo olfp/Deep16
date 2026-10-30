@@ -20,7 +20,7 @@ set_option -output_base_name deep16_board_tile_flash
 # lets the design drive them (UG290 "MSPI PORT — Set as GPIO").
 set_option -use_mspi_as_gpio 1
 run syn
-set_option -place_option 0
+set_option -place_option 1
 set_option -route_option 1
 run pnr
 run close

@@ -819,14 +819,23 @@ during vblank or at a screen transition.
 | `pal! ( bg ink pair -- )` | write text-bank pair `p`: paper `2p`, ink `2p+1` |
 | `art-pal! ( bg ink pair -- )` | write the art-bank pair used by mode-0 tiles |
 | `sprite-pal! ( bg ink pair -- )` | write the shared sprite-bank pair |
-| `attr ( pair -- )` | select the console pair (`0..7`) |
+| `attr ( pair -- )` | select the console pair (`0..7`), keep the style |
+| `style ( flags -- )` | set style bits, keep the pair: `2` bold, `4` underline, `6` both |
+| `attr! ( pair flags -- )` | set pair and style together |
 | `attr@ ( -- pair )` | read the current console pair |
+| `style@ ( -- flags )` | read the current style bits |
 
 ```text
 0x1C 0xFC 3 pal!        \ text pair 3: green paper, yellow ink
 3 attr                  \ the rest of the console uses pair 3
-attr@ .                 \ 3  ok
+4 style                 \ underline everything printed next
+attr@ .  style@ .       \ 3 4  ok
+0 style                 \ plain text again
 ```
+
+Bold is a real one-pixel smear in the tile engine (`2 style`). A cheaper
+look is to reserve a bright-ink pair and select it with `attr`; the palette
+has eight pairs, so pair 7 can be the bold one.
 
 ## Sound: I2S on J5 5/6/7
 

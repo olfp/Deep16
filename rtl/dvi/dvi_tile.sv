@@ -403,11 +403,19 @@ module dvi_tile #(
   logic [5:0]       pal_raddr;
   logic             pal_cursor;
   logic [3:0]       fpal, fnpal;       // {mode, pair[2:0]} of the filled cell
+  logic [1:0]       fsty, fnsty;       // {underline, bold} of the filled cell
+  logic             prev_ink;          // raw ink of the previous pixel
+  logic             txt_ink;           // styled ink bit for pair mode
 
   // Text pair mode reads the text bank (entries 2p/2p+1); art mode reads the
-  // art bank; every sprite reads the shared sprite bank.
+  // art bank; every sprite reads the shared sprite bank.  The style bits only
+  // apply to text cells (mode 1): underline forces the whole descender row to
+  // ink, bold smears an ink pixel one pixel to the right.
+  assign txt_ink    = pix_index[0] |
+                      (fpal[3] & fsty[1] & (fgy == 4'd14)) |
+                      (fpal[3] & fsty[0] & prev_ink);
   assign pal_raddr  = sprite_win ? {2'b10, sc[3:0]} :
-                      fpal[3]    ? {2'b00, fpal[2:0], pix_index[0]} :
+                      fpal[3]    ? {2'b00, fpal[2:0], txt_ink} :
                                    {2'b01, pix_index};
   assign pal_cursor = !sprite_win && cursor_fill;
 
@@ -619,6 +627,9 @@ module dvi_tile #(
       fcol <= 7'd0;
       fpal <= 4'd0;
       fnpal <= 4'd0;
+      fsty <= 2'd0;
+      fnsty <= 2'd0;
+      prev_ink <= 1'b0;
       fpix <= 4'd0;
       ftrow <= 5'd0;
       fgy <= 4'd0;
@@ -656,8 +667,9 @@ module dvi_tile #(
             fstate <= F_FIRST_CELL_Q;
           end
           F_FIRST_CELL_Q: begin
-            fcell <= tm_q[11:0];
+            fcell <= {tm_q[11:5], 5'b0};   // mask the style bits out of the tile
             fpal  <= tm_q[15:12];
+            fsty  <= tm_q[2:1];
             fstate <= F_FIRST_ROW0;
           end
           F_FIRST_ROW0: begin
@@ -676,6 +688,7 @@ module dvi_tile #(
             // is stable and F_PIX is about to consume the first pixel.
             fpix <= row_scroll_en ? {1'b0, row_scroll_q[2:0]}
                                   : 4'(scroll_x[2:0]);
+            prev_ink <= 1'b0;             // no smear from the hidden margin
             fstate <= F_PIX;
             nstate <= N_CELL;
             ncol <= 7'(fcol + 7'd1);
@@ -689,8 +702,9 @@ module dvi_tile #(
                 nstate <= N_CELL_Q;
               end
               N_CELL_Q: begin
-                fncell <= tm_q[11:0];
+                fncell <= {tm_q[11:5], 5'b0};
                 fnpal  <= tm_q[15:12];
+                fnsty  <= tm_q[2:1];
                 nstate <= N_ROW0;
               end
               N_ROW0: begin
@@ -718,16 +732,19 @@ module dvi_tile #(
               end else if (fpix == 4'd7) begin
                 fcell <= fncell;
                 fpal  <= fnpal;
+                fsty  <= fnsty;
                 frow0 <= fnrow0;
                 frow1 <= fnrow1;
                 fcol <= 7'(fcol + 7'd1);
                 fpix <= 4'd0;
+                prev_ink <= 1'b0;         // no smear across a cell boundary
                 ncol <= 7'(fcol + 7'd2);
                 nstate <= N_CELL;
                 fx <= fx + 10'd1;
               end else begin
                 fpix <= fpix + 4'd1;
                 fx <= fx + 10'd1;
+                prev_ink <= pix_index[0];
               end
             end
           end

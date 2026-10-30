@@ -344,6 +344,31 @@ int main(int argc, char** argv) {
   sample_pixel(hx, hy, &tr, &tg, &tb, &tseen);
   check("mode 0 glyph uses the art bank (red)", tr * 1000 + tg * 10 + tb, 255 * 1000 + 0 * 10 + 0);
 
+  // ---- COLORTEXT styles: generated underline and bold smear --------------
+  // The H is ".##..##." on row 3, so (7,3) is paper and (1,3) is ink.
+  write_tile(0, 0x8000 | 0x0500);           // plain text cell
+  sample_pixel(7, 3, &tr, &tg, &tb, &tseen);
+  check("plain text leaves the right edge of a stroke as paper",
+        tr * 1000 + tg * 10 + tb, 0);
+
+  write_tile(0, 0x8000 | 0x0500 | 4);       // underline style bit
+  sample_pixel(0, 14, &tr, &tg, &tb, &tseen);
+  check("underline forces the descender row to ink",
+        tr * 1000 + tg * 10 + tb, 0 * 1000 + 255 * 10 + 0);
+  sample_pixel(0, 13, &tr, &tg, &tb, &tseen);
+  check("underline leaves the row above it alone", tr * 1000 + tg * 10 + tb, 0);
+
+  write_tile(0, 0x8000 | 0x0500 | 2);       // bold style bit
+  sample_pixel(7, 3, &tr, &tg, &tb, &tseen);
+  check("bold smears the stroke one pixel right",
+        tr * 1000 + tg * 10 + tb, 0 * 1000 + 255 * 10 + 0);
+
+  // The style bits live in tile-address bits 4:0, which the fill must mask.
+  write_tile(0, 0x0500 | 2);                // mode 0 with a stray style bit
+  sample_pixel(1, 3, &tr, &tg, &tb, &tseen);
+  check("art cells ignore the style bits in the low address bits",
+        tr * 1000 + tg * 10 + tb, 255 * 1000 + 0 * 10 + 0);
+
   // Restore the solid red tile the double-buffer test expects.
   write_tile(0, 0x0000);
 

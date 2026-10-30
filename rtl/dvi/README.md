@@ -136,6 +136,11 @@ with:
   the shared sprite bank (`0xF50A0`-`0xF50AF`). Text cells use `pix[0]` to
   select entry `2p` (paper) or `2p+1` (ink); mode-0 tiles read the art bank;
   every sprite reads the sprite bank.
+* **text styles in the cell's low bits**: bit 2 is a generated underline (row
+  14 forced to ink) and bit 1 is a bold smear (each ink pixel repeated one to
+  the right). The tile address is 32-word aligned, so the fill masks bits 4:0
+  out of the fetch and art cells are unaffected. No BIOS change is needed: it
+  already ORs the whole `text_attr` word into the cell.
 * a **line-buffer renderer**: line N is scanned from one 640-byte buffer while
   line N+1 is built from the tilemap/tile bank into the other. The scan is a
   plain 640x8 read, so palette lookups cannot stall the pixel clock.
@@ -167,6 +172,11 @@ Current tile build (30 Oct 2026, text/art/sprite palette banks + pair mode):
   CLS 4,311/4,320 (9 free)   Logic 7,397/8,640   Registers 3,014
   BSRAM 26/26, SSRAM 190
   dvi_render 27.013 MHz, dvi_pixel 86.108 MHz, psram_clk 72.888 MHz (TNS 0)
+
+COLORTEXT underline + bold (30 Oct 2026, place_option 1):
+  CLS 4,289/4,320 (31 free)  Logic 7,352/8,640   Registers 3,009
+  BSRAM 26/26, SSRAM 190
+  dvi_render 32.405 MHz, dvi_pixel 86.713 MHz, psram_clk 94.458 MHz (TNS 0)
 ```
 
 The packed 8x32 build does **not** fit: the 128-tile bank falls out of BSRAM

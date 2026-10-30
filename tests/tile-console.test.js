@@ -89,3 +89,24 @@ test('a bottom-row line feed clears the row that scrolls in', () => {
   assert.equal(sim.memory[sym.tile_off], 2);
   assert.equal(sim.memory[sym.tile_row], ROWS - 1);
 });
+
+test('the text attribute carries underline and bold into the tilemap cell', () => {
+  const styled = (ch, style) => 0x8000 | style | ((ch.charCodeAt(0) - 0x20) * 32);
+  const has = (value) => {
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        if (cell(r, c) === value) return true;
+    return false;
+  };
+
+  sim.memory[sym.text_attr] = 0x8000 | 4;    // underline
+  press('A');
+  assert.ok(has(styled('A', 4)), 'underline bit reached the cell');
+
+  sim.memory[sym.text_attr] = 0x8000 | 2;    // bold
+  press('B');
+  assert.ok(has(styled('B', 2)), 'bold bit reached the cell');
+
+  sim.memory[sym.text_attr] = 0x8000;
+  press('\n');                               // clear the AB line buffer
+});

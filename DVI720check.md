@@ -527,3 +527,38 @@ asynchronous source). `sim:dvi:tile` checks pair 0/1, the art fallback and the
 sprite bank; `npm test` covers the console text cells and the game palette
 writes. The full COLORTEXT 1bpp font, underline and italic styles do not fit in
 9 CLS and are left as design in `COLORTEXT.md` §6. Board flash pending.
+
+## 23. 2026-10-30: COLORTEXT underline and bold smear
+
+The first two §6 styles fit without a font change. Text cells keep the
+32-word-aligned tile address; bits 4:0 are free, so bit 2 is a generated
+underline and bit 1 a bold smear. The fill captures them with the existing
+`tm_q` cell read, forces ink on glyph row 14 for underline, and repeats an ink
+pixel one to the right for bold (`prev_ink` is reset at each cell boundary).
+The tile-address fetch is now `{tm_q[11:5], 5'b0}`, which masks the style bits
+and also removes five address bits from the fill adder.
+
+Software is entirely in the catalog: `ATTR` preserves the style, `STYLE`
+preserves the pair, and `ATTR!` sets both. `text_attr` still holds the whole
+attribute, so **the BIOS is unchanged** — `utx_char` already ORs it into
+`(ch - 0x20) << 5`, and the style bits land in the free low bits.
+
+| | palette build | underline + bold |
+|---|---:|---:|
+| CLS | 4,311 / 4,320 (9 free) | **4,295 / 4,320 (25 free)** |
+| LUT / ALU | 6,628 / 769 | **6,607 / 745** |
+| FF | 3,014 | 3,009 |
+| BSRAM / SSRAM | 26 / 190 | 26 / 190 |
+| dvi_render | 27.013 MHz | 29.462 MHz |
+| dvi_pixel | 86.108 MHz | 74.120 MHz, **TNS -0.047** |
+
+The logic is **16 CLS smaller** at the same `place_option 0`. The default
+placement then failed `dvi_pixel` by 0.047 ns (two endpoints, a line-buffer
+placement artifact), so the branch switches the tile TCL to `place_option 1`.
+That gives **4,289 / 4,320 (31 free)** with `dvi_render` 32.405,
+`dvi_pixel` 86.713 and `psram_clk` 94.458, all TNS 0; BSRAM stays 26/26.
+
+`sim:dvi:tile` checks underline, bold, the row above the underline, the
+art-cell style mask, and the plain-text baseline. `npm test` checks that the
+BIOS writes the style bits into the tilemap cell and that the catalog words
+compose `text_attr`. Board flash pending.
