@@ -1,6 +1,6 @@
-# Tile engine in the simulation
+# FiT graphics in the simulation
 
-Bring the D16nano tile graphics — tilemap, 4bpp tiles, sprites, palette,
+Bring the D16nano **FiT** graphics (*Frogger inspired tile-based*) — tilemap, 4bpp tiles, sprites, palette,
 double buffering and hardware scroll — into the browser IDE and into a headless
 PNG renderer, driven by the same D16D image the board flashes.
 

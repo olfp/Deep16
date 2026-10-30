@@ -1,6 +1,7 @@
 # DVI 720p bring-up check
 
-Status: **resolved 2026-10-26.** The D16nano tile build now shows the console
+Status: **resolved 2026-10-26.** The D16nano **FiT** graphics build (*Frogger
+inspired tile-based*) now shows the console
 at **1280x720@60** on the HDMI monitor. The original analysis is kept below as
 the bring-up record; sections 11-14 record the fixes and the final board
 result.

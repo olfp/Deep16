@@ -99,7 +99,7 @@ is Gowin-only and cannot be simulated; board confirmation is the last step.
 The TMDS encoder check against `hdl-util/hdmi` is a development test (that
 reference is not vendored); re-run it if the encoder is ever changed.
 
-## Fit (with the packed image and the two-word PSRAM burst)
+## Area fit (with the packed image and the two-word PSRAM burst)
 
 ```
 Logic 8,173/8,640 (95%)   CLS 4,211/4,320 (98%)
@@ -114,7 +114,12 @@ The margin is tight: 109 CLS. Any further logic needs an area trade first (the
 colour mode in `VIDEO.md` estimates 6 BSRAM blocks and more CLS, so it will not
 fit alongside this without a diet).
 
-## Tile engine (text mode, first board build)
+## FiT graphics (text mode, first board build)
+
+**FiT** — *Frogger inspired tile-based* — is the name of this graphics layer:
+the 82×26 tilemap, the 32-word 4bpp tile bank, the eight 32×32 sprites, the
+three palette banks and the pair-mode text styles. `dvi_tile` is the module
+that implements it.
 
 `dvi_tile` is the NES-shaped screen the text console grows into. It drives
 standard **1280 x 720 @ 60 Hz** (1650 x 750 at 74.25 MHz). The render side

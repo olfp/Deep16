@@ -1,6 +1,7 @@
 # How to do sprite graphics on D16nano
 
-The tile build has a sprite layer on top of the tilemap: **eight 32x32
+The **FiT** graphics layer (*Frogger inspired tile-based*) has a sprite layer on
+top of the tilemap: **eight 32x32
 sprites, 4 bits per pixel**, composited into the same 640x360 frame the tiles
 draw into. Each sprite has its own x/y, a pattern group, an enable bit and
 hardware H/V flip; the whole layer shares one 16-entry RGB332 sprite palette,

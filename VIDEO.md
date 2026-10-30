@@ -2,7 +2,8 @@
 
 Target: DVI (4 TMDS pairs, second rPLL free). The text build is
 **640×480@60** at 25.2 MHz with the 80×24 text (640×360, 8×15 cells) centred
-with borders. The D16nano tile build is **1280×720@60**: its renderer fills
+with borders. The D16nano **FiT** graphics build (*Frogger inspired tile-based*)
+is **1280×720@60**: its renderer fills
 640×360 at 24.75 MHz and the scan path repeats every pixel and every line 2×2
 at 74.25 MHz (1650×750).
 
