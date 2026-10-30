@@ -162,6 +162,11 @@ packed image, console only (no sprite bank)
 user-flash image, eight 32x32 sprites + D16D demo
   CLS 3,936/4,320 (384 free)   Logic 7,262/8,640   Registers 2,483
   BSRAM 12/26 (tile 7 + sprite 2 + PSRAM 2 + tags 1), SSRAM 176
+
+Current tile build (30 Oct 2026, text/art/sprite palette banks + pair mode):
+  CLS 4,311/4,320 (9 free)   Logic 7,397/8,640   Registers 3,014
+  BSRAM 26/26, SSRAM 190
+  dvi_render 27.013 MHz, dvi_pixel 86.108 MHz, psram_clk 72.888 MHz (TNS 0)
 ```
 
 The packed 8x32 build does **not** fit: the 128-tile bank falls out of BSRAM
