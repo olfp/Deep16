@@ -337,7 +337,8 @@ This is the benchmark time base; it is not a writable register.
 ### 7.4 FiT tile engine (`D16nano`/`DVI_TILE`)
 
 **FiT** (*Frogger inspired tile-based*) is the 82×26 tile/sprite layer: tilemap,
-4bpp tile bank, eight 32×32 sprites, palette banks and text styles.
+4bpp tile bank, eight 32×32 sprites, palette banks and text styles. The
+programming guide is [`doc/FiT-Graphics-howto.md`](doc/FiT-Graphics-howto.md).
 
 Each memory has its own 4K-word page; the CPU window is write-through to the
 tile engine and the PSRAM/Forth mirror at the same address.
@@ -353,7 +354,7 @@ tile engine and the PSRAM/Forth mirror at the same address.
 | `0xF200A` | control 5 | sprite **write** page (b1:0): 0 Red, 1 Purple, 2 Yellow; 3 clamps to 0 |
 | `0xF200C` | control 6 | per-row fine scroll: `{en, row[4:0], fine[2:0]}`; latched at the frame boundary |
 | `0xF200E` | control 7 | raster line compare 0..359 (`b9:0`); one SIC bit-3 pulse per frame |
-| `0xF3000`–`0xF3BFF` | tile bank | 96 tiles × 32 words; 30 words of 8×15 4bpp, word 30 palette pointer, word 31 flags |
+| `0xF3000`–`0xF3BFF` | tile bank | CPU window: 96 of 128 tiles × 32 words; 30 words of 8×15 4bpp, words 30–31 reserved (currently zero) |
 | `0xF4000`–`0xF47FF` | sprite bank | 8 groups × 16 patterns × 16 words, selected by the control-5 **write** page; the bank holds 24 groups (3 pages), preloaded. The renderer uses the absolute OAM group. |
 | `0xF5000`–`0xF500F` | OAM | 8 sprites × 2 words: `w0={behind,vflip,hflip,free,enable,xsign,x[9:0]}`, `w1={group[4:0],free,y[9:0]}` |
 | `0xF5080`–`0xF508F` | text palette | 8 pairs: entry `2p` = paper, `2p+1` = ink |

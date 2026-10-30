@@ -218,7 +218,9 @@ tests/                the test suite
 ```
 
 Further reading: [`doc/Deep16-RTL.md`](doc/Deep16-RTL.md) documents the RTL
-core's microarchitecture, debug bus and verification tooling. The plan that
+core's microarchitecture, debug bus and verification tooling;
+[`doc/FiT-Graphics-howto.md`](doc/FiT-Graphics-howto.md) explains the tile,
+text and sprite graphics of the D16nano build. The plan that
 built it, [`VERILOG.md`](archive/VERILOG.md), and the Forth block-store design,
 [`FLASHPLAN.md`](archive/FLASHPLAN.md), are archived; the current plan inventory
 is in [`STATUS.md`](STATUS.md#pläne-und-revisionsdokumente-im-repo-root).

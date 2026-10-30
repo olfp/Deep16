@@ -8,7 +8,7 @@ of every tilemap word and no new palette memory. Section 6 extends the same word
 with **italic and underline**, and makes **bold** a palette choice rather than a
 second font.
 
-Companions: `doc/Deep16nano-Sprites.md` (tile/sprite/palette contract),
+Companions: `doc/FiT-Graphics-howto.md` (tile/sprite/palette contract),
 `SLIMPLAN.md` (the 83 CLS budget), `ARCHREV.md` (change log),
 `rtl/dvi/dvi_tile.sv` (the implementation).
 

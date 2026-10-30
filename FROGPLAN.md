@@ -418,7 +418,7 @@ table width, not the map or art format.
 | `rtl/dvi/README.md` | per-row scroll contract and frame-boundary rule |
 | `asm/showcase/frogger_game.asm` (new) | lanes, frog sprite, collision, map copy |
 | `scripts/make_art.mjs` / `scripts/make_tile_font.mjs` | only if Frogger art is baked into the 18 free slots |
-| `doc/Deep16nano-Sprites.md` | optional note on the frog sprite group |
+| `doc/FiT-Graphics-howto.md` | optional note on the frog sprite group |
 
 Build and flash after the RTL or baked-art change:
 

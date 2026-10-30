@@ -128,14 +128,16 @@ buffer twice horizontally and shows each source line on two output lines, so
 every source pixel is a 2x2 block. It replaces the packed character cells
 with:
 
-* an **82 x 26 tilemap of 16-bit cells** (80 x 24 visible plus one
-  tile of margin on every side; 2,132 words = 3 BSRAM blocks). `bit 15 = 0`
-  is an art cell whose low 12 bits are a 32-word-aligned tile address;
-  `bit 15 = 1` is a text pair cell,
-  `0x8000 | (pair << 12) | tile address`.
-* **96 tiles of 32 words**: 30 words of 8x15 4bpp pixels, word 30 is the palette
-  pointer, word 31 is flags (H/V flip, priority). The tile address is
-  `(ch - 0x20) * 32`; the tilemap never stores indices or attributes.
+* an **82 x 26 tilemap of 16-bit cells** (80 x 24 visible plus two extra
+  columns and two extra rows of scroll margin; 2,132 words = 3 BSRAM blocks).
+  `bit 15 = 0` is an art cell whose low 12 bits are a 32-word-aligned tile
+  address; `bit 15 = 1` is a text pair cell,
+  `0x8000 | (pair << 12) | style | glyph address`.
+* **128 tiles of 32 words** (the CPU window covers the first 96): 30 words of
+  8x15 4bpp pixels. Words 30–31 are reserved; the build writes a palette
+  pointer and flags there, currently zero, and the renderer reads only words
+  0–29. Text glyphs are `(ch - 0x20) * 32`; art cells use the raw tile
+  address.
 * **three 16-entry RGB332 palette banks** in one 64 x 16 BSRAM: text
   (`0xF5080`-`0xF508F`, eight paper/ink pairs), art (`0xF5090`-`0xF509F`) and
   the shared sprite bank (`0xF50A0`-`0xF50AF`). Text cells use `pix[0]` to

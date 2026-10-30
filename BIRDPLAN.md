@@ -154,7 +154,7 @@ The current `showcase-death` constants are `PAL_BODY = 0xF50A2`,
 
 ## 7. Docs
 
-`doc/Deep16nano-Sprites.md` needs its palette section updated: the bird uses
+`doc/FiT-Graphics-howto.md` needs its palette section updated: the bird uses
 the **sprite bank** (`0xF50A0`), indices 2/13/14 are body/belly/wing, the game
 writes all three per bird, and the blink/flap group roles are 0/1 and 6/7. The
 art bank (`0xF5090`) and text bank (`0xF5080`) are separate.
@@ -184,7 +184,7 @@ first; run `cf-protect` again after the power-cycle.
 | `asm/showcase/flappy_game.asm` | `reset_play` writes sprite entry `0xAE`; `sb_alive` calls `bird_group`; new helper at `0x4A0` |
 | `tests/showcase-art.test.js` | new palette/group assertions, drop the free-group check; sprite-bank entry 14 |
 | `tests/showcase-death.test.js` | new palette values, `PAL_WING = 0xF50AE`, blink/flap group runtime checks |
-| `docs/Deep16nano-Sprites.md` | body/belly/wing and blink/flap roles |
+| `doc/FiT-Graphics-howto.md` | body/belly/wing and blink/flap roles |
 
 No RTL change: the sprite format, OAM fields, page select and `$readmemh` are
 all unchanged.
