@@ -5,7 +5,7 @@ Dokument beschreibt eine beabsichtigte Richtung, **keine** Implementierungs-Spez
 Es ersetzt die frühere Fassung (Commit `3710b63`) nach einer Architektur-Review.
 
 Ziel-Hardware: Sipeed Tang Nano 9K (Gowin GW1NR-9K, 8.640 LUT4 / 26 BSRAM / 64 Mbit PSRAM).
-Referenzen: `doc/Deep16-Arch.md`, `doc/Deep16-Prog-Man.md`, `rtl/*.sv`, `VERILOG.md`.
+Referenzen: `doc/Deep16-Arch.md`, `doc/Deep16-Prog-Man.md`, `rtl/*.sv`, `archive/VERILOG.md`.
 
 Kern-Konzept: Framebuffer-lose, objektorientierte Grafik-Engine via mikroprogrammierter
 Spezial-CPU (GCoP – Graphics Co-Processor), Beam-Racer-Prinzip.
@@ -549,7 +549,7 @@ Feinheit, sondern die vorrangige Voraussetzung für alles Weitere:
 | Verfügbares BSRAM (GW1NR-9K, 26 × 18 Kbit) | **≈ 468 Kbit** |
 | **Überhang** | **≈ 35×** |
 
-`VERILOG.md` begründet die On-Chip-Matrix mit „ein On-Chip-FPGA-Build braucht kein externes
+`archive/VERILOG.md` begründet die On-Chip-Matrix mit „ein On-Chip-FPGA-Build braucht kein externes
 Speichermodell". Für diesen Baustein gilt das nicht. **Erforderlich:** Verlagerung des
 Hauptspeichers in die PSRAM mit echtem Memory-Controller, dual-portfähig für CPU und GCoP.
 
@@ -567,7 +567,7 @@ Zugriffsmustern**:
 
 | Bank | Konsumenten | Bedarf | Bemerkung |
 |---|---|---|---|
-| Haupt-RAM | CPU-Fetch, CPU-Daten | 2R + 1W | Durch den **unified Cache** (VERILOG.md Phase 3, noch nicht gebaut) auf Treffer abgedeckt; die PSRAM sieht nur Fehlzugriffe. |
+| Haupt-RAM | CPU-Fetch, CPU-Daten | 2R + 1W | Durch den **unified Cache** (archive/VERILOG.md Phase 3, noch nicht gebaut) auf Treffer abgedeckt; die PSRAM sieht nur Fehlzugriffe. |
 | Video-RAM | GCoP (Read), CPU (Write) | 1R + 1W | **Zeitlich disjunkt:** CPU schreibt nur im V-Blank (666,7 µs, §1.1), der GCoP liest in H-Blank + Active Video. |
 
 Der eigentliche Gewinn liegt in der letzten Zeile: Weil sich Schreib- und Lesezugriffe

@@ -478,11 +478,11 @@ Zwei Hinweise, wenn du daraus lernst:
 | Thema | Warum nicht im Buch | Wann |
 |---|---|---|
 | Grafik (`GFX.md`) | eine **Zukunftsplanung** — die API existiert im Simulator noch nicht | sobald der Plan umgesetzt ist |
-| PSRAM (`PLANPSRAM.md`) | **noch nicht implementiert** | nach der Implementierung |
-| Serielle Schnittstelle (`SERPLAN.md`) | die Schritte 1 bis 8 von 9 stehen, `EVALUATE` fehlt | wenn der serielle Forth fertig ist |
 
-Diese drei Dokumente liegen im Repo-Root und sind **kein** Buchinhalt. Wer sie
-umsetzt, hat danach Material für ein weiteres Kapitel.
+`GFX.md` liegt im Repo-Root und ist **kein** Buchinhalt. Wer den Plan umsetzt,
+hat danach Material für ein weiteres Kapitel. Zwei frühere Lücken sind
+inzwischen geschlossen: PSRAM ist umgesetzt, und der serielle Quelldatei-Lader
+wurde verworfen — beide Dokumente stehen deshalb nur noch im `archive/`.
 
 ## D.5 Werkzeuge der Buchproduktion
 

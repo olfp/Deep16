@@ -217,15 +217,17 @@ scripts/              bench, decode sweep, trace diff
 tests/                the test suite
 ```
 
-Further reading: [`VERILOG.md`](VERILOG.md) is the plan and decision log for
-the RTL core; [`FLASHPLAN.md`](FLASHPLAN.md) is the design for a Forth block
-store on the Tang Nano 9K; [`doc/Deep16-RTL.md`](doc/Deep16-RTL.md) documents
-its microarchitecture, debug bus and verification tooling.
+Further reading: [`doc/Deep16-RTL.md`](doc/Deep16-RTL.md) documents the RTL
+core's microarchitecture, debug bus and verification tooling. The plan that
+built it, [`VERILOG.md`](archive/VERILOG.md), and the Forth block-store design,
+[`FLASHPLAN.md`](archive/FLASHPLAN.md), are archived; the current plan inventory
+is in [`STATUS.md`](STATUS.md#pläne-und-revisionsdokumente-im-repo-root).
 
 ## State of the project
 
-`deep16_project_summary.md` is the author's original status document and claims
-"PRODUCTION READY". That is aspirational marketing text, not a status report.
+`archive/deep16_project_summary.md` is the author's original status document and
+claims "PRODUCTION READY". That is aspirational marketing text, not a status
+report.
 
 What works today: all three cores agree, the assembler and disassembler round
 trip, all seven examples assemble and run, and the Forth kernel in
@@ -249,8 +251,8 @@ Known gaps, all verified rather than assumed:
   itself — SWI, the keyboard, the Forth kernel — works everywhere.
 - **The core counters are desktop-only.** The IDE shows CPI, stalls, flushes and
   the cache hit rate next to the run indicator, with a short form for narrow
-  screens. The short form is not yet visible on phones — see `VERILOG.md`,
-  "Risiken / offene Punkte".
+  screens. The short form is not yet visible on phones — see
+  `archive/VERILOG.md`, "Risiken / offene Punkte".
 - **Documentation versions** v2.0 through v5.2 once coexisted. `doc/` is now the
   single current version; `old/` holds the rest.
 

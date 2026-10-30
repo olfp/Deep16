@@ -72,7 +72,7 @@ export function runJs(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es = 0x0000,
   sim.d16nano = nano;
   sim.running = true;
   for (const code of keys) sim.enqueueKeyCode(code & 0xFFFF);
-  // Serial line (SERPLAN.md): preload the queue, then optionally raise EOF.
+  // Serial line (archive/SERPLAN.md): preload the queue, then optionally raise EOF.
   let steps = 0;
   while (sim.running && steps < maxSteps) { sim.step(); steps++; }
   return { sim, steps, registers: sim.registers, memory: sim.memory };
@@ -114,7 +114,7 @@ export async function runWasm(res, { cs = 0xFFFF, ds = 0x0000, ss = 0x0000, es =
   // Preload the polled keyboard port (parity with Deep16Simulator.enqueueKeyCode):
   // the Forth REPL's BIOS getch/getstr read KBD_STATUS/KBD_DATA at 0xF0060/2.
   for (const code of keys) w.kbd_push(code & 0xFFFF);
-  // Serial line (SERPLAN.md): characters first, then the EOF flag.
+  // Serial line (archive/SERPLAN.md): characters first, then the EOF flag.
   let steps = 0;
   let cont = true;
   while (cont && steps < maxSteps) { cont = w.step(); steps++; }

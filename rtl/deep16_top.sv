@@ -1,7 +1,7 @@
 // Deep16 RTL - top level: memory array, boot ROM, keyboard FIFO, wiring.
 //
 // Memory lives inside the RTL (2^20 words of 16 bit, filled with 0xFFFF, boot
-// ROM at 0xFFFF0) as decided in VERILOG.md - an on-chip FPGA build needs no
+// ROM at 0xFFFF0) as decided in archive/VERILOG.md - an on-chip FPGA build needs no
 // external memory model, and get_memory_slice becomes a pointer away.
 module deep16_top
   import deep16_pkg::*;

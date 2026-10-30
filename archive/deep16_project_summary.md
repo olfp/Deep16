@@ -9,7 +9,7 @@
 > the original intent stays visible, but for anything factual use:
 >
 > - **[README.md](README.md)** - what actually works, and what does not
-> - **[doc/Deep16-Arch.md](doc/Deep16-Arch.md) §12.4** - implementation status
+> - **[doc/Deep16-Arch.md](../doc/Deep16-Arch.md) §12.4** - implementation status
 >   verified against the code
 >
 > Verified gaps as of the last update:

@@ -1,8 +1,8 @@
 # ADVARCH — config-flash storage, software PCM, and the interrupt plan
 
 Status: **agreed design; phase 1 (config-flash bring-up) in progress.**
-Started 2026-10-29. Supersedes the storage half of `FLASHPLAN.md` and the I2S
-half of `AUDIOPLAN.md`. `SOFTPCM.md` is the audio design; `ARCHREV.md` §2–§4
+Started 2026-10-29. Supersedes the storage half of `archive/FLASHPLAN.md` and the I2S
+half of `archive/AUDIOPLAN.md`. `SOFTPCM.md` is the audio design; `ARCHREV.md` §2–§4
 is the ISA change that pays for the interrupt work.
 
 ## 1. Decisions
@@ -187,7 +187,7 @@ cells; 16-bit sum.
 
 **Measured (2026-10-29).** CLS **4,294 / 4,320 (26 free)**, dvi_pixel
 **76.974 MHz** (TNS 0), dvi_render 27.936, clk_cpu 18.949, psram_clk 92.135.
-The fit needed the second DVI retime (`DVI720check.md` §16) and the BSRAM
+The fit needed the second DVI retime (`archive/DVI720check.md` §16) and the BSRAM
 FIFO; the 128×16 FF FIFO plus its read path was over the device. Board test:
 
 ```text

@@ -28,9 +28,11 @@ Noch **nicht** abgeschlossen bzw. enthalten:
 * **offen:** im Forth-Keyhandler berechnet ein `STS ES[R8], R7` im
   Schattenkontext die falsche Adresse (0xF0020 statt 0xF1000). Betrifft den
   Forth-REPL-Test und den Sweep mit den Seeds 0–3; Details und Werkzeuge in
-  `VERILOG.md`,
-* kein Cache (Phase 3) — `FSH` ist wie in den Verhaltenskernen ein No-op,
-* die IDE kennt den Kern noch nicht (Phase 4).
+  `archive/VERILOG.md`,
+* kein Cache in diesem Kern (Phase 3) — `FSH` ist wie in den Verhaltenskernen
+  ein No-op. Der Board-Build hat einen eigenen 256×8-Cache im
+  `deep16_psram_mem`; `rtl/deep16_cache.sv` ist gebaut, aber nicht verdrahtet.
+* die IDE kennt den Kern und schaltet ihn über den Kernwähler (Phase 4, fertig).
 
 Der Kern ist damit eine **fünfte Zyklen-Implementierung** des
 Verhaltensmodells, keine Mikroarchitektur. Das ist Absicht: die

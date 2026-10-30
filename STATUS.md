@@ -538,7 +538,7 @@ Buchplan (Entwurf): `book/README.md`. Gesamtumfang Ziel ~120–160 Seiten.
   Probe `probe_kap06.mjs` 71/71, Extractor `extract_kap06.mjs` 94/94,
   alle drei EPUB-Varianten mit 6 Kapiteln und 47 Diagrammen.
 - **Nachtrag (2026-10-10):** Absatz „Warum zwei Kerne" auf **drei** Kerne
-  umgestellt — JS, Rust/WASM und das Verilog-Modell (`VERILOG.md`). Messwerte
+  umgestellt — JS, Rust/WASM und das Verilog-Modell (`archive/VERILOG.md`). Messwerte
   unverändert (die Schrittzahlen stimmen auch auf dem RTL-Kern), nur die
   Begründung trägt jetzt eine Pipeline *und* zwei Interpreter.
 
@@ -701,24 +701,54 @@ Voraussetzungen für den EPUB-Build (headless-Container):
 | 2026-10-16 | **`."` schluckt genau ein Trenn-Leerzeichen** — **211 Wörter** (keine neuen). `s"` ließ das eine Leerzeichen fallen, das den Text abgrenzt, `."` nicht — und war sich dabei selbst uneinig: **interpretiert übersprang es alle führenden Leerzeichen** (`." one"` → `one`, `."  two"` → `two`), **übersetzt behielt es alle** (`[ one]`, `[  two]`). Falsch ist beides: der Standard läßt genau eines fallen (`s"  two"` → ` two`). Jetzt tun es alle drei Formen gleich. Der Tokenizer setzt `>IN` für `."` **zwei** Zellen hinter das Anführungszeichen (dort ist ein Leerzeichen ohnehin Pflicht, sonst ist das Token kein String — `."x"` bleibt ein unbekanntes Wort), der nackte `"`-Zweig prüft das nächste Zeichen und schiebt nur bei einem Leerzeichen nach, und **`print_string_skip` ist weg**: der gemeinsame Pfad ist `print_string_body`, das nichts mehr überspringt. Damit ist `." x"` = `x` und `."  xy"` = ` xy`, interpretiert **und** übersetzt. **`see`** druckt `." ` jetzt **mit** Leerzeichen (`see_str_dotq` wie `see_str_sq`/`see_str_abortq`) — ohne das bedeutete die gedruckte Definition eine andere Zeichenkette. **Verifikation:** `." one"`/`."  two"`/`."   three"`/`." x  y"` in beiden Formen, `" xy"` in beiden Formen, `s"`/`abort"` unverändert, und `see` gibt den Quelltext wieder zurück, der dieselbe Zeichenkette ergibt. **1 neuer Test** (248 in `forth.test.js`); **7 gepinnte Tests** wurden auf die richtige Erwartung gehoben (sie hielten den Fehler fest) — der eine über `see` blieb unverändert grün, weil der Quelltext derselbe ist. `FORTH.md`: der `."`/`s"`-Absatz. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 | 2026-10-16 | **`>IN !` bewegt jetzt wirklich den Zeiger** — **211 Wörter** (keine neuen). Die eine Stelle, an der das Standardmodell nicht passt, ist `>IN`: der Zeiger in den Eingabepuffer ist das **Register R5**, es gibt also keine Zelle, deren Adresse das Wort liefern könnte. `>in` antwortet die Adresse von `in_var`, einem **Spiegel**, den der Tokenizer bei jeder Bewegung schreibt — `>in @` las damit den lebenden Offset, ein **Store hinein wurde aber angenommen und ignoriert** (dokumentierte Grenze). Jetzt wird er ausgeführt, und zwar **additiv**: nichts Bestehendes ändert seine Bedeutung, weil ein Store vorher ein Nichts war. Der Kniff ist eine zweite Zelle **`in_shadow`**: `execute_xt` schreibt vor jedem Wort `in_var` **und** `in_shadow`, und `outer_resume` (wohin jedes dispatchte Wort zurückkehrt) vergleicht beide. Sind sie **gleich**, hat der Kern den Zeiger selbst bewegt (etwa `:`, das den Namen überspringt, ohne den Spiegel zu führen) — dann bleibt R5 stehen; sind sie **verschieden**, hat ein Wort entweder von Hand gespeichert oder eine eigene Bewegung gespiegelt — dann gewinnt die Zelle, und der Interpreter liest von dort weiter. **Warum die Unterscheidung nötig ist:** ohne sie würde ein Wort, das R5 ohne Spiegelung vorschiebt, beim Zurückkehren auf den alten Stand **zurückgesetzt** und läse den Namen ein zweites Mal. **Verifikation:** `1 2 80 >in ! 3 4 .` beendet die Zeile (`3 4 .` läuft nie), `: cut 80 >in ! ; 1 2 cut 3 4 .` dasselbe aus einer Definition heraus, `: jump >in @ 4 + >in ! ; jump 11 22 depth .` überspringt genau ein Token (Tiefe **1** statt 3), und `>in @`, `save-input`, `source`, `evaluate`, `included` bleiben unverändert. **2 neue Tests** (247 in `forth.test.js`), **542/542** im Repo. `FORTH.md`: der `>in`-Absatz und die Tabellenzeile. | `asm/forth.asm`, `tests/forth.test.js`, `FORTH.md` |
 
-## Architektur-Revisionen im Repo-Root
+## Pläne und Revisionsdokumente im Repo-Root
 
 Das Buch erzählt die Deep16 so, wie sie **heute** ist. Damit es dabei nicht
-stillschweigend veraltet, sind hier die Architektur-Dokumente aus dem
-Repo-Root eingeordnet: Thema, tatsächlicher Stand, und was daraus für das
-Buch folgt. Drei davon sind bewusst **kein** Buchthema.
+stillschweigend veraltet, ist dies die **einzige** Bestandsliste der Pläne,
+Design-Notizen und Revisionsdokumente: Thema, tatsächlicher Stand, und was
+daraus für das Buch folgt. Abgeschlossene und überholte Pläne liegen in
+[`archive/`](archive/README.md); dort steht auch, warum.
+
+### Aktive Pläne und Design-Notizen
 
 | Dokument | Thema | Stand | Bedeutung für das Buch |
 |---|---|---|---|
-| `ARCHREV.md` | `MOV imm2` als Funktionsauswahl statt Addition | ✅ umgesetzt **und im Buch** | 2026-10-08 in Kap. 2 (§2.1, Tabelle 2-1) und Kap. 4 (§4.2) übertragen |
-| `VERILOG.md` | dritter Kern: Verilog → Verilator + Emscripten | ✅ Phase 0–2 abgeschlossen, dreifache Parität grün, Decode-Sweep über alle 65 536 Befehlswörter ohne Abweichung | **im Buch eingearbeitet** — Kap. 6 §6.2 spricht jetzt von drei Kernen, `STYLE.md` §7 misst auf allen drei |
-| `SERPLAN.md` | Quelltext über die Tastatur in den DeepForth-Kern eintippen | 🟡 Der serielle Weg ist **verworfen** und zurückgebaut; übrig bleibt der Knopf im Screen-Tab, im Browser unbestätigt | **Material für Kapitel 7** (Mini-Forth) — noch kein Kapiteltext |
-| `PLANPSRAM.md` | PSRAM-Backing-Store für die FPGA | ⛔ **nicht umgesetzt** (Plan) | ❌ **kein Buchinhalt** |
-| `FLASHPLAN.md` | Forth-Blocks auf dem Tang Nano 9K (Config-Flash via MSPI) | ⛔ **nicht umgesetzt** (Design); Block = 4-KB-Sektor, 80×24-Textfenster | ❌ **kein Buchinhalt** — Kandidat für Kapitel 9, sobald gebaut |
-| `GFX.md`, `GFXOVERV.md` | Grafik-Subsystem GCoP | 🟡 Design-Phase, **ferne Zukunft** | ❌ **kein Buchinhalt** |
-| `deep16_project_summary.md` | IDE-Entwicklungsstand (alt) | ⚪ überholt | — |
+| `ADVARCH.md` | Config-Flash-Speicher, Software-PCM, Interrupt-Plan | 🟡 Design vereinbart; Phase 1 (Flash-Bring-up) läuft, I2S umgesetzt (`rtl/deep16_i2s.sv`) | Material für Kap. 6/9, sobald gemessen |
+| `BIRDPLAN.md` | sichtbares Flügelschlagen + Idle-Blinken | ⛔ Plan, nichts umgesetzt | — |
+| `COLORTEXT.md` | mehrfarbiger Text über Palettenpaare, dazu kursiv/unterstrichen/fett | 🟡 Design-Notiz; Unterstrichen und Fett sind als Prototyp auf dem Board | — |
+| `COMPANION.md` | Zusatzboard: USB-Tastatur und Sound | ⛔ Design-Notiz, nichts umgesetzt | ❌ kein Buchinhalt |
+| `FLOATIMPL.md` | Integer ↔ Float-Konvertierung | ⛔ Design-Notiz, nichts umgesetzt | ❌ kein Buchinhalt (FPU fehlt) |
+| `FPUEMUPLAN.md` | FPU-Emulation über den ILL-Trap | ⛔ Design vereinbart, nichts umgesetzt | ❌ kein Buchinhalt (FPU fehlt) |
+| `FROGPLAN.md` | Frogger auf der FiT-Tile-Engine | ⛔ Plan | — |
+| `GFX.md`, `GFXOVERV.md` | Grafik-Subsystem GCoP | 🟡 Design-Phase, **ferne Zukunft** | ❌ kein Buchinhalt |
+| `IMPROVE.md` | Decode-Aufräumen im RTL-Kern | ⛔ geplant, nicht angewandt | — |
+| `NEXT.md` | offene TODOs: Assembler-`include`, BIOS-Auslagerung | ⛔ offen (PSRAM erledigt, gestrichen) | — |
+| `SLIMPLAN.md` | Flächenbudget des 9K-Builds | 🟡 Design-Notiz, Budget und Modulaufteilung gemessen | — |
+| `SOFTPCM.md` | Software-PCM über I2S auf dem 9K | 🟡 Design-Notiz; der I2S-Sender ist gebaut (ADVARCH §4) | — |
+| `TILESIM.md` | FiT-Grafik im Simulator und in der IDE | ⛔ geplant | — |
+| `VERSIONING.md` | getrennte Versionen für CPU, FPGA, BIOS | 🟡 vereinbart, mit dem nächsten Versionssprung umzusetzen | — |
 
-### Warum GFX, PSRAM und Flash draußen bleiben
+### Archiviert (`archive/`)
+
+| Dokument | Warum archiviert |
+|---|---|
+| `AUDIOPLAN.md` | ersetzt durch `SOFTPCM.md` (I2S) und `ADVARCH.md` §4 |
+| `DVI720check.md` | erledigt 2026-10-26; der Tile-Build läuft mit 1280×720@60 |
+| `SERPLAN.md` | verworfen und aus dem Code entfernt; der Tastatur-Knopf ersetzt ihn |
+| `PLANPSRAM.md` | umgesetzt; das Board bootet den Kernel aus PSRAM |
+| `FLASHPLAN.md` | Speicher-Hälfte durch `ADVARCH.md` ersetzt |
+| `ILLTRAP.md` | umgesetzt in core3, Assembler und allen Kernen |
+| `VERILOG.md` | Kern gebaut, in der IDE und im Buch; `doc/Deep16-RTL.md` ist die lebende Referenz |
+| `deep16_project_summary.md` | überholt (siehe „State of the project" in `README.md`) |
+
+### Referenzdokumente (keine Pläne)
+
+`ARCHREV.md` (umgesetzte ISA-Revision, im Buch), `MEMMAP.md`, `HARDWARE.md`,
+`OPTIMIZE.md`, `STYLE.md`, `FORTH.md`, `VIDEO.md`, `USERFLASH.md`,
+`D16MINI.md` (Handbuch und Historie des Boards) — sie beschreiben den Ist-Stand
+und werden nicht archiviert.
+
+### Warum GFX draußen bleibt
 
 - **`GFX.md` / `GFXOVERV.md` sind ferne Zukunft.** Beide Dokumente sagen das
   selbst: Projekt-Status *Design-Phase / Planungsgrundlage*, „keine
@@ -728,25 +758,10 @@ Buch folgt. Drei davon sind bewusst **kein** Buchthema.
   zu beschreiben hieße, das Buch kaputtzuschreiben, sobald sie gebaut wird.
   **Auslöser für eine Neubewertung:** sobald `rtl/` GCoP-Bausteine enthält,
   gibt es Messwerte und das Thema gehört in den Buchplan (Kandidat: Anhang).
-- **`PLANPSRAM.md` ist nicht durchgeführt.** Der Plan beschreibt, den
-  Speicher-Backing-Store des RTL-Kerns vom Verilog-Array auf den PSRAM der
-  Tang Nano 9K umzuziehen. Der Ist-Stand ist unverändert: `rtl/deep16_top.sv:48`
-  deklariert weiterhin `reg [15:0] mem [0:MEM_WORDS-1]`, und die
-  `always_comb` ab Zeile 207 bedient genau dieses Array (elf kombinatorische
-  Leseports plus ein Schreibport je Takt). Nichts davon ist messbar, also
-  nichts davon darf im Buch stehen.
-  **Auslöser:** sobald Schritt 1 der Umsetzung (Memory-Interface) im RTL
-  steht, ist der Kapitel-6-Speicherkarte die PSRAM-Aufteilung hinzuzufügen.
-- **`FLASHPLAN.md` ist ein Entwurf, kein Bau.** Er beschreibt einen
-  Forth-Blockspeicher auf dem Config-Flash des Tang Nano 9K (über MSPI), mit
-  Block = 4-KB-Sektor. Es gibt weder Gerätemodell noch RTL noch Messwerte.
-  **Auslöser:** sobald das Gerätemodell im JS-Kern läuft (Phase 1), ist die
-  Kapitel-6-Speicherkarte um die Storage-Ports zu ergänzen und ein Kapitel 9
-  über den Forth-Kern möglich.
 
-Alle drei bleiben hier sichtbar, damit niemand sie für vergessen hält: ein
-Revisionsdokument im Repo-Root, das nichts mit dem Buch zu tun hat, ist eine
-bewusste Entscheidung und keine Lücke.
+PSRAM und der Flash-Blockspeicher sind dagegen nicht mehr offen:
+`archive/PLANPSRAM.md` ist umgesetzt, `archive/FLASHPLAN.md` durch `ADVARCH.md` ersetzt — beide
+stehen deshalb nur noch im Archiv und nicht mehr als Buchlücke.
 
 ---
 
@@ -818,7 +833,7 @@ mehr, zieht das nächste geschlossene Teilsystem als Ganzes um.
    Tokenizer und dieselben Wörter** wie die Tastaturzeile, im aktuellen Zustand
    — zwei Ebenen verschachteln, `-13` (unbekannter Name) und `-22` (zu lang/zu
    tief) sind Ausnahmen. Offen bleibt nur die Bestätigung, dass eine Quelldatei
-   im Browser eingetippt wird (`SERPLAN.md`): Material für ein Kapitel 9 über den
+   im Browser eingetippt wird (`archive/SERPLAN.md`): Material für ein Kapitel 9 über den
    Forth-Kern, der das Kernprogramm des Projekts ist.
 8. **Der Forth-Kern ist das Kernprogramm des Projekts und war der am
    längsten liegengebliebene Teil.** `forth/hanoi.fth` trug vier „das kann der
@@ -953,7 +968,7 @@ ist inzwischen erledigt, Punkt 4 kam am 2026-10-11 dazu und ist abgeschlossen.
 Der serielle Weg ist am 2026-10-11 **verworfen und vollständig zurückgebaut**:
 Es gab eine zweite Betriebsart für etwas, das die Tastatur schon kann. Jetzt
 tippt der Knopf **„Datei tippen…"** im Screen-Tab die Datei als Tastatureingabe
-ein. Die Begründung und die Details stehen in `SERPLAN.md`.
+ein. Die Begründung und die Details stehen in `archive/SERPLAN.md`.
 
 Offen bleibt nur, dass der Ablauf **im Browser nie gelaufen ist**.
 
@@ -1332,9 +1347,9 @@ die einzige Änderung, die für die Iterativ-Teilung überhaupt nötig ist.
 |---|---|---|
 | **Forth-Kern: der Rest von CORE/CORE-EXT** | `asm/forth.asm` | `j`, `r@` und `+loop` sind da (Tier 1/2 abgeschlossen). Offen ist der **Tier-3-Block**: `WORD PARSE FIND >BODY >IN SOURCE SOURCE-ID REFILL SAVE-INPUT RESTORE-INPUT COMPILE, [COMPILE] POSTPONE :NONAME MARKER PAD UNUSED QUIT ENVIRONMENT? */ */MOD CHAR+ CHARS .R U.R ALIGN ALIGNED >NUMBER .( C"`, dazu die exakte vorzeichenlose 32÷16-Division und der Ladepfad. Siehe „Nächste Schritte" Nr. 9 |
 | Opcode-Referenz | `doc/Deep16-Arch.md`, `book/anhang.md` | **Geprüft 2026-10-16:** die Spec stimmt an jeder Stelle mit dem Assembler überein (Schiebegruppe 12/12, `MUL`/`DIV` 4/4, System- und Flag-Gruppe 8/8) — die frühere Meldung „drei Bereiche veraltet" war ein **Fehlalarm** (so schon am 2026-10-11 im Log vermerkt; echt war nur die `DIV32`-Etikettierung, längst behoben). In `book/anhang.md` Tabelle A-1 standen dagegen **zwei echte Fehler**, jetzt behoben: `LSI` schreibt **`Rd`** (nicht über `R0`), und die beiden `MVS`-Zeilen hatten das `d`-Bit vertauscht (`0` = lesen, `1` = schreiben) |
-| Quelldatei im Browser eintippen | `SERPLAN.md` | Nie im Browser gelaufen; die Pumpe ist nur gegen den echten Kernel auf dem JS-Kern getestet |
+| Quelldatei im Browser eintippen | `archive/SERPLAN.md` | Nie im Browser gelaufen; die Pumpe ist nur gegen den echten Kernel auf dem JS-Kern getestet |
 | Kapitel 9 ff. | `book/README.md` | Buchplan ist mit Kapitel 8 + Anhängen ausgeschöpft |
-| `PSRAM` / `GFX` | `PLANPSRAM.md`, `GFX.md` | Nicht implementiert — bewusst kein Buchinhalt (Anhang D.4) |
+| `GFX` | `GFX.md` | Nicht implementiert — bewusst kein Buchinhalt (Anhang D.4). PSRAM ist inzwischen umgesetzt und aus D.4 entfernt |
 
 ---
 

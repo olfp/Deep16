@@ -21,11 +21,11 @@
 > This document unifies the earlier *D16MINI* (the machine) and *D16LIGHT* (the
 > serial front end) drafts into one.
 >
-> Companion documents: [`PLANPSRAM.md`](PLANPSRAM.md) (the full 1 MB machine this
-> deliberately is *not*), [`VERILOG.md`](VERILOG.md) (the current three-core RTL),
-> [`SERPLAN.md`](SERPLAN.md) (the discarded serial *source loader* — unrelated to
-> the console here), [`FLASHPLAN.md`](FLASHPLAN.md) (blocks-on-flash, out of
-> scope).
+> Companion documents: [`PLANPSRAM.md`](archive/PLANPSRAM.md) (the full 1 MB
+> machine this deliberately is *not*), [`VERILOG.md`](archive/VERILOG.md) (the
+> three-core RTL), [`SERPLAN.md`](archive/SERPLAN.md) (the discarded serial
+> *source loader* — unrelated to the console here),
+> [`FLASHPLAN.md`](archive/FLASHPLAN.md) (blocks-on-flash, out of scope).
 >
 > Baseline measured 2026-10-16 against the working tree (`asm/forth.asm` @ 12,622
 > lines).
@@ -70,7 +70,7 @@ screen replaced by a serial terminal.
 - No framebuffer, shadow buffer, or cell-address translation (§7.8 is the
   rejected alternative).
 - No colours/attributes; no cursor or scroll bookkeeping in the machine.
-- No block store (`FLASHPLAN.md`), no graphics (`GFX.md`), no speed target.
+- No block store (`archive/FLASHPLAN.md`), no graphics (`GFX.md`), no speed target.
 - No ISA change, and no change to the Forth *language* — the console is a swap.
 
 **The one sentence.** DeepForth's kernel image plus a working dictionary fits in
@@ -201,7 +201,7 @@ the whole chip. It must go.
   refill reads** (`deep16_top.sv:163-164`) which are the reason the port count is
   11 today.
 - Turn the SWI vector into a **register** fed by the write path (the `mem[2]`
-  read, `deep16_top.sv:160`, is a wasted port) — `PLANPSRAM.md` §1 recommends
+  read, `deep16_top.sv:160`, is a wasted port) — `archive/PLANPSRAM.md` §1 recommends
   this and it applies here too.
 
 **Done — differently, and better.** The vector is now read through the **data
@@ -239,7 +239,7 @@ address**:
   `mem_rdata` is latched in the same cycle (`deep16_core.sv:1048-1049`).
 
 **Gowin BSRAM read data is registered (one clock later).** So even BRAM-only
-needs the interface change `PLANPSRAM.md` §A calls "memory interface honesty":
+needs the interface change `archive/PLANPSRAM.md` §A calls "memory interface honesty":
 
 - Drive the data-read BSRAM address from **EX** (the address is known there), so
   the registered output lands in **MEM** where it is consumed. The load-use stall
@@ -778,7 +778,7 @@ inference to happen at all (§4.6).
 There is **no runtime copy from flash to RAM, and no loader.** The `.mi` /
 `$readmemh` is a *synthesis input*: Gowin EDK bakes the BSRAM initial contents
 into the **bitstream** as configuration data. That bitstream sits in the config
-SPI flash (`FLASHPLAN.md` §1, its region reserved in §2) — the boot image rides
+SPI flash (`archive/FLASHPLAN.md` §1, its region reserved in §2) — the boot image rides
 inside it and needs no region of its own — and the FPGA's configuration
 controller loads it at power-up. When configuration completes the 26 blocks
 already hold the kernel, and the CPU starts on `forth_start`. "Flash → RAM" *is*
@@ -789,7 +789,7 @@ a ~1–2 MB GW1NR-9 bitstream, a few percent — which is why the "fill everythi
 of §6.1 is cheap rather than expensive.
 
 A *copy* appears only in the two deferred alternatives: the UART loader (§6.6),
-or a flash-resident image read back over MSPI by a ROM loader (`FLASHPLAN.md`).
+or a flash-resident image read back over MSPI by a ROM loader (`archive/FLASHPLAN.md`).
 
 > Caveat: the init-bits-in-bitstream mechanism is Gowin-tool behaviour that
 > cannot be checked here (no toolchain). §6.2 already flags that inference must
@@ -857,7 +857,7 @@ kernel can change without a re-synthesis. Out of scope for the first board.
 The current "load a program" path (`loadProgram` in `rtl/sim`,
 `js/deep16_simulator.js`) is a **simulation** facility; it is not a hardware
 loader. DeepForth's own "Datei tippen…" source loader is **browser-only**
-(`SERPLAN.md`): on the board a source file arrives by typing into the UART, or it
+(`archive/SERPLAN.md`): on the board a source file arrives by typing into the UART, or it
 is already in the image. There is no on-board mass storage in this design. (In
 simulation the injection is kept — §7.7, decision C5.)
 
@@ -1114,7 +1114,7 @@ attribute problem. Decision C1 chose the dumb pipe instead.
 | 13 | Boot image validity | `tests/image.test.js`: every word in the window, the `0xFFFF` fill, the BIOS at `0x5600`, the one MMIO word kept out |
 
 Test 7 is the mechanism that pins the two output paths (§7.1) closed — the thing
-the "one chokepoint" comment only asserted. Test 9 is `PLANPSRAM.md` §7's
+the "one chokepoint" comment only asserted. Test 9 is `archive/PLANPSRAM.md` §7's
 latency-invariance idea reduced to the one latency that matters here.
 
 Tests 11 and 12 exist because the step-based tests could not see the free-run

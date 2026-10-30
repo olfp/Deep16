@@ -86,7 +86,7 @@ is the worst possible place to debug soft-float.
 ### 3.1 Encoding
 
 SYS sub-opcode 6, word **`0xFFF6`**. Sub-op 7 (`0xFFF7`) is **`NIO`**, the
-non-implemented-opcode trap (`ILLTRAP.md`), not free.
+non-implemented-opcode trap (`archive/ILLTRAP.md`), not free.
 
 | File | Change |
 |---|---|
@@ -228,7 +228,7 @@ architectural-PC read (`Arch §6.2.2`) in return for one word saved at each
    spent, no instruction removed.
 2. A real single-word `SAPFI` in the **AR14** slot (`1110`), not APC. Its only
    user is `ill_get_r14` (`forth_nano.asm:15103`), one stub for the case
-   `ILLTRAP.md` already documents as unsupported. Then `SAPF` (SYS `0xFFF6`,
+   `archive/ILLTRAP.md` already documents as unsupported. Then `SAPF` (SYS `0xFFF6`,
    dynamic) and `SAPFI` (SMV `1110`, static) both exist, and ALINK, ALNK and
    APC are untouched.
 

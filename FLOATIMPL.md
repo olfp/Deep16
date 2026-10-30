@@ -6,7 +6,7 @@ algorithms, the edge cases and the test strategy *before* any arithmetic is
 written, because every float operation downstream depends on them.
 
 Companion documents: `FPUEMUPLAN.md` (FPU trap, `SAPF`, phases),
-`ILLTRAP.md` (trap mechanics, `NIO`), `doc/Deep16-FPU.md` (the specification
+`archive/ILLTRAP.md` (trap mechanics, `NIO`), `doc/Deep16-FPU.md` (the specification
 being corrected).
 
 ## 1. Encoding: conversions get no opcode
@@ -16,7 +16,7 @@ are not a SYS word" (`rtl/deep16_core3.sv:111-130`), i.e. `0xFFF8..0xFFFF`, and
 `0xFFFF` is HALT. `doc/Deep16-FPU.md` §3.1 then spends all seven surviving
 words on its nested prefix scheme: FADD/FMUL/FDIV/FSQRT at `...1000..1011`,
 FEXP/FLOG at `...1100/1101`, FCMP at `...1110`. `0xFFF7` becomes `NIO`
-(`ILLTRAP.md`) and nothing else in the 65,536-word space is free — §14.1
+(`archive/ILLTRAP.md`) and nothing else in the 65,536-word space is free — §14.1
 audits the 30 architecturally dead sub-cases and says why they are deliberately
 not reclaimed.
 
@@ -404,7 +404,7 @@ contiguous and unambiguously ignored; the other 22 change the meaning of
 Recommendation: **do not spend them on float ops.** Eight words cannot hold a
 float ISA (the trap range already has seven), and reusing odd-`Rx` `JML` means
 a plausible bug (`JML R3`) silently becomes a different instruction — the same
-argument that produced `NIO` (`ILLTRAP.md`). Make them trap as ILL instead,
+argument that produced `NIO` (`archive/ILLTRAP.md`). Make them trap as ILL instead,
 so the holes are honest, and leave the words alone unless a measurement later
 justifies exactly one of them.
 

@@ -1,6 +1,8 @@
 # Software PCM on the 9K: I2S to a MAX98357A
 
-Status: **design note, nothing implemented.** The question is whether the
+Status: **design note.** The I2S transmitter with its FIFO and MMIO is built
+(`rtl/deep16_i2s.sv`, `ADVARCH.md` §4); the Forth-side wave function and
+envelope player are not. The question is whether the
 D16nano can generate its own PCM — a wave function and an envelope in Forth or
 machine code — through an I2S transmitter into a MAX98357A, with no companion
 board and no sound hardware beyond the serialiser. The answer is yes for one to
@@ -8,7 +10,7 @@ three voices, marginally for four, and the binding constraints are the
 **sample clock** and the **83 free CLS**, not the CPU.
 
 Companions: `COMPANION.md` (the hardware sound chip on a second board),
-`AUDIOPLAN.md` (the on-die sigma-delta design), `SLIMPLAN.md` (the area
+`archive/AUDIOPLAN.md` (the on-die sigma-delta design), `SLIMPLAN.md` (the area
 budget), `doc/Deep16-Arch.md` (instruction set and CPI).
 
 ## 1. The machine you would be spending

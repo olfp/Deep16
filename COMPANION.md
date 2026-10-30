@@ -9,7 +9,7 @@ LUT4. This note fixes where they go instead, how they attach without touching
 the 9K's fabric, and what the companion contains. Companion area figures are
 ±40 % until the companion is synthesised.
 
-Companions: `SLIMPLAN.md` (the 9K's area budget), `AUDIOPLAN.md` (the on-die
+Companions: `SLIMPLAN.md` (the 9K's area budget), `archive/AUDIOPLAN.md` (the on-die
 audio design this replaces), `SOFTPCM.md` (the 9K-only alternative: I2S plus
 software synthesis, 15–34 % CPU), `HARDWARE.md` (PS/2, SPI, the USB core
 reference), `doc/Interrupts.md` (the interrupt model).
@@ -244,7 +244,7 @@ through a two-pole RC), and the pulse waves' images land at 24 kHz where the
 filter kills them — at 15 kHz they alias into the audible band. It costs one
 comparator and no CPU.
 
-The analogue side is unchanged from `AUDIOPLAN.md` §5: two RC sections
+The analogue side is unchanged from `archive/AUDIOPLAN.md` §5: two RC sections
 (1 kΩ / 10 nF each) into 100 Ω and a 10 µF coupling capacitor, silence at
 VDD/2, and nothing but a 3.3 V pin on the companion.
 

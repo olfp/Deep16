@@ -26,7 +26,7 @@ changes above.
 ## Why this one
 
 The QN88P package's embedded 64 Mbit part is a **HyperRAM** (HyperBus), not
-the SDRAM-style part `PLANPSRAM.md` §12 originally described. Gowin's official
+the SDRAM-style part `archive/PLANPSRAM.md` §12 originally described. Gowin's official
 "PSRAM Memory Interface HS" IP builds for this device, but costs **CLS 663
 (16 %) / LUT 1,054 / SSRAM 18** on its own, and the board build already sits at
 CLS 4,163/4,320 (97 %). This controller is under 200 logic units, so it fits.

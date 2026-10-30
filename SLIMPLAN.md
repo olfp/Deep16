@@ -8,8 +8,8 @@ the D16D demo, SD, PS/2 and the HDMI console) is at **4,237 / 4,320 CLS** and
 has to fit three more features: a timer interrupt, a raster interrupt and
 audio.
 
-Companions: `AUDIOPLAN.md` (what the audio actually needs), `HARDWARE.md`
-(current fit report and what is already built), `DVI720check.md` (why the tile
+Companions: `archive/AUDIOPLAN.md` (what the audio actually needs), `HARDWARE.md`
+(current fit report and what is already built), `archive/DVI720check.md` (why the tile
 build exists), `doc/Interrupts.md` (the ISA interrupt model),
 `archive/24k-bsram/README.md` (the retired 24K builds).
 
@@ -53,7 +53,7 @@ Estimates, ±40 % except where a measurement exists.
 | Raster IRQ (line compare + CDC into the CPU domain) | 10–20 | the tile engine already has the line counter |
 | Minimal 2-source SIC (pending + cause/ack) | 8–12 | needed once there are two sources |
 | ~~Flash read port (2 KB screens from the user flash)~~ | **6 measured** | shares `flash_boot`'s `flash608k_read`; done 28 Oct, net of the verify removal |
-| Audio (sigma-delta + sample/volume regs, no FIFO) | 30–40 | `AUDIOPLAN.md` §2, §4 |
+| Audio (sigma-delta + sample/volume regs, no FIFO) | 30–40 | `archive/AUDIOPLAN.md` §2, §4 |
 | **total (remaining)** | **68–112** | |
 
 With placement margin the target is to free **150–200 CLS ≈ 260–350 LUT4**.
@@ -186,7 +186,7 @@ yield.
 
 - **BSRAM-only cuts** (`SPR_GROUPS 24→8`, `TILE_COUNT 128→96`, tilemap
   82×26→80×24, the keyboard FIFO) free blocks, not CLS. Useful if audio wants a
-  FIFO block (`AUDIOPLAN.md` §4), not for the interrupt work.
+  FIFO block (`archive/AUDIOPLAN.md` §4), not for the interrupt work.
 - **The debug bus is already free.** The board ties `dbg_en`/`dbg_we` to 0
   (`rtl/deep16_board.sv:408-412`), so the register file's debug port is
   constant-folded out. Nothing to reclaim.
@@ -197,7 +197,7 @@ yield.
 ## 9. What not to cut
 
 - **720p.** It is the reason the tile build exists and the result of
-  `DVI720check.md`. A 480p fallback would free 50–100 LUT4 and is available as a
+  `archive/DVI720check.md`. A 480p fallback would free 50–100 LUT4 and is available as a
   last resort, but treat it as a regression, not a diet.
 - **The 256×8 PSRAM cache and the PSRAM controller.** This is the machine's
   memory performance; cutting it shows up as "the Forth got slower".

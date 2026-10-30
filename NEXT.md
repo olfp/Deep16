@@ -1,4 +1,3 @@
-* PSRAM
 * Assembler: `include` - eine andere Datei an der aktuellen Stelle
   einziehen, damit forth.asm seine eigene Quelldatei nicht mehr
   selbst schneiden muss. Ohne das ist der folgende Punkt nicht

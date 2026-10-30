@@ -90,7 +90,7 @@ sources need no change except old `, 1`/`, 3`/`+1`/`+3` spellings.
 - `js/deep16_disassembler.js` — shift rendering, SMV/APC alias rendering
 - `index.html` — starter snippet (`MOV R1, R0 << 1`)
 - `doc/Deep16-Arch.md`, `doc/Deep16-Prog-Man.md`, `doc/Changes.md` (§14),
-  `deep16_project_summary.md` — spec/text updates
+  `archive/deep16_project_summary.md` — spec/text updates
 - `tests/mov-imm2.test.js` — new tests (below)
 
 ### Tests (`tests/mov-imm2.test.js`)
@@ -121,7 +121,7 @@ the SYS `case` to a NOP.
 | Gating | none |
 
 The SYS block is now **full**: 0 NOP, 1 FSH, 2 SWI, 3 RETI, 4 SETI, 5 CLRI,
-6 `SAPF`, 7 `NIO` (the non-implemented-opcode trap, `ILLTRAP.md`). `NIO` is
+6 `SAPF`, 7 `NIO` (the non-implemented-opcode trap, `archive/ILLTRAP.md`). `NIO` is
 deliberately not the 8th FPU opcode.
 
 ### Why
@@ -132,7 +132,7 @@ it, nothing writes it. Two emulated instructions need exactly that:
 
 - the **DIV/DIV32 trap** in `rtl/deep16_core3.sv`: the core has no divider, the
   instruction traps, and the handler must return `N/Z/V/C` as if the ALU had
-  produced the quotient. This closes the DIV flag gap recorded in `ILLTRAP.md`;
+  produced the quotient. This closes the DIV flag gap recorded in `archive/ILLTRAP.md`;
 - **FCMP** in the soft-float library, where "unordered" needs `V=1` with
   `N=0, Z=0, C=0` (`FLOATIMPL.md` §8).
 
@@ -223,7 +223,7 @@ its stack there and reloads nothing.
 | after §3: already in registers | 0 |
 
 At 10 kHz that is roughly 9 % → 5–6 % of the CPU and at 15 kHz 13 % → 8 %,
-before the handler's own work (`AUDIOPLAN.md` §6.1). For the ~400-cycle ILL
+before the handler's own work (`archive/AUDIOPLAN.md` §6.1). For the ~400-cycle ILL
 emulation it is 7 %; for a 60-cycle tick it is 40 %. The `SLIMPLAN.md`
 interrupt plan assumes the tick case.
 
