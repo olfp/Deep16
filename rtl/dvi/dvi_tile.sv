@@ -403,17 +403,32 @@ module dvi_tile #(
   logic [5:0]       pal_raddr;
   logic             pal_cursor;
   logic [3:0]       fpal, fnpal;       // {mode, pair[2:0]} of the filled cell
-  logic [1:0]       fsty, fnsty;       // {underline, bold} of the filled cell
+  logic [2:0]       fsty, fnsty;       // {underline, bold, italic}
+  logic [3:0]       fpix;              // pixel within the 8-pixel cell
+  logic [3:0]       fgy;               // glyph row within the 15-row cell
+  logic [15:0]      frow0, frow1;      // the two 4bpp pixel words of the row
   logic             prev_ink;          // raw ink of the previous pixel
-  logic             txt_ink;           // styled ink bit for pair mode
+  logic             txt_raw, txt_ink;  // ink before / after underline+bold
+  logic [1:0]       sh;                // italic shear for this glyph row
+  logic [7:0]       pix0_raw, pix0_s;
+
+  // The text path only consumes pix[0], so the italic shear is an 8-bit shift
+  // of the glyph's ink row rather than a 32-bit 4bpp shift.  Top rows lean
+  // right by two pixels, the middle by one, the baseline not at all.
+  assign pix0_raw = {frow1[12], frow1[8], frow1[4], frow1[0],
+                     frow0[12], frow0[8], frow0[4], frow0[0]};
+  assign sh       = (fgy < 4'd5) ? 2'd2 : (fgy < 4'd10) ? 2'd1 : 2'd0;
+  assign pix0_s   = (sh == 2'd2) ? (pix0_raw << 2) :
+                    (sh == 2'd1) ? (pix0_raw << 1) : pix0_raw;
+  assign txt_raw  = (fpal[3] & fsty[0]) ? pix0_s[fpix[2:0]] : pix_index[0];
 
   // Text pair mode reads the text bank (entries 2p/2p+1); art mode reads the
   // art bank; every sprite reads the shared sprite bank.  The style bits only
   // apply to text cells (mode 1): underline forces the whole descender row to
   // ink, bold smears an ink pixel one pixel to the right.
-  assign txt_ink    = pix_index[0] |
-                      (fpal[3] & fsty[1] & (fgy == 4'd14)) |
-                      (fpal[3] & fsty[0] & prev_ink);
+  assign txt_ink    = txt_raw |
+                      (fpal[3] & fsty[2] & (fgy == 4'd14)) |
+                      (fpal[3] & fsty[1] & prev_ink);
   assign pal_raddr  = sprite_win ? {2'b10, sc[3:0]} :
                       fpal[3]    ? {2'b00, fpal[2:0], txt_ink} :
                                    {2'b01, pix_index};
@@ -467,12 +482,9 @@ module dvi_tile #(
   logic [9:0]  fx;
   logic [9:0]  fline;
   logic [6:0]  fcol;
-  logic [3:0]  fpix;
   logic [4:0]  ftrow;
-  logic [3:0]  fgy;
   logic [4:0]  frow;
   logic [11:0] fcell;
-  logic [15:0] frow0, frow1;
   logic [6:0]  ncol;
   logic [2:0]  nstate;
   logic [11:0] fncell;
@@ -627,8 +639,8 @@ module dvi_tile #(
       fcol <= 7'd0;
       fpal <= 4'd0;
       fnpal <= 4'd0;
-      fsty <= 2'd0;
-      fnsty <= 2'd0;
+      fsty <= 3'd0;
+      fnsty <= 3'd0;
       prev_ink <= 1'b0;
       fpix <= 4'd0;
       ftrow <= 5'd0;
@@ -669,7 +681,7 @@ module dvi_tile #(
           F_FIRST_CELL_Q: begin
             fcell <= {tm_q[11:5], 5'b0};   // mask the style bits out of the tile
             fpal  <= tm_q[15:12];
-            fsty  <= tm_q[2:1];
+            fsty  <= tm_q[2:0];
             fstate <= F_FIRST_ROW0;
           end
           F_FIRST_ROW0: begin
@@ -704,7 +716,7 @@ module dvi_tile #(
               N_CELL_Q: begin
                 fncell <= {tm_q[11:5], 5'b0};
                 fnpal  <= tm_q[15:12];
-                fnsty  <= tm_q[2:1];
+                fnsty  <= tm_q[2:0];
                 nstate <= N_ROW0;
               end
               N_ROW0: begin
@@ -744,7 +756,7 @@ module dvi_tile #(
               end else begin
                 fpix <= fpix + 4'd1;
                 fx <= fx + 10'd1;
-                prev_ink <= pix_index[0];
+                prev_ink <= txt_raw;
               end
             end
           end

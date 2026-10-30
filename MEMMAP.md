@@ -363,11 +363,11 @@ Tile cell convention: mode 0 (`bit 15 = 0`) is the old art cell, where
 the art palette. Mode 1 (`bit 15 = 1`) is a text pair cell:
 `0x8000 | (pair << 12) | style | ((character - 0x20) * 32)`; `pix[0]` selects
 paper (entry `2p`) or ink (entry `2p+1`) from the text bank. The low five bits
-are style: bit 2 is generated underline and bit 1 is the bold smear; the tile
-address is 32-word aligned, so the fill masks bits 4:0 out of the fetch. The
-console's current pair/style lives at `0x3BEE` (`text_attr`), and the catalog
-words `PAL!`, `ART-PAL!`, `SPRITE-PAL!`, `ATTR`, `STYLE`, `ATTR!`, `ATTR@` and
-`STYLE@` drive it.
+are style: bit 2 is generated underline, bit 1 the bold smear and bit 0 the
+italic shear; the tile address is 32-word aligned, so the fill masks bits 4:0
+out of the fetch. The console's current pair/style lives at `0x3BEE`
+(`text_attr`), and the catalog words `PAL!`, `ART-PAL!`, `SPRITE-PAL!`, `ATTR`,
+`STYLE`, `ATTR!`, `ATTR@` and `STYLE@` drive it.
 
 A 32×32 sprite is 16 8×8 tiles; `tile = group*16 + (row/8)*4 + column`.
 Sprite palette index 0 is transparent; OAM bit 15 puts the sprite behind

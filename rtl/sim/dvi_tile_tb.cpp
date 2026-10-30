@@ -376,8 +376,25 @@ int main(int argc, char** argv) {
   check("bold uses pair 3's ink",
         tr * 1000 + tg * 10 + tb, 255 * 1000 + 255 * 10 + 0);
 
+  // Italic: row 3 is a top row, so the glyph shears two pixels right.  The
+  // original ".##..##." becomes "...##..#." -- (1,3) empties and (3,3) inks.
+  write_tile(0, 0x8000 | 0x0500 | 1);       // italic style bit
+  sample_pixel(1, 3, &tr, &tg, &tb, &tseen);
+  check("italic shears the top of the glyph right", tr * 1000 + tg * 10 + tb, 0);
+  sample_pixel(3, 3, &tr, &tg, &tb, &tseen);
+  check("italic moves the stroke to column 3",
+        tr * 1000 + tg * 10 + tb, 0 * 1000 + 255 * 10 + 0);
+  sample_pixel(5, 3, &tr, &tg, &tb, &tseen);
+  check("italic leaves the old column 5 empty", tr * 1000 + tg * 10 + tb, 0);
+
+  // Bold follows the sheared row: column 5 gets the smear from column 4.
+  write_tile(0, 0x8000 | 0x0500 | 3);       // italic + bold
+  sample_pixel(5, 3, &tr, &tg, &tb, &tseen);
+  check("bold smears the sheared row",
+        tr * 1000 + tg * 10 + tb, 0 * 1000 + 255 * 10 + 0);
+
   // The style bits live in tile-address bits 4:0, which the fill must mask.
-  write_tile(0, 0x0500 | 2);                // mode 0 with a stray style bit
+  write_tile(0, 0x0500 | 3);                // mode 0 with stray style bits
   sample_pixel(1, 3, &tr, &tg, &tb, &tseen);
   check("art cells ignore the style bits in the low address bits",
         tr * 1000 + tg * 10 + tb, 255 * 1000 + 0 * 10 + 0);

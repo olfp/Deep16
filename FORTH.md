@@ -820,7 +820,7 @@ during vblank or at a screen transition.
 | `art-pal! ( bg ink pair -- )` | write the art-bank pair used by mode-0 tiles |
 | `sprite-pal! ( bg ink pair -- )` | write the shared sprite-bank pair |
 | `attr ( pair -- )` | select the console pair (`0..7`), keep the style |
-| `style ( flags -- )` | set style bits, keep the pair: `2` bold, `4` underline, `6` both |
+| `style ( flags -- )` | set style bits, keep the pair: `1` italic, `2` bold, `4` underline, `7` all |
 | `attr! ( pair flags -- )` | set pair and style together |
 | `attr@ ( -- pair )` | read the current console pair |
 | `style@ ( -- flags )` | read the current style bits |
@@ -830,12 +830,14 @@ during vblank or at a screen transition.
 3 attr                  \ the rest of the console uses pair 3
 4 style                 \ underline everything printed next
 attr@ .  style@ .       \ 3 4  ok
+7 style                 \ italic + bold + underline
 0 style                 \ plain text again
 ```
 
-Bold is a real one-pixel smear in the tile engine (`2 style`). A cheaper
-look is to reserve a bright-ink pair and select it with `attr`; the palette
-has eight pairs, so pair 7 can be the bold one.
+Bold is a real one-pixel smear in the tile engine (`2 style`) and italic is a
+two-step shear (`1 style`). A cheaper bold is to reserve a bright-ink pair and
+select it with `attr`; the palette has eight pairs, so pair 7 can be the bold
+one.
 
 The style applies to characters written **after** the command; the command
 line itself is echoed with the old attribute, so the effect starts with the

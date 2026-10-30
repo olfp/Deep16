@@ -144,7 +144,8 @@ variable nm-l drop
 \ The text bank holds 8 pairs (2p paper, 2p+1 ink); art cells read the art
 \ bank; sprites read the sprite bank. The console ATTR selects the text pair.
 \ 0x3BEE is the D16D kernel cell immediately before boot_script.
-\ The same cell carries the style bits: bit 2 underline, bit 1 bold (smear).
+\ The same cell carries the style bits: bit 2 underline, bit 1 bold (smear),
+\ bit 0 italic (two-step shear).
 0x3BEE constant text-attr
 : pal! ( bg ink pair -- )        dup 2* 0x5080 + >r drop r@ 1+ es! r> es! ;
 : art-pal! ( bg ink pair -- )    dup 2* 0x5090 + >r drop r@ 1+ es! r> es! ;

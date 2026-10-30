@@ -137,9 +137,11 @@ with:
   select entry `2p` (paper) or `2p+1` (ink); mode-0 tiles read the art bank;
   every sprite reads the sprite bank.
 * **text styles in the cell's low bits**: bit 2 is a generated underline (row
-  14 forced to ink) and bit 1 is a bold smear (each ink pixel repeated one to
-  the right). The tile address is 32-word aligned, so the fill masks bits 4:0
-  out of the fetch and art cells are unaffected. No BIOS change is needed: it
+  14 forced to ink), bit 1 a bold smear (each ink pixel repeated one to the
+  right) and bit 0 an italic shear (two pixels at the top, one in the middle,
+  none at the baseline). The shear works on the 8-bit ink row, not the 4bpp
+  nibbles; art cells are unaffected. The tile address is 32-word aligned, so
+  the fill masks bits 4:0 out of the fetch. No BIOS change is needed: it
   already ORs the whole `text_attr` word into the cell.
 * a **line-buffer renderer**: line N is scanned from one 640-byte buffer while
   line N+1 is built from the tilemap/tile bank into the other. The scan is a
@@ -177,6 +179,11 @@ COLORTEXT underline + bold (30 Oct 2026, place_option 1):
   CLS 4,289/4,320 (31 free)  Logic 7,352/8,640   Registers 3,009
   BSRAM 26/26, SSRAM 190
   dvi_render 32.405 MHz, dvi_pixel 86.713 MHz, psram_clk 94.458 MHz (TNS 0)
+
+COLORTEXT underline + bold + italic (30 Oct 2026, place_option 1):
+  CLS 4,312/4,320 (8 free)   Logic 7,376/8,640   Registers 3,017
+  BSRAM 26/26, SSRAM 190
+  dvi_render 27.999 MHz, dvi_pixel 82.140 MHz, psram_clk 103.846 MHz (TNS 0)
 ```
 
 The packed 8x32 build does **not** fit: the 128-tile bank falls out of BSRAM

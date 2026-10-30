@@ -569,3 +569,30 @@ with pair 3; a high-contrast paper/ink pair is needed to see the underline,
 because it is drawn in the pair's ink colour. The command line that sets the
 style is echoed with the old attribute, so the effect starts with the prompt
 and the next line.
+
+## 24. 2026-10-30: COLORTEXT italic shear
+
+The third style uses bit 0. The text path only needs `pix[0]`, so the shear is
+an 8-bit shift of the glyph's ink row, not the 4bpp nibbles: the row is
+extracted as `pix0_raw`, shifted left by 2 pixels on glyph rows 0-4, 1 pixel
+on rows 5-9, and 0 on the baseline rows 10-14. Bold smears the sheared row
+(`prev_ink` now follows `txt_raw`), and the underline row 14 is unshifted.
+
+| | underline + bold | + italic shear |
+|---|---:|---:|
+| CLS | 4,289 / 4,320 (31 free) | **4,312 / 4,320 (8 free)** |
+| LUT / ALU | 6,607 / 745 | **6,631 / 745** |
+| FF | 3,009 | 3,017 |
+| BSRAM / SSRAM | 26 / 190 | 26 / 190 |
+| dvi_render | 32.405 MHz | **27.999 MHz** |
+| dvi_pixel | 86.713 MHz | **82.140 MHz** |
+| psram_clk | 94.458 MHz | **103.846 MHz** |
+
+The shear costs **23 CLS**, more than the 4-6 the design note guessed; the
+8-bit three-way shift plus the style gate is the price, and the build is back
+to 8 free CLS. All constrained clocks are TNS 0; the `dvi_render` margin is
+13 %. `sim:dvi:tile` checks the top-row shear, the emptied old column, and
+bold-on-italic; `npm test` checks the italic bit in the BIOS cell and the
+catalog `STYLE` word. If the 8 CLS are needed later, a one-step shear (0/1
+instead of 0/1/2) removes one mux stage and is the cheaper visual variant.
+Board flash pending.
