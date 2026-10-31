@@ -717,6 +717,7 @@ daraus für das Buch folgt. Abgeschlossene und überholte Pläne liegen in
 | `BIRDPLAN.md` | sichtbares Flügelschlagen + Idle-Blinken | ⛔ Plan, nichts umgesetzt | — |
 | `COLORTEXT.md` | mehrfarbiger Text über Palettenpaare, dazu kursiv/unterstrichen/fett | 🟡 Design-Notiz; Unterstrichen und Fett sind als Prototyp auf dem Board | — |
 | `COMPANION.md` | Zusatzboard: USB-Tastatur und Sound | ⛔ Design-Notiz, nichts umgesetzt | ❌ kein Buchinhalt |
+| `ERRPLAN.md` | offene Fehleruntersuchungen | 🟡 FiT-Scrolling (81/82 Spalten, 26-Zeilen-Ring, 4-Richtungs-Vorschlag) und schreibgeschützte Tile-Bank 96–127 offen | — |
 | `FLOATIMPL.md` | Integer ↔ Float-Konvertierung | ⛔ Design-Notiz, nichts umgesetzt | ❌ kein Buchinhalt (FPU fehlt) |
 | `FPUEMUPLAN.md` | FPU-Emulation über den ILL-Trap | ⛔ Design vereinbart, nichts umgesetzt | ❌ kein Buchinhalt (FPU fehlt) |
 | `FROGPLAN.md` | Frogger auf der FiT-Tile-Engine | ⛔ Plan | — |
