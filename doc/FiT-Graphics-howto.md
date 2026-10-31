@@ -365,8 +365,9 @@ For free four-direction movement:
 
 The shift puts the new cell in a margin that is hidden after the reset, so it
 can be written during vblank without tearing. At 1 pixel/frame this is about
-24k writes/s; at several pixels/frame it approaches 100k writes/s. `scroll_x`
-is latched with the display bank;
+24k writes/s; at several pixels/frame it approaches 100k writes/s. On the
+D16nano core3 the measured cost is about **10.7 % of a 60 Hz frame** at
+1 pixel/frame; see `SCROLLPLAN.md`. `scroll_x` is latched with the display bank;
 `scroll_y` is not, so write it in vblank. The per-row table remains for
 Frogger-style lanes; a free-camera game leaves it disabled and uses the global
 scroll.
@@ -728,6 +729,7 @@ in control 5 belongs to the write, not to the OAM.
 | `scripts/make_bird_sprite.mjs` | sprite patterns, 24 groups, `birdsprite.hex` |
 | `asm/showcase/flappy_game.asm` | `sb_emit` (bird), `set_clouds`, `set_palette` |
 | `asm/showcase/showcase.asm` | palette tables, bird pages, OAM cells |
+| `asm/demos/scroll4.asm` | `shift_left`/`shift_up` ring helper and diagonal demo |
 | `screens/flash/catalog.fth` | `row-scroll!`, raster and palette words |
 | `FORTH.md` | console colours, styles and Forth words |
 | `MEMMAP.md` §7.4 | the FiT address map |

@@ -2,9 +2,11 @@
 
 Status: **in progress, 2026-10-31.** RTL and terminal are switched to the
 26-row ring and the six-bit wrap; the tile simulation and the full test suite
-pass. The game-side ring helper and the Gowin CLS/timing check remain open.
-CLS is the primary constraint: the tile build has very little headroom, free
-CLS may go to zero in the extreme, but must not go negative.
+pass. The game-side helper and diagonal demo are in `asm/demos/scroll4.asm`,
+and their cost is measured below (~10.7 % of a frame at 1 px/frame). The Gowin
+CLS/timing check remains open because the toolchain is unavailable here. CLS is
+the primary constraint: free CLS may go to zero in the extreme, but must not go
+negative.
 
 ## Target
 
@@ -78,10 +80,37 @@ No new RTL registers.
    - vertical shift: move the whole map one row (2,132 writes), write the new
      margin row, reset `scroll_y` to 15;
    - update `scroll_x` with the display bank; `scroll_y` in vblank;
-   - measure the CPU cost: at 1 px/frame this is ~24k writes/s, at several
-     px/frame it approaches 100k writes/s.
+   - measure the CPU cost.
 3. Add a deterministic test/demo that moves diagonally, shifts the ring in both
    axes, and checks the margins are updated.
+
+Implementation: `asm/demos/scroll4.asm` (demo + `shift_left`/`shift_up`),
+`tests/scroll4.test.js` (marker correctness and benchmark). `BENCH_TEST`
+exercises one left+up pair, `BENCH` runs eight pairs without frame waits.
+
+Measured 2026-10-31:
+
+| Metric | Value |
+|---|---|
+| Benchmark | 8 left+up pairs, 239,141 instructions |
+| RTL five-stage core | 680,392 cycles, CPI 2.85, **85,049 cycles/pair** |
+| D16nano core3 (temporary harness) | 1,023,909 cycles, CPI 4.28, **127,989 cycles/pair** |
+| Per shift (core3, average) | **63,994 cycles** |
+| One shift at 6.75 MHz | **9.5 ms** |
+| Demo cadence (6 x-shifts + 3 y-shifts in 48 frames) | ~576k cycles / 48 frames = **~12k cycles/frame** |
+| Share of a 60 Hz, 112.5k-cycle frame | **~10.7 %** |
+| At 4 px/frame | **~43 %** (roughly linear in shift rate) |
+
+The core3 figure comes from a temporary core3 harness with a combinational
+memory; it excludes PSRAM and tile-FIFO write stalls, so the board number may
+be higher. The RTL five-stage figure is the repeatable `tests/scroll4.test.js`
+measurement.
+
+This is playable at 1 px/frame but expensive at speed. The first optimisation
+is a **combined diagonal shift** when both axes cross together: one 2,132-cell
+pass instead of two, roughly halving the pair cost. Shifting only the 24x80
+visible area is a smaller (~8 %) win. A coarse map-origin register would remove
+most of the copy cost but is an RTL/CLS decision, not a software one.
 
 ### Phase 4 — docs and status
 

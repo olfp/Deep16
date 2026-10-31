@@ -105,9 +105,10 @@ tilemap bank; that supports arbitrary four-direction movement but costs about
 rows 24/25 actually visible, both `scroll_x` extremes, and terminal row
 arithmetic at `tile_off = 24/25`; run `npm run synth:tile` and compare CLS.
 
-**Status:** RTL/terminal part implemented (26-row wrap, full six-bit subtract,
-26-row terminal ring); the game-side ring helper and the Gowin CLS check are
-still pending. See `SCROLLPLAN.md`.
+**Status:** RTL/terminal and the game-side helper/demo are implemented;
+`tests/scroll4.test.js` verifies the margins and measures the cost. At
+1 px/frame the helper costs about 10.7 % of a 60 Hz frame on core3; the Gowin
+CLS check is still pending. See `SCROLLPLAN.md`.
 
 ---
 
