@@ -719,6 +719,7 @@ daraus für das Buch folgt. Abgeschlossene und überholte Pläne liegen in
 | `COMPANION.md` | Zusatzboard: USB-Tastatur und Sound | ⛔ Design-Notiz, nichts umgesetzt | ❌ kein Buchinhalt |
 | `ERRPLAN.md` | offene Fehleruntersuchungen | 🟡 26-Zeilen-Ring umgesetzt; Spiel-Helper/CLS-Prüfung und schreibgeschützte Tile-Bank 96–127 offen | — |
 | `SCROLLPLAN.md` | 4-Richtungs-Scrolling, 26-Zeilen-Ring, CLS-Budget | 🟡 RTL/Terminal, Helper und Demo umgesetzt; CPU ~10.7 %/Frame bei 1 px/Frame; Gowin-CLS offen | — |
+| `TODO.md` | offene FiT-Scrolling-Integration (One-Way-Redraw, Demo, Messung, CLS) | ⛔ offen | — |
 | `FLOATIMPL.md` | Integer ↔ Float-Konvertierung | ⛔ Design-Notiz, nichts umgesetzt | ❌ kein Buchinhalt (FPU fehlt) |
 | `FPUEMUPLAN.md` | FPU-Emulation über den ILL-Trap | ⛔ Design vereinbart, nichts umgesetzt | ❌ kein Buchinhalt (FPU fehlt) |
 | `FROGPLAN.md` | Frogger auf der FiT-Tile-Engine | ⛔ Plan | — |

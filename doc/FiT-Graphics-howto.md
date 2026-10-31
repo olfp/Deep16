@@ -354,7 +354,8 @@ The fill wraps at 26 rows (`TILE_ROWS`), so `scroll_y` uses the whole map:
 with 15 as the centre, the visible window is rows 1–24; 0 moves it to rows
 0–23 and 30 to rows 2–25. The two margin rows are real.
 
-For free four-direction movement:
+For **true four-direction movement** — the exception, not the common case —
+the ring path is:
 
 * centre the window at columns **1–80** and rows **1–24**;
 * use `scroll_x = 8` and `scroll_y = 15` as the neutral position;
@@ -364,13 +365,13 @@ For free four-direction movement:
   margin row and reset to 15 (2,132 tile writes).
 
 The shift puts the new cell in a margin that is hidden after the reset, so it
-can be written during vblank without tearing. At 1 pixel/frame this is about
-24k writes/s; at several pixels/frame it approaches 100k writes/s. On the
-D16nano core3 the measured cost is about **10.7 % of a 60 Hz frame** at
-1 pixel/frame; see `SCROLLPLAN.md`. `scroll_x` is latched with the display bank;
-`scroll_y` is not, so write it in vblank. The per-row table remains for
-Frogger-style lanes; a free-camera game leaves it disabled and uses the global
-scroll.
+can be written during vblank without tearing. `scroll_x` is latched with the
+display bank; `scroll_y` is not, so write it in vblank. The per-row table
+remains for Frogger-style lanes; a free-camera game leaves it disabled and
+uses the global scroll.
+
+For the common **one-way scrolling with direction changes**, do not use the
+ring shift. Use the full-range redraw described in §5.5.
 
 Both registers are pixel offsets, not cell offsets. A game that moves one
 pixel per frame writes `scroll_x` or `scroll_y` every frame; the map itself
@@ -403,6 +404,72 @@ frame boundary.
 * A tile write goes through the board's 16-entry FIFO and affects lines
   composed after it. Bursts are fine at normal CPU speed; do not assume a
   write is visible in the same scanline.
+
+### 5.5 Measured cost and the common one-way path
+
+The ring helper in `asm/demos/scroll4.asm` was measured with
+`tests/scroll4.test.js`. Eight left+up pairs cost:
+
+| Metric | Value |
+|---|---:|
+| Instructions | 239,141 total, **29,893 per pair** |
+| RTL five-stage core | 680,392 cycles, CPI 2.85, **85,049 cycles/pair** |
+| D16nano core3 | 1,023,909 cycles, CPI 4.28, **127,989 cycles/pair** |
+| One shift, core3 | **~63,994 cycles**, ~9.5 ms at 6.75 MHz |
+| 1 px/frame, demo cadence | **~10.7 % of a 60 Hz frame** |
+| 4 px/frame | **~43 %** (roughly linear) |
+
+The core3 figure uses a temporary combinational-memory harness and excludes
+PSRAM/tile-FIFO stalls, so the board cost may be higher.
+
+**Recommendation:** treat the ring shift as the free-4-way fallback. For the
+common case — one direction, with occasional reversals — use the full hardware
+phase range and a back-buffer redraw:
+
+* horizontal: `scroll_x = 0..15`; vertical: `scroll_y = 0..29` (30 pixels);
+* when moving left, at `scroll_x = 15` redraw the next 16-pixel window into
+  the back bank, add 16 to the world origin, reset `scroll_x = 0`, swap;
+* when moving right, at `scroll_x = 0` redraw with the origin minus 16, reset
+  `scroll_x = 15`, swap;
+* vertical up: at `scroll_y = 29` redraw with origin plus 30, reset to 0;
+  vertical down: at `scroll_y = 0` redraw with origin minus 30, reset to 29;
+* a direction change only reverses the increment. Do not recentre, shift the
+  map or add a special case.
+
+A full redraw writes 2,132 cells every 16 pixels horizontally or every 30
+pixels vertically — about 133 or 71 cells/frame at 1 pixel/frame. That is
+roughly **4× fewer memory operations per pixel** than the ring shift and
+should be about **1–3 % CPU** at 1 pixel/frame. It also works for diagonal
+movement; the 80×24 window is redrawn from world coordinates, so both axes can
+reverse independently.
+
+If a game genuinely needs free four-way movement with no redraw budget, the
+ring helper remains available; otherwise prefer the redraw path.
+
+### 5.6 FPGA resources
+
+Last checked-in synthesis of the current tile build:
+
+| Resource | Used | Available | Free |
+|---|---:|---:|---:|
+| CLS | **4,309** | 4,320 | **11** |
+| Logic | 7,410 | 8,640 | 1,230 |
+| Registers | 3,011 | 6,771 | 3,760 |
+| BSRAM | **26** | 26 | **0** |
+| SSRAM | 190 | – | – |
+
+```text
+dvi_render 30.125 MHz
+dvi_pixel  78.013 MHz
+psram_clk  86.351 MHz
+TNS 0
+```
+
+The 26-row wrap change is **not** in that measurement. It adds no registers or
+BSRAM, but the wider wrap comparison is combinational and could move CLS by a
+small amount; re-run `npm run synth:tile` before treating 11 free as current.
+The scroll helper and demo are raw assembly, not part of the FPGA bitstream, so
+they consume CPU time but no FPGA resources.
 
 ---
 

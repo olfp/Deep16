@@ -106,11 +106,12 @@ memory; it excludes PSRAM and tile-FIFO write stalls, so the board number may
 be higher. The RTL five-stage figure is the repeatable `tests/scroll4.test.js`
 measurement.
 
-This is playable at 1 px/frame but expensive at speed. The first optimisation
-is a **combined diagonal shift** when both axes cross together: one 2,132-cell
-pass instead of two, roughly halving the pair cost. Shifting only the 24x80
-visible area is a smaller (~8 %) win. A coarse map-origin register would remove
-most of the copy cost but is an RTL/CLS decision, not a software one.
+This is playable at 1 px/frame but expensive at speed. For the common one-way
+case, replace the ring shift with the full-range back-buffer redraw: it writes
+2,132 cells every 16 pixels horizontally or every 30 pixels vertically, about
+four times fewer memory operations per pixel and roughly 1–3 % CPU at
+1 px/frame. Direction changes then need no recentring. The `shift_left`/
+`shift_up` helpers remain the fallback for true free 4-way movement.
 
 ### Phase 4 — docs and status
 
