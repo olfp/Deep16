@@ -37,6 +37,7 @@
 ; back to 0. Both operations keep the character in the low byte untouched.
 .equ CURSOR_ATTR 0x7000  ; high byte 0x70: fg 0 (black) on bg 7 (light grey)
 .equ ATTR_MASK   0x00FF  ; the character alone, i.e. a cell with no attribute
+.equ TILE_MAP_ROWS 26    ; 82x26 map: 24 visible rows plus two scroll margins
 ; D16MINI places the whole machine in the 24K-word BSRAM window (0x0000-0x5FFF),
 ; so the BIOS and both stacks move down. The screen build keeps the 1 MB layout:
 ; its BIOS stays at 0xF8000 and its stacks at 0x6F00 / 0x7FF0.
@@ -13964,7 +13965,7 @@ utx_char:
     MOV R7, R0
     LD R4, R7, 0
     OR R1, R4
-    ; physical row = (tile_row + tile_off) % 24
+    ; physical row = (tile_row + tile_off) % 26
     LDI tile_row
     MOV R7, R0
     LD R3, R7, 0
@@ -13972,11 +13973,11 @@ utx_char:
     MOV R7, R0
     LD R9, R7, 0
     ADD R3, R9
-    LDI 24
+    LDI TILE_MAP_ROWS
     CMP R3, R0
     JN utx_phys_ok
     NOP
-    LDI 24
+    LDI TILE_MAP_ROWS
     SUB R3, R0
 utx_phys_ok:
     ; addr = 0x1000 + phys*82 + col
@@ -14037,11 +14038,11 @@ utx_bs:
     MOV R7, R0
     LD R10, R7, 0
     ADD R3, R10
-    LDI 24
+    LDI TILE_MAP_ROWS
     CMP R3, R0
     JN utx_bs_phys
     NOP
-    LDI 24
+    LDI TILE_MAP_ROWS
     SUB R3, R0
 utx_bs_phys:
     MOV R10, R3
@@ -14082,7 +14083,7 @@ utx_newline:
     MOV R7, R0
     LD R9, R7, 0
     ADD R9, 1
-    LDI 24
+    LDI TILE_MAP_ROWS
     CMP R9, R0
     JN utx_off_store
     NOP
@@ -14092,16 +14093,16 @@ utx_off_store:
     ST R9, R7, 0
     LDI 23
     MOV R3, R0
-    ; physical row = (23 + off) % 24
+    ; physical row = (23 + off) % 26
     MOV R10, R9
     LDI 23
     MOV R1, R0
     ADD R10, R1
-    LDI 24
+    LDI TILE_MAP_ROWS
     CMP R10, R0
     JN utx_clr_phys
     NOP
-    LDI 24
+    LDI TILE_MAP_ROWS
     SUB R10, R0
 utx_clr_phys:
     ; addr = 0x1000 + phys*82 in R9. It must NOT live in R0: LDI always writes

@@ -209,8 +209,10 @@ int main(int argc, char** argv) {
   check("clock cycles per frame", cycles, 1650L * 750L);
 
   // Scroll: put A in tilemap row 1, then move the row offset by one. The A
-  // must appear on visible row 0 and the H (tilemap row 0) on visible row 23.
+  // must appear on visible row 0. The bottom visible row is map row 24, the
+  // first margin row; put H there so the new ring can be observed.
   write_tile(82, 0x8000 | 0x0420);
+  write_tile(24 * 82, 0x8000 | 0x0500);
   write_ctrl(2, 1);
   bool cap_a[15][8] = {}, seen_a[15][8] = {};
   bool white_a = false;
@@ -223,11 +225,34 @@ int main(int argc, char** argv) {
   bool cap_h23[15][8] = {}, seen_h23[15][8] = {};
   bool white_h23 = false;
   sample_cell(23, 0, cap_h23, seen_h23, &white_h23);
-  check("H wrapped to the bottom visible row",
+  check("margin row 24 appears at the bottom visible row",
         compare_cell(tile, h_base, cap_h23, seen_h23, "H23") ? 1 : 0, 1);
 
-  // ---- writable tile bank and palette (the demo's windows) ---------------
+  // ---- vertical scroll uses the 26-row map -------------------------------
   write_ctrl(2, 0);                        // row offset back to 0
+  struct ScrollCase { int sy; int top; int bottom; };
+  const ScrollCase scroll_cases[] = {
+    {0, 0, 23}, {7, 0, 24}, {15, 1, 24}, {30, 2, 25},
+  };
+  for (const auto& sc : scroll_cases) {
+    write_ctrl(6, sc.sy);
+    wait_frame();
+    int top_row = -1, bottom_row = -1;
+    int ft = top->frame_tick, edges = 0;
+    for (long i = 0; i < 4000000 && edges < 2; i++) {
+      tick();
+      if (top->frame_tick != ft) { ft = top->frame_tick; edges++; }
+      if (top->dbg_fill == 9) {
+        if (top->dbg_fline == 1) top_row = top->dbg_frow;
+        if (top->dbg_fline == 359) bottom_row = top->dbg_frow;
+      }
+    }
+    check("scroll_y top row", top_row, sc.top);
+    check("scroll_y bottom row", bottom_row, sc.bottom);
+  }
+  write_ctrl(6, 0);                        // scroll_y back to 0
+
+  // ---- writable tile bank and palette (the demo's windows) ---------------
   write_ctrl(0, 0);                        // cursor off
   // Palette entry 1 = RGB332 0xE0 (full red), then a solid index-1 tile 0.
   write_win(3, 0x91, 0x00E0);

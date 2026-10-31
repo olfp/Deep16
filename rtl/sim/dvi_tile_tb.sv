@@ -24,6 +24,8 @@ module dvi_tile_tb (
   output logic [3:0]  dbg_fpix,
   output logic [6:0]  dbg_fcol,
   output logic [4:0]  dbg_ftrow,
+  output logic [4:0]  dbg_frow,
+  output logic [9:0]  dbg_fline,
   output logic [9:0]  dbg_raster_line,
   output logic [11:0] dbg_x,
   output logic [9:0]  dbg_y,
@@ -85,6 +87,8 @@ module dvi_tile_tb (
   assign dbg_wpage   = u_tile.map_wpage;
   assign dbg_dpage   = u_tile.map_dpage;
   assign dbg_spage   = u_tile.sprite_page;
+  assign dbg_frow    = u_tile.frow;
+  assign dbg_fline   = u_tile.fline;
   assign dbg_cell    = u_tile.tilemap[13'(dbg_addr)];
 
 endmodule

@@ -345,11 +345,11 @@ tile engine and the PSRAM/Forth mirror at the same address.
 
 | Address | Window | Contents |
 |---|---|---|
-| `0xF1000`–`0xF1853` | tilemap | 82×26 16-bit cells: `{mode, pair[2:0], tile[11:0]}`; visible 80×24 plus one-tile margin; two banks |
+| `0xF1000`–`0xF1853` | tilemap | 82×26 16-bit cells: `{mode, pair[2:0], tile[11:0]}`; visible 80×24 plus two margin columns and two margin rows; two banks |
 | `0xF2000` | control 0 | `{row[4:0], col[6:0], enable}` cursor |
-| `0xF2002` | control 1 | circular row offset (0..25) |
-| `0xF2004` | control 2 | smooth `scroll_x` (0..15), latched with control 4 at the frame boundary |
-| `0xF2006` | control 3 | smooth `scroll_y` (0..30) |
+| `0xF2002` | control 1 | 26-row circular row offset (0..25); 24 visible rows |
+| `0xF2004` | control 2 | smooth `scroll_x` (0..15), latched with control 4 at the frame boundary; 8 = centre for four-direction play |
+| `0xF2006` | control 3 | smooth `scroll_y` (0..30); 15 = centre for four-direction play |
 | `0xF2008` | control 4 | b0 write bank, b1 display bank (display bank and `scroll_x` swap at the render frame boundary) |
 | `0xF200A` | control 5 | sprite **write** page (b1:0): 0 Red, 1 Purple, 2 Yellow; 3 clamps to 0 |
 | `0xF200C` | control 6 | per-row fine scroll: `{en, row[4:0], fine[2:0]}`; latched at the frame boundary |

@@ -27,7 +27,7 @@ tile engine and to the PSRAM/Forth mirror at the same address.
 |---|---|
 | `0xF1000`–`0xF1853` | tilemap, 82x26 16-bit cells; one of two banks selected by control 4 |
 | `0xF2000` | control 0: cursor `{row[4:0], col[6:0], enable}` |
-| `0xF2002` | control 1: row offset; the terminal uses 0..23 as a circular ring |
+| `0xF2002` | control 1: row offset; the terminal uses 0..25 as a 26-row ring |
 | `0xF2004` | control 2: smooth `scroll_x` 0..15, latched with the display bank |
 | `0xF2006` | control 3: smooth `scroll_y` 0..30 |
 | `0xF2008` | control 4: b0 write bank, b1 display bank |
@@ -47,14 +47,13 @@ and affects any line composed after it. Use the frame flag at `0xF0066` (b1
 toggles once per frame, b0 is vblank) to pace animation instead of assuming a
 write is already visible.
 
-The **visible area** is 80x24 cells, 640x360 pixels. The tilemap is 82x26.
-The two extra columns are the wrap space for horizontal scrolling. The two
-extra rows are addressable, but the current fill path wraps vertical scrolling
-at 24 rows (`wrap_rows`), so `scroll_y` behaves as a 24-row circular scroll;
-rows 24–25 are not reached by it. All 128 tile slots can be on screen at once
-because the map has 1,920 visible cells; the eight sprites add eight more
-distinct graphics, so the engine can show **136 distinct graphics** in one
-frame.
+The **visible area** is 80x24 cells, 640x360 pixels. The tilemap is 82x26,
+with two margin columns and two margin rows. The terminal shows rows 0–23 and
+columns 0–79; a four-direction game normally centres its window at columns
+1–80 and rows 1–24, leaving column 0/81 and row 0/25 as the scroll margins.
+All 128 tile slots can be on screen at once because the map has 1,920 visible
+cells; the eight sprites add eight more distinct graphics, so the engine can
+show **136 distinct graphics** in one frame.
 
 ---
 
@@ -97,9 +96,10 @@ Write a cell in the selected write bank at:
 address = 0xF1000 + row * 82 + col
 ```
 
-`row` is 0..25 and `col` is 0..81. Visible cells are rows 0..23 and columns
-0..79. Columns 80–81 are the horizontal scroll margin; rows 24–25 are extra
-rows that the current `scroll_y` path does not reach (see §5.2).
+`row` is 0..25 and `col` is 0..81. The terminal's visible cells are rows 0–23
+and columns 0–79. Columns 80–81 and rows 24–25 are the scroll margins; a
+four-direction game centres its window on columns 1–80 and rows 1–24 (see
+§5.2).
 
 ### 2.3 The tile bank
 
@@ -322,10 +322,11 @@ use one or the other.
 
 ### 5.1 Terminal row offset (control 1)
 
-`0xF2002` holds a five-bit row offset. The terminal uses 0..23 as a ring: the
-renderer maps visible row `r` to map row `(r + row_off) % 24`, so a line feed
-at the bottom of the screen only increments `row_off`; no row is copied (the
-new bottom row is cleared). Rows 24–25 are not part of the terminal ring.
+`0xF2002` holds a five-bit row offset. The terminal uses 0..25 as a 26-row
+ring: the renderer maps visible row `r` to map row `(r + row_off) % 26`, so a
+line feed at the bottom of the screen only increments `row_off`; no row is
+copied (the new bottom row is cleared). The visible window is still 24 rows;
+rows 24–25 are the two margin rows the ring rotates through.
 
 ### 5.2 Smooth global scroll (controls 2 and 3)
 
@@ -340,22 +341,39 @@ fine phase    = scroll_x[2:0]  ; 0..7
 The coarse bit chooses the starting map column and the fine phase skips that
 many pixels inside the first cell. Increasing `scroll_x` moves the picture
 left. The range is 0..15 pixels: two possible starting columns plus a fine
-phase; coarse = 1 uses the right margin.
+phase. Flappy uses the whole range as a leftward scroll; a four-direction
+game uses 8 as the centre, so 0..7 shifts the picture right and 8..15 shifts
+it left.
 
 `scroll_y` (`0xF2006`) is a 5-bit pixel offset 0..30. It shifts the glyph row
 inside the 15-line cell and carries into the next map row, so it scrolls the
 whole picture vertically by up to two cell rows. Increasing `scroll_y` moves
 the picture up.
 
-The current fill path wraps the row calculation at 24 (`wrap_rows`), so
-`scroll_y` is a **circular 24-row scroll**, not a 26-row one: at `scroll_y = 7`
-the bottom of the screen wraps to map row 0, and at `scroll_y = 15` the top
-starts at row 1 while the bottom is row 0 again. The two extra map rows 24–25
-are not reached by `scroll_y` in the current RTL.
+The fill wraps at 26 rows (`TILE_ROWS`), so `scroll_y` uses the whole map:
+with 15 as the centre, the visible window is rows 1–24; 0 moves it to rows
+0–23 and 30 to rows 2–25. The two margin rows are real.
 
-Both are pixel offsets, not cell offsets. A game that moves one pixel per
-frame writes `scroll_x` or `scroll_y` every frame; the map itself does not
-move.
+For free four-direction movement:
+
+* centre the window at columns **1–80** and rows **1–24**;
+* use `scroll_x = 8` and `scroll_y = 15` as the neutral position;
+* when `scroll_x` reaches 0 or 15, shift the whole map one column, write the
+  new margin column and reset to 8 (2,132 tile writes);
+* when `scroll_y` reaches 0 or 30, shift the whole map one row, write the new
+  margin row and reset to 15 (2,132 tile writes).
+
+The shift puts the new cell in a margin that is hidden after the reset, so it
+can be written during vblank without tearing. At 1 pixel/frame this is about
+24k writes/s; at several pixels/frame it approaches 100k writes/s. `scroll_x`
+is latched with the display bank;
+`scroll_y` is not, so write it in vblank. The per-row table remains for
+Frogger-style lanes; a free-camera game leaves it disabled and uses the global
+scroll.
+
+Both registers are pixel offsets, not cell offsets. A game that moves one
+pixel per frame writes `scroll_x` or `scroll_y` every frame; the map itself
+does not move.
 
 ### 5.3 Double-buffered maps (control 4)
 

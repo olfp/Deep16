@@ -1,6 +1,7 @@
 // The D16nano tile console: the BIOS writes the 82x26 tilemap the DVI tile
-// engine renders, so the scroll is two pieces that must agree - the 24-row
-// circular window in dvi_tile.sv and the row offset/clear in forth_nano.asm.
+// engine renders, so the scroll is two pieces that must agree - the 26-row
+// map ring in dvi_tile.sv (24 visible rows) and the row offset/clear in
+// forth_nano.asm.
 //
 // This pins the BIOS half: when a line feed at the bottom row scrolls, the row
 // that becomes the new bottom must be cleared before the prompt is drawn. The
@@ -17,8 +18,9 @@ import { assemble, buildMemory, loadBrowserScripts, ROOT } from './helpers.js';
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
 const TILEMAP = 0xF1000;     // ES:0x1000 with ES = 0xF000
-const COLS = 82;             // map stride; 80 visible plus one tile of margin
-const ROWS = 24;             // visible rows in the circular window
+const COLS = 82;             // map stride; 80 visible plus two margin columns
+const ROWS = 24;             // visible rows
+const MAP_ROWS = 26;         // physical rows in the ring (two scroll margins)
 const SPACE_TILE = 0;        // tile 0 is the space glyph
 
 const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
@@ -66,10 +68,9 @@ test('a bottom-row line feed clears the row that scrolls in', () => {
   assert.equal(sim.memory[sym.tile_row], ROWS - 1, 'the cursor row stays at the bottom');
   assert.equal(sim.memory[sym.tile_off], 1, 'the window scrolled by one row');
 
-  // Logical row 23 now maps to physical row (23 + off) % 24 = 0, the row the
-  // banner used to occupy before the scroll. It must hold the prompt and
-  // nothing else.
-  const physical = (ROWS - 1 + 1) % ROWS;
+  // Logical row 23 now maps to physical row (23 + off) % 26 = 24, the first
+  // hidden margin row. It must hold the prompt and nothing else.
+  const physical = (ROWS - 1 + 1) % MAP_ROWS;
   const first = cell(physical, 0);
   assert.notEqual(first & 0x0FFF, 0x500, 'the Hello tile must have been cleared, not wrapped');
   let text = '';
@@ -88,12 +89,18 @@ test('a bottom-row line feed clears the row that scrolls in', () => {
   press('\n');
   assert.equal(sim.memory[sym.tile_off], 2);
   assert.equal(sim.memory[sym.tile_row], ROWS - 1);
+
+  // The ring has two margin rows: offsets 24 and 25 are valid, then wrap to 0.
+  while (sim.memory[sym.tile_off] < MAP_ROWS - 1) press('\n');
+  assert.equal(sim.memory[sym.tile_off], MAP_ROWS - 1);
+  press('\n');
+  assert.equal(sim.memory[sym.tile_off], 0, 'row offset wraps after both margin rows');
 });
 
 test('the text attribute carries underline, bold and italic into the tilemap cell', () => {
   const styled = (ch, style) => 0x8000 | style | ((ch.charCodeAt(0) - 0x20) * 32);
   const has = (value) => {
-    for (let r = 0; r < ROWS; r++)
+    for (let r = 0; r < MAP_ROWS; r++)
       for (let c = 0; c < COLS; c++)
         if (cell(r, c) === value) return true;
     return false;

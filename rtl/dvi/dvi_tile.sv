@@ -433,10 +433,16 @@ module dvi_tile #(
   always_ff @(posedge clk_render) if (lb_we_qq) linebuf[lb_waddr_qq] <= lb_wdata_q;
   always_ff @(posedge clk_pixel)  lb_q <= linebuf[lb_raddr];
 
-  // 24-row circular terminal window inside a 26-row map. The two extra rows
-  // are the vertical scroll margin; the text uses rows 0..23.
+  // 26-row map: 24 visible rows plus two vertical margin rows. The terminal
+  // ring also uses all 26 rows, so a row that scrolls out can be rewritten in
+  // the hidden margin. The full six-bit subtraction matters: the sum of
+  // fill_trow_val (0..25) and row_off (0..25) reaches 50, and subtracting from
+  // the low five bits would alias 48..50 to the wrong row.
   function automatic logic [4:0] wrap_rows(input logic [5:0] s);
-    wrap_rows = (s >= 6'(ROWS)) ? (s[4:0] - 5'(ROWS)) : s[4:0];
+    logic [5:0] r;
+    r = s;
+    if (r >= 6'(TILE_ROWS)) r = r - 6'(TILE_ROWS);
+    wrap_rows = r[4:0];
   endfunction
 
   // row * 82 without a general multiplier.

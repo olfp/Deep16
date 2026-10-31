@@ -154,9 +154,9 @@ with:
   line N+1 is built from the tilemap/tile bank into the other. The scan is a
   plain 640x8 read, so palette lookups cannot stall the pixel clock.
 * `scroll_x`/`scroll_y` inputs and the 26-row map are present for the game
-  path; the terminal leaves them at zero. The current fill wraps `scroll_y` at
-  24 rows (`wrap_rows`), so rows 24–25 are addressable but not reached by
-  `scroll_y`.
+  path; the terminal leaves them at zero. The fill wraps at all 26 rows. The
+  terminal ring is also 26 rows (24 visible plus two margin rows); a
+  four-direction game centres its window at columns 1–80 and rows 1–24.
 
 The UART terminal parser is unchanged in behaviour, but writes text pair cells
 instead of ASCII. `scripts/make_tile_font.mjs` writes the **UW ttyp0 8x15**

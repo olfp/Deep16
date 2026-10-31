@@ -65,12 +65,17 @@ The cheapest route to four directions is:
      26.
    No new scroll register is needed.
 4. **Ring-shift in software at the extremes.**
-   - At `scroll_x = 0` or 15, move the map one column left/right, reset
-     `scroll_x` to 8, and write the new margin column. That is 26 tile writes.
-   - At `scroll_y = 0` or 30, move the map one row up/down, reset `scroll_y`
-     to 15, and write the new margin row. That is 82 tile writes.
-   - At 1 pixel/frame this is a few hundred tile writes per second, not a
-     per-frame full redraw.
+   - At `scroll_x = 0` or 15, shift the whole map one column left/right,
+     reset `scroll_x` to 8, and write the new margin column. With 26 rows this
+     is 2,132 tile writes (26 x 82).
+   - At `scroll_y = 0` or 30, shift the whole map one row up/down, reset
+     `scroll_y` to 15, and write the new margin row. This is also 2,132 tile
+     writes (26 x 82).
+   - At 1 pixel/frame that is roughly 24k writes/s (about 7.5 horizontal and
+     4 vertical shifts per second); at several pixels/frame it rises toward
+     100k writes/s. Measure the CPU cost before promising fast scrolling; a
+     full back-bank redraw or a small coarse-origin register are the fallbacks
+     if it is too high.
 5. **Keep `scroll_x` and the display bank latched together.** `scroll_x` is
    latched with the tilemap page; `scroll_y` is not, so write it in vblank.
    The per-row table remains available for Frogger-style lanes; a free-camera
@@ -100,8 +105,9 @@ tilemap bank; that supports arbitrary four-direction movement but costs about
 rows 24/25 actually visible, both `scroll_x` extremes, and terminal row
 arithmetic at `tile_off = 24/25`; run `npm run synth:tile` and compare CLS.
 
-**Status:** proposed — decide between the global 26-row ring (preferred,
-near-zero CLS) and the `scroll_y != 0` mode fallback (small CLS cost).
+**Status:** RTL/terminal part implemented (26-row wrap, full six-bit subtract,
+26-row terminal ring); the game-side ring helper and the Gowin CLS check are
+still pending. See `SCROLLPLAN.md`.
 
 ---
 
@@ -195,24 +201,19 @@ Flappy-style game rotated to vertical movement can still use `scroll_y` as a
 24-row ring, but it should either use the second tilemap bank as the off-screen
 buffer, use sprites for moving content, or accept the update at the wrap.
 
-**Investigate / fix:**
+**Fix applied:** the 26-row map is now used by both the fill path and the
+terminal:
 
-1. Confirm the intended contract: is `scroll_y` supposed to show rows 0–23
-   only (24-row ring), or should the 82x26 map give two real margin rows?
-2. If 26 rows are intended, separate the two wraps:
-   - keep `row_off` / terminal scrolling modulo 24;
-   - use a map wrap modulo 26 for the game fill (or a dedicated `wrap_map`).
-   Check the combination with `row_off` and `scroll_y` carefully; the terminal
-   must not start showing stale rows 24–25.
-3. Do not change the working 24-row terminal ring while fixing the game path.
-4. Add simulation cases for `scroll_y` 7, 15 and 30, including a map row written
-   only in rows 24/25, so the margin is actually observed.
-5. Update `doc/FiT-Graphics-howto.md` §5.2 and `rtl/dvi/README.md` to match the
-   final behaviour.
+1. `wrap_rows` subtracts from the full six-bit sum and uses `TILE_ROWS` (26).
+2. The terminal uses a 26-row ring (`tile_off = 0..25`, physical row `% 26`);
+   the visible window remains 24 rows.
+3. `rtl/sim/dvi_tile_tb.cpp` now checks `scroll_y` 0/7/15/30 and observes map
+   rows 24/25; `tests/tile-console.test.js` checks the 26-row terminal ring and
+   its wrap at 25 -> 0.
+4. `doc/FiT-Graphics-howto.md`, `rtl/dvi/README.md` and `MEMMAP.md` describe
+   the centred four-direction window.
 
-**Files:** `rtl/dvi/dvi_tile.sv`, `rtl/sim/dvi_tile_tb.cpp`,
-`doc/FiT-Graphics-howto.md`, `rtl/dvi/README.md`.
+**Remaining:** the game-side ring helper (see `SCROLLPLAN.md`) and the Gowin
+CLS/timing check. The toolchain is not available in this environment.
 
-**Status:** open — investigate, then either fix the wrap or change the
-documented contract to a 24-row circular scroll. The four-direction proposal
-above prefers moving the whole engine (terminal included) to the 26-row ring.
+**Status:** fixed in RTL and terminal; tile simulation and full test suite pass.
