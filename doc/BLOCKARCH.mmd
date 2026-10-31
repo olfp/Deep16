@@ -1,0 +1,41 @@
+block-beta
+  columns 12
+
+  CLK["Clock system<br/>27 MHz oscillator ÷ 4 = 6.75 MHz CPU<br/>DVI PLL 74.25 / 371.25 MHz<br/>24.75 MHz render clock<br/>PSRAM PLL 51 MHz"]:3
+  CPU["D16nano core3<br/>3-stage IF / ID / EX<br/>16 GPRs + 12 shadow<br/>DIV / DIV32 via ILL trap"]:5
+  MEM["Memory — on-chip + external<br/>on-chip: 26 BSRAM blocks + 16-word ROM<br/>512 × 2-word PSRAM cache<br/>external: 64 Mbit HyperRAM, 1M-word window<br/>4 MB config flash: bitstream + 1 MB boot image"]:4
+
+  BUS["System bus — 20-bit MAB / 16-bit MDB<br/>one shared read port + one write port<br/>load preempts fetch<br/>PSRAM controller and SPI flash bridge"]:12
+
+  TIMER["Timer<br/>0xF0020"]:3
+  UART["UART<br/>0xF0040"]:3
+  KBD["PS/2 keyboard<br/>0xF0060"]:3
+  SPI["SPI master<br/>0xF0080"]:3
+
+  I2S["I2S audio<br/>0xF00A0"]:3
+  SIC["SIC interrupts<br/>0xF00B0"]:3
+  CYCLE["Cycle / status<br/>0xF0066 / 68 / 6A"]:3
+  TILE["FiT tile engine<br/>0xF1000–0xF50FF"]:3
+
+  DVI["DVI / HDMI TX — 1280 × 720 @ 60 Hz<br/>pixel clock 74.25 MHz, serial 371.25 MHz"]:12
+
+  USB["USB-C<br/>JTAG + UART"]:3
+  PS2["PS/2 keyboard<br/>microSD (SPI)"]:3
+  HDMI["HDMI output<br/>audio / speaker"]:3
+  PWR["Power + controls<br/>3.3 V / GND, 27 MHz<br/>reset, LEDs, buttons"]:3
+
+  classDef clock fill:#ede9fe,stroke:#6d28d9,color:#3b0764
+  classDef cpu fill:#dbeafe,stroke:#1d4ed8,color:#172554
+  classDef mem fill:#fef3c7,stroke:#b45309,color:#451a03
+  classDef per fill:#e5e7eb,stroke:#374151,color:#111827
+  classDef bus fill:#1e293b,stroke:#0f172a,color:#f8fafc
+  classDef video fill:#dcfce7,stroke:#15803d,color:#052e16
+  classDef io fill:#fce7f3,stroke:#be185d,color:#500724
+
+  class CLK clock
+  class CPU cpu
+  class MEM mem
+  class BUS bus
+  class TIMER,UART,KBD,SPI,I2S,SIC,CYCLE,TILE per
+  class DVI video
+  class USB,PS2,HDMI,PWR io
