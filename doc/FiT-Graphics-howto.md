@@ -1,10 +1,10 @@
 # FiT graphics — a how-to
 
 **FiT** (*Frogger inspired tile-based*) is the D16nano graphics layer: a
-640x360 tile console with 8x15 character cells, 4bpp art tiles, eight text
-colours, three font styles, hardware scrolling and eight 32x32 sprites. The
-same frame is sent to the HDMI connector as 1280x720p60, each source pixel
-shown as a 2x2 block.
+640x360 tile console with 8x15 character cells, 4bpp art tiles, eight
+selectable text colour pairs, three font styles, hardware scrolling and eight
+32x32 sprites. The same frame is sent to the HDMI connector as 1280x720p60,
+each source pixel shown as a 2x2 block.
 
 FiT lives in `rtl/dvi/dvi_tile.sv` and is used by the **D16nano tile build**
 (`D16NANO`, `DVI_TILE`, `deep16_board_tile`). The older `dvi_text` build is a
@@ -25,7 +25,7 @@ tile engine and to the PSRAM/Forth mirror at the same address.
 
 | Address | What |
 |---|---|
-| `0xF1000`–`0xF1853` | tilemap, 82x26 16-bit cells, two banks |
+| `0xF1000`–`0xF1853` | tilemap, 82x26 16-bit cells; one of two banks selected by control 4 |
 | `0xF2000` | control 0: cursor `{row[4:0], col[6:0], enable}` |
 | `0xF2002` | control 1: row offset; the terminal uses 0..23 as a circular ring |
 | `0xF2004` | control 2: smooth `scroll_x` 0..15, latched with the display bank |
@@ -47,11 +47,14 @@ and affects any line composed after it. Use the frame flag at `0xF0066` (b1
 toggles once per frame, b0 is vblank) to pace animation instead of assuming a
 write is already visible.
 
-The **visible area** is 80x24 cells, 640x360 pixels. The tilemap is 82x26:
-two extra columns and two extra rows of margin, used as the wrap space for
-scrolling. All 128 tile slots can be on screen at once because the map has
-1,920 visible cells; the eight sprites add eight more distinct graphics, so
-the engine can show **136 distinct graphics** in one frame.
+The **visible area** is 80x24 cells, 640x360 pixels. The tilemap is 82x26.
+The two extra columns are the wrap space for horizontal scrolling. The two
+extra rows are addressable, but the current fill path wraps vertical scrolling
+at 24 rows (`wrap_rows`), so `scroll_y` behaves as a 24-row circular scroll;
+rows 24–25 are not reached by it. All 128 tile slots can be on screen at once
+because the map has 1,920 visible cells; the eight sprites add eight more
+distinct graphics, so the engine can show **136 distinct graphics** in one
+frame.
 
 ---
 
@@ -80,20 +83,23 @@ Every tilemap word is 16 bits:
 |---|---|
 | 15 | mode: 0 = art tile, 1 = text pair |
 | 14:12 | text pair 0..7 (mode 1 only) |
-| 11:0 | tile address, 32-word aligned |
+| 11:5 | tile address / glyph index, 32-word aligned |
+| 4:0 | zero for art; text style in bits 2:0, bits 4:3 reserved |
 
-For an art cell the whole low 12 bits are the tile's word address in the tile
-bank. For a text cell bits 11:5 are the glyph index and bits 4:0 are style
-(see §4); the fill masks bits 4:0 out of the fetch.
+For an art cell bits 11:0 are the tile's word address in the tile bank (the
+low five bits are always zero). For a text cell bits 11:5 are the glyph index
+and bits 2:0 are style (see §4); bits 4:3 are reserved and ignored. The fill
+masks bits 4:0 out of the fetch.
 
-Write a cell at:
+Write a cell in the selected write bank at:
 
 ```
 address = 0xF1000 + row * 82 + col
 ```
 
 `row` is 0..25 and `col` is 0..81. Visible cells are rows 0..23 and columns
-0..79; rows 24–25 and columns 80–81 are the scrolling margin.
+0..79. Columns 80–81 are the horizontal scroll margin; rows 24–25 are extra
+rows that the current `scroll_y` path does not reach (see §5.2).
 
 ### 2.3 The tile bank
 
@@ -127,13 +133,17 @@ word 31     reserved (the build writes flags, currently 0)
 transparent key: art tiles are opaque. The current renderer reads only words
 0–29; flipping and priority are sprite features, not tile features.
 
-To fill one tile at runtime, write its base plus `2*r` and `2*r+1`:
+To fill one tile at runtime, use a CPU-writable slot (`0..95`) and write its
+base plus `2*r` and `2*r+1`. For example, tile 49 is the first free gap slot:
 
 ```asm
-; art tile 96 (base 0xC00), row 3
-; word = 0xC00 + 3*2 = 0xC06
+; art tile 49 (base 0x620), row 3
+; word = 0x620 + 3*2 = 0x626
 ; four pixels p0..p3: value = p0 | p1<<4 | p2<<8 | p3<<12
 ```
+
+Tiles 96–127 are the baked art slots and cannot be written through the CPU
+window; use them read-only, or bake new art at build time.
 
 ### 2.5 Text tile format
 
@@ -173,7 +183,8 @@ tile  = index * 32  = 0x420
 cell  = 0x8000 | (3 << 12) | 0x420 = 0xB420
 ```
 
-Put art tile 96 (base `0xC00`) in the same place:
+Put the baked art tile 96 (base `0xC00`, one of the showcase pipes) in the
+same place:
 
 ```
 cell = 0x0C00
@@ -259,8 +270,10 @@ The low three bits of a text cell are style; bits 4:3 are reserved and zero:
 | 0 | italic font page |
 
 They are ORed into the 32-word-aligned glyph address, so they do not move the
-tile fetch. Existing programs that write `(ch - 0x20) * 32` keep working: the
-style bits are zero and the cell is plain text.
+tile fetch. Console writes that already OR `text_attr` (which contains
+`0x8000 | pair<<12`) keep working: with style zero the cell is plain text. A
+program that writes only `(ch - 0x20) * 32` without bit 15 writes an art cell,
+not a text cell.
 
 * **Italic** selects the second 1bpp page at `0x320`. It is a designed ttyp0
   italic page, not a runtime shear, so it costs no extra logic per pixel.
@@ -274,8 +287,8 @@ The styles combine: `7` is italic + bold + underline.
 
 ### 4.3 Console state and Forth words
 
-The console keeps its current pair and style in the kernel cell `0x3BEE`
-(`text_attr`). The catalog exposes them:
+In the D16D board kernel the console keeps its current pair and style in the
+kernel cell `0x3BEE` (`text_attr`). The catalog exposes them:
 
 | Word | Effect |
 |---|---|
@@ -311,8 +324,8 @@ use one or the other.
 
 `0xF2002` holds a five-bit row offset. The terminal uses 0..23 as a ring: the
 renderer maps visible row `r` to map row `(r + row_off) % 24`, so a line feed
-at the bottom of the screen only increments `row_off`; no cell is copied.
-Rows 24–25 are the vertical margin and are not part of the terminal ring.
+at the bottom of the screen only increments `row_off`; no row is copied (the
+new bottom row is cleared). Rows 24–25 are not part of the terminal ring.
 
 ### 5.2 Smooth global scroll (controls 2 and 3)
 
@@ -332,7 +345,13 @@ phase; coarse = 1 uses the right margin.
 `scroll_y` (`0xF2006`) is a 5-bit pixel offset 0..30. It shifts the glyph row
 inside the 15-line cell and carries into the next map row, so it scrolls the
 whole picture vertically by up to two cell rows. Increasing `scroll_y` moves
-the picture up and brings rows 24–25 into view.
+the picture up.
+
+The current fill path wraps the row calculation at 24 (`wrap_rows`), so
+`scroll_y` is a **circular 24-row scroll**, not a 26-row one: at `scroll_y = 7`
+the bottom of the screen wraps to map row 0, and at `scroll_y = 15` the top
+starts at row 1 while the bottom is row 0 again. The two extra map rows 24–25
+are not reached by `scroll_y` in the current RTL.
 
 Both are pixel offsets, not cell offsets. A game that moves one pixel per
 frame writes `scroll_x` or `scroll_y` every frame; the map itself does not
@@ -443,7 +462,8 @@ new phases appear on the next frame.
 
 `0xF200E` holds a source line 0..359. The engine toggles a signal at the end
 of that line; the board synchronises it into one CPU-clock pulse on SIC bit 3.
-A line at or beyond the vertical total never fires.
+Values 360..374 fall in the vertical blanking; a line at or beyond the vertical
+total never fires.
 
 The raster IRQ is a timing tool, not a per-scanline scroll register: the
 per-row table is latched once per frame. Use the IRQ for effects that can
@@ -460,7 +480,7 @@ a pattern group, an enable bit and hardware H/V flip; the whole layer shares
 one 16-entry RGB332 sprite palette, separate from the text and art banks.
 
 The Flappy showcase is the reference implementation: a bird, four parallax
-clouds and three animated poses.
+clouds and animated wing/dizzy poses.
 
 ### 7.1 The windows
 
@@ -508,9 +528,11 @@ Two words per sprite, sprite 0 first:
 * **Sprite 0 wins.** The compositor combines slots 7 down to 0 and a lower
   number replaces a higher one, so put the thing that must be in front in
   slot 0 (the bird) and scenery in slots 1–7 (the clouds).
-* **behind** only matters against the tilemap: a behind sprite is hidden where
-  the background tile pixel is non-zero, which is how the clouds stay behind
-  the pipes and the ground. Clear it to draw over everything.
+* **behind** only matters against the tilemap: for an art background, a behind
+  sprite is hidden where the art pixel index is non-zero, which is how the
+  clouds stay behind the pipes and the ground. Clear it to draw over
+  everything. The test uses the 4-bit tile pixel index, so it is not a
+  reliable paper/ink test over text cells.
 
 ### 7.3 The pattern bank and its pages
 
@@ -523,8 +545,10 @@ write page     = control 5, bits 1:0   (0..2; page 3 clamps to 0)
 ```
 
 The write page only selects which 8-group page the CPU window at `0xF4000`
-writes; the renderer never adds it to the group. Groups 0,1,8,9,16,17 and the
-two duplicate clouds (10 and 18) are free art space in the baked bank.
+writes; the renderer never adds it to the group. Groups 0,1,8,9,16,17 are
+unused in the baked bank. Groups 10 and 18 are duplicates of the page-1 and
+page-2 clouds, so they can be repurposed only if those pages do not need the
+cloud.
 
 The eight OAM slots can therefore each select any of the 24 groups: **8
 visible sprites out of 24 graphics**. More OAM slots would only add more
@@ -538,6 +562,10 @@ word  = group * 256 + tile * 16 + (row % 8) * 2 + (col % 8) / 4
 shift = (col % 4) * 4                   ; low nibble is the leftmost pixel
 ```
 
+`group` is the absolute bank group for baking. For a runtime write through the
+`0xF4000` window, set control 5 to `group >> 3` and use `group & 7` in the
+formula; the window only exposes one page.
+
 Each word is four pixels. Empty pixels **must be 0** — that is the
 transparent key.
 
@@ -549,10 +577,11 @@ There are two ways to get art into the bank:
   `scripts/make_image.mjs` writes it next to the boot image). This is how the
   three bird pages and the shared cloud ship.
 * **Write it at runtime.** Set the write page with control 5, then store words
-  at `0xF4000 + offset`. Only the selected page is writable, and a write
-  changes what is on screen immediately, so treat another page as the back
-  buffer if you redraw animated art. The renderer still uses the absolute
-  group in OAM.
+  at `0xF4000 + offset`, where `offset` is relative to that page:
+  `offset = (group & 7) * 256 + tile * 16 + ...`. Only the selected page is
+  writable, and a write changes the sprite on the next composed line, so treat
+  another page as the back buffer if you redraw animated art. The renderer
+  still uses the absolute group in OAM.
 
 ### 7.4 Palette
 
@@ -594,13 +623,13 @@ colours.
     LSI R3, 0
     STS R3, ES, R2
 
-; 2. (optional) load patterns into 0xF4000 + group*256 + ...
-;    or use the art already baked into the bitstream.
+; 2. (optional) load patterns into 0xF4000 + (group&7)*256 + ...
+;    after selecting the group's page; or use the baked art.
 
-; 3. (optional) set palette entries, e.g. body colour at index 2
+; 3. (optional) set sprite palette entry 2 (the body colour)
     LDI SEG_OAM
     MVS ES, R0
-    LSI R2, 0x82
+    LSI R2, 0xA2             ; 0xF50A0 + 2: sprite bank, entry 2
     LDI 0x84                 ; RGB332
     MOV R3, R0
     STS R3, ES, R2
@@ -623,8 +652,9 @@ colours.
 ;    the line loader, so update them together between frames.
 ```
 
-To animate, change bits 15:11 of `w1` to another group (or the page). To
-flip, set bit 13 (H) or 14 (V) — no second copy of the art is needed.
+To animate, change bits 15:11 of `w1` to another absolute group (for example,
+the next bird page's groups 8–15). To flip, set bit 13 (H) or 14 (V) — no
+second copy of the art is needed.
 
 ### 7.6 Filling the bank from art
 
@@ -641,9 +671,10 @@ for (const [row, pixels] of art.entries())
   }
 ```
 
-For a runtime loader, do the same in D16 assembly: one 16-bit word covers four
-neighbouring pixels, so a 32-pixel row is eight stores. Remember the page in
-control 5 belongs to the write, not to the OAM.
+For a runtime loader, do the same in D16 assembly but replace `group` with
+`group & 7` after setting control 5 to the group's page. One 16-bit word covers
+four neighbouring pixels, so a 32-pixel row is eight stores. Remember the page
+in control 5 belongs to the write, not to the OAM.
 
 ### 7.7 Things that catch people out
 

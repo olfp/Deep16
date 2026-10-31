@@ -153,8 +153,10 @@ with:
 * a **line-buffer renderer**: line N is scanned from one 640-byte buffer while
   line N+1 is built from the tilemap/tile bank into the other. The scan is a
   plain 640x8 read, so palette lookups cannot stall the pixel clock.
-* `scroll_x`/`scroll_y` inputs and the 26-row margin are present for the game
-  path; the terminal parser leaves them at zero.
+* `scroll_x`/`scroll_y` inputs and the 26-row map are present for the game
+  path; the terminal leaves them at zero. The current fill wraps `scroll_y` at
+  24 rows (`wrap_rows`), so rows 24–25 are addressable but not reached by
+  `scroll_y`.
 
 The UART terminal parser is unchanged in behaviour, but writes text pair cells
 instead of ASCII. `scripts/make_tile_font.mjs` writes the **UW ttyp0 8x15**
