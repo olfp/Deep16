@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:d038df7e4b451ff0f5826362aafba8d2d46e8dfba5212fd63a43d72b04006c8b",
+  "claims": [
+    {
+      "id": "claim_feef24e31d2d40ac949e21a14082597a",
+      "statement": "The FPGA target is one wrapper, deep16_board.sv, built for the Tang Nano 9K as either the D16MINI text machine or the D16nano tile machine, selected by macros.",
+      "evidence": [
+        {
+          "resource": "repo://fpga/gowin/deep16_board_tile_flash.gprj#L1-L10",
+          "version": "repo-lines-v1:sha256:dd648eb6307f574869e9f10a191eb8472747de45497789b1dd156b578e3983f3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5ZTIzYTI2Yjc1ODFmMDcxYjdlNmY0NzVkMzNlZWQ3YTc5NmEyZjM1ZDFkNDgxYzI4MjMyNTg0ODM1OWNiM2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlNzEyMjhiOWEwMjM4OThjNzJlODEyYzE3OTBmZWE5MDE2NDQzZmEwNDIzZDkzYTI3ZDJhMGE1N2E0ODJiODgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA2OWI4ZjJmNDNjNDE5MjUwMThmMjVhODkyMzI5YzJlMGM4MWJjNTQ2MzBmZGEyZmQ4OThjNzM5ZTNjNDk0YTMifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_board.sv#L1-L18",
+          "version": "repo-lines-v1:sha256:c7a00b821b826778da7cf271878106c0ff9275c9621e310e976fa241c076cf2d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxMDBhMmUwNDVhNWJmY2M3MTgxNzUyNmQ2Njc3YWUwNWE1ODEyNjlhMTk5OTc4ZjNhYzhlZmRkZGFhOWQ1OGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwODA1MTA5YjRkYzhiN2Q1YjJjMzQ5OWNmMzVmNDQ1ODY1NzkwMTRlNTk0ZDYwNmM3NmYyNTJkNWUyOTg0YzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIyYzIxNDQ2YmY4NDZmMGQxODhkYTUyNWE4MGJmNWQ3NGI1NTdhMDdlM2MxMjJhN2FlYzk1MTViOWRiYzUzMDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_91a42b7dac9142689d69ef274aca54b2",
+      "statement": "The build defines must live in the first file in the Gowin project list because the list is parsed as one compilation unit; d16mini.sv defines D16MINI, PSRAM and DVI.",
+      "evidence": [
+        {
+          "resource": "repo://fpga/gowin/d16mini.sv#L1-L18",
+          "version": "repo-lines-v1:sha256:d769c2d8d4b1f3cc1e877783c62769017dd81acabbdfb3b3cb181c0da9350f4d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUzOWE0ZTFiNjAzOTZiMDQzODVjNWI1YzIxZTg3ZmQ0MjRlNDM5ZWVkNGM3ZTMyNmRmOWMzOWY4NzUyNzM4MmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlYTVhNGYyNjg4MDg0NGEzM2YyZWFlZjg0ZTMwMWMyMDAwMDk0ZDZhODM2NGQxMzgzYzg0NTc1YTdiOGQ0YjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://fpga/gowin/d16tile_flash.sv#L1-L19",
+          "version": "repo-lines-v1:sha256:361056b78523db127a69ce848102fb1aed4ec121d5c53a891eda8be5c3ea9bc6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhOTlhZWEyOWZiNGRmZWNkNzRiM2I5NjNkMjdmMjRhNDczNGM1OTljZmE0NDJjMWQxZjQ5MDM2YmIxYjIxNDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3NTY1NjEwNjM3ZGMyOGEzYjM2ZGVjZDVjNDA2MzM1MjM1MjhkNzU5NDBjMGVmMjRiMzhmNjFmNDljNjA1MDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_eae32fdf831e439ab91b25b4f5372c73",
+      "statement": "The tile config-flash build adds DVI_TILE, USER_FLASH, D16NANO, D16_PERIPH and D16SEG on top of the D16MINI, PSRAM and DVI base.",
+      "evidence": [
+        {
+          "resource": "repo://fpga/gowin/d16tile_flash.sv#L1-L19",
+          "version": "repo-lines-v1:sha256:361056b78523db127a69ce848102fb1aed4ec121d5c53a891eda8be5c3ea9bc6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhOTlhZWEyOWZiNGRmZWNkNzRiM2I5NjNkMjdmMjRhNDczNGM1OTljZmE0NDJjMWQxZjQ5MDM2YmIxYjIxNDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3NTY1NjEwNjM3ZGMyOGEzYjM2ZGVjZDVjNDA2MzM1MjM1MjhkNzU5NDBjMGVmMjRiMzhmNjFmNDljNjA1MDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_074781c601394b64be5e2375100720e8",
+      "statement": "The only live Gowin project is deep16_board_tile_flash.gprj, reached through npm run synth:tile, build_gowin_tile_flash.sh and build_tile_flash.tcl; the 24K BSRAM builds are retired.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L138-L143",
+          "version": "repo-lines-v1:sha256:f92efeb65d5b51bac65c5dcc28716f2730b56d8a6dc8ad7b1f58ceff38cc0fa0:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDlhZTY3ZTc1NjAwMGUzYWIzNTM1YWFmMjBkMWQzNGVhZGI5MDY5YzJjYmJjZDI5ZjI3ZDZhNzQ2M2ViMzFkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDkyZjkyNGQ1MmFhNmM4NDNhZmE4Y2Q3MGVjMzI4YWVhNzk3MWNjMDM5MDA4YmYxMTk5ODUyYTI4NzNhNzkwMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGQ3NTkyNDdlY2QyZDY3NmJmZjFmNzZmNTYwMDEyNmRmZWUyZGU1MjJkNGU1MmNmOGQ1Y2Y4MGVkMTk3ZWJkZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjVlOTFmMzkyMmU2NjI4YmUxNWM2MWI2ZWZhYWE2ZWU2NmVhODk5YWI4ZTUxZGZjMTdhYjJiY2ZkYTBiZGVhNyJ9"
+        },
+        {
+          "resource": "repo://fpga/gowin/build_tile_flash.tcl#L1-L23",
+          "version": "repo-lines-v1:sha256:b3f6197ec8b07d035b33b53d1853e301f009e1e0f68510a65062d9fd0db00ebc:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM3YzFlZGE1MzUxZGE3YTgzYTM4YjRkN2FjYzQ3Y2U4NjQ5Yzc3OWY3ZDEzZTgzNjg1MjYxNjIwNTBkMzJjMjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQyZmE3OTY0ZTFiMjE2YjJkZjg4ZDhiYmZkNjBmNDJhYTIyM2U4MDQ4MzIxYTNlNTU5MWI5MzUxY2M2YjcxMzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZkZDg3NDc3MTlmNjhjZjc2YTJhMWJjMDk5NzMxMTRmZWUzNjJhNjQ0MTFiM2UwOWEyZjA0NzE0YzQ0OWQ1NzMifQ"
+        },
+        {
+          "resource": "repo://scripts/build_gowin_tile_flash.sh#L1-L25",
+          "version": "repo-lines-v1:sha256:36f92123d9006bcbe112dfa0affe74a66e5630ecd2d37dbde4cde06648404c57:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYzMDliYTgwMjM3NDI5NGEyMGU2ZjI0ZmIyZDg5NTc3OGQ2NTI3M2IxMDU2ODJjZTAzOTI4Zjc1ZDA5ODI4ODEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVjNzUyYzA1YzAwNDk2YjQ4OGU4ZGI4ZTFiMGJlMjk5MTBiNjUwNDY5MzM3ZGMwNzc1OTViMTExMTU5N2U4ZjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6a63d675fc734a069d928abc28a3df3b",
+      "statement": "The 27 MHz oscillator is divided by two for the standard CPU and by four when D16NANO selects core3, giving 13.5 MHz and 6.75 MHz respectively.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_board.sv#L59-L79",
+          "version": "repo-lines-v1:sha256:4503273440bf4cd55762b3530d9afd8dd3363188a465781299a9c995f4a3cfca:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzZTA0MTgwNjZmYWVmYzY5OTllNWU2YzJjMzhiMmEzMGY3ZTQwMWZiNDc4M2YyZjFmYjhlZjliODM1YTA5NWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBhNGJjMjhiNjVkMzMwZGNmMTIwZWRiZmRlNzY0ZDA4NmI0MmNkOTUyODY1YTlkZTA5YjQ3ZGJhNGM3NmFkYzUifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_board_tile.sdc#L1-L9",
+          "version": "repo-lines-v1:sha256:e451ec75edb246265b12d6f3019b39efc961cfc2b3eba35c0e64507a477f5d91:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjhhMDliM2FjYjBlNzU4NDc0YjlhODRmN2U1YmU5YWVlY2M2ZDI0YzkyOTczNDM0ZGE3NTdjYWMzMmU3ZTM4OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmM1OGIwZTBmZjk0NjQzZmFhZDk0OGMzY2NjMDFjODQ4NDFlN2I2ZWI3ZjQ5ZDFhZjkyMTcxOGMyYzM2MjVkMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjA2MmNjMmM1MjNmMzlmYmY4OWU1NTFmYzI5MjE5YzczMDQ1NTUzYTNjNGIyMjZmYjA5NzYxODVlOTQ4NWE5NyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_b47a95d13ba949fb8e10ab5590f23a9a",
+      "statement": "The PSRAM controller runs at 51 MHz with LATENCY 3 from a dedicated PLL that also provides a 90-degree clock.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_board.sv#L81-L100",
+          "version": "repo-lines-v1:sha256:ee6268b7ca162583a9e55e6bbace5444de7bdc1fd5204a00073a0a93c55ab0bd:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVkNmIwMjliOTRjMWM3YjE1OGZmZDgzOWYzNDFkNzM2MTIyMWMyNTg3OTdmZTc2OTk1OTI0NDVjOTg2MjJjNzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImViNWZmMzZlYjA0YjdhODU3MDUyYjg3ZGI2NTYzYzYzNTkwYWRhZjJhNjcxMmRhOGJlNWRlZGU1YWU5ODM0ZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA0MTljM2VhNmEzM2Y1MzdjZjY3NDYwOTRhODJmMGQyNDExMGQ0NjUwMTJmNzYzYzYzNzUyMzllZTBjMWMzZWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYwYTg4M2I0NGJlYzdkNzAwMGE1NDI1ZDcwZTQyM2I4MDA3YWYyNDBmYTU1NmUxMGI0Njk5ODI5NTRkOGNkYmYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_195a8090513d4a6b94b04074ecd9394c",
+      "statement": "The DVI PLL supplies 25.2/126 MHz for the text build and 74.25/371.25 MHz for the tile build, whose render side runs at 24.75 MHz.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_board.sv#L146-L170",
+          "version": "repo-lines-v1:sha256:03cbca33df8f8430aca9011b8a4371933cbf88422493884db615b0321f777052:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU0ZDM4OTdhMGY5ZDY5YzlkYjgxYmM5Nzc0MTVlNDBiNzIyYTVkNDRkZGU1YmQ4ZjcyNjQ1MWJhZWQyNDhhNDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzMmM3NzVhMDM1YjQ3ZjVkMjcwMzFmMGY2ZDk4NjM0NTFiZjY4NTBiZDVmNDc1ZTkxODFkNWIwNDY0MzI3NDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJmNDk2NDBlOGU4N2ZjY2JhYmU5Y2ZhMGMwZjJjMmRjODJiMmUwMzc5MDEzZmM0MDNmNDhmZDI2NTYyNTUxNzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcyZWZhZTBmZmM4N2UxZmQ3MmExMTlmNDc3OTliZWQ4MDQ3YTcyNWY3OTM2NDJjY2RiOTAyODczN2I4NmMzNWIifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_board_tile.sdc#L16-L20",
+          "version": "repo-lines-v1:sha256:cfeecfd3f8427447301c0d1f837f80818ec8a6033ba1ed922c9da7e6f73c4dbe:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmY1Mzk1OGEyZGYxMmUyOGM1OThhZmNlNTFlODdlYzQ2NDY1NzBjNjUzZTkyNTliNGM1MWI1YTE5MTY1Mjg5ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmVmYzUwOWEyMDE4ZjYyZDY0YWRmNGUxYzFkYTIxNTM2ZWVjYjA3YTg0N2NhZGIwNDA0YzNhMmNmODliODZmMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjQ1ODZmMTQ4NDhmNDY4MGI3NjUyNTJmOTAyMmE2MGZmOTJmODRlMDIwNTU1N2QzMDhjZWY1YjYzMGY4MzAyZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTMxMTY1YzY2NTYxNmY3MzM1YmRiMGQwMDYyY2QyNzIwNWZhMDBlYWNkZTc3ZTM2MDIxNWE5Yzc0MDA4YmVmNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d27b2fbc58914aeb8f031a478ceb9d31",
+      "statement": "Reset is an asynchronous active-low button synchronised into the CPU clock domain and held for 16 CPU cycles after release, with a separate deassert held until the DVI PLL locks.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_board.sv#L121-L170",
+          "version": "repo-lines-v1:sha256:50458f19b55b3efdf6d33ddce11b54a4a841e502e923a50154c4ed6b41cab477:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2YjU2NDZkMDU4ODg0ODIxZmVmYWY0MjI3ZjRhMjkyZDI4MDk1YmQwNTE3MGIxMGJiY2EzYWNmYWMzOWE1NGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzMmM3NzVhMDM1YjQ3ZjVkMjcwMzFmMGY2ZDk4NjM0NTFiZjY4NTBiZDVmNDc1ZTkxODFkNWIwNDY0MzI3NDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQyZWU0OTRjMmU5ZTczYTc1NTc5NDVkZDkxOTZmNmIzZDM3ZDQ1MGIyNGI0NDdlZTNiYmE1YTBkNzY5NTU1ZjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcyZWZhZTBmZmM4N2UxZmQ3MmExMTlmNDc3OTliZWQ4MDQ3YTcyNWY3OTM2NDJjY2RiOTAyODczN2I4NmMzNWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_86cd3e0f7df24af6a0cc80c623d90d78",
+      "statement": "Pin constraints place the 27 MHz clock on pin 52, UART on 17/18, PS/2 on 76/77, microSD SPI on 36-39, configuration flash on MSPI pins 59-62, and I2S on 25-27.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_board.cst#L1-L63",
+          "version": "repo-lines-v1:sha256:1febdeb10cc91f5fcabfbbefcea9f50af5c6f6f3753da458740407e8c5c4911a:eyJzZWxlY3RlZExpbmVDb3VudCI6NjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzZGQ5NWUxYmM3OGZlNDRmYWNlZTNmNjllMzk1Njc4YThmNDIyZGU1ZmVkYzY2YTFhN2VkZWM5MDE1NzZlMjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwMDc0MDVmZDNiN2QzZmY1ZmE0YWI0NjJmODg3MDA4ODZmNjgzNTQzZjMwMjRlNTgyNmY3NGFmYTU2YWMzYjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI3NzlhY2U1MmRhMGE2MTg2YTQ0NGQ3ZDhlZGYzMTg3ZGMwZjFiNzUxYjdjZjJjYzQ1MjExODg0Nzk2NzFmM2EifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9094c9f1321c4720a1615632d9251e05",
+      "statement": "The D16MINI memory array shrinks to 24,576 words in block RAM, or 16,384 words for the packed image when PSRAM is present, while the simulation build keeps the full 1,048,576-word array.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_top.sv#L100-L120",
+          "version": "repo-lines-v1:sha256:85038f0f8c4718e532c5f3c03595410862afbcd1aa2b8250e2f744ccaedb58be:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhYjQ5ZTA2YTM1MDJjZjU3NDAzZmI2NTIxZjA5NGFjZDYzMmYzNTQ2NzI5YTUxMTlkZGQwMDY1OTU1NTc5Y2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIyYzMxZGY5Yzk1NGZhNjM0M2NmYzUwYzM2MWE2MGUyOTZjOGE0YjQ0YmQ3MGNjY2I1ZjVlMGM1NDY4MzVmMGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI5NjE5MWFlMzliYTFlOTg4MzExY2FmMTBkNGVkMmU4NTJiNjlkNWFjYTEyM2EyYmM4MzAxODI2OTI3MGNjOWQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_231e57ce80df419783cc8cd7516e47b7",
+      "statement": "The PS/2 receiver produces ASCII that feeds both the UART receive FIFO and the architectural keyboard FIFO, and each build's software reads only one of them.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_board.sv#L345-L380",
+          "version": "repo-lines-v1:sha256:9e1a7dc5232e2ae7b720dd75ff62531fe248c18b8fb31734f1b88ad16daeb432:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4Njg1NTM3NzMyOGFiM2Q2MWE3NDc3ODA0MTc0MzQ5ODViNjM1NzY1NzliNGRhNmI0ZjVhYTI0YTY2MTIyZGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUwNmQzOWZiNTk3ODU2ZDIzNzIyZjNmMDU2M2Q3YWE3MmUwZTkxYTk2ZGMyZWVkYjYwYjliNzU2YWI4YzIzMDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA0MGI2MWIxMmU2NjIxOTg1YTA2OTg3YjQ1NTY2NDg5ZDljNzFlMTBiYzUyYzk3ODUwN2IzNzE5N2NhMTM1YzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU2MzYxNzRiOGNiNTc3NTM1YmUzNDcxOTE5YTViYzJlNDVmZjRhODFjOTVlNmUwMTJlMGUzMDk3ZDZjMDRhZTkifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_board.sv#L412-L440",
+          "version": "repo-lines-v1:sha256:455e65c3d2b4c6040f9c138bedfc7accb54c0d30080d77745dc2c444363084d6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUzZDkyNDE2YWRhODhjZTM0MDM4NGQ1NTcxYzY5ZmMwNWQ2ZTQwOTdjMjg3YjE1Y2I2ODQwNGJkYTY1ZjY0NTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE1ZWYwMWM0MTBhYzU4MDY5ZmZkMTBlYjE4ZjhmZDlkZmFmZjlkNmMzNGQxZDcyMmFlYzI4NzVhNTVjNTBlOWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBjYjA5YmVmMDVhNDcxNzc5Y2QwM2E3NDI4OGY5Zjk5ZjMwNTczZTlkNGFlOTE4ODY5N2MwZTljZmEyZDgyZTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg3ZjQzZDMzY2E2OGE5Mzc2YWE4NWYyZDFjODliNTkyMTViMmNiZTBmYjJjMzM3NGRjM2E3MTM1ZjcxMDY1YzEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_caa1472475f544ca8b9473954102908f",
+      "statement": "The text build renders an 80x24 ANSI terminal mirror from uart_txd as 640x480 black-and-white DVI, while the tile build renders through dvi_tile.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L124-L134",
+          "version": "repo-lines-v1:sha256:03795d06955b63798da91c34961f5b0d3746c0f123b493218287e8412bde71b8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzOGFjMzkzZjQ3MzRjMzhjNjllYjQ0NDRiNmQ0YThkMTIyNzA2Yjg2MjU5MjQ1M2M5ZjYyYzA5ZjkzZDU5NjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmMTNmNzI0MTcxYTU2NzdlMWVmNzdmMWQ5N2M5YWQwMTM1MWM3OTIzOGYzMGE4ZmE0MWMwZjgzNmMxYjZhYTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYzY2YyOGY4MjNhMzIyMDA3OTNhYWU4YjZmMmE4NDZkZTc2NjYwYmRmOTUxYmFkZmE0ZDdlYjhmOTAwMDZiYTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRkNzU5MjQ3ZWNkMmQ2NzZiZmYxZjc2ZjU2MDAxMjZkZmVlMmRlNTIyZDRlNTJjZjhkNWNmODBlZDE5N2ViZGUifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_board.sv#L288-L303",
+          "version": "repo-lines-v1:sha256:29dd7d05c21818f1d6008d1f04c1eafb58025f954d8aa509513cd3635924063a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3OTgxMWM1ZmJlMjVjM2Q0ZTVmM2QxZmQzNWFiOWRhNmJjZjhhNjhjNWVkZjlkNmJhOTdmNjg2ODZjMzk2ODAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4Njg1NTM3NzMyOGFiM2Q2MWE3NDc3ODA0MTc0MzQ5ODViNjM1NzY1NzliNGRhNmI0ZjVhYTI0YTY2MTIyZGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVlYTU5ZDg2M2UyNDNiZjJmYmI1NGU5YzI4MmQ5MzdkYWQ0NjM2OTkzY2YxYzFiM2UwNzQ5MDYxMTBmNGY2N2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIxNTIzNTJjYzRiZjQ1ZDE2MDMyZmFlYzM4ZDQ2ODY4OTdiNDNkNzZlYTI4YWQ2ZTdkYjcwMTJiMzY4MGFlMDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_85073f813ee94803a8ea897ea365d080",
+      "statement": "Tile writes cross into the 24.75 MHz render domain through a 16-entry gray-code asynchronous FIFO that drops an entry when full; the PSRAM mirror is written regardless.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_board.sv#L190-L235",
+          "version": "repo-lines-v1:sha256:de3de4faed4d79d5a242f807e626176e1396b127c7c9e44f6d34d9bc11b56c34:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmYTYzMjEwNmEwYjVjNTc1YTUxYjY0ODU1NmM0OTVjODQyNzcyMmQxODI4YzIzYzIxMTc4NGI1ODljODNkNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExNGIyYWQyY2MzNTRmNGU0NjI5ODQ1M2Q1YzI1ZjYxMzJmMDIwNGUyYTQyYjVhZGY4ZThiMzdiOWM0ODk5MTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA0ZmFjMjllZDQ1YTAwYjA3OTc3MDAwNzI2NDBmNmM0OTk1N2U0OTBhZGY2MzYwODg1YTFmYzQ4OGY2ZWZjNGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFjOGE3MzEyYzQ1Mjk2ZTQxNDgzM2YzYzJlMjdmNTYxMjVmOGQ4MTM0N2U1NGJlZGNmZWM2ZGRmZWQyOGVhMTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a0ae6cbfd6ed4cf5a86e675e233feb0f",
+      "statement": "One SPI master serves the microSD socket and the configuration flash through a mux keyed on chip select 1, and USER_FLASH routes register accesses to the boot loader while it runs.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_board.sv#L489-L505",
+          "version": "repo-lines-v1:sha256:49f44281ba9e5670a9d628fe948c12ed218abc33680191052017bcb8b2c59266:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwNjYyZjI0NTllMTQ4ZWJkNTBiYzI4YTQyZjRjMzVjYjU5Mjk0ZmNhMmJkY2UzMWE1NDI5Y2Q4ODBlMTM2NzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5MmEwODI5MDMwYzVmZDBmOWJlYjI1YWUwZTZlNmI0YTNlNGNjZjI4NjFkNzI4ZGNjYmZiODVlZjViYmFlNmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY2NWNmZjhkY2JkNjc2NTVlNjNiZTdhM2Q3ZTkyOTBhYWFhZDQ2ZDIwYjZhYWY0MTUzMjZjYWFjMTJmOWI0YjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNhZTExNjIyNGVmMDdiOGIwNTc5NWUyYzk4ZTVhMGRhMjYwNzAzOTRhMWY5YTdhN2M3ZmU5NmI2MmVkOTg2Y2MifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_top.sv#L262-L280",
+          "version": "repo-lines-v1:sha256:9228b0c431ed99d9a3847f526ca31a98621306cd22a7f6024ec624a66176a2af:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY4OTJmNDdlYTE2ZGIwY2RlZTc1YTNlMzgwNzE1ZWNjYmZiMDZlNDg2M2E1OWQyNTg2YTU2N2Q0MTIxODQ1YjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkMjk2NzFlODRkM2QzMTgwMDQzMTFjZWZkNTY5MDVmZmM4MWExYWRjMjg2M2E3YmY2ZmRiODM1NDEwNmQ1OTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM2MGQxZTUzNmJmY2Q0YjU3YTgwYTk5ZWFlNmFiMDQ0ODRkNzBiNmExMzczMTlmNjg0MjE1YjA5MjRiMWNkNDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcxMjNhNjE5ZDIwNjRiMjUxODgyOTM4NmFiZTkxOWI3MzFiZDQ0NTUyNzNmOWFkODAxZjM2YWVkM2VhOTcxMjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0fdbf2cfead1457daeebb5abb683f90d",
+      "statement": "npm run synth:tile regenerates the D16D/D16nano/D16SEG image and runs Gowin synthesis and place-and-route, while npm run flash:tile writes the bitstream, boot image at 0x100000 and slices at 0x200000.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L152-L156",
+          "version": "repo-lines-v1:sha256:b8918f49e7071c6bbdee5fde7385caddb9ede58466e1a90b0b75a2344a1b0cb0:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDdjMDZjNTYxZDVjMzI3MzQzNjg1MjY4YTQ2YjMzOTFmMzk5OGVlZTg5MGQyYmU1MWYwZDIxY2M0YTUzYWU2ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWE4NDgwNzFkMWY0OTRhYmM3ZGVhMmNmODc4YzNiODQ0MGE2YzhmMjM4NTNmOTFjOTY0ODQyYTdmODQ1Y2JmMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2NiMTJiYmIyYWM3YjgwNjhhMDU4MmQ0ZDcwOWUxOWFiNzA3NmE5ZDAxYTc0OWI0MzA2NmNkMDY1ZjhkMDFmOSJ9"
+        },
+        {
+          "resource": "repo://scripts/build_gowin_tile_flash.sh#L1-L30",
+          "version": "repo-lines-v1:sha256:30da0b5775ec1f4d24103f01713800e10f727013dab8292a85399da4c23863f9:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzZGM1MTJlNzM5MTAzZmEzNTE5M2EyMDYzMjA1MmU0ZjM2NGE2NGYyNjFiYjk5MmJkOWExMzFlYWI4ODI0ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L45",
+          "version": "repo-lines-v1:sha256:ee6647a0cd88bf5dba158d94e19ffc307ba0c1d9e96956abf54672ba1ce48db4:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3NjlkMjM3Y2Q0MjBiOWQzOGI5ODFhMGE0ZjY3NzAxOTBhNGE4M2RjYTFmZTU2YzRmNWJhMWUyY2JjMGVmNzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU2ZDBmYmFmZTNkNjhhMGIxYmMwYjFjYTJiZDA0MTQxMzFjZTBhZGNkMTMzOTNlZGNkZjM0NWUzZjIxMGI4YjYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bccb785b4aa8455da177d9f472a4b28f",
+      "statement": "The flash script verifies the 1 MB boot image by read-back because a block-protected chip silently drops the write while reporting Done, and it writes the slices last.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L28-L53",
+          "version": "repo-lines-v1:sha256:1fed07765e6110004602b9d0eba666199dd4aee5001a027eaa744cb314a6204c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkOWUyYWNkNDY0MGQ5MDJhMmY4MWM4NzdjMGZmMGRlN2EzMDM1MGEzMzYwZjU3NzczNDYyY2RiMzkxYTJjMzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFmNGJjNmMwYmRiNzE4OTZiOThjZjU2YjhlMGEwY2MyZTBkODgwOGZhNDlmZTExZTNkNDkyODUyYzE4OWIwODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f4c91ba5ca0941f6abb6b36c7f599a0b",
+      "statement": "The archived packed build measured Logic 8,173/8,640, CLS 4,211/4,320, registers 2,577/6,771 and BSRAM 20/26, while the 28 Oct phase-1 tile build measured Logic 8,283/8,640, CLS 4,237/4,320, registers 2,985/6,771 and BSRAM 23/26.",
+      "evidence": [
+        {
+          "resource": "repo://HARDWARE.md#L209-L213",
+          "version": "repo-lines-v1:sha256:f60f37ad52b76aab19d41f6358e8e1c65aaf52581606806254236560a35677fd:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWIxODdkYzdiNGNlMTJhMTc3OTU4YWQxMGIzNzNkMWNiNTc4MGM4NWI0OTA0ODU0N2Y1ZjY5MjMyNDlmNjIzYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzc2ZDAxOGU5OGU4YTc4OWI3MmNiZmU2NjEyZGY1NzY3MDg0YTM1ZjBiNzYzODgzOTg0NWViYTc0ZDE1MDcwMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjY4ZjM2ZWMwNDhlMDgxNDFmNjdhOTkzZDRkYjU1YjU1OGQ1NTZkN2FiZjcyZGVkNjc0ZTY5ZWMxMWIwNzdhYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzI2NzQxMThlMTBmYmE5MGExYzBiYTljZmE3ODA1NjMxNjYxNWYxZTBiMmM0YTM2M2U0MzJlZjFiODAyMzQwNyJ9"
+        },
+        {
+          "resource": "repo://README.md#L135-L137",
+          "version": "repo-lines-v1:sha256:dd759247ecd2d676bff1f76f5600126dfee2de522d4e52cf8d5cf80ed197ebde:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTMzNDhhY2QwM2I3YzUzZTMxNmY3ZmU2NDc1NjVkYWQ5MGZjOTg5ZmY1ZTdiZmE1YzcwNWQxZDJiNDlkOGI5OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjllOGNiODZiOWVmMmY4MmI1OWIwZGU3ZjBiOTUyNzAyYzA3NzFjYjBmZWM0NDY4MzlmOWVjMGI3M2E0MjJjYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTFjZGFkNmQ0MDk1MDBiM2RhYWQ1M2MyYjQ3N2IwMzM2NDM4Y2U1ZmQ2NTg3ZTgyMmQ0NTQ2MGVlNDhlYzMwYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTcwYjI2MzQ2NzY1OTAyNTkwMjE1ZGM2ODNlN2YwMmMwZGFmYjFjNGY2MTYwNjhjZmM0NjJkYzlhYTViYzUxYSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ac2eacc4c3be45c5998af88f7114f82e",
+      "statement": "Status LEDs are active low; the tile build reassigns the upper LEDs to render-clock, DVI-lock, scan-start and frame-produced indicators.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_board.sv#L534-L580",
+          "version": "repo-lines-v1:sha256:5d882107d597331d8e0c7dcea1900ccd3ca406095bee0b468f88e8c2dcbda821:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0M2Q1NGFiNGY3OTMxZmY3M2FjNmZmMzZjMjE3MThiMmU1MGUxNjdiMmY0MjdjMTkxZmViYmYxNTBjNjZmNDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkNTQ4M2ZjNTRmM2RmMDIzMGM2NWNjNGZlYWM5ZGNhZDFkOWM5ZGY4NjEzYmZiZDlmNDQyZjQyNzYyMDg2YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlkZjU1YjJkNDc1ZjYwODdkZGVkOGIwMTZhNTNjY2M4MTFjMmYzMTlmMmZmMDY2MzhlNTIyMjQzYWUxMTQ3YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4YjFlOWY4NTM0MzVlNGFlNTI3NDQxOWRlOWE4YTc5ODUxOTM3ZjkwMGRiZWZiZjY2NTMxNjcwZTQ0YzBkYTgifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.2",
+    "at": "2026-11-01T09:36:37.731Z"
+  }
+}

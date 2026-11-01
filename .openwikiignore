@@ -1,0 +1,16 @@
+# Generated and third-party content that should not become wiki evidence.
+node_modules/
+obj_dir/
+obj_board/
+obj_dvi_tile/
+obj_uart_fifo/
+build/
+artifacts/
+screens/
+wasm/pkg/
+rtl/pkg/
+rtl/obj_wasm/
+book/epub/
+book/build/
+archive/
+old/

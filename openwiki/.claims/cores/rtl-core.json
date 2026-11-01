@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:c7921b24a07372afe9fcfebc893a3f5dcb6aa5726093d259a659b4a83e241eb2",
+  "claims": [
+    {
+      "id": "claim_33403847d06e46cf95606653f8d4679b",
+      "statement": "deep16_core is a five-stage IF/ID/EX/MEM/WB pipeline whose step retires one instruction, and each EX instruction computes the complete post-instruction state bundle that is bypassed from MEM and WB.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_core.sv#L1-L30",
+          "version": "repo-lines-v1:sha256:8ef36c9c7f5aafcff78d73b17478c460df5d0f56616b5e68b38839c4d2893d2e:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI0ZTM2ZDI0YjA4MmQ3MmNlMTM4YTlhMzBmOTJmZmZmMTczNzk2NWFjN2U3ZWMyMjZkOTY5MmUwNTc1MzFhY2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVkYjQzYzgyZmYzYmIyODQ3Mjk4ODBlOGM2NzM2NWU4OTBmZGEwZjIwNzAyY2QxYTZmNzE4OWExNTE1NzAwN2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxNmU3MzI3ZGRjOGZmYWFkNTMzYzc2MzhiNDQzMjExM2Q1YzUzMjQ1MzM2ZTU4YjA2M2FiMDQ0ZWUxOGUwZDAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0de13f38e9f449d9b20d5b904daf167f",
+      "statement": "A load produces its result in MEM, so a consumer one instruction later stalls for exactly one cycle while IF/ID and ID/EX freeze and a bubble enters MEM.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_core.sv#L511-L530",
+          "version": "repo-lines-v1:sha256:5df6b8bd6fd13f7880c832c295ca29a78207b30cf931ab83bcb70550ef678afb:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiYWY0NDMzMjc1ZjdkZDg4NWYyNTQzNmI4NzlmMzE1ZDJiODMxZGVjZTkzMjhlZjNjMTk4ZThhMWMxYzIzNmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlNmMzOGNjOTA1ZmQzMzk4NzI0OTQ0NGFhMGQxM2U5MzViN2E5ZDY3NjY3MjA3ZjNjODVjODdmMDJhNmIxMDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAxNTY0ODJhMDdiOTEzYTMwN2MwODJlMjJjZDhiZDk3MDI1ODM2NDBjZDY1Zjk2MjlmYWM4M2U0ODA0MTQ5YTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImExNTI3Y2VhNmU5MDk5MzUxZjg4MzI4N2ZmYTUyMTFjNGE0YWUxNmE5NjkzYmYxZGJkYWJkZGQyZDBmYWUyODgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4d13a7b840124709bba0813e84cff3d8",
+      "statement": "DIV and DIV32 hold the pipeline until the iterative divider finishes, and the start pulse must re-arm per divide rather than once per residence in EX.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_core.sv#L523-L562",
+          "version": "repo-lines-v1:sha256:9494c91cf51181cfd63bb545809c728f6cfeb495cd535ea000ce88cc3e1f1c3f:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiYmE3OGIzNzE0NTM1NWI2ZWY0M2UxNDM5MGRlMDNiNWNhMTNhMGI3MzE5YmJhYzIwNTc3MTU0NGE0MmUwYzYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyMzk2ZTkwYjkxYTZkNWU3MjNhYWJiYTI4NGM3YmRhZjgzYzk3YzYzMzMwZTNlYTAzMDI1NDM0ODYyMWMxMDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY3NzYyN2E2OWNhMGNjZmY4YzlkNDBiMTg4ZGVkNjI0YTZiZjk2NjViZTM3NDBlODlhYjA2ZDY4MzUzOTI3MGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjljODBlYjMyMjlhOTQ1ZTQxNGMzNmQ2ZDY5YjM0NzhlZmM5ZDNjZWI5ZGQ2ZjRkMGNlYjY2ZDI4ODYwNjEwMjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_02f0acea8d27498e82d687ad7ed3c7f1",
+      "statement": "Wrong-path fetches behind a delay slot, SWI, RETI or a data-port redirect are squashed, with pc_pending and mem_late spanning the clocks before the real target is known.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-RTL.md#L54-L86",
+          "version": "repo-lines-v1:sha256:9bc4f28b3ebd751cc46ad532d112e4a6afa62f716f55bf4f192378dfc60fbd9e:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExMTc5YTlkMmI5MDgyMDIzYmRhNzI2ZDU5NTVjY2M4ODA1MDZhYTM3ZjQ2MTBiOTE0ZTY1NTg4YTFmNjk3Y2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmMWE0Y2YxZDk5MTYxZGM4NzIxYWI0OThjZDZjOTk5NmZiNTNlODhjOThjNTVlY2E3MjY4ZDQyYWI2MWU5MjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNjM2ExOGE4Mzg2NGUyZWVhZDQ1MDNiOWY2MGE3MDA3NGRiYzM0ZDc5MzQ5MzkzNjRkNjk4OTdiN2NlNzg0ODciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYzQ4NTEwZjk0YWNlODQ4NGZiM2E3MWU4NWY1MWUyNTJkN2MwYzc2NTU2ZThmZmE5YjAwZjNkYWJjN2QwZTMifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_core.sv#L1200-L1265",
+          "version": "repo-lines-v1:sha256:2570fd9c3a61c3217e4df7021e585c3c09f550e4f4905467916b9d762927d8ff:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxMzFlN2FkMjE2ZjZmZmNjYWZhYTA1ZTViZWY1NzVkNDkzOTA4ZWI2M2MwYTdjMTQ2YTZhMWMxZGJjMWQyMmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkMjNmYmQ5NjljYmRhYzQ1YTg0Nzk1OGUzNzBlNTUyNGE2Y2I2MjRlYjk3ZGViYjEzZTEzMWI3OWQzN2ViNTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE2NTgzMWE2Y2UwNzMwNTAyMzg5Mzg3OTcxM2ZiZmU0Mjc3NjkyMWJlMDRkYmZjMzg1Y2Y5MGE4ODVkMjMwMDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1ZGUyMmJkYTRjZmYzMDBkNjYzMzUxMTI4NmFjMTRhNDBlMmQxOTIzNDVjYTRlMDkxZTE2NTBkZWY4MGZhYzIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_571ad985c5994ecd94b3c618a8da8f93",
+      "statement": "The register file stores the normal bank plus shadow R0'-R3', R13' and R14'; PC lives in the pipeline state bundle, and two architectural write ports give port B lower priority than port A.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_regfile.sv#L1-L15",
+          "version": "repo-lines-v1:sha256:5fccfdb75f416f7523932c59709b2f6f4edad16b0c336eaa4378bce9eaee4698:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUyZmNiYzljNTRmN2FhOGU2N2ZkMTEzMzBjY2JmYTljMjhmMTg0N2Q3Y2M1N2M1M2JiYTdhMzI0MmNhODI2YzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5NTI0MzJmZmFlYjZiZjljZmRmNzgxNDQyN2E1ZmYyZDQ4ZDU4ZmIzYzM1MDQ3ODM5ODRkOGRkODgxYzdjZWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY1ODI0ODcwNTkxZGMyYjgzMGM3ZDg3NjhkNmQ1NTY4YTdjNzM5NmE3ZGE4YzViOGQxNjU4MGUzNzI2ZjVjZDcifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_regfile.sv#L74-L92",
+          "version": "repo-lines-v1:sha256:75976e4e36b532e3b6a43a1d28d289673261b9e11bc4eaf6130a1cff1a62e616:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmZmI4ZDVkMzNhYmUzODljYzYxOTUzNzY2ZjhlZmQ3NDM1YjAxZGZiNWFhOTMzODY0ZDczN2JmMjllOGQ0NmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU0ZDM4OTdhMGY5ZDY5YzlkYjgxYmM5Nzc0MTVlNDBiNzIyYTVkNDRkZGU1YmQ4ZjcyNjQ1MWJhZWQyNDhhNDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVkN2Q5ZDY5NzNhMmUwY2Y3NDdmNmFhYmZhZGFhYzRlODQ0NDdkZDJhZmRjNzNiZDVkODdjNjcxMDg4M2I1YzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQyNjFiM2Y5YmZhZTBlMWUwNDhiZDA4YTg4NDU3OWJlODllNjlmNWY5ZTA4NDYyZGQ5Zjk2ZjViMmFjMzI3MTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1b8fe55dc8414b82a1c136c9662a8e30",
+      "statement": "deep16_divider is a 16-iteration radix-4 restoring divider that produces a 16-bit quotient and remainder, with sticky done signalling and a masked restart.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_divider.sv#L1-L40",
+          "version": "repo-lines-v1:sha256:a5802cfb1c5b6822c9de6f9a95325b05e9f40865759b070252a4788764db2223:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc2NmZkN2I4NWE0NTZjNDdmNzI3ZGQ1NmU5MjFjYzcxZDNjNGI3YjU4NmY5MjRlZGMwYmRjMzRlZjNiZTNmMzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVhZTkyODY0MDgyYTZhNjAyMTlkZjQ3ZTcxY2M0NjAxNTAwOTg2M2JlNGIxYmY5ZmY3NjFkMWMxMjk4Yzg4NDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ1YjA0MjY5Njg0MTQ3YWIyZWZiNmM3ZGM0NWVjNWFhOGQ0NzA5OWMyODUyZjZiMzE2NzQ5OGM3MjQ1MDIwMTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1f912d14c639425e88827c61e129512f",
+      "statement": "deep16_cache is a 4KB direct-mapped write-through cache of 256 lines by 8 words that never caches 0xFxxxx and flushes on FSH.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_cache.sv#L1-L20",
+          "version": "repo-lines-v1:sha256:47fe06eb2d9d56b13a7a3e7c92fa15dc5dbecae6b2d46f85388b13f098cd2153:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1ODA1MWY2ZDI3ZDM1MGI1YmM4NGE0YzQ4M2YxOGU5OGQxMzZlZmY4MjdhNTQwN2QyODUwNzAyMzkyYTNjYjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5NTI0MzJmZmFlYjZiZjljZmRmNzgxNDQyN2E1ZmYyZDQ4ZDU4ZmIzYzM1MDQ3ODM5ODRkOGRkODgxYzdjZWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2ODIzOTExMjc3NTc3M2RiOTc1NWEzY2Q5MmQ3NzI2NjUxZGM1M2Y2NTYyNTkxOTBhODUxYTYzMjFiYWM4MzkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_24683f6a85db4843aa4f6f18175521b6",
+      "statement": "The IDE RTL top does not instantiate a cache: it ties off flush inputs and drives hit, miss and penalty counters to zero.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_top.sv#L327-L355",
+          "version": "repo-lines-v1:sha256:5a225ca670d9c85689acdd5aec6d9027dbf280afbeb3bd6306c5a599618157b8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmZDUwNDA2YzdlYjBmYjlhNTJmNDI2OGU1YTYxYWM3ZTMyYjEyNWUzYmUwYTE0NWIzYmU4NGNhNmRiMTEyY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkMmY5MGJkMDM2ZWNlZWIyMDQzMWQ3MTA5MDIyZWRjNGIwMDljZDhjZDQzZTFhNTYwNWNmODA3ZjJhMDUyNWUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFhMzUyNzUxMTg1NTU5ZDdhZGVkNmJlMzNkOTE3YTI3YjE4NTcxMmU2MzBiZGI3NzBkMTBiNDQ2YjlhYTY4ZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI2YTZkNTU0NDczMTFjYjgwMTg1MTZkZmE0NWRmNzkwZDQ4NGViOTkyZThjYWMyNWFkMjgxOWVjNmJkZWU4NTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d03a7983f2d04ff0ab9e027cc1108f0e",
+      "statement": "The PSRAM board memory block contains its own 512-line by 2-word write-through cache, separate from the unwired deep16_cache module.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L1-L20",
+          "version": "repo-lines-v1:sha256:73f5c215547c6f9b4c83c0589800eedcec65e4d7d2f8d27a19ffe3a20308972d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViYjNkMDBmMGQ1OTBjMzEyYTc1MDM0Mjc2ZWM4OTM5MGM4NGVkODY1Y2Q5ODQ5MWRkNWJmMmFlY2Q5YTlkMmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5NTA5NGVkZGQ3M2VmMDkyYTUyMzZiODM5ZTMxY2RkMGM2N2I0YjIyMjk1ZmU5MWY0YTFhNTc1OTkzNzViMGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM4Njk3N2I0YTMzMDk1ZjBjY2ExZGQzMjRlOGZjY2E1OTU5MDAxNjU1OTI4OTE5MDgwZmJmNzVhOGY4NTNkYzMifQ"
+        },
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L124-L130",
+          "version": "repo-lines-v1:sha256:da03225ee0081068536a8d85895f7f8171f1af2d442a3cf4031eebe3e1472700:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWZkOTgxNWMzNThkYWQxMDk3YzFhMzI5NDQ0MDQxYWM2NmFjYjdhYWMxYmJjMWQ3NTBmOTI5NGI1ZTRjZWZlNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjNhZWM4MmJkNTFlOGFkYjg2N2I5MjEzMjAwZjY3M2NhZDVjZThmYWFiYmYyODgxMGYyOGI2N2U5OTliOGQ3YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGJiZmVkZDQwYjgzZjE2NjcwN2U4NjhhNThiZDdhMTkxNGY4ZjBiODY2YjJlMzM3MTYzMmI4Mzc0N2M4ZTIwNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjcwZGU1MjA2NDIwOGM5YThmMmQyZmRmZjMxZGExNzM5ODM0MWUyMTIxMzNhYWMyMTAzZDBjMGExNzVlZGY1MCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7139d65b68d34504a9c0d4ca1e020d68",
+      "statement": "deep16_core3 uses IF/ID/EX-commit with one instruction in flight, omits the divider, takes a level IRQ at an instruction boundary, and targets 6.75 MHz on the Tang Nano 9K.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_core3.sv#L1-L20",
+          "version": "repo-lines-v1:sha256:0a6460a1c2c4e92a536e252047b0e9d087bfd15171e637c35b8eb82fcf3948a9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlODQyNjk5Y2E4ZmE0NzQ5YWE0NWE4NThhY2RlMzA0YWIyYzI1ODA0Yzc0OGRiMjczZGQ5M2JjYmUyNzYwMWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1ZDY4NjkyOWI0OTVkMGQ2MTY1ZTc1YWRhNzEyOThjODRmNmVmZjA3YWEzODQwZGU3OWJlMTY0NTA4OGQyZjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIzOTUwMWQ3YjM3YzE3OTBjMGI0OGZhZjE0ZjMzMjhjNDdlOWVjZjUwZWU3MDZmODEyM2E5OGYzZWUwYmNjNzYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a76560e50267498c8bf5b25726a85017",
+      "statement": "Debug-bus writes are honoured only while the pipeline is stopped and flush the pipeline because fetched instructions belong to the state being replaced.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-RTL.md#L171-L174",
+          "version": "repo-lines-v1:sha256:8ddf209e395480320932b659fc58cdacb9e677da69344b3ec2f922eec2078b86:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTE2YTkxZjI2ODRiMjdhN2VlODU0MGFhOGExN2E4NDJhMTA1ZDQ5OTBlMTI2NzI1MDQ0ZmYyZDhmMDdmYTFkZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDdhMThkOGVmNmFjMGQ5MzVhZGJjYjMxOTZiMzZiNTNlNzk1ODMyNGJlOWFjMWQ4OTI0MDdkYzViOThjMGM3MyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2RiYTI5ZDc1OTNmMThiZWQ0NGZmMjQ5ZmQ3YmIzODZlYTlhM2YxYzViYjA2ZTE5OGY3M2Y3MGIwYjA2Zjc0OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjM1OTdlZjkwZWRmNWY1ZmY3NThhNjQ0NjQzM2I5YTE5ZWMyYjg5ZDE4YjBjM2U4MmQ4YTRjODQ3MTRjZWUwNiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_1a5a88366cde49e6b083b2311f8ab678",
+      "statement": "The Verilator harness exposes init, reset, step, run_steps, run_cycles, state setters, device hooks and counters, and run_cycles free-runs while producing the same architectural result as n steps.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/sim/harness.cpp#L156-L235",
+          "version": "repo-lines-v1:sha256:0452c061975ea8020b3743e2173af2005956ed6d7379712a4116f29b9f45cce5:eyJzZWxlY3RlZExpbmVDb3VudCI6ODAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY2MzI5ZDY1ZTRkMGNjMDhhYTc2NmQwOTc3NGI1NWIwMzEwYjJiYzk1YmYzYmRiNjljMGYzMmM1MjgxZTg2ZDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMjFmMDk2NTBlMTRlZjhhOTVjYjg3OGQzYzY0ODI0YTQ3YzBkZTIyN2NkNmJkZmZkNmVjMTRhYmUwMDJlMWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgyYzgzMzdjNDM3YjQ1MzJhNWRlZWQwZDJkYTI5YTU5ZWNkZjgzNTA1NjNkZTU2YmNlNmUwODJmYzU0NGM5MWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVjYzk0ZDY4NGM3ZjdjYWQ1ZGFiNzFkNzNhYzc1MmY5NjliZGE5NzE1YTZiNGM4NGIzNGIyMGEyNDMzMWVhODcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_97aae6495d80417380a1dca987a88763",
+      "statement": "Keyboard pop and UART transmit/receive strobes are gated by run, step_freeze, stall and mem_stall so a side effect fires only when the instruction actually leaves EX.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_core.sv#L1103-L1112",
+          "version": "repo-lines-v1:sha256:7d77b10076d8c867af6dda381c820e0de5d2142c3b80e1875e42aff8959ef17f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2Y2UyMDc5NDc2NzhmMjgwNzIzZDJiMzI0YTg2ZWJiN2Y2YTEwNzYwYmQ0ZTgzMDY5MDI3M2M4ZTg5MjY0ZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1NmRjNDIzZjllNjk3Y2FiOWM4MzY0NzRlMGIzZWY5ODA2MjdiZmE4ODVmYzdiYmE0OWViNWRhZDU5ZTYxM2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY5YWZjZWYwZTJiOWE4YjNjYjc3MWIxZjI2ZTFhNmE3ZWUwZGM3ZTI5NjU1Zjk4MjZmZjc2OGM1ZjM0ZDU5ODMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRmZmRiZGRlZTdlODVjMTY4MDAyYjcxOGI4Y2EwMTY2MTA3ZDQ1YzAxZDFlMjM3ZWViOTE0MzQyMjU2OTY2NDIifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.2",
+    "at": "2026-11-01T09:36:37.731Z"
+  }
+}

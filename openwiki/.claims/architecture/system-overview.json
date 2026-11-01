@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:365573ef0e607cb4951d9a83e23285fea83414b8ae5c1a77ef755fd25cfa680d",
+  "claims": [
+    {
+      "id": "claim_64620a9cc2b847a9a2cfea85e7a9e5a2",
+      "statement": "Deep16 is a 16-bit RISC ISA with three interchangeable cores: a JavaScript behavioural reference, a Rust/WASM port, and a SystemVerilog RTL pipeline.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L1-L16",
+          "version": "repo-lines-v1:sha256:70f54abf9ceb45e3c285792429df1ba044395021ca1ab13df34318317f395d28:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzNWY0YmExN2Y5YjNjYjc4NTg4NGIzMTgzMzNkM2U0MGQ3ZTU0NmMwNGNiNGEyN2Q4NzkxOTIyZTZhMTViYmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmYTNjZDYxMTRjZjRjNzE4Y2UzNzkyMjUzZjBiNmEyNjBjY2Y2MTEyODI4NGYwMjE5MzdjMTk2MDE5MTNmMmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEzN2Q0YjRjNDFmMDVkOGQzNWFkNjY5Y2RlNDE4YTQ3MGU5NzRjOTRkOTdjZDg0ZWUyNGI2MDk0NDM5Y2U0MWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_85621c858ace4498999ea38cba161b3b",
+      "statement": "The JavaScript core is the golden reference; the WASM and RTL cores are held to it by tests that compare instruction-by-instruction.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L13-L18",
+          "version": "repo-lines-v1:sha256:799f196b87eeee27d34e85b07af2ce4db75c678a4fb4d4b4837b480cf4a7b349:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWEwZjk0ZTFjODA4NGMwMzlhMzZjMTI3NDdlMzVhY2VlN2FlNTkyNDhhMmI5NmU5MWQ5MDU3MmUwZjdlNjM2OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDVlN2MyMTM4NjIzZjUyYTZmZjEzNWVlMDE0Mzg2MWE0Yjc3M2Q1NTA1MDJmNmNmNzYzNDkxZDFlZGExYjAyYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTI5MzcxNmEwYmIyN2FlMTA5NjgwZTgzNzVkMjk0OTMzZTczZDZjY2E0MDc5ZDlhMzljZDUwNTdlNWU1NDhjMiJ9"
+        },
+        {
+          "resource": "repo://tests/rtl.test.js#L1-L8",
+          "version": "repo-lines-v1:sha256:bd59fe1df0d9c4510e3d0a7f752cbfb008d9c6cfb15d4294787b02ddaddbc949:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDQ2NThlZDViNzBjMjg0Nzg2NTRmYmIxNzZiMDM0Nzg1OTA5ZGE2MTQzZTI2Y2YxMTM0MThiNzc0MzYyZTJjOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQwZGJlODQxOWU3NDAyODE5MmRiYzAzNTE0NDA4M2U1ZTRkZDZmZDg3MGFkYjcxOWJiMThhYWM5OWMwOGY1YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGU0MzIwZTdmZTY1OTZmYmViNTVjN2Q4NGUyNTA2ZjIwYThiMjJmZjE1NzBjOTY1Y2Y0NzU0ZTliZDg4M2YyOCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_c7772b3866c445e49081b47a0206a30f",
+      "statement": "The RTL core is a five-stage pipeline in which one step still retires one instruction, making it a microarchitecture rather than a separate behaviour model.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-RTL.md#L20-L24",
+          "version": "repo-lines-v1:sha256:00111ca2caf758eb363af28d436c99a3a945149faaac3269c312f8343bdf3286:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODdkYmNiNzMzMjg4MzFjZTNkNzNmMWYyNzJhM2IwMjFlNGNhMGY4NDIyYzUyNTAyMTA1MzhkY2Q2NjRkYzg3ZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDVmYWMyNzdhYjQxMGJjZGExNTI4ZWM0Zjk4Y2E0NGQxODY4MzM5OTE1MWZmMGI0OTkyZTRmNjcwMzYyMzExNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDFhNDhhYzM3NDYyZDUxMmY1ZjlmYmI5N2QxNmJkYjg0NGQ2ZmQ4MDg5YWUwOTRkOWRlNmMyMzI5Njc3MGEwNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWU1YzI0NDQwNDFkMmY3MjViNWNkMGY0MTRlMzM2ZjEwMmMwOTQ1NGY2ZDg2ZmE0ODc1ODUwMDM4ZjRiZjYxNiJ9"
+        },
+        {
+          "resource": "repo://rtl/deep16_core.sv#L1-L37",
+          "version": "repo-lines-v1:sha256:de32a2706a27bd811c0dd5d64aaf52f0e24f45779f574f5a998d2352ca1b3f9c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI0ZTM2ZDI0YjA4MmQ3MmNlMTM4YTlhMzBmOTJmZmZmMTczNzk2NWFjN2U3ZWMyMjZkOTY5MmUwNTc1MzFhY2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiYjQ5NGU2YzIxYmYyNDc5YjQwOGFkMTc3OTFjMjM5ODg0ZjkxNDhmNjE5ODE1YzdmYzgwNjkwN2Q2OWI1NjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQxNWUxZDQyOTcxODA2MDlkZGEzOWFiMzQwOWRkNGU3MmZmZTAxY2YzNjRhYzE5N2VhMTUyZDFjNzQ0MTRmOWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5c156bfb317f4d4787db11a2d0693ffb",
+      "statement": "The IDE is a static page with no build step: index.html loads plain scripts and the committed wasm/pkg and rtl/pkg packages over HTTP, falling back to the JS core when those cannot be fetched.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L24-L40",
+          "version": "repo-lines-v1:sha256:2e98eecac3666a05e28e11f9e00e05679aebdff80b2e63a481bd467a5e33699b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1N2NkNzhhYWI0ZWRjMmJkMWVlM2IyZDJlNzlhZTBlMzU2NmY2ZWVmYTRkYmFjOGIwNmM5Yjk0OWY3Y2M1ZTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiNzJkYjNkOGQ2ZjU3ODNkNmVhMDUyM2M3Y2MyNDUzNzA2MzYzZTg0NGU5M2VjMTUxZWJiZDIyNGU1MTVjM2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3ODIyOGQ5ZTkxYmRhMjBiYTkyMWM2NzAxYTUyNTIwYjZjYmRhMDM5ZDM2ZDczMzdhNjk3NjE0YTIyYjEyZWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ4YTgxODdiNDM5ZGFkYTQ1YTQ0NzEwYjhkNDcyNzU0M2MzNDViNDA1YTAxYmQ2NWZkZTUwMjIzYjJhZGNlZjgifQ"
+        },
+        {
+          "resource": "repo://index.html#L397-L440",
+          "version": "repo-lines-v1:sha256:71819f8f9852c172fc3af77a60fc8e8ed12e0b3e4e2797936616ab293eeef40b:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEwYmJkYjQ2MTc5Y2U2NWI3NzUxN2RiZDQ3NDcxZTczYzgxY2ZmNWQ0NGI2NTA1NjJmMzY4NWVhOTJjYWJiZDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwNmIyYWEzYWNjMGY3MjUwYzY1OThjODllMGNlYWE1ZDJiNzRlY2I1NWNhYzAyNzJhYTYwYzY3NDliNzQxN2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZlZTVkMTY0ZTk5ZTBiYjM1ZGExMjAxNmI0MDQyZDkzMjA2N2Q4Nzc3YWY0Njk0NmY3ZWMwMjVmYzVjYjU5YzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAyZWQ1NGVkYzQyZmJiYmMzNjk4OGIyYTE4NGI2N2U0OTU2OGJlNDgwNzgzMjUzOGJhOWI3ZWRkYTUzNzQ0ZDgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5e4e69ff412e41c387cc136fe5fa4a89",
+      "statement": "Switching the selected core mirrors the current machine state into the new core and remembers the choice in localStorage.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L37-L40",
+          "version": "repo-lines-v1:sha256:be55bf7e9e488f8c2dd8d2eeda9f5de08ec8f62c261bd24929246bfaf64b745f:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmRlZjEzNzMyZDZlOTNjNjZiOGVhZWMxOWI2MDEyZjUwZmE4N2NiYTM5ZDA5NzA5MzhiMzcyODE1ZmE5MWZkOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmI3MmRiM2Q4ZDZmNTc4M2Q2ZWEwNTIzYzdjYzI0NTM3MDYzNjNlODQ0ZTkzZWMxNTFlYmJkMjI0ZTUxNWMzYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjkyMmE1NjIwYTJmNDRiMjA5YTI3ZTJkYjM5OGQ1MTQ2ZjFlZDMxMWIyMzlhZTMyMjViYWU0YmVjZmFjNDFhMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDhhODE4N2I0MzlkYWRhNDVhNDQ3MTBiOGQ0NzI3NTQzYzM0NWI0MDVhMDFiZDY1ZmRlNTAyMjNiMmFkY2VmOCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_28785a966afa4d9ca23941d811a33b57",
+      "statement": "The Forth kernel and BIOS are written in assembler in asm/forth.asm; the BIOS is entered through SWI and dispatches by function number, with putch as the single output funnel.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L191-L199",
+          "version": "repo-lines-v1:sha256:e62c42d82cb649aa46ed9333414d0936e36c5ddad125eb6616b463e7fe10a062:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWEyZGEwZjI3MzNlYTIwNWUwZTI5YmYzZTc2ZDU5NzExMjRiMmJiNGUwNjQ3MjM4M2JiYTZjMjQxNjdkZWE1MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWQxNGE1ZWJkMWZkYzY5M2NhYTQ5MjRjNWQ2NzU2Mzc1ZjY2M2ZhOWY0NjcwMjY2NDRjYmQ0NzM5MWRmOWQzMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzlhNDk1ZjQzMDZmODBhOGVmZDY3YTZmNWQ1NDRkNTgxZDFjNjQ2ZmY2MGQzNGI3NGMwMzNmZGM3MTc5MTk5MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGVjOTA2ODU2ODFiNDFjMjZmNDdjODUzZGZjOWMzYTMyMWEwYjQ0ODYxZGY1MTdmNmQzNDA0N2RmNzI2NWU1NCJ9"
+        },
+        {
+          "resource": "repo://asm/forth.asm#L1-L20",
+          "version": "repo-lines-v1:sha256:294833decd7b50884309a71e2f41310977915a7b87d1b363672b0d6902f657d2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyMjE3NTY1OWQwMjY1MWRlNDcwMTY0YTEwNWVlYmRmZGUyNDVlMTBkNDUxNDI1N2QxYzUwNTg4NTZlNjQwNTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmZmM2ZjczNGZiN2EyOTA4YTc1Nzg4NjhlNTI2ZDNmNjc3NzRlMGQ2M2MyMjg4YmRkNDhlM2Y1MjgyOWRjM2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkOWYwYzU3YjIzMjhjYTI2OWEyOTllOWQyMmZmYWYwYmYzOTJjNDhlZGY2OGMwYzE0MGEwM2Q5NjkzNTIwZmYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_262a3d7e25c34d6bb066b5c702cca1b2",
+      "statement": "Two board classes are current: D16MINI with PSRAM, UART console and a DVI text mirror, and D16nano with the FiT tile engine, PS/2, timer, SPI, I2S and interrupt controller.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L105-L140",
+          "version": "repo-lines-v1:sha256:e7cc708e5db76e4af68f6799bfbb3bfdbf6c06d38fe8a8aa9659de12da18987d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2NWNlMzljNzM3MzJmMGY0YzUwNTc2NTNlYmU1NDE3ODhkZGZlYjRmZjQ3ZTNlMDM4MGYxMmZjMmFhZjRjOTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBkOTE5NTQ2YjczNTVkM2Q4MWRjNGRjODRmMzYxOTc1YjI5MDc5MTBiMzY3Y2MwMzljOGZmYmQ5MWZmZWY0NzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgwMDFiYzA0MTA0OTEyY2YwOWIyOTg1MjlkNDIwZmZiNzhiMmEwMjQ5MDc5OTE0ZmRiMmY0MTAwZGVjYTgxYmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA5N2IyYjY4OGI0NWVlY2IyMTk4YTcyNTRiOWYwYTcxYjYxOWViMGI4Zjk2ZmU0ZmE5MDJkOWQyNWY5YjU2MDAifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_board.sv#L72-L110",
+          "version": "repo-lines-v1:sha256:8d9fe5a41649e1f10694c5dfc5398cea3217c898dd4592f1e66701b930f4034e:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmYTYzMjEwNmEwYjVjNTc1YTUxYjY0ODU1NmM0OTVjODQyNzcyMmQxODI4YzIzYzIxMTc4NGI1ODljODNkNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg0YjY3MDg3ODQ3NTkwYjA3NWNjMWMxMTY3YjdiNmY5ZGE2Yzc2MDQwZjdjNmI5ZDM5ZjQ3MGE0ODJmN2U4ZTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZiZGRiMzY5NDY0NmIwNWY1MmMzNTBiZTI3NjRjMTRiOTljZjU3MzBiNmI0ZDIyNWY4ZmEzOWVmNjYzZjFhN2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU4ZTMyMzY0MDZiN2UyNDc0MWQwY2I2ODczMTA4NjAxODFjNDZkMzg2OTdlYWYwZGEwZDA1OWEwODJkMjViNzAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_abb33c681fca4a4cb8eabf0c74ddbc81",
+      "statement": "Board features are selected at synthesis time by ifdefs such as D16MINI, D16NANO and D16_PERIPH, with Gowin projects under fpga/gowin selecting the build.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_board.sv#L389-L400",
+          "version": "repo-lines-v1:sha256:2f4baddac8423e02b09338c2e30578fc3baf4dcb569dbeba8bf7e76da1d75fbf:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwNjYyZjI0NTllMTQ4ZWJkNTBiYzI4YTQyZjRjMzVjYjU5Mjk0ZmNhMmJkY2UzMWE1NDI5Y2Q4ODBlMTM2NzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4Njg1NTM3NzMyOGFiM2Q2MWE3NDc3ODA0MTc0MzQ5ODViNjM1NzY1NzliNGRhNmI0ZjVhYTI0YTY2MTIyZGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4N2MyNjZmYjA5MmRjZGE4YjU3MzRkODIyMTAxZjVhYjRhMjdhZTQ0Nzk2MzQ5MmQzZTIzOGZiOTIzNTZiZWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE0NTAxYmZkNDA3YTZiMDJmNWVkZDBkYjFiMTZjYzk0YWIzYjI4ODNjYWU4NmY3NmFiZTJiMGYzN2M4NWJkMGIifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_core.sv#L81-L90",
+          "version": "repo-lines-v1:sha256:4a2b7da27940ae1a1b49e9630d78246f2b610b8805d07c0e3376012d675cd635:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3OTAxYTJhNjk5NzUwYzlhMjI2MjhkNmFmZmNiMTg4MzFjMTUzMmIwNTIyMGYyYTVmNmM1NjhiYmI1YzdjM2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlZDY2MDVmNjExZTk2NmYwYzRhZGYxOTdmNmI2MTYzMjk0NjliMDJkMjY3YWQ0ZDI0NmNmMTgxNTk2ZGI5NzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE2NzY2NzFmNmNhNjA4Y2MzZWQwODk1ZDA4ZTJiYTdjYjJjOTMyYzU1OGIyMmYxOGZiYTRiOGVlODkxOTcxZjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMzODNiYWUwMDg5YmY1YzE2YzBkZDI0OWNkYTFhNjY0YTE4OWMyNDk4MjJmNjViYWZiYmYxM2I2NDBkYjJlYTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c8baa12402a643f6b43b90abe807cba5",
+      "statement": "The RTL model used by the IDE instantiates no cache and drives cache hit/miss/penalty counters to zero; the PSRAM board path owns the real cache.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_top.sv#L327-L355",
+          "version": "repo-lines-v1:sha256:5a225ca670d9c85689acdd5aec6d9027dbf280afbeb3bd6306c5a599618157b8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmZDUwNDA2YzdlYjBmYjlhNTJmNDI2OGU1YTYxYWM3ZTMyYjEyNWUzYmUwYTE0NWIzYmU4NGNhNmRiMTEyY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkMmY5MGJkMDM2ZWNlZWIyMDQzMWQ3MTA5MDIyZWRjNGIwMDljZDhjZDQzZTFhNTYwNWNmODA3ZjJhMDUyNWUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFhMzUyNzUxMTg1NTU5ZDdhZGVkNmJlMzNkOTE3YTI3YjE4NTcxMmU2MzBiZGI3NzBkMTBiNDQ2YjlhYTY4ZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI2YTZkNTU0NDczMTFjYjgwMTg1MTZkZmE0NWRmNzkwZDQ4NGViOTkyZThjYWMyNWFkMjgxOWVjNmJkZWU4NTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5f8e146e04e643d8b6ed670defe0a078",
+      "statement": "The project documents three major gaps: no FPU implementation, an ILL trap limited to DIV/DIV32 on D16nano, and hardware interrupt handling only in the JS core.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L243-L253",
+          "version": "repo-lines-v1:sha256:c01ac0b8cf0de6d0f9b4b21fbd8def382c5c3341d93f04d533bdfb27d39cea45:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZmYzcxNjY0ZGFhMWU1NmU1YjRjYTliYTAyNjQ0MTllZGQ3MjBkYzE5MDliYzlhMjkwZGU2MjcyYTA2NmE1YzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRjMTk4NGJjZWMxNWVjYmI5NWI5MTgxMTAyZGE0YzI0ZTNhMGRlODI0YmFhODU4NzFiMTQxYTQyZjg1YTU3YjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA5NTJmNDk0ZGRlYjhlZDIxN2VlNjE4NzM1ZDg3YjQ4OTljZTU4MWU4ZmY4ZTkxOTYzZjcxZDRiMjU4MmY0MjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFkNjk3OTYyYzczNzQ2YTc3YWM2MmUzMjg0OGFlMTE4NjllZTY3MzQyYWJjNWYxNTQzYjFlNDBhNTg0NDAzMGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_71db9f90652043239120deb832bc9b33",
+      "statement": "Build and verification entry points include npm test, the RTL decode sweep, WASM and RTL rebuilds, and Gowin synthesis/flash scripts.",
+      "evidence": [
+        {
+          "resource": "repo://package.json#L6-L28",
+          "version": "repo-lines-v1:sha256:c92f6ed6a0468cca220462cb41ed2a99a080347d4496537a9007386db2ac5f34:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUwYTc2MzJlZWE5ZjM5NzY2YWE3OTFjMzAzMjE5YWU5MDdjZmExOTRmYmJiNThhYTQ3MDJlOThlY2YzMjdjZDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5ZWIxMDNlNGQ3MzBiYTRiNjE5YjQ4OWRhOTg0NWFlOTc2ZWY2ZjgzNDZjMDA0MDE0YzZkNmM1NDFkN2RkYzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVmZTRlZDcwNmY2YzUwYjQ5YzNkZjcxY2U0YjUyZjljOTNjY2FiYWZjNmUwN2NiNWYxNDQ3Nzk5ODFiMDcxZjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFiZDY5MjRkNzQzOGU5YzQwNzYwMTg5OGRkYzA1OTVjYTQ0M2I3NWUyMzU2MDM0ZTQ4ZDZiMzM4MWRlYmE0YmUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.2",
+    "at": "2026-11-01T09:36:37.731Z"
+  }
+}

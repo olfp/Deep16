@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:6de5e75aead296dadebdb4e6a4f09ae9c55b03bde3a62976f73cb43a3051fe75",
+  "claims": [
+    {
+      "id": "claim_a88b027e4112422e84bcc6365cfaf020",
+      "statement": "Deep16 is a 16-bit RISC ISA with three interchangeable cores (JS reference, Rust/WASM, and a Verilator RTL microarchitecture), and the JS core is the golden reference the others are held to.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L1-L19",
+          "version": "repo-lines-v1:sha256:108067032538f6053d74a57dbf5cfced56b5f7f1710c906b2e830d1b78d15b34:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzNWY0YmExN2Y5YjNjYjc4NTg4NGIzMTgzMzNkM2U0MGQ3ZTU0NmMwNGNiNGEyN2Q4NzkxOTIyZTZhMTViYmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIwNzNiZjY4NTZiN2Q5NTdmMGI2YTk4ODczZTU3MzJhYmFmNDc1MTlmZmQ2MzU0NWJmZTk4Y2ZhNjQ0OGU4YTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM3YTM0NTA5YjRjOTU5OWQ4MjMyZjVkMGRlOGZmMTg2Yjk0ZDg5MWZmMzk2MmQ2OTRkZDQyMjEyZjFiZDAwMzAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c55fa5adeaa046c4b496ae29d3d2686b",
+      "statement": "The machine has 16 general registers with R15 as PC, a 20-bit word address space of 1M words, CS/DS/SS/ES segmentation with phys = (segment << 4) + offset, a shadow bank swapped while PSW bit 5 is set, 16-bit instructions, and a 16-word boot ROM at 0xFFFF0 jumping to 0x0100.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L171-L185",
+          "version": "repo-lines-v1:sha256:b497788b959bafebdf79bda57f696bbb95acae0f244713dae04ce2fc75877690:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzMWJiZWFkMDlkNTgxMmNhMGU4YzhlYTQwYjg4NTcyZTNhOGYzNzEyZDZjNzYxYzc4Zjk3NDJiMTg1OTI1ODciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjY2U0YjhmNDViZjlmNTgyMDA2Zjg5OWQ2NjFiYmZhODExNjM1YjFlZjljZmNjNTUxZjllNTVjYTUzYmQwMzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQxMGNlMjM5MmMzNWMwOTc3NzViMjBhNTI3NjIxNGI4NjUyMTY5YjFkZDA4ZDVkNDA2NDdmOWU1NWE4M2EyMWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVkNmE4NGJjYjg4OWY0NDBhMjA0NThhYzE3NjlkMDJkNTZmZmJhNmRlY2YwMDI4M2IyNjEzYzUxZDExNmFiNWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_eefac3d0c9ef43028da0691b21250be5",
+      "statement": "The IDE needs only a static HTTP server: npm run serve (a no-cache server on 127.0.0.1:8000) or python3 -m http.server, and a file:// open falls back to the JavaScript core because the compiled cores are fetched.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L24-L38",
+          "version": "repo-lines-v1:sha256:154a1cb0b2bb751549aadf95d3c581b837aaf6521c6651e808c1e59b4568ca6a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1N2NkNzhhYWI0ZWRjMmJkMWVlM2IyZDJlNzlhZTBlMzU2NmY2ZWVmYTRkYmFjOGIwNmM5Yjk0OWY3Y2M1ZTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxOWRmZDE5YjBmYjZiNGUwOTYwMzk0Zjk1OTVhY2FkMTM3ODBiZmFkMDdmZTdlZjExMGYyNGRmOGIwZGZjYTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3ODIyOGQ5ZTkxYmRhMjBiYTkyMWM2NzAxYTUyNTIwYjZjYmRhMDM5ZDM2ZDczMzdhNjk3NjE0YTIyYjEyZWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJiZmMzMDBjNzU0ODUzODA4YzcyNmRiZWM2Yjg5OTEwZWEzMjFjY2VjNDI2MmQyZmMyMWNlYTIyYjA1NDM5YjcifQ"
+        },
+        {
+          "resource": "repo://package.json#L1-L30",
+          "version": "repo-lines-v1:sha256:bc317cb3976fa6c87d7d5ebde7f73c772f4c8b60575b5e83e2fe95d227d37242:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3ZmU4MTFkYmQ2NmUyYTU4NDQzYTNmZGE5NGJiZDlhMjkwYTdmZTVlODFhNTlhNTRiMjVkZGIzZDZiNGUyOTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcxZGNiY2Y3YTk0Njk3ZGM3YTM3NmZlOGI1OWRmYzBkZTNlZjM4NDQ0MzhiZWE2MzA0M2JiMDVmMGEyMTk4NjYifQ"
+        },
+        {
+          "resource": "repo://scripts/serve.mjs#L1-L15",
+          "version": "repo-lines-v1:sha256:f03d5584746bacfe540d75b618c3888a8a18a63ccbafe98991dd7ba3d1b66edb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExYTM3ZWQ4MDNmYzIzNTkxODI4Mjk5NWY2MzI2Y2VmMmY2NjUwZGI3NDJhNzdhZDgzOTkzZmE1MDlhNzAxYTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM4MTJjNDZkN2EwNzcyM2Y1MmNlZTkzNjYyYzQzZWU2Njg4OWM0MTFhM2IyM2IxODE2MzM2MGI1ZjlmOTI4NzIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3bad9ac03da94d33861cd65ff6a8166c",
+      "statement": "The settings cog holds both the core selector (JS, WASM, RTL) and the console mode toggle (Screen or Terminal).",
+      "evidence": [
+        {
+          "resource": "repo://index.html#L24-L48",
+          "version": "repo-lines-v1:sha256:88f17b0bcb45471b1757c0184b376594f5c795ddf653c9da8d5446f3f8687ae0:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc2MDUyY2U2MDg2ZmU3NzY5M2U5M2UwNjUzNGZhM2FmNTliM2FiZjVlYTFjNjc4OTk3ZjhlNDIwMDg0YTJlZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3YWMwNzBjNzliNzNlNGRiMmQ4MWNkZGFlNjVkY2UxMGUxMzViNDkwYzE0Yzk0ZmVjMmIwMjhmODIwZDJmY2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgxMjEwZmM4Mjk4NjRjNDA4OGVjMzljM2I2ZGI0MjI1NDExMTVhMDhhZWVjNTNhYmUyODEzOWZhNzJkYmZiNTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5YWJkODFjYjUyYjA1MWFhZTRmYWNkZmMxMTk0MDQxZGU0ZThkYjQ5OTVkN2VjMTNhZGM1N2VjNDRkN2FkNzQifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L160-L170",
+          "version": "repo-lines-v1:sha256:32ef1a62ab2417b141dd16e865498daeb244eb3b9c8be6f2c4f9ca8348675abb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg0YTZmNDY5YTU3MjdmNmM5M2U2NWMyYTk0YjZiMDY1YTM3ZGE0NTc2MGIwOWVlODdmZmQ3NzBhYTlhZDdlMmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE1YzM5ZGQ2MGFjZGJkNmFlMDY2MjcxYzFlZTAxZTA4NWRjMzc4NjJlYmNjYmI1YzliOTMwYmEwN2M1ZThkYjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEwOTc5NjIxZmJiY2I4NGMyNzdjMzNmZWM1MGZhYmNmNWIxM2ZiMmE5ZDYwM2E2OWJhYmYzMjZjZTc3OTU4MDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkMzdmNmU4ZTlkNmQyNzMxYTczNTMxMGIzYTJkYjRlNWFhMzUwMGIzOThkYTc0MTYyZDUzZjhkMWE4ZjdiYTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f9ecbb269e4344ebbf499db444c23086",
+      "statement": "Assemble loads the program, Run executes it, and Optimize rewrites the editor source in place rather than running automatically.",
+      "evidence": [
+        {
+          "resource": "repo://index.html#L117-L121",
+          "version": "repo-lines-v1:sha256:d9097f05a1eb1d89a5eb538618c75f1f9cd72200d434f566da282144be4710df:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTEzMWViNTI2MjY1YzdiMjc0MmY5ZTYyNTA5MDE2MzQyMDAzZWE3Yzc0ZThhZWEwNjcxYzkwMTJmYTllOTViOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjgyNmM5M2JlOGU2NTNkMTc2ODVlNTczM2ZmOTc1M2Q5ZDIzM2Q0ZTc5MzNiNjBjY2Y2ZmVjNGM4NDI4YjBhMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzI3OTlmNmI2NDllNmFjYjMwNzU2ZmNjOTUyZTE5ZmE5YTZlYWQxMzMxYjg3ZGM4NTNjNGE1ZTI0OTQ4ODA1ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDFjOTQwNjJkZGZkMWM2N2EyYTA1NzIwMjM3ZjIzNTgwNzQyZDZkMTI4ZWQ2ZTllMDhiMGMyMmU0N2ZhYWEzNiJ9"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2150-L2185",
+          "version": "repo-lines-v1:sha256:d29ee72b189f6e33f442ced98fb9c43c0497a9c2c02c760f5da431baaa8f3d9b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViMjdhZjYyMjNlMTAzYzQ2Yzg1ZjgyNDUzZDVlYmRkMTJkYzJhN2E3NjczYmQwYWU3ZDg3NzNhNjkxMjY2YTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk2MjU1NGVjMjczNDRhZjMzZmIwMjYyMjViYTcyYWI5MjIyYjVmNmJlNDhjMGI4YmVjYTdjMmYwZDY3NzEwMTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxZDkyMGI1NjU4ZTMyOGJmZjRlZThiYmM5MjRjMzZmNWRlNDg0MTdmNmViMzgzYWUxMDA0M2RkYTdjZjk0NDQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d9196ee917fe47cf9136a2bd94ddb3f4",
+      "statement": "The board image carries a boot script (forth/demo.fth) that compiles at power-on and prints a memory summary, defining free, mem and demo before handing over to the keyboard.",
+      "evidence": [
+        {
+          "resource": "repo://forth/demo.fth#L1-L10",
+          "version": "repo-lines-v1:sha256:b711fcff32e500de113dea6e7a9866c2e93e700b4d84e7811ff81756edd9195c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzYzE5MDExMjljMGYxZTM3NWY2OWU0NGQwNWRmZDQzNWRiMWZiODkzNDQ1MTNhMDM1OGVjNjg1NDFiZGM5NzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFlNTc5ODgwMTkzMWI3N2E4ZDBiN2Y2MmRlM2RiNWM1Yjg1OTY5MGQ2ZDY1Zjc2ZjU4ZmFhZTBkYWM4MjkyODgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFlMTE4NWZkZGU0NjMyZGE0NGI2OGYyOWVmM2M5ZWNhYzc4ODBiYjE4ZDhkMGRkNWE3NjZlM2YxZTUzNTFjNWQifQ"
+        },
+        {
+          "resource": "repo://scripts/embed_forth.mjs#L1-L10",
+          "version": "repo-lines-v1:sha256:388a0d446d76a4ac81ab07adf55af52373230f1e198b56884cf65e07b9477692:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhjNTRlNDNlODFhMmFkNGJiNWFhODkzYjNhMWEzOWFkMzE0NTgwNjJiZmZhMmM2YjRkMGI4ZDg4ODEwMDhkMGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEzMDk4MWNiNDViMzkwOGQxNmFiYzI2NWE0MzIyM2U2MmQ2YWIxN2NiOWI3MDRiMWI0MWU3MWJiYzAzZWM1YTMifQ"
+        },
+        {
+          "resource": "repo://tests/boot-script.test.js#L60-L70",
+          "version": "repo-lines-v1:sha256:3d4756eb7f05f2039ca247762a0711e30cd478ae9f9c07dada6aaf52c93a50a8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzNWZlMDU2ODdmZDFhMjA5MmFhNDM4MjdlMmE4OWU3OTczYTQwMzUzNzE1ZmIwMjlkMzJiODE1MzYzY2U1OWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwM2YwNDNiZjIwMTFlNzNhYTFhODUxNDVjNWI2ZTBiMWFhMDIzZTM4OGZmNzVkZmU5OTRjZjZiMzZjOTVkN2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIyODExNTI4ZTQ5ZTNmMzI0YzAwYjU4NjU3OTBkNWQ1YjkwNjY4MDgzNDM5YTI5NjEzNWVhYTVhY2Y3MjEwM2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE3NGU2NDYwOTI1NTc0YTFlZGRlN2IxYWQ1YWFmODAwNjMwMmJmNGJjYzEyZTA3NWUzNmExZDkzNjk2YjRkYWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3112f6cdda094d8d9eefda26a65d2223",
+      "statement": "npm test runs node --test tests/*.test.js (35 files, about 70 seconds on one core); individual files can be run directly, and npm run sweep:rtl is the slower all-instruction decode sweep kept outside the suite.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L54-L58",
+          "version": "repo-lines-v1:sha256:ff5e337c019307f752b0b56084b4e25dd1f851fff1ab0315c85bd9c6429dfb6b:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmU3ZjRiMzZhYzljZTBkMDZkY2Q3MmNjYzI0ZWIyOTBlY2NhM2RhZGNlZTM2Y2Q2NDE2ODlhMjgwNDhjODU0NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjA3MjE5YjQ5MTAxZGQ3NjA2OTMzOTc0YTAyYmRlYjYwYWZhNjVlZjAyZjA5YzRlZjQ3OGFlOTU4ZWQzZmYyZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTI1ODdjYjIwNGI1NTNjZDU3MWJiNDRhM2YzNTMyYmY4MDExY2JiYWVmZmUzZDk2ZWRhMzU1MWIwYmMyYWIwOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTJiMWFlNWYzN2ExOTZjYjg4ODc2OTk2NTZhZWIwOTY5MjQwNWM0NmI1ZDc0YzJlYTBhZTMzNmNhYzU0NzQ5NSJ9"
+        },
+        {
+          "resource": "repo://README.md#L96-L104",
+          "version": "repo-lines-v1:sha256:313ec80210c4c040a73cdf0f989a8d056f4e99718c7081e36f70d95d11acfd60:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjRmNzJiNjJhMjcyZDJhYjkxNmYwMDk1N2I3MWYyZjhlYjk5NGI5MzdkOWYxOGYzOTM1ZWEwYzljNDY5YjNiMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTY0ZTQyNzUzODk0MDA5ZmQ4NTczMzBkMTM0OGIxZTEyNjA2ZTRhZmFkNWEyOTc0MWI3Yjk0YTQ4YWQ5YTI1YiJ9"
+        },
+        {
+          "resource": "repo://package.json#L5-L6",
+          "version": "repo-lines-v1:sha256:a659d884bbdfae3326c007d8f67f2e857b4e6e33782cc31c22162f084ecd0ae2:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjU2ZDgzMDkwYzZmYjkzNDYzYWQ0ZjJmODVmOGNhNTU3NmY3ZTg1ZTEyMWQ5NThhNTM3MThlMjFkOWY3NmU2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTBhNzYzMmVlYTlmMzk3NjZhYTc5MWMzMDMyMTlhZTkwN2NmYTE5NGZiYmI1OGFhNDcwMmU5OGVjZjMyN2NkNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjQ5YmI1ODFlNWQ4MmZkOTY1ZmUyZmY0ZWI3MWQwMWRhYzNlZTg3ZjZkMmIxOTk4MGI4MTg1ZWJlM2E0ZjNlZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTA1Nzg3ZmQzZDhhYmY0ZDkxYTVkYWEzZjEwZDQ4OGVhZTEzOTJiZTJiZmVkN2Y2NGQyNDJkNDFjOGE2OTNhZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_90ce1b9ee2ab4454860904c967a64bd7",
+      "statement": "Rebuilding is only needed after changing a core's source: build:wasm for the Rust core, build:rtl:wasm for the RTL package, and build:rtl for a native debug binary.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L42-L52",
+          "version": "repo-lines-v1:sha256:0455bfb8df90fe37c072da7cd8f05b987780309a8e70529647ca339484ecbe90:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0MzAzMjkwNmFmZmQ3ZGU1MTgwOGYwYzI5NGQ4OTg2ZTQ2NDRlZThlNGIwNDRkNzU5MWMzM2MxZThjNzIxMjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM4YTA4NmI3Njk5N2NiYjY2MjA2OTgzOTg2YmQ2NTVkNTliYTgzMzQ5ZjUwZTdjYTc2YTIzZDVmNDAxMjFmMTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJiZmMzMDBjNzU0ODUzODA4YzcyNmRiZWM2Yjg5OTEwZWEzMjFjY2VjNDI2MmQyZmMyMWNlYTIyYjA1NDM5YjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUxNmUzMjkxN2ZhYTI0NWQ4MzA5ZjNmZTc1ZWQzYjliNDM2MjZiMzViNmNmNmZmYjZmY2ViNDhlNGI4NTM5ZTYifQ"
+        },
+        {
+          "resource": "repo://package.json#L7-L9",
+          "version": "repo-lines-v1:sha256:a05787fd3d8abf4d91a5daa3f10d488eae1392be2bfed7f64d242d41c8a693ae:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzQ4MzNkNTk0OWMwM2E0MGNhOTUyNDkxNjEwYTY2NTk2NDRiM2FhNDY2MzYyZjc5OTAyMGRiZjE5ODE1NDdkYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDY5N2UxY2FkYzk5ZTRjNmYyNTIwZTk5MTYxNjQ1ODFkNGM5N2MwYzUzMzk5NzU2NTFjMDIxMTFmMWJkNTcwMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTUxMjk0ZmZhODk4MzVkMDEyODUzNWVmZGQ2YTMwNTkzYjBhZGNjZjBkMzhlYTQ4YTMwMDNmNjRiN2YzNmUxNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2Y1YzlmN2IyMTg2ZTIxOGQ5MDU4NDM0OGU2Y2M0MzM2ZGQ1MzIzZGVjMWRhNWQ0NDdhZmRiNmIyMjEwZTFlYSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_81ff55d926644b4b8a82fcd3e351872c",
+      "statement": "After editing forth/demo.fth the boot script must be re-embedded, and after kernel changes the image must be regenerated with npm run image.",
+      "evidence": [
+        {
+          "resource": "repo://package.json#L20-L21",
+          "version": "repo-lines-v1:sha256:435e581ad10e600966f8fa92af7ea496378edb720c7a516fae7ab78c6629dd14:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGJhNGM3ODJkMWQxODcxZDJhMjYxZjUxN2YzMmVlOTViZmZmNjQxMDQ2YjcyZDc4Y2JjZmRmMzE3ODFiOWI0NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzdiMGU1Y2ZlNWRmZmJhNTI3NzRlOThkYTQ4NjQ1MDQ4YjFmYTA2NGYwYzc0ZmU5NmY5YjYwMmE4YjVhMGI4NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDRmYTliYWNhMjUzZTBhNjlkYmVmZjk0OGI1NzAwNDkwOGU5MjViYmY2MWE0YmYyMzk4M2VjMTMzNDg3MzhkOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzZlMTJkMDBlMWQyMjliZmQ5NDg2ZTA5NjlmMjM3YzczNjI1OTMwZTc5ODc0ZTU5MDNjOGEzYjM4MGMyNjIyOCJ9"
+        },
+        {
+          "resource": "repo://scripts/embed_forth.mjs#L1-L20",
+          "version": "repo-lines-v1:sha256:5c465a5e894257d33383d2b10c9f188063075ea062375d602461416cd986c136:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyZDMzMmZlM2Y4MzIxYTllM2EwZTE2NjYxNGIxNjNhZGQwYzMzYTUzMzUyMGM3MzRkYzQzZDlkOTUyZDAxMzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRkYmY1NDg4YjBhY2RkNzhhMGZlN2MxMzI5YWVlNGFhZDMxNTdhNGM0MTY3NzZhOWZkZjk2NTAzM2E4MDE0MjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b10c72bd63df40ffa7c364d7395ddd66",
+      "statement": "The board flow is optional and needs Gowin EDA and openFPGALoader: synth:tile regenerates the D16D image and runs synthesis, and flash:tile writes and verifies the flash; the scripts fail early when the tools are missing.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/build_gowin_tile_flash.sh#L13-L22",
+          "version": "repo-lines-v1:sha256:20a9f60b7b19bea9327c4fce00e03dd66a5fabf913db68e2b8edc1ace11e16cc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4ZmM2MzM2NjdkMDMwMDczMWJkZDg0NDcyZGM0MjRlMWY5YzY0MTc1ZWEyYmFkYjY2NjQ3MmQ5MWFlYjRlZmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEwYTQyODg5OTM1MGE0ZTcwYjk5NTBhMTc0NTRmYzA2ZTAxYzAzNDZjOTE5MTkwNGQ0MGQxZDE2YmVlZTUyZTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5NDQxODA2NDgyNmNkZTg3NDcyNzYzMmEzMTY3MjY5M2UwYWJkY2NjYTZiZWRkNzhhNzMxODdkMTFjYzNhMzEifQ"
+        },
+        {
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L24-L30",
+          "version": "repo-lines-v1:sha256:7e85f8fb1078b71f7ff868fa1b2788b6e53fa85ca92211d0c5bfe46512c5c5eb:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWU2OWJiZjFiMDg0ZDBlNzQzZGQ4ZGE5ZDk0ZGRmOWYwZTRiMGU0MDNkNDY2N2I0ZjhlYTg3YzJlOWJiMDIxNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDc2ZDIzOTZmZDIwMjM3OGQxOWNmMGM5NDVlODEzYTRjODZhZGNkNWM2MzdkOWQwYmUxY2YyNTM5ZDQ1Yzk0ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmM2NDc0MGZlZmUzNTdmNzU5MjMxYjE3Yzc4YjY0NDA0NTViOGU0Mzc0ZWQ3MTA3Nzc4NDQ4Yjk1NDkwYzljZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWEwZWQyNTJiNGQ4YzU1NDM0Y2NjYjU0MzU3YTY5OWE1ZmE1YjE3OTA1MjJjMjM3M2YzN2ZmMzQ4ZTM2Y2EzMCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_4994432a126a41439afdbd8aac5a046a",
+      "statement": "The repository layout is index.html for the IDE, js/ for the toolchain and core, wasm/ and rtl/ with committed packages, asm/ and forth/ for the kernel and boot sources, doc/ as current documentation, and scripts/ and tests/ for tooling and verification.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L200-L219",
+          "version": "repo-lines-v1:sha256:a5ebc64593f5ad3e9c806a7cab9c6153d4dbfddd1f8bf2a60c6e4c9adaf6a729:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQxM2IzNjMyNjI5ZjZlMGQ0ZTcxMzNkOWIzNGM5NGVhNzNlNzk1ZDc0ZDE0NGUyYmRiMzQxMjk0MDdkMDliM2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk5OWQ5YTM2MmQ3YjJkN2ZlY2I5N2NiMmE3YTI1NGRhMjEzMDJkZTMyNDZlY2QxZTFkMTcwOGZiZTY2ZWUxNmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_40cf13c31cf84f33b360fdeeb31f1a70",
+      "statement": "Day-one gotchas: switching cores mirrors state instead of resetting, the echo cell 0xF0064 is outside the board's backed window so echo is always on there, and docs and plans are secondary to source.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L228-L232",
+          "version": "repo-lines-v1:sha256:ff5945751743a3bf173ab97d73448dbf89fcf927060ff857153ae0c37fe3ec6c:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWJlMzYyNjczNTAxMDJlNGU1NTliOGYzNmU5MDkwYTZmMGVlMmZkZDRjZjhhMmY0OGQxMzdmYmY3NjQwMjVmMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmJlMzFlZDA3MzIwNmFkMDhiYWFjNmVkZjEyNzM4MDI3NDFjMzliNDIzMjQxMWVlZTYwMTNjMDUzNDRhZjRhNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWJhMTcxYTQ4ZTkxYzA2Y2MxMjkzNGEzMDhhZWZiNTQxMGNkMDM3NGQ5MTMwNjA4Mzc5N2U0NGU2NDczY2U0MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzBlODU3MWUwYjEwOTYwYTdjYWIyNTE0ZDZkNGNiYmYzMzE2YTFiYmUyMmUwMmQ1YjQ5YmMwZmY4NzllMTA2OCJ9"
+        },
+        {
+          "resource": "repo://asm/forth.asm#L1150-L1180",
+          "version": "repo-lines-v1:sha256:ca52f79ed0a0d4f99c5ac3edc74a3c05288109e7f056b284ae1459dffb333cea:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4MGE0YTI3MGNkZjJjNTdiMjdlNGVlNTlmZDliNjJiMWFhNTEyZmJhMTVmOGY2YmQzMTAyZTY3MDQxNTcyN2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyMTY2NzA4ZTdlN2I0Mzk2NTY5ZjI2ZGU4YWIyNzc1ZTU3NTBhYjI5YmVlOThiMWFiYTMwOTA3YzBlMTEzZGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ2NmVjNDUzZGMyMjFmZjJiMjEwOTllMmVmNWE2Nzk1NGM5NDllZDViNTNjOGVhNzMxOTU4MDM2MDM2MzkzYzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdhZTQxOWI2N2E4MWY5ZWVmZTkwMTY4ZmVjZjNkODhlZjEyZDE5ZjNmNzdkMzkxYTliZjg2NThiMmY1M2NmM2EifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2792-L2810",
+          "version": "repo-lines-v1:sha256:63963900a895bd1aa85720a6df04d2cf89c40be18c418f7aeb3389b737684cfc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5N2MzODFlYjlmZGM4ZmRkMDk2MjUzZDJlYjFjMWM4OWVkM2NmYTI2ZTU4NTk0Mzc4NjUwOTllZDlmMTgzZWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5YzJjYmNkYzk2YWIyOWYxZGRkZGE3N2ViZWM3NjUzMzhjZGZkYTEwZTljNGJhMDJjNDRkNDVlZTUzMGVkYjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyYjQwN2JhYWFlYWMwMjAxZTZkYTk4YzlhY2ZhYjEwNTE3M2NlZjYxNThiNTA4MjZjOTE5NDQ0ZTkwZmFkNDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ3OGIwNjZiZGI4MTY5NGRiZTcyZDk0NzkwNzg1YjdmYWZhNWQwNmU5OTdiYzg5MzlmYzk2NWRjYjczMDU3YjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_dd47732a1e4a40a897b7742ce080dd9b",
+      "statement": "Only the timer source is wired into the SIC on the current board build, and only the reduced core3 accepts a hardware IRQ.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_core3.sv#L20-L30",
+          "version": "repo-lines-v1:sha256:2c84af5ee583c3051e4744f77f4d40a0744c9ef3ba3996f6d712f081ff305d67:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1ZDY4NjkyOWI0OTVkMGQ2MTY1ZTc1YWRhNzEyOThjODRmNmVmZjA3YWEzODQwZGU3OWJlMTY0NTA4OGQyZjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiZjVkOGUxN2Y3MzVkN2QzZGE2OTcyMjg1OGFjYWQzODUwOGMxNzZiNDc5ZTQyZTVkMDcwZTVhNWM3ODA2NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA5NGIxMjFiZjMyMjQ2ZmU2NzA3OTEyNzZmN2RhNzg3MTRhYTQ4OTcxMWQzNjRiNjUyMGRkNmY4NzI5OTUyZjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhhY2JmZTllNTk3MjNmNzVhNDAyNmYwOWM5ODMzOTlkYmM5NWQ5ZThlYWZiYTBiZjVhYzA0MTI1YWRkNGViNTAifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_top.sv#L241-L258",
+          "version": "repo-lines-v1:sha256:6a737b5147d99420129c43f9d7b38adb3e8499669d58af316e9a483280644606:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjMjNmNDVjMzVkNzIwZTc3NDZjZThlM2FlZGEyZDQ3ZjAwMzcwOTk1ZDA5MjdmMjhjMmRhNTQzOWYyYTljMDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzNDgyNDM2MWU4MzA3NDk4YmNjZGVjYTZkYTI2MGEzOTA4NTYwODkwZmNiMmQ0NzJiZGEyNThlMGNjZTRkZGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgxZDM0ZjY4MDJlNGVmZmRkMDYyZjJlNWJjMTA0ZDAyNzk5NjBhZDEyYTNjN2I5MjY2YTk5MmQ1NmQxZGUwNWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM2MGQxZTUzNmJmY2Q0YjU3YTgwYTk5ZWFlNmFiMDQ0ODRkNzBiNmExMzczMTlmNjg0MjE1YjA5MjRiMWNkNDIifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.2",
+    "at": "2026-11-01T09:36:37.731Z"
+  }
+}

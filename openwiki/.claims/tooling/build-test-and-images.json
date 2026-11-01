@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:e1b8fcf545e72eb1889f0eab17e101a561dd7893d463d95f401bad69af28d4ec",
+  "claims": [
+    {
+      "id": "claim_6d2c0c65a16b468b9c77462abdefe717",
+      "statement": "All build, test and generation commands are npm scripts in package.json; there is no bundler or root Makefile, and scripts/ holds the Node generators and Bash wrappers.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L42-L52",
+          "version": "repo-lines-v1:sha256:0455bfb8df90fe37c072da7cd8f05b987780309a8e70529647ca339484ecbe90:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0MzAzMjkwNmFmZmQ3ZGU1MTgwOGYwYzI5NGQ4OTg2ZTQ2NDRlZThlNGIwNDRkNzU5MWMzM2MxZThjNzIxMjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM4YTA4NmI3Njk5N2NiYjY2MjA2OTgzOTg2YmQ2NTVkNTliYTgzMzQ5ZjUwZTdjYTc2YTIzZDVmNDAxMjFmMTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJiZmMzMDBjNzU0ODUzODA4YzcyNmRiZWM2Yjg5OTEwZWEzMjFjY2VjNDI2MmQyZmMyMWNlYTIyYjA1NDM5YjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUxNmUzMjkxN2ZhYTI0NWQ4MzA5ZjNmZTc1ZWQzYjliNDM2MjZiMzViNmNmNmZmYjZmY2ViNDhlNGI4NTM5ZTYifQ"
+        },
+        {
+          "resource": "repo://package.json#L1-L40",
+          "version": "repo-lines-v1:sha256:a1a278c3ced4ce9133f19774acc8e35dc883cb06bd859c7fa14f1eddffbd296d:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkZTMwZDY3MjAzZmU0YWM1YjdhYWNjYWM3ZTQxNGEyMmY5NDM1ODA5NzQwNDM3MWQ2MDc1NjUwZGJhYTFkMTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRmNzM5YTA2YzFjYmIxMjQ0ZTMzNjNkMzhiY2Y5ZmE1MGNlODRmZWQzOTljMjE5M2EzYzdmMDhkNTk5MThiMmEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7214036e201642e587422905badc6451",
+      "statement": "wasm/pkg and rtl/pkg are committed deliberately so the IDE and tests run without a toolchain, while artifacts/ is gitignored generated output.",
+      "evidence": [
+        {
+          "resource": "repo://.gitignore#L12-L30",
+          "version": "repo-lines-v1:sha256:56ad8c04c97070faa654e8ca2c1e5ffe09b7a1ef309c1ac4bd7c74850f762e0c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlZGEzMTJiYWU5Y2FkY2UxOGJhN2Q4MjU3NTdjZDQzZGIzNTY1Zjk1MzI3NGE2ZDk4ZmQwODJlMTNiNTIwMjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImViMGRiNjU3NDEzMTA4NmZkNzVmZjJjM2VjYjEzY2QzZTBkNTY1MzllMWE2NTVhNDE1N2FjNDI4MzZlNjk2N2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAzYTI3NjRmMTgyNmNjMzI4NDhhZmVkMjZhOWI1MzFiM2E4NzE5M2Y5YjZjYzczMWIyODNhODk4MDkxYTI3M2MifQ"
+        },
+        {
+          "resource": "repo://README.md#L44-L50",
+          "version": "repo-lines-v1:sha256:64c188a13e29bd85574fe79e5d3a8a68262d6e88d710befee6e08b370b09044c:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGM0M2ZiODlkZDcxMzkxNzA2YmI2NTUzMzcxMzlhZTY2YWMxMGZhY2M0MjYyYmNkMjQ4YzIyOWNmMGUyNWQwNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWM0M2M2ODI1ZTk0OTgzYTAyZWMyNWRlNmYzZmI4MGVmYTE5MGFjZDMwMTAwYzVlZmNlMzIyNmFkZDQ0OTllZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDhhODE4N2I0MzlkYWRhNDVhNDQ3MTBiOGQ0NzI3NTQzYzM0NWI0MDVhMDFiZDY1ZmRlNTAyMjNiMmFkY2VmOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTI1ODdjYjIwNGI1NTNjZDU3MWJiNDRhM2YzNTMyYmY4MDExY2JiYWVmZmUzZDk2ZWRhMzU1MWIwYmMyYWIwOCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_c0f2ec07dfc143dea8c193138a1957dd",
+      "statement": "Changing anything under rtl/ requires re-running build:rtl:wasm, because otherwise the tests silently exercise the previously committed model.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L50-L52",
+          "version": "repo-lines-v1:sha256:cd29aaf265bec07a68e5483ed205ef5bf61fcf2296b0b131b0c0f33885ae2b99:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWM0M2M2ODI1ZTk0OTgzYTAyZWMyNWRlNmYzZmI4MGVmYTE5MGFjZDMwMTAwYzVlZmNlMzIyNmFkZDQ0OTllZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzhhMDg2Yjc2OTk3Y2JiNjYyMDY5ODM5ODZiZDY1NWQ1OWJhODMzNDlmNTBlN2NhNzZhMjNkNWY0MDEyMWYxNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWQ0YjU0OTQ4Y2RiYmQwMjBkNjg0ZDk3MjZmZDY2ODM0ZmRmMGEwYWU4NTBkNmZkZTFlOTVmNWIwZDg1OTM0OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTE2ZTMyOTE3ZmFhMjQ1ZDgzMDlmM2ZlNzVlZDNiOWI0MzYyNmIzNWI2Y2Y2ZmZiNmZjZWI0OGU0Yjg1MzllNiJ9"
+        },
+        {
+          "resource": "repo://scripts/build_rtl_wasm.sh#L1-L12",
+          "version": "repo-lines-v1:sha256:f00979b60563dc80b9ea34db798b89b1e231d36e4c8ae6ca91a322afea5f1c99:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiNTdiZDY0ZmY2ZDZmMGNhYjRmOWExMDdjZGMxMWQwNGYzZjY2NGQ5OWM1NzQ1NzU4MzlmNTBkZjdiYTAzZWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6d3955d2c0a049a7a0708fb156050aa3",
+      "statement": "build:wasm runs wasm-pack --target web into wasm/pkg; build:rtl:wasm verilates deep16_top and compiles the harness with em++, writing rtl/pkg/deep16_rtl_gen.js and .wasm plus hand-written deep16_rtl.js glue.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/build_rtl_wasm.sh#L1-L20",
+          "version": "repo-lines-v1:sha256:ae3f676ff1bfed50b3f94a116b362abd8f3475639c003ba6d2f646d3cbbc5cc9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ3NGEyNWUyM2Q3OTk5ZjMxNzg2MzJhMGE2NTFlYzI4ODMxNGE2NDg2M2ZlNGE5ZWNmYTVhZWU4OWQwMTlmZDkifQ"
+        },
+        {
+          "resource": "repo://scripts/build_rtl_wasm.sh#L30-L60",
+          "version": "repo-lines-v1:sha256:b8e683df640f6bf15a161219c93972a991cde5802410189ccbb38323580289a1:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhZmJhMDUyN2MzOTUzYzRiNmUwZTViNTczOWJhODM2MTJmODA1M2JjZGM5NDY2NzMwMTkzY2QxZDU5MGI0MDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxNTljNzVkMGI0YTg0YjJkZGMxOTIzZjgxMTQ1MDQzZWY3MGE4NGFmYjVhOGVjZDE0ZTUyODJiNDc2MGU4ZjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3ODk4MmRmZmIxZDBlOGMxMWE1MzAwZWNmNTUwMjQzNjRhNzZkZDg1MWNhY2EyY2FlYTUyNDg4NTcxODZmNjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY4NTNjODU2MmEzYmU5ZWExOGFkNTA5NzUwMjA4NzU3YmVjZmY5N2ZhN2IzNDAxNzE2OTM3Y2U5MDMwNzJhODUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9e31790e10a34f5f9172bd6c061fc873",
+      "statement": "build:rtl produces a native Verilator binary at obj_dir/deep16_rtl for differential debugging, while lint:rtl, lint:mini and lint:board run verilator --lint-only -Wall over the core, the D16MINI build and the board.",
+      "evidence": [
+        {
+          "resource": "repo://package.json#L7-L12",
+          "version": "repo-lines-v1:sha256:cca13e47ee15d13ef692741619b445261352437910f3d46489ba9ee0e03e6e22:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzQ4MzNkNTk0OWMwM2E0MGNhOTUyNDkxNjEwYTY2NTk2NDRiM2FhNDY2MzYyZjc5OTAyMGRiZjE5ODE1NDdkYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2ExMzM1OGI0M2RhMTdlMjcxOTdjMjYxZDRmYTc5M2E5NzdmNDdiNWZjYTY3ZjMzNDAwOGU3NWE5MzZiN2M2MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTUxMjk0ZmZhODk4MzVkMDEyODUzNWVmZGQ2YTMwNTkzYjBhZGNjZjBkMzhlYTQ4YTMwMDNmNjRiN2YzNmUxNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDcwZmNmNjE1M2E4YjI4ZWFkNmU5ODk5NzQyODEzYzhkM2QyM2YwOWIxMzVhNzIzYThlNjBhZmJiNzFjOGEzYiJ9"
+        },
+        {
+          "resource": "repo://scripts/build_rtl_native.sh#L1-L25",
+          "version": "repo-lines-v1:sha256:baef4688cbc1a829bec4ed697a46f782cc07d2fa8427eabde73fd198d3981e60:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJkOTVhZjNhNmZlZmNmY2NiM2FkNThkYWQ4ZGNmNTM4ZDkzYzM5MWYwNGZlNDA0ZjJlMTRlYWZiOTk3YjM3MmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIwM2M5ZmQ3YzU5MGZmYmRiZjE2MWI3ZmNlMTJjODg5OTk4MDkxYTRkMjUxN2I5MTVhZDYzZDJjMjMzZDM4ODcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d1688280c3aa4c61989ed2969bc9c317",
+      "statement": "make_image assembles forth.asm or forth_nano.asm, lays it into the 24K-word window with 0xFFFF fill, drops and reports out-of-window words, and writes image.hex, image.mi, the packed image for non-D16D builds, flash images and a manifest.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/make_image.mjs#L1-L10",
+          "version": "repo-lines-v1:sha256:18a29351639bf52ee575e9ea034131004fbf1d7027712c39a2ba6d89db510e45:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2OGU3MWU4MTJjMTM5NGQ0NTRiYjdlMzFiMDE5YzhlOWQ1ODIxODE2YmNkM2QxOWE3NDRhYTI5OGVkODM1YTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRlOTM4NTc3MGY1YWY3M2E5YzBmNmZkMDRlZmQ5ZmUzNTNiZmMxMTQzMjUwNzNmNDAwZjI4ZTk1OTNjYjdmN2UifQ"
+        },
+        {
+          "resource": "repo://scripts/make_image.mjs#L330-L365",
+          "version": "repo-lines-v1:sha256:96d3a25e8c79c57f89a86e0a2729213f2140b2f0107c50055050bb57a7ce30e3:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlYWFmMTZkYWJiNjRmNDNkZTA3ZTc1NWIxZDVkYWI1YTNmOGNkYzUwYjNhNGQwZjNmMDg5MWMwYjM3MGQzZjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4M2FhN2RhNTk1Mzc5OTcwN2VkYjY3MGNlODI3NDhhZTk3MjA3N2E2OTJhMmI5YTQ2OGY4OTk5MDY0YWFkYmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFmOTQ0ZjJhZDA1OGI3YTY5ZTE5OTBmYmQ0YzkzNjc5OGJhNzc5YzM0YzBjNDM2NjFlMjkzYjk0NTc3ZmVkZmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdlMDAxMGY1Zjg2NmY1ZmU4NWFmNzYxMWI3NmY5ZTJlYjNhNGRlNDQ2YjFhM2Q0OWZjZmQ3YTZkNDI0NDIwMjEifQ"
+        },
+        {
+          "resource": "repo://scripts/make_image.mjs#L70-L90",
+          "version": "repo-lines-v1:sha256:7ba809be0d32d588481047501a7093381ebba087b62dc335e3db8b0fda400397:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc1NGZkYzkwMWQ5OGQ5NGJjY2Y1NDdlZWFmNTY4MTkxMzdhODhjMzgxZDBiNzkzNGM3ZTUyYzk2MjMwMDNhY2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVjYWFiNTc5NGYwMzllMTdkODY5ZGUzYzNhZmFiNTdiMjRmMjc5ZjhjYTEyZGIwZDViYjg1MjZhZGY4NjU5OWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cf57d0f06155492d9dba6e92e91e3709",
+      "statement": "The image generator also copies the DVI font and regenerates the tile font, bird sprite and PS/2 map, so those assets cannot drift from each other.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/make_image.mjs#L340-L352",
+          "version": "repo-lines-v1:sha256:6aea9dc6de7ea8e4d5395227539faf7e16e41de2700c99147b8aa1acc8ee9f9e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViMTliODg3NWE0OWE2NWI1YTkzYjgyYzQ3NDA3ZjY2NWQxZjBkNTJjNTE0ZjFiY2Q5MzE4YWY2YTNhZDNjYWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ4MWJmNWY0NTE4NzYxZTJkMzgwNDk3MGRjYWYzODA4ZGI4NDUxYTM1NTY5NDM3YTU0MDRmYmQwNWIzNGUyM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkzMDdlMTI0MjgxZDA3MWJlNDVhYTA5ZjZmZDBhZTNjYzY1YjFiY2YxMGM0M2I4ZjYwZDYzNDdiYjliZWM5ODIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI1MmJkYjQ2NjRhZDU4M2E1NTljMmZjMTE1NDczMGU5MDA2ZjRlMzcxNzZiN2U3MmY0ODRkZjI2OTk4OWUyNzMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_362bded5d6e641c494d30f8ca3b643b7",
+      "statement": "The tile build sets D16NANO=1 D16D=1 D16SEG=1, writes the 608 Kbit config-flash boot image, and deliberately does not build a packed image because the D16D kernel exceeds the 16-block budget.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/build_gowin_tile_flash.sh#L13-L22",
+          "version": "repo-lines-v1:sha256:20a9f60b7b19bea9327c4fce00e03dd66a5fabf913db68e2b8edc1ace11e16cc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4ZmM2MzM2NjdkMDMwMDczMWJkZDg0NDcyZGM0MjRlMWY5YzY0MTc1ZWEyYmFkYjY2NjQ3MmQ5MWFlYjRlZmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEwYTQyODg5OTM1MGE0ZTcwYjk5NTBhMTc0NTRmYzA2ZTAxYzAzNDZjOTE5MTkwNGQ0MGQxZDE2YmVlZTUyZTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5NDQxODA2NDgyNmNkZTg3NDcyNzYzMmEzMTY3MjY5M2UwYWJkY2NjYTZiZWRkNzhhNzMxODdkMTFjYzNhMzEifQ"
+        },
+        {
+          "resource": "repo://scripts/make_image.mjs#L366-L380",
+          "version": "repo-lines-v1:sha256:a57a47acd4b6b5bc2231c93c247ef5b6d8be01572ad8aa88c578fd7132ad172a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiNzlkYWViZjdmYTUxZTlhZWFkMzg2M2FjMzdmYmU2YjQ2YmMzYzViZTUwOTQ4MzlmYmFhOTMwYzJjNjZlYzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkODU0MzhmZWMwNTA2NmRkN2RlNzFlYWJiODU1YjdiYzRlNDlhYTE1MzQxNDdlNTI0Yjg3YmUwNzk5MjlhYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIzMTVjMDU2NGMxNDMyMTcwYTExNjE3ZmFkZGY1MjA0MTYyYmE0NWUwMzM2MmI3MzAxY2U3ZGY2ODhiYzRlZDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY1YTc1MmFjZjBkOWE5YWY5NGZlNjM4MTkxZDA0MGEzMzFmNGZiNmJkMWYyYTVlNzBkZjYyMzBiNDE5NTI1N2EifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_42f09642a9c448eb846b4bd839156e99",
+      "statement": "embed_forth.mjs rewrites the generated block in asm/forth.asm and asm/forth_nano.asm from forth/demo.fth, packs two characters per cell, limits lines to 120 characters, and supports a --check mode that exits non-zero when stale.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/embed_forth.mjs#L1-L20",
+          "version": "repo-lines-v1:sha256:5c465a5e894257d33383d2b10c9f188063075ea062375d602461416cd986c136:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyZDMzMmZlM2Y4MzIxYTllM2EwZTE2NjYxNGIxNjNhZGQwYzMzYTUzMzUyMGM3MzRkYzQzZDlkOTUyZDAxMzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRkYmY1NDg4YjBhY2RkNzhhMGZlN2MxMzI5YWVlNGFhZDMxNTdhNGM0MTY3NzZhOWZkZjk2NTAzM2E4MDE0MjEifQ"
+        },
+        {
+          "resource": "repo://scripts/embed_forth.mjs#L25-L60",
+          "version": "repo-lines-v1:sha256:e31e504428c2a0bfe87aebe36b477c709c3874d54cb0f28d4aa951ed815dae42:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQwOTliODBjNDcyYTM1NWY0NzEyMGNlMjM2YzQ4ZGNmYThlMDdjNWQzZjZlNjkwYzJhY2ViOTczOWZjZTA2NDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM1YmVjYThjZjk3YTBhMDYxOTdkMzk4MWE3NmZiODZjMGU4ZTY3NDIwZTYwMTQ2ZmYxODY5ZTQyZjM2NDRmZGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljY2QwZjM5OGJhMzA1NjZiNWM3YTE5NzdlNDEzOThkMWIwZTFmNzk2YjAxODQxNGRkMzZmYjJkODNjYTJkZDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg5ODI5ZDc5MDQ4YzI5YjMzMWY5MDgyYTNlZGRiMGQ3ODg3YjNiZGQxNDg0OThmOGI1NmNiYzMwMzM1MmQ1NWEifQ"
+        },
+        {
+          "resource": "repo://scripts/embed_forth.mjs#L70-L88",
+          "version": "repo-lines-v1:sha256:778ef90ef35d98d49653c415794880597f6172c78b0f1816e71150d8f006be16:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU3ZDA2YzVjODA2ZjhkNGZiMDQwZmFhZGNkNDhjYzU2NjgyZGUyZmU5NDIxNjgwMGE2NGIxMmIyOTY3ZTRkZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3MzBhNjk3OWMxZjFjMjg0ODY1OTk2OGM5NDUxYTBhMjVkN2I1ZmQ4NzgwYmUwNzQxYjM1YjI2ZjQ2OTRmNDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjliYWQ5M2ZkOTQ3M2EyOTAyZDUzMDc5MGY1NWJiM2I0MTc2NTk4Y2FlMzRjOGUyMjk2NzQ2ZDBlMGY4YWQ3NTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3c12d058eb1041cbafd1af772bac31ae",
+      "statement": "The boot-script test runs embed_forth.mjs --check, so a stale baked script fails the suite.",
+      "evidence": [
+        {
+          "resource": "repo://tests/boot-script.test.js#L100-L110",
+          "version": "repo-lines-v1:sha256:4391bc73bc09fc922595d6ec02177a0417558ac08b31bbb617ac048c87972ad0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNmMjU0OWZiYzIyYmIzYjEwZDljYzBmMWI1NDY5ZjhhNTg3ZWU1MTQwYTUzN2Q5ZThmZmQxMGYyOGI4NzU1NDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e1ae14f626044d5ebe4bb8b9770c7c15",
+      "statement": "Asset generators cover the BDF font, tile text pages, bird/cloud sprite bank, quantised art tiles from assets/art, the 2048x8 PS/2 map, 4KB flash slices, Forth source screens, and the D16D showcase.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/bdf_to_font.mjs#L1-L15",
+          "version": "repo-lines-v1:sha256:58c792ed579815890bb1b94d9b180f217ae849e1bb60f545aada3d551d8103f4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyNTNjZTk3Y2U4NjRkODNhNTk2YWJkYTAxZTg1MjM5YTRjMTEyNzVjM2RlM2ViNTMwNzQwYjAzNjA0ZTc0MWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFlOWY1ZmE0MjU1Yzc4Nzc4OTA1OGI4ZTM0MDQ4NDAxZmU3MGYxNzY0NzRiN2U3YTA4YTY0ZDU2MjhkOWU0YWEifQ"
+        },
+        {
+          "resource": "repo://scripts/make_art.mjs#L1-L8",
+          "version": "repo-lines-v1:sha256:22f517c32ad5819a868d68cf19751eab797c0d16e81af41f354536bba36c7b21:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTI2ODcxMWQwNDJiNjEzNDQ5NTE2MTkzZDA2NDQ4MDJmYTkxM2I2YzVkN2MxN2JkNmZlMjAwNGQ1MmU0N2ZjZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2UzNTJhZDE3ODkxODAwMThhMTQ1MGFlMzI2YjNkMzUzZTgwNmJiNzhhYzMwNzk4MzA4ZjU1NzU5YTA2ZWRiNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzQxZTIxYWFkMjA4MGI1Y2M5MGE5NmJlOWJjZjQ2NjY5NDU3OWVlNGIzN2RjN2QyYTdiZjVjNzEzNGEzODkwNCJ9"
+        },
+        {
+          "resource": "repo://scripts/make_bird_sprite.mjs#L1-L8",
+          "version": "repo-lines-v1:sha256:3f4d8d5a30ac2e9464b902cee3a318786a39b5bfef6c845239ffd202b26464b5:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTU5YzQ3ODcyYjcxZjEyNTg5OTQyODkyNDY0ZTc2NGMwZGIzNTBjMjBiNzIyMjg2NDU2MTVjYzM2ZTBhMDcyNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODNmMTllMzgxMDEwNDE3MGI5YjEwZjBiMDZjZWUxMzJmNWNhZTVjY2I0MjVhOTZjMTk1OTFlYzdmOTY2MmFkZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNkYjlmMTA0NTE1NWFmYjEyZDk0NDlhZjdmY2EwMTVmMTQ0MWM3NzNiYjg0NWRjODg1ZjZhNDZjZWQwMjVmYSJ9"
+        },
+        {
+          "resource": "repo://scripts/make_ps2map.mjs#L1-L10",
+          "version": "repo-lines-v1:sha256:75b5033df6238197344d9e4c4c9339ffae8d5ac9f9fe7c93e6f60e34fff04957:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3N2VkNjU5ODgzMTc3M2MxMDg2ZTAzMzYwZjRkOGE5NTUyZjk1NGYyN2Y5NjZiYmQ1ZGJkOTc3M2ZhNzQ2NTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY1YWFmYTBlNDI1NGVkOTNkNTY0YzMzNzFiNTg3NGE2M2Q3NDAwMmNlYzQ5ODc4Nzk2YjQzODhiNmJlZTQ5OWIifQ"
+        },
+        {
+          "resource": "repo://scripts/make_screens.mjs#L1-L8",
+          "version": "repo-lines-v1:sha256:7e63c5337ca71aea1979799d55a31e8753302e37672e1313edec1680b61efc37:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTU5YzQ3ODcyYjcxZjEyNTg5OTQyODkyNDY0ZTc2NGMwZGIzNTBjMjBiNzIyMjg2NDU2MTVjYzM2ZTBhMDcyNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWI2YTZhMTVlMTFmZmUwZmQ3NTdiMDBjNTkzZGU2ZDExZjJmYTgxZWNiNDM4MTBhODc0OGIyNjAzNGMyYTViOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjU1MTdkODAzMTk5MjRmNGJjOTM4MGIyYWRmNzJjYjllZjU0MTE0Y2E4ZDk5YTBmNDQ0YTlhODE1ZGY3NmRhYiJ9"
+        },
+        {
+          "resource": "repo://scripts/make_showcase.mjs#L1-L6",
+          "version": "repo-lines-v1:sha256:99e36693a59595e9d2128ad263c73df83db97837e4dc1daa07b67bc579b86f58:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTU5YzQ3ODcyYjcxZjEyNTg5OTQyODkyNDY0ZTc2NGMwZGIzNTBjMjBiNzIyMjg2NDU2MTVjYzM2ZTBhMDcyNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQ3MmYzNTEwY2Q4YTAxZDI3OGI0NzIxZDE4NjRhZGQ4Njg2NTZkYWM0NTVhOWE1MTgwZGMyOWRmNjdhNTg1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDUxODRmM2IxMWNkNWU1OTU1ZTA2NTNhZTgzNjBhMTUzOWJhY2JmNTgwMjg0Y2FjODhhN2QzNDkwMDU3MWRhMSJ9"
+        },
+        {
+          "resource": "repo://scripts/make_slices.mjs#L1-L10",
+          "version": "repo-lines-v1:sha256:c0e346c964aee3a3dc53bf17dd412cf0dc332d4a47c41c821c476f4d0319c62c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyNmM4ZDBmNDMzN2M5NTRlZTQ0YzBhYzQ5M2NiZGZiNWVmOTc0NmY3MDNiZTU1NDhjOThmMjljNmIyMzk1ZmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI0MDU2N2YzNmQ5MTJiZmZkMDM4NGE5YzIzYTc1ZDUyOTNlYzVkMTdiOGVhZjA0YjJlYjJlNGZkMmMyODNjZDgifQ"
+        },
+        {
+          "resource": "repo://scripts/make_tile_font.mjs#L1-L10",
+          "version": "repo-lines-v1:sha256:98408c07ef2c1f1cd0207a249596d5e67752815e5c928cb85aee5d16a5cb4ef6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0NmEzZTlmYzNkNmFhNGQ3MjczMGM2MGRjYTJiOWRmMzIzNzJmYzk1NTdhYzQzMzI3N2E3NGQzNWM4NmZhNzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZjODk2MjdmZWVhMDk1MjRmNzhiYWEzYmZhMzljYzgxYTJlM2QxYjQwMWZjZWViMTJlODgzOTgzMjg0ZDAzY2UifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_59cb02940bc147928928d0e6f4c13817",
+      "statement": "Each peripheral has a sim:* Verilator script that builds a testbench into an obj_* directory and runs it, covering PS/2, timer, SPI, UART TX, I2S, SIC, core3 IRQ, DVI text/tile, flash boot, boot SPI and the installer.",
+      "evidence": [
+        {
+          "resource": "repo://package.json#L18-L37",
+          "version": "repo-lines-v1:sha256:def3677d9a870316eb03b6bb1a26b3ea681247f250c2c754fe4580c491550989:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1MTU4MWI3Njc0MWVjNDIxMzdjNmM2OTcxNDY3N2M0YzRlMGQ3NjEwZmZhNjc5Yjg3NDgwODdlNmQ2ODY5ZjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1NTA3ZTg4OWJjYTU4Yjc2YmZmOTU5YzAxNzA1OTE3NDMzMDE2ZTMwNWM5YTJkYTQ5YWYxN2U0NjMxYWY5NzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQzMDlhMjhlODJmM2MyYzMxNmJmNWExYjM5Nzc5MTE0YTI4YzRlOTI0MGI5YTliNTVjZDI2NmU3MDNlNTdiNzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFhYWViYTUyNDU1ZWM1ODdlZGU3MzZlZTc5MTc1YTc5OTdkZDY5ZDllYTdkZjMxNWU5MGUxM2M4OTEwYWYwNzQifQ"
+        },
+        {
+          "resource": "repo://scripts/build_timer_sim.sh#L1-L11",
+          "version": "repo-lines-v1:sha256:e290a0b23b7af8797400f8798872b8af9b5faff769fb374598747969cfc48b0f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1MDFmYWFkMmEzN2FiNzBhNzA3N2Q4OTljM2U2ZWQyYzAxYjUxMzdjZDIxMzJmMjliYjI3NmYzODY3MGE0NzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bd6e351833594d8daf671c0b77248d33",
+      "statement": "synth:tile runs build_gowin_tile_flash.sh, which expects Gowin EDA at GOWIN_APP (macOS path by default), regenerates the D16D image and drives gw_sh with build_tile_flash.tcl; flash:tile is the supported board path.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/build_gowin_tile_flash.sh#L1-L30",
+          "version": "repo-lines-v1:sha256:30da0b5775ec1f4d24103f01713800e10f727013dab8292a85399da4c23863f9:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzZGM1MTJlNzM5MTAzZmEzNTE5M2EyMDYzMjA1MmU0ZjM2NGE2NGYyNjFiYjk5MmJkOWExMzFlYWI4ODI0ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L25",
+          "version": "repo-lines-v1:sha256:353fbb41cb48ceb50ad928f717fe9b1c35f7d43d1b8d8d806fbdc02f9d15aff6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlM2JiNDY4OTQ0YzhkMDM5ODAxN2MxOGJiOTg0ZDBmMjk0ZjM3ODE0ZWZmMzY1NjI0ZWJjOGJkMDE1YmE1ZGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjliMWFkN2M2ODI0NDU3OGM3MWEyNGM3NThlZDEwZGQ0MjhjMzJmMGMxZDIyMGVkY2ExZjJlZDE5Mjc3ZTU3ODcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ff34f32b9767489fb2456d90d7955a76",
+      "statement": "flash:tile regenerates the same image, writes the bitstream, verifies the 1MB boot image by read-back, and writes the source slices last; missing gw_sh or openFPGALoader fails early.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L25-L45",
+          "version": "repo-lines-v1:sha256:dacb57d32f7efe7ead5bc4d5853503dd5f30ab812b3b5ea8d6c4b1a2faa3e51c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlM2JiNDY4OTQ0YzhkMDM5ODAxN2MxOGJiOTg0ZDBmMjk0ZjM3ODE0ZWZmMzY1NjI0ZWJjOGJkMDE1YmE1ZGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3NjlkMjM3Y2Q0MjBiOWQzOGI5ODFhMGE0ZjY3NzAxOTBhNGE4M2RjYTFmZTU2YzRmNWJhMWUyY2JjMGVmNzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYxOTNkY2I1NWVjZjFmNmNhMTIxOTBjMmNlZDdjNDBlZjVmNGE0MGRhNDc0ZjJmNDNhNGExOWMwY2Y5YWJlMTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU2ZDBmYmFmZTNkNjhhMGIxYmMwYjFjYTJiZDA0MTQxMzFjZTBhZGNkMTMzOTNlZGNkZjM0NWUzZjIxMGI4YjYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6b29ab9d544944ed8258d7b8d3441d81",
+      "statement": "sweep:rtl executes all 65536 instruction words from four seeds on JS and RTL and must report zero divergences; it is deliberately outside npm test because it is slow and high-volume.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L96-L104",
+          "version": "repo-lines-v1:sha256:313ec80210c4c040a73cdf0f989a8d056f4e99718c7081e36f70d95d11acfd60:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjRmNzJiNjJhMjcyZDJhYjkxNmYwMDk1N2I3MWYyZjhlYjk5NGI5MzdkOWYxOGYzOTM1ZWEwYzljNDY5YjNiMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTY0ZTQyNzUzODk0MDA5ZmQ4NTczMzBkMTM0OGIxZTEyNjA2ZTRhZmFkNWEyOTc0MWI3Yjk0YTQ4YWQ5YTI1YiJ9"
+        },
+        {
+          "resource": "repo://scripts/rtl_sweep.mjs#L1-L10",
+          "version": "repo-lines-v1:sha256:1d889e86f28cc4b693f9958559b5c67ac8c9c54a56d93db00b85ecdf44f51fe5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI2NWMyOGYxNGQxZGZkODE3MGMzNThjYjZjNzE5ODdhMTkyNzk3Njc0N2U2NjIxYWQ0ODY4ZmU2MzQ4YWVmNjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5Mzg3Mjc4ZjU5NzIyYzA4MzM3YjE2OTM4NWQ4ZTlhMWQ4ZDNlOTBhYzhlMzZkMzJjMDhhOWM0OWMwZDQwNzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgzNjVlMzM3MjllNTQwYmZmNDJhNzQ4OTBlMGE0MTQ0NmRlMzZkMTk2ZGQyNjI5ODE3ZmRiMTY0NzRiMTE1ODcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_90857542882e4c419e8f1fd230f1bf11",
+      "statement": "npm test is node --test tests/*.test.js, about 70 seconds on one core; tests/helpers.js loads the browser scripts into a VM context, provides assemble/optimize/buildMemory/readScreen, and exposes runJs, runWasm and runRtl with a common result shape.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L54-L58",
+          "version": "repo-lines-v1:sha256:ff5e337c019307f752b0b56084b4e25dd1f851fff1ab0315c85bd9c6429dfb6b:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmU3ZjRiMzZhYzljZTBkMDZkY2Q3MmNjYzI0ZWIyOTBlY2NhM2RhZGNlZTM2Y2Q2NDE2ODlhMjgwNDhjODU0NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjA3MjE5YjQ5MTAxZGQ3NjA2OTMzOTc0YTAyYmRlYjYwYWZhNjVlZjAyZjA5YzRlZjQ3OGFlOTU4ZWQzZmYyZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTI1ODdjYjIwNGI1NTNjZDU3MWJiNDRhM2YzNTMyYmY4MDExY2JiYWVmZmUzZDk2ZWRhMzU1MWIwYmMyYWIwOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTJiMWFlNWYzN2ExOTZjYjg4ODc2OTk2NTZhZWIwOTY5MjQwNWM0NmI1ZDc0YzJlYTBhZTMzNmNhYzU0NzQ5NSJ9"
+        },
+        {
+          "resource": "repo://package.json#L5-L6",
+          "version": "repo-lines-v1:sha256:a659d884bbdfae3326c007d8f67f2e857b4e6e33782cc31c22162f084ecd0ae2:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjU2ZDgzMDkwYzZmYjkzNDYzYWQ0ZjJmODVmOGNhNTU3NmY3ZTg1ZTEyMWQ5NThhNTM3MThlMjFkOWY3NmU2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTBhNzYzMmVlYTlmMzk3NjZhYTc5MWMzMDMyMTlhZTkwN2NmYTE5NGZiYmI1OGFhNDcwMmU5OGVjZjMyN2NkNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjQ5YmI1ODFlNWQ4MmZkOTY1ZmUyZmY0ZWI3MWQwMWRhYzNlZTg3ZjZkMmIxOTk4MGI4MTg1ZWJlM2E0ZjNlZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTA1Nzg3ZmQzZDhhYmY0ZDkxYTVkYWEzZjEwZDQ4OGVhZTEzOTJiZTJiZmVkN2Y2NGQyNDJkNDFjOGE2OTNhZSJ9"
+        },
+        {
+          "resource": "repo://tests/helpers.js#L1-L45",
+          "version": "repo-lines-v1:sha256:a0ad2ca886d889b24b05ed33c595c39dcb8c0c9b57b79c2ac9ff7b1322043f8c:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUzZjQ3ZjY0NTIzMjA5YjhmMDRiOTI4ZmY3YjkyZGVkNGY4NzE3YmZlZWYyMDcyNzhhNjg2NzQ3YmNjYzgyZjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5YjM3MGQ5MDkxYjRjOWFkMGQ2MDYzZGQxNjRiMWQ0MWUzMjlkZWExNTkwNzA0NjI4NWUzZDdmYjUxNDAyMWMifQ"
+        },
+        {
+          "resource": "repo://tests/helpers.js#L95-L165",
+          "version": "repo-lines-v1:sha256:99cdfbdd36d3cef8762f65dc9e6d387bc586f9ae883f1e4b71078d7e3bdd0d4f:eyJzZWxlY3RlZExpbmVDb3VudCI6NzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxMTM0NjY2Y2I0OGUxMzk0NTYzMTU0MzBkZDI2NzM5ZDExZjU4Y2Q1NTRlMjlhZDk4MWRkYzQ3YzFmZTJhNWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyYWJjZDA5OTMwYTYzYzlkOTgwNGVkMDYwZGIwMzQwOGUyMTJkZjdkNjI5NDEyYjQzMGViNTA3YzE4MDBlODUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY2OTFmZGRkYmE0MzhkNDhkZTc5YjQ5YTdlNWM1OTZjZjAzOTE5NDZkODQxOGY0NTY1N2M3Y2RmMWJjNjgzNWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZmZWMzNDg3MDIyZDM5ZjZjNGQ3MzQ0NGI3ZjYwYWVmZWU0YTcyZWQ3YzhkM2Y2Y2EzZjdkMWU3NWRmYzBlZmEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2252a014c8f948e89baabab762600121",
+      "statement": "rtl.test.js and fuzz.test.js carry most of the verification weight: three-way parity and pipeline coverage, plus random programs compared after every step with coverage assertions and configurable FUZZ_SEEDS/FUZZ_STEPS.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L90-L95",
+          "version": "repo-lines-v1:sha256:44aea9362ffb89cb6bcad15f829d41755b4c05b15cf039bac520f850976ecb60:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjYzNmE5NjQ3MjIxY2VkOWQ5NTFmY2U5MzUxMTBhYmMwOTY1MjQ1N2YyOTgyZTNjNWY3MDFjMzk3Nzg0ZTZiNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTkxMTdmYTYwMjJmZGI2YjhhYzQ1YTQ0YzQ2MzM1NWU4OGU3NzQ0NWY2NmM2NGVlMjI3MjAwYzIxNDgzNGY4ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDc5NmNkMDhjNDg5ZmRiYzAyMmYxNTI1MDg5OGQwMzE0ZTlhMzcxZjIxY2NmMmUyYzVjNDg1ZDY4ODdiOTI1ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2I2MTE4NjU1MjllODc3MjMzNzZkM2UyMGMzZGQ0OTM2MjU4OGFmZTJjZmY1OWZmYjI5ODgxNDJkNDM4MjUyZCJ9"
+        },
+        {
+          "resource": "repo://tests/fuzz.test.js#L20-L30",
+          "version": "repo-lines-v1:sha256:d1853de7f7a6edb8a4e57eda85025ce64b9de815e951b8fdda0366029e189876:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwNjYyZmJjYzBkNGQ4YzExOTY4M2RhMTk0N2IxMjA0NjgwM2Q0OGI0NDc5ODgxOTdlYzMwOTJmZmU1YThiNGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyOWY5Yzk2N2I0Mjk4Njk1ZDBiODIwYjk5MzViM2M4MDMzMmI4NjdhODgxMjdiMWNkZTY4NGIyZWYyZjYyMDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU2ZmViYzdkOWVmNmNmOWM1YWVlZGNkY2NkNGEzMzk4NWY2YjZkZWYxMGNhMmMxNTAzY2QyNzE3MmY0NDk5YzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU1OTE0NGE2ZWU1NDQ5ZWQzYjFkZmU2MTdlZWM0YmU2MzgwYjU5YTU4OTNkYjg0NjEzMDQ5M2YyZWYzMGExNjIifQ"
+        },
+        {
+          "resource": "repo://tests/fuzz.test.js#L295-L318",
+          "version": "repo-lines-v1:sha256:0d0047eef2a5837b338d20651d3bc8d6449a214d182b33ee32297eb7b76c22fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkZDhkZDc5ZWIzMDM4ODQ0ZTUyMTU5N2Y5YjFmM2RiZGVkZTQzNTBmMDJmMzQxY2M0ZjE4ZDlmMjM4MTExMjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjMDgzOTg5OTA4NjhmZGY4NjZmZjg1NDM2OTE3MmE3YTdiNWNjMGUxMTgzNWM5MGUwMzQwNDAxYTc0MWQ4MzAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI1NGZkOTljMmY3MTU5NGM1NjBlYTI2YTJkNDU3M2ExNjg1NThiNzkyZGY2NTBmZDMzOGVhY2NkZDU1YTYxMTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI5NTc2YjU0ZTI1NWUzYzk0OGVlYTViNTkwNGZhMzhiODE2ODJmZGQzY2JkOWFlODQxZmYwZTdiZDgwZDM5NGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bf68f5a7a6fd4177aa3434b884774596",
+      "statement": "The README's claim that 49 of 60 random programs enter the shadow bank overstates the test: fuzz.test.js only asserts that at least one did and one took a non-sequential path, and prints the actual counts.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L92-L95",
+          "version": "repo-lines-v1:sha256:ac0682f803c93a38a962dce7f8fac9cd42af131616ecbf8b621d11d589c02429:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2QzNDczNzkxNTA1Y2VjNDU1YmQ2ZjI4NmIxZTI1OTFkOTZlMzU5NDYwZWFmODk2ZDk4ODc5MDc2OWQ4ODJiOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTkxMTdmYTYwMjJmZGI2YjhhYzQ1YTQ0YzQ2MzM1NWU4OGU3NzQ0NWY2NmM2NGVlMjI3MjAwYzIxNDgzNGY4ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWM2ZTNkY2UzZjcxZGE4ZjFlZDc5ZTRmYTViYWRlYmEwMDMxMWVkODMwZDFlMWRkZTE5MGFmMmI5OTVlOWY0YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2I2MTE4NjU1MjllODc3MjMzNzZkM2UyMGMzZGQ0OTM2MjU4OGFmZTJjZmY1OWZmYjI5ODgxNDJkNDM4MjUyZCJ9"
+        },
+        {
+          "resource": "repo://tests/fuzz.test.js#L305-L318",
+          "version": "repo-lines-v1:sha256:923fed1164287a24d087d263b11a890b4a9326e13ebadf4fa71d6922e42c0917:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1ZDE2YTFkYTAyZTZkMTYwMDRiYjEyNTQ5OWEwMThlMThhZTM2NzAwNmQxMDkzNzBmMGZiZjAxMzI1OGI4NjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjMDgzOTg5OTA4NjhmZGY4NjZmZjg1NDM2OTE3MmE3YTdiNWNjMGUxMTgzNWM5MGUwMzQwNDAxYTc0MWQ4MzAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI5NTc2YjU0ZTI1NWUzYzk0OGVlYTViNTkwNGZhMzhiODE2ODJmZGQzY2JkOWFlODQxZmYwZTdiZDgwZDM5NGMifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.2",
+    "at": "2026-11-01T09:36:37.731Z"
+  }
+}

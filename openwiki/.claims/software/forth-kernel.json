@@ -1,0 +1,302 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:47c28337c0754ad9ff74ab346e8f9d7f806dfeb8568dab6a50d831753b5bc84a",
+  "claims": [
+    {
+      "id": "claim_c4e01408d3654370b658060e5af5bd4f",
+      "statement": "DeepForth is written in Deep16 assembly: asm/forth.asm is the portable kernel and asm/forth_nano.asm the D16nano fork, both assembled by js/deep16_assembler.js.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L1-L10",
+          "version": "repo-lines-v1:sha256:59cbf507ac8a026ddf479a3e7e6ed5ef411a00b1357aae20a66c262085ab92ee:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyMjE3NTY1OWQwMjY1MWRlNDcwMTY0YTEwNWVlYmRmZGUyNDVlMTBkNDUxNDI1N2QxYzUwNTg4NTZlNjQwNTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdiYzNlNDQzNGUxNzFiODA4YTFlYTUzMmQ2OTE4OGI4NGUxZjU1NDA5MDBjMjA3N2IyYjgxZTE0NzdhZjFiMzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiNTcxNzVmZGQ1MGUxNjE1NzU5YTc4NmRiMDJmMjYzYzYwYmRiNTZjZDgxY2ZkYzM1YmRiYjRjNjkyYWQxMTEifQ"
+        },
+        {
+          "resource": "repo://scripts/make_image.mjs#L70-L80",
+          "version": "repo-lines-v1:sha256:6c2f78734a528684b44d93203a866b61d74473cec34de606d76cf71bc882556b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc5NGI0NjRiODlkODJlNzU4OWZhZjc2ZjIyODY3MjNmODVjNjhmZGU3MDBjYTE1NjliNmRmMzI3MDcyNmUwMzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc1NGZkYzkwMWQ5OGQ5NGJjY2Y1NDdlZWFmNTY4MTkxMzdhODhjMzgxZDBiNzkzNGM3ZTUyYzk2MjMwMDNhY2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2NzYxNmY3ZWJkMDEwYzVmZDU2ZGQxYTAxYmY0MTMzNTY2YTdhZDE0MThjMjhmNWU2Nzc1MDhlYmYzMWEzYjkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4b3230ae3d1e4d09afb0705607384411",
+      "statement": "One kernel source serves several builds through defines: CONSOLE_UART, D16NANO (software divide), D16SEG (segmented layout), D16D (gfx) and BOOT_DIAG.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth_nano.asm#L40-L75",
+          "version": "repo-lines-v1:sha256:eebe79a16623d202337afea91d3e2ab75583871c59c5b7d20335ca56439baa97:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1OGM3YzExMTY1N2UwNzEzMTc2MjM0OWViNTdlZDdjODVkYmE2ZDQ0MjAwYzNhOTg1M2U4ODJkNmM0MjI2OTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyMjE3NTY1OWQwMjY1MWRlNDcwMTY0YTEwNWVlYmRmZGUyNDVlMTBkNDUxNDI1N2QxYzUwNTg4NTZlNjQwNTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNlNDZkOTIyYjAwMDcwNTRjZmMwYWVmNDQzNGJkMjk1YTE2MTFhNGI1NzE4NjU3NGQzMTk3YmE4ZDBhZDRlNTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhhNjgzNTBjNGQxNTRlZTgwYTFkZTY3ZGZjNzU3MjM1ZWFhMzljZGFjYjhjODAzYjZhZTVjNjhhZjFkYTBhNDUifQ"
+        },
+        {
+          "resource": "repo://scripts/make_image.mjs#L60-L72",
+          "version": "repo-lines-v1:sha256:bbfdf340b9ea06b0bbffb918516ec3a4c03405fb93b655ffef47a4a7267904d4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAwZDc4MTEyY2RiOGUzZWI4ZDc0NGViZTYxY2M1NzQ2YTYxNWI5MWEyMTYxODM5NzUxMDYwYjY0Y2Y2MDU0NmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRhZWE3NTRkYWYwNzMwZTA5NThmNTQ5OGY1YWEyOGYxNDBlM2M5ZTkzYWFjM2Y1NWFmMTRhMDBmYTJhNDFiZDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY1YzA2NDgwZjFiNWE4NjU5ZTk1OWIxNWVjMzE0OTRiMzg3ZWViZDFmNGE1OTk1MWRkYjkxNDY1YmQ3YWU2ODciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjMjBjMWNkYWY1YjhmYjBlYTI1ZmM2NzYyNWNmMTlhYWFhNGYyNzcwNzVhZjM5NTEwNTgwZGQ4N2Y5MTQyMjcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b01a27ed79064baca8fd06757b3ba585",
+      "statement": "The image is laid out in separate .org sections: echo cell at 0x0064, kernel and REPL at 0x0100, word bodies at 0x0500, threading engine at 0x2000, data at 0x3000, and the BIOS at 0x5600 in the UART build or 0xF8000 in the screen build.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L1140-L1150",
+          "version": "repo-lines-v1:sha256:2df3bc7b7f7bec28d106cbdc0a2c76912edbd208669275867f68057b1223d33b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzNzI5ZjQ3NjgzMzU5OTQ0YzEwZmU3YTQzOGQzMWExNzEwN2ZjYWRhMTY0Mjk3YmE1Mzc2ZDFjYzA5NGIyZjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4MGE0YTI3MGNkZjJjNTdiMjdlNGVlNTlmZDliNjJiMWFhNTEyZmJhMTVmOGY2YmQzMTAyZTY3MDQxNTcyN2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhhMGEyMjlmOThiZDFmY2FjZDMwOTM3ZTc4NjhlNWE0NzU5ZjIxNDhmNjE2YjBjOGU0NWY0MDU2NTlhNDk2NTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI2YTlkNWI4NzczZjA5NmQ4MGQyNzA4YjBjYjViMDc0NWI3MTFhZmNlYjQzNzg3YjA1NjgwNGZmMDk0YTBmOWIifQ"
+        },
+        {
+          "resource": "repo://asm/forth.asm#L13013-L13017",
+          "version": "repo-lines-v1:sha256:89228860f4065bf0dd5d766d2fbe2887497227c3aa122535fa71b52a394a9420:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWVlNjY5Mjc0Nzk4MzkwZmQyNTg0ZDFjN2FjZTQyNTQ3NTA3YzcyYmIwZDYyOWI4NWI3Njk2YzcwZTMzNTU2NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjkxZTkwOWRjNTEyNDljMzU0OGFjYTU3OTVkM2M1NzQyM2M4MWRmMjE1YThhNDRhNzQyMDk4YzNiNGU4ZjVkYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWJmMDIyMGI3MGZhOTNjYTIzZDI3NjlmMjgyODdlY2FjMmRmMzBkMDgyOTg5YTM0NDRlOTZmZWQxMzFhNjI1ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjNkYjM3OWYzNzZmNmJkZTY2Y2UwYWY1Njg0MzEyNDgyYWUxZDJjYmIwMjQxYmY0MTFlNGQyYmNiMjc3ODAxYSJ9"
+        },
+        {
+          "resource": "repo://asm/forth.asm#L81-L100",
+          "version": "repo-lines-v1:sha256:5fdb4cca463de8120b727857f78cc175e116879c5970dd4c08e9f687332dc283:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlZDdjZjU3NTgwMjBkZDE3NmJhZjdlZGE5MTI0OTc3MGFiM2U4NzRlMmFlMmMyMmE0ODNhOTY3NWRhZGJhMTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwNzZkOThlNjA0MGZlZDFmOGMyOGI4NmU3MTU1NDI2ODM5OWNhMzQzMzBiMWRiYmVjNjgzYWVlOGVkYmZjZDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwNWMxZjY1ZmFhMzVhZmZiZGI1OWQ5MGUxMzE2NTJmMzUzMDk4MTI4YmE4NjRhMDAxMTk5YTdjOWE2Y2I3NTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM1ZTg4MjkwZGNkZmNlNGQyZjA3ZGU1ZThmZWQ1MWVlODc1YmI4YTAxOTVkZDNhOTRmYmQxYmFjZWMzMGFlMDIifQ"
+        },
+        {
+          "resource": "repo://asm/forth.asm#L8781-L8783",
+          "version": "repo-lines-v1:sha256:8410fbea62514183ee7e17f4d779fe0df1972a0aef7061c4238536c452a38ad5:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzJlZmE1NTI4OTQ1YjRkZDdlYTY0YzZhZTdmN2NhOTliYmU3YzE0OTNjM2NmZjc3ODMwYzFhYzcxNDY0YTEzYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjFkNmM2YTI5OWNhZTk1NTVlMmM0ODhiOTA5OGY3M2UzNTA0ZGZlNTVlNjhhOGZhZGMwNmE2YzI4YTNiNmYxNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzgzYmU1M2Q3ODdmYjcxMDM4MTI5NTU3OGE5NDRjZGMzZWZmMmM1MjVhNDFhOGEwODBjNTllMTBmOTIyY2MyZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_90edfddef13248128ac8bfdb857f9a96",
+      "statement": "Section overlap is a real failure mode because .org rewinds the address counter, so the test suite asserts that the kernel's .org sections do not overlap and keeps headroom between them.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L2963-L2972",
+          "version": "repo-lines-v1:sha256:d0b80ed2083ce5189edfb07c1b3d59d87a5927355b04f3222af78dade4ce30ae:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI5MWU5MDlkYzUxMjQ5YzM1NDhhY2E1Nzk1ZDNjNTc0MjNjODFkZjIxNWE4YTQ0YTc0MjA5OGMzYjRlOGY1ZGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmNmIyZDgyMDIwM2I5MjU5Y2YxYzY4MTljOWE2YTg4OTMzN2E2OTZiYjk1MzAwNjk5ODg5ZjEwZWE4ZjExNzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFhODBjMGUzM2Q4MzU2NzI4MzcxYWU3OTVjNzkyNWJiMzBhOGU2MDUwNTFlMzc1NDk5OTAyMzRiOWU3NWNhODUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU0Mjc4MmJhZDZjNGQyNzcyMDQzODBkMTZjMDVlYzE4ZDA5MTg5OTA1NWM3MDRiZDRjNmU3YmJiNjk4YTE1Y2MifQ"
+        },
+        {
+          "resource": "repo://tests/forth.test.js#L29-L60",
+          "version": "repo-lines-v1:sha256:5beecd3878bae7cfa507710f7871dbfbb224b14181cdb2d6405dc10721a94b4d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4OGY4ZDk5YTRjNDA2NmZmZTZhNGU2MmQ3ZmQ5NTMzMTFlYmQwZWViYjNmMmI5N2FlMzQ5NTQzNmIyNjI1MDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlZjY5MDA3YTdlNzVjY2RiMmMxOWVmYTlkOTVjNDNiZjc4N2YzM2EyYjljODI2NWM0YTVjZTY0MmZlNmRiZWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1NDgxZDMwYmFhODc4M2MyNTdkM2EwMmE5MmFjNDJjYzdkNmNlZGIxMDE4NjY3NmVjNzhiOTE2MWNlM2I3ZTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFmZmU1YjEzMzBmNDYyYjViNzJmZmZiZjU5OTg3MzZiNDJhYTgyYmJjMDA1NjFjMmY2NmE1NDdmMTllOGNhYTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6e5c1063e80841b49904046574f660c0",
+      "statement": "DeepForth uses indirect threading: next fetches the xt, reads its code field and jumps, docol pushes IP and enters the body, exit pops IP, and lit copies an inline cell.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L8784-L8845",
+          "version": "repo-lines-v1:sha256:45dd1b2218c84e9af58c0cb4d9a99c16f9015c86e3776dc3a74b793c2ff7d1a9:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkMmQxODMyZTk4YTRmYTY1Yzg4MzAzODk2NDUzY2Q5ZDYzMmRhZTA2ZmVkMjUxMzZmYWQyZTkxMzRhNGVlM2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI4OWVjMjY3NDNiNzIyM2Y2Mzc2Yjg1ZDBlNDIwYjlkNGE0NmUxZGUwNDc4MDNmYzE2OTE1Nzk0MTc4YjhiYzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg0MTBmYmVhNjI1MTQxODNlZTdlMTdmNGQ3NzlmZTBkZjE5NzJhMGFlZjcwNjFjNDIzODUzNmM0NTJhMzhhZDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU3ODZlMTQyZDgxYWU3MmRmMWM2MjY0MjY5Y2IxNDliNTcwYzAwODQ1NzJmZWU4ZGJhMzI0YjVjMjk0NTM1OWQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cbc0af3f3da746a18247987efc10b1d8",
+      "statement": "A dictionary header is link | flags+length | name characters | NUL | code field, newest first in each wordlist, and the xt is the code-field cell at header + 3 + name length.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L776-L853",
+          "version": "repo-lines-v1:sha256:7d24f71f3934cf3e54901cf47433552da63fc6ff257a76d68affc308f20890a0:eyJzZWxlY3RlZExpbmVDb3VudCI6NzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3ODhkZjAyMjU5N2FiZjljMzM1MTVhNzg0Y2Q3ZDA0ODEzZThiM2IzMjkyNDYxNGNjY2ZiZmVjOGQ3ZjNjZTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiMjU4M2ZmM2E5ZjJlOWViOWQzOTRiMGY3ZDFkODhjZTU2ZjhkZDM5NGU2YzhmMTZhMzg0YjNiNWU1NDhmZGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQxOWViZjk0MDg0ODI0OWM3MzBiNDhmMTE3Yjc5NGUxODU0MWY1MmZkNTY1YjFkNTMzZmE5ZWUwMjIwMDEwY2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM0YmQ3NDNkMjkwMzU4MGVkNWMxODczMGZmNGRmMmNiNDg2MTYyNTQ2NzI2OTllMjBhMGIyMWY4YjA1NmZkZDcifQ"
+        },
+        {
+          "resource": "repo://asm/forth.asm#L8890-L8945",
+          "version": "repo-lines-v1:sha256:aba3866205b44bb5e1ba1ebc542e458008e16a9a71da87567e61a2bce4fc72fb:eyJzZWxlY3RlZExpbmVDb3VudCI6NTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUwZGYyZjIwY2ZhNmE5MWU5NjQ2NDVlOGI5NzgwNjgwMWZlNjBjNzFhNjQzMTA2MTQ3ZjcwYmE2YmZmNmIwZGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlkZTFkNjkyM2QzOWIxMjllZDg5Y2RkY2RmMjAzYTRiMWEwZTA4NGU2MTg2NGRjNDA4MmZlN2UyN2MxNWY0ZGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFlMzcxZTZhNWMyMWY0YmQ4YTU0YTJjMzdlZmEwYzZmNzRhYmU0MDFjYjUxMWZkMTI1YjQzMDZmZmNjNTNhZjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI2N2I0MDI4MTczNjU2M2EwOGZlM2ZjZTZlYTNjYjRhZjQ5NzAwOGZkY2QyZmYyYTk3Zjk3MzhlN2I4MjZhZWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3d0635e5121d4ab899143037bed369db",
+      "statement": "find walks the search order wordlist by wordlist, follows link fields, compares name length first and then characters, and computes the xt; the flags cell's bit 15 is the IMMEDIATE flag.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L782-L868",
+          "version": "repo-lines-v1:sha256:fd3b0388e220d6ea9fc8e21a052be601468472091b3b7c2f591cd76cd96a726e:eyJzZWxlY3RlZExpbmVDb3VudCI6ODcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1ZGYyNGMzYjNjMDg0ZWNkZjk1MjYyMWVjZjc3Mjc4YzQ5MDgxZjcwYTRjMjgwYTQ1Mzk0Y2UxMzM1ZWMyNDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwMmVlZWM3MjAzNzJhNzkzODM4MzM5YjU4ZmRmMjgwMGFjMDM1Zjg3NDcxY2VkZDVlN2EwOGFmMzUwOTAwMGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZhY2Q0MTA5ODVjOWFhMTJiOTMyMTNjYTUwMTk5MzRkZmFlMzhiZGU0MDVhZTBkZWNjNWI4NzYxMWNiZjM5YjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjViZGZiODFhZDBjNzBlODhmOTI0NjkyOTg0Mjc3ZmMzZjcxYjY3YWQ4M2NlODQ1Yzc0ZGRhNTU1OWY3Mzc0MzEifQ"
+        },
+        {
+          "resource": "repo://asm/forth.asm#L8981-L8993",
+          "version": "repo-lines-v1:sha256:6310c1e165f7224a9600cd1cd0cde1165f2b62fd9a0329996d07ef0b47b8c180:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjMWY0YjU1YmFkNWZmY2MzM2NkYTQ4MDNlMjYyN2UyN2QzOThhYTVmMDA4YTY4YzA1NjliMzE4OTA0OTExZDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YWMzNDBiM2ZlOThmYjNmM2JhZThhZDE5OGQxMDEwYmFkMWQ1NDM3ODBiY2IyYWU3OWM2NjkyN2E3MzFlNzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIxZDZjNmEyOTljYWU5NTU1ZTJjNDg4YjkwOThmNzNlMzUwNGRmZTU1ZTY4YThmYWRjMDZhNmMyOGEzYjZmMTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI0MTZhZWYzODgxYWFmY2JjZWQ4NjEyNjEyZjEwZmRmMDE4ZDYwNWUwODRkMmUzNWVkNmM5MDZiYmMzZjE0ZWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9a9608050bbf490cbb08f4e1389f6132",
+      "statement": "current selects the wordlist receiving definitions, search_order is a zero-terminated list of wordlist heads, and vocabulary creates a wordlist whose new word's code field is dovoc; definitions, also, previous, only and forth adjust the order.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L9933-L10060",
+          "version": "repo-lines-v1:sha256:f67d9353dc683c7156c0e0642f88aa2d831474d259b94d55a5260968b7c39ba5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTI4LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIxNmE0YWEyMWIzYzRhYjEwYzJkNjMxMGVkZTk3NzFmM2RjNGFkYjY4OGYzZThlOTdiMGE1NmYyYzZmNTAyZjc0IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJjMTgyMjA1MzFjNDczZDRiMjMwZGYxZGI1MzVhMGYxYmU5Yzc4Yzk1MDE0MjdlODFjNzE2NzQzN2Y4MTYwYjYxIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI1NjI1NTU3ZTgyMzViMTgyMGJhZmVhNzhhNWE1NmZmZjRkNjJkNTJiM2QxODdkZmU4MGYwMTBkMTRhMjBmYzg0IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI1NGY1ZGI0NjI3NDgyMTczMjY3MmMyMTFlZjgzZGE2YWFiMTkwMjc1MzE2MDA5MzkzYzJhNzM1ZTAzNjAzNzM1In0"
+        }
+      ]
+    },
+    {
+      "id": "claim_70ffa317af1848628dc83b730c599d77",
+      "statement": "The text interpreter tokenizes TIB through >IN, recognises backslash, parenthesis and bare-string syntax by first character, and otherwise searches the dictionary or parses a number in the current base.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L452-L520",
+          "version": "repo-lines-v1:sha256:19a50a8362e6a18791d5e6bc889b8c516b4d1bcd2e6f07c2c56bcfa3c0ee1ddf:eyJzZWxlY3RlZExpbmVDb3VudCI6NjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdkNGI2Y2U5ZWNiZTYzNzI3YzFkOGI2NjE2YTM2OGE3MzA3ZDJjODVhYmJiMTQzMDRhOTcxNWIwMGUxY2UxNGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwNDY3NmQ0NmVjMWEzOWJmZDRkZTY5NTJhNDhkMDM5ODY0N2VmM2YyNTM1MmMzZGRiZjgyYTE0YzQ4MDE2NGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk2NmY0ZDQxOGY0NGE4OGFiNDM0MjI2NDA1YjFiNzI3N2Y0MmQxZWNkNzM0M2Y3NTgyYzEwM2ZlNDI2ODc2YjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc0ZDRhOWY3YmU2NmE2Mzg3MjMzY2Q5ZmEwMzc4OTdjNmZlNmUxOTBiY2U3ZWFlNWY2ODY1ODgxNzdkYzFjZDgifQ"
+        },
+        {
+          "resource": "repo://asm/forth.asm#L8510-L8545",
+          "version": "repo-lines-v1:sha256:75de4a3b09f241bc91790cd5975f9598b3fee62b43486ba39666e3decfd0ace1:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjNGQwMDBlYWZmZmFhMTdmOWU4NWUwZTExYjVlMjc5NzVmNjhhMGJiMzI4OTQ5YTkxYTUxNzBjNDY4NWExNTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMwMTA1ZTY2NjM5ZTc3NDcyNDYwZmZlZmI1ZWUyZWM5N2ZmMGE0MGE1MDIzNzZiOGQwZTkwNjM2NDg4NzYwNzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJlMjhlODAzNmYzYjA4MTkxMzU5ZTc0ZmQ5OGM2ODg1YzM3NTFmYWVjYjgwMWY4NDhlZDVkMDVlYTQ0NzViMzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJhYmM3OWZiMTZiNDViMGIyMGQwNWE4ZWVkYWE0ZDEwMTgxNGUxMzc1NDM2YWY5NDcyNzQwOTgxN2YwOWJiZDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9680da2b14f2434a8b94f99ecadd0b8c",
+      "statement": "An unknown token prints 'undefined word' and abandons the line outside a handler, while inside catch it throws the standard -13.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L1315-L1325",
+          "version": "repo-lines-v1:sha256:c5f603684d9a26319b525ed36040137b1b64f196cd022740bb623efd8f4a09df:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwZDc0MjVhN2ViZTA3Mzk4M2YyYTlmODdlZGIwODI1OTMzZmVjZjUxZDFlZGVmZjJlMjhiNjA1MTg5NzFmYTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc1YjQwNGNiYjc5MDA5MDJjZmYxOGQ0NjA1N2E5NWMwOTVjMmVkYzBkNzQxNjM4ZmQ4OGU4ZTczZTU3OTEwN2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjljMTFhNDk1NTM2YmM1MTU4NmYyYTZmNGY4YTljZWY4NGRhMjQxMjZiNWFiZWM4YzNkMGQ3YTYyYzg4ZjgyOGEifQ"
+        },
+        {
+          "resource": "repo://asm/forth.asm#L868-L890",
+          "version": "repo-lines-v1:sha256:d785655cbd74775ecb89ad8c8198f25708cc3d9c007322b2b5c625156b647942:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwMmVlZWM3MjAzNzJhNzkzODM4MzM5YjU4ZmRmMjgwMGFjMDM1Zjg3NDcxY2VkZDVlN2EwOGFmMzUwOTAwMGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI4NTQxNjIzY2VhMTc0M2E1ZDg0NTI0MjMyMDE5Zjg2OWVmZDk4NWY5MzVjZTRmYTVmMjI2ZmEwN2YwYTJiODEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVhYjVjNDk1MmU1OTAwZTI3YmY1Y2U2YjE3ZWU0MDEzYjc5YzVlMThiZTcyYWUzZDljOTFiZWM2NTEyYzFkN2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc3ZDIwYjYxYTRkZmQxOWQyZWQ5MjMzYTA3OWFlMjg2NzUzMzQzNzYyZmZmODY3NjhkZDBlZjViOGZjMGFlYzIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b8e787d4bf384e50aa07818adaa5f0d9",
+      "statement": "Colon builds a complete header at DP, remembers current_xt for recurse, and sets state to compiling; semicolon compiles xt_exit and clears state, while [ and ] switch state by hand.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L8881-L8978",
+          "version": "repo-lines-v1:sha256:972c36d950876da88e723b0d15b0d8f24e52058701b10c9b45764ace578803eb:eyJzZWxlY3RlZExpbmVDb3VudCI6OTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiNTVhM2FjZWRjMTQ4MmM0ZGQzYzVhZjgwMWE5NTBmNzc1ZWUwMzExYTBjN2U0NGE4NGQ3ZDYxZTdhMjg4MDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiMjU4M2ZmM2E5ZjJlOWViOWQzOTRiMGY3ZDFkODhjZTU2ZjhkZDM5NGU2YzhmMTZhMzg0YjNiNWU1NDhmZGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjczNzU0YjBkZWQ0ZThiMzg3ZmUwNjQ0ZWExMTlhYTk3ZGYzZWYwNzEzODJmZDIwNjZlY2UyNmNlMGQ0ODQ3ZDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE0MjA1ZWYxNTVjNjY1YzVjZWJjNjgxMjM4ZDY0NGMwNjQ1ZmRkZjk3M2ZiZThiNTI0MWUyOTA3MzQ4OTQxNzcifQ"
+        },
+        {
+          "resource": "repo://asm/forth.asm#L8995-L9015",
+          "version": "repo-lines-v1:sha256:66c0e353bc1e5c3ef45f84771ea2e0767c32aa50262be252ac7654d8a53d9c54:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYzMmNmMmE3YjgwZmQ0OThhMmE5MmZiYWFlODM0Y2IwNDhkMTBiYmNhM2ZmNGVjNjc1ZjM0ODdiMmVmYmIyZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiZDAxY2E1MjRlNzA2OGQ0OGZjZDY1NDc1ZmRkNWY0NTEzODA3YTExMTA2MWIzNjQ4Mzg1ODViMjM1N2ExYjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIxZDZjNmEyOTljYWU5NTU1ZTJjNDg4YjkwOThmNzNlMzUwNGRmZTU1ZTY4YThmYWRjMDZhNmMyOGEzYjZmMTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRjNWEzMTdkYjE5NTU3M2VhZDYzMWE3NTE0OWU3Y2E1MzI5ODFiYmY5ZTc3MTUyZTA2ZWIxMDdiZWZmNDU0YTQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6934f86c82664d64b78935c0b9f140d8",
+      "statement": "create builds a header whose code field is dodoes with a reserved DOES> pointer cell, and does> patches that cell with the start of its defining thread.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L9601-L9628",
+          "version": "repo-lines-v1:sha256:ffe6b4b29f1152f41e97c207591822dbc3e777730fb11bd115e84921d89b6ec5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1NTgwZGY5Yjc5YTc0ZGRlZTg3ZjEwNDgwYzAyYmE0ZjY2NDA3MWFiNWE5NTU3ZjEwMGJiMmFlOTAxMDI4MzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmMDM4MjE2OWU0MmM1NDg0NWMyOTA3NDA2YWZkN2U2NmFjMDRiNTE1ZDY1MWYxZDQ1NTk5MzQxNDI2YWQ5MmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRiOTYyNGFhYTA2NzNiYWEzZTRiYjk1YWU1M2EzYjhkOWM0NTA3NmUwMzRmZTkzMGYxNDlkYmVkNGZmN2M0NDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMxMGQ5YmJmNzExNDc0ZDI3YjgwOTIwNGQ5Zjc1ZDIyYmFlNGUwMmY5NjZkYzcxZGIzNjA4YzYyYzU2OWFkNDcifQ"
+        },
+        {
+          "resource": "repo://asm/forth.asm#L9629-L9650",
+          "version": "repo-lines-v1:sha256:bdfe3155002006e5731a09da6285851ed89a8ef0953a2cebdd4d752a0077b07d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiZTY2ODc2YmVjMjZmZjcyODcxNTBiN2IyM2JiMTIyZDE5ZTI2OWQyNjg3MmRjZGEzMTdiYWFjMmRiMTQxYmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA5ZjkxNWI0MTkzNDBjZjgyYWY0YzNiYWNhMGY3ZWNjZjE0MmVlNDRkNjM4MzUwZGNmMTYxNzlmYzUxM2YxNmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkzNTBhODU5MjM3NmNiMGI1MmIzNTJjYWZiNGFiNjMxMDhkNDNlMzc0OWVlZjFmNDU1NGIyMGRjNGYzYzNiZjgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4e4be383757f4fba86cbcb4647877f16",
+      "statement": "ok_after prints ' ok' and the prompt only when echo is on, and a boot-script line suppresses both through boot_quiet; errors deliberately bypass that gate so a quiet load still reports failures.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L1052-L1135",
+          "version": "repo-lines-v1:sha256:ea1103660400cbdc527f11ed53135e2d8d7caf0695d2ea78e0e51cede12acbd6:eyJzZWxlY3RlZExpbmVDb3VudCI6ODQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwZTU5MjUzMWQ3OTU0NTlmMjE1YWQ2ZTM1NDRlNGI4MzZmMjlkNWQ4NTQwNDI3MmU2YWE0YzllZjhhM2Y0NDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMxYTZiYjI4OTNhODY0MmFmZjU2M2MwN2Y0NjFkZmQyMTM3Zjk2ZWM5ZTJmM2ZjZmMyOTMzNTUzZGJjMTNhMmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU2YzVjMDIxZGZjMzYyOTI5NjU4YWQwY2I5NDQwOTEzZjFkYmQ4OGExNzRmNTc1OTM0MDAyM2U3OGNhZGQ1OGUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_48eb7dca4458477dac48a46c5c59cde1",
+      "statement": "Every printing word goes through BIOS putch: emit masks the character and issues SWI function 2, with a comment that local CR/LF/scroll copies once produced three disagreeing cursor models.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L3285-L3310",
+          "version": "repo-lines-v1:sha256:dd5917c6966defa2ab1e28a20839066976c710ba63c1ea6fb3d85c38516db4a1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkNjkwZTM4MTFmZjBmMGQ4NzY3Y2E3ZTk3MzhiYTIwYjljNDQ1ZmFkNTdmYjc3ODBmNzkxODE3YTZmMWM0YTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiMjU4M2ZmM2E5ZjJlOWViOWQzOTRiMGY3ZDFkODhjZTU2ZjhkZDM5NGU2YzhmMTZhMzg0YjNiNWU1NDhmZGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNmM2Q4YTkzYjJjYjdmNjg2YTU0NzUxMWNmM2ZjYzE4YjY5YjNhMzA3YmE5ZmRhMTAyM2YyMzY5ZTllOTU5ZTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdlMTNiMmQyMDVmNzBkMDY5ZjAxOWY4ZGY3OGQ1ZThkMGQzMTQ2OWE3NWM2MzQ1MzI0MzliZDdkN2U1YTBhZTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9337244021e54af0a008d881d40756fe",
+      "statement": "The kernel keeps ES at 0xF000 after boot so that ES:0x0060, ES:0x0040 and ES:0x1000 address the keyboard, UART and screen windows without changing source between builds.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth.asm#L104-L120",
+          "version": "repo-lines-v1:sha256:579cb9a285244d9b7b2fbbaa10f04807befc5decd44d2cfa3a59ac7d78ae3b45:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkY2UzYzY2ZWRiMjJlMzI4OWY2ZTE0ZmVjN2VmNDVkYjRlMWFlNzg5YzZjMzAzZGU5N2FlOTZmNGUzNWUyYTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM1ZTg4MjkwZGNkZmNlNGQyZjA3ZGU1ZThmZWQ1MWVlODc1YmI4YTAxOTVkZDNhOTRmYmQxYmFjZWMzMGFlMDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJlY2Q2M2E3NDVjY2NjYmU0MTgxODlmMmYxZWMyMjMwNTYzZTFiODRmZWRiNjNhZmViY2Y5Njg2NjMwNDBiZjgifQ"
+        },
+        {
+          "resource": "repo://asm/forth.asm#L4683-L4690",
+          "version": "repo-lines-v1:sha256:89c3f375fe0f9d7c6988526e74ca6fbc7d67e1388b12aad1dcbe8eabe1e23046:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjFkZjcyYTQ1YWFiZDhiYjFjN2ZkMDVhM2M5YzA4OTI4N2Y1ZWMyYTQ1ZjJjNDc1ODNjNGJkY2Y5MGE3MWFiYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzg3YjcyNjNlYzMzMGRiOGQzOWFiMTdhMWJkMWQwMDEyOWIzNmVkZDcxMjE2YTFjNzUxZDU1MzU4ZDAxNGUwMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjIyZWU5NDZhNWJlZGZmZGY3NTBlNWYwYzRlODg0Y2UyZWZjNjNkMzhjZjA2MjFjNDBmZWY2YjZjN2QwZWNhYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTc3ODgwYTJiMjAxOGEyMjlmYTY5NjE5ZDdhNGY0ZDA5OGE5OGNlNjk4NDA1MzJhNjVmMWJjZWFmODJhMTM1MyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_915183a1d02d41208c4df7ada2f96608",
+      "statement": "forth_nano installs the ILL vector at 0 and the IRQ vector at 1 at boot, using CS-relative stores in the segmented build and DS-relative stores otherwise.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth_nano.asm#L138-L205",
+          "version": "repo-lines-v1:sha256:ce9b86cd899d940395b3a8ec769053acf445b257376f1b33d60d80466946cee3:eyJzZWxlY3RlZExpbmVDb3VudCI6NjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1ZGRiYWY2ZTlhM2U0YzA0YTYxN2RjNzY4MGExMzliM2I2NTNkNDc4YTUyOTYzY2I5MjFmNTQwNmRjYjYyMTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdkYzk0ODRhNTQ2Njc4MDk5ZjRiYmRmN2ZhZTM0NTk1MjIyNGFmYTNmM2IwMzI1MTE4M2IzNzAyZDI1NjBiNDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM4NTAxOGZhM2NmMjYxYzBiMjlkZGQ4OTBiODU4NzQ4MDk5NTY1ZGM2ODY2NzU3Y2Q5MTJlMmNiOTAyYWU1ZjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ2YzM1N2JmZGNiMjU0ZjViNjljZDA2OWMxNzhkNTUyMzM2ZWY3MzkyNjdmMTg0M2Y2Yjk1YjNhZGUyYjkzOTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9f3f9a60a51f442e91a6f66440d95386",
+      "statement": "The D16nano ILL handler at 0x5000 saves the persistent shadow bank on the reserved stack, reads the trapped opcode at PC-1, and emulates DIV/DIV32 through register get/put stubs.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth_nano.asm#L14964-L15000",
+          "version": "repo-lines-v1:sha256:25b38d152da5a12926e34c6afe4e9ac3ef2110f495968f0eccb50f87db1f7c46:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3OGYyNmI1NWMyODgyNWE1NGRkODhkZjVmNTkxYWEyNjMwZDRiZGU4YmRmZDFjYzVlMmJmYzIxNmY4NTAxMzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzYTExNjMxZjM0N2I4M2JhNTVlMDk4ZDBhODY1Y2NkODI5NWE5M2U0MzVkOWRkZjBhYWZlMDgwYzIxY2U2MGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU1OGFiZDEwOTczYTQ4NjdmMDhiZGM1NzllZWU3OGI1OGE1YzM2MWI4NjVlZThjN2M2NmQ3ZGVmOWQ5MzBkMzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY3N2IwMDQ5MGE4MjJjZWI5YTY1OWJhNjYyODMwYTk1NGRkNDA2MzgxZWIwNTRjN2QxZWRhOGVlYzViMmJmOGMifQ"
+        },
+        {
+          "resource": "repo://asm/forth_nano.asm#L15149-L15160",
+          "version": "repo-lines-v1:sha256:0719136a88e3d48a37540e26b393e4c8fbacc9419fed687cedcb0b753ebfab61:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjZjYyOWVkZjZhOTJiZDhkMGVhYzZmNDI5YWRiMmViZGUyMzFlNjg4YjdiNzQ1YzYyZGJjNDU5MDk1MDM0ZTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZkOGExOTVlOTllZDFjOWRhNTgwYmMwNWMwYjBjMTM5ODhhYWQ0M2VjMWI0MTU2NThhNTQwNjY5OGIyNWRhY2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjliOGU4NTg0Y2Y4NWI2MTNkM2JlOTA0OGQ3YzE2Mzk5NWU1MzcyNTE4MmY2MjQ2NGQ5NjgzMTNlZTljN2RiYTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBiOWFlZDIxYTBiMGI0NDdiOTFiMTZiN2U4YTQxYmI1ODg3MjYxNjU1NzA4YTYyNmQyNjI0ZDM5NGRlZmU2YTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_060b7a48aa644a638197774c08f5dc87",
+      "statement": "The IRQ handler at 0x51A0 sets DS=0x1000, SS=0x2000 and ES=0xF000, reads SIC PENDING, services raster before timer, writes one to clear the serviced bit, increments the SIC counters and returns with RETI.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth_nano.asm#L15493-L15530",
+          "version": "repo-lines-v1:sha256:9228cbadb04629c8e1bbce70d74e95123278bf11b2581f8b9759591a81a290ec:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ1YzVlMjk1ZTlmM2VkY2JmZTZjOGVkZjY0NTcwMTAxZGE4ODg3ZmY0MDM1ODI4NmIzNjE5ZTAxNDdlZGQxNTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ3YzEyMjY2YTFkY2QzZDBiOWJhODdiNWU5NDdkMjBiMWU0ZmEwMTUyYTdjYzhhZmUwZTFhMTU3ZWNiZDRlYjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM5NGNhOTNjYzEzNjUzNmFlZDhmZTJhNmEwMjNiYTM5NWYwMWYxZGE1ZjU5YTZlNTZkNDljMWY0MTFkZDZjOTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f924bf8ef3c34c7b84787c7d5b0a6198",
+      "statement": "With D16SEG the return stack moves to 0x2FF0 and the dictionary starts at 0x5800, and the boot script gains config-flash slice words built on the SPI port.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth_nano.asm#L3143-L3175",
+          "version": "repo-lines-v1:sha256:c9a6b1fe1ffc28757a98178df470c5654dbf80e4bf2dc49ecab6832f7be11dc1:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyY2YwNThhZTk1Y2VhZjg1N2IwNjMwMmJlZmU0MzNhMzc2NGQ0Y2Q1NzQwZmUzMWM4MGIwZGIzMWI1NzYwMDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlZWI2ODI4ZTQzMDQ5ZDA2OGIxMzdkZTJlNjhlMWQxMzE0ZDI3ODlmYzZkYTdkNTczNTU5MmZiY2RjNmJiZmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwZGFhODViZWQwMDIxZTZiOTY0ZWQ5OGFmYmZkNTA4ZjM2MTY5MDFiYjgxMzhhOGYxNzcyNTM0OGI3ZTE2NjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJiYWI3MjlmZTQ5NWM1Y2YwNThiODA2MTVkYmZlN2FlMzdhN2FiMWMwZDhhZDc4MjkxZTQwOTMzZjBjNjEzNGQifQ"
+        },
+        {
+          "resource": "repo://asm/forth_nano.asm#L50-L70",
+          "version": "repo-lines-v1:sha256:adae7073b002f66b9e9d5d28da4f6006618dfaad580b4a53e91914f4418f7ce9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxYTBhMmM2N2ZmNDVhNWNiNTE1MDBjZmNlNGY5MGM1ZTZlOGZhNDMwNzM0NThiN2IxYTljZmEwZWM4ZGNjYmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ2YmM4OWY1YTE0NTkwOWRiMjA3M2U5ZWRiYmE3Mjc3MjBmMDgwYzk1YWM4ODc3ZjdlZTUzZWIzYjcyNGE2NmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI0OWQ0MzczOGIzYzBhMzViNDEzM2ZiMmE4OTc4NmU5ZWM5YmJjNzJlNWYxYjY3ZGIxMTg1ZjY4OTY3ZWIwZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI2OTg5MjJhZGEwNGNjODBhNzU5Zjk2MGEzM2NjYTRmZDdmZGFmZDNhZTdmMWM0MTQ3NGFhMmY2Mzk5NjQxNmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4c4bef257d424d4794a405c57d31d52f",
+      "statement": "With D16D the fork adds a gfx BIOS call and gfx word, and the tile writer composes text cells from the palette pair and glyph address held in text_attr.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth_nano.asm#L1338-L1345",
+          "version": "repo-lines-v1:sha256:ae5a8531436be351ea02627157dd82d06c895be1631c290d977f3c0361c26efa:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWQzNDk3OTA5YmRmYzEwZDFmNGMyYmUwYTNmMzZkNjA5NGIxZWEwOTcyOTE2OTE5OTUyNTk5OWZmMWFiNGM5YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzIxNjY3MDhlN2U3YjQzOTY1NjlmMjZkZThhYjI3NzVlNTc1MGFiMjliZWU5OGIxYWJhMzA5MDdjMGUxMTNkYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmFjZWUwMmU1ZTkzZjNlMWMxNGViZjNjNjgzMjMyNzEzODlmOWQ1NWMyODI4NDI5OTcxNGM0OGFjZGEyZGIzYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWEyY2FkYjczNWM2YjBkNzFjNDQ2MjEyZGEzMTBkYWNjZjM4MWIzOTAxYTkzOWRjYjM4N2JlNWVlOTUyMzFjOCJ9"
+        },
+        {
+          "resource": "repo://asm/forth_nano.asm#L1726-L1732",
+          "version": "repo-lines-v1:sha256:7674cba3aeefd7ab31110603af34c600175b70f1459f82fe31630bf9204db970:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZThjM2FkMWMyNDhmNjYxZmJlYTVhMzdlYmFkOTM2ZWRkYzQ2ZDRmZjUzMjM1ZWYzOTBlZmQyODM4NjZhOWNlYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODYwZmUwNmFiNDE0MjY1NzBhNDBlZjFhNzg5NmY1NzBlNzFmOWIyM2YzYzYyZTc2OGQ4NThjMGUxYjBlNjUyZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmJlZWE5MmU5NWJkODViMWEzMWEwNzA2MWI2ZjM0ZDlkN2NmNWYyMTZmYjJjNzYyZDBjNzIxZDU0ODBhNGM2OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmY5ZTU0ODQwYjVmYzFjZjNiOTA1ODViZjhmZWI3N2UxZTA3NTNmNTUxMDkyMWE0M2JhNzVjMmVjOGEyNGNmNiJ9"
+        },
+        {
+          "resource": "repo://asm/forth_nano.asm#L3097-L3103",
+          "version": "repo-lines-v1:sha256:aea23d88b25c3850173622e379c26e903e9d1105363c1583d2cdb629bae5ceb1:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTRjNmRiMGRkNDcyNzcxN2FkNjUwNTg3MTU1ZTgxYjRmMGY2Y2FmMjljZTRkMDE5N2MyMTJiMmU1YzQzZDA1YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTJkMjBmNWQ5M2ZjODI4OWRhMGNlM2U4N2U3MTVhYjUzMjdmYTMzMGNjNmQ4Zjk2NDcwNmM3NTQzODUxMzIzNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzcwY2Q1MGMwMmVmNDc4MDgxYTFiODBiNDQ0Yzg1NTVjNzBhYmVlZTQ2ZTM4MWM2M2ZiN2IzNTBjMDE4N2RlNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGM1ZjYzNmU0NThmZTc3YjZhYzc3MzI5Zjg2YTdlNzY2OGI0NGU3Y2IwYjAzMDI3NTkzNTg2MmRlYjc4YTAxZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_27d3cf0d456a4b378e77e78b9b3ee3dd",
+      "statement": "tests/forth.test.js is the behavioural REPL contract: it boots the JS core, types into the keyboard FIFO, reads the 80x25 screen back, and pins echo, prompt, results, errors, recovery, arithmetic, control flow, exceptions, see and the search order.",
+      "evidence": [
+        {
+          "resource": "repo://tests/forth.test.js#L1-L30",
+          "version": "repo-lines-v1:sha256:fa0b93d414f4ae971e153bdf16de022e7a062da29e3a52c422248e84fe6039d5:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkMzFmOTdhZTk3ZTI5MmRlNWNjMTFhOTQ3ZmFmMmZmZjQzY2ExMTdiZWVlNmEyMzg2NTNhZTE1N2I2NTRkYWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwYTc2OWIwOTQwNWE5YWJkYmViYzYzYTRhNDZlNzdkNDI3YmM3ZTFkZjczY2M1NDkxNmIyNmFhZTQzMTEzZjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwNWM5ZmMwODgxOTg0NzU2YmU0ZjA4YTA2OWI5YTk0Njg5ZmY0MGFlMDAxMmYxOGYwODA5ODMzNGZkYTRjZDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5ef5e53bc5c54a9ea2885f762540e6b6",
+      "statement": "tests/uart-kernel.test.js assembles the same source with CONSOLE_UART, boots it, feeds the UART RX and checks the ESC[H/ESC[2J/ESC[3J preamble, a typed line, backspace and a colon definition through SerialTerminal.",
+      "evidence": [
+        {
+          "resource": "repo://tests/uart-kernel.test.js#L1-L35",
+          "version": "repo-lines-v1:sha256:0c29e8b589a7f58c45f164471e3034c3835d1f83d40ca576fba583958b9f1582:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZkNTAwOTk0NGQ3NzQ0MzE5OWI3ZjEyMmFmMzBhNDhiMjIyNzhmNTUxM2EzNzQ4MTg2OWUyMDVmYTRmNjRmYzYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJhMjU1MjI5NmRlNzUxMTI5NWIwNzZlMDk0YmE1ODc0NjI1NWJiOTNkMTU4MjdjYzQzMTRiZDAyNTA5MzYxNjcifQ"
+        },
+        {
+          "resource": "repo://tests/uart-kernel.test.js#L60-L96",
+          "version": "repo-lines-v1:sha256:a94ae38f53206b5470c73433d842803cb2ae5dc3714dc0136119bf82817552bb:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkMjA3OWE4Y2I5MWUxOGVjM2JlMmE4M2ZhNjQ3ZTE3NTU1YTU1NTdhOTBiZDlkYThmZDU2MjdmZDEzNTVlNmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ0MzYyMTJmMmUyMTcwYmU0ZTRjOTkxOGU5YTIyN2UzNDU4YmJlNjM1ZWJhN2FiNmE5YWVkYzYwYWJmYTNhZjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.2",
+    "at": "2026-11-01T09:36:37.731Z"
+  }
+}

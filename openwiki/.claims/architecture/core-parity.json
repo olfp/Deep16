@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:bc7148ea7f044db1891675c7109e076971391b6c92fc00c6a1137b93417adcc7",
+  "claims": [
+    {
+      "id": "claim_7a4e54f3c97645a1bc4342b3ed284575",
+      "statement": "The JavaScript core is the golden reference and both the Rust/WASM core and the SystemVerilog RTL core are treated as ports held to its behaviour.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-RTL.md#L1-L5",
+          "version": "repo-lines-v1:sha256:7c167539b0fa5e84510082ce084fe3b93f909d32c0f546e53cbc63150f7e4cfb:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDRjMGE0ZDg4YjczNDgzZDQ1NjE1YzQ4Yjk1NjkyNGQ0M2ZlNGI2ZDk3MDk2M2ZlNDYzYWVkYTUyZTc4MDQ4NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTI4MGQ5NWMzNmRkMzI4ZmNiY2VhNDAzOTA3ODgxODdmZmJlMGY0YzEzZDA4ZWM4YmQ1YzRjNWRkMWMxOTg0ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjM4OTI4NjliM2ZjZjNmNGE4NjgwZGIxMzU4YThlNjAzODBkMGJmMjMzZDViM2Y3OTFkZjZiMmNkNGU4NjI0YSJ9"
+        },
+        {
+          "resource": "repo://tests/rtl.test.js#L1-L8",
+          "version": "repo-lines-v1:sha256:bd59fe1df0d9c4510e3d0a7f752cbfb008d9c6cfb15d4294787b02ddaddbc949:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDQ2NThlZDViNzBjMjg0Nzg2NTRmYmIxNzZiMDM0Nzg1OTA5ZGE2MTQzZTI2Y2YxMTM0MThiNzc0MzYyZTJjOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQwZGJlODQxOWU3NDAyODE5MmRiYzAzNTE0NDA4M2U1ZTRkZDZmZDg3MGFkYjcxOWJiMThhYWM5OWMwOGY1YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGU0MzIwZTdmZTY1OTZmYmViNTVjN2Q4NGUyNTA2ZjIwYThiMjJmZjE1NzBjOTY1Y2Y0NzU0ZTliZDg4M2YyOCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_17858aa5378e499bad2db8f0dd747746",
+      "statement": "The three-way parity helper compares R0-R14 plus PC, PSW, the four active segment registers, and a 25x80 screen window at 0xF1000; it excludes cycle and stall counts.",
+      "evidence": [
+        {
+          "resource": "repo://tests/rtl.test.js#L36-L70",
+          "version": "repo-lines-v1:sha256:db0f943de86fb3d85bd5ac4bc3447bfe47e717245cebea15e865f7060ea90722:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiNTVmZWNkYzViOTkyMjcwNjk5YzU5ZWViMzY4YjVlMGZlNTEyYjY4NDc5YzUyMzM1Njg4MjcyZjE1ZmE1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQyNjVlMjQwZWFmNTZhOTdjNjY2NDAyODc1OWJkZTMzNmYyYThjNGZmMThhNzc3OWM0YjMxYzZjZDY0MzY3MTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIxZjEyZDQ5N2JlMTM4YjliNWE5NGJjNTM5OWU2Y2U3Mjc3M2NhYzgxZmUzZWM5ZGJhYTJiNmJiOTRkNjQ2NTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f832d5d864774e2fafbc6ecd02181a84",
+      "statement": "The test helpers load browser scripts through Node's vm module and expose runJs, runWasm and runRtl with a shared result shape, including registers, psW, segments and memoryAt.",
+      "evidence": [
+        {
+          "resource": "repo://tests/helpers.js#L145-L184",
+          "version": "repo-lines-v1:sha256:54a58f9e4d0b52eb772965ab121272eedc0d3613a15edeb728528dd8f5e9a818:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhYTE1MTZmZjdlY2IyNjY5NWUwZTcxODc4MDJlNjgwZWY3ODRhNmQ1YzJlZDgwOGMzZThmOWJiMDhmMDQ0YmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlhNDBlZjlhMjM3NGU1YTNhZjMxNzQ0ZmFkNDFhYTEyODg4YjJjNGExYTFjMTZiOTc2MDk1MzIwOTBjNTI4NzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlhZTgzZjIyNTEwMWZlMTQzZWNiOGQ2Y2JjM2Q3NzEyYjQ1OTk4NzRhYTczZWM0NDRkOTc5Y2VjNTdmMDEyMzkifQ"
+        },
+        {
+          "resource": "repo://tests/helpers.js#L28-L40",
+          "version": "repo-lines-v1:sha256:a869488f9ced56de82c1804a6a42b737c0e9627b2cb06462e47c8a08dc083fae:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI0OWY5MTFkMjAzZjRkZTZlNmU2ZGIwZWQ2ZmJmNDE1YzA3NWU3MTJlMTk1NGNkNzdiNzYwNDZhZWJkMjNmYmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJiM2IzODdkNGQxNTNlODYwNmFjMzBjYzk5NmVjYWViNWFiYTdkMjk2ZWUzNjcwMzQzZDhjNDc5MzhiMGU1Y2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMxNTBmNzY1ZGRjZjM0YWJiNDY2MzBmNjA4YjlmZWExZjA2N2UyZjVkNjcyNTQ0NzdhM2Q1MThlMjViYTVkOWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0e50552056f442ac8163decfc6640b5f",
+      "statement": "The decode sweep executes each of the 65,536 instruction words on the JS and RTL cores once from a normal fetch and once from a delay slot, comparing full machine state.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/rtl_sweep.mjs#L1-L8",
+          "version": "repo-lines-v1:sha256:a3b66355e53b085b3ac88c60156554190232bd2cd41ca1a15acf80339ce6cc3a:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjY1YzI4ZjE0ZDFkZmQ4MTcwYzM1OGNiNmM3MTk4N2ExOTI3OTc2NzQ3ZTY2MjFhZDQ4NjhmZTYzNDhhZWY2OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTFhMzdlZDgwM2ZjMjM1OTE4MjgyOTk1ZjYzMjZjZWYyZjY2NTBkYjc0MmE3N2FkODM5OTNmYTUwOWE3MDFhOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjJkMTlmNTZjZDJkNDZiMjM2NjZmN2FkY2I1MDVhZTRiOGY5MDI2YmNlYTFjYmFiZTE2NzliMDJmYWY5OTc4MiJ9"
+        },
+        {
+          "resource": "repo://scripts/rtl_sweep.mjs#L224-L232",
+          "version": "repo-lines-v1:sha256:c649b71bcc35d1dc01ad9b10f2a5cc6cb7e523d3175f90f14a81e503afcaa58f:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2ZiMDNmYTA3MWVmMWQ4MjExNjBmNzYzZWNjMmI0M2Q5YWRlYzdmNzMzZDI2OWQwYzc0MGI3NTNlMzI1NjkzYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzAwOWM3MjkxOTExMmMzNTZmZDRmY2JjOTU1OTYyYjRhODFlNTgxNDRhMTFiZTdiMjFkZmY1ODQ2MGU1MDQxMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDI3OWI2ODA1MjBlZDUyNmRjYzRjOGFhMzczNTI3NTkwZTI4MTk1ZTQwZmJlNjEwN2UxZTViNDk1YTQ1NzczNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTEzNGJjODExODI3ZGY1MWMzNTJkMTZiM2IwNDdlY2RkZGU4NDZjZDdjZDRjMjIxZWI4YTUxYTk5YTg0NWUzZSJ9"
+        },
+        {
+          "resource": "repo://tests/rtl.test.js#L462-L470",
+          "version": "repo-lines-v1:sha256:1a6c866277198aa90f83056eed00c5d23c378f43b0e7cf568b186b7b46aa2a12:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWIzZmJmNzcwMjRlYjczODhhNjdkOTM4YWJmYTI4NTRhNWI1NGZmOGU5YjVjNjcxY2EzNTA5YTQ2MjNkYTJmMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzkwZWExNWRkYjRiZjE5OWM1N2EzNGY1ODVjNDMxMDM2MjE2ZjhmZjlhYmQ1YjdlOTk4NzIyOGIxMmViOGIwNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYmMwMjljZDNlZTQyM2M3OWQyYzk1ZGRkNzMyZDlkOTM4MGM1OTBhZTVhOGEyYjI4MmY4MTk5OTc4NDc2MWVlNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTVjMjA1MGI3NzIwYmY5NTUxYWFlODk3NjFkNGE5OWE1NGQ3ZDk0ZTZkNGYzZjdhMzczMWI0MjQxMTRmMGFlMCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_685ac4f25b674458ac14c4ea75fe7af8",
+      "statement": "The full sweep uses four register/PSW seeds and two execution paths, totaling 524,288 word executions per run.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/rtl_sweep.mjs#L224-L232",
+          "version": "repo-lines-v1:sha256:c649b71bcc35d1dc01ad9b10f2a5cc6cb7e523d3175f90f14a81e503afcaa58f:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2ZiMDNmYTA3MWVmMWQ4MjExNjBmNzYzZWNjMmI0M2Q5YWRlYzdmNzMzZDI2OWQwYzc0MGI3NTNlMzI1NjkzYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzAwOWM3MjkxOTExMmMzNTZmZDRmY2JjOTU1OTYyYjRhODFlNTgxNDRhMTFiZTdiMjFkZmY1ODQ2MGU1MDQxMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDI3OWI2ODA1MjBlZDUyNmRjYzRjOGFhMzczNTI3NTkwZTI4MTk1ZTQwZmJlNjEwN2UxZTViNDk1YTQ1NzczNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTEzNGJjODExODI3ZGY1MWMzNTJkMTZiM2IwNDdlY2RkZGU4NDZjZDdjZDRjMjIxZWI4YTUxYTk5YTg0NWUzZSJ9"
+        },
+        {
+          "resource": "repo://scripts/rtl_sweep.mjs#L29-L42",
+          "version": "repo-lines-v1:sha256:1ffa5b277a24963b0f9c9ea321bb553f780e7c05f7d95332830754a64db15068:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2N2U0ZjU2NDc0YTZjNzdlN2Y1YzM5YjkyZDRlZGFjMDFhOGE0MjcyNDY2MTA3ZGY3YmI2OWJiZTI2ODUzODkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmNGJkYTkwNjU1OWUwN2ZhOWUxZmVhNWI4M2M0MGIxMjViYTI3YWVlNDBkZDUzZGUxYjJjNDQ1ZmVjMjc0ZGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkxNTE3N2EzYmZjOWQ5NzczMmQ2ZjU4MzRhODc4NjZmNTM3MWYzNTcxZTM3ZDNjMjUyNzFlMWNhNzA1NGJmMzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJkYzRkM2IzMTdjYmUzZTMyZWIzMTg1ZjMzN2U0ZjRlMjhjZjg4ZTc0NjdkZDYzYTE4MjY5MjBiOTgzN2JlMDUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_49c58635f16649a4a37ebc970317ee39",
+      "statement": "The sweep tracks and restores every JS store so one instruction cannot poison the next, and verifies that the behavioural core actually executed the word under test.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/rtl_sweep.mjs#L56-L72",
+          "version": "repo-lines-v1:sha256:09f0474ebb828a304651f77fabe732b541420cea4b0f497eedd93f51d166ef80:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmZDY5MzU4M2IyN2ZmMjQ4YjhkOGU4ZWMyMGFkMGY2OTg5NWZkMmYwZjIxMGE4YjNiMjVhYzRjYjMzMmNmNjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE4ZDYzOGZhZDE2MjhlZjBjMDU2OGExNzA3MmVmM2E4ODIwOGZhYzFmN2Q4YWE2N2VmYTNlNTkwOGNhNDVjOTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNmODMzOWZkZmMyODAyMDU2NTQzM2ExYThhYTYyOGUwNTkwMzBmZmIxYjkwZDQ3NDM1Mzk4Y2FiYjhhMzU1Y2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU3ODk0NDhmZjUyYWVmNWIxNjYyY2MwOTgxM2U4NmEyOTFhZWRjNTliOGVhOWVmM2MxZjIzMjkxN2EwNjQ1OTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_aba1d1c4b1f048fbaec22416ca2f970a",
+      "statement": "The lockstep trace tool steps the JS and RTL cores together and reports the first retired instruction whose machine state diverges, with optional keyboard input and per-step dumping.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/rtl_trace.mjs#L1-L12",
+          "version": "repo-lines-v1:sha256:dae2d7ced5f1665d6c3989b2fbaf99424cdcc831c9b7b2bd62cf1962e7b92dd8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM3YzQ2ODQ2NzkwOGY4ZGIxZjdlNjBmODdlZTYzYjAzOWY1MjZmY2UzOWYzZTViYjk3MWRmN2VlYmJmMDU4ZDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZkMGNiYzM0OTk3ODNmMjJiM2Q5YmI5YTBkZDljNjAzZTczY2Y4MDkxZmRiNzVhMjgzZDllZWY4YzAxNzkyMGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2ODY5ZjFjNGRjYjViMzA0M2ZiZjUxMmJiNjNlNzIzZjNjNjYxNGNjMzkwNWJmYmNmNDkwMjUyYmUwMjMxNWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_92455cd4b9894f7b8d82244475f0e363",
+      "statement": "The WASM state-mirroring contract requires init, load_program, set_segments, set_psw and set_registers to resume execution at the mirrored PC, and set_registers routes element 15 to the active PC selected by PSW.S.",
+      "evidence": [
+        {
+          "resource": "repo://tests/wasm-state.test.js#L1-L5",
+          "version": "repo-lines-v1:sha256:a5cbea7ef46c7ce8d9bebe93b2eaad321aabc7d9cd1910565ce81e4b62b6d5f6:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDNmNTliNWExMWI2OGUyNzRkZDc5MDgzZjkzN2I1ZDYyYTIxNjMyMDFiMTY5NjMxMGYwMDk0YTA5NTNmYTFiMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzczZTg4NDIwYTNiMGQ2MWQxMjdhNjIyMTI4MzU2ZTdhM2I2NmI1YTNmZTUxY2IzZjA0MWQwMzZjMGM3YTY2NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWZkZGFhNDE0YWI4NWRkZDQ2MWQ4MDRhZGMxMDMzMDJhMjM2MjU0YzQ3OGE2ODc3MTgyMTg5YzJjN2RjNzFjNyJ9"
+        },
+        {
+          "resource": "repo://tests/wasm-state.test.js#L43-L67",
+          "version": "repo-lines-v1:sha256:313d1562f1e17691d8ea26012cc34db93978f53e12723493220ad7e0bf38f3b8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE0ZGFhYWVhZmY2ZmYxMjM2MzllNDMzN2ViMDliOTFiM2E3ZThmMzg1NTAxMTgyNDQ0NTViMjU3M2U0M2M0Y2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4YzQ2NTc3YTg1NmRkZjk5YmRhMTI0YWI2ZjI5YmQ3ZDg5YTUxNGYwOGE4YWY3ZDMyOTEwZTA4MjZlMDdiNGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4OTdjZmI2OWJhNDc5Nzk4YTc5NGE5ZTAwY2I4MzAzMGM4YjNiYzQ4ZGE2ZGFjMjU1Zjk2MzcyZmM1ZjAxZDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3eda138c6ef149d6b634ea538b225815",
+      "statement": "Console parity assembles the Forth kernel with CONSOLE_UART and compares the terminal grid and raw transmitted bytes across all three cores for the same typed input.",
+      "evidence": [
+        {
+          "resource": "repo://tests/console-parity.test.js#L1-L15",
+          "version": "repo-lines-v1:sha256:3b3875067923a49ad0f6a28307688566e7119fc048790273ef1da0e638f848c8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2NjExZTQzMTAxNjAyOGZkMzUwMjM3YzM4MTkwNTA3YzY5YzgwNGYwZGE3MmJiYTQ2YmIwMGE5MjVhMmFkZDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0ODEyMDk3MmIyYjljM2I2ODAyODkzMzM1NzhlYTFkNDE2MmE1NzdjMGI5ZTA1ZmUyMjA3YjA1NDkzOTU2ZjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMxMDVkMmFlZjk2NmUxODBmY2FhZjc0ZGU5YzA2NWVmYWFlZTYxMjUzMjY4YWVlYjA3YjVkNmQ0NWNmZTZmZjUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_339e3e61f3f34c819baca30c6dd5ca18",
+      "statement": "The Rust/WASM decoder now treats FSH (0xFFF1) and the 0xFFF8-0xFFFE space as no-ops, matching the JS and RTL cores even though the RTL documentation still lists them as open WASM divergences.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-RTL.md#L211-L225",
+          "version": "repo-lines-v1:sha256:0f42d1b35d4c222a58f73509b851aedb40b6f70948f290460e526b561eb9e51f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkOWFkNGU0NDFjMTFjMWY2Njk5ZGNiODMzNTU1YzRjODFlOTlmYzZmOGUzYTdmYjJmYmVkOGM2MWYwODMzZjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJkYmQxNmM1YjliOWNhNjNmOTE5YmE4MzJkYzI1YWEwMDllMGRhZGY5OTAzMmFhMTZlYmY0YjQxNTA1NzUwMzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRmMGZmY2JkZjYzOWI5NGUxYTdlZTAyY2E3ZDUxMTk5N2NiNDgyYTU1NGYxMTFiMzA0ZjYxZjUwMDdlZmY1MjUifQ"
+        },
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L1195-L1200",
+          "version": "repo-lines-v1:sha256:012402b2fcefbe1fe7e07c560acd04142c0b4126cc134968ea3cee6187a9de60:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWU1ZjcyZjRjZjU0OGJiYTQyNDA2YmE5NzMzNzI3YzU2YzBkYWE3Y2IxNGQzNWI2NmVlOThhNWIyYzBjZDlhMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjliMjk0YTAxZGM4OWZmYzZlZjAzZjljMDA3MTZmMDVlNGZlOWY5ODRhYjg2ZmNlNzUxZWM0NWFiMDFkNjE5ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZThkZDQxODRjYjM3NGY0NGNhZTYyY2UwNTRlZTg3YjhhMWFkMjY3NDI4OTcyM2ZmY2EwYjFhMTg0NTAxODhiNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzE5ZDgwZGRiZWRlNjJjY2NhNmFmZDFkZTRjNjkyNDQzZWQ4NDczY2MwYmRjYzEyMjgyMTUxY2FhY2RiZmNkZiJ9"
+        },
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L938-L943",
+          "version": "repo-lines-v1:sha256:2d8af361980d596c8e4f53e375a5e8156c0f4374c9efffcdd8cf7bd3df07c329:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDg5ZmVlY2E1MDliYTZkMDFmOTgyYzYwNTYxMzRmODY4NGZhMWM2MWI0MWNjNWViZjM0OWM2Yzg3MTI2MzQwZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjJhMjI2YjhlNmJlNmJhMTQ1Y2M3MTgyOTg5OWIyYmYzZWRjMjQwMWFhMTRmZGY5MGJhMjIwNjJhNmMyYWZjYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTZmOTk3ZjU0ODk1NDU0MTQyMDczNjgzMGJjYjU0Mzc3NDMwZWE5OTAxZDU1MjE5NmE2NGUxYTdmMTIyNWQwNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDBiMzZlNDRlMDUzNzE3NTZjOWQ3ODJmZGFkMDZkOGU4ZTkzYzY2OTQyNzZkY2FhOWI3NTg0YzI5YjUyOWVkYiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_84d8cc98e28a46dfb35e4e0dc69a2e4b",
+      "statement": "Hardware-interrupt handling exists only in the JS core; the Rust/WASM core and the RTL core have no equivalent entry path, so externally generated interrupts behave differently.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L250-L253",
+          "version": "repo-lines-v1:sha256:2469999755e72a1cb4a94efecd61eb465780de1fcd67a25bdc7b899663c17d6d:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWNmOGIyYmE1YmE4MzViMDUzNzNkNTY1OGE1Y2ZlY2Y1MzU1NjMxYWIyNWNmODlkYTkyYzY3OTlhMDQ1YTdiNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGMxOTg0YmNlYzE1ZWNiYjk1YjkxODExMDJkYTRjMjRlM2EwZGU4MjRiYWE4NTg3MWIxNDFhNDJmODVhNTdiNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmJlOGVjOWQwZGQ1NWE1MWZlMjBjYzZlZjVhNGYyZWIzODVhMWFlMjZiZDY3OGUyOWM3YjM4ZDAyNjc0YzUzMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWQ2OTc5NjJjNzM3NDZhNzdhYzYyZTMyODQ4YWUxMTg2OWVlNjczNDJhYmM1ZjE1NDNiMWU0MGE1ODQ0MDMwYyJ9"
+        },
+        {
+          "resource": "repo://js/deep16_simulator.js#L1455-L1470",
+          "version": "repo-lines-v1:sha256:4cbad97b1f3448db6cadebdf19e208ca0c6312e275d5cac17dd136bae1a031a5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2MDhjNjRiMDQxNTExZGRhMzY3YzE5ODZlODRhNWVmNmVhZjgzNDA2ZDgyMDJjNTg2N2QzZDFmMjZlMzNjMWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkZWJhNTEzNmUxYWIxYzVhOTk5MWY4YTRmYTg1YmNlZWYzNGFmODk3ZTRkODk4Yzg2MzYxYzllMThiODdjMjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVlMmI5ZTIxZmRjODZmYzJjMmVlNDQ3MjE4NWQ2NzY0NjdiZGQxY2JmMmUyNGI0ZGM2NDRhYjFhYmIzMzI1NDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA0Y2JiOGNiYTU2ZWJjMTYzZTc5OGMyNTAyY2Y3MThjYjljZTk0MTkxNmRiYTIyYTgzN2EwYjA5NDA5NTJmODQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_830c8d1893dd425999a3b6a2c10e945f",
+      "statement": "The IDE RTL top level instantiates no cache: it discards cache-flush inputs and drives hit, miss and penalty counters to zero, while the PSRAM board build owns the real cache.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_top.sv#L327-L355",
+          "version": "repo-lines-v1:sha256:5a225ca670d9c85689acdd5aec6d9027dbf280afbeb3bd6306c5a599618157b8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmZDUwNDA2YzdlYjBmYjlhNTJmNDI2OGU1YTYxYWM3ZTMyYjEyNWUzYmUwYTE0NWIzYmU4NGNhNmRiMTEyY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkMmY5MGJkMDM2ZWNlZWIyMDQzMWQ3MTA5MDIyZWRjNGIwMDljZDhjZDQzZTFhNTYwNWNmODA3ZjJhMDUyNWUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFhMzUyNzUxMTg1NTU5ZDdhZGVkNmJlMzNkOTE3YTI3YjE4NTcxMmU2MzBiZGI3NzBkMTBiNDQ2YjlhYTY4ZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI2YTZkNTU0NDczMTFjYjgwMTg1MTZkZmE0NWRmNzkwZDQ4NGViOTkyZThjYWMyNWFkMjgxOWVjNmJkZWU4NTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7d475eab0af14c3fbe6532f2fdeccd3e",
+      "statement": "The RTL top level implements a 16-entry keyboard FIFO that drops pushes when full, which is why the RTL test runner paces typed input by kbd_available.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_top.sv#L148-L156",
+          "version": "repo-lines-v1:sha256:f71e9cdd8ea465154335ee1b0d8366fdc31478500d1346caaafd93223da5a2b2:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDUwNTRkNmZmZjYwYWE3OTRmYjcxYTA0MTBlM2ZhNzg4MDhmMzI1ZGE4YzQ2NWY5MDZkNzE0NWFmOTM0ZGIyOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGMyMjA5OWRiZTZjYmE3YTM2MmQ3ZTU1ZjY4OTY2NmMwODA5NDdlOGZjOGJhNjY1MTA0OGVkOGMyYjBjZmQyZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTFkNDgxN2ZlODUwNGM0Y2ZlMmZhYjA1MjYyMzI0MGYzNjQxZjg5YzIzZWVmNzcyMTQzYzdiNjA0ZWRiMWJmYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWQxNmY3ODAxMTQ1YjA5NGNmMWY5NTg0OGIyYzk0YzljM2Q5MzRjNzY2YjE5ZmRiZmIxNmJjMGU4MGI3MzU3NiJ9"
+        },
+        {
+          "resource": "repo://tests/helpers.js#L154-L167",
+          "version": "repo-lines-v1:sha256:7eae8dab7d9c293145e58efaa9c1a7175dd6fba3073131dca87ecfd552c12c15:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExOGQ1OGUyNDVlMGJmNzNiNzdjNzVkZmU1ZWRhYTBjYmYxMTgyZDE4Nzk4MjhjMDVkNGU2ZDM0ZTZmY2ZlM2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNmNmJiMDUzY2VkNTQyODk2M2I4ZTA1N2QyMzFjOWY3NWE0MmVmMjE1MWZmMzUzZWJlZDQ1MjczZWY1ZDE2ZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4ZjI4Mjk5ZDA2NmYxZDJhNzdjOWZhMTZlZGU0MjYzMzZmYjFiOTEyZjIzZjA5ZTliYzUxNTFhY2RlMDliMjgifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.2",
+    "at": "2026-11-01T09:36:37.731Z"
+  }
+}

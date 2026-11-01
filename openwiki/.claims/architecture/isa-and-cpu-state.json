@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:72e649a0471e36035a41b46e5b733f5065f7ad09e90f3d769081254fe92ca64e",
+  "claims": [
+    {
+      "id": "claim_6de37b01e70d4dc5b82d54e1ef5c9672",
+      "statement": "Deep16 uses 16-bit words in a 20-bit address space, computes physical addresses as (segment << 4) + offset, and resets with CS=0xFFFF and PC=0 to execute the boot ROM at 0xFFFF0.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L21-L40",
+          "version": "repo-lines-v1:sha256:14eedeb17501d52487ae8ef4598e286e2aa22d5d9844f611eda307540ad5d0ce:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyZDk0NWY3MGRhYzQ3ZDYxMmQwMjBhMjhkYWI3YzlhYzJkZTkyMTBkM2RmZGRiYjM2Mzc3YTI1NmQwY2NmMDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyYmVkOGFlMTgzYzkyODEyNTI1MDQ5YjlmOWE5YzNjYTc2Y2NlYmY5YjhmYTlmYTk4YTAzNmJkMDFmZGMyZGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUxODM2N2RiNzllMDA0YWJiOGM1NDAwZmIxNGY5YjM0ZjI0OGNlYzNhYzJmMzEyZjM0M2JmMTQwMjYwZGQwMTgifQ"
+        },
+        {
+          "resource": "repo://doc/Deep16-Arch.md#L42-L70",
+          "version": "repo-lines-v1:sha256:f21f467e1bd6f387a6391ef1ac6707374bb612195b522ab6782934dd0e0d4792:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZmZTQ5YzMyYzBlNDFjMmNkY2IxMGE3YzVkZmFkMjQyODU4YTY5ZGY5NmExYjk3MWFhY2MxMzMwNDAzY2Y3MjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxMzM2ZWY1M2RiZWYzZDM0ZGI5ZDg3ZWZhYmJmZGJlMGQ0NGVjNTVhODU0NjU3NDg2Y2Y3ZGQzZjYwNmMwZDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU0ZjJiMWM4MmVmMThkOTBmYWI1MjRlOTI1NmFmN2Y0NDRiZmQ1ZTQ5ZjhiZTBmODkyMTJmNGJiYTYxNzJjNWQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cf1f9d70f10448d68253b2010bd26d40",
+      "statement": "LDI always writes R0, and R15 is the program counter; a MOV whose destination is R15 is a jump with a delay slot.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-Arch.md#L44-L57",
+          "version": "repo-lines-v1:sha256:9fb45f8e0cd76c4c782aa589ab7683449d6e61f0231c42beed4787b4e9b46929:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJlYzA1NzU5YTcyODhiNWMxYzhmYmZlMjA1OTI2OWNmZDFhMzU3MDgyZmRhZDE5YzRiMmNkZDcwZjhiYzA2MDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4YTkzZDM3YTk3ODgyYjJhMzQ2ODMxOGY1NWI5NWFiNjdlODdlN2Y3NGFlNTg5ZDY5MmNkYWY0NTZmNmJlZDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBjOWMzYTdjY2RlZGQ5NzM1NTI0ODQzZDJmM2ZjYzdkNWZjMmQ2MjM5ZDBjNjg4ZmMxMjFmMjllZjJhYjA0YmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkxZGNmY2UyMTIzZWI4ODg3NTU2Y2VhNGZkZDQxYWVmNjg4M2I0NjM3NDQ4NGM0ZjMzMmUwZTEzYmQxYmQyMWMifQ"
+        },
+        {
+          "resource": "repo://js/deep16_simulator.js#L969-L1010",
+          "version": "repo-lines-v1:sha256:c27e1547c11cfe884e16dbd1155dabedc2aaec188e66dc9ea79eaef1c94fe93b:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwNTk0NTZhYWFjOTU1MDUwNGQwY2E5M2ZkZGE1YjkzNmY3ZjZiOGQ0N2QwMmYwMTMyMzljOWViODg2NDE2OWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiMDkwYjM2N2NmMmQ2OTIxNDA5NGMzY2Y0YmJhOWQ1ODQwMzE1ODJkYzM2MjJkODBjZDY2MmYzNWVmZTA0OWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUwN2Y1NDA0MzVkNmU3NmEzNWJhYTMwMzVmMTc4MjU3OWVhZjE1YjE1ODBhNzdhNTg0NzcwODUyOTljMjU0NWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc5NzAyZDkzNjlkMTIzNTdhNjU1NGVhZDI1YjJmY2I1MTBjZjUxZGQ1NThjN2IyNGI3OTkyMzczMjY0Y2FmY2IifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_48ccb4a08e764e379b4daa07d34c4bea",
+      "statement": "PSW bits 0-3 are N, Z, V and C, bit 4 is interrupt enable, bit 5 selects the shadow bank, bits 6-10 select the stack segment register, and bits 11-15 select the extra segment register.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-Arch.md#L104-L126",
+          "version": "repo-lines-v1:sha256:a5fa0314ce77531314da2216a5a7e012ad0e9752a572d885680c5174fb5b6443:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3YzA2YzU2MWQ1YzMyNzM0MzY4NTI2OGE0NmIzMzkxZjM5OThlZWU4OTBkMmJlNTFmMGQyMWNjNGE1M2FlNmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjZWI0Y2VlOGUwMjA1Mzc5MjU4NDc5Zjk3ZmFhMTYwMGJmN2NlYTkxYjcyZTRlOGFiNjc0ZWM2OTE5YzczMzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhhZmE4NjAxMTE3NTQ4ZTMzMzFhOGY0YWJiZWVhMmU0MzkxZjlkM2MyOTJjZTllZTZlZmMxZTM0N2I4ZDA2ZjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFlOTkyNWMwOTM4ZGFmODVkYzAzODI4NzFmN2QwMmRhNzhjMTMzZTBmNmNlYjQ0MTZlNWU0Nzc2OGM3ZTgxMDUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_14f38f410782482198487943cd850f2a",
+      "statement": "Instruction groups are selected by a prefix hierarchy from one-bit LDI through 13-bit SYS, followed by reserved FPU/FCMP encodings and the all-ones halt word.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-Arch.md#L159-L185",
+          "version": "repo-lines-v1:sha256:27bee17ddb67ebb68fa044182f6a593fce76f2fa17bc4323e8a0cbc9f16a62c8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY5ZDQ5NDhkM2Q5M2YzMTg4M2YwNmI5OGM5MzgyNjZkYjBkOGZkMmM1MzJhZWZiYmU4Zjk3ZTkzZWNmNjdkNzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY4ZWQzNGRhOWE1YWI0NmY0OGM0ODliZjY3YTdmYTIwZDdmODE1ZDJmM2MxYmE1MmExNjc5ZGUyNzdmNTJiOTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUyMTFjNmJhN2U0YjU0MGNlNDE4ZjEwNTJlM2U2MjU4YjA5NGVlMzZkZWFkZWI2MzQ5NDcxZTAzMDA0MGY4ZjAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d9b38d9d254f40438994f9f7d3ed526a",
+      "statement": "LDI sign-extends bit 14 of its 15-bit field, so it can reach 0x0000-0x3FFF and 0xC000-0xFFFF but not the two middle quarters of the 16-bit space.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-Arch.md#L315-L348",
+          "version": "repo-lines-v1:sha256:8a7dbf5b050d5574648f9ca52b85c2377e718586cabbb98557faf06bfdc58e47:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk0N2Y5MTIwNzAzNGQ3NDdhYmUwODE3ZDhkMmZjNDEzYTg1OTZlNjU1ZDA2YmU0MjhmMzcwZjI2OGQ1NWNlMmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRhYTllNzFkMzg0ZDEyZWU3Y2MzZmYyMGE3NWI5ZWRlZGU3NjliYjI2MjM2NDk0ZTBmNGVjMmU3NzRkNWUwYTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc1NWNlOWUyYzUyZGU5NWVhZTU0MjYwODgyMTY5MWIwM2E2Mjg0NzQ4YjVjODY2NmNkOTYyOTkyMGZmNTMxNjcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2185bc74b54f442b8199e5c493cdd39a",
+      "statement": "LD/ST use a sign-extended 5-bit offset and choose SS, ES or DS according to the PSW stack/extra register selectors, while LDS/STS name the segment explicitly.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-Arch.md#L458-L478",
+          "version": "repo-lines-v1:sha256:650296d963ae7d33fe3d3dda3f6acd759363c6c21c6022fdcc14cf743a9dc961:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYzODJkMzZlNmEwNjk5YWFkNjdlYzI0NzhhNmY1MjJlMTUzODdmYWViYjI3N2IyMTExNjE2MDhjMWU4YjA3MTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM1MWIzYjc2ZDY1NjYwZDZlMjkyMmQzODMxZDJiZDQyODkzYWU4NzVmYTUzYTA0ZWIxYmU3ZDhkN2Q4NjFmNGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU3MzE0MjE0MmJjZDhlNDUwNmYwY2NiYWM5MjA1NzY0YzU2OWY2NTZjNmU4OWExNWI1N2Q4NTBjZGI4MzU5OWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE2N2NkNTc3YTYwNzgzNzY0YzVlODA4Y2UyYzkzODI0OWJhN2Q1Y2ZlNjA0MGM2OWM2ZjgyN2VkY2FkMmI0NWUifQ"
+        },
+        {
+          "resource": "repo://js/deep16_simulator.js#L739-L756",
+          "version": "repo-lines-v1:sha256:8d4da3c203492dc6a3c7929989253aafb716468bb41084ead9b8668277e9058d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxY2UyMDFjYWYyOTVhMWJjZmFhOWM5YmY2OWFiYzliN2M0NjExMGUxMzg5MTQyNmJhZGIyODAwOWZmMzg2YjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY1ZDkwYWRiOGU3OThkNGU1YTc3ZTNiZjhjNTE0ZjBkMTU1YjIyNWU5ZWEwOWE1Yjc1OTlkNzQ0MDAyMjI3NjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ4MWI3Njc1ZDY3NTdiODVkZWEzMzQyZWEyYjAyODY3NmQ3NzY4ZjA5NzYwMzdjNjY2ODAzMDc4YzE3NmQ4NmYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bab6a1688f1c46a58fd96b37334ee79a",
+      "statement": "In the ALU immediate forms of OR, XOR, TBC and TBS the four-bit field is a bit index expanded to 1 << imm, and CLRB clears that bit; AND has no immediate form.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-Arch.md#L395-L430",
+          "version": "repo-lines-v1:sha256:335d6bd7d2b5621b2fc304a1e599e87dc1bb56375e49fe2f51709e93eb9d29bf:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1MWZiMTA3NWEwMWJhNDlmYzZkMjExMjM4MDliYjE3MmZlMjBkMGQ4MTIxNGJlZWJjNzI0NzIzM2VmMTgwNjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkwNDA5NzliNTQxMGU4N2Y5YWIwMWY2MjM0ODIzYzUxNTg3Y2M0NmVkYjNlYWE4NjA0YTE4ZmU4YzEwNzU0MmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUyZWZjZTVkNWViZTk2MDVjMmM1ZDdiMDQyYTY1MWVjODdlOWIyODUzYjJmOTU5Mzk1YmE3MWQyN2RiZDk3OTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjliYTYzZjA4ZDhlZWZjM2VhNDZlZjA1MjUyNTM5Mzg2MmI3ODNkZmY1MGQwZTMxY2Y3ZTI3MDM1M2UwMTM4YTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_692db44453ae47ca9d9759fa30ced331",
+      "statement": "MUL32 and DIV32 require an even destination and write the register pair Rd:Rd+1; division is signed, truncates toward zero, and returns 0xFFFF for a zero divisor.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-Arch.md#L439-L458",
+          "version": "repo-lines-v1:sha256:75e452837578eb693fad47b22a570a498bfffeb238352e1a5a2a994656bae07e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmYWY3YzQ5MmVkYmJkODY5MDMyOTVjN2RjOTY4MTdkYjdhNDI2YWVkMWQwZGJiMjAwNWU1MzFiMWI2MzhmYTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYzODJkMzZlNmEwNjk5YWFkNjdlYzI0NzhhNmY1MjJlMTUzODdmYWViYjI3N2IyMTExNjE2MDhjMWU4YjA3MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgxYzQ5NDY1NTdjZTZjMzBhOTE3M2VkZjllYWQ3YmVmODliMmUwNGVmMTg3ZjExZGE3ZTI4ODdiY2I2ZGI4NTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI4YWEyNDE4NTI1YTljYzRjNjlhYzZiYzQwYWE4MDRhYjQ1M2Q1ZWVkZmNlNDQ2MzhiZWU3NTdlNmU1MWE2ZDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fae847929cb746f2b717ccb0be1c6ffa",
+      "statement": "Conditional jumps target PC+1+sign_extend(target9) and every taken jump, JMP and JML executes one delay-slot instruction, after which the pending transfer applies.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_simulator.js#L1043-L1085",
+          "version": "repo-lines-v1:sha256:2138b133c4dcc5213a640fc0c3d8b86b65b758dfbfe94f9b7f7ba8a86d1d757a:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzNWRkMmFiNzMxNDNjNzM1YTFmYTQzMTZlZmUwYTAxN2YwY2NiMGJlOTk3Y2EwZGZiNDdjYjY2ODQ2YmY0MDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg2NTEzYmViZDQxNzFkODAzZWI1YzgxMWQwYTgzZTY4OGY4MGVmYTRlYTNmYzE4ZGFjYTIyNzNkMGRjNTYzNTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA0ZGY5YmEzODA1NWYxNGFiMmViNmJkMmNlNmVkY2Q2MTU2YzA5ZjYxMWY1M2IyYWRmMGM2N2M1OTBhODcwMmMifQ"
+        },
+        {
+          "resource": "repo://js/deep16_simulator.js#L452-L486",
+          "version": "repo-lines-v1:sha256:a33980f6dc526f782ac9b3ae4ccc18d703b38ce6eef6a59a4a1d16d1f1c31778:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyZGU0OTIzMDk3ZWY4NzFkMmYwYjFlNmNkNzkyOGFkNWYxNmI3MzllYjk0NWY5YTVjNzhlYzE5M2Y2MjcyZDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2YjVmMTg1OTc2OTI3MTFmNzU4NTY2YzA5NjY5NjM4N2QwNDAwMjIxZjFjMDZmZTI4YjMyYzc1YTVmMTE4N2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU4ZmQ1YzNlZmEzZjhlM2FjN2E5OTNiOWZmZTIyNjQzYTRkOGNkMGJjM2Q2NWIzNTFmZTJiYjM4YmI3MjAxYTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ2NzZiZWYwZGU4MzU3YmVmZDc3MWU3NWU1ZjdmMmQxMmU3M2E5ZGUyYjc1M2I5YzRhMzM4ODY4NzZhMDNjZDgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c88b74f31f5b43a6b48fcbaeb3ed8567",
+      "statement": "Only R0-R3, R13 and R14 have shadow copies; R4-R12 are shared between normal and handler contexts in every core.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_simulator.js#L608-L645",
+          "version": "repo-lines-v1:sha256:549e1deddb499bf4d23e0d7eb9c3770439c5bb3f0c81ceef167013191aa453f8:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2NDkwZDNiMzkxMTczM2U2ZjlkYzZmNjAxMDY0Y2JiNDY0M2JkMWUxNjgyZDc5NmVlZTRlNmRlZTY5NGQ0YmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4YmIzNzIzZmU3MmI3ODM2ZTA4ODMwMjNkZDdhYzY3MWQ0ODQxNGI0MzRmNzVjY2Y0NTBjZjAwODFkM2NhYTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMyZjM0NWIwN2IzNTk4M2Y0OTg1MmVhNGZiYTU0OTJlODIzMTBhMjhkZDg0YTU5YThkM2NmODRlMWQzZDRkYzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc0MjZkZWViZWQzNDk5ZGE0N2Y1MTkxZGE2ZGFmZWIwNjRjZWRiYWJlNzEwOTA4MjYzMmI1YjdkZGQxYWM0MjgifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_regfile.sv#L1-L10",
+          "version": "repo-lines-v1:sha256:0f56821d86390e9bf59820a6d534a5f2e7ed10f7009e941fe0b7cc01d57253aa:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUyZmNiYzljNTRmN2FhOGU2N2ZkMTEzMzBjY2JmYTljMjhmMTg0N2Q3Y2M1N2M1M2JiYTdhMzI0MmNhODI2YzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkNGNiZGZlODEzNmZkMjlmZmExMmRiZGMwMGExMDVjNGZiZWJlNDhjMDNlYTEzZTAxOTEwYjJiYThjODM1NjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkzMDJkYmJmM2IzZDE2NGU3YmI1NTExYTUzYWNiODgwM2Y5MjIwYWY1ZmI2MjQ2Nzc3YjUwYzlhYTdkMjA4NzkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_dc8f6a0a8d99409b932dd4f094a7b954",
+      "statement": "SWI and ILL park the interrupted PSW, set the active PSW to 0x0020, zero the shadow segment registers, load the handler PC from vector 0x0002 or 0x0000, and RETI restores the parked PSW.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-Arch.md#L565-L591",
+          "version": "repo-lines-v1:sha256:cd2e64a557426417e44692fc9f84d1f6a073eea81705c8e6a28fb51bdf7a602e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRlMWE1OTc4YTgzOGNhNmZiODAyYzNiNTBhODIwODRjYzg3NGQ5NGEzZjMxYWY0Y2RjNDI3ZmU2YzM0NzY4ZDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY1ODMwMjU4MzE2ZmM4Y2NmYTMwNDVhYmJhOTdmZWZiMWEzZDE3MjIzY2RiMTlkMDExMmFlMzQ3YTlmMjhjYTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRhODQxYTg5OWUyNDdhODIzZGI1N2UxZDZiY2FlZWE3NmEzNTRmMTdmMGNlN2Q2NjU1Yjg3MzM5Mzc0NjQ0MDAifQ"
+        },
+        {
+          "resource": "repo://js/deep16_simulator.js#L1381-L1436",
+          "version": "repo-lines-v1:sha256:cbd11524c3d423f779d33e82e3641379684505c543f336d0630fbcf9cfdf29b0:eyJzZWxlY3RlZExpbmVDb3VudCI6NTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjNmVhYWI2MzgxYjBmMDc0NWQxYjI5ZDAzYmMwZDkyNWRiZGUyMDM5N2MwN2M4YjNjODI3NmE5ZGMwOTcwNGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRmNzJjYWYzMjIyNzI4MjA4Y2FlNTA1NTRlMmQ2MjY4ZGNjMzZiMTg3OTdmZTk3YmM5M2Y3NDBmNDU1NTQxYWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwZWY5NTFhMjU3MDE5ZTUxZTg2MTRhMDNjZTQyZmFkNGYxYjU4ZGQ2NWY0MDI2OGZhYWEwMGU3MmM3N2IzOTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkMzRlZmQ2NDk1ZjE4NzAzZDdlNzBmN2ZkNjRhMTY4ZGE2NGQwMjMyOTI2Y2ZmMjI0ZGRlZTBlNmE1NGI4NDYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_da429655af8d44fdbef61ac8cb986b57",
+      "statement": "ILL entry writes the interrupted PC to shadow R14 so a handler can read the trapped opcode at LR-1, and the d16nano core raises ILL only for DIV/DIV32 that it cannot execute while the full core keeps the divider.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_simulator.js#L1395-L1425",
+          "version": "repo-lines-v1:sha256:787377b7d631bef9e04417a69463dc0bb09b916757d84b80ebe6356969b1cd1c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAyZDM3NmIxNzBmYzdiYmUzYWVmNzQ3MmI1OGY4ZGRiMzI1YjdmMjVlZmIyZDkwOTk1NjRmMDNmYzU2YmE1MjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdmNjg1ZTIxNWVlZjBjODYwYTc4ODE1ZmYwZmE1MzBmZDIzZDU2OWQ1YTgwMWNjYTI2ZDRkNDNhZmUzM2Q0YTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ1NzU2NDZhMTQ1MjJjMWFjZDA0MzY4ZTY3MTVhM2U4NmZmMjRkYzcxNzM0ZWUxODgxZDJlN2U4OTJjZmYwNmUifQ"
+        },
+        {
+          "resource": "repo://js/deep16_simulator.js#L925-L952",
+          "version": "repo-lines-v1:sha256:7c30e508621771a3b0d656ef5bdc969a556e75cc05577a26d691b62b5c8e5181:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4MjUzYzdkMzhkYzE5NGI0NTMxOThiNDJhNmYyMTRmYzExZjc1ODM0NTAxZTg2YjkwZmMwZWZlZDQxNjg0Y2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2MTM0NDZkODU4ZGFjMDkxOTg3MWNiZTJjZWFjOGMzYjAyNWExMzM3OWUxNzU4NTE5ZmU4NzBkZTUwNjJjNjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY1ZDA5Zjc2NDJjMGYyNzE3NGRmMDI5NmYyNWFhOGM2MzdkNjJiYjU3ZGVkNGUyYTFlMDAwOWIwODE5NTA1MDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQxNDRmOTljMGViOTMxYWNjMWZhZWY2NmE2ODIyMzM0NDlkZjEwY2VkZWE3NTMxODA3NDNjYTk5ZmRhMDQwOWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3535f25fc61c46479d7a528374936e52",
+      "statement": "Only the ALU and shift groups update NZVC; loads, stores, immediate loads, moves, branches and interrupt instructions preserve the flags.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-Arch.md#L139-L158",
+          "version": "repo-lines-v1:sha256:fff1d2e7b1e421d06919648a3f22a456f94c8e7c878e38687217d5004b2a0a5c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgyMTY5MGJhMjczMjQzYTcxMGEwNTYxMzgzZTdmYjg0MjI3ZWFkMzMxN2U5Nzk1YzljNTZjOWM2N2E1NWE1NGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcyNDE0N2IzMWNlMjU0MWRjOGExYWYyYjU1MDQzMmU4NGQxZDQwMGIyZGIzNTBhM2QzNjUxN2JhZjFmYjFiZTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE0ZTM1OTE4OTRmYjExMDk1MWYwY2Y4MzQ5YTcyMDBmNzhhZGY4ZjVjYmQzODRhNTgxMGI3YjQ5MjVmOTIyNWIifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_pkg.sv#L66-L100",
+          "version": "repo-lines-v1:sha256:2aec379e51153493159ba1dcb0356003d36ade32d11a71967c052dd5a1e9db83:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhjMGFiNjI2NmE0NzFhNDZlZTQzMzVjODZlNjFmZjAyYjUzMjZjYTgwMmQyYzBjZDhhMTE2MzMxMzkzZDFhNjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEwM2ZjNjQ0NjhlN2UxNzJmZDEwMDlmZmJkMTBmNTk5YjA5YWMzZGFlMDg4ZTkzNWZiYTMxMWQ0ZjU1ZDZmYzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIwMTUxZWU4OWRmNmFlYTVjODhlZDE5NzAxYjE5MDRiNDk1YjY4ODllNGY4OTRmYTMxZjc4MGQ1MjFkOGRmYTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU3N2NhMmNhZWFlYzExZDY3NmU1OGY4YmMyZTZkMjE1ZDBmNjIzMWYzOTc0OGM4MDk4NWVjMzhiNTEyOWJjZWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7de51a68597743e1b9647b888b627da4",
+      "statement": "SMV reads the inactive register bank, with APC as the exception returning the active PC, and its write form stores an active register into the inactive bank.",
+      "evidence": [
+        {
+          "resource": "repo://doc/Deep16-Arch.md#L240-L285",
+          "version": "repo-lines-v1:sha256:fbfc095662b86fcbb1018289a2ac9abf17b496d07791b5394a6881ecf522a63c:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5ZTQwNmU1MDc1ZDJlMjhjMDgzODE3OTQ0ZDY2OTYzYTBjYWFjZmE4OGRmNzE2MzE2ODc5MDkxODU0NzU0MGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU0YjhlOGE4NTlmZGYxM2MxMjFhMDMzNjIwMjkyODViMzk3ZDJhY2VhZWM2MDhhNjdkZDA1OWI1ODg0ZmI4YTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJmMDQ5ZWZlNTYzZjQ2YTI2MmI5YWY4YTdiZmQ0YzAzYjM1YzAwNzY1ZjllMTkzOTgwZWI2OTM1ZDg1MzMyODEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3Njg5MjIyNTU5YWE0ODNhYjc4NmJhNGM3OWMyN2E1NzRjZmFmMTgyYWEyNGMyZWQxMTE5NjZhZjY1ODIzNmYifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.2",
+    "at": "2026-11-01T09:36:37.731Z"
+  }
+}

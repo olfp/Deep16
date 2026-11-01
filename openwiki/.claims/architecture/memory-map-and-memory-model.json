@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:772b33639ca1b4d8dff383697229493e7dcf0ab1658a7442bec70f4447c82caa",
+  "claims": [
+    {
+      "id": "claim_7889a2aa411f4d35a91ec1528555bfc5",
+      "statement": "Deep16 addresses 16-bit words in a 20-bit space using (segment << 4) + offset; unbacked reads return 0xFFFF and unbacked writes are dropped.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L21-L40",
+          "version": "repo-lines-v1:sha256:14eedeb17501d52487ae8ef4598e286e2aa22d5d9844f611eda307540ad5d0ce:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyZDk0NWY3MGRhYzQ3ZDYxMmQwMjBhMjhkYWI3YzlhYzJkZTkyMTBkM2RmZGRiYjM2Mzc3YTI1NmQwY2NmMDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyYmVkOGFlMTgzYzkyODEyNTI1MDQ5YjlmOWE5YzNjYTc2Y2NlYmY5YjhmYTlmYTk4YTAzNmJkMDFmZGMyZGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUxODM2N2RiNzllMDA0YWJiOGM1NDAwZmIxNGY5YjM0ZjI0OGNlYzNhYzJmMzEyZjM0M2JmMTQwMjYwZGQwMTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d70bfb10d61c406489a523989a6debdd",
+      "statement": "The ILL, hardware-IRQ and SWI vectors sit at physical 0x0000, 0x0001 and 0x0002, and the boot ROM at 0xFFFF0 jumps to 0000:0100 after planting that entry at physical 0-2.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L36-L42",
+          "version": "repo-lines-v1:sha256:67aef3ce134082f1a8b671e267076cfca583878933783814a2938d40a3ccb35b:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTc3YmZjZTg2YWRiNTU0N2EwMzgzNWJmYWQwZTk2ZTY3MGRlMTNlZDBiMjdkZTQ1OGY2YWU0YzMyZTQzZTAyOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTlhN2ZkMTdkZGVkZjIxNzRiMmFkMWVmNDMzYmRiM2ZjZDI2YjhkNzY4MjEzNDJiOTg2MzM0NDdiNzQyMzRhZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWFhMTM4NGE3ZjY2NDk0Yzg0NzlhMzVmNzEyZTFiYzlkNDg0MTExZmUxODFiYTY1MjE2NWE2YzAyN2E0MTBhYiJ9"
+        },
+        {
+          "resource": "repo://MEMMAP.md#L542-L551",
+          "version": "repo-lines-v1:sha256:25dcb091566cbf52e149a241858e6634493ce4aec47b97f3369cd12ebe7ce5a4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5NTY2MzMxZDFhMTY2N2JmYWJiMDA5MDI0NTdiMjY5MzRiYmQ1YzQyMDFlOWFhYWEwMDcwYWUwODI5YzE3OWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFlYTJmZjUzNDMwNTk2MjA1NjZjMGMyNThmN2MwNmZiZmVjZmFkMzgyNzIyZDlmZjcyZDRhNGFhN2JkYjM2MTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRkMzExZThiYWY0ZGIwMjE3YjgxMGU3ZjBhNDA2YTQ0ZTIwZWIzZjgxNzlmMDhhNzAxMTE2ZGVlM2ZiMzE5YjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ea8901785f2d4e0684e830c3e015a91f",
+      "statement": "Deep16 has three build profiles: a 1 MiB flat screen/IDE build, a 24K-word PSRAM-backed D16MINI UART build, and a 24K-word config-flash D16nano tile build, with different BIOS entries, dictionary ceilings and stack tops.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L45-L68",
+          "version": "repo-lines-v1:sha256:6ac38fafc3688590278de954a59eb8f9890cde84598f963bb6796ca09ae918f2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVhNWE1YjlkOGYyYjE3ZTM4YWJjNTY4Yjk0OTY1MTRlZTc1MTJiMzM2MDJiNTkxYTc4OWU1NTE0OWY1MzE3YTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFlMjRhMGZlNWJiOTM2ZTVkMGNhYWJkMjE4Y2U2MTQ0MzRjOTlhMzlhZmFiNzc2NzJjNGFmMzgzZWVhMWM1YmMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_19f37d10bcff4c26b8799e44aead328a",
+      "statement": "The D16MINI and D16nano kernels probe word 0x6000 after boot and, when PSRAM responds, move the dictionary there and raise its ceiling to 0xFFF0.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L60-L68",
+          "version": "repo-lines-v1:sha256:91697a91cf30c8602b0196fcdaef6059bd1ffa09e4d30cc8bd1c2c4fc6b91a33:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDEyMjUxY2FhOGQxOGM1ZmI5ZGVkY2EzZjNlYjRlMmMzMzc5Zjg1YjgyZGU3YmU2ZDQ3ODJmNzdmYmZlZTRkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTQ0OGI2MGIyNjA0OTNiZWFhZmQxYzlmODNmYzZiODY3NTQ3ZTJkNjA3NzQ1NDlhYzk3MzRjYTM3M2ZkMWEyOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWUyNGEwZmU1YmI5MzZlNWQwY2FhYmQyMThjZTYxNDQzNGM5OWEzOWFmYWI3NzY3MmM0YWYzODNlZWExYzViYyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_90fc1a42bf564d369990303c60319cb9",
+      "statement": "The 24K builds place both stacks growing down in a shared 0x5800-0x5FF0 window, leaving the return stack roughly 1,136 words before the end of the D16nano BIOS; D16SEG gives each stack its own segment.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L165-L176",
+          "version": "repo-lines-v1:sha256:0c069459eaf1671fd5d04d17cd52d4a41db71a0b3c57d5b5172990f2d8f79dd7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlMzJjYTAwZTBlNjEwMWRkZDA4MTY2MzZiZTRiMWUxM2U3MzBlYzc4Njg5NDhiZTQ1OTU0MDMyM2RmZmFjZmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBiMTBhMTI5YWNlYTUyYWY0MzA1MWJkNDM5MWNmMmI4OTViNTRmNzNmYzk2OGUxMzExZmU2MDBkNjFmNjA1MGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRlZmJkMzA2ODFmOTVhNDkwYTkwMGRjODcyMzA3YjA2NWNkZjUyMGZjODk1NmNlN2Y2MWI2MjE1ZmZiNjFhNjEifQ"
+        },
+        {
+          "resource": "repo://MEMMAP.md#L63-L68",
+          "version": "repo-lines-v1:sha256:edc0cdec6b76f33e5d10271c7e536eb1124d1009ce7389770d7788c669007c11:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjAzOGJiNWE3M2MxY2QxYjVhNmRjMDUzYThhMzc4ZDRkNzIwNTA0ZWVmMWU4ZDJmZjBiNTRkOWMxYzljYTM4YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWUyNGEwZmU1YmI5MzZlNWQwY2FhYmQyMThjZTYxNDQzNGM5OWEzOWFmYWI3NzY3MmM0YWYzODNlZWExYzViYyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7d9d171033c84d3da3aacc2eb2b1f729",
+      "statement": "The common MMIO map places the timer at 0xF0020, the UART at 0xF0040, the keyboard at 0xF0060, the cycle counter at 0xF0068, SPI at 0xF0080, I2S and SIC at 0xF00A0-0xF00BF, and the display window at 0xF1000.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L71-L96",
+          "version": "repo-lines-v1:sha256:0f94aaac77c3bbacc30c1fed386315a330d8d2abeab46017714e2ca44d12c9e9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjOTIwODc1N2IxZWRmMjUwZGZiNTNhZDUyMzkyNmJiMjRhOTZmZTMwNWQ5NWY2ZWY4ZGY3YmY1NzdiYzM1NmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFkNzU2NTg5Nzk0ZDBiMDg4OTMzMTliMmZlNWQ5OWUwZTYzYjc3MzU0ZjRmOWI4YzBhMmYwMGNiMDAwYTI0NDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7a8438c56ee748289a5632ac739d1a34",
+      "statement": "Undecoded 0xFxxxx addresses read 0xFFFF and drop writes; in particular 0xF1000 is unbacked on D16MINI and the echo cell 0xF0064 is ordinary RAM only on the 1 MiB screen build.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L560-L569",
+          "version": "repo-lines-v1:sha256:5aa7c3bdcb75e9f3c6e97c3950389d63733ad14bdc4e95cdd89fc36ef58c704a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkNTMwM2IzMTJkYjBkZjM4MzYxMTY4ODQwY2NkZDQyODg5N2E0ZTlmODU5MDAyNmE2MDA4ZjMwMDE3NDAzNWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyMDI3MzdkYWQxMjhhMDI2NzZkMGYwODc0ZDhmNDllOGY5YWZjZGU3N2VkYTBiODg3MzEzNjJlNTJiMWQwNTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://MEMMAP.md#L96-L98",
+          "version": "repo-lines-v1:sha256:001f2ec17593c1054eb46367d8453ef24a173ce96b7117d91f9a68d44fef8b01:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTdjNTk3MTVhMWY2YmQwYmI0NDMwNzM5YzVkNDBmNTE5ZjkyNDg4YTIwYTJlMzZhOTlkMDNhNTNjNjcyNzIxMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjE5MzMyNmY1MjI5NTg5ZmFkMDAzOTg4YmYyNzdhODk1NjMzZjc3OTcyNWU4MmZlNGI2NDFhY2I4MDMyY2M5ZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_6f2eaefa227742828de40e0a93547421",
+      "statement": "The 1 MiB screen build keeps the kernel from 0x0100, a dictionary ending at 0x4000, stacks near 0x6F00 and 0x7FF0, and a 2,000-word screen at 0xF1000 with character in the low byte and background/foreground attribute in the high byte.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L255-L281",
+          "version": "repo-lines-v1:sha256:c25dd505869aaf5c02076ff039afdb7ad6746cb9d9a38b2b1734dc54ac5549c5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE3YjJiMzlhNDllYTMyNzlkZmM1MzVhMTNiYzY0N2FmNTZiNmFlOTA5ZTczODUyNTIxYTI0ZDQwYzc4ZWQxYjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVmNDBiZmQyYjFlNmNlMWE5ZTJhZjY2NTFmNTc2Njg1YmU1ZmE5NDFlODI3ZTM5NGRmNjBlNTA5NzllM2ZkMDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f7b95eaf5da049ada59797842a1281ca",
+      "statement": "The D16nano flat map places the ILL handler at 0x5000, the IRQ handler at 0x51A0, divtest at 0x5300, the BIOS at 0x4A00, the stacks at 0x5800/0x5FF0, and the PSRAM dictionary from 0x6000.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L99-L130",
+          "version": "repo-lines-v1:sha256:8638654f658e09a51984d9620d00dedaf46ae44aa78657794b56a212e52db460:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4YWFiMGVhNzIwYzcwMzY3YWYzOGEyODM4ZDUzZTJmMzc5NzFjMzRiYTAzYmE0OTgxZWI4ZWFmYjM5NjA1NDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEzN2ZkYWVjMDlmODZkZmFkMWYxOTIyYTQ0N2Y3OGVmMDJmNmM5ODkzMTUyZjY1OTg2NzBmOWQwN2Q0OWY0ZTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e4136ed426fa412d945442bd198d1d8d",
+      "statement": "The D16SEG build scatters the image into CS=0x0000 for code, DS=0x1000 for data and dictionary, SS=0x2000 for the data stack, CS=0x3000 for BIOS and showcase, and ES=0xF000 for MMIO.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L190-L230",
+          "version": "repo-lines-v1:sha256:b83c29d7fcdd22ed730507a2a04d50088d22acf4218f0bf564237cd1e368d0f4:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0ZGY5Y2FmY2VkOWNiYWU0ZDc1YWE3MDlkNDFlYWVjM2M0YTY0NDNmYmU5Y2I5MWY3YzA5ZGQwM2RhNzQ0MTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNiNjg1N2IzZjk1OTQ2MzVjZGQyMjA3ZWQ5OGM5ZTczMzdjMGMyZWE5MjA2ZjU4NTVmYWM2MzQ1NTg1MDcxYmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2NDliODEzYzc3YjU0YzE3MDg0ZGZhODM0NWNiYzkwZjdjYWQ5OWJiNmE2M2M1ZWE1ZjY3ZjVhYTI4YTczMzIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a1be2127494b4507bce40183419e5d3a",
+      "statement": "The CPU-visible PSRAM window exposes 1M words of a 4MB die, with the 24K boot image at 0x0000-0x5FFF, the runtime dictionary from 0x6000, and the boot ROM at 0xFFFF0.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L463-L480",
+          "version": "repo-lines-v1:sha256:9eefece986c14040f66841c609c4b5ea2b03b327770bdf85780cf64f5d486c5b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc2OTQwM2E0MzIyOGMwN2NiMDkzNjg4OWExYjQyMDAzZWFkOWMwMmE4ZTY1YTg4NDdlYmU5NDRmNWQwNTYyNGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRkNGYxYTcyMWExYWE4MDZlYjc0NTQxZmFiNzFmZTAzZDRhODc5NTYyMDg2NWE1MmM2OWEyM2FkYzIzMzJiODIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAyMTUzMDVkYzUwZWI3ODljNmE2ODY0YWVmY2Q1YWY3ZGMwZWI3NDNkYzBlYjJmYWNjYTUwYWU0ZGY0ZjRlNGYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_348fae6498034980b984aebd8e4d5357",
+      "statement": "The config-flash boot image starts at byte 0x100000, carries an eight-word D16F header with format, length and CRC-16/CCITT-FALSE, and stores two CPU words per 32-bit flash word.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L481-L497",
+          "version": "repo-lines-v1:sha256:180e80e6232002b5ba7596276046592a0e0025991567cc5e8291081974025ed5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzZWNiZTNlZDMwZjc2NzgzMDgyZjg5MTI2YTUzODI4NWMyMDllNjFhNzEwMDA3NTQ5ZmIyODZlYjIzM2ZhMTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE0MWE4N2U4ODFjYTI1NDI3Mzg4MDZmZTZiMTQ0ZjdhNzZjNzFlMjA3YTE1ODhjNzAzMDA3ZjVhYzQ0ZGU0MWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBlN2Y4N2MwNzdjMTJjMjI0ZDQ4MzdkZjhiNjg5ZDU4MGRkODdjZjJjYjMyOTZiYTRhNzg3Yzk4MGM4YTE1YWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9598ab7deade47fd83ce19fac80ee6d0",
+      "statement": "Configuration flash holds the bitstream at byte 0, the boot image at 1MB and 4KB source slices at 2MB, with the lower 2MB block-protected and the upper 2MB writable.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L498-L532",
+          "version": "repo-lines-v1:sha256:105250a1b8b0bf112c61449bb69e65d3f1d34826ba38cde0da56ae76283f2638:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNjY1ZDQ4MDFiYzYxN2E0MzhhYTU5MmE4ODE5ZTA5YjIyNmQ1NmFlZDczM2MxMTM2YjA4YjkwZDYwOGIxYmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRkMmE0NjhjODNmOGI3ZDlkYmFjOTUyOTRkZDRkNmI5NDliOWU0YWI4NGJjNzc5ZTE2ODRjZDMxZGQ5ZGVjYjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJmOTUyOTgxMWIyY2Y1YWIxZWM1NzE3NmFkNjU4MzQwMjc3YzQwZDc3OGVmOGRjZWJmNTYwNTc3ZDYyMWQ0NGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e101398242c44e339cdbab2b899abd65",
+      "statement": "The JS reference simulator allocates 1,048,576 words filled with 0xFFFF and decodes screen memory at 0xF1000-0xF17BF and keyboard ports at 0xF0060/0xF0062.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_simulator.js#L245-L252",
+          "version": "repo-lines-v1:sha256:ac9dc257b3fe4928509f8913802af7a6e87ee2ed366ff131d72f936744820b81:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGM3ZDNhNGUxNTc5MGNlYTE4MTUwOTNjMGQxNjlmNmQxODM3MDZmNmI1Mjg1ZjM2YTZmNGE4NTBhMGVhZThiNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjRhMzY1YTkwZWMxMWU5MDQzMjc1MmNmOTM3NmVjNWVkMzZiODBiYTVlOGU2ODU0ZmNmOTg5NzBkMzA0NDQ2OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDIzNTU5YmY5YjE3OWYxOGJlMTAxMWJiNTM1NTExYzYxZWFkNjk4NDYwMTkyYmU5ZTBhOTFkNzQ3MmNhYWU0NyJ9"
+        },
+        {
+          "resource": "repo://js/deep16_simulator.js#L311-L321",
+          "version": "repo-lines-v1:sha256:33ccdadf434d2885abf8a44d5733a6821a1173922d71535280f44c64d6ae2f64:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlhYjA2Yjg2MzkxOTRmOGE1OTNkOTQxYTk4ZjNkMzRjOTIzYzFhNTFlNzhmZWNlN2YzM2Y1NmEyYjg4MTU4MTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY1NjM1NjA2M2ZmZWM2OTQxYjg2YzlhN2M1MmY4OTllOTc4ZTQyOTE1N2NiYTg5M2JmZmUwZDEwZjRiYzEzNzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjljODQwNDI3NTVlOTRjMzc3NjQ4NDJmZDIyYzNmMTlkZTQ5NmJhMGE2ODBhNTRiMTVhMTk5ZjdlYTc3NDJhZGUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.2",
+    "at": "2026-11-01T09:36:37.731Z"
+  }
+}

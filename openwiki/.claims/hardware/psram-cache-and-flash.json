@@ -1,0 +1,260 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:a11efa51326c8a6b6815879664e3780e530c5c126c4184dba928bbe655ab121f",
+  "claims": [
+    {
+      "id": "claim_9d168ae6433446faa286a009450371fa",
+      "statement": "The current board's PSRAM path uses psram_word_bridge and the open-source psram_controller at 51 MHz, one word per transaction with an optional two-word burst; deep16_psram_bridge is the alternative Gowin HS-IP path and is not in the project file list.",
+      "evidence": [
+        {
+          "resource": "repo://fpga/gowin/deep16_board_tile_flash.gprj#L17-L24",
+          "version": "repo-lines-v1:sha256:60869638c2e4f9cb83cf42b6227fd71d39c958a3ee6faea6f89d0740e50655dc:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzZmZTJkY2Q0ZmIxOGY4OTViYmRlYzc2YWExODZkMTVhOTY5OGFhZTcxMWVkOTZmZjE2ODU4OTdhYzE2YjNhZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWJlNTIxNzQ5NzMzODk0MjZhMTk1NzU1NGY3ZGYzM2FiZDlkYjc5MTM5MDNhYjM0NGFkZmUxNDk0ZDkzZDE3ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzI0NzMwMGZmNDkyOGZkOWU3ZmVkNThjNWVlNjdmMjRjODZjMjQ3MTBmMDZkMjlkOGI3OWQ3OGUxM2M0YWU0MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDUyNmY5MGRjYjI3MzQzNTgxNjMwYmU1NzlhMTY0N2MwMWZiZjJmZTg4NzAxYmEwNTFmYWJkNDMxOGI2YTMxMCJ9"
+        },
+        {
+          "resource": "repo://rtl/psram/deep16_psram_bridge.sv#L1-L16",
+          "version": "repo-lines-v1:sha256:aad86e20f6ed77689eb5c416c9b2e4b1dc89214d35f9f2c14a014682d56ec080:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1NDEwMDgwYzg4MmMwODAwZjgwYzFiYzgxZDY4ZjgxYmJjZThmY2EwY2Y1ZTZmMzMxOTdiZDMxZjJjMWNlYjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2NTQwMWUyMTJkZWEwM2U3ZjEwYTFkZmIzMTI4ODY1MWMwMDEzNzgyMmNkYjBlNjczMGY4NmM3NjNkZTUzNDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYyMDA4YWEzODIxNzk1NzE5NTA5ODFhY2Y2ZjY2ODdiODMxOTVmNmMyOWFmYmExMTg1MDVlODJkMmFjZjJmZDcifQ"
+        },
+        {
+          "resource": "repo://rtl/psram/psram_word_bridge.sv#L1-L14",
+          "version": "repo-lines-v1:sha256:4f7e9ffc37dce19f7199bb885207bb74a7d95ed74ed40b273f975494a2c118c9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViNzI4NDZhZDZlODg3MTNjZjAxYzgyODg1M2U0OGJkMDhmOWE1ODY1MzA1MDUyZTBiZTY2NWJkYjgxMWQ5M2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYxYTAwNTgxOThhNDNhMTY0YzExMjAyYjU4MWFkNDk5OTAxNjQ5ZjdkNmE4NmZiZDA5M2E0YzAxMjA4ODVhNGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk1ZmVmYWExNGUyMWVmNzljNGM3ZTRiMTliNzA5YzI3NTQyNzBiZmYxOWM4YWM3MGRjM2RlMWU4Njg0NTQ3YmYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_32b96e0c6b784da08f4c26ce830de821",
+      "statement": "PSRAM requests cross clock domains as toggles with stable payloads, and the controller receives a 22-bit byte address derived from the 20-bit word address.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/psram/psram_word_bridge.sv#L1-L60",
+          "version": "repo-lines-v1:sha256:febed73706973366b79d6c60027fba26098ed4acf489d54f251763438b5add9c:eyJzZWxlY3RlZExpbmVDb3VudCI6NjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViNzI4NDZhZDZlODg3MTNjZjAxYzgyODg1M2U0OGJkMDhmOWE1ODY1MzA1MDUyZTBiZTY2NWJkYjgxMWQ5M2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJlM2RjNWQ3Y2FiYmYzNjZiZGI2ZTgwNDA0MThkNmZjNDcxOGJhMjI1Nzk2ZjcyMDg1NjMwMzUwMzk1MjM1MTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI0NTUzYTg5YmIxM2IzYjk0YTM0MmY4MDgxZWY2MDQ1YzFmMDM0NTI4NzJjYmYzZTUyOTUxYTdiMjg4YWViMDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c93c1dd0af6346a3b6ac92062482ccab",
+      "statement": "The cache is 512 direct-mapped two-word lines: 1024 words of data in one BSRAM block plus 512 tags in a second, split as tag bits 19:10, line bits 9:1 and word bit 0.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L1-L20",
+          "version": "repo-lines-v1:sha256:73f5c215547c6f9b4c83c0589800eedcec65e4d7d2f8d27a19ffe3a20308972d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViYjNkMDBmMGQ1OTBjMzEyYTc1MDM0Mjc2ZWM4OTM5MGM4NGVkODY1Y2Q5ODQ5MWRkNWJmMmFlY2Q5YTlkMmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5NTA5NGVkZGQ3M2VmMDkyYTUyMzZiODM5ZTMxY2RkMGM2N2I0YjIyMjk1ZmU5MWY0YTFhNTc1OTkzNzViMGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM4Njk3N2I0YTMzMDk1ZjBjY2ExZGQzMjRlOGZjY2E1OTU5MDAxNjU1OTI4OTE5MDgwZmJmNzVhOGY4NTNkYzMifQ"
+        },
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L124-L138",
+          "version": "repo-lines-v1:sha256:2842aa3bec8916d503813f5b02db30928a25e6b8025c1f31bb1a4f5ea394d7f7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmZDk4MTVjMzU4ZGFkMTA5N2MxYTMyOTQ0NDA0MWFjNjZhY2I3YWFjMWJiYzFkNzUwZjkyOTRiNWU0Y2VmZTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3OTgxMWM1ZmJlMjVjM2Q0ZTVmM2QxZmQzNWFiOWRhNmJjZjhhNjhjNWVkZjlkNmJhOTdmNjg2ODZjMzk2ODAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRiYmZlZGQ0MGI4M2YxNjY3MDdlODY4YTU4YmQ3YTE5MTRmOGYwYjg2NmIyZTMzNzE2MzJiODM3NDdjOGUyMDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk0NjQzYWMwN2Q5MzAyMTM3NTk2N2E3N2E4Y2ZkOTA2ODk0ZmIwNWNjMWU1YWY2NDM0M2RmNDUwMmEyNGI3OTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b135235fd4ce4546b2ca35152b660d36",
+      "statement": "The cache is write-through with update on hit, so it always matches PSRAM and FSH only has to clear tags; 0xFFFF0-0xFFFFF is served from a local boot-ROM constant instead of PSRAM.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L440-L452",
+          "version": "repo-lines-v1:sha256:dcf23419080feb45dd5fea8bc7438c3e61b6919e450c830f238542a55e8633a9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImViZDI1ZDhkN2VmYzcxZDNlY2U4NDVlNDFiNTU5MTZhYWZhZjg0YTdhYzM3YjViOTE2N2ZjNThiODAwOWFlNjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlMzJmYjRmYzRkZmRmMzFlOTg3NjM3OTVhYTQ5MWVhMTExZjI0MzMzZjJiNzhjZDlkYWYxZWEyNjllZjA3NjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEwNGJlOTgyODBhZjg0MDVlODA0MDQxNTEwMWExNzMxYTIzODI5Yjg0ZDIyOGEzMGI0MGNmYmM1ZmEyNTZiZDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBmNzJjMTY3YzZiMjUyZmI2MWYyMjQyYTg3OWUxMmMyNGJhOTdkZDY0YmQ2OTcwOGNhNTFmZGRlZGUyYjM5MzUifQ"
+        },
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L7-L18",
+          "version": "repo-lines-v1:sha256:02ff27c0b52a15cff8898b382d7f297526e45e2c56709763549543aad86dd485:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyMjZlY2FjMTAyZDQ4ZDdhYzVmZDc2NGZjMDI3Y2ZjOTQxN2ZmZmNjNzUwYmVhODk1MzFiZDc0NGJhZWU2YzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc2M2UwODI0ODkxOGI5ZTQwYjU5YThjYmM4NTFjZDU4ZGRjOWMzYjMxNzdjMTlmODIzN2IyM2NhMjEzZDY5NmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYxYjc5YTNiMTZjNDc0YzgyYjg0MDFhMTNlMmUyZjdjZjcxNGU1OWQwMDAwNTc5ZTVhMDE4ZTcxNmZhMTZiMDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBlZTdhNGY3YjgzZGY3NzI0ODUyMTZlOTA1YjUyNTI0ZTZhYzgwMjU1ZmZlY2MzZjBlMTM5ZjI2N2I4MTRlYTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_136f6563b0be4b9d84fe825ef99d4d31",
+      "statement": "Two-word lines are chosen because a burst fill costs one transaction while a longer line would make a first pass through fresh code slower than an uncached machine.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L474-L492",
+          "version": "repo-lines-v1:sha256:b90b8644b901913bdd717c5971b6148d7d49c6b21504138e346c9bad1eefa956:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlkZDUzMmNkYWY2NTE3NTUxY2YzZjE0MGVhMzRlZDQ3MjNlY2FmNTc3OGU2ZDM3YTMwNmM1MjQwOTk0NzBhNGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZmNjQzMjY0NGM0OWVlZjFkOGM3NjVkMjU1NTFlZjc3MDA5YmFkODIwNGFiMzM5ZDk2Y2U3M2YzMTE3NmI3MmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQwYzllMWM1OGVlZTRiMWU2ZjRhMWUyOTkxZmFlZmM4MzEyOGQ5MGQ4ZmFjODFkYTVmYWQ2MDEzYWExM2M3NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdlMGQ5MWY3NTg0ZmNhYjZiZDhkZjVmZTI4YTlmODg2YWYwM2U2NzYxMWQ4NDVjY2E4NzcyNzIyNjgyYTAwN2EifQ"
+        },
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L9-L13",
+          "version": "repo-lines-v1:sha256:3c65b23e4da9b9e039d06cd81154ebd293638d7fbc829398c547319fe8aa0882:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTAxZWFkOTM2YTIyODFkNTNkY2MwNjRiN2UyYTJhYjBkNTNiOTJlZjNlZjdiMzRiNjY4NjczMDA3ODk1Yzg2MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjI3Mzk0Y2ZhNWQyZDg1ZGFkOWFmY2E3NTMyMTllMjY1YWNkNmRjNWMxM2NmOWVmN2JjMzA3NWU2ODM2MWVjNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWRiNDMwODM4MjI3MWE5ZWIzOGE1YzFlNjBhZmNmMDIzMDI3MmMzMTRjNGExODA2MjlhMzAxYmZkZWU5ODBjMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzViYWRmMGZjMTlmMDgzMDE0YTdmYTg0ZWY5ZWU0ODFjN2M2MmMzMzk5Yjk0NzRlZmYxZWZkYzc5MGY0ODhiZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_50e9dd115772408fae643d025fcbc4ee",
+      "statement": "Cache line fill writes the two words on consecutive cycles because two different addresses on one clock edge cannot be inferred as BSRAM.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L481-L500",
+          "version": "repo-lines-v1:sha256:461443add7204f1fe9ec7420d5b46e84178873ef50d26edbe0d5e06785bd3d8f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjMDlkYzNiODExNTYzZGU5ZjcwMjJhM2RjZjMyMzczMTg5NGYwNjZiNDdhMzNjOTQ4YThjNWU2Yzk3ZmRkNDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5ODk0ODdiZWY4MDk1MmVjODc5N2RlZjZiMjUyYmNlYzczZWM3OWNkYzA2ZGE2MjU2MGFiMWZmZjVhYzNiOTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI2OTM2YzZhNzFkYjg5Nzg3OTY3MmRlNjgxZmFlZGQ0OWNiZjBjMGNmMDBlNWRlZDIzMzM1MTA5OGY0MWE5NzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkNGI5MGRiMDJhYWY3Y2MxODZhOGQ5MGZlZmM4MWRjOGExNzM1Nzg3ZGI2MWFkNzc0YTc1ZmU0ZTVjM2RiZTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4f0a2945a575436f9ecf0e3e163c3248",
+      "statement": "Memory service order is store, then load, then fetch: a retiring store is latched first and written through to PSRAM even on a cache hit.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L429-L460",
+          "version": "repo-lines-v1:sha256:fa6f485dbb05295eeddfd6380dc21379a70736dc217679575b11ea24bb8554eb:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYzYTFmYmMzYjQ2MzZmNTE5NTc4OGIwY2NhZDk4ODY0ZTc0YTg1ZWViZDMyNWM3MzAxMjY4ZmFmZjMwYjZhN2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI4MmRiYTFlNTVhNWMzNzQ4OWNmY2E4ZmY3YTIwMDM5MzhjNjMyNjBiOGE5NjRlODMwMmM4NDgzYzYyZTQwOTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY1OTUyZTUwMDUwZjVmYjg5NjQ1NzA3MGYwMDIyYmI1OWQwMzlmOTA0YjFmZDhlYzdhZDU4YWYwMDUxZWMwZDYifQ"
+        },
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L515-L525",
+          "version": "repo-lines-v1:sha256:b60d9f8db2bda29151e2afd1dd2909d1943cd51a9191c238558ea8cfac39e7d4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4ZmU1NWI2OTAzZjU3ODEwYTA5YjNkNTMxNzYyYTg2ZTA3NWI1YWZlOGU2NDM0NzU4ZGQyZTZlNGFiZTMzMDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJhZmFlNzM2NmYzZjg3MzRhOTIyMTFmZWM1YjExYzIxYTI5Y2VlN2FiYjAxOWZhYjkwMTBhZTJlOTIyOGRjYzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZhNDExZDhkZjRiZjc5NmRhNGYzZTgzYjBjOTYxMmVkNmZiNmFmZDE0YzhlYjA5M2E0MjgzMDNiOTNjODZmYmQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_44e89bbc722d450ab0d7e6eb49d04eca",
+      "statement": "With USER_FLASH the loader validates magic D16F, format 1, a 24576-word image length and a CRC-16/CCITT-FALSE header value before releasing the core.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/flash/flash_boot.sv#L1-L20",
+          "version": "repo-lines-v1:sha256:a42e9395c58b9957823e5468af5781a261f7359af2f0ba2ae91e4f0c9f793f77:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRjZTNjZGMwNGZkNzViMTQwM2Q2MTNkNzU0NmNhNDMzNGM0ZWZiYmZiMGI0N2ZiYTBjNzMyMjk3ZjQ0YWY2MGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU0N2EyYWZhNTM2OTVhMzEwN2M0YmViODZmYzU2NjE3OTAyNWFkZDQ4NTU2N2Y4ZTI0NTNmYWE0NWY4NjVmMmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkYjI0NWQzYzc5M2NiNmY3MGQyYmM2NDkzZDQ4MjQ4MzVmYWI4ZDAyNzdhNzQ3M2VjZWNhMDRmN2ZkNmVlNmQifQ"
+        },
+        {
+          "resource": "repo://rtl/flash/flash_boot.sv#L120-L150",
+          "version": "repo-lines-v1:sha256:f4d8a1e00f41c45fb9c6b6b165af8f95bfe7037dce2acbf5c8f1d17e5c4d4dfd:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY2YTQ3NWE3MDg5YjNjNDRlYzkyN2Q2M2JmOWQ5MzExZjM4N2M5ZjliYTk2MGU4ODc5N2FlMmJjN2E4YmRjMjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YTM5NjY5NGRjMTEyZjI4OGEzZTI3MzBkYTQ4YzhkMGJmMzUzOTdmNjRjZWQyYTdhZGQ1ZjcwMzE0NTA0OTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjExYmNjZDgzMzk1ZTFiNmY2Yjc0YTgzOTZjMDE1N2YzNzI5Zjk0YzI0MDViZDUyYzgzMDdmOTk4OGE1Y2Q3MTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFlM2JmNDkyNGE0ZjI1MWFjNzhjZGUzYWM5NjgyOWMzZjE0YzY5ZjIxZjY5YTY5YzFiMzNhMDFiODQwMWRiZmMifQ"
+        },
+        {
+          "resource": "repo://rtl/flash/flash_boot.sv#L41-L58",
+          "version": "repo-lines-v1:sha256:d0440d06c6de2ea35657bb3645bde3c3c7274cff62d720cd6c5b0e8852826a20:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1ZjU0MDM2MDA2YWY3ODcyZTkwMjgyNGQwZmJkNjQyZGRkYjYxZjk3NzliMTI5NzIwMTlkMGRhZjExZGI5ZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3ZDY0N2I5ZDA2MGM4OTRiNWIxODY1ZDAyOTlhMTcxMWNlMzdlNTFiYWQ3ZWVjYWM4OTRiMjBmMDYzYmU5MTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4YmY4YmU3NjUzNGFmY2Y4NDY1OTIyZDgwMzJiODJlMGI0NjJlMWU1ODIzYjlmYzQxMTZlZjgwYmUwZmFiZTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM1NjcxMjFjNDZjNGY5YzkzZjkxOTlmNTUxZGNjMDk3ZjZhNGJjYWNiYTI0MjAzMGJhMmQ1ZjBmMDRjMzY5NjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e3a4ccaa2aa04042ae1eb92c38ffcfaa",
+      "statement": "The boot loader streams two CPU words per 32-bit flash word into PSRAM through the runtime bridge, accumulates the same CRC-16 as the generator over each 32-bit word's bytes, and hands over the entry word saved from image word 0x0080.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/flash/flash_boot.sv#L155-L210",
+          "version": "repo-lines-v1:sha256:c5ccefd6734f1a89734ddb8f213bd0ad2363c71919ab300549d386f643fe304c:eyJzZWxlY3RlZExpbmVDb3VudCI6NTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ0YzMwYWE4YWM4OTdkZTFlYmExYzA0YmIzYTFhNDEyNTE2YjVhZDM5MmM2YThiM2M4ODgwYWJkOWI2NGFmMTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhYzc4M2RiMzY4MWMxODExNTk3YzgxZTA5N2I0OTRhNGUxOWQ4NzQ1NTMyMjFlYjI1MDJmMDBjMTkxNmUyMTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA3NjU0Y2NkM2E3NmVlOWY3NTYyZDIzNTEyZDZhMzJiMjUyNWZjMzdjYjlmNzVjMjQ2MDlhZDM4Nzg3M2MzYWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2NDg2NDY4MWM2MjQ5ZGI4ODJkMzNhODZmMzVhYTRjM2JlZGIxNDI4ZjE2MDVmODA2N2RiYzkwNDVmZWI0Y2YifQ"
+        },
+        {
+          "resource": "repo://scripts/make_image.mjs#L213-L240",
+          "version": "repo-lines-v1:sha256:30832c9f21c767c33489096c7cb7e0143f7f734af30fe4901b35b3921bb18ab9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY5M2UxOGY5OGNiODAxNDQ3Njk3ZTdhOWY0OWM2YWZjODU3OWE4NjllMjdiMWJkZjRkZWVmZWJkMzQxZDA5ZmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxZWRiNzZlYWI1MmRmYWIzMGRhZjE2MzdhNjM3ODcwZWY4MDY5MjVjNGMyNzdlMDViZDA1NzM4YWJlZjQ5YzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA5ZjkzMDgzYzE5NzEyMWI5ODI3MDBiYThhZmFiZDE3MjJjZjFkM2U3NDA0NTA5ZTgwZWZhMjcyNDdmNjJmMDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkYjU2NmUyYjM0Mjg5NjE4MjEyZjJiYTAzODAwNTc5OTBkNjFkYWU2NzA4NzllOGUyOWJkYTY4ZWQyN2EyOTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_03a5bf9cb3d34751bed9963b2688f8f4",
+      "statement": "With D16SEG the loader also writes a kernel-data copy at DS=0x1000 and a BIOS/demo copy at segment 0x3000.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/flash/flash_boot.sv#L200-L238",
+          "version": "repo-lines-v1:sha256:34b4b7f0db636e94b195875ccbe081112c5120185cf03974b3579cc1e93831f6:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YTM5NjY5NGRjMTEyZjI4OGEzZTI3MzBkYTQ4YzhkMGJmMzUzOTdmNjRjZWQyYTdhZGQ1ZjcwMzE0NTA0OTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5YjhmNzE5OGRiZjNkNDYzZDk4NGRjZjg0MTYyYjNjYWQ3ZDQwZDgwZDcwYjAzNjA5YTEyOTVmZTc1MTcxNDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQzY2Y1OGMwMDRkZmMwNWI3OWJlOWUxNzk3YTI0YTJmYTI2ZWEwYWZlNmNkMGUyZGYyZDUxZjI5YmNiOTMwM2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUxYmQ4OGRhNDI5ZDdmNTJjN2NlNDkzZmRlNDc4MzgxODIwNWZjNWJiMjFiZmM1MmYxYmY5ZmU1OTdjNmUzNTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2222f76428e4403d885260cf0ce739f9",
+      "statement": "A bad header or CRC sets boot_err and parks in S_FERR without releasing the core; the configuration-flash path has no PSRAM read-back verify because the CRC covers the flash read.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/flash/flash_boot.sv#L120-L140",
+          "version": "repo-lines-v1:sha256:0afdfcf31dde288757fbac3156c880a99de33eb6b43d1f084b0cb0a798e084a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY2YTQ3NWE3MDg5YjNjNDRlYzkyN2Q2M2JmOWQ5MzExZjM4N2M5ZjliYTk2MGU4ODc5N2FlMmJjN2E4YmRjMjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFmNzM3ZTQ0OWVkM2QyMzU4MzZiOGI5NjFjNmM1ZjIxYTE0YTQzNjM4NTY2NWUwN2EzYmM3YjI1MTFkNjgwMWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjExYmNjZDgzMzk1ZTFiNmY2Yjc0YTgzOTZjMDE1N2YzNzI5Zjk0YzI0MDViZDUyYzgzMDdmOTk4OGE1Y2Q3MTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY2YzI1NGIwYzliZDQ1MjdlOThlNmE4MzA4ZDJjMTdiYTFkZTkzYTVhZWM3ZWUxNDZkZTZjZWQwNmNhYjRhMGQifQ"
+        },
+        {
+          "resource": "repo://rtl/flash/flash_boot.sv#L236-L250",
+          "version": "repo-lines-v1:sha256:b6597362a30fe8197e433f720006fbe1635069882eaa3d49daf920b760284bb7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4Njg1NTM3NzMyOGFiM2Q2MWE3NDc3ODA0MTc0MzQ5ODViNjM1NzY1NzliNGRhNmI0ZjVhYTI0YTY2MTIyZGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmNWZkOWJjZDZmN2E5NjBkYjBmZmVjY2RmNWY5Yzk5ZTE5NzBlYjgzYjgxMTAyNjhkMGRhOGIzYzFlN2UxZWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU5OTU0MjIwNWY3N2JlMzVhOTliNzg0ZjRmNzJhZWQwYzM4MTY1NmRjZjBkMWZhZTAwODI5MWY3YzYwZmY0ZGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkMmE0N2I1MDU3NzM3OWMwM2QyYzFmYzNmOGY0NGIwNTFhYzIyMTJlYzIwNGE1ODljMTQzYTdhZGQzNGFkYTMifQ"
+        },
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L276-L292",
+          "version": "repo-lines-v1:sha256:6166962d7356b6ed813c41f59bfa6073493e7f3f8cb3fc617bc0ba8107b2375e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlNTEzNjUxNWRjZTIwZDdkZWI5YjUyMzRhOTM1ZTUzYzA3M2RmMzhiZmYyZWIwZDMxMTY5Y2U1Yjk1ZmRiYmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwMzMxYTQ3MDZkMDVkZjJhYzE2NjVmNTM5YTc0OGIxMTY0YmIxNmFkMjAxYzRkYjgwZTZkNWRlYjc4Y2I0YmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQwMjZiZTAyNzExOWEzYzFiY2E2ZjE2YTMzOTMwNWQyMzViZjY1MTJkNmNjYzA3NGE2MTBjZjA4OTMxZWExMTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVmNTQ5MjBjNjc3M2UxMTkzNGM4MmE1YTIwMmNiZjI0MzJmMDIzZWVlODExZjM0MDI5NjJjMDE1NDU3ZDFkYTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b809a6bd32b44bf29fe2a32ab6e8a0b6",
+      "statement": "The packed BSRAM image format is a range count, inclusive (start,end) pairs, then concatenated payload words, expanded to a 24576-word image with 0xFFFF fill.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/make_image.mjs#L155-L180",
+          "version": "repo-lines-v1:sha256:c03e21394a7608f717303bfb6536c28160afa3cf4b7efafd4c15c0ae9fa5870d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxNjgzZDViODU3ZjgyNWVjMjk5NTBhY2ZiMWIxMDZiMDgzMzQzNDFiNGU5NzllM2ZlZjRjYzA5ZWJjNmM1NzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQyNzliNjgwNTIwZWQ1MjZkY2M0YzhhYTM3MzUyNzU5MGUyODE5NWU0MGZiZTYxMDdlMWU1YjQ5NWE0NTc3MzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk2NTAxZDBmMjI4YzZlNmU0YWViMWUzYjkyYTEyOWRkYzEyZThiY2Y3ZWUwZTcwYjZmNDNhOGM4MDAzMGY2YjAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_36092bbb41c949cd82b15094a8ce2a6b",
+      "statement": "checkPacked enforces the 16-block packed-image budget and the 31-range limit imposed by the loader's 5-bit counter, and verifies that expansion reproduces the flat image exactly.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/make_image.mjs#L195-L212",
+          "version": "repo-lines-v1:sha256:f1192888751f88fb21d8b5ba88da9817034959754395afd49e5d8d590a266159:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3Zjg1NTg0NWM1ZjYzZmVjNTE3NTUzMDc0NzI5OTk0MThjZjZiOWQyOWUzNmYwMjI2ZTY3NzBkNDFhZTJmYTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRjN2EzYmY4MDRmMWI5NmVkNGQ2NWUyNzU1MTc0NzU3MGQ5MDNlNTBmYjUxMjIwMWNmZDRjM2ZlZmFjMzI3MzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM5MDk0NDQ0MGU3NWE1Y2YzNDdjNTUwNmIwMGY0M2Q0YTlhZWYxM2RmNzcyOTg3NzIyYTk3Nzk3M2IxOTQ5N2QifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2b857ef169cb42a0944b637ff799fded",
+      "statement": "On the packed-image path the loader clears tags, copies every destination word, verifies by walking the same ranges, retries the copy once on a mismatch, then sets a persistent boot_err.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L350-L400",
+          "version": "repo-lines-v1:sha256:1be23d267beab1aa64f950e3ee73dbd0b37f8a0e8bded34ff403a12b5a70461f:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YTM5NjY5NGRjMTEyZjI4OGEzZTI3MzBkYTQ4YzhkMGJmMzUzOTdmNjRjZWQyYTdhZGQ1ZjcwMzE0NTA0OTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5MDdiNDY3YzkwNGJlNjg2NTFhODRjNmY0NTczNGNkZjg5NGJjZmI3MjFkM2MwNzMxY2RjNTRiNTAwYWQ1NmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI0NmE3ZTVhYTJiZTlhMTk4YTQ4MjRlY2E4YTgwNTZjM2NhOWY1MDExNmMwMzY0M2ZiZTYyM2FiNzBhODdlZTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1b5c231007f343b69df10b38e2512568",
+      "statement": "After either boot path the entry word at 0x0100 is read through the cache and compared with the expected word, and a mismatch sets boot_err before the core is released.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L418-L427",
+          "version": "repo-lines-v1:sha256:838380625b20e5e7b2980c8c7efb6061d3c8839cd79639baa93e5469dbc8e6a6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg2MDZlMzU1OWRkNDdhYjZjYTMwYzZlMjc0NGNhZDY1Y2FhMmY5ZjY1MjgzMzU3MWY5MTdhNzAzYmQwNmFlYzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQwZWQyZWUzMjAyZjExN2MxMmYzNDIxZWUwODU2YTExNjllYTFkZWMwNTllODA3NGFlMTNkYjgxMThkMmUxOTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBhMDc3N2IwMTA4YjY0NTM2MzhkYzc5ZmRkOGNmM2Y0YWU0NTVmZDgxZDNkYWNmM2I4NmIyYTNlYTRlODgyMjUifQ"
+        },
+        {
+          "resource": "repo://rtl/psram/deep16_psram_mem.sv#L497-L512",
+          "version": "repo-lines-v1:sha256:395eee4076d954d048fd59856f85229519a3a47459fab54f3d7dac79f8ad5d5e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc2M2NjYjE2ODI4YzljZGUzYjNmN2NkZjE4MTY5MTc2MmFkNWI2MTEwMDRkYjE2NjhmYWQ3YjE3MmNjNzM5ZmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIzMmU4YTlhMGM5N2RhZTY4ZmFhNmM1Njk2NWJhZmFlMTk5MjU3ZTU5ZjZjYjAyNmQ3MDg2YTdiM2M1MzU5NWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNiYWY0YzdlZjMxNWExMjM0NTlkMGUxNzRmYzM5MDVjMGYwN2VjYjRjOTNhYjQxMzYwMDdhMWQ4MGUwNTMyYzIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_96fb845041c049b58f560214fe4916a8",
+      "statement": "flash_boot streams source words by driving the shared SPI master with a mode-0 0x03 read at byte address 0x100000 plus the word index times four, while the core is held in reset.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/flash/boot_spi_read.sv#L1-L17",
+          "version": "repo-lines-v1:sha256:0c6439f0c752ee56040fdc97bae84e95ef64728dc6f3333117d7c826afdae1fb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhNDQ5YjJiNDlhY2Y1MDUwNDA1NTY2NTY0YzE1OGE0YjQ3YmExYzY5NDJjMmUzZWYxZjE4MDRiMWUwNmE3MWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5NTI0MzJmZmFlYjZiZjljZmRmNzgxNDQyN2E1ZmYyZDQ4ZDU4ZmIzYzM1MDQ3ODM5ODRkOGRkODgxYzdjZWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY3OWY3MTcyNGNlNDUwMDQ5NmE1OWQ5MTZiOTQ1NWUwYmE1M2NiMWJmMmJhNjRhNzE2MjE0ZDExNzAxZDlmZmYifQ"
+        },
+        {
+          "resource": "repo://rtl/flash/boot_spi_read.sv#L60-L95",
+          "version": "repo-lines-v1:sha256:a19c238687d39cdfac00e188d7dec2ee824d18e4fbc4a7566690304785d8f722:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmZjODIxNmIxMThiNjc3YjM0ZmM2NzUzMDcyZTQ2ODA5ZjliMGRmMDBlMDAyMWI0YWU4OTU3YTdhM2U3NjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljY2NlNmM0ZGZiYTQ4ZjY2YjEyYjFjMmUzMWMxYmYxODMzNjQ2YTQ4ZDRhNjAzN2QxNDk1Mjc3NDUzYjkwNjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg2OWRlMDAwYTViZTg5YjBjMzkxNDUzZDgxYjJhMjZiNDY1MjE0OTQ5ODIzNzBmZjljOWQwNmJmYzhmNDU1NzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIyNzU5YWNhZTdhNDIxMWJhZjAwMTllZmEzNWU4YTViOTFkNjNiYjc0YjM3ZGQ3NGUyNzEwNTdhZDM4YWU0YjgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a782cbaae26842fb9d7387d27ff76be8",
+      "statement": "Configuration flash holds the bitstream at byte 0, the boot image at 0x100000 behind a 64-word header, and 4KB source slices from 0x200000, with the lower 2MB block-protected by BP=0x38.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L15",
+          "version": "repo-lines-v1:sha256:16c7ef3493b2f7dad77de22ec52679ddaaddf5643ed3fe1f006f86db0ecdfb96:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY5N2ZlOWQwMmQyYjIyNzIzOTA2ZTA1YTc4YmMwZGI0NWRmMWQ1OTkzZDAxNjhlOGMwYTc2YmY2MmU4NmU1ZDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcyMWJjNGEyYmI4YWM4MzBiNWZmYmI1NjM2NjZiZTdmZTdmOWRjYjQzNDI4OWRjYzljY2Q4MmI0ZWYxZTFmYTgifQ"
+        },
+        {
+          "resource": "repo://scripts/make_image.mjs#L232-L250",
+          "version": "repo-lines-v1:sha256:317a14f5f0025932ce1013c04943bf6171a6121c69184bfd1a5fd1f5d81e74c0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk5ODc1ODA3MDA3ZmQxNzJmZjBjNjAwYWVlYzdlMDYxZmRhMTBmOWNlOGQ2NmQ2N2EzOTk0Y2Q2MzA4NTM0YjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjODQ3OTBhY2NiMWJlMmU1YmM4ZDJiMGFkMWI5Y2ViOWQ4YjE5ODYzMzMwZGIzOGNjNzcwMDQzNWFkYjcyMDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJlNmY3OTIyZjMxOTU5MjBhYjYyODNmZDlmMjczNGZjODRlOTYyZTAyOTE4MmQzNWM4MmYyYjEzMzQxZTk3ZjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU5MDI4Y2EwMzBhOTcwMzdiMzkzOGM0MWM5YzI3MjEwMzZiODQ0NGRkYmU4MTE2Nzc0OTJkM2U2NDViMjY4M2UifQ"
+        },
+        {
+          "resource": "repo://scripts/make_slices.mjs#L1-L22",
+          "version": "repo-lines-v1:sha256:6bb4d1e9e57ee01f929161c8fbc9f4e44d5e4717ec2ce04675243bb76e18c3ff:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4MDk2YWE5YmY2ZDViM2MxNzJjMjI1MWVjZDE2NWY3NTg4MzNhNTI4MTNjNzc5MTQyNmExZTk5MTI1M2ZlZTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRiMWQyNTQ1OWE0NWZhZWJjODkyNTg4YzBmOWJlMjcyZDI4ODg4NWU1NGMyMDFhZjk2ZjUwZTgyZTg0ZWVmMjYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6a53a83f1e6349ee8e4887957aefe757",
+      "statement": "npm run flash:tile dumps the 1MB boot-image region and compares it before writing the slices, because a block-protected chip silently drops the write while reporting success.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L33-L53",
+          "version": "repo-lines-v1:sha256:33fb06bd3c446ea451a8cfa17c286867e1ba6e580657080fc15765b1d8d3ca99:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhNGRjNDNmOTAyNDAzMTE4MjU5MjA4NTNiZDg3YzIyMWE4NjNkZGM4ZTdlYzZjMGMwZWYxN2QzNjIyMzRiYWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkOWUyYWNkNDY0MGQ5MDJhMmY4MWM4NzdjMGZmMGRlN2EzMDM1MGEzMzYwZjU3NzczNDYyY2RiMzkxYTJjMzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIyNTQwYWU1OWRhN2I5Yjk0M2E3ZWI3MGI1OWVmMzA5MmM0ZTFkZTc3MzNiNmE1MGNjODAyM2M4ZGJhYWVhMWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d64435956ed2470faf0e1991919d7c42",
+      "statement": "flash_installer is a one-time bitstream that erases 25 pages, programs 12,352 32-bit words into the on-die FLASH608K and verifies them, with LED1 for PASS and LED2 for FAIL.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/flash/flash_installer.sv#L1-L25",
+          "version": "repo-lines-v1:sha256:6f58a24753426360e75c7fd8ce899d34702efcf2a657abc2238de2c81d798ed8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3MDI2ZDdkM2M2MjllZGE0ZWU3OWIwNjAzNjMxZTFiMDhiMjEzYjY4ZjNjZGRkMWUzNmY5ZDc1MWE0MjJkZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM3NDc1M2FmNWZjMzdiZjNlYjdiNDBhZGQxODg1MGY4NDU2OTA5YTBmYTcwMTUyMGE3YjY0NmRiNWViZDdhNmUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.2",
+    "at": "2026-11-01T09:36:37.731Z"
+  }
+}

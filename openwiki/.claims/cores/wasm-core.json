@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:dc50ef4319f6d9ef66327a2f32607428846879513885da221c7bef4e651154cc",
+  "claims": [
+    {
+      "id": "claim_1a83b04f520240a3a30d0d8bedbb8d42",
+      "statement": "wasm/deep16-wasm/src/lib.rs is a Rust port of the JavaScript reference core built as a cdylib with wasm-bindgen.",
+      "evidence": [
+        {
+          "resource": "repo://wasm/deep16-wasm/Cargo.toml#L1-L8",
+          "version": "repo-lines-v1:sha256:f73dd104ff4601e0953360ca093d46f48f97c925034053eec9d6bfc33b67c971:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGEzY2Q1YTgxYjNmOWE2MjFhYTQ5M2Q5MGM0NWY0MmFiNTcxZDRlNDJiOGFlNWFmZjM1MWNiMGEwMmQwNmQ4MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmIxYzRjZjczODk1NDI3MjE2NmE4OGM4ZjY5ZWExMzdjYTIxNjM2MzE1NTQwZTgwOGI3NDBmYzg0ZjE5MzNjMiJ9"
+        },
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L1-L3",
+          "version": "repo-lines-v1:sha256:17866695651d0918e0dfc7d1b7b0c7ab7d6d227d746f21eee98454dba495e827:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWZmOTNkOWQ3MDM4NGY5OTE5OTEyNGFlOGY0OTQyZmQ1OWYyNDlhYmZkMzIxZWM0ZmEwOWJkNDA1MWQxMjc0YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGVmZDNlN2Q3YzZlN2ZiOTE0ZDRlYTRjNzhhZmRmNzEyMzE4ZTM2ZjRkNzYwYWZmNzNlYjI1MTE5ZTViNTcwMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDk5NTkyZDhjOGRhZWM2Mzg3YjBlNjhhNGUwMGRhNDYxMjdhOTNiYzRmMjE2OTc0M2I3ZTg3ZGY4ZmMyMzJhOCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_2f4487f4c3dd4b5193b465696c418646",
+      "statement": "The crate's release profile enables LTO, optimises for size, uses one codegen unit and aborts on panic, and the Makefile builds it with wasm-pack --target web into ../pkg.",
+      "evidence": [
+        {
+          "resource": "repo://wasm/deep16-wasm/Cargo.toml#L10-L15",
+          "version": "repo-lines-v1:sha256:72d0e6ff9cf8805be11ee7e45c046d039f188c26fee7044d5ed8b35257a89d6d:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTYwNDFlMzUyMDA0NzU4Mzc4MDhlODZlYjE4ZDcwOGJjNzNkNjlkNWZkMTNiOWUzZDdhYThiYWQzOTUzOGZiNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTk2NWNkMjg1ZWExMzBiOWYxZDFmZDU4MjdiOTIwZjkwMGYwY2VmZGZkOWRmN2Y4YzMwMTNjNTVlYmNjNjg2OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmNjY2NiMGRkZjc2ODA3ODg0ODQ4OGE1YjUxM2E3ZTFlYjAzOGQ4ZWZkOTM2NWI3ZTMxMjc4ZDJjNDZiNzQ3OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjE0YjQ0OTQyOWJlNmZiNDRlNzRlMDQzNTVjOTg0OTg0MDljYjViYjlkZmIzNmMwZjY2NmJhOGM4YzY3YmYzZiJ9"
+        },
+        {
+          "resource": "repo://wasm/deep16-wasm/Makefile#L1-L2",
+          "version": "repo-lines-v1:sha256:f1a0c118ce969898a48601b992c38c3d95f11366fd738675d36ac897f610f18f:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGFkZDZiZDUyOWRjODkxZjIyNTI3NjQxNTAxNzdjM2QyZWYzMTI0NzQ1ZmNhYjI4MmM0YTEyZWQ3OTdmNmU0NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGFiYWMyZWIzMTJlMjA4YmE3ZTliNzc0YjQxMDIzMGJjODY3NGFhN2ZmYjBmNzhmOTg5MjNjMWE5ZWQyNWVjNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_fb7fe16c8b414e82bed8e06ddc88d8d5",
+      "statement": "The built wasm/pkg package is committed and loaded directly by both index.html and tests/helpers.js, so a source change without a rebuild leaves tests and the IDE on the old model.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L44-L51",
+          "version": "repo-lines-v1:sha256:5e92f69fd9834aa916163e428832afb9354c15d7182150a4fbf1d36d2b3bba7e:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGM0M2ZiODlkZDcxMzkxNzA2YmI2NTUzMzcxMzlhZTY2YWMxMGZhY2M0MjYyYmNkMjQ4YzIyOWNmMGUyNWQwNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTE4MTY4MjA2YWU0ZTU4YjZmMDM2MzI0ZGI5MDVmNmFiMzY4YzJmNDE5ZjY4NTViZDdhYjAzNGM2MzlkYzlmZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDhhODE4N2I0MzlkYWRhNDVhNDQ3MTBiOGQ0NzI3NTQzYzM0NWI0MDVhMDFiZDY1ZmRlNTAyMjNiMmFkY2VmOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmVhNjY1ZDNhMThlYTAyY2UzYmQ5NmFiNzk4MTk0OTQ5MzAwNzkzZjMwNTg1NzdlZjk2OTU0OWFiMzdlNDE4NSJ9"
+        },
+        {
+          "resource": "repo://index.html#L405-L412",
+          "version": "repo-lines-v1:sha256:bbd6e02478dcdf1bda6704431aaa577963d277b905f8a51b75e7b7b6304f54c1:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzg3NDNjNzhmM2U2NGVlYjljYWYwMjhhYTdlNzJmMGYxNzYzN2RiOTM3ZmM1ZjU3MjI4ZTFhMDZlZjdmZTZmZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzJhMzc1MzUyZDU4NjBjZTQ0NmNkZmY0ZTAzNGMwNDRlODI4YTc0ZGU0MGM0NmQ0MjJlNWMwODdlZWFlNGFhZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTBkYjZhNDk5YjA3N2RjOTNkMjBlM2UyMmY0ZWQ1YWQyN2ZjYmYyY2E5M2Y4MjEzYTZlN2NhOWYwNTQ4MTgwYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWYzNWVkYzY1Y2EwYjNhZDZjMGE2OWRlZDI3ODc0YTdkMTViZDVkN2JiNzVkNGMwNDNhZTcxZGQ4YTczZWJhNSJ9"
+        },
+        {
+          "resource": "repo://tests/helpers.js#L95-L103",
+          "version": "repo-lines-v1:sha256:d48c597491220f37c234ce993c845a8a19545d686450e5b9aad4724efd2c7d3e:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjExMzQ2NjZjYjQ4ZTEzOTQ1NjMxNTQzMGRkMjY3MzlkMTFmNThjZDU1NGUyOWFkOTgxZGRjNDdjMWZlMmE1ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjY5MWZkZGRiYTQzOGQ0OGRlNzliNDlhN2U1YzU5NmNmMDM5MTk0NmQ4NDE4ZjQ1NjU3YzdjZGYxYmM2ODM1YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTUzNjNkMTQ2MzU4YzNmMzlmZjcwNTY1NWFkNTJlMzEwZjk3OTI1NzY0MjcwZTQ1NmFkYTZmYTNjNGVkNmViZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_fe8b139d2481468ca6d09256fdb7989e",
+      "statement": "The ABI exposes lifecycle and memory calls init, reset, load_program, poke, get_memory_slice and get_memory_word.",
+      "evidence": [
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L175-L250",
+          "version": "repo-lines-v1:sha256:a86477f659c467c1b9a67dca9317d240435ef3d9daa5ac61e986071bceaa89a8:eyJzZWxlY3RlZExpbmVDb3VudCI6NzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFhMjEyODAzOTI3YmJhMmE5NWNmM2YwOGEzNmM0NzA1YjA1YjRkOGQ5NDg4ZGVlY2EyNThhZDdmNDI1NDg0MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM1MWVlZjBmZDEzMjMzNWFlYjViZTQ1NzBmNDU5NTIzYTUzYzIwMzkwMjg4YWE5YzkyZmEwZjhjYmYwYmQ0MmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVhMWZhMDM0ZGIyODNkNDNkMWY4NTNhMWIyZDAwMWFmMWY1NzQ4NjhkNWY0ZGM1OWMwOTE4N2IyODk4N2Q4OGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFiNTljMjZlNmZlZjlhZjg1NzhlZDc3NDVkYTVkNzNjOTIwNzAxNjJlMWRkYTdiNmUwYmM1N2UzZTRmZTAyYTIifQ"
+        },
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L307-L321",
+          "version": "repo-lines-v1:sha256:5d037eb77099a1b4fb8ecdfaaec6725daab67179958ebca2ddc1b367a93bc3cf:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4N2YwZDBmZTlkYTgzOGM5N2I4OTAzNjVkMGE5NjYzNzM5YjE0YThjMmMyYzE1NWQ2ZWZlMmIyYTc0ODhiZGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiN2NkZDUzNzQyODBiYjJkMjA1OGJmNjkwZjViOGEzYmZjZjBkYzEyNzJjZWMwODVmOGQ0YzUzYzZkMzRmZTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1YjA2NmIzOTk4OTZlMTA4NmVkYWM3NWFlNzc4N2U5ZWUzNjUxMjZjOWQ3ODZhMmE3ZjM0YTkwOWM5OTU0MzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5ZTc2MzU1Y2YxMTk5NDgwYzNmOTk4MzZiMTQ4NmM4NDFkODkxZmFhZDkwNGM2MDhlMDkzMDIyZDM3NTdhZWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2b052c21436a4069a09ac7f6e91f1eca",
+      "statement": "load_program copies words and then clears PC and forces CS to 0xFFFF, so it cannot be used to resume an already running machine; poke exists to write a single cell without side effects.",
+      "evidence": [
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L211-L250",
+          "version": "repo-lines-v1:sha256:12a64838f666e3199139c27911dbf7641086cd814732ae02f02a1ac33f7b8b5e:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc2NTZlOGUwZWM3MDkzZTExMTMzOTk4ZjE3ZDQwYzk2MmE3NWI4OTU4M2MzNjEyYmQ1MDI1YTZjNmY1MDEzZjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM1MWVlZjBmZDEzMjMzNWFlYjViZTQ1NzBmNDU5NTIzYTUzYzIwMzkwMjg4YWE5YzkyZmEwZjhjYmYwYmQ0MmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3MTQxZDYxYTQxYmQ4YzMxNzgyYjlkY2YyZDc4ZTI4MDgzYTkyZTY3M2Q5YzNkMWIxMTA2ODc0YjJiNjAzMTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFiNTljMjZlNmZlZjlhZjg1NzhlZDc3NDVkYTVkNzNjOTIwNzAxNjJlMWRkYTdiNmUwYmM1N2UzZTRmZTAyYTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_53a34f9903aa46aab97d068b74e7b869",
+      "statement": "set_registers interprets element 15 through the current PSW.S bit, writing the shadow PC when S=1, and get_registers reports the same active view so the pair round-trips through handler context.",
+      "evidence": [
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L240-L289",
+          "version": "repo-lines-v1:sha256:7588b0c1ff243c98cc8216535c4a9f5a005738bbca5ae825b64aa6bdb4138c40:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY5NjE2MjBhMDM3YTc4YWI4MjNmZjQ0M2Q0OGM4NDgyYzA1MjM2MzI4OTVjM2E2NTdjMjk4MWM5Mjc1ZDM3Y2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMwMmZkY2FhM2QxNTAxMGI3ZmJjOTQ5NTM0MjdmMjFkZmJmNzAzOWJiMzM4NGYwMDliYzBhNjBlMzc4Y2U5OTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU0MjQxMmU2ZTFkYmNlNjNiZjAyYmRiYWI3NzI5YTNkMDcyZDMyYmEzZjIzNTNiMjY4YmRmNmE1YjgwZjBiMzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5571024c36c94d488667d3850437ae74",
+      "statement": "get_segments returns the shadow CS, DS, SS and ES while PSW.S=1 and the normal bank otherwise.",
+      "evidence": [
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L291-L305",
+          "version": "repo-lines-v1:sha256:4669c85e9935811c703804d4dd90d01a1116184f0b07597ed3a7394ae6b6f90b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU4MjIwNWQzMDg4YTkxNmVhMmQ1Y2JhZDllNjY2ODkyMWFlNDM1YmNiYWZjMWFjNWFiOTAyMTlkM2QxOTY3MWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3MTQxZDYxYTQxYmQ4YzMxNzgyYjlkY2YyZDc4ZTI4MDgzYTkyZTY3M2Q5YzNkMWIxMTA2ODc0YjJiNjAzMTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUxNzA3MzY4OGYyNGMzODMyODA3NzRhNTI5MWM1NzNkNzk1N2I3YTM5OWJhNDhkZTljNGRhMGIwYTRmZTUyMjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_87f9d6041484423d8e6fa26dd99f79aa",
+      "statement": "The IDE mirrors state into the WASM core in the order init, load_program, set_segments, set_psw, set_registers.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2792-L2812",
+          "version": "repo-lines-v1:sha256:e8b876edc29b88502a5ae5b1eb4b210d9f7d4dcae87a93fdbc2ab1ebdaeaceab:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5N2MzODFlYjlmZGM4ZmRkMDk2MjUzZDJlYjFjMWM4OWVkM2NmYTI2ZTU4NTk0Mzc4NjUwOTllZDlmMTgzZWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyYjQwN2JhYWFlYWMwMjAxZTZkYTk4YzlhY2ZhYjEwNTE3M2NlZjYxNThiNTA4MjZjOTE5NDQ0ZTkwZmFkNDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU2MjM5M2UwYzA5YTg5NDgxMzgwOWFjYjJhM2FlODk0MWIyYzAxN2NhZDI2NDMyYzdkZjU3NTU2M2RhOGRkMzcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ef52ddaf0ab54a64b92def939dd0dd9e",
+      "statement": "step_one retires one instruction, handles delay slots before normal fetch, stops on 0xFFFF, and treats 0xFFF1 (FSH) as a behavioural no-op.",
+      "evidence": [
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L1214-L1216",
+          "version": "repo-lines-v1:sha256:53898770974715d6cf74412f48292389af96d18b7a90f2d4e84f837e74f353bd:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTZhMmEzNWFkYTFkYTlmOWY3MjFiN2Y2MjQ0Yzg4ZDRhZDYyNDRkYjc1MzM3N2Q1OTA2YTUxMjE5ZjYyM2Q5MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTdjMDVlOWI0YTExNTVmZWFiZTI0ZDk4ZmI3MzlmZDViZDg5ZmM4ZTUwMDUwMzRhNTMwNjhkMTUwMDYyMmMwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDc1NDQ2NWI3YzYzYTgwN2JmMTQ4M2E4MzAyODkxOWM2YzI5MWY5MDViMDhjYjE1YTdiNWQ4ZGM5NjQ0ZWI4MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDM0YjU5OTA5ZDJhODJjZjYwNTg0ZTRiZGFmYmJhZjQ2MzcwYThhZTZlMDljMTYzM2EwY2NhZWI5MmQ0ODdiMSJ9"
+        },
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L883-L936",
+          "version": "repo-lines-v1:sha256:09d739bbffec4789fd47bdf1122fb3dd1d927cc97fe35c189d158b5276f6ba58:eyJzZWxlY3RlZExpbmVDb3VudCI6NTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxZTk5MDRiZjQ5MWMwOTk2MTk2MTlkYThhY2QyZDlkN2IyYWEyMWMxNDAxOGQ1M2QxZjBhOWE4ZTYzNjc5ODciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk2Zjk5N2Y1NDg5NTQ1NDE0MjA3MzY4MzBiY2I1NDM3NzQzMGVhOTkwMWQ1NTIxOTZhNjRlMWE3ZjEyMjVkMDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU2MTFmZmM4N2FlNTNmZTM2MmQ0ZjM0NzlhNzU1YTU3Y2U4M2RjOTJjYjIxZWY3ZDYxZWE2NjI5ODI0ZDk5OWQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4bcacadef0394c0f8846a938ea5d1a7b",
+      "statement": "Only the 0xFFF0-0xFFF7 space is routed to the system handler; 0xFFF8-0xFFFE fall through as no-ops.",
+      "evidence": [
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L938-L943",
+          "version": "repo-lines-v1:sha256:2d8af361980d596c8e4f53e375a5e8156c0f4374c9efffcdd8cf7bd3df07c329:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDg5ZmVlY2E1MDliYTZkMDFmOTgyYzYwNTYxMzRmODY4NGZhMWM2MWI0MWNjNWViZjM0OWM2Yzg3MTI2MzQwZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjJhMjI2YjhlNmJlNmJhMTQ1Y2M3MTgyOTg5OWIyYmYzZWRjMjQwMWFhMTRmZGY5MGJhMjIwNjJhNmMyYWZjYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTZmOTk3ZjU0ODk1NDU0MTQyMDczNjgzMGJjYjU0Mzc3NDMwZWE5OTAxZDU1MjE5NmE2NGUxYTdmMTIyNWQwNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDBiMzZlNDRlMDUzNzE3NTZjOWQ3ODJmZGFkMDZkOGU4ZTkzYzY2OTQyNzZkY2FhOWI3NTg0YzI5YjUyOWVkYiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_cc6dfb22fe8b4c6c942011499bdf5e36",
+      "statement": "step_one sets running=true on entry, so the core has no stopped gate and repeated step calls after a halt re-fetch 0xFFFF instead of refusing to run.",
+      "evidence": [
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L883-L885",
+          "version": "repo-lines-v1:sha256:c9e0973a6eb900b6552e03c57d007d29e42f17d9d060fe344263edacfb25ba22:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFlOTkwNGJmNDkxYzA5OTYxOTYxOWRhOGFjZDJkOWQ3YjJhYTIxYzE0MDE4ZDUzZDFmMGE5YThlNjM2Nzk4NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmE5MjIyYTNjMDBlNjgyZjkzYzhlYzNiNDE4MGRjOTliYTFhODJkODVkM2YwNzc3OTBjZTk0YzQ0N2U5YmEwMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTZmOTk3ZjU0ODk1NDU0MTQyMDczNjgzMGJjYjU0Mzc3NDMwZWE5OTAxZDU1MjE5NmE2NGUxYTdmMTIyNWQwNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzBjNzNlZjhjMmI2MmMzM2FmODhmYzM2YWE2ZjQyNjM0YjExMmNmNWEwNzZlZGZmNjE0ODJhZjlhN2MzNzRkOSJ9"
+        },
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L906-L911",
+          "version": "repo-lines-v1:sha256:46fba10d833b32ff25c8fa441fae596f2263ca73395b7085c4a31155e71d2cd9:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjBkMzk5NjAxNDk3YWY1OThkOGYyYjA2OGE2ODg3ZGVhY2YyN2YzNzJmMGZkMzI5ZWRlZDU2ZDhiNTYwYjI2OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWI1YTljNjEwY2ZjOGExNWQzNjM4ODc3NDIxYjgwZGI0YWE5MTk3YmRjOGQ1MjgyZTU2NTA1NDlkZjgzYTkzYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzc0MDcyYzg4YjFkNDk4YWUzMzRiOTY5M2IyM2I0N2NmYzgwMTk3YWNiMGNhNjZkZTQ1NTUwM2I1MTBiZDVmYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzI2ZjgzMWQ4NDJmYTUwMmFkMGVjZmRkZjcxMzgyNzdmYTQ4NGU5MWI1ZDc3ZGNmMzRkMzdkNjkwOGYxZGJkMyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ebfcf46cd9e546b0a51fdd7e4de02aa4",
+      "statement": "The WASM core decodes only the keyboard and UART ports; it has no SIC, SPI, SD card, timer or screen-update hook, so 0xF1000 and other 0xFxxxx writes are plain memory writes.",
+      "evidence": [
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L1020-L1070",
+          "version": "repo-lines-v1:sha256:a0de03170d6a2365daabd949dbd7786db20cd4491cea06b03c5d57f7867769cc:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjNTQ0YjVhMWYyOTVhOGU1YTNhMzllMzRiOTRmOWMzYTE4ZDBhN2UzMjQ4NDhmMDU3YzFhYjY5NWZmMzk1YmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFiM2U0MDU0NzgwY2U3MGE2OGJkNjRmZDJkMDk1NjBhYjJmMjVkMmE0MGE3YTc2OTlmMjJlMGE1ZmFjOGZlNDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4ZTk4NjMzNzBjZDE1MjJkMzFjMTQyN2RkN2JlOTk5MjM3MWExM2ViMzJjZWEzYzMyNTg4YmZmNTViM2Q0ZjAifQ"
+        },
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L5-L17",
+          "version": "repo-lines-v1:sha256:b76a57f248b21b77bfb791801fb8d45610c2e2a976d38bf9935987e30b852ef3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxMGJkMTYwNDgxNGU5YTc3M2ZlMGFiM2ZiM2VmYmU5NDkxMjViYjQ4NDVmMDEwNDcxN2E5M2E5Yzg4OTBjYjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ2NjY0YzdiMTUxZDAyNjU4ZmUzZDljY2IxNzlmNDY0Yzk3MWEwYTU2MDMwNmQwM2U1MTJkMzc4MWZkNDA0YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY3NDMwNWU2MDY4ZGI3M2M2YTdhNWMxYTcxM2I0ODYxZGJiYjZkNjIwMjUzMzIyODc3ZDgzZTkwODk5ZjEzNGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQxZWM5M2RlNjgzZmRmMjRmNjM2MzRjOTBiMWI0ZjhjYzA1MWU0ZGExODNjNGEyMzc3ZmY3Y2U3YjIwNDYzNjMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f22a6098ddbc4b5fa2b2a353d72d92ad",
+      "statement": "The UART model has a 128-byte RX FIFO with an overrun flag, a 65536-word TX backlog, a non-blocking transmit path and a default divisor of 234.",
+      "evidence": [
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L11-L17",
+          "version": "repo-lines-v1:sha256:3ad4ebf326c4f09e9e4bdc00fae5b7175d383e966a04c88892a5e797046be66d:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMmQyZjJlNWRkZThmYzUxNDM0MGFjNTlmOTE1YmFmZDk2ZWZiMGFlMzkyNzE4YjRjZjg4NDA1MjE5N2EzZDFjMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDY2NjRjN2IxNTFkMDI2NThmZTNkOWNjYjE3OWY0NjRjOTcxYTBhNTYwMzA2ZDAzZTUxMmQzNzgxZmQ0MDRiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODZjNDA1NTcxY2I2MGNhNDYzY2Q0ODliMGJiNzI5YzQ5YTk5ZDAxYjY1YTAzYmMzZTcxNWE4OTM3ZGNiYTBkYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDFlYzkzZGU2ODNmZGYyNGY2MzYzNGM5MGIxYjRmOGNjMDUxZTRkYTE4M2M0YTIzNzdmZjdjZTdiMjA0NjM2MyJ9"
+        },
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L994-L1000",
+          "version": "repo-lines-v1:sha256:24bebb876bde3dae558916a41536227c77e58023ff2f99b312921c15a11a9a39:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjEzMzE2NzU3YWViZDA0NTA0YTg2NmU1MWMwOTYxMzljMjNkZGU4OTU3MzRhMWY5Njg0NzNjZTg2MzBmODAyMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWFmYzJlYjdlNTg3ZmY1YzM5YTA2Mjc4NGQzNjFhM2RmODE1ZGM0NGU4NTQ2OTU0NmVjNTYwZTAzZTcyMjI3NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTllNzYzNTVjZjExOTk0ODBjM2Y5OTgzNmIxNDg2Yzg0MWQ4OTFmYWFkOTA0YzYwOGUwOTMwMjJkMzc1N2FlZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmQ3ZjFlNzgzMDcwOTViZGRiYzQwMmM4MmY0NWRlMWYxOTQ3ODUzMGZkODExZDRiZWQ4MjhiYjcxNTk5NWY2NyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_37b2888f03704def9c2bdb184786ed50",
+      "statement": "The keyboard is an unbounded vector despite a stale doc comment claiming the RTL core has a 128-entry FIFO; the RTL top is actually 16 entries deep.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_top.sv#L148-L156",
+          "version": "repo-lines-v1:sha256:f71e9cdd8ea465154335ee1b0d8366fdc31478500d1346caaafd93223da5a2b2:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDUwNTRkNmZmZjYwYWE3OTRmYjcxYTA0MTBlM2ZhNzg4MDhmMzI1ZGE4YzQ2NWY5MDZkNzE0NWFmOTM0ZGIyOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGMyMjA5OWRiZTZjYmE3YTM2MmQ3ZTU1ZjY4OTY2NmMwODA5NDdlOGZjOGJhNjY1MTA0OGVkOGMyYjBjZmQyZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTFkNDgxN2ZlODUwNGM0Y2ZlMmZhYjA1MjYyMzI0MGYzNjQxZjg5YzIzZWVmNzcyMTQzYzdiNjA0ZWRiMWJmYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWQxNmY3ODAxMTQ1YjA5NGNmMWY5NTg0OGIyYzk0YzljM2Q5MzRjNzY2YjE5ZmRiZmIxNmJjMGU4MGI3MzU3NiJ9"
+        },
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L1079-L1100",
+          "version": "repo-lines-v1:sha256:2150bbf41a5da5177cd8fb8ebd61ac57ec62f2d1e90c5af59190791abc0867ca:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkMDExMDljMmEyNjBkZDIxZmU4ZWU5M2U2OGY4YzgyZTQ2ZmE1ZDZmMGI5ZjJkODc2ZmNmOGI4NzM0YTdlZDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlMDVkNzY0ZmFhMGIxZDYxNjRkZWRlYzc3NTE0YTNjZmM1OWI1ZWZhMDE4Y2MxMjg4MGE0MzE2Mjc1ZmNmMzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE5ZTc2MzU1Y2YxMTk5NDgwYzNmOTk4MzZiMTQ4NmM4NDFkODkxZmFhZDkwNGM2MDhlMDkzMDIyZDM3NTdhZWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlhZThhMGI3ZTI3NjMyZWM2YzA0ZDI0MzI5NWYwY2JlM2JkODNhOGU0YWIwMmYyZWUxY2ZkYmUxMmMwMWMzNjUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e3cc4288b14749ed809ace6e7e5d9602",
+      "statement": "Unlike the JS reference, the WASM core has no hardware-interrupt entry and no d16nano ILL mode, so DIV and DIV32 always execute.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L250-L253",
+          "version": "repo-lines-v1:sha256:2469999755e72a1cb4a94efecd61eb465780de1fcd67a25bdc7b899663c17d6d:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWNmOGIyYmE1YmE4MzViMDUzNzNkNTY1OGE1Y2ZlY2Y1MzU1NjMxYWIyNWNmODlkYTkyYzY3OTlhMDQ1YTdiNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGMxOTg0YmNlYzE1ZWNiYjk1YjkxODExMDJkYTRjMjRlM2EwZGU4MjRiYWE4NTg3MWIxNDFhNDJmODVhNTdiNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmJlOGVjOWQwZGQ1NWE1MWZlMjBjYzZlZjVhNGYyZWIzODVhMWFlMjZiZDY3OGUyOWM3YjM4ZDAyNjc0YzUzMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWQ2OTc5NjJjNzM3NDZhNzdhYzYyZTMyODQ4YWUxMTg2OWVlNjczNDJhYmM1ZjE1NDNiMWU0MGE1ODQ0MDMwYyJ9"
+        },
+        {
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L20-L76",
+          "version": "repo-lines-v1:sha256:bd32447c6237508292135efb2e137f661a4ef28efcd65b7f1f5f89e82f4a48b6:eyJzZWxlY3RlZExpbmVDb3VudCI6NTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhNWQ2Njk3NTdiMzA4MTU5MmQ4NDQ0ZmM2ZDljODYwNGEzNTVkZDQzYzdlYjlhZTk2ZDZiNTg3ZWE1MWEyNTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU0MDM1Zjk1ODNkMWEyOWIyMDEzMWRjYTY5Y2MxNjc4MTdjMzkzOWQzNzY2NWI3Mjc2M2VmNTkwOWE5YTJiZGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJlNDk4OTA4YzJkNjEyMzU1NmEzOGJkNTkwZjhjNjM2OTQ4YjkxODcyZjU3MWQyYjJjZjZiODhkOGRiYTBmZjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU0OTBiYjU5YzYyZTVmNGVlYTVlMmQ0M2JlMjgwMzY0MmI0ZDM0YzM1ZDgwYWVjNDYzYjU1OWJlYjdhNmIwMzMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_155fbac66fbb4ba5818c8b25c581f71b",
+      "statement": "tests/cores.test.js compares full JS and WASM snapshots for fresh and reset state, boot, ALU, MUL32/DIV32, signed division, bit immediates, odd destinations, LINK, signed offsets and the system-word space.",
+      "evidence": [
+        {
+          "resource": "repo://tests/cores.test.js#L321-L345",
+          "version": "repo-lines-v1:sha256:e50e6e3679c4d3a862bef69ca7aff5445f4ac79d27b552a0cffc105f62846f6b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5NzljN2FiNGQ3Y2UxOWUxNzRkMDhhYmRhYzRlYWM2M2M1ODE4ZDE1NTkyZThiN2UwMGY4Yzc2M2Q4YzliYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4NTNjMGY1NTY1ZTY5YzA5NmVkNDJkMWMxYjNjYmE4ZTk2YzA2NDU0YTc3NDdmZWU0YTIyNWQ2MmNlNzRjYzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFkNmY1ODYzNTVhY2MwYzRkMzE5Yzk2NDRiYzJkYjY1N2FhZGE1MjFjODA3YWJmYTQ0MTFjOGIwNjFlMDZkZjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBmNjAxNzE1YjkzOTdiZmIxNTBjNDFlZjk4Y2EzNWY2ZTJhM2YyYzg3ZjM4NTUzZDk2NjMxYWI5MGNhNzM1NmQifQ"
+        },
+        {
+          "resource": "repo://tests/cores.test.js#L500-L515",
+          "version": "repo-lines-v1:sha256:dde886483ed834f869ed7eae1786bba099ebc6009f5cfbcde08f63cd9d724573:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyY2U1NDY2YTY1NjU2ZGMzYzJlZDEwNTg4NzdjZDQxZmZlMmJhZmRiZGI3NTQzMWUzYjliMTAwOGUwZGJkYWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1Y2MxMTJjNjEzNmE5ZTlhNWNhZGNiMWI1N2ViY2JlMzY4MjA0MjljMDQ0ODU3NDBkNjViOWQwZGQ3MTBiYjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImViMWVhMTVhMGY3YjFkNzc0MWMwOTJkZTgwMmQzOWZkYTQ0MzRlY2YwNWY5NDM1OGM2ZjM2OWNhOTExNmUyMmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQyZTljODMwNmE0ODgwYzhlMDAwMTkyY2Q1NTg0NDE5MTYyNzZmN2M0MWMxZDU5NTBjZmZlNzZhMGFlNDZhZGMifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.2",
+    "at": "2026-11-01T09:36:37.731Z"
+  }
+}

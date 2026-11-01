@@ -1,0 +1,360 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:ba88086c0e82c1c20a5929f6b7393f2b34e58c46e907910d65992cdbe4e435d2",
+  "claims": [
+    {
+      "id": "claim_776f00278b784af4b3d9c5aba401ba71",
+      "statement": "The assembler, disassembler and optimizer are single browser-loadable implementations in js/ shared by the IDE and the Node tests, with no build step.",
+      "evidence": [
+        {
+          "resource": "repo://index.html#L397-L400",
+          "version": "repo-lines-v1:sha256:62099374f9138d10d31af54936375069b5aa8c32e0b061b942d6d4d241cdd4af:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTBiYmRiNDYxNzljZTY1Yjc3NTE3ZGJkNDc0NzFlNzNjODFjZmY1ZDQ0YjY1MDU2MmYzNjg1ZWE5MmNhYmJkNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjc4YmZmOGM2NzQ1ODlkNDNjMWNjNzU0NzhmNDBhMTZmNmJlZTNhNDQwOTMxNTk2N2FjZTlmNmFiNTI5YTIwNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmVlNWQxNjRlOTllMGJiMzVkYTEyMDE2YjQwNDJkOTMyMDY3ZDg3NzdhZjQ2OTQ2ZjdlYzAyNWZjNWNiNTljMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWE5YjQxYjNjOGNjYmJiZjBjMjE0NjEwYjBmYzEyYjExMzMwMTU0ZDdkNDUxOWVhYzVkNThlOTZhYjU0NzQxZCJ9"
+        },
+        {
+          "resource": "repo://js/deep16_assembler.js#L1-L10",
+          "version": "repo-lines-v1:sha256:0c6d4a29ec4465fc0aa197f38781c1e0b5be89d6c5fea638596a221bb0222361:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiMDlhY2ZmNWQ2ZjUxNjFkNDJmZWMxMDM0NzI3YTQ4YmVhMjBjYWRhMDg5ZmY3NTViZWUzNmRkOTI4YWQzY2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiNWFjNzE2ZDIzZDJiMjIzNWViNTE2MmQ3MTk5MDdmMThkYTI4NmRiNGY2ZWY0ZTM5MjkwMDY2OWM0ZDk5YmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFhYjA0NDk2YzhjMGIxYTJmM2ZjMGIyYTIzYmQ4ODFiNGFkMDMxZGZhZmM4Yjk1NTZhNTk5YzlkZTQyNzM0YzYifQ"
+        },
+        {
+          "resource": "repo://tests/helpers.js#L28-L52",
+          "version": "repo-lines-v1:sha256:ca5b5f4aadaafa4047c13ca1bc69a23ecde9225a636d486934402731672ed6e4:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI0OWY5MTFkMjAzZjRkZTZlNmU2ZGIwZWQ2ZmJmNDE1YzA3NWU3MTJlMTk1NGNkNzdiNzYwNDZhZWJkMjNmYmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJiM2IzODdkNGQxNTNlODYwNmFjMzBjYzk5NmVjYWViNWFiYTdkMjk2ZWUzNjcwMzQzZDhjNDc5MzhiMGU1Y2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNlYmYxMTc0MGFlMGNhMmIyN2MxZDFkMDJkMWMwZjFmMzNhMmQ3MmU3MzEyMjllZGMzMzQxNzkxMDkyYzJkMDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2031580132f94b06bc1f9e4c46d87ae7",
+      "statement": "assemble() resolves .if/.ifdef/.ifndef/.ifnot/.else/.endif against the caller's defines before either pass, blanking inactive lines so line numbers still match the source, and reports nesting errors.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L20-L28",
+          "version": "repo-lines-v1:sha256:406e3fb8b4ef59fa181ccce06f682e3d173378935767f0817b0ec0d72d003c9f:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTJlNDE0NmY2NDRkZmNjNDUyYjA1Y2YzYmMxMWI1M2QzNGM4MDkwNWIxMjE3MjRmYmFlNDllZGY5ZGIzZWY1YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWU1OTY4OTRjYWY0OTBmNmM0MzE4YzVlMTJkMTgzMDMxMDY4MGZlNDdlNzliZGNhMDA1MmI5NGExNGYwMzY1ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzcxNzg5ZmI2OWRmODVjZGVhOTU2NjE5OGI2ODJlNzhlN2RkMzhmOWU1ODFhNmE5Mjc0YjhmMDRhOWE5N2RmZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODJmZDk1ZjcxYjk0NmUxMmIzMTA0NjE0MGU0YjQwNzdhMDIxOTE0OTc4NzkzMzIxYmRkYzczM2Q1MWIxZDEzOCJ9"
+        },
+        {
+          "resource": "repo://js/deep16_assembler.js#L286-L338",
+          "version": "repo-lines-v1:sha256:3eab3ac274f7a33dddfdead10ff256d51e1e2e36a214c02e726b03355e3c2bf4:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MmIyMmY5Nzk1ZjlmODUxYTQwYTQ4OGIxZGY2N2JmNDdlNjE0ZjllMWVkMTVhZjllMTZmYTc1OWU1YjA3ZGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk4Yzc0OTg4MWFhM2E5MWEyYjZmNmFkM2UwNTBjZTBjM2U0NTUyZWFhZWEyZjE4OWNkYmM5NzJhNzUzZGM2ZDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNjZTYxNjBiODEyOWVjMmNjMDY3OGM5MjkzMDFjNWRjZDAxNDcxMjA3YmMxNDliMmM5ZWMyOGEzNWM2YzNkZmYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ccb64bd293d64769ada6ccfd135e2e6d",
+      "statement": "The first pass tracks address, .org, .code/.data, labels and the sizes of .word, .text, .string and .equ, swallowing its own errors because the second pass reports them.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L30-L110",
+          "version": "repo-lines-v1:sha256:0c55a9c9ccc3d2668091ae18fc55f2bad31cd727626896ea8a19c50f2c181dd1:eyJzZWxlY3RlZExpbmVDb3VudCI6ODEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzYjhiNmUyNTVjZGEzMWMxOGI3ZGZkMTk0MmRkY2I1ZjQ2ZDBjMWFjZWE5OGRjZjdmZWRkY2EwYTUyMTNmN2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImViODJmY2U3OThjNTVhZjE5NDY0OTc0ZjdkODIyN2VhOTY5MDk1NGVhZmQzMDUwZTcwMjk4YzczNjMzZmQzNDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ0NGMwMjg3MzBiZjY2ZDBlYjkzNWU0M2MyMDk4N2FjNzRiMjdhYzQ4YjNlNjk2MDlmODE4YzJmZWUyNzI0ZWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_456f2340e68743be8e55a9e6f74609b2",
+      "statement": "The second pass encodes each instruction into memoryChanges, records a listing entry per line, and still advances the address after an error to keep alignment.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L120-L140",
+          "version": "repo-lines-v1:sha256:7ccc6aabf9d0ca983cb508e6b9de757e7fefe87d124d3b861663f0918a145e53:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3NjJmNTYzMDliNTY4M2U1NWI2NzZhMTlhMzQzNjkwY2NhNGM4YjkxMzE5NzI3MTUyMzI0ODhhNDYxZTViM2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjMzY5MzFhZjRmNjUwYWFlNzJlYmNjNDFmM2Y5OTg0ZjAwZjcxNTU5YjE5ZDczNWIzOTE1ZDYwYjc5MWJiNzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM1YmU1YmExN2U1YTQwYzAxODVlMDE1MjAzYTBlNjlhOGYyODQ5OWJkNDRiZGYyNWE2NWVmZjlmN2M4MWZmNDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE3ZmYwZmZiOWE4NWM3ODk0YWE1OGYwMjU4ZGU3OGU0OWU0NWE0NmViNTJiNTMyMzkwNDYwNDdhYWJhMDhmNTQifQ"
+        },
+        {
+          "resource": "repo://js/deep16_assembler.js#L228-L252",
+          "version": "repo-lines-v1:sha256:041772de33617e4c0e9f66e0101584fbf3dc04af6bd4231526252ea69c2e87c6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRhYWFlNjFiMTU3MTYzMGNmYzM1M2ZjODI1ZjVkMWEwODVjNjBkMDE3M2M5ZDI0OTI1YWMwOTUwNTE5ODE0YmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4YzdjZTQ5YjRlOWM2MDYwNTdmZWZlY2U3ODgyY2Y0ZjA0NzY2MDEwMmQ0NzRkZDZjZTgyOTFjOGEzZjMwMzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMwNzc0ODMzNTVlZGJjNmIyZDU1NmJlNTY5MTQzMzM2YzdhMGUwY2UzYjU1OTJhMTRiOWEwOTBkZmY2NjUyNjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBmMTA5OTJkYzdjODY0ZDEwYjAwYmQxZTc5N2IxY2M0NzZmZWU5MWM4ZTdmN2RkY2EzOGY4ZjRlODZlN2I2MTQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fca8003145434270a5e1aa46f55bb635",
+      "statement": "The assembler returns success, memoryChanges, symbols, errors, listing and segmentMap, with unresolved references appended to errors at the end.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L258-L279",
+          "version": "repo-lines-v1:sha256:8e0bada392b8f1ddfbf501083fc51788d878df087b824832a402aeaadec81582:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY5NzhmZWVjZTA1MGI2ZjU0NzkxNjkzYzI1YjljOWE0ODk3ZDA2NDAyMzFlNTA4MzQ2OWEwOGQ4MjAwOThkMDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZjZThkMTM3ZmE0NGFjNjY0OGIzYTRhNmY1NmY1MGJhYmE2NzczNDE0NWQwNDc0YTRlNTU1Njk3ZmQyNmJlYzgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkwNDE5YjAyOWE2ZWFjYTJmZjI4YmIyY2MxNjVlMzc1ZDliYTI2ZGU3NWRjOWQ2NTRjOGRmNTE2N2ZhZWRhNDkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a33fbb8a2e624fb7904a1f5208ba0f79",
+      "statement": ".equ binds everything after the name as one expression, so '.equ D, f0 - f1' keeps both symbols, and a register value becomes a register alias instead of a constant.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L82-L100",
+          "version": "repo-lines-v1:sha256:bc7bd2251b3fdd6c72d621b37e6cd976625d6ea9adee6021899e663716a57a79:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjMzY5MzFhZjRmNjUwYWFlNzJlYmNjNDFmM2Y5OTg0ZjAwZjcxNTU5YjE5ZDczNWIzOTE1ZDYwYjc5MWJiNzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU3YTVmZmEzZTA5NWRmMDViNmIzMzMzODcxYWJhMWMxYjNlMjVhYjNkYmYxZDQ5MmYxNTRjMmNjMmIxMjJmNTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc3MDc3NmY5YzhhNzYyNWJjZDg3OTAxMDc2M2IxNTk0MmU2MTJkNjdjMTgxMmNkOGY0ZmQxZTE5MWEzNjJlZmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBlOGRlODNkY2NiZjlmOGVhOGU1MTIxNzM2ZDhkYWJmYmJlNDNhNDM5YWY5MmU3Y2Q5M2ExYjY4ZGJmNjc3OWQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6c7f1fe388854cac977c1195115e5ae9",
+      "statement": "LDI accepts a 15-bit pattern in either spelling, 0..0x7FFF or -16384..-1, and rejects anything else, because the CPU sign-extends bit 14.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L1346-L1372",
+          "version": "repo-lines-v1:sha256:bcccbcabe5af0ba91be390670a14d19f556e1a30bf9bb6080867b06b5ccaba4d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0NDU1MDMyNjNiZDRkYWQ2ZmRlNzc4YjIxMzkzNjk0MDdkYTg1YzJkYmY0ODU5MGZhMTg5NGQ4YzQ3NGJiMjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3NDRiZGNlYzg0MjE0ZTQ3MDc0MzgxNzEyZDk4MDRlMjE4NjkxNWNmNTc1ZTBmYTYwMDUwNzA4MTgwNWZhNzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNjYzk1Mzg0YTIzOWZiZDZiNmQ1MjA3ZWYwY2I4MGM4NzM1MjRmYWQxNzA5ZDA0ODc3NDIyMTRkMTVjMmI1NGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMGEyNzgwYjkyNjAyOTBjNWM5MjFmODkzNDYzMjBhMWRlMTc2MjMxNTkyZDEzYjhiOWU4ZGI4NjYwMWViZDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_64187b048375480e8bf6d869f6eb7556",
+      "statement": "LWI is an assembler-only mnemonic that emits the LDI field sign-extending to a 16-bit pattern, refuses patterns in 0x4000-0xBFFF, and suggests loading the low 14 bits then setting bits 14/15 with OR.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L1375-L1403",
+          "version": "repo-lines-v1:sha256:0d2d5e8f16c08817b225610a138a31feefe86d822601df0d35689f3fa47f0b13:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0ODc2ZWJiNjU2YzAzMjQ4MzNkZDQ5MTc0ZWFlZTUxMzk4ZmJlMjNmZjc3ZjBlNmZhN2RlYzQwYjRmN2YxOGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVmMWY5MDUxMzRmN2UzZWI0Njg2YmE5ZTllYmJiYjY1NThkNDU2NzM4YmVlYWNjNWM2OGMxY2I3NTVjZTJiYWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2MjE4Yjc1NDFjYTQxZDQ0ZWQzMWZhNjI2ZjdlMTFhOTNjMzUyNTk3NmQ0YmJhYWZjZGIxMTVkMjIyYWRiN2IifQ"
+        },
+        {
+          "resource": "repo://js/deep16_assembler.js#L1405-L1445",
+          "version": "repo-lines-v1:sha256:dbd5af0f86bd569ca96bae0131f91c54d4c12fc7e20b5f5d75cd23c248904483:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg2NGZmNTc0MTI4NGQzYjJlYTliM2VmMzNjZmY0MGIxMWFhNjg3YzA4MjAzNGU1NjNjNjI2NDk4MzBiMmE5NmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczNTI3Yjk5YzA2MGVkMTUyZDA5YzJlNjRlNDUzYzU2NzcxYzQ0YzVhY2E3MWU5NDJjN2Q2NTczMWQ0YThkNTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQwZjYyOWQ5MmVkMjhkYjU0N2JiN2I5MmU5NzFkMDhkZDEyMWRiMGEyNGUxODQxYjU5ZWU4NDc5YzgzOGFlNzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjljZGI5NDhjZTBhMWYyN2I3ZDk3NGYwMDg2ZjdiM2ZhODNlZmEyNjM3OWQ5NGI0OTQ4NjdlNDIzNTdiMTA3OTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0106f0ebd76346f4b9b8e0f10e59c07d",
+      "statement": "The ALU immediate field is a 4-bit value 0..15; ADD/SUB/CMP treat it as a literal while TBC/OR/XOR/TBS/CLRB treat it as a bit index that the core expands to 1<<imm.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L1240-L1262",
+          "version": "repo-lines-v1:sha256:bc64cc682964f1ccc163b19c159669c3fd68d38428038bc8adf07020db03c961:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjMTZkYWVlNTc3MTUyMTMzNmJjODczNDkxMTMzM2FmYzljNTQ5MjE1ODQzYmFkMGU5ZDVmZjYzYTVhYWFhYjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUyZjM5MjM1OTI2OTdiM2M0NGRiMGRjMTZiOWI4MzdkMDcyNWRiZTllZTVjNWM3Y2JjYTE1OGI4ZGMzOTU1OTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI3NzU2YjU0MjBkZjc0NWI5NmI3MGM5Mzk4MWJkNTZmNTExMzJlZWI0MmI1MDMyMTUxMmQxZGM0ZjNlOGEwODUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3eff2e5cc72c4fbf804a1f0685053396",
+      "statement": "AND has no immediate form because that slot belongs to CLRB, and CLRB rejects a register operand and requires an immediate bit number.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L1212-L1232",
+          "version": "repo-lines-v1:sha256:ecf42f4c12cbc993eab0639e8074eca65a364ec400117cedf11c04eae08b366e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4NjAzZjc0MjFkYzUwMjFlMTVjOGZkYTQxNmY5MTZmY2ZiOWViZGJkMzUyYWE4NzQ2MzVmNzhlYzgwOTJhOTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzNGQxZjNhZGJlMWZlOGE5MmE0NTQzZmU5YmZhOTFkNjgzODFiYzY0MDE1ZjdmMTcyZDdkYjI5ZTliN2RhNzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZjZTJkZWUyNjQwYmQyMDU2YjMwYmU2MmNiYmYwMDM5OTQ1NDllMzlhOGIxMzJlMDI5ZmJmMDQzNzBjZTg4MDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRjOTNlZTkwMWM2MTk4YmE0Y2EzOTZlNzI1ODY5MTI2MDBjMTJiZGUxNzliNGQ4NWFiZjhlMmM3ODViMzk5NzcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1fc81393d1f64530b21adee424e18dce",
+      "statement": "MUL32 and DIV32 require an even destination register because the 32-bit result occupies Rd:Rd+1.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L1230-L1240",
+          "version": "repo-lines-v1:sha256:05a7a26ea600f0c12b8f3096f1c97b066a1404afc6c70270fb2bf7aadd678d0e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlNjI4ZjNjNjA5MjY2ZmQwZDFhY2Q4NWQ0YjlmOTNmMzFlMzhmZjg1MjZmYmY3ZjM1MjMzMDFjNGFjNGI0NTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjMTZkYWVlNTc3MTUyMTMzNmJjODczNDkxMTMzM2FmYzljNTQ5MjE1ODQzYmFkMGU5ZDVmZjYzYTVhYWFhYjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNhYjQxYzFiMDgwNGFlZDJiOTFkM2JkNjQzY2U3ZGRhMGY3ZWE4ZjA3ODRhOGFjNjRiZTc4N2JmZDVhMWE0NzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAwNjUxMWI0NDE5YmJkOGE3NzgwODk5OWVlMmZiMTEyNDA0ZmExNzNiMWM0MjNlMTBjNTFhNzllYzczOGU5MmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_350c85881e77424a9e0ad61b27def879",
+      "statement": "LD and ST use a 5-bit signed offset limited to -16..15, accepted both in bracket form and in the older three-operand form.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L1264-L1340",
+          "version": "repo-lines-v1:sha256:f2f59eeb020aeaf65eba4e2e52c6d2d2b595dbad6312f5b5dacbc3eb22ef2da4:eyJzZWxlY3RlZExpbmVDb3VudCI6NzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQyNzU1NTEwNGY4MjBiNmE4MGEwN2UwZmQ3ZGY3NDk4NDM4ZjdmMzVmOTYwODg1YzExYzdjOTg0NTlhNTEzZWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwMmY3ODg2NWNjZDM5M2MwYTBkNDA0ZGFkOTk5MDBhM2UxYmM1MTNhMzMzODFkMzNmODAwNGRiNDc1OWUxYjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBjZDU2YWU5ODdlNTQzOWUxNzdiNWI1MmJjYWExMzdhZTZhNmJkODFlZDE5OGY4N2JmOTFkOTZlZDBlNzkwNTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ0NzQyOTc0NzczMjc1MmZkZDIxMDgyMWZmOTM1OWNkM2NkMTc2YzUxNmZiOTAzNmE5OTRmNTc3MjQxOGQ1MDMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2049205ff7b84eb2989b344f72e99b06",
+      "statement": "Conditional branches encode target minus (address + 1) in a nine-bit field with a -256..255 range, because all cores post-increment the PC before executing.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L1485-L1510",
+          "version": "repo-lines-v1:sha256:7796604460c43874f97864bc1c0c829ee061761ddd44f8f94438e1f352cca8c4:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI0ZTUzOWRkNjlhMjlkODlhNjc0NmU0Y2VmMWQwOTE3NWY2NjViN2JmN2UzYTVhMTdhZWVhYzNiNDFkYzhjYzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY2YjdjYmJkMDMyOGY0YjhjMzY3OTgyNWJiOTYzMjRkMTkyZGU2NGNhMGIyOWQzNzEzYjg5Y2E0ZmNlMjUwYzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUwM2I4Y2M2NTI3NWIyMWJhMzE0NTUzYWVmMzQzNTMxODJkZGFiOWI0MjIzYjJiNTE0NWQ2MWE5Y2M5MTE5OWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4c11e4c1a9bf4d968d811e94e005467c",
+      "statement": "LSI takes -16..15 and SET/CLR take 0..15, with SET2/CLR2 reusing the SET/CLR encoding.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L1466-L1476",
+          "version": "repo-lines-v1:sha256:b76d831ab56b00f78ea8953c5986bca8c163344b82c6d909d7ab180adfdc0f23:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY4ODM4Mzk1YmYzNGZkYzkwMzdmNjgxMjk1OTU1Yzc5YmM2Zjg1NjI5NDNjYjIzNmE3YTBkM2RmZGZlYjYzYTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyMGExY2EyZjE1YzI1OGJkZWVjZWI5MGJjMzQxYjhiMjI1ZDg1NDdhOTRlYzgzMzMzMzg3ODM2MTQ0MTg4ZmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk0NTJlNTI1NTI2Zjk1NTI5MjY3YTcxMTI0Njk4NGFjMDM2Y2VmODZkMjc5M2QwZmE4MDU0ZDRjMzlkMWM5NmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY4OWFkNGE1ZmQzNGVjNDViNjc2NGM0YjQ2OWY4ZjQzNzFhY2I5MDg0MmIyMjhmMDg0NDA3MmFhOGYyZTMyZDIifQ"
+        },
+        {
+          "resource": "repo://js/deep16_assembler.js#L1511-L1540",
+          "version": "repo-lines-v1:sha256:847302adc2e6881254dd4015794bd1a288d347b10013a7b975f0962758ec0f08:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzOWI5ODgwNzU1NGVlNjg5MGU3YTc2OTJiZjlmMDMzMTJjZjNhM2Q5ZmYzNWRkNWEyY2MwMjNjMTc2ZWYxOTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVmYzM4YTkzOTA1MzY2OGUyMjVkYTIzYWM1ZGY4NDI3YmVlOTM5MTA0ZjQyMGQwOTY3YTY2MGViYjAwODEyZWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYwYjQ2Njc1OTBiMjNhM2U3MzViNDgwYzU0OWQ1ZTdhMjEzYTA4ZGIxMjE4YmNlMDhlNDA0ODk3NTI5MDhhNmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5329765b137c4edb91245e1d083387a1",
+      "statement": "JMP, LNK/LINK and ALNK/ALINK are aliases that encode as MOV PC,Rx, MOV Rd,PC,2 and SMV from the architectural PC rather than as distinct opcodes.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_assembler.js#L722-L757",
+          "version": "repo-lines-v1:sha256:8a880690dddcfbb1a35f1b2f6eb7fb3a16fd30e4142cf6af87affab3ec361614:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3MzcxNGNkMjVlYjI3ZDliNjE0MmFmM2RmMDAyZGUwNGRhMDlkNjUzMzllYmY3ZjIwZjhkZmM3MGFlNTkwMGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM1MWYwZjI3NjU4NzQ4NjhmNjBlM2RlMjY4MDE4ODhkNGVlZTJkMzhkM2U1ODk2NjFkYjk5ZDFjZmExNTViZmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlkNGM3NDBlMGE0MGJlM2ZjODk4ZDg4ZDQ2MGNjNmZlNzUzYWIyMzlmYmM2ODU4NjE2NTc4MGI4NWUxODg1MDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFiMmUxN2Q2Y2QwMTIzYmZkYzA1YzAzM2M0MTE2YmY5NjkzNzgzMmQ3N2JkYjI0NjIxNmE0NWI3Mjg1ZDY0ZWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_00a44e0857654e6eb28d5ccb1076211f",
+      "statement": "The disassembler decodes in prefix order: 0xFFFF as HLT, bit 15 clear as LDI, bits 15-14 as LD/ST, bits 15-13 110 as the ALU group and 111 as the extended group, printing R15 as PC.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_disassembler.js#L1-L40",
+          "version": "repo-lines-v1:sha256:5651ab6db4cab1c62dad9e408707097d6382568d4ad1cd44bc33c7b5a5960d1c:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmZjdhMTVhMzExNmIyY2YwZDgzMjYxZDU2ZDAyOWY5Y2Y5Nzg1YzEwMzllOTBlYmEwZWIzYjBkMGI1MzllNGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMyNjEyMTI1MjQ0MWMwNTg3NzExNmZkNDBiYjFlMmFmYmZkOGQxNmVhOTRmYzI1ZjEyYzU3Y2QyM2QxMzYyZGEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_af650f1862964af9b29232a535bd53c0",
+      "statement": "The disassembler prints LDI operands as raw hex so every one of the 32768 patterns can be reassembled, and tests pin that round trip plus mnemonic re-assembly and ALU word preservation.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_disassembler.js#L17-L25",
+          "version": "repo-lines-v1:sha256:11828a1343c3ca1dac6790120da979d9982d5f19dda5fdfe8384e1bf65aff501:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzc3NDBlZDUxNjk1YWIzNmJiY2E2NTMwZjFjOTY2N2VkNjE4OTU5YTU1OTQ3M2VhNDEwNDk4YzQ1YzU2NjdkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDg5M2Y0MGUzNzgxZWI4OTZjODJkMDQ2YTA4MDY3YTExZTM1Y2RmMmYxZGZhZjI2ZmVhOTBiOGRiNjY3NjQxMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTBmNDk0NjJjOTA0MTllNjk2YjkzZTNhYTcwMDVmOWI1YzhiMDBlMWIwYWY4NGVmOGVkZGRjY2ZiZmZkODAwZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTkyOTFlNzk3NjM1ZjMyZDQwZDM4N2U5OWNlMjZkOTlmM2I4N2Y4ZWZkZjQzMzY4ZjQ4NWMwMTFiZGNlZWZjNSJ9"
+        },
+        {
+          "resource": "repo://tests/disassembler.test.js#L1-L70",
+          "version": "repo-lines-v1:sha256:ccebdaafa7a20d22a8169fd968f2d15d16b08aaffe7645684d04110ce412116e:eyJzZWxlY3RlZExpbmVDb3VudCI6NzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlNmQ3MTJjMTRmMWFjMzg4NWM4ZmZmNTQ2NjliNGI0NTBkZmFiOTg2MjgyYzcyOWFkNDZiNGNmNjJhNjU0NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2NThjYWFmOTJhZDA0YWNjMjNhOGU3NTE0MmY1YjhiMzI2OWE0MGM0NGZlYTVlMDhiMGViN2U4NWM0YzllMjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM1MmU0YmJlYWQ5NGUwOTUxM2ZjYTc5YmFhMzM1YzcxMWUwMGE0MDVjZTI1ODhiMGE5NjdlNjc0MGRkODA3ZDgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f663b76c12414562aa557c1f9d643927",
+      "statement": "The optimizer is a source-to-source peephole pass that rewrites text, keeps labels symbolic, and lets the two-pass assembler re-resolve branches after deletions.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_optimizer.js#L1-L14",
+          "version": "repo-lines-v1:sha256:f450856516f08fe3d6879dfd99594c27698ebe8ab90e09f27626b2142a70f9e8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM4MDU3ZTQ3YmRlNTNkMDUxYmI0NTI1MjUzM2QzZDcxNTE4YzliM2E5Yjc4NTkxNTc1MTczZTg2YzI5MjY0ZWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyZDJmZmMwNDAzYjdmNDdjNmJmYjFiZWVhY2ZkNWEzMTUwOTViNmNlOTQ1YzRiN2UxODQ0N2ExMWI4ZmM3NzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY2NzhmYzk4NmNlNDhkMDg2YTA5ZWE2MTRiOGEwZTc4ZmNmNzM5NzkwZGZmODFlOTgyNGE0Mzk2ZDg4YjczMDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8619cd8196244fa18bac24a0745e9afe",
+      "statement": "Liveness and copy propagation are exact within a basic block and conservative at block boundaries, where every register and flag is treated as live.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_optimizer.js#L23-L34",
+          "version": "repo-lines-v1:sha256:c673f49e6b86309bfb05338818aba69bb9b9eaa0e705f98be69d004563324090:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxZDZhMmQ1OGEwZGViZWE2ZTRlZDdjNmYxNjYwMjA0OWJmZmEyYWY4YmZmMWZhZDVlYTYwYTcxNjlkZTIxMmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4ZjBhN2E1YmYzZDIwOGY3ZTFhY2ZiMDE1NmM0NTBlNjJhY2M2MzQ2M2ZhY2FiMDc3Mzc2Mzc1MWY5ODRjMDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE0OWNlODkyZjU5ZmJhMjc5YjhlODViNzVlODRjZDQxNDIxMmQwNTRjYWM2YWUwMTAxMjYyNmM0YzdhNjZiMTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE5YmU1NThkMzI0NzFlNDkzZTAzZTZiMzk5ZGJlZDU0ZWNkMjgyNWJiMzE4NDAzNjA3ZDFkZjNlOTlhMWJmMjkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1a700e76a83849f5aec8f562a858b17a",
+      "statement": "The optimizer's fusion table is A1-A6, B1-B5 and C2, centred on the MOV immediate selector, LSI, the 4-bit ALU literal and the bit-index forms.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_optimizer.js#L14-L21",
+          "version": "repo-lines-v1:sha256:9d3191258c9733d3937eb5c0b08f4e1c7135ab755f39bb8ff659586462ed3648:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzJkMmZmYzA0MDNiN2Y0N2M2YmZiMWJlZWFjZmQ1YTMxNTA5NWI2Y2U5NDVjNGI3ZTE4NDQ3YTExYjhmYzc3MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmQxYWM4MTU0Y2ViY2M2Mzg5ODU1NDBkNWMwYTQ4NmJlOTA3MTdkNjVlYTA5ZDNiMjZkNzNlYTc3ZTRjNWM1NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjY3ZGIwMTk0Mjg3N2ZhMGZmZDhhZjg1MzU5NjdiZmU5Zjk0NTBlNmIwMmQwZDJmMmI0MDc2ZDhjMGIyMTA4YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzdlM2U2OTFjZTRmY2JjMTg1NDQxYWVlMWI5ZTg3ZmQ0NThiNjUwNDNkYzZkZWE2YmRkMWJhYTgyOGQ4NjZhYiJ9"
+        },
+        {
+          "resource": "repo://js/deep16_optimizer.js#L647-L655",
+          "version": "repo-lines-v1:sha256:d06a8921fae2d3439f69d711d17190630a661891b899372523771da6ff9cc959:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjFlYmU4OGEwNDczMGYzZjA0MmVkMGU2M2U1YzlhMTIzNTMxZDM0YzlmMTY0MGM4YjQ1MDNkNjZkZjU5ZTliMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTA4ZGMxZmU2YTBlMDg2MGU0NzdhZTg5ZGRmZDNjOWVmMTZlMGExMmQ4MWZjYThhYjYxOWVhMWRhMTJjNWVmZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTJkMTUwYTFiZmEzZjE2NmY5MmRiZmJkMzBmOThmMjZhZmQ3Y2E4ZjMzOWM3ZTVjNGNkMDQ5ZTA1OWYwNzdhZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7c89300dd9c54d44b972eda812bbc67f",
+      "statement": "Rules A1-A6 fuse a MOV with a shift or add into the MOV immediate forms, and B1-B5 replace an LDI plus a copy or ALU op with LSI, a literal ALU form or a bit-index form.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_optimizer.js#L735-L830",
+          "version": "repo-lines-v1:sha256:638851e9232b9894c7c0e8b2e55bcc7944f3ebde34d624cddffe9efd14c0a2e3:eyJzZWxlY3RlZExpbmVDb3VudCI6OTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmY2U0NTkwYTcxYjI3M2UwZDEzYWZjNDIwODQyODU5YWYzN2I5MzAwNGYyMjM4ZmU5Y2M5YzUzZWRlY2EzYWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjMTZmZTE3MzcxMTQ5NGQ3Njk0YTY5MWIxNTE5YTZkMjI5OTM0ZThhNGU5MTU4ZjEyYTZiY2Q2YjJkMzFmNTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYzODA4MzNiMTdiOTMwOTlmOWViMmEwYmE4YTBlNDEwMjhjYThlNmM1YmQyYmI2NmFhZDJlY2U2ZTgwZTFiZTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjczZmNmMDk2MzFiMjdhMDgwNTFmMmEwYmMwMmI4OWJkMTQ4OTEwYTFhYjhiMWY1M2QxNDY1ZWY1OWJmOWVmMDQifQ"
+        },
+        {
+          "resource": "repo://js/deep16_optimizer.js#L838-L938",
+          "version": "repo-lines-v1:sha256:28a615ebca9ab387d42f1faa0dd9eb0f70ef2d848ab90ceb72251f7f38420a13:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwODJmNmI0ZmY4Y2JkZjkxMmFlMGQ3ODNiOWQ5YTE3MWIzMDNkOTE5MTVjMTgyN2RhZjRiNThjNzU2NmZkYzBjIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0ODkzZjQwZTM3ODFlYjg5NmM4MmQwNDZhMDgwNjdhMTFlMzVjZGYyZjFkZmFmMjZmZWE5MGI4ZGI2Njc2NDEzIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI4MWJiNDAxNDI4MmEzOTIzZmQ5OTdhOGJjZDAzNDMyNTU4ZTIzMTc4NDc4ODgwMWEyNDc2MGZjODg3NmM0ZGU4IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI1NGFmNjMzMGI2OGQwMjM2YWZlMjU3Yjc0MTIwYWQ0YjAzMjk2MDQ4YmI2MTY5OGM0Y2RmMDlhOTIyZDI1NzU1In0"
+        }
+      ]
+    },
+    {
+      "id": "claim_be2eefa2dde946e89f8c3b977a335f65",
+      "statement": "C2 deletes MOV Rd,Rd as an identity, and dead-code elimination runs alongside copy propagation under the deadCode option.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_optimizer.js#L940-L950",
+          "version": "repo-lines-v1:sha256:64b7ef1a49b70c1e248ff02e47d18e19ddc05a1e06614cf1327fc544afc7a224:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk1NTQ0MGNhMmM2MWI4NmNkMDY2ZTk2NGI2MmZiYWM4YTNmZjIxMmMxNjNiNWU1YWUyZDk2NGY0MDIxYTAzNzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY4NjhjNjVjOTQwODUyZWZlMTdmZWE4YjNmNDg0NmQwZGVjMzk5YmU0YzdhYjc1NGQyZTdmOWQyN2I4N2JiMDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEyYjUwZGRjOTIwMzA2MTRlZjhhNzI0M2IzYzZiZmFiOTZjNWYwYTJmMzQ0MGY3ZmY1OGZhOTUyN2I4MzIxZjUifQ"
+        },
+        {
+          "resource": "repo://js/deep16_optimizer.js#L954-L985",
+          "version": "repo-lines-v1:sha256:6127b454ae481e210d89f27d96d4ff8a41a1b86b542cffacf8779d2bd8a065a4:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhlYWNlMmZjMTgxMDQzNzYwM2RkZDA1NjZkZjhlYzVlOGMyOTcyOWQzNjVlYjUwZDMwNTVjNmNjYjExYzE4NWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEyYjUwZGRjOTIwMzA2MTRlZjhhNzI0M2IzYzZiZmFiOTZjNWYwYTJmMzQ0MGY3ZmY1OGZhOTUyN2I4MzIxZjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI0ZTAzYWExNWU5MzMwMzc5NWQyMTM1ZWY5NTMyMzU1Y2FkYzA3MmE2MTIwMTgxNmQwMGJhZTJmZDNmZWQ2ZTQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_265924079bed4b1787036785dc80a638",
+      "statement": "Delay-slot marking is the safety rule: the instruction after a branch, jump or indirect transfer is flagged and can neither be deleted nor included in a fusion window.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_optimizer.js#L34-L42",
+          "version": "repo-lines-v1:sha256:b8f09b1713bb18a76d61e3813934480ea28658bf3d50ef110f2b348bdaf1c93a:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZThmMGE3YTViZjNkMjA4ZjdlMWFjZmIwMTU2YzQ1MGU2MmFjYzYzNDYzZmFjYWIwNzczNzYzNzUxZjk4NGMwOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWJhMDhkOWY4NzVjNDUyMjkzYWIxOTZmNWU2Zjg1M2VjN2FkNWRmMTljZDIxNWYzMWU3MmY5NzkyNDA5OWZjMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGYwZWRiMzliYzEwMzY1ODU0NmZjYjkzZGJjZjBhMmYxZGQ0MGVmNjFiODVkNGY1MjQxMDRjNjM2ZDc2OTRmNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTdkMGMxOTc4Y2U2YzljMjY1OTQ0MTU5ODhiMmUyZWVlZTEwYzE0N2E1ZDRjYTQ2MzFlODVjYTFlMGMyYTVhNiJ9"
+        },
+        {
+          "resource": "repo://js/deep16_optimizer.js#L541-L553",
+          "version": "repo-lines-v1:sha256:7d42ab80f54e9b44c8f863094f2e071914483e206206234cd1dd3d5da27ebb48:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyN2E0MzRkYWNjNmMyYmYwNmUxODc4NjM2YmNlYjZmMWMxNTY5YzhmMGFjMTc4MmYyNGRmMjlkNDUzYWI1MDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ1ZjYxZTVhYWMxNGNiM2FiNGRlOTQzMzEwY2ZhN2I4ZGE3YjQ1NjYwNDIwZWMwMDFhNjY4MmIyNjJkM2ZkNjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjczNWNmNDY1ODZhZWFlZWI3YTM1ZjZlZTc2YmQxYjVhYmQyMDI2OGZlZWMxODQ5YjY3ZTI1ODk3NDc5Nzc3NjMifQ"
+        },
+        {
+          "resource": "repo://js/deep16_optimizer.js#L668-L682",
+          "version": "repo-lines-v1:sha256:0c55d23d86eefb32a83daf413dd2bfb8adee8ad66c9c8d0ea3f36b562d6f32a2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2Yjc4ZmZiZDI3YmVjNDlmZGU0ZjQ0ZDk2MGIzMWZiMjEzOTRhZDI4M2U5NDQ4NjQxYzZkYjNiMzg4NzBkYTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxNjY1ZmI5OThjMDAwMmZhMzViZDllMDYwNDkyYjRhZjYxYWU2NjNjZWUxYmNlMWQ4NTZjNDgxOGNlNjk0MTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFjODEwYTZjNGY2NmU1MDM4ZDYyNGFjMWRmZmJlY2NmYjQ1ZjRlNmY1YjI5OWI5MDRlOWFjZWFkYTI3NjBiZTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVkZDgzNTBkM2IyYjY5MzBkNjY2OGJkZTgyZTU0MTZiZWNiNTAxM2NhNDAzZGZlMWZiYzZiNzEyY2VmMWZiNzEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ae07845f69b94c8896df76f22ad188b1",
+      "statement": "Every fusion that drops a shift or ALU flag effect is guarded by per-flag liveness (N, Z, V, C), and opaque PSW/segment/shadow/system instructions act as barriers to deletion and copy propagation.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_optimizer.js#L296-L310",
+          "version": "repo-lines-v1:sha256:150a2c68379079386863e2ba249b9b988809a6f8c1ec313986a0dc6bffd85c25:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmNjQ0NDU1ZDM1MzhlYWU5OTFlMGZiNTAxOWExZjYwZDcyZDU1ZWUwYmFiY2ZhZWUxMWNkMDlmYTdkYzZkOWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmNjQ0NDU1ZDM1MzhlYWU5OTFlMGZiNTAxOWExZjYwZDcyZDU1ZWUwYmFiY2ZhZWUxMWNkMDlmYTdkYzZkOWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzMzIwMjIxY2FkMzIzYzdmMDdhMWZlZWE0MDQ5ZTcyMWU4MzgzYmY1ZDRkYTVmMWRlNmEzZjRiNGVjNWE3YzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI0MmMwNzMyMjQ4MWM4MWQyNzRiYjI3ZTMwOGExNmQ3MWIxZTgyMGEyNzU1YmQwN2UwMDRhZDEzZjFiZDViYzEifQ"
+        },
+        {
+          "resource": "repo://js/deep16_optimizer.js#L42-L52",
+          "version": "repo-lines-v1:sha256:84da7f9bfb52e1eb2a87efa161a3ec7923a4b4db09a935ee1d0b2fbdfdae1fec:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiYTA4ZDlmODc1YzQ1MjI5M2FiMTk2ZjVlNmY4NTNlYzdhZDVkZjE5Y2QyMTVmMzFlNzJmOTc5MjQwOTlmYzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAzMWQwZWU2YjBlZTRmYzVmOTRlYzMzNGE0OTE5NzBkYTViOWM5MzBlYjI1ZDc5YmExMjA2MDM4OWViNWI2YmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQyM2I5N2FlZWExMTFmZmQ2OWM3MjNlNTRhMWEzOTQ2NmJlMTdhYzIzYmRlODZmOTkyOTFhZjUwNDVjOWM5NWQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3635d1b0e8944bf3891a57c4223b962f",
+      "statement": "Optimizer defaults are copyProp, deadCode and fusions on with maxSweeps 8, and fuseAllowed/deadAllowed narrow work to named rules or mnemonics for tests and bisecting.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_optimizer.js#L55-L70",
+          "version": "repo-lines-v1:sha256:9e65cd1dd2ba8372de5e3473a580813bb972bdff95cfcd343de72746d336254b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk2ZDY0YzI2ZTAzODI4OWY5YzFiMDcyZThkN2E4NjUzNThiODBkYWE2NjdiMTVmMzI1NTI3MDQzMGFmY2E2NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1Y2RlZjgwODVhZTc0YWI2MzZkNjQ1OWY1YzZkNWZiZmIwZGIyNjRmMWIwZDc1YmFjNTE5YzliM2Y2NzE3YWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk1Zjg2OTZiNzUxNzk3Y2ViZmFmOWFkZGI0ZTViY2U4OGZkNGIyNmRjYWM4OGE4YmY2NGJkNTMxMzk2YTI3ZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQzN2Y1NDIzMmRhNWFiYTEwY2M3ZmNmNGM2YmIxMTQ2ZTllNzA4MDI3YWQxNjVhNWZjOTYwZjA4MDZlYmJjYmEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fb6635b6ed304c14b5b584dbe155e1e6",
+      "statement": "The optimizer returns the rewritten source, a stats object counting byRule, fusions, copies, dead, identities, wordsRemoved, wordsRewritten, blocks and sweeps, plus the removed line list.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_optimizer.js#L70-L90",
+          "version": "repo-lines-v1:sha256:32ef97d25bf22a2a08a77fd6b5d49a8d146c99bd0018beb23d8e74b1202bc1ad:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1Y2RlZjgwODVhZTc0YWI2MzZkNjQ1OWY1YzZkNWZiZmIwZGIyNjRmMWIwZDc1YmFjNTE5YzliM2Y2NzE3YWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNiNGMxOGJmZjUxYmYzZGVhMzRhODdjMGRiZWY5MTg0OWQwYTBiOTM5OGMxMmMxODg4ODM5NmE5ZjE0ZjQ1ZTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmMzEyZjc1NGY5ODk1NWYzYTI0YjExZGVhMjY4ZTU1YWNlMzkyMmE4MWVhZDEwZjk4MWE0N2ZlZDQ0MzZlMjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9b983b0549514900a9e053e0d86239e5",
+      "statement": "The optimizer's real contract is differential: the test suite assembles and runs programs with and without optimization, requires the same machine state and no more steps, uses the shipped Forth kernel as oracle, and cross-checks the WASM core.",
+      "evidence": [
+        {
+          "resource": "repo://tests/optimizer.test.js#L1-L12",
+          "version": "repo-lines-v1:sha256:b9a759efe821de3b64cbc61ac8d122304fc8519e17c99f15f9c0e45144ce81e7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2ZmIyY2MwNGI5OWVkYzk1N2U4OTVhM2ZjYzdiMGMwYTMwZjBhOTU3MTFkMTNkYWVmYzU4NDA1OWE0ZjQ2ODUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExYTM3ZWQ4MDNmYzIzNTkxODI4Mjk5NWY2MzI2Y2VmMmY2NjUwZGI3NDJhNzdhZDgzOTkzZmE1MDlhNzAxYTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU0MTI2NDFkMDg1NmQyNDdkZTQ3ZmJjNDY2OWUyOGJiZjA1MWQ0MjkxYWIxY2ZhYmZiZTQzNzhhOGFmYmU5MTkifQ"
+        },
+        {
+          "resource": "repo://tests/optimizer.test.js#L250-L310",
+          "version": "repo-lines-v1:sha256:516e4d3d974a4278331466ff16d34ef37bb3fe40c4f62a77e24b55eeba17f8b8:eyJzZWxlY3RlZExpbmVDb3VudCI6NjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNTA4N2I5MGI4YWJlN2UwNzRmM2ExNzIyYmQ5MGJhMmMxODliNjkxNmQ4NWE5YTRhZjZlNDJkMjU0NzU4ODQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU3YWUwNjMxNzE2MDE5YjNiYWI5ZmFiOGYxNGY5ZjFmMTEzZGYxYjJiMGExZTZjZjQwZWM3MTc0ZDI4YzQ2ZDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkzMzZlMzEwZDQzZGQwNTdkZGYwYzFmNGVlNDFmOGVkM2EwNzY0OWZjMzdiMWQ0MzdmYTJhZjg5NDU0NTAwZjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc3OGQzZmU4NmY3MDgzYmVkMmY4NjcyNzExMzhiMjIwMmEzMWVhN2JiNzk0YWExMzRjMjI5YzhjNzMxZGIxMjkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bc36cd0a1cf0452da96de3bf1f99684e",
+      "statement": "The IDE's Optimize button rewrites the editor text in place, marks the file modified and prints words removed and copy substitutions; it is never applied automatically before Assemble.",
+      "evidence": [
+        {
+          "resource": "repo://index.html#L121-L121",
+          "version": "repo-lines-v1:sha256:b826c93be8e653d17685e5733ff9753d9d233d4e7933b60ccf6fec4c8428b0a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjgyNmM5M2JlOGU2NTNkMTc2ODVlNTczM2ZmOTc1M2Q5ZDIzM2Q0ZTc5MzNiNjBjY2Y2ZmVjNGM4NDI4YjBhMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjgyNmM5M2JlOGU2NTNkMTc2ODVlNTczM2ZmOTc1M2Q5ZDIzM2Q0ZTc5MzNiNjBjY2Y2ZmVjNGM4NDI4YjBhMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWQ3MTIwMjhiY2ZlNWYyM2I4Y2E1ZDIxOWNmNzJhYjAxZmZhY2ZkZDA0NTQ3NDJkYTNhNmU0OWM4ODJhNjk3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDFjOTQwNjJkZGZkMWM2N2EyYTA1NzIwMjM3ZjIzNTgwNzQyZDZkMTI4ZWQ2ZTllMDhiMGMyMmU0N2ZhYWEzNiJ9"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2150-L2193",
+          "version": "repo-lines-v1:sha256:31a860309cf86ec76975005be818024a618664cd1628ae35b1634eeb8f008a36:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiZDBlYTM3ZmNlMWFlMzE0NTdiODE0OTQ4ZGQyMThmMDQwMDJmZjZjMjk0Y2NiNDgzYzllNTdkYmMzOGEyMTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk2MjU1NGVjMjczNDRhZjMzZmIwMjYyMjViYTcyYWI5MjIyYjVmNmJlNDhjMGI4YmVjYTdjMmYwZDY3NzEwMTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRhNzc4Zjg5ODY2ZGJlYWMxNDVmZjYyMzdjYzQ3OTBhMWJiOTJiZGVmMjkxMDJkMDQ1YjI0NTc0ZGVlZGRkYzcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7f931a6440b84d8c9470ba343b317c58",
+      "statement": "asm/examples.json is a flat manifest of name, filename, description and category for six demo programs spanning Mathematics, Advanced and I/O.",
+      "evidence": [
+        {
+          "resource": "repo://asm/examples.json#L1-L42",
+          "version": "repo-lines-v1:sha256:f3bbba9f5c492b8182e6a9553a6dd4b051c7bac73dfbaf973aec997be9f5a26a:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.2",
+    "at": "2026-11-01T09:36:37.731Z"
+  }
+}

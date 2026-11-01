@@ -1,0 +1,378 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:0f821fe30ea84c01f4cbd771a461e5e39bd513b71bdcede27864e0dff5493f3e",
+  "claims": [
+    {
+      "id": "claim_8988dba6cb604aecbb2870703751773d",
+      "statement": "The IDE is a static page with no build step because wasm/pkg and rtl/pkg are committed, and it must be served over HTTP because the compiled modules are fetched; a file:// open stays on the JavaScript core.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L24-L36",
+          "version": "repo-lines-v1:sha256:19d91af27baeb17fdd69a34f09abf28e0bdcc60daa5c2d9b1d8f2362124ad72f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1N2NkNzhhYWI0ZWRjMmJkMWVlM2IyZDJlNzlhZTBlMzU2NmY2ZWVmYTRkYmFjOGIwNmM5Yjk0OWY3Y2M1ZTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3ODIyOGQ5ZTkxYmRhMjBiYTkyMWM2NzAxYTUyNTIwYjZjYmRhMDM5ZDM2ZDczMzdhNjk3NjE0YTIyYjEyZWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYxYzFjYzE3YTBkZjhlN2MzN2FjZTgyYWY3ODMxNWFhMTFhZDg1YTg3OWU4NjRmNDQyMjBkYzhlNDRhNDRlYTYifQ"
+        },
+        {
+          "resource": "repo://index.html#L1-L12",
+          "version": "repo-lines-v1:sha256:867e038ac8e29433d7ec2cb35e6cef6abb47bc307045740392ad83d2b58dd5ab:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkMGI2ZjVlMzA5ZGY4ZmNlODgxNWY5MDhkZDY4MjFiMDQ5NmNmNDNjZDlmYjRmZjdlYTljMGNlNzQ3NzA4MjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkZDI3OTkwYjY1NTJmODQzYWY5YWU3YTFlODgyMWIzYzE4NTlmMDM4ZjI3M2EwM2M3YjYwYzBkNGY2NTJmZDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYwZmI4YTdmOTllNTgwOGM3MjY0NjMyMmNmNmFkNTc5OTAxZGM3NjE1MjAyMzFkZWIxOGQ3YmJhNzY0MzU4YTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ba3d67f108704f948395bc193479dee4",
+      "statement": "index.html loads the assembler, disassembler, optimizer, JS core and panel scripts in order, then an inline module imports and initialises the WASM and RTL packages and publishes Deep16Wasm/Deep16Rtl with ready promises and events.",
+      "evidence": [
+        {
+          "resource": "repo://index.html#L397-L442",
+          "version": "repo-lines-v1:sha256:1dc26c28e597d6c1b066099b7107ab3cb59fe7ac832dda4ac1b35c3cacd02828:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEwYmJkYjQ2MTc5Y2U2NWI3NzUxN2RiZDQ3NDcxZTczYzgxY2ZmNWQ0NGI2NTA1NjJmMzY4NWVhOTJjYWJiZDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzZWQ4MWNkMTZkZjg4ZDY5MjE2NjQ2ZDhkYWRhNzYzNGIzM2E2OTg2ZTljMjNhNzI2MzFkMTkzM2I2MzVhNTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZlZTVkMTY0ZTk5ZTBiYjM1ZGExMjAxNmI0MDQyZDkzMjA2N2Q4Nzc3YWY0Njk0NmY3ZWMwMjVmYzVjYjU5YzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fe740171fce64509be3bd2466c72c240",
+      "statement": "deep16_ui_core.js ends with a DOMContentLoaded handler that constructs DeepWebUI, resets and runs it, and the editor textarea ships with a small sample program so the page is live on load.",
+      "evidence": [
+        {
+          "resource": "repo://index.html#L138-L154",
+          "version": "repo-lines-v1:sha256:947319600e4cd655fe2578d63ac2721a6b8fbd8246631c4b2a7e9ba9e1df4071:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjYjFiODNlNGRlZWEzYzNkZTZlNDAyYjNjZGI1Y2Y1ZDE0N2MzZmU5NGNmNTQ1MmQyNDdjNDBkNzRjMTJiMWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhNDE3Mjg0NDJmNTZhZmUzY2RhNGM3MDE1NDE2OWJhNDBlMGU0OTQ5MmExZWNjNmZlZjUwODg1YjhjMzRiMGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAyZjFiMGRhMmMxYzA1NDcxMzc2OGQ2Y2NmOGRlZWE4YWU3YmEwZGE4NDI4OTkxNWMxZWMyOGI4Mzc4MDQ3MDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1ZDgzMmM1MzRhZTkyZGUyNjQ2MTE1ZTI3MTExNWJiMTBmMWRiMWIwNWJjYTM0MjczNjVmYzRjMGRjZWIwZDkifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L3676-L3681",
+          "version": "repo-lines-v1:sha256:c625d6a746b65fd4f6a52489afebd6787bc2bb9c009a6eb0d5c96600827f8047:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmQwNmExM2QwNzJmY2UyNTNlOGJhZjUzZWM4ZmVhNDk4MTQxMjliZjA5OTYwOGZlNjcyNjBjYjA0ZWZiZmRhOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjZmNWI0MGIxNTg0NTdkMTc4NjRmMjE3OTA3ODZkZDVhMmVjZGI2NGI2NmE2NTFmNzg4ZDRlMjVjZDMzMDNkMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTExOGVhMDQyODZkNGU2M2JjYmI0ZTcwMTg4MDk1OTlkNmE3YTRjMWNlYTAzNDc5Yzk4NzNmYTAxZTEyYmU2MiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ec98c5c6a1744c7fb03d96be781964b2",
+      "statement": "DeepWebUI owns one assembler, disassembler and JS simulator plus the memory, register and screen panel objects, autoloads the boot ROM, sets CS to 0xFFFF, and caps the transcript at 50 entries.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L1-L46",
+          "version": "repo-lines-v1:sha256:aa9caca8f6b869f98579bff3f54f50d0745708887485f3b5fa8d9ad203e05f07:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMzYjZlMGRjNzgzZmRhNjA4OWM1MDFmMTMzM2JhODE0YTg4ZjhhNzQxMTM5MzBhOTFjZmMwOTc3ODI0M2FhZTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE3MTFiM2FmMzhjM2ZhZDJiMTUwZGE5NTI3MzkyMWU3MzY1YWYyYWM1NTk2YjJjNzgzNmFlNDMzNWEwMmQ5MGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYwNDZlY2I3MWJlNjdjOTljYTA3ZTRlZDFjZmNjMDBjMjQxZWRjMmI4YjUyMjU2N2Y4MTQ3NWQ0NDU2MmY4ZmUifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L95-L110",
+          "version": "repo-lines-v1:sha256:e2f20a68defeaeb44da26a15a61a2319e359aae4cc0cd1cab83e88788efe7581:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5ODczOTc5M2NkMTQ0MTk1YjNlNWM5ZTRlNWNkNjQwNDYwZWIyOTlkNDU2Mjg0Y2YyYWI5MGI2ZjlmYzdmYjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzM2NlNTg0N2U1YjMwYWU5ZGVjZTQwOWJmMDYzNmQ0OGQ5ZWMyMjQ1MTdmMDkzZWY0ODgyMGE3Y2JkNmEzOGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjExMGM4OGRkMjgzYzc1N2E2OGU2NjE5MmZjNTdiZTY5NGZlNjc1NDQ0NzljOGVlNGQ3YzIwYmJmNzk3MmEyNjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNlZGNlN2I1MmJlMGJkMmVlMzk2ODhmNWZkZDM5MzhkOGY5NjQ3ZjlkNjA4Y2E1MzI3ZTBjODQwOTk4YzI3ZTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a71c76dfa6f549dcab0b989307e89e06",
+      "statement": "The stored core selector is coreName (js, wasm or rtl), with useWasm kept only as a derived flag, and the selection is persisted under deep16_core with the legacy deep16_use_wasm boolean read when the new key is absent.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L130-L170",
+          "version": "repo-lines-v1:sha256:d399c052c44d32eef245ec8ea102d2a0da264417cd7bc43c7eebc3ce41b2bb82:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMzNDk4MjZkZjg1Nzg2ZjVjZjdjYWFkNjk2Y2QyMDlhZDNhMjU5NjJkODAwNTgzMzMzOTQ2OWMzZjlkNmE3ZjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE1YzM5ZGQ2MGFjZGJkNmFlMDY2MjcxYzFlZTAxZTA4NWRjMzc4NjJlYmNjYmI1YzliOTMwYmEwN2M1ZThkYjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQyMDdlYzVkNzczOWM2MjFkZmRjOTU4ZWExMGYwM2M3MWJhODcyYmFjMTkyNzNmYTk2NWRhZjE0ZjkzZDhhMWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkMzdmNmU4ZTlkNmQyNzMxYTczNTMxMGIzYTJkYjRlNWFhMzUwMGIzOThkYTc0MTYyZDUzZjhkMWE4ZjdiYTYifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_board.sv#L1-L5",
+          "version": "repo-lines-v1:sha256:e4e1bc2d3c8e10e18f79ec4de7860ede1be8fd632dc98dc75e678279939ad516:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTEwMGEyZTA0NWE1YmZjYzcxODE3NTI2ZDY2NzdhZTA1YTU4MTI2OWExOTk5NzhmM2FjOGVmZGRkYWE5ZDU4YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTAyNDc3NTM2MzdiZGZkMjAxNjNmZjUzNzc2YjdiYWZiN2E0OTUxNGRhMzYyM2VlZTdiYzk2ZDcwMzE5MDNmZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDY3ZjgwN2Q1MjhiZmExMmJiMzMwZDExZDM2N2FkOWI0ODlkYjdkMmM4NjgzNmM2ZDU2MTA0MDA2NGQ5YzA3ZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_b6046132eb5a495bb11a52212cce612d",
+      "statement": "Switching cores mirrors state rather than resetting: syncStateIntoCore calls init, load_program, set_segments, set_psw and set_registers in that order, with PSW before registers because set_registers resolves element 15 through PSW.S.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2792-L2820",
+          "version": "repo-lines-v1:sha256:2a5bec3ebfa10c1fec80dd049fe036916f0fa4960f8e0f612248fd1c8beb5abf:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5N2MzODFlYjlmZGM4ZmRkMDk2MjUzZDJlYjFjMWM4OWVkM2NmYTI2ZTU4NTk0Mzc4NjUwOTllZDlmMTgzZWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0NTFkYjdkYjhjMDdmYjlkY2VjNTFlNGZiNTdjYWQyNTQ4YTY5NjMyZWJmYzFjN2ZhYTJhZTYwODVlMjI3MzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyYjQwN2JhYWFlYWMwMjAxZTZkYTk4YzlhY2ZhYjEwNTE3M2NlZjYxNThiNTA4MjZjOTE5NDQ0ZTkwZmFkNDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNiZTIwMDlmN2EzNTFkMmJlNTZiMTk5MzY3ZTUzMzMxZTBiNWRkYzUxMTdjZTIyYmFlZTMyODM1OTk1NmM4OWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9c2bd0c4af034bf28b5b01627836d92d",
+      "statement": "run() calls ensureTerminalCore first and, in terminal mode, assembles the editor text when it differs from the last assembled source so Run cannot execute a stale image.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2318-L2344",
+          "version": "repo-lines-v1:sha256:ff601b5b904d382fe89df13b312ca71c24fd0ff11991e0a3351abb1e51d3d223:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxODY5Y2RlMTAzZWIzNmRlZTU4MTc1M2U1NzcxOWZjOTU4NjIwZDZhZDViN2FjOGE1MDRjNTdlOWEyMGRmZWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZTI2NzY5NWEyZGYzYmUxNDE0NzNhMDA5YzQ0NGNhNzZiNDkyMjhlNGNhZjY0MmU1YWE5ODFhYjE5MTY0ZWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYxMDQ4YzkwZmU0MzM2Y2M3MmFmZjRjNjcwYjNiYmM3NzU0N2M4YTBlYjAwOTRkNTcwODdiNmUwMjY0YWY2ZmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUxY2RiYmU3NDM5OTU3NjY5ZGQ0YTk2OTcwNWQyYmEwZDdhYzg0YzE4N2Q0ZWFkZDUyOGU3MzEwZGE3ZWY5OGQifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L386-L396",
+          "version": "repo-lines-v1:sha256:519e0572e439b1bf64e8910e915d1f6cd4fb6dec5efd8be551ed97c40c054773:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZmNTdiMmJjODMzZTE4YzNiYTU4NTQxNTY3NDBiMjdlOTBhZjBlNDM4NTY3MTY4N2M1NTM0MzRkNTdlMjQ1ZDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5NmVkZDZmMTA5OTFmNzc5MjFlNmE5OWQ2NTk3YTFkYjZlNTI5ZTVhMjJkZjk5NzZiZWZhYTRhZmJjNWE1NDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVmZTc4NWU5YTFiODgxNTgxNWRmZDYzYTE2MTE5MWIwMzA0NzA3YzFlYjIzZGZjMjI0ZDE5ZWI3ZDdlMzE0ZGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0626a59ee6bd4186aa3f3f802f539db8",
+      "statement": "Both run loops use a 10 ms setInterval with at most 200 instructions per tick, draining the console once per tick, and neither uses requestAnimationFrame or a worker.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2372-L2400",
+          "version": "repo-lines-v1:sha256:6803e6ab7052c25a0df9f0e5ab18432bbd1fb68d5fdd51915aa121bd2664955d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0ZGRhMzkyNjcxY2IzZjA2YTdmMGFmNjUzNTljZDhiMThmMDk3YzBjNDM5ODE3YmI3N2IzMWZkMGMzMzEyOTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkYjE5ODYyNGJhYzYxMDVhMGNhYjFjODUwNjVjMzYwMjdlYmYzNDYzYmNlM2Q4ODdkMmM4NTkxYjEzMjU4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU0ZjIyMWY2MjMxZDU5ZWQ4MzIyMTQ3ZGVhMzBhNDNlZGQyOTM4ODhmN2M5Zjc2YzlmNGRlY2FlZDYzYjRjYmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQzODZlYmE1N2M0YWI2ZTkyOWM0YzI1NTkzODMxOWNmOGQzNzMyOTFlMmJkMDM2NWM5NTVlN2IwZDc3ZGZmNzMifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2938-L2965",
+          "version": "repo-lines-v1:sha256:179911c6091bee1c28e307a66082702b5a106c561cff03f5758cb7a1813a9679:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE5N2RiOTIzODcwODAwZTczMGQ2ZGIyYTk3Y2M5Yzg1MjcwMzRiMTk4ZWJhNWVlY2FkYTQyMTMxYWMzMWViYmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwZWI3ZGZhZWFmNmZkMjc3MDM4Mzg0MDRhZjU3OTdjZDdiNTQ3M2MyNDA3NDQxYTEyMjA5MDk2YTUwN2M5NTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM5NmFmMTY1NmQzY2I4OGM3ODNjMDlmNzhjYWUxMWU1MTJiZDU0N2VkZjQyMDdiZmM4OTE3NDdjN2M5ZWM4NDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjczNDNjMjAxOGExODgzZGVjZmIxYTlhNjJiYzY3MmRlNGFlN2I2Njc4Mzc4NDVmZjM5MGFlMjE3ZWE5NTFmZDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_46e4edbe9d1f41a099b63bc62c4aecec",
+      "statement": "Both loops compute the physical CS:PC before each instruction and stop when it matches a breakpoint, resuming by stepping over the breakpoint once.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2380-L2398",
+          "version": "repo-lines-v1:sha256:200f1342a5858713f4f66f04ac1464f3a308bfd9a54f9fa299c0ec564e543721:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4OTQ3ODJmMzNjNWMzMmRkNTY3MGE3Zjk3ZDNkZWIwMzVkMTQ4YWJkY2NkMzdlMjAzMjY2YzU2ZmQxNDU3NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMzY2RhZjhhZDdlMDk4MDY0MWVlNTI0Yzc4ZjA0Y2E2Y2NhY2M2MzA4YmNkNDYyM2Y5NzI0MmJjZGJkYzA2ZjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBiYTgyNTZkYjczMWQ1ZWYwOGNhMGNhZjJjMGMyYzYwYTU0OTM4Zjk5YTU3ODUwZDNkY2Q4NjAwYjk2OTRiYWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY5YzE5NWVjZmM1YzdjNDI1NWI5M2Y4MDk3NzhlNmE2NTA4N2JiMWE0ODY3MTZhYTBlOTMzNGI3MDRjMzI1NzAifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2860-L2870",
+          "version": "repo-lines-v1:sha256:718e27f29d570ff86c8b45896f9c290516cb3f14cbbb3b253e8f24bdd2bd1cfb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjN2MwMmYyNDdhZWFmZGIxOWY1MDAwNmM0ODg5NmMyYzJhZmQ1NmQzM2RiOWVjN2M3ZTA5MGRhN2I2MjY4ZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyNTc5OTFkNmYxNmZlMWE2OGE2NDJiYjg0NGIxNWQ2ZTQwNWRhZjMxMDQ5ZWUzNjUzOWIzN2E5YTZkZmRjMDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5OWJkZWZlZWFjYTYzNDBlMDI5MGRjODZlODg5Yzg5ZDVlMTg5YWE1YmE0NGI1ODViM2I3MDczNGY0YTYyZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI0ZDI3ZTQ0ZTNlMmE2YWQ3OTI5YjlmYWMxNzk0ZDgxNmUzMDY4OWYyOGFmNmQ3MzcwYTI4ZmVlZTk3ZGNkYmIifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2966-L3000",
+          "version": "repo-lines-v1:sha256:291b542a7c4ffad1256e1d4784cf7d63d964566ccf4eed9a6dcf227eeed312cb:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliNGZiY2M4YTA3MDcxZWY3NGVmYjA0Y2QyYmFhNmNmMWZlZmJhZDE0YThlZGZmZjg0YzBiYThlN2ExMzI4MmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3ZGEwMmY4ZDIwYzdjODAzMjVmNzdhM2EzNWZiNGZhMDMyMzkzNDZkMjNjMjc2YjYwZmMxMzM2MjBjYTBjMTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljYzU3ZWJkMjMxN2U5ZmJiZmI2MzAxM2I0YmVhMTc4MzE4N2U0ZjhlMTgxNWI0MmE0NDIyMDUyZjE3MDk1ZjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVjM2RlZGQ0MWNmMDJmZmQ3ZDVlZWE4NDc1MTgwNGJlNzlhNDA4NjdmMTg2OGVlMjE4ZWVhY2M3OTk4NGViYTQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_44095f3c70904c64ab371f029a40b381",
+      "statement": "The compiled-core loop reads back each observed store with get_recent_access and get_memory_word, writes it into simulator.memory, routes screen-memory writes to the screen panel, and tracks a dirty address range.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L3028-L3060",
+          "version": "repo-lines-v1:sha256:3d429b475daf7fc03a808f1c002dda9e569c3f24c14874ddb59e607fced64750:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhjMWMxNTliMzgwMGZjMmYwMjViZmY5NmFiZDQxZjc2ODE5YmVjZTRkZmI0MzBmZDBjNGFiNzVkMTY3MzFiZDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZWFkYjhlZTFjYjRmYjc2NmM0Y2ZlYmVmY2VhYzY2YTI5OTYxODE1MmEzNGQzZTllMzU0ODIyNTZlNTlhMDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJhZjcxMTkwMmIzNzgxZWYxZjE0NGFlYTA5NGZlMmE5NDIwMWU3NTQ0MDM1MmU2ODUxM2I2ZWQzZGI0M2VjNzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZkMDMxYTU1M2Q2ZDIzMDNmYmMyMmQ2MGEyZGQyMDQ2YTg2NjEyZjE1MTJmNDMyYTE1NjFlNTNhMmUyYzFjNmYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_33db5f445e8442b588d4909a11b87b8a",
+      "statement": "step() executes one instruction on the active core, resolves the shadow PC when PSW.S is set, recentres the 64-word memory window, and forces running on so a step works after a halt.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2450-L2475",
+          "version": "repo-lines-v1:sha256:b17cd88afb8ce47caa0e98474e7311b4aba95d7ff4531669829cfddda95aef86:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjNjQ3OWNjMjMwNDQwZmQ0MWU4MjI0MjE4Njc5Njk4NTU5ZDI4OTNiZDY3YjQzODBhZmFiODExYjM4YTU1YWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3OTcxNWY1MmFkYmZjMTY5NDVhMTJkYjA2ODM0OGM5YTIzMDk2NzdmYzlmYmI1OWZhMWZkYTI0ZmNkNGM3YTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFhYTIxNzAzNTQ5ZDYzMzE0MmQyMDczZDljMWVjNzAxMmJkMjIzZDYxMWRkN2ExZDc3Zjk4MWQ1MDYxYjMwNWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM1OTUwNzhlNTZhOTNlYWIwY2VmYmUxZWYwNDNlNzViNDE4MTdkYjQwZjM2Y2RjMjZiZTNlN2QyODQ1YTUwZjIifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2536-L2560",
+          "version": "repo-lines-v1:sha256:b56d7367e7c4c00094d95252ea251684f88db5ad1b73796c8cb85d92be2f5d17:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmNmEyMjlkMDhjNTliOWMwYTRiNTcyMDhmOTg1ODg0MzEyNjQwM2UxN2IyZmQ2YWZkMGMyNTgyZjk3ZmI5NTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQyYTBkYjNiZTYxMzRjYjMyY2Q4NjU0ZDE2YzVjMzg3MGEyZThmYjM5NzBmMDdjMGMyMTM4NjQ2ZDZiMjFiZWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRkOGEyZDRkOTcxN2QzMDdkMWE4MWNlMzNhMDAyZWY0NTI1ZGE5YTkxNGJkMjNlMTk0MGQxNzBjMjJjOTI1MWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNmM2FlMTI4MDcwYjU0ZDI0ZTU2OWNlOWUxZGJkYjJlMjkxNjE0NDJiYjU3MjU1YzUxZWE1OGZkOTNiYmU3OTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cb2decb4d7fa4449b6b173c8de7959e6",
+      "statement": "reset() clears the run interval, cancels an in-flight file upload, resets both the active core and the JS simulator, restores the shipped image, re-reads the echo flag and recentres on the reset PC.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2860-L2900",
+          "version": "repo-lines-v1:sha256:8fb4fad00ac017f3af3ee2596eacc668cdcf6dba35ec77eb6ca54a5e9bf521f9:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjN2MwMmYyNDdhZWFmZGIxOWY1MDAwNmM0ODg5NmMyYzJhZmQ1NmQzM2RiOWVjN2M3ZTA5MGRhN2I2MjY4ZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlODA3YjJhNWNkZDY0YWZjNTY0N2Y1MmY4OTNlMWE2YmIwZmFmODA5ZGZkNDFjMWJhNTYzMTk4NjM3YWY0MjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5OWJkZWZlZWFjYTYzNDBlMDI5MGRjODZlODg5Yzg5ZDVlMTg5YWE1YmE0NGI1ODViM2I3MDczNGY0YTYyZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIwNmM4MjJmNzY3Y2I5MWY4Mzk2MmYzNDBhYzg2YjU0ZDQ2ZDQyNjM4N2UxM2Q5NzZkYTAxNDAyMDU1YzQyOWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a037c788421e43849b2b8811a2530b9d",
+      "statement": "The memory panel starts with a breakpoint at 0x00100, toggles breakpoints on click, draws a B in its own column and lists them in the header.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_memory.js#L105-L112",
+          "version": "repo-lines-v1:sha256:69beca303454b57e9768681c0e9df573642740bebe8fc278cc5474f163046011:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDBkY2MyNmJiOTQ4MzNmMzliZGM4Y2VhYWVhZmFiMjAzMWNlZTU2YmJjZDI3ZDhkMzBkNTlmN2I4NTQzZmUxOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGYxNmQ2MDgwYmY2YjBkN2E1ZDc5OWI4NzhmZTJiZjU0Y2I2NzNlN2E4N2E1YjU3NDA1ZmViMjdhOWY2MzQyMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDUxMjk1Yjc4NGUwYzU5NDZlYzhkOTU0OWFhNTI2NzdjNWExNjFkMDVmMzQ0NTkwY2ZjYjA0NzU5NWQ3ZjQyYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWVhZTc4MWY4NjUwYjQzYTdhNzg3MTllNzk4NzE4NmJhNTE5ZmQzYzk3NzNmN2I1MDU5YzY2NjExZThkOTQxYiJ9"
+        },
+        {
+          "resource": "repo://js/deep16_ui_memory.js#L673-L681",
+          "version": "repo-lines-v1:sha256:e875ffe659d54620ebde3f63530be3ada2495fdd5153aa4fa381dde8f430c1d7:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjZlOWJiYjE3ODE3NmFiM2QyYzM3ODVhNGU0OGJmZDljYjdjOGEwOTg2NGI1YmJiODY2ODgzNmRhMmIwNmEzZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzhmY2NiZGU2OTE0NTk0OGVhYjQwNDMxMjRhYTI2ZTQ2MDc5NzQ1NDViZjZmNzU5MGEzMGE1NmVkMGU5NzYyNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjZlMGMyOTUwNDgwYzBhZmQwNDYzMjMyMDNmZDc3ODViNGJkZGRlM2FkMDA2MTRmMjI5MzAxYTk0ZDNlMjU2ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGI2MjgxNjI3NGE2MGJlYzI0ODdlM2M4NWIyNDlhNTIzMjdhN2IyMWZmZTZiMDg1M2FkNDVkNjIzNzE3ODg2OSJ9"
+        },
+        {
+          "resource": "repo://js/deep16_ui_memory.js#L7-L12",
+          "version": "repo-lines-v1:sha256:6ff3ecdf25c3f6976d94868ac45b1b4a44702389a18b68affd86c59d7ec4d927:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjM3ZTI3ZDhlODdhOGJiNWU3Y2Q0MWE2NDA5N2U2YzZlY2UyZDBiYzBhNjZhNTE4MDFkMGI4ODEyZWJlODgzZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjQwYWFmZDQzMjYwMDNjODYwYjBkYTZlZmFjMzdlZWIzZjViZmVkMzJlMWM3NzUzYjc3OWI3NWVlODM5NjAwNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTNkNTg3MzkyZTA4NDU0ZmUxM2NhMzI5ZGNlNmYzOTQxYmE1NGUxYTY5N2RmYmIwMzJmYjYxMTY2OGVhNzlhMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjkyNTA0Y2Q5M2YxYWNmNThkNGFmNmQ3ZDk4ODQ0OGVlMjJmZjk4NGJjYWJiZjg0NjMwZjhiODBiYWVjNjY0ZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_0e1d08fa703f41149e89eda3845ac03b",
+      "statement": "Each memory row is shown through the disassembler and conditional jumps print their resolved target, while the panel highlights the last data access and the PC.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_memory.js#L92-L102",
+          "version": "repo-lines-v1:sha256:9d009a0cdc2198eb76b1e19dd53ed718fcd83f625ac9390a6b3198febd89aa7c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQwMmY4MzAwN2Q2ODlmZjQ1Mjg5ZTFmYzliOWNmOTgwNTE2ZmZlZmY4YTI5NTdkZWI5NzZiMTEzNTQwMjBkMTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk0MzFlZTBiY2EyMjUwYjc3NjM0NzI1YTg0M2U3Y2ZjZDA4ODE1NGYxOTM1MGYxYzc5YWUzZGUwNjVhNDA1MGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU0MTRjNzlkOTY2MzE1MzNlNGNmMDE2ZjMxN2E3ZTIyM2M5MTVmZTI4NjlmOWU3YjFmNzZmMTA3MzExMmIwZDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQyNzIyZTdkNTUzODY3NWNlZWI5YTVmZmNhZWYyMTFmZDIzOWE1Mzg3ZjY1NjliMDQ3NmM4Mjc1YmNiYTFlMmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e42d757e6f6b40fba62e57c7331f8da7",
+      "statement": "The register panel prints R0-R15 with the aliases FP/R12, SP/R13, LR/R14 and PC/R15, and maps PSW bits DE=15, DS=10, S=5, I=4, C=3, V=2, Z=1, N=0 to the checkbox row.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_registers.js#L28-L45",
+          "version": "repo-lines-v1:sha256:c3a82b10a5908332e37c4707ef28a8570fde5e7093252381a7368d317ab30496:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxODA5OWJmZGIzMWY2ZTMzMWVhMTY5Yjg1ZGVjZmRmMmM4NmNkYTA1MmU0MGUyZjE1OWIyYjZhNjljN2ViZjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA2YmFmMjYyNjBmNGY0OWMzZTM1ZDEyODA0MWI4MmFiMDM1ZGQ4MDdhMjFkZThjYWRiNTAzNGJmNzg3Y2RiYWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU4MDU4NzhmNjMwNTZmZTM1ZDY0NjUwNTI3ZWNiNWNlNDk2YjA4ZWIxMjgxZTk2YWIwNGZmYzMxMGQwOTdjMTAifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_registers.js#L8-L20",
+          "version": "repo-lines-v1:sha256:bd7e11829321c9bf91a9d5053f78ec3f7c0d3ff95a197c3cd914376e1f68e3eb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyZTA1ZmZiZTAyYWMwMjEzN2I0OWQyMDJmZDFlYzQxNTA1OWI0MTE2NmJjMTUyOGZlOGExNmU5ZDgzM2EzZGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIxMDc4ZWY1YTk0YjlmYzQxY2E5M2I3NDA2YmQwNjE0MjhkODE5NmVkMjMwNThmOTQ5ODU1MzY1OWNhYzgwMzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBiNjViMTc0Mzg5MGQyYzAwNDg3MWQxZjhhNmU0NmRiYTE1NTk5MGExNTdlOTVhODM4ODdiMDQyZjQwODg2YmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU4NDQ3ZTYzNTIxNjRiZDc1YTJlY2NiNWVlNzU4ZjlhMTgxMDU5MmQ2NzFlMjZhNzliY2QzMzFkOGJlOTNiZDQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_066a749b1d98491387987467f8dd49a1",
+      "statement": "The screen panel draws the 80x24 buffer at 0xF1000, 1920 words ending at 0xF177F, with 4-bit foreground/background in the high byte, attribute 0 meaning default, and reverse video (CURSOR_ATTR 0x7000) standing in for a cursor.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_screen.js#L1-L35",
+          "version": "repo-lines-v1:sha256:85cb8e0dd3b4d95237760d8b30b01598c425dc375136f6a0630346d23873e562:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmMGVmODc3OWI0ZWJmOTNiNDljMTFmOTVhNjIwYTMzY2Y5OTY2MDYwZmJmZTM3NGMyZmUzMmU4ZjUyODdlY2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI0OWNkNWFjZmE1YWFhNDM4MTFmMTRmNWE0ZDZhNGRhZGUzODI4N2RhN2M3NDA1YjNjMjgxMGIzM2ZmYjA5YmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2YTE1MmI3NDY0YTJjMmZiNzc0NDkzYzc0NzA3ZmQ1OTFhOThjYThjYTQ0NGE0YzdiNzA5MTMzZDRiYmE4NDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_20bdccf092d64fe894328b9f5b809643",
+      "statement": "The screen panel keeps a per-cell drawn cache so a refresh touches only cells that changed, avoiding a 1920-span repaint every tick.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_screen.js#L36-L46",
+          "version": "repo-lines-v1:sha256:4281b003212a4fa53b286141c03fc701b5adffc16ab1ba6591811f7e3c8a2b29:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxMGVjYzE1M2JmMTdjYmMzM2YxNzJjMWNiNjg1NDUzZmIzZjIzZTNkMjkxNWQ4OTM3M2RhNDgzYzdkMjgyYzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZmNmI3ZDMwYWUwOWI5MDA1NDc4NWM2Y2YyYzdmYTljNDNiMTI2ZGQ1Y2Q0ZTEyY2U0NzMyODFhMjcyOGM3NzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI0ODNlMzI2ZjNiMzIwMzc2MjRiYTQ2YjIwNDNmNmJiOWEzZjgwZGJjNWRkZjNmNDljNTUyMTcwMzQ2MjA2NzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhjZmJkOTQzZmEwODc0NTY0NjEyNmFjODBiMGM4MjI3NmE1NmYwNzM1Njc1NWJlODNkOTQ5NjhmNzViMGFlNjAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e11f841ed05a43e5a602ababbe99f2f3",
+      "statement": "SerialTerminal renders the UART byte stream into an 80x24 grid, supporting printable ASCII with autowrap, CR, LF with scroll, BS, TAB, CSI J clear-and-home and CSI H/f home-only while dropping every other escape.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_terminal.js#L1-L20",
+          "version": "repo-lines-v1:sha256:f8bc1fbd8d68183eb02c2eb2644ed37c489293ab946f8bb27c7db6a896e10884:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiNzU4NGFlODE1MzRhMTAwODU3MjdmNzA4YzNlYzk4N2M2Mzg4MzUwMmU5OGFlMWZhNGY3NzMxZDNjODkzNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3MmE0MjkzODJiMmUxNDcxOGUwZTM3YjA1NzBhOGExNzAyOTkxZmNkODQ5OGNkODQwNjBhOGJmNGYwNTAxN2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhmOTczZGEwMzhiYmJmMGJhMzAzNDIwODFkNjkxZDFmOTJjZTJlOTg2YThkZWZjMzc4NDJhMzQxOWIzYTE1ZTcifQ"
+        },
+        {
+          "resource": "repo://js/deep16_terminal.js#L63-L88",
+          "version": "repo-lines-v1:sha256:39813d9f88fb10e4c18297b53aa72fd186715c81929837d81bef0988462cfd62:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyMzc4ZmVmODYyYTcxOGE3Njg2ZjRkZDhhNWE4NmI3NjJjZDczMzFmNThlZGNkYmNjZTY4MzRiNjI1ZTFkODciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYzMzhmZDI4MWYxMDY0NzIxODQzZDM0ZjA3OGNjYzJjNGNjNjk4M2U1YzgyYmQ4MmJlZjk5MjYxZWQwNmNmMjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNhN2QxNjA4YjEyNGU0MzkzZWRjNjY2ZWVmYjVhOWUxNzFlNGNkMmUxMzBiMWEwNmQwMTI5NmVkZDU2MGJlNTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7901c4ce372b45639e8a7dd3bd4c4b89",
+      "statement": "The Trace button is one gate for panel updates: with trace off, updateAllDisplays drains the UART and returns, so the machine and terminal keep running while registers, memory and screen stop redrawing.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2286-L2300",
+          "version": "repo-lines-v1:sha256:99f4d5260bb4d2672833d5efa1ef9ba60ec337590433227f616327adad2263ad:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYzMDA4ZDFmYmZlMDFhMjMxYWMyZDI1MmMwMzBkMDUyYmYyYTY3NjVmNTliZWIyM2VjZjk1MGFhYWY2MmM3OTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyZThhMWU2MmRiZGI2MzYwYjhjNGYzZjkyMWQwMmJiOTBhZWNkMjA5MzQ1NGQ5MDA3ZjMxOWEzNDMxMWJiNzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5OWJkZWZlZWFjYTYzNDBlMDI5MGRjODZlODg5Yzg5ZDVlMTg5YWE1YmE0NGI1ODViM2I3MDczNGY0YTYyZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiZjUxYmI0YmM4ZTEyNTdiNmJiZmFlZjM5YzcxZWQ1MWQxMTJiMzQzYjM5ZWNiMjM4YTQxMTcyYTQ0ZDM5NDQifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L704-L740",
+          "version": "repo-lines-v1:sha256:72854cbed89906c02f2f8d8d309876019c43cb557837166a1bcdb51bebc03886:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjMDY2MmI0ZGE2MzQzNWFhZTRiNjg4MjA3YTExNzYwNjNhYzE1NTNmNGE3N2ZhODhiNThjMTFlOTYwOGQ0YTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJkMGUwZTU4NTFmMWYwNzNiYTk0NjY4OTBmNWZlOGMzY2UyNGJlYThhMjVhYzE4NjJkYzJmYTJmY2EyZDdiNzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3NjQ1NmIwMWEwOWYyNmI4MDQ5ZDE1OTFhODFkZTdmZDU3OGMxODQwNWI1MWU4YjNmZjA2NzE5ZjAwNGRkOTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmYzU1YjAyZjFiYmQ1YWExNTA1N2RiZmU0ZGU0MmRlMTU0OWYzYWYwMzczMzI0M2U2NzE5MGRhMDJiMTU4MzMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_81a2d5aa1a5b497f9237a42bbd4e21d6",
+      "statement": "One persisted console mode (deep16_console) selects between screen and terminal, changes the assembler defines to CONSOLE_UART, switches what the Screen tab shows and reroutes input; toggling rebuilds the editor source.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L360-L432",
+          "version": "repo-lines-v1:sha256:c4583fdcf245365b7c44b2702223b24be224b0a905a8ed7ddc23d7bcdd7d30bc:eyJzZWxlY3RlZExpbmVDb3VudCI6NzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY0NjhjODE3ZmNhZjBhMmZhYTM4Y2Q3NzYzZWE4OGY5MWVkMTM4OTUxODFhMTYxNzcyNzEwYzczZGFjYzdkN2EiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzNzYwNzcxOGI2MWQzMjQ5OWRlOGMwMDgyMGU1MThiMmNlZGM3ZWI4YWQ0ZDA1ZGNiZWE1MjRhYzBkZTRlZGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRmMWZjZjM3N2NhYTI1YzkxZDM3NjJhMTZjOWI4NjU5NDI4MmRjODMwYzAwMWZlNTI1MjBlOWUxMmE0NjJkOWQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a7cf4258e82c48449517c9c7edfb57e5",
+      "statement": "File loading and saving use the File System Access API with a hidden file input and download-link fallback, keeping the file handle so Save writes in place and Save As replaces it.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L1070-L1118",
+          "version": "repo-lines-v1:sha256:40bad8f97a53fb2b0887ce6fd42f28bb9ec7280e5f7b6abcee8c8f1063e4b1c5:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5YWFhMWM1Yzg5MTAyM2JlMmRmNzk5NjA3ZDJjYzI4Nzk0NTE5MWUwNDY5NTcxYzJlYTg1MDgyMTQ3MjUyZTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3NjIxMzEyMTVmOGQ2NzJmMGU2NDA4YjJmOThiZmUzZWRiNGNkMDQyYTA3OTM1MDYwZjY3YzJkZGRjZjBjZTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVlN2ZhN2RhNTNiY2M5Y2ViNzA5MjdkMDY5MzM5MGJkYWY1ZDU3N2U2MmY3ZGJjM2U1ODlkMGQ2NjcyMWFkMzgifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L1156-L1190",
+          "version": "repo-lines-v1:sha256:070fccd81533818a7e078b1e4ae8a980c5b8f10cba5d2a98938111c0a47a55b1:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE5ODVmMGUyNjZkZjgxZDU5ZTE3NjgzMTllYjZkZjQwMTc3MzdiYjRiZGQzMDZjZmMyMGUwNmIwZDM3Y2ZhMDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5YzRlNzE1MmI5ZGI0ZjBjZTJjMTc3YmQ1NDQzMTlkNTUzYmVkMjE0ZTFjYjY2MmVjMGU1NDY4NzQ1MzlkNGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA2OGI3NmZjYTZhZDQwNzU3MzZjMTE0NDlmNzM1YjZjN2M1MjcxZjczOWEwOTAxNDJlZWYxYTI3MWMzNjA3YzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVlZWNhNWE3NDg1MDlhZTU1NmYwNzQ2YmFkNzVhMjQxOGE5MTA1MGMxOTc2ZmJkMWRmMGRmYWQ4MjI1NDJjNGIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cf81f2a8ebb74659997a82b343aa1593",
+      "statement": "A .fth or .forth file is not opened in the editor but queued as keystrokes for the running kernel, with the check in code because iOS Safari does not enforce the dialog accept list.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L580-L600",
+          "version": "repo-lines-v1:sha256:f49f612852ef1a685347970e052d0a9676ffcc3ecae5940e14666a0d6dce0f7c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxZTI0ZWRhMzMyMGEwMzE0YzcxZGZiMzRjZmU3YTdiNzM2ZmFiM2Y0MzAyNzczZGUyYjhmNGIzMWM3NDQ2NGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhkZDY5N2I4MjFmMTQyOTExM2Y2ZThmNTk4ZDY2MzY4Nzg2Y2Q3OGIyNWI1NTQ4OTExMGIyMmNkNzA0Mjc2ZGYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE5MjQwNmU5OTAxNjBiNTQyMTc1NDIyYmJkN2VmYTZhZmE3YWFmNjhjYTIxNzRmNzAzZTg0NWU0MWY0Mzg0MjkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_81b0856c16864d618704270158f6218d",
+      "statement": "Examples come from asm/examples.json, are grouped by category, and are fetched from asm/<filename> with cache no-store; loading one only fills the editor and switches to the Editor tab.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L3580-L3600",
+          "version": "repo-lines-v1:sha256:3b1689381e260171f35f9dcd569f4e6955962e50d5945c0b92db73f935bbd052:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIwMmJhZWFhM2U2YjgyOGU3ZTU5ZjQ5ZDBkODA4Yjk3NGI5NzljMDM2ZTg0NWU2MWI0MDliMjI4M2IxYzYwNDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmZDZiMjA1MDBmNjZmYWNkNThmNDFkNWJkNDZlYTVkMGQzYzQ1Zjk4ZDQzZTAwMTU2NDIxYmE5NGFjNjdlMWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE0MTViZTFkMDA5NTlhMzgxNGEyZmYwNjk3ODg2YmE2MTdmZTY2NmUxN2ZlNDAwZDEwYjVlYWVlZDIwNzI3YmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJiNjU5OWFhNTQ4MjgzNmUyMzFiYjkxYmQzMWEyMDBkODkyY2U1NWFiMTRkY2YzODIzNmJmOGE5N2I3MDcwYzMifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L3640-L3665",
+          "version": "repo-lines-v1:sha256:559fca55830d9c299b0ca1c0069a2e65021ee168c2f3239cecc42fc4c1c49ee8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1OTA1MTIwMTVjYmRiZDVjMmIwMjJhMDhlMTEzMWUyM2ExOTNmMTY0NTk3NDVlYTFmNzcxNDczZDg0ZmMzNTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0NDI1ZGQ4YjQxZjZkM2IwMzhkNzQ2MmU3N2NhMzQzYzQ4OWRkN2MxYWEyMzMxZGQ1Y2JhYTQyOTgwOWZlNzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI0ODBiOWUwYjc2OTJkYjkzN2RjNmJjYjVhN2ZjNTNlM2U2MTA5YWM0YWE3YzUzZjNkOWFiNGJkYTBiNjkzYzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM4OTkwOTk1N2E1MmE4ZGMxNzQ1M2Q3ZGFkMGU3NjNiYmViN2QyMDQ5YmNkMDIyNzhiZWU2YjhhYjIxODBhMDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e77c2db6bed246218487cc5b95772e5f",
+      "statement": "The Docs menu fetches doc/Deep16-Arch.md, FORTH.md or doc/User-man.md and renders it in an overlay with a built-in Markdown renderer, closing on Escape or an outside click.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L1401-L1408",
+          "version": "repo-lines-v1:sha256:fe646b02134d1de33b9f7a448341889c95796195b05b0f96866b50b2e9a6945e:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjQ0NDIyMmQ5OTExZDgzMWQ1MjEwMzBiNTgxZmM4ZTM4OGExYzc3NWJjNzRkNWJiMmM2OGYzOWNjOTlmZDE4MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGRiMzM5YzE3ZDRjYzU0ZTcwYzRmY2ZlY2I2MTFiYjllN2QzNjNmMjViMThlMDkyM2ExZDMwNmNjOTU5MjRlNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWZkMjJmODU3ZGRmMzc1YTBkYjBjZDhlZjNmNTA2NWZjNDBmZGE5NjVhOWY3MTI0MWJkYjI5YjJmZmVjOWJiNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTg5NTIyNGQ1MTYxOTBhZTM2NWI5ZTMzMjE1NDI0NjAxNTAxYTY3MWNmNmFhODA5ODRhOGZlY2FjZDE5MzRlMSJ9"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L1548-L1576",
+          "version": "repo-lines-v1:sha256:9aea2b1cc8de8a5d89f2bcd56f0048749bae7982fb5a983b73e8b59a9028bf95:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0OWRmNTFiOGVkZGM1ZjgyYThhN2ZlMzA3NzMxNzI1MWY4MTRlOTg3NjY4YTExZTAxMWI5MWYyNDIzYjQ0NGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwZjBhOTYzODVkNzU2NTdhOTU3MDhmMDU3YzlmNWE3MDQ3ZjkyNzcxNjA5NTIxMzRhMmUwMGNkMmQ4NmIxZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJlMDU1YjQxMzg1ZWQ2MjM4MjQwNjdlMjk3NzgyZDVkNjI1NDkzM2FhYTFiMzM1MWIzM2E0MmVkYmQ2NDhlYjMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_79b6d86e832c4a1793ef11c52982c8fa",
+      "statement": "The editor is a textarea with a highlight overlay and a tab width persisted as deep16.tabSize.",
+      "evidence": [
+        {
+          "resource": "repo://index.html#L135-L154",
+          "version": "repo-lines-v1:sha256:6d70c1c79aaf75a6548af7d33aae2df8ebfc23e34b59916195b1cc6b2f370218:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyNTU2ZGY1M2JlMTc0YmIwZWMyNTdjYzJiYjk0NjNmOTBhN2Y2ZjliYzVhZjVkZGQ5OGJjMjMzNDU0ZmJlZWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhNDE3Mjg0NDJmNTZhZmUzY2RhNGM3MDE1NDE2OWJhNDBlMGU0OTQ5MmExZWNjNmZlZjUwODg1YjhjMzRiMGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE2NmVkNGQyZDBkZTNkMTE1MzNiNDAyYzM3ZTYzZmM0NGIyMjBhOWMzNTI5NmVkNGUwZWFmZWNjMzlkZTg3ZDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1ZDgzMmM1MzRhZTkyZGUyNjQ2MTE1ZTI3MTExNWJiMTBmMWRiMWIwNWJjYTM0MjczNjVmYzRjMGRjZWIwZDkifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L1465-L1482",
+          "version": "repo-lines-v1:sha256:95bc8f8154b9d81b3fdb0069dbbd8c0fdbc0779589c9a078488bb915300b6407:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxNGZhZTFiZTcyOGY5OGIzODcyNDFmNmY2Y2IzNGNkODgzN2NlZjkxODRhNDc2NGZhOTYxMmZjZjM1ZTlmNjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5OWJkZWZlZWFjYTYzNDBlMDI5MGRjODZlODg5Yzg5ZDVlMTg5YWE1YmE0NGI1ODViM2I3MDczNGY0YTYyZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI4MjczYjU1ODBlYzZjYTBhNzM1MzU2ZDNlZGZlMjM3ZGRlYTRhYzg1NjkyY2UzMTdkMzlkOWJhYWZmYjhhYzAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9eee944cff2549789cdd70cb1df69cba",
+      "statement": "js/deep16_worker.js implements a complete message protocol for INIT, LOAD_PROGRAM, RUN, STEP, RESET and STOP, but no new Worker is constructed anywhere, workerRun posts to an undefined this.worker, and no script tag loads the file.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L2353-L2360",
+          "version": "repo-lines-v1:sha256:889579e6ac0ff3d333e85dfbce20308a166ff0af41275787588d29fb7617acae:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDg0N2FmZGM0YTQyOGRhMTI5MjBlMzcwNmQ1ZDRiOWE5MjA4Y2JkMjMxZWU2NWIxYzVlYmVlMGIxYTUwMzg4OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDk0OWI3N2UxOTk1MWQ4NWM0MzBkZmY2ZmZmZjk2YmIyMGRjMzViMGYxNjgzODg4NGU0MTgxYTM4YmNlZDk2MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjYxNGQ0Nzg0OWU2NTkzZTcyZGJmMDg4OTg1ZGI4NmNlYzU4ZmJlYjFjZDA5N2UwZjA5YjM5MmI1MTQ0ZWNiYyJ9"
+        },
+        {
+          "resource": "repo://js/deep16_worker.js#L1-L30",
+          "version": "repo-lines-v1:sha256:77882cf0b568c51aff8796112df28a6495dd075fb721a29d503946618cb79476:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMzNWEwYTkwZGYzMWM0OGY5NjU5YzE4M2VjZjFiYmUxMTNjZWNkYmE1MzZiYWQ3OTA3YTQ0MDk5YzEwOThkZjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk1YTQ4YjRlZTI3OWM0MTgzNWM1ZDE0ZWE4N2M4ODMyOTg1ZWMzZDM3OTEyZmY5MTBkY2M1MzhmYTE2ZTU2NmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFjMTg4ODk5YWI5NTdiMzUxNTM0ZWVmMmJiODgxMjBmZGQzMzE0YzAyNGRiMWQxZDlhNmM4Zjc1OTRhOTU4YmMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d9c019405ddd40c0a324d60581afe1cf",
+      "statement": "Settings persist under deep16_core, deep16_use_wasm, deep16_console and deep16.tabSize, with every storage access wrapped so disabled storage degrades to defaults.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L1465-L1482",
+          "version": "repo-lines-v1:sha256:95bc8f8154b9d81b3fdb0069dbbd8c0fdbc0779589c9a078488bb915300b6407:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxNGZhZTFiZTcyOGY5OGIzODcyNDFmNmY2Y2IzNGNkODgzN2NlZjkxODRhNDc2NGZhOTYxMmZjZjM1ZTlmNjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5OWJkZWZlZWFjYTYzNDBlMDI5MGRjODZlODg5Yzg5ZDVlMTg5YWE1YmE0NGI1ODViM2I3MDczNGY0YTYyZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI4MjczYjU1ODBlYzZjYTBhNzM1MzU2ZDNlZGZlMjM3ZGRlYTRhYzg1NjkyY2UzMTdkMzlkOWJhYWZmYjhhYzAifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L160-L190",
+          "version": "repo-lines-v1:sha256:3b222ac1ea000b4481510f1078e93abb9581b15e24282203a32a7ded163d60ee:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg0YTZmNDY5YTU3MjdmNmM5M2U2NWMyYTk0YjZiMDY1YTM3ZGE0NTc2MGIwOWVlODdmZmQ3NzBhYTlhZDdlMmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMGNkZTQyZGRkNzcxYjdkNTc3NTczY2RhMmQ2MWRiZDEwM2QzYTg0YjJlNmU2ZDJiZWZlYTA2NjllZjIzM2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEwOTc5NjIxZmJiY2I4NGMyNzdjMzNmZWM1MGZhYmNmNWIxM2ZiMmE5ZDYwM2E2OWJhYmYzMjZjZTc3OTU4MDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA0ZGYxMzFlMTg0ZTMwMDQ0NDU2ZWE2MzhhODhkNDg3YTk0MThkOTkzZmEyOWJkNTVjYjA0NTczNjY4ZTIyOWYifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L432-L446",
+          "version": "repo-lines-v1:sha256:c8d2c260a97c935e3c5da2c0a03950294ea0d33208b6f623545aec2434cafd53:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY0NjhjODE3ZmNhZjBhMmZhYTM4Y2Q3NzYzZWE4OGY5MWVkMTM4OTUxODFhMTYxNzcyNzEwYzczZGFjYzdkN2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRjYTIzNTJmMWM0NjkyZGU1MGQ5ZDdlNmUwMDY3MDhhM2I3YzIwZDc0M2MxZTUzOGZhYzdmODk1YzM3NDIzY2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY1OWRjOTJiOGZhMzYwZWM5NjE4NmU2MGE1MDc5MzdjOTAwODA4NjNjMGRhNDRlZDVjMmZjMThjYTA3ZmYyYTQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9030e7a770e942b3871dfe32cdd475d5",
+      "statement": "A hidden focusable #terminal-kbd-hook input exists because iOS only raises the soft keyboard for a real input focused inside a tap; tapping the screen focuses it and key events reach handleTerminalKey.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_ui_core.js#L496-L530",
+          "version": "repo-lines-v1:sha256:140a4bf446f52ea23b580cd3f076deeb2bb78b2d98b7d8a49b6de3ba522f9601:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhhZTE1YjEwYzk2NTFkMjRmMGUxYWNhY2ZhMWYyNmUzZTQxZGU0NmUyZDIwY2NhNWU0NmMxYjE1MTZiNTgyODciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJiNGE1M2E4NDcwOTEzNDVhZDhhMzE4ODg5NjdlNTFmMTdhZWRhZjE5YWM2MGQwYjQzN2JkMDc2NDc1N2QzNWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg1OGQ5OGI0OGJjNzE0M2I1ZDIzMGJhODU5ZDc0OTIwYWZhMGU0Mjc5NGFlZmU2NjhjNWI3Y2UxOWFlMjJiYTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJhOGRlZWE2ZWM2MzNiYWZlOGQxZWNhNjg4M2M3MGEzNzExYWEyZTYxNWQ1Y2NiMTkwMWFhMzFiNmQ1OWI5ZDIifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L60-L95",
+          "version": "repo-lines-v1:sha256:cbbc39545c6eaa4c81830e67d1b717348bf441b06d25c286b28e8c56d54d3d71:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5N2ZjNTlhNjVlZmQ2NzU4ZTEwMWY5ZDE0NmE0ZTY5NDFlY2RjZDc0Y2Y0ZWMzNzBkYWE5MTE5MjFlOWRmYWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5ODczOTc5M2NkMTQ0MTk1YjNlNWM5ZTRlNWNkNjQwNDYwZWIyOTlkNDU2Mjg0Y2YyYWI5MGI2ZjlmYzdmYjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdjZTBjZWMzM2ExOTI3MmIzZTQwZjZiNmUwYzkwMWUzYzM0MWRmMDYxMmY3YjE5NzJkY2Q3MDBiNTYxZDRlNWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFlODEyNWVhZGQ0YmNlMDQ4NDUyMjgzOWEzNjk2Mzg1MzkxNDgzNWQzYWJmMGQ4MGIwMDU3OTY4MTFmY2Q1ZDUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.2",
+    "at": "2026-11-01T09:36:37.731Z"
+  }
+}
