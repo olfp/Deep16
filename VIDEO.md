@@ -161,3 +161,24 @@ use the three free BSRAM blocks; the CLS for sprites has to come from the
 D16nano divider removal, the RX-only UART and dropping the DVI-side ANSI
 parser. See `rtl/dvi/README.md`.
 
+## c) FiT in the simulation — implemented
+
+The browser and the headless renderer now model the same tile engine:
+
+- `js/deep16_tile_engine.js` mirrors `dvi_tile.sv`: 82x26 two-bank map,
+  26-row ring, `scroll_x`/`scroll_y`, per-row fine scroll, text/art cells,
+  three palette banks, cursor, eight sprites / 24 groups, H/V flip, behind,
+  slot-0 priority and RGB332.
+- Graphics are **not** a boot ROM. `npm run assets:gfx` builds a flash blob
+  (tile bank, 24 sprite groups, three palettes) and `deep16_gfx_loader.js`
+  writes it through the CPU windows from simulated config flash.
+- The IDE adds a **Tiles** console mode with a 640x360 canvas. `0xF0066` is a
+  host-driven status word (frame, S2, UART-ready) at 60 Hz; the JS core runs
+  tile mode because the RTL harness/WASM lack the display-status model.
+- `npm run render:tile` produces deterministic PNGs:
+  `--scene=menu`, `--scene=flappy`, `--scene=console`.
+
+Simulation deliberately allows all 128 tile slots to be written, while the
+current RTL exposes 96; that is the target tracked in `ERRPLAN.md`, not a
+bitstream change. See `TILESIM-IMPL.md`.
+

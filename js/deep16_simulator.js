@@ -267,6 +267,11 @@ class Deep16Simulator {
         // D16nano benchmark time base: one step is one instruction (the JS core
         // is not cycle-accurate). The board exposes the real CPU cycle counter.
         this.cycleCount = 0;
+        // 0xF0066 display/input status: b0 vblank, b1 frame toggle, b2 S2,
+        // b3 UART RX ready. The IDE's 60 Hz clock writes this; the board drives
+        // the same word from the pixel domain. null means "not driven": the
+        // memory word is read, which is what tests and manual pokes see.
+        this.tileStatus = null;
         // SIC at 0xF00B0 (D16nano): sticky pending bits, enable mask and the
         // ISR scratch counter. Bits 3 raster, 2 audio, 1 timer, 0 keyboard.
         this.sicPending = 0;
@@ -318,6 +323,9 @@ class Deep16Simulator {
         
         // Reference to UI for screen updates (will be set by UI)
         this.ui = null;
+        // Optional FiT tile engine. The IDE / headless renderer attaches one;
+        // every video-window store is then mirrored into it as it happens.
+        this.tileEngine = null;
 
         // Performance optimization: Precompute register names
         this.registerNames = ['R0','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10','R11','FP','SP','LR','PC'];
@@ -378,6 +386,7 @@ class Deep16Simulator {
         this.segmentRegisters = { CS: 0xFFFF, DS: 0x0000, SS: 0x0000, ES: 0x0000 };
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R3: 0, R13: 0, R14: 0 };
         this.cycleCount = 0;
+        this.tileStatus = null;
         
         // Reset delay slot state
         this.delaySlotActive = false;
@@ -1306,6 +1315,11 @@ class Deep16Simulator {
             } else if (physicalAddress === this.UART_DATA_ADDR) {
                 const data = this.uartRx.length > 0 ? (this.uartRx.shift() & 0xFFFF) : 0;
                 this.writeGPR(rd, data);
+            } else if (this.d16nano && physicalAddress === 0xF0066) {
+                const status = (this.tileStatus === null)
+                    ? this.memory[physicalAddress]
+                    : this.tileStatus;
+                this.writeGPR(rd, status & 0xFFFF);
             } else if (this.d16nano && physicalAddress === 0xF0068) {
                 this.writeGPR(rd, this.cycleCount & 0xFFFF);
             } else if (this.d16nano && physicalAddress === 0xF006A) {
@@ -1441,11 +1455,21 @@ class Deep16Simulator {
     }
 
     checkScreenUpdate(address, value) {
+        // The FiT engine needs ordered stores, not a polled memory image: two
+        // tilemap banks, the sprite write page and the control registers cannot
+        // be reconstructed from the final contents. Attach an engine to get
+        // every video-window write as it happens.
+        if (this.tileEngine && address >= 0xF1000 && address <= 0xF50AF) {
+            this.tileEngine.write(address, value & 0xFFFF);
+        }
+
         if (address >= this.SCREEN_MEMORY_START && address <= this.SCREEN_MEMORY_END) {
-            // console.log(`Screen memory updated: address=0x${address.toString(16)}, value=0x${value.toString(16)}`);
-            
-            // Use the existing screen UI method
-            if (this.ui && this.ui.screenUI && typeof this.ui.screenUI.handleScreenMemoryWrite === 'function') {
+            // In tile mode the tile engine owns 0xF1000; drawing the same word
+            // as a text cell would paint over the canvas.
+            const tiles = this.ui && typeof this.ui.consoleMode === 'function'
+                && this.ui.consoleMode() === 'tiles';
+            if (!tiles && this.ui && this.ui.screenUI &&
+                typeof this.ui.screenUI.handleScreenMemoryWrite === 'function') {
                 this.ui.screenUI.handleScreenMemoryWrite(address, value);
             }
         }

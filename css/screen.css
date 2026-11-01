@@ -103,6 +103,23 @@
     box-shadow: 0 0 8px rgba(51, 153, 255, 0.6);
 }
 
+/* FiT tile view: a 640x360 canvas beside the 80x24 grid. The grid and the
+   canvas are mutually exclusive; deep16_ui_screen.js toggles .tile-view on the
+   display and .visible on the canvas. */
+.screen-canvas {
+    display: none;
+    width: 640px;
+    height: 360px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #000000;
+}
+
+.screen-canvas.visible { display: block; }
+
+.screen-display.tile-view .screen-row { display: none; }
+.screen-display.tile-view .screen-canvas { display: block; }
+
 .screen-row {
     display: flex;
     white-space: nowrap;

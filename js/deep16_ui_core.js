@@ -4,6 +4,20 @@ class DeepWebUI {
         this.assembler = new Deep16Assembler();
         this.simulator = new Deep16Simulator();
         this.disassembler = new Deep16Disassembler();
+        // FiT tile engine, created in tiles mode. Until then the text screen
+        // owns 0xF1000.
+        this.tileEngine = null;
+        // 'd16d' when the loaded example needs the showcase image; null for the
+        // plain nano console. The showcase sources are fetched with the example
+        // so Assemble can rebuild the code image without another round trip.
+        this.tileBuild = null;
+        this.d16dSources = null;
+        // 60 Hz display clock and the status word it drives at 0xF0066.
+        this.tileClock = null;
+        this.tileFrame = 0;
+        this.tileVblank = false;
+        this.tileS2 = false;
+        this.tileStepsPerTick = 6000;
         this.memoryStartAddress = 0;
         this.runInterval = null;
         this.transcriptEntries = [];
@@ -359,46 +373,178 @@ class DeepWebUI {
     }
 
     // The IDE's one global console mode: 'screen' (the 0xF1000 buffer, the
-    // default build) or 'terminal' (the serial CONSOLE_UART build, the UART
-    // port and the terminal view). It drives three things at once - what the
-    // assembler builds, what the Screen tab shows and where input goes - which
-    // is why it is a mode and not three separate switches.
+    // default build), 'terminal' (the serial CONSOLE_UART build and UART view)
+    // or 'tiles' (the D16nano FiT tile/sprite canvas). It drives three things
+    // at once - what the assembler builds, what the Screen tab shows and where
+    // input goes - which is why it is a mode and not three separate switches.
     consoleMode() {
         if (this.consoleView === 'terminal') return 'terminal';
+        if (this.consoleView === 'tiles') return 'tiles';
         if (this.consoleView === 'screen') return 'screen';
-        // Not set yet (a hand-built instance): fall back to the screen UI.
-        return (this.screenUI && this.screenUI.mode === 'terminal') ? 'terminal' : 'screen';
+        // Not set yet (a hand-built instance): follow the screen UI.
+        if (this.screenUI && this.screenUI.mode === 'terminal') return 'terminal';
+        if (this.screenUI && this.screenUI.mode === 'tiles') return 'tiles';
+        return 'screen';
     }
 
     // The defines the global mode hands the assembler. Terminal mode compiles
-    // the serial BIOS (asm/forth.asm's .ifdef CONSOLE_UART branch); the screen
-    // build is the default and passes nothing.
+    // the serial BIOS (asm/forth.asm's .ifdef CONSOLE_UART branch); tile mode
+    // needs the nano core, which is the D16NANO build, and optionally D16D for
+    // the showcase image. The screen build is the default and passes nothing.
     assembleDefines() {
-        return this.consoleMode() === 'terminal' ? { CONSOLE_UART: 1 } : {};
+        const mode = this.consoleMode();
+        if (mode === 'terminal') return { CONSOLE_UART: 1 };
+        if (mode === 'tiles') {
+            const defines = { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1 };
+            if (this.tileBuild === 'd16d') defines.D16D = 1;
+            return defines;
+        }
+        return {};
     }
 
-    // Terminal mode needs a core that actually talks UART. All three do now
-    // (the JS core, the Rust/WASM core and the RTL core decode 0xF0040/42), but
-    // a stub or a half-loaded core may not - running there would show an empty
-    // terminal, so fall back to the JS core and say so. Called from every entry
-    // point - switching the mode, loading, and Run - because the mode is
-    // persisted and can be 'terminal' before any switch happens.
+    // Tile mode has its own state model, created on demand and attached to the
+    // simulator so every video-window store reaches it in order.
+    ensureTileEngine() {
+        if (typeof Deep16TileEngine !== 'function') return null;
+        if (!this.tileEngine) this.tileEngine = new Deep16TileEngine();
+        if (this.simulator) this.simulator.tileEngine = this.tileEngine;
+        return this.tileEngine;
+    }
+
+    // Load the graphics flash blob into the engine and the JS memory image.
+    // This is the simulation stand-in for the future CPU flash loader; it runs
+    // after the code image is written and before a compiled core is synced.
+    // Build the D16D code image from the editor kernel and the cached showcase
+    // sources. Graphics are not included; loadTileAssets() writes them from the
+    // flash blob immediately afterwards.
+    buildD16DImage(kernelSource) {
+      try {
+        if (typeof Deep16D16DImage !== 'function') throw new Error('D16D image builder is not loaded');
+        if (!this.d16dSources) throw new Error('D16D showcase sources are not loaded');
+        const image = Deep16D16DImage.build({
+          kernel: kernelSource,
+          showcase: this.d16dSources.showcase,
+          flappy: this.d16dSources.flappy,
+          defines: this.assembleDefines(),
+        });
+        for (let i = 0; i < 0x6000; i++) this.simulator.memory[i] = image.words[i];
+        return {
+          success: true,
+          memoryChanges: [],
+          symbols: image.symbols || {},
+          errors: [],
+          listing: [],
+          segmentMap: new Map(),
+          image,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          memoryChanges: [],
+          symbols: {},
+          errors: [error.message],
+          listing: [],
+          segmentMap: new Map(),
+        };
+      }
+    }
+
+    loadTileAssets() {
+        if (this.consoleMode() !== 'tiles') return false;
+        const engine = this.ensureTileEngine();
+        if (!engine) return false;
+        engine.powerOn();
+        if (typeof Deep16GfxLoader !== 'undefined' && typeof Deep16FlashAssets !== 'undefined') {
+            Deep16GfxLoader.load(engine, this.simulator, Deep16FlashAssets);
+        }
+        return true;
+    }
+
+    // Tile mode currently runs on the JS core: the RTL harness has no
+    // tile_status input and WASM has no SIC/timer/display-status model, so the
+    // game would spin forever on 0xF0066. Force JS and say why.
+    ensureTileCore() {
+        if (this.consoleMode() !== 'tiles') return;
+        if (!(this.compiledCoreReady && this.compiledCoreReady())) return;
+        if (this.coreName === 'js') return;
+        if (typeof this.addTranscriptEntry === 'function') {
+            this.addTranscriptEntry('Tiles mode runs on the JS core: the compiled cores have no display-status word yet', 'warning');
+        }
+        try { this.setCore('js', { mirror: true }); } catch {}
+    }
+
+    // The CPU runs in 10 ms slices; the display latches at 60 Hz. One timer
+    // owns the status word and one engine tick, so the canvas never repaints
+    // from the run loop.
+    startTileClock() {
+        if (this.consoleMode() !== 'tiles' || this.tileClock) return;
+        this.tileClock = setInterval(() => this.tickTileFrame(), 1000 / 60);
+    }
+
+    stopTileClock() {
+        if (this.tileClock) {
+            clearInterval(this.tileClock);
+            this.tileClock = null;
+        }
+    }
+
+    tickTileFrame() {
+        if (this.consoleMode() !== 'tiles') { this.stopTileClock(); return; }
+        if (!this.simulator || !this.simulator.running) { this.stopTileClock(); return; }
+        this.tileFrame ^= 1;
+        const uartReady = (this.simulator.uartRxAvailable &&
+                           this.simulator.uartRxAvailable() > 0) ? 8 : 0;
+        const status = (this.tileFrame & 1) << 1
+                     | (this.tileVblank ? 1 : 0)
+                     | (this.tileS2 ? 4 : 0)
+                     | uartReady;
+        this.simulator.tileStatus = status;
+        if (this.compiledCoreReady()) {
+            const C = this.activeCoreModule();
+            if (C && typeof C.poke === 'function') {
+                try { C.poke(0xF0066, status); } catch {}
+            }
+        }
+        if (this.tileEngine) this.tileEngine.tick();
+        if (this.screenUI && typeof this.screenUI.updateTileDisplay === 'function') {
+            this.screenUI.updateTileDisplay();
+        }
+    }
+
+    // Tile mode executes far more than the screen build's 200 instructions per
+    // 10 ms tick; the game's wait_frame loop needs a few thousand per frame.
+    instructionsPerTick() {
+        return this.consoleMode() === 'tiles' ? (this.tileStepsPerTick || 6000) : 200;
+    }
+
+    // Terminal and tile modes both need a core that talks UART. All three do
+    // now (the JS core, the Rust/WASM core and the RTL core decode 0xF0040/42),
+    // but a stub or a half-loaded core may not. Called from every entry point
+    // because the mode is persisted and can be set before any switch happens.
     ensureTerminalCore() {
-        if (this.consoleMode() !== 'terminal') return;
+        if (this.consoleMode() === 'screen') return;
         if (!(this.compiledCoreReady && this.compiledCoreReady())) return;
         const C = this.activeCoreModule && this.activeCoreModule();
         if (C && typeof C.uart_tx_take === 'function') return;
         if (typeof this.addTranscriptEntry === 'function') {
-            this.addTranscriptEntry('This core has no UART - terminal mode runs on the JS core', 'warning');
+            this.addTranscriptEntry('This core has no UART - the serial view runs on the JS core', 'warning');
         }
         try { this.setCore('js', { mirror: true }); } catch {}
     }
 
     setConsoleMode(mode, { rebuild = false } = {}) {
-        const next = (mode === 'terminal') ? 'terminal' : 'screen';
+        const next = (mode === 'terminal') ? 'terminal'
+                   : (mode === 'tiles') ? 'tiles'
+                   : 'screen';
         const changed = this.consoleMode() !== next;
         this.consoleView = next;
         this.ensureTerminalCore();
+        if (next === 'tiles') {
+            this.ensureTileEngine();
+            this.ensureTileCore();
+        } else {
+            this.stopTileClock();
+        }
 
         if (this.screenUI && typeof this.screenUI.setConsoleView === 'function') {
             this.screenUI.setConsoleView(next);
@@ -407,13 +553,16 @@ class DeepWebUI {
         try { localStorage.setItem('deep16_console', next); } catch {}
 
         if (changed && typeof this.addTranscriptEntry === 'function') {
-            this.addTranscriptEntry(next === 'terminal'
+            const text = next === 'terminal'
                 ? 'Terminal mode: Assemble builds the serial (CONSOLE_UART) kernel and the Screen tab shows the UART output'
-                : 'Screen mode: Assemble builds the memory-mapped screen kernel', 'info');
+                : next === 'tiles'
+                    ? 'Tiles mode: Assemble builds the D16nano kernel and the Screen tab renders the FiT tile engine'
+                    : 'Screen mode: Assemble builds the memory-mapped screen kernel';
+            this.addTranscriptEntry(text, 'info');
         }
         // The build follows the mode, so rebuild whatever is in the editor - the
-        // alternative is a terminal that shows nothing because the loaded image
-        // is still the screen build.
+        // alternative is a view that shows nothing because the loaded image is
+        // still the previous build.
         if (changed && rebuild && this.editorElement && this.editorElement.value.trim()) {
             try { this.assemble(); } catch {}
         }
@@ -421,16 +570,19 @@ class DeepWebUI {
     }
 
     toggleConsoleMode() {
-        return this.setConsoleMode(this.consoleMode() === 'terminal' ? 'screen' : 'terminal', { rebuild: true });
+        const order = ['screen', 'terminal', 'tiles'];
+        const i = order.indexOf(this.consoleMode());
+        return this.setConsoleMode(order[(i + 1) % order.length], { rebuild: true });
     }
 
     updateConsoleModeButton() {
         const btn = document.getElementById('console-mode-btn');
         if (!btn) return;
-        const terminal = this.consoleMode() === 'terminal';
-        btn.textContent = terminal ? 'Terminal' : 'Screen';
-        btn.setAttribute('aria-pressed', terminal ? 'true' : 'false');
-        btn.classList.toggle('settings-terminal', terminal);
+        const mode = this.consoleMode();
+        btn.textContent = mode === 'terminal' ? 'Terminal' : mode === 'tiles' ? 'Tiles' : 'Screen';
+        btn.setAttribute('aria-pressed', mode !== 'screen' ? 'true' : 'false');
+        btn.classList.toggle('settings-terminal', mode === 'terminal');
+        btn.classList.toggle('settings-tiles', mode === 'tiles');
     }
 
     // Read the stored mode once and wire the settings-menu toggle. Called from
@@ -438,8 +590,12 @@ class DeepWebUI {
     setupConsoleMode() {
         const btn = document.getElementById('console-mode-btn');
         let desired = 'screen';
-        try { desired = localStorage.getItem('deep16_console') === 'terminal' ? 'terminal' : 'screen'; } catch {}
+        try {
+            const stored = localStorage.getItem('deep16_console');
+            if (stored === 'terminal' || stored === 'tiles') desired = stored;
+        } catch {}
         this.consoleView = desired;
+        if (desired === 'tiles') this.ensureTileEngine();
         this.ensureTerminalCore();
         if (this.screenUI && typeof this.screenUI.setConsoleView === 'function') {
             this.screenUI.setConsoleView(desired);
@@ -2197,7 +2353,9 @@ class DeepWebUI {
         this.addTranscriptEntry("Starting assembly", "info");
 
         try {
-            const result = this.assembler.assemble(source, { defines: this.assembleDefines() });
+            const result = (this.consoleMode() === 'tiles' && this.tileBuild === 'd16d')
+                ? this.buildD16DImage(source)
+                : this.assembler.assemble(source, { defines: this.assembleDefines() });
             if (window.Deep16Debug) console.log("Assembly result:", result);
             
             this.currentAssemblyResult = result;
@@ -2209,6 +2367,7 @@ class DeepWebUI {
                         this.simulator.memory[change.address] = change.value;
                     }
                 }
+                if (this.consoleMode() === 'tiles') this.loadTileAssets();
                 // Do not modify registers or segments during Assemble
                 if (this.useWasm && this.activeCoreModule()) {
                     if (this.syncStateIntoCore()) {
@@ -2311,7 +2470,15 @@ class DeepWebUI {
         this.registerUI.updateShadowRegisters();
         if (!busy) this.memoryUI.updateRecentMemoryDisplay();
         this.updateSegmentNavigationFields();
-        this.screenUI.updateScreenDisplay();
+        // In tile mode the 60 Hz clock owns the canvas; the 10 ms run tick must
+        // not repaint 230k pixels. A halted/assembled machine still renders once.
+        if (this.consoleMode() === 'tiles') {
+            if (!this.simulator.running && typeof this.screenUI.updateTileDisplay === 'function') {
+                this.screenUI.updateTileDisplay();
+            }
+        } else {
+            this.screenUI.updateScreenDisplay();
+        }
         this.updateCoreStats();
     }
 
@@ -2321,15 +2488,18 @@ class DeepWebUI {
             this.stop();
             return;
         }
-        // A terminal-mode run must not land on a core with no UART.
+        // A terminal/tile run must not land on a core with no UART (and tile
+        // mode needs the JS display-status model).
         this.ensureTerminalCore();
-        if (this.consoleMode() === 'terminal' && typeof this.addTranscriptEntry === 'function') {
+        if (this.consoleMode() === 'tiles') this.ensureTileCore();
+        const mode = this.consoleMode();
+        if (mode === 'terminal' && typeof this.addTranscriptEntry === 'function') {
             this.addTranscriptEntry(`Terminal mode: running on ${this.coreLabel(this.coreName)}`, 'info');
         }
-        // In terminal mode, run what the editor says: loading the kernel and
-        // pressing Run without Assemble used to run the previous program and
-        // show an empty terminal. (Screen mode keeps the explicit Assemble.)
-        if (this.consoleMode() === 'terminal' && this.editorElement &&
+        // In terminal/tile modes, run what the editor says: loading the kernel
+        // and pressing Run without Assemble used to run the previous program
+        // and show an empty view. (Screen mode keeps the explicit Assemble.)
+        if ((mode === 'terminal' || mode === 'tiles') && this.editorElement &&
             this.editorElement.value.trim() && this.editorElement.value !== this.lastAssembledSource) {
             try { this.assemble(); } catch {}
         }
@@ -2338,6 +2508,7 @@ class DeepWebUI {
         } else {
             this.jsRun();
         }
+        if (this.consoleMode() === 'tiles') this.startTileClock();
     }
 
     // Translate a browser key event into the ASCII-style key code the
@@ -2389,7 +2560,7 @@ class DeepWebUI {
             // without this the serial output only appeared once the program
             // stopped.
             this.pumpConsole();
-            const stepsPerTick = 200;
+            const stepsPerTick = this.instructionsPerTick();
             // Type in whatever the keyboard queue still has room for, once per
             // tick, paced by what the machine consumed since the last tick.
             if (this.fileUpload) this.pumpKeyQueue();
@@ -2459,6 +2630,7 @@ class DeepWebUI {
             clearInterval(this.runInterval);
             this.runInterval = null;
         }
+        this.stopTileClock();
         this.simulator.running = false;
         this.status("Program halted");
         this.addTranscriptEntry("Program execution stopped", "info");
@@ -2862,6 +3034,8 @@ class DeepWebUI {
             clearInterval(this.runInterval);
             this.runInterval = null;
         }
+        this.stopTileClock();
+        this.tileFrame = 0;
         // A reset empties the keyboard queue on both the core and its JS
         // mirror, so half a file would go on waiting for input that never
         // comes. Drop the upload instead of resuming into silence.
@@ -2961,7 +3135,7 @@ class DeepWebUI {
             }
             // Same cadence as the JS loop: one pump per tick, not per step.
             this.pumpConsole();
-            const stepsPerTick = 200;
+            const stepsPerTick = this.instructionsPerTick();
             if (this.fileUpload) this.pumpKeyQueue();
             let cont = true;
             let lastSBit = ((this.simulator.psw & (1 << 5)) !== 0) ? 1 : 0;
@@ -3036,8 +3210,12 @@ class DeepWebUI {
                                 if (address < this.simulator.memory.length) {
                                     this.simulator.memory[address] = w;
                                 }
+                                if (this.tileEngine && address >= 0xF1000 && address <= 0xF50AF) {
+                                    this.tileEngine.write(address, w);
+                                }
                                 if (this.screenUI && this.screenUI.isScreenMemory && this.screenUI.handleScreenMemoryWrite) {
-                                    if (this.screenUI.isScreenMemory(address)) {
+                                    const tiles = this.consoleMode && this.consoleMode() === 'tiles';
+                                    if (!tiles && this.screenUI.isScreenMemory(address)) {
                                         this.screenUI.handleScreenMemoryWrite(address, w);
                                     }
                                 }
@@ -3654,6 +3832,24 @@ const response = await fetch(`asm/${filename}`, { cache: 'no-store' });
             
             const example = this.examples.find(ex => ex.filename === filename);
             const displayName = example ? example.name : filename;
+            this.tileBuild = (example && example.build) ? example.build : null;
+            this.d16dSources = null;
+            if (this.tileBuild === 'd16d') {
+                try {
+                    const [sc, fl] = await Promise.all([
+                        fetch('asm/showcase/showcase.asm', { cache: 'no-store' }),
+                        fetch('asm/showcase/flappy_game.asm', { cache: 'no-store' }),
+                    ]);
+                    if (!sc.ok || !fl.ok) throw new Error('showcase sources not found');
+                    this.d16dSources = {
+                        showcase: await sc.text(),
+                        flappy: await fl.text(),
+                    };
+                } catch (error) {
+                    this.addTranscriptEntry(`D16D sources failed: ${error.message}`, 'error');
+                }
+                this.setConsoleMode('tiles', { rebuild: false });
+            }
             
             this.addTranscriptEntry(`Loaded example: ${displayName}`, "info");
             this.status(`Loaded ${displayName} - Click 'Assemble' to compile`);

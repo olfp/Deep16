@@ -6,6 +6,122 @@ not applied until the entry is updated with the result and tests.
 
 ---
 
+## 2026-11-01 — Sprite pattern window is 8 groups; expand it to all 24 (option A)
+
+**Priority:** medium — architectural cleanup; no BSRAM cost, but a memory-map
+change.
+
+**Area:** `rtl/dvi/dvi_tile.sv` (`SPR_GROUPS`, `SPR_PAGE_WORDS`, `sprite_page`,
+`sprite[{sprite_page, cpu_addr[10:0]}]`); `rtl/deep16_top.sv` (`spr_hit`,
+`tile_addr`); `rtl/deep16_board.sv` (tile FIFO width); `MEMMAP.md` §7.4;
+`doc/FiT-Graphics-howto.md` §1/§7.
+
+**Observed:** the sprite pattern bank holds 24 groups x 256 words = 6,144
+words, but the CPU window `0xF4000–0xF47FF` exposes only 2,048 words = 8
+groups. Control 5 (`0xF200A`) selects which 8-group page the writes land in:
+
+```systemverilog
+localparam int SPR_GROUPS = 24;
+localparam int SPR_PAGE_WORDS = 8 * 256;      // 2,048
+sprite[{sprite_page, cpu_addr[10:0]}] <= cpu_data;
+```
+
+All eight OAM sprites are writable at any time; the paging is on the pattern
+bank, not on the sprites. Any group can be written after one control-5 store,
+but there is no contiguous window over all 24 groups, and `0xF4800–0xF4FFF`
+is unused because `spr_hit` stops at `0xF47FF`.
+
+**Why it exists:** the map packs OAM/palette immediately after the sprite
+window at `0xF5000`, leaving room for only 2K words. The 24 groups need 6K
+words. The page register is two extra address bits, not a storage or bandwidth
+limit.
+
+**Proposal (option A):**
+
+- Extend the sprite window to `0xF4000–0xF57FF` (6,144 words, all 24 groups).
+- Move OAM/palette from `0xF5000–0xF50AF` to `0xF6000–0xF60AF` (keep the
+  existing 0x80/0x90/0xA0 bank offsets inside the page).
+- Remove `sprite_page` and control 5, or keep the register as a no-op for
+  compatibility.
+- Grow the CPU-side sprite/FIFO address from 12 to 13 bits: `tile_addr`,
+  `tf_addr`, `dvi_cpu_addr`, and the top-level `spr_hit` decode all need the
+  wider path. The sprite array itself is already 6,144 words, so **no extra
+  BSRAM is required**.
+- Update `MEMMAP.md`, `doc/FiT-Graphics-howto.md`, `rtl/dvi/README.md` and the
+  Forth `gfx`/palette address constants.
+
+Options B (4K window, 16 groups, page for the last 8) and C (reduce to 16
+groups) were considered and are not requested. Option D (keep the page) is the
+current state.
+
+**Verification:** write group 0 and group 23 through the extended window and
+render both; check OAM and all three palette banks at the new base; extend
+`rtl/sim/dvi_tile_tb.cpp`; run `npm run sim:dvi:tile` and
+`tests/showcase-*.test.js`; run `npm run synth:tile` and compare CLS/timing
+(the wider decode should not change BSRAM).
+
+**Status:** open — logged as medium priority 2026-11-01, not applied. The
+simulation continues to model the current 8-group page until this lands.
+
+---
+
+## 2026-11-01 — Move graphics assets out of the image and load them from flash
+
+**Priority:** low — future architecture; depends on the tile-bank and sprite
+window work.
+
+**Area:** `rtl/dvi/dvi_tile.sv` (`$readmemh` of `tilefont.hex`,
+`birdsprite.hex`, `tilepal3.hex`); `asm/forth_nano.asm` and its `cf-*`/`slice`
+loader; `scripts/make_image.mjs`; `js/deep16_simulator.js` (`SpiFlash`);
+`TILESIM.md`.
+
+**Observed:** the tile bank, sprite bank and palette are initialised from
+files baked into the bitstream. The boot image also carries the showcase code.
+The CPU cannot rewrite the 32 upper tile slots (see the 2026-10-31 upper
+tile-bank entry), so those graphics are fixed until a new bitstream is built.
+
+This is a leftover from the time when there was no runtime storage. It is no
+longer necessary: the board has a 4 MB P25Q32U on SPI CS1, the nano boot
+script already has config-flash helpers (`cf-wren`, `cf-status`,
+`cf-read-burst`, `cf-protect`/`cf-unprotect`, `slice`), and the JS simulator
+already models that flash byte for byte (`SpiFlash`).
+
+**Proposal:** store font, art, sprites, palettes and eventually the showcase
+module in config flash; load them at runtime through the existing SPI port and
+CPU windows. Remove the `$readmemh` initial contents and the baked graphics
+from the boot image once the loader path is proven.
+
+Dependencies and constraints:
+
+- **All 128 tile slots must be writable** for a full flash-loaded tile bank;
+  the current window covers 96 (see the upper tile-bank entry).
+- **Sprite groups:** the current 8-group page is sufficient for a loader (set
+  control 5 per page), but option A above removes the paging and makes a
+  linear copy possible.
+- **Palette:** already fully writable at `0xF5080–0xF50AF`; no window change.
+- **Format and loader:** define an asset blob (slices or a dedicated section),
+  decide whether the kernel stays resident or also loads, and measure boot
+  latency (loading ~10K words over SPI is not free).
+- **Simulation:** this reverses the current `TILESIM.md` video-ROM decision.
+  The engine must power on blank; assets live in the simulated flash; a loader
+  writes the banks; tests and the headless renderer run the loader first. No
+  `js/deep16_video_rom.js` seeding.
+- **RTL parity:** the board still bakes graphics today, so simulation would run
+  ahead of the bitstream until the RTL follows. Pixel comparisons must be made
+  after the loader has written the same assets.
+
+**Verification:** a loader test that starts blank, reads the flash blob, writes
+tile/sprite/palette windows and renders the expected frame; compare the loaded
+banks word for word with the current `tilefont.hex`/`birdsprite.hex`/
+`tilepal3.hex`; measure boot time; check `npm run sim:dvi:tile` and the full
+test suite. No synthesis change is expected until the `$readmemh` removal.
+
+**Status:** open — logged as low priority 2026-11-01, design only. Do not
+remove the baked ROM until the loader and the writable-window prerequisites
+are in place.
+
+---
+
 ## 2026-10-31 — 81 vs 82 columns, and a low-CLS four-direction scroll proposal
 
 **Area:** `rtl/dvi/dvi_tile.sv` (`scroll_x`, `scroll_y`, `wrap_rows`);

@@ -73,6 +73,10 @@ test('terminal mode updates the button, the view and the build', () => {
   assert.equal(els['console-mode-btn'].textContent, 'Terminal');
   assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1 });
   ui.toggleConsoleMode();
+  assert.equal(ui.consoleMode(), 'tiles');
+  assert.equal(els['console-mode-btn'].textContent, 'Tiles');
+  assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1 });
+  ui.toggleConsoleMode();
   assert.equal(ui.consoleMode(), 'screen');
   assert.equal(els['console-mode-btn'].textContent, 'Screen');
   assert.deepEqual(ui.assembleDefines(), {});

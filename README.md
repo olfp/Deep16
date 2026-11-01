@@ -34,10 +34,28 @@ python3 -m http.server 8000
 A plain file:// open will not work: the WASM modules have to be fetched over
 HTTP. Without a server the IDE falls back to the JavaScript core.
 
-Pick the core from the **Kern** dropdown in the header. Switching mirrors the
-current machine state into the newly selected core, so the assembled program and
-the register contents survive the change. The choice is remembered in
+Pick the core from the settings cog in the header. Switching mirrors the current
+machine state into the newly selected core, so the assembled program and the
+register contents survive the change. The choice is remembered in
 `localStorage`.
+
+The same menu cycles the console between **Screen** (the `0xF1000` text buffer),
+**Terminal** (the UART view) and **Tiles** (the D16nano FiT engine). Tiles mode
+builds the nano kernel, loads graphics from the simulated config flash, and
+renders a 640x360 canvas. Choose the **D16D Showcase (tiles)** example for the
+menu and Flappy.
+
+The same renderer runs headlessly:
+
+```sh
+npm run render:tile -- --scene=menu --frames=1
+npm run render:tile -- --scene=flappy --frames=5
+npm run render:tile -- --scene=console --frames=1
+# PNGs land in artifacts/tile/
+```
+
+It uses a deterministic 0x1000-step frame clock; graphics are the flash blob
+built by `npm run assets:gfx`, not a video ROM.
 
 To rebuild either compiled core after changing its source:
 
@@ -54,7 +72,7 @@ the previous model.
 ## Tests
 
 ```sh
-npm test                        # the whole suite, ~70 s on a single core
+npm test                        # the whole suite, ~4 min on a single core
 node --test tests/rtl.test.js   # just the RTL core (~36 s)
 ```
 
@@ -68,7 +86,7 @@ Coverage, by file:
 | `shadow.test.js` | the shadow-register bank across contexts |
 | `flags.test.js` | NZVC, including the carry heuristic |
 | `mov-imm2.test.js` | the `imm2` function selector |
-| `examples.test.js` | all seven programs in `asm/` |
+| `examples.test.js` | every program in `asm/` |
 | `forth.test.js` | the Forth kernel, including the keyboard port |
 | `wasm-state.test.js` | WASM core state round trips |
 | `terminal.test.js` | the serial terminal model (CR/LF/BS, `ESC[2J`, scroll, wrap) |
@@ -81,6 +99,12 @@ Coverage, by file:
 | **`fuzz.test.js`** | **random *programs* against all three cores** |
 | `ui-core.test.js`, `ui-stats.test.js` | the IDE's core selection and counter line |
 | `ui-terminal.test.js` | the Screen tab's screen/terminal switch and input routing |
+| `tile-engine.test.js` | the FiT engine: tilemap, text/art, sprites, palettes, scroll, latch |
+| `tile-store-hook.test.js` | video-window stores routed to the engine |
+| `tile-clock.test.js`, `ui-tiles.test.js` | `0xF0066` status, 60 Hz clock, Tiles mode/canvas |
+| `d16d-image.test.js`, `ui-d16d.test.js` | browser D16D image = `buildImage()`, example integration |
+| `flash-assets.test.js` | generated graphics flash blob and loader |
+| `showcase-render.test.js` | deterministic headless menu/Flappy/console PNGs |
 
 Two of those earn their keep differently. `rtl.test.js` runs a **decode sweep**
 — every one of the 65536 instruction words, from four register/PSW seeds, each
@@ -90,9 +114,9 @@ executed in isolation and compared against the JS core.
 *programs* and compares after every step, because every real core bug found
 while building the pipeline was a property of a *sequence*, not of a word — the
 shadow-bank bypass only appeared inside a handler, the keyboard FIFO pop only
-while a program polled for keys. It asserts its own coverage (49 of 60 random
-programs must enter the shadow bank) so it cannot quietly stop testing that.
-Deepen it with `FUZZ_SEEDS=500 FUZZ_STEPS=1000`.
+while a program polled for keys. It asserts that at least one program entered
+the shadow bank and one took a non-sequential path, and prints the actual
+counts. Deepen it with `FUZZ_SEEDS=500 FUZZ_STEPS=1000`.
 
 Two more checks are not part of `npm test`:
 

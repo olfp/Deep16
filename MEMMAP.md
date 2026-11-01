@@ -567,3 +567,21 @@ These are physical allocations; the CPU sees PSRAM at the addresses above.
   build, unbacked on the 24K UART boards.
 * The boot ROM at `0xFFFF0` is a LUT; it is not part of the image and cannot be
   overwritten.
+
+---
+
+## 11. Simulation notes (not hardware)
+
+These describe the browser/headless model, not the board:
+
+* `0xF0066` is host-driven on the JS core: the IDE's 60 Hz tile clock writes
+  `sim.tileStatus` (b0 vblank, b1 frame toggle, b2 S2, b3 UART ready). If no
+  host value is set, the ordinary memory word is read, so tests can poke it.
+* The simulation tile engine makes **all 128 tile-bank slots writable** and
+  loads font, art, sprites and palettes from a simulated config-flash blob.
+  The current RTL exposes 96 tile slots and bakes graphics at configuration;
+  the write window and flash-loading path are tracked in `ERRPLAN.md`.
+* Sprite patterns keep the hardware's 8-group write page (control 5); all 24
+  groups are reachable by switching pages.
+* `0xF0068`/`0xF006A` remain the D16nano cycle counter. Tile rendering does not
+  change the instruction-set memory map.

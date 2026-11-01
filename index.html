@@ -398,10 +398,14 @@ data_area:
     <script src="js/deep16_disassembler.js?v=20261006-1"></script>
     <script src="js/deep16_optimizer.js?v=20261014-1"></script>
     <script src="js/deep16_simulator.js?v=20261011-1"></script>
+    <script src="js/deep16_flash_assets.js?v=20261101-1"></script>
+    <script src="js/deep16_gfx_loader.js?v=20261101-1"></script>
+    <script src="js/deep16_tile_engine.js?v=20261101-1"></script>
+    <script src="js/deep16_d16d_image.js?v=20261101-1"></script>
     <script src="js/deep16_ui_registers.js?v=20261006-1"></script>
     <script src="js/deep16_ui_memory.js?v=20261013-3"></script>
     <script src="js/deep16_terminal.js?v=20261017-1"></script>
-    <script src="js/deep16_ui_screen.js?v=20261017-3"></script>
+    <script src="js/deep16_ui_screen.js?v=20261101-1"></script>
     <script type="module">
         try {
             const modPromise = import('./wasm/pkg/deep16_wasm.js?v=20261010-4');
@@ -437,6 +441,6 @@ data_area:
             console.warn('RTL module not loaded', e);
         }
     </script>
-    <script src="js/deep16_ui_core.js?v=20261017-5"></script>
+    <script src="js/deep16_ui_core.js?v=20261101-3"></script>
 </body>
 </html>

@@ -4,14 +4,16 @@ Bring the D16nano **FiT** graphics (*Frogger inspired tile-based*) — tilemap, 
 double buffering and hardware scroll — into the browser IDE and into a headless
 PNG renderer, driven by the same D16D image the board flashes.
 
-Status: **planned.**
+Status: **implemented 1 Nov 2026** — see `TILESIM-IMPL.md` for the delivered
+phases. The implementation follows the current RTL where this original brief
+had drifted: **26-row ring**, **24 sprite groups (3 pages)**, **three palette
+banks**, controls 6/7, and two showcase sources (`showcase.asm` +
+`flappy_game.asm`); there is no `gfx_demo.asm` and no fourth source.
 
-The CPU half already works. `tests/showcase-death.test.js`,
-`tests/gfx-demo.test.js` and `tests/tile-console.test.js` run the D16D showcase,
-the colour demo and the nano console on the JS core. What is missing is the
-video half: nothing in the simulation interprets the tile windows as a picture.
-The Screen tab's box is already 640x360 in `css/screen.css`, which is exactly
-`dvi_tile`'s source canvas.
+The CPU half already worked. `tests/showcase-death.test.js`,
+`tests/tile-console.test.js` and the new engine/render tests run the D16D
+showcase and the nano console on the JS core. The Screen tab's box is 640x360
+in `css/screen.css`, exactly `dvi_tile`'s source canvas.
 
 Decisions taken:
 

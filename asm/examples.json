@@ -30,8 +30,14 @@
       "filename": "forth.asm",
       "description": "Minimal threaded Forth kernel prints greeting",
       "category": "I/O"
-    }
-    ,
+    },
+    {
+      "name": "D16D Showcase (tiles)",
+      "filename": "forth_nano.asm",
+      "description": "FiT tile/sprite menu and Flappy on the D16nano engine",
+      "category": "I/O",
+      "build": "d16d"
+    },
     {
       "name": "Link in Delay Slot",
       "filename": "link_delay_slot.asm",

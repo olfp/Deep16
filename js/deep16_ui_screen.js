@@ -64,6 +64,14 @@ class Deep16ScreenUI {
         // character plus the cursor flag, not a 16-bit screen word.
         this.lastTermDrawn = new Int32Array(this.totalChars).fill(-1);
 
+        // FiT tile view: a 640x360 canvas painted from the tile engine. Created
+        // in initializeScreen(); hidden unless the console mode is 'tiles'.
+        this.tileCanvas = null;
+        this.tileCtx = null;
+        this.tileImageData = null;
+        this.TILE_WIDTH = 640;
+        this.TILE_HEIGHT = 360;
+
         this.initializeScreen();
     }
 
@@ -84,6 +92,24 @@ class Deep16ScreenUI {
             html += `</div>`;
         }
         screenDisplay.innerHTML = html;
+
+        // The tile view is a canvas beside the 80x24 grid, never both visible.
+        const canvas = document.createElement('canvas');
+        canvas.id = 'screen-tile-canvas';
+        canvas.className = 'screen-canvas';
+        canvas.width = this.TILE_WIDTH;
+        canvas.height = this.TILE_HEIGHT;
+        screenDisplay.appendChild(canvas);
+        this.tileCanvas = canvas;
+        if (typeof canvas.getContext === 'function') {
+            this.tileCtx = canvas.getContext('2d');
+            if (this.tileCtx) {
+                this.tileCtx.imageSmoothingEnabled = false;
+                if (typeof this.tileCtx.createImageData === 'function') {
+                    this.tileImageData = this.tileCtx.createImageData(this.TILE_WIDTH, this.TILE_HEIGHT);
+                }
+            }
+        }
 
         this.setupPager();
         this.buildPalette();
@@ -254,21 +280,39 @@ class Deep16ScreenUI {
 
     // ---- console view: screen buffer vs. terminal output ------------------
 
-    // 'screen' shows the memory buffer, 'terminal' shows the UART stream. The
-    // mode is owned by the IDE (the global Console: button); this just renders
-    // it. Switching forces a full repaint because the two views share the same
-    // DOM cells but not their contents.
+    // 'screen' shows the memory buffer, 'terminal' the UART stream and 'tiles'
+    // the FiT canvas. The mode is owned by the IDE (global Console button);
+    // this just renders it. Switching forces a full repaint because the views
+    // share the same tab but not their contents.
     setConsoleView(mode) {
-        const next = (mode === 'terminal') ? 'terminal' : 'screen';
-        if (next === this.mode) return this.mode;
+        const next = (mode === 'terminal') ? 'terminal'
+                   : (mode === 'tiles') ? 'tiles'
+                   : 'screen';
+        if (next === this.mode) {
+            this.applyConsoleVisibility();
+            return this.mode;
+        }
         this.mode = next;
         this.lastDrawn.fill(-1);
         this.lastTermDrawn.fill(-1);
         this.lastCursorIndex = null;
+        this.applyConsoleVisibility();
         this.updateConsoleInfo();
         this.updateScreenDisplay();
-        this.applyColumnMode();
+        if (next !== 'tiles') this.applyColumnMode();
         return this.mode;
+    }
+
+    applyConsoleVisibility() {
+        const display = document.getElementById('screen-display');
+        if (display && display.classList) {
+            display.classList.toggle('tile-view', this.mode === 'tiles');
+        }
+        if (this.tileCanvas && this.tileCanvas.classList) {
+            this.tileCanvas.classList.toggle('visible', this.mode === 'tiles');
+        }
+        const pager = document.getElementById('screen-pager');
+        if (pager) pager.style.display = this.mode === 'tiles' ? 'none' : '';
     }
 
     // The info line and the colour legend only make sense for the screen. In
@@ -276,18 +320,21 @@ class Deep16ScreenUI {
     // is hidden and the address line is replaced.
     updateConsoleInfo() {
         const term = this.mode === 'terminal';
+        const tiles = this.mode === 'tiles';
         const full = document.querySelector ? document.querySelector('.screen-info-full') : null;
         const short = document.querySelector ? document.querySelector('.screen-info-short') : null;
         if (full) {
-            full.textContent = term
-                ? 'Terminal 80\u00d724 \u00b7 UART console (0xF0042 data, 0xF0040 status)'
-                : 'Memory: 0xF1000-0xF17BF (80\u00d724 characters) | Lower byte = ASCII, high byte = 4+4 bits colour';
+            full.textContent = tiles
+                ? 'FiT 640\u00d7360 \u00b7 tilemap 0xF1000 \u00b7 controls 0xF2000 \u00b7 tiles 0xF3000 \u00b7 sprites 0xF4000 \u00b7 OAM 0xF5000'
+                : term
+                    ? 'Terminal 80\u00d724 \u00b7 UART console (0xF0042 data, 0xF0040 status)'
+                    : 'Memory: 0xF1000-0xF17BF (80\u00d724 characters) | Lower byte = ASCII, high byte = 4+4 bits colour';
         }
         if (short) {
-            short.textContent = term ? 'Terminal \u00b7 80\u00d724' : '0xF1000-0xF17BF \u00b7 80\u00d724';
+            short.textContent = tiles ? 'FiT 640\u00d7360' : term ? 'Terminal \u00b7 80\u00d724' : '0xF1000-0xF17BF \u00b7 80\u00d724';
         }
         const palette = document.getElementById('screen-palette');
-        if (palette) palette.style.display = term ? 'none' : '';
+        if (palette) palette.style.display = (term || tiles) ? 'none' : '';
     }
 
     // Feed bytes the machine emitted on its UART. Called by the IDE, which owns
@@ -301,6 +348,7 @@ class Deep16ScreenUI {
     // full four-bit background - see updateCharacter().
     updateScreenDisplay() {
         if (this.mode === 'terminal') { this.updateTerminalDisplay(); return; }
+        if (this.mode === 'tiles') { this.updateTileDisplay(); return; }
         // Update all characters from screen memory
         if (this.ui.compiledCoreReady()) {
             try {
@@ -345,6 +393,17 @@ class Deep16ScreenUI {
         }
         this.lastCursorIndex = cursor;
         this.ensureCursorVisible();
+    }
+
+    // Paint the tile engine's 640x360 RGBA buffer into the canvas. The engine
+    // is owned by the IDE; without one (or without a 2D context in a test) the
+    // view simply stays on its previous frame.
+    updateTileDisplay() {
+        const engine = this.ui && this.ui.tileEngine;
+        if (!engine || !this.tileCtx || !this.tileImageData) return;
+        const pixels = engine.render();
+        this.tileImageData.data.set(pixels);
+        this.tileCtx.putImageData(this.tileImageData, 0, 0);
     }
 
     // The host terminal's cursor is a solid block - reverse video, white on
@@ -455,7 +514,7 @@ class Deep16ScreenUI {
     // over them - the serial kernel still pokes that buffer for its cursor, and
     // those writes were clobbering the terminal output.
     handleScreenMemoryWrite(address, value) {
-        if (this.mode === 'terminal') return;
+        if (this.mode !== 'screen') return;
         if (this.isScreenMemory(address)) {
             const charIndex = address - this.screenBaseAddress;
             if (this.deferUpdates) {
@@ -498,7 +557,7 @@ class Deep16ScreenUI {
     }
 
     flushPending() {
-        if (this.mode === 'terminal') { this.pendingUpdates.clear(); return; }
+        if (this.mode !== 'screen') { this.pendingUpdates.clear(); return; }
         if (this.pendingUpdates.size === 0) return;
         for (const charIndex of this.pendingUpdates) {
             const memoryAddress = this.screenBaseAddress + charIndex;
