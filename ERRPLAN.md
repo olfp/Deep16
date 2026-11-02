@@ -198,13 +198,12 @@ entry.
   - bits 7:2: OAM base descriptor 0–63,
   - bits 10:8: palette set 0–7.
   A raster handler writes one word to swap OAM and palette together.
-- Window layout, relative to the current palette base:
-  - `0xF5000–0xF507F`: 64 OAM descriptors;
-  - `0xF5080–0xF527F`: eight palette sets;
-  - `0xF5280–0xF52FF`: spare.
-  If the 2026-11-01 option A lands first, move both windows to the new base
-  `0xF6000` (`0xF6000–0xF607F` OAM, `0xF6080–0xF627F` palettes) and keep these
-  offsets. Resolve the order before coding.
+- Window layout, at the shipped `0xF6000` base:
+  - `0xF6000–0xF607F`: 64 OAM descriptors;
+  - `0xF6080–0xF627F`: eight palette sets;
+  - `0xF6280–0xF62FF`: spare.
+  The 2026-11-01 sprite-window work landed first (`5641adc`), so this base is
+  final and set 0 is byte-identical to the current layout.
 
 **Ports and timing:** the palette is read on active pixels and OAM only during
 line blanking, so the block can use one read port muxed between them and one
@@ -224,7 +223,8 @@ stay unchanged — this is set swapping, not more simultaneous sprites.
 **Budget:** no new BSRAM block for 64 OAM + 8 palette sets. Sixteen palette sets
 would consume the full 1,024-word block and leave no room for OAM in it; that
 variant needs OAM in flops or a second block. The control/mux/reset logic adds
-CLS against the current 8-free budget, so this must be measured, not assumed.
+CLS against the current **14-free** budget, so this must be measured, not
+assumed. Implementation plan: [`OAMPLAN.md`](OAMPLAN.md).
 
 **Verification:** extend `rtl/sim/dvi_tile_tb.cpp` for OAM base wrap, palette
 set selection, one-store swap, reset clear, write/read latency and a raster
@@ -232,7 +232,9 @@ split; run `npm run sim:dvi:tile`, the showcase tests and `npm run synth:tile`
 (compare CLS and BSRAM). Update `MEMMAP.md`, the FiT how-to, the Forth `SEG_*`
 constants and the simulation tile engine/tests.
 
-**Status:** open — design recommendation only; no RTL or simulation change
+**Status:** **planned** — see [`OAMPLAN.md`](OAMPLAN.md) for the phased
+implementation, gates and fallbacks. Design recommendation only; no RTL or
+simulation change
 applied.
 
 ---
