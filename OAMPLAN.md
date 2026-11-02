@@ -366,10 +366,16 @@ fetch state dominate), so it is not a useful fallback.
       fit: at 4,311/4,320 CLS the placer leaves 4 LUTs unplaced and the scan
       path misses setup by 0.24 ns, so the probe was reverted. The screenshots
       already show whole frames (text cells green, blank art cells black), so
-      the engine applies one palette set per frame. The remaining question is
-      why the chained compare does not split the compositor; the cheapest next
-      test is a wall-clock measurement of raster IRQs per frame, since a stuck
-      compare gives one per frame instead of two.
+      the engine applies one palette set per frame.
+
+      **The real defect is upstream:** with no band at all (`split-off`,
+      `40 raster-line!`, `raster-on`) the counter advances only **2-3 times per
+      second**, not ~60, so the raster IRQ pulse itself is wrong on hardware.
+      The compare register, the handler and the palette are all downstream of
+      that. Next step is to measure `dvi_raster_toggle` (scope or a spare LED)
+      and the board's two-flop sync, not the band code. Everything else in this
+      plan is verified; the band stays experimental until the pulse rate is
+      60 per second.
 
 ---
 
