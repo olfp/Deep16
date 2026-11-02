@@ -263,7 +263,7 @@ module dvi_tile #(
     if (rst_render) oam_bits <= '0;
     else if (cpu_we && !cpu_ctrl) begin
       case (cpu_tgt)
-        2'd0: if (cpu_addr < 13'(TM_WORDS))
+        2'd0: if (cpu_addr[11:0] < 12'(TM_WORDS))
                 tilemap[(map_wpage ? 13'(TM_WORDS) : 13'd0) + 13'(cpu_addr[11:0])] <= cpu_data;
         2'd1: tilefont[cpu_addr[11:0]] <= cpu_data;
         2'd2: sprite[cpu_addr[12:0]] <= cpu_data;

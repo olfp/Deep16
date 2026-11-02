@@ -5,12 +5,12 @@ it was reproduced, the intended behaviour and the fix to investigate. Fixes are
 not applied until the entry is updated with the result and tests.
 
 > **Current baseline (2026-11-02, branch `fit-windows`).** `npm test`: **741
-> pass**. `npm run synth:tile` after the 128-tile bank and the flat 24-group
-> sprite window: **4,291 / 4,320 CLS (29 free)**, BSRAM 26/26, SSRAM 190;
-> `dvi_render` 29.329 MHz, `dvi_pixel` 86.063 MHz, `psram_clk` 89.753 MHz,
-> `clk_cpu` 17.493 MHz, all TNS 0. The wider windows *freed* 21 CLS: the
-> 96-tile compare and the sprite-page address mux are gone. Plan the open RTL
-> items against **29 free CLS**. One hold endpoint is flagged
+> pass**. `npm run synth:tile` after the 128-tile bank, the flat 24-group
+> sprite window and the tilemap-offset fix: **4,306 / 4,320 CLS (14 free)**,
+> BSRAM 26/26, SSRAM 190; `dvi_render` 29.801 MHz, `dvi_pixel` 82.533 MHz,
+> `psram_clk` 83.363 MHz, `clk_cpu` 18.262 MHz, all TNS 0. The wider windows
+> are still 6 CLS cheaper than the paged build (4,312). Plan the open RTL
+> items against **14 free CLS**. One hold endpoint is flagged
 > (`n8_s3/I1 -> clk_div_1_s0/D`, `clk_cpu -> clk`); it is identical on `main`
 > and is the generated-clock divider self-path, not a new violation.
 
@@ -305,8 +305,17 @@ page no longer redirects), the legacy register still latches and clamps, and
 group 24 stays disabled. `tests/tile-engine.test.js`,
 `tests/flash-assets.test.js` and the showcase palette/OAM constants
 (`0xF60A0`/`0xF60A1`…, OAM `0xF6000`) were updated. `npm run synth:tile`:
-**4,291 / 4,320 CLS**, BSRAM 26/26, all TNS 0 — the flat window is 21 CLS
-cheaper than the paged one. Board flash/test is the remaining step.
+**4,306 / 4,320 CLS**, BSRAM 26/26, all TNS 0.
+
+**Board test (2026-11-02).** The first flash showed the bird and clouds but no
+pipes or ground. Cause: `deep16_top` forwarded `mem_waddr[12:0]` for every
+window, and the tilemap base `0xF1000` has bit 12 set (`0xF1000 & 0x1FFF =
+0x1000`), so `cpu_addr < TM_WORDS` rejected every tilemap store; the sprite
+bank and tile bank were unaffected because they index from bit 11 down. Fixed
+by forwarding the window offset (`mem_waddr[11:0]`) for every window except the
+sprite bank, and by slicing the tilemap guard to `cpu_addr[11:0]`, so the upper
+window bits can never drop a store again. `dvi_tile_tb.cpp` now writes a
+tilemap cell with bit 12 set and checks it lands at offset 40.
 
 ---
 

@@ -161,6 +161,15 @@ int main(int argc, char** argv) {
 
   check("tilemap[0] holds the H tile address", top->dbg_cell0, 0x8500);
 
+  // The board forwards the low 13 bits of the CPU address, so a tilemap store
+  // arrives with bit 12 set: 0xF1000 & 0x1FFF = 0x1000. It must still land at
+  // window offset 40. A guard on the raw address silently dropped every
+  // tilemap write once the sprite window went to 13 bits.
+  write_tile(0x1000 + 40, 40);
+  check("tilemap store with window bit 12 set lands at offset 40",
+        top->dbg_cell40, 40);
+  write_tile(40, 0);
+
   auto tile = read_hex("tilefont.hex");
   bool cap_h[15][8] = {}, seen_h[15][8] = {};
   bool white = false;

@@ -638,8 +638,11 @@ module deep16_top
   assign tile_ctrl = ctrl_hit;
   assign tile_tgt  = tile_hit ? 2'd0 : bank_hit ? 2'd1 : spr_hit ? 2'd2 : 2'd3;
   // Only the sprite window needs the 13th address bit; every other window is
-  // decoded from its low 12 bits (their bases are 4K aligned).
-  assign tile_addr = ctrl_hit ? {9'd0, mem_waddr[3:0]} : mem_waddr[12:0];
+  // 4K-aligned, so its offset is the low 12 bits of the CPU address. The
+  // sprite bank is the one window that is not: it spans 6,144 words.
+  assign tile_addr = ctrl_hit ? {9'd0, mem_waddr[3:0]} :
+                     spr_hit  ? mem_waddr[12:0] :
+                                {1'b0, mem_waddr[11:0]};
   assign tile_data = mem_wdata;
 `endif
 
