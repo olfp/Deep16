@@ -719,7 +719,9 @@ that writes 0/1/2 (the old pattern page) still means base 0, set 0.
 
 A descriptor is the same two words as before, at `0xF6000 + d*2`:
 `w0 = {behind, vflip, hflip, free, enable, xsign, x[9:0]}`,
-`w1 = {group[4:0], free, y[9:0]}`. The palette set is part of the address, so
+`w1 = {group[4:0], free, y[9:0]}`. **w1 carries the group and y in one word**,
+so moving a sprite means writing `(group << 11) | y`, not just `y`; a bare
+`y` store silently selects group 0. The palette set is part of the address, so
 set `s`, bank `b`, entry `e` is `0xF6080 + s*64 + b*16 + e`.
 
 ### 7.5 A sprite in six steps
