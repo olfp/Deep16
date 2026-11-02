@@ -6,6 +6,226 @@ not applied until the entry is updated with the result and tests.
 
 ---
 
+## 2026-11-02 — Open discussion: extend the art tile bank using spare cell bits
+
+**Priority:** low — discussion only; no encoding or memory-map decision yet.
+
+**Area:** `rtl/dvi/dvi_tile.sv` (tile-cell decode, `fcell`, `tilefont`,
+`tf_raddr`); `rtl/deep16_top.sv` (`bank_hit`, `tile_addr`); the board tile
+FIFO; `scripts/make_tile_font.mjs`; `MEMMAP.md` and the FiT how-to.
+
+**Context:** an art cell currently stores a 12-bit **word address** in bits
+11:0, and the low five bits are always zero because an art tile is 32 words.
+The tile index is therefore 7 bits, **128 tiles**. Bits 14:12 are the text
+palette pair and are unused in art mode. The PS/2 block removal is expected to
+free one 1,024-word block = **32 more art tiles**.
+
+**Idea:** decode an art cell as a tile **index**, not as a word address:
+
+```text
+tileIndex = {cell[14:12], cell[11:5]}   // 10 bits
+tileWord  = tileIndex << 5              // 32-word art tiles
+```
+
+- Text cells keep bits 14:12 as the palette pair.
+- Old art cells have those bits zero, so they keep their meaning.
+- Font pages remain in the low tile-bank addresses; art grows above them.
+- One freed block grows the bank from 128 to 160 tiles. A 256-tile bank would
+  need four additional blocks, not one.
+
+Do **not** use `cell << 4`: art tiles are 32 words, so the alignment shift is
+five bits. A four-bit shift would address 16-word units and make adjacent art
+tiles overlap.
+
+**CPU-window issue:** the renderer can decode 160 tiles, but the CPU currently
+writes only `0xF3000–0xF3BFF` (tiles 0–95). `0xF3C00` is the sprite window.
+The existing 32-tile hole at `0xF3C00–0xF3FFF` could become a paged window:
+
+```text
+page 0 -> tiles 96–127   (existing baked art)
+page 1 -> tiles 128–159  (new block)
+```
+
+This needs:
+
+- a page-select register in the render domain;
+- 13-bit absolute tile addresses in the board FIFO and `tilefont`
+  (160 x 32 = 5,120 words);
+- an extended `tilefont.hex` / `TILE_COUNT`;
+- a decision on whether page 0 stays read-only or becomes writable;
+- mirror semantics: the same CPU address now maps to two absolute tiles, so a
+  flat PSRAM/Forth mirror cannot represent both. The page window must be
+  page-aware or explicitly write-only.
+
+**Open questions:**
+
+1. Is 160 tiles enough to justify the page register, or is this only useful if
+   the bank grows to 256 (four more blocks)?
+2. Should page 0 keep the 32 baked art slots read-only?
+3. Does anything rely on the mirror at `0xF3C00`?
+4. Does the extra 13th address bit and page mux fit the current CLS budget?
+5. Is a global tile-bank page acceptable, or does software expect per-cell
+   access to all extended tiles?
+
+**Status:** open discussion — low priority, not accepted or implemented.
+
+---
+
+## 2026-11-02 — Move PS/2 scan-code mapping to software and free its BSRAM block
+
+**Priority:** medium — the PS/2 ASCII map is currently an unexpected hardware
+table; moving it to software frees one BSRAM block for tile/sprite memory, but
+changes the keyboard interface and the BIOS/game input path.
+
+**Area:** `rtl/ps2_rx.sv` (`ps2map`, `ascii`, `valid`, modifiers);
+`rtl/deep16_board.sv` (PS/2 push into both FIFOs); `rtl/deep16_top.sv`
+(`KBD_STATUS`/`KBD_DATA`); `asm/forth_nano.asm` (`getch`/`getstr`);
+`asm/showcase/*.asm` (menu and Flappy key polling);
+`scripts/make_ps2map.mjs`; the simulation keyboard path.
+
+**Observed:** `ps2_rx.sv` contains a 2,048 x 8 BSRAM pROM addressed by
+`{ctrl, caps, shift, scan_code}` and emits ASCII directly. The board then
+pushes that ASCII into **both** the architectural keyboard FIFO
+(`0xF0060`/`0xF0062`) and the UART receive FIFO, so the current BIOS and the
+showcase games poll UART status and never see a raw scan code.
+
+The table itself is one 1,024-word BSRAM block. It is fully used (2K x 8) but
+the mapping is a software concern; the hardware only needs to deliver the
+Set-2 make code and modifier state.
+
+**Proposal:**
+
+1. **Reduce `ps2_rx` to a receiver/decoder.**
+   - Keep frame/parity/timeout handling, break (`0xF0`), extended (`0xE0`),
+     Shift/Ctrl/Alt/Caps tracking and `frame_error`.
+   - Remove `ps2map`, the registered map pipeline and the ASCII output.
+   - Emit a one-cycle `raw_valid` for a make code, plus `scan_code`,
+     `modifiers`, and `extended`. Optionally emit a `break_event` for future
+     key-up support; current software only needs make codes.
+2. **Change the board push format.**
+   - Push `{modifiers[3:0], extended, 3'b0, scan_code[7:0]}` into the
+     architectural keyboard FIFO (16 bits per event).
+   - Stop pushing PS/2 events into the UART RX FIFO. UART RX remains the host
+     terminal input; the two sources stay distinguishable.
+3. **Map in software.**
+   - Move the 2,048-byte `{ctrl,caps,shift,code}` table to PSRAM, loaded from
+     flash or the boot image, or generate a compact equivalent.
+   - Add a BIOS/kernel key layer:
+     - `key?` checks both UART RX-ready (`0xF0040`/b0 or the BIOS status) and
+       `KBD_STATUS` (`0xF0060`);
+     - `key` returns an ASCII byte from either source, mapping raw PS/2
+       events through the table;
+     - `getch`/`getstr` use that layer for echo and line editing.
+   - Decide priority when both sources have bytes (recommended: keyboard
+     first, then host UART) and document it.
+4. **Update the showcase/game input.**
+   - Menu (`F`, `Q`) and Flappy (flap, `Q`) must use the same key layer rather
+     than polling UART directly.
+   - The raster/game loop needs a non-blocking `key?`; add a BIOS function or a
+     shared showcase routine so the tile game does not depend on UART bytes.
+5. **Re-dedicate the freed BSRAM block.**
+   - Removing `ps2map` takes the build from 26/26 to **25/26**.
+   - Preferred one-block allocation: **sprite pattern bank 24 → 28 groups**
+     (`+4 groups x 256 words = 1,024 words`). The OAM group field already
+     supports 0–31; control 5 page 3 exposes groups 24–27 and leaves 28–31
+     disabled. No tile-cell format change is needed.
+   - A **tilemap third bank** needs three blocks, not one. Expanding the
+     **tile bank beyond 128 tiles** is blocked by the 7-bit tile field in a
+     cell; it would need a cell-format change, not just another block. Do not
+     assume this block can simply become “more tiles”.
+   - If the intended target is a second 32-tile art bank, that needs a new
+     global tile-bank select (or a cell-format change) and is a separate
+     design decision.
+
+**Verification:** PS/2 simulation (`npm run sim:ps2`) for raw codes, modifiers,
+break/extended and parity errors; new software key tests with raw events from
+the keyboard FIFO and ASCII from UART; console parity and showcase input tests
+(menu `F`/`Q`, Flappy flap/quit); `npm run synth:tile` to confirm BSRAM 25/26
+and measure CLS. The map generator becomes a software asset rather than a
+bitstream pROM.
+
+**Risks:** dual input sources can stall if both FIFOs fill; the map must be
+loaded before the first key; the showcase currently assumes UART polling; the
+IDE keyboard path pushes ASCII and must remain compatible with the software
+mapper (host UART versus raw PS/2). The freed block should not be allocated
+until the BIOS/game input path is proven.
+
+**Status:** open — design only, not applied.
+
+---
+
+## 2026-11-02 — 64 OAM descriptors and 8 palette sets, swapped by one register
+
+**Priority:** medium — enables raster-time OAM/palette set swaps without a new
+BSRAM block; requires a control-register and memory-window change, and has to
+be ordered against the 2026-11-01 sprite-window proposal.
+
+**Area:** `rtl/dvi/dvi_tile.sv` (`oam_bits`, `pal_mem`, `sprite_page`,
+`pal_raddr`); `rtl/deep16_top.sv` (`attr_hit`, `tile_addr`); `MEMMAP.md` §7.4;
+`doc/FiT-Graphics-howto.md` §7; `asm/showcase/*.asm`; the simulation tile
+engine.
+
+**Observed:** OAM is 16 words of flops (eight descriptors) and the palette is a
+64-word BSRAM block holding three fixed banks (text, art, sprite) plus one
+unused bank. Control 5 only selects the sprite pattern **write** page. There is
+no OAM base index and no palette set index, so a raster handler cannot swap
+sprite or palette sets without rewriting every descriptor or every palette
+entry.
+
+**Proposal:**
+
+- **64 OAM descriptors** (128 words) and **8 palette sets** of four 16-entry
+  banks (512 words), total **640 words**, in the existing 1,024-word palette
+  BSRAM block. No extra block for this size; 384 words remain spare.
+- OAM set layout: visible slot `n` reads descriptor
+  `(oamBase + n) % 64`. Keep `oamBase` aligned to eight in software; wrap at
+  the end so a set at 63 continues at 0.
+- Palette set layout: bank 0 text, bank 1 art, bank 2 sprite, bank 3 spare;
+  `pal_raddr = {paletteSet[2:0], type[1:0], entry[3:0]}`.
+- Put both indices in the unused upper bits of control 5 at `0xF200A`:
+  - bits 1:0: sprite pattern write page (unchanged),
+  - bits 7:2: OAM base descriptor 0–63,
+  - bits 10:8: palette set 0–7.
+  A raster handler writes one word to swap OAM and palette together.
+- Window layout, relative to the current palette base:
+  - `0xF5000–0xF507F`: 64 OAM descriptors;
+  - `0xF5080–0xF527F`: eight palette sets;
+  - `0xF5280–0xF52FF`: spare.
+  If the 2026-11-01 option A lands first, move both windows to the new base
+  `0xF6000` (`0xF6000–0xF607F` OAM, `0xF6080–0xF627F` palettes) and keep these
+  offsets. Resolve the order before coding.
+
+**Ports and timing:** the palette is read on active pixels and OAM only during
+line blanking, so the block can use one read port muxed between them and one
+write port muxed for palette/OAM CPU stores (pseudo-dual-port). The OAM loader
+needs a one-cycle BSRAM read latency (preload before blanking), an explicit
+reset clear (128 words) or valid bits, and a read-after-write rule. Latch the
+OAM base at the start of the line loader so a mid-line write cannot mix two
+descriptor sets.
+
+**Raster use:** write control 5 at the raster line compare. Palette changes
+apply to pixels after the store; OAM changes apply to the **next** line's
+loader. This gives one split per raster compare. Multiple splits require
+chaining control 7 to the next line in the handler, or a small raster table;
+that is a separate decision. The eight visible comparators and priority chain
+stay unchanged — this is set swapping, not more simultaneous sprites.
+
+**Budget:** no new BSRAM block for 64 OAM + 8 palette sets. Sixteen palette sets
+would consume the full 1,024-word block and leave no room for OAM in it; that
+variant needs OAM in flops or a second block. The control/mux/reset logic adds
+CLS against the current 11-free budget, so this must be measured, not assumed.
+
+**Verification:** extend `rtl/sim/dvi_tile_tb.cpp` for OAM base wrap, palette
+set selection, one-store swap, reset clear, write/read latency and a raster
+split; run `npm run sim:dvi:tile`, the showcase tests and `npm run synth:tile`
+(compare CLS and BSRAM). Update `MEMMAP.md`, the FiT how-to, the Forth `SEG_*`
+constants and the simulation tile engine/tests.
+
+**Status:** open — design recommendation only; no RTL or simulation change
+applied.
+
+---
+
 ## 2026-11-01 — Sprite pattern window is 8 groups; expand it to all 24 (option A)
 
 **Priority:** medium — architectural cleanup; no BSRAM cost, but a memory-map
