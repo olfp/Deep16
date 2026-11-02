@@ -272,7 +272,7 @@ module dvi_tile #(
   logic [1:0] sprite_page; // control 5 bits 1:0, legacy write page (unused)
   logic [2:0] pal_set;     // control 5 bits 10:8, palette set 0..7
   logic [5:0] oam_base;    // control 5 bits 7:2, first visible descriptor
-  logic [5:0] oam_base_lat;// latched at the line loader, so no torn line
+  logic [5:0] oam_desc;    // descriptor being loaded; loaded with the base
   logic       oam_phase;   // descriptor read phase: 0 = w0, 1 = w1
   /* verilator lint_on UNUSEDSIGNAL */
 
@@ -811,9 +811,10 @@ module dvi_tile #(
   // OAM: 64 descriptors of two words in scene_mem[0..127]:
   //   w0 = {behind, vflip, hflip, 1'b0, enable, xsign, x[9:0]}
   //   w1 = {group[4:0], 1'b0, y[9:0]}  (flat group 0..23; 24..31 disabled)
-  // Visible slot n reads descriptor (oam_base_lat + n) % 64, so one control-5
-  // store swaps the whole set. The base is latched when the loader starts, so
-  // a mid-line store cannot tear a line.
+  // Visible slot n reads descriptor (oam_base + n) % 64, so one control-5 store
+  // swaps the whole set. The base is loaded into a 6-bit counter at the line
+  // start (the counter wraps at 64), so the address path has no adder and the
+  // base cannot tear a line.
   // A 32x32 sprite is 4x4 8x8 patterns: tile = group*16 + (row/8)*4 + column.
   // Pattern word = tile*16 + (row%8)*2 + (column%4)/4; low nibble leftmost.
   localparam logic [2:0] L_IDLE = 3'd0,
@@ -834,8 +835,7 @@ module dvi_tile #(
   logic [12:0] laddr;
   logic [15:0] loam0, loam1;
 
-  wire [5:0]  ldesc = oam_base_lat + {3'b0, lspr};
-  wire [6:0]  om_addr = {ldesc, oam_phase};
+  wire [6:0]  om_addr = {oam_desc, oam_phase};
   wire [4:0]  loam_group = loam1[15:11];
   wire        loam_group_ok = (loam_group < 5'd24);
 
@@ -853,7 +853,7 @@ module dvi_tile #(
     if (rst_render) begin
       lstate <= L_IDLE; lspr <= 3'd0; lw <= 4'd0; lline <= 10'd0;
       oam_phase <= 1'b0; loam0 <= 16'd0; loam1 <= 16'd0;
-      oam_base_lat <= 6'd0;
+      oam_desc <= 6'd0;
       for (int i = 0; i < NSPR; i++)
         for (int j = 0; j < 8; j++) spw[i][j] <= 16'd0;
       lgrp <= 5'd0; lcap <= 1'b0; lrow <= 5'd0;
@@ -868,7 +868,7 @@ module dvi_tile #(
           lline        <= ry_next + 10'd1;
           lspr         <= 3'd0;
           oam_phase    <= 1'b0;
-          oam_base_lat <= oam_base;
+          oam_desc     <= oam_base;
           lstate       <= L_OAM0;
         end
         // Two registered descriptor reads: w0, then w1.
@@ -915,7 +915,8 @@ module dvi_tile #(
             if (lw == 4'd7) begin
               if (lspr == 3'(NSPR-1)) lstate <= L_IDLE;
               else begin
-                lspr <= lspr + 3'd1; oam_phase <= 1'b0; lstate <= L_OAM0;
+                lspr <= lspr + 3'd1; oam_desc <= oam_desc + 6'd1;
+                oam_phase <= 1'b0; lstate <= L_OAM0;
               end
             end else begin
               lw     <= lw + 4'd1;
@@ -924,7 +925,8 @@ module dvi_tile #(
           end else begin
             if (lspr == 3'(NSPR-1)) lstate <= L_IDLE;
             else begin
-              lspr <= lspr + 3'd1; oam_phase <= 1'b0; lstate <= L_OAM0;
+              lspr <= lspr + 3'd1; oam_desc <= oam_desc + 6'd1;
+              oam_phase <= 1'b0; lstate <= L_OAM0;
             end
           end
         end

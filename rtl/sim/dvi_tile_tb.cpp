@@ -632,6 +632,15 @@ int main(int argc, char** argv) {
   check("OAM base 8 puts descriptor 8 on visible slot 0 (green)",
         r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
 
+  // Base 56 with descriptor 56: the high base bit must survive (no wrap).
+  write_win(3, 0x070, 16 | 0x0800);          // desc 56 w0: enable, x=16
+  write_win(3, 0x071, 140 | (0 << 11));      // desc 56 w1: y=140, group 0
+  write_ctrl(0x0A, 56 << 2);
+  sample_pixel(17, 140, &r, &g, &b, &seen);
+  check("OAM base 56 shows descriptor 56 (green)",
+        r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
+  write_ctrl(0x0A, 0);
+
   // Base 60 runs off the end of the bank and wraps: slot 7 is descriptor 3.
   write_win(3, 0x006, 16 | 0x0800);          // desc 3 w0: enable, x=16
   write_win(3, 0x007, 200 | (0 << 11));      // desc 3 w1: y=200, group 0
@@ -652,6 +661,32 @@ int main(int argc, char** argv) {
   check("negative-x sprite stops at its 32-pixel width (background red)",
         r * 1000 + g * 10 + b, 255 * 1000 + 0 * 10 + 0);
 
+  // ---- descriptor base sweep -------------------------------------------
+  // Same probe as the board: eight descriptors 8 apart, each at its own y,
+  // then select each base and see which y appears.
+  for (int w = 0; w < 128; w++) write_win(3, w, 0);
+  write_ctrl(0x0A, 0);
+  for (int k = 0; k < 8; k++) {
+    write_win(3, k * 16, 16 | 0x0800);         // desc k*8, x=16, enable
+    write_win(3, k * 16 + 1, (20 + 40 * k) | (0 << 11));
+  }
+  for (int k = 0; k < 8; k++) {
+    write_ctrl(0x0A, k * 8 * 4);               // base k*8
+    for (int i = 0; i < 1200000; i++) tick();  // one frame
+    int hit = -1;
+    for (int y = 0; y < 360; y++) {
+      // sample after the frame by scanning the recorded pixels is not stored;
+      // use sample_pixel only on the expected row.
+      (void)y;
+    }
+    sample_pixel(17, 20 + 40 * k, &r, &g, &b, &seen);
+    if (r * 1000 + g * 10 + b == 2550) hit = 20 + 40 * k;
+    char name[64];
+    std::snprintf(name, sizeof(name), "base %d shows descriptor %d", k * 8, k * 8);
+    check(name, hit, 20 + 40 * k);
+  }
+  write_ctrl(0x0A, 0);
+
   // ---- reset clears all 128 descriptor words ----------------------------
   // Descriptor 63 is enabled and visible with base 56 (slot 7).
   write_win(3, 0x07E, 16 | 0x0800);          // desc 63 w0
@@ -661,6 +696,7 @@ int main(int argc, char** argv) {
   check("descriptor 63 is visible with base 56 (green)",
         r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
   write_ctrl(0x0A, 0);
+  write_win(3, 0x006, 16 | 0x0800);          // descriptor 3 again after the sweep
   check("descriptor 3 word 0 is stored", top->dbg_oam6, 16 | 0x0800);
   top->rst = 1;
   for (int i = 0; i < 20; i++) tick();
