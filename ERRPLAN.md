@@ -317,6 +317,11 @@ sprite bank, and by slicing the tilemap guard to `cpu_addr[11:0]`, so the upper
 window bits can never drop a store again. `dvi_tile_tb.cpp` now writes a
 tilemap cell with bit 12 set and checks it lands at offset 40.
 
+**Board-verified (2026-11-02, `e4a4b00`).** After the reflash: pipes, ground,
+clouds, bird and all text styles render, and Flappy collides exactly where the
+pipes are drawn. The upper tile bank writes and the flat sprite window are in
+the shipped bitstream. `cf-protect` must be run again (status `0x38`).
+
 ---
 
 ## 2026-11-01 — Move graphics assets out of the image and load them from flash
