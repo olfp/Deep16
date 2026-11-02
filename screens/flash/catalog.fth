@@ -140,16 +140,16 @@ variable nm-l drop
 : row-scroll! ( fine row -- ) swap 3 lshift or 0x100 or 0x200C es! ;
 : row-scroll-off ( -- )    0 0x200C es! ;
 
-\ ---- text/art/sprite palette banks, 0xF5080/90/A0 -----------------------
+\ ---- text/art/sprite palette banks, 0xF6080/90/A0 -----------------------
 \ The text bank holds 8 pairs (2p paper, 2p+1 ink); art cells read the art
 \ bank; sprites read the sprite bank. The console ATTR selects the text pair.
 \ 0x3BEE is the D16D kernel cell immediately before boot_script.
 \ The same cell carries the style bits: bit 2 underline, bit 1 bold (smear),
 \ bit 0 the italic 1bpp font page.
 0x3BEE constant text-attr
-: pal! ( bg ink pair -- )        dup 2* 0x5080 + >r drop r@ 1+ es! r> es! ;
-: art-pal! ( bg ink pair -- )    dup 2* 0x5090 + >r drop r@ 1+ es! r> es! ;
-: sprite-pal! ( bg ink pair -- ) dup 2* 0x50A0 + >r drop r@ 1+ es! r> es! ;
+: pal! ( bg ink pair -- )        dup 2* 0x6080 + >r drop r@ 1+ es! r> es! ;
+: art-pal! ( bg ink pair -- )    dup 2* 0x6090 + >r drop r@ 1+ es! r> es! ;
+: sprite-pal! ( bg ink pair -- ) dup 2* 0x60A0 + >r drop r@ 1+ es! r> es! ;
 : attr ( pair -- )      7 and 12 lshift 0x8000 or  text-attr @ 0x1F and or  text-attr ! ;
 : style ( flags -- )    0x1F and  text-attr @ 0xF000 and or  text-attr ! ;
 : attr! ( pair flags -- ) swap 7 and 12 lshift or 0x8000 or text-attr ! ;

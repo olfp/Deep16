@@ -4,11 +4,15 @@ Status: **open items, newest first.** Each entry records what was observed, how
 it was reproduced, the intended behaviour and the fix to investigate. Fixes are
 not applied until the entry is updated with the result and tests.
 
-> **Current baseline (2026-11-02).** `npm test`: **741 pass**. `npm run
-> synth:tile` after the 26-row scroll ring: **4,312 / 4,320 CLS (8 free)**,
-> BSRAM 26/26, SSRAM 190; `dvi_render` 28.011 MHz, `dvi_pixel` 75.017 MHz,
-> `psram_clk` 93.009 MHz, all TNS 0. Plan the open RTL items against **8 free
-> CLS**, not the 11 quoted in the older entries.
+> **Current baseline (2026-11-02, branch `fit-windows`).** `npm test`: **741
+> pass**. `npm run synth:tile` after the 128-tile bank and the flat 24-group
+> sprite window: **4,291 / 4,320 CLS (29 free)**, BSRAM 26/26, SSRAM 190;
+> `dvi_render` 29.329 MHz, `dvi_pixel` 86.063 MHz, `psram_clk` 89.753 MHz,
+> `clk_cpu` 17.493 MHz, all TNS 0. The wider windows *freed* 21 CLS: the
+> 96-tile compare and the sprite-page address mux are gone. Plan the open RTL
+> items against **29 free CLS**. One hold endpoint is flagged
+> (`n8_s3/I1 -> clk_div_1_s0/D`, `clk_cpu -> clk`); it is identical on `main`
+> and is the generated-clock divider self-path, not a new violation.
 
 ---
 
@@ -43,9 +47,10 @@ Do **not** use `cell << 4`: art tiles are 32 words, so the alignment shift is
 five bits. A four-bit shift would address 16-word units and make adjacent art
 tiles overlap.
 
-**CPU-window issue:** the renderer can decode 160 tiles, but the CPU currently
-writes only `0xF3000–0xF3BFF` (tiles 0–95). `0xF3C00` is the sprite window.
-The existing 32-tile hole at `0xF3C00–0xF3FFF` could become a paged window:
+**CPU-window issue:** the renderer can decode 160 tiles and the CPU now writes
+all 128 of `0xF3000–0xF3FFF`. A 160-tile bank would need a paged window over
+the extra 32 slots; the current 32-tile block at `0xF3C00–0xF3FFF` is already
+in use, so this needs a page register:
 
 ```text
 page 0 -> tiles 96–127   (existing baked art)
@@ -286,8 +291,22 @@ render both; check OAM and all three palette banks at the new base; extend
 `tests/showcase-*.test.js`; run `npm run synth:tile` and compare CLS/timing
 (the wider decode should not change BSRAM).
 
-**Status:** open — logged as medium priority 2026-11-01, not applied. The
-simulation continues to model the current 8-group page until this lands.
+**Status:** **fixed (2026-11-02, branch `fit-windows`, option A).** The sprite
+window is `0xF4000–0xF57FF` (6,144 words, all 24 groups) and OAM/palette moved
+to `0xF6000–0xF60AF`, with the 0x80/0x90/0xA0 bank offsets unchanged inside the
+page. `tile_addr`, `tf_addr` and `dvi_cpu_addr` are 13 bits; only the sprite
+window uses bit 12, every other window decodes from its low 12 bits. Control 5
+is kept as a compatibility no-op. `0xF4800–0xF5FFF` is now either sprite
+(through `0xF57FF`) or the deliberate `0xF5800–0xF5FFF` gap.
+
+Verified by `rtl/sim/dvi_tile_tb.cpp`: group 8 and group 23 are written through
+the flat window and render, a page-2 store still lands in group 0 (proving the
+page no longer redirects), the legacy register still latches and clamps, and
+group 24 stays disabled. `tests/tile-engine.test.js`,
+`tests/flash-assets.test.js` and the showcase palette/OAM constants
+(`0xF60A0`/`0xF60A1`…, OAM `0xF6000`) were updated. `npm run synth:tile`:
+**4,291 / 4,320 CLS**, BSRAM 26/26, all TNS 0 — the flat window is 21 CLS
+cheaper than the paged one. Board flash/test is the remaining step.
 
 ---
 
@@ -303,8 +322,9 @@ loader; `scripts/make_image.mjs`; `js/deep16_simulator.js` (`SpiFlash`);
 
 **Observed:** the tile bank, sprite bank and palette are initialised from
 files baked into the bitstream. The boot image also carries the showcase code.
-The CPU cannot rewrite the 32 upper tile slots (see the 2026-10-31 upper
-tile-bank entry), so those graphics are fixed until a new bitstream is built.
+The CPU can now rewrite all 128 tile slots and all 24 sprite groups (see the
+2026-10-31 and 2026-11-01 entries), so the only remaining blocker for a
+runtime loader is the flash-to-window path itself.
 
 This is a leftover from the time when there was no runtime storage. It is no
 longer necessary: the board has a 4 MB P25Q32U on SPI CS1, the nano boot
@@ -321,10 +341,9 @@ Dependencies and constraints:
 
 - **All 128 tile slots must be writable** for a full flash-loaded tile bank;
   the current window covers 96 (see the upper tile-bank entry).
-- **Sprite groups:** the current 8-group page is sufficient for a loader (set
-  control 5 per page), but option A above removes the paging and makes a
-  linear copy possible.
-- **Palette:** already fully writable at `0xF5080–0xF50AF`; no window change.
+- **Sprite groups:** resolved — the flat 24-group window (`0xF4000–0xF57FF`)
+  lets a loader copy the bank linearly; control 5 is a no-op.
+- **Palette:** already fully writable at `0xF6080–0xF60AF`; no window change.
 - **Format and loader:** define an asset blob (slices or a dedicated section),
   decide whether the kernel stays resident or also loads, and measure boot
   latency (loading ~10K words over SPI is not free).
@@ -505,8 +524,15 @@ window at `0xF4000`.
 `rtl/deep16_board.sv` (FIFO/decode), `rtl/sim/dvi_tile_tb.cpp`,
 `MEMMAP.md`, `rtl/dvi/README.md`, `doc/FiT-Graphics-howto.md`.
 
-**Status:** open — determine whether the 32-tile write hole is intentional.
-If it is not, expose the full bank and test it.
+**Status:** **fixed (2026-11-02, branch `fit-windows`).** The 32-tile hole was
+a leftover from the old 96-glyph contract, not a design requirement.
+`TILE_CPU_WORDS` is now `TILE_COUNT * 32`, `bank_hit` covers `0xF3000–0xF3FFF`,
+and `tilefont[cpu_addr[11:0]]` is written for every address in the window.
+`rtl/sim/dvi_tile_tb.cpp` writes solid tiles 96 and 127, maps each and checks
+the rendered pixel; `tests/tile-engine.test.js` does the same for both slots.
+`MEMMAP.md`, `doc/FiT-Graphics-howto.md`, `rtl/dvi/README.md` and the JS
+engine/loader were updated. No extra BSRAM: the array was already 4,096 words.
+`npm run synth:tile`: **4,291 / 4,320 CLS**, BSRAM 26/26, all TNS 0.
 
 ---
 

@@ -1,14 +1,15 @@
 # FROGPLAN — Frogger on the tile engine
 
-> **FiT hardware update (2026-10-30).** The tile bank is no longer 96
-> CPU-writable 4bpp glyph tiles + 32 art. Tile 0 is a blank 32-word art tile,
-> the regular/italic text pages are 1bpp at `0x020`/`0x320` (ttyp0), the gap
-> `0x620–0xBFF` is 47 free 32-word slots for game art, and the 32 art slots
-> remain at `0xC00`. Palettes are text/art/sprite banks at `0x80`/`0x90`/`0xA0`;
-> Frogger tiles use the art bank, the frog sprite the shared sprite bank. The
-> CPU is the 6.75 MHz D16nano core, not 13.5 MHz. HUD text is mode-1 cells from
-> the 1bpp text pages; the map art stays mode 0. Control 6/7 and the raster IRQ
-> are already in place.
+> **FiT hardware update (2026-11-02).** All 128 tile slots are CPU-writable
+> and the sprite window covers all 24 groups, so games no longer depend on
+> baked art. Tile 0 is a blank 32-word art tile, the regular/italic text pages
+> are 1bpp at `0x020`/`0x320` (ttyp0), the gap `0x620–0xBFF` is 47 free
+> 32-word slots for game art, and the 32 art slots remain at `0xC00`. Palettes
+> are text/art/sprite banks at `0x80`/`0x90`/`0xA0` inside the `0xF6000`
+> window; Frogger tiles use the art bank, the frog sprite the shared sprite
+> bank. The CPU is the 6.75 MHz D16nano core, not 13.5 MHz. HUD text is mode-1
+> cells from the 1bpp text pages; the map art stays mode 0. Control 6/7 and the
+> raster IRQ are already in place.
 
 Status: **plan only, nothing implemented.** This file records the agreed
 mapping; the RTL, tests, game code and docs are unchanged.
@@ -111,9 +112,9 @@ A minimal set is 15-17 tiles:
 | turtle up / down | 2 |
 
 That fits the 18 free art slots. If the game needs more, it can load its own
-tiles into the 96 CPU-writable glyph tiles at `0xF3000` and keep a compact HUD
-font in the rest; a standalone game does not need the console font while it
-runs.
+tiles into the 96 glyph slots at `0xF3000` and keep a compact HUD font in the
+rest; a standalone game does not need the console font while it runs. The whole
+128-tile bank is CPU-writable, so the font can be replaced at runtime.
 
 Keep art cells in **mode 0** (the top nibble zero). COLORTEXT pair mode is for
 text; it would reduce a 4bpp car or log to two colours.
@@ -434,7 +435,7 @@ npm run flash:tile
 1. **Playfield height.** Use 16 rows with a taller HUD, or 20 rows with a
    smaller HUD? The 24-row screen allows either.
 2. **Baked art or runtime tiles?** The 18 free art slots need a synthesis; the
-   96 writable glyph tiles allow a game-only image with no bitstream change.
+   96 glyph slots allow a game-only image with no bitstream change.
 3. **Frog size.** 16 x 15 (two cells) is closest to the original; 8 x 15 saves
    horizontal room but looks thin.
 4. **Spawn margin.** Is the optional base column worth +52 FF, or is edge

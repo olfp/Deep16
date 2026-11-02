@@ -185,7 +185,7 @@ module deep16_board (
   logic        dvi_vblank, dvi_frame_tick;
   logic        dvi_cpu_we, dvi_cpu_ctrl;
   logic [1:0]  dvi_cpu_tgt;
-  logic [11:0] dvi_cpu_addr;
+  logic [12:0] dvi_cpu_addr;
   logic [15:0] dvi_cpu_data;
 `ifdef D16NANO
   // Tile/control writes cross from the CPU to the 24.75 MHz render domain. Sixteen entries of {ctrl,addr,data}; the BIOS writes one entry per
@@ -196,7 +196,7 @@ module deep16_board (
   localparam int TF_DEPTH = 16;
   localparam int TF_AW    = 4;
   logic [15:0] tf_data [0:TF_DEPTH-1];
-  logic [11:0] tf_addr [0:TF_DEPTH-1];
+  logic [12:0] tf_addr [0:TF_DEPTH-1];
   logic [1:0]  tf_tgt  [0:TF_DEPTH-1];
   logic        tf_ctrl [0:TF_DEPTH-1];
   logic [TF_AW:0] tf_wbin, tf_rbin;
@@ -379,7 +379,7 @@ module deep16_board (
 `ifdef D16NANO
   logic        tile_we, tile_ctrl;
   logic [1:0]  tile_tgt;
-  logic [11:0] tile_addr;
+  logic [12:0] tile_addr;
   logic [15:0] tile_data;
 `endif
   logic        o_done, o_result, o_busy;

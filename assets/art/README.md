@@ -10,6 +10,7 @@
   reproducibly.
 
 `scripts/make_art.mjs` converts these to the D16's shared 16-colour RGB332
-palette. The three birds put body/belly on palette entries 2/13, so the game
-picks a bird by setting those two entries and the sprite page; the bedazzled
-flower/star use entries 5/11 and are added by the same script.
+palette. The three birds put body/belly on palette entries 2/13 and occupy
+sprite group bases 0/8/16, so the game picks a bird by setting those two
+entries and the absolute OAM group; the bedazzled flower/star use entries 5/11
+and are added by the same script.

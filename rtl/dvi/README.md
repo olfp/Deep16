@@ -133,14 +133,14 @@ with:
   `bit 15 = 0` is an art cell whose low 12 bits are a 32-word-aligned tile
   address; `bit 15 = 1` is a text pair cell,
   `0x8000 | (pair << 12) | style | glyph address`.
-* **128 tiles of 32 words** (the CPU window covers the first 96): 30 words of
+* **128 tiles of 32 words** (all CPU-writable): 30 words of
   8x15 4bpp pixels. Words 30–31 are reserved; the build writes a palette
   pointer and flags there, currently zero, and the renderer reads only words
   0–29. Text glyphs are `(ch - 0x20) * 32`; art cells use the raw tile
   address.
 * **three 16-entry RGB332 palette banks** in one 64 x 16 BSRAM: text
-  (`0xF5080`-`0xF508F`, eight paper/ink pairs), art (`0xF5090`-`0xF509F`) and
-  the shared sprite bank (`0xF50A0`-`0xF50AF`). Text cells use `pix[0]` to
+  (`0xF6080`-`0xF608F`, eight paper/ink pairs), art (`0xF6090`-`0xF609F`) and
+  the shared sprite bank (`0xF60A0`-`0xF60AF`). Text cells use `pix[0]` to
   select entry `2p` (paper) or `2p+1` (ink); mode-0 tiles read the art bank;
   every sprite reads the sprite bank.
 * **two 1-bit text pages**: tile 0 is a blank 32-word art tile; the regular
@@ -235,13 +235,15 @@ a tile pixel cost the same lookup:
 
 * **Eight sprites, 32x32, 4bpp.** Sprite palette index 0 is transparent; OAM
   bit 15 puts the sprite behind background index 0; sprite 0 wins priority.
-* **OAM** is 16 words at `0xF5000`: two words per sprite,
+* **OAM** is 16 words at `0xF6000`: two words per sprite,
   `w0 = {behind, vflip, hflip, group[2:0], x[9:0]}`,
   `w1 = {1'b0, enable, y[9:0]}`. The shared sprite palette bank is at
-  `0xF50A0`.
-* **Pattern bank** at `0xF4000..0xF47FF`: 128 8x8 4bpp tiles (2,048 words,
-  2 BSRAM blocks). A 32x32 sprite is 16 tiles; `tile = group*16 + (row/8)*4 +
-  column`, `word = tile*16 + (row%8)*2 + half`.
+  `0xF60A0`.
+* **Pattern bank** at `0xF4000..0xF57FF`: 24 groups x 16 8x8 4bpp patterns
+  (6,144 words). A 32x32 sprite is 16 tiles; `tile = group*16 + (row/8)*4 +
+  column`, `word = tile*16 + (row%8)*2 + half`. The window is flat: the OAM
+  group and the CPU offset are the same absolute index, and control 5 is a
+  legacy no-op.
 * **Per-line row cache.** During the blanking the loader fetches the eight
   4-pixel words of each sprite's row into an 8x8x16 row cache (the flow infers
   distributed RAM: eight read ports, one write port). The fill selects the

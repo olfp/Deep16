@@ -9,8 +9,9 @@
 ; same game in attract mode. There is no text overlay during play: the double-
 ; buffered map holds the pipes and ground, the bird and the four cloud sprites
 ; are OAM, so the clouds can drift at their own speed (parallax).  Every reset
-; picks Red, Purple or Yellow from the cycle counter and a play counter, and
-; sets palette 2/13 plus the sprite write page.
+; picks Red, Purple or Yellow from the cycle counter and a play counter and
+; sets palette 2/13. The absolute OAM group selects the bird; control 5 is
+; still stored for old images but the widened sprite window ignores it.
 
 .org 0x0A00
 
@@ -190,7 +191,7 @@ sb_alive:
     LSI R6, 0
 sb_emit:
     ; R4 = relative group 3..7, R6 = vflip.  The OAM group is absolute:
-    ; the bird colour is the CPU write page, so add colour*8.
+    ; the bird colour contributes colour*8 (G_BIRD_GROUP), not a page.
     LDI G_BIRD_GROUP
     MOV R5, R0
     LD R5, R5, 0

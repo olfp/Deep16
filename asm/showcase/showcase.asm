@@ -19,7 +19,7 @@
 .equ SEG_CTRL -0x0E00          ; 0xF200: controls
 .equ SEG_BANK -0x0D00          ; 0xF300: tile bank
 .equ SEG_SPR  -0x0C00          ; 0xF400: sprite bank
-.equ SEG_OAM  -0x0B00          ; 0xF500: OAM + palette
+.equ SEG_OAM  -0x0A00          ; 0xF600: OAM + palette
 .equ SEG_UART -0x0FFC          ; 0xF004: UART/status
 
 .equ G_START_MODE 0x04D5

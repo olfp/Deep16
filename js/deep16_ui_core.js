@@ -3210,7 +3210,7 @@ class DeepWebUI {
                                 if (address < this.simulator.memory.length) {
                                     this.simulator.memory[address] = w;
                                 }
-                                if (this.tileEngine && address >= 0xF1000 && address <= 0xF50AF) {
+                                if (this.tileEngine && address >= 0xF1000 && address <= 0xF60AF) {
                                     this.tileEngine.write(address, w);
                                 }
                                 if (this.screenUI && this.screenUI.isScreenMemory && this.screenUI.handleScreenMemoryWrite) {

@@ -9,7 +9,7 @@ module dvi_tile_tb (
   input  logic        cpu_we,
   input  logic        cpu_ctrl,
   input  logic [1:0]  cpu_tgt,
-  input  logic [11:0] cpu_addr,
+  input  logic [12:0] cpu_addr,
   input  logic [15:0] cpu_data,
   output logic [7:0]  red,
   output logic [7:0]  green,

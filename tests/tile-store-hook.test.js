@@ -31,7 +31,7 @@ test('video-window stores reach the engine in order', () => {
   sim.checkScreenUpdate(0xF1000, 0x8000 | (40 << 5));
   assert.equal(engine.tilemap[0][0], 0x8000 | (40 << 5));
 
-  sim.checkScreenUpdate(0xF5081, 0xE0);          // text palette entry 1
+  sim.checkScreenUpdate(0xF6081, 0xE0);          // text palette entry 1
   assert.equal(engine.palette[1], 0xE0);
 });
 

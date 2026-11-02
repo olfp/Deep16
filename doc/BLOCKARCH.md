@@ -76,7 +76,7 @@ though the package contains 64 Mbit.
 | SPI master | `0xF0080`–`0xF008F` | Mode-0 byte master; CS0 = SD, CS1 = config flash |
 | I2S | `0xF00A0`–`0xF00AF` | Audio data, control, status, FIFO |
 | SIC | `0xF00B0`–`0xF00BF` | Keyboard, timer, audio, and raster interrupt sources |
-| FiT tile engine | `0xF1000`–`0xF50FF` | Tilemap, palette, OAM, and sprite banks |
+| FiT tile engine | `0xF1000`–`0xF60AF` | Tilemap, palette, OAM, and sprite banks |
 
 The D16nano `core3` does not contain a hardware divider. `DIV` and `DIV32` raise
 the ILL trap (vector 0), and the kernel's handler emulates them in software.

@@ -82,45 +82,36 @@ test('the loader copies the blob into the simulated config flash', () => {
   assert.equal(sim.spiFlash.mem[ASSET_BASE - 1], 0xFF, 'nothing written below the blob');
 });
 
-test('the loader writes tiles, sprite pages and palettes through the CPU windows', () => {
+test('the loader writes tiles, sprites and palettes through the CPU windows', () => {
   const sim = fakeSim();
   const engine = { writes: [], write(addr, value) { this.writes.push([addr, value & 0xFFFF]); } };
   const parsed = loader.parse(assets);
   const counts = loader.writeGraphics(engine, sim, parsed);
 
-  assert.deepEqual(counts, { tiles: TILE_WORDS, sprites: SPRITE_WORDS, palettes: PALETTE_WORDS, pages: 3 });
+  assert.deepEqual(counts, { tiles: TILE_WORDS, sprites: SPRITE_WORDS, palettes: PALETTE_WORDS });
 
-  // All 128 tile slots, including the 32 the current RTL leaves read-only.
+  // All 128 tile slots, including the upper bank that used to be read-only.
   for (const i of [0, 96 * 32, 127 * 32 + 31]) {
     assert.equal(sim.memory[0xF3000 + i], parsed.tiles[i]);
   }
   assert.equal(engine.writes.filter(([a]) => a >= 0xF3000 && a <= 0xF3FFF).length, TILE_WORDS);
 
-  // The sprite bank is written one 8-group page at a time.
-  const pageWrites = engine.writes.filter(([a]) => a === 0xF200A).map(([, v]) => v);
-  assert.deepEqual(pageWrites.slice(0, 3), [0, 1, 2]);
-  assert.equal(pageWrites[pageWrites.length - 1], 0, 'page returns to 0');
-
-  // Replay the writes with the page register to prove each group landed on its
-  // own page, not just that the last page survived in memory.
-  let page = -1;
-  const landed = [];
-  for (const [addr, value] of engine.writes) {
-    if (addr === 0xF200A) page = value;
-    else if (addr >= 0xF4000 && addr <= 0xF47FF) landed.push([page, addr - 0xF4000, value]);
-  }
+  // All 24 sprite groups land in the flat 0xF4000..0xF57FF window; the legacy
+  // page register is not used at all.
+  const landed = engine.writes.filter(([a]) => a >= 0xF4000 && a <= 0xF57FF);
   assert.equal(landed.length, SPRITE_WORDS);
-  for (const [p, off, value] of landed) {
-    assert.equal(value, parsed.sprites[p * 2048 + off], `sprite page ${p} offset ${off}`);
+  for (const [addr, value] of landed) {
+    assert.equal(value, parsed.sprites[addr - 0xF4000], `sprite offset 0x${(addr - 0xF4000).toString(16)}`);
   }
-  // Only page 2 remains in the flat JS memory after the load.
-  for (const i of [4096, 6143]) {
-    assert.equal(sim.memory[0xF4000 + (i % 2048)], parsed.sprites[i]);
+  assert.equal(engine.writes.filter(([a]) => a === 0xF200A).length, 0, 'no page register writes');
+  // The last group (23, offset 0x1700) survives in the flat JS memory.
+  for (const i of [4096, SPRITE_WORDS - 1]) {
+    assert.equal(sim.memory[0xF4000 + i], parsed.sprites[i]);
   }
 
-  // Three palette banks are contiguous at 0xF5080..0xF50AF.
+  // Three palette banks are contiguous at 0xF6080..0xF60AF.
   for (let i = 0; i < PALETTE_WORDS; i++) {
-    assert.equal(sim.memory[0xF5080 + i], parsed.palette[i]);
+    assert.equal(sim.memory[0xF6080 + i], parsed.palette[i]);
   }
 });
 
@@ -130,7 +121,7 @@ test('writeGraphics works without an engine (memory-only tests)', () => {
   const counts = loader.writeGraphics(null, sim, parsed);
   assert.equal(counts.tiles, TILE_WORDS);
   assert.equal(sim.memory[0xF3000 + 4095], parsed.tiles[4095]);
-  assert.equal(sim.memory[0xF50AF], parsed.palette[47]);
+  assert.equal(sim.memory[0xF60AF], parsed.palette[47]);
 });
 
 test('load runs flash install and the CPU-window load together', () => {
@@ -138,7 +129,7 @@ test('load runs flash install and the CPU-window load together', () => {
   const engine = { writes: 0, write() { this.writes++; } };
   const { parsed, counts } = loader.load(engine, sim, assets);
   assert.equal(counts.tiles, parsed.tiles.length);
-  assert.equal(engine.writes, TILE_WORDS + SPRITE_WORDS + 3 + 1 + PALETTE_WORDS);
+  assert.equal(engine.writes, TILE_WORDS + SPRITE_WORDS + PALETTE_WORDS);
   assert.deepEqual(Buffer.from(sim.spiFlash.mem.slice(ASSET_BASE, ASSET_BASE + 4)).toString('ascii'), 'D16G');
 });
 

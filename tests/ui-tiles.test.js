@@ -152,7 +152,7 @@ test('the canvas paints the engine buffer', () => {
 
   // A solid art tile at the top-left, with a red art-palette entry.
   for (let i = 0; i < 32; i++) engine.write(0xF3000 + 96 * 32 + i, 0x1111);
-  engine.write(0xF5091, 0xE0);
+  engine.write(0xF6091, 0xE0);
   engine.write(0xF1000, 96 * 32);
 
   canvas.ctx.putCalls = 0;
@@ -192,7 +192,7 @@ test('loadTileAssets fills the engine and the JS memory from flash', () => {
   assert.equal(ui.tileEngine.tileBank[0], 0);
   assert.ok(ui.tileEngine.tileBank.some((w) => w !== 0), 'font/art words loaded');
   assert.equal(ui.tileEngine.palette[1], 0xFF);
-  assert.equal(ui.simulator.memory[0xF5080 + 1], 0xFF);
+  assert.equal(ui.simulator.memory[0xF6080 + 1], 0xFF);
   assert.equal(ui.simulator.spiFlash.mem[0x300000], 0x44);   // 'D'
 });
 

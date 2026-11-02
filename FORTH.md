@@ -811,7 +811,7 @@ reads 512-byte sectors (not slices) from the card and interprets them.
 The console writes text cells as `0x8000 | (pair << 12) | glyph`. The text
 palette bank holds eight paper/ink pairs; `attr` chooses the pair for every
 character that follows, and the three `*pal!` words write the banks at
-`0xF5080`/`0xF5090`/`0xF50A0`. Writes are not frame-latched, so change them
+`0xF6080`/`0xF6090`/`0xF60A0`. Writes are not frame-latched, so change them
 during vblank or at a screen transition.
 
 | word | effect |

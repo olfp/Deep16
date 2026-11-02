@@ -21,7 +21,7 @@ import { buildShowcase, checkShowcase, SHOWCASE_SEG_BASE
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRAME_PERIOD = 0x1000;       // steps between frame-flag toggles
 const UART_STATUS = 0xF0066;       // b1 frame, b3 UART byte waiting
-const OAM_BASE = 0xF5000;
+const OAM_BASE = 0xF6000;
 const G_START_MODE = 0x4D5;
 const G_BIRD_Y = 0x4EDB;
 const G_BIRD_VY = 0x4EDC;
@@ -30,8 +30,8 @@ const G_DEATH_TIMER = 0x4EFE;
 const G_TMP = 0x4EEF;
 const G_PLAYS = 0x4EDD;
 const CONTROL = 0xF200A;
-const PAL_BODY = 0xF50A2;
-const PAL_BELLY = 0xF50AD;
+const PAL_BODY = 0xF60A2;
+const PAL_BELLY = 0xF60AD;
 const RET_PC = 0x0777;
 const BIRD_COLOURS = [[0x84, 0xf1], [0xae, 0xb6], [0xfc, 0xf4]];
 
@@ -143,7 +143,7 @@ test('showcase block stays inside the game block', () => {
   assert.ok(showcase.max < 0x0DF8, 'keeps a margin below the 0xE00 stack guard');
 });
 
-test('the reset picks a bird, its palette and its write page', () => {
+test('the reset picks a bird, its palette and the legacy write page', () => {
   const r = run({ mode: 1, frames: 20 });
   const page = r.sim.memory[CONTROL] & 3;
   assert.ok(page <= 2, `sprite write page ${page}`);

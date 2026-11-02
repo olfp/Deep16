@@ -4,9 +4,9 @@ Status: **plan only, nothing implemented.** This file records the agreed
 design; the code, tests and docs are unchanged.
 
 > **FiT hardware update (2026-10-30).** The bird is a sprite and uses the
-> shared **sprite palette bank** at `0xF50A0`; body/belly/wing are entries
-> `0xA2`/`0xAD`/`0xAE`, not `0x82`/`0x8D`/`0x8E`. The art bank is `0xF5090`;
-> the text bank `0xF5080` must not be touched. The text pages are now 1bpp
+> shared **sprite palette bank** at `0xF60A0`; body/belly/wing are entries
+> `0xA2`/`0xAD`/`0xAE`, not `0x82`/`0x8D`/`0x8E`. The art bank is `0xF6090`;
+> the text bank `0xF6080` must not be touched. The text pages are now 1bpp
 > (ttyp0) and cannot collide with sprite index 14. The current game block ends
 > at `0xDF6`; the `bird_group` +1 is expected at `0xDF7`, under the `0xDF8`
 > test guard (the old `0xDF0` figure is stale).
@@ -34,7 +34,7 @@ there is only one slot for "body".
 
 The wing pixels survive the resize (about 20% thinner); after quantisation
 there is nothing left to see except a moving black outline. The bird's
-palette is the **sprite bank** (`0xF50A0`); the body/belly/wing writes go to
+palette is the **sprite bank** (`0xF60A0`); the body/belly/wing writes go to
 `0xA2`/`0xAD`/`0xAE`. The art bank has its own copy of the background palette,
 and the text bank is separate.
 
@@ -47,7 +47,7 @@ open eye, wing high vs wing low.
 Index 14 is used **only** by bird and dizzy pixels; no tile, cloud or font
 pixel uses it (verified over `artTiles()`, `cloudSprite()`, `birdFrames()` and
 `dizzyFrames()` for all three birds). In the FiT layout this is sprite-bank
-index 14 at `0xF50AE`; the text pages are 1bpp and use the text bank, so they
+index 14 at `0xF60AE`; the text pages are 1bpp and use the text bank, so they
 cannot collide. Recolouring it per bird is free.
 
 | bird | body (2) | belly (13) | wing (14) |
@@ -141,13 +141,13 @@ figure is stale; measure after the change.
 `tests/showcase-death.test.js`:
 
 - update `BIRD_COLOURS` to the new body/wing values and assert sprite palette
-  entry 14 (`0xF50AE`) on reset;
+  entry 14 (`0xF60AE`) on reset;
 - with no input the OAM group stays in `{0,1}` and both values appear over
   ~200 frames;
 - after a flap the group becomes `{6,7}`.
 
-The current `showcase-death` constants are `PAL_BODY = 0xF50A2`,
-`PAL_BELLY = 0xF50AD`; add `PAL_WING = 0xF50AE`. The `showcase block` guard is
+The current `showcase-death` constants are `PAL_BODY = 0xF60A2`,
+`PAL_BELLY = 0xF60AD`; add `PAL_WING = 0xF60AE`. The `showcase block` guard is
 `showcase.max < 0x0DF8`.
 
 `tests/showcase-weights.test.js` should not change (physics untouched).
@@ -155,9 +155,9 @@ The current `showcase-death` constants are `PAL_BODY = 0xF50A2`,
 ## 7. Docs
 
 `doc/FiT-Graphics-howto.md` needs its palette section updated: the bird uses
-the **sprite bank** (`0xF50A0`), indices 2/13/14 are body/belly/wing, the game
+the **sprite bank** (`0xF60A0`), indices 2/13/14 are body/belly/wing, the game
 writes all three per bird, and the blink/flap group roles are 0/1 and 6/7. The
-art bank (`0xF5090`) and text bank (`0xF5080`) are separate.
+art bank (`0xF6090`) and text bank (`0xF6080`) are separate.
 
 ## 8. Build and flash
 
@@ -183,7 +183,7 @@ first; run `cf-protect` again after the power-cycle.
 | `asm/showcase/showcase.asm` | `pal_art[14] = 0x84`, Red body `0xC4`, new `wing_colors` at `0x5D5` |
 | `asm/showcase/flappy_game.asm` | `reset_play` writes sprite entry `0xAE`; `sb_alive` calls `bird_group`; new helper at `0x4A0` |
 | `tests/showcase-art.test.js` | new palette/group assertions, drop the free-group check; sprite-bank entry 14 |
-| `tests/showcase-death.test.js` | new palette values, `PAL_WING = 0xF50AE`, blink/flap group runtime checks |
+| `tests/showcase-death.test.js` | new palette values, `PAL_WING = 0xF60AE`, blink/flap group runtime checks |
 | `doc/FiT-Graphics-howto.md` | body/belly/wing and blink/flap roles |
 
 No RTL change: the sprite format, OAM fields, page select and `$readmemh` are

@@ -83,9 +83,9 @@ The `D16SEG` build fixes the layout instead of the constant — see §4.4.
 | `0x0F00A0`–`0x0F00AF` | I2S: DATA/CTRL/STATUS (D16nano) |
 | `0x0F1000` | display window (screen RAM or tilemap, build-specific) |
 | `0x0F2000`–`0x0F200E` | tile control registers (tile build only) |
-| `0x0F3000`–`0x0F3BFF` | tile bank (tile build only) |
-| `0x0F4000`–`0x0F47FF` | sprite bank (tile build only) |
-| `0x0F5000`–`0x0F50FF` | OAM / palette window (tile build only) |
+| `0x0F3000`–`0x0F3FFF` | tile bank, all 128 tiles (tile build only) |
+| `0x0F4000`–`0x0F57FF` | sprite pattern bank, all 24 groups (tile build only) |
+| `0x0F6000`–`0x0F60FF` | OAM / palette window (tile build only) |
 | `0x0F8000` | BIOS entry in the 1 MiB screen build |
 | `0x0FFFF0`–`0x0FFFFF` | 16-word boot ROM |
 
@@ -340,8 +340,8 @@ This is the benchmark time base; it is not a writable register.
 4bpp tile bank, eight 32×32 sprites, palette banks and text styles. The
 programming guide is [`doc/FiT-Graphics-howto.md`](doc/FiT-Graphics-howto.md).
 
-Each memory has its own 4K-word page; the CPU window is write-through to the
-tile engine and the PSRAM/Forth mirror at the same address.
+Each window has a fixed base; the CPU write is forwarded to the tile engine
+and is also a normal PSRAM/Forth store at the same address.
 
 | Address | Window | Contents |
 |---|---|---|
@@ -351,16 +351,16 @@ tile engine and the PSRAM/Forth mirror at the same address.
 | `0xF2004` | control 2 | smooth `scroll_x` (0..15), latched with control 4 at the frame boundary; 8 = centre for four-direction play |
 | `0xF2006` | control 3 | smooth `scroll_y` (0..30); 15 = centre for four-direction play |
 | `0xF2008` | control 4 | b0 write bank, b1 display bank (display bank and `scroll_x` swap at the render frame boundary) |
-| `0xF200A` | control 5 | sprite **write** page (b1:0): 0 Red, 1 Purple, 2 Yellow; 3 clamps to 0 |
+| `0xF200A` | control 5 | legacy sprite write page (b1:0, 3 clamps to 0); accepted but no longer used — the sprite window covers all 24 groups |
 | `0xF200C` | control 6 | per-row fine scroll: `{en, row[4:0], fine[2:0]}`; latched at the frame boundary |
 | `0xF200E` | control 7 | raster line compare 0..359 (`b9:0`); one SIC bit-3 pulse per frame |
-| `0xF3000`–`0xF3BFF` | tile bank | CPU window: 96 of 128 tiles × 32 words; 30 words of 8×15 4bpp, words 30–31 reserved (currently zero) |
-| `0xF4000`–`0xF47FF` | sprite bank | 8 groups × 16 patterns × 16 words, selected by the control-5 **write** page; the bank holds 24 groups (3 pages), preloaded. The renderer uses the absolute OAM group. |
-| `0xF5000`–`0xF500F` | OAM | 8 sprites × 2 words: `w0={behind,vflip,hflip,free,enable,xsign,x[9:0]}`, `w1={group[4:0],free,y[9:0]}` |
-| `0xF5080`–`0xF508F` | text palette | 8 pairs: entry `2p` = paper, `2p+1` = ink |
-| `0xF5090`–`0xF509F` | art palette | 16 × RGB332 entries for mode-0 tiles |
-| `0xF50A0`–`0xF50AF` | sprite palette | 16 × RGB332 entries shared by all eight sprites |
-| rest of `0xF5000`–`0xF50FF` | — | reserved |
+| `0xF3000`–`0xF3FFF` | tile bank | CPU window over **all 128 tiles** × 32 words: 30 words of 8×15 4bpp, words 30–31 reserved (currently zero) |
+| `0xF4000`–`0xF57FF` | sprite bank | **all 24 groups** × 16 patterns × 16 words = 6,144 words, contiguous; the OAM group is absolute. Control 5 is a compatibility no-op. |
+| `0xF6000`–`0xF600F` | OAM | 8 sprites × 2 words: `w0={behind,vflip,hflip,free,enable,xsign,x[9:0]}`, `w1={group[4:0],free,y[9:0]}` |
+| `0xF6080`–`0xF608F` | text palette | 8 pairs: entry `2p` = paper, `2p+1` = ink |
+| `0xF6090`–`0xF609F` | art palette | 16 × RGB332 entries for mode-0 tiles |
+| `0xF60A0`–`0xF60AF` | sprite palette | 16 × RGB332 entries shared by all eight sprites |
+| rest of `0xF6000`–`0xF60FF` | — | reserved |
 
 Tile cell convention: mode 0 (`bit 15 = 0`) is the old art cell, where
 `bits 11:0` are a 32-word-aligned tile address and the 4bpp pixel index reads
@@ -577,11 +577,11 @@ These describe the browser/headless model, not the board:
 * `0xF0066` is host-driven on the JS core: the IDE's 60 Hz tile clock writes
   `sim.tileStatus` (b0 vblank, b1 frame toggle, b2 S2, b3 UART ready). If no
   host value is set, the ordinary memory word is read, so tests can poke it.
-* The simulation tile engine makes **all 128 tile-bank slots writable** and
-  loads font, art, sprites and palettes from a simulated config-flash blob.
-  The current RTL exposes 96 tile slots and bakes graphics at configuration;
-  the write window and flash-loading path are tracked in `ERRPLAN.md`.
-* Sprite patterns keep the hardware's 8-group write page (control 5); all 24
-  groups are reachable by switching pages.
+* The simulation tile engine matches the hardware windows: **all 128 tile
+  slots** and **all 24 sprite groups** are writable, and OAM/palette live at
+  `0xF6000`. Font, art, sprites and palettes load from a simulated config-flash
+  blob through those windows; the runtime board loader is still open.
+* Control 5 (the old 8-group sprite write page) is still latched so existing
+  images keep working, but it no longer selects anything.
 * `0xF0068`/`0xF006A` remain the D16nano cycle counter. Tile rendering does not
   change the instruction-set memory map.

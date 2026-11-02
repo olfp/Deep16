@@ -14536,7 +14536,7 @@ gfx_clear:
     STS R4, ES, R2             ; cursor ctrl = (0<<8)|(0<<1)|1
 
     ; disable the eight OAM slots (the pattern bank need not be cleared)
-    LDI -0x0B00                ; 0xF500
+    LDI -0x0A00                ; 0xF600
     MVS ES, R0
     MOV R2, R3
     LDI 16

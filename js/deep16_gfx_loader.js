@@ -78,30 +78,20 @@ class Deep16GfxLoader {
       }
     };
 
-    // All 128 tile slots: the simulation target, ahead of the current RTL's
-    // 96-slot window (ERRPLAN, upper tile bank).
+    // All 128 tile slots: the RTL window covers the whole tile bank.
     for (let i = 0; i < parsed.tiles.length; i++) write(0xF3000 + i, parsed.tiles[i]);
 
-    // The sprite bank keeps the hardware's 8-group write page.
-    const groups = parsed.sprites.length / 256;
-    const pages = Math.ceil(groups / 8);
-    for (let page = 0; page < pages; page++) {
-      write(0xF200A, page);
-      for (let i = 0; i < 2048; i++) {
-        const w = parsed.sprites[page * 2048 + i];
-        if (w !== undefined) write(0xF4000 + i, w);
-      }
-    }
-    write(0xF200A, 0);
+    // All 24 sprite groups are contiguous at 0xF4000..0xF57FF; control 5 is
+    // no longer needed (and is a compatibility no-op in the RTL).
+    for (let i = 0; i < parsed.sprites.length; i++) write(0xF4000 + i, parsed.sprites[i]);
 
-    // Text, art and sprite palette banks, contiguous at 0xF5080..0xF50AF.
-    for (let i = 0; i < parsed.palette.length; i++) write(0xF5080 + i, parsed.palette[i]);
+    // Text, art and sprite palette banks, contiguous at 0xF6080..0xF60AF.
+    for (let i = 0; i < parsed.palette.length; i++) write(0xF6080 + i, parsed.palette[i]);
 
     return {
       tiles: parsed.tiles.length,
       sprites: parsed.sprites.length,
       palettes: parsed.palette.length,
-      pages,
     };
   }
 

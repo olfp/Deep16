@@ -325,7 +325,7 @@ class Deep16ScreenUI {
         const short = document.querySelector ? document.querySelector('.screen-info-short') : null;
         if (full) {
             full.textContent = tiles
-                ? 'FiT 640\u00d7360 \u00b7 tilemap 0xF1000 \u00b7 controls 0xF2000 \u00b7 tiles 0xF3000 \u00b7 sprites 0xF4000 \u00b7 OAM 0xF5000'
+                ? 'FiT 640\u00d7360 \u00b7 tilemap 0xF1000 \u00b7 controls 0xF2000 \u00b7 tiles 0xF3000 \u00b7 sprites 0xF4000 \u00b7 OAM 0xF6000'
                 : term
                     ? 'Terminal 80\u00d724 \u00b7 UART console (0xF0042 data, 0xF0040 status)'
                     : 'Memory: 0xF1000-0xF17BF (80\u00d724 characters) | Lower byte = ASCII, high byte = 4+4 bits colour';

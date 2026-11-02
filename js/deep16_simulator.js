@@ -1459,7 +1459,7 @@ class Deep16Simulator {
         // tilemap banks, the sprite write page and the control registers cannot
         // be reconstructed from the final contents. Attach an engine to get
         // every video-window write as it happens.
-        if (this.tileEngine && address >= 0xF1000 && address <= 0xF50AF) {
+        if (this.tileEngine && address >= 0xF1000 && address <= 0xF60AF) {
             this.tileEngine.write(address, value & 0xFFFF);
         }
 

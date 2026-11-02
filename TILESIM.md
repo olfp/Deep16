@@ -43,9 +43,9 @@ State, mirroring `rtl/dvi/dvi_tile.sv`:
 |---|---|---|
 | `tilemap[2]` | 2 x 2,132 words | `0xF1000..0xF1853`, bank from control 4 b0 |
 | `tileBank` | 4,096 words (128 tiles x 32) | `0xF3000..0xF3FFF` |
-| `spriteBank` | 2,048 words (128 patterns x 16) | `0xF4000..0xF47FF` |
-| `oam` | 16 words | `0xF5000..0xF500F` |
-| `palette` | 16 x RGB332 | `0xF5080..0xF508F` |
+| `spriteBank` | 6,144 words (24 groups x 256) | `0xF4000..0xF57FF` |
+| `oam` | 16 words | `0xF6000..0xF600F` |
+| `palette` | 48 x RGB332 (text/art/sprite) | `0xF6080..0xF60AF` |
 | controls | cursor, `row_off`, `scroll_x_next`, `scroll_y`, write/display page | `0xF2000..0xF2008` |
 
 Methods:
@@ -93,7 +93,7 @@ tilemap banks or the page latch.
 
 - JS core: `checkScreenUpdate(address, value)` is already called by both `ST`
   (`deep16_simulator.js:460`) and `STS` (`:1064`). Extend it to feed
-  `0xF1000..0xF50FF` to the engine. In tile mode it must not also drive the
+  `0xF1000..0xF60AF` to the engine. In tile mode it must not also drive the
   text-cell handler; the two views share `0xF1000`.
 - Compiled cores: the IDE mirrors each store into JS memory at
   `deep16_ui_core.js:3034` and `:3090`. Both points feed the engine.
@@ -192,9 +192,9 @@ fixed step budget, so PNGs are reproducible.
   a tick happened). The box stays 640x360; `image-rendering: pixelated`; scale
   down on narrow layouts.
 - Info line: tilemap `0xF1000`, controls `0xF2000`, bank `0xF3000`, sprites
-  `0xF4000`, OAM/palette `0xF5000`.
+  `0xF4000`, OAM/palette `0xF6000`.
 - The palette legend is meaningless in tile mode (the view uses RGB332 from
-  `0xF5080`); hide it.
+  `0xF6080`); hide it.
 - Keep the hidden keyboard hook in the tab; clicking the canvas focuses it.
 
 Example: add `D16D Showcase (tiles)` to `asm/examples.json`

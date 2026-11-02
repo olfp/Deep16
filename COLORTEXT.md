@@ -16,7 +16,7 @@ Companions: `doc/FiT-Graphics-howto.md` (tile/sprite/palette contract),
 
 | | Today |
 |---|---|
-| Palette | 16 entries of RGB332, global, writable at `0xF5080 + n` (`dvi_tile.sv:253`) |
+| Palette | 16 entries of RGB332, global, writable at `0xF6080 + n` (`dvi_tile.sv`) |
 | Shared by | tiles **and** sprites (`dvi_tile.sv:510-511`) |
 | A glyph's pixels | index 0 = paper, index 1 = ink (`scripts/make_tile_font.mjs:13-14`) |
 | Tilemap word | low 12 bits = tile base; **bits 15:12 reserved** (`dvi_tile.sv:220`) |
@@ -113,8 +113,8 @@ the encoding.
 Palette pairs are set through the existing window, entry by entry:
 
 ```
-0xF5080 + 2p   paper of pair p
-0xF5080 + 2p+1 ink   of pair p
+0xF6080 + 2p   paper of pair p
+0xF6080 + 2p+1 ink   of pair p
 ```
 
 Suggested words:

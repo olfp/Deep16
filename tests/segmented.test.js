@@ -158,14 +158,14 @@ test('the I2S words load from the catalog', () => {
 
 test('the palette words write the three banks and the console pair', () => {
   line('0x1C 0xFC 3 pal!');
-  assert.equal(sim.memory[0xF5086], 0x1C, 'text pair 3 paper (entry 6)');
-  assert.equal(sim.memory[0xF5087], 0xFC, 'text pair 3 ink (entry 7)');
+  assert.equal(sim.memory[0xF6086], 0x1C, 'text pair 3 paper (entry 6)');
+  assert.equal(sim.memory[0xF6087], 0xFC, 'text pair 3 ink (entry 7)');
   line('0x03 0xFF 0 art-pal!');
-  assert.equal(sim.memory[0xF5090], 0x03, 'art pair 0 paper');
-  assert.equal(sim.memory[0xF5091], 0xFF, 'art pair 0 ink');
+  assert.equal(sim.memory[0xF6090], 0x03, 'art pair 0 paper');
+  assert.equal(sim.memory[0xF6091], 0xFF, 'art pair 0 ink');
   line('0xE0 0x1C 5 sprite-pal!');
-  assert.equal(sim.memory[0xF50AA], 0xE0, 'sprite pair 5 paper (entry 10)');
-  assert.equal(sim.memory[0xF50AB], 0x1C, 'sprite pair 5 ink (entry 11)');
+  assert.equal(sim.memory[0xF60AA], 0xE0, 'sprite pair 5 paper (entry 10)');
+  assert.equal(sim.memory[0xF60AB], 0x1C, 'sprite pair 5 ink (entry 11)');
   line('5 attr');
   assert.equal(ds(0x3BEE), 0xD000, 'ATTR composes 0x8000 | pair << 12');
   assert.equal(number(line('attr@ . cr'), 'attr@ . cr'), 5);

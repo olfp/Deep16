@@ -13,8 +13,9 @@
 //   * an 82x26 tilemap of pure 16-bit tile addresses (80x24 visible plus one
 //     tile of margin on every side, so hardware scroll_x/scroll_y never runs
 //     off the map),
-//   * 96 tiles of 32 words: 15 rows x 2 words of 4bpp pixels (30 words), a
+//   * 128 tiles of 32 words: 15 rows x 2 words of 4bpp pixels (30 words), a
 //     palette pointer in word 30 and a flags word in word 31,
+//   * a 24-entry sprite pattern bank (6,144 words) plus eight OAM slots,
 //   * a 16-entry RGB332 palette,
 //   * a line-buffer renderer: while line N is scanned out, line N+1 is built
 //     from the tilemap/tile bank into the other buffer. The pixel path is a
@@ -23,9 +24,9 @@
 // The CPU tilemap port and the sprite/OAM windows are live; the terminal
 // parser writes tile addresses ((ch - 0x20) * 32) instead of ASCII bytes.
 //
-// BSRAM: tilemap 2,132 x 16-bit = 3 blocks, tile bank 96 x 32 x 16-bit = 3
-// blocks, line buffer 3 x 640 x 8-bit = 1 block. The 16-colour palette is a
-// 128-bit distributed ROM. Total 7 blocks.
+// BSRAM: tilemap 2,132 x 16-bit = 3 blocks, tile bank 4,096 x 16-bit,
+// sprite bank 6,144 x 16-bit, line buffer 3 x 640 x 8-bit = 1 block. The
+// palette is one 64 x 16-bit block split into three 16-entry banks.
 module dvi_tile #(
   parameter int H_ACTIVE   = 640,   // source canvas: 80 x 24 x 8 x 15
   parameter int V_ACTIVE   = 360,
@@ -54,7 +55,7 @@ module dvi_tile #(
   input  logic        cpu_we,     // one memory/control write this render clock
   input  logic        cpu_ctrl,   // 1 = control register, 0 = memory window
   input  logic [1:0]  cpu_tgt,    // 0 tilemap, 1 tile bank, 2 sprite bank, 3 OAM/palette
-  input  logic [11:0] cpu_addr,
+  input  logic [12:0] cpu_addr,
   input  logic [15:0] cpu_data,
   output logic [7:0]  red,
   output logic [7:0]  green,
@@ -84,13 +85,11 @@ module dvi_tile #(
 
   localparam int TM_WORDS   = TILE_COLS * TILE_ROWS;                // 2,132
   localparam int TM_AW      = 12;
+  // The CPU windows match the arrays exactly: 128 x 32 words is 12 bits, and
+  // 24 groups x 256 words is 13 bits, so every address in a window is valid.
   localparam int TILE_WORDS = TILE_COUNT * 32;                      // 4,096
-  localparam int TILE_CPU_WORDS = 96 * 32;                          // CPU sees 96 glyph tiles
-  // 24 sprite groups: page 0 Red + demo, page 1 Purple, page 2 Yellow.
-  // The CPU window covers one page (8 groups); the rest are preloaded.
   localparam int SPR_GROUPS = 24;
   localparam int SPR_WORDS  = SPR_GROUPS * 256;                    // 6,144
-  localparam int SPR_PAGE_WORDS = 8 * 256;                         // 2,048
   localparam int NSPR       = 8;
   localparam int OAM_WORDS  = NSPR * 2;
   localparam int LB_DEPTH   = 3 * 1024;                            // three 1024-byte slots
@@ -230,9 +229,9 @@ module dvi_tile #(
   // (cpu_ctrl) update the cursor, the circular row offset and the two smooth
   // scroll registers; all other writes go to the window selected by cpu_tgt:
   //   0 tilemap   0xF1000..  (2,132 words)
-  //   1 tile bank 0xF3000..  (96 x 32 words, writable for the demo)
-  //   2 sprites   0xF4000..  (one write page: 8 groups x 16 patterns x 16 words)
-  //   3 OAM/pal   0xF5000..  (OAM 0x00..0x0F, palette 0x80..0x8F)
+  //   1 tile bank 0xF3000..  (128 x 32 words, all writable)
+  //   2 sprites   0xF4000..  (24 groups x 16 patterns x 16 words, 6,144)
+  //   3 OAM/pal   0xF6000..  (OAM 0x00..0x0F, palette 0x80..0xAF)
   logic [4:0] row_off;
   logic [3:0] scroll_x;   // 0..15: pixel offset into the 82-column map
   logic [3:0] scroll_x_next; // latched with the map page at the frame boundary
@@ -255,18 +254,19 @@ module dvi_tile #(
   logic       map_wpage;  // CPU writes target this bank
   logic       map_dpage;  // fill/render reads this bank
   logic       map_dpage_next;
-  logic [1:0] sprite_page; // sprite write page (0 Red/demo, 1 Purple, 2 Yellow)
+  /* verilator lint_off UNUSEDSIGNAL */   // kept as a compatibility no-op
+  logic [1:0] sprite_page; // control 5, legacy write page (no longer addresses)
+  /* verilator lint_on UNUSEDSIGNAL */
 
   /* verilator lint_off MULTIDRIVEN */   // power-up palette + runtime CPU writes
   always_ff @(posedge clk_render) begin
     if (rst_render) oam_bits <= '0;
     else if (cpu_we && !cpu_ctrl) begin
       case (cpu_tgt)
-        2'd0: if (cpu_addr < 12'(TM_WORDS))
-                tilemap[(map_wpage ? 13'(TM_WORDS) : 13'd0) + 13'(cpu_addr)] <= cpu_data;
-        2'd1: if (cpu_addr < 12'(TILE_CPU_WORDS)) tilefont[cpu_addr] <= cpu_data;
-        2'd2: if (cpu_addr < 12'(SPR_PAGE_WORDS))
-                sprite[{sprite_page, cpu_addr[10:0]}] <= cpu_data;
+        2'd0: if (cpu_addr < 13'(TM_WORDS))
+                tilemap[(map_wpage ? 13'(TM_WORDS) : 13'd0) + 13'(cpu_addr[11:0])] <= cpu_data;
+        2'd1: tilefont[cpu_addr[11:0]] <= cpu_data;
+        2'd2: sprite[cpu_addr[12:0]] <= cpu_data;
         2'd3: begin
           if (cpu_addr[7:0] < 8'(OAM_WORDS))
             oam_bits[cpu_addr[3:0]*16 +: 16] <= cpu_data;
@@ -302,8 +302,9 @@ module dvi_tile #(
       raster_line <= 10'd0;
     end else if (cpu_we && cpu_ctrl) begin
       // 0x00 cursor, 0x02 row offset, 0x04 scroll_x, 0x06 scroll_y,
-      // 0x08 {display page, write page}, 0x0A sprite write page.  The display
-      // page and scroll_x are
+      // 0x08 {display page, write page}, 0x0A legacy sprite write page (kept
+      // as a no-op so old code that still stores it keeps working).  The
+      // display page and scroll_x are
       // latched together at the render frame boundary below; the console sees
       // one frame of latency there, and a game can swap a freshly drawn map
       // and its matching pixel offset atomically.

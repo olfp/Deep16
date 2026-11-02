@@ -47,7 +47,7 @@ module deep16_top
   output logic        tile_we,
   output logic        tile_ctrl,
   output logic [1:0]  tile_tgt,
-  output logic [11:0] tile_addr,
+  output logic [12:0] tile_addr,
   output logic [15:0] tile_data,
   // Read-only display status from the tile engine, synchronised into the CPU
   // domain by the board. bit 0 = vblank level, bit 1 = frame toggle.
@@ -615,19 +615,21 @@ module deep16_top
   // not back is read-only fill.
 
 `ifdef D16NANO
-  // CPU console window. Each memory has its own 4K-word page so the window
-  // decode is one comparison per window; the tile engine gets a 2-bit target:
-  //   0xF1000  tilemap (82x26)     0xF3000  tile bank (96 x 32, writable)
-  //   0xF4000  sprite bank        0xF5000  OAM (0x00..0x1F), palette (0x80..0x8F)
+  // CPU console window. The tile, sprite and attribute windows each have a
+  // fixed base, so the decode is one comparison per window; the tile engine
+  // gets a 2-bit target:
+  //   0xF1000  tilemap (82x26)     0xF3000  tile bank (128 x 32, all writable)
+  //   0xF4000  sprite bank (24 groups, 6,144 words = 0xF4000..0xF57FF)
+  //   0xF6000  OAM (0x00..0x0F), palette (0x80..0xAF)
   //   0xF2000/2/4/6  cursor, row offset, scroll_x, scroll_y
   //   0xF2008        tilemap page select (bit 0 write, bit 1 display)
-  //   0xF200A        sprite write page (0 Red/demo, 1 Purple, 2 Yellow)
+  //   0xF200A        legacy sprite write page (accepted, no longer used)
   //   0xF200C        control 6: per-row fine scroll
   //   0xF200E        control 7: raster line compare
   wire tile_hit = mem_we && (mem_waddr >= 21'h0F1000) && (mem_waddr <= 21'h0F1853);
-  wire bank_hit = mem_we && (mem_waddr >= 21'h0F3000) && (mem_waddr <= 21'h0F3BFF);
-  wire spr_hit  = mem_we && (mem_waddr >= 21'h0F4000) && (mem_waddr <= 21'h0F47FF);
-  wire attr_hit = mem_we && (mem_waddr >= 21'h0F5000) && (mem_waddr <= 21'h0F50FF);
+  wire bank_hit = mem_we && (mem_waddr >= 21'h0F3000) && (mem_waddr <= 21'h0F3FFF);
+  wire spr_hit  = mem_we && (mem_waddr >= 21'h0F4000) && (mem_waddr <= 21'h0F57FF);
+  wire attr_hit = mem_we && (mem_waddr >= 21'h0F6000) && (mem_waddr <= 21'h0F60FF);
   wire ctrl_hit = mem_we && ((mem_waddr == 21'h0F2000) || (mem_waddr == 21'h0F2002) ||
                              (mem_waddr == 21'h0F2004) || (mem_waddr == 21'h0F2006) ||
                              (mem_waddr == 21'h0F2008) || (mem_waddr == 21'h0F200A) ||
@@ -635,7 +637,9 @@ module deep16_top
   assign tile_we   = tile_hit || bank_hit || spr_hit || attr_hit || ctrl_hit;
   assign tile_ctrl = ctrl_hit;
   assign tile_tgt  = tile_hit ? 2'd0 : bank_hit ? 2'd1 : spr_hit ? 2'd2 : 2'd3;
-  assign tile_addr = ctrl_hit ? {8'd0, mem_waddr[3:0]} : mem_waddr[11:0];
+  // Only the sprite window needs the 13th address bit; every other window is
+  // decoded from its low 12 bits (their bases are 4K aligned).
+  assign tile_addr = ctrl_hit ? {9'd0, mem_waddr[3:0]} : mem_waddr[12:0];
   assign tile_data = mem_wdata;
 `endif
 

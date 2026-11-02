@@ -29,8 +29,8 @@ supersedes them:
 | TILESIM.md says | Current RTL / tree |
 |---|---|
 | Row offset wraps at 24 | **26-row ring**; visible rows 0–23, margins 24–25 |
-| Sprite bank 2,048 words, one page | **24 groups** (3 pages of 8); CPU window is one page via control 5 |
-| Palette 16 entries at `0xF5080` | **3 banks** (text/art/sprite) at `0x80`, `0x90`, `0xA0`; 48 visible entries in a 64-entry RAM |
+| Sprite bank 2,048 words, one page | **24 groups** (6,144 words) in one flat CPU window; control 5 is a legacy no-op |
+| Palette 16 entries at `0xF5080` | **3 banks** (text/art/sprite) at `0xF6080`, `0xF6090`, `0xF60A0`; 48 visible entries in a 64-entry RAM |
 | Render rule is 4bpp tiles only | Cells are **art (4bpp)** or **text (1bpp, pair + styles)** |
 | D16D image needs `gfx_demo.asm` at `0x4E00` | No such file; D16D is `showcase.asm` + `flappy_game.asm` at `0x4A00` |
 
@@ -45,13 +45,9 @@ These are the rules the implementation follows.
 2. **Graphics live in simulated flash and are loaded at runtime.** The JS core
    already models the 4 MB P25Q32U (`SpiFlash`) on SPI CS1. The asset blob is
    flash contents, not engine state.
-3. **Hardware map is mirrored, with one forward exception.** The sprite bank
-   keeps the current 8-group page (option A is logged in `ERRPLAN.md` as medium
-   priority, not applied). The tile bank is modelled as **all 128 tiles
-   writable**, because a no-ROM loader must be able to fill the 32 slots the
-   current RTL leaves read-only (`ERRPLAN.md`, upper tile-bank entry). That
-   divergence is deliberate and documented; it is the target the RTL will
-   follow.
+3. **The hardware map is mirrored exactly.** The sprite bank is the flat
+   24-group window and the tile bank is **all 128 tiles writable** (both landed
+   in the RTL on 2026-11-02; see `ERRPLAN.md`). No forward divergence remains.
 4. **A reference loader stands in for the future Forth/flash loader.** It
    writes the same CPU windows a loader would, through `engine.write()` and the
    JS memory image. It is test infrastructure, not engine ROM. The real CPU
@@ -69,7 +65,7 @@ a reinterpretation:
 | Tile bank | 128 tiles x 32 words; **simulation: all 128 writable** (target) |
 | Text tiles | 1bpp pages, regular and italic; pair 0–7; underline, bold smear |
 | Art tiles | 4bpp nibbles, low nibble leftmost; word 30 palette pointer ignored |
-| Palettes | 48 visible entries in a 64x16 RAM: text `0xF5080`, art `0xF5090`, sprite `0xF50A0` |
+| Palettes | 48 visible entries in a 64x16 RAM: text `0xF6080`, art `0xF6090`, sprite `0xF60A0` |
 | Controls | 0 cursor, 1 row offset, 2 `scroll_x`, 3 `scroll_y`, 4 write/display bank, 5 sprite write page, 6 per-row table, 7 raster compare |
 | Frame latch | display bank, `scroll_x`, per-row table and enable copy at the frame boundary |
 | Sprites | 8 OAM slots, 24 groups, 32x32, index 0 transparent, slot 0 wins, H/V flip, behind, negative x |
@@ -137,7 +133,7 @@ regenerates it and compares byte for byte.
 - `loadGraphics(engine, sim, blob)` reads it back and writes:
   - tiles `0xF3000 + i` for all 4,096 words (all 128 slots);
   - sprite groups page by page through control 5, eight groups at a time;
-  - palettes `0xF5080..0xF50AF`;
+  - palettes `0xF6080..0xF60AF`;
   - then clears control 5 to page 0.
 - The loader also writes the same addresses into `sim.memory`, so a later CPU
   run sees the loaded image.
@@ -182,10 +178,10 @@ frame, blink
   extended to `0xF3FFF`:
   - `0xF1000..0xF1853` -> selected write bank;
   - `0xF2000..0xF200E` (even) -> controls 0..7;
-  - `0xF3000..0xF3FFF` -> tile bank (simulation target: 128 tiles);
-  - `0xF4000..0xF47FF` -> sprite bank at `spritePage * 2048`;
-  - `0xF5000..0xF500F` -> OAM;
-  - `0xF5080..0xF50AF` -> palettes via `{addr[5:4], addr[3:0]}`.
+  - `0xF3000..0xF3FFF` -> tile bank (all 128 tiles);
+  - `0xF4000..0xF57FF` -> sprite bank (all 24 groups, flat);
+  - `0xF6000..0xF600F` -> OAM;
+  - `0xF6080..0xF60AF` -> palettes via `{addr[5:4], addr[3:0]}`.
   Ignore writes outside windows.
 - `tick()` — frame boundary: latch display bank, `scrollX`, per-row table and
   enable; advance `blink`; increment `frame`.
@@ -279,7 +275,7 @@ profiles, flash-asset load during Assemble, and `tests/ui-tiles.test.js`
    - paint `engine.render()` on `requestAnimationFrame`, only when state changed
      or a frame tick happened.
 3. Info line: tilemap `0xF1000`, controls `0xF2000`, bank `0xF3000`, sprites
-   `0xF4000`, OAM/palette `0xF5000`.
+   `0xF4000`, OAM/palette `0xF6000`.
 4. Input: tile mode routes keys to the UART, not the PS/2 FIFO; canvas click
    focuses the hidden `#terminal-kbd-hook`.
 5. Build profile: `tiles` sets `{ CONSOLE_UART: 1, D16NANO: 1 }`; the D16D

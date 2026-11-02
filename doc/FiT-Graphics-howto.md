@@ -34,12 +34,12 @@ tile engine and to the PSRAM/Forth mirror at the same address.
 | `0xF200A` | control 5: sprite **write** page 0..2 (3 clamps to 0) |
 | `0xF200C` | control 6: per-row fine scroll `{en, row[4:0], fine[2:0]}` |
 | `0xF200E` | control 7: raster line compare 0..359 |
-| `0xF3000`–`0xF3BFF` | tile bank, 96 CPU-writable tiles x 32 words |
-| `0xF4000`–`0xF47FF` | sprite bank, 8 groups x 16 patterns x 16 words (one write page) |
-| `0xF5000`–`0xF500F` | OAM, eight sprites x two words |
-| `0xF5080`–`0xF508F` | text palette, eight paper/ink pairs |
-| `0xF5090`–`0xF509F` | art palette, 16 RGB332 entries |
-| `0xF50A0`–`0xF50AF` | sprite palette, 16 RGB332 entries |
+| `0xF3000`–`0xF3FFF` | tile bank, all 128 tiles x 32 words |
+| `0xF4000`–`0xF57FF` | sprite bank, all 24 groups x 16 patterns x 16 words |
+| `0xF6000`–`0xF600F` | OAM, eight sprites x two words |
+| `0xF6080`–`0xF608F` | text palette, eight paper/ink pairs |
+| `0xF6090`–`0xF609F` | art palette, 16 RGB332 entries |
+| `0xF60A0`–`0xF60AF` | sprite palette, 16 RGB332 entries |
 
 The board has a 16-entry FIFO between the CPU and the pixel clock. Tile
 writes are asynchronous: a write lands in the pixel domain within a few clocks
@@ -113,9 +113,10 @@ The tile bank holds 128 tiles of 32 words:
 | `0x620`–`0xBFF` | 47 free 32-word slots for game art |
 | `0xC00`–`0xFFF` | 32 baked 4bpp art tiles (14 used by the showcase) |
 
-The CPU window `0xF3000`–`0xF3BFF` covers the first 96 tiles (words 0–3071).
-Tiles 96–127 at `0xC00` are baked into the bitstream by
-`scripts/make_tile_font.mjs`; the CPU cannot rewrite them at runtime.
+The CPU window `0xF3000`–`0xF3FFF` covers all 128 tiles (words 0–4095).
+Tiles 96–127 at `0xC00` are seeded at configuration by
+`scripts/make_tile_font.mjs`, but the CPU can rewrite any of them at runtime;
+a game image may replace the console font.
 
 ### 2.4 Art tile format
 
@@ -129,7 +130,7 @@ word 31     reserved (the build writes flags, currently 0)
 ```
 
 `r` is 0..14. Each pixel is a 4-bit index into the **art palette bank**
-(`0xF5090`–`0xF509F`). Index 0 is a normal colour for art tiles, not a
+(`0xF6090`–`0xF609F`). Index 0 is a normal colour for art tiles, not a
 transparent key: art tiles are opaque. The current renderer reads only words
 0–29; flipping and priority are sprite features, not tile features.
 
@@ -165,9 +166,9 @@ All three banks hold 16 **RGB332** entries (`RRRGGGBB`):
 
 | Bank | Window | Used by |
 |---|---|---|
-| text | `0xF5080`–`0xF508F` | text cells: entry `2p` paper, `2p+1` ink |
-| art | `0xF5090`–`0xF509F` | mode-0 tiles, index `pix[3:0]` |
-| sprite | `0xF50A0`–`0xF50AF` | every sprite, index 0 transparent |
+| text | `0xF6080`–`0xF608F` | text cells: entry `2p` paper, `2p+1` ink |
+| art | `0xF6090`–`0xF609F` | mode-0 tiles, index `pix[3:0]` |
+| sprite | `0xF60A0`–`0xF60AF` | every sprite, index 0 transparent |
 
 Power-up colours come from `tilepal3.hex`, which copies the same 16 entries
 into all three banks. Palette writes are not frame-latched, so change them
@@ -215,9 +216,10 @@ the baked slots are used by the showcase, leaving **65 free art tiles** (47
 gap + 18 baked) without touching text or the blank tile. Tile 0 itself is one
 more if a program does not need a blank tile.
 
-If a game gives up the console font it can use the 96 CPU-writable slots for
-its own art, and the 32 baked slots are still there. That gives the full 128
-tile slots, but tiles 96–127 have to be baked into the bitstream.
+If a game gives up the console font it can use the 96 glyph slots for its own
+art, and the 32 baked slots are still there. That gives the full 128 tile
+slots; tiles 96–127 are seeded at configuration but remain CPU-writable, so a
+game can replace the font at runtime.
 
 Text costs 48 slots: 24 for the regular page and 24 for the italic page. A
 game that only needs uppercase and digits can build a smaller page, but the
@@ -256,8 +258,8 @@ separate and unaffected.
 3 attr                  \ the rest of the console uses pair 3
 ```
 
-`pal!` writes `0xF5080 + 2p` and `0xF5080 + 2p + 1`. The art and sprite
-equivalents are `art-pal!` (`0xF5090`) and `sprite-pal!` (`0xF50A0`).
+`pal!` writes `0xF6080 + 2p` and `0xF6080 + 2p + 1`. The art and sprite
+equivalents are `art-pal!` (`0xF6090`) and `sprite-pal!` (`0xF60A0`).
 
 ### 4.2 The style bits
 
@@ -574,19 +576,18 @@ All sprite memory is word-addressed, written by the CPU like ordinary RAM.
 
 | Address | Words | What |
 |---|---|---|
-| `0xF4000`–`0xF47FF` | 2,048 | sprite pattern bank, **one page** (8 groups) |
-| `0xF5000`–`0xF500F` | 16 | OAM, two words per sprite |
-| `0xF5080`–`0xF508F` | 16 | text palette bank: eight paper/ink pairs |
-| `0xF5090`–`0xF509F` | 16 | art palette bank (mode-0 tiles) |
-| `0xF50A0`–`0xF50AF` | 16 | sprite palette bank, RGB332 |
-| `0xF200A` | 1 | control 5: sprite **write** page, bits 1:0 |
+| `0xF4000`–`0xF57FF` | 6,144 | sprite pattern bank, **all 24 groups** |
+| `0xF6000`–`0xF600F` | 16 | OAM, two words per sprite |
+| `0xF6080`–`0xF608F` | 16 | text palette bank: eight paper/ink pairs |
+| `0xF6090`–`0xF609F` | 16 | art palette bank (mode-0 tiles) |
+| `0xF60A0`–`0xF60AF` | 16 | sprite palette bank, RGB332 |
+| `0xF200A` | 1 | control 5: legacy sprite write page (accepted, unused) |
 
-The bank at `0xF4000` is a **write** window, not the whole memory: the
-hardware holds 24 groups (3 pages of 8) and control 5 selects which page the
-CPU writes. The renderer uses the absolute OAM group 0..23, so the write page
-never constrains what is on screen. Page 3 is not a page and clamps to 0. OAM
-is a register file and the palette banks are writable RAM; both can be updated
-at any time.
+The window at `0xF4000`–`0xF57FF` covers **all 24 groups** (6,144 words): the
+CPU writes `0xF4000 + group * 256 + ...` directly. Control 5 and the OAM group
+are both absolute, so no paging is involved. Control 5 is still accepted for
+old images (page 3 clamps to 0) but has no effect. OAM is a register file and
+the palette banks are writable RAM; both can be updated at any time.
 
 ### 7.2 OAM: where a sprite is and what it shows
 
@@ -627,14 +628,14 @@ words. The bank holds 24 groups, and the OAM group is the flat index:
 
 ```
 absolute group = OAM w1 bits 15:11     (0..23)
-write page     = control 5, bits 1:0   (0..2; page 3 clamps to 0)
+write offset   = 0xF4000 + group * 256
 ```
 
-The write page only selects which 8-group page the CPU window at `0xF4000`
-writes; the renderer never adds it to the group. Groups 0,1,8,9,16,17 are
-unused in the baked bank. Groups 10 and 18 are duplicates of the page-1 and
-page-2 clouds, so they can be repurposed only if those pages do not need the
-cloud.
+The sprite window is flat: the CPU writes the group's own 256 words, and the
+OAM group selects the same index at render time. Control 5 (the old page
+register) is a no-op. Groups 0,1,8,9,16,17 are unused in the baked bank.
+Groups 10 and 18 are duplicates of the page-1 and page-2 clouds, so they can be
+repurposed only if those pages do not need the cloud.
 
 The eight OAM slots can therefore each select any of the 24 groups: **8
 visible sprites out of 24 graphics**. More OAM slots would only add more
@@ -648,9 +649,9 @@ word  = group * 256 + tile * 16 + (row % 8) * 2 + (col % 8) / 4
 shift = (col % 4) * 4                   ; low nibble is the leftmost pixel
 ```
 
-`group` is the absolute bank group for baking. For a runtime write through the
-`0xF4000` window, set control 5 to `group >> 3` and use `group & 7` in the
-formula; the window only exposes one page.
+`group` is the absolute bank group for baking and for a runtime write: the
+`0xF4000`–`0xF57FF` window covers all 24 groups, so the same `group * 256`
+offset applies. Control 5 is a legacy no-op and need not be written.
 
 Each word is four pixels. Empty pixels **must be 0** — that is the
 transparent key.
@@ -662,12 +663,10 @@ There are two ways to get art into the bank:
   there. `scripts/make_bird_sprite.mjs` builds that file (and
   `scripts/make_image.mjs` writes it next to the boot image). This is how the
   three bird pages and the shared cloud ship.
-* **Write it at runtime.** Set the write page with control 5, then store words
-  at `0xF4000 + offset`, where `offset` is relative to that page:
-  `offset = (group & 7) * 256 + tile * 16 + ...`. Only the selected page is
-  writable, and a write changes the sprite on the next composed line, so treat
-  another page as the back buffer if you redraw animated art. The renderer
-  still uses the absolute group in OAM.
+* **Write it at runtime.** Store words at `0xF4000 + group * 256 + tile * 16 +
+  ...`; the window covers all 24 groups. A write changes the sprite on the next
+  composed line, so keep two groups as front/back buffers if you redraw
+  animated art. The renderer uses the same absolute group in OAM.
 
 ### 7.4 Palette
 
@@ -675,9 +674,9 @@ Three banks of 16 **RGB332** (`RRRGGGBB`) entries share one 64 x 16 BSRAM:
 
 | Window | Bank | Used by |
 |---|---|---|
-| `0xF5080`–`0xF508F` | text | pair-mode tile cells, eight `paper`/`ink` pairs |
-| `0xF5090`–`0xF509F` | art | mode-0 tile cells (`pix[3:0]`) |
-| `0xF50A0`–`0xF50AF` | sprite | every sprite, shared by all eight slots |
+| `0xF6080`–`0xF608F` | text | pair-mode tile cells, eight `paper`/`ink` pairs |
+| `0xF6090`–`0xF609F` | art | mode-0 tile cells (`pix[3:0]`) |
+| `0xF60A0`–`0xF60AF` | sprite | every sprite, shared by all eight slots |
 
 Sprite pixels are indices 0–15 into the sprite bank. A mode-1 text cell
 `0x8000 | (pair << 12) | tile` reads text entry `2p` when the glyph bit is 0
@@ -700,22 +699,15 @@ colours.
 ```asm
 .equ SEG_CTRL -0x0E00        ; ES 0xF200 -> window 0xF2000 (control)
 .equ SEG_SPR  -0x0C00        ; ES 0xF400 -> window 0xF4000 (sprite bank)
-.equ SEG_OAM  -0x0B00        ; ES 0xF500 -> window 0xF5000 (OAM/palette)
+.equ SEG_OAM  -0x0A00        ; ES 0xF600 -> window 0xF6000 (OAM/palette)
 
-; 1. select the CPU write page (0..2); the render group is absolute
-    LDI SEG_CTRL
-    MVS ES, R0
-    LSI R2, 0x0A
-    LSI R3, 0
-    STS R3, ES, R2
-
-; 2. (optional) load patterns into 0xF4000 + (group&7)*256 + ...
-;    after selecting the group's page; or use the baked art.
+; 1. (optional) load patterns into 0xF4000 + group*256 + ...
+;    the window covers all 24 groups; or use the baked art.
 
 ; 3. (optional) set sprite palette entry 2 (the body colour)
     LDI SEG_OAM
     MVS ES, R0
-    LSI R2, 0xA2             ; 0xF50A0 + 2: sprite bank, entry 2
+    LSI R2, 0xA2             ; 0xF60A0 + 2: sprite bank, entry 2
     LDI 0x84                 ; RGB332
     MOV R3, R0
     STS R3, ES, R2
@@ -803,7 +795,7 @@ in control 5 belongs to the write, not to the OAM.
 | `FROGPLAN.md` | per-row lane mapping and the Frogger plan |
 | `COLORTEXT.md` | pair-mode design notes and area cost |
 | `tests/showcase-art.test.js` | bank layout and palette agreement |
-| `tests/showcase-death.test.js` | OAM, sprite write page and animation checks |
+| `tests/showcase-death.test.js` | OAM, palette and animation checks |
 
 Simulation: `npm run sim:dvi:tile` exercises the tilemap, text/art fetch,
 palette pairs, styles, scroll, per-row phases, the raster toggle, 32x32 sprite

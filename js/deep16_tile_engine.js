@@ -6,9 +6,8 @@
  * powerOn() leaves every bank and palette blank, and a loader writes the CPU
  * windows the same way the board will load them from flash.
  *
- * Deliberate forward model: all 128 tile slots are writable here, while the
- * current RTL exposes 96 (see ERRPLAN, upper tile bank). Sprite groups keep the
- * hardware's 8-group write page.
+ * The model tracks the widened CPU windows: all 128 tile slots and all 24
+ * sprite groups are directly writable, and OAM/palette sit at 0xF6000.
  */
 class Deep16TileEngine {
   constructor() {
@@ -23,8 +22,8 @@ class Deep16TileEngine {
     this.TILE_COUNT = 128;
     this.TILE_WORDS = 32;
     this.SPR_GROUPS = 24;
-    this.SPR_PAGE_WORDS = 8 * 256;
     this.SPR_WORDS = this.SPR_GROUPS * 256;
+    this.SPR_WINDOW_WORDS = this.SPR_WORDS;
     this.OAM_WORDS = 16;
     this.PALETTE_WORDS = 48;
 
@@ -117,6 +116,8 @@ class Deep16TileEngine {
           this.mapWrite = value & 1;
           this.mapDisplayNext = (value >> 1) & 1;
           break;
+        // Legacy write page: the register still latches for compatibility,
+        // but the sprite window covers all 24 groups, so it selects nothing.
         case 0xA: this.spritePage = (value & 3) === 3 ? 0 : (value & 3); break;
         case 0xC: {
           const row = (value >> 3) & 0x1F;
@@ -129,12 +130,12 @@ class Deep16TileEngine {
       }
     } else if (addr >= 0xF3000 && addr <= 0xF3FFF) {
       this.tileBank[addr - 0xF3000] = value;
-    } else if (addr >= 0xF4000 && addr <= 0xF47FF) {
-      this.spriteBank[this.spritePage * this.SPR_PAGE_WORDS + (addr - 0xF4000)] = value;
-    } else if (addr >= 0xF5000 && addr <= 0xF500F) {
-      this.oam[addr - 0xF5000] = value;
-    } else if (addr >= 0xF5080 && addr <= 0xF50AF) {
-      this.palette[addr - 0xF5080] = value & 0xFF;
+    } else if (addr >= 0xF4000 && addr <= 0xF57FF) {
+      this.spriteBank[addr - 0xF4000] = value;
+    } else if (addr >= 0xF6000 && addr <= 0xF600F) {
+      this.oam[addr - 0xF6000] = value;
+    } else if (addr >= 0xF6080 && addr <= 0xF60AF) {
+      this.palette[addr - 0xF6080] = value & 0xFF;
     } else {
       handled = false;
     }

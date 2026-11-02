@@ -52,16 +52,17 @@ static int count_raster(long n) {
 
 static void write_tile(int addr, uint16_t data) {
   top->cpu_we = 1; top->cpu_ctrl = 0; top->cpu_tgt = 0;
-  top->cpu_addr = addr & 0xFFF; top->cpu_data = data;
+  top->cpu_addr = addr & 0x1FFF; top->cpu_data = data;
   tick();
   top->cpu_we = 0;
   tick();
 }
 
-// Tile bank (1) and OAM/palette (3) share the same write shape as the tilemap.
+// Every window shares the same write shape; the address is the offset into
+// the window (the sprite bank needs the 13th bit for its 24 groups).
 static void write_win(int tgt, int addr, uint16_t data) {
   top->cpu_we = 1; top->cpu_ctrl = 0; top->cpu_tgt = tgt;
-  top->cpu_addr = addr & 0xFFF; top->cpu_data = data;
+  top->cpu_addr = addr & 0x1FFF; top->cpu_data = data;
   tick();
   top->cpu_we = 0;
   tick();
@@ -150,6 +151,7 @@ int main(int argc, char** argv) {
 
   // H tile at tilemap[0]; visible cursor at row 0 column 1 so it does not
   // overlap the sampled cell.
+  int r = 0, g = 0, b = 0; bool seen = false;
   const int h_base = 32 + (0x48 - 0x20) * 8; // tile 0 is blank; pages at 32
   const int a_base = 32 + (0x41 - 0x20) * 8;
   const int hi_base = 32 + 768 + (0x48 - 0x20) * 8;
@@ -272,6 +274,22 @@ int main(int argc, char** argv) {
   check("bank tile uses palette entry 1 (red)", (long)solid_r, 0xFF);
   check("palette green is zero", (long)solid_g, 0);
   check("palette blue is zero", (long)solid_b, 0);
+
+  // ---- upper tile bank: tiles 96..127 are CPU-writable too --------------
+  // The console font lives in the top 32 slots; a game image may replace it.
+  write_win(3, 0x92, 0x0003);              // art entry 2 = full blue
+  for (int w = 0; w < 32; w++) write_win(1, 96 * 32 + w, (w < 30) ? 0x2222 : 0x0000);
+  write_tile(0, 96 * 32);                  // map cell 0 -> art tile 96
+  sample_pixel(0, 0, &r, &g, &b, &seen);
+  check("tile 96 (upper bank) is CPU-writable (blue)",
+        r * 1000 + g * 10 + b, 0 * 1000 + 0 * 10 + 255);
+
+  for (int w = 0; w < 32; w++) write_win(1, 127 * 32 + w, (w < 30) ? 0x1111 : 0x0000);
+  write_tile(0, 127 * 32);                 // map cell 0 -> art tile 127
+  sample_pixel(0, 0, &r, &g, &b, &seen);
+  check("tile 127 (last) is CPU-writable (red)",
+        r * 1000 + g * 10 + b, 255 * 1000 + 0 * 10 + 0);
+  write_tile(0, 0);                        // restore the solid red tile 0
 
   // ---- horizontal smooth scroll -----------------------------------------
   write_tile(1, 0x8000 | 0x0420);          // A in map column 1
@@ -437,7 +455,6 @@ int main(int argc, char** argv) {
   write_win(3, 3, 100 | (1 << 11));                            // y=100, group 1
   write_ctrl(0, 0);                                            // cursor off
 
-  int r = 0, g = 0, b = 0; bool seen = false;
   sample_pixel(17, 100, &r, &g, &b, &seen);
   check("front sprite pixel is green", r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
   sample_pixel(19, 100, &r, &g, &b, &seen);
@@ -521,23 +538,31 @@ int main(int argc, char** argv) {
   check("vblank level is observable", vblank_seen ? 1 : 0, 1);
   check("frame toggle changes across frames", ft_changes >= 1 ? 1 : 0, 1);
 
-  // ---- flat sprite groups: absolute group and negative-x clipping ---------
-  // Group 8 is page 1 group 0; it gets a blue pattern. Page 0 group 0 is the
-  // green pattern from the tests above. The OAM pointer selects the group
-  // directly; the page register is only the CPU write window.
+  // ---- flat sprite groups: all 24 in one window --------------------------
+  // The CPU window covers the whole 24-group bank (6,144 words); the OAM group
+  // pointer is absolute and control 5 no longer pages the pattern bank.
   write_ctrl(8, 0);                          // map write page 0
-  write_ctrl(10, 1);                         // sprite write page 1
-  check("sprite write page takes 1", top->dbg_spage, 1);
-  for (int w = 0; w < 64; w++) write_win(2, w, 0x0444);   // page 1, group 0 = absolute 8
+  write_ctrl(10, 1);                         // legacy page register still latches
+  check("legacy sprite page takes 1", top->dbg_spage, 1);
+  for (int w = 0; w < 64; w++) write_win(2, 8 * 256 + w, 0x0444);   // group 8, entry 4
   write_win(3, 0, 16 | 0x0800);              // sprite 0: x=16, enable
   write_win(3, 1, 160 | (8 << 11));          // y=160, absolute group 8
   sample_pixel(17, 160, &r, &g, &b, &seen);
-  check("absolute group 8 selects page 1 (blue)",
+  check("group 8 written in the flat window (blue)",
         r * 1000 + g * 10 + b, 0 * 1000 + 0 * 10 + 255);
+
+  // Group 23 is the last one; the store at offset 23*256 needs the 13th
+  // address bit, so it only works with the widened window.
+  write_win(3, 0xA5, 0x00E0);               // sprite entry 5 = full red
+  for (int w = 0; w < 64; w++) write_win(2, 23 * 256 + w, 0x0555);
+  write_win(3, 1, 160 | (23 << 11));         // y=160, absolute group 23
+  sample_pixel(17, 160, &r, &g, &b, &seen);
+  check("group 23 (last) written in the flat window (red)",
+        r * 1000 + g * 10 + b, 255 * 1000 + 0 * 10 + 0);
 
   write_win(3, 1, 160 | (0 << 11));          // same sprite, absolute group 0
   sample_pixel(17, 160, &r, &g, &b, &seen);
-  check("absolute group 0 selects page 0 (green)",
+  check("absolute group 0 selects the group 0 pattern (green)",
         r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
 
   // A group past the 24-group bank disables the sprite; page 3 is not a
@@ -547,7 +572,19 @@ int main(int argc, char** argv) {
   check("group 24 is out of range and draws nothing",
         r * 1000 + g * 10 + b, 255 * 1000 + 0 * 10 + 0);
   write_ctrl(10, 3);
-  check("sprite write page 3 clamps to 0", top->dbg_spage, 0);
+  check("legacy sprite page 3 clamps to 0", top->dbg_spage, 0);
+
+  // The legacy page has no effect on where a store lands: with page 2
+  // selected, offset 0 still writes group 0 (the old paging would have
+  // written group 16).
+  write_ctrl(10, 2);
+  for (int w = 0; w < 64; w++) write_win(2, w, 0x0444);
+  write_win(3, 1, 160 | (0 << 11));
+  sample_pixel(17, 160, &r, &g, &b, &seen);
+  check("control 5 does not redirect the sprite window (blue)",
+        r * 1000 + g * 10 + b, 0 * 1000 + 0 * 10 + 255);
+  for (int w = 0; w < 64; w++) write_win(2, w, 0x0222);   // group 0 back to green
+  write_ctrl(10, 0);
 
   // Negative x: x=1000 means -24 with the sign bit in w0[10]. Only the
   // sprite's pixels 24..31 can land on screen x=0..7.
