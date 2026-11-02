@@ -4,6 +4,12 @@ Status: **open items, newest first.** Each entry records what was observed, how
 it was reproduced, the intended behaviour and the fix to investigate. Fixes are
 not applied until the entry is updated with the result and tests.
 
+> **Current baseline (2026-11-02).** `npm test`: **741 pass**. `npm run
+> synth:tile` after the 26-row scroll ring: **4,312 / 4,320 CLS (8 free)**,
+> BSRAM 26/26, SSRAM 190; `dvi_render` 28.011 MHz, `dvi_pixel` 75.017 MHz,
+> `psram_clk` 93.009 MHz, all TNS 0. Plan the open RTL items against **8 free
+> CLS**, not the 11 quoted in the older entries.
+
 ---
 
 ## 2026-11-02 — Open discussion: extend the art tile bank using spare cell bits
@@ -213,7 +219,7 @@ stay unchanged — this is set swapping, not more simultaneous sprites.
 **Budget:** no new BSRAM block for 64 OAM + 8 palette sets. Sixteen palette sets
 would consume the full 1,024-word block and leave no room for OAM in it; that
 variant needs OAM in flops or a second block. The control/mux/reset logic adds
-CLS against the current 11-free budget, so this must be measured, not assumed.
+CLS against the current 8-free budget, so this must be measured, not assumed.
 
 **Verification:** extend `rtl/sim/dvi_tile_tb.cpp` for OAM base wrap, palette
 set selection, one-store swap, reset clear, write/read latency and a raster
@@ -430,7 +436,7 @@ checked with `npm run synth:tile`, not assumed.
 If changing the terminal to 26 rows is too invasive, the fallback is to keep
 the terminal on 24 rows and select a 26-row wrap for games when
 `scroll_y != 0`. That adds a small comparator/mux in the fill path, likely a
-few CLS — measure it against the **11 free CLS**. In that fallback the game
+few CLS — measure it against the **8 free CLS**. In that fallback the game
 keeps `row_off = 0`, so its sum stays below 26 and the existing 5-bit
 subtraction is enough; the terminal keeps its 24-row range. If the fallback
 does not fit either, the zero-RTL option is a full-frame redraw into the back
@@ -443,8 +449,11 @@ arithmetic at `tile_off = 24/25`; run `npm run synth:tile` and compare CLS.
 
 **Status:** RTL/terminal and the game-side helper/demo are implemented;
 `tests/scroll4.test.js` verifies the margins and measures the cost. At
-1 px/frame the helper costs about 10.7 % of a 60 Hz frame on core3; the Gowin
-CLS check is still pending. See `SCROLLPLAN.md`.
+1 px/frame the helper costs about 10.7 % of a 60 Hz frame on core3.
+**Gowin check (2026-11-02):** 4,312 / 4,320 CLS (8 free), BSRAM 26/26,
+SSRAM 190; `dvi_render` 28.011, `dvi_pixel` 75.017, `psram_clk` 93.009 MHz,
+all TNS 0. The bitstream is built; board flash/test of the ring is pending.
+See `SCROLLPLAN.md`.
 
 ---
 
@@ -550,7 +559,7 @@ terminal:
 4. `doc/FiT-Graphics-howto.md`, `rtl/dvi/README.md` and `MEMMAP.md` describe
    the centred four-direction window.
 
-**Remaining:** the game-side ring helper (see `SCROLLPLAN.md`) and the Gowin
-CLS/timing check. The toolchain is not available in this environment.
+**Remaining:** the game-side ring helper is in `SCROLLPLAN.md`; the Gowin
+check is in the 2026-10-31 scroll entry (4,312 / 4,320 CLS, all TNS 0).
 
 **Status:** fixed in RTL and terminal; tile simulation and full test suite pass.
