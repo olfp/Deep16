@@ -372,10 +372,21 @@ fetch state dominate), so it is not a useful fallback.
       `40 raster-line!`, `raster-on`) the counter advances only **2-3 times per
       second**, not ~60, so the raster IRQ pulse itself is wrong on hardware.
       The compare register, the handler and the palette are all downstream of
-      that. Next step is to measure `dvi_raster_toggle` (scope or a spare LED)
-      and the board's two-flop sync, not the band code. Everything else in this
-      plan is verified; the band stays experimental until the pulse rate is
-      60 per second.
+      that. Everything else in this plan is verified; the band stays
+      experimental until the pulse rate is 60 per second.
+
+      **Next session (agreed 2026-11-02):**
+      1. Delete the now-unused `sprite_page` register (control 5 bits 1:0 are
+         retired) — frees about 5 CLS.
+      2. Put the synchronised `dvi_raster_toggle` into display-status bit 4
+         (`0xF0066`), alongside the existing vblank/frame/button/UART bits.
+      3. Read `0x66 es@` and check bit 4 (`0x10`) toggles ~60 times a second.
+         - Toggles: the toggle is fine and the fault is in the edge detect or
+           the SIC's bit 3; probe the pulse next.
+         - Does not toggle (or only 2-3 times a second): the fault is in the
+           tile engine's compare or the board's two-flop synchroniser.
+      4. Fix the pulse path, then re-run the band test (`split!`) and record
+         the measured edge offset (expect the band 1-2 lines low).
 
 ---
 
