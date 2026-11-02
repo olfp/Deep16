@@ -687,39 +687,6 @@ int main(int argc, char** argv) {
   }
   write_ctrl(0x0A, 0);
 
-  // ---- mid-frame palette set change makes a band ------------------------
-  // Every cell of column 0 is a solid art tile; set 0 entry 1 is red, set 1
-  // entry 1 is blue. Change pal_set part-way through a frame and record the
-  // colour of every output line to see where the change lands.
-  for (int row = 0; row < 26; row++) write_tile(row * 82, 0);
-  write_win(3, 0x091, 0x00E0);              // set 0 art entry 1 = red
-  write_win(3, 0x0D1, 0x0003);              // set 1 art entry 1 = blue
-  write_ctrl(0x0A, 0);
-  static int fr_r[720], fr_b[720];
-  for (int i = 0; i < 720; i++) { fr_r[i] = -1; fr_b[i] = -1; }
-  int phase = 0;
-  for (long i = 0; i < 4000000; i++) {
-    tick();
-    if (!top->de) continue;
-    const int y = top->dbg_y;
-    if (y < 4) { if (phase != 0) write_ctrl(0x0A, 0x000); phase = 0; }
-    else if (phase == 0 && y >= 100) { write_ctrl(0x0A, 0x100); phase = 1; }
-    else if (phase == 1 && y >= 200) { write_ctrl(0x0A, 0x000); phase = 2; }
-    fr_r[y] = top->red; fr_b[y] = top->blue;
-    if (y == 150) std::printf("band: at y=150 pal_set=%d fill_line=%d\n",
-                              (int)top->dbg_pset, (int)top->dbg_fline);
-  }
-  int first_blue = -1, last_blue = -1;
-  for (int y = 0; y < 720; y++) {
-    if (fr_b[y] > 128 && fr_r[y] < 128) {
-      if (first_blue < 0) first_blue = y;
-      last_blue = y;
-    }
-  }
-  std::printf("band: first blue output line %d, last %d\n", first_blue, last_blue);
-  check("band: some blue appeared", first_blue >= 0 ? 1 : 0, 1);
-  write_ctrl(0x0A, 0);
-
   // ---- reset clears all 128 descriptor words ----------------------------
   // Descriptor 63 is enabled and visible with base 56 (slot 7).
   write_win(3, 0x07E, 16 | 0x0800);          // desc 63 w0

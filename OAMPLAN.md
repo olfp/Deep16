@@ -361,8 +361,15 @@ fetch state dominate), so it is not a useful fallback.
       screen is normal, with 40/160 or 100/110 whole frames alternate green vs
       normal; `raster-ticks` shows ~2 IRQs per frame; control 5 and control 7
       read back alternating in the mirror; the RTL simulation draws the band at
-      output lines 102-201 for a 100/200 request. Next probe would be a
-      fill-time latch of `pal_set` readable by software.
+      output lines 102-201 for a 100/200 request. A hardware probe (a per-frame
+      "did the top 32 lines use set 1" bit in the display-status word) does not
+      fit: at 4,311/4,320 CLS the placer leaves 4 LUTs unplaced and the scan
+      path misses setup by 0.24 ns, so the probe was reverted. The screenshots
+      already show whole frames (text cells green, blank art cells black), so
+      the engine applies one palette set per frame. The remaining question is
+      why the chained compare does not split the compositor; the cheapest next
+      test is a wall-clock measurement of raster IRQs per frame, since a stuck
+      compare gives one per frame instead of two.
 
 ---
 
