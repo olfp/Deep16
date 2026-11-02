@@ -151,9 +151,11 @@ variable nm-l drop
 \ split! arms control 7 at line a; the IRQ handler writes the scene value
 \ there and rewrites control 7 to line b, where it restores scene 0. One
 \ store per split, chained by the handler, so the band is stable.
-0xBA constant split-la
-0xBC constant split-val
-0xBE constant split-lb
+\ The parameters sit just past the SIC page: the SIC decodes 0xB0-0xBF and
+\ returns 0 for registers it does not implement, so 0xBA/0xBC/0xBE read back 0.
+0xC0 constant split-la
+0xC2 constant split-val
+0xC4 constant split-lb
 : split! ( scene a b -- )
    split-lb es! split-la es! split-val es!
    split-la es@ raster-line! raster-on ;

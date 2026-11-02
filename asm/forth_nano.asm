@@ -15517,9 +15517,11 @@ irq_handler:
 
     ; Optional raster band: control 5 changes at lineA and changes back at
     ; lineB, so the split is stable instead of alternating every frame.
-    ;   0xBA = lineA, 0xBC = scene value (control 5), 0xBE = lineB
+    ;   0xC0 = lineA, 0xC2 = scene value (control 5), 0xC4 = lineB
+    ; These sit just past the SIC page: the SIC decodes 0xB0-0xBF and returns 0
+    ; for the registers it does not implement, so parameters must live outside.
     ; A zero scene value disables the band.
-    LDI 0xBC
+    LDI 0xC2
     MOV R2, R0
     LDS R1, ES, R2           ; band scene value
     AND R1, R1
@@ -15527,7 +15529,7 @@ irq_handler:
     LDI 0x200E
     MOV R2, R0
     LDS R3, ES, R2           ; current raster compare line
-    LDI 0xBA
+    LDI 0xC0
     MOV R2, R0
     LDS R0, ES, R2           ; lineA
     CMP R3, R0
@@ -15535,7 +15537,7 @@ irq_handler:
     LDI 0x200A
     MOV R2, R0
     STS R1, ES, R2           ; control 5 = band scene
-    LDI 0xBE
+    LDI 0xC4
     MOV R2, R0
     LDS R1, ES, R2           ; lineB
     LDI 0x200E
@@ -15549,7 +15551,7 @@ irq_split_end:
     LDI 0
     MOV R3, R0
     STS R3, ES, R2           ; control 5 = base scene
-    LDI 0xBA
+    LDI 0xC0
     MOV R2, R0
     LDS R1, ES, R2           ; lineA
     LDI 0x200E
