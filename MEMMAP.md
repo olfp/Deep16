@@ -351,16 +351,14 @@ and is also a normal PSRAM/Forth store at the same address.
 | `0xF2004` | control 2 | smooth `scroll_x` (0..15), latched with control 4 at the frame boundary; 8 = centre for four-direction play |
 | `0xF2006` | control 3 | smooth `scroll_y` (0..30); 15 = centre for four-direction play |
 | `0xF2008` | control 4 | b0 write bank, b1 display bank (display bank and `scroll_x` swap at the render frame boundary) |
-| `0xF200A` | control 5 | legacy sprite write page (b1:0, 3 clamps to 0); accepted but no longer used — the sprite window covers all 24 groups |
+| `0xF200A` | control 5 | scene select: b1:0 legacy sprite page (unused), b7:2 OAM base descriptor 0–63, b10:8 palette set 0–7 |
 | `0xF200C` | control 6 | per-row fine scroll: `{en, row[4:0], fine[2:0]}`; latched at the frame boundary |
 | `0xF200E` | control 7 | raster line compare 0..359 (`b9:0`); one SIC bit-3 pulse per frame |
 | `0xF3000`–`0xF3FFF` | tile bank | CPU window over **all 128 tiles** × 32 words: 30 words of 8×15 4bpp, words 30–31 reserved (currently zero) |
 | `0xF4000`–`0xF57FF` | sprite bank | **all 24 groups** × 16 patterns × 16 words = 6,144 words, contiguous; the OAM group is absolute. Control 5 is a compatibility no-op. |
-| `0xF6000`–`0xF600F` | OAM | 8 sprites × 2 words: `w0={behind,vflip,hflip,free,enable,xsign,x[9:0]}`, `w1={group[4:0],free,y[9:0]}` |
-| `0xF6080`–`0xF608F` | text palette | 8 pairs: entry `2p` = paper, `2p+1` = ink |
-| `0xF6090`–`0xF609F` | art palette | 16 × RGB332 entries for mode-0 tiles |
-| `0xF60A0`–`0xF60AF` | sprite palette | 16 × RGB332 entries shared by all eight sprites |
-| rest of `0xF6000`–`0xF60FF` | — | reserved |
+| `0xF6000`–`0xF607F` | OAM | 64 descriptors × 2 words: `w0={behind,vflip,hflip,free,enable,xsign,x[9:0]}`, `w1={group[4:0],free,y[9:0]}`. Visible slot `n` = descriptor `(base+n) mod 64` |
+| `0xF6080`–`0xF627F` | palettes | 8 sets × 4 banks × 16 entries: set `s`, bank `b` (0 text, 1 art, 2 sprite, 3 spare), entry `e` at `0xF6080 + s*64 + b*16 + e`. Set 0 is the old text/art/sprite layout |
+| rest of `0xF6280`–`0xF62FF` | — | reserved |
 
 Tile cell convention: mode 0 (`bit 15 = 0`) is the old art cell, where
 `bits 11:0` are a 32-word-aligned tile address and the 4bpp pixel index reads
@@ -581,7 +579,9 @@ These describe the browser/headless model, not the board:
   slots** and **all 24 sprite groups** are writable, and OAM/palette live at
   `0xF6000`. Font, art, sprites and palettes load from a simulated config-flash
   blob through those windows; the runtime board loader is still open.
-* Control 5 (the old 8-group sprite write page) is still latched so existing
-  images keep working, but it no longer selects anything.
+* Control 5 selects the scene: bits 10:8 the palette set, bits 7:2 the OAM
+  base descriptor, bits 1:0 the legacy sprite page (latched, unused). One
+  store swaps OAM and palette together; set 0 and base 0 are the old
+  behaviour, so existing images are unchanged.
 * `0xF0068`/`0xF006A` remain the D16nano cycle counter. Tile rendering does not
   change the instruction-set memory map.

@@ -65,10 +65,10 @@ a reinterpretation:
 | Tile bank | 128 tiles x 32 words; **simulation: all 128 writable** (target) |
 | Text tiles | 1bpp pages, regular and italic; pair 0–7; underline, bold smear |
 | Art tiles | 4bpp nibbles, low nibble leftmost; word 30 palette pointer ignored |
-| Palettes | 48 visible entries in a 64x16 RAM: text `0xF6080`, art `0xF6090`, sprite `0xF60A0` |
-| Controls | 0 cursor, 1 row offset, 2 `scroll_x`, 3 `scroll_y`, 4 write/display bank, 5 sprite write page, 6 per-row table, 7 raster compare |
+| Palettes | 8 sets x 4 banks in one 1,024x16 RAM; set 0 text `0xF6080`, art `0xF6090`, sprite `0xF60A0` |
+| Controls | 0 cursor, 1 row offset, 2 `scroll_x`, 3 `scroll_y`, 4 write/display bank, 5 scene select (palette set + OAM base), 6 per-row table, 7 raster compare |
 | Frame latch | display bank, `scroll_x`, per-row table and enable copy at the frame boundary |
-| Sprites | 8 OAM slots, 24 groups, 32x32, index 0 transparent, slot 0 wins, H/V flip, behind, negative x |
+| Sprites | 8 visible slots over 64 descriptors, 24 groups, 32x32, index 0 transparent, slot 0 wins, H/V flip, behind, negative x |
 | Cursor | XOR palette byte with `0xFF`; blink from a 24-bit counter, bit 23 |
 | Status | `0xF0066`: b0 vblank, b1 frame toggle, b2 S2, b3 UART ready |
 | Not modelled | sub-line write timing; rendering happens at frame boundaries |
@@ -180,7 +180,8 @@ frame, blink
   - `0xF2000..0xF200E` (even) -> controls 0..7;
   - `0xF3000..0xF3FFF` -> tile bank (all 128 tiles);
   - `0xF4000..0xF57FF` -> sprite bank (all 24 groups, flat);
-  - `0xF6000..0xF600F` -> OAM;
+  - `0xF6000..0xF607F` -> 64 OAM descriptors;
+  - `0xF6080..0xF627F` -> 8 palette sets of 4 banks;
   - `0xF6080..0xF60AF` -> palettes via `{addr[5:4], addr[3:0]}`.
   Ignore writes outside windows.
 - `tick()` — frame boundary: latch display bank, `scrollX`, per-row table and

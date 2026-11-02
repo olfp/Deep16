@@ -90,8 +90,9 @@ module dvi_tile #(
   localparam int TILE_WORDS = TILE_COUNT * 32;                      // 4,096
   localparam int SPR_GROUPS = 24;
   localparam int SPR_WORDS  = SPR_GROUPS * 256;                    // 6,144
-  localparam int NSPR       = 8;
-  localparam int OAM_WORDS  = NSPR * 2;
+  localparam int NSPR       = 8;                                  // visible sprites
+  localparam int OAM_DESCS  = 64;                                 // descriptor bank
+  localparam int OAM_WORDS  = OAM_DESCS * 2;                      // 128 words
   localparam int LB_DEPTH   = 3 * 1024;                            // three 1024-byte slots
   localparam int LB_AW      = 12;
 
@@ -114,6 +115,15 @@ module dvi_tile #(
   logic        frame_toggle = 1'b0;     // toggles at the render frame boundary
   logic        armed = 1'b0;
   logic [3:0]  fstate;
+  localparam logic [3:0] F_FIRST_CELL = 4'd1,
+                         F_FIRST_CELL_Q = 4'd2,
+                         F_FIRST_ROW0 = 4'd3,
+                         F_FIRST_ROW0_Q = 4'd4,
+                         F_FIRST_ROW1 = 4'd5,
+                         F_FIRST_ROW1_Q = 4'd6,
+                         F_PIX = 4'd7,
+                         F_BORDER = 4'd8,
+                         F_DONE = 4'd9;
 
   wire [2:0] free_sync = free_s1;
   wire line_free = (free_sync[wr_buf] != free_seen[wr_buf]);
@@ -192,15 +202,18 @@ module dvi_tile #(
   logic [15:0] tilemap [0:2*TM_WORDS-1];
   logic [15:0] tilefont [0:TILE_WORDS-1];
   logic [15:0] sprite   [0:SPR_WORDS-1];
-  // OAM stays a register file; the palette is one 64x16 BSRAM split into
-  // three banks: text 0..15, art 16..31, sprites 32..47. Low 8 bits are RGB332.
-  logic [255:0] oam_bits;                 // 16 words of 16 bits (8 sprites x 2)
-  logic [15:0]  pal_mem [0:63];
+  // One 1,024 x 16 BSRAM holds the sprite descriptors and the palettes:
+  //   word   0..127  64 OAM descriptors x 2 words
+  //   word 128..639  palette set 0..7 x bank 0..3 x entry 0..15
+  //   word 640..1023 spare
+  // The palette entries keep RGB332 in their low 8 bits. The CPU window and
+  // the RAM word are the same index, so a store needs no address arithmetic.
+  logic [15:0]  scene_mem [0:1023];
   logic [7:0]  linebuf  [0:LB_DEPTH-1];
   initial begin
     $readmemh("tilefont.hex", tilefont);
     $readmemh("birdsprite.hex", sprite);
-    $readmemh("tilepal3.hex", pal_mem);
+    $readmemh("tilepal3.hex", scene_mem);
   end
 
   // Sprite row cache: one 32-pixel line per sprite, 8 words of 4 pixels.
@@ -231,7 +244,8 @@ module dvi_tile #(
   //   0 tilemap   0xF1000..  (2,132 words)
   //   1 tile bank 0xF3000..  (128 x 32 words, all writable)
   //   2 sprites   0xF4000..  (24 groups x 16 patterns x 16 words, 6,144)
-  //   3 OAM/pal   0xF6000..  (OAM 0x00..0x0F, palette 0x80..0xAF)
+  //   3 OAM/pal   0xF6000..  (OAM 0x00..0x0F, palette 0x80..0x27F:
+  //                           8 sets x 4 banks x 16 entries)
   logic [4:0] row_off;
   logic [3:0] scroll_x;   // 0..15: pixel offset into the 82-column map
   logic [3:0] scroll_x_next; // latched with the map page at the frame boundary
@@ -255,23 +269,39 @@ module dvi_tile #(
   logic       map_dpage;  // fill/render reads this bank
   logic       map_dpage_next;
   /* verilator lint_off UNUSEDSIGNAL */   // kept as a compatibility no-op
-  logic [1:0] sprite_page; // control 5, legacy write page (no longer addresses)
+  logic [1:0] sprite_page; // control 5 bits 1:0, legacy write page (unused)
+  logic [2:0] pal_set;     // control 5 bits 10:8, palette set 0..7
+  logic [5:0] oam_base;    // control 5 bits 7:2, first visible descriptor
+  logic [5:0] oam_base_lat;// latched at the line loader, so no torn line
+  logic       oam_phase;   // descriptor read phase: 0 = w0, 1 = w1
   /* verilator lint_on UNUSEDSIGNAL */
 
   /* verilator lint_off MULTIDRIVEN */   // power-up palette + runtime CPU writes
+  // The scene RAM has one write port. After reset a short sequencer clears the
+  // 128 OAM words (the palette keeps its $readmemh contents, as before); the
+  // CPU owns the port once that is done.
+  logic [6:0] oam_clr;
+  logic       oam_clr_busy;
+
   always_ff @(posedge clk_render) begin
-    if (rst_render) oam_bits <= '0;
-    else if (cpu_we && !cpu_ctrl) begin
+    if (rst_render) begin
+      oam_clr      <= 7'd0;
+      oam_clr_busy <= 1'b1;
+    end else if (oam_clr_busy) begin
+      scene_mem[{3'b0, oam_clr}] <= 16'd0;
+      if (oam_clr == 7'd127) oam_clr_busy <= 1'b0;
+      else oam_clr <= oam_clr + 7'd1;
+    end else if (cpu_we && !cpu_ctrl) begin
       case (cpu_tgt)
         2'd0: if (cpu_addr[11:0] < 12'(TM_WORDS))
                 tilemap[(map_wpage ? 13'(TM_WORDS) : 13'd0) + 13'(cpu_addr[11:0])] <= cpu_data;
         2'd1: tilefont[cpu_addr[11:0]] <= cpu_data;
         2'd2: sprite[cpu_addr[12:0]] <= cpu_data;
         2'd3: begin
-          if (cpu_addr[7:0] < 8'(OAM_WORDS))
-            oam_bits[cpu_addr[3:0]*16 +: 16] <= cpu_data;
-          else if (cpu_addr[7:0] >= 8'h80 && cpu_addr[7:0] <= 8'hAF)
-            pal_mem[{cpu_addr[5:4], cpu_addr[3:0]}] <= {8'h00, cpu_data[7:0]};
+          if (cpu_addr < 13'(OAM_WORDS))
+            scene_mem[{3'b0, cpu_addr[6:0]}] <= cpu_data;
+          else if (cpu_addr >= 13'h080 && cpu_addr <= 13'h27F)
+            scene_mem[cpu_addr[9:0]] <= {8'h00, cpu_data[7:0]};
         end
         default: ;
       endcase
@@ -298,6 +328,8 @@ module dvi_tile #(
       map_wpage <= 1'b0;
       map_dpage_next <= 1'b0;
       sprite_page <= 2'd0;
+      pal_set <= 3'd0;
+      oam_base <= 6'd0;
       row_scroll_en_next <= 1'b0;
       raster_line <= 10'd0;
     end else if (cpu_we && cpu_ctrl) begin
@@ -321,7 +353,13 @@ module dvi_tile #(
           map_wpage      <= cpu_data[0];
           map_dpage_next <= cpu_data[1];
         end
-        4'hA: sprite_page <= (cpu_data[1:0] == 2'd3) ? 2'd0 : cpu_data[1:0];
+        4'hA: begin
+          // 0xF200A: bits 1:0 legacy sprite page, bits 7:2 OAM base (phase 2),
+          // bits 10:8 palette set. One store selects the whole scene.
+          sprite_page <= (cpu_data[1:0] == 2'd3) ? 2'd0 : cpu_data[1:0];
+          oam_base    <= cpu_data[7:2];
+          pal_set     <= cpu_data[10:8];
+        end
         4'hC: row_scroll_en_next <= cpu_data[8];
         4'hE: raster_line <= cpu_data[9:0];
         default: ;
@@ -401,7 +439,7 @@ module dvi_tile #(
   logic [7:0]       lb_wdata_q;
   logic [15:0]      pal_q;
   logic             pal_cursor_q;
-  logic [5:0]       pal_raddr;
+  logic [9:0]       pal_raddr;
   logic             pal_cursor;
   logic [3:0]       fpal, fnpal;       // {mode, pair[2:0]} of the filled cell
   logic [2:0]       fsty, fnsty;       // {underline, bold, italic page}
@@ -417,22 +455,6 @@ module dvi_tile #(
   assign txt_ink    = txt_raw |
                       (fpal[3] & fsty[2] & (fgy == 4'd14)) |
                       (fpal[3] & fsty[1] & prev_ink);
-  assign pal_raddr  = sprite_win ? {2'b10, sc[3:0]} :
-                      fpal[3]    ? {2'b00, fpal[2:0], txt_ink} :
-                                   {2'b01, pix_index};
-  assign pal_cursor = !sprite_win && cursor_fill;
-
-  always_ff @(posedge clk_render) begin
-    pal_q        <= pal_mem[pal_raddr];
-    pal_cursor_q <= pal_cursor;
-    lb_we_q      <= lb_we;
-    lb_waddr_q   <= lb_waddr;
-    lb_we_qq     <= lb_we_q;
-    lb_waddr_qq  <= lb_waddr_q;
-    lb_wdata_q   <= pal_q[7:0] ^ {8{pal_cursor_q}};
-  end
-  always_ff @(posedge clk_render) if (lb_we_qq) linebuf[lb_waddr_qq] <= lb_wdata_q;
-  always_ff @(posedge clk_pixel)  lb_q <= linebuf[lb_raddr];
 
   // 26-row map: 24 visible rows plus two vertical margin rows. The terminal
   // ring also uses all 26 rows, so a row that scrolls out can be rewritten in
@@ -454,16 +476,6 @@ module dvi_tile #(
   // =====================================================================
   // Fill path: build line y_next into the other line buffer
   // =====================================================================
-  localparam logic [3:0] F_FIRST_CELL = 4'd1,
-                         F_FIRST_CELL_Q = 4'd2,
-                         F_FIRST_ROW0 = 4'd3,
-                         F_FIRST_ROW0_Q = 4'd4,
-                         F_FIRST_ROW1 = 4'd5,
-                         F_FIRST_ROW1_Q = 4'd6,
-                         F_PIX = 4'd7,
-                         F_BORDER = 4'd8,
-                         F_DONE = 4'd9;
-
   localparam logic [2:0] N_IDLE = 3'd0,
                          N_CELL = 3'd1,
                          N_CELL_Q = 3'd2,
@@ -796,17 +808,23 @@ module dvi_tile #(
   // 2 OAM cycles + 8 pattern words each; two cycles per word fits the
   // 160-pixel blanking with room to spare.
   //
-  // OAM, two words per sprite (16 words):
+  // OAM: 64 descriptors of two words in scene_mem[0..127]:
   //   w0 = {behind, vflip, hflip, 1'b0, enable, xsign, x[9:0]}
   //   w1 = {group[4:0], 1'b0, y[9:0]}  (flat group 0..23; 24..31 disabled)
+  // Visible slot n reads descriptor (oam_base_lat + n) % 64, so one control-5
+  // store swaps the whole set. The base is latched when the loader starts, so
+  // a mid-line store cannot tear a line.
   // A 32x32 sprite is 4x4 8x8 patterns: tile = group*16 + (row/8)*4 + column.
   // Pattern word = tile*16 + (row%8)*2 + (column%4)/4; low nibble leftmost.
-  localparam logic [1:0] L_IDLE  = 2'd0,
-                         L_SPR   = 2'd1,
-                         L_REQ   = 2'd2,
-                         L_CAP   = 2'd3;
+  localparam logic [2:0] L_IDLE = 3'd0,
+                         L_OAM0 = 3'd1,
+                         L_OAM1 = 3'd2,
+                         L_OAM2 = 3'd3,
+                         L_SPR  = 3'd4,
+                         L_REQ  = 3'd5,
+                         L_CAP  = 3'd6;
 
-  logic [1:0]  lstate;
+  logic [2:0]  lstate;
   logic [2:0]  lspr;
   logic [3:0]  lw;
   logic [9:0]  lline;
@@ -814,10 +832,10 @@ module dvi_tile #(
   logic        lcap;
   logic [4:0]  lrow;
   logic [12:0] laddr;
+  logic [15:0] loam0, loam1;
 
-  wire [3:0]  loidx = {lspr, 1'b0};
-  wire [15:0] loam0 = oam_bits[loidx*16 +: 16];
-  wire [15:0] loam1 = oam_bits[4'(loidx + 4'd1)*16 +: 16];
+  wire [5:0]  ldesc = oam_base_lat + {3'b0, lspr};
+  wire [6:0]  om_addr = {ldesc, oam_phase};
   wire [4:0]  loam_group = loam1[15:11];
   wire        loam_group_ok = (loam_group < 5'd24);
 
@@ -834,6 +852,8 @@ module dvi_tile #(
   always_ff @(posedge clk_render) begin
     if (rst_render) begin
       lstate <= L_IDLE; lspr <= 3'd0; lw <= 4'd0; lline <= 10'd0;
+      oam_phase <= 1'b0; loam0 <= 16'd0; loam1 <= 16'd0;
+      oam_base_lat <= 6'd0;
       for (int i = 0; i < NSPR; i++)
         for (int j = 0; j < 8; j++) spw[i][j] <= 16'd0;
       lgrp <= 5'd0; lcap <= 1'b0; lrow <= 5'd0;
@@ -843,9 +863,25 @@ module dvi_tile #(
       end
     end else begin
       case (lstate)
-        L_IDLE: if (rx == 12'(H_ACTIVE)) begin
-          lline  <= ry_next + 10'd1;
-          lspr   <= 3'd0;
+        // Start once the fill has released the RAM read port (F_DONE).
+        L_IDLE: if (fstate == F_DONE) begin
+          lline        <= ry_next + 10'd1;
+          lspr         <= 3'd0;
+          oam_phase    <= 1'b0;
+          oam_base_lat <= oam_base;
+          lstate       <= L_OAM0;
+        end
+        // Two registered descriptor reads: w0, then w1.
+        L_OAM0: begin
+          oam_phase <= 1'b1;              // address now selects w1
+          lstate    <= L_OAM1;
+        end
+        L_OAM1: begin
+          loam0  <= pal_q;                // w0 landed
+          lstate <= L_OAM2;
+        end
+        L_OAM2: begin
+          loam1  <= pal_q;                // w1 landed
           lstate <= L_SPR;
         end
         L_SPR: begin
@@ -878,20 +914,50 @@ module dvi_tile #(
             spw[lspr][lw[2:0]] <= spr_q;
             if (lw == 4'd7) begin
               if (lspr == 3'(NSPR-1)) lstate <= L_IDLE;
-              else begin lspr <= lspr + 3'd1; lstate <= L_SPR; end
+              else begin
+                lspr <= lspr + 3'd1; oam_phase <= 1'b0; lstate <= L_OAM0;
+              end
             end else begin
               lw     <= lw + 4'd1;
               lstate <= L_REQ;
             end
           end else begin
             if (lspr == 3'(NSPR-1)) lstate <= L_IDLE;
-            else begin lspr <= lspr + 3'd1; lstate <= L_SPR; end
+            else begin
+              lspr <= lspr + 3'd1; oam_phase <= 1'b0; lstate <= L_OAM0;
+            end
           end
         end
         default: lstate <= L_IDLE;
       endcase
     end
   end
+
+  // Palette word = 128 + set*64 + bank*16 + entry (9 bits, then the base).
+  logic [8:0]  pal_word;
+  logic [9:0]  scene_raddr;
+  // The RAM has one read port. During the fill it serves the palette; between
+  // the last fill pixel (F_DONE) and the next line it serves the OAM loader.
+  wire oam_port = (lstate == L_OAM0) || (lstate == L_OAM1) ||
+                  (lstate == L_OAM2);
+  assign pal_word    = sprite_win ? {pal_set, 2'b10, sc[3:0]} :
+                       fpal[3]    ? {pal_set, 2'b00, fpal[2:0], txt_ink} :
+                                    {pal_set, 2'b01, pix_index};
+  assign pal_raddr   = 10'd128 + {1'b0, pal_word};
+  assign scene_raddr = oam_port ? {3'b0, om_addr} : pal_raddr;
+  assign pal_cursor = !sprite_win && cursor_fill;
+
+  always_ff @(posedge clk_render) begin
+    pal_q        <= scene_mem[scene_raddr];
+    pal_cursor_q <= pal_cursor;
+    lb_we_q      <= lb_we;
+    lb_waddr_q   <= lb_waddr;
+    lb_we_qq     <= lb_we_q;
+    lb_waddr_qq  <= lb_waddr_q;
+    lb_wdata_q   <= pal_q[7:0] ^ {8{pal_cursor_q}};
+  end
+  always_ff @(posedge clk_render) if (lb_we_qq) linebuf[lb_waddr_qq] <= lb_wdata_q;
+  always_ff @(posedge clk_pixel)  lb_q <= linebuf[lb_raddr];
 
   // =====================================================================
   // Scan path: 1280x720p60, each source pixel and line repeated 2x2

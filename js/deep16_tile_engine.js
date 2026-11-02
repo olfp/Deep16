@@ -7,7 +7,9 @@
  * windows the same way the board will load them from flash.
  *
  * The model tracks the widened CPU windows: all 128 tile slots and all 24
- * sprite groups are directly writable, and OAM/palette sit at 0xF6000.
+ * sprite groups are directly writable, and OAM/palette sit at 0xF6000. The
+ * palette has eight sets of four 16-entry banks (text, art, sprite, spare)
+ * selected by control 5.
  */
 class Deep16TileEngine {
   constructor() {
@@ -24,8 +26,11 @@ class Deep16TileEngine {
     this.SPR_GROUPS = 24;
     this.SPR_WORDS = this.SPR_GROUPS * 256;
     this.SPR_WINDOW_WORDS = this.SPR_WORDS;
-    this.OAM_WORDS = 16;
-    this.PALETTE_WORDS = 48;
+    this.OAM_DESCS = 64;
+    this.OAM_WORDS = this.OAM_DESCS * 2;
+    this.PALETTE_SETS = 8;
+    this.PALETTE_BANKS = 4;
+    this.PALETTE_WORDS = this.PALETTE_SETS * this.PALETTE_BANKS * 16;
 
     this.tilemap = [new Uint16Array(this.MAP_COLS * this.MAP_ROWS),
                     new Uint16Array(this.MAP_COLS * this.MAP_ROWS)];
@@ -88,6 +93,8 @@ class Deep16TileEngine {
     this.mapDisplay = 0;
     this.mapDisplayNext = 0;
     this.spritePage = 0;
+    this.oamBase = 0;
+    this.palSet = 0;
     this.rowScrollEn = 0;
     this.rowScrollEnNext = 0;
     this.rasterLine = 0;
@@ -116,9 +123,14 @@ class Deep16TileEngine {
           this.mapWrite = value & 1;
           this.mapDisplayNext = (value >> 1) & 1;
           break;
-        // Legacy write page: the register still latches for compatibility,
-        // but the sprite window covers all 24 groups, so it selects nothing.
-        case 0xA: this.spritePage = (value & 3) === 3 ? 0 : (value & 3); break;
+        // Control 5: bits 1:0 legacy sprite page (latched, unused), bits 7:2
+        // OAM base, bits 10:8 palette set. The sprite window is flat, so the
+        // page selects nothing.
+        case 0xA:
+          this.spritePage = (value & 3) === 3 ? 0 : (value & 3);
+          this.oamBase = (value >> 2) & 0x3F;
+          this.palSet = (value >> 8) & 7;
+          break;
         case 0xC: {
           const row = (value >> 3) & 0x1F;
           if (row < this.MAP_ROWS) this.rowScrollNext[row] = value & 7;
@@ -132,9 +144,9 @@ class Deep16TileEngine {
       this.tileBank[addr - 0xF3000] = value;
     } else if (addr >= 0xF4000 && addr <= 0xF57FF) {
       this.spriteBank[addr - 0xF4000] = value;
-    } else if (addr >= 0xF6000 && addr <= 0xF600F) {
+    } else if (addr >= 0xF6000 && addr <= 0xF607F) {
       this.oam[addr - 0xF6000] = value;
-    } else if (addr >= 0xF6080 && addr <= 0xF60AF) {
+    } else if (addr >= 0xF6080 && addr <= 0xF627F) {
       this.palette[addr - 0xF6080] = value & 0xFF;
     } else {
       handled = false;
@@ -210,8 +222,10 @@ class Deep16TileEngine {
   }
 
   spritePixel(slot, x, y) {
-    const w0 = this.oam[slot * 2];
-    const w1 = this.oam[slot * 2 + 1];
+    // Visible slot n reads descriptor (oamBase + n) % 64.
+    const desc = (this.oamBase + slot) & 63;
+    const w0 = this.oam[desc * 2];
+    const w1 = this.oam[desc * 2 + 1];
     if (!(w0 & 0x0800)) return null;                 // enable
     const group = (w1 >> 11) & 0x1F;
     if (group >= this.SPR_GROUPS) return null;
@@ -269,6 +283,7 @@ class Deep16TileEngine {
           break;                                     // slot 0 wins
         }
         if (spriteIndex > 0) paletteIndex = 32 + spriteIndex;
+        paletteIndex += this.palSet * 64;
 
         const atCursor = cursorOn && cursorRow && ((x >> 3) === this.curCol) &&
                          spriteIndex < 0;

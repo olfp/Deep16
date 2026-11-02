@@ -140,6 +140,13 @@ variable nm-l drop
 : row-scroll! ( fine row -- ) swap 3 lshift or 0x100 or 0x200C es! ;
 : row-scroll-off ( -- )    0 0x200C es! ;
 
+\ ---- scene select: control 5 at 0xF200A ---------------------------------
+\ bits 10:8 palette set, 7:2 OAM base descriptor, 1:0 legacy pattern page.
+\ One store swaps the whole scene, so a raster handler can change it.
+: oam-base! ( n -- )   0x3F and 2 lshift 0x200A es@ 0x103 and or 0x200A es! ;
+: pal-set!  ( n -- )   7 and 8 lshift   0x200A es@ 0x0FF and or 0x200A es! ;
+: scene!    ( oam pal -- ) 7 and 8 lshift swap 0x3F and 2 lshift or 0x200A es! ;
+
 \ ---- text/art/sprite palette banks, 0xF6080/90/A0 -----------------------
 \ The text bank holds 8 pairs (2p paper, 2p+1 ink); art cells read the art
 \ bank; sprites read the sprite bank. The console ATTR selects the text pair.

@@ -138,11 +138,11 @@ with:
   pointer and flags there, currently zero, and the renderer reads only words
   0–29. Text glyphs are `(ch - 0x20) * 32`; art cells use the raw tile
   address.
-* **three 16-entry RGB332 palette banks** in one 64 x 16 BSRAM: text
-  (`0xF6080`-`0xF608F`, eight paper/ink pairs), art (`0xF6090`-`0xF609F`) and
-  the shared sprite bank (`0xF60A0`-`0xF60AF`). Text cells use `pix[0]` to
-  select entry `2p` (paper) or `2p+1` (ink); mode-0 tiles read the art bank;
-  every sprite reads the sprite bank.
+* **eight palette sets** of three 16-entry RGB332 banks (text `0xF6080`,
+  art `0xF6090`, sprite `0xF60A0`, plus a spare bank) in one 1,024 x 16 BSRAM.
+  Control 5 bits 10:8 pick the set. Text cells use `pix[0]` to select entry
+  `2p` (paper) or `2p+1` (ink); mode-0 tiles read the art bank; every sprite
+  reads the sprite bank.
 * **two 1-bit text pages**: tile 0 is a blank 32-word art tile; the regular
   1bpp page starts at word 32 (96 glyphs x 8 words) and the italic page at word
   800. Text cells address `32 + index*8 + page*768 + row/2`; art tiles stay at
@@ -235,10 +235,11 @@ a tile pixel cost the same lookup:
 
 * **Eight sprites, 32x32, 4bpp.** Sprite palette index 0 is transparent; OAM
   bit 15 puts the sprite behind background index 0; sprite 0 wins priority.
-* **OAM** is 16 words at `0xF6000`: two words per sprite,
-  `w0 = {behind, vflip, hflip, group[2:0], x[9:0]}`,
-  `w1 = {1'b0, enable, y[9:0]}`. The shared sprite palette bank is at
-  `0xF60A0`.
+* **OAM** is 128 words at `0xF6000`: 64 descriptors of two words,
+  `w0 = {behind, vflip, hflip, free, enable, xsign, x[9:0]}`,
+  `w1 = {group[4:0], free, y[9:0]}`. Only eight are visible at a time; slot
+  `n` reads descriptor `(oam_base + n) % 64`, and control 5 bits 7:2 hold the
+  base.
 * **Pattern bank** at `0xF4000..0xF57FF`: 24 groups x 16 8x8 4bpp patterns
   (6,144 words). A 32x32 sprite is 16 tiles; `tile = group*16 + (row/8)*4 +
   column`, `word = tile*16 + (row%8)*2 + half`. The window is flat: the OAM

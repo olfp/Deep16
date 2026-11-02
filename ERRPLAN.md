@@ -4,13 +4,12 @@ Status: **open items, newest first.** Each entry records what was observed, how
 it was reproduced, the intended behaviour and the fix to investigate. Fixes are
 not applied until the entry is updated with the result and tests.
 
-> **Current baseline (2026-11-02, branch `fit-windows`).** `npm test`: **741
-> pass**. `npm run synth:tile` after the 128-tile bank, the flat 24-group
-> sprite window and the tilemap-offset fix: **4,306 / 4,320 CLS (14 free)**,
-> BSRAM 26/26, SSRAM 190; `dvi_render` 29.801 MHz, `dvi_pixel` 82.533 MHz,
-> `psram_clk` 83.363 MHz, `clk_cpu` 18.262 MHz, all TNS 0. The wider windows
-> are still 6 CLS cheaper than the paged build (4,312). Plan the open RTL
-> items against **14 free CLS**. One hold endpoint is flagged
+> **Current baseline (2026-11-02, `main`).** `npm test`: **745 pass**. `npm run synth:tile` after 64 OAM descriptors and 8 palette sets:
+> **4,260 / 4,320 CLS (60 free)**, BSRAM 26/26, SSRAM 214, registers 2,838;
+> `dvi_render` 32.886 MHz, `dvi_pixel` 86.108 MHz, `psram_clk` 86.388 MHz,
+> `clk_cpu` 20.246 MHz, all TNS 0. Moving OAM into the palette RAM *freed*
+> 177 registers and 79 logic cells. Plan the open RTL items against **60 free
+> CLS**. One hold endpoint is flagged
 > (`n8_s3/I1 -> clk_div_1_s0/D`, `clk_cpu -> clk`); it is identical on `main`
 > and is the generated-clock divider self-path, not a new violation.
 
@@ -232,9 +231,14 @@ split; run `npm run sim:dvi:tile`, the showcase tests and `npm run synth:tile`
 (compare CLS and BSRAM). Update `MEMMAP.md`, the FiT how-to, the Forth `SEG_*`
 constants and the simulation tile engine/tests.
 
-**Status:** **planned** — see [`OAMPLAN.md`](OAMPLAN.md) for the phased
-implementation, gates and fallbacks. Design recommendation only; no RTL or
-simulation change
+**Status:** **implemented (2026-11-02).** Phases 1 and 2 shipped together:
+Phase 1 alone did not place, and removing the OAM descriptor mux paid for the
+palette sets. Window `0xF6000–0xF627F`, control 5 = scene select, 1,024-word
+`tilepal3.hex`, 128-word reset clear, BIOS clear widened to 128, Forth
+`scene!`/`oam-base!`/`pal-set!`. Result: 4,260 / 4,320 CLS, BSRAM 26/26,
+745 tests, tile sim covers sets, base wrap and the reset clear. Details and the
+measurement: [`OAMPLAN.md`](OAMPLAN.md). Board demo (raster split) still open.
+Prior status: design recommendation only; no RTL or simulation change
 applied.
 
 ---

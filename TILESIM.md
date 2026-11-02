@@ -6,7 +6,7 @@ PNG renderer, driven by the same D16D image the board flashes.
 
 Status: **implemented 1 Nov 2026** — see `TILESIM-IMPL.md` for the delivered
 phases. The implementation follows the current RTL where this original brief
-had drifted: **26-row ring**, **24 sprite groups (3 pages)**, **three palette
+had drifted: **26-row ring**, **24 sprite groups**, **eight palette
 banks**, controls 6/7, and two showcase sources (`showcase.asm` +
 `flappy_game.asm`); there is no `gfx_demo.asm` and no fourth source.
 
@@ -44,8 +44,8 @@ State, mirroring `rtl/dvi/dvi_tile.sv`:
 | `tilemap[2]` | 2 x 2,132 words | `0xF1000..0xF1853`, bank from control 4 b0 |
 | `tileBank` | 4,096 words (128 tiles x 32) | `0xF3000..0xF3FFF` |
 | `spriteBank` | 6,144 words (24 groups x 256) | `0xF4000..0xF57FF` |
-| `oam` | 16 words | `0xF6000..0xF600F` |
-| `palette` | 48 x RGB332 (text/art/sprite) | `0xF6080..0xF60AF` |
+| `oam` | 128 words (64 descriptors x 2) | `0xF6000..0xF607F` |
+| `palette` | 512 x RGB332 (8 sets x 4 banks) | `0xF6080..0xF627F` |
 | controls | cursor, `row_off`, `scroll_x_next`, `scroll_y`, write/display page | `0xF2000..0xF2008` |
 
 Methods:

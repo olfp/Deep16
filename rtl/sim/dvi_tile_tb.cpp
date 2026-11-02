@@ -147,7 +147,9 @@ int main(int argc, char** argv) {
   top->dbg_addr = 0;
   for (int i = 0; i < 20; i++) tick();
   top->rst = 0;
-  for (int i = 0; i < 20; i++) tick();
+  // The scene RAM clears its 128 OAM words after reset; the CPU owns the
+  // write port once that is done.
+  for (int i = 0; i < 200; i++) tick();
 
   // H tile at tilemap[0]; visible cursor at row 0 column 1 so it does not
   // overlap the sampled cell.
@@ -446,6 +448,27 @@ int main(int argc, char** argv) {
   // Restore the solid red tile the double-buffer test expects.
   write_tile(0, 0x0000);
 
+  // ---- palette sets: control 5 bits 10:8 --------------------------------
+  // Set 0 art entry 1 is red. Set 1's art entry 1 lives at 0xD1
+  // (128 + 64 + 16 + 1) and is written blue; swapping the set recolours the
+  // same tile without touching a palette entry.
+  write_win(3, 0xD1, 0x0003);
+  write_ctrl(0x0A, 0x0100);
+  check("control 5 selects palette set 1", top->dbg_pset, 1);
+  sample_pixel(hx, hy, &tr, &tg, &tb, &tseen);
+  check("palette set 1 recolours the art tile (blue)",
+        tr * 1000 + tg * 10 + tb, 0 * 1000 + 0 * 10 + 255);
+
+  write_ctrl(0x0A, 0x0000);
+  sample_pixel(hx, hy, &tr, &tg, &tb, &tseen);
+  check("palette set 0 keeps its own entry (red)",
+        tr * 1000 + tg * 10 + tb, 255 * 1000 + 0 * 10 + 0);
+
+  // The legacy pattern-page values must still mean set 0.
+  write_ctrl(0x0A, 0x0002);
+  check("legacy control 5 value 2 keeps palette set 0", top->dbg_pset, 0);
+  write_ctrl(0x0A, 0x0000);
+
   // ---- sprites: 16x16, transparency, behind, palette ---------------------
   // Palette 2 = green, 3 = blue. Sprite 0 (front) is an index-2 grid with
   // every fourth pixel transparent; sprite 1 (behind) is solid index 3.
@@ -595,6 +618,29 @@ int main(int argc, char** argv) {
   for (int w = 0; w < 64; w++) write_win(2, w, 0x0222);   // group 0 back to green
   write_ctrl(10, 0);
 
+  // ---- 64 descriptors: OAM base and end-of-bank wrap ---------------------
+  // Descriptor 8 is a green sprite at x=16, y=200. The default base 0 shows
+  // descriptors 0..7, so slot 0 must not see it; base 8 puts it on slot 0.
+  write_win(3, 0x010, 16 | 0x0800);          // desc 8 w0: enable, x=16
+  write_win(3, 0x011, 200 | (0 << 11));      // desc 8 w1: y=200, group 0
+  write_ctrl(0x0A, 0);
+  sample_pixel(17, 200, &r, &g, &b, &seen);
+  check("descriptor 8 is hidden with OAM base 0",
+        (r * 1000 + g * 10 + b) == 2550 ? 1 : 0, 0);
+  write_ctrl(0x0A, 8 << 2);
+  sample_pixel(17, 200, &r, &g, &b, &seen);
+  check("OAM base 8 puts descriptor 8 on visible slot 0 (green)",
+        r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
+
+  // Base 60 runs off the end of the bank and wraps: slot 7 is descriptor 3.
+  write_win(3, 0x006, 16 | 0x0800);          // desc 3 w0: enable, x=16
+  write_win(3, 0x007, 200 | (0 << 11));      // desc 3 w1: y=200, group 0
+  write_ctrl(0x0A, 60 << 2);
+  sample_pixel(17, 200, &r, &g, &b, &seen);
+  check("OAM base 60 wraps slot 7 to descriptor 3 (green)",
+        r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
+  write_ctrl(0x0A, 0);
+
   // Negative x: x=1000 means -24 with the sign bit in w0[10]. Only the
   // sprite's pixels 24..31 can land on screen x=0..7.
   write_win(3, 0, 1000 | 0x0800 | 0x0400);
@@ -605,6 +651,24 @@ int main(int argc, char** argv) {
   sample_pixel(8, 160, &r, &g, &b, &seen);
   check("negative-x sprite stops at its 32-pixel width (background red)",
         r * 1000 + g * 10 + b, 255 * 1000 + 0 * 10 + 0);
+
+  // ---- reset clears all 128 descriptor words ----------------------------
+  // Descriptor 63 is enabled and visible with base 56 (slot 7).
+  write_win(3, 0x07E, 16 | 0x0800);          // desc 63 w0
+  write_win(3, 0x07F, 200 | (0 << 11));      // desc 63 w1
+  write_ctrl(0x0A, 56 << 2);
+  sample_pixel(17, 200, &r, &g, &b, &seen);
+  check("descriptor 63 is visible with base 56 (green)",
+        r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
+  write_ctrl(0x0A, 0);
+  check("descriptor 3 word 0 is stored", top->dbg_oam6, 16 | 0x0800);
+  top->rst = 1;
+  for (int i = 0; i < 20; i++) tick();
+  top->rst = 0;
+  for (int i = 0; i < 200; i++) tick();
+  check("OAM clear sequencer finished", top->dbg_oam_clr_busy, 0);
+  check("reset clears descriptor 3", top->dbg_oam6, 0);
+  check("reset clears descriptor 63", top->dbg_oam127, 0);
 
   delete top;
   if (fails) { std::printf("%d failure(s)\n", fails); return 1; }

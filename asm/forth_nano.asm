@@ -14535,11 +14535,11 @@ gfx_clear:
     MOV R2, R3
     STS R4, ES, R2             ; cursor ctrl = (0<<8)|(0<<1)|1
 
-    ; disable the eight OAM slots (the pattern bank need not be cleared)
+    ; disable all 64 OAM descriptors (128 words; the pattern bank is untouched)
     LDI -0x0A00                ; 0xF600
     MVS ES, R0
     MOV R2, R3
-    LDI 16
+    LDI 128
     MOV R4, R0
 gfx_oam:
     STS R3, ES, R2

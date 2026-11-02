@@ -620,7 +620,7 @@ module deep16_top
   // gets a 2-bit target:
   //   0xF1000  tilemap (82x26)     0xF3000  tile bank (128 x 32, all writable)
   //   0xF4000  sprite bank (24 groups, 6,144 words = 0xF4000..0xF57FF)
-  //   0xF6000  OAM (0x00..0x0F), palette (0x80..0xAF)
+  //   0xF6000  OAM (0x000..0x00F), palettes (0x080..0x27F, 8 sets x 4 banks)
   //   0xF2000/2/4/6  cursor, row offset, scroll_x, scroll_y
   //   0xF2008        tilemap page select (bit 0 write, bit 1 display)
   //   0xF200A        legacy sprite write page (accepted, no longer used)
@@ -629,7 +629,7 @@ module deep16_top
   wire tile_hit = mem_we && (mem_waddr >= 21'h0F1000) && (mem_waddr <= 21'h0F1853);
   wire bank_hit = mem_we && (mem_waddr >= 21'h0F3000) && (mem_waddr <= 21'h0F3FFF);
   wire spr_hit  = mem_we && (mem_waddr >= 21'h0F4000) && (mem_waddr <= 21'h0F57FF);
-  wire attr_hit = mem_we && (mem_waddr >= 21'h0F6000) && (mem_waddr <= 21'h0F60FF);
+  wire attr_hit = mem_we && (mem_waddr >= 21'h0F6000) && (mem_waddr <= 21'h0F627F);
   wire ctrl_hit = mem_we && ((mem_waddr == 21'h0F2000) || (mem_waddr == 21'h0F2002) ||
                              (mem_waddr == 21'h0F2004) || (mem_waddr == 21'h0F2006) ||
                              (mem_waddr == 21'h0F2008) || (mem_waddr == 21'h0F200A) ||

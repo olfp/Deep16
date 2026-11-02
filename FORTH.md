@@ -811,14 +811,19 @@ reads 512-byte sectors (not slices) from the card and interprets them.
 The console writes text cells as `0x8000 | (pair << 12) | glyph`. The text
 palette bank holds eight paper/ink pairs; `attr` chooses the pair for every
 character that follows, and the three `*pal!` words write the banks at
-`0xF6080`/`0xF6090`/`0xF60A0`. Writes are not frame-latched, so change them
-during vblank or at a screen transition.
+`0xF6080`/`0xF6090`/`0xF60A0` (set 0). Eight palette sets and 64 OAM
+descriptors are selected by one control-5 word (`scene!`), so a raster
+handler can swap the whole scene at one scan line. Palette writes are not
+frame-latched, so change them during vblank or at a screen transition.
 
 | word | effect |
 |---|---|
 | `pal! ( bg ink pair -- )` | write text-bank pair `p`: paper `2p`, ink `2p+1` |
 | `art-pal! ( bg ink pair -- )` | write the art-bank pair used by mode-0 tiles |
 | `sprite-pal! ( bg ink pair -- )` | write the shared sprite-bank pair |
+| `scene! ( oam pal -- )` | one control-5 store: OAM base descriptor + palette set |
+| `oam-base! ( n -- )` | set the first visible descriptor (0–63) |
+| `pal-set! ( n -- )` | set the palette set (0–7) |
 | `attr ( pair -- )` | select the console pair (`0..7`), keep the style |
 | `style ( flags -- )` | set style bits, keep the pair: `1` italic page, `2` bold, `4` underline, `7` all |
 | `attr! ( pair flags -- )` | set pair and style together |

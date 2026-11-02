@@ -123,11 +123,17 @@ export function writeTileFont(outDir,
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, 'tilefont.hex'),
                    tiles.map((w) => w.toString(16).padStart(4, '0')).join('\n') + '\n');
-  // Three banks for the tile engine: text pairs, art, sprites. The default
-  // table is the same in all three; games overwrite the art/sprite banks.
-  const bank3 = [...PALETTE_RGB332, ...PALETTE_RGB332, ...PALETTE_RGB332];
+  // The palette BSRAM is 1,024 words: words 0-127 are reserved for the 64 OAM
+  // descriptors (OAMPLAN), words 128-639 hold eight palette sets of four
+  // 16-entry banks (text, art, sprite, spare), the rest is spare. Every set is
+  // seeded with the default table so a game can switch to set 3 without
+  // loading it first; games overwrite the art/sprite banks.
+  const bank4 = [...PALETTE_RGB332, ...PALETTE_RGB332, ...PALETTE_RGB332,
+                 ...new Array(16).fill(0)];
+  const scene = new Array(1024).fill(0);
+  for (let set = 0; set < 8; set++) scene.splice(128 + set * 64, 64, ...bank4);
   fs.writeFileSync(path.join(outDir, 'tilepal3.hex'),
-                   bank3.map((b) => b.toString(16).padStart(2, '0')).join('\n') + '\n');
+                   scene.map((b) => b.toString(16).padStart(2, '0')).join('\n') + '\n');
   return tiles.length;
 }
 

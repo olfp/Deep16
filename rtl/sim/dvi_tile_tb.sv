@@ -41,6 +41,11 @@ module dvi_tile_tb (
   output logic        dbg_wpage,
   output logic        dbg_dpage,
   output logic [1:0]  dbg_spage,
+  output logic [2:0]  dbg_pset,
+  output logic        dbg_oam_clr_busy,
+  output logic [6:0]  dbg_oam_clr,
+  output logic [15:0] dbg_oam6,
+  output logic [15:0] dbg_oam127,
   input  logic [11:0] dbg_addr,
   output logic [15:0] dbg_cell
 );
@@ -87,6 +92,11 @@ module dvi_tile_tb (
   assign dbg_wpage   = u_tile.map_wpage;
   assign dbg_dpage   = u_tile.map_dpage;
   assign dbg_spage   = u_tile.sprite_page;
+  assign dbg_pset    = u_tile.pal_set;
+  assign dbg_oam_clr_busy = u_tile.oam_clr_busy;
+  assign dbg_oam_clr = u_tile.oam_clr;
+  assign dbg_oam6   = u_tile.scene_mem[6];
+  assign dbg_oam127 = u_tile.scene_mem[127];
   assign dbg_frow    = u_tile.frow;
   assign dbg_fline   = u_tile.fline;
   assign dbg_cell    = u_tile.tilemap[13'(dbg_addr)];

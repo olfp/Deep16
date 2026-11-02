@@ -341,6 +341,64 @@ test('palette bank writes are isolated', () => {
   assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255]);
 });
 
+test('control 5 selects one of eight palette sets', () => {
+  const { engine } = loaded();
+  solidArt(engine, 96, 1);
+  cell(engine, 0, 0, 96 * 32);
+  engine.write(0xF6091, 0xE0);                    // set 0 art entry 1 = red
+  engine.write(0xF60D1, 0x03);                    // set 1 art entry 1 = blue
+  engine.write(CTRL + 0xA, 0x0100);               // palette set 1
+  assert.equal(engine.palSet, 1);
+  engine.render();
+  assert.deepEqual(pixel(engine, 0, 0), [0, 0, 255, 255]);
+  engine.write(CTRL + 0xA, 0);
+  engine.render();
+  assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255], 'set 0 is unchanged');
+  // The legacy sprite-page values still select set 0.
+  engine.write(CTRL + 0xA, 1);
+  assert.equal(engine.palSet, 0);
+});
+
+test('a palette set applies to sprites as well as the background', () => {
+  const { engine } = loaded();
+  for (let i = 0; i < 256; i++) engine.write(0xF4000 + i, 0x1111);
+  engine.write(0xF60A1, 0xE0);                    // set 0 sprite entry 1 = red
+  engine.write(0xF60E1, 0x1C);                    // set 1 sprite entry 1 = green
+  engine.write(0xF6000, 0x0800);
+  engine.write(0xF6001, 0);
+  engine.write(CTRL + 0xA, 0x0100);
+  engine.render();
+  assert.deepEqual(pixel(engine, 0, 0), [0, 255, 0, 255]);
+  engine.write(CTRL + 0xA, 0);
+  engine.render();
+  assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255]);
+});
+
+test('control 5 selects which eight descriptors are visible', () => {
+  const { engine } = loaded();
+  for (let i = 0; i < 256; i++) engine.write(0xF4000 + i, 0x1111);
+  engine.write(0xF60A1, 0xE0);                    // sprite entry 1 = red
+  engine.write(0xF6010, 0x0800);                  // descriptor 8: enable, x=0
+  engine.write(0xF6011, 0);                       // y=0, group 0
+  engine.render();
+  assert.ok(isBlack(pixel(engine, 0, 0)), 'descriptor 8 is outside 0..7');
+  engine.write(CTRL + 0xA, 8 << 2);
+  assert.equal(engine.oamBase, 8);
+  engine.render();
+  assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255]);
+});
+
+test('the descriptor base wraps at 64', () => {
+  const { engine } = loaded();
+  for (let i = 0; i < 256; i++) engine.write(0xF4000 + i, 0x1111);
+  engine.write(0xF60A1, 0xE0);
+  engine.write(0xF6006, 0x0800);                  // descriptor 3: enable, x=0
+  engine.write(0xF6007, 0);                       // y=0, group 0
+  engine.write(CTRL + 0xA, 60 << 2);              // slots 60..63, 0..3
+  engine.render();
+  assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255], 'slot 7 is descriptor 3');
+});
+
 test('the cursor XORs the palette byte and blinks', () => {
   const { engine } = loaded();
   engine.write(CTRL, 0x0001);                     // cursor 0,0 enabled

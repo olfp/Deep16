@@ -1,12 +1,12 @@
 # OAMPLAN — 64 OAM descriptors and 8 palette sets
 
-Status: **plan only, nothing implemented.** This file records the agreed design
-for the next FiT change; the RTL, tests, tools and docs are unchanged until it
-is implemented.
+Status: **implemented (2026-11-02, `main`).** Phases 1 and 2 were combined:
+Phase 1 alone did not place (52 LUTs), and moving OAM into the same RAM paid
+for the palette growth. Rebuilt result: **4,260 / 4,320 CLS (60 free)**,
+BSRAM 26/26, registers 2,838 (−177), all TNS 0. The design below is the one
+that shipped; §13 records the measurement.
 
-Baseline: `main` at `5641adc` (all 128 tiles CPU-writable, flat 24-group sprite
-bank, OAM/palette at `0xF6000`). `npm run synth:tile`: **4,306 / 4,320 CLS (14
-free)**, BSRAM 26/26.
+Baseline was `main` at `5641adc`: **4,306 / 4,320 CLS (14 free)**.
 
 ---
 
@@ -288,15 +288,16 @@ set 0, so they should pass unchanged — that is itself the compatibility check.
 
 | Step | Cost | Gate |
 |---|---|---|
-| Palette sets (Phase 1) | RAM stays one block; 3 flops + address field | synth ≤ 4,320 CLS, BSRAM 26/26 |
-| OAM into RAM (Phase 2) | −256 flops, +read mux, +fetch state, +clear counter, +base adder | synth ≤ 4,320 CLS, BSRAM 26/26 |
-| Docs/sim/tests (Phase 3) | none | `npm test`, `sim:dvi:tile` |
+| Palette sets alone (Phase 1) | +36 logic, CLS 4,320, **52 LUTs unplaced** | **failed** |
+| Phase 1 + OAM into RAM (1+2) | −79 logic, −177 registers | **4,260 CLS, BSRAM 26** |
+| Docs/sim/tests (Phase 3) | none | 745 tests, `sim:dvi:tile` |
 | Board demo (Phase 4) | none | two scenes split at one raster line |
 
-Estimate: Phase 1 is close to free (+5–15 CLS). Phase 2 removes 256 flops and
-their 16-way write decode, and adds roughly the same amount of LUT logic, so it
-may be a wash; **14 free CLS is not enough to assume it**. Each phase ends with
-`npm run synth:tile` and the measured number goes into `ERRPLAN.md`.
+**Measured (2026-11-02).** Phase 1 alone grew logic from 8,503 to 8,539 and
+filled the device; the descriptor read mux (`oam_bits[4'(loidx)*16 +: 16]`,
+a 16:1 x 16-bit variable part-select) was the real cost. Moving OAM into
+`scene_mem` deleted that mux and the 256 flops: logic fell to 8,424 (−79) and
+CLS to 4,260 while adding the palette sets. BSRAM stayed at 26/26.
 
 Sequencing matters: do Phase 1 first and measure. If Phase 1 already eats the
 margin, stop and re-plan before moving OAM.
@@ -334,14 +335,14 @@ fetch state dominate), so it is not a useful fallback.
 
 ## 16. Task list
 
-- [ ] Phase 0: rename control 5 in docs to scene select; add the map and
+- [x] Phase 0: rename control 5 in docs to scene select; add the map and
       constants to `MEMMAP.md`, `doc/FiT-Graphics-howto.md`, `rtl/dvi/README.md`,
       `TILESIM.md`; no code change.
-- [ ] Phase 1: `scene_mem` at 1,024 words, palette sets, control 5 fields,
-      1,024-word `tilepal3.hex`; synth gate.
-- [ ] Phase 2: OAM into `scene_mem` 0–127, `oam_base` latch, OAM fetch state,
-      reset clear; synth gate.
-- [ ] Phase 3: JS engine + tests + BIOS clear count + `catalog.fth` words;
+- [x] Phase 1: `scene_mem` at 1,024 words, palette sets, control 5 fields,
+      1,024-word `tilepal3.hex`; synth gate (alone: does not place).
+- [x] Phase 2: OAM into `scene_mem` 0–127, `oam_base` latch, OAM fetch state,
+      reset clear; synth gate (combined with Phase 1: fits).
+- [x] Phase 3: JS engine + tests + BIOS clear count + `catalog.fth` words;
       `npm test`, `sim:dvi:tile`, lint.
 - [ ] Phase 4: board demo with one raster split; measure the split offset;
       record in `ERRPLAN.md`.

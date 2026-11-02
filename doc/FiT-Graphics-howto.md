@@ -31,15 +31,14 @@ tile engine and to the PSRAM/Forth mirror at the same address.
 | `0xF2004` | control 2: smooth `scroll_x` 0..15, latched with the display bank |
 | `0xF2006` | control 3: smooth `scroll_y` 0..30 |
 | `0xF2008` | control 4: b0 write bank, b1 display bank |
-| `0xF200A` | control 5: sprite **write** page 0..2 (3 clamps to 0) |
+| `0xF200A` | control 5: scene select — palette set 0..7, OAM base descriptor 0..63 |
 | `0xF200C` | control 6: per-row fine scroll `{en, row[4:0], fine[2:0]}` |
 | `0xF200E` | control 7: raster line compare 0..359 |
 | `0xF3000`–`0xF3FFF` | tile bank, all 128 tiles x 32 words |
 | `0xF4000`–`0xF57FF` | sprite bank, all 24 groups x 16 patterns x 16 words |
-| `0xF6000`–`0xF600F` | OAM, eight sprites x two words |
-| `0xF6080`–`0xF608F` | text palette, eight paper/ink pairs |
-| `0xF6090`–`0xF609F` | art palette, 16 RGB332 entries |
-| `0xF60A0`–`0xF60AF` | sprite palette, 16 RGB332 entries |
+| `0xF6000`–`0xF607F` | OAM, 64 descriptors x two words (eight visible) |
+| `0xF6080`–`0xF627F` | 8 palette sets x 4 banks x 16 RGB332 entries |
+| `0xF6280`–`0xF62FF` | reserved |
 
 The board has a 16-entry FIFO between the CPU and the pixel clock. Tile
 writes are asynchronous: a write lands in the pixel domain within a few clocks
@@ -577,11 +576,9 @@ All sprite memory is word-addressed, written by the CPU like ordinary RAM.
 | Address | Words | What |
 |---|---|---|
 | `0xF4000`–`0xF57FF` | 6,144 | sprite pattern bank, **all 24 groups** |
-| `0xF6000`–`0xF600F` | 16 | OAM, two words per sprite |
-| `0xF6080`–`0xF608F` | 16 | text palette bank: eight paper/ink pairs |
-| `0xF6090`–`0xF609F` | 16 | art palette bank (mode-0 tiles) |
-| `0xF60A0`–`0xF60AF` | 16 | sprite palette bank, RGB332 |
-| `0xF200A` | 1 | control 5: legacy sprite write page (accepted, unused) |
+| `0xF6000`–`0xF607F` | 128 | OAM: 64 descriptors x two words |
+| `0xF6080`–`0xF627F` | 512 | 8 palette sets x 4 banks x 16 entries |
+| `0xF200A` | 1 | control 5: scene select (palette set + OAM base) |
 
 The window at `0xF4000`–`0xF57FF` covers **all 24 groups** (6,144 words): the
 CPU writes `0xF4000 + group * 256 + ...` directly. Control 5 and the OAM group
@@ -670,11 +667,13 @@ There are two ways to get art into the bank:
 
 ### 7.4 Palette
 
-Three banks of 16 **RGB332** (`RRRGGGBB`) entries share one 64 x 16 BSRAM:
+Eight **sets** of four 16-entry **RGB332** (`RRRGGGBB`) banks share one
+1,024 x 16 BSRAM. The banks are text, art, sprite and spare; control 5 bits
+10:8 select the set. Set 0 is the historical layout:
 
 | Window | Bank | Used by |
 |---|---|---|
-| `0xF6080`–`0xF608F` | text | pair-mode tile cells, eight `paper`/`ink` pairs |
+| `0xF6080`–`0xF608F` | text | pair-mode tile cells, eight `paper`/`ink` pairs (set 0) |
 | `0xF6090`–`0xF609F` | art | mode-0 tile cells (`pix[3:0]`) |
 | `0xF60A0`–`0xF60AF` | sprite | every sprite, shared by all eight slots |
 
@@ -689,10 +688,39 @@ colours.
   showcase picks a bird by writing sprite-bank entries 2 (body) and 13 (belly)
   on reset, while all three birds share the same pattern layout and differ
   only in the page.
-* Power-up colours come from `tilepal3.hex` (the same 16 entries copied into
-  all three banks). Leaving Flappy restores the art and sprite banks to the
-  default and leaves the console text bank alone; the BIOS `gfx` handler
-  clears OAM, so the console comes back with no sprites.
+* Power-up colours come from `tilepal3.hex`: every set is seeded with the same
+  16 entries in the text, art and sprite banks. Leaving Flappy restores the art
+  and sprite banks to the default and leaves the console text bank alone; the
+  BIOS `gfx` handler clears all 64 OAM descriptors, so the console comes back
+  with no sprites.
+
+### 7.4.1 Scenes: one store swaps OAM and palette
+
+Control 5 at `0xF200A` selects the whole scene:
+
+```text
+bits 10:8  palette set 0..7
+bits  7:2  OAM base descriptor 0..63
+bits  1:0  legacy sprite write page (latched, unused)
+```
+
+Visible slot `n` (0..7) reads descriptor `(base + n) % 64`, so 64 descriptors
+hold eight scenes of eight sprites. The base is latched when the line loader
+starts, so a store never tears a line; the palette set applies from the next
+pixel. That is the raster-split primitive:
+
+```forth
+\ one store: OAM base 8, palette set 2
+8 2 scene!        \ catalog.fth; = control 5 = (2 << 8) | (8 << 2)
+```
+
+`oam-base!` and `pal-set!` change one field and keep the other. Existing code
+that writes 0/1/2 (the old pattern page) still means base 0, set 0.
+
+A descriptor is the same two words as before, at `0xF6000 + d*2`:
+`w0 = {behind, vflip, hflip, free, enable, xsign, x[9:0]}`,
+`w1 = {group[4:0], free, y[9:0]}`. The palette set is part of the address, so
+set `s`, bank `b`, entry `e` is `0xF6080 + s*64 + b*16 + e`.
 
 ### 7.5 A sprite in six steps
 
