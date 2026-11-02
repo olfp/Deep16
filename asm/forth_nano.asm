@@ -15514,6 +15514,50 @@ irq_handler:
     LDS R1, ES, R2
     ADD R1, 1
     STS R1, ES, R2           ; RASTER = raster interrupt count
+
+    ; Optional raster band: control 5 changes at lineA and changes back at
+    ; lineB, so the split is stable instead of alternating every frame.
+    ;   0xBA = lineA, 0xBC = scene value (control 5), 0xBE = lineB
+    ; A zero scene value disables the band.
+    LDI 0xBC
+    MOV R2, R0
+    LDS R1, ES, R2           ; band scene value
+    AND R1, R1
+    JZ irq_split_none
+    LDI 0x200E
+    MOV R2, R0
+    LDS R3, ES, R2           ; current raster compare line
+    LDI 0xBA
+    MOV R2, R0
+    LDS R0, ES, R2           ; lineA
+    CMP R3, R0
+    JNZ irq_split_end
+    LDI 0x200A
+    MOV R2, R0
+    STS R1, ES, R2           ; control 5 = band scene
+    LDI 0xBE
+    MOV R2, R0
+    LDS R1, ES, R2           ; lineB
+    LDI 0x200E
+    MOV R2, R0
+    STS R1, ES, R2           ; next compare = lineB
+    RETI
+    NOP
+irq_split_end:
+    LDI 0x200A
+    MOV R2, R0
+    LDI 0
+    MOV R3, R0
+    STS R3, ES, R2           ; control 5 = base scene
+    LDI 0xBA
+    MOV R2, R0
+    LDS R1, ES, R2           ; lineA
+    LDI 0x200E
+    MOV R2, R0
+    STS R1, ES, R2           ; next compare = lineA
+    RETI
+    NOP
+irq_split_none:
     RETI
     NOP
 irq_timer:

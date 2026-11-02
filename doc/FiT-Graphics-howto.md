@@ -724,6 +724,25 @@ so moving a sprite means writing `(group << 11) | y`, not just `y`; a bare
 `y` store silently selects group 0. The palette set is part of the address, so
 set `s`, bank `b`, entry `e` is `0xF6080 + s*64 + b*16 + e`.
 
+### 7.4.2 A stable raster band
+
+`split!` arms the raster compare at line `a`. The kernel IRQ handler writes the
+scene value to control 5 there and rewrites control 7 to line `b`; at `b` it
+writes scene 0 and points the compare back at `a`. Two stores per frame, and
+the band stays put instead of toggling once per frame.
+
+```forth
+0x1C 0x60C1 es!        \ palette set 1, text ink entry 1 = green
+0x100 40 160 split!    \ scene 0x100 (set 1) from line 40 to line 160
+...
+split-off              \ back to the base scene, IRQ off
+```
+
+The store crosses the CPU-to-render FIFO and the IRQ has its own latency, so
+the boundary lands one or two lines below the requested compare. Measure it on
+the board; the `raster-ticks` counter confirms the compare fires once per
+frame.
+
 ### 7.5 A sprite in six steps
 
 ```asm

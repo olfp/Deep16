@@ -292,7 +292,7 @@ set 0, so they should pass unchanged — that is itself the compatibility check.
 | Palette sets alone (Phase 1) | +36 logic, CLS 4,320, **52 LUTs unplaced** | **failed** |
 | Phase 1 + OAM into RAM (1+2) | −79 logic, −177 registers | **4,260 CLS, BSRAM 26** |
 | Docs/sim/tests (Phase 3) | none | 745 tests, `sim:dvi:tile` |
-| Board demo (Phase 4) | none | two scenes split at one raster line |
+| Board demo (Phase 4) | none | `split!` band between two scan lines |
 
 **Measured (2026-11-02).** Phase 1 alone grew logic from 8,503 to 8,539 and
 filled the device; the descriptor read mux (`oam_bits[4'(loidx)*16 +: 16]`,
@@ -354,8 +354,8 @@ fetch state dominate), so it is not a useful fallback.
       reset clear; synth gate (combined with Phase 1: fits).
 - [x] Phase 3: JS engine + tests + BIOS clear count + `catalog.fth` words;
       `npm test`, `sim:dvi:tile`, lint.
-- [ ] Phase 4: board demo with one raster split; measure the split offset;
-      record in `ERRPLAN.md`.
+- [x] Phase 4: raster band shipped as `split!`/`split-off` (kernel IRQ chains
+      control 7 between two lines); board measurement pending.
 
 ---
 

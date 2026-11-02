@@ -147,6 +147,19 @@ variable nm-l drop
 : pal-set!  ( n -- )   7 and 8 lshift   0x200A es@ 0x0FF and or 0x200A es! ;
 : scene!    ( oam pal -- ) 7 and 8 lshift swap 0x3F and 2 lshift or 0x200A es! ;
 
+\ ---- raster split: a control-5 band between two scan lines ------------
+\ split! arms control 7 at line a; the IRQ handler writes the scene value
+\ there and rewrites control 7 to line b, where it restores scene 0. One
+\ store per split, chained by the handler, so the band is stable.
+0xBA constant split-la
+0xBC constant split-val
+0xBE constant split-lb
+: split! ( scene a b -- )
+   split-lb es! split-la es! split-val es!
+   split-la es@ raster-line! raster-on ;
+: split-off ( -- )
+   0 split-val es! raster-off 0 raster-line! 0 0x200A es! ;
+
 \ ---- text/art/sprite palette banks, 0xF6080/90/A0 -----------------------
 \ The text bank holds 8 pairs (2p paper, 2p+1 ink); art cells read the art
 \ bank; sprites read the sprite bank. The console ATTR selects the text pair.
