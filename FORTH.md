@@ -816,7 +816,11 @@ descriptors are selected by one control-5 word (`scene!`), so a raster
 handler can swap the whole scene at one scan line. `split!` does exactly that:
 the kernel's raster IRQ writes the scene value at line `a` and rewrites the
 compare to line `b`, where it restores scene 0, so the band is stable instead
-of alternating every frame. Palette writes are not frame-latched, so change
+of alternating every frame. **On the board it does not yet behave as a band:**
+the compare chains (~two IRQs per frame) and the RTL simulation draws the band
+two lines late, but the hardware applies one palette set per frame. The word is
+kept for the experiment and marked experimental; use a frame-boundary palette
+swap for now. Palette writes are not frame-latched, so change
 them during vblank or at a screen transition.
 
 | word | effect |
@@ -827,7 +831,7 @@ them during vblank or at a screen transition.
 | `scene! ( oam pal -- )` | one control-5 store: OAM base descriptor + palette set |
 | `oam-base! ( n -- )` | set the first visible descriptor (0–63) |
 | `pal-set! ( n -- )` | set the palette set (0–7) |
-| `split! ( scene a b -- )` | band from scan line `a` to `b` uses control-5 `scene`, outside it uses 0 |
+| `split! ( scene a b -- )` | **experimental**: band from scan line `a` to `b` uses control-5 `scene`, outside it uses 0 |
 | `split-off ( -- )` | disarm the raster band and restore the base scene |
 | `attr ( pair -- )` | select the console pair (`0..7`), keep the style |
 | `style ( flags -- )` | set style bits, keep the pair: `1` italic page, `2` bold, `4` underline, `7` all |

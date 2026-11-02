@@ -354,8 +354,15 @@ fetch state dominate), so it is not a useful fallback.
       reset clear; synth gate (combined with Phase 1: fits).
 - [x] Phase 3: JS engine + tests + BIOS clear count + `catalog.fth` words;
       `npm test`, `sim:dvi:tile`, lint.
-- [x] Phase 4: raster band shipped as `split!`/`split-off` (kernel IRQ chains
-      control 7 between two lines); board measurement pending.
+- [ ] Phase 4: raster band. `split!`/`split-off` and the chained control-7
+      handler are in, and the raster IRQ itself works (a macro typo had left it
+      unconnected). **Open:** on the board the compositor applies one palette
+      set per frame instead of per line. Evidence: with lineA 0/lineB 1 the
+      screen is normal, with 40/160 or 100/110 whole frames alternate green vs
+      normal; `raster-ticks` shows ~2 IRQs per frame; control 5 and control 7
+      read back alternating in the mirror; the RTL simulation draws the band at
+      output lines 102-201 for a 100/200 request. Next probe would be a
+      fill-time latch of `pal_set` readable by software.
 
 ---
 

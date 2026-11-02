@@ -249,8 +249,10 @@ straight from `oam_desc[5:0]`, and base 60 wraps to slots 4–7 = descriptors 0�
 on the board. **Lesson:** do not put a variable-start adder in the tile RAM
 address path; use a counter.
 
-Board demo (raster split) still open. Prior status: design recommendation
-only; no RTL or simulation change
+Board demo (raster split) still open: the chained handler works and the RTL
+simulation draws the band, but the board applies one palette set per frame.
+See `OAMPLAN.md` §16. Prior status: design recommendation only; no RTL or
+simulation change
 applied.
 
 ---
