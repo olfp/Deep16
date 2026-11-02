@@ -1,10 +1,11 @@
 # OAMPLAN — 64 OAM descriptors and 8 palette sets
 
-Status: **implemented (2026-11-02, `main`).** Phases 1 and 2 were combined:
-Phase 1 alone did not place (52 LUTs), and moving OAM into the same RAM paid
-for the palette growth. Rebuilt result: **4,260 / 4,320 CLS (60 free)**,
-BSRAM 26/26, registers 2,838 (−177), all TNS 0. The design below is the one
-that shipped; §13 records the measurement.
+Status: **implemented and board-verified (2026-11-02, `main`).** Phases 1 and
+2 were combined: Phase 1 alone did not place (52 LUTs), and moving OAM into the
+same RAM paid for the palette growth. Final result: **4,297 / 4,320 CLS**,
+BSRAM 26/26, registers 2,838 (−177), all TNS 0. The board sweep shows
+descriptor `n` at base `n` for 0…56. §13 records the measurement and the one
+synthesis trap.
 
 Baseline was `main` at `5641adc`: **4,306 / 4,320 CLS (14 free)**.
 
@@ -298,6 +299,15 @@ filled the device; the descriptor read mux (`oam_bits[4'(loidx)*16 +: 16]`,
 a 16:1 x 16-bit variable part-select) was the real cost. Moving OAM into
 `scene_mem` deleted that mux and the 256 flops: logic fell to 8,424 (−79) and
 CLS to 4,260 while adding the palette sets. BSRAM stayed at 26/26.
+
+**Synthesis trap (found on the board).** With the base added at read time
+(`ldesc = oam_base_lat + lspr`), Gowin merged that adder's carry chain with the
+palette address arithmetic: bases 0 and 8 worked, 16 and above selected the
+wrong descriptor, while the RTL was correct in Verilator. The shipped form
+loads `oam_base` into a 6-bit counter at the line start and increments it per
+slot, so the RAM address is `{oam_desc, oam_phase}` with no adder in the path.
+That costs 37 CLS (4,260 → 4,297) and is verified by reading the netlist:
+`scene_raddr[6] = oam_desc[5]`, `scene_raddr[5] = oam_desc[4]`.
 
 Sequencing matters: do Phase 1 first and measure. If Phase 1 already eats the
 margin, stop and re-plan before moving OAM.

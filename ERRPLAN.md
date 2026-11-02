@@ -237,8 +237,19 @@ palette sets. Window `0xF6000–0xF627F`, control 5 = scene select, 1,024-word
 `tilepal3.hex`, 128-word reset clear, BIOS clear widened to 128, Forth
 `scene!`/`oam-base!`/`pal-set!`. Result: 4,260 / 4,320 CLS, BSRAM 26/26,
 745 tests, tile sim covers sets, base wrap and the reset clear. Details and the
-measurement: [`OAMPLAN.md`](OAMPLAN.md). Board demo (raster split) still open.
-Prior status: design recommendation only; no RTL or simulation change
+measurement: [`OAMPLAN.md`](OAMPLAN.md).
+
+**Board-verified (2026-11-02).** Palette sets, OAM base and descriptor
+addressing all work. A first build failed above base 8: Gowin had merged the
+`oam_base + slot` adder with the palette address arithmetic, so the high base
+bits never reached the RAM address. Replacing the adder with a 6-bit
+descriptor counter loaded at the line start (`c3ec403`) fixed it; the board
+sweep now shows descriptor `n` at base `n` for 0…56, and the netlist takes the
+address straight from `oam_desc[5:0]`. **Lesson:** do not put a variable-start
+adder in the tile RAM address path; use a counter.
+
+Board demo (raster split) still open. Prior status: design recommendation
+only; no RTL or simulation change
 applied.
 
 ---
