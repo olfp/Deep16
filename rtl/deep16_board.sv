@@ -273,7 +273,7 @@ module deep16_board (
     .raster_toggle (dvi_raster_toggle)
   );
 
-`ifdef D16_NANO
+`ifdef D16NANO
   // The render-domain raster toggle is asynchronous to clk_cpu. Two flops and
   // an edge detect turn it into one clk_cpu pulse for SIC bit 3.
   logic        raster_irq;
@@ -392,7 +392,7 @@ module deep16_board (
   logic [1:0] spi_cs_i;
 `endif
 
-`ifdef D16_NANO
+`ifdef D16NANO
 `ifndef DVI_TILE
   logic raster_irq;
   assign raster_irq = 1'b0;
@@ -406,7 +406,7 @@ module deep16_board (
     // free-run: one retired instruction after another, no step handshake
     .i_step   (1'b1),
     .i_free   (1'b1),
-`ifdef D16_NANO
+`ifdef D16NANO
     .raster_irq (raster_irq),
 `endif
     .o_done   (o_done),

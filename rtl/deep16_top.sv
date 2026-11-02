@@ -13,7 +13,7 @@ module deep16_top
   input  logic        i_step,
   // diagnostic free-run: stay running past a retirement (see deep16_core)
   input  logic        i_free,
-`ifdef D16_NANO
+`ifdef D16NANO
   // One clk_cpu pulse when the tile engine reaches the control-7 raster line.
   input  logic        raster_irq,
 `endif
@@ -239,7 +239,7 @@ module deep16_top
 
   // Four-source SIC: only the 15 kHz timer is wired in this slice; the raster,
   // audio and keyboard bits are decoded but stay 0 until their sources land.
-`ifdef D16_NANO
+`ifdef D16NANO
   wire raster_src = raster_irq;
 `else
   wire raster_src = 1'b0;
