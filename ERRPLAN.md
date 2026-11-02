@@ -244,9 +244,10 @@ addressing all work. A first build failed above base 8: Gowin had merged the
 `oam_base + slot` adder with the palette address arithmetic, so the high base
 bits never reached the RAM address. Replacing the adder with a 6-bit
 descriptor counter loaded at the line start (`c3ec403`) fixed it; the board
-sweep now shows descriptor `n` at base `n` for 0…56, and the netlist takes the
-address straight from `oam_desc[5:0]`. **Lesson:** do not put a variable-start
-adder in the tile RAM address path; use a counter.
+sweep shows descriptor `n` at base `n` for 0…56, the netlist takes the address
+straight from `oam_desc[5:0]`, and base 60 wraps to slots 4–7 = descriptors 0–3
+on the board. **Lesson:** do not put a variable-start adder in the tile RAM
+address path; use a counter.
 
 Board demo (raster split) still open. Prior status: design recommendation
 only; no RTL or simulation change
