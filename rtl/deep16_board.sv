@@ -277,16 +277,15 @@ module deep16_board (
   // The render-domain raster toggle is asynchronous to clk_cpu. Two flops and
   // an edge detect turn it into one clk_cpu pulse for SIC bit 3.
   logic        raster_irq;
-  logic [1:0]  raster_sync;
-  logic        raster_seen;
+  // Three distinct stages, so the edge detect compares two different flops.
+  // (A register that merely delays the same signal can be folded away: the
+  // earlier two-stage version never produced a pulse in the fitted netlist.)
+  logic [2:0]  raster_sync;
   always_ff @(posedge clk_cpu) begin
-    if (rst) begin raster_sync <= 2'b00; raster_seen <= 1'b0; end
-    else begin
-      raster_sync <= {raster_sync[0], dvi_raster_toggle};
-      raster_seen <= raster_sync[1];
-    end
+    if (rst) raster_sync <= 3'b000;
+    else     raster_sync <= {raster_sync[1:0], dvi_raster_toggle};
   end
-  assign raster_irq = raster_sync[1] ^ raster_seen;
+  assign raster_irq = raster_sync[2] ^ raster_sync[1];
 `endif
 `else
   dvi_text u_dvi_text (
@@ -340,7 +339,7 @@ module deep16_board (
   // an input path that does not depend on the UART data read.
   // bit 4 is a diagnostic: the synchronised raster toggle, so software can see
   // whether the compare is producing one pulse per frame.
-  assign tile_status = {11'b0, raster_sync[1], uart_ready_q, btn_sync[1],
+  assign tile_status = {11'b0, raster_sync[2], uart_ready_q, btn_sync[1],
                         dvi_frame_sync[1], dvi_vblank_sync[1]};
 `else
   assign tile_status = {12'b0, uart_ready_q, btn_sync[1], 2'b00};
