@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildPacman } from './make_showcase.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SLICE_WORDS = 2048;
@@ -77,6 +78,35 @@ function sourceSlices(text, firstIndex, baseName) {
   return out;
 }
 
+// Type-4 binary slices: payload cell 0 = magic 'D16B', 1 = version, 2 = entry
+// offset, 3 = word count, then the words. Continuations are raw payload and
+// are linked, so a game may span any number of 4KB slices.
+export const BINARY_MAGIC = 0xd16b;
+export const BINARY_VERSION = 1;
+
+function binarySlices(sparse, firstIndex, baseName, entryOffset = 0) {
+  const max = sparse.reduce((m, [a]) => Math.max(m, a), -1);
+  const dense = new Array(Math.max(0, max + 1)).fill(0xffff);
+  for (const [a, v] of sparse) dense[a] = v & 0xffff;
+  const payload = [BINARY_MAGIC, BINARY_VERSION, entryOffset, dense.length, ...dense];
+  const count = Math.max(1, Math.ceil(payload.length / SLICE_PAYLOAD));
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const words = new Uint16Array(SLICE_WORDS);
+    words.set(header({
+      type: i === 0 ? TYPES.BINARY : TYPES.EMPTY,
+      link: i === count - 1 ? 0xffff : firstIndex + i + 1,
+      name: i === 0 ? baseName : `${baseName}${i + 1}`,
+    }), 0);
+    for (let j = 0; j < SLICE_PAYLOAD; j++) {
+      const at = i * SLICE_PAYLOAD + j;
+      words[8 + j] = at < payload.length ? payload[at] : 0xffff;
+    }
+    out.push(words);
+  }
+  return out;
+}
+
 function directory(entries) {
   const words = new Uint16Array(SLICE_WORDS);
   words.set(header({ type: TYPES.DIRECTORY, wp: true, name: 'master' }), 0);
@@ -97,11 +127,15 @@ export function buildSlices() {
   const helloSlices = sourceSlices(hello, helloFirst, 'hello');
   const catFirst = helloFirst + helloSlices.length;
   const catSlices = sourceSlices(catalog, catFirst, 'catalog');
+  const pac = buildPacman();
+  const pacFirst = catFirst + catSlices.length;
+  const pacSlices = binarySlices(pac.words, pacFirst, 'pacman');
   const slices = [directory([
     entry({ type: TYPES.SCREEN, first: sdFirst, name: 'sd' }),
     entry({ type: TYPES.SCREEN, first: helloFirst, name: 'hello' }),
     entry({ type: TYPES.SCREEN, first: catFirst, name: 'catalog' }),
-  ]), ...sdSlices, ...helloSlices, ...catSlices];
+    entry({ type: TYPES.BINARY, first: pacFirst, name: 'pacman' }),
+  ]), ...sdSlices, ...helloSlices, ...catSlices, ...pacSlices];
   const words = new Uint16Array(slices.length * SLICE_WORDS);
   slices.forEach((w, i) => words.set(w, i * SLICE_WORDS));
   const bytes = Buffer.alloc(slices.length * SLICE_BYTES, 0xff);
@@ -116,6 +150,7 @@ export function buildSlices() {
       sd: { first: sdFirst, count: sdSlices.length, chars: sd.length },
       hello: { first: helloFirst, count: helloSlices.length, chars: hello.length },
       catalog: { first: catFirst, count: catSlices.length, chars: catalog.length },
+      pacman: { first: pacFirst, count: pacSlices.length, words: pac.max + 1 },
     },
   };
   return { words, bytes, manifest };
@@ -132,6 +167,7 @@ if (isMain) {
                    JSON.stringify(manifest, null, 2) + '\n');
   console.log(`  ${path.relative(ROOT, out)}  ${bytes.length} bytes, ${manifest.slices} slices`);
   for (const [name, o] of Object.entries(manifest.objects))
-    console.log(`    ${name.padEnd(8)} slice ${o.first}..${o.first + o.count - 1}  ${o.chars} chars`);
+    console.log(`    ${name.padEnd(8)} slice ${o.first}..${o.first + o.count - 1}  ` +
+                (o.chars !== undefined ? `${o.chars} chars` : `${o.words} words`));
   console.log(`  flash at 0x${SCREEN_BASE.toString(16)} (sector 512)`);
 }
