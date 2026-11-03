@@ -2737,8 +2737,13 @@ h_esfetch:
     .word 3
     .text "es@"
     .word word_esfetch
+h_psw:
+    .word h_esfetch
+    .word 3
+    .text "psw"
+    .word word_psw
 forth_wl:
-    .word h_esfetch           ; newest built-in header in the FORTH vocabulary
+    .word h_psw               ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
     .word forth_wl
     .word 0, 0, 0, 0, 0, 0, 0
@@ -9251,6 +9256,14 @@ hex_digit_upper:
 ; es@ and es! are @ and ! through ES, which is the MMIO segment (0xF000):
 ; DS points at the kernel's data and cannot reach 0xF0080, so the Forth that
 ; talks to a peripheral - the SD card driver in forth/demo.fth - needs these.
+word_psw:                   ; psw ( -- x )  read the processor status word
+    LPSW R1
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
 word_esfetch:               ; es@ ( addr -- x )
     LDI sp0_base
     MOV R2, R0
