@@ -169,7 +169,7 @@ variable nm-l drop
 \ Keep the literal in step with the symbol: tests/segmented.test.js checks it.
 \ The same cell carries the style bits: bit 2 underline, bit 1 bold (smear),
 \ bit 0 the italic 1bpp font page.
-0x3C0E constant text-attr
+0x3C11 constant text-attr
 : pal! ( bg ink pair -- )        dup 2* 0x6080 + >r drop r@ 1+ es! r> es! ;
 : art-pal! ( bg ink pair -- )    dup 2* 0x6090 + >r drop r@ 1+ es! r> es! ;
 : sprite-pal! ( bg ink pair -- ) dup 2* 0x60A0 + >r drop r@ 1+ es! r> es! ;

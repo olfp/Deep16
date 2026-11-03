@@ -2771,6 +2771,18 @@ saved_r1:
 line_out:
     .word 0
 
+; call-far parks what the interpreter owns across a far-called block. R5 is
+; >IN and R6 is TIB; the block may use both as scratch, so they have to come
+; back. PSW comes back too: the far call runs with interrupts off (the block
+; owns the machine, and an IRQ handler would run with the block's DS), and the
+; caller's I flag is restored on return.
+far_r5:
+    .word 0
+far_r6:
+    .word 0
+far_psw:
+    .word 0
+
 ; ILL handler: the interrupted PC (the word after the trapped DIV/DIV32).
 ; A DIV/DIV32 with Rs=R15 reads it as the architectural own+1 value.
 ill_pc_save:
@@ -9302,6 +9314,13 @@ word_callfar:               ; call-far ( seg -- )  JML to seg:0, return here
     NOP
     LD R1, SP, 0
     ADD SP, 1
+    LDI far_r5
+    MOV R2, R0
+    ST R5, R2, 0            ; >IN
+    ST R6, R2, 1            ; TIB
+    LPSW R3
+    ST R3, R2, 2            ; the caller's PSW, I included
+    CLRI                    ; the block owns the machine: no IRQ in its DS
     LDI 0
     MOV R10, R0             ; the far return pair: CS = 0 (the kernel)
     LDI callfar_back
@@ -9330,6 +9349,12 @@ callfar_back:
     LDI 0x0FFF
     INV R0
     MVS ES, R0               ; the I/O segment
+    LDI far_r5
+    MOV R2, R0
+    LD R5, R2, 0             ; >IN
+    LD R6, R2, 1             ; TIB
+    LD R3, R2, 2
+    SPSW R3                  ; the caller's PSW and its I flag
     LDI next
     MOV PC, R0
     NOP

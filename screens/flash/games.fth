@@ -2,35 +2,43 @@
 \ A game is a type-4 binary slice; its payload is
 \   cell 0  magic 'D16B' (0xD16B)
 \   cell 1  format version (1)
-\   cell 2  entry offset inside the load segment
+\   cell 2  entry offset inside the load segment (must be 0 today)
 \   cell 3  word count of the block
 \   cell 4  load segment
 \   cell 5+ the block words
 \ Continuations are a raw payload and linked, so a game may span any number of
 \ 4 KB slices. game-load copies the block into its segment and answers the
 \ segment; game-run also far-calls the entry and comes back to the interpreter.
+\
+\ ES is the one global here: every slice read goes through the SPI words, which
+\ address the I/O window with ES, while the copy must address the game's
+\ segment. gcopy therefore sets ES for the copy and puts it back, so a slice
+\ read never lands inside the block it just wrote.
 0xFFFF constant no-link
 5 constant game-hdr
+0xF000 constant io-seg
 variable gnext drop
 variable goff drop
 variable gleft drop
 variable gseg drop
 variable gentry drop
 : gcopy ( a n -- )              \ copy n words from DS:a to ES:goff
+  gseg @ seg-base!
   0 do
     dup @  goff @ es!
     goff @ 1+ goff !
     cell+
-  loop drop ;
+  loop drop
+  io-seg seg-base! ;
 : game-load ( a n -- seg )
   find dup no-link = if drop ." game: not found" cr 0 exit then
   gnext !
+  io-seg seg-base!
   gnext @ slice 8 cells +                    ( payload )
   dup @ 0xD16B <> if drop ." game: bad header" cr 0 exit then
   dup 2 cells + @ gentry !
   dup 3 cells + @ gleft !
   dup 4 cells + @ gseg !
-  gseg @ seg-base!
   0 goff !
   game-hdr cells +  gleft @ 2035 min          ( src n )
   dup gleft @ swap - gleft !
@@ -45,6 +53,6 @@ variable gentry drop
     gcopy
     gnext @ slice 1 cells + @ gnext !
   repeat
-  0xF000 seg-base!
+  io-seg seg-base!
   gseg @ ;
 : game-run ( a n -- ) game-load call-far ;

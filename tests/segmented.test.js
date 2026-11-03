@@ -163,6 +163,16 @@ test('the I2S words load from the catalog', () => {
   assert.ok(sim.running);
 });
 
+test('the catalog\'s ATTR cell is the kernel\'s text_attr', () => {
+  // The catalog is Forth source and cannot see assembler symbols, so the cell
+  // is a literal there. Pin the two together or a kernel edit silently makes
+  // ATTR write the wrong cell (it did once).
+  const src = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'catalog.fth'), 'utf8');
+  const m = src.match(/0x([0-9A-Fa-f]+) constant text-attr/);
+  assert.ok(m, 'the catalog defines text-attr');
+  assert.equal(parseInt(m[1], 16), sym.text_attr, 'catalog constant matches the kernel symbol');
+});
+
 test('the palette words write the three banks and the console pair', () => {
   line('0x1C 0xFC 3 pal!');
   assert.equal(sim.memory[0xF6086], 0x1C, 'text pair 3 paper (entry 6)');
@@ -425,5 +435,42 @@ test('call-far enters a segment and returns to the interpreter', () => {
   assert.equal(sim.segmentRegisters.DS, DS_SEG, 'DS');
   assert.equal(sim.segmentRegisters.SS, SS_SEG, 'SS');
   assert.equal(sim.segmentRegisters.ES, 0xf000, 'ES');
+  assert.ok(sim.running);
+});
+
+test('game-run starts pacman from flash and returns to the prompt', () => {
+  // The far call leaves the kernel's thread and Pac-Man takes over segment
+  // 0x2000 with its own DS. It waits for the frame toggle in the status word,
+  // so the test drives that and then asks the game to finish: ST_STATE = 2
+  // (win) and a short timer make pac_state count down and far-return.
+  const SEG = 0x2000;
+  const state = (a) => sim.memory[(SEG << 4) + a];
+  const from = out.length;
+  for (const ch of 's" pacman" game-run\n') sim.uartRxPush(ch === '\n' ? 13 : ch.charCodeAt(0));
+  let frame = 0, at = -1;
+  for (let i = 0; i < 40_000_000; i++) {
+    step(1);
+    if (at < 0 && sim.segmentRegisters.CS === SEG) at = i;
+    if (at >= 0 && (i - at) % 0x400 === 0) {
+      frame++;
+      sim.memory[0xF0066] = (frame & 1) ? 2 : 0;
+      if (frame === 340) {
+        sim.memory[(SEG << 4) + 0x6ab] = 2;   // ST_STATE = win
+        sim.memory[(SEG << 4) + 0x6ac] = 5;   // ST_TIMER
+      }
+    }
+    if (out.indexOf('\r\n> ', from) >= 0) break;
+  }
+  assert.match(out.slice(from), /\r\n> /, 'the interpreter is back');
+  // The maze is in the tilemap, so the block really ran.
+  let tiles = 0;
+  for (let r = 0; r < 26; r++) for (let c = 0; c < 82; c++) {
+    if ((sim.memory[0xF1000 + r * 82 + c] & 0xfff) !== 0) tiles++;
+  }
+  assert.ok(tiles > 1000, `the maze was drawn (${tiles} tiles)`);
+  assert.equal(state(0x6a5), 408, 'the game counted the dots in its own state');
+  assert.equal(sim.segmentRegisters.DS, DS_SEG, 'DS back to the kernel');
+  assert.equal(sim.segmentRegisters.SS, SS_SEG, 'SS back to the kernel');
+  assert.equal(sim.segmentRegisters.ES, 0xf000, 'ES back to the I/O segment');
   assert.ok(sim.running);
 });
