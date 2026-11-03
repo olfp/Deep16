@@ -446,13 +446,17 @@ test('game-run starts pacman from flash and returns to the prompt', () => {
   const state = (a) => sim.memory[(SEG << 4) + a];
   const from = out.length;
   for (const ch of 's" pacman" game-run\n') sim.uartRxPush(ch === '\n' ? 13 : ch.charCodeAt(0));
-  let frame = 0, at = -1, quit = false;
+  let frame = 0, at = -1, sent = 0;
   for (let i = 0; i < 40_000_000; i++) {
     step(1);
     if (at < 0 && sim.segmentRegisters.CS === SEG) at = i;
     if (at >= 0 && (i - at) % 0x400 === 0) {
       frame++;
-      if (frame === 340 && !quit) { sim.uartRxPush(0x71); quit = true; }   // q
+      // `d` walks Pac-Man right down the open row; the far call must run the
+      // block with a pristine PSW (the kernel's ER=8 would make its R8 loads
+      // read ES instead of DS and no direction would ever apply).
+      if (frame === 340 && !sent) { sim.uartRxPush(0x64); sent = 1; }
+      if (frame === 420 && sent === 1) { sim.uartRxPush(0x71); sent = 2; }  // q
       sim.memory[0xF0066] = ((frame & 1) ? 2 : 0) | (sim.uartRxAvailable() ? 8 : 0);
     }
     if (out.indexOf('\r\n> ', from) >= 0) break;
@@ -464,7 +468,8 @@ test('game-run starts pacman from flash and returns to the prompt', () => {
     if ((sim.memory[0xF1000 + r * 82 + c] & 0xfff) !== 0) tiles++;
   }
   assert.ok(tiles > 1000, `the maze was drawn (${tiles} tiles)`);
-  assert.equal(state(0x6a5), 408, 'the game counted the dots in its own state');
+  assert.ok(state(0x6a5) < 408, 'the maze was drawn and dots were eaten');
+  assert.ok(state(0x6a0) > 17, `Pac-Man moved right (column ${state(0x6a0)})`);
   assert.equal(sim.segmentRegisters.DS, DS_SEG, 'DS back to the kernel');
   assert.equal(sim.segmentRegisters.SS, SS_SEG, 'SS back to the kernel');
   assert.equal(sim.segmentRegisters.ES, 0xf000, 'ES back to the I/O segment');

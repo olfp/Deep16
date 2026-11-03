@@ -9320,7 +9320,12 @@ word_callfar:               ; call-far ( seg -- )  JML to seg:0, return here
     ST R6, R2, 1            ; TIB
     LPSW R3
     ST R3, R2, 2            ; the caller's PSW, I included
-    CLRI                    ; the block owns the machine: no IRQ in its DS
+    LDI 0
+    SPSW R0                 ; pristine PSW for the block: S=0, I=0, and ER=SR=0.
+    NOP                     ; The kernel runs with ER=8, which makes every
+                            ; LD/ST whose register field is 8 address ES
+                            ; instead of DS - a block that keeps a column in
+                            ; R8 then reads the wrong segment.
     LDI 0
     MOV R10, R0             ; the far return pair: CS = 0 (the kernel)
     LDI callfar_back
