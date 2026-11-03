@@ -546,25 +546,16 @@ module deep16_board (
         q5 <= q5 + 4'd1;
     end
   end
-  // Latches, not blinks, so a single event is visible even if the renderer or
-  // scan stops after a few lines.
-  logic frame_seen, ft_prev;
-  always_ff @(posedge dvi_render_clk) begin
-    if (dvi_rst_render) begin frame_seen <= 1'b0; ft_prev <= 1'b0; end
-    else begin
-      ft_prev <= u_dvi_tile.frame_toggle;
-      if (u_dvi_tile.frame_toggle != ft_prev) frame_seen <= 1'b1;
-    end
-  end
   // led2 blinking = 24.75 MHz render clock alive; led3 = DVI PLL lock;
-  // led4 = scan path started; led5 = the renderer produced a frame.
+  // led4 = scan path started; led5 = the synchronised raster toggle, so a
+  // 60 Hz compare shows a half-bright LED and a slow compare blinks.
   // led0/1 are CPU status.
   assign led[0] = o_boot_err ? 1'b1 : (o_boot_done ? hb[24] : hb[21]);
   assign led[1] = ~o_busy;
   assign led[2] = ~q5[3];
   assign led[3] = ~dvi_lock;
   assign led[4] = ~u_dvi_tile.started;
-  assign led[5] = ~frame_seen;
+  assign led[5] = ~raster_sync[2];
 `else
   assign led[0] = o_boot_err ? 1'b1 : (o_boot_done ? hb[24] : hb[21]);
   assign led[1] = ~o_busy;
