@@ -14,8 +14,9 @@ module deep16_top
   // diagnostic free-run: stay running past a retirement (see deep16_core)
   input  logic        i_free,
 `ifdef D16NANO
-  // One clk_cpu pulse when the tile engine reaches the control-7 raster line.
-  input  logic        raster_irq,
+  // Synchronised level of the tile engine's control-7 raster toggle; the SIC
+  // edge-detects it internally.
+  input  logic        raster_toggle,
 `endif
   output logic        o_done,
   output logic        o_result,
@@ -240,9 +241,9 @@ module deep16_top
   // Four-source SIC: only the 15 kHz timer is wired in this slice; the raster,
   // audio and keyboard bits are decoded but stay 0 until their sources land.
 `ifdef D16NANO
-  wire raster_src = raster_irq;
+  wire raster_lvl = raster_toggle;
 `else
-  wire raster_src = 1'b0;
+  wire raster_lvl = 1'b0;
 `endif
   deep16_sic u_sic (
     .clk   (clk),
@@ -251,7 +252,8 @@ module deep16_top
     .addr  (sic_addr),
     .wdata (mem_wdata),
     .rdata (sic_rdata),
-    .src   ({raster_src, 1'b0, timer_tick, 1'b0}),
+    .src   ({1'b0, 1'b0, timer_tick, 1'b0}),
+    .raster_toggle (raster_lvl),
     .irq   (sic_irq)
   );
 

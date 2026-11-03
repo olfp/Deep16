@@ -19,10 +19,16 @@ module deep16_sic (
   input  logic [15:0] wdata,
   output logic [15:0] rdata,
   input  logic [3:0]  src,
+  // Synchronised raster toggle (a level). The rising and falling edges are
+  // detected here, next to the pending register, so the pulse never has to
+  // survive a combinational hop into this module.
+  input  logic        raster_toggle,
   output logic        irq
 );
   logic [3:0]  pending, enable;
   logic [15:0] scratch, raster;
+  logic        raster_prev;
+  wire [3:0]   src_all = {raster_toggle ^ raster_prev, src[2:0]};
 
   always_ff @(posedge clk) begin
     if (rst) begin
@@ -30,11 +36,13 @@ module deep16_sic (
       enable  <= 4'd0;
       scratch <= 16'd0;
       raster  <= 16'd0;
+      raster_prev <= 1'b0;
     end else begin
-      pending <= pending | src;
+      raster_prev <= raster_toggle;
+      pending <= pending | src_all;
       if (we) begin
         case (addr)
-          4'h0: pending <= (pending & ~wdata[3:0]) | src;
+          4'h0: pending <= (pending & ~wdata[3:0]) | src_all;
           4'h2: enable  <= wdata[3:0];
           4'h6: scratch <= wdata;
           4'h8: raster  <= wdata;
