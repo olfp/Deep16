@@ -441,23 +441,19 @@ test('call-far enters a segment and returns to the interpreter', () => {
 test('game-run starts pacman from flash and returns to the prompt', () => {
   // The far call leaves the kernel's thread and Pac-Man takes over segment
   // 0x2000 with its own DS. It waits for the frame toggle in the status word,
-  // so the test drives that and then asks the game to finish: ST_STATE = 2
-  // (win) and a short timer make pac_state count down and far-return.
+  // and `q` far-returns to the loader. The status bit 3 marks a queued key.
   const SEG = 0x2000;
   const state = (a) => sim.memory[(SEG << 4) + a];
   const from = out.length;
   for (const ch of 's" pacman" game-run\n') sim.uartRxPush(ch === '\n' ? 13 : ch.charCodeAt(0));
-  let frame = 0, at = -1;
+  let frame = 0, at = -1, quit = false;
   for (let i = 0; i < 40_000_000; i++) {
     step(1);
     if (at < 0 && sim.segmentRegisters.CS === SEG) at = i;
     if (at >= 0 && (i - at) % 0x400 === 0) {
       frame++;
-      sim.memory[0xF0066] = (frame & 1) ? 2 : 0;
-      if (frame === 340) {
-        sim.memory[(SEG << 4) + 0x6ab] = 2;   // ST_STATE = win
-        sim.memory[(SEG << 4) + 0x6ac] = 5;   // ST_TIMER
-      }
+      if (frame === 340 && !quit) { sim.uartRxPush(0x71); quit = true; }   // q
+      sim.memory[0xF0066] = ((frame & 1) ? 2 : 0) | (sim.uartRxAvailable() ? 8 : 0);
     }
     if (out.indexOf('\r\n> ', from) >= 0) break;
   }
