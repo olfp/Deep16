@@ -61,7 +61,7 @@ Methods:
   path). No memory reads.
 - `powerOn()` — loads the video ROM into the banks/palette, clears the tilemap,
   OAM, controls. Called when a program is assembled/loaded.
-- `reset()` — clears OAM and the controls, keeps the banks/palette/tilemap,
+- `reset()` — clears the controls, keeps the banks/palette/tilemap/OAM,
   matching `rst_render` (`$readmemh` is initial-only; OAM has a reset).
 - `snapshot()` — optional, for tests and for the headless renderer to compare
   state rather than pixels.

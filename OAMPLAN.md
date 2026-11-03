@@ -375,7 +375,26 @@ fetch state dominate), so it is not a useful fallback.
       that. Everything else in this plan is verified; the band stays
       experimental until the pulse rate is 60 per second.
 
-      **Next session (agreed 2026-11-02):**
+      **Probe built (2026-11-03, `main`):** the retired `sprite_page` register
+      is gone, and display-status bit 4 (`0xF0066`) carries the synchronised
+      `dvi_raster_toggle`. The OAM reset-clear sequencer was removed to make
+      room (OAM starts at zero from `tilepal3.hex` and the BIOS clears all 128
+      words on gfx entry, so a logic reset no longer clears it). 4,298/4,320
+      CLS, BSRAM 26/26, all TNS 0. Measure the toggle rate with:
+
+      ```forth
+      variable lb  variable cnt  variable m
+      : rs ( -- ) 0x66 es@ m @ and dup lb @ xor if 1 cnt +! then lb ! ;
+      : rate ( mask -- ) m ! 0 cnt ! 0 lb ! 100000 0 do rs loop cnt @ hex . ;
+      2 rate       \ frame bit, one transition per frame
+      0x10 rate    \ raster toggle
+      ```
+
+      Similar counts (~60 per second) mean the toggle is fine and the edge
+      detect / SIC pulse is at fault; a much lower count means the compare or
+      `raster_line` is wrong.
+
+      **Original plan (agreed 2026-11-02):**
       1. Delete the now-unused `sprite_page` register (control 5 bits 1:0 are
          retired) — frees about 5 CLS.
       2. Put the synchronised `dvi_raster_toggle` into display-status bit 4

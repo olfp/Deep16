@@ -268,8 +268,7 @@ module dvi_tile #(
   logic       map_wpage;  // CPU writes target this bank
   logic       map_dpage;  // fill/render reads this bank
   logic       map_dpage_next;
-  /* verilator lint_off UNUSEDSIGNAL */   // kept as a compatibility no-op
-  logic [1:0] sprite_page; // control 5 bits 1:0, legacy write page (unused)
+  /* verilator lint_off UNUSEDSIGNAL */
   logic [2:0] pal_set;     // control 5 bits 10:8, palette set 0..7
   logic [5:0] oam_base;    // control 5 bits 7:2, first visible descriptor
   logic [5:0] oam_desc;    // descriptor being loaded; loaded with the base
@@ -277,21 +276,11 @@ module dvi_tile #(
   /* verilator lint_on UNUSEDSIGNAL */
 
   /* verilator lint_off MULTIDRIVEN */   // power-up palette + runtime CPU writes
-  // The scene RAM has one write port. After reset a short sequencer clears the
-  // 128 OAM words (the palette keeps its $readmemh contents, as before); the
-  // CPU owns the port once that is done.
-  logic [6:0] oam_clr;
-  logic       oam_clr_busy;
-
+  // The scene RAM has one write port. OAM words start at zero from
+  // tilepal3.hex at configuration and the BIOS gfx handler clears all 128
+  // before drawing, so a logic reset needs no clear sequencer.
   always_ff @(posedge clk_render) begin
-    if (rst_render) begin
-      oam_clr      <= 7'd0;
-      oam_clr_busy <= 1'b1;
-    end else if (oam_clr_busy) begin
-      scene_mem[{3'b0, oam_clr}] <= 16'd0;
-      if (oam_clr == 7'd127) oam_clr_busy <= 1'b0;
-      else oam_clr <= oam_clr + 7'd1;
-    end else if (cpu_we && !cpu_ctrl) begin
+    if (cpu_we && !cpu_ctrl) begin
       case (cpu_tgt)
         2'd0: if (cpu_addr[11:0] < 12'(TM_WORDS))
                 tilemap[(map_wpage ? 13'(TM_WORDS) : 13'd0) + 13'(cpu_addr[11:0])] <= cpu_data;
@@ -327,7 +316,6 @@ module dvi_tile #(
       scroll_y  <= 5'd0;
       map_wpage <= 1'b0;
       map_dpage_next <= 1'b0;
-      sprite_page <= 2'd0;
       pal_set <= 3'd0;
       oam_base <= 6'd0;
       row_scroll_en_next <= 1'b0;
@@ -354,11 +342,10 @@ module dvi_tile #(
           map_dpage_next <= cpu_data[1];
         end
         4'hA: begin
-          // 0xF200A: bits 1:0 legacy sprite page, bits 7:2 OAM base (phase 2),
-          // bits 10:8 palette set. One store selects the whole scene.
-          sprite_page <= (cpu_data[1:0] == 2'd3) ? 2'd0 : cpu_data[1:0];
-          oam_base    <= cpu_data[7:2];
-          pal_set     <= cpu_data[10:8];
+          // 0xF200A: bits 7:2 OAM base descriptor, bits 10:8 palette set.
+          // Bits 1:0 were the legacy sprite page and are now ignored.
+          oam_base <= cpu_data[7:2];
+          pal_set  <= cpu_data[10:8];
         end
         4'hC: row_scroll_en_next <= cpu_data[8];
         4'hE: raster_line <= cpu_data[9:0];

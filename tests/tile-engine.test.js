@@ -410,7 +410,7 @@ test('the cursor XORs the palette byte and blinks', () => {
   assert.ok(isBlack(pixel(engine, 8, 0)), 'cursor is one cell');
 });
 
-test('reset keeps banks and the map, clears OAM and controls', () => {
+test('reset keeps banks, the map and OAM, clears the controls', () => {
   const { engine } = loaded();
   solidArt(engine, 96, 1);
   engine.write(0xF6091, 0xE0);
@@ -420,7 +420,7 @@ test('reset keeps banks and the map, clears OAM and controls', () => {
   engine.reset();
   assert.equal(engine.tileBank[96 * 32], 0x1111);
   assert.equal(engine.tilemap[0][0], 96 * 32);
-  assert.equal(engine.oam[0], 0);
+  assert.equal(engine.oam[0], 0x0800, 'OAM survives reset');
   assert.equal(engine.rowOff, 0);
   engine.render();
   assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255], 'palette survives, map survives');

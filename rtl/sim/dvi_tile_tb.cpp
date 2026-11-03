@@ -464,7 +464,7 @@ int main(int argc, char** argv) {
   check("palette set 0 keeps its own entry (red)",
         tr * 1000 + tg * 10 + tb, 255 * 1000 + 0 * 10 + 0);
 
-  // The legacy pattern-page values must still mean set 0.
+  // Bits 1:0 are ignored, so a legacy value keeps palette set 0.
   write_ctrl(0x0A, 0x0002);
   check("legacy control 5 value 2 keeps palette set 0", top->dbg_pset, 0);
   write_ctrl(0x0A, 0x0000);
@@ -574,8 +574,6 @@ int main(int argc, char** argv) {
   // The CPU window covers the whole 24-group bank (6,144 words); the OAM group
   // pointer is absolute and control 5 no longer pages the pattern bank.
   write_ctrl(8, 0);                          // map write page 0
-  write_ctrl(10, 1);                         // legacy page register still latches
-  check("legacy sprite page takes 1", top->dbg_spage, 1);
   for (int w = 0; w < 64; w++) write_win(2, 8 * 256 + w, 0x0444);   // group 8, entry 4
   write_win(3, 0, 16 | 0x0800);              // sprite 0: x=16, enable
   write_win(3, 1, 160 | (8 << 11));          // y=160, absolute group 8
@@ -603,8 +601,6 @@ int main(int argc, char** argv) {
   sample_pixel(17, 160, &r, &g, &b, &seen);
   check("group 24 is out of range and draws nothing",
         r * 1000 + g * 10 + b, 255 * 1000 + 0 * 10 + 0);
-  write_ctrl(10, 3);
-  check("legacy sprite page 3 clamps to 0", top->dbg_spage, 0);
 
   // The legacy page has no effect on where a store lands: with page 2
   // selected, offset 0 still writes group 0 (the old paging would have
@@ -702,9 +698,10 @@ int main(int argc, char** argv) {
   for (int i = 0; i < 20; i++) tick();
   top->rst = 0;
   for (int i = 0; i < 200; i++) tick();
-  check("OAM clear sequencer finished", top->dbg_oam_clr_busy, 0);
-  check("reset clears descriptor 3", top->dbg_oam6, 0);
-  check("reset clears descriptor 63", top->dbg_oam127, 0);
+  // OAM is RAM: a logic reset does not clear it. The bitstream starts it at
+  // zero and the BIOS clears all 128 words when it enters gfx mode.
+  check("descriptor 3 survives a logic reset", top->dbg_oam6, 16 | 0x0800);
+  check("descriptor 63 survives a logic reset", top->dbg_oam127, 200);
 
   delete top;
   if (fails) { std::printf("%d failure(s)\n", fails); return 1; }

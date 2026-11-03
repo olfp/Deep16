@@ -338,7 +338,9 @@ module deep16_board (
   end
   // bit 3 is the UART RX-ready level, bit 2 the S2 button: both give the game
   // an input path that does not depend on the UART data read.
-  assign tile_status = {12'b0, uart_ready_q, btn_sync[1],
+  // bit 4 is a diagnostic: the synchronised raster toggle, so software can see
+  // whether the compare is producing one pulse per frame.
+  assign tile_status = {11'b0, raster_sync[1], uart_ready_q, btn_sync[1],
                         dvi_frame_sync[1], dvi_vblank_sync[1]};
 `else
   assign tile_status = {12'b0, uart_ready_q, btn_sync[1], 2'b00};

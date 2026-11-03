@@ -71,8 +71,8 @@ class Deep16TileEngine {
   }
 
   reset() {
-    // RTL rst_render: OAM and controls reset; banks, palette and map survive.
-    this.oam.fill(0);
+    // RTL rst_render: controls reset; OAM, banks, palette and map are RAM and
+    // survive. OAM starts at zero from the bitstream init file.
     this.rowScroll.fill(0);
     this.rowScrollNext.fill(0);
     this.resetControls();
