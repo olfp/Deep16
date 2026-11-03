@@ -20,18 +20,27 @@ const Deep16D16DImage = vm.runInThisContext('Deep16D16DImage');
 const kernel = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
 const showcase = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'showcase.asm'), 'utf8');
 const flappy = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_game.asm'), 'utf8');
+const pacmanMap = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_map.asm'), 'utf8');
+const pacmanGame = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_game.asm'), 'utf8');
 
 test('browser builder matches the Node D16D image word for word', () => {
   const node = buildImage();
-  const browser = Deep16D16DImage.build({ kernel, showcase, flappy });
+  const browser = Deep16D16DImage.build({ kernel, showcase, flappy, pacmanMap, pacmanGame });
   assert.deepEqual(Array.from(browser.words), Array.from(node.words));
   assert.deepEqual(browser.outOfWindow, node.outOfWindow);
   assert.equal(browser.dictFree, node.dictFree);
   assert.equal(browser.biosEntry, node.biosEntry);
+  assert.deepEqual(browser.pacman.words, node.pacman.words, 'pacman block matches');
+  // The block is a flash slice now: the image carries code only, and the gap
+  // where the block used to sit is empty.
+  assert.equal(node.words[0x4330 + 0x600], 0xffff, 'the maze is not in the image');
+  assert.deepEqual(Array.from(Deep16D16DImage.build({
+    kernel, showcase, flappy, pacmanMap, pacmanGame, bakePacman: true,
+  }).words).slice(0x4330 + 0x600, 0x4330 + 0x601), [0x5555], 'baking still works');
 });
 
 test('the image is code plus the showcase, not graphics', () => {
-  const browser = Deep16D16DImage.build({ kernel, showcase, flappy });
+  const browser = Deep16D16DImage.build({ kernel, showcase, flappy, pacmanMap, pacmanGame });
   assert.equal(browser.words.length, 0x6000);
   assert.equal(browser.outOfWindow.includes(0xF0064), true, 'echo cell is outside the window');
   // Graphics windows are not part of the 24K image: the flash loader fills them.
@@ -41,7 +50,7 @@ test('the image is code plus the showcase, not graphics', () => {
 });
 
 test('a broken kernel reports the assembler error', () => {
-  assert.throws(() => Deep16D16DImage.build({ kernel: 'NOT A WORD', showcase, flappy }),
+  assert.throws(() => Deep16D16DImage.build({ kernel: 'NOT A WORD', showcase, flappy, pacmanMap, pacmanGame }),
                 /kernel does not assemble/);
 });
 

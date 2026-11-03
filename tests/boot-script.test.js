@@ -37,9 +37,11 @@ function pump(steps, stream) {
 // Boot and hand back everything the REPL printed. The script compiles its
 // definitions before the first prompt, and the packed source (two characters
 // per cell, unpacked by read_line) costs a handful of instructions per
-// character, so wait for the end of the script instead of counting steps.
+// character; loading the catalog through `screen` adds a Forth-level `find`
+// per token, so wait for the end of the script with a generous cap instead of
+// counting steps.
 const bootStream = [];
-for (let i = 0; i < 6_000_000 && !sim.memory[sym.boot_done]; i += 1000) pump(1000, bootStream);
+for (let i = 0; i < 20_000_000 && !sim.memory[sym.boot_done]; i += 1000) pump(1000, bootStream);
 pump(100_000, bootStream);          // the prompt that follows the last line
 const bootText = Buffer.from(bootStream).toString('latin1');
 

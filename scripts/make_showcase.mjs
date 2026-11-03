@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// scripts/make_showcase.mjs - assemble the D16D showcase menu + Flappy game.
+// scripts/make_showcase.mjs - assemble the D16D showcase menu + Flappy game,
+// and the separate Pac-Man block that sits at physical 0x4330.
 //
 // Both sources are concatenated so the menu and game share labels, constants
 // and string data. The result is sparse: only the words the source actually
@@ -26,6 +27,10 @@ export const SHOWCASE_HEADER = 0x3E4;
 export const SHOWCASE_SEG = 0x04A0;
 export const SHOWCASE_SEG_BASE = 0x4A00;      // physical base of the segment
 export const MENU_LIMIT = 0x5E0;              // menu may use 0x500..0x5DF
+export const PACMAN_SEG = 0x0433;             // physical 0x4330
+export const PACMAN_SEG_BASE = 0x4330;
+export const PACMAN_LIMIT = 0x6D0;            // block size 0x4330..0x49FF
+export const PACMAN_CODE_LIMIT = 0x600;       // code and strings before the map
 export const GAME_LIMIT = 0x0E00;             // game may use 0xA00..0xDFF
 export const STATE_BASE = 0x4D5;              // game state cells
 export const RESTORE_BASE = 0x500;            // menu code starts here
@@ -60,6 +65,47 @@ export function buildShowcase() {
     words, min: words[0]?.[0] ?? 0, max, size: max + 1, build,
     entry: SHOWCASE_ENTRY, magic: SHOWCASE_MAGIC, seg: SHOWCASE_SEG,
   };
+}
+
+// Pac-Man is a second, independent block: assembled with .org 0 and placed at
+// physical 0x4330.  The menu jumps to it with R10/R11 as the far return pair.
+export function buildPacman() {
+  const Deep16Assembler = loadAssembler();
+  const sources = ['asm/showcase/pacman_map.asm', 'asm/showcase/pacman_game.asm']
+    .map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  const source = sources.join('\n');
+  const res = new Deep16Assembler().assemble(source);
+  if (!res.success) throw new Error('pacman sources do not assemble: ' + res.errors.join('; '));
+
+  const words = [];
+  let max = 0;
+  for (const c of res.memoryChanges) {
+    if (c.address < 0 || c.address >= PACMAN_LIMIT) {
+      throw new Error(`pacman address out of range: 0x${c.address.toString(16)}`);
+    }
+    words.push([c.address, c.value & 0xFFFF]);
+    max = Math.max(max, c.address);
+  }
+  words.sort((a, b) => a[0] - b[0]);
+  const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
+  return {
+    words, min: words[0]?.[0] ?? 0, max, size: max + 1, build,
+    entry: 0, seg: PACMAN_SEG, codeEnd: res.symbols.p_code_end,
+    symbols: res.symbols,
+  };
+}
+
+export function checkPacman(pacman) {
+  const fail = [];
+  if (pacman.codeEnd > PACMAN_CODE_LIMIT) {
+    fail.push(`code ends at 0x${pacman.codeEnd.toString(16)}, past 0x${PACMAN_CODE_LIMIT.toString(16)}`);
+  }
+  if (pacman.max >= PACMAN_LIMIT) fail.push(`pacman block reaches 0x${pacman.max.toString(16)}`);
+  const at = (a) => pacman.words.find((w) => w[0] === a)?.[1];
+  if (at(0x600) === undefined) fail.push('maze map missing at 0x600');
+  if (pacman.words.some(([a]) => a >= 0x6A0)) fail.push('pacman writes into the game state cells');
+  if (fail.length) throw new Error('pacman block is not valid:\n  - ' + fail.join('\n  - '));
+  return true;
 }
 
 export function checkShowcase(showcase) {

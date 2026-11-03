@@ -40,7 +40,7 @@ function pump(limit) {
 // The boot script compiles before the first prompt; wait for it rather than
 // counting steps (the packed source costs a few instructions per character).
 function boot() {
-  for (let i = 0; i < 6_000_000 && !sim.memory[sym.boot_done]; i += 1000) pump(1000);
+  for (let i = 0; i < 20_000_000 && !sim.memory[sym.boot_done]; i += 1000) pump(1000);
   pump(100_000);
 }
 

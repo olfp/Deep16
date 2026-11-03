@@ -26,7 +26,8 @@ import { fileURLToPath } from 'node:url';
 import { writeTileFont } from './make_tile_font.mjs';
 import { writeBirdSprite } from './make_bird_sprite.mjs';
 import { writePs2Map } from './make_ps2map.mjs';
-import { buildShowcase, checkShowcase, SHOWCASE_SEG_BASE } from './make_showcase.mjs';
+import { buildShowcase, checkShowcase, SHOWCASE_SEG_BASE,
+         buildPacman, checkPacman, PACMAN_SEG_BASE } from './make_showcase.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -36,6 +37,15 @@ export const NANO = !!process.env.D16NANO;
 // packed BSRAM console is built without it (the tile kernel already fills the
 // 16-block budget).
 export const D16D = !!process.env.D16D;
+// Pac-Man now lives in the config flash, not in the image: the kernel grew
+// past 0x4330, the gap the block used to sit in, and the block is loaded into
+// segment 0x2000 at run time (`s" pacman" game-run` in games.fth). BAKE_PACMAN=1
+// still places it in the gap for a build that has the room back.
+export const BAKE_PACMAN = process.env.BAKE_PACMAN === '1';
+// The Pac-Man block uses the free gap that only the segmented (tile) map has;
+// without D16SEG that gap is still kernel data.  Every D16D image is a tile
+// image, so require the segmented map instead of silently corrupting it.
+export const D16SEG = !!process.env.D16SEG;
 // The flat image is the 24K window; the showcase sits in the BIOS segment
 // between the BIOS code and the Forth stacks, so both sizes stay 24K.
 export const WINDOW = 0x6000;
@@ -64,11 +74,14 @@ function loadAssembler() {
 // facts the assertions and the manifest need.
 export const DEFINES = { CONSOLE_UART: 1 };
 if (NANO) DEFINES.D16NANO = 1;                       // D16nano: software divide
-if (process.env.D16SEG) DEFINES.D16SEG = 1;          // segmented data stack (tile build)
+if (D16SEG) DEFINES.D16SEG = 1;                      // segmented data stack (tile build)
 if (D16D) DEFINES.D16D = 1;                          // gfx BIOS call + word
 if (process.env.BOOT_DIAG) DEFINES.BOOT_DIAG = 1;     // boot diagnostic build
 
 export function buildImage() {
+  if (D16D && !D16SEG) {
+    throw new Error('the D16D image needs D16SEG=1 (the Pac-Man block lives in the segmented map)');
+  }
   const Deep16Assembler = loadAssembler();
   const sourceName = NANO ? 'forth_nano.asm' : 'forth.asm';
   const source = fs.readFileSync(path.join(ROOT, 'asm', sourceName), 'utf8');
@@ -95,6 +108,7 @@ export function buildImage() {
   // above the BIOS and below the stacks. It rides in the same 24K flat image,
   // so the standard flash loader/installer copy and verify it.
   let showcase = null;
+  let pacman = null;
   if (D16D) {
     showcase = buildShowcase();
     checkShowcase(showcase);
@@ -103,16 +117,27 @@ export function buildImage() {
       if (pa < WINDOW) words[pa] = value;
       else outOfWindow.add(pa);
     }
+    // Pac-Man sits in the free image gap below the BIOS segment.
+    pacman = buildPacman();
+    checkPacman(pacman);
+    if (BAKE_PACMAN) {
+      for (const [addr, value] of pacman.words) {
+        const pa = PACMAN_SEG_BASE + addr;
+        if (pa < WINDOW) words[pa] = value;
+        else outOfWindow.add(pa);
+      }
+    }
   }
 
   const build = crypto.createHash('sha256')
     .update(source)
     .update(showcase?.build ?? '')
+    .update(pacman?.build ?? '')
     .digest('hex').slice(0, 16);
 
   return {
     words, outOfWindow: [...outOfWindow].sort((a, b) => a - b),
-    dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build, showcase,
+    dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build, showcase, pacman,
   };
 }
 
@@ -130,6 +155,13 @@ export function checkImage(img) {
   const unexpected = img.outOfWindow.filter((a) => a !== ECHO_FLAG);
   if (unexpected.length) fail.push(`words outside the window: ${unexpected.map((a) => '0x' + a.toString(16)).join(', ')}`);
   if (D16D && !img.showcase) fail.push('D16D image has no showcase block');
+  if (D16D && BAKE_PACMAN && !img.pacman)
+    fail.push('BAKE_PACMAN is on but there is no pacman block');
+  if (D16D && img.pacman && BAKE_PACMAN) {
+    if (PACMAN_SEG_BASE < img.dictFree) fail.push('pacman block starts inside the kernel image');
+    if (PACMAN_SEG_BASE + img.pacman.size > img.biosEntry) fail.push('pacman block runs into the BIOS');
+    checkPacman(img.pacman);
+  }
   if (D16D && img.showcase) checkShowcase(img.showcase);
   if (fail.length) throw new Error('boot image is not valid:\n  - ' + fail.join('\n  - '));
   return true;
@@ -299,6 +331,15 @@ export function manifest(img) {
       min: `0x${img.showcase.min.toString(16)}`,
       max: `0x${img.showcase.max.toString(16)}`,
       build: img.showcase.build,
+    } : null,
+    pacman: img.pacman ? {
+      source: 'asm/showcase/pacman_map.asm + asm/showcase/pacman_game.asm',
+      base: `0x${PACMAN_SEG_BASE.toString(16)}`,
+      segment: '0x0433',
+      min: `0x${img.pacman.min.toString(16)}`,
+      max: `0x${img.pacman.max.toString(16)}`,
+      code_end: `0x${img.pacman.codeEnd.toString(16)}`,
+      build: img.pacman.build,
     } : null,
   }, null, 2) + '\n';
 }

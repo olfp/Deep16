@@ -19,10 +19,11 @@ test('the pacman block is a valid binary slice', () => {
   assert.equal(words[base + 9], BINARY_VERSION, 'payload version');
   assert.equal(words[base + 10], 0, 'entry offset');
   assert.equal(words[base + 11], man.words, 'word count matches the manifest');
+  assert.equal(words[base + 12], 0x2000, 'load segment');
   const pac = buildPacman();
   assert.equal(man.words, pac.max + 1);
   for (const [addr, value] of pac.words) {
-    assert.equal(words[base + 12 + addr], value, `word 0x${addr.toString(16)}`);
+    assert.equal(words[base + 13 + addr], value, `word 0x${addr.toString(16)}`);
   }
 });
 

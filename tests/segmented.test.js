@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { assemble, loadBrowserScripts, MEM_WORDS, ROOT } from './helpers.js';
-import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
+import { buildSlices, SCREEN_BASE, SLICE_WORDS } from '../scripts/make_slices.mjs';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -34,8 +34,8 @@ const BIOS_HI = 0x57ff;
 const RSTACK_TOP = 0x2ff0;
 
 const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
-                        // D16D matches the board build: the catalog's `text-attr`
-                        // constant is fixed to the D16D kernel cell 0x3BEE.
+                        // D16D matches the board build; `text_attr` is the cell
+                        // the catalog's ATTR words write (see the check below).
                         { defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1 } });
 const sym = kernel.symbols;
 
@@ -68,7 +68,7 @@ function step(n) {
 }
 
 // Type a line and run until the prompt comes back, or the cap runs out.
-function line(text, cap = 12_000_000) {
+function line(text, cap = 40_000_000) {
   const from = out.length;
   for (const ch of `${text}\n`) sim.uartRxPush(ch === '\n' ? 13 : ch.charCodeAt(0));
   for (let i = 0; i < cap; i++) {
@@ -88,7 +88,11 @@ function number(echoed, text) {
 }
 
 const boot = (() => {
-  for (let i = 0; i < 20_000_000 && !out.includes('> '); i++) step(1);
+  // The boot compiles the SD driver and the whole catalog from flash with the
+  // Forth interpreter (find is a linear scan, so the cost grows with the
+  // dictionary): 22M steps today, and the cap leaves headroom for a few more
+  // catalog slices.
+  for (let i = 0; i < 60_000_000 && !out.includes('> '); i++) step(1);
   return out;
 })();
 // The kernel's cells live in DS=0x1000, not in the flat copy the assembler wrote
@@ -131,18 +135,21 @@ test('screen 4 loads the hello slice', () => {
 });
 
 test('a slice created and flushed reads back and enters the directory', () => {
-  line('10 3 slice-create');
+  // 40 is scratch space: the low indices hold the boot objects (sd, hello,
+  // catalog, games) and the game images, and a flushed slice overwrites its
+  // whole sector.
+  line('40 3 slice-create');
   line('s" test" slice-name!');
   line('slice-flush');
-  assert.equal(number(line('10 slice slice-type . cr'), '10 slice slice-type . cr'), 3);
-  line('10 dir-add');
+  assert.equal(number(line('40 slice slice-type . cr'), '40 slice slice-type . cr'), 3);
+  line('40 dir-add');
   assert.match(line('dir'), /test/);
-  assert.equal(number(line('s" test" find . cr'), 's" test" find . cr'), 10);
+  assert.equal(number(line('s" test" find . cr'), 's" test" find . cr'), 40);
   assert.ok(sim.running);
 });
 
 test('a directory entry can be removed', () => {
-  line('10 dir-remove');
+  line('40 dir-remove');
   assert.doesNotMatch(line('dir'), /\btest\b/);
   assert.equal(number(line('s" test" find . cr'), 's" test" find . cr'), -1);
   assert.ok(sim.running);
@@ -167,25 +174,25 @@ test('the palette words write the three banks and the console pair', () => {
   assert.equal(sim.memory[0xF60AA], 0xE0, 'sprite pair 5 paper (entry 10)');
   assert.equal(sim.memory[0xF60AB], 0x1C, 'sprite pair 5 ink (entry 11)');
   line('5 attr');
-  assert.equal(ds(0x3BEE), 0xD000, 'ATTR composes 0x8000 | pair << 12');
+  assert.equal(ds(sym.text_attr), 0xD000, 'ATTR composes 0x8000 | pair << 12');
   assert.equal(number(line('attr@ . cr'), 'attr@ . cr'), 5);
 
   // STYLE preserves the pair; ATTR preserves the style; ATTR! sets both.
   line('4 style');
-  assert.equal(ds(0x3BEE), 0xD004, 'STYLE adds underline bit 2');
+  assert.equal(ds(sym.text_attr), 0xD004, 'STYLE adds underline bit 2');
   assert.equal(number(line('style@ . cr'), 'style@ . cr'), 4);
   line('2 style');
-  assert.equal(ds(0x3BEE), 0xD002, 'STYLE replaces underline with bold bit 1');
+  assert.equal(ds(sym.text_attr), 0xD002, 'STYLE replaces underline with bold bit 1');
   line('5 6 attr!');
-  assert.equal(ds(0x3BEE), 0xD006, 'ATTR! sets pair 5 and both style bits');
+  assert.equal(ds(sym.text_attr), 0xD006, 'ATTR! sets pair 5 and both style bits');
   assert.equal(number(line('attr@ . cr'), 'attr@ . cr'), 5);
   assert.equal(number(line('style@ . cr'), 'style@ . cr'), 6);
   line('0 attr');
-  assert.equal(ds(0x3BEE), 0x8006, 'ATTR keeps the style bits');
+  assert.equal(ds(sym.text_attr), 0x8006, 'ATTR keeps the style bits');
   line('0 style');
-  assert.equal(ds(0x3BEE), 0x8000, 'STYLE 0 clears the style bits');
+  assert.equal(ds(sym.text_attr), 0x8000, 'STYLE 0 clears the style bits');
   line('1 style');
-  assert.equal(ds(0x3BEE), 0x8001, 'STYLE adds the italic page bit 0');
+  assert.equal(ds(sym.text_attr), 0x8001, 'STYLE adds the italic page bit 0');
   assert.equal(number(line('style@ . cr'), 'style@ . cr'), 1);
   line('0 style');
   assert.ok(sim.running);
@@ -200,11 +207,11 @@ test('the block protect is settable and clearable', () => {
 });
 
 test('a packed screen unpacks with p-screen', () => {
-  line('11 8 slice-create');
+  line('41 8 slice-create');
   line('s" pair" slice-name!');
   line('slice-flush');
-  assert.match(line('11 0 p-screen'), / ok/);
-  assert.match(line('11 1 p-screen'), / ok/);
+  assert.match(line('41 0 p-screen'), / ok/);
+  assert.match(line('41 1 p-screen'), / ok/);
   assert.ok(sim.running);
 });
 
@@ -377,4 +384,46 @@ test('the raster SIC source increments RASTER and outranks the timer', () => {
   assert.equal(sim.sicPending, 0, 'both bits cleared');
   line('irq-off');
   assert.equal(sim.sicEnable, 0);
+});
+
+// ---- the flash game loader ---------------------------------------------
+// Phase 2: the Pac-Man block is no longer baked into the image. `game-load`
+// finds the type-4 slice, copies its chain into the load segment (0x2000) and
+// returns the segment; `game-run` then far-calls it.
+test('game-load copies the pacman binary slice into its segment', () => {
+  const man = slices.manifest.objects.pacman;
+  const base = man.first * SLICE_WORDS;
+  const seg = slices.words[base + 12];
+  assert.equal(slices.words[base + 8], 0xd16b, 'slice magic');
+  assert.equal(slices.words[base + 9], 1, 'slice version');
+  assert.equal(seg, 0x2000, 'load segment');
+  const count = slices.words[base + 11];
+  assert.equal(count, man.words);
+
+  // Make the test independent of any earlier copy.
+  for (let a = 0; a < count; a++) sim.memory[(seg << 4) + a] = 0xdead;
+  const before = here();
+  line('s" pacman" game-load drop');
+  for (const a of [0, 1, 0x100, 0x600, count - 1]) {
+    assert.equal(sim.memory[(seg << 4) + a], slices.words[base + 13 + a],
+                 `block word 0x${a.toString(16)}`);
+  }
+  assert.equal(here(), before, 'the dictionary is untouched');
+  assert.equal(sim.segmentRegisters.ES, 0xf000, 'ES is the I/O segment again');
+});
+
+test('call-far enters a segment and returns to the interpreter', () => {
+  // A one-word stub at segment 0x4000 offset 0 (0x3000 holds the BIOS):
+  // `JML R10`, the far return pair
+  // that call-far leaves in R10/R11. The delay slot is a NOP. Coming back must
+  // restore DS/SS/ES and carry on with the next word in the caller's thread.
+  const seg = 0x4000;
+  sim.memory[(seg << 4) + 0] = 0xffea;   // JML R10
+  sim.memory[(seg << 4) + 1] = 0x0000;   // NOP (delay slot)
+  const t = line('0x4000 call-far depth . cr');
+  assert.equal(number(t, '0x4000 call-far depth . cr'), 0);
+  assert.equal(sim.segmentRegisters.DS, DS_SEG, 'DS');
+  assert.equal(sim.segmentRegisters.SS, SS_SEG, 'SS');
+  assert.equal(sim.segmentRegisters.ES, 0xf000, 'ES');
+  assert.ok(sim.running);
 });

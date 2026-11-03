@@ -2742,8 +2742,18 @@ h_psw:
     .word 3
     .text "psw"
     .word word_psw
+h_callfar:
+    .word h_psw
+    .word 8
+    .text "call-far"
+    .word word_callfar
+h_segbase:
+    .word h_callfar
+    .word 9
+    .text "seg-base!"
+    .word word_segbase
 forth_wl:
-    .word h_psw               ; newest built-in header in the FORTH vocabulary
+    .word h_segbase           ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
     .word forth_wl
     .word 0, 0, 0, 0, 0, 0, 0
@@ -3160,7 +3170,7 @@ boot_script:
     .string ": cf-unprotect ( -- ) cf-wren  2 cs! 1 spi! 0x00 spi!  0 cs! cf-wait ;"
     .string ": cf-erase ( sector -- ) cf-wren 2 cs! 0x20 spi! 0 cf-addr 0 cs! cf-wait ;"
     .string "create slice-buf 2048 cells allot"
-    .string "create text-buf 8192 cells allot        \\ up to three 2040-char source slices"
+    .string "create text-buf 8192 cells allot        \\ up to four 2040-char source slices"
     .string "variable slice-sec drop"
     .string "variable slice-wp drop"
     .string ": cf-read-burst ( sector -- )"
@@ -3190,6 +3200,7 @@ boot_script:
     .string "  again ;"
     .string "1 screen"
     .string "5 screen"
+    .string "9 screen"
     .string "boot.msg"
 ; <<< end generated >>>
     .text ""              ; the empty line that ends the script
@@ -9260,6 +9271,65 @@ word_psw:                   ; psw ( -- x )  read the processor status word
     LPSW R1
     SUB SP, 1
     ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_segbase:               ; seg-base! ( seg -- )  set ES, used by loaders
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wsegbase_under
+    NOP
+    LD R1, SP, 0
+    ADD SP, 1
+    MVS ES, R1
+    LDI next
+    MOV PC, R0
+    NOP
+wsegbase_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+
+word_callfar:               ; call-far ( seg -- )  JML to seg:0, return here
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wcallfar_under
+    NOP
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI 0
+    MOV R10, R0             ; the far return pair: CS = 0 (the kernel)
+    LDI callfar_back
+    MOV R11, R0             ; PC = callfar_back
+    MOV R0, R1              ; target CS
+    LSI R1, 0               ; target PC
+    JML R0
+    NOP
+wcallfar_under:
+    LDI stack_underflow_error
+    MOV PC, R0
+    NOP
+callfar_back:
+    ; The far-called code owns DS/SS while it runs and leaves them wherever it
+    ; likes, so the kernel's own segments are re-stated here.
+.ifdef D16SEG
+    LDI 0x1000
+    MVS DS, R0               ; kernel data + dictionary
+    LDI 0x2000
+    MVS SS, R0               ; data stack
+.else
+    LDI 0
+    MVS DS, R0               ; the flat window
+    MVS SS, R0
+.endif
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0               ; the I/O segment
     LDI next
     MOV PC, R0
     NOP

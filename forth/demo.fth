@@ -97,7 +97,7 @@ unused 0x4000 u> constant psram?   \ the PSRAM probe raised the ceiling
 \ Header word0: bit15 WP, bits14:12 magic 5, bits11:8 flags/rate, bits7:0
 \ type. Cell 1 link, cells 2..7 name (12 chars, 2/cell), payload from cell 8.
 create slice-buf 2048 cells allot
-create text-buf 8192 cells allot        \ up to three 2040-char source slices
+create text-buf 8192 cells allot        \ up to four 2040-char source slices
 variable slice-sec drop
 variable slice-wp drop
 
@@ -132,8 +132,9 @@ variable slice-wp drop
   again ;
 
 
-\ load the SD driver and the catalog from the config flash
+\ load the SD driver, the catalog and the game loader from the config flash
 1 screen
 5 screen
+9 screen
 
 boot.msg

@@ -55,6 +55,8 @@ function readSources() {
     kernel: fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
     showcase: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'showcase.asm'), 'utf8'),
     flappy: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_game.asm'), 'utf8'),
+    pacmanMap: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_map.asm'), 'utf8'),
+    pacmanGame: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_game.asm'), 'utf8'),
   };
 }
 
@@ -67,7 +69,12 @@ function boot(scene) {
     kernel: src.kernel,
     showcase: src.showcase,
     flappy: src.flappy,
+    pacmanMap: src.pacmanMap,
+    pacmanGame: src.pacmanGame,
     defines: scene === 'console' ? { D16SEG: 0 } : {},
+    // The renderer previews the block at its old 0x4330 home; the real image
+    // keeps it in the config flash and games.fth loads it into 0x2000.
+    bakePacman: scene === 'pacman',
   });
   const symbols = new Assembler().assemble(`${src.showcase}\n${src.flappy}`).symbols;
 
@@ -83,6 +90,12 @@ function boot(scene) {
   if (scene === 'console') {
     sim.memory[image.symbols.boot_ptr] = 0;    // no baked Forth script
     sim.segmentRegisters = { CS: 0xFFFF, DS: 0, SS: 0, ES: 0 };
+    sim.registers[15] = 0;
+  } else if (scene === 'pacman') {
+    // The menu's far launcher: R10/R11 is the return pair, CS 0x0433 PC 0.
+    sim.segmentRegisters = { CS: 0x0433, DS: 0x0433, SS: 0, ES: 0 };
+    sim.registers[10] = 0x04A0;
+    sim.registers[11] = RET_PC;
     sim.registers[15] = 0;
   } else {
     sim.segmentRegisters = { CS: 0x04A0, DS: 0x04A0, SS: 0, ES: 0 };
@@ -123,10 +136,10 @@ export function renderScene({
   keys = [],
   warmup = null,
 } = {}) {
-  if (!['console', 'menu', 'flappy'].includes(scene)) throw new Error(`unknown scene: ${scene}`);
+  if (!['console', 'menu', 'flappy', 'pacman'].includes(scene)) throw new Error(`unknown scene: ${scene}`);
   const { sim, engine } = boot(scene);
   if (warmup === null) {
-    warmup = scene === 'menu' ? 0x4000 : scene === 'console' ? 200000 : 0;
+    warmup = scene === 'menu' ? 0x4000 : scene === 'console' ? 200000 : scene === 'pacman' ? 300000 : 0;
   }
 
   if (warmup > 0) {
@@ -135,9 +148,11 @@ export function renderScene({
 
   const out = [];
   for (let f = 0; f < frames; f++) {
-    const status = ((f & 1) ? 2 : 0) | (keys[f] ? 8 : 0);
-    sim.memory[0xF0066] = status;
     if (keys[f]) sim.uartRxPush(keys[f] & 0xFF);
+    // bit 3 means a byte is waiting, so a queued key stays readable until the
+    // game consumes it (the hardware does not pulse it for one frame).
+    const status = ((f & 1) ? 2 : 0) | ((keys[f] || sim.uartRxAvailable() > 0) ? 8 : 0);
+    sim.memory[0xF0066] = status;
     for (let i = 0; i < stepsPerFrame && sim.running; i++) sim.step();
     engine.tick();
     out.push(new Uint8ClampedArray(engine.render()));
@@ -171,7 +186,7 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.help) {
-    console.log('usage: node scripts/render_tile.mjs [--scene=menu|flappy|console] [--frames=N] [--steps=N] [--scale=N] [--key=BYTE] [--out=DIR]');
+    console.log('usage: node scripts/render_tile.mjs [--scene=menu|flappy|pacman|console] [--frames=N] [--steps=N] [--scale=N] [--key=BYTE] [--out=DIR]');
     process.exit(0);
   }
   const frames = opts.frames ?? (opts.scene === 'flappy' ? 4 : 1);

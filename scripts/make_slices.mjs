@@ -79,16 +79,18 @@ function sourceSlices(text, firstIndex, baseName) {
 }
 
 // Type-4 binary slices: payload cell 0 = magic 'D16B', 1 = version, 2 = entry
-// offset, 3 = word count, then the words. Continuations are raw payload and
-// are linked, so a game may span any number of 4KB slices.
+// offset, 3 = word count, 4 = load segment, then the words. Continuations are
+// raw payload and are linked, so a game may span any number of 4KB slices.
 export const BINARY_MAGIC = 0xd16b;
 export const BINARY_VERSION = 1;
 
-function binarySlices(sparse, firstIndex, baseName, entryOffset = 0) {
+function binarySlices(sparse, firstIndex, baseName, entryOffset = 0,
+                      segment = 0x2000) {
   const max = sparse.reduce((m, [a]) => Math.max(m, a), -1);
   const dense = new Array(Math.max(0, max + 1)).fill(0xffff);
   for (const [a, v] of sparse) dense[a] = v & 0xffff;
-  const payload = [BINARY_MAGIC, BINARY_VERSION, entryOffset, dense.length, ...dense];
+  const payload = [BINARY_MAGIC, BINARY_VERSION, entryOffset, dense.length,
+                   segment & 0xffff, ...dense];
   const count = Math.max(1, Math.ceil(payload.length / SLICE_PAYLOAD));
   const out = [];
   for (let i = 0; i < count; i++) {
@@ -121,21 +123,25 @@ export function buildSlices() {
   const sd = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'sd.fth'), 'utf8');
   const hello = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'hello.fth'), 'utf8');
   const catalog = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'catalog.fth'), 'utf8');
+  const games = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'games.fth'), 'utf8');
   const sdFirst = 1;
   const sdSlices = sourceSlices(sd, sdFirst, 'sd');
   const helloFirst = sdFirst + sdSlices.length;
   const helloSlices = sourceSlices(hello, helloFirst, 'hello');
   const catFirst = helloFirst + helloSlices.length;
   const catSlices = sourceSlices(catalog, catFirst, 'catalog');
+  const gamesFirst = catFirst + catSlices.length;
+  const gameSlices = sourceSlices(games, gamesFirst, 'games');
   const pac = buildPacman();
-  const pacFirst = catFirst + catSlices.length;
+  const pacFirst = gamesFirst + gameSlices.length;
   const pacSlices = binarySlices(pac.words, pacFirst, 'pacman');
   const slices = [directory([
     entry({ type: TYPES.SCREEN, first: sdFirst, name: 'sd' }),
     entry({ type: TYPES.SCREEN, first: helloFirst, name: 'hello' }),
     entry({ type: TYPES.SCREEN, first: catFirst, name: 'catalog' }),
+    entry({ type: TYPES.SCREEN, first: gamesFirst, name: 'games' }),
     entry({ type: TYPES.BINARY, first: pacFirst, name: 'pacman' }),
-  ]), ...sdSlices, ...helloSlices, ...catSlices, ...pacSlices];
+  ]), ...sdSlices, ...helloSlices, ...catSlices, ...gameSlices, ...pacSlices];
   const words = new Uint16Array(slices.length * SLICE_WORDS);
   slices.forEach((w, i) => words.set(w, i * SLICE_WORDS));
   const bytes = Buffer.alloc(slices.length * SLICE_BYTES, 0xff);
@@ -150,6 +156,7 @@ export function buildSlices() {
       sd: { first: sdFirst, count: sdSlices.length, chars: sd.length },
       hello: { first: helloFirst, count: helloSlices.length, chars: hello.length },
       catalog: { first: catFirst, count: catSlices.length, chars: catalog.length },
+      games: { first: gamesFirst, count: gameSlices.length, chars: games.length },
       pacman: { first: pacFirst, count: pacSlices.length, words: pac.max + 1 },
     },
   };

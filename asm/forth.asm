@@ -2924,7 +2924,7 @@ boot_script:
     .string ": cf-unprotect ( -- ) cf-wren  2 cs! 1 spi! 0x00 spi!  0 cs! cf-wait ;"
     .string ": cf-erase ( sector -- ) cf-wren 2 cs! 0x20 spi! 0 cf-addr 0 cs! cf-wait ;"
     .string "create slice-buf 2048 cells allot"
-    .string "create text-buf 8192 cells allot        \\ up to three 2040-char source slices"
+    .string "create text-buf 8192 cells allot        \\ up to four 2040-char source slices"
     .string "variable slice-sec drop"
     .string "variable slice-wp drop"
     .string ": cf-read-burst ( sector -- )"
@@ -2954,6 +2954,7 @@ boot_script:
     .string "  again ;"
     .string "1 screen"
     .string "5 screen"
+    .string "9 screen"
     .string "boot.msg"
 ; <<< end generated >>>
     .text ""              ; the empty line that ends the script

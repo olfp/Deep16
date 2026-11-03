@@ -24,7 +24,7 @@ function boot() {
   sim.segmentRegisters.CS = 0xffff;
   sim.d16nano = true;
   sim.running = true;
-  for (let i = 0; i < 6_000_000 && sim.running && !sim.memory[kernel.symbols.boot_done]; i++) {
+  for (let i = 0; i < 20_000_000 && sim.running && !sim.memory[kernel.symbols.boot_done]; i++) {
     sim.step();
   }
   for (let i = 0; i < 100_000 && sim.running; i++) sim.step();
