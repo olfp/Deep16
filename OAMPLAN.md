@@ -375,6 +375,11 @@ fetch state dominate), so it is not a useful fallback.
       that. Everything else in this plan is verified; the band stays
       experimental until the pulse rate is 60 per second.
 
+      **Pending (2026-11-03).** The level handshake is in and the netlist is
+      correct, but the board still shows `PENDING = 2` and the request level
+      low. Next diagnostic agreed: a `raster_seen` latch set at the compare and
+      cleared only by reset, on LED5. See `ERRPLAN.md` for the full evidence.
+
       **Probe built (2026-11-03, `main`):** the retired `sprite_page` register
       is gone, and display-status bit 4 (`0xF0066`) carries the synchronised
       `dvi_raster_toggle`. The OAM reset-clear sequencer was removed to make

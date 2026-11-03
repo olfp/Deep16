@@ -249,9 +249,15 @@ straight from `oam_desc[5:0]`, and base 60 wraps to slots 4–7 = descriptors 0�
 on the board. **Lesson:** do not put a variable-start adder in the tile RAM
 address path; use a counter.
 
-Board demo (raster split) still open: the chained handler works and the RTL
-simulation draws the band, but the board applies one palette set per frame.
-See `OAMPLAN.md` §16. Prior status: design recommendation only; no RTL or
+**Raster IRQ: pending (2026-11-03).** The tile engine's compare is verified in
+simulation and the fitted netlist connects the synchronised request level to
+SIC `src[3]`, yet on the board the request level stays low (LED5 steady on),
+`PENDING` bit 3 never sets and only `raster-ticks` advances ~2 per console
+command. The handler disassembles correctly and acknowledges control 7. Next
+step (agreed): a one-bit `raster_seen` latch set at the compare and cleared only
+by reset, driving LED5 — if it lights, the compare fires and the fault is the
+request/SIC path; if not, the compare (`raster_line`/`ry`/`render_stall`) is at
+fault. Everything else from `OAMPLAN.md` is verified. Prior status: design recommendation only; no RTL or
 simulation change
 applied.
 
