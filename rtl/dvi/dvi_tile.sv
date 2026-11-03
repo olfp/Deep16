@@ -70,6 +70,9 @@ module dvi_tile #(
   output logic        frame_tick,
   // One toggle per frame when the render line reaches control 7. The board
   // synchronises it into the CPU domain for SIC source bit 3.
+  // Raster request: set at the control-7 compare line, cleared when the CPU
+  // writes control 7 (the handler's acknowledge). A level handshake, not an
+  // edge pulse: the fitter merged the delayed copy that made the pulse.
   output logic        raster_toggle,
   // Test-only telemetry (the board leaves these unconnected).
   output logic        dbg_row_scroll_en,
@@ -301,8 +304,10 @@ module dvi_tile #(
 
   always_ff @(posedge clk_render) begin
     if (rst_render) raster_toggle <= 1'b0;
+    else if (cpu_we && cpu_ctrl && (cpu_addr[3:0] == 4'hE))
+      raster_toggle <= 1'b0;                // acknowledge
     else if (render_line_end && !render_stall && (ry == raster_line))
-      raster_toggle <= ~raster_toggle;
+      raster_toggle <= 1'b1;                // request
   end
   /* verilator lint_on MULTIDRIVEN */
 

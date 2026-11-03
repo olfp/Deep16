@@ -276,12 +276,16 @@ module deep16_board (
 `ifdef D16NANO
   // The render-domain raster toggle is asynchronous to clk_cpu. Two flops and
   // an edge detect turn it into one clk_cpu pulse for SIC bit 3.
-  // Three-stage synchroniser; the SIC edge-detects the level itself.
-  logic [2:0] raster_sync;
+  logic        raster_irq;
+  // Three distinct stages, so the edge detect compares two different flops.
+  // (A register that merely delays the same signal can be folded away: the
+  // earlier two-stage version never produced a pulse in the fitted netlist.)
+  logic [2:0]  raster_sync;
   always_ff @(posedge clk_cpu) begin
     if (rst) raster_sync <= 3'b000;
     else     raster_sync <= {raster_sync[1:0], dvi_raster_toggle};
   end
+  assign raster_irq = raster_sync[2];
 `endif
 `else
   dvi_text u_dvi_text (
@@ -389,6 +393,12 @@ module deep16_board (
   logic [1:0] spi_cs_i;
 `endif
 
+`ifdef D16NANO
+`ifndef DVI_TILE
+  logic raster_irq;
+  assign raster_irq = 1'b0;
+`endif
+`endif
 
   deep16_top u_top (
     .clk  (clk_cpu),
@@ -398,11 +408,7 @@ module deep16_board (
     .i_step   (1'b1),
     .i_free   (1'b1),
 `ifdef D16NANO
-`ifdef DVI_TILE
-    .raster_toggle (raster_sync[2]),
-`else
-    .raster_toggle (1'b0),
-`endif
+    .raster_irq (raster_irq),
 `endif
     .o_done   (o_done),
     .o_result (o_result),

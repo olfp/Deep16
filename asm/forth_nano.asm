@@ -15573,6 +15573,12 @@ irq_split_end:
     RETI
     NOP
 irq_split_none:
+    ; Acknowledge the raster request: any write to control 7 clears it in the
+    ; tile engine. Writing the current compare back keeps the line unchanged.
+    LDI 0x200E
+    MOV R2, R0
+    LDS R1, ES, R2
+    STS R1, ES, R2
     RETI
     NOP
 irq_timer:

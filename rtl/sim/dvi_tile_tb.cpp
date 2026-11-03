@@ -359,13 +359,16 @@ int main(int argc, char** argv) {
   check("row scroll disabled again", top->dbg_row_scroll_en, 0);
 
   // ---- raster line compare (control 7) ----------------------------------
+  // The compare raises a request level; a control-7 write acknowledges it.
   write_ctrl(0x0E, 100);
   check("raster line register takes 100", top->dbg_raster_line, 100);
   wait_frame();
-  check("raster toggles once in a frame", count_raster(1400000), 1);
-  write_ctrl(0x0E, 1000);                   // beyond R_V_TOTAL: never matches
+  check("raster request sets at the compare line", top->raster_toggle, 1);
+  write_ctrl(0x0E, 100);                   // any control-7 write acknowledges
+  check("control-7 write clears the raster request", top->raster_toggle, 0);
+  write_ctrl(0x0E, 1000);                  // beyond R_V_TOTAL: never matches
   wait_frame();
-  check("raster line beyond the frame never fires", count_raster(1400000), 0);
+  check("raster line beyond the frame never sets the request", top->raster_toggle, 0);
   write_ctrl(0x0E, 0);
 
   // ---- text/art/sprite palette banks and pair mode ----------------------
