@@ -18,6 +18,21 @@ cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 FS="$ROOT/fpga/gowin/impl/pnr/deep16_board_tile_flash.fs"
 USER="$ROOT/artifacts/image/image.flash.bin"
+STAMP="$ROOT/fpga/gowin/impl/pnr/deep16_board_tile_flash.assets.sha256"
+
+# The bitstream embeds the tile/sprite/palette ROMs with $readmemh. Flashing a
+# fresher boot image next to an older bitstream shows the new menu over an old
+# tile bank, which can look like a black screen. Build the stamp only after a
+# successful synthesis and refuse to flash if the assets have moved since.
+if [ ! -f "$STAMP" ]; then
+  echo "ERROR: no tile synthesis asset stamp; run npm run synth:tile first." >&2
+  exit 1
+fi
+if ! (cd "$ROOT/artifacts/image" && shasum -a 256 -c "$STAMP" >/dev/null 2>&1); then
+  echo "ERROR: graphics assets changed since the last tile synthesis." >&2
+  echo "Run npm run synth:tile, then npm run flash:tile." >&2
+  exit 1
+fi
 
 # Regenerate the D16D user image so a prior standard make_image cannot leave a
 # mismatched kernel next to the tile configuration.

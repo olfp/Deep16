@@ -25,6 +25,13 @@ DYLD_LIBRARY_PATH="$GOWIN_EDA/lib" \
 DYLD_FRAMEWORK_PATH="$GOWIN_EDA/lib" \
   "$GW_SH" "$ROOT/fpga/gowin/build_tile_flash.tcl"
 
+# Record the graphics inputs that the bitstream embeds with $readmemh. The
+# flash script checks this stamp before it writes a newer boot image next to
+# the bitstream, which would otherwise show the new menu over an old tile bank.
+STAMP="$ROOT/fpga/gowin/impl/pnr/deep16_board_tile_flash.assets.sha256"
+( cd "$ROOT/artifacts/image" &&
+  shasum -a 256 tilefont.hex birdsprite.hex tilepal3.hex ps2map.hex font8x15.hex > "$STAMP" )
+
 echo "tile configuration: fpga/gowin/impl/pnr/deep16_board_tile_flash.fs"
 echo "boot image:          artifacts/image/image.flash.bin (608 Kbit, config flash 0x100000)"
 echo "flash all three with: npm run flash:tile   (then power-cycle)"

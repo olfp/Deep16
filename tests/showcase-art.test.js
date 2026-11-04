@@ -4,9 +4,13 @@
 // the DVI.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { birdSpriteWords, SPRITE_WORDS, CLOUD_GROUP } from '../scripts/make_bird_sprite.mjs';
 import { BIRD_COLOURS, BIRD_ORDER } from '../scripts/make_art.mjs';
 import { buildShowcase } from '../scripts/make_showcase.mjs';
+import { TILE_BANK_WORDS, TILE_WORDS, readFontWords, tileFontWords } from '../scripts/make_tile_font.mjs';
+import { froggerArtTiles } from '../scripts/make_frogger_art.mjs';
+import { ROOT } from './helpers.js';
 
 const GROUP_WORDS = 16 * 16;
 
@@ -55,4 +59,20 @@ test('the game palette table matches the art colours', () => {
   });
   // The three dizzy poses ping-pong in the shared table.
   assert.deepEqual([0x5DB, 0x5DC, 0x5DD, 0x5DE].map(at), [3, 4, 5, 4]);
+});
+
+test('the tile bank carries the six flat Frogger tiles', () => {
+  const font = readFontWords(path.join(ROOT, 'rtl', 'dvi', 'ttyp0-8x15.hex'));
+  const italic = readFontWords(path.join(ROOT, 'rtl', 'dvi', 'ttyp0-8x15-italic.hex'));
+  const words = tileFontWords(font, italic);
+  assert.equal(words.length, TILE_BANK_WORDS);
+  for (const { index, grid } of froggerArtTiles()) {
+    assert.ok(index >= 57 && index <= 62, `tile ${index} is in the free gap`);
+    const pixel = grid[0][0];
+    const flat = (pixel << 12) | (pixel << 8) | (pixel << 4) | pixel;
+    const base = index * TILE_WORDS;
+    for (let i = 0; i < 30; i++) assert.equal(words[base + i], flat, `tile ${index} word ${i}`);
+    assert.equal(words[base + 30], 0, `tile ${index} palette pointer`);
+    assert.equal(words[base + 31], 0, `tile ${index} flags`);
+  }
 });
