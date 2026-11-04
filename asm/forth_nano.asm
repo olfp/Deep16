@@ -14475,108 +14475,10 @@ uart_getch_wait:
     RETI
     NOP
 
-bios_f5:
-    ; 5: getstr (the buffer address arrives in the caller's R1); echo over the
-    ; UART. CR or LF ends the line, BS (0x08) and DEL (0x7F) erase, and the
-    ; erase is "BS SP BS" on the wire because the terminal, not this code, owns
-    ; the screen.
-    LDI 0x0FFF
-    INV R0
-    MVS ES, R0
-    SMV R2, AR1             ; R2 = buffer
-    LDI 0
-    MOV R12, R0             ; count (R11 is the tile column)
-uart_getstr_loop:
-    LDI 0x0040
-    MOV R3, R0
-uart_getstr_wait:
-    LDS R1, ES, R3
-    LDI 1
-    AND R1, R0
-    JZ uart_getstr_wait
-    NOP
-    LDI ECHO_FLAG
-    LDS R9, ES, R0          ; R9 = echo flag (R0 = 0x64)
-    LDI 0x0042
-    MOV R3, R0
-    LDS R1, ES, R3          ; R1 = the received byte
-    LDI 0x00FF
-    AND R1, R0
-    LDI 10
-    CMP R1, R0
-    JZ uart_getstr_done
-    NOP
-    LDI 13
-    CMP R1, R0
-    JZ uart_getstr_done
-    NOP
-    LDI 8
-    CMP R1, R0
-    JZ uart_bs
-    NOP
-    LDI 0x007F
-    CMP R1, R0
-    JNZ uart_store
-    NOP
-uart_bs:
-    LDI 0
-    CMP R12, R0
-    JZ uart_getstr_loop
-    NOP
-    SUB R12, 1
-    SUB R2, 1
-    ; Echo off: nothing was drawn, so there is nothing to erase either.
-    AND R9, R9
-    JZ uart_getstr_loop
-    NOP
-    LDI 8
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI ' '
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI 8
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    CLRZ
-    JNZ uart_getstr_loop
-    NOP
-uart_store:
-    LDI TIB_LIMIT
-    CMP R12, R0
-    JZ uart_getstr_loop      ; full: drop the byte, keep reading
-    NOP
-    ST R1, R2, 0
-    ADD R2, 1
-    ADD R12, 1
-    AND R9, R9
-    JZ uart_getstr_loop
-    NOP
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    CLRZ
-    JNZ uart_getstr_loop
-    NOP
-uart_getstr_done:
-    LDI 0
-    ST R0, R2, 0
-    RETI
-    NOP
+; bios_f5 is the non-blocking UART reader at 0x5360 (see the UART console
+; mirror section below). It used to live here and block until CR; the pump needs
+; the line state in gs_active/gs_ptr, and there is no room below the D16D
+; showcase at 0x4D34 for the extra code.
 
 .ifdef D16D
 ; ---- 6: gfx ---------------------------------------------------------
@@ -15896,7 +15798,7 @@ divtest_fail_str:
 ; free in the D16nano image, and the D16D showcase reserves but never writes
 ; 0x600..0x9FF (physical 0x5000..0x53FF).
 .ifdef CONSOLE_UART
-.org 0x5380
+.org 0x5346
 uart_mirror:
     LDI 0x0FFF
     INV R0
@@ -15914,5 +15816,144 @@ uart_mirror_wait:
     STS R1, ES, R3         ; send the byte
     LDI utx_mirror_return - BIOS_BASE
     MOV PC, R0
+    NOP
+
+; ---- 5: getstr, non-blocking (UART) -------------------------------------
+; One call drains the bytes the UART holds right now; the caller's R0 = 1 when
+; the whole line is in (CR/LF seen), 0 when it ran out. The write pointer and a
+; "line in progress" flag live in gs_active/gs_ptr, so a call that finds no
+; byte returns without losing the line and the caller polls with I=1, which
+; lets the timer and raster IRQs run while it waits.
+;
+; R2 (write pointer) and R12 (count) must survive the uart_tx echo calls:
+; uart_tx uses R1/R3/R7/R9/R10/R11, so those are reloaded per keystroke.
+bios_f5:
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    SMV R2, AR1              ; R2 = buf
+    LDI gs_active
+    MOV R10, R0
+    LD R3, R10, 0            ; a line already in progress?
+    LDI 1
+    CMP R3, R0
+    JZ ug_have
+    NOP
+    MOV R3, R2               ; no: the write pointer starts at the buffer
+    LDI 1
+    ST R0, R10, 0            ; line in progress
+    ST R3, R10, 1            ; ptr = buf
+    LDI ug_count - BIOS_BASE
+    MOV PC, R0
+    NOP
+ug_have:
+    LD R3, R10, 1            ; resume where the last call stopped
+ug_count:
+    MOV R12, R3
+    SUB R12, R2              ; count = write pointer - buffer
+    MOV R2, R3               ; R2 is the write pointer below
+ug_loop:
+    LDI 0x0040
+    MOV R3, R0
+    LDS R1, ES, R3
+    LDI 1
+    AND R1, R0
+    JZ ug_idle
+    NOP
+    LDI ECHO_FLAG
+    LDS R9, ES, R0           ; R9 = echo flag (R0 = 0x64)
+    LDI 0x0042
+    MOV R3, R0
+    LDS R1, ES, R3           ; R1 = the received byte
+    LDI 0x00FF
+    AND R1, R0
+    LDI 10
+    CMP R1, R0
+    JZ ug_done
+    NOP
+    LDI 13
+    CMP R1, R0
+    JZ ug_done
+    NOP
+    LDI 8
+    CMP R1, R0
+    JZ ug_bs
+    NOP
+    LDI 0x007F
+    CMP R1, R0
+    JNZ ug_store
+    NOP
+ug_bs:
+    LDI 0
+    CMP R12, R0
+    JZ ug_loop
+    NOP
+    SUB R12, 1
+    SUB R2, 1
+    AND R9, R9
+    JZ ug_loop
+    NOP
+    LDI 8
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI ' '
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 8
+    MOV R1, R0
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    CLRZ
+    JNZ ug_loop
+    NOP
+ug_store:
+    LDI TIB_LIMIT
+    CMP R12, R0
+    JZ ug_loop
+    NOP
+    ST R1, R2, 0
+    ADD R2, 1
+    ADD R12, 1
+    AND R9, R9
+    JZ ug_loop
+    NOP
+    LDI uart_tx - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    CLRZ
+    JNZ ug_loop
+    NOP
+ug_done:
+    LDI gs_active
+    MOV R10, R0
+    LDI 0
+    ST R0, R2, 0             ; NUL-terminate the line
+    ST R0, R10, 0            ; no line in progress
+    LDI 1
+    MOV R2, R0
+    SMV AR0, R2              ; the caller's R0 = 1: line ready
+    RETI
+    NOP
+ug_idle:
+    LDI gs_active
+    MOV R10, R0
+    ST R2, R10, 1            ; keep the write pointer
+    LDI 0
+    MOV R2, R0
+    SMV AR0, R2              ; the caller's R0 = 0: not ready
+    RETI
     NOP
 .endif
