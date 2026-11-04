@@ -191,12 +191,22 @@ band
    "a very short flash". Use 65 535 or less (or a counter) for a timed spin.
    This also explains the inconsistent timer/raster readings earlier.
 
-**Board result:** `band` (20 20 200 split!) shifts the picture during the spin
-and restores it, and `20 20 200` with a longer loop is easy to see. The
-compare, SIC source, handler, A->B->A re-arm (`split-cur`) and the per-line
-`scroll_y` write are all working. The only open polish is whether the band
-edge is visible as a seam or the whole picture shifts (the console ring uses
-`row_off`, which may add to `scroll_y`).
+**Board result:** `band` shifts the picture during the spin and restores it,
+and the compare, SIC source, handler and A->B->A re-arm (`split-cur`) are all
+verified on the board. But the band is **not partial**: with lines 100..250
+armed (`: band2 mem mem 31 100 250 split! 65000 0 do loop split-off ;`) the
+*whole* picture jumps, not rows 6..16. The palette set behaved the same way
+(a scene flip from a spin washed the whole screen instead of striping it).
+
+So both control-5 and scroll_y are effectively **frame-granular in the
+netlist**, although the RTL combines them into the fill per line. That is the
+same class of defect as the OAM-base adder Gowin merged on 2026-11-02: the
+source is right and the fitted netlist is not. A per-line effect therefore
+needs something the renderer reads from RAM per line - sprites/OAM descriptors
+or tilemap cells - or a netlist investigation of the control-write path.
+
+**Status:** raster IRQ verified on the board; per-line control changes not
+working in the fitted build (netlist).
 
 **Status:** raster split working on the board (2026-11-04).
 
