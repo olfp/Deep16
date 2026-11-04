@@ -15689,12 +15689,12 @@ irq_handler:
     ADD R1, 1
     STS R1, ES, R2           ; RASTER = raster interrupt count
 
-    ; Optional raster band: control 6 (vertical scroll) changes at lineA and
-    ; changes back at lineB, so the split is stable instead of alternating
-    ; every frame. Control 6 is read by the fill per line; the palette set
-    ; (control 5) turned out to be sampled per frame on the board, so it
-    ; cannot make a band.
-    ;   0xC0 = lineA, 0xC2 = scroll value (control 6), 0xC4 = lineB,
+    ; Optional raster band: scroll_y (0x2006) changes at lineA and changes
+    ; back at lineB, so the split is stable instead of alternating every frame.
+    ; scroll_y is combined into the fill per line; the palette set (0x200A)
+    ; turned out to be sampled per frame on the board, so it cannot make a
+    ; band. 0x200C is the per-row fine table, not the vertical scroll.
+    ;   0xC0 = lineA, 0xC2 = scroll value (scroll_y), 0xC4 = lineB,
     ;   0xC6 = the line the compare is currently armed at
     ; These sit just past the SIC page: the SIC decodes 0xB0-0xBF and returns 0
     ; for the registers it does not implement, so parameters must live outside.
@@ -15722,9 +15722,9 @@ irq_handler:
     LDI 0
     MOV R3, R0
     STS R3, ES, R2           ; control 5 = base scene (no palette change)
-    LDI 0x200C
+    LDI 0x2006
     MOV R2, R0
-    STS R1, ES, R2           ; control 6 = split vertical scroll
+    STS R1, ES, R2           ; scroll_y = split vertical scroll
     LDI 0xC4
     MOV R2, R0
     LDS R1, ES, R2           ; lineB
@@ -15749,9 +15749,9 @@ irq_split_end:
     LDI 0
     MOV R3, R0
     STS R3, ES, R2           ; control 5 = base scene
-    LDI 0x200C
+    LDI 0x2006
     MOV R2, R0
-    STS R3, ES, R2           ; control 6 = no split scroll
+    STS R3, ES, R2           ; scroll_y = no split scroll
     LDI 0xC0
     MOV R2, R0
     LDS R1, ES, R2           ; lineA

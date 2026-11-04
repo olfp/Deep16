@@ -398,7 +398,7 @@ test('the raster band splits the scroll at A and restores it at B', () => {
   line('15 15 60 split!');
   const splitCur = () => sim.memory[0xF00C6];
   const scene = () => sim.memory[0xF200A];      // control 5 (base scene)
-  const scroll = () => sim.memory[0xF200C];     // control 6 (split line)
+  const scroll = () => sim.memory[0xF2006];     // scroll_y (split line)
   const compare = () => sim.memory[0xF200E];    // control 7
   assert.equal(splitCur(), 15, 'armed at lineA');
   assert.equal(sim.sicEnable & 8, 8, 'raster source enabled');

@@ -147,10 +147,10 @@ variable nm-l drop
 : pal-set!  ( n -- )   7 and 8 lshift   0x200A es@ 0x0FF and or 0x200A es! ;
 : scene!    ( oam pal -- ) 7 and 8 lshift swap 0x3F and 2 lshift or 0x200A es! ;
 
-\ ---- raster split: a control-6 band between two scan lines ------------
-\ split! arms control 7 at line a; the IRQ handler writes the scroll value
-\ there (vertical, read by the fill per line) and rewrites control 7 to line
-\ b, where it restores 0. The palette set is per frame on the board.
+\ ---- raster split: a scroll_y band between two scan lines --------------
+\ split! arms control 7 at line a; the handler writes scroll_y (0x2006) and
+\ re-arms control 7 to line b, which restores 0. (0x200C is the per-row fine
+\ table, not the vertical scroll.)
 \ The parameters sit just past the SIC page: the SIC decodes 0xB0-0xBF and
 \ returns 0 for registers it does not implement, so 0xBA/0xBC/0xBE read back 0.
 0xC0 constant split-la
@@ -161,7 +161,7 @@ variable nm-l drop
    split-lb es! split-la es! split-val es!
    split-la es@ raster-line! raster-on ;
 : split-off ( -- )
-   0 split-val es! raster-off 0 raster-line! 0 0x200A es! 0 0x200C es! ;
+   0 split-val es! raster-off 0 raster-line! 0 0x200A es! 0 0x2006 es! ;
 
 \ ---- text/art/sprite palette banks, 0xF6080/90/A0 -----------------------
 \ The text bank holds 8 pairs (2p paper, 2p+1 ink); art cells read the art
