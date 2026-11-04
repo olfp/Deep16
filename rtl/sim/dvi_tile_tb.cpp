@@ -390,6 +390,21 @@ int main(int argc, char** argv) {
   check("raster line beyond the frame never sets the request", top->raster_toggle, 0);
   write_ctrl(0x0E, 100);
   check("one raster request per frame when acked at once", count_raster_acked(2, 100), 2);
+
+  // Re-arming from the handler: wait for the request, then ack and move the
+  // compare in the same store (the band's lineA -> lineB step). The next
+  // request must come, and it must cost one per frame, not two.
+  write_ctrl(0x0E, 100);
+  {
+    for (long i = 0; i < 3000000 && !top->raster_toggle; i++) tick();
+    check("request set before re-arm", top->raster_toggle, 1);
+    write_ctrl(0x0E, 300);                 // ack + arm line 300 (one store)
+    check("re-arm store lands", top->dbg_raster_line, 300);
+    check("re-arm clears the request", top->raster_toggle, 0);
+    // Count the requests over one frame while acking; the compare is at 300.
+    int rises = count_raster_acked(1, 300);
+    check("re-armed line still fires once per frame", rises, 1);
+  }
   write_ctrl(0x0E, 0);
 
   // ---- text/art/sprite palette banks and pair mode ----------------------
