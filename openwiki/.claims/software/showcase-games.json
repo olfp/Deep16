@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:53661e76af45c68b863241c1a10511fa5b52dddb6313330b2a71fb2279979361",
+  "pageVersion": "sha256:b11fbd2f59d49189ae076f087fc1d879ba157534a27422788f11debb15040ac1",
   "claims": [
     {
       "id": "claim_409db9e1d9744a93a22633dabee8e777",
@@ -136,14 +136,14 @@
     },
     {
       "id": "claim_3105c748dee9490baea6b3b1860c093f",
-      "statement": "The Frogger block is 586 words at physical 0x4350-0x4672 (CS=DS=0x0435), with river rows 4-8 moving right, left, fast right, right, left and road rows 10-14 moving left, right, left, right, left from the top down.",
+      "statement": "The Frogger block is 613 words at physical 0x4350-0x4672 (CS=DS=0x0435), with river rows 4-8 moving right, left, fast right, right, left and road rows 10-14 moving left, right, left, right, left from the top down.",
       "evidence": [
         {
           "resource": "repo://asm/showcase/frogger_demo.asm#L1-L46",
           "version": "repo-lines-v1:sha256:b5f76941c4052211c7be39827965422478ce93f6c7636f5b515e5ff279d16085:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3MzFkMTliNWUxYTEwZGQ1YjEyZDQ5NGMzMDg3YWI1MTBjNDNjYzQ0Y2YwYzhlY2YzMDBmMzY5OWJkZjI4NjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMzZTEzMjY3YjkzODFhNGNjODAzNzBkNWNlNTUzNTRhNzM1M2YxYTc2NWMwNmIyYmRjOGRmZjJjNDdjZWMxNDMifQ"
         },
         {
-          "resource": "repo://asm/showcase/frogger_demo.asm#L633-L650",
+          "resource": "repo://asm/showcase/frogger_demo.asm#L658-L675",
           "version": "repo-lines-v1:sha256:5e5baa712a03c98075139d78b34343a0bfcb32bfb4d739a22c9c2004dfc12e51:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmZDk1NDA2MzYzOGI3ZTFlZmZkNzcxMWNiYzM5YTYxY2NlZWVmZGNhNDE2NGZhYzM3NjJhY2VlMjBlNmY1MjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBiMWE3MWEwOGQwZmYyNDZmMWJlYzcwYjhjYzc1NDNjNDRjZjUzOTYwNDY2NTA5YTM1ZjZjMTViZWI1NDk3YzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEyZGUwNzQwYWI5MTc4NmMwZDQ4NzgzYmJiYTM2ZmJmYjQxZjgzODBiYTJlN2ZlMjI0Mjk1MzMyM2IxMDU2M2IifQ"
         },
         {
@@ -157,11 +157,11 @@
       "statement": "Each Frogger lane keeps a 0..15 coarse start and a 0..7 phase; every frame writes control 6 as 0x100 | row << 3 | phase, and only a coarse change paints all 82 row cells into the back tilemap bank before the display swap.",
       "evidence": [
         {
-          "resource": "repo://asm/showcase/frogger_demo.asm#L287-L380",
+          "resource": "repo://asm/showcase/frogger_demo.asm#L312-L405",
           "version": "repo-lines-v1:sha256:6b5f1973468eb69061e6ff9ed114c3d83b11d5c096f6fe917f4383084a809b56:eyJzZWxlY3RlZExpbmVDb3VudCI6OTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhhYzJkODExZDY2ZWQ1Y2QyNTk3YTMxYWI0MDVhYTg3MGU1OGM5ZjJjYWU0MTYyY2YxNmViNDY1NWNhMzUwY2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFmNDIzYWQ4NDY2NmMwNjA4ZWI5ZWI2ZjY5MDM4NDU0NzVjYjA1NGRlZGQ4NjQzNmYyOWE4MjI2OTdiMGQ4OGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRhZTIyZTYzMjdhMGI5NGYzYTk0YTkwY2MxNGFjY2ZmMzU1MGNkNTY2MzAxN2M0ZTljNTc0Zjk3NTIwZjYyYzgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdiZTVhMDk4ZjFhNzgyYTRjMDUxZTYyYmRkMjc1YmY1NGJkNzg0YmQ5MWM3Y2ExZDA1Y2EyODE0MWM0ZDEzZDgifQ"
         },
         {
-          "resource": "repo://asm/showcase/frogger_demo.asm#L421-L460",
+          "resource": "repo://asm/showcase/frogger_demo.asm#L446-L485",
           "version": "repo-lines-v1:sha256:4aa629f2035a22e8d0dbe8b9baac336885061db678c13f02a50f4d254aeae4d7:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0NjM5YjRhODlhYWI3MmVlYjgxNmFjYmRiMzIxYzY2NTNiMGFhOTMwNjVkMGUwZWM2Njc0Y2NlZTBhZmQwMzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjN2I0ODJjYzVhMGM0NmE0MDc5YWZiMmY4ZjlmNTc3Y2U1Yjc5MTNjZTZkNTc1M2Q1ZWU1YWRmODkyNzI4M2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEwOTVkMzZiNTY5NzM1ZmM2ODZjYzA2NWZmMWM0M2ZiM2NlMWY4YmUxNTAzNTdhNGI4NjcwMmVlNTcxM2VkYTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZjZjNlNTk3MGY1ZWQ2MjNmYTRiMTY5NTk5ZDRlYTBjNTNmOWI0MmZiNjBjNDZhNDg2MjM0NTY1NWRiM2RiMDMifQ"
         }
       ]
@@ -171,7 +171,7 @@
       "statement": "Frogger uses six single-colour tiles at 57-62 and palette set 2 entries 1-6, which the demo writes at run time.",
       "evidence": [
         {
-          "resource": "repo://asm/showcase/frogger_demo.asm#L103-L135",
+          "resource": "repo://asm/showcase/frogger_demo.asm#L123-L155",
           "version": "repo-lines-v1:sha256:54435727d6a8e947111ea313d9235fa94125e4eff6e509cbebee7a7556e93295:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5ZDg3N2RlNGI4ODc0Mzk4ODBlZDI2NWVjMmQzMzNiYTdmMzFjOWY4YWUwOGY2M2NlYmJkNjZkNmMyODljZDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1ZGIwMjMyZmU3YWRjYTgyN2VhYjVhNWUwZGY5YjM4MTQzNGFjNzkzZmZiNjIxZTQyYTJjZTk0MTA0NjMyN2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhkYjBhMDcwOTRiNTdkMDBhZDliOWQwMjJmODVhY2NiMmY4OTBmOWZiM2QyMTQwOTE3ODAxOTgwOWQzOGFkMjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjZDgwZTc3NDcyYjU2ZmZiM2MwZGZlN2UyODk1NDJkNzIzYjRhOWI2ZTA2NDc5ODk5MjZiZDViMThkNTc2Y2EifQ"
         },
         {
@@ -207,22 +207,36 @@
       "statement": "The demo paints both tilemap banks at entry, repaints a changed lane into the new back copy on the following frame via its dirty flag, and restores bank 0 and waits for the swap on exit.",
       "evidence": [
         {
-          "resource": "repo://asm/showcase/frogger_demo.asm#L130-L155",
+          "resource": "repo://asm/showcase/frogger_demo.asm#L150-L175",
           "version": "repo-lines-v1:sha256:4ab4bfa257621a0c5fbdbf1dd0b9021c3c71bd002ddd3e98679cb677a54ed1a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZmMWQ1MTI1YWZmOTgxNjA4MTBhYWYxMTc3ZTI4YTc1OTA4OGU2M2I1OGZmNWU1MGM3NTg1NzkxOTlmYmEyOTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg2Mjc2YWI0MzJmMzI3YTQzOGQ2NDM2M2ZlMDExNzFjNGJiZjY0MzE2MWFiNTdkNWZlMGQ5ODVjMzUyMDhjNmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFkYTJhZGY4MTNkMjE2N2E4NjQ5ZGY3ZWUxNjQxODgwODFkMDYzZGM3ZGQwZTRkNTM4NjQ1YzZkYTcwZjA5YjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI0MThjYjE3MDY3YTAwOTA0NGM3NGYzMTY3ODg5NzY4YzA1MWFiMTQxYTM2Y2ZhMDZmODlmMWQzZDJlOWZkY2EifQ"
         },
         {
-          "resource": "repo://asm/showcase/frogger_demo.asm#L256-L285",
+          "resource": "repo://asm/showcase/frogger_demo.asm#L281-L310",
           "version": "repo-lines-v1:sha256:5bc27fdf4f8fcb9691ec5d3799991d20c7c7bc9218792ed2cd28a3e2c321e476:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQyYTMwNWQ1NDBlYmJmNTAwNTdmZTk3NjMzNWViNzg4ZjRiMmQxNzVkZDQ0YjM1NmZlYWUzZThjNWMxODczZjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhYWMwYWU2NTJiOGYwMDNiOGE4NzcyOTk1OGM1NTk0YWMxMTBjNzYxOTFjZWJkMzgwYjhlNWU5YjUzOThjODYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIxZDZjNmEyOTljYWU5NTU1ZTJjNDg4YjkwOThmNzNlMzUwNGRmZTU1ZTY4YThmYWRjMDZhNmMyOGEzYjZmMTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZhNzEzMDc2M2UyZjI2N2Y4MjY4ZjM0MzNhYWE1M2FlNjc0YjA2NDhiNTJhNWUxZjU2MzQ2YzYxNDU2ZDhhN2EifQ"
         },
         {
-          "resource": "repo://asm/showcase/frogger_demo.asm#L586-L620",
+          "resource": "repo://asm/showcase/frogger_demo.asm#L611-L645",
           "version": "repo-lines-v1:sha256:86f17b450a762eeeb3414fafca5bcb08377a8f6af3fb4a8023296025ef645819:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhM2NlNGY3MDhlOTY2ODRjMjMzYjhkMjQyOWEyM2Y4ZGUxNDZmMjBkNzE5ZmFiZGY3NGQyNjM0ODUwNjgxNzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YWMzNDBiM2ZlOThmYjNmM2JhZThhZDE5OGQxMDEwYmFkMWQ1NDM3ODBiY2IyYWU3OWM2NjkyN2E3MzFlNzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRiOTYyNGFhYTA2NzNiYWEzZTRiYjk1YWU1M2EzYjhkOWM0NTA3NmUwMzRmZTkzMGYxNDlkYmVkNGZmN2M0NDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ0NDhhMGE0NTFjMGVlZTMzZjI2YzIyNTUyYWM3NGRiOTFlNDQyMmMzZjcxYmI1NjBiNzBiNjczNThjZTc0MjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_52f1dc0ef0964a2a8c6ebcb333455af6",
+      "statement": "The ten Frogger lanes start at phases 7,7,5,2,4,3,5,1,7,4 so their coarse shifts and back repaints are spread across frames; entry resets the front/back bank pair and the dirty flags for a clean second launch.",
+      "evidence": [
+        {
+          "resource": "repo://asm/showcase/frogger_demo.asm#L56-L78",
+          "version": "repo-lines-v1:sha256:deded80f18b8e9fb1e4bd4240f39d31407dfd50736edfd649cc5d70cffca3c3c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUzNGI2NWViN2U3MGVhMjQ4OWMzNDIzMzUxMzQxMWZiY2U4NWExMGQ1MmQ1M2UxNjkzMjg4OTY4MDQ1OGZlOGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIwMWRmZTQwNzFhYmRhZjYxYzNkOWNhNTgyMjc4NzViMjVjNTJmYzc0MjkyMTI5YzBjOGUyYTQxM2I1MDE3YjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA1YWFkMjczYjllY2FjZjkwZGJmZDcwZTMxMDE0YWRmN2JhZmRmMzk4OWFmZTExYzUxZTBiNmYwMjMzZjAyZGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY4ZGJkOGM0YzA1MWVmZGY4YTg0ZmQ3NTJlNTQ1OGEwODgwZDYyNmQ5MDdkMDQ5ZDc2YTFiYjliNTkxNWY5OTgifQ"
+        },
+        {
+          "resource": "repo://asm/showcase/frogger_demo.asm#L688-L703",
+          "version": "repo-lines-v1:sha256:d7684d6247d2f153afcbedff874c47a4864866e4c76abaab35ad45f122fc225d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwODQ5NDgyMTg3ODhhNTk1ZDNlNjQ5NzZjYzE5N2E0OGNmNjRiNTNhM2MyNzgzMWM2ZjdjOWZiNmI3MGZhY2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk1ODY5MGEwNGNjZGFiNThhNTg5ODhhYjk0Y2M4ZjY3ZmU3YWEzNzU4ZjVkOWZiMzY4ZmE3YWE4Y2E5NzYxOTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYyMzIxNzJlZDkyYWFmZDcwNDc0MWY3ZTYzNjVlYWRmYzlhOTBlYjBkMWNlYjcwNzgxM2IzZGU3ZjFkOWMyNTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.7.3",
-    "at": "2026-11-04T17:50:52.684Z"
+    "at": "2026-11-04T18:00:55.517Z"
   }
 }

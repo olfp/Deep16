@@ -39,10 +39,10 @@ sources:
     resource: repo://tests/segmented.test.js
   - id: openwiki-source-3c07bfc0a532e3b861560036
     resource: repo://tests/showcase-render.test.js
-generated: { by: "opencode", at: "2026-11-04T17:50:52.684Z" }
+generated: { by: "opencode", at: "2026-11-04T18:00:55.517Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T17:50:52.684Z
+    at: 2026-11-04T18:00:55.517Z
 ---
 
 
@@ -151,7 +151,7 @@ lanes moving independently. There is no player, collision or score.
 
 | Property | Value |
 |---|---|
-| Block | 586 words, max offset `0x322` |
+| Block | 613 words, max offset `0x322` |
 | Location | physical `0x4350`–`0x4672`, CS=DS=`0x0435` |
 | Lane layout | rows 0–3 grass, 4–8 river, 9 median, 10–14 road, 15–23 grass |
 | River (top to bottom) | right, left, fast right, right, left |
@@ -169,10 +169,13 @@ the 80 visible columns at the right edge, and leaving it zero made a black strip
 up to seven pixels wide.
 
 The back copy is kept current by a per-lane dirty flag: a row changed in the
-previous frame is repainted into the new back before the next swap. An earlier
-live-map version reused the repaint-flag register for the control-6 offset, so
-the flag test was always true and every lane was rewritten every frame; that,
-plus the unsynchronised coarse shift, produced the visible flicker.
+previous frame is repainted into the new back before the next swap. The lanes
+start at different phases (`7,7,5,2,4,3,5,1,7,4`) so their coarse shifts and
+back repaints are spread across frames; entry also resets the front/back pair
+and the dirty flags, so a second G launch starts cleanly. An earlier live-map
+version reused the repaint-flag register for the control-6 offset, so the flag
+test was always true and every lane was rewritten every frame; that, plus the
+unsynchronised coarse shift, produced the visible flicker.
 
 Entry installs palette set 2, clears OAM, fills both banks with grass and the
 ten lane rows; `Q` or `q` clears the per-row table, restores palette set 0,
