@@ -250,6 +250,39 @@ the board (2026-11-04).
 
 ---
 
+## 2026-11-04 — Console getstr is a pump, so IRQs run at the prompt
+
+**Priority:** done and board-verified.
+
+**Area:** `asm/forth_nano.asm` (`bios_f5` UART branch), `read_line`,
+`word_accept`, `refill`.
+
+**What was wrong:** BIOS getstr (function 5) blocked inside the SWI until CR.
+A SWI runs with S=1/I=0, so while the REPL waited for a key the timer and
+raster IRQs were masked. A band left armed at the prompt only advanced when
+the next command executed.
+
+**Fix:** getstr drains the bytes the UART holds in one call and answers the
+caller's R0 = 1 when the line is complete, 0 when it ran out. The write pointer
+and the "line in progress" flag live in `gs_active`/`gs_ptr` (the cells the
+screen build's keyboard getstr already used), so an empty call returns without
+losing the line. The three call sites (`read_line`, `word_accept`, `refill`)
+already polled with I=1.
+
+The routine moved to **0x5356**: the UART BIOS ended at 0x4D2F and the D16D
+menu starts at 0x4D34, so there was no room in place. 0x5000..0x53FF is the
+ILL/divtest tail the showcase reserves but never writes (the UART mirror is
+there too), and the BIOS jump table stores a segment offset, so the move is
+otherwise transparent.
+
+**Board result:** `0xB8` climbed 945 -> 1456 over a few seconds while the
+prompt waited without input, and the sprite multiplexer stays up at the prompt
+with no spin loop. The whole raster asset is now usable interactively.
+
+**Status:** console masking fixed (2026-11-04).
+
+---
+
 ## 2026-11-02 — Open discussion: extend the art tile bank using spare cell bits
 
 **Priority:** low — discussion only; no encoding or memory-map decision yet.
