@@ -212,6 +212,44 @@ working in the fitted build (netlist).
 
 ---
 
+## 2026-11-04 — The raster band ran twice per edge (SIC W1C before tile ack)
+
+**Priority:** fixed and board-verified. This was the cause of the “frame-granular
+control registers” symptom, not the netlist.
+
+**Area:** `asm/forth_nano.asm` (`irq_handler`), `deep16_sic.sv`,
+`dvi_tile.sv` raster request.
+
+**What was wrong:** the raster source is a **level** - `dvi_tile` holds
+`raster_toggle` until a control-7 write acknowledges it. The handler read
+PENDING and did the W1C **first**, while the synchronised level was still high,
+so `pending <= pending | src` re-latched the bit on that clock. The handler
+then ran a second time after `RETI`, took the *other* branch (`cur` had just
+changed) and undid the first write. Every raster edge cost two entries.
+
+**Measured:** with one edge armed and `lineA` set to a line that never matches,
+`0xB8` (handler raster count) read **2**; after the fix it reads **1**. The
+segment test `A/B` counters could not show this because both entries increment
+different counters.
+
+**Fix:** each band path acknowledges the tile engine first (the control-7
+write) and clears the SIC bit at the end, after a few NOPs let the
+synchronised level fall. One edge is now one entry.
+
+**Board result:** the sprite multiplexer works: one OAM slot shows two solid
+32x32 squares at the same time, one above line 250 and one inside the band
+(A=100 writes Y=200, B=250 restores Y=40). This also means the earlier
+2026-11-04 entry (“control registers are frame-granular in the fitted build”)
+is **superseded**: those tests ran with the double-service handler, and the
+`ctest` spin it also cited had a truncated loop (`4000000` became `0x0900`, so
+it wrote one scene for the whole spin). Control-5/control-6 bands need a fresh
+test with this fix.
+
+**Status:** raster IRQ, per-line OAM writes and sprite multiplexing verified on
+the board (2026-11-04).
+
+---
+
 ## 2026-11-02 — Open discussion: extend the art tile bank using spare cell bits
 
 **Priority:** low — discussion only; no encoding or memory-map decision yet.
