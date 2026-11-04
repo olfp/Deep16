@@ -1,5 +1,9 @@
 # D16nano block architecture
 
+
+![Deep16 Nano Architektur](./BLOCK.svg)
+
+
 Logical block diagram of the **D16nano** build (`D16NANO` + `D16_PERIPH` +
 `D16SEG` + `DVI_TILE` + `USER_FLASH`) on the Tang Nano 9K. It shows the
 three-stage `core3` at 6.75 MHz, the shared system bus, the on-chip and external
