@@ -50,9 +50,9 @@ test('the game palette table matches the art colours', () => {
   const showcase = buildShowcase();
   const at = (a) => showcase.words.find((w) => w[0] === a)?.[1];
   BIRD_ORDER.forEach((colour, i) => {
-    assert.equal(at(0x5CB + i * 2), BIRD_COLOURS[colour].body, `${colour} body`);
-    assert.equal(at(0x5CC + i * 2), BIRD_COLOURS[colour].belly, `${colour} belly`);
+    assert.equal(at(0x5D5 + i * 2), BIRD_COLOURS[colour].body, `${colour} body`);
+    assert.equal(at(0x5D6 + i * 2), BIRD_COLOURS[colour].belly, `${colour} belly`);
   });
   // The three dizzy poses ping-pong in the shared table.
-  assert.deepEqual([0x5D1, 0x5D2, 0x5D3, 0x5D4].map(at), [3, 4, 5, 4]);
+  assert.deepEqual([0x5DB, 0x5DC, 0x5DD, 0x5DE].map(at), [3, 4, 5, 4]);
 });

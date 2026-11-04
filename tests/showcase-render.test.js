@@ -36,6 +36,12 @@ test('Pac-Man renders the maze and moving sprites', () => {
   assert.notDeepEqual(Array.from(r.frames[5]), Array.from(r.frames[19]), 'Pac-Man moved');
 });
 
+test('the Frogger backdrop scrolls its lanes', () => {
+  const r = renderScene({ scene: 'frogger', frames: 20, warmup: 200000 });
+  assert.ok(nonBlack(r.frames[19]) > 2000, 'the ten lanes are visible');
+  assert.notDeepEqual(Array.from(r.frames[10]), Array.from(r.frames[19]), 'the lanes move');
+});
+
 test('the console scene boots the nano kernel', () => {
   const r = renderScene({ scene: 'console', frames: 1 });
   assert.ok(nonBlack(r.frames[0]) > 400, 'the banner/prompt is rendered');

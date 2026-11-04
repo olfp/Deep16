@@ -57,6 +57,7 @@ function readSources() {
     flappy: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_game.asm'), 'utf8'),
     pacmanMap: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_map.asm'), 'utf8'),
     pacmanGame: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_game.asm'), 'utf8'),
+    frogger: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'frogger_demo.asm'), 'utf8'),
   };
 }
 
@@ -71,6 +72,7 @@ function boot(scene) {
     flappy: src.flappy,
     pacmanMap: src.pacmanMap,
     pacmanGame: src.pacmanGame,
+    frogger: src.frogger,
     defines: scene === 'console' ? { D16SEG: 0 } : {},
     // The renderer previews the block at its old 0x4330 home; the real image
     // keeps it in the config flash and games.fth loads it into 0x2000.
@@ -94,6 +96,12 @@ function boot(scene) {
   } else if (scene === 'pacman') {
     // The menu's far launcher: R10/R11 is the return pair, CS 0x0433 PC 0.
     sim.segmentRegisters = { CS: 0x0433, DS: 0x0433, SS: 0, ES: 0 };
+    sim.registers[10] = 0x04A0;
+    sim.registers[11] = RET_PC;
+    sim.registers[15] = 0;
+  } else if (scene === 'frogger') {
+    // The small backdrop block lives at physical 0x4350, CS=DS=0x0435.
+    sim.segmentRegisters = { CS: 0x0435, DS: 0x0435, SS: 0, ES: 0 };
     sim.registers[10] = 0x04A0;
     sim.registers[11] = RET_PC;
     sim.registers[15] = 0;
@@ -136,10 +144,13 @@ export function renderScene({
   keys = [],
   warmup = null,
 } = {}) {
-  if (!['console', 'menu', 'flappy', 'pacman'].includes(scene)) throw new Error(`unknown scene: ${scene}`);
+  if (!['console', 'menu', 'flappy', 'pacman', 'frogger'].includes(scene)) throw new Error(`unknown scene: ${scene}`);
   const { sim, engine } = boot(scene);
   if (warmup === null) {
-    warmup = scene === 'menu' ? 0x4000 : scene === 'console' ? 200000 : scene === 'pacman' ? 300000 : 0;
+    warmup = scene === 'menu' ? 0x4000
+      : scene === 'console' ? 200000
+      : scene === 'pacman' ? 300000
+      : scene === 'frogger' ? 200000 : 0;
   }
 
   if (warmup > 0) {

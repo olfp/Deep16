@@ -427,6 +427,7 @@ class DeepWebUI {
           flappy: this.d16dSources.flappy,
           pacmanMap: this.d16dSources.pacmanMap,
           pacmanGame: this.d16dSources.pacmanGame,
+          frogger: this.d16dSources.frogger,
           defines: this.assembleDefines(),
         });
         for (let i = 0; i < 0x6000; i++) this.simulator.memory[i] = image.words[i];
@@ -3838,18 +3839,20 @@ const response = await fetch(`asm/${filename}`, { cache: 'no-store' });
             this.d16dSources = null;
             if (this.tileBuild === 'd16d') {
                 try {
-                    const [sc, fl, pm, pg] = await Promise.all([
+                    const [sc, fl, pm, pg, fg] = await Promise.all([
                         fetch('asm/showcase/showcase.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/flappy_game.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/pacman_map.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/pacman_game.asm', { cache: 'no-store' }),
+                        fetch('asm/showcase/frogger_demo.asm', { cache: 'no-store' }),
                     ]);
-                    if (!sc.ok || !fl.ok || !pm.ok || !pg.ok) throw new Error('showcase sources not found');
+                    if (!sc.ok || !fl.ok || !pm.ok || !pg.ok || !fg.ok) throw new Error('showcase sources not found');
                     this.d16dSources = {
                         showcase: await sc.text(),
                         flappy: await fl.text(),
                         pacmanMap: await pm.text(),
                         pacmanGame: await pg.text(),
+                        frogger: await fg.text(),
                     };
                 } catch (error) {
                     this.addTranscriptEntry(`D16D sources failed: ${error.message}`, 'error');

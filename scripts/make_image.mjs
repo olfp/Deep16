@@ -27,7 +27,8 @@ import { writeTileFont } from './make_tile_font.mjs';
 import { writeBirdSprite } from './make_bird_sprite.mjs';
 import { writePs2Map } from './make_ps2map.mjs';
 import { buildShowcase, checkShowcase, SHOWCASE_SEG_BASE,
-         buildPacman, checkPacman, PACMAN_SEG_BASE } from './make_showcase.mjs';
+         buildPacman, checkPacman, PACMAN_SEG_BASE,
+         buildFrogger, checkFrogger, FROGGER_SEG_BASE } from './make_showcase.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -109,11 +110,21 @@ export function buildImage() {
   // so the standard flash loader/installer copy and verify it.
   let showcase = null;
   let pacman = null;
+  let frogger = null;
   if (D16D) {
     showcase = buildShowcase();
     checkShowcase(showcase);
     for (const [addr, value] of showcase.words) {
       const pa = SHOWCASE_SEG_BASE + addr;
+      if (pa < WINDOW) words[pa] = value;
+      else outOfWindow.add(pa);
+    }
+    // Frogger is a small backdrop demo in the free image gap.  It is always
+    // baked: the menu launches it directly, unlike the flash-loaded Pac-Man.
+    frogger = buildFrogger();
+    checkFrogger(frogger);
+    for (const [addr, value] of frogger.words) {
+      const pa = FROGGER_SEG_BASE + addr;
       if (pa < WINDOW) words[pa] = value;
       else outOfWindow.add(pa);
     }
@@ -133,11 +144,12 @@ export function buildImage() {
     .update(source)
     .update(showcase?.build ?? '')
     .update(pacman?.build ?? '')
+    .update(frogger?.build ?? '')
     .digest('hex').slice(0, 16);
 
   return {
     words, outOfWindow: [...outOfWindow].sort((a, b) => a - b),
-    dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build, showcase, pacman,
+    dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build, showcase, pacman, frogger,
   };
 }
 
@@ -161,6 +173,12 @@ export function checkImage(img) {
     if (PACMAN_SEG_BASE < img.dictFree) fail.push('pacman block starts inside the kernel image');
     if (PACMAN_SEG_BASE + img.pacman.size > img.biosEntry) fail.push('pacman block runs into the BIOS');
     checkPacman(img.pacman);
+  }
+  if (D16D && !img.frogger) fail.push('D16D image has no frogger demo');
+  if (D16D && img.frogger) {
+    if (FROGGER_SEG_BASE < img.dictFree) fail.push('frogger block starts inside the kernel image');
+    if (FROGGER_SEG_BASE + img.frogger.size > img.biosEntry) fail.push('frogger block runs into the BIOS');
+    checkFrogger(img.frogger);
   }
   if (D16D && img.showcase) checkShowcase(img.showcase);
   if (fail.length) throw new Error('boot image is not valid:\n  - ' + fail.join('\n  - '));
@@ -331,6 +349,14 @@ export function manifest(img) {
       min: `0x${img.showcase.min.toString(16)}`,
       max: `0x${img.showcase.max.toString(16)}`,
       build: img.showcase.build,
+    } : null,
+    frogger: img.frogger ? {
+      source: 'asm/showcase/frogger_demo.asm',
+      base: `0x${FROGGER_SEG_BASE.toString(16)}`,
+      segment: '0x0435',
+      min: `0x${img.frogger.min.toString(16)}`,
+      max: `0x${img.frogger.max.toString(16)}`,
+      build: img.frogger.build,
     } : null,
     pacman: img.pacman ? {
       source: 'asm/showcase/pacman_map.asm + asm/showcase/pacman_game.asm',

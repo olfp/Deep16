@@ -31,6 +31,9 @@ export const PACMAN_SEG = 0x0433;             // physical 0x4330
 export const PACMAN_SEG_BASE = 0x4330;
 export const PACMAN_LIMIT = 0x6D0;            // block size 0x4330..0x49FF
 export const PACMAN_CODE_LIMIT = 0x600;       // code and strings before the map
+export const FROGGER_SEG = 0x0435;             // physical 0x4350
+export const FROGGER_SEG_BASE = 0x4350;
+export const FROGGER_LIMIT = 0x6B0;            // block must end before the BIOS at 0x4A00
 export const GAME_LIMIT = 0x0E00;             // game may use 0xA00..0xDFF
 export const STATE_BASE = 0x4D5;              // game state cells
 export const RESTORE_BASE = 0x500;            // menu code starts here
@@ -105,6 +108,40 @@ export function checkPacman(pacman) {
   if (at(0x600) === undefined) fail.push('maze map missing at 0x600');
   if (pacman.words.some(([a]) => a >= 0x6A0)) fail.push('pacman writes into the game state cells');
   if (fail.length) throw new Error('pacman block is not valid:\n  - ' + fail.join('\n  - '));
+  return true;
+}
+
+// The Frogger per-row-scroll backdrop is a small block in the image gap at
+// physical 0x4350.  It is not a flash slice: the menu launches it directly.
+export function buildFrogger() {
+  const Deep16Assembler = loadAssembler();
+  const source = fs.readFileSync(path.join(ROOT, 'asm/showcase/frogger_demo.asm'), 'utf8');
+  const res = new Deep16Assembler().assemble(source);
+  if (!res.success) throw new Error('frogger demo does not assemble: ' + res.errors.join('; '));
+
+  const words = [];
+  let max = 0;
+  for (const c of res.memoryChanges) {
+    if (c.address < 0 || c.address >= FROGGER_LIMIT) {
+      throw new Error(`frogger address out of range: 0x${c.address.toString(16)}`);
+    }
+    words.push([c.address, c.value & 0xFFFF]);
+    max = Math.max(max, c.address);
+  }
+  words.sort((a, b) => a[0] - b[0]);
+  const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
+  return {
+    words, min: words[0]?.[0] ?? 0, max, size: max + 1, build,
+    entry: 0, seg: FROGGER_SEG, symbols: res.symbols,
+  };
+}
+
+export function checkFrogger(frogger) {
+  const fail = [];
+  if (frogger.max >= FROGGER_LIMIT) fail.push(`frogger block reaches 0x${frogger.max.toString(16)}`);
+  const at = (a) => frogger.words.find((w) => w[0] === a)?.[1];
+  if (at(0x300) === undefined) fail.push('frogger state missing at 0x300');
+  if (fail.length) throw new Error('frogger block is not valid:\n  - ' + fail.join('\n  - '));
   return true;
 }
 

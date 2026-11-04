@@ -561,6 +561,26 @@ per-row table is latched once per frame. Use the IRQ for effects that can
 change at a known line — palette updates, a status split, or starting the
 next frame's work early — and use the per-row table for the scroll itself.
 
+### 6.5 The Frogger backdrop demo
+
+`asm/showcase/frogger_demo.asm` is the worked example. It is a 466-word block
+at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
+`G`; `Q` returns. It paints five river rows (4–8) and five road rows (10–14)
+over a grass field, and keeps three values per lane: a `0..15` coarse start
+cell, a `0..7` fine phase, and a direction/speed (1, or 2 for the fast river
+lane).
+
+Each frame it advances the phase, writes control 6 for that row, and only
+when the phase wraps does it rewrite the row's 80 cells shifted by one coarse
+cell. That is the key split: the register supplies sub-cell motion, while the
+CPU touches the tilemap once per eight pixels.
+
+From the top river row down the directions are right, left, fast right, right,
+left (bottom to top: left, right, fast right, left, right). The road's top
+truck lane goes left; rows 10–14 top to bottom are left, right, left, right,
+left. The demo is backdrop-only — no player, collision or game state — so it
+isolates the scroll path for visual checking and for `tests/frogger.test.js`.
+
 ---
 
 ## 7. Sprites

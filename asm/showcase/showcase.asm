@@ -115,6 +115,10 @@ str_auto_short:
 str_menu_p:
     .text "P  PAC-MAN"
 
+.org 0x3F3
+str_menu_g:
+    .text "G  FROGGER"
+
 .org 0x3CC
 cloud_init:
     .word 100, 300, 500, 700
@@ -131,7 +135,7 @@ pal_art:
 cloud_y:
     .word 45, 90, 45, 90
 
-.org 0x5CB
+.org 0x5D5
 ; Body and belly palette entries per bird, picked at every reset.  Index 2 is
 ; the body, 13 the belly; the dizzy flower/star keep 5/11.
 bird_colors:
@@ -219,6 +223,11 @@ menu_redraw:
     JMP R4
     NOP
 
+    LDI frogger_draw
+    MOV PC, R0
+    NOP
+menu_after_g:
+
     LDI 19
     MOV R9, R0
     LDI 29
@@ -283,6 +292,12 @@ menu_wait:
     MOV R3, R0
     CMP R1, R3
     JZ menu_pacman
+    NOP
+    OR R1, 5
+    LDI 0x67
+    MOV R3, R0
+    CMP R1, R3
+    JZ menu_frogger
     NOP
     LDI 0x51
     MOV R3, R0
@@ -356,6 +371,11 @@ menu_pacman:
     MOV PC, R0
     NOP
 
+menu_frogger:
+    LDI frogger_launch
+    MOV PC, R0
+    NOP
+
 menu_launch_game:
     LDI SEG_DEMO
     MVS DS, R0
@@ -395,6 +415,35 @@ pacman_launch:
     LDI menu_after
     MOV R11, R0
     LDI 0x0433
+    LSI R1, 0
+    JML R0
+    NOP
+
+; Draw the G entry from the gap (the menu block is full) and jump back.
+.org 0x4B0
+frogger_draw:
+    LSI R9, 13
+    LDI 30
+    MOV R10, R0
+    LDI str_menu_g
+    MOV R8, R0
+    LDI draw_text
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI menu_after_g
+    MOV PC, R0
+    NOP
+
+; Frogger backdrop launcher: CS=0x0435, PC=0 (the block at physical 0x4350).
+.org 0x4C0
+frogger_launch:
+    LDI SEG_DEMO
+    MOV R10, R0
+    LDI menu_after
+    MOV R11, R0
+    LDI 0x0435
     LSI R1, 0
     JML R0
     NOP

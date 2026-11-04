@@ -10,7 +10,7 @@
  *   - fill 0xFFFF; anything outside 0x0000..0x5FFF is reported, not written.
  */
 class Deep16D16DImage {
-  static build({ kernel, showcase, flappy, pacmanMap, pacmanGame, defines = {},
+  static build({ kernel, showcase, flappy, pacmanMap, pacmanGame, frogger, defines = {},
                  bakePacman = false } = {}) {
     if (typeof Deep16Assembler !== 'function') throw new Error('Deep16Assembler is not loaded');
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('D16D image needs kernel source');
@@ -36,10 +36,14 @@ class Deep16D16DImage {
     }
     const pres = new Deep16Assembler().assemble(`${pacmanMap}\n${pacmanGame}`);
     if (!pres.success) throw new Error('pacman does not assemble: ' + pres.errors.join('; '));
+    if (typeof frogger !== 'string') throw new Error('D16D image needs the frogger source');
+    const fres = new Deep16Assembler().assemble(frogger);
+    if (!fres.success) throw new Error('frogger does not assemble: ' + fres.errors.join('; '));
 
     const WINDOW = 0x6000;
     const SHOWCASE_BASE = 0x4A00;
     const PACMAN_BASE = 0x4330;
+    const FROGGER_BASE = 0x4350;
     const words = new Uint16Array(WINDOW).fill(0xFFFF);
     const outOfWindow = new Set();
 
@@ -55,6 +59,16 @@ class Deep16D16DImage {
         throw new Error(`showcase address out of range: 0x${change.address.toString(16)}`);
       }
       const pa = SHOWCASE_BASE + change.address;
+      if (pa < WINDOW) words[pa] = change.value & 0xFFFF;
+      else outOfWindow.add(pa);
+    }
+    // Frogger is a small backdrop demo in the free image gap; it is always
+    // baked because the menu launches it directly.
+    for (const change of fres.memoryChanges) {
+      if (change.address < 0 || change.address >= 0x6B0) {
+        throw new Error(`frogger address out of range: 0x${change.address.toString(16)}`);
+      }
+      const pa = FROGGER_BASE + change.address;
       if (pa < WINDOW) words[pa] = change.value & 0xFFFF;
       else outOfWindow.add(pa);
     }
@@ -79,6 +93,11 @@ class Deep16D16DImage {
       biosEntry: kres.symbols.bios_entry,
       symbols: kres.symbols,
       showcase: { words: sres.memoryChanges.map((c) => [c.address, c.value & 0xFFFF]) },
+      frogger: {
+        words: fres.memoryChanges
+          .map((c) => [c.address, c.value & 0xFFFF])
+          .sort((a, b) => a[0] - b[0]),
+      },
       pacman: {
         words: pres.memoryChanges
           .map((c) => [c.address, c.value & 0xFFFF])

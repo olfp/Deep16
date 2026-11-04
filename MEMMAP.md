@@ -157,16 +157,23 @@ loader. The dictionary then continues at `0x6000`.
 The D16D showcase lives in the BIOS segment: a four-word header at `0x3E4`
 (`0x0D16`, format 1, entry `0x334`), a trampoline at `0x334`, the menu code at
 `0x500` and the game at `0xA00`. Pac-Man is a separate block assembled with
-`.org 0`; it no longer fits the `0x4330` gap (the kernel reaches `0x434D`), so
+`.org 0`; it no longer fits the `0x4330` gap (the kernel reaches `0x434F`), so
 the D16D image stores it as a type-4 binary slice in config flash. `games.fth`
 (`game-load`/`game-run`) copies it to segment `0x2000` (physical `0x20000`) and
 far-calls the entry with `R10`/`R11` as the return pair. The showcase menu's
-Pac-Man entry still jumps to `0x4330` and needs that loader hookup. BIOS
-function 6 (`gfx`) checks the header,
+Pac-Man entry still jumps to `0x4330` and needs that loader hookup.
+
+The Frogger backdrop is a small, independent block at physical `0x4350`
+(466 words, CS=DS=`0x0435`). It is always baked into the flat image, does not
+use the flash-slice mechanism, and the menu's `G` entry far-calls it directly;
+`Q` returns to the menu. It is the reference use of per-row scrolling
+(control 6): ten lanes each keep their own coarse start and fine phase.
+
+BIOS function 6 (`gfx`) checks the header,
 parks the Forth R5/R6, jumps to the entry, and on return clears the
 tilemap/scroll/OAM/cursor. The board's kernel calls it during boot, so the
-menu is the power-on screen (Flappy, Pac-Man, Forth, or Flappy automatically
-after ten seconds).
+menu is the power-on screen (Flappy, Pac-Man, Frogger, Forth, or Flappy
+automatically after ten seconds).
 
 ### 4.2 D16nano stack cells
 
@@ -214,8 +221,8 @@ Within `DS=0x1000`:
 |---|---|
 | `0x0000`–`0x1FFF` | free: the SD driver keeps its sector buffer in the dictionary instead (`sd-buf`), so this window is still unclaimed |
 | `0x2000`–`0x2FFF` | return stack, top `0x2FF0` down, 4,080 frames |
-| `0x3000`–`0x434C` | kernel data, boot script, built-in headers (`rp0_base = 0x3001`) |
-| `0x434D`–`0x49FF` | free (`dict_free = 0x434D`); the old Pac-Man gap. The game now lives in config flash and loads to segment `0x2000` |
+| `0x3000`–`0x434E` | kernel data, boot script, built-in headers (`rp0_base = 0x3001`) |
+| `0x434F`–`0x49FF` | free (`dict_free = 0x434F`); the old Pac-Man gap. Pac-Man now lives in config flash and loads to segment `0x2000` |
 | `0x4A00`–`0x57DC` | BIOS and D16D data |
 | `0x5800`–`0xFFEF` | dictionary, grows up, ~42K words |
 
