@@ -77,6 +77,25 @@ static void write_ctrl(int reg, uint16_t data) {
   tick();
 }
 
+// Count raster requests over `frames`, acknowledging each one the way the
+// kernel's handler does (a control-7 write). A plain level compare would let
+// the still-true match set again after the ack and give two per frame.
+static int count_raster_acked(int frames, int line) {
+  int rises = 0, prev = top->raster_toggle;
+  int prev_frame = top->frame_tick, seen = 0;
+  for (long i = 0; i < 10000000 && seen < frames; i++) {
+    tick();
+    if (top->frame_tick != prev_frame) { prev_frame = top->frame_tick; seen++; }
+    if (top->raster_toggle && !prev) rises++;
+    prev = top->raster_toggle;
+    if (top->raster_toggle) {
+      write_ctrl(0x0E, line);
+      prev = top->raster_toggle;
+    }
+  }
+  return rises;
+}
+
 static std::vector<uint16_t> read_hex(const char* name) {
   FILE* f = std::fopen(name, "r");
   if (!f) { std::printf("FAIL cannot open %s (run from artifacts/image)\n", name); std::exit(1); }
@@ -369,6 +388,8 @@ int main(int argc, char** argv) {
   write_ctrl(0x0E, 1000);                  // beyond R_V_TOTAL: never matches
   wait_frame();
   check("raster line beyond the frame never sets the request", top->raster_toggle, 0);
+  write_ctrl(0x0E, 100);
+  check("one raster request per frame when acked at once", count_raster_acked(2, 100), 2);
   write_ctrl(0x0E, 0);
 
   // ---- text/art/sprite palette banks and pair mode ----------------------

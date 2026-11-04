@@ -302,12 +302,28 @@ module dvi_tile #(
     spr_q <= sprite[spr_raddr];
   end
 
+  // One request per visit to the compare line. The match is a level that can
+  // survive a fill stall (rx holds, so render_line_end holds), and the handler
+  // acknowledges within microseconds, so a plain "match -> set" condition set
+  // again for the same line: measured on the board as two raster IRQs per
+  // frame (ERRPLAN 2026-11-04). Firing on the rising edge of the match costs
+  // one flop and stays quiet until ry leaves the line, which also lets a split
+  // fire at line A and line B in one frame.
+  logic raster_match_q;
+  wire  raster_match = (ry == raster_line);
   always_ff @(posedge clk_render) begin
-    if (rst_render) raster_toggle <= 1'b0;
-    else if (cpu_we && cpu_ctrl && (cpu_addr[3:0] == 4'hE))
-      raster_toggle <= 1'b0;                // acknowledge
-    else if (render_line_end && !render_stall && (ry == raster_line))
-      raster_toggle <= 1'b1;                // request
+    if (rst_render) begin
+      raster_toggle  <= 1'b0;
+      raster_match_q <= 1'b0;
+    end else begin
+      raster_match_q <= raster_match;
+      if (raster_match && !raster_match_q) raster_toggle <= 1'b1;   // request
+      // A control-7 write acknowledges and wins over a request in the same
+      // clock; the edge detector still holds the line, so acking cannot make
+      // the same line request twice.
+      if (cpu_we && cpu_ctrl && (cpu_addr[3:0] == 4'hE))
+        raster_toggle <= 1'b0;
+    end
   end
   /* verilator lint_on MULTIDRIVEN */
 
