@@ -15691,18 +15691,24 @@ irq_handler:
 
     ; Optional raster band: control 5 changes at lineA and changes back at
     ; lineB, so the split is stable instead of alternating every frame.
-    ;   0xC0 = lineA, 0xC2 = scene value (control 5), 0xC4 = lineB
+    ;   0xC0 = lineA, 0xC2 = scene value (control 5), 0xC4 = lineB,
+    ;   0xC6 = the line the compare is currently armed at
     ; These sit just past the SIC page: the SIC decodes 0xB0-0xBF and returns 0
     ; for the registers it does not implement, so parameters must live outside.
     ; A zero scene value disables the band.
+    ;
+    ; The tile control window is write-only (deep16_top only forwards stores to
+    ; the tile port), so reading 0x200E back is not a contract - the store also
+    ; lands in PSRAM, which made the first version look readable. Keep our own
+    ; copy of the armed line instead.
     LDI 0xC2
     MOV R2, R0
     LDS R1, ES, R2           ; band scene value
     AND R1, R1
     JZ irq_split_none
-    LDI 0x200E
+    LDI 0xC6
     MOV R2, R0
-    LDS R3, ES, R2           ; current raster compare line
+    LDS R3, ES, R2           ; the line the compare is armed at
     LDI 0xC0
     MOV R2, R0
     LDS R0, ES, R2           ; lineA
@@ -15717,6 +15723,9 @@ irq_handler:
     LDI 0x200E
     MOV R2, R0
     STS R1, ES, R2           ; next compare = lineB
+    LDI 0xC6
+    MOV R2, R0
+    STS R1, ES, R2           ; software copy of the armed line
     RETI
     NOP
 irq_split_end:
@@ -15731,14 +15740,19 @@ irq_split_end:
     LDI 0x200E
     MOV R2, R0
     STS R1, ES, R2           ; next compare = lineA
+    LDI 0xC6
+    MOV R2, R0
+    STS R1, ES, R2           ; software copy of the armed line
     RETI
     NOP
 irq_split_none:
     ; Acknowledge the raster request: any write to control 7 clears it in the
-    ; tile engine. Writing the current compare back keeps the line unchanged.
-    LDI 0x200E
+    ; tile engine. Write the armed line back so the compare stays put.
+    LDI 0xC6
     MOV R2, R0
     LDS R1, ES, R2
+    LDI 0x200E
+    MOV R2, R0
     STS R1, ES, R2
     RETI
     NOP

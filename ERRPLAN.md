@@ -92,9 +92,21 @@ The first attempt showed nothing because the screen had no text in rows 6..13
 yet.
 
 ```
-: band mem 1 pal-set! 0 0x1C 0 pal! 0 pal-set! 0x100 100 200 split! ;
+: band mem 1 pal-set! 0 0x1C 0 pal! 0 pal-set! 0x100 15 60 split! ;
 band
 ```
+
+Lines 15..60 are text rows 1..3, so the top of the printed map turns green
+and everything below stays white — a band that is easy to see. The earlier
+100..200 version only covers rows 7..13, which is where an empty or scrolled
+screen has no text at all.
+
+**The handler must not read control 7 back.** `deep16_top` forwards only
+*stores* to the tile port (`tile_hit`/`ctrl_hit` both require `mem_we`), so a
+read of 0x200E is a PSRAM read; it only appeared to work because the control
+store is also written to PSRAM. The band state machine now keeps its own copy
+of the armed line in `split-cur` (0xC6), updated by `raster-line!` and by both
+handler branches, so it no longer depends on that accident.
 
 `split-off` removes the band; `irq-on` restores the timer source. The band is
 expected a couple of lines below 100 because the fill runs ahead of the scan by

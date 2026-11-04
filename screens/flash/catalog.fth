@@ -132,7 +132,7 @@ variable nm-l drop
 \ Raster: control 7 at 0xF200E selects the scan line (0..359), then
 \ raster-on enables SIC bit 3.  raster-ticks is the handler's count.
 0x200E constant raster-ctrl
-: raster-line! ( n -- ) raster-ctrl es! ;
+: raster-line! ( n -- ) dup 0xC6 es! raster-ctrl es! ;
 : raster-on ( -- )      8 sic-enable es! ;
 : raster-off ( -- )     0 sic-enable es! ;
 : raster-ticks ( -- n ) sic-raster es@ ;
@@ -156,6 +156,7 @@ variable nm-l drop
 0xC0 constant split-la
 0xC2 constant split-val
 0xC4 constant split-lb
+0xC6 constant split-cur        \ the line the compare is armed at (software copy)
 : split! ( scene a b -- )
    split-lb es! split-la es! split-val es!
    split-la es@ raster-line! raster-on ;
