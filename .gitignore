@@ -60,3 +60,13 @@ obj_psram_flash/
 obj_flash_install_d16d/
 export.bin
 ext_export.bin
+
+# Legacy ROM/debug scratch output (root build_rom.js + test_*.js helpers)
+/deep16_rom.bin
+/debug_log.txt
+/debug_trace.txt
+/screen_dump.txt
+/test_output.log
+/test_output.txt
+/trace_latest.txt
+/trace_output.txt
