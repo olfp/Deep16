@@ -44,7 +44,7 @@ test('the Frogger backdrop scrolls its lanes', () => {
 
 test('the menu launches Frogger on G and Q returns to bank 0', () => {
   const keys = new Array(180).fill(0);
-  keys[5] = 0x67;   // G
+  keys[5] = 0x47;   // G
   keys[120] = 0x71; // Q
   const r = renderScene({ scene: 'menu', frames: 180, warmup: 0x4000,
                           stepsPerFrame: 0x8000, keys });

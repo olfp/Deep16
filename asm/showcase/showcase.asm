@@ -293,7 +293,9 @@ menu_wait:
     CMP R1, R3
     JZ menu_pacman
     NOP
-    OR R1, 5
+    LDI 0x20
+    MOV R3, R0
+    OR R1, R3
     LDI 0x67
     MOV R3, R0
     CMP R1, R3
