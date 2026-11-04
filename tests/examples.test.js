@@ -8,7 +8,23 @@ import { assemble, loadBrowserScripts, runJs, readScreen, ROOT } from './helpers
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
 const ASM_DIR = path.join(ROOT, 'asm');
-const EXAMPLES = fs.readdirSync(ASM_DIR).filter(f => f.endsWith('.asm')).sort();
+
+// Not every asm/*.asm is a shipped example. These are legacy or build-support
+// sources: bios_test loops on the BIOS by design, deep16_rom needs .binary /
+// .include, deep16bios is the BIOS implementation that file pulls in, and
+// test_suite is generated with syntax from an older assembler.
+// tests/generate_test_suite.js and the root build_rom.js/test_bios.js scripts
+// still own them.
+const LEGACY = new Set([
+  'bios_test.asm',
+  'deep16_rom.asm',
+  'deep16bios.asm',
+  'test_suite.asm',
+]);
+
+const EXAMPLES = fs.readdirSync(ASM_DIR)
+  .filter(f => f.endsWith('.asm') && !LEGACY.has(f))
+  .sort();
 
 test('the expected examples are present', () => {
   assert.deepEqual(EXAMPLES, [
