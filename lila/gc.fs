@@ -32,7 +32,7 @@ create gc-root-cells 8192 allot
 create gc-root-count 0 ,
 
 : lila-gc-register-root ( addr cells -- )
-  dup 1 3 within 0= if s" lila: bad GC root size" lila-error then
+  dup 1 4 within 0= if s" lila: bad GC root size" lila-error then
   gc-root-count @ 8192 >= if s" lila: too many GC roots" lila-error then
   over gc-root-count @ cells gc-roots + !
   gc-root-count @ gc-root-cells + c!
@@ -43,7 +43,7 @@ create gc-new 0 ,
 : gc-alloc { bytes type -- payload }
   bytes 0< if s" lila: negative GC allocation" lila-error then
   bytes gc-header-bytes + allocate throw gc-new !
-  gc-new @ dup gc-objects @ swap !
+  gc-new @ dup gc-objects @ swap ! drop
   gc-new @ gc-objects !
   bytes gc-new @ cell+ !
   0 gc-new @ 2 cells + !
@@ -71,10 +71,9 @@ create gc-root-addr 0 ,
 : gc-mark-roots ( -- )
   gc-root-count @ 0 ?do
     gc-roots i cells + @ gc-root-addr !
-    gc-root-addr @ @ gc-mark-cell
-    gc-root-cells i + c@ 2 = if
-      gc-root-addr @ cell+ @ gc-mark-cell
-    then
+    gc-root-cells i + c@ 0 ?do
+      gc-root-addr @ i cells + @ gc-mark-cell
+    loop
   loop ;
 
 create gc-sp 0 ,

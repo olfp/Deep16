@@ -1,0 +1,229 @@
+\ LILA three-cell tagged values
+\ -----------------------------
+\ Every LILA value is three cells: [value1][value2][tag] in memory, and
+\ ( value1 value2 tag ) on the stack.  The tag is a whole cell; payloads are
+\ never bit-packed.  Numbers are signed 32-bit two's-complement pairs with the
+\ high half in value2, matching the Deep16 double-cell convention.
+
+0 constant lila-tag-nil
+1 constant lila-tag-num
+2 constant lila-tag-bool
+3 constant lila-tag-str
+4 constant lila-tag-table
+5 constant lila-tag-float
+6 constant lila-tag-fn
+255 constant lila-tag-unknown
+
+\ Defining words for three-cell values and ordinary internal cells.  They do
+\ not leave an address on the stack, so they are safe to use from EVALUATE.
+: lila-value-allot ( -- )  create 0 , 0 , 0 , ;
+: lila-cell-allot  ( -- )  create 0 , ;
+
+\ Memory layout: addr -> value1, addr+cell -> value2, addr+2cells -> tag.
+: lila-value@ ( addr -- value1 value2 tag )
+  dup 2 cells + @ >r
+  dup @ swap cell+ @ r> ;
+
+: lila-value! ( value1 value2 tag addr -- )
+  dup >r 2 cells + ! r@ cell+ ! r> ! ;
+
+: lila-value-drop ( value1 value2 tag -- )
+  drop drop drop ;
+
+: lila-value-init ( addr -- )
+  0 over !
+  0 over cell+ !
+  0 swap 2 cells + ! ;
+
+: lila-value-check ( value1 value2 tag want -- value1 value2 tag )
+  over <> if s" lila: value tag mismatch" lila-error then drop ;
+
+\ ---------------------------------------------------------------------------
+\ 32-bit numeric payloads
+
+\ Combine two raw 16-bit cells into a signed 32-bit value in one host cell.
+: lila-32 { lo hi -- n }
+  hi 65535 and 16 lshift lo 65535 and or
+  dup 0x80000000 and if 0x100000000 - then ;
+
+\ Truncate and sign-extend to 32 bits.
+: lila-s32 ( n -- n' )
+  0xFFFFFFFF and
+  dup 0x80000000 and if 0x100000000 - then ;
+
+: lila-32>lo ( n -- lo )  65535 and ;
+: lila-32>hi ( n -- hi )  16 rshift 65535 and ;
+
+: lila>value-num ( n -- value1 value2 tag )
+  lila-s32 dup lila-32>lo swap lila-32>hi lila-tag-num ;
+
+: lila>value-bool ( flag -- value1 value2 tag )
+  if 65535 else 0 then 0 lila-tag-bool ;
+
+: lila-check-num ( tag -- )
+  lila-tag-num <> if s" lila: number expected" lila-error then ;
+
+: lila-check-str ( tag -- )
+  lila-tag-str <> if s" lila: string expected" lila-error then ;
+
+: lila-check-table ( tag -- )
+  lila-tag-table <> if s" lila: table expected" lila-error then ;
+
+: lila-num>32 { value1 value2 tag -- n }
+  tag lila-check-num
+  value1 value2 lila-32 ;
+
+\ Turn a tagged number into its raw ( low high ) halves.
+: lila-to-num { value1 value2 tag -- lo hi }
+  tag lila-check-num
+  value1 value2 lila-32
+  dup lila-32>lo swap lila-32>hi ;
+
+\ ---------------------------------------------------------------------------
+\ String concatenation (the result is a GC-managed payload)
+
+create lila-str-total 0 ,
+: lila-str-concat { a1 u1 a2 u2 -- addr u }
+  u1 u2 + 0= if s" " drop 0 exit then
+  u1 u2 + dup lila-str-total !
+  0 gc-alloc { addr -- }
+  a1 addr u1 move
+  a2 addr u1 + u2 move
+  addr lila-str-total @ ;
+
+\ ---------------------------------------------------------------------------
+\ Tag-aware arithmetic
+
+: lila-add { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta lila-tag-num = tb lila-tag-num = and if
+    a1 a2 lila-32 b1 b2 lila-32 + lila>value-num exit
+  then
+  ta lila-tag-str = tb lila-tag-str = and if
+    a1 a2 b1 b2 lila-str-concat lila-tag-str exit
+  then
+  s" lila: cannot add these values" lila-error ;
+
+: lila-sub { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta lila-check-num
+  tb lila-check-num
+  a1 a2 lila-32 b1 b2 lila-32 - lila>value-num ;
+
+: lila-mul { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta lila-check-num
+  tb lila-check-num
+  a1 a2 lila-32 b1 b2 lila-32 * lila>value-num ;
+
+: lila-div { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta lila-check-num
+  tb lila-check-num
+  a1 a2 lila-32 b1 b2 lila-32
+  dup 0= if s" lila: division by zero" lila-error then
+  / lila>value-num ;
+
+: lila-neg { a1 a2 ta -- r1 r2 tr }
+  ta lila-check-num
+  a1 a2 lila-32 negate lila>value-num ;
+
+\ ---------------------------------------------------------------------------
+\ Tag-aware comparisons.  A comparison result is a boolean value.
+
+: lila-eq { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta tb <> if 0 lila>value-bool exit then
+  ta lila-tag-num = if
+    a1 a2 lila-32 b1 b2 lila-32 = lila>value-bool exit
+  then
+  ta lila-tag-str = if
+    a1 a2 b1 b2 compare 0= lila>value-bool exit
+  then
+  ta lila-tag-bool = if
+    a1 b1 = lila>value-bool exit
+  then
+  ta lila-tag-nil = if
+    true lila>value-bool exit
+  then
+  ta lila-tag-table = if
+    a1 b1 = lila>value-bool exit
+  then
+  0 lila>value-bool ;
+
+: lila-lt { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta tb <> if s" lila: cannot compare different types" lila-error then
+  ta lila-tag-num = if
+    a1 a2 lila-32 b1 b2 lila-32 < lila>value-bool exit
+  then
+  ta lila-tag-str = if
+    a1 a2 b1 b2 compare 0< lila>value-bool exit
+  then
+  s" lila: cannot order these values" lila-error ;
+
+: lila-gt { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta tb <> if s" lila: cannot compare different types" lila-error then
+  ta lila-tag-num = if
+    a1 a2 lila-32 b1 b2 lila-32 > lila>value-bool exit
+  then
+  ta lila-tag-str = if
+    a1 a2 b1 b2 compare 0> lila>value-bool exit
+  then
+  s" lila: cannot order these values" lila-error ;
+
+: lila-le { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta tb <> if s" lila: cannot compare different types" lila-error then
+  ta lila-tag-num = if
+    a1 a2 lila-32 b1 b2 lila-32 <= lila>value-bool exit
+  then
+  ta lila-tag-str = if
+    a1 a2 b1 b2 compare 0<= lila>value-bool exit
+  then
+  s" lila: cannot order these values" lila-error ;
+
+: lila-ge { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta tb <> if s" lila: cannot compare different types" lila-error then
+  ta lila-tag-num = if
+    a1 a2 lila-32 b1 b2 lila-32 >= lila>value-bool exit
+  then
+  ta lila-tag-str = if
+    a1 a2 b1 b2 compare 0>= lila>value-bool exit
+  then
+  s" lila: cannot order these values" lila-error ;
+
+\ ---------------------------------------------------------------------------
+\ Conditions, length and printing
+
+: lila-truthy { value1 value2 tag -- flag }
+  tag lila-tag-nil = if false exit then
+  tag lila-tag-bool = if value1 0<> exit then
+  tag lila-tag-num = if value1 value2 lila-32 0<> exit then
+  true ;
+
+: lila-length { value1 value2 tag -- lo hi tnum }
+  tag lila-tag-nil = if 0 0 lila-tag-num exit then
+  tag lila-check-str
+  value2 lila>value-num ;
+
+: lila-print { value1 value2 tag -- }
+  tag lila-tag-nil = if ." nil" exit then
+  tag lila-tag-num = if value1 value2 lila-32 . exit then
+  tag lila-tag-bool = if
+    value1 0<> if ." true" else ." false" then exit
+  then
+  tag lila-tag-str = if value1 value2 type exit then
+  tag lila-tag-table = if ." <table>" exit then
+  tag lila-tag-float = if ." <float>" exit then
+  tag lila-tag-fn = if ." <function>" exit then
+  ." <value>" ;
+
+\ ---------------------------------------------------------------------------
+\ Loop support.  Bounds, steps and the loop variable are ordinary tagged
+\ numbers; this predicate keeps the generated Forth small.
+
+: lila-for-cond { v1 v2 vtag e1 e2 etag s1 s2 stag -- flag }
+  vtag lila-check-num
+  etag lila-check-num
+  stag lila-check-num
+  s1 s2 lila-32
+  dup 0= if s" lila: for step must not be zero" lila-error then
+  0> if
+    v1 v2 lila-32 e1 e2 lila-32 <=
+  else
+    v1 v2 lila-32 e1 e2 lila-32 >=
+  then ;

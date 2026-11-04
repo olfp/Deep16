@@ -31,11 +31,43 @@ s" x = 5" lila-eval
 s" print(x + 1)" lila-eval
 ```
 
+## Values
+
+Every LILA value is three cells. On the Forth stack the order is
+
+```text
+value1  value2  tag
+```
+
+and in memory the order is
+
+```text
+[value1] [value2] [tag]
+```
+
+A tag is a whole cell; payloads are never bit-packed. The current tags are:
+
+| Tag | Type | `value1` | `value2` |
+|---:|---|---|---|
+| 0 | nil | 0 | 0 |
+| 1 | number | low half | high half |
+| 2 | boolean | 0 or `0xFFFF` | 0 |
+| 3 | string | address | length |
+| 4 | table | header pointer | 0 |
+
+Numbers are signed 32-bit two's-complement values split across the two payload
+cells. Strings are `c-addr u` descriptors allocated by the garbage collector.
+Tables are pointers.
+
+Because every value carries its tag, variables and table slots are dynamically
+typed. One variable or table slot can hold a number, then a string, then a
+table, then nil.
+
 ## Supported syntax
 
 Assignments, infix arithmetic, string concatenation and comparison, `print`,
 `if`/`elseif`/`while`, numeric `for` loops, `break`, functions, tables, and
-strings.  Blocks may span lines or stay on one line:
+strings. Blocks may span lines or stay on one line:
 
 ```lisp
 -- LILA comment
@@ -86,13 +118,25 @@ end
 print(greet("world"))
 ```
 
-`break` exits the innermost `while` or `for` loop.  Breaking out of a loop
+`break` exits the innermost `while` or `for` loop. Breaking out of a loop
 body works from nested `if`/`elseif` blocks as well.
 
 `for` is inclusive and takes an optional step: `for i = start, end` or
-`for i = start, end, step`.  Steps may be negative.  The loop variable is a
+`for i = start, end, step`. Steps may be negative. The loop variable is a
 normal LILA variable, so assigning to it inside the body changes the next
 iteration.
+
+## Truthiness and printing
+
+- nil and boolean false are false.
+- Numbers are false only when zero.
+- Strings and tables are true, including the empty string.
+- `if`/`elseif`/`while` accept any value and apply these rules.
+- Comparisons produce boolean-tagged values.
+- `print` writes numbers, strings, `true`/`false`, `nil`, and `<table>` for a
+  table.
+
+## Functions
 
 Functions are declared with `function name(parameters)` and closed by `end`:
 
@@ -110,8 +154,8 @@ print(sumto(4))
 
 `return expr` may appear anywhere in a function, including inside
 `if`/`elseif`, `while`, and `for` blocks; it leaves the function immediately.
-A function without `return` acts as a procedure and yields `0`, so a call used
-as a statement simply discards that value:
+A function without `return` yields nil, so a call used as a statement simply
+discards that value:
 
 ```lisp
 function addto(n)
@@ -121,48 +165,39 @@ addto(5)
 ```
 
 Parameters are local to the function: the compiler gives them Forth names such
-as `lila-var-sumto-n`.  Assigning to a parameter updates that function's copy.
+as `lila-var-sumto-n`. Assigning to a parameter updates that function's copy.
 Other names assigned in a function are ordinary global LILA variables.
 Parameters are separated by commas, and the call parenthesis must follow the
-function name directly (`sumto(4)`, not `sumto (4)`).  Zero-argument calls are
+function name directly (`sumto(4)`, not `sumto (4)`). Zero-argument calls are
 written `f()`.
 
-A parameter name ending in `$` is a string parameter; every other parameter is
-numeric (or a table, which is passed as one cell).  A string parameter is
-declared and passed as `c-addr u`, and `return` may return a string:
+Parameters accept any tag. A parameter name ending in `$` is an optional string
+constraint at the call site; otherwise parameters are untyped:
 
 ```lisp
 function greet(name$)
   return "hello, " + name$
 end
 
-function shout(msg$)
-  return msg$ + "!"
-end
-
-function exclaim(s$)
-  s$ = s$ + "!"
-  return s$
+function identity(v)
+  return v
 end
 
 print(greet("world"))          -- hello, world
-print(shout(greet("lila")))    -- hello, lila!
-print(exclaim("hey"))          -- hey!
+print(identity(42))            -- 42
+print(identity("text"))        -- text
 ```
 
-Function calls are checked against the parameter types and arity of the
-function's signature.  A called function's return type is also known, so a
-string-returning call can be printed, concatenated, compared, or assigned to a
-string variable.  All `return` statements in one function must return the same
-kind of value (all numbers or all strings).  A function with no `return` is a
-procedure and yields `0`.
+A function's return tag is dynamic: the same function may return a number,
+string, table, boolean or nil on different calls. There is no requirement that
+all `return` statements use the same type.
 
-A function may be called before its definition in the source, because all
-function definitions are compiled before the main program runs.  A function
-body may call functions that were defined earlier (or are already loaded), but
-not one defined later.  A string-returning function, or any call that passes a
-string argument, must be defined (or loaded) before the call is compiled;
-numeric calls may still be forward.
+A top-level call may appear before the called function's definition in the
+source, because function definitions are compiled before the main program runs.
+A function body may call functions that are defined earlier (or already
+loaded); a function defined later is not available to an earlier body.
+
+## Tables
 
 Tables are created with `{}` and use string keys:
 
@@ -173,34 +208,46 @@ scores["bob"] = 7
 print(scores["alice"] + scores["bob"])   -- 17
 ```
 
-Reading a missing key yields `0`.  Keys may be any string expression, such as
-a literal, a string variable, or a concatenation.  A value is a number, another
-table, or a string.  A table can be stored in another table and read with
-chained brackets (`outer["inner"]["x"]`), but nested assignment is not
-supported; assign through the inner table variable instead.
-
-String values are stored as a two-cell `c-addr u` descriptor allocated when the
-value is assigned.  A table is either numeric-valued or string-valued, decided
-by its first assignment (or by an earlier read), and assigning the other kind
-later is an error:
+Reading a missing key yields `nil`:
 
 ```lisp
-names = {}
-names["first"] = "alice"
-print(names["first"])          -- alice
-print(length(names["first"]))  -- 5
-names["first"] = names["first"] + "!"
-print(names["first"])          -- alice!
-
 scores = {}
-scores["alice"] = 10
-scores["bob"] = 7
-print(scores["alice"] + scores["bob"])   -- 17
+print(scores["missing"])       -- nil
+print(length(scores["missing"])) -- 0
 ```
 
-A table alias copies the value kind, so `copy = names` makes later reads such
-as `copy["first"]` string reads.  A function can write a string into a table
-passed as a parameter:
+Keys may be any string expression, such as a literal, a string variable, or a
+concatenation. Values may carry any tag, and different slots in the same table
+may hold different types:
+
+```lisp
+mixed = {}
+mixed["n"] = 1
+mixed["s"] = "two"
+mixed["b"] = true
+mixed["z"] = nil
+mixed["t"] = {}
+print(mixed["n"])              -- 1
+print(mixed["s"])              -- two
+print(mixed["t"])              -- <table>
+```
+
+A table can be stored in another table and read with chained brackets
+(`outer["inner"]["x"]`), but nested assignment is not supported; assign through
+the inner table variable instead:
+
+```lisp
+outer = {}
+inner = {}
+outer["inner"] = inner
+inner["x"] = 4
+print(outer["inner"]["x"])     -- 4
+```
+
+Tables grow automatically as needed. There is no fixed 64-key limit. A table
+alias copies the table pointer, so both names see the same slots and tags.
+
+A function can write a string into a table passed as a parameter:
 
 ```lisp
 function put(tbl, s$)
@@ -208,31 +255,39 @@ function put(tbl, s$)
 end
 
 t = {}
-t["kind"] = "string"     -- mark t as string-valued at the call site
+t["kind"] = "string"
 put(t, "bob")
-print(t["value"])        -- bob
+print(t["value"])              -- bob
 ```
 
-Table value kinds are tracked per variable name, not per runtime table.
-Reading a table whose kind is not known yet defaults to a numeric read and
-fixes the kind to numeric, so assign a string value first if the table is meant
-to hold strings.  Each table also carries a runtime kind, so reading a
-string-valued table as a number aborts with `lila: table holds strings`
-instead of returning a pointer.  Likewise, the caller must already know that a
-table holds strings before passing it to a function that writes string values.
+## Variables and strings
+
+Variables are global, except function parameters. A variable may change tag
+between assignments:
+
+```lisp
+v = 1
+print(v)                       -- 1
+v = "now a string"
+print(v)                       -- now a string
+v = true
+print(v)                       -- true
+v = nil
+print(v)                       -- nil
+```
 
 A string variable is written with a string literal:
 
 ```lisp
 name = "lila"
-print(name)              -- lila
+print(name)                    -- lila
+scores = {}
 scores[name] = 3
-print(scores["lila"])    -- 3
+print(scores["lila"])          -- 3
 ```
 
-Strings are `c-addr u` pairs at the Forth level (the compiler stores them in a
-two-cell `lila-str-<name>` buffer).  Assigning one string variable to another
-copies both cells; the string data itself is immutable.
+Assigning one variable to another copies the three-cell value; string data
+itself is immutable and GC-managed.
 
 Strings can be concatenated with `+`, compared with `<`, `>` and `=`, and
 measured with `length(s)` (or `len(s)`):
@@ -242,20 +297,20 @@ name = "lila"
 greeting = "hello, " + name
 print(greeting)                  -- hello, lila
 print(length(greeting))          -- 11
-print(greeting = "hello, lila")  -- -1
+print(greeting = "hello, lila")  -- true
 if name = "lila" then
   print("match")
 end
 ```
 
-`+` requires both operands to be strings or both to be numbers; the comparison
-operators likewise compare either two strings or two numbers.  String
-comparisons are lexicographic and yield `-1`, `0`, or `1`.  Concatenation
-allocates a new buffer and never frees it, so avoid building strings inside
-long-running loops.  Strings can be printed, used as table keys, stored as
-table values, passed to `$` parameters, and returned from functions.
-`length` and `len` are built-ins and cannot be used as function names.  `--`
-inside a string literal is part of the string, not a comment.
+`+` requires both operands to be strings or both to be numbers; mixing them is
+a tag error. The comparison operators likewise compare two strings or two
+numbers. String comparisons are lexicographic. Comparison results are boolean
+values, printed as `true` or `false`. Concatenation allocates a new GC string.
+Strings can be printed, used as table keys, stored as table values, passed to
+`$` parameters, and returned from functions. `length` and `len` are built-ins
+and cannot be used as function names. `--` inside a string literal is part of
+the string, not a comment.
 
 A body may contain several statements separated by `;`:
 
@@ -263,43 +318,25 @@ A body may contain several statements separated by `;`:
 if x > 0 then y = 1 ; z = y + 1 end
 ```
 
-Blocks nest.  Expressions support `+ - * /`, comparisons `< > =`,
-parentheses, unary minus, function calls, string concatenation with `+`, and
-`length(s)`.  LILA variables are prefixed in Forth as `lila-var-<name>`.
+Blocks nest. Expressions support `+ - * /`, comparisons `< > =`, parentheses,
+unary minus, function calls, string concatenation with `+`, and `length(s)`.
+LILA variables are prefixed in Forth as `lila-var-<name>` and are three-cell
+tagged values accessible with `lila-value@` and `lila-value!`.
 
 ## Limitations
 
-- `lila-eval` handles one source line.  Use `lila-load` for multi-line blocks
+- `lila-eval` handles one source line. Use `lila-load` for multi-line blocks
   and `elseif` chains.
 - `lila-eval` compiles LILA; use gforth directly to define Forth words.
 - A single-line function body separates statements with `;`, as other
   single-line blocks do.
 - Function parameters are not re-entrant: each parameter lives in one global
   slot per function, so functions cannot recurse or call themselves through
-  another function.  Function calls must form an acyclic graph.
-- Functions must be defined at top level, and a function body may only call a
-  function defined earlier (or already loaded).  Numeric calls may be forward,
-  but a call that passes a string, and any call to a string-returning function,
-  requires the function to be defined before the call.
-- All `return` statements in a function must return the same kind of value.
-- Tables hold at most 64 keys and are never freed.  Inserting into a full
-  table aborts with `lila: table full`.  A table's value kind is fixed by its
-  first value assignment; mixing numbers and strings in one table is an error.
-  A table passed to a function that writes string values must already be
-  string-valued at the call site; if it is not, a later numeric read aborts
-  with `lila: table holds strings`.  Reading a string value through a table
-  parameter works only after that function has itself stored a string in that
-  parameter.
+  another function. Function calls must form an acyclic graph.
+- Functions must be defined at top level.
 - Nested table assignment such as `t["a"]["b"] = 1` is not supported; assign
   through the inner table variable instead.
-- String parameters use a `$` suffix.  A literal cannot contain a `"`, and
-  there are no escape sequences.  Concatenation and string table values
-  allocate and never free their buffers.  A name assigned a string literal
-  stays a string variable; assigning it a number later is not supported.  At
-  most 64 string variables are tracked.  Numeric parameters cannot hold
-  strings, and string parameters cannot hold numbers.
-- Variables are global, except function parameters.  A variable must be
-  assigned before it is read.
+- String literals cannot contain a `"` and there are no escape sequences.
 - In a single-line loop body, `break` works as a plain statement, but nested
-  single-line control blocks in that same body are not parsed.  Use a
+  single-line control blocks in that same body are not parsed. Use a
   multi-line loop body for conditional breaks.
