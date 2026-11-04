@@ -60,7 +60,26 @@ Expect ~60 ticks in about a second. 0 means the compare or the request/SIC path
 is still at fault, and the `raster_seen` latch on LED5 (below) is the next
 probe. The word disables the timer source while it runs; `irq-on` restores it.
 
-**Status:** change implemented and tested in simulation; board result pending.
+**Board result (2026-11-04):** the probe reports **135 raster ticks** for the
+spin and `PENDING = 10` (decimal) right after — bits 3 (raster) and 1 (timer,
+which keeps latching while its source pulses). So the compare, the level
+request and SIC `src[3]` were healthy all along; the console's SWI context was
+the only thing masking the IRQ, exactly as Big Pickle suspected. The earlier
+"request level low / PENDING never sets" readings were taken after the handler
+had acked in the window between commands.
+
+135/s is about twice the 69.6 Hz field rate of the 720p60 output
+(`86.108 MHz / (1650 x 750)`): the compare matches at both line-ends of a
+doubled render line, so the handler runs twice at the same line. Harmless —
+the second write puts the same value — but if a single edge per frame is
+wanted, gate the compare on one of the two line-end phases.
+
+**Next:** a visible band with `split!` (palette set + OAM base swap at line A,
+restored at line B) to confirm the handler's control-5 writes land mid-frame.
+The timer IRQ also runs during console input now, which is worth re-checking
+with `ticks` while typing.
+
+**Status:** fixed and board-verified (2026-11-04).
 
 ---
 
