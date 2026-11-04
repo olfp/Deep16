@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:ba88086c0e82c1c20a5929f6b7393f2b34e58c46e907910d65992cdbe4e435d2",
+  "pageVersion": "sha256:75c08195fa10f7c3c696d224ccaf7784709da92ec7e3b2c1e5a1a61bea8f14ff",
   "claims": [
     {
       "id": "claim_776f00278b784af4b3d9c5aba401ba71",
@@ -337,24 +337,62 @@
           "version": "repo-lines-v1:sha256:b826c93be8e653d17685e5733ff9753d9d233d4e7933b60ccf6fec4c8428b0a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjgyNmM5M2JlOGU2NTNkMTc2ODVlNTczM2ZmOTc1M2Q5ZDIzM2Q0ZTc5MzNiNjBjY2Y2ZmVjNGM4NDI4YjBhMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjgyNmM5M2JlOGU2NTNkMTc2ODVlNTczM2ZmOTc1M2Q5ZDIzM2Q0ZTc5MzNiNjBjY2Y2ZmVjNGM4NDI4YjBhMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWQ3MTIwMjhiY2ZlNWYyM2I4Y2E1ZDIxOWNmNzJhYjAxZmZhY2ZkZDA0NTQ3NDJkYTNhNmU0OWM4ODJhNjk3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDFjOTQwNjJkZGZkMWM2N2EyYTA1NzIwMjM3ZjIzNTgwNzQyZDZkMTI4ZWQ2ZTllMDhiMGMyMmU0N2ZhYWEzNiJ9"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L2150-L2193",
+          "resource": "repo://js/deep16_ui_core.js#L2308-L2351",
           "version": "repo-lines-v1:sha256:31a860309cf86ec76975005be818024a618664cd1628ae35b1634eeb8f008a36:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiZDBlYTM3ZmNlMWFlMzE0NTdiODE0OTQ4ZGQyMThmMDQwMDJmZjZjMjk0Y2NiNDgzYzllNTdkYmMzOGEyMTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk2MjU1NGVjMjczNDRhZjMzZmIwMjYyMjViYTcyYWI5MjIyYjVmNmJlNDhjMGI4YmVjYTdjMmYwZDY3NzEwMTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRhNzc4Zjg5ODY2ZGJlYWMxNDVmZjYyMzdjYzQ3OTBhMWJiOTJiZGVmMjkxMDJkMDQ1YjI0NTc0ZGVlZGRkYzcifQ"
         }
       ]
     },
     {
       "id": "claim_7f931a6440b84d8c9470ba343b317c58",
-      "statement": "asm/examples.json is a flat manifest of name, filename, description and category for six demo programs spanning Mathematics, Advanced and I/O.",
+      "statement": "asm/examples.json is a flat manifest of name, filename, description and optional build tag for seven demo programs spanning Mathematics, Advanced and I/O, including the D16D Showcase with build d16d.",
       "evidence": [
         {
-          "resource": "repo://asm/examples.json#L1-L42",
-          "version": "repo-lines-v1:sha256:f3bbba9f5c492b8182e6a9553a6dd4b051c7bac73dfbaf973aec997be9f5a26a:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://asm/examples.json#L1-L44",
+          "version": "repo-lines-v1:sha256:53822b646fd7ee7ee8200cf94257f892cdfab83104973da809edb9829bf3a749:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1YzkwYzk0MjA3ODJmMzBiNDRmNDZiNTMzNWMxNmYwNTkzYThhOGRiODcxZDJiZDZjZjg5OWRjMDQxNDI0NWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQwNmI0OTU0MDNkODlkY2JhYjk4YTllOGQwZTYyYWUyYWQ2MDQ1YWI1YmQ2ODlhYWJjOTBlZmRjMTIyYzUyZDgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_30a72bc7fef9436c8894aeb0ca148e82",
+      "statement": "The D16D Showcase manifest entry is the only one with a build tag; selecting it loads forth_nano.asm and the IDE fetches the showcase, Flappy and Pac-Man sources separately for the tile image.",
+      "evidence": [
+        {
+          "resource": "repo://asm/examples.json#L28-L40",
+          "version": "repo-lines-v1:sha256:c8a838a98162a812813a5791e08435ac2bb26292c2816375be9942cadd8c7e2e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY5Y2E4OTFiZmY3YWMxZjdjZWFhZTQwZWYwNTEwNjZiZTllZmU0N2I0ZTQyODFlODZjMzE5YmUyYzU1ZWJjZTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmMGNkYjk3MmE3YmZiN2VkMjQ2ZjlmZjY3MjM4NWU1NWY0OTY4ZmMxMTA0M2RjNWI2ODRkNTFkZmEzMWRiY2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjczZDNmZDEzMTk3NTQzOWQ0NzBkYjRhMDAwNWRlNjVkMzA2OWEyMDZiNmM1YTEwYmFhODIzMTEyYjAwMTZhMDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNiZWY5MzNmMTAwZTZmNzNiMDY2MjBhZjlmZGU5YTEzZjdiZjgzOTE2NzA4NzU1MjVmNTEwMzUzMWU5MTU2MjMifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L3835-L3855",
+          "version": "repo-lines-v1:sha256:0204f2ffe2f4b1cefe34d76d0c26a58c35b308d198ea4aa841905b94f8b0ab34:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjZmIxN2Y2MzNiN2Q2MmQyMjk4NDM5OTRiNzBiNmUzNDRhNTM5M2ZlYTYxNDBmNGE4NzFiMTE2OTE4ODBhMzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyMzMzNTU3NTMwYzlhY2VhMTBiNDc3MTkwN2NkZGI0ZmE1MTRmMWE4YTQ2MTZhY2MyODE1M2RiYzU2YzgyODkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYwMDcyYzY5ZTg4NmY4NDdiYzNiZGJiZTkwMzQxZjIxMzgyYTliMjllZmQ2ZGM5ZWVjOTBlMTU5ZWJkOTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU2OGIxMmMzZjBlNWZlNzU3MjBhNTYyZWZjNWFhNmM5NWNmOTE0ZTEyMzNlYzEyMjY3NWRjZWFiOGI4NjJjNWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7708e7fcda4d422498abad0a5364f772",
+      "statement": "tests/examples.test.js scans asm/*.asm minus an explicit LEGACY set of four non-example sources (bios_test, deep16_rom, deep16bios, test_suite), so any new example file is covered automatically while the legacy tooling keeps its sources.",
+      "evidence": [
+        {
+          "resource": "repo://tests/examples.test.js#L15-L45",
+          "version": "repo-lines-v1:sha256:231723675d781c9bba981914a52c7c32ef77aaf0c4ee7e275d64451488f50da3:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5NjZmYzQ3MWI1NWE2MjUzNmE3ZTkzMGFhM2JmOTBhMmVlNGNhNDNiYjFkNzczYjE5YjdiNDg0MzUxNGIxN2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhZDMyYzNmNzlkZjdjNzRlNzY0MjAxNGQxMTlkZjI1NDkwZmEzZGJiZDNmZmJiM2FmM2YwNjgxOGY2ZDc1MmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBmMzFiM2IwYTM4MzkxY2MzYmM1YjM2ZGYwYTYzM2E2YjY0ODJmMGQ0ZmI0Y2IwMDI2MjdhMTU2OGY5OGJlOTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVlNzVhNmUyMTFhMzQ0MTJkZDI3NDVkNmQ3Y2QyOTA1NDA5MzJmMTZlMzQzOTRjMWRkNWQyNzBiMzlhZTExMmMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e608873981c748b080648ba08a24a1d7",
+      "statement": "OAM descriptor address 0x6001 lies in LDI's unreachable middle third, so the kernel builds it as LDI 0x2001 followed by OR R0, 14; LDI 0x6001 would assemble but load 0xE001.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth_nano.asm#L15620-L15640",
+          "version": "repo-lines-v1:sha256:fc35d555d43a5700a4bca563acffd75b6dd1d9aa5791448ca16e8429d88637ec:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3MjBjMWQwODNjMTgzZTc1NDRjMDQ4YjU5YTczNzc5MjNiMDJkNjA3ZTU1YzI3YzI5M2NjMTBmNmEzNjI3ZmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiMzFjYjhlNmRmYjkyMzcxYjI1YTA2NDcwOTg3Yzc3Mzk1NWMzN2E0YTAzYzhmNGI4Y2ZjNzNjNmMzOWM1ODAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRmYjJiZTQ0MmFmODE1ZTAxMDQzZDFmZDYzMzFhMWExYjNkNmNkZTg0YzU2M2NiNTU1MmViZWEyN2VkNmMyNmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwY2ZlYjA3YTI2NTcyM2JmY2Y1ODMwYjA3ZDRhZWZhZWJjOWUwYjVjMTYwZjgxZTM3YTZlMzQyMTIyOWExN2MifQ"
+        },
+        {
+          "resource": "repo://js/deep16_assembler.js#L1374-L1420",
+          "version": "repo-lines-v1:sha256:3afb046b9bb8f74e6db6e7015b83837d0e7b39bbb533a171bea93ac8d47ae81c:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE3ZmJkNDY5MGRiNzZmZWY4Mzg3OTA3ZGYxNTMxNmI4YmJmNGU0N2E0ZWE5ODc3ZmM3ZmIyYWRjMDA2NDA0YzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZlYTNhNzcyMzU3YzZlNzkzNmU4MWRmZTU5ZDI2MGEyNDZjMTJhMjcyYTBlMmY3ZDk1NDcxOGM4ZDU3MmY3NDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUyMTI4NTQ5ZGZjOGY1Njk0YWNkMTE2ODRlNTE3YWZjMDEyNDg2OTk0MGQwMmQwYTUzMzRjMWQzZGJjNmM5NjAifQ"
         }
       ]
     }
   ],
   "verification": {
-    "by": "openwiki/0.7.2",
-    "at": "2026-11-01T09:36:37.731Z"
+    "by": "openwiki/0.7.3",
+    "at": "2026-11-04T15:30:01.509Z"
   }
 }

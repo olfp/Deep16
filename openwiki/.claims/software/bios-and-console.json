@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:a3a885597dc3c206f82951dd677cdb8560f2ac9291d634770ee20ebd490c0749",
+  "pageVersion": "sha256:b5721308d9509db31fc765cfd581e40ad07b9d6a2bb50a32d1e9f912b0d528f2",
   "claims": [
     {
       "id": "claim_f1f3610b133542f091c183fc5ec08110",
-      "statement": "One BIOS interface serves two consoles: the default screen build writes cells at 0xF1000, while the CONSOLE_UART build writes bytes to the UART and leaves rendering to a host terminal, with the kernel unchanged between them.",
+      "statement": "One BIOS interface serves the screen and UART consoles: the default build writes cells at 0xF1000, the CONSOLE_UART build writes UART bytes, and the D16nano build adds gfx as function 6; the kernel is unchanged between them.",
       "evidence": [
         {
-          "resource": "repo://asm/forth.asm#L13005-L13016",
-          "version": "repo-lines-v1:sha256:49f6496393de0f6948861e2d06dbebe307aad62f6b4e91a2e2422060c1b1743b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE4MzE2MjNjMWExODdlZTMzOTFiYjdmMjViNTliMWQ0Y2Q2MWI3MThjN2NlZmI5MmMwMDQyODBjMDk2MWIxZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg2MGZlMDZhYjQxNDI2NTcwYTQwZWYxYTc4OTZmNTcwZTcxZjliMjNmM2M2MmU3NjhkODU4YzBlMWIwZTY1MmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA0OTdiNmQ3MDBlOTZiYmM2YWVjYThlOWNhYTNjOGZjMDUwODdkODA1MTcwM2RjNWQ4NTU1YzBiZDU0MGMwMWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBlMDc0ZjYxOTgzYTg5ZGQwYzc0MDRhMjNhNWU3NGMxMDk5Yjk5MTVmMmU1ZWE4ZWE3NTM0OWZmNGVhYmMzNWQifQ"
+          "resource": "repo://asm/forth.asm#L13013-L13020",
+          "version": "repo-lines-v1:sha256:5ef6461350f9ebfdb1beec713abad706ccdc53bdfc6b14ada043e0b33b8682d0:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTgwYTRhMjcwY2RmMmM1N2IyN2U0ZWU1OWZkOWI2MmIxYWE1MTJmYmExNWY4ZjZiZDMxMDJlNjcwNDE1NzI3YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTJjMjViOGY4MTlmNDU3OWE1Y2JkMDhkY2NkNGIzMTE4ZGFiMTVmODMyMTMxYjMzYjRhMDJhNmE4ODQyMmRmZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWNkMWRkYTgxZDhlYTJhZDQwYmFhNDFhZmZkZTRlZTk2ZjI2MWZmMmVlOWQ5OTA1MDJkMDFmZjNmM2RmNjFmOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTdiOWM1MGZhZDE3NTYzZTViNTY3YTYxZjY2ZmE4YWI4ZjU5YzljZmRiNjViZWUyMTFjZDk0N2ZjNjU0NjdlMCJ9"
         },
         {
           "resource": "repo://asm/forth.asm#L48-L52",
@@ -16,7 +16,7 @@
         },
         {
           "resource": "repo://js/deep16_ui_core.js#L376-L384",
-          "version": "repo-lines-v1:sha256:1a5fa9174687d6c7e3037b5d4a38fe5a9aec6ae8ae3fa7849960a639269df165:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWQ0ODVhMzliODQ4MTc4N2I1ZWM5MDY3MTk2NmRiODBiZDE2MGYyMDM0MzBlNmM4NmMwODYxMzVhZTgyMzZiMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWM0YjYzOTEzMGI4YTMzNTU2YWMzMzczYmU4MzhhMWM1ZGY5MDQzYTZkOWJjOGI3MDU0NzVlNWI1MzczNWI1NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWI2Njk0ZWVmODBmMzc3YWE5ODVjZjhkYjgzYTM2ZjljZjZjNjRlYzFkZjExMTM2OGNlMzYyYjcyM2RjMTdhNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjNiMTM0YWQzNDM0ZWE4MjBlMWVjMzQ2NjczODM3Y2E3Nzg3ODYyNDhlMjdlMTNmODY2MzljOWM3ZmExNGJjMSJ9"
+          "version": "repo-lines-v1:sha256:5d9ee289ebf2bcc6ef338f181376b74253241d2f9493f7006c17a272718737bc:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWVmNGJkZTc3OGNmZmQ5Mjg5YmRlOWI5YjBhYzBiZTNmNTI2OTZmODQxMTJiYjY2ZWIwMzJiMmEwN2IwYjc0OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmQzNTVjOWY2MTcwYjRjMDBmMzJhMjJjY2YzOGRlNzgxZjI4YjkyOGVkNmQ3MGE3ZWIwNDIxOTA5MWFjNjFlNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzE5YTc2Y2ZiZDBlYWNmNGJlMGY4ZWUzYzA5ZmJkY2Y5MzIyMmMwMTkzOWI2NDhlMGYxMGIwOTk4YjBkZjk3YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjk3NTllNTAwYTRkZGFkNjc0ZDkzMTBiMWNjMTI4YmIyNjEzZjViNmQ2YThiODY3ZjRiNjBmNzY2Zjg1MjI5MyJ9"
         }
       ]
     },
@@ -25,7 +25,7 @@
       "statement": "BIOS calls pass the function number in the caller's R0 and parameters in R1-R3; the handler reaches them through the shadow bank with SMV and leaves the result in its own R0, which the caller reads with SMV Rx, AR0 because RETI copies nothing.",
       "evidence": [
         {
-          "resource": "repo://asm/forth.asm#L13018-L13056",
+          "resource": "repo://asm/forth.asm#L13019-L13057",
           "version": "repo-lines-v1:sha256:ee71937a23c3163cb2c348b8843fd63b190bdc96115ae4c48fba33086c2619c7:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyNmRiZWI2NTI4NDA1ZGYyNmRiZjFjY2FmMDAwZmI2OTg3ZGVmNzczNGQ4ODdlYWYxYWRiZWFjZGM0YmRjNjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExZjY4MWRkYzcwN2E1ZTdkNTAzM2ExYjUxZWIxN2NjODlhMWY5MzBkOTM4ODM5YWEwODdhMGUwMmEwMTgwODYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVmMWE4NzlmNTcxZDMwNWIwNzRlYzk1NzFmZGRhYTJiMGEzYzVkZGU2NDkzMmY0ZDg2MjE2ZDcwN2VjNjdiOGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI5ZDdiM2Q2MzEzODYxMDdjZDIzYWI3OTRjNWNjNzU0YTYxZDBkZWMwZDEwNjQ4NGYwN2YyNTAyMTUyMzFkZDAifQ"
         }
       ]
@@ -35,7 +35,7 @@
       "statement": "Dispatch is a six-entry jump table with an explicit out-of-range path, covering bver, binit, putch, putstr, getch and getstr.",
       "evidence": [
         {
-          "resource": "repo://asm/forth.asm#L13057-L13072",
+          "resource": "repo://asm/forth.asm#L13058-L13073",
           "version": "repo-lines-v1:sha256:2d4e1906898bb1f6fa1f3d375bae3f17f3c2c88756a6cb0a281e07de91397c5f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YWMzNDBiM2ZlOThmYjNmM2JhZThhZDE5OGQxMDEwYmFkMWQ1NDM3ODBiY2IyYWU3OWM2NjkyN2E3MzFlNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyMjE3NTY1OWQwMjY1MWRlNDcwMTY0YTEwNWVlYmRmZGUyNDVlMTBkNDUxNDI1N2QxYzUwNTg4NTZlNjQwNTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlkMDhhZGUyMzhhOWE3YTU0NjRmYmFhY2YwYzg3MGI1OWYzYmFjZmE0NDZmMThlZjQ2MjM3MjFjYmRlNjJkMDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVkMTY3ZDQxNDBlNDMxODU0M2RlNmVjYmE3MzdlMGE1OWNjMzY0ZmZhNmQxMTQ5NTc2YjJlMDQ3MDdjNjBmMTAifQ"
         }
       ]
@@ -45,7 +45,7 @@
       "statement": "The screen binit sets ES to 0xF000, points SCR at offset 0x1000, clears 2000 cells to space and puts the reversed-colour cursor attribute on the first cell.",
       "evidence": [
         {
-          "resource": "repo://asm/forth.asm#L13509-L13536",
+          "resource": "repo://asm/forth.asm#L13510-L13537",
           "version": "repo-lines-v1:sha256:811707c80e5b9e53cfa5e416b952b87b69f0115517c19a6fb5e79548acccf1c6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUzMDk2OTBkYTQxOGMxNTdjZmU3NzI4OGEyNjhiNzhkOTExZWI5YzFmYzY1OWUzMWNkYTNhZjAxMTc2ZDQ4NzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YWMzNDBiM2ZlOThmYjNmM2JhZThhZDE5OGQxMDEwYmFkMWQ1NDM3ODBiY2IyYWU3OWM2NjkyN2E3MzFlNzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQyMTFhYTQwMDBjZjYwNDA2ZTQwMmRiNzM1OGRlZmRkNWY3NjRlZjNlNzkxYzQxYmMxZWVmZWViNWYwMDQ2YTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3ZWRmMjQzNGM0M2FjYzc3Mjc2MzIzNDVkZTExNTdkMDliZGViMmU4YzhjNzM4MTc2ZDAxZTA0YzhkZDk2ODgifQ"
         }
       ]
@@ -55,11 +55,11 @@
       "statement": "Screen putch handles CR and LF specially; other characters clear the old cursor attribute, store the character, advance SCR, scroll when SCR reaches the off-screen row 0x1780, and mark the new cursor cell with 0x7000 built as 0x0070 shifted left by 8.",
       "evidence": [
         {
-          "resource": "repo://asm/forth.asm#L13537-L13606",
+          "resource": "repo://asm/forth.asm#L13538-L13607",
           "version": "repo-lines-v1:sha256:ad3dbf3a642d93e755f06a6b977f19bc112c90e420a75d9c5a26fe08bad980b9:eyJzZWxlY3RlZExpbmVDb3VudCI6NzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMzUwZTljMjZhMzE2MDQxZDU3ZjQ1ZWUwNmQyOWEwYTYyNmRiZDI0ZjNiMTNlNDRlMmI0YjEzMDk4YjExMjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YWMzNDBiM2ZlOThmYjNmM2JhZThhZDE5OGQxMDEwYmFkMWQ1NDM3ODBiY2IyYWU3OWM2NjkyN2E3MzFlNzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMzODdkMmUxZGQ1MWIzOWIwN2UxMTAwMDNjNWU1NjIyNDc3Y2ZmNjZkOGU2OWJjYjA3NDE3NWZhNmM2M2JlMmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdmZTQyNjYyNTY1OTUxMzI0ZjIzNmFkYThhZDk0OTQ1Y2U0OGUyOGFmODQwMmIzNjE2MGJjNjAxMmQ4ZTE1MTYifQ"
         },
         {
-          "resource": "repo://asm/forth.asm#L13621-L13692",
+          "resource": "repo://asm/forth.asm#L13622-L13693",
           "version": "repo-lines-v1:sha256:982dc17dd6513012d6a3e1a894ecf9882c19cf5bfe7736e279ccd6062641e374:eyJzZWxlY3RlZExpbmVDb3VudCI6NzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhjMzNjMDE3MTllYTU5MmQ4Yzk4YTVmM2VmYjZlYmViNmVhMGEwN2NhMzY0NjhjMDIxODU1NDc1MTNlNDE5MjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YWMzNDBiM2ZlOThmYjNmM2JhZThhZDE5OGQxMDEwYmFkMWQ1NDM3ODBiY2IyYWU3OWM2NjkyN2E3MzFlNzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI0Mzk0ZDYzZmIzN2JhNGFiNTQ3MTQzNjRhNzY5ZGJmNGE5NDE0Mzk5NGM3YmI1YjRkN2E1M2IwNTU4YmM5NWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE4MDFhNWVkYmIyZTE5ZWYwYTBhYWNiM2ExNDEyNmE3OTNiMDY1NjY1OThlMWE4ZTZiZTM5Yzc5NTVhZTI2NzcifQ"
         }
       ]
@@ -69,7 +69,7 @@
       "statement": "Screen putstr copies bytes into consecutive cells without the cursor bookkeeping; getch polls KBD_STATUS at 0xF0060 and pops KBD_DATA at 0xF0062, masking to eight bits.",
       "evidence": [
         {
-          "resource": "repo://asm/forth.asm#L13693-L13734",
+          "resource": "repo://asm/forth.asm#L13694-L13735",
           "version": "repo-lines-v1:sha256:a4ee60dc59465808ce8878aceafb9f9489b474c90325193a40931e3590d5bff6:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY0YmI1ZmM4MGQ3Yzg1NjU4OTc2YTkxZDk4OGVhYmQ3NTI5YjFlMWE3NTdiZWE5ZDRjZWJkOGM2ZTQ5NjBiNGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YWMzNDBiM2ZlOThmYjNmM2JhZThhZDE5OGQxMDEwYmFkMWQ1NDM3ODBiY2IyYWU3OWM2NjkyN2E3MzFlNzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI0Mzk0ZDYzZmIzN2JhNGFiNTQ3MTQzNjRhNzY5ZGJmNGE5NDE0Mzk5NGM3YmI1YjRkN2E1M2IwNTU4YmM5NWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgyOTVjOGNlZWViY2MxNjFkMGFmY2FjNGE4NDk4YzJiZmJiNmU3MGRmNTAwZTkwMWY3ZGNkYmRiMjVmNjQyODMifQ"
         }
       ]
@@ -79,7 +79,7 @@
       "statement": "Screen getstr polls the keyboard port, reads the echo cell 0xF0064 once per keystroke, ends the line on CR or LF, and handles backspace by rewinding the buffer pointer and erasing the cell.",
       "evidence": [
         {
-          "resource": "repo://asm/forth.asm#L13735-L13800",
+          "resource": "repo://asm/forth.asm#L13736-L13801",
           "version": "repo-lines-v1:sha256:c1f3a5aedc9981c3ce7e85a5f6182ea4c22ab6e58057c786b8c071476f76142b:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBkZjZlMzk2NjBhOWUwODY0OGE1NzE0NzRjMjVjYTA4N2ZiNzVjMGU5ZDJlODJiOWNjNzFlZDk0ZDBjZDM3MzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdjOTBlYmY4OGU3ZjE3NjUxNDQ4YzU1MGI5ZTYzNTQxMWI5NDU5ZjZhZmYyOGRkM2Q1ZWVjNzgxZDEyZjc0NTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUxNDc0YTNkZDkyMGIzZDVlMTc2MzI5ZjM4OTY0NWUyNGE3YzIxODJmNTAzNTQ2YzFkNTQ3OTE1NDBkMmFkZmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcwZmQxZDc1Y2Q0NjFjNDY2MzNkY2VjZTAyYThjYmJjMmRjNzI5Yjk3ZDU3NzVhZWFmYWNiNzNhZmVkZDljMTIifQ"
         }
       ]
@@ -89,7 +89,7 @@
       "statement": "The UART binit homes and clears the terminal by emitting ESC[H, ESC[2J and ESC[3J, because 2J alone does not move the cursor.",
       "evidence": [
         {
-          "resource": "repo://asm/forth.asm#L13248-L13339",
+          "resource": "repo://asm/forth.asm#L13249-L13340",
           "version": "repo-lines-v1:sha256:b81ad7beb4c5881fbf69c4988ab73bdec066d3045711227990a438b38e156eb7:eyJzZWxlY3RlZExpbmVDb3VudCI6OTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUzMDk2OTBkYTQxOGMxNTdjZmU3NzI4OGEyNjhiNzhkOTExZWI5YzFmYzY1OWUzMWNkYTNhZjAxMTc2ZDQ4NzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIxZDZjNmEyOTljYWU5NTU1ZTJjNDg4YjkwOThmNzNlMzUwNGRmZTU1ZTY4YThmYWRjMDZhNmMyOGEzYjZmMTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYwZDdlMzIyOGRiNzEyZGE5NWEzOTkzNzEzZDI3ZDY1MWJjMGJkNTQ5NzQ1YmRlZDg0MGU1YWRiNGQ5MmFmNDAifQ"
         }
       ]
@@ -99,11 +99,11 @@
       "statement": "UART putch and putstr send bytes unchanged; getch waits on status bit 0 and reads the data port; getstr echoes as it reads and erases with BS SP BS because the terminal owns the screen.",
       "evidence": [
         {
-          "resource": "repo://asm/forth.asm#L13340-L13405",
+          "resource": "repo://asm/forth.asm#L13341-L13406",
           "version": "repo-lines-v1:sha256:97db7b8d6ab3735b0fdbcd39bf5bcacdff50470cec5db65df708d336b0f71ee3:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMzUwZTljMjZhMzE2MDQxZDU3ZjQ1ZWUwNmQyOWEwYTYyNmRiZDI0ZjNiMTNlNDRlMmI0YjEzMDk4YjExMjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIxNDM2ZjUwZmJlMTQyYjU5NGRhZjdiN2NmMTFlMGI0Yjg3YWYyODY3OTkyYzUxMmE2NDBjMzBkNzI4ZjhhZjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzYTM3ZTljMTU0NDMwMTUyZGRhMmQ2NmQwZmIwZGZiNjQyNTFjYzFhMDM5MjgyMjAwOTVlMWE2Zjg5OWYwMzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjliZTQ5ZTMxN2NmYmIxYjg0ZmNiZmJhMDQ2YzkzZTM3YmRlMWEzZGE3ZDBiYTRmZTVhZmVhNWM0YjJlYWZlNjAifQ"
         },
         {
-          "resource": "repo://asm/forth.asm#L13404-L13503",
+          "resource": "repo://asm/forth.asm#L13405-L13504",
           "version": "repo-lines-v1:sha256:9da4c87599e13aa710804b7226efebe3281e2b321d03935c93d137f4a02e9210:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwZGY2ZTM5NjYwYTllMDg2NDhhNTcxNDc0YzI1Y2EwODdmYjc1YzBlOWQyZTgyYjljYzcxZWQ5NGQwY2QzNzMzIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJiOGZjMTU3MGJmNzVjZmVmNWNlN2YzNzJkNjdjMjYyZGIzMDhjNmNiYjQ4NmE2ZjljNmEwMzQ5MjgwZmNiNGFmIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI4M2EzN2U5YzE1NDQzMDE1MmRkYTJkNjZkMGZiMGRmYjY0MjUxY2MxYTAzOTI4MjIwMDk1ZTFhNmY4OTlmMDMzIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI4M2EzN2U5YzE1NDQzMDE1MmRkYTJkNjZkMGZiMGRmYjY0MjUxY2MxYTAzOTI4MjIwMDk1ZTFhNmY4OTlmMDMzIn0"
         }
       ]
@@ -113,11 +113,11 @@
       "statement": "uart_tx maintains an output column with a three-state ANSI parser that charges no columns for escape bytes, and wrap_if breaks a token at a space before column 80 so the host autowrap never splits a name.",
       "evidence": [
         {
-          "resource": "repo://asm/forth.asm#L13108-L13200",
+          "resource": "repo://asm/forth.asm#L13109-L13201",
           "version": "repo-lines-v1:sha256:36386ec2db04fd30f26d2046f86a984b04bfaa64f0756b4f3165ab3833003b6e:eyJzZWxlY3RlZExpbmVDb3VudCI6OTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyYmYyODJlMGMwMGM1ZjExNjJkZTMwNWQ2MjRjZDFhYzg0YzRlMzg2MWIxMWI2YWEzOGFmMDBlOTFiMDA2OTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YWMzNDBiM2ZlOThmYjNmM2JhZThhZDE5OGQxMDEwYmFkMWQ1NDM3ODBiY2IyYWU3OWM2NjkyN2E3MzFlNzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMyZDIwMjNmNzBjMDk1YzRjYWJhNzdiZmVmYWNkYjE2YzJlZDI3NWE1ZWZjNDhlMTAxYmRmYTc5ZDhmYTI5NTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRmNTFmZDc5NzY1YjI4NTE5MWU4MWNiMDkzMWM2NzBjODgwMDIyMzNjZTU0YzUwNGMyZTRiYmYzNDRkM2MwNDQifQ"
         },
         {
-          "resource": "repo://asm/forth.asm#L6098-L6130",
+          "resource": "repo://asm/forth.asm#L6099-L6131",
           "version": "repo-lines-v1:sha256:3cc38b54057a6a2b152e52cbbd3eb0227e444fcbe6e632cfe5479e255df8f2d2:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU3ZmI5Yjg2M2Q0NTYzMTEwOTZkOWI3YWFiZGM5NWM4YzQzNzk1MjFlN2RiMjgwMjMwOTQ3YzI2MGJkNTNkNWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg2MGZlMDZhYjQxNDI2NTcwYTQwZWYxYTc4OTZmNTcwZTcxZjliMjNmM2M2MmU3NjhkODU4YzBlMWIwZTY1MmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc1ZmNjMmNjNGM1NDhmZmMxMmM5NTZkNWYyOTVkOWU4NzgwOTY1OWY0NTE2MzU3MzcxNDlmM2E5Y2RiOTQzZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIyZTU3ZDM5MzgzYjRiODI2NWM1NTRhNTE5ZmU3MzVjNTZjNzE3MWMxODI2MGI2NWRkYjJmODZmOGNlNzAzMGIifQ"
         }
       ]
@@ -131,7 +131,7 @@
           "version": "repo-lines-v1:sha256:fdf3049d0bdab5dd19cb24ce7ade889682f2ab9b7de28ff78fc95b57574bb58c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4MGE0YTI3MGNkZjJjNTdiMjdlNGVlNTlmZDliNjJiMWFhNTEyZmJhMTVmOGY2YmQzMTAyZTY3MDQxNTcyN2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2MDU3YmJmM2RlZmZmMWFiZDQyNjQ4ZTIzZTIxNzk5ZWQzMjQ3Mzc2OTY3MDVkMTgyMjNlOWMwZjg3OTcwNzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ2NmVjNDUzZGMyMjFmZjJiMjEwOTllMmVmNWE2Nzk1NGM5NDllZDViNTNjOGVhNzMxOTU4MDM2MDM2MzkzYzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc1YjQwNGNiYjc5MDA5MDJjZmYxOGQ0NjA1N2E5NWMwOTVjMmVkYzBkNzQxNjM4ZmQ4OGU4ZTczZTU3OTEwN2IifQ"
         },
         {
-          "resource": "repo://scripts/make_image.mjs#L48-L52",
+          "resource": "repo://scripts/make_image.mjs#L58-L62",
           "version": "repo-lines-v1:sha256:2f4ba6de52b1bd47888919d810904f416af3375c7bffcfa2cd5b4afc25744eaa:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjdhYTA3MWZlYTlmYTBjMTJkYzJhYWU0Y2VmMGZkMGNjZmRkOTVlMmIzOTMyZTZiODM1YTI1ZjIxMmM2NDJkYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzY3ODMzOTk1ZWI1YTc2NzNmZjdhZjQ0N2EwMWJiYjQwM2RkNDEzYzE0MGZhNjIyZmFkNWQ1NjY2NzhmYjM3OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzk1NzllMjA2M2NjZDc0NmI4ZDg5ZDQ2ZTI4YzZlZGMzNTQzY2U0MGIwNDE3OTI4ZmUzYTU2ZjQ3NTA3NmU0MSJ9"
         }
       ]
@@ -141,7 +141,7 @@
       "statement": "The UART register block is status 0xF0040, data 0xF0042, divisor 0xF0044 and control 0xF0046, with RX-ready, TX-ready, overrun and TX-idle status bits.",
       "evidence": [
         {
-          "resource": "repo://MEMMAP.md#L284-L300",
+          "resource": "repo://MEMMAP.md#L294-L310",
           "version": "repo-lines-v1:sha256:aeea7ebda72c97d098fdc787566a026613f6acf8e774b2a213517a7cae48197f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2N2NjMWRiNWY4M2RhY2I0OWUxZWYzYjUyYmFmNTIzNjA3NjA0OTc5YmQwZDk4Yjc1Nzg1MWU1OTJmMmZkZTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRhY2IxNWM3NTkxZTBlYzUzODliM2M3NTA4MzQ2ZGJhNzY1ZWVkODQwYTViNDVjMTMzN2ExYzBhOTc3ZDM3ZjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIwYmEyN2ViNjUzNzY2ODdkNWQ1MzE2MTBjZTYzYTMzNWFhMTJlYjA0NWE1MzZhMDhjNzI2MzMxNDdlMzU4NGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM3YTFlYzg1ZWIyOWNjYTkwOTJjMmVjYWViMmUxNTk5MmRkNGJiMTIxMDRlNjQxYTkwYjAwOTgzM2I0MzU3MzYifQ"
         },
         {
@@ -155,7 +155,7 @@
       "statement": "UART FIFOs are 64 bytes in the simulation builds, the current tile build uses a one-byte TX holding register with a 64-byte RX FIFO, and the older packed-image build was RX-only; the baud divisor derives from the clock.",
       "evidence": [
         {
-          "resource": "repo://rtl/deep16_top.sv#L650-L670",
+          "resource": "repo://rtl/deep16_top.sv#L657-L677",
           "version": "repo-lines-v1:sha256:1a90c7ddf1ea350e1566f11ff2d5a461792e1ffa6501d04e474d0bd32e76f633:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhMzVlMTM5ODgwNTBmNzkyZWQwMzgyY2Y0MWE0ZWQwYjRkMWM4MzIyNWY0ZDAwNzRmZjc4ZTRhNDg4MWI1N2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBiY2JmMmJkYmY3NjAzNTMyNTY5YjVlMTczNTJkMjQ3ZjRkYmIwMmZiZmE4NDdkNDJkZmY1ZGQ4OWM4NWQyZDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ5ZDc0NDZhMDNiNWYxM2I0MzY3N2EyMzY4OGJhMWJjMTU3NGVhZGNlYTUwNTRjYzQzNmRkMTFiNmJkODY4ZmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVkZjQyYTVlNGY0YzY4YWI1NDU0Yzg1MmE5OWIzYzEyODQ4ODMzYTVjOWM5ZjMxZGEyNmJmZmY1MTU2ZGUxMTAifQ"
         },
         {
@@ -180,15 +180,15 @@
     },
     {
       "id": "claim_c88dc4191e9e4afba9e870bbe460d6ca",
-      "statement": "The IDE routes the console by mode: terminal mode feeds the UART stream to SerialTerminal, and a write to the 0xF1000 buffer in terminal mode is ignored so serial cursor pokes cannot draw over the terminal.",
+      "statement": "The IDE routes the console by mode: terminal feeds the UART stream to SerialTerminal, tiles paints the FiT canvas, and writes to the 0xF1000 buffer outside screen mode are ignored so cursor pokes cannot draw over the terminal or canvas.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L397-L426",
-          "version": "repo-lines-v1:sha256:6141fb736fa3149011b0cc2726f6e74226e412cbb2074e808563321f38a4540a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQxYWEyMDg5OWNlNzA3MjMwNTk3ZDk3NzJhZTQ4OWY4MjUxNzFhZTBlYzA5Mzc1MDdlMTRlNDMwOWRlYTA2MDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBlYmJhMWUyYjE2NDI1NWZkNDAwNTI4M2M2MTQ1ZGYxMzE2ZWRhOTNhZGRlNjAzNTBmNWI5NWE0YjFhMjY3M2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY5NThmYmVhNmZkOGQ0OWEyYzVhZjgyMTE5ZTcyMWI1N2M4MzVkZTVhNTVmMDRkNzE5Y2Y0YTk0ZmEyYWU4NTIifQ"
+          "resource": "repo://js/deep16_ui_core.js#L376-L430",
+          "version": "repo-lines-v1:sha256:6edd7403be32ecc4cc0f37ed325d2fc25094b7960e138fc0d5d3702e087b7c90:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlZjRiZGU3NzhjZmZkOTI4OWJkZTliOWIwYWMwYmUzZjUyNjk2Zjg0MTEyYmI2NmViMDMyYjJhMDdiMGI3NDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiMTE1NDQwMWUzZjM4ZDIwZjFiMDRiNjZmNDBhMTBiZTc0YmMwOTI4NjM3YmZlODIyOGZiNDc5ZjQ3MzM1NTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMxOWE3NmNmYmQwZWFjZjRiZTBmOGVlM2MwOWZiZGNmOTMyMjJjMDE5MzliNjQ4ZTBmMTBiMDk5OGIwZGY5N2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0NDQwOTFiNGRiNjNiYTc3YTNkZTQ5NTY0ZjVkOWEwNTBkY2JhODE1MmI1M2E5M2EwZjE0ZjA0ZWVhMTFiZDYifQ"
         },
         {
           "resource": "repo://js/deep16_ui_screen.js#L449-L470",
-          "version": "repo-lines-v1:sha256:9b85166ded569db55d23c8ff61ca074fa6b599b396cbc9feb3d8787ccae1fab2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgwYjgwNmE5NTVhNWU1MDg4YmYzNGFkMjg2ODMyYmNkM2NjZmJkYjJmMWI3NjY5ZDk1ZWZiY2MyZjYzNmU4MWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViOGFkZDUyZDkwMjhjZDE5YzdlYWQ2OGU4MmVjYTc0ZjkwMzhjODU0MDI4ZmZlYThmYzgxMjBkNzM3OGU0YTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBiOTc1NjM3ZTExZjQxZjA0NTMyZmE2NmU5ZjNlZTg4MmJhNTMwOWIzNjQ0OTI0MDJkMzlkMDNmYmQwOGFkZTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEwZmJhNTk3NzBmZTdkNmI2ZGM2NmZkZjIwNDJkMjZjZWU3ZDQ4NDczOWQ1ODE4ZjgxMGJjZWM1YTYwODViY2MifQ"
+          "version": "repo-lines-v1:sha256:ac8a7069c2abd06fa7084e181c2d73bafba2991e37242d2c0df998308f4774fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwZGVjZmY2MDI4NzljNDVmNjkxZTJiYjllMDJjY2ZiOTBlZWM2MmZhMmYwMzY0NmRjMzk3ZjU3YWRiZmU3NWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyMTBiMjI3MTczYWFhYzQwNjQ0MzU2ZDgwYmI0MmQyNDhjZWZmYjE3MmZlNGQzODg1OWNhNzRkZWExNTBmMGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFlMWYzOTgzZWMyY2ViZjA3YzJjMTkzZWUzYjA2NTlhNTZmZGU2NDZhMTNmMmYzNzQ1ZWViM2ZlOGUxYTczMTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk5OWJkZWZlZWFjYTYzNDBlMDI5MGRjODZlODg5Yzg5ZDVlMTg5YWE1YmE0NGI1ODViM2I3MDczNGY0YTYyZDgifQ"
         }
       ]
     },
@@ -211,7 +211,7 @@
       "statement": "read_line reads the baked script before the keyboard: it follows boot_ptr, unpacks each packed line into tib_kbd, suppresses prompt and ok through boot_quiet, ends on an empty line, then sets boot_done and restores the prompt.",
       "evidence": [
         {
-          "resource": "repo://asm/forth.asm#L3433-L3535",
+          "resource": "repo://asm/forth.asm#L3434-L3536",
           "version": "repo-lines-v1:sha256:c8e7469d845a01402733946519848c9d4d0327dbc6998e0ae403348c94be4368:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAzLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI0OGU0ZWI5NDUzMjI1ZjVlNjZlYTFmM2UwY2ZiZjI0ZGNkMjY4NzRjMGNlNTYxM2VjZTI5M2MzMDNkNjM4ZjEwIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJhMWJiYzk0ZDFiMmJkZThjMGFmMjY2Yzk5YTZmNThiM2VmMjAyMTZjZDBiNmNjMmM5NTA5ZjI2NmZkZjM1ZDhlIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJiMWQ2YzZhMjk5Y2FlOTU1NWUyYzQ4OGI5MDk4ZjczZTM1MDRkZmU1NWU2OGE4ZmFkYzA2YTZjMjhhM2I2ZjE3IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJhODM3YWVkMzkzODE5MTQ1YjI2MjUyZGQyNTc4YTEzZjQ3NzM2ZjUzYjUzZGEzMmQxZWQ1MzNkNDZlYjcwMGE4In0"
         }
       ]
@@ -239,11 +239,11 @@
           "version": "repo-lines-v1:sha256:75fb5d1466992e677896bb93a0700dd3a7348b223b10667ec4e2530499218143:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJlMTE0ODI3MmE3NTMxNWM2MmM4YjJkZDI5OTU4ODU0YzkxMzI0NWZmNTJiMjRkODQyM2U0NjFiYWJlMDJjNzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU0NzgxYjYwMWY5ZGMyZGVlMzFhMTM2OTkxNzVjYzZhNjY4MWE4MzFiYTk5NGE3MzgwZjI5ZGE5NDcyOGQyMzAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZhNjA1YjA2YTVlOWQyMWNkMDk4MzkxNmJlMDdlNWY3YzQ4N2FhNDEwZGY3NzEzZGRlZTJiNzM3ZWViZDVhN2QifQ"
         },
         {
-          "resource": "repo://tests/boot-script.test.js#L100-L110",
+          "resource": "repo://tests/boot-script.test.js#L102-L112",
           "version": "repo-lines-v1:sha256:4391bc73bc09fc922595d6ec02177a0417558ac08b31bbb617ac048c87972ad0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNmMjU0OWZiYzIyYmIzYjEwZDljYzBmMWI1NDY5ZjhhNTg3ZWU1MTQwYTUzN2Q5ZThmZmQxMGYyOGI4NzU1NDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         },
         {
-          "resource": "repo://tests/boot-script.test.js#L60-L80",
+          "resource": "repo://tests/boot-script.test.js#L62-L82",
           "version": "repo-lines-v1:sha256:67c3127466aecbe5c259f93b4ac3e97c266edf64c04c2b6ccae5fe8f80b3564b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzNWZlMDU2ODdmZDFhMjA5MmFhNDM4MjdlMmE4OWU3OTczYTQwMzUzNzE1ZmIwMjlkMzJiODE1MzYzY2U1OWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBhMTRlYTZhNzdkM2M5YjYwMmYwZGJkOGJlYzRkNzQ0MTYwMjI5NjFmNGMzOWM0ODJmNTFkNjE5Y2YzODIyNGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIyODExNTI4ZTQ5ZTNmMzI0YzAwYjU4NjU3OTBkNWQ1YjkwNjY4MDgzNDM5YTI5NjEzNWVhYTVhY2Y3MjEwM2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBlMTFlZjkzMmRkMDQ5ODYxMjA5MzNiYTYxMjY0OWQyMmYxMjZmZjhkNmMwNDMxNjMwNWY0MmUzOWYxNGU0ZjgifQ"
         }
       ]
@@ -279,10 +279,50 @@
           "version": "repo-lines-v1:sha256:f5ec9029827e8090059ad1a5df1d082a04317cf3561d678a408468833af2b043:eyJzZWxlY3RlZExpbmVDb3VudCI6NjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRmMzNkZDlhY2RhNmI5N2U5MTZkZjdkODFmYzlhMzBjNmUyOTFmYTZkZWQ5YzI5ZWQ5MGU1YWQxYjE0YTU2Y2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
+    },
+    {
+      "id": "claim_d2624954993247d08ba2bb91783b7741",
+      "statement": "BIOS getstr is a non-blocking pump in both console builds: one call drains the bytes the input FIFO holds and returns caller R0=1 when CR/LF completes the line, 0 otherwise; the write pointer and line-active flag live in gs_active/gs_ptr, and read_line, word_accept and refill poll it so the timer and raster IRQs run while the console waits.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth_nano.asm#L15830-L15940",
+          "version": "repo-lines-v1:sha256:8f129e1f452d9b545eebe28a8acba1bca268f105baa3bff8c0dcf6cfcd560c13:eyJzZWxlY3RlZExpbmVDb3VudCI6MTExLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwZGY2ZTM5NjYwYTllMDg2NDhhNTcxNDc0YzI1Y2EwODdmYjc1YzBlOWQyZTgyYjljYzcxZWQ5NGQwY2QzNzMzIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJmNjU4YWIxMzc5MzI4ODYyMmU5NDQzNTk0NmU5OGE2MDlhNTBjMTgwZGI3MDA5MjA2Y2EzNTFhNTVmMzYwZDI4IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI1OWE3Yjk2NjhiYjUyZThlOGVlNGUxNWVlZjc0YjViOTAzNmU5ZGJhNmUyOTlmMzcwNWYwYTk0ZmIwZTIyYjllIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlZWQxOGMzNTE3YTc4OTlkMzM4NTFhN2QwMDI3OTEzNDE2MDYwYTc5MDRlMDFhNjUzZjg2ZGI1ZmM2Y2ViZDhhIn0"
+        },
+        {
+          "resource": "repo://asm/forth_nano.asm#L3114-L3122",
+          "version": "repo-lines-v1:sha256:828d7ef949bea8b664d6256c8564c590b1747ac63fe376e3eb1df52d84ed8a3c:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTJiZmE1NTc2ZjY4NWVjZDNjMjYyZjE3M2RkODBhMmI1NzJkZGRmNDk4ZGM2NWY0YjM3YzgzZTY4ODgxNjk5NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTgwYTRhMjcwY2RmMmM1N2IyN2U0ZWU1OWZkOWI2MmIxYWE1MTJmYmExNWY4ZjZiZDMxMDJlNjcwNDE1NzI3YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYmM2ZTIzYjNmZjAxNmMyZWUyNDE3M2E2YTlmY2QzZDg1NTAyNjM3YjcyZTk3ZmQ4Mzg1ZmViYjNiNDY4Zjk2MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmU1YmJjMmUyYzY4OGRiZjlmNjA2ZDcyMDc4OTkxMjA5YmRkYmMyNTI4OThkYTI3OTM1NWQxMjg4ZjQwOGY3OSJ9"
+        },
+        {
+          "resource": "repo://asm/forth_nano.asm#L3830-L3840",
+          "version": "repo-lines-v1:sha256:4e8ff2a9f9215d5d2b32551c9d7a0f712e7082b66f715eff703644f00dc5d183:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgyNDU0MGY0MmExNjhiNjE0ZjhjNzUwZTM3NDkxMmU2OTIwNDc0MzVmNzNlMWQzNzI5YmZmODQ1MzI0NWYxOTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiODE0ZjkxZDhmNjdjM2NlMmUzMTY1YjJjNWJiZDUyYTU4YjI4Y2I4NzZmNDQ3ZTYzZmZlMTJkOGExMTQzNjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM2MDY3ZjI3MTIyMDA3ZTE3MzY0Mzc5YWRiMWU5Mjc1MWU5MTA1OGU3ZWI3YmVlNzg0NTRiOTMwMGFmYmY5OGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc5ZWMxMzQ3ZWQwNjk0YWU2MjE1ZjFiMDA3NzYwZGM0Mzc3OWZmMzE5MmQ0MTI5MTQxNjU4M2U4NmNiYmU3ZWUifQ"
+        },
+        {
+          "resource": "repo://asm/forth_nano.asm#L3893-L3900",
+          "version": "repo-lines-v1:sha256:c1b2c7061b7fa4712cb928a61c44387ebc8293bb37a4c6fa21859f63b009cb9e:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGVmNTM0OTBkMThhZjA5NGJlNzMwMjRmMTY0MzA0N2Y5MmUxYzU3OTIyYzkyOThmMzc0YzY2MTJhNmQzZjU2YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjVhYzM0MGIzZmU5OGZiM2YzYmFlOGFkMTk4ZDEwMTBiYWQxZDU0Mzc4MGJjYjJhZTc5YzY2OTI3YTczMWU3MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDcwNWI3MWJjNTNlOWM4NWNkN2ExNTQ5MDg3MmU2NmM3MmNiMjQ4YTA0Njg2YTUyZDk2MWRjMTUwMDM5YThhMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTA5ZDZkZTBkMTRiYTJiZTVjOGIxM2RmZmVmZTM0YmFlZDY1YjVjMDBjYWU5MzZkYWY5NTkyNjQ4NjFmOGNlNSJ9"
+        },
+        {
+          "resource": "repo://asm/forth_nano.asm#L8681-L8690",
+          "version": "repo-lines-v1:sha256:216141dd687af860aeca5ef4fc2634898c1b519baf4cc0b191d75de97c7d9114:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiNmE0ZDlkYTcwYTk1ZTMwNTY0OTU1MGU5NjIyNDc4MDZjNmE2NGQwZmE2MzUwNzgwN2E2NDA2YTdjNGVkYmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQxZDY4MjY5OTkyOTZjNmIwZjkwMzZlMDM3YjU1OWNlNzA3ODQwOGUyZGUxNmIzNGFiNTYyN2E1MGI0MTMwMzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYzZDRkODZhNjA0ZDM3OTQ1M2Q4ZTM0NGQ3ZTlhMTA3NzBiODBmZGE5NjA3NmU1NjRhMTIzNGNjMmE2ODY0N2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY1NjcwOTQ2MTc5ZWVmMDE2NWQ1MDlhOWFiNmZmYThiZDNhMjJmN2RkNTJmOWQyMzczYzljMjVkOTQwMWY4MTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_21231b5178714a6e998f21bac1b3f1e0",
+      "statement": "The baked boot script loads the flash screens 1, 5 and 9; 9 screen defines games.fth, and the D16nano gfx function 6 runs the showcase menu from the BIOS segment.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth_nano.asm#L14484-L14522",
+          "version": "repo-lines-v1:sha256:f44592abec3db18b4f9d62bbfcec4ea6106acaceda6969a7247d08000f07f4e1:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzYjQ5ZDk2MjhiYzYyNzcyZTA2NjAzYTdkNjFmMzMxMmQ4MTgyNmEyM2RhYWRmYzViMWVkMTk1ZWVlNmY5NDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1ZGYyNGMzYjNjMDg0ZWNkZjk1MjYyMWVjZjc3Mjc4YzQ5MDgxZjcwYTRjMjgwYTQ1Mzk0Y2UxMzM1ZWMyNDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY0ZWZhMzk3ZjQ5OGQ1OWMxMzI0YmFlZDE4ZWFiZmY1YWMzZmYyZDMwYzc1OWY3YmM3ZjhjOWRlMGU5MzA1YTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAyNTEyY2ZjNTg4OTk3ZGQ1MjJhMDQ4ZDg1NGMyNTIwNDI4NDg3YWQyOWRkNTRlMTEyZDcyMGZmZGE0YWY5MzUifQ"
+        },
+        {
+          "resource": "repo://asm/forth_nano.asm#L3180-L3210",
+          "version": "repo-lines-v1:sha256:aadb176fd0b22e50b913ee581d540e3ac2caedb2c82775312c2016a7d059e760:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiNWM0MmNkYjFjNjJkNTZmMTViYzUxNzUyYTgzOWYwOGZlYmQ3MmRmNzhiMWM3ZGYyM2JmOWZmYzIyNDFiMGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlZWI2ODI4ZTQzMDQ5ZDA2OGIxMzdkZTJlNjhlMWQxMzE0ZDI3ODlmYzZkYTdkNTczNTU5MmZiY2RjNmJiZmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRmNmNlODA5YmQ4ODc3NzVmZTYyN2E4OTUxNjBkYzczYzYwMzNlZTA2MTEzZjk1NmQyZWVkMjZmNTRjY2U3MmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJiYWI3MjlmZTQ5NWM1Y2YwNThiODA2MTVkYmZlN2FlMzdhN2FiMWMwZDhhZDc4MjkxZTQwOTMzZjBjNjEzNGQifQ"
+        }
+      ]
     }
   ],
   "verification": {
-    "by": "openwiki/0.7.2",
-    "at": "2026-11-01T09:36:37.731Z"
+    "by": "openwiki/0.7.3",
+    "at": "2026-11-04T15:30:01.509Z"
   }
 }

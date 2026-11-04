@@ -2,14 +2,17 @@
 type: "Reference"
 title: "Video and Peripherals"
 openwiki_generated: true
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
 sources:
   - id: openwiki-source-a28946850ce54d03e71935f2
     resource: repo://asm/forth_nano.asm
+  - id: openwiki-source-86589e93590a1eca60d19cd0
+    resource: repo://ERRPLAN.md
+  - id: openwiki-source-d495d08ebea00cef39154011
+    resource: repo://js/deep16_tile_engine.js
   - id: openwiki-source-b57ab1606c48ec3ea7344623
     resource: repo://MEMMAP.md
+  - id: openwiki-source-23775c3de52f3ab95a13cb8b
+    resource: repo://README.md
   - id: openwiki-source-10121f209c268e2bcf7976c9
     resource: repo://rtl/deep16_board.cst
   - id: openwiki-source-bf2a0339ada6a56de8b7a79c
@@ -34,8 +37,14 @@ sources:
     resource: repo://rtl/dvi/dvi_tile.sv
   - id: openwiki-source-0f5d192ee0a4e0e00eacca5f
     resource: repo://rtl/ps2_rx.sv
-generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+  - id: openwiki-source-995b05cde9e7dd8086199c38
+    resource: repo://scripts/render_tile.mjs
+generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+verified:
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 ---
+
 
 
 # Video and Peripherals
@@ -71,39 +80,71 @@ any software that prints, including a host terminal session.
 `rtl/dvi/dvi_tile.sv` renders 80 × 24 cells at 24.75 MHz into two line buffers
 and scans them out as 1280 × 720 @ 60 Hz. While line *N* is displayed, line
 *N+1* is built from the tilemap and tile bank, so a palette lookup cannot stall
-the scan.
+the scan. The source canvas is 640 × 360; each source line is shown twice and
+each pixel twice, giving the 720p output.
 
-Memory windows are one 4K-word page each, and the CPU write path is
-write-through to the renderer and to the PSRAM/Forth mirror of the same address.
+The engine is the FiT ("Frogger inspired tile-based") layer. Its CPU windows are
+one page each, and the CPU write path is write-through to the renderer and to
+the PSRAM/Forth mirror of the same address. Stores reach the engine in order
+through a 16-entry asynchronous FIFO in the board wrapper.
 
 | Window | Contents |
 |---|---|
-| `0xF1000`–`0xF1853` | 82 × 26 tilemap: 80 × 24 visible plus a one-tile margin on each side; two banks |
-| `0xF2000` | control 0: cursor `{row, col, enable}` |
+| `0xF1000`–`0xF1853` | 82 × 26 tilemap (80 × 24 visible plus a one-tile margin): 16-bit cells, two banks |
+| `0xF2000` | control 0: cursor `{row[4:0], col[6:0], enable}` |
 | `0xF2002` | control 1: 26-row circular row offset |
-| `0xF2004` | control 2: `scroll_x` 0..15, latched at the frame boundary |
+| `0xF2004` | control 2: `scroll_x` 0..15, latched with the display bank |
 | `0xF2006` | control 3: `scroll_y` 0..30 |
 | `0xF2008` | control 4: bit 0 write bank, bit 1 display bank |
-| `0xF200A` | control 5: sprite write page (Red / Purple / Yellow) |
-| `0xF200C` | control 6: per-row fine scroll `{en, row, fine}` |
-| `0xF200E` | control 7: raster line compare 0..359 |
-| `0xF3000`–`0xF3BFF` | tile bank: 96 of 128 tiles × 32 words |
-| `0xF4000`–`0xF47FF` | sprite bank: 8 groups × 16 patterns × 16 words per write page |
-| `0xF5000`–`0xF500F` | OAM: 8 sprites × 2 words |
-| `0xF5080`–`0xF50AF` | text, art and sprite palettes |
+| `0xF200A` | control 5: palette set 0..7 (bits 10:8), OAM base descriptor 0..63 (bits 7:2); legacy page bits ignored |
+| `0xF200C` | control 6: per-row fine scroll `{en, row[4:0], fine[2:0]}`, latched at the frame boundary |
+| `0xF200E` | control 7: raster line compare 0..359; the match raises one SIC request per visit (rising edge), and any write also acknowledges the previous request |
+| `0xF3000`–`0xF3FFF` | tile bank: all 128 tiles × 32 words |
+| `0xF4000`–`0xF57FF` | sprite bank: all 24 groups × 16 patterns × 16 words (6,144 words) |
+| `0xF6000`–`0xF607F` | OAM: 64 descriptors × two words |
+| `0xF6080`–`0xF627F` | palettes: 8 sets × 4 banks × 16 RGB332 entries |
 
-A tile cell carries a mode bit. Mode 0 is an art cell whose low 12 bits are a
-32-word-aligned tile address; mode 1 is a text cell encoding a palette pair,
-style and glyph, `0x8000 | (pair << 12) | style | ((ch - 0x20) * 32)`. Style
-bits select underline, bold smear and the italic font page. Sprites are 32 × 32
-(16 8 × 8 tiles), with OAM priority, flip bits and a signed x that lets a sprite
-clip at the left edge.
+A tile is 30 words of 8 × 15 4bpp pixels plus word 30 (palette pointer) and
+word 31 (flags). A tilemap cell carries a mode bit: mode 0 is an art cell whose
+low 12 bits are a 32-word-aligned tile address; mode 1 is a text cell encoding a
+palette pair, style and glyph, `0x8000 | (pair << 12) | style | ((ch - 0x20) * 32)`.
+Style bits select underline, bold smear and the italic font page.
 
-`doc/FiT-Graphics-howto.md` is the programming guide, including the tile-cell
-arithmetic, scrolling behaviour, row scrolling and sprite composition.
+The sprite bank is flat: the OAM group field is absolute, so no paging is
+involved. Only eight OAM slots are composited. Slot *n* reads descriptor
+`(oamBase + n) mod 64`; `w0` carries behind, V flip, H flip, enable, a negative-x
+sign and a 10-bit x, and `w1` packs `group[4:0]` and `y[9:0]` in one word.
+Writing only `y` silently selects group 0. Sprite pixels are indices 0–15 into
+the 16-entry sprite bank of the selected palette set; index 0 is transparent.
 
-The renderer costs about seven BSRAM blocks: three for the tilemap, three for
-the tile bank and one for the line buffer; the palette is distributed logic.
+The OAM loader runs every line: it reads the descriptors in the fill's release
+window and compares `y` against the line being built. A handler that rewrites
+descriptor 0's `w1` at a compare line therefore changes the sprite from the next
+line on, which is what makes raster sprite multiplexing possible: one hardware
+slot can show two different sprites above and below a split. The board demo
+writes `y=200` at line 100 and restores `y=40` at line 250, and both squares are
+visible in the same frame.
+
+The palette is 8 sets of four 16-entry banks (text, art, sprite, spare), 512
+bytes in one scene RAM that also holds the 64 OAM descriptors. Set 0 is the
+historical layout; control 5 selects the set. Changing an entry changes every
+pixel using that index in that bank.
+
+The renderer costs about 15 BSRAM blocks: 3 for the tilemap, 4 for the tile
+bank, 6 for the sprite bank, 1 for the line buffer and 1 scene RAM for OAM and
+palettes. Moving OAM into the palette RAM removed the distributed-register
+version.
+
+`doc/FiT-Graphics-howto.md` is the programming guide: tile-cell arithmetic,
+text styles, global and per-row scrolling, the raster split, OAM/palette
+windows, the sprite composition rules and the art-pack layout.
+
+`js/deep16_tile_engine.js` is the behavioural twin used by the IDE and the
+headless renderer. It implements the same windows, two tilemap banks, the
+palette-set/OAM-base scene select and the eight-slot sprite compositor.
+`scripts/render_tile.mjs` boots the D16D menu, Flappy, Pac-Man or console scene
+at a deterministic 0x1000-step frame clock and writes PNGs from the engine's
+RGBA buffer; no board or video ROM is involved.
 
 ## Keyboard input
 
@@ -143,9 +184,10 @@ machine never matches until software programs it. At 6.75 MHz the prescaler is
 6750 cycles and the 32-bit count wraps after about 49.7 days.
 
 The D16nano build also exposes a read-only 32-bit CPU cycle counter at
-`0xF0068`/`0xF006A` and a status word at `0xF0066`: bit 0 vertical blank and bit
-1 frame toggle (both synchronised from the pixel domain), bit 2 the S2 button and
-bit 3 the UART RX-ready level. The cycle counter is the benchmark time base.
+`0xF0068`/`0xF006A` and a display-status word at `0xF0066`: bit 0 vertical blank,
+bit 1 frame toggle (both synchronised from the pixel domain), bit 2 the S2
+button, bit 3 the UART RX-ready level and bit 4 the synchronised raster toggle.
+The cycle counter is the benchmark time base.
 
 Note that the timer's own IRQ-enable bit is stored but not used by the SIC: the
 SIC enable mask selects sources, and the tick is wired to bit 1 unconditionally.
@@ -208,25 +250,29 @@ The vector cell is 1: `core3` takes the interrupt target from physical address
 1, which is a different cell from the SWI vector at 2, and the kernel installs
 `irq_handler` there.
 
-Only the timer tick is actually wired. The instantiation passes
-`{raster_src, 1'b0, timer_tick, 1'b0}`, so the audio and keyboard bits are
-constant zero, and `raster_src` is guarded by `` `D16_NANO `` — a macro that no
-project file defines (the builds define `` `D16NANO ``). The raster bit is
-therefore dead in every shipped build, and the I2S `fifo_irq` output is left
-unconnected. In practice there is one interrupt source: the 15 kHz timer.
+The timer tick drives bit 1 and the synchronised raster toggle drives bit 3;
+audio and keyboard remain constant zero until their sources are wired. The
+`D16NANO` guard around `raster_src` is spelled correctly, so the raster source
+is live in the tile build.
+
+The raster source is a **level**: `dvi_tile` sets `raster_toggle` on the rising
+edge of the compare-line match and clears it when a control-7 write
+acknowledges it. Because the SIC ORs the source into PENDING every clock, the
+handler must acknowledge the tile engine before it writes the pending bit
+one-to-clear; the reverse order re-latches the bit and the handler runs a second
+time (the 2026-11-04 double-service bug). On the board, one edge now yields one
+handler entry, the sprite multiplexer shows two sprites from one OAM slot, and
+the non-blocking console getstr keeps the timer and raster IRQs running at the
+prompt.
 
 ## Documentation drift
 
-`MEMMAP.md` is mostly accurate here, but two passages predate the current board:
-
-- It says the on-board configuration flash "is not used" and that CS1 is pin 25.
-  The tile build now boots from that flash at `0x100000`, and pin 25 is the I2S
-  BCLK; the flash is on MSPI pins 59–62.
-- The UART divisor note calls 234 "the 27 MHz value". The RTL derives the
-  divisor from `CLK_HZ / BAUD`, which is 117 at 13.5 MHz and 59 at 6.75 MHz; 234
-  is only right for a 27 MHz CPU clock.
-
-Check the RTL register decode and the pin constraints before trusting either.
+`MEMMAP.md` and `doc/FiT-Graphics-howto.md` are the maintained references. The
+RTL decode in `rtl/deep16_top.sv` and the pin constraints in
+`rtl/deep16_board.cst` are authoritative when prose and implementation disagree.
+Two traps are worth checking: the UART divisor is `CLK_HZ / BAUD` (not the old
+27 MHz constant 234), and the configuration flash lives on the MSPI pins 59–62,
+not on the SPI socket pins.
 
 ## Related pages
 

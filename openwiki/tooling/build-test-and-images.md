@@ -3,9 +3,6 @@ type: tooling
 title: Build, Test and Image Pipeline
 description: The npm script map, the committed compiled cores and generated images, the image and boot-script generators, the Verilator simulations, the Node test layout, and the synthesis/flash entry points.
 tags: [build, test, tooling, image, verilator, gowin, scripts, artifacts]
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
 sources:
   - id: openwiki-source-ea70eb6c045047448e446296
     resource: repo://.gitignore
@@ -13,8 +10,6 @@ sources:
     resource: repo://package.json
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
     resource: repo://README.md
-  - id: openwiki-source-7b2f17140967cc4232b1ec53
-    resource: repo://scripts/bdf_to_font.mjs
   - id: openwiki-source-d6e77d8e641bba2c4fc6f8e4
     resource: repo://scripts/build_gowin_tile_flash.sh
   - id: openwiki-source-b3513f9c034c5171ebb5f3a7
@@ -31,27 +26,32 @@ sources:
     resource: repo://scripts/make_art.mjs
   - id: openwiki-source-e1fceea6c897878bdf0ab247
     resource: repo://scripts/make_bird_sprite.mjs
+  - id: openwiki-source-ff8e0a66e906c2f77bbdac45
+    resource: repo://scripts/make_flash_assets.mjs
   - id: openwiki-source-c14f3342b8ee81b2c622be55
     resource: repo://scripts/make_image.mjs
-  - id: openwiki-source-3402da4170e167b8ffbac895
-    resource: repo://scripts/make_ps2map.mjs
-  - id: openwiki-source-2615e9b9db3a66c72d749e90
-    resource: repo://scripts/make_screens.mjs
+  - id: openwiki-source-f0a7f20aa1f4899a42cf52d2
+    resource: repo://scripts/make_pacman_art.mjs
   - id: openwiki-source-91dbd2aac6f60eec7eacf72d
     resource: repo://scripts/make_showcase.mjs
   - id: openwiki-source-41517f64370d769c203d48a3
     resource: repo://scripts/make_slices.mjs
-  - id: openwiki-source-65da0d5192db8e4738ae307f
-    resource: repo://scripts/make_tile_font.mjs
+  - id: openwiki-source-995b05cde9e7dd8086199c38
+    resource: repo://scripts/render_tile.mjs
   - id: openwiki-source-e5dbad1263257a4c2dd2625c
     resource: repo://scripts/rtl_sweep.mjs
   - id: openwiki-source-1d8266be33d0b23cd8643d88
     resource: repo://tests/boot-script.test.js
+  - id: openwiki-source-dc8d3ca119d2c037adc861d2
+    resource: repo://tests/examples.test.js
   - id: openwiki-source-b12aa8f2d5b33291592d6e1c
     resource: repo://tests/fuzz.test.js
   - id: openwiki-source-0b039283b04730211698eb2a
     resource: repo://tests/helpers.js
-generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+verified:
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 ---
 
 # Build, Test and Image Pipeline
@@ -105,6 +105,8 @@ is why the IDE can switch cores by name alone.
 | Script | Output |
 |---|---|
 | `image` | `node scripts/make_image.mjs` — the whole image set |
+| `assets:gfx` | Generated tile/sprite/palette graphics blob |
+| `render:tile` | Deterministic headless PNG frames |
 | `installer:tile` | D16D image plus the installer bitstream path |
 
 `make_image.mjs` assembles `forth.asm` or `forth_nano.asm`, lays it into the
@@ -123,6 +125,13 @@ reported, the BIOS address and dictionary free count are printed, and the packed
 form is checked against the flat image when it is built. The tile build sets
 `D16NANO=1 D16D=1 D16SEG=1` and deliberately does **not** write a packed image,
 because the D16D kernel is larger than the 16-block budget.
+
+The D16D image no longer bakes Pac-Man: the kernel grew to `0x434D`, so the game
+is assembled by `buildPacman()` into a 1,695-word block, wrapped by
+`make_slices.mjs` as a type-4 slice (slice 10 at `0x20A000`) and loaded into
+segment `0x2000` by `games.fth` at run time. `BAKE_PACMAN=1` (Node) or
+`bakePacman: true` (browser builder) puts it back at `0x4330` for a preview;
+the headless renderer uses that path.
 
 ### Boot-script embedding
 
@@ -147,12 +156,25 @@ fails the suite instead of shipping.
 | `make_bird_sprite.mjs` | Bird/cloud sprite bank |
 | `make_art.mjs` | Quantised 4bpp art tiles from `assets/art` |
 | `make_ps2map.mjs` | 2048 × 8 Set-2 → ASCII table |
-| `make_slices.mjs` | 4 KB source-slice image (8 header cells + 2040 payload cells) |
+| `make_slices.mjs` | 4 KB slice image: source screens plus the type-4 Pac-Man block |
 | `make_screens.mjs` | Forth source → SD-card or flash screen images |
-| `make_showcase.mjs` | The D16D showcase content |
+| `make_pacman_art.mjs` | Pac-Man maze/tables, dot/wall/ghost tiles and sprite frames |
+| `make_flash_assets.mjs` | Packs font/tile/sprite/palette data into `js/deep16_flash_assets.js` |
+| `make_showcase.mjs` | The D16D menu+Flappy block and `buildPacman()` |
+| `render_tile.mjs` | Headless menu/Flappy/Pac-Man/console renderer |
 
 `make_image.mjs` calls the font, sprite and PS/2 generators itself, so the
 console font, tile font and keyboard map cannot drift from each other.
+
+### Graphics and renderer
+
+`assets:gfx` runs `make_tile_font.mjs` + `make_bird_sprite.mjs` +
+`make_flash_assets.mjs` (the latter also packs the palette and the Pac-Man art).
+`render:tile` builds the D16D image in memory, optionally bakes Pac-Man at
+`0x4330`, loads the same graphics blob through `deep16_gfx_loader.js`, runs a
+fixed 0x1000-step frame clock and writes PNGs. The scenes are `menu`, `flappy`,
+`pacman` and `console`; `--key=BYTE` holds a UART byte until the game consumes
+it.
 
 ### Verilator device simulations
 
@@ -206,8 +228,10 @@ covers words no real program executes.
 
 ## The test suite
 
-`npm test` is `node --test tests/*.test.js` — 35 files, roughly 70 seconds on one
-core. `tests/helpers.js` is the shared harness:
+`npm test` is `node --test tests/*.test.js` — currently about 40 files, minutes
+on one core. The suite includes the FiT engine/store-hook/clock tests, the D16D
+image and UI tests, the Pac-Man block/game tests, the headless renderer and the
+type-4 slice tests, in addition to the CPU/Forth/console suite. `tests/helpers.js` is the shared harness:
 
 - loads the browser scripts with `vm.runInThisContext` and reads the classes
   back by name;
@@ -221,12 +245,23 @@ The files fall into groups:
 | Group | Files |
 |---|---|
 | Toolchain | `assembler`, `disassembler`, `optimizer`, `mov-imm2` |
+| Graphics | `tile-engine`, `tile-store-hook`, `tile-clock`, `flash-assets`, `showcase-render` |
+| Games | `pacman`, `showcase-art`, `showcase-death`, `d16d-image`, `ui-d16d`, `slices-binary` |
 | Cores | `cores`, `flags`, `shadow`, `wasm-state`, `smv-write` |
 | RTL | `rtl`, `rtl-uart`, `fuzz`, `ill-trap`, `segmented`, `nano-*` |
 | Software | `forth`, `boot-script`, `uart`, `uart-kernel`, `terminal`, `image`, `examples` |
 | Hardware/console | `console-parity`, `tile-console`, `ps2map`, `font`, `scroll4` |
 | IDE | `ui-core`, `ui-stats`, `ui-terminal` |
 | Showcase | `showcase-art`, `showcase-boot`, `showcase-death`, `showcase-weights` |
+
+`tests/examples.test.js` is not a directory dump: it runs the eight shipped
+examples and excludes an explicit `LEGACY` set (`bios_test.asm`,
+`deep16_rom.asm`, `deep16bios.asm`, `test_suite.asm`). Those four are
+interactive, need assembler directives the JS assembler does not implement, or
+are generated in old syntax. The root build/debug scripts and their sources are
+tracked; their scratch output (`deep16_rom.bin`, `test_output*.txt`,
+`debug_log.txt`, `debug_trace.txt`, `screen_dump.txt`, `trace_*.txt`) is
+gitignored.
 
 Two tests carry most of the verification weight: `rtl.test.js` (three-way parity,
 decode sweep hooks and pipeline behaviour) and `fuzz.test.js` (random programs
@@ -250,7 +285,7 @@ FUZZ_SEEDS=500 FUZZ_STEPS=1000 npm test
 | `asm/forth.asm`, `asm/forth_nano.asm` | `npm run image` (and `npm test`) |
 | Font BDF | `node scripts/bdf_to_font.mjs <font.bdf>` |
 | Art or tile assets | the relevant `make_*` generator, then `npm run image` |
-| Board build | `npm run synth:tile`, then `npm run flash:tile` |
+| Board build (RTL or kernel change) | `npm run synth:tile`, then `npm run flash:tile`; the `.fs` must be newer than the RTL, or the board silently runs the old logic |
 
 ## Related pages
 

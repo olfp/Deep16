@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:dc50ef4319f6d9ef66327a2f32607428846879513885da221c7bef4e651154cc",
+  "pageVersion": "sha256:1609f513111f769c02d22f80af78bf192e72eca4fa31af0b89b023c32f6a18d4",
   "claims": [
     {
       "id": "claim_1a83b04f520240a3a30d0d8bedbb8d42",
@@ -35,11 +35,11 @@
       "statement": "The built wasm/pkg package is committed and loaded directly by both index.html and tests/helpers.js, so a source change without a rebuild leaves tests and the IDE on the old model.",
       "evidence": [
         {
-          "resource": "repo://README.md#L44-L51",
+          "resource": "repo://README.md#L62-L69",
           "version": "repo-lines-v1:sha256:5e92f69fd9834aa916163e428832afb9354c15d7182150a4fbf1d36d2b3bba7e:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGM0M2ZiODlkZDcxMzkxNzA2YmI2NTUzMzcxMzlhZTY2YWMxMGZhY2M0MjYyYmNkMjQ4YzIyOWNmMGUyNWQwNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTE4MTY4MjA2YWU0ZTU4YjZmMDM2MzI0ZGI5MDVmNmFiMzY4YzJmNDE5ZjY4NTViZDdhYjAzNGM2MzlkYzlmZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDhhODE4N2I0MzlkYWRhNDVhNDQ3MTBiOGQ0NzI3NTQzYzM0NWI0MDVhMDFiZDY1ZmRlNTAyMjNiMmFkY2VmOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmVhNjY1ZDNhMThlYTAyY2UzYmQ5NmFiNzk4MTk0OTQ5MzAwNzkzZjMwNTg1NzdlZjk2OTU0OWFiMzdlNDE4NSJ9"
         },
         {
-          "resource": "repo://index.html#L405-L412",
+          "resource": "repo://index.html#L409-L416",
           "version": "repo-lines-v1:sha256:bbd6e02478dcdf1bda6704431aaa577963d277b905f8a51b75e7b7b6304f54c1:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzg3NDNjNzhmM2U2NGVlYjljYWYwMjhhYTdlNzJmMGYxNzYzN2RiOTM3ZmM1ZjU3MjI4ZTFhMDZlZjdmZTZmZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzJhMzc1MzUyZDU4NjBjZTQ0NmNkZmY0ZTAzNGMwNDRlODI4YTc0ZGU0MGM0NmQ0MjJlNWMwODdlZWFlNGFhZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTBkYjZhNDk5YjA3N2RjOTNkMjBlM2UyMmY0ZWQ1YWQyN2ZjYmYyY2E5M2Y4MjEzYTZlN2NhOWYwNTQ4MTgwYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWYzNWVkYzY1Y2EwYjNhZDZjMGE2OWRlZDI3ODc0YTdkMTViZDVkN2JiNzVkNGMwNDNhZTcxZGQ4YTczZWJhNSJ9"
         },
         {
@@ -97,7 +97,7 @@
       "statement": "The IDE mirrors state into the WASM core in the order init, load_program, set_segments, set_psw, set_registers.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L2792-L2812",
+          "resource": "repo://js/deep16_ui_core.js#L2966-L2986",
           "version": "repo-lines-v1:sha256:e8b876edc29b88502a5ae5b1eb4b210d9f7d4dcae87a93fdbc2ab1ebdaeaceab:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5N2MzODFlYjlmZGM4ZmRkMDk2MjUzZDJlYjFjMWM4OWVkM2NmYTI2ZTU4NTk0Mzc4NjUwOTllZDlmMTgzZWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyYjQwN2JhYWFlYWMwMjAxZTZkYTk4YzlhY2ZhYjEwNTE3M2NlZjYxNThiNTA4MjZjOTE5NDQ0ZTkwZmFkNDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU2MjM5M2UwYzA5YTg5NDgxMzgwOWFjYjJhM2FlODk0MWIyYzAxN2NhZDI2NDMyYzdkZjU3NTU2M2RhOGRkMzcifQ"
         }
       ]
@@ -187,7 +187,7 @@
       "statement": "Unlike the JS reference, the WASM core has no hardware-interrupt entry and no d16nano ILL mode, so DIV and DIV32 always execute.",
       "evidence": [
         {
-          "resource": "repo://README.md#L250-L253",
+          "resource": "repo://README.md#L274-L277",
           "version": "repo-lines-v1:sha256:2469999755e72a1cb4a94efecd61eb465780de1fcd67a25bdc7b899663c17d6d:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWNmOGIyYmE1YmE4MzViMDUzNzNkNTY1OGE1Y2ZlY2Y1MzU1NjMxYWIyNWNmODlkYTkyYzY3OTlhMDQ1YTdiNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGMxOTg0YmNlYzE1ZWNiYjk1YjkxODExMDJkYTRjMjRlM2EwZGU4MjRiYWE4NTg3MWIxNDFhNDJmODVhNTdiNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmJlOGVjOWQwZGQ1NWE1MWZlMjBjYzZlZjVhNGYyZWIzODVhMWFlMjZiZDY3OGUyOWM3YjM4ZDAyNjc0YzUzMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWQ2OTc5NjJjNzM3NDZhNzdhYzYyZTMyODQ4YWUxMTg2OWVlNjczNDJhYmM1ZjE1NDNiMWU0MGE1ODQ0MDMwYyJ9"
         },
         {
@@ -212,7 +212,7 @@
     }
   ],
   "verification": {
-    "by": "openwiki/0.7.2",
-    "at": "2026-11-01T09:36:37.731Z"
+    "by": "openwiki/0.7.3",
+    "at": "2026-11-04T15:30:01.509Z"
   }
 }

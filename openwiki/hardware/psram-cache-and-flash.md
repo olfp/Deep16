@@ -3,12 +3,13 @@ type: hardware-platform
 title: PSRAM, Cache and Flash Boot
 description: How Deep16's main memory is backed by HyperRAM, how the write-through cache and boot loader work, what each flash region holds, and what happens when boot fails.
 tags: [psram, hyperram, cache, flash, boot, loader, crc, spi]
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
 sources:
+  - id: openwiki-source-a28946850ce54d03e71935f2
+    resource: repo://asm/forth_nano.asm
   - id: openwiki-source-02ca194d57796e6a2db00cb9
     resource: repo://fpga/gowin/deep16_board_tile_flash.gprj
+  - id: openwiki-source-b57ab1606c48ec3ea7344623
+    resource: repo://MEMMAP.md
   - id: openwiki-source-274c2b02d5002e6597ae2b44
     resource: repo://rtl/flash/boot_spi_read.sv
   - id: openwiki-source-ea2bb1d1b243f8f87d7dcc7a
@@ -25,9 +26,16 @@ sources:
     resource: repo://scripts/flash_gowin_tile_flash.sh
   - id: openwiki-source-c14f3342b8ee81b2c622be55
     resource: repo://scripts/make_image.mjs
+  - id: openwiki-source-91dbd2aac6f60eec7eacf72d
+    resource: repo://scripts/make_showcase.mjs
   - id: openwiki-source-41517f64370d769c203d48a3
     resource: repo://scripts/make_slices.mjs
-generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+  - id: openwiki-source-e3cbc9bdf6a73d9a2ec96f60
+    resource: repo://tests/segmented.test.js
+generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+verified:
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 ---
 
 # PSRAM, Cache and Flash Boot
@@ -110,7 +118,10 @@ CPU is held in reset. The sequence is:
 3. Accumulate the CRC over the bytes of every fetched 32-bit word, low byte
    first, exactly as `scripts/make_image.mjs` computes it.
 4. With `D16SEG`, also copy the kernel data block to `DS=0x1000` and the
-   BIOS/demo block to segment `0x3000`.
+   BIOS/demo block (image words `0x4A00`–`0x57FF`) to segment `0x3000` at
+   `0x30000 + (word - 0x4A00)`. The block is `0xE00` words; its
+   `0x5000`–`0x53FF` part is reserved by the showcase and used by the
+   ILL/divtest/UART tail, including the non-blocking UART getstr at `0x5356`.
 5. On a CRC match, release the core and hand over the kernel entry word saved
    from image word `0x0080` (CPU word `0x0100`).
 
@@ -152,8 +163,10 @@ The P25Q32U is 4 MB and holds three regions:
 |---|---|
 | `0x000000` | FPGA bitstream |
 | `0x100000` | boot image: 64-word header, then the packed image |
-| `0x200000` | 4 KB source slices, slice *n* at `0x200000 + n × 0x1000` |
-| `0x300000`–`0x3FFFFF` | rest of the writable upper half |
+| `0x200000` | 4 KB slices, slice *n* at `0x200000 + n × 0x1000`; slice 0 is the directory |
+| `0x209000` | slice 9: `games.fth`, the flash game loader |
+| `0x20A000` | slice 10: the Pac-Man type-4 binary block |
+| `0x20B000`–`0x3FFFFF` | rest of the writable upper half |
 
 The first 2 MB is block-protected with `BP = 0x38`. That protects the bitstream
 and the boot image from a slice writer. A slice is 2,048 cells: eight header
@@ -164,6 +177,38 @@ the boot image by read-back.
 **The block protect is not cleared by `--unprotect-flash`.** A protected chip
 silently drops the write at `0x100000` and still reports Done, which is why the
 flash script dumps the region and compares it before continuing.
+
+## Game slices and the segment-0x2000 loader
+
+A game is a **type-4 binary slice**. Its payload is not source text:
+
+```
+cell 0   magic 0xD16B
+cell 1   format version 1
+cell 2   entry offset inside the load segment (0 today)
+cell 3   word count of the block
+cell 4   load segment (0x2000 for Pac-Man)
+cell 5+  the block words
+```
+
+Continuations are raw payload words linked through the slice header, so one game
+may span several 4 KB slices. `scripts/make_slices.mjs` assembles the Pac-Man
+sources with `buildPacman()`, splits the 1,695-word block into type-4 payloads
+and puts the first slice at index 10. `npm run flash:slices` writes the image at
+`0x200000`.
+
+`screens/flash/games.fth` (loaded by `9 screen`) provides `game-load` and
+`game-run`. `game-load` finds the name in slice 0, follows the link chain,
+copies each payload into `ES:offset` after `seg-base!`, restores `ES=0xF000` and
+returns the load segment. `game-run` then uses the kernel's `call-far`
+primitive, which enters `seg:0` with `R10`/`R11` as the return pair. The block
+therefore runs with `CS=DS=0x2000`; its static map, tables and writable state
+are all inside the 64K segment. The load area starts at offset 0 while the data
+stack grows down from `0xFFF0`, so they only meet under very deep stacks.
+
+The command is `s" pacman" game-run` from the Forth prompt. The showcase menu's
+**P** entry still jumps to the old `0x4330` image address and needs this loader
+hookup; until then the game is reachable through the prompt.
 
 ## Installer fallback
 

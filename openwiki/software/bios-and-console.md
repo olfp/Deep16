@@ -2,10 +2,9 @@
 type: "Reference"
 title: "Console, Terminal and Boot Scripts"
 openwiki_generated: true
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
 sources:
+  - id: openwiki-source-a28946850ce54d03e71935f2
+    resource: repo://asm/forth_nano.asm
   - id: openwiki-source-05b57c87f4341692de6b154c
     resource: repo://asm/forth.asm
   - id: openwiki-source-956d9e1f2f5615b80a8d4ba0
@@ -32,7 +31,10 @@ sources:
     resource: repo://tests/console-parity.test.js
   - id: openwiki-source-62679011b2c82f805f23d87e
     resource: repo://tests/terminal.test.js
-generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+verified:
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 ---
 
 
@@ -46,13 +48,15 @@ Deep16 has two consoles behind one interface:
   `0xF0040` and lets a host terminal own the display.
 
 The Forth kernel and its BIOS do not change between them. What changes is the
-six-function BIOS below `putch`, which the kernel calls through `SWI`.
+console BIOS below `putch`, which the kernel calls through `SWI`. The D16nano
+kernel adds `gfx` as function 6 for the showcase handoff; the flat screen/UART
+BIOS stops at function 5.
 
 ## The BIOS contract
 
 Every console operation is a system call, not a direct port access. The BIOS
-lives at `0xF8000` in the screen build and is relocated to `0x5600` in the
-`CONSOLE_UART` build so the whole machine fits the 24K-word window.
+lives at `0xF8000` in the screen build, at `0x5600` in the D16MINI UART image and
+at `0x4A00` in the D16nano tile image so the whole machine fits the 24K window.
 
 The calling convention is fixed and is the same in both builds:
 
@@ -75,7 +79,8 @@ explicit out-of-range path. The functions are:
 | 2 | `putch` | Write one character from `R1` |
 | 3 | `putstr` | Write the NUL-terminated string at `R1` |
 | 4 | `getch` | Wait for and return one key byte |
-| 5 | `getstr` | Read an echoed line into the buffer at `R1` |
+| 5 | `getstr` | Pump an echoed line into the buffer at `R1` (non-blocking) |
+| 6 | `gfx` | D16nano only: run the showcase menu in the BIOS segment |
 
 ## The screen build
 
@@ -99,9 +104,16 @@ with `ATTR_MASK = 0x00FF`, so the character survives and the block disappears.
 
 `putstr` is the cheap path: it copies bytes into consecutive cells and advances
 `SCR`, without the cursor bookkeeping. `getch` polls `KBD_STATUS` at `0xF0060`
-and pops `KBD_DATA` at `0xF0062`, masking the answer to eight bits. `getstr`
-polls the same port, reads the echo cell `0xF0064` once per keystroke, ends the
-line on CR or LF, and handles backspace.
+and pops `KBD_DATA` at `0xF0062`, masking the answer to eight bits.
+
+`getstr` is a **pump**, not a blocking read: one call consumes the keys the FIFO
+holds right now, updates the line and returns the caller's `R0 = 1` when CR/LF
+completed the line and `0` when it ran out of input. The write pointer and a
+line-in-progress flag live in two kernel data cells (`gs_active`, `gs_ptr`) and
+are reset at boot, so a warm reset cannot resume a stale line. `read_line`,
+`word_accept` and `refill` poll it; because the SWI returns with the caller's
+PSW (`I=1`), timer and raster interrupts are served while the console waits.
+Inside the handler they could not be: a trap runs with `S=1` and `I=0`.
 
 ## The UART build
 
@@ -116,8 +128,17 @@ transport:
 - `putstr` walks the string and sends each byte through the same `uart_tx`.
 - `getch` waits on status bit 0 (RX ready) at `ES:0x0040`, then reads
   `ES:0x0042`.
-- `getstr` echoes as it reads. Erasing is the three-byte sequence `BS SP BS` on
-  the wire, because the terminal, not the machine, owns the screen.
+- `getstr` is the same pump over the UART: one call drains the bytes the RX FIFO
+  holds, updates the line and returns caller `R0 = 1` on CR/LF and `0` when it
+  runs out. It uses the same `gs_active`/`gs_ptr` cells and the same polling
+  callers. Erasing is the three-byte sequence `BS SP BS` on the wire, because
+  the terminal, not the machine, owns the screen.
+
+The UART build cannot keep `getstr` in place below the D16D menu: the BIOS code
+ends at `0x4CD5` and the showcase starts at `0x4D34`. The routine lives at
+`0x5356`, in the `0x5000`–`0x53FF` ILL/divtest/UART tail that the showcase
+reserves but never writes. The BIOS jump table stores a segment offset, so the
+move changes no caller. `rtl/sim` and the board both run the same code.
 
 `uart_tx` also maintains the machine's own idea of its output column. It tracks
 a three-state ANSI parser (idle, saw `ESC`, inside CSI) and charges **no
@@ -165,11 +186,11 @@ that applies printable ASCII with autowrap, CR, LF with scroll, BS, TAB, CSI `J`
 arrow key's `ESC [ A` — is consumed and dropped, so terminal input cannot leak
 parser junk onto the screen.
 
-The IDE screen panel can show either console. In terminal mode it hands the UART
+The IDE screen panel can show three consoles. In terminal mode it hands the UART
 byte stream to `SerialTerminal`; in screen mode it reads the `0xF1000` buffer
-directly. A write to the buffer in terminal mode is deliberately ignored, because
-the serial kernel still pokes the cursor cell and those writes used to draw over
-the terminal.
+directly; in Tiles mode it paints the FiT canvas. A write to the buffer outside
+screen mode is deliberately ignored, because the serial/tile kernels still poke
+the cursor cell and those writes used to draw over the terminal or canvas.
 
 ## The baked boot script
 
@@ -191,10 +212,12 @@ keyboard.
 - If `boot_ptr` is zero, `read_line` marks boot done immediately and goes
   straight to the keyboard path.
 
-The script defines `free`, `mem`, `demo` and `ver`, and prints the banner
-summary (memory map, dictionary range, free count) under `Hello DeepForth!`.
-Because it is ordinary Forth, it compiles at boot rather than being a special
-image format.
+The script defines `free`, `mem`, `demo` and `ver`, prints the banner summary
+(memory map, dictionary range, free count) under `Hello DeepForth!`, and loads
+the flash screens (`1 screen`, `5 screen`, `9 screen`). The `9 screen`
+`games.fth` defines the game loader; the D16nano `gfx` call runs the showcase
+menu from the BIOS segment. Because it is ordinary Forth, it compiles at boot
+rather than being a special image format.
 
 ## What the tests pin
 

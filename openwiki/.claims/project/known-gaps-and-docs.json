@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:42cd3afb55be98409eea1c0f687d3ae823a1106a48819a7b252aad01629caabc",
+  "pageVersion": "sha256:1e472b494480476c9fa0a2728c98d8c30d484f5bebb30c6744b2f4e230326c9d",
   "claims": [
     {
       "id": "claim_bf5bd69e5b314eb59fd8192d8cc584dd",
       "statement": "doc/Deep16-FPU.md is a 732-line FPU specification with a fixed two-register window (F0=R2:R3, F1=R4:R5) and IEEE-754 single precision, but no floating-point implementation exists in js/, rtl/ or the WASM source.",
       "evidence": [
         {
-          "resource": "repo://README.md#L243-L245",
+          "resource": "repo://README.md#L267-L269",
           "version": "repo-lines-v1:sha256:389b3cc0d5d34cc192ed87907e2c79a9abbc9fd0a81353ff8caa87f4c360f05a:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmZjNzE2NjRkYWExZTU2ZTViNGNhOWJhMDI2NDQxOWVkZDcyMGRjMTkwOWJjOWEyOTBkZTYyNzJhMDY2YTVjOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjdlYzBmMmRkNjgyZjE4MjVhNGU4ZTUyNWZiY2EyZjcwNzRkMTE0NjdjYzdhYWE4MDQ2OWU4MjA1NDcxZGQ5YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDk1MmY0OTRkZGViOGVkMjE3ZWU2MTg3MzVkODdiNDg5OWNlNTgxZThmZjhlOTE5NjNmNzFkNGIyNTgyZjQyMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjBkYjA4Yjc0MGVjOWM0NmM4YzZjZTM4ZTkzOWUzOWRiY2MwODUxYWI2MmM0M2RjMDVjYTY0ODg3YzQzMzJmNSJ9"
         },
         {
@@ -35,7 +35,7 @@
       "statement": "The ILL trap exists only in core3 and covers only DIV/DIV32: a division that needs the iterative divider (non-zero divisor, and for DIV32 an even destination) redirects to the vector at physical address 0 instead of executing.",
       "evidence": [
         {
-          "resource": "repo://README.md#L246-L249",
+          "resource": "repo://README.md#L270-L273",
           "version": "repo-lines-v1:sha256:43cfcad7e7c7e919a6f7b2905ef5085e00d35f2857519530a3e744e68b7e3170:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjc1NWI3ODgyOWVhYzdmZmZhMDEzZjQ3YmY4YmQ3NDU0NWNmOTQ1NmFmOGU0NmIxNTk4OTMyNDNjODllYTkyYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjA2ZjYyMWNkYmYwMjQ5Y2I2ZGI0Y2JiZDQ1YzVkNzZkMWRkZDIxMDhiMDYzOTViYmQ4OTM1ZDk0M2Y0NTA3NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzg5YjNjYzBkNWQzNGNjMTkyZWQ4NzkwN2UyYzc5YTlhYmJjOWZkMGE4MTM1M2ZmOGNhYTg3ZjRjMzYwZjA1YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDZkN2YxYjA5NmRjOTM2NjcyMGM5ZTk5NzRlOGRjN2IxNmNjNTdkOTFmN2RhZTkxZDczMDdmOTkyNjNmZjFiNyJ9"
         },
         {
@@ -53,7 +53,7 @@
       "statement": "The full D16 core keeps a hardware divider, so only the reduced core needs the ILL workaround.",
       "evidence": [
         {
-          "resource": "repo://README.md#L246-L247",
+          "resource": "repo://README.md#L270-L271",
           "version": "repo-lines-v1:sha256:d926b0b1fbed2a1189e9933807ab82c55536db7bfce83cbb6fd0991145b7f22d:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjc1NWI3ODgyOWVhYzdmZmZhMDEzZjQ3YmY4YmQ3NDU0NWNmOTQ1NmFmOGU0NmIxNTk4OTMyNDNjODllYTkyYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2MzMWY0MzcwYmNjNzZkMWFkZjdiMjgxN2EwMjdiOTZkNWYzOGJmYWVmNjE1YmFmMWFkZDE1Zjk5ZTE3M2MyMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzg5YjNjYzBkNWQzNGNjMTkyZWQ4NzkwN2UyYzc5YTlhYmJjOWZkMGE4MTM1M2ZmOGNhYTg3ZjRjMzYwZjA1YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjgyNWRjMGQ4YmExOTU0Nzk0ZGRmODA4MjhiZjI3ODRjMTc3OTA1MDhiNjYwMzQzMjVhNGQzYWQyZjcyYzYzYiJ9"
         },
         {
@@ -67,7 +67,7 @@
       "statement": "The D16nano kernel installs a vector-0 ILL handler and emulates DIV and DIV32 in software.",
       "evidence": [
         {
-          "resource": "repo://asm/forth_nano.asm#L14949-L14960",
+          "resource": "repo://asm/forth_nano.asm#L15025-L15036",
           "version": "repo-lines-v1:sha256:5f764a33d863066bb858e4f0916a7a6f2b15ceaf059e0f10661eb0fa27db3a89:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMzZTBlZWM0NWNiNzkxZmM4YWZmZjE4NzZiOGQyZjhmNTUwNDI5ODY4OWFiMzc5YWI5NjgyMTZiZjE0MDU4YTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ4YTk1NzAzODY3OTEyNWQ0ODQwNTU0ZmM0MzM3NTY5N2U2NjIyODMxMjE1NjFhZmRlZmMyYzNmYmVjYWY3MjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImExYmYxYzFkNmMxZmYxMDczYjQ2NTgzZWIzYmYyODU5M2U3MTVhNzdkYzA2ZWQxMmNmODhiNWNmYjZhMWJmMjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU1OGFiZDEwOTczYTQ4NjdmMDhiZGM1NzllZWU3OGI1OGE1YzM2MWI4NjVlZThjN2M2NmQ3ZGVmOWQ5MzBkMzMifQ"
         },
         {
@@ -81,22 +81,30 @@
       "statement": "There is no general undefined-opcode or FPU trap; only the DIV/DIV32 case is trapped, and an unknown word does not raise ILL.",
       "evidence": [
         {
-          "resource": "repo://README.md#L246-L249",
+          "resource": "repo://README.md#L270-L273",
           "version": "repo-lines-v1:sha256:43cfcad7e7c7e919a6f7b2905ef5085e00d35f2857519530a3e744e68b7e3170:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjc1NWI3ODgyOWVhYzdmZmZhMDEzZjQ3YmY4YmQ3NDU0NWNmOTQ1NmFmOGU0NmIxNTk4OTMyNDNjODllYTkyYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjA2ZjYyMWNkYmYwMjQ5Y2I2ZGI0Y2JiZDQ1YzVkNzZkMWRkZDIxMDhiMDYzOTViYmQ4OTM1ZDk0M2Y0NTA3NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzg5YjNjYzBkNWQzNGNjMTkyZWQ4NzkwN2UyYzc5YTlhYmJjOWZkMGE4MTM1M2ZmOGNhYTg3ZjRjMzYwZjA1YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDZkN2YxYjA5NmRjOTM2NjcyMGM5ZTk5NzRlOGRjN2IxNmNjNTdkOTFmN2RhZTkxZDczMDdmOTkyNjNmZjFiNyJ9"
         }
       ]
     },
     {
       "id": "claim_5c2190b7d3934cd986ca3dd0467b6504",
-      "statement": "The SIC wires only the timer tick: the source vector is {raster_src, 0, timer_tick, 0}, raster_src is guarded by the D16_NANO macro that no build defines, and the I2S fifo_irq output is left unconnected.",
+      "statement": "The SIC source vector is {raster, audio, timer, keyboard}; the timer tick drives bit 1 and the synchronised raster toggle drives bit 3, while audio and keyboard stay zero. The raster source is a level held by dvi_tile until a control-7 write acks it, and the board path is verified end to end, including two sprites from one OAM slot.",
       "evidence": [
         {
-          "resource": "repo://rtl/deep16_top.sv#L241-L258",
-          "version": "repo-lines-v1:sha256:6a737b5147d99420129c43f9d7b38adb3e8499669d58af316e9a483280644606:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjMjNmNDVjMzVkNzIwZTc3NDZjZThlM2FlZGEyZDQ3ZjAwMzcwOTk1ZDA5MjdmMjhjMmRhNTQzOWYyYTljMDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzNDgyNDM2MWU4MzA3NDk4YmNjZGVjYTZkYTI2MGEzOTA4NTYwODkwZmNiMmQ0NzJiZGEyNThlMGNjZTRkZGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgxZDM0ZjY4MDJlNGVmZmRkMDYyZjJlNWJjMTA0ZDAyNzk5NjBhZDEyYTNjN2I5MjY2YTk5MmQ1NmQxZGUwNWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM2MGQxZTUzNmJmY2Q0YjU3YTgwYTk5ZWFlNmFiMDQ0ODRkNzBiNmExMzczMTlmNjg0MjE1YjA5MjRiMWNkNDIifQ"
+          "resource": "repo://ERRPLAN.md#L215-L250",
+          "version": "repo-lines-v1:sha256:eb2db7a43ede0bc9bf502c6db91adcc0996f16f1889eb34ea7271c59b2cf497c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmZWNjMjkxMTU1NjE2MzhiMWI4OGQ0ZjZkZDJhYmI4Y2M5NTlkYzQ0MDg5NzRjMjY5NjVmMjc3MjZhNTM5MDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc4YWQ5MjhiZTQ1NjMxMWJlMDYxMzgxZTJlYjM0ZjY1MTM0NDA1NjliODEyZWZjN2FkZjdlYWUwY2QwOTE0NTEifQ"
         },
         {
-          "resource": "repo://rtl/deep16_top.sv#L283-L296",
-          "version": "repo-lines-v1:sha256:648989e268dd6145c1e90cb1d0c19b79bca7a2f25b380592c03b03b2123c6243:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY0MTZjYzljOTRiYzFhYWM3NWRlNzQzZWVmODU0NGEwNjczZDI4NTNhNDg4MWYxMDJkNGRiMDA2OWRiODEyNTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY5YmYwYzdmN2ZlN2NiMzRiZTU2ODBjMWQ4YmU5NGFkNDBmMDNmYjk5YmYyMTZhYzI2YTNkMzA0OGE3YTk3MjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhjZjBjZGRmMjRhZWVkMTM1NWU2ZTVlMjJjMjk0MmRhOTJlMDc1YWVkYjJhN2I1ZDgzNTQ2MDY1YzJiYTgxNjYifQ"
+          "resource": "repo://rtl/deep16_board.sv#L277-L288",
+          "version": "repo-lines-v1:sha256:6beb7185b8d5e84b708c9fef9977fd8d0a5756d02533a5a878c7b5b7da7a52db:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5YzAxYWQxZDAyMTVjMGY0MWMzOWJhMzFiYzc3YjIwMzA4MDZlODFiMDE2M2NlNWMzMTg1OTY4MmYyODYxNzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlZjA0ZjIxZmE4MTBhYzcxN2QzNWY2YTA1YTU3NjQzMDlkYjE3OGYyMmNhNjc3YTQzYmIwMzg2ODJhZDZmMDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRhZWQyY2YyOGFhYTU3ZTQxMzM0OGY2NzkwYTM3NjgyN2M4ZDA3ZGZiZDNiMjcyOTM3Yzg4Y2RlZmM4YzBlMzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIxNDVlMDZhOTkyYTg2MjIyM2NhMDBhYWVlYzYyYzUzY2ViZTE1ZjIzMDE3Y2U0NTQ5ZDIyNTI0ZWExYTdjNzcifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_sic.sv#L30-L45",
+          "version": "repo-lines-v1:sha256:0d6e5d69f2eee0410f25368dd7d1bece809e0af0786c5e2e3c0bcfb50f98728d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI5ZWJiNzI1YTVmNWI3MTk1M2Q4NDJjOWY2MTYzODQ5NDc2ODI3ZmNhY2JjNzQ1OTFmMzA4ZDY1NTMyNzRhOGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3OTgxMWM1ZmJlMjVjM2Q0ZTVmM2QxZmQzNWFiOWRhNmJjZjhhNjhjNWVkZjlkNmJhOTdmNjg2ODZjMzk2ODAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc5MWExNTNkYjQ3YjQ1M2RkMmYxZDE5OGUwZmVmOWJiNmEyMDdkNWY0YWQ2NDc2ZWFjNDllZDM4N2VmMWJmZmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA1N2JkYmMwMGMzN2M3YjJkYmUyOWRmZTA2ZGFkYTY4YjZjNGUxZGJkMWFiOWUwODM3NzM4Mjc0NjM2MTI2YTQifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_top.sv#L242-L255",
+          "version": "repo-lines-v1:sha256:2d0215a56ae1c47d68b50a21f8a82401dcc7b19559f3da43c012e520c24508fb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmYTYzMjEwNmEwYjVjNTc1YTUxYjY0ODU1NmM0OTVjODQyNzcyMmQxODI4YzIzYzIxMTc4NGI1ODljODNkNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRlMmUwNTc4NDhiOWUzYWYyNTE5ZjIyMWExMGMwMWZhZDM4YWVlZGNkMjliOTBlNTg5ZWU2MDg2ZGZjNjBlOWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIxNGY0NzcyZjkzZjkzMzcxZGNjMWU0Njg3NTRmOGFmYTE2MWRlZTExYWUyMDAzYjIwNzQ0MGRmZDIwZTc0MDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIwM2I3NDI4NjNiNDY4N2RjZjkxMTEyN2Y0MTBiNGE2MWVjYjAxMmU3NGIwZDEzMWZhMThjOWQyMDM1ZGJhNTgifQ"
         }
       ]
     },
@@ -123,11 +131,11 @@
       "statement": "The JS core implements handleHardwareInterrupt and an irqLine hook, and the WASM core has neither an interrupt input nor an interrupt handler.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_simulator.js#L1450-L1480",
+          "resource": "repo://js/deep16_simulator.js#L1474-L1504",
           "version": "repo-lines-v1:sha256:5c474db6c65004a381308bd6028fa981294abfa3ee70880b56f6dcf0062fe7ce:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1MjJjNDJjZDE5YzZkMDNkODA4YzQ1MjcyMDU1MjgyNWI3ZWExYzViNDkxYjIxODUxMWNhYzc0MTVjZjlkOWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQyOTViZGNkZWNiYmIwYjliNTRhZDFmYzJhNGRhZjAyMjAzNzliMGE0ZjY5ZTZkZWI0ZDU3ZmQwNjI3NDlhNmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQyNDg2MWQwMTllNDM1ZmNhYzNkZmUwNjgwMjBiN2I0NWI5NDgxOWMyMDQ4NjIzNGRmYWEwNWMxYmZjOTNhNTUifQ"
         },
         {
-          "resource": "repo://js/deep16_simulator.js#L1583-L1590",
+          "resource": "repo://js/deep16_simulator.js#L1607-L1614",
           "version": "repo-lines-v1:sha256:4354565a0ccec29f47ceb074d829f8e094a916bd6399e60bd8a0914ea0390389:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjVlMjY2NzQ1M2EyYjkyZWZiNDk0ODUwZDQ3ODJlODExMjUxY2ZlZGMwNDIxMmM4NDMxYmM3YWM3MzczMTk5OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2MxYzdkNDkyZmM5NjliYTMwNGM3NjQxNzdhZTk3ZGM2ZjEwODdiMWRiMDQ3ZTY1NjZkY2MzNDhjNzU5MzIzMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjRmY2Q5OWFiMDVjYzQ0MWU2YzY0YWNjMzA3NjgyZjI4NDJiZDA0MDY0OTI4NmI1MWEzNjhlMDA2MDYwMWJlNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTczNDFkNTQyYWJiNzVlM2E4Y2I5MjhhMTZhODcyMTBjMTAxZWUzYTZlOTU4Zjc5YTUwNGNlNjI1ZjIzOTYzZiJ9"
         },
         {
@@ -141,7 +149,7 @@
       "statement": "README's statement that hardware-interrupt handling exists only in the JS core and that the RTL core has neither predates core3, which does implement interrupt entry; three-core interrupt behaviour still differs.",
       "evidence": [
         {
-          "resource": "repo://README.md#L250-L253",
+          "resource": "repo://README.md#L274-L277",
           "version": "repo-lines-v1:sha256:2469999755e72a1cb4a94efecd61eb465780de1fcd67a25bdc7b899663c17d6d:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWNmOGIyYmE1YmE4MzViMDUzNzNkNTY1OGE1Y2ZlY2Y1MzU1NjMxYWIyNWNmODlkYTkyYzY3OTlhMDQ1YTdiNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGMxOTg0YmNlYzE1ZWNiYjk1YjkxODExMDJkYTRjMjRlM2EwZGU4MjRiYWE4NTg3MWIxNDFhNDJmODVhNTdiNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmJlOGVjOWQwZGQ1NWE1MWZlMjBjYzZlZjVhNGYyZWIzODVhMWFlMjZiZDY3OGUyOWM3YjM4ZDAyNjc0YzUzMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWQ2OTc5NjJjNzM3NDZhNzdhYzYyZTMyODQ4YWUxMTg2OWVlNjczNDJhYmM1ZjE1NDNiMWU0MGE1ODQ0MDMwYyJ9"
         },
         {
@@ -152,7 +160,7 @@
     },
     {
       "id": "claim_0cd58b2458ec4262ab5bb6b47ea24296",
-      "statement": "WASM lacks the SIC, SPI, SD and screen models, and has no interrupt input, while the JS core models SD/SPI/SIC and carries a d16nano ILL flag.",
+      "statement": "WASM lacks the SIC, SPI, SD and screen models, and has no interrupt input, while the JS core models SD/SPI/SIC, the FiT engine bridge and a d16nano ILL flag.",
       "evidence": [
         {
           "resource": "repo://js/deep16_simulator.js#L1-L5",
@@ -160,15 +168,11 @@
         },
         {
           "resource": "repo://js/deep16_simulator.js#L257-L275",
-          "version": "repo-lines-v1:sha256:c08c07f996e983bc6b3a4cefe09923c2bf343b0b449ee9bad099622e8741abab:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2YmYyZDNhMGU1NGIwYWQzOGNlMzBiYTBkMGJjYmI3MTM3NjUzMzZjOTlhMGViNWYxNWI0ODU0MjUyNTBmMWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhYWI4M2MxZWVkOGZiNzJmZjc4NTIxM2Q3YmRiOWQyNDdiOTVjMzU0MjI4ZjZhMWU1N2NjMTFkMTRlZjBmYzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUxNzU4YWQwZjJjMDQ5Zjk5YzQ3NTJlOWRlNWQ5MGFjMjcyMDZkMDVmM2U4Nzc2Mzg0ZDU5Yzc1MDdmYTY1NmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVjZWI4NzY4MGE3ZTFjYzBlYWYzNDhmMTNjZGVmMTY4MWQ5OThhOGU5MTQ5ZTk5Zjc4NTA2MTQ0ZWQ2YzRkOTcifQ"
+          "version": "repo-lines-v1:sha256:0ca2af8aafc6724f7c225dfdafc393c6ea49a423bd519be1dce1f28b5258b755:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2YmYyZDNhMGU1NGIwYWQzOGNlMzBiYTBkMGJjYmI3MTM3NjUzMzZjOTlhMGViNWYxNWI0ODU0MjUyNTBmMWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdiMGMwMDcxODcxZTE0ZjMxZGE1YzJjN2ExNjk4NTQxMjQ1M2Q1NDgyZmIyNzEyYzNlOGY1NTBhZTc2ZmI4ZGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUxNzU4YWQwZjJjMDQ5Zjk5YzQ3NTJlOWRlNWQ5MGFjMjcyMDZkMDVmM2U4Nzc2Mzg0ZDU5Yzc1MDdmYTY1NmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg2Y2E4YTcxNGFkM2I2NmU3MGYyZTE2ZjNlMzI4ZjI2YmQ4YWVlOTRkMzBhYTY4ODU3YTZlYjJjMTIwNjZlMDYifQ"
         },
         {
-          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L1020-L1070",
-          "version": "repo-lines-v1:sha256:a0de03170d6a2365daabd949dbd7786db20cd4491cea06b03c5d57f7867769cc:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjNTQ0YjVhMWYyOTVhOGU1YTNhMzllMzRiOTRmOWMzYTE4ZDBhN2UzMjQ4NDhmMDU3YzFhYjY5NWZmMzk1YmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFiM2U0MDU0NzgwY2U3MGE2OGJkNjRmZDJkMDk1NjBhYjJmMjVkMmE0MGE3YTc2OTlmMjJlMGE1ZmFjOGZlNDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4ZTk4NjMzNzBjZDE1MjJkMzFjMTQyN2RkN2JlOTk5MjM3MWExM2ViMzJjZWEzYzMyNTg4YmZmNTViM2Q0ZjAifQ"
-        },
-        {
-          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L5-L17",
-          "version": "repo-lines-v1:sha256:b76a57f248b21b77bfb791801fb8d45610c2e2a976d38bf9935987e30b852ef3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxMGJkMTYwNDgxNGU5YTc3M2ZlMGFiM2ZiM2VmYmU5NDkxMjViYjQ4NDVmMDEwNDcxN2E5M2E5Yzg4OTBjYjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ2NjY0YzdiMTUxZDAyNjU4ZmUzZDljY2IxNzlmNDY0Yzk3MWEwYTU2MDMwNmQwM2U1MTJkMzc4MWZkNDA0YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY3NDMwNWU2MDY4ZGI3M2M2YTdhNWMxYTcxM2I0ODYxZGJiYjZkNjIwMjUzMzIyODc3ZDgzZTkwODk5ZjEzNGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQxZWM5M2RlNjgzZmRmMjRmNjM2MzRjOTBiMWI0ZjhjYzA1MWU0ZGExODNjNGEyMzc3ZmY3Y2U3YjIwNDYzNjMifQ"
+          "resource": "repo://wasm/deep16-wasm/src/lib.rs#L1-L17",
+          "version": "repo-lines-v1:sha256:198dfcac60954dcceb989daa1785bcbe1b40116248f3f0924be64ffad7e8b89a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmZjkzZDlkNzAzODRmOTkxOTkxMjRhZThmNDk0MmZkNTlmMjQ5YWJmZDMyMWVjNGZhMDliZDQwNTFkMTI3NGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ2NjY0YzdiMTUxZDAyNjU4ZmUzZDljY2IxNzlmNDY0Yzk3MWEwYTU2MDMwNmQwM2U1MTJkMzc4MWZkNDA0YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQxZWM5M2RlNjgzZmRmMjRmNjM2MzRjOTBiMWI0ZjhjYzA1MWU0ZGExODNjNGEyMzc3ZmY3Y2U3YjIwNDYzNjMifQ"
         }
       ]
     },
@@ -177,7 +181,7 @@
       "statement": "The short core-counter line is implemented for narrow screens: responsive CSS hides .core-stats and shows .core-stats-mini below 900 px, and the controller fills both with CPI and cache rate, while README still says the short form is not visible on phones.",
       "evidence": [
         {
-          "resource": "repo://README.md#L254-L258",
+          "resource": "repo://README.md#L278-L282",
           "version": "repo-lines-v1:sha256:308c4942972d6d95b532ef8b490fbe4b2f1de67401a3748b8dc9a459bac51066:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTcxNjhiY2YxY2IxZWNkM2M5ZTU0ZGM1ZmVjOTY1YzJhMTZlOThlMDdkNDU3YmQyYzRmNjFiOWJmODczZjFhNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2QzODZiOTk0N2Y3NDVkYjlmODY3NGJlNjMwYzY4MjI2MGRiM2IwYjk0MTAxZTYzMTUxNzY5NDQ1ODkwMDNjNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzUwMDgwNDNlM2E5MTA0ZWFhYjdjODU5ZTAxNjM5ZGZlZWZjOGZhYzYyNTg2OTU2NGE2Mjg3YThjYmUzNmZjZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzQ1ZWVjZDc5OGMwNzJiZTg1MDY0NGZlMGI2OWQ1M2VmZmFmZWE5MjBhY2I1N2FiZjI5YzZjYTQwODE1ZTU3NSJ9"
         },
         {
@@ -185,7 +189,7 @@
           "version": "repo-lines-v1:sha256:bb94e015d4346554c507d8ec3b65abdd62ebf2ad94fbfe847a85bbf9c21666d1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ1YmViY2QzMTZkZDRjZTMwMGVlNGU5ZGQ1MzY4N2U0MDBiMjY4YzExZTBhNGNhOGFiYzQ1NTgwN2ZiZTRmYTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ3YmYxYzIwNDk3NDk0NTQ4MDM5NzA0N2U1Y2FkMTEzZTlhNzViNDI1NGQwZjcyNjhiOTFkNTNhMjEzMGYwN2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI3MTc1NjA1MTk5NGM1Yzk1ZGQzNGFlMjc3NGVkZTRlYjVkZDk5YzhkYWI1NzI3NGM1YTVjOWUxZDZmNWFmZTEifQ"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L917-L962",
+          "resource": "repo://js/deep16_ui_core.js#L1075-L1120",
           "version": "repo-lines-v1:sha256:0aa2b2123978cc1c67e8dfd764eab70582d838c48695860b8322711afa6e0932:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1MGY5Yjc1MWRmMGM5N2Q2ZDU1YjRjMzQ1OThlM2M3YzNlOTRmNTlkMjg3OWU4YmE1ZmRkNzQ0ZWE1ZGQzY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1MjJjNDJjZDE5YzZkMDNkODA4YzQ1MjcyMDU1MjgyNWI3ZWExYzViNDkxYjIxODUxMWNhYzc0MTVjZjlkOWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYzN2I1NzY0MDM0Y2MzZTQwNWI5MTUxYmU5NmU4NTJiOTY1ZThiNWUzZTFkMzkyMGI2NTdkODAxZjNmMjZmN2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjNTFjNzI2NmU3OGE1OTNhMGQ3ODAxMTk0NTdjODg3YWRjYjMyZmUyODRlYWNiYmJhMjA1NWFiYzQyMzRkN2YifQ"
         }
       ]
@@ -195,7 +199,7 @@
       "statement": "js/deep16_worker.js is a complete simulator worker, but no Worker is constructed, no script tag loads it, and workerRun posts to an undefined this.worker, so execution stays on the main thread.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L2353-L2360",
+          "resource": "repo://js/deep16_ui_core.js#L2526-L2533",
           "version": "repo-lines-v1:sha256:889579e6ac0ff3d333e85dfbce20308a166ff0af41275787588d29fb7617acae:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDg0N2FmZGM0YTQyOGRhMTI5MjBlMzcwNmQ1ZDRiOWE5MjA4Y2JkMjMxZWU2NWIxYzVlYmVlMGIxYTUwMzg4OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDk0OWI3N2UxOTk1MWQ4NWM0MzBkZmY2ZmZmZjk2YmIyMGRjMzViMGYxNjgzODg4NGU0MTgxYTM4YmNlZDk2MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjYxNGQ0Nzg0OWU2NTkzZTcyZGJmMDg4OTg1ZGI4NmNlYzU4ZmJlYjFjZDA5N2UwZjA5YjM5MmI1MTQ0ZWNiYyJ9"
         },
         {
@@ -209,7 +213,7 @@
       "statement": "doc/ is the single current documentation set and old/ keeps superseded versions and Lua tooling as reference only.",
       "evidence": [
         {
-          "resource": "repo://README.md#L259-L261",
+          "resource": "repo://README.md#L283-L285",
           "version": "repo-lines-v1:sha256:745eecd798c072be850644fe0b69d53effafea920acb57abf29c6ca40815e575:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWYxNjYwNzQ1N2ZmZDZmYjcwMDNhMWUwMGFkY2Q1N2U5YTE1ZDVhMTdlNGU3Y2RjMjM5YzgzMzQ0YzY0MzFhOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI3NjIwZWNmN2RjOGY5YWM3Y2JiMDY3ZTBmMjY2OTgxNjA1ZWQ2ZmJiMzgzOTlhYTFmNjk5MzY5Mjg0YmU3NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzQwN2Y0NjBkNWMxYjk4Y2IxZmIxNWViZDA1YTUzNzE3ZjQ0ZTVmMDVlNjBiNjRhOTAxYzkxYjcyODdmZjcxYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2RmYWRiMmJjZWMzZTkyYTgzMTc5MDMwZjFhODI2ODY1ZjM3NDNjODc4MDIyZTlmOTYwMWI3MTBkOGM0MTQ0OSJ9"
         }
       ]
@@ -219,7 +223,7 @@
       "statement": "MEMMAP.md claims CS1 is pin 25 and the on-board configuration flash is unused, while the tile build boots from that flash over MSPI pins 59-62 and pin 25 is I2S BCLK.",
       "evidence": [
         {
-          "resource": "repo://MEMMAP.md#L422-L425",
+          "resource": "repo://MEMMAP.md#L430-L433",
           "version": "repo-lines-v1:sha256:9d2e286721279ab6ff0809971d39af5a271fb02686dd05b13a46fdd53c427daf:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzcyYTMyMzZhY2FiYTdlY2UwN2UyYzgzNjFmZTM4ZjJjMjk5YzQ1YTI2MmY4YWI1OTk2MjZmZDRiZjg1YTQ3ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzI1YzI1MDhmMzlhNjJlNWM3ZDM2OGM5ZTA1YmY4YjZkZjNkMTVmYmQzM2ZjZjk0NWQxNWNiYmIzYmRjMjUwMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGI4YTRlZGM1ZWFhMDdlZWEwMzIzYmJhYzZkMzdiMmVkYjlmOTY4YTFjMTE4MTY2MmY1NGQ4YmE1MGM2MzMxZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWU3OGU5YTMxZWNiOWNmYjQyMGM5ZjZjNzk1MWVjMTAzODQ2YTlhNmUyMjk1ZDAyMDYxYTU4Yjg0NmRhNjY4ZSJ9"
         },
         {
@@ -233,7 +237,7 @@
       "statement": "MEMMAP.md describes UART divisor 234 as the 27 MHz value, while the RTL derives the divisor from CLK_HZ divided by BAUD.",
       "evidence": [
         {
-          "resource": "repo://MEMMAP.md#L290-L290",
+          "resource": "repo://MEMMAP.md#L300-L300",
           "version": "repo-lines-v1:sha256:dce418ffbe7e5a2e012733de27a7302078a0f337a501e9ecb4552fd6e040bef3:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGNlNDE4ZmZiZTdlNWEyZTAxMjczM2RlMjdhNzMwMjA3OGEwZjMzN2E1MDFlOWVjYjQ1NTJmZDZlMDQwYmVmMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGNlNDE4ZmZiZTdlNWEyZTAxMjczM2RlMjdhNzMwMjA3OGEwZjMzN2E1MDFlOWVjYjQ1NTJmZDZlMDQwYmVmMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDVhNzg4MWQ3ZDNhODJlYWQ1NDRiOWFhZTE4YWMzN2Y0OTg5MmJlMzA2ZmMwODViNzkxZDlhOTMwZWU1MDEyZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGE5OTE0MDRiYTAxYjhiYWU1OTFmMDU4NmNiOGY2YTQwNzNjYmQwYzc3ZDhmOWI4OGZiZjk0YmY4N2U5YTNkNCJ9"
         },
         {
@@ -258,35 +262,23 @@
     },
     {
       "id": "claim_1a030fec7b544ee3afc64ed25b623216",
-      "statement": "The root plan documents each declare their own status: TODO open, SCROLLPLAN in progress, BIRDPLAN plan only, SLIMPLAN a measured design note, IMPROVE planned-not-applied, ERRPLAN open items, FROGPLAN a plan with a hardware update, FPUEMUPLAN agreed but unimplemented.",
+      "statement": "The root plan documents each declare their own status: TODO open, SCROLLPLAN in progress, BIRDPLAN plan only, SLIMPLAN a measured design note, IMPROVE planned-not-applied, ERRPLAN open items with the raster entry now board-verified, FROGPLAN a plan, TILESIM implemented, and FPUEMUPLAN agreed but unimplemented.",
       "evidence": [
         {
           "resource": "repo://BIRDPLAN.md#L1-L6",
-          "version": "repo-lines-v1:sha256:4a3300533e93f03797f76a59a1ee0dbe0aca7a4629954a49d5ba4d4ecd4f6701:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjVlZDIwY2U4NTc1NzA2ZWNmNzljMWM3MzM3ZmI5NTMxOTE5MTQ3OTg5MTFkMWFmZTAxYjQ5OTY3OGZiYjAxNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzRhZGEzMTVmOTA5MWNhYzA2ZjYyYzVkMDQ3MDhkODQ1MDc3NTUzNzRjYWQyMTA5NWVhYmFhNWVkN2QwOTZmZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGExOTcwYTgxOTYzMGE0NDA1Mzg4ZTJiYWY0MzU2MDU0YmRlZmRlZGVjMjRhZTQwYzJjNzJkYzk5MzI0NTQwZCJ9"
+          "version": "repo-lines-v1:sha256:4a3300533e93f03797f76a59a1ee0dbe0aca7a4629954a49d5ba4d4ecd4f6701:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjVlZDIwY2U4NTc1NzA2ZWNmNzljMWM3MzM3ZmI5NTMxOTE5MTQ3OTg5MTFkMWFmZTAxYjQ5OTY3OGZiYjAxNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzRhZGEzMTVmOTA5MWNhYzA2ZjYyYzVkMDQ3MDhkODQ1MDc3NTUzNzRjYWQyMTA5NWVhYmFhNWVkN2QwOTZmZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmQ2ZjVmOTIxNDY0YzZiYzE5ZTI2NzgxYjU0MWIyZTJkYWI4Y2U5Y2E4OGRmNTY0MGM1NjgxY2FhZWQ0YzM4MiJ9"
         },
         {
           "resource": "repo://ERRPLAN.md#L1-L6",
-          "version": "repo-lines-v1:sha256:6d616500439ca13db9df4ab109fd4437b5814c8944d9f88a47749266badaaba2:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWQ5OWE1ZDVkZmQ3MzhmZmM0NGNlM2U5ZDUzY2RmODg4MmI5NjY4NjE1ZDkxOWE2Nzk3MzllNWViNWY2YzJkNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzg4NTk1ZjU5OGM5YWVlMjgyYTVhZDA4NmUyYTkyMWNkZGMxMDI0Y2NlZDVlNjRhZjYyZGI0MzE4MmY3MDM4NSJ9"
-        },
-        {
-          "resource": "repo://FPUEMUPLAN.md#L1-L8",
-          "version": "repo-lines-v1:sha256:c99306ecadac8c66926ea9c24c4279af731472ab034cb004176b2b844bb23426:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWUwMDAwOTM2MDVlOWViYTBiM2ZlN2VmMGIxZGZjMWU5NGVkYjQ5N2YyYzZiMWRjNDI3NTE3MTA5NWI3MjhiYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWIwZmM0Mzk2MGE3MDA2MjI0Y2IwZjhjOGNhYzg5MzkyZTZlYjM4Nzg0MmQ0Y2U3NGY5YWExZGEyYWQ3ZDY2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWVjMGYxYmM5NTRiMzRhNzMwMzE3OTUxMzBmNjExZWVjNjc4YzFiNjFiY2UwOWNkNWJjMzQwNmU5MGJlYmExMSJ9"
+          "version": "repo-lines-v1:sha256:6d616500439ca13db9df4ab109fd4437b5814c8944d9f88a47749266badaaba2:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWQ5OWE1ZDVkZmQ3MzhmZmM0NGNlM2U5ZDUzY2RmODg4MmI5NjY4NjE1ZDkxOWE2Nzk3MzllNWViNWY2YzJkNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWMzNjVhYjE4N2RkZWI4MjE1NGNkMjY0ZWY1NTU0MGE5MGUwMDgzMjE5ZTdjYWZjNWJmZTM5Zjk0YzZiNjZlMyJ9"
         },
         {
           "resource": "repo://FROGPLAN.md#L1-L8",
-          "version": "repo-lines-v1:sha256:dfd11023c8a67d77d5ed39aafea75abcda4dee0cf73e445bdccf0f9601054667:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTY5MTY2NTA1ODQ3YThlMTZkYTdkM2MzNjczOGM1YWMxMTY5ODY0OTZjZjJlMmNmNjk4NWJjMWY5YmI2NTdhMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODA1Y2RhMWUzOTRmY2Q5NDBmODI0NjYwMjU4MzQzZTI4Y2I4NmI2OWRkNTkzNTkxODMyYjk3NzIwNzFjYWRmZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGMwNTQ5YTMxMTljMTYyMGViYzkzZDk1ZDBkZmU5YjlmMzZkOGRhZDI2OTI5YzZlNGNlZDk1ODczZjc5ZGJhZCJ9"
+          "version": "repo-lines-v1:sha256:5096a03bf5e354c22fe4425ecb92444edcc11f885c7512af406601e0cffb32dc:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTY5MTY2NTA1ODQ3YThlMTZkYTdkM2MzNjczOGM1YWMxMTY5ODY0OTZjZjJlMmNmNjk4NWJjMWY5YmI2NTdhMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWY2NGU2MjNkZjQyMzNlZjA4Y2EwZmI0MzUwNzQ4ZDQzZDg3NTViMGE4NDQ5ZTAzZjhlOGI0ZGYyYmMzOTdkNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjJiNzY4MWVjNzk5M2Y1ZmQ3NTlkZTU1MjgxZmExYjhjNzUwMDI5YWUxMGNiOGQ3MmI2YWNmODQyOTY3YzZjNyJ9"
         },
         {
-          "resource": "repo://IMPROVE.md#L1-L6",
-          "version": "repo-lines-v1:sha256:12942426b43f4e86bac1bde42506bb2ba602467eaa29edfd6f7a3f5cb8e06942:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmQ2YjJkNmVjNmEyYmFmYmRmOTI4ZGIyOWY0MmNkODkxMjkxOWExMTVjMzU1ZGY3ZjRmMThlYWU0YWMxZjIyNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmQ3MDg3YmMyZWY2NjJlNWNhNGUzZjRmMmNiYmI3Y2Y0ZDM1MTM3MzdlZDllMzA1MDk5MDQ0MWE4MmIyOThmMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2VlZTA4NDkxNDY5Y2M5M2ZlODU0NjliYmI1YjViNDE0YzYzZDdlMTI5YWIzMjY3NzI0NDNhY2Y2ZjdhYjI1YiJ9"
-        },
-        {
-          "resource": "repo://SCROLLPLAN.md#L1-L6",
-          "version": "repo-lines-v1:sha256:eb0d92b855af6d78be26c19eca2cd490f4b380e50ddb21eb99af121da51cff20:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGUwYjUxY2RlMWJmMGFkMjkyNzE2NGVjOTA4Y2M2OGE5ZWI5NzVkY2YxOTkyMTA4ZWUyYTM1YTczNjVhMGY0OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDdlZTA1YTRkMWM2YWU2MDg5YzVlNjJkNDI0ZDFmODkwNzBlZDIwMDFiNDY5MjRjNDY2OGIwZDlmZDE4ZWE2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmFiYzlkZjNiZmU3M2M2NGY2ZTU4NTEwNmYyZThiZjZmZGI1ZTg3N2EzOGVmZDc4NDMxNDJkOGZhMjAxMDUwZCJ9"
-        },
-        {
-          "resource": "repo://SLIMPLAN.md#L1-L8",
-          "version": "repo-lines-v1:sha256:9eba44f2157204b5571d8ba25530952c9c13812f74ce6ba2b50c1d376bc3d364:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWI5YjQ2Njk1NmJjMjIxZDY0YWY5MTI0OGU1M2Y4NWVlYzdlYzk4MzE5ZDZkOTk5YzBiMjA5M2FmZjM5MWViMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2JkZGUxOTJjYWM2MmQwMWEyMDIzMTU0ZjA5ZWQ5OGNhZWEwYzNkYzBlODU0ODJjZjRiNjVlYjUyNjIxZDA4YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZThhOWE1ZmM1N2FlM2M2NmM0MjUzYTkxNzQxZGQ0MjRiNzdiYTZhOWZhNTg5MDdmMDcyYTAxNjMwNGIyMDM1OSJ9"
+          "resource": "repo://TILESIM.md#L1-L12",
+          "version": "repo-lines-v1:sha256:edb27e01d3f08a7efc58eecda2d8db7c5eb31670f1ed6a882179b9e643d56291:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUxNzI3MGIwNWY1MmNkMmE5MDAyZDIwNGJmNTA3NTM0ODA5ZjRjM2Y1OTJhMTAzZTYyMzhkMDliYTFlYWRmN2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ5MmQ1NmM3ZmE0OWFjNmRkMzM4MGFkN2UwOThhODc5ODg4YWY0NDU4NDUxYWM1NWI1NWNiZTAxZGI3MGNhZTkifQ"
         },
         {
           "resource": "repo://TODO.md#L1-L5",
@@ -359,7 +351,7 @@
       "statement": "README reports that the original project summary claimed PRODUCTION READY and explicitly calls that aspirational marketing text rather than a status report.",
       "evidence": [
         {
-          "resource": "repo://README.md#L228-L232",
+          "resource": "repo://README.md#L252-L256",
           "version": "repo-lines-v1:sha256:ff5945751743a3bf173ab97d73448dbf89fcf927060ff857153ae0c37fe3ec6c:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWJlMzYyNjczNTAxMDJlNGU1NTliOGYzNmU5MDkwYTZmMGVlMmZkZDRjZjhhMmY0OGQxMzdmYmY3NjQwMjVmMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmJlMzFlZDA3MzIwNmFkMDhiYWFjNmVkZjEyNzM4MDI3NDFjMzliNDIzMjQxMWVlZTYwMTNjMDUzNDRhZjRhNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWJhMTcxYTQ4ZTkxYzA2Y2MxMjkzNGEzMDhhZWZiNTQxMGNkMDM3NGQ5MTMwNjA4Mzc5N2U0NGU2NDczY2U0MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzBlODU3MWUwYjEwOTYwYTdjYWIyNTE0ZDZkNGNiYmYzMzE2YTFiYmUyMmUwMmQ1YjQ5YmMwZmY4NzllMTA2OCJ9"
         }
       ]
@@ -369,14 +361,56 @@
       "statement": "README's verified positive case is that all three cores agree, assembler and disassembler round trip, examples assemble and run, the Forth kernel is an interactive REPL on all three cores, and the RTL core is verified across the instruction space.",
       "evidence": [
         {
-          "resource": "repo://README.md#L233-L240",
+          "resource": "repo://README.md#L257-L264",
           "version": "repo-lines-v1:sha256:90aa43be8919fb8cef2a43d250c89c5ad68d0a2089a3348a3e15f450fb62574e:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWFkNWI3YTIyOTVmODhlMDVhZWI5Y2NhMDRmY2E2YWI4MDg1ZGZjZWE2NDU3YjIyNWY5ZDhiYzgwYWZiMjVlYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGE3M2NmYWNkMDc5OTk5NTlkNWVkYWM4ODg3MmFmYWYyN2Y1ZDllZDM5YWNhMzc4OGFjZWNkNjFlNDc2ZjFmNyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d5e34951b49347b5b3bbcf3b85876542",
+      "statement": "The D16D menu's Pac-Man entry still jumps to the old 0x4330 image address while the game is a config-flash slice loaded at segment 0x2000; the menu needs the games.fth game-load/call-far hookup.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L160-L161",
+          "version": "repo-lines-v1:sha256:fba52d03edb575d5c5c5bec37882f41aa552437d318d7ef4e2254f14210c7173:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMmZlNTBhYzkwMzhkNTNiM2M4MWJmMDhjMzg1OGVmMTA0YzFhYWUxMTBkNWQzOTI3YjhlMTRjYWNlY2EyMjFmZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjFjNGJhN2Y1YzI0ZjJjODdlOWFlMzk0MjUzNGRmMTIyOGI4NDkyNTU4Yjc3YTEwZTBhYjhiYTBkMTUyMjJiOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTUxYTNhMTgxODY5YTNhNDY3NTc2MmE5NmU3ZDRlYjEyZWUyODY0YjM1YWYyMjVmOGQzNjI5NDU2YmJmYzE4ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWEyMGIzMmEzOTUyMjdmYjExYzc5ZDk0NDMyMTRjMDYyMGM2NDgxYzI5MzdjNmNlY2FjZDY4NmVmOGZkOTJlZCJ9"
+        },
+        {
+          "resource": "repo://MEMMAP.md#L234-L235",
+          "version": "repo-lines-v1:sha256:1567c79b3056559c96d5083969c80b9b568a8acfe091c32937af82c4f6d942e4:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2FlZTYyYWZiNjhjMTVhNzJjNzVlMTE0NWI0MjUxYjA3NWI2ZTBhYWI2MTY2ZTI2ODRhYjcwZTE4Yjg4ZjQxNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzNiODdmMjI3ZGM1YzZhNzNkYzU3ZDkxODNiNWY5ZGIwZDlhZjY5MWQ1MDFiMWUxNTE5ZTg5MTg3Yzk2MTNmYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWM2MGE3MDU1MWY5YWZiNmUyMGVjMmMzYjA3MThmNDA2YmI3MjhjNWZhOWJmNmU4NjcwYWRiNTgzNDI5OGVlMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjM5YTRmZTYwZWY2OWFmOGFmNDdiMjcwOGU5NTk1OWRiNzdkNjk2MDRiY2M2MDkxZTRhZTg3NWJlM2Q3N2EzMCJ9"
+        },
+        {
+          "resource": "repo://asm/showcase/showcase.asm#L386-L400",
+          "version": "repo-lines-v1:sha256:66c30ba96f5648c6e9cc8bf3721eb20131a32c1774a9a703d876311ed529c391:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhMzM0Yjc4ZWUzMzU5ZWJiYTFiN2ZhNTczMmY3YTc5ZTFkYzAxZjliZDI3NzU2ZjdlZWNjNTg0ZGM1M2RjOWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YWMzNDBiM2ZlOThmYjNmM2JhZThhZDE5OGQxMDEwYmFkMWQ1NDM3ODBiY2IyYWU3OWM2NjkyN2E3MzFlNzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVmZTMzYjZmMGZhMjI5Y2M3OWQxNDA2MDAzZTY3ZmJkMTVmNDA2M2UzZGZiMTE3ZDA1M2ZhNTgyMjM1NzYwMzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjMzg0ZWZmODliZDUxZTQyM2U1YzljNGRlNWRkODFhNjA2YTY0ODkwN2IzNDFlYjdmM2EyMmUzMjJjN2ZhYmQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8919c1973f9e4cbc9222af4bcf420e34",
+      "statement": "The old board probe measured 135 raster ticks under the level request; dvi_tile now edge-detects one request per compare-line visit, and the later re-measure showed the remaining double service was the handler's W1C ordering. A control-register band retest is the remaining open item.",
+      "evidence": [
+        {
+          "resource": "repo://ERRPLAN.md#L215-L250",
+          "version": "repo-lines-v1:sha256:eb2db7a43ede0bc9bf502c6db91adcc0996f16f1889eb34ea7271c59b2cf497c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmZWNjMjkxMTU1NjE2MzhiMWI4OGQ0ZjZkZDJhYmI4Y2M5NTlkYzQ0MDg5NzRjMjY5NjVmMjc3MjZhNTM5MDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc4YWQ5MjhiZTQ1NjMxMWJlMDYxMzgxZTJlYjM0ZjY1MTM0NDA1NjliODEyZWZjN2FkZjdlYWUwY2QwOTE0NTEifQ"
+        },
+        {
+          "resource": "repo://rtl/dvi/dvi_tile.sv#L300-L330",
+          "version": "repo-lines-v1:sha256:6009c89231f355957f378f5c9430b006963fb0d8961a9e00783977dc77468982:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU0ZDM4OTdhMGY5ZDY5YzlkYjgxYmM5Nzc0MTVlNDBiNzIyYTVkNDRkZGU1YmQ4ZjcyNjQ1MWJhZWQyNDhhNDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4NGM1ZjkxYzk0OGEyYzkyNWY3YWRkNzE3NzI3NTBmMDI1MDllODZiODNmYTIxNmI3NjM2Y2Q4NDc4NGRiYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUzMzAwN2JkNTM5ZTg3ODc1ZTgwYmY2M2Q4MjhmNDQ4ZmU2OWQ2YmExYjlhNTYyZjk1MjlmMDRmZjY4ZjQxZjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFhOWFlN2E5MWJjNTg2NTI3ZjQxZTkyMTA3NmU0NjEzMmM5NDM2OWQ3MGEyYmFiY2RhN2Q3YTcxYTNjODlhN2QifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3ecef0186e7a4362aa62f5ef7d675a0f",
+      "statement": "tests/examples.test.js exercises the eight shipped examples and excludes four legacy asm sources (bios_test.asm, deep16_rom.asm, deep16bios.asm, test_suite.asm) through an explicit LEGACY set, because they are interactive, need missing directives, or are generated in old syntax.",
+      "evidence": [
+        {
+          "resource": "repo://tests/examples.test.js#L15-L45",
+          "version": "repo-lines-v1:sha256:231723675d781c9bba981914a52c7c32ef77aaf0c4ee7e275d64451488f50da3:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5NjZmYzQ3MWI1NWE2MjUzNmE3ZTkzMGFhM2JmOTBhMmVlNGNhNDNiYjFkNzczYjE5YjdiNDg0MzUxNGIxN2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhZDMyYzNmNzlkZjdjNzRlNzY0MjAxNGQxMTlkZjI1NDkwZmEzZGJiZDNmZmJiM2FmM2YwNjgxOGY2ZDc1MmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBmMzFiM2IwYTM4MzkxY2MzYmM1YjM2ZGYwYTYzM2E2YjY0ODJmMGQ0ZmI0Y2IwMDI2MjdhMTU2OGY5OGJlOTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVlNzVhNmUyMTFhMzQ0MTJkZDI3NDVkNmQ3Y2QyOTA1NDA5MzJmMTZlMzQzOTRjMWRkNWQyNzBiMzlhZTExMmMifQ"
         }
       ]
     }
   ],
   "verification": {
-    "by": "openwiki/0.7.2",
-    "at": "2026-11-01T09:36:37.731Z"
+    "by": "openwiki/0.7.3",
+    "at": "2026-11-04T15:30:01.509Z"
   }
 }

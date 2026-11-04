@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:52439bfbc9dab5eb7ebdc3a7166dd4adf04a4762ad7329ab47585f42fb4a9a48",
+  "pageVersion": "sha256:76ec1bb342f53e099d4adffce252d98321b315e193d63e6fe32b273a053c6f75",
   "claims": [
     {
       "id": "claim_9ffd9a28ce414923b3f12825a2385253",
       "statement": "Deep16Simulator owns a 1,048,576-word memory filled with 0xFFFF, 16 registers with SP at 0x7FFF, normal and shadow segmentation state, and installs the boot ROM at 0xFFFF0 in its constructor.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_simulator.js#L248-L352",
-          "version": "repo-lines-v1:sha256:47abd87c27118de58d4a1e7d83095761c50e24d5dd15d75337bfd9478533a580:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA1LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkYWYwYTBlN2MxOGZjYzMzYzE4ODQ5YmFjNzljNTMxN2JiYWQ4NzljNzBjYzRkMTdmNzY5ZmFkZjlhMWEzYWUyIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI0YTAxMGVkMTlhY2NiYzI2MTVlMGU5ZTYyNzdhN2Y2NWI5YzE5OTBmOWIyMzRmZTNhNGI3MmRhMDFkODJlNDE1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxOTgzYTRiNzA4N2QzNmUzMzA4ZGI0NjJjMzhhZTI4OGFiYmE4NDQ2NGY4YmRkMjczMWYyMmQ5MTQ1NzI4YjEzIn0"
+          "resource": "repo://js/deep16_simulator.js#L251-L352",
+          "version": "repo-lines-v1:sha256:efe31f41819c2a81e3d09a410c645d0f320c0860e46196bd45263e444b4c3646:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiODVhNjZiZTgzM2M0ZDU4YTY1ODFkODA1N2ZkMDY2MzJjMzY1NzMwYTI0YWZlZmFlNzdmMTJmYWI5M2M0MjAyIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJiYzZhNzlmYzJkZjYwM2U2MTdmYTY5NmE0MTEwZDU5ZjdhMzQ2MDZjZGY4MDBkOTE2ZGMzN2ExYmExNmZhMjZhIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJiZTViN2JlNjc2ZWI0MzdkOWM2MGM0ODA2NTM2N2ZlZjhkYzIwZWMzMTM2NDAwNjYyYjgyODNmZTdhMWE4NDg3IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxMWZmZDc4OTFjYmM3MTEyNWU0ZTJlZmVmNWI5NzU3ZmU1MTJmMzgxODM0ZTM4Y2YzZjU2MDY5ZjU3ZDM2ZDcwIn0"
         }
       ]
     },
@@ -17,8 +17,8 @@
       "statement": "Reset restores the ROM-first state CS=0xFFFF/PC=0, clears memory, empties keyboard and UART queues, and replaces the SD-card and SPI state.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_simulator.js#L368-L407",
-          "version": "repo-lines-v1:sha256:501c1110b5860e08fe75f41da9c65537d3f08cbf1ac3b94bae931e91d07b9826:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjN2MwMmYyNDdhZWFmZGIxOWY1MDAwNmM0ODg5NmMyYzJhZmQ1NmQzM2RiOWVjN2M3ZTA5MGRhN2I2MjY4ZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg3YWE5ZTliODk0MzkyOGQxNTg3MTMwMWM4MGJjYTE5MzYyNmFmZDhjNjI5YTFlNDgyN2I2NTQ0NzM3ODliMTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdkZDkzZThjOGMyNDU3OTk1NGM5OGQwZWQ4MWRiNmE0ZDBmMzJhZGQ5NzczM2E2MDY5NGI5ZmNkNmFjZjM3YWUifQ"
+          "resource": "repo://js/deep16_simulator.js#L376-L418",
+          "version": "repo-lines-v1:sha256:31f5141c136fd06b5afcac6c39d9b80215f9bd59349db193544acea6afbd89fd:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjN2MwMmYyNDdhZWFmZGIxOWY1MDAwNmM0ODg5NmMyYzJhZmQ1NmQzM2RiOWVjN2M3ZTA5MGRhN2I2MjY4ZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwYWRjNWQwMzBkNWNmNzY4ZjA4ZGY4ZDgwMzU3OGYzOWIyZmQxY2Y1NGQ4ZDRlMTA3YzVmYTMzYjAwYzFhZWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg3YWE5ZTliODk0MzkyOGQxNTg3MTMwMWM4MGJjYTE5MzYyNmFmZDhjNjI5YTFlNDgyN2I2NTQ0NzM3ODliMTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYwMDY5ZGE3NDcyN2RjMGMzYmQ1MjJjYzRmYmI1MmQ3ZGM1MzE1MDlmZTRlOTZkMjMyNjQ1ZDJhMTYxNTNmOTUifQ"
         }
       ]
     },
@@ -27,7 +27,7 @@
       "statement": "One step retires one instruction, handles a pending delay slot before normal fetch, stops on 0xFFFF, increments PC before execution, and updates flags after execution.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_simulator.js#L444-L525",
+          "resource": "repo://js/deep16_simulator.js#L453-L534",
           "version": "repo-lines-v1:sha256:6f252821ec73ee74c94c68e16609d91cd567d1f067ed5e4e9f03651f4c5c1975:eyJzZWxlY3RlZExpbmVDb3VudCI6ODIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkNThhYjA3MDQ1YmM5ODZkZjBjZWEzMjI0NjUzZTI0YWRlMzFhOWJjMjE4MTg4OGFmYjAyYjBmMjFmMjBkZTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5OWJkZWZlZWFjYTYzNDBlMDI5MGRjODZlODg5Yzg5ZDVlMTg5YWE1YmE0NGI1ODViM2I3MDczNGY0YTYyZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA5MjFiMGZjY2QzMDEwNjJhMTAxZGIzNGRiYzg4MTNhYzA3NDYwYmM4YmY2OWNmYTk2YjdjZDUwNzk2NzcwMmUifQ"
         }
       ]
@@ -41,7 +41,7 @@
           "version": "repo-lines-v1:sha256:6aa10cbaecfa43c9dee6077626bef0d9e32bd2e7befbb340bbe25dcf0a8f0a36:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5NGUwNjA5MTdjMDM0M2M3MDkyNDIwMTM3YmNlOGRiY2U0MDg5MGJhMjNhMmMyOTI4ZDUzOGY5YzYxZDIwZDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4ZjQwZTRkMDhhZTRhNmFmZjIwODNmZDU4MjM4ZDNiMzFjMGEyYTdjMTg2YTEzOTYwNWMyYzMzMGNiZTFiY2EiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFhMTU5MjgzMjk3MWI5N2EzZjBmZGIzNjE3OWQzMzU4M2ZlODgxMjllYjEzZTdjMTgzMDc3OTY1NWEwMGYxMmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAzNmM4ZTc0MDNjMWY0ZGI2MTEwNDFmNjU1NjUxMTFhNTU0MDA5YTc1M2ZmMzg4ZTFmYTYyMDFiMmQwYWFkNDAifQ"
         },
         {
-          "resource": "repo://js/deep16_simulator.js#L925-L952",
+          "resource": "repo://js/deep16_simulator.js#L934-L961",
           "version": "repo-lines-v1:sha256:7c30e508621771a3b0d656ef5bdc969a556e75cc05577a26d691b62b5c8e5181:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4MjUzYzdkMzhkYzE5NGI0NTMxOThiNDJhNmYyMTRmYzExZjc1ODM0NTAxZTg2YjkwZmMwZWZlZDQxNjg0Y2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2MTM0NDZkODU4ZGFjMDkxOTg3MWNiZTJjZWFjOGMzYjAyNWExMzM3OWUxNzU4NTE5ZmU4NzBkZTUwNjJjNjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY1ZDA5Zjc2NDJjMGYyNzE3NGRmMDI5NmYyNWFhOGM2MzdkNjJiYjU3ZGVkNGUyYTFlMDAwOWIwODE5NTA1MDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQxNDRmOTljMGViOTMxYWNjMWZhZWY2NmE2ODIyMzM0NDlkZjEwY2VkZWE3NTMxODA3NDNjYTk5ZmRhMDQwOWMifQ"
         }
       ]
@@ -75,7 +75,7 @@
       "statement": "The SPI master performs an immediate byte exchange on a write to SPI_DATA, selecting the SD card on chip select 0 and the configuration flash on chip select 1.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_simulator.js#L1587-L1627",
+          "resource": "repo://js/deep16_simulator.js#L1611-L1651",
           "version": "repo-lines-v1:sha256:6359c3e131cc295a1a74c1183253b600a3c8ea9fb0d2395e70e01d2d03c9438a:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyMWYzOTVjNjNlOGZlYWM4MjdkNTJmNzY0MjNlYTFlYzdmNjVlZDczODE1MTk5Yzc4NGRkYTRkMzI0NTIwMTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdlNDk3NmJmZGYyMDQxYzlkZThjNjU0N2E5NmM5YmM2MTQ5ZTc0YzI5YzdkM2Y4MmMyMGU0ZjU4ZGM3M2JhMmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcxZGYyZWI0MGI4ODI1ODdiYzRiMDRmNTMyMzg3ZmY5ODJkMjUwZjQ1YmI1YjhmYjFjZGNjMzZlMGYyYmE0ZGMifQ"
         }
       ]
@@ -85,18 +85,18 @@
       "statement": "The UART has a 128-byte RX FIFO that sets an overrun bit when full, a non-blocking TX path, and uartTxTake that returns and clears the emitted bytes.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_simulator.js#L1630-L1664",
+          "resource": "repo://js/deep16_simulator.js#L1654-L1688",
           "version": "repo-lines-v1:sha256:c094621f26b7c0ffa3773cd22eda9181e8bf12b5fb0229e5b7b6578b8d68561f:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUzZmE0N2Q4OTdhYzlhMWYxMjQ4N2FhMmVlM2MwYTgwMWMwMTc3YTk3YzI0OGZmNzljNWE1ODgyMzg3YzRkM2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA5MDEzMzEwYTg3ZTNhOThhNzY3YjYwYTUxOTQ5NTZjZTk4MTcxYzdmMjU3MjhkZTFmZDJjNmFjMjgwOTc2N2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUxODE0OTUxOTQzNThjYWFmNzkxMmEzZTU3ZjUzNzZhODkyMWI4M2I5YWQxNjFkZWVlZTZlNjhjOGEyYWIzYjAifQ"
         }
       ]
     },
     {
       "id": "claim_d633bd8abd0f403fbefcfc8a2cb8bd6b",
-      "statement": "Stores into 0xF1000-0xF17BF are forwarded to the attached UI's screen handler, while the simulator itself leaves attribute interpretation to the panel.",
+      "statement": "The JS core forwards every store in the video window 0xF1000-0xF627F to an attached FiT tile engine, and only forwards the 0xF1000-0xF17BF screen range to the UI screen panel when the console is not in Tiles mode.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_simulator.js#L1443-L1455",
-          "version": "repo-lines-v1:sha256:cbbb3ed78565937ecd821957d47ad603b2bd0af292aeaf414e76a1ca65e58c7d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2NTMzYmVjYTJiODJiOTY3NGRiNzg0MDM5NTNlZTQ2YTFiYzI2MmY3NGJkNTczNThlZDVjNTRmNzIzY2E4OTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2MDhjNjRiMDQxNTExZGRhMzY3YzE5ODZlODRhNWVmNmVhZjgzNDA2ZDgyMDJjNTg2N2QzZDFmMjZlMzNjMWUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNTkyYjczZWM3M2M4YWZmNmY2YWM4M2EwZjczNTI1NDY0MGM5ZmJhM2QwYjdjN2FmMGRmZDRhYjA1YjgzN2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUzN2UyMmM2MTg4ZWUxODRlZmI4YWJkYTI1Y2EwZmQzYjk3YWUxMjUyODg1ZWU1MDkwYTcwOTNlNTRjMWU1ZTYifQ"
+          "resource": "repo://js/deep16_simulator.js#L1457-L1475",
+          "version": "repo-lines-v1:sha256:32d866457a21f6fbd7833cfff0c8f07a2265a2d5baf7d47e17bbc0a81df9c42e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2NTMzYmVjYTJiODJiOTY3NGRiNzg0MDM5NTNlZTQ2YTFiYzI2MmY3NGJkNTczNThlZDVjNTRmNzIzY2E4OTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNTkyYjczZWM3M2M4YWZmNmY2YWM4M2EwZjczNTI1NDY0MGM5ZmJhM2QwYjdjN2FmMGRmZDRhYjA1YjgzN2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVlMmI5ZTIxZmRjODZmYzJjMmVlNDQ3MjE4NWQ2NzY0NjdiZGQxY2JmMmUyNGI0ZGM2NDRhYjFhYmIzMzI1NDcifQ"
         }
       ]
     },
@@ -105,7 +105,7 @@
       "statement": "The SIC at 0xF00B0 implements write-one-to-clear pending bits, an enable mask, status and scratch counters; the JS core has no timer, so tests raise IRQ bits explicitly.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_simulator.js#L1557-L1585",
+          "resource": "repo://js/deep16_simulator.js#L1581-L1609",
           "version": "repo-lines-v1:sha256:7fba2a115605276e47e63b2f311b95a9466de4dfaff0c8eb2e72d07cf5094fde:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyMTg3MjAzNmY2MDc5MGQ5MzA3NjY4NWY5OTM5Zjg0YWEwYjQ1NmMxZmNmZjRmZmQxYmFiMmRhNzJlM2QzZTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA4YjkxNTQ1N2Y3NjVhZWE5MmNmZDJlM2E0MGQ5Yzc3NjdkNzI5MTE3ZjhjNmY2ZWJjNjcyNmY1OTI0OWVjMGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEyODljMTE3MmFlZDFiYmIzMmUxYTY2MTUwNTliYzNhMzc4NGQyMjQyOWQxOGYyMWQ4MTk4ZjA3ZmYxNDA1MWQifQ"
         }
       ]
@@ -115,18 +115,22 @@
       "statement": "The JS core is the only core with hardware-interrupt entry through handleHardwareInterrupt, which checks interrupt enable and shadow context before entering vector 1.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_simulator.js#L1458-L1482",
+          "resource": "repo://js/deep16_simulator.js#L1482-L1506",
           "version": "repo-lines-v1:sha256:35e252fe3a08ed28a0d29d85f102f942e9b5cbc0f362d7b2f0a36e5c1267df5f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5Zjk3YWM1ZmQyZDliZjRiZjA1N2NmOTc1YzQ1ZWY5OTI4NjNkZmE3NmQzMzRhZWNjMmY5NDJlNmU3YWY4N2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4ZTYwNTAxOWE3NzAwNTNjYTdiYmMzNDI5OTMzYTQ0NmY3N2NkMGVhNTU4MDg5OGE5OGFhMDljOWY3M2FhMDMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM1NzVhNjVmN2JkNjFlNzkzMTVjZDVlZGEwNTJmZWRmNmYzMzkzNGJkYWIyNGVjMTcxMmVlMTdhNTYzZTYwNmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVjZDIwNDk0MzIwNjRmMDVhNTE4ZmM2NTRjMGEwYTQ0MGU3MTIwYTEzZjBiMGQyNGI3ZGE2MzJhY2Q5OTdjYTAifQ"
         }
       ]
     },
     {
       "id": "claim_9384602e9ffe42ba908d4ac1883b476d",
-      "statement": "The current IDE runs the JS core on the main thread in a 10 ms interval executing up to 200 steps per tick, with breakpoint checks and UART draining; the worker script exists but no Worker is instantiated.",
+      "statement": "The IDE runs the active core on the main thread in a 10 ms interval, executing 200 steps per tick in screen/terminal mode and 6,000 in Tiles mode, while a separate 60 Hz tile clock sets the display status and ticks the engine; the worker script exists but no Worker is instantiated.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L2374-L2460",
-          "version": "repo-lines-v1:sha256:e890ae99ea220a62239d013ae814fff68978b3274060984167ae1209b607fd7e:eyJzZWxlY3RlZExpbmVDb3VudCI6ODcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRjYjlhNmI2MzY2MGU1NjZjZGY1YmY5MDc1ZWYyNTlkMjliZDlkZDZiNDMwYzFhNWExYmIwNjYzODgwMWUzODciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY3NzNkODExNGU2OWZjNzgyODBmMjM4YzYxZWE2NzE1NjIxOGZkOWFmNTkyNTk0ODkzZTZiMTY2YmNkOTBlN2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZmZTJhZjg2YTBhZjVmOWYxMTM1NDEwNzk0MmI2ODYyZDA0M2Q0YjBlZDRjZDJkYmVjZDA1ODA1NDk2ZDIwNTEifQ"
+          "resource": "repo://js/deep16_ui_core.js#L2549-L2570",
+          "version": "repo-lines-v1:sha256:736d0afe5a7973a9d95282386eb333073c66df90295b1e470728832d97d307fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1NzMwMDczYWFmYmE3YjQyNTcwM2Q0NDZlOTcxNjdiMzY0NDdiOWUwYjM3YzQ4NDJkOTFmYzIyZWJiY2QxM2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzNTlmMjI1MTExM2NjY2JmZDg2Yzg2M2QzZmIxODRlZDdiNTYwZDRjZTg1NDFiZWE1NDRmMjNiYTMzNmU1M2EiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAxMDlmZmY1ZDI3YjgyOTQ4MzI5ZGQ1ZWY1MzUyMzY0YzdlYjhhYjgwNTQwZmZjYzliZDNhM2IxYWFlZDMyMGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQzZjFkOWVhNDMzZmQ4MWQ1ODY4NjZjMDY4YmU2MmJhY2M4ODVjMjIxOTI2Y2M3YWFkNTA2YzIzMmQwN2Q0MWIifQ"
+        },
+        {
+          "resource": "repo://js/deep16_ui_core.js#L518-L520",
+          "version": "repo-lines-v1:sha256:9483ddf244ab434d806a30734fbc7a1050005da632e6d7b1644abfd6d23eb2c5:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjc2MjhlOTg2OGY5MWQ2OTU5ZDQ1Y2VjMjA5ZThiNjA2ODg1YTI2MWZhZjIxNzJjZDQ4NjFhYzJkYWM1ZTBiMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDg5M2Y0MGUzNzgxZWI4OTZjODJkMDQ2YTA4MDY3YTExZTM1Y2RmMmYxZGZhZjI2ZmVhOTBiOGRiNjY3NjQxMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmNiMmJiMjdiNjIwNzgwYzQzNjNhMWRjNGI5OTFlM2ZmZTdjYmM5NmQ2MDY2OTZlY2YwNzE1OTkwNWE3MzJlNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmFiNjUxYWQzNWNkYWJjN2QzMDYwNjk0OTVjOTIwYzgzYjBjZDU4YTU2YzA5ZDBkZDAyZjRlYTNlMWE0OTUwYSJ9"
         },
         {
           "resource": "repo://js/deep16_worker.js#L1-L13",
@@ -143,10 +147,48 @@
           "version": "repo-lines-v1:sha256:f8bc1fbd8d68183eb02c2eb2644ed37c489293ab946f8bb27c7db6a896e10884:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiNzU4NGFlODE1MzRhMTAwODU3MjdmNzA4YzNlYzk4N2M2Mzg4MzUwMmU5OGFlMWZhNGY3NzMxZDNjODkzNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3MmE0MjkzODJiMmUxNDcxOGUwZTM3YjA1NzBhOGExNzAyOTkxZmNkODQ5OGNkODQwNjBhOGJmNGYwNTAxN2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhmOTczZGEwMzhiYmJmMGJhMzAzNDIwODFkNjkxZDFmOTJjZTJlOTg2YThkZWZjMzc4NDJhMzQxOWIzYTE1ZTcifQ"
         }
       ]
+    },
+    {
+      "id": "claim_2ba005e7431e4dc6b6dbc5924481febd",
+      "statement": "Reads of display status 0xF0066 on the D16nano path return the host-set tileStatus when present, so the 60 Hz tile clock drives the frame toggle, vblank, S2 and UART-ready bits.",
+      "evidence": [
+        {
+          "resource": "repo://js/deep16_simulator.js#L1318-L1323",
+          "version": "repo-lines-v1:sha256:1aeb4e081483a96d164e1b5ade6b16d70ecf3cedb55b5871656d38d041baeb65:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDhmNTQ5MDRiOTE2NWUwNzA1NGIyMmI0OTRjOTNmNzlkZTFmN2M1NjFhOGExZjE1YzcwYTA1OTkwNGYzYjYyZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjRhYTlhNWNkM2FhMDgzZmQ5ZGU0M2FjOTQ1ODFiMzgxMTc1OTgxZWZkM2VlYWM1ZmU4YmRjNmIxYzQ1M2I5MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWI2ZDM5Zjg1NDg2NTFjNWUzNzc2NTljMjJlNGUyY2Y5YjRhNTczOGI1ZmFlZGE0ZWU4NmZmYjY0MTFmMDA4ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDUxYzc2ZWNlMTQ4MmQwNDVmNjgzOTZlYmU2ODllNWUwYWYwZTRiMTkzZDE3NmJhNWJhMTNhNjNmZjZkNDhjZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_08b2ef49c49243459bd169e9b73e55db",
+      "statement": "tests/segmented.test.js boots the scattered D16SEG map in the JS core (DS=0x1000, SS=0x2000, BIOS CS=0x3000, the rest of PSRAM 0xFFFF) and covers the dictionary ceiling, the SD driver, the catalog and the raster band state machine, including a getstr pump test where characters wait in TIB until Return completes the line.",
+      "evidence": [
+        {
+          "resource": "repo://tests/segmented.test.js#L1-L80",
+          "version": "repo-lines-v1:sha256:d70a1a8bb54261f92bba7d9f05ec44731b5984a4de1f7864bebeca1d550bc6db:eyJzZWxlY3RlZExpbmVDb3VudCI6ODAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0NTVmZDI1ZGIyMjQ5NDM2YzAyMjE4YTc5ZjhmZDQ0NGZjZDk3ZTAxMzdiYjVkY2E3NTI5MGUyMzdhMmM2ZGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcyNjQ0M2U3MDQ2MjY0ZWQ5YjY3ODI4MDhkNDdkOGE0YjdhOTZiOTk4OWNkNzkyMjVhOWZlZTNkNDI3NDY4NDUifQ"
+        },
+        {
+          "resource": "repo://tests/segmented.test.js#L166-L184",
+          "version": "repo-lines-v1:sha256:3c105d7c7dae5dd96b869aa4e3f35c79e1e9264e222b5d7f715c0b873f320219:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2NjExZjI3MzRkZjRmMWQ5OTdlMWM0YWNkMmZjMmQ0ZWI2MmI0NjUzNTdkYzcyOTcxMmNkMTkxNjM5Njk1MzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFhMDk3NWJmM2I2ZDVkYzQ0NjA4ZmU1YTVkYWYzMDg3MGZhNGY3OWYxOTRlYjc1NzQxZjQ2MjU0NjczYmU4MjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdjNWJjMjAyNDkxNmRkNTQ1ZjM4NjI3YjYyNWQ5OWIwMmNkN2ZhMGMxNDgwNWZjZTMwZTdhNzFkNDVkMmQ5NGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_41d7530a17f6424eb1f096534660414f",
+      "statement": "tests/showcase-boot.test.js boots the flat CONSOLE_UART plus D16D kernel in the JS core and checks the menu cells, Q returning from the menu to the Forth console, and the idle timer entering attract mode.",
+      "evidence": [
+        {
+          "resource": "repo://tests/showcase-boot.test.js#L1-L30",
+          "version": "repo-lines-v1:sha256:c6ffde70ac4b6741630ae12d6ff1d0faac359e963139335435ab5b21f3ed8b21:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlZTI0NzEzNmViOWE4MDFhNmRkMTI1ODVjODRhMDg4ZDQ2MTY5Zjg5Y2Y4ODUzMGViMGFhNGNhNzAyNmE4M2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJjOTgxM2I4Njc1YWZmYmNhY2M5ZjgyMjJjMzVlZjE2ZGZlNjBjNmQ5MGY5MjhlNTI2NGIyYThkYWY4NzVkNjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU0MzgwNTU3NGUxNjA0MTYwNmY1NjI5N2NkNWQzMjEwY2FlNDA4ZGU4NGNkY2NhMDRhZmY0ZTg0MjdhYmMyMWYifQ"
+        },
+        {
+          "resource": "repo://tests/showcase-boot.test.js#L62-L96",
+          "version": "repo-lines-v1:sha256:984378e20bb8c84592148c15cd928649f97f2b0ab10968a6a7a87f48921edbef:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhMGZiZDM2N2Q1ODA3NzM2YzRhZmU3OGQ5OThiZGE4ZDAxNjVhNmJhY2JhMTc4YjRiMDRhNGFlZDE5ZDg3YzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgyMmU4ZmU0NTI5ODQxZWY3ZTc3YTliYzQzMzk4YzJhOGYwZjQ1ODg5OGIzOGY1YWEyMjE4ZTcxZDNmY2E0NDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
     }
   ],
   "verification": {
-    "by": "openwiki/0.7.2",
-    "at": "2026-11-01T09:36:37.731Z"
+    "by": "openwiki/0.7.3",
+    "at": "2026-11-04T15:30:01.509Z"
   }
 }

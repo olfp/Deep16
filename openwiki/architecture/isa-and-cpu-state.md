@@ -3,9 +3,6 @@ type: architecture-reference
 title: ISA and CPU State
 description: The Deep16 instruction encoding, register and PSW state, flag rules, shadow banking, delay slots and trap semantics as the cores actually implement them.
 tags: [isa, cpu, encoding, psw, flags, interrupts, shadow-registers]
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
 sources:
   - id: openwiki-source-8014e939fc84f1df33209131
     resource: repo://doc/Deep16-Arch.md
@@ -13,11 +10,18 @@ sources:
     resource: repo://js/deep16_simulator.js
   - id: openwiki-source-b57ab1606c48ec3ea7344623
     resource: repo://MEMMAP.md
+  - id: openwiki-source-6df23aa962f11ba40014c90a
+    resource: repo://rtl/deep16_core3.sv
   - id: openwiki-source-9e32d1e057dbf502fe769f73
     resource: repo://rtl/deep16_pkg.sv
   - id: openwiki-source-0c322f41fb3643b953b4bfa5
     resource: repo://rtl/deep16_regfile.sv
-generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+  - id: openwiki-source-8d3356038273308ccaaf465a
+    resource: repo://rtl/sim/core3_irq_tb.sv
+generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+verified:
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 ---
 
 # ISA and CPU State
@@ -217,6 +221,22 @@ Traps and interrupts enter the handler with a fresh context:
 outside handler context merely keeps S clear. `SWI` does not check `PSW.I`; an
 ILL inside handler context is a double fault and halts the JS core.
 
+### Hardware interrupt entry
+
+The board's `deep16_core3.sv` takes a **level** IRQ at an instruction boundary:
+`irq && PSW.I && !PSW.S && !delay_active`. It replaces the decoded word with a
+synthetic `SWI` selecting vector 1, parks the interrupted PSW in the alternate
+PSW, enters with `PSW = 0x0020` (S=1, I=0, flags clear), zeroes the shadow
+segment registers and loads the shadow PC from the vector word. The parked
+instruction is the one that was about to execute, so `RETI` re-runs it.
+
+Two consequences follow from that entry. `S=1` blocks nesting, and `I=0` keeps
+every `SWI` call masked until `RETI` restores the caller's PSW. A BIOS call that
+blocks inside its `SWI` therefore also masks the timer and raster sources; a
+polled, non-blocking call is the only way a handler can keep them running. The
+JS core mirrors the same entry in `handleHardwareInterrupt()`, where vector 0 is
+an NMI and any other vector requires `I=1` and `S=0`.
+
 The ILL entry additionally places the interrupted PC — the word **after** the
 trapped instruction — in the shadow `R14`, so the handler can fetch the opcode
 at `LR - 1`. The ILL vector is `0x0000`, hardware interrupts would use `0x0001`,
@@ -241,7 +261,8 @@ easy to misread:
 - `0xFFF1` is `FSH`, a no-op, not an early halt. `0xFFF8`–`0xFFFE` are no-ops.
 - The active PSW bit 5 selects the bank; the alternate PSW holds the
   interrupted PSW. Some manual passages label the selector `PSW'.S`.
-- Hardware interrupts are implemented only in the JS core. RTL and WASM have
+- Hardware interrupts: the JS core and the board's `deep16_core3.sv` implement
+  entry, while the parity-tested `deep16_core.sv` and the Rust/WASM core have
   `SWI` and trap entry but no external interrupt input.
 
 ## Related pages

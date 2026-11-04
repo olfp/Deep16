@@ -2,12 +2,11 @@
 type: "Reference"
 title: "RTL Core Microarchitecture"
 openwiki_generated: true
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
 sources:
   - id: openwiki-source-6d9dc09f47fb249425320461
     resource: repo://doc/Deep16-RTL.md
+  - id: openwiki-source-bf2a0339ada6a56de8b7a79c
+    resource: repo://rtl/deep16_board.sv
   - id: openwiki-source-f1071c416f562f4ca742093e
     resource: repo://rtl/deep16_cache.sv
   - id: openwiki-source-9355204a406c91981555258c
@@ -18,13 +17,24 @@ sources:
     resource: repo://rtl/deep16_divider.sv
   - id: openwiki-source-0c322f41fb3643b953b4bfa5
     resource: repo://rtl/deep16_regfile.sv
+  - id: openwiki-source-779a6281faa33512e4845cb6
+    resource: repo://rtl/deep16_sic.sv
   - id: openwiki-source-de73cd8815fd05f54317660e
     resource: repo://rtl/deep16_top.sv
+  - id: openwiki-source-2f8a040dcce7a74f3dd3ca04
+    resource: repo://rtl/dvi/dvi_tile.sv
   - id: openwiki-source-b2325b4e0f4b5f9a156f872b
     resource: repo://rtl/psram/deep16_psram_mem.sv
+  - id: openwiki-source-8d3356038273308ccaaf465a
+    resource: repo://rtl/sim/core3_irq_tb.sv
   - id: openwiki-source-6be0127e9bef0fdf99aa2d93
     resource: repo://rtl/sim/harness.cpp
-generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+  - id: openwiki-source-6d184cd85da0b4def46caeb2
+    resource: repo://scripts/build_core3_irq_sim.sh
+generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+verified:
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 ---
 
 
@@ -128,7 +138,18 @@ one cycle later or after the serial PSRAM transaction.
 `core3` is the only RTL variant with a hardware `irq` input, taken at an
 instruction boundary when `PSW.I` is set, the core is in the normal bank and the
 current instruction is not a delay slot. It targets 6.75 MHz on the Tang Nano 9K
-and trades throughput for area.
+and trades throughput for area. `rtl/sim/core3_irq_tb.sv` verifies the entry:
+it pulses IRQ while a store is decoded and checks that RETI re-runs the parked
+store instead of the following instruction.
+
+On the board `deep16_sic` aggregates four sources. The raster bit is a **level**:
+`dvi_tile` sets `raster_toggle` on the rising edge of the compare-line match and
+holds it until a control-7 write acknowledges it. The level reaches the SIC
+through `raster_sync[2]`, whose register ends in `pending <= pending | src` every
+clock. Clearing PENDING first, while the level is still high, re-latches the bit
+and re-enters the handler after `RETI`; the acknowledge must come before the
+W1C. That ordering cost two handler entries per raster edge until it was fixed
+in `asm/forth_nano.asm`.
 
 ## Top level and debug bus
 

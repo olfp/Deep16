@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:59a5a1b6d03b4f075d603f9781f845bd6f4af42f2b76fe414f8539cc93f48b3f",
+  "pageVersion": "sha256:a05b69e7b3890c8932b9bd7f27edf4112462eecca3989bc956a941b585d000a9",
   "claims": [
     {
       "id": "claim_c891314301634162a885022e2c7dd858",
@@ -24,45 +24,57 @@
     },
     {
       "id": "claim_3ee705991b54402bb5e02ab397ff3238",
-      "statement": "dvi_tile renders 80x24 cells of 8x15 pixels at 24.75 MHz into two line buffers and scans them out as 1280x720 at 60 Hz, using an 82x26 tilemap, 96 tiles of 32 words, a 16-entry RGB332 palette and a line-buffer renderer.",
+      "statement": "dvi_tile renders 80x24 cells of 8x15 pixels at 24.75 MHz into line buffers and scans them out as 1280x720 at 60 Hz, using an 82x26 tilemap, 128 tiles of 32 words, a 24-group sprite bank, 64 OAM descriptors and 8 palette sets.",
       "evidence": [
         {
-          "resource": "repo://rtl/dvi/dvi_tile.sv#L1-L22",
-          "version": "repo-lines-v1:sha256:0c38b652cc2830eb4f3fd7df4eee338bae79e454dabbedde47c0e13302586731:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhYjI5ZjQxZmZkYzEzNDYxNTM2M2RkMTlkZGJjN2E3MmExODYxMjg5ZmU1NWY3NjVhZDkzY2ZhOTdkOWJiYmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwMWVhZDkzNmEyMjgxZDUzZGNjMDY0YjdlMmEyYWIwZDUzYjkyZWYzZWY3YjM0YjY2ODY3MzAwNzg5NWM4NjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgyNmEwM2NhY2MzOTdjMzczYTBhZWE3YWIzNjI0MTQyM2ZiMmU2NGVkMGUwMWNmM2M4ZDMyYTU3NDlkZmFiYjUifQ"
+          "resource": "repo://MEMMAP.md#L358-L370",
+          "version": "repo-lines-v1:sha256:0436c4db05d98406ba589983df57e102849dadbd51a0f8b71bfd5b78bd2fb629:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyYTJhMTA1NTI3N2U3ZDNkNzY5MTQzZjJmMGVjNDFlZDFiMDkxZjNiNDU3OWFjMGYzNmU3YjdiZmZmMjg1OTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmNTY4ODIwNmYyOGI3YWJiZTg3YjAxZjg5ZDc0NWQ5YzIzNzRiZjQyMTQzN2I0MGZlMDkyYTZhYWJiNWQxZGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI0YzMxODA4YjY3YmZiMWE3MTEyOTNhZTAwODlkYWZjZTNkM2IzYTI2MTEwYjkxNDA0MzYzZTRmYWY0M2I1YzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkyNTYzZGQxMGQyYTQ2Yzc1ZDQ2ZjA5OTQzNzQzNjRlYjU4MWEwOGUyMjdhNTQxZjBiMWVmYjY4YWQ3MDlhYjkifQ"
+        },
+        {
+          "resource": "repo://rtl/dvi/dvi_tile.sv#L1-L35",
+          "version": "repo-lines-v1:sha256:828b2696ee96b6d417915acedd33fca554a886adde01da547796290a2ea36540:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhYjI5ZjQxZmZkYzEzNDYxNTM2M2RkMTlkZGJjN2E3MmExODYxMjg5ZmU1NWY3NjVhZDkzY2ZhOTdkOWJiYmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5YjE3ODUyNTJjZDZiOWJhODIxOWUxZDkxNWM4ZjI4OWJmNjlkZmUzNWMxMGIzZjA4ZTQwMzhiYTFkZGNmNDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRhOTI1YmZmOTM4ZWY4OTQ1MGIyYjAxMDI3YjM3MjJlNTdjZmUyMmQ1NzE0YzVmOTM0NjNkZmU1YzhhNTY1ODkifQ"
+        },
+        {
+          "resource": "repo://rtl/dvi/dvi_tile.sv#L97-L110",
+          "version": "repo-lines-v1:sha256:ab6d8a7975dddf2a2b0f6471f03477095468b34b2a7ed780a6e1041a679c811c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkMzQ3YzkwZDBhMTA2OWEyMDI2YmE5NWQ1Nzk4NjIxNjViNDUyZDhjYTVlZjQ0OWFlMGEyY2UwZGRkYmE3MjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk1NDEzNzBkMWFlYWJkYmQyYjUyZWQwOTcxZjM0MzZiYjBjNTY0YzAyZGE3ZDVmMjBmZDRlYWM0ZjNjODdiODMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ2ZTcwNzJhOWE5MDVhZmM4NzllNzI2YzJlODM1MTZiYmMxNDQyNDliNTA4OTYyMDUzMjA0NGQ0YjRlOWY5MTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2YTAyZjdlZjkyOGJhNzEyYmVjMzAyODY2OGQwNDBiN2EzZDRkNTkzOTQzYjQ1NDliMWU5NGE2NDdiY2ZkM2UifQ"
         }
       ]
     },
     {
       "id": "claim_73a1fa57752c493386f107be5a027709",
-      "statement": "The tile renderer's own accounting is three BSRAM blocks for the tilemap, three for the tile bank and one for the line buffer, with the palette in distributed logic, for seven blocks total.",
+      "statement": "The renderer keeps the tilemap, tile bank, sprite bank, line buffer and a shared OAM/palette scene RAM in BSRAM; the palettes are no longer distributed logic.",
       "evidence": [
         {
-          "resource": "repo://rtl/dvi/dvi_tile.sv#L25-L28",
-          "version": "repo-lines-v1:sha256:94703bdc7ddc6d649185f94ccd7e6f0be77d08004785c19a012255c4553402b6:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTAxZWFkOTM2YTIyODFkNTNkY2MwNjRiN2UyYTJhYjBkNTNiOTJlZjNlZjdiMzRiNjY4NjczMDA3ODk1Yzg2MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNThmOGEzN2MzNzdlZGFkOTRjMTExYjNhNmNlYzEzMjQ0MmVlYmVlZjdhYmQ4NTEwMmMxYmU4ZjBlZDMzOGM5NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTMzNzBmNmNiM2U0YWY0OTExMDU5OWU3N2ExZWVjYTYyNTFmYTI2NDg4MmY5ODY0NmZjNmJmNzA0NmI5MTExMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWZiNGFjMjg3YjFkOTJjMTQ2YmE0MjBjNGRlOGM4ZmFkYjBkZjcwNWZhNmJhN2UyNjRjNjBiMDU0NTkyY2QzNCJ9"
+          "resource": "repo://rtl/dvi/dvi_tile.sv#L200-L215",
+          "version": "repo-lines-v1:sha256:3179d86e8bcbbb205c771b1862683d07f41fc68c0f3d83c0bd76a3ab17347ee6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjYTc0M2I2YTljZGY3M2I4YjdjNmUzNzM5YjNjMDk2ZDRlZjlmYmRhNmZlMzFlYzhhZTQxNWE5Yjk4MTc0NWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxOGRiZTkzY2VmMGYwZjNlNWE5NTllYTBmZmVjOGZlMTQ4YTk2YzVhZTVmNGUwMDdjOTQ5ZDMwMTQ4M2EzZTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE3MDViY2M4N2QwMmJiYTBlOTkzMTgxMTEzMzdkODI4OTY0NjE2YjVjY2ZkNmViZGEzMmNlYjYyMDFiNTBmYjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1ZTEyNDM5ZDI2NTAxNzM3NmUwNDRjNjU3ZDA2ZTExMjk4NmY2MmU5OGJmYWViMzZmNjRkOTJiMWFhMWFlMTYifQ"
+        },
+        {
+          "resource": "repo://rtl/dvi/dvi_tile.sv#L280-L300",
+          "version": "repo-lines-v1:sha256:0684c570b4dbf2b0c0e81672fb78b983f4d045c4d49b6e22eb2e8d809287d7ef:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU0ZDM4OTdhMGY5ZDY5YzlkYjgxYmM5Nzc0MTVlNDBiNzIyYTVkNDRkZGU1YmQ4ZjcyNjQ1MWJhZWQyNDhhNDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYzZDY0MDk5NzVmYjQ5MDJlODIwMmEwNzg1YTk4ZDQ5YTU3YjU0YzA1ZWYwZDgzOTE0MzM4NTIwYjU0MWI4ODciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMxZDA4YzVjODE5OWI2OGZmOGJiY2FkZmEyMzBiOWVmMjg2YzJhZTBmMGU3NjI5OGMzN2YxODZlNGE2YzU4NTQifQ"
         }
       ]
     },
     {
       "id": "claim_78b2436f60d54252b9404301e6377cc6",
-      "statement": "The top level decodes the tilemap at 0xF1000-0xF1853, the tile bank at 0xF3000-0xF3BFF, the sprite bank at 0xF4000-0xF47FF, the attribute/OAM window at 0xF5000-0xF50FF and the control registers at 0xF2000, 0xF2002 and so on, each carrying a 2-bit target for the renderer.",
+      "statement": "The top level decodes the tilemap at 0xF1000-0xF1853, controls at 0xF2000-0xF200E, the 128-tile bank at 0xF3000-0xF3FFF, 24 sprite groups at 0xF4000-0xF57FF, and 64 OAM descriptors plus 8 palette sets at 0xF6000-0xF627F.",
       "evidence": [
         {
-          "resource": "repo://rtl/deep16_top.sv#L618-L638",
-          "version": "repo-lines-v1:sha256:715f7ab0fd2d9290e1e2f876c8b409f3d2b7f0067bbee94d319de8909e56d103:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFmOGUyNWRjNThlNjczNzdjMWE2ZGNkYjRmYjM0N2I1NTAyYWIwMmU3MzczYjFlNGMxYTFhNzc2Zjg4YWVhMmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4YjU5NWYxZTRmMmY4NjQ5Yjc4OTk1NjAzMzkwZGZiNDhlMmNiMTIzZjIzOTc4NDUwMTM4NmQwYzI3MjJlMDMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhmZGJmNmQ2MGFiMDc3ZmNjZDNkMmI4OWFlMGYxMjQ2ZTI2MmQ1NDcxNjQ1YThmM2Q2ZmJjMjg2NjcyMTA4MjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM4MzcxNjY5ODQ2MzNlMTM0NjJiMmVkNTk1Y2U0NzI0NTg3ZDBiZTM5ZjAwN2RhYWYyNDM4MTU3NWRhOTYyMmMifQ"
+          "resource": "repo://rtl/deep16_top.sv#L600-L670",
+          "version": "repo-lines-v1:sha256:eaebbb7468c2f70e122f91ede2885c4a5031afd8b8290eb1812b785554548fba:eyJzZWxlY3RlZExpbmVDb3VudCI6NzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjM2U5MzNmNmI1OTUzNTYwN2M0YTE0N2Y2YTVmMDdiYzA3MWYyYmM3NzkwNjQwYjNkOTQ4OGJhODAyN2E4YzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlMTIxYzI0ZGYxYjc4MDM3MjlmZWNjZTQ1YTgyNjRhNjI0MWFjMjY3N2M3NWMzMWVmMDQ3YjQzMDA4OGJlMDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ5ZDVjNzk4ZTY4NjllYzZjMjgzZTFjY2UzNzA2NDI4YmMxNzk0YjIyYTc3MDE5MWIxMTAwMDQ5YzE2ZjM2OTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxZjUzNmNkNTQ5Mjc2ZmIyMmY3ZTkxOGMzMWQ3ZjUyZWRjYWU3MTU3NDc4MzA3YjQxNTE2MGIwYmU5MTUxNWYifQ"
         }
       ]
     },
     {
       "id": "claim_66a6e97d74cb4f319a8eac9b53c40cbc",
-      "statement": "Each FiT memory has its own 4K-word page and the CPU write window is write-through to both the tile engine and the PSRAM/Forth mirror at the same address.",
+      "statement": "The FiT CPU windows are write-through to both the tile engine and the PSRAM/Forth mirror; the tilemap, controls, tile bank, sprite bank and the shared OAM/palette window each decode a distinct address range.",
       "evidence": [
         {
           "resource": "repo://MEMMAP.md#L343-L344",
-          "version": "repo-lines-v1:sha256:d263522e78a50e472905c4ccb4797c898cfcb3eb080d8281dc6f411da3688f06:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDY3NzZiMGVmMWE3N2M4MjM3MjBiYzQ0NmViZTAyOTQ0OWY3Y2U0YmJjMDIwODMwN2Q3ZjZjNGJmYzM0Y2Y1YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzM5Y2E4ZjNkNjNjNzIyOTIxMDRjYjYxMGI5MjMzNDNiZmYxMGYyOTliZTc3OTA1YzQyNzU4MWZkMjViZDMyZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTE4NjVhMmM4YmY1ZDlkNjVhZTA2MjU4MzVjNTdjZjVlNWRkYmFmZDVmZTRiNzAzMmRhNWQ5MjU0NzZhMDliYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjRjMzE4MDhiNjdiZmIxYTcxMTI5M2FlMDA4OWRhZmNlM2QzYjNhMjYxMTBiOTE0MDQzNjNlNGZhZjQzYjVjMCJ9"
+          "version": "repo-lines-v1:sha256:8240e558d3aa13096356005c00c1557de3ee3e7cf899ab7119811b869f49699e:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzIyZTRhN2UzZmFlNzZhYzYyNjE0NDBlY2MzYjg3NmFiZmM3NmRkZDE2ODZkOTUxN2U2OTNlNTg5NzUwNWI5NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWI2NmZlNTQ1YTZiMWRhYjJkZDEwZTYzNmY3MGMzYTYxZjg5Yzk3MmQwYzM3YWU2MDhjZGVlZDI3YjVhNGQ1YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGJmOTYyMzhiYjc1NjlkYTJlOGQ1ZWY0OTVmNzBhNTJkYzYwZDllOTA0NjZlOWM3ZTg3ODQ4MWI3NDVkMDkzOCJ9"
         },
         {
-          "resource": "repo://MEMMAP.md#L348-L360",
-          "version": "repo-lines-v1:sha256:aea4602cb1b36b2ff512eaf4af7e8a9d447752ea8d502f052b6715afefda78e0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyYTJhMTA1NTI3N2U3ZDNkNzY5MTQzZjJmMGVjNDFlZDFiMDkxZjNiNDU3OWFjMGYzNmU3YjdiZmZmMjg1OTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjNTQ2YmY0NTdiYTQ0ZGMzZjg3MmY1MGY1NzNjMjk0NWFlNGIxNzk0MTU0YTQ2ODVlM2NhOWU3NjFlMmYyODgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI0YzMxODA4YjY3YmZiMWE3MTEyOTNhZTAwODlkYWZjZTNkM2IzYTI2MTEwYjkxNDA0MzYzZTRmYWY0M2I1YzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1ODg5NzgwZTI0NmQ5YjZkZjQyNTVlYWVjYTJhMzA2NzYxZmQ4NzhjOWMxN2JlMDMzMTQ4ODVkMjMwYWRlYzUifQ"
+          "resource": "repo://MEMMAP.md#L358-L370",
+          "version": "repo-lines-v1:sha256:0436c4db05d98406ba589983df57e102849dadbd51a0f8b71bfd5b78bd2fb629:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyYTJhMTA1NTI3N2U3ZDNkNzY5MTQzZjJmMGVjNDFlZDFiMDkxZjNiNDU3OWFjMGYzNmU3YjdiZmZmMjg1OTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmNTY4ODIwNmYyOGI3YWJiZTg3YjAxZjg5ZDc0NWQ5YzIzNzRiZjQyMTQzN2I0MGZlMDkyYTZhYWJiNWQxZGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI0YzMxODA4YjY3YmZiMWE3MTEyOTNhZTAwODlkYWZjZTNkM2IzYTI2MTEwYjkxNDA0MzYzZTRmYWY0M2I1YzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkyNTYzZGQxMGQyYTQ2Yzc1ZDQ2ZjA5OTQzNzQzNjRlYjU4MWEwOGUyMjdhNTQxZjBiMWVmYjY4YWQ3MDlhYjkifQ"
         }
       ]
     },
@@ -91,7 +103,7 @@
       "statement": "The board pushes each decoded PS/2 ASCII byte into both the architectural keyboard FIFO and the UART receive FIFO, and each build's software reads only one of them.",
       "evidence": [
         {
-          "resource": "repo://rtl/deep16_board.sv#L414-L424",
+          "resource": "repo://rtl/deep16_board.sv#L415-L425",
           "version": "repo-lines-v1:sha256:40b94a480f9fe308b5a44d02418fb00800312272a9e56cc3e39aab78df44f786:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiYjEwNTlhYmI3ODVkOWJlZDVmNDI5ZTI0ODFiMjM1ZjI2MjBiY2NlMjdmMjgzN2I1ZTQ3NGE4YmJkNDI3NzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ4OTU3YjkxZGFjMzZlZTA3ZmYyMzI1ODQ3NjI3YzA5YmFhZTM1MGQwZWYwNjAwMjZjMWNhMmRiMzBmN2U0MGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcxODdhNzQyYjU3ZjA0ODMwNzMyMjgyM2YwZjg5OWNhZjIzNDc1ZmQ5NDM1NjI0ZTRmMWI0NzQxZTJiMzRmMTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM1YWYxODBjOTVmYzhjMzgwYTdmNjllZDBiYjQzOTI4NTAzMDdmZjRkNWNiMzU2ZmYxZTY5MzVmMDA2N2EwYWYifQ"
         }
       ]
@@ -122,15 +134,15 @@
     },
     {
       "id": "claim_908f1a1f7e0f404aa1b4c9926ef4d016",
-      "statement": "The D16nano build exposes a read-only 32-bit CPU cycle counter at 0xF0068/0xF006A and a status word at 0xF0066 with vertical blank, frame toggle, the S2 button and UART RX-ready as bits 0-3.",
+      "statement": "The D16nano build exposes a read-only 32-bit CPU cycle counter at 0xF0068/0xF006A and a display-status word at 0xF0066 with vertical blank, frame toggle, S2, UART RX-ready and the synchronised raster toggle as bits 0-4.",
       "evidence": [
         {
           "resource": "repo://rtl/deep16_board.sv#L333-L345",
-          "version": "repo-lines-v1:sha256:6dd2ecfbe12194bb3531effe8d990bf9ce7b3d21a88b1569881353237ba16ada:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxNzk5ZjMyMWQxOTdkZGE0OTI3MTIxOTI2ZTI2MzZhYjk4NjZhOTIxMGNmNTEzMDhiZDY4N2FlMGJiMDE5YjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4Njg1NTM3NzMyOGFiM2Q2MWE3NDc3ODA0MTc0MzQ5ODViNjM1NzY1NzliNGRhNmI0ZjVhYTI0YTY2MTIyZGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NTFmM2M2YmNhZDJlYmFmODI1OGVhMTBhMjNlNzcxMDc5MjZkN2E1OTA2NDU2NTZjZDlmYWU2YmU3NDk4MGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNhM2QxOGQ1MzlmNTdiNTkyMjAwMDFkNDNhMDc3NDdlYzZlNmJkNDQ4NGMzYjI0MGE4MWFjY2RlOWExMzVmZjQifQ"
+          "version": "repo-lines-v1:sha256:fc9c8cff6ad47d7f25aadca4028a00388038d6b96c9b70ddb5184c5bf1d24678:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1MDhkNTU0NjI3MTZhNjg5ZjczYTMzZDNhNjk2ZDI0MjMxYTYxZGEyY2VmZmMyNDdjM2VkNTU4NzUyNDhmYjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkODRiOTViYWU4ZDY1MTgzYmRmYzEzZDk1NjVlMWM0MDFkMGRiZmNlZTM3ZDcxODhkZjk3M2VjZDAwMjY1NDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVhYzA4N2I3MDQ0MTZmNGU5MWFkN2JiYzAyNjYzMDU0NDExNDU3NmRhZmExNDkzMmEwOGFkOTQzNTFkMDFlZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ0MTI1YWI1YjEwOWJlY2RmNDk3MWY5MWQzMDFhNWY5ODgxMTFkOWRjYTA2OGUwMjdlMzc4NDY1ZjAyZGM1ODYifQ"
         },
         {
-          "resource": "repo://rtl/deep16_top.sv#L560-L570",
-          "version": "repo-lines-v1:sha256:87866a535bbc59fcc32c25de03eff8f22437a1e272f480cb727571c9c414fdbd:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMGEzMzQ0ZGIwOGYwMzBmMDBhMTdjMTk1ZDI4YjJjMzk3MzBkODc0MTI5Y2EyMzBmY2VjY2UwOWEyZjViMzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4Njg1NTM3NzMyOGFiM2Q2MWE3NDc3ODA0MTc0MzQ5ODViNjM1NzY1NzliNGRhNmI0ZjVhYTI0YTY2MTIyZGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBkMjg5OWJhYWZjYWNhMGY5NWE2OGFiMGQyNjRjMjQ4OGU1M2FjZTlkYjJiNThkMjM1ZWIxZmFlZDIzODBkNGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAzZGYyNGI2YTAwOWY4NTIzMGI4OTliZTU4N2QzZjRmNWE0YzkzNTYyZmIxNzIzNzhhMjNlNWQyZDhiYTA0Y2EifQ"
+          "resource": "repo://rtl/deep16_top.sv#L338-L343",
+          "version": "repo-lines-v1:sha256:88ce729cd9b2900c822df0c974d8e05205e41549413793d68deb0f6fae6d30b7:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2QxYWJjOGE4YTU3YjA0MDNkOWIyNDU2NTkzOWYxZDU1NGEwYTY1ZmNiYjhlOTI0ZmM1ZjVlOTcxZTRkMzRjMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjU1ZTMzMmZmMmMzNGQzZTY5ZjkwOWRlYzRhOTlhMjcyODBhOWI0NTVkMTIxZTlkMjEwZGEwZGM5ZjU4NmJhNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTI1MmI0NDYxNjIyYmVlZGE0NTllZTJjMTI3ZDYwZjI3YTZjYTJiMTJhOTJkMjFiOWY1MjY1MTNiMmUwYzcwZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTYxMmM5OTc2MDg0OGNmODFkNzU1N2Q5Y2U4MGU0ODIxOTYxMjEzNmZiMGE4OTYwNmFiMTU0NTIxZGMwNTVmZCJ9"
         }
       ]
     },
@@ -174,11 +186,19 @@
     },
     {
       "id": "claim_6dde4567cdd94c029f9506156a98783f",
-      "statement": "Only the timer tick is wired into the SIC: the source vector is {raster_src, 1'b0, timer_tick, 1'b0}, so audio and keyboard are constant zero, and raster_src is guarded by the D16_NANO macro that no build file defines (the builds define D16NANO).",
+      "statement": "The SIC source vector is {raster, audio, timer, keyboard}; the timer tick drives bit 1 and the synchronised raster toggle drives bit 3, while audio and keyboard stay zero. The raster source is a level held by dvi_tile until a control-7 write acknowledges it, so the handler must acknowledge before clearing the pending bit.",
       "evidence": [
         {
-          "resource": "repo://rtl/deep16_top.sv#L241-L258",
-          "version": "repo-lines-v1:sha256:6a737b5147d99420129c43f9d7b38adb3e8499669d58af316e9a483280644606:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjMjNmNDVjMzVkNzIwZTc3NDZjZThlM2FlZGEyZDQ3ZjAwMzcwOTk1ZDA5MjdmMjhjMmRhNTQzOWYyYTljMDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzNDgyNDM2MWU4MzA3NDk4YmNjZGVjYTZkYTI2MGEzOTA4NTYwODkwZmNiMmQ0NzJiZGEyNThlMGNjZTRkZGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgxZDM0ZjY4MDJlNGVmZmRkMDYyZjJlNWJjMTA0ZDAyNzk5NjBhZDEyYTNjN2I5MjY2YTk5MmQ1NmQxZGUwNWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM2MGQxZTUzNmJmY2Q0YjU3YTgwYTk5ZWFlNmFiMDQ0ODRkNzBiNmExMzczMTlmNjg0MjE1YjA5MjRiMWNkNDIifQ"
+          "resource": "repo://rtl/deep16_board.sv#L277-L288",
+          "version": "repo-lines-v1:sha256:6beb7185b8d5e84b708c9fef9977fd8d0a5756d02533a5a878c7b5b7da7a52db:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5YzAxYWQxZDAyMTVjMGY0MWMzOWJhMzFiYzc3YjIwMzA4MDZlODFiMDE2M2NlNWMzMTg1OTY4MmYyODYxNzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlZjA0ZjIxZmE4MTBhYzcxN2QzNWY2YTA1YTU3NjQzMDlkYjE3OGYyMmNhNjc3YTQzYmIwMzg2ODJhZDZmMDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRhZWQyY2YyOGFhYTU3ZTQxMzM0OGY2NzkwYTM3NjgyN2M4ZDA3ZGZiZDNiMjcyOTM3Yzg4Y2RlZmM4YzBlMzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIxNDVlMDZhOTkyYTg2MjIyM2NhMDBhYWVlYzYyYzUzY2ViZTE1ZjIzMDE3Y2U0NTQ5ZDIyNTI0ZWExYTdjNzcifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_sic.sv#L30-L45",
+          "version": "repo-lines-v1:sha256:0d6e5d69f2eee0410f25368dd7d1bece809e0af0786c5e2e3c0bcfb50f98728d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI5ZWJiNzI1YTVmNWI3MTk1M2Q4NDJjOWY2MTYzODQ5NDc2ODI3ZmNhY2JjNzQ1OTFmMzA4ZDY1NTMyNzRhOGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3OTgxMWM1ZmJlMjVjM2Q0ZTVmM2QxZmQzNWFiOWRhNmJjZjhhNjhjNWVkZjlkNmJhOTdmNjg2ODZjMzk2ODAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc5MWExNTNkYjQ3YjQ1M2RkMmYxZDE5OGUwZmVmOWJiNmEyMDdkNWY0YWQ2NDc2ZWFjNDllZDM4N2VmMWJmZmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA1N2JkYmMwMGMzN2M3YjJkYmUyOWRmZTA2ZGFkYTY4YjZjNGUxZGJkMWFiOWUwODM3NzM4Mjc0NjM2MTI2YTQifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_top.sv#L242-L255",
+          "version": "repo-lines-v1:sha256:2d0215a56ae1c47d68b50a21f8a82401dcc7b19559f3da43c012e520c24508fb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmYTYzMjEwNmEwYjVjNTc1YTUxYjY0ODU1NmM0OTVjODQyNzcyMmQxODI4YzIzYzIxMTc4NGI1ODljODNkNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRlMmUwNTc4NDhiOWUzYWYyNTE5ZjIyMWExMGMwMWZhZDM4YWVlZGNkMjliOTBlNTg5ZWU2MDg2ZGZjNjBlOWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIxNGY0NzcyZjkzZjkzMzcxZGNjMWU0Njg3NTRmOGFmYTE2MWRlZTExYWUyMDAzYjIwNzQ0MGRmZDIwZTc0MDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIwM2I3NDI4NjNiNDY4N2RjZjkxMTEyN2Y0MTBiNGE2MWVjYjAxMmU3NGIwZDEzMWZhMThjOWQyMDM1ZGJhNTgifQ"
         }
       ]
     },
@@ -217,7 +237,7 @@
       "statement": "MEMMAP.md still says CS1 is pin 25 and the on-board configuration flash is not used, which predates the tile build that boots from that flash over MSPI pins 59-62 while pin 25 is I2S BCLK.",
       "evidence": [
         {
-          "resource": "repo://MEMMAP.md#L422-L425",
+          "resource": "repo://MEMMAP.md#L430-L433",
           "version": "repo-lines-v1:sha256:9d2e286721279ab6ff0809971d39af5a271fb02686dd05b13a46fdd53c427daf:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzcyYTMyMzZhY2FiYTdlY2UwN2UyYzgzNjFmZTM4ZjJjMjk5YzQ1YTI2MmY4YWI1OTk2MjZmZDRiZjg1YTQ3ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzI1YzI1MDhmMzlhNjJlNWM3ZDM2OGM5ZTA1YmY4YjZkZjNkMTVmYmQzM2ZjZjk0NWQxNWNiYmIzYmRjMjUwMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGI4YTRlZGM1ZWFhMDdlZWEwMzIzYmJhYzZkMzdiMmVkYjlmOTY4YTFjMTE4MTY2MmY1NGQ4YmE1MGM2MzMxZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWU3OGU5YTMxZWNiOWNmYjQyMGM5ZjZjNzk1MWVjMTAzODQ2YTlhNmUyMjk1ZDAyMDYxYTU4Yjg0NmRhNjY4ZSJ9"
         },
         {
@@ -231,7 +251,7 @@
       "statement": "MEMMAP.md describes the UART divisor 234 as the 27 MHz value, while the RTL derives the divisor from CLK_HZ divided by BAUD, making 234 correct only for a 27 MHz CPU clock.",
       "evidence": [
         {
-          "resource": "repo://MEMMAP.md#L290-L290",
+          "resource": "repo://MEMMAP.md#L300-L300",
           "version": "repo-lines-v1:sha256:dce418ffbe7e5a2e012733de27a7302078a0f337a501e9ecb4552fd6e040bef3:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGNlNDE4ZmZiZTdlNWEyZTAxMjczM2RlMjdhNzMwMjA3OGEwZjMzN2E1MDFlOWVjYjQ1NTJmZDZlMDQwYmVmMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGNlNDE4ZmZiZTdlNWEyZTAxMjczM2RlMjdhNzMwMjA3OGEwZjMzN2E1MDFlOWVjYjQ1NTJmZDZlMDQwYmVmMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDVhNzg4MWQ3ZDNhODJlYWQ1NDRiOWFhZTE4YWMzN2Y0OTg5MmJlMzA2ZmMwODViNzkxZDlhOTMwZWU1MDEyZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGE5OTE0MDRiYTAxYjhiYWU1OTFmMDU4NmNiOGY2YTQwNzNjYmQwYzc3ZDhmOWI4OGZiZjk0YmY4N2U5YTNkNCJ9"
         },
         {
@@ -239,10 +259,56 @@
           "version": "repo-lines-v1:sha256:4c906d5f370d509d15a7c27462cd80c29ba099441e286a11482067c314369a01:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGM5MDZkNWYzNzBkNTA5ZDE1YTdjMjc0NjJjZDgwYzI5YmEwOTk0NDFlMjg2YTExNDgyMDY3YzMxNDM2OWEwMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGM5MDZkNWYzNzBkNTA5ZDE1YTdjMjc0NjJjZDgwYzI5YmEwOTk0NDFlMjg2YTExNDgyMDY3YzMxNDM2OWEwMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjg1MWZmNjU4OTJmMDc3YWQ5YmVjZGQ2ZDE3ZmI1ZmMzMzhlYjcwYTQ3YWQyOWUwMjVmYmZkYjQ2MGU0YzE3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTNmNGM0Nzc0MzFkODFmOWM2ZTFjYWM4ZGE3MjExNTIwMWJkN2QxNTAyZWFiZDExMDkxNzA4OGFmNDcyOTRkNSJ9"
         }
       ]
+    },
+    {
+      "id": "claim_a10607c2c7604e3e95579b61c71e60b3",
+      "statement": "The JS tile engine and scripts/render_tile.mjs reproduce the FiT windows and eight-slot sprite composition for the IDE and deterministic headless menu/Flappy/Pac-Man/console PNGs.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L43-L56",
+          "version": "repo-lines-v1:sha256:875520b1a77f019a6b50dc83d8220bcdbf167cf5dfef967f3ceac730216214fe:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5ZWI5MWFkMmNmYzMxOGJlZGJkY2RkMmY2ZmZmNTU2MjNiZWI2ZTM0MjE4ZjY2ZjM5MWYyNDZjMmQwOTE4NTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVkNjMxMTEyNGNkZjRkMjI3YTg4MmY3NTA4MjM4NWE2M2U4MWY5ZWFhMmI3MDZiZjI2YWQ1YjI1YzdmOGNhMTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNjMmMzZTBhZjY5OGIxYjE5NjNlMDg0NDFlYWMzMjM0NmJhYmJmOTY5ZTAwMGViZDU3NTZmMzYwOGUyNWJkNDgifQ"
+        },
+        {
+          "resource": "repo://js/deep16_tile_engine.js#L118-L160",
+          "version": "repo-lines-v1:sha256:a5ca9e64618542aa99df62fc28c54de9c47dc2825ebaaa514908c7bc8d4d0f20:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2YWFhMWI4MzUwY2IxMDgxMThmM2IyZDdhYmJiMGY5MjkwNDA2NTIzNTM3ODk3MjI2YWY2NTk2ZjEzMzI1NTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA1ZTkzY2Y1Zjc5YmM4OWUyZTAyM2M1NDk2ZmFlZWI1OGNlMDM0MWJlZDI0ZmEzNmFjZWI4ZDgzYWE5Y2MwMDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRkYTk2ZGU0YzEyOTM1N2RlNGMzYmEyNzRhOWFlMTNkYzM1N2JiZWQ5MGY3NjQ5N2U2ZjllNWVkYmYzODBjMDQifQ"
+        },
+        {
+          "resource": "repo://scripts/render_tile.mjs#L1-L60",
+          "version": "repo-lines-v1:sha256:61acaa11b464e6097d774e21c267b4c1479240314d14c6cb045c7dbb2342b06f:eyJzZWxlY3RlZExpbmVDb3VudCI6NjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQyYTJjYjI1YTEyMmI0NDIyMWE2MjM0ZWM2NjBhN2I1ZmI3ZjliZGU3YjNiOWUyYjNjNTU5YTBkOTZmYWM3MzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZlZGI1ZjhlZGU2ZTE2MWVkOGQ1Y2JhZmVmYjNhODhhN2M2NGMyNzY4ZDdjOWMzYWY5M2MzNTU0N2QxN2UzNmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_00068f226bd64715a51756370c6cef24",
+      "statement": "dvi_tile raises the raster request on the rising edge of the compare-line match, one request per visit; after the handler's W1C ordering was fixed the board measured one handler entry per edge and the sprite multiplexer works.",
+      "evidence": [
+        {
+          "resource": "repo://ERRPLAN.md#L215-L250",
+          "version": "repo-lines-v1:sha256:eb2db7a43ede0bc9bf502c6db91adcc0996f16f1889eb34ea7271c59b2cf497c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmZWNjMjkxMTU1NjE2MzhiMWI4OGQ0ZjZkZDJhYmI4Y2M5NTlkYzQ0MDg5NzRjMjY5NjVmMjc3MjZhNTM5MDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc4YWQ5MjhiZTQ1NjMxMWJlMDYxMzgxZTJlYjM0ZjY1MTM0NDA1NjliODEyZWZjN2FkZjdlYWUwY2QwOTE0NTEifQ"
+        },
+        {
+          "resource": "repo://rtl/dvi/dvi_tile.sv#L300-L330",
+          "version": "repo-lines-v1:sha256:6009c89231f355957f378f5c9430b006963fb0d8961a9e00783977dc77468982:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU0ZDM4OTdhMGY5ZDY5YzlkYjgxYmM5Nzc0MTVlNDBiNzIyYTVkNDRkZGU1YmQ4ZjcyNjQ1MWJhZWQyNDhhNDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4NGM1ZjkxYzk0OGEyYzkyNWY3YWRkNzE3NzI3NTBmMDI1MDllODZiODNmYTIxNmI3NjM2Y2Q4NDc4NGRiYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUzMzAwN2JkNTM5ZTg3ODc1ZTgwYmY2M2Q4MjhmNDQ4ZmU2OWQ2YmExYjlhNTYyZjk1MjlmMDRmZjY4ZjQxZjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFhOWFlN2E5MWJjNTg2NTI3ZjQxZTkyMTA3NmU0NjEzMmM5NDM2OWQ3MGEyYmFiY2RhN2Q3YTcxYTNjODlhN2QifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8e10a3b4f13f4e8489b7bce0ca930cce",
+      "statement": "The OAM loader re-reads the descriptors every line and compares y against the line being built, so a handler that rewrites descriptor 0's w1 at a compare line changes the sprite from the next line on; one hardware slot can therefore show two sprites above and below a split.",
+      "evidence": [
+        {
+          "resource": "repo://ERRPLAN.md#L235-L250",
+          "version": "repo-lines-v1:sha256:e8180f2337b0ac5542946da2df3b98491b7032891270ce996fd65b9124822b99:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyZDViNWQ4OWZlMjEzMDZkN2U3NGQ2ZTdhODJhYzY4NTM2NGE5OTE1NTQ3MDZiZjhlZjc4OTU5MTI2YjJhM2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNkMTI0MGI3NGQ1NDA0OGVkMjgwOTAyODIxYTc3MGQ4MjQxZjc4MGYwMDk4ZjRiYTA0NTcyN2NlYWQxNGRiNmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc4YWQ5MjhiZTQ1NjMxMWJlMDYxMzgxZTJlYjM0ZjY1MTM0NDA1NjliODEyZWZjN2FkZjdlYWUwY2QwOTE0NTEifQ"
+        },
+        {
+          "resource": "repo://rtl/dvi/dvi_tile.sv#L860-L940",
+          "version": "repo-lines-v1:sha256:ecb2fe5df7101fd4f912eec4cd4c16d268ea8546bed2d9ee99e27966765581f4:eyJzZWxlY3RlZExpbmVDb3VudCI6ODEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4NGM1ZjkxYzk0OGEyYzkyNWY3YWRkNzE3NzI3NTBmMDI1MDllODZiODNmYTIxNmI3NjM2Y2Q4NDc4NGRiYjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YTM5NjY5NGRjMTEyZjI4OGEzZTI3MzBkYTQ4YzhkMGJmMzUzOTdmNjRjZWQyYTdhZGQ1ZjcwMzE0NTA0OTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA4NjU4MmZlNDM0ZjgxZjJkNWI2MDIxYzRmMzMzOTkwZmZhNzJmMzI2ZDA1NWMxZGRiNzI4NDI0ZThiMDdjNjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ0YzM2NzRhYzQ1ODY3NGUzZjRiMWQwYjA5OGIwMjAxMDZmMmQ0YTg0NDVkNDVkZDM2M2U3YmMxODExY2EzYTgifQ"
+        }
+      ]
     }
   ],
   "verification": {
-    "by": "openwiki/0.7.2",
-    "at": "2026-11-01T09:36:37.731Z"
+    "by": "openwiki/0.7.3",
+    "at": "2026-11-04T15:30:01.509Z"
   }
 }

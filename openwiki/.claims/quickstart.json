@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:6de5e75aead296dadebdb4e6a4f09ae9c55b03bde3a62976f73cb43a3051fe75",
+  "pageVersion": "sha256:8fbad1445f8fb9036c7a99af9eec59008967391da76f7a4b57f52cb7dcd3c8d4",
   "claims": [
     {
       "id": "claim_a88b027e4112422e84bcc6365cfaf020",
@@ -17,7 +17,7 @@
       "statement": "The machine has 16 general registers with R15 as PC, a 20-bit word address space of 1M words, CS/DS/SS/ES segmentation with phys = (segment << 4) + offset, a shadow bank swapped while PSW bit 5 is set, 16-bit instructions, and a 16-word boot ROM at 0xFFFF0 jumping to 0x0100.",
       "evidence": [
         {
-          "resource": "repo://README.md#L171-L185",
+          "resource": "repo://README.md#L195-L209",
           "version": "repo-lines-v1:sha256:b497788b959bafebdf79bda57f696bbb95acae0f244713dae04ce2fc75877690:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzMWJiZWFkMDlkNTgxMmNhMGU4YzhlYTQwYjg4NTcyZTNhOGYzNzEyZDZjNzYxYzc4Zjk3NDJiMTg1OTI1ODciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjY2U0YjhmNDViZjlmNTgyMDA2Zjg5OWQ2NjFiYmZhODExNjM1YjFlZjljZmNjNTUxZjllNTVjYTUzYmQwMzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQxMGNlMjM5MmMzNWMwOTc3NzViMjBhNTI3NjIxNGI4NjUyMTY5YjFkZDA4ZDVkNDA2NDdmOWU1NWE4M2EyMWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVkNmE4NGJjYjg4OWY0NDBhMjA0NThhYzE3NjlkMDJkNTZmZmJhNmRlY2YwMDI4M2IyNjEzYzUxZDExNmFiNWUifQ"
         }
       ]
@@ -27,12 +27,12 @@
       "statement": "The IDE needs only a static HTTP server: npm run serve (a no-cache server on 127.0.0.1:8000) or python3 -m http.server, and a file:// open falls back to the JavaScript core because the compiled cores are fetched.",
       "evidence": [
         {
-          "resource": "repo://README.md#L24-L38",
-          "version": "repo-lines-v1:sha256:154a1cb0b2bb751549aadf95d3c581b837aaf6521c6651e808c1e59b4568ca6a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1N2NkNzhhYWI0ZWRjMmJkMWVlM2IyZDJlNzlhZTBlMzU2NmY2ZWVmYTRkYmFjOGIwNmM5Yjk0OWY3Y2M1ZTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxOWRmZDE5YjBmYjZiNGUwOTYwMzk0Zjk1OTVhY2FkMTM3ODBiZmFkMDdmZTdlZjExMGYyNGRmOGIwZGZjYTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3ODIyOGQ5ZTkxYmRhMjBiYTkyMWM2NzAxYTUyNTIwYjZjYmRhMDM5ZDM2ZDczMzdhNjk3NjE0YTIyYjEyZWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJiZmMzMDBjNzU0ODUzODA4YzcyNmRiZWM2Yjg5OTEwZWEzMjFjY2VjNDI2MmQyZmMyMWNlYTIyYjA1NDM5YjcifQ"
+          "resource": "repo://README.md#L24-L40",
+          "version": "repo-lines-v1:sha256:af6def45ccc46fe5e6397972cf78fd4375b045742948837e525f0305bcb659b4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1N2NkNzhhYWI0ZWRjMmJkMWVlM2IyZDJlNzlhZTBlMzU2NmY2ZWVmYTRkYmFjOGIwNmM5Yjk0OWY3Y2M1ZTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiNzJkYjNkOGQ2ZjU3ODNkNmVhMDUyM2M3Y2MyNDUzNzA2MzYzZTg0NGU5M2VjMTUxZWJiZDIyNGU1MTVjM2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3ODIyOGQ5ZTkxYmRhMjBiYTkyMWM2NzAxYTUyNTIwYjZjYmRhMDM5ZDM2ZDczMzdhNjk3NjE0YTIyYjEyZWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJlNzNhOWM0YTI1NzA3ZTJhYjc5ZDY2OTI3YThlNDJlM2EyMDkyYjFmMDY4YWQxNGEyNGFkYWJmN2NjMTIxNTcifQ"
         },
         {
-          "resource": "repo://package.json#L1-L30",
-          "version": "repo-lines-v1:sha256:bc317cb3976fa6c87d7d5ebde7f73c772f4c8b60575b5e83e2fe95d227d37242:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3ZmU4MTFkYmQ2NmUyYTU4NDQzYTNmZGE5NGJiZDlhMjkwYTdmZTVlODFhNTlhNTRiMjVkZGIzZDZiNGUyOTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcxZGNiY2Y3YTk0Njk3ZGM3YTM3NmZlOGI1OWRmYzBkZTNlZjM4NDQ0MzhiZWE2MzA0M2JiMDVmMGEyMTk4NjYifQ"
+          "resource": "repo://package.json#L1-L40",
+          "version": "repo-lines-v1:sha256:d8f6e6b42e279de491e9b1d4849eead5154910593fd2599d6798007384482c43:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkNWNkMmZiNGYzZGY4ODQ1MTUyNTViMzk1MjNmMmY4YjU0NzJiZWVhOWY1NjZmZmNhMjA0ZGI4MDI1NjEwNDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlkNGFiYmUzZjRlZTRjNzgwNWQ3NjUwMjgxMTE1YTI0YzllOTM3YzZiMTA1MzJkZDMxODk1NjQwNTFhZmExN2IifQ"
         },
         {
           "resource": "repo://scripts/serve.mjs#L1-L15",
@@ -49,7 +49,7 @@
           "version": "repo-lines-v1:sha256:88f17b0bcb45471b1757c0184b376594f5c795ddf653c9da8d5446f3f8687ae0:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc2MDUyY2U2MDg2ZmU3NzY5M2U5M2UwNjUzNGZhM2FmNTliM2FiZjVlYTFjNjc4OTk3ZjhlNDIwMDg0YTJlZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3YWMwNzBjNzliNzNlNGRiMmQ4MWNkZGFlNjVkY2UxMGUxMzViNDkwYzE0Yzk0ZmVjMmIwMjhmODIwZDJmY2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgxMjEwZmM4Mjk4NjRjNDA4OGVjMzljM2I2ZGI0MjI1NDExMTVhMDhhZWVjNTNhYmUyODEzOWZhNzJkYmZiNTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5YWJkODFjYjUyYjA1MWFhZTRmYWNkZmMxMTk0MDQxZGU0ZThkYjQ5OTVkN2VjMTNhZGM1N2VjNDRkN2FkNzQifQ"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L160-L170",
+          "resource": "repo://js/deep16_ui_core.js#L174-L184",
           "version": "repo-lines-v1:sha256:32ef1a62ab2417b141dd16e865498daeb244eb3b9c8be6f2c4f9ca8348675abb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg0YTZmNDY5YTU3MjdmNmM5M2U2NWMyYTk0YjZiMDY1YTM3ZGE0NTc2MGIwOWVlODdmZmQ3NzBhYTlhZDdlMmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE1YzM5ZGQ2MGFjZGJkNmFlMDY2MjcxYzFlZTAxZTA4NWRjMzc4NjJlYmNjYmI1YzliOTMwYmEwN2M1ZThkYjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEwOTc5NjIxZmJiY2I4NGMyNzdjMzNmZWM1MGZhYmNmNWIxM2ZiMmE5ZDYwM2E2OWJhYmYzMjZjZTc3OTU4MDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkMzdmNmU4ZTlkNmQyNzMxYTczNTMxMGIzYTJkYjRlNWFhMzUwMGIzOThkYTc0MTYyZDUzZjhkMWE4ZjdiYTYifQ"
         }
       ]
@@ -63,7 +63,7 @@
           "version": "repo-lines-v1:sha256:d9097f05a1eb1d89a5eb538618c75f1f9cd72200d434f566da282144be4710df:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTEzMWViNTI2MjY1YzdiMjc0MmY5ZTYyNTA5MDE2MzQyMDAzZWE3Yzc0ZThhZWEwNjcxYzkwMTJmYTllOTViOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjgyNmM5M2JlOGU2NTNkMTc2ODVlNTczM2ZmOTc1M2Q5ZDIzM2Q0ZTc5MzNiNjBjY2Y2ZmVjNGM4NDI4YjBhMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzI3OTlmNmI2NDllNmFjYjMwNzU2ZmNjOTUyZTE5ZmE5YTZlYWQxMzMxYjg3ZGM4NTNjNGE1ZTI0OTQ4ODA1ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDFjOTQwNjJkZGZkMWM2N2EyYTA1NzIwMjM3ZjIzNTgwNzQyZDZkMTI4ZWQ2ZTllMDhiMGMyMmU0N2ZhYWEzNiJ9"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L2150-L2185",
+          "resource": "repo://js/deep16_ui_core.js#L2308-L2343",
           "version": "repo-lines-v1:sha256:d29ee72b189f6e33f442ced98fb9c43c0497a9c2c02c760f5da431baaa8f3d9b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViMjdhZjYyMjNlMTAzYzQ2Yzg1ZjgyNDUzZDVlYmRkMTJkYzJhN2E3NjczYmQwYWU3ZDg3NzNhNjkxMjY2YTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk2MjU1NGVjMjczNDRhZjMzZmIwMjYyMjViYTcyYWI5MjIyYjVmNmJlNDhjMGI4YmVjYTdjMmYwZDY3NzEwMTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxZDkyMGI1NjU4ZTMyOGJmZjRlZThiYmM5MjRjMzZmNWRlNDg0MTdmNmViMzgzYWUxMDA0M2RkYTdjZjk0NDQifQ"
         }
       ]
@@ -81,21 +81,21 @@
           "version": "repo-lines-v1:sha256:388a0d446d76a4ac81ab07adf55af52373230f1e198b56884cf65e07b9477692:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhjNTRlNDNlODFhMmFkNGJiNWFhODkzYjNhMWEzOWFkMzE0NTgwNjJiZmZhMmM2YjRkMGI4ZDg4ODEwMDhkMGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEzMDk4MWNiNDViMzkwOGQxNmFiYzI2NWE0MzIyM2U2MmQ2YWIxN2NiOWI3MDRiMWI0MWU3MWJiYzAzZWM1YTMifQ"
         },
         {
-          "resource": "repo://tests/boot-script.test.js#L60-L70",
+          "resource": "repo://tests/boot-script.test.js#L62-L72",
           "version": "repo-lines-v1:sha256:3d4756eb7f05f2039ca247762a0711e30cd478ae9f9c07dada6aaf52c93a50a8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzNWZlMDU2ODdmZDFhMjA5MmFhNDM4MjdlMmE4OWU3OTczYTQwMzUzNzE1ZmIwMjlkMzJiODE1MzYzY2U1OWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwM2YwNDNiZjIwMTFlNzNhYTFhODUxNDVjNWI2ZTBiMWFhMDIzZTM4OGZmNzVkZmU5OTRjZjZiMzZjOTVkN2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIyODExNTI4ZTQ5ZTNmMzI0YzAwYjU4NjU3OTBkNWQ1YjkwNjY4MDgzNDM5YTI5NjEzNWVhYTVhY2Y3MjEwM2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE3NGU2NDYwOTI1NTc0YTFlZGRlN2IxYWQ1YWFmODAwNjMwMmJmNGJjYzEyZTA3NWUzNmExZDkzNjk2YjRkYWEifQ"
         }
       ]
     },
     {
       "id": "claim_3112f6cdda094d8d9eefda26a65d2223",
-      "statement": "npm test runs node --test tests/*.test.js (35 files, about 70 seconds on one core); individual files can be run directly, and npm run sweep:rtl is the slower all-instruction decode sweep kept outside the suite.",
+      "statement": "npm test runs node --test tests/*.test.js (currently about 40 files, minutes on one core); individual files can be run directly, and npm run sweep:rtl is the slower all-instruction decode sweep kept outside the suite.",
       "evidence": [
         {
-          "resource": "repo://README.md#L54-L58",
-          "version": "repo-lines-v1:sha256:ff5e337c019307f752b0b56084b4e25dd1f851fff1ab0315c85bd9c6429dfb6b:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmU3ZjRiMzZhYzljZTBkMDZkY2Q3MmNjYzI0ZWIyOTBlY2NhM2RhZGNlZTM2Y2Q2NDE2ODlhMjgwNDhjODU0NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjA3MjE5YjQ5MTAxZGQ3NjA2OTMzOTc0YTAyYmRlYjYwYWZhNjVlZjAyZjA5YzRlZjQ3OGFlOTU4ZWQzZmYyZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTI1ODdjYjIwNGI1NTNjZDU3MWJiNDRhM2YzNTMyYmY4MDExY2JiYWVmZmUzZDk2ZWRhMzU1MWIwYmMyYWIwOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTJiMWFlNWYzN2ExOTZjYjg4ODc2OTk2NTZhZWIwOTY5MjQwNWM0NmI1ZDc0YzJlYTBhZTMzNmNhYzU0NzQ5NSJ9"
+          "resource": "repo://README.md#L72-L76",
+          "version": "repo-lines-v1:sha256:30a2847c425b625719cd7f8142a10d155460e5aa72a5bff88726109985089e83:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmU3ZjRiMzZhYzljZTBkMDZkY2Q3MmNjYzI0ZWIyOTBlY2NhM2RhZGNlZTM2Y2Q2NDE2ODlhMjgwNDhjODU0NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjA3MjE5YjQ5MTAxZGQ3NjA2OTMzOTc0YTAyYmRlYjYwYWZhNjVlZjAyZjA5YzRlZjQ3OGFlOTU4ZWQzZmYyZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTI1ODdjYjIwNGI1NTNjZDU3MWJiNDRhM2YzNTMyYmY4MDExY2JiYWVmZmUzZDk2ZWRhMzU1MWIwYmMyYWIwOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTJiMWFlNWYzN2ExOTZjYjg4ODc2OTk2NTZhZWIwOTY5MjQwNWM0NmI1ZDc0YzJlYTBhZTMzNmNhYzU0NzQ5NSJ9"
         },
         {
-          "resource": "repo://README.md#L96-L104",
+          "resource": "repo://README.md#L120-L128",
           "version": "repo-lines-v1:sha256:313ec80210c4c040a73cdf0f989a8d056f4e99718c7081e36f70d95d11acfd60:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjRmNzJiNjJhMjcyZDJhYjkxNmYwMDk1N2I3MWYyZjhlYjk5NGI5MzdkOWYxOGYzOTM1ZWEwYzljNDY5YjNiMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTY0ZTQyNzUzODk0MDA5ZmQ4NTczMzBkMTM0OGIxZTEyNjA2ZTRhZmFkNWEyOTc0MWI3Yjk0YTQ4YWQ5YTI1YiJ9"
         },
         {
@@ -109,7 +109,7 @@
       "statement": "Rebuilding is only needed after changing a core's source: build:wasm for the Rust core, build:rtl:wasm for the RTL package, and build:rtl for a native debug binary.",
       "evidence": [
         {
-          "resource": "repo://README.md#L42-L52",
+          "resource": "repo://README.md#L60-L70",
           "version": "repo-lines-v1:sha256:0455bfb8df90fe37c072da7cd8f05b987780309a8e70529647ca339484ecbe90:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0MzAzMjkwNmFmZmQ3ZGU1MTgwOGYwYzI5NGQ4OTg2ZTQ2NDRlZThlNGIwNDRkNzU5MWMzM2MxZThjNzIxMjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM4YTA4NmI3Njk5N2NiYjY2MjA2OTgzOTg2YmQ2NTVkNTliYTgzMzQ5ZjUwZTdjYTc2YTIzZDVmNDAxMjFmMTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJiZmMzMDBjNzU0ODUzODA4YzcyNmRiZWM2Yjg5OTEwZWEzMjFjY2VjNDI2MmQyZmMyMWNlYTIyYjA1NDM5YjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUxNmUzMjkxN2ZhYTI0NWQ4MzA5ZjNmZTc1ZWQzYjliNDM2MjZiMzViNmNmNmZmYjZmY2ViNDhlNGI4NTM5ZTYifQ"
         },
         {
@@ -123,7 +123,7 @@
       "statement": "After editing forth/demo.fth the boot script must be re-embedded, and after kernel changes the image must be regenerated with npm run image.",
       "evidence": [
         {
-          "resource": "repo://package.json#L20-L21",
+          "resource": "repo://package.json#L22-L23",
           "version": "repo-lines-v1:sha256:435e581ad10e600966f8fa92af7ea496378edb720c7a516fae7ab78c6629dd14:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGJhNGM3ODJkMWQxODcxZDJhMjYxZjUxN2YzMmVlOTViZmZmNjQxMDQ2YjcyZDc4Y2JjZmRmMzE3ODFiOWI0NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzdiMGU1Y2ZlNWRmZmJhNTI3NzRlOThkYTQ4NjQ1MDQ4YjFmYTA2NGYwYzc0ZmU5NmY5YjYwMmE4YjVhMGI4NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDRmYTliYWNhMjUzZTBhNjlkYmVmZjk0OGI1NzAwNDkwOGU5MjViYmY2MWE0YmYyMzk4M2VjMTMzNDg3MzhkOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzZlMTJkMDBlMWQyMjliZmQ5NDg2ZTA5NjlmMjM3YzczNjI1OTMwZTc5ODc0ZTU5MDNjOGEzYjM4MGMyNjIyOCJ9"
         },
         {
@@ -151,7 +151,7 @@
       "statement": "The repository layout is index.html for the IDE, js/ for the toolchain and core, wasm/ and rtl/ with committed packages, asm/ and forth/ for the kernel and boot sources, doc/ as current documentation, and scripts/ and tests/ for tooling and verification.",
       "evidence": [
         {
-          "resource": "repo://README.md#L200-L219",
+          "resource": "repo://README.md#L224-L243",
           "version": "repo-lines-v1:sha256:a5ebc64593f5ad3e9c806a7cab9c6153d4dbfddd1f8bf2a60c6e4c9adaf6a729:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQxM2IzNjMyNjI5ZjZlMGQ0ZTcxMzNkOWIzNGM5NGVhNzNlNzk1ZDc0ZDE0NGUyYmRiMzQxMjk0MDdkMDliM2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk5OWQ5YTM2MmQ3YjJkN2ZlY2I5N2NiMmE3YTI1NGRhMjEzMDJkZTMyNDZlY2QxZTFkMTcwOGZiZTY2ZWUxNmIifQ"
         }
       ]
@@ -161,7 +161,7 @@
       "statement": "Day-one gotchas: switching cores mirrors state instead of resetting, the echo cell 0xF0064 is outside the board's backed window so echo is always on there, and docs and plans are secondary to source.",
       "evidence": [
         {
-          "resource": "repo://README.md#L228-L232",
+          "resource": "repo://README.md#L252-L256",
           "version": "repo-lines-v1:sha256:ff5945751743a3bf173ab97d73448dbf89fcf927060ff857153ae0c37fe3ec6c:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWJlMzYyNjczNTAxMDJlNGU1NTliOGYzNmU5MDkwYTZmMGVlMmZkZDRjZjhhMmY0OGQxMzdmYmY3NjQwMjVmMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmJlMzFlZDA3MzIwNmFkMDhiYWFjNmVkZjEyNzM4MDI3NDFjMzliNDIzMjQxMWVlZTYwMTNjMDUzNDRhZjRhNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWJhMTcxYTQ4ZTkxYzA2Y2MxMjkzNGEzMDhhZWZiNTQxMGNkMDM3NGQ5MTMwNjA4Mzc5N2U0NGU2NDczY2U0MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzBlODU3MWUwYjEwOTYwYTdjYWIyNTE0ZDZkNGNiYmYzMzE2YTFiYmUyMmUwMmQ1YjQ5YmMwZmY4NzllMTA2OCJ9"
         },
         {
@@ -169,28 +169,78 @@
           "version": "repo-lines-v1:sha256:ca52f79ed0a0d4f99c5ac3edc74a3c05288109e7f056b284ae1459dffb333cea:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4MGE0YTI3MGNkZjJjNTdiMjdlNGVlNTlmZDliNjJiMWFhNTEyZmJhMTVmOGY2YmQzMTAyZTY3MDQxNTcyN2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyMTY2NzA4ZTdlN2I0Mzk2NTY5ZjI2ZGU4YWIyNzc1ZTU3NTBhYjI5YmVlOThiMWFiYTMwOTA3YzBlMTEzZGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ2NmVjNDUzZGMyMjFmZjJiMjEwOTllMmVmNWE2Nzk1NGM5NDllZDViNTNjOGVhNzMxOTU4MDM2MDM2MzkzYzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdhZTQxOWI2N2E4MWY5ZWVmZTkwMTY4ZmVjZjNkODhlZjEyZDE5ZjNmNzdkMzkxYTliZjg2NThiMmY1M2NmM2EifQ"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L2792-L2810",
+          "resource": "repo://js/deep16_ui_core.js#L2966-L2984",
           "version": "repo-lines-v1:sha256:63963900a895bd1aa85720a6df04d2cf89c40be18c418f7aeb3389b737684cfc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5N2MzODFlYjlmZGM4ZmRkMDk2MjUzZDJlYjFjMWM4OWVkM2NmYTI2ZTU4NTk0Mzc4NjUwOTllZDlmMTgzZWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5YzJjYmNkYzk2YWIyOWYxZGRkZGE3N2ViZWM3NjUzMzhjZGZkYTEwZTljNGJhMDJjNDRkNDVlZTUzMGVkYjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyYjQwN2JhYWFlYWMwMjAxZTZkYTk4YzlhY2ZhYjEwNTE3M2NlZjYxNThiNTA4MjZjOTE5NDQ0ZTkwZmFkNDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ3OGIwNjZiZGI4MTY5NGRiZTcyZDk0NzkwNzg1YjdmYWZhNWQwNmU5OTdiYzg5MzlmYzk2NWRjYjczMDU3YjIifQ"
         }
       ]
     },
     {
       "id": "claim_dd47732a1e4a40a897b7742ce080dd9b",
-      "statement": "Only the timer source is wired into the SIC on the current board build, and only the reduced core3 accepts a hardware IRQ.",
+      "statement": "The tile build wires the timer tick to SIC bit 1 and the synchronised raster toggle to bit 3; the raster path is board-verified (one request per compare-line visit, two sprites from one OAM slot), and core3 is the RTL variant that accepts a hardware IRQ.",
       "evidence": [
+        {
+          "resource": "repo://ERRPLAN.md#L215-L250",
+          "version": "repo-lines-v1:sha256:eb2db7a43ede0bc9bf502c6db91adcc0996f16f1889eb34ea7271c59b2cf497c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmZWNjMjkxMTU1NjE2MzhiMWI4OGQ0ZjZkZDJhYmI4Y2M5NTlkYzQ0MDg5NzRjMjY5NjVmMjc3MjZhNTM5MDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc4YWQ5MjhiZTQ1NjMxMWJlMDYxMzgxZTJlYjM0ZjY1MTM0NDA1NjliODEyZWZjN2FkZjdlYWUwY2QwOTE0NTEifQ"
+        },
         {
           "resource": "repo://rtl/deep16_core3.sv#L20-L30",
           "version": "repo-lines-v1:sha256:2c84af5ee583c3051e4744f77f4d40a0744c9ef3ba3996f6d712f081ff305d67:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1ZDY4NjkyOWI0OTVkMGQ2MTY1ZTc1YWRhNzEyOThjODRmNmVmZjA3YWEzODQwZGU3OWJlMTY0NTA4OGQyZjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiZjVkOGUxN2Y3MzVkN2QzZGE2OTcyMjg1OGFjYWQzODUwOGMxNzZiNDc5ZTQyZTVkMDcwZTVhNWM3ODA2NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA5NGIxMjFiZjMyMjQ2ZmU2NzA3OTEyNzZmN2RhNzg3MTRhYTQ4OTcxMWQzNjRiNjUyMGRkNmY4NzI5OTUyZjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhhY2JmZTllNTk3MjNmNzVhNDAyNmYwOWM5ODMzOTlkYmM5NWQ5ZThlYWZiYTBiZjVhYzA0MTI1YWRkNGViNTAifQ"
         },
         {
-          "resource": "repo://rtl/deep16_top.sv#L241-L258",
-          "version": "repo-lines-v1:sha256:6a737b5147d99420129c43f9d7b38adb3e8499669d58af316e9a483280644606:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjMjNmNDVjMzVkNzIwZTc3NDZjZThlM2FlZGEyZDQ3ZjAwMzcwOTk1ZDA5MjdmMjhjMmRhNTQzOWYyYTljMDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzNDgyNDM2MWU4MzA3NDk4YmNjZGVjYTZkYTI2MGEzOTA4NTYwODkwZmNiMmQ0NzJiZGEyNThlMGNjZTRkZGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgxZDM0ZjY4MDJlNGVmZmRkMDYyZjJlNWJjMTA0ZDAyNzk5NjBhZDEyYTNjN2I5MjY2YTk5MmQ1NmQxZGUwNWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM2MGQxZTUzNmJmY2Q0YjU3YTgwYTk5ZWFlNmFiMDQ0ODRkNzBiNmExMzczMTlmNjg0MjE1YjA5MjRiMWNkNDIifQ"
+          "resource": "repo://rtl/deep16_top.sv#L242-L255",
+          "version": "repo-lines-v1:sha256:2d0215a56ae1c47d68b50a21f8a82401dcc7b19559f3da43c012e520c24508fb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmYTYzMjEwNmEwYjVjNTc1YTUxYjY0ODU1NmM0OTVjODQyNzcyMmQxODI4YzIzYzIxMTc4NGI1ODljODNkNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRlMmUwNTc4NDhiOWUzYWYyNTE5ZjIyMWExMGMwMWZhZDM4YWVlZGNkMjliOTBlNTg5ZWU2MDg2ZGZjNjBlOWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIxNGY0NzcyZjkzZjkzMzcxZGNjMWU0Njg3NTRmOGFmYTE2MWRlZTExYWUyMDAzYjIwNzQ0MGRmZDIwZTc0MDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIwM2I3NDI4NjNiNDY4N2RjZjkxMTEyN2Y0MTBiNGE2MWVjYjAxMmU3NGIwZDEzMWZhMThjOWQyMDM1ZGJhNTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_22431c5159ca47778940baa8ee93d625",
+      "statement": "Tiles mode assembles the D16NANO/D16SEG (and optionally D16D) kernel, loads the graphics blob, and renders the FiT canvas; Pac-Man is reachable from the IDE/board Forth prompt with s\" pacman\" game-run because it is a flash slice at segment 0x2000.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L234-L235",
+          "version": "repo-lines-v1:sha256:1567c79b3056559c96d5083969c80b9b568a8acfe091c32937af82c4f6d942e4:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2FlZTYyYWZiNjhjMTVhNzJjNzVlMTE0NWI0MjUxYjA3NWI2ZTBhYWI2MTY2ZTI2ODRhYjcwZTE4Yjg4ZjQxNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzNiODdmMjI3ZGM1YzZhNzNkYzU3ZDkxODNiNWY5ZGIwZDlhZjY5MWQ1MDFiMWUxNTE5ZTg5MTg3Yzk2MTNmYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWM2MGE3MDU1MWY5YWZiNmUyMGVjMmMzYjA3MThmNDA2YmI3MjhjNWZhOWJmNmU4NjcwYWRiNTgzNDI5OGVlMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjM5YTRmZTYwZWY2OWFmOGFmNDdiMjcwOGU5NTk1OWRiNzdkNjk2MDRiY2M2MDkxZTRhZTg3NWJlM2Q3N2EzMCJ9"
+        },
+        {
+          "resource": "repo://README.md#L43-L56",
+          "version": "repo-lines-v1:sha256:875520b1a77f019a6b50dc83d8220bcdbf167cf5dfef967f3ceac730216214fe:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5ZWI5MWFkMmNmYzMxOGJlZGJkY2RkMmY2ZmZmNTU2MjNiZWI2ZTM0MjE4ZjY2ZjM5MWYyNDZjMmQwOTE4NTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVkNjMxMTEyNGNkZjRkMjI3YTg4MmY3NTA4MjM4NWE2M2U4MWY5ZWFhMmI3MDZiZjI2YWQ1YjI1YzdmOGNhMTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNjMmMzZTBhZjY5OGIxYjE5NjNlMDg0NDFlYWMzMjM0NmJhYmJmOTY5ZTAwMGViZDU3NTZmMzYwOGUyNWJkNDgifQ"
+        },
+        {
+          "resource": "repo://scripts/make_slices.mjs#L120-L160",
+          "version": "repo-lines-v1:sha256:3aeea8497059600cd733a8a7ab6535521f752c7f7f18d8a67064bc2fd2d80ed0:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxZTQ0OGZiYjM2ZGZlMGU1YTA2MDJhYjYyZGZjYzQ5MzQ5YTViYzQ2ODk0OGFkYmY0YzJhZTQzY2U0MGVkYTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY0MDdmNGU3MGJkNjI1MTVjNzI1MzBlOGEyZjUwZGJlMjk2MDZmNTQ4ODU3YTgwOTg5ODU2Njg3MmU4ZWM2NjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU2ZmVmYTgwNGJhMmZkNGI3NTMyMDVhZWY3NGQ5MjU1OTUxZDM1ZGIzM2FmMmEyZTc3NzU2NDAwN2ZlMWZmNGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6f48be9920424010b92f527f3905cf75",
+      "statement": "flash:tile writes the bitstream, the 1 MB boot image and the slice image at 0x200000 (source screens plus the Pac-Man type-4 block); the block protect must be cleared with cf-unprotect first.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L525-L536",
+          "version": "repo-lines-v1:sha256:6a45cc20be22b9fad5f1db295d2f4eaef987877a0d666e54afc176fe81248187:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIxZDQ1N2FiOWFmYjE2YjkyZjAyM2YwY2U4MzRiOGZiY2FjMDUxMDc3NTJkZWEzNzI0OWU2ZmM1ZTA1MmRjM2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlYTdiZDBmY2FlNGViNmZmOGM5NThmN2M3OGE0MTE1NDZiZDhjYTc3NTg5YmJjN2Y0NzdmNWViOWZkNzBmY2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI2MTg2ZjZkNDMwOTExNmY3ZjMzZWNmNWJjZjVlMDEwMWQ5ZjdmNWM3NjMxNTU4NzRlNGNhYTI5NTVlN2YyNWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNiMTAxYzE1M2Y2ZGM0ZGExZjljNDI1OWNjZjhmZjNkMGFjYmFhZTczNGQ3OTY1ZDM4NjBmYzg3YzhiOTJhMzkifQ"
+        },
+        {
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L50",
+          "version": "repo-lines-v1:sha256:ba7b020912e18764ceab10290857f73ba227a36b408706ac42afc8650f69a80e:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI5MWEwMmNmZTE5NmU1ZjhhYTdiZjA5N2YxZGVlNzIwZGZhMjA3NmUwMjQ5M2MxNGFhNTg1MjM5NDYzNDYxOWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cebdba154827494c9daa6a4fcc599d22",
+      "statement": "npm run flash:tile writes the .fs already present in fpga/gowin/impl/pnr, so an RTL change needs npm run synth:tile first; a bitstream older than the RTL boots and runs but silently lacks the change.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/build_gowin_tile_flash.sh#L1-L30",
+          "version": "repo-lines-v1:sha256:30da0b5775ec1f4d24103f01713800e10f727013dab8292a85399da4c23863f9:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzZGM1MTJlNzM5MTAzZmEzNTE5M2EyMDYzMjA1MmU0ZjM2NGE2NGYyNjFiYjk5MmJkOWExMzFlYWI4ODI0ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L38",
+          "version": "repo-lines-v1:sha256:d606017327287ec0cae86977ef5be49c28a0b64f6b0052b67e822cde3cd55957:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjZmVhMDg2Mzk5MzY3YTE2ODY3NzUyNjM5OGU5NGU3Nzc1OTliY2NhZjI5MGE2MWEwNjllYjJjOWM5YTc4MDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNlMDJjMTYyZWZkM2JmOTEwZjI0MjZmNDU2MGYxM2FiMTRiZDRiZWEwOWMzZDgxZjU2ZWQ1NjFiOWRkYWRiMWYifQ"
         }
       ]
     }
   ],
   "verification": {
-    "by": "openwiki/0.7.2",
-    "at": "2026-11-01T09:36:37.731Z"
+    "by": "openwiki/0.7.3",
+    "at": "2026-11-04T15:30:01.509Z"
   }
 }

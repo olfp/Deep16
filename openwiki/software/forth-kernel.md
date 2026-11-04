@@ -2,9 +2,6 @@
 type: "Reference"
 title: "Forth Kernel and BIOS"
 openwiki_generated: true
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
 sources:
   - id: openwiki-source-a28946850ce54d03e71935f2
     resource: repo://asm/forth_nano.asm
@@ -12,11 +9,16 @@ sources:
     resource: repo://asm/forth.asm
   - id: openwiki-source-c14f3342b8ee81b2c622be55
     resource: repo://scripts/make_image.mjs
+  - id: openwiki-source-41517f64370d769c203d48a3
+    resource: repo://scripts/make_slices.mjs
   - id: openwiki-source-7e7e29e4631f6834da144f22
     resource: repo://tests/forth.test.js
   - id: openwiki-source-e9622fb0632e821af1bdf060
     resource: repo://tests/uart-kernel.test.js
-generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+verified:
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 ---
 
 
@@ -43,8 +45,11 @@ The same source is assembled with different defines:
 | `CONSOLE_UART` | Serial BIOS, board memory layout (dictionary below the BIOS) |
 | `D16NANO` | Selects `forth_nano.asm` and the software-divide path |
 | `D16SEG` | Segmented data/stack layout for the tile build |
-| `D16D` | Adds the gfx BIOS call and `gfx` word used by the demo |
+| `D16D` | Adds the gfx BIOS call, `gfx` word and the showcase entry |
 | `BOOT_DIAG` | Temporary boot diagnostics |
+
+The D16nano fork also adds `psw`, `seg-base!` and `call-far` for segment
+loaders, plus the `9 screen` flash-screen loader.
 
 `scripts/make_image.mjs` selects the file and defines, assembles it, and lays the
 result into the 24K-word window; it also asserts that the BIOS size and the
@@ -62,14 +67,16 @@ the design:
 | `0x0500` | Second block of kernel word bodies |
 | `0x2000` | Threading engine: `next`, `docol`, `exit`, `lit` |
 | `0x3000` | Data section: stack bases, dictionary pointer, state cells |
-| `0x5600` | BIOS in the `CONSOLE_UART` build |
+| `0x5600` | BIOS in the D16MINI `CONSOLE_UART` build |
+| `0x4A00` | BIOS in the D16nano tile build |
 | `0xF8000` | BIOS in the screen build |
 
 The D16nano fork adds `0x4A00` (larger tile BIOS), `0x5000` (ILL handler),
 `0x51A0` (IRQ handler) and `0x5300` (`divtest`). Its `DICT_LIMIT` is `0x4A00`,
-because the tile BIOS starts there. With `D16SEG` the return stack also moves to
-`0x2FF0`, since every return-stack access is `LD`/`ST` through `DS` and the old
-`0x5800` position would collide with the segmented dictionary.
+because the tile BIOS starts there; the static data ends at `0x434C`, with
+`0x434D`–`0x49FF free. With `D16SEG` the return stack moves to `0x2FF0` (DS
+offset), since every return-stack access is `LD`/`ST` through `DS`, and the
+dictionary starts at `0x5800`.
 
 Sections are separated because `.org` rewinds the assembler's address counter.
 A routine that grows one section past the next is silently overwritten, which is
@@ -156,9 +163,11 @@ The kernel keeps `ES = 0xF000` after boot so that `ES:0x0060`, `ES:0x0040` and
 
 ## BIOS
 
-The BIOS block is a six-function table (`bver`, `binit`, `putch`, `putstr`,
-`getch`, `getstr`) called through `SWI`, with the function number in the caller's
-`R0` and the answer in the handler's `R0`. The detailed calling convention,
+The BIOS block is a six-function console table (`bver`, `binit`, `putch`,
+`putstr`, `getch`, `getstr`) called through `SWI`, with the function number in
+the caller's `R0` and the answer in the handler's `R0`. The D16nano fork extends
+the table to function 6 `gfx`, which enters the D16D showcase menu in the BIOS
+segment and restores the console on return. The detailed calling convention,
 screen/terminal behaviour, echo policy and boot script handling are on the
 [console page](bios-and-console.md); from the kernel's side the only contract
 that matters is that every character leaves through those functions.
@@ -186,11 +195,24 @@ a handler at `0x5000`:
 ### Interrupt handler
 
 The IRQ handler at `0x51A0` is installed at vector cell 1. It sets `DS = 0x1000`,
-`SS = 0x2000`, `ES = 0xF000`, reads SIC `PENDING` at `0xF00B0`, handles raster
-first, then the timer, writes one back to clear the serviced bit, and increments
-the SIC `SCRATCH`/`RASTER` counters before `RETI`. In the shipped board build
-only the timer bit is actually wired into the SIC, so the raster branch is
-present but unreachable.
+`SS = 0x2000`, `ES = 0xF000`, reads SIC `PENDING` at `0xF00B0`, services raster
+before the timer, increments the `RASTER`/`SCRATCH` counters and returns with
+`RETI`.
+
+The raster source is a level held by the tile engine, so each raster path writes
+control 7 (the acknowledge) first and clears the SIC bit last, after a few NOPs
+let the synchronised level fall. Clearing pending before the ack re-latches the
+bit and makes the handler run twice; that ordering was the 2026-11-04
+double-service bug.
+
+The optional band keeps its parameters just past the SIC page: `0xC0` lineA,
+`0xC2` the value written at A, `0xC4` lineB, `0xC6` the armed line (software
+copy) and `0xCC` the restore Y. The A branch writes OAM descriptor 0 word 1 as
+`{group 1, 0xC2}` and re-arms control 7 at lineB; the B branch restores
+`{group 1, 0xCC}` and re-arms at lineA. One hardware slot therefore shows two
+sprites. `split!` arms lineA; `split-off` clears the parameters and the raster
+enable. The board showed two squares at once, and the polling `getstr` keeps
+the handler running while the REPL waits.
 
 ### Segmented layout and flash words
 
@@ -199,7 +221,24 @@ data stack in `SS`, BIOS/demo data at `0x4A00` and the dictionary at `0x5800`
 with a PSRAM ceiling. The boot script gains config-flash helpers (`cf-wren`,
 `cf-status`, `cf-read-burst`, `cf-protect`/`cf-unprotect`, `slice`,
 `slice-valid?`, `slice-type`, `screen`) built on the SPI port, which is how the
-tile machine loads source screens from flash slices.
+tile machine loads source screens from flash slices. It loads screens `1`, `5`
+and `9`; `9 screen` is `games.fth`, the `game-load`/`game-run` pair for type-4
+game slices.
+
+### Far calls, segment loaders and the pristine PSW
+
+`seg-base! ( seg -- )` writes `ES`; `call-far ( seg -- )` saves a return pair in
+`R10`/`R11`, sets `CS`/`PC` to `seg:0` with `JML`, and returns through
+`callfar_back`, which restores `DS`, `SS` and `ES`. The entry uses a **pristine
+PSW**: the kernel runs with the extra-register selection pointing at `R8`, so
+without clearing it the loaded block's `R8` reads would alias `ES` and its
+direction logic would never see its own registers. `callfar_back` also restores
+the console state.
+
+The game loader uses this pair: `game-load` copies the type-4 slice into segment
+`0x2000`, and `game-run` calls `call-far`. Pac-Man is slice 10 at `0x20A000`
+(1,695 words); the showcase menu's P entry still needs to be switched from the
+old `0x4330` jump to this path.
 
 ### Graphics
 

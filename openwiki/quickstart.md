@@ -3,18 +3,19 @@ type: guide
 title: Quickstart
 description: The shortest path to a running Deep16 machine, a typed Forth line, a passing test, and a rebuilt core, plus where to read next by task.
 tags: [quickstart, onboarding, ide, tests, build]
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
 sources:
   - id: openwiki-source-05b57c87f4341692de6b154c
     resource: repo://asm/forth.asm
+  - id: openwiki-source-86589e93590a1eca60d19cd0
+    resource: repo://ERRPLAN.md
   - id: openwiki-source-956d9e1f2f5615b80a8d4ba0
     resource: repo://forth/demo.fth
   - id: openwiki-source-f8d10828394c4129061d5b0e
     resource: repo://index.html
   - id: openwiki-source-0cc31ca306d30bed999278fc
     resource: repo://js/deep16_ui_core.js
+  - id: openwiki-source-b57ab1606c48ec3ea7344623
+    resource: repo://MEMMAP.md
   - id: openwiki-source-5b54a58d1b51cd490b0e7162
     resource: repo://package.json
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
@@ -29,11 +30,16 @@ sources:
     resource: repo://scripts/embed_forth.mjs
   - id: openwiki-source-da0fe35253069a3157d15bab
     resource: repo://scripts/flash_gowin_tile_flash.sh
+  - id: openwiki-source-41517f64370d769c203d48a3
+    resource: repo://scripts/make_slices.mjs
   - id: openwiki-source-712026ece84f99a81e00872e
     resource: repo://scripts/serve.mjs
   - id: openwiki-source-1d8266be33d0b23cd8643d88
     resource: repo://tests/boot-script.test.js
-generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+verified:
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 ---
 
 # Quickstart
@@ -66,6 +72,13 @@ Then:
 The editor starts with a small sample program. The **Optimize** button rewrites
 the editor text in place; it never runs automatically.
 
+For the tile machine choose **Tiles** in the same settings menu and load the
+**D16D Showcase (tiles)** example. Tiles mode assembles the nano/D16D kernel,
+loads the graphics blob from the simulated config flash and paints the 640×360
+FiT canvas. The menu runs Flappy; Pac-Man is a flash slice in the current image,
+so use `s" pacman" game-run` from the Forth prompt until the menu's **P** hookup
+lands.
+
 ## The 60-second Forth check
 
 Choose **Terminal** in the settings menu, press **Assemble** and **Run**, then
@@ -88,7 +101,7 @@ it for speed.
 ## Run the tests
 
 ```sh
-npm test                        # 35 files, about 70 s on one core
+npm test                        # about 40 files, minutes on one core
 node --test tests/rtl.test.js   # just the RTL core
 npm run sweep:rtl               # all 65,536 instruction words, 4 seeds
 ```
@@ -105,6 +118,8 @@ start with the smallest file that reproduces it:
 | Random programs on all cores | `tests/fuzz.test.js` |
 | Forth REPL behaviour | `tests/forth.test.js` |
 | Console bytes on three cores | `tests/console-parity.test.js` |
+| Segmented map, raster band and getstr pump | `tests/segmented.test.js` |
+| Shipped examples (legacy sources excluded) | `tests/examples.test.js` |
 
 ## Rebuild a core
 
@@ -132,13 +147,21 @@ npm run image                  # regenerate the image set
 This is optional and needs Gowin EDA plus a Tang Nano 9K:
 
 ```sh
-npm run synth:tile   # image + bitstream
-npm run flash:tile   # bitstream, boot image, source slices
+npm run synth:tile   # D16D image + bitstream
+npm run flash:tile   # bitstream, boot image, source and Pac-Man slices
 ```
 
 The scripts fail early when `gw_sh` or `openFPGALoader` is missing. The tested
 machine is the D16nano tile/config-flash build; the older 24K BSRAM builds are
-retired.
+retired. `flash:tile` writes the bitstream, the 1 MB boot image and the slice
+image (source screens plus the type-4 Pac-Man block) at `0x200000`; run
+`cf-unprotect` on the board first if the block protect is set, and `cf-protect`
+afterwards.
+
+`flash:tile` writes the `.fs` already in `fpga/gowin/impl/pnr`, so an RTL change
+needs `synth:tile` before it. A bitstream older than the RTL boots and runs but
+silently lacks the change; check the `.fs` timestamp against the RTL commit
+before trusting a board measurement.
 
 ## Where to read next
 
@@ -151,6 +174,10 @@ retired.
 | Use or extend the IDE | [DeepWeb IDE](ides/deepweb-ide.md) |
 | Work on the assembler or optimizer | [Assembler, Disassembler and Optimizer](ides/assembler-and-optimizer.md) |
 | Work on the Forth kernel or BIOS | [Forth Kernel and BIOS](software/forth-kernel.md), [Console, Terminal and Boot Scripts](software/bios-and-console.md) |
+| Play or change the showcase games | [D16D Showcase, Flappy and Pac-Man](software/showcase-games.md) |
+| Understand the tile/sprite engine | [Video and Peripherals](hardware/video-and-peripherals.md) |
+| Add a per-line raster effect or sprite multiplexer | [Video and Peripherals](hardware/video-and-peripherals.md), [Forth Kernel and BIOS](software/forth-kernel.md) |
+| Keep interrupts alive at the console prompt | [Console, Terminal and Boot Scripts](software/bios-and-console.md) |
 | Understand the FPGA build | [FPGA Board Builds](hardware/board-builds.md) |
 | Understand PSRAM, cache and flash boot | [PSRAM, Cache and Flash Boot](hardware/psram-cache-and-flash.md) |
 | Change the build or test pipeline | [Build, Test and Image Pipeline](tooling/build-test-and-images.md) |
@@ -183,8 +210,10 @@ retired.
   echo is always on there; the IDE toggle only works on simulation cores.
 - Docs and plans are secondary to source. `doc/` is current, `archive/` is
   history, and several root `*PLAN.md` files describe work that does not exist.
-- Only the timer is wired into the interrupt controller on the current board
-  build, and only `core3` accepts an IRQ.
+- The board's SIC has the timer and the raster compare wired, and `core3` is the
+  RTL variant that accepts the IRQ. The raster path is board-verified (one
+  request per compare-line visit, two sprites from one OAM slot); the keyboard
+  and audio SIC sources remain unconnected.
 
 ## Related pages
 

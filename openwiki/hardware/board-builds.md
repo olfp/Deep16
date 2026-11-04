@@ -1,12 +1,13 @@
 ---
 type: hardware-platform
 title: FPGA Board Builds
-description: The two current Tang Nano 9K machines, how ifdefs compose them, how they are clocked, pinned, built and flashed, and what the dated resource numbers mean.
-tags: [fpga, gowin, tang-nano-9k, board, d16mini, d16nano, psram, dvi]
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
+description: The two current Tang Nano 9K machines, how ifdefs compose them, how they are clocked, pinned, built and flashed with the boot image and game slices, and what the dated resource numbers mean.
+tags: [fpga, gowin, tang-nano-9k, board, d16mini, d16nano, psram, dvi, slices]
 sources:
+  - id: openwiki-source-ea70eb6c045047448e446296
+    resource: repo://.gitignore
+  - id: openwiki-source-86589e93590a1eca60d19cd0
+    resource: repo://ERRPLAN.md
   - id: openwiki-source-d0e982a035b1f375bd12ec29
     resource: repo://fpga/gowin/build_tile_flash.tcl
   - id: openwiki-source-6d46228b403a03a9b6b49db0
@@ -27,11 +28,18 @@ sources:
     resource: repo://rtl/deep16_board.sv
   - id: openwiki-source-de73cd8815fd05f54317660e
     resource: repo://rtl/deep16_top.sv
+  - id: openwiki-source-2f8a040dcce7a74f3dd3ca04
+    resource: repo://rtl/dvi/dvi_tile.sv
   - id: openwiki-source-d6e77d8e641bba2c4fc6f8e4
     resource: repo://scripts/build_gowin_tile_flash.sh
   - id: openwiki-source-da0fe35253069a3157d15bab
     resource: repo://scripts/flash_gowin_tile_flash.sh
-generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+  - id: openwiki-source-41517f64370d769c203d48a3
+    resource: repo://scripts/make_slices.mjs
+generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+verified:
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 ---
 
 # FPGA Board Builds
@@ -69,8 +77,10 @@ mirror for `dvi_tile`. `D16NANO` selects `core3` and the /4 clock.
 segmented boot/loader map. `USER_FLASH` makes the loader read the boot image
 from configuration flash over the shared SPI master.
 
-Macro names are not fully consistent: the wrapper tests both `D16NANO` and
-`D16_NANO` in different places, so a source reader should grep for both.
+The D16D showcase is not an RTL macro: it is an assembler/image tag. The tile
+image is built with `D16NANO=1 D16D=1 D16SEG=1`, and the browser IDE's Tiles
+mode mirrors that builder. Pac-Man is no longer baked into the image; it is a
+type-4 binary slice in the slice area.
 
 ## Only one Gowin project is live
 
@@ -164,7 +174,8 @@ memory, control registers and sprites cross into the 24.75 MHz render domain
 through a 16-entry gray-code asynchronous FIFO. A full FIFO drops an entry,
 which is a renderer glitch rather than memory corruption: the PSRAM/Forth mirror
 of the same address is written by the store regardless. A raster toggle comes
-back through a two-flop synchroniser and an edge detect to become SIC bit 3.
+back through a two-flop synchroniser and an edge detect to become SIC bit 3;
+the same synchronised toggle is shown on LED5.
 
 ## SPI sharing
 
@@ -176,8 +187,8 @@ text build instantiates no SPI master and parks every SPI and config pin idle.
 ## Build and flash flow
 
 ```sh
-npm run synth:tile   # image + bitstream
-npm run flash:tile   # bitstream, 1 MB boot image, slices
+npm run synth:tile   # D16D image + bitstream
+npm run flash:tile   # bitstream, 1 MB boot image, source and game slices
 ```
 
 `npm run synth:tile` first regenerates the D16D/D16nano/D16SEG image, then runs
@@ -186,10 +197,30 @@ Gowin synthesis and place-and-route through `gw_sh`, writing
 
 `npm run flash:tile` regenerates the same image again, writes the bitstream with
 `openFPGALoader -f`, the boot image with `--external-flash -o 0x100000`, reads it
-back and compares before writing the source slices at `0x200000`. The chip's
-block protect (`BP = 0x38`) is **not** cleared by `--unprotect-flash`, so a
-protected board silently drops the 1 MB write and reports Done; `cf-unprotect`
-must be run first. The slices go last so the earlier writes cannot disturb them.
+back and compares before writing the slices at `0x200000`. The slice image is
+built by `scripts/make_slices.mjs`; it holds the SD/hello/catalog/games sources
+and the Pac-Man type-4 binary at slice 10. The chip's block protect
+(`BP = 0x38`) is **not** cleared by `--unprotect-flash`, so a protected board
+silently drops the 1 MB write and reports Done; run `cf-unprotect` on the board
+before the host flash and `cf-protect` afterwards. The slices go last so the
+earlier writes cannot disturb them.
+
+`flash:tile` writes whatever `.fs` sits in `fpga/gowin/impl/pnr/`, so the
+bitstream has to be rebuilt with `synth:tile` whenever the RTL changes. A
+bitstream older than the RTL boots and runs, but silently lacks the change: the
+2026-11-04 raster work was tested against a `.fs` written two minutes before the
+edge-detector commit, which is why the board kept behaving like the old level
+request. Check the `.fs` timestamp against the RTL commit before trusting a
+board measurement.
+
+The console read is non-blocking, so the raster and timer IRQs are serviced
+while the kernel waits for input. The raster path is board-verified end to end:
+`dvi_tile` raises one request per compare-line visit on the rising edge of the
+match, the handler acknowledges the tile engine before clearing the SIC bit,
+and one OAM slot therefore draws two sprites (one above line B, one inside the
+band). The visible split and the sprite multiplexer were both demonstrated on
+the board on 2026-11-04; a control-register band has not been re-tested since
+the handler was changed to write OAM instead.
 
 ## Resource numbers are dated measurements
 
@@ -199,9 +230,14 @@ guarantees:
 - The archived packed BSRAM build: Logic 8,173 / 8,640 (95 %), CLS
   4,211 / 4,320 (98 %), registers 2,577 / 6,771, BSRAM 20/26 (16 packed image,
   2 cache, 2 screen), 0 TNS.
-- The measured tile build of the 28 Oct phase-1 image: Logic 8,283 / 8,640
-  (96 %), CLS 4,237 / 4,320 (99 %, 83 free), registers 2,985 / 6,771,
-  BSRAM 23/26, I/O 26/71.
+- The current tile baseline after the 64-OAM / 8-palette-set change:
+  **4,260 / 4,320 CLS (60 free)**, BSRAM 26/26, SSRAM 214, registers 2,838;
+  `dvi_render` 32.886 MHz, `dvi_pixel` 86.108 MHz, `psram_clk` 86.388 MHz,
+  `clk_cpu` 20.246 MHz, all TNS 0, with one generated-clock hold endpoint
+  flagged on `main` too.
+- The same build after the raster rising-edge detector: **4,298 / 4,320 CLS
+  (22 free)**, registers 2,844. The one flop and its fan-out cost 38 CLS, so
+  the renderer/raster area is nearly exhausted.
 
 The board is close to full on logic and CLS. Any change to the renderer,
 peripherals or loader is an area decision first and a feature decision second.
@@ -210,15 +246,16 @@ Re-measure after a synthesis run instead of quoting either line.
 ## Status LEDs
 
 All LEDs are active low. On PSRAM builds, `led[0]` is the loader heartbeat (slow
-when done, fast while loading) unless `o_boot_err` is set; `led[1]` is core
-busy; `led[2]` is halt; `led[3..5]` blink with retiring-instruction bits. The
-tile build reassigns the upper LEDs to bring-up signals: render clock alive, DVI
-PLL lock, scan started, frame produced, because a dead renderer is otherwise
-invisible.
+when done, fast while loading) unless `o_boot_err` is set; `led[1]` is core busy.
+In the tile build `led[2]` blinks with the 24.75 MHz render clock, `led[3]` is
+DVI PLL lock, `led[4]` is the scan path started and `led[5]` shows the
+synchronised raster toggle. The text build keeps `led[2..5]` on core halt and
+retiring-instruction bits.
 
 ## Related pages
 
 - [PSRAM, Cache and Flash Boot](psram-cache-and-flash.md)
 - [Video and Peripherals](video-and-peripherals.md)
 - [Memory Map and Memory Model](../architecture/memory-map-and-memory-model.md)
+- [D16D Showcase, Flappy and Pac-Man](../software/showcase-games.md)
 - [RTL Core Microarchitecture](../cores/rtl-core.md)

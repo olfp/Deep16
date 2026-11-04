@@ -2,9 +2,6 @@
 type: "Reference"
 title: "WebAssembly Core"
 openwiki_generated: true
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
 sources:
   - id: openwiki-source-f8d10828394c4129061d5b0e
     resource: repo://index.html
@@ -25,6 +22,9 @@ sources:
   - id: openwiki-source-8c5558aa55bcb63fa02bf537
     resource: repo://wasm/deep16-wasm/src/lib.rs
 generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+verified:
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 ---
 
 

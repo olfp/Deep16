@@ -4,17 +4,27 @@ title: Core Parity and Verification
 description: How Deep16 holds its JavaScript, Rust/WASM and SystemVerilog cores to the same architectural behaviour, and which tools prove it.
 tags: [parity, verification, testing, cores, simulator, rtl, wasm]
 verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 sources:
   - id: openwiki-source-6d9dc09f47fb249425320461
     resource: repo://doc/Deep16-RTL.md
   - id: openwiki-source-558f92ad48bad4c1a8f65265
     resource: repo://js/deep16_simulator.js
-  - id: openwiki-source-23775c3de52f3ab95a13cb8b
-    resource: repo://README.md
+  - id: openwiki-source-9355204a406c91981555258c
+    resource: repo://rtl/deep16_core.sv
+  - id: openwiki-source-6df23aa962f11ba40014c90a
+    resource: repo://rtl/deep16_core3.sv
   - id: openwiki-source-de73cd8815fd05f54317660e
     resource: repo://rtl/deep16_top.sv
+  - id: openwiki-source-8d3356038273308ccaaf465a
+    resource: repo://rtl/sim/core3_irq_tb.sv
+  - id: openwiki-source-cdfb565bcc08ea0cd1ad0150
+    resource: repo://rtl/sim/dvi_tile_tb.cpp
+  - id: openwiki-source-6d184cd85da0b4def46caeb2
+    resource: repo://scripts/build_core3_irq_sim.sh
+  - id: openwiki-source-1410fae2d4991235b77849f3
+    resource: repo://scripts/build_dvi_tile_sim.sh
   - id: openwiki-source-e5dbad1263257a4c2dd2625c
     resource: repo://scripts/rtl_sweep.mjs
   - id: openwiki-source-7077d66a6fdca0d6b851bd74
@@ -25,11 +35,15 @@ sources:
     resource: repo://tests/helpers.js
   - id: openwiki-source-4e7b81763273293f36cdd37f
     resource: repo://tests/rtl.test.js
+  - id: openwiki-source-e3cbc9bdf6a73d9a2ec96f60
+    resource: repo://tests/segmented.test.js
+  - id: openwiki-source-227dc2c50999a6b4a5874677
+    resource: repo://tests/showcase-boot.test.js
   - id: openwiki-source-8760b0ccefa32cd7e032b553
     resource: repo://tests/wasm-state.test.js
   - id: openwiki-source-8c5558aa55bcb63fa02bf537
     resource: repo://wasm/deep16-wasm/src/lib.rs
-generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
 ---
 
 # Core Parity and Verification
@@ -86,6 +100,32 @@ receive path, and compares both the terminal grid and the raw transmit byte
 stream. This is stronger than comparing each core with its own expected string:
 the banner, the prompt, echoed input, backspace handling and line wrapping must
 be byte-identical across implementations.
+
+### Segmented map, raster band and console pump
+
+`tests/segmented.test.js` boots the scattered `D16SEG` map in the JS core and
+covers what the flat window cannot: the PSRAM dictionary, the data and return
+stacks, the SD driver, the catalog words, and the raster band state machine
+(an OAM descriptor write at line A and a restore at line B). It also pins the
+getstr pump from the caller's side: characters typed without Return sit in TIB
+and nothing runs, and Return completes the line the REPL is polling for. The
+flat D16D counterpart is `tests/showcase-boot.test.js`: menu cells, `Q` back to
+the Forth console, and the idle timer launching attract mode.
+
+### Tile engine and raster bench
+
+`rtl/sim/dvi_tile_tb.cpp`, built by `scripts/build_dvi_tile_sim.sh`, drives
+`rtl/dvi/dvi_tile.sv` directly instead of running a CPU program. It checks the
+control-7 compare, the raster request edge detector, the ack/re-arm path
+(`request set before re-arm`, `re-arm store lands`, `re-arm clears the request`,
+`re-armed line still fires once per frame`), the text/art/sprite palette banks,
+pair mode, and the OAM/sprite loader.
+
+The board CPU's interrupt entry is a separate bench: `rtl/sim/core3_irq_tb.sv`
+(`scripts/build_core3_irq_sim.sh`) pulses IRQ while a store is decoded and
+checks that RETI re-runs the parked instruction rather than the following one.
+That path is not part of the three-way program parity, because the
+parity-tested `deep16_core.sv` has no IRQ input.
 
 ## The harness layer
 
@@ -173,7 +213,7 @@ history rather than current source, so verify before quoting it:
 | `0xFFF8`–`0xFFFE` | No-op in all three; they fall outside the 13-bit SYS prefix |
 | `get_registers()[15]` with `PSW.S=1` | Reports the shadow PC in WASM and RTL |
 | Physical address | `(segment << 4) + offset`, not the `(segment << 16) | offset` printed in the architecture text |
-| Hardware interrupts | Implemented only in the JS core |
+| Hardware interrupts | JS core has `handleHardwareInterrupt()`; the board's `deep16_core3.sv` takes a level `irq` and enters a synthetic SWI; the parity-tested `deep16_core.sv` and the Rust core have no external IRQ input |
 
 The FSH and `0xFFF8` rows still appear as WASM divergences in the RTL document,
 but the Rust decoder now routes only the `0xFFF0`–`0xFFF7` space to `exec_sys`
@@ -181,11 +221,13 @@ and treats `FSH` as a behavioural no-op, matching the reference. The pinned test
 in `tests/rtl.test.js` only compares JS and RTL for `0xFFF1`, which is why the
 stale wording can survive.
 
-The hardware-interrupt gap is architectural, not cosmetic: the JS core has
-`handleHardwareInterrupt()`, while neither the Rust core nor the RTL core
-contains an interrupt input or handler entry. Programs that trigger their own
-`SWI`, keyboard input or Forth execution behave the same everywhere; externally
-generated interrupts do not.
+Interrupt coverage differs by implementation, and that is architectural: the
+JS core has `handleHardwareInterrupt()`, the board's `deep16_core3.sv` has the
+`irq` input and the synthetic SWI entry, and the Rust core implements the
+trap/PSW side (SWI, RETI, shadow bank) but has no external IRQ input. Programs
+that trigger their own `SWI`, keyboard input or Forth execution behave the same
+everywhere; externally generated interrupts are proven by the core3 bench and
+the board instead of by the three-way parity suite.
 
 ## Environment differences that are not parity bugs
 

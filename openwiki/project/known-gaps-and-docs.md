@@ -3,12 +3,11 @@ type: project-status
 title: Known Gaps, Documentation and Plans
 description: Verified limitations of the current machine, how the documentation set is organised, which plan documents are proposals rather than features, and the book and LILA side projects.
 tags: [status, gaps, documentation, plans, roadmap, book, lila]
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
 sources:
   - id: openwiki-source-a28946850ce54d03e71935f2
     resource: repo://asm/forth_nano.asm
+  - id: openwiki-source-a8e49bad3e0cb80eca5069d8
+    resource: repo://asm/showcase/showcase.asm
   - id: openwiki-source-5a38679f1897efcf5329ca59
     resource: repo://BIRDPLAN.md
   - id: openwiki-source-f78e662d4c24a8a09e381fad
@@ -25,8 +24,6 @@ sources:
     resource: repo://FPUEMUPLAN.md
   - id: openwiki-source-cc1b971e04f30ee54fe7e77d
     resource: repo://FROGPLAN.md
-  - id: openwiki-source-3a8c2c486916b0c5b3d4874a
-    resource: repo://IMPROVE.md
   - id: openwiki-source-558f92ad48bad4c1a8f65265
     resource: repo://js/deep16_simulator.js
   - id: openwiki-source-0cc31ca306d30bed999278fc
@@ -43,29 +40,38 @@ sources:
     resource: repo://README.md
   - id: openwiki-source-10121f209c268e2bcf7976c9
     resource: repo://rtl/deep16_board.cst
+  - id: openwiki-source-bf2a0339ada6a56de8b7a79c
+    resource: repo://rtl/deep16_board.sv
   - id: openwiki-source-9355204a406c91981555258c
     resource: repo://rtl/deep16_core.sv
   - id: openwiki-source-6df23aa962f11ba40014c90a
     resource: repo://rtl/deep16_core3.sv
   - id: openwiki-source-9185f059d0cd601b0bcd94ee
     resource: repo://rtl/deep16_divider.sv
+  - id: openwiki-source-779a6281faa33512e4845cb6
+    resource: repo://rtl/deep16_sic.sv
   - id: openwiki-source-de73cd8815fd05f54317660e
     resource: repo://rtl/deep16_top.sv
   - id: openwiki-source-6a76c8a50a08a606b2724b3c
     resource: repo://rtl/deep16_uart.sv
-  - id: openwiki-source-af7d4628c4b6576ed8554612
-    resource: repo://SCROLLPLAN.md
-  - id: openwiki-source-f8c122a10ffdf7b7f28c6ae5
-    resource: repo://SLIMPLAN.md
+  - id: openwiki-source-2f8a040dcce7a74f3dd3ca04
+    resource: repo://rtl/dvi/dvi_tile.sv
   - id: openwiki-source-ea71d94906bd6f78a53ccbda
     resource: repo://STATUS.md
+  - id: openwiki-source-dc8d3ca119d2c037adc861d2
+    resource: repo://tests/examples.test.js
+  - id: openwiki-source-62f2738380c47817f3aa0655
+    resource: repo://TILESIM.md
   - id: openwiki-source-e74227ee06b16f894c3e3826
     resource: repo://TODO.md
   - id: openwiki-source-73d3f48a29e92b24797106c2
     resource: repo://VERSIONING.md
   - id: openwiki-source-8c5558aa55bcb63fa02bf537
     resource: repo://wasm/deep16-wasm/src/lib.rs
-generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+verified:
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 ---
 
 # Known Gaps, Documentation and Plans
@@ -112,15 +118,13 @@ and it covers **only `DIV`/`DIV32`**:
 There is still **no general undefined-opcode trap** and no FPU trap. An unknown
 word does not raise ILL.
 
-### Interrupt wiring is much narrower than the documentation suggests
+### Interrupt wiring is narrower than the documentation suggests
 
 Three separate facts are easy to conflate:
 
 1. The **SIC** decodes four sources (raster, audio, timer, keyboard) at
-   `0xF00B0`, but the board wires only the timer tick. The source vector is
-   `{raster_src, 1'b0, timer_tick, 1'b0}`, and `raster_src` is guarded by
-   `` `D16_NANO ``, a macro no build file defines (the builds define
-   `` `D16NANO ``). Audio and keyboard are constant zero; the I2S `fifo_irq`
+   `0xF00B0`. The timer tick drives bit 1 and the synchronised raster toggle now
+   drives bit 3; audio and keyboard remain constant zero, and the I2S `fifo_irq`
    output is unconnected.
 2. The **RTL `core3` does implement hardware-interrupt entry** — IRQ input,
    instruction-boundary acceptance, vector cell 1, shadow-bank switch. The
@@ -128,11 +132,33 @@ Three separate facts are easy to conflate:
 3. The **WASM core has no interrupt input**. The **JS core** has the most
    complete model, with `handleHardwareInterrupt()` and an `irqLine()` hook.
 
+The old `D16_NANO` spelling that kept `raster_src` unconnected was fixed; the
+raster compare and SIC source are live in the tile build. The board path is
+verified end to end (2026-11-04): `dvi_tile` raises one request on the rising
+edge of the compare-line match, the handler writes OAM descriptor 0 at line A
+and restores it at line B, and one slot draws two sprites. The console getstr is
+a pump, so the timer and raster IRQs keep running while the prompt waits.
+
+The earlier "two handler entries per edge" measurement was the handler's own
+ordering: it cleared the SIC pending bit before acking the tile engine's level
+source, so the bit re-latched and the handler re-entered. That is fixed, and
+the ERRPLAN entry that blamed frame-granular control registers on the fitted
+netlist is superseded. A control-register band (control 5 or 6) has not been
+re-tested since the handler was changed to write OAM instead.
+
 `README.md` still says hardware-interrupt handling "exists only in the JS core"
-and that "the RTL core has neither". That sentence predates `core3`; the RTL
-does handle interrupts in the D16nano build, and it is the only RTL variant that
-does. What remains true is that the three cores do not model interrupts
-identically.
+and that "the RTL core has neither". That sentence predates `core3` and the SIC
+work; the RTL does handle interrupts in the D16nano build, and it is the only
+RTL variant that does. What remains true is that the three cores do not model
+interrupts identically.
+
+### The showcase menu cannot launch Pac-Man yet
+
+Pac-Man is a type-4 config-flash slice loaded at segment `0x2000`, but the
+showcase menu's **P** entry still far-jumps to the old image address `0x4330`.
+From the Forth prompt `s" pacman" game-run` works; the menu needs the flash
+loader hookup (`game-load`/`call-far`). This is the main remaining showcase
+integration gap, not a game-logic gap.
 
 ### Per-core capability gaps
 
@@ -146,6 +172,7 @@ shared model:
 | SD card / SPI | Model | Absent | Yes (D16_PERIPH) |
 | SIC / timer | Model | Absent | Yes (timer wired) |
 | Screen write hook | Yes | Absent | Via board/tile path |
+| FiT tile engine model | Yes | Absent | `dvi_tile` on the board |
 | Hardware IRQ | Yes | No | `core3` only |
 | D16nano ILL trap | Yes (`d16nano` flag) | No | `core3` only |
 
@@ -186,8 +213,8 @@ Documentation is secondary to source, and several passages are known to lag:
 
 | Document | Claim | Source reality |
 |---|---|---|
-| `MEMMAP.md` §SPI | "CS1 is pin 25 for an external flash; the on-board configuration flash is not used" | The tile build boots from that flash at `0x100000`; flash pins are MSPI 59–62; pin 25 is I2S BCLK |
-| `MEMMAP.md` §UART | Divisor 234 presented as "the 27 MHz value" | The RTL derives `CLK_HZ / BAUD`: 117 at 13.5 MHz, 59 at 6.75 MHz |
+| `MEMMAP.md` §SPI | Still says "CS1 is pin 25 for an external flash; the on-board configuration flash is not used" | The tile build boots from that flash at `0x100000`; flash pins are MSPI 59–62; pin 25 is I2S BCLK |
+| `MEMMAP.md` §UART | Divisor 234 | The note now calls it the old 27 MHz D16LIGHT value; the tile build derives `CLK_HZ / BAUD` (59 at 6.75 MHz) |
 | WASM keyboard comment | "the RTL core has a 128 entry FIFO" | `deep16_top` uses 16 entries |
 | `README.md` | RTL has no interrupt handling | `core3` does; only the full core does not |
 | `README.md` | Counter short form not visible on phones | `responsive.css` shows it below 900 px |
@@ -207,10 +234,10 @@ features; each states its own status:
 | `SCROLLPLAN.md` | Four-direction FiT scrolling | In progress (RTL and terminal switched) |
 | `FROGPLAN.md` | Frogger on the tile engine | Plan, with a hardware update note |
 | `BIRDPLAN.md` | Visible flap and idle blink | Plan only, nothing implemented |
-| `TILESIM.md` | FiT graphics in the simulation | Design/implementation brief |
+| `TILESIM.md` | FiT graphics in the simulation | Implemented 1 Nov 2026; `TILESIM-IMPL.md` records the phases |
 | `SLIMPLAN.md` | Slimming the D16nano build | Design note with measured budget |
 | `IMPROVE.md` | Instruction-decode cleanup | Planned, not applied |
-| `ERRPLAN.md` | Error investigations | Open items |
+| `ERRPLAN.md` | Error investigations | Raster/console items verified; control-register band retest open |
 | `FPUEMUPLAN.md` | FPU via ILL | Design agreed, nothing implemented |
 | `FLOATIMPL.md` | Integer↔float conversion | Design note, nothing implemented |
 | `VERSIONING.md` | Independent component versions | Agreed, to be implemented |
@@ -289,7 +316,7 @@ the gaps:
 
 - all three cores agree on the instruction set;
 - the assembler and disassembler round trip;
-- the example programs assemble and run;
+- the eight shipped examples assemble and run; the four legacy `asm/` sources are excluded by `tests/examples.test.js`;
 - the Forth kernel is a working REPL with interactive keyboard input on all
   three cores;
 - the RTL core is verified across the instruction space (decode sweep with zero

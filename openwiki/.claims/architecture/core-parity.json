@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:bc7148ea7f044db1891675c7109e076971391b6c92fc00c6a1137b93417adcc7",
+  "pageVersion": "sha256:dbec06e506c2f25acfe211ec6b2f53da03e559e6e76efdd30e4264a40112401d",
   "claims": [
     {
       "id": "claim_7a4e54f3c97645a1bc4342b3ed284575",
@@ -136,15 +136,23 @@
     },
     {
       "id": "claim_84d8cc98e28a46dfb35e4e0dc69a2e4b",
-      "statement": "Hardware-interrupt handling exists only in the JS core; the Rust/WASM core and the RTL core have no equivalent entry path, so externally generated interrupts behave differently.",
+      "statement": "Hardware-interrupt entry exists in the board's deep16_core3.sv (level irq input and synthetic SWI entry) and in the JS core's handleHardwareInterrupt; the parity-tested deep16_core.sv has no IRQ input and the Rust/WASM core has no external IRQ input, so the three-way program parity covers no externally generated interrupt.",
       "evidence": [
         {
-          "resource": "repo://README.md#L250-L253",
-          "version": "repo-lines-v1:sha256:2469999755e72a1cb4a94efecd61eb465780de1fcd67a25bdc7b899663c17d6d:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWNmOGIyYmE1YmE4MzViMDUzNzNkNTY1OGE1Y2ZlY2Y1MzU1NjMxYWIyNWNmODlkYTkyYzY3OTlhMDQ1YTdiNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGMxOTg0YmNlYzE1ZWNiYjk1YjkxODExMDJkYTRjMjRlM2EwZGU4MjRiYWE4NTg3MWIxNDFhNDJmODVhNTdiNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmJlOGVjOWQwZGQ1NWE1MWZlMjBjYzZlZjVhNGYyZWIzODVhMWFlMjZiZDY3OGUyOWM3YjM4ZDAyNjc0YzUzMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWQ2OTc5NjJjNzM3NDZhNzdhYzYyZTMyODQ4YWUxMTg2OWVlNjczNDJhYmM1ZjE1NDNiMWU0MGE1ODQ0MDMwYyJ9"
+          "resource": "repo://js/deep16_simulator.js#L1482-L1490",
+          "version": "repo-lines-v1:sha256:8c6bdcd19684a8b10d9ea5a1edb747c0742218abdee7b276a7c4883a55bbe2ad:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDlmOTdhYzVmZDJkOWJmNGJmMDU3Y2Y5NzVjNDVlZjk5Mjg2M2RmYTc2ZDMzNGFlY2MyZjk0MmU2ZTdhZjg3ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2Y0ZGViMzdhMTBhNTFkNzZhN2MyYjIwZTJkZjA5YzY5NjZkZmRhZmU5ODJhZmFkZGE1ODQ4OGMyMDEwNTU0MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzU3NWE2NWY3YmQ2MWU3OTMxNWNkNWVkYTA1MmZlZGY2ZjMzOTM0YmRhYjI0ZWMxNzEyZWUxN2E1NjNlNjA2YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzM5YzRjMWZmN2VmNDA5ZWQ4NGEzZWFlZDg3MGM0NTcxZTY4YWY5ODAzOWIwYTY2ZDFlZWIxOGIwZjM4NmVkNSJ9"
         },
         {
-          "resource": "repo://js/deep16_simulator.js#L1455-L1470",
-          "version": "repo-lines-v1:sha256:4cbad97b1f3448db6cadebdf19e208ca0c6312e275d5cac17dd136bae1a031a5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2MDhjNjRiMDQxNTExZGRhMzY3YzE5ODZlODRhNWVmNmVhZjgzNDA2ZDgyMDJjNTg2N2QzZDFmMjZlMzNjMWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkZWJhNTEzNmUxYWIxYzVhOTk5MWY4YTRmYTg1YmNlZWYzNGFmODk3ZTRkODk4Yzg2MzYxYzllMThiODdjMjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVlMmI5ZTIxZmRjODZmYzJjMmVlNDQ3MjE4NWQ2NzY0NjdiZGQxY2JmMmUyNGI0ZGM2NDRhYjFhYmIzMzI1NDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA0Y2JiOGNiYTU2ZWJjMTYzZTc5OGMyNTAyY2Y3MThjYjljZTk0MTkxNmRiYTIyYTgzN2EwYjA5NDA5NTJmODQifQ"
+          "resource": "repo://rtl/deep16_core.sv#L40-L72",
+          "version": "repo-lines-v1:sha256:2c7f295c4e1f030e25698871adf521acfac8a84e33e88a7a8660b7bf913f6d87:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5NTI0MzJmZmFlYjZiZjljZmRmNzgxNDQyN2E1ZmYyZDQ4ZDU4ZmIzYzM1MDQ3ODM5ODRkOGRkODgxYzdjZWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEwMjY5YmJlMjUyYzMxNWIzZWRmMjMyN2U3Mjg5MzU5NjJiOTc5MDk0MjEzZWUyYzk2YjRkZmNlYzU1MTk1ZmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4ZjRkOTAwZmE4MjRmM2VjZjlhYTViNTAyYWNmYjdmMWIxZGEzOThiNGNhMjhkNzVmYWIxYWVhMDAxNjg2NzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRlMzU1YWZhYWUxYjRiN2ExNGM3MDBhYTAzMTgyN2JlZjAxMmYzNTgwN2I3MTdiYjNmZDM4NWIyMDc5ODE2MTYifQ"
+        },
+        {
+          "resource": "repo://rtl/deep16_core3.sv#L1053-L1060",
+          "version": "repo-lines-v1:sha256:e695befe4b97b58a8ffd117734480ec6f0093153234270e314d9bdee3374e6e2:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGExNzM3MTJiY2Y2MGRkYWJiYThiMjMxMTkwYzMxNTIyNDdlM2Q4MGEzNTNmM2NmMTczYjg3OWY4OWY5OTExOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTk0OTYzNGQxNWExMzI4YTkzYjM0ZWUxNTk0ZjI3N2FmMjczZmU3YTRkMmZhNjg3ZTdjYmU0NGY4OTBjYTc5NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTdkOGI3YWNlNjQ0NzNmMDEwMDYyOGNhMmViMjFlMWQ4NGEwYWY1ZTI1MDVlODAwY2FkMTY0NDllZTIyYWIxOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTMwYWI0ZGI1OGFmNTcyMDA4NWUwOTY3NjA2YTMwNTg0NjllNTY4ZWY3NDFiMWEzOTQyMGEzN2U0MTAwOGI2NyJ9"
+        },
+        {
+          "resource": "repo://rtl/sim/core3_irq_tb.sv#L1-L12",
+          "version": "repo-lines-v1:sha256:4eb9ec66b4f49c41814597e0d72e2283731f5610e46fb91bef78f6bb2d6198f5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI2NzQyOWFmMTc5M2JjODk0ZmU1MzU0OGZlYzFjNTg3N2QyYTVjODFjNmMwZjFlMmZmYWViYTIxYTJmYTE3YTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgwYjkwOTIxNmQwYWFkN2MxMzJkYzk5NjFkZTIwNTU3YjUwYTE0MGEyOGQ4MGJiMTI5ZTk0YTdiZjJlYjVhNDMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE4NmJkYWY2YTJiZmE1ZmZjMDQ0ZWYwMGY5MjQ5OWVkNDEzZDk1ZGJjZDc2MmRiNThhYTI5OGE1ZjVjYzIwZDEifQ"
         }
       ]
     },
@@ -171,10 +179,72 @@
           "version": "repo-lines-v1:sha256:7eae8dab7d9c293145e58efaa9c1a7175dd6fba3073131dca87ecfd552c12c15:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExOGQ1OGUyNDVlMGJmNzNiNzdjNzVkZmU1ZWRhYTBjYmYxMTgyZDE4Nzk4MjhjMDVkNGU2ZDM0ZTZmY2ZlM2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNmNmJiMDUzY2VkNTQyODk2M2I4ZTA1N2QyMzFjOWY3NWE0MmVmMjE1MWZmMzUzZWJlZDQ1MjczZWY1ZDE2ZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4ZjI4Mjk5ZDA2NmYxZDJhNzdjOWZhMTZlZGU0MjYzMzZmYjFiOTEyZjIzZjA5ZTliYzUxNTFhY2RlMDliMjgifQ"
         }
       ]
+    },
+    {
+      "id": "claim_d11f3b11a6a6457d81581bf84e21e2b7",
+      "statement": "scripts/build_dvi_tile_sim.sh builds rtl/sim/dvi_tile_tb.cpp against rtl/dvi/dvi_tile.sv directly (no CPU program) and the bench checks the control-7 compare, the raster request edge detector, the ack/re-arm path, the text/art/sprite palette banks, pair mode and the OAM/sprite loader.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/sim/dvi_tile_tb.cpp#L380-L410",
+          "version": "repo-lines-v1:sha256:3c798bddd45a9a69777e588ec1908e7a39192609a2757b15706634e50d246477:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU3MjNhNjhmY2Y4YTQ0NTIyMjJmMjhlNmFlNjJjN2FlOTIwNmI1OWRmOGVlM2FmMjMyZjkzNjAxYWE2MGIzNjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmYTk4YTFhNmU3ZmFkMmQ1NGM1MjVhOGU0OTU1YTdhMmRhZDUzMWFhYTg0MDdlZTFmODViY2YwZGVjMTg5MmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNiOTMwYmFjMDYyOGFjNmRjNDkyYjIyMWNjNWM4ZmJiZWNmYWM0M2E3OTVmNzRhZjlhYTMxOGM4ZmE1OGI1YzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZhYThlN2NlY2ZlZDA3NTliZGQ5Yjk1ZTg2ZjViOTYwMTU2YWI5ODk4NWY0MGVkYThkOGJlM2U2MjRhMmI3NjIifQ"
+        },
+        {
+          "resource": "repo://scripts/build_dvi_tile_sim.sh#L1-L19",
+          "version": "repo-lines-v1:sha256:372a9bfcf8af6cd2413a4bcf9ac55e57cd5fd62b2ca03a6f6d508968b91e6666:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEyNTkyNzY2Yzg3NmQyNDQ3OGE0Yjg2ODFmYjJlMjg3MGYxMzUzZTFhMjZmODdhOWZmN2M3ZjU2NjM0YWE2MjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_78ee0bf35a2f41a6ab9f56032b357b27",
+      "statement": "The raster bench's re-arm case requires one control-7 store to both acknowledge the current request and arm line 300, checks that the store lands and clears the request, and requires the re-armed line to fire exactly once per frame.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/sim/dvi_tile_tb.cpp#L393-L408",
+          "version": "repo-lines-v1:sha256:eb6168d4fe8ce114fcc4ce666746320ea5451428eb6314e5bde5061e1f35ce81:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUzM2ZjMWY4OGVhMWRmN2MyZWFhZjg2OTJjZWVjNzVhOWRjMmE0YzYxYmZjNWU5M2JmOTZjNjk1NDE5ZjhkZTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjliM2Q5MjllODQwZGIwNDQwYmQ2OTY3ZjhiM2JkMmU1ZjgyNTZkNDk0M2MwZDA5NjVmODYzNjMxNTNmNzhhZDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZlNzVkYzhmNGVkOTQxZjY0YjhhYmE5MTJmN2Y0Mjc1YmQ4YjIyN2Q5ZThkMjIwZGVhMjEyNWI2ZmM3YmIxY2IifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2494fc2daa5348999360750d1d086731",
+      "statement": "tests/segmented.test.js boots the scattered D16SEG map in the JS core and pins the getstr pump from the caller side: typed characters remain in TIB and nothing runs until Return completes the line the REPL polls.",
+      "evidence": [
+        {
+          "resource": "repo://tests/segmented.test.js#L166-L184",
+          "version": "repo-lines-v1:sha256:3c105d7c7dae5dd96b869aa4e3f35c79e1e9264e222b5d7f715c0b873f320219:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2NjExZjI3MzRkZjRmMWQ5OTdlMWM0YWNkMmZjMmQ0ZWI2MmI0NjUzNTdkYzcyOTcxMmNkMTkxNjM5Njk1MzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFhMDk3NWJmM2I2ZDVkYzQ0NjA4ZmU1YTVkYWYzMDg3MGZhNGY3OWYxOTRlYjc1NzQxZjQ2MjU0NjczYmU4MjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdjNWJjMjAyNDkxNmRkNTQ1ZjM4NjI3YjYyNWQ5OWIwMmNkN2ZhMGMxNDgwNWZjZTMwZTdhNzFkNDVkMmQ5NGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_60bc1492c339424da624c0fe4cc26191",
+      "statement": "tests/showcase-boot.test.js boots the flat CONSOLE_UART plus D16D kernel and checks the menu cells, Q returning from the menu to the Forth console, and the idle timer entering attract mode.",
+      "evidence": [
+        {
+          "resource": "repo://tests/showcase-boot.test.js#L1-L20",
+          "version": "repo-lines-v1:sha256:bbb6d950d34690ccc1f7226468b486775ace94b251377d64b8a911679ba3bf5e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlZTI0NzEzNmViOWE4MDFhNmRkMTI1ODVjODRhMDg4ZDQ2MTY5Zjg5Y2Y4ODUzMGViMGFhNGNhNzAyNmE4M2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4ZjU3NmE3N2JiM2NhODkxOWFlNjc4YWY1ZDI3MDRiOWUxYzkwZDc0N2I0NDkzNmVlYzA4NDE4OTJjMjQxN2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM1NzkyZDYxY2Q3MDIyNDg2MTJlZDBkZjMwMmNhMWQ5MzE1NmNhOGMyNGZhZDRjODJmYmIyMTJlZDNjMDA0MWIifQ"
+        },
+        {
+          "resource": "repo://tests/showcase-boot.test.js#L62-L80",
+          "version": "repo-lines-v1:sha256:5f41ae23e534be9751352f27392ea778845d88eb8827fab3e2caaa000d1b2207:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhMGZiZDM2N2Q1ODA3NzM2YzRhZmU3OGQ5OThiZGE4ZDAxNjVhNmJhY2JhMTc4YjRiMDRhNGFlZDE5ZDg3YzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc5NWVkMDdjMjg0MDZmMWZkNGYxYzNhZTJmN2Q2OWQ3MTc1ZGM4OTE3ZGViY2FiOWUzYjJjZGJlZTRmMTU4MWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgyMmU4ZmU0NTI5ODQxZWY3ZTc3YTliYzQzMzk4YzJhOGYwZjQ1ODg5OGIzOGY1YWEyMjE4ZTcxZDNmY2E0NDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEzNTEzMTRlN2FmMTc4NDVjMGRmYTk1OTU2NjE2NzJlOWFhNzNhMWI2YzU1N2I4MzNiYjdkNWI4NDZhYzllMmQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_172499337b6945289f5f99731c7a504f",
+      "statement": "rtl/sim/core3_irq_tb.sv (built by scripts/build_core3_irq_sim.sh) pulses IRQ while a store is decoded and checks that RETI re-runs the parked instruction rather than the following one.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/sim/core3_irq_tb.sv#L1-L12",
+          "version": "repo-lines-v1:sha256:4eb9ec66b4f49c41814597e0d72e2283731f5610e46fb91bef78f6bb2d6198f5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI2NzQyOWFmMTc5M2JjODk0ZmU1MzU0OGZlYzFjNTg3N2QyYTVjODFjNmMwZjFlMmZmYWViYTIxYTJmYTE3YTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgwYjkwOTIxNmQwYWFkN2MxMzJkYzk5NjFkZTIwNTU3YjUwYTE0MGEyOGQ4MGJiMTI5ZTk0YTdiZjJlYjVhNDMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE4NmJkYWY2YTJiZmE1ZmZjMDQ0ZWYwMGY5MjQ5OWVkNDEzZDk1ZGJjZDc2MmRiNThhYTI5OGE1ZjVjYzIwZDEifQ"
+        },
+        {
+          "resource": "repo://scripts/build_core3_irq_sim.sh#L1-L12",
+          "version": "repo-lines-v1:sha256:52b0023d406825feed78ae15b1d2a16b4e6bf4d22ec3d499570b92a1e9901ba3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1ZGMwOWI4M2RhYzMzZjc3NDQ2MDUyZmM2YmE0ZGIyMDRkMTRkMzUzMDVlZjM5ZGM0MDBiYWQ0YTdhNzk5MzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
     }
   ],
   "verification": {
-    "by": "openwiki/0.7.2",
-    "at": "2026-11-01T09:36:37.731Z"
+    "by": "openwiki/0.7.3",
+    "at": "2026-11-04T15:30:01.509Z"
   }
 }

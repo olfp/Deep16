@@ -2,12 +2,11 @@
 type: "Reference"
 title: "DeepWeb IDE"
 openwiki_generated: true
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
 sources:
   - id: openwiki-source-f8d10828394c4129061d5b0e
     resource: repo://index.html
+  - id: openwiki-source-16651e85b7a394cda65dfc7d
+    resource: repo://js/deep16_d16d_image.js
   - id: openwiki-source-a4cdf03124e6a4fc0fb766f9
     resource: repo://js/deep16_terminal.js
   - id: openwiki-source-0cc31ca306d30bed999278fc
@@ -24,7 +23,12 @@ sources:
     resource: repo://README.md
   - id: openwiki-source-bf2a0339ada6a56de8b7a79c
     resource: repo://rtl/deep16_board.sv
-generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+  - id: openwiki-source-995b05cde9e7dd8086199c38
+    resource: repo://scripts/render_tile.mjs
+generated: { by: "opencode", at: "2026-11-04T09:31:05.972Z" }
+verified:
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 ---
 
 
@@ -53,9 +57,10 @@ The page loads its scripts in dependency order:
 | 1 | `css/main.css` | Layout and theme |
 | 2 | `js/deep16_assembler.js`, `deep16_disassembler.js`, `deep16_optimizer.js` | Toolchain |
 | 3 | `js/deep16_simulator.js` | JS reference core |
-| 4 | `js/deep16_ui_registers.js`, `deep16_ui_memory.js`, `deep16_terminal.js`, `deep16_ui_screen.js` | Panels |
-| 5 | inline `type="module"` | Import the WASM and RTL packages |
-| 6 | `js/deep16_ui_core.js` | The `DeepWebUI` controller |
+| 4 | `js/deep16_flash_assets.js`, `deep16_gfx_loader.js`, `deep16_tile_engine.js`, `deep16_d16d_image.js` | FiT graphics model, asset blob and D16D image builder |
+| 5 | `js/deep16_ui_registers.js`, `deep16_ui_memory.js`, `deep16_terminal.js`, `deep16_ui_screen.js` | Panels |
+| 6 | inline `type="module"` | Import the WASM and RTL packages |
+| 7 | `js/deep16_ui_core.js` | The `DeepWebUI` controller |
 
 The module block imports `./wasm/pkg/deep16_wasm.js` and `./rtl/pkg/deep16_rtl.js`
 with cache-busting query strings, initialises each, publishes
@@ -76,7 +81,9 @@ sample program in the textarea, so the page is live on first paint.
   back-reference to the controller;
 - `simulator.setUI(this)` so the JS core can push screen writes;
 - an autoloaded boot ROM, with `CS` set to `0xFFFF` for the initial state;
-- the example manifest, file handle, console mode and transcript.
+- the FiT tile engine (created on demand in Tiles mode) and the cached D16D
+  showcase sources (showcase, Flappy, Pac-Man map and game);
+- the example manifest, file handle, console mode, tile clock and transcript.
 
 The transcript is capped at 50 entries. It is the IDE's only log: warnings,
 core switches, breakpoint hits and optimizer stats all land there.
@@ -108,8 +115,12 @@ core with `uart_tx_take`), and in terminal mode it will assemble the editor text
 if it differs from the last assembled source — otherwise Run would execute a
 stale image.
 
-Both run loops use a **10 ms `setInterval`** with at most **200 instructions per
-tick**. There is no `requestAnimationFrame` loop and no worker.
+Both run loops use a **10 ms `setInterval`**. The step budget is
+`instructionsPerTick()`: 200 instructions in screen/terminal mode and 6,000 in
+Tiles mode, because the game's `wait_frame` loop needs a few thousand steps per
+frame. There is no `requestAnimationFrame` loop and no worker. A separate 60 Hz
+tile clock owns `0xF0066`, ticks the tile engine and repaints the canvas, so the
+run loop never drives the display.
 
 The JS loop (`jsRun`):
 
@@ -187,10 +198,35 @@ One global switch, persisted as `deep16_console`, drives three things at once:
 |---|---|---|---|
 | `screen` (default) | none | 0xF1000 character buffer | keyboard FIFO |
 | `terminal` | `{ CONSOLE_UART: 1 }` | UART byte stream | UART receive FIFO |
+| `tiles` | `{ CONSOLE_UART, D16NANO, D16SEG, D16D? }` | 640×360 FiT canvas | keyboard/UART via the tile demo |
 
 Because the build follows the mode, toggling it rebuilds whatever is in the
-editor so the loaded image matches the display. Terminal mode also checks that
-the active core exposes `uart_tx_take` and falls back to JS if it does not.
+editor so the loaded image matches the display. Terminal and Tiles modes also
+check that the active core exposes the UART hooks; Tiles mode additionally
+forces the JS core because the compiled cores have no display-status word yet.
+
+## Tiles mode and the D16D image
+
+Tiles mode is the D16nano FiT path. `ensureTileEngine()` creates a
+`Deep16TileEngine` and attaches it to the simulator, so every video-window store
+is mirrored into the engine in order. `loadTileAssets()` writes the generated
+graphics blob (`js/deep16_flash_assets.js`) into the engine and the simulated
+config flash. The 60 Hz `tickTileFrame()` sets `simulator.tileStatus`, ticks the
+engine and asks the Screen panel to repaint the canvas.
+
+When the selected example carries `build: "d16d"`, `Assemble` calls
+`buildD16DImage(kernelSource)`: the browser `Deep16D16DImage.build()` assembles
+the editor kernel together with the cached `showcase.asm`, `flappy_game.asm`,
+`pacman_map.asm` and `pacman_game.asm`, fills the 24K window and returns the
+kernel symbols. The sources are fetched once when the example is loaded
+(`asm/showcase/...`, `cache: 'no-store'`) and reused.
+
+The builder mirrors `scripts/make_image.mjs`. Its `bakePacman` flag defaults to
+false because the current D16D image leaves Pac-Man in config flash; passing it
+bakes the block at `0x4330` for a preview. The headless renderer uses that for
+its Pac-Man scene. In the IDE the menu's **P** entry still targets `0x4330`, so
+the in-browser menu cannot launch the game until the flash-loader hookup lands;
+the tile engine and graph assets still render the menu and Flappy normally.
 
 ## Editor, files and examples
 
@@ -211,7 +247,9 @@ Examples are fetched from `asm/examples.json` at startup, grouped into
 `<optgroup>`s by category, and loaded from `asm/<filename>` with
 `cache: 'no-store'` — the example files carry no version query, so a stale
 kernel could otherwise be served from the HTTP cache. Loading an example only
-fills the editor and switches to the Editor tab; it does not assemble.
+fills the editor and switches to the Editor tab; it does not assemble. The
+`D16D Showcase (tiles)` entry also fetches the showcase, Flappy and Pac-Man
+sources for the tile builder.
 
 The Docs menu fetches `doc/Deep16-Arch.md`, `FORTH.md` or `doc/User-man.md` and
 renders it in an overlay with a small built-in Markdown renderer. Escape or a
@@ -224,7 +262,7 @@ handles `INIT`, `LOAD_PROGRAM`, `RUN`, `STEP`, `RESET` and `STOP`, and posts
 state back. It is **not wired up**. No `new Worker(...)` exists anywhere in the
 tree, `workerRun()` is a dead method that posts to an undefined `this.worker`,
 and no script tag loads the file. Execution is entirely main-thread; the 10 ms
-tick with 200 steps is the only scheduling mechanism. Treat the worker as
+tick with 200 or 6,000 steps is the only scheduling mechanism. Treat the worker as
 scaffolding for a future off-thread run, not as part of the current event flow.
 
 ## Persisted settings
@@ -233,7 +271,7 @@ scaffolding for a future off-thread run, not as part of the current event flow.
 |---|---|
 | `deep16_core` | `js`, `wasm` or `rtl` |
 | `deep16_use_wasm` | Legacy boolean, read once when `deep16_core` is absent |
-| `deep16_console` | `screen` or `terminal` |
+| `deep16_console` | `screen`, `terminal` or `tiles` |
 | `deep16.tabSize` | Editor tab width |
 
 All reads and writes are wrapped in `try/catch`, so private browsing or a

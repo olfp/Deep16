@@ -2,9 +2,6 @@
 type: "Reference"
 title: "JavaScript Reference Core"
 openwiki_generated: true
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-11-01T09:36:37.731Z
 sources:
   - id: openwiki-source-558f92ad48bad4c1a8f65265
     resource: repo://js/deep16_simulator.js
@@ -14,7 +11,14 @@ sources:
     resource: repo://js/deep16_ui_core.js
   - id: openwiki-source-d9cd8fddbb3a3a0b0c1da1cc
     resource: repo://js/deep16_worker.js
-generated: { by: "opencode", at: "2026-11-01T09:36:37.731Z" }
+  - id: openwiki-source-e3cbc9bdf6a73d9a2ec96f60
+    resource: repo://tests/segmented.test.js
+  - id: openwiki-source-227dc2c50999a6b4a5874677
+    resource: repo://tests/showcase-boot.test.js
+generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+verified:
+  - by: openwiki/0.7.3
+    at: 2026-11-04T15:30:01.509Z
 ---
 
 
@@ -38,7 +42,9 @@ the architecture text and this core disagree, this core wins.
 - `psw`, delay-slot bookkeeping, ALU flag temporaries and the recent-access
   record used by the memory panel;
 - device state: keyboard queue, UART FIFOs, SPI master plus `SdCard` and
-  `SpiFlash`, and the SIC pending/enable/scratch registers.
+  `SpiFlash`, and the SIC pending/enable/scratch registers;
+- `tileEngine` (null unless a renderer attaches one) and `tileStatus` (the
+  host-driven display-status byte the IDE updates at 60 Hz).
 
 The constructor installs the boot ROM at `0xFFFF0`, so a fresh instance can run
 without an explicit `loadProgram()`. Reset restores the ROM-first state
@@ -80,8 +86,35 @@ the benchmark display; the RTL core owns real cycle, stall and flush counts.
 
 Screen memory is `0xF1000`–`0xF17BF`, an 80 × 24 grid of words. Every store in
 that range calls `checkScreenUpdate()`, which forwards the address and value to
-`ui.screenUI.handleScreenMemoryWrite()` when a UI is attached. The simulator
-itself does not parse attributes; the panel does.
+`ui.screenUI.handleScreenMemoryWrite()` when a UI is attached and the console is
+not in Tiles mode. The simulator itself does not parse attributes; the panel
+does.
+
+### FiT tile engine bridge
+
+When an engine is attached, every store in the whole video window
+`0xF1000`–`0xF627F` is forwarded to `tileEngine.write(address, value)` in order,
+before the screen hook. The engine keeps the two tilemap banks, the tile bank,
+the sprite bank, the control registers, the 64 OAM descriptors and the 8 palette
+sets; a dump of `memory` is not enough to reconstruct them. The IDE and the
+headless renderer attach `Deep16TileEngine`; plain simulator tests do not.
+
+Reads of `0xF0066` on the D16nano path return `tileStatus` when the host has set
+one (the 60 Hz tile clock does), otherwise the raw memory cell. That word
+carries the frame toggle, vblank, S2 and UART-ready bits the tile demos poll.
+
+### Tests that drive the reference
+
+`tests/segmented.test.js` boots the scattered `D16SEG` map directly in this
+core: kernel data in `DS=0x1000`, stacks in `SS=0x2000`, BIOS in `CS=0x3000`,
+and the rest of PSRAM erased to `0xFFFF`. It exercises the dictionary ceiling,
+the SD driver, the catalog words and the raster band state machine, and it pins
+the console getstr pump from the caller side: characters typed without Return
+stay in TIB and nothing runs, and Return completes the line the REPL is polling.
+
+`tests/showcase-boot.test.js` boots the flat `CONSOLE_UART` + D16D variant in
+the same core and checks the menu cells, `Q` returning to the Forth console and
+the idle timer entering attract mode.
 
 ### Keyboard
 
@@ -119,7 +152,8 @@ sectors in a `Map`. It implements the commands a block driver needs (`CMD0`,
 `SpiFlash` models a 4 MB P25Q32U: command/address framing, read, page program,
 4 KB sector erase, status register, write-enable latch, JEDEC ID and the
 2 MB block-protect rule. Writes to a protected address are ignored, matching
-the board's protection behaviour.
+the board's protection behaviour. The same model serves the config-flash boot
+image and the source/game slices.
 
 ### SIC
 
@@ -131,19 +165,20 @@ pretending to model time.
 
 ## Host and IDE integration
 
-`setUI(ui)` attaches the page's `DeepWebUI`; the simulator uses it only for the
-screen write hook. The current IDE run loop lives in `js/deep16_ui_core.js`:
+`setUI(ui)` attaches the page's `DeepWebUI`; the simulator uses it for the
+screen write hook and for the console mode. The active run loop lives in
+`js/deep16_ui_core.js`:
 
-- a 10 ms `setInterval` executes up to 200 steps per tick;
+- a 10 ms `setInterval` executes `instructionsPerTick()` steps per tick — 200 in
+  screen/terminal mode, 6,000 in Tiles mode;
 - the loop checks memory breakpoints before each step and stops on a hit;
 - it drains the UART once per tick and paces keyboard uploads;
-- it refreshes the memory/register panels when the machine stops.
+- a separate 60 Hz tile clock sets `tileStatus`, ticks the attached engine and
+  repaints the canvas, so the canvas is not repainted from the run loop.
 
-`js/deep16_worker.js` contains a message-driven worker wrapper, but the current
-UI does not instantiate a `Worker`; `workerRun()` only posts a message to a
-`this.worker` that is never created. The active execution path is the interval
-loop on the main thread. This is worth knowing before assuming long runs are
-offloaded.
+The loop runs on the main thread. `js/deep16_worker.js` contains a
+message-driven worker wrapper, but the current UI does not instantiate a
+`Worker`; `workerRun()` posts to a `this.worker` that is never created.
 
 For tests and Node tooling, the class is loaded through `vm.runInThisContext`
 and attached to `globalThis`, which is how `tests/helpers.js` drives it without
@@ -151,10 +186,11 @@ a module system.
 
 ## Relationship to the other cores
 
-- The JS core is the only one with hardware-interrupt entry
-  (`handleHardwareInterrupt`).
+- The JS core models hardware-interrupt entry (`handleHardwareInterrupt`) and
+  the board's SIC; the RTL `core3`/board now also has a SIC and IRQ input.
 - It has the full software divide; the RTL `core3` raises ILL instead.
-- It has no cache, no real cycle timing and no DVI/tile hardware.
+- It has no cache and no real cycle timing. It models the FiT register map and
+  the DVI renderer's inputs, but not the RTL `dvi_tile` pixel pipeline.
 - Its device models are the specification for the WASM and RTL harness entry
   points (`uart_rx_push`, `uart_tx_take`, `kbd_push`, `spi`/SD exchange).
 
@@ -162,5 +198,6 @@ a module system.
 
 - [Core Parity and Verification](../architecture/core-parity.md)
 - [ISA and CPU State](../architecture/isa-and-cpu-state.md)
+- [Video and Peripherals](../hardware/video-and-peripherals.md)
 - [DeepWeb IDE](../ides/deepweb-ide.md)
 - [WebAssembly Core](wasm-core.md)

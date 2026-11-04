@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:5e7bf35e6686a500a9d2ea685284c1d665958cc82309bf25c287e5fed4893a17",
+  "claims": [
+    {
+      "id": "claim_409db9e1d9744a93a22633dabee8e777",
+      "statement": "The D16D menu is a BIOS-segment block at 0x4A00 with a 0x334 trampoline, a 0x3E4 header, and F/P/Q entries; it starts Flappy on F and in attract mode after ten seconds.",
+      "evidence": [
+        {
+          "resource": "repo://asm/showcase/showcase.asm#L1-L15",
+          "version": "repo-lines-v1:sha256:4ec119325fb03f84191b915f04a937a05d895109a5c4f612dae84b0be311a8fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzZGQ2MTA0MzQ3MDRjNGEzODg3Y2E3YWQ3NGExNWMwNWMzYjE2OGQ4NjFiMzc0MjBiMDQ3OWQ1MDZkZTEzZjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiZGU2MTExNmQ1OTg3YzAxYjcwY2Q0MjJhNDRmMWI2ZmUwZWI1YzE4OTA0Njg1ZmI3ZTg0Mzk5MGE2Mzc1ZmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRkYzc1NWYwOGM1YWFkZDQxZjU3YmM0OGNhZDgwZTBmZGY1MTgyYzcyNDhlNDEyYTU1ZDY2YTYyMDEwYzNjMjkifQ"
+        },
+        {
+          "resource": "repo://asm/showcase/showcase.asm#L164-L200",
+          "version": "repo-lines-v1:sha256:9dc415d70d3767cc5d7ed1634d84f441985ad9da93b4120db987b63a6ef09770:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5ZGQwYTcyOTdjMjAwZGFlZDllZTAyMzgzMjg1ZjY0OWRhMDk2MjNjOTYxZGU1YzFlMGQ1MDkyMGY2YjUxNGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ3NjM4NzRkMzMxNTI2ZGMzZmJkM2Q5MTIwYzE3MDkwYzZkYWRiMzBkM2Q2NDAwZDJhZGMwM2Q1MjRlYzRlOGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEwNDU0MTc5NWU2MzlmZTkwNjg1OTVhYjkyZWQxZDQ2ZmI4OWQxNzI3NjkyN2I1ZTcyMWRmMzQxMGUzODlmZTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFhYjI5NTY3NzY2MGY1ZjdiZjIxZDllYzU4ZGI5ZWJjM2E3ZjIxZWNiMjU1YmJiZjNlY2IwYTgzMjhiMjU1ZWUifQ"
+        },
+        {
+          "resource": "repo://asm/showcase/showcase.asm#L77-L120",
+          "version": "repo-lines-v1:sha256:a28e2989eae343c6001f9bca92d487132e5a8ad125a750585807f39bffb9fdc3:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY5NzM0ODAzZGNiMjA5Yjg0ZDIxODhiYzNhMDg4ZjI0ODJjZTRmNjE3MWY1YzhmYTQ0MDk3YzRkZjNmYmY3MWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwMjIwNzU0MWU0ZGUyMzM5YjA1M2JiNjMwMDg3MTdiNjkzNDIyMTU1MGRmOWE2ODJhZDlhNTFkMzY5ZTMxNDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUwZDE4YmI1MzllODFlZDhiOGU3NGEyYWU4Y2IxNjgzYjQwODkwNjFhYTY1YmRiYzI5MGZjNDA3ZDRhYjIwZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmYmM1OWE1YTM0ZDU3YWFkNWJkZmMzOWUxZWEwMGIyZTU1MjExYWQ5ZTIyNjU2ZGU5MTVmNTdkYzI4MTk2OTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_94d0cd2a7c9c45b98f937eaaa3212a86",
+      "statement": "Flappy renders pipes and ground from the tilemap and the bird plus four clouds as 32x32 OAM sprites, with a per-reset bird colour, S2/F/Space input and a death sequence.",
+      "evidence": [
+        {
+          "resource": "repo://asm/showcase/flappy_game.asm#L1-L20",
+          "version": "repo-lines-v1:sha256:e3cbe4e66ebe0d7e5083c5677815ce32d4eece01da380d97b8896eaefd945173:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmMGY3YTY5MjBlZDI1YjNkNzA1NjdkZGU0ZWZiYmUwNTFlY2RlMGVkMzEwNDg4ODMzNzg0NzY1YWMwZjRhOGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzZTY0NmE4MjJlYmNkZDU4OTEwZGVmNzIxMDJmMjFjYmQ4NmExYWZmMzE2ZjRiOGU3M2VhY2U0NThjNDEzZGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgyOTYwOWYyMTQ5ZTEyYWM2M2ZlM2ZhMmJjMWViNDYzNjFlNmI4YjE1ZWM2NTBlODkxYTE2ZDkxMTYxYTE2YjIifQ"
+        },
+        {
+          "resource": "repo://scripts/make_bird_sprite.mjs#L40-L65",
+          "version": "repo-lines-v1:sha256:adca63f7028977e172a5dbd96fc4bf0df75ec498b69c7ce62e79ab0e854550df:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJkZjdlZjc3MWViN2QwYzhjNDgwNjEyNDYxZDg2MjZkZTQ1YzJmYWEyZjA4Y2QyNDhjZWUwMDRjZDkwYWQ4ODciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMzMzQ0NjdkNWI1ZTY5OTI3ZjM1M2U1Zjg5ZDI0M2JkNDg0YmI0MDU1NjNhNTliYjIyMGU0Nzk5ODdkMTlkNzgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg3ODVhNzRjMGFlYzFiODQ0OGRiMTdiZmJhY2I1YzNlMmFmODljM2M4OGU2ZjlkZTg0YmQ5OTQyYWExMzdkMDAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9d99b424efa443e0be78b1066c44f462",
+      "statement": "Pac-Man is a 30x23 logical-cell maze with 246 small dots and 4 power pellets, 4 map words per row (92 words), a house at rows 10-13, a tunnel on row 12 and Pac-Man starting at (14,16).",
+      "evidence": [
+        {
+          "resource": "repo://asm/showcase/pacman_map.asm#L1-L6",
+          "version": "repo-lines-v1:sha256:cf8f6bf705c79bf5d1bb58fb0233d6473da83092a388cd5a35bbaf41972f7fcc:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGM2NDk3YzNlYzIxMjI0OTY2YmQ0MDgxYWNjZDY1NGZiMzAyZGI5MjFjMWEzZTZjYjY3NzY5YTg4MmY1N2VjYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTQ1MmM5ZDk2NzRkODE3ODBlN2M2MmZhM2Y4ZmZkMTZmZWI2NDc4NDQ4OGY4MDhjMjE4YTI3NWE4Y2E2ZGVjNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWU3NWNkYWM4MWJiMDcwOGQyYmRmOGQ1MzZkYzNhM2E1MjgxZDRlYzAxNjkwODNkMzJmZGE0MTAzM2JmNmRhZCJ9"
+        },
+        {
+          "resource": "repo://scripts/make_pacman_art.mjs#L107-L112",
+          "version": "repo-lines-v1:sha256:d2efb6c9129be2390fcdff650c42d15e4afbb5e081c872d40a5bc167c7a3aedc:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjAyZDJjMGQ2ZGM1ZTc0ZDkyZmExNGI5MWRiZWEyNjQwOTBiZWIzNWZkYjkxODhkOWIzNDExODFkY2U5ZjRjZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZThkNWQzYWY5ZWNkMDk5ZmY0YzFiMjM4MWQ4NGVhN2E3NWFjOWE2MjMwMGEwMDdmZjJhZjE3YzMyYWRlMzk4MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzJmNjA4ZDViZjgzMzQ4MTExYTM1Y2RhMzM2NDU5ZjZjMjAwMjUzNjNlODc1ZjliMDYzOTY3MmY1ZDc2YTgzYiJ9"
+        },
+        {
+          "resource": "repo://scripts/make_pacman_art.mjs#L32-L60",
+          "version": "repo-lines-v1:sha256:270842bcf80968c3e1473732ba5749f9c33cc85e3e84192b0b2cd78a7bf5fd60:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzYWIwMTk2NDcxZjIwNjcyMGQ3NGIyZjYxZTQ5MzhjNzI5NmIyMTc5NDMzNWMxZDAxMGExZTU2YjY2ODcwMzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmYjBmMDkxYjY0OWUzMGNmMGVmMTY3YWY5OTExNGRkZjA3MTYyMWE0NDAwZjNiMzgyZDBkOWU1YmIzYzE2M2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3Yzk2MGVjMWE2MzFkZjI2ZDAzYzdmZjEzYzU5YzU4NzllZGI5Yzc1MTQ3MDIxZTg5MWM2YTdkMGE5ZGI4ZTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM3MTcyNjU0YzcxNzJhOWE4NDliZmUwZGIxMGQwYjhkMzVjMWY5OGY3ZDZiYmM2N2MxMGUzZDA5ODNkMmJhYTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_54369a2c07504759b5d1ca211d0a471d",
+      "statement": "Pac-Man uses one 32x32 OAM sprite for the player and tile art for the four ghosts, with dots/pellets/walls/ghost tiles at 49-56 and 110-125 and palette set 1 for the game.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/make_pacman_art.mjs#L310-L330",
+          "version": "repo-lines-v1:sha256:4e81f630870407ab0bf710f52c0f3cd273bc2aea3118ccaecd08639dfe33c788:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxY2YwNDAyZjYzYmMwZWVkYWUwMmRhYTBlYmMxZTc3ZTYzNThiN2RiNDQ5OTc1MjU5NWE4NzI2MmYwYjhiZGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM0NGQ3OThmZDA3ZDg1ZGE1N2JhZDM4Zjc0ZDRkODUxNTkwNWQ3NDEwYzI5NDk1M2ZlMzQ2ZTVjYTNkNjNhODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY0NzI4MjgxN2IzYTE3MzcwMThmNjg2OTZhNDIxZjY4Mzg1YjliZGFiNDM0NWQyOTczY2NjNmI5ODFmMmI2MGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMzNDA5NDMyODQyMjQwMDAzZDljODc0YTIyYmY2OTQxMjA1Y2U4ZTM1NTM5Mzk1YmYyZjNhMmRlYzRmMzdkMGUifQ"
+        },
+        {
+          "resource": "repo://scripts/make_pacman_art.mjs#L45-L66",
+          "version": "repo-lines-v1:sha256:511a4b5d577570ffe3b8535f435161a46da6b4b1da440ee0c71b9f7967cbbd98:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE5MDY5MjRmYjUzYjA4M2E2NWI2N2Y0MzhlYTM4Mzk1NzJhZDJkN2RlMWNmMTYwODhmYWI2N2Q2ZDMyNzJkOWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwMmQyYzBkNmRjNWU3NGQ5MmZhMTRiOTFkYmVhMjY0MDkwYmViMzVmZGI5MTg4ZDliMzQxMTgxZGNlOWY0Y2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJmMTVkYTc3NzVlYWIzNzlhMTQzMDQ0Y2YyNzhkNDczMDU4NmI5OWE3ZDQyMDg3MTAwYzBhZGRiZmUxN2QyZjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIxN2I0ZWNiMWUxZTg1NjU4YmMzMmFhYzZlM2RkOTc3NjU0ZWUyZjJiOWRkZjM1MGY0NmY0NWFjMmMxMGQ5ZTIifQ"
+        },
+        {
+          "resource": "repo://scripts/make_tile_font.mjs#L90-L97",
+          "version": "repo-lines-v1:sha256:bdfe6aac1f8db071b551e9d93ad27c2fbb511c26bcb81bc8912f120cd02c5bf9:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDE3ZGU2MTMwZTk3OGQ0ZTdjZGYwYTM4YzEyYmEwMTk5NjM2ZDUyNTc4NWJkMTM1MDcwZGI1MzIwZmI4Mjk5NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjJjNzdkZGMzNzI0YzY5YWM1NmI3MmQyNDk2MjEzNzdjYTFmYjJlZDU5ODE5Zjk4ZDE1NzA2ZTg4MDk1OTM1ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWY3YTg5N2QyNGViMTFmMGVjZDU1Y2U5ZDU0ZWE4ODUzODNmNmYyZGFjYTBhMTAwMWZhYjEwNjllMzJhOGU3YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2RhYzUxNjhmMDZiYzY5NmIzZjdjNWU2Njc3YzJjYTE3YjE1MGY4YTRmN2YzZjU5MTI4MDgxYmJkZDAwNjllOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_10f6e0e02da848f49194d2a165967dcb",
+      "statement": "Pac-Man is a 1,695-word type-4 slice at config-flash 0x20A000 (slice 10), loaded at segment 0x2000; the menu P entry still jumps to 0x4330 and needs the games.fth loader hookup, while s\" pacman\" game-run works.",
+      "evidence": [
+        {
+          "resource": "repo://MEMMAP.md#L525-L536",
+          "version": "repo-lines-v1:sha256:6a45cc20be22b9fad5f1db295d2f4eaef987877a0d666e54afc176fe81248187:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIxZDQ1N2FiOWFmYjE2YjkyZjAyM2YwY2U4MzRiOGZiY2FjMDUxMDc3NTJkZWEzNzI0OWU2ZmM1ZTA1MmRjM2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlYTdiZDBmY2FlNGViNmZmOGM5NThmN2M3OGE0MTE1NDZiZDhjYTc3NTg5YmJjN2Y0NzdmNWViOWZkNzBmY2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI2MTg2ZjZkNDMwOTExNmY3ZjMzZWNmNWJjZjVlMDEwMWQ5ZjdmNWM3NjMxNTU4NzRlNGNhYTI5NTVlN2YyNWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNiMTAxYzE1M2Y2ZGM0ZGExZjljNDI1OWNjZjhmZjNkMGFjYmFhZTczNGQ3OTY1ZDM4NjBmYzg3YzhiOTJhMzkifQ"
+        },
+        {
+          "resource": "repo://asm/showcase/showcase.asm#L386-L400",
+          "version": "repo-lines-v1:sha256:66c30ba96f5648c6e9cc8bf3721eb20131a32c1774a9a703d876311ed529c391:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhMzM0Yjc4ZWUzMzU5ZWJiYTFiN2ZhNTczMmY3YTc5ZTFkYzAxZjliZDI3NzU2ZjdlZWNjNTg0ZGM1M2RjOWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YWMzNDBiM2ZlOThmYjNmM2JhZThhZDE5OGQxMDEwYmFkMWQ1NDM3ODBiY2IyYWU3OWM2NjkyN2E3MzFlNzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVmZTMzYjZmMGZhMjI5Y2M3OWQxNDA2MDAzZTY3ZmJkMTVmNDA2M2UzZGZiMTE3ZDA1M2ZhNTgyMjM1NzYwMzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjMzg0ZWZmODliZDUxZTQyM2U1YzljNGRlNWRkODFhNjA2YTY0ODkwN2IzNDFlYjdmM2EyMmUzMjJjN2ZhYmQifQ"
+        },
+        {
+          "resource": "repo://scripts/make_slices.mjs#L84-L100",
+          "version": "repo-lines-v1:sha256:b87c4ecbc9cbbb6e64aa304a5d3175627f35b60c98cb005508a00ec44c7af2f2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3NTMxMTMwNWE3Yjg5YzcwMDQwNDc4ZDFhMDI0MmU1ZmViZjAwOTU1NzY2NjQ0NGRjYzZhNjE3MDE5ZmE3OGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmNDdmNTQ4ODFkMWNkOWExZDA5ZDIwODIxYTU1ZDRjODVkYmYyMzZlYTUyZDE5ODI1OWM4Yzk4Yzk2Y2NjMDMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE1NGEzZDk5Yzg1YTE5NDFiNDRkMTdjMTcyNDhiMzc0NWQxMzkxODYxM2FjYWJhMGU0MjNkMjkyMTI1YTVhZjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY5NWQ5OWFmMjcwMzg3MWU3YmVkNjk5OWU0NzMwNDY0NTY2NzAxNTU0NGRiYjM3Y2YxZDNkZjY4MWVhOTRiZTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f477c027e7b64ffcb1d88d4ed6f54731",
+      "statement": "tests/pacman.test.js pins the 30x23 packing, 250 pickups, block limits, movement/eating, win/death return and the frightened-ghost path; the segmented test pins the flash game-load/game-run far call.",
+      "evidence": [
+        {
+          "resource": "repo://tests/pacman.test.js#L35-L120",
+          "version": "repo-lines-v1:sha256:d20d33c7154904afecf0b4206b177908922696ed36e8287c8b2b2e77e093d0ce:eyJzZWxlY3RlZExpbmVDb3VudCI6ODYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU4OWQ1ZDdkMWFhN2UxOThkMjI1MGQ0ZjA0NmNmNGJlODhmMmVkNThiODBiYTZmNzU2YTc3MzBkZWFhYWM0NjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4ZmU4MWU3ZDMxNjYyNDMwMDM0NTYwZjFjYTBkNDQ1YmUwMDExNDdkZTM2ODAzYzUxYTA3NTJjODA1NGRlNzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYyNTU0MTlkYWY3ZmNhMDM2YWRlMTc4NjY5YjQzYTlhNWIwYmM1MDk1NjZkZDc0MzQ1NTExNDVjNjBlZjVhMTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVjZGY0ZDhhOTIyZTI0NWE3YWQ2MjcyNTY1OWI2Yzk1MDk1MDdlMTNjMTViYWU4Y2RkMzgyZmE4OGExZTUyYjcifQ"
+        },
+        {
+          "resource": "repo://tests/segmented.test.js#L430-L479",
+          "version": "repo-lines-v1:sha256:340f41fe3c44b1c4d6f4423ab6e68f41cab4f131825379c8ec980cf2b85f9da7:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM0YTNmNjU0ODdlNjQzNTg2ZjA0NGVkOGEwODAzODc5YzY0ZDRhMzJmMjI3ZjFlMjI5MWViMzA2ZWFkMzg0MjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmZDEzNjRkODM5N2ZlNzAyMTJlMGY4OWRmNTMyYzVkNDcwNGI2ZTA1Zjg3OGMzZmZlYjM4OGRhNjRiY2YzN2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY3Y2NiNTI0NzE0ZGZhOWQ0MzE4Mjg5NDMxMGZiOWJiYWVmNWNiNjIyNDBlYjkwOTIwMzhhNmU1YWY3OGNjNTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNlOTUyYTgwYjMxZmNmNDQxZDM5ODIyODVmOWMyOGI2ZjFkMjNjZDJjZThlOGQ0ZWQxZWMxOTg5OTg4MzAxZGEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_96cf2defe73c4a7d91b60a75078779da",
+      "statement": "The showcase block spans offsets 0x334-0xDFF and never writes 0x600-0x9FF (physical 0x5000-0x53FF); that reserved gap holds the BIOS UART mirror at 0x5346 and the non-blocking getstr at 0x5356, while the BIOS code proper ends at 0x4CD5 below the menu trampoline at 0x4D34.",
+      "evidence": [
+        {
+          "resource": "repo://asm/forth_nano.asm#L15801-L15910",
+          "version": "repo-lines-v1:sha256:dbd0920d3e751de25db6e754e85b56b968782b36da102b564e7b8f6ebedeb511:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI3ZDdiMjM0ZjJlZGViMzQxZGQyOWQ1MmUzN2RlMzI5OTY0ZTgwOTkwZmQ1ZGU0ZmYzM2U1ZmZlNDEzOTA4YTAwIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0MzY5NWY1YjdmMGYyNGU0YzNiY2UxYWFhNDZjZGFkZGQ3NGNkMTg0ODc3NzFhNmRmYWY3NWNjOTcyMmY5N2NkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3OWQ5YzkwNWVlODdhYTJmYTA3N2RhMDJkZDFlZmUxNTk5NTQzYTg2ZmQ1ODI1MDMxNTUyOWI4NDM5OWI2YjdmIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI0OGM0ZTQ1MTljYjg0N2Q2YmZkMjc3NzE1MjgwNzg1YzM1MTUyOGVhMjk4ODYzYmMxZTkwNjkwNzU4MDY5NDY4In0"
+        },
+        {
+          "resource": "repo://rtl/flash/flash_boot.sv#L210-L225",
+          "version": "repo-lines-v1:sha256:70e651baa2d93b2bb5661901cfe753a4ede649483d2dfee5493019ce6727a4ae:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhYzc4M2RiMzY4MWMxODExNTk3YzgxZTA5N2I0OTRhNGUxOWQ4NzQ1NTMyMjFlYjI1MDJmMDBjMTkxNmUyMTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ4NjY2MTA0ZTg3ZDYzOGMwZWFjNGE4NzI1YWE3YjI2N2QyMTU2ZDVhYmVkYzZkNGZhYTlhYTlhNGIwMzA2MTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY2NjYyZDM1ZjI4MmZlNDk5MWExNDZkZmU4NTVkMDllNTVhNzNlZGIxYzAwZjhmNDkxNmEwMmY4MDJkZTRhZjkifQ"
+        },
+        {
+          "resource": "repo://scripts/make_showcase.mjs#L111-L130",
+          "version": "repo-lines-v1:sha256:131472e4a6541aa355ff71f769cafa573e5999a72d3ad7a34ace74e5aac76457:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyM2YxMDczODk0ODE5MDIwNGNiYmY3YzJkZDJhYzU0MDczZTA3MmI1NGZiMzBiNjM2NDE0ZTdkOGYwNWQ3NjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkZDgyYjliNjZlZGNkMDQ0NDUxYzY5MDRhMjJlNDk0NGRkNDhjZWFjOGUxOGQ3MWZkZGQyZjFjMzlmMmM4MzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmMGQxMzk5Mjg4YmY2ODVhZTgzOWJkNzhmYjhhNGMyYWVmZWRiM2U5MmVjMjRkNDQ1MjE3MGUyODFjODg1OWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMyOGQyNTdlZjg5ZWMwZDYxNjMxMzBiZTVmMzJhOWVjY2NkYzY1ODljYmQxYjk4YTRmNGI0ZGU0NzQ0MjUzMzIifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.3",
+    "at": "2026-11-04T15:30:01.509Z"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:c7921b24a07372afe9fcfebc893a3f5dcb6aa5726093d259a659b4a83e241eb2",
+  "pageVersion": "sha256:e53fa938e7fbd740595cbe277ca8a966ca01ef2a2fe2b9e10dca2c59e65f02a2",
   "claims": [
     {
       "id": "claim_33403847d06e46cf95606653f8d4679b",
@@ -143,10 +143,42 @@
           "version": "repo-lines-v1:sha256:7d77b10076d8c867af6dda381c820e0de5d2142c3b80e1875e42aff8959ef17f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2Y2UyMDc5NDc2NzhmMjgwNzIzZDJiMzI0YTg2ZWJiN2Y2YTEwNzYwYmQ0ZTgzMDY5MDI3M2M4ZTg5MjY0ZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1NmRjNDIzZjllNjk3Y2FiOWM4MzY0NzRlMGIzZWY5ODA2MjdiZmE4ODVmYzdiYmE0OWViNWRhZDU5ZTYxM2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY5YWZjZWYwZTJiOWE4YjNjYjc3MWIxZjI2ZTFhNmE3ZWUwZGM3ZTI5NjU1Zjk4MjZmZjc2OGM1ZjM0ZDU5ODMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRmZmRiZGRlZTdlODVjMTY4MDAyYjcxOGI4Y2EwMTY2MTA3ZDQ1YzAxZDFlMjM3ZWViOTE0MzQyMjU2OTY2NDIifQ"
         }
       ]
+    },
+    {
+      "id": "claim_b4a4a1cabc4542f2b6234a408a3da0a3",
+      "statement": "The board SIC raster source is a level held by dvi_tile's raster_toggle until a control-7 write acknowledges it; because the SIC ORs the source into PENDING every clock, a handler must acknowledge the tile engine before the W1C or the bit re-latches and the handler runs again.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/deep16_board.sv#L283-L288",
+          "version": "repo-lines-v1:sha256:3d1973696ddb998d468ea59c46a259ccc500435b24a1186d1f764e4101966c09:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDE1ZDU2MDJlNzkwMTMwOTNmYzcwMGRlZTI1ZDMzZWNhM2I4NzY3YWM3NzU1YWU2MmE5NjUyOTIzYzI1NTU1NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWVmMDRmMjFmYTgxMGFjNzE3ZDM1ZjZhMDVhNTc2NDMwOWRiMTc4ZjIyY2E2NzdhNDNiYjAzODY4MmFkNmYwMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWIwZjk2NzA5OWFkY2Q2YWRlZmZiMDRhNjI0ZWJmN2ZhYzhmNDIyYjE2OTUyZjczZDRlY2YzMmZkOGMwZjc5NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjE0NWUwNmE5OTJhODYyMjIzY2EwMGFhZWVjNjJjNTNjZWJlMTVmMjMwMTdjZTQ1NDlkMjI1MjRlYTFhN2M3NyJ9"
+        },
+        {
+          "resource": "repo://rtl/deep16_sic.sv#L30-L45",
+          "version": "repo-lines-v1:sha256:0d6e5d69f2eee0410f25368dd7d1bece809e0af0786c5e2e3c0bcfb50f98728d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI5ZWJiNzI1YTVmNWI3MTk1M2Q4NDJjOWY2MTYzODQ5NDc2ODI3ZmNhY2JjNzQ1OTFmMzA4ZDY1NTMyNzRhOGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3OTgxMWM1ZmJlMjVjM2Q0ZTVmM2QxZmQzNWFiOWRhNmJjZjhhNjhjNWVkZjlkNmJhOTdmNjg2ODZjMzk2ODAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc5MWExNTNkYjQ3YjQ1M2RkMmYxZDE5OGUwZmVmOWJiNmEyMDdkNWY0YWQ2NDc2ZWFjNDllZDM4N2VmMWJmZmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA1N2JkYmMwMGMzN2M3YjJkYmUyOWRmZTA2ZGFkYTY4YjZjNGUxZGJkMWFiOWUwODM3NzM4Mjc0NjM2MTI2YTQifQ"
+        },
+        {
+          "resource": "repo://rtl/dvi/dvi_tile.sv#L310-L330",
+          "version": "repo-lines-v1:sha256:7cbec5d0168c9064ebaae491e4212bf5c115c88f7f2b1778d91978b5c74c4728:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdkYjg4MzZhMzViYmM0YmU1OWI5OGNmMzI0ZWY1YmJmMDI0NjNjNzQ4ZDk0YWJiZGQyYzIyMzg3Nzg5MWJhM2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4NGM1ZjkxYzk0OGEyYzkyNWY3YWRkNzE3NzI3NTBmMDI1MDllODZiODNmYTIxNmI3NjM2Y2Q4NDc4NGRiYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY3OWRjOTY0NjAwNDMxMmY2MTkxNzYxNDI2OWJlYjgxM2I3NGQxM2EzZjkxYThmYzU0ZjA2ODM1OGViYzc5N2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFhOWFlN2E5MWJjNTg2NTI3ZjQxZTkyMTA3NmU0NjEzMmM5NDM2OWQ3MGEyYmFiY2RhN2Q3YTcxYTNjODlhN2QifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f7de4b80beaf46fca6d4dad646c2ccf8",
+      "statement": "rtl/sim/core3_irq_tb.sv (built by scripts/build_core3_irq_sim.sh) pulses IRQ while a store is decoded and checks that the core3 handler RETIs to re-run the parked store rather than the following instruction.",
+      "evidence": [
+        {
+          "resource": "repo://rtl/sim/core3_irq_tb.sv#L1-L12",
+          "version": "repo-lines-v1:sha256:4eb9ec66b4f49c41814597e0d72e2283731f5610e46fb91bef78f6bb2d6198f5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI2NzQyOWFmMTc5M2JjODk0ZmU1MzU0OGZlYzFjNTg3N2QyYTVjODFjNmMwZjFlMmZmYWViYTIxYTJmYTE3YTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgwYjkwOTIxNmQwYWFkN2MxMzJkYzk5NjFkZTIwNTU3YjUwYTE0MGEyOGQ4MGJiMTI5ZTk0YTdiZjJlYjVhNDMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE4NmJkYWY2YTJiZmE1ZmZjMDQ0ZWYwMGY5MjQ5OWVkNDEzZDk1ZGJjZDc2MmRiNThhYTI5OGE1ZjVjYzIwZDEifQ"
+        },
+        {
+          "resource": "repo://scripts/build_core3_irq_sim.sh#L1-L12",
+          "version": "repo-lines-v1:sha256:52b0023d406825feed78ae15b1d2a16b4e6bf4d22ec3d499570b92a1e9901ba3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1ZGMwOWI4M2RhYzMzZjc3NDQ2MDUyZmM2YmE0ZGIyMDRkMTRkMzUzMDVlZjM5ZGM0MDBiYWQ0YTdhNzk5MzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
     }
   ],
   "verification": {
-    "by": "openwiki/0.7.2",
-    "at": "2026-11-01T09:36:37.731Z"
+    "by": "openwiki/0.7.3",
+    "at": "2026-11-04T15:30:01.509Z"
   }
 }
