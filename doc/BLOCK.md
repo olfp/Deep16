@@ -1,3 +1,4 @@
+```mermaid
 graph TD
     %% Core Element
     Core[Deep16 3 stage core]
@@ -47,7 +48,7 @@ graph TD
     Core --> FITGfx
     VMEM <--> FITGfx
 
-    %% Styling (Optional Color Matching)
+    %% Styling (Color Matching to original diagram)
     style Core fill:#F9A825,stroke:#333,stroke-width:2px;
     style FITGfx fill:#EF5350,stroke:#333,stroke-width:2px;
     
@@ -68,3 +69,4 @@ graph TD
     style USBCSerial fill:#81C784,stroke:#333;
     
     style Clk fill:#B0BEC5,stroke:#333;
+```
