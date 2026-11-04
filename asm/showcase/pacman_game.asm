@@ -7,14 +7,14 @@
 ;
 ; Memory inside the block (offset from 0x4330):
 ;   0x000..0x5FF  code and its strings
-;   0x600..0x672  the static maze (generated pacman_map.asm)
+;   0x600..0x65B  the static maze (generated pacman_map.asm)
 ;   0x678..0x686  direction tables (also generated)
 ;   0x688..0x69C  palette setup table (also generated)
 ;   0x6A0..0x6C9  writable game state
 ;
 ; The HUD is tilemap row 0.  Maze logical row r is tilemap row 1+r, and
-; logical column c starts at tilemap column 4 + 2c.  Every logical cell is
-; two 8-pixel cells wide, so the 36x23 maze fills columns 4..75 and rows
+; logical column c starts at tilemap column 10 + 2c.  Every logical cell is
+; two 8-pixel cells wide, so the 30x23 maze fills columns 10..69 and rows
 ; 1..23 exactly.  Sprites are OAM descriptor 0 (Pac-Man); ghosts are two art
 ; cells each, redrawn only when they move.  Eaten dots are cleared in the
 ; RAM copy of the maze, so a ghost leaving a cell restores what is really
@@ -116,7 +116,7 @@ pac_entry:
     ST R3, R2, 0
     ; HUD label "SCORE" at row 0, column 33
     LSI R9, 0
-    LDI 33
+    LDI 34
     MOV R10, R0
     LDI str_score
     MOV R8, R0
@@ -182,16 +182,16 @@ mz_scale:
     NOP
 mz_wall:
     ; the ghost door is drawn as text, not wall art
-    LSI R3, 8
+    LSI R3, 10
     CMP R9, R3
     JNZ mz_shape
     NOP
-    LDI 17
+    LDI 14
     MOV R3, R0
     CMP R8, R3
     JZ mz_door
     NOP
-    LDI 18
+    LDI 15
     MOV R3, R0
     CMP R8, R3
     JZ mz_door
@@ -215,7 +215,7 @@ mz_shape:
     NOP
     OR R5, 0
 mz_no_left:
-    LDI 35
+    LDI 29
     MOV R4, R0
     CMP R6, R4
     JNC mz_no_right
@@ -293,7 +293,7 @@ mz_blank:
     LSI R4, 0
     LSI R2, 0
 mz_store:
-    ; R3 = (row+1)*82 + 4 + 2*column
+    ; R3 = (row+1)*82 + 10 + 2*column
     MOV R3, R7
     ADD R3, 1
     MOV R1, R3
@@ -304,7 +304,7 @@ mz_store:
     ADD R1, 1
     SL R1, 1
     ADD R3, R1
-    ADD R3, 4
+    ADD R3, 10
     MOV R1, R6
     SL R1, 1
     ADD R3, R1
@@ -314,7 +314,7 @@ mz_store:
     ADD R3, 1
     STS R2, ES, R3
     ADD R6, 1
-    LDI 36
+    LDI 30
     MOV R3, R0
     CMP R6, R3
     JNC mz_next_row
@@ -337,12 +337,12 @@ mz_done:
     ; Pac-Man starts on the empty centre pair below the house
     LDI ST_PAC_C
     MOV R2, R0
-    LDI 17
+    LDI 14
     MOV R3, R0
     ST R3, R2, 0
     LDI ST_PAC_R
     MOV R2, R0
-    LDI 13
+    LDI 16
     MOV R3, R0
     ST R3, R2, 0
     LDI ST_PAC_DIR
@@ -364,21 +364,21 @@ mz_done:
     ; four ghosts on the corridor above the house, all facing up
     LDI ST_GHOST_C
     MOV R2, R0
-    LDI 17
+    LDI 12
     MOV R3, R0
     ST R3, R2, 0
-    LDI 18
+    LDI 13
     MOV R3, R0
     ST R3, R2, 1
-    LDI 19
+    LDI 14
     MOV R3, R0
     ST R3, R2, 2
-    LDI 20
+    LDI 15
     MOV R3, R0
     ST R3, R2, 3
     LDI ST_GHOST_R
     MOV R2, R0
-    LSI R3, 7
+    LSI R3, 9
     ST R3, R2, 0
     ST R3, R2, 1
     ST R3, R2, 2
@@ -866,13 +866,13 @@ pac_col_sc_done:
     LDI ST_GHOST_C
     MOV R2, R0
     ADD R2, R6
-    LDI 17
+    LDI 14
     MOV R3, R0
     ST R3, R2, 0
     LDI ST_GHOST_R
     MOV R2, R0
     ADD R2, R6
-    LSI R3, 7
+    LSI R3, 9
     ST R3, R2, 0
     LDI pac_draw_ghosts
     MOV R4, R0
@@ -1171,7 +1171,7 @@ pac_cell_addr:
     MOV R1, R3
     SL R1, 1
     ADD R4, R1
-    ADD R4, 4
+    ADD R4, 10
     MOV R1, R8
     SL R1, 1
     ADD R4, R1
@@ -1183,7 +1183,6 @@ pac_cell_addr:
 pac_mapval:
     MOV R3, R2
     SL R3, 2
-    ADD R3, R2
     MOV R4, R1
     SR R4, 3
     ADD R3, R4
@@ -1214,7 +1213,6 @@ pac_mv_done:
 pac_map_clear:
     MOV R3, R2
     SL R3, 2
-    ADD R3, R2
     MOV R4, R1
     SR R4, 3
     ADD R3, R4
@@ -1246,14 +1244,14 @@ mc_mask:
 ; R1 = column, R2 = row, R5 = 0 allows the ghost door, 1 blocks it.
 ; Returns R0 = 1 when the cell is walkable.  Wrap columns on the tunnel row.
 pac_is_path:
-    LSI R3, 13
+    LSI R3, 12
     CMP R2, R3
     JNZ pac_ip_nowrap
     NOP
     AND R1, R1
     JN pac_ip_wrap_left
     NOP
-    LDI 36
+    LDI 30
     MOV R3, R0
     CMP R1, R3
     JNC pac_ip_wrap_right
@@ -1262,7 +1260,7 @@ pac_is_path:
     MOV PC, R0
     NOP
 pac_ip_wrap_left:
-    LDI 35
+    LDI 29
     MOV R1, R0
     LDI pac_ip_nowrap
     MOV PC, R0
@@ -1273,7 +1271,7 @@ pac_ip_nowrap:
     AND R1, R1
     JN pac_ip_no
     NOP
-    LDI 36
+    LDI 30
     MOV R3, R0
     CMP R1, R3
     JNC pac_ip_no
@@ -1288,7 +1286,6 @@ pac_ip_nowrap:
     NOP
     MOV R3, R2
     SL R3, 2
-    ADD R3, R2
     MOV R4, R1
     SR R4, 3
     ADD R3, R4
@@ -1316,11 +1313,11 @@ pac_ip_value:
     JNZ pac_ip_yes
     NOP
     ; a wall: the door is walkable for ghosts only
-    LSI R3, 8
+    LSI R3, 10
     CMP R2, R3
     JNZ pac_ip_no
     NOP
-    LDI 17
+    LDI 14
     MOV R3, R0
     CMP R1, R3
     JNZ pac_ip_door2
@@ -1329,7 +1326,7 @@ pac_ip_value:
     MOV PC, R0
     NOP
 pac_ip_door2:
-    LDI 18
+    LDI 15
     MOV R3, R0
     CMP R1, R3
     JNZ pac_ip_no
@@ -1353,16 +1350,16 @@ pac_restore_cell:
     MOV R2, R0
     ST LR, R2, 0
     ; the ghost door is drawn as text, not a blank path cell
-    LSI R3, 8
+    LSI R3, 10
     CMP R9, R3
     JNZ pac_rc_map
     NOP
-    LDI 17
+    LDI 14
     MOV R3, R0
     CMP R8, R3
     JZ pac_rc_door
     NOP
-    LDI 18
+    LDI 15
     MOV R3, R0
     CMP R8, R3
     JNZ pac_rc_map
@@ -1513,7 +1510,7 @@ pac_dga_write:
 pac_draw_score:
     LDI SEG_TILE
     MVS ES, R0
-    LDI 39
+    LDI 40
     MOV R2, R0
     LDI ST_SC3
     MOV R7, R0
@@ -1576,12 +1573,12 @@ pac_dt_done:
 pac_sprite:
     LDI SEG_OAM
     MVS ES, R0
-    ; x = 24 + 16*column
+    ; x = 72 + 16*column
     LDI ST_PAC_C
     MOV R2, R0
     LD R2, R2, 0
     SL R2, 4
-    LDI 24
+    LDI 72
     MOV R3, R0
     ADD R2, R3
 

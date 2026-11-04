@@ -17,7 +17,7 @@ GW_SH="$GOWIN_EDA/bin/gw_sh"
 if [ "${D16D:-0}" = "1" ]; then
   # The D16D showcase is part of the 24K image (BIOS segment), so the plain
   # 25-page / 12,352-word installer is the matching one; no 32K/33-page variant.
-  D16NANO=1 D16D=1 node scripts/make_image.mjs
+  D16NANO=1 D16D=1 D16SEG=1 node scripts/make_image.mjs
   TCL="$ROOT/fpga/gowin/build_installer.tcl"
   OUT="deep16_installer"
 else

@@ -32,9 +32,9 @@ const S = new Assembler().assemble(SRC).symbols;
 const pacman = buildPacman();
 checkPacman(pacman);
 
-test('the maze packs 36x23 cells and 408 dots', () => {
-  assert.equal(pacmanMazeWords().length, 115);
-  assert.equal(pacmanDotCount(), 408);
+test('the maze packs 30x23 cells and 250 pickups', () => {
+  assert.equal(pacmanMazeWords().length, 92);
+  assert.equal(pacmanDotCount(), 250, '246 small dots + 4 power-ups');
 });
 
 test('the block fits before the BIOS and keeps the map below the code', () => {
@@ -91,14 +91,14 @@ function runToExit(sim, frames, key = 0) {
 test('the maze draws, Pac-Man moves, and a dot scores ten points', () => {
   const sim = start();
   run(sim, 320);
-  assert.equal(st(sim, 'ST_DOTS'), 408);
-  assert.deepEqual([st(sim, 'ST_PAC_C'), st(sim, 'ST_PAC_R')], [17, 13]);
+  assert.equal(st(sim, 'ST_DOTS'), 250);
+  assert.deepEqual([st(sim, 'ST_PAC_C'), st(sim, 'ST_PAC_R')], [14, 16]);
 
-  // Right is open all along the tunnel row: hold D long enough to eat one dot.
+  // Right is open: hold D long enough to eat one dot.
   run(sim, 20, { key: 0x64, keyFrame: 0 });
-  assert.ok(st(sim, 'ST_PAC_C') > 17, 'Pac-Man moved right');
+  assert.ok(st(sim, 'ST_PAC_C') > 14, 'Pac-Man moved right');
   assert.ok(st(sim, 'ST_SC1') >= 1, 'dots score ten points each');
-  assert.equal(st(sim, 'ST_DOTS'), 408 - st(sim, 'ST_SC1'), 'each dot is eaten once');
+  assert.equal(st(sim, 'ST_DOTS'), 250 - st(sim, 'ST_SC1'), 'each dot is eaten once');
 });
 
 test('the last dot wins and the banner returns to the menu after ten seconds', () => {
@@ -106,8 +106,8 @@ test('the last dot wins and the banner returns to the menu after ten seconds', (
   run(sim, 320, {
     before: (frame, s) => { if (frame === 300) s.memory[BLOCK + S.ST_DOTS] = 1; },
   });
-  // The cell above the start pair is a dot.
-  run(sim, 10, { key: 0x77, keyFrame: 0 });
+  // The cell left of the start pair is a dot.
+  run(sim, 10, { key: 0x61, keyFrame: 0 });
   assert.equal(st(sim, 'ST_DOTS'), 0);
   assert.equal(st(sim, 'ST_STATE'), 2, 'win state');
   assert.ok(st(sim, 'ST_TIMER') > 550, 'ten-second banner is counting down');
@@ -126,7 +126,7 @@ test('a frightened ghost is worth 200 and goes back to the corridor', () => {
   run(sim, 2);
   assert.equal(st(sim, 'ST_STATE'), 0, 'Pac-Man survives');
   assert.equal(st(sim, 'ST_SC2'), 2, '200 points');
-  assert.deepEqual([sim.memory[BLOCK + S.ST_GHOST_C], sim.memory[BLOCK + S.ST_GHOST_R]], [17, 7]);
+  assert.deepEqual([sim.memory[BLOCK + S.ST_GHOST_C], sim.memory[BLOCK + S.ST_GHOST_R]], [14, 9]);
 });
 
 test('a collision with a ghost ends the game and Q exits early', () => {

@@ -111,6 +111,10 @@ str_q_quit:
 str_auto_short:
     .text "AUTOPLAY"
 
+.org 0x3E8
+str_menu_p:
+    .text "P  PAC-MAN"
+
 .org 0x3CC
 cloud_init:
     .word 100, 300, 500, 700
@@ -191,6 +195,18 @@ menu_redraw:
     JMP R4
     NOP
 
+    LDI 11
+    MOV R9, R0
+    LDI 30
+    MOV R10, R0
+    LDI str_menu_p
+    MOV R8, R0
+    LDI draw_text
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
     LDI 12
     MOV R9, R0
     LDI 30
@@ -257,6 +273,16 @@ menu_wait:
     MOV R3, R0
     CMP R1, R3
     JZ menu_play
+    NOP
+    LDI 0x50
+    MOV R3, R0
+    CMP R1, R3
+    JZ menu_pacman
+    NOP
+    LDI 0x70
+    MOV R3, R0
+    CMP R1, R3
+    JZ menu_pacman
     NOP
     LDI 0x51
     MOV R3, R0
@@ -325,6 +351,11 @@ menu_attract:
     MOV PC, R0
     NOP
 
+menu_pacman:
+    LDI pacman_launch
+    MOV PC, R0
+    NOP
+
 menu_launch_game:
     LDI SEG_DEMO
     MVS DS, R0
@@ -354,6 +385,19 @@ menu_frames:
     .word 0
 menu_last:
     .word 0
+
+; Far launcher for Pac-Man, in the free gap before the game block.  R10/R11
+; carry the return pair the game saves; R0/R1 enter CS 0x0433 at PC 0.
+.org 0x4A4
+pacman_launch:
+    LDI SEG_DEMO
+    MOV R10, R0
+    LDI menu_after
+    MOV R11, R0
+    LDI 0x0433
+    LSI R1, 0
+    JML R0
+    NOP
 
 ; =====================================================================
 ; Shared screen helpers and the game: 0x0B00..0x0DFF

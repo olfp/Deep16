@@ -2,15 +2,15 @@
 // scripts/make_pacman_art.mjs - Pac-Man maze data, wall/dot/ghost art tiles and
 // the Pac-Man sprite frames.
 //
-// The playfield is 36 x 23 logical cells.  Each logical cell is two 8-pixel
-// tilemap cells wide and one 15-pixel row tall, so the maze is 72 x 23 cells
-// and is centred in the 80-column tilemap (4-cell margin, 32 pixels).
+// The playfield is 30 x 23 logical cells.  Each logical cell is two 8-pixel
+// tilemap cells wide and one 15-pixel row tall, so the maze is 60 x 23 cells
+// and is centred in the 80-column tilemap (10-cell margin, 80 pixels).
 //
-// The source maze is written as eighteen-character left halves and mirrored;
-// column 17 is the centre pair.  Cell values are packed two bits per cell,
-// eight cells per word, five words per row (115 words).  0 empty, 1 wall,
-// 2 dot, 3 power pellet.  The ghost door is a wall cell at row 8, columns
-// 17/18 and is drawn as text.
+// The layout is the arcade 28x31 maze compressed to 23 rows and widened by one
+// corridor column on each side.  Cell values are packed two bits per cell,
+// eight cells per word, four words per row (92 words).  0 empty, 1 wall,
+// 2 dot, 3 power pellet.  The ghost door is a wall cell at row 10, columns
+// 14/15 and is drawn as text.
 //
 // Art slots (the font gap and the two free art slots after the Flappy pack):
 //   tile 49/50   dot left/right halves
@@ -29,9 +29,9 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export const PAC_W = 36;
+export const PAC_W = 30;
 export const PAC_H = 23;
-export const PAC_ROW_WORDS = 5;
+export const PAC_ROW_WORDS = 4;
 export const PAC_MAP_WORDS = PAC_ROW_WORDS * PAC_H;
 export const PAC_MAP_ORG = 0x600;
 export const PAC_AUX_ORG = 0x678;
@@ -39,7 +39,7 @@ export const PAC_MAP_FILE = 'asm/showcase/pacman_map.asm';
 
 export const PAC_CELL_W = 2;        // tilemap cells per logical column
 export const PAC_CELL_H = 1;        // tilemap rows per logical row
-export const PAC_LEFT = 4;          // tilemap columns before the maze
+export const PAC_LEFT = 10;         // tilemap columns before the maze
 export const PAC_TOP = 1;           // HUD row 0, maze rows 1..23
 
 // Art tile indices.
@@ -67,64 +67,55 @@ export const PAC_PALETTE = [
 
 // ---- the maze ---------------------------------------------------------
 //
-// Corridor rows and columns make a symmetric lattice of rectangular wall
-// blocks.  The ghost house replaces the central block at rows 8..11.
-// Row 13 is the tunnel row: both edge cells are open, so walking left off
-// column 0 wraps to column 35.
-const CORRIDOR_ROWS = [1, 4, 7, 10, 13, 16, 19, 21];
-const CORRIDOR_COLS = [1, 4, 7, 10, 13, 17, 18, 22, 25, 28, 31, 34];
-const HOUSE = { top: 8, bottom: 11, left: 14, right: 21, door: 17 };
+// A 28-column compression of the arcade 28x31 maze, widened to 30 columns by
+// one corridor column on each side.  The arcade maze is 31 rows; at 16x15
+// cells only 23 maze rows fit above the HUD, so the sparse house/void rows are
+// the ones compressed.  The top and bottom blocks keep the arcade patterns.
+//
+// The base grid below is the 28-wide version: 216 small dots + 4 pellets.
+// pacmanGrid() inserts one column on each side, taking its value from the
+// adjacent outer corridor.  That makes the outer track two cells wide and
+// brings the count to 246 small dots + 4 pellets (the agreed D16D layout).
+//
+// Cell values are packed two bits per cell, eight cells per word, four words
+// per row (92 words).  0 empty, 1 wall/door, 2 dot, 3 power pellet.  The ghost
+// door is a wall cell at row 10, columns 14/15 and is drawn as text.
+const BASE_ROWS = [
+  '############################',
+  '#............##............#',
+  '#.####.#####.##.#####.####.#',
+  '#o####.#####.##.#####.####o#',
+  '#.####.#####.##.#####.####.#',
+  '#..........................#',
+  '#.####.##.########.##.####.#',
+  '#.####.##.########.##.####.#',
+  '#......##....##....##......#',
+  '######.##          ##.######',
+  '######.## ###==### ##.######',
+  '######.## #      # ##.######',
+  '      .## #      # ##.      ',
+  '######.## ######## ##.######',
+  '#............##............#',
+  '#.####.#####.##.#####.####.#',
+  '#o..##.......  .......##..o#',
+  '###.##.##.########.##.##.###',
+  '#......##....##....##......#',
+  '#.##########.##.##########.#',
+  '#.##########.##.##########.#',
+  '#..........................#',
+  '############################',
+];
 
-function buildHalves() {
-  const half = [];
-  for (let r = 0; r < PAC_H; r++) {
-    const row = Array(PAC_W).fill('#');
-    half.push(row);
-  }
-  // interior corridor lattice
-  for (const r of CORRIDOR_ROWS) {
-    for (let c = 1; c < PAC_W - 1; c++) half[r][c] = '.';
-  }
-  for (const c of CORRIDOR_COLS) {
-    for (let r = 1; r < PAC_H - 1; r++) half[r][c] = '.';
-  }
-  // ghost house: two interior rows, a door in the top wall
-  const h = HOUSE;
-  for (let c = h.left; c <= h.right; c++) {
-    half[h.top][c] = '#';
-    half[h.bottom][c] = '#';
-  }
-  half[h.top][h.door] = '=';
-  half[h.top][h.door + 1] = '=';
-  for (let r = h.top + 1; r < h.bottom; r++) {
-    for (let c = h.left; c <= h.right; c++) {
-      half[r][c] = (c === h.left || c === h.right) ? '#' : ' ';
-    }
-  }
-  // tunnel row: the outer edge cells are open; no dots in the tunnel mouths
-  half[13][0] = ' ';
-  half[13][1] = ' ';
-  half[13][2] = ' ';
-  half[13][PAC_W - 1] = ' ';
-  half[13][PAC_W - 2] = ' ';
-  half[13][PAC_W - 3] = ' ';
-  // Pac-Man starts below the house, on an empty pair
-  half[13][17] = ' ';
-  half[13][18] = ' ';
-  // four power pellets near the corners
-  for (const [c, r] of [[1, 1], [34, 1], [1, 19], [34, 19]]) half[r][c] = 'o';
-  return half;
-}
+export const HOUSE = { top: 10, bottom: 13, left: 11, right: 18, door: 14 };
+export const TUNNEL_ROW = 12;
+export const PAC_START = { c: 14, r: 16 };
 
-// Full 36-column grid of source characters.  The left half is columns 0..17;
-// column c on the right is the mirror of column 35-c.
+const insertValue = (ch) => (ch === 'o' ? '.' : ch);
+
+// Full 30-column grid: one extra corridor column inside each outer wall.
 export function pacmanGrid() {
-  const half = buildHalves();
-  return half.map((row) => {
-    const full = row.slice();
-    for (let c = 0; c < 18; c++) full[35 - c] = row[c];
-    return full;
-  });
+  return BASE_ROWS.map((row) =>
+    (row[0] + insertValue(row[1]) + row.slice(1, 27) + insertValue(row[26]) + row[27]).split(''));
 }
 
 export const wallChar = (ch) => ch === '#';
@@ -142,7 +133,7 @@ export function pacmanCells() {
 export const isDoor = (c, r) => r === HOUSE.top && (c === HOUSE.door || c === HOUSE.door + 1);
 export const house = HOUSE;
 
-// Four cells per 16-bit word, cell 0 in bits 1:0, five words per row.
+// Eight cells per 16-bit word, cell 0 in bits 1:0, four words per row.
 export function pacmanMazeWords() {
   const cells = pacmanCells();
   const words = [];
@@ -168,6 +159,8 @@ export function pacmanDotCount() {
 // BFS from Pac-Man's start over cells Pac-Man can walk, then check that every
 // dot is reachable and that the ghost house interior is reachable for ghosts
 // through the door.
+const PICKUP_TARGET = 250;   // 246 small dots + 4 power pellets
+
 export function checkMaze() {
   const fail = [];
   const grid = pacmanGrid();
@@ -175,43 +168,43 @@ export function checkMaze() {
     if (grid[r].length !== PAC_W) fail.push(`row ${r} is ${grid[r].length} wide`);
     for (let c = 0; c < PAC_W; c++) {
       if (!'#.o ='.includes(grid[r][c])) fail.push(`row ${r} col ${c}: bad char '${grid[r][c]}'`);
-      if (c >= 18 && grid[r][c] !== grid[r][35 - c]) fail.push(`row ${r} is not symmetric at ${c}`);
+      if (c >= 15 && grid[r][c] !== grid[r][29 - c]) fail.push(`row ${r} is not symmetric at ${c}`);
     }
   }
   const cells = pacmanCells();
-  const start = [13, 17];
   const seen = new Set();
-  const walk = (c, r, ghosts) => {
-    if (r < 0 || r >= PAC_H) return false;
-    if (c < 0) c = ghosts ? PAC_W - 1 : -1;
-    if (c >= PAC_W) c = ghosts ? 0 : PAC_W;
-    if (c < 0 || c >= PAC_W) return r === 13 && ghosts;
-    if (cells[r][c] === 1) return ghosts && isDoor(c, r);
-    return true;
+  // A step wraps on the tunnel row; on every other row the outer wall makes
+  // the wrapped cell a wall, so wrapping unconditionally is safe.
+  const step = (c, r, ghosts) => {
+    if (r < 0 || r >= PAC_H) return null;
+    if (c < 0) c = PAC_W - 1;
+    if (c >= PAC_W) c = 0;
+    if (cells[r][c] === 1 && !(ghosts && isDoor(c, r))) return null;
+    return [c, r];
   };
-  const norm = (c, r) => (c < 0 ? PAC_W - 1 : c >= PAC_W ? 0 : c);
-  const q = [start];
+  const start = [PAC_START.c, PAC_START.r];
   seen.add(start.join(','));
+  const q = [start];
   while (q.length) {
     const [c, r] = q.shift();
     for (const [dc, dr] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
-      const nc = c + dc;
-      const nr = r + dr;
-      if (!walk(nc, nr, false)) continue;
-      const n = [norm(nc, nr), nr];
+      const n = step(c + dc, r + dr, false);
+      if (!n) continue;
       const key = n.join(',');
       if (!seen.has(key)) { seen.add(key); q.push(n); }
     }
   }
-  let dots = 0, unreachable = 0;
+  let dots = 0, pellets = 0, unreachable = 0;
   for (let r = 0; r < PAC_H; r++) for (let c = 0; c < PAC_W; c++) {
     if (cells[r][c] === 2 || cells[r][c] === 3) {
       dots++;
+      if (cells[r][c] === 3) pellets++;
       if (!seen.has(`${c},${r}`)) unreachable++;
     }
   }
   if (unreachable) fail.push(`${unreachable} dot cells are unreachable from the start`);
-  if (!dots) fail.push('the maze has no dots');
+  if (dots !== PICKUP_TARGET) fail.push(`expected ${PICKUP_TARGET} pickups (246 dots + 4 power-ups), found ${dots}`);
+  if (pellets !== 4) fail.push(`expected 4 power pellets, found ${pellets}`);
 
   // Ghost house: the interior and the door must connect to the maze.
   const gseen = new Set();
@@ -220,22 +213,18 @@ export function checkMaze() {
   while (gq.length) {
     const [c, r] = gq.shift();
     for (const [dc, dr] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
-      const nc = c + dc;
-      const nr = r + dr;
-      if (!walk(nc, nr, true)) continue;
-      const n = [norm(nc, nr), nr];
+      const n = step(c + dc, r + dr, true);
+      if (!n) continue;
       const key = n.join(',');
       if (!gseen.has(key)) { gseen.add(key); gq.push(n); }
     }
   }
-  // every corridor cell a ghost can reach through the door, and the house
-  // bottom wall keeps the interior closed except at the door
   for (let r = HOUSE.top + 1; r < HOUSE.bottom; r++) {
     for (let c = HOUSE.left + 1; c < HOUSE.right; c++) {
       if (!gseen.has(`${c},${r}`)) fail.push(`ghost house cell ${c},${r} is sealed off`);
     }
   }
-  return { fail, dots, reachable: seen.size };
+  return { fail, dots, pellets, reachable: seen.size };
 }
 
 // ---- art -------------------------------------------------------------
@@ -402,7 +391,7 @@ export function pacmanMapAsm() {
   const hex = (v) => '0x' + (v & 0xFFFF).toString(16).padStart(4, '0');
   const lines = [];
   lines.push('; pacman_map.asm - generated by scripts/make_pacman_art.mjs; do not edit.');
-  lines.push('; 36x23 cells, two bits each, eight cells per word, five words per row.');
+  lines.push('; 30x23 cells, two bits each, eight cells per word, four words per row.');
   lines.push('; Rows 0..22, cell 0 in bits 1:0; 1 wall, 2 dot, 3 pellet.');
   lines.push('.org 0x600');
   lines.push('pacmap:');

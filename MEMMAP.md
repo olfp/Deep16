@@ -156,11 +156,17 @@ loader. The dictionary then continues at `0x6000`.
 
 The D16D showcase lives in the BIOS segment: a four-word header at `0x3E4`
 (`0x0D16`, format 1, entry `0x334`), a trampoline at `0x334`, the menu code at
-`0x500` and the game at `0xA00`. BIOS function 6 (`gfx`) checks the header,
+`0x500` and the game at `0xA00`. Pac-Man is a separate block assembled with
+`.org 0`; it no longer fits the `0x4330` gap (the kernel reaches `0x434D`), so
+the D16D image stores it as a type-4 binary slice in config flash. `games.fth`
+(`game-load`/`game-run`) copies it to segment `0x2000` (physical `0x20000`) and
+far-calls the entry with `R10`/`R11` as the return pair. The showcase menu's
+Pac-Man entry still jumps to `0x4330` and needs that loader hookup. BIOS
+function 6 (`gfx`) checks the header,
 parks the Forth R5/R6, jumps to the entry, and on return clears the
 tilemap/scroll/OAM/cursor. The board's kernel calls it during boot, so the
-menu is the power-on screen (Flappy, Forth, or Flappy automatically after ten
-seconds).
+menu is the power-on screen (Flappy, Pac-Man, Forth, or Flappy automatically
+after ten seconds).
 
 ### 4.2 D16nano stack cells
 
@@ -208,7 +214,8 @@ Within `DS=0x1000`:
 |---|---|
 | `0x0000`–`0x1FFF` | free: the SD driver keeps its sector buffer in the dictionary instead (`sd-buf`), so this window is still unclaimed |
 | `0x2000`–`0x2FFF` | return stack, top `0x2FF0` down, 4,080 frames |
-| `0x3000`–`0x49F8` | kernel data, boot script, built-in headers, `rp0_base` |
+| `0x3000`–`0x434C` | kernel data, boot script, built-in headers (`rp0_base = 0x3001`) |
+| `0x434D`–`0x49FF` | free (`dict_free = 0x434D`); the old Pac-Man gap. The game now lives in config flash and loads to segment `0x2000` |
 | `0x4A00`–`0x57DC` | BIOS and D16D data |
 | `0x5800`–`0xFFEF` | dictionary, grows up, ~42K words |
 
@@ -223,6 +230,9 @@ Notes:
 * The SWI/ILL/IRQ vectors stay at physical `0`/`2`/`1` and are written through `CS=0`.
 * The D16D demo keeps its own `DS=0x04A0` (the flat segment-0 copy of the BIOS
   block); BIOS function 6 restores `DS=0x1000` on return.
+* The D16D image requires `D16SEG` (the segmented kernel).  Pac-Man itself is
+  not in the 24K image: it is a type-4 slice at config-flash `0x20A000`, loaded
+  into segment `0x2000` at run time by `games.fth`.
 * `tests/segmented.test.js` boots this map in the JS core (scatter + banner,
   1,000-deep recursion, `catch`/`throw`, 20,000 data-stack cells).
 
@@ -324,7 +334,7 @@ dropped. The D16nano kernel keeps its console/quiet state in kernel cells
 
 | Address | Meaning |
 |---|---|
-| `0xF0066` | read-only display status: b0 `vblank`, b1 frame toggle |
+| `0xF0066` | read-only display status: b0 `vblank`, b1 frame toggle, b2 S2 button, b3 UART RX ready, b4 synchronised raster toggle |
 | `0xF0068` | low 16 bits of the 32-bit CPU cycle counter (read-only) |
 | `0xF006A` | high 16 bits (read-only) |
 | `0xF006C`–`0xF006F` | reserved |
@@ -351,7 +361,7 @@ and is also a normal PSRAM/Forth store at the same address.
 | `0xF2004` | control 2 | smooth `scroll_x` (0..15), latched with control 4 at the frame boundary; 8 = centre for four-direction play |
 | `0xF2006` | control 3 | smooth `scroll_y` (0..30); 15 = centre for four-direction play |
 | `0xF2008` | control 4 | b0 write bank, b1 display bank (display bank and `scroll_x` swap at the render frame boundary) |
-| `0xF200A` | control 5 | scene select: b1:0 legacy sprite page (unused), b7:2 OAM base descriptor 0–63, b10:8 palette set 0–7 |
+| `0xF200A` | control 5 | scene select: b7:2 OAM base descriptor 0–63, b10:8 palette set 0–7; b1:0 are ignored |
 | `0xF200C` | control 6 | per-row fine scroll: `{en, row[4:0], fine[2:0]}`; latched at the frame boundary |
 | `0xF200E` | control 7 | raster line compare 0..359 (`b9:0`); one SIC bit-3 pulse per frame |
 | `0xF3000`–`0xF3FFF` | tile bank | CPU window over **all 128 tiles** × 32 words: 30 words of 8×15 4bpp, words 30–31 reserved (currently zero) |
@@ -522,6 +532,8 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x201000`–`0x203FFF` | slices 1–3: the SD driver source |
 | `0x204000` | slice 4: `hello.fth` |
 | `0x205000`–`0x208FFF` | slices 5–8: catalog/editor, `p-screen`, sound, palettes |
+| `0x209000` | slice 9: `games.fth` (the flash game loader) |
+| `0x20A000` | slice 10: the Pac-Man binary block (1695 words, loads at segment `0x2000`) |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and
@@ -580,7 +592,7 @@ These describe the browser/headless model, not the board:
   `0xF6000`. Font, art, sprites and palettes load from a simulated config-flash
   blob through those windows; the runtime board loader is still open.
 * Control 5 selects the scene: bits 10:8 the palette set, bits 7:2 the OAM
-  base descriptor, bits 1:0 the legacy sprite page (latched, unused). One
+  base descriptor, bits 1:0 ignored (formerly the sprite page). One
   store swaps OAM and palette together; set 0 and base 0 are the old
   behaviour, so existing images are unchanged.
 * `0xF0068`/`0xF006A` remain the D16nano cycle counter. Tile rendering does not

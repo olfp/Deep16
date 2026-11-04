@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { artTiles } from './make_art.mjs';
+import { pacmanArtTiles } from './make_pacman_art.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -90,6 +91,9 @@ export function tileFontWords(fontWords, italicWords = fontPage(fontWords, { ita
     out[FONT_BASE + FONT_PAGE_WORDS + i] = italic[i];
   }
   artTiles().forEach((grid, i) => writeIndexedTile(out, 96 + i, grid));
+  // Pac-Man uses the zeroed part of the font gap (49..56) and the two art
+  // slots after Flappy's pack (110..125).
+  for (const { index, grid } of pacmanArtTiles()) writeIndexedTile(out, index, grid);
   return out;
 }
 

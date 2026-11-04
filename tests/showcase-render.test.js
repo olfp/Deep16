@@ -29,6 +29,13 @@ test('Flappy renders motion frame to frame', () => {
   assert.notDeepEqual(Array.from(r.frames[3]), Array.from(r.frames[4]));
 });
 
+test('Pac-Man renders the maze and moving sprites', () => {
+  const r = renderScene({ scene: 'pacman', frames: 20, keys: [0x64] });
+  assert.equal(r.frames.length, 20);
+  assert.ok(nonBlack(r.frames[19]) > 2000, 'the maze, dots and sprites are visible');
+  assert.notDeepEqual(Array.from(r.frames[5]), Array.from(r.frames[19]), 'Pac-Man moved');
+});
+
 test('the console scene boots the nano kernel', () => {
   const r = renderScene({ scene: 'console', frames: 1 });
   assert.ok(nonBlack(r.frames[0]) > 400, 'the banner/prompt is rendered');

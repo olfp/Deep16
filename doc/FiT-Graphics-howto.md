@@ -10,7 +10,9 @@ FiT lives in `rtl/dvi/dvi_tile.sv` and is used by the **D16nano tile build**
 (`D16NANO`, `DVI_TILE`, `deep16_board_tile`). The older `dvi_text` build is a
 plain black-and-white terminal and has no tile bank, palette or sprite layer.
 The Flappy showcase (`asm/showcase/flappy_game.asm`) is the reference
-implementation for everything described here.
+implementation for everything described here.  Pac-Man
+(`asm/showcase/pacman_game.asm`) is a second worked example: a 30x23 tilemap
+maze, art-tile ghosts, a text HUD and one 32x32 OAM sprite.
 
 This document starts with the memory map and the tile pipeline, then covers
 art tiles, text styles, global scrolling, per-row scrolling and finally
@@ -43,7 +45,8 @@ tile engine and to the PSRAM/Forth mirror at the same address.
 The board has a 16-entry FIFO between the CPU and the pixel clock. Tile
 writes are asynchronous: a write lands in the pixel domain within a few clocks
 and affects any line composed after it. Use the frame flag at `0xF0066` (b1
-toggles once per frame, b0 is vblank) to pace animation instead of assuming a
+toggles once per frame, b0 is vblank, b4 is the raster toggle) to pace
+animation instead of assuming a
 write is already visible.
 
 The **visible area** is 80x24 cells, 640x360 pixels. The tilemap is 82x26,
@@ -109,8 +112,8 @@ The tile bank holds 128 tiles of 32 words:
 | `0x000` | tile 0: a blank 32-word art tile |
 | `0x020`–`0x31F` | regular 1bpp text page: 96 glyphs x 8 words |
 | `0x320`–`0x61F` | italic 1bpp text page: 96 glyphs x 8 words |
-| `0x620`–`0xBFF` | 47 free 32-word slots for game art |
-| `0xC00`–`0xFFF` | 32 baked 4bpp art tiles (14 used by the showcase) |
+| `0x620`–`0xBFF` | 47 free 32-word slots for game art (8 used by Pac-Man) |
+| `0xC00`–`0xFFF` | 32 baked 4bpp art tiles (14 Flappy + 16 Pac-Man) |
 
 The CPU window `0xF3000`–`0xF3FFF` covers all 128 tiles (words 0–4095).
 Tiles 96–127 at `0xC00` are seeded at configuration by
@@ -211,8 +214,9 @@ or the renderer treats the glyph address as a 4bpp art tile.
 
 With the text pages left alone there are **80 art-capable slots**: tile 0
 (blank), the 47 free slots in the gap, and the 32 baked art slots. Fourteen of
-the baked slots are used by the showcase, leaving **65 free art tiles** (47
-gap + 18 baked) without touching text or the blank tile. Tile 0 itself is one
+the baked slots are used by Flappy, and Pac-Man adds tiles 49–56 in the gap
+plus wall shapes 110–125 in the baked block.  That leaves **41 free art tiles**
+(39 gap + 2 baked) without touching text or the blank tile. Tile 0 itself is one
 more if a program does not need a blank tile.
 
 If a game gives up the console font it can use the 96 glyph slots for its own
@@ -567,7 +571,9 @@ a pattern group, an enable bit and hardware H/V flip; the whole layer shares
 one 16-entry RGB332 sprite palette, separate from the text and art banks.
 
 The Flappy showcase is the reference implementation: a bird, four parallax
-clouds and animated wing/dizzy poses.
+clouds and animated wing/dizzy poses.  Pac-Man uses the six groups Flappy
+leaves free (0/1, 8/9, 16/17) for its right/up/down mouth frames; the left
+direction is the right frame with the OAM H flip.
 
 ### 7.1 The windows
 
@@ -701,7 +707,7 @@ Control 5 at `0xF200A` selects the whole scene:
 ```text
 bits 10:8  palette set 0..7
 bits  7:2  OAM base descriptor 0..63
-bits  1:0  legacy sprite write page (latched, unused)
+bits  1:0  ignored (formerly the sprite write page)
 ```
 
 Visible slot `n` (0..7) reads descriptor `(base + n) % 64`, so 64 descriptors
@@ -835,6 +841,8 @@ in control 5 belongs to the write, not to the OAM.
 | `scripts/make_tile_font.mjs` | text pages, tile layout, palette file |
 | `scripts/make_art.mjs` | source art to 16-colour RGB332 art tiles |
 | `scripts/make_bird_sprite.mjs` | sprite patterns, 24 groups, `birdsprite.hex` |
+| `scripts/make_pacman_art.mjs` | the maze, dot/ghost/wall tiles, Pac-Man frames |
+| `asm/showcase/pacman_game.asm` | Pac-Man: tilemap maze, HUD, OAM sprite, ghost AI |
 | `asm/showcase/flappy_game.asm` | `sb_emit` (bird), `set_clouds`, `set_palette` |
 | `asm/showcase/showcase.asm` | palette tables, bird pages, OAM cells |
 | `asm/demos/scroll4.asm` | `shift_left`/`shift_up` ring helper and diagonal demo |
@@ -845,6 +853,7 @@ in control 5 belongs to the write, not to the OAM.
 | `COLORTEXT.md` | pair-mode design notes and area cost |
 | `tests/showcase-art.test.js` | bank layout and palette agreement |
 | `tests/showcase-death.test.js` | OAM, palette and animation checks |
+| `tests/pacman.test.js` | maze packing, block layout, movement, win/death |
 
 Simulation: `npm run sim:dvi:tile` exercises the tilemap, text/art fetch,
 palette pairs, styles, scroll, per-row phases, the raster toggle, 32x32 sprite

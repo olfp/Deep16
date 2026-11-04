@@ -80,7 +80,7 @@ if (process.env.BOOT_DIAG) DEFINES.BOOT_DIAG = 1;     // boot diagnostic build
 
 export function buildImage() {
   if (D16D && !D16SEG) {
-    throw new Error('the D16D image needs D16SEG=1 (the Pac-Man block lives in the segmented map)');
+    throw new Error('the D16D image needs D16SEG=1 (the segmented kernel)');
   }
   const Deep16Assembler = loadAssembler();
   const sourceName = NANO ? 'forth_nano.asm' : 'forth.asm';

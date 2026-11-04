@@ -23,13 +23,15 @@ const Deep16Simulator = vm.runInThisContext('Deep16Simulator');
 const kernel = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
 const showcase = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'showcase.asm'), 'utf8');
 const flappy = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_game.asm'), 'utf8');
+const pacmanMap = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_map.asm'), 'utf8');
+const pacmanGame = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_game.asm'), 'utf8');
 
 function makeUi() {
   const ui = Object.create(DeepWebUI.prototype);
   ui.simulator = new Deep16Simulator();
   ui.consoleView = 'tiles';
   ui.tileBuild = 'd16d';
-  ui.d16dSources = { showcase, flappy };
+  ui.d16dSources = { showcase, flappy, pacmanMap, pacmanGame };
   ui.tileStepsPerTick = 6000;
   ui.tileFrame = 0;
   ui.tileVblank = false;

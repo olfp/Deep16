@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BIRD_ORDER, birdFrames, dizzyFrames, cloudSprite } from './make_art.mjs';
+import { pacmanSpriteFrames } from './make_pacman_art.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const BIRD_GROUPS = [6, 7];
@@ -52,6 +53,9 @@ export function birdSpriteWords() {
     birdFrames(colour).slice(0, BIRD_GROUPS.length)
       .forEach((g, i) => writeFrame(words, base + BIRD_GROUPS[i], g));
   });
+  // Pac-Man fills the six groups Flappy leaves free: 0/1 (right open/closed),
+  // 8/9 (up), 16/17 (down).  The OAM H flip draws the left direction.
+  for (const { group, grid } of pacmanSpriteFrames()) writeFrame(words, group, grid);
   return words;
 }
 
