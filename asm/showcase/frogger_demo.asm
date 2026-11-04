@@ -55,6 +55,26 @@ fr_entry:
     MOV R2, R0
     ST R11, R2, 0
 
+    ; Re-entry starts on a known bank pair with no stale dirty rows.
+    LSI R3, 0
+    LDI FR_FRONT
+    MOV R2, R0
+    ST R3, R2, 0
+    LSI R3, 1
+    LDI FR_BACK
+    MOV R2, R0
+    ST R3, R2, 0
+    LSI R3, 0
+    LDI FR_DIRTY
+    MOV R2, R0
+    LSI R4, 10
+fr_clear_dirty:
+    ST R3, R2, 0
+    ADD R2, 1
+    SUB R4, 1
+    JNZ fr_clear_dirty
+    NOP
+
     ; remember the current frame bit so the first wait sees a change
     LDI SEG_UART
     MVS ES, R0
@@ -157,11 +177,16 @@ fr_rows_init:
     MOV R2, R0
     ADD R2, R6
     LDS R8, DS, R2
+    LDI FR_PHASE
+    MOV R2, R0
+    ADD R2, R6
+    LDS R5, DS, R2             ; initial phase for this lane
     LDI 0x100
     MOV R2, R0
     MOV R3, R8
     SL R3, 3
     ADD R2, R3
+    ADD R2, R5
     LDI SEG_CTRL
     MVS ES, R0
     LSI R3, 0x0C
@@ -660,8 +685,10 @@ fr_bitmask:
 .org 0x300
 fr_start_state:
     .word 0, 3, 6, 9, 12, 1, 4, 7, 10, 13
+; Start the lanes at different phases so their coarse shifts (and the
+; back-bank repaints) do not all land on the same frame.
 fr_phase_state:
-    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 7, 7, 5, 2, 4, 3, 5, 1, 7, 4
 fr_last:
     .word 0
 fr_ret10:
