@@ -36,10 +36,10 @@ sources:
     resource: repo://scripts/serve.mjs
   - id: openwiki-source-1d8266be33d0b23cd8643d88
     resource: repo://tests/boot-script.test.js
-generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+generated: { by: "opencode", at: "2026-11-04T17:50:52.684Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T15:30:01.509Z
+    at: 2026-11-04T17:50:52.684Z
 ---
 
 # Quickstart
@@ -161,7 +161,10 @@ afterwards.
 `flash:tile` writes the `.fs` already in `fpga/gowin/impl/pnr`, so an RTL change
 needs `synth:tile` before it. A bitstream older than the RTL boots and runs but
 silently lacks the change; check the `.fs` timestamp against the RTL commit
-before trusting a board measurement.
+before trusting a board measurement. `synth:tile` also records hashes of the
+tile/sprite/palette/font ROMs in `deep16_board_tile_flash.assets.sha256`, and
+`flash:tile` refuses to write if those assets changed, which catches a new boot
+image over an old tile bank.
 
 ## Where to read next
 

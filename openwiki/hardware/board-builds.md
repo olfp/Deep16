@@ -36,10 +36,10 @@ sources:
     resource: repo://scripts/flash_gowin_tile_flash.sh
   - id: openwiki-source-41517f64370d769c203d48a3
     resource: repo://scripts/make_slices.mjs
-generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+generated: { by: "opencode", at: "2026-11-04T17:50:52.684Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T15:30:01.509Z
+    at: 2026-11-04T17:50:52.684Z
 ---
 
 # FPGA Board Builds
@@ -212,6 +212,15 @@ bitstream older than the RTL boots and runs, but silently lacks the change: the
 edge-detector commit, which is why the board kept behaving like the old level
 request. Check the `.fs` timestamp against the RTL commit before trusting a
 board measurement.
+
+The graphics ROMs have the same hazard but a different symptom: the boot image
+and the bitstream can be flashed from different builds, leaving the new menu
+over an old tile bank. After a successful synthesis, `build_gowin_tile_flash.sh`
+records SHA-256 hashes of `tilefont.hex`, `birdsprite.hex`, `tilepal3.hex`,
+`ps2map.hex` and `font8x15.hex`; `flash_gowin_tile_flash.sh` verifies them and
+refuses to write if the assets have changed since that `.fs` was built. This
+catches the empty-tile case, not an RTL-only change, so the `.fs` timestamp
+check still applies.
 
 The console read is non-blocking, so the raster and timer IRQs are serviced
 while the kernel waits for input. The raster path is board-verified end to end:

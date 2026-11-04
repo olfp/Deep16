@@ -52,10 +52,10 @@ sources:
     resource: repo://tests/helpers.js
   - id: openwiki-source-3c07bfc0a532e3b861560036
     resource: repo://tests/showcase-render.test.js
-generated: { by: "opencode", at: "2026-11-04T16:08:29.597Z" }
+generated: { by: "opencode", at: "2026-11-04T17:50:52.684Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T16:08:29.597Z
+    at: 2026-11-04T17:50:52.684Z
 ---
 
 # Build, Test and Image Pipeline
@@ -139,6 +139,13 @@ the headless renderer uses that path. The small Frogger block is different: it
 is always baked at `0x4350` from `buildFrogger()`, checked against the kernel
 end and the BIOS, and recorded in the manifest.
 
+The graphics ROMs are a bitstream input, not boot-image data. After a successful
+`synth:tile`, `build_gowin_tile_flash.sh` records SHA-256 hashes of the tile,
+sprite, palette, PS/2 and font files; `flash:tile` verifies that stamp and
+refuses to write if the assets changed since the `.fs` was built. Without it, a
+new boot image next to an older bitstream shows the new menu over an empty tile
+bank.
+
 ### Boot-script embedding
 
 `scripts/embed_forth.mjs` rewrites the block between the generated markers in
@@ -179,9 +186,10 @@ console font, tile font and keyboard map cannot drift from each other.
 `make_flash_assets.mjs` (the latter also packs the palette and the Pac-Man and
 Frogger art). `render:tile` builds the D16D image in memory, optionally bakes
 Pac-Man at `0x4330`, always bakes Frogger at `0x4350`, loads the same graphics
-blob through `deep16_gfx_loader.js`, runs a fixed 0x1000-step frame clock and
-writes PNGs. The scenes are `menu`, `flappy`, `pacman`, `frogger` and
-`console`; `--key=BYTE` holds a UART byte until the game consumes it.
+blob through `deep16_gfx_loader.js`, runs a fixed 0x1000-step frame clock
+(0x10000 for the busier Frogger scene) and writes PNGs. The scenes are `menu`,
+`flappy`, `pacman`, `frogger` and `console`; `--key=BYTE` holds a UART byte
+until the game consumes it.
 
 ### Verilator device simulations
 

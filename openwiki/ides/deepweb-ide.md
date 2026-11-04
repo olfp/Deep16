@@ -25,10 +25,10 @@ sources:
     resource: repo://rtl/deep16_board.sv
   - id: openwiki-source-995b05cde9e7dd8086199c38
     resource: repo://scripts/render_tile.mjs
-generated: { by: "opencode", at: "2026-11-04T16:08:29.597Z" }
+generated: { by: "opencode", at: "2026-11-04T17:50:52.684Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T16:08:29.597Z
+    at: 2026-11-04T17:50:52.684Z
 ---
 
 
@@ -211,8 +211,10 @@ Tiles mode is the D16nano FiT path. `ensureTileEngine()` creates a
 `Deep16TileEngine` and attaches it to the simulator, so every video-window store
 is mirrored into the engine in order. `loadTileAssets()` writes the generated
 graphics blob (`js/deep16_flash_assets.js`) into the engine and the simulated
-config flash. The 60 Hz `tickTileFrame()` sets `simulator.tileStatus`, ticks the
-engine and asks the Screen panel to repaint the canvas.
+config flash. The blob's script URL carries a version query in `index.html`;
+bump it when the art changes so a reload does not reuse the old tile bank. The
+60 Hz `tickTileFrame()` sets `simulator.tileStatus`, ticks the engine and asks
+the Screen panel to repaint the canvas.
 
 When the selected example carries `build: "d16d"`, `Assemble` calls
 `buildD16DImage(kernelSource)`: the browser `Deep16D16DImage.build()` assembles

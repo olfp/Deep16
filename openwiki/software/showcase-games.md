@@ -39,10 +39,10 @@ sources:
     resource: repo://tests/segmented.test.js
   - id: openwiki-source-3c07bfc0a532e3b861560036
     resource: repo://tests/showcase-render.test.js
-generated: { by: "opencode", at: "2026-11-04T16:08:29.597Z" }
+generated: { by: "opencode", at: "2026-11-04T17:50:52.684Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T16:08:29.597Z
+    at: 2026-11-04T17:50:52.684Z
 ---
 
 
@@ -151,25 +151,35 @@ lanes moving independently. There is no player, collision or score.
 
 | Property | Value |
 |---|---|
-| Block | 466 words, max offset `0x316` |
-| Location | physical `0x4350`–`0x4665`, CS=DS=`0x0435` |
+| Block | 586 words, max offset `0x322` |
+| Location | physical `0x4350`–`0x4672`, CS=DS=`0x0435` |
 | Lane layout | rows 0–3 grass, 4–8 river, 9 median, 10–14 road, 15–23 grass |
 | River (top to bottom) | right, left, fast right, right, left |
 | Road (top to bottom) | left, right, left, right, left (top truck lane goes left) |
-| Writable state | `0x300` coarse starts, `0x30A` phases, `0x314` frame bit, `0x315`/`0x316` return pair |
+| Writable state | `0x300` coarse starts, `0x30A` phases, `0x314` frame bit, `0x315`/`0x316` return pair, `0x317` dirty flags, `0x321`/`0x322` front/back bank |
 
 Each lane keeps a `0..15` coarse start cell and a `0..7` fine phase. Every frame
 the demo advances the phase (`+1`, or `+2` for the fast river lane) and writes
-control 6 as `0x100 | row << 3 | phase`. Only when the phase wraps does it
-rewrite that row's 80 visible cells shifted by one coarse cell and wrap the start
-modulo 16. That split is the point of the demo: the register gives sub-cell
-motion, while the CPU touches the tilemap once per eight pixels.
+control 6 as `0x100 | row << 3 | phase`. Only when the coarse start changes does
+it paint that row — all 82 cells, including the two margin cells — into the
+**back** tilemap bank. At the same frame boundary as the control-6 phase, the
+demo swaps the display bank. The front map stays live, so no line is composed
+from a half-written row. The margin matters: the fine phase reads one cell past
+the 80 visible columns at the right edge, and leaving it zero made a black strip
+up to seven pixels wide.
 
-Entry installs palette set 2, clears OAM, fills the screen with grass and paints
-the ten lanes; `Q` or `q` clears the per-row table, restores palette set 0 and
-scroll_x, and returns through the saved `R10`/`R11` pair. `G` on the menu runs
-it, and `tests/frogger.test.js` checks the block/tile layout, the lane directions
-and speeds, and the Q return.
+The back copy is kept current by a per-lane dirty flag: a row changed in the
+previous frame is repainted into the new back before the next swap. An earlier
+live-map version reused the repaint-flag register for the control-6 offset, so
+the flag test was always true and every lane was rewritten every frame; that,
+plus the unsynchronised coarse shift, produced the visible flicker.
+
+Entry installs palette set 2, clears OAM, fills both banks with grass and the
+ten lane rows; `Q` or `q` clears the per-row table, restores palette set 0,
+scroll_x and bank 0, waits for the bank swap, and returns through the saved
+`R10`/`R11` pair. `G` on the menu runs it, and `tests/frogger.test.js` checks the
+block/tile layout, the painted margins, the lane directions and speeds, and the
+Q return.
 
 ## Pac-Man
 
@@ -241,7 +251,7 @@ the Pac-Man and Frogger blocks. `scripts/make_image.mjs` places the showcase at
 
 | Test | Covers |
 |---|---|
-| `tests/frogger.test.js` | Frogger block/tile layout, lane directions/speeds, Q return |
+| `tests/frogger.test.js` | Frogger block/tile layout, painted margins, lane directions/speeds, Q return |
 | `tests/pacman.test.js` | 30×23 packing, 250 pickups, block limits, movement/eating, win/death return, frightened ghost |
 | `tests/segmented.test.js` | type-4 `game-load` into `0x2000`, `game-run` far call and return, dots/column after play |
 | `tests/showcase-art.test.js` | sprite groups, Pac-Man art slots, bird palette table |

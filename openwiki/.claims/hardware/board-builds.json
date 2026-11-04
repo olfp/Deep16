@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:75db32691dba84b51a104ae13804a37b6eff969043c16d431e7ad32c3e2c03e6",
+  "pageVersion": "sha256:5d2b36b2d96dfa645a31432095fbf1d4fa093a35bc22c47349564502e5009ddf",
   "claims": [
     {
       "id": "claim_feef24e31d2d40ac949e21a14082597a",
@@ -180,19 +180,19 @@
     },
     {
       "id": "claim_0fdbf2cfead1457daeebb5abb683f90d",
-      "statement": "npm run synth:tile regenerates the D16D/D16nano/D16SEG image and runs Gowin synthesis and place-and-route, while npm run flash:tile writes the bitstream, boot image at 0x100000 and slices at 0x200000.",
+      "statement": "npm run synth:tile regenerates the D16D/D16nano/D16SEG image and runs Gowin synthesis and place-and-route, then records the graphics asset hashes; npm run flash:tile writes the bitstream, boot image at 0x100000 and slices at 0x200000.",
       "evidence": [
         {
           "resource": "repo://README.md#L176-L180",
           "version": "repo-lines-v1:sha256:b8918f49e7071c6bbdee5fde7385caddb9ede58466e1a90b0b75a2344a1b0cb0:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDdjMDZjNTYxZDVjMzI3MzQzNjg1MjY4YTQ2YjMzOTFmMzk5OGVlZTg5MGQyYmU1MWYwZDIxY2M0YTUzYWU2ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWE4NDgwNzFkMWY0OTRhYmM3ZGVhMmNmODc4YzNiODQ0MGE2YzhmMjM4NTNmOTFjOTY0ODQyYTdmODQ1Y2JmMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2NiMTJiYmIyYWM3YjgwNjhhMDU4MmQ0ZDcwOWUxOWFiNzA3NmE5ZDAxYTc0OWI0MzA2NmNkMDY1ZjhkMDFmOSJ9"
         },
         {
-          "resource": "repo://scripts/build_gowin_tile_flash.sh#L1-L30",
-          "version": "repo-lines-v1:sha256:30da0b5775ec1f4d24103f01713800e10f727013dab8292a85399da4c23863f9:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzZGM1MTJlNzM5MTAzZmEzNTE5M2EyMDYzMjA1MmU0ZjM2NGE2NGYyNjFiYjk5MmJkOWExMzFlYWI4ODI0ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://scripts/build_gowin_tile_flash.sh#L1-L37",
+          "version": "repo-lines-v1:sha256:f0e9afd8d56509c9b63f21088074b49d93e7d5e2cb18bcd83d704f6f32b86fee:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzZGM1MTJlNzM5MTAzZmEzNTE5M2EyMDYzMjA1MmU0ZjM2NGE2NGYyNjFiYjk5MmJkOWExMzFlYWI4ODI0ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         },
         {
-          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L45",
-          "version": "repo-lines-v1:sha256:ee6647a0cd88bf5dba158d94e19ffc307ba0c1d9e96956abf54672ba1ce48db4:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3NjlkMjM3Y2Q0MjBiOWQzOGI5ODFhMGE0ZjY3NzAxOTBhNGE4M2RjYTFmZTU2YzRmNWJhMWUyY2JjMGVmNzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU2ZDBmYmFmZTNkNjhhMGIxYmMwYjFjYTJiZDA0MTQxMzFjZTBhZGNkMTMzOTNlZGNkZjM0NWUzZjIxMGI4YjYifQ"
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L55",
+          "version": "repo-lines-v1:sha256:52f7e7d45a86d897a913377b9394870cd38ebffd3fbb0916ff0099f8c07cdb48:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4MDg1NmFiNjY3MWMxNjYyMmY0ZmY2YjVmZDMyZjM5NjAzMTNkZDcxNGZlMGE1NGMzNWM2M2RmNTMyZGZkZmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ1MDUxMTJmZTVjODA3MTQxNTMxMGRjYTJhNmFjYmVhNTVkM2JmMzM1YjQ4MzA0Yzc3N2RjMTgzMGVkN2FlMzMifQ"
         }
       ]
     },
@@ -201,7 +201,7 @@
       "statement": "The flash script verifies the 1 MB boot image by read-back because a block-protected chip silently drops the write while reporting Done, and it writes the slices last.",
       "evidence": [
         {
-          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L28-L53",
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L43-L68",
           "version": "repo-lines-v1:sha256:1fed07765e6110004602b9d0eba666199dd4aee5001a027eaa744cb314a6204c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkOWUyYWNkNDY0MGQ5MDJhMmY4MWM4NzdjMGZmMGRlN2EzMDM1MGEzMzYwZjU3NzczNDYyY2RiMzkxYTJjMzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFmNGJjNmMwYmRiNzE4OTZiOThjZjU2YjhlMGEwY2MyZTBkODgwOGZhNDlmZTExZTNkNDkyODUyYzE4OWIwODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
@@ -245,8 +245,8 @@
       "statement": "flash:tile writes the bitstream, the 1 MB boot image and the slice image at 0x200000; make_slices builds the source slices plus the type-4 Pac-Man binary at slice 10.",
       "evidence": [
         {
-          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L50",
-          "version": "repo-lines-v1:sha256:ba7b020912e18764ceab10290857f73ba227a36b408706ac42afc8650f69a80e:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI5MWEwMmNmZTE5NmU1ZjhhYTdiZjA5N2YxZGVlNzIwZGZhMjA3NmUwMjQ5M2MxNGFhNTg1MjM5NDYzNDYxOWEifQ"
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L55",
+          "version": "repo-lines-v1:sha256:52f7e7d45a86d897a913377b9394870cd38ebffd3fbb0916ff0099f8c07cdb48:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4MDg1NmFiNjY3MWMxNjYyMmY0ZmY2YjVmZDMyZjM5NjAzMTNkZDcxNGZlMGE1NGMzNWM2M2RmNTMyZGZkZmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ1MDUxMTJmZTVjODA3MTQxNTMxMGRjYTJhNmFjYmVhNTVkM2JmMzM1YjQ4MzA0Yzc3N2RjMTgzMGVkN2FlMzMifQ"
         },
         {
           "resource": "repo://scripts/make_slices.mjs#L120-L150",
@@ -284,25 +284,25 @@
     },
     {
       "id": "claim_34d5cb0b2d1c466eb4c096f8d52f70be",
-      "statement": "npm run flash:tile writes whatever bitstream is in fpga/gowin/impl/pnr, so synth:tile must rebuild it after an RTL change; a stale .fs boots and runs but silently lacks the change, which is why a board measurement must check the .fs timestamp against the RTL commit.",
+      "statement": "flash:tile writes whatever bitstream is in fpga/gowin/impl/pnr, so synth:tile must rebuild it after an RTL change; after a successful synthesis it records SHA-256 hashes of the tile/sprite/palette/font ROMs, and flash:tile refuses to write when those assets changed since the .fs was built.",
       "evidence": [
         {
           "resource": "repo://.gitignore#L30-L45",
           "version": "repo-lines-v1:sha256:536838a1fd88720783cad8bfd8cc92a55cfe3d86e858b3ff8c0bc33304a02b89:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiMWRjOWM0ZDFiMDYxOGYwOGI3NGM5MWEzMzM4YzUyYTY4MmE5NjYxOTc1MGQxOTMxZTFjOWUzYzE2Y2VlN2EiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUyZGNiZWM4OTcxMWZjNTE5YWYxNjJlN2I3ZGJjOWM1NmRmNDY1MWI2YjliZTRhOTQxZmU3YTdhOGJlMzA5NGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUxMTJlYTg3ODUyZjE5M2ZhZDc2ZTcxM2JjYTZkYWVlZDE2MjIxZTc1MWEzMzY5MmY4ZmFkZTVjOTM5MmYzYzcifQ"
         },
         {
-          "resource": "repo://scripts/build_gowin_tile_flash.sh#L1-L30",
-          "version": "repo-lines-v1:sha256:30da0b5775ec1f4d24103f01713800e10f727013dab8292a85399da4c23863f9:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzZGM1MTJlNzM5MTAzZmEzNTE5M2EyMDYzMjA1MmU0ZjM2NGE2NGYyNjFiYjk5MmJkOWExMzFlYWI4ODI0ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://scripts/build_gowin_tile_flash.sh#L1-L37",
+          "version": "repo-lines-v1:sha256:f0e9afd8d56509c9b63f21088074b49d93e7d5e2cb18bcd83d704f6f32b86fee:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzZGM1MTJlNzM5MTAzZmEzNTE5M2EyMDYzMjA1MmU0ZjM2NGE2NGYyNjFiYjk5MmJkOWExMzFlYWI4ODI0ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         },
         {
-          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L38",
-          "version": "repo-lines-v1:sha256:d606017327287ec0cae86977ef5be49c28a0b64f6b0052b67e822cde3cd55957:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjZmVhMDg2Mzk5MzY3YTE2ODY3NzUyNjM5OGU5NGU3Nzc1OTliY2NhZjI5MGE2MWEwNjllYjJjOWM5YTc4MDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNlMDJjMTYyZWZkM2JmOTEwZjI0MjZmNDU2MGYxM2FiMTRiZDRiZWEwOWMzZDgxZjU2ZWQ1NjFiOWRkYWRiMWYifQ"
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L55",
+          "version": "repo-lines-v1:sha256:52f7e7d45a86d897a913377b9394870cd38ebffd3fbb0916ff0099f8c07cdb48:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4MDg1NmFiNjY3MWMxNjYyMmY0ZmY2YjVmZDMyZjM5NjAzMTNkZDcxNGZlMGE1NGMzNWM2M2RmNTMyZGZkZmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ1MDUxMTJmZTVjODA3MTQxNTMxMGRjYTJhNmFjYmVhNTVkM2JmMzM1YjQ4MzA0Yzc3N2RjMTgzMGVkN2FlMzMifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.7.3",
-    "at": "2026-11-04T15:30:01.509Z"
+    "at": "2026-11-04T17:50:52.684Z"
   }
 }

@@ -16,18 +16,18 @@
       "completedRunId": "8a9183b5-d357-4f12-b53b-5fc9180a7d0c"
     },
     "/openwiki/architecture/memory-map-and-memory-model.md": {
+      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
+      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e",
       "pageVersion": "sha256:62fbc134f7269b684b3b4512c894c970247f6f97e4bd0b023eea8714e8bbd537",
       "completedBy": "opencode",
-      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b",
-      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
-      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e"
+      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b"
     },
     "/openwiki/architecture/system-overview.md": {
-      "pageVersion": "sha256:311cf9334aad8aa5e6a327dfc0aa3eb3c392f3f298c772d7c19dc3f7873e10ac",
+      "pageVersion": "sha256:6e46447e3defeb6d764753b43245e8fab6337e02cc275f0859b5690ff806dd84",
       "completedBy": "opencode",
-      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b",
-      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
-      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e"
+      "completedRunId": "a2b249ed-af49-4f7f-88ad-6a9583e0b473",
+      "gitHead": "94dcc5b57be736a25dc94591a95d60b13b1f8176",
+      "sourceFingerprint": "sha256:1be5a1b3ad5150a0a2dbc6dd1ab5b96fe4cfdd793133277c4f6373e2f174fe59"
     },
     "/openwiki/cores/js-core.md": {
       "gitHead": "b44e9f2388aade028d2ea0608b664cfa5f0b303e",
@@ -51,60 +51,60 @@
       "completedRunId": "8a9183b5-d357-4f12-b53b-5fc9180a7d0c"
     },
     "/openwiki/hardware/board-builds.md": {
-      "gitHead": "b44e9f2388aade028d2ea0608b664cfa5f0b303e",
-      "sourceFingerprint": "sha256:b1868e0f43ad21b59640c97048358488693e7f8a09e62930b9a6cc395764b0fd",
-      "pageVersion": "sha256:75db32691dba84b51a104ae13804a37b6eff969043c16d431e7ad32c3e2c03e6",
+      "pageVersion": "sha256:5d2b36b2d96dfa645a31432095fbf1d4fa093a35bc22c47349564502e5009ddf",
       "completedBy": "opencode",
-      "completedRunId": "8a9183b5-d357-4f12-b53b-5fc9180a7d0c"
+      "completedRunId": "a2b249ed-af49-4f7f-88ad-6a9583e0b473",
+      "gitHead": "94dcc5b57be736a25dc94591a95d60b13b1f8176",
+      "sourceFingerprint": "sha256:1be5a1b3ad5150a0a2dbc6dd1ab5b96fe4cfdd793133277c4f6373e2f174fe59"
     },
     "/openwiki/hardware/psram-cache-and-flash.md": {
+      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
+      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e",
       "pageVersion": "sha256:19138ec8a2851f0aac27ac844f676c74d51eab82e0f323ef4c06a040809cf669",
       "completedBy": "opencode",
-      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b",
-      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
-      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e"
+      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b"
     },
     "/openwiki/hardware/video-and-peripherals.md": {
-      "pageVersion": "sha256:57d139c67232d66b7510ed3c4da41fbeea2d039e4bb518ee465e24a3eb2f148e",
+      "pageVersion": "sha256:bb14b6d56a52445fa97c37d6d13342b50b0328420fd51cbd212a14d2488ae91f",
       "completedBy": "opencode",
-      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b",
-      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
-      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e"
+      "completedRunId": "a2b249ed-af49-4f7f-88ad-6a9583e0b473",
+      "gitHead": "94dcc5b57be736a25dc94591a95d60b13b1f8176",
+      "sourceFingerprint": "sha256:1be5a1b3ad5150a0a2dbc6dd1ab5b96fe4cfdd793133277c4f6373e2f174fe59"
     },
     "/openwiki/ides/assembler-and-optimizer.md": {
+      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
+      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e",
       "pageVersion": "sha256:0d089a33d8dec2114c488d256980fc8065bf412696ea5147842717b6e4f54e23",
       "completedBy": "opencode",
-      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b",
-      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
-      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e"
+      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b"
     },
     "/openwiki/ides/deepweb-ide.md": {
-      "pageVersion": "sha256:05e3c8513e1c442d7f29e7f0d7cfcc83d295803e138d13416584289affd46917",
+      "pageVersion": "sha256:21d7875cab697d3d6d524d6c1431e704cc9c8310d5cc7f9eb30cb5d1eb1949d4",
       "completedBy": "opencode",
-      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b",
-      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
-      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e"
+      "completedRunId": "a2b249ed-af49-4f7f-88ad-6a9583e0b473",
+      "gitHead": "94dcc5b57be736a25dc94591a95d60b13b1f8176",
+      "sourceFingerprint": "sha256:1be5a1b3ad5150a0a2dbc6dd1ab5b96fe4cfdd793133277c4f6373e2f174fe59"
     },
     "/openwiki/project/known-gaps-and-docs.md": {
+      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
+      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e",
       "pageVersion": "sha256:353ba82a35bfb3daa02c732deebc77c8c43a287109f586c1ea39415dd10840d4",
       "completedBy": "opencode",
-      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b",
-      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
-      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e"
+      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b"
     },
     "/openwiki/quickstart.md": {
-      "gitHead": "b44e9f2388aade028d2ea0608b664cfa5f0b303e",
-      "sourceFingerprint": "sha256:b1868e0f43ad21b59640c97048358488693e7f8a09e62930b9a6cc395764b0fd",
-      "pageVersion": "sha256:8fbad1445f8fb9036c7a99af9eec59008967391da76f7a4b57f52cb7dcd3c8d4",
+      "pageVersion": "sha256:ca81a55354eec24170f3bc64a90a6bfd91354f8b83a5d594367dc4711182a0c4",
       "completedBy": "opencode",
-      "completedRunId": "8a9183b5-d357-4f12-b53b-5fc9180a7d0c"
+      "completedRunId": "a2b249ed-af49-4f7f-88ad-6a9583e0b473",
+      "gitHead": "94dcc5b57be736a25dc94591a95d60b13b1f8176",
+      "sourceFingerprint": "sha256:1be5a1b3ad5150a0a2dbc6dd1ab5b96fe4cfdd793133277c4f6373e2f174fe59"
     },
     "/openwiki/software/bios-and-console.md": {
+      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
+      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e",
       "pageVersion": "sha256:cfca010b1ffa3e90837f82ffecb289d928a14b1233b375bece3d3af9173d781e",
       "completedBy": "opencode",
-      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b",
-      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
-      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e"
+      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b"
     },
     "/openwiki/software/forth-kernel.md": {
       "gitHead": "b44e9f2388aade028d2ea0608b664cfa5f0b303e",
@@ -114,18 +114,18 @@
       "completedRunId": "8a9183b5-d357-4f12-b53b-5fc9180a7d0c"
     },
     "/openwiki/software/showcase-games.md": {
-      "pageVersion": "sha256:41835d62cee6f10c16cd024819f85cc7fb80e6798b8493b38894ce39d9564cef",
+      "pageVersion": "sha256:53661e76af45c68b863241c1a10511fa5b52dddb6313330b2a71fb2279979361",
       "completedBy": "opencode",
-      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b",
-      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
-      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e"
+      "completedRunId": "a2b249ed-af49-4f7f-88ad-6a9583e0b473",
+      "gitHead": "94dcc5b57be736a25dc94591a95d60b13b1f8176",
+      "sourceFingerprint": "sha256:1be5a1b3ad5150a0a2dbc6dd1ab5b96fe4cfdd793133277c4f6373e2f174fe59"
     },
     "/openwiki/tooling/build-test-and-images.md": {
-      "pageVersion": "sha256:55ba2ed385c2aca8697b85529c7522ddeb96c1640bfd059e59d9bfc16d2fbf21",
+      "pageVersion": "sha256:8cac6fbcd17ce668e48bdfb1fec5a46257968b8d0e8dafabd40d3603e0c7a25a",
       "completedBy": "opencode",
-      "completedRunId": "1b75396a-3138-4524-8e46-04ba42068a9b",
-      "gitHead": "6bc0f1a463c0edd2b0e8f3cd3741d11e1ca0b910",
-      "sourceFingerprint": "sha256:384ac765065996b165147cc0666f4879496282b8240de7b926e06591141a0b7e"
+      "completedRunId": "a2b249ed-af49-4f7f-88ad-6a9583e0b473",
+      "gitHead": "94dcc5b57be736a25dc94591a95d60b13b1f8176",
+      "sourceFingerprint": "sha256:1be5a1b3ad5150a0a2dbc6dd1ab5b96fe4cfdd793133277c4f6373e2f174fe59"
     }
   }
 }

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:55ba2ed385c2aca8697b85529c7522ddeb96c1640bfd059e59d9bfc16d2fbf21",
+  "pageVersion": "sha256:8cac6fbcd17ce668e48bdfb1fec5a46257968b8d0e8dafabd40d3603e0c7a25a",
   "claims": [
     {
       "id": "claim_6d2c0c65a16b468b9c77462abdefe717",
@@ -184,15 +184,15 @@
     },
     {
       "id": "claim_bd6e351833594d8daf671c0b77248d33",
-      "statement": "synth:tile runs build_gowin_tile_flash.sh, which expects Gowin EDA at GOWIN_APP (macOS path by default), regenerates the D16D image and drives gw_sh with build_tile_flash.tcl; flash:tile is the supported board path.",
+      "statement": "synth:tile runs build_gowin_tile_flash.sh, which expects Gowin EDA at GOWIN_APP (macOS path by default), regenerates the D16D image and drives gw_sh with build_tile_flash.tcl, then records the graphics asset hashes; flash:tile is the supported board path.",
       "evidence": [
         {
-          "resource": "repo://scripts/build_gowin_tile_flash.sh#L1-L30",
-          "version": "repo-lines-v1:sha256:30da0b5775ec1f4d24103f01713800e10f727013dab8292a85399da4c23863f9:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzZGM1MTJlNzM5MTAzZmEzNTE5M2EyMDYzMjA1MmU0ZjM2NGE2NGYyNjFiYjk5MmJkOWExMzFlYWI4ODI0ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://scripts/build_gowin_tile_flash.sh#L1-L37",
+          "version": "repo-lines-v1:sha256:f0e9afd8d56509c9b63f21088074b49d93e7d5e2cb18bcd83d704f6f32b86fee:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzZGM1MTJlNzM5MTAzZmEzNTE5M2EyMDYzMjA1MmU0ZjM2NGE2NGYyNjFiYjk5MmJkOWExMzFlYWI4ODI0ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         },
         {
-          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L25",
-          "version": "repo-lines-v1:sha256:353fbb41cb48ceb50ad928f717fe9b1c35f7d43d1b8d8d806fbdc02f9d15aff6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlM2JiNDY4OTQ0YzhkMDM5ODAxN2MxOGJiOTg0ZDBmMjk0ZjM3ODE0ZWZmMzY1NjI0ZWJjOGJkMDE1YmE1ZGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjliMWFkN2M2ODI0NDU3OGM3MWEyNGM3NThlZDEwZGQ0MjhjMzJmMGMxZDIyMGVkY2ExZjJlZDE5Mjc3ZTU3ODcifQ"
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L55",
+          "version": "repo-lines-v1:sha256:52f7e7d45a86d897a913377b9394870cd38ebffd3fbb0916ff0099f8c07cdb48:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4MDg1NmFiNjY3MWMxNjYyMmY0ZmY2YjVmZDMyZjM5NjAzMTNkZDcxNGZlMGE1NGMzNWM2M2RmNTMyZGZkZmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ1MDUxMTJmZTVjODA3MTQxNTMxMGRjYTJhNmFjYmVhNTVkM2JmMzM1YjQ4MzA0Yzc3N2RjMTgzMGVkN2FlMzMifQ"
         }
       ]
     },
@@ -201,7 +201,7 @@
       "statement": "flash:tile regenerates the same image, writes the bitstream, verifies the 1MB boot image by read-back, and writes the source slices last; missing gw_sh or openFPGALoader fails early.",
       "evidence": [
         {
-          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L25-L45",
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L40-L60",
           "version": "repo-lines-v1:sha256:dacb57d32f7efe7ead5bc4d5853503dd5f30ab812b3b5ea8d6c4b1a2faa3e51c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlM2JiNDY4OTQ0YzhkMDM5ODAxN2MxOGJiOTg0ZDBmMjk0ZjM3ODE0ZWZmMzY1NjI0ZWJjOGJkMDE1YmE1ZGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3NjlkMjM3Y2Q0MjBiOWQzOGI5ODFhMGE0ZjY3NzAxOTBhNGE4M2RjYTFmZTU2YzRmNWJhMWUyY2JjMGVmNzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYxOTNkY2I1NWVjZjFmNmNhMTIxOTBjMmNlZDdjNDBlZjVmNGE0MGRhNDc0ZjJmNDNhNGExOWMwY2Y5YWJlMTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU2ZDBmYmFmZTNkNjhhMGIxYmMwYjFjYTJiZDA0MTQxMzFjZTBhZGNkMTMzOTNlZGNkZjM0NWUzZjIxMGI4YjYifQ"
         }
       ]
@@ -268,7 +268,7 @@
     },
     {
       "id": "claim_794b30dc2062430ba7560625785b714e",
-      "statement": "The D16D game pipeline assembles the menu+Flappy block, the Pac-Man block and the Frogger backdrop, wraps Pac-Man as a type-4 slice at 0x20A000, and the headless renderer builds the image in memory, optionally bakes Pac-Man at 0x4330, always bakes Frogger at 0x4350 and writes PNG frames.",
+      "statement": "The D16D game pipeline assembles the menu+Flappy block, the Pac-Man block and the double-buffered Frogger backdrop, wraps Pac-Man as a type-4 slice at 0x20A000, and the headless renderer builds the image in memory, optionally bakes Pac-Man at 0x4330, always bakes Frogger at 0x4350 and writes PNG frames.",
       "evidence": [
         {
           "resource": "repo://scripts/make_showcase.mjs#L105-L150",
@@ -280,7 +280,7 @@
         },
         {
           "resource": "repo://scripts/render_tile.mjs#L50-L160",
-          "version": "repo-lines-v1:sha256:235183774a3f9cbc31e92932cd092dadf1dd3cff555c26cf2775b5b057c94395:eyJzZWxlY3RlZExpbmVDb3VudCI6MTExLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkOGUxNzU0Y2U5MzU0NThhMjIzOGI3NDI4YzhhMjMxYzEzMzE3MGIwZDQ4ZWEwZDk5ZjQ0NDMwNjNkNGYxZmFlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJhMTU4Yzg2MjdmNjkwZTc3MWMxMzNmNzExNmNiZjNkNTcwYzA2MmQ2Mzc0ZjI5MTlmYmQ3NWZlMWFmYTBkYmMyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3ZDAwMGFmNzFkNGQyMjUxYzQ0MWE3M2ZjMWQ3OTAzN2IzMjBkN2RlM2JhMzRhZjYzMmFiMzRhYzc4NTllNmViIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI1ZTVhNmRmN2Y5OWU0MTI4ZGYwMzIwYzdiY2Q2NDcwM2ZiZjFhNDEzYmI2ZmM2OTAyYjEwODEyYzNmZTU4NDUxIn0"
+          "version": "repo-lines-v1:sha256:e6d351194eaa204207d7ca0c269aba4c70fc4d83333540ab0871b91e281ab356:eyJzZWxlY3RlZExpbmVDb3VudCI6MTExLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkOGUxNzU0Y2U5MzU0NThhMjIzOGI3NDI4YzhhMjMxYzEzMzE3MGIwZDQ4ZWEwZDk5ZjQ0NDMwNjNkNGYxZmFlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJhMTU4Yzg2MjdmNjkwZTc3MWMxMzNmNzExNmNiZjNkNTcwYzA2MmQ2Mzc0ZjI5MTlmYmQ3NWZlMWFmYTBkYmMyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3ZDAwMGFmNzFkNGQyMjUxYzQ0MWE3M2ZjMWQ3OTAzN2IzMjBkN2RlM2JhMzRhZjYzMmFiMzRhYzc4NTllNmViIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI1ZTVhNmRmN2Y5OWU0MTI4ZGYwMzIwYzdiY2Q2NDcwM2ZiZjFhNDEzYmI2ZmM2OTAyYjEwODEyYzNmZTU4NDUxIn0"
         }
       ]
     },
@@ -300,15 +300,15 @@
     },
     {
       "id": "claim_2395c6ae14ea4668b0ee13c09720b563",
-      "statement": "For a board build after an RTL or kernel change, npm run synth:tile then npm run flash:tile is required, and the .fs in fpga/gowin/impl/pnr must be newer than the RTL or the board silently runs the old logic.",
+      "statement": "For a board build after an RTL or kernel change, npm run synth:tile then npm run flash:tile is required, and the .fs in fpga/gowin/impl/pnr must be newer than the RTL or the board silently runs the old logic; flash:tile additionally refuses a bitstream whose recorded graphics hashes no longer match the current tile/sprite/palette/font ROMs.",
       "evidence": [
         {
-          "resource": "repo://scripts/build_gowin_tile_flash.sh#L1-L30",
-          "version": "repo-lines-v1:sha256:30da0b5775ec1f4d24103f01713800e10f727013dab8292a85399da4c23863f9:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzZGM1MTJlNzM5MTAzZmEzNTE5M2EyMDYzMjA1MmU0ZjM2NGE2NGYyNjFiYjk5MmJkOWExMzFlYWI4ODI0ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://scripts/build_gowin_tile_flash.sh#L1-L37",
+          "version": "repo-lines-v1:sha256:f0e9afd8d56509c9b63f21088074b49d93e7d5e2cb18bcd83d704f6f32b86fee:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzZGM1MTJlNzM5MTAzZmEzNTE5M2EyMDYzMjA1MmU0ZjM2NGE2NGYyNjFiYjk5MmJkOWExMzFlYWI4ODI0ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         },
         {
-          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L38",
-          "version": "repo-lines-v1:sha256:d606017327287ec0cae86977ef5be49c28a0b64f6b0052b67e822cde3cd55957:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjZmVhMDg2Mzk5MzY3YTE2ODY3NzUyNjM5OGU5NGU3Nzc1OTliY2NhZjI5MGE2MWEwNjllYjJjOWM5YTc4MDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNlMDJjMTYyZWZkM2JmOTEwZjI0MjZmNDU2MGYxM2FiMTRiZDRiZWEwOWMzZDgxZjU2ZWQ1NjFiOWRkYWRiMWYifQ"
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L1-L55",
+          "version": "repo-lines-v1:sha256:52f7e7d45a86d897a913377b9394870cd38ebffd3fbb0916ff0099f8c07cdb48:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4MDg1NmFiNjY3MWMxNjYyMmY0ZmY2YjVmZDMyZjM5NjAzMTNkZDcxNGZlMGE1NGMzNWM2M2RmNTMyZGZkZmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ1MDUxMTJmZTVjODA3MTQxNTMxMGRjYTJhNmFjYmVhNTVkM2JmMzM1YjQ4MzA0Yzc3N2RjMTgzMGVkN2FlMzMifQ"
         }
       ]
     },
@@ -332,15 +332,15 @@
     },
     {
       "id": "claim_813e51ebbd06460b8ced89019d057689",
-      "statement": "The Frogger render scene boots at CS=DS=0x0435 with 200,000 warmup steps, and tests/frogger.test.js plus the render/image suites pin the lane motion, Q return and 0x4350 placement.",
+      "statement": "The Frogger render scene boots at CS=DS=0x0435 with 200,000 warmup steps and a 0x10000-step frame, and tests/frogger.test.js plus the render/image suites pin the lane motion, painted margins, Q return and 0x4350 placement.",
       "evidence": [
         {
           "resource": "repo://scripts/render_tile.mjs#L95-L160",
-          "version": "repo-lines-v1:sha256:c74a48bb7b17975329ad1754e76630c5d71d3a3e2cf67549e454f0b90478d7ac:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxYmEzMzc2ZjA4ZDljODg1OTNkODg4ZGZkZDUwMGIzN2JiZGM5YzQzODcyNjlhZWMzNjUxYzhmYzY0MjMzNTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExNThjODYyN2Y2OTBlNzcxYzEzM2Y3MTE2Y2JmM2Q1NzBjMDYyZDYzNzRmMjkxOWZiZDc1ZmUxYWZhMGRiYzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE1NjMwYTE4ZTFmNTNlYzA2ZDE1NzM0NWQ3ZTY0MDVmMDNhODVjODM3MzNhNTBmOGE3NGY1Y2ViODM3YTc5NDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVlNWE2ZGY3Zjk5ZTQxMjhkZjAzMjBjN2JjZDY0NzAzZmJmMWE0MTNiYjZmYzY5MDJiMTA4MTJjM2ZlNTg0NTEifQ"
+          "version": "repo-lines-v1:sha256:e29fd2424ac21ca32b246636356360ca5e1a0e8d234adb2bf6c6c62b9bfc60c0:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxYmEzMzc2ZjA4ZDljODg1OTNkODg4ZGZkZDUwMGIzN2JiZGM5YzQzODcyNjlhZWMzNjUxYzhmYzY0MjMzNTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExNThjODYyN2Y2OTBlNzcxYzEzM2Y3MTE2Y2JmM2Q1NzBjMDYyZDYzNzRmMjkxOWZiZDc1ZmUxYWZhMGRiYzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE1NjMwYTE4ZTFmNTNlYzA2ZDE1NzM0NWQ3ZTY0MDVmMDNhODVjODM3MzNhNTBmOGE3NGY1Y2ViODM3YTc5NDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVlNWE2ZGY3Zjk5ZTQxMjhkZjAzMjBjN2JjZDY0NzAzZmJmMWE0MTNiYjZmYzY5MDJiMTA4MTJjM2ZlNTg0NTEifQ"
         },
         {
-          "resource": "repo://tests/frogger.test.js#L1-L115",
-          "version": "repo-lines-v1:sha256:0543231b18a746864dedc59901aeb73ff2722ec1f56e71f64aadfabf59be5c1d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE1LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkYThmMjcxYTNjN2JlYTM3ZmJiZjAxOTYyOTQ1NjYxMTk2YWU5YzMzZTcyMDUwMTIzYTU4Mjc0MWJkZGQ2YTJlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJmNmY1YjQwYjE1ODQ1N2QxNzg2NGYyMTc5MDc4NmRkNWEyZWNkYjY0YjY2YTY1MWY3ODhkNGUyNWNkMzMwM2QyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+          "resource": "repo://tests/frogger.test.js#L1-L119",
+          "version": "repo-lines-v1:sha256:7de0bd0252ad58ef650ed4723a7a8a5447ed8c6c0045d19af00bfec347b5e4a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE5LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkYThmMjcxYTNjN2JlYTM3ZmJiZjAxOTYyOTQ1NjYxMTk2YWU5YzMzZTcyMDUwMTIzYTU4Mjc0MWJkZGQ2YTJlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJmNmY1YjQwYjE1ODQ1N2QxNzg2NGYyMTc5MDc4NmRkNWEyZWNkYjY0YjY2YTY1MWY3ODhkNGUyNWNkMzMwM2QyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
         },
         {
           "resource": "repo://tests/showcase-render.test.js#L1-L30",
@@ -351,6 +351,6 @@
   ],
   "verification": {
     "by": "openwiki/0.7.3",
-    "at": "2026-11-04T16:08:29.597Z"
+    "at": "2026-11-04T17:50:52.684Z"
   }
 }
