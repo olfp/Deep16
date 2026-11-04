@@ -40,6 +40,9 @@
 .equ FR_LASTF  0x314
 .equ FR_RET10  0x315
 .equ FR_RET11  0x316
+.equ FR_DIRTY  0x317           ; ten "row changed last frame" cells
+.equ FR_FRONT  0x321           ; displayed tilemap bank
+.equ FR_BACK   0x322           ; write tilemap bank
 
 .org 0
 fr_entry:
@@ -124,6 +127,346 @@ fr_oam_clear:
     MOV R3, R0
     STS R3, ES, R2
 
+    ; Paint both tilemap banks with the same grass and lane rows.  The demo
+    ; ping-pongs the banks, so the first swap must expose a complete copy.
+    LDI SEG_CTRL
+    MVS ES, R0
+    LSI R2, 8
+    LSI R3, 0
+    STS R3, ES, R2             ; display 0, write bank 0
+    LDI fr_init_paint
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI SEG_CTRL
+    MVS ES, R0
+    LSI R2, 8
+    LSI R3, 1
+    STS R3, ES, R2             ; display 0, write bank 1
+    LDI fr_init_paint
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
+    ; enable per-row fine scroll on the lane rows (phase 0)
+    LSI R6, 0
+fr_rows_init:
+    LDI fr_rows
+    MOV R2, R0
+    ADD R2, R6
+    LDS R8, DS, R2
+    LDI 0x100
+    MOV R2, R0
+    MOV R3, R8
+    SL R3, 3
+    ADD R2, R3
+    LDI SEG_CTRL
+    MVS ES, R0
+    LSI R3, 0x0C
+    STS R2, ES, R3
+    ADD R6, 1
+    LDI 10
+    MOV R3, R0
+    CMP R6, R3
+    JNC fr_rows_done
+    NOP
+    LDI fr_rows_init
+    MOV PC, R0
+    NOP
+fr_rows_done:
+
+; =====================================================================
+; Main loop
+; =====================================================================
+fr_loop:
+    LDI fr_wait
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI fr_keys
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
+    ; The display shows FR_FRONT; write into FR_BACK until the end of frame.
+    LDI FR_FRONT
+    MOV R2, R0
+    LD R3, R2, 0
+    SL R3, 1
+    LDI FR_BACK
+    MOV R2, R0
+    LD R4, R2, 0
+    OR R3, R4
+    LDI SEG_CTRL
+    MVS ES, R0
+    LSI R2, 8
+    STS R3, ES, R2
+
+    ; Rows changed in the previous frame are now displayed but not in the new
+    ; back copy; repaint them there before adding this frame's changes.
+    LSI R6, 0
+fr_dirty_tick:
+    LDI FR_DIRTY
+    MOV R2, R0
+    ADD R2, R6
+    LDS R3, DS, R2
+    AND R3, R3
+    JZ fr_dirty_next
+    NOP
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI fr_paint_lane
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+fr_dirty_next:
+    ADD R6, 1
+    LDI 10
+    MOV R3, R0
+    CMP R6, R3
+    JNC fr_dirty_done
+    NOP
+    LDI fr_dirty_tick
+    MOV PC, R0
+    NOP
+fr_dirty_done:
+
+    LSI R6, 0
+fr_lane_tick:
+    LDI fr_update
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    ADD R6, 1
+    LDI 10
+    MOV R3, R0
+    CMP R6, R3
+    JNC fr_swap
+    NOP
+    LDI fr_lane_tick
+    MOV PC, R0
+    NOP
+
+fr_swap:
+    ; Ask for FR_BACK to be displayed at the next frame boundary.  The control
+    ; 6 table written above latches on that same boundary, so the coarse cell
+    ; shift and the new fine phase become visible together.
+    LDI FR_BACK
+    MOV R2, R0
+    LD R4, R2, 0
+    MOV R3, R4
+    SL R3, 1
+    OR R3, R4
+    LDI SEG_CTRL
+    MVS ES, R0
+    LSI R2, 8
+    STS R3, ES, R2
+    ; front = back; back = 1 - back
+    LDI FR_FRONT
+    MOV R2, R0
+    ST R4, R2, 0
+    LSI R3, 1
+    SUB R3, R4
+    LDI FR_BACK
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI fr_loop
+    MOV PC, R0
+    NOP
+
+; =====================================================================
+; One lane: advance its phase/start and set control 6.
+; R6 = lane index, preserved.
+; =====================================================================
+fr_update:
+    MOV R12, LR
+    LDI fr_rows
+    MOV R2, R0
+    ADD R2, R6
+    LDS R8, DS, R2             ; row
+    LDI fr_dirs
+    MOV R2, R0
+    ADD R2, R6
+    LDS R7, DS, R2             ; 0 left, 1 right
+    LDI fr_speeds
+    MOV R2, R0
+    ADD R2, R6
+    LDS R5, DS, R2             ; speed
+    LDI FR_PHASE
+    MOV R2, R0
+    ADD R2, R6
+    LDS R4, DS, R2             ; phase
+    LDI FR_START
+    MOV R2, R0
+    ADD R2, R6
+    LDS R9, DS, R2             ; start
+    LSI R10, 0                 ; coarse cell changed
+
+    AND R7, R7
+    JNZ fr_up_right
+    NOP
+    ; left: phase += speed
+    ADD R4, R5
+    CMP R4, 8
+    JC fr_up_store
+    NOP
+    SUB R4, 8
+    ADD R9, 1
+    LSI R2, 15
+    AND R9, R2
+    LSI R10, 1
+    LDI fr_up_store
+    MOV PC, R0
+    NOP
+fr_up_right:
+    ; right: phase -= speed
+    SUB R4, R5
+    JNN fr_up_store
+    NOP
+    ADD R4, 8
+    SUB R9, 1
+    LSI R2, 15
+    AND R9, R2
+    LSI R10, 1
+fr_up_store:
+    LDI FR_PHASE
+    MOV R2, R0
+    ADD R2, R6
+    ST R4, R2, 0
+    LDI FR_START
+    MOV R2, R0
+    ADD R2, R6
+    ST R9, R2, 0
+
+    ; control 6 = 0x100 | row << 3 | phase
+    LDI 0x100
+    MOV R2, R0
+    MOV R3, R8
+    SL R3, 3
+    ADD R2, R3
+    ADD R2, R4
+    LDI SEG_CTRL
+    MVS ES, R0
+    LSI R3, 0x0C
+    STS R2, ES, R3
+
+    ; The fine phase above and the display swap both latch at the next frame
+    ; boundary, so paint the shifted row into the back bank now.  The front
+    ; bank stays live; no line is composed from a half-written row.
+    AND R10, R10
+    JZ fr_up_done
+    NOP
+    LDI fr_paint_lane
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI FR_DIRTY
+    MOV R2, R0
+    ADD R2, R6
+    LSI R3, 1
+    ST R3, R2, 0
+fr_up_done:
+    MOV LR, R12
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; Paint lane R6's row into the current write bank with its current start.
+; Preserves R6; clobbers R0-R5,R7-R11,R13.
+; ---------------------------------------------------------------------
+fr_paint_lane:
+    MOV R13, LR
+    MOV R11, R6
+    LDI fr_rows
+    MOV R2, R0
+    ADD R2, R6
+    LDS R8, DS, R2
+    LDI FR_START
+    MOV R2, R0
+    ADD R2, R6
+    LDS R9, DS, R2
+    LDI fr_masks
+    MOV R2, R0
+    ADD R2, R6
+    LDS R5, DS, R2
+    LDI fr_bgs
+    MOV R2, R0
+    ADD R2, R6
+    LDS R6, DS, R2
+    LDI fr_objs
+    MOV R2, R0
+    ADD R2, R11
+    LDS R7, DS, R2
+    LDI fr_paint
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    MOV R6, R11
+    MOV LR, R13
+    JMP LR
+    NOP
+
+; =====================================================================
+; Paint one row: R8 row, R9 start, R5 mask, R6 background tile,
+; R7 object tile.  Preserves R6/R7/R11; clobbers R0-R5,R8-R10.
+; =====================================================================
+fr_paint:
+    LDI 82
+    MOV R2, R0
+    MOV R3, R8
+    MUL R3, R2                 ; row * 82
+    LDI SEG_TILE
+    MVS ES, R0
+    LSI R10, 0
+fr_p_col:
+    MOV R4, R10
+    ADD R4, R9
+    LSI R2, 15
+    AND R4, R2
+    LDI fr_bitmask
+    MOV R2, R0
+    ADD R2, R4
+    LDS R2, DS, R2             ; one-hot bit
+    TBS R5, R2
+    JZ fr_p_bg
+    NOP
+    MOV R2, R7
+    LDI fr_p_store
+    MOV PC, R0
+    NOP
+fr_p_bg:
+    MOV R2, R6
+fr_p_store:
+    STS R2, ES, R3
+    ADD R3, 1
+    ADD R10, 1
+    LDI 82
+    MOV R2, R0
+    CMP R10, R2
+    JNC fr_p_done
+    NOP
+    LDI fr_p_col
+    MOV PC, R0
+    NOP
+fr_p_done:
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; Fill the current write bank with grass and the ten initial lane rows.
+; Called once per bank; clobbers R0-R11,R13.
+; ---------------------------------------------------------------------
+fr_init_paint:
+    MOV R13, LR
+
     ; fill the whole screen with grass first
     LSI R8, 0
 fr_grass_row:
@@ -188,213 +531,7 @@ fr_lane_init:
     MOV PC, R0
     NOP
 fr_lanes_done:
-
-    ; enable per-row fine scroll on the lane rows (phase 0)
-    LSI R6, 0
-fr_rows_init:
-    LDI fr_rows
-    MOV R2, R0
-    ADD R2, R6
-    LDS R8, DS, R2
-    LDI 0x100
-    MOV R2, R0
-    MOV R3, R8
-    SL R3, 3
-    ADD R2, R3
-    LDI SEG_CTRL
-    MVS ES, R0
-    LSI R3, 0x0C
-    STS R2, ES, R3
-    ADD R6, 1
-    LDI 10
-    MOV R3, R0
-    CMP R6, R3
-    JNC fr_rows_done
-    NOP
-    LDI fr_rows_init
-    MOV PC, R0
-    NOP
-fr_rows_done:
-
-; =====================================================================
-; Main loop
-; =====================================================================
-fr_loop:
-    LDI fr_wait
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI fr_keys
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-
-    LSI R6, 0
-fr_lane_tick:
-    LDI fr_update
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    ADD R6, 1
-    LDI 10
-    MOV R3, R0
-    CMP R6, R3
-    JNC fr_loop
-    NOP
-    LDI fr_lane_tick
-    MOV PC, R0
-    NOP
-
-; =====================================================================
-; One lane: advance its phase/start and set control 6.
-; R6 = lane index, preserved.
-; =====================================================================
-fr_update:
-    MOV R12, LR
-    LDI fr_rows
-    MOV R2, R0
-    ADD R2, R6
-    LDS R8, DS, R2             ; row
-    LDI fr_dirs
-    MOV R2, R0
-    ADD R2, R6
-    LDS R7, DS, R2             ; 0 left, 1 right
-    LDI fr_speeds
-    MOV R2, R0
-    ADD R2, R6
-    LDS R5, DS, R2             ; speed
-    LDI FR_PHASE
-    MOV R2, R0
-    ADD R2, R6
-    LDS R4, DS, R2             ; phase
-    LDI FR_START
-    MOV R2, R0
-    ADD R2, R6
-    LDS R9, DS, R2             ; start
-    LSI R3, 0                  ; repaint flag
-
-    AND R7, R7
-    JNZ fr_up_right
-    NOP
-    ; left: phase += speed
-    ADD R4, R5
-    CMP R4, 8
-    JC fr_up_store
-    NOP
-    SUB R4, 8
-    ADD R9, 1
-    LSI R2, 15
-    AND R9, R2
-    LSI R3, 1
-    LDI fr_up_store
-    MOV PC, R0
-    NOP
-fr_up_right:
-    ; right: phase -= speed
-    SUB R4, R5
-    JNN fr_up_store
-    NOP
-    ADD R4, 8
-    SUB R9, 1
-    LSI R2, 15
-    AND R9, R2
-    LSI R3, 1
-fr_up_store:
-    LDI FR_PHASE
-    MOV R2, R0
-    ADD R2, R6
-    ST R4, R2, 0
-    LDI FR_START
-    MOV R2, R0
-    ADD R2, R6
-    ST R9, R2, 0
-
-    ; control 6 = 0x100 | row << 3 | phase
-    LDI 0x100
-    MOV R2, R0
-    MOV R3, R8
-    SL R3, 3
-    ADD R2, R3
-    ADD R2, R4
-    LDI SEG_CTRL
-    MVS ES, R0
-    LSI R3, 0x0C
-    STS R2, ES, R3
-
-    ; rewrite the row when the coarse cell changed
-    AND R3, R3
-    JZ fr_up_done
-    NOP
-    MOV R11, R6
-    LDI fr_masks
-    MOV R2, R0
-    ADD R2, R6
-    LDS R5, DS, R2
-    LDI fr_bgs
-    MOV R2, R0
-    ADD R2, R6
-    LDS R6, DS, R2
-    LDI fr_objs
-    MOV R2, R0
-    ADD R2, R11
-    LDS R7, DS, R2
-    LDI fr_paint
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    MOV R6, R11
-fr_up_done:
-    MOV LR, R12
-    JMP LR
-    NOP
-
-; =====================================================================
-; Paint one row: R8 row, R9 start, R5 mask, R6 background tile,
-; R7 object tile.  Preserves R6/R7/R11; clobbers R0-R5,R8-R10.
-; =====================================================================
-fr_paint:
-    LDI 82
-    MOV R2, R0
-    MOV R3, R8
-    MUL R3, R2                 ; row * 82
-    LDI SEG_TILE
-    MVS ES, R0
-    LSI R10, 0
-fr_p_col:
-    MOV R4, R10
-    ADD R4, R9
-    LSI R2, 15
-    AND R4, R2
-    LDI fr_bitmask
-    MOV R2, R0
-    ADD R2, R4
-    LDS R2, DS, R2             ; one-hot bit
-    TBS R5, R2
-    JZ fr_p_bg
-    NOP
-    MOV R2, R7
-    LDI fr_p_store
-    MOV PC, R0
-    NOP
-fr_p_bg:
-    MOV R2, R6
-fr_p_store:
-    STS R2, ES, R3
-    ADD R3, 1
-    ADD R10, 1
-    LDI 80
-    MOV R2, R0
-    CMP R10, R2
-    JNC fr_p_done
-    NOP
-    LDI fr_p_col
-    MOV PC, R0
-    NOP
-fr_p_done:
+    MOV LR, R13
     JMP LR
     NOP
 
@@ -469,9 +606,18 @@ fr_x_loop:
     MOV PC, R0
     NOP
 fr_x_done:
+    LSI R2, 8
+    LSI R3, 0
+    STS R3, ES, R2             ; display and write bank 0 for the menu
     LSI R2, 2
     LSI R3, 0
     STS R3, ES, R2             ; scroll_x = 0
+    ; Let the bank-0 swap latch before the menu draws into it.
+    LDI fr_wait
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI FR_RET10
     MOV R2, R0
     LD R10, R2, 0
@@ -522,3 +668,9 @@ fr_ret10:
     .word 0
 fr_ret11:
     .word 0
+fr_dirty:
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+fr_front:
+    .word 0
+fr_back:
+    .word 1

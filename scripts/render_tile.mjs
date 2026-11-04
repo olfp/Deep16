@@ -140,7 +140,7 @@ function scalePixels(rgba, width, height, scale) {
 export function renderScene({
   scene = 'menu',
   frames = scene === 'flappy' ? 4 : 1,
-  stepsPerFrame = DEFAULT_STEPS,
+  stepsPerFrame = scene === 'frogger' ? 0x10000 : DEFAULT_STEPS,
   keys = [],
   warmup = null,
 } = {}) {

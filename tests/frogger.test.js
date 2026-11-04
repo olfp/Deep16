@@ -20,7 +20,7 @@ for (const f of ['js/deep16_assembler.js', 'js/deep16_simulator.js']) {
 }
 const Simulator = vm.runInThisContext('Deep16Simulator');
 
-const FRAME_PERIOD = 0x400;
+const FRAME_PERIOD = 0x10000;
 const STATUS = 0xF0066;
 const RET_PC = 0x0777;
 const BLOCK = FROGGER_SEG_BASE;
@@ -71,6 +71,10 @@ test('the lanes paint and move in their own directions', () => {
   const tile = (r, c) => sim.memory[0xF1000 + r * 82 + c];
   for (const r of [4, 5, 6, 7, 8, 10, 11, 12, 13, 14]) {
     assert.ok(tile(r, 0) !== 0 || tile(r, 10) !== 0, `row ${r} painted`);
+    // The fine phase reads one cell past the 80 visible columns at the right
+    // edge; the two margins must be painted too or that edge goes black.
+    assert.ok(tile(r, 80) !== 0, `row ${r} right margin painted`);
+    assert.ok(tile(r, 81) !== 0, `row ${r} far margin painted`);
   }
   // Palette set 2 entries 1..6 were installed.
   for (let i = 1; i <= 6; i++) {
