@@ -42,6 +42,19 @@ test('the Frogger backdrop scrolls its lanes', () => {
   assert.notDeepEqual(Array.from(r.frames[10]), Array.from(r.frames[19]), 'the lanes move');
 });
 
+test('the menu launches Frogger on G and Q returns to bank 0', () => {
+  const keys = new Array(180).fill(0);
+  keys[5] = 0x67;   // G
+  keys[120] = 0x71; // Q
+  const r = renderScene({ scene: 'menu', frames: 180, warmup: 0x4000,
+                          stepsPerFrame: 0x8000, keys });
+  assert.equal(r.sim.segmentRegisters.CS, 0x04A0, 'back in the menu segment');
+  assert.equal(r.engine.mapDisplay, 0, 'menu is drawn on bank 0');
+  assert.equal(r.engine.mapWrite, 0);
+  assert.equal(r.engine.rowScrollEn, 0, 'per-row table is cleared');
+  assert.ok(nonBlack(r.frames[179]) > 400, 'menu text is visible again');
+});
+
 test('the console scene boots the nano kernel', () => {
   const r = renderScene({ scene: 'console', frames: 1 });
   assert.ok(nonBlack(r.frames[0]) > 400, 'the banner/prompt is rendered');
