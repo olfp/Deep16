@@ -1,54 +1,77 @@
 ```mermaid
-graph TD
-    %% Core Element
-    Core[Deep16 3 stage core]
+flowchart TB
+    %% Layout-Strukturierung durch Spalten (Subgraphs)
+    subgraph LeftSide [Peripherie Links]
+        direction TB
+        SDCard[SD Card]
+        SPIMaster[SPI Master]
+        USBCSerial[USB-C Serial]
+        UART[UART]
+        
+        %% Vertikale Ausrichtung links erzwingen
+        SDCard <--> SPIMaster
+        USBCSerial <--> UART
+    end
 
-    %% Top Blocks
-    BootROM[Boot ROM]
-    ExtFlash[External Flash]
-    MEM[MEM]
-    Cache[Cache]
-    SIC[SIC]
+    subgraph CenterColumn [Verarbeitung & Speicher]
+        direction TB
+        
+        %% Obere Sektion
+        subgraph TopMem [System & Speicher]
+            direction LR
+            BootROM[Boot ROM]
+            ExtFlash[External Flash]
+            MEM[MEM]
+            Cache[Cache]
+            SIC[SIC]
+        end
 
-    %% Right Blocks
-    Timer[Timer]
-    PS2[PS/2]
-    I2SAudio[I2S Audio]
-    PCMAmp[PCM Amp]
+        %% Haupt-Core im Zentrum
+        Core[Deep16 3 stage core]
 
-    %% Left Blocks
-    SDCard[SD Card]
-    SPIMaster[SPI Master]
-    UART[UART]
-    USBCSerial[USB-C Serial]
+        %% Untere Sektion
+        subgraph BottomGfx [Grafik & Systemtakt]
+            direction LR
+            VMEM[VMEM]
+            FITGfx[FIT Gfx]
+            Clk[Clk]
+            VMEM <--> FITGfx
+        end
 
-    %% Bottom Blocks
-    VMEM[VMEM]
-    FITGfx[FIT Gfx]
-    Clk[Clk]
+        %% Vertikale Hierarchie erzwingen
+        TopMem ~~~ Core ~~~ BottomGfx
+    end
 
-    %% Connections
+    subgraph RightSide [Peripherie Rechts]
+        direction TB
+        Timer[Timer]
+        PS2[PS/2]
+        I2SAudio[I2S Audio]
+        PCMAmp[PCM Amp]
+        
+        %% Vertikale Ausrichtung rechts erzwingen
+        Timer ~~~ PS2 ~~~ I2SAudio
+        I2SAudio <--> PCMAmp
+    end
+
+    %% Reale Signalverbindungen zwischen den Blöcken
     Core --> BootROM
     Core --> ExtFlash
     Core <--> MEM
     Core <--> Cache
     SIC --> Core
 
+    SPIMaster <--> Core
+    UART <--> Core
+
     Core <--> Timer
     Core <--> PS2
     Core --> I2SAudio
-    I2SAudio <--> PCMAmp
-
-    SDCard <--> SPIMaster
-    SPIMaster <--> Core
-    USBCSerial <--> UART
-    UART <--> Core
 
     Core --> VMEM
     Core --> FITGfx
-    VMEM <--> FITGfx
 
-    %% Styling (Color Matching to original diagram)
+    %% Styling (Farbanpassung an das Original)
     style Core fill:#F9A825,stroke:#333,stroke-width:2px;
     style FITGfx fill:#EF5350,stroke:#333,stroke-width:2px;
     
@@ -69,4 +92,11 @@ graph TD
     style USBCSerial fill:#81C784,stroke:#333;
     
     style Clk fill:#B0BEC5,stroke:#333;
+
+    %% Subgraph-Rahmen unsichtbar machen für sauberen Look
+    style LeftSide fill:none,stroke:none;
+    style RightSide fill:none,stroke:none;
+    style CenterColumn fill:none,stroke:none;
+    style TopMem fill:none,stroke:none;
+    style BottomGfx fill:none,stroke:none;
 ```
