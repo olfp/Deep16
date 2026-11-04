@@ -163,6 +163,25 @@ test('the I2S words load from the catalog', () => {
   assert.ok(sim.running);
 });
 
+test('getstr is a pump: Return completes the line the REPL is polling for', () => {
+  // The BIOS drains the FIFO and returns; the REPL polls it with the caller's
+  // PSW restored, so the timer and raster IRQs are serviced while it waits.
+  // A line typed without Return must sit in TIB and not run.
+  const from = out.length;
+  for (const ch of '1 2') sim.uartRxPush(ch.charCodeAt(0));
+  for (let i = 0; i < 2_000_000; i++) step(1);
+  assert.equal(ds(sym.tib_kbd) & 0xff, 0x31, 'first character');
+  assert.equal(ds(sym.tib_kbd + 1) & 0xff, 0x20, 'space');
+  assert.equal(ds(sym.tib_kbd + 2) & 0xff, 0x32, 'second character');
+  assert.equal(out.slice(from).includes(' ok'), false, 'nothing ran before Return');
+  const done = out.length;
+  sim.uartRxPush(13);
+  for (let i = 0; i < 5_000_000; i++) step(1);
+  assert.match(out.slice(done), / ok/, 'Return completed the line');
+  line('drop drop');
+  assert.ok(sim.running);
+});
+
 test('the catalog\'s ATTR cell is the kernel\'s text_attr', () => {
   // The catalog is Forth source and cannot see assembler symbols, so the cell
   // is a literal there. Pin the two together or a kernel edit silently makes

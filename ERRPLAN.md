@@ -15,6 +15,55 @@ not applied until the entry is updated with the result and tests.
 
 ---
 
+## 2026-11-04 — The console blocked with I=0, so the raster IRQ had no window
+
+**Priority:** high — this is the missing piece of the raster investigation.
+
+**Area:** `asm/forth_nano.asm` (`bios_f5` getstr, `read_line`, `word_accept`,
+`refill`); `screens/flash/catalog.fth` (`raster-probe` once it exists).
+
+**Observed (discussion with Big Pickle, 2026-11-03/04):** the REPL spends
+essentially all its time inside BIOS getstr (function 5), which polls the
+keyboard FIFO in a loop **inside the SWI**. That context runs with S=1 and I=0,
+and the core refuses an IRQ while S=1, so the only window in which the SIC can
+be serviced is the handful of microseconds between the handler's RETI and the
+next SWI. That matches the earlier measurement exactly: `raster-ticks` advanced
+about 2 per console command, and `PENDING` bit 3 was read after the handler had
+already acknowledged it. The "request level stays low" reading is the same
+artefact: the level is acked as soon as the handler runs, which is between
+commands.
+
+So the raster compare/request path may have been healthy all along; the console
+simply never waited with interrupts enabled.
+
+**Change:** getstr is now a non-blocking pump. One call drains what the
+keyboard FIFO holds and leaves the caller's R0 = 1 when the line ended (CR/LF),
+0 when it ran out of keys. The write pointer and an "a line is in progress"
+flag are two kernel-data cells (`gs_active`, `gs_ptr`) that every boot copies
+fresh, so a warm reset cannot resume a line from a stale pointer. `read_line`,
+`word_accept` and `refill` poll it, so the console waits with the caller's PSW
+restored (I=1) and the timer and raster IRQs are serviced while it waits.
+
+A test in `tests/segmented.test.js` types a partial line, checks it sits in TIB
+and does not run, then presses Return and checks it completes.
+
+**No-input probe (run at the prompt, calls no SWI while it spins):**
+
+```
+: rp 0 0xC2 es! 30 raster-line! 0 sic-raster es! 8 sic-enable es!
+     2000000 0 do loop 0 sic-enable es! 30 raster-line!
+     ." raster " sic-raster es@ . ." ticks, pending " sic-pending es@ . cr ;
+rp
+```
+
+Expect ~60 ticks in about a second. 0 means the compare or the request/SIC path
+is still at fault, and the `raster_seen` latch on LED5 (below) is the next
+probe. The word disables the timer source while it runs; `irq-on` restores it.
+
+**Status:** change implemented and tested in simulation; board result pending.
+
+---
+
 ## 2026-11-02 — Open discussion: extend the art tile bank using spare cell bits
 
 **Priority:** low — discussion only; no encoding or memory-map decision yet.

@@ -3111,6 +3111,14 @@ see_str_0branch:
 ; cell rather than an immediate because `LDI` reads its fifteen bits as signed:
 ; 0x6F00 has bit 14 set, so loading it would sign-extend to 0xEF00 and any
 ; comparison against it would answer the opposite of the truth.
+; getstr's line state: the BIOS writes these through DS (0x1000 in the
+; segmented map, flat otherwise) and every boot copies fresh zeros here, so a
+; warm reset cannot resume a line from a pointer an earlier session left.
+; They sit outside the console block because every image carries the BIOS.
+gs_active:
+    .word 0
+gs_ptr:
+    .word 0
 .ifdef CONSOLE_UART
 ; ---- the boot script --------------------------------------------------------
 ; Forth source, baked into the image and read by read_line before the keyboard
@@ -3822,8 +3830,12 @@ rl_read:
     LDI tib_kbd
     MOV TIB, R0
     MOV R1, TIB          ; BIOS getstr: the buffer is the parameter
+rl_getstr:
     LDI 5
-    SWI
+    SWI                  ; non-blocking: the caller's R0 = line ready
+    AND R0, R0
+    JZ rl_getstr         ; keep polling here: this path runs with I=1
+    NOP
     ; A pressed Return separates the echoed input from the line's output. The
     ; space belongs to the echo, so it is silent while the echo is off.
     LDI ECHO_FLAG
@@ -3880,8 +3892,12 @@ wac_ok:
     ADD SP, 2
     LDI accept_buf
     MOV R1, R0              ; BIOS getstr: read the whole line into our buffer
+wac_getstr:
     LDI 5
-    SWI
+    SWI                     ; non-blocking; poll with I=1 so IRQs are served
+    AND R0, R0
+    JZ wac_getstr
+    NOP
     LDI accept_buf
     MOV R10, R0             ; the read pointer
     LDI 0
@@ -8664,8 +8680,12 @@ word_refill:                ; refill ( -- flag )
     LDI tib_kbd
     MOV TIB, R0
     MOV R1, TIB             ; BIOS getstr: the buffer is the parameter
+refill_getstr:
     LDI 5
-    SWI
+    SWI                     ; non-blocking; poll with I=1 so IRQs are served
+    AND R0, R0
+    JZ refill_getstr
+    NOP
     LDI 0
     MOV >IN, R0
     LDI -1
@@ -14939,19 +14959,44 @@ bios_getch_wait:
     RETI
     NOP
 bios_f5:
+    ; 5: getstr, non-blocking. The buffer arrives in the caller's R1; one call
+    ; consumes the keys the FIFO holds right now and leaves the caller's R0 = 1
+    ; when the whole line is in (CR/LF seen), 0 when it ran out of keys. The
+    ; write pointer and a "line in progress" flag are two kernel-data cells,
+    ; so a call that finds nothing can return without losing them. A caller
+    ; that needs a whole line polls; the SWI returns with
+    ; the caller's PSW (I=1), so the timer and raster IRQs run while it waits -
+    ; inside the handler they could not, the trap runs with S=1 and I=0.
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-    ; 5: getstr (the buffer address arrives in the caller's R1), echo
-    SMV R2, AR1      ; buf
-    LDI 0
-    MOV R11, R0      ; count
+    SMV R2, AR1              ; R2 = buf
+    LDI gs_active
+    MOV R10, R0
+    LD R3, R10, 0            ; a line already in progress?
+    LDI 1
+    CMP R3, R0
+    JZ bios_getstr_have
+    NOP
+    MOV R3, R2               ; no: the write pointer starts at the buffer
+    LDI 1
+    ST R0, R10, 0            ; line in progress
+    ST R3, R10, 1            ; ptr = buf
+    LDI bios_getstr_count - BIOS_BASE
+    MOV PC, R0
+    NOP
+bios_getstr_have:
+    LD R3, R10, 1            ; resume where the last call stopped
+bios_getstr_count:
+    MOV R11, R3
+    SUB R11, R2              ; count = write pointer - buffer
+    MOV R2, R3               ; R2 is the write pointer below, as before
 bios_getstr_loop:
     LDI KBD_STATUS
     LDS R1, ES, R0         ; the offset is in R0 already, no scratch needed
     LDI 0
     CMP R1, R0
-    JZ bios_getstr_loop
+    JZ bios_getstr_idle
     NOP
     LDI ECHO_FLAG
     LDS R12, ES, R0        ; R12 = the echo flag, read once per keystroke
@@ -15048,8 +15093,24 @@ bios_store_char:
     JNZ bios_getstr_loop
     NOP
 bios_getstr_done:
+    LDI gs_active
+    MOV R10, R0
     LDI 0
-    ST R0, R2, 0
+    ST R0, R2, 0             ; NUL-terminate the line
+    ST R0, R10, 0            ; no line in progress
+    LDI 1
+    MOV R2, R0
+    SMV AR0, R2             ; the caller's R0 = 1: line ready
+    RETI
+    NOP
+bios_getstr_idle:
+    ; Out of keys. Keep the write pointer and answer 0; the caller polls.
+    LDI gs_active
+    MOV R10, R0
+    ST R2, R10, 1
+    LDI 0
+    MOV R2, R0
+    SMV AR0, R2             ; the caller's R0 = 0: not ready
     RETI
     NOP
 .endif
