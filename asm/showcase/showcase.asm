@@ -293,6 +293,12 @@ menu_wait:
     CMP R1, R3
     JZ menu_pacman
     NOP
+    ; Esc before the G case fold, which would otherwise change 0x1B.
+    LDI 0x1B
+    MOV R3, R0
+    CMP R1, R3
+    JZ menu_quit
+    NOP
     LDI 0x20
     MOV R3, R0
     OR R1, R3
@@ -307,11 +313,6 @@ menu_wait:
     JZ menu_quit
     NOP
     LDI 0x71
-    MOV R3, R0
-    CMP R1, R3
-    JZ menu_quit
-    NOP
-    LDI 0x1B
     MOV R3, R0
     CMP R1, R3
     JZ menu_quit
