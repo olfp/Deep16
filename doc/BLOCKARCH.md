@@ -1,7 +1,6 @@
 # D16nano block architecture
 
-<img src="./BLOCK.svg" alt="Deep16 Nano Architektur" width="100%">
-
+<object type="image/svg+xml" data="./BLOCK.svg" width="100%"></object>
 
 Logical block diagram of the **D16nano** build (`D16NANO` + `D16_PERIPH` +
 `D16SEG` + `DVI_TILE` + `USER_FLASH`) on the Tang Nano 9K. It shows the
