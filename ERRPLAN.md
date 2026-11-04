@@ -127,6 +127,47 @@ with `ticks` while typing.
 
 ---
 
+## 2026-11-04 — The console has two getstr implementations; I patched the dead one
+
+**Priority:** high — the non-blocking console did nothing because the change
+went into code this build never assembles.
+
+**Area:** `asm/forth_nano.asm` (`bios_f5` twice, once in the
+`CONSOLE_UART` branch and once in the `.else` screen branch); `read_line`,
+`word_accept`, `refill`.
+
+**Observed:** the `CONSOLE_UART` build (this board) assembles the **UART**
+getstr (`uart_getstr_loop`, ES:0x0040/0x0042, echo over the wire); the screen
+build in the `.else` branch has the tile-console getstr (KBD 0x0060/0x0062,
+echo into the tilemap). The non-blocking pump and the "line in progress" cells
+were added to the `.else` one, which this image drops before either pass. The
+console therefore kept blocking inside the trap, which is why the prompt
+serviced no IRQs and why the first kernel-side poll (reading 0x0060) hung the
+simulator: only the BIOS ever read that port, and in this build it reads
+0x0040.
+
+**Tried:** converting the UART getstr to the same pump. The segmented suite
+went green (29/29) but `showcase-boot.test.js` "Q returns from the menu to the
+Forth console" then failed: after Q the banner SWI spins in the flat
+(non-D16SEG) build. Reverted rather than ship it; the pump needs a pass that
+covers the flat build's menu exit too.
+
+**Next:** convert `uart_getstr` to the pump, then let the kernel poll 0x0040
+bit 0 itself (where I=1) and only SWI when a byte is waiting. Validate both the
+segmented suite and `showcase-boot`.
+
+**Band demo without prompt interrupts:** the handler runs while a *command*
+runs, so a self-driving demo shows the split today:
+
+```
+: band 0xFF 0x6081 es! 0x1C 0x60C1 es! 0x100 15 60 split! 4000000 0 do loop split-off ;
+band
+```
+
+**Status:** open; console rework reverted, band pending.
+
+---
+
 ## 2026-11-02 — Open discussion: extend the art tile bank using spare cell bits
 
 **Priority:** low — discussion only; no encoding or memory-map decision yet.
