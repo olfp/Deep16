@@ -1,7 +1,6 @@
 # D16nano block architecture
 
-
-![Deep16 Nano Architektur](./BLOCK.svg)
+<img src="./BLOCK.svg" alt="Deep16 Nano Architektur" width="100%">
 
 
 Logical block diagram of the **D16nano** build (`D16NANO` + `D16_PERIPH` +
