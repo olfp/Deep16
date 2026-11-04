@@ -32,10 +32,10 @@ sources:
     resource: repo://scripts/make_slices.mjs
   - id: openwiki-source-e3cbc9bdf6a73d9a2ec96f60
     resource: repo://tests/segmented.test.js
-generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+generated: { by: "opencode", at: "2026-11-04T16:08:29.597Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T15:30:01.509Z
+    at: 2026-11-04T16:08:29.597Z
 ---
 
 # PSRAM, Cache and Flash Boot
@@ -122,6 +122,9 @@ CPU is held in reset. The sequence is:
    `0x30000 + (word - 0x4A00)`. The block is `0xE00` words; its
    `0x5000`–`0x53FF` part is reserved by the showcase and used by the
    ILL/divtest/UART tail, including the non-blocking UART getstr at `0x5356`.
+   The DS copy covers image words `0x3000`–`0x57DC`, so the always-baked
+   Frogger backdrop at `0x4350`–`0x4665` is mirrored at DS
+   `0x14350`–`0x14665`; the menu uses the flat copy through `CS=0x0435`.
 5. On a CRC match, release the core and hand over the kernel entry word saved
    from image word `0x0080` (CPU word `0x0100`).
 
@@ -208,7 +211,9 @@ stack grows down from `0xFFF0`, so they only meet under very deep stacks.
 
 The command is `s" pacman" game-run` from the Forth prompt. The showcase menu's
 **P** entry still jumps to the old `0x4330` image address and needs this loader
-hookup; until then the game is reachable through the prompt.
+hookup; until then the game is reachable through the prompt. The Frogger
+backdrop is not a slice: it is part of the boot image at `0x4350`, and the menu's
+**G** entry launches it directly with `CS=0x0435`.
 
 ## Installer fallback
 

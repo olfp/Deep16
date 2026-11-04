@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:75c08195fa10f7c3c696d224ccaf7784709da92ec7e3b2c1e5a1a61bea8f14ff",
+  "pageVersion": "sha256:0d089a33d8dec2114c488d256980fc8065bf412696ea5147842717b6e4f54e23",
   "claims": [
     {
       "id": "claim_776f00278b784af4b3d9c5aba401ba71",
@@ -337,7 +337,7 @@
           "version": "repo-lines-v1:sha256:b826c93be8e653d17685e5733ff9753d9d233d4e7933b60ccf6fec4c8428b0a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjgyNmM5M2JlOGU2NTNkMTc2ODVlNTczM2ZmOTc1M2Q5ZDIzM2Q0ZTc5MzNiNjBjY2Y2ZmVjNGM4NDI4YjBhMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjgyNmM5M2JlOGU2NTNkMTc2ODVlNTczM2ZmOTc1M2Q5ZDIzM2Q0ZTc5MzNiNjBjY2Y2ZmVjNGM4NDI4YjBhMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWQ3MTIwMjhiY2ZlNWYyM2I4Y2E1ZDIxOWNmNzJhYjAxZmZhY2ZkZDA0NTQ3NDJkYTNhNmU0OWM4ODJhNjk3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDFjOTQwNjJkZGZkMWM2N2EyYTA1NzIwMjM3ZjIzNTgwNzQyZDZkMTI4ZWQ2ZTllMDhiMGMyMmU0N2ZhYWEzNiJ9"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L2308-L2351",
+          "resource": "repo://js/deep16_ui_core.js#L2309-L2352",
           "version": "repo-lines-v1:sha256:31a860309cf86ec76975005be818024a618664cd1628ae35b1634eeb8f008a36:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiZDBlYTM3ZmNlMWFlMzE0NTdiODE0OTQ4ZGQyMThmMDQwMDJmZjZjMjk0Y2NiNDgzYzllNTdkYmMzOGEyMTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk2MjU1NGVjMjczNDRhZjMzZmIwMjYyMjViYTcyYWI5MjIyYjVmNmJlNDhjMGI4YmVjYTdjMmYwZDY3NzEwMTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRhNzc4Zjg5ODY2ZGJlYWMxNDVmZjYyMzdjYzQ3OTBhMWJiOTJiZGVmMjkxMDJkMDQ1YjI0NTc0ZGVlZGRkYzcifQ"
         }
       ]
@@ -354,15 +354,15 @@
     },
     {
       "id": "claim_30a72bc7fef9436c8894aeb0ca148e82",
-      "statement": "The D16D Showcase manifest entry is the only one with a build tag; selecting it loads forth_nano.asm and the IDE fetches the showcase, Flappy and Pac-Man sources separately for the tile image.",
+      "statement": "The D16D Showcase manifest entry is the only one with a build tag; selecting it loads forth_nano.asm and the IDE fetches the showcase, Flappy, Pac-Man and Frogger sources separately for the tile image.",
       "evidence": [
         {
           "resource": "repo://asm/examples.json#L28-L40",
           "version": "repo-lines-v1:sha256:c8a838a98162a812813a5791e08435ac2bb26292c2816375be9942cadd8c7e2e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY5Y2E4OTFiZmY3YWMxZjdjZWFhZTQwZWYwNTEwNjZiZTllZmU0N2I0ZTQyODFlODZjMzE5YmUyYzU1ZWJjZTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmMGNkYjk3MmE3YmZiN2VkMjQ2ZjlmZjY3MjM4NWU1NWY0OTY4ZmMxMTA0M2RjNWI2ODRkNTFkZmEzMWRiY2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjczZDNmZDEzMTk3NTQzOWQ0NzBkYjRhMDAwNWRlNjVkMzA2OWEyMDZiNmM1YTEwYmFhODIzMTEyYjAwMTZhMDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNiZWY5MzNmMTAwZTZmNzNiMDY2MjBhZjlmZGU5YTEzZjdiZjgzOTE2NzA4NzU1MjVmNTEwMzUzMWU5MTU2MjMifQ"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L3835-L3855",
-          "version": "repo-lines-v1:sha256:0204f2ffe2f4b1cefe34d76d0c26a58c35b308d198ea4aa841905b94f8b0ab34:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjZmIxN2Y2MzNiN2Q2MmQyMjk4NDM5OTRiNzBiNmUzNDRhNTM5M2ZlYTYxNDBmNGE4NzFiMTE2OTE4ODBhMzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyMzMzNTU3NTMwYzlhY2VhMTBiNDc3MTkwN2NkZGI0ZmE1MTRmMWE4YTQ2MTZhY2MyODE1M2RiYzU2YzgyODkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYwMDcyYzY5ZTg4NmY4NDdiYzNiZGJiZTkwMzQxZjIxMzgyYTliMjllZmQ2ZGM5ZWVjOTBlMTU5ZWJkOTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU2OGIxMmMzZjBlNWZlNzU3MjBhNTYyZWZjNWFhNmM5NWNmOTE0ZTEyMzNlYzEyMjY3NWRjZWFiOGI4NjJjNWMifQ"
+          "resource": "repo://js/deep16_ui_core.js#L3840-L3860",
+          "version": "repo-lines-v1:sha256:83510ee2941d095b86761e18292c2604f724ec6a6604c10d9da4dda1145ee398:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1Yzc2NzUxZjYxYjQxYzg4MTE0ZGZiYzdiMzZhOThjM2EwYmRlOWU5NjNhZjQxZTE4NmQ0OWIyYjA3OWM0MGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhlMmVjYTcwZDk0ZjQ1ZTMwYWJjNzkzNzljNTBlNTQzYmQ4MjhlYmVjM2Y4OGI1YzRmYmEyNDVlMWFlZDM5MDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEwYzllMDk0NjZhNzYxMjllODk0YjNjNmNlZDJmZGQ3MmNmNjQ2ZDA3NWRiYzY4MTBjN2ZjMTk1ZTlhNjNiMjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY2YTI3Y2Q4MWQ1OGRmYTFmODNjZWNhNmM4ZmJkNTUzM2I2NTNlODM2NDRlY2Q3OGMyYjM5ZmE5ZjI2NmRhZjkifQ"
         }
       ]
     },
@@ -393,6 +393,6 @@
   ],
   "verification": {
     "by": "openwiki/0.7.3",
-    "at": "2026-11-04T15:30:01.509Z"
+    "at": "2026-11-04T16:08:29.597Z"
   }
 }

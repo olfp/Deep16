@@ -44,14 +44,18 @@ sources:
     resource: repo://tests/boot-script.test.js
   - id: openwiki-source-dc8d3ca119d2c037adc861d2
     resource: repo://tests/examples.test.js
+  - id: openwiki-source-8455325ffcce9d2e397028bf
+    resource: repo://tests/frogger.test.js
   - id: openwiki-source-b12aa8f2d5b33291592d6e1c
     resource: repo://tests/fuzz.test.js
   - id: openwiki-source-0b039283b04730211698eb2a
     resource: repo://tests/helpers.js
-generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+  - id: openwiki-source-3c07bfc0a532e3b861560036
+    resource: repo://tests/showcase-render.test.js
+generated: { by: "opencode", at: "2026-11-04T16:08:29.597Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T15:30:01.509Z
+    at: 2026-11-04T16:08:29.597Z
 ---
 
 # Build, Test and Image Pipeline
@@ -126,12 +130,14 @@ form is checked against the flat image when it is built. The tile build sets
 `D16NANO=1 D16D=1 D16SEG=1` and deliberately does **not** write a packed image,
 because the D16D kernel is larger than the 16-block budget.
 
-The D16D image no longer bakes Pac-Man: the kernel grew to `0x434D`, so the game
+The D16D image no longer bakes Pac-Man: the kernel grew to `0x434F`, so the game
 is assembled by `buildPacman()` into a 1,695-word block, wrapped by
 `make_slices.mjs` as a type-4 slice (slice 10 at `0x20A000`) and loaded into
 segment `0x2000` by `games.fth` at run time. `BAKE_PACMAN=1` (Node) or
 `bakePacman: true` (browser builder) puts it back at `0x4330` for a preview;
-the headless renderer uses that path.
+the headless renderer uses that path. The small Frogger block is different: it
+is always baked at `0x4350` from `buildFrogger()`, checked against the kernel
+end and the BIOS, and recorded in the manifest.
 
 ### Boot-script embedding
 
@@ -159,9 +165,10 @@ fails the suite instead of shipping.
 | `make_slices.mjs` | 4 KB slice image: source screens plus the type-4 Pac-Man block |
 | `make_screens.mjs` | Forth source → SD-card or flash screen images |
 | `make_pacman_art.mjs` | Pac-Man maze/tables, dot/wall/ghost tiles and sprite frames |
+| `make_frogger_art.mjs` | Six solid-colour Frogger backdrop tiles |
 | `make_flash_assets.mjs` | Packs font/tile/sprite/palette data into `js/deep16_flash_assets.js` |
-| `make_showcase.mjs` | The D16D menu+Flappy block and `buildPacman()` |
-| `render_tile.mjs` | Headless menu/Flappy/Pac-Man/console renderer |
+| `make_showcase.mjs` | The D16D menu+Flappy block, `buildPacman()` and `buildFrogger()` |
+| `render_tile.mjs` | Headless menu/Flappy/Pac-Man/Frogger/console renderer |
 
 `make_image.mjs` calls the font, sprite and PS/2 generators itself, so the
 console font, tile font and keyboard map cannot drift from each other.
@@ -169,12 +176,12 @@ console font, tile font and keyboard map cannot drift from each other.
 ### Graphics and renderer
 
 `assets:gfx` runs `make_tile_font.mjs` + `make_bird_sprite.mjs` +
-`make_flash_assets.mjs` (the latter also packs the palette and the Pac-Man art).
-`render:tile` builds the D16D image in memory, optionally bakes Pac-Man at
-`0x4330`, loads the same graphics blob through `deep16_gfx_loader.js`, runs a
-fixed 0x1000-step frame clock and writes PNGs. The scenes are `menu`, `flappy`,
-`pacman` and `console`; `--key=BYTE` holds a UART byte until the game consumes
-it.
+`make_flash_assets.mjs` (the latter also packs the palette and the Pac-Man and
+Frogger art). `render:tile` builds the D16D image in memory, optionally bakes
+Pac-Man at `0x4330`, always bakes Frogger at `0x4350`, loads the same graphics
+blob through `deep16_gfx_loader.js`, runs a fixed 0x1000-step frame clock and
+writes PNGs. The scenes are `menu`, `flappy`, `pacman`, `frogger` and
+`console`; `--key=BYTE` holds a UART byte until the game consumes it.
 
 ### Verilator device simulations
 
@@ -230,7 +237,8 @@ covers words no real program executes.
 
 `npm test` is `node --test tests/*.test.js` — currently about 40 files, minutes
 on one core. The suite includes the FiT engine/store-hook/clock tests, the D16D
-image and UI tests, the Pac-Man block/game tests, the headless renderer and the
+image and UI tests, the Pac-Man and Frogger block/game tests, the headless
+renderer and the
 type-4 slice tests, in addition to the CPU/Forth/console suite. `tests/helpers.js` is the shared harness:
 
 - loads the browser scripts with `vm.runInThisContext` and reads the classes
@@ -246,7 +254,7 @@ The files fall into groups:
 |---|---|
 | Toolchain | `assembler`, `disassembler`, `optimizer`, `mov-imm2` |
 | Graphics | `tile-engine`, `tile-store-hook`, `tile-clock`, `flash-assets`, `showcase-render` |
-| Games | `pacman`, `showcase-art`, `showcase-death`, `d16d-image`, `ui-d16d`, `slices-binary` |
+| Games | `pacman`, `frogger`, `showcase-art`, `showcase-death`, `d16d-image`, `ui-d16d`, `slices-binary` |
 | Cores | `cores`, `flags`, `shadow`, `wasm-state`, `smv-write` |
 | RTL | `rtl`, `rtl-uart`, `fuzz`, `ill-trap`, `segmented`, `nano-*` |
 | Software | `forth`, `boot-script`, `uart`, `uart-kernel`, `terminal`, `image`, `examples` |

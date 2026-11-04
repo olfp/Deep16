@@ -6,6 +6,8 @@ tags: [status, gaps, documentation, plans, roadmap, book, lila]
 sources:
   - id: openwiki-source-a28946850ce54d03e71935f2
     resource: repo://asm/forth_nano.asm
+  - id: openwiki-source-994b8d8fad4641d652ea31d4
+    resource: repo://asm/showcase/frogger_demo.asm
   - id: openwiki-source-a8e49bad3e0cb80eca5069d8
     resource: repo://asm/showcase/showcase.asm
   - id: openwiki-source-5a38679f1897efcf5329ca59
@@ -68,10 +70,10 @@ sources:
     resource: repo://VERSIONING.md
   - id: openwiki-source-8c5558aa55bcb63fa02bf537
     resource: repo://wasm/deep16-wasm/src/lib.rs
-generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+generated: { by: "opencode", at: "2026-11-04T16:08:29.597Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T15:30:01.509Z
+    at: 2026-11-04T16:08:29.597Z
 ---
 
 # Known Gaps, Documentation and Plans
@@ -158,7 +160,8 @@ Pac-Man is a type-4 config-flash slice loaded at segment `0x2000`, but the
 showcase menu's **P** entry still far-jumps to the old image address `0x4330`.
 From the Forth prompt `s" pacman" game-run` works; the menu needs the flash
 loader hookup (`game-load`/`call-far`). This is the main remaining showcase
-integration gap, not a game-logic gap.
+integration gap, not a game-logic gap. The **G** Frogger entry, by contrast,
+launches an image-resident backdrop and returns with **Q**.
 
 ### Per-core capability gaps
 
@@ -232,7 +235,7 @@ features; each states its own status:
 |---|---|---|
 | `TODO.md` | FiT scrolling integration | Open |
 | `SCROLLPLAN.md` | Four-direction FiT scrolling | In progress (RTL and terminal switched) |
-| `FROGPLAN.md` | Frogger on the tile engine | Plan, with a hardware update note |
+| `FROGPLAN.md` | Frogger on the tile engine | Backdrop demo implemented 4 Nov 2026; the game itself is still a plan |
 | `BIRDPLAN.md` | Visible flap and idle blink | Plan only, nothing implemented |
 | `TILESIM.md` | FiT graphics in the simulation | Implemented 1 Nov 2026; `TILESIM-IMPL.md` records the phases |
 | `SLIMPLAN.md` | Slimming the D16nano build | Design note with measured budget |

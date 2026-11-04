@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:23c5ad95432661706ba452c56ce436dc23a86b14eeea12ca78145b6e84f868e1",
+  "pageVersion": "sha256:55ba2ed385c2aca8697b85529c7522ddeb96c1640bfd059e59d9bfc16d2fbf21",
   "claims": [
     {
       "id": "claim_6d2c0c65a16b468b9c77462abdefe717",
@@ -74,15 +74,15 @@
     },
     {
       "id": "claim_d1688280c3aa4c61989ed2969bc9c317",
-      "statement": "make_image assembles forth.asm or forth_nano.asm, lays it into the 24K-word window with 0xFFFF fill, drops and reports out-of-window words, writes the flat/packed/flash images and manifest, and in the D16D path builds but does not bake the Pac-Man block.",
+      "statement": "make_image assembles forth.asm or forth_nano.asm, lays it into the 24K-word window with 0xFFFF fill, drops and reports out-of-window words, writes the flat/packed/flash images and manifest, builds but does not bake the Pac-Man block, and always bakes Frogger at 0x4350.",
       "evidence": [
         {
-          "resource": "repo://scripts/make_image.mjs#L330-L365",
-          "version": "repo-lines-v1:sha256:59cab20845f18eb2f59ea9620a9f6de5fe6aac1f770dc75a83ba8e9764bce70e:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUxYjZlMGM2ZTA5NDk0MGRkZGE1MzdiYTdhZWIxYjI5OTk0N2M3NmJhYTBlN2FlZDk4OWI1NmQ5OWIxNjY3N2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRhZWJmMDY4MmJlZjgwNTQ5MDVjMTA1OTNhMjY1MjcyMGVlNDFiNTliYmZlMmQ0NzcwMmYzYWZkZTUwOTVlM2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY4MjY4OWMyMzIxMTA5MjgwMTE5YzEwMmViMWZiM2FiMWM2NDk4ZjJkYzU1NGI0ZWNhZDg1NzVhYmUzNmYwNDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4ZWY2MTY4MTU4OGRhOGU0ODMxMmE5YWJmMzA3N2JiZDQ1YTBjMzU0YTQ2NmVkNDUwY2YyMjk3Mjk4NGNmNTUifQ"
+          "resource": "repo://scripts/make_image.mjs#L108-L185",
+          "version": "repo-lines-v1:sha256:40643c1defe2b130583e6abce3e8c6559de4a20468c21b40586fe9bdb61cd6fb:eyJzZWxlY3RlZExpbmVDb3VudCI6NzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJiMjEwZWFkNGQ2NGU3NzQzMjY2NmQyMDA1N2ZjYzk3OGE2MjE1ZjlmYzkxZDVmNmQyY2Q3YzA5ZDM3ZjVkZTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkZDgyYjliNjZlZGNkMDQ0NDUxYzY5MDRhMjJlNDk0NGRkNDhjZWFjOGUxOGQ3MWZkZGQyZjFjMzlmMmM4MzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVjYWFiNTc5NGYwMzllMTdkODY5ZGUzYzNhZmFiNTdiMjRmMjc5ZjhjYTEyZGIwZDViYjg1MjZhZGY4NjU5OWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE0MjU4N2FmZDE1NjM0NzUzYmM1ZTFjZGI2YjM0MDQ2MTYwNjIxMzNmNjNhMDU2MWE3MGEyYTZlODQ2NTQ2ZWIifQ"
         },
         {
-          "resource": "repo://scripts/make_image.mjs#L75-L130",
-          "version": "repo-lines-v1:sha256:0c36b647d871fbe505dc614ed2c6de04c22c06cd9a3fecf18928183823ae515c:eyJzZWxlY3RlZExpbmVDb3VudCI6NTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmYTBiNjM3NmM2NDc3ZGVkM2FkYTU0OGUwM2U0MmEyODIzZDc3OTZlZDZiZTIxMWEzNWRlZGE0MTlkMzQzZGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA3NDU1Y2ZlN2Q1OWViZTJiOTY3MDk5ODhkYzYyMWVkYWIxZmZkYjYxZDFkZTVkODM2NDYwNDMzYTRmOTk0OTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjODZmZmNiZTZmN2NhNjgzMjJkMDBkNzA0ZGRmMWI5ZjE2ZjliNTdjNDBiMmUxNDFkNjA3MTJhNDE3NDIzNDQifQ"
+          "resource": "repo://scripts/make_image.mjs#L315-L365",
+          "version": "repo-lines-v1:sha256:bc6d06e1cc1c0ce202583f3968322660056fd97991f35bcb15b59cb568b6e877:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2MzY0NmJkOTA3OTM4YTk2YWU2NTk3OTAyNmEwMDdiNmVhOWNkYWZjNzgyMWE3ZWRlNWNkZDRmNmU3ZTliMzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU2ZDI5YjFiYmNiZDhhMDcyYWE3NDVkYTdmMWIyYTBiMDlkZTdhYjkxZGQxNjhmOWU5MzM0MmZkZjhlMjFiNTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyNjQyN2MxMDQzZjAyNzI5MDdmNWU4ZDY0Y2IyOWNmNTQwNmNjZjhlNThhNGQ4YzRmNmU3YWZiOTdkMDA3YWEifQ"
         }
       ]
     },
@@ -91,7 +91,7 @@
       "statement": "The image generator also copies the DVI font and regenerates the tile font, bird sprite and PS/2 map, so those assets cannot drift from each other.",
       "evidence": [
         {
-          "resource": "repo://scripts/make_image.mjs#L381-L393",
+          "resource": "repo://scripts/make_image.mjs#L407-L419",
           "version": "repo-lines-v1:sha256:6aea9dc6de7ea8e4d5395227539faf7e16e41de2700c99147b8aa1acc8ee9f9e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViMTliODg3NWE0OWE2NWI1YTkzYjgyYzQ3NDA3ZjY2NWQxZjBkNTJjNTE0ZjFiY2Q5MzE4YWY2YTNhZDNjYWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ4MWJmNWY0NTE4NzYxZTJkMzgwNDk3MGRjYWYzODA4ZGI4NDUxYTM1NTY5NDM3YTU0MDRmYmQwNWIzNGUyM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkzMDdlMTI0MjgxZDA3MWJlNDVhYTA5ZjZmZDBhZTNjYzY1YjFiY2YxMGM0M2I4ZjYwZDYzNDdiYjliZWM5ODIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI1MmJkYjQ2NjRhZDU4M2E1NTljMmZjMTE1NDczMGU5MDA2ZjRlMzcxNzZiN2U3MmY0ODRkZjI2OTk4OWUyNzMifQ"
         }
       ]
@@ -105,7 +105,7 @@
           "version": "repo-lines-v1:sha256:20a9f60b7b19bea9327c4fce00e03dd66a5fabf913db68e2b8edc1ace11e16cc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4ZmM2MzM2NjdkMDMwMDczMWJkZDg0NDcyZGM0MjRlMWY5YzY0MTc1ZWEyYmFkYjY2NjQ3MmQ5MWFlYjRlZmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEwYTQyODg5OTM1MGE0ZTcwYjk5NTBhMTc0NTRmYzA2ZTAxYzAzNDZjOTE5MTkwNGQ0MGQxZDE2YmVlZTUyZTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5NDQxODA2NDgyNmNkZTg3NDcyNzYzMmEzMTY3MjY5M2UwYWJkY2NjYTZiZWRkNzhhNzMxODdkMTFjYzNhMzEifQ"
         },
         {
-          "resource": "repo://scripts/make_image.mjs#L407-L421",
+          "resource": "repo://scripts/make_image.mjs#L433-L447",
           "version": "repo-lines-v1:sha256:a57a47acd4b6b5bc2231c93c247ef5b6d8be01572ad8aa88c578fd7132ad172a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiNzlkYWViZjdmYTUxZTlhZWFkMzg2M2FjMzdmYmU2YjQ2YmMzYzViZTUwOTQ4MzlmYmFhOTMwYzJjNjZlYzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkODU0MzhmZWMwNTA2NmRkN2RlNzFlYWJiODU1YjdiYzRlNDlhYTE1MzQxNDdlNTI0Yjg3YmUwNzk5MjlhYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIzMTVjMDU2NGMxNDMyMTcwYTExNjE3ZmFkZGY1MjA0MTYyYmE0NWUwMzM2MmI3MzAxY2U3ZGY2ODhiYzRlZDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY1YTc1MmFjZjBkOWE5YWY5NGZlNjM4MTkxZDA0MGEzMzFmNGZiNmJkMWYyYTVlNzBkZjYyMzBiNDE5NTI1N2EifQ"
         }
       ]
@@ -268,19 +268,19 @@
     },
     {
       "id": "claim_794b30dc2062430ba7560625785b714e",
-      "statement": "The D16D game pipeline assembles the menu+Flappy block and the Pac-Man block, wraps Pac-Man as a type-4 slice at 0x20A000, and the headless renderer builds the image in memory, optionally bakes Pac-Man at 0x4330 and writes PNG frames.",
+      "statement": "The D16D game pipeline assembles the menu+Flappy block, the Pac-Man block and the Frogger backdrop, wraps Pac-Man as a type-4 slice at 0x20A000, and the headless renderer builds the image in memory, optionally bakes Pac-Man at 0x4330, always bakes Frogger at 0x4350 and writes PNG frames.",
       "evidence": [
         {
-          "resource": "repo://scripts/make_showcase.mjs#L72-L120",
-          "version": "repo-lines-v1:sha256:f8e6b8117cda7097b564e4cc1c87553d97eedc05a07ca6352cd9b83a58259bbd:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAyMjFhOGVlYzY0MmIwMjAyOTYxMjVkMzBhNTA2YTI2ZDNkM2QzMDAzYzE1YzlhZGEzNWE1NjdkZjIwMDZiZTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM5MTgxMjY4ZTAyZDcwNzMyZjg0NzUyMDY3MDZkMzcxZWU1ZTgwNjFkZTA1M2UwZWQ4ZmVhYmUzOTRlMDJlNDMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZkNDYwNWZhMmJkZmU1ZWY4YjUzZDQwYjg0MzkyMTg1YjkyZTViMmIzMThlNWMxOTFlZjRiNGIzMDQwNjJmNGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJiMDVhMGFkMzA2MzNhN2I5NGRkNmRlZjRjNGU1YjM2MGUxYmE0NjYzMGI4OWFmZGZjZTFlMjllNzBiYTAxZTAifQ"
+          "resource": "repo://scripts/make_showcase.mjs#L105-L150",
+          "version": "repo-lines-v1:sha256:71ee040ab00ecaeefe5beed40634a75b2fa3daf1cf04875dee7c578c35c83798:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhM2FjZWQwODk0YWE3Y2MyZWUzMDg2ZWQ3YmM4NjNmNWY3ZWI3M2FmOWI5YmM5YzliOWNiNzRiNWEyMDU3ZTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVkZmQxYzkzYWFjZTIzNjRlZWJmMDkxYjlhN2VlMWU1OGJmYWViMzZjYzk4NGQzNWFjNzhjMDIxYzg2MmRiNWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU5MzMyNThhYWJkYmIwODQ0YzhkZTFmYzYyMmRiZTllNzBlZmM0M2YwNjkxYWIwZjUxYWVmNjhiMWQ2NGM0NTIifQ"
         },
         {
           "resource": "repo://scripts/make_slices.mjs#L120-L160",
           "version": "repo-lines-v1:sha256:3aeea8497059600cd733a8a7ab6535521f752c7f7f18d8a67064bc2fd2d80ed0:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxZTQ0OGZiYjM2ZGZlMGU1YTA2MDJhYjYyZGZjYzQ5MzQ5YTViYzQ2ODk0OGFkYmY0YzJhZTQzY2U0MGVkYTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY0MDdmNGU3MGJkNjI1MTVjNzI1MzBlOGEyZjUwZGJlMjk2MDZmNTQ4ODU3YTgwOTg5ODU2Njg3MmU4ZWM2NjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU2ZmVmYTgwNGJhMmZkNGI3NTMyMDVhZWY3NGQ5MjU1OTUxZDM1ZGIzM2FmMmEyZTc3NzU2NDAwN2ZlMWZmNGQifQ"
         },
         {
-          "resource": "repo://scripts/render_tile.mjs#L70-L110",
-          "version": "repo-lines-v1:sha256:2043aad1ea4c85812153a2bd40390abc384d487f4b98b338d4e40b118df7d975:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiOWFkMWNlYmVmZTkyZGU2MzYwMjZhM2I1MDVhNDQ3NGVjYjg4ZTNmZmFmZTA1ZjUwZmE1ZGRlNmE0ZjFjN2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3MDNiYjRmNTVkY2NjODY1Y2RhZTI2NzljMmUzYWQ5MGVlNjM3MzZiOGJjYmQ4MzJlOTUzMjY5NGMyNGI4Y2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzY2ZjMWFlZjliNGZmMDliMzdkYmRkZTNiZGFjYjNhOTAxZTU0MWMwN2I1YjczZjczMzIxZjJhNWQzNTQxZjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwMjAwMjNiZWQyZWU0NWViZGU4NjcxZjgzY2NjNmVhYmQ0OGE0YzhmNzBjZjZkNzg1MzUwNDQ0MmM2MWJkZWIifQ"
+          "resource": "repo://scripts/render_tile.mjs#L50-L160",
+          "version": "repo-lines-v1:sha256:235183774a3f9cbc31e92932cd092dadf1dd3cff555c26cf2775b5b057c94395:eyJzZWxlY3RlZExpbmVDb3VudCI6MTExLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkOGUxNzU0Y2U5MzU0NThhMjIzOGI3NDI4YzhhMjMxYzEzMzE3MGIwZDQ4ZWEwZDk5ZjQ0NDMwNjNkNGYxZmFlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJhMTU4Yzg2MjdmNjkwZTc3MWMxMzNmNzExNmNiZjNkNTcwYzA2MmQ2Mzc0ZjI5MTlmYmQ3NWZlMWFmYTBkYmMyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3ZDAwMGFmNzFkNGQyMjUxYzQ0MWE3M2ZjMWQ3OTAzN2IzMjBkN2RlM2JhMzRhZjYzMmFiMzRhYzc4NTllNmViIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI1ZTVhNmRmN2Y5OWU0MTI4ZGYwMzIwYzdiY2Q2NDcwM2ZiZjFhNDEzYmI2ZmM2OTAyYjEwODEyYzNmZTU4NDUxIn0"
         }
       ]
     },
@@ -311,10 +311,46 @@
           "version": "repo-lines-v1:sha256:d606017327287ec0cae86977ef5be49c28a0b64f6b0052b67e822cde3cd55957:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjZmVhMDg2Mzk5MzY3YTE2ODY3NzUyNjM5OGU5NGU3Nzc1OTliY2NhZjI5MGE2MWEwNjllYjJjOWM5YTc4MDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNlMDJjMTYyZWZkM2JmOTEwZjI0MjZmNDU2MGYxM2FiMTRiZDRiZWEwOWMzZDgxZjU2ZWQ1NjFiOWRkYWRiMWYifQ"
         }
       ]
+    },
+    {
+      "id": "claim_3e1a7dda5cee43e8893ce348ace0a60c",
+      "statement": "buildFrogger assembles asm/showcase/frogger_demo.asm into a block below FROGGER_LIMIT 0x6B0 and checkFrogger requires state at offset 0x300; make_image rejects it if it starts inside the kernel or runs into the BIOS, and records it in the manifest.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/make_image.mjs#L170-L190",
+          "version": "repo-lines-v1:sha256:157a88530422035c5974daf96b220d4d27391399ef789f49990204deb21b0e6b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4MWJiODE5MDE2OGQ1NGM0NGIzYWNkNWQwMjE3ODJlYWI0ZGQ0NTlmNzUwMDk2ZDVkM2NiNDIxNzg4OTMyZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjYzMzOTVmMjkzOGVlMjM5MjQyNjI2MzMyMDhiYjViOTE5NDAzMGQxNTllNjhmNzMxMjlkMTY2NzhkODRiZmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg3Mjc3OGQ0ZjQ4ZjFiZDc1MDQ0ZGUxYTk4MmM1MjYwZWVhMjcwYzJmMzAyNmM4ZTc5NDRkYTllMWQ5M2JmMWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYwYmU0MTlkNjcyMTJiMmYxZTBlYWRhMDE1ODk3NzY2ZjNhZmMwZmEwZWM1MTFiZGYyYzA2MmFiYjUxZjUyM2IifQ"
+        },
+        {
+          "resource": "repo://scripts/make_image.mjs#L350-L365",
+          "version": "repo-lines-v1:sha256:91be1975c80fc24e7e6390a1252efa0ce1e63bb4ced2b44b0431816f3bf2f62b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyYWFkNDMxYjcxMTE5M2I3ODY2YzEyNTk4ZWYxZDk4Y2FjMWUwODBmM2RiMmU5M2YxNDRhNDY1MjJjNTYyNDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2MzY0NmJkOTA3OTM4YTk2YWU2NTk3OTAyNmEwMDdiNmVhOWNkYWZjNzgyMWE3ZWRlNWNkZDRmNmU3ZTliMzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5NmUzOTc3ODI4ZjIzMmZjZDlmODU4NGU3NDhlY2VkNDUzMTE2MTJjMDgxY2EzMjYyMzEwMDU2YzQ1MWVlNjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyNjQyN2MxMDQzZjAyNzI5MDdmNWU4ZDY0Y2IyOWNmNTQwNmNjZjhlNThhNGQ4YzRmNmU3YWZiOTdkMDA3YWEifQ"
+        },
+        {
+          "resource": "repo://scripts/make_showcase.mjs#L105-L150",
+          "version": "repo-lines-v1:sha256:71ee040ab00ecaeefe5beed40634a75b2fa3daf1cf04875dee7c578c35c83798:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhM2FjZWQwODk0YWE3Y2MyZWUzMDg2ZWQ3YmM4NjNmNWY3ZWI3M2FmOWI5YmM5YzliOWNiNzRiNWEyMDU3ZTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVkZmQxYzkzYWFjZTIzNjRlZWJmMDkxYjlhN2VlMWU1OGJmYWViMzZjYzk4NGQzNWFjNzhjMDIxYzg2MmRiNWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU5MzMyNThhYWJkYmIwODQ0YzhkZTFmYzYyMmRiZTllNzBlZmM0M2YwNjkxYWIwZjUxYWVmNjhiMWQ2NGM0NTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_813e51ebbd06460b8ced89019d057689",
+      "statement": "The Frogger render scene boots at CS=DS=0x0435 with 200,000 warmup steps, and tests/frogger.test.js plus the render/image suites pin the lane motion, Q return and 0x4350 placement.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/render_tile.mjs#L95-L160",
+          "version": "repo-lines-v1:sha256:c74a48bb7b17975329ad1754e76630c5d71d3a3e2cf67549e454f0b90478d7ac:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxYmEzMzc2ZjA4ZDljODg1OTNkODg4ZGZkZDUwMGIzN2JiZGM5YzQzODcyNjlhZWMzNjUxYzhmYzY0MjMzNTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExNThjODYyN2Y2OTBlNzcxYzEzM2Y3MTE2Y2JmM2Q1NzBjMDYyZDYzNzRmMjkxOWZiZDc1ZmUxYWZhMGRiYzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE1NjMwYTE4ZTFmNTNlYzA2ZDE1NzM0NWQ3ZTY0MDVmMDNhODVjODM3MzNhNTBmOGE3NGY1Y2ViODM3YTc5NDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVlNWE2ZGY3Zjk5ZTQxMjhkZjAzMjBjN2JjZDY0NzAzZmJmMWE0MTNiYjZmYzY5MDJiMTA4MTJjM2ZlNTg0NTEifQ"
+        },
+        {
+          "resource": "repo://tests/frogger.test.js#L1-L115",
+          "version": "repo-lines-v1:sha256:0543231b18a746864dedc59901aeb73ff2722ec1f56e71f64aadfabf59be5c1d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE1LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkYThmMjcxYTNjN2JlYTM3ZmJiZjAxOTYyOTQ1NjYxMTk2YWU5YzMzZTcyMDUwMTIzYTU4Mjc0MWJkZGQ2YTJlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJmNmY1YjQwYjE1ODQ1N2QxNzg2NGYyMTc5MDc4NmRkNWEyZWNkYjY0YjY2YTY1MWY3ODhkNGUyNWNkMzMwM2QyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        },
+        {
+          "resource": "repo://tests/showcase-render.test.js#L1-L30",
+          "version": "repo-lines-v1:sha256:5be0decc9bdeed57a754274c22799823c2bdb09612509eb5b3ab3bf1893f7392:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjZTc3NzFkODUwYThhNWY4OTcwZDcyN2E4ZTkzY2M4MDBkNmExN2Y0YmMyZWM1ODU3Zjg3YmNiNjQ5ZGJkZmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2MDAzZGE3NjY2MDQ5ZGU2NTI5NWZkNTRhZGMyMDU2MjgyOWQ3YWEzOWM5NjUzNjNkOGJlNzhlMTU0MjMzMTEifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.7.3",
-    "at": "2026-11-04T15:30:01.509Z"
+    "at": "2026-11-04T16:08:29.597Z"
   }
 }

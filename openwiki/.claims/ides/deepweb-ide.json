@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:757d09d51cb780bdcb5cdb4121c67c90311a3337d382e5170284abe7baa17d7a",
+  "pageVersion": "sha256:05e3c8513e1c442d7f29e7f0d7cfcc83d295803e138d13416584289affd46917",
   "claims": [
     {
       "id": "claim_8988dba6cb604aecbb2870703751773d",
@@ -35,7 +35,7 @@
           "version": "repo-lines-v1:sha256:947319600e4cd655fe2578d63ac2721a6b8fbd8246631c4b2a7e9ba9e1df4071:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjYjFiODNlNGRlZWEzYzNkZTZlNDAyYjNjZGI1Y2Y1ZDE0N2MzZmU5NGNmNTQ1MmQyNDdjNDBkNzRjMTJiMWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhNDE3Mjg0NDJmNTZhZmUzY2RhNGM3MDE1NDE2OWJhNDBlMGU0OTQ5MmExZWNjNmZlZjUwODg1YjhjMzRiMGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAyZjFiMGRhMmMxYzA1NDcxMzc2OGQ2Y2NmOGRlZWE4YWU3YmEwZGE4NDI4OTkxNWMxZWMyOGI4Mzc4MDQ3MDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1ZDgzMmM1MzRhZTkyZGUyNjQ2MTE1ZTI3MTExNWJiMTBmMWRiMWIwNWJjYTM0MjczNjVmYzRjMGRjZWIwZDkifQ"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L3878-L3883",
+          "resource": "repo://js/deep16_ui_core.js#L3881-L3886",
           "version": "repo-lines-v1:sha256:c625d6a746b65fd4f6a52489afebd6787bc2bb9c009a6eb0d5c96600827f8047:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmQwNmExM2QwNzJmY2UyNTNlOGJhZjUzZWM4ZmVhNDk4MTQxMjliZjA5OTYwOGZlNjcyNjBjYjA0ZWZiZmRhOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjZmNWI0MGIxNTg0NTdkMTc4NjRmMjE3OTA3ODZkZDVhMmVjZGI2NGI2NmE2NTFmNzg4ZDRlMjVjZDMzMDNkMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTExOGVhMDQyODZkNGU2M2JjYmI0ZTcwMTg4MDk1OTlkNmE3YTRjMWNlYTAzNDc5Yzk4NzNmYTAxZTEyYmU2MiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
         }
       ]
@@ -73,7 +73,7 @@
       "statement": "Switching cores mirrors state rather than resetting: syncStateIntoCore calls init, load_program, set_segments, set_psw and set_registers in that order, with PSW before registers because set_registers resolves element 15 through PSW.S.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L2966-L2994",
+          "resource": "repo://js/deep16_ui_core.js#L2967-L2995",
           "version": "repo-lines-v1:sha256:2a5bec3ebfa10c1fec80dd049fe036916f0fa4960f8e0f612248fd1c8beb5abf:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5N2MzODFlYjlmZGM4ZmRkMDk2MjUzZDJlYjFjMWM4OWVkM2NmYTI2ZTU4NTk0Mzc4NjUwOTllZDlmMTgzZWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0NTFkYjdkYjhjMDdmYjlkY2VjNTFlNGZiNTdjYWQyNTQ4YTY5NjMyZWJmYzFjN2ZhYTJhZTYwODVlMjI3MzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyYjQwN2JhYWFlYWMwMjAxZTZkYTk4YzlhY2ZhYjEwNTE3M2NlZjYxNThiNTA4MjZjOTE5NDQ0ZTkwZmFkNDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNiZTIwMDlmN2EzNTFkMmJlNTZiMTk5MzY3ZTUzMzMxZTBiNWRkYzUxMTdjZTIyYmFlZTMyODM1OTk1NmM4OWIifQ"
         }
       ]
@@ -83,11 +83,11 @@
       "statement": "run() calls ensureTerminalCore first and, in terminal mode, assembles the editor text when it differs from the last assembled source so Run cannot execute a stale image.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L2487-L2510",
+          "resource": "repo://js/deep16_ui_core.js#L2488-L2511",
           "version": "repo-lines-v1:sha256:9f40f17c8135aef63bcc0d73da4f0d2577bce4906f898c4b7bbd838ec2931a45:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxODY5Y2RlMTAzZWIzNmRlZTU4MTc1M2U1NzcxOWZjOTU4NjIwZDZhZDViN2FjOGE1MDRjNTdlOWEyMGRmZWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg2OTgyNTE3OTI0ZmU4ZDNlMTU2NjcxMTViMWY1YTIwMThlMGQ1NWNlNWEwMDFiMWUyZDVlMzFiOGIyNDEyMmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYxMDQ4YzkwZmU0MzM2Y2M3MmFmZjRjNjcwYjNiYmM3NzU0N2M4YTBlYjAwOTRkNTcwODdiNmUwMjY0YWY2ZmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdkZDk0NTc0ODRkMjc5M2YwM2ZjY2Y1OWE2YzJmZmFkODQ1ODMxNjhlZTc0MTVlNDVlYWEwZDhlYmQzOGYwMjQifQ"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L526-L536",
+          "resource": "repo://js/deep16_ui_core.js#L527-L537",
           "version": "repo-lines-v1:sha256:4b7eef3c135e37fae595d0a63a3eda304df34116d0813c3c9d20fda6ebe6db9c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZmNTdiMmJjODMzZTE4YzNiYTU4NTQxNTY3NDBiMjdlOTBhZjBlNDM4NTY3MTY4N2M1NTM0MzRkNTdlMjQ1ZDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRiOWY0NzkyYTJjNzdjYzQ4NDk1NzU5NWQxYTZhMTdhODI0OWQwMjVjNGVlNGVmNzhhMDk0M2JmMzMxMmQ0NDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhjYjY0YjI1NDM0MzA4MGU5YjIwNWFjZDdkNDc1N2MyNWM4N2ZhMWVkNzUzMjcxMTc4Y2E3N2U4ZWVmNDJjNDIifQ"
         }
       ]
@@ -97,15 +97,15 @@
       "statement": "Both run loops use a 10 ms setInterval and instructionsPerTick(): 200 steps in screen/terminal mode and 6,000 in Tiles mode; a separate 60 Hz tile clock sets the display status and ticks the engine, and neither loop uses requestAnimationFrame or a worker.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L2549-L2575",
+          "resource": "repo://js/deep16_ui_core.js#L2550-L2576",
           "version": "repo-lines-v1:sha256:ff050f547c82d8f502b437df9afb88a3a6acec11d126a4f5b6474768498a5589:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1NzMwMDczYWFmYmE3YjQyNTcwM2Q0NDZlOTcxNjdiMzY0NDdiOWUwYjM3YzQ4NDJkOTFmYzIyZWJiY2QxM2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3ZGEwMmY4ZDIwYzdjODAzMjVmNzdhM2EzNWZiNGZhMDMyMzkzNDZkMjNjMjc2YjYwZmMxMzM2MjBjYTBjMTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAxMDlmZmY1ZDI3YjgyOTQ4MzI5ZGQ1ZWY1MzUyMzY0YzdlYjhhYjgwNTQwZmZjYzliZDNhM2IxYWFlZDMyMGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVjM2RlZGQ0MWNmMDJmZmQ3ZDVlZWE4NDc1MTgwNGJlNzlhNDA4NjdmMTg2OGVlMjE4ZWVhY2M3OTk4NGViYTQifQ"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L482-L490",
+          "resource": "repo://js/deep16_ui_core.js#L483-L491",
           "version": "repo-lines-v1:sha256:25dac15a522ff4590c0c81bb7c6b1bdd81a32747ead2a75a7ddf7c5d6c18b29c:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODUzNWVjYTg3MTAyYzA3ZDg0NWY2MzM2NGI4NzlmYzYxM2IzZjg4NTlhNDhiMDVjNDczMzE2ZmE0ZWE3MGYyYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTZiMDQ0OTE0Njk3MjJlODM2M2E5NGU0MDQ0NTM4ZTAxM2EyYTIxN2UzNmIxZTU2OGJhNjBhY2I3YjRjOGYyZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTIyODdjYTRlYzkwZjlhODU2ZGFiODI0ZmEyM2Y5OGY4OGYwNzBlMWRkYmYzNzk0MjlmNDJmMWM3ZTQ4ZjFmNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGE0YTVmOWVjNDQ3NGZiM2RhMTczMGFjNzIxYzQ3OWE1M2FjNWY5YWRhY2RiMzIyZTBkZTI5MGJhYzM4YjY2NiJ9"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L518-L520",
+          "resource": "repo://js/deep16_ui_core.js#L519-L521",
           "version": "repo-lines-v1:sha256:9483ddf244ab434d806a30734fbc7a1050005da632e6d7b1644abfd6d23eb2c5:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjc2MjhlOTg2OGY5MWQ2OTU5ZDQ1Y2VjMjA5ZThiNjA2ODg1YTI2MWZhZjIxNzJjZDQ4NjFhYzJkYWM1ZTBiMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDg5M2Y0MGUzNzgxZWI4OTZjODJkMDQ2YTA4MDY3YTExZTM1Y2RmMmYxZGZhZjI2ZmVhOTBiOGRiNjY3NjQxMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmNiMmJiMjdiNjIwNzgwYzQzNjNhMWRjNGI5OTFlM2ZmZTdjYmM5NmQ2MDY2OTZlY2YwNzE1OTkwNWE3MzJlNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmFiNjUxYWQzNWNkYWJjN2QzMDYwNjk0OTVjOTIwYzgzYjBjZDU4YTU2YzA5ZDBkZDAyZjRlYTNlMWE0OTUwYSJ9"
         }
       ]
@@ -115,11 +115,11 @@
       "statement": "Both loops compute the physical CS:PC before each instruction and stop when it matches a breakpoint, resuming by stepping over the breakpoint once.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L2550-L2575",
+          "resource": "repo://js/deep16_ui_core.js#L2551-L2576",
           "version": "repo-lines-v1:sha256:18df49e890cb919070673dcb69843b6f7f8ba19f948a2ff590c9193892ec3226:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUyZWVhYWU0MTc1ODMxMTA4NGNjZjMzZjBhYWFmY2Q3OTIwMDYxYjBmMmRmYjliMTYyYmU3YzcyMjg0YWNmM2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3ZGEwMmY4ZDIwYzdjODAzMjVmNzdhM2EzNWZiNGZhMDMyMzkzNDZkMjNjMjc2YjYwZmMxMzM2MjBjYTBjMTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk1ZjY4NzEzNTk5Mjg2NDk2ZGM2NTVkM2MwOTk4ODRkMjI3NGU0Zjg3ZDY5Y2M4NTczZjkwOTQ3OTAxNWVmNzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVjM2RlZGQ0MWNmMDJmZmQ3ZDVlZWE4NDc1MTgwNGJlNzlhNDA4NjdmMTg2OGVlMjE4ZWVhY2M3OTk4NGViYTQifQ"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L3095-L3140",
+          "resource": "repo://js/deep16_ui_core.js#L3096-L3141",
           "version": "repo-lines-v1:sha256:463324fd261d14d1fb578706ad4be05aa8a8370d44ab3c13e799426e52baf924:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1NWM5YzdkZGQ5NmYwNGExZjVkMTUzYmEzZWIwNDljMjUwMTMzMzZiOTU4OTRhOWMzYTExOTUzNTA3OTk5MDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwM2ZlODAyM2YwZWZlYjUyZGRiOTQ3MTE0ZWNmMjllZTEyZWVlODM3MTU2NTBmNTRhMzg4Nzg3NmI3OGJkNWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYzOGZlY2JhZWIxOTczODhjOGI2YzA0NThlY2EwMjlmNWE4MzcxZDYyNmI2NWYxZjVmMjgwNDkxYzc5OWQ2YTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ2NDM1ZGU5MDcyYzg4YzljNjU4YTQ5ZTY1ZmYyZTUyYWFhNjhiZTYzM2I4MjNmOTU0YjYwY2M4M2E3YTNhY2IifQ"
         }
       ]
@@ -129,7 +129,7 @@
       "statement": "The compiled-core loop reads back each observed store with get_recent_access and get_memory_word, writes it into simulator.memory, routes screen-memory writes to the screen panel, and tracks a dirty address range.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L3095-L3140",
+          "resource": "repo://js/deep16_ui_core.js#L3096-L3141",
           "version": "repo-lines-v1:sha256:463324fd261d14d1fb578706ad4be05aa8a8370d44ab3c13e799426e52baf924:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1NWM5YzdkZGQ5NmYwNGExZjVkMTUzYmEzZWIwNDljMjUwMTMzMzZiOTU4OTRhOWMzYTExOTUzNTA3OTk5MDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwM2ZlODAyM2YwZWZlYjUyZGRiOTQ3MTE0ZWNmMjllZTEyZWVlODM3MTU2NTBmNTRhMzg4Nzg3NmI3OGJkNWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYzOGZlY2JhZWIxOTczODhjOGI2YzA0NThlY2EwMjlmNWE4MzcxZDYyNmI2NWYxZjVmMjgwNDkxYzc5OWQ2YTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ2NDM1ZGU5MDcyYzg4YzljNjU4YTQ5ZTY1ZmYyZTUyYWFhNjhiZTYzM2I4MjNmOTU0YjYwY2M4M2E3YTNhY2IifQ"
         }
       ]
@@ -139,7 +139,7 @@
       "statement": "step() executes one instruction on the active core, resolves the shadow PC when PSW.S is set, recentres the 64-word memory window, and forces running on so a step works after a halt.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L2697-L2730",
+          "resource": "repo://js/deep16_ui_core.js#L2698-L2731",
           "version": "repo-lines-v1:sha256:95de653600107fd68196673b0dda5ef9322cbba27f14d9d35352e55a2357e116:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkNThhYjA3MDQ1YmM5ODZkZjBjZWEzMjI0NjUzZTI0YWRlMzFhOWJjMjE4MTg4OGFmYjAyYjBmMjFmMjBkZTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ4MTlhOTViNDA4NTRjODdhZjNhMmNlZjk4NTQwMmE5N2VmMjE4OTdmYjcxODI5ZjE5NWI2OGNkZjUxZTM1YmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5OWJkZWZlZWFjYTYzNDBlMDI5MGRjODZlODg5Yzg5ZDVlMTg5YWE1YmE0NGI1ODViM2I3MDczNGY0YTYyZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAyMjI4NTUwODQ5OTc5NGFlNWJhODZlYjg2NjJkMGFlMjFjYTY1YjljZGNmNDQ4ODdkMTAwOTQ1YzM0OGZjOGIifQ"
         }
       ]
@@ -149,7 +149,7 @@
       "statement": "reset() clears the run interval, cancels an in-flight file upload, resets both the active core and the JS simulator, restores the shipped image, re-reads the echo flag and recentres on the reset PC.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L3034-L3075",
+          "resource": "repo://js/deep16_ui_core.js#L3035-L3076",
           "version": "repo-lines-v1:sha256:5cb2c9abfda2332c4863fbd97ffdfaa682d2361697cc4c991eb3cedaa77dd4bf:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjN2MwMmYyNDdhZWFmZGIxOWY1MDAwNmM0ODg5NmMyYzJhZmQ1NmQzM2RiOWVjN2M3ZTA5MGRhN2I2MjY4ZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmNjY0ZjE0ZmFlMmM0MTU4OWI3OTBlODYwNDhlMjZjYmQ1ZTU0MGZiYWEzMzVkZGU2ZTlhMTZlOGIyOWNhZmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5OWJkZWZlZWFjYTYzNDBlMDI5MGRjODZlODg5Yzg5ZDVlMTg5YWE1YmE0NGI1ODViM2I3MDczNGY0YTYyZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUxMDI3NTZlMGI0MWZiMGUwMGU2YTFkZjIzMjczMDZiYjYwZTI1MmQ5MGY0ODcwYWYyMzM5YzNkMzU3YmFhNDcifQ"
         }
       ]
@@ -235,11 +235,11 @@
       "statement": "The Trace button is one gate for panel updates: with trace off, updateAllDisplays drains the UART and returns, so the machine and terminal keep running while registers, memory and screen stop redrawing.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L2447-L2461",
+          "resource": "repo://js/deep16_ui_core.js#L2448-L2462",
           "version": "repo-lines-v1:sha256:99f4d5260bb4d2672833d5efa1ef9ba60ec337590433227f616327adad2263ad:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYzMDA4ZDFmYmZlMDFhMjMxYWMyZDI1MmMwMzBkMDUyYmYyYTY3NjVmNTliZWIyM2VjZjk1MGFhYWY2MmM3OTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyZThhMWU2MmRiZGI2MzYwYjhjNGYzZjkyMWQwMmJiOTBhZWNkMjA5MzQ1NGQ5MDA3ZjMxOWEzNDMxMWJiNzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5OWJkZWZlZWFjYTYzNDBlMDI5MGRjODZlODg5Yzg5ZDVlMTg5YWE1YmE0NGI1ODViM2I3MDczNGY0YTYyZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiZjUxYmI0YmM4ZTEyNTdiNmJiZmFlZjM5YzcxZWQ1MWQxMTJiMzQzYjM5ZWNiMjM4YTQxMTcyYTQ0ZDM5NDQifQ"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L862-L898",
+          "resource": "repo://js/deep16_ui_core.js#L863-L899",
           "version": "repo-lines-v1:sha256:72854cbed89906c02f2f8d8d309876019c43cb557837166a1bcdb51bebc03886:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjMDY2MmI0ZGE2MzQzNWFhZTRiNjg4MjA3YTExNzYwNjNhYzE1NTNmNGE3N2ZhODhiNThjMTFlOTYwOGQ0YTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJkMGUwZTU4NTFmMWYwNzNiYTk0NjY4OTBmNWZlOGMzY2UyNGJlYThhMjVhYzE4NjJkYzJmYTJmY2EyZDdiNzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3NjQ1NmIwMWEwOWYyNmI4MDQ5ZDE1OTFhODFkZTdmZDU3OGMxODQwNWI1MWU4YjNmZjA2NzE5ZjAwNGRkOTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmYzU1YjAyZjFiYmQ1YWExNTA1N2RiZmU0ZGU0MmRlMTU0OWYzYWYwMzczMzI0M2U2NzE5MGRhMDJiMTU4MzMifQ"
         }
       ]
@@ -249,11 +249,11 @@
       "statement": "One persisted console mode (deep16_console) selects screen, terminal or tiles; it changes the assembler defines, what the Screen tab shows and where input goes, and toggling it rebuilds the editor source.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L386-L430",
-          "version": "repo-lines-v1:sha256:073f03b9f8e58dda8bac4ea6a8ae09cff2ccfa082984164ccbd85545349cd37a:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlMGFlMDUwNjZkZDBkYzY4Zjg2ZTU1ZjQ1MjAyZTgwOTEyNDBlY2I1ZGQxYmY2NjRlZjdlZTA3YTM5YjgwNmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiMTE1NDQwMWUzZjM4ZDIwZjFiMDRiNjZmNDBhMTBiZTc0YmMwOTI4NjM3YmZlODIyOGZiNDc5ZjQ3MzM1NTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjExYWNkYTU0YTc1YTU5NzZmMzFmY2Y3MTE3N2ZkODA0MWIxMjZiN2UwMzU3ODRkY2E4ZmUxMGM1M2Y3MzVhNWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0NDQwOTFiNGRiNjNiYTc3YTNkZTQ5NTY0ZjVkOWEwNTBkY2JhODE1MmI1M2E5M2EwZjE0ZjA0ZWVhMTFiZDYifQ"
+          "resource": "repo://js/deep16_ui_core.js#L386-L431",
+          "version": "repo-lines-v1:sha256:e37374a3633b9c1d557ceae250b5cd796e5c581827d5908015199fa1d4300993:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlMGFlMDUwNjZkZDBkYzY4Zjg2ZTU1ZjQ1MjAyZTgwOTEyNDBlY2I1ZGQxYmY2NjRlZjdlZTA3YTM5YjgwNmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiMTE1NDQwMWUzZjM4ZDIwZjFiMDRiNjZmNDBhMTBiZTc0YmMwOTI4NjM3YmZlODIyOGZiNDc5ZjQ3MzM1NTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjExYWNkYTU0YTc1YTU5NzZmMzFmY2Y3MTE3N2ZkODA0MWIxMjZiN2UwMzU3ODRkY2E4ZmUxMGM1M2Y3MzVhNWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0NDQwOTFiNGRiNjNiYTc3YTNkZTQ5NTY0ZjVkOWEwNTBkY2JhODE1MmI1M2E5M2EwZjE0ZjA0ZWVhMTFiZDYifQ"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L537-L600",
+          "resource": "repo://js/deep16_ui_core.js#L538-L601",
           "version": "repo-lines-v1:sha256:ed2f6b2a38c70daac42da6b3d444c1126e2acdd894ce40a9ccfb00085d621018:eyJzZWxlY3RlZExpbmVDb3VudCI6NjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQxYWEyMDg5OWNlNzA3MjMwNTk3ZDk3NzJhZTQ4OWY4MjUxNzFhZTBlYzA5Mzc1MDdlMTRlNDMwOWRlYTA2MDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmZWQzZDFlYjkwYTE3MzFkOGU4YzQzZDNlYjdkYWU3NTFjNjNhNDJiMDIxNDlkMTRmMTI3YWE0N2JmM2M0MWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBlYmJhMWUyYjE2NDI1NWZkNDAwNTI4M2M2MTQ1ZGYxMzE2ZWRhOTNhZGRlNjAzNTBmNWI5NWE0YjFhMjY3M2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUyY2I2MjQxNWY5NjdmZjEwNjhlNDQ1YmU2MGQ0Yzc4ZDZmZTZmYmQyMDU4OGE1NTJmNzliOTNmMzRhYWIzMDQifQ"
         }
       ]
@@ -263,11 +263,11 @@
       "statement": "File loading and saving use the File System Access API with a hidden file input and download-link fallback, keeping the file handle so Save writes in place and Save As replaces it.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L1228-L1276",
+          "resource": "repo://js/deep16_ui_core.js#L1229-L1277",
           "version": "repo-lines-v1:sha256:40bad8f97a53fb2b0887ce6fd42f28bb9ec7280e5f7b6abcee8c8f1063e4b1c5:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5YWFhMWM1Yzg5MTAyM2JlMmRmNzk5NjA3ZDJjYzI4Nzk0NTE5MWUwNDY5NTcxYzJlYTg1MDgyMTQ3MjUyZTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3NjIxMzEyMTVmOGQ2NzJmMGU2NDA4YjJmOThiZmUzZWRiNGNkMDQyYTA3OTM1MDYwZjY3YzJkZGRjZjBjZTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVlN2ZhN2RhNTNiY2M5Y2ViNzA5MjdkMDY5MzM5MGJkYWY1ZDU3N2U2MmY3ZGJjM2U1ODlkMGQ2NjcyMWFkMzgifQ"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L1314-L1348",
+          "resource": "repo://js/deep16_ui_core.js#L1315-L1349",
           "version": "repo-lines-v1:sha256:070fccd81533818a7e078b1e4ae8a980c5b8f10cba5d2a98938111c0a47a55b1:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE5ODVmMGUyNjZkZjgxZDU5ZTE3NjgzMTllYjZkZjQwMTc3MzdiYjRiZGQzMDZjZmMyMGUwNmIwZDM3Y2ZhMDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5YzRlNzE1MmI5ZGI0ZjBjZTJjMTc3YmQ1NDQzMTlkNTUzYmVkMjE0ZTFjYjY2MmVjMGU1NDY4NzQ1MzlkNGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA2OGI3NmZjYTZhZDQwNzU3MzZjMTE0NDlmNzM1YjZjN2M1MjcxZjczOWEwOTAxNDJlZWYxYTI3MWMzNjA3YzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVlZWNhNWE3NDg1MDlhZTU1NmYwNzQ2YmFkNzVhMjQxOGE5MTA1MGMxOTc2ZmJkMWRmMGRmYWQ4MjI1NDJjNGIifQ"
         }
       ]
@@ -277,22 +277,22 @@
       "statement": "A .fth or .forth file is not opened in the editor but queued as keystrokes for the running kernel, with the check in code because iOS Safari does not enforce the dialog accept list.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L738-L758",
+          "resource": "repo://js/deep16_ui_core.js#L739-L759",
           "version": "repo-lines-v1:sha256:f49f612852ef1a685347970e052d0a9676ffcc3ecae5940e14666a0d6dce0f7c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxZTI0ZWRhMzMyMGEwMzE0YzcxZGZiMzRjZmU3YTdiNzM2ZmFiM2Y0MzAyNzczZGUyYjhmNGIzMWM3NDQ2NGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhkZDY5N2I4MjFmMTQyOTExM2Y2ZThmNTk4ZDY2MzY4Nzg2Y2Q3OGIyNWI1NTQ4OTExMGIyMmNkNzA0Mjc2ZGYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE5MjQwNmU5OTAxNjBiNTQyMTc1NDIyYmJkN2VmYTZhZmE3YWFmNjhjYTIxNzRmNzAzZTg0NWU0MWY0Mzg0MjkifQ"
         }
       ]
     },
     {
       "id": "claim_81b0856c16864d618704270158f6218d",
-      "statement": "Examples come from asm/examples.json, are grouped by category, and are fetched from asm/<filename> with cache no-store; loading one fills the editor and switches to the Editor tab, and the D16D entry also fetches the showcase, Flappy and Pac-Man sources.",
+      "statement": "Examples come from asm/examples.json, are grouped by category, and are fetched from asm/<filename> with cache no-store; loading one fills the editor and switches to the Editor tab, and the D16D entry also fetches the showcase, Flappy, Pac-Man and Frogger sources.",
       "evidence": [
         {
           "resource": "repo://js/deep16_ui_core.js#L3640-L3665",
-          "version": "repo-lines-v1:sha256:1c55f656ba4a7f0530ed3a75da211f0c6584e38cb965bfd0af831716c21cff77:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE0ZDRlM2Y1YTFkYTJlNmM4MzRmNzA4YjE3NWNhZjU5Y2JjZTE0NDcwMDQzZjRhNDhkZDQwNWVlODYyZDVhYTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU0MmFlNThmMjJkMjQwZGY4ZmE1NzQ5YjIzMmE4YzQzNmJmYjgyZmJkMTY1NGNjYzQzNDg2ZDgwNTlkMzRiMWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ2MTllMDE1ZjZkZjdmZWYyZTdiMDRiMzQxYjBmYjhhZTkwZWE1YzRiNDY2ZDBmYzExYTBiOTE0ZTk3N2MxMGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJjNTNjZTQ5YWZjNzhjMGY3ZWJhMGY1NzhlM2IwZjI2MzhlNzBjN2QwOWI2N2JkOTFiN2RmZTdlZjQ0YTFhYmQifQ"
+          "version": "repo-lines-v1:sha256:b72cfc8a0411925d0032d05c3d93959b0407d5dea099b168d8cd68fa8c2a9386:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhNjUxYjg3MmMwZmJjNzM4MGU3MDJhNzA1ODc4MTk0OWU0ZThmZjk3Yjg5NTRlOWFlMjAwYWVjMDRiYzM3ZDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYzNmE5ZjQ0YzM3MzlkYjBmMzA1YTc3ODJkZjI2ZDBlNWFlZWNiMDU1MjY2NzhjMjE1ZDA3NTEwYWMyMzExZWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdmMGI3NmUyYzBkYWI0ODAyOWJmZTEzZTNlZTdhZGJiNzhhMjM5MzFhNjEwZDk3Y2E1Yzg2YjE2ODdiMDE1NjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2OGU1MjI5Yzc1M2I3MDQ1MzA1ZjVkNDBlYTU4MGZiYWI5Zjk4ZDYzMjRlZDVkMTIzN2ZiZjBkODIzYjdmZjAifQ"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L3835-L3860",
-          "version": "repo-lines-v1:sha256:a75367703674a65a133ccd8765d1e525547b5cb165254ab8cfde719b3bfa4033:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjZmIxN2Y2MzNiN2Q2MmQyMjk4NDM5OTRiNzBiNmUzNDRhNTM5M2ZlYTYxNDBmNGE4NzFiMTE2OTE4ODBhMzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4ZWE0M2Q1NTNmYWVkYTdlNGNkMmZjOGJmNGM4Mjc1ODg1Y2M4ZDY1ZTAyMDlkZWE1MDc2NjVmM2JkMGZmNDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYwMDcyYzY5ZTg4NmY4NDdiYzNiZGJiZTkwMzQxZjIxMzgyYTliMjllZmQ2ZGM5ZWVjOTBlMTU5ZWJkOTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFmMDg3ZGI3ZjQ5NGNmNWQ4OWNmZjc0ODIxODU4YjcyYWY5ZjQ0ODEwZWEwMTE1Y2JjNzZkOGMyMzUxYTMzMzkifQ"
+          "resource": "repo://js/deep16_ui_core.js#L3840-L3860",
+          "version": "repo-lines-v1:sha256:83510ee2941d095b86761e18292c2604f724ec6a6604c10d9da4dda1145ee398:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1Yzc2NzUxZjYxYjQxYzg4MTE0ZGZiYzdiMzZhOThjM2EwYmRlOWU5NjNhZjQxZTE4NmQ0OWIyYjA3OWM0MGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhlMmVjYTcwZDk0ZjQ1ZTMwYWJjNzkzNzljNTBlNTQzYmQ4MjhlYmVjM2Y4OGI1YzRmYmEyNDVlMWFlZDM5MDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEwYzllMDk0NjZhNzYxMjllODk0YjNjNmNlZDJmZGQ3MmNmNjQ2ZDA3NWRiYzY4MTBjN2ZjMTk1ZTlhNjNiMjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY2YTI3Y2Q4MWQ1OGRmYTFmODNjZWNhNmM4ZmJkNTUzM2I2NTNlODM2NDRlY2Q3OGMyYjM5ZmE5ZjI2NmRhZjkifQ"
         }
       ]
     },
@@ -301,11 +301,11 @@
       "statement": "The Docs menu fetches doc/Deep16-Arch.md, FORTH.md or doc/User-man.md and renders it in an overlay with a built-in Markdown renderer, closing on Escape or an outside click.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L1559-L1566",
+          "resource": "repo://js/deep16_ui_core.js#L1560-L1567",
           "version": "repo-lines-v1:sha256:fe646b02134d1de33b9f7a448341889c95796195b05b0f96866b50b2e9a6945e:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjQ0NDIyMmQ5OTExZDgzMWQ1MjEwMzBiNTgxZmM4ZTM4OGExYzc3NWJjNzRkNWJiMmM2OGYzOWNjOTlmZDE4MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGRiMzM5YzE3ZDRjYzU0ZTcwYzRmY2ZlY2I2MTFiYjllN2QzNjNmMjViMThlMDkyM2ExZDMwNmNjOTU5MjRlNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWZkMjJmODU3ZGRmMzc1YTBkYjBjZDhlZjNmNTA2NWZjNDBmZGE5NjVhOWY3MTI0MWJkYjI5YjJmZmVjOWJiNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTg5NTIyNGQ1MTYxOTBhZTM2NWI5ZTMzMjE1NDI0NjAxNTAxYTY3MWNmNmFhODA5ODRhOGZlY2FjZDE5MzRlMSJ9"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L1706-L1734",
+          "resource": "repo://js/deep16_ui_core.js#L1707-L1735",
           "version": "repo-lines-v1:sha256:9aea2b1cc8de8a5d89f2bcd56f0048749bae7982fb5a983b73e8b59a9028bf95:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0OWRmNTFiOGVkZGM1ZjgyYThhN2ZlMzA3NzMxNzI1MWY4MTRlOTg3NjY4YTExZTAxMWI5MWYyNDIzYjQ0NGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwZjBhOTYzODVkNzU2NTdhOTU3MDhmMDU3YzlmNWE3MDQ3ZjkyNzcxNjA5NTIxMzRhMmUwMGNkMmQ4NmIxZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJlMDU1YjQxMzg1ZWQ2MjM4MjQwNjdlMjk3NzgyZDVkNjI1NDkzM2FhYTFiMzM1MWIzM2E0MmVkYmQ2NDhlYjMifQ"
         }
       ]
@@ -319,7 +319,7 @@
           "version": "repo-lines-v1:sha256:6d70c1c79aaf75a6548af7d33aae2df8ebfc23e34b59916195b1cc6b2f370218:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyNTU2ZGY1M2JlMTc0YmIwZWMyNTdjYzJiYjk0NjNmOTBhN2Y2ZjliYzVhZjVkZGQ5OGJjMjMzNDU0ZmJlZWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhNDE3Mjg0NDJmNTZhZmUzY2RhNGM3MDE1NDE2OWJhNDBlMGU0OTQ5MmExZWNjNmZlZjUwODg1YjhjMzRiMGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE2NmVkNGQyZDBkZTNkMTE1MzNiNDAyYzM3ZTYzZmM0NGIyMjBhOWMzNTI5NmVkNGUwZWFmZWNjMzlkZTg3ZDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1ZDgzMmM1MzRhZTkyZGUyNjQ2MTE1ZTI3MTExNWJiMTBmMWRiMWIwNWJjYTM0MjczNjVmYzRjMGRjZWIwZDkifQ"
         },
         {
-          "resource": "repo://js/deep16_ui_core.js#L1623-L1640",
+          "resource": "repo://js/deep16_ui_core.js#L1624-L1641",
           "version": "repo-lines-v1:sha256:95bc8f8154b9d81b3fdb0069dbbd8c0fdbc0779589c9a078488bb915300b6407:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxNGZhZTFiZTcyOGY5OGIzODcyNDFmNmY2Y2IzNGNkODgzN2NlZjkxODRhNDc2NGZhOTYxMmZjZjM1ZTlmNjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5OWJkZWZlZWFjYTYzNDBlMDI5MGRjODZlODg5Yzg5ZDVlMTg5YWE1YmE0NGI1ODViM2I3MDczNGY0YTYyZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI4MjczYjU1ODBlYzZjYTBhNzM1MzU2ZDNlZGZlMjM3ZGRlYTRhYzg1NjkyY2UzMTdkMzlkOWJhYWZmYjhhYzAifQ"
         }
       ]
@@ -329,7 +329,7 @@
       "statement": "js/deep16_worker.js implements a complete message protocol for INIT, LOAD_PROGRAM, RUN, STEP, RESET and STOP, but no new Worker is constructed anywhere, workerRun posts to an undefined this.worker, and no script tag loads the file.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L2526-L2533",
+          "resource": "repo://js/deep16_ui_core.js#L2527-L2534",
           "version": "repo-lines-v1:sha256:889579e6ac0ff3d333e85dfbce20308a166ff0af41275787588d29fb7617acae:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDg0N2FmZGM0YTQyOGRhMTI5MjBlMzcwNmQ1ZDRiOWE5MjA4Y2JkMjMxZWU2NWIxYzVlYmVlMGIxYTUwMzg4OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDk0OWI3N2UxOTk1MWQ4NWM0MzBkZmY2ZmZmZjk2YmIyMGRjMzViMGYxNjgzODg4NGU0MTgxYTM4YmNlZDk2MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjYxNGQ0Nzg0OWU2NTkzZTcyZGJmMDg4OTg1ZGI4NmNlYzU4ZmJlYjFjZDA5N2UwZjA5YjM5MmI1MTQ0ZWNiYyJ9"
         },
         {
@@ -343,7 +343,7 @@
       "statement": "Settings persist under deep16_core, deep16_use_wasm, deep16_console and deep16.tabSize, with every storage access wrapped so disabled storage degrades to defaults.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L1624-L1638",
+          "resource": "repo://js/deep16_ui_core.js#L1625-L1639",
           "version": "repo-lines-v1:sha256:0b57c729f01251120ac8f965215bca8d376980af4fb786c1fa1aee8be891c158:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwZmNjMGM1ZmE0MjdmNzMwNTRjOGQ1MTI4ZjczYTNmYjlhMzlmYjFkMGM2ODdlNGRhNzMwNmE2ODY3ZGY4N2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVjNDg4ZDAyNjUyNTEwOWU0NTM2MWVmN2NkNGM3N2FmYWRkMGUwMWI3ODdkOGZmNzQwNTYyNmQxMDNlZjBkZTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI1YmY3MzVmNjk2NGUwYWExZDdkYWJmMzgxOTc2Yzg4MmMxOTRhNzFiOGZjODVjODhlMWZiMGEyMjdiMjM0ZmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmNDQyMjA2Zjg2ZjYyZDlkYTFmODQ3NDdiY2VhZDljOTI5NjA5OTBhMDZkNzc1YmI1YzI2YjRiYTM5ZDAwMmYifQ"
         },
         {
@@ -361,7 +361,7 @@
       "statement": "A hidden focusable #terminal-kbd-hook input exists because iOS only raises the soft keyboard for a real input focused inside a tap; tapping the screen focuses it and key events reach handleTerminalKey.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_ui_core.js#L654-L688",
+          "resource": "repo://js/deep16_ui_core.js#L655-L689",
           "version": "repo-lines-v1:sha256:140a4bf446f52ea23b580cd3f076deeb2bb78b2d98b7d8a49b6de3ba522f9601:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhhZTE1YjEwYzk2NTFkMjRmMGUxYWNhY2ZhMWYyNmUzZTQxZGU0NmUyZDIwY2NhNWU0NmMxYjE1MTZiNTgyODciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJiNGE1M2E4NDcwOTEzNDVhZDhhMzE4ODg5NjdlNTFmMTdhZWRhZjE5YWM2MGQwYjQzN2JkMDc2NDc1N2QzNWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg1OGQ5OGI0OGJjNzE0M2I1ZDIzMGJhODU5ZDc0OTIwYWZhMGU0Mjc5NGFlZmU2NjhjNWI3Y2UxOWFlMjJiYTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJhOGRlZWE2ZWM2MzNiYWZlOGQxZWNhNjg4M2M3MGEzNzExYWEyZTYxNWQ1Y2NiMTkwMWFhMzFiNmQ1OWI5ZDIifQ"
         },
         {
@@ -372,25 +372,25 @@
     },
     {
       "id": "claim_5dcfe09c8dcf4205a4cf802037c2401a",
-      "statement": "Tiles mode attaches a Deep16TileEngine to the simulator, loads the generated graphics blob, and builds the D16D image from the kernel plus the four fetched showcase sources; the browser builder's bakePacman flag defaults to false and is used by the headless renderer to bake a preview at 0x4330.",
+      "statement": "Tiles mode attaches a Deep16TileEngine to the simulator, loads the generated graphics blob, and builds the D16D image from the kernel plus the five fetched showcase sources; the browser builder always places Frogger at 0x4350, while bakePacman defaults to false and lets the headless renderer bake a preview at 0x4330.",
       "evidence": [
         {
-          "resource": "repo://js/deep16_d16d_image.js#L12-L75",
-          "version": "repo-lines-v1:sha256:3ab5eb93838797d5607214a8a3d58d139205f6a0e19fb299e14ddb02890672c2:eyJzZWxlY3RlZExpbmVDb3VudCI6NjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM1YTQzZWViMDhlZTQ0NzFiNTE1OTYzMDk1YjAwYjhkNTJjN2RkYzQyODczYzllNDg3MTVmZDVlNWYzOGJlZjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc2NzdmZTFmMWNkMWJhMmNmY2M3MGE2NjFlZWIxYWI4YTljMmY0ZTJkMTJhOWVmMjRkNTE5ODY2NDJjMDE3OWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjliOTdkOGEwOTVhMWM5ZTMwNTM5NDBkNzA2ZWY1NjMwZjIxY2M5NDQ4M2I2MDIyNzQ3NmFkMjZlMjExZmU2NTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFiZmE2YmYwYTI2ZDE4MDFjOGU4MmE3YWIxOGM1YjcyZjgwOWIzNjg0YjE1MjYzZDYzNjliMTBlNjhlYTkxZTQifQ"
+          "resource": "repo://js/deep16_d16d_image.js#L10-L100",
+          "version": "repo-lines-v1:sha256:2392ad572712236acd0460ae87e685bfee057d029fa12aa00aeb9813335254fa:eyJzZWxlY3RlZExpbmVDb3VudCI6OTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA0M2IzODA2Mjc1ZGM4NjQyMmNkM2U4NTFlYmVhMmZkYmJiZDkxNjFhMmNiZGY5NjA3MDJmNzdiMThiZjA3MzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5NzhlMjUwM2I4Y2YzN2EwNmY3ZDZmMGEzYTZiNmZlMzU2OTFmYmNhYjUwYjg3NzVjYWI2ZmFiYzcxYzU5MmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEwOTZjY2RhNjFjNDgwOTBlMzNkZDEyNTk2YWJmZmM2ODVkNTM2YTNhMGU2MzA2MmQzMzY1NWYwNDQxMTliY2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjExOWM3MGIyODRkNThhMzAwZjlmMTNmYmZiM2Q3ZDlhOWFiNjVkZWI1MmYyZTAxMjZlZGI3NDliZWQzNGIxNzIifQ"
         },
         {
           "resource": "repo://js/deep16_ui_core.js#L407-L480",
-          "version": "repo-lines-v1:sha256:20ccc631843d67ae41c0a9ed4974ac4034fa936b883c72a5c77871d5585837a5:eyJzZWxlY3RlZExpbmVDb3VudCI6NzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFhMjY2NWQyMDdkOTkwMjE4ZTUxNmY1ZDQ3NDhmMzY1Mzg1MzZjODc3MGQyZDM2YWUxYjc1ZWIzZDcyYWQ3MjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMGE4NDAwMGQ1ZGQ3ZDczMjg0YzhjODkzNThlYjExZTU4OGJjNWJiMGE1ODYyOTczZDFhYzdkZTViZmNlMzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0YjI5YTI4ZTM2NDU3MGJhOGRmYTRiMjRmYTQ3YWRlYzA3MDA2MmFkMjRjY2Y5ZmY2NWQ4OTdiYWRjNzg1NDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE5YjY3ZGY0ZGY4YmYxMDM1OTYxODBmNTk5YzViNjQxZDE2NjIwZTBiNmM4OTYzMTIzYmJmNDFkNGQ0YjMxNDAifQ"
+          "version": "repo-lines-v1:sha256:7504c644a3ee0d0404ce8c572d6465128b23d7d402d9f886da2102a58d0237d2:eyJzZWxlY3RlZExpbmVDb3VudCI6NzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFhMjY2NWQyMDdkOTkwMjE4ZTUxNmY1ZDQ3NDhmMzY1Mzg1MzZjODc3MGQyZDM2YWUxYjc1ZWIzZDcyYWQ3MjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5NjQ4Yzg4NjBmNGFjNDNkODBhMWNiNDI2Zjk4YzdmY2VlZTM1ZTg4MzAwOTNjNWYxNzUzNmE4MzcyM2JjNDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0YjI5YTI4ZTM2NDU3MGJhOGRmYTRiMjRmYTQ3YWRlYzA3MDA2MmFkMjRjY2Y5ZmY2NWQ4OTdiYWRjNzg1NDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE3NmFmYjNiMjkxZDhlNTAwODljNzc5MjcxYmI0OGI5ZmFmYmI4ZjMzM2NlYTMzYmQwNzE2NzA3MWY2NzFhODUifQ"
         },
         {
-          "resource": "repo://scripts/render_tile.mjs#L70-L80",
-          "version": "repo-lines-v1:sha256:a9a11dcdcf7b0862a38bff3c3f4e0cfefba2faadd71d3cf30524f1d87fc692e2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiOWFkMWNlYmVmZTkyZGU2MzYwMjZhM2I1MDVhNDQ3NGVjYjg4ZTNmZmFmZTA1ZjUwZmE1ZGRlNmE0ZjFjN2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzY2ZjMWFlZjliNGZmMDliMzdkYmRkZTNiZGFjYjNhOTAxZTU0MWMwN2I1YjczZjczMzIxZjJhNWQzNTQxZjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIxMGI5NWZhOTQ1M2E3MGI2ZGNhMGNmZGExNWMzZTEyNzc0OWY4MjE0ZTA4MGFmYWQ4YjNiZDkxNzZlZDYyYjYifQ"
+          "resource": "repo://scripts/render_tile.mjs#L140-L175",
+          "version": "repo-lines-v1:sha256:bde7c1f333def997bd89cec6ec36031aaf6364b3153f0895d8d5d2c1386abd7f:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxNmRmOGJmMGZmZjg0YTc3NmYxMTk0MjAxNmM3NzdhNTAwOTFiMWUwODUzOTZhZmZmZmMwYWFhZmZkNWQ4NWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyMGM1YmZhMjFjZTYxMTMyOWEyNDFiYzQ4MmMyOTJjNDY1ODBmNThhNGFlNjcxNGRmZjZiN2Q4YjIwM2RjOWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYxZTY1NDY2MGExMTY2N2EyYTU5ODY1ZGZiZDMwNWJhYjFhMjVjNjc0ODNjYWEyYWFiYjBmMzI4ZWE3M2JiMGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjMDZiMGNkNzI3Yzc4NWMzNTM5MmFhOTYwYTEwYmE4NmNkZDhmYzg5YmFkMTEwNWEwZGRhNTJiMWFjYWMyMjYifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.7.3",
-    "at": "2026-11-04T15:30:01.509Z"
+    "at": "2026-11-04T16:08:29.597Z"
   }
 }

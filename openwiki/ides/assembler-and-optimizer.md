@@ -25,10 +25,10 @@ sources:
     resource: repo://tests/helpers.js
   - id: openwiki-source-847e2b3e9c92bba0173a97da
     resource: repo://tests/optimizer.test.js
-generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+generated: { by: "opencode", at: "2026-11-04T16:08:29.597Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T15:30:01.509Z
+    at: 2026-11-04T16:08:29.597Z
 ---
 
 
@@ -250,9 +250,10 @@ entries pointing at programs in `asm/`:
 | Link in Delay Slot | `link_delay_slot.asm` | Advanced |
 
 The D16D entry is the only manifest record with a build tag; selecting it loads
-the tile kernel and fetches the showcase, Flappy and Pac-Man sources, which the
-browser D16D builder assembles alongside it. The Pac-Man sources are not
-separate manifest examples.
+the tile kernel and fetches the showcase, Flappy, Pac-Man and Frogger sources,
+which the browser D16D builder assembles alongside it. The Pac-Man sources are
+not separate manifest examples, and the Frogger backdrop is one more source
+file rather than a manifest entry.
 
 The Node suite (`tests/examples.test.js`) is not the manifest. It scans
 `asm/*.asm` minus an explicit `LEGACY` set, so a new example is covered without

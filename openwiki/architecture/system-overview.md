@@ -7,6 +7,10 @@ sources:
     resource: repo://asm/forth_nano.asm
   - id: openwiki-source-05b57c87f4341692de6b154c
     resource: repo://asm/forth.asm
+  - id: openwiki-source-994b8d8fad4641d652ea31d4
+    resource: repo://asm/showcase/frogger_demo.asm
+  - id: openwiki-source-a8e49bad3e0cb80eca5069d8
+    resource: repo://asm/showcase/showcase.asm
   - id: openwiki-source-6d9dc09f47fb249425320461
     resource: repo://doc/Deep16-RTL.md
   - id: openwiki-source-86589e93590a1eca60d19cd0
@@ -31,10 +35,10 @@ sources:
     resource: repo://rtl/dvi/dvi_tile.sv
   - id: openwiki-source-4e7b81763273293f36cdd37f
     resource: repo://tests/rtl.test.js
-generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+generated: { by: "opencode", at: "2026-11-04T16:08:29.597Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T15:30:01.509Z
+    at: 2026-11-04T16:08:29.597Z
 ---
 
 
@@ -100,8 +104,9 @@ The settings menu also chooses the console mode: **Screen** (the `0xF1000` text
 buffer), **Terminal** (the UART view) and **Tiles** (the D16nano FiT engine).
 Tiles mode builds the nano kernel, loads the graphics blob from the simulated
 config flash and renders a 640×360 canvas. The `D16D Showcase (tiles)` example
-loads the menu, Flappy and Pac-Man sources; the browser builder mirrors
-`scripts/make_image.mjs` and can bake the preview block at `0x4330`.
+loads the menu, Flappy, Pac-Man and Frogger sources; the browser builder mirrors
+`scripts/make_image.mjs`, always bakes Frogger at `0x4350` and can bake the
+Pac-Man preview block at `0x4330`.
 
 Opening the page over `file://` cannot fetch the WASM modules; the IDE then
 falls back to the JS core.
@@ -122,10 +127,13 @@ for segment loaders. `forth/*.fth` contains boot scripts and application demos;
 `games.fth` loader. `lila/` is a separate Lila-to-Forth compiler experiment that
 runs on the gforth compatibility layer.
 
-The D16D showcase is a menu with Flappy and Pac-Man. Pac-Man is no longer part
-of the 24K image: the kernel grew past the old `0x4330` gap, so the game is a
-type-4 binary slice in config flash. `game-load` copies it into segment `0x2000`
-and `call-far` starts it; the menu's **P** entry still needs that hookup.
+The D16D showcase is a menu with Flappy, Pac-Man and a Frogger backdrop. Pac-Man
+is no longer part of the 24K image: the kernel grew past the old `0x4330` gap,
+so the game is a type-4 binary slice in config flash. `game-load` copies it into
+segment `0x2000` and `call-far` starts it; the menu's **P** entry still needs
+that hookup. The Frogger backdrop is small enough to stay in the image at
+physical `0x4350` (CS=DS=`0x0435`); the menu's **G** entry launches it, and it
+exercises per-row scrolling with five river and five road lanes.
 
 ## Hardware
 
@@ -163,7 +171,7 @@ the dictionary at `0x5800`. Build variants are selected by `ifdef` (`D16MINI`,
   committed on purpose, so changing RTL source without rebuilding makes tests
   exercise the old model.
 - `npm run assets:gfx` regenerates the graphics flash blob.
-- `npm run render:tile -- --scene=menu|flappy|pacman|console` renders
+- `npm run render:tile -- --scene=menu|flappy|pacman|frogger|console` renders
   deterministic PNG frames without a board.
 - `npm run image`, `npm run flash:slices`, `npm run sim:dvi:tile` and
   `npm run sim:flashboot` build and check the image, slices and simulators.
@@ -179,7 +187,7 @@ the dictionary at `0x5800`. Build variants are selected by `ifdef` (`D16MINI`,
   config flash and runs via `s" pacman" game-run` until the menu hookup lands.
 - A control-register band (the handler writing control 5 or 6) has not been
   re-tested since the raster double-service fix; the current handler writes the
-  OAM descriptor instead.
+  OAM descriptor instead. Control 6 itself now has the Frogger backdrop demo.
 - Cycle/stall/flush counters are desktop-only in practice; narrow-screen display
   is incomplete.
 
@@ -195,4 +203,4 @@ claims "PRODUCTION READY".
 - [JavaScript Reference Core](../cores/js-core.md)
 - [RTL Core Microarchitecture](../cores/rtl-core.md)
 - [Video and Peripherals](../hardware/video-and-peripherals.md)
-- [D16D Showcase, Flappy and Pac-Man](../software/showcase-games.md)
+- [D16D Showcase, Flappy, Pac-Man and Frogger](../software/showcase-games.md)

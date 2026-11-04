@@ -7,6 +7,8 @@ sources:
     resource: repo://asm/forth_nano.asm
   - id: openwiki-source-05b57c87f4341692de6b154c
     resource: repo://asm/forth.asm
+  - id: openwiki-source-a8e49bad3e0cb80eca5069d8
+    resource: repo://asm/showcase/showcase.asm
   - id: openwiki-source-956d9e1f2f5615b80a8d4ba0
     resource: repo://forth/demo.fth
   - id: openwiki-source-a4cdf03124e6a4fc0fb766f9
@@ -31,10 +33,10 @@ sources:
     resource: repo://tests/console-parity.test.js
   - id: openwiki-source-62679011b2c82f805f23d87e
     resource: repo://tests/terminal.test.js
-generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+generated: { by: "opencode", at: "2026-11-04T16:08:29.597Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T15:30:01.509Z
+    at: 2026-11-04T16:08:29.597Z
 ---
 
 
@@ -216,8 +218,10 @@ The script defines `free`, `mem`, `demo` and `ver`, prints the banner summary
 (memory map, dictionary range, free count) under `Hello DeepForth!`, and loads
 the flash screens (`1 screen`, `5 screen`, `9 screen`). The `9 screen`
 `games.fth` defines the game loader; the D16nano `gfx` call runs the showcase
-menu from the BIOS segment. Because it is ordinary Forth, it compiles at boot
-rather than being a special image format.
+menu from the BIOS segment. On that menu **F** runs Flappy, **G** runs the
+image-resident Frogger backdrop, and **P** still needs the flash loader. Because
+it is ordinary Forth, the boot script compiles at boot rather than being a
+special image format.
 
 ## What the tests pin
 

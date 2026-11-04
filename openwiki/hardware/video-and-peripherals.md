@@ -5,6 +5,8 @@ openwiki_generated: true
 sources:
   - id: openwiki-source-a28946850ce54d03e71935f2
     resource: repo://asm/forth_nano.asm
+  - id: openwiki-source-994b8d8fad4641d652ea31d4
+    resource: repo://asm/showcase/frogger_demo.asm
   - id: openwiki-source-86589e93590a1eca60d19cd0
     resource: repo://ERRPLAN.md
   - id: openwiki-source-d495d08ebea00cef39154011
@@ -39,10 +41,10 @@ sources:
     resource: repo://rtl/ps2_rx.sv
   - id: openwiki-source-995b05cde9e7dd8086199c38
     resource: repo://scripts/render_tile.mjs
-generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+generated: { by: "opencode", at: "2026-11-04T16:08:29.597Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T15:30:01.509Z
+    at: 2026-11-04T16:08:29.597Z
 ---
 
 
@@ -142,9 +144,11 @@ windows, the sprite composition rules and the art-pack layout.
 `js/deep16_tile_engine.js` is the behavioural twin used by the IDE and the
 headless renderer. It implements the same windows, two tilemap banks, the
 palette-set/OAM-base scene select and the eight-slot sprite compositor.
-`scripts/render_tile.mjs` boots the D16D menu, Flappy, Pac-Man or console scene
-at a deterministic 0x1000-step frame clock and writes PNGs from the engine's
-RGBA buffer; no board or video ROM is involved.
+`scripts/render_tile.mjs` boots the D16D menu, Flappy, Pac-Man, Frogger or
+console scene at a deterministic 0x1000-step frame clock and writes PNGs from
+the engine's RGBA buffer; no board or video ROM is involved. The Frogger scene
+is the worked per-row example: ten lanes each keep their own coarse start and
+fine phase, and control 6 supplies the sub-cell motion.
 
 ## Keyboard input
 

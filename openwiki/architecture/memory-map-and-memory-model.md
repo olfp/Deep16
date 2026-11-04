@@ -6,6 +6,8 @@ tags: [memory, memory-map, mmio, segments, psram, flash, slices, stacks]
 sources:
   - id: openwiki-source-a28946850ce54d03e71935f2
     resource: repo://asm/forth_nano.asm
+  - id: openwiki-source-994b8d8fad4641d652ea31d4
+    resource: repo://asm/showcase/frogger_demo.asm
   - id: openwiki-source-558f92ad48bad4c1a8f65265
     resource: repo://js/deep16_simulator.js
   - id: openwiki-source-d495d08ebea00cef39154011
@@ -14,14 +16,14 @@ sources:
     resource: repo://MEMMAP.md
   - id: openwiki-source-2f8a040dcce7a74f3dd3ca04
     resource: repo://rtl/dvi/dvi_tile.sv
-  - id: openwiki-source-91dbd2aac6f60eec7eacf72d
-    resource: repo://scripts/make_showcase.mjs
+  - id: openwiki-source-c14f3342b8ee81b2c622be55
+    resource: repo://scripts/make_image.mjs
   - id: openwiki-source-41517f64370d769c203d48a3
     resource: repo://scripts/make_slices.mjs
-generated: { by: "opencode", at: "2026-11-04T15:30:01.509Z" }
+generated: { by: "opencode", at: "2026-11-04T16:08:29.597Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T15:30:01.509Z
+    at: 2026-11-04T16:08:29.597Z
 ---
 
 # Memory Map and Memory Model
@@ -145,10 +147,11 @@ but never writes it, so that whole block is available to BIOS code. The BIOS
 jump table stores a segment offset, so a routine can move there without
 changing a caller.
 
-The D16D showcase is a menu and a Flappy game in the BIOS block. Pac-Man is not
-in this image: the kernel grew to `0x434D`, which removes the old `0x4330` game
-gap, so the game is stored as a type-4 binary slice in config flash and copied
-to segment `0x2000` at run time.
+The D16D showcase is a menu and a Flappy game in the BIOS block, plus a small
+Frogger backdrop baked into the flat image at `0x4350`–`0x4665`
+(CS=DS=`0x0435`). Pac-Man is not in this image: the kernel grew to `0x434F`,
+which removes the old `0x4330` game gap, so the game is stored as a type-4
+binary slice in config flash and copied to segment `0x2000` at run time.
 
 ### Segmented variant (`D16SEG`, current board)
 
@@ -157,7 +160,7 @@ to segment `0x2000` at run time.
 | Segment | Physical base | Contents |
 |---|---|---|
 | `CS=0x0000` | `0x00000` | kernel code, vectors, ILL/IRQ handlers, `divtest` |
-| `DS=0x1000` | `0x10000` | kernel data `0x3000`–`0x434C`, free `0x434D`–`0x49FF`, BIOS/demo data `0x4A00`–`0x57DC`, dictionary from `0x5800` |
+| `DS=0x1000` | `0x10000` | kernel data `0x3000`–`0x434E`, free `0x434F`–`0x49FF`, BIOS/demo data `0x4A00`–`0x57DC`, dictionary from `0x5800` |
 | `SS=0x2000` | `0x20000` | data stack, top `0xFFF0`; also the flash game block load area at the bottom of the segment |
 | `CS=0x3000` | `0x30000` | BIOS code and D16D showcase |
 | `ES=0xF000` | `0xF0000` | MMIO and boot ROM |
@@ -167,10 +170,12 @@ its own, because Forth reaches it with ordinary `LD`/`ST` through `DS`), and the
 dictionary grows up from `0x5800`. BIOS and ILL handlers set `DS=0x1000` and
 `SS=0x2000` on entry because they run in the shadow bank with zeroed segments.
 
-The `0x434D`–`0x49FF` gap is now free (`dict_free = 0x434D`); the Pac-Man block
-no longer occupies it. The `game-load` word copies the 1,695-word block to the
-bottom of the `SS=0x2000` segment (offset 0–`0x69E`), far below the data stack
-top at `0xFFF0`.
+The `0x434F`–`0x49FF` gap is now free for kernel use (`dict_free = 0x434F`);
+the Pac-Man block no longer occupies it. The flat copy at `0x4350`–`0x4665`
+also carries the Frogger backdrop, which the menu launches with `CS=0x0435`.
+The `game-load` word copies the 1,695-word Pac-Man block to the bottom of the
+`SS=0x2000` segment (offset 0–`0x69E`), far below the data stack top at
+`0xFFF0`.
 
 The scatter is performed by `rtl/flash/flash_boot.sv`; `tests/segmented.test.js`
 exercises the same map in the JS core, including a 1,000-deep recursion and a
@@ -221,5 +226,5 @@ never as memory.
 - [ISA and CPU State](isa-and-cpu-state.md)
 - [Video and Peripherals](../hardware/video-and-peripherals.md)
 - [PSRAM, Cache and Flash Boot](../hardware/psram-cache-and-flash.md)
-- [D16D Showcase, Flappy and Pac-Man](../software/showcase-games.md)
+- [D16D Showcase, Flappy, Pac-Man and Frogger](../software/showcase-games.md)
 - [Forth Kernel and BIOS](../software/forth-kernel.md)

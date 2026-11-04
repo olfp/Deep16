@@ -25,10 +25,10 @@ sources:
     resource: repo://rtl/deep16_board.sv
   - id: openwiki-source-995b05cde9e7dd8086199c38
     resource: repo://scripts/render_tile.mjs
-generated: { by: "opencode", at: "2026-11-04T09:31:05.972Z" }
+generated: { by: "opencode", at: "2026-11-04T16:08:29.597Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T15:30:01.509Z
+    at: 2026-11-04T16:08:29.597Z
 ---
 
 
@@ -82,7 +82,7 @@ sample program in the textarea, so the page is live on first paint.
 - `simulator.setUI(this)` so the JS core can push screen writes;
 - an autoloaded boot ROM, with `CS` set to `0xFFFF` for the initial state;
 - the FiT tile engine (created on demand in Tiles mode) and the cached D16D
-  showcase sources (showcase, Flappy, Pac-Man map and game);
+  showcase sources (showcase, Flappy, Pac-Man map and game, Frogger);
 - the example manifest, file handle, console mode, tile clock and transcript.
 
 The transcript is capped at 50 entries. It is the IDE's only log: warnings,
@@ -217,9 +217,10 @@ engine and asks the Screen panel to repaint the canvas.
 When the selected example carries `build: "d16d"`, `Assemble` calls
 `buildD16DImage(kernelSource)`: the browser `Deep16D16DImage.build()` assembles
 the editor kernel together with the cached `showcase.asm`, `flappy_game.asm`,
-`pacman_map.asm` and `pacman_game.asm`, fills the 24K window and returns the
-kernel symbols. The sources are fetched once when the example is loaded
-(`asm/showcase/...`, `cache: 'no-store'`) and reused.
+`pacman_map.asm`, `pacman_game.asm` and `frogger_demo.asm`, fills the 24K window
+and returns the kernel symbols. The sources are fetched once when the example is
+loaded (`asm/showcase/...`, `cache: 'no-store'`) and reused. Frogger is always
+placed at `0x4350`; `bakePacman` remains opt-in.
 
 The builder mirrors `scripts/make_image.mjs`. Its `bakePacman` flag defaults to
 false because the current D16D image leaves Pac-Man in config flash; passing it
@@ -227,6 +228,8 @@ bakes the block at `0x4330` for a preview. The headless renderer uses that for
 its Pac-Man scene. In the IDE the menu's **P** entry still targets `0x4330`, so
 the in-browser menu cannot launch the game until the flash-loader hookup lands;
 the tile engine and graph assets still render the menu and Flappy normally.
+The menu's **G** entry does launch the image-resident Frogger backdrop, so the
+per-row scrolling demo is available in the browser as well.
 
 ## Editor, files and examples
 
@@ -248,8 +251,8 @@ Examples are fetched from `asm/examples.json` at startup, grouped into
 `cache: 'no-store'` — the example files carry no version query, so a stale
 kernel could otherwise be served from the HTTP cache. Loading an example only
 fills the editor and switches to the Editor tab; it does not assemble. The
-`D16D Showcase (tiles)` entry also fetches the showcase, Flappy and Pac-Man
-sources for the tile builder.
+`D16D Showcase (tiles)` entry also fetches the showcase, Flappy, Pac-Man and
+Frogger sources for the tile builder.
 
 The Docs menu fetches `doc/Deep16-Arch.md`, `FORTH.md` or `doc/User-man.md` and
 renders it in an overlay with a small built-in Markdown renderer. Escape or a

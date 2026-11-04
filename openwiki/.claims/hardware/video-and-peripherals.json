@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:a05b69e7b3890c8932b9bd7f27edf4112462eecca3989bc956a941b585d000a9",
+  "pageVersion": "sha256:57d139c67232d66b7510ed3c4da41fbeea2d039e4bb518ee465e24a3eb2f148e",
   "claims": [
     {
       "id": "claim_c891314301634162a885022e2c7dd858",
@@ -27,7 +27,7 @@
       "statement": "dvi_tile renders 80x24 cells of 8x15 pixels at 24.75 MHz into line buffers and scans them out as 1280x720 at 60 Hz, using an 82x26 tilemap, 128 tiles of 32 words, a 24-group sprite bank, 64 OAM descriptors and 8 palette sets.",
       "evidence": [
         {
-          "resource": "repo://MEMMAP.md#L358-L370",
+          "resource": "repo://MEMMAP.md#L365-L377",
           "version": "repo-lines-v1:sha256:0436c4db05d98406ba589983df57e102849dadbd51a0f8b71bfd5b78bd2fb629:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyYTJhMTA1NTI3N2U3ZDNkNzY5MTQzZjJmMGVjNDFlZDFiMDkxZjNiNDU3OWFjMGYzNmU3YjdiZmZmMjg1OTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmNTY4ODIwNmYyOGI3YWJiZTg3YjAxZjg5ZDc0NWQ5YzIzNzRiZjQyMTQzN2I0MGZlMDkyYTZhYWJiNWQxZGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI0YzMxODA4YjY3YmZiMWE3MTEyOTNhZTAwODlkYWZjZTNkM2IzYTI2MTEwYjkxNDA0MzYzZTRmYWY0M2I1YzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkyNTYzZGQxMGQyYTQ2Yzc1ZDQ2ZjA5OTQzNzQzNjRlYjU4MWEwOGUyMjdhNTQxZjBiMWVmYjY4YWQ3MDlhYjkifQ"
         },
         {
@@ -69,11 +69,11 @@
       "statement": "The FiT CPU windows are write-through to both the tile engine and the PSRAM/Forth mirror; the tilemap, controls, tile bank, sprite bank and the shared OAM/palette window each decode a distinct address range.",
       "evidence": [
         {
-          "resource": "repo://MEMMAP.md#L343-L344",
+          "resource": "repo://MEMMAP.md#L350-L351",
           "version": "repo-lines-v1:sha256:8240e558d3aa13096356005c00c1557de3ee3e7cf899ab7119811b869f49699e:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzIyZTRhN2UzZmFlNzZhYzYyNjE0NDBlY2MzYjg3NmFiZmM3NmRkZDE2ODZkOTUxN2U2OTNlNTg5NzUwNWI5NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWI2NmZlNTQ1YTZiMWRhYjJkZDEwZTYzNmY3MGMzYTYxZjg5Yzk3MmQwYzM3YWU2MDhjZGVlZDI3YjVhNGQ1YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGJmOTYyMzhiYjc1NjlkYTJlOGQ1ZWY0OTVmNzBhNTJkYzYwZDllOTA0NjZlOWM3ZTg3ODQ4MWI3NDVkMDkzOCJ9"
         },
         {
-          "resource": "repo://MEMMAP.md#L358-L370",
+          "resource": "repo://MEMMAP.md#L365-L377",
           "version": "repo-lines-v1:sha256:0436c4db05d98406ba589983df57e102849dadbd51a0f8b71bfd5b78bd2fb629:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyYTJhMTA1NTI3N2U3ZDNkNzY5MTQzZjJmMGVjNDFlZDFiMDkxZjNiNDU3OWFjMGYzNmU3YjdiZmZmMjg1OTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmNTY4ODIwNmYyOGI3YWJiZTg3YjAxZjg5ZDc0NWQ5YzIzNzRiZjQyMTQzN2I0MGZlMDkyYTZhYWJiNWQxZGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI0YzMxODA4YjY3YmZiMWE3MTEyOTNhZTAwODlkYWZjZTNkM2IzYTI2MTEwYjkxNDA0MzYzZTRmYWY0M2I1YzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkyNTYzZGQxMGQyYTQ2Yzc1ZDQ2ZjA5OTQzNzQzNjRlYjU4MWEwOGUyMjdhNTQxZjBiMWVmYjY4YWQ3MDlhYjkifQ"
         }
       ]
@@ -237,7 +237,7 @@
       "statement": "MEMMAP.md still says CS1 is pin 25 and the on-board configuration flash is not used, which predates the tile build that boots from that flash over MSPI pins 59-62 while pin 25 is I2S BCLK.",
       "evidence": [
         {
-          "resource": "repo://MEMMAP.md#L430-L433",
+          "resource": "repo://MEMMAP.md#L437-L440",
           "version": "repo-lines-v1:sha256:9d2e286721279ab6ff0809971d39af5a271fb02686dd05b13a46fdd53c427daf:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzcyYTMyMzZhY2FiYTdlY2UwN2UyYzgzNjFmZTM4ZjJjMjk5YzQ1YTI2MmY4YWI1OTk2MjZmZDRiZjg1YTQ3ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzI1YzI1MDhmMzlhNjJlNWM3ZDM2OGM5ZTA1YmY4YjZkZjNkMTVmYmQzM2ZjZjk0NWQxNWNiYmIzYmRjMjUwMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGI4YTRlZGM1ZWFhMDdlZWEwMzIzYmJhYzZkMzdiMmVkYjlmOTY4YTFjMTE4MTY2MmY1NGQ4YmE1MGM2MzMxZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWU3OGU5YTMxZWNiOWNmYjQyMGM5ZjZjNzk1MWVjMTAzODQ2YTlhNmUyMjk1ZDAyMDYxYTU4Yjg0NmRhNjY4ZSJ9"
         },
         {
@@ -251,7 +251,7 @@
       "statement": "MEMMAP.md describes the UART divisor 234 as the 27 MHz value, while the RTL derives the divisor from CLK_HZ divided by BAUD, making 234 correct only for a 27 MHz CPU clock.",
       "evidence": [
         {
-          "resource": "repo://MEMMAP.md#L300-L300",
+          "resource": "repo://MEMMAP.md#L307-L307",
           "version": "repo-lines-v1:sha256:dce418ffbe7e5a2e012733de27a7302078a0f337a501e9ecb4552fd6e040bef3:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGNlNDE4ZmZiZTdlNWEyZTAxMjczM2RlMjdhNzMwMjA3OGEwZjMzN2E1MDFlOWVjYjQ1NTJmZDZlMDQwYmVmMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGNlNDE4ZmZiZTdlNWEyZTAxMjczM2RlMjdhNzMwMjA3OGEwZjMzN2E1MDFlOWVjYjQ1NTJmZDZlMDQwYmVmMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDVhNzg4MWQ3ZDNhODJlYWQ1NDRiOWFhZTE4YWMzN2Y0OTg5MmJlMzA2ZmMwODViNzkxZDlhOTMwZWU1MDEyZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGE5OTE0MDRiYTAxYjhiYWU1OTFmMDU4NmNiOGY2YTQwNzNjYmQwYzc3ZDhmOWI4OGZiZjk0YmY4N2U5YTNkNCJ9"
         },
         {
@@ -262,7 +262,7 @@
     },
     {
       "id": "claim_a10607c2c7604e3e95579b61c71e60b3",
-      "statement": "The JS tile engine and scripts/render_tile.mjs reproduce the FiT windows and eight-slot sprite composition for the IDE and deterministic headless menu/Flappy/Pac-Man/console PNGs.",
+      "statement": "The JS tile engine and scripts/render_tile.mjs reproduce the FiT windows and eight-slot sprite composition for the IDE and deterministic headless menu/Flappy/Pac-Man/Frogger/console PNGs.",
       "evidence": [
         {
           "resource": "repo://README.md#L43-L56",
@@ -273,8 +273,8 @@
           "version": "repo-lines-v1:sha256:a5ca9e64618542aa99df62fc28c54de9c47dc2825ebaaa514908c7bc8d4d0f20:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2YWFhMWI4MzUwY2IxMDgxMThmM2IyZDdhYmJiMGY5MjkwNDA2NTIzNTM3ODk3MjI2YWY2NTk2ZjEzMzI1NTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA1ZTkzY2Y1Zjc5YmM4OWUyZTAyM2M1NDk2ZmFlZWI1OGNlMDM0MWJlZDI0ZmEzNmFjZWI4ZDgzYWE5Y2MwMDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRkYTk2ZGU0YzEyOTM1N2RlNGMzYmEyNzRhOWFlMTNkYzM1N2JiZWQ5MGY3NjQ5N2U2ZjllNWVkYmYzODBjMDQifQ"
         },
         {
-          "resource": "repo://scripts/render_tile.mjs#L1-L60",
-          "version": "repo-lines-v1:sha256:61acaa11b464e6097d774e21c267b4c1479240314d14c6cb045c7dbb2342b06f:eyJzZWxlY3RlZExpbmVDb3VudCI6NjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQyYTJjYjI1YTEyMmI0NDIyMWE2MjM0ZWM2NjBhN2I1ZmI3ZjliZGU3YjNiOWUyYjNjNTU5YTBkOTZmYWM3MzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZlZGI1ZjhlZGU2ZTE2MWVkOGQ1Y2JhZmVmYjNhODhhN2M2NGMyNzY4ZDdjOWMzYWY5M2MzNTU0N2QxN2UzNmIifQ"
+          "resource": "repo://scripts/render_tile.mjs#L140-L170",
+          "version": "repo-lines-v1:sha256:dedf8614ead7c08575a6efcf4c332a9f72e25d346c32d7975985c8cc2b84c3a1:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxNmRmOGJmMGZmZjg0YTc3NmYxMTk0MjAxNmM3NzdhNTAwOTFiMWUwODUzOTZhZmZmZmMwYWFhZmZkNWQ4NWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYxZTY1NDY2MGExMTY2N2EyYTU5ODY1ZGZiZDMwNWJhYjFhMjVjNjc0ODNjYWEyYWFiYjBmMzI4ZWE3M2JiMGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZhZDc3ZGE1MzNlZTE2YTA1Mjg5OGFkM2ZhNGRjZWZmYWQ0ODI1NDEzZjdlN2Q2Mjk3YTVmZDk2M2E4MGU4ZDYifQ"
         }
       ]
     },
@@ -305,10 +305,28 @@
           "version": "repo-lines-v1:sha256:ecb2fe5df7101fd4f912eec4cd4c16d268ea8546bed2d9ee99e27966765581f4:eyJzZWxlY3RlZExpbmVDb3VudCI6ODEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4NGM1ZjkxYzk0OGEyYzkyNWY3YWRkNzE3NzI3NTBmMDI1MDllODZiODNmYTIxNmI3NjM2Y2Q4NDc4NGRiYjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YTM5NjY5NGRjMTEyZjI4OGEzZTI3MzBkYTQ4YzhkMGJmMzUzOTdmNjRjZWQyYTdhZGQ1ZjcwMzE0NTA0OTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA4NjU4MmZlNDM0ZjgxZjJkNWI2MDIxYzRmMzMzOTkwZmZhNzJmMzI2ZDA1NWMxZGRiNzI4NDI0ZThiMDdjNjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ0YzM2NzRhYzQ1ODY3NGUzZjRiMWQwYjA5OGIwMjAxMDZmMmQ0YTg0NDVkNDVkZDM2M2U3YmMxODExY2EzYTgifQ"
         }
       ]
+    },
+    {
+      "id": "claim_6e303a0d77e242188352a43ec61b8368",
+      "statement": "The Frogger render scene boots the backdrop at CS=DS=0x0435 and exercises the per-row control-6 path with ten independently moving lanes.",
+      "evidence": [
+        {
+          "resource": "repo://asm/showcase/frogger_demo.asm#L1-L30",
+          "version": "repo-lines-v1:sha256:544b95d476dd9faaee2b59f51bfb153b1fa088117f998c7f37dfcc6eaa378271:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3MzFkMTliNWUxYTEwZGQ1YjEyZDQ5NGMzMDg3YWI1MTBjNDNjYzQ0Y2YwYzhlY2YzMDBmMzY5OWJkZjI4NjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4MjdkMjQ2OTcyMmRlMTFiYmI2N2FiMGRhMjE4MzcxMzlmZWQ1YTlmYmMwODU3MTQ5NjVkODg0ODA1MDhiYWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3Nzg0MmVkNWMzMjYzM2RjMzJmMTM3YWU5NGIzMTU1NTQ3ZGZiNDcyOGZhNWM3NzU2MzRkYWQwYWQ3Y2MwN2IifQ"
+        },
+        {
+          "resource": "repo://scripts/render_tile.mjs#L140-L170",
+          "version": "repo-lines-v1:sha256:dedf8614ead7c08575a6efcf4c332a9f72e25d346c32d7975985c8cc2b84c3a1:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxNmRmOGJmMGZmZjg0YTc3NmYxMTk0MjAxNmM3NzdhNTAwOTFiMWUwODUzOTZhZmZmZmMwYWFhZmZkNWQ4NWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYxZTY1NDY2MGExMTY2N2EyYTU5ODY1ZGZiZDMwNWJhYjFhMjVjNjc0ODNjYWEyYWFiYjBmMzI4ZWE3M2JiMGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZhZDc3ZGE1MzNlZTE2YTA1Mjg5OGFkM2ZhNGRjZWZmYWQ0ODI1NDEzZjdlN2Q2Mjk3YTVmZDk2M2E4MGU4ZDYifQ"
+        },
+        {
+          "resource": "repo://scripts/render_tile.mjs#L190-L220",
+          "version": "repo-lines-v1:sha256:5d1ebb4badb98489ef4f1eb979cd37378be0231b027eb713eac545fff52097f4:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1MDNhMWE3MjkwNmRhMmM5MzBhNjc5NjBmNGNkNDY1NTA3ZTg5Njc1ZDZmZDkxZjVlODY4MzMyZGU4NzE1MzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzMDIxNGMwY2ViOWJhNGJjOWNiMjRhYThmNjdmZWI5ODUxYzQzZTFmYmJhMmFjODIwMWQ5NzU2YjdiMGQ0ODMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRmZWY3YzYwM2FmY2Q5OTI4N2EzNjYyMDcwMWRiY2Q4ZmRmYjFjY2M3YmUxYzAzY2Q1YzE2NDNiOTgwMzlhYjEifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.7.3",
-    "at": "2026-11-04T15:30:01.509Z"
+    "at": "2026-11-04T16:08:29.597Z"
   }
 }
