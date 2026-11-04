@@ -563,17 +563,28 @@ next frame's work early — and use the per-row table for the scroll itself.
 
 ### 6.5 The Frogger backdrop demo
 
-`asm/showcase/frogger_demo.asm` is the worked example. It is a 466-word block
+`asm/showcase/frogger_demo.asm` is the worked example. It is a 613-word block
 at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
 `G`; `Q` returns. It paints five river rows (4–8) and five road rows (10–14)
 over a grass field, and keeps three values per lane: a `0..15` coarse start
 cell, a `0..7` fine phase, and a direction/speed (1, or 2 for the fast river
 lane).
 
-Each frame it advances the phase, writes control 6 for that row, and only
-when the phase wraps does it rewrite the row's 80 cells shifted by one coarse
-cell. That is the key split: the register supplies sub-cell motion, while the
-CPU touches the tilemap once per eight pixels.
+Each frame it advances the phase and writes control 6 for that row. Only when
+the coarse start changes does it repaint the row — all 82 cells, including the
+two margin cells — into the **back** tilemap bank, then request the display
+swap for the same frame boundary at which control 6 latches. The front map
+stays live, so no line is composed from a half-written row. The margin matters:
+the fine phase reads one cell past the 80 visible columns at the right edge, and
+leaving it zero makes a black strip up to seven pixels wide.
+
+A row changed in the previous frame is repainted into the new back copy on the
+next frame (the per-lane dirty flags), so the ping-pong pair stays current. The
+lanes start at different phases so the coarse shifts and repaints spread across
+frames. Entry paints both banks and resets the bank pair; exit restores bank 0
+and waits for the swap before returning. The register/table split is the key:
+control 6 supplies sub-cell motion, while the CPU touches the tilemap once per
+eight pixels.
 
 From the top river row down the directions are right, left, fast right, right,
 left (bottom to top: left, right, fast right, left, right). The road's top

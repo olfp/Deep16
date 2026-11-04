@@ -164,7 +164,7 @@ far-calls the entry with `R10`/`R11` as the return pair. The showcase menu's
 Pac-Man entry still jumps to `0x4330` and needs that loader hookup.
 
 The Frogger backdrop is a small, independent block at physical `0x4350`
-(466 words, CS=DS=`0x0435`). It is always baked into the flat image, does not
+(613 words, CS=DS=`0x0435`). It is always baked into the flat image, does not
 use the flash-slice mechanism, and the menu's `G` entry far-calls it directly;
 `Q` returns to the menu. It is the reference use of per-row scrolling
 (control 6): ten lanes each keep their own coarse start and fine phase.
