@@ -68,36 +68,31 @@ the only thing masking the IRQ, exactly as Big Pickle suspected. The earlier
 "request level low / PENDING never sets" readings were taken after the handler
 had acked in the window between commands.
 
-135/s is about twice the 69.6 Hz field rate of the 720p60 output
-(`86.108 MHz / (1650 x 750)`): the compare matches at both line-ends of a
-doubled render line, so the handler runs twice at the same line. Harmless —
-the second write puts the same value — but if a single edge per frame is
-wanted, gate the compare on one of the two line-end phases.
+**Rate check: two edges per frame, fixed (2026-11-04).** With the 15 kHz timer
+as the clock the reading was `raster 243, timer 30174` = **1/124**, i.e. two
+requests per frame, not one. The compare was a *level*
+(`render_line_end && !render_stall && ry == raster_line`); the render line end
+can hold across a fill stall and the handler's acknowledge clears the level, so
+the still-true condition set it again for the same line.
 
-**Rate check (one per frame or two?):** the empty `do..loop` costs 28.5
-instructions per iteration, so the 2,000,000-iteration spin is ~2.2-2.8 s, not
-one second. 135 ticks over that is 48-60 Hz, i.e. one compare per frame; the
-"135 per second" reading was the loop-length estimate, not a doubled edge.
-Confirm with the 15 kHz timer as the clock (both sources enabled, so SCRATCH
-ticks):
+The request now fires on the **rising edge of the line match**, registered in
+one flop: a stall cannot re-trigger it, an ack cannot re-arm it, and the next
+frame (or the split's second line B) still fires because `ry` leaves the line
+in between. A ten-bit "line already serviced" register was tried first and made
+PnR fail with 180 unrouted nets; the edge detector costs one register and fits
+at **4,298 / 4,320 CLS** (22 free), routed. The Verilator tile bench acks each
+request like the kernel handler and checks two requests over two frames.
 
-```
-: rate 0 0xC2 es! 30 raster-line! 0 sic-raster es! 0 sic-scratch es!
-     10 sic-enable es! 2000000 0 do loop 0 sic-enable es! 30 raster-line!
-     ." raster " sic-raster es@ . ." timer " sic-scratch es@ . cr ;
-rate
-```
-
-One edge per frame means `raster / timer` = 60 / 15000 = 1/250.
-
-**Visible band:** write palette set 1's text pair 0 as green, then let the
-handler swap the scene at line 100 and restore at 200. Line 100 is text row 6
-(each row is 15 render lines), so print something first (`mem` fills rows) and
-the lower part of it turns green:
+**Visible band (board-verified 2026-11-04):** write palette set 1's text pair 0
+as green, then let the handler swap the scene at line 100 and restore at 200.
+Line 100 is text row 6 (each row is 15 render lines), so the band only shows
+where there is text — print first, then arm. On the board the text in the band
+turned green on black, so the handler's control-5 write does land mid-frame.
+The first attempt showed nothing because the screen had no text in rows 6..13
+yet.
 
 ```
-: band 1 pal-set! 0 0x1C 0 pal! 0 pal-set! 0x100 100 200 split! ;
-mem
+: band mem 1 pal-set! 0 0x1C 0 pal! 0 pal-set! 0x100 100 200 split! ;
 band
 ```
 
