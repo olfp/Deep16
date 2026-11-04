@@ -15681,8 +15681,11 @@ irq_handler:
     AND R1, R3               ; raster pending?
     JZ irq_timer
     NOP
-    LSI R3, 8
-    STS R3, ES, R2           ; W1C: clear the raster bit
+    ; Do NOT clear the raster bit here. The raster source is a level held by
+    ; the tile engine until a control-7 write acknowledges it, so a W1C while
+    ; the source is still high re-latches the bit and the handler runs a
+    ; second time - the second entry takes the other branch and undoes the
+    ; first. Each band path clears the bit after its ack, below.
     LDI 0xB8
     MOV R2, R0
     LDS R1, ES, R2
@@ -15742,6 +15745,16 @@ irq_handler:
     LDS R3, ES, R2
     ADD R3, 1
     STS R3, ES, R2
+    ; The control-7 store above has reached the tile engine by now, so the
+    ; level source has fallen. Clear the SIC bit without re-latching it.
+    NOP
+    NOP
+    NOP
+    NOP
+    LDI 0xB0
+    MOV R2, R0
+    LSI R3, 8
+    STS R3, ES, R2           ; W1C raster, after the ack
     RETI
     NOP
 irq_split_end:
@@ -15772,6 +15785,14 @@ irq_split_end:
     LDS R3, ES, R2
     ADD R3, 1
     STS R3, ES, R2
+    NOP
+    NOP
+    NOP
+    NOP
+    LDI 0xB0
+    MOV R2, R0
+    LSI R3, 8
+    STS R3, ES, R2           ; W1C raster, after the ack
     RETI
     NOP
 irq_split_none:
@@ -15782,7 +15803,17 @@ irq_split_none:
     LDS R1, ES, R2
     LDI 0x200E
     MOV R2, R0
-    STS R1, ES, R2
+    STS R1, ES, R2           ; ack the level source
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    LDI 0xB0
+    MOV R2, R0
+    LSI R3, 8
+    STS R3, ES, R2           ; W1C raster, after the ack
     RETI
     NOP
 irq_timer:
