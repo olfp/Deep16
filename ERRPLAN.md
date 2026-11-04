@@ -74,8 +74,37 @@ doubled render line, so the handler runs twice at the same line. Harmless —
 the second write puts the same value — but if a single edge per frame is
 wanted, gate the compare on one of the two line-end phases.
 
-**Next:** a visible band with `split!` (palette set + OAM base swap at line A,
-restored at line B) to confirm the handler's control-5 writes land mid-frame.
+**Rate check (one per frame or two?):** the empty `do..loop` costs 28.5
+instructions per iteration, so the 2,000,000-iteration spin is ~2.2-2.8 s, not
+one second. 135 ticks over that is 48-60 Hz, i.e. one compare per frame; the
+"135 per second" reading was the loop-length estimate, not a doubled edge.
+Confirm with the 15 kHz timer as the clock (both sources enabled, so SCRATCH
+ticks):
+
+```
+: rate 0 0xC2 es! 30 raster-line! 0 sic-raster es! 0 sic-scratch es!
+     10 sic-enable es! 2000000 0 do loop 0 sic-enable es! 30 raster-line!
+     ." raster " sic-raster es@ . ." timer " sic-scratch es@ . cr ;
+rate
+```
+
+One edge per frame means `raster / timer` = 60 / 15000 = 1/250.
+
+**Visible band:** write palette set 1's text pair 0 as green, then let the
+handler swap the scene at line 100 and restore at 200. Line 100 is text row 6
+(each row is 15 render lines), so print something first (`mem` fills rows) and
+the lower part of it turns green:
+
+```
+: band 1 pal-set! 0 0x1C 0 pal! 0 pal-set! 0x100 100 200 split! ;
+mem
+band
+```
+
+`split-off` removes the band; `irq-on` restores the timer source. The band is
+expected a couple of lines below 100 because the fill runs ahead of the scan by
+the line-buffer depth.
+
 The timer IRQ also runs during console input now, which is worth re-checking
 with `ticks` while typing.
 
