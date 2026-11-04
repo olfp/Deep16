@@ -15689,9 +15689,12 @@ irq_handler:
     ADD R1, 1
     STS R1, ES, R2           ; RASTER = raster interrupt count
 
-    ; Optional raster band: control 5 changes at lineA and changes back at
-    ; lineB, so the split is stable instead of alternating every frame.
-    ;   0xC0 = lineA, 0xC2 = scene value (control 5), 0xC4 = lineB,
+    ; Optional raster band: control 6 (vertical scroll) changes at lineA and
+    ; changes back at lineB, so the split is stable instead of alternating
+    ; every frame. Control 6 is read by the fill per line; the palette set
+    ; (control 5) turned out to be sampled per frame on the board, so it
+    ; cannot make a band.
+    ;   0xC0 = lineA, 0xC2 = scroll value (control 6), 0xC4 = lineB,
     ;   0xC6 = the line the compare is currently armed at
     ; These sit just past the SIC page: the SIC decodes 0xB0-0xBF and returns 0
     ; for the registers it does not implement, so parameters must live outside.
@@ -15716,16 +15719,28 @@ irq_handler:
     JNZ irq_split_end
     LDI 0x200A
     MOV R2, R0
-    STS R1, ES, R2           ; control 5 = band scene
+    LDI 0
+    MOV R3, R0
+    STS R3, ES, R2           ; control 5 = base scene (no palette change)
+    LDI 0x200C
+    MOV R2, R0
+    STS R1, ES, R2           ; control 6 = split vertical scroll
     LDI 0xC4
     MOV R2, R0
     LDS R1, ES, R2           ; lineB
     LDI 0x200E
     MOV R2, R0
     STS R1, ES, R2           ; next compare = lineB
+    STS R1, ES, R2           ; again: a single store has been seen to vanish
     LDI 0xC6
     MOV R2, R0
     STS R1, ES, R2           ; software copy of the armed line
+    ; 0xC8 counts band-set edges, for the on-board probe.
+    LDI 0xC8
+    MOV R2, R0
+    LDS R3, ES, R2
+    ADD R3, 1
+    STS R3, ES, R2
     RETI
     NOP
 irq_split_end:
@@ -15734,15 +15749,25 @@ irq_split_end:
     LDI 0
     MOV R3, R0
     STS R3, ES, R2           ; control 5 = base scene
+    LDI 0x200C
+    MOV R2, R0
+    STS R3, ES, R2           ; control 6 = no split scroll
     LDI 0xC0
     MOV R2, R0
     LDS R1, ES, R2           ; lineA
     LDI 0x200E
     MOV R2, R0
     STS R1, ES, R2           ; next compare = lineA
+    STS R1, ES, R2
     LDI 0xC6
     MOV R2, R0
     STS R1, ES, R2           ; software copy of the armed line
+    ; 0xCA counts band-restore edges.
+    LDI 0xCA
+    MOV R2, R0
+    LDS R3, ES, R2
+    ADD R3, 1
+    STS R3, ES, R2
     RETI
     NOP
 irq_split_none:
