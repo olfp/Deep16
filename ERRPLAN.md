@@ -92,9 +92,17 @@ The first attempt showed nothing because the screen had no text in rows 6..13
 yet.
 
 ```
-: band mem 1 pal-set! 0 0x1C 0 pal! 0 pal-set! 0x100 15 60 split! ;
+: band mem 0xFF 0x6081 es! 0x1C 0x60C1 es! 0x100 15 60 split! ;
 band
 ```
+
+**The palette window is addressed by absolute set**, not by the selected one:
+set 0's text pair 0 is 0x6080/0x6081, set 1's is 0x60C0/0x60C1 (0x80 + set*64
++ 2*pair). `pal-set!`/`scene!` only choose which set the *display* samples;
+`pal!`/`art-pal!`/`sprite-pal!` always write set 0. The first demo therefore
+recoloured set 0 and left the display on it, which is exactly the "all text
+turned green" result; the band then switched to the untouched default set 1,
+which looks like no change. The one-liner above writes both cells explicitly.
 
 Lines 15..60 are text rows 1..3, so the top of the printed map turns green
 and everything below stays white — a band that is easy to see. The earlier
