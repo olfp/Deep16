@@ -299,9 +299,8 @@ menu_wait:
     CMP R1, R3
     JZ menu_quit
     NOP
-    LDI 0x20
-    MOV R3, R0
-    OR R1, R3
+    ; OR immediate sets bit 5, folding A-Z to a-z for the G check.
+    OR R1, 5
     LDI 0x67
     MOV R3, R0
     CMP R1, R3
