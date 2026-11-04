@@ -1,23 +1,22 @@
 ```mermaid
-flowchart TB
-    %% Layout-Strukturierung durch Spalten (Subgraphs)
-    subgraph LeftSide [Peripherie Links]
+flowchart LR
+    %% Definition der horizontalen Spalten-Struktur (Links nach Rechts)
+    subgraph LeftCol [Peripherie Links]
         direction TB
         SDCard[SD Card]
         SPIMaster[SPI Master]
         USBCSerial[USB-C Serial]
         UART[UART]
         
-        %% Vertikale Ausrichtung links erzwingen
+        %% Vertikale Paarung erzwingen
         SDCard <--> SPIMaster
         USBCSerial <--> UART
     end
 
-    subgraph CenterColumn [Verarbeitung & Speicher]
+    subgraph CenterCol [Zentraler Block]
         direction TB
         
-        %% Obere Sektion
-        subgraph TopMem [System & Speicher]
+        subgraph TopBlocks [Speicher & System]
             direction LR
             BootROM[Boot ROM]
             ExtFlash[External Flash]
@@ -26,48 +25,44 @@ flowchart TB
             SIC[SIC]
         end
 
-        %% Haupt-Core im Zentrum
         Core[Deep16 3 stage core]
 
-        %% Untere Sektion
-        subgraph BottomGfx [Grafik & Systemtakt]
+        subgraph BottomBlocks [Grafik & Takt]
             direction LR
+            Clk[Clk]
             VMEM[VMEM]
             FITGfx[FIT Gfx]
-            Clk[Clk]
             VMEM <--> FITGfx
         end
 
-        %% Vertikale Hierarchie erzwingen
-        TopMem ~~~ Core ~~~ BottomGfx
+        %% Struktur-Reihenfolge in der Mitte erzwingen
+        TopBlocks ~~~ Core ~~~ BottomBlocks
     end
 
-    subgraph RightSide [Peripherie Rechts]
+    subgraph RightCol [Peripherie Rechts]
         direction TB
         Timer[Timer]
         PS2[PS/2]
         I2SAudio[I2S Audio]
         PCMAmp[PCM Amp]
         
-        %% Vertikale Ausrichtung rechts erzwingen
-        Timer ~~~ PS2 ~~~ I2SAudio
-        I2SAudio <--> PCMAmp
+        %% Vertikale Kette rechts erzwingen
+        Timer ~~~ PS2 ~~~ I2SAudio <--> PCMAmp
     end
 
-    %% Reale Signalverbindungen zwischen den Blöcken
+    %% Querverbindungen von den Seiten in die Mitte (Erzwingt das 3-Spalten-Layout)
+    SPIMaster <--> Core
+    UART <--> Core
+    Core <--> Timer
+    Core <--> PS2
+    Core --> I2SAudio
+
+    %% Verbindungen innerhalb der Hauptsäule
     Core --> BootROM
     Core --> ExtFlash
     Core <--> MEM
     Core <--> Cache
     SIC --> Core
-
-    SPIMaster <--> Core
-    UART <--> Core
-
-    Core <--> Timer
-    Core <--> PS2
-    Core --> I2SAudio
-
     Core --> VMEM
     Core --> FITGfx
 
@@ -93,10 +88,10 @@ flowchart TB
     
     style Clk fill:#B0BEC5,stroke:#333;
 
-    %% Subgraph-Rahmen unsichtbar machen für sauberen Look
-    style LeftSide fill:none,stroke:none;
-    style RightSide fill:none,stroke:none;
-    style CenterColumn fill:none,stroke:none;
-    style TopMem fill:none,stroke:none;
-    style BottomGfx fill:none,stroke:none;
+    %% Hilfsrahmen unsichtbar machen für ein sauberes Gesamtbild
+    style LeftCol fill:none,stroke:none;
+    style CenterCol fill:none,stroke:none;
+    style RightCol fill:none,stroke:none;
+    style TopBlocks fill:none,stroke:none;
+    style BottomBlocks fill:none,stroke:none;
 ```
