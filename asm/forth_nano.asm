@@ -15689,13 +15689,14 @@ irq_handler:
     ADD R1, 1
     STS R1, ES, R2           ; RASTER = raster interrupt count
 
-    ; Optional raster band: scroll_y (0x2006) changes at lineA and changes
-    ; back at lineB, so the split is stable instead of alternating every frame.
-    ; scroll_y is combined into the fill per line; the palette set (0x200A)
-    ; turned out to be sampled per frame on the board, so it cannot make a
-    ; band. 0x200C is the per-row fine table, not the vertical scroll.
-    ;   0xC0 = lineA, 0xC2 = scroll value (scroll_y), 0xC4 = lineB,
-    ;   0xC6 = the line the compare is currently armed at
+    ; Optional raster band: sprite descriptor 0's Y (0xF6001) changes at lineA
+    ; and changes back at lineB. The renderer reloads the OAM descriptors at the
+    ; start of every line, so this is a real per-line change - the classic
+    ; sprite multiplexing trick: one slot, two sprites, one per half of the
+    ; screen. Control registers (palette set, scroll_y) turned out to be
+    ; frame-granular in the fitted build, so they cannot make a band.
+    ;   0xC0 = lineA, 0xC2 = Y below the split, 0xCC = Y above it,
+    ;   0xC4 = lineB, 0xC6 = the line the compare is currently armed at
     ; These sit just past the SIC page: the SIC decodes 0xB0-0xBF and returns 0
     ; for the registers it does not implement, so parameters must live outside.
     ; A zero scene value disables the band.
@@ -15717,14 +15718,14 @@ irq_handler:
     LDS R0, ES, R2           ; lineA
     CMP R3, R0
     JNZ irq_split_end
-    LDI 0x200A
+    ; descriptor 0, word 1 = {pattern group 1, Y}: show the lower sprite
+    LDI 0x2001
+    OR R0, 14
     MOV R2, R0
-    LDI 0
+    LDI 0x0800
     MOV R3, R0
-    STS R3, ES, R2           ; control 5 = base scene (no palette change)
-    LDI 0x2006
-    MOV R2, R0
-    STS R1, ES, R2           ; scroll_y = split vertical scroll
+    ADD R1, R3
+    STS R1, ES, R2
     LDI 0xC4
     MOV R2, R0
     LDS R1, ES, R2           ; lineB
@@ -15744,14 +15745,17 @@ irq_handler:
     RETI
     NOP
 irq_split_end:
-    LDI 0x200A
-    MOV R2, R0
-    LDI 0
+    ; descriptor 0, word 1 = {pattern group 1, Y above the split}
+    LDI 0xCC
     MOV R3, R0
-    STS R3, ES, R2           ; control 5 = base scene
-    LDI 0x2006
+    LDS R1, ES, R3           ; the Y the upper half uses
+    LDI 0x0800
+    MOV R3, R0
+    ADD R1, R3
+    LDI 0x2001
+    OR R0, 14
     MOV R2, R0
-    STS R3, ES, R2           ; scroll_y = no split scroll
+    STS R1, ES, R2
     LDI 0xC0
     MOV R2, R0
     LDS R1, ES, R2           ; lineA

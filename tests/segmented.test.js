@@ -390,29 +390,28 @@ test('W1C clears only the bits written', () => {
   assert.ok(sim.running);
 });
 
-test('the raster band splits the scroll at A and restores it at B', () => {
+test('the raster band multiplexes sprite descriptor 0 at A and restores it at B', () => {
   // The handler cannot read control 7 back (the tile window is write-only), so
   // it keeps the armed line in split-cur. Drive the two visits directly and
   // check the scene write and the re-arm each time.
   line('split-off');
-  line('15 15 60 split!');
+  line('20 0xCC es! 16 15 60 split!');
   const splitCur = () => sim.memory[0xF00C6];
   const scene = () => sim.memory[0xF200A];      // control 5 (base scene)
-  const scroll = () => sim.memory[0xF2006];     // scroll_y (split line)
+  const oam1 = () => sim.memory[0xF6001];       // descriptor 0, word 1
   const compare = () => sim.memory[0xF200E];    // control 7
   assert.equal(splitCur(), 15, 'armed at lineA');
   assert.equal(sim.sicEnable & 8, 8, 'raster source enabled');
 
   sim.raiseIRQ(3);                       // the compare at lineA
   line('1 drop');                        // the interpreter runs with I=1
-  assert.equal(scroll(), 15, 'vertical scroll in the band');
-  assert.equal(scene(), 0, 'palette set unchanged');
+  assert.equal(oam1(), 0x0800 | 16, 'lower sprite below the split');
   assert.equal(compare(), 60, 're-armed at lineB');
   assert.equal(splitCur(), 60, 'software copy follows');
 
   sim.raiseIRQ(3);                       // the compare at lineB
   line('1 drop');
-  assert.equal(scroll(), 0, 'scroll restored below the band');
+  assert.equal(oam1(), 0x0800 | 20, 'upper sprite restored');
   assert.equal(compare(), 15, 're-armed at lineA');
   assert.equal(splitCur(), 15, 'software copy follows');
 
