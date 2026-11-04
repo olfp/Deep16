@@ -1,5 +1,8 @@
 # D16nano block architecture
 
+![Deep16 Nano Architektur](
+https://raw.githubusercontent.com/olfp/Deep16/refs/heads/main/doc/BLOCK.svg)
+
 ```xml
 <svg xmlns="http://w3.org" viewBox="0 0 1050 950" width="100%" height="100%">
   <!-- Hintergrund -->
