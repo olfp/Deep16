@@ -168,6 +168,40 @@ band
 
 ---
 
+## 2026-11-04 — Raster band: scroll_y at 0x2006, and the 16-bit loop limit
+
+**Priority:** done — the raster split works on the board.
+
+**Area:** `asm/forth_nano.asm` (IRQ handler band branch), `catalog.fth`
+(`split!`/`split-off`), `ERRPLAN` earlier entries.
+
+**What was wrong, in order:**
+
+1. The handler wrote `0x200C` for "control 6". `0x200C` is the **per-row
+   fine-scroll table**; the vertical scroll is `scroll_y` at **`0x2006`**
+   (control decode `4'h6`). `5 0x2006 es!` from the console jumps the picture
+   immediately, which is the test that separated "wrong register" from
+   "frame-latched register".
+2. Before that, the palette set (control 5) was tried: the board showed it
+   sampled per *frame* (a scene flip driven from a spin washed the whole
+   screen instead of striping it, and the raster count did not gain the
+   second edge). Control 5 is not usable for a band.
+3. The loop counts in the probe commands were truncated: cells are 16-bit, so
+   `2000000 0 do loop` runs `0x8480` and `4000000` runs `0x0900` (2 304) —
+   "a very short flash". Use 65 535 or less (or a counter) for a timed spin.
+   This also explains the inconsistent timer/raster readings earlier.
+
+**Board result:** `band` (20 20 200 split!) shifts the picture during the spin
+and restores it, and `20 20 200` with a longer loop is easy to see. The
+compare, SIC source, handler, A->B->A re-arm (`split-cur`) and the per-line
+`scroll_y` write are all working. The only open polish is whether the band
+edge is visible as a seam or the whole picture shifts (the console ring uses
+`row_off`, which may add to `scroll_y`).
+
+**Status:** raster split working on the board (2026-11-04).
+
+---
+
 ## 2026-11-02 — Open discussion: extend the art tile bank using spare cell bits
 
 **Priority:** low — discussion only; no encoding or memory-map decision yet.
