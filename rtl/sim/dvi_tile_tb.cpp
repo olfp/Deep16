@@ -377,11 +377,14 @@ int main(int argc, char** argv) {
   wait_frame();
   check("row scroll disabled again", top->dbg_row_scroll_en, 0);
 
-  // ---- column scroll window (control 8 at 0xF2011) -----------------------
-  // Column 0 is a static panel; columns 1.. use the row fine phase. The H in
-  // column 0 must stay unshifted even though row 0 has phase 4.
+  // ---- column scroll window (control 5 bit 11 + control 6 row 31) --------
+  // Columns 0..last stay at fine 0 even though row 0 has phase 4; the
+  // playfield starts at `last + 1`.
   write_tile(0, 0x8000 | 0x0500);          // restore the H cell
-  write_tile(1, 0x8000 | 0x0420);          // A in the playfield
+  write_tile(2, 0x8000 | 0x0440);          // B at map column 2
+  write_ctrl(0x0C, (31 << 3) | (0 << 9));  // row 31 marker: panel ends at 0
+  check("window marker does not enable the row table",
+        top->dbg_row_scroll_en, 0);
   write_ctrl(0x0A, 0x800);
   write_ctrl(0x0C, (1 << 8) | (0 << 3) | 4);
   wait_frame();
@@ -391,6 +394,29 @@ int main(int argc, char** argv) {
   sample_cell(0, 0, cap_win, seen_win, &white_win);
   check("window keeps the static panel cell unshifted",
         compare_cell(tile, h_base, cap_win, seen_win, "Hwin") ? 1 : 0, 1);
+
+  // Moving the bound to column 2 turns column 2 into panel, so its B must be
+  // drawn from its first pixel instead of at the row's phase 4.
+  write_ctrl(0x0C, (31 << 3) | (2 << 9));
+  wait_frame();
+  wait_frame();
+  bool cap_b[15][8] = {}, seen_b[15][8] = {};
+  bool white_b = false;
+  sample_cell(0, 2, cap_b, seen_b, &white_b);
+  check("the bound moves the panel edge at run time",
+        compare_cell(tile, 32 + (0x42 - 0x20) * 8, cap_b, seen_b, "Bwin") ? 1 : 0, 1);
+
+  // Sign bit set: columns 0..1 scroll and column 2 starts the static panel,
+  // still from its first pixel.
+  write_ctrl(0x0C, (31 << 3) | (1 << 8) | (1 << 9));
+  wait_frame();
+  wait_frame();
+  bool cap_r[15][8] = {}, seen_r[15][8] = {};
+  bool white_r = false;
+  sample_cell(0, 2, cap_r, seen_r, &white_r);
+  check("the side bit moves the panel to the right",
+        compare_cell(tile, 32 + (0x42 - 0x20) * 8, cap_r, seen_r, "Bright") ? 1 : 0, 1);
+
   write_ctrl(0x0A, 0);
   write_ctrl(0x0C, 0);
   wait_frame();

@@ -98,6 +98,8 @@ class Deep16TileEngine {
     this.rowScrollEn = 0;
     this.rowScrollEnNext = 0;
     this.scrollWin = false;
+    this.scrollWinRight = false;
+    this.scrollWinCol = 0;
     this.rasterLine = 0;
   }
 
@@ -135,8 +137,16 @@ class Deep16TileEngine {
           break;
         case 0xC: {
           const row = (value >> 3) & 0x1F;
-          if (row < this.MAP_ROWS) this.rowScrollNext[row] = value & 7;
-          this.rowScrollEnNext = (value >> 8) & 1;
+          if (row === 31) {
+            // Row 31 is the scroll-window marker, not a tile row: b15:9 is
+            // the bound column and b8 picks the side (0 = static left panel,
+            // 1 = static right panel).
+            this.scrollWinCol = (value >> 9) & 0x7F;
+            this.scrollWinRight = ((value >> 8) & 1) !== 0;
+          } else {
+            if (row < this.MAP_ROWS) this.rowScrollNext[row] = value & 7;
+            this.rowScrollEnNext = (value >> 8) & 1;
+          }
           break;
         }
         case 0xE: this.rasterLine = value & 0x3FF; break;
@@ -196,13 +206,23 @@ class Deep16TileEngine {
     let cellPos;
     let mapCol;
     if (this.scrollWin) {
-      const fromPx = 192;
-      if (x < fromPx) {
+      // Columns up to the bound are one region; the rest is the other. The
+      // side bit picks which one is the static panel at fine 0.
+      const boundPx = (this.scrollWinCol + 1) * 8;
+      if (this.scrollWinRight) {
+        if (x < boundPx) {
+          cellPos = line.fine + x;
+          mapCol = cellPos >> 3;
+        } else {
+          cellPos = x - boundPx;
+          mapCol = this.scrollWinCol + 1 + (cellPos >> 3);
+        }
+      } else if (x < boundPx) {
         cellPos = x;
         mapCol = x >> 3;
       } else {
-        cellPos = line.fine + (x - fromPx);
-        mapCol = 24 + (cellPos >> 3);
+        cellPos = line.fine + (x - boundPx);
+        mapCol = this.scrollWinCol + 1 + (cellPos >> 3);
       }
     } else {
       cellPos = line.fine + x;

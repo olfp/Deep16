@@ -187,6 +187,33 @@ test('the per-row table replaces only the fine phase', () => {
   assert.ok(isBlack(pixel(engine, 5, 0)), 'fine phase moved past the marker');
 });
 
+test('the column window pins the panel side at fine 0', () => {
+  const { engine } = loaded();
+  const base = 96 * 32;
+  for (let i = 0; i < 32; i++) engine.write(0xF3000 + base + i, 0);
+  engine.write(0xF3000 + base, 0x1000);           // row 0, pixel 3 only
+  engine.write(0xF6091, 0xE0);
+  cell(engine, 0, 0, 96 * 32);
+  cell(engine, 0, 2, 96 * 32);                    // the same marker at column 2
+  engine.write(CTRL + 0xC, (1 << 8) | (0 << 3) | 3);
+  engine.write(CTRL + 0xC, (31 << 3) | (1 << 9)); // bound column 1
+  engine.write(CTRL + 0xA, 0x800);                // dynamic panel, left side
+
+  engine.tick();
+  engine.render();
+  // The panel ends at column 1, so column 2 scrolls from phase 3: x=16 shows
+  // pixel 3 and x=19 has moved past it.
+  assert.deepEqual(pixel(engine, 16, 0), [255, 0, 0, 255], 'playfield at column 2');
+  assert.ok(isBlack(pixel(engine, 19, 0)));
+
+  // The side bit moves the panel to the right: column 2 is now static and
+  // starts at its own pixel 0.
+  engine.write(CTRL + 0xC, (31 << 3) | (1 << 8) | (1 << 9));
+  engine.render();
+  assert.ok(isBlack(pixel(engine, 16, 0)), 'right panel starts at fine 0');
+  assert.deepEqual(pixel(engine, 19, 0), [255, 0, 0, 255]);
+});
+
 test('sprites use OAM, the sprite bank and the sprite palette bank', () => {
   const { engine } = loaded();
   for (let i = 0; i < 256; i++) engine.write(0xF4000 + i, 0x1111);

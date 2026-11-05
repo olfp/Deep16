@@ -267,10 +267,14 @@ module dvi_tile #(
   logic        rs_copy;
   logic [4:0]  rs_copy_i;
   logic        row_scroll_en, row_scroll_en_next;
-  // Column scroll window (control 8 at 0xF2011): the first 24 columns are a
-  // static panel; columns 24..79 use the per-row phase. This is the
-  // scroll-from fallback; the general from/to version did not fit.
+  // Column scroll window: one bound column plus a side bit. sign=0 keeps
+  // columns 0..col (a left panel) at fine 0 and scrolls the rest; sign=1
+  // scrolls columns 0..col and keeps the rest (a right panel) at fine 0.
+  // Control 5 bit 11 enables the window; control 6 row 31 carries
+  // {col[6:0], sign}.
   logic        scroll_win_en;
+  logic        scroll_win_right;
+  logic [6:0]  scroll_win_col;
   logic [9:0] raster_line;       // control 7: line compare for the raster IRQ
   logic       map_wpage;  // CPU writes target this bank
   logic       map_dpage;  // fill/render reads this bank
@@ -345,6 +349,8 @@ module dvi_tile #(
       oam_base <= 6'd0;
       row_scroll_en_next <= 1'b0;
       scroll_win_en <= 1'b0;
+      scroll_win_right <= 1'b0;
+      scroll_win_col <= 7'd0;
       raster_line <= 10'd0;
     end else if (cpu_we && cpu_ctrl) begin
       // 0x00 cursor, 0x02 row offset, 0x04 scroll_x, 0x06 scroll_y,
@@ -374,7 +380,14 @@ module dvi_tile #(
           pal_set  <= cpu_data[10:8];
           scroll_win_en <= cpu_data[11];
         end
-        4'hC: row_scroll_en_next <= cpu_data[8];
+        4'hC: begin
+          if (cpu_data[7:3] == 5'd31) begin
+            scroll_win_col <= cpu_data[15:9];
+            scroll_win_right <= cpu_data[8];
+          end else begin
+            row_scroll_en_next <= cpu_data[8];
+          end
+        end
         4'hE: raster_line <= cpu_data[9:0];
         default: ;
       endcase
@@ -736,7 +749,7 @@ module dvi_tile #(
             // is stable and F_PIX is about to consume the first pixel.
             frowpix <= row_scroll_en ? {1'b0, row_scroll_q[2:0]}
                                      : 4'(scroll_x[2:0]);
-            fpix <= scroll_win_en
+            fpix <= (scroll_win_en && !scroll_win_right)
                       ? 4'd0
                       : (row_scroll_en ? {1'b0, row_scroll_q[2:0]}
                                        : 4'(scroll_x[2:0]));
@@ -781,21 +794,6 @@ module dvi_tile #(
                 ready_toggle[wr_buf] <= ~ready_toggle[wr_buf];
                 wr_buf <= (wr_buf == 2'd2) ? 2'd0 : wr_buf + 2'd1;
                 fstate <= F_DONE;
-              end else if (scroll_win_en &&
-                           fx == 10'd191 && fcol == 7'd23) begin
-                // Static left panel -> playfield: keep the panel cells at
-                // fine 0, then start column 24 at the row's fine phase.
-                fcell <= fncell;
-                fpal  <= fnpal;
-                fsty  <= fnsty;
-                frow0 <= fnrow0;
-                frow1 <= fnrow1;
-                fcol  <= 7'd24;
-                fpix  <= frowpix;
-                prev_ink <= 1'b0;
-                ncol  <= 7'd25;
-                nstate <= N_CELL;
-                fx <= fx + 10'd1;
               end else if (fpix == 4'd7) begin
                 fcell <= fncell;
                 fpal  <= fnpal;
@@ -803,13 +801,22 @@ module dvi_tile #(
                 frow0 <= fnrow0;
                 frow1 <= fnrow1;
                 fcol <= 7'(fcol + 7'd1);
-                fpix <= 4'd0;
+                // The last panel cell hands over to the playfield at the
+                // row's fine phase; every other cell starts at fine 0.
+                fpix <= (scroll_win_en && !scroll_win_right &&
+                         fcol == scroll_win_col)
+                          ? frowpix : 4'd0;
                 prev_ink <= 1'b0;         // no smear across a cell boundary
                 ncol <= 7'(fcol + 7'd2);
                 nstate <= N_CELL;
                 fx <= fx + 10'd1;
               end else begin
-                fpix <= fpix + 4'd1;
+                // The static right panel starts at column col+1 with fine 0.
+                // When the playfield phase cuts into that cell, restart it
+                // at its first pixel instead of completing the shifted one.
+                fpix <= (scroll_win_en && scroll_win_right &&
+                         fx[9:3] == scroll_win_col && fx[2:0] == 3'b111)
+                          ? 4'd0 : fpix + 4'd1;
                 fx <= fx + 10'd1;
                 prev_ink <= txt_raw;
               end

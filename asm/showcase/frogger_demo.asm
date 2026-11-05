@@ -30,7 +30,9 @@
 ;   22..23 bottom bank: static; left panel row 23 = LIVES/TIME
 ;
 ; Columns 0..23 are the uniform left panel; columns 24..79 are the 448-pixel
-; playfield; 80..81 are its right margins for the fine phase.
+; playfield; 80..81 are its right margins for the fine phase.  The column
+; scroll window (control 5 bit 11, bound in control 6 row 31) keeps the panel
+; at fine 0 while the playfield rows use their per-row phase.
 
 .equ SEG_TILE -0x0F00          ; 0xF100 tilemap
 .equ SEG_CTRL -0x0E00          ; 0xF200 controls
@@ -134,6 +136,10 @@ fr_clear_dirty:
     LDI 0xA00
     MOV R3, R0
     STS R3, ES, R2             ; control 5 palette 2, OAM 0, scroll window
+    LSI R2, 0x0C
+    LDI 0x2EF8                 ; control 6 row 31: last panel column 23
+    MOV R3, R0
+    STS R3, ES, R2
 
     ; clear the OAM descriptors so the menu's sprites do not show through
     LDI SEG_OAM

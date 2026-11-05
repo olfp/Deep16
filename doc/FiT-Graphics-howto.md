@@ -33,8 +33,8 @@ tile engine and to the PSRAM/Forth mirror at the same address.
 | `0xF2004` | control 2: smooth `scroll_x` 0..15, latched with the display bank |
 | `0xF2006` | control 3: smooth `scroll_y` 0..30 |
 | `0xF2008` | control 4: b0 write bank, b1 display bank |
-| `0xF200A` | control 5: scene select — palette set 0..7, OAM base descriptor 0..63 |
-| `0xF200C` | control 6: per-row fine scroll `{en, row[4:0], fine[2:0]}` |
+| `0xF200A` | control 5: scene select — palette set 0..7, OAM base descriptor 0..63, b11 column scroll window |
+| `0xF200C` | control 6: per-row fine scroll `{en, row[4:0], fine[2:0]}`; row 31 sets the scroll window `{col[6:0], side}` |
 | `0xF200E` | control 7: raster line compare 0..359 |
 | `0xF3000`–`0xF3FFF` | tile bank, all 128 tiles x 32 words |
 | `0xF4000`–`0xF57FF` | sprite bank, all 24 groups x 16 patterns x 16 words |
@@ -563,7 +563,7 @@ next frame's work early — and use the per-row table for the scroll itself.
 
 ### 6.5 The Frogger backdrop demo
 
-`asm/showcase/frogger_demo.asm` is the worked example. It is an 874-word block
+`asm/showcase/frogger_demo.asm` is the worked example. It is an 878-word block
 at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
 `G`; `Q` returns. It is a widescreen 14×12 game grid: a 448-pixel (56-cell)
 playfield in columns 24–79 and a 192-pixel left panel in columns 0–23. Each game
@@ -578,14 +578,22 @@ the median, hold the time bar: 24 yellow cells for the time remaining and the
 panel tile for the empty tail. It drains one cell every 64 frames (about 25 s),
 then resets. The bar is on the panel, not on the playfield.
 
-The panel must stay fixed while the playfield rows scroll. The per-row phase is
-applied only from column 24: control 5 bit 11 enables a fixed 24-column static
-panel; columns 24..79 use control 6. Older bitstreams ignore that bit, so the
-same boot image still runs on them (without the fixed edge). The general scroll-from/
-scroll-to version was assembled and tried first, but it exceeded the device
-logic (8,737 > 8,640). The fixed scroll-from version fits at 8,545 logic and
-4,315/4,320 CLS, with BSRAM still 26/26. Columns 0–23 therefore ignore the row
-phase; the playfield keeps all 56 moving cells.
+The panel must stay fixed while the playfield rows scroll. Control 5 bit 11
+enables a column scroll window; control 6 row 31 carries its bound and side as
+`{col[6:0], side}`. `side` 0 keeps columns `0..col` at fine 0 and scrolls the
+rest (static left panel, what the demo uses: `col=23`); `side` 1 scrolls
+`0..col` and keeps the rest static (static right panel). The window applies to
+rows that use the control 6 phase; the static HUD, median and bar rows are
+unaffected. Older bitstreams ignore control 5 bit 11 and the row-31 marker, so
+the same boot image still runs on them, without the fixed edge.
+
+The first version used two bounds (scroll-from and scroll-to); it did not fit
+(8,737 > 8,640). A one-bound-plus-side version then fit only after the fill was
+restructured: the panel-to-playfield handover is now a single `fpix` mux inside
+the ordinary cell-advance branch, so the window costs one comparator and one
+mux rather than a duplicate branch. It assembles to 8,564/8,640 logic and
+4,310/4,320 CLS, with BSRAM 26/26 and all clocks meeting timing. The 56-cell
+playfield stays at columns 24–79, and columns 0–23 ignore the row phase.
 
 Each lane keeps a `0..15` coarse start and a `0..7` phase. Every frame the demo
 advances the phase, writes control 6 for **both** rows of the lane, and only
