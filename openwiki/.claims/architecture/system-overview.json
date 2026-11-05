@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:6e46447e3defeb6d764753b43245e8fab6337e02cc275f0859b5690ff806dd84",
+  "pageVersion": "sha256:108590bf547b09ce0422165bfbcbc77b8b1f7e372b3520bd01616465be11b755",
   "claims": [
     {
       "id": "claim_64620a9cc2b847a9a2cfea85e7a9e5a2",
@@ -210,11 +210,11 @@
     },
     {
       "id": "claim_334c5d39efa24b36a2f91dc774888e6d",
-      "statement": "The D16D showcase also bakes a 466-word Frogger backdrop at physical 0x4350 (CS=DS=0x0435); the menu's G entry launches it and Q returns to the menu.",
+      "statement": "The D16D showcase also bakes a 744-word Frogger backdrop at physical 0x4350 (CS=DS=0x0435); the menu's G entry launches it and Q returns to the menu.",
       "evidence": [
         {
-          "resource": "repo://asm/showcase/frogger_demo.asm#L1-L30",
-          "version": "repo-lines-v1:sha256:544b95d476dd9faaee2b59f51bfb153b1fa088117f998c7f37dfcc6eaa378271:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3MzFkMTliNWUxYTEwZGQ1YjEyZDQ5NGMzMDg3YWI1MTBjNDNjYzQ0Y2YwYzhlY2YzMDBmMzY5OWJkZjI4NjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4MjdkMjQ2OTcyMmRlMTFiYmI2N2FiMGRhMjE4MzcxMzlmZWQ1YTlmYmMwODU3MTQ5NjVkODg0ODA1MDhiYWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3Nzg0MmVkNWMzMjYzM2RjMzJmMTM3YWU5NGIzMTU1NTQ3ZGZiNDcyOGZhNWM3NzU2MzRkYWQwYWQ3Y2MwN2IifQ"
+          "resource": "repo://asm/showcase/frogger_demo.asm#L1-L36",
+          "version": "repo-lines-v1:sha256:e243c2e65cbf3b489ea74ed8e841bcfe180e9241a11ca1531bfa24d27625e9ed:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhY2I4YmQ2MTZiZTc1MDcyZTM4OGZiMzM5MWM3Y2JmZWU1MjFlZDRiYWU0M2VjOTIwMDhmNDVkNTE4ZmI2NTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhZTYxY2MwYmIxZTIzZjVhMTJmNjdlMTc5MjVmMDExNWFkMDJlYTdlOTdiNWQwY2EzYmVhNDRhN2IzY2E2NTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlhYmIyOTQ2YjNjNmYxMGQ0ODdjM2JlMWUyMWQxODJlMTM5ZDkwZjBiYWE4NmQ0MmYxNGQxZDVhNWUxMWZjYzQifQ"
         },
         {
           "resource": "repo://asm/showcase/showcase.asm#L115-L125",
@@ -222,17 +222,13 @@
         },
         {
           "resource": "repo://asm/showcase/showcase.asm#L290-L305",
-          "version": "repo-lines-v1:sha256:f2b4e83968692d2af7cb1ef33dfaac718a873093bd6b3cc2f71f87a1c05bada4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YWMzNDBiM2ZlOThmYjNmM2JhZThhZDE5OGQxMDEwYmFkMWQ1NDM3ODBiY2IyYWU3OWM2NjkyN2E3MzFlNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZjhiMTcyMTRjOWQ0MGNiNDFjNGRjNzQxYzliMDNiNTQ4MDE4OTY1OTQzNWZmYzRlODdlZWVlODU1MDUzZjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkzMjBlZDczNWVjNDkyODBlZjQ4YzNkYzcwYTQ5YjU3MTUwNGI3OTBjMDU1ZjBiMmY0MDk5NDllM2M0NTI0YjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI3ZGQxNDVlM2Q5ZmE5OGZmNjllMzViOGQ1MTYzMmY4ZjNiYjk4YTFiYjBkYjU0MjAxZWZlM2JkNjgxZDA4ODgifQ"
-        },
-        {
-          "resource": "repo://asm/showcase/showcase.asm#L439-L450",
-          "version": "repo-lines-v1:sha256:1ae969ead5916136b9c0eb246e2cfd1710a869adad143706d887e769a8c35eea:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5Y2ZiNzUyMzg3YTViZWQ4MTgzNTY1OGY0MGQ0YWZiNDFhOTUyNmNlZmQxMmZmZmE0OGM3MjEyODM5NzljNzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIxZDZjNmEyOTljYWU5NTU1ZTJjNDg4YjkwOThmNzNlMzUwNGRmZTU1ZTY4YThmYWRjMDZhNmMyOGEzYjZmMTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI5YzAyNzdhNWRkNWE1MjdhYzZiZDkwNTZmYTg5M2Q3MThmMDlmYjQyYWQyNjk4YzYxZjM0YzY4ODgzMWY0MGUifQ"
+          "version": "repo-lines-v1:sha256:daec2debf8eaf75598b3dedc1dd716ffd0c9691a433e19b72024417ffd6a7dc3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1YWMzNDBiM2ZlOThmYjNmM2JhZThhZDE5OGQxMDEwYmFkMWQ1NDM3ODBiY2IyYWU3OWM2NjkyN2E3MzFlNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyZGU4ZjgxMzQ3ZjFlNDk5MzEzZjQ2N2UyMTIyNmU0NTBlMmFhZDBjNDEyMWRlOGQ5NzljNjc3YzI4ZGUwN2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkzMjBlZDczNWVjNDkyODBlZjQ4YzNkYzcwYTQ5YjU3MTUwNGI3OTBjMDU1ZjBiMmY0MDk5NDllM2M0NTI0YjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjExNjZlMjdjODY4OGI2YWY2YjJhYjAxOWMzYjIxOWM1MTRmMzViMDFjYzExMDMyMjQwODNkMjg3OWFmOTVjZGYifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.7.3",
-    "at": "2026-11-04T17:50:52.684Z"
+    "at": "2026-11-05T10:13:08.129Z"
   }
 }

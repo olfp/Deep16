@@ -41,10 +41,10 @@ sources:
     resource: repo://rtl/ps2_rx.sv
   - id: openwiki-source-995b05cde9e7dd8086199c38
     resource: repo://scripts/render_tile.mjs
-generated: { by: "opencode", at: "2026-11-04T17:50:52.684Z" }
+generated: { by: "opencode", at: "2026-11-05T10:13:08.129Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T17:50:52.684Z
+    at: 2026-11-05T10:13:08.129Z
 ---
 
 
@@ -148,9 +148,10 @@ palette-set/OAM-base scene select and the eight-slot sprite compositor.
 console scene at a deterministic frame clock (0x1000 steps per frame, 0x10000
 for the busier Frogger scene) and writes PNGs from the engine's RGBA buffer;
 no board or video ROM is involved. The Frogger scene is the worked per-row
-example: ten lanes each keep their own coarse start and fine phase, control 6
-supplies the sub-cell motion, and the coarse row is painted into the back
-tilemap bank before the display swap.
+example: nine double-height lanes each keep their own coarse start and fine
+phase, control 6 is written for both rows of a lane, and the 56-cell playfield
+is painted into the back tilemap bank while a uniform 192-pixel panel and the
+static top/bottom HUD stay out of the scroll path.
 
 ## Keyboard input
 

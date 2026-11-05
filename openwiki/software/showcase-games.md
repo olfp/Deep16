@@ -39,10 +39,10 @@ sources:
     resource: repo://tests/segmented.test.js
   - id: openwiki-source-3c07bfc0a532e3b861560036
     resource: repo://tests/showcase-render.test.js
-generated: { by: "opencode", at: "2026-11-04T18:00:55.517Z" }
+generated: { by: "opencode", at: "2026-11-05T10:13:08.129Z" }
 verified:
   - by: openwiki/0.7.3
-    at: 2026-11-04T18:00:55.517Z
+    at: 2026-11-05T10:13:08.129Z
 ---
 
 
@@ -146,43 +146,52 @@ just below the menu at `0x4D5`–`0x4FF`.
 ## Frogger backdrop
 
 `asm/showcase/frogger_demo.asm` is a backdrop-only demo, not a game: it exists
-to exercise **per-row scrolling** (control 6) with five river lanes and five road
-lanes moving independently. There is no player, collision or score.
+to exercise **per-row scrolling** (control 6) in a widescreen layout. There is
+no player, collision or score logic.
 
 | Property | Value |
 |---|---|
-| Block | 613 words, max offset `0x322` |
-| Location | physical `0x4350`–`0x4672`, CS=DS=`0x0435` |
-| Lane layout | rows 0–3 grass, 4–8 river, 9 median, 10–14 road, 15–23 grass |
+| Block | 744 words, max offset `0x31F` |
+| Location | physical `0x4350`–`0x466F`, CS=DS=`0x0435` |
+| Playfield | columns 24–79, 56 cells = 448 px |
+| Left panel | columns 0–23, 192 px, uniform blank tile 0 |
+| Lane layout | top bank 0–1, river 2–11 (five lanes), median 12–13, road 14–21 (four lanes), bottom bank 22–23 |
 | River (top to bottom) | right, left, fast right, right, left |
-| Road (top to bottom) | left, right, left, right, left (top truck lane goes left) |
-| Writable state | `0x300` coarse starts, `0x30A` phases, `0x314` frame bit, `0x315`/`0x316` return pair, `0x317` dirty flags, `0x321`/`0x322` front/back bank |
+| Road (top to bottom) | left, right, left, right (top truck lane goes left) |
+| Writable state | `0x300` coarse starts, `0x309` phases, `0x312` frame bit, `0x313`/`0x314` return pair, `0x315` dirty flags, `0x31E`/`0x31F` front/back bank |
 
-Each lane keeps a `0..15` coarse start cell and a `0..7` fine phase. Every frame
-the demo advances the phase (`+1`, or `+2` for the fast river lane) and writes
-control 6 as `0x100 | row << 3 | phase`. Only when the coarse start changes does
-it paint that row — all 82 cells, including the two margin cells — into the
-**back** tilemap bank. At the same frame boundary as the control-6 phase, the
-demo swaps the display bank. The front map stays live, so no line is composed
-from a half-written row. The margin matters: the fine phase reads one cell past
-the 80 visible columns at the right edge, and leaving it zero made a black strip
-up to seven pixels wide.
+Every lane is two tile rows (32×30 px). It keeps a `0..15` coarse start and a
+`0..7` fine phase. Every frame the demo advances the phase (`+1`, or `+2` for
+the fast river lane), writes control 6 for **both** rows as
+`0x100 | row << 3 | phase`, and only when the coarse start changes paints the
+lane's playfield cells — columns 24–81, 56 visible cells plus two margins — into
+the **back** tilemap bank. At the same frame boundary as the control-6 phase,
+the demo swaps the display bank. The front map stays live, so no line is
+composed from a half-written row. The margins matter: the fine phase reads one
+cell past the 56 visible playfield cells at the right edge.
 
-The back copy is kept current by a per-lane dirty flag: a row changed in the
-previous frame is repainted into the new back before the next swap. The lanes
-start at different phases (`7,7,5,2,4,3,5,1,7,4`) so their coarse shifts and
-back repaints are spread across frames; entry also resets the front/back pair
-and the dirty flags, so a second G launch starts cleanly. An earlier live-map
+The uniform left panel is the blank tile 0 with palette set 2 art entry 0 set to
+the panel colour. Per-row scrolling moves a field of identical cells, so it is
+invisible; the panel needs no second layer or window. The static HUD uses the
+panel rows 0, 1 and 23 as ordinary text cells (score, hi-score, lives/time),
+which are outside the per-row table and therefore stay fixed. The top/bottom
+bank rows in the playfield remain grass.
+
+The back copy is kept current by a per-lane dirty flag: a lane changed in the
+previous frame is repainted into the new back before the next swap. The nine
+lanes start at phases (`7,7,5,2,4,3,5,1,7`) so their coarse shifts and back
+repaints are spread across frames; entry also resets the front/back pair and
+the dirty flags, so a second G launch starts cleanly. An earlier live-map
 version reused the repaint-flag register for the control-6 offset, so the flag
 test was always true and every lane was rewritten every frame; that, plus the
 unsynchronised coarse shift, produced the visible flicker.
 
-Entry installs palette set 2, clears OAM, fills both banks with grass and the
-ten lane rows; `Q` or `q` clears the per-row table, restores palette set 0,
-scroll_x and bank 0, waits for the bank swap, and returns through the saved
+Entry installs palette set 2, clears OAM, fills both banks with the panel,
+grass, lanes and HUD; `Q` or `q` clears the per-row table, restores palette set
+0, scroll_x and bank 0, waits for the bank swap, and returns through the saved
 `R10`/`R11` pair. `G` on the menu runs it, and `tests/frogger.test.js` checks the
-block/tile layout, the painted margins, the lane directions and speeds, and the
-Q return.
+block/tile layout, the panel and margins, the lane directions and speeds, the
+HUD cells and the Q return.
 
 ## Pac-Man
 

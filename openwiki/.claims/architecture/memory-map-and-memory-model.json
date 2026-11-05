@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:62fbc134f7269b684b3b4512c894c970247f6f97e4bd0b023eea8714e8bbd537",
+  "pageVersion": "sha256:4d3e702d3cc9e6daac60df8a0798ef3e6ac740c8466185c36355d252122bad06",
   "claims": [
     {
       "id": "claim_7889a2aa411f4d35a91ec1528555bfc5",
@@ -256,15 +256,15 @@
     },
     {
       "id": "claim_384f3ff95af34a7e9050988c4912d996",
-      "statement": "The D16D flat image bakes a 466-word Frogger backdrop at 0x4350-0x4665 (CS=DS=0x0435) and the menu's G entry far-calls it; the kernel gap starts at dict_free 0x434F.",
+      "statement": "The D16D flat image bakes a 744-word Frogger backdrop at 0x4350-0x466F (CS=DS=0x0435) and the menu's G entry far-calls it; the kernel gap starts at dict_free 0x434F.",
       "evidence": [
         {
           "resource": "repo://MEMMAP.md#L157-L180",
-          "version": "repo-lines-v1:sha256:bf8e46525eea6ad8ca83094eb495b6f777461431d490b1feb6b3c9383963b4be:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1NzczNGMwODE4NWZhMzkxNzA0MDYzZGM0MjdiMjQ2NDA2ZmE2YmUwMDQwNjkzYzQyMWViNWQ0ZDYyZGFiNTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwMGY2MTIxNGE3ZjMwY2JhNTA1ZWUyZWZkOTFiNjE3Zjc0MzAyZDQzYWEzZDhhMTYzY2NiZDM5Zjc3NzI3NmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5Yjg4NDFlZjQ1NjUxOGIzZDc0MzkyM2ZjNmE3Nzc5MzVlODE2ZmZjOGI3OWUzNmZkYjdkZjllNWRhNTIyN2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFkOWFlNmM1MjdhYzY2YWE5NzQxMDg3ZjU1MzBjOGE0ZmQxOThkNzAxODk4MDlmNmI1Mjg4NWEzNDVhOTYyZmEifQ"
+          "version": "repo-lines-v1:sha256:1c28c98f245fb29e1bc5fb33cf5c77e5a048cf82abd01c402e6d363e58cdd88c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1NzczNGMwODE4NWZhMzkxNzA0MDYzZGM0MjdiMjQ2NDA2ZmE2YmUwMDQwNjkzYzQyMWViNWQ0ZDYyZGFiNTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwMGY2MTIxNGE3ZjMwY2JhNTA1ZWUyZWZkOTFiNjE3Zjc0MzAyZDQzYWEzZDhhMTYzY2NiZDM5Zjc3NzI3NmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5Yjg4NDFlZjQ1NjUxOGIzZDc0MzkyM2ZjNmE3Nzc5MzVlODE2ZmZjOGI3OWUzNmZkYjdkZjllNWRhNTIyN2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFkOWFlNmM1MjdhYzY2YWE5NzQxMDg3ZjU1MzBjOGE0ZmQxOThkNzAxODk4MDlmNmI1Mjg4NWEzNDVhOTYyZmEifQ"
         },
         {
-          "resource": "repo://asm/showcase/frogger_demo.asm#L1-L30",
-          "version": "repo-lines-v1:sha256:544b95d476dd9faaee2b59f51bfb153b1fa088117f998c7f37dfcc6eaa378271:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3MzFkMTliNWUxYTEwZGQ1YjEyZDQ5NGMzMDg3YWI1MTBjNDNjYzQ0Y2YwYzhlY2YzMDBmMzY5OWJkZjI4NjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4MjdkMjQ2OTcyMmRlMTFiYmI2N2FiMGRhMjE4MzcxMzlmZWQ1YTlmYmMwODU3MTQ5NjVkODg0ODA1MDhiYWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3Nzg0MmVkNWMzMjYzM2RjMzJmMTM3YWU5NGIzMTU1NTQ3ZGZiNDcyOGZhNWM3NzU2MzRkYWQwYWQ3Y2MwN2IifQ"
+          "resource": "repo://asm/showcase/frogger_demo.asm#L1-L36",
+          "version": "repo-lines-v1:sha256:e243c2e65cbf3b489ea74ed8e841bcfe180e9241a11ca1531bfa24d27625e9ed:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhY2I4YmQ2MTZiZTc1MDcyZTM4OGZiMzM5MWM3Y2JmZWU1MjFlZDRiYWU0M2VjOTIwMDhmNDVkNTE4ZmI2NTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhZTYxY2MwYmIxZTIzZjVhMTJmNjdlMTc5MjVmMDExNWFkMDJlYTdlOTdiNWQwY2EzYmVhNDRhN2IzY2E2NTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlhYmIyOTQ2YjNjNmYxMGQ0ODdjM2JlMWUyMWQxODJlMTM5ZDkwZjBiYWE4NmQ0MmYxNGQxZDVhNWUxMWZjYzQifQ"
         },
         {
           "resource": "repo://scripts/make_image.mjs#L120-L150",
@@ -275,6 +275,6 @@
   ],
   "verification": {
     "by": "openwiki/0.7.3",
-    "at": "2026-11-04T16:08:29.597Z"
+    "at": "2026-11-05T10:13:08.129Z"
   }
 }

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:19138ec8a2851f0aac27ac844f676c74d51eab82e0f323ef4c06a040809cf669",
+  "pageVersion": "sha256:3fa11fd6319c8d28e5e7909d09beae98c860330f8eab1768472ce5f6040837aa",
   "claims": [
     {
       "id": "claim_9d168ae6433446faa286a009450371fa",
@@ -237,7 +237,7 @@
       "statement": "npm run flash:tile dumps the 1MB boot-image region and compares it before writing the slices, because a block-protected chip silently drops the write while reporting success.",
       "evidence": [
         {
-          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L33-L53",
+          "resource": "repo://scripts/flash_gowin_tile_flash.sh#L48-L68",
           "version": "repo-lines-v1:sha256:33fb06bd3c446ea451a8cfa17c286867e1ba6e580657080fc15765b1d8d3ca99:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhNGRjNDNmOTAyNDAzMTE4MjU5MjA4NTNiZDg3YzIyMWE4NjNkZGM4ZTdlYzZjMGMwZWYxN2QzNjIyMzRiYWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkOWUyYWNkNDY0MGQ5MDJhMmY4MWM4NzdjMGZmMGRlN2EzMDM1MGEzMzYwZjU3NzczNDYyY2RiMzkxYTJjMzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIyNTQwYWU1OWRhN2I5Yjk0M2E3ZWI3MGI1OWVmMzA5MmM0ZTFkZTc3MzNiNmE1MGNjODAyM2M4ZGJhYWVhMWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
@@ -308,11 +308,11 @@
     },
     {
       "id": "claim_a4b5bd1a1bf94761876ccb93dbe7fb38",
-      "statement": "The always-baked Frogger block at flat 0x4350-0x4665 lies inside the D16SEG DS copy range (image words 0x3000-0x57DC), so flash_boot mirrors it at DS 0x14350-0x14665; the menu uses the flat copy at CS=0x0435.",
+      "statement": "The always-baked 744-word Frogger block at flat 0x4350-0x466F lies inside the D16SEG DS copy range (image words 0x3000-0x57DC), so flash_boot mirrors it at DS 0x14350-0x1466F; the menu uses the flat copy at CS=0x0435.",
       "evidence": [
         {
           "resource": "repo://MEMMAP.md#L157-L180",
-          "version": "repo-lines-v1:sha256:bf8e46525eea6ad8ca83094eb495b6f777461431d490b1feb6b3c9383963b4be:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1NzczNGMwODE4NWZhMzkxNzA0MDYzZGM0MjdiMjQ2NDA2ZmE2YmUwMDQwNjkzYzQyMWViNWQ0ZDYyZGFiNTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwMGY2MTIxNGE3ZjMwY2JhNTA1ZWUyZWZkOTFiNjE3Zjc0MzAyZDQzYWEzZDhhMTYzY2NiZDM5Zjc3NzI3NmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5Yjg4NDFlZjQ1NjUxOGIzZDc0MzkyM2ZjNmE3Nzc5MzVlODE2ZmZjOGI3OWUzNmZkYjdkZjllNWRhNTIyN2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFkOWFlNmM1MjdhYzY2YWE5NzQxMDg3ZjU1MzBjOGE0ZmQxOThkNzAxODk4MDlmNmI1Mjg4NWEzNDVhOTYyZmEifQ"
+          "version": "repo-lines-v1:sha256:1c28c98f245fb29e1bc5fb33cf5c77e5a048cf82abd01c402e6d363e58cdd88c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1NzczNGMwODE4NWZhMzkxNzA0MDYzZGM0MjdiMjQ2NDA2ZmE2YmUwMDQwNjkzYzQyMWViNWQ0ZDYyZGFiNTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwMGY2MTIxNGE3ZjMwY2JhNTA1ZWUyZWZkOTFiNjE3Zjc0MzAyZDQzYWEzZDhhMTYzY2NiZDM5Zjc3NzI3NmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5Yjg4NDFlZjQ1NjUxOGIzZDc0MzkyM2ZjNmE3Nzc5MzVlODE2ZmZjOGI3OWUzNmZkYjdkZjllNWRhNTIyN2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFkOWFlNmM1MjdhYzY2YWE5NzQxMDg3ZjU1MzBjOGE0ZmQxOThkNzAxODk4MDlmNmI1Mjg4NWEzNDVhOTYyZmEifQ"
         },
         {
           "resource": "repo://rtl/flash/flash_boot.sv#L190-L215",
@@ -327,6 +327,6 @@
   ],
   "verification": {
     "by": "openwiki/0.7.3",
-    "at": "2026-11-04T16:08:29.597Z"
+    "at": "2026-11-05T10:13:08.129Z"
   }
 }

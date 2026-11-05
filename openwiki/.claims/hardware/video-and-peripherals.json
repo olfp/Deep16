@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:bb14b6d56a52445fa97c37d6d13342b50b0328420fd51cbd212a14d2488ae91f",
+  "pageVersion": "sha256:de57c9294db6f4cf498c53625062e7f07b8cf90c47b34fa1afb0c3a8cbda7bc6",
   "claims": [
     {
       "id": "claim_c891314301634162a885022e2c7dd858",
@@ -308,11 +308,11 @@
     },
     {
       "id": "claim_6e303a0d77e242188352a43ec61b8368",
-      "statement": "The Frogger render scene boots the backdrop at CS=DS=0x0435 and exercises the per-row control-6 path with ten independently moving lanes; its coarse rows are painted into the back tilemap bank before the display swap.",
+      "statement": "The Frogger render scene boots the backdrop at CS=DS=0x0435 and exercises the per-row control-6 path with nine double-height lanes; its 56-cell playfield rows are painted into the back tilemap bank before the display swap, while the 192-pixel panel and static HUD stay fixed.",
       "evidence": [
         {
-          "resource": "repo://asm/showcase/frogger_demo.asm#L1-L30",
-          "version": "repo-lines-v1:sha256:544b95d476dd9faaee2b59f51bfb153b1fa088117f998c7f37dfcc6eaa378271:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3MzFkMTliNWUxYTEwZGQ1YjEyZDQ5NGMzMDg3YWI1MTBjNDNjYzQ0Y2YwYzhlY2YzMDBmMzY5OWJkZjI4NjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4MjdkMjQ2OTcyMmRlMTFiYmI2N2FiMGRhMjE4MzcxMzlmZWQ1YTlmYmMwODU3MTQ5NjVkODg0ODA1MDhiYWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3Nzg0MmVkNWMzMjYzM2RjMzJmMTM3YWU5NGIzMTU1NTQ3ZGZiNDcyOGZhNWM3NzU2MzRkYWQwYWQ3Y2MwN2IifQ"
+          "resource": "repo://asm/showcase/frogger_demo.asm#L1-L36",
+          "version": "repo-lines-v1:sha256:e243c2e65cbf3b489ea74ed8e841bcfe180e9241a11ca1531bfa24d27625e9ed:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhY2I4YmQ2MTZiZTc1MDcyZTM4OGZiMzM5MWM3Y2JmZWU1MjFlZDRiYWU0M2VjOTIwMDhmNDVkNTE4ZmI2NTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhZTYxY2MwYmIxZTIzZjVhMTJmNjdlMTc5MjVmMDExNWFkMDJlYTdlOTdiNWQwY2EzYmVhNDRhN2IzY2E2NTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlhYmIyOTQ2YjNjNmYxMGQ0ODdjM2JlMWUyMWQxODJlMTM5ZDkwZjBiYWE4NmQ0MmYxNGQxZDVhNWUxMWZjYzQifQ"
         },
         {
           "resource": "repo://scripts/render_tile.mjs#L140-L170",
@@ -327,6 +327,6 @@
   ],
   "verification": {
     "by": "openwiki/0.7.3",
-    "at": "2026-11-04T17:50:52.684Z"
+    "at": "2026-11-05T10:13:08.129Z"
   }
 }

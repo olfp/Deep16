@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:8cac6fbcd17ce668e48bdfb1fec5a46257968b8d0e8dafabd40d3603e0c7a25a",
+  "pageVersion": "sha256:e2c2737d84d180d40a704c916dad574199da106b0ec5feeac93a3f04e891b2dd",
   "claims": [
     {
       "id": "claim_6d2c0c65a16b468b9c77462abdefe717",
@@ -332,15 +332,15 @@
     },
     {
       "id": "claim_813e51ebbd06460b8ced89019d057689",
-      "statement": "The Frogger render scene boots at CS=DS=0x0435 with 200,000 warmup steps and a 0x10000-step frame, and tests/frogger.test.js plus the render/image suites pin the lane motion, painted margins, Q return and 0x4350 placement.",
+      "statement": "The Frogger render scene boots at CS=DS=0x0435 with 200,000 warmup steps and a 0x10000-step frame, and tests/frogger.test.js plus the render/image suites pin the double-height lane motion, panel, painted margins, HUD, Q return and 0x4350 placement.",
       "evidence": [
         {
           "resource": "repo://scripts/render_tile.mjs#L95-L160",
           "version": "repo-lines-v1:sha256:e29fd2424ac21ca32b246636356360ca5e1a0e8d234adb2bf6c6c62b9bfc60c0:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxYmEzMzc2ZjA4ZDljODg1OTNkODg4ZGZkZDUwMGIzN2JiZGM5YzQzODcyNjlhZWMzNjUxYzhmYzY0MjMzNTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExNThjODYyN2Y2OTBlNzcxYzEzM2Y3MTE2Y2JmM2Q1NzBjMDYyZDYzNzRmMjkxOWZiZDc1ZmUxYWZhMGRiYzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE1NjMwYTE4ZTFmNTNlYzA2ZDE1NzM0NWQ3ZTY0MDVmMDNhODVjODM3MzNhNTBmOGE3NGY1Y2ViODM3YTc5NDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVlNWE2ZGY3Zjk5ZTQxMjhkZjAzMjBjN2JjZDY0NzAzZmJmMWE0MTNiYjZmYzY5MDJiMTA4MTJjM2ZlNTg0NTEifQ"
         },
         {
-          "resource": "repo://tests/frogger.test.js#L1-L119",
-          "version": "repo-lines-v1:sha256:7de0bd0252ad58ef650ed4723a7a8a5447ed8c6c0045d19af00bfec347b5e4a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE5LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkYThmMjcxYTNjN2JlYTM3ZmJiZjAxOTYyOTQ1NjYxMTk2YWU5YzMzZTcyMDUwMTIzYTU4Mjc0MWJkZGQ2YTJlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJmNmY1YjQwYjE1ODQ1N2QxNzg2NGYyMTc5MDc4NmRkNWEyZWNkYjY0YjY2YTY1MWY3ODhkNGUyNWNkMzMwM2QyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+          "resource": "repo://tests/frogger.test.js#L1-L127",
+          "version": "repo-lines-v1:sha256:d7bd878227d2ba36d4881f15da45c80334923e48d7319d4531a57ed6b6fdcc9d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTI3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI5N2ZlODQ1ZTVjZTMxNzQ1MTViYTQ5NjJmNjI3Nzk3ZjRhOTgyMTE0NjQyOTg0NmU2NTNiZTU3N2FlMmYzYWNiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJmNmY1YjQwYjE1ODQ1N2QxNzg2NGYyMTc5MDc4NmRkNWEyZWNkYjY0YjY2YTY1MWY3ODhkNGUyNWNkMzMwM2QyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
         },
         {
           "resource": "repo://tests/showcase-render.test.js#L1-L30",
@@ -351,6 +351,6 @@
   ],
   "verification": {
     "by": "openwiki/0.7.3",
-    "at": "2026-11-04T17:50:52.684Z"
+    "at": "2026-11-05T10:13:08.129Z"
   }
 }
