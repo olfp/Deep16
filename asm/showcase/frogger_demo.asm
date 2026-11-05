@@ -12,12 +12,14 @@
 ; returns to the menu.
 ;
 ; Tile art (added to the tile bank by make_frogger_art / make_tile_font):
-;   tile 57 water, 58 road, 59..64 a log, 65..70 a turtle, 71..76 the blue car,
-;   77..82 the yellow car, 83..88 the fire truck, 89..94 the truck, 126 grass
-;   and 127 the time bar.  Each moving object is a 24x30 cell, i.e. three tiles
-;   wide and two tile rows tall, and every vehicle is stretched to the same
-;   24x16 box so they all have the same length.  The demo installs the
-;   16-entry palette in set 2's art bank at run time.
+;   tile 57 water, 58 road, 59..66 a log, 67..74 a turtle, 75..82 the blue car,
+;   83..90 the yellow car, 91..98 the fire truck, 99..106 the truck, 126 grass
+;   and 127 the time bar.  Each moving object is a 32x30 cell, i.e. four tiles
+;   wide and two tile rows tall; the 26-pixel art is centred in it and every
+;   vehicle is stretched to the same 26x20 box so they all have the same
+;   length.  Two objects land on Flappy's art tiles (96..106); the demo owns
+;   them.  The demo installs the 16-entry palette in set 2's art bank at run
+;   time.
 ;
 ; Screen layout, top to bottom (24 tile rows = 12 double-height lanes):
 ;   0..1   top bank: static; panel row 0 = SCORE, row 1 = HI
@@ -48,12 +50,12 @@
 ; tile values (tile index << 5)
 .equ T_WATER  0x720           ; 57 water
 .equ T_ROAD   0x740           ; 58 asphalt
-.equ T_LOG    0x760           ; 59..64 log, top row then bottom row
-.equ T_TURTLE 0x820           ; 65..70 turtle
-.equ T_CAR_B  0x8E0           ; 71..76 blue car
-.equ T_CAR_Y  0x9A0           ; 77..82 yellow car
-.equ T_FIRE   0xA60           ; 83..88 fire truck
-.equ T_TRUCK  0xB20           ; 89..94 truck
+.equ T_LOG    0x760           ; 59..66 log, top row then bottom row
+.equ T_TURTLE 0x860           ; 67..74 turtle
+.equ T_CAR_B  0x960           ; 75..82 blue car
+.equ T_CAR_Y  0xA60           ; 83..90 yellow car
+.equ T_FIRE   0xB60           ; 91..98 fire truck
+.equ T_TRUCK  0xC60           ; 99..106 truck
 .equ T_GRASS  0xFC0           ; 126 ground
 .equ T_BAR    0xFE0           ; 127 time-bar cell
 .equ T_PANEL  0x000           ; blank tile; palette art entry 0 is the panel
@@ -584,9 +586,8 @@ fr_paint_lane:
     LINK
     JMP R4
     NOP
-    ; The second tile row is the bottom half of every object and the road
-    ; line's row of the background.  One tile is 32 words and an object's
-    ; second row is three tiles on, i.e. 96.
+    ; The second tile row is the bottom half of every object.  One tile is
+    ; 32 words and an object's second row is four tiles on, i.e. 128.
     LDI fr_bgs
     MOV R2, R0
     MOV R3, R11
@@ -594,7 +595,7 @@ fr_paint_lane:
     ADD R2, R3
     ADD R2, 1
     LDS R6, DS, R2             ; background, second tile row
-    LDI 96
+    LDI 128
     MOV R2, R0
     ADD R7, R2
     ; LINK overwrites LR (R14), so reload the base row from the table.
@@ -636,9 +637,9 @@ fr_p_col:
     ADD R4, R9
     LSI R2, 7
     AND R4, R2                 ; cell in the eight-cell half cycle
-    LSI R2, 3
+    LSI R2, 4
     CMP R4, R2
-    JNC fr_p_bg                ; cells 3..7 are background
+    JNC fr_p_bg                ; cells 4..7 are background
     NOP
     MOV R2, R4
     SL R2, 5                   ; slice * 32 words

@@ -35,8 +35,8 @@ test('the block fits the image gap and carries the art tiles', () => {
   assert.ok(frogger.max < FROGGER_LIMIT);
   assert.equal(BLOCK + frogger.size <= 0x4A00, true, 'below the BIOS');
   const tiles = froggerArtTiles();
-  const expect = [...Array.from({ length: 6 }, (_, i) => 59 + i), 57, 58, 126, 127,
-    ...Array.from({ length: 30 }, (_, i) => 65 + i)];
+  const expect = [...Array.from({ length: 8 }, (_, i) => 59 + i), 57, 58, 126, 127,
+    ...Array.from({ length: 40 }, (_, i) => 67 + i)];
   assert.deepEqual(tiles.map((t) => t.index), expect);
   for (const tile of tiles) {
     assert.equal(tile.grid.length, 15);

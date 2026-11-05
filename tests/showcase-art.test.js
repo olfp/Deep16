@@ -67,8 +67,8 @@ test('the tile bank carries the Frogger art and nothing else in the gap', () => 
   const words = tileFontWords(font, italic);
   assert.equal(words.length, TILE_BANK_WORDS);
   const tiles = froggerArtTiles();
-  const expect = [...Array.from({ length: 6 }, (_, i) => 59 + i), 57, 58, 126, 127,
-    ...Array.from({ length: 30 }, (_, i) => 65 + i)];
+  const expect = [...Array.from({ length: 8 }, (_, i) => 59 + i), 57, 58, 126, 127,
+    ...Array.from({ length: 40 }, (_, i) => 67 + i)];
   assert.deepEqual(tiles.map((t) => t.index), expect);
   for (const { index, grid } of tiles) {
     assert.equal(grid.length, 15, `tile ${index} rows`);

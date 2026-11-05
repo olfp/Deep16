@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // scripts/make_frogger_art.mjs - the Frogger backdrop's tile art.
 //
-// The backdrop draws 24x30 game cells, i.e. three 8x15 tiles wide and two tile
+// The backdrop draws 32x30 game cells, i.e. four 8x15 tiles wide and two tile
 // rows tall.  The objects come from the single sprite sheet in
 // assets/art/frogger/sprites-sheet.png: each is cropped to its box, area
 // filtered down to at most 24 px wide (so a car or truck leaves room in its
@@ -39,17 +39,18 @@ const I = {
   darkGreen: 12, aqua: 13, blue: 14, lightBlue: 15,
 };
 
-// Tile slots.  57..95 is the free font gap (Pac-Man keeps 49..56, Flappy
-// 96..109 and Pac-Man 110..125); 126/127 are the last two baked slots.
+// Tile slots.  57..95 is the free font gap, and the two 8-tile objects after
+// it take Flappy's art tiles 96..106; 126/127 are the last two baked slots.
+// Pac-Man keeps 49..56 and 110..125.
 export const FROGGER_TILES = {
   water: 57,
   road: 58,
   log: 59,
-  turtle: 65,
-  carBlue: 71,
-  carYellow: 77,
-  fireTruck: 83,
-  truck: 89,
+  turtle: 67,
+  carBlue: 75,
+  carYellow: 83,
+  fireTruck: 91,
+  truck: 99,
   grass: 126,
   bar: 127,
 };
@@ -105,14 +106,14 @@ function sample(img, box, w, h, bg, mirror = false) {
   return grid;
 }
 
-// A w x h grid centred in the 24x30 object cell.
+// A w x h grid centred in the 32x30 object cell.
 function inCell(grid, w, h, bg) {
-  const ox = Math.floor((24 - w) / 2);
+  const ox = Math.floor((32 - w) / 2);
   const oy = Math.floor((30 - h) / 2);
   const cell = [];
   for (let y = 0; y < 30; y++) {
     const row = [];
-    for (let x = 0; x < 24; x++) {
+    for (let x = 0; x < 32; x++) {
       const u = x - ox, v = y - oy;
       row.push(u >= 0 && v >= 0 && u < w && v < h ? grid[v][u] : bg);
     }
@@ -121,11 +122,11 @@ function inCell(grid, w, h, bg) {
   return cell;
 }
 
-// 24x30 -> six 8x15 tiles: 0..2 are the top row, 3..5 the bottom row.
+// 32x30 -> eight 8x15 tiles: 0..3 are the top row, 4..7 the bottom row.
 function sliceTiles(cell) {
   const tiles = [];
   for (let ty = 0; ty < 2; ty++) {
-    for (let tx = 0; tx < 3; tx++) {
+    for (let tx = 0; tx < 4; tx++) {
       const tile = [];
       for (let y = 0; y < 15; y++) tile.push(cell[ty * 15 + y].slice(tx * 8, tx * 8 + 8));
       tiles.push(tile);
@@ -200,20 +201,20 @@ export function froggerArtTiles() {
   const TRUCK = box(353, 406, 133, 66);        // cab plus the trailer's tail
 
   // A log whose two ends are the pack's rounded cap, mirrored.
-  const cap = sample(img, LOG_CAP, 12, 14, I.aqua);
+  const cap = sample(img, LOG_CAP, 13, 18, I.aqua);
   const log = cap.map((row) => [...row, ...[...row].reverse()]);
 
   const entries = [
-    ...sliceTiles(inCell(log, 24, 14, I.aqua)).map((grid, i) => [FROGGER_TILES.log + i, grid]),
+    ...sliceTiles(inCell(log, 26, 18, I.aqua)).map((grid, i) => [FROGGER_TILES.log + i, grid]),
     [FROGGER_TILES.water, waterTile()],
     [FROGGER_TILES.road, roadTile()],
     [FROGGER_TILES.grass, grassTile()],
     [FROGGER_TILES.bar, barTile()],
-    ...obj(TURTLE, 24, 18, I.aqua, true).map((grid, i) => [FROGGER_TILES.turtle + i, grid]),
-    ...obj(CAR_BLUE, 24, 16, I.black).map((grid, i) => [FROGGER_TILES.carBlue + i, grid]),
-    ...obj(CAR_YELLOW, 24, 16, I.black).map((grid, i) => [FROGGER_TILES.carYellow + i, grid]),
-    ...obj(FIRE, 24, 16, I.black, true).map((grid, i) => [FROGGER_TILES.fireTruck + i, grid]),
-    ...obj(TRUCK, 24, 16, I.black, true).map((grid, i) => [FROGGER_TILES.truck + i, grid]),
+    ...obj(TURTLE, 26, 20, I.aqua, true).map((grid, i) => [FROGGER_TILES.turtle + i, grid]),
+    ...obj(CAR_BLUE, 26, 20, I.black).map((grid, i) => [FROGGER_TILES.carBlue + i, grid]),
+    ...obj(CAR_YELLOW, 26, 20, I.black).map((grid, i) => [FROGGER_TILES.carYellow + i, grid]),
+    ...obj(FIRE, 26, 20, I.black, true).map((grid, i) => [FROGGER_TILES.fireTruck + i, grid]),
+    ...obj(TRUCK, 26, 20, I.black, true).map((grid, i) => [FROGGER_TILES.truck + i, grid]),
   ];
   return entries.map(([index, grid]) => ({ index, grid }));
 }

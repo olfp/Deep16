@@ -608,22 +608,24 @@ mux rather than a duplicate branch. It assembles to 8,564/8,640 logic and
 The art comes from the single sprite sheet in
 `assets/art/frogger/sprites-sheet.png` (top-down cars, a fire truck, a truck, a
 log and a turtle). `scripts/make_frogger_art.mjs` crops each sprite to its box,
-area-filters it down to 24 px wide, mirrors it when its lane runs left and
-stretches it into the 24×16 vehicle box or the 24×18 turtle / 24×14 log box.
-The water, asphalt, ground and bar tiles are composed from the same 16-colour
+area-filters it down to 26 px wide, mirrors it when its lane runs left and
+stretches it into the 26×20 vehicle or turtle box and the 26×18 log box. The
+water, asphalt, ground and bar tiles are composed from the same 16-colour
 palette; the road has no lane markings, because every row scrolls as a whole
-and the dashes would travel with the traffic. Tiles 57..94 plus 126/127 hold
-the lot: 57 water, 58 asphalt, 59..64 the log, 65..70 the turtle, 71..76 the
-blue car, 77..82 the yellow car, 83..88 the fire truck, 89..94 the truck, 126
-the ground and 127 the time bar. The palette is written at run time to set 2's
-art bank from `fr_pal`; `FROGGER_PALETTE` in the script must stay in step with
-it. An art tile has no transparency, so each object tile bakes the lane colour
-it sits on (black road or aqua water) into its spare pixels.
+and the dashes would travel with the traffic. Tiles 57..106 plus 126/127 hold
+the lot: 57 water, 58 asphalt, 59..66 the log, 67..74 the turtle, 75..82 the
+blue car, 83..90 the yellow car, 91..98 the fire truck, 99..106 the truck, 126
+the ground and 127 the time bar. The last two objects take Flappy's art tiles
+96..106, so Flappy's own art is no longer drawn; the backdrop owns them. The
+palette is written at run time to set 2's art bank from `fr_pal`;
+`FROGGER_PALETTE` in the script must stay in step with it. An art tile has no
+transparency, so each object tile bakes the lane colour it sits on (black road
+or aqua water) into its spare pixels.
 
-The lane pattern is three cells on, five off, twice; the paint takes the cell
-index modulo eight and treats 3..7 as background, so the low bits also pick one
-of the object's three tile columns. The second tile row is the object base plus
-three tiles.
+The lane pattern is four cells on, four off, twice; the paint takes the cell
+index modulo eight and treats 4..7 as background, so the low bits also pick one
+of the object's four tile columns. The second tile row is the object base plus
+four tiles.
 
 River lanes, top to bottom: logs (normal), turtles (a little slower), logs
 (fast), logs (slow), turtles (a little slower). Logs run right and turtles run
