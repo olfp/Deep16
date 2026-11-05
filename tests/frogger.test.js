@@ -1,9 +1,9 @@
-// Frogger backdrop: the per-row fine-scroll path.
+// Frogger backdrop: the per-row fine-scroll path, widescreen layout.
 //
-// The demo is a small block at physical 0x4350. It paints ten lanes, rewrites
-// each lane's tilemap row by whole cells when the fine offset wraps, and sets
-// control 6 for the sub-cell remainder. The test runs it on the JS core and
-// checks the lane state, the map and the Q return.
+// The demo is a small block at physical 0x4350. It paints nine double-height
+// lanes (five river, four road), rewrites each lane's playfield row by whole
+// cells when the fine offset wraps, and sets control 6 for both rows of the
+// lane. The left 192 px is a uniform panel with a static top/bottom HUD.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -25,7 +25,7 @@ const STATUS = 0xF0066;
 const RET_PC = 0x0777;
 const BLOCK = FROGGER_SEG_BASE;
 const START = 0x300;
-const PHASE = 0x30A;
+const PHASE = 0x309;
 
 const frogger = buildFrogger();
 checkFrogger(frogger);
@@ -66,28 +66,37 @@ test('the lanes paint and move in their own directions', () => {
   const sim = start();
   run(sim, 300);
 
-  // The backdrop is actually in the tilemap: five river rows and five road
-  // rows, with non-zero cells.
+  // The backdrop is in the tilemap: five double-height river lanes and four
+  // double-height road lanes. Columns 0..23 are the panel; 24..79 the
+  // playfield; 80..81 the right margins read by the fine phase.
   const tile = (r, c) => sim.memory[0xF1000 + r * 82 + c];
-  for (const r of [4, 5, 6, 7, 8, 10, 11, 12, 13, 14]) {
-    assert.ok(tile(r, 0) !== 0 || tile(r, 10) !== 0, `row ${r} painted`);
-    // The fine phase reads one cell past the 80 visible columns at the right
-    // edge; the two margins must be painted too or that edge goes black.
+  const laneRows = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+                    14, 15, 16, 17, 18, 19, 20, 21];
+  for (const r of laneRows) {
+    assert.ok(tile(r, 24) !== 0, `row ${r} playfield painted`);
     assert.ok(tile(r, 80) !== 0, `row ${r} right margin painted`);
     assert.ok(tile(r, 81) !== 0, `row ${r} far margin painted`);
+    assert.equal(tile(r, 0), 0, `row ${r} left panel tile`);
   }
-  // Palette set 2 entries 1..6 were installed.
+  // Palette set 2 art entry 0 is the panel, 1..6 the art; text 0/1 the HUD.
+  assert.equal(sim.memory[0xF6000 + 0x110], 0x49, 'panel palette entry');
   for (let i = 1; i <= 6; i++) {
     assert.notEqual(sim.memory[0xF6000 + 0x110 + i], 0, `palette entry ${i}`);
   }
+  assert.equal(sim.memory[0xF6000 + 0x100], 0x49, 'HUD text background');
+  assert.equal(sim.memory[0xF6000 + 0x101], 0xFF, 'HUD text colour');
+  // Static HUD text cells in the panel's top and bottom rows.
+  assert.notEqual(tile(0, 2) & 0x8000, 0, 'score HUD text');
+  assert.notEqual(tile(23, 2) & 0x8000, 0, 'bottom HUD text');
 
-  const starts = Array.from({ length: 10 }, (_, i) => sim.memory[BLOCK + START + i]);
-  const phases = Array.from({ length: 10 }, (_, i) => sim.memory[BLOCK + PHASE + i]);
+  const starts = Array.from({ length: 9 }, (_, i) => sim.memory[BLOCK + START + i]);
+  const phases = Array.from({ length: 9 }, (_, i) => sim.memory[BLOCK + PHASE + i]);
   for (const p of phases) assert.ok(p >= 0 && p <= 7, `phase ${p}`);
 
-  // River bottom row is left, next right, next fast right, next right, top
-  // left. Road bottom is left, next right, etc. `delta` is the modular coarse
-  // distance; a right-moving lane decreases its start, a left one increases it.
+  // River top->bottom: right, left, fast right, right, left.
+  // Road top->bottom: left, right, left, right (top truck lane left).
+  // `moved` is the modular coarse distance; a right-moving lane decreases its
+  // start, a left one increases it.
   const moved = (i, initial) => (starts[i] - initial + 16) & 15;
   const back = (i, initial) => (initial - starts[i] + 16) & 15;
   assert.ok(back(0, 0) > 0, 'river top lane moved right');
@@ -95,11 +104,10 @@ test('the lanes paint and move in their own directions', () => {
   assert.ok(back(2, 6) > back(0, 0), 'fast river lane moves farther');
   assert.ok(back(3, 9) > 0, 'river lane 4 moved right');
   assert.ok(moved(4, 12) > 0, 'river bottom lane moved left');
-  assert.ok(moved(5, 1) > 0, 'road bottom lane moved left');
-  assert.ok(back(6, 4) > 0, 'road lane moved right');
-  assert.ok(moved(7, 7) > 0, 'road lane moved left');
-  assert.ok(back(8, 10) > 0, 'road lane moved right');
-  assert.ok(moved(9, 13) > 0, 'road top lane moved left');
+  assert.ok(moved(5, 1) > 0, 'road top lane moved left');
+  assert.ok(back(6, 4) > 0, 'road lane 2 moved right');
+  assert.ok(moved(7, 7) > 0, 'road lane 3 moved left');
+  assert.ok(back(8, 10) > 0, 'road bottom lane moved right');
 });
 
 test('Q leaves the demo and returns to the menu', () => {

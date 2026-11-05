@@ -563,33 +563,41 @@ next frame's work early — and use the per-row table for the scroll itself.
 
 ### 6.5 The Frogger backdrop demo
 
-`asm/showcase/frogger_demo.asm` is the worked example. It is a 613-word block
+`asm/showcase/frogger_demo.asm` is the worked example. It is a 744-word block
 at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
-`G`; `Q` returns. It paints five river rows (4–8) and five road rows (10–14)
-over a grass field, and keeps three values per lane: a `0..15` coarse start
-cell, a `0..7` fine phase, and a direction/speed (1, or 2 for the fast river
-lane).
+`G`; `Q` returns. It is a widescreen 14×12 game grid: a 448-pixel (56-cell)
+playfield in columns 24–79, and a uniform 192-pixel left panel in columns
+0–23. Each game lane is 32×30 px, i.e. four cells wide and two tile rows tall.
 
-Each frame it advances the phase and writes control 6 for that row. Only when
-the coarse start changes does it repaint the row — all 82 cells, including the
-two margin cells — into the **back** tilemap bank, then request the display
-swap for the same frame boundary at which control 6 latches. The front map
-stays live, so no line is composed from a half-written row. The margin matters:
-the fine phase reads one cell past the 80 visible columns at the right edge, and
-leaving it zero makes a black strip up to seven pixels wide.
+The screen is twelve double-height lanes, top to bottom: top bank (rows 0–1),
+five river lanes (2–11), median (12–13), four road lanes (14–21), bottom bank
+(22–23). Only the river and road rows are in the per-row table; the banks and
+median stay at phase 0. The top/bottom rows also hold the static HUD: the panel
+rows 0, 1 and 23 show score, hi-score and lives/time as ordinary text cells.
+The moving rows' panel cells are the blank tile 0 with palette set 2 art entry
+0 set to the panel colour, so the per-row shift moves a field of identical
+cells and is invisible.
 
-A row changed in the previous frame is repainted into the new back copy on the
+Each lane keeps a `0..15` coarse start and a `0..7` phase. Every frame the demo
+advances the phase, writes control 6 for **both** rows of the lane, and only
+when the coarse start changes repaints the lane's playfield cells (columns
+24–81, 58 cells including the two right margins) into the **back** tilemap
+bank. It then requests the display swap for the same frame boundary at which
+control 6 latches. The front map stays live, so no line is composed from a
+half-written row. The margins matter: the fine phase reads one cell past the 56
+visible playfield cells at the right edge, and leaving it zero makes a black
+strip.
+
+A lane changed in the previous frame is repainted into the new back copy on the
 next frame (the per-lane dirty flags), so the ping-pong pair stays current. The
 lanes start at different phases so the coarse shifts and repaints spread across
 frames. Entry paints both banks and resets the bank pair; exit restores bank 0
-and waits for the swap before returning. The register/table split is the key:
-control 6 supplies sub-cell motion, while the CPU touches the tilemap once per
-eight pixels.
+and waits for the swap before returning.
 
-From the top river row down the directions are right, left, fast right, right,
+From the top river lane down the directions are right, left, fast right, right,
 left (bottom to top: left, right, fast right, left, right). The road's top
-truck lane goes left; rows 10–14 top to bottom are left, right, left, right,
-left. The demo is backdrop-only — no player, collision or game state — so it
+truck lane goes left; the four road lanes top to bottom are left, right, left,
+right. The demo is backdrop-only — no player, collision or game state — so it
 isolates the scroll path for visual checking and for `tests/frogger.test.js`.
 
 ---

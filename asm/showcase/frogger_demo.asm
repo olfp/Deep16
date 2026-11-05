@@ -1,25 +1,36 @@
-; frogger_demo.asm - the FiT per-row scrolling backdrop.
+; frogger_demo.asm - the FiT per-row scrolling backdrop, widescreen layout.
 ;
-; A Frogger-style backdrop with no player: five river lanes and five road
-; lanes, each moving at its own direction and speed.  The point is the
-; horizontal scroll: control 6 gives each tilemap row a 0..7 pixel fine offset,
-; while the row content itself is rewritten by whole cells when the fine offset
-; wraps.  Nothing else in the engine can move one row independently.
+; A Frogger-style backdrop with no player: five river lanes and four road
+; lanes, each moving independently, drawn as double-height 32x30 game tiles.
+; The point is the horizontal scroll: control 6 gives each tilemap row a 0..7
+; pixel fine offset, while the row content itself is rewritten by whole cells
+; when the fine offset wraps.
 ;
 ; Assembled with .org 0 and placed at physical 0x4350 (CS=DS=0x0435) in the
 ; free image gap.  The menu jumps here with R10/R11 as the return pair.  Q
 ; returns to the menu.
 ;
 ; Tile art (added to the tile bank by make_tile_font):
-;   tile 57 water, 58 road, 59 grass, 60 car red, 61 car yellow, 62 log.
-; The demo installs palette set 2 entries for pixel indices 1..6 at run time.
+;   tile 57 water, 58 road, 59 grass, 60 car red, 61 car yellow, 62 log,
+;   63 panel.  The demo installs palette set 2 entries for pixel indices 1..7
+;   at run time.
 ;
-; Lane layout (tilemap rows, top to bottom):
-;   0..3   top grass bank
-;   4..8   river: right, left, right (fast), right, left
-;   9      median grass
-;   10..14 road: left, right, left, right, left (top lane trucks go left)
-;   15..23 bottom grass bank
+; Screen layout, top to bottom (24 tile rows = 12 double-height lanes):
+;   0..1   top bank: static; left panel row 0 = SCORE, row 1 = HI
+;   2..3   river lane 1
+;   4..5   river lane 2
+;   6..7   river lane 3 (fast)
+;   8..9   river lane 4
+;   10..11 river lane 5
+;   12..13 median grass
+;   14..15 road lane 1
+;   16..17 road lane 2
+;   18..19 road lane 3
+;   20..21 road lane 4 (top truck lane)
+;   22..23 bottom bank: static; left panel row 23 = LIVES/TIME
+;
+; Columns 0..23 are the uniform left panel; columns 24..79 are the 448-pixel
+; playfield; 80..81 are its right margins for the fine phase.
 
 .equ SEG_TILE -0x0F00          ; 0xF100 tilemap
 .equ SEG_CTRL -0x0E00          ; 0xF200 controls
@@ -33,16 +44,17 @@
 .equ T_CAR_R  0x780
 .equ T_CAR_Y  0x7A0
 .equ T_LOG    0x7C0
+.equ T_PANEL  0x000           ; blank tile; palette art entry 0 is the panel
 
 ; state (inside the block, after the code)
-.equ FR_START  0x300           ; ten 0..15 coarse start cells
-.equ FR_PHASE  0x30A           ; ten 0..7 fine phases
-.equ FR_LASTF  0x314
-.equ FR_RET10  0x315
-.equ FR_RET11  0x316
-.equ FR_DIRTY  0x317           ; ten "row changed last frame" cells
-.equ FR_FRONT  0x321           ; displayed tilemap bank
-.equ FR_BACK   0x322           ; write tilemap bank
+.equ FR_START  0x300           ; nine 0..15 coarse start cells
+.equ FR_PHASE  0x309           ; nine 0..7 fine phases
+.equ FR_LASTF  0x312
+.equ FR_RET10  0x313
+.equ FR_RET11  0x314
+.equ FR_DIRTY  0x315           ; nine "row changed last frame" cells
+.equ FR_FRONT  0x31E           ; displayed tilemap bank
+.equ FR_BACK   0x31F           ; write tilemap bank
 
 .org 0
 fr_entry:
@@ -67,7 +79,7 @@ fr_entry:
     LSI R3, 0
     LDI FR_DIRTY
     MOV R2, R0
-    LSI R4, 10
+    LSI R4, 9
 fr_clear_dirty:
     ST R3, R2, 0
     ADD R2, 1
@@ -120,9 +132,13 @@ fr_oam_clear:
     JNZ fr_oam_clear
     NOP
 
-    ; palette set 2, art bank, entries 1..6
-    LDI 0x111
+    ; palette set 2, art bank: entry 0 is the left panel, 1..6 the art
+    LDI 0x110
     MOV R2, R0
+    LDI 0x49                  ; panel blue-grey
+    MOV R3, R0
+    STS R3, ES, R2
+    ADD R2, 1
     LDI 0x03                  ; water
     MOV R3, R0
     STS R3, ES, R2
@@ -147,8 +163,19 @@ fr_oam_clear:
     MOV R3, R0
     STS R3, ES, R2
 
-    ; Paint both tilemap banks with the same grass and lane rows.  The demo
-    ; ping-pongs the banks, so the first swap must expose a complete copy.
+    ; Palette set 2 text bank 0/1, used by the static HUD text cells.
+    LDI 0x100
+    MOV R2, R0
+    LDI 0x49
+    MOV R3, R0
+    STS R3, ES, R2             ; panel colour behind the HUD text
+    ADD R2, 1
+    LDI 0xFF
+    MOV R3, R0
+    STS R3, ES, R2             ; white
+
+    ; Paint both tilemap banks with the same panel, banks, lanes and HUD.  The
+    ; demo ping-pongs the banks, so the first swap must expose a complete copy.
     LDI SEG_CTRL
     MVS ES, R0
     LSI R2, 8
@@ -170,17 +197,19 @@ fr_oam_clear:
     JMP R4
     NOP
 
-    ; enable per-row fine scroll on the lane rows (phase 0)
+    ; enable per-row fine scroll on both rows of every moving lane
     LSI R6, 0
 fr_rows_init:
     LDI fr_rows
     MOV R2, R0
     ADD R2, R6
-    LDS R8, DS, R2
+    LDS R8, DS, R2             ; base row
     LDI FR_PHASE
     MOV R2, R0
     ADD R2, R6
-    LDS R5, DS, R2             ; initial phase for this lane
+    LDS R5, DS, R2             ; initial phase
+
+    ; control 6 for the base row
     LDI 0x100
     MOV R2, R0
     MOV R3, R8
@@ -191,8 +220,20 @@ fr_rows_init:
     MVS ES, R0
     LSI R3, 0x0C
     STS R2, ES, R3
+
+    ; control 6 for the second row of the lane
+    LDI 0x100
+    MOV R2, R0
+    MOV R3, R8
+    ADD R3, 1
+    SL R3, 3
+    ADD R2, R3
+    ADD R2, R5
+    LSI R3, 0x0C
+    STS R2, ES, R3
+
     ADD R6, 1
-    LDI 10
+    LDI 9
     MOV R3, R0
     CMP R6, R3
     JNC fr_rows_done
@@ -251,7 +292,7 @@ fr_dirty_tick:
     NOP
 fr_dirty_next:
     ADD R6, 1
-    LDI 10
+    LDI 9
     MOV R3, R0
     CMP R6, R3
     JNC fr_dirty_done
@@ -269,7 +310,7 @@ fr_lane_tick:
     JMP R4
     NOP
     ADD R6, 1
-    LDI 10
+    LDI 9
     MOV R3, R0
     CMP R6, R3
     JNC fr_swap
@@ -306,7 +347,8 @@ fr_swap:
     NOP
 
 ; =====================================================================
-; One lane: advance its phase/start and set control 6.
+; One lane: advance its phase/start, write control 6 for both rows, and
+; repaint both rows into the back bank when the coarse cell changes.
 ; R6 = lane index, preserved.
 ; =====================================================================
 fr_update:
@@ -314,7 +356,7 @@ fr_update:
     LDI fr_rows
     MOV R2, R0
     ADD R2, R6
-    LDS R8, DS, R2             ; row
+    LDS R8, DS, R2             ; base row
     LDI fr_dirs
     MOV R2, R0
     ADD R2, R6
@@ -369,7 +411,7 @@ fr_up_store:
     ADD R2, R6
     ST R9, R2, 0
 
-    ; control 6 = 0x100 | row << 3 | phase
+    ; control 6 = 0x100 | row << 3 | phase, for both rows of the lane
     LDI 0x100
     MOV R2, R0
     MOV R3, R8
@@ -381,8 +423,18 @@ fr_up_store:
     LSI R3, 0x0C
     STS R2, ES, R3
 
+    LDI 0x100
+    MOV R2, R0
+    MOV R3, R8
+    ADD R3, 1
+    SL R3, 3
+    ADD R2, R3
+    ADD R2, R4
+    LSI R3, 0x0C
+    STS R2, ES, R3
+
     ; The fine phase above and the display swap both latch at the next frame
-    ; boundary, so paint the shifted row into the back bank now.  The front
+    ; boundary, so paint the shifted lanes into the back bank now.  The front
     ; bank stays live; no line is composed from a half-written row.
     AND R10, R10
     JZ fr_up_done
@@ -403,8 +455,8 @@ fr_up_done:
     NOP
 
 ; ---------------------------------------------------------------------
-; Paint lane R6's row into the current write bank with its current start.
-; Preserves R6; clobbers R0-R5,R7-R11,R13.
+; Paint both rows of lane R6 into the current write bank with its current
+; start.  Preserves R6; clobbers R0-R5,R7-R11,R13,R14.
 ; ---------------------------------------------------------------------
 fr_paint_lane:
     MOV R13, LR
@@ -434,20 +486,35 @@ fr_paint_lane:
     LINK
     JMP R4
     NOP
+    ; LINK overwrites LR (R14), so reload the base row from the table.
+    LDI fr_rows
+    MOV R2, R0
+    ADD R2, R11
+    LDS R8, DS, R2
+    ADD R8, 1
+    LDI fr_paint
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     MOV R6, R11
     MOV LR, R13
     JMP LR
     NOP
 
-; =====================================================================
-; Paint one row: R8 row, R9 start, R5 mask, R6 background tile,
-; R7 object tile.  Preserves R6/R7/R11; clobbers R0-R5,R8-R10.
-; =====================================================================
+; ---------------------------------------------------------------------
+; Paint the playfield part of one row: R8 row, R9 start, R5 mask,
+; R6 background tile, R7 object tile.  Writes columns 24..81 (56 visible
+; cells plus two margins).  Preserves R6/R7/R11/R14; clobbers R0-R5,R8-R10.
+; ---------------------------------------------------------------------
 fr_paint:
     LDI 82
     MOV R2, R0
     MOV R3, R8
     MUL R3, R2                 ; row * 82
+    LDI 24
+    MOV R4, R0
+    ADD R3, R4                 ; playfield starts at column 24
     LDI SEG_TILE
     MVS ES, R0
     LSI R10, 0
@@ -473,7 +540,7 @@ fr_p_store:
     STS R2, ES, R3
     ADD R3, 1
     ADD R10, 1
-    LDI 82
+    LDI 58
     MOV R2, R0
     CMP R10, R2
     JNC fr_p_done
@@ -486,21 +553,62 @@ fr_p_done:
     NOP
 
 ; ---------------------------------------------------------------------
-; Fill the current write bank with grass and the ten initial lane rows.
-; Called once per bank; clobbers R0-R11,R13.
+; Fill one row: panel columns 0..23, grass playfield columns 24..81.
+; R8 row.  Clobbers R2-R5; preserves R8.
+; ---------------------------------------------------------------------
+fr_fill_row:
+    LDI 82
+    MOV R2, R0
+    MOV R3, R8
+    MUL R3, R2
+    LDI SEG_TILE
+    MVS ES, R0
+
+    LDI T_PANEL
+    MOV R2, R0
+    LSI R4, 0
+fr_fill_panel:
+    STS R2, ES, R3
+    ADD R3, 1
+    ADD R4, 1
+    LDI 24
+    MOV R5, R0
+    CMP R4, R5
+    JNC fr_fill_grass_start
+    NOP
+    LDI fr_fill_panel
+    MOV PC, R0
+    NOP
+fr_fill_grass_start:
+    LDI T_GRASS
+    MOV R2, R0
+    LSI R4, 0
+fr_fill_grass:
+    STS R2, ES, R3
+    ADD R3, 1
+    ADD R4, 1
+    LDI 58
+    MOV R5, R0
+    CMP R4, R5
+    JNC fr_fill_done
+    NOP
+    LDI fr_fill_grass
+    MOV PC, R0
+    NOP
+fr_fill_done:
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; Fill the current write bank with the panel, banks, lanes and HUD.
+; Called once per bank; clobbers R0-R14.
 ; ---------------------------------------------------------------------
 fr_init_paint:
-    MOV R13, LR
+    MOV R12, LR
 
-    ; fill the whole screen with grass first
     LSI R8, 0
-fr_grass_row:
-    LSI R9, 0
-    LSI R5, 0
-    LDI T_GRASS
-    MOV R6, R0
-    MOV R7, R6
-    LDI fr_paint
+fr_init_row:
+    LDI fr_fill_row
     MOV R4, R0
     LINK
     JMP R4
@@ -509,53 +617,101 @@ fr_grass_row:
     LDI 24
     MOV R3, R0
     CMP R8, R3
-    JNC fr_grass_done
+    JNC fr_init_rows_done
     NOP
-    LDI fr_grass_row
+    LDI fr_init_row
     MOV PC, R0
     NOP
-fr_grass_done:
+fr_init_rows_done:
 
-    ; paint the ten lane rows at their initial coarse positions
     LSI R6, 0
-fr_lane_init:
-    MOV R11, R6
-    LDI fr_rows
-    MOV R2, R0
-    ADD R2, R6
-    LDS R8, DS, R2
-    LDI FR_START
-    MOV R2, R0
-    ADD R2, R6
-    LDS R9, DS, R2
-    LDI fr_masks
-    MOV R2, R0
-    ADD R2, R6
-    LDS R5, DS, R2
-    LDI fr_bgs
-    MOV R2, R0
-    ADD R2, R6
-    LDS R6, DS, R2
-    LDI fr_objs
-    MOV R2, R0
-    ADD R2, R11
-    LDS R7, DS, R2
-    LDI fr_paint
+fr_init_lane:
+    LDI fr_paint_lane
     MOV R4, R0
     LINK
     JMP R4
     NOP
-    MOV R6, R11
     ADD R6, 1
-    LDI 10
+    LDI 9
     MOV R3, R0
     CMP R6, R3
-    JNC fr_lanes_done
+    JNC fr_init_lanes_done
     NOP
-    LDI fr_lane_init
+    LDI fr_init_lane
     MOV PC, R0
     NOP
-fr_lanes_done:
+fr_init_lanes_done:
+
+    ; Static HUD in the left panel's top and bottom rows.
+    LSI R9, 0
+    LSI R10, 2
+    LDI str_score
+    MOV R8, R0
+    LDI fr_text
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
+    LSI R9, 1
+    LSI R10, 2
+    LDI str_hi
+    MOV R8, R0
+    LDI fr_text
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
+    LDI 23
+    MOV R9, R0
+    LSI R10, 2
+    LDI str_lives
+    MOV R8, R0
+    LDI fr_text
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
+    MOV LR, R12
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; Draw an ASCII string as text cells.  R8 string pointer, R9 row, R10 col.
+; Text cells use font pair 0 and style 0.  Clobbers R1-R3,R5,R8,R13,R14.
+; ---------------------------------------------------------------------
+fr_text:
+    MOV R13, LR
+    MOV R14, R9
+    LDI 82
+    MOV R2, R0
+    MOV R3, R14
+    MUL R3, R2
+    ADD R3, R10
+    LDI SEG_TILE
+    MVS ES, R0
+    LDI 0x2000
+    MOV R5, R0
+    SL R5, 2                   ; 0x8000, the text-cell bit
+fr_t_loop:
+    LDS R1, DS, R8
+    AND R1, R1
+    JZ fr_t_done
+    NOP
+    LDI 0x20
+    MOV R2, R0
+    SUB R1, R2
+    SL R1, 5
+    OR R1, R5
+    STS R1, ES, R3
+    ADD R3, 1
+    ADD R8, 1
+    LDI fr_t_loop
+    MOV PC, R0
+    NOP
+fr_t_done:
     MOV LR, R13
     JMP LR
     NOP
@@ -653,25 +809,25 @@ fr_x_done:
     NOP
 
 ; =====================================================================
-; Lane data (ten entries, river rows 4..8 then road rows 10..14)
+; Lane data (nine lanes, two rows each)
 ; =====================================================================
 fr_rows:
-    .word 4, 5, 6, 7, 8, 10, 11, 12, 13, 14
+    .word 2, 4, 6, 8, 10, 14, 16, 18, 20
 fr_masks:
-    .word 0x1F1F, 0x1F1F, 0x1F1F, 0x1F1F, 0x1F1F
     .word 0x0F0F, 0x0F0F, 0x0F0F, 0x0F0F, 0x0F0F
+    .word 0x0F0F, 0x0F0F, 0x0F0F, 0x0F0F
 fr_bgs:
     .word T_WATER, T_WATER, T_WATER, T_WATER, T_WATER
-    .word T_ROAD, T_ROAD, T_ROAD, T_ROAD, T_ROAD
+    .word T_ROAD, T_ROAD, T_ROAD, T_ROAD
 fr_objs:
     .word T_LOG, T_LOG, T_LOG, T_LOG, T_LOG
-    .word T_CAR_R, T_CAR_Y, T_CAR_R, T_CAR_Y, T_CAR_R
+    .word T_CAR_R, T_CAR_Y, T_CAR_R, T_CAR_Y
 fr_dirs:
-    .word 1, 0, 1, 1, 0        ; rows 4..8 top->bottom: right, left, fast right, right, left
-    .word 0, 1, 0, 1, 0        ; rows 10..14 top->bottom: left, right, left, right, left
+    .word 1, 0, 1, 1, 0        ; river top->bottom: right, left, fast right, right, left
+    .word 0, 1, 0, 1           ; road top->bottom: left, right, left, right
 fr_speeds:
     .word 1, 1, 2, 1, 1
-    .word 1, 1, 1, 1, 1
+    .word 1, 1, 1, 1
 
 fr_bitmask:
     .word 0x0001, 0x0002, 0x0004, 0x0008
@@ -679,16 +835,23 @@ fr_bitmask:
     .word 0x0100, 0x0200, 0x0400, 0x0800
     .word 0x1000, 0x2000, 0x4000, 0x8000
 
+str_score:
+    .text "SCORE 000000"
+str_hi:
+    .text "HI 000000"
+str_lives:
+    .text "LIVES 3  TIME 60"
+
 ; =====================================================================
 ; Writable state
 ; =====================================================================
 .org 0x300
 fr_start_state:
-    .word 0, 3, 6, 9, 12, 1, 4, 7, 10, 13
+    .word 0, 3, 6, 9, 12, 1, 4, 7, 10
 ; Start the lanes at different phases so their coarse shifts (and the
 ; back-bank repaints) do not all land on the same frame.
 fr_phase_state:
-    .word 7, 7, 5, 2, 4, 3, 5, 1, 7, 4
+    .word 7, 7, 5, 2, 4, 3, 5, 1, 7
 fr_last:
     .word 0
 fr_ret10:
@@ -696,7 +859,7 @@ fr_ret10:
 fr_ret11:
     .word 0
 fr_dirty:
-    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0
 fr_front:
     .word 0
 fr_back:

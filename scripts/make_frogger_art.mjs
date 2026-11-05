@@ -3,7 +3,8 @@
 // per-row scrolling backdrop.
 //
 // No special art: each tile is one 4bpp pixel index repeated over 8 x 15.  The
-// demo installs palette set 2 entries for indices 1..6 at run time.
+// demo installs palette set 2 entries for indices 1..6 at run time, and uses
+// the blank tile 0 plus art entry 0 for the left panel.
 export const FROGGER_TILES = {
   water: 57,
   road: 58,
