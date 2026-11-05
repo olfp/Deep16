@@ -13,7 +13,7 @@ import { ROOT } from './helpers.js';
 import {
   buildFrogger, checkFrogger, FROGGER_SEG_BASE, FROGGER_SEG, FROGGER_LIMIT,
 } from '../scripts/make_showcase.mjs';
-import { froggerArtTiles } from '../scripts/make_frogger_art.mjs';
+import { froggerArtTiles, FROGGER_PALETTE } from '../scripts/make_frogger_art.mjs';
 
 for (const f of ['js/deep16_assembler.js', 'js/deep16_simulator.js']) {
   vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), { filename: f });
@@ -30,14 +30,15 @@ const PHASE = 0x389;
 const frogger = buildFrogger();
 checkFrogger(frogger);
 
-test('the block fits the image gap and has six flat tiles', () => {
+test('the block fits the image gap and carries the art tiles', () => {
   assert.equal(frogger.seg, FROGGER_SEG);
   assert.ok(frogger.max < FROGGER_LIMIT);
   assert.equal(BLOCK + frogger.size <= 0x4A00, true, 'below the BIOS');
   const tiles = froggerArtTiles();
-  assert.deepEqual(tiles.map((t) => t.index), [57, 58, 59, 60, 61, 62]);
+  assert.deepEqual(tiles.map((t) => t.index), Array.from({ length: 39 }, (_, i) => 57 + i));
   for (const tile of tiles) {
-    assert.ok(tile.grid.every((row) => row.every((p) => p >= 1 && p <= 6)));
+    assert.equal(tile.grid.length, 15);
+    assert.ok(tile.grid.every((row) => row.length === 8 && row.every((p) => p >= 0 && p <= 15)));
   }
 });
 
@@ -78,10 +79,9 @@ test('the lanes paint and move in their own directions', () => {
     assert.equal(tile(r, 57), 0, `row ${r} panel tile`);
     assert.equal(tile(r, 79), 0, `row ${r} panel tile`);
   }
-  // Palette set 2 art entry 0 is the panel, 1..6 the art; text 0/1 the HUD.
-  assert.equal(sim.memory[0xF6000 + 0x110], 0x49, 'panel palette entry');
-  for (let i = 1; i <= 6; i++) {
-    assert.notEqual(sim.memory[0xF6000 + 0x110 + i], 0, `palette entry ${i}`);
+  // Palette set 2 art bank is the art palette; text 0/1 the HUD.
+  for (let i = 0; i < 16; i++) {
+    assert.equal(sim.memory[0xF6000 + 0x110 + i], FROGGER_PALETTE[i], `palette entry ${i}`);
   }
   assert.equal(sim.memory[0xF6000 + 0x100], 0x49, 'HUD text background');
   assert.equal(sim.memory[0xF6000 + 0x101], 0xFF, 'HUD text colour');
@@ -117,7 +117,7 @@ test('the panel strip is a shrinking time bar', () => {
   assert.ok(time > 0 && time < 23, `time ${time}`);
   const at = (r, c) => sim.memory[0xF1000 + r * 82 + c] >> 5;
   for (const r of [12, 13]) {
-    assert.equal(at(r, 57), 61, `row ${r} bar start`);
+    assert.equal(at(r, 57), 63, `row ${r} bar start`);
     assert.equal(at(r, 57 + time), 0, `row ${r} bar end`);
   }
 });

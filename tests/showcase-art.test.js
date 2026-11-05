@@ -61,17 +61,24 @@ test('the game palette table matches the art colours', () => {
   assert.deepEqual([0x5DB, 0x5DC, 0x5DD, 0x5DE].map(at), [3, 4, 5, 4]);
 });
 
-test('the tile bank carries the six flat Frogger tiles', () => {
+test('the tile bank carries the Frogger art and nothing else in the gap', () => {
   const font = readFontWords(path.join(ROOT, 'rtl', 'dvi', 'ttyp0-8x15.hex'));
   const italic = readFontWords(path.join(ROOT, 'rtl', 'dvi', 'ttyp0-8x15-italic.hex'));
   const words = tileFontWords(font, italic);
   assert.equal(words.length, TILE_BANK_WORDS);
-  for (const { index, grid } of froggerArtTiles()) {
-    assert.ok(index >= 57 && index <= 62, `tile ${index} is in the free gap`);
-    const pixel = grid[0][0];
-    const flat = (pixel << 12) | (pixel << 8) | (pixel << 4) | pixel;
+  const tiles = froggerArtTiles();
+  assert.deepEqual(tiles.map((t) => t.index), Array.from({ length: 39 }, (_, i) => 57 + i));
+  for (const { index, grid } of tiles) {
+    assert.equal(grid.length, 15, `tile ${index} rows`);
     const base = index * TILE_WORDS;
-    for (let i = 0; i < 30; i++) assert.equal(words[base + i], flat, `tile ${index} word ${i}`);
+    for (let r = 0; r < 15; r++) {
+      assert.equal(grid[r].length, 8, `tile ${index} row ${r} width`);
+      for (const p of grid[r]) assert.ok(p >= 0 && p <= 15, `tile ${index} pixel ${p}`);
+      const w0 = grid[r][0] | (grid[r][1] << 4) | (grid[r][2] << 8) | (grid[r][3] << 12);
+      const w1 = grid[r][4] | (grid[r][5] << 4) | (grid[r][6] << 8) | (grid[r][7] << 12);
+      assert.equal(words[base + 2 * r], w0, `tile ${index} row ${r} low`);
+      assert.equal(words[base + 2 * r + 1], w1, `tile ${index} row ${r} high`);
+    }
     assert.equal(words[base + 30], 0, `tile ${index} palette pointer`);
     assert.equal(words[base + 31], 0, `tile ${index} flags`);
   }

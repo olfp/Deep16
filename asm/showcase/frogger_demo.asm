@@ -10,10 +10,12 @@
 ; free image gap.  The menu jumps here with R10/R11 as the return pair.  Q
 ; returns to the menu.
 ;
-; Tile art (added to the tile bank by make_tile_font):
-;   tile 57 water, 58 road, 59 grass, 60 car red, 61 car yellow, 62 log,
-;   63 panel.  The demo installs palette set 2 entries for pixel indices 1..7
-;   at run time.
+; Tile art (added to the tile bank by make_frogger_art / make_tile_font):
+;   tiles 57/58 water, 59/60 road and its dashed line, 61/62 grass, 63 the
+;   time bar, 64..71 a log, 72..79 a right-going car, 80..87 a left-going car,
+;   88..95 a turtle.  Each moving object is a 32x30 cell, i.e. four tiles wide
+;   and two tile rows tall.  The demo installs the 16-entry palette in
+;   set 2's art bank at run time.
 ;
 ; Screen layout, top to bottom (24 tile rows = 12 double-height lanes):
 ;   0..1   top bank: static; left panel row 0 = SCORE, row 1 = HI
@@ -26,7 +28,7 @@
 ;   14..15 road lane 1
 ;   16..17 road lane 2
 ;   18..19 road lane 3
-;   20..21 road lane 4 (top truck lane)
+;   20..21 road lane 4
 ;   22..23 bottom bank: static; left panel row 23 = LIVES/TIME
 ;
 ; Columns 0..55 are the 448-pixel playfield and column 56 is a guard cell the
@@ -40,12 +42,17 @@
 .equ SEG_UART -0xFFC           ; 0xF004 UART/status
 
 ; tile values (tile index << 5)
-.equ T_WATER  0x720
-.equ T_ROAD   0x740
-.equ T_GRASS  0x760
-.equ T_CAR_R  0x780
-.equ T_CAR_Y  0x7A0
-.equ T_LOG    0x7C0
+.equ T_WATER  0x720           ; 57 water, glint phase A
+.equ T_WATERB 0x740           ; 58 water, glint phase B
+.equ T_ROAD   0x760           ; 59 asphalt
+.equ T_ROADL  0x780           ; 60 asphalt with the dashed lane line
+.equ T_GRASS  0x7A0           ; 61 ground speckle
+.equ T_GRASSB 0x7C0           ; 62 ground speckle, other half
+.equ T_BAR    0x7E0           ; 63 time-bar cell
+.equ T_LOG    0x800           ; 64..71 log, top row then bottom row
+.equ T_CAR_R  0x900           ; 72..79 car facing right
+.equ T_CAR_L  0xA00           ; 80..87 car facing left
+.equ T_TURTLE 0xB00           ; 88..95 turtle
 .equ T_PANEL  0x000           ; blank tile; palette art entry 0 is the panel
 
 ; state (inside the block, after the code)
@@ -156,36 +163,27 @@ fr_oam_clear:
     JNZ fr_oam_clear
     NOP
 
-    ; palette set 2, art bank: entry 0 is the left panel, 1..6 the art
+    ; palette set 2, art bank: the 16 entries of fr_pal
     LDI 0x110
     MOV R2, R0
-    LDI 0x49                  ; panel blue-grey
-    MOV R3, R0
+    LDI fr_pal
+    MOV R8, R0
+    LSI R6, 0
+fr_pal_loop:
+    LDS R3, DS, R8
     STS R3, ES, R2
     ADD R2, 1
-    LDI 0x03                  ; water
-    MOV R3, R0
-    STS R3, ES, R2
-    ADD R2, 1
-    LDI 0x4A                  ; road
-    MOV R3, R0
-    STS R3, ES, R2
-    ADD R2, 1
-    LDI 0x1C                  ; grass
-    MOV R3, R0
-    STS R3, ES, R2
-    ADD R2, 1
-    LDI 0xE0                  ; car red
-    MOV R3, R0
-    STS R3, ES, R2
-    ADD R2, 1
-    LDI 0xFC                  ; car yellow
-    MOV R3, R0
-    STS R3, ES, R2
-    ADD R2, 1
-    LDI 0x89                  ; log brown
-    MOV R3, R0
-    STS R3, ES, R2
+    ADD R8, 1
+    ADD R6, 1
+    LDI 16
+    MOV R4, R0
+    CMP R6, R4
+    JNC fr_pal_done
+    NOP
+    LDI fr_pal_loop
+    MOV PC, R0
+    NOP
+fr_pal_done:
 
     ; Palette set 2 text bank 0/1, used by the static HUD text cells.
     LDI 0x100
@@ -559,10 +557,6 @@ fr_paint_lane:
     MOV R2, R0
     ADD R2, R6
     LDS R9, DS, R2
-    LDI fr_masks
-    MOV R2, R0
-    ADD R2, R6
-    LDS R5, DS, R2
     LDI fr_bgs
     MOV R2, R0
     ADD R2, R6
@@ -576,6 +570,15 @@ fr_paint_lane:
     LINK
     JMP R4
     NOP
+    ; The second tile row is the bottom half of every object and the next
+    ; background tile (the road line lives on the bottom half).  Tile
+    ; addresses are word addresses, so one tile is 32 and four are 128.
+    LDI 32
+    MOV R2, R0
+    ADD R6, R2
+    LDI 128
+    MOV R3, R0
+    ADD R7, R3
     ; LINK overwrites LR (R14), so reload the base row from the table.
     LDI fr_rows
     MOV R2, R0
@@ -611,20 +614,22 @@ fr_p_col:
     MOV R4, R10
     ADD R4, R9
     LSI R2, 15
-    AND R4, R2
-    LDI fr_bitmask
-    MOV R2, R0
-    ADD R2, R4
-    LDS R2, DS, R2             ; one-hot bit
-    TBS R5, R2
-    JZ fr_p_bg
+    AND R4, R2                 ; cell in the 16-cell pattern
+    MOV R2, R4
+    LSI R5, 4
+    AND R2, R5                 ; inside one of the two four-cell objects?
+    JZ fr_p_obj
     NOP
-    MOV R2, R7
+    MOV R2, R6                 ; no: background tile
     LDI fr_p_store
     MOV PC, R0
     NOP
-fr_p_bg:
-    MOV R2, R6
+fr_p_obj:
+    LSI R2, 3
+    AND R4, R2                 ; yes: one of the four object slices
+    MOV R2, R4
+    SL R2, 5                   ; slice * 32 words
+    ADD R2, R7
 fr_p_store:
     STS R2, ES, R3
     ADD R3, 1
@@ -674,7 +679,7 @@ fr_bar_col:
     MOV PC, R0
     NOP
 fr_bar_fill:
-    LDI T_CAR_Y
+    LDI T_BAR
     MOV R2, R0
 fr_bar_store:
     STS R2, ES, R3
@@ -716,8 +721,13 @@ fr_fill_row:
     LDI SEG_TILE
     MVS ES, R0
 
-    LDI T_GRASS
+    MOV R4, R8
+    LSI R2, 1
+    AND R4, R2
+    LDI fr_grass_tiles
     MOV R2, R0
+    ADD R2, R4
+    LDS R2, DS, R2             ; grass tile A/B by row
     LSI R4, 0
 fr_fill_grass:
     STS R2, ES, R3
@@ -975,27 +985,23 @@ fr_x_done:
 ; =====================================================================
 fr_rows:
     .word 2, 4, 6, 8, 10, 14, 16, 18, 20
-fr_masks:
-    .word 0x0F0F, 0x0F0F, 0x0F0F, 0x0F0F, 0x0F0F
-    .word 0x0F0F, 0x0F0F, 0x0F0F, 0x0F0F
 fr_bgs:
     .word T_WATER, T_WATER, T_WATER, T_WATER, T_WATER
     .word T_ROAD, T_ROAD, T_ROAD, T_ROAD
 fr_objs:
-    .word T_LOG, T_LOG, T_LOG, T_LOG, T_LOG
-    .word T_CAR_R, T_CAR_Y, T_CAR_R, T_CAR_Y
+    .word T_LOG, T_TURTLE, T_LOG, T_TURTLE, T_LOG
+    .word T_CAR_L, T_CAR_R, T_CAR_L, T_CAR_R
+fr_grass_tiles:
+    .word T_GRASS, T_GRASSB
+fr_pal:
+    .word 0x49, 0x00, 0x25, 0x2C, 0x44, 0x74, 0x7B, 0x88
+    .word 0x92, 0xC9, 0xD6, 0x03, 0xFC, 0xFF, 0x02, 0xDF
 fr_dirs:
     .word 1, 0, 1, 1, 0        ; river top->bottom: right, left, fast right, right, left
     .word 0, 1, 0, 1           ; road top->bottom: left, right, left, right
 fr_speeds:
     .word 1, 1, 2, 1, 1
     .word 1, 1, 1, 1
-
-fr_bitmask:
-    .word 0x0001, 0x0002, 0x0004, 0x0008
-    .word 0x0010, 0x0020, 0x0040, 0x0080
-    .word 0x0100, 0x0200, 0x0400, 0x0800
-    .word 0x1000, 0x2000, 0x4000, 0x8000
 
 str_score:
     .text "SCORE 000000"

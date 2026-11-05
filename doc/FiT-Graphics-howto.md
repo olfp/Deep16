@@ -215,8 +215,9 @@ or the renderer treats the glyph address as a 4bpp art tile.
 With the text pages left alone there are **80 art-capable slots**: tile 0
 (blank), the 47 free slots in the gap, and the 32 baked art slots. Fourteen of
 the baked slots are used by Flappy, and Pac-Man adds tiles 49–56 in the gap
-plus wall shapes 110–125 in the baked block.  That leaves **41 free art tiles**
-(39 gap + 2 baked) without touching text or the blank tile. Tile 0 itself is one
+plus wall shapes 110–125 in the baked block. The Frogger backdrop takes the
+remaining 39 gap tiles, 57–95. That leaves **2 free art tiles** (126–127)
+without touching text or the blank tile. Tile 0 itself is one
 more if a program does not need a blank tile.
 
 If a game gives up the console font it can use the 96 glyph slots for its own
@@ -563,7 +564,7 @@ next frame's work early — and use the per-row table for the scroll itself.
 
 ### 6.5 The Frogger backdrop demo
 
-`asm/showcase/frogger_demo.asm` is the worked example. It is an 883-word block
+`asm/showcase/frogger_demo.asm` is the worked example. It is an 874-word block
 at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
 `G`; `Q` returns. It is a widescreen 14×12 game grid: a 448-pixel (56-cell)
 playfield in columns 0–55, a guard cell at 56, and a 184-pixel right panel in
@@ -602,6 +603,23 @@ mux rather than a duplicate branch. It assembles to 8,564/8,640 logic and
 4,310/4,320 CLS, with BSRAM 26/26 and all clocks meeting timing. The 56-cell
 playfield is columns 0–55, the guard is 56, and the panel columns 57–79 ignore
 the row phase.
+
+The art comes from the 16x16 pixel-art pack in `assets/art/frogger` (top-down
+cars, a log segment and a turtle). `scripts/make_frogger_art.mjs` crops each
+sprite to its opaque box, scales it with one factor so it fits a 32x30 game
+cell and centres it; the water, road, ground and bar tiles are composed from
+the same 16-colour palette. Tiles 57..95 hold the lot: 57/58 water ripples,
+59/60 asphalt and its dashed line, 61/62 ground speckle, 63 the time bar,
+64..71 the log, 72..79 the right-going car, 80..87 the left-going car and
+88..95 the turtle. The palette is written at run time to set 2's art bank from
+`fr_pal`; `FROGGER_PALETTE` in the script must stay in step with it. An art
+tile has no transparency, so each object tile bakes the lane colour it sits on
+(road or water) into its spare pixels.
+
+The 16-cell lane pattern is four cells on, four off, twice (`0x0F0F` in the
+old flat version): the paint tests bit 2 of the cell index to choose the object
+or the background, and the low two bits pick one of the object's four tile
+columns. The object's second tile row is its base plus four.
 
 Each lane keeps a `0..15` coarse start and a `0..7` phase. Every frame the demo
 advances the phase, writes control 6 for **both** rows of the lane, and only
