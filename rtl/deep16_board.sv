@@ -339,7 +339,9 @@ module deep16_board (
   // an input path that does not depend on the UART data read.
   // bit 4 is a diagnostic: the synchronised raster toggle, so software can see
   // whether the compare is producing one pulse per frame.
-  assign tile_status = {11'b0, raster_sync[2], uart_ready_q, btn_sync[1],
+  assign tile_status = {ps2_dbg_edges, ps2_dbg_data, ps2_dbg_clk,
+                        ps2_err_seen, ps2_key_seen, ps2_dbg_frame,
+                        raster_sync[2], uart_ready_q, btn_sync[1],
                         dvi_frame_sync[1], dvi_vblank_sync[1]};
 `else
   assign tile_status = {12'b0, uart_ready_q, btn_sync[1], 2'b00};
@@ -359,9 +361,9 @@ module deep16_board (
   localparam int PS2_CLK_HZ = 13_500_000;
 `endif
   logic       ps2_valid, ps2_frame_error;
-  logic [7:0] ps2_ascii, ps2_scan_code;
-  logic [3:0] ps2_modifiers;
+  logic [7:0] ps2_ascii;
 
+  /* verilator lint_off PINMISSING */   // D16MINI leaves the PS/2 debug pins out
   ps2_rx #(.CLK_HZ(PS2_CLK_HZ)) u_ps2 (
     .clk         (clk_cpu),
     .rst         (rst),
@@ -369,10 +371,36 @@ module deep16_board (
     .ps2_data    (ps2_data),
     .valid       (ps2_valid),
     .ascii       (ps2_ascii),
-    .scan_code   (ps2_scan_code),
-    .modifiers   (ps2_modifiers),
     .frame_error (ps2_frame_error)
+`ifdef D16NANO
+    , .dbg_clk   (ps2_dbg_clk)
+    , .dbg_data  (ps2_dbg_data)
+    , .dbg_edges (ps2_dbg_edges)
+    , .dbg_frame (ps2_dbg_frame)
+`endif
   );
+  /* verilator lint_on PINMISSING */
+
+`ifdef D16NANO
+  logic       ps2_dbg_clk, ps2_dbg_data, ps2_dbg_frame;
+  logic [3:0] ps2_dbg_edges;
+  logic       ps2_key_seen, ps2_err_seen;
+
+  always_ff @(posedge clk_cpu) begin
+    if (rst) begin
+      ps2_key_seen <= 1'b0;
+      ps2_err_seen <= 1'b0;
+    end else begin
+      if (ps2_valid && (ps2_ascii != 8'h00)) ps2_key_seen <= 1'b1;
+      if (ps2_frame_error) ps2_err_seen <= 1'b1;
+    end
+  end
+
+  // PS/2 diagnostics share the display-status word at 0xF0066:
+  //   [7:5] error / mapped-key / good-frame stickies
+  //   [9:8] synchronised CLK / DATA levels
+  //   [15:10] 6-bit count of PS/2 clock falling edges
+`endif
 
   wire ps2_key = ps2_valid && (ps2_ascii != 8'h00);
 
@@ -574,7 +602,7 @@ module deep16_board (
   logic _unused;
   assign _unused = &{1'b0, btn, o_done, o_result, o_busy, cache_hits, cache_misses,
                      cache_penalty, tx_data_out, tx_avail, rx_avail, dbg_rdata,
-                     dbg_if_addr, ps2_frame_error, ps2_scan_code, ps2_modifiers,
+                     dbg_if_addr, ps2_frame_error,
                      spi_miso};
   /* verilator lint_on UNUSEDSIGNAL */
 
