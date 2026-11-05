@@ -93,7 +93,7 @@ fr_clear_dirty:
     ; Time bar starts full; the middle strip shows 56 cells of time.
     LDI FR_TIME
     MOV R2, R0
-    LDI 56
+    LDI 55
     MOV R3, R0
     ST R3, R2, 0
     LDI FR_TICK
@@ -362,7 +362,7 @@ fr_bard_done:
     MOV PC, R0
     NOP
 fr_tick_reset:
-    LDI 56
+    LDI 55
     MOV R5, R0
 fr_tick_time:
     ST R5, R2, 0
@@ -595,9 +595,9 @@ fr_paint:
     MOV R2, R0
     MOV R3, R8
     MUL R3, R2                 ; row * 82
-    LDI 24
+    LDI 25
     MOV R4, R0
-    ADD R3, R4                 ; playfield starts at column 24
+    ADD R3, R4                 ; playfield starts after the guard cell
     LDI SEG_TILE
     MVS ES, R0
     LSI R10, 0
@@ -623,7 +623,7 @@ fr_p_store:
     STS R2, ES, R3
     ADD R3, 1
     ADD R10, 1
-    LDI 58
+    LDI 57
     MOV R2, R0
     CMP R10, R2
     JNC fr_p_done
@@ -652,7 +652,7 @@ fr_bar_row:
     MOV R2, R0
     MOV R3, R8
     MUL R3, R2
-    LDI 24
+    LDI 25
     MOV R4, R0
     ADD R3, R4
     LDI SEG_TILE
@@ -673,7 +673,7 @@ fr_bar_store:
     STS R2, ES, R3
     ADD R3, 1
     ADD R10, 1
-    LDI 56
+    LDI 55
     MOV R4, R0
     CMP R10, R4
     JNC fr_bar_row_done
@@ -715,7 +715,7 @@ fr_fill_panel:
     STS R2, ES, R3
     ADD R3, 1
     ADD R4, 1
-    LDI 24
+    LDI 25
     MOV R5, R0
     CMP R4, R5
     JNC fr_fill_grass_start
@@ -731,7 +731,7 @@ fr_fill_grass:
     STS R2, ES, R3
     ADD R3, 1
     ADD R4, 1
-    LDI 58
+    LDI 57
     MOV R5, R0
     CMP R4, R5
     JNC fr_fill_done
@@ -1016,7 +1016,7 @@ fr_front:
 fr_back:
     .word 1
 fr_time:
-    .word 56
+    .word 55
 fr_tick:
     .word 0
 fr_bard:

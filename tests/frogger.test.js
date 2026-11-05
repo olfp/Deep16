@@ -73,10 +73,11 @@ test('the lanes paint and move in their own directions', () => {
   const laneRows = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
                     14, 15, 16, 17, 18, 19, 20, 21];
   for (const r of laneRows) {
-    assert.ok(tile(r, 24) !== 0, `row ${r} playfield painted`);
+    assert.ok(tile(r, 25) !== 0, `row ${r} playfield painted`);
     assert.ok(tile(r, 80) !== 0, `row ${r} right margin painted`);
     assert.ok(tile(r, 81) !== 0, `row ${r} far margin painted`);
     assert.equal(tile(r, 0), 0, `row ${r} left panel tile`);
+    assert.equal(tile(r, 24), 0, `row ${r} guard tile`);
   }
   // Palette set 2 art entry 0 is the panel, 1..6 the art; text 0/1 the HUD.
   assert.equal(sim.memory[0xF6000 + 0x110], 0x49, 'panel palette entry');
@@ -114,11 +115,11 @@ test('the middle strip is a shrinking time bar', () => {
   const sim = start();
   run(sim, 100);
   const time = sim.memory[BLOCK + 0x3a0];
-  assert.ok(time > 0 && time < 56, `time ${time}`);
+  assert.ok(time > 0 && time < 55, `time ${time}`);
   const at = (r, c) => sim.memory[0xF1000 + r * 82 + c] >> 5;
   for (const r of [12, 13]) {
-    assert.equal(at(r, 24), 61, `row ${r} bar start`);
-    assert.equal(at(r, 24 + time), 0, `row ${r} bar end`);
+    assert.equal(at(r, 25), 61, `row ${r} bar start`);
+    assert.equal(at(r, 25 + time), 0, `row ${r} bar end`);
   }
 });
 
