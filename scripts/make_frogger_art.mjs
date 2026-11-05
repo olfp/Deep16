@@ -44,13 +44,12 @@ const I = {
 export const FROGGER_TILES = {
   water: 57,
   road: 58,
-  roadLine: 59,
-  log: 60,
-  turtle: 66,
-  carBlue: 72,
-  carYellow: 78,
-  fireTruck: 84,
-  truck: 90,
+  log: 59,
+  turtle: 65,
+  carBlue: 71,
+  carYellow: 77,
+  fireTruck: 83,
+  truck: 89,
   grass: 126,
   bar: 127,
 };
@@ -201,21 +200,20 @@ export function froggerArtTiles() {
   const TRUCK = box(353, 406, 133, 66);        // cab plus the trailer's tail
 
   // A log whose two ends are the pack's rounded cap, mirrored.
-  const cap = sample(img, LOG_CAP, 12, 12, I.aqua);
+  const cap = sample(img, LOG_CAP, 12, 14, I.aqua);
   const log = cap.map((row) => [...row, ...[...row].reverse()]);
 
   const entries = [
+    ...sliceTiles(inCell(log, 24, 14, I.aqua)).map((grid, i) => [FROGGER_TILES.log + i, grid]),
     [FROGGER_TILES.water, waterTile()],
-    [FROGGER_TILES.road, roadTile(false)],
-    [FROGGER_TILES.roadLine, roadTile(true)],
+    [FROGGER_TILES.road, roadTile()],
     [FROGGER_TILES.grass, grassTile()],
     [FROGGER_TILES.bar, barTile()],
-    ...sliceTiles(inCell(log, 24, 12, I.aqua)).map((grid, i) => [FROGGER_TILES.log + i, grid]),
-    ...obj(TURTLE, 24, 19, I.aqua, true).map((grid, i) => [FROGGER_TILES.turtle + i, grid]),
-    ...obj(CAR_BLUE, 24, 13, I.black).map((grid, i) => [FROGGER_TILES.carBlue + i, grid]),
-    ...obj(CAR_YELLOW, 24, 13, I.black).map((grid, i) => [FROGGER_TILES.carYellow + i, grid]),
-    ...obj(FIRE, 24, 9, I.black, true).map((grid, i) => [FROGGER_TILES.fireTruck + i, grid]),
-    ...obj(TRUCK, 24, 12, I.black, true).map((grid, i) => [FROGGER_TILES.truck + i, grid]),
+    ...obj(TURTLE, 24, 18, I.aqua, true).map((grid, i) => [FROGGER_TILES.turtle + i, grid]),
+    ...obj(CAR_BLUE, 24, 16, I.black).map((grid, i) => [FROGGER_TILES.carBlue + i, grid]),
+    ...obj(CAR_YELLOW, 24, 16, I.black).map((grid, i) => [FROGGER_TILES.carYellow + i, grid]),
+    ...obj(FIRE, 24, 16, I.black, true).map((grid, i) => [FROGGER_TILES.fireTruck + i, grid]),
+    ...obj(TRUCK, 24, 16, I.black, true).map((grid, i) => [FROGGER_TILES.truck + i, grid]),
   ];
   return entries.map(([index, grid]) => ({ index, grid }));
 }

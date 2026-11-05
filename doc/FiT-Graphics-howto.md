@@ -564,12 +564,13 @@ next frame's work early — and use the per-row table for the scroll itself.
 
 ### 6.5 The Frogger backdrop demo
 
-`asm/showcase/frogger_demo.asm` is the worked example. It is an 887-word block
+`asm/showcase/frogger_demo.asm` is the worked example. It is an 882-word block
 at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
-`G`; `Q` returns. It is a widescreen 14×12 game grid: a 448-pixel (56-cell)
-playfield in columns 0–55, a guard cell at 56, and a 184-pixel right panel in
-columns 57–79. Each game cell is 24×30 px, i.e. three tiles wide and two tile
-rows tall, so a 24-pixel vehicle or log leaves room in its lane.
+`G`; `Q` returns. It is a widescreen 14×12 game grid: a 192-pixel panel in
+columns 0–23, and a 448-pixel (56-cell) playfield in columns 24–79 with two
+margin cells. Each game cell is 24×30 px, i.e. three tiles wide and two tile
+rows tall; every vehicle is drawn in the same 24×16 box, so they all have the
+same length.
 
 The screen is twelve double-height lanes, top to bottom: top bank (rows 0–1),
 five river lanes (2–11), median (12–13), four road lanes (14–21), bottom bank
@@ -584,39 +585,40 @@ playfield.
 The panel must stay fixed while the playfield rows scroll. Control 5 bit 11
 enables a column scroll window; control 6 row 31 carries its bound and side as
 `{col[6:0], side}`. `side` 0 keeps columns `0..col` at fine 0 and scrolls the
-rest (static left panel); `side` 1 scrolls `0..col` and keeps the rest static
-(static right panel). The demo uses `col=55, side=1`, so the playfield is
-columns 0–55 and the panel starts at 57. The first static cell (56) is painted
-with the lane background: it is the cell the fine phase reads past the
-playfield, and keeping it background-coloured makes that read invisible. The
-window applies to rows that use the control 6 phase; the static HUD, median and
-bar rows are unaffected. The marker value for `col=55, side=1` is `0x6FF8`,
-which one `LDI` cannot express (bit 14 is the sign bit), so the demo builds it
-with `LDI 0x2FF8` then `OR R0, 14`. Older bitstreams ignore control 5 bit 11 and the row-31 marker, so
-the same boot image still runs on them, without the fixed edge.
+rest; `side` 1 is the mirror. The demo uses `col=23, side=0`, so the panel is
+columns 0–23 and the playfield starts at 24. The panel is on the **left** on
+purpose: with a right panel the window boundary would sit mid-screen, and the
+cell the fine phase reads past the playfield is the first static cell, so that
+edge can only be a one-tile lane-coloured strip (objects cut a tile early) or a
+panel-coloured notch that moves with the phase. On the left the boundary is the
+playfield's first cell, so objects slide out from under the panel cleanly, and
+the far edge of the playfield is the screen edge, where the margin cells hide
+the same read. The window applies to rows that use the control 6 phase; the
+static HUD, median and bar rows are unaffected. Older bitstreams ignore control
+5 bit 11 and the row-31 marker, so the same boot image still runs on them,
+without the fixed edge.
 
 The first version used two bounds (scroll-from and scroll-to); it did not fit
 (8,737 > 8,640). A one-bound-plus-side version then fit only after the fill was
 restructured: the panel-to-playfield handover is now a single `fpix` mux inside
 the ordinary cell-advance branch, so the window costs one comparator and one
 mux rather than a duplicate branch. It assembles to 8,564/8,640 logic and
-4,310/4,320 CLS, with BSRAM 26/26 and all clocks meeting timing. The 56-cell
-playfield is columns 0–55, the guard is 56, and the panel columns 57–79 ignore
-the row phase.
+4,310/4,320 CLS, with BSRAM 26/26 and all clocks meeting timing.
 
 The art comes from the single sprite sheet in
 `assets/art/frogger/sprites-sheet.png` (top-down cars, a fire truck, a truck, a
 log and a turtle). `scripts/make_frogger_art.mjs` crops each sprite to its box,
-area-filters it down to at most 24 px wide, mirrors it when its lane runs left,
-fits it into the 24×30 cell with one scale factor and centres it. The water,
-asphalt, dashed line, ground and bar tiles are composed from the same 16-colour
-palette. Tiles 57..95 plus 126/127 hold the lot: 57 water, 58 asphalt, 59 its
-dashed line, 60..65 the log, 66..71 the turtle, 72..77 the blue car, 78..83 the
-yellow car, 84..89 the fire truck, 90..95 the truck, 126 the ground and 127 the
-time bar. The palette is written at run time to set 2's art bank from `fr_pal`;
-`FROGGER_PALETTE` in the script must stay in step with it. An art tile has no
-transparency, so each object tile bakes the lane colour it sits on (black road
-or aqua water) into its spare pixels.
+area-filters it down to 24 px wide, mirrors it when its lane runs left and
+stretches it into the 24×16 vehicle box or the 24×18 turtle / 24×14 log box.
+The water, asphalt, ground and bar tiles are composed from the same 16-colour
+palette; the road has no lane markings, because every row scrolls as a whole
+and the dashes would travel with the traffic. Tiles 57..94 plus 126/127 hold
+the lot: 57 water, 58 asphalt, 59..64 the log, 65..70 the turtle, 71..76 the
+blue car, 77..82 the yellow car, 83..88 the fire truck, 89..94 the truck, 126
+the ground and 127 the time bar. The palette is written at run time to set 2's
+art bank from `fr_pal`; `FROGGER_PALETTE` in the script must stay in step with
+it. An art tile has no transparency, so each object tile bakes the lane colour
+it sits on (black road or aqua water) into its spare pixels.
 
 The lane pattern is three cells on, five off, twice; the paint takes the cell
 index modulo eight and treats 3..7 as background, so the low bits also pick one
@@ -627,20 +629,19 @@ River lanes, top to bottom: logs (normal), turtles (a little slower), logs
 (fast), logs (slow), turtles (a little slower). Logs run right and turtles run
 left. Road lanes, top to bottom: the truck (left, fastest), the yellow car
 (right), the fire truck (left), the blue car (right, slowest). The lane phase
-is kept in half pixels (0..15), so a lane speed is a half-pixel count per
-frame: normal 4, slightly slower 3, slow 2, fast 6, and the road climbs 2, 3,
-4, 6 from the bottom.
+is kept in quarter pixels (0..31), so a lane speed is a quarter-pixel count per
+frame: normal 4 (1 px/frame), slightly slower 3 (0.75), slow 2 (0.5), fast 6
+(1.5), and the road climbs 2, 3, 4, 6 from the bottom.
 
-Each lane keeps a `0..15` coarse start and a `0..15` phase. Every frame the demo
-advances the phase, writes control 6 (the phase shifted right one) for **both**
-rows of the lane, and only
-when the coarse start changes repaints the lane's playfield cells (columns
-0–55) into the **back** tilemap bank and leaves the guard cell 56 at the lane
-background. It then requests the display swap for the same frame boundary at
-which control 6 latches. The front map stays live, so no line is composed from
-a half-written row. The guard matters: the fine phase reads one cell past the
-56 visible playfield cells at the right edge, and leaving it zero (or painting
-it with the panel colour) makes a strip or a wobbling edge.
+Each lane keeps a `0..15` coarse start and a `0..31` phase. Every frame the demo
+advances the phase, writes control 6 (the phase shifted right two) for **both**
+rows of the lane, and only when the coarse start changes repaints the lane's
+playfield cells (columns 24–81, the playfield plus the two margin cells) into
+the **back** tilemap bank. It then requests the display swap for the same frame
+boundary at which control 6 latches. The front map stays live, so no line is
+composed from a half-written row. The margins matter: the fine phase reads one
+cell past the 56 visible playfield cells at the screen edge, and leaving that
+cell zero makes a black strip.
 
 A lane changed in the previous frame is repainted into the new back copy on the
 next frame (the per-lane dirty flags), so the ping-pong pair stays current. The

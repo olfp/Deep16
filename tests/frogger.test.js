@@ -35,8 +35,8 @@ test('the block fits the image gap and carries the art tiles', () => {
   assert.ok(frogger.max < FROGGER_LIMIT);
   assert.equal(BLOCK + frogger.size <= 0x4A00, true, 'below the BIOS');
   const tiles = froggerArtTiles();
-  const expect = [57, 58, 59, 126, 127,
-    ...Array.from({ length: 36 }, (_, i) => 60 + i)];
+  const expect = [...Array.from({ length: 6 }, (_, i) => 59 + i), 57, 58, 126, 127,
+    ...Array.from({ length: 30 }, (_, i) => 65 + i)];
   assert.deepEqual(tiles.map((t) => t.index), expect);
   for (const tile of tiles) {
     assert.equal(tile.grid.length, 15);
@@ -67,21 +67,22 @@ function run(sim, frames) {
 
 test('the lanes paint and move in their own directions', () => {
   const sim = start();
-  // Forty frames: the fastest lane covers fifteen cells, so every lane is
-  // still inside one 16-cell wrap when the coarse starts are compared.
+  // Forty frames: even the fastest lane stays inside one 16-cell wrap, so the
+  // coarse starts can be compared directly.
   run(sim, 40);
 
   // The backdrop is in the tilemap: five double-height river lanes and four
-  // double-height road lanes. Columns 0..55 are the playfield, 56 is the
-  // guard the fine phase reads, and 57..79 the right panel.
+  // double-height road lanes. Columns 0..23 are the panel, 24..79 the
+  // playfield and 80..81 the margin cells the fine phase reads.
   const tile = (r, c) => sim.memory[0xF1000 + r * 82 + c];
   const laneRows = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
                     14, 15, 16, 17, 18, 19, 20, 21];
   for (const r of laneRows) {
-    assert.ok(tile(r, 0) !== 0, `row ${r} playfield painted`);
-    assert.ok(tile(r, 56) !== 0, `row ${r} guard painted`);
-    assert.equal(tile(r, 57), 0, `row ${r} panel tile`);
-    assert.equal(tile(r, 79), 0, `row ${r} panel tile`);
+    assert.ok(tile(r, 24) !== 0, `row ${r} playfield painted`);
+    assert.ok(tile(r, 80) !== 0, `row ${r} margin painted`);
+    assert.ok(tile(r, 81) !== 0, `row ${r} margin painted`);
+    assert.equal(tile(r, 0), 0, `row ${r} panel tile`);
+    assert.equal(tile(r, 23), 0, `row ${r} panel tile`);
   }
   // Palette set 2 art bank is the art palette; text 0/1 the HUD.
   for (let i = 0; i < 16; i++) {
@@ -90,16 +91,16 @@ test('the lanes paint and move in their own directions', () => {
   assert.equal(sim.memory[0xF6000 + 0x100], 0x49, 'HUD text background');
   assert.equal(sim.memory[0xF6000 + 0x101], 0xFF, 'HUD text colour');
   // Static HUD text cells in the panel's top and bottom rows.
-  assert.notEqual(tile(0, 59) & 0x8000, 0, 'score HUD text');
-  assert.notEqual(tile(23, 59) & 0x8000, 0, 'bottom HUD text');
+  assert.notEqual(tile(0, 2) & 0x8000, 0, 'score HUD text');
+  assert.notEqual(tile(23, 2) & 0x8000, 0, 'bottom HUD text');
 
   const starts = Array.from({ length: 9 }, (_, i) => sim.memory[BLOCK + START + i]);
   const phases = Array.from({ length: 9 }, (_, i) => sim.memory[BLOCK + PHASE + i]);
-  // Phases are half pixels, 0..15.
-  for (const p of phases) assert.ok(p >= 0 && p <= 15, `phase ${p}`);
+  // Phases are quarter pixels, 0..31.
+  for (const p of phases) assert.ok(p >= 0 && p <= 31, `phase ${p}`);
 
-  // River top->bottom: right, left, fast right, right, left.
-  // Road top->bottom: left, right, left, right (top truck lane left).
+  // River top->bottom: logs right, turtles left, logs right, logs right,
+  // turtles left.  Road top->bottom: left, right, left, right.
   // `moved` is the modular coarse distance; a right-moving lane decreases its
   // start, a left one increases it.
   const moved = (i, initial) => (starts[i] - initial + 16) & 15;
@@ -123,8 +124,8 @@ test('the panel strip is a shrinking time bar', () => {
   assert.ok(time > 0 && time < 23, `time ${time}`);
   const at = (r, c) => sim.memory[0xF1000 + r * 82 + c] >> 5;
   for (const r of [12, 13]) {
-    assert.equal(at(r, 57), 127, `row ${r} bar start`);
-    assert.equal(at(r, 57 + time), 0, `row ${r} bar end`);
+    assert.equal(at(r, 0), 127, `row ${r} bar start`);
+    assert.equal(at(r, time), 0, `row ${r} bar end`);
   }
 });
 
