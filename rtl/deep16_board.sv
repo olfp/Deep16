@@ -339,9 +339,7 @@ module deep16_board (
   // an input path that does not depend on the UART data read.
   // bit 4 is a diagnostic: the synchronised raster toggle, so software can see
   // whether the compare is producing one pulse per frame.
-  assign tile_status = {ps2_dbg_edges, ps2_dbg_data, ps2_dbg_clk,
-                        ps2_err_seen, ps2_key_seen, ps2_dbg_frame,
-                        raster_sync[2], uart_ready_q, btn_sync[1],
+  assign tile_status = {11'b0, raster_sync[2], uart_ready_q, btn_sync[1],
                         dvi_frame_sync[1], dvi_vblank_sync[1]};
 `else
   assign tile_status = {12'b0, uart_ready_q, btn_sync[1], 2'b00};
@@ -360,8 +358,8 @@ module deep16_board (
 `else
   localparam int PS2_CLK_HZ = 13_500_000;
 `endif
-  logic       ps2_valid, ps2_frame_error;
-  logic [7:0] ps2_ascii;
+  logic       ps2_valid, ps2_frame_error, ps2_code_valid;
+  logic [7:0] ps2_ascii, ps2_raw_code;
 
   /* verilator lint_off PINMISSING */   // D16MINI leaves the PS/2 debug pins out
   ps2_rx #(.CLK_HZ(PS2_CLK_HZ)) u_ps2 (
@@ -371,36 +369,11 @@ module deep16_board (
     .ps2_data    (ps2_data),
     .valid       (ps2_valid),
     .ascii       (ps2_ascii),
-    .frame_error (ps2_frame_error)
-`ifdef D16NANO
-    , .dbg_clk   (ps2_dbg_clk)
-    , .dbg_data  (ps2_dbg_data)
-    , .dbg_edges (ps2_dbg_edges)
-    , .dbg_frame (ps2_dbg_frame)
-`endif
+    .frame_error (ps2_frame_error),
+    .dbg_raw_code(ps2_raw_code),
+    .dbg_code    (ps2_code_valid)
   );
   /* verilator lint_on PINMISSING */
-
-`ifdef D16NANO
-  logic       ps2_dbg_clk, ps2_dbg_data, ps2_dbg_frame;
-  logic [3:0] ps2_dbg_edges;
-  logic       ps2_key_seen, ps2_err_seen;
-
-  always_ff @(posedge clk_cpu) begin
-    if (rst) begin
-      ps2_key_seen <= 1'b0;
-      ps2_err_seen <= 1'b0;
-    end else begin
-      if (ps2_valid && (ps2_ascii != 8'h00)) ps2_key_seen <= 1'b1;
-      if (ps2_frame_error) ps2_err_seen <= 1'b1;
-    end
-  end
-
-  // PS/2 diagnostics share the display-status word at 0xF0066:
-  //   [7:5] error / mapped-key / good-frame stickies
-  //   [9:8] synchronised CLK / DATA levels
-  //   [15:10] 6-bit count of PS/2 clock falling edges
-`endif
 
   wire ps2_key = ps2_valid && (ps2_ascii != 8'h00);
 
@@ -446,8 +419,8 @@ module deep16_board (
     // FIFO, while the 0xF0060/62 port stays available for software that uses
     // the architectural keyboard interface. On this build only one of them is
     // read, so a key is not consumed twice.
-    .kbd_push      (ps2_key),
-    .kbd_push_data ({8'h00, ps2_ascii}),
+    .kbd_push      (ps2_code_valid),
+    .kbd_push_data ({8'h00, ps2_raw_code}),
     .kbd_clear     (rst),
 
     // the console is the pins; the host push/take path is a simulation facility

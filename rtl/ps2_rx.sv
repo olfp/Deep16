@@ -27,12 +27,11 @@ module ps2_rx #(
   output logic [7:0] scan_code,    // last received code, for debug
   output logic [3:0] modifiers,    // {caps, alt, ctrl, shift}
   output logic       frame_error,  // sticky until the next good frame
-  // Diagnostics for the board: synchronised pin levels, a 4-bit count of
-  // PS/2 clock falling edges (signal present) and a sticky "a frame passed
-  // start/stop/parity" bit.
-  output logic       dbg_clk, dbg_data,
-  output logic [5:0] dbg_edges,
-  output logic       dbg_frame
+  // Diagnostic: the frame data and a one-cycle pulse, both valid together,
+  // so the board can push the raw scan code into the keyboard FIFO while the
+  // ASCII map is investigated.
+  output logic [7:0] dbg_raw_code,
+  output logic       dbg_code     // one-cycle pulse for every valid frame
 );
 
   // 2 ms at the CPU clock. A Set-2 frame at 16.7 kHz is about 0.66 ms, so a
@@ -61,8 +60,8 @@ module ps2_rx #(
 
   wire clk_fall = clk_sync_q && !clk_sync;
 
-  assign dbg_clk  = clk_sync;
-  assign dbg_data = data_sync;
+  assign dbg_code     = code_valid;
+  assign dbg_raw_code = code;
 
   // ---- frame receiver ---------------------------------------------------
   // frame is shifted with the new bit at the MSB. After the 11th sample
@@ -85,14 +84,11 @@ module ps2_rx #(
       code_valid  <= 1'b0;
       code        <= 8'd0;
       frame_error <= 1'b0;
-      dbg_edges   <= 6'd0;
-      dbg_frame   <= 1'b0;
     end else begin
       code_valid <= 1'b0;
 
       if (clk_fall) begin
         timeout <= 16'd0;
-        dbg_edges <= dbg_edges + 6'd1;
         if (!frame_busy) begin
           // A start bit is low; any other falling edge is noise.
           if (!data_sync) begin
@@ -131,7 +127,6 @@ module ps2_rx #(
           code        <= frame[8:1];
           code_valid  <= 1'b1;
           frame_error <= 1'b0;
-          dbg_frame   <= 1'b1;
         end else begin
           frame_error <= 1'b1;
         end
