@@ -566,10 +566,9 @@ next frame's work early — and use the per-row table for the scroll itself.
 `asm/showcase/frogger_demo.asm` is the worked example. It is a 877-word block
 at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
 `G`; `Q` returns. It is a widescreen 14×12 game grid: a 448-pixel (56-cell)
-playfield grid in columns 24–79, and a 184-pixel active left panel in columns
-0–22. Columns 23–24 are a 16-pixel panel-coloured guard; the moving content
-uses columns 25–79 (55 cells, 440 px). Each game lane is 32×30 px, i.e. four
-cells wide and two tile rows tall.
+playfield in columns 24–79, and a 184-pixel active left panel in columns 0–22.
+Column 23 is an 8-pixel panel-coloured guard; the playfield keeps all 56 moving
+cells. Each game lane is 32×30 px, i.e. four cells wide and two tile rows tall.
 
 The screen is twelve double-height lanes, top to bottom: top bank (rows 0–1),
 five river lanes (2–11), median (12–13), four road lanes (14–21), bottom bank
@@ -578,22 +577,23 @@ median stay at phase 0. The top/bottom rows also hold the static HUD: the panel
 rows 0, 1 and 23 show score, hi-score and lives/time as ordinary text cells.
 The moving rows' panel and guard cells are the blank tile 0 with palette set 2
 art entry 0 set to the panel colour, so the per-row shift moves a field of
-identical cells and is invisible. The 16-pixel guard absorbs the fine phase's
+identical cells and is invisible. The 8-pixel guard absorbs the fine phase's
 bleed at the panel edge; the active panel stays clean.
 
 Each lane keeps a `0..15` coarse start and a `0..7` phase. Every frame the demo
 advances the phase, writes control 6 for **both** rows of the lane, and only
-when the coarse start changes repaints the lane's moving cells (columns 25–81,
-57 cells including the two right margins) into the **back** tilemap bank. It then requests the display swap for the same frame boundary at which
+when the coarse start changes repaints the lane's playfield cells (columns
+24–81, 58 cells including the two right margins) into the **back** tilemap
+bank. It then requests the display swap for the same frame boundary at which
 control 6 latches. The front map stays live, so no line is composed from a
-half-written row. The margins matter: the fine phase reads one cell past the 55
-visible moving cells at the right edge, and leaving it zero makes a black
+half-written row. The margins matter: the fine phase reads one cell past the 56
+visible playfield cells at the right edge, and leaving it zero makes a black
 strip.
 
 A lane changed in the previous frame is repainted into the new back copy on the
 next frame (the per-lane dirty flags), so the ping-pong pair stays current. The
 lanes start at different phases so the coarse shifts and repaints spread across
-frames. The static middle strip holds a 55-cell time bar: yellow cells for the
+frames. The static middle strip holds a 56-cell time bar: yellow cells for the
 remaining time, the panel tile for the empty tail; one cell drains every 32
 frames, then the bar resets. Entry paints both banks and resets the bank pair;
 exit restores bank 0 and waits for the swap before returning.
