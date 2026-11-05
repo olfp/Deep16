@@ -131,9 +131,9 @@ fr_clear_dirty:
     LSI R2, 8
     STS R3, ES, R2             ; control 4 page 0
     LSI R2, 0x0A
-    LDI 0x200
+    LDI 0xA00
     MOV R3, R0
-    STS R3, ES, R2             ; control 5 palette set 2, OAM base 0
+    STS R3, ES, R2             ; control 5 palette 2, OAM 0, scroll window
 
     ; clear the OAM descriptors so the menu's sprites do not show through
     LDI SEG_OAM
@@ -190,14 +190,6 @@ fr_oam_clear:
     LDI 0xFF
     MOV R3, R0
     STS R3, ES, R2             ; white
-
-    ; Column scroll window: static panel 0..23, scrolling playfield 24..79.
-    LDI SEG_CTRL
-    MVS ES, R0
-    LDI 0x11
-    MOV R2, R0
-    LSI R3, 1
-    STS R3, ES, R2
 
     ; Paint both tilemap banks with the same panel, banks, lanes and HUD.  The
     ; demo ping-pongs the banks, so the first swap must expose a complete copy.
@@ -943,10 +935,6 @@ fr_x_loop:
     MOV PC, R0
     NOP
 fr_x_done:
-    LDI 0x11
-    MOV R2, R0
-    LSI R3, 0
-    STS R3, ES, R2             ; column scroll window off
     LSI R2, 8
     LSI R3, 0
     STS R3, ES, R2             ; display and write bank 0 for the menu

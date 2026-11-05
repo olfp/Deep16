@@ -382,7 +382,7 @@ int main(int argc, char** argv) {
   // column 0 must stay unshifted even though row 0 has phase 4.
   write_tile(0, 0x8000 | 0x0500);          // restore the H cell
   write_tile(1, 0x8000 | 0x0420);          // A in the playfield
-  write_ctrl(0x11, 1);
+  write_ctrl(0x0A, 0x800);
   write_ctrl(0x0C, (1 << 8) | (0 << 3) | 4);
   wait_frame();
   wait_frame();
@@ -391,7 +391,7 @@ int main(int argc, char** argv) {
   sample_cell(0, 0, cap_win, seen_win, &white_win);
   check("window keeps the static panel cell unshifted",
         compare_cell(tile, h_base, cap_win, seen_win, "Hwin") ? 1 : 0, 1);
-  write_ctrl(0x11, 0);
+  write_ctrl(0x0A, 0);
   write_ctrl(0x0C, 0);
   wait_frame();
   wait_frame();

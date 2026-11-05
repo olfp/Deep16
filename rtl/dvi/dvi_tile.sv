@@ -346,8 +346,6 @@ module dvi_tile #(
       row_scroll_en_next <= 1'b0;
       scroll_win_en <= 1'b0;
       raster_line <= 10'd0;
-    end else if (cpu_we && cpu_ctrl && cpu_addr[4:0] == 5'h11) begin
-      scroll_win_en <= cpu_data[0];
     end else if (cpu_we && cpu_ctrl) begin
       // 0x00 cursor, 0x02 row offset, 0x04 scroll_x, 0x06 scroll_y,
       // 0x08 {display page, write page}, 0x0A legacy sprite write page (kept
@@ -370,10 +368,11 @@ module dvi_tile #(
           map_dpage_next <= cpu_data[1];
         end
         4'hA: begin
-          // 0xF200A: bits 7:2 OAM base descriptor, bits 10:8 palette set.
-          // Bits 1:0 were the legacy sprite page and are now ignored.
+          // 0xF200A: bits 7:2 OAM base descriptor, bits 10:8 palette set,
+          // bit 11 fixed 24-column left scroll window.
           oam_base <= cpu_data[7:2];
           pal_set  <= cpu_data[10:8];
+          scroll_win_en <= cpu_data[11];
         end
         4'hC: row_scroll_en_next <= cpu_data[8];
         4'hE: raster_line <= cpu_data[9:0];

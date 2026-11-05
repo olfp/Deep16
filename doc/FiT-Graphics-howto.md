@@ -563,7 +563,7 @@ next frame's work early — and use the per-row table for the scroll itself.
 
 ### 6.5 The Frogger backdrop demo
 
-`asm/showcase/frogger_demo.asm` is the worked example. It is an 884-word block
+`asm/showcase/frogger_demo.asm` is the worked example. It is an 874-word block
 at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
 `G`; `Q` returns. It is a widescreen 14×12 game grid: a 448-pixel (56-cell)
 playfield in columns 24–79 and a 192-pixel left panel in columns 0–23. Each game
@@ -579,8 +579,9 @@ panel tile for the empty tail. It drains one cell every 64 frames (about 25 s),
 then resets. The bar is on the panel, not on the playfield.
 
 The panel must stay fixed while the playfield rows scroll. The per-row phase is
-applied only from column 24: control 8 at `0xF2011`, bit 0, enables a fixed
-24-column static panel; columns 24..79 use control 6. The general scroll-from/
+applied only from column 24: control 5 bit 11 enables a fixed 24-column static
+panel; columns 24..79 use control 6. Older bitstreams ignore that bit, so the
+same boot image still runs on them (without the fixed edge). The general scroll-from/
 scroll-to version was assembled and tried first, but it exceeded the device
 logic (8,737 > 8,640). The fixed scroll-from version fits at 8,545 logic and
 4,315/4,320 CLS, with BSRAM still 26/26. Columns 0–23 therefore ignore the row

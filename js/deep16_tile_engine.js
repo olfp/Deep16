@@ -110,8 +110,6 @@ class Deep16TileEngine {
 
     if (addr >= 0xF1000 && addr <= 0xF1853) {
       this.tilemap[this.mapWrite][addr - 0xF1000] = value;
-    } else if (addr === 0xF2011) {
-      this.scrollWin = (value & 1) !== 0;
     } else if (addr >= 0xF2000 && addr <= 0xF200E && (addr & 1) === 0) {
       switch (addr - 0xF2000) {
         case 0x0:
@@ -133,6 +131,7 @@ class Deep16TileEngine {
           this.spritePage = (value & 3) === 3 ? 0 : (value & 3);
           this.oamBase = (value >> 2) & 0x3F;
           this.palSet = (value >> 8) & 7;
+          this.scrollWin = (value & 0x800) !== 0;
           break;
         case 0xC: {
           const row = (value >> 3) & 0x1F;
