@@ -226,7 +226,7 @@ end
 ffnbrk = fbreaksum(4)
 print(ffnbrk)          -- 6
 
--- procedure: no return yields 0
+-- procedure: no return yields nil
 function faddto(n)
   fntotal = fntotal + n
 end
@@ -235,14 +235,14 @@ faddto(5)
 faddto(2)
 print(fntotal)         -- 7
 ffnproc = faddto(1)
-print(ffnproc)         -- 0
+print(ffnproc)         -- nil
 ffnfinal = fntotal     -- 8
 
--- zero-argument function with an empty body
+-- zero-argument function with an empty body yields nil
 function fnothing()
 end
 ffnnothing = fnothing()
-print(ffnnothing)      -- 0
+print(ffnnothing)      -- nil
 
 -- a function may be called before its definition in the source
 ffnlater = flater(6)
@@ -251,14 +251,14 @@ function flater(v)
   return v + 1
 end
 
--- tables: string keys, missing keys, overwrite, aliasing
+-- tables: string keys, missing keys (nil), overwrite, aliasing, mixed tags
 ft = {}
 ft["a"] = 5
 ft["b"] = 7
 ftabsum = ft["a"] + ft["b"]
 print(ftabsum)          -- 12
 ftabmiss = ft["nope"]
-print(ftabmiss)         -- 0
+print(ftabmiss)         -- nil
 ft["a"] = 9
 print(ft["a"])          -- 9
 ftalias = ft
@@ -305,10 +305,10 @@ fgreet = "hello" + ", " + fstr
 print(fgreet)            -- hello, world
 print(length(fgreet))    -- 12
 print(len(""))           -- 0
-print("abc" = "abc")     -- -1
-print("abc" = "abd")     -- 0
-print("abc" < "abd")     -- -1
-print("b" > "a")         -- -1
+print("abc" = "abc")     -- true
+print("abc" = "abd")     -- false
+print("abc" < "abd")     -- true
+print("b" > "a")         -- true
 if fstr = "world" then
   fmatch = 1
 else
