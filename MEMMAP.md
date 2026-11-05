@@ -238,7 +238,7 @@ Notes:
 * The D16D demo keeps its own `DS=0x04A0` (the flat segment-0 copy of the BIOS
   block); BIOS function 6 restores `DS=0x1000` on return.
 * The D16D image requires `D16SEG` (the segmented kernel).  Pac-Man itself is
-  not in the 24K image: it is a type-4 slice at config-flash `0x20A000`, loaded
+  not in the 24K image: it is a type-4 slice at config-flash `0x20B000`, loaded
   into segment `0x2000` at run time by `games.fth`.
 * `tests/segmented.test.js` boots this map in the JS core (scatter + banner,
   1,000-deep recursion, `catch`/`throw`, 20,000 data-stack cells).
@@ -539,8 +539,8 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x201000`–`0x203FFF` | slices 1–3: the SD driver source |
 | `0x204000` | slice 4: `hello.fth` |
 | `0x205000`–`0x208FFF` | slices 5–8: catalog/editor, `p-screen`, sound, palettes |
-| `0x209000` | slice 9: `games.fth` (the flash game loader) |
-| `0x20A000` | slice 10: the Pac-Man binary block (1695 words, loads at segment `0x2000`) |
+| `0x209000`–`0x20AFFF` | slices 9–10: `games.fth` (the flash loader plus the PS/2 host init) |
+| `0x20B000` | slice 11: the Pac-Man binary block (1695 words, loads at segment `0x2000`) |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and

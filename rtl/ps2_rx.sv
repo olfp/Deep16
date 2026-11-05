@@ -27,11 +27,8 @@ module ps2_rx #(
   output logic [7:0] scan_code,    // last received code, for debug
   output logic [3:0] modifiers,    // {caps, alt, ctrl, shift}
   output logic       frame_error,  // sticky until the next good frame
-  // Diagnostic: the frame data and a one-cycle pulse, both valid together,
-  // so the board can push the raw scan code into the keyboard FIFO while the
-  // ASCII map is investigated.
-  output logic [7:0] dbg_raw_code,
-  output logic       dbg_code     // one-cycle pulse for every valid frame
+  // Synchronised pin levels for the host-side GPIO timing.
+  output logic       dbg_clk, dbg_data
 );
 
   // 2 ms at the CPU clock. A Set-2 frame at 16.7 kHz is about 0.66 ms, so a
@@ -60,8 +57,8 @@ module ps2_rx #(
 
   wire clk_fall = clk_sync_q && !clk_sync;
 
-  assign dbg_code     = code_valid;
-  assign dbg_raw_code = code;
+  assign dbg_clk  = clk_sync;
+  assign dbg_data = data_sync;
 
   // ---- frame receiver ---------------------------------------------------
   // frame is shifted with the new bit at the MSB. After the 11th sample

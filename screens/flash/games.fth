@@ -56,3 +56,35 @@ variable gentry drop
   io-seg seg-base!
   gseg @ ;
 : game-run ( a n -- ) game-load call-far ;
+
+\ ---- PS/2 host: open-drain GPIO through control 6 (0x200C) -------------
+\ The game-load screen is loaded at boot, so the host init lives here.
+\ Bits 9/10 of 0x200C are unused by the tile engine: 1 = drive low, 0 =
+\ release. 0xF0066 bits 5/6 are the synchronised CLK/DATA levels.
+: ps2! ( clk data -- )     swap 9 lshift swap 10 lshift or 0x200C es! ;
+: ps2-clk@ ( -- f )        0xF0066 es@ 5 rshift 1 and ;
+: ps2-data@ ( -- f )       0xF0066 es@ 6 rshift 1 and ;
+: ps2-bit! ( bit -- )      0= 0 swap ps2! ;
+: ps2-wait-low ( -- f )
+  0 65535 0 do  ps2-clk@ 0= if 1 unloop exit then  loop 0 ;
+: ps2-wait-high ( -- f )
+  0 65535 0 do  ps2-clk@ if 1 unloop exit then  loop 0 ;
+: ps2-parity ( b -- p )
+  0 swap 8 0 do  dup 1 and rot xor swap 1 rshift  loop  drop 1 xor 1 and ;
+: ps2-send ( b -- )
+  dup ps2-parity swap
+  1 1 ps2! 65535 0 do loop
+  0 1 ps2!
+  ps2-wait-low drop ps2-wait-high drop
+  8 0 do
+    ps2-wait-low drop dup 1 and ps2-bit! ps2-wait-high drop 1 rshift
+  loop drop
+  ps2-wait-low drop ps2-bit! ps2-wait-high drop
+  ps2-wait-low drop 1 ps2-bit! ps2-wait-high drop
+  0 0 ps2! ;
+: ps2-delay ( -- )         65535 0 do loop ;
+: ps2-drain ( -- )         begin 0x60 es@ while 0x62 es@ . repeat cr ;
+: ps2-init ( -- )
+  ." PS/2 init" cr
+  0xFF ps2-send ps2-delay ps2-delay ps2-delay ps2-drain
+  0xF4 ps2-send ps2-delay ps2-drain ;

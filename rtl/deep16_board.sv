@@ -24,8 +24,8 @@ module deep16_board (
   input  logic clk,        // 27 MHz oscillator, pin 52
   input  logic rst_n,      // S1 button, active low
   input  logic btn,        // S2 button, active low
-  input  logic ps2_clk,    // PS/2 clock, 3.3 V side of the level shifter
-  input  logic ps2_data,   // PS/2 data,  3.3 V side of the level shifter
+  inout  wire  ps2_clk,    // PS/2 clock, 3.3 V side (open-drain: drive low / release)
+  inout  wire  ps2_data,   // PS/2 data,  3.3 V side
   output logic spi_sck,    // SPI clock: SD socket
   output logic spi_mosi,   // SPI MOSI
   input  logic spi_miso,   // SPI MISO
@@ -325,6 +325,7 @@ module deep16_board (
   logic [15:0] tile_status;
   logic [1:0]  btn_sync;
   logic        uart_ready_q;
+  logic        ps2_dbg_clk, ps2_dbg_data;
   always_ff @(posedge clk_cpu) begin
     btn_sync     <= {btn_sync[0], ~btn};
     uart_ready_q <= (rx_avail != 16'd0);
@@ -339,8 +340,9 @@ module deep16_board (
   // an input path that does not depend on the UART data read.
   // bit 4 is a diagnostic: the synchronised raster toggle, so software can see
   // whether the compare is producing one pulse per frame.
-  assign tile_status = {11'b0, raster_sync[2], uart_ready_q, btn_sync[1],
-                        dvi_frame_sync[1], dvi_vblank_sync[1]};
+  assign tile_status = {9'b0, ps2_dbg_data, ps2_dbg_clk, raster_sync[2],
+                        uart_ready_q, btn_sync[1], dvi_frame_sync[1],
+                        dvi_vblank_sync[1]};
 `else
   assign tile_status = {12'b0, uart_ready_q, btn_sync[1], 2'b00};
 `endif
@@ -358,8 +360,13 @@ module deep16_board (
 `else
   localparam int PS2_CLK_HZ = 13_500_000;
 `endif
-  logic       ps2_valid, ps2_frame_error, ps2_code_valid;
-  logic [7:0] ps2_ascii, ps2_raw_code;
+  logic       ps2_valid, ps2_frame_error;
+  logic [7:0] ps2_ascii;
+  logic       ps2_clk_drive, ps2_data_drive;   // 1 = pull the line low
+
+  // Open-drain pads: drive low, or release to the external pull-up.
+  assign ps2_clk  = ps2_clk_drive  ? 1'b0 : 1'bz;
+  assign ps2_data = ps2_data_drive ? 1'b0 : 1'bz;
 
   /* verilator lint_off PINMISSING */   // D16MINI leaves the PS/2 debug pins out
   ps2_rx #(.CLK_HZ(PS2_CLK_HZ)) u_ps2 (
@@ -369,9 +376,11 @@ module deep16_board (
     .ps2_data    (ps2_data),
     .valid       (ps2_valid),
     .ascii       (ps2_ascii),
-    .frame_error (ps2_frame_error),
-    .dbg_raw_code(ps2_raw_code),
-    .dbg_code    (ps2_code_valid)
+    .frame_error (ps2_frame_error)
+`ifdef D16NANO
+    , .dbg_clk   (ps2_dbg_clk)
+    , .dbg_data  (ps2_dbg_data)
+`endif
   );
   /* verilator lint_on PINMISSING */
 
@@ -383,6 +392,22 @@ module deep16_board (
   logic [1:0]  tile_tgt;
   logic [12:0] tile_addr;
   logic [15:0] tile_data;
+
+  // PS/2 host GPIO: control 6 (0x200C) only uses bit 8; bits 9 and 10 are free
+  // and are snooped here before the tile FIFO.  bit 9 = drive CLK low,
+  // bit 10 = drive DATA low.
+  always_ff @(posedge clk_cpu) begin
+    if (rst) begin
+      ps2_clk_drive  <= 1'b0;
+      ps2_data_drive <= 1'b0;
+    end else if (tile_we && tile_ctrl && (tile_addr == 13'h00C)) begin
+      ps2_clk_drive  <= tile_data[9];
+      ps2_data_drive <= tile_data[10];
+    end
+  end
+`else
+  assign ps2_clk_drive  = 1'b0;
+  assign ps2_data_drive = 1'b0;
 `endif
   logic        o_done, o_result, o_busy;
   logic [31:0] cache_hits, cache_misses, cache_penalty;
@@ -419,8 +444,8 @@ module deep16_board (
     // FIFO, while the 0xF0060/62 port stays available for software that uses
     // the architectural keyboard interface. On this build only one of them is
     // read, so a key is not consumed twice.
-    .kbd_push      (ps2_code_valid),
-    .kbd_push_data ({8'h00, ps2_raw_code}),
+    .kbd_push      (ps2_key),
+    .kbd_push_data ({8'h00, ps2_ascii}),
     .kbd_clear     (rst),
 
     // the console is the pins; the host push/take path is a simulation facility
