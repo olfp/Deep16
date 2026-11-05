@@ -563,22 +563,28 @@ next frame's work early — and use the per-row table for the scroll itself.
 
 ### 6.5 The Frogger backdrop demo
 
-`asm/showcase/frogger_demo.asm` is the worked example. It is a 877-word block
+`asm/showcase/frogger_demo.asm` is the worked example. It is an 884-word block
 at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
 `G`; `Q` returns. It is a widescreen 14×12 game grid: a 448-pixel (56-cell)
-playfield in columns 24–79, and a 184-pixel active left panel in columns 0–22.
-Column 23 is an 8-pixel panel-coloured guard; the playfield keeps all 56 moving
-cells. Each game lane is 32×30 px, i.e. four cells wide and two tile rows tall.
+playfield in columns 24–79 and a 192-pixel left panel in columns 0–23. Each game
+lane is 32×30 px, i.e. four cells wide and two tile rows tall.
 
 The screen is twelve double-height lanes, top to bottom: top bank (rows 0–1),
 five river lanes (2–11), median (12–13), four road lanes (14–21), bottom bank
 (22–23). Only the river and road rows are in the per-row table; the banks and
-median stay at phase 0. The top/bottom rows also hold the static HUD: the panel
-rows 0, 1 and 23 show score, hi-score and lives/time as ordinary text cells.
-The moving rows' panel and guard cells are the blank tile 0 with palette set 2
-art entry 0 set to the panel colour, so the per-row shift moves a field of
-identical cells and is invisible. The 8-pixel guard absorbs the fine phase's
-bleed at the panel edge; the active panel stays clean.
+median stay at phase 0. The top/bottom panel rows 0, 1 and 23 show the static
+HUD (score, hi-score, lives/time). The panel rows 12–13, at the same height as
+the median, hold the time bar: 24 yellow cells for the time remaining and the
+panel tile for the empty tail. It drains one cell every 64 frames (about 25 s),
+then resets. The bar is on the panel, not on the playfield.
+
+The panel must stay fixed while the playfield rows scroll. The per-row phase is
+applied only from column 24: control 8 at `0xF2011`, bit 0, enables a fixed
+24-column static panel; columns 24..79 use control 6. The general scroll-from/
+scroll-to version was assembled and tried first, but it exceeded the device
+logic (8,737 > 8,640). The fixed scroll-from version fits at 8,545 logic and
+4,315/4,320 CLS, with BSRAM still 26/26. Columns 0–23 therefore ignore the row
+phase; the playfield keeps all 56 moving cells.
 
 Each lane keeps a `0..15` coarse start and a `0..7` phase. Every frame the demo
 advances the phase, writes control 6 for **both** rows of the lane, and only
@@ -593,17 +599,14 @@ strip.
 A lane changed in the previous frame is repainted into the new back copy on the
 next frame (the per-lane dirty flags), so the ping-pong pair stays current. The
 lanes start at different phases so the coarse shifts and repaints spread across
-frames. The static middle strip holds a 56-cell time bar: yellow cells for the
-remaining time, the panel tile for the empty tail; one cell drains every 32
-frames, then the bar resets. Entry paints both banks and resets the bank pair;
-exit restores bank 0 and waits for the swap before returning.
+frames. Entry paints both banks and resets the bank pair; exit restores bank 0,
+disables the column window and waits for the swap before returning.
 
 From the top river lane down the directions are right, left, fast right, right,
 left (bottom to top: left, right, fast right, left, right). The road's top
 truck lane goes left; the four road lanes top to bottom are left, right, left,
 right. The demo is backdrop-only — no player, collision or game state — so it
 isolates the scroll path for visual checking and for `tests/frogger.test.js`.
-
 ---
 
 ## 7. Sprites

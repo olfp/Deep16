@@ -93,7 +93,7 @@ fr_clear_dirty:
     ; Time bar starts full; the middle strip shows 56 cells of time.
     LDI FR_TIME
     MOV R2, R0
-    LDI 56
+    LDI 24
     MOV R3, R0
     ST R3, R2, 0
     LDI FR_TICK
@@ -190,6 +190,14 @@ fr_oam_clear:
     LDI 0xFF
     MOV R3, R0
     STS R3, ES, R2             ; white
+
+    ; Column scroll window: static panel 0..23, scrolling playfield 24..79.
+    LDI SEG_CTRL
+    MVS ES, R0
+    LDI 0x11
+    MOV R2, R0
+    LSI R3, 1
+    STS R3, ES, R2
 
     ; Paint both tilemap banks with the same panel, banks, lanes and HUD.  The
     ; demo ping-pongs the banks, so the first swap must expose a complete copy.
@@ -340,7 +348,7 @@ fr_bard_done:
     MOV R2, R0
     LDS R3, DS, R2
     ADD R3, 1
-    LDI 32
+    LDI 64
     MOV R4, R0
     CMP R3, R4
     JC fr_tick_small
@@ -362,7 +370,7 @@ fr_bard_done:
     MOV PC, R0
     NOP
 fr_tick_reset:
-    LDI 56
+    LDI 24
     MOV R5, R0
 fr_tick_time:
     ST R5, R2, 0
@@ -652,9 +660,6 @@ fr_bar_row:
     MOV R2, R0
     MOV R3, R8
     MUL R3, R2
-    LDI 24
-    MOV R4, R0
-    ADD R3, R4
     LDI SEG_TILE
     MVS ES, R0
     LSI R10, 0
@@ -673,7 +678,7 @@ fr_bar_store:
     STS R2, ES, R3
     ADD R3, 1
     ADD R10, 1
-    LDI 56
+    LDI 24
     MOV R4, R0
     CMP R10, R4
     JNC fr_bar_row_done
@@ -938,6 +943,10 @@ fr_x_loop:
     MOV PC, R0
     NOP
 fr_x_done:
+    LDI 0x11
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, ES, R2             ; column scroll window off
     LSI R2, 8
     LSI R3, 0
     STS R3, ES, R2             ; display and write bank 0 for the menu
@@ -1016,7 +1025,7 @@ fr_front:
 fr_back:
     .word 1
 fr_time:
-    .word 56
+    .word 24
 fr_tick:
     .word 0
 fr_bard:

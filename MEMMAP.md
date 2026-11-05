@@ -164,7 +164,7 @@ far-calls the entry with `R10`/`R11` as the return pair. The showcase menu's
 Pac-Man entry still jumps to `0x4330` and needs that loader hookup.
 
 The Frogger backdrop is a small, independent block at physical `0x4350`
-(877 words, CS=DS=`0x0435`). It is always baked into the flat image, does not
+(884 words, CS=DS=`0x0435`). It is always baked into the flat image, does not
 use the flash-slice mechanism, and the menu's `G` entry far-calls it directly;
 `Q` returns to the menu. It is the reference use of per-row scrolling
 (control 6): ten lanes each keep their own coarse start and fine phase.
@@ -371,6 +371,7 @@ and is also a normal PSRAM/Forth store at the same address.
 | `0xF200A` | control 5 | scene select: b7:2 OAM base descriptor 0–63, b10:8 palette set 0–7; b1:0 are ignored |
 | `0xF200C` | control 6 | per-row fine scroll: `{en, row[4:0], fine[2:0]}`; latched at the frame boundary |
 | `0xF200E` | control 7 | raster line compare 0..359 (`b9:0`); one SIC bit-3 pulse per frame |
+| `0xF2011` | control 8 | b0: fixed 24-column static left panel (columns 0–23 ignore control 6; columns 24–79 scroll). Odd address so older bitstreams ignore it |
 | `0xF3000`–`0xF3FFF` | tile bank | CPU window over **all 128 tiles** × 32 words: 30 words of 8×15 4bpp, words 30–31 reserved (currently zero) |
 | `0xF4000`–`0xF57FF` | sprite bank | **all 24 groups** × 16 patterns × 16 words = 6,144 words, contiguous; the OAM group is absolute. Control 5 is a compatibility no-op. |
 | `0xF6000`–`0xF607F` | OAM | 64 descriptors × 2 words: `w0={behind,vflip,hflip,free,enable,xsign,x[9:0]}`, `w1={group[4:0],free,y[9:0]}`. Visible slot `n` = descriptor `(base+n) mod 64` |

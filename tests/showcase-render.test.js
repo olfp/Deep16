@@ -42,6 +42,18 @@ test('the Frogger backdrop scrolls its lanes', () => {
   assert.notDeepEqual(Array.from(r.frames[10]), Array.from(r.frames[19]), 'the lanes move');
 });
 
+test('the Frogger panel edge stays fixed', () => {
+  const r = renderScene({ scene: 'frogger', frames: 20, warmup: 200000 });
+  const y = 4 * 15 + 7;
+  for (let x = 184; x < 192; x++) {
+    const p = (y * 640 + x) * 4;
+    assert.deepEqual(
+      Array.from(r.frames[9].slice(p, p + 3)),
+      Array.from(r.frames[19].slice(p, p + 3)),
+      `panel edge pixel ${x} is stable`);
+  }
+});
+
 test('the menu launches Frogger on G and Q returns to bank 0', () => {
   const keys = new Array(180).fill(0);
   keys[5] = 0x47;   // G

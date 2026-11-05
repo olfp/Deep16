@@ -377,6 +377,25 @@ int main(int argc, char** argv) {
   wait_frame();
   check("row scroll disabled again", top->dbg_row_scroll_en, 0);
 
+  // ---- column scroll window (control 8 at 0xF2011) -----------------------
+  // Column 0 is a static panel; columns 1.. use the row fine phase. The H in
+  // column 0 must stay unshifted even though row 0 has phase 4.
+  write_tile(0, 0x8000 | 0x0500);          // restore the H cell
+  write_tile(1, 0x8000 | 0x0420);          // A in the playfield
+  write_ctrl(0x11, 1);
+  write_ctrl(0x0C, (1 << 8) | (0 << 3) | 4);
+  wait_frame();
+  wait_frame();
+  bool cap_win[15][8] = {}, seen_win[15][8] = {};
+  bool white_win = false;
+  sample_cell(0, 0, cap_win, seen_win, &white_win);
+  check("window keeps the static panel cell unshifted",
+        compare_cell(tile, h_base, cap_win, seen_win, "Hwin") ? 1 : 0, 1);
+  write_ctrl(0x11, 0);
+  write_ctrl(0x0C, 0);
+  wait_frame();
+  wait_frame();
+
   // ---- raster line compare (control 7) ----------------------------------
   // The compare raises a request level; a control-7 write acknowledges it.
   write_ctrl(0x0E, 100);

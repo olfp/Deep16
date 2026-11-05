@@ -97,6 +97,7 @@ class Deep16TileEngine {
     this.palSet = 0;
     this.rowScrollEn = 0;
     this.rowScrollEnNext = 0;
+    this.scrollWin = false;
     this.rasterLine = 0;
   }
 
@@ -109,6 +110,8 @@ class Deep16TileEngine {
 
     if (addr >= 0xF1000 && addr <= 0xF1853) {
       this.tilemap[this.mapWrite][addr - 0xF1000] = value;
+    } else if (addr === 0xF2011) {
+      this.scrollWin = (value & 1) !== 0;
     } else if (addr >= 0xF2000 && addr <= 0xF200E && (addr & 1) === 0) {
       switch (addr - 0xF2000) {
         case 0x0:
@@ -191,9 +194,22 @@ class Deep16TileEngine {
   // One background pixel. Returns { index, pixIndex } where index is the
   // palette entry and pixIndex is the 4-bit value the "behind" test uses.
   background(x, y, line) {
-    const cellPos = line.fine + x;
+    let cellPos;
+    let mapCol;
+    if (this.scrollWin) {
+      const fromPx = 192;
+      if (x < fromPx) {
+        cellPos = x;
+        mapCol = x >> 3;
+      } else {
+        cellPos = line.fine + (x - fromPx);
+        mapCol = 24 + (cellPos >> 3);
+      }
+    } else {
+      cellPos = line.fine + x;
+      mapCol = line.coarse + (cellPos >> 3);
+    }
     const cellX = cellPos & 7;
-    const mapCol = line.coarse + (cellPos >> 3);
     if (mapCol < 0 || mapCol >= this.MAP_COLS) return { index: 0, pixIndex: 0 };
     const cell = this.tilemap[this.mapDisplay][line.mapRow * this.MAP_COLS + mapCol];
     const isText = (cell & 0x8000) !== 0;

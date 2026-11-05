@@ -267,6 +267,10 @@ module dvi_tile #(
   logic        rs_copy;
   logic [4:0]  rs_copy_i;
   logic        row_scroll_en, row_scroll_en_next;
+  // Column scroll window (control 8 at 0xF2011): the first 24 columns are a
+  // static panel; columns 24..79 use the per-row phase. This is the
+  // scroll-from fallback; the general from/to version did not fit.
+  logic        scroll_win_en;
   logic [9:0] raster_line;       // control 7: line compare for the raster IRQ
   logic       map_wpage;  // CPU writes target this bank
   logic       map_dpage;  // fill/render reads this bank
@@ -340,7 +344,10 @@ module dvi_tile #(
       pal_set <= 3'd0;
       oam_base <= 6'd0;
       row_scroll_en_next <= 1'b0;
+      scroll_win_en <= 1'b0;
       raster_line <= 10'd0;
+    end else if (cpu_we && cpu_ctrl && cpu_addr[4:0] == 5'h11) begin
+      scroll_win_en <= cpu_data[0];
     end else if (cpu_we && cpu_ctrl) begin
       // 0x00 cursor, 0x02 row offset, 0x04 scroll_x, 0x06 scroll_y,
       // 0x08 {display page, write page}, 0x0A legacy sprite write page (kept
@@ -497,6 +504,7 @@ module dvi_tile #(
   logic [9:0]  fline;
   logic [6:0]  fcol;
   logic [3:0]  fpix;
+  logic [3:0]  frowpix;
   logic [4:0]  ftrow;
   logic [3:0]  fgy;
   logic [4:0]  frow;
@@ -671,6 +679,7 @@ module dvi_tile #(
       fnsty <= 3'd0;
       prev_ink <= 1'b0;
       fpix <= 4'd0;
+      frowpix <= 4'd0;
       ftrow <= 5'd0;
       fgy <= 4'd0;
       frow <= 5'd0;
@@ -697,7 +706,7 @@ module dvi_tile #(
         ftrow <= fill_trow_val;
         fgy <= fill_gy_val;
         frow <= wrap_rows({1'b0, fill_trow_val} + {1'b0, row_off});
-        fcol <= 7'(scroll_x >> 3);
+        fcol <= scroll_win_en ? 7'd0 : 7'(scroll_x >> 3);
         rs_raddr <= fill_trow_val;          // live table read, data next cycle
         nstate <= N_IDLE;
         fstate <= F_FIRST_CELL;
@@ -726,8 +735,12 @@ module dvi_tile #(
             frow1 <= tf_q;
             // The live table read was issued at start_fill; by now its data
             // is stable and F_PIX is about to consume the first pixel.
-            fpix <= row_scroll_en ? {1'b0, row_scroll_q[2:0]}
-                                  : 4'(scroll_x[2:0]);
+            frowpix <= row_scroll_en ? {1'b0, row_scroll_q[2:0]}
+                                     : 4'(scroll_x[2:0]);
+            fpix <= scroll_win_en
+                      ? 4'd0
+                      : (row_scroll_en ? {1'b0, row_scroll_q[2:0]}
+                                       : 4'(scroll_x[2:0]));
             prev_ink <= 1'b0;             // no smear from the hidden margin
             fstate <= F_PIX;
             nstate <= N_CELL;
@@ -769,6 +782,21 @@ module dvi_tile #(
                 ready_toggle[wr_buf] <= ~ready_toggle[wr_buf];
                 wr_buf <= (wr_buf == 2'd2) ? 2'd0 : wr_buf + 2'd1;
                 fstate <= F_DONE;
+              end else if (scroll_win_en &&
+                           fx == 10'd191 && fcol == 7'd23) begin
+                // Static left panel -> playfield: keep the panel cells at
+                // fine 0, then start column 24 at the row's fine phase.
+                fcell <= fncell;
+                fpal  <= fnpal;
+                fsty  <= fnsty;
+                frow0 <= fnrow0;
+                frow1 <= fnrow1;
+                fcol  <= 7'd24;
+                fpix  <= frowpix;
+                prev_ink <= 1'b0;
+                ncol  <= 7'd25;
+                nstate <= N_CELL;
+                fx <= fx + 10'd1;
               end else if (fpix == 4'd7) begin
                 fcell <= fncell;
                 fpal  <= fnpal;
