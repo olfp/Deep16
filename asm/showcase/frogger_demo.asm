@@ -1,35 +1,37 @@
 ; frogger_demo.asm - the FiT per-row scrolling backdrop, widescreen layout.
 ;
 ; A Frogger-style backdrop with no player: five river lanes and four road
-; lanes, each moving independently, drawn as double-height 32x30 game tiles.
+; lanes, each moving independently, drawn as double-height 24x30 game cells.
 ; The point is the horizontal scroll: control 6 gives each tilemap row a 0..7
 ; pixel fine offset, while the row content itself is rewritten by whole cells
-; when the fine offset wraps.
+; when the fine offset wraps.  The lane phase is kept in half pixels (0..15)
+; so the speeds can differ by half a pixel per frame.
 ;
 ; Assembled with .org 0 and placed at physical 0x4350 (CS=DS=0x0435) in the
 ; free image gap.  The menu jumps here with R10/R11 as the return pair.  Q
 ; returns to the menu.
 ;
 ; Tile art (added to the tile bank by make_frogger_art / make_tile_font):
-;   tiles 57/58 water, 59/60 road and its dashed line, 61/62 grass, 63 the
-;   time bar, 64..71 a log, 72..79 a right-going car, 80..87 a left-going car,
-;   88..95 a turtle.  Each moving object is a 32x30 cell, i.e. four tiles wide
-;   and two tile rows tall.  The demo installs the 16-entry palette in
-;   set 2's art bank at run time.
+;   tile 57 water, 58 road, 59 its dashed line, 60..65 a log, 66..71 a turtle,
+;   72..77 the blue car, 78..83 the yellow car, 84..89 the fire truck,
+;   90..95 the truck, 126 grass and 127 the time bar.  Each moving object is a
+;   24x30 cell, i.e. three tiles wide and two tile rows tall, so the 24-pixel
+;   art leaves room in its 30-pixel lane.  The demo installs the 16-entry
+;   palette in set 2's art bank at run time.
 ;
 ; Screen layout, top to bottom (24 tile rows = 12 double-height lanes):
-;   0..1   top bank: static; left panel row 0 = SCORE, row 1 = HI
-;   2..3   river lane 1
-;   4..5   river lane 2
-;   6..7   river lane 3 (fast)
-;   8..9   river lane 4
-;   10..11 river lane 5
+;   0..1   top bank: static; panel row 0 = SCORE, row 1 = HI
+;   2..3   river 5 (top): logs, normal speed, moving right
+;   4..5   river 4: turtles, a little slower, moving left
+;   6..7   river 3: logs, fast, moving right
+;   8..9   river 2: logs, slow, moving right
+;   10..11 river 1 (bottom): turtles, a little slower, moving left
 ;   12..13 median grass
-;   14..15 road lane 1
-;   16..17 road lane 2
-;   18..19 road lane 3
-;   20..21 road lane 4
-;   22..23 bottom bank: static; left panel row 23 = LIVES/TIME
+;   14..15 road 4 (top): the truck, moving left, fastest
+;   16..17 road 3: the yellow car, moving right
+;   18..19 road 2: the fire truck, moving left
+;   20..21 road 1: the blue car, moving right, slowest
+;   22..23 bottom bank: static; panel row 23 = LIVES/TIME
 ;
 ; Columns 0..55 are the 448-pixel playfield and column 56 is a guard cell the
 ; fine phase reads; columns 57..79 are the uniform 184-pixel right panel.  The
@@ -42,17 +44,17 @@
 .equ SEG_UART -0xFFC           ; 0xF004 UART/status
 
 ; tile values (tile index << 5)
-.equ T_WATER  0x720           ; 57 water, glint phase A
-.equ T_WATERB 0x740           ; 58 water, glint phase B
-.equ T_ROAD   0x760           ; 59 asphalt
-.equ T_ROADL  0x780           ; 60 asphalt with the dashed lane line
-.equ T_GRASS  0x7A0           ; 61 ground speckle
-.equ T_GRASSB 0x7C0           ; 62 ground speckle, other half
-.equ T_BAR    0x7E0           ; 63 time-bar cell
-.equ T_LOG    0x800           ; 64..71 log, top row then bottom row
-.equ T_CAR_R  0x900           ; 72..79 car facing right
-.equ T_CAR_L  0xA00           ; 80..87 car facing left
-.equ T_TURTLE 0xB00           ; 88..95 turtle
+.equ T_WATER  0x720           ; 57 water
+.equ T_ROAD   0x740           ; 58 asphalt
+.equ T_ROADL  0x760           ; 59 asphalt with the dashed lane line
+.equ T_LOG    0x780           ; 60..65 log, top row then bottom row
+.equ T_TURTLE 0x840           ; 66..71 turtle
+.equ T_CAR_B  0x900           ; 72..77 blue car
+.equ T_CAR_Y  0x9C0           ; 78..83 yellow car
+.equ T_FIRE   0xA80           ; 84..89 fire truck
+.equ T_TRUCK  0xB40           ; 90..95 truck
+.equ T_GRASS  0xFC0           ; 126 ground
+.equ T_BAR    0xFE0           ; 127 time-bar cell
 .equ T_PANEL  0x000           ; blank tile; palette art entry 0 is the panel
 
 ; state (inside the block, after the code)
@@ -231,13 +233,17 @@ fr_rows_init:
     ADD R2, R6
     LDS R5, DS, R2             ; initial phase
 
+    ; the stored phase is in half pixels; the register takes whole pixels
+    MOV R7, R5
+    SR R7, 1
+
     ; control 6 for the base row
     LDI 0x100
     MOV R2, R0
     MOV R3, R8
     SL R3, 3
     ADD R2, R3
-    ADD R2, R5
+    ADD R2, R7
     LDI SEG_CTRL
     MVS ES, R0
     LSI R3, 0x0C
@@ -250,7 +256,7 @@ fr_rows_init:
     ADD R3, 1
     SL R3, 3
     ADD R2, R3
-    ADD R2, R5
+    ADD R2, R7
     LSI R3, 0x0C
     STS R2, ES, R3
 
@@ -466,12 +472,14 @@ fr_update:
     AND R7, R7
     JNZ fr_up_right
     NOP
-    ; left: phase += speed
+    ; left: phase += speed, wrapping at 16 half pixels
     ADD R4, R5
-    CMP R4, 8
+    LDI 16
+    MOV R3, R0
+    CMP R4, R3
     JC fr_up_store
     NOP
-    SUB R4, 8
+    SUB R4, R3
     ADD R9, 1
     LSI R2, 15
     AND R9, R2
@@ -484,7 +492,9 @@ fr_up_right:
     SUB R4, R5
     JNN fr_up_store
     NOP
-    ADD R4, 8
+    LDI 16
+    MOV R3, R0
+    ADD R4, R3
     SUB R9, 1
     LSI R2, 15
     AND R9, R2
@@ -499,13 +509,15 @@ fr_up_store:
     ADD R2, R6
     ST R9, R2, 0
 
-    ; control 6 = 0x100 | row << 3 | phase, for both rows of the lane
+    ; control 6 = 0x100 | row << 3 | phase>>1, for both rows of the lane
+    MOV R7, R4
+    SR R7, 1
     LDI 0x100
     MOV R2, R0
     MOV R3, R8
     SL R3, 3
     ADD R2, R3
-    ADD R2, R4
+    ADD R2, R7
     LDI SEG_CTRL
     MVS ES, R0
     LSI R3, 0x0C
@@ -517,7 +529,7 @@ fr_up_store:
     ADD R3, 1
     SL R3, 3
     ADD R2, R3
-    ADD R2, R4
+    ADD R2, R7
     LSI R3, 0x0C
     STS R2, ES, R3
 
@@ -559,8 +571,10 @@ fr_paint_lane:
     LDS R9, DS, R2
     LDI fr_bgs
     MOV R2, R0
-    ADD R2, R6
-    LDS R6, DS, R2
+    MOV R3, R6
+    SL R3, 1
+    ADD R2, R3
+    LDS R6, DS, R2             ; background, first tile row
     LDI fr_objs
     MOV R2, R0
     ADD R2, R11
@@ -570,15 +584,19 @@ fr_paint_lane:
     LINK
     JMP R4
     NOP
-    ; The second tile row is the bottom half of every object and the next
-    ; background tile (the road line lives on the bottom half).  Tile
-    ; addresses are word addresses, so one tile is 32 and four are 128.
-    LDI 32
+    ; The second tile row is the bottom half of every object and the road
+    ; line's row of the background.  One tile is 32 words and an object's
+    ; second row is three tiles on, i.e. 96.
+    LDI fr_bgs
     MOV R2, R0
-    ADD R6, R2
-    LDI 128
-    MOV R3, R0
-    ADD R7, R3
+    MOV R3, R11
+    SL R3, 1
+    ADD R2, R3
+    ADD R2, 1
+    LDS R6, DS, R2             ; background, second tile row
+    LDI 96
+    MOV R2, R0
+    ADD R7, R2
     ; LINK overwrites LR (R14), so reload the base row from the table.
     LDI fr_rows
     MOV R2, R0
@@ -613,23 +631,20 @@ fr_paint:
 fr_p_col:
     MOV R4, R10
     ADD R4, R9
-    LSI R2, 15
-    AND R4, R2                 ; cell in the 16-cell pattern
-    MOV R2, R4
-    LSI R5, 4
-    AND R2, R5                 ; inside one of the two four-cell objects?
-    JZ fr_p_obj
-    NOP
-    MOV R2, R6                 ; no: background tile
-    LDI fr_p_store
-    MOV PC, R0
-    NOP
-fr_p_obj:
+    LSI R2, 7
+    AND R4, R2                 ; cell in the eight-cell half cycle
     LSI R2, 3
-    AND R4, R2                 ; yes: one of the four object slices
+    CMP R4, R2
+    JNC fr_p_bg                ; cells 3..7 are background
+    NOP
     MOV R2, R4
     SL R2, 5                   ; slice * 32 words
     ADD R2, R7
+    LDI fr_p_store
+    MOV PC, R0
+    NOP
+fr_p_bg:
+    MOV R2, R6
 fr_p_store:
     STS R2, ES, R3
     ADD R3, 1
@@ -721,13 +736,8 @@ fr_fill_row:
     LDI SEG_TILE
     MVS ES, R0
 
-    MOV R4, R8
-    LSI R2, 1
-    AND R4, R2
-    LDI fr_grass_tiles
+    LDI T_GRASS
     MOV R2, R0
-    ADD R2, R4
-    LDS R2, DS, R2             ; grass tile A/B by row
     LSI R4, 0
 fr_fill_grass:
     STS R2, ES, R3
@@ -987,21 +997,24 @@ fr_rows:
     .word 2, 4, 6, 8, 10, 14, 16, 18, 20
 fr_bgs:
     .word T_WATER, T_WATER, T_WATER, T_WATER, T_WATER
-    .word T_ROAD, T_ROAD, T_ROAD, T_ROAD
+    .word T_WATER, T_WATER, T_WATER, T_WATER, T_WATER
+    .word T_ROAD, T_ROADL, T_ROAD, T_ROADL
+    .word T_ROAD, T_ROADL, T_ROAD, T_ROADL
 fr_objs:
-    .word T_LOG, T_TURTLE, T_LOG, T_TURTLE, T_LOG
-    .word T_CAR_L, T_CAR_R, T_CAR_L, T_CAR_R
-fr_grass_tiles:
-    .word T_GRASS, T_GRASSB
+    .word T_LOG, T_TURTLE, T_LOG, T_LOG, T_TURTLE
+    .word T_TRUCK, T_CAR_Y, T_FIRE, T_CAR_B
 fr_pal:
-    .word 0x49, 0x00, 0x25, 0x2C, 0x44, 0x74, 0x7B, 0x88
-    .word 0x92, 0xC9, 0xD6, 0x03, 0xFC, 0xFF, 0x02, 0xDF
+    .word 0x49, 0x00, 0xFF, 0xFE, 0xD8, 0xE0, 0xCC, 0x60
+    .word 0x84, 0xF8, 0x92, 0x10, 0x0C, 0x3F, 0x0A, 0x33
 fr_dirs:
-    .word 1, 0, 1, 1, 0        ; river top->bottom: right, left, fast right, right, left
+    .word 1, 0, 1, 1, 0        ; river: logs right, turtles left
     .word 0, 1, 0, 1           ; road top->bottom: left, right, left, right
+; Phase is kept in half pixels (0..15), so 2 is 1 px/frame.  The river's
+; normal log is 4, its slow log 2 and its fast log 6; the turtles are 3.  The
+; road climbs from 2 at the bottom to 6 at the top.
 fr_speeds:
-    .word 1, 1, 2, 1, 1
-    .word 1, 1, 1, 1
+    .word 4, 3, 6, 2, 3
+    .word 6, 4, 3, 2
 
 str_score:
     .text "SCORE 000000"

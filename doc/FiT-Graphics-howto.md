@@ -564,12 +564,12 @@ next frame's work early — and use the per-row table for the scroll itself.
 
 ### 6.5 The Frogger backdrop demo
 
-`asm/showcase/frogger_demo.asm` is the worked example. It is an 874-word block
+`asm/showcase/frogger_demo.asm` is the worked example. It is an 887-word block
 at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
 `G`; `Q` returns. It is a widescreen 14×12 game grid: a 448-pixel (56-cell)
 playfield in columns 0–55, a guard cell at 56, and a 184-pixel right panel in
-columns 57–79. Each game lane is 32×30 px, i.e. four cells wide and two tile
-rows tall.
+columns 57–79. Each game cell is 24×30 px, i.e. three tiles wide and two tile
+rows tall, so a 24-pixel vehicle or log leaves room in its lane.
 
 The screen is twelve double-height lanes, top to bottom: top bank (rows 0–1),
 five river lanes (2–11), median (12–13), four road lanes (14–21), bottom bank
@@ -604,25 +604,36 @@ mux rather than a duplicate branch. It assembles to 8,564/8,640 logic and
 playfield is columns 0–55, the guard is 56, and the panel columns 57–79 ignore
 the row phase.
 
-The art comes from the 16x16 pixel-art pack in `assets/art/frogger` (top-down
-cars, a log segment and a turtle). `scripts/make_frogger_art.mjs` crops each
-sprite to its opaque box, scales it with one factor so it fits a 32x30 game
-cell and centres it; the water, road, ground and bar tiles are composed from
-the same 16-colour palette. Tiles 57..95 hold the lot: 57/58 water ripples,
-59/60 asphalt and its dashed line, 61/62 ground speckle, 63 the time bar,
-64..71 the log, 72..79 the right-going car, 80..87 the left-going car and
-88..95 the turtle. The palette is written at run time to set 2's art bank from
-`fr_pal`; `FROGGER_PALETTE` in the script must stay in step with it. An art
-tile has no transparency, so each object tile bakes the lane colour it sits on
-(road or water) into its spare pixels.
+The art comes from the single sprite sheet in
+`assets/art/frogger/sprites-sheet.png` (top-down cars, a fire truck, a truck, a
+log and a turtle). `scripts/make_frogger_art.mjs` crops each sprite to its box,
+area-filters it down to at most 24 px wide, mirrors it when its lane runs left,
+fits it into the 24×30 cell with one scale factor and centres it. The water,
+asphalt, dashed line, ground and bar tiles are composed from the same 16-colour
+palette. Tiles 57..95 plus 126/127 hold the lot: 57 water, 58 asphalt, 59 its
+dashed line, 60..65 the log, 66..71 the turtle, 72..77 the blue car, 78..83 the
+yellow car, 84..89 the fire truck, 90..95 the truck, 126 the ground and 127 the
+time bar. The palette is written at run time to set 2's art bank from `fr_pal`;
+`FROGGER_PALETTE` in the script must stay in step with it. An art tile has no
+transparency, so each object tile bakes the lane colour it sits on (black road
+or aqua water) into its spare pixels.
 
-The 16-cell lane pattern is four cells on, four off, twice (`0x0F0F` in the
-old flat version): the paint tests bit 2 of the cell index to choose the object
-or the background, and the low two bits pick one of the object's four tile
-columns. The object's second tile row is its base plus four.
+The lane pattern is three cells on, five off, twice; the paint takes the cell
+index modulo eight and treats 3..7 as background, so the low bits also pick one
+of the object's three tile columns. The second tile row is the object base plus
+three tiles.
 
-Each lane keeps a `0..15` coarse start and a `0..7` phase. Every frame the demo
-advances the phase, writes control 6 for **both** rows of the lane, and only
+River lanes, top to bottom: logs (normal), turtles (a little slower), logs
+(fast), logs (slow), turtles (a little slower). Logs run right and turtles run
+left. Road lanes, top to bottom: the truck (left, fastest), the yellow car
+(right), the fire truck (left), the blue car (right, slowest). The lane phase
+is kept in half pixels (0..15), so a lane speed is a half-pixel count per
+frame: normal 4, slightly slower 3, slow 2, fast 6, and the road climbs 2, 3,
+4, 6 from the bottom.
+
+Each lane keeps a `0..15` coarse start and a `0..15` phase. Every frame the demo
+advances the phase, writes control 6 (the phase shifted right one) for **both**
+rows of the lane, and only
 when the coarse start changes repaints the lane's playfield cells (columns
 0–55) into the **back** tilemap bank and leaves the guard cell 56 at the lane
 background. It then requests the display swap for the same frame boundary at
@@ -637,11 +648,11 @@ lanes start at different phases so the coarse shifts and repaints spread across
 frames. Entry paints both banks and resets the bank pair; exit restores bank 0,
 disables the column window and waits for the swap before returning.
 
-From the top river lane down the directions are right, left, fast right, right,
-left (bottom to top: left, right, fast right, left, right). The road's top
-truck lane goes left; the four road lanes top to bottom are left, right, left,
-right. The demo is backdrop-only — no player, collision or game state — so it
-isolates the scroll path for visual checking and for `tests/frogger.test.js`.
+From the top river lane down the objects are log, turtle, log, log, turtle; the
+logs run right and the turtles left. The road lanes top to bottom are truck
+(left), yellow car (right), fire truck (left), blue car (right). The demo is
+backdrop-only — no player, collision or game state — so it isolates the scroll
+path for visual checking and for `tests/frogger.test.js`.
 ---
 
 ## 7. Sprites

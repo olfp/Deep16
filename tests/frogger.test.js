@@ -35,7 +35,9 @@ test('the block fits the image gap and carries the art tiles', () => {
   assert.ok(frogger.max < FROGGER_LIMIT);
   assert.equal(BLOCK + frogger.size <= 0x4A00, true, 'below the BIOS');
   const tiles = froggerArtTiles();
-  assert.deepEqual(tiles.map((t) => t.index), Array.from({ length: 39 }, (_, i) => 57 + i));
+  const expect = [57, 58, 59, 126, 127,
+    ...Array.from({ length: 36 }, (_, i) => 60 + i)];
+  assert.deepEqual(tiles.map((t) => t.index), expect);
   for (const tile of tiles) {
     assert.equal(tile.grid.length, 15);
     assert.ok(tile.grid.every((row) => row.length === 8 && row.every((p) => p >= 0 && p <= 15)));
@@ -65,7 +67,9 @@ function run(sim, frames) {
 
 test('the lanes paint and move in their own directions', () => {
   const sim = start();
-  run(sim, 300);
+  // Forty frames: the fastest lane covers fifteen cells, so every lane is
+  // still inside one 16-cell wrap when the coarse starts are compared.
+  run(sim, 40);
 
   // The backdrop is in the tilemap: five double-height river lanes and four
   // double-height road lanes. Columns 0..55 are the playfield, 56 is the
@@ -91,7 +95,8 @@ test('the lanes paint and move in their own directions', () => {
 
   const starts = Array.from({ length: 9 }, (_, i) => sim.memory[BLOCK + START + i]);
   const phases = Array.from({ length: 9 }, (_, i) => sim.memory[BLOCK + PHASE + i]);
-  for (const p of phases) assert.ok(p >= 0 && p <= 7, `phase ${p}`);
+  // Phases are half pixels, 0..15.
+  for (const p of phases) assert.ok(p >= 0 && p <= 15, `phase ${p}`);
 
   // River top->bottom: right, left, fast right, right, left.
   // Road top->bottom: left, right, left, right (top truck lane left).
@@ -101,7 +106,8 @@ test('the lanes paint and move in their own directions', () => {
   const back = (i, initial) => (initial - starts[i] + 16) & 15;
   assert.ok(back(0, 0) > 0, 'river top lane moved right');
   assert.ok(moved(1, 3) > 0, 'river lane 2 moved left');
-  assert.ok(back(2, 6) > back(0, 0), 'fast river lane moves farther');
+  assert.ok(back(2, 6) > back(0, 0), 'fast river lane moves farther than the normal one');
+  assert.ok(back(3, 9) < back(0, 0), 'slow river lane moves less than the normal one');
   assert.ok(back(3, 9) > 0, 'river lane 4 moved right');
   assert.ok(moved(4, 12) > 0, 'river bottom lane moved left');
   assert.ok(moved(5, 1) > 0, 'road top lane moved left');
@@ -117,7 +123,7 @@ test('the panel strip is a shrinking time bar', () => {
   assert.ok(time > 0 && time < 23, `time ${time}`);
   const at = (r, c) => sim.memory[0xF1000 + r * 82 + c] >> 5;
   for (const r of [12, 13]) {
-    assert.equal(at(r, 57), 63, `row ${r} bar start`);
+    assert.equal(at(r, 57), 127, `row ${r} bar start`);
     assert.equal(at(r, 57 + time), 0, `row ${r} bar end`);
   }
 });
