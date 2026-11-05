@@ -564,19 +564,18 @@ next frame's work early — and use the per-row table for the scroll itself.
 
 ### 6.5 The Frogger backdrop demo
 
-`asm/showcase/frogger_demo.asm` is the worked example. It is an 882-word block
+`asm/showcase/frogger_demo.asm` is the worked example. It is a 994-word block
 at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
 `G`; `Q` returns. It is a widescreen 14×12 game grid: a 192-pixel panel in
 columns 0–23, and a 448-pixel (56-cell) playfield in columns 24–79 with two
-margin cells. Each game cell is 24×30 px, i.e. three tiles wide and two tile
-rows tall; every vehicle is drawn in the same 24×16 box, so they all have the
-same length.
+margin cells. Objects are 26 px wide and 20 px tall, in cells of four tiles
+(cars, turtle), six tiles (fire truck) or eight tiles (truck).
 
 The screen is twelve double-height lanes, top to bottom: top bank (rows 0–1),
 five river lanes (2–11), median (12–13), four road lanes (14–21), bottom bank
 (22–23). Only the river and road rows are in the per-row table; the banks and
 median stay at phase 0. The top/bottom panel rows 0, 1 and 23 show the static
-HUD (score, hi-score, lives/time), starting at column 59. The panel rows 12–13,
+HUD (score, hi-score, lives/time), starting at column 2. The panel rows 12–13,
 at the same height as the median, hold the time bar: 23 yellow cells for the
 time remaining and the panel tile for the empty tail. It drains one cell every
 64 frames (about 25 s), then resets. The bar is on the panel, not on the
@@ -608,32 +607,38 @@ mux rather than a duplicate branch. It assembles to 8,564/8,640 logic and
 The art comes from the single sprite sheet in
 `assets/art/frogger/sprites-sheet.png` (top-down cars, a fire truck, a truck, a
 log and a turtle). `scripts/make_frogger_art.mjs` crops each sprite to its box,
-area-filters it down to 26 px wide, mirrors it when its lane runs left and
-stretches it into the 26×20 vehicle or turtle box and the 26×18 log box. The
-water, asphalt, ground and bar tiles are composed from the same 16-colour
-palette; the road has no lane markings, because every row scrolls as a whole
-and the dashes would travel with the traffic. Tiles 57..106 plus 126/127 hold
-the lot: 57 water, 58 asphalt, 59..66 the log, 67..74 the turtle, 75..82 the
-blue car, 83..90 the yellow car, 91..98 the fire truck, 99..106 the truck, 126
-the ground and 127 the time bar. The last two objects take Flappy's art tiles
-96..106, so Flappy's own art is no longer drawn; the backdrop owns them. The
-palette is written at run time to set 2's art bank from `fr_pal`;
-`FROGGER_PALETTE` in the script must stay in step with it. An art tile has no
-transparency, so each object tile bakes the lane colour it sits on (black road
-or aqua water) into its spare pixels.
+area-filters it to 26 px, mirrors it when its lane runs left and stretches it
+into 26×20 art; the fire truck and the truck get wider cells so they stay
+longer than a car. A log is three parts - a two-tile rounded left cap, a
+one-tile middle that repeats, and a mirrored right cap - so all three log
+lengths cost the same ten tiles. The water, asphalt, ground and bar tiles are
+composed from the same 16-colour palette (the water is plain blue now, not
+aqua); the road has no lane markings, because every row scrolls as a whole and
+the dashes would travel with the traffic. Tiles 57..120 plus 126/127 hold the
+lot: 57 water, 58 asphalt, 59..68 the log parts, 69..76 the turtle, 77..84 the
+blue car, 85..92 the yellow car, 93..104 the fire truck (six cells), 105..120
+the truck (eight cells), 126 the ground and 127 the time bar. That takes
+Flappy's art tiles (96..109) and Pac-Man's 110..120; those demos' own art is no
+longer drawn. The palette is written at run time to set 2's art bank from
+`fr_pal`; `FROGGER_PALETTE` in the script must stay in step with it. An art
+tile has no transparency, so each object tile bakes the lane colour it sits on
+(black road or blue water) into its spare pixels.
 
-The lane pattern is four cells on, four off, twice; the paint takes the cell
-index modulo eight and treats 4..7 as background, so the low bits also pick one
-of the object's four tile columns. The second tile row is the object base plus
-four tiles.
+The lane pattern is per lane: a run length and a period mask. Cells inside the
+run are object cells, the rest background; a car run is 4 cells, a fire truck
+6, the truck 8, a turtle group 12 (three 4-cell turtles) and a log 12, 18 or
+24. Logs draw a cap at each end of the run and the middle tile in between. The
+object's second tile row is its base plus the object's tile columns (4, 5, 6 or
+8).
 
-River lanes, top to bottom: logs (normal), turtles (a little slower), logs
-(fast), logs (slow), turtles (a little slower). Logs run right and turtles run
-left. Road lanes, top to bottom: the truck (left, fastest), the yellow car
-(right), the fire truck (left), the blue car (right, slowest). The lane phase
-is kept in quarter pixels (0..31), so a lane speed is a quarter-pixel count per
-frame: normal 4 (1 px/frame), slightly slower 3 (0.75), slow 2 (0.5), fast 6
-(1.5), and the road climbs 2, 3, 4, 6 from the bottom.
+River lanes, top to bottom: long logs (normal), turtles (a little slower),
+middle logs (fast), short logs (slow), turtles (a little slower). Logs run
+right and turtles run left. Road lanes, top to bottom: the truck (left,
+fastest), the yellow car (right), the fire truck (left), the blue car (right,
+slowest). The lane phase is kept in quarter pixels (0..31), so a lane speed is
+a quarter-pixel count per frame: normal 4 (1 px/frame), slightly slower 3
+(0.75), slow 2 (0.5), fast 6 (1.5), and the road climbs 2, 3, 4, 6 from the
+bottom.
 
 Each lane keeps a `0..15` coarse start and a `0..31` phase. Every frame the demo
 advances the phase, writes control 6 (the phase shifted right two) for **both**

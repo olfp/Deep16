@@ -50,28 +50,28 @@
 ; tile values (tile index << 5)
 .equ T_WATER  0x720           ; 57 water
 .equ T_ROAD   0x740           ; 58 asphalt
-.equ T_LOG    0x760           ; 59..66 log, top row then bottom row
-.equ T_TURTLE 0x860           ; 67..74 turtle
-.equ T_CAR_B  0x960           ; 75..82 blue car
-.equ T_CAR_Y  0xA60           ; 83..90 yellow car
-.equ T_FIRE   0xB60           ; 91..98 fire truck
-.equ T_TRUCK  0xC60           ; 99..106 truck
+.equ T_LOG    0x760           ; 59..68 log: cap, cap, middle, cap, cap
+.equ T_TURTLE 0x8A0           ; 69..76 turtle
+.equ T_CAR_B  0x9A0           ; 77..84 blue car
+.equ T_CAR_Y  0xAA0           ; 85..92 yellow car
+.equ T_FIRE   0xBA0           ; 93..104 fire truck, six cells
+.equ T_TRUCK  0xD20           ; 105..120 truck, eight cells
 .equ T_GRASS  0xFC0           ; 126 ground
 .equ T_BAR    0xFE0           ; 127 time-bar cell
 .equ T_PANEL  0x000           ; blank tile; palette art entry 0 is the panel
 
 ; state (inside the block, after the code)
-.equ FR_START  0x380           ; nine 0..15 coarse start cells
-.equ FR_PHASE  0x389           ; nine 0..7 fine phases
-.equ FR_LASTF  0x392
-.equ FR_RET10  0x393
-.equ FR_RET11  0x394
-.equ FR_DIRTY  0x395           ; nine "row changed last frame" cells
-.equ FR_FRONT  0x39E           ; displayed tilemap bank
-.equ FR_BACK   0x39F           ; write tilemap bank
-.equ FR_TIME   0x3A0           ; time bar cells left (0..56)
-.equ FR_TICK   0x3A1           ; frames until the next cell
-.equ FR_BARD   0x3A2           ; bar dirty flag
+.equ FR_START  0x400           ; nine 0..15 coarse start cells
+.equ FR_PHASE  0x409           ; nine 0..31 quarter-pixel phases
+.equ FR_LASTF  0x412
+.equ FR_RET10  0x413
+.equ FR_RET11  0x414
+.equ FR_DIRTY  0x415           ; nine "row changed last frame" cells
+.equ FR_FRONT  0x41E           ; displayed tilemap bank
+.equ FR_BACK   0x41F           ; write tilemap bank
+.equ FR_TIME   0x420           ; time bar cells left (0..56)
+.equ FR_TICK   0x421           ; frames until the next cell
+.equ FR_BARD   0x422           ; bar dirty flag
 
 .org 0
 fr_entry:
@@ -557,8 +557,8 @@ fr_up_done:
     NOP
 
 ; ---------------------------------------------------------------------
-; Paint both rows of lane R6 into the current write bank with its current
-; start.  Preserves R6; clobbers R0-R5,R7-R11,R13,R14.
+; Paint both tile rows of lane R6 into the current write bank.  Preserves R6;
+; clobbers R0-R5,R7-R12,R13,R14.
 ; ---------------------------------------------------------------------
 fr_paint_lane:
     MOV R13, LR
@@ -567,43 +567,19 @@ fr_paint_lane:
     MOV R2, R0
     ADD R2, R6
     LDS R8, DS, R2
-    LDI FR_START
-    MOV R2, R0
-    ADD R2, R6
-    LDS R9, DS, R2
-    LDI fr_bgs
-    MOV R2, R0
-    MOV R3, R6
-    SL R3, 1
-    ADD R2, R3
-    LDS R6, DS, R2             ; background, first tile row
-    LDI fr_objs
-    MOV R2, R0
-    ADD R2, R11
-    LDS R7, DS, R2
+    LSI R7, 0                  ; first tile row
     LDI fr_paint
     MOV R4, R0
     LINK
     JMP R4
     NOP
-    ; The second tile row is the bottom half of every object.  One tile is
-    ; 32 words and an object's second row is four tiles on, i.e. 128.
-    LDI fr_bgs
-    MOV R2, R0
-    MOV R3, R11
-    SL R3, 1
-    ADD R2, R3
-    ADD R2, 1
-    LDS R6, DS, R2             ; background, second tile row
-    LDI 128
-    MOV R2, R0
-    ADD R7, R2
     ; LINK overwrites LR (R14), so reload the base row from the table.
     LDI fr_rows
     MOV R2, R0
     ADD R2, R11
     LDS R8, DS, R2
     ADD R8, 1
+    LSI R7, 1                  ; second tile row
     LDI fr_paint
     MOV R4, R0
     LINK
@@ -615,11 +591,9 @@ fr_paint_lane:
     NOP
 
 ; ---------------------------------------------------------------------
-; Paint the playfield part of one row: R8 row, R9 start, R5 mask,
-; R6 background tile, R7 object tile.  Writes columns 0..55 (the playfield)
-; and leaves column 56 as the lane background; that static guard cell is what
-; the fine phase reads at the right edge.  Preserves R6/R7/R11/R14; clobbers
-; R0-R5,R8-R10.
+; Paint one tile row of lane R11.  R7 = 0 for the top tile row, 1 for the
+; bottom; R8 = map row.  Writes columns 24..81 (the playfield and its two
+; margin cells).  Clobbers R0-R5,R7,R9,R10,R12.
 ; ---------------------------------------------------------------------
 fr_paint:
     LDI 82
@@ -631,25 +605,78 @@ fr_paint:
     ADD R3, R4                 ; playfield starts at column 24
     LDI SEG_TILE
     MVS ES, R0
+
+    ; coarse start of the lane
+    LDI FR_START
+    MOV R2, R0
+    ADD R2, R11
+    LDS R9, DS, R2
+
+    ; background tile: fr_bgs[lane * 2 + tile row]
+    LDI fr_bgs
+    MOV R2, R0
+    MOV R4, R11
+    SL R4, 1
+    ADD R2, R4
+    ADD R2, R7
+    LDS R6, DS, R2
+
+    ; object base, moved down one object row for the bottom tile row
+    LDI fr_objs
+    MOV R2, R0
+    ADD R2, R11
+    LDS R8, DS, R2
+    AND R7, R7
+    JZ fr_p_row0
+    NOP
+    LDI fr_cols
+    MOV R2, R0
+    ADD R2, R11
+    LDS R2, DS, R2
+    SL R2, 5                   ; object columns * 32 words
+    ADD R8, R2
+fr_p_row0:
+
+    LDI fr_runs
+    MOV R2, R0
+    ADD R2, R11
+    LDS R5, DS, R2             ; run length in cells
+    LDI fr_pmask
+    MOV R2, R0
+    ADD R2, R11
+    LDS R1, DS, R2             ; pattern period mask
+    LDI fr_parm
+    MOV R2, R0
+    ADD R2, R11
+    LDS R7, DS, R2             ; slice mask
+
+    LDI fr_kind
+    MOV R2, R0
+    ADD R2, R11
+    LDS R2, DS, R2
+    AND R2, R2
+    JNZ fr_p_log
+    NOP
+
+    ; ---- objects that repeat one slice per cell (cars, turtle groups) ----
     LSI R10, 0
-fr_p_col:
+fr_ps_cell:
     MOV R4, R10
     ADD R4, R9
-    LSI R2, 7
-    AND R4, R2                 ; cell in the eight-cell half cycle
-    LSI R2, 4
-    CMP R4, R2
-    JNC fr_p_bg                ; cells 4..7 are background
+    AND R4, R1                 ; cell in the lane pattern
+    CMP R4, R5
+    JNC fr_ps_bg               ; past the run: background
     NOP
+    AND R4, R7                 ; slice inside the object
     MOV R2, R4
-    SL R2, 5                   ; slice * 32 words
-    ADD R2, R7
-    LDI fr_p_store
+    SL R2, 5
+    ADD R2, R8
+    LDI fr_ps_store
     MOV PC, R0
     NOP
-fr_p_bg:
+fr_ps_bg:
     MOV R2, R6
-fr_p_store:
+fr_ps_store:
     STS R2, ES, R3
     ADD R3, 1
     ADD R10, 1
@@ -658,7 +685,63 @@ fr_p_store:
     CMP R10, R2
     JNC fr_p_done
     NOP
-    LDI fr_p_col
+    LDI fr_ps_cell
+    MOV PC, R0
+    NOP
+
+    ; ---- logs: two-cell caps, a repeating middle, mirrored right cap ----
+fr_p_log:
+    LSI R10, 0
+fr_pl_cell:
+    MOV R4, R10
+    ADD R4, R9
+    AND R4, R1                 ; cell in the lane pattern
+    CMP R4, R5
+    JNC fr_pl_bg               ; past the run: background
+    NOP
+    LSI R2, 2
+    CMP R4, R2
+    JC fr_pl_cap_l
+    NOP
+    MOV R2, R5
+    SUB R2, 2
+    CMP R4, R2
+    JNC fr_pl_cap_r
+    NOP
+    LSI R2, 2                  ; middle tile
+    LDI fr_pl_emit
+    MOV PC, R0
+    NOP
+fr_pl_cap_l:
+    MOV R2, R4
+    LDI fr_pl_emit
+    MOV PC, R0
+    NOP
+fr_pl_cap_r:
+    MOV R2, R4
+    SUB R2, R5
+    ADD R2, 5                  ; 3 + (i - (run - 2))
+    LDI fr_pl_emit
+    MOV PC, R0
+    NOP
+fr_pl_emit:
+    SL R2, 5
+    ADD R2, R8
+    LDI fr_pl_store
+    MOV PC, R0
+    NOP
+fr_pl_bg:
+    MOV R2, R6
+fr_pl_store:
+    STS R2, ES, R3
+    ADD R3, 1
+    ADD R10, 1
+    LDI 58
+    MOV R2, R0
+    CMP R10, R2
+    JNC fr_p_done
+    NOP
+    LDI fr_pl_cell
     MOV PC, R0
     NOP
 fr_p_done:
@@ -1001,9 +1084,30 @@ fr_bgs:
 fr_objs:
     .word T_LOG, T_TURTLE, T_LOG, T_LOG, T_TURTLE
     .word T_TRUCK, T_CAR_Y, T_FIRE, T_CAR_B
+; Cells on per pattern period and the period's mask (7/15/31).  The long,
+; middle and short logs are 24, 18 and 12 cells; a turtle group is 12 cells,
+; the truck 8, the fire truck 6 and a car 4.
+fr_runs:
+    .word 24, 12, 18, 12, 12
+    .word 8, 4, 6, 4
+fr_pmask:
+    .word 31, 15, 31, 15, 15
+    .word 15, 7, 15, 7
+; 1 = log (caps and a repeating middle), 0 = one slice per cell.
+fr_kind:
+    .word 1, 0, 1, 1, 0
+    .word 0, 0, 0, 0
+; Tile columns per object; the second tile row is this many tiles on.
+fr_cols:
+    .word 5, 4, 5, 5, 4
+    .word 8, 4, 6, 4
+; Slice mask inside the object (ignored for logs).
+fr_parm:
+    .word 3, 3, 3, 3, 3
+    .word 7, 3, 7, 3
 fr_pal:
     .word 0x49, 0x00, 0xFF, 0xFE, 0xD8, 0xE0, 0xCC, 0x60
-    .word 0x84, 0xF8, 0x92, 0x10, 0x0C, 0x3F, 0x0A, 0x33
+    .word 0x84, 0xF8, 0x92, 0x10, 0x0C, 0x0F, 0x0A, 0x33
 fr_dirs:
     .word 1, 0, 1, 1, 0        ; river: logs right, turtles left
     .word 0, 1, 0, 1           ; road top->bottom: left, right, left, right
@@ -1024,7 +1128,7 @@ str_lives:
 ; =====================================================================
 ; Writable state
 ; =====================================================================
-.org 0x380
+.org 0x400
 fr_start_state:
     .word 0, 3, 6, 9, 12, 1, 4, 7, 10
 ; Start the lanes at different phases so their coarse shifts (and the

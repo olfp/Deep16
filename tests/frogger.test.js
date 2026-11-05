@@ -24,8 +24,8 @@ const FRAME_PERIOD = 0x10000;
 const STATUS = 0xF0066;
 const RET_PC = 0x0777;
 const BLOCK = FROGGER_SEG_BASE;
-const START = 0x380;
-const PHASE = 0x389;
+const START = 0x400;
+const PHASE = 0x409;
 
 const frogger = buildFrogger();
 checkFrogger(frogger);
@@ -35,8 +35,8 @@ test('the block fits the image gap and carries the art tiles', () => {
   assert.ok(frogger.max < FROGGER_LIMIT);
   assert.equal(BLOCK + frogger.size <= 0x4A00, true, 'below the BIOS');
   const tiles = froggerArtTiles();
-  const expect = [...Array.from({ length: 8 }, (_, i) => 59 + i), 57, 58, 126, 127,
-    ...Array.from({ length: 40 }, (_, i) => 67 + i)];
+  const expect = [57, 58, 126, 127,
+    ...Array.from({ length: 62 }, (_, i) => 59 + i)];
   assert.deepEqual(tiles.map((t) => t.index), expect);
   for (const tile of tiles) {
     assert.equal(tile.grid.length, 15);
@@ -120,7 +120,7 @@ test('the lanes paint and move in their own directions', () => {
 test('the panel strip is a shrinking time bar', () => {
   const sim = start();
   run(sim, 100);
-  const time = sim.memory[BLOCK + 0x3a0];
+  const time = sim.memory[BLOCK + 0x420];
   assert.ok(time > 0 && time < 23, `time ${time}`);
   const at = (r, c) => sim.memory[0xF1000 + r * 82 + c] >> 5;
   for (const r of [12, 13]) {
