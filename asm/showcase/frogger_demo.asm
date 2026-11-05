@@ -47,14 +47,17 @@
 .equ T_PANEL  0x000           ; blank tile; palette art entry 0 is the panel
 
 ; state (inside the block, after the code)
-.equ FR_START  0x300           ; nine 0..15 coarse start cells
-.equ FR_PHASE  0x309           ; nine 0..7 fine phases
-.equ FR_LASTF  0x312
-.equ FR_RET10  0x313
-.equ FR_RET11  0x314
-.equ FR_DIRTY  0x315           ; nine "row changed last frame" cells
-.equ FR_FRONT  0x31E           ; displayed tilemap bank
-.equ FR_BACK   0x31F           ; write tilemap bank
+.equ FR_START  0x380           ; nine 0..15 coarse start cells
+.equ FR_PHASE  0x389           ; nine 0..7 fine phases
+.equ FR_LASTF  0x392
+.equ FR_RET10  0x393
+.equ FR_RET11  0x394
+.equ FR_DIRTY  0x395           ; nine "row changed last frame" cells
+.equ FR_FRONT  0x39E           ; displayed tilemap bank
+.equ FR_BACK   0x39F           ; write tilemap bank
+.equ FR_TIME   0x3A0           ; time bar cells left (0..56)
+.equ FR_TICK   0x3A1           ; frames until the next cell
+.equ FR_BARD   0x3A2           ; bar dirty flag
 
 .org 0
 fr_entry:
@@ -86,6 +89,20 @@ fr_clear_dirty:
     SUB R4, 1
     JNZ fr_clear_dirty
     NOP
+
+    ; Time bar starts full; the middle strip shows 56 cells of time.
+    LDI FR_TIME
+    MOV R2, R0
+    LDI 56
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI FR_TICK
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI FR_BARD
+    MOV R2, R0
+    ST R3, R2, 0
 
     ; remember the current frame bit so the first wait sees a change
     LDI SEG_UART
@@ -301,6 +318,72 @@ fr_dirty_next:
     MOV PC, R0
     NOP
 fr_dirty_done:
+
+    ; Copy a previous time-bar change into the new back copy.
+    LDI FR_BARD
+    MOV R2, R0
+    LDS R3, DS, R2
+    AND R3, R3
+    JZ fr_bard_done
+    NOP
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI fr_bar
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+fr_bard_done:
+
+    ; One time-bar cell every 32 frames (about 30 s for 56 cells).
+    LDI FR_TICK
+    MOV R2, R0
+    LDS R3, DS, R2
+    ADD R3, 1
+    LDI 32
+    MOV R4, R0
+    CMP R3, R4
+    JC fr_tick_small
+    NOP
+    ; tick wrapped: FR_TICK = 0
+    LDI FR_TICK
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    ; FR_TIME--, or reset to 56 when empty
+    LDI FR_TIME
+    MOV R2, R0
+    LDS R5, DS, R2
+    AND R5, R5
+    JZ fr_tick_reset
+    NOP
+    SUB R5, 1
+    LDI fr_tick_time
+    MOV PC, R0
+    NOP
+fr_tick_reset:
+    LDI 56
+    MOV R5, R0
+fr_tick_time:
+    ST R5, R2, 0
+    ; Paint the new bar into the back and mark it for the new back copy.
+    LDI fr_bar
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI FR_BARD
+    MOV R2, R0
+    LSI R3, 1
+    ST R3, R2, 0
+    LDI fr_tick_done
+    MOV PC, R0
+    NOP
+fr_tick_small:
+    LDI FR_TICK
+    MOV R2, R0
+    ST R3, R2, 0
+fr_tick_done:
 
     LSI R6, 0
 fr_lane_tick:
@@ -553,6 +636,67 @@ fr_p_done:
     NOP
 
 ; ---------------------------------------------------------------------
+; Paint the middle-strip time bar into the current write bank.
+; Rows 12-13, columns 24-79: yellow cells for FR_TIME, panel for the rest.
+; Clobbers R0-R5,R8-R10,R13.
+; ---------------------------------------------------------------------
+fr_bar:
+    MOV R13, LR
+    LDI FR_TIME
+    MOV R2, R0
+    LDS R5, DS, R2             ; cells remaining
+    LDI 12
+    MOV R8, R0
+fr_bar_row:
+    LDI 82
+    MOV R2, R0
+    MOV R3, R8
+    MUL R3, R2
+    LDI 24
+    MOV R4, R0
+    ADD R3, R4
+    LDI SEG_TILE
+    MVS ES, R0
+    LSI R10, 0
+fr_bar_col:
+    CMP R10, R5
+    JC fr_bar_fill
+    NOP
+    LSI R2, 0                  ; empty track: panel tile
+    LDI fr_bar_store
+    MOV PC, R0
+    NOP
+fr_bar_fill:
+    LDI T_CAR_Y
+    MOV R2, R0
+fr_bar_store:
+    STS R2, ES, R3
+    ADD R3, 1
+    ADD R10, 1
+    LDI 56
+    MOV R4, R0
+    CMP R10, R4
+    JNC fr_bar_row_done
+    NOP
+    LDI fr_bar_col
+    MOV PC, R0
+    NOP
+fr_bar_row_done:
+    ADD R8, 1
+    LDI 14
+    MOV R4, R0
+    CMP R8, R4
+    JNC fr_bar_done
+    NOP
+    LDI fr_bar_row
+    MOV PC, R0
+    NOP
+fr_bar_done:
+    MOV LR, R13
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
 ; Fill one row: panel columns 0..23, grass playfield columns 24..81.
 ; R8 row.  Clobbers R2-R5; preserves R8.
 ; ---------------------------------------------------------------------
@@ -641,6 +785,13 @@ fr_init_lane:
     MOV PC, R0
     NOP
 fr_init_lanes_done:
+
+    ; Time bar in the static middle strip.
+    LDI fr_bar
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
 
     ; Static HUD in the left panel's top and bottom rows.
     LSI R9, 0
@@ -845,7 +996,7 @@ str_lives:
 ; =====================================================================
 ; Writable state
 ; =====================================================================
-.org 0x300
+.org 0x380
 fr_start_state:
     .word 0, 3, 6, 9, 12, 1, 4, 7, 10
 ; Start the lanes at different phases so their coarse shifts (and the
@@ -864,3 +1015,9 @@ fr_front:
     .word 0
 fr_back:
     .word 1
+fr_time:
+    .word 56
+fr_tick:
+    .word 0
+fr_bard:
+    .word 0

@@ -563,7 +563,7 @@ next frame's work early — and use the per-row table for the scroll itself.
 
 ### 6.5 The Frogger backdrop demo
 
-`asm/showcase/frogger_demo.asm` is the worked example. It is a 755-word block
+`asm/showcase/frogger_demo.asm` is the worked example. It is a 877-word block
 at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
 `G`; `Q` returns. It is a widescreen 14×12 game grid: a 448-pixel (56-cell)
 playfield in columns 24–79, and a uniform 192-pixel left panel in columns
@@ -591,8 +591,10 @@ strip.
 A lane changed in the previous frame is repainted into the new back copy on the
 next frame (the per-lane dirty flags), so the ping-pong pair stays current. The
 lanes start at different phases so the coarse shifts and repaints spread across
-frames. Entry paints both banks and resets the bank pair; exit restores bank 0
-and waits for the swap before returning.
+frames. The static middle strip holds a 56-cell time bar: yellow cells for the
+remaining time, the panel tile for the empty tail; one cell drains every 32
+frames, then the bar resets. Entry paints both banks and resets the bank pair;
+exit restores bank 0 and waits for the swap before returning.
 
 From the top river lane down the directions are right, left, fast right, right,
 left (bottom to top: left, right, fast right, left, right). The road's top

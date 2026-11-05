@@ -24,8 +24,8 @@ const FRAME_PERIOD = 0x10000;
 const STATUS = 0xF0066;
 const RET_PC = 0x0777;
 const BLOCK = FROGGER_SEG_BASE;
-const START = 0x300;
-const PHASE = 0x309;
+const START = 0x380;
+const PHASE = 0x389;
 
 const frogger = buildFrogger();
 checkFrogger(frogger);
@@ -108,6 +108,18 @@ test('the lanes paint and move in their own directions', () => {
   assert.ok(back(6, 4) > 0, 'road lane 2 moved right');
   assert.ok(moved(7, 7) > 0, 'road lane 3 moved left');
   assert.ok(back(8, 10) > 0, 'road bottom lane moved right');
+});
+
+test('the middle strip is a shrinking time bar', () => {
+  const sim = start();
+  run(sim, 100);
+  const time = sim.memory[BLOCK + 0x3a0];
+  assert.ok(time > 0 && time < 56, `time ${time}`);
+  const at = (r, c) => sim.memory[0xF1000 + r * 82 + c] >> 5;
+  for (const r of [12, 13]) {
+    assert.equal(at(r, 24), 61, `row ${r} bar start`);
+    assert.equal(at(r, 24 + time), 0, `row ${r} bar end`);
+  }
 });
 
 test('Q leaves the demo and returns to the menu', () => {
