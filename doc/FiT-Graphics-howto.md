@@ -563,7 +563,7 @@ next frame's work early — and use the per-row table for the scroll itself.
 
 ### 6.5 The Frogger backdrop demo
 
-`asm/showcase/frogger_demo.asm` is the worked example. It is a 744-word block
+`asm/showcase/frogger_demo.asm` is the worked example. It is a 755-word block
 at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
 `G`; `Q` returns. It is a widescreen 14×12 game grid: a 448-pixel (56-cell)
 playfield in columns 24–79, and a uniform 192-pixel left panel in columns
