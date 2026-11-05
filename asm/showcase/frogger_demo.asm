@@ -29,10 +29,10 @@
 ;   20..21 road lane 4 (top truck lane)
 ;   22..23 bottom bank: static; left panel row 23 = LIVES/TIME
 ;
-; Columns 0..23 are the uniform left panel; columns 24..79 are the 448-pixel
-; playfield; 80..81 are its right margins for the fine phase.  The column
-; scroll window (control 5 bit 11, bound in control 6 row 31) keeps the panel
-; at fine 0 while the playfield rows use their per-row phase.
+; Columns 0..55 are the 448-pixel playfield and column 56 is a guard cell the
+; fine phase reads; columns 57..79 are the uniform 184-pixel right panel.  The
+; column scroll window (control 5 bit 11, bound and side in control 6 row 31)
+; keeps the panel at fine 0 while the playfield rows use their phase.
 
 .equ SEG_TILE -0x0F00          ; 0xF100 tilemap
 .equ SEG_CTRL -0x0E00          ; 0xF200 controls
@@ -92,10 +92,10 @@ fr_clear_dirty:
     JNZ fr_clear_dirty
     NOP
 
-    ; Time bar starts full; the middle strip shows 56 cells of time.
+    ; Time bar starts full; the right panel shows 23 cells of time.
     LDI FR_TIME
     MOV R2, R0
-    LDI 24
+    LDI 23
     MOV R3, R0
     ST R3, R2, 0
     LDI FR_TICK
@@ -137,7 +137,8 @@ fr_clear_dirty:
     MOV R3, R0
     STS R3, ES, R2             ; control 5 palette 2, OAM 0, scroll window
     LSI R2, 0x0C
-    LDI 0x2EF8                 ; control 6 row 31: last panel column 23
+    LDI 0x2FF8                 ; control 6 row 31: column 55, right panel
+    OR R0, 14                  ; LDI sign-extends bit 14; set it explicitly
     MOV R3, R0
     STS R3, ES, R2
 
@@ -368,7 +369,7 @@ fr_bard_done:
     MOV PC, R0
     NOP
 fr_tick_reset:
-    LDI 24
+    LDI 23
     MOV R5, R0
 fr_tick_time:
     ST R5, R2, 0
@@ -593,17 +594,16 @@ fr_paint_lane:
 
 ; ---------------------------------------------------------------------
 ; Paint the playfield part of one row: R8 row, R9 start, R5 mask,
-; R6 background tile, R7 object tile.  Writes columns 24..81 (56 visible
-; cells plus two margins).  Preserves R6/R7/R11/R14; clobbers R0-R5,R8-R10.
+; R6 background tile, R7 object tile.  Writes columns 0..55 (the playfield)
+; and leaves column 56 as the lane background; that static guard cell is what
+; the fine phase reads at the right edge.  Preserves R6/R7/R11/R14; clobbers
+; R0-R5,R8-R10.
 ; ---------------------------------------------------------------------
 fr_paint:
     LDI 82
     MOV R2, R0
     MOV R3, R8
-    MUL R3, R2                 ; row * 82
-    LDI 24
-    MOV R4, R0
-    ADD R3, R4                 ; playfield starts at column 24
+    MUL R3, R2                 ; row * 82, playfield starts at column 0
     LDI SEG_TILE
     MVS ES, R0
     LSI R10, 0
@@ -629,7 +629,7 @@ fr_p_store:
     STS R2, ES, R3
     ADD R3, 1
     ADD R10, 1
-    LDI 58
+    LDI 56
     MOV R2, R0
     CMP R10, R2
     JNC fr_p_done
@@ -638,12 +638,13 @@ fr_p_store:
     MOV PC, R0
     NOP
 fr_p_done:
+    STS R6, ES, R3             ; guard cell: lane background, no object
     JMP LR
     NOP
 
 ; ---------------------------------------------------------------------
 ; Paint the middle-strip time bar into the current write bank.
-; Rows 12-13, columns 24-79: yellow cells for FR_TIME, panel for the rest.
+; Rows 12-13, columns 57-79: yellow cells for FR_TIME, panel for the rest.
 ; Clobbers R0-R5,R8-R10,R13.
 ; ---------------------------------------------------------------------
 fr_bar:
@@ -660,6 +661,9 @@ fr_bar_row:
     MUL R3, R2
     LDI SEG_TILE
     MVS ES, R0
+    LDI 57
+    MOV R4, R0
+    ADD R3, R4                 ; bar starts at column 57
     LSI R10, 0
 fr_bar_col:
     CMP R10, R5
@@ -676,7 +680,7 @@ fr_bar_store:
     STS R2, ES, R3
     ADD R3, 1
     ADD R10, 1
-    LDI 24
+    LDI 23
     MOV R4, R0
     CMP R10, R4
     JNC fr_bar_row_done
@@ -700,7 +704,8 @@ fr_bar_done:
     NOP
 
 ; ---------------------------------------------------------------------
-; Fill one row: panel columns 0..23, grass playfield columns 24..81.
+; Fill one row: grass playfield columns 0..56 (column 56 is the guard the
+; fine phase reads) and panel columns 57..81.
 ; R8 row.  Clobbers R2-R5; preserves R8.
 ; ---------------------------------------------------------------------
 fr_fill_row:
@@ -711,22 +716,6 @@ fr_fill_row:
     LDI SEG_TILE
     MVS ES, R0
 
-    LDI T_PANEL
-    MOV R2, R0
-    LSI R4, 0
-fr_fill_panel:
-    STS R2, ES, R3
-    ADD R3, 1
-    ADD R4, 1
-    LDI 24
-    MOV R5, R0
-    CMP R4, R5
-    JNC fr_fill_grass_start
-    NOP
-    LDI fr_fill_panel
-    MOV PC, R0
-    NOP
-fr_fill_grass_start:
     LDI T_GRASS
     MOV R2, R0
     LSI R4, 0
@@ -734,12 +723,28 @@ fr_fill_grass:
     STS R2, ES, R3
     ADD R3, 1
     ADD R4, 1
-    LDI 58
+    LDI 57
+    MOV R5, R0
+    CMP R4, R5
+    JNC fr_fill_panel_start
+    NOP
+    LDI fr_fill_grass
+    MOV PC, R0
+    NOP
+fr_fill_panel_start:
+    LDI T_PANEL
+    MOV R2, R0
+    LSI R4, 0
+fr_fill_panel:
+    STS R2, ES, R3
+    ADD R3, 1
+    ADD R4, 1
+    LDI 25
     MOV R5, R0
     CMP R4, R5
     JNC fr_fill_done
     NOP
-    LDI fr_fill_grass
+    LDI fr_fill_panel
     MOV PC, R0
     NOP
 fr_fill_done:
@@ -796,9 +801,10 @@ fr_init_lanes_done:
     JMP R4
     NOP
 
-    ; Static HUD in the left panel's top and bottom rows.
+    ; Static HUD in the right panel's top and bottom rows.
     LSI R9, 0
-    LSI R10, 2
+    LDI 59
+    MOV R10, R0
     LDI str_score
     MOV R8, R0
     LDI fr_text
@@ -808,7 +814,8 @@ fr_init_lanes_done:
     NOP
 
     LSI R9, 1
-    LSI R10, 2
+    LDI 59
+    MOV R10, R0
     LDI str_hi
     MOV R8, R0
     LDI fr_text
@@ -819,7 +826,8 @@ fr_init_lanes_done:
 
     LDI 23
     MOV R9, R0
-    LSI R10, 2
+    LDI 59
+    MOV R10, R0
     LDI str_lives
     MOV R8, R0
     LDI fr_text
@@ -1019,7 +1027,7 @@ fr_front:
 fr_back:
     .word 1
 fr_time:
-    .word 24
+    .word 23
 fr_tick:
     .word 0
 fr_bard:

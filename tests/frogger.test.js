@@ -3,7 +3,7 @@
 // The demo is a small block at physical 0x4350. It paints nine double-height
 // lanes (five river, four road), rewrites each lane's playfield row by whole
 // cells when the fine offset wraps, and sets control 6 for both rows of the
-// lane. The left 192 px is a uniform panel with a static top/bottom HUD.
+// lane. The right 184 px is a uniform panel with a static top/bottom HUD.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -67,17 +67,16 @@ test('the lanes paint and move in their own directions', () => {
   run(sim, 300);
 
   // The backdrop is in the tilemap: five double-height river lanes and four
-  // double-height road lanes. Columns 0..23 are the panel; 24..79 the
-  // playfield; 80..81 the right margins read by the fine phase.
+  // double-height road lanes. Columns 0..55 are the playfield, 56 is the
+  // guard the fine phase reads, and 57..79 the right panel.
   const tile = (r, c) => sim.memory[0xF1000 + r * 82 + c];
   const laneRows = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
                     14, 15, 16, 17, 18, 19, 20, 21];
   for (const r of laneRows) {
-    assert.ok(tile(r, 24) !== 0, `row ${r} playfield painted`);
-    assert.ok(tile(r, 80) !== 0, `row ${r} right margin painted`);
-    assert.ok(tile(r, 81) !== 0, `row ${r} far margin painted`);
-    assert.equal(tile(r, 0), 0, `row ${r} left panel tile`);
-    assert.equal(tile(r, 23), 0, `row ${r} panel tile`);
+    assert.ok(tile(r, 0) !== 0, `row ${r} playfield painted`);
+    assert.ok(tile(r, 56) !== 0, `row ${r} guard painted`);
+    assert.equal(tile(r, 57), 0, `row ${r} panel tile`);
+    assert.equal(tile(r, 79), 0, `row ${r} panel tile`);
   }
   // Palette set 2 art entry 0 is the panel, 1..6 the art; text 0/1 the HUD.
   assert.equal(sim.memory[0xF6000 + 0x110], 0x49, 'panel palette entry');
@@ -87,8 +86,8 @@ test('the lanes paint and move in their own directions', () => {
   assert.equal(sim.memory[0xF6000 + 0x100], 0x49, 'HUD text background');
   assert.equal(sim.memory[0xF6000 + 0x101], 0xFF, 'HUD text colour');
   // Static HUD text cells in the panel's top and bottom rows.
-  assert.notEqual(tile(0, 2) & 0x8000, 0, 'score HUD text');
-  assert.notEqual(tile(23, 2) & 0x8000, 0, 'bottom HUD text');
+  assert.notEqual(tile(0, 59) & 0x8000, 0, 'score HUD text');
+  assert.notEqual(tile(23, 59) & 0x8000, 0, 'bottom HUD text');
 
   const starts = Array.from({ length: 9 }, (_, i) => sim.memory[BLOCK + START + i]);
   const phases = Array.from({ length: 9 }, (_, i) => sim.memory[BLOCK + PHASE + i]);
@@ -111,15 +110,15 @@ test('the lanes paint and move in their own directions', () => {
   assert.ok(back(8, 10) > 0, 'road bottom lane moved right');
 });
 
-test('the middle strip is a shrinking time bar', () => {
+test('the panel strip is a shrinking time bar', () => {
   const sim = start();
   run(sim, 100);
   const time = sim.memory[BLOCK + 0x3a0];
-  assert.ok(time > 0 && time < 24, `time ${time}`);
+  assert.ok(time > 0 && time < 23, `time ${time}`);
   const at = (r, c) => sim.memory[0xF1000 + r * 82 + c] >> 5;
   for (const r of [12, 13]) {
-    assert.equal(at(r, 0), 61, `row ${r} bar start`);
-    assert.equal(at(r, time), 0, `row ${r} bar end`);
+    assert.equal(at(r, 57), 61, `row ${r} bar start`);
+    assert.equal(at(r, 57 + time), 0, `row ${r} bar end`);
   }
 });
 

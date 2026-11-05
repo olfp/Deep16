@@ -45,7 +45,7 @@ test('the Frogger backdrop scrolls its lanes', () => {
 test('the Frogger panel edge stays fixed', () => {
   const r = renderScene({ scene: 'frogger', frames: 20, warmup: 200000 });
   const y = 4 * 15 + 7;
-  for (let x = 184; x < 192; x++) {
+  for (let x = 456; x < 464; x++) {
     const p = (y * 640 + x) * 4;
     assert.deepEqual(
       Array.from(r.frames[9].slice(p, p + 3)),
