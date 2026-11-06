@@ -1340,8 +1340,12 @@ bdos_entry:
     NOP
     LSI R2, 3
     CMP R0, R2
-    JZ bdos_load
+    JNZ bdos_unknown
     NOP
+    LDI bdos_load              ; out of the relative branch's reach
+    MOV PC, R0
+    NOP
+bdos_unknown:
     LSI R0, -1
     LSI R1, 1
     JML R10
@@ -1363,11 +1367,24 @@ spi_put:
     STS R3, DS, R2
     LDI 0x82
     MOV R2, R0
+    LDI bd_poll
+    LSI R5, -1
+    STS R5, CS, R0
 spi_put_w:
     LDS R5, DS, R2
     AND R5, R1
+    JZ spi_put_ok
+    NOP
+    LDI bd_poll
+    LDS R5, CS, R0
+    SUB R5, 1
+    STS R5, CS, R0
     JNZ spi_put_w
     NOP
+    LDI bdos_abort            ; the flash never finished: give up cleanly
+    MOV PC, R0
+    NOP
+spi_put_ok:
     MOV PC, R8
     NOP
 
@@ -1379,11 +1396,24 @@ spi_get:
     STS R3, DS, R2
     LDI 0x82
     MOV R2, R0
+    LDI bd_poll
+    LSI R5, -1
+    STS R5, CS, R0
 spi_get_w:
     LDS R5, DS, R2
     AND R5, R1
+    JZ spi_get_ok
+    NOP
+    LDI bd_poll
+    LDS R5, CS, R0
+    SUB R5, 1
+    STS R5, CS, R0
     JNZ spi_get_w
     NOP
+    LDI bdos_abort
+    MOV PC, R0
+    NOP
+spi_get_ok:
     LDI 0x84
     MOV R2, R0
     LDS R3, DS, R2
@@ -1799,6 +1829,23 @@ ld_bad:
     JML R10
     NOP
 
+; A byte transfer that never completes aborts from inside the helper, so this
+; path must not rely on the callers' return registers. DS is 0xF000 here and
+; R10/R11 are still the caller's pair.
+bdos_abort:
+    LDI 0x80
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, DS, R2            ; release the flash
+    LDI bd_ds
+    MOV R2, R0
+    LDS R3, CS, R2
+    MVS DS, R3
+    LSI R0, -1
+    LSI R1, 4                 ; error: the flash did not answer
+    JML R10
+    NOP
+
 ; ---- BDOS state -------------------------------------------------------
 .org 0x2F40
 bd_ds:
@@ -1814,6 +1861,8 @@ bd_seg:
 bd_entry:
     .word 0
 bd_link:
+    .word 0
+bd_poll:
     .word 0
 
 ; =============================================
