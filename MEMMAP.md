@@ -154,19 +154,22 @@ loader. The dictionary then continues at `0x6000`.
 | `word_divtest` | `0x5300` | `divtest` code |
 | `divtest_ok_str` | `0x532E` | `divtest ok` string |
 
-The D16D showcase lives in the BIOS segment: a four-word header at `0x3E4`
+The D16D showcase is now only the menu: a four-word header at `0x3E4`
 (`0x0D16`, format 1, entry `0x334`), a trampoline at `0x334`, the menu code at
-`0x500` and the game at `0xA00`. Pac-Man is a separate block assembled with
-`.org 0`; it no longer fits the `0x4330` gap (the kernel reaches `0x434F`), so
-the D16D image stores it as a type-4 binary slice in config flash. `games.fth`
-(`game-load`/`game-run`) copies it to segment `0x2000` (physical `0x20000`) and
-far-calls the entry with `R10`/`R11` as the return pair. The showcase menu's
-Pac-Man entry still jumps to `0x4330` and needs that loader hookup.
+`0x500`, its `scene_init`/`draw_text` copies at `0x400` and a BDOS bridge at
+`0xA00`. Flappy, Frogger and Pac-Man are type-4 slices in config flash; the
+menu looks a name up (BDOS function 2), loads the slice (function 3) and
+far-jumps to the segment the slice names with `R10`/`R11` as the return pair.
 
-The Frogger backdrop is a small, independent block at physical `0x4350`
-(996 words, CS=DS=`0x0435`). It is always baked into the flat image, does not
-use the flash-slice mechanism, and the menu's `G` entry far-calls it directly;
-`Q` returns to the menu. It is the reference use of per-row scrolling
+| App | Slice | Segment |
+|---|---|---|
+| Pac-Man | 11 | `0x2000` |
+| Flappy | 13–14 | `0x5000` |
+| Frogger | 15 | `0x0600` |
+
+The game block at `0x5400`–`0x57FF` and the `0x4350` gap are free: the menu
+ends at `0x540A`, and the whole range `0x540B`–`0x57FF` (1,013 words) is
+available for the BIOS. Frogger is the reference use of per-row scrolling
 (control 6): ten lanes each keep their own coarse start and fine phase.
 
 BIOS function 6 (`gfx`) checks the header,
@@ -540,8 +543,10 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x204000` | slice 4: `hello.fth` |
 | `0x205000`–`0x208FFF` | slices 5–8: catalog/editor, `p-screen`, sound, palettes |
 | `0x209000`–`0x20AFFF` | slices 9–10: `games.fth` (the flash loader plus the PS/2 host init) |
-| `0x20B000` | slice 11: the Pac-Man binary block (1695 words, loads at segment `0x2000`) |
-| `0x20C000` | slice 12: the PS/2 host sender (101 words, loads at segment `0x4000`) |
+| `0x20B000` | slice 11: Pac-Man (1695 words, loads at segment `0x2000`) |
+| `0x20C000` | slice 12: the PS/2 host sender (151 words, loads at segment `0x4000`) |
+| `0x20D000`–`0x20EFFF` | slices 13–14: Flappy (3581 words, loads at segment `0x5000`) |
+| `0x20F000` | slice 15: Frogger (1059 words, loads at segment `0x0600`) |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and

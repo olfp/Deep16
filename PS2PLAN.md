@@ -92,8 +92,13 @@ bitstream and are loaded at run time; the BIOS stays.** PS/2 init therefore
 belongs in **BIOS function 1, `binit`**, which runs before the console banner
 and before anything else is loaded.
 
-Phase B steps, after the showcase and Forth leave the image and the BIOS can
-grow into the freed `0x4D34`–`0x57FF`:
+**Unblocked 2026-11-06:** Flappy and Frogger are flash slices now (BDOS loads
+them), so the game block at `0x5400`–`0x57FF` is gone. The menu ends at
+`0x540A`, leaving `0x540B`–`0x57FF` (1,013 words) for the BIOS — the sender is
+151 words and the init is a few more, so the move below fits today. Forth
+still lives in the image and can follow later.
+
+Phase B steps, now that the BIOS can grow into `0x540B`–`0x57FF`:
 
 1. **Move the sender into the BIOS.** `asm/ps2_host.asm` is ~151 words, trivial
    next to the ~2.7K words the showcase frees. Call it from `binit` before the

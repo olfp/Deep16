@@ -65,13 +65,13 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 #   -o 0x200000 artifacts/image/slices.bin
 ```
 
-The current image is 13 slices / 52 KB: directory 0, SD driver 1–3, hello 4,
+The current image is 16 slices / 64 KB: directory 0, SD driver 1–3, hello 4,
 catalog 5–8 (editor, `dir`/`find`, `p-screen`, I2S, IRQ and palette words),
-games 9–10 (the flash loader plus the PS/2 host words), Pac-Man 11 and the
-PS/2 host sender 12 (a type-4 block loaded to segment 0x4000 by `ps2-load`).
+games 9–10, Pac-Man 11, the PS/2 host sender 12, Flappy 13–14 and Frogger 15.
 The boot script loads the SD driver, the catalog and the game loader before
 the prompt, so `sd`, `dir`, `find`, `beep`, `irq-on`, `4 screen`, `ps2-load`
-and `ps2-init` are available at power-on.
+and `ps2-init` are available at power-on. Flappy, Frogger and Pac-Man are
+listed as apps (directory flag 1) and are loaded by the BDOS on demand.
 
 Run `cf-protect` on the board after the power-cycle: it sets BP = `0x38`, so
 every later `npm run flash:tile` must start with `cf-unprotect` on the board.
