@@ -462,8 +462,14 @@ test('game-load copies the pacman binary slice into its segment', () => {
   for (let a = 0; a < count; a++) sim.memory[(seg << 4) + a] = 0xdead;
   const before = here();
   line('s" pacman" game-load drop');
-  for (const a of [0, 1, 0x100, 0x600, count - 1]) {
-    assert.equal(sim.memory[(seg << 4) + a], slices.words[base + 13 + a],
+  // The block may span slices: payload word i sits at cell 8 of slice
+  // i / 2040, offset i % 2040. The block word a is payload word 5 + a.
+  const payload = (i) => {
+    const n = Math.floor(i / 2040);
+    return slices.words[(man.first + n) * SLICE_WORDS + 8 + (i % 2040)];
+  };
+  for (const a of [0, 1, 0x100, 0x600, 0x1000, count - 1]) {
+    assert.equal(sim.memory[(seg << 4) + a], payload(5 + a),
                  `block word 0x${a.toString(16)}`);
   }
   assert.equal(here(), before, 'the dictionary is untouched');

@@ -39,11 +39,11 @@ test('the maze packs 30x23 cells and 250 pickups', () => {
 
 test('the block fits before the BIOS and keeps the map below the code', () => {
   assert.ok(pacman.codeEnd <= 0x600, `code ends at 0x${pacman.codeEnd.toString(16)}`);
-  assert.ok(pacman.max < PACMAN_LIMIT);
+  assert.ok(pacman.codeMax < PACMAN_LIMIT);
   const at = (a) => pacman.words.find((w) => w[0] === a)?.[1];
   assert.equal(at(0x600) !== undefined, true, 'map starts at 0x600');
-  assert.equal(pacman.words.some(([a]) => a >= 0x6A0), false, 'state cells stay unwritten');
-  assert.equal(BLOCK + pacman.size <= 0x4A00, true, 'block stays below the BIOS');
+  assert.equal(pacman.words.some(([a]) => a >= 0x6A0 && a < 0x1000), false, 'state cells stay unwritten');
+  assert.equal(BLOCK + pacman.codeMax + 1 <= 0x4A00, true, 'code stays below the BIOS');
 });
 
 function start() {

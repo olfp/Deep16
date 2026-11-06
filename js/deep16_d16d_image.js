@@ -12,7 +12,7 @@
  */
 class Deep16D16DImage {
   static build({ kernel, showcase, flappy, flappyDefs, pacmanMap, pacmanGame, frogger, defines = {},
-                 bakePacman = false } = {}) {
+                 bakePacman = false, packs = {} } = {}) {
     if (typeof Deep16Assembler !== 'function') throw new Error('Deep16Assembler is not loaded');
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('D16D image needs kernel source');
     if (typeof showcase !== 'string') throw new Error('D16D image needs the showcase source');
@@ -83,13 +83,22 @@ class Deep16D16DImage {
       }
     }
 
-    const block = (res, seg) => res === null ? null : {
-      words: res.memoryChanges.map((c) => [c.address, c.value & 0xFFFF])
-        .sort((a, b) => a[0] - b[0]),
-      seg,
-      entry: 0,
-      max: res.memoryChanges.reduce((m, c) => Math.max(m, c.address), 0),
-    };
+    const block = (res, seg, pack) => res === null ? null : (() => {
+      const words = res.memoryChanges.map((c) => [c.address, c.value & 0xFFFF])
+        .sort((a, b) => a[0] - b[0]);
+      const codeMax = words.reduce((m, [a]) => Math.max(m, a), 0);
+      if (pack) {
+        for (let i = 0; i < pack.length; i++) words.push([0x1000 + i, pack[i] & 0xFFFF]);
+        words.sort((a, b) => a[0] - b[0]);
+      }
+      return {
+        words,
+        seg,
+        entry: 0,
+        codeMax,
+        max: pack ? 0x1000 + pack.length - 1 : codeMax,
+      };
+    })();
 
     return {
       words,
@@ -98,16 +107,12 @@ class Deep16D16DImage {
       biosEntry: kres.symbols.bios_entry,
       symbols: kres.symbols,
       showcase: { words: sres.memoryChanges.map((c) => [c.address, c.value & 0xFFFF]) },
-      flappy: block(fres, 0x5000),
-      frogger: block(gres, 0x0600),
-      pacman: {
-        words: pres.memoryChanges
-          .map((c) => [c.address, c.value & 0xFFFF])
-          .sort((a, b) => a[0] - b[0]),
-        seg: 0x2000,
-        entry: 0,
-        codeEnd: pres.symbols.p_code_end,
-      },
+      flappy: block(fres, 0x5000, packs.flappy),
+      frogger: block(gres, 0x0600, packs.frogger),
+      pacman: (() => {
+        const b = block(pres, 0x2000, packs.pacman);
+        return b && { ...b, codeEnd: pres.symbols.p_code_end };
+      })(),
     };
   }
 }

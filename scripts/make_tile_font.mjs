@@ -47,16 +47,24 @@ export function readFontWords(file = path.join(ROOT, 'rtl', 'dvi', 'font8x15.hex
   return words;
 }
 
-// One indexed 8x15 art tile at tileIndex.
-function writeIndexedTile(out, tileIndex, grid) {
-  const base = tileIndex * TILE_WORDS;
+// One indexed 8x15 art tile as 32 words.
+export function indexedTileWords(grid) {
+  const out = new Array(TILE_WORDS).fill(0);
   for (let r = 0; r < 15; r++) {
     const p = grid[r];
-    out[base + 2*r]     = (p[0] | (p[1] << 4) | (p[2] << 8) | (p[3] << 12)) & 0xFFFF;
-    out[base + 2*r + 1] = (p[4] | (p[5] << 4) | (p[6] << 8) | (p[7] << 12)) & 0xFFFF;
+    out[2*r]     = (p[0] | (p[1] << 4) | (p[2] << 8) | (p[3] << 12)) & 0xFFFF;
+    out[2*r + 1] = (p[4] | (p[5] << 4) | (p[6] << 8) | (p[7] << 12)) & 0xFFFF;
   }
-  out[base + 30] = 0;   // palette pointer (the shared palette)
-  out[base + 31] = 0;   // flags
+  out[30] = 0;   // palette pointer (the shared palette)
+  out[31] = 0;   // flags
+  return out;
+}
+
+// One indexed 8x15 art tile at tileIndex.
+function writeIndexedTile(out, tileIndex, grid) {
+  const words = indexedTileWords(grid);
+  const base = tileIndex * TILE_WORDS;
+  for (let i = 0; i < TILE_WORDS; i++) out[base + i] = words[i];
 }
 
 // One 1bpp page: the source is 8 words per glyph, two rows per word, MSB
@@ -91,14 +99,35 @@ export function tileFontWords(fontWords, italicWords = fontPage(fontWords, { ita
     out[FONT_BASE + i] = regular[i];
     out[FONT_BASE + FONT_PAGE_WORDS + i] = italic[i];
   }
-  artTiles().forEach((grid, i) => writeIndexedTile(out, 96 + i, grid));
-  // Pac-Man uses the zeroed part of the font gap (49..56) and the two art
-  // slots after Flappy's pack (110..125).  The Frogger backdrop uses six
-  // solid-colour tiles in the remaining gap (57..62).
-  for (const { index, grid } of pacmanArtTiles()) writeIndexedTile(out, index, grid);
-  for (const { index, grid } of froggerArtTiles()) writeIndexedTile(out, index, grid);
+  // The game art is not baked any more: Flappy, Pac-Man and Frogger each carry
+  // a tile pack in their slice and the menu copies it into the bank on launch.
+  // Their ranges overlap (14 + 24 + 66 tiles in 79 usable slots), so one baked
+  // set could only ever fit one of them.
   return out;
 }
+
+// ---- per-game tile packs -------------------------------------------------
+// A pack sits at ART_PACK_OFFSET in the game's segment:
+//   word 0  ART_MAGIC
+//   word 1  tile count
+//   then per tile: the bank index, followed by its 32 words.
+export const ART_MAGIC = 0x0a57;
+export const ART_PACK_OFFSET = 0x1000;
+export const ART_PACK_HEADER = 2;
+
+export function artPack(tiles) {
+  const words = [ART_MAGIC, tiles.length];
+  for (const { index, grid } of tiles) {
+    words.push(index & 0xFFFF);
+    for (const w of indexedTileWords(grid)) words.push(w);
+  }
+  return words;
+}
+
+export const flappyArtPack = () =>
+  artPack(artTiles().map((grid, i) => ({ index: 96 + i, grid })));
+export const pacmanArtPack = () => artPack(pacmanArtTiles());
+export const froggerArtPack = () => artPack(froggerArtTiles());
 
 // RGB332: bits 7:5 red, 4:2 green, 1:0 blue. Entry 0 is the background and
 // entry 1 the ordinary text colour; the rest are there for colour text tiles.

@@ -163,9 +163,14 @@ far-jumps to the segment the slice names with `R10`/`R11` as the return pair.
 
 | App | Slice | Segment |
 |---|---|---|
-| Pac-Man | 11 | `0x2000` |
-| Flappy | 13–14 | `0x5000` |
-| Frogger | 15 | `0x0600` |
+| Pac-Man | 11–13 | `0x2000` |
+| Flappy | 15–17 | `0x5000` |
+| Frogger | 18–21 | `0x0600` |
+
+Each of those blocks carries its tile art at segment offset `0x1000` (magic
+`0x0A57`, tile count, then index + 32 words); the menu copies it into the tile
+bank before entering the game, because the three art sets overlap (14 + 24 +
+66 tiles in 79 usable slots). The bitstream bakes only the console font.
 
 The game block at `0x5400`–`0x57FF` and the `0x4350` gap are free: the menu
 ends at `0x540A`, and the whole range `0x540B`–`0x57FF` (1,013 words) is
@@ -543,10 +548,10 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x204000` | slice 4: `hello.fth` |
 | `0x205000`–`0x208FFF` | slices 5–8: catalog/editor, `p-screen`, sound, palettes |
 | `0x209000`–`0x20AFFF` | slices 9–10: `games.fth` (the flash loader plus the PS/2 host init) |
-| `0x20B000` | slice 11: Pac-Man (1695 words, loads at segment `0x2000`) |
-| `0x20C000` | slice 12: the PS/2 host sender (151 words, loads at segment `0x4000`) |
-| `0x20D000`–`0x20EFFF` | slices 13–14: Flappy (3581 words, loads at segment `0x5000`) |
-| `0x20F000` | slice 15: Frogger (1059 words, loads at segment `0x0600`) |
+| `0x20B000`–`0x20DFFF` | slices 11–13: Pac-Man (4890 words incl. its tile pack, segment `0x2000`) |
+| `0x20E000` | slice 14: the PS/2 host sender (151 words, segment `0x4000`) |
+| `0x20F000`–`0x211FFF` | slices 15–17: Flappy (4560 words incl. pack, segment `0x5000`) |
+| `0x212000`–`0x214FFF` | slices 18–21: Frogger (6276 words incl. pack, segment `0x0600`) |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and

@@ -65,13 +65,19 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 #   -o 0x200000 artifacts/image/slices.bin
 ```
 
-The current image is 16 slices / 64 KB: directory 0, SD driver 1–3, hello 4,
+The current image is 22 slices / 88 KB: directory 0, SD driver 1–3, hello 4,
 catalog 5–8 (editor, `dir`/`find`, `p-screen`, I2S, IRQ and palette words),
-games 9–10, Pac-Man 11, the PS/2 host sender 12, Flappy 13–14 and Frogger 15.
-The boot script loads the SD driver, the catalog and the game loader before
-the prompt, so `sd`, `dir`, `find`, `beep`, `irq-on`, `4 screen`, `ps2-load`
-and `ps2-init` are available at power-on. Flappy, Frogger and Pac-Man are
-listed as apps (directory flag 1) and are loaded by the BDOS on demand.
+games 9–10, Pac-Man 11–13, the PS/2 host sender 14, Flappy 15–17 and Frogger
+18–21. The boot script loads the SD driver, the catalog and the game loader
+before the prompt, so `sd`, `dir`, `find`, `beep`, `irq-on`, `4 screen`,
+`ps2-load` and `ps2-init` are available at power-on. Flappy, Frogger and
+Pac-Man are listed as apps (directory flag 1) and are loaded by the BDOS on
+demand.
+
+Each game slice carries its own tile pack at segment offset `0x1000`
+(`0x0A57`, count, then index + 32 words per tile). The three art sets overlap
+in the tile bank, so the menu copies the chosen pack into `0xF3000` before it
+enters the game; the baked bank holds only the console font.
 
 Run `cf-protect` on the board after the power-cycle: it sets BP = `0x38`, so
 every later `npm run flash:tile` must start with `cf-unprotect` on the board.

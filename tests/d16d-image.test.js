@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
 import { ROOT } from './helpers.js';
+import { flappyArtPack, pacmanArtPack, froggerArtPack } from '../scripts/make_tile_font.mjs';
 
 process.env.D16NANO = '1';
 process.env.D16D = '1';
@@ -26,7 +27,8 @@ const pacmanMap = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_map
 const pacmanGame = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_game.asm'), 'utf8');
 const frogger = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'frogger_demo.asm'), 'utf8');
 
-const sources = { kernel, showcase, flappy, flappyDefs, pacmanMap, pacmanGame, frogger };
+const packs = { flappy: flappyArtPack(), pacman: pacmanArtPack(), frogger: froggerArtPack() };
+const sources = { kernel, showcase, flappy, flappyDefs, pacmanMap, pacmanGame, frogger, packs };
 
 test('browser builder matches the Node D16D image word for word', () => {
   const node = buildImage();
@@ -55,8 +57,9 @@ test('the slice blocks are built with their load segments', () => {
   assert.equal(browser.pacman.seg, 0x2000);
   assert.equal(browser.flappy.words[0][0], 0, 'flappy starts at its entry');
   assert.equal(browser.frogger.words[0][0], 0, 'frogger starts at its entry');
-  assert.ok(browser.flappy.max > 0x800, 'flappy spans more than one slice');
-  assert.ok(browser.frogger.max < 0x800, 'frogger fits one slice');
+  assert.ok(browser.flappy.codeMax < 0x1000, 'flappy code ends below the pack');
+  assert.ok(browser.frogger.codeMax < 0x1000, 'frogger code ends below the pack');
+  assert.ok(browser.frogger.max > 0x1000, 'the frogger pack rides at 0x1000');
 });
 
 test('the image is code plus the showcase, not graphics', () => {

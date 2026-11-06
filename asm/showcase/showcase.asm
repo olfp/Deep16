@@ -439,50 +439,6 @@ menu_frogger:
     MOV PC, R0
     NOP
 
-; R1 = NUL-terminated app name in DS, R9 = start mode.  BDOS looks the name
-; up, loads the slice and answers the segment and entry; the menu far-jumps
-; there with R10:R11 = its own CS and menu_after.
-menu_launch:
-    LDI SEG_DEMO
-    MVS DS, R0
-    LDI menu_mode
-    MOV R2, R0
-    ST R9, R2, 0
-    LDI menu_bdos
-    MOV R4, R0
-    LSI R0, 2
-    LINK
-    JMP R4
-    NOP
-    LSI R2, -1
-    CMP R0, R2
-    JZ menu_redraw
-    NOP
-    MOV R1, R0
-    LDI menu_bdos
-    MOV R4, R0
-    LSI R0, 3
-    LINK
-    JMP R4
-    NOP
-    LSI R2, -1
-    CMP R0, R2
-    JZ menu_redraw
-    NOP
-    MOV R4, R0
-    MOV R5, R1
-    MVS R2, CS
-    MOV R10, R2
-    LDI menu_after
-    MOV R11, R0
-    LDI menu_mode
-    MOV R2, R0
-    LD R9, R2, 0
-    MOV R2, R4
-    MOV R3, R5
-    JML R2
-    NOP
-
 menu_after:
     LDI SEG_DEMO
     MVS DS, R0
@@ -525,6 +481,10 @@ frogger_draw:
 .org 0x4E0
 menu_mode:
     .word 0
+menu_gseg:
+    .word 0
+menu_gentry:
+    .word 0
 str_name_flappy:
     .text "flappy"
 str_name_pacman:
@@ -554,5 +514,137 @@ menu_bdos:
     NOP
 menu_bdos_back:
     MOV PC, LR
+    NOP
+
+
+; =====================================================================
+; Tile pack: 0xA20
+;
+; A game slice carries its art at ART_PACK_OFFSET in its segment:
+;   word 0  magic 0x0A57
+;   word 1  tile count
+;   then per tile: the tile-bank index and its 32 words.
+; The banks are shared (the three packs overlap), so the menu copies the
+; chosen game's pack into 0xF3000 before entering it.
+; =====================================================================
+.org 0x0A20
+menu_tiles:
+    LDI menu_gseg
+    MOV R2, R0
+    LD R3, R2, 0              ; the segment BDOS loaded
+    MVS R9, SS
+    MVS SS, R3
+    LDI 0x1000
+    MOV R2, R0
+    LDS R4, SS, R2            ; pack magic
+    LDI 0x0A57
+    MOV R5, R0
+    CMP R4, R5
+    JNZ menu_tiles_done
+    NOP
+    ADD R2, 1
+    LDS R4, SS, R2            ; tile count
+    AND R4, R4
+    JZ menu_tiles_done
+    NOP
+    ADD R2, 1                 ; first entry
+    LDI 0x7980
+    SL R0, 1
+    MVS ES, R0                ; 0xF300: the tile bank
+    LSI R6, 0
+menu_tile_loop:
+    LDS R5, SS, R2            ; bank index
+    ADD R2, 1
+    SL R5, 5                  ; index * 32 words
+    LDI 32
+    MOV R7, R0
+menu_tile_word:
+    LDS R8, SS, R2
+    STS R8, ES, R5
+    ADD R2, 1
+    ADD R5, 1
+    SUB R7, 1
+    JNZ menu_tile_word
+    NOP
+    ADD R6, 1
+    CMP R6, R4
+    JNZ menu_tile_loop
+    NOP
+menu_tiles_done:
+    MVS SS, R9
+    MOV PC, LR
+    NOP
+
+.org 0x0A50
+; Launch: R1 = app name in DS, R9 = mode. Moved to 0xA50; the 0x500
+; menu block is full.  BDOS looks the name
+; up, loads the slice and answers the segment and entry; the menu far-jumps
+; there with R10:R11 = its own CS and menu_after.
+menu_launch:
+    LDI SEG_DEMO
+    MVS DS, R0
+    LDI menu_mode
+    MOV R2, R0
+    ST R9, R2, 0
+    LDI menu_bdos
+    MOV R4, R0
+    LSI R0, 2
+    LINK
+    JMP R4
+    NOP
+    LSI R2, -1
+    CMP R0, R2
+    JNZ menu_launch_ok1
+    NOP
+    LDI menu_redraw
+    MOV PC, R0
+    NOP
+menu_launch_ok1:
+    MOV R1, R0
+    LDI menu_bdos
+    MOV R4, R0
+    LSI R0, 3
+    LINK
+    JMP R4
+    NOP
+    LSI R2, -1
+    CMP R0, R2
+    JNZ menu_launch_ok2
+    NOP
+    LDI menu_redraw
+    MOV PC, R0
+    NOP
+menu_launch_ok2:
+    ; park the segment/entry, copy the slice's tile pack into the tile bank,
+    ; then enter the game
+    MOV R3, R0
+    MOV R5, R1
+    LDI menu_gseg
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI menu_gentry
+    MOV R2, R0
+    ST R5, R2, 0
+    LDI menu_tiles
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI menu_gseg
+    MOV R2, R0
+    LD R4, R2, 0
+    LDI menu_gentry
+    MOV R2, R0
+    LD R5, R2, 0
+    MVS R2, CS
+    MOV R10, R2
+    LDI menu_after
+    MOV R11, R0
+    LDI menu_mode
+    MOV R2, R0
+    LD R9, R2, 0
+    MOV R2, R4
+    MOV R3, R5
+    JML R2
     NOP
 

@@ -18,6 +18,7 @@ import vm from 'node:vm';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { ART_PACK_OFFSET, flappyArtPack, pacmanArtPack, froggerArtPack } from './make_tile_font.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SHOWCASE_MAGIC = 0x0D16;
@@ -39,6 +40,22 @@ export const PS2HOST_SEG = 0x0400;            // physical 0x4000
 export const PS2HOST_LIMIT = 0x7F0;           // block must fit one 4 KB slice
 export const STATE_BASE = 0x4D5;              // game state cells
 export const RESTORE_BASE = 0x500;            // menu code starts here
+
+// Append a game's tile pack at ART_PACK_OFFSET. `codeMax` keeps the size of
+// the code/data part for the checks; `max` covers the pack as well.
+function withArtPack(block, pack) {
+  const words = block.words.slice();
+  for (let i = 0; i < pack.length; i++) words.push([ART_PACK_OFFSET + i, pack[i] & 0xFFFF]);
+  words.sort((a, b) => a[0] - b[0]);
+  return {
+    ...block,
+    words,
+    codeMax: block.max,
+    packOffset: ART_PACK_OFFSET,
+    packTiles: pack[1],
+    max: ART_PACK_OFFSET + pack.length - 1,
+  };
+}
 
 function loadAssembler() {
   globalThis.window = globalThis.window || {};
@@ -93,11 +110,11 @@ export function buildPacman() {
   }
   words.sort((a, b) => a[0] - b[0]);
   const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
-  return {
+  return withArtPack({
     words, min: words[0]?.[0] ?? 0, max, size: max + 1, build,
     entry: 0, seg: PACMAN_SEG, codeEnd: res.symbols.p_code_end,
     symbols: res.symbols,
-  };
+  }, pacmanArtPack());
 }
 
 export function checkPacman(pacman) {
@@ -105,10 +122,12 @@ export function checkPacman(pacman) {
   if (pacman.codeEnd > PACMAN_CODE_LIMIT) {
     fail.push(`code ends at 0x${pacman.codeEnd.toString(16)}, past 0x${PACMAN_CODE_LIMIT.toString(16)}`);
   }
-  if (pacman.max >= PACMAN_LIMIT) fail.push(`pacman block reaches 0x${pacman.max.toString(16)}`);
+  if ((pacman.codeMax ?? pacman.max) >= PACMAN_LIMIT)
+    fail.push(`pacman block reaches 0x${(pacman.codeMax ?? pacman.max).toString(16)}`);
   const at = (a) => pacman.words.find((w) => w[0] === a)?.[1];
   if (at(0x600) === undefined) fail.push('maze map missing at 0x600');
-  if (pacman.words.some(([a]) => a >= 0x6A0)) fail.push('pacman writes into the game state cells');
+  if (pacman.words.some(([a]) => a >= 0x6A0 && a < ART_PACK_OFFSET))
+    fail.push('pacman writes into the game state cells');
   if (fail.length) throw new Error('pacman block is not valid:\n  - ' + fail.join('\n  - '));
   return true;
 }
@@ -131,7 +150,9 @@ export function buildFlappy() {
   }
   words.sort((a, b) => a[0] - b[0]);
   const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
-  return { words, min: words[0]?.[0] ?? 0, max, size: max + 1, build, entry: 0, seg: 0x5000 };
+  return withArtPack(
+    { words, min: words[0]?.[0] ?? 0, max, size: max + 1, build, entry: 0, seg: 0x5000 },
+    flappyArtPack());
 }
 
 export function checkFlappy(flappy) {
@@ -158,10 +179,10 @@ export function buildFrogger() {
   }
   words.sort((a, b) => a[0] - b[0]);
   const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
-  return {
+  return withArtPack({
     words, min: words[0]?.[0] ?? 0, max, size: max + 1, build,
     entry: 0, seg: FROGGER_SEG, symbols: res.symbols,
-  };
+  }, froggerArtPack());
 }
 
 // The PS/2 host sender is a type-4 binary block loaded at segment 0x4000.
@@ -196,7 +217,8 @@ export function checkPs2Host(host) {
 
 export function checkFrogger(frogger) {
   const fail = [];
-  if (frogger.max >= FROGGER_LIMIT) fail.push(`frogger block reaches 0x${frogger.max.toString(16)}`);
+  if ((frogger.codeMax ?? frogger.max) >= FROGGER_LIMIT)
+    fail.push(`frogger block reaches 0x${(frogger.codeMax ?? frogger.max).toString(16)}`);
   const at = (a) => frogger.words.find((w) => w[0] === a)?.[1];
   if (at(0x300) === undefined) fail.push('frogger state missing at 0x300');
   if (fail.length) throw new Error('frogger block is not valid:\n  - ' + fail.join('\n  - '));

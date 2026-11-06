@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { birdSpriteWords, SPRITE_WORDS, CLOUD_GROUP } from '../scripts/make_bird_sprite.mjs';
 import { BIRD_COLOURS, BIRD_ORDER } from '../scripts/make_art.mjs';
-import { buildShowcase, buildFlappy } from '../scripts/make_showcase.mjs';
+import { buildShowcase, buildFlappy, buildFrogger } from '../scripts/make_showcase.mjs';
 import { TILE_BANK_WORDS, TILE_WORDS, readFontWords, tileFontWords } from '../scripts/make_tile_font.mjs';
 import { froggerArtTiles } from '../scripts/make_frogger_art.mjs';
 import { ROOT } from './helpers.js';
@@ -61,27 +61,30 @@ test('the game palette table matches the art colours', () => {
   assert.deepEqual([0x5DB, 0x5DC, 0x5DD, 0x5DE].map(at), [3, 4, 5, 4]);
 });
 
-test('the tile bank carries the Frogger art and nothing else in the gap', () => {
-  const font = readFontWords(path.join(ROOT, 'rtl', 'dvi', 'ttyp0-8x15.hex'));
-  const italic = readFontWords(path.join(ROOT, 'rtl', 'dvi', 'ttyp0-8x15-italic.hex'));
-  const words = tileFontWords(font, italic);
-  assert.equal(words.length, TILE_BANK_WORDS);
+test('the Frogger art rides in a slice tile pack', () => {
+  const frogger = buildFrogger();
+  const at = (a) => frogger.words.find((w) => w[0] === a)?.[1];
+  assert.equal(frogger.packOffset, 0x1000);
+  assert.equal(at(0x1000), 0x0A57, 'pack magic');
   const tiles = froggerArtTiles();
-  const expect = [57, 58, 126, 127,
-    ...Array.from({ length: 62 }, (_, i) => 59 + i)];
-  assert.deepEqual(tiles.map((t) => t.index), expect);
+  assert.equal(at(0x1001), tiles.length, 'tile count');
+  assert.deepEqual(tiles.map((t) => t.index), [57, 58, 126, 127,
+    ...Array.from({ length: 62 }, (_, i) => 59 + i)]);
+  let cell = 0x1002;
   for (const { index, grid } of tiles) {
     assert.equal(grid.length, 15, `tile ${index} rows`);
-    const base = index * TILE_WORDS;
+    assert.equal(at(cell), index, `tile ${index} index word`);
+    cell += 1;
     for (let r = 0; r < 15; r++) {
       assert.equal(grid[r].length, 8, `tile ${index} row ${r} width`);
       for (const p of grid[r]) assert.ok(p >= 0 && p <= 15, `tile ${index} pixel ${p}`);
       const w0 = grid[r][0] | (grid[r][1] << 4) | (grid[r][2] << 8) | (grid[r][3] << 12);
       const w1 = grid[r][4] | (grid[r][5] << 4) | (grid[r][6] << 8) | (grid[r][7] << 12);
-      assert.equal(words[base + 2 * r], w0, `tile ${index} row ${r} low`);
-      assert.equal(words[base + 2 * r + 1], w1, `tile ${index} row ${r} high`);
+      assert.equal(at(cell + 2 * r), w0, `tile ${index} row ${r} low`);
+      assert.equal(at(cell + 2 * r + 1), w1, `tile ${index} row ${r} high`);
     }
-    assert.equal(words[base + 30], 0, `tile ${index} palette pointer`);
-    assert.equal(words[base + 31], 0, `tile ${index} flags`);
+    assert.equal(at(cell + 30), 0, `tile ${index} palette pointer`);
+    assert.equal(at(cell + 31), 0, `tile ${index} flags`);
+    cell += 32;
   }
 });

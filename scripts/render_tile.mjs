@@ -15,6 +15,7 @@ import vm from 'node:vm';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { encodePng, writePng } from './lib_png.mjs';
+import { flappyArtPack, pacmanArtPack, froggerArtPack } from './make_tile_font.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHOWCASE_BASE = 0x4A00;
@@ -76,6 +77,7 @@ function boot(scene) {
     pacmanGame: src.pacmanGame,
     frogger: src.frogger,
     defines: scene === 'console' ? { D16SEG: 0 } : {},
+    packs: { flappy: flappyArtPack(), pacman: pacmanArtPack(), frogger: froggerArtPack() },
   });
   const symbols = new Assembler().assemble(src.showcase).symbols;
 
@@ -88,12 +90,25 @@ function boot(scene) {
   sim.memory[0xF0066] = 0;
   sim.cycleCount = 0;
 
-  // Place a loaded slice at its segment, the way BDOS does.
+  // Place a loaded slice at its segment, the way BDOS does, then copy the
+  // art pack it carries at 0x1000 into the tile bank (the menu does this on
+  // the board).
   const place = (block) => {
     if (!block) throw new Error('this scene needs a slice block');
     const base = block.seg << 4;
     for (let i = 0; i <= block.max; i++) sim.memory[base + i] = 0xFFFF;
     for (const [addr, value] of block.words) sim.memory[base + addr] = value;
+    if ((sim.memory[base + 0x1000] & 0xFFFF) !== 0x0A57) return;
+    const count = sim.memory[base + 0x1001] & 0xFFFF;
+    let at = base + 0x1002;
+    for (let i = 0; i < count; i++) {
+      const index = sim.memory[at++] & 0xFFFF;
+      for (let w = 0; w < 32; w++) {
+        const v = sim.memory[at++] & 0xFFFF;
+        engine.write(0xF3000 + index * 32 + w, v);
+        sim.memory[0xF3000 + index * 32 + w] = v;
+      }
+    }
   };
   if (scene === 'console') {
     sim.memory[image.symbols.boot_ptr] = 0;    // no baked Forth script
