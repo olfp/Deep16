@@ -6,28 +6,29 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadBrowserScripts, ROOT } from './helpers.js';
-import { buildShowcase, SHOWCASE_SEG_BASE } from '../scripts/make_showcase.mjs';
-
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
-const source = ['asm/showcase/showcase.asm', 'asm/showcase/flappy_game.asm']
+// Flappy is a slice at segment 0x5000; the state cells are at 0x50000 + off.
+const source = ['asm/showcase/flappy_defs.asm', 'asm/showcase/flappy_game.asm']
   .map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
-const S = new globalThis.Deep16Assembler().assemble(source).symbols;
-const showcase = buildShowcase();
+const flappy = new globalThis.Deep16Assembler().assemble(source);
+const S = flappy.symbols;
+const GB = 0x50000;
+const flappyMax = flappy.memoryChanges.reduce((m, c) => Math.max(m, c.address), 0);
 
 const G = {
-  y: 0x4EDB, vy: 0x4EDC, flapTimer: 0x4EF6, tmp: 0x4EEF,
-  color: 0x4EFF, fallTick: 0x4EF0, flapTick: 0x4EF1,
+  y: GB + 0x4DB, vy: GB + 0x4DC, flapTimer: GB + 0x4F6, tmp: GB + 0x4EF,
+  color: GB + 0x4FF, fallTick: GB + 0x4F0, flapTick: GB + 0x4F1,
 };
 const HALT_PC = 0x0777;
 
 function physics(color, frames, flap) {
   const { Deep16Simulator } = globalThis;
   const sim = new Deep16Simulator();
-  const mem = new Uint16Array(0x10000).fill(0xFFFF);
-  for (const [addr, value] of showcase.words) mem[SHOWCASE_SEG_BASE + addr] = value;
-  sim.loadProgram(mem);
-  sim.segmentRegisters = { CS: 0x04A0, DS: 0x04A0, SS: 0, ES: 0 };
+  sim.loadProgram(new Uint16Array(0x100).fill(0xFFFF));
+  for (let i = 0; i <= flappyMax; i++) sim.memory[GB + i] = 0xFFFF;
+  for (const c of flappy.memoryChanges) sim.memory[GB + c.address] = c.value & 0xFFFF;
+  sim.segmentRegisters = { CS: 0x5000, DS: 0x5000, SS: 0, ES: 0 };
   sim.memory[G.y] = 100;
   sim.memory[G.vy] = flap ? -384 : 384;
   sim.memory[G.flapTimer] = flap ? 6 : 0;   // the flap request

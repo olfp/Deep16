@@ -22,13 +22,15 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRAME_PERIOD = 0x1000;       // steps between frame-flag toggles
 const UART_STATUS = 0xF0066;       // b1 frame, b3 UART byte waiting
 const OAM_BASE = 0xF6000;
-const G_START_MODE = 0x4D5;
-const G_BIRD_Y = 0x4EDB;
-const G_BIRD_VY = 0x4EDC;
-const G_DEATH = 0x4EFD;
-const G_DEATH_TIMER = 0x4EFE;
-const G_TMP = 0x4EEF;
-const G_PLAYS = 0x4EDD;
+// Flappy is a slice at segment 0x5000 now, so its state is at 0x50000 + off.
+const GB = 0x50000;
+const G_START_MODE = GB + 0x4D5;
+const G_BIRD_Y = GB + 0x4DB;
+const G_BIRD_VY = GB + 0x4DC;
+const G_DEATH = GB + 0x4FD;
+const G_DEATH_TIMER = GB + 0x4FE;
+const G_TMP = GB + 0x4EF;
+const G_PLAYS = GB + 0x4DD;
 const CONTROL = 0xF200A;
 const PAL_BODY = 0xF60A2;
 const PAL_BELLY = 0xF60AD;
@@ -40,22 +42,29 @@ loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 const showcase = buildShowcase();
 checkShowcase(showcase);
 
-// Symbols are not part of the build result: assemble the two sources once more,
-// the same way make_showcase does, to find the entry points.
-const source = ['asm/showcase/showcase.asm', 'asm/showcase/flappy_game.asm']
+// Flappy is a standalone slice: assemble its source and place it at segment
+// 0x5000, then enter at offset 0 with R9 = mode and R10:R11 = the return pair.
+const flappySource = ['asm/showcase/flappy_defs.asm', 'asm/showcase/flappy_game.asm']
   .map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
-const assembled = new globalThis.Deep16Assembler().assemble(source);
-const S = assembled.symbols;
+const flappy = new globalThis.Deep16Assembler().assemble(flappySource);
+assert.equal(flappy.success, true, flappy.errors.join('; '));
+const flappyMax = flappy.memoryChanges.reduce((m, c) => Math.max(m, c.address), 0);
+
+function placeFlappy(sim) {
+  for (let i = 0; i <= flappyMax; i++) sim.memory[GB + i] = 0xFFFF;
+  for (const c of flappy.memoryChanges) sim.memory[GB + c.address] = c.value & 0xFFFF;
+}
 
 function start(mode) {
   const sim = new globalThis.Deep16Simulator();
-  for (const [addr, value] of showcase.words) sim.memory[SHOWCASE_SEG_BASE + addr] = value;
+  placeFlappy(sim);
   sim.d16nano = true;
-  sim.registers[12] = RET_PC;
-  sim.registers[15] = mode === 1 ? S.attract_start : S.start_play;
-  sim.segmentRegisters = { CS: 0x04A0, DS: 0x04A0, SS: 0, ES: 0 };
+  sim.registers[9] = mode;
+  sim.registers[10] = 0x04A0;
+  sim.registers[11] = RET_PC;
+  sim.registers[15] = 0;
+  sim.segmentRegisters = { CS: 0x5000, DS: 0x5000, SS: 0, ES: 0 };
   sim.running = true;
-  sim.memory[G_START_MODE] = mode;
   sim.memory[UART_STATUS] = 0;
   sim.memory[G_PLAYS] = 0;
   sim.cycleCount = 0;
@@ -207,7 +216,7 @@ test('a hit shows dizzy, then the vflipped fall, then attract', () => {
   assert.ok(states.includes(2), 'fall state entered');
   assert.ok(states.includes(3), 'landed state entered');
   assert.equal(r.sim.memory[G_DEATH], 0, 'back to attract');
-  assert.equal(r.sim.memory[0x4ED6], 3, 'attract mode');
+  assert.equal(r.sim.memory[GB + 0x4D6], 3, 'attract mode');
   const dizzy = [...r.deathGroups].filter((k) => k.endsWith(':0') && /^[345]:/.test(k));
   assert.ok(dizzy.length >= 2, `dizzy pose animates through groups 3..5 (${dizzy.join(',')})`);
   assert.ok(r.deathGroups.has('5:1'), 'fall sprite is group 5, vflipped');
@@ -226,5 +235,5 @@ test('a non-Q key does not abort the death sequence', () => {
   const r = run({ mode: 1, frames: 260, hitAt: 120, keyAt: 140, key: 0x78 });
   assert.equal(r.quitFrame, -1, 'stayed in the game');
   assert.equal(r.sim.memory[G_DEATH], 0, 'death ran to completion');
-  assert.equal(r.sim.memory[0x4ED6], 3, 'back in attract mode');
+  assert.equal(r.sim.memory[GB + 0x4D6], 3, 'back in attract mode');
 });

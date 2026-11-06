@@ -13,6 +13,26 @@
 ; sets palette 2/13. The absolute OAM group selects the bird; control 5 is
 ; still stored for old images but the widened sprite window ignores it.
 
+; The slice is loaded at segment 0x5000 by BDOS and entered at offset 0.
+; R9 carries the start mode (0 = play, 1 = attract); R10:R11 is the menu's
+; return pair, parked in the block's own data because draw_text uses R10.
+.org 0
+flappy_start:
+    MVS R0, CS
+    MVS DS, R0
+    LDI flappy_ret10
+    MOV R2, R0
+    ST R10, R2, 0
+    LDI flappy_ret11
+    MOV R2, R0
+    ST R11, R2, 0
+    LDI G_START_MODE
+    MOV R2, R0
+    ST R9, R2, 0
+    LDI game_entry
+    MOV PC, R0
+    NOP
+
 .org 0x0A00
 
 ; =====================================================================
@@ -378,8 +398,8 @@ pipe_done:
 ; Game
 ; =====================================================================
 game_entry:
-    LDI SEG_DEMO
-    MVS DS, R0
+    MVS R0, CS
+    MVS DS, R0                ; the slice's own segment
     LDI pal_art
     MOV R8, R0
     LDI set_palette
@@ -1235,7 +1255,13 @@ exit_showcase:
     LINK
     JMP R4
     NOP
-    MOV PC, R12
+    LDI flappy_ret10
+    MOV R2, R0
+    LD R10, R2, 0
+    LDI flappy_ret11
+    MOV R2, R0
+    LD R11, R2, 0
+    JML R10
     NOP
 
 ; =====================================================================

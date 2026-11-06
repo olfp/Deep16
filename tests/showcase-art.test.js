@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { birdSpriteWords, SPRITE_WORDS, CLOUD_GROUP } from '../scripts/make_bird_sprite.mjs';
 import { BIRD_COLOURS, BIRD_ORDER } from '../scripts/make_art.mjs';
-import { buildShowcase } from '../scripts/make_showcase.mjs';
+import { buildShowcase, buildFlappy } from '../scripts/make_showcase.mjs';
 import { TILE_BANK_WORDS, TILE_WORDS, readFontWords, tileFontWords } from '../scripts/make_tile_font.mjs';
 import { froggerArtTiles } from '../scripts/make_frogger_art.mjs';
 import { ROOT } from './helpers.js';
@@ -51,7 +51,7 @@ test('sprite bank holds three bird pages plus the shared cloud', () => {
 });
 
 test('the game palette table matches the art colours', () => {
-  const showcase = buildShowcase();
+  const showcase = buildFlappy();
   const at = (a) => showcase.words.find((w) => w[0] === a)?.[1];
   BIRD_ORDER.forEach((colour, i) => {
     assert.equal(at(0x5D5 + i * 2), BIRD_COLOURS[colour].body, `${colour} body`);

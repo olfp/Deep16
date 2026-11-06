@@ -8,12 +8,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { assemble, loadBrowserScripts, buildMemory, ROOT } from './helpers.js';
 import { buildShowcase, SHOWCASE_SEG_BASE } from '../scripts/make_showcase.mjs';
+import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
 const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
                         { defines: { CONSOLE_UART: 1, D16NANO: 1, D16D: 1 } });
 const showcase = buildShowcase();
+const slices = buildSlices();
+const GB = 0x50000;                    // Flappy's slice segment 0x5000
 
 const TILE = 0xF1000;
 const cell = (row, col) => TILE + row * 82 + col;
@@ -26,6 +29,7 @@ function boot() {
   const mem = buildMemory(kernel);
   for (const [addr, value] of showcase.words) mem[SHOWCASE_SEG_BASE + addr] = value;
   sim.loadProgram(mem);
+  sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);   // BDOS loads the games
   sim.memory[kernel.symbols.boot_ptr] = 0;   // no baked demo script
   sim.segmentRegisters.CS = 0xFFFF;
   sim.segmentRegisters.DS = 0x0000;
@@ -81,7 +85,7 @@ test('the idle menu autoruns Flappy after ten seconds', () => {
   let steps = toMenu(sim);
   let frame = 0;
   let bit = 1;
-  while (sim.running && steps < 4000000 && sim.memory[0x4ED6] !== 3) {
+  while (sim.running && steps < 4000000 && sim.memory[GB + 0x4D6] !== 3) {
     if (steps % FRAME_PERIOD === 0) {
       bit ^= 1;
       sim.memory[0xF0066] = (sim.memory[0xF0066] & ~2) | (bit << 1);
@@ -90,7 +94,7 @@ test('the idle menu autoruns Flappy after ten seconds', () => {
     sim.step();
     steps++;
   }
-  assert.equal(sim.memory[0x4ED6], 3, 'attract mode started');
-  assert.equal(sim.memory[0x4ED5], 1, 'the menu launched in attract mode');
+  assert.equal(sim.memory[GB + 0x4D6], 3, 'attract mode started');
+  assert.equal(sim.memory[GB + 0x4D5], 1, 'the menu launched in attract mode');
   assert.ok(frame >= 600, `idle timer ran ${frame} frames`);
 });

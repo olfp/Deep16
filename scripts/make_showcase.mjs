@@ -50,7 +50,7 @@ function loadAssembler() {
 
 export function buildShowcase() {
   const Deep16Assembler = loadAssembler();
-  const sources = ['asm/showcase/showcase.asm', 'asm/showcase/flappy_game.asm']
+  const sources = ['asm/showcase/showcase.asm']
     .map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8'));
   const source = sources.join('\n');
   const res = new Deep16Assembler().assemble(source);
@@ -113,8 +113,34 @@ export function checkPacman(pacman) {
   return true;
 }
 
-// The Frogger per-row-scroll backdrop is a small block in the image gap at
-// physical 0x4350.  It is not a flash slice: the menu launches it directly.
+// Flappy is a type-4 slice loaded into segment 0x5000. The definition file
+// carries the constants and the tables that used to be shared with the menu.
+export function buildFlappy() {
+  const Deep16Assembler = loadAssembler();
+  const sources = ['asm/showcase/flappy_defs.asm', 'asm/showcase/flappy_game.asm']
+    .map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  const source = sources.join('\n');
+  const res = new Deep16Assembler().assemble(source);
+  if (!res.success) throw new Error('flappy does not assemble: ' + res.errors.join('; '));
+  const words = [];
+  let max = 0;
+  for (const c of res.memoryChanges) {
+    if (c.address < 0 || c.address >= 0x10000) throw new Error(`flappy address out of range: 0x${c.address.toString(16)}`);
+    words.push([c.address, c.value & 0xFFFF]);
+    max = Math.max(max, c.address);
+  }
+  words.sort((a, b) => a[0] - b[0]);
+  const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
+  return { words, min: words[0]?.[0] ?? 0, max, size: max + 1, build, entry: 0, seg: 0x5000 };
+}
+
+export function checkFlappy(flappy) {
+  if (flappy.words[0]?.[0] !== 0) throw new Error('flappy block does not start at offset 0');
+  if (flappy.max >= 0x10000) throw new Error('flappy block is too large');
+  return true;
+}
+
+// The Frogger per-row-scroll backdrop is a type-4 slice loaded at 0x0600.
 export function buildFrogger() {
   const Deep16Assembler = loadAssembler();
   const source = fs.readFileSync(path.join(ROOT, 'asm/showcase/frogger_demo.asm'), 'utf8');
@@ -184,11 +210,9 @@ export function checkShowcase(showcase) {
   if (at(SHOWCASE_HEADER + 1) !== SHOWCASE_FORMAT) fail.push('format is not 1');
   if (at(SHOWCASE_HEADER + 2) !== SHOWCASE_ENTRY) fail.push('entry is not 0x334');
 
-  // The sparse writes must not touch the game state cells, the ILL/divtest
-  // blocks, the stacks, or the top of the image.
+  // The sparse writes must not touch the ILL/divtest blocks, the stacks, or
+  // the top of the image. The old game state cells at 0x4D5+ are menu data now.
   for (const [a] of showcase.words) {
-    if (a >= STATE_BASE && a < RESTORE_BASE)
-      fail.push(`write into the game state cells at 0x${a.toString(16)}`);
     if (a >= 0x600 && a < 0xA00)
       fail.push(`write into ILL/divtest at 0x${a.toString(16)}`);
     if (a >= GAME_LIMIT)

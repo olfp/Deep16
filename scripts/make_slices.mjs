@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPacman, buildPs2Host, checkPs2Host } from './make_showcase.mjs';
+import { buildPacman, buildPs2Host, checkPs2Host, buildFlappy, buildFrogger } from './make_showcase.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SLICE_WORDS = 2048;
@@ -85,7 +85,7 @@ export const BINARY_MAGIC = 0xd16b;
 export const BINARY_VERSION = 1;
 
 function binarySlices(sparse, firstIndex, baseName, entryOffset = 0,
-                      segment = 0x2000) {
+                      segment = 0x2000, flags = 0) {
   const max = sparse.reduce((m, [a]) => Math.max(m, a), -1);
   const dense = new Array(Math.max(0, max + 1)).fill(0xffff);
   for (const [a, v] of sparse) dense[a] = v & 0xffff;
@@ -97,6 +97,7 @@ function binarySlices(sparse, firstIndex, baseName, entryOffset = 0,
     const words = new Uint16Array(SLICE_WORDS);
     words.set(header({
       type: i === 0 ? TYPES.BINARY : TYPES.EMPTY,
+      flags,
       link: i === count - 1 ? 0xffff : firstIndex + i + 1,
       name: i === 0 ? baseName : `${baseName}${i + 1}`,
     }), 0);
@@ -139,15 +140,24 @@ export function buildSlices() {
   checkPs2Host(host);
   const hostFirst = pacFirst + pacSlices.length;
   const hostSlices = binarySlices(host.words, hostFirst, 'ps2host', 0, 0x4000);
+  // The apps: flag 1 in the directory entry tells the menu to list them.
+  const flappy = buildFlappy();
+  const flappyFirst = hostFirst + hostSlices.length;
+  const flappySlices = binarySlices(flappy.words, flappyFirst, 'flappy', 0, flappy.seg, 1);
+  const frogger = buildFrogger();
+  const froggerFirst = flappyFirst + flappySlices.length;
+  const froggerSlices = binarySlices(frogger.words, froggerFirst, 'frogger', 0, 0x0600, 1);
   const slices = [directory([
     entry({ type: TYPES.SCREEN, first: sdFirst, name: 'sd' }),
     entry({ type: TYPES.SCREEN, first: helloFirst, name: 'hello' }),
     entry({ type: TYPES.SCREEN, first: catFirst, name: 'catalog' }),
     entry({ type: TYPES.SCREEN, first: gamesFirst, name: 'games' }),
-    entry({ type: TYPES.BINARY, first: pacFirst, name: 'pacman' }),
+    entry({ type: TYPES.BINARY, flags: 1, first: pacFirst, name: 'pacman' }),
     entry({ type: TYPES.BINARY, first: hostFirst, name: 'ps2host' }),
+    entry({ type: TYPES.BINARY, flags: 1, first: flappyFirst, name: 'flappy' }),
+    entry({ type: TYPES.BINARY, flags: 1, first: froggerFirst, name: 'frogger' }),
   ]), ...sdSlices, ...helloSlices, ...catSlices, ...gameSlices, ...pacSlices,
-     ...hostSlices];
+     ...hostSlices, ...flappySlices, ...froggerSlices];
   const words = new Uint16Array(slices.length * SLICE_WORDS);
   slices.forEach((w, i) => words.set(w, i * SLICE_WORDS));
   const bytes = Buffer.alloc(slices.length * SLICE_BYTES, 0xff);
@@ -165,6 +175,8 @@ export function buildSlices() {
       games: { first: gamesFirst, count: gameSlices.length, chars: games.length },
       pacman: { first: pacFirst, count: pacSlices.length, words: pac.max + 1 },
       ps2host: { first: hostFirst, count: hostSlices.length, words: host.max + 1 },
+      flappy: { first: flappyFirst, count: flappySlices.length, words: flappy.max + 1 },
+      frogger: { first: froggerFirst, count: froggerSlices.length, words: frogger.max + 1 },
     },
   };
   return { words, bytes, manifest };

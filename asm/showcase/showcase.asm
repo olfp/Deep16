@@ -135,23 +135,82 @@ pal_art:
 cloud_y:
     .word 45, 90, 45, 90
 
-.org 0x5D5
-; Body and belly palette entries per bird, picked at every reset.  Index 2 is
-; the body, 13 the belly; the dizzy flower/star keep 5/11.
-bird_colors:
-    .word 0x0084, 0x00F1       ; red
-    .word 0x00AE, 0x00B6       ; purple
-    .word 0x00FC, 0x00F4       ; yellow
-; Sprite groups for the dizzy pose, a ping-pong through three frames.
-dizzy_groups:
-    .word 3, 4, 5, 4
+; ---- menu support (the game slice carries its own copies) ---------------
+; R8 = NUL-terminated string, R9 = row, R10 = column.
+.org 0x400
+scene_init:
+    LDI SEG_CTRL
+    MVS ES, R0
+    LSI R3, 0
+    LSI R2, 8
+    STS R3, ES, R2
+    LSI R2, 4
+    STS R3, ES, R2
+    LSI R2, 6
+    STS R3, ES, R2
+    LSI R2, 2
+    STS R3, ES, R2
+    LSI R2, 0
+    STS R3, ES, R2
+    LDI SEG_TILE
+    MVS ES, R0
+    LSI R2, 0
+    LDI 2132
+    MOV R4, R0
+scene_clear:
+    STS R3, ES, R2
+    ADD R2, 1
+    SUB R4, 1
+    JNZ scene_clear
+    NOP
+    LDI SEG_OAM
+    MVS ES, R0
+    LSI R2, 0
+    LDI 16
+    MOV R4, R0
+scene_oam:
+    STS R3, ES, R2
+    ADD R2, 1
+    SUB R4, 1
+    JNZ scene_oam
+    NOP
+    JMP LR
+    NOP
 
-.org 0x5E0
-pal_default:
-    .word 0x0000, 0x00FF, 0x00E0, 0x001C
-    .word 0x0003, 0x00FC, 0x001F, 0x00E3
-    .word 0x0092, 0x00B6, 0x006D, 0x00DB
-    .word 0x00E9, 0x00D3, 0x00FE, 0x00FF
+draw_text:
+    LDI SEG_TILE
+    MVS ES, R0
+    MOV R1, R9
+    SL R1, 6
+    MOV R2, R9
+    SL R2, 4
+    ADD R1, R2
+    MOV R2, R9
+    SL R2, 1
+    ADD R1, R2
+    ADD R1, R10
+    MOV R2, R1
+    LDI 0x20
+    MOV R1, R0
+draw_text_loop:
+    LDS R0, DS, R8
+    AND R0, R0
+    JZ draw_text_done
+    NOP
+    SUB R0, R1
+    SL R0, 5
+    LSI R3, 1
+    SL R3, 15
+    OR R0, R3
+    STS R0, ES, R2
+    ADD R8, 1
+    ADD R2, 1
+    LDI draw_text_loop
+    MOV PC, R0
+    NOP
+draw_text_done:
+    JMP LR
+    NOP
 
 ; =====================================================================
 ; Menu code: 0x0A00..0x0AFF (the helpers and strings live in the game
@@ -349,42 +408,79 @@ menu_no_key:
     NOP
 
 menu_play:
-    LDI 0
-    MOV R2, R0
-    LDI G_START_MODE
-    MOV R3, R0
-    ST R2, R3, 0
-    LDI menu_launch_game
+    LDI str_name_flappy
+    MOV R1, R0
+    LSI R9, 0
+    LDI menu_launch
     MOV PC, R0
     NOP
 
 menu_attract:
-    LDI 1
-    MOV R2, R0
-    LDI G_START_MODE
-    MOV R3, R0
-    ST R2, R3, 0
-    LDI menu_launch_game
+    LDI str_name_flappy
+    MOV R1, R0
+    LSI R9, 1
+    LDI menu_launch
     MOV PC, R0
     NOP
 
 menu_pacman:
-    LDI pacman_launch
+    LDI str_name_pacman
+    MOV R1, R0
+    LSI R9, 0
+    LDI menu_launch
     MOV PC, R0
     NOP
 
 menu_frogger:
-    LDI frogger_launch
+    LDI str_name_frogger
+    MOV R1, R0
+    LSI R9, 0
+    LDI menu_launch
     MOV PC, R0
     NOP
 
-menu_launch_game:
+; R1 = NUL-terminated app name in DS, R9 = start mode.  BDOS looks the name
+; up, loads the slice and answers the segment and entry; the menu far-jumps
+; there with R10:R11 = its own CS and menu_after.
+menu_launch:
     LDI SEG_DEMO
     MVS DS, R0
+    LDI menu_mode
+    MOV R2, R0
+    ST R9, R2, 0
+    LDI menu_bdos
+    MOV R4, R0
+    LSI R0, 2
+    LINK
+    JMP R4
+    NOP
+    LSI R2, -1
+    CMP R0, R2
+    JZ menu_redraw
+    NOP
+    MOV R1, R0
+    LDI menu_bdos
+    MOV R4, R0
+    LSI R0, 3
+    LINK
+    JMP R4
+    NOP
+    LSI R2, -1
+    CMP R0, R2
+    JZ menu_redraw
+    NOP
+    MOV R4, R0
+    MOV R5, R1
+    MVS R2, CS
+    MOV R10, R2
     LDI menu_after
-    MOV R12, R0
-    LDI game_entry
-    MOV PC, R0
+    MOV R11, R0
+    LDI menu_mode
+    MOV R2, R0
+    LD R9, R2, 0
+    MOV R2, R4
+    MOV R3, R5
+    JML R2
     NOP
 
 menu_after:
@@ -408,19 +504,6 @@ menu_frames:
 menu_last:
     .word 0
 
-; Far launcher for Pac-Man, in the free gap before the game block.  R10/R11
-; carry the return pair the game saves; R0/R1 enter CS 0x0433 at PC 0.
-.org 0x4A4
-pacman_launch:
-    LDI SEG_DEMO
-    MOV R10, R0
-    LDI menu_after
-    MOV R11, R0
-    LDI 0x0433
-    LSI R1, 0
-    JML R0
-    NOP
-
 ; Draw the G entry from the gap (the menu block is full) and jump back.
 .org 0x4B0
 frogger_draw:
@@ -438,18 +521,38 @@ frogger_draw:
     MOV PC, R0
     NOP
 
-; Frogger backdrop launcher: CS=0x0435, PC=0 (the block at physical 0x4350).
-.org 0x4C0
-frogger_launch:
-    LDI SEG_DEMO
-    MOV R10, R0
-    LDI menu_after
-    MOV R11, R0
-    LDI 0x0435
-    LSI R1, 0
-    JML R0
-    NOP
+; App names BDOS looks up, and the start mode the launcher passes on.
+.org 0x4E0
+menu_mode:
+    .word 0
+str_name_flappy:
+    .text "flappy"
+str_name_pacman:
+    .text "pacman"
+str_name_frogger:
+    .text "frogger"
 
 ; =====================================================================
-; Shared screen helpers and the game: 0x0B00..0x0DFF
+; BDOS bridge: 0xA00 (the game block's old home)
+;
+; BDOS lives at CS=0, 0x2D4A and returns through R10:R11. The menu runs in the
+; BIOS segment, so the bridge reads CS for the return segment and keeps its
+; own return in LR, which BDOS does not touch.
 ; =====================================================================
+.org 0x0A00
+menu_bdos:
+    MOV R9, R0                ; park the function: LDI writes R0
+    MVS R3, CS
+    MOV R10, R3               ; return to the menu's CS ...
+    LDI menu_bdos_back
+    MOV R11, R0               ; ... at the instruction after the jump
+    LSI R2, 0                 ; JML pair: CS = 0 ...
+    LDI 0x2D4A
+    MOV R3, R0                ; ... and PC = the BDOS entry
+    MOV R0, R9                ; the function, untouched
+    JML R2
+    NOP
+menu_bdos_back:
+    MOV PC, LR
+    NOP
+

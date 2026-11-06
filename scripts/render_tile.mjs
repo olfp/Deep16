@@ -55,6 +55,7 @@ function readSources() {
     kernel: fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
     showcase: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'showcase.asm'), 'utf8'),
     flappy: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_game.asm'), 'utf8'),
+    flappyDefs: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_defs.asm'), 'utf8'),
     pacmanMap: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_map.asm'), 'utf8'),
     pacmanGame: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_game.asm'), 'utf8'),
     frogger: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'frogger_demo.asm'), 'utf8'),
@@ -70,15 +71,13 @@ function boot(scene) {
     kernel: src.kernel,
     showcase: src.showcase,
     flappy: src.flappy,
+    flappyDefs: src.flappyDefs,
     pacmanMap: src.pacmanMap,
     pacmanGame: src.pacmanGame,
     frogger: src.frogger,
     defines: scene === 'console' ? { D16SEG: 0 } : {},
-    // The renderer previews the block at its old 0x4330 home; the real image
-    // keeps it in the config flash and games.fth loads it into 0x2000.
-    bakePacman: scene === 'pacman',
   });
-  const symbols = new Assembler().assemble(`${src.showcase}\n${src.flappy}`).symbols;
+  const symbols = new Assembler().assemble(src.showcase).symbols;
 
   const sim = new Simulator();
   sim.loadProgram(image.words);
@@ -89,27 +88,40 @@ function boot(scene) {
   sim.memory[0xF0066] = 0;
   sim.cycleCount = 0;
 
+  // Place a loaded slice at its segment, the way BDOS does.
+  const place = (block) => {
+    if (!block) throw new Error('this scene needs a slice block');
+    const base = block.seg << 4;
+    for (let i = 0; i <= block.max; i++) sim.memory[base + i] = 0xFFFF;
+    for (const [addr, value] of block.words) sim.memory[base + addr] = value;
+  };
   if (scene === 'console') {
     sim.memory[image.symbols.boot_ptr] = 0;    // no baked Forth script
     sim.segmentRegisters = { CS: 0xFFFF, DS: 0, SS: 0, ES: 0 };
     sim.registers[15] = 0;
   } else if (scene === 'pacman') {
-    // The menu's far launcher: R10/R11 is the return pair, CS 0x0433 PC 0.
-    sim.segmentRegisters = { CS: 0x0433, DS: 0x0433, SS: 0, ES: 0 };
+    place(image.pacman);
+    sim.segmentRegisters = { CS: 0x2000, DS: 0x2000, SS: 0, ES: 0 };
     sim.registers[10] = 0x04A0;
     sim.registers[11] = RET_PC;
     sim.registers[15] = 0;
   } else if (scene === 'frogger') {
-    // The small backdrop block lives at physical 0x4350, CS=DS=0x0435.
-    sim.segmentRegisters = { CS: 0x0435, DS: 0x0435, SS: 0, ES: 0 };
+    place(image.frogger);
+    sim.segmentRegisters = { CS: 0x0600, DS: 0x0600, SS: 0, ES: 0 };
+    sim.registers[10] = 0x04A0;
+    sim.registers[11] = RET_PC;
+    sim.registers[15] = 0;
+  } else if (scene === 'flappy') {
+    place(image.flappy);
+    sim.segmentRegisters = { CS: 0x5000, DS: 0x5000, SS: 0, ES: 0 };
+    sim.registers[9] = 0;                      // play, not attract
     sim.registers[10] = 0x04A0;
     sim.registers[11] = RET_PC;
     sim.registers[15] = 0;
   } else {
     sim.segmentRegisters = { CS: 0x04A0, DS: 0x04A0, SS: 0, ES: 0 };
     sim.registers[12] = RET_PC;
-    sim.memory[G_START_MODE] = scene === 'flappy' ? 1 : 0;
-    sim.registers[15] = scene === 'flappy' ? symbols.start_play : symbols.menu_entry;
+    sim.registers[15] = symbols.menu_entry;
   }
   sim.running = true;
   return { sim, engine, symbols, image };
