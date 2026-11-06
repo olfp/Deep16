@@ -703,6 +703,13 @@ module dvi_tile #(
       fncell <= 12'd0;
       fnrow0 <= 16'd0;
       fnrow1 <= 16'd0;
+      // `armed` and `free_seen` are configuration-initialised, not reset. On a
+      // button reset the renderer would then believe the scan had already
+      // released every buffer, line_free would stay low, no fill would start
+      // and the picture stayed black until the next power cycle.
+      armed <= 1'b0;
+      free_seen <= 3'd0;
+      wr_buf <= 2'd0;
     end else begin
       // ---- start the fill for the next line at the start of this one ----
       if (start_fill) begin
