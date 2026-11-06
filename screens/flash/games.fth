@@ -64,34 +64,11 @@ variable gentry drop
 : ps2! ( clk data -- )     swap 9 lshift swap 10 lshift or 0x200C es! ;
 : ps2-clk@ ( -- f )        0xF0066 es@ 5 rshift 1 and ;
 : ps2-data@ ( -- f )       0xF0066 es@ 6 rshift 1 and ;
-: ps2-bit! ( bit -- )      0= 0 swap ps2! ;
-: ps2-wait-low ( -- f )
-  0 2000 0 do  ps2-clk@ 0= if 1 unloop exit then  loop 0 ;
-: ps2-wait-high ( -- f )
-  0 2000 0 do  ps2-clk@ if 1 unloop exit then  loop 0 ;
-: ps2-parity ( b -- p )
-  0 swap 8 0 do  dup 1 and rot xor swap 1 rshift  loop  drop 1 xor 1 and ;
-: ps2-send ( b -- )
-  dup ps2-parity swap
-  1 0 ps2! 20 0 do loop          \ CLK low, DATA high: request
-  1 1 ps2!                       \ DATA low: start
-  0 1 ps2!                       \ release CLK; the keyboard clocks
-  ps2-wait-low 0= if 2drop 0 0x200C es! exit then
-  ps2-wait-high drop
-  8 0 do
-    dup 1 and if 0 else 0x400 then 0x200C es!   \ set the bit early
-    ps2-wait-low drop
-    ps2-wait-high drop
-    1 rshift
-  loop drop
-  dup 1 and if 0 else 0x400 then 0x200C es!     \ parity
-  ps2-wait-low drop ps2-wait-high drop
-  0 0x200C es!                                  \ stop bit = release
-  ps2-wait-low drop ps2-wait-high drop
-  0 0x200C es! ;                                \ release both lines
 : ps2-delay ( -- )         65535 0 do loop ;
 : ps2-drain ( -- )         begin 0x60 es@ while 0x62 es@ . repeat cr ;
+: ps2-load ( -- )          s" ps2host" game-load drop ;
+: ps2-send ( b -- )        0x4000 call-far ;
 : ps2-init ( -- )
-  ." PS/2 init" cr
+  ." PS/2 init" cr ps2-load
   0xFF ps2-send ps2-delay ps2-delay ps2-delay ps2-drain
   0xF4 ps2-send ps2-delay ps2-drain ;

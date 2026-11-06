@@ -541,6 +541,7 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x205000`–`0x208FFF` | slices 5–8: catalog/editor, `p-screen`, sound, palettes |
 | `0x209000`–`0x20AFFF` | slices 9–10: `games.fth` (the flash loader plus the PS/2 host init) |
 | `0x20B000` | slice 11: the Pac-Man binary block (1695 words, loads at segment `0x2000`) |
+| `0x20C000` | slice 12: the PS/2 host sender (101 words, loads at segment `0x4000`) |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and

@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPacman } from './make_showcase.mjs';
+import { buildPacman, buildPs2Host, checkPs2Host } from './make_showcase.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SLICE_WORDS = 2048;
@@ -135,13 +135,19 @@ export function buildSlices() {
   const pac = buildPacman();
   const pacFirst = gamesFirst + gameSlices.length;
   const pacSlices = binarySlices(pac.words, pacFirst, 'pacman');
+  const host = buildPs2Host();
+  checkPs2Host(host);
+  const hostFirst = pacFirst + pacSlices.length;
+  const hostSlices = binarySlices(host.words, hostFirst, 'ps2host', 0, 0x4000);
   const slices = [directory([
     entry({ type: TYPES.SCREEN, first: sdFirst, name: 'sd' }),
     entry({ type: TYPES.SCREEN, first: helloFirst, name: 'hello' }),
     entry({ type: TYPES.SCREEN, first: catFirst, name: 'catalog' }),
     entry({ type: TYPES.SCREEN, first: gamesFirst, name: 'games' }),
     entry({ type: TYPES.BINARY, first: pacFirst, name: 'pacman' }),
-  ]), ...sdSlices, ...helloSlices, ...catSlices, ...gameSlices, ...pacSlices];
+    entry({ type: TYPES.BINARY, first: hostFirst, name: 'ps2host' }),
+  ]), ...sdSlices, ...helloSlices, ...catSlices, ...gameSlices, ...pacSlices,
+     ...hostSlices];
   const words = new Uint16Array(slices.length * SLICE_WORDS);
   slices.forEach((w, i) => words.set(w, i * SLICE_WORDS));
   const bytes = Buffer.alloc(slices.length * SLICE_BYTES, 0xff);
@@ -158,6 +164,7 @@ export function buildSlices() {
       catalog: { first: catFirst, count: catSlices.length, chars: catalog.length },
       games: { first: gamesFirst, count: gameSlices.length, chars: games.length },
       pacman: { first: pacFirst, count: pacSlices.length, words: pac.max + 1 },
+      ps2host: { first: hostFirst, count: hostSlices.length, words: host.max + 1 },
     },
   };
   return { words, bytes, manifest };
