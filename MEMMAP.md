@@ -108,21 +108,27 @@ loader. The dictionary then continues at `0x6000`.
 | `0x00100`–`0x004FF` | kernel block 1 (`forth_start`, built-ins, boot entry) |
 | `0x00500`–`0x01FFF` | kernel block 2 (primitives, interpreter, compiler) |
 | `0x02000`–`0x02FFF` | threading engine `next` and built-in word code |
-| `0x03000`–`0x049F8` | kernel data, boot script, built-in headers, `rp0_base` |
-| `0x049F9`–`0x049FF` | static `dict_free` … BIOS (7 words) |
-| `0x04A00`–`0x04D2F` | BIOS code (segment `0x04A0`) |
-| `0x04D30`–`0x04D33` | free (4 words) |
-| `0x04D34`–`0x04D38` | D16D trampoline |
-| `0x04D39`–`0x04DE7` | D16D strings, palette, cloud table, header |
-| `0x04DE8`–`0x04DFF` | gap |
-| `0x04E00`–`0x04ED4` | free (former colour-demo block) |
-| `0x04ED5`–`0x04EFE` | game state cells |
-| `0x04F00`–`0x04FE0` | menu code and default palette |
-| `0x05000`–`0x0519F` | ILL trap handler (DIV/DIV32 emulation) |
-| `0x051A0`–`0x051B5` | IRQ handler (hardware vector 1) |
-| `0x051B6`–`0x052FF` | free |
-| `0x05300`–`0x053FF` | `divtest` word code + string (`divtest_ok_str` at `0x532E`) |
-| `0x05400`–`0x057FF` | reserved gap |
+| `0x03000`–`0x0434E` | kernel data, boot script, built-in headers, `rp0_base` |
+| `0x0434F`–`0x049FF` | free (`dict_free`; the old Pac-Man/frogger gap) |
+| `0x04A00`–`0x04CDB` | BIOS code (dispatch, console functions 0–6) |
+| `0x04CDC`–`0x04D33` | free |
+| `0x04D34`–`0x04DFD` | D16D trampoline, strings, palette, header (small gaps) |
+| `0x04E00`–`0x04E41` | D16D `scene_init`/`draw_text` copies |
+| `0x04E42`–`0x04EFF` | free and the menu's state cells |
+| `0x04F00`–`0x04FCD` | menu code and default palette |
+| `0x04FCE`–`0x04FFF` | free |
+| `0x05000`–`0x0519B` | ILL trap handler (DIV/DIV32 emulation) |
+| `0x0519C`–`0x0519F` | free |
+| `0x051A0`–`0x0521D` | IRQ handler (hardware vector 1) |
+| `0x0521E`–`0x052FF` | free |
+| `0x05300`–`0x053CE` | `divtest` code (`divtest_ok_str` at `0x532E`) + UART console mirror |
+| `0x053CF`–`0x053FF` | free |
+| `0x05400`–`0x0548D` | D16D BDOS bridge |
+| `0x0548E`–`0x0548F` | free |
+| `0x05490`–`0x055DF` | PS/2 host init + sender (BIOS functions 7 and 8) |
+| `0x055E0`–`0x055EF` | free (headroom under the PS/2 block) |
+| `0x055F0`–`0x055F3` | PS/2 saved R5/R6/LR/count cells |
+| `0x055F4`–`0x057FF` | free |
 | `0x05800`–`0x05FEF` | Forth stacks: return stack from `0x5800` down, data stack from `0x5FF0` down |
 | `0x05FF0`–`0x05FFF` | stack top cells / slack |
 | `0x06000`–`0x0FFEF` | PSRAM dictionary, grows up from `0x6000`; Forth segment-0 ceiling `0xFFF0` |
@@ -134,25 +140,26 @@ loader. The dictionary then continues at `0x6000`.
 |---|---|---|
 | `forth_start` | `0x0100` | kernel entry |
 | `sp0_base` | `0x3000` | data-stack base cell |
-| `sp_top` | `0x3001` | data-stack top cell (`0x5FF0`) |
-| `tib_kbd` | `0x3023` | 128-word keyboard line buffer |
-| `ok_msg` | `0x30DD` | `" ok"` string |
-| `h_divtest` | `0x37CC` | `divtest` dictionary header |
-| `line_out` | `0x37E3` | output-produced flag |
-| `ill_pc_save` | `0x37E4` | interrupted PC for the ILL handler |
-| `active_handler` | `0x37F0` | `catch` handler cell |
-| `state_var` | `0x313C` | compiler state |
-| `base_var` | `0x3309` | numeric base |
-| `dp_var` | `0x37E5` | dictionary pointer |
-| `boot_script` | `0x3BDE` | baked `demo.fth` source |
-| `boot_ptr` | `0x300F` | next boot-script line |
-| `rp0_base` | `0x49F8` | return-stack base cell (`0x5800`) |
-| `dict_free` | `0x49F9` | first statically free word |
+| `sp_top` | `0x3002` | data-stack top cell (`0x5FF0`) |
+| `tib_kbd` | `0x3024` | 128-word keyboard line buffer |
+| `ok_msg` | `0x30DE` | `" ok"` string |
+| `h_divtest` | `0x37CD` | `divtest` dictionary header |
+| `line_out` | `0x3812` | output-produced flag |
+| `ill_pc_save` | `0x3816` | interrupted PC for the ILL handler |
+| `active_handler` | `0x3822` | `catch` handler cell |
+| `state_var` | `0x313D` | compiler state |
+| `base_var` | `0x330A` | numeric base |
+| `dp_var` | `0x3817` | dictionary pointer |
+| `boot_script` | `0x3C14` | baked `demo.fth` source |
+| `boot_ptr` | `0x3010` | next boot-script line |
+| `rp0_base` | `0x3001` | return-stack base cell (`0x5800` flat, `0x2FF0` D16SEG) |
+| `dict_free` | `0x434F` | first statically free word |
 | `bios_entry` | `0x4A00` | BIOS entry / dispatch |
 | `irq_handler` | `0x51A0` | hardware IRQ (vector 1) handler |
 | `ill_handler` | `0x5000` | ILL trap handler |
 | `word_divtest` | `0x5300` | `divtest` code |
 | `divtest_ok_str` | `0x532E` | `divtest ok` string |
+| `ps2_r5` | `0x55F0` | PS/2 sender's saved R5/R6/LR/count cells |
 
 The D16D showcase is now only the menu: a four-word header at `0x3E4`
 (`0x0D16`, format 1, entry `0x334`), a trampoline at `0x334`, the menu code at
@@ -164,18 +171,21 @@ far-jumps to the segment the slice names with `R10`/`R11` as the return pair.
 | App | Slice | Segment |
 |---|---|---|
 | Pac-Man | 11–13 | `0x2000` |
-| Flappy | 15–17 | `0x5000` |
-| Frogger | 18–21 | `0x0600` |
+| Flappy | 14–16 | `0x5000` |
+| Frogger | 17–20 | `0x0600` |
 
 Each of those blocks carries its tile art at segment offset `0x1000` (magic
 `0x0A57`, tile count, then index + 32 words); the menu copies it into the tile
 bank before entering the game, because the three art sets overlap (14 + 24 +
 66 tiles in 79 usable slots). The bitstream bakes only the console font.
 
-The game block at `0x5400`–`0x57FF` and the `0x4350` gap are free: the menu
-ends at `0x540A`, and the whole range `0x540B`–`0x57FF` (1,013 words) is
-available for the BIOS. Frogger is the reference use of per-row scrolling
-(control 6): ten lanes each keep their own coarse start and fine phase.
+The `0x4350` gap is still free (`dict_free = 0x434F`), and the BIOS has taken
+over the top of the old game area: the menu/BDOS bridge ends at `0x548D`, the
+PS/2 host init and sender sit at `0x5490`–`0x55DF` (BIOS functions 7 and 8),
+and its saved-register cells are at `0x55F0`–`0x55F3`. `0x55F4`–`0x57FF`
+remains free for the next BIOS routine. Frogger is the
+reference use of per-row scrolling (control 6): ten lanes each keep their own
+coarse start and fine phase.
 
 BIOS function 6 (`gfx`) checks the header,
 parks the Forth R5/R6, jumps to the entry, and on return clears the
@@ -186,18 +196,19 @@ automatically after ten seconds).
 ### 4.2 D16nano stack cells
 
 * `sp0_base` (`0x3000`) is the data-stack empty/base cell.
-* `sp_top` (`0x3001`) holds `0x5FF0`; `SP` starts there and grows down.
-* `rp0_base` (`0x49F8`) holds `0x5800`; the return stack grows **down** from
-  there, so it descends into the reserved gap at `0x5400`–`0x57FF` and then
-  into the BIOS data. It has 1,136 words before it reaches the end of the BIOS
-  at `0x538F`.
-* The stacks share the `0x5800`–`0x5FFF` window; a deep mixed recursion can
-  collide, as on the other builds. The `D16SEG` build gives each stack its own
-  window instead (§4.4).
+* `sp_top` (`0x3002`) holds `0x5FF0`; `SP` starts there and grows down.
+* `rp0_base` (`0x3001`) holds `0x5800` in the flat map and `0x2FF0` in the
+  `D16SEG` map. The flat map's return stack grows **down** from `0x5800` into
+  the free tail `0x55D3`–`0x57FF`; the `D16SEG` build moves it to DS
+  `0x2000`–`0x2FFF` and keeps it out of the BIOS gap entirely (§4.4).
+* The flat stacks share the `0x5800`–`0x5FFF` window; a deep mixed recursion
+  can collide, as on the other builds. The `D16SEG` build gives each stack its
+  own window instead (§4.4).
 
 ### 4.3 D16nano dictionary
 
-* Static image ends at `dict_free = 0x49F9`; only 7 words remain before the BIOS.
+* Static image ends at `dict_free = 0x434F`; `0x4350`–`0x49FF` is the free gap
+  before the BIOS at `0x4A00`.
 * On PSRAM the boot probe moves `HERE` to `0x6000`; the runtime dictionary and
   the boot-script definitions (`free`, `mem`, `demo`, `divtest` header, etc.)
   live there.
@@ -547,11 +558,10 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x201000`–`0x203FFF` | slices 1–3: the SD driver source |
 | `0x204000` | slice 4: `hello.fth` |
 | `0x205000`–`0x208FFF` | slices 5–8: catalog/editor, `p-screen`, sound, palettes |
-| `0x209000`–`0x20AFFF` | slices 9–10: `games.fth` (the flash loader plus the PS/2 host init) |
+| `0x209000`–`0x20AFFF` | slices 9–10: `games.fth` (the flash game loader) |
 | `0x20B000`–`0x20DFFF` | slices 11–13: Pac-Man (4890 words incl. its tile pack, segment `0x2000`) |
-| `0x20E000` | slice 14: the PS/2 host sender (151 words, segment `0x4000`) |
-| `0x20F000`–`0x211FFF` | slices 15–17: Flappy (4560 words incl. pack, segment `0x5000`) |
-| `0x212000`–`0x214FFF` | slices 18–21: Frogger (6276 words incl. pack, segment `0x0600`) |
+| `0x20E000`–`0x210FFF` | slices 14–16: Flappy (4560 words incl. pack, segment `0x5000`) |
+| `0x211000`–`0x213FFF` | slices 17–20: Frogger (6276 words incl. pack, segment `0x0600`) |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and

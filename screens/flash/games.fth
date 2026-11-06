@@ -57,49 +57,9 @@ variable gentry drop
   gseg @ ;
 : game-run ( a n -- ) game-load call-far ;
 
-\ ---- PS/2 host: open-drain GPIO through control 6 (0x200C) -------------
-\ The game-load screen is loaded at boot (`9 screen`), so the host init lives
-\ here until the BIOS can own it: see PS2PLAN.md. Bits 9/10 of 0x200C are
-\ unused by the tile engine: 1 = drive low, 0 = release. 0xF0066 bits 5/6 are
-\ the synchronised CLK/DATA levels.
-: ps2! ( clk data -- )     swap 9 lshift swap 10 lshift or 0x200C es! ;
-: ps2-clk@ ( -- f )        0xF0066 es@ 5 rshift 1 and ;
-: ps2-data@ ( -- f )       0xF0066 es@ 6 rshift 1 and ;
-: ps2-send ( b -- )        0x4000 call-far ;
-
-\ 0xF006A is the high half of the D16nano cycle counter: one tick is 65,536
-\ clocks, about 9.7 ms at 6.75 MHz, so the waits keep their real length
-\ whatever the interpreter is doing. The loop exits on the counter itself
-\ (signed difference, so the 16-bit wrap is harmless).
-: ps2-ticks ( n -- )
-  0xF006A es@ +
-  begin  dup 0xF006A es@ swap - 0<  while  repeat
-  drop ;
-: ps2-settle ( -- )        31 ps2-ticks ;       \ ~0.3 s: let it power up
-
-: ps2-load ( -- )          s" ps2host" game-load drop ;
-: ps2-drain ( -- )         begin 0x60 es@ while 0x62 es@ . repeat cr ;
-\ The PS/2 bytes also reach the console through the UART RX FIFO; clear both.
-: ps2-flush ( -- )         begin 0x60 es@ while 0x62 es@ drop repeat
-                           1 0xF0046 es! ;
-
-\ Reset, then enable scanning. A keyboard answers the reset with ACK and then
-\ runs its power-on self test, which can swallow the enable command, so 0xF4
-\ is repeated; a repeated enable is harmless.
-: ps2-enable ( -- )
-  0xFF ps2-send
-  103 ps2-ticks                                 \ ~1.0 s
-  0xF4 ps2-send  41 ps2-ticks
-  0xF4 ps2-send  41 ps2-ticks
-  0xF4 ps2-send  41 ps2-ticks
-  0xF4 ps2-send ;
-: ps2-init ( -- )
-  ." PS/2 init" cr ps2-load ps2-enable ps2-drain ;
-
-\ Boot init. The JS core has no PS/2 model and reads 0xF0066 as erased
-\ memory (0xFFFF); the board never drives bits 15:11.
-: ps2-auto ( -- )
-  0xF0066 es@ 0xFFFF = if exit then
-  ps2-load ps2-settle ps2-enable ps2-flush ;
-
-ps2-auto
+\ ---- PS/2 keyboard -------------------------------------------------------
+\ The host sender and the reset/enable sequence live in the BIOS now (ASM
+\ `ps2_send`/`ps2_init`, BIOS functions 7/8). binit runs the init before the
+\ menu or the prompt, so this screen no longer loads a block or waits for the
+\ keyboard. `cls` (BIOS function 1) repeats the init; BIOS function 8 does it
+\ without clearing the screen.

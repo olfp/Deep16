@@ -65,14 +65,15 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 #   -o 0x200000 artifacts/image/slices.bin
 ```
 
-The current image is 22 slices / 88 KB: directory 0, SD driver 1–3, hello 4,
+The current image is 21 slices / 84 KB: directory 0, SD driver 1–3, hello 4,
 catalog 5–8 (editor, `dir`/`find`, `p-screen`, I2S, IRQ and palette words),
-games 9–10, Pac-Man 11–13, the PS/2 host sender 14, Flappy 15–17 and Frogger
-18–21. The boot script loads the SD driver, the catalog and the game loader
-before the prompt, so `sd`, `dir`, `find`, `beep`, `irq-on`, `4 screen`,
-`ps2-load` and `ps2-init` are available at power-on. Flappy, Frogger and
-Pac-Man are listed as apps (directory flag 1) and are loaded by the BDOS on
-demand.
+games 9–10, Pac-Man 11–13, Flappy 14–16 and Frogger 17–20. The boot script
+loads the SD driver, the catalog and the game loader before the prompt, so
+`sd`, `dir`, `find`, `beep`, `irq-on` and `4 screen` are available at
+power-on. Flappy, Frogger and Pac-Man are listed as apps (directory flag 1)
+and are loaded by the BDOS on demand. The PS/2 host sender is no longer a
+slice: it lives in the BIOS, and `binit` initialises the keyboard before the
+menu (BIOS function 8 and the `cls` word repeat it without a slice load).
 
 Each game slice carries its own tile pack at segment offset `0x1000`
 (`0x0A57`, count, then index + 32 words per tile). The three art sets overlap

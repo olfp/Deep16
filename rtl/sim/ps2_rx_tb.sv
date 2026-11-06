@@ -10,6 +10,7 @@ module ps2_rx_tb (
   output logic [3:0] modifiers,
   output logic       frame_error
 );
+  /* verilator lint_off PINMISSING */   // host-timing/debug pins, unused here
   ps2_rx #(.CLK_HZ(1_000_000)) u_dut (
     .clk         (clk),
     .rst         (rst),
@@ -21,4 +22,5 @@ module ps2_rx_tb (
     .modifiers   (modifiers),
     .frame_error (frame_error)
   );
+  /* verilator lint_on PINMISSING */
 endmodule

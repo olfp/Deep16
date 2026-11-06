@@ -27,6 +27,9 @@ module ps2_rx #(
   output logic [7:0] scan_code,    // last received code, for debug
   output logic [3:0] modifiers,    // {caps, alt, ctrl, shift}
   output logic       frame_error,  // sticky until the next good frame
+  // One-cycle pulse for every frame with good start/parity/stop, including
+  // the ACK (0xFA) and BAT (0xAA) codes the host init waits for.
+  output logic       frame_valid,
   // Synchronised pin levels for the host-side GPIO timing.
   output logic       dbg_clk, dbg_data
 );
@@ -57,6 +60,7 @@ module ps2_rx #(
 
   wire clk_fall = clk_sync_q && !clk_sync;
 
+  assign frame_valid = code_valid;
   assign dbg_clk  = clk_sync;
   assign dbg_data = data_sync;
 

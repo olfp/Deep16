@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPacman, buildPs2Host, checkPs2Host, buildFlappy, buildFrogger } from './make_showcase.mjs';
+import { buildPacman, buildFlappy, buildFrogger } from './make_showcase.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SLICE_WORDS = 2048;
@@ -136,13 +136,9 @@ export function buildSlices() {
   const pac = buildPacman();
   const pacFirst = gamesFirst + gameSlices.length;
   const pacSlices = binarySlices(pac.words, pacFirst, 'pacman');
-  const host = buildPs2Host();
-  checkPs2Host(host);
-  const hostFirst = pacFirst + pacSlices.length;
-  const hostSlices = binarySlices(host.words, hostFirst, 'ps2host', 0, 0x4000);
   // The apps: flag 1 in the directory entry tells the menu to list them.
   const flappy = buildFlappy();
-  const flappyFirst = hostFirst + hostSlices.length;
+  const flappyFirst = pacFirst + pacSlices.length;
   const flappySlices = binarySlices(flappy.words, flappyFirst, 'flappy', 0, flappy.seg, 1);
   const frogger = buildFrogger();
   const froggerFirst = flappyFirst + flappySlices.length;
@@ -153,11 +149,10 @@ export function buildSlices() {
     entry({ type: TYPES.SCREEN, first: catFirst, name: 'catalog' }),
     entry({ type: TYPES.SCREEN, first: gamesFirst, name: 'games' }),
     entry({ type: TYPES.BINARY, flags: 1, first: pacFirst, name: 'pacman' }),
-    entry({ type: TYPES.BINARY, first: hostFirst, name: 'ps2host' }),
     entry({ type: TYPES.BINARY, flags: 1, first: flappyFirst, name: 'flappy' }),
     entry({ type: TYPES.BINARY, flags: 1, first: froggerFirst, name: 'frogger' }),
   ]), ...sdSlices, ...helloSlices, ...catSlices, ...gameSlices, ...pacSlices,
-     ...hostSlices, ...flappySlices, ...froggerSlices];
+     ...flappySlices, ...froggerSlices];
   const words = new Uint16Array(slices.length * SLICE_WORDS);
   slices.forEach((w, i) => words.set(w, i * SLICE_WORDS));
   const bytes = Buffer.alloc(slices.length * SLICE_BYTES, 0xff);
@@ -174,7 +169,6 @@ export function buildSlices() {
       catalog: { first: catFirst, count: catSlices.length, chars: catalog.length },
       games: { first: gamesFirst, count: gameSlices.length, chars: games.length },
       pacman: { first: pacFirst, count: pacSlices.length, words: pac.max + 1 },
-      ps2host: { first: hostFirst, count: hostSlices.length, words: host.max + 1 },
       flappy: { first: flappyFirst, count: flappySlices.length, words: flappy.max + 1 },
       frogger: { first: froggerFirst, count: froggerSlices.length, words: frogger.max + 1 },
     },

@@ -87,7 +87,10 @@ function boot(scene) {
   const engine = new Engine();
   Loader.load(engine, sim, Assets);
   sim.tileEngine = engine;
-  sim.memory[0xF0066] = 0;
+  // Erased-memory status: this headless harness has no PS/2 model, so binit's
+  // 0xFFFF guard skips the keyboard init exactly as the JS boot tests do.
+  // Each rendered frame writes the frame/uart bits it wants, below.
+  sim.memory[0xF0066] = 0xFFFF;
   sim.cycleCount = 0;
 
   // Place a loaded slice at its segment, the way BDOS does, then copy the

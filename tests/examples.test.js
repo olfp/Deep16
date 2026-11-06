@@ -20,7 +20,6 @@ const LEGACY = new Set([
   'deep16_rom.asm',
   'deep16bios.asm',
   'test_suite.asm',
-  'ps2_host.asm',   // PS/2 host block, assembled into a flash slice
 ]);
 
 const EXAMPLES = fs.readdirSync(ASM_DIR)

@@ -1239,6 +1239,10 @@ ok_after:
     NOP
 ok_echo:
 .endif
+    ; ES again: a command may have pointed it at another window.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
     LDI ECHO_FLAG
     LDS R7, ES, R0
     LDI 0
@@ -1291,6 +1295,11 @@ ok_print:
 interpret_next:
     ; Read next line into TIB via BIOS and then interpret. Reached with the echo
     ; on and off alike: the REPL still reads, it just says less about it.
+    ; ES is the MMIO window for the whole console; a word like `seg-base!`
+    ; leaves it somewhere else, so each line starts by putting it back.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
     LDI read_line
     MOV PC, R0
     NOP
@@ -14229,7 +14238,7 @@ waqr_done:
 ; =============================================
 .ifdef CONSOLE_UART
 .ifdef D16D
-.equ BIOS_FN_COUNT, 7              ; 0..5 console + 6 gfx
+.equ BIOS_FN_COUNT, 9              ; 0..5 console + 6 gfx + 7/8 PS/2
 .else
 .equ BIOS_FN_COUNT, 6
 .endif
@@ -14266,8 +14275,9 @@ bios_entry:
     ;
     ; What a caller may keep across the call: R0-R3 and R13/R14 are banked, so
     ; its copies survive; R4, R7 and R9-R12 are the handler's scratch; SCR (R8)
-    ; is the shared cursor and is meant to change. R5 (>IN) and R6 (TIB) the
-    ; handler never writes - which is why no call site has to park >IN.
+    ; is the shared cursor and is meant to change. R5 (>IN) and R6 (TIB) are
+    ; the kernel's: a handler leaves them alone, or (the PS/2 sender) saves
+    ; them to BIOS cells first, so no call site has to park >IN.
     SMV R1, AR0               ; R1 = function code
     LDI BIOS_FN_COUNT
     CMP R1, R0
@@ -14301,6 +14311,8 @@ BIOS_JTABLE:
     .word bios_f5 - BIOS_BASE
 .ifdef D16D
     .word bios_f6 - BIOS_BASE
+    .word bios_f7 - BIOS_BASE
+    .word bios_f8 - BIOS_BASE
 .endif
 bios_f0:
     ; 0: bver -> the handler's R0 = 0x0100 (BIOS 1.0, major << 8 | minor),
@@ -14975,6 +14987,17 @@ bios_f1:
     LINK
     JMP R4
     NOP
+.ifdef D16D
+    ; The keyboard is part of the machine, so binit is its home: reset it and
+    ; enable scanning before the menu or the prompt can be reached. A missing
+    ; keyboard is not an error - the sender times out and the console still
+    ; runs. Function 8 repeats this without clearing the screen.
+    LDI ps2_init - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+.endif
     RETI
     NOP
 
@@ -16526,4 +16549,468 @@ ug_idle:
     SMV AR0, R2              ; the caller's R0 = 0: not ready
     RETI
     NOP
+.endif
+
+; ============================================================
+; PS/2 host: reset and enable the keyboard (D16D only)
+; ============================================================
+; The receiver (rtl/ps2_rx.sv) is receive-only by itself: some keyboards do not
+; scan until the host resets them. The sender drives the open-drain pads
+; through control 6 (0x200C): bit 9 pulls CLK low, bit 10 pulls DATA low. The
+; synchronised levels are 0xF0066 bits 5/6, and bit 7 is the receiver's frame
+; toggle (one flip per good frame, ACK and BAT included), so the init can wait
+; for the keyboard's answer instead of sleeping blindly.
+;
+; This block used to be asm/ps2_host.asm, a type-4 slice loaded at segment
+; 0x4000 by screens/flash/games.fth. It lives in the BIOS now and binit calls
+; it, so the keyboard is ready before the menu or the prompt is reached.
+; Function 7 sends one byte, function 8 re-runs the init without clearing.
+.ifdef CONSOLE_UART
+.ifdef D16D
+.org 0x5490
+.code
+
+; ---- 7: ps2-send ---------------------------------------------------------
+; The byte is in the caller's R1. The answer in the handler's R0 is 1 when the
+; keyboard clocked the frame, 0 when it never answered (keyboard absent).
+bios_f7:
+    SMV R1, AR1
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI ps2_send - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    RETI
+    NOP
+
+; ---- 8: ps2-init ---------------------------------------------------------
+; Reset and enable scanning, then drain what the reset left in the input
+; queues. binit calls the same routine at boot.
+bios_f8:
+    LDI ps2_init - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    RETI
+    NOP
+
+; ---- ps2_send ------------------------------------------------------------
+; R1 = command byte. Sends start + 8 data bits LSB first + odd parity + stop,
+; clocked by the keyboard. Returns R0 = 1 when the keyboard answered, 0 when
+; the start bit never produced a clock. R5 (>IN) and R6 (TIB) are the kernel's
+; and are saved here; R12 replaces the shared SCR (R8) as the bit mask.
+ps2_send:
+    LDI ps2_r5 - BIOS_BASE
+    MOV R10, R0
+    STS R5, CS, R10
+    LDI ps2_r6 - BIOS_BASE
+    MOV R10, R0
+    STS R6, CS, R10
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0               ; ES = 0xF000
+    LDI 0x200C
+    MOV R2, R0               ; R2 = control 6
+    LDI 0x0066
+    MOV R3, R0               ; R3 = display status
+    LSI R11, 1               ; R11 = sent, until a timeout says otherwise
+
+    ; odd parity: R4 = 1 when the byte has an even number of ones
+    MOV R5, R1
+    LDI 0
+    MOV R4, R0
+    LSI R6, 8
+ps2_par_loop:
+    MOV R7, R5
+    LSI R12, 1
+    AND R7, R12
+    XOR R4, R7
+    SR R5, 1
+    SUB R6, 1
+    JNZ ps2_par_loop
+    NOP
+    LSI R12, 1
+    AND R4, R12
+    XOR R4, R12
+
+    ; request: CLK low, DATA high, >= 100 us
+    LDI 0x0200
+    MOV R7, R0
+    STS R7, ES, R2
+    LDI 250
+    MOV R6, R0
+ps2_req_delay:
+    SUB R6, 1
+    JNZ ps2_req_delay
+    NOP
+    LDI 0x0600               ; DATA low (start), CLK still low
+    MOV R7, R0
+    STS R7, ES, R2
+    LDI 0x0400               ; release CLK, DATA still low
+    MOV R7, R0
+    STS R7, ES, R2
+
+    ; the start bit: wait for the keyboard's first CLK low, then high
+    LDI 0x20
+    MOV R12, R0
+    LDI 0x7FFF
+    MOV R9, R0
+ps2_start_lo:
+    LDS R7, ES, R3
+    AND R7, R12
+    JZ ps2_start_lo_ok
+    NOP
+    SUB R9, 1
+    JNZ ps2_start_lo
+    NOP
+ps2_start_lo_ok:
+    LDI 0
+    MOV R7, R0
+    CMP R9, R7
+    JZ ps2_abort             ; no clock at all: the keyboard is absent
+    NOP
+    LDI 0x7FFF
+    MOV R9, R0
+ps2_start_hi:
+    LDS R7, ES, R3
+    AND R7, R12
+    JNZ ps2_start_hi_ok
+    NOP
+    SUB R9, 1
+    JNZ ps2_start_hi
+    NOP
+ps2_start_hi_ok:
+    LDI 0
+    MOV R7, R0
+    CMP R9, R7
+    JZ ps2_abort             ; the clock stopped mid-frame
+    NOP
+
+    ; 8 data bits, LSB first; set each while the clock is high, before the
+    ; next falling edge.
+    LSI R6, 8
+ps2_data_loop:
+    MOV R7, R1
+    LSI R12, 1
+    AND R7, R12
+    XOR R7, R12              ; 1 when the bit is 0
+    SL R7, 10                ; 0x400 drives DATA low, 0 releases it
+    STS R7, ES, R2
+    LDI 0x20
+    MOV R12, R0
+    LDI 0x7FFF
+    MOV R9, R0
+ps2_d_lo:
+    LDS R7, ES, R3
+    AND R7, R12
+    JZ ps2_d_lo_ok
+    NOP
+    SUB R9, 1
+    JNZ ps2_d_lo
+    NOP
+ps2_d_lo_ok:
+    LDI 0x7FFF
+    MOV R9, R0
+ps2_d_hi:
+    LDS R7, ES, R3
+    AND R7, R12
+    JNZ ps2_d_hi_ok
+    NOP
+    SUB R9, 1
+    JNZ ps2_d_hi
+    NOP
+ps2_d_hi_ok:
+    SR R1, 1
+    SUB R6, 1
+    JNZ ps2_data_loop
+    NOP
+
+    ; parity bit
+    MOV R7, R4
+    LSI R12, 1
+    AND R7, R12
+    XOR R7, R12
+    SL R7, 10
+    STS R7, ES, R2
+    LDI 0x20
+    MOV R12, R0
+    LDI 0x7FFF
+    MOV R9, R0
+ps2_p_lo:
+    LDS R7, ES, R3
+    AND R7, R12
+    JZ ps2_p_lo_ok
+    NOP
+    SUB R9, 1
+    JNZ ps2_p_lo
+    NOP
+ps2_p_lo_ok:
+    LDI 0x7FFF
+    MOV R9, R0
+ps2_p_hi:
+    LDS R7, ES, R3
+    AND R7, R12
+    JNZ ps2_p_hi_ok
+    NOP
+    SUB R9, 1
+    JNZ ps2_p_hi
+    NOP
+ps2_p_hi_ok:
+
+    ; stop bit = 1 (release DATA)
+    LDI 0
+    MOV R7, R0
+    STS R7, ES, R2
+    LDI 0x7FFF
+    MOV R9, R0
+ps2_s_lo:
+    LDS R7, ES, R3
+    AND R7, R12
+    JZ ps2_s_lo_ok
+    NOP
+    SUB R9, 1
+    JNZ ps2_s_lo
+    NOP
+ps2_s_lo_ok:
+    LDI 0x7FFF
+    MOV R9, R0
+ps2_s_hi:
+    LDS R7, ES, R3
+    AND R7, R12
+    JNZ ps2_s_hi_ok
+    NOP
+    SUB R9, 1
+    JNZ ps2_s_hi
+    NOP
+ps2_s_hi_ok:
+    LDI ps2_release - BIOS_BASE
+    MOV PC, R0
+    NOP
+ps2_abort:
+    LDI 0
+    MOV R11, R0
+ps2_release:
+    LDI 0
+    MOV R7, R0
+    STS R7, ES, R2           ; release both lines
+    LDI ps2_r5 - BIOS_BASE
+    MOV R10, R0
+    LDS R5, CS, R10
+    LDI ps2_r6 - BIOS_BASE
+    MOV R10, R0
+    LDS R6, CS, R10
+    MOV R0, R11              ; 1 = sent, 0 = no keyboard
+    JMP LR
+    NOP
+
+; ---- ps2_wait_ticks ------------------------------------------------------
+; R1 = ticks to wait; one tick is the high half of the CPU cycle counter
+; (0xF006A), 65,536 clocks. Signed difference, so the 16-bit wrap is fine.
+ps2_wait_ticks:
+    LDI 0x006A
+    MOV R2, R0
+    LDS R3, ES, R2
+    ADD R3, R1
+ps2_wt_loop:
+    LDS R4, ES, R2
+    SUB R4, R3
+    JN ps2_wt_loop
+    NOP
+    JMP LR
+    NOP
+
+; ---- ps2_wait_frame ------------------------------------------------------
+; R1 = timeout in ticks. Waits for the receiver's frame toggle (bit 7) to
+; change and returns R0 = 1 when it does, 0 on timeout.
+ps2_wait_frame:
+    LDI 0x0066
+    MOV R2, R0
+    LDS R3, ES, R2
+    LDI 0x0080
+    MOV R4, R0
+    AND R3, R4               ; R3 = the toggle before we sent
+    LDI 0x006A
+    MOV R7, R0
+    LDS R9, ES, R7
+    ADD R9, R1               ; R9 = deadline
+ps2_wf_loop:
+    LDS R10, ES, R2
+    LDI 0x0080
+    MOV R4, R0
+    AND R10, R4
+    CMP R10, R3
+    JNZ ps2_wf_seen
+    NOP
+    LDS R4, ES, R7
+    SUB R4, R9
+    JN ps2_wf_loop
+    NOP
+    LDI 0                    ; timed out: no answer
+    JMP LR
+    NOP
+ps2_wf_seen:
+    LSI R0, 1
+    JMP LR
+    NOP
+
+; ---- ps2_init ------------------------------------------------------------
+; Reset the keyboard, wait for its ACK/BAT, then enable scanning four times (a
+; keyboard still in POST swallows the early ones; a repeat is harmless). The
+; 0xFFFF guard keeps the JS core out: it has no PS/2 model and reads erased
+; memory at 0xF0066, while the board never drives bits 15:11.
+ps2_init:
+    LDI ps2_lr - BIOS_BASE
+    MOV R10, R0
+    STS LR, CS, R10
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x0066
+    MOV R3, R0
+    LDS R7, ES, R3
+    LSI R4, -1
+    CMP R7, R4
+    JZ ps2_init_done
+    NOP
+
+    ; settle ~0.3 s, so the keyboard is not still in its own power-on test
+    LDI 31
+    MOV R1, R0
+    LDI ps2_wait_ticks - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
+    ; reset; the answer is ACK 0xFA followed by BAT 0xAA
+    LDI 0xFF
+    MOV R1, R0
+    LDI ps2_send - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    AND R0, R0
+    JZ ps2_init_flush        ; no keyboard: skip the enable waits
+    NOP
+    ; Two frames: ACK 0xFA, then BAT 0xAA. Waiting for BAT (or its 1 s
+    ; timeout) keeps the first 0xF4 from arriving while the keyboard is still
+    ; running its self test. The counter is a BIOS cell: the helpers clobber
+    ; the scratch registers, R9 included.
+    LDI ps2_count - BIOS_BASE
+    MOV R10, R0
+    LSI R7, 2
+    STS R7, CS, R10
+ps2_init_bat:
+    LDI 103                  ; ~1.0 s per frame
+    MOV R1, R0
+    LDI ps2_wait_frame - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI ps2_count - BIOS_BASE
+    MOV R10, R0
+    LDS R7, CS, R10
+    SUB R7, 1
+    STS R7, CS, R10
+    AND R7, R7
+    JNZ ps2_init_bat
+    NOP
+
+    LDI ps2_count - BIOS_BASE
+    MOV R10, R0
+    LSI R7, 4
+    STS R7, CS, R10
+ps2_init_enable:
+    LDI 0xF4                 ; enable scanning
+    MOV R1, R0
+    LDI ps2_send - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    AND R0, R0
+    JZ ps2_init_flush
+    NOP
+    LDI 41                   ; ~0.4 s
+    MOV R1, R0
+    LDI ps2_wait_frame - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI ps2_count - BIOS_BASE
+    MOV R10, R0
+    LDS R7, CS, R10
+    SUB R7, 1
+    STS R7, CS, R10
+    AND R7, R7
+    JNZ ps2_init_enable
+    NOP
+
+ps2_init_flush:
+    ; The PS/2 bytes are mirrored into the UART RX FIFO, so a key pressed
+    ; during boot would appear in front of the prompt. Drain both doors.
+    LDI 0x0040
+    MOV R2, R0
+ps2_init_flush_u:
+    LDS R3, ES, R2
+    LSI R4, 1
+    AND R3, R4
+    JZ ps2_init_flush_k
+    NOP
+    LDI 0x0042
+    MOV R3, R0
+    LDS R4, ES, R3
+    LDI ps2_init_flush_u - BIOS_BASE
+    MOV PC, R0
+    NOP
+ps2_init_flush_k:
+    LDI 0x0060
+    MOV R2, R0
+ps2_init_flush_k_loop:
+    LDS R3, ES, R2
+    AND R3, R3
+    JZ ps2_init_flush_done
+    NOP
+    LDI 0x0062
+    MOV R3, R0
+    LDS R4, ES, R3
+    LDI ps2_init_flush_k_loop - BIOS_BASE
+    MOV PC, R0
+    NOP
+ps2_init_flush_done:
+    LDI 0x0046
+    MOV R2, R0
+    LSI R3, 1
+    STS R3, ES, R2           ; reset the UART RX FIFO
+
+ps2_init_done:
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI ps2_lr - BIOS_BASE
+    MOV R10, R0
+    LDS LR, CS, R10
+    JMP LR
+    NOP
+
+; Saved registers, kept in the BIOS block so they cost the kernel dictionary
+; nothing (dict_free must stay 0x434F: the frogger-era image gap starts at
+; 0x4350). CS-relative: the addresses are BIOS offsets.
+.org 0x55F0
+ps2_r5:
+    .word 0
+ps2_r6:
+    .word 0
+ps2_lr:
+    .word 0
+ps2_count:
+    .word 0
+.endif
 .endif

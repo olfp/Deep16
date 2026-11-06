@@ -529,3 +529,24 @@ test('game-run starts pacman from flash and returns to the prompt', () => {
   assert.equal(sim.segmentRegisters.ES, 0xf000, 'ES back to the I/O segment');
   assert.ok(sim.running);
 });
+
+test('the PS/2 init lives in the BIOS and binit calls it', () => {
+  // Phase B moved the sender out of a flash slice: functions 7/8 and the
+  // 0x5490 block are the only copy now, and binit (function 1) runs the init.
+  assert.equal(sym.BIOS_FN_COUNT, 9, '0..5 console + 6 gfx + 7/8 PS/2');
+  assert.ok(sym.bios_f7 >= sym.bios_entry && sym.bios_f7 < 0x5800, 'f7 inside the BIOS');
+  assert.ok(sym.bios_f8 >= sym.bios_entry && sym.bios_f8 < 0x5800, 'f8 inside the BIOS');
+  assert.ok(sym.ps2_r5 >= 0x5490 && sym.ps2_r5 < 0x5800, 'saved cells inside the BIOS gap');
+  assert.equal(sym.dict_free, 0x434f, 'the kernel dictionary did not grow');
+
+  // binit's call sits between bios_f1 and bios_f2, not in f8.
+  const at = (name) => sym[name];
+  const calls = kernel.listing.filter((row) => typeof row.address === 'number'
+    && row.address >= at('bios_f1') && row.address < at('bios_f2')
+    && /LDI ps2_init - BIOS_BASE/.test(row.line || ''));
+  assert.equal(calls.length, 1, 'binit calls ps2_init once');
+
+  // The simulator guard is the 0xFFFF comparison, not the CLK/DATA levels.
+  const src = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
+  assert.match(src, /CMP R7, R4\s*\n\s*JZ ps2_init_done/, 'ps2_init keeps the erased-memory guard');
+});

@@ -340,9 +340,9 @@ module deep16_board (
   // an input path that does not depend on the UART data read.
   // bit 4 is a diagnostic: the synchronised raster toggle, so software can see
   // whether the compare is producing one pulse per frame.
-  assign tile_status = {9'b0, ps2_dbg_data, ps2_dbg_clk, raster_sync[2],
-                        uart_ready_q, btn_sync[1], dvi_frame_sync[1],
-                        dvi_vblank_sync[1]};
+  assign tile_status = {8'b0, ps2_frame_toggle, ps2_dbg_data, ps2_dbg_clk,
+                        raster_sync[2], uart_ready_q, btn_sync[1],
+                        dvi_frame_sync[1], dvi_vblank_sync[1]};
 `else
   assign tile_status = {12'b0, uart_ready_q, btn_sync[1], 2'b00};
 `endif
@@ -360,9 +360,10 @@ module deep16_board (
 `else
   localparam int PS2_CLK_HZ = 13_500_000;
 `endif
-  logic       ps2_valid, ps2_frame_error;
+  logic       ps2_valid, ps2_frame_error, ps2_frame;
   logic [7:0] ps2_ascii;
   logic       ps2_clk_drive, ps2_data_drive;   // 1 = pull the line low
+  logic       ps2_frame_toggle;                // toggles on every good frame
 
   // Open-drain pads: drive low, or release to the external pull-up.
   assign ps2_clk  = ps2_clk_drive  ? 1'b0 : 1'bz;
@@ -376,7 +377,8 @@ module deep16_board (
     .ps2_data    (ps2_data),
     .valid       (ps2_valid),
     .ascii       (ps2_ascii),
-    .frame_error (ps2_frame_error)
+    .frame_error (ps2_frame_error),
+    .frame_valid (ps2_frame)
 `ifdef D16NANO
     , .dbg_clk   (ps2_dbg_clk)
     , .dbg_data  (ps2_dbg_data)
@@ -385,6 +387,13 @@ module deep16_board (
   /* verilator lint_on PINMISSING */
 
   wire ps2_key = ps2_valid && (ps2_ascii != 8'h00);
+
+  // The BIOS binit waits for the keyboard's ACK and BAT by watching this bit
+  // change; it costs one flop and needs no return path into software.
+  always_ff @(posedge clk_cpu) begin
+    if (rst) ps2_frame_toggle <= 1'b0;
+    else if (ps2_frame) ps2_frame_toggle <= ~ps2_frame_toggle;
+  end
 
   // ---- the machine -----------------------------------------------------
 `ifdef D16NANO

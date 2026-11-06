@@ -36,8 +36,7 @@ export const FROGGER_SEG = 0x0435;             // physical 0x4350
 export const FROGGER_SEG_BASE = 0x4350;
 export const FROGGER_LIMIT = 0x6B0;            // block must end before the BIOS at 0x4A00
 export const GAME_LIMIT = 0x0E00;             // game may use 0xA00..0xDFF
-export const PS2HOST_SEG = 0x0400;            // physical 0x4000
-export const PS2HOST_LIMIT = 0x7F0;           // block must fit one 4 KB slice
+
 export const STATE_BASE = 0x4D5;              // game state cells
 export const RESTORE_BASE = 0x500;            // menu code starts here
 
@@ -183,36 +182,6 @@ export function buildFrogger() {
     words, min: words[0]?.[0] ?? 0, max, size: max + 1, build,
     entry: 0, seg: FROGGER_SEG, symbols: res.symbols,
   }, froggerArtPack());
-}
-
-// The PS/2 host sender is a type-4 binary block loaded at segment 0x4000.
-// It is called with `0x4000 call-far`, with the command byte on the data stack.
-export function buildPs2Host() {
-  const Deep16Assembler = loadAssembler();
-  const source = fs.readFileSync(path.join(ROOT, 'asm/ps2_host.asm'), 'utf8');
-  const res = new Deep16Assembler().assemble(source);
-  if (!res.success) throw new Error('ps2 host does not assemble: ' + res.errors.join('; '));
-  const words = [];
-  let max = 0;
-  for (const c of res.memoryChanges) {
-    if (c.address < 0 || c.address >= PS2HOST_LIMIT) {
-      throw new Error(`ps2 host address out of range: 0x${c.address.toString(16)}`);
-    }
-    words.push([c.address, c.value & 0xFFFF]);
-    max = Math.max(max, c.address);
-  }
-  words.sort((a, b) => a[0] - b[0]);
-  const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
-  return {
-    words, min: words[0]?.[0] ?? 0, max, size: max + 1, build,
-    entry: 0, seg: PS2HOST_SEG, symbols: res.symbols,
-  };
-}
-
-export function checkPs2Host(host) {
-  if (host.words[0]?.[0] !== 0) throw new Error('ps2 host block does not start at offset 0');
-  if (host.max >= PS2HOST_LIMIT) throw new Error('ps2 host block is too large');
-  return true;
 }
 
 export function checkFrogger(frogger) {

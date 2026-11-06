@@ -1,9 +1,10 @@
 # PS2PLAN — PS/2 host init at boot, and the move into `binit`
 
-Status: **Phase A implemented and board-verified (2026-11-06); Phase B is the
-plan for the BIOS rework.** The receiver, the open-drain host GPIO, the
-assembly sender and the boot init all work on a Periboard 409P, and the board
-also boots to the prompt with no keyboard attached; see `HARDWARE.md`.
+Status: **Phase B implemented (2026-11-06); board verification is the only
+step left.** Phase A (the Forth-loaded sender and `ps2-auto`) was board-verified
+on a Periboard 409P and is now retired: the sender and the init live in the
+BIOS, `binit` runs them, and the `ps2host` slice is gone. The receiver, the
+open-drain host GPIO and the board pinout are unchanged; see `HARDWARE.md`.
 
 ## 1. Why the keyboard needs a host and not just a receiver
 
@@ -20,8 +21,10 @@ What exists today:
 | Receiver | `rtl/ps2_rx.sv` | 2-FF sync, 11-bit frame, odd parity, Set-2 decode, ASCII map |
 | Drive bits | control 6 `0x200C` bits 9/10 | 1 = pull CLK/DATA low, 0 = release; the tile engine only uses bit 8 |
 | Level bits | `0xF0066` bits 5/6 | synchronised CLK/DATA, for the sender's timing |
-| Sender | `asm/ps2_host.asm` | 151 words, type-4 slice `ps2host` (slice 12), loaded to segment `0x4000` |
-| Forth | `screens/flash/games.fth` | `ps2-load`, `ps2-send`, `ps2-drain`, `ps2-flush`, `ps2-init`, `ps2-auto` |
+| Frame toggle | `0xF0066` bit 7 | flips on every valid frame (ACK/BAT included) |
+| Sender | `asm/forth_nano.asm`, BIOS `0x5490` | `ps2_send`, BIOS function 7 |
+| Init | `asm/forth_nano.asm`, BIOS `0x5490` | `ps2_init`, BIOS function 8; `binit` calls it |
+| Forth | `screens/flash/games.fth` | no PS/2 words: `cls` (BIOS function 1) is the manual re-init |
 
 The sender is assembly because threaded Forth is far too slow for the PS/2 bit
 period: a `\`es!` chain costs about a millisecond per bit against a 60–100 µs
@@ -33,9 +36,13 @@ one bit per keyboard clock. A host frame is requested by holding CLK low with
 DATA high for ≥ 100 µs, then pulling DATA low and releasing CLK; the keyboard
 then supplies all 11 clocks.
 
-## 2. Phase A — auto-init at boot (implemented)
+## 2. Phase A — auto-init at boot (retired)
 
-`ps2-auto` is the last definition in `screens/flash/games.fth`, and the screen
+This was the bridge while the sender still had to be a slice; it is kept here
+as the record of what was board-verified. The definitions are gone from
+`screens/flash/games.fth` now that Phase B has moved them into the BIOS.
+
+`ps2-auto` was the last definition in `screens/flash/games.fth`, and the screen
 is loaded by the boot script (`9 screen`, before the banner and the prompt), so
 the init runs with no image growth and no RTL change:
 
@@ -85,38 +92,45 @@ boot script itself cannot grow (the image has one word of slack before the
 frogger block at `0x4350`). Phase B removes the wait entirely by polling for
 the keyboard's answer.
 
-## 3. Phase B — `binit` becomes the home
+## 3. Phase B — `binit` is the home (implemented)
 
-Target architecture (decided): **Forth, Flappy and Frogger move out of the
-bitstream and are loaded at run time; the BIOS stays.** PS/2 init therefore
-belongs in **BIOS function 1, `binit`**, which runs before the console banner
-and before anything else is loaded.
+The sender and the init are now in `asm/forth_nano.asm`, in the free BIOS gap
+at `0x5490` (segment offset `0xA90`), and **BIOS function 1 (`binit`)** calls
+`ps2_init` before the banner and before the showcase menu. The `ps2host`
+slice, `asm/ps2_host.asm`, the Forth words and the `ps2-auto` call are gone;
+the kernel dictionary still ends at `dict_free = 0x434F`, so the `0x4350`
+gap is untouched.
 
-**Unblocked 2026-11-06:** Flappy and Frogger are flash slices now (BDOS loads
-them), so the game block at `0x5400`–`0x57FF` is gone. The menu ends at
-`0x540A`, leaving `0x540B`–`0x57FF` (1,013 words) for the BIOS — the sender is
-151 words and the init is a few more, so the move below fits today. Forth
-still lives in the image and can follow later.
+The block is:
 
-Phase B steps, now that the BIOS can grow into `0x540B`–`0x57FF`:
+| Entry | Purpose |
+|---|---|
+| BIOS 7 | `ps2-send`: byte in the caller's `R1`, answer in `R0` (1 = clocked, 0 = no keyboard) |
+| BIOS 8 | `ps2-init`: reset + enable, then drain both input queues |
+| `ps2_send` | start + 8 data bits LSB first + odd parity + stop; saves R5/R6 in BIOS cells |
+| `ps2_init` | settle, `0xFF`, wait for ACK/BAT, `0xF4` ×4, flush |
+| `ps2_wait_ticks` | waits N high-word cycle-counter ticks (`0xF006A`) |
+| `ps2_wait_frame` | waits up to N ticks for the `0xF0066` bit-7 toggle |
 
-1. **Move the sender into the BIOS.** `asm/ps2_host.asm` is ~151 words, trivial
-   next to the ~2.7K words the showcase frees. Call it from `binit` before the
-   console clear: request, `0xFF`, wait for the answer, `0xF4`.
-2. **Make the wait deterministic.** Expose the receiver's **last scan code**
-   and a sticky **"a valid frame was seen"** bit in the spare `0xF0066` bits
-   7–15 (bits 5/6 are the levels). That is one register plus the existing
-   scan-code flop — a couple of CLS — and lets `binit` poll for `0xFA`/`0xAA`
-   instead of sleeping for a fixed second.
-3. **Retire the boot-time software path.** Drop the `ps2host` slice,
-   `ps2-load` and the `ps2-auto` call; `binit` has already done the work. Keep
-   a manual re-init: BIOS `f7` with a far-call helper, or the small Forth word
-   calling it.
-4. **Keep `ps2-send` available** for diagnostics (scan-code set 2, typematic,
-   LED state) without a slice read.
+How the wait is made deterministic without a scan-code register: `ps2_rx`
+exposes `frame_valid`, and `deep16_board` turns every valid frame (ACK `0xFA`,
+BAT `0xAA`, and keys alike) into a one-bit toggle in `0xF0066` bit 7. After
+sending `0xFF` the init records the toggle and waits for it to change, with a
+1 s cap; each `0xF4` does the same with a 0.4 s cap. On a live keyboard this is
+a few milliseconds per step, so the ~3 s of the Phase A sleeps is gone. With
+no keyboard the sender times out on the start bit and the init returns to the
+console.
 
-The runtime-loaded Forth and games then find the keyboard already scanning,
-and the boot has no slice dependency on the keyboard.
+Register safety: the sender saves the kernel's `R5` (`>IN`) and `R6` (`TIB`)
+and uses `R12` instead of the shared `SCR`; `ps2_init` saves its own `LR`
+because it calls the helpers. The three cells live at `0x55D0`–`0x55D2` and are
+addressed `CS`-relative, so they cost the dictionary nothing. The `0xFFFF`
+guard at the top of `ps2_init` keeps the JS core out: it has no PS/2 model and
+reads erased memory at `0xF0066`, while the board never drives bits 15:11.
+
+Manual re-init: `cls` runs BIOS function 1, so it repeats the init (and clears
+the screen); BIOS function 8 repeats it without clearing. There is no new
+Forth word, which keeps the kernel code region below the BDOS at `0x2D4A`.
 
 ## 4. If `binit` is needed before the showcase move
 
@@ -129,9 +143,13 @@ waiting for Phase B and would be thrown away when the BIOS grows. Not chosen.
 ## 5. Verification
 
 - `npm run sim:ps2` — pin-level receiver/map, no board.
-- `npm test` — the JS boot must stay green: the levels guard keeps `ps2-auto`
-  out of the simulator (769/769).
+- `npm test` — the JS boot stays green: the `0xFFFF` guard keeps `ps2_init`
+  out of the simulator (778/778).
+- `npm run lint:board` and `npm test` cover the `frame_valid`/toggle wiring in
+  `rtl/ps2_rx.sv` and `rtl/deep16_board.sv`.
 - Board: power-cycle with the keyboard connected and do *not* type anything;
-  the keyboard LEDs flash once and typing echoes at the prompt. For the
-  negative case, boot with the keyboard disconnected — the guarded init must
-  still reach the prompt.
+  the keyboard's LEDs flash once and typing echoes at the menu/prompt. For the
+  negative case, boot with the keyboard disconnected — the sender times out and
+  the boot still reaches the menu and the prompt.
+- Manual re-init: at the Forth prompt, `cls` (BIOS function 1) runs the same
+  init again; BIOS function 8 does it without clearing.
