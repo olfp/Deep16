@@ -163,3 +163,58 @@ test('function 3 rejects a block with a bad magic', () => {
   assert.equal(r0, 0xFFFF);
   assert.equal(r1, 3);
 });
+
+test('a second load starts at offset 0 in its own segment', () => {
+  // bd_off is a scratch cell. Leaving it at the first game's word count made
+  // the second load copy past the start of its segment and return success
+  // with the entry still 0xFFFF: the menu then jumped to a halt word.
+  const stub = assemble(`
+        .org 0x0100
+        LSI R8, 3
+        LDI 11
+        MOV R9, R0
+        LSI R2, 0
+        MOV R10, R2
+        LDI 0x0200
+        MOV R11, R0
+        LDI 0x2D4A
+        MOV R3, R0
+        LSI R2, 0
+        MOV R1, R9
+        MOV R0, R8
+        JML R2
+        NOP
+        .org 0x0200
+        LSI R8, 3
+        LDI 14
+        MOV R9, R0
+        LSI R2, 0
+        MOV R10, R2
+        LDI 0x0300
+        MOV R11, R0
+        LDI 0x2D4A
+        MOV R3, R0
+        LSI R2, 0
+        MOV R1, R9
+        MOV R0, R8
+        JML R2
+        NOP
+        .org 0x0300
+        HALT
+  `);
+  assert.equal(stub.success, true, stub.errors?.join('; '));
+  const image = buildMemory(kernel);
+  for (const c of stub.memoryChanges) image[c.address] = c.value & 0xFFFF;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(image);
+  sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
+  Object.assign(sim.segmentRegisters, { CS: 0, DS: 0, SS: 0, ES: 0 });
+  sim.registers[15] = 0x0100;
+  sim.running = true;
+  for (let i = 0; i < 16_000_000 && sim.running; i++) sim.step();
+  assert.equal(sim.running, false, 'both loads returned to the halt');
+  // Both games begin with `MVS R0, CS` (0xFF00). A stale bd_off leaves the
+  // second segment's first word at the erased value 0xFFFF.
+  assert.equal(sim.memory[0x2000 << 4] & 0xFFFF, 0xFF00, 'Pac-Man at offset 0');
+  assert.equal(sim.memory[0x5000 << 4] & 0xFFFF, 0xFF00, 'Flappy at offset 0');
+});

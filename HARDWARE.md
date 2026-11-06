@@ -18,10 +18,12 @@ the board still boots to the prompt with no keyboard attached.
   flash slice. `ps2_send` takes the byte in `R1` and sends start + 8 data bits
   LSB first + odd parity + stop with the keyboard's clock; it returns 1 when
   the keyboard clocked the frame and 0 when the start bit never produced a
-  clock. `ps2_init` sends `0xFF` (reset), waits for the ACK/BAT, then sends
-  `0xF4` (enable scanning) four times. BIOS function 7 exposes the sender and
-  function 8 re-runs the init (`7`/`8` in the caller's `R0`, parameters in
-  `R1`).
+  clock. `ps2_init` retries `0xFF` (reset) while the sender sees no keyboard
+  clock (four attempts, ~0.3 s apart), then waits for ACK/BAT and sends
+  `0xF4` (enable scanning) four times. The request holds CLK low for 400
+  sender-loop iterations (>100 µs at 6.75 MHz, with margin). BIOS function 7
+  exposes the sender and function 8 re-runs the init (`7`/`8` in the caller's
+  `R0`, parameters in `R1`).
 - **Boot init:** `binit` (BIOS function 1) calls `ps2_init` before the banner
   and the prompt, so the keyboard is scanning before the menu appears. The
   waits use D16nano cycle-counter ticks (`0xF006A` high word, ~9.7 ms each)
@@ -60,11 +62,20 @@ the board still boots to the prompt with no keyboard attached.
 - **Tests:** `npm run sim:ps2` (pin-level receiver/map, no board);
   `tests/ps2-bios.test.js` runs the BIOS reset/enable with a scripted keyboard
   and pins the ACK/BAT order and the no-keyboard timeout; `npm test` covers
-  the segmented boot with the init guarded out. The board side is verified
-  with a Periboard 409P.
+  the segmented boot with the init guarded out. The Periboard 409P is the
+  reference board keyboard; the boot-retry timing is the current board test.
 - **Caveat:** PS/2 is not hot-plug. Connect the keyboard before power-up. Old
   keyboards can draw up to ~275 mA from 5 V; check the USB-C VBUS budget (the
   Periboard is about 30 mA).
+
+## DVI tile renderer reset
+
+The fill handshake's render-side state (`armed`, `free_seen`, `wr_buf` and
+`ready_toggle`) is cleared on `rst_render` in `rtl/dvi/dvi_tile.sv`. The scan
+side resets `ready_seen` and `free_toggle` on `rst_pixel`; if `ready_toggle`
+kept a 1 from before a button reset, the first fill flipped it to 0, the
+`ready_diff` compare stayed 0 and no line was ever accepted, so the picture
+stayed black until a power cycle while the CPU and UART kept working.
 
 ## Timer, SPI and UART TX (implemented 2026-10-27)
 

@@ -125,10 +125,10 @@ loader. The dictionary then continues at `0x6000`.
 | `0x053CF`–`0x053FF` | free |
 | `0x05400`–`0x0548D` | D16D BDOS bridge |
 | `0x0548E`–`0x0548F` | free |
-| `0x05490`–`0x055DF` | PS/2 host init + sender (BIOS functions 7 and 8) |
-| `0x055E0`–`0x055EF` | free (headroom under the PS/2 block) |
-| `0x055F0`–`0x055F3` | PS/2 saved R5/R6/LR/count cells |
-| `0x055F4`–`0x057FF` | free |
+| `0x05490`–`0x055FE` | PS/2 host init + sender (BIOS functions 7 and 8) |
+| `0x055FF`–`0x056FF` | free (headroom under the PS/2 block) |
+| `0x05700`–`0x05703` | PS/2 saved R5/R6/LR/count cells |
+| `0x05704`–`0x057FF` | free |
 | `0x05800`–`0x05FEF` | Forth stacks: return stack from `0x5800` down, data stack from `0x5FF0` down |
 | `0x05FF0`–`0x05FFF` | stack top cells / slack |
 | `0x06000`–`0x0FFEF` | PSRAM dictionary, grows up from `0x6000`; Forth segment-0 ceiling `0xFFF0` |
@@ -159,7 +159,7 @@ loader. The dictionary then continues at `0x6000`.
 | `ill_handler` | `0x5000` | ILL trap handler |
 | `word_divtest` | `0x5300` | `divtest` code |
 | `divtest_ok_str` | `0x532E` | `divtest ok` string |
-| `ps2_r5` | `0x55F0` | PS/2 sender's saved R5/R6/LR/count cells |
+| `ps2_r5` | `0x5700` | PS/2 sender's saved R5/R6/LR/count cells |
 
 The D16D showcase is now only the menu: a four-word header at `0x3E4`
 (`0x0D16`, format 1, entry `0x334`), a trampoline at `0x334`, the menu code at
@@ -181,8 +181,8 @@ bank before entering the game, because the three art sets overlap (14 + 24 +
 
 The `0x4350` gap is still free (`dict_free = 0x434F`), and the BIOS has taken
 over the top of the old game area: the menu/BDOS bridge ends at `0x548D`, the
-PS/2 host init and sender sit at `0x5490`–`0x55DF` (BIOS functions 7 and 8),
-and its saved-register cells are at `0x55F0`–`0x55F3`. `0x55F4`–`0x57FF`
+PS/2 host init and sender sit at `0x5490`–`0x55FE` (BIOS functions 7 and 8),
+and its saved-register cells are at `0x5700`–`0x5703`. `0x5704`–`0x57FF`
 remains free for the next BIOS routine. Frogger is the
 reference use of per-row scrolling (control 6): ten lanes each keep their own
 coarse start and fine phase.

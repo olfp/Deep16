@@ -710,6 +710,11 @@ module dvi_tile #(
       armed <= 1'b0;
       free_seen <= 3'd0;
       wr_buf <= 2'd0;
+      // The scan side resets ready_seen to 0. If ready_toggle kept a 1 from
+      // before the reset, the next fill would flip it to 0, ready_diff would
+      // stay 0, no line would ever be accepted and the picture stayed black
+      // until a power cycle - the same symptom as the free handshake.
+      ready_toggle <= 3'd0;
     end else begin
       // ---- start the fill for the next line at the start of this one ----
       if (start_fill) begin

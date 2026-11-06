@@ -108,22 +108,23 @@ The block is:
 | BIOS 7 | `ps2-send`: byte in the caller's `R1`, answer in `R0` (1 = clocked, 0 = no keyboard) |
 | BIOS 8 | `ps2-init`: reset + enable, then drain both input queues |
 | `ps2_send` | start + 8 data bits LSB first + odd parity + stop; saves R5/R6 in BIOS cells |
-| `ps2_init` | settle, `0xFF`, wait for ACK/BAT, `0xF4` ×4, flush |
+| `ps2_init` | reset with retries, wait for ACK/BAT, guard, `0xF4` ×4, flush |
 | `ps2_wait_ticks` | waits N high-word cycle-counter ticks (`0xF006A`) |
 | `ps2_wait_frame` | waits up to N ticks for the `0xF0066` bit-7 toggle |
 
-How the wait is made deterministic without a scan-code register: `ps2_rx`
-exposes `frame_valid`, and `deep16_board` turns every valid frame (ACK `0xFA`,
-BAT `0xAA`, and keys alike) into a one-bit toggle in `0xF0066` bit 7. After
-sending `0xFF` the init records the toggle and waits for it to change, with a
-1 s cap; each `0xF4` does the same with a 0.4 s cap. On a live keyboard this is
-a few milliseconds per step, so the ~3 s of the Phase A sleeps is gone. With
-no keyboard the sender times out on the start bit and the init returns to the
-console.
+`binit` runs as soon as the FPGA is configured, which can be before the
+keyboard has finished its own power-on test. The init therefore retries the
+reset while `ps2_send` reports no keyboard clock (four attempts, ~0.3 s
+apart), and the host request holds CLK low for 400 sender-loop iterations
+(>100 µs at 6.75 MHz, with margin). Once a reset is clocked it records the
+`0xF0066` bit-7 toggle and waits for ACK then BAT, with a 1 s cap each,
+followed by a 0.4 s guard before the four `0xF4`s (0.4 s cap each). A late
+keyboard is caught by a retry; a missing one makes the sender time out and the
+init returns to the console.
 
 Register safety: the sender saves the kernel's `R5` (`>IN`) and `R6` (`TIB`)
 and uses `R12` instead of the shared `SCR`; `ps2_init` saves its own `LR`
-because it calls the helpers. The three cells live at `0x55D0`–`0x55D2` and are
+because it calls the helpers. The four cells live at `0x5700`–`0x5703` and are
 addressed `CS`-relative, so they cost the dictionary nothing. The `0xFFFF`
 guard at the top of `ps2_init` keeps the JS core out: it has no PS/2 model and
 reads erased memory at `0xF0066`, while the board never drives bits 15:11.

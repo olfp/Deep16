@@ -50,11 +50,11 @@ function machine() {
 // Runs ps2_init with a scripted keyboard. Returns the bytes the host sent and
 // whether the routine returned. Phases are 12 steps: long enough for the
 // sender's poll loops to see every edge.
-function run({ keyboard = true, erased = false, maxSteps = 30_000_000 } = {}) {
+function run({ keyboard = true, erased = false, ignore = 0, maxSteps = 30_000_000 } = {}) {
   const sim = machine();
   if (erased) sim.memory[STATUS] = 0xFFFF;
   let clk = 1, data = 1, toggle = 0;
-  let state = 'idle', phase = 'low', bit = 0, wait = 0;
+  let state = 'idle', phase = 'low', bit = 0, wait = 0, ignored = 0;
   let bits = [], toggles = [], sent = [];
   const status = () => (clk ? 0x20 : 0) | (data ? 0x40 : 0) | (toggle ? 0x80 : 0);
   const schedule = (byte) => {
@@ -70,7 +70,12 @@ function run({ keyboard = true, erased = false, maxSteps = 30_000_000 } = {}) {
       if (state === 'idle') {
         if (ck === 1 && cd === 0) state = 'request';
       } else if (state === 'request') {
-        if (ck === 0 && cd === 1) { state = 'clocking'; phase = 'low'; bit = 0; bits = []; wait = 0; clk = 0; data = 1; }
+        if (ck === 0 && cd === 1) {
+          if (ignored < ignore) { ignored++; state = 'ignoring'; }
+          else { state = 'clocking'; phase = 'low'; bit = 0; bits = []; wait = 0; clk = 0; data = 1; }
+        }
+      } else if (state === 'ignoring') {
+        if (ck === 0 && cd === 0) state = 'idle';   // the host gave up
       } else if (++wait >= 12) {
         wait = 0;
         if (phase === 'low') {
@@ -106,8 +111,14 @@ test('ps2_init sends reset, waits for ACK/BAT, then enables four times', () => {
   assert.equal(r.sim.segmentRegisters.ES, 0xF000, 'ES back to the I/O segment');
 });
 
+test('ps2_init retries a reset the keyboard does not clock', () => {
+  const r = run({ ignore: 2, maxSteps: 20_000_000 });
+  assert.equal(r.returned, true, 'the third reset was accepted');
+  assert.deepEqual(r.sent, [0xFF, 0xF4, 0xF4, 0xF4, 0xF4]);
+});
+
 test('ps2_init returns when the keyboard never clocks', () => {
-  const r = run({ keyboard: false, maxSteps: 8_000_000 });
+  const r = run({ keyboard: false, maxSteps: 20_000_000 });
   assert.equal(r.returned, true, 'the sender timeouts let binit continue');
   assert.deepEqual(r.sent, [], 'nothing was clocked');
 });

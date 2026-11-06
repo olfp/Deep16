@@ -539,6 +539,14 @@ test('the PS/2 init lives in the BIOS and binit calls it', () => {
   assert.ok(sym.ps2_r5 >= 0x5490 && sym.ps2_r5 < 0x5800, 'saved cells inside the BIOS gap');
   assert.equal(sym.dict_free, 0x434f, 'the kernel dictionary did not grow');
 
+  // The cells sit at a fixed .org after the routine; growing the routine must
+  // not run into them (a .org silently rewinds and overwrites code).
+  const lastCode = Math.max(...kernel.memoryChanges
+    .filter((c) => c.address >= 0x5490 && c.address < sym.ps2_r5)
+    .map((c) => c.address));
+  assert.ok(lastCode < sym.ps2_r5,
+    `PS/2 code 0x${lastCode.toString(16)} runs into the cells at 0x${sym.ps2_r5.toString(16)}`);
+
   // binit's call sits between bios_f1 and bios_f2, not in f8.
   const at = (name) => sym[name];
   const calls = kernel.listing.filter((row) => typeof row.address === 'number'

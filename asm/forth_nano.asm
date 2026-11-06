@@ -1718,6 +1718,12 @@ ld_first:
     LDI bd_link
     MOV R7, R0
     STS R3, CS, R7
+    ; bd_off is a scratch cell: a second game loaded in the same boot must
+    ; start at offset 0, not at the previous game's word count.
+    LDI bd_off
+    MOV R7, R0
+    LSI R3, 0
+    STS R3, CS, R7
     LSI R2, 13
     LDI 2035
     MOV R5, R0
@@ -16641,7 +16647,7 @@ ps2_par_loop:
     LDI 0x0200
     MOV R7, R0
     STS R7, ES, R2
-    LDI 250
+    LDI 400                 ; >100 us at 6.75 MHz, with margin
     MOV R6, R0
 ps2_req_delay:
     SUB R6, 1
@@ -16886,7 +16892,15 @@ ps2_init:
     JMP R4
     NOP
 
-    ; reset; the answer is ACK 0xFA followed by BAT 0xAA
+    ; Reset. A keyboard still in its own POST may ignore the frame, so retry
+    ; while the sender reports no clock (four attempts, ~0.3 s apart). This
+    ; is the important difference from the Forth init: binit runs as soon as
+    ; the FPGA is configured, often before the keyboard is ready.
+    LDI ps2_count - BIOS_BASE
+    MOV R10, R0
+    LSI R7, 4
+    STS R7, CS, R10
+ps2_init_reset:
     LDI 0xFF
     MOV R1, R0
     LDI ps2_send - BIOS_BASE
@@ -16895,8 +16909,27 @@ ps2_init:
     JMP R4
     NOP
     AND R0, R0
-    JZ ps2_init_flush        ; no keyboard: skip the enable waits
+    JNZ ps2_init_reset_ok
     NOP
+    LDI 31                   ; ~0.3 s between attempts
+    MOV R1, R0
+    LDI ps2_wait_ticks - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI ps2_count - BIOS_BASE
+    MOV R10, R0
+    LDS R7, CS, R10
+    SUB R7, 1
+    STS R7, CS, R10
+    AND R7, R7
+    JNZ ps2_init_reset
+    NOP
+    LDI ps2_init_flush - BIOS_BASE
+    MOV PC, R0
+    NOP
+ps2_init_reset_ok:
     ; Two frames: ACK 0xFA, then BAT 0xAA. Waiting for BAT (or its 1 s
     ; timeout) keeps the first 0xF4 from arriving while the keyboard is still
     ; running its self test. The counter is a BIOS cell: the helpers clobber
@@ -16920,6 +16953,16 @@ ps2_init_bat:
     STS R7, CS, R10
     AND R7, R7
     JNZ ps2_init_bat
+    NOP
+
+    ; A short guard after BAT: the keyboard is ready, but the first 0xF4
+    ; should not race the tail of its self test.
+    LDI 41
+    MOV R1, R0
+    LDI ps2_wait_ticks - BIOS_BASE
+    MOV R4, R0
+    LINK
+    JMP R4
     NOP
 
     LDI ps2_count - BIOS_BASE
@@ -17003,7 +17046,7 @@ ps2_init_done:
 ; Saved registers, kept in the BIOS block so they cost the kernel dictionary
 ; nothing (dict_free must stay 0x434F: the frogger-era image gap starts at
 ; 0x4350). CS-relative: the addresses are BIOS offsets.
-.org 0x55F0
+.org 0x5700
 ps2_r5:
     .word 0
 ps2_r6:
