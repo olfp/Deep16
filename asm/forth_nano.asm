@@ -1296,6 +1296,527 @@ interpret_next:
     NOP
 
 ; =============================================
+; BDOS: the bitstream-resident system calls at 0x2D4A
+;
+; The kernel code ends at 0x2D49 and the data section starts at 0x3000, so the
+; block 0x2D4A-0x2FFF (694 words) is the bitstream's system area. BDOS is not
+; an SWI: it is a long-jump target, so the showcase menu (CS=0x04A0), the BIOS
+; (CS=0x3000) and the Forth all reach it the same way.
+;
+; Call:   R0 = function, R1 = argument, R10:R11 = return CS:PC (the same pair
+;         call-far and the game launchers use). The function stays in R0, so
+;         the jump uses another even register pair (R2:R3) and the caller
+;         parks R0 first if it has to build the entry address with LDI - LDI
+;         always writes R0. `bdos_call` in the menu is the reference caller.
+; Return: R0 = result, R1 = secondary result. R0 = 0xFFFF is an error and R1
+;         says which. BDOS preserves DS, SS and ES; it may clobber R2..R9.
+;
+;   0  version     -> R0 = 1, R1 = 0x4244 ('BD')
+;   1  directory   -> read config-flash slice 0 into segment 0x8000 and
+;                     return R0 = 0, R1 = 0x8000. The entries start at
+;                     offset 8, eight cells each (type, first slice, name).
+;   2  lookup      -> R1 = NUL-terminated name in the caller's DS.
+;                     R0 = first slice, or 0xFFFF with R1 = 2.
+;   3  load        -> R1 = first slice of a type-4 block. Copies the payload
+;                     into the segment in its header, follows the link chain,
+;                     and returns R0 = segment, R1 = entry (0xFFFF/3 on a bad
+;                     header or a truncated chain).
+;
+; The scratch cells live at 0x2F40 so the code below runs to 0x2F3F.
+; =============================================
+.org 0x2D4A
+bdos_entry:
+    LSI R2, 0
+    CMP R0, R2
+    JZ bdos_version
+    NOP
+    LSI R2, 1
+    CMP R0, R2
+    JZ bdos_dir
+    NOP
+    LSI R2, 2
+    CMP R0, R2
+    JZ bdos_lookup
+    NOP
+    LSI R2, 3
+    CMP R0, R2
+    JZ bdos_load
+    NOP
+    LSI R0, -1
+    LSI R1, 1
+    JML R10
+    NOP
+
+bdos_version:
+    LDI 0x2122
+    SL R0, 1
+    MOV R1, R0
+    LSI R0, 1
+    JML R10
+    NOP
+
+; ---- SPI byte helpers -------------------------------------------------
+; spi_put: send R3, return through R9.
+spi_put:
+    LDI 0x84
+    MOV R2, R0
+    STS R3, DS, R2
+    LDI 0x82
+    MOV R2, R0
+spi_put_w:
+    LDS R5, DS, R2
+    AND R5, R1
+    JNZ spi_put_w
+    NOP
+    MOV PC, R8
+    NOP
+
+; spi_get: receive into R3, return through R8.
+spi_get:
+    LSI R3, -1
+    LDI 0x84
+    MOV R2, R0
+    STS R3, DS, R2
+    LDI 0x82
+    MOV R2, R0
+spi_get_w:
+    LDS R5, DS, R2
+    AND R5, R1
+    JNZ spi_get_w
+    NOP
+    LDI 0x84
+    MOV R2, R0
+    LDS R3, DS, R2
+    MOV PC, R8
+    NOP
+
+; ---- slice_read -------------------------------------------------------
+; R7 = slice, DS = 0xF000, R1 = 1, ES = destination.
+; Reads the whole 4 KB slice into ES:0..2047. Returns through R12.
+slice_read:
+    ; the flash needs CS high between commands
+    LDI 0x80
+    MOV R2, R0
+    LSI R3, 2
+    STS R3, DS, R2
+    LSI R3, 3
+    LDI spi_put
+    MOV R5, R0
+    LDI sl_a
+    MOV R8, R0
+    JMP R5
+    NOP
+sl_a:
+    MOV R3, R7
+    SR R3, 1
+    SR R3, 1
+    SR R3, 1
+    SR R3, 1
+    LDI 0x20
+    ADD R3, R0
+    LDI spi_put
+    MOV R5, R0
+    LDI sl_b
+    MOV R8, R0
+    JMP R5
+    NOP
+sl_b:
+    MOV R3, R7
+    LDI 0x0F
+    MOV R2, R0
+    AND R3, R2
+    SL R3, 1
+    SL R3, 1
+    SL R3, 1
+    SL R3, 1
+    LDI spi_put
+    MOV R5, R0
+    LDI sl_c
+    MOV R8, R0
+    JMP R5
+    NOP
+sl_c:
+    LSI R3, 0
+    LDI spi_put
+    MOV R5, R0
+    LDI sl_d
+    MOV R8, R0
+    JMP R5
+    NOP
+sl_d:
+    LSI R7, 0
+    LDI 2048
+    MOV R6, R0
+sl_word:
+    LDI spi_get
+    MOV R5, R0
+    LDI sl_b1
+    MOV R8, R0
+    JMP R5
+    NOP
+sl_b1:
+    MOV R4, R3
+    LDI spi_get
+    MOV R5, R0
+    LDI sl_b2
+    MOV R8, R0
+    JMP R5
+    NOP
+sl_b2:
+    SL R3, 8
+    OR R4, R3
+    STS R4, ES, R7
+    ADD R7, 1
+    SUB R6, 1
+    JNZ sl_word
+    NOP
+    LDI 0x80
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, DS, R2
+    MOV PC, R12
+    NOP
+
+; ---- function 1: read the directory into segment 0x8000 ---------------
+; Returns R0 = 0, R1 = 0x8000. Entries start at offset 8, eight cells each.
+bdos_dir:
+    LDI dir_ret
+    MOV R9, R0
+    LDI dir_read
+    MOV R5, R0
+    JMP R5
+    NOP
+dir_ret:
+    LDI 0x4000
+    SL R0, 1
+    MOV R1, R0
+    LSI R0, 0
+    JML R10
+    NOP
+
+dir_read:
+    MVS R3, DS
+    LDI bd_ds
+    MOV R2, R0
+    STS R3, CS, R2
+    LSI R1, 1
+    LDI 0x0FFF
+    INV R0
+    MVS DS, R0
+    LDI 0x86
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, DS, R2
+    LDI 0x80
+    MOV R2, R0
+    LSI R3, 2
+    STS R3, DS, R2
+    LDI 0x4000
+    SL R0, 1
+    MVS ES, R0
+    LSI R7, 0
+    LDI slice_read
+    MOV R5, R0
+    LDI dr_back
+    MOV R12, R0
+    JMP R5
+    NOP
+dr_back:
+    LDI 0x80
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, DS, R2
+    LDI bd_ds
+    MOV R2, R0
+    LDS R3, CS, R2
+    MVS DS, R3
+    MOV PC, R9
+    NOP
+
+; ---- function 2: lookup a name ----------------------------------------
+; R1 = pointer to a NUL-terminated name in the caller's DS.
+; Returns R0 = first slice, or 0xFFFF with R1 = 2.
+bdos_lookup:
+    LDI bd_name
+    MOV R2, R0
+    STS R1, CS, R2
+    LDI look_ret
+    MOV R9, R0
+    LDI dir_read
+    MOV R5, R0
+    JMP R5
+    NOP
+look_ret:
+    LSI R1, 1
+    LDI bd_name
+    MOV R2, R0
+    LDS R7, CS, R2
+    LDI 0x4000
+    SL R0, 1
+    MVS ES, R0
+    LSI R3, 8
+    LDI 255
+    MOV R6, R0
+look_entry:
+    LDS R4, ES, R3
+    LDI 0x00FF
+    MOV R2, R0
+    AND R4, R2
+    LDI 0xFF
+    MOV R2, R0
+    CMP R4, R2
+    JZ look_none
+    NOP
+    MOV R5, R3
+    ADD R5, 2
+    LSI R8, 0
+look_char:
+    MOV R2, R8
+    SR R2, 1
+    ADD R2, R5
+    LDS R4, ES, R2
+    MOV R2, R8
+    LSI R0, 1
+    AND R2, R0
+    JZ look_even
+    NOP
+    SR R4, 8
+look_even:
+    LDI 0xFF
+    MOV R2, R0
+    AND R4, R2
+    MOV R2, R7
+    ADD R2, R8
+    LDS R1, DS, R2
+    CMP R4, R1
+    JNZ look_next
+    NOP
+    LSI R0, 0
+    CMP R1, R0
+    JZ look_found
+    NOP
+    ADD R8, 1
+    LSI R0, 12
+    CMP R8, R0
+    JNZ look_char
+    NOP
+look_found:
+    MOV R2, R3
+    ADD R2, 1
+    LDS R0, ES, R2
+    LSI R1, 0
+    JML R10
+    NOP
+look_next:
+    ADD R3, 8
+    SUB R6, 1
+    JNZ look_entry
+    NOP
+look_none:
+    LSI R0, -1
+    LSI R1, 2
+    JML R10
+    NOP
+
+; ---- function 3: load a type-4 binary ---------------------------------
+; R1 = first slice. Returns R0 = segment, R1 = entry; 0xFFFF/3 on error.
+bdos_load:
+    MOV R7, R1
+    MVS R3, DS
+    LDI bd_ds
+    MOV R2, R0
+    STS R3, CS, R2
+    LSI R1, 1
+    LDI 0x0FFF
+    INV R0
+    MVS DS, R0
+    LDI 0x4000
+    SL R0, 1
+    MVS ES, R0
+    LDI 0x86
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, DS, R2
+    LDI 0x80
+    MOV R2, R0
+    LSI R3, 2
+    STS R3, DS, R2
+    LDI slice_read
+    MOV R5, R0
+    LDI ld_first
+    MOV R12, R0
+    JMP R5
+    NOP
+ld_first:
+    LDI 0x4000
+    SL R0, 1
+    MVS DS, R0
+    LSI R2, 8
+    LDS R4, DS, R2
+    LDI 0x68B5
+    SL R0, 1
+    ADD R0, 1
+    CMP R4, R0
+    JNZ ld_bad
+    NOP
+    LSI R2, 10
+    LDS R3, DS, R2
+    LDI bd_entry
+    MOV R7, R0
+    STS R3, CS, R7
+    LSI R2, 11
+    LDS R3, DS, R2
+    LDI bd_left
+    MOV R7, R0
+    STS R3, CS, R7
+    LSI R2, 12
+    LDS R3, DS, R2
+    LDI bd_seg
+    MOV R7, R0
+    STS R3, CS, R7
+    LSI R2, 1
+    LDS R3, DS, R2
+    LDI bd_link
+    MOV R7, R0
+    STS R3, CS, R7
+    LSI R2, 13
+    LDI 2035
+    MOV R5, R0
+    LDI ld_copy
+    MOV PC, R0
+    NOP
+
+ld_copy:
+    LDI bd_left
+    MOV R7, R0
+    LDS R6, CS, R7
+    CMP R6, R5
+    JC ld_take_left
+    NOP
+    LDI ld_count_done
+    MOV PC, R0
+    NOP
+ld_take_left:
+    MOV R5, R6
+ld_count_done:
+    MOV R6, R5
+    LDI bd_seg
+    MOV R7, R0
+    LDS R7, CS, R7
+    MVS ES, R7
+    LDI bd_off
+    MOV R7, R0
+    LDS R3, CS, R7
+ld_copy_word:
+    LDS R4, DS, R2
+    STS R4, ES, R3
+    ADD R2, 1
+    ADD R3, 1
+    SUB R5, 1
+    JNZ ld_copy_word
+    NOP
+    STS R3, CS, R7
+    LDI bd_left
+    MOV R7, R0
+    LDS R5, CS, R7
+    SUB R5, R6
+    STS R5, CS, R7
+    LSI R3, 0
+    CMP R5, R3
+    JZ ld_done
+    NOP
+    LDI bd_link
+    MOV R7, R0
+    LDS R3, CS, R7
+    LSI R7, -1
+    CMP R3, R7
+    JZ ld_bad
+    NOP
+    MOV R7, R3
+    LDI 0x0FFF
+    INV R0
+    MVS DS, R0
+    LDI 0x4000
+    SL R0, 1
+    MVS ES, R0
+    LDI slice_read
+    MOV R5, R0
+    LDI ld_cont
+    MOV R12, R0
+    JMP R5
+    NOP
+ld_cont:
+    LDI 0x4000
+    SL R0, 1
+    MVS DS, R0
+    LSI R2, 1
+    LDS R3, DS, R2
+    LDI bd_link
+    MOV R7, R0
+    STS R3, CS, R7
+    LSI R2, 8
+    LDI 2040
+    MOV R5, R0
+    LDI ld_copy
+    MOV PC, R0
+    NOP
+
+ld_done:
+    LDI 0x0FFF
+    INV R0
+    MVS DS, R0
+    LDI 0x80
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, DS, R2
+    LDI bd_ds
+    MOV R2, R0
+    LDS R3, CS, R2
+    MVS DS, R3
+    LDI bd_entry
+    MOV R2, R0
+    LDS R1, CS, R2
+    LDI bd_seg
+    MOV R2, R0
+    LDS R0, CS, R2
+    JML R10
+    NOP
+
+ld_bad:
+    LDI 0x0FFF
+    INV R0
+    MVS DS, R0
+    LDI 0x80
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, DS, R2
+    LDI bd_ds
+    MOV R2, R0
+    LDS R3, CS, R2
+    MVS DS, R3
+    LSI R0, -1
+    LSI R1, 3
+    JML R10
+    NOP
+
+; ---- BDOS state -------------------------------------------------------
+.org 0x2F40
+bd_ds:
+    .word 0
+bd_name:
+    .word 0
+bd_left:
+    .word 0
+bd_off:
+    .word 0
+bd_seg:
+    .word 0
+bd_entry:
+    .word 0
+bd_link:
+    .word 0
+
+; =============================================
 ; Data Section
 ; =============================================
 
