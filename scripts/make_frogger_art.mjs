@@ -33,15 +33,15 @@ export const FROGGER_PALETTE = [
   0x92, // 10 mid grey
   0x10, // 11 green (grass)
   0x0C, // 12 dark green
-  0x0F, // 13 blue (water)
+  0x02, // 13 deep blue (water)
   0x0A, // 14 deep blue
-  0x33, // 15 light blue
+  0x25, // 15 dark grey (road)
 ];
 
 const I = {
   panel: 0, black: 1, white: 2, cream: 3, lightGrey: 4, red: 5, orange: 6,
   darkBrown: 7, midBrown: 8, yellow: 9, midGrey: 10, green: 11,
-  darkGreen: 12, water: 13, blue: 14, lightBlue: 15,
+  darkGreen: 12, water: 13, blue: 14, road: 15,
 };
 
 // 57..106 is the free gap plus Flappy's art; the fire truck and the truck
@@ -150,32 +150,15 @@ function objectTiles(img, box, cols, w, h, bg, mirror = false) {
   return sliceTiles(inCell(art, w, h, cols, ox, oy, bg), cols);
 }
 
-// Water ripples on the blue base.
+// A uniform deep blue with no wave marks, like the arcade river.
 function waterTile() {
-  const dashes = [[2, 1, 4], [7, 4, 3], [12, 0, 5]];
-  const grid = [];
-  for (let y = 0; y < 15; y++) {
-    const row = [];
-    for (let x = 0; x < 8; x++) {
-      const wave = dashes.some(([wy, wx, len]) => y === wy && x >= wx && x < wx + len);
-      row.push(wave ? I.white : I.water);
-    }
-    grid.push(row);
-  }
-  return grid;
+  return Array.from({ length: 15 }, () => Array(8).fill(I.water));
 }
 
-const GRIT = [[2, 4], [6, 10]];
+// A solid dark grey, so nothing on the road travels with the traffic.
+const ROAD = 15;
 function roadTile() {
-  const grid = [];
-  for (let y = 0; y < 15; y++) {
-    const row = [];
-    for (let x = 0; x < 8; x++) {
-      row.push(GRIT.some(([gx, gy]) => gx === x && gy === y) ? I.midGrey : I.black);
-    }
-    grid.push(row);
-  }
-  return grid;
+  return Array.from({ length: 15 }, () => Array(8).fill(ROAD));
 }
 
 function grassTile() {
@@ -236,10 +219,12 @@ export function froggerArtTiles() {
     [FROGGER_TILES.bar, barTile()],
     ...sliceTiles(logCell, 5).map((grid, i) => [FROGGER_TILES.log + i, grid]),
     ...objectTiles(img, TURTLE, 4, 26, 20, I.water, true).map((grid, i) => [FROGGER_TILES.turtle + i, grid]),
-    ...objectTiles(img, CAR_BLUE, 4, 26, 20, I.black).map((grid, i) => [FROGGER_TILES.carBlue + i, grid]),
-    ...objectTiles(img, CAR_YELLOW, 4, 26, 20, I.black).map((grid, i) => [FROGGER_TILES.carYellow + i, grid]),
-    ...objectTiles(img, FIRE, 6, 42, 20, I.black, true).map((grid, i) => [FROGGER_TILES.fireTruck + i, grid]),
-    ...objectTiles(img, TRUCK, 8, 56, 20, I.black, true).map((grid, i) => [FROGGER_TILES.truck + i, grid]),
+    ...objectTiles(img, CAR_BLUE, 4, 26, 20, ROAD).map((grid, i) => [FROGGER_TILES.carBlue + i, grid]),
+    ...objectTiles(img, CAR_YELLOW, 4, 26, 20, ROAD).map((grid, i) => [FROGGER_TILES.carYellow + i, grid]),
+    ...objectTiles(img, FIRE, 6, 42, 20, ROAD, true).map((grid, i) => [FROGGER_TILES.fireTruck + i, grid]),
+    // The trailer is nearly black on the road; lift it to the mid brown.
+    ...objectTiles(img, TRUCK, 8, 56, 20, ROAD, true)
+      .map((grid, i) => [FROGGER_TILES.truck + i, grid.map((row) => row.map((p) => (p === I.darkBrown ? I.midBrown : p)))]),
   ];
   return entries.map(([index, grid]) => ({ index, grid }));
 }

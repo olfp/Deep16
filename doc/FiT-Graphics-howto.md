@@ -564,7 +564,7 @@ next frame's work early — and use the per-row table for the scroll itself.
 
 ### 6.5 The Frogger backdrop demo
 
-`asm/showcase/frogger_demo.asm` is the worked example. It is a 994-word block
+`asm/showcase/frogger_demo.asm` is the worked example. It is a 996-word block
 at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
 `G`; `Q` returns. It is a widescreen 14×12 game grid: a 192-pixel panel in
 columns 0–23, and a 448-pixel (56-cell) playfield in columns 24–79 with two
@@ -612,9 +612,11 @@ into 26×20 art; the fire truck and the truck get wider cells so they stay
 longer than a car. A log is three parts - a two-tile rounded left cap, a
 one-tile middle that repeats, and a mirrored right cap - so all three log
 lengths cost the same ten tiles. The water, asphalt, ground and bar tiles are
-composed from the same 16-colour palette (the water is plain blue now, not
-aqua); the road has no lane markings, because every row scrolls as a whole and
-the dashes would travel with the traffic. Tiles 57..120 plus 126/127 hold the
+composed from the same 16-colour palette: a uniform deep blue river with no
+wave marks, and a solid dark grey road with no texture or markings, because
+every row scrolls as a whole and anything drawn on it would travel with the
+traffic. The truck's trailer is lifted from the dark brown to the mid brown so
+it stands out on that grey. Tiles 57..120 plus 126/127 hold the
 lot: 57 water, 58 asphalt, 59..68 the log parts, 69..76 the turtle, 77..84 the
 blue car, 85..92 the yellow car, 93..104 the fire truck (six cells), 105..120
 the truck (eight cells), 126 the ground and 127 the time bar. That takes
@@ -625,15 +627,17 @@ tile has no transparency, so each object tile bakes the lane colour it sits on
 (black road or blue water) into its spare pixels.
 
 The lane pattern is per lane: a run length and a period mask. Cells inside the
-run are object cells, the rest background; a car run is 4 cells, a fire truck
-6, the truck 8, a turtle group 12 (three 4-cell turtles) and a log 12, 18 or
-24. Logs draw a cap at each end of the run and the middle tile in between. The
-object's second tile row is its base plus the object's tile columns (4, 5, 6 or
-8).
+run are object cells, the rest background; a car run is 4 cells in a 16-cell
+period, a fire truck 6, the truck 8, the top turtle lane 8 (a pair), the bottom
+one 12 (three), and a log 12, 18 or 24. Logs draw a cap at each end of the run
+and the middle tile in between. The object's second tile row is its base plus
+the object's tile columns (4, 5, 6 or 8). The lane's coarse start runs 0..31
+even for the 16-cell patterns: a 32-cell pattern needs the full range or it
+jumps back half a period when the start wrapped at 16.
 
-River lanes, top to bottom: long logs (normal), turtles (a little slower),
-middle logs (fast), short logs (slow), turtles (a little slower). Logs run
-right and turtles run left. Road lanes, top to bottom: the truck (left,
+River lanes, top to bottom: middle logs (normal), turtle pairs (a little
+slower), long logs (fast), short logs (slow), turtle triples (a little
+slower). Logs run right and turtles run left. Road lanes, top to bottom: the truck (left,
 fastest), the yellow car (right), the fire truck (left), the blue car (right,
 slowest). The lane phase is kept in quarter pixels (0..31), so a lane speed is
 a quarter-pixel count per frame: normal 4 (1 px/frame), slightly slower 3

@@ -483,7 +483,8 @@ fr_update:
     NOP
     SUB R4, R3
     ADD R9, 1
-    LSI R2, 15
+    LDI 31
+    MOV R2, R0
     AND R9, R2
     LSI R10, 1
     LDI fr_up_store
@@ -498,7 +499,8 @@ fr_up_right:
     MOV R3, R0
     ADD R4, R3
     SUB R9, 1
-    LSI R2, 15
+    LDI 31
+    MOV R2, R0
     AND R9, R2
     LSI R10, 1
 fr_up_store:
@@ -1088,11 +1090,11 @@ fr_objs:
 ; middle and short logs are 24, 18 and 12 cells; a turtle group is 12 cells,
 ; the truck 8, the fire truck 6 and a car 4.
 fr_runs:
-    .word 24, 12, 18, 12, 12
+    .word 18, 8, 24, 12, 12
     .word 8, 4, 6, 4
 fr_pmask:
     .word 31, 15, 31, 15, 15
-    .word 15, 7, 15, 7
+    .word 15, 15, 15, 15
 ; 1 = log (caps and a repeating middle), 0 = one slice per cell.
 fr_kind:
     .word 1, 0, 1, 1, 0
@@ -1107,7 +1109,7 @@ fr_parm:
     .word 7, 3, 7, 3
 fr_pal:
     .word 0x49, 0x00, 0xFF, 0xFE, 0xD8, 0xE0, 0xCC, 0x60
-    .word 0x84, 0xF8, 0x92, 0x10, 0x0C, 0x0F, 0x0A, 0x33
+    .word 0x84, 0xF8, 0x92, 0x10, 0x0C, 0x02, 0x0A, 0x25
 fr_dirs:
     .word 1, 0, 1, 1, 0        ; river: logs right, turtles left
     .word 0, 1, 0, 1           ; road top->bottom: left, right, left, right
