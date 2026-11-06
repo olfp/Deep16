@@ -74,16 +74,21 @@ variable gentry drop
 : ps2-send ( b -- )
   dup ps2-parity swap
   1 0 ps2! 20 0 do loop          \ CLK low, DATA high: request
-  1 1 ps2!                       \ DATA low: start bit
+  1 1 ps2!                       \ DATA low: start
   0 1 ps2!                       \ release CLK; the keyboard clocks
-  ps2-wait-low 0= if 2drop 0 0 ps2! exit then
+  ps2-wait-low 0= if 2drop 0 0x200C es! exit then
   ps2-wait-high drop
   8 0 do
-    ps2-wait-low drop dup 1 and ps2-bit! ps2-wait-high drop 1 rshift
+    dup 1 and if 0 else 0x400 then 0x200C es!   \ set the bit early
+    ps2-wait-low drop
+    ps2-wait-high drop
+    1 rshift
   loop drop
-  ps2-wait-low drop ps2-bit! ps2-wait-high drop
-  ps2-wait-low drop 1 ps2-bit! ps2-wait-high drop
-  0 0 ps2! ;
+  dup 1 and if 0 else 0x400 then 0x200C es!     \ parity
+  ps2-wait-low drop ps2-wait-high drop
+  0 0x200C es!                                  \ stop bit = release
+  ps2-wait-low drop ps2-wait-high drop
+  0 0x200C es! ;                                \ release both lines
 : ps2-delay ( -- )         65535 0 do loop ;
 : ps2-drain ( -- )         begin 0x60 es@ while 0x62 es@ . repeat cr ;
 : ps2-init ( -- )
