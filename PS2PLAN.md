@@ -1,8 +1,9 @@
 # PS2PLAN — PS/2 host init at boot, and the move into `binit`
 
-Status: **Phase A implemented (2026-11-06); Phase B is the plan for the BIOS
-rework.** The receiver, the open-drain host GPIO and the assembly sender are
-board-verified with a Periboard 409P; see `HARDWARE.md`.
+Status: **Phase A implemented and board-verified (2026-11-06); Phase B is the
+plan for the BIOS rework.** The receiver, the open-drain host GPIO, the
+assembly sender and the boot init all work on a Periboard 409P, and the board
+also boots to the prompt with no keyboard attached; see `HARDWARE.md`.
 
 ## 1. Why the keyboard needs a host and not just a receiver
 

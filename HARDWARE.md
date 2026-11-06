@@ -4,8 +4,9 @@
 
 The board build has a PS/2 keyboard port in both directions. The receiver is
 from 2026-10-27; the host sender was added 2026-11-06 for keyboards that need a
-host init (the Periboard 409P). Board-verified: `ps2-init` followed by typing
-echoes at the Forth prompt.
+host init (the Periboard 409P). Board-verified: the boot init brings the
+keyboard up with no typing, the console echoes PS/2 keys at the prompt, and
+the board still boots to the prompt with no keyboard attached.
 
 - **Receiver:** `rtl/ps2_rx.sv` — 2-FF synchronisers, 11-bit frame, odd parity,
   Set-2 make/break/extended decoding, Shift/Ctrl/Alt/Caps state.
