@@ -58,15 +58,37 @@ ps2h_req_delay:
     ; the start bit: wait for the keyboard's first CLK low, then high
     LDI 0x20
     MOV R8, R0
+    LDI 0x7FFF
+    MOV R9, R0
 ps2h_start_lo:
     LDS R7, ES, R3
     AND R7, R8
+    JZ ps2h_start_lo_ok
+    NOP
+    SUB R9, 1
     JNZ ps2h_start_lo
     NOP
+ps2h_start_lo_ok:
+    LDI 0
+    MOV R7, R0
+    CMP R9, R7
+    JZ ps2h_abort            ; no clock at all: the keyboard is absent
+    NOP
+    LDI 0x7FFF
+    MOV R9, R0
 ps2h_start_hi:
     LDS R7, ES, R3
     AND R7, R8
-    JZ ps2h_start_hi
+    JNZ ps2h_start_hi_ok
+    NOP
+    SUB R9, 1
+    JNZ ps2h_start_hi
+    NOP
+ps2h_start_hi_ok:
+    LDI 0
+    MOV R7, R0
+    CMP R9, R7
+    JZ ps2h_abort            ; the clock stopped mid-frame
     NOP
 
     ; 8 data bits, LSB first; set each while the clock is high, before the
@@ -81,16 +103,28 @@ ps2h_data_loop:
     STS R7, ES, R2
     LDI 0x20
     MOV R8, R0
+    LDI 0x7FFF
+    MOV R9, R0
 ps2h_d_lo:
     LDS R7, ES, R3
     AND R7, R8
+    JZ ps2h_d_lo_ok
+    NOP
+    SUB R9, 1
     JNZ ps2h_d_lo
     NOP
+ps2h_d_lo_ok:
+    LDI 0x7FFF
+    MOV R9, R0
 ps2h_d_hi:
     LDS R7, ES, R3
     AND R7, R8
-    JZ ps2h_d_hi
+    JNZ ps2h_d_hi_ok
     NOP
+    SUB R9, 1
+    JNZ ps2h_d_hi
+    NOP
+ps2h_d_hi_ok:
     SR R1, 1
     SUB R6, 1
     JNZ ps2h_data_loop
@@ -105,32 +139,58 @@ ps2h_d_hi:
     STS R7, ES, R2
     LDI 0x20
     MOV R8, R0
+    LDI 0x7FFF
+    MOV R9, R0
 ps2h_p_lo:
     LDS R7, ES, R3
     AND R7, R8
+    JZ ps2h_p_lo_ok
+    NOP
+    SUB R9, 1
     JNZ ps2h_p_lo
     NOP
+ps2h_p_lo_ok:
+    LDI 0x7FFF
+    MOV R9, R0
 ps2h_p_hi:
     LDS R7, ES, R3
     AND R7, R8
-    JZ ps2h_p_hi
+    JNZ ps2h_p_hi_ok
     NOP
+    SUB R9, 1
+    JNZ ps2h_p_hi
+    NOP
+ps2h_p_hi_ok:
 
     ; stop bit = 1 (release DATA)
     LDI 0
     MOV R7, R0
     STS R7, ES, R2
+    LDI 0x7FFF
+    MOV R9, R0
 ps2h_s_lo:
     LDS R7, ES, R3
     AND R7, R8
+    JZ ps2h_s_lo_ok
+    NOP
+    SUB R9, 1
     JNZ ps2h_s_lo
     NOP
+ps2h_s_lo_ok:
+    LDI 0x7FFF
+    MOV R9, R0
 ps2h_s_hi:
     LDS R7, ES, R3
     AND R7, R8
-    JZ ps2h_s_hi
+    JNZ ps2h_s_hi_ok
     NOP
+    SUB R9, 1
+    JNZ ps2h_s_hi
+    NOP
+ps2h_s_hi_ok:
 
+ps2h_abort:
+ps2h_done:
     LDI 0
     MOV R7, R0
     STS R7, ES, R2           ; release both lines

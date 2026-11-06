@@ -18,6 +18,11 @@ echoes at the Forth prompt.
   odd parity + stop with the keyboard's clock; `ps2-init` loads it and sends
   `0xFF` (reset) then `0xF4` (enable scanning). The words live in the
   boot-loaded game-loader screen (`screens/flash/games.fth`).
+- **Boot init:** `ps2-auto`, the last line of that screen, initialises the
+  keyboard at boot (before the banner and the prompt) behind a CLK/DATA idle
+  guard that keeps the JS simulator and a dead port out of the sender. The
+  long-term home is BIOS function 1 (`binit`); the phases and the sender move
+  are in `PS2PLAN.md`.
 - **GPIO:** the two FPGA pads are open-drain `inout`s. Control 6 (`0x200C`)
   bits 9/10 pull CLK/DATA low (the tile engine ignores bits 15:9 and only uses
   bit 8); `0xF0066` bits 5/6 expose the synchronised levels for the software.
