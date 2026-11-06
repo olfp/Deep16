@@ -115,10 +115,18 @@ module deep16_psram_mem #(
     .init_ok(init_ok_ctl)
   );
 
-  // init_ok lives in the controller clock domain: synchronise it in
+  // init_ok lives in the controller clock domain: synchronise it in. The
+  // synchroniser is cleared by `rst`, or a button reset would see the level
+  // from before the reset and start the boot copy while the PSRAM controller
+  // is still re-initialising.
   logic init_m, init_s;
   always_ff @(posedge clk_cpu) begin
-    init_m <= init_ok_ctl; init_s <= init_m;
+    if (rst) begin
+      init_m <= 1'b0;
+      init_s <= 1'b0;
+    end else begin
+      init_m <= init_ok_ctl; init_s <= init_m;
+    end
   end
 
   // ---- cache ------------------------------------------------------------
