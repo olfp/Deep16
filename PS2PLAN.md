@@ -39,37 +39,50 @@ is loaded by the boot script (`9 screen`, before the banner and the prompt), so
 the init runs with no image growth and no RTL change:
 
 ```forth
+: ps2-ticks ( n -- )                          \ n * 65,536 clocks (~9.7 ms)
+  0xF006A es@ +
+  begin  dup 0xF006A es@ swap - 0<  while  repeat
+  drop ;
+
 : ps2-enable ( -- )
-  0xFF ps2-send ps2-delay ps2-delay ps2-delay
-  0xF4 ps2-send ps2-delay
-  0xF4 ps2-send ps2-delay ;
+  0xFF ps2-send
+  103 ps2-ticks                               \ ~1.0 s
+  0xF4 ps2-send  41 ps2-ticks
+  0xF4 ps2-send  41 ps2-ticks
+  0xF4 ps2-send  41 ps2-ticks
+  0xF4 ps2-send ;
 
 : ps2-auto ( -- )
-  ps2-clk@ ps2-data@ and 0= if
-    8000 0 do loop
-    ps2-clk@ ps2-data@ and 0= if exit then
-  then
-  ps2-load ps2-enable ps2-flush ;
+  0xF0066 es@ 0xFFFF = if exit then           \ the JS core reads erased memory
+  ps2-load ps2-settle ps2-enable ps2-flush ;
 
 ps2-auto
 ```
 
-- **Guard.** Both lines idle high on a live keyboard; the JS core has no PS/2
-  model and their levels read 0. A single sample can land inside the
-  keyboard's power-on self test, hence the second sample after ~25 ms.
-- **Order.** `0xFF` (reset, expects ACK `0xFA` and BAT `0xAA`), three
-  `ps2-delay`, then `0xF4` (enable scanning) twice with a delay between them:
-  a keyboard still in its power-on self test can swallow the first enable,
-  and a repeated enable is harmless.
+- **Timing** is counted in D16nano cycle-counter ticks (`0xF006A` is the high
+  half of the 32-bit counter at 6.75 MHz, so one tick is ~9.7 ms), not in
+  interpreter loops. The first version used `65535 0 do loop` and the loop's
+  length depended on the dictionary and on how much the console had printed;
+  that made the waits unpredictable.
+- **Settle** (`31 ps2-ticks`, ~0.3 s) runs after `ps2-load`, before the reset,
+  so the keyboard is not still in its own power-on self test.
+- **Order.** `0xFF` (reset, expects ACK `0xFA` and BAT `0xAA`), then `0xF4`
+  (enable scanning) at ~1.0, 1.4, 1.8 and 2.2 s: a keyboard still running its
+  self test swallows the early ones, and a repeated enable is harmless.
+- **Guard.** The JS core has no PS/2 model and reads `0xF0066` as erased
+  memory (`0xFFFF`); the board never drives bits 15:11, so the guard fires
+  only in the core. An earlier version sampled the CLK/DATA levels instead,
+  which could skip a live keyboard during its self test.
 - **`ps2-flush`** quietly drains the keyboard FIFO and resets the UART RX FIFO
   (`0xF0046` b0), so the ACK/BAT bytes do not appear in front of the prompt.
-- The manual words stay: `ps2-init` still prints and drains, so a re-init at
-  the prompt is unchanged.
+- The manual `ps2-init` uses the same `ps2-enable`; it now takes ~2.5 s
+  instead of ~20 s.
 
-Cost at boot: one 4 KB slice read (`ps2-load`, ~150–200 ms) plus ~0.8 s of
-delays, ahead of `boot.msg`. It is the earliest place available today; the
+Cost at boot: one 4 KB slice read (`ps2-load`) plus ~2.5 s of settled reset and
+enable, ahead of `boot.msg`. It is the earliest place available today; the
 boot script itself cannot grow (the image has one word of slack before the
-frogger block at `0x4350`).
+frogger block at `0x4350`). Phase B removes the wait entirely by polling for
+the keyboard's answer.
 
 ## 3. Phase B — `binit` becomes the home
 

@@ -65,36 +65,41 @@ variable gentry drop
 : ps2! ( clk data -- )     swap 9 lshift swap 10 lshift or 0x200C es! ;
 : ps2-clk@ ( -- f )        0xF0066 es@ 5 rshift 1 and ;
 : ps2-data@ ( -- f )       0xF0066 es@ 6 rshift 1 and ;
-: ps2-delay ( -- )         65535 0 do loop ;
-: ps2-drain ( -- )         begin 0x60 es@ while 0x62 es@ . repeat cr ;
-\ Silent drain: the PS/2 bytes reach the console through the UART RX FIFO
-\ too, and at boot they would appear in front of the prompt.
-: ps2-flush ( -- )         begin 0x60 es@ while 0x62 es@ drop repeat
-                           1 0xF0046 es! ;          \ reset the UART RX FIFO
-: ps2-load ( -- )          s" ps2host" game-load drop ;
 : ps2-send ( b -- )        0x4000 call-far ;
-\ Reset, then enable scanning. 0xF4 is sent twice: a keyboard still running
-\ its power-on self test can swallow the first one, and a repeated enable is
-\ harmless.
+
+\ 0xF006A is the high half of the D16nano cycle counter: one tick is 65,536
+\ clocks, about 9.7 ms at 6.75 MHz, so the waits keep their real length
+\ whatever the interpreter is doing. The loop exits on the counter itself
+\ (signed difference, so the 16-bit wrap is harmless).
+: ps2-ticks ( n -- )
+  0xF006A es@ +
+  begin  dup 0xF006A es@ swap - 0<  while  repeat
+  drop ;
+: ps2-settle ( -- )        31 ps2-ticks ;       \ ~0.3 s: let it power up
+
+: ps2-load ( -- )          s" ps2host" game-load drop ;
+: ps2-drain ( -- )         begin 0x60 es@ while 0x62 es@ . repeat cr ;
+\ The PS/2 bytes also reach the console through the UART RX FIFO; clear both.
+: ps2-flush ( -- )         begin 0x60 es@ while 0x62 es@ drop repeat
+                           1 0xF0046 es! ;
+
+\ Reset, then enable scanning. A keyboard answers the reset with ACK and then
+\ runs its power-on self test, which can swallow the enable command, so 0xF4
+\ is repeated; a repeated enable is harmless.
 : ps2-enable ( -- )
-  0xFF ps2-send ps2-delay ps2-delay ps2-delay
-  0xF4 ps2-send ps2-delay
-  0xF4 ps2-send ps2-delay ;
+  0xFF ps2-send
+  103 ps2-ticks                                 \ ~1.0 s
+  0xF4 ps2-send  41 ps2-ticks
+  0xF4 ps2-send  41 ps2-ticks
+  0xF4 ps2-send  41 ps2-ticks
+  0xF4 ps2-send ;
 : ps2-init ( -- )
   ." PS/2 init" cr ps2-load ps2-enable ps2-drain ;
 
-\ Run at boot, right after this screen is loaded. The Periboard needs a host
-\ reset before it scans. Both lines idle high on a keyboard; the JS core has
-\ no PS/2 model and their levels read 0, so the guard keeps the simulator (and
-\ any dead port) out of the sender. A single sample can land inside the
-\ keyboard's power-on self test, hence the second one after a short wait.
+\ Boot init. The JS core has no PS/2 model and reads 0xF0066 as erased
+\ memory (0xFFFF); the board never drives bits 15:11.
 : ps2-auto ( -- )
-  ps2-clk@ ps2-data@ and 0= if
-    8000 0 do loop
-    ps2-clk@ ps2-data@ and 0= if exit then
-  then
-  ps2-load
-  ps2-enable
-  ps2-flush ;
+  0xF0066 es@ 0xFFFF = if exit then
+  ps2-load ps2-settle ps2-enable ps2-flush ;
 
 ps2-auto
