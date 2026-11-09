@@ -123,6 +123,10 @@ wait_frame:
     LDI 0x26
     MOV R2, R0
 wait_frame_loop:
+    ; Keep the streamed flap fed while the frame is idle. Function 11 returns
+    ; at once when no stream is active or the FIFO is full.
+    LDI 11
+    SWI
     LDS R1, ES, R2
     LSI R3, 2
     AND R1, R3

@@ -117,3 +117,48 @@ test('an out-of-range effect is treated as stop', () => {
   assert.equal(sim.memory[CTRL] & 0xFFFF, 0x0000);
   assert.equal(sim.memory[sym.sfx_frames] & 0xFFFF, 0);
 });
+
+test('function 11 streams a decaying noise flap sample by sample', () => {
+  // Effect 1 is mode 3: function 9 only seeds the stream, and the game's frame
+  // wait calls function 11 to keep the FIFO fed. The JS core has no I2S, so the
+  // status read would return the erased 0xFFFF (full); force room instead.
+  const stub = assemble(`
+        .org 0x0100
+        LDI ${sym.swi_to_bios}
+        MOV R1, R0
+        LSI R2, 2
+        STS R1, CS, R2
+        LDI 1
+        MOV R1, R0
+        LDI 4
+        MOV R2, R0
+        LDI 9
+        SWI
+        LDI 600
+        MOV R1, R0
+loop:
+        LDI 11
+        SWI
+        SUB R1, 1
+        JNZ loop
+        NOP
+        HALT
+`);
+  assert.equal(stub.success, true, stub.errors?.join('; '));
+  const mem = buildMemory(kernel);
+  for (const c of stub.memoryChanges) mem[c.address] = c.value & 0xFFFF;
+  const sim = new globalThis.Deep16Simulator();
+  sim.loadProgram(mem);
+  sim.memory[0xF00A4] = 0;
+  Object.assign(sim.segmentRegisters, { CS: 0xFFFF, DS: 0, SS: 0, ES: 0 });
+  sim.running = true;
+  for (let i = 0; i < 6_000_000 && sim.running; i++) sim.step();
+  assert.equal(sim.running, false, 'the stub returned to HALT');
+
+  assert.equal(sim.memory[sym.sfx_stream] & 0xFFFF, 1, 'stream stays active');
+  assert.equal(sim.memory[sym.sfx_phase] & 0xFFFF, 600, 'one sample per call');
+  const env = sim.memory[sym.sfx_env] & 0xFFFF;
+  assert.ok(env > 0 && env < 0x1000, `envelope decayed (0x${env.toString(16)})`);
+  assert.notEqual(sim.memory[sym.sfx_lfsr] & 0xFFFF, 0xACE1, 'the LFSR advanced');
+  assert.notEqual(sim.memory[sym.sfx_filt] & 0xFFFF, 0, 'the low-pass produced samples');
+});

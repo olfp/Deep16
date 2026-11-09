@@ -14324,7 +14324,7 @@ waqr_done:
 ; =============================================
 .ifdef CONSOLE_UART
 .ifdef D16D
-.equ BIOS_FN_COUNT, 11             ; 0..5 console + 6 gfx + 7/8 PS/2 + 9/10 SFX
+.equ BIOS_FN_COUNT, 12             ; 0..5 console + 6 gfx + 7/8 PS/2 + 9/10 SFX + 11 pump
 .else
 .equ BIOS_FN_COUNT, 6
 .endif
@@ -14401,6 +14401,7 @@ BIOS_JTABLE:
     .word bios_f8 - BIOS_BASE
     .word bios_sfx - BIOS_BASE
     .word bios_sfx_tick - BIOS_BASE
+    .word bios_sfx_pump - BIOS_BASE
 .endif
 bios_f0:
     ; 0: bver -> the handler's R0 = 0x0100 (BIOS 1.0, major << 8 | minor),
@@ -17223,15 +17224,40 @@ sfx_frames_ok:
     LDI 128
     MOV R9, R0                 ; samples
     LSI R11, 0                 ; sample index
-    ; Mode 3 is an LFSR noise burst; seed it here (R1 is free after the table).
+    ; Mode 3 streams instead of filling the buffer: the game calls function 11
+    ; from its frame-wait loop, which generates one sample at a time. A 66 ms
+    ; flap then has one smooth envelope instead of a 6 ms buffer repeating at
+    ; 165 Hz (that repetition is what made the old flap sound electronic).
     LSI R3, 3
     CMP R8, R3
-    JNZ sfx_no_seed
+    JNZ sfx_no_stream
     NOP
     LDI 0x2CE1
     OR R0, 15                  ; 0xACE1 LFSR seed
     MOV R1, R0
-sfx_no_seed:
+    LDI sfx_lfsr - BIOS_BASE
+    STS R1, CS, R0
+    LDI sfx_filt - BIOS_BASE
+    LSI R3, 0
+    STS R3, CS, R0              ; start the low-pass at silence
+    LDI sfx_env - BIOS_BASE
+    STS R3, CS, R0              ; and the envelope at silence
+    LDI sfx_phase - BIOS_BASE
+    STS R3, CS, R0
+    LDI sfx_stream - BIOS_BASE
+    LSI R3, 1
+    STS R3, CS, R0
+    LDI 0x00A2
+    MOV R2, R0
+    LSI R3, 5
+    STS R3, ES, R2             ; enable + loop; the pump keeps the FIFO full
+    LDI sfx_done - BIOS_BASE
+    MOV PC, R0
+    NOP
+sfx_no_stream:
+    LDI sfx_stream - BIOS_BASE
+    LSI R3, 0
+    STS R3, CS, R0
 
 sfx_gen:
     LSI R3, 3
@@ -17252,9 +17278,6 @@ sfx_gen:
     MOV PC, R3
     NOP
 sfx_noise:
-    ; R2 holds the write target; the control address is reloaded after the loop.
-    LDI sfx_write - BIOS_BASE
-    MOV R2, R0
     ; 16-bit LFSR, taps 0xB400
     MOV R0, R1
     LSI R3, 1
@@ -17278,6 +17301,20 @@ sfx_noise_no_xor:
     NOP
     NEG R0
 sfx_noise_emit:
+    ; One-pole low-pass: filt += (raw - filt) >> 2. Raw white noise is harsh;
+    ; the filtered version is the soft "fluff" part of the wing.
+    MOV R3, R0
+    LDI sfx_filt - BIOS_BASE
+    MOV R2, R0
+    LDS R0, CS, R2
+    SUB R3, R0
+    SRA R3, 2
+    ADD R0, R3
+    STS R0, CS, R2
+    MOV R3, R0                 ; keep the filtered sample across the LDI
+    LDI sfx_write - BIOS_BASE
+    MOV R2, R0
+    MOV R0, R3
     MOV PC, R2
     NOP
 sfx_low:
@@ -17289,10 +17326,20 @@ sfx_write:
     CMP R8, R3
     JNZ sfx_no_decay
     NOP
-    SUB R7, R6                 ; noise amplitude decay
-    JNN sfx_no_decay
+    ; Noise envelope: rise for the first half of the buffer, fall for the
+    ; second. It starts and ends at zero, so the 6 ms loop has no click and
+    ; each repeat is a soft puff instead of a hard click.
+    LDI 64
+    MOV R3, R0
+    CMP R11, R3
+    JC sfx_noise_rise
     NOP
-    LSI R7, 0
+    SUB R7, R6
+    LDI sfx_no_decay - BIOS_BASE
+    MOV PC, R0
+    NOP
+sfx_noise_rise:
+    ADD R7, R6
 sfx_no_decay:
     LSI R3, 1
     CMP R8, R3
@@ -17381,9 +17428,113 @@ sfx_tick_done:
     RETI
     NOP
 
+; Function 11: push one streamed noise sample when the FIFO has room. The game
+; calls it from its frame-wait loop. Only mode 3 uses it; the FIFO is filled at
+; effect start and kept topped up here, so the sound is a continuous 66 ms
+; envelope rather than a repeated 128-sample puff.
+bios_sfx_pump:
+    LDI sfx_stream - BIOS_BASE
+    MOV R1, R0
+    LDS R2, CS, R1
+    AND R2, R2
+    JZ sfx_pump_done
+    NOP
+    LDI sfx_frames - BIOS_BASE
+    MOV R1, R0
+    LDS R2, CS, R1
+    AND R2, R2
+    JZ sfx_pump_done
+    NOP
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00A4
+    MOV R2, R0
+    LDS R1, ES, R2             ; status
+    LSI R3, 2
+    AND R1, R3                 ; b1 = FIFO full
+    JNZ sfx_pump_done
+    NOP
+    LDI 0x00A0
+    MOV R12, R0
+
+    ; 16-bit LFSR, taps 0xB400
+    LDI sfx_lfsr - BIOS_BASE
+    MOV R4, R0
+    LDS R1, CS, R4
+    MOV R0, R1
+    LSI R3, 1
+    AND R0, R3
+    SR R1, 1
+    AND R0, R0
+    JZ sfx_pump_no_xor
+    NOP
+    LDI 0x3400
+    MOV R3, R0
+    OR R3, 15                  ; 0xB400
+    XOR R1, R3
+sfx_pump_no_xor:
+    STS R1, CS, R4
+
+    ; Envelope: eight samples of attack (to 0x2000), then an exponential decay
+    ; with a ~12 ms time constant. Across four frames it fades to near silence.
+    LDI sfx_phase - BIOS_BASE
+    MOV R4, R0
+    LDS R0, CS, R4
+    ADD R0, 1
+    STS R0, CS, R4
+    MOV R2, R0
+    LDI 9
+    MOV R3, R0
+    CMP R2, R3
+    JNC sfx_pump_decay
+    NOP
+    LDI sfx_env - BIOS_BASE
+    MOV R4, R0
+    LDS R2, CS, R4
+    LDI 0x400
+    MOV R3, R0
+    ADD R2, R3
+    STS R2, CS, R4
+    LDI sfx_pump_env_done - BIOS_BASE
+    MOV PC, R0
+    NOP
+sfx_pump_decay:
+    LDI sfx_env - BIOS_BASE
+    MOV R4, R0
+    LDS R2, CS, R4
+    MOV R0, R2
+    SRA R0, 8
+    SUB R2, R0
+    STS R2, CS, R4
+sfx_pump_env_done:
+
+    ; signed sample: +env for a 1 bit, -env for a 0 bit
+    MOV R0, R2
+    MOV R3, R1
+    LSI R7, 1
+    AND R3, R7
+    JNZ sfx_pump_positive
+    NOP
+    NEG R0
+sfx_pump_positive:
+    ; one-pole low-pass: filt += (raw - filt) >> 2
+    MOV R2, R0                 ; raw
+    LDI sfx_filt - BIOS_BASE
+    MOV R4, R0
+    LDS R0, CS, R4             ; filt
+    SUB R2, R0
+    SRA R2, 2
+    ADD R0, R2
+    STS R0, CS, R4
+    STS R0, ES, R12
+sfx_pump_done:
+    RETI
+    NOP
+
 ; step, step-delta, amplitude, mode, alternate step
 sfx_table:
-    .word 0x0000, 0x0040, 0x2000, 3, 0x0000   ; 1 flap: decaying noise
+    .word 0x0000, 0x0080, 0x2000, 3, 0x0000   ; 1 flap: noise puff
     .word 0x0AAE, 0x0000, 0x2000, 1, 0x1005   ; 2 score: 880 -> 1320
     .word 0x0AAE, 0xFFF0, 0x2000, 2, 0x0000   ; 3 death: 880 -> 220 sweep
     .word 0x02AB, 0x0000, 0x2000, 1, 0x0401   ; 4 waka: 220 / 330
@@ -17407,6 +17558,16 @@ ps2_count:
 sfx_sv:
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0
 sfx_frames:
+    .word 0
+sfx_filt:
+    .word 0
+sfx_stream:
+    .word 0
+sfx_lfsr:
+    .word 0
+sfx_env:
+    .word 0
+sfx_phase:
     .word 0
 .endif
 .endif
