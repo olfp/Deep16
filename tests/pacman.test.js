@@ -38,10 +38,10 @@ test('the maze packs 30x23 cells and 250 pickups', () => {
 });
 
 test('the block fits before the BIOS and keeps the map below the code', () => {
-  assert.ok(pacman.codeEnd <= 0x600, `code ends at 0x${pacman.codeEnd.toString(16)}`);
+  assert.ok(pacman.codeEnd <= 0x610, `code ends at 0x${pacman.codeEnd.toString(16)}`);
   assert.ok(pacman.codeMax < PACMAN_LIMIT);
   const at = (a) => pacman.words.find((w) => w[0] === a)?.[1];
-  assert.equal(at(0x600) !== undefined, true, 'map starts at 0x600');
+  assert.equal(at(0x610) !== undefined, true, 'map starts at 0x610');
   assert.equal(pacman.words.some(([a]) => a >= 0x6A0 && a < 0x1000), false, 'state cells stay unwritten');
   assert.equal(BLOCK + pacman.codeMax + 1 <= 0x4A00, true, 'code stays below the BIOS');
 });
@@ -57,6 +57,9 @@ function start() {
   sim.registers[15] = 0;
   sim.running = true;
   sim.memory[STATUS] = 0;
+  // Stand-alone game: no kernel/BIOS; the sound SWI calls become no-ops.
+  sim.memory[2] = 0xE000;
+  sim.memory[0xE000] = 0xFFF3;
   return sim;
 }
 

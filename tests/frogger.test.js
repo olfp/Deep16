@@ -55,6 +55,9 @@ function start() {
   sim.registers[15] = 0;
   sim.running = true;
   sim.memory[STATUS] = 0;
+  // Stand-alone game: no kernel/BIOS; the sound SWI calls become no-ops.
+  sim.memory[2] = 0xE000;
+  sim.memory[0xE000] = 0xFFF3;
   return sim;
 }
 

@@ -14244,7 +14244,7 @@ waqr_done:
 ; =============================================
 .ifdef CONSOLE_UART
 .ifdef D16D
-.equ BIOS_FN_COUNT, 9              ; 0..5 console + 6 gfx + 7/8 PS/2
+.equ BIOS_FN_COUNT, 11             ; 0..5 console + 6 gfx + 7/8 PS/2 + 9/10 SFX
 .else
 .equ BIOS_FN_COUNT, 6
 .endif
@@ -14319,6 +14319,8 @@ BIOS_JTABLE:
     .word bios_f6 - BIOS_BASE
     .word bios_f7 - BIOS_BASE
     .word bios_f8 - BIOS_BASE
+    .word bios_sfx - BIOS_BASE
+    .word bios_sfx_tick - BIOS_BASE
 .endif
 bios_f0:
     ; 0: bver -> the handler's R0 = 0x0100 (BIOS 1.0, major << 8 | minor),
@@ -17043,10 +17045,223 @@ ps2_init_done:
     JMP LR
     NOP
 
-; Saved registers, kept in the BIOS block so they cost the kernel dictionary
-; nothing (dict_free must stay 0x434F: the frogger-era image gap starts at
-; 0x4350). CS-relative: the addresses are BIOS offsets.
-.org 0x5700
+; ============================================================
+; Game sound effects (BIOS functions 9 and 10)
+; ============================================================
+; The games run in their own segments and cannot see the Forth dictionary, so
+; the sound generator lives here. Function 9 starts an effect (R1 = effect,
+; R2 = duration in frames); function 10 is called once per frame and stops it
+; when the duration runs out. All shared registers are saved and restored, so
+; a game can call function 9 at any point with only R0-R2 as scratch.
+;
+; Each effect is a 128-sample loop at 21.09375 kHz: a phase accumulator
+; produces a square wave, a two-tone effect switches the step at sample 64,
+; and a sweep adds a signed delta to the step each sample. The FIFO is reset,
+; filled and then enabled in loop mode. This needs no timer IRQ.
+.org 0x5600
+bios_sfx:
+    SMV R1, AR1                ; effect id
+    SMV R2, AR2                ; duration in frames
+    ; Save R4-R12: these are shared with the caller, unlike the banked R0-R3.
+    LDI sfx_sv - BIOS_BASE
+    STS R4, CS, R0
+    ADD R0, 1
+    STS R5, CS, R0
+    ADD R0, 1
+    STS R6, CS, R0
+    ADD R0, 1
+    STS R7, CS, R0
+    ADD R0, 1
+    STS R8, CS, R0
+    ADD R0, 1
+    STS R9, CS, R0
+    ADD R0, 1
+    STS R10, CS, R0
+    ADD R0, 1
+    STS R11, CS, R0
+    ADD R0, 1
+    STS R12, CS, R0
+
+    AND R1, R1
+    JNZ sfx_start
+    NOP
+    LDI sfx_stop - BIOS_BASE
+    MOV PC, R0
+    NOP
+
+sfx_start:
+    ; effects are 1..8; anything else is treated as stop
+    LDI 9
+    MOV R3, R0
+    CMP R1, R3
+    JC sfx_valid
+    NOP
+    LDI sfx_stop - BIOS_BASE
+    MOV PC, R0
+    NOP
+
+sfx_valid:
+    ; duration 0 means a short default; the games pass a frame count
+    AND R2, R2
+    JNZ sfx_frames_ok
+    LDI 8
+    MOV R2, R0
+sfx_frames_ok:
+    LDI sfx_frames - BIOS_BASE
+    STS R2, CS, R0
+
+    ; table entry = (effect - 1) * 5 words
+    LDI sfx_table - BIOS_BASE
+    MOV R3, R0
+    MOV R0, R1
+    SUB R0, 1
+    MOV R2, R0
+    SL R2, 1
+    SL R2, 1
+    ADD R2, R0
+    ADD R3, R2
+    LDS R5, CS, R3             ; step
+    ADD R3, 1
+    LDS R6, CS, R3             ; step delta per sample
+    ADD R3, 1
+    LDS R7, CS, R3             ; amplitude
+    ADD R3, 1
+    LDS R8, CS, R3             ; mode: 0 square, 1 two-tone, 2 sweep
+    ADD R3, 1
+    LDS R10, CS, R3            ; alternate step
+
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00A2
+    MOV R2, R0                 ; control
+    LSI R3, 2
+    STS R3, ES, R2             ; reset the FIFO
+    LDI 0x00A0
+    MOV R12, R0                ; FIFO data
+    LSI R4, 0                  ; phase
+    LDI 128
+    MOV R9, R0                 ; samples
+    LSI R11, 0                 ; sample index
+
+sfx_gen:
+    MOV R0, R4
+    ADD R0, R5
+    MOV R4, R0
+    LDI 0
+    OR R0, 15                  ; R0 = 0x8000
+    AND R0, R4
+    JZ sfx_low
+    NOP
+    LDI sfx_write - BIOS_BASE
+    MOV R3, R0
+    MOV R0, R7
+    MOV PC, R3
+    NOP
+sfx_low:
+    MOV R0, R7
+    NEG R0
+sfx_write:
+    STS R0, ES, R12
+    LSI R3, 1
+    CMP R8, R3
+    JNZ sfx_not_two
+    NOP
+    LDI 64
+    MOV R3, R0
+    CMP R11, R3
+    JNZ sfx_not_two
+    NOP
+    MOV R5, R10                ; second half of a two-tone effect
+sfx_not_two:
+    LSI R3, 2
+    CMP R8, R3
+    JNZ sfx_next
+    NOP
+    ADD R5, R6                 ; sweep
+sfx_next:
+    ADD R11, 1
+    SUB R9, 1
+    JNZ sfx_gen
+    NOP
+    LSI R3, 5
+    STS R3, ES, R2             ; enable + loop
+    LDI sfx_done - BIOS_BASE
+    MOV PC, R0
+    NOP
+
+sfx_stop:
+    LDI sfx_frames - BIOS_BASE
+    LSI R3, 0
+    STS R3, CS, R0
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00A2
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, ES, R2
+
+sfx_done:
+    LDI sfx_sv - BIOS_BASE
+    LDS R4, CS, R0
+    ADD R0, 1
+    LDS R5, CS, R0
+    ADD R0, 1
+    LDS R6, CS, R0
+    ADD R0, 1
+    LDS R7, CS, R0
+    ADD R0, 1
+    LDS R8, CS, R0
+    ADD R0, 1
+    LDS R9, CS, R0
+    ADD R0, 1
+    LDS R10, CS, R0
+    ADD R0, 1
+    LDS R11, CS, R0
+    ADD R0, 1
+    LDS R12, CS, R0
+    RETI
+    NOP
+
+; Function 10: called once per game frame. It touches only the shadow R0-R3
+; and ES, so it is transparent to the caller's shared registers.
+bios_sfx_tick:
+    LDI sfx_frames - BIOS_BASE
+    MOV R1, R0
+    LDS R2, CS, R1
+    AND R2, R2
+    JZ sfx_tick_done
+    NOP
+    SUB R2, 1
+    STS R2, CS, R1
+    JNZ sfx_tick_done
+    NOP
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00A2
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, ES, R2
+sfx_tick_done:
+    RETI
+    NOP
+
+; step, step-delta, amplitude, mode, alternate step
+sfx_table:
+    .word 0x0557, 0x0000, 0x2000, 0, 0x0000   ; 1 flap: 440 Hz
+    .word 0x0AAE, 0x0000, 0x2000, 1, 0x1005   ; 2 score: 880 -> 1320
+    .word 0x0AAE, 0xFFF0, 0x2000, 2, 0x0000   ; 3 death: 880 -> 220 sweep
+    .word 0x02AB, 0x0000, 0x2000, 1, 0x0401   ; 4 waka: 220 / 330
+    .word 0x0803, 0x0000, 0x1800, 0, 0x0000   ; 5 eat: 660
+    .word 0x0500, 0x0000, 0x2000, 0, 0x0000   ; 6 hop: 412
+    .word 0x0A00, 0x0000, 0x2000, 0, 0x0000   ; 7 splash: 824
+    .word 0x0557, 0x0010, 0x2000, 2, 0x0000   ; 8 rise: 440 -> 1100
+
+; Saved registers and effect state, kept in the BIOS block so they cost the
+; kernel dictionary nothing (dict_free must stay 0x434F).
+.org 0x57E0
 ps2_r5:
     .word 0
 ps2_r6:
@@ -17054,6 +17269,11 @@ ps2_r6:
 ps2_lr:
     .word 0
 ps2_count:
+    .word 0
+.org 0x57F0
+sfx_sv:
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0
+sfx_frames:
     .word 0
 .endif
 .endif

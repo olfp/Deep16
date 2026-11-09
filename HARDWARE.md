@@ -116,8 +116,10 @@ voltage (below 0.16 V is shutdown; tie SD to Vin to force left/enabled), the
 speaker on OUT+/OUT−, and the three I2S pins with a scope or logic analyser.
 Board-verified 2026-11-09: `beep` audible through an Adafruit MAX98357A
 breakout at 3.3 V with an 8 Ω speaker, GAIN and SD left open. The FIFO-low IRQ
-is an output but is not wired into the SIC yet, and the games do not push
-samples today; `SOFTPCM.md` has the planned sample player.
+is an output but is not wired into the SIC yet. The games use BIOS functions 9
+(start an effect) and 10 (one tick per frame) for short 128-sample effects:
+Flappy flap/death, Pac-Man waka/ghost/death, and a Frogger low-time warning.
+`SOFTPCM.md` has the planned sample player for music and voices.
 
 ## Timer, SPI and UART TX (implemented 2026-10-27)
 

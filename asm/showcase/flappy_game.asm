@@ -16,6 +16,8 @@
 ; The slice is loaded at segment 0x5000 by BDOS and entered at offset 0.
 ; R9 carries the start mode (0 = play, 1 = attract); R10:R11 is the menu's
 ; return pair, parked in the block's own data because draw_text uses R10.
+.equ SFX_FLAP  1
+.equ SFX_DEATH 3
 .org 0
 flappy_start:
     MVS R0, CS
@@ -623,6 +625,10 @@ play_loop:
     JMP R4
     NOP
 
+    ; count the current effect down once per frame
+    LDI 10
+    SWI
+
     ; OAM first, right after the frame boundary: before the scan reaches the
     ; bird's row, and before the map redraw work.  set_bird also applies the
     ; dizzy / upside-down death pose.
@@ -875,6 +881,12 @@ key_quit:
     MOV PC, R0
     NOP
 do_flap:
+    LDI SFX_FLAP
+    MOV R1, R0
+    LDI 6
+    MOV R2, R0
+    LDI 9
+    SWI
     LDI play_step
     MOV PC, R0
     NOP
@@ -922,6 +934,12 @@ play_step:
     LDI G_DEATH_TIMER
     MOV R2, R0
     ST R3, R2, 0
+    LDI SFX_DEATH
+    MOV R1, R0
+    LDI 30
+    MOV R2, R0
+    LDI 9
+    SWI
     LDI play_loop
     MOV PC, R0
 

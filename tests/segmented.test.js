@@ -533,7 +533,7 @@ test('game-run starts pacman from flash and returns to the prompt', () => {
 test('the PS/2 init lives in the BIOS and binit calls it', () => {
   // Phase B moved the sender out of a flash slice: functions 7/8 and the
   // 0x5490 block are the only copy now, and binit (function 1) runs the init.
-  assert.equal(sym.BIOS_FN_COUNT, 9, '0..5 console + 6 gfx + 7/8 PS/2');
+  assert.equal(sym.BIOS_FN_COUNT, 11, '0..5 console + 6 gfx + 7/8 PS/2 + 9/10 SFX');
   assert.ok(sym.bios_f7 >= sym.bios_entry && sym.bios_f7 < 0x5800, 'f7 inside the BIOS');
   assert.ok(sym.bios_f8 >= sym.bios_entry && sym.bios_f8 < 0x5800, 'f8 inside the BIOS');
   assert.ok(sym.ps2_r5 >= 0x5490 && sym.ps2_r5 < 0x5800, 'saved cells inside the BIOS gap');

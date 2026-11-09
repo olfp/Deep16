@@ -91,6 +91,11 @@ function boot(scene) {
   // 0xFFFF guard skips the keyboard init exactly as the JS boot tests do.
   // Each rendered frame writes the frame/uart bits it wants, below.
   sim.memory[0xF0066] = 0xFFFF;
+  // Game scenes jump straight to a slice without the kernel, so install a
+  // RETI dummy for the BIOS sound SWI calls. The console boot replaces it
+  // with swi_to_bios during forth_start.
+  sim.memory[2] = 0xE000;
+  sim.memory[0xE000] = 0xFFF3;
   sim.cycleCount = 0;
 
   // Place a loaded slice at its segment, the way BDOS does, then copy the

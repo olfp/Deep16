@@ -66,6 +66,10 @@ function start(mode) {
   sim.segmentRegisters = { CS: 0x5000, DS: 0x5000, SS: 0, ES: 0 };
   sim.running = true;
   sim.memory[UART_STATUS] = 0;
+  // Stand-alone game: no kernel/BIOS. A RETI at a free address makes the
+  // BIOS sound SWI calls no-ops; the menu/boot tests use the real vector.
+  sim.memory[2] = 0xE000;
+  sim.memory[0xE000] = 0xFFF3;
   sim.memory[G_PLAYS] = 0;
   sim.cycleCount = 0;
   return sim;

@@ -7,7 +7,7 @@
 ;
 ; Memory inside the block (offset from 0x4330):
 ;   0x000..0x5FF  code and its strings
-;   0x600..0x65B  the static maze (generated pacman_map.asm)
+;   0x610..0x66B  the static maze (generated pacman_map.asm)
 ;   0x678..0x686  direction tables (also generated)
 ;   0x688..0x69C  palette setup table (also generated)
 ;   0x6A0..0x6C9  writable game state
@@ -36,6 +36,11 @@
 .equ T_FRIGHT_R  56
 .equ T_WALL_L    110
 .equ T_WALL_R    118
+
+; BIOS sound effects (function 9 starts, function 10 ticks once per frame).
+.equ SFX_DEATH   3
+.equ SFX_WAKA    4
+.equ SFX_EAT     5
 
 ; ---- writable state (DS offsets 0x6A0..0x6C9) --------------------------
 .equ ST_PAC_C     0x6A0
@@ -429,6 +434,10 @@ pac_loop:
     JMP R4
     NOP
 
+    ; count the current sound effect down once per frame
+    LDI 10
+    SWI
+
     LDI ST_STATE
     MOV R2, R0
     LD R3, R2, 0
@@ -743,6 +752,11 @@ pac_score_draw:
     NOP
 
 pac_after_eat:
+    LDI SFX_WAKA
+    MOV R1, R0
+    LSI R2, 2
+    LDI 9
+    SWI
     LDI ST_DOTS
     MOV R2, R0
     LD R3, R2, 0
@@ -847,6 +861,11 @@ pac_col_sc_done:
     LINK
     JMP R4
     NOP
+    LDI SFX_EAT
+    MOV R1, R0
+    LSI R2, 6
+    LDI 9
+    SWI
     ; erase the ghost where it was drawn, then send it back to the corridor
     LDI ST_GHOST_C
     MOV R7, R0
@@ -893,6 +912,12 @@ pac_col_dead:
     LDI ST_TIMER
     MOV R2, R0
     ST R3, R2, 0
+    LDI SFX_DEATH
+    MOV R1, R0
+    LDI 30
+    MOV R2, R0
+    LDI 9
+    SWI
     LSI R9, 11
     LDI 35
     MOV R10, R0

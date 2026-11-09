@@ -60,6 +60,10 @@
 .equ T_BAR    0xFE0           ; 127 time-bar cell
 .equ T_PANEL  0x000           ; blank tile; palette art entry 0 is the panel
 
+; BIOS sound effects (function 9 starts, function 10 ticks once per frame).
+.equ SFX_DEATH 3
+.equ SFX_TICK  5
+
 ; state (inside the block, after the code)
 .equ FR_START  0x400           ; nine 0..15 coarse start cells
 .equ FR_PHASE  0x409           ; nine 0..31 quarter-pixel phases
@@ -282,6 +286,9 @@ fr_loop:
     LINK
     JMP R4
     NOP
+    ; count the current sound effect down once per frame
+    LDI 10
+    SWI
     LDI fr_keys
     MOV R4, R0
     LINK
@@ -379,6 +386,18 @@ fr_tick_reset:
     MOV R5, R0
 fr_tick_time:
     ST R5, R2, 0
+    ; The last few time cells get an audible warning tick.
+    LDI 6
+    MOV R3, R0
+    CMP R5, R3
+    JNC fr_tick_no_warn
+    NOP
+    LDI SFX_TICK
+    MOV R1, R0
+    LSI R2, 1
+    LDI 9
+    SWI
+fr_tick_no_warn:
     ; Paint the new bar into the back and mark it for the new back copy.
     LDI fr_bar
     MOV R4, R0
