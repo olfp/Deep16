@@ -57,13 +57,14 @@ the board still boots to the prompt with no keyboard attached.
   available without spending the old 128-word SSRAM.
 - **Area:** the receiver and map are unchanged; the host GPIO adds two drive
   bits, two level bits and the one-flop frame toggle, and the tile build
-  measures **4,308 / 4,320 CLS** with the raster edge detector and the GPIO.
+  measures **4,293 / 4,320 CLS** with the raster edge detector and the GPIO.
   The sender and init are BIOS software (no CLS).
 - **Tests:** `npm run sim:ps2` (pin-level receiver/map, no board);
   `tests/ps2-bios.test.js` runs the BIOS reset/enable with a scripted keyboard
   and pins the ACK/BAT order and the no-keyboard timeout; `npm test` covers
   the segmented boot with the init guarded out. The Periboard 409P is the
-  reference board keyboard; the boot-retry timing is the current board test.
+  reference board keyboard; the boot-retry timing is board-verified
+  (2026-11-09).
 - **Caveat:** PS/2 is not hot-plug. Connect the keyboard before power-up. Old
   keyboards can draw up to ~275 mA from 5 V; check the USB-C VBUS budget (the
   Periboard is about 30 mA).

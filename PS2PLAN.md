@@ -1,10 +1,10 @@
 # PS2PLAN — PS/2 host init at boot, and the move into `binit`
 
-Status: **Phase B implemented (2026-11-06); board verification is the only
-step left.** Phase A (the Forth-loaded sender and `ps2-auto`) was board-verified
-on a Periboard 409P and is now retired: the sender and the init live in the
-BIOS, `binit` runs them, and the `ps2host` slice is gone. The receiver, the
-open-drain host GPIO and the board pinout are unchanged; see `HARDWARE.md`.
+Status: **Phase B implemented and board-verified (2026-11-09).** Phase A (the
+Forth-loaded sender and `ps2-auto`) was board-verified on a Periboard 409P and
+is retired: the sender and the init live in the BIOS, `binit` runs them, and
+the `ps2host` slice is gone. The receiver, the open-drain host GPIO and the
+board pinout are unchanged; see `HARDWARE.md`.
 
 ## 1. Why the keyboard needs a host and not just a receiver
 
@@ -145,12 +145,13 @@ waiting for Phase B and would be thrown away when the BIOS grows. Not chosen.
 
 - `npm run sim:ps2` — pin-level receiver/map, no board.
 - `npm test` — the JS boot stays green: the `0xFFFF` guard keeps `ps2_init`
-  out of the simulator (778/778).
+  out of the simulator (784/784).
 - `npm run lint:board` and `npm test` cover the `frame_valid`/toggle wiring in
   `rtl/ps2_rx.sv` and `rtl/deep16_board.sv`.
-- Board: power-cycle with the keyboard connected and do *not* type anything;
-  the keyboard's LEDs flash once and typing echoes at the menu/prompt. For the
-  negative case, boot with the keyboard disconnected — the sender times out and
-  the boot still reaches the menu and the prompt.
+- Board-verified (2026-11-09): power-cycle with the keyboard connected and do
+  *not* type anything; the keyboard comes up at the menu. Booting with the
+  keyboard disconnected still reaches the menu and the prompt. A button reset
+  keeps the DVI picture (the `ready_toggle` fix), and switching from Flappy to
+  Pac-Man/Frogger runs the second game (the `bd_off` fix).
 - Manual re-init: at the Forth prompt, `cls` (BIOS function 1) runs the same
   init again; BIOS function 8 does it without clearing.
