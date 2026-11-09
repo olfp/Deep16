@@ -54,10 +54,14 @@ A tag is a whole cell; payloads are never bit-packed. The current tags are:
 | 2 | boolean | 0 or `0xFFFF` | 0 |
 | 3 | string | address | length |
 | 4 | table | header pointer | 0 |
+| 5 | float | reserved | reserved |
+| 6 | function | closure pointer | 0 |
 
 Numbers are signed 32-bit two's-complement values split across the two payload
 cells. Strings are `c-addr u` descriptors allocated by the garbage collector.
-Tables are pointers.
+Tables are pointers. The float tag is reserved for future use. A function value
+points at a GC-managed closure that records the code entry point and the
+lexical frame in which the function was created.
 
 Because every value carries its tag, variables and table slots are dynamically
 typed. One variable or table slot can hold a number, then a string, then a
@@ -122,9 +126,9 @@ print(greet("world"))
 body works from nested `if`/`elseif` blocks as well.
 
 `for` is inclusive and takes an optional step: `for i = start, end` or
-`for i = start, end, step`. Steps may be negative. The loop variable is a
-normal LILA variable, so assigning to it inside the body changes the next
-iteration.
+`for i = start, end, step`. Steps may be negative. The loop variable is a local
+to the loop, so assigning to it inside the body changes the next iteration, and
+the name is not visible after the loop.
 
 ## Truthiness and printing
 
@@ -136,9 +140,50 @@ iteration.
 - `print` writes numbers, strings, `true`/`false`, `nil`, and `<table>` for a
   table.
 
+## Locals and lexical scope
+
+A `local` declaration introduces a block-scoped variable. Locals shadow globals
+and outer locals, and disappear at the end of the enclosing block:
+
+```lisp
+x = 1
+local x = 2
+print(x)              -- 2
+if true then
+  local x = 3
+  print(x)            -- 3
+end
+print(x)              -- 2
+```
+
+`local x = expr` evaluates the right-hand side before `x` becomes visible, so
+`local x = x + 1` reads the outer `x`. Writing `local x` without a value
+initializes it to nil. Each call has its own frame, so locals and parameters
+are re-entrant and support recursion.
+
+A nested function captures the locals and parameters of its enclosing function
+as upvalues. The captured frame stays alive after the enclosing call returns:
+
+```lisp
+function makecounter(start)
+  local n = start
+  local function step()
+    n = n + 1
+    return n
+  end
+  return step
+end
+
+c = makecounter(0)
+print(c())            -- 1
+print(c())            -- 2
+```
+
 ## Functions
 
-Functions are declared with `function name(parameters)` and closed by `end`:
+Functions are first-class values. `function name(...)` defines a global,
+`local function name(...)` defines a local, and assigning a `function(...)
+... end` literal stores an anonymous function:
 
 ```lisp
 function sumto(n)
@@ -150,6 +195,23 @@ function sumto(n)
 end
 
 print(sumto(4))
+
+local function fact(n)
+  if n < 2 then
+    return 1
+  end
+  return n * fact(n - 1)
+end
+
+print(fact(5))        -- 120
+
+function makeadder(a)
+  local add = function(b) return a + b end
+  return add
+end
+
+add10 = makeadder(10)
+print(add10(5))       -- 15
 ```
 
 `return expr` may appear anywhere in a function, including inside
@@ -164,12 +226,12 @@ end
 addto(5)
 ```
 
-Parameters are local to the function: the compiler gives them Forth names such
-as `lila-var-sumto-n`. Assigning to a parameter updates that function's copy.
-Other names assigned in a function are ordinary global LILA variables.
-Parameters are separated by commas, and the call parenthesis must follow the
-function name directly (`sumto(4)`, not `sumto (4)`). Zero-argument calls are
-written `f()`.
+Parameters are locals of the call: the compiler assigns them frame slots.
+Assigning to a parameter updates this call's copy, not the caller's value.
+Other names assigned in a function are ordinary global LILA variables unless
+declared `local`. Parameters are separated by commas, and the call parenthesis
+must follow the function name directly (`sumto(4)`, not `sumto (4)`).
+Zero-argument calls are written `f()`.
 
 Parameters accept any tag. A parameter name ending in `$` is an optional string
 constraint at the call site; otherwise parameters are untyped:
@@ -192,10 +254,25 @@ A function's return tag is dynamic: the same function may return a number,
 string, table, boolean or nil on different calls. There is no requirement that
 all `return` statements use the same type.
 
+A function value may be stored in a variable, passed as an argument, returned
+from another function, and compared with `=` (identity of the closure):
+
+```lisp
+function twice(v) return v * 2 end
+function apply(fn, v) return fn(v) end
+
+print(apply(twice, 21))        -- 42
+same = twice = twice
+other = twice = apply
+print(same)                    -- true
+print(other)                   -- false
+```
+
 A top-level call may appear before the called function's definition in the
-source, because function definitions are compiled before the main program runs.
-A function body may call functions that are defined earlier (or already
-loaded); a function defined later is not available to an earlier body.
+source, because top-level function definitions are compiled before the main
+program runs. Function names are resolved when the body runs, so recursion and
+mutual recursion work; a function defined later is available once its
+definition has executed.
 
 ## Tables
 
@@ -262,8 +339,8 @@ print(t["value"])              -- bob
 
 ## Variables and strings
 
-Variables are global, except function parameters. A variable may change tag
-between assignments:
+Variables are global unless declared `local`; function parameters are locals.
+A variable may change tag between assignments:
 
 ```lisp
 v = 1
@@ -330,10 +407,19 @@ tagged values accessible with `lila-value@` and `lila-value!`.
 - `lila-eval` compiles LILA; use gforth directly to define Forth words.
 - A single-line function body separates statements with `;`, as other
   single-line blocks do.
-- Function parameters are not re-entrant: each parameter lives in one global
-  slot per function, so functions cannot recurse or call themselves through
-  another function. Function calls must form an acyclic graph.
-- Functions must be defined at top level.
+- Function parameters and locals are re-entrant: every call gets its own frame,
+  so functions may recurse or be called from within another call. Each frame
+  has 96 local slots, including parameters.
+- `function name(...)` defines a global, `local function name(...)` defines a
+  local, and either may be nested in a multi-line function or block body. A
+  single-line block body can contain `local function` but not a plain
+  `function` definition. Anonymous `function(...) ... end` literals are
+  recognized only as the whole right-hand side of an assignment
+  (`f = function...` or `local f = function...`).
+- A `local` is visible from the point of declaration to the end of its block.
+  The `for` loop variable is local to the loop.
+- Calls through a known function name are checked for arity at compile time.
+  A call through a function-valued variable is not arity-checked.
 - Nested table assignment such as `t["a"]["b"] = 1` is not supported; assign
   through the inner table variable instead.
 - String literals cannot contain a `"` and there are no escape sequences.

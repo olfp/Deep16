@@ -389,3 +389,73 @@ fmarked["kind"] = "string"
 fputstr(fmarked, "bob")
 print(fmarked["value"])         -- bob
 print(length(fmarked["value"])) -- 3
+
+-- locals are block scoped and may shadow globals and outer locals
+lx = 1
+local ly = lx + 1
+flbase = ly
+print(ly)                       -- 2
+if true then
+  local ly = 3
+  flinner = ly
+end
+flouter = ly
+
+-- local functions can recurse through their own local name
+local function lfact(n)
+  if n < 2 then
+    return 1
+  end
+  return n * lfact(n - 1)
+end
+flfact = lfact(5)
+print(flfact)                   -- 120
+
+-- global functions recurse through the global binding
+function lfib(n)
+  if n < 2 then
+    return n
+  end
+  return lfib(n - 1) + lfib(n - 2)
+end
+flfib = lfib(10)
+print(flfib)                    -- 55
+
+-- a closure keeps the defining frame alive after the call returns
+function lmakecounter(start)
+  local n = start
+  local function step()
+    n = n + 1
+    return n
+  end
+  return step
+end
+lc1 = lmakecounter(0)
+flca = lc1()
+flcb = lc1()
+lc2 = lmakecounter(10)
+flcc = lc2()
+flcd = lc1()
+print(flca)                     -- 1
+print(flcb)                     -- 2
+print(flcc)                     -- 11
+print(flcd)                     -- 3
+
+-- an anonymous function captures the enclosing parameter
+function lmakeadder(a)
+  local add = function(b) return a + b end
+  return add
+end
+ladder = lmakeadder(10)
+fladder = ladder(5)
+print(fladder)                  -- 15
+
+-- function values can be passed as arguments and compared for identity
+function ldbl(x) return x * 2 end
+function lapply(fn, v) return fn(v) end
+flapply = lapply(ldbl, 21)
+flsame = ldbl = ldbl
+flother = ldbl = lfib
+print(flapply)                  -- 42
+print(flsame)                   -- true
+print(flother)                  -- false

@@ -1,9 +1,10 @@
 # LUAPARITY — LILA gaps relative to Lua 5.4
 
-Status: working note, 4 Nov 2026.
+Status: working note, 9 Nov 2026.
 
 LILA now has three-cell tagged values, mixed-tag tables, dynamically retyped
-variables, and growable tables. Relative to Lua 5.4 it is still a small core
+variables, growable tables, lexical `local` declarations, and first-class
+functions with closures. Relative to Lua 5.4 it is still a small core
 language. This note records the remaining language, library, and runtime gaps.
 
 Companions: `lila/README.md` (current LILA semantics), `TYPEPLAN.md` (tagged
@@ -11,13 +12,15 @@ value ABI), `lila/compiler.fs`, `lila/hash.fs`, and `lila/gc.fs`.
 
 ## 1. Core language semantics
 
-- **No lexical scoping or `local`.** All variables except parameters are global.
-  There are no block-scoped locals, shadowing, or upvalues.
-- **No closures or function values.** Functions are top-level named
-  definitions, not first-class values. No lambdas, no closures, and no
-  function-valued variables.
-- **No recursion or reentrancy.** Parameters live in one global slot per
-  function, so recursive and mutually recursive calls are unsupported.
+Lexical scoping, `local`, block shadowing, upvalues, first-class functions,
+closures, recursion, and mutual recursion are implemented. The remaining
+core-language gaps are:
+
+- **Limited local storage.** Each call frame has 96 slots, so a function cannot
+  have more than 96 parameters and locals in total.
+- **Anonymous functions only in assignment position.** `f = function(...) ... end`
+  and `local f = function(...) ... end` work, but a function literal cannot be
+  used directly as an argument or return expression.
 - **No multiple returns or varargs.** No `return a, b`, no `...`, and no
   `select`.
 - **No multiple assignment.** No `a, b = b, a`.
@@ -92,14 +95,13 @@ value ABI), `lila/compiler.fs`, `lila/hash.fs`, and `lila/gc.fs`.
 
 ## 7. Highest-value next steps toward Lua parity
 
-1. **Locals and lexical scope**, then **first-class functions and closures**.
-2. **Full table keys and sequence support**, plus `pairs`/`ipairs` and basic
+1. **Full table keys and sequence support**, plus `pairs`/`ipairs` and basic
    `table` functions.
-3. **Boolean/logical operators** and a Lua-like operator set.
-4. **Multiple returns and varargs.**
-5. **Minimal standard library:** `type`, `tostring`, `tonumber`, `assert`,
+2. **Boolean/logical operators** and a Lua-like operator set.
+3. **Multiple returns and varargs.**
+4. **Minimal standard library:** `type`, `tostring`, `tonumber`, `assert`,
    `error`, `pcall`, string basics, and `math` basics.
-6. **Metatables** once the value and table models are stable.
+5. **Metatables** once the value and table models are stable.
 
 ## 8. Out of scope for the tagged-value pass
 

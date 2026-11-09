@@ -46,10 +46,11 @@ create for-step-vars 64 3 * cells allot
 \ a three-cell return value, and a one-cell return flag.  Function bodies
 \ become top-level words in defs-buf, like loop bodies.
 create fn-name 64 allot
+variable fn-body-addr
+variable fn-body-len
 create fn-params 16 64 * allot
 create fn-param-types 16 allot
 variable fn-param-count
-variable fn-active
 \ Function signatures: parameter count and optional parameter type constraints.
 create sig-names 64 64 * allot
 create sig-parm-types 64 16 * allot
@@ -66,6 +67,54 @@ create str-buf 1024 allot
 variable str-len
 create em-buf 2048 allot
 variable in-string
+
+\ Lexical environments.  Context 0 is the top-level chunk; each active
+\ function gets a child context.  Locals are recorded in a single binding
+\ stack, and scopes record where a block began so its locals can be dropped.
+64 constant lila-max-ctx
+256 constant lila-max-locals
+64 constant lila-max-scopes
+create ctx-parent lila-max-ctx cells allot
+create ctx-slots lila-max-ctx cells allot
+create ctx-base-local lila-max-ctx cells allot
+create ctx-base-scope lila-max-ctx cells allot
+variable ctx-top
+create local-names lila-max-locals 64 * allot
+create local-lens lila-max-locals allot
+create local-ctx lila-max-locals allot
+create local-slot lila-max-locals cells allot
+variable local-count
+create scope-local-base lila-max-scopes cells allot
+variable scope-top
+variable bf-found
+variable lr-idx
+variable lr-bctx
+variable lr-c
+variable lr-level
+
+\ Function metadata is saved/restored around nested function compilation.
+create fn-name-stack 64 64 * allot
+create fn-paramcount-stack 64 cells allot
+create fn-paramtypes-stack 64 16 * allot
+create fn-id-stack 64 cells allot
+variable fn-stack-top
+variable fn-counter
+variable fn-id
+
+\ Pending closure assignment target, one per function being compiled.
+\ kind: 0 global, 1 existing local, 2 local declared at function end.
+create tgt-kind 64 allot
+create tgt-level 64 cells allot
+create tgt-slot 64 cells allot
+create tgt-name 64 64 * allot
+create tgt-dest 64 allot
+variable tgt-top
+
+\ Loop control state lives in frame slots, so recursive calls cannot clobber
+\ an outer loop.
+create loop-break-slots 256 cells allot
+create loop-end-slots 256 cells allot
+create loop-step-slots 256 cells allot
 
 code-buf0 code-buf !
 
@@ -121,18 +170,8 @@ variable expr-type
 : buf-reset ( buf -- )  0 swap c! ;
 : buf+ ( c-addr u buf -- )  +place ;
 
-: em-reset ( -- )  0 em-buf c! ;
-: em+ ( c-addr u -- )  em-buf +place ;
-: em-char ( ch -- )
-  em-buf c@ 2040 >= if s" lila: literal too long" lila-error then
-  em-buf count + c!
-  em-buf c@ 1+ em-buf c! ;
-: s-lit-em { c-addr u -- }
-  s" s" em+
-  [char] " em-char
-  bl em-char
-  c-addr u em+
-  [char] " em-char ;
+: code-number ( n -- )  0 <# #s #> code+ ;
+: buf-number  ( n -- )  0 <# #s #> lila-buf buf+ ;
 
 : trim { c-addr u -- c-addr' u' }
   begin
@@ -196,22 +235,234 @@ variable expr-type
   loop
   true ;
 
+\ ---------------------------------------------------------------------------
+\ Lexical environment helpers
+
+: ctx-current ( -- idx )  ctx-top @ 1- ;
+
+: ctx-reset ( -- )
+  0 local-count !  1 scope-top !  1 ctx-top !
+  -1 0 cells ctx-parent + !
+  0 0 cells ctx-slots + !
+  0 0 cells ctx-base-local + !
+  0 0 cells ctx-base-scope + !
+  0 scope-local-base ! ;
+
+: scope-push ( -- )
+  scope-top @ lila-max-scopes >= if
+    s" lila: scopes nested too deeply" lila-error
+  then
+  local-count @ scope-top @ cells scope-local-base + !
+  1 scope-top +! ;
+
+: scope-pop ( -- )
+  scope-top @ 1 <= if s" lila: scope stack underflow" lila-error then
+  -1 scope-top +!
+  scope-top @ cells scope-local-base + @ local-count ! ;
+
+: ctx-push ( -- )
+  ctx-top @ lila-max-ctx >= if s" lila: functions nested too deeply" lila-error then
+  ctx-top @ 1- ctx-top @ cells ctx-parent + !
+  local-count @ ctx-top @ cells ctx-base-local + !
+  scope-top @ ctx-top @ cells ctx-base-scope + !
+  0 ctx-top @ cells ctx-slots + !
+  1 ctx-top +! ;
+
+: ctx-pop ( -- )
+  ctx-top @ 1 <= if s" lila: context stack underflow" lila-error then
+  -1 ctx-top +!
+  ctx-top @ cells ctx-base-local + @ local-count !
+  ctx-top @ cells ctx-base-scope + @ scope-top ! ;
+
+: local-reserve ( -- slot )
+  ctx-current { c }
+  ctx-slots c cells + @
+  dup lila-frame-slot-count >= if s" lila: too many locals" lila-error then
+  dup 1+ ctx-slots c cells + !
+  ;
+
+: local-declare { c-addr u -- slot }
+  c-addr u trim to u to c-addr
+  u 0= if s" lila: empty local name" lila-error then
+  local-count @ lila-max-locals >= if s" lila: too many locals" lila-error then
+  c-addr u local-count @ 64 * local-names + place
+  u local-count @ local-lens + c!
+  ctx-current local-count @ local-ctx + c!
+  local-reserve dup local-count @ cells local-slot + !
+  1 local-count +! ;
+
+: binding-find ( c-addr u -- idx )
+  -1 bf-found !
+  local-count @ 0 ?do
+    2dup local-names i 64 * + 1+ local-lens i + c@ compare 0= if
+      i bf-found !
+    then
+  loop
+  2drop bf-found @ ;
+
+: local-resolve { c-addr u -- }
+  c-addr u binding-find lr-idx !
+  lr-idx @ 0< if 0 0 false exit then
+  lr-idx @ local-ctx + c@ lr-bctx !
+  ctx-current lr-c !
+  0 lr-level !
+  begin
+    lr-c @ 0< if 0 0 false exit then
+    lr-c @ lr-bctx @ = if
+      lr-level @ lr-idx @ cells local-slot + @ true exit
+    then
+    lr-c @ cells ctx-parent + @ lr-c !
+    lr-level @ 1+ lr-level !
+  again ;
+
+: global-name { c-addr u -- c-addr' u' }
+  s" lila-var-" lila-name place
+  c-addr u lila-name +place
+  lila-name count ;
+
+: ensure-global { c-addr u -- }
+  c-addr u global-name 2drop
+  lila-name find nip 0= if
+    s" lila-value-allot " lila-name count s+
+    s"  " s+
+    evaluate
+    s" " lila-name count s+
+    s"  3 lila-gc-register-root " s+
+    evaluate
+  then ;
+
+: code-global-ref { c-addr u -- }
+  c-addr u ensure-global
+  s"  lila-var-" code+ c-addr u code+ s"  lila-value@ " code+ ;
+
+: code-global-addr { c-addr u -- }
+  c-addr u ensure-global
+  s"  lila-var-" code+ c-addr u code+ ;
+
+: buf-global-ref { c-addr u -- }
+  c-addr u ensure-global
+  s"  lila-var-" lila-buf buf+ c-addr u lila-buf buf+ s"  lila-value@ " lila-buf buf+ ;
+
+: code-local-addr { level slot -- }
+  s"  lila-active-frame @ " code+
+  level 0 ?do s" lila-frame-parent " code+ loop
+  slot code-number s"  lila-frame-slot " code+ ;
+
+: code-local-ref { level slot -- }
+  level slot code-local-addr s" lila-value@ " code+ ;
+
+: code-var-ref { c-addr u -- }
+  c-addr u local-resolve if
+    code-local-ref
+  else
+    2drop c-addr u code-global-ref
+  then ;
+
+: code-var-addr { c-addr u -- }
+  c-addr u local-resolve if
+    code-local-addr
+  else
+    2drop c-addr u code-global-addr
+  then ;
+
+: buf-local-ref { level slot -- }
+  s"  lila-active-frame @ " lila-buf buf+
+  level 0 ?do s" lila-frame-parent " lila-buf buf+ loop
+  slot buf-number s"  lila-frame-slot lila-value@ " lila-buf buf+ ;
+
+: buf-var-ref { c-addr u -- }
+  c-addr u local-resolve if
+    buf-local-ref
+  else
+    2drop c-addr u buf-global-ref
+  then ;
+
+\ ---------------------------------------------------------------------------
+\ Function metadata save/restore, closure targets, and loop state
+
+: fn-save ( -- )
+  fn-stack-top @ 64 >= if s" lila: functions nested too deeply" lila-error then
+  fn-name count fn-stack-top @ 64 * fn-name-stack + place
+  fn-param-count @ fn-stack-top @ cells fn-paramcount-stack + !
+  fn-param-count @ 0 ?do
+    fn-param-types i + c@
+    fn-stack-top @ 16 * i + fn-paramtypes-stack + c!
+  loop
+  fn-id @ fn-stack-top @ cells fn-id-stack + !
+  1 fn-stack-top +! ;
+
+: fn-restore ( -- )
+  -1 fn-stack-top +!
+  fn-stack-top @ 64 * fn-name-stack + count fn-name place
+  fn-stack-top @ cells fn-paramcount-stack + @ fn-param-count !
+  fn-param-count @ 0 ?do
+    fn-stack-top @ 16 * i + fn-paramtypes-stack + c@
+    fn-param-types i + c!
+  loop
+  fn-stack-top @ cells fn-id-stack + @ fn-id ! ;
+
+: next-fn-id ( -- id )  fn-counter @ 1 fn-counter +! ;
+
+: tgt-push-global { c-addr u dest -- }
+  tgt-top @ 64 >= if s" lila: functions nested too deeply" lila-error then
+  c-addr u tgt-top @ 64 * tgt-name + place
+  0 tgt-top @ tgt-kind + c!
+  dest tgt-top @ tgt-dest + c!
+  1 tgt-top +! ;
+
+: tgt-push-local { level slot dest -- }
+  tgt-top @ 64 >= if s" lila: functions nested too deeply" lila-error then
+  level tgt-top @ cells tgt-level + !
+  slot tgt-top @ cells tgt-slot + !
+  1 tgt-top @ tgt-kind + c!
+  dest tgt-top @ tgt-dest + c!
+  1 tgt-top +! ;
+
+: tgt-push-pending { c-addr u dest -- }
+  tgt-top @ 64 >= if s" lila: functions nested too deeply" lila-error then
+  c-addr u tgt-top @ 64 * tgt-name + place
+  2 tgt-top @ tgt-kind + c!
+  dest tgt-top @ tgt-dest + c!
+  1 tgt-top +! ;
+
+: loop-break-alloc ( -- )
+  local-reserve current-loop-id @ cells loop-break-slots + ! ;
+
+: loop-state-alloc ( -- )
+  local-reserve current-loop-id @ cells loop-break-slots + !
+  local-reserve current-loop-id @ cells loop-end-slots + !
+  local-reserve current-loop-id @ cells loop-step-slots + ! ;
+
+: code-loop-slot { slot -- }
+  s" lila-active-frame @ " code+
+  slot code-number s"  lila-frame-slot " code+ ;
+
+: code-loop-break ( -- )
+  current-loop-id @ cells loop-break-slots + @ code-loop-slot ;
+
+: code-loop-end ( -- )
+  current-loop-id @ cells loop-end-slots + @ code-loop-slot ;
+
+: code-loop-step ( -- )
+  current-loop-id @ cells loop-step-slots + @ code-loop-slot ;
+
+: em-reset ( -- )  0 em-buf c! ;
+: em+ ( c-addr u -- )  em-buf +place ;
+: em-char ( ch -- )
+  em-buf c@ 2040 >= if s" lila: literal too long" lila-error then
+  em-buf count + c!
+  em-buf c@ 1+ em-buf c! ;
+: s-lit-em { c-addr u -- }
+  s" s" em+
+  [char] " em-char
+  bl em-char
+  c-addr u em+
+  [char] " em-char ;
+
 : append-space ( -- )
   lila-buf c@ if
     lila-buf count + 1- c@ bl <> if s"  " lila-buf buf+ then
   then ;
-
-: param-index { c-addr u -- idx }
-  c-addr u trim to u to c-addr
-  fn-active @ 0= if -1 exit then
-  fn-param-count @ 0 ?do
-    c-addr u  i 64 * fn-params + count compare 0= if
-      i unloop exit
-    then
-  loop -1 ;
-
-: param? { c-addr u -- flag }
-  c-addr u param-index 0>= ;
 
 : param-string-name? { c-addr u -- flag }
   u 0> if c-addr u + 1- c@ [char] $ = else false then ;
@@ -315,13 +566,7 @@ variable number-negative
     lila-tag-num type-push exit
   then
   append-space
-  s"  lila-var-" lila-buf buf+
-  c-addr u param? if
-    fn-name count lila-buf buf+
-    s" -" lila-buf buf+
-  then
-  c-addr u lila-buf buf+
-  s"  lila-value@ " lila-buf buf+
+  c-addr u buf-var-ref
   lila-tag-unknown type-push ;
 
 : num-op { ch -- }
@@ -428,13 +673,12 @@ variable number-negative
   call-top @ 64 >= if s" lila: calls nested too deeply" lila-error then
   c-addr u call-top @ 64 * call-names + place
   1 call-top +! ;
-: call-pop-emit ( -- )
+: call-pop-emit { argc -- }
   call-top @ 0= if s" lila: call stack underflow" lila-error then
   -1 call-top +!
-  append-space
-  s" lila-fn-" lila-buf buf+
-  call-top @ 64 * call-names + count lila-buf buf+
-  s"  " lila-buf buf+ ;
+  call-top @ 64 * call-names + count buf-var-ref
+  argc buf-number
+  s"  lila-call " lila-buf buf+ ;
 
 : innermost-marker ( -- ch idx )
   op-top @ 0 ?do
@@ -520,7 +764,7 @@ variable number-negative
         expect-operand @ if
           -1 op-top +!
           0 call-result-type type-push
-          call-pop-emit
+          0 call-pop-emit
           0 expect-operand !
           mark-arg
           exit
@@ -537,8 +781,8 @@ variable number-negative
     idx paren-args + c@ if
       idx arg-counts + c@ 1+ { n -- }
       n call-result-type type-push
+      n call-pop-emit
     then
-    call-pop-emit
     mark-arg
   then
   0 expect-operand ! ;
@@ -674,23 +918,10 @@ variable number-negative
   then ;
 
 : lila-store-lhs { c-addr u -- }
-  c-addr u trim to u to c-addr
-  c-addr u param? { is-param -- }
-  s" lila-var-" lila-name place
-  is-param if
-    fn-name count lila-name +place
-    s" -" lila-name +place
-  then
-  c-addr u lila-name +place
-  lila-name count lila-lhs place
-  is-param 0= if
-    lila-name find nip 0= if
-      s" lila-value-allot " lila-name count s+
-      s"  " s+ lila-name count s+
-      s"  3 lila-gc-register-root " s+
-      evaluate
-    then
-  then ;
+  c-addr u trim lila-lhs place ;
+
+: code-lhs-ref ( -- )   lila-lhs count code-var-ref ;
+: code-lhs-addr ( -- )  lila-lhs count code-var-addr ;
 
 : assignment? { line len -- flag }
   line len s" =" split-at if
@@ -724,13 +955,6 @@ variable number-negative
 : compile-rhs { c-addr u -- }
   c-addr u trim compile-expr ;
 
-: code-lila-var ( -- )  lila-lhs count code+ ;
-
-: code-var-ref { c-addr u -- }
-  s"  lila-var-" code+
-  c-addr u param? if fn-name count code+ s" -" code+ then
-  c-addr u code+ ;
-
 : parse-table-lhs { c-addr u -- key klen }
   c-addr u trim 1- to u
   c-addr u s" [" split-at 0= if
@@ -745,9 +969,7 @@ variable number-negative
 
 : table-assign-code { lhs llen rhs rlen -- }
   lhs llen parse-table-lhs { key-addr key-len -- }
-  lila-lhs count lila-store-lhs
-  code-lila-var
-  s"  lila-value@ " code+
+  code-lhs-ref
   key-addr key-len compile-expr
   expr-type @ dup type-known? if
     lila-tag-str <> if s" lila: table key must be a string" lila-error then
@@ -765,7 +987,7 @@ variable number-negative
 : assign-code { lhs llen rhs rlen -- }
   rhs rlen compile-rhs
   lhs llen lila-store-lhs
-  code-lila-var
+  code-lhs-addr
   s"  lila-value! " code+ ;
 
 : compile-assign-code { line len -- }
@@ -828,12 +1050,6 @@ variable number-negative
 : block-set-extra ( n -- )
   block-top @ 0= if drop else block-top @ 1- cells block-extra + ! then ;
 
-: code-number ( n -- )  0 <# #s #> code+ ;
-: code-for-end ( -- )
-  s" for-end-vars " code+ for-depth @ 3 * code-number s"  cells + " code+ ;
-: code-for-step ( -- )
-  s" for-step-vars " code+ for-depth @ 3 * code-number s"  cells + " code+ ;
-
 : code-push ( -- )
   code-top @ 64 >= if s" lila: code nesting too deep" lila-error then
   code-buf @ code-top @ 2* cells code-stack + !
@@ -887,29 +1103,23 @@ variable number-negative
   id code-number
   s"  " code+ ;
 
-: code-loop-break-id ( id -- )
-  s" loop-break-vars " code+ code-number s"  cells + " code+ ;
-: code-loop-break ( -- )  current-loop-id @ code-loop-break-id ;
-
 : lila-compile-break ( -- )
   body-id-current dup 0< if
     drop s" lila: break outside loop" lila-error
   then
   s" 1 " code+
-  code-loop-break-id
+  code-loop-break
   s" ! EXIT " code+ ;
 
 : compile-return { line len -- }
-  fn-active @ 0= if s" lila: return outside function" lila-error then
+  ctx-top @ 1 <= if s" lila: return outside function" lila-error then
   line len 6 /string trim
   dup 0= if
     2drop s" 0 0 0 " code+
   else
     compile-expr
   then
-  s"  lila-fn-" code+ fn-name count code+
-  s" -val lila-value! 1 lila-fn-" code+
-  fn-name count code+ s" -ret ! EXIT " code+ ;
+  s"  lila-frame-ret! EXIT " code+ ;
 
 : call-stmt? { c-addr u -- flag }
   c-addr u trim to u to c-addr
@@ -923,10 +1133,32 @@ variable number-negative
   line len compile-expr
   s"  lila-value-drop " code+ ;
 
+defer lila-compile-local
+defer lila-compile-local-function
+defer lila-compile-anon-assign
+
+: rhs-function? { line len -- flag }
+  line len s" =" split-at if
+    2swap 2drop trim
+    2dup s" function" string-prefix? if
+      2drop true
+    else
+      2drop false
+    then
+  else
+    2drop 2drop false
+  then ;
+
 : compile-stmt-code { line len -- }
   line len trim
   2dup s" break" compare 0= if
     2drop lila-compile-break exit
+  then
+  2dup s" local function " string-prefix? if
+    lila-compile-local-function exit
+  then
+  2dup s" local " string-prefix? if
+    lila-compile-local exit
   then
   2dup s" print" string-prefix? if
     compile-print-code exit
@@ -939,6 +1171,9 @@ variable number-negative
   then
   2dup s" function " string-prefix? if
     2drop s" lila: function must be top-level" lila-error
+  then
+  2dup rhs-function? if
+    lila-compile-anon-assign exit
   then
   2dup table-assign? if
     compile-table-assign exit
@@ -995,11 +1230,6 @@ variable number-negative
   then
   c-addr u false ;
 
-: declare-fn-vars ( -- )
-  s" variable lila-fn-" defs+ fn-name count defs+ s" -ret drop " defs+
-  s" lila-value-allot lila-fn-" defs+ fn-name count defs+ s" -val " defs+
-  s" lila-fn-" defs+ fn-name count defs+ s" -val 3 lila-gc-register-root " defs+ ;
-
 : fn-set-name { c-addr u -- }
   c-addr u trim to u to c-addr
   u 0= if s" lila: invalid function name" lila-error then
@@ -1007,7 +1237,8 @@ variable number-negative
   u 63 > if s" lila: function name too long" lila-error then
   c-addr u fn-name place ;
 
-: fn-header { c-addr u -- params plen body blen }
+\ Returns ( body blen params plen ).
+: fn-header { c-addr u -- body blen params plen }
   c-addr u s" (" split-at 0= if
     2drop 2drop s" lila: function needs a parameter list" lila-error
   then
@@ -1018,13 +1249,16 @@ variable number-negative
   then
   2swap ;
 
-: declare-param { c-addr u -- }
-  s" lila-value-allot lila-var-" defs+
-  fn-name count defs+ s" -" defs+
-  c-addr u defs+
-  s"  lila-var-" defs+ fn-name count defs+ s" -" defs+
-  c-addr u defs+
-  s"  3 lila-gc-register-root " defs+ ;
+\ Parse the parameter list of an anonymous function body starting at "(".
+: fn-anon-header { c-addr u -- body blen params plen }
+  c-addr u trim
+  dup 0= if drop s" lila: function needs a parameter list" lila-error then
+  over c@ [char] ( <> if s" lila: function needs a parameter list" lila-error then
+  1 /string
+  s" )" split-at 0= if
+    2drop 2drop s" lila: function needs )" lila-error
+  then
+  2swap ;
 
 : add-param { c-addr u -- }
   c-addr u trim to u to c-addr
@@ -1034,7 +1268,7 @@ variable number-negative
   c-addr u  fn-param-count @ 64 * fn-params + place
   c-addr u param-string-name? if 1 else 0 then
   fn-param-count @ fn-param-types + c!
-  c-addr u declare-param
+  c-addr u local-declare drop
   1 fn-param-count +! ;
 
 : parse-params { c-addr u -- }
@@ -1055,58 +1289,101 @@ variable number-negative
   code-top @ 1- 65536 * body-bufs + code-buf !
   0 code-len ! ;
 
-: emit-fn-prologue ( -- )
-  s" 0 lila-fn-" defs+ fn-name count defs+ s" -ret ! " defs+
-  s" 0 0 0 lila-fn-" defs+ fn-name count defs+ s" -val lila-value! " defs+
-  fn-param-count @ 0 ?do
-    fn-param-count @ 1- i - 64 * fn-params + count
-    s" lila-var-" defs+ fn-name count defs+ s" -" defs+
-    defs+
-    s"  lila-value! " defs+
-  loop ;
+\ ---------------------------------------------------------------------------
+\ Closure creation and function wrappers
 
-: emit-fn-epilogue ( -- )
-  s" lila-fn-" defs+ fn-name count defs+ s" -ret @ IF lila-fn-" defs+
-  fn-name count defs+ s" -val lila-value@ ELSE 0 0 0 THEN " defs+ ;
+create tb-buf 1024 allot
+: tb-reset ( -- )  0 tb-buf c! ;
+: tb+ ( c-addr u -- )  tb-buf +place ;
+: tb-number ( n -- )  0 <# #s #> tb+ ;
+: tb-append { dest -- }
+  tb-buf count  dest 0= if code+ else defs+ then ;
 
-\ The body is its own word so `return` can EXIT it from anywhere, including
-\ a nested loop body.  The wrapper stores the arguments and always reaches
-\ the epilogue, so every call leaves exactly one result.
-: function-end ( -- )
-  sig-register
-  s" : lila-fn-body-" defs+
-  load-serial @ defs-number
-  s" -" defs+
-  fn-name count defs+
-  s"  " defs+
+: closure-buf { id dest -- }
+  tb-reset
+  s" 0 " tb+
+  dest 0= if s" ['] " tb+ else s" ' " tb+ then
+  s" lila-fn-" tb+
+  id tb-number
+  s"  far-xt lila-active-frame @ lila-closure-new " tb+ ;
+
+: closure-store-global { id c-addr u dest -- }
+  id dest closure-buf
+  s" lila-var-" tb+ c-addr u tb+ s"  lila-value! " tb+
+  dest tb-append ;
+
+: closure-store-local { id level slot dest -- }
+  id dest closure-buf
+  s" lila-active-frame @ " tb+
+  level 0 ?do s" lila-frame-parent " tb+ loop
+  slot tb-number s"  lila-frame-slot lila-value! " tb+
+  dest tb-append ;
+
+: closure-store-pending { id c-addr u dest -- }
+  c-addr u local-declare { slot -- }
+  id 0 slot dest closure-store-local ;
+
+: emit-fn-definition ( -- )
+  s" : lila-fn-body-" defs+ fn-id @ defs-number s"  " defs+
   code-buf @ code-len @ defs+
   s"  ; " defs+
-  s" : lila-fn-" defs+ fn-name count defs+ s"  " defs+
-  emit-fn-prologue
-  s" lila-fn-body-" defs+
-  load-serial @ defs-number
-  s" -" defs+
-  fn-name count defs+
-  s"  " defs+
-  emit-fn-epilogue
-  s" ; " defs+
-  code-pop
-  0 fn-active !
-  0 fn-param-count ! ;
+  s" : lila-fn-" defs+ fn-id @ defs-number s"  " defs+
+  s" lila-active-frame @ >r lila-frame-new " defs+
+  s" dup lila-active-frame ! dup lila-frame-tmp ! drop " defs+
+  fn-param-count @ 0 ?do
+    s" lila-frame-tmp @ " defs+
+    fn-param-count @ 1- i - defs-number
+    s"  lila-frame-slot lila-value! " defs+
+  loop
+  s" lila-fn-body-" defs+ fn-id @ defs-number s"  " defs+
+  s" lila-frame-result r> lila-active-frame ! ; " defs+ ;
 
-: lila-compile-function { line len -- }
-  fn-active @ if
-    s" lila: nested functions are not supported" lila-error
+\ The body is its own word so `return` can EXIT it from anywhere, including
+\ a nested loop body.  The wrapper builds the call frame, stores arguments,
+\ and always reaches the epilogue, so every call leaves exactly one result.
+: function-end ( -- )
+  sig-register
+  emit-fn-definition
+  code-pop
+  fn-id @ { id -- }
+  tgt-top @ 1- { ti -- }
+  fn-restore
+  ctx-pop
+  tgt-kind ti + c@ 0= if
+    id tgt-name ti 64 * + count tgt-dest ti + c@ closure-store-global
+  else
+    tgt-kind ti + c@ 1 = if
+      id tgt-level ti cells + @ tgt-slot ti cells + @
+      tgt-dest ti + c@ closure-store-local
+    else
+      id tgt-name ti 64 * + count tgt-dest ti + c@ closure-store-pending
+    then
   then
-  block-top @ 0<> if
-    s" lila: function must be top-level" lila-error
+  -1 tgt-top +! ;
+
+: lila-fn-from-line { line len local? -- }
+  fn-save
+  line len local? if 15 else 9 then /string trim fn-header
+  2swap fn-body-len ! fn-body-addr !
+  local? if
+    0 fn-name count local-declare 0 tgt-push-local
+  else
+    fn-name count local-resolve if
+      0 tgt-push-local
+    else
+      2drop
+      fn-name count ensure-global
+      ctx-top @ 1 = block-top @ 0= and >r
+      fn-name count r> tgt-push-global
+    then
   then
-  line len 9 /string trim fn-header
-  fn-active on
-  declare-fn-vars
+  next-fn-id fn-id !
+  ctx-push
+  scope-push
+  0 fn-param-count !
   parse-params
   function-body-start
-  trim
+  fn-body-addr @ fn-body-len @ trim
   dup 0= if
     2drop
     [char] n block-push
@@ -1119,9 +1396,106 @@ variable number-negative
   compile-block
   function-end ;
 
+: lila-compile-function { line len -- }
+  line len 0 lila-fn-from-line ;
+
+: lila-compile-local-function-do { line len -- }
+  line len 1 lila-fn-from-line ;
+
+' lila-compile-local-function-do is lila-compile-local-function
+
+: lila-fn-anon { lhs llen rhs rlen local? -- }
+  fn-save
+  lhs llen fn-set-name
+  rhs rlen trim
+  dup 0= if 2drop s" lila: function expected" lila-error then
+  2dup s" function" string-prefix? 0= if
+    2drop s" lila: function expected" lila-error
+  then
+  8 /string fn-anon-header
+  2swap fn-body-len ! fn-body-addr !
+  local? if
+    lhs llen trim 0 tgt-push-pending
+  else
+    lhs llen trim local-resolve if
+      0 tgt-push-local
+    else
+      2drop
+      lhs llen trim ensure-global
+      lhs llen trim 0 tgt-push-global
+    then
+  then
+  next-fn-id fn-id !
+  ctx-push
+  scope-push
+  0 fn-param-count !
+  parse-params
+  function-body-start
+  fn-body-addr @ fn-body-len @ trim
+  dup 0= if
+    2drop
+    [char] n block-push
+    exit
+  then
+  strip-end 0= if
+    2drop 2drop
+    s" lila: function body must end with end or start on a new line" lila-error
+  then
+  compile-block
+  function-end ;
+
+: lila-compile-anon-assign-do { line len -- }
+  line len trim s" =" split-at 0= if
+    2drop 2drop s" lila: assignment expected" lila-error
+  then
+  2over trim identifier? 0= if
+    2drop 2drop s" lila: invalid assignment target" lila-error
+  then
+  0 lila-fn-anon ;
+
+' lila-compile-anon-assign-do is lila-compile-anon-assign
+
+: lila-compile-local-do { line len -- }
+  line len 6 /string trim
+  s" =" split-at if
+    ( name nlen rhs rlen )
+    2dup trim
+    2dup s" function" string-prefix? if
+      2drop
+      2over trim identifier? 0= if
+        2drop 2drop s" lila: invalid local name" lila-error
+      then
+      1 lila-fn-anon
+    else
+      2drop
+      2over trim identifier? 0= if
+        2drop 2drop s" lila: invalid local name" lila-error
+      then
+      2dup compile-expr
+      2swap
+      local-declare
+      0 swap code-local-addr
+      s"  lila-value! " code+
+      2drop
+    then
+  else
+    2drop
+    2dup trim identifier? 0= if
+      2drop s" lila: invalid local name" lila-error
+    then
+    local-declare
+    s"  0 0 0 " code+
+    0 swap code-local-addr
+    s"  lila-value! " code+
+  then ;
+
+' lila-compile-local-do is lila-compile-local
+
 : lila-compile-else ( -- )
   block-top@ [char] i <> if s" lila: else without if" lila-error then
+  scope-pop
   s" ELSE " code+
+  scope-push
   [char] e block-set-top ;
 
 : lila-compile-elseif { line len -- }
@@ -1129,6 +1503,7 @@ variable number-negative
   line len 7 /string trim
   s" then" split-at if
     ( cond clen rest rlen )
+    scope-pop
     s" ELSE " code+
     2over compile-expr
     s"  lila-truthy IF " code+
@@ -1138,6 +1513,7 @@ variable number-negative
       2drop s" lila: elseif body must start on a new line" lila-error
     then
     2drop
+    scope-push
     1 block-extra+!
   else
     2drop 2drop
@@ -1145,13 +1521,13 @@ variable number-negative
   then ;
 
 : emit-fn-ret-check ( -- )
-  fn-active @ if
-    s" lila-fn-" code+ fn-name count code+ s" -ret @ IF EXIT THEN " code+
+  ctx-top @ 1 > if
+    s" lila-frame-ret? IF EXIT THEN " code+
   then ;
 
 : emit-fn-cond ( -- )
-  fn-active @ if
-    s" lila-fn-" code+ fn-name count code+ s" -ret @ 0= AND " code+
+  ctx-top @ 1 > if
+    s" lila-frame-ret? 0= AND " code+
   then ;
 
 : lila-compile-end ( -- )
@@ -1163,6 +1539,7 @@ variable number-negative
     loop-body-end
     s" REPEAT " code+
     -1 for-depth +!
+    scope-pop
     emit-fn-ret-check
     exit
   then
@@ -1170,6 +1547,7 @@ variable number-negative
     drop drop
     loop-body-end
     s" REPEAT " code+
+    scope-pop
     emit-fn-ret-check
     exit
   then
@@ -1181,6 +1559,7 @@ variable number-negative
   dup [char] i = over [char] e = or if
     drop
     1+ 0 ?do s" THEN " code+ loop
+    scope-pop
     exit
   then
   drop drop s" lila: bad block type" lila-error ;
@@ -1194,7 +1573,7 @@ variable number-negative
     2swap 2drop
     trim
     dup 0= if
-      2drop [char] i block-push exit
+      2drop [char] i block-push scope-push exit
     then
     s" end" split-at if
       ( body blen tail tlen )
@@ -1202,13 +1581,13 @@ variable number-negative
       s" else" split-at if
         ( thenbody tlen elsebody elen )
         2swap
-        compile-block
+        scope-push compile-block scope-pop
         s" ELSE " code+
-        compile-block
+        scope-push compile-block scope-pop
         s" THEN " code+
       else
         2drop
-        compile-block
+        scope-push compile-block scope-pop
         s" THEN " code+
       then
     else
@@ -1225,6 +1604,7 @@ variable number-negative
   s" do" split-at if
     ( cond clen rest rlen )
     next-loop-id current-loop-id !
+    loop-break-alloc
     s" 0 " code+
     code-loop-break
     s" ! BEGIN " code+
@@ -1239,13 +1619,16 @@ variable number-negative
     dup 0= if
       2drop
       current-loop-id @ loop-body-start
+      scope-push
       [char] w block-push
       exit
     then
     s" end" split-at if
       2drop
       current-loop-id @ loop-body-start
+      scope-push
       compile-block
+      scope-pop
       loop-body-end
       s" REPEAT " code+
     else
@@ -1288,37 +1671,37 @@ variable number-negative
           s" lila: for loops nested too deeply" lila-error
         then
         next-loop-id current-loop-id !
+        loop-state-alloc
         for-end count compile-expr
-        code-for-end
+        code-loop-end
         s"  lila-value! " code+
         for-step count compile-expr
-        code-for-step
+        code-loop-step
         s"  lila-value! " code+
         for-start count compile-expr
-        code-for-step
+        code-loop-step
         s"  lila-value@  lila-sub " code+
-        code-lila-var
+        scope-push
+        lila-lhs count local-declare drop
+        code-lhs-addr
         s"  lila-value! " code+
         s" 0 " code+
         code-loop-break
         s"  ! BEGIN " code+
         code-loop-break
         s"  @ 0= IF " code+
-        code-lila-var
-        s"  lila-value@ " code+
-        code-for-step
+        code-lhs-ref
+        code-loop-step
         s"  lila-value@  lila-add " code+
-        code-lila-var
+        code-lhs-addr
         s"  lila-value! " code+
-        code-for-step
+        code-loop-step
         s"  lila-value@  lila-num>32 0> IF " code+
-        code-lila-var
-        s"  lila-value@ " code+
-        code-for-end
+        code-lhs-ref
+        code-loop-end
         s"  lila-value@  lila-le  lila-truthy ELSE " code+
-        code-lila-var
-        s"  lila-value@ " code+
-        code-for-end
+        code-lhs-ref
+        code-loop-end
         s"  lila-value@  lila-ge  lila-truthy THEN " code+
         emit-fn-cond
         s" ELSE 0 THEN WHILE " code+
@@ -1337,6 +1720,7 @@ variable number-negative
           1 for-depth +!
           compile-block
           -1 for-depth +!
+          scope-pop
           loop-body-end
           s" REPEAT " code+
         else
@@ -1360,6 +1744,8 @@ variable number-negative
   line len strip-cr strip-comment
   dup 0= if 2drop exit then
   2dup s" break" compare 0= if 2drop lila-compile-break exit then
+  2dup s" local function " string-prefix? if lila-compile-local-function exit then
+  2dup s" local " string-prefix? if lila-compile-local exit then
   2dup s" function " string-prefix? if lila-compile-function exit then
   2dup s" if " string-prefix? if lila-compile-if exit then
   2dup s" elseif " string-prefix? if lila-compile-elseif exit then
@@ -1378,15 +1764,23 @@ variable number-negative
   0 body-id-top !
   0 block-top !
   0 for-depth !
-  0 fn-active !
   0 fn-param-count !
-  0 call-top ! ;
+  0 fn-stack-top !
+  0 fn-id !
+  0 tgt-top !
+  0 call-top !
+  ctx-reset
+  s" 0 lila-frame-new dup lila-active-frame ! drop " defs+ ;
 
 : lila-compile-finish ( -- )
   block-top @ 0<> if s" lila: unterminated block" lila-error then
   for-depth @ 0<> if s" lila: unbalanced for loop" lila-error then
   code-top @ 0<> if s" lila: code stack not empty" lila-error then
   body-id-top @ 0<> if s" lila: body stack not empty" lila-error then
+  ctx-top @ 1 <> if s" lila: unterminated function" lila-error then
+  fn-stack-top @ 0<> if s" lila: function stack not empty" lila-error then
+  tgt-top @ 0<> if s" lila: function target stack not empty" lila-error then
+  scope-top @ 1 <> if s" lila: scope stack not empty" lila-error then
   s" ; execute" code+
   defs-len @ 0> if defs-buf defs-len @ evaluate then
   code-eval ;

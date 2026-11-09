@@ -144,6 +144,9 @@ create lila-str-total 0 ,
   ta lila-tag-table = if
     a1 b1 = lila>value-bool exit
   then
+  ta lila-tag-fn = if
+    a1 b1 = lila>value-bool exit
+  then
   0 lila>value-bool ;
 
 : lila-lt { a1 a2 ta b1 b2 tb -- r1 r2 tr }
@@ -227,3 +230,78 @@ create lila-str-total 0 ,
   else
     v1 v2 lila-32 e1 e2 lila-32 >=
   then ;
+
+\ ---------------------------------------------------------------------------
+\ Frames and closures
+\
+\ A frame is a GC object (type 3) with a lexical parent, a caller link for
+\ active-frame reachability, a per-call return value, and fixed local slots:
+\   [parent][caller][retflag][ret1][ret2][rettag][slot0 ...]
+\ A closure (type 4) is [seg][off][env].  A tag-6 value points at it.
+
+96 constant lila-frame-slot-count
+6 constant lila-frame-slot0
+lila-frame-slot-count 3 * lila-frame-slot0 + cells constant lila-frame-bytes
+
+variable lila-active-frame
+variable lila-frame-tmp
+lila-active-frame 1 lila-gc-register-root
+
+: lila-check-fn ( tag -- )
+  lila-tag-fn <> if s" lila: function expected" lila-error then ;
+
+: lila-frame-new { parent -- frame }
+  lila-frame-bytes 3 gc-alloc { frame -- }
+  frame lila-frame-bytes 0 fill
+  parent frame !
+  lila-active-frame @ frame cell+ !
+  frame ;
+
+: lila-frame-parent ( frame -- parent )  @ ;
+
+: lila-frame-slot { frame slot -- addr }
+  frame slot 3 * lila-frame-slot0 + cells + ;
+
+: lila-frame-ret! { v1 v2 tag -- }
+  lila-active-frame @ { frame }
+  v1 v2 tag frame 3 cells + lila-value!
+  1 frame 2 cells + ! ;
+
+: lila-frame-ret? ( -- flag )
+  lila-active-frame @ 2 cells + @ 0<> ;
+
+: lila-frame-result ( -- v1 v2 tag )
+  lila-active-frame @ dup 2 cells + @ if
+    3 cells + lila-value@
+  else
+    drop 0 0 lila-tag-nil
+  then ;
+
+: lila-closure-new { seg off env -- v1 v2 tag }
+  3 cells 4 gc-alloc { closure -- }
+  seg closure !
+  off closure cell+ !
+  env closure 2 cells + !
+  closure 0 lila-tag-fn ;
+
+\ Generic indirect call: ( args... closure-value argc -- result ).  The
+\ closure value sits just below argc; it is replaced by the captured frame
+\ pointer, which the function wrapper expects on top of its arguments.
+: lila-call { v1 v2 tag argc -- }
+  tag lila-check-fn
+  v1 2 cells + @
+  v1 @
+  v1 cell+ @
+  far-execute ;
+
+\ Conservative scanners for the GC.
+: lila-frame-gc-scan { frame -- }
+  lila-frame-bytes 0 ?do
+    frame i + @ gc-mark-cell
+  loop ;
+: lila-closure-gc-scan { closure -- }
+  closure @ gc-mark-cell
+  closure cell+ @ gc-mark-cell
+  closure 2 cells + @ gc-mark-cell ;
+' lila-frame-gc-scan is gc-scan-frame
+' lila-closure-gc-scan is gc-scan-closure

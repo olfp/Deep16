@@ -65,7 +65,7 @@ room to grow without changing the layout.
 | 3 | string | `c-addr` | `u` | immutable bytes, GC-managed |
 | 4 | table | header pointer | 0 | GC-managed |
 | 5 | float | low word | high word | reserved; high word on top, as `FLOATIMPL.md` |
-| 6 | function | xt | 0 | reserved |
+| 6 | function | closure pointer | 0 | GC closure `[seg][off][env]` |
 | 7… | — | — | — | reserved |
 
 Invariants:
@@ -184,6 +184,12 @@ Function calls keep the direct Forth call, but the ABI is uniform:
 * an expression call pushes the three-cell return value with `lila-value@`;
 * a call used as a statement discards three cells;
 * the `-ret` flag stays a single cell; it is control state, not a LILA value.
+
+The lexical-scope and closure pass replaced the direct call with a generic
+indirect call. A function value is tag 6 pointing at a closure object, and a
+call compiles as `args... closure-value argc lila-call`. Named functions,
+`local function`, and anonymous function literals all produce closures, so the
+call path is the same in every case. See §13 for the frame and closure layout.
 
 The uniform ABI removes the reason for the current "a string-returning function
 must be defined before its call" rule. Arity still has to be known when the call
@@ -378,6 +384,11 @@ alias a heap address.
 table header itself becomes three cells; the bucket array stays a separate GC
 object. String data and table bucket arrays are unchanged.
 
+The scanner dispatch now also covers the frame and closure object types added by
+lexical scope. Type 3 frames conservatively mark every cell in the frame,
+including the lexical parent, caller link, return slot, and all local slots;
+type 4 closures mark the code segment, code offset, and captured frame.
+
 The collector is conservative, so marking both numeric halves can retain an
 object if a number happens to look like a heap address. The current collector
 already accepts this for single-cell numeric roots; three cells slightly widen
@@ -530,8 +541,48 @@ Items marked resolved are part of the current language behaviour.
 This note does not add packed tags, a boxed object model, a full structural type
 system, record syntax, numeric table keys or a new garbage collector. It also
 does not change the rule that a table's bucket array is growable and never
-freed, or the rule that function parameters are not re-entrant. Those are
-separate problems.
+freed. That is a separate problem. Function parameters are now re-entrant; see
+§13.
 
 The implementation and the updated host test suite live in `lila/`; future
 stages are target porting and performance measurement.
+
+## 13. Lexical frames and closures (implemented)
+
+Lexical scope and first-class functions extend the value ABI with two GC object
+types. They do not change the three-cell value layout.
+
+A frame is the activation record for one call. It is a GC object of type 3:
+
+```text
+[parent][caller][retflag][ret1][ret2][rettag][slot0] ... [slot95]
+```
+
+`parent` is the lexical enclosing frame captured by a closure; `caller` links to
+the frame active at call time so an active outer frame stays reachable. Slots
+start at cell 6, each slot holds one three-cell value, and a call has 96 slots
+including its parameters. `lila-active-frame` is a registered GC root.
+
+A closure is a GC object of type 4:
+
+```text
+[code-segment][code-offset][captured-frame]
+```
+
+A tag-6 value points at the closure. `lila-call` reads `seg`, `off` and the
+captured frame from it, pushes the frame as the callee's lexical parent, and
+executes the code. The generated wrapper creates the frame, stores the incoming
+arguments into slots in reverse order, runs the body word, and copies the
+return slot into the caller's three-cell result.
+
+At compile time, context 0 is the top-level chunk and each nested function gets
+a child context. A name resolves to a `(level, slot)` pair by walking context
+parents; `level` counts `lila-frame-parent` hops. Top-level plain `function`
+definitions create their closures before the main code so calls may precede the
+definition. `local function`, nested functions, and anonymous literals create
+their closures when execution reaches the declaration. `local x = expr`
+evaluates `expr` before `x` is declared, and `local x` initialises to nil.
+
+Anonymous `function(...) ... end` literals are accepted as the whole right-hand
+side of an assignment, inline or multi-line. They are not accepted directly as
+call arguments or return expressions.

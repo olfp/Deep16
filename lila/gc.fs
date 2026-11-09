@@ -1,13 +1,15 @@
 \ LILA garbage collector
 \ ----------------------
-\ Heap strings, table headers, and table bucket arrays are GC objects.  Objects
-\ are linked through their headers and reclaimed by a conservative mark-sweep
-\ pass.  Collection happens between compiled statements, so the roots are the
-\ registered LILA variable cells, live table slots, and the data stack.
+\ Heap strings, table headers, table bucket arrays, activation frames, and
+\ closures are GC objects.  Objects are linked through their headers and
+\ reclaimed by a conservative mark-sweep pass.  Collection happens between
+\ compiled statements, so the roots are the registered LILA variable cells,
+\ live table slots, and the data stack.
 \
 \ Object header (4 cells): [next][size][mark][type]
 \ Payload starts after the header.
-\ Types: 0 = string, 1 = table, 2 = table bucket array.
+\ Types: 0 = string, 1 = table, 2 = table bucket array, 3 = frame,
+\ 4 = closure.
 
 : lila-error ( c-addr u -- )  cr type cr abort ;
 
@@ -83,28 +85,39 @@ create gc-sp 0 ,
     gc-sp @ i cells + @ gc-mark-cell
   loop ;
 
-\ Tables are scanned when marked.  hash.fs installs the scanner.
+\ Marked objects are scanned once.  hash.fs and value.fs install the scanners.
 defer gc-scan-table ( table -- )
+defer gc-scan-frame ( frame -- )
+defer gc-scan-closure ( closure -- )
 
 create gc-changed 0 ,
 create gc-cur 0 ,
-: gc-table-object? ( header -- flag )  gc-type@ 1 = ;
-: gc-scan-table-pass ( -- flag )
+: gc-scan-object ( header -- )
+  dup gc-mark@ 1 = if
+    dup 2 swap gc-mark!
+    dup gc-type@ 1 = if
+      dup gc-payload gc-scan-table
+    else
+      dup gc-type@ 3 = if
+        dup gc-payload gc-scan-frame
+      else
+        dup gc-type@ 4 = if
+          dup gc-payload gc-scan-closure
+        then
+      then
+    then
+    -1 gc-changed !
+  then drop ;
+: gc-scan-pass ( -- flag )
   0 gc-changed !
   gc-objects @ gc-cur !
   begin gc-cur @ while
-    gc-cur @ gc-table-object? if
-      gc-cur @ gc-mark@ 1 = if
-        2 gc-cur @ gc-mark!
-        gc-cur @ gc-payload gc-scan-table
-        -1 gc-changed !
-      then
-    then
+    gc-cur @ gc-scan-object
     gc-cur @ gc-next@ gc-cur !
   repeat
   gc-changed @ ;
-: gc-scan-table-graph ( -- )
-  begin gc-scan-table-pass 0= until ;
+: gc-scan-graph ( -- )
+  begin gc-scan-pass 0= until ;
 
 create gc-prev 0 ,
 create gc-next 0 ,
@@ -137,7 +150,7 @@ create gc-next 0 ,
   repeat
   gc-mark-roots
   gc-scan-stack
-  gc-scan-table-graph
+  gc-scan-graph
   gc-sweep ;
 
 : gc-maybe ( -- )

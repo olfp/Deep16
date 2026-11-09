@@ -101,7 +101,6 @@ lila-var-fcond 1 check-num
 lila-var-frange 10 check-num
 lila-var-fbrk 3 check-num
 lila-var-fbsum 6 check-num
-lila-var-fbi 4 check-num
 lila-var-fbnest 33 check-num
 lila-var-fbsingle 1 check-num
 
@@ -253,6 +252,25 @@ s\" dyn = \"text\"" lila-eval              lila-var-dyn s" text" check-str
 s\" dyn = 5" lila-eval                     lila-var-dyn 5 check-num
 s\" dyn = true" lila-eval                  lila-var-dyn true check-bool
 s\" dyn = nil" lila-eval                   lila-var-dyn check-nil
+
+\ locals, lexical scope, recursion, and closures loaded from test.lila
+lila-var-flbase 2 check-num
+lila-var-flinner 3 check-num
+lila-var-flouter 2 check-num
+lila-var-flfact 120 check-num
+lila-var-flfib 55 check-num
+lila-var-flca 1 check-num
+lila-var-flcb 2 check-num
+lila-var-flcc 11 check-num
+lila-var-flcd 3 check-num
+lila-var-fladder 15 check-num
+lila-var-flapply 42 check-num
+lila-var-flsame true check-bool
+lila-var-flother false check-bool
+
+\ anonymous function literals and captured upvalues from a single eval
+s" anon = function(v) return v + 1 end" lila-eval
+s" anonv = anon(4)" lila-eval              lila-var-anonv 5 check-num
 
 \ expected compiler errors, with output suppressed
 : quiet-eval ( c-addr u -- flag )
