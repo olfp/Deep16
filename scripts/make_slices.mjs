@@ -125,6 +125,7 @@ export function buildSlices() {
   const hello = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'hello.fth'), 'utf8');
   const catalog = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'catalog.fth'), 'utf8');
   const games = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'games.fth'), 'utf8');
+  const edit = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'edit.fth'), 'utf8');
   const sdFirst = 1;
   const sdSlices = sourceSlices(sd, sdFirst, 'sd');
   const helloFirst = sdFirst + sdSlices.length;
@@ -143,6 +144,8 @@ export function buildSlices() {
   const frogger = buildFrogger();
   const froggerFirst = flappyFirst + flappySlices.length;
   const froggerSlices = binarySlices(frogger.words, froggerFirst, 'frogger', 0, 0x0600, 1);
+  const editFirst = froggerFirst + froggerSlices.length;
+  const editSlices = sourceSlices(edit, editFirst, 'edit');
   const slices = [directory([
     entry({ type: TYPES.SCREEN, first: sdFirst, name: 'sd' }),
     entry({ type: TYPES.SCREEN, first: helloFirst, name: 'hello' }),
@@ -151,8 +154,9 @@ export function buildSlices() {
     entry({ type: TYPES.BINARY, flags: 1, first: pacFirst, name: 'pacman' }),
     entry({ type: TYPES.BINARY, flags: 1, first: flappyFirst, name: 'flappy' }),
     entry({ type: TYPES.BINARY, flags: 1, first: froggerFirst, name: 'frogger' }),
+    entry({ type: TYPES.SCREEN, first: editFirst, name: 'edit' }),
   ]), ...sdSlices, ...helloSlices, ...catSlices, ...gameSlices, ...pacSlices,
-     ...flappySlices, ...froggerSlices];
+     ...flappySlices, ...froggerSlices, ...editSlices];
   const words = new Uint16Array(slices.length * SLICE_WORDS);
   slices.forEach((w, i) => words.set(w, i * SLICE_WORDS));
   const bytes = Buffer.alloc(slices.length * SLICE_BYTES, 0xff);
@@ -171,6 +175,7 @@ export function buildSlices() {
       pacman: { first: pacFirst, count: pacSlices.length, words: pac.max + 1 },
       flappy: { first: flappyFirst, count: flappySlices.length, words: flappy.max + 1 },
       frogger: { first: froggerFirst, count: froggerSlices.length, words: frogger.max + 1 },
+      edit: { first: editFirst, count: editSlices.length, chars: edit.length },
     },
   };
   return { words, bytes, manifest };

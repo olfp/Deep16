@@ -157,6 +157,47 @@ test('a slice created and flushed reads back and enters the directory', () => {
   assert.ok(sim.running);
 });
 
+// Type a command line, then queue raw keys for a word that reads `key` (the
+// slice editor). The command's CR goes first, so the keys stay in the FIFO
+// until the editor starts.
+function lineWithKeys(text, keys, cap = 60_000_000) {
+  const from = out.length;
+  for (const ch of `${text}\n`) sim.uartRxPush(ch === '\n' ? 13 : ch.charCodeAt(0));
+  for (const k of keys) sim.uartRxPush(k);
+  for (let i = 0; i < cap; i++) {
+    step(1);
+    if (!sim.running) break;
+    if (out.indexOf('\r\n> ', from) >= 0) break;
+  }
+  return out.slice(from);
+}
+
+test('type-slice prints the printable payload and trims the LF padding', () => {
+  const echoed = line('4 type-slice');
+  assert.match(echoed, /hello from the user flash/);
+  assert.ok(sim.running);
+});
+
+test('edit-slice overwrites at the cursor and Ctrl-X Ctrl-S saves', () => {
+  // Slice 40 was created and flushed by the previous test. C-F (right), D at
+  // 1, C-A (home), A at 0, C-X C-S.
+  const echoed = lineWithKeys('40 edit-slice',
+                              [0x06, 'D'.charCodeAt(0), 0x01, 'A'.charCodeAt(0), 0x18, 0x13]);
+  assert.match(echoed, /slice written/);
+  assert.equal(number(line('40 slice 8 cells + c@ . cr'),
+                      '40 slice 8 cells + c@ . cr'), 65, 'A saved at 0');
+  assert.equal(number(line('40 slice 8 cells + 1+ c@ . cr'),
+                      '40 slice 8 cells + 1+ c@ . cr'), 68, 'D saved at 1');
+});
+
+test('edit-slice Ctrl-X Ctrl-C leaves the flash unchanged', () => {
+  const echoed = lineWithKeys('40 edit-slice',
+                              ['Z'.charCodeAt(0), 0x18, 0x03]);
+  assert.match(echoed, /discarded/);
+  assert.equal(number(line('40 slice 8 cells + c@ . cr'),
+                      '40 slice 8 cells + c@ . cr'), 65, 'still A, not Z');
+});
+
 test('a directory entry can be removed', () => {
   line('40 dir-remove');
   assert.doesNotMatch(line('dir'), /\btest\b/);

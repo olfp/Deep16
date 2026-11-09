@@ -3804,10 +3804,10 @@ boot_script:
     .string " 256 constant kernel-base    \\ 0x0100: forth_start, where the kernel is laid"
     .string "24576 constant window-words  \\ 0x6000: past the 24K BSRAM window"
     .string "unused 0x4000 u> constant psram?   \\ the PSRAM probe raised the ceiling"
-    .string ": ver ( -- )    .\" DeepForth 1.1  BIOS 1.0  FPGA 1.1\" cr ;"
+    .string ": ver .\" DeepForth 1.1  BIOS 1.0  FPGA 1.1\" cr ;"
     .string ": free ( -- d )    unused 0 ;   \\ lo, hi=0: unsigned, so d. prints it whole"
     .string ": .addr ( u -- )    hex 0 u.r decimal ;"
-    .string ": u. ( u -- )       0 u.r ;"
+    .string ": u. ( u -- )     0 u.r ;"
     .string ": boot.msg ( -- )"
     .string "  psram? if"
     .string "    .\" Deep16   1048576 words of PSRAM, \" free d. .\" free\" cr"
@@ -3886,6 +3886,7 @@ boot_script:
     .string "1 screen"
     .string "5 screen"
     .string "9 screen"
+    .string "21 screen"
     .string "boot.msg"
 ; <<< end generated >>>
     .text ""              ; the empty line that ends the script

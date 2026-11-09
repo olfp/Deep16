@@ -24,12 +24,12 @@ unused 0x4000 u> constant psram?   \ the PSRAM probe raised the ceiling
 \ ---- version ------------------------------------------------------------
 \ The release tuple (VERSIONING.md): DeepForth / BIOS / FPGA. `bver` (BIOS
 \ function 0) returns the same BIOS pair as a number, 0x0100.
-: ver ( -- )    ." DeepForth 1.1  BIOS 1.0  FPGA 1.1" cr ;
+: ver ." DeepForth 1.1  BIOS 1.0  FPGA 1.1" cr ;
 
 \ ---- memory -------------------------------------------------------------
 : free ( -- d )    unused 0 ;   \ lo, hi=0: unsigned, so d. prints it whole
 : .addr ( u -- )    hex 0 u.r decimal ;
-: u. ( u -- )       0 u.r ;
+: u. ( u -- )     0 u.r ;
 
 : boot.msg ( -- )
   psram? if
@@ -136,5 +136,6 @@ variable slice-wp drop
 1 screen
 5 screen
 9 screen
+21 screen
 
 boot.msg
