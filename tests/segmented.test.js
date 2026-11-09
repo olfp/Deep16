@@ -134,6 +134,15 @@ test('screen 4 loads the hello slice', () => {
   assert.ok(sim.running);
 });
 
+test('a slice payload can be printed from flash to the terminal', () => {
+  // `slice` reads the 4 KB sector into slice-buf; the payload starts at cell 8.
+  // 350 is the hello source length (slices.manifest.json); 2040 would print the
+  // LF padding too.
+  const echoed = line('4 slice 8 cells + 350 type');
+  assert.match(echoed, /hello from the user flash/);
+  assert.ok(sim.running);
+});
+
 test('a slice created and flushed reads back and enters the directory', () => {
   // 40 is scratch space: the low indices hold the boot objects (sd, hello,
   // catalog, games) and the game images, and a flushed slice overwrites its
