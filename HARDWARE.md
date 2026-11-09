@@ -78,6 +78,45 @@ kept a 1 from before a button reset, the first fill flipped it to 0, the
 `ready_diff` compare stayed 0 and no line was ever accepted, so the picture
 stayed black until a power cycle while the CPU and UART kept working.
 
+## I2S audio (MAX98357A)
+
+The tile build defines `D16_PERIPH` and drives the MAX98357A from the I2S
+block at `0xF00A0`. The format is fixed: BCLK 675 kHz (6.75 MHz / 10), LRCLK
+21.09375 kHz (BCLK / 32), 16-bit I2S, the same signed mono sample on both
+slots. No MCLK and no I2C.
+
+| MAX98357A pin | D16 |
+|---|---|
+| Vin | 3.3 V (or 5 V; the breakout accepts 3.3–5 V logic) |
+| GND | GND (J6 pin 23) |
+| BCLK | J5 pin 5 / FPGA 25 |
+| LRC | J5 pin 6 / FPGA 26 |
+| DIN | J5 pin 7 / FPGA 27 |
+| SD | leave open (the breakout's 1 MΩ pull-up enables it; mono is on both slots) |
+| GAIN | leave open for 9 dB; 100 kΩ to Vin = 3 dB, Vin direct = 6 dB |
+| OUT+ / OUT− | 4–8 Ω speaker, no coupling capacitor |
+
+Start with 3.3 V and an 8 Ω speaker: the amp is ~0.8 W there and the board's
+regulator has an easier time. 5 V from J6 pin 18 gives more volume but the
+USB-C supply must handle peaks. The MAX98357A GAIN strap does **not** reduce
+gain when tied to GND: GND direct is 12 dB, 100 kΩ to GND is 15 dB; use Vin
+for the lower settings.
+
+At the Forth prompt:
+
+```text
+sound        \ I2S level 0  status 0
+beep         \ 164.8 Hz square, looped in the hardware FIFO
+sfx-off
+```
+
+`sound` proves the MMIO block answers; `beep` proves BCLK/LRCLK/DIN. If the
+registers answer but there is no sound, check the amp's Vin/GND, the SD
+voltage (below 0.16 V is shutdown; tie SD to Vin to force left/enabled), the
+speaker on OUT+/OUT−, and the three I2S pins with a scope or logic analyser.
+The FIFO-low IRQ is an output but is not wired into the SIC yet, and the games
+do not push samples today; `SOFTPCM.md` has the planned sample player.
+
 ## Timer, SPI and UART TX (implemented 2026-10-27)
 
 These are built only in the **D16nano tile/config-flash** build (`D16NANO` plus
