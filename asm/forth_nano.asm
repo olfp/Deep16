@@ -213,10 +213,66 @@ forth_start:
     SWI
 
 .ifdef D16D
-    ; Boot straight into the showcase menu: Flappy, Forth, or Flappy
-    ; automatically after ten seconds.  Q returns here and the banner follows.
+    ; The menu runs in the BIOS shadow bank.  When it wants a game it returns
+    ; the segment/entry/mode in its own cells (DS 0x04A0, offsets 0x4E1/0x4E2/
+    ; 0x4E0); this loop, in the normal bank, loads and far-calls the game. That
+    ; keeps the games in the normal bank, which is what lets them use SWI for
+    ; the BIOS sound calls.  Q leaves the request clear and falls through to
+    ; the console banner.
+d16d_menu:
+    ; Clear the menu's game-request cell first. If the image has no showcase
+    ; block, gfx returns without touching it (or it could hold erased 0xFFFF)
+    ; and the boot must still fall through to the banner.
+    MVS R7, DS
+    LDI 0x04A0
+    MVS DS, R0
+    LDI 0x4E1
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    MVS DS, R7
     LDI 6
     SWI
+    MVS R7, DS
+    LDI 0x04A0
+    MVS DS, R0
+    LDI 0x4E1
+    MOV R2, R0
+    LD R4, R2, 0               ; game segment
+    LDI 0x4E2
+    MOV R2, R0
+    LD R5, R2, 0               ; game entry
+    LDI 0x4E0
+    MOV R2, R0
+    LD R9, R2, 0               ; start mode
+    MVS DS, R7
+    AND R4, R4
+    JZ d16d_menu_done
+    NOP
+    LSI R10, 0                 ; return CS = kernel
+    LDI d16d_game_ret
+    MOV R11, R0
+    MOV R2, R4                 ; game CS
+    MOV R3, R5                 ; game PC
+    JML R2
+d16d_game_ret:
+.ifdef D16SEG
+    LDI 0x1000
+    MVS DS, R0
+    LDI 0x2000
+    MVS SS, R0
+.else
+    LSI R0, 0
+    MVS DS, R0
+    MVS SS, R0
+.endif
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI d16d_menu
+    MOV PC, R0
+    NOP
+d16d_menu_done:
 .endif
 
 cursor_on:

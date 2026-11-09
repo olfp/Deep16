@@ -152,6 +152,11 @@ scene_init:
     STS R3, ES, R2
     LSI R2, 0
     STS R3, ES, R2
+    ; palette set 0 and no per-row table; a game may have left another set
+    LSI R2, 0x0A
+    STS R3, ES, R2
+    LSI R2, 0x0C
+    STS R3, ES, R2
     LDI SEG_TILE
     MVS ES, R0
     LSI R2, 0
@@ -174,6 +179,13 @@ scene_oam:
     SUB R4, 1
     JNZ scene_oam
     NOP
+    ; The blank tile is art entry 0; a game palette may have left it coloured.
+    LDI 0x90
+    MOV R2, R0
+    STS R3, ES, R2
+    LDI 0xA0
+    MOV R2, R0
+    STS R3, ES, R2
     JMP LR
     NOP
 
@@ -223,6 +235,11 @@ menu_entry:
     LDI menu_ret
     MOV R2, R0
     ST R12, R2, 0
+    ; no game request until a launch leaves one for the kernel
+    LDI menu_gseg
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
 
 menu_redraw:
     LDI SEG_DEMO
@@ -615,8 +632,9 @@ menu_launch_ok1:
     MOV PC, R0
     NOP
 menu_launch_ok2:
-    ; park the segment/entry, copy the slice's tile pack into the tile bank,
-    ; then enter the game
+    ; Park the segment/entry, copy the slice's tile pack into the tile bank,
+    ; then return the request to the kernel. The kernel far-calls the game in
+    ; the normal bank, so the game can use SWI for the BIOS sound calls.
     MOV R3, R0
     MOV R5, R1
     LDI menu_gseg
@@ -630,21 +648,7 @@ menu_launch_ok2:
     LINK
     JMP R4
     NOP
-    LDI menu_gseg
-    MOV R2, R0
-    LD R4, R2, 0
-    LDI menu_gentry
-    MOV R2, R0
-    LD R5, R2, 0
-    MVS R2, CS
-    MOV R10, R2
-    LDI menu_after
-    MOV R11, R0
-    LDI menu_mode
-    MOV R2, R0
-    LD R9, R2, 0
-    MOV R2, R4
-    MOV R3, R5
-    JML R2
+    LDI menu_quit
+    MOV PC, R0
     NOP
 
