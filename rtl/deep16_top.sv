@@ -237,13 +237,15 @@ module deep16_top
     .tick  (timer_tick)
   );
 
-  // Four-source SIC: only the 15 kHz timer is wired in this slice; the raster,
-  // audio and keyboard bits are decoded but stay 0 until their sources land.
+  // Four-source SIC: raster and timer are wired; keyboard is the FIFO-ready
+  // level, which irq_keyboard drains into a software ring. Audio stays 0 until
+  // the I2S fifo_irq is wired in.
 `ifdef D16NANO
   wire raster_src = raster_irq;
 `else
   wire raster_src = 1'b0;
 `endif
+  wire keyboard_src = kbd_ready;
   deep16_sic u_sic (
     .clk   (clk),
     .rst   (rst),
@@ -251,7 +253,7 @@ module deep16_top
     .addr  (sic_addr),
     .wdata (mem_wdata),
     .rdata (sic_rdata),
-    .src   ({raster_src, 1'b0, timer_tick, 1'b0}),
+    .src   ({raster_src, 1'b0, timer_tick, keyboard_src}),
     .irq   (sic_irq)
   );
 

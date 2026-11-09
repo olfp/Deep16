@@ -14324,7 +14324,7 @@ waqr_done:
 ; =============================================
 .ifdef CONSOLE_UART
 .ifdef D16D
-.equ BIOS_FN_COUNT, 12             ; 0..5 console + 6 gfx + 7/8 PS/2 + 9/10 SFX + 11 pump
+.equ BIOS_FN_COUNT, 13             ; 0..5 console + 6 gfx + 7/8 PS/2 + 9/10 SFX + 11 pump + 12 kbd
 .else
 .equ BIOS_FN_COUNT, 6
 .endif
@@ -14402,6 +14402,7 @@ BIOS_JTABLE:
     .word bios_sfx - BIOS_BASE
     .word bios_sfx_tick - BIOS_BASE
     .word bios_sfx_pump - BIOS_BASE
+    .word bios_kbd_read - BIOS_BASE
 .endif
 bios_f0:
     ; 0: bver -> the handler's R0 = 0x0100 (BIOS 1.0, major << 8 | minor),
@@ -16263,7 +16264,7 @@ irq_handler:
     LDS R1, ES, R2           ; SIC PENDING
     LSI R3, 8
     AND R1, R3               ; raster pending?
-    JZ irq_timer
+    JZ irq_check_timer
     NOP
     ; Do NOT clear the raster bit here. The raster source is a level held by
     ; the tile engine until a control-7 write acknowledges it, so a W1C while
@@ -16400,6 +16401,16 @@ irq_split_none:
     STS R3, ES, R2           ; W1C raster, after the ack
     RETI
     NOP
+irq_check_timer:
+    ; The raster test above masked R1 in place, so read PENDING again.
+    ; Priority is raster, timer, keyboard.
+    LDI 0xB0
+    MOV R2, R0
+    LDS R1, ES, R2
+    LSI R3, 2
+    AND R1, R3
+    JZ irq_keyboard
+    NOP
 irq_timer:
     ; R2 is still 0xB0 from the pending read.
     LSI R3, 2
@@ -16411,6 +16422,87 @@ irq_timer:
     STS R1, ES, R2           ; SCRATCH = tick count
     RETI
     NOP
+
+irq_keyboard:
+    ; Drain the 16-entry hardware keyboard FIFO into a 32-entry ring so a
+    ; program that polls the ring cannot lose keys between its own polls. The
+    ; ring overwrites its oldest slot if it ever fills; normal typing does not.
+    ; The vector enters at CS=0, so the ring is addressed through DS (0x1000),
+    ; where the boot also copies the BIOS data window.
+    LDI 0xB0
+    MOV R2, R0
+    LDS R1, ES, R2           ; PENDING again: the checks above masked R1
+    LSI R3, 1
+    AND R1, R3
+    JZ irq_none
+    NOP
+    ; Ring: 0x52C0 head, 0x52C1 tail, 0x52C2..0x52E1 data. Build the base once.
+    LDI 0x12C0
+    MOV R2, R0
+    LDI 0x1000
+    SL R0, 1
+    SL R0, 1
+    ADD R2, R0               ; R2 = 0x52C0
+    LDI 0x62
+    MOV R3, R0               ; KBD_DATA
+irq_kbd_loop:
+    LDI 0x60
+    MOV R1, R0
+    LDS R0, ES, R1           ; KBD_STATUS
+    AND R0, R0
+    JZ irq_kbd_done
+    NOP
+    MOV R1, R2
+    ADD R1, 1
+    LDS R1, DS, R1           ; tail
+    MOV R0, R2
+    ADD R0, 2
+    ADD R0, R1               ; ring data + tail
+    LDS R1, ES, R3           ; data
+    STS R1, DS, R0           ; ring[tail] = data
+    MOV R1, R2
+    ADD R1, 1
+    LDS R1, DS, R1           ; tail again
+    ADD R1, 1
+    LDI 32
+    CMP R1, R0
+    JNZ irq_kbd_nowrap
+    NOP
+    LSI R1, 0
+irq_kbd_nowrap:
+    MOV R0, R2
+    ADD R0, 1
+    STS R1, DS, R0           ; tail = (tail + 1) & 31
+    CLRZ
+    JNZ irq_kbd_loop
+    NOP
+irq_kbd_done:
+    ; Drain is complete and the FIFO is empty, so the level source is low:
+    ; W1C now will not re-latch on the next clock.
+    LDI 0xB0
+    MOV R2, R0
+    LSI R3, 1
+    STS R3, ES, R2
+    RETI
+    NOP
+irq_none:
+    RETI
+    NOP
+
+; ---- keyboard ring: irq_keyboard fills it, BIOS function 12 drains it ------
+; 32 entries is twice the hardware FIFO. head == tail means empty; the ISR
+; overwrites the oldest slot only if a burst exceeds the ring between reads.
+; The IRQ vector runs at CS=0, so both sides use the DS copy of this window.
+.org 0x52C0
+kbd_head:
+    .word 0
+kbd_tail:
+    .word 0
+kbd_ring:
+    .word 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0
 
 ; ============================================================
 ; divtest: verify the ILL DIV trap against the software divide
@@ -16598,6 +16690,14 @@ ug_bs:
     NOP
     CLRZ
     JNZ ug_loop
+    NOP
+    ; The arrow/Home/End map emits Emacs control bytes (C-A/C-B/C-E/C-F/C-N/
+    ; C-P). This console has no cursor editor for them yet, so drop every other
+    ; C0 control instead of storing an invisible byte in the line. BS, CR and
+    ; LF were handled above.
+    LDI 0x20
+    CMP R1, R0
+    JC ug_loop
     NOP
 ug_store:
     LDI TIB_LIMIT
@@ -17529,6 +17629,45 @@ sfx_pump_positive:
     STS R0, CS, R4
     STS R0, ES, R12
 sfx_pump_done:
+    RETI
+    NOP
+
+; Function 12: pop the next byte the keyboard IRQ queued, or 0 when the ring is
+; empty. The ring at 0x52C0 is filled by irq_keyboard from the hardware FIFO.
+bios_kbd_read:
+    ; Ring in DS (0x1000): 0x52C0 head, 0x52C1 tail, data at 0x52C2. Build the
+    ; base as 0x12C0 + 0x4000 because the immediate is 15-bit and signed.
+    LDI 0x12C0
+    MOV R2, R0
+    LDI 0x1000
+    SL R0, 1
+    SL R0, 1
+    ADD R2, R0               ; R2 = 0x52C0
+    LDS R3, DS, R2           ; head
+    MOV R1, R2
+    ADD R1, 1
+    LDS R4, DS, R1           ; tail
+    CMP R3, R4
+    JZ kbd_read_empty
+    NOP
+    MOV R4, R2
+    ADD R4, 2
+    ADD R4, R3               ; data + head
+    LDS R1, DS, R4           ; data
+    ADD R3, 1
+    LDI 32
+    MOV R4, R0
+    CMP R3, R4
+    JNZ kbd_read_store
+    NOP
+    LSI R3, 0
+kbd_read_store:
+    STS R3, DS, R2           ; head = new
+    MOV R0, R1               ; return the byte
+    RETI
+    NOP
+kbd_read_empty:
+    LSI R0, 0
     RETI
     NOP
 

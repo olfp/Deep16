@@ -100,6 +100,16 @@ int main(int argc, char** argv) {
   send_code(0x1C);
   expect("A make -> a", collect(), true, 'a');
 
+  // German QWERTZ: the US Y position is Z and the US Z position is Y.
+  send_code(0x35);
+  expect("German Z -> z", collect(), true, 'z');
+  send_code(0x1A);
+  expect("German Y -> y", collect(), true, 'y');
+  send_code(0x54);
+  expect("ü -> 0xFC", collect(), true, 0xFC);
+  send_code(0x4E);
+  expect("ß -> 0xDF", collect(), true, 0xDF);
+
   // Break: 0xF0 then the make code must not emit.
   send_code(0xF0);
   expect("break prefix", collect(), false, 0);
@@ -144,7 +154,7 @@ int main(int argc, char** argv) {
   send_code(0x12);
   (void)collect();
   send_code(0x55);
-  expect("Shift+= -> +", collect(), true, '+');
+  expect("Shift+´ -> `", collect(), true, 0x60);
   send_code(0xF0);
   (void)collect();
   send_code(0x55);
@@ -166,13 +176,58 @@ int main(int argc, char** argv) {
   send_code(0x1C);
   expect("A after Ctrl break -> a", collect(), true, 'a');
 
-  // Extended keys are ignored, not mistaken for the keypad codes they share.
+  // Extended navigation keys become Emacs control bytes, not keypad digits.
   send_code(0xE0);
   expect("E0 prefix", collect(), false, 0);
   send_code(0x75);
-  expect("E0 75 (Up) -> nothing", collect(), false, 0);
+  expect("E0 75 (Up) -> C-P", collect(), true, 0x10);
   send_code(0x75);
   expect("keypad 8 -> 8", collect(), true, '8');
+  send_code(0xE0);
+  (void)collect();
+  send_code(0x6B);
+  expect("E0 6B (Left) -> C-B", collect(), true, 0x02);
+  send_code(0xE0);
+  (void)collect();
+  send_code(0x74);
+  expect("E0 74 (Right) -> C-F", collect(), true, 0x06);
+  send_code(0xE0);
+  (void)collect();
+  send_code(0x72);
+  expect("E0 72 (Down) -> C-N", collect(), true, 0x0E);
+  send_code(0xE0);
+  (void)collect();
+  send_code(0x6C);
+  expect("E0 6C (Home) -> C-A", collect(), true, 0x01);
+  send_code(0xE0);
+  (void)collect();
+  send_code(0x69);
+  expect("E0 69 (End) -> C-E", collect(), true, 0x05);
+  // The break of an extended key must not emit.
+  send_code(0xE0);
+  (void)collect();
+  send_code(0xF0);
+  (void)collect();
+  send_code(0x75);
+  expect("E0 F0 75 -> nothing", collect(), false, 0);
+
+  // AltGr (E0 11) gives the German characters that are not on a keycap.
+  send_code(0xE0);
+  (void)collect();
+  send_code(0x11);
+  expect("AltGr make", collect(), false, 0);
+  send_code(0x15);
+  expect("AltGr+Q -> @", collect(), true, 0x40);
+  send_code(0x3E);
+  expect("AltGr+8 -> [", collect(), true, 0x5B);
+  send_code(0xE0);
+  (void)collect();
+  send_code(0xF0);
+  (void)collect();
+  send_code(0x11);
+  expect("AltGr break", collect(), false, 0);
+  send_code(0x15);
+  expect("Q after AltGr -> q", collect(), true, 'q');
 
   // BAT/ACK are not keys.
   send_code(0xAA);

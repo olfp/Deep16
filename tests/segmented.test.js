@@ -444,6 +444,26 @@ test('the raster SIC source increments RASTER and outranks the timer', () => {
   assert.equal(sim.sicEnable, 0);
 });
 
+test('the keyboard IRQ drains the hardware FIFO into the BIOS ring', () => {
+  line('irq-off');
+  sim.sicPending = 0;
+  sim.kbdBuffer.length = 0;
+  for (const k of [0x41, 0x42, 0x43, 0x0d]) sim.kbdBuffer.push(k);
+  line('1 sic-enable es!');       // SIC bit 0: keyboard ready
+  sim.raiseIRQ(0);
+  line('1 drop');                  // the handler runs with the caller's I=1
+  // The ring is the DS copy of image window 0x52C0; the IRQ vector runs at CS=0
+  // and BIOS function 12 runs with DS=0x1000, so both use this copy.
+  const bio = (a) => sim.memory[(DS_SEG << 4) + a];
+  assert.equal(bio(sym.kbd_head), 0, 'head back at 0');
+  assert.equal(bio(sym.kbd_tail), 4, 'four keys queued');
+  assert.deepEqual([0, 1, 2, 3].map((i) => bio(sym.kbd_ring + i)),
+                   [0x41, 0x42, 0x43, 0x0d], 'ring preserves the key order');
+  assert.equal(sim.sicPending & 1, 0, 'keyboard bit cleared');
+  assert.equal(sim.kbdBuffer.length, 0, 'hardware FIFO drained');
+  line('irq-off');
+});
+
 // ---- the flash game loader ---------------------------------------------
 // Phase 2: the Pac-Man block is no longer baked into the image. `game-load`
 // finds the type-4 slice, copies its chain into the load segment (0x2000) and
@@ -533,7 +553,7 @@ test('game-run starts pacman from flash and returns to the prompt', () => {
 test('the PS/2 init lives in the BIOS and binit calls it', () => {
   // Phase B moved the sender out of a flash slice: functions 7/8 and the
   // 0x5490 block are the only copy now, and binit (function 1) runs the init.
-  assert.equal(sym.BIOS_FN_COUNT, 12, '0..5 console + 6 gfx + 7/8 PS/2 + 9/10 SFX + 11 pump');
+  assert.equal(sym.BIOS_FN_COUNT, 13, '0..5 console + 6 gfx + 7/8 PS/2 + 9/10 SFX + 11 pump + 12 kbd');
   assert.ok(sym.bios_f7 >= sym.bios_entry && sym.bios_f7 < 0x5800, 'f7 inside the BIOS');
   assert.ok(sym.bios_f8 >= sym.bios_entry && sym.bios_f8 < 0x5800, 'f8 inside the BIOS');
   assert.ok(sym.ps2_r5 >= 0x5490 && sym.ps2_r5 < 0x5800, 'saved cells inside the BIOS gap');
