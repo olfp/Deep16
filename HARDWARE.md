@@ -118,8 +118,10 @@ Board-verified 2026-11-09: `beep` audible through an Adafruit MAX98357A
 breakout at 3.3 V with an 8 Ω speaker, GAIN and SD left open. The FIFO-low IRQ
 is an output but is not wired into the SIC yet. The games use BIOS functions 9
 (start an effect) and 10 (one tick per frame) for short 128-sample effects:
-Flappy flap/death, Pac-Man waka/ghost/death, and a Frogger low-time warning.
-`SOFTPCM.md` has the planned sample player for music and voices.
+Flappy flap (a decaying LFSR noise burst) and death, Pac-Man
+waka/ghost/death, and a Frogger low-time warning. The five Flappy WAVs are
+staged in `assets/audio/flappy/` but are not converted or used by the build
+yet; `SOFTPCM.md` has the planned sample player for them, music and voices.
 
 ## Timer, SPI and UART TX (implemented 2026-10-27)
 

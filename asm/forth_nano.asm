@@ -17223,8 +17223,21 @@ sfx_frames_ok:
     LDI 128
     MOV R9, R0                 ; samples
     LSI R11, 0                 ; sample index
+    ; Mode 3 is an LFSR noise burst; seed it here (R1 is free after the table).
+    LSI R3, 3
+    CMP R8, R3
+    JNZ sfx_no_seed
+    NOP
+    LDI 0x2CE1
+    OR R0, 15                  ; 0xACE1 LFSR seed
+    MOV R1, R0
+sfx_no_seed:
 
 sfx_gen:
+    LSI R3, 3
+    CMP R8, R3
+    JZ sfx_noise
+    NOP
     MOV R0, R4
     ADD R0, R5
     MOV R4, R0
@@ -17238,11 +17251,49 @@ sfx_gen:
     MOV R0, R7
     MOV PC, R3
     NOP
+sfx_noise:
+    ; R2 holds the write target; the control address is reloaded after the loop.
+    LDI sfx_write - BIOS_BASE
+    MOV R2, R0
+    ; 16-bit LFSR, taps 0xB400
+    MOV R0, R1
+    LSI R3, 1
+    AND R0, R3
+    SR R1, 1
+    AND R0, R0
+    JZ sfx_noise_no_xor
+    NOP
+    LDI 0x3400
+    MOV R3, R0
+    OR R3, 15                  ; 0xB400
+    XOR R1, R3
+sfx_noise_no_xor:
+    MOV R0, R1
+    LSI R3, 1
+    AND R0, R3
+    MOV R3, R0
+    MOV R0, R7
+    AND R3, R3
+    JNZ sfx_noise_emit
+    NOP
+    NEG R0
+sfx_noise_emit:
+    MOV PC, R2
+    NOP
 sfx_low:
     MOV R0, R7
     NEG R0
 sfx_write:
     STS R0, ES, R12
+    LSI R3, 3
+    CMP R8, R3
+    JNZ sfx_no_decay
+    NOP
+    SUB R7, R6                 ; noise amplitude decay
+    JNN sfx_no_decay
+    NOP
+    LSI R7, 0
+sfx_no_decay:
     LSI R3, 1
     CMP R8, R3
     JNZ sfx_not_two
@@ -17264,6 +17315,8 @@ sfx_next:
     SUB R9, 1
     JNZ sfx_gen
     NOP
+    LDI 0x00A2
+    MOV R2, R0
     LSI R3, 5
     STS R3, ES, R2             ; enable + loop
     LDI sfx_done - BIOS_BASE
@@ -17330,7 +17383,7 @@ sfx_tick_done:
 
 ; step, step-delta, amplitude, mode, alternate step
 sfx_table:
-    .word 0x0557, 0x0000, 0x2000, 0, 0x0000   ; 1 flap: 440 Hz
+    .word 0x0000, 0x0040, 0x2000, 3, 0x0000   ; 1 flap: decaying noise
     .word 0x0AAE, 0x0000, 0x2000, 1, 0x1005   ; 2 score: 880 -> 1320
     .word 0x0AAE, 0xFFF0, 0x2000, 2, 0x0000   ; 3 death: 880 -> 220 sweep
     .word 0x02AB, 0x0000, 0x2000, 1, 0x0401   ; 4 waka: 220 / 330

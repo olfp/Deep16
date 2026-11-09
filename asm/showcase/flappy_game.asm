@@ -883,7 +883,7 @@ key_quit:
 do_flap:
     LDI SFX_FLAP
     MOV R1, R0
-    LDI 6
+    LDI 4                      ; a short wing flutter, not a long tone
     MOV R2, R0
     LDI 9
     SWI
