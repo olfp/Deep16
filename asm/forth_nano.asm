@@ -233,9 +233,20 @@ d16d_menu:
     MVS DS, R7
     LDI 6
     SWI
-    MVS R7, DS
+    ; Park the kernel's PSW/R5/R6 in the menu's free cells (DS=0x04A0,
+    ; 0x4F9..0x4FB) and read the request in the same DS window. The game must
+    ; run with a pristine PSW: the kernel's ER=8/DE=1 makes R8/R9
+    ; extra-segment registers, which breaks Pac-Man's column registers and its
+    ; map reads.
+    LPSW R7
+    MVS R3, DS
     LDI 0x04A0
     MVS DS, R0
+    LDI 0x4F9
+    MOV R2, R0
+    ST R7, R2, 0               ; kernel PSW
+    ST R5, R2, 1               ; kernel R5
+    ST R6, R2, 2               ; kernel R6
     LDI 0x4E1
     MOV R2, R0
     LD R4, R2, 0               ; game segment
@@ -245,13 +256,15 @@ d16d_menu:
     LDI 0x4E0
     MOV R2, R0
     LD R9, R2, 0               ; start mode
-    MVS DS, R7
+    MVS DS, R3
     AND R4, R4
     JZ d16d_menu_done
     NOP
     LSI R10, 0                 ; return CS = kernel
     LDI d16d_game_ret
     MOV R11, R0
+    LSI R7, 0
+    SPSW R7                    ; pristine PSW for the game
     MOV R2, R4                 ; game CS
     MOV R3, R5                 ; game PC
     JML R2
@@ -269,6 +282,17 @@ d16d_game_ret:
     LDI 0x0FFF
     INV R0
     MVS ES, R0
+    ; Recover the kernel's PSW/R5/R6 from the menu cells.
+    MVS R3, DS
+    LDI 0x04A0
+    MVS DS, R0
+    LDI 0x4F9
+    MOV R2, R0
+    LD R7, R2, 0
+    LD R5, R2, 1
+    LD R6, R2, 2
+    MVS DS, R3
+    SPSW R7
     LDI d16d_menu
     MOV PC, R0
     NOP

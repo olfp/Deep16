@@ -509,6 +509,16 @@ str_name_pacman:
 str_name_frogger:
     .text "frogger"
 
+; The kernel parks the calling PSW/R5/R6 here while it far-calls a game with a
+; pristine PSW (the kernel's ER=8 would turn R8/R9 into segment bases).
+.org 0x4F9
+menu_psw:
+    .word 0
+menu_r5:
+    .word 0
+menu_r6:
+    .word 0
+
 ; =====================================================================
 ; BDOS bridge: 0xA00 (the game block's old home)
 ;
