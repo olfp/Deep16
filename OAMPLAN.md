@@ -354,63 +354,15 @@ fetch state dominate), so it is not a useful fallback.
       reset clear; synth gate (combined with Phase 1: fits).
 - [x] Phase 3: JS engine + tests + BIOS clear count + `catalog.fth` words;
       `npm test`, `sim:dvi:tile`, lint.
-- [ ] Phase 4: raster band. `split!`/`split-off` and the chained control-7
-      handler are in, and the raster IRQ itself works (a macro typo had left it
-      unconnected). **Open:** on the board the compositor applies one palette
-      set per frame instead of per line. Evidence: with lineA 0/lineB 1 the
-      screen is normal, with 40/160 or 100/110 whole frames alternate green vs
-      normal; `raster-ticks` shows ~2 IRQs per frame; control 5 and control 7
-      read back alternating in the mirror; the RTL simulation draws the band at
-      output lines 102-201 for a 100/200 request. A hardware probe (a per-frame
-      "did the top 32 lines use set 1" bit in the display-status word) does not
-      fit: at 4,311/4,320 CLS the placer leaves 4 LUTs unplaced and the scan
-      path misses setup by 0.24 ns, so the probe was reverted. The screenshots
-      already show whole frames (text cells green, blank art cells black), so
-      the engine applies one palette set per frame.
-
-      **The real defect is upstream:** with no band at all (`split-off`,
-      `40 raster-line!`, `raster-on`) the counter advances only **2-3 times per
-      second**, not ~60, so the raster IRQ pulse itself is wrong on hardware.
-      The compare register, the handler and the palette are all downstream of
-      that. Everything else in this plan is verified; the band stays
-      experimental until the pulse rate is 60 per second.
-
-      **Pending (2026-11-03).** The level handshake is in and the netlist is
-      correct, but the board still shows `PENDING = 2` and the request level
-      low. Next diagnostic agreed: a `raster_seen` latch set at the compare and
-      cleared only by reset, on LED5. See `ERRPLAN.md` for the full evidence.
-
-      **Probe built (2026-11-03, `main`):** the retired `sprite_page` register
-      is gone, and display-status bit 4 (`0xF0066`) carries the synchronised
-      `dvi_raster_toggle`. The OAM reset-clear sequencer was removed to make
-      room (OAM starts at zero from `tilepal3.hex` and the BIOS clears all 128
-      words on gfx entry, so a logic reset no longer clears it). 4,298/4,320
-      CLS, BSRAM 26/26, all TNS 0. Measure the toggle rate with:
-
-      ```forth
-      variable lb  variable cnt  variable m
-      : rs ( -- ) 0x66 es@ m @ and dup lb @ xor if 1 cnt +! then lb ! ;
-      : rate ( mask -- ) m ! 0 cnt ! 0 lb ! 100000 0 do rs loop cnt @ hex . ;
-      2 rate       \ frame bit, one transition per frame
-      0x10 rate    \ raster toggle
-      ```
-
-      Similar counts (~60 per second) mean the toggle is fine and the edge
-      detect / SIC pulse is at fault; a much lower count means the compare or
-      `raster_line` is wrong.
-
-      **Original plan (agreed 2026-11-02):**
-      1. Delete the now-unused `sprite_page` register (control 5 bits 1:0 are
-         retired) — frees about 5 CLS.
-      2. Put the synchronised `dvi_raster_toggle` into display-status bit 4
-         (`0xF0066`), alongside the existing vblank/frame/button/UART bits.
-      3. Read `0x66 es@` and check bit 4 (`0x10`) toggles ~60 times a second.
-         - Toggles: the toggle is fine and the fault is in the edge detect or
-           the SIC's bit 3; probe the pulse next.
-         - Does not toggle (or only 2-3 times a second): the fault is in the
-           tile engine's compare or the board's two-flop synchroniser.
-      4. Fix the pulse path, then re-run the band test (`split!`) and record
-         the measured edge offset (expect the band 1-2 lines low).
+- [x] Phase 4: raster band. `split!`/`split-off`, the chained control-7
+      handler and the raster IRQ are all board-verified. The "2-3 IRQs per
+      second" reading was a console artefact: getstr blocked inside the SWI
+      with I=0, so the handler only ran between commands. Once getstr became a
+      pump, the no-input probe reported 135 ticks (≈60/s), and the doubled
+      edge was fixed separately by acking the tile engine before the SIC W1C.
+      The band and the per-line sprite multiplexer are verified on the board;
+      see the three 2026-11-04 "board-verified" entries in `ERRPLAN.md`. The
+      stale "pending" diagnostics once recorded here are superseded.
 
 ---
 
