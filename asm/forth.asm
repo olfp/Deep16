@@ -1133,6 +1133,119 @@ interpret_next:
     MOV PC, R0
     NOP
 
+; ---- cf-burst: assembly block reader for the config flash ----------------
+; The interactive slice reader spends its time in the threaded SPI loop: two
+; `spi>` calls per word, each a colon word with a stack check and `next`.
+; This primitive streams a whole 4 KB sector with a tight poll loop. It has no
+; dictionary header; the boot script creates a body cell holding 0x2F49 and
+; runs it with `execute`, so no data-section cell is needed.
+;
+;   ( sector buf -- )
+;   sector is the slice sector (512 + n), buf the destination in DS.
+;   The flash address is sector<<12; the command is 0x03, then 2048 words,
+;   little endian (low byte first), exactly like cf-read-burst.
+.org 0x2F48
+cf_burst_lr:
+    .word 0
+cf_burst_code:
+    LDI cf_burst_lr
+    MOV R1, R0
+    STS LR, CS, R1           ; the primitive is jumped to by execute
+    LD R2, SP, 0             ; buf
+    LD R1, SP, 1             ; sector
+    ADD SP, 2
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0               ; ES = 0xF000 (SPI registers)
+    LDI 0x0080
+    MOV R10, R0              ; SPI_CTRL
+    LDI 0x0082
+    MOV R7, R0               ; SPI_STAT
+    LDI 0x0084
+    MOV R3, R0               ; SPI_DATA
+    LDI 0x0086
+    MOV R12, R0
+    LDI 0
+    STS R0, ES, R12          ; SPDIV = 0
+    MOV R11, R1              ; keep the sector for the address bytes
+    LSI R1, 2
+    STS R1, ES, R10          ; CS1 asserted
+    LSI R1, 3                ; READ command
+    LDI cf_burst_send
+    MOV R12, R0
+    LINK
+    JMP R12
+    NOP
+    MOV R12, R11
+    SR R12, 4
+    MOV R1, R12
+    LDI cf_burst_send
+    MOV R12, R0
+    LINK
+    JMP R12
+    NOP
+    MOV R12, R11
+    LDI 0x0F
+    MOV R1, R0
+    AND R12, R1
+    SL R12, 4
+    MOV R1, R12
+    LDI cf_burst_send
+    MOV R12, R0
+    LINK
+    JMP R12
+    NOP
+    LDI 0                    ; offset low byte
+    MOV R1, R0
+    LDI cf_burst_send
+    MOV R12, R0
+    LINK
+    JMP R12
+    NOP
+    LDI 0x0800               ; 2048 words
+    MOV R4, R0
+cf_burst_word:
+    LSI R1, -1               ; 0xFF dummy byte
+    LDI cf_burst_send
+    MOV R12, R0
+    LINK
+    JMP R12
+    NOP
+    MOV R11, R1              ; low byte
+    LSI R1, -1
+    LDI cf_burst_send
+    MOV R12, R0
+    LINK
+    JMP R12
+    NOP
+    SL R1, 8
+    OR R1, R11               ; high << 8 | low
+    ST R1, R2, 0
+    ADD R2, 1
+    SUB R4, 1
+    JNZ cf_burst_word
+    NOP
+    LDI 0
+    MOV R1, R0
+    STS R1, ES, R10          ; CS1 released
+    LDI cf_burst_lr
+    MOV R1, R0
+    LDS LR, CS, R1
+    LDI next
+    MOV PC, R0
+    NOP
+cf_burst_send:               ; R1 = byte out, returns the byte in
+    STS R1, ES, R3
+cf_burst_wait:
+    LDS R1, ES, R7
+    LSI R12, 1
+    AND R1, R12
+    JNZ cf_burst_wait
+    NOP
+    LDS R1, ES, R3
+    JMP LR
+    NOP
+
 ; =============================================
 ; Data Section
 ; =============================================
@@ -2927,11 +3040,9 @@ boot_script:
     .string "create text-buf 8192 cells allot        \\ up to four 2040-char source slices"
     .string "variable slice-sec drop"
     .string "variable slice-wp drop"
-    .string ": cf-read-burst ( sector -- )"
-    .string "  0 spi-div es!  2 cs! 3 spi!  0 cf-addr"
-    .string "  slice-buf 2048 0 do"
-    .string "    0xff spi> 0xff spi> 8 lshift or   over i cells + !"
-    .string "  loop drop 0 cs! ;"
+    .string "create cf-burst-prim 0x2F49 ,"
+    .string ": cf-burst ( sector buf -- ) cf-burst-prim execute ;"
+    .string ": cf-read-burst ( sector -- ) slice-buf cf-burst ;"
     .string ": slice ( n -- a )"
     .string "  dup 0 511 within 0= if .\" slice: 0..511\" cr drop slice-buf exit then"
     .string "  dup slice-sec !  512 + cf-read-burst"

@@ -101,11 +101,12 @@ create text-buf 8192 cells allot        \ up to four 2040-char source slices
 variable slice-sec drop
 variable slice-wp drop
 
-: cf-read-burst ( sector -- )
-  0 spi-div es!  2 cs! 3 spi!  0 cf-addr
-  slice-buf 2048 0 do
-    0xff spi> 0xff spi> 8 lshift or   over i cells + !
-  loop drop 0 cs! ;
+\ cf-burst is the assembly block reader in the kernel image (0x2F49). A
+\ created body holds its address; execute jumps there with the arguments on
+\ the stack. The primitive streams 2048 cells into the buffer.
+create cf-burst-prim 0x2F49 ,
+: cf-burst ( sector buf -- ) cf-burst-prim execute ;
+: cf-read-burst ( sector -- ) slice-buf cf-burst ;
 
 \ The slice words the boot needs are here, before `screen`; the editor in
 \ catalog.fth builds on them.

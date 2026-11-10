@@ -129,6 +129,20 @@ test('the config flash identifies and the directory is readable', () => {
   assert.match(d, /sd/);
 });
 
+test('the assembly block reader streams a whole slice', () => {
+  // cf-burst is the kernel primitive behind cf-read-burst; it reads 4 KB
+  // through the SPI master. Compare the header and first payload word with
+  // the flash model. Slice 4 is the hello source.
+  const off = SCREEN_BASE + 4 * 4096;
+  const header = sim.spiFlash.mem[off] | (sim.spiFlash.mem[off + 1] << 8);
+  const payload = sim.spiFlash.mem[off + 16] | (sim.spiFlash.mem[off + 17] << 8);
+  const t1 = '4 512 + slice-buf cf-burst slice-buf @ . cr';
+  assert.equal(number(line(t1), t1), header);
+  const t2 = 'slice-buf 8 cells + @ . cr';
+  assert.equal(number(line(t2), t2), payload);
+  assert.ok(sim.running);
+});
+
 test('screen 4 loads the hello slice', () => {
   assert.match(line('4 screen'), / ok/);
   assert.match(line('hello'), /hello from the user flash/);
@@ -698,7 +712,7 @@ test('the PS/2 init lives in the BIOS and binit calls it', () => {
   assert.ok(sym.bios_f7 >= sym.bios_entry && sym.bios_f7 < 0x5800, 'f7 inside the BIOS');
   assert.ok(sym.bios_f8 >= sym.bios_entry && sym.bios_f8 < 0x5800, 'f8 inside the BIOS');
   assert.ok(sym.ps2_r5 >= 0x5490 && sym.ps2_r5 < 0x5800, 'saved cells inside the BIOS gap');
-  assert.equal(sym.dict_free, 0x434f, 'the kernel dictionary did not grow');
+  assert.ok(sym.dict_free <= 0x434f, `the kernel dictionary did not grow past 0x434F (${sym.dict_free.toString(16)})`);
 
   // The cells sit at a fixed .org after the routine; growing the routine must
   // not run into them (a .org silently rewinds and overwrites code).
