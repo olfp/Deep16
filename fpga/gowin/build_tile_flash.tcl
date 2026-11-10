@@ -22,5 +22,6 @@ set_option -use_mspi_as_gpio 1
 run syn
 set_option -place_option 1
 set_option -route_option 1
+set_option -replicate_resources 0
 run pnr
 run close

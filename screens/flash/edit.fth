@@ -127,3 +127,143 @@ variable edit-done drop
     else dup 10 = if cr then drop
     then
   loop drop ;
+
+\ ---- serial port (0xF0040/42), separate from the console ------------------
+0x40 constant serial-status
+0x42 constant serial-data
+
+: serial-emit ( c -- )
+  begin serial-status es@ 2 and until
+  serial-data es! ;
+: serial-ready? ( -- f ) serial-status es@ 1 and 0<> ;
+: serial-key ( -- c )
+  begin serial-status es@ 1 and until
+  serial-data es@ 0xff and ;
+
+\ Ctrl-D ends the echo. The banner is on the DVI console; the echoed bytes go
+\ only to the serial stream.
+: serial ( -- )
+  ." serial: Ctrl-D exits" cr
+  begin
+    serial-key
+    dup 0x04 = if drop exit then
+    dup 0x0d = over 0x0a = or if
+      drop 13 serial-emit 10 serial-emit
+    else
+      dup 0x08 = if
+        drop 8 serial-emit 32 serial-emit 8 serial-emit
+      else
+        dup 32 127 within if serial-emit else drop then
+      then
+    then
+  again ;
+
+\ ---- XMODEM receive with CRC, run the source directly --------------------
+0x01 constant soh
+0x04 constant eot
+0x06 constant ack
+0x15 constant nak
+0x43 constant crc-req
+
+variable x-buf drop
+variable x-len drop
+variable x-blk drop
+variable x-run drop
+variable x-wait drop
+variable x-started drop
+variable x-pblk drop
+variable x-pnblk drop
+variable x-pcrc drop
+variable x-max drop
+
+\ XMODEM CRC-16 (poly 0x1021, initial 0), high byte first on the wire.
+: crc-byte ( crc b -- crc )
+  8 lshift xor
+  8 0 do
+    dup 0x8000 and if 1 lshift 0x1021 xor else 1 lshift then
+  loop 0xffff and ;
+
+: crc-block ( addr len -- crc )
+  0 x-run !
+  0 do
+    dup i + c@ x-run @ swap crc-byte x-run !
+  loop drop x-run @ ;
+
+: x-ack ( -- ) ack serial-emit ;
+: x-nak ( -- ) nak serial-emit ;
+
+\ Wait for the next SOH or EOT. 0 means the sender has been quiet long enough
+\ for the receiver to send another 'C'.
+: x-wait-soh ( -- c )
+  0 x-wait !
+  begin
+    serial-ready? if
+      serial-key
+      dup soh = if exit then
+      dup eot = if exit then
+      drop
+    then
+    1 x-wait +!
+    x-wait @ 20000 > if 0 exit then
+  again ;
+
+\ One 128-byte block after the SOH: blk, ~blk, data, CRC high, CRC low.
+: x-block ( -- )
+  serial-key x-pblk !
+  serial-key x-pnblk !
+  x-len @ 128 + x-max @ > if
+    ." xmodem: too big" cr x-nak exit
+  then
+  128 0 do
+    serial-key
+    x-buf @ x-len @ + i + c!
+  loop
+  serial-key 8 lshift serial-key or x-pcrc !
+  x-buf @ x-len @ + 128 crc-block
+  x-pcrc @ <> if x-nak exit then
+  x-pblk @ x-pnblk @ + 0xff <> if x-nak exit then
+  x-pblk @ x-blk @ = if
+    x-len @ 128 + x-len !
+    x-blk @ 1+ 0xff and x-blk !
+    x-ack
+  else
+    x-pblk @ x-blk @ 1- 0xff and = if x-ack else x-nak then
+  then ;
+
+\ XMODEM pads the last block with SUB (0x1A); drop that and any NULs so the
+\ interpreter does not see them as tokens.
+: x-trim ( -- )
+  begin
+    x-len @ 0> if
+      x-buf @ x-len @ 1- + c@
+      dup 0x1a = swap 0 = or
+    else false then
+  while
+    x-len @ 1- x-len !
+  repeat ;
+
+\ Receive a Forth source file into the free dictionary space above `here`,
+\ move `here` past it, then `included` it. The serial stream is binary; progress
+\ is printed on the DVI console only.
+: xmodem ( -- )
+  ." xmodem: receiving (CRC)" cr
+  here x-buf !
+  0 x-len !
+  1 x-blk !
+  0 x-started !
+  unused 1024 - x-max !
+  begin
+    x-started @ 0= if crc-req serial-emit then
+    x-wait-soh
+    dup soh = if
+      drop x-block 1 x-started ! false
+    else dup eot = if
+      drop x-ack true
+    else
+      drop 0 x-started ! false
+    then then
+  until
+  x-trim
+  x-len @ allot
+  ." xmodem: " x-len @ . ." bytes" cr
+  x-buf @ x-len @ included ;

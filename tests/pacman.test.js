@@ -69,7 +69,7 @@ const st = (sim, name) => sim.memory[BLOCK + S[name]];
 // byte keeps bit 3 set until the game reads it.
 function run(sim, frames, { key = 0, keyFrame = -1, before = null } = {}) {
   for (let frame = 0; frame < frames; frame++) {
-    if (frame === keyFrame) sim.uartRxPush(key);
+    if (frame === keyFrame) sim.kbdBuffer.push(key);
     if (before) before(frame, sim);
     const status = ((frame & 1) ? 2 : 0) | (sim.uartRxAvailable() > 0 ? 8 : 0);
     sim.memory[STATUS] = status;
@@ -81,7 +81,7 @@ function run(sim, frames, { key = 0, keyFrame = -1, before = null } = {}) {
 // caller can check the return pair before the zeros after RET_PC run on.
 function runToExit(sim, frames, key = 0) {
   for (let frame = 0; frame < frames; frame++) {
-    if (key) sim.uartRxPush(key);
+    if (key) sim.kbdBuffer.push(key);
     sim.memory[STATUS] = ((frame & 1) ? 2 : 0) | (sim.uartRxAvailable() > 0 ? 8 : 0);
     for (let i = 0; i < FRAME_PERIOD; i++) {
       sim.step();

@@ -395,7 +395,8 @@ class DeepWebUI {
         const mode = this.consoleMode();
         if (mode === 'terminal') return { CONSOLE_UART: 1 };
         if (mode === 'tiles') {
-            const defines = { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1 };
+            const defines = { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1,
+                              CONSOLE_MIRROR: 1 };
             if (this.tileBuild === 'd16d') defines.D16D = 1;
             return defines;
         }

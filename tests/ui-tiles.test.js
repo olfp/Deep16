@@ -131,7 +131,8 @@ test('tile mode updates the button, the view and the build defines', () => {
   assert.equal(ui.consoleMode(), 'tiles');
   assert.equal(ui.screenUI.mode, 'tiles');
   assert.equal(els['console-mode-btn'].textContent, 'Tiles');
-  assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1 });
+  assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1,
+                                           CONSOLE_MIRROR: 1 });
   assert.ok(els['screen-display'].classList.contains('tile-view'));
   assert.ok(canvas.classList.contains('visible'));
   assert.equal(els['screen-pager'].style.display, 'none');
@@ -142,7 +143,8 @@ test('tile mode with the D16D example adds the showcase define', () => {
   const ui = makeUi();
   ui.tileBuild = 'd16d';
   ui.setConsoleMode('tiles');
-  assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1 });
+  assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1,
+                                           CONSOLE_MIRROR: 1, D16D: 1 });
 });
 
 test('the canvas paints the engine buffer', () => {
@@ -200,13 +202,16 @@ test('the tile clock composes 0xF0066 and ticks the engine', () => {
   const ui = makeUi();
   ui.setConsoleMode('tiles');
   ui.simulator.running = true;
-  ui.simulator.uartRxPush(65);
+  ui.simulator.enqueueKeyCode(65);
   ui.tileS2 = true;
   const before = ui.tileEngine.frame;
   ui.tickTileFrame();
   assert.equal(ui.tileFrame, 1);
   assert.equal(ui.simulator.tileStatus & 0x2, 0x2, 'frame toggle');
-  assert.equal(ui.simulator.tileStatus & 0x8, 0x8, 'UART ready');
+  // The PS/2 keyboard is the keyboard FIFO now; 0xF0066 bit 3 is the separate
+  // serial UART, so a key must not set it.
+  assert.equal(ui.simulator.tileStatus & 0x8, 0, 'UART ready stays clear');
+  assert.equal(ui.simulator.kbdAvailable(), 1, 'the key is in the keyboard FIFO');
   assert.equal(ui.simulator.tileStatus & 0x4, 0x4, 'S2');
   assert.equal(ui.tileEngine.frame, before ^ 1, 'engine frame ticked');
 });

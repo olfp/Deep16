@@ -659,17 +659,18 @@ play_loop:
     JZ no_death
     NOP
 
-    ; a UART key still works while dead: Q quits immediately
+    ; a keyboard key still works while dead: Q quits immediately
     LDI SEG_UART
     MVS ES, R0
-    LDI 0x26
+    LDI 0x20
     MOV R2, R0
     LDS R1, ES, R2
-    LSI R3, 8
+    LSI R3, 1
     AND R1, R3
     JZ death_state
     NOP
-    LSI R2, 2
+    LDI 0x22
+    MOV R2, R0
     LDS R1, ES, R2             ; consume the byte
     LDI 0xDF
     MOV R3, R0
@@ -844,27 +845,29 @@ play_check_button:
     MVS ES, R0
     LDI 0x26
     MOV R2, R0
-    LDS R1, ES, R2             ; 0xF0066: b3 UART key ready, b2 S2
+    LDS R1, ES, R2             ; 0xF0066: b2 S2, b1 frame
     ; S2 is a level: turn it into a one-frame pulse so a held button gives one
-    ; flap, not a continuous climb.  UART bytes stay one flap per byte.
+    ; flap, not a continuous climb. Keyboard bytes stay one flap per byte.
     LDI s2_edge
     MOV R4, R0
     LINK
     JMP R4
     NOP
-    LDI 0x0C
+    LDI 0x04
     MOV R3, R0
+    AND R1, R3
+    JNZ play_input
+    NOP
+    LDI 0x20
+    MOV R2, R0
+    LDS R1, ES, R2             ; 0xF0060 keyboard FIFO status
+    LSI R3, 1
     AND R1, R3
     JZ play_no_key
     NOP
-    LDI 0
-    MOV R11, R0                ; R11: manual mode (no autopilot)
-    LSI R3, 6
-    LDI G_FLAP_TIMER
+    LDI 0x22
     MOV R2, R0
-    ST R3, R2, 0               ; one key = ~6 frames of flap
-    LSI R2, 2
-    LDS R1, ES, R2             ; pop any UART byte (no-op when S2 only)
+    LDS R1, ES, R2             ; 0xF0062 keyboard data
     ; Q/q exits. Every other key takes the flap branch.
     LDI 0xDF
     MOV R3, R0
@@ -874,8 +877,15 @@ play_check_button:
     CMP R1, R3
     JZ key_quit
     NOP
+play_input:
+    LDI 0
+    MOV R11, R0                ; R11: manual mode (no autopilot)
+    LSI R3, 6
+    LDI G_FLAP_TIMER
+    MOV R2, R0
+    ST R3, R2, 0               ; one key = ~6 frames of flap
     ; Make the non-quit path a TAKEN branch: a register jump after a
-    ; not-taken JZ following the UART data read was not working.
+    ; not-taken JZ following the data read was not working.
     LSI R3, 1
     AND R3, R3
     JNZ do_flap

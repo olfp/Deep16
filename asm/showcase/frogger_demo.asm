@@ -1025,14 +1025,15 @@ fr_w_loop:
 fr_keys:
     LDI SEG_UART
     MVS ES, R0
-    LDI 0x26
+    LDI 0x20
     MOV R2, R0
     LDS R1, ES, R2
-    LSI R3, 8
+    LSI R3, 1
     AND R1, R3
     JZ fr_k_done
     NOP
-    LSI R2, 2
+    LDI 0x22
+    MOV R2, R0
     LDS R1, ES, R2
     LDI 0x71
     MOV R3, R0

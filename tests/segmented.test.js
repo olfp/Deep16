@@ -36,7 +36,8 @@ const RSTACK_TOP = 0x2ff0;
 const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
                         // D16D matches the board build; `text_attr` is the cell
                         // the catalog's ATTR words write (see the check below).
-                        { defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1 } });
+                        { defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1,
+                                     CONSOLE_MIRROR: 1 } });
 const sym = kernel.symbols;
 
 function scattered() {
@@ -70,7 +71,7 @@ function step(n) {
 // Type a line and run until the prompt comes back, or the cap runs out.
 function line(text, cap = 40_000_000) {
   const from = out.length;
-  for (const ch of `${text}\n`) sim.uartRxPush(ch === '\n' ? 13 : ch.charCodeAt(0));
+  for (const ch of `${text}\n`) sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
   for (let i = 0; i < cap; i++) {
     step(1);
     if (!sim.running) break;
@@ -162,8 +163,8 @@ test('a slice created and flushed reads back and enters the directory', () => {
 // until the editor starts.
 function lineWithKeys(text, keys, cap = 60_000_000) {
   const from = out.length;
-  for (const ch of `${text}\n`) sim.uartRxPush(ch === '\n' ? 13 : ch.charCodeAt(0));
-  for (const k of keys) sim.uartRxPush(k);
+  for (const ch of `${text}\n`) sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
+  for (const k of keys) sim.kbdBuffer.push(k);
   for (let i = 0; i < cap; i++) {
     step(1);
     if (!sim.running) break;
@@ -210,6 +211,63 @@ test('edit-slice Return moves to column 1 of the next line', () => {
                       '40 slice 8 cells + c@ . cr'), 65, 'row 0 still A');
 });
 
+test('serial echoes the UART stream until Ctrl-D', () => {
+  for (const b of [0x41, 0x42, 0x0d, 0x04]) sim.uartRxPush(b);
+  const echoed = line('serial');
+  assert.match(echoed, /AB\r\n/);
+  assert.ok(sim.running);
+});
+
+// XMODEM CRC-16 (poly 0x1021, initial 0), high byte first on the wire.
+function xmodemCrc(buf) {
+  let crc = 0;
+  for (const b of buf) {
+    crc ^= b << 8;
+    for (let i = 0; i < 8; i++) {
+      crc = (crc & 0x8000) ? (((crc << 1) ^ 0x1021) & 0xffff) : ((crc << 1) & 0xffff);
+    }
+  }
+  return crc & 0xffff;
+}
+
+function xmodemPackets(src) {
+  const data = Buffer.from(src, 'latin1');
+  const out = [];
+  let blk = 1;
+  for (let off = 0; off < data.length; off += 128) {
+    const d = Buffer.alloc(128, 0x1a);
+    data.copy(d, 0, off, Math.min(off + 128, data.length));
+    const crc = xmodemCrc(d);
+    out.push(0x01, blk, 0xff ^ blk, ...d, crc >> 8, crc & 0xff);
+    blk = (blk + 1) & 0xff;
+  }
+  out.push(0x04);
+  return out;
+}
+
+// Type a command on the console (keyboard FIFO) while feeding the serial
+// stream a byte at a time. The UART RX FIFO is 128 bytes and a packet is 134,
+// so a real sender must be paced, not preloaded in one go.
+function lineFeed(text, bytes, cap = 40_000_000) {
+  const from = out.length;
+  for (const ch of `${text}\n`) sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
+  let fed = 0;
+  for (let i = 0; i < cap; i++) {
+    while (fed < bytes.length && sim.uartRx.length < 100) sim.uartRxPush(bytes[fed++]);
+    step(1);
+    if (!sim.running) break;
+    if (out.indexOf('\r\n> ', from) >= 0) break;
+  }
+  return out.slice(from);
+}
+
+test('xmodem receives a CRC file and runs it directly', () => {
+  const src = ': xm-ok ." xmodem ok" cr ; xm-ok\n';
+  const echoed = lineFeed('xmodem', xmodemPackets(src));
+  assert.match(echoed, /xmodem ok/);
+  assert.ok(sim.running);
+});
+
 test('a directory entry can be removed', () => {
   line('40 dir-remove');
   assert.doesNotMatch(line('dir'), /\btest\b/);
@@ -230,14 +288,14 @@ test('getstr is a pump: Return completes the line the REPL is polling for', () =
   // PSW restored, so the timer and raster IRQs are serviced while it waits.
   // A line typed without Return must sit in TIB and not run.
   const from = out.length;
-  for (const ch of '1 2') sim.uartRxPush(ch.charCodeAt(0));
+  for (const ch of '1 2') sim.kbdBuffer.push(ch.charCodeAt(0));
   for (let i = 0; i < 2_000_000; i++) step(1);
   assert.equal(ds(sym.tib_kbd) & 0xff, 0x31, 'first character');
   assert.equal(ds(sym.tib_kbd + 1) & 0xff, 0x20, 'space');
   assert.equal(ds(sym.tib_kbd + 2) & 0xff, 0x32, 'second character');
   assert.equal(out.slice(from).includes(' ok'), false, 'nothing ran before Return');
   const done = out.length;
-  sim.uartRxPush(13);
+  sim.kbdBuffer.push(13);
   for (let i = 0; i < 5_000_000; i++) step(1);
   assert.match(out.slice(done), / ok/, 'Return completed the line');
   line('drop drop');
@@ -336,11 +394,15 @@ test('catch and throw still unwind the return stack', () => {
   assert.ok(sim.running);
 });
 
-test('the 64K data stack holds 20000 cells', () => {
+test('the 64K data stack holds 18000 cells', () => {
+  // The data stack grows down from 0xFFF0 and the dictionary up from 0x5800.
+  // The tools slice (edit/serial/xmodem) leaves ~19.8K cells free, so 18K
+  // leaves a safe margin while still proving the stack is not the old 300-cell
+  // return stack.
   line(': push-n ( n -- ) 0 ?do i loop ;');
   line(': drop-n ( n -- ) 0 ?do drop loop ;');
-  assert.equal(number(line('20000 push-n depth . cr'), '20000 push-n depth . cr'), 20000);
-  assert.equal(number(line('20000 drop-n depth . cr'), '20000 drop-n depth . cr'), 0);
+  assert.equal(number(line('18000 push-n depth . cr'), '18000 push-n depth . cr'), 18000);
+  assert.equal(number(line('18000 drop-n depth . cr'), '18000 drop-n depth . cr'), 0);
   assert.ok(sim.running);
 });
 
@@ -405,7 +467,7 @@ test('a seven-sector source file loads from the card and runs', () => {
   assert.match(line("' demo . cr"), /' demo \. cr -?\d+ /, 'demo was not defined');
 
   out = '';
-  for (const ch of 'demo\n') sim.uartRxPush(ch === '\n' ? 13 : ch.charCodeAt(0));
+  for (const ch of 'demo\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
   for (let i = 0; i < 3_000_000 && sim.running; i++) step(1);
   assert.ok(out.includes('\x1b[?1049h'), 'no alternate screen');
   assert.ok(!out.includes('\x1b[?1049l'), 'stopped before the key');
@@ -417,7 +479,7 @@ test('a seven-sector source file loads from the card and runs', () => {
   }
   assert.equal((out.match(/\r\n/g) || []).length, 0, 'the canvas hard-wrapped');
 
-  sim.uartRxPush(32);
+  sim.kbdBuffer.push(32);
   for (let i = 0; i < 3_000_000 && sim.running; i++) step(1);
   assert.ok(out.includes('\x1b[?1049l'), 'did not leave the alternate screen');
   assert.match(out.slice(-40), /\r\n ok\r\n> $/);
@@ -511,9 +573,12 @@ test('the keyboard IRQ drains the hardware FIFO into the BIOS ring', () => {
   sim.sicPending = 0;
   sim.kbdBuffer.length = 0;
   for (const k of [0x41, 0x42, 0x43, 0x0d]) sim.kbdBuffer.push(k);
-  line('1 sic-enable es!');       // SIC bit 0: keyboard ready
-  sim.raiseIRQ(0);
-  line('1 drop');                  // the handler runs with the caller's I=1
+  // The console now reads the same keyboard FIFO, so do not type a command
+  // here: enter the handler directly and let it drain the four queued keys.
+  sim.sicEnable = 1;
+  sim.sicPending = 1;
+  sim.handleHardwareInterrupt(1);
+  for (let i = 0; i < 5000 && sim.running; i++) step(1);
   // The ring is the DS copy of image window 0x52C0; the IRQ vector runs at CS=0
   // and BIOS function 12 runs with DS=0x1000, so both use this copy.
   const bio = (a) => sim.memory[(DS_SEG << 4) + a];
@@ -581,7 +646,7 @@ test('game-run starts pacman from flash and returns to the prompt', () => {
   const SEG = 0x2000;
   const state = (a) => sim.memory[(SEG << 4) + a];
   const from = out.length;
-  for (const ch of 's" pacman" game-run\n') sim.uartRxPush(ch === '\n' ? 13 : ch.charCodeAt(0));
+  for (const ch of 's" pacman" game-run\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
   let frame = 0, at = -1, sent = 0;
   for (let i = 0; i < 40_000_000; i++) {
     step(1);
@@ -591,8 +656,8 @@ test('game-run starts pacman from flash and returns to the prompt', () => {
       // `d` walks Pac-Man right down the open row; the far call must run the
       // block with a pristine PSW (the kernel's ER=8 would make its R8 loads
       // read ES instead of DS and no direction would ever apply).
-      if (frame === 340 && !sent) { sim.uartRxPush(0x64); sent = 1; }
-      if (frame === 420 && sent === 1) { sim.uartRxPush(0x71); sent = 2; }  // q
+      if (frame === 340 && !sent) { sim.kbdBuffer.push(0x64); sent = 1; }
+      if (frame === 420 && sent === 1) { sim.kbdBuffer.push(0x71); sent = 2; }  // q
       sim.memory[0xF0066] = ((frame & 1) ? 2 : 0) | (sim.uartRxAvailable() ? 8 : 0);
     }
     if (out.indexOf('\r\n> ', from) >= 0) break;

@@ -13,7 +13,8 @@ import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
 const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
-                        { defines: { CONSOLE_UART: 1, D16NANO: 1, D16D: 1 } });
+                        { defines: { CONSOLE_UART: 1, D16NANO: 1, D16D: 1,
+                                     CONSOLE_MIRROR: 1 } });
 const showcase = buildShowcase();
 const slices = buildSlices();
 const GB = 0x50000;                    // Flappy's slice segment 0x5000
@@ -66,7 +67,7 @@ test('the board boots into the Flappy / Forth menu', () => {
 test('Q returns from the menu to the Forth console', () => {
   const sim = boot();
   let steps = toMenu(sim);
-  sim.uartRxPush(0x51);                       // Q
+  sim.kbdBuffer.push(0x51);                       // Q
   let text = '';
   while (sim.running && steps < 1500000) {
     sim.step();

@@ -1683,14 +1683,15 @@ pac_sp_noh:
 pac_keys:
     LDI SEG_UART
     MVS ES, R0
-    LDI 0x26
+    LDI 0x20
     MOV R2, R0
     LDS R1, ES, R2
-    LSI R3, 8
-    AND R1, R3                 ; UART key ready
+    LSI R3, 1
+    AND R1, R3                 ; keyboard FIFO ready
     JZ pac_k_done
     NOP
-    LSI R2, 2
+    LDI 0x22
+    MOV R2, R0
     LDS R1, ES, R2
     OR R1, 5                   ; fold either case to lower case
     LDI 0x71

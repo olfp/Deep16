@@ -337,7 +337,7 @@ menu_after_g:
 menu_wait:
     LDI SEG_UART
     MVS ES, R0
-    LDI 0
+    LDI 0x20                 ; 0xF0060 keyboard FIFO status, bit0 ready
     MOV R2, R0
     LDS R1, ES, R2
     LDI 1
@@ -345,7 +345,7 @@ menu_wait:
     AND R1, R3
     JZ menu_no_key
     NOP
-    LDI 2
+    LDI 0x22                 ; 0xF0062 keyboard data
     MOV R2, R0
     LDS R1, ES, R2
 

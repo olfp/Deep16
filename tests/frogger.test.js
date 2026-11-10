@@ -135,7 +135,7 @@ test('the panel strip is a shrinking time bar', () => {
 test('Q leaves the demo and returns to the menu', () => {
   const sim = start();
   run(sim, 300);
-  sim.uartRxPush(0x71);
+  sim.kbdBuffer.push(0x71);
   let left = false;
   for (let f = 0; f < 40 && !left; f++) {
     sim.memory[STATUS] = ((f & 1) ? 2 : 0) | 8;

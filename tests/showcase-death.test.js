@@ -93,6 +93,7 @@ function run({ mode = 1, frames = 260, hitAt = -1, keyAt = -1, key = 0, holdS2 =
   let lastDir = 0;
   let reversals = 0;
   let flapFrames = 0;                // frames the bird was moving up at full tilt
+  let keySent = false;               // one keyboard byte, not one per step
 
   for (let step = 0; step < (frames + 8) * FRAME_PERIOD; step++) {
     if (step % FRAME_PERIOD === 0) {
@@ -103,9 +104,9 @@ function run({ mode = 1, frames = 260, hitAt = -1, keyAt = -1, key = 0, holdS2 =
     }
     if (holdS2 && frame < holdS2) sim.memory[UART_STATUS] |= 4;   // S2 held
     if (frame === hitAt) sim.memory[G_TMP] = 1;
-    if (frame === keyAt) {
-      sim.memory[UART_STATUS] |= 8;
-      sim.uartRxPush(key);
+    if (frame === keyAt && !keySent) {
+      sim.kbdBuffer.push(key);
+      keySent = true;
     }
     sim.step();
 

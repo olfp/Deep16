@@ -55,21 +55,24 @@ the board still boots to the prompt with no keyboard attached.
   TXS0108E or equivalent): the FPGA pulls the 3.3 V side low, so a one-way
   5 V -> 3.3 V buffer is not enough. Open-collector pull-ups on the 5 V side
   are required as usual.
-- **Receive integration:** the decoded ASCII byte is pushed into both the UART
-  RX FIFO (`0xF0042`, the D16nano console path) and the keyboard FIFO
-  (`0xF0060`/`0xF0062`) with a one-cycle strobe, so the console and Flappy see
-  keys without software changes.
-- **FIFO and IRQ:** the keyboard FIFO is 16 entries (was 128). The PS/2 port is
-  the only writer on the board; the shrunk FIFO keeps the architectural
-  `0xF0060` port available without spending the old 128-word SSRAM. The FIFO
-  ready level is SIC bit 0; the IRQ handler drains it into a 32-entry ring in
-  the kernel data window (`0x52C0`, head/tail at `0x52C0/0x52C1`) and BIOS
-  function 12 pops the next byte (0 when empty). The console still reads the
-  UART RX FIFO, so the two consumers do not steal each other's keys.
+- **Receive integration:** the decoded character is pushed into the
+  architectural keyboard FIFO (`0xF0060`/`0xF0062`). The D16D console and the
+  games read that FIFO; the old PS/2 -> UART RX bridge is gated by control 6
+  bit 11 and resets off, so the serial UART is a separate stream. The legacy
+  bridge stays in the netlist (disabled) because a hard tie changed the
+  placement and lost 15 CLS.
+- **FIFO and IRQ:** the keyboard FIFO is 8 entries; the IRQ handler drains it
+  into a 32-entry ring in the kernel data window (`0x52C0`, head/tail at
+  `0x52C0/0x52C1`) and BIOS function 12 pops the next byte (0 when empty). The
+  console reads the keyboard FIFO directly; the IRQ ring is an optional API.
+  The UART RX FIFO is 16 bytes, enough for `serial` and the XMODEM byte
+  stream (the tool loops per byte).
 - **Area:** the German map itself is pROM data, but the extended/AltGr remap
-  and the keyboard IRQ source cost logic; the tile build measures
-  **4,305 / 4,320 CLS** with the raster edge detector and the GPIO. The sender
-  and init are BIOS software (no CLS).
+  and the keyboard IRQ source cost logic. The tile build measures
+  **4,285 / 4,320 CLS** with the raster edge detector, the GPIO, the 8-entry
+  keyboard FIFO and the 16-byte UART RX FIFO; timing has 0 setup violations
+  and the known divider hold endpoint. The sender and init are BIOS software
+  (no CLS).
 - **Tests:** `npm run sim:ps2` (pin-level receiver/map, no board);
   `tests/ps2-bios.test.js` runs the BIOS reset/enable with a scripted keyboard
   and pins the ACK/BAT order and the no-keyboard timeout; `npm test` covers
@@ -346,3 +349,22 @@ BIOS and Forth kernel already expect.
 
 This is the preferred lightweight alternative to an external USB-host MCU
 (Pi Pico, STM32, etc.) for the standalone DVI + keyboard build.
+
+## Serial stream: `serial` and `xmodem`
+
+The D16D console is the tile screen and the PS/2 keyboard. The UART
+(`0xF0040` status, `0xF0042` data) is a separate byte stream, not the console;
+the serial output mirror is compiled out on the board (the simulator/tests
+define `CONSOLE_MIRROR` so they can still capture it).
+
+- `serial` (tools slice 21..24) polls the UART, echoes printable input and
+  CR/LF back to the serial port, and returns on Ctrl-D. The banner is on the
+  DVI console only.
+- `xmodem` receives an XMODEM-CRC file into the free dictionary space above
+  `here`, trims the 0x1A padding, advances `here` past the source, and runs it
+  with `included`. Progress is printed on the DVI console; the serial stream
+  stays binary.
+- The UART TX is one byte deep; every ACK/NAK polls TX-ready. The RX FIFO is
+  16 bytes, so the receiver reads each byte as it arrives; no 1K blocks.
+- Planned expansions: write received files to config-flash source slices or
+  SD sectors (`include`/`block`), and an XMODEM sender.

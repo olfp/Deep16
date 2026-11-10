@@ -5,6 +5,9 @@
 // external memory model, and get_memory_slice becomes a pointer away.
 module deep16_top
   import deep16_pkg::*;
+#(
+  parameter int UART_RX_DEPTH = 64
+)
 (
   input  logic        clk,
   input  logic        rst,
@@ -150,7 +153,7 @@ module deep16_top
   // budget: at 128 entries it was the largest SSRAM consumer in the build,
   // even though the board tied kbd_push to 0. The count stays 8-bit because
   // the debug bus and the core's status port read it as a word.
-  localparam int KBD_FIFO_DEPTH = 16;
+  localparam int KBD_FIFO_DEPTH = 8;
   logic [15:0] kbd_fifo [0:KBD_FIFO_DEPTH-1];
   logic [3:0]  kbd_head, kbd_tail;
   logic [7:0]  kbd_count;
@@ -677,7 +680,7 @@ module deep16_top
   localparam int UART_TX_DEPTH = 64;
 `endif
   deep16_uart #(.CLK_HZ(UART_CLK_HZ), .TX_DEPTH(UART_TX_DEPTH),
-                .RX_ONLY(UART_RX_ONLY)) u_uart (
+                .RX_DEPTH(UART_RX_DEPTH), .RX_ONLY(UART_RX_ONLY)) u_uart (
     .clk          (clk),
     .rst          (rst),
     .tx_we        (uart_tx_we),
@@ -722,6 +725,7 @@ module deep16_top
 `endif
   assign uart_rx_avail    = uart_rx_count;
 
+  /* verilator lint_off WIDTHTRUNC */   // 4-bit counters index an 8-entry ring
   // ---- keyboard FIFO ---------------------------------------------------
   always_ff @(posedge clk) begin
     if (kbd_clear) begin
@@ -739,7 +743,9 @@ module deep16_top
   end
 
   assign kbd_ready     = (kbd_count != 8'd0);
-  assign kbd_full      = (kbd_count == 8'd16);
+  assign kbd_full      = (kbd_count == 8'd8);
   assign kbd_head_data = kbd_fifo[kbd_head];
+
+  /* verilator lint_on WIDTHTRUNC */
 
 endmodule

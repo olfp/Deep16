@@ -12,6 +12,22 @@
 ; Reserve R14 as LR (link register). Store stack base in memory.
 .equ KBD_STATUS 0x0060
 .equ KBD_DATA   0x0062
+; The D16D console reads the PS/2 keyboard FIFO; the serial UART is a separate
+; stream for `serial`/`xmodem`. The D16MINI serial build keeps the UART as its
+; console.
+.ifdef CONSOLE_UART
+  .ifdef D16D
+.equ CONSOLE_STATUS, KBD_STATUS
+.equ CONSOLE_DATA,   KBD_DATA
+  .else
+.equ CONSOLE_STATUS, 0x0040
+.equ CONSOLE_DATA,   0x0042
+  .endif
+.else
+; The screen build's console is the keyboard too.
+.equ CONSOLE_STATUS, KBD_STATUS
+.equ CONSOLE_DATA,   KBD_DATA
+.endif
 ; Echo on/off, inside the Keyboard Controller block. See echo_flag below: it is
 ; pinned to an address rather than living in the kernel's data area, because the
 ; Screen tab writes it from the browser with nothing of the kernel running.
@@ -4356,13 +4372,13 @@ word_key:
     NOP
 
 word_keyq:
-    ; key? ( -- flag )  is a byte waiting on the console? The UART status word
-    ; (D16MINI.md §5) has RX-ready in bit 0, and the kernel keeps ES = 0xF000
-    ; from forth_start, so this is one LDS and a test. `key` blocks; this is
-    ; what a program polls to stay interruptible - the starfield demo uses it
-    ; to stop on any key.
+    ; key? ( -- flag )  is a byte waiting on the console? The console status
+    ; word has ready in bit 0 (the keyboard FIFO on D16D, the UART otherwise),
+    ; and the kernel keeps ES = 0xF000 from forth_start, so this is one LDS and
+    ; a test. `key` blocks; this is what a program polls to stay interruptible -
+    ; the starfield demo uses it to stop on any key.
     SUB SP, 1               ; the slot cmp_true/cmp_false write their answer to
-    LDI 0x0040
+    LDI CONSOLE_STATUS
     MOV R2, R0
     LDS R1, ES, R2
     LDI 1
@@ -14433,12 +14449,25 @@ uart_tx:
     MOV R7, R0
     LD R11, R7, 0
 uart_tx_keep:
-    ; Mirror every console byte to the UART as well, so a terminal sees the
-    ; same banner, prompt and echo as the tile screen.  The helper lives in
-    ; the free tail of the 0x5000 ILL block.
+    ; The console output is the tile screen. On the D16D board the UART is a
+    ; separate stream for `serial`/`xmodem`, so it is not mirrored; the
+    ; D16MINI serial build still sends every console byte to the UART, and the
+    ; D16D simulator/tests define CONSOLE_MIRROR so they can capture it.
+.ifdef CONSOLE_MIRROR
     LDI uart_mirror - BIOS_BASE
     MOV PC, R0
     NOP
+.else
+  .ifdef D16D
+    LDI utx_mirror_return - BIOS_BASE
+    MOV PC, R0
+    NOP
+  .else
+    LDI uart_mirror - BIOS_BASE
+    MOV PC, R0
+    NOP
+  .endif
+.endif
 utx_mirror_return:
     ; putstr entry: R11 already holds the column. The tile column lives in a
     ; register for the whole string so the PSRAM-backed cell cannot break the
@@ -15138,19 +15167,20 @@ uart_putstr_done:
     NOP
 
 bios_f4:
-    ; 4: getch -> the handler's R0 = one byte from the UART
+    ; 4: getch -> the handler's R0 = one byte from the console (keyboard FIFO
+    ; on D16D, UART on D16MINI)
     LDI 0x0FFF
     INV R0
     MVS ES, R0
 uart_getch_wait:
-    LDI 0x0040
+    LDI CONSOLE_STATUS
     MOV R2, R0
     LDS R1, ES, R2
     LDI 1
     AND R1, R0
     JZ uart_getch_wait
     NOP
-    LDI 0x0042
+    LDI CONSOLE_DATA
     MOV R2, R0
     LDS R1, ES, R2
     LDI 0x00FF
@@ -16628,7 +16658,7 @@ ug_count:
     SUB R12, R2              ; count = write pointer - buffer
     MOV R2, R3               ; R2 is the write pointer below
 ug_loop:
-    LDI 0x0040
+    LDI CONSOLE_STATUS
     MOV R3, R0
     LDS R1, ES, R3
     LDI 1
@@ -16637,7 +16667,7 @@ ug_loop:
     NOP
     LDI ECHO_FLAG
     LDS R9, ES, R0           ; R9 = echo flag (R0 = 0x64)
-    LDI 0x0042
+    LDI CONSOLE_DATA
     MOV R3, R0
     LDS R1, ES, R3           ; R1 = the received byte
     LDI 0x00FF
@@ -17181,41 +17211,21 @@ ps2_init_enable:
     NOP
 
 ps2_init_flush:
-    ; The PS/2 bytes are mirrored into the UART RX FIFO, so a key pressed
-    ; during boot would appear in front of the prompt. Drain both doors.
-    LDI 0x0040
-    MOV R2, R0
-ps2_init_flush_u:
-    LDS R3, ES, R2
-    LSI R4, 1
-    AND R3, R4
-    JZ ps2_init_flush_k
-    NOP
-    LDI 0x0042
-    MOV R3, R0
-    LDS R4, ES, R3
-    LDI ps2_init_flush_u - BIOS_BASE
-    MOV PC, R0
-    NOP
-ps2_init_flush_k:
+    ; A key pressed during boot would sit in front of the prompt. Only the
+    ; keyboard FIFO is drained: the UART is the separate serial stream now.
     LDI 0x0060
     MOV R2, R0
-ps2_init_flush_k_loop:
+ps2_init_flush_loop:
     LDS R3, ES, R2
     AND R3, R3
-    JZ ps2_init_flush_done
+    JZ ps2_init_done
     NOP
     LDI 0x0062
     MOV R3, R0
     LDS R4, ES, R3
-    LDI ps2_init_flush_k_loop - BIOS_BASE
+    LDI ps2_init_flush_loop - BIOS_BASE
     MOV PC, R0
     NOP
-ps2_init_flush_done:
-    LDI 0x0046
-    MOV R2, R0
-    LSI R3, 1
-    STS R3, ES, R2           ; reset the UART RX FIFO
 
 ps2_init_done:
     LDI 0x0FFF

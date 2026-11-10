@@ -405,18 +405,27 @@ module deep16_board (
   // PS/2 host GPIO: control 6 (0x200C) only uses bit 8; bits 9 and 10 are free
   // and are snooped here before the tile FIFO.  bit 9 = drive CLK low,
   // bit 10 = drive DATA low.
+  // Control 6 bit 11 is the legacy PS/2 -> UART bridge gate. It resets off:
+  // the console and games read the keyboard FIFO, and the UART is the separate
+  // serial stream for `serial`/`xmodem`. The disabled push mux stays in the
+  // netlist, which is the form that still fits; a hard tie changed the
+  // placement and lost 15 CLS.
+  logic uart_push_en;
   always_ff @(posedge clk_cpu) begin
     if (rst) begin
       ps2_clk_drive  <= 1'b0;
       ps2_data_drive <= 1'b0;
+      uart_push_en   <= 1'b0;
     end else if (tile_we && tile_ctrl && (tile_addr == 13'h00C)) begin
       ps2_clk_drive  <= tile_data[9];
       ps2_data_drive <= tile_data[10];
+      uart_push_en   <= tile_data[11];
     end
   end
 `else
   assign ps2_clk_drive  = 1'b0;
   assign ps2_data_drive = 1'b0;
+  logic uart_push_en = 1'b0;
 `endif
   logic        o_done, o_result, o_busy;
   logic [31:0] cache_hits, cache_misses, cache_penalty;
@@ -435,7 +444,7 @@ module deep16_board (
 `endif
 `endif
 
-  deep16_top u_top (
+  deep16_top #(.UART_RX_DEPTH(16)) u_top (
     .clk  (clk_cpu),
     .rst  (rst),
 
@@ -458,7 +467,7 @@ module deep16_board (
     .kbd_clear     (rst),
 
     // the console is the pins; the host push/take path is a simulation facility
-    .uart_rx_push       (ps2_key),
+    .uart_rx_push       (ps2_key && uart_push_en),
     .uart_rx_push_data  ({8'h00, ps2_ascii}),
     .uart_tx_take       (1'b0),
     .uart_host_ctrl_we  (1'b0),
