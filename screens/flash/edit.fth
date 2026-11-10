@@ -140,9 +140,10 @@ variable edit-done drop
   begin serial-status es@ 1 and until
   serial-data es@ 0xff and ;
 
-\ Ctrl-D ends the session. Typed bytes are echoed to the serial stream only.
-\ ECHO_FLAG bit 7 mirrors evaluated results/errors there too.
+\ Ctrl-D ends the session. Typed bytes go to the serial stream only.
 0x64 constant echo-flag
+: mirror-on ( -- )  echo-flag es@ 0x80 or echo-flag es! ;
+: mirror-off ( -- ) echo-flag es@ 0x7f and echo-flag es! ;
 create serial-buf 128 allot
 variable serial-len drop
 variable serial-echo drop

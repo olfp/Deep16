@@ -43,26 +43,42 @@ module ps2_rx #(
   localparam logic [15:0] TIMEOUT = 16'(CLK_HZ / 500);
 
   // ---- input synchronisers ----------------------------------------------
-  logic clk_meta, clk_sync, clk_sync_q;
+  logic clk_meta, clk_sync;
   logic data_meta, data_sync;
 
   always_ff @(posedge clk) begin
     if (rst) begin
       clk_meta   <= 1'b1;
       clk_sync   <= 1'b1;
-      clk_sync_q <= 1'b1;
       data_meta  <= 1'b1;
       data_sync  <= 1'b1;
     end else begin
       clk_meta   <= ps2_clk;
       clk_sync   <= clk_meta;
-      clk_sync_q <= clk_sync;
       data_meta  <= ps2_data;
       data_sync  <= data_meta;
     end
   end
 
-  wire clk_fall = clk_sync_q && !clk_sync;
+  // The cable and the external 5V level shifter can ring, and one extra
+  // falling edge in the middle of a frame shifts every remaining bit. Accept
+  // an edge only after the clock has been low for four consecutive samples:
+  // a PS/2 bit lasts hundreds of 6.75 MHz clocks, so the added latency is
+  // harmless, while a short glitch is rejected.
+  logic [3:0] clk_low_run;
+  logic       clk_seen_high;
+  always_ff @(posedge clk) begin
+    if (rst) begin
+      clk_low_run   <= 4'd0;
+      clk_seen_high <= 1'b0;
+    end else if (clk_sync) begin
+      clk_low_run   <= 4'd0;
+      clk_seen_high <= 1'b1;
+    end else if (clk_low_run != 4'd15) begin
+      clk_low_run <= clk_low_run + 4'd1;
+    end
+  end
+  wire clk_fall = clk_seen_high && !clk_sync && (clk_low_run == 4'd1);
 
   assign frame_valid = code_valid;
   assign dbg_clk  = clk_sync;

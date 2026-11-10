@@ -61,6 +61,9 @@ the board still boots to the prompt with no keyboard attached.
   bit 11 and resets off, so the serial UART is a separate stream. The legacy
   bridge stays in the netlist (disabled) because a hard tie changed the
   placement and lost 15 CLS.
+- **Clock filter:** a PS/2 edge is accepted only after the clock line has been
+  low for two consecutive 6.75 MHz samples, so a short ring from the level
+  shifter cannot shift the rest of a frame.
 - **FIFO and IRQ:** the keyboard FIFO is 8 entries; the IRQ handler drains it
   into a 32-entry ring in the kernel data window (`0x52C0`, head/tail at
   `0x52C0/0x52C1`) and BIOS function 12 pops the next byte (0 when empty). The
@@ -72,8 +75,9 @@ the board still boots to the prompt with no keyboard attached.
   stream (the tool loops per byte).
 - **Area:** the German map itself is pROM data, but the extended/AltGr remap
   and the keyboard IRQ source cost logic. The tile build measures
-  **4,272 / 4,320 CLS** with the raster edge detector, the GPIO, the 8-entry
-  keyboard FIFO and the 16-byte UART RX FIFO; timing has 0 setup violations
+  **4,316 / 4,320 CLS** with the raster edge detector, the GPIO, the 8-entry
+  keyboard FIFO, the 16-byte UART RX FIFO and the PS/2 clock glitch filter;
+  timing has 0 setup violations
   and the known divider hold endpoint. The sender and init are BIOS software
   (no CLS).
 - **Tests:** `npm run sim:ps2` (pin-level receiver/map, no board);
@@ -360,6 +364,10 @@ The D16D console is the tile screen and the PS/2 keyboard. The UART
 the serial output mirror is compiled out on the board (the simulator/tests
 define `CONSOLE_MIRROR` so they can still capture it).
 
+- `mirror-on` / `mirror-off` (tools) set ECHO_FLAG bit 7, which makes
+  `uart_tx` also send the console output to the serial stream. That is a
+  capture aid, and it separates a console-input fault from a DVI display
+  fault: the same text appears on both.
 - `serial` (tools slice 21..24) polls the UART, echoes printable input and
   CR/LF back to the serial port, and interprets each line with `evaluate`
   until Ctrl-D (`catch` reports a bad line and the session continues). The
