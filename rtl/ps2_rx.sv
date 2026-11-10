@@ -78,7 +78,7 @@ module ps2_rx #(
       clk_low_run <= clk_low_run + 4'd1;
     end
   end
-  wire clk_fall = clk_seen_high && !clk_sync && (clk_low_run == 4'd1);
+  wire clk_fall = clk_seen_high && !clk_sync && (clk_low_run == 4'd3);
 
   assign frame_valid = code_valid;
   assign dbg_clk  = clk_sync;
