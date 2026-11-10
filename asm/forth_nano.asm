@@ -4520,6 +4520,15 @@ rl_read:
     LDI tib_kbd
     MOV TIB, R0
     MOV R1, TIB          ; BIOS getstr: the buffer is the parameter
+.ifdef CONSOLE_UART
+    ; Start every line from a clean BIOS line state. If a previous line was
+    ; abandoned, or its CR arrived with keys still queued, getstr must not
+    ; resume at the old write pointer and append to the old text.
+    LDI gs_active
+    MOV R2, R0
+    LDI 0
+    ST R0, R2, 0
+.endif
 rl_getstr:
     LDI 5
     SWI                  ; non-blocking: the caller's R0 = line ready
