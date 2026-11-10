@@ -198,6 +198,18 @@ test('edit-slice Ctrl-X Ctrl-C leaves the flash unchanged', () => {
                       '40 slice 8 cells + c@ . cr'), 65, 'still A, not Z');
 });
 
+test('edit-slice Return moves to column 1 of the next line', () => {
+  // Slice 40 still has A at 0. Return moves to 80 (row 1, column 1), then R
+  // overwrites that cell; C-X C-S saves.
+  const echoed = lineWithKeys('40 edit-slice',
+                              [0x0d, 'R'.charCodeAt(0), 0x18, 0x13]);
+  assert.match(echoed, /slice written/);
+  assert.equal(number(line('40 slice 8 cells + 80 + c@ . cr'),
+                      '40 slice 8 cells + 80 + c@ . cr'), 82, 'R at row 1, col 1');
+  assert.equal(number(line('40 slice 8 cells + c@ . cr'),
+                      '40 slice 8 cells + c@ . cr'), 65, 'row 0 still A');
+});
+
 test('a directory entry can be removed', () => {
   line('40 dir-remove');
   assert.doesNotMatch(line('dir'), /\btest\b/);

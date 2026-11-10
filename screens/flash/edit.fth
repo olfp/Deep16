@@ -56,6 +56,9 @@ variable edit-done drop
   edit-pos @ edit-len edit-w - < if edit-pos @ edit-w + edit-pos ! then ;
 : edit-bol ( -- ) edit-pos @ edit-w / edit-w * edit-pos ! ;
 : edit-eol ( -- ) edit-pos @ edit-w / edit-w * edit-w 1- + edit-pos ! ;
+: edit-nl ( -- )
+  edit-pos @ edit-w / 1+ edit-w *  ( next line, column 1 )
+  dup edit-len < if edit-pos ! else drop then ;
 
 : edit-put ( c -- )
   dup edit-buf edit-pos @ + c!
@@ -83,6 +86,8 @@ variable edit-done drop
   dup 0x0e = if drop edit-down edit-cursor exit then
   dup 0x01 = if drop edit-bol edit-cursor exit then
   dup 0x05 = if drop edit-eol edit-cursor exit then
+  dup 0x0d = if drop edit-nl edit-cursor exit then
+  dup 0x0a = if drop edit-nl edit-cursor exit then
   dup 0x08 = if drop edit-bs exit then
   dup 0x7f = if drop edit-bs exit then
   dup 32 127 within if edit-put exit then
