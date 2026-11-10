@@ -65,11 +65,14 @@ the board still boots to the prompt with no keyboard attached.
   into a 32-entry ring in the kernel data window (`0x52C0`, head/tail at
   `0x52C0/0x52C1`) and BIOS function 12 pops the next byte (0 when empty). The
   console reads the keyboard FIFO directly; the IRQ ring is an optional API.
+  The push and pop sides are clocked together: a key arriving in the same
+  cycle as a console read updates both the tail and the head, so the count
+  cannot drift and replay an old character.
   The UART RX FIFO is 16 bytes, enough for `serial` and the XMODEM byte
   stream (the tool loops per byte).
 - **Area:** the German map itself is pROM data, but the extended/AltGr remap
   and the keyboard IRQ source cost logic. The tile build measures
-  **4,285 / 4,320 CLS** with the raster edge detector, the GPIO, the 8-entry
+  **4,272 / 4,320 CLS** with the raster edge detector, the GPIO, the 8-entry
   keyboard FIFO and the 16-byte UART RX FIFO; timing has 0 setup violations
   and the known divider hold endpoint. The sender and init are BIOS software
   (no CLS).
@@ -358,8 +361,13 @@ the serial output mirror is compiled out on the board (the simulator/tests
 define `CONSOLE_MIRROR` so they can still capture it).
 
 - `serial` (tools slice 21..24) polls the UART, echoes printable input and
-  CR/LF back to the serial port, and returns on Ctrl-D. The banner is on the
-  DVI console only.
+  CR/LF back to the serial port, and interprets each line with `evaluate`
+  until Ctrl-D (`catch` reports a bad line and the session continues). The
+  typed echo goes to the serial stream only; while a line is evaluated the
+  tool sets ECHO_FLAG bit 7 so `uart_tx` mirrors the results and errors to
+  the serial stream as well. The banner is on the DVI console only. The echo
+  cell is outside the boot image window, so `forth_start` writes the initial
+  1 before the first console byte.
 - `xmodem` receives an XMODEM-CRC file into the free dictionary space above
   `here`, trims the 0x1A padding, advances `here` past the source, and runs it
   with `included`. Progress is printed on the DVI console; the serial stream

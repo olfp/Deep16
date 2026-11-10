@@ -150,6 +150,14 @@ forth_start:
     MVS ES, R0
     LDI 0x1000
     MOV SCR, R0
+    ; The echo cell sits outside the boot image window, so PSRAM powers up with
+    ; 0xFFFF there - every bit set, including the serial-mirror bit 7 that
+    ; uart_tx tests on D16D. Give it the image's "echo on" value before the
+    ; first byte is printed.
+    LDI ECHO_FLAG
+    MOV R7, R0
+    LDI 1
+    STS R0, ES, R7
     ; Configure PSW: ER=8 (R8), DE=1 via LPSW/SPSW
     LPSW R12
     LDI 0x07FF
@@ -14459,7 +14467,21 @@ uart_tx_keep:
     NOP
 .else
   .ifdef D16D
-    LDI utx_mirror_return - BIOS_BASE
+    ; The board's console is the tile screen. `serial` raises bit 7 of
+    ; ECHO_FLAG while it evaluates a line, so the REPL's results and errors
+    ; also reach the serial stream; ordinary console output does not.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI ECHO_FLAG
+    MOV R10, R0
+    LDS R10, ES, R10
+    LDI 0x80
+    MOV R3, R0
+    AND R10, R3
+    JZ utx_mirror_return
+    NOP
+    LDI uart_mirror - BIOS_BASE
     MOV PC, R0
     NOP
   .else

@@ -211,10 +211,24 @@ test('edit-slice Return moves to column 1 of the next line', () => {
                       '40 slice 8 cells + c@ . cr'), 65, 'row 0 still A');
 });
 
-test('serial echoes the UART stream until Ctrl-D', () => {
-  for (const b of [0x41, 0x42, 0x0d, 0x04]) sim.uartRxPush(b);
-  const echoed = line('serial');
-  assert.match(echoed, /AB\r\n/);
+test('serial interprets the UART stream until Ctrl-D', () => {
+  // The REPL echoes what it reads and runs the line through `evaluate`. The
+  // typed characters go to the serial stream only; the result reaches it too
+  // because `serial` raises ECHO_FLAG bit 7 while it evaluates.
+  for (const ch of '2 3 + .\r') sim.uartRxPush(ch.charCodeAt(0));
+  sim.uartRxPush(0x04);
+  const captured = line('serial');
+  assert.match(captured, /2 3 \+ \.\r\n5/, 'the typed line and its result');
+  assert.ok(sim.running);
+  assert.equal(sim.memory[0xF0064] & 0x80, 0, 'the serial mirror bit is cleared');
+});
+
+test('serial catches a bad line and keeps going', () => {
+  for (const ch of 'nonesuch\r4 5 + .\r') sim.uartRxPush(ch.charCodeAt(0));
+  sim.uartRxPush(0x04);
+  const captured = line('serial');
+  assert.match(captured, /error -13/, 'undefined word is reported');
+  assert.match(captured, /9/, 'the next line still runs');
   assert.ok(sim.running);
 });
 

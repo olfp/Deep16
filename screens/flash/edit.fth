@@ -140,20 +140,55 @@ variable edit-done drop
   begin serial-status es@ 1 and until
   serial-data es@ 0xff and ;
 
-\ Ctrl-D ends the echo. The banner is on the DVI console; the echoed bytes go
-\ only to the serial stream.
+\ Ctrl-D ends the session. Typed bytes are echoed to the serial stream only.
+\ ECHO_FLAG bit 7 mirrors evaluated results/errors there too.
+0x64 constant echo-flag
+create serial-buf 128 allot
+variable serial-len drop
+variable serial-echo drop
+
+: serial-crlf ( -- ) 13 serial-emit 10 serial-emit ;
+
+: serial-eval ( -- )
+  echo-flag es@ serial-echo !
+  echo-flag es@ 0x80 or echo-flag es!
+  serial-buf serial-len @
+  ['] evaluate catch ?dup if
+    ." serial: error " . cr
+    2drop
+  then
+  serial-echo @ echo-flag es! ;
+
 : serial ( -- )
-  ." serial: Ctrl-D exits" cr
+  ." serial: interpreted, Ctrl-D exits" cr
+  0 serial-len !
   begin
     serial-key
     dup 0x04 = if drop exit then
     dup 0x0d = over 0x0a = or if
-      drop 13 serial-emit 10 serial-emit
+      drop
+      serial-crlf
+      serial-eval
+      0 serial-len !
     else
-      dup 0x08 = if
-        drop 8 serial-emit 32 serial-emit 8 serial-emit
+      dup 0x08 = over 0x7f = or if
+        drop
+        serial-len @ if
+          8 serial-emit 32 serial-emit 8 serial-emit
+          serial-len @ 1- serial-len !
+        then
       else
-        dup 32 127 within if serial-emit else drop then
+        dup 32 127 within if
+          dup serial-emit
+          serial-len @ 128 < if
+            serial-buf serial-len @ + c!
+            serial-len @ 1+ serial-len !
+          else
+            drop
+          then
+        else
+          drop
+        then
       then
     then
   again ;

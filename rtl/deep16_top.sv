@@ -727,23 +727,36 @@ module deep16_top
 
   /* verilator lint_off WIDTHTRUNC */   // 4-bit counters index an 8-entry ring
   // ---- keyboard FIFO ---------------------------------------------------
+  // A push and a pop can land in the same cycle (a key arriving while the
+  // console reads the previous one). Both must count: the old `else if`
+  // dropped the pop, so the count drifted up by one, the head never advanced
+  // and an old character was replayed later - the "random swapped/repeated
+  // keys" symptom. Accept a push at full when a pop frees the slot in the same
+  // cycle, and update the count once from both events.
+  logic kbd_push_ok, kbd_pop_ok;
+  assign kbd_ready   = (kbd_count != 8'd0);
+  assign kbd_full    = (kbd_count == 8'd8);
+  assign kbd_pop_ok  = kbd_pop && kbd_ready;
+  assign kbd_push_ok = kbd_push && (!kbd_full || kbd_pop_ok);
+
   always_ff @(posedge clk) begin
     if (kbd_clear) begin
       kbd_head  <= 4'd0;
       kbd_tail  <= 4'd0;
       kbd_count <= 8'd0;
-    end else if (kbd_push && !kbd_full) begin
-      kbd_fifo[kbd_tail] <= kbd_push_data;
-      kbd_tail  <= kbd_tail + 4'd1;
-      kbd_count <= kbd_count + 8'd1;
-    end else if (kbd_pop && kbd_ready) begin
-      kbd_head  <= kbd_head + 4'd1;
-      kbd_count <= kbd_count - 8'd1;
+    end else begin
+      if (kbd_push_ok) begin
+        kbd_fifo[kbd_tail] <= kbd_push_data;
+        kbd_tail  <= kbd_tail + 4'd1;
+      end
+      if (kbd_pop_ok) begin
+        kbd_head  <= kbd_head + 4'd1;
+      end
+      kbd_count <= kbd_count + (kbd_push_ok ? 8'd1 : 8'd0)
+                             - (kbd_pop_ok  ? 8'd1 : 8'd0);
     end
   end
 
-  assign kbd_ready     = (kbd_count != 8'd0);
-  assign kbd_full      = (kbd_count == 8'd8);
   assign kbd_head_data = kbd_fifo[kbd_head];
 
   /* verilator lint_on WIDTHTRUNC */
