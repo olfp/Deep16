@@ -346,5 +346,18 @@ s" op_err_pow = 2 ^ -1" quiet-eval expect-error
 s" op_err_mod = 5 % 0" quiet-eval expect-error
 s" op_err_idiv = 5 // 0" quiet-eval expect-error
 
+\ multiple returns and varargs from test.lila
+lila-var-mra 10 check-num
+lila-var-mrb 20 check-num
+lila-var-mrc 10 check-num
+lila-var-mrx 1 check-num
+lila-var-mry 2 check-num
+lila-var-mrz 3 check-num
+lila-var-msa 8 check-num
+lila-var-msb 7 check-num
+lila-var-mlsum 30 check-num
+lila-var-mta 11 check-num
+lila-var-mtb 12 check-num
+
 ." lila tests passed" cr
 bye

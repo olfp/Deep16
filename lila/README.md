@@ -56,12 +56,14 @@ A tag is a whole cell; payloads are never bit-packed. The current tags are:
 | 4 | table | header pointer | 0 |
 | 5 | float | reserved | reserved |
 | 6 | function | closure pointer | 0 |
+| 7 | multi | payload pointer | 0 |
 
 Numbers are signed 32-bit two's-complement values split across the two payload
 cells. Strings are `c-addr u` descriptors allocated by the garbage collector.
 Tables are pointers. The float tag is reserved for future use. A function value
 points at a GC-managed closure that records the code entry point and the
-lexical frame in which the function was created.
+lexical frame in which the function was created. A multi value (tag 7) is an
+internal GC-managed list of values used for multiple returns and varargs.
 
 Because every value carries its tag, variables and table slots are dynamically
 typed. One variable or table slot can hold a number, then a string, then a
@@ -71,7 +73,8 @@ table, then nil.
 
 Assignments, infix arithmetic, comparison and logical operators, string
 concatenation, `print`, `if`/`elseif`/`while`, numeric `for` loops, `break`,
-functions, tables, and strings. Blocks may span lines or stay on one line:
+functions, tables, strings, multiple returns, varargs, and multiple assignment.
+Blocks may span lines or stay on one line:
 
 ```lisp
 -- LILA comment
@@ -138,7 +141,9 @@ the name is not visible after the loop.
 - `if`/`elseif`/`while` accept any value and apply these rules.
 - Comparisons produce boolean-tagged values.
 - `print` writes numbers, strings, `true`/`false`, `nil`, and `<table>` for a
-  table.
+  table. `print` accepts multiple comma-separated expressions and prints each
+  value back-to-back. If an expression produces multiple values, all of them are
+  printed.
 
 ## Operators
 
@@ -167,6 +172,46 @@ above, so zero counts as falsey.
 floor semantics: the quotient rounds toward negative infinity and the remainder
 has the sign of the divisor (`-7 // 2` is `-4`, `-7 % 2` is `1`). `^` requires
 a non-negative integer exponent.
+
+## Multiple returns and varargs
+
+A function can return multiple values, and callers can receive them with
+multiple assignment:
+
+```lisp
+function pair()
+  return 1, 2
+end
+a, b = pair()         -- a=1, b=2
+c = pair()            -- c=1 (first value)
+a, b = b, a           -- swap
+local x, y = pair()   -- local multi assignment
+```
+
+`return f()` forwards all values returned by `f`. In a single-value context (an
+ordinary assignment, an argument, or most expressions) a call or multi value is
+adjusted to its first value (or nil if empty).
+
+A vararg function declares `...` in its parameter list. Extra arguments are
+kept as the call's varargs, and `...` reads them:
+
+```lisp
+function sum(...)
+  local total = 0
+  local i = 1
+  local n = select("#", ...)
+  while i <= n do
+    total = total + select(i, ...)
+    i = i + 1
+  end
+  return total
+end
+print(sum(1, 2, 3))   -- 6
+```
+
+`select("#", ...)` returns the number of varargs. `select(n, ...)` returns the
+nth vararg (1-based) or nil. `...` may be returned (`return ...`) or forwarded
+in a sole-argument call (`f(...)`) to pass all varargs through.
 
 ## Locals and lexical scope
 

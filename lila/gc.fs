@@ -9,7 +9,7 @@
 \ Object header (4 cells): [next][size][mark][type]
 \ Payload starts after the header.
 \ Types: 0 = string, 1 = table, 2 = table bucket array, 3 = frame,
-\ 4 = closure.
+\ 4 = closure, 5 = multi value.
 
 : lila-error ( c-addr u -- )  cr type cr abort ;
 
@@ -89,6 +89,7 @@ create gc-sp 0 ,
 defer gc-scan-table ( table -- )
 defer gc-scan-frame ( frame -- )
 defer gc-scan-closure ( closure -- )
+defer gc-scan-multi ( multi -- )
 
 create gc-changed 0 ,
 create gc-cur 0 ,
@@ -103,6 +104,10 @@ create gc-cur 0 ,
       else
         dup gc-type@ 4 = if
           dup gc-payload gc-scan-closure
+        else
+          dup gc-type@ 5 = if
+            dup gc-payload gc-scan-multi
+          then
         then
       then
     then

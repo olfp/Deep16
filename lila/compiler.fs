@@ -60,10 +60,12 @@ variable fn-body-len
 create fn-params 16 64 * allot
 create fn-param-types 16 allot
 variable fn-param-count
+variable fn-vararg
 \ Function signatures: parameter count and optional parameter type constraints.
 create sig-names 64 64 * allot
 create sig-parm-types 64 16 * allot
 create sig-pcnt 64 allot
+create sig-vararg 64 allot
 variable sig-count
 create call-arg-types 16 allot
 \ Function calls in expressions: name stack and one flag per open parenthesis.
@@ -106,6 +108,7 @@ variable lr-level
 create fn-name-stack 64 64 * allot
 create fn-paramcount-stack 64 cells allot
 create fn-paramtypes-stack 64 16 * allot
+create fn-vararg-stack 64 cells allot
 create fn-id-stack 64 cells allot
 variable fn-stack-top
 variable fn-counter
@@ -140,6 +143,18 @@ variable expr-type
 128 constant lila-max-starts
 create expr-starts lila-max-starts cells allot
 variable start-top
+
+\ Multi-value and vararg compilation state.  `expr-expand` lets the final call
+\ (or `...`) of a return or multi-assignment keep all of its values instead of
+\ being reduced to the first one.  The `tx-*` cells expose the current input
+\ position to the call emitter so it can tell whether a call ends the
+\ expression.
+variable expr-expand
+variable expr-call-base
+variable arg-vararg
+variable tx-addr
+variable tx-u
+variable tx-i
 
 : start-push ( n -- )
   start-top @ lila-max-starts >= if s" lila: expression too complex" lila-error then
@@ -428,6 +443,7 @@ variable start-top
     fn-param-types i + c@
     fn-stack-top @ 16 * i + fn-paramtypes-stack + c!
   loop
+  fn-vararg @ fn-stack-top @ cells fn-vararg-stack + !
   fn-id @ fn-stack-top @ cells fn-id-stack + !
   1 fn-stack-top +! ;
 
@@ -439,6 +455,7 @@ variable start-top
     fn-stack-top @ 16 * i + fn-paramtypes-stack + c@
     fn-param-types i + c!
   loop
+  fn-stack-top @ cells fn-vararg-stack + @ fn-vararg !
   fn-stack-top @ cells fn-id-stack + @ fn-id ! ;
 
 : next-fn-id ( -- id )  fn-counter @ 1 fn-counter +! ;
@@ -524,6 +541,7 @@ variable start-top
     1 sig-count +!
   then
   fn-param-count @ idx sig-pcnt + c!
+  fn-vararg @ idx sig-vararg + c!
   fn-param-count @ 0 ?do
     fn-param-types i + c@ idx 16 * i + sig-parm-types + c!
   loop ;
@@ -534,10 +552,16 @@ variable start-top
   loop
   call-top @ 1- 64 * call-names + count sig-find { idx -- }
   idx 0>= if
-    n idx sig-pcnt + c@ <> if
-      s" lila: wrong number of arguments" lila-error
+    idx sig-vararg + c@ if
+      n idx sig-pcnt + c@ < if
+        s" lila: not enough arguments" lila-error
+      then
+    else
+      n idx sig-pcnt + c@ <> if
+        s" lila: wrong number of arguments" lila-error
+      then
     then
-    n 0 ?do
+    n idx sig-pcnt + c@ min 0 ?do
       idx 16 * i + sig-parm-types + c@ 1 = if
         call-arg-types i + c@ dup type-known? if
           lila-tag-str <> if
@@ -571,6 +595,15 @@ variable number-negative
 
 : lila-buf-number ( n -- )  0 <# #s #> lila-buf buf+ ;
 
+: tx-rest-blank? ( -- flag )
+  tx-i @ 1+ { j -- }
+  begin j tx-u @ < while
+    tx-addr @ j + c@ bl <> if false exit then
+    j 1+ to j
+  repeat true ;
+
+defer vararg-raw?
+
 : emit-number { n -- }
   append-space
   n lila>value-num
@@ -601,6 +634,18 @@ variable number-negative
   c-addr u s" false" compare 0= if
     append-space s" 0 0 2 " lila-buf buf+
     lila-tag-bool type-push exit
+  then
+  c-addr u s" ..." compare 0= if
+    append-space
+    vararg-raw? if
+      s" lila-vararg " lila-buf buf+
+      lila-tag-multi type-push
+      call-top @ expr-call-base @ <> if 1 arg-vararg ! then
+    else
+      s" lila-vararg-first " lila-buf buf+
+      lila-tag-unknown type-push
+    then
+    exit
   then
   c-addr u keyword? if
     append-space
@@ -741,7 +786,7 @@ variable number-negative
 : pop-op ( -- )  top-op  -1 op-top +!  emit-operator ;
 : marker-open? { ch -- flag }
   ch [char] ( =  ch [char] { = or  ch [char] [ = or
-  ch [char] L = or ;
+  ch [char] L = or  ch [char] S = or ;
 : pop-while { prec -- }
   begin
     op-top @ 0> if
@@ -777,6 +822,21 @@ variable number-negative
   argc buf-number
   s"  lila-call " lila-buf buf+ ;
 
+\ A call whose only argument is `...` passes the whole vararg list.
+: call-pop-emit-multi ( -- )
+  call-top @ 0= if s" lila: call stack underflow" lila-error then
+  -1 call-top +!
+  call-top @ 64 * call-names + count buf-var-ref
+  s"  lila-call-multi " lila-buf buf+ ;
+
+\ A call used as one value yields its first result; a call that ends a return
+\ list or multi assignment keeps all of them.
+: maybe-normalize-call ( -- )
+  expr-expand @ if
+    call-top @ expr-call-base @ = tx-rest-blank? and if exit then
+  then
+  s"  lila-first " lila-buf buf+ ;
+
 : innermost-marker ( -- ch idx )
   op-top @ 0 ?do
     op-top @ 1- i -
@@ -793,15 +853,21 @@ variable number-negative
 : mark-arg ( -- )
   op-top @ 0 ?do
     op-top @ 1- i -
-    dup op-stack + c@ [char] { = if
+    dup op-stack + c@ dup [char] { = swap [char] S = or if
       paren-args + 1 swap c!
       unloop exit
     then
     drop
   loop ;
 
+:noname ( -- flag )
+  call-top @ expr-call-base @ <> if true exit then
+  innermost-marker drop [char] S = if true exit then
+  expr-expand @ if tx-rest-blank? else false then ; is vararg-raw?
+
 : flush-tok ( -- )
   tok-len @ 0= if exit then
+  0 arg-vararg !
   tok-buf tok-len @ s" not" compare 0= if
     expect-operand @ 0= if
       s" lila: operator expected before not" lila-error
@@ -862,6 +928,14 @@ variable number-negative
     1 expect-operand !
     exit
   then
+  tok-buf tok-len @ s" select" compare 0= if
+    0 tok-len !
+    [char] S push-op
+    0 op-top @ 1- paren-args + c!
+    0 op-top @ 1- arg-counts + c!
+    1 expect-operand !
+    exit
+  then
   tok-buf tok-len @ call-push
   lila-buf c@ call-top @ 1- cells call-starts + !
   0 tok-len !
@@ -887,6 +961,22 @@ variable number-negative
     0 expect-operand !
     exit
   then
+  ch [char] S = if
+    expect-operand @ if s" lila: select needs two arguments" lila-error then
+    idx arg-counts + c@ 1+ 2 <> if
+      s" lila: select needs a selector and ..." lila-error
+    then
+    -1 pop-while
+    -1 op-top +!
+    type-pop drop type-pop drop
+    append-space s" lila-select " lila-buf buf+
+    lila-tag-unknown type-push
+    start-pop drop
+    0 arg-vararg !
+    mark-arg
+    0 expect-operand !
+    exit
+  then
   ch [char] { = if
     idx paren-args + c@ 0= if
       idx arg-counts + c@ 0= if
@@ -895,6 +985,7 @@ variable number-negative
           call-top @ 1- cells call-starts + @ { cs -- }
           0 call-result-type type-push
           0 call-pop-emit
+          maybe-normalize-call
           cs start-push
           0 expect-operand !
           mark-arg
@@ -910,12 +1001,23 @@ variable number-negative
   -1 op-top +!
   ch [char] { = if
     idx paren-args + c@ if
-      idx arg-counts + c@ 1+ { n -- }
-      call-top @ 1- cells call-starts + @ { cs -- }
-      n call-result-type type-push
-      n call-pop-emit
-      n 0 ?do start-pop drop loop
-      cs start-push
+      idx arg-counts + c@ 0= arg-vararg @ and if
+        call-top @ 1- cells call-starts + @ { cs -- }
+        type-pop drop
+        lila-tag-unknown type-push
+        call-pop-emit-multi
+        maybe-normalize-call
+        start-pop drop
+        cs start-push
+      else
+        idx arg-counts + c@ 1+ { n -- }
+        call-top @ 1- cells call-starts + @ { cs -- }
+        n call-result-type type-push
+        n call-pop-emit
+        maybe-normalize-call
+        n 0 ?do start-pop drop loop
+        cs start-push
+      then
     then
     mark-arg
   then
@@ -924,10 +1026,13 @@ variable number-negative
 : comma ( -- )
   flush-tok
   innermost-marker { ch idx }
-  ch [char] { <> if s" lila: comma outside call" lila-error then
+  ch [char] { <> ch [char] S <> and if
+    s" lila: comma outside call" lila-error
+  then
   expect-operand @ if
     s" lila: operand expected before ," lila-error
   then
+  0 arg-vararg !
   -1 pop-while
   1 idx paren-args + c!
   idx arg-counts + dup c@ 1+ swap c!
@@ -978,8 +1083,11 @@ variable number-negative
 : transform-expr { c-addr u -- }
   lila-buf buf-reset  0 tok-len !  0 op-top !  1 expect-operand !
   0 in-string !  0 str-len !  0 type-top !  0 start-top !
+  c-addr tx-addr !  u tx-u !  call-top @ expr-call-base !
+  0 arg-vararg !
   0 { i }
   begin i u < while
+    i tx-i !
     c-addr i + c@ { ch }
     ch [char] " = if
       in-string @ if
@@ -1118,6 +1226,153 @@ variable number-negative
 : compile-rhs { c-addr u -- }
   c-addr u trim compile-expr ;
 
+\ Compile an expression that may hand back a multi value (a call, `...`, or a
+\ single ordinary value).  Used for return and the right side of a multi
+\ assignment.
+: compile-rhs-expand { c-addr u -- }
+  -1 expr-expand !
+  c-addr u compile-rhs
+  0 expr-expand ! ;
+
+\ First top-level comma, ignoring commas inside parentheses, brackets, braces,
+\ and strings.
+: split-top-comma { c-addr u -- lhs llen rhs rlen flag }
+  0 { i }
+  0 { depth }
+  0 { q }
+  begin i u < while
+    c-addr i + c@ { ch }
+    q 0<> if
+      ch [char] " = if 0 to q then
+    else
+      ch [char] " = if
+        -1 to q
+      else
+        ch [char] ( = ch [char] [ = or ch [char] { = or if
+          depth 1+ to depth
+        else
+          ch [char] ) = ch [char] ] = or ch [char] } = or if
+            depth 0> if depth 1- to depth then
+          else
+            ch [char] , = depth 0= and if
+              c-addr i
+              c-addr i + 1+ u i - 1-
+              true exit
+            then
+          then
+        then
+      then
+    then
+    i 1+ to i
+  repeat
+  c-addr u 0 0 false ;
+
+: top-comma? { c-addr u -- flag }
+  c-addr u split-top-comma if 2drop 2drop true else 2drop 2drop false then ;
+
+: lhs-list? ( c-addr u -- flag )
+  trim
+  2dup split-top-comma if
+    2>r 2swap 2drop
+    trim identifier? 0= if 2r> 2drop false exit then
+    2r> recurse
+  else
+    2drop 2drop trim identifier?
+  then ;
+
+\ Split a comma-separated right-hand list.  With more than one expression the
+\ expressions are packed into one multi value; with exactly one expression the
+\ expression may already produce a multi value (a call or `...`).
+: compile-rhs-list { c-addr u -- }
+  c-addr u top-comma? if
+    0 { n }
+    begin
+      c-addr u split-top-comma
+    while
+      { lhs llen rhs rlen }
+      lhs llen compile-rhs
+      n 1+ to n
+      rhs to c-addr  rlen to u
+    repeat
+    2drop
+    c-addr u compile-rhs
+    n 1+ code-number s"  lila-multi-pack " code+
+  else
+    c-addr u compile-rhs-expand
+  then ;
+
+\ Multiple assignment: a, b = f() or a, b = b, a.  Targets are identifiers.
+: multi-assignment? { line len -- flag }
+  line len s" =" split-at 0= if 2drop 2drop false exit then
+  \ lhs llen rhs rlen
+  2drop  \ lhs llen
+  2dup s" ," split-at 0= if 2drop 2drop 2drop false exit then
+  \ lhs llen x y z w
+  2drop 2drop  \ lhs llen
+  lhs-list? ;
+
+: emit-var-multi-stores { c-addr u idx -- }
+  c-addr u split-top-comma if
+    { lhs llen rhs rlen }
+    idx code-number s"  lila-multi-fetch " code+
+    lhs llen trim code-var-addr
+    s"  lila-value! " code+
+    rhs rlen idx 1+ recurse
+  else
+    2drop
+    idx code-number s"  lila-multi-fetch " code+
+    c-addr u trim code-var-addr
+    s"  lila-value! " code+
+  then ;
+
+: compile-multi-assign { line len -- }
+  line len s" =" split-at 0= if
+    2drop 2drop s" lila: assignment needs =" lila-error
+  then
+  { lhs llen rhs rlen }
+  lhs llen lhs-list? 0= if s" lila: invalid assignment target" lila-error then
+  rhs rlen compile-rhs-list
+  s"  lila-multi-ensure  lila-multi-hold " code+
+  lhs llen 0 emit-var-multi-stores drop ;
+
+\ local a, b = f().  The right side runs before the names exist.
+: local-multi? { line len -- flag }
+  line len s" local " string-prefix? 0= if false exit then
+  line len 6 /string trim
+  2dup s" =" split-at 0= if 2drop 2drop 2drop false exit then
+  2drop
+  2dup s" ," split-at 0= if 2drop 2drop 2drop 2drop false exit then
+  2drop 2drop
+  lhs-list? { flag }
+  2drop flag ;
+
+: emit-local-multi-stores { c-addr u idx -- }
+  c-addr u split-top-comma if
+    { lhs llen rhs rlen }
+    lhs llen trim local-declare { slot }
+    idx code-number s"  lila-multi-fetch " code+
+    0 slot code-local-addr
+    s"  lila-value! " code+
+    rhs rlen idx 1+ recurse
+  else
+    2drop
+    c-addr u trim local-declare { slot }
+    idx code-number s"  lila-multi-fetch " code+
+    0 slot code-local-addr
+    s"  lila-value! " code+
+  then ;
+
+: compile-local-multi { line len -- }
+  line len 6 /string trim
+  s" =" split-at 0= if
+    2drop 2drop s" lila: local assignment needs =" lila-error
+  then
+  { lhs llen rhs rlen }
+  lhs llen lhs-list? 0= if s" lila: invalid local name" lila-error then
+  rhs rlen compile-rhs-list
+  s"  lila-multi-ensure  lila-multi-hold " code+
+  lhs llen 0 emit-local-multi-stores drop ;
+
 : parse-table-lhs { c-addr u -- key klen }
   c-addr u trim 1- to u
   c-addr u s" [" split-at 0= if
@@ -1167,7 +1422,7 @@ variable number-negative
       1 /string strip-trailing-paren
     then
   then
-  compile-expr
+  compile-rhs-list
   s"  lila-print " code+ ;
 
 : strip-cr ( c-addr u -- c-addr' u' )
@@ -1280,7 +1535,7 @@ variable number-negative
   dup 0= if
     2drop s" 0 0 0 " code+
   else
-    compile-expr
+    compile-rhs-list
   then
   s"  lila-frame-ret! EXIT " code+ ;
 
@@ -1320,6 +1575,9 @@ defer lila-compile-anon-assign
   2dup s" local function " string-prefix? if
     lila-compile-local-function exit
   then
+  2dup local-multi? if
+    compile-local-multi exit
+  then
   2dup s" local " string-prefix? if
     lila-compile-local exit
   then
@@ -1340,6 +1598,9 @@ defer lila-compile-anon-assign
   then
   2dup table-assign? if
     compile-table-assign exit
+  then
+  2dup multi-assignment? if
+    compile-multi-assign exit
   then
   2dup assignment? if
     compile-assign-code exit
@@ -1434,17 +1695,25 @@ defer lila-compile-anon-assign
   c-addr u local-declare drop
   1 fn-param-count +! ;
 
+: parse-param-part { c-addr u -- }
+  c-addr u trim
+  2dup s" ..." compare 0= if
+    2drop -1 fn-vararg !
+  else
+    add-param
+  then ;
+
 : parse-params { c-addr u -- }
   c-addr u trim to u to c-addr
   u 0= if exit then
   c-addr u s" ," split-at if
     2swap
-    2dup add-param
+    2dup parse-param-part
     2drop
     recurse
   else
     2drop 2drop
-    c-addr u add-param
+    c-addr u parse-param-part
   then ;
 
 : function-body-start ( -- )
@@ -1491,8 +1760,12 @@ create tb-buf 1024 allot
   code-buf @ code-len @ defs+
   s"  ; " defs+
   s" : lila-fn-" defs+ fn-id @ defs-number s"  " defs+
-  s" lila-active-frame @ >r lila-frame-new " defs+
+  s" lila-call-argc ! lila-active-frame @ >r lila-frame-new " defs+
   s" dup lila-active-frame ! dup lila-frame-tmp ! drop " defs+
+  s" lila-call-argc @ " defs+
+  fn-param-count @ defs-number
+  s"  - lila-multi-pack " defs+
+  s" lila-frame-tmp @ lila-frame-varargs lila-value! " defs+
   fn-param-count @ 0 ?do
     s" lila-frame-tmp @ " defs+
     fn-param-count @ 1- i - defs-number
@@ -1544,6 +1817,7 @@ create tb-buf 1024 allot
   ctx-push
   scope-push
   0 fn-param-count !
+  0 fn-vararg !
   parse-params
   function-body-start
   fn-body-addr @ fn-body-len @ trim
@@ -1592,6 +1866,7 @@ create tb-buf 1024 allot
   ctx-push
   scope-push
   0 fn-param-count !
+  0 fn-vararg !
   parse-params
   function-body-start
   fn-body-addr @ fn-body-len @ trim
@@ -1908,6 +2183,7 @@ create tb-buf 1024 allot
   dup 0= if 2drop exit then
   2dup s" break" compare 0= if 2drop lila-compile-break exit then
   2dup s" local function " string-prefix? if lila-compile-local-function exit then
+  2dup local-multi? if compile-local-multi exit then
   2dup s" local " string-prefix? if lila-compile-local exit then
   2dup s" function " string-prefix? if lila-compile-function exit then
   2dup s" if " string-prefix? if lila-compile-if exit then
@@ -1928,10 +2204,12 @@ create tb-buf 1024 allot
   0 block-top !
   0 for-depth !
   0 fn-param-count !
+  0 fn-vararg !
   0 fn-stack-top !
   0 fn-id !
   0 tgt-top !
   0 call-top !
+  0 expr-expand !
   ctx-reset
   s" 0 lila-frame-new dup lila-active-frame ! drop " defs+ ;
 

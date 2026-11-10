@@ -66,7 +66,8 @@ room to grow without changing the layout.
 | 4 | table | header pointer | 0 | GC-managed |
 | 5 | float | low word | high word | reserved; high word on top, as `FLOATIMPL.md` |
 | 6 | function | closure pointer | 0 | GC closure `[seg][off][env]` |
-| 7… | — | — | — | reserved |
+| 7 | multi | payload pointer | 0 | GC object `[count][v1][v2][v3]...`, count in values |
+| 8… | — | — | — | reserved |
 
 Invariants:
 
@@ -190,6 +191,14 @@ indirect call. A function value is tag 6 pointing at a closure object, and a
 call compiles as `args... closure-value argc lila-call`. Named functions,
 `local function`, and anonymous function literals all produce closures, so the
 call path is the same in every case. See §13 for the frame and closure layout.
+
+Multiple returns and varargs (implemented) extend this ABI: a function wrapper
+receives `(args... env argc)` on the stack, pops `argc`, builds a frame, packs
+extra arguments beyond declared parameters into the frame's varargs multi value,
+stores declared parameters into slots, and returns the frame's result value.
+`return` stores a value or a multi value (tag 7) in the frame; callers adjust
+multi results to the first value in single-value contexts or consume them in
+multi-assignment/return-forwarding contexts.
 
 The uniform ABI removes the reason for the current "a string-returning function
 must be defined before its call" rule. Arity still has to be known when the call

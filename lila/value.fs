@@ -12,6 +12,7 @@
 4 constant lila-tag-table
 5 constant lila-tag-float
 6 constant lila-tag-fn
+7 constant lila-tag-multi
 255 constant lila-tag-unknown
 
 \ Defining words for three-cell values and ordinary internal cells.  They do
@@ -248,7 +249,75 @@ create lila-str-total 0 ,
   tag lila-check-str
   value2 lila>value-num ;
 
-: lila-print { value1 value2 tag -- }
+\ ---------------------------------------------------------------------------
+\ Multiple values and varargs
+\
+\ A multi value (tag 7) points at a GC payload [count][v1][v2][v3]... .  It is
+\ how a function hands back more than one result and how a function keeps its
+\ extra arguments.  A multi used where one value is expected is reduced to its
+\ first element (or nil when empty) by lila-first.
+
+: lila-multi-alloc { count -- m }
+  count 0< if s" lila: bad value count" lila-error then
+  count 3 * 1+ cells 5 gc-alloc
+  dup count swap ! ;
+
+: lila-multi-pack { n -- m1 m2 tag }
+  n lila-multi-alloc { m }
+  n 0 ?do
+    n 1- i - 3 * 1+ cells m + lila-value!
+  loop
+  m 0 lila-tag-multi ;
+
+: lila-multi-ensure { v1 v2 tag -- m1 m2 mt }
+  tag lila-tag-multi = if v1 v2 tag exit then
+  v1 v2 tag 1 lila-multi-pack ;
+
+: lila-first { v1 v2 tag -- r1 r2 tr }
+  tag lila-tag-multi = if
+    v1 @ 0= if 0 0 lila-tag-nil else v1 cell+ lila-value@ then
+  else
+    v1 v2 tag
+  then ;
+
+: lila-multi-count { v1 v2 tag -- n }
+  tag lila-tag-multi <> if 1 exit then
+  v1 @ ;
+
+: lila-multi-get { m1 m2 mt idx -- r1 r2 tr }
+  mt lila-tag-multi <> if
+    idx 0= if m1 m2 mt else 0 0 lila-tag-nil then exit
+  then
+  idx 0< idx m1 @ >= or if
+    0 0 lila-tag-nil
+  else
+    idx 3 * 1+ cells m1 + lila-value@
+  then ;
+
+\ Multi assignment keeps the right-hand values here between stores.  Collection
+\ only happens between statements, but the cells are roots anyway.
+create lila-multi-hold-cells 3 cells allot
+lila-multi-hold-cells 3 lila-gc-register-root
+
+: lila-multi-hold ( v1 v2 tag -- )
+  lila-multi-hold-cells lila-value! ;
+
+: lila-multi-fetch { idx -- v1 v2 tag }
+  lila-multi-hold-cells lila-value@
+  idx lila-multi-get ;
+
+\ select(selector, ...).  A string selector must be "#", which yields the
+\ number of values; a numeric selector yields that value (1-based) or nil.
+: lila-select { s1 s2 st m1 m2 mt -- r1 r2 tr }
+  st lila-tag-str = if
+    s1 s2 s" #" compare 0= if
+      m1 @ lila>value-num exit
+    then
+  then
+  st lila-check-num
+  m1 m2 mt s1 s2 lila-32 1- lila-multi-get ;
+
+: lila-print1 { value1 value2 tag -- }
   tag lila-tag-nil = if ." nil" exit then
   tag lila-tag-num = if value1 value2 lila-32 . exit then
   tag lila-tag-bool = if
@@ -259,6 +328,15 @@ create lila-str-total 0 ,
   tag lila-tag-float = if ." <float>" exit then
   tag lila-tag-fn = if ." <function>" exit then
   ." <value>" ;
+
+: lila-print { value1 value2 tag -- }
+  tag lila-tag-multi = if
+    value1 @ 0 ?do
+      i 3 * 1+ cells value1 + lila-value@ lila-print1
+    loop
+    exit
+  then
+  value1 value2 tag lila-print1 ;
 
 \ ---------------------------------------------------------------------------
 \ Loop support.  Bounds, steps and the loop variable are ordinary tagged
@@ -280,12 +358,14 @@ create lila-str-total 0 ,
 \ Frames and closures
 \
 \ A frame is a GC object (type 3) with a lexical parent, a caller link for
-\ active-frame reachability, a per-call return value, and fixed local slots:
-\   [parent][caller][retflag][ret1][ret2][rettag][slot0 ...]
+\ active-frame reachability, a per-call return value, the extra arguments of a
+\ vararg call, and fixed local slots:
+\   [parent][caller][retflag][ret1][ret2][rettag]
+\   [varargs1][varargs2][varargstag][slot0 ...]
 \ A closure (type 4) is [seg][off][env].  A tag-6 value points at it.
 
 96 constant lila-frame-slot-count
-6 constant lila-frame-slot0
+9 constant lila-frame-slot0
 lila-frame-slot-count 3 * lila-frame-slot0 + cells constant lila-frame-bytes
 
 variable lila-active-frame
@@ -303,6 +383,8 @@ lila-active-frame 1 lila-gc-register-root
   frame ;
 
 : lila-frame-parent ( frame -- parent )  @ ;
+
+: lila-frame-varargs ( frame -- addr )  6 cells + ;
 
 : lila-frame-slot { frame slot -- addr }
   frame slot 3 * lila-frame-slot0 + cells + ;
@@ -322,6 +404,13 @@ lila-active-frame 1 lila-gc-register-root
     drop 0 0 lila-tag-nil
   then ;
 
+\ The active frame holds this call's extra arguments.  `...` reads it.
+: lila-vararg ( -- v1 v2 tag )
+  lila-active-frame @ lila-frame-varargs lila-value@ ;
+
+: lila-vararg-first ( -- v1 v2 tag )
+  lila-vararg lila-first ;
+
 : lila-closure-new { seg off env -- v1 v2 tag }
   3 cells 4 gc-alloc { closure -- }
   seg closure !
@@ -330,14 +419,27 @@ lila-active-frame 1 lila-gc-register-root
   closure 0 lila-tag-fn ;
 
 \ Generic indirect call: ( args... closure-value argc -- result ).  The
-\ closure value sits just below argc; it is replaced by the captured frame
-\ pointer, which the function wrapper expects on top of its arguments.
+\ wrapper receives the captured frame pointer and the argument count so it can
+\ keep the arguments beyond the declared parameters as this call's varargs.
+variable lila-call-argc
+
 : lila-call { v1 v2 tag argc -- }
   tag lila-check-fn
   v1 2 cells + @
+  argc
   v1 @
   v1 cell+ @
   far-execute ;
+
+\ Call a function with the values of a multi as its whole argument list.
+: lila-call-multi { m1 m2 mt cv1 cv2 ctag -- r1 r2 tr }
+  mt lila-tag-multi <> if s" lila: argument list expected" lila-error then
+  m1 @ { n }
+  n 0 ?do
+    i 3 * 1+ cells m1 + lila-value@
+  loop
+  cv1 cv2 ctag
+  n lila-call ;
 
 \ Conservative scanners for the GC.
 : lila-frame-gc-scan { frame -- }
@@ -348,5 +450,10 @@ lila-active-frame 1 lila-gc-register-root
   closure @ gc-mark-cell
   closure cell+ @ gc-mark-cell
   closure 2 cells + @ gc-mark-cell ;
+: lila-multi-gc-scan { m -- }
+  m @ 3 * 0 ?do
+    m i cells + cell+ @ gc-mark-cell
+  loop ;
 ' lila-frame-gc-scan is gc-scan-frame
 ' lila-closure-gc-scan is gc-scan-closure
+' lila-multi-gc-scan is gc-scan-multi

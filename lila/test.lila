@@ -557,3 +557,75 @@ op_short_zero1 = false and 1 / 0
 op_short_zero2 = true or 1 / 0
 print(op_short_zero1)           -- false
 print(op_short_zero2)           -- true
+
+-- multiple returns and varargs
+function mret2()
+  return 10, 20
+end
+function mret3()
+  return 1, 2, 3
+end
+mra, mrb = mret2()
+print(mra)                      -- 10
+print(mrb)                      -- 20
+mrc = mret2()
+print(mrc)                      -- 10
+mrx, mry, mrz = mret3()
+print(mrx)                      -- 1
+print(mry)                      -- 2
+print(mrz)                      -- 3
+
+-- multi assignment swap and local multi
+msa = 7
+msb = 8
+msa, msb = msb, msa
+print(msa)                      -- 8
+print(msb)                      -- 7
+local mla, mlb = mret2()
+print(mla)                      -- 10
+print(mlb)                      -- 20
+mlsum = mla + mlb
+print(mlsum)                    -- 30
+
+-- varargs, select, and print
+function msum(...)
+  local total = 0
+  local i = 1
+  local n = select("#", ...)
+  while i <= n do
+    total = total + select(i, ...)
+    i = i + 1
+  end
+  return total
+end
+print(msum(1, 2, 3, 4))         -- 10
+print(msum())                   -- 0
+function mseln(...)
+  return select("#", ...)
+end
+function msel2(...)
+  return select(2, ...)
+end
+print(mseln(5, 6, 7))           -- 3
+print(msel2(5, 6, 7))           -- 6
+
+function mshow(...)
+  print(...)
+end
+mshow(4, 5, 6)                  -- 456
+
+-- return forwarding and spread
+function mtail(...)
+  return ...
+end
+mta, mtb = mtail(11, 12)
+print(mta)                      -- 11
+print(mtb)                      -- 12
+function mpassthru(...)
+  return msum(...)
+end
+print(mpassthru(2, 3, 4))       -- 9
+function mfirst(...)
+  return select(1, ...)
+end
+print(mfirst(99, 100))          -- 99

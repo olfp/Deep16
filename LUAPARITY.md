@@ -13,17 +13,24 @@ value ABI), `lila/compiler.fs`, `lila/hash.fs`, and `lila/gc.fs`.
 ## 1. Core language semantics
 
 Lexical scoping, `local`, block shadowing, upvalues, first-class functions,
-closures, recursion, and mutual recursion are implemented. The remaining
-core-language gaps are:
+closures, recursion, mutual recursion, multiple returns, varargs, and multiple
+assignment are implemented. The remaining core-language gaps are:
 
 - **Limited local storage.** Each call frame has 96 slots, so a function cannot
   have more than 96 parameters and locals in total.
 - **Anonymous functions only in assignment position.** `f = function(...) ... end`
   and `local f = function(...) ... end` work, but a function literal cannot be
   used directly as an argument or return expression.
-- **No multiple returns or varargs.** No `return a, b`, no `...`, and no
-  `select`.
-- **No multiple assignment.** No `a, b = b, a`.
+- **Multiple returns/varargs subset.** `return a, b`, `return f()` (forwarding),
+  `return ...`, `...` in vararg functions, `select('#', ...)`, `select(n, ...)`
+  (with `...` as the value list), `f(...)` to spread varargs in a sole-argument
+  call, and multi-value adjustment (first value in single-value contexts) are
+  implemented. Not yet implemented: `select` with explicit trailing arguments,
+  `return f(), g()` forwarding beyond the first value, and full Lua adjustment
+  in all expression contexts.
+- **Multiple assignment subset.** Identifier targets are supported:
+  `a, b = f()`, `a, b = b, a`, and `local a, b = f()`. Table/index targets and
+  mixed target lists are not yet supported.
 - **Different assignment/equality syntax.** LILA uses `=` for both assignment
   and equality; Lua uses `=` for assignment and `==` for equality. LILA also
   accepts `==` and `~=` as equality/inequality aliases.
