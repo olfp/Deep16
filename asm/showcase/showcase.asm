@@ -464,6 +464,25 @@ menu_after:
     NOP
 
 menu_quit:
+    ; Drop queued keys (typematic repeats of the exit key, or keys pressed
+    ; while the menu was deciding) so they cannot reach the console prompt.
+    LDI SEG_UART
+    MVS ES, R0
+    LDI 0x20
+    MOV R2, R0
+menu_flush:
+    LDS R1, ES, R2
+    LDI 1
+    AND R1, R0
+    JZ menu_flush_done
+    NOP
+    LDI 0x22
+    MOV R2, R0
+    LDS R1, ES, R2
+    LDI menu_flush
+    MOV PC, R0
+    NOP
+menu_flush_done:
     LDI menu_ret
     MOV R2, R0
     LD R12, R2, 0

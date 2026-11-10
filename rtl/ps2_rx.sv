@@ -44,7 +44,7 @@ module ps2_rx #(
 
   // ---- input synchronisers ----------------------------------------------
   logic clk_meta, clk_sync;
-  logic data_meta, data_sync;
+  logic data_meta, data_sync, data_sync_q, data_sync_qq;
 
   always_ff @(posedge clk) begin
     if (rst) begin
@@ -57,6 +57,8 @@ module ps2_rx #(
       clk_sync   <= clk_meta;
       data_meta  <= ps2_data;
       data_sync  <= data_meta;
+      data_sync_q  <= data_sync;
+      data_sync_qq <= data_sync_q;
     end
   end
 
@@ -79,6 +81,10 @@ module ps2_rx #(
     end
   end
   wire clk_fall = clk_seen_high && !clk_sync && (clk_low_run == 4'd3);
+  // Majority of the last three data samples at the filtered edge: a single
+  // glitch on the data line cannot flip a bit.
+  wire data_sample = (data_sync & data_sync_q) | (data_sync & data_sync_qq)
+                   | (data_sync_q & data_sync_qq);
 
   assign frame_valid = code_valid;
   assign dbg_clk  = clk_sync;
@@ -112,13 +118,13 @@ module ps2_rx #(
         timeout <= 16'd0;
         if (!frame_busy) begin
           // A start bit is low; any other falling edge is noise.
-          if (!data_sync) begin
+          if (!data_sample) begin
             frame      <= 11'd0;
             frame_busy <= 1'b1;
             bit_cnt    <= 4'd1;
           end
         end else begin
-          frame <= {data_sync, frame[10:1]};
+          frame <= {data_sample, frame[10:1]};
           if (bit_cnt == 4'd10) begin
             frame_busy <= 1'b0;
             bit_cnt    <= 4'd0;
