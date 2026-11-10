@@ -1,6 +1,6 @@
 # LUAPARITY — LILA gaps relative to Lua 5.4
 
-Status: working note, 9 Nov 2026.
+Status: working note, 10 Nov 2026.
 
 LILA now has three-cell tagged values, mixed-tag tables, dynamically retyped
 variables, growable tables, lexical `local` declarations, and first-class
@@ -25,8 +25,10 @@ core-language gaps are:
   `select`.
 - **No multiple assignment.** No `a, b = b, a`.
 - **Different assignment/equality syntax.** LILA uses `=` for both assignment
-  and equality; Lua uses `=` for assignment and `==` for equality.
-- **No `and`, `or`, or `not`.** No short-circuit boolean operators.
+  and equality; Lua uses `=` for assignment and `==` for equality. LILA also
+  accepts `==` and `~=` as equality/inequality aliases.
+- **LILA truthiness is not Lua truthiness.** LILA treats numeric zero as
+  falsey; Lua treats every number, including zero, as truthy.
 - **No `repeat ... until`, `goto`, labels, or generic `for ... in`.**
 - **No standalone `do ... end` block.**
 - **No `nil`-deletes-key behavior.** LILA stores `nil` as a value; assigning
@@ -65,7 +67,8 @@ core-language gaps are:
 - **32-bit signed integers only.** No 64-bit integers and no floats; the float
   tag is reserved but unimplemented.
 - **No `math` library.**
-- **No `%`, `^`, floor division `//`, or bitwise operators.**
+- **No bitwise operators.** `%`, `^`, and floor division `//` are implemented
+  with 32-bit integer semantics; `^` rejects negative exponents.
 - **No `tonumber`, `tostring`, `math.type`, integer/float distinction, `NaN`,
   or infinities.**
 - **Overflow and division edge cases are not Lua-compatible.**
@@ -97,7 +100,8 @@ core-language gaps are:
 
 1. **Full table keys and sequence support**, plus `pairs`/`ipairs` and basic
    `table` functions.
-2. **Boolean/logical operators** and a Lua-like operator set.
+2. ~~**Boolean/logical operators** and a Lua-like operator set.~~ Done: `and`,
+   `or`, `not`, `==`, `~=`, `<=`, `>=`, `%`, `//`, and `^`.
 3. **Multiple returns and varargs.**
 4. **Minimal standard library:** `type`, `tostring`, `tonumber`, `assert`,
    `error`, `pcall`, string basics, and `math` basics.

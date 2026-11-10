@@ -459,3 +459,101 @@ flother = ldbl = lfib
 print(flapply)                  -- 42
 print(flsame)                   -- true
 print(flother)                  -- false
+
+-- boolean/logical operators and the Lua-like operator set
+op_and_val = true and 5
+op_and_false = false and 5
+op_and_nil = nil and 5
+op_and_str = true and "yes"
+op_or_val = false or 7
+op_or_true = true or 7
+op_or_nil = nil or 3
+op_or_zero = 0 or 5
+op_not_true = not true
+op_not_false = not false
+op_not_nil = not nil
+print(op_and_val)               -- 5
+print(op_and_false)             -- false
+print(op_and_nil)               -- nil
+print(op_and_str)               -- yes
+print(op_or_val)                -- 7
+print(op_or_true)               -- true
+print(op_or_nil)                -- 3
+print(op_or_zero)               -- 5
+print(op_not_true)              -- false
+print(op_not_false)             -- true
+print(op_not_nil)               -- true
+
+-- and/or short-circuit: the unused side must not run
+opcalls = 0
+function optick(v)
+  opcalls = opcalls + 1
+  return v
+end
+opshort1 = false and optick(99)
+opshort2 = true or optick(98)
+opshort3 = true and optick(97)
+opshort4 = false or optick(96)
+print(opshort1)                 -- false
+print(opshort2)                 -- true
+print(opshort3)                 -- 97
+print(opshort4)                 -- 96
+print(opcalls)                  -- 2
+
+-- comparisons produce booleans
+op_eq = 3 == 3
+op_ne = 3 ~= 4
+op_le = 3 <= 3
+op_ge = 4 >= 3
+op_lt = 3 < 2
+op_str_le = "abc" <= "abc"
+op_str_ge = "b" >= "a"
+op_str_ne = "abc" ~= "abd"
+print(op_eq)                    -- true
+print(op_ne)                    -- true
+print(op_le)                    -- true
+print(op_ge)                    -- true
+print(op_lt)                    -- false
+print(op_str_le)                -- true
+print(op_str_ge)                -- true
+print(op_str_ne)                -- true
+
+-- modulo, floor division, and power
+op_mod = 7 % 4
+op_mod_neg = -7 % 4
+op_mod_div_neg = 7 % -4
+op_idiv = 7 // 2
+op_idiv_neg = -7 // 2
+op_idiv_div_neg = 7 // -2
+op_pow = 2 ^ 10
+print(op_mod)                   -- 3
+print(op_mod_neg)               -- 1
+print(op_mod_div_neg)           -- -1
+print(op_idiv)                  -- 3
+print(op_idiv_neg)              -- -4
+print(op_idiv_div_neg)          -- -4
+print(op_pow)                   -- 1024
+
+-- operator precedence: ^ is right-associative and binds tighter than unary -
+op_prec = 1 + 2 * 3 ^ 2
+op_rpow = 2 ^ 3 ^ 2
+op_negpow = -2 ^ 2
+print(op_prec)                  -- 19
+print(op_rpow)                  -- 512
+print(op_negpow)                -- -4
+
+-- and/or/not in conditions
+if 1 > 0 and 2 > 1 then op_cond1 = 1 else op_cond1 = 0 end
+if 1 > 0 and 2 < 1 then op_cond2 = 1 else op_cond2 = 0 end
+if 1 < 0 or 2 > 1 then op_cond3 = 1 else op_cond3 = 0 end
+if not (1 > 2) then op_cond4 = 1 else op_cond4 = 0 end
+print(op_cond1)                 -- 1
+print(op_cond2)                 -- 0
+print(op_cond3)                 -- 1
+print(op_cond4)                 -- 1
+
+-- short-circuiting also suppresses division by zero
+op_short_zero1 = false and 1 / 0
+op_short_zero2 = true or 1 / 0
+print(op_short_zero1)           -- false
+print(op_short_zero2)           -- true

@@ -69,9 +69,9 @@ table, then nil.
 
 ## Supported syntax
 
-Assignments, infix arithmetic, string concatenation and comparison, `print`,
-`if`/`elseif`/`while`, numeric `for` loops, `break`, functions, tables, and
-strings. Blocks may span lines or stay on one line:
+Assignments, infix arithmetic, comparison and logical operators, string
+concatenation, `print`, `if`/`elseif`/`while`, numeric `for` loops, `break`,
+functions, tables, and strings. Blocks may span lines or stay on one line:
 
 ```lisp
 -- LILA comment
@@ -139,6 +139,34 @@ the name is not visible after the loop.
 - Comparisons produce boolean-tagged values.
 - `print` writes numbers, strings, `true`/`false`, `nil`, and `<table>` for a
   table.
+
+## Operators
+
+Operators, from highest to lowest precedence:
+
+| Operators | Meaning |
+|---|---|
+| `not`, unary `-` | logical negation, numeric negation |
+| `^` | integer power (right-associative) |
+| `*` `/` `%` `//` | multiply, divide, modulo, floor division |
+| `+` `-` | add/subtract numbers, concatenate strings |
+| `<` `>` `<=` `>=` | ordering (numbers and strings) |
+| `=` `==` `~=` | equality, equality, inequality |
+| `and` | short-circuit logical and |
+| `or` | short-circuit logical or |
+
+`and` and `or` short-circuit and return one of their operands. `a and b`
+evaluates to `a` when `a` is falsey and to `b` otherwise; `a or b` evaluates to
+`a` when `a` is truthy and to `b` otherwise. The unused operand is not
+evaluated, so `false and 1 / 0` is `false` and `true or 1 / 0` is `true`.
+`not` always produces a boolean. Logical operators use the truthiness rules
+above, so zero counts as falsey.
+
+`==`, `~=`, `<=`, and `>=` are available alongside the original `=`, `<`, and
+`>`; `=` still works as equality as well as assignment. `%` and `//` use
+floor semantics: the quotient rounds toward negative infinity and the remainder
+has the sign of the divisor (`-7 // 2` is `-4`, `-7 % 2` is `1`). `^` requires
+a non-negative integer exponent.
 
 ## Locals and lexical scope
 

@@ -124,6 +124,44 @@ create lila-str-total 0 ,
   ta lila-check-num
   a1 a2 lila-32 negate lila>value-num ;
 
+\ Floor division and modulo, matching Lua's integer semantics: the quotient
+\ rounds toward negative infinity and the remainder has the sign of the
+\ divisor.
+: lila-floor-div { a b -- q r }
+  b 0= if s" lila: division by zero" lila-error then
+  a b /mod { r q -- }
+  r 0<> if
+    r b xor 0< if
+      q 1- to q
+      r b + to r
+    then
+  then
+  q r ;
+
+: lila-idiv { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta lila-check-num
+  tb lila-check-num
+  a1 a2 lila-32 b1 b2 lila-32 lila-floor-div drop lila>value-num ;
+
+: lila-mod { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta lila-check-num
+  tb lila-check-num
+  a1 a2 lila-32 b1 b2 lila-32 lila-floor-div nip lila>value-num ;
+
+: lila-pow { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta lila-check-num
+  tb lila-check-num
+  a1 a2 lila-32 { base }
+  b1 b2 lila-32 { exp }
+  exp 0< if s" lila: negative exponent" lila-error then
+  1 { acc }
+  begin exp 0> while
+    exp 1 and if acc base * to acc then
+    base base * to base
+    exp 2/ to exp
+  repeat
+  acc lila>value-num ;
+
 \ ---------------------------------------------------------------------------
 \ Tag-aware comparisons.  A comparison result is a boolean value.
 
@@ -148,6 +186,10 @@ create lila-str-total 0 ,
     a1 b1 = lila>value-bool exit
   then
   0 lila>value-bool ;
+
+: lila-ne { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  a1 a2 ta b1 b2 tb lila-eq { r1 r2 tr }
+  r1 0= lila>value-bool ;
 
 : lila-lt { a1 a2 ta b1 b2 tb -- r1 r2 tr }
   ta tb <> if s" lila: cannot compare different types" lila-error then
@@ -197,6 +239,9 @@ create lila-str-total 0 ,
   tag lila-tag-bool = if value1 0<> exit then
   tag lila-tag-num = if value1 value2 lila-32 0<> exit then
   true ;
+
+: lila-not { value1 value2 tag -- r1 r2 tr }
+  value1 value2 tag lila-truthy 0= lila>value-bool ;
 
 : lila-length { value1 value2 tag -- lo hi tnum }
   tag lila-tag-nil = if 0 0 lila-tag-num exit then

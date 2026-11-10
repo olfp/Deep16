@@ -268,6 +268,48 @@ lila-var-flapply 42 check-num
 lila-var-flsame true check-bool
 lila-var-flother false check-bool
 
+\ boolean/logical operators and the Lua-like operator set from test.lila
+lila-var-op_and_val 5 check-num
+lila-var-op_and_false false check-bool
+lila-var-op_and_nil check-nil
+lila-var-op_and_str s" yes" check-str
+lila-var-op_or_val 7 check-num
+lila-var-op_or_true true check-bool
+lila-var-op_or_nil 3 check-num
+lila-var-op_or_zero 5 check-num
+lila-var-op_not_true false check-bool
+lila-var-op_not_false true check-bool
+lila-var-op_not_nil true check-bool
+lila-var-opshort1 false check-bool
+lila-var-opshort2 true check-bool
+lila-var-opshort3 97 check-num
+lila-var-opshort4 96 check-num
+lila-var-opcalls 2 check-num
+lila-var-op_eq true check-bool
+lila-var-op_ne true check-bool
+lila-var-op_le true check-bool
+lila-var-op_ge true check-bool
+lila-var-op_lt false check-bool
+lila-var-op_str_le true check-bool
+lila-var-op_str_ge true check-bool
+lila-var-op_str_ne true check-bool
+lila-var-op_mod 3 check-num
+lila-var-op_mod_neg 1 check-num
+lila-var-op_mod_div_neg -1 check-num
+lila-var-op_idiv 3 check-num
+lila-var-op_idiv_neg -4 check-num
+lila-var-op_idiv_div_neg -4 check-num
+lila-var-op_pow 1024 check-num
+lila-var-op_prec 19 check-num
+lila-var-op_rpow 512 check-num
+lila-var-op_negpow -4 check-num
+lila-var-op_cond1 1 check-num
+lila-var-op_cond2 0 check-num
+lila-var-op_cond3 1 check-num
+lila-var-op_cond4 1 check-num
+lila-var-op_short_zero1 false check-bool
+lila-var-op_short_zero2 true check-bool
+
 \ anonymous function literals and captured upvalues from a single eval
 s" anon = function(v) return v + 1 end" lila-eval
 s" anonv = anon(4)" lila-eval              lila-var-anonv 5 check-num
@@ -296,6 +338,13 @@ s\" ertbad = ert[\"x\"] + 1" quiet-eval expect-error
 
 s" function eargs(a, b) return a + b end" lila-eval
 s" eargsn = eargs(1)" quiet-eval expect-error
+
+\ arithmetic and logic runtime errors
+s" op_err_and = true and 1 / 0" quiet-eval expect-error
+s" op_err_or = false or 1 / 0" quiet-eval expect-error
+s" op_err_pow = 2 ^ -1" quiet-eval expect-error
+s" op_err_mod = 5 % 0" quiet-eval expect-error
+s" op_err_idiv = 5 // 0" quiet-eval expect-error
 
 ." lila tests passed" cr
 bye

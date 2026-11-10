@@ -14,6 +14,15 @@ variable tok-len
 create op-stack 64 allot
 variable op-top
 variable expect-operand
+\ Internal operator codes for multi-character and keyword operators.  Input
+\ bytes are plain chars; these codes only travel on the operator stack.
+128 constant op-eq
+129 constant op-ne
+130 constant op-le
+131 constant op-ge
+132 constant op-idiv
+133 constant op-and
+134 constant op-or
 \ Loop bodies become separate top-level words so `break` can EXIT the body.
 \ Definitions are collected in defs-buf and evaluated before the main word.
 create code-buf0 65536 allot
@@ -59,6 +68,7 @@ variable sig-count
 create call-arg-types 16 allot
 \ Function calls in expressions: name stack and one flag per open parenthesis.
 create call-names 64 64 * allot
+create call-starts 64 cells allot
 variable call-top
 create paren-args 64 allot
 create arg-counts 64 allot
@@ -124,6 +134,22 @@ create expr-types 128 allot
 variable type-top
 variable expr-type
 
+\ Output positions of the operands currently on the expression stack.  They
+\ let `and` and `or` insert a short-circuit guard in front of the right-hand
+\ operand after it has already been emitted.
+128 constant lila-max-starts
+create expr-starts lila-max-starts cells allot
+variable start-top
+
+: start-push ( n -- )
+  start-top @ lila-max-starts >= if s" lila: expression too complex" lila-error then
+  expr-starts start-top @ cells + !
+  1 start-top +! ;
+: start-pop ( -- n )
+  start-top @ 0= if s" lila: internal start stack underflow" lila-error then
+  -1 start-top +!
+  expr-starts start-top @ cells + @ ;
+
 : type-push ( t -- )
   type-top @ 128 >= if s" lila: expression too complex" lila-error then
   expr-types type-top @ + c!
@@ -173,6 +199,15 @@ variable expr-type
 : code-number ( n -- )  0 <# #s #> code+ ;
 : buf-number  ( n -- )  0 <# #s #> lila-buf buf+ ;
 
+\ Insert a byte string at a content offset of the counted expression buffer.
+\ `move` handles the overlapping shift.
+: buf-insert { c-addr u pos -- }
+  lila-buf c@ { len }
+  len u + 255 > if s" lila: expression too long" lila-error then
+  lila-buf 1+ pos +  lila-buf 1+ pos + u +  len pos -  move
+  c-addr lila-buf 1+ pos + u move
+  len u + lila-buf c! ;
+
 : trim { c-addr u -- c-addr' u' }
   begin
     u 0> if c-addr c@ bl = else false then
@@ -214,14 +249,19 @@ variable expr-type
   ch [char] + =  ch [char] - = or
   ch [char] * = or  ch [char] / = or
   ch [char] < = or  ch [char] > = or
-  ch [char] = = or ;
+  ch [char] = = or  ch [char] % = or
+  ch [char] ^ = or  ch [char] ~ = or ;
 
 : op-precedence { ch -- n }
-  ch [char] ~ = if 3 else
-  ch [char] * =  ch [char] / =  or if 2 else
-  ch [char] + =  ch [char] - =  or if 1 else
-  ch [char] < =  ch [char] > =  or  ch [char] = =  or if 0 else
-  0 then then then then ;
+  ch [char] ~ = ch [char] ! = or if 4 exit then
+  ch [char] ^ = if 5 exit then
+  ch [char] * = ch [char] / = or ch [char] % = or ch op-idiv = or if 3 exit then
+  ch [char] + = ch [char] - = or if 2 exit then
+  ch [char] < = ch [char] > = or ch [char] = = or
+  ch op-eq = or ch op-ne = or ch op-le = or ch op-ge = or if 1 exit then
+  ch op-and = if 0 exit then
+  ch op-or = if -1 exit then
+  0 ;
 
 : identifier? { c-addr u -- flag }
   u 0= if false exit then
@@ -510,6 +550,7 @@ variable expr-type
   lila-tag-unknown ;
 
 : emit-string { c-addr u -- }
+  lila-buf c@ start-push
   append-space
   em-reset
   c-addr u s-lit-em
@@ -540,6 +581,7 @@ variable number-negative
   r> lila-buf-number s"  " lila-buf buf+ ;
 
 : emit-operand { c-addr u -- }
+  lila-buf c@ start-push
   c-addr u is-number? if
     c-addr u parse-number emit-number
     lila-tag-num type-push exit
@@ -570,6 +612,7 @@ variable number-negative
   lila-tag-unknown type-push ;
 
 : num-op { ch -- }
+  start-pop drop
   type-pop { rt } type-pop { lt }
   lt type-known? rt type-known? and if
     lt lila-tag-num <> rt lila-tag-num <> or if
@@ -577,11 +620,18 @@ variable number-negative
     then
   then
   append-space
-  ch [char] * = if s" lila-mul " else s" lila-div " then
+  ch [char] * = if s" lila-mul " else
+    ch [char] / = if s" lila-div " else
+      ch [char] % = if s" lila-mod " else
+        ch op-idiv = if s" lila-idiv " else s" lila-pow " then
+      then
+    then
+  then
   lila-buf buf+
   lila-tag-num type-push ;
 
 : plus-op ( -- )
+  start-pop drop
   type-pop { rt } type-pop { lt }
   lt type-known? rt type-known? and if
     lt rt <> if
@@ -599,6 +649,7 @@ variable number-negative
   then ;
 
 : sub-op ( -- )
+  start-pop drop
   type-pop { rt } type-pop { lt }
   lt type-known? rt type-known? and if
     lt lila-tag-num <> rt lila-tag-num <> or if
@@ -609,42 +660,80 @@ variable number-negative
   lila-tag-num type-push ;
 
 : cmp-op { ch -- }
+  start-pop drop
   type-pop { rt } type-pop { lt }
   lt type-known? rt type-known? and if
     lt rt <> if
-      ch [char] = <> if
+      ch [char] = <> ch op-eq <> and ch op-ne <> and if
         s" lila: cannot compare different types" lila-error
       then
     then
   then
   append-space
-  ch [char] = = if
+  ch [char] = = ch op-eq = or if
     s" lila-eq " lila-buf buf+
   else
-    ch [char] < = if
-      s" lila-lt " lila-buf buf+
+    ch op-ne = if
+      s" lila-ne " lila-buf buf+
     else
-      s" lila-gt " lila-buf buf+
+      ch [char] < = if
+        s" lila-lt " lila-buf buf+
+      else
+        ch [char] > = if
+          s" lila-gt " lila-buf buf+
+        else
+          ch op-le = if
+            s" lila-le " lila-buf buf+
+          else
+            s" lila-ge " lila-buf buf+
+          then
+        then
+      then
     then
   then
   lila-tag-bool type-push ;
 
-: emit-operator ( ch -- )
-  dup [char] ~ = if
-    drop
+: emit-short { and? -- }
+  start-pop { rs }
+  and? if
+    s" 2 pick 2 pick 2 pick lila-truthy 0= IF ELSE drop drop drop "
+  else
+    s" 2 pick 2 pick 2 pick lila-truthy IF ELSE drop drop drop "
+  then
+  rs buf-insert
+  s"  THEN " lila-buf buf+
+  type-pop drop type-pop drop
+  lila-tag-unknown type-push ;
+
+: emit-operator { ch -- }
+  ch op-and = if true emit-short exit then
+  ch op-or = if false emit-short exit then
+  ch [char] ! = if
+    type-pop drop
+    append-space s" lila-not " lila-buf buf+
+    lila-tag-bool type-push exit
+  then
+  ch [char] ~ = if
     type-pop dup type-known? if
       lila-tag-num <> if s" lila: number expected after unary minus" lila-error then
     else drop then
     append-space s" lila-neg " lila-buf buf+
     lila-tag-num type-push exit
   then
-  dup [char] + = if drop plus-op exit then
-  dup [char] - = if drop sub-op exit then
-  dup [char] * = if drop [char] * num-op exit then
-  dup [char] / = if drop [char] / num-op exit then
-  dup [char] < = if drop [char] < cmp-op exit then
-  dup [char] > = if drop [char] > cmp-op exit then
-  dup [char] = = if drop [char] = cmp-op exit then
+  ch [char] + = if plus-op exit then
+  ch [char] - = if sub-op exit then
+  ch [char] * = if ch num-op exit then
+  ch [char] / = if ch num-op exit then
+  ch [char] % = if ch num-op exit then
+  ch op-idiv = if ch num-op exit then
+  ch [char] ^ = if ch num-op exit then
+  ch [char] < = if ch cmp-op exit then
+  ch [char] > = if ch cmp-op exit then
+  ch [char] = = if ch cmp-op exit then
+  ch op-eq = if ch cmp-op exit then
+  ch op-ne = if ch cmp-op exit then
+  ch op-le = if ch cmp-op exit then
+  ch op-ge = if ch cmp-op exit then
   drop ;
 
 : push-op ( ch -- )  op-top @ op-stack + c!  1 op-top +! ;
@@ -656,7 +745,15 @@ variable number-negative
 : pop-while { prec -- }
   begin
     op-top @ 0> if
-      top-op dup marker-open? if drop false else op-precedence prec >= then
+      top-op dup marker-open? if
+        drop false
+      else
+        dup [char] ^ = prec 5 = and if
+          drop false
+        else
+          op-precedence prec >=
+        then
+      then
     else false then
   while
     pop-op
@@ -705,6 +802,37 @@ variable number-negative
 
 : flush-tok ( -- )
   tok-len @ 0= if exit then
+  tok-buf tok-len @ s" not" compare 0= if
+    expect-operand @ 0= if
+      s" lila: operator expected before not" lila-error
+    then
+    [char] ! push-op
+    0 tok-len !
+    exit
+  then
+  tok-buf tok-len @ s" and" compare 0= if
+    expect-operand @ if
+      s" lila: operand expected before and" lila-error
+    then
+    0 tok-len !
+    op-and op-precedence pop-while
+    op-and push-op
+    1 expect-operand !
+    exit
+  then
+  tok-buf tok-len @ s" or" compare 0= if
+    expect-operand @ if
+      s" lila: operand expected before or" lila-error
+    then
+    0 tok-len !
+    op-or op-precedence pop-while
+    op-or push-op
+    1 expect-operand !
+    exit
+  then
+  expect-operand @ 0= if
+    s" lila: operator expected" lila-error
+  then
   tok-buf tok-len @ emit-operand
   mark-arg
   0 tok-len !
@@ -735,6 +863,7 @@ variable number-negative
     exit
   then
   tok-buf tok-len @ call-push
+  lila-buf c@ call-top @ 1- cells call-starts + !
   0 tok-len !
   [char] { push-op
   0 op-top @ 1- paren-args + c!
@@ -763,8 +892,10 @@ variable number-negative
       idx arg-counts + c@ 0= if
         expect-operand @ if
           -1 op-top +!
+          call-top @ 1- cells call-starts + @ { cs -- }
           0 call-result-type type-push
           0 call-pop-emit
+          cs start-push
           0 expect-operand !
           mark-arg
           exit
@@ -780,8 +911,11 @@ variable number-negative
   ch [char] { = if
     idx paren-args + c@ if
       idx arg-counts + c@ 1+ { n -- }
+      call-top @ 1- cells call-starts + @ { cs -- }
       n call-result-type type-push
       n call-pop-emit
+      n 0 ?do start-pop drop loop
+      cs start-push
     then
     mark-arg
   then
@@ -820,18 +954,34 @@ variable number-negative
   tt type-known? if
     tt lila-tag-table <> if s" lila: table expected before [" lila-error then
   then
+  start-pop drop
   append-space s" lila-table-get " lila-buf buf+
   lila-tag-unknown type-push
   mark-arg
   0 expect-operand ! ;
 
+\ Map an operator byte to its internal code.  `has-next` is true when a
+\ second byte was available.  The result is ( code bytes-consumed ).
+: op-code { ch next has-next -- code consumed }
+  ch [char] = = has-next and next [char] = = and if op-eq 2 exit then
+  ch [char] ~ = has-next and next [char] = = and if op-ne 2 exit then
+  ch [char] < = has-next and next [char] = = and if op-le 2 exit then
+  ch [char] > = has-next and next [char] = = and if op-ge 2 exit then
+  ch [char] / = has-next and next [char] / = and if op-idiv 2 exit then
+  ch 1 ;
+
+: keyword-op? { c-addr u -- flag }
+  c-addr u s" and" compare 0=
+  c-addr u s" or" compare 0= or
+  c-addr u s" not" compare 0= or ;
+
 : transform-expr { c-addr u -- }
   lila-buf buf-reset  0 tok-len !  0 op-top !  1 expect-operand !
-  0 in-string !  0 str-len !  0 type-top !
-  c-addr u bounds ?do
-    i c@
-    dup [char] " = if
-      drop
+  0 in-string !  0 str-len !  0 type-top !  0 start-top !
+  0 { i }
+  begin i u < while
+    c-addr i + c@ { ch }
+    ch [char] " = if
       in-string @ if
         str-buf str-len @ emit-string
         mark-arg
@@ -847,45 +997,56 @@ variable number-negative
     else
       in-string @ if
         str-len @ 1023 >= if s" lila: string literal too long" lila-error then
-        str-buf str-len @ + c!
+        ch str-buf str-len @ + c!
         1 str-len +!
       else
-        dup bl = if
-          drop flush-tok
+        ch bl = if
+          flush-tok
         else
-          dup [char] ( = if
-            drop
-            tok-len @ 0> if open-call else open-group then
-          else
-            dup [char] ) = if
-              drop close-paren
-            else
-              dup [char] [ = if
-                drop open-index
+          ch [char] ( = if
+            tok-len @ 0> if
+              tok-buf tok-len @ keyword-op? if
+                flush-tok open-group
               else
-                dup [char] ] = if
-                  drop close-index
+                open-call
+              then
+            else
+              open-group
+            then
+          else
+            ch [char] ) = if
+              close-paren
+            else
+              ch [char] [ = if
+                open-index
+              else
+                ch [char] ] = if
+                  close-index
                 else
-                  dup [char] , = if
-                    drop comma
+                  ch [char] , = if
+                    comma
                   else
-                    dup op-char? if
+                    ch op-char? if
                       flush-tok
-                      dup [char] - = expect-operand @ and if
-                        drop [char] ~ push-op
+                      ch [char] - = expect-operand @ and if
+                        [char] ~ push-op
                       else
                         expect-operand @ if
                           s" lila: operand expected before operator" lila-error
                         then
-                        dup op-precedence pop-while
-                        push-op
+                        ch
+                        i 1+ u < if c-addr i 1+ + c@ true else 0 false then
+                        op-code { code consumed -- }
+                        code [char] ~ = if
+                          s" lila: invalid operator" lila-error
+                        then
+                        code op-precedence pop-while
+                        code push-op
+                        consumed 2 = if i 1+ to i then
                         1 expect-operand !
                       then
                     else
-                      tok-len @ 0= expect-operand @ 0= and if
-                        s" lila: operator expected" lila-error
-                      then
-                      tok-buf tok-len @ + c!
+                      ch tok-buf tok-len @ + c!
                       tok-len @ 1+ tok-len !
                     then
                   then
@@ -896,13 +1057,15 @@ variable number-negative
         then
       then
     then
-  loop
+    i 1+ to i
+  repeat
   in-string @ if s" lila: unterminated string" lila-error then
   flush-tok
   expect-operand @ if s" lila: operand expected" lila-error then
   pop-all
   op-top @ 0<> if s" lila: unmatched (" lila-error then
   type-top @ 1 <> if s" lila: expression must leave one value" lila-error then
+  start-top @ 1 <> if s" lila: internal start stack mismatch" lila-error then
   expr-types c@ expr-type ! ;
 
 : split-at { src slen pat plen -- lhs llen rhs rlen flag }
