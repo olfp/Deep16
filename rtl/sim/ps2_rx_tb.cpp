@@ -30,12 +30,12 @@ void idle(int n) {
 void send_bit(int b, bool final = false) {
   top->ps2_clk = 1;
   top->ps2_data = b;
-  idle(8);
+  idle(4);
   top->ps2_clk = 0;
-  idle(8);
+  idle(4);
   if (!final) {
     top->ps2_clk = 1;
-    idle(8);
+    idle(4);
   }
 }
 
@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
   top->ps2_data = 1;
   idle(8);
   top->rst = 0;
-  idle(8);
+  idle(4);
 
   // Plain letter.
   send_code(0x1C);

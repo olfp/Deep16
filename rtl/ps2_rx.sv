@@ -43,48 +43,26 @@ module ps2_rx #(
   localparam logic [15:0] TIMEOUT = 16'(CLK_HZ / 500);
 
   // ---- input synchronisers ----------------------------------------------
-  logic clk_meta, clk_sync;
-  logic data_meta, data_sync, data_sync_q, data_sync_qq;
+  logic clk_meta, clk_sync, clk_sync_q;
+  logic data_meta, data_sync;
 
   always_ff @(posedge clk) begin
     if (rst) begin
       clk_meta   <= 1'b1;
       clk_sync   <= 1'b1;
+      clk_sync_q <= 1'b1;
       data_meta  <= 1'b1;
       data_sync  <= 1'b1;
     end else begin
       clk_meta   <= ps2_clk;
       clk_sync   <= clk_meta;
+      clk_sync_q <= clk_sync;
       data_meta  <= ps2_data;
       data_sync  <= data_meta;
-      data_sync_q  <= data_sync;
-      data_sync_qq <= data_sync_q;
     end
   end
 
-  // The cable and the external 5V level shifter can ring, and one extra
-  // falling edge in the middle of a frame shifts every remaining bit. Accept
-  // an edge only after the clock has been low for four consecutive samples:
-  // a PS/2 bit lasts hundreds of 6.75 MHz clocks, so the added latency is
-  // harmless, while a short glitch is rejected.
-  logic [3:0] clk_low_run;
-  logic       clk_seen_high;
-  always_ff @(posedge clk) begin
-    if (rst) begin
-      clk_low_run   <= 4'd0;
-      clk_seen_high <= 1'b0;
-    end else if (clk_sync) begin
-      clk_low_run   <= 4'd0;
-      clk_seen_high <= 1'b1;
-    end else if (clk_low_run != 4'd15) begin
-      clk_low_run <= clk_low_run + 4'd1;
-    end
-  end
-  wire clk_fall = clk_seen_high && !clk_sync && (clk_low_run == 4'd3);
-  // Majority of the last three data samples at the filtered edge: a single
-  // glitch on the data line cannot flip a bit.
-  wire data_sample = (data_sync & data_sync_q) | (data_sync & data_sync_qq)
-                   | (data_sync_q & data_sync_qq);
+  wire clk_fall = clk_sync_q && !clk_sync;
 
   assign frame_valid = code_valid;
   assign dbg_clk  = clk_sync;
@@ -118,13 +96,13 @@ module ps2_rx #(
         timeout <= 16'd0;
         if (!frame_busy) begin
           // A start bit is low; any other falling edge is noise.
-          if (!data_sample) begin
+          if (!data_sync) begin
             frame      <= 11'd0;
             frame_busy <= 1'b1;
             bit_cnt    <= 4'd1;
           end
         end else begin
-          frame <= {data_sample, frame[10:1]};
+          frame <= {data_sync, frame[10:1]};
           if (bit_cnt == 4'd10) begin
             frame_busy <= 1'b0;
             bit_cnt    <= 4'd0;

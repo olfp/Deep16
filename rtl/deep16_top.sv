@@ -153,7 +153,7 @@ module deep16_top
   // budget: at 128 entries it was the largest SSRAM consumer in the build,
   // even though the board tied kbd_push to 0. The count stays 8-bit because
   // the debug bus and the core's status port read it as a word.
-  localparam int KBD_FIFO_DEPTH = 8;
+  localparam int KBD_FIFO_DEPTH = 16;
   logic [15:0] kbd_fifo [0:KBD_FIFO_DEPTH-1];
   logic [3:0]  kbd_head, kbd_tail;
   logic [7:0]  kbd_count;
@@ -735,7 +735,7 @@ module deep16_top
   // cycle, and update the count once from both events.
   logic kbd_push_ok, kbd_pop_ok;
   assign kbd_ready   = (kbd_count != 8'd0);
-  assign kbd_full    = (kbd_count == 8'd8);
+  assign kbd_full    = (kbd_count == 8'd16);
   assign kbd_pop_ok  = kbd_pop && kbd_ready;
   assign kbd_push_ok = kbd_push && (!kbd_full || kbd_pop_ok);
 
