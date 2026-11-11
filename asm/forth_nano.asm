@@ -289,6 +289,9 @@ d16d_menu:
     MOV R11, R0
     LSI R7, 0
     SPSW R7                    ; pristine PSW for the game
+    LDI d16d_sp                ; a game may use R13/SP as scratch
+    MOV R1, R0
+    STS SP, CS, R1
     MOV R2, R4                 ; game CS
     MOV R3, R5                 ; game PC
     JML R2
@@ -306,6 +309,9 @@ d16d_game_ret:
     LDI 0x0FFF
     INV R0
     MVS ES, R0
+    LDI d16d_sp
+    MOV R1, R0
+    LDS SP, CS, R1             ; R13 belongs to the Forth, not the game
     ; Recover the kernel's PSW/R5/R6 from the menu cells.
     MVS R3, DS
     LDI 0x04A0
@@ -11845,6 +11851,8 @@ cc_loop:
 ; DS data layout (and the catalog's text_attr literal) stays put.
 d16d_exit:
     .word d16d_menu_boot
+d16d_sp:
+    .word 0
 .endif
 
 .org 0x2000

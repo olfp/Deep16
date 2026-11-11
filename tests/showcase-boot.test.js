@@ -116,6 +116,43 @@ test('gfx from the console launches the game the menu picks', () => {
   assert.equal(sim.segmentRegisters.CS, 0x5000, 'Flappy is running from the console gfx');
 });
 
+test('a game may use R13/SP and still leave the Forth stack intact', () => {
+  // Frogger uses R13 as a scratch register. The kernel must save SP around
+  // the game far-call, or the next Forth word (dir's first slice) underflows.
+  const sim = boot();
+  let steps = toMenu(sim);
+  sim.kbdBuffer.push(0x51);
+  let text = '';
+  steps += runText(sim, () => text.includes('> '), 1500000, (t) => { text += t; });
+  const sp = sim.registers[13];
+  const spTop = sim.memory[kernel.symbols.sp_top];
+  assert.equal(sp, spTop, 'the console starts on the kernel stack top');
+
+  for (const ch of 'gfx\r') sim.kbdBuffer.push(ch.charCodeAt(0));
+  steps += runText(sim, () => (sim.memory[cell(19, 29)] & 0x0FFF) === glyph('A'), 2000000);
+  sim.kbdBuffer.push(0x67);                        // g: Frogger
+  steps += runText(sim, () => sim.segmentRegisters.CS === 0x0600, 2000000);
+  assert.equal(sim.segmentRegisters.CS, 0x0600, 'Frogger is running');
+
+  // Drive the frame bit and Q often enough to leave the game.
+  const ready = () => (sim.memory[cell(19, 29)] & 0x0FFF) === glyph('A');
+  let bit = 1;
+  let back = false;
+  for (let i = 0; i < 8000000; i++) {
+    if (i % FRAME_PERIOD === 0) {
+      bit ^= 1;
+      sim.memory[0xF0066] = (sim.memory[0xF0066] & ~2) | (bit << 1);
+    }
+    if (i % 200000 === 0 && sim.kbdBuffer.length === 0) sim.kbdBuffer.push(0x51);
+    sim.step();
+    steps++;
+    if (ready()) { back = true; break; }
+  }
+  assert.ok(back, 'the game returned to the menu');
+  assert.equal(sim.registers[13], sp, 'SP is back after the game');
+  assert.equal(sim.segmentRegisters.DS, 0, 'DS is back after the game');
+});
+
 test('Q in the gfx menu returns to a working Forth prompt', () => {
   const sim = boot();
   toMenu(sim);
