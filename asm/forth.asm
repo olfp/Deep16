@@ -2988,7 +2988,7 @@ see_str_0branch:
 boot_script:
 ; >>> generated from forth/boot.fth - do not edit here <<<
     .string "create slice-buf 2048 cells allot"
-    .string "create text-buf 10240 cells allot       \\ up to five 2040-char source slices"
+    .string "create text-buf 14336 cells allot       \\ up to seven 2040-char source slices"
     .string "variable slice-sec drop"
     .string "variable slice-wp drop"
     .string "variable sf-a drop"
@@ -3007,7 +3007,7 @@ boot_script:
     .string ": screen ( n -- )"
     .string "  dup 0 511 within 0= if .\" screen: 0..511\" cr drop exit then"
     .string "  0 >r  begin"
-    .string "    r@ 10200 < 0= if .\" screen: too long\" cr r> 2drop exit then"
+    .string "    r@ 14280 < 0= if .\" screen: too long\" cr r> 2drop exit then"
     .string "    dup slice  ( n a )"
     .string "    dup slice-valid? 0= if 2drop r> drop exit then"
     .string "    dup 8 cells +  text-buf r@ cells +  2040 move"

@@ -781,7 +781,7 @@ rest on demand:
 s" graphics" need     \ SIC/raster, scene, palettes, I2S, sprites
 s" games" need        \ game-run
 s" sd-card" need      \ sd, block, include
-26 screen             \ hello.fth
+28 screen             \ hello.fth
 hello                 \ hello from the user flash
 ```
 

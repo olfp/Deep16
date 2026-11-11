@@ -97,7 +97,7 @@ test('function 1 reads the directory into segment 0x8000', () => {
   assert.equal(r1, DIR_SEG, 'segment 0x8000');
   const at = (w) => sim.memory[(DIR_SEG << 4) + w] & 0xFFFF;
   assert.equal(at(0) & 0x7000, 0x5000, 'slice-0 header magic');
-  // first entry: type 3 (screen), first slice 1, name "start" (two chars a cell)
+  // first entry: type 3 (text), first slice 1, name "start" (two chars a cell)
   assert.equal(at(8), 0x0003);
   assert.equal(at(9), 1);
   assert.equal(at(10), 's'.charCodeAt(0) | ('t'.charCodeAt(0) << 8));

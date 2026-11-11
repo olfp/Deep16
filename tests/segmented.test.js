@@ -162,11 +162,11 @@ test('a slice payload can be printed from flash to the terminal', () => {
 test('a slice created and flushed reads back and enters the directory', () => {
   // 40 is scratch space: the low indices hold the boot objects (start,
   // essentials, edit, graphics, games, sd-card), the game images and hello;
-  // a flushed slice overwrites its whole sector.
-  line('40 3 slice-create');
+  // a flushed slice overwrites its whole sector. Type 0x0C is a block screen.
+  line('40 0x0C slice-create');
   line('s" test" slice-name!');
   line('slice-flush');
-  assert.equal(number(line('40 slice slice-type . cr'), '40 slice slice-type . cr'), 3);
+  assert.equal(number(line('40 slice slice-type . cr'), '40 slice slice-type . cr'), 0x0C);
   line('40 dir-add');
   assert.match(line('dir'), /test/);
   assert.equal(number(line('s" test" find . cr'), 's" test" find . cr'), 40);
@@ -219,7 +219,7 @@ test('edit-slice draws the first tile row without scrolling', () => {
   const TILE = 0xF1000;
   const cell = (r, c) => sim.memory[TILE + r * 82 + c] & 0x0FFF;
   const glyph = (ch) => (ch.charCodeAt(0) - 0x20) * 32;
-  line('45 3 slice-create');
+  line('45 0x0C slice-create');
   line('slice-buf 8 cells + 2040 65 fill');
   line('slice-flush');
   for (const ch of '45 edit-slice\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
@@ -263,6 +263,57 @@ test('edit-slice Return moves to column 1 of the next line', () => {
                       '40 slice 8 cells + 80 + c@ . cr'), 82, 'R at row 1, col 1');
   assert.equal(number(line('40 slice 8 cells + c@ . cr'),
                       '40 slice 8 cells + c@ . cr'), 65, 'row 0 still A');
+});
+
+test('text-edit inserts and joins LF-terminated text', () => {
+  line('46 3 slice-create');
+  for (const [i, c] of [...'abc\ndef'].entries()) {
+    line(`${c.charCodeAt(0)} slice-buf 8 cells + ${i ? `${i} +` : ''} c!`);
+  }
+  line('slice-flush');
+  // End, X inserts at the line end; Down/Home/Backspace join the lines;
+  // C-X C-S saves.
+  const echoed = lineWithKeys('46 text-edit',
+                              [0x05, 0x58, 0x0e, 0x01, 0x7f, 0x18, 0x13]);
+  assert.match(echoed, /slice written/);
+  const shown = line('46 slice 8 cells + 7 type');
+  assert.match(shown, /abcXdef/, 'the inserted X and the joined line are saved');
+  assert.equal(number(line('46 slice 8 cells + 7 + c@ . cr'),
+                       '46 slice 8 cells + 7 + c@ . cr'), 10, 'the saved text ends in LF');
+  assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'text-edit leaves the stack clean');
+});
+
+test('text-edit deletes forward with C-D', () => {
+  line('47 3 slice-create');
+  for (const [i, c] of [...'abc\ndef'].entries()) {
+    line(`${c.charCodeAt(0)} slice-buf 8 cells + ${i ? `${i} +` : ''} c!`);
+  }
+  line('slice-flush');
+  const echoed = lineWithKeys('47 text-edit', [0x01, 0x04, 0x18, 0x13]);
+  assert.match(echoed, /slice written/);
+  const shown = line('47 slice 8 cells + 7 type');
+  assert.match(shown, /bc\ndef/, 'C-D removed the character under the cursor');
+  assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'text-edit leaves the stack clean');
+});
+
+test('text-edit normalizes CRLF text to LF on save', () => {
+  line('48 3 slice-create');
+  for (const [i, c] of [0x61, 0x0d, 0x0a, 0x62].entries()) {
+    line(`${c} slice-buf 8 cells + ${i ? `${i} +` : ''} c!`);
+  }
+  line('slice-flush');
+  lineWithKeys('48 text-edit', [0x18, 0x13]);
+  assert.equal(number(line('48 slice 8 cells + c@ . cr'), '48 slice 8 cells + c@ . cr'), 0x61);
+  assert.equal(number(line('48 slice 8 cells + 1+ c@ . cr'), '48 slice 8 cells + 1+ c@ . cr'), 10,
+               'the CR is gone');
+  assert.equal(number(line('48 slice 8 cells + 2 + c@ . cr'), '48 slice 8 cells + 2 + c@ . cr'), 0x62);
+  assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'text-edit leaves the stack clean');
+});
+
+test('the editors refuse the wrong slice type', () => {
+  assert.match(line('40 text-edit'), /not a text slice/);
+  assert.match(line(`${helloFirst} edit-slice`), /not a screen slice/);
+  assert.ok(sim.running);
 });
 
 test('serial interprets the UART stream until Ctrl-D', () => {

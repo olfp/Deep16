@@ -26,9 +26,9 @@ export const SCREEN_BASE = 0x200000;       // byte address of slice 0
 export const MAGIC = 5;
 
 export const TYPES = {
-  EMPTY: 0x00, TEST: 0x01, SPRITE: 0x02, SCREEN: 0x03, BINARY: 0x04,
+  EMPTY: 0x00, TEST: 0x01, SPRITE: 0x02, TEXT: 0x03, BINARY: 0x04,
   PCM: 0x05, FONT: 0x06, DIRECTORY: 0x07, PACKED: 0x08, RLL: 0x09,
-  ULAW: 0x0A, CHUNK: 0x0B,
+  ULAW: 0x0A, CHUNK: 0x0B, SCREEN: 0x0C,
 };
 
 function packName(name = '') {
@@ -56,7 +56,7 @@ function entry({ type, flags = 0, first = 0xffff, name = '' }) {
 }
 
 // Split a text source into 2040-char slices, LF-padded. The first slice is a
-// type-3 source; continuations are type 0 and linked.
+// TEXT source; continuations are type 0 and linked.
 function sourceSlices(text, firstIndex, baseName) {
   const count = Math.max(1, Math.ceil(text.length / SLICE_PAYLOAD));
   const out = [];
@@ -64,7 +64,7 @@ function sourceSlices(text, firstIndex, baseName) {
     const words = new Uint16Array(SLICE_WORDS);
     const name = i === 0 ? baseName : `${baseName}${i + 1}`;
     const h = header({
-      type: i === 0 ? TYPES.SCREEN : TYPES.EMPTY,
+      type: i === 0 ? TYPES.TEXT : TYPES.EMPTY,
       link: i === count - 1 ? 0xffff : firstIndex + i + 1,
       name,
     });
@@ -158,16 +158,16 @@ export function buildSlices() {
   const helloSlices = sourceSlices(hello, helloFirst, 'hello');
 
   const slices = [directory([
-    entry({ type: TYPES.SCREEN, first: startFirst, name: 'start' }),
-    entry({ type: TYPES.SCREEN, first: essFirst, name: 'essentials' }),
-    entry({ type: TYPES.SCREEN, first: editFirst, name: 'edit' }),
-    entry({ type: TYPES.SCREEN, first: gfxFirst, name: 'graphics' }),
-    entry({ type: TYPES.SCREEN, first: gamesFirst, name: 'games' }),
-    entry({ type: TYPES.SCREEN, first: sdFirst, name: 'sd-card' }),
+    entry({ type: TYPES.TEXT, first: startFirst, name: 'start' }),
+    entry({ type: TYPES.TEXT, first: essFirst, name: 'essentials' }),
+    entry({ type: TYPES.TEXT, first: editFirst, name: 'edit' }),
+    entry({ type: TYPES.TEXT, first: gfxFirst, name: 'graphics' }),
+    entry({ type: TYPES.TEXT, first: gamesFirst, name: 'games' }),
+    entry({ type: TYPES.TEXT, first: sdFirst, name: 'sd-card' }),
     entry({ type: TYPES.BINARY, flags: 1, first: pacFirst, name: 'pacman' }),
     entry({ type: TYPES.BINARY, flags: 1, first: flappyFirst, name: 'flappy' }),
     entry({ type: TYPES.BINARY, flags: 1, first: froggerFirst, name: 'frogger' }),
-    entry({ type: TYPES.SCREEN, first: helloFirst, name: 'hello' }),
+    entry({ type: TYPES.TEXT, first: helloFirst, name: 'hello' }),
   ]), ...startSlices, ...essSlices, ...editSlices, ...gfxSlices, ...gameSlices,
      ...sdSlices, ...pacSlices, ...flappySlices, ...froggerSlices, ...helloSlices];
   const words = new Uint16Array(slices.length * SLICE_WORDS);

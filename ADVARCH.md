@@ -102,7 +102,7 @@ Rate codes: `0` default/none, `1` 8.11 k, `2` 11.10 k, `3` 16.23 k, `4`
 | `0x00` | empty | formatted, no payload |
 | `0x01` | test | pattern |
 | `0x02` | sprite | 1536 words = 6 groups, rel 2..7 |
-| `0x03` | screen | 2040 chars, one per cell |
+| `0x03` | text | 2040 chars, one per cell, LF/CRLF lines |
 | `0x04` | binary | 2040 words |
 | `0x05` | PCM | 2040 16-bit samples, flags = rate |
 | `0x06` | font/tile | future |
@@ -111,7 +111,8 @@ Rate codes: `0` default/none, `1` 8.11 k, `2` 11.10 k, `3` 16.23 k, `4`
 | `0x09` | RLL sprite | PackBits stream → 2048 words = 8 groups |
 | `0x0A` | μ-law | 4080 8-bit samples, flags = rate |
 | `0x0B` | chunked binary | `[type][len][addr_lo][addr_hi][data][sum]` |
-| `0x0C..0x7F` | reserved | |
+| `0x0C` | screen | 2040 chars, fixed 24x80 cells |
+| `0x0D..0x7F` | reserved | |
 | `0x80..0xFE` | user | |
 | `0xFF` | erased | blank `0xFFFF` |
 

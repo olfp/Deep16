@@ -9,7 +9,7 @@
 \ must be separate boot-script lines, not calls from inside start.
 
 create slice-buf 2048 cells allot
-create text-buf 10240 cells allot       \ up to five 2040-char source slices
+create text-buf 14336 cells allot       \ up to seven 2040-char source slices
 variable slice-sec drop
 variable slice-wp drop
 variable sf-a drop
@@ -32,7 +32,7 @@ create cf-burst-prim 0x2F49 ,
 : screen ( n -- )
   dup 0 511 within 0= if ." screen: 0..511" cr drop exit then
   0 >r  begin
-    r@ 10200 < 0= if ." screen: too long" cr r> 2drop exit then
+    r@ 14280 < 0= if ." screen: too long" cr r> 2drop exit then
     dup slice  ( n a )
     dup slice-valid? 0= if 2drop r> drop exit then
     dup 8 cells +  text-buf r@ cells +  2040 move

@@ -10,6 +10,7 @@
   dup 3 = if drop screen exit then
   dup 8 = if drop 0 p-screen exit then
   dup 2 = if drop sprite-slice exit then
+  dup 0x0C = if drop ." slice: block screen, use edit-slice" cr exit then
   drop drop ." slice: unsupported type" cr ;
 
 \ ---- interrupts, 0xF00B0 ----------------------------------------------

@@ -1,9 +1,10 @@
-\ screens/flash/edit.fth - slice text inspector and 24x80 editor.
+\ screens/flash/edit.fth - slice text inspector, text editor and 24x80 editor.
 \
 \ Loaded at boot by the loader (`s" edit" need`).
-\ type-slice prints a slice's printable payload; edit-slice edits the first
-\ 1920 cells (24 lines of 80) in slice-buf and writes the whole 4 KB sector
-\ back with slice-flush.
+\ type-slice prints a slice's printable payload. text-edit edits an LF-delimited
+\ TEXT slice (type 3) with insert/delete. edit-slice edits a fixed 24x80 SCREEN
+\ slice (type 0x0C): 1920 cells in slice-buf, written back with slice-flush.
+\ CRLF text is normalized to LF on open/save.
 \
 \ Keys: the PS/2 arrows/Home/End produce C-B/C-F/C-P/C-N/C-A/C-E (see the
 \ German map), Backspace/DEL delete, printable keys overwrite. C-X C-S saves
@@ -19,31 +20,23 @@ variable ts-lines drop
 variable ts-a drop
 variable ts-last drop
 
-\ decimal without a trailing space, for the ANSI CUP parameters
 : edit-clear ( -- ) cls ;                  \ clear, home and reset the scroll offset
 
 : edit-buf ( -- a ) slice-buf 8 cells + ;
 : edit-col ( -- c ) edit-pos @ edit-w mod ;
 : edit-row ( -- r ) edit-pos @ edit-w / ;
-\ The tile engine cursor: control word at ES:0x2000 is
-\ (row << 8) | (col << 1) | 1, and 0x2002 is the scroll offset. This is the
-\ same pair the BIOS publishes, without an ANSI CUP sequence.
+\ Tile cursor: (row << 8) | (col << 1) | 1 at ES:0x2000; scroll at 0x2002.
 : edit-cursor ( -- )
   0xF000 seg-base!
   edit-row 8 lshift edit-col 1 lshift or 1 or 0x2000 es!
   0 0x2002 es! ;
 
-\ A LF (or any other control) in the buffer shows as a space, so a source
-\ slice's LF padding cannot break the 24x80 grid.
-\ One tile cell: printable chars keep their glyph, control/blank chars become
-\ the space tile. text_attr carries the console pair and mode bits.
+\ One tile cell: controls become spaces; text_attr carries pair and mode.
 : edit-tile ( c -- tile )
   dup 32 127 within if else drop 32 then
   32 - 5 lshift text-attr @ or ;
 
-\ Draw the 24x80 window straight into the tile buffer. No per-character BIOS
-\ putch and no row wraps: the old path emitted 80 characters per row, so the
-\ last row wrapped and scrolled the screen, concealing the first line.
+\ Draw 24x80 straight into the tile buffer: no row wraps, no scrolling.
 : edit-draw ( -- )
   edit-clear
   0xF000 seg-base!
@@ -119,6 +112,9 @@ variable ts-last drop
   dup 0 511 within 0= if ." edit-slice: 0..511" cr drop exit then
   slice dup slice-valid? 0= if
     drop ." edit-slice: no slice" cr exit
+  then
+  dup slice-type 0x0C <> if
+    drop ." edit-slice: not a screen slice" cr exit
   then drop
   0 edit-done ! 0 edit-pos !
   edit-draw
@@ -165,7 +161,209 @@ variable ts-last drop
   loop
   cr ;
 
-\ ---- serial port (0xF0040/42), separate from the console ------------------
+\ ---- text editor: LF-delimited slices, insert/delete --------------------
+24 constant te-rows
+variable te-line drop
+variable te-first drop
+variable te-col drop
+variable te-len drop
+variable te-lines drop
+variable te-done drop
+variable te-xoff drop
+variable te-src drop
+variable te-endv drop
+variable te-row drop
+variable te-off drop
+variable te-tmp drop
+variable te-char drop
+variable te-ri drop
+variable te-wi drop
+
+: te-end ( -- a ) edit-buf te-len @ + ;
+: te-skip-line ( a -- a' )
+  begin
+    dup te-end = if exit then
+    dup c@ 10 = if 1+ exit then
+    1+
+  again ;
+: te-line-start ( n -- a ) edit-buf swap 0 ?do te-skip-line loop ;
+: te-line-end ( a -- a' )
+  begin
+    dup te-end = if exit then
+    dup c@ 10 = if exit then
+    1+
+  again ;
+: te-cur-len ( -- n ) te-line @ te-line-start dup te-line-end swap - ;
+: te-normalize ( -- )
+  0 te-ri ! 0 te-wi !
+  begin te-ri @ te-len @ < while
+    te-ri @ edit-buf + c@ 13 = if
+      te-ri @ 1+ te-len @ < if
+        te-ri @ 1+ edit-buf + c@ 10 = if
+          10 te-wi @ edit-buf + c! 1 te-wi +!
+          2 te-ri +!
+        else
+          13 te-wi @ edit-buf + c! 1 te-wi +!
+          1 te-ri +!
+        then
+      else
+        13 te-wi @ edit-buf + c! 1 te-wi +!
+        1 te-ri +!
+      then
+    else
+      te-ri @ edit-buf + c@ te-wi @ edit-buf + c! 1 te-wi +!
+      1 te-ri +!
+    then
+  repeat
+  te-wi @ te-len ! ;
+: te-count ( -- n )
+  0 edit-buf
+  begin
+    dup te-end = if
+      drop te-len @ 0> if edit-buf te-len @ 1- + c@ 10 <> if 1+ then then
+      exit
+    then
+    dup c@ 10 = if swap 1+ swap then
+    1+
+  again ;
+: te-clamp ( -- )
+  te-lines @ 0= if 0 te-lines ! 0 te-line ! exit then
+  te-line @ 0< if 0 te-line ! then
+  te-line @ te-lines @ 1- > if te-lines @ 1- te-line ! then ;
+: te-visible ( -- )
+  te-line @ te-first @ < if te-line @ te-first ! then
+  te-line @ te-first @ te-rows + 1- > if te-line @ te-rows 1- - te-first ! then ;
+: te-xoff! ( -- )
+  te-col @ te-xoff @ < if te-col @ te-xoff ! then
+  te-col @ te-xoff @ 80 + 1- > if te-col @ 79 - te-xoff ! then ;
+: te-cursor ( -- )
+  0xF000 seg-base!
+  te-line @ te-first @ - 8 lshift
+  te-col @ te-xoff @ - 1 lshift or 1 or 0x2000 es!
+  0 0x2002 es! ;
+: te-addr ( -- a ) te-line @ te-line-start te-col @ + ;
+: te-tail ( a -- n ) te-end swap - ;
+: te-draw-row ( a end -- )
+  te-endv ! te-src !
+  te-row @ 82 * 0x1000 + te-off !
+  80 0 do
+    te-src @ te-xoff @ + i +
+    dup te-endv @ < if c@ else drop 32 then
+    edit-tile
+    te-off @ es!
+    te-off @ 1+ te-off !
+  loop ;
+: te-draw ( -- )
+  te-visible te-xoff!
+  0xF000 seg-base!
+  te-rows 0 do
+    te-first @ i + te-line-start
+    dup te-line-end
+    i te-row !
+    te-draw-row
+  loop
+  te-cursor ;
+: move-back ( src dst u -- )
+  te-tmp ! te-endv ! te-src !
+  te-tmp @ 0 ?do
+    te-src @ te-tmp @ + i - 1- c@
+    te-endv @ te-tmp @ + i - 1- c!
+  loop ;
+: te-set-lines ( -- ) te-count te-lines ! te-clamp ;
+: te-insert ( c -- )
+  te-char !
+  te-len @ 2040 < 0= if exit then
+  te-addr te-src !
+  te-src @ dup te-tail over 1+ swap move-back
+  te-src @ te-char @ swap c!
+  1 te-len +!
+  te-set-lines ;
+: te-delete ( -- )
+  te-len @ 0= if exit then
+  te-addr dup te-end = if drop exit then
+  dup 1+ te-src !
+  dup te-tail 1- te-tmp !
+  te-src @ swap te-tmp @ move
+  te-len @ 1- te-len !
+  te-set-lines ;
+: te-col-clamp te-col @ te-cur-len > if te-cur-len te-col ! then ;
+: te-left
+  te-col @ 0> if te-col @ 1- te-col ! else
+    te-line @ 0> if te-line @ 1- te-line ! te-cur-len te-col ! then
+  then ;
+: te-right
+  te-col @ te-cur-len < if te-col @ 1+ te-col ! else
+    te-line @ 1+ te-lines @ < if te-line @ 1+ te-line ! 0 te-col ! then
+  then ;
+: te-up te-line @ 0> if te-line @ 1- te-line ! te-col-clamp then ;
+: te-down te-line @ 1+ te-lines @ < if te-line @ 1+ te-line ! te-col-clamp then ;
+: te-bs
+  te-col @ 0> if
+    te-col @ 1- te-col !
+    te-delete
+  else
+    te-line @ 0> if
+      te-line @ 1- te-line !
+      te-cur-len te-col !
+      te-delete
+    then
+  then ;
+: te-enter
+  10 te-insert
+  te-line @ 1+ te-line !
+  0 te-col !
+  te-clamp ;
+: te-put ( c -- ) te-insert 1 te-col +! te-col-clamp ;
+: te-x
+  key
+  dup 0x13 = if drop 1 te-done ! exit then
+  dup 0x03 = if drop 2 te-done ! exit then
+  drop ;
+: te-key ( c -- )
+  dup 0x18 = if drop te-x exit then
+  dup 0x02 = if drop te-left exit then
+  dup 0x06 = if drop te-right exit then
+  dup 0x10 = if drop te-up exit then
+  dup 0x0e = if drop te-down exit then
+  dup 0x01 = if drop 0 te-col ! exit then
+  dup 0x05 = if drop te-cur-len te-col ! exit then
+  dup 0x0d = if drop te-enter exit then
+  dup 0x0a = if drop te-enter exit then
+  dup 0x08 = if drop te-bs exit then
+  dup 0x7f = if drop te-bs exit then
+  dup 0x04 = if drop te-delete exit then
+  dup 32 127 within if te-put exit then
+  drop ;
+: te-save ( -- )
+  te-len @ 0> if
+    edit-buf te-len @ 1- + c@ 10 <> if
+      te-len @ 2040 < if 10 edit-buf te-len @ + c! 1 te-len +! then
+    then
+  then
+  edit-buf te-len @ + 2040 te-len @ - 10 fill
+  slice-flush ;
+: text-edit ( n -- )
+  dup 0 511 within 0= if ." text-edit: 0..511" cr drop exit then
+  slice dup slice-valid? 0= if
+    drop ." text-edit: no slice" cr exit
+  then
+  dup slice-type 3 <> if
+    drop ." text-edit: not a text slice" cr exit
+  then drop
+  edit-buf slice-last 1+ te-len !
+  te-normalize
+  0 te-line ! 0 te-first ! 0 te-col ! 0 te-xoff ! 0 te-done !
+  te-count te-lines ! te-clamp
+  edit-clear te-draw
+  begin
+    key te-key
+    te-done @ 0=
+  while
+    te-draw
+  repeat
+  edit-clear
+  te-done @ 1 = if te-save else ." discarded" cr then ;
+
 0x40 constant serial-status
 0x42 constant serial-data
 
@@ -177,7 +375,6 @@ variable ts-last drop
   begin serial-status es@ 1 and until
   serial-data es@ 0xff and ;
 
-\ Ctrl-D ends the session. Typed bytes go to the serial stream only.
 0x64 constant echo-flag
 : mirror-on ( -- )  echo-flag es@ 0x80 or echo-flag es! ;
 : mirror-off ( -- ) echo-flag es@ 0x7f and echo-flag es! ;
@@ -231,7 +428,6 @@ variable serial-echo drop
     then
   again ;
 
-\ ---- XMODEM receive with CRC, run the source directly --------------------
 0x01 constant soh
 0x04 constant eot
 0x06 constant ack
@@ -249,7 +445,6 @@ variable x-pnblk drop
 variable x-pcrc drop
 variable x-max drop
 
-\ XMODEM CRC-16 (poly 0x1021, initial 0), high byte first on the wire.
 : crc-byte ( crc b -- crc )
   8 lshift xor
   8 0 do
@@ -265,8 +460,6 @@ variable x-max drop
 : x-ack ( -- ) ack serial-emit ;
 : x-nak ( -- ) nak serial-emit ;
 
-\ Wait for the next SOH or EOT. 0 means the sender has been quiet long enough
-\ for the receiver to send another 'C'.
 : x-wait-soh ( -- c )
   0 x-wait !
   begin
@@ -280,7 +473,6 @@ variable x-max drop
     x-wait @ 20000 > if 0 exit then
   again ;
 
-\ One 128-byte block after the SOH: blk, ~blk, data, CRC high, CRC low.
 : x-block ( -- )
   serial-key x-pblk !
   serial-key x-pnblk !
@@ -303,8 +495,6 @@ variable x-max drop
     x-pblk @ x-blk @ 1- 0xff and = if x-ack else x-nak then
   then ;
 
-\ XMODEM pads the last block with SUB (0x1A); drop that and any NULs so the
-\ interpreter does not see them as tokens.
 : x-trim ( -- )
   begin
     x-len @ 0> if
@@ -315,9 +505,6 @@ variable x-max drop
     x-len @ 1- x-len !
   repeat ;
 
-\ Receive a Forth source file into the free dictionary space above `here`,
-\ move `here` past it, then `included` it. The serial stream is binary; progress
-\ is printed on the DVI console only.
 : xmodem ( -- )
   ." xmodem: receiving (CRC)" cr
   here x-buf !
