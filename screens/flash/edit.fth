@@ -39,16 +39,11 @@ variable ts-last drop
 \ Draw 24x80 straight into the tile buffer: no row wraps, no scrolling.
 : edit-draw ( -- )
   edit-clear
-  0xF000 seg-base!
   edit-h 0 do
     edit-buf i edit-w * +
-    0x1000 i 82 * +
-    edit-w 0 do
-      over i + c@ edit-tile
-      over es!
-      1+
-    loop
-    2drop
+    dup edit-w +
+    0 i
+    tile-row
   loop
   edit-cursor ;
 
@@ -171,9 +166,8 @@ variable te-lines drop
 variable te-done drop
 variable te-xoff drop
 variable te-src drop
+variable te-dst drop
 variable te-endv drop
-variable te-row drop
-variable te-off drop
 variable te-tmp drop
 variable te-char drop
 variable te-ri drop
@@ -246,35 +240,29 @@ variable te-drawn-xoff drop
   0 0x2002 es! ;
 : te-addr ( -- a ) te-line @ te-line-start te-col @ + ;
 : te-tail ( a -- n ) te-end swap - ;
-: te-draw-row ( a end -- )
-  te-endv ! te-src !
-  te-row @ 82 * 0x1000 + te-off !
-  80 0 do
-    te-src @ te-xoff @ + i +
-    dup te-endv @ < if c@ else drop 32 then
-    edit-tile
-    te-off @ es!
-    te-off @ 1+ te-off !
-  loop ;
 : te-draw ( -- )
   te-visible te-xoff!
-  0xF000 seg-base!
   te-first @ te-line-start te-src !
   te-rows 0 do
-    te-src @ dup te-line-end
-    i te-row !
-    te-draw-row
-    te-src @ te-skip-line te-src !
+    te-src @ te-line-end te-endv !
+    te-src @ te-endv @
+    te-xoff @
+    i
+    tile-row
+    te-endv @ te-end < if
+      te-endv @ c@ 10 = if te-endv @ 1+ else te-endv @ then
+    else te-endv @ then
+    te-src !
   loop
   te-first @ te-drawn-first !
   te-xoff @ te-drawn-xoff !
   0 te-dirty !
   te-cursor ;
 : move-back ( src dst u -- )
-  te-tmp ! te-endv ! te-src !
+  te-tmp ! te-dst ! te-src !
   te-tmp @ 0 ?do
     te-src @ te-tmp @ + i - 1- c@
-    te-endv @ te-tmp @ + i - 1- c!
+    te-dst @ te-tmp @ + i - 1- c!
   loop ;
 : te-set-lines ( -- ) te-count te-lines ! te-clamp ;
 : te-insert ( c -- )

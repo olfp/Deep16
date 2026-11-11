@@ -412,7 +412,7 @@ italic 1-bit font page; the tile address is 32-word aligned, so the fill masks
 bits 4:0 out of the fetch. Text cells address the 1bpp pages at tile-bank word
 `32 + index*8 + page*768 + row/2`; tile 0 is the blank 32-word art tile and the
 art tiles stay at `0x0C00`. The
-console's current pair/style lives at `0x3C13` (`text_attr`), and the graphics
+console's current pair/style lives at `0x3C1F` (`text_attr`), and the graphics
 words `PAL!`, `ART-PAL!`, `SPRITE-PAL!`, `ATTR`, `STYLE`, `ATTR!`, `ATTR@` and
 `STYLE@` drive it.
 

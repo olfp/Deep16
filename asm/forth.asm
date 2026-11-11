@@ -2637,10 +2637,15 @@ h_esstore:
     .text "es!"
     .word word_esstore
 h_esfetch:
-    .word h_segbase
+    .word h_tile_row
     .word 3
     .text "es@"
     .word word_esfetch
+h_tile_row:
+    .word h_segbase
+    .word 8
+    .text "tile-row"
+    .word word_tile_row
 h_segbase:
     .word h_esstore
     .word 9
@@ -8861,6 +8866,12 @@ wesstore_ok:
     LD R1, SP, 0            ; the value
     ADD SP, 1
     STS R1, ES, R2
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_tile_row:              ; tile-row ( src end xoff row -- )  serial build: no tilemap
+    ADD SP, 4
     LDI next
     MOV PC, R0
     NOP

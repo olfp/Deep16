@@ -3610,11 +3610,23 @@ h_callfar:
     .word 8
     .text "call-far"
     .word word_callfar
+.ifdef D16D
+h_segbase:
+    .word h_tile_row
+.else
 h_segbase:
     .word h_callfar
+.endif
     .word 9
     .text "seg-base!"
     .word word_segbase
+.ifdef D16D
+h_tile_row:
+    .word h_callfar
+    .word 8
+    .text "tile-row"
+    .word word_tile_row
+.endif
 forth_wl:
     .word h_segbase           ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
@@ -11830,6 +11842,73 @@ d16d_exit:
     .word d16d_menu_boot
 d16d_sp:
     .word 0
+.endif
+
+.ifdef D16D
+.org 0x1F40
+; tile-row ( src end xoff row -- )  draw 80 cells at ES:0x1000+row*82.
+; Control and non-ASCII chars become spaces; text_attr supplies the pair.
+word_tile_row:
+    LD R1, SP, 0            ; row
+    LD R2, SP, 1            ; xoff
+    LD R3, SP, 2            ; end
+    LD R4, SP, 3            ; src
+    ADD SP, 4
+    LDI text_attr
+    MOV R10, R0
+    LD R12, R10, 0
+    MOV R7, R1
+    SL R7, 6
+    MOV R10, R1
+    SL R10, 4
+    ADD R7, R10
+    MOV R10, R1
+    SL R10, 1
+    ADD R7, R10
+    LDI 0x1000
+    ADD R7, R0
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LSI R1, 0
+tr_loop:
+    MOV R10, R4
+    ADD R10, R2
+    ADD R10, R1
+    LDI 32
+    MOV R11, R0
+    CMP R10, R3
+    JNC tr_map
+    NOP
+    LD R11, R10, 0
+tr_map:
+    LDI 32
+    CMP R11, R0
+    JC tr_space
+    NOP
+    LDI 127
+    CMP R11, R0
+    JC tr_ok
+    NOP
+tr_space:
+    LDI 32
+    MOV R11, R0
+tr_ok:
+    LDI 32
+    SUB R11, R0
+    SL R11, 5
+    OR R11, R12
+    MOV R10, R7
+    ADD R10, R1
+    STS R11, ES, R10
+    ADD R1, 1
+    LDI 80
+    CMP R1, R0
+    JNZ tr_loop
+    NOP
+    LDI next
+    MOV PC, R0
+    NOP
 .endif
 
 .org 0x2000
