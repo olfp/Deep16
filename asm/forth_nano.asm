@@ -1024,6 +1024,24 @@ word_len_loop:
     MOV PC, R0
     NOP
 word_len_done:
+    ; Direct-mapped cache check before the chain walk.
+    MOV R10, TIB
+    ADD R10, >IN
+    LDI cache_lr
+    MOV R4, R0
+    STS LR, CS, R4
+    LDI cache_probe
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI cache_lr
+    MOV R4, R0
+    LDS LR, CS, R4
+    LDI 0
+    CMP R7, R0
+    JNZ find_match_cached
+    NOP
     ; Search each wordlist in the search order (R12 = index). Within a
     ; wordlist the headers chain newest first: link | flags+len | name | CFA.
     LDI 0
@@ -1037,6 +1055,9 @@ find_wl:
     CMP R2, R0
     JZ skip_unknown          ; end of the search order: token is unknown
     NOP
+    LDI found_wl
+    MOV R3, R0
+    ST R2, R3, 0             ; the cache store needs the wordlist head cell
     LD R7, R2, 0             ; newest header in this wordlist
 find_loop:
     LDI 0
@@ -1069,6 +1090,24 @@ find_cmp:
     JNZ find_cmp
     NOP
     ; Match: the CFA (xt) cell sits at header + 2 + length + 1 (NUL from .text).
+    ; Cache the hit, then reuse the same tail as a cache hit.
+    LDI found_wl
+    MOV R2, R0
+    LD R2, R2, 0
+    MOV R10, TIB
+    ADD R10, >IN
+    LDI cache_lr
+    MOV R4, R0
+    STS LR, CS, R4
+    LDI cache_store
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI cache_lr
+    MOV R4, R0
+    LDS LR, CS, R4
+find_match_cached:
     MOV R2, R7
     ADD R2, 3
     ADD R2, R11
@@ -9368,6 +9407,11 @@ marker_rt:                  ; the runtime of a MARKER: rewind dictionary and hea
     LDI dp_var
     MOV R3, R0
     ST R2, R3, 0
+    LDI cache_clear
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI next
     MOV PC, R0
     NOP
@@ -10236,6 +10280,1545 @@ wesstore_ok:
     MOV PC, R0
     NOP
 
+.org 0x1900
+find_token:
+    LDI 0
+    MOV R11, R0
+ft_skip:
+    MOV R3, TIB
+    ADD R3, >IN
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ ft_none
+    NOP
+    LDI ' '
+    CMP R4, R0
+    JNZ ft_len
+    NOP
+    ADD >IN, 1
+    LDI ft_skip
+    MOV PC, R0
+    NOP
+ft_len:
+    LD R4, R3, 0
+    LDI 0
+    CMP R4, R0
+    JZ ft_have
+    NOP
+    LDI ' '
+    CMP R4, R0
+    JZ ft_have
+    NOP
+    ADD R3, 1
+    ADD R11, 1
+    LDI ft_len
+    MOV PC, R0
+    NOP
+ft_have:
+    MOV R10, TIB
+    ADD R10, >IN
+    LDI cache_lr
+    MOV R4, R0
+    STS LR, CS, R4
+    LDI cache_probe
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI cache_lr
+    MOV R4, R0
+    LDS LR, CS, R4
+    LDI 0
+    CMP R7, R0
+    JNZ ft_hit_cached
+    NOP
+    LDI 0
+    MOV R12, R0
+ft_wl:
+    LDI search_order
+    MOV R2, R0
+    ADD R2, R12
+    LD R2, R2, 0
+    LDI 0
+    CMP R2, R0
+    JZ ft_none
+    NOP
+    LDI found_wl
+    MOV R3, R0
+    ST R2, R3, 0          ; remember which wordlist is being searched
+    LD R7, R2, 0
+ft_loop:
+    LDI 0
+    CMP R7, R0
+    JZ ft_next_wl
+    NOP
+    LD R2, R7, 1
+    LDI 0x00FF
+    AND R2, R0
+    CMP R2, R11
+    JNZ ft_next
+    NOP
+    MOV R10, R7
+    ADD R10, 2
+    MOV R3, TIB
+    ADD R3, >IN
+    MOV R9, R11
+ft_cmp:
+    LD R2, R3, 0
+    LD R4, R10, 0
+    CMP R2, R4
+    JNZ ft_next
+    NOP
+    ADD R3, 1
+    ADD R10, 1
+    SUB R9, 1
+    LDI 0
+    CMP R9, R0
+    JNZ ft_cmp
+    NOP
+    ; Cache the chain hit before the tail runs.
+    LDI found_wl
+    MOV R2, R0
+    LD R2, R2, 0
+    MOV R10, TIB
+    ADD R10, >IN
+    LDI cache_lr
+    MOV R4, R0
+    STS LR, CS, R4
+    LDI cache_store
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI cache_lr
+    MOV R4, R0
+    LDS LR, CS, R4
+ft_hit_cached:
+    MOV R1, R7
+    ADD R1, 3
+    ADD R1, R11           ; R1 = CFA cell address
+    ADD >IN, R11
+    LDI in_var
+    MOV R3, R0
+    ST >IN, R3, 0           ; mirror for `>IN @`
+    ; R9 = 1 when the word is immediate, 0 otherwise; POSTPONE reads it.
+    LD R4, R7, 1
+    LDI 1
+    SL R0, 15             ; 0x8000, the IMMEDIATE bit
+    AND R4, R0
+    LDI 0
+    MOV R9, R0
+    CMP R4, R0
+    JZ ft_ret
+    NOP
+    LDI 1
+    MOV R9, R0
+ft_ret:
+    JMP LR
+    NOP
+ft_next:
+    LD R7, R7, 0
+    LDI ft_loop
+    MOV PC, R0
+    NOP
+ft_next_wl:
+    ADD R12, 1
+    LDI ft_wl
+    MOV PC, R0
+    NOP
+ft_none:
+    LDI 0
+    MOV R1, R0
+    LDI 0
+    MOV R9, R0
+    JMP LR
+    NOP
+
+
+; ---- hashed header table ------------------------------------------------
+; 128 buckets of 8 header slots in the free tail of the kernel's first
+; block. The image initialises the table and the round-robin next array to
+; zero, so a boot needs no clear; forget/marker clear it explicitly. The
+; hash is (h << 1) + char, masked to seven bits. Protects LR with
+; cache_lr/cache_lr2 because the interpreter keeps its resume address there.
+.org 0x1A00
+look_cache:
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+
+; 128 buckets of 8 header slots.
+.org 0x1E00
+cache_next:
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+
+.org 0x1E80
+cache_lr:
+    .word 0
+cache_lr2:
+    .word 0
+cache_dp2:
+    .word 0
+cache_cfa2:
+    .word 0
+cache_best:
+    .word 0
+cache_new:
+    .word 0
+cache_name:
+    .word 0
+cache_bucket:
+    .word 0
+
+; cache_probe ( R10=name, R11=len -> R7=newest matching header or 0 )
+cache_probe:
+    MOV R1, R11
+    LDI 0
+    MOV R12, R0
+cp_hash:
+    LD R4, R10, 0
+    MOV R3, R12
+    SL R3, 1
+    ADD R3, R4
+    MOV R12, R3
+    ADD R10, 1
+    SUB R1, 1
+    JNZ cp_hash
+    NOP
+    LDI 0x7F
+    AND R12, R0
+    SL R12, 3
+    LDI 0x1A00
+    MOV R4, R0
+    ADD R4, R12
+    MOV R12, R4
+    ADD R12, 8
+    LDI cache_best
+    MOV R3, R0
+    LDI 0
+    STS R0, CS, R3
+cp_slot:
+    LDS R7, CS, R4
+    LDI 0
+    CMP R7, R0
+    JZ cp_next
+    NOP
+    LD R3, R7, 1
+    LDI 0x00FF
+    AND R3, R0
+    CMP R3, R11
+    JNZ cp_next
+    NOP
+    MOV R10, R7
+    ADD R10, 2
+    MOV R3, TIB
+    ADD R3, >IN
+    MOV R1, R11
+cp_cmp:
+    LD R0, R3, 0
+    LD R2, R10, 0
+    CMP R0, R2
+    JNZ cp_next
+    NOP
+    ADD R3, 1
+    ADD R10, 1
+    SUB R1, 1
+    LDI 0
+    CMP R1, R0
+    JNZ cp_cmp
+    NOP
+    LDI cache_best
+    MOV R3, R0
+    LDS R2, CS, R3
+    CMP R7, R2
+    JC cp_next
+    NOP
+    STS R7, CS, R3
+cp_next:
+    ADD R4, 1
+    CMP R4, R12
+    JNZ cp_slot
+    NOP
+    LDI cache_best
+    MOV R3, R0
+    LDS R7, CS, R3
+    JMP LR
+    NOP
+
+; cache_store ( R7=header, R10=name, R11=len, R2=wordlist head cell )
+cache_store:
+    LDI search_order
+    MOV R3, R0
+    LD R3, R3, 0
+    CMP R2, R3
+    JNZ cs_ret
+    NOP
+    LDI cache_new
+    MOV R3, R0
+    STS R7, CS, R3
+    LDI cache_name
+    MOV R3, R0
+    STS R10, CS, R3
+    MOV R1, R11
+    LDI 0
+    MOV R12, R0
+cs_hash:
+    LD R4, R10, 0
+    MOV R3, R12
+    SL R3, 1
+    ADD R3, R4
+    MOV R12, R3
+    ADD R10, 1
+    SUB R1, 1
+    JNZ cs_hash
+    NOP
+    LDI 0x7F
+    AND R12, R0
+    LDI cache_bucket
+    MOV R3, R0
+    STS R12, CS, R3
+    SL R12, 3
+    LDI 0x1A00
+    MOV R4, R0
+    ADD R4, R12
+    MOV R12, R4
+    ADD R12, 8
+cs_slot:
+    LDS R7, CS, R4
+    LDI 0
+    CMP R7, R0
+    JZ cs_use
+    NOP
+    LD R3, R7, 1
+    LDI 0x00FF
+    AND R3, R0
+    CMP R3, R11
+    JNZ cs_next
+    NOP
+    LDI cache_name
+    MOV R3, R0
+    LDS R3, CS, R3
+    MOV R10, R7
+    ADD R10, 2
+    MOV R1, R11
+cs_cmp:
+    LD R0, R3, 0
+    LD R2, R10, 0
+    CMP R0, R2
+    JNZ cs_next
+    NOP
+    ADD R3, 1
+    ADD R10, 1
+    SUB R1, 1
+    LDI 0
+    CMP R1, R0
+    JNZ cs_cmp
+    NOP
+    LDI cs_use
+    MOV PC, R0
+    NOP
+cs_next:
+    ADD R4, 1
+    CMP R4, R12
+    JNZ cs_slot
+    NOP
+    LDI cache_bucket
+    MOV R3, R0
+    LDS R3, CS, R3
+    LDI 0x1E00
+    MOV R2, R0
+    ADD R2, R3
+    LDS R12, CS, R2
+    MOV R1, R3
+    SL R1, 3
+    LDI 0x1A00
+    MOV R4, R0
+    ADD R4, R1
+    ADD R4, R12
+    LDI cache_new
+    MOV R3, R0
+    LDS R7, CS, R3
+    STS R7, CS, R4
+    ADD R12, 1
+    LDI 7
+    AND R12, R0
+    STS R12, CS, R2
+    JMP LR
+    NOP
+cs_use:
+    LDI cache_new
+    MOV R3, R0
+    LDS R7, CS, R3
+    STS R7, CS, R4
+cs_ret:
+    JMP LR
+    NOP
+
+; cache_clear
+cache_clear:
+    LDI 0x1A00
+    MOV R2, R0
+    LDI 0x0480
+    MOV R3, R0
+    LDI 0
+cc_loop:
+    STS R0, CS, R2
+    ADD R2, 1
+    SUB R3, 1
+    JNZ cc_loop
+    NOP
+    JMP LR
+    NOP
+
 .org 0x2000
 .code
 
@@ -10410,6 +11993,31 @@ colon_copy:
     MOV R3, R0
     LD R3, R3, 0
     ST R9, R3, 0          ; current wordlist head = new header
+    ; Cache the new header in its slot.
+    MOV R7, R9
+    MOV R2, R3
+    MOV R10, R9
+    ADD R10, 2
+    LD R11, R9, 1
+    LDI 0x00FF
+    AND R11, R0
+    LDI cache_dp2
+    MOV R4, R0
+    STS R12, CS, R4
+    LDI cache_lr2
+    MOV R4, R0
+    STS LR, CS, R4
+    LDI cache_store
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI cache_lr2
+    MOV R4, R0
+    LDS LR, CS, R4
+    LDI cache_dp2
+    MOV R4, R0
+    LDS R12, CS, R4
     LDI state_var
     MOV R3, R0
     LDI 1
@@ -11053,6 +12661,37 @@ dname_copy:
     MOV R3, R0
     LD R3, R3, 0
     ST R9, R3, 0          ; current wordlist head = new header
+    ; Cache the new header in its slot; this also evicts a shadowed name.
+    MOV R7, R9
+    LDI cache_cfa2
+    MOV R4, R0
+    STS R2, CS, R4
+    MOV R2, R3
+    MOV R10, R9
+    ADD R10, 2
+    LD R11, R9, 1
+    LDI 0x00FF
+    AND R11, R0
+    LDI cache_dp2
+    MOV R4, R0
+    STS R12, CS, R4
+    LDI cache_lr2
+    MOV R4, R0
+    STS LR, CS, R4
+    LDI cache_store
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI cache_lr2
+    MOV R4, R0
+    LDS LR, CS, R4
+    LDI cache_cfa2
+    MOV R4, R0
+    LDS R2, CS, R4
+    LDI cache_dp2
+    MOV R4, R0
+    LDS R12, CS, R4
     JMP LR
     NOP
 
@@ -11264,125 +12903,8 @@ to_unknown:
 ; find_token parses the next blank-delimited token and searches the header
 ; chain. Returns R1 = xt (CFA cell address) and steps >IN past the token on a
 ; match, or R1 = 0 and >IN at the token start otherwise. Called with LINK.
-find_token:
-    LDI 0
-    MOV R11, R0
-ft_skip:
-    MOV R3, TIB
-    ADD R3, >IN
-    LD R4, R3, 0
-    LDI 0
-    CMP R4, R0
-    JZ ft_none
-    NOP
-    LDI ' '
-    CMP R4, R0
-    JNZ ft_len
-    NOP
-    ADD >IN, 1
-    LDI ft_skip
-    MOV PC, R0
-    NOP
-ft_len:
-    LD R4, R3, 0
-    LDI 0
-    CMP R4, R0
-    JZ ft_have
-    NOP
-    LDI ' '
-    CMP R4, R0
-    JZ ft_have
-    NOP
-    ADD R3, 1
-    ADD R11, 1
-    LDI ft_len
-    MOV PC, R0
-    NOP
-ft_have:
-    LDI 0
-    MOV R12, R0
-ft_wl:
-    LDI search_order
-    MOV R2, R0
-    ADD R2, R12
-    LD R2, R2, 0
-    LDI 0
-    CMP R2, R0
-    JZ ft_none
-    NOP
-    LDI found_wl
-    MOV R3, R0
-    ST R2, R3, 0          ; remember which wordlist is being searched
-    LD R7, R2, 0
-ft_loop:
-    LDI 0
-    CMP R7, R0
-    JZ ft_next_wl
-    NOP
-    LD R2, R7, 1
-    LDI 0x00FF
-    AND R2, R0
-    CMP R2, R11
-    JNZ ft_next
-    NOP
-    MOV R10, R7
-    ADD R10, 2
-    MOV R3, TIB
-    ADD R3, >IN
-    MOV R9, R11
-ft_cmp:
-    LD R2, R3, 0
-    LD R4, R10, 0
-    CMP R2, R4
-    JNZ ft_next
-    NOP
-    ADD R3, 1
-    ADD R10, 1
-    SUB R9, 1
-    LDI 0
-    CMP R9, R0
-    JNZ ft_cmp
-    NOP
-    MOV R1, R7
-    ADD R1, 3
-    ADD R1, R11           ; R1 = CFA cell address
-    ADD >IN, R11
-    LDI in_var
-    MOV R3, R0
-    ST >IN, R3, 0           ; mirror for `>IN @`
-    ; R9 = 1 when the word is immediate, 0 otherwise; POSTPONE reads it.
-    LD R4, R7, 1
-    LDI 1
-    SL R0, 15             ; 0x8000, the IMMEDIATE bit
-    AND R4, R0
-    LDI 0
-    MOV R9, R0
-    CMP R4, R0
-    JZ ft_ret
-    NOP
-    LDI 1
-    MOV R9, R0
-ft_ret:
-    JMP LR
-    NOP
-ft_next:
-    LD R7, R7, 0
-    LDI ft_loop
-    MOV PC, R0
-    NOP
-ft_next_wl:
-    ADD R12, 1
-    LDI ft_wl
-    MOV PC, R0
-    NOP
-ft_none:
-    LDI 0
-    MOV R1, R0
-    LDI 0
-    MOV R9, R0
-    JMP LR
-    NOP
-
+; find_token moved to the first-block free tail (0x1900) to keep the
+; second block below the BDOS entry at 0x2D4A.
 ; ---------------------------------------------
 ; P4: vocabularies and the search order
 ; ---------------------------------------------
@@ -11656,6 +13178,11 @@ word_forget:
     LDI current
     MOV R2, R0
     ST R1, R2, 0
+    LDI cache_clear
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI next
     MOV PC, R0
     NOP
