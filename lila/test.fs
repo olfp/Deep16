@@ -407,5 +407,43 @@ lila-var-std_ay 2 check-num
 lila-var-std_pnone false check-bool
 lila-var-std_pnonemsg s" lila: function expected" check-str
 
+\ metatables
+lila-var-mt_add 42 check-num
+lila-var-mt_radd 42 check-num
+lila-var-mt_sub 100 check-num
+lila-var-mt_mul 21 check-num
+lila-var-mt_div 5 check-num
+lila-var-mt_idiv 99 check-num
+lila-var-mt_mod 99 check-num
+lila-var-mt_pow 99 check-num
+lila-var-mt_unm -7 check-num
+lila-var-mt_tostr s" MOBJ" check-str
+
+lila-var-mt_idx 7 check-num
+lila-var-mt_missing check-nil
+lila-var-mt_fnidx s" fn:key" check-str
+lila-var-mt_chain 3 check-num
+lila-var-mt_seen s" a" check-str
+lila-var-mt_rawmiss check-nil
+lila-var-mt_rawa 2 check-num
+lila-var-mt_plain_a 2 check-num
+lila-var-mt_newtable 5 check-num
+
+lila-var-mt_eq true check-bool
+lila-var-mt_selfeq true check-bool
+lila-var-mt_lt true check-bool
+lila-var-mt_rlt true check-bool
+lila-var-mt_le true check-bool
+lila-var-mt_gt true check-bool
+lila-var-mt_ge true check-bool
+lila-var-mt_raweq1 true check-bool
+lila-var-mt_raweq2 false check-bool
+
+lila-var-mt_gm true check-bool
+lila-var-mt_unset true check-bool
+lila-var-mt_gmnil check-nil
+lila-var-mt_badset false check-bool
+lila-var-mt_badmsg s" lila: table expected" check-str
+
 ." lila tests passed" cr
 bye

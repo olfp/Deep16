@@ -97,6 +97,50 @@ lila-error-value 3 lila-gc-register-root
   value1 value2 lila-32
   dup lila-32>lo swap lila-32>hi ;
 
+\ Metatable hooks.  value.fs is loaded before hash.fs, so the operators call
+\ deferred words that meta.fs replaces once tables and metatables exist.
+defer lila-meta-add
+defer lila-meta-sub
+defer lila-meta-mul
+defer lila-meta-div
+defer lila-meta-idiv
+defer lila-meta-mod
+defer lila-meta-pow
+defer lila-meta-unm
+defer lila-meta-eq
+defer lila-meta-lt
+defer lila-meta-le
+defer lila-meta-tostring
+
+: lila-meta-binop-default ( a1 a2 ta b1 b2 tb -- )
+  lila-value-drop lila-value-drop
+  s" lila: operator not supported" lila-raise-msg ;
+
+: lila-meta-unm-default ( a1 a2 ta -- )
+  lila-value-drop
+  s" lila: operator not supported" lila-raise-msg ;
+
+: lila-meta-eq-default ( a1 a2 ta b1 b2 tb -- r1 r2 tr )
+  lila-value-drop lila-value-drop
+  false lila>value-bool ;
+
+: lila-meta-tostring-default ( v1 v2 tag -- r1 r2 rt found )
+  lila-value-drop
+  0 0 0 false ;
+
+' lila-meta-binop-default is lila-meta-add
+' lila-meta-binop-default is lila-meta-sub
+' lila-meta-binop-default is lila-meta-mul
+' lila-meta-binop-default is lila-meta-div
+' lila-meta-binop-default is lila-meta-idiv
+' lila-meta-binop-default is lila-meta-mod
+' lila-meta-binop-default is lila-meta-pow
+' lila-meta-unm-default is lila-meta-unm
+' lila-meta-eq-default is lila-meta-eq
+' lila-meta-binop-default is lila-meta-lt
+' lila-meta-binop-default is lila-meta-le
+' lila-meta-tostring-default is lila-meta-tostring
+
 \ ---------------------------------------------------------------------------
 \ String concatenation (the result is a GC-managed payload)
 
@@ -112,6 +156,9 @@ create lila-str-total 0 ,
 \ ---------------------------------------------------------------------------
 \ Tag-aware arithmetic
 
+: lila-table-op? { ta tb -- flag }
+  ta lila-tag-table = tb lila-tag-table = or ;
+
 : lila-add { a1 a2 ta b1 b2 tb -- r1 r2 tr }
   ta lila-tag-num = tb lila-tag-num = and if
     a1 a2 lila-32 b1 b2 lila-32 + lila>value-num exit
@@ -119,19 +166,23 @@ create lila-str-total 0 ,
   ta lila-tag-str = tb lila-tag-str = and if
     a1 a2 b1 b2 lila-str-concat lila-tag-str exit
   then
+  ta tb lila-table-op? if a1 a2 ta b1 b2 tb lila-meta-add exit then
   s" lila: cannot add these values" lila-raise-msg ;
 
 : lila-sub { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta tb lila-table-op? if a1 a2 ta b1 b2 tb lila-meta-sub exit then
   ta lila-check-num
   tb lila-check-num
   a1 a2 lila-32 b1 b2 lila-32 - lila>value-num ;
 
 : lila-mul { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta tb lila-table-op? if a1 a2 ta b1 b2 tb lila-meta-mul exit then
   ta lila-check-num
   tb lila-check-num
   a1 a2 lila-32 b1 b2 lila-32 * lila>value-num ;
 
 : lila-div { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta tb lila-table-op? if a1 a2 ta b1 b2 tb lila-meta-div exit then
   ta lila-check-num
   tb lila-check-num
   a1 a2 lila-32 b1 b2 lila-32
@@ -139,6 +190,7 @@ create lila-str-total 0 ,
   / lila>value-num ;
 
 : lila-neg { a1 a2 ta -- r1 r2 tr }
+  ta lila-tag-table = if a1 a2 ta lila-meta-unm exit then
   ta lila-check-num
   a1 a2 lila-32 negate lila>value-num ;
 
@@ -157,16 +209,19 @@ create lila-str-total 0 ,
   q r ;
 
 : lila-idiv { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta tb lila-table-op? if a1 a2 ta b1 b2 tb lila-meta-idiv exit then
   ta lila-check-num
   tb lila-check-num
   a1 a2 lila-32 b1 b2 lila-32 lila-floor-div drop lila>value-num ;
 
 : lila-mod { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta tb lila-table-op? if a1 a2 ta b1 b2 tb lila-meta-mod exit then
   ta lila-check-num
   tb lila-check-num
   a1 a2 lila-32 b1 b2 lila-32 lila-floor-div nip lila>value-num ;
 
 : lila-pow { a1 a2 ta b1 b2 tb -- r1 r2 tr }
+  ta tb lila-table-op? if a1 a2 ta b1 b2 tb lila-meta-pow exit then
   ta lila-check-num
   tb lila-check-num
   a1 a2 lila-32 { base }
@@ -198,7 +253,8 @@ create lila-str-total 0 ,
     true lila>value-bool exit
   then
   ta lila-tag-table = if
-    a1 b1 = lila>value-bool exit
+    a1 b1 = if true lila>value-bool exit then
+    a1 a2 ta b1 b2 tb lila-meta-eq exit
   then
   ta lila-tag-fn = if
     a1 b1 = lila>value-bool exit
@@ -210,44 +266,32 @@ create lila-str-total 0 ,
   r1 0= lila>value-bool ;
 
 : lila-lt { a1 a2 ta b1 b2 tb -- r1 r2 tr }
-  ta tb <> if s" lila: cannot compare different types" lila-raise-msg then
-  ta lila-tag-num = if
+  ta lila-tag-num = tb lila-tag-num = and if
     a1 a2 lila-32 b1 b2 lila-32 < lila>value-bool exit
   then
-  ta lila-tag-str = if
+  ta lila-tag-str = tb lila-tag-str = and if
     a1 a2 b1 b2 compare 0< lila>value-bool exit
   then
+  ta tb lila-table-op? if a1 a2 ta b1 b2 tb lila-meta-lt exit then
+  ta tb <> if s" lila: cannot compare different types" lila-raise-msg then
   s" lila: cannot order these values" lila-raise-msg ;
 
 : lila-gt { a1 a2 ta b1 b2 tb -- r1 r2 tr }
-  ta tb <> if s" lila: cannot compare different types" lila-raise-msg then
-  ta lila-tag-num = if
-    a1 a2 lila-32 b1 b2 lila-32 > lila>value-bool exit
-  then
-  ta lila-tag-str = if
-    a1 a2 b1 b2 compare 0> lila>value-bool exit
-  then
-  s" lila: cannot order these values" lila-raise-msg ;
+  b1 b2 tb a1 a2 ta lila-lt ;
 
 : lila-le { a1 a2 ta b1 b2 tb -- r1 r2 tr }
-  ta tb <> if s" lila: cannot compare different types" lila-raise-msg then
-  ta lila-tag-num = if
+  ta lila-tag-num = tb lila-tag-num = and if
     a1 a2 lila-32 b1 b2 lila-32 <= lila>value-bool exit
   then
-  ta lila-tag-str = if
+  ta lila-tag-str = tb lila-tag-str = and if
     a1 a2 b1 b2 compare 0<= lila>value-bool exit
   then
+  ta tb lila-table-op? if a1 a2 ta b1 b2 tb lila-meta-le exit then
+  ta tb <> if s" lila: cannot compare different types" lila-raise-msg then
   s" lila: cannot order these values" lila-raise-msg ;
 
 : lila-ge { a1 a2 ta b1 b2 tb -- r1 r2 tr }
-  ta tb <> if s" lila: cannot compare different types" lila-raise-msg then
-  ta lila-tag-num = if
-    a1 a2 lila-32 b1 b2 lila-32 >= lila>value-bool exit
-  then
-  ta lila-tag-str = if
-    a1 a2 b1 b2 compare 0>= lila>value-bool exit
-  then
-  s" lila: cannot order these values" lila-raise-msg ;
+  b1 b2 tb a1 a2 ta lila-le ;
 
 \ ---------------------------------------------------------------------------
 \ Conditions, length and printing
@@ -341,7 +385,10 @@ lila-multi-hold-cells 3 lila-gc-register-root
     value1 0<> if ." true" else ." false" then exit
   then
   tag lila-tag-str = if value1 value2 type exit then
-  tag lila-tag-table = if ." <table>" exit then
+  tag lila-tag-table = if
+    value1 value2 tag lila-meta-tostring
+    if drop type else lila-value-drop ." <table>" then exit
+  then
   tag lila-tag-float = if ." <float>" exit then
   tag lila-tag-fn = if ." <function>" exit then
   ." <value>" ;

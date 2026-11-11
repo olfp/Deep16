@@ -720,3 +720,110 @@ print(std_assertval, std_ax, std_ay)  -- 5 1 2
 -- pcall with no callable first argument returns an error instead of hanging
 std_pnone, std_pnonemsg = pcall()
 print(std_pnone, std_pnonemsg)  -- false lila: function expected
+
+-- metatables: __index, __newindex, arithmetic, comparisons, __tostring
+function mtaddf(a, b) return 40 + 2 end
+function mtsubf(a, b) return 100 end
+function mtmulf(a, b) return 21 end
+function mtdivf(a, b) return 5 end
+function mtfloorf(a, b) return 99 end
+function mtunmf(a) return -7 end
+function mteqf(a, b) return true end
+function mtltf(a, b) return true end
+function mtlef(a, b) return true end
+function mtstrf(a) return "MOBJ" end
+
+mops = {}
+mops["__add"] = mtaddf
+mops["__sub"] = mtsubf
+mops["__mul"] = mtmulf
+mops["__div"] = mtdivf
+mops["__idiv"] = mtfloorf
+mops["__mod"] = mtfloorf
+mops["__pow"] = mtfloorf
+mops["__unm"] = mtunmf
+mops["__tostring"] = mtstrf
+mopv = {}
+setmetatable(mopv, mops)
+
+mt_add = mopv + 1
+mt_radd = 1 + mopv
+mt_sub = mopv - 2
+mt_mul = mopv * 3
+mt_div = mopv / 4
+mt_idiv = mopv // 5
+mt_mod = mopv % 6
+mt_pow = mopv ^ 7
+mt_unm = -mopv
+mt_tostr = tostring(mopv)
+print(mopv)
+
+mbase = {}
+mbase["x"] = 7
+mindexmt = {}
+mindexmt["__index"] = mbase
+mitem = {}
+setmetatable(mitem, mindexmt)
+mt_idx = mitem["x"]
+mt_missing = mitem["absent"]
+
+function mtfidx(t, k) return "fn:" + k end
+mfindmt = {}
+mfindmt["__index"] = mtfidx
+mfitem = {}
+setmetatable(mfitem, mfindmt)
+mt_fnidx = mfitem["key"]
+
+ml2 = {}
+ml2["deep"] = 3
+ml2mt = {}
+ml2mt["__index"] = ml2
+ml1 = {}
+setmetatable(ml1, ml2mt)
+ml1mt = {}
+ml1mt["__index"] = ml1
+mtop = {}
+setmetatable(mtop, ml1mt)
+mt_chain = mtop["deep"]
+
+function mtnewf(t, k, v) mt_seen = k end
+mnewmt = {}
+mnewmt["__newindex"] = mtnewf
+mnewt = {}
+setmetatable(mnewt, mnewmt)
+mnewt["a"] = 1
+mt_rawmiss = rawget(mnewt, "a")
+rawset(mnewt, "a", 2)
+mt_rawa = rawget(mnewt, "a")
+mt_plain_a = mnewt["a"]
+
+mnewbase = {}
+mnewtabmt = {}
+mnewtabmt["__newindex"] = mnewbase
+mnewtab = {}
+setmetatable(mnewtab, mnewtabmt)
+mnewtab["z"] = 5
+mt_newtable = rawget(mnewbase, "z")
+
+meqmt = {}
+meqmt["__eq"] = mteqf
+meqmt["__lt"] = mtltf
+meqmt["__le"] = mtlef
+me1 = {}
+me2 = {}
+setmetatable(me1, meqmt)
+setmetatable(me2, meqmt)
+mt_eq = me1 == me2
+mt_selfeq = me1 == me1
+mt_lt = me1 < me2
+mt_rlt = 1 < me2
+mt_le = me1 <= me2
+mt_gt = me1 > me2
+mt_ge = me1 >= me2
+mt_raweq1 = rawequal(me1, me1)
+mt_raweq2 = rawequal(me1, me2)
+
+mt_gm = getmetatable(mopv) == mops
+mt_unset = setmetatable(mopv, nil) == mopv
+mt_gmnil = getmetatable(mopv)
+mt_badset, mt_badmsg = pcall(setmetatable, 5, {})

@@ -2,7 +2,7 @@
 
 Status: **implemented in the host prototype, 4 Nov 2026.** This records the
 three-cell tagged-value ABI used by `lila/value.fs`, `lila/hash.fs`,
-`lila/gc.fs` and `lila/compiler.fs`. `TYPEPLAN.md` is kept as the design and
+`lila/meta.fs`, `lila/gc.fs` and `lila/compiler.fs`. `TYPEPLAN.md` is kept as the design and
 migration record; the source and tests are authoritative.
 
 Verification: `gforth lila/test.fs` passes, including three-cell at/! checks,
@@ -11,8 +11,9 @@ tables, dynamically retyped variables, and tables with 100 keys. The original
 `lila/test.lila` program also loads and runs.
 
 Companions: `lila/README.md` (current language semantics), `lila/compiler.fs`
-(type stack and code generation), `lila/hash.fs` (table layout), `lila/gc.fs`
-(roots and scanning), `FORTH.md` (Deep16 double-cell words), `FLOATIMPL.md`
+(type stack and code generation), `lila/hash.fs` (table layout), `lila/meta.fs`
+(metatables and metamethods), `lila/gc.fs` (roots and scanning),
+`FORTH.md` (Deep16 double-cell words), `FLOATIMPL.md`
 (the float pair layout) and `D16MINI.md` (stack and memory budget).
 
 ## 1. Decision
@@ -234,7 +235,7 @@ slot:   [key-addr][key-len][value][occupied]
 New header and slot:
 
 ```text
-header: [nbuckets][buckets*][count]
+header: [nbuckets][buckets*][count][metatable*]
 slot:   [key-addr][key-len][value1][value2][tag][occupied]
 ```
 
@@ -264,6 +265,12 @@ Table aliases no longer carry a value kind, because there is no kind to carry.
 tag stored in the slot. The compiler's `table-reg-names`, `table-reg-types`,
 `rhs-alias-type` and the static `table-type-find/set/forget` machinery can go
 away once table reads are treated as dynamically tagged.
+
+The fourth header cell holds the metatable payload pointer, or zero when the
+table has no metatable. `lila/meta.fs` stores it, and the table scanner marks
+it alongside the bucket array. The low-level `table-get`/`table-set` remain the
+raw primitives; `lila-table-get`/`lila-table-set` are redefined in `meta.fs` to
+honour `__index` and `__newindex`.
 
 Table storage is GC-managed exactly as now, but the scanner must mark both
 payload cells of every live slot, not just one `slot-value` cell. See §7.
@@ -389,9 +396,9 @@ every cell in a root, or at least both payload cells of a three-cell value.
 Scanning the tag cell is harmless because a tag is a small integer and cannot
 alias a heap address.
 
-`table-gc-scan` must mark the key address and both value payload cells. The
-table header itself becomes three cells; the bucket array stays a separate GC
-object. String data and table bucket arrays are unchanged.
+`table-gc-scan` must mark the key address, the metatable pointer, and both value
+payload cells. The table header itself becomes four cells; the bucket array
+stays a separate GC object. String data and table bucket arrays are unchanged.
 
 The scanner dispatch now also covers the frame and closure object types added by
 lexical scope. Type 3 frames conservatively mark every cell in the frame,

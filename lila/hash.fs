@@ -1,12 +1,12 @@
 \ LILA hash tables with string keys (c-addr u)
-\ Table header: [nbuckets][buckets*][count] (3 cells)
+\ Table header: [nbuckets][buckets*][count][metatable*] (4 cells)
 \ Bucket array:  [slot ...] (6 cells per slot)
 \ Slot layout:   [key-addr][key-len][value1][value2][tag][occupied]
 \ Tables grow by doubling their bucket count at 3/4 load.  There is no fixed
 \ element limit.
 
 6 constant table-slot-cells
-3 constant table-header-cells
+4 constant table-header-cells
 16 constant table-initial-buckets
 
 : hash-string ( c-addr u nbuckets -- idx )
@@ -22,9 +22,13 @@
   nbuckets table !
   buckets table cell+ !
   0 table 2 cells + !
+  0 table 3 cells + !
   table ;
 
 : table-count@ ( table -- n )  2 cells + @ ;
+
+: table-metatable@ ( table -- mt )  3 cells + @ ;
+: table-metatable! ( mt table -- )  3 cells + ! ;
 
 : slot-addr ( table idx -- addr )
   swap cell+ @  swap table-slot-cells * cells + ;
@@ -134,9 +138,11 @@ create table-grow-slot 0 ,
   ktag lila-check-str
   tv1 kv1 kv2 value1 value2 tag table-set ;
 
-\ GC integration: mark the bucket array, every key, and both value payloads.
+\ GC integration: mark the bucket array, the metatable, every key, and both
+\ value payloads.
 : table-gc-scan { table -- }
   table cell+ @ gc-mark-cell
+  table table-metatable@ gc-mark-cell
   table @ { n }
   n 0 ?do
     table i slot-addr

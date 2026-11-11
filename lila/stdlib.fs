@@ -157,7 +157,10 @@ lila-value-allot lila-var-math.mininteger lila-var-math.mininteger 3 lila-gc-reg
     v1 v2 lila-32 lila-num>str lila-tag-str exit
   then
   tag lila-tag-str = if v1 v2 tag exit then
-  tag lila-tag-table = if s" <table>" lila-tag-str exit then
+  tag lila-tag-table = if
+    v1 v2 tag lila-meta-tostring if exit then
+    lila-value-drop s" <table>" lila-tag-str exit
+  then
   tag lila-tag-fn = if s" <function>" lila-tag-str exit then
   tag lila-tag-float = if s" <float>" lila-tag-str exit then
   s" <value>" lila-tag-str ;

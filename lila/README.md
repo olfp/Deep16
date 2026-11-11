@@ -141,7 +141,8 @@ the name is not visible after the loop.
 - `if`/`elseif`/`while` accept any value and apply these rules.
 - Comparisons produce boolean-tagged values.
 - `print` writes numbers, strings, `true`/`false`, `nil`, and `<table>` for a
-  table. `print` accepts multiple comma-separated expressions and prints each
+  table. A table with a `__tostring` metamethod is printed using its result.
+  `print` accepts multiple comma-separated expressions and prints each
   value back-to-back. If an expression produces multiple values, all of them are
   printed.
 
@@ -410,6 +411,76 @@ put(t, "bob")
 print(t["value"])              -- bob
 ```
 
+## Metatables
+
+A table may carry a metatable. Metatables control missing-key lookup, stores,
+operators, and conversion to string. `setmetatable(t, mt)` returns `t`,
+`getmetatable(t)` returns the metatable or `nil`, and `setmetatable(t, nil)`
+removes it. Only tables can have metatables, and a metatable must be a table or
+`nil`.
+
+```lisp
+base = {}
+base["x"] = 7
+m = {}
+m["__index"] = base
+t = {}
+setmetatable(t, m)
+print(t["x"])                  -- 7
+print(t["absent"])             -- nil
+```
+
+`__index` may also be a function, which receives the table and the key:
+
+```lisp
+function lookup(t, key) return "missing:" + key end
+m = {}
+m["__index"] = lookup
+t = {}
+setmetatable(t, m)
+print(t["name"])               -- missing:name
+```
+
+`__newindex` controls stores of keys that are not already present. A table
+value receives the store through its own indexing, and a function is called as
+`(t, key, value)`. Storing to an existing key always writes the table directly:
+
+```lisp
+function note(t, key, value) seen = key end
+m = {}
+m["__newindex"] = note
+t = {}
+setmetatable(t, m)
+t["a"] = 1                     -- calls note; does not create the key
+print(seen)                    -- a
+print(rawget(t, "a"))          -- nil
+rawset(t, "a", 2)
+print(t["a"])                  -- 2
+```
+
+The arithmetic metamethods are `__add`, `__sub`, `__mul`, `__div`, `__idiv`,
+`__mod`, `__pow`, and `__unm`, and the comparison metamethods are `__eq`,
+`__lt`, and `__le`. LILA looks up the left operand's metatable first, then the
+right operand's. `>` and `>=` use `__lt` and `__le` with the operands swapped,
+and comparison results are converted to booleans.
+
+```lisp
+function add(a, b) return 42 end
+m = {}
+m["__add"] = add
+t = {}
+setmetatable(t, m)
+print(t + 1)                   -- 42
+print(1 + t)                   -- 42
+```
+
+`__tostring` is used by `print` and `tostring`, and must return a string. The
+raw operations `rawget`, `rawset`, and `rawequal` bypass all metamethods.
+
+Metamethod lookup is limited to table operands; the built-in numeric and string
+operations still take priority. Not implemented: `__call`, `__len`,
+`__metatable`, `__gc`, weak tables, and finalizers.
+
 ## Variables and strings
 
 Variables are global unless declared `local`; function parameters are locals.
@@ -495,6 +566,11 @@ The global functions are:
 | `assert(v, message)` | all its arguments when `v` is truthy; raises an error otherwise |
 | `error(value)` | raises `value` as an error |
 | `pcall(f, ...)` | `true, results...` on success; `false, error` on failure |
+| `setmetatable(t, mt)` | sets `t`'s metatable and returns `t` |
+| `getmetatable(t)` | the metatable of `t`, or `nil` |
+| `rawget(t, k)` | reads `t[k]` without `__index` |
+| `rawset(t, k, v)` | writes `t[k]` without `__newindex` and returns `t` |
+| `rawequal(a, b)` | equality without `__eq` |
 
 `tonumber` trims surrounding spaces, accepts an optional sign, and understands
 an optional `0x`/`0X` prefix. An explicit base must be between 2 and 36. A
@@ -589,6 +665,10 @@ diagnostics still abort immediately and are not catchable.
   A call through a function-valued variable is not arity-checked.
 - Nested table assignment such as `t["a"]["b"] = 1` is not supported; assign
   through the inner table variable instead.
+- Metatables support the documented subset: `__index`, `__newindex`, the
+  arithmetic metamethods, `__eq`, `__lt`, `__le`, and `__tostring`. `__call`,
+  `__len`, `__metatable`, `__gc`, weak tables, and finalizers are not
+  implemented.
 - String literals cannot contain a `"` and there are no escape sequences.
 - In a single-line loop body, `break` works as a plain statement, but nested
   single-line control blocks in that same body are not parsed. Use a

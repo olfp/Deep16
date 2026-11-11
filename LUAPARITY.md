@@ -8,7 +8,7 @@ functions with closures. Relative to Lua 5.4 it is still a small core
 language. This note records the remaining language, library, and runtime gaps.
 
 Companions: `lila/README.md` (current LILA semantics), `TYPEPLAN.md` (tagged
-value ABI), `lila/compiler.fs`, `lila/hash.fs`, and `lila/gc.fs`.
+value ABI), `lila/compiler.fs`, `lila/hash.fs`, `lila/meta.fs`, and `lila/gc.fs`.
 
 ## 1. Core language semantics
 
@@ -51,9 +51,13 @@ assignment are implemented. The remaining core-language gaps are:
 - **No `pairs`, `ipairs`, or `next`.**
 - **No `table` library.** No `insert`, `remove`, `sort`, `concat`, `pack`,
   `unpack`, or `move`.
-- **No metatables or metamethods.** No `__index`, `__newindex`, `__add`,
-  `__tostring`, inheritance, or operator overloading.
-- **No weak tables or finalizers.**
+- **Metatables and metamethods are a documented subset.** `setmetatable`,
+  `getmetatable`, `rawget`, `rawset`, `rawequal`, `__index`, `__newindex`,
+  `__add`, `__sub`, `__mul`, `__div`, `__idiv`, `__mod`, `__pow`, `__unm`,
+  `__eq`, `__lt`, `__le`, and `__tostring` are implemented. Missing are
+  `__call`, `__len`, `__metatable`, `__gc`, weak tables, and finalizers.
+- **Metamethods apply only to table operands.** There is no string or number
+  metatable, and the built-in numeric/string operations take priority.
 - **Nested assignment remains unsupported.** `t["a"]["b"] = 1` must be written
   through an inner table variable.
 
@@ -94,8 +98,8 @@ assignment are implemented. The remaining core-language gaps are:
   `status`.
 - **No modules or packages:** no `require`, `package`, `_ENV`, or environments.
 - **No `io`, `os`, `debug`, `utf8`, or `coroutine` libraries.**
-- **No `rawget`, `rawset`, `rawequal`, `setmetatable`, `getmetatable`, or
-  `next`.**
+- **`rawget`, `rawset`, `rawequal`, `setmetatable`, and `getmetatable` are
+  implemented.** `next`/`pairs`/`ipairs` are still missing.
 
 ## 6. Implementation-level differences
 

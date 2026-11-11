@@ -668,8 +668,10 @@ defer vararg-raw?
   start-pop drop
   type-pop { rt } type-pop { lt }
   lt type-known? rt type-known? and if
-    lt lila-tag-num <> rt lila-tag-num <> or if
-      s" lila: number expected before operator" lila-error
+    lt lila-tag-table = rt lila-tag-table = or 0= if
+      lt lila-tag-num <> rt lila-tag-num <> or if
+        s" lila: number expected before operator" lila-error
+      then
     then
   then
   append-space
@@ -687,15 +689,18 @@ defer vararg-raw?
   start-pop drop
   type-pop { rt } type-pop { lt }
   lt type-known? rt type-known? and if
-    lt rt <> if
-      s" lila: cannot mix different types with +" lila-error
-    then
-    lt lila-tag-num <> lt lila-tag-str <> and if
-      s" lila: + needs numbers or strings" lila-error
+    lt lila-tag-table = rt lila-tag-table = or 0= if
+      lt rt <> if
+        s" lila: cannot mix different types with +" lila-error
+      then
+      lt lila-tag-num <> lt lila-tag-str <> and if
+        s" lila: + needs numbers or strings" lila-error
+      then
     then
   then
   append-space s" lila-add " lila-buf buf+
-  lt type-known? rt type-known? and if
+  lt type-known? rt type-known? and
+  lt lila-tag-table <> and rt lila-tag-table <> and if
     lt type-push
   else
     lila-tag-unknown type-push
@@ -705,20 +710,29 @@ defer vararg-raw?
   start-pop drop
   type-pop { rt } type-pop { lt }
   lt type-known? rt type-known? and if
-    lt lila-tag-num <> rt lila-tag-num <> or if
-      s" lila: number expected before operator" lila-error
+    lt lila-tag-table = rt lila-tag-table = or 0= if
+      lt lila-tag-num <> rt lila-tag-num <> or if
+        s" lila: number expected before operator" lila-error
+      then
     then
   then
   append-space s" lila-sub " lila-buf buf+
-  lila-tag-num type-push ;
+  lt type-known? rt type-known? and
+  lt lila-tag-table <> and rt lila-tag-table <> and if
+    lila-tag-num type-push
+  else
+    lila-tag-unknown type-push
+  then ;
 
 : cmp-op { ch -- }
   start-pop drop
   type-pop { rt } type-pop { lt }
   lt type-known? rt type-known? and if
-    lt rt <> if
-      ch [char] = <> ch op-eq <> and ch op-ne <> and if
-        s" lila: cannot compare different types" lila-error
+    lt lila-tag-table = rt lila-tag-table = or 0= if
+      lt rt <> if
+        ch [char] = <> ch op-eq <> and ch op-ne <> and if
+          s" lila: cannot compare different types" lila-error
+        then
       then
     then
   then
@@ -767,11 +781,17 @@ defer vararg-raw?
     lila-tag-bool type-push exit
   then
   ch [char] ~ = if
-    type-pop dup type-known? if
-      lila-tag-num <> if s" lila: number expected after unary minus" lila-error then
-    else drop then
+    type-pop { ut }
+    ut type-known? ut lila-tag-table <> and if
+      ut lila-tag-num <> if s" lila: number expected after unary minus" lila-error then
+    then
     append-space s" lila-neg " lila-buf buf+
-    lila-tag-num type-push exit
+    ut type-known? ut lila-tag-table <> and if
+      lila-tag-num type-push
+    else
+      lila-tag-unknown type-push
+    then
+    exit
   then
   ch [char] + = if plus-op exit then
   ch [char] - = if sub-op exit then
