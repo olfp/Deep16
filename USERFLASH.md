@@ -65,15 +65,20 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 #   -o 0x200000 artifacts/image/slices.bin
 ```
 
-The current image is 21 slices / 84 KB: directory 0, SD driver 1–3, hello 4,
-catalog 5–8 (editor, `dir`/`find`, `p-screen`, I2S, IRQ and palette words),
-games 9–10, Pac-Man 11–13, Flappy 14–16 and Frogger 17–20. The boot script
-loads the SD driver, the catalog and the game loader before the prompt, so
-`sd`, `dir`, `find`, `beep`, `irq-on` and `4 screen` are available at
-power-on. Flappy, Frogger and Pac-Man are listed as apps (directory flag 1)
-and are loaded by the BDOS on demand. The PS/2 host sender is no longer a
-slice: it lives in the BIOS, and `binit` initialises the keyboard before the
-menu (BIOS function 8 and the `cls` word repeat it without a slice load).
+The current image is 26 slices / 104 KB: directory 0, start 1,
+essentials 2–3 (SPI/config flash, `dir`/`find`, slice editor, `p-screen`),
+edit 4–7, graphics 8–9 (SIC/raster, scene, palettes, I2S, sprites), games
+10–11, sd-card 12–14, Pac-Man 15–17, Flappy 18–20, Frogger 21–24 and hello
+25. The baked boot loader does `1 screen` (start), then `need essentials`
+and `need edit`, so `dir`, `find`, the editor and the start words are
+available at power-on. `graphics`, `games` and `sd-card` are loaded on
+demand: `s" graphics" need`, `s" games" need`, `s" sd-card" need`, each
+printing `Loading <name>`. `25 screen` (or `s" hello" find screen`) loads
+the hello test source. Flappy, Frogger and Pac-Man are listed as apps
+(directory flag 1) and are loaded by the BDOS on demand. The PS/2 host
+sender is no longer a slice: it lives in the BIOS, and `binit` initialises
+the keyboard before the menu (BIOS function 8 and the `cls` word repeat it
+without a slice load).
 
 Each game slice carries its own tile pack at segment offset `0x1000`
 (`0x0A57`, count, then index + 32 words per tile). The three art sets overlap

@@ -20,7 +20,7 @@ not applied until the entry is updated with the result and tests.
 **Priority:** high — this is the missing piece of the raster investigation.
 
 **Area:** `asm/forth_nano.asm` (`bios_f5` getstr, `read_line`, `word_accept`,
-`refill`); `screens/flash/catalog.fth` (`raster-probe` once it exists).
+`refill`); `screens/flash/essentials.fth` (`raster-probe` once it exists).
 
 **Observed (discussion with Big Pickle, 2026-11-03/04):** the REPL spends
 essentially all its time inside BIOS getstr (function 5), which polls the
@@ -172,7 +172,7 @@ band
 
 **Priority:** done — the raster split works on the board.
 
-**Area:** `asm/forth_nano.asm` (IRQ handler band branch), `catalog.fth`
+**Area:** `asm/forth_nano.asm` (IRQ handler band branch), `essentials.fth`
 (`split!`/`split-off`), `ERRPLAN` earlier entries.
 
 **What was wrong, in order:**

@@ -1,6 +1,6 @@
 \ screens/starfield.fth - the console starfield, loaded from the SD card.
 \
-\ This used to be baked into the image's boot script (forth/demo.fth). It moved
+\ This used to be baked into the image's boot script (forth/boot.fth). It moved
 \ here so the image could carry `include` instead: load it with
 \   1 6 include        ( six sectors from sector 1 - see scripts/make_screens)
 \ and `demo` is defined again. Everything it uses - key?, cls, emit, */ - is in

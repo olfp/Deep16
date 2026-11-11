@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { assemble, buildMemory, loadBrowserScripts, ROOT } from './helpers.js';
+import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -22,7 +23,9 @@ const sym = kernel.symbols;
 
 test('Return separates the D16nano input from its output', () => {
   const sim = new globalThis.Deep16Simulator();
-  sim.loadProgram(buildMemory(kernel));
+  const slices = buildSlices();
+sim.loadProgram(buildMemory(kernel));
+sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
   sim.segmentRegisters.CS = 0xFFFF;
   sim.running = true;
 
@@ -50,23 +53,24 @@ test('Return separates the D16nano input from its output', () => {
   // instructions per character in read_line).
   for (let i = 0; i < 20_000_000 && !sim.memory[sym.boot_done]; i += 1000) pump(1000);
   pump(100_000);
-  assert.equal(sim.memory[sym.tile_row], 2);
+  const r0 = sim.memory[sym.tile_row];
+  assert.ok(r0 >= 2, `banner, loading lines, summary and prompt occupy ${r0} rows`);
 
   press('123 u.\n');
-  assert.equal(row(2), '> 123 u. 123 ok');
+  assert.equal(row(r0), '> 123 u. 123 ok');
 
   press('1 .\n');
-  assert.equal(row(3), '> 1 . 1  ok');
+  assert.equal(row(r0 + 1), '> 1 . 1  ok');
 
   press(': foo ;\n');
-  assert.equal(row(4), '> : foo ; ok');
+  assert.equal(row(r0 + 2), '> : foo ; ok');
 
   press('." hi there"\n');
-  assert.equal(row(5), '> ." hi there" hi there ok');
+  assert.equal(row(r0 + 3), '> ." hi there" hi there ok');
 
   // cr is output too, even though it prints no glyph: ok keeps its leading
   // space on the row the line feed moved to.
   press('cr\n');
-  assert.equal(row(6), '> cr');
-  assert.equal(row(7), ' ok');
+  assert.equal(row(r0 + 4), '> cr');
+  assert.equal(row(r0 + 5), ' ok');
 });

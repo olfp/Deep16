@@ -11,7 +11,7 @@ editor's slice operations) feel very slow. The flash wire is not the main
 reason. The dominant cost is the **threaded Forth loop** that drives the SPI
 master byte by byte.
 
-`cf-read-burst` in `forth/demo.fth` is:
+`cf-read-burst` in `forth/boot.fth` is:
 
 ```forth
 : cf-read-burst ( sector -- )
@@ -185,12 +185,12 @@ Touched by Phase 1:
 | File | Change |
 |---|---|
 | `asm/forth_nano.asm` | new assembly block-read primitive (free code 0x2D4A–0x2FFF); word headers |
-| `forth/demo.fth` | `cf-read-burst` uses the primitive; one-slice cache; `dir-buf`; `slice` |
-| `screens/flash/catalog.fth` | `dir`/`find`/`dir-add`/`dir-remove`/`slice-alloc` use the directory cache and the new allocation |
+| `forth/boot.fth` | `cf-read-burst` uses the primitive; one-slice cache; `dir-buf`; `slice` |
+| `screens/flash/essentials.fth` | `dir`/`find`/`dir-add`/`dir-remove`/`slice-alloc` use the directory cache and the new allocation |
 | tests | segmented/slices tests: flash model read, cache invalidation, allocation |
 
-Remember to run `node scripts/embed_forth.mjs` after editing `forth/demo.fth`
-and `node scripts/make_slices.mjs` after editing `screens/flash/catalog.fth`;
+Remember to run `node scripts/embed_forth.mjs` after editing `forth/boot.fth`
+and `node scripts/make_slices.mjs` after editing `screens/flash/essentials.fth`;
 the board image and slices then need `npm run flash:tile` / `flash:slices`.
 
 ## 7. Open questions

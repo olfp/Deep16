@@ -52,6 +52,7 @@ function scattered() {
 }
 
 const slices = buildSlices();
+const helloFirst = slices.manifest.objects.hello.first;
 const sim = new globalThis.Deep16Simulator();
 sim.loadProgram(scattered());
 sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
@@ -118,50 +119,50 @@ test('the dictionary is the PSRAM segment and reports its free count', () => {
 });
 
 test('the config flash identifies and the directory is readable', () => {
-  // The boot script loads the SD driver (slices 1..3) and the catalog
-  // (slices 5..8) from the config flash; the directory lists all three.
+  // The boot loader brings up start, essentials and edit from the config
+  // flash; the directory lists every object.
   assert.match(boot, /> /);
   const id = line('cf-id');
   assert.match(id, /85 60 16/);
   const d = line('dir');
   assert.match(d, /hello/);
-  assert.match(d, /catalog/);
-  assert.match(d, /sd/);
+  assert.match(d, /essentials/);
+  assert.match(d, /graphics/);
+  assert.match(d, /sd-card/);
 });
 
 test('the assembly block reader streams a whole slice', () => {
   // cf-burst is the kernel primitive behind cf-read-burst; it reads 4 KB
   // through the SPI master. Compare the header and first payload word with
-  // the flash model. Slice 4 is the hello source.
-  const off = SCREEN_BASE + 4 * 4096;
+  // the flash model. The hello source starts at helloFirst.
+  const off = SCREEN_BASE + helloFirst * 4096;
   const header = sim.spiFlash.mem[off] | (sim.spiFlash.mem[off + 1] << 8);
   const payload = sim.spiFlash.mem[off + 16] | (sim.spiFlash.mem[off + 17] << 8);
-  const t1 = '4 512 + slice-buf cf-burst slice-buf @ . cr';
+  const t1 = `${helloFirst} 512 + slice-buf cf-burst slice-buf @ . cr`;
   assert.equal(number(line(t1), t1), header);
   const t2 = 'slice-buf 8 cells + @ . cr';
   assert.equal(number(line(t2), t2), payload);
   assert.ok(sim.running);
 });
 
-test('screen 4 loads the hello slice', () => {
-  assert.match(line('4 screen'), / ok/);
+test('screen loads the hello slice', () => {
+  assert.match(line(`${helloFirst} screen`), / ok/);
   assert.match(line('hello'), /hello from the user flash/);
   assert.ok(sim.running);
 });
 
 test('a slice payload can be printed from flash to the terminal', () => {
   // `slice` reads the 4 KB sector into slice-buf; the payload starts at cell 8.
-  // 350 is the hello source length (slices.manifest.json); 2040 would print the
-  // LF padding too.
-  const echoed = line('4 slice 8 cells + 350 type');
+  // The manifest length, not 2040: the latter would print the LF padding too.
+  const echoed = line(`${helloFirst} slice 8 cells + ${slices.manifest.objects.hello.chars} type`);
   assert.match(echoed, /hello from the user flash/);
   assert.ok(sim.running);
 });
 
 test('a slice created and flushed reads back and enters the directory', () => {
-  // 40 is scratch space: the low indices hold the boot objects (sd, hello,
-  // catalog, games) and the game images, and a flushed slice overwrites its
-  // whole sector.
+  // 40 is scratch space: the low indices hold the boot objects (start,
+  // essentials, edit, graphics, games, sd-card), the game images and hello;
+  // a flushed slice overwrites its whole sector.
   line('40 3 slice-create');
   line('s" test" slice-name!');
   line('slice-flush');
@@ -188,7 +189,7 @@ function lineWithKeys(text, keys, cap = 60_000_000) {
 }
 
 test('type-slice prints the printable payload and trims the LF padding', () => {
-  const echoed = line('4 type-slice');
+  const echoed = line(`${helloFirst} type-slice`);
   assert.match(echoed, /hello from the user flash/);
   assert.ok(sim.running);
 });
@@ -303,7 +304,8 @@ test('a directory entry can be removed', () => {
   assert.ok(sim.running);
 });
 
-test('the I2S words load from the catalog', () => {
+test('the I2S words load from graphics', () => {
+  line('s" graphics" need');
   assert.match(line('sound'), /I2S level/);
   line('beep');
   assert.ok(sim.running);
@@ -334,9 +336,9 @@ test('the catalog\'s ATTR cell is the kernel\'s text_attr', () => {
   // The catalog is Forth source and cannot see assembler symbols, so the cell
   // is a literal there. Pin the two together or a kernel edit silently makes
   // ATTR write the wrong cell (it did once).
-  const src = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'catalog.fth'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'graphics.fth'), 'utf8');
   const m = src.match(/0x([0-9A-Fa-f]+) constant text-attr/);
-  assert.ok(m, 'the catalog defines text-attr');
+  assert.ok(m, 'graphics defines text-attr');
   assert.equal(parseInt(m[1], 16), sym.text_attr, 'catalog constant matches the kernel symbol');
 });
 
@@ -440,6 +442,7 @@ test('the 64K data stack holds 18000 cells', () => {
 // framing, token waiting and busy polling against a card that answers.
 
 test('the SD driver identifies the card', () => {
+  line('s" sd-card" need');
   const t = line('sd');
   assert.match(t, /SD card ready/);
   assert.equal(number(line('sd-init . cr'), 'sd-init . cr'), 0);
@@ -620,6 +623,12 @@ test('the keyboard IRQ drains the hardware FIFO into the BIOS ring', () => {
 });
 
 // ---- the flash game loader ---------------------------------------------
+// The loader is in games.fth and is loaded on demand.
+test('need games loads the flash game loader', () => {
+  assert.match(line('s" games" need'), / ok/);
+  assert.ok(sim.running);
+});
+
 // Phase 2: the Pac-Man block is no longer baked into the image. `game-load`
 // finds the type-4 slice, copies its chain into the load segment (0x2000) and
 // returns the segment; `game-run` then far-calls it.

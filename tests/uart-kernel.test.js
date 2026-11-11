@@ -40,7 +40,7 @@ function repl(input, maxSteps = 800000) {
   const { Deep16Simulator } = globalThis;
   const sim = new Deep16Simulator();
   sim.loadProgram(buildMemory(uart));
-  // These are UART tests, not boot-script tests: skip forth/demo.fth so the
+  // These are UART tests, not boot-script tests: skip forth/boot.fth so the
   // banner is the banner (tests/boot-script.test.js covers the script).
   sim.memory[uart.symbols.boot_ptr] = 0;
   sim.segmentRegisters.CS = 0xFFFF;

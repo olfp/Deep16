@@ -1,6 +1,6 @@
 \ screens/flash/edit.fth - slice text inspector and 24x80 editor.
 \
-\ Loaded after the catalog and the games (`21 screen` in the boot script).
+\ Loaded at boot by the loader (`s" edit" need`).
 \ type-slice prints a slice's printable payload; edit-slice edits the first
 \ 1920 cells (24 lines of 80) in slice-buf and writes the whole 4 KB sector
 \ back with slice-flush.

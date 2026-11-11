@@ -35,7 +35,7 @@ variable echo-flag
 \ DeepForth's form reports the visible screen: 24 rows, 80 cols.
 : form ( -- rows cols )  24 80 ;
 
-\ ---- helpers used by forth/demo.fth ------------------------------------
+\ ---- helpers used by forth/boot.fth ------------------------------------
 : .addr ( u -- )  hex 0 u.r decimal ;
 
 : free ( -- d )  unused 0 ;

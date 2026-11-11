@@ -120,7 +120,7 @@ machine**: the whole RAM window fits inside a single 32 K-word (15-bit) address.
 
 | Item | Extent | Words |
 |---|---|---:|
-| Kernel image `forth_start`…`dict_free` (`0x0100–0x481D`) | 13,1xx-line source + `forth/demo.fth` | **18,206** |
+| Kernel image `forth_start`…`dict_free` (`0x0100–0x481D`) | 13,1xx-line source + `forth/boot.fth` | **18,206** |
 | `dict_free` (new definitions grow up from here) | `0x481E` | — |
 | Free `dict_free` → BIOS (`0x5600`) | `0x481E–0x55FF` | **3,554** |
 | …of which the boot script's own definitions take | at boot, HERE ends at `0x4DBB` | 1,437 |
@@ -1027,10 +1027,11 @@ This is what makes the design buildable **now**, before a board.
   depth, so the pump's flow control still applies.
 - `sim.enqueueKeyCode` (the IDE keyboard) also maps to UART RX.
 
-### 7.9 The boot script, `free`, `mem`, `demo` and the SD card
+### 7.9 The boot loader, `start`, `free`, `mem` and the SD card
 
-The image carries a **Forth boot script**. `forth/demo.fth` is the source;
-`scripts/embed_forth.mjs` bakes it into `asm/forth.asm` between two markers, one
+The image carries a **Forth boot loader**. `forth/boot.fth` is the source;
+`scripts/embed_forth.mjs` bakes it into `asm/forth.asm` and `asm/forth_nano.asm`
+between two markers, one
 `.string` line per source line, and `tests/boot-script.test.js` runs the
 generator with `--check` so the two cannot drift. A `.string` packs **two
 characters per cell** and ends the line with a `0` cell: one cell per character

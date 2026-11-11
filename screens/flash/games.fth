@@ -1,4 +1,4 @@
-\ screens/flash/games.fth - the flash game loader, loaded with `9 screen`.
+\ screens/flash/games.fth - the flash game loader, loaded with `s" games" need`.
 \ A game is a type-4 binary slice; its payload is
 \   cell 0  magic 'D16B' (0xD16B)
 \   cell 1  format version (1)

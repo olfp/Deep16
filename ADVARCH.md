@@ -131,7 +131,7 @@ Continuation directories use the link.
 
 ### 3.3 API
 
-Implemented in the boot script (the editor in `catalog.fth` builds on it):
+Implemented in the boot script (the editor in `essentials.fth` builds on it):
 
 ```text
 slice ( n -- a )              read 4 KB into the 2048-cell buffer
@@ -420,7 +420,7 @@ The on-board config flash now carries a 9-slice, 36 KB source image at
 | 0 | master directory (WP) | 255 entries |
 | 1..3 | `sd.fth` - the SD/block driver | 4,695 |
 | 4 | `hello.fth` | 350 |
-| 5..8 | `catalog.fth` - editor, `dir`/`find`, `p-screen`, sound, palettes | 6,431 |
+| 5..8 | `essentials.fth` - editor, `dir`/`find`, `p-screen`, sound, palettes | 6,431 |
 
 At boot the script reads the SD source, interprets it (so `sd`, `block`,
 `include` exist), then reads the catalog. The boot source ends at

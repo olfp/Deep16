@@ -721,7 +721,7 @@ current wordlist and found newest-first; `forget` rewinds to a name.
 ## SD card and blocks (boot-script words)
 
 These are not part of the image's kernel dictionary: they are compiled by
-`forth/demo.fth` at boot, so they appear in `words` only after the boot script
+`forth/boot.fth` at boot, so they appear in `words` only after the boot script
 has run.
 
 | word | stack effect | meaning |
@@ -773,13 +773,16 @@ master directory; `scripts/make_slices.mjs` packs `screens/flash/*.fth` into
 `artifacts/image/slices.bin` and `npm run flash:slices` writes it at
 `0x200000`.
 
-The boot script loads the SD driver (slices 1..3) and the catalog (5..8):
+The boot loader loads `start` (slice 1), `essentials` (2..3) and `edit` (4..7);
+`s" graphics" need`, `s" games" need` and `s" sd-card" need` bring in the
+rest on demand:
 
 ```text
-1 screen               \ the SD/block driver: sd, block, include
-5 screen               \ the slice editor: dir, find, slice-create, ...
-4 screen               \ hello.fth
-hello                  \ hello from the user flash
+s" graphics" need     \ SIC/raster, scene, palettes, I2S, sprites
+s" games" need        \ game-run
+s" sd-card" need      \ sd, block, include
+25 screen             \ hello.fth
+hello                 \ hello from the user flash
 ```
 
 `screen ( n -- )` follows the link chain, concatenates 2040 characters per

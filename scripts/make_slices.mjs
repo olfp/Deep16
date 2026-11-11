@@ -121,42 +121,55 @@ function directory(entries) {
 }
 
 export function buildSlices() {
-  const sd = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'sd.fth'), 'utf8');
-  const hello = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'hello.fth'), 'utf8');
-  const catalog = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'catalog.fth'), 'utf8');
-  const games = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'games.fth'), 'utf8');
-  const edit = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'edit.fth'), 'utf8');
-  const sdFirst = 1;
-  const sdSlices = sourceSlices(sd, sdFirst, 'sd');
-  const helloFirst = sdFirst + sdSlices.length;
-  const helloSlices = sourceSlices(hello, helloFirst, 'hello');
-  const catFirst = helloFirst + helloSlices.length;
-  const catSlices = sourceSlices(catalog, catFirst, 'catalog');
-  const gamesFirst = catFirst + catSlices.length;
+  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const start = read('forth/start.fth');
+  const essentials = read('screens/flash/essentials.fth');
+  const edit = read('screens/flash/edit.fth');
+  const graphics = read('screens/flash/graphics.fth');
+  const games = read('screens/flash/games.fth');
+  const sd = read('screens/flash/sd.fth');
+  const hello = read('screens/flash/hello.fth');
+  if (start.length > SLICE_PAYLOAD) {
+    throw new Error(`forth/start.fth is ${start.length} chars, past one ${SLICE_PAYLOAD}-char screen`);
+  }
+
+  const startFirst = 1;
+  const startSlices = sourceSlices(start, startFirst, 'start');
+  const essFirst = startFirst + startSlices.length;
+  const essSlices = sourceSlices(essentials, essFirst, 'essentials');
+  const editFirst = essFirst + essSlices.length;
+  const editSlices = sourceSlices(edit, editFirst, 'edit');
+  const gfxFirst = editFirst + editSlices.length;
+  const gfxSlices = sourceSlices(graphics, gfxFirst, 'graphics');
+  const gamesFirst = gfxFirst + gfxSlices.length;
   const gameSlices = sourceSlices(games, gamesFirst, 'games');
+  const sdFirst = gamesFirst + gameSlices.length;
+  const sdSlices = sourceSlices(sd, sdFirst, 'sd-card');
   const pac = buildPacman();
-  const pacFirst = gamesFirst + gameSlices.length;
+  const pacFirst = sdFirst + sdSlices.length;
   const pacSlices = binarySlices(pac.words, pacFirst, 'pacman');
-  // The apps: flag 1 in the directory entry tells the menu to list them.
   const flappy = buildFlappy();
   const flappyFirst = pacFirst + pacSlices.length;
   const flappySlices = binarySlices(flappy.words, flappyFirst, 'flappy', 0, flappy.seg, 1);
   const frogger = buildFrogger();
   const froggerFirst = flappyFirst + flappySlices.length;
   const froggerSlices = binarySlices(frogger.words, froggerFirst, 'frogger', 0, 0x0600, 1);
-  const editFirst = froggerFirst + froggerSlices.length;
-  const editSlices = sourceSlices(edit, editFirst, 'edit');
+  const helloFirst = froggerFirst + froggerSlices.length;
+  const helloSlices = sourceSlices(hello, helloFirst, 'hello');
+
   const slices = [directory([
-    entry({ type: TYPES.SCREEN, first: sdFirst, name: 'sd' }),
-    entry({ type: TYPES.SCREEN, first: helloFirst, name: 'hello' }),
-    entry({ type: TYPES.SCREEN, first: catFirst, name: 'catalog' }),
+    entry({ type: TYPES.SCREEN, first: startFirst, name: 'start' }),
+    entry({ type: TYPES.SCREEN, first: essFirst, name: 'essentials' }),
+    entry({ type: TYPES.SCREEN, first: editFirst, name: 'edit' }),
+    entry({ type: TYPES.SCREEN, first: gfxFirst, name: 'graphics' }),
     entry({ type: TYPES.SCREEN, first: gamesFirst, name: 'games' }),
+    entry({ type: TYPES.SCREEN, first: sdFirst, name: 'sd-card' }),
     entry({ type: TYPES.BINARY, flags: 1, first: pacFirst, name: 'pacman' }),
     entry({ type: TYPES.BINARY, flags: 1, first: flappyFirst, name: 'flappy' }),
     entry({ type: TYPES.BINARY, flags: 1, first: froggerFirst, name: 'frogger' }),
-    entry({ type: TYPES.SCREEN, first: editFirst, name: 'edit' }),
-  ]), ...sdSlices, ...helloSlices, ...catSlices, ...gameSlices, ...pacSlices,
-     ...flappySlices, ...froggerSlices, ...editSlices];
+    entry({ type: TYPES.SCREEN, first: helloFirst, name: 'hello' }),
+  ]), ...startSlices, ...essSlices, ...editSlices, ...gfxSlices, ...gameSlices,
+     ...sdSlices, ...pacSlices, ...flappySlices, ...froggerSlices, ...helloSlices];
   const words = new Uint16Array(slices.length * SLICE_WORDS);
   slices.forEach((w, i) => words.set(w, i * SLICE_WORDS));
   const bytes = Buffer.alloc(slices.length * SLICE_BYTES, 0xff);
@@ -168,14 +181,16 @@ export function buildSlices() {
     slice_bytes: SLICE_BYTES,
     slices: slices.length,
     objects: {
-      sd: { first: sdFirst, count: sdSlices.length, chars: sd.length },
-      hello: { first: helloFirst, count: helloSlices.length, chars: hello.length },
-      catalog: { first: catFirst, count: catSlices.length, chars: catalog.length },
+      start: { first: startFirst, count: startSlices.length, chars: start.length },
+      essentials: { first: essFirst, count: essSlices.length, chars: essentials.length },
+      edit: { first: editFirst, count: editSlices.length, chars: edit.length },
+      graphics: { first: gfxFirst, count: gfxSlices.length, chars: graphics.length },
       games: { first: gamesFirst, count: gameSlices.length, chars: games.length },
+      sd: { first: sdFirst, count: sdSlices.length, chars: sd.length },
       pacman: { first: pacFirst, count: pacSlices.length, words: pac.max + 1 },
       flappy: { first: flappyFirst, count: flappySlices.length, words: flappy.max + 1 },
       frogger: { first: froggerFirst, count: froggerSlices.length, words: frogger.max + 1 },
-      edit: { first: editFirst, count: editSlices.length, chars: edit.length },
+      hello: { first: helloFirst, count: helloSlices.length, chars: hello.length },
     },
   };
   return { words, bytes, manifest };

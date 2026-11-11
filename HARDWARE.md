@@ -197,7 +197,7 @@ does not define `D16_PERIPH`.
 ## SD card driver (software, 2026-10-28)
 
 The SD card needs no new RTL: `rtl/deep16_spi.sv` is a byte master and the
-protocol is the **Forth driver in the boot script** (`forth/demo.fth`), so it
+protocol is the **Forth driver in `screens/flash/sd.fth`** (loaded with `s" sd-card" need`), so it
 costs zero CLS and is testable in the JS core.
 
 - **Registers and segment.** The SPI registers are ES-relative (ES = `0xF000`),

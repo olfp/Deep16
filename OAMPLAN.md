@@ -249,7 +249,7 @@ eight sets; the blob format already has a palette section.
 
 ## 11. Forth / asm
 
-`screens/flash/catalog.fth` — three small words, all writing control 5 once:
+`screens/flash/graphics.fth` — three small words, all writing control 5 once:
 
 ```forth
 : oam-base! ( n -- )  ... ;   \ bits 7:2
@@ -352,7 +352,7 @@ fetch state dominate), so it is not a useful fallback.
       1,024-word `tilepal3.hex`; synth gate (alone: does not place).
 - [x] Phase 2: OAM into `scene_mem` 0–127, `oam_base` latch, OAM fetch state,
       reset clear; synth gate (combined with Phase 1: fits).
-- [x] Phase 3: JS engine + tests + BIOS clear count + `catalog.fth` words;
+- [x] Phase 3: JS engine + tests + BIOS clear count + `graphics.fth` words;
       `npm test`, `sim:dvi:tile`, lint.
 - [x] Phase 4: raster band. `split!`/`split-off`, the chained control-7
       handler and the raster IRQ are all board-verified. The "2-3 IRQs per

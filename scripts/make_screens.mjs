@@ -4,14 +4,14 @@
 //
 // SD: the card has no file system: a source file is a run of 512-byte sectors,
 // lines separated by LF, the tail padded with LF (see `include` in
-// forth/demo.fth). This writes one blob with every file starting on a sector
+// screens/flash/sd.fth). This writes one blob with every file starting on a sector
 // boundary and prints the sector range and the dd command that puts it on the
 // card at a chosen sector.
 //
 // FLASH: a screen is one 2 KB page of the on-die FLASH608K, four characters per
 // 32-bit word (little-endian, the order the CPU read port returns). Pages 25..
 // 37 are free: 0x3200 + n*512 in 32-bit flash words, which is what
-// `screen ( n -- )` in forth/demo.fth reads. A source file must fit 2048 bytes;
+// `screen ( n -- )` in forth/boot.fth reads. A source file must fit 2048 bytes;
 // the tail is padded with LF, so an empty line is a no-op.
 //
 //   node scripts/make_screens.mjs screens/starfield.fth

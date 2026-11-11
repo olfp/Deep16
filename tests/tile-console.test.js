@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { assemble, buildMemory, loadBrowserScripts, ROOT } from './helpers.js';
+import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -29,7 +30,9 @@ assert.equal(kernel.success, true, kernel.errors.join('; '));
 const sym = kernel.symbols;
 
 const sim = new globalThis.Deep16Simulator();
+const slices = buildSlices();
 sim.loadProgram(buildMemory(kernel));
+sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
 sim.segmentRegisters.CS = 0xFFFF;
 sim.running = true;
 
@@ -55,7 +58,8 @@ function cell(row, col) {
 
 test('a bottom-row line feed clears the row that scrolls in', () => {
   boot();
-  assert.equal(sim.memory[sym.tile_row], 2, 'banner and prompt occupy two rows');
+  const startRow = sim.memory[sym.tile_row];
+  assert.ok(startRow >= 2, `banner, loading lines, summary and prompt occupy ${startRow} rows`);
   assert.equal(sim.memory[sym.tile_off], 0);
 
   // Empty lines are the cheapest way down the screen: each prints the prompt

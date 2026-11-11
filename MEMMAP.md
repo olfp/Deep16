@@ -53,7 +53,7 @@ page / boot staging area.
 | Data stack top | `0x7FF0` (grows down) | `0x5FF0` (grows down) | `0x5FF0` (grows down) |
 | Display | `0xF1000` cell/attribute RAM | DVI text mirror, own cell RAM | `0xF1000` tilemap + tile engine |
 | Console | UART `0xF0040` | UART `0xF0040` | UART `0xF0040` |
-| Boot script | none | `demo.fth` baked in image | `demo.fth` baked in image |
+| Boot loader | none | `boot.fth` baked in image | `boot.fth` baked in image; `start`/modules from slices |
 | D16D showcase | none | none | BIOS segment `0x4A00` (trampoline `0x334`, header `0x3E4`) |
 
 The D16MINI and D16nano images both probe word **`0x6000`**. When it reads back,
@@ -154,7 +154,7 @@ loader. The dictionary then continues at `0x6000`.
 | `state_var` | `0x313D` | compiler state |
 | `base_var` | `0x330A` | numeric base |
 | `dp_var` | `0x3817` | dictionary pointer |
-| `boot_script` | `0x3C14` | baked `demo.fth` source |
+| `boot_script` | `0x3C14` | baked `forth/boot.fth` source |
 | `boot_ptr` | `0x3010` | next boot-script line |
 | `rp0_base` | `0x3001` | return-stack base cell (`0x5800` flat, `0x2FF0` D16SEG) |
 | `dict_free` | `0x434F` | first statically free word |
@@ -216,7 +216,7 @@ automatically after ten seconds).
 * Static image ends at `dict_free = 0x434F`; `0x4350`–`0x49FF` is the free gap
   before the BIOS at `0x4A00`.
 * On PSRAM the boot probe moves `HERE` to `0x6000`; the runtime dictionary and
-  the boot-script definitions (`free`, `mem`, `demo`, `divtest` header, etc.)
+  the boot definitions (`free`, `mem`, `divtest` header, etc.)
   live there.
 * The ceiling is `0xFFF0`; `free` reports about 39,212 words after the baked
   script definitions (the exact number depends on the script/word set).
@@ -412,7 +412,7 @@ italic 1-bit font page; the tile address is 32-word aligned, so the fill masks
 bits 4:0 out of the fetch. Text cells address the 1bpp pages at tile-bank word
 `32 + index*8 + page*768 + row/2`; tile 0 is the blank 32-word art tile and the
 art tiles stay at `0x0C00`. The
-console's current pair/style lives at `0x3BEE` (`text_attr`), and the catalog
+console's current pair/style lives at `0x3C13` (`text_attr`), and the graphics
 words `PAL!`, `ART-PAL!`, `SPRITE-PAL!`, `ATTR`, `STYLE`, `ATTR!`, `ATTR@` and
 `STYLE@` drive it.
 
@@ -464,7 +464,7 @@ initialisation clock. The SD socket is on pins 36 (SCK), 37 (MOSI), 38 (CS0),
 39 (MISO); CS1 is pin 25 for an external flash. The on-board configuration
 flash is not used.
 
-The Forth side is the **SD driver in the boot script** (`forth/demo.fth`): it
+The Forth side is the **SD driver** (`screens/flash/sd.fth`, loaded with `s" sd-card" need`): it
 reaches these registers with `es@`/`es!` (ES = `0xF000`), bit-bangs CMD0, CMD8,
 CMD55/ACMD41, CMD58 and CMD16 to identify the card, then CMD17/CMD24 for one
 512-byte sector at a time. `sd-init`, `sd-read`, `sd-write`, `sd-buf`, `blk`,
@@ -493,7 +493,7 @@ The hardware vector is `0x0001`; the kernel installs `irq_handler` (`0x51A0`)
 there at boot. The handler services raster (bit 3) before timer (bit 1): it
 clears the serviced bit and increments `SIC_RASTER` or `SIC_SCRATCH`; the
 other pending bit stays set and re-enters after `RETI`. Audio and keyboard are
-decoded but still tied off. Forth words in the catalog slice: `irq-on` (timer),
+decoded but still tied off. Forth words in the graphics slice: `irq-on` (timer),
 `raster-line!` (control 7), `raster-on`/`raster-off`, `irq-off`, `irq-clear`
 (mask), `ticks`, `raster-ticks` and `irq?`.
 ---
@@ -561,13 +561,16 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 |---|---|
 | `0x200000` + `n × 0x1000` | slice `n`, 4 KB = 2048 cells |
 | `0x200000` | slice 0: the master directory |
-| `0x201000`–`0x203FFF` | slices 1–3: the SD driver source |
-| `0x204000` | slice 4: `hello.fth` |
-| `0x205000`–`0x208FFF` | slices 5–8: catalog/editor, `p-screen`, sound, palettes |
-| `0x209000`–`0x20AFFF` | slices 9–10: `games.fth` (the flash game loader) |
-| `0x20B000`–`0x20DFFF` | slices 11–13: Pac-Man (4890 words incl. its tile pack, segment `0x2000`) |
-| `0x20E000`–`0x210FFF` | slices 14–16: Flappy (4560 words incl. pack, segment `0x5000`) |
-| `0x211000`–`0x213FFF` | slices 17–20: Frogger (6276 words incl. pack, segment `0x0600`) |
+| `0x201000` | slice 1: `start.fth` (banner, `free`, `mem`) |
+| `0x202000`–`0x203FFF` | slices 2–3: `essentials.fth` (SPI/config flash, `dir`/`find`, slice editor) |
+| `0x204000`–`0x207FFF` | slices 4–7: `edit.fth` |
+| `0x208000`–`0x209FFF` | slices 8–9: `graphics.fth` (SIC/raster, scene, palettes, I2S, sprites) |
+| `0x20A000`–`0x20BFFF` | slices 10–11: `games.fth` (the flash game loader) |
+| `0x20C000`–`0x20EFFF` | slices 12–14: `sd.fth` (loaded with `s" sd-card" need`) |
+| `0x20F000`–`0x211FFF` | slices 15–17: Pac-Man (4890 words incl. its tile pack, segment `0x2000`) |
+| `0x212000`–`0x214FFF` | slices 18–20: Flappy (4560 words incl. pack, segment `0x5000`) |
+| `0x215000`–`0x218FFF` | slices 21–24: Frogger (6276 words incl. pack, segment `0x0600`) |
+| `0x219000` | slice 25: `hello.fth` |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and
@@ -591,7 +594,7 @@ These are physical allocations; the CPU sees PSRAM at the addresses above.
 3. Kernel starts at `0x0100`, installs the SWI vector at `0x0002`, clears the
    console, probes `0x6000` for PSRAM, and moves `HERE`/the dictionary if present.
 4. The baked boot script at `boot_script` is interpreted from `boot_ptr`; its
-   definitions (`free`, `mem`, `demo`, and the D16nano `divtest` header) are added
+   definitions (`free`, `mem`, and the D16nano `divtest` header) are added
    to the dictionary.
 5. REPL/BIOS: SWI dispatches through `bios_entry` (0 bver, 1 binit, 2 putch,
    3 putstr, 4 getch, 5 getstr, 6 gfx on D16D).

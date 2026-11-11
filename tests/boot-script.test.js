@@ -1,16 +1,16 @@
-// The boot script: forth/demo.fth, baked into the image and read by read_line
+// The boot loader: forth/boot.fth, baked into the image and read by read_line
 // before the keyboard on every boot (D16MINI.md §7).
 //
-// These run on the JS core only. The script costs ~1M steps to compile, and the
-// three-core console parity tests deliberately boot with it switched off; what
-// the script defines (`free`, `mem`, `demo`) and the bytes it prints are pinned
-// here instead.
+// These run on the JS core only. The three-core console parity tests deliberately
+// boot with the loader switched off; what start defines (`free`, `mem`) and the
+// bytes the loader prints are pinned here instead.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { assemble, buildMemory, loadBrowserScripts, ROOT } from './helpers.js';
+import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -21,8 +21,10 @@ const sym = kernel.symbols;
 // has memory past the 24K window (the JS core has the full 1 MB).
 const limit = () => sim.memory[sym.dict_limit_var];
 
+const slices = buildSlices();
 const sim = new globalThis.Deep16Simulator();
 sim.loadProgram(buildMemory(kernel));
+sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
 sim.segmentRegisters.CS = 0xFFFF;
 sim.running = true;
 
@@ -37,9 +39,8 @@ function pump(steps, stream) {
 // Boot and hand back everything the REPL printed. The script compiles its
 // definitions before the first prompt, and the packed source (two characters
 // per cell, unpacked by read_line) costs a handful of instructions per
-// character; loading the catalog through `screen` adds a Forth-level `find`
-// per token, so wait for the end of the script with a generous cap instead of
-// counting steps.
+// character; loading through `screen` adds a Forth-level `find` per token, so
+// wait for the end of the script with a generous cap instead of counting steps.
 const bootStream = [];
 for (let i = 0; i < 20_000_000 && !sim.memory[sym.boot_done]; i += 1000) pump(1000, bootStream);
 pump(100_000, bootStream);          // the prompt that follows the last line
@@ -66,6 +67,14 @@ test('the boot script compiles at boot and prints the summary', () => {
   const free = Number((line.match(/,\s*(\d+) free/) || [])[1]);
   assert.equal(free, limit() - here(), 'the summary free count is here-based');
   assert.ok(free > 1000, `only ${free} words free - the script grew too far`);
+});
+
+test('the baked boot loader fits one screen', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'forth', 'boot.fth'), 'utf8');
+  const code = src.split('\n')
+    .filter((l) => l.trim() && !l.trim().startsWith('\\'))
+    .reduce((n, l) => n + l.length + 1, 0);
+  assert.ok(code <= 2040, `forth/boot.fth code is ${code} chars, past one screen`);
 });
 
 test('free is the dictionary headroom, and unused agrees with it', () => {
@@ -106,7 +115,7 @@ test('ver prints the release tuple', () => {
                `unexpected version line: ${JSON.stringify(out)}`);
 });
 
-test('asm/forth.asm carries the current forth/demo.fth', () => {
+test('asm/forth.asm carries the current forth/boot.fth', () => {
   execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'embed_forth.mjs'), '--check'],
                { cwd: ROOT, stdio: 'pipe' });
 });

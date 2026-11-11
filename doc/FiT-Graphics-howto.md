@@ -821,7 +821,7 @@ pixel. That is the raster-split primitive:
 
 ```forth
 \ one store: OAM base 8, palette set 2
-8 2 scene!        \ catalog.fth; = control 5 = (2 << 8) | (8 << 2)
+8 2 scene!        \ graphics.fth; = control 5 = (2 << 8) | (8 << 2)
 ```
 
 `oam-base!` and `pal-set!` change one field and keep the other. Existing code
@@ -950,7 +950,7 @@ in control 5 belongs to the write, not to the OAM.
 | `asm/showcase/flappy_game.asm` | `sb_emit` (bird), `set_clouds`, `set_palette` |
 | `asm/showcase/showcase.asm` | palette tables, bird pages, OAM cells |
 | `asm/demos/scroll4.asm` | `shift_left`/`shift_up` ring helper and diagonal demo |
-| `screens/flash/catalog.fth` | `row-scroll!`, raster and palette words |
+| `screens/flash/graphics.fth` | `row-scroll!`, raster and palette words |
 | `FORTH.md` | console colours, styles and Forth words |
 | `MEMMAP.md` §7.4 | the FiT address map |
 | `FROGPLAN.md` | per-row lane mapping and the Frogger plan |

@@ -97,10 +97,10 @@ test('function 1 reads the directory into segment 0x8000', () => {
   assert.equal(r1, DIR_SEG, 'segment 0x8000');
   const at = (w) => sim.memory[(DIR_SEG << 4) + w] & 0xFFFF;
   assert.equal(at(0) & 0x7000, 0x5000, 'slice-0 header magic');
-  // first entry: type 3 (screen), first slice 1, name "sd" (two chars a cell)
+  // first entry: type 3 (screen), first slice 1, name "start" (two chars a cell)
   assert.equal(at(8), 0x0003);
   assert.equal(at(9), 1);
-  assert.equal(at(10), 's'.charCodeAt(0) | ('d'.charCodeAt(0) << 8));
+  assert.equal(at(10), 's'.charCodeAt(0) | ('t'.charCodeAt(0) << 8));
 });
 
 test('function 2 finds a name and reports a miss', () => {
@@ -108,7 +108,7 @@ test('function 2 finds a name and reports a miss', () => {
   for (const [i, ch] of [...'pacman'].entries()) mem[0x0400 + i] = ch.charCodeAt(0);
   mem[0x0406] = 0;
   const hit = callBdos(2, 0x0400, { mem });
-  assert.equal(hit.r0, 11, 'pacman is slice 11');
+  assert.equal(hit.r0, slices.manifest.objects.pacman.first, 'pacman is the first pacman slice');
   assert.equal(hit.r1, 0);
 
   const missMem = buildMemory(kernel);
@@ -121,7 +121,7 @@ test('function 2 finds a name and reports a miss', () => {
 
 test('function 3 loads a type-4 block into its segment', () => {
   const pac = buildPacman();
-  const { r0, r1, sim } = callBdos(3, 11);
+  const { r0, r1, sim } = callBdos(3, slices.manifest.objects.pacman.first);
   assert.equal(r0, 0x2000, 'the segment in the slice header');
   assert.equal(r1, pac.entry);
   const base = r0 << 4;
@@ -171,7 +171,7 @@ test('a second load starts at offset 0 in its own segment', () => {
   const stub = assemble(`
         .org 0x0100
         LSI R8, 3
-        LDI 11
+        LDI ${slices.manifest.objects.pacman.first}
         MOV R9, R0
         LSI R2, 0
         MOV R10, R2
@@ -186,7 +186,7 @@ test('a second load starts at offset 0 in its own segment', () => {
         NOP
         .org 0x0200
         LSI R8, 3
-        LDI 14
+        LDI ${slices.manifest.objects.flappy.first}
         MOV R9, R0
         LSI R2, 0
         MOV R10, R2

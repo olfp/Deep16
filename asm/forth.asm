@@ -2974,72 +2974,20 @@ see_str_0branch:
 .ifdef CONSOLE_UART
 ; ---- the boot script --------------------------------------------------------
 ; Forth source, baked into the image and read by read_line before the keyboard
-; on every boot: it defines `demo`, `free` and `mem`, and prints the memory
-; summary under the banner. The text between the markers is GENERATED from
-; forth/demo.fth by scripts/embed_forth.mjs - edit that file, not this block
+; on every boot: it loads slice 1 (`start`), then essentials and edit by name.
+; `start` prints the memory summary under the banner. The text between the markers is GENERATED from
+; forth/boot.fth by scripts/embed_forth.mjs - edit that file, not this block
 ; (`node scripts/embed_forth.mjs`, and tests/forth.test.js fails if they drift).
 ; One `.text` per source line: each emits the characters (one cell each) and a
 ; NUL, which is what read_line walks.
 boot_script:
-; >>> generated from forth/demo.fth - do not edit here <<<
-    .string "here constant dict-base     \\ where this script's definitions begin"
-    .string " 256 constant kernel-base    \\ 0x0100: forth_start, where the kernel is laid"
-    .string "24576 constant window-words  \\ 0x6000: past the 24K BSRAM window"
-    .string "unused 0x4000 u> constant psram?   \\ the PSRAM probe raised the ceiling"
-    .string ": ver .\" DeepForth 1.1  BIOS 1.0  FPGA 1.1\" cr ;"
-    .string ": free ( -- d )    unused 0 ;   \\ lo, hi=0: unsigned, so d. prints it whole"
-    .string ": .addr ( u -- )    hex 0 u.r decimal ;"
-    .string ": u. ( u -- )     0 u.r ;"
-    .string ": boot.msg ( -- )"
-    .string "  psram? if"
-    .string "    .\" Deep16   1048576 words of PSRAM, \" free d. .\" free\" cr"
-    .string "  else"
-    .string "    .\" D16MINI  \" window-words u. .\"  words of BSRAM, \" free d. .\" free\" cr"
-    .string "  then ;"
-    .string ": mem ( -- )"
-    .string "  cr .\" Deep16 memory map\" cr"
-    .string "  psram? if"
-    .string "    .\"   memory   00000-FFFFF  1048576 words, 2 MiB HyperRAM (PSRAM board)\" cr"
-    .string "    .\"   image    0000-5FFF   24576 words (kernel, data, boot script, BIOS)\" cr"
-    .string "    .\"   dict     \" dict-base .addr .\" -\" here 1- .addr"
-    .string "    .\"   \" here dict-base - u. .\"  words, \" free d. .\" free\" cr"
-    .string "    .\"   UART F0040-F004F   boot ROM FFFF0-FFFFF\" cr"
-    .string "  else"
-    .string "    .\"   window   0000-5FFF   24576 words, 48 KiB BSRAM\" cr"
-    .string "    .\"   image    0100-\" here 1- .addr .\"     \" here kernel-base - u. .\"  words\" cr"
-    .string "    .\"            (kernel, data and the baked demo source)\" cr"
-    .string "    .\"   free     \" here .addr .\" -55FF     \" free d. .\" words\" cr"
-    .string "    .\"   BIOS     5600-57FF   reserved for the UART console\" cr"
-    .string "    .\"   stacks   5800-5FFF   2048 words (RP 5800 up, SP 5FF0 down)\" cr"
-    .string "    .\"   UART F0040-F004F      boot ROM FFFF0-FFFFF (16 words)\" cr"
-    .string "  then"
-    .string "  cr ;"
-    .string "0x80 constant spi-ctrl"
-    .string "0x82 constant spi-stat"
-    .string "0x84 constant spi-data"
-    .string "0x86 constant spi-div"
-    .string ": cs! ( f -- )      3 and spi-ctrl es! ;"
-    .string ": spi> ( c -- c )   spi-data es! begin spi-stat es@ 1 and 0= until"
-    .string "                    spi-data es@ 0xff and ;"
-    .string ": spi! ( c -- )     spi> drop ;"
-    .string ": cf-addr ( sector off -- )"
-    .string "  over 4 rshift 0xff and spi!"
-    .string "  over 0xf and 4 lshift"
-    .string "  over 8 rshift 0xf and or spi!"
-    .string "  0xff and spi! drop ;"
-    .string ": cf-wren ( -- )    0 spi-div es! 2 cs! 6 spi! 0 cs! ;"
-    .string ": cf-status ( -- b ) 0 spi-div es! 2 cs! 5 spi! 0xff spi> 0 cs! ;"
-    .string ": cf-wait ( -- )    begin cf-status 1 and 0= until ;"
-    .string ": cf-id ( -- )"
-    .string "  0 spi-div es!  2 cs! 0x9f spi!  hex 0xff spi> . 0xff spi> . 0xff spi> ."
-    .string "  decimal 0 cs! cr ;"
-    .string ": cf-protect ( -- ) cf-wren  2 cs! 1 spi! 0x38 spi!  0 cs! cf-wait ;"
-    .string ": cf-unprotect ( -- ) cf-wren  2 cs! 1 spi! 0x00 spi!  0 cs! cf-wait ;"
-    .string ": cf-erase ( sector -- ) cf-wren 2 cs! 0x20 spi! 0 cf-addr 0 cs! cf-wait ;"
+; >>> generated from forth/boot.fth - do not edit here <<<
     .string "create slice-buf 2048 cells allot"
     .string "create text-buf 8192 cells allot        \\ up to four 2040-char source slices"
     .string "variable slice-sec drop"
     .string "variable slice-wp drop"
+    .string "variable sf-a drop"
+    .string "variable sf-l drop"
     .string "create cf-burst-prim 0x2F49 ,"
     .string ": cf-burst ( sector buf -- ) cf-burst-prim execute ;"
     .string ": cf-read-burst ( sector -- ) slice-buf cf-burst ;"
@@ -3063,10 +3011,30 @@ boot_script:
     .string "    dup 0xffff = if drop drop r> text-buf swap included exit then"
     .string "    nip"
     .string "  again ;"
+    .string ": slice-name= ( e -- f )"
+    .string "  12 0 do"
+    .string "    i sf-l @ < if sf-a @ i + c@ else 0 then"
+    .string "    over 2 cells + i 1 rshift cells + @"
+    .string "    i 1 and 0= if 0xff and else 8 rshift 0xff and then"
+    .string "    <> if drop 0 unloop exit then"
+    .string "  loop drop 1 ;"
+    .string ": slice-find ( a u -- n )"
+    .string "  sf-l ! sf-a !"
+    .string "  0 slice"
+    .string "  255 0 do"
+    .string "    dup i 8 * cells +"
+    .string "    dup 1 cells + @ ?dup if"
+    .string "      drop"
+    .string "      dup slice-name= if 1 cells + @ nip unloop exit then"
+    .string "    then drop"
+    .string "  loop drop 0xffff ;"
+    .string ": need ( a u -- )"
+    .string "  slice-find dup 0xffff = if drop exit then"
+    .string "  >r .\" Loading \" sf-a @ sf-l @ type cr r> screen ;"
+    .string ": boot.msg ;"
     .string "1 screen"
-    .string "5 screen"
-    .string "9 screen"
-    .string "21 screen"
+    .string "s\" essentials\" need"
+    .string "s\" edit\" need"
     .string "boot.msg"
 ; <<< end generated >>>
     .text ""              ; the empty line that ends the script
@@ -3560,11 +3528,11 @@ read_line:
     ST R0, R2, 0
 .ifdef CONSOLE_UART
     ; ---- the boot script --------------------------------------------------
-    ; The demo source is baked into the image (forth/demo.fth, through
+    ; The boot loader is baked into the image (forth/boot.fth, through
     ; scripts/embed_forth.mjs) and is read here, once, before the keyboard: its
     ; lines are handed to the interpreter with the echo off, so the REPL prints
-    ; neither a prompt nor an " ok" for them. It defines `demo`, `free` and
-    ; `mem`, and prints the memory summary. When it runs out, rl_kbd puts the
+    ; neither a prompt nor an " ok" for them. It loads `start` from slice 1,
+    ; then the named modules. When it runs out, rl_kbd puts the
     ; echo back and stands the prompt the script's lines never reached.
     LDI boot_ptr
     MOV R2, R0
@@ -8848,7 +8816,7 @@ hex_digit_upper:
 ; bank BIOS clobbers R9-R12 and would otherwise corrupt the VM state.
 ; es@ and es! are @ and ! through ES, which is the MMIO segment (0xF000):
 ; DS points at the kernel's data and cannot reach 0xF0080, so the Forth that
-; talks to a peripheral - the SD card driver in forth/demo.fth - needs these.
+; talks to a peripheral - the SD card driver in screens/flash/sd.fth - needs these.
 word_esfetch:               ; es@ ( addr -- x )
     LDI sp0_base
     MOV R2, R0

@@ -25,7 +25,7 @@ const uart = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8
 const rowsOf = (term) => term.text().map((r) => r.replace(/\s+$/, ''));
 
 // These tests are about the console, not the boot script: the image now carries
-// forth/demo.fth (read_line interprets it before the keyboard) and compiling it
+// forth/boot.fth (read_line interprets it before the keyboard) and compiling it
 // costs ~1M steps, which would dominate the suite. Zeroing `boot_ptr` boots
 // straight to the REPL, exactly as the kernel did before the script existed.
 // tests/boot-script.test.js is where the script itself is exercised.
