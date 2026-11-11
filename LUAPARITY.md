@@ -122,7 +122,9 @@ assignment are implemented. The remaining core-language gaps are:
 4. ~~**Minimal standard library:** `type`, `tostring`, `tonumber`, `assert`,
    `error`, `pcall`, string basics, and `math` basics.~~ Done: native builtins,
    dotted globals, string basics, integer math, and `pcall` error handling.
-5. **Metatables** once the value and table models are stable.
+5. ~~**Metatables** once the value and table models are stable.~~ Done: the
+   documented metamethod subset, `rawget`/`rawset`/`rawequal`, and
+   `setmetatable`/`getmetatable`.
 
 ## 8. Out of scope for the tagged-value pass
 
