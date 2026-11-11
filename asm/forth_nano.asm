@@ -321,6 +321,22 @@ d16d_game_ret:
     MOV PC, R0
     NOP
 d16d_menu_done:
+    ; The request cells reused R5/R6 for the entry/mode. Put the Forth's
+    ; >IN and TIB back before Q hands control anywhere outside the loop.
+    MVS R3, DS
+    LDI 0x04A0
+    MVS DS, R0
+    LDI 0x4FA
+    MOV R2, R0
+    LD R5, R2, 0
+    LD R6, R2, 1
+    MVS DS, R3
+    LDI d16d_exit
+    MOV R2, R0
+    LDS R0, CS, R2
+    MOV PC, R0
+    NOP
+d16d_menu_boot:
 .endif
 
 cursor_on:
@@ -4509,11 +4525,14 @@ sq_buf:
 .ifdef D16D
 word_gfx:
     ; gfx ( -- )  run the D16D showcase menu and return to a restored console.
-    ; The BIOS handler saves the Forth's R5/R6, runs the menu from the BIOS
-    ; segment, and clears the tilemap/scroll/OAM before RETI.
-    LDI 6                ; BIOS gfx
-    SWI
+    ; The boot menu loop also launches the game the menu asks for, so enter it
+    ; with the exit target set to the interpreter rather than the banner.
     LDI next
+    MOV R2, R0
+    LDI d16d_exit
+    MOV R3, R0
+    STS R2, CS, R3
+    LDI d16d_menu
     MOV PC, R0
     NOP
 .endif
@@ -11818,6 +11837,15 @@ cc_loop:
     NOP
     JMP LR
     NOP
+
+.ifdef D16D
+.org 0x1F3C
+; Where Q in the gfx menu resumes: the boot falls through to the console,
+; while the Forth word returns to its interpreter loop. CS-relative so the
+; DS data layout (and the catalog's text_attr literal) stays put.
+d16d_exit:
+    .word d16d_menu_boot
+.endif
 
 .org 0x2000
 .code

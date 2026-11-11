@@ -81,6 +81,61 @@ test('Q returns from the menu to the Forth console', () => {
   assert.equal(topLeft & 0x0FFF, glyph('H'), 'the console starts at the top-left after Q');
 });
 
+// Drive the machine until pred() holds, collecting the UART text. Returns
+// the steps used so the callers can keep one overall budget.
+function runText(sim, pred, cap, onText = () => {}) {
+  let steps = 0;
+  while (sim.running && steps < cap && !pred()) {
+    sim.step();
+    steps++;
+    if (sim.uartTx.length) {
+      const text = sim.uartTx.splice(0).map((b) => String.fromCharCode(b)).join('');
+      onText(text);
+    }
+  }
+  return steps;
+}
+
+test('gfx from the console launches the game the menu picks', () => {
+  // The menu's game request is handled by the kernel loop at boot. Entering
+  // the menu with the `gfx` word must use that same loop, otherwise selecting
+  // a game just returns to the prompt.
+  const sim = boot();
+  let steps = toMenu(sim);
+  sim.kbdBuffer.push(0x51);                        // Q: console
+  let text = '';
+  steps += runText(sim, () => text.includes('> '), 1500000, (t) => { text += t; });
+  assert.match(text, /Hello DeepForth!/, 'the console started');
+
+  for (const ch of 'gfx\r') sim.kbdBuffer.push(ch.charCodeAt(0));
+  steps += runText(sim, () => (sim.memory[cell(19, 29)] & 0x0FFF) === glyph('A'), 2000000);
+  assert.equal(sim.memory[cell(19, 29)] & 0x0FFF, glyph('A'), 'gfx drew the menu again');
+
+  sim.kbdBuffer.push(0x46);                        // F: Flappy
+  steps += runText(sim, () => sim.segmentRegisters.CS === 0x5000, 2000000);
+  assert.equal(sim.segmentRegisters.CS, 0x5000, 'Flappy is running from the console gfx');
+});
+
+test('Q in the gfx menu returns to a working Forth prompt', () => {
+  const sim = boot();
+  toMenu(sim);
+  sim.kbdBuffer.push(0x51);                        // Q: console
+  let text = '';
+  runText(sim, () => text.includes('> '), 1500000, (t) => { text += t; });
+
+  for (const ch of 'gfx\r') sim.kbdBuffer.push(ch.charCodeAt(0));
+  runText(sim, () => (sim.memory[cell(19, 29)] & 0x0FFF) === glyph('A'), 2000000);
+  const from = text.length;
+  sim.kbdBuffer.push(0x51);                        // Q: back to the prompt
+  runText(sim, () => text.slice(from).includes('> '), 1000000, (t) => { text += t; });
+  assert.equal(sim.segmentRegisters.CS, 0, 'the console is back in the kernel segment');
+
+  for (const ch of '2 2 + .\r') sim.kbdBuffer.push(ch.charCodeAt(0));
+  const calc = text.length;
+  runText(sim, () => text.slice(calc).includes(' 4 '), 2000000, (t) => { text += t; });
+  assert.match(text.slice(calc), / 4 /, 'the interpreter still consumes a line after gfx');
+});
+
 test('the idle menu autoruns Flappy after ten seconds', () => {
   const sim = boot();
   let steps = toMenu(sim);
