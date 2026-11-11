@@ -15,32 +15,47 @@
 
 variable edit-pos drop
 variable edit-done drop
+variable ts-lines drop
+variable ts-a drop
+variable ts-last drop
 
 \ decimal without a trailing space, for the ANSI CUP parameters
-: .dec ( u -- ) 0 <# #s #> type ;
-: at-xy ( col row -- )
-  0x1b emit 0x5b emit
-  1+ .dec 0x3b emit 1+ .dec 0x48 emit ;
-: edit-clear ( -- )
-  0x1b emit 0x5b emit 0x32 emit 0x4a emit ;
+: edit-clear ( -- ) cls ;                  \ clear, home and reset the scroll offset
 
 : edit-buf ( -- a ) slice-buf 8 cells + ;
 : edit-col ( -- c ) edit-pos @ edit-w mod ;
 : edit-row ( -- r ) edit-pos @ edit-w / ;
-: edit-cursor ( -- ) edit-col edit-row at-xy ;
+\ The tile engine cursor: control word at ES:0x2000 is
+\ (row << 8) | (col << 1) | 1, and 0x2002 is the scroll offset. This is the
+\ same pair the BIOS publishes, without an ANSI CUP sequence.
+: edit-cursor ( -- )
+  0xF000 seg-base!
+  edit-row 8 lshift edit-col 1 lshift or 1 or 0x2000 es!
+  0 0x2002 es! ;
 
 \ A LF (or any other control) in the buffer shows as a space, so a source
 \ slice's LF padding cannot break the 24x80 grid.
-: edit-cell ( c -- )
-  dup 32 127 within if emit else drop 32 emit then ;
+\ One tile cell: printable chars keep their glyph, control/blank chars become
+\ the space tile. text_attr carries the console pair and mode bits.
+: edit-tile ( c -- tile )
+  dup 32 127 within if else drop 32 then
+  32 - 5 lshift text-attr @ or ;
 
+\ Draw the 24x80 window straight into the tile buffer. No per-character BIOS
+\ putch and no row wraps: the old path emitted 80 characters per row, so the
+\ last row wrapped and scrolled the screen, concealing the first line.
 : edit-draw ( -- )
   edit-clear
+  0xF000 seg-base!
   edit-h 0 do
-    0 i at-xy
     edit-buf i edit-w * +
-    edit-w 0 do dup i + c@ edit-cell loop
-    drop
+    0x1000 i 82 * +
+    edit-w 0 do
+      over i + c@ edit-tile
+      over es!
+      1+
+    loop
+    2drop
   loop
   edit-cursor ;
 
@@ -62,14 +77,21 @@ variable edit-done drop
 
 : edit-put ( c -- )
   dup edit-buf edit-pos @ + c!
-  emit
+  edit-tile
+  0xF000 seg-base!
+  edit-pos @ edit-w / 82 * 0x1000 +
+  edit-pos @ edit-w mod +
+  es!
   edit-right
   edit-cursor ;
 : edit-bs ( -- )
   edit-pos @ 0= if exit then
   edit-pos @ 1- edit-pos !
   edit-buf edit-pos @ + 32 swap c!
-  32 emit
+  0xF000 seg-base!
+  edit-pos @ edit-w / 82 * 0x1000 +
+  edit-pos @ edit-w mod +
+  0 swap es!
   edit-cursor ;
 
 : edit-x ( -- )
@@ -101,7 +123,7 @@ variable edit-done drop
   0 edit-done ! 0 edit-pos !
   edit-draw
   begin key edit-key edit-done @ until
-  edit-clear 0 0 at-xy
+  edit-clear 0 edit-pos ! edit-cursor
   edit-done @ 1 = if slice-flush else ." discarded" cr then ;
 
 \ The last non-LF cell, so a source slice's LF padding does not print as
@@ -120,13 +142,28 @@ variable edit-done drop
   slice dup slice-valid? 0= if
     drop ." type-slice: no slice" cr exit
   then
-  8 cells + dup slice-last
-  0 do
-    dup i + c@
-    dup 32 127 within if emit
-    else dup 10 = if cr then drop
+  8 cells + dup ts-a ! slice-last ts-last !
+  cr 0 ts-lines !
+  ts-last @ 1+ 0 do
+    ts-a @ i + c@
+    dup 32 127 within if
+      emit
+    else
+      dup 10 = if
+        cr
+        1 ts-lines +!
+        ts-lines @ 23 = if
+          i 1+ ts-last @ < if
+            ." -- more --"
+            key drop cr
+            0 ts-lines !
+          then
+        then
+      then
+      drop
     then
-  loop drop ;
+  loop
+  cr ;
 
 \ ---- serial port (0xF0040/42), separate from the console ------------------
 0x40 constant serial-status

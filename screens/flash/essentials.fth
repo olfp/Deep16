@@ -27,6 +27,10 @@
 : cf-unprotect ( -- ) cf-wren  2 cs! 1 spi! 0x00 spi!  0 cs! cf-wait ;
 : cf-erase ( sector -- ) cf-wren 2 cs! 0x20 spi! 0 cf-addr 0 cs! cf-wait ;
 
+\ The console attribute cell: 0x8000 | text pair << 12. The editor needs it
+\ without loading graphics, so it lives here with the console-adjacent words.
+0x3C13 constant text-attr
+
 create dir-tmp 8 cells allot
 variable add-n drop
 variable sn-a drop

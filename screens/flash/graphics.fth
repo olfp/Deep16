@@ -48,7 +48,6 @@
    0 split-val es! raster-off 0 raster-line! 0 0x200A es! 0 0x2006 es! ;
 
 \ ---- text/art/sprite palette banks, 0xF6080/90/A0 -----------------------
-0x3C13 constant text-attr
 : pal! ( bg ink pair -- )        dup 2* 0x6080 + >r drop r@ 1+ es! r> es! ;
 : art-pal! ( bg ink pair -- )    dup 2* 0x6090 + >r drop r@ 1+ es! r> es! ;
 : sprite-pal! ( bg ink pair -- ) dup 2* 0x60A0 + >r drop r@ 1+ es! r> es! ;

@@ -3999,7 +3999,7 @@ text_attr:
 boot_script:
 ; >>> generated from forth/boot.fth - do not edit here <<<
     .string "create slice-buf 2048 cells allot"
-    .string "create text-buf 8192 cells allot        \\ up to four 2040-char source slices"
+    .string "create text-buf 10240 cells allot       \\ up to five 2040-char source slices"
     .string "variable slice-sec drop"
     .string "variable slice-wp drop"
     .string "variable sf-a drop"
@@ -4018,7 +4018,7 @@ boot_script:
     .string ": screen ( n -- )"
     .string "  dup 0 511 within 0= if .\" screen: 0..511\" cr drop exit then"
     .string "  0 >r  begin"
-    .string "    r@ 8160 < 0= if .\" screen: too long\" cr r> 2drop exit then"
+    .string "    r@ 10200 < 0= if .\" screen: too long\" cr r> 2drop exit then"
     .string "    dup slice  ( n a )"
     .string "    dup slice-valid? 0= if 2drop r> drop exit then"
     .string "    dup 8 cells +  text-buf r@ cells +  2040 move"
@@ -5922,6 +5922,14 @@ scrstore_ok:
 ; kernel does for the program, not a door left open for it. ( value -- ) is how
 ; the !-family words here work; cls leaves nothing behind.
 word_cls:
+.ifdef D16D
+    ; binit clears the map but does not reset the scroll offset. Home the
+    ; offset first, so its ESC[H publishes row 0 in the right window.
+    LDI tile_off
+    MOV R2, R0
+    LDI 0
+    ST R0, R2, 0
+.endif
     LDI 1
     SWI                     ; BIOS binit, with no parameters: the function
                             ; number is the whole call. On the terminal that is
@@ -5955,6 +5963,7 @@ wplusstore_ok:
     LD R2, SP, 0          ; addr
     ADD SP, 1
     LD R1, SP, 0          ; n
+    ADD SP, 1
     LD R3, R2, 0          ; old
     ADD R3, R1
     ST R3, R2, 0

@@ -1,4 +1,4 @@
-\ screens/flash/hello.fth - a config-flash source slice, loaded with `25 screen`
+\ screens/flash/hello.fth - a config-flash source slice, loaded with `26 screen`
 \ (or `s" hello" find screen`).
 \
 \ A source slice is one 4 KB file-system sector: 2040 characters in cells

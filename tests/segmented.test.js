@@ -194,6 +194,45 @@ test('type-slice prints the printable payload and trims the LF padding', () => {
   assert.ok(sim.running);
 });
 
+test('type-slice pages 23 lines and waits for a key', () => {
+  const from = out.length;
+  for (const ch of '4 type-slice\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
+  const pages = () => (out.slice(from).match(/-- more --/g) || []).length;
+  for (let i = 0; i < 30_000_000 && pages() === 0; i++) step(1);
+  assert.equal(pages(), 1, 'the first page stops with -- more --');
+  let seen = pages();
+  for (let p = 0; p < 40 && !out.endsWith('> '); p++) {
+    sim.kbdBuffer.push(0x20);
+    for (let i = 0; i < 20_000_000; i++) {
+      step(1);
+      if (out.endsWith('> ') || pages() > seen) break;
+    }
+    seen = pages();
+  }
+  assert.ok(out.endsWith('> '), 'the interpreter is back after the pages');
+  assert.ok(seen > 1, 'at least one more page was shown');
+  sim.kbdBuffer.length = 0;                  // no page keys may leak into later tests
+  assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'type-slice leaves the stack clean');
+});
+
+test('edit-slice draws the first tile row without scrolling', () => {
+  const TILE = 0xF1000;
+  const cell = (r, c) => sim.memory[TILE + r * 82 + c] & 0x0FFF;
+  const glyph = (ch) => (ch.charCodeAt(0) - 0x20) * 32;
+  line('45 3 slice-create');
+  line('slice-buf 8 cells + 2040 65 fill');
+  line('slice-flush');
+  for (const ch of '45 edit-slice\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
+  for (let i = 0; i < 4_000_000 && (cell(0, 0) !== glyph('A') || cell(23, 0) !== glyph('A')); i++) step(1);
+  assert.equal(cell(0, 0), glyph('A'), 'the first row is visible');
+  assert.equal(cell(23, 0), glyph('A'), 'the last row is visible');
+  assert.equal(ds(sym.tile_off), 0, 'the editor did not scroll');
+  sim.kbdBuffer.push(0x18, 0x03);            // C-X C-C: discard and exit
+  for (let i = 0; i < 4_000_000 && !out.endsWith('> '); i++) step(1);
+  assert.ok(out.endsWith('> '), 'edit-slice returned to the prompt');
+  assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'edit-slice leaves the stack clean');
+});
+
 test('edit-slice overwrites at the cursor and Ctrl-X Ctrl-S saves', () => {
   // Slice 40 was created and flushed by the previous test. C-F (right), D at
   // 1, C-A (home), A at 0, C-X C-S.
@@ -336,9 +375,9 @@ test('the catalog\'s ATTR cell is the kernel\'s text_attr', () => {
   // The catalog is Forth source and cannot see assembler symbols, so the cell
   // is a literal there. Pin the two together or a kernel edit silently makes
   // ATTR write the wrong cell (it did once).
-  const src = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'graphics.fth'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'essentials.fth'), 'utf8');
   const m = src.match(/0x([0-9A-Fa-f]+) constant text-attr/);
-  assert.ok(m, 'graphics defines text-attr');
+  assert.ok(m, 'essentials defines text-attr');
   assert.equal(parseInt(m[1], 16), sym.text_attr, 'catalog constant matches the kernel symbol');
 });
 

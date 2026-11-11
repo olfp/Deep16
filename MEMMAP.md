@@ -563,14 +563,14 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x200000` | slice 0: the master directory |
 | `0x201000` | slice 1: `start.fth` (banner, `free`, `mem`) |
 | `0x202000`–`0x203FFF` | slices 2–3: `essentials.fth` (SPI/config flash, `dir`/`find`, slice editor) |
-| `0x204000`–`0x207FFF` | slices 4–7: `edit.fth` |
-| `0x208000`–`0x209FFF` | slices 8–9: `graphics.fth` (SIC/raster, scene, palettes, I2S, sprites) |
-| `0x20A000`–`0x20BFFF` | slices 10–11: `games.fth` (the flash game loader) |
-| `0x20C000`–`0x20EFFF` | slices 12–14: `sd.fth` (loaded with `s" sd-card" need`) |
-| `0x20F000`–`0x211FFF` | slices 15–17: Pac-Man (4890 words incl. its tile pack, segment `0x2000`) |
-| `0x212000`–`0x214FFF` | slices 18–20: Flappy (4560 words incl. pack, segment `0x5000`) |
-| `0x215000`–`0x218FFF` | slices 21–24: Frogger (6276 words incl. pack, segment `0x0600`) |
-| `0x219000` | slice 25: `hello.fth` |
+| `0x204000`–`0x208FFF` | slices 4–8: `edit.fth` |
+| `0x209000`–`0x20AFFF` | slices 9–10: `graphics.fth` (SIC/raster, scene, palettes, I2S, sprites) |
+| `0x20B000`–`0x20CFFF` | slices 11–12: `games.fth` (the flash game loader) |
+| `0x20D000`–`0x20FFFF` | slices 13–15: `sd.fth` (loaded with `s" sd-card" need`) |
+| `0x210000`–`0x212FFF` | slices 16–18: Pac-Man (4890 words incl. its tile pack, segment `0x2000`) |
+| `0x213000`–`0x215FFF` | slices 19–21: Flappy (4560 words incl. pack, segment `0x5000`) |
+| `0x216000`–`0x219FFF` | slices 22–25: Frogger (6276 words incl. pack, segment `0x0600`) |
+| `0x21A000` | slice 26: `hello.fth` |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and

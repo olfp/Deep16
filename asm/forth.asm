@@ -2637,10 +2637,15 @@ h_esstore:
     .text "es!"
     .word word_esstore
 h_esfetch:
-    .word h_esstore
+    .word h_segbase
     .word 3
     .text "es@"
     .word word_esfetch
+h_segbase:
+    .word h_esstore
+    .word 9
+    .text "seg-base!"
+    .word word_segbase
 forth_wl:
     .word h_esfetch           ; newest built-in header in the FORTH vocabulary
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
@@ -2983,7 +2988,7 @@ see_str_0branch:
 boot_script:
 ; >>> generated from forth/boot.fth - do not edit here <<<
     .string "create slice-buf 2048 cells allot"
-    .string "create text-buf 8192 cells allot        \\ up to four 2040-char source slices"
+    .string "create text-buf 10240 cells allot       \\ up to five 2040-char source slices"
     .string "variable slice-sec drop"
     .string "variable slice-wp drop"
     .string "variable sf-a drop"
@@ -3002,7 +3007,7 @@ boot_script:
     .string ": screen ( n -- )"
     .string "  dup 0 511 within 0= if .\" screen: 0..511\" cr drop exit then"
     .string "  0 >r  begin"
-    .string "    r@ 8160 < 0= if .\" screen: too long\" cr r> 2drop exit then"
+    .string "    r@ 10200 < 0= if .\" screen: too long\" cr r> 2drop exit then"
     .string "    dup slice  ( n a )"
     .string "    dup slice-valid? 0= if 2drop r> drop exit then"
     .string "    dup 8 cells +  text-buf r@ cells +  2040 move"
@@ -4867,6 +4872,7 @@ wplusstore_ok:
     LD R2, SP, 0          ; addr
     ADD SP, 1
     LD R1, SP, 0          ; n
+    ADD SP, 1
     LD R3, R2, 0          ; old
     ADD R3, R1
     ST R3, R2, 0
@@ -8856,6 +8862,24 @@ wesstore_ok:
     ADD SP, 1
     STS R1, ES, R2
     LDI next
+    MOV PC, R0
+    NOP
+
+word_segbase:               ; seg-base! ( seg -- )  set ES, used by loaders
+    LDI sp0_base
+    MOV R2, R0
+    LD R1, R2, 0
+    CMP SP, R1
+    JZ wsegbase_under
+    NOP
+    LD R1, SP, 0
+    ADD SP, 1
+    MVS ES, R1
+    LDI next
+    MOV PC, R0
+    NOP
+wsegbase_under:
+    LDI stack_underflow_error
     MOV PC, R0
     NOP
 
