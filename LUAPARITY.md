@@ -1,6 +1,6 @@
 # LUAPARITY — LILA gaps relative to Lua 5.4
 
-Status: working note, 10 Nov 2026.
+Status: working note, 11 Nov 2026.
 
 LILA now has three-cell tagged values, mixed-tag tables, dynamically retyped
 variables, growable tables, lexical `local` declarations, and first-class
@@ -62,8 +62,9 @@ assignment are implemented. The remaining core-language gaps are:
 - **No escape sequences** and no quotes inside literals.
 - **No long strings** (`[[...]]`) or long comments.
 - **No `..` concatenation operator**; LILA uses `+`.
-- **No string library:** no `sub`, `byte`, `char`, `format`, `find`, `match`,
-  `gmatch`, `gsub`, `rep`, `upper`, `lower`, or `reverse`.
+- **Partial string library.** `len`, `sub`, `upper`, `lower`, `rep`,
+  `reverse`, `byte`, and `char` are implemented. `format`, `find`, `match`,
+  `gmatch`, and `gsub` are not.
 - **No Lua patterns.**
 - **No number/string coercion** in arithmetic or concatenation.
 - **`print` is not Lua-like.** LILA prints values back-to-back without Lua's
@@ -73,33 +74,36 @@ assignment are implemented. The remaining core-language gaps are:
 
 - **32-bit signed integers only.** No 64-bit integers and no floats; the float
   tag is reserved but unimplemented.
-- **No `math` library.**
+- **Integer-only `math` library.** `abs`, `max`, `min`, `floor`, `ceil`,
+  `type`, `tointeger`, `maxinteger`, and `mininteger` are implemented. Missing:
+  `random`, trigonometry, logarithms, and the rest of Lua's `math` table.
 - **No bitwise operators.** `%`, `^`, and floor division `//` are implemented
   with 32-bit integer semantics; `^` rejects negative exponents.
-- **No `tonumber`, `tostring`, `math.type`, integer/float distinction, `NaN`,
-  or infinities.**
+- **No integer/float distinction, `NaN`, infinities, or 64-bit integers.**
+  `tonumber`, `tostring`, and `math.type` exist but cover 32-bit integers only.
 - **Overflow and division edge cases are not Lua-compatible.**
 
 ## 5. Errors and runtime facilities
 
-- **No `error`, `assert`, `pcall`, or `xpcall`.**
-- Runtime tag errors abort the program rather than producing an error value.
+- **`error`, `assert`, and `pcall` are implemented.** There is no `xpcall`.
+- Runtime tag errors produce error values and can be caught by `pcall`; an
+  uncaught error aborts the running chunk.
 - **No stack traces or traceback API.**
 - **No `collectgarbage`.**
 - **No coroutines:** no `coroutine.create`, `resume`, `yield`, `wrap`, or
   `status`.
 - **No modules or packages:** no `require`, `package`, `_ENV`, or environments.
 - **No `io`, `os`, `debug`, `utf8`, or `coroutine` libraries.**
-- **No `type`, `tostring`, `tonumber`, `rawget`, `rawset`, `rawequal`,
-  `setmetatable`, `getmetatable`, `next`, or `select`.**
+- **No `rawget`, `rawset`, `rawequal`, `setmetatable`, `getmetatable`, or
+  `next`.**
 
 ## 6. Implementation-level differences
 
 - LILA compiles to Forth, not Lua bytecode.
 - The collector is a simple conservative mark-sweep, without Lua's
   generational or incremental behavior.
-- There is no standard-library boundary yet; most Lua programs depend heavily
-  on it.
+- The minimal standard library is implemented as native closures. Most of
+  Lua's larger libraries (table, io, os, string patterns) are still absent.
 - The target is Deep16 with 16-bit cells, so 64-bit integers and floats require
   more than a small change.
 
@@ -109,9 +113,11 @@ assignment are implemented. The remaining core-language gaps are:
    `table` functions.
 2. ~~**Boolean/logical operators** and a Lua-like operator set.~~ Done: `and`,
    `or`, `not`, `==`, `~=`, `<=`, `>=`, `%`, `//`, and `^`.
-3. **Multiple returns and varargs.**
-4. **Minimal standard library:** `type`, `tostring`, `tonumber`, `assert`,
-   `error`, `pcall`, string basics, and `math` basics.
+3. ~~**Multiple returns and varargs.**~~ Done: multi-value returns, varargs,
+   `select`, forwarding, and multiple assignment.
+4. ~~**Minimal standard library:** `type`, `tostring`, `tonumber`, `assert`,
+   `error`, `pcall`, string basics, and `math` basics.~~ Done: native builtins,
+   dotted globals, string basics, integer math, and `pcall` error handling.
 5. **Metatables** once the value and table models are stable.
 
 ## 8. Out of scope for the tagged-value pass

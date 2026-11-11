@@ -629,3 +629,94 @@ function mfirst(...)
   return select(1, ...)
 end
 print(mfirst(99, 100))          -- 99
+
+-- minimal standard library: type, conversion, strings, math, errors
+std_type_num = type(1)
+std_type_str = type("x")
+std_type_bool = type(true)
+std_type_nil = type(nil)
+std_type_table = type({})
+std_type_fn = type(type)
+print(std_type_num)             -- number
+print(std_type_str)             -- string
+print(std_type_bool)            -- boolean
+print(std_type_nil)             -- nil
+print(std_type_table)           -- table
+print(std_type_fn)              -- function
+
+std_numstr = tostring(-45)
+std_boolstr = tostring(true)
+std_nilstr = tostring(nil)
+std_tonum = tonumber(" 42 ")
+std_tonum_hex = tonumber("0x1f")
+std_tonum_bad = tonumber("nope")
+print(std_numstr)               -- -45
+print(std_boolstr)              -- true
+print(std_nilstr)               -- nil
+print(std_tonum)                -- 42
+print(std_tonum_hex)            -- 31
+print(std_tonum_bad)            -- nil
+
+std_sub = string.sub("abcdef", 2, 4)
+std_sub_neg = string.sub("abcdef", -2)
+std_upper = string.upper("MiXeD")
+std_lower = string.lower("MiXeD")
+std_rep = string.rep("ab", 3)
+std_rev = string.reverse("abc")
+std_len = string.len("hello")
+std_byte = string.byte("abc", 2)
+std_char = string.char(65, 66, 67)
+print(std_sub)                  -- bcd
+print(std_sub_neg)              -- ef
+print(std_upper)                -- MIXED
+print(std_lower)                -- mixed
+print(std_rep)                  -- ababab
+print(std_rev)                  -- cba
+print(std_len)                  -- 5
+print(std_byte)                 -- 98
+print(std_char)                 -- ABC
+
+std_abs = math.abs(-9)
+std_max = math.max(3, 9, 4)
+std_min = math.min(3, 9, 4)
+std_mtype = math.type(7)
+std_toint = math.tointeger(5)
+std_maxint = math.maxinteger
+std_minint = math.mininteger
+print(std_abs)                  -- 9
+print(std_max)                  -- 9
+print(std_min)                  -- 3
+print(std_mtype)                -- integer
+print(std_toint)                -- 5
+print(std_maxint)               -- 2147483647
+print(std_minint)               -- -2147483648
+
+-- builtins are first-class closures
+std_first = tostring
+std_firstout = std_first(88)
+print(std_firstout)             -- 88
+
+-- error/assert/pcall
+function std_add(a, b) return a + b end
+std_pok, std_pval = pcall(std_add, 2, 3)
+print(std_pok, std_pval)        -- true 5
+
+function std_boom() error("boom") end
+std_perr, std_pmsg = pcall(std_boom)
+print(std_perr, std_pmsg)       -- false boom
+
+function std_badarg(v) return v + 1 end
+std_pbad, std_pbadmsg = pcall(std_badarg, "x")
+print(std_pbad, std_pbadmsg)    -- false lila: cannot add these values
+
+function std_failassert() assert(false, "nope") end
+std_pas, std_pamsg = pcall(std_failassert)
+print(std_pas, std_pamsg)       -- false nope
+
+std_assertval = assert(5)
+std_ax, std_ay = assert(1, 2)
+print(std_assertval, std_ax, std_ay)  -- 5 1 2
+
+-- pcall with no callable first argument returns an error instead of hanging
+std_pnone, std_pnonemsg = pcall()
+print(std_pnone, std_pnonemsg)  -- false lila: function expected

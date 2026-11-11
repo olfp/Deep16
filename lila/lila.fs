@@ -9,6 +9,7 @@ include ../compat/deepforth-gforth.fs
 include farxt.fs
 include gc.fs
 include value.fs
+include stdlib.fs
 include hash.fs
 include compiler.fs
 

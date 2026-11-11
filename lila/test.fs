@@ -359,5 +359,53 @@ lila-var-mlsum 30 check-num
 lila-var-mta 11 check-num
 lila-var-mtb 12 check-num
 
+\ minimal standard library: type, conversions, strings, math, errors
+lila-var-std_type_num s" number" check-str
+lila-var-std_type_str s" string" check-str
+lila-var-std_type_bool s" boolean" check-str
+lila-var-std_type_nil s" nil" check-str
+lila-var-std_type_table s" table" check-str
+lila-var-std_type_fn s" function" check-str
+lila-var-std_numstr s" -45" check-str
+lila-var-std_boolstr s" true" check-str
+lila-var-std_nilstr s" nil" check-str
+lila-var-std_tonum 42 check-num
+lila-var-std_tonum_hex 31 check-num
+lila-var-std_tonum_bad check-nil
+
+lila-var-std_sub s" bcd" check-str
+lila-var-std_sub_neg s" ef" check-str
+lila-var-std_upper s" MIXED" check-str
+lila-var-std_lower s" mixed" check-str
+lila-var-std_rep s" ababab" check-str
+lila-var-std_rev s" cba" check-str
+lila-var-std_len 5 check-num
+lila-var-std_byte 98 check-num
+lila-var-std_char s" ABC" check-str
+
+lila-var-std_abs 9 check-num
+lila-var-std_max 9 check-num
+lila-var-std_min 3 check-num
+lila-var-std_mtype s" integer" check-str
+lila-var-std_toint 5 check-num
+lila-var-std_maxint 2147483647 check-num
+lila-var-std_minint -2147483648 check-num
+lila-var-std_firstout s" 88" check-str
+
+\ pcall returns a success flag plus results, or a failure flag plus the error
+lila-var-std_pok true check-bool
+lila-var-std_pval 5 check-num
+lila-var-std_perr false check-bool
+lila-var-std_pmsg s" boom" check-str
+lila-var-std_pbad false check-bool
+lila-var-std_pbadmsg s" lila: cannot add these values" check-str
+lila-var-std_pas false check-bool
+lila-var-std_pamsg s" nope" check-str
+lila-var-std_assertval 5 check-num
+lila-var-std_ax 1 check-num
+lila-var-std_ay 2 check-num
+lila-var-std_pnone false check-bool
+lila-var-std_pnonemsg s" lila: function expected" check-str
+
 ." lila tests passed" cr
 bye

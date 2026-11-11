@@ -473,6 +473,100 @@ unary minus, function calls, string concatenation with `+`, and `length(s)`.
 LILA variables are prefixed in Forth as `lila-var-<name>` and are three-cell
 tagged values accessible with `lila-value@` and `lila-value!`.
 
+## Standard library
+
+The basic library functions are native closures installed as globals, so they
+are ordinary first-class values. A builtin may be stored, passed to another
+function, returned, and called through a variable:
+
+```lisp
+f = string.sub
+print(f("abcdef", 2, 4))       -- bcd
+print(type(string.sub))        -- function
+```
+
+The global functions are:
+
+| Function | Result |
+|---|---|
+| `type(v)` | `"nil"`, `"number"`, `"boolean"`, `"string"`, `"table"`, or `"function"` |
+| `tostring(v)` | the value as `print` renders it |
+| `tonumber(s)` / `tonumber(s, base)` | a number, or `nil` when `s` is not a numeral |
+| `assert(v, message)` | all its arguments when `v` is truthy; raises an error otherwise |
+| `error(value)` | raises `value` as an error |
+| `pcall(f, ...)` | `true, results...` on success; `false, error` on failure |
+
+`tonumber` trims surrounding spaces, accepts an optional sign, and understands
+an optional `0x`/`0X` prefix. An explicit base must be between 2 and 36. A
+failed conversion returns `nil` rather than raising:
+
+```lisp
+print(tonumber(" 42 "))        -- 42
+print(tonumber("-17"))         -- -17
+print(tonumber("0x1f"))        -- 31
+print(tonumber("ff", 16))      -- 255
+print(tonumber("nope"))        -- nil
+```
+
+The string functions are `string.len(s)`, `string.sub(s, i [, j])`,
+`string.upper(s)`, `string.lower(s)`, `string.rep(s, n)`,
+`string.reverse(s)`, `string.byte(s [, i])`, and `string.char(...)`.
+Indexes are 1-based; a negative index counts from the end of the string.
+`string.sub` returns the empty string for an out-of-range slice,
+`string.rep` returns the empty string when `n <= 0`, and `string.byte`
+returns `nil` when the index is outside the string. `string.char` builds a
+string from byte values 0 through 255. Case conversion is ASCII-only.
+
+```lisp
+print(string.sub("abcdef", 2, 4))   -- bcd
+print(string.sub("abcdef", -2))     -- ef
+print(string.upper("MiXeD"))        -- MIXED
+print(string.rep("ab", 3))          -- ababab
+print(string.byte("abc", 2))        -- 98
+print(string.char(65, 66, 67))      -- ABC
+```
+
+The math functions are `math.abs`, `math.max`, `math.min`, `math.floor`,
+`math.ceil`, `math.type`, `math.tointeger`, `math.maxinteger`, and
+`math.mininteger`. All arithmetic is signed 32-bit integer arithmetic.
+`math.floor` and `math.ceil` return their integer argument unchanged,
+`math.type` returns `"integer"` for a number and `nil` for other values, and
+`math.tointeger` returns the number or `nil`.
+
+```lisp
+print(math.abs(-9))            -- 9
+print(math.max(3, 9, 4))       -- 9
+print(math.min(3, 9, 4))       -- 3
+print(math.type(7))            -- integer
+print(math.maxinteger)         -- 2147483647
+print(math.mininteger)         -- -2147483648
+```
+
+## Errors and pcall
+
+A runtime error carries a LILA value. A wrong operation raises a string such as
+`"lila: cannot add these values"`, while `error(value)` raises whatever value
+it is given. `pcall` catches these errors and returns them as the second
+result instead of stopping the program:
+
+```lisp
+function add(a, b) return a + b end
+ok, value = pcall(add, 2, 3)
+print(ok, value)               -- true 5
+
+function bad(v) return v + 1 end
+ok, message = pcall(bad, "x")
+print(ok, message)             -- false lila: cannot add these values
+```
+
+`assert(v, message)` returns its arguments when `v` is truthy and otherwise
+raises `message` (or `"assertion failed!"` when no message is supplied). In a
+multi-value context it passes its arguments through, so
+`a, b = assert(1, 2)` gives `a = 1` and `b = 2`.
+
+An error that is not caught by `pcall` aborts the running chunk. Compile-time
+diagnostics still abort immediately and are not catchable.
+
 ## Limitations
 
 - `lila-eval` handles one source line. Use `lila-load` for multi-line blocks

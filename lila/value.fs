@@ -36,8 +36,25 @@
   0 over cell+ !
   0 swap 2 cells + ! ;
 
+\ Runtime errors carry a LILA value.  lila-raise stores it in a GC root and
+\ throws a private code so pcall can catch it, leaving the message intact.
+\ Compile-time diagnostics still use lila-error, which aborts immediately.
+-4096 constant lila-raise-code
+create lila-error-value 3 cells allot
+lila-error-value 3 lila-gc-register-root
+
+: lila-raise ( value1 value2 tag -- )
+  lila-error-value lila-value!
+  lila-raise-code throw ;
+
+: lila-raise-msg ( c-addr u -- )
+  lila-tag-str lila-raise ;
+
+: lila-error-value@ ( -- value1 value2 tag )
+  lila-error-value lila-value@ ;
+
 : lila-value-check ( value1 value2 tag want -- value1 value2 tag )
-  over <> if s" lila: value tag mismatch" lila-error then drop ;
+  over <> if s" lila: value tag mismatch" lila-raise-msg then drop ;
 
 \ ---------------------------------------------------------------------------
 \ 32-bit numeric payloads
@@ -62,13 +79,13 @@
   if 65535 else 0 then 0 lila-tag-bool ;
 
 : lila-check-num ( tag -- )
-  lila-tag-num <> if s" lila: number expected" lila-error then ;
+  lila-tag-num <> if s" lila: number expected" lila-raise-msg then ;
 
 : lila-check-str ( tag -- )
-  lila-tag-str <> if s" lila: string expected" lila-error then ;
+  lila-tag-str <> if s" lila: string expected" lila-raise-msg then ;
 
 : lila-check-table ( tag -- )
-  lila-tag-table <> if s" lila: table expected" lila-error then ;
+  lila-tag-table <> if s" lila: table expected" lila-raise-msg then ;
 
 : lila-num>32 { value1 value2 tag -- n }
   tag lila-check-num
@@ -102,7 +119,7 @@ create lila-str-total 0 ,
   ta lila-tag-str = tb lila-tag-str = and if
     a1 a2 b1 b2 lila-str-concat lila-tag-str exit
   then
-  s" lila: cannot add these values" lila-error ;
+  s" lila: cannot add these values" lila-raise-msg ;
 
 : lila-sub { a1 a2 ta b1 b2 tb -- r1 r2 tr }
   ta lila-check-num
@@ -118,7 +135,7 @@ create lila-str-total 0 ,
   ta lila-check-num
   tb lila-check-num
   a1 a2 lila-32 b1 b2 lila-32
-  dup 0= if s" lila: division by zero" lila-error then
+  dup 0= if s" lila: division by zero" lila-raise-msg then
   / lila>value-num ;
 
 : lila-neg { a1 a2 ta -- r1 r2 tr }
@@ -129,7 +146,7 @@ create lila-str-total 0 ,
 \ rounds toward negative infinity and the remainder has the sign of the
 \ divisor.
 : lila-floor-div { a b -- q r }
-  b 0= if s" lila: division by zero" lila-error then
+  b 0= if s" lila: division by zero" lila-raise-msg then
   a b /mod { r q -- }
   r 0<> if
     r b xor 0< if
@@ -154,7 +171,7 @@ create lila-str-total 0 ,
   tb lila-check-num
   a1 a2 lila-32 { base }
   b1 b2 lila-32 { exp }
-  exp 0< if s" lila: negative exponent" lila-error then
+  exp 0< if s" lila: negative exponent" lila-raise-msg then
   1 { acc }
   begin exp 0> while
     exp 1 and if acc base * to acc then
@@ -193,44 +210,44 @@ create lila-str-total 0 ,
   r1 0= lila>value-bool ;
 
 : lila-lt { a1 a2 ta b1 b2 tb -- r1 r2 tr }
-  ta tb <> if s" lila: cannot compare different types" lila-error then
+  ta tb <> if s" lila: cannot compare different types" lila-raise-msg then
   ta lila-tag-num = if
     a1 a2 lila-32 b1 b2 lila-32 < lila>value-bool exit
   then
   ta lila-tag-str = if
     a1 a2 b1 b2 compare 0< lila>value-bool exit
   then
-  s" lila: cannot order these values" lila-error ;
+  s" lila: cannot order these values" lila-raise-msg ;
 
 : lila-gt { a1 a2 ta b1 b2 tb -- r1 r2 tr }
-  ta tb <> if s" lila: cannot compare different types" lila-error then
+  ta tb <> if s" lila: cannot compare different types" lila-raise-msg then
   ta lila-tag-num = if
     a1 a2 lila-32 b1 b2 lila-32 > lila>value-bool exit
   then
   ta lila-tag-str = if
     a1 a2 b1 b2 compare 0> lila>value-bool exit
   then
-  s" lila: cannot order these values" lila-error ;
+  s" lila: cannot order these values" lila-raise-msg ;
 
 : lila-le { a1 a2 ta b1 b2 tb -- r1 r2 tr }
-  ta tb <> if s" lila: cannot compare different types" lila-error then
+  ta tb <> if s" lila: cannot compare different types" lila-raise-msg then
   ta lila-tag-num = if
     a1 a2 lila-32 b1 b2 lila-32 <= lila>value-bool exit
   then
   ta lila-tag-str = if
     a1 a2 b1 b2 compare 0<= lila>value-bool exit
   then
-  s" lila: cannot order these values" lila-error ;
+  s" lila: cannot order these values" lila-raise-msg ;
 
 : lila-ge { a1 a2 ta b1 b2 tb -- r1 r2 tr }
-  ta tb <> if s" lila: cannot compare different types" lila-error then
+  ta tb <> if s" lila: cannot compare different types" lila-raise-msg then
   ta lila-tag-num = if
     a1 a2 lila-32 b1 b2 lila-32 >= lila>value-bool exit
   then
   ta lila-tag-str = if
     a1 a2 b1 b2 compare 0>= lila>value-bool exit
   then
-  s" lila: cannot order these values" lila-error ;
+  s" lila: cannot order these values" lila-raise-msg ;
 
 \ ---------------------------------------------------------------------------
 \ Conditions, length and printing
@@ -258,7 +275,7 @@ create lila-str-total 0 ,
 \ first element (or nil when empty) by lila-first.
 
 : lila-multi-alloc { count -- m }
-  count 0< if s" lila: bad value count" lila-error then
+  count 0< if s" lila: bad value count" lila-raise-msg then
   count 3 * 1+ cells 5 gc-alloc
   dup count swap ! ;
 
@@ -338,6 +355,11 @@ lila-multi-hold-cells 3 lila-gc-register-root
   then
   value1 value2 tag lila-print1 ;
 
+: lila-report-error ( -- )
+  lila-error-value@ { v1 v2 tag }
+  tag lila-tag-str = if v1 v2 type else v1 v2 tag lila-print1 then
+  cr ;
+
 \ ---------------------------------------------------------------------------
 \ Loop support.  Bounds, steps and the loop variable are ordinary tagged
 \ numbers; this predicate keeps the generated Forth small.
@@ -347,7 +369,7 @@ lila-multi-hold-cells 3 lila-gc-register-root
   etag lila-check-num
   stag lila-check-num
   s1 s2 lila-32
-  dup 0= if s" lila: for step must not be zero" lila-error then
+  dup 0= if s" lila: for step must not be zero" lila-raise-msg then
   0> if
     v1 v2 lila-32 e1 e2 lila-32 <=
   else
@@ -373,7 +395,7 @@ variable lila-frame-tmp
 lila-active-frame 1 lila-gc-register-root
 
 : lila-check-fn ( tag -- )
-  lila-tag-fn <> if s" lila: function expected" lila-error then ;
+  lila-tag-fn <> if s" lila: function expected" lila-raise-msg then ;
 
 : lila-frame-new { parent -- frame }
   lila-frame-bytes 3 gc-alloc { frame -- }
@@ -433,7 +455,7 @@ variable lila-call-argc
 
 \ Call a function with the values of a multi as its whole argument list.
 : lila-call-multi { m1 m2 mt cv1 cv2 ctag -- r1 r2 tr }
-  mt lila-tag-multi <> if s" lila: argument list expected" lila-error then
+  mt lila-tag-multi <> if s" lila: argument list expected" lila-raise-msg then
   m1 @ { n }
   n 0 ?do
     i 3 * 1+ cells m1 + lila-value@

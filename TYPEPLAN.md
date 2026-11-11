@@ -111,7 +111,7 @@ each compiler emitter.
   drop drop drop ;
 
 : lila-value-check ( value1 value2 tag want -- value1 value2 tag )
-  over <> if s" lila: value tag mismatch" lila-error then drop ;
+  over <> if s" lila: value tag mismatch" lila-raise-msg then drop ;
 ```
 
 Tag test and dispatch words are ordinary comparisons or `case` statements. No
@@ -595,3 +595,31 @@ evaluates `expr` before `x` is declared, and `local x` initialises to nil.
 Anonymous `function(...) ... end` literals are accepted as the whole right-hand
 side of an assignment, inline or multi-line. They are not accepted directly as
 call arguments or return expressions.
+
+## 14. Native builtins and runtime errors (implemented)
+
+The minimal standard library is a set of native functions installed as
+tag-6 closures in ordinary globals (`lila-var-string.sub`,
+`lila-var-math.max`, and so on). A builtin uses the same call ABI as a
+compiled function:
+
+```text
+( args... env argc -- value1 value2 tag )
+```
+
+It packs its arguments with `lila-multi-pack` and returns its result as a
+three-cell value, so calls, first-class use (`f = string.sub`), and `pcall`
+need no special cases. Native closures are created with an empty captured
+frame:
+
+```forth
+0 xt far-xt 0 lila-closure-new
+```
+
+Runtime errors are values, not host aborts. `lila-raise` stores a three-cell
+error value in the registered `lila-error-value` root and throws the private
+code `lila-raise-code` (`-4096`). `pcall` catches that code, restores the data
+stack to its saved depth, and returns `false` plus the error value, or `true`
+plus the callee's results. An uncaught `lila-raise-code` is printed at the top
+level and aborts the chunk; compile-time diagnostics still use `lila-error`,
+which aborts immediately and is not catchable.

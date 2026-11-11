@@ -199,7 +199,15 @@ variable tx-i
     c-addr code-buf @ code-len @ + u move
     code-len @ u + code-len !
   then ;
-: code-eval ( -- )  code-buf @ code-len @ evaluate ;
+: code-run ( -- )  code-buf @ code-len @ evaluate ;
+
+: code-eval ( -- )
+  ['] code-run catch ?dup if
+    dup lila-raise-code = if
+      drop lila-report-error abort
+    then
+    throw
+  then ;
 : defs+ { c-addr u -- }
   defs-len @ u + 65536 > if s" lila: definitions buffer overflow" lila-error then
   u 0> if
