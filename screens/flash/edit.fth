@@ -178,6 +178,9 @@ variable te-tmp drop
 variable te-char drop
 variable te-ri drop
 variable te-wi drop
+variable te-dirty drop
+variable te-drawn-first drop
+variable te-drawn-xoff drop
 
 : te-end ( -- a ) edit-buf te-len @ + ;
 : te-skip-line ( a -- a' )
@@ -256,12 +259,16 @@ variable te-wi drop
 : te-draw ( -- )
   te-visible te-xoff!
   0xF000 seg-base!
+  te-first @ te-line-start te-src !
   te-rows 0 do
-    te-first @ i + te-line-start
-    dup te-line-end
+    te-src @ dup te-line-end
     i te-row !
     te-draw-row
+    te-src @ te-skip-line te-src !
   loop
+  te-first @ te-drawn-first !
+  te-xoff @ te-drawn-xoff !
+  0 te-dirty !
   te-cursor ;
 : move-back ( src dst u -- )
   te-tmp ! te-endv ! te-src !
@@ -327,12 +334,12 @@ variable te-wi drop
   dup 0x0e = if drop te-down exit then
   dup 0x01 = if drop 0 te-col ! exit then
   dup 0x05 = if drop te-cur-len te-col ! exit then
-  dup 0x0d = if drop te-enter exit then
-  dup 0x0a = if drop te-enter exit then
-  dup 0x08 = if drop te-bs exit then
-  dup 0x7f = if drop te-bs exit then
-  dup 0x04 = if drop te-delete exit then
-  dup 32 127 within if te-put exit then
+  dup 0x0d = if drop te-enter 1 te-dirty ! exit then
+  dup 0x0a = if drop te-enter 1 te-dirty ! exit then
+  dup 0x08 = if drop te-bs 1 te-dirty ! exit then
+  dup 0x7f = if drop te-bs 1 te-dirty ! exit then
+  dup 0x04 = if drop te-delete 1 te-dirty ! exit then
+  dup 32 127 within if te-put 1 te-dirty ! exit then
   drop ;
 : te-save ( -- )
   te-len @ 0> if
@@ -352,14 +359,21 @@ variable te-wi drop
   then drop
   edit-buf slice-last 1+ te-len !
   te-normalize
-  0 te-line ! 0 te-first ! 0 te-col ! 0 te-xoff ! 0 te-done !
+  0 te-line ! 0 te-first ! 0 te-col ! 0 te-xoff ! 0 te-done ! 0 te-dirty !
   te-count te-lines ! te-clamp
   edit-clear te-draw
   begin
     key te-key
     te-done @ 0=
   while
-    te-draw
+    te-visible te-xoff!
+    te-dirty @ if te-draw
+    else
+      te-first @ te-drawn-first @ <> if te-draw
+      else
+        te-xoff @ te-drawn-xoff @ <> if te-draw else te-cursor then
+      then
+    then
   repeat
   edit-clear
   te-done @ 1 = if te-save else ." discarded" cr then ;
