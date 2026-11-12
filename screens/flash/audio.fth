@@ -1,8 +1,8 @@
 \ screens/flash/audio.fth - one μ-law sample voice.
 \ Loaded on demand with: s" audio" need
-\ Samples are one type-0x0A slice in slice-buf; 4080 8-bit samples, 2/cell.
-\ Stored at 11.10 kHz; each sample is pushed twice into the 21.09 kHz FIFO.
-\ The player is polled for now; an IRQ pump is the next step.
+\ A sample is one type-0x0A slice: 2040 cells of packed μ-law bytes.
+\ `sample` is the blocking demo; `sample-start` / `sample-stop` play in the
+\ background from the sound window, paced by the I2S FIFO-low IRQ.
 0xA0 constant i2s-data
 0xA2 constant i2s-ctrl
 0xA4 constant i2s-status
@@ -28,9 +28,71 @@ create ulaw-table
   0xFF88, 0xFF90, 0xFF98, 0xFFA0, 0xFFA8, 0xFFB0, 0xFFB8, 0xFFC0,
   0xFFC8, 0xFFD0, 0xFFD8, 0xFFE0, 0xFFE8, 0xFFF0, 0xFFF8, 0x0000,
 
-variable sample-pos drop
-variable sample-end drop
-variable sample-run drop
+\ The IRQ player streams from segment 0xE000:
+\   0x00 run, 0x01 loop, 0x02 pos, 0x03 end, 0x04 burst count
+\   0x08..0x87 the 128-cell magnitude table
+\   0x100.. one slice of packed μ-law bytes (two samples per cell)
+0x00 constant sw-run
+0x01 constant sw-loop
+0x02 constant sw-pos
+0x03 constant sw-end
+0x04 constant sw-count
+0x08 constant sw-table
+0x100 constant sw-data
+
+: sample-win! ( x off -- )
+  0xE000 seg-base! es! 0xF000 seg-base! ;
+: sample-win@ ( off -- x )
+  0xE000 seg-base! es@ 0xF000 seg-base! ;
+: sample-run? ( -- f ) sw-run sample-win@ ;
+: sample-irq-on ( -- )  0xB2 es@ 4 or 0xB2 es! ;
+: sample-irq-off ( -- ) 0xB2 es@ 0xFFFB and 0xB2 es! ;
+
+: sample-table! ( -- )
+  0xE000 seg-base!
+  128 0 do
+    ulaw-table i cells + @  sw-table i + es!
+  loop
+  0xF000 seg-base! ;
+: sample-copy ( -- )
+  0xE000 seg-base!
+  2040 0 do
+    slice-buf 8 cells + i cells + @
+    sw-data i + es!
+  loop
+  0xF000 seg-base! ;
+
+: sample-stop ( -- )
+  0 sw-run sample-win!
+  2 i2s-ctrl es!
+  sample-irq-off ;
+: sample-start ( n -- )
+  sample-stop
+  dup 0 511 within 0= if ." sample: 0..511" cr drop exit then
+  slice dup slice-valid? 0= if
+    drop ." sample: no slice" cr exit
+  then
+  dup slice-type 0x0A <> if
+    drop ." sample: not ulaw" cr exit
+  then drop
+  sample-table!
+  sample-copy
+  0 sw-pos sample-win!
+  4080 sw-end sample-win!
+  0 sw-loop sample-win!
+  0 sw-count sample-win!
+  2 i2s-ctrl es!
+  1 sw-run sample-win!
+  9 i2s-ctrl es!
+  sample-irq-on ;
+: sample-play ( n -- )
+  sample-start
+  begin sample-run? while repeat
+  2 i2s-ctrl es! ;
+: sample ( n -- ) sample-play ;
+
+\ Foreground μ-law decode, used by `see`/tests and by callers that want to
+\ produce one PCM word without the IRQ player.
 : sample-byte ( i -- b )
   dup 1 rshift slice-buf 8 cells + + @
   swap 1 and if 8 rshift then 0xff and ;
@@ -40,39 +102,3 @@ variable sample-run drop
   else
     0x7f and ulaw-table + @
   then ;
-: sample-push ( -- )
-  sample-pos @ sample-end @ < if
-    sample-pos @ sample-value dup sfx! sfx!
-    1 sample-pos +!
-  else
-    0 sample-run !
-  then ;
-: sample-pump ( -- )
-  sample-run @ 0= if exit then
-  0xF000 seg-base!
-  begin sample-run @ while
-    sfx-status 2 and 0<> if exit then
-    sample-push
-  repeat ;
-: sample-start ( n -- )
-  dup 0 511 within 0= if ." sample: 0..511" cr drop exit then
-  slice dup slice-valid? 0= if
-    drop ." sample: no slice" cr exit
-  then
-  dup slice-type 0x0A <> if
-    drop ." sample: not ulaw" cr exit
-  then drop
-  0 sample-pos ! 4080 sample-end ! 1 sample-run !
-  0xF000 seg-base!
-  2 sfx-ctl!
-  sample-pump
-  sample-run @ if 1 sfx-ctl! then ;
-: sample-stop ( -- )
-  0 sample-run ! sfx-off ;
-: sample-play ( n -- )
-  sample-start
-  begin sample-run @ while sample-pump repeat
-  sfx-off ;
-: sample ( n -- ) sample-play ;
-
-

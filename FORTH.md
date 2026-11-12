@@ -887,19 +887,40 @@ sound       \ I2S level 128  status 0
 sfx-off
 ```
 
-The FIFO is one BSRAM slice; the low-water mark is fixed at 32 and the
-FIFO-low IRQ is an output for the SIC (bit 2, not wired yet). A slice of type
-`0x0A` (μ-law) or `0x05` (PCM) is 4,080 or 2,040 samples; the loader copies it
-into the sound window `0xE0000` and `sfx!` streams it.
+The FIFO is one BSRAM slice; the low-water mark is 31 and the FIFO-low IRQ is
+SIC source bit 2. The background μ-law player loads a type-`0x0A` slice into
+the sound window `0xE0000` and its ISR streams from there; `sfx!` remains the
+foreground push used by `beep` and the game effects.
+
+| word | effect |
+|---|---|
+| `sample-start ( n -- )` | load slice `n`, enable the I2S and the FIFO-low IRQ, return at once |
+| `sample-stop` | stop the player, clear the FIFO and the SIC audio bit |
+| `sample-play ( n -- )` / `sample` | blocking demo: start, wait for the ISR, stop |
+| `sample-value ( i -- n )` | decode sample `i` from the current `slice-buf` |
+
+```text
+s" audio" need
+s" ping" find sample-start    \ background; the console stays live
+sample-stop
+s" ping" find sample          \ blocking demo
+```
+
+The sound window (segment `0xE000`) is: cells `0x00` run, `0x01` loop,
+`0x02` pos, `0x03` end, `0x04` burst count, `0x08..0x87` the 128-cell μ-law
+magnitude table, and `0x100..` one slice of packed μ-law bytes. The ISR uses
+`DS=0xE000`, `ES=0xF000`, fills 32 source samples (64 FIFO words) per IRQ and
+W1Cs only after the level has fallen. Samples are stored at 11.10 kHz; each
+source sample is pushed twice into the 21.09 kHz FIFO.
 
 ## Interrupts: the SIC and the 15 kHz timer
 
 The SIC at `0xF00B0` has one IRQ vector (`0x0001`), a 4-bit sticky pending
 register and an enable mask. The kernel's handler at `0x51A0` runs in the
-shadow bank with interrupts disabled; it services raster before timer, clears
-the serviced bit and returns with `RETI`, so the interrupted instruction
-re-runs. The timer and raster sources are wired; audio and keyboard are
-reserved bits.
+shadow bank with interrupts disabled; it services raster, audio, timer and
+keyboard in that order, clears the serviced bit and returns with `RETI`, so
+the interrupted instruction re-runs. All four sources are wired: the I2S
+FIFO-low level is audio, the keyboard FIFO-ready level is keyboard.
 
 | word | effect |
 |---|---|

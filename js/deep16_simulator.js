@@ -1320,6 +1320,10 @@ class Deep16Simulator {
                     ? this.memory[physicalAddress]
                     : this.tileStatus;
                 this.writeGPR(rd, status & 0xFFFF);
+            } else if (this.d16nano && physicalAddress === 0xF0022) {
+                // The 32-bit millisecond timer's low half. One step is one CPU
+                // clock here, and the board timer divides 6.75 MHz by 6750.
+                this.writeGPR(rd, Math.floor(this.cycleCount / 6750) & 0xFFFF);
             } else if (this.d16nano && physicalAddress === 0xF0068) {
                 this.writeGPR(rd, this.cycleCount & 0xFFFF);
             } else if (this.d16nano && physicalAddress === 0xF006A) {

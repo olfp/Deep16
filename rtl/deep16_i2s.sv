@@ -56,7 +56,11 @@ module deep16_i2s #(
   wire        empty = (wr_ptr == rd_ptr) && !full;
   wire [AW-1:0] used = wr_ptr - rd_ptr;
   wire [LW-1:0] level = full ? LW'(FIFO_DEPTH) : LW'(used);
-  wire        low   = (level <= LW'(32));
+  // The IRQ mark is 31, not 32: `used < 32` is the top two pointer bits,
+  // whereas `used <= 32` needs a full 7-bit comparator.  A 32-source-sample
+  // burst still lifts the level far clear of the mark.
+  wire        low   = !full && (used < 7'd32);
+
   wire        pop   = enable && edge_fall && left_start;
   wire        reset_fifo = we && (addr == 4'h2) && wdata[1];
 

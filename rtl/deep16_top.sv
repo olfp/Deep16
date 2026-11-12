@@ -200,6 +200,7 @@ module deep16_top
   logic [3:0]  timer_addr, spi_addr, i2s_addr, sic_addr;
   logic [15:0] timer_rdata, spi_rdata, i2s_rdata, sic_rdata;
   logic        sic_irq;
+  logic        i2s_irq;      // I2S FIFO low-water level (SIC audio bit 2)
   logic [20:0] io_raddr_q;   // address whose data-port word is now valid
 
   always_ff @(posedge clk) begin
@@ -240,9 +241,10 @@ module deep16_top
     .tick  (timer_tick)
   );
 
-  // Four-source SIC: raster and timer are wired; keyboard is the FIFO-ready
-  // level, which irq_keyboard drains into a software ring. Audio stays 0 until
-  // the I2S fifo_irq is wired in.
+  // Four-source SIC: raster, audio and timer are wired; keyboard is the
+  // FIFO-ready level, which irq_keyboard drains into a software ring. Audio is
+  // the I2S FIFO-low level, so irq_audio fills a burst and W1Cs after the
+  // level has fallen, like the other level sources.
 `ifdef D16NANO
   wire raster_src = raster_irq;
 `else
@@ -256,7 +258,7 @@ module deep16_top
     .addr  (sic_addr),
     .wdata (mem_wdata),
     .rdata (sic_rdata),
-    .src   ({raster_src, 1'b0, timer_tick, keyboard_src}),
+    .src   ({raster_src, i2s_irq, timer_tick, keyboard_src}),
     .irq   (sic_irq)
   );
 
@@ -287,7 +289,6 @@ module deep16_top
   );
 
 
-  logic i2s_irq_unused;
   deep16_i2s u_i2s (
     .clk      (clk),
     .rst      (rst),
@@ -298,7 +299,7 @@ module deep16_top
     .bclk     (i2s_bclk),
     .lrclk    (i2s_lrclk),
     .din      (i2s_din),
-    .fifo_irq (i2s_irq_unused)
+    .fifo_irq (i2s_irq)
   );
 `endif
 `ifndef D16_PERIPH
@@ -562,6 +563,17 @@ module deep16_top
   // unused I/O cells 0xF0068/0xF006A (the keyboard block uses 0x60..0x64).
 `ifdef D16NANO
   logic [15:0] psram_mem_rdata;
+`ifdef D16_PERIPH
+  // The board uses the timer's millisecond counter (0xF0022) for PS/2
+  // timeouts, so the core's 32-bit cycle counter is not read here and
+  // synthesis can drop it.  The RTL harness (no D16_PERIPH) keeps both halves.
+  assign mem_rdata = timer_sel ? timer_rdata :
+                     spi_sel ? spi_rdata :
+                     i2s_sel ? i2s_rdata :
+                     sic_sel ? sic_rdata :
+                     (mem_addr == 21'h0F0066) ? tile_status :
+                     psram_mem_rdata;
+`else
   assign mem_rdata = timer_sel ? timer_rdata :
                      spi_sel ? spi_rdata :
                      i2s_sel ? i2s_rdata :
@@ -570,6 +582,7 @@ module deep16_top
                      (mem_addr == 21'h0F0068) ? core_cycles[15:0] :
                      (mem_addr == 21'h0F006A) ? core_cycles[31:16] :
                      psram_mem_rdata;
+`endif
 `else
   assign mem_rdata = psram_mem_rdata;
 `endif

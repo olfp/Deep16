@@ -152,13 +152,13 @@ int main(int argc, char** argv) {
   expect("loop keeps the level", read_reg(0x0) >= 1 && read_reg(0x0) <= 4, 1);
   expect("loop: no underrun", (read_reg(0x4) >> 3) & 1, 0);
 
-  // Low-water IRQ: the fixed threshold is 32.  At 32 samples it is low; one
-  // more sample lifts it back above the mark.
+  // Low-water IRQ: the mark is 31.  At 31 samples it is low; one more sample
+  // lifts it back above the mark.
   write_reg(0x2, 0x0002);
-  for (int i = 0; i < 32; i++) write_reg(0x0, (uint16_t)(0x1000 + i));
+  for (int i = 0; i < 31; i++) write_reg(0x0, (uint16_t)(0x1000 + i));
   write_reg(0x2, 0x0009);   // enable + irq
-  expect("irq at 32 samples", top->fifo_irq, 1);
-  write_reg(0x0, 0xEEEE);   // 33 samples
+  expect("irq at 31 samples", top->fifo_irq, 1);
+  write_reg(0x0, 0xEEEE);   // 32 samples
   expect("irq above the mark", top->fifo_irq, 0);
 
   write_reg(0x2, 0x0000);

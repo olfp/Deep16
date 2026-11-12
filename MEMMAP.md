@@ -75,10 +75,11 @@ The `D16SEG` build fixes the layout instead of the constant — see §4.4.
 | `0x00000`–`0x00002` | boot entry staging / SWI vector (runtime; vector at 2) |
 | `0x00000`–`0x000FF` | zero page, interrupt vector area |
 | `0x00100` | `forth_start`, conventional program/kernel entry |
+| `0x0E0000`–`0x0EFFFF` | sound window (segment `0xE000`): state, μ-law table and sample payload |
 | `0x0F0020`–`0x0F002F` | timer: 32-bit ms counter, compare, status (D16nano) |
 | `0x0F0040`–`0x0F004F` | UART console |
 | `0x0F0060`–`0x0F0064` | keyboard FIFO / echo cell (build-specific) |
-| `0x0F0068`–`0x0F006B` | D16nano 32-bit CPU cycle counter (read-only) |
+| `0x0F0068`–`0x0F006B` | 32-bit CPU cycle counter (RTL/JS harness only; board PS/2 uses the timer) |
 | `0x0F0080`–`0x0F008F` | SPI master: SD / external flash (D16nano) |
 | `0x0F00A0`–`0x0F00AF` | I2S: DATA/CTRL/STATUS (D16nano) |
 | `0x0F1000` | display window (screen RAM or tilemap, build-specific) |
@@ -490,12 +491,31 @@ to low: raster, audio, timer, keyboard.
 | `0xF00B8` | `SIC_RASTER` | R/W | the ISR's raster counter (`raster-ticks`) |
 
 The hardware vector is `0x0001`; the kernel installs `irq_handler` (`0x51A0`)
-there at boot. The handler services raster (bit 3) before timer (bit 1): it
-clears the serviced bit and increments `SIC_RASTER` or `SIC_SCRATCH`; the
-other pending bit stays set and re-enters after `RETI`. Audio and keyboard are
-decoded but still tied off. Forth words in the graphics slice: `irq-on` (timer),
-`raster-line!` (control 7), `raster-on`/`raster-off`, `irq-off`, `irq-clear`
-(mask), `ticks`, `raster-ticks` and `irq?`.
+there at boot. The handler services raster (bit 3), audio (bit 2), timer (bit 1)
+and keyboard (bit 0) in that order; it clears the serviced bit and increments
+`SIC_RASTER` or `SIC_SCRATCH`; the other pending bits stay set and re-enter
+after `RETI`. The keyboard source is the PS/2 FIFO-ready level; the audio
+source is the I2S FIFO-low level (below 31 samples). Forth words in the
+graphics slice: `irq-on` (timer), `raster-line!` (control 7),
+`raster-on`/`raster-off`, `irq-off`, `irq-clear` (mask), `ticks`,
+`raster-ticks` and `irq?`.
+
+The audio player in `audio.fth` uses the `0xE000` sound window:
+
+| Window cell | Meaning |
+|---|---|
+| `0x00` | run flag |
+| `0x01` | loop flag |
+| `0x02` | sample position |
+| `0x03` | sample end (4080 for one slice) |
+| `0x04` | burst count (32 source samples per IRQ) |
+| `0x08`–`0x87` | 128-cell μ-law magnitude table |
+| `0x100`– | packed μ-law bytes, two samples per cell |
+
+`sample-start` copies the slice and table into the window, sets `CTRL` to
+enable + FIFO-low IRQ and returns; `irq_audio` fills 64 FIFO words per burst
+and pushes each 11.10 kHz source sample twice. `sample-stop` clears the run
+flag, resets the FIFO and clears SIC enable bit 2.
 ---
 
 ## 8. PSRAM and storage

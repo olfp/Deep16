@@ -17,7 +17,7 @@ is the ISA change that pays for the interrupt work.
 | D6 | **Header**: WP, magic 5, flags/rate, type, link, 12-char name; payload from cell 8. |
 | D7 | **Boot image moved to the config flash at 1 MB** (done, §6.1): the on-die FLASH608K read controller is deleted and the loader reuses the SPI master. The installer bitstream remains the fallback. |
 | D8 | **I2S at 21.094 kHz** (6.75 MHz / 10 / 32), MAX98357A on J5 pins 5/6/7 (FPGA 25/26/27). 128 × 16 FIFO in FFs. |
-| D9 | **Audio FIFO low is the fourth IRQ**; FIFO low threshold 32, burst 64. |
+| D9 | **Audio FIFO low is the fourth IRQ**; FIFO low threshold 31, burst 64. |
 | D10 | **SIC priority high → low: raster, audio, timer, keyboard.** |
 | D11 | **Sound window 0xE0000–0xEFFFF** (64K cells, segment `0xE000`), just below the I/O area. |
 | D12 | **ARCHREV §2+§3 together**: SAPF plus no shadow-bank zeroing; net ~+15 CLS on the tile build. |
@@ -164,7 +164,8 @@ cells; 16-bit sum.
   The rate is fixed; the slice rate code is metadata for now.
 - **128 × 16 FIFO** in **one BSRAM** (not FFs: 2,048 FFs plus the 128:1
   read path did not fit the 4,320-CLS device; one free BSRAM did). Low-water
-  threshold 32; the FIFO-low IRQ is an output, not yet wired into the CPU.
+  threshold 31; the FIFO-low IRQ is SIC source bit 2 and the kernel's audio ISR
+  streams from the sound window.
 - **Pins:** J5 5/6/7 = FPGA 25/26/27 = BCLK/LRCLK/DIN. MAX98357A at 3.3 V, no
   MCLK, no I2C.
 - **MMIO** at `0xF00A0` (the `--external-flash` slice area is unrelated):
@@ -176,8 +177,9 @@ cells; 16-bit sum.
   | `0xA4` | STATUS | R b0 empty, b1 full, b2 low, b3 underrun, b4 running, b5 irq |
 
 - **Sound window** `0xE0000–0xEFFFF` (segment `0xE000`, 64K cells = 128 KB):
-  μ-law table cells 0..127, samples from 128. Loader uses `ES=0xE000`;
-  player/ISR uses `DS=0xE000`, `ES=0xF000`, and restores `DS=0x1000`.
+  run/loop/pos/end/burst in cells 0..4, the 128-cell μ-law magnitude table at
+  cells 8..135, and one slice of packed μ-law bytes from cell 256. The loader
+  uses `ES=0xE000`; the IRQ player uses `DS=0xE000`, `ES=0xF000`.
 - **μ-law** 4080 samples/slice = 193 ms at 21.09 kHz. **PCM** 2040 samples =
   96.7 ms. Rate code 4 default; 6 (42.19) available per slice.
 - **Flash is storage only**: the slice loader copies into the sound window,
@@ -186,7 +188,7 @@ cells; 16-bit sum.
   loop; the hardware repeats the buffer, so the CPU is free. `beep`/`sfx-off`
   are in the catalog slice.
 
-**Measured (2026-10-29).** CLS **4,294 / 4,320 (26 free)**, dvi_pixel
+**Measured (2026-11-12).** CLS **4,303 / 4,320 (17 free)**, dvi_pixel
 **76.974 MHz** (TNS 0), dvi_render 27.936, clk_cpu 18.949, psram_clk 92.135.
 The fit needed the second DVI retime (`archive/DVI720check.md` §16) and the BSRAM
 FIFO; the 128×16 FF FIFO plus its read path was over the device. Board test:
@@ -214,7 +216,7 @@ sfx-off     \ stop
 - **Raster** control 7 (`0xF200E`) line compare in the tile engine, toggle +
   CDC into the CPU domain, SIC bit 3, `RASTER` 0xB8.
 - **Keyboard** PS/2 byte ready.
-- **Audio** FIFO low, threshold 32, burst 64.
+- **Audio** FIFO low, threshold 31, burst 64 FIFO words.
 
 ## 6. Budget (planning, measure each phase)
 

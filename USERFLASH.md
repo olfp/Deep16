@@ -78,7 +78,8 @@ on demand: `s" graphics" need`, `s" games" need`, `s" sd-card" need`, each
 printing `Loading <name>`. `30 screen` (or `s" hello" find screen`) loads
 the hello test source. The sample player is loaded on demand:
 `s" audio" need`, then `s" ping" find sample` plays the 11.10 kHz μ-law demo
-(blocking/polled in this first version).
+(blocking). `s" ping" find sample-start` plays it in the background from the
+sound window and returns at once; `sample-stop` stops it.
 Flappy, Frogger and Pac-Man are listed as apps
 (directory flag 1) and are loaded by the BDOS on demand. The PS/2 host
 sender is no longer a slice: it lives in the BIOS, and `binit` initialises

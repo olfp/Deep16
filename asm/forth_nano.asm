@@ -18195,10 +18195,16 @@ irq_split_none:
     NOP
 irq_check_timer:
     ; The raster test above masked R1 in place, so read PENDING again.
-    ; Priority is raster, timer, keyboard.
+    ; Priority is raster, audio, timer, keyboard.  Audio is a level while the
+    ; I2S FIFO is at or below its low-water mark (31 samples); the pump below fills a burst
+    ; and W1Cs only after the level has fallen.
     LDI 0xB0
     MOV R2, R0
     LDS R1, ES, R2
+    LSI R3, 4
+    TBC R1, R3
+    JNZ irq_audio
+    NOP
     LSI R3, 2
     AND R1, R3
     JZ irq_keyboard
@@ -18278,6 +18284,128 @@ irq_kbd_done:
     RETI
     NOP
 irq_none:
+    RETI
+    NOP
+
+; ---- audio FIFO pump: the μ-law sample voice -----------------------------
+; This runs in the IRQ shadow bank with I=0.  The SIC's audio bit 2 is the
+; I2S FIFO-low level (< 32 samples), so the burst below must lift the level
+; clear of the mark before the W1C; otherwise the level re-latches and the
+; handler runs again.
+;
+; The sound window is segment 0xE000:
+;   0x00 run, 0x01 loop, 0x02 pos, 0x03 end, 0x04 burst count
+;   0x08..0x87 the 128-cell μ-law magnitude table
+;   0x100..    one slice of packed μ-law bytes (two samples per cell)
+;
+; The stored samples are 11.10 kHz; the FIFO runs at 21.09 kHz, so each
+; source sample is pushed twice.  A burst is 32 source samples (64 FIFO
+; words): from the 31-sample low mark that fills to 95, and from empty to 64,
+; either way above the mark and short enough not to starve the raster/timer.
+irq_audio:
+    LDI 0x1FFF
+    INV R0
+    MVS DS, R0               ; DS = 0xE000, the sound window
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0               ; ES = 0xF000, the MMIO window
+    LSI R0, 0
+    LDS R1, DS, R0           ; run flag
+    AND R1, R1
+    JZ irq_audio_idle
+    NOP
+    LDI 4
+    MOV R2, R0
+    LDI 32
+    STS R0, DS, R2           ; burst = 32 source samples
+irq_audio_fill:
+    LDI 4
+    MOV R2, R0
+    LDS R3, DS, R2
+    AND R3, R3
+    JZ irq_audio_ack
+    NOP
+    SUB R3, 1
+    STS R3, DS, R2
+    LDI 2
+    MOV R2, R0
+    LDS R1, DS, R2           ; pos
+    LDI 3
+    MOV R3, R0
+    LDS R0, DS, R3           ; end
+    CMP R1, R0
+    JNC irq_audio_end        ; C=0: pos >= end
+    NOP
+    MOV R3, R1
+    SR R3, 1
+    LDI 0x100
+    MOV R2, R0
+    ADD R2, R3
+    LDS R2, DS, R2           ; cell holding two samples
+    TBC R1, 0
+    JNZ irq_audio_low
+    NOP
+    SR R2, 8                 ; odd index: high byte
+irq_audio_low:
+    LDI 0xFF
+    MOV R3, R0
+    AND R2, R3               ; byte
+    LDI 0x80
+    MOV R3, R0
+    AND R3, R2               ; sign bit
+    LDI 0x7F
+    AND R2, R0               ; table index
+    LDI 8
+    ADD R2, R0
+    LDS R2, DS, R2           ; magnitude (negative form)
+    AND R3, R3
+    JZ irq_audio_push
+    NOP
+    NEG R2                   ; sign bit set: positive half
+irq_audio_push:
+    LDI 0xA0
+    MOV R3, R0
+    STS R2, ES, R3
+    STS R2, ES, R3           ; two FIFO words per 11.10 kHz sample
+    LDI 2
+    MOV R3, R0
+    ADD R1, 1
+    STS R1, DS, R3           ; pos = pos + 1
+    LDI irq_audio_fill - 0x4000
+    OR R0, 14
+    MOV PC, R0
+    NOP
+irq_audio_end:
+    LDI 1
+    MOV R2, R0
+    LDS R3, DS, R2           ; loop flag
+    AND R3, R3
+    JZ irq_audio_stop
+    NOP
+    LDI 2
+    MOV R2, R0
+    LSI R1, 0
+    STS R1, DS, R2           ; loop: restart at sample 0
+    LDI irq_audio_fill - 0x4000
+    OR R0, 14
+    MOV PC, R0
+    NOP
+irq_audio_stop:
+    LSI R0, 0
+    LSI R3, 0
+    STS R0, DS, R3           ; run = 0
+irq_audio_idle:
+    LDI 0xA2
+    MOV R2, R0
+    LSI R0, 0
+    STS R0, ES, R2           ; CTRL=0: disable and drop IRQ_EN
+    NOP
+    NOP                      ; let the FIFO-low level source fall
+irq_audio_ack:
+    LDI 0xB0
+    MOV R2, R0
+    LSI R3, 4
+    STS R3, ES, R2           ; W1C audio, after the level has fallen
     RETI
     NOP
 
@@ -18789,10 +18917,10 @@ ps2_release:
     NOP
 
 ; ---- ps2_wait_ticks ------------------------------------------------------
-; R1 = ticks to wait; one tick is the high half of the CPU cycle counter
-; (0xF006A), 65,536 clocks. Signed difference, so the 16-bit wrap is fine.
+; R1 = milliseconds to wait; the system timer's low half (0xF0022) increments
+; once per millisecond. Signed difference, so the 16-bit wrap is fine.
 ps2_wait_ticks:
-    LDI 0x006A
+    LDI 0x0022
     MOV R2, R0
     LDS R3, ES, R2
     ADD R3, R1
@@ -18805,8 +18933,8 @@ ps2_wt_loop:
     NOP
 
 ; ---- ps2_wait_frame ------------------------------------------------------
-; R1 = timeout in ticks. Waits for the receiver's frame toggle (bit 7) to
-; change and returns R0 = 1 when it does, 0 on timeout.
+; R1 = timeout in milliseconds. Waits for the receiver's frame toggle (bit 7)
+; to change and returns R0 = 1 when it does, 0 on timeout.
 ps2_wait_frame:
     LDI 0x0066
     MOV R2, R0
@@ -18814,7 +18942,7 @@ ps2_wait_frame:
     LDI 0x0080
     MOV R4, R0
     AND R3, R4               ; R3 = the toggle before we sent
-    LDI 0x006A
+    LDI 0x0022
     MOV R7, R0
     LDS R9, ES, R7
     ADD R9, R1               ; R9 = deadline
@@ -18859,7 +18987,7 @@ ps2_init:
     NOP
 
     ; settle ~0.3 s, so the keyboard is not still in its own power-on test
-    LDI 31
+    LDI 300
     MOV R1, R0
     LDI ps2_wait_ticks - BIOS_BASE
     MOV R4, R0
@@ -18886,7 +19014,7 @@ ps2_init_reset:
     AND R0, R0
     JNZ ps2_init_reset_ok
     NOP
-    LDI 31                   ; ~0.3 s between attempts
+    LDI 300                  ; ~0.3 s between attempts
     MOV R1, R0
     LDI ps2_wait_ticks - BIOS_BASE
     MOV R4, R0
@@ -18914,7 +19042,7 @@ ps2_init_reset_ok:
     LSI R7, 2
     STS R7, CS, R10
 ps2_init_bat:
-    LDI 103                  ; ~1.0 s per frame
+    LDI 1000                 ; ~1.0 s per frame
     MOV R1, R0
     LDI ps2_wait_frame - BIOS_BASE
     MOV R4, R0
@@ -18932,7 +19060,7 @@ ps2_init_bat:
 
     ; A short guard after BAT: the keyboard is ready, but the first 0xF4
     ; should not race the tail of its self test.
-    LDI 41
+    LDI 400
     MOV R1, R0
     LDI ps2_wait_ticks - BIOS_BASE
     MOV R4, R0
@@ -18955,7 +19083,7 @@ ps2_init_enable:
     AND R0, R0
     JZ ps2_init_flush
     NOP
-    LDI 41                   ; ~0.4 s
+    LDI 400                  ; ~0.4 s
     MOV R1, R0
     LDI ps2_wait_frame - BIOS_BASE
     MOV R4, R0

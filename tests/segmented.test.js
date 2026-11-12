@@ -539,25 +539,51 @@ test('the 64K data stack holds 18000 cells', () => {
   assert.ok(sim.running);
 });
 
-test('the μ-law player primes at 11.10 kHz and stops cleanly', () => {
+test('the μ-law sample runs from the sound window on the FIFO IRQ', () => {
   line('s" audio" need');
   line(`${pingFirst} slice drop`);
   assert.equal(number(line('0 sample-value . cr'), '0 sample-value . cr'), 0, 'μ-law silence');
   assert.notEqual(number(line('1 sample-value . cr'), '1 sample-value . cr'), 0, 'second sample is audible');
 
-  sim.memory[0xF00A4] = 2;              // FIFO full: prime one burst only
+  // `sample-start` only loads the window and enables the FIFO-low IRQ; it must
+  // not consume a burst itself.
   assert.match(line(`${pingFirst} sample-start`), / ok/);
-  assert.equal(number(line('sample-run @ . cr'), 'sample-run @ . cr'), 1);
-  assert.equal(number(line('sample-pos @ . cr'), 'sample-pos @ . cr'), 0);
+  const win = 0xE0000;                  // segment 0xE000
+  assert.equal(sim.memory[win] & 0xffff, 1, 'run flag set');
+  assert.equal(sim.memory[win + 2] & 0xffff, 0, 'pos starts at 0');
+  assert.equal(sim.memory[win + 3] & 0xffff, 4080, 'the whole slice is queued');
+  assert.equal(sim.memory[win + 0x08] & 0xffff, 0x8284, 'μ-law table copied');
+  assert.equal(sim.memory[win + 0x100] & 0xffff,
+               slices.words[pingFirst * SLICE_WORDS + 8], 'payload copied');
+  assert.equal(sim.memory[0xF00A2] & 0xffff, 9, 'enable + FIFO-low IRQ');
+  assert.equal(sim.sicEnable & 4, 4, 'SIC audio bit enabled');
+
+  // Take the audio vector directly: one burst is 32 source samples, and the
+  // handler W1Cs the level only after the level has fallen.
+  sim.sicPending = 4;
+  line('1 drop');                    // the interpreter runs with I=1
+  for (let i = 0; i < 200000 && sim.running && (sim.sicPending & 4); i++) step(1);
+  assert.equal(sim.sicPending & 4, 0, 'audio bit cleared');
+  assert.equal(sim.memory[win] & 0xffff, 1, 'still running');
+  assert.equal(sim.memory[win + 2] & 0xffff, 32, 'one burst queued');
+  assert.equal(sim.memory[0xF00A2] & 0xffff, 9, 'still enabled');
+  const last = number(line('31 sample-value . cr'), '31 sample-value . cr');
+  assert.equal(sim.memory[0xF00A0] & 0xffff, last & 0xffff, 'last FIFO word is sample 31');
+
+  // Reaching the end stops the voice instead of re-filling.
+  sim.memory[win + 3] = 33;
+  sim.sicPending = 4;
+  line('1 drop');
+  for (let i = 0; i < 200000 && sim.running && (sim.sicPending & 4); i++) step(1);
+  assert.equal(sim.sicPending & 4, 0, 'end clears the audio bit');
+  assert.equal(sim.memory[win] & 0xffff, 0, 'end clears the run flag');
+  assert.equal(sim.memory[win + 2] & 0xffff, 33, 'end position reached');
+  assert.equal(sim.memory[0xF00A2] & 0xffff, 0, 'end disables the I2S');
 
   line('sample-stop');
-  assert.equal(number(line('sample-run @ . cr'), 'sample-run @ . cr'), 0);
-
-  // With an empty FIFO the blocking player drains the whole sample.
-  sim.memory[0xF00A4] = 0;
-  assert.match(line(`${pingFirst} sample-play`), / ok/);
-  assert.equal(number(line('sample-pos @ . cr'), 'sample-pos @ . cr'), 4080);
-  assert.equal(number(line('depth . cr'), 'depth . cr'), 0);
+  assert.equal(sim.memory[win] & 0xffff, 0, 'run flag cleared');
+  assert.equal(sim.memory[0xF00A2] & 0xffff, 2, 'FIFO reset and disabled');
+  assert.equal(sim.sicEnable & 4, 0, 'SIC audio bit cleared');
 });
 
 // ---- SD card --------------------------------------------------------------
