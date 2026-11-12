@@ -392,6 +392,7 @@ repeat
 edit-clear
 te-done @ 1 = if te-save else ." discarded" cr then ;
 : list bl word count find type-slice ;
+: edit bl word count find edit-slice ;
 0x40 constant serial-status
 0x42 constant serial-data
 : serial-emit ( c -- )

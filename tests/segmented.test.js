@@ -200,6 +200,12 @@ test('list finds a slice by name and prints it', () => {
   assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'list leaves the stack clean');
 });
 
+test('edit opens a block slice by name', () => {
+  const echoed = lineWithKeys('edit test', [0x18, 0x03]);
+  assert.match(echoed, /discarded/);
+  assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'edit leaves the stack clean');
+});
+
 test('type-slice pages 23 lines and waits for a key', () => {
   const from = out.length;
   for (const ch of '4 type-slice\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
