@@ -13122,7 +13122,7 @@ waqr_done:
 ; =============================================
 ; The D16nano kernel has the real UART block reader; the flat console build
 ; only has to resolve the edit slice's xmodem word, which is not used here.
-.org 0x4CDC
+.org 0x4E42
 .code
 word_serialread:
     LD R1, SP, 0
@@ -13136,7 +13136,7 @@ word_serialread:
     MOV PC, R0
     NOP
 
-.org 0x4D10
+.org 0x4E70
 h_sread:
     .word h_tile_row
     .word 11

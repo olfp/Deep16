@@ -18669,7 +18669,7 @@ ug_idle:
 ; is empty, or a PS/2 key reaches the IRQ ring (0x52C0 in DS).  It returns the
 ; number of bytes stored; a short count means the xmodem caller should abort.
 ; Runs in the normal bank: DS=0x1000 (the ring), ES=0xF000 (the UART).
-.org 0x4CDC
+.org 0x4E42
 .code
 word_serialread:
     LD R1, SP, 0             ; len
@@ -18722,7 +18722,7 @@ sread_done:
 
 ; serial-read's header lives beside the code, not in the kernel data: adding it
 ; at the head of the chain would move text_attr off the catalog's 0x3C1F.
-.org 0x4D10
+.org 0x4E70
 h_sread:
 .ifdef D16D
     .word h_tile_row

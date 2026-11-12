@@ -79,7 +79,7 @@ The `D16SEG` build fixes the layout instead of the constant — see §4.4.
 | `0x0F0020`–`0x0F002F` | timer: 32-bit ms counter, compare, status (D16nano) |
 | `0x0F0040`–`0x0F004F` | UART console |
 | `0x0F0060`–`0x0F0064` | keyboard FIFO / echo cell (build-specific) |
-| `0x0F0068` | low 16 bits of the CPU cycle counter on the board (Flappy's bird pick); the high half is harness-only |
+| `0x0F0068` | low 16 bits of the CPU cycle counter on the board (Flappy's bird pick); `0xF006A` is harness-only |
 | `0x0F0080`–`0x0F008F` | SPI master: SD / external flash (D16nano) |
 | `0x0F00A0`–`0x0F00AF` | I2S: DATA/CTRL/STATUS (D16nano) |
 | `0x0F1000` | display window (screen RAM or tilemap, build-specific) |
@@ -111,11 +111,11 @@ loader. The dictionary then continues at `0x6000`.
 | `0x02000`–`0x02FFF` | threading engine `next` and built-in word code |
 | `0x03000`–`0x0434E` | kernel data, boot script, built-in headers, `rp0_base` |
 | `0x0434F`–`0x049FF` | free (`dict_free`; the old Pac-Man/frogger gap) |
-| `0x04A00`–`0x04CDB` | BIOS code (dispatch, console functions 0–6) |
-| `0x04CDC`–`0x04D33` | `serial-read` primitive (0x4CDC) and its built-in header (0x4D10) |
+| `0x04A00`–`0x04D33` | BIOS code (dispatch, console functions 0–6, D16D `gfx_back` menu return) |
 | `0x04D34`–`0x04DFD` | D16D trampoline, strings, palette, header (small gaps) |
 | `0x04E00`–`0x04E41` | D16D `scene_init`/`draw_text` copies |
-| `0x04E42`–`0x04EFF` | free and the menu's state cells |
+| `0x04E42`–`0x04E7E` | `serial-read` primitive (0x4E42) and its built-in header (0x4E70) |
+| `0x04E7F`–`0x04EFF` | free and the menu's state cells |
 | `0x04F00`–`0x04FCD` | menu code and default palette |
 | `0x04FCE`–`0x04FFF` | free |
 | `0x05000`–`0x0519B` | ILL trap handler (DIV/DIV32 emulation) |
@@ -129,7 +129,8 @@ loader. The dictionary then continues at `0x6000`.
 | `0x05490`–`0x055FE` | PS/2 host init + sender (BIOS functions 7 and 8) |
 | `0x055FF` | free |
 | `0x05600`–`0x056C6` | game sound effects + table (BIOS functions 9 and 10) |
-| `0x056C7`–`0x057DF` | free |
+| `0x056C7`–`0x05766` | free |
+| `0x05767`–`0x057EF` | SFX table and state cells |
 | `0x057E0`–`0x057E3` | PS/2 saved R5/R6/LR/count cells |
 | `0x057E4`–`0x057EF` | free |
 | `0x057F0`–`0x057F9` | SFX saved R4-R12 cells + frame counter |
@@ -166,7 +167,7 @@ loader. The dictionary then continues at `0x6000`.
 | `divtest_ok_str` | `0x532E` | `divtest ok` string |
 | `ps2_r5` | `0x57E0` | PS/2 sender's saved R5/R6/LR/count cells |
 | `sfx_sv` | `0x57F0` | SFX saved R4-R12 cells; `sfx_frames` at `0x57F9` |
-| `word_serialread` | `0x4CDC` | machine-speed UART block read for XMODEM |
+| `word_serialread` | `0x4E42` | machine-speed UART block read for XMODEM |
 
 The D16D showcase is now only the menu: a four-word header at `0x3E4`
 (`0x0D16`, format 1, entry `0x334`), a trampoline at `0x334`, the menu code at
