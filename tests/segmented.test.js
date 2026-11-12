@@ -892,3 +892,48 @@ test('the PS/2 init lives in the BIOS and binit calls it', () => {
   const src = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
   assert.match(src, /CMP R7, R4\s*\n\s*JZ ps2_init_done/, 'ps2_init keeps the erased-memory guard');
 });
+
+// ---- the 2-second background sample and xmodem abort --------------------
+// These run last: they exercise the audio IRQ and deliberately abort a
+// transfer, so they must not leave state for another test to inherit.
+test('the 2-second swoosh loads every linked μ-law slice', () => {
+  const man = slices.manifest.objects.swoosh;
+  assert.ok(man, 'the directory lists swoosh');
+  assert.ok(man.count > 1, 'the swoosh spans several slices');
+  assert.ok(Math.abs(man.samples / 11100 - 2.01) < 0.05, 'about two seconds');
+
+  const win = 0xE0000;
+  assert.match(line(`${man.first} sample-start`), / ok/);
+  assert.equal(sim.memory[win] & 0xffff, 1, 'run flag set');
+  assert.equal(sim.memory[win + 3] & 0xffff, man.count * 4080, 'all slices queued');
+  assert.equal(sim.memory[win + 0x100] & 0xffff,
+               slices.words[man.first * SLICE_WORDS + 8], 'first slice copied');
+  assert.equal(sim.memory[win + 0x100 + 2040] & 0xffff,
+               slices.words[(man.first + 1) * SLICE_WORDS + 8], 'second slice copied');
+  line('sample-stop');
+  assert.equal(sim.memory[win] & 0xffff, 0, 'run flag cleared');
+  assert.equal(sim.sicEnable & 4, 0, 'SIC audio bit cleared');
+});
+
+test('xmodem aborts when a key is pressed during a block', () => {
+  const from = out.length;
+  for (const ch of 'xmodem\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
+  for (let i = 0; i < 2_000_000; i++) {
+    step(1);
+    if (out.indexOf('Press key to abort', from) >= 0) break;
+  }
+  // A partial packet leaves the receiver blocked in serial-read; the key then
+  // makes the primitive return a short count, which the caller turns into CAN.
+  const packet = xmodemPackets(': xm-abort ." no" cr ;\n');
+  for (const b of packet.slice(0, 1 + 2 + 20)) sim.uartRxPush(b);
+  for (let i = 0; i < 2_000_000; i++) step(1);
+  sim.kbdBuffer.push(32);
+  for (let i = 0; i < 10_000_000 && sim.running; i++) {
+    step(1);
+    if (out.indexOf('\r\n> ', from) >= 0) break;
+  }
+  const text = out.slice(from);
+  assert.match(text, /Press key to abort/);
+  assert.match(text, /xmodem: aborted/);
+  assert.ok(sim.running, 'the machine is back at the prompt');
+});

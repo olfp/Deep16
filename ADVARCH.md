@@ -181,7 +181,9 @@ cells; 16-bit sum.
   cells 8..135, and one slice of packed μ-law bytes from cell 256. The loader
   uses `ES=0xE000`; the IRQ player uses `DS=0xE000`, `ES=0xF000`.
 - **μ-law** 4080 samples/slice = 193 ms at 21.09 kHz. **PCM** 2040 samples =
-  96.7 ms. Rate code 4 default; 6 (42.19) available per slice.
+  96.7 ms. Rate code 4 default; 6 (42.19) available per slice. The demo
+  `swoosh` is 2.01 s and spans six linked μ-law slices; `sample-start` copies
+  the whole chain into the 64K-cell window.
 - **Flash is storage only**: the slice loader copies into the sound window,
   the player streams from PSRAM.
 - The first board test fills 128 samples with a square (164.8 Hz) and sets

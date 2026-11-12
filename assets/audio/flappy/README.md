@@ -10,8 +10,9 @@ BIOS 128-sample effects (the flap is a decaying noise burst).
 | `sfx_point.wav` | 44.1 kHz, 16-bit stereo | ~0.81 s |
 | `sfx_hit.wav` | 44.1 kHz, 16-bit stereo | ~0.43 s |
 | `sfx_die.wav` | 44.1 kHz, 16-bit stereo | ~0.76 s |
-| `sfx_swooshing.wav` | 44.1 kHz, 16-bit stereo | ~0.60 s |
+| `sfx_swooshing.wav` | 44.1 kHz, 16-bit stereo | ~2.01 s |
 
-A future `flappysnd` pack can mix these to mono, trim the silence, resample to
-the D16's 21.09375 kHz and load the result into the `0xE000` sound segment.
-Confirm the source/licence before shipping the audio.
+`sfx_swooshing.wav` is now decoded by `scripts/make_samples.mjs`, mixed to
+mono, resampled to 11.10 kHz and shipped as the six-slice `swoosh` μ-law demo
+in the `0xE000` sound window. The other files can follow the same path later.
+Confirm the source/licence before shipping more of the audio.

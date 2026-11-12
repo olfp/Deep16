@@ -809,6 +809,25 @@ follow it on the same line.
 The SD card's `include ( first count -- )` remains the other source path: it
 reads 512-byte sectors (not slices) from the card and interprets them.
 
+### Serial console and XMODEM
+
+The D16D console is the PS/2 keyboard, and `0xF0040`/`0xF0042` is a separate
+UART stream. `serial` interprets a UART stream until Ctrl-D; `xmodem` receives
+one CRC file and runs it. The receive message says `Press key to abort`; any
+PS/2 key aborts the transfer, sends `CAN` twice to cancel the sender, and
+returns to the prompt.
+
+```text
+xmodem                  \ start; the message names the abort key
+\ ... pick Xmodem-CRC send in tio and select a file ...
+```
+
+`xmodem` reads a whole 132-byte packet body (block, complement, 128 data
+bytes, CRC) with the `serial-read ( addr len -- n )` primitive. The primitive
+drains the 64-byte UART FIFO at machine speed and returns a short count if a
+key arrives, so a 115200 sender cannot overrun the FIFO while the Forth CRC
+loop is waiting.
+
 ### Tile console colours
 
 The console writes text cells as `0x8000 | (pair << 12) | glyph`. The text
@@ -888,9 +907,10 @@ sfx-off
 ```
 
 The FIFO is one BSRAM slice; the low-water mark is 31 and the FIFO-low IRQ is
-SIC source bit 2. The background μ-law player loads a type-`0x0A` slice into
-the sound window `0xE0000` and its ISR streams from there; `sfx!` remains the
-foreground push used by `beep` and the game effects.
+SIC source bit 2. The background μ-law player loads the type-`0x0A` slice (or the whole linked
+chain, for a long sample) into the sound window `0xE0000` and its ISR streams
+from there; `sfx!` remains the foreground push used by `beep` and the game
+effects.
 
 | word | effect |
 |---|---|
@@ -901,14 +921,15 @@ foreground push used by `beep` and the game effects.
 
 ```text
 s" audio" need
-s" ping" find sample-start    \ background; the console stays live
+s" swoosh" find sample-start  \ 2-second background demo; console stays live
 sample-stop
-s" ping" find sample          \ blocking demo
+s" swoosh" find sample        \ blocking demo
+s" ping" find sample          \ the short one-slice demo
 ```
 
 The sound window (segment `0xE000`) is: cells `0x00` run, `0x01` loop,
 `0x02` pos, `0x03` end, `0x04` burst count, `0x08..0x87` the 128-cell μ-law
-magnitude table, and `0x100..` one slice of packed μ-law bytes. The ISR uses
+magnitude table, and `0x100..` the packed μ-law bytes (all linked slices). The ISR uses
 `DS=0xE000`, `ES=0xF000`, fills 32 source samples (64 FIFO words) per IRQ and
 W1Cs only after the level has fallen. Samples are stored at 11.10 kHz; each
 source sample is pushed twice into the 21.09 kHz FIFO.

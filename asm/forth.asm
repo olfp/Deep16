@@ -2637,7 +2637,7 @@ h_esstore:
     .text "es!"
     .word word_esstore
 h_esfetch:
-    .word h_tile_row
+    .word h_sread
     .word 3
     .text "es@"
     .word word_esfetch
@@ -13116,6 +13116,32 @@ waqr_done:
     LDI next
     MOV PC, R0
     NOP
+
+; =============================================
+; serial-read ( addr len -- 0 ): flat-build stub
+; =============================================
+; The D16nano kernel has the real UART block reader; the flat console build
+; only has to resolve the edit slice's xmodem word, which is not used here.
+.org 0x4CDC
+.code
+word_serialread:
+    LD R1, SP, 0
+    ADD SP, 1
+    LD R2, SP, 0
+    ADD SP, 1
+    LSI R3, 0
+    SUB SP, 1
+    ST R3, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+.org 0x4D10
+h_sread:
+    .word h_tile_row
+    .word 11
+    .text "serial-read"
+    .word word_serialread
 
 ; =============================================
 ; BIOS Implementation. The screen build keeps it at physical 0xF8000; D16MINI

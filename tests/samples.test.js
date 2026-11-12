@@ -23,3 +23,26 @@ test('the ping sample is a μ-law slice with the 11.10 kHz rate code', () => {
   }
   assert.notEqual(ulawDecode(src[1]), 0, 'the demo is not silence');
 });
+
+test('the swoosh is a two-second chain of linked μ-law slices', () => {
+  const { words, manifest } = buildSlices();
+  const man = manifest.objects.swoosh;
+  assert.ok(man, 'the directory lists swoosh');
+  assert.equal(man.rate, 2);
+  assert.ok(man.samples / 11100 > 1.9, `${man.samples} samples is not two seconds`);
+  assert.ok(man.count > 1, 'the swoosh spans several slices');
+
+  let n = man.first;
+  let count = 0;
+  while (n !== 0xffff) {
+    const base = n * SLICE_WORDS;
+    assert.equal(words[base] & 0xff, count === 0 ? TYPES.ULAW : TYPES.EMPTY,
+                 `slice ${n} type`);
+    assert.equal((words[base] >> 8) & 0xf, count === 0 ? man.rate : 0,
+                 `slice ${n} flags`);
+    n = words[base + 1];
+    count++;
+    assert.ok(count <= 32, 'the chain terminates and fits the sound window');
+  }
+  assert.equal(count, man.count);
+});

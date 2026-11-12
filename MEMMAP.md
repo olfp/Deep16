@@ -112,7 +112,7 @@ loader. The dictionary then continues at `0x6000`.
 | `0x03000`–`0x0434E` | kernel data, boot script, built-in headers, `rp0_base` |
 | `0x0434F`–`0x049FF` | free (`dict_free`; the old Pac-Man/frogger gap) |
 | `0x04A00`–`0x04CDB` | BIOS code (dispatch, console functions 0–6) |
-| `0x04CDC`–`0x04D33` | free |
+| `0x04CDC`–`0x04D33` | `serial-read` primitive (0x4CDC) and its built-in header (0x4D10) |
 | `0x04D34`–`0x04DFD` | D16D trampoline, strings, palette, header (small gaps) |
 | `0x04E00`–`0x04E41` | D16D `scene_init`/`draw_text` copies |
 | `0x04E42`–`0x04EFF` | free and the menu's state cells |
@@ -166,6 +166,7 @@ loader. The dictionary then continues at `0x6000`.
 | `divtest_ok_str` | `0x532E` | `divtest ok` string |
 | `ps2_r5` | `0x57E0` | PS/2 sender's saved R5/R6/LR/count cells |
 | `sfx_sv` | `0x57F0` | SFX saved R4-R12 cells; `sfx_frames` at `0x57F9` |
+| `word_serialread` | `0x4CDC` | machine-speed UART block read for XMODEM |
 
 The D16D showcase is now only the menu: a four-word header at `0x3E4`
 (`0x0D16`, format 1, entry `0x334`), a trampoline at `0x334`, the menu code at
@@ -593,6 +594,7 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x21A000`–`0x21DFFF` | slices 26–29: Frogger (6276 words incl. pack, segment `0x0600`) |
 | `0x21E000` | slice 30: `hello.fth` |
 | `0x21F000` | slice 31: `ping` μ-law sample |
+| `0x220000`–`0x225FFF` | slices 32–37: `swoosh` 2-second μ-law sample (linked) |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and

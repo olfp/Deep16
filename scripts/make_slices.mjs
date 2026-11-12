@@ -189,6 +189,9 @@ export function buildSlices() {
   const ping = samples.ping;
   const pingFirst = helloFirst + helloSlices.length;
   const pingSlices = sampleSlices(ping.bytes, pingFirst, ping.name, ping.rate);
+  const swoosh = samples.swoosh;
+  const swooshFirst = pingFirst + pingSlices.length;
+  const swooshSlices = sampleSlices(swoosh.bytes, swooshFirst, swoosh.name, swoosh.rate);
 
   const slices = [directory([
     entry({ type: TYPES.TEXT, first: startFirst, name: 'start' }),
@@ -203,9 +206,10 @@ export function buildSlices() {
     entry({ type: TYPES.BINARY, flags: 1, first: froggerFirst, name: 'frogger' }),
     entry({ type: TYPES.TEXT, first: helloFirst, name: 'hello' }),
     entry({ type: TYPES.ULAW, flags: ping.rate, first: pingFirst, name: ping.name }),
+    entry({ type: TYPES.ULAW, flags: swoosh.rate, first: swooshFirst, name: swoosh.name }),
   ]), ...startSlices, ...essSlices, ...editSlices, ...gfxSlices, ...audioSlices, ...gameSlices,
      ...sdSlices, ...pacSlices, ...flappySlices, ...froggerSlices, ...helloSlices,
-     ...pingSlices];
+     ...pingSlices, ...swooshSlices];
   const words = new Uint16Array(slices.length * SLICE_WORDS);
   slices.forEach((w, i) => words.set(w, i * SLICE_WORDS));
   const bytes = Buffer.alloc(slices.length * SLICE_BYTES, 0xff);
@@ -230,6 +234,8 @@ export function buildSlices() {
       hello: { first: helloFirst, count: helloSlices.length, chars: hello.length },
       ping: { first: pingFirst, count: pingSlices.length, samples: ping.bytes.length,
               rate: ping.rate },
+      swoosh: { first: swooshFirst, count: swooshSlices.length, samples: swoosh.bytes.length,
+                rate: swoosh.rate },
     },
   };
   return { words, bytes, manifest };

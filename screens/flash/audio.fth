@@ -1,8 +1,9 @@
 \ screens/flash/audio.fth - one μ-law sample voice.
 \ Loaded on demand with: s" audio" need
-\ A sample is one type-0x0A slice: 2040 cells of packed μ-law bytes.
-\ `sample` is the blocking demo; `sample-start` / `sample-stop` play in the
-\ background from the sound window, paced by the I2S FIFO-low IRQ.
+\ A sample is one or more linked type-0x0A slices: 2040 cells of packed
+\ μ-law bytes each. `sample` is the blocking demo; `sample-start` /
+\ `sample-stop` play in the background from the sound window, paced by the
+\ I2S FIFO-low IRQ.
 0xA0 constant i2s-data
 0xA2 constant i2s-ctrl
 0xA4 constant i2s-status
@@ -54,20 +55,36 @@ create ulaw-table
     ulaw-table i cells + @  sw-table i + es!
   loop
   0xF000 seg-base! ;
-: sample-copy ( -- )
+variable sample-cells drop
+variable sample-a drop
+variable sample-first drop
+: sample-one ( n -- next )
+  dup slice sample-a !
+  sample-a @ slice-valid? 0= if drop 0xFFFF exit then
+  sample-a @ slice-link >r
+  drop
   0xE000 seg-base!
+  sw-data sample-cells @ +
   2040 0 do
-    slice-buf 8 cells + i cells + @
-    sw-data i + es!
-  loop
-  0xF000 seg-base! ;
+    sample-a @ 8 cells + i cells + @
+    over i + es!
+  loop drop
+  2040 sample-cells +!
+  0xF000 seg-base!
+  r> ;
+: sample-chain ( n -- cells )
+  0 sample-cells !
+  begin dup 0xFFFF <> while sample-one repeat drop
+  sample-cells @ ;
 
 : sample-stop ( -- )
   0 sw-run sample-win!
   2 i2s-ctrl es!
-  sample-irq-off ;
+  sample-irq-off
+  4 0xB0 es! ;
 : sample-start ( n -- )
   sample-stop
+  dup sample-first !
   dup 0 511 within 0= if ." sample: 0..511" cr drop exit then
   slice dup slice-valid? 0= if
     drop ." sample: no slice" cr exit
@@ -76,9 +93,9 @@ create ulaw-table
     drop ." sample: not ulaw" cr exit
   then drop
   sample-table!
-  sample-copy
+  sample-first @ sample-chain
   0 sw-pos sample-win!
-  4080 sw-end sample-win!
+  2* sw-end sample-win!
   0 sw-loop sample-win!
   0 sw-count sample-win!
   2 i2s-ctrl es!

@@ -455,6 +455,7 @@ again ;
 0x04 constant eot
 0x06 constant ack
 0x15 constant nak
+0x18 constant can
 0x43 constant crc-req
 variable x-buf drop
 variable x-len drop
@@ -466,6 +467,10 @@ variable x-pblk drop
 variable x-pnblk drop
 variable x-pcrc drop
 variable x-max drop
+variable x-abort drop
+variable x-done drop
+create x-frame 132 allot
+: x-abort? ( -- f ) key? if key drop true else false then ;
 : crc-byte ( crc b -- crc )
 8 lshift xor
 8 0 do
@@ -481,6 +486,7 @@ loop drop x-run @ ;
 : x-wait-soh ( -- c )
 0 x-wait !
 begin
+x-abort? if 1 x-abort ! 0 exit then
 serial-ready? if
 serial-key
 dup soh = if exit then
@@ -491,19 +497,19 @@ then
 x-wait @ 20000 > if 0 exit then
 again ;
 : x-block ( -- )
-serial-key x-pblk !
-serial-key x-pnblk !
+x-abort @ if exit then
+x-frame 132 serial-read
+132 <> if x-abort? drop 1 x-abort ! exit then
+x-frame c@ x-pblk !
+x-frame 1+ c@ x-pnblk !
 x-len @ 128 + x-max @ > if
 ." xmodem: too big" cr x-nak exit
 then
-128 0 do
-serial-key
-x-buf @ x-len @ + i + c!
-loop
-serial-key 8 lshift serial-key or x-pcrc !
-x-buf @ x-len @ + 128 crc-block
+x-frame 2 + 128 crc-block
+x-frame 130 + c@ 8 lshift x-frame 131 + c@ or x-pcrc !
 x-pcrc @ <> if x-nak exit then
 x-pblk @ x-pnblk @ + 0xff <> if x-nak exit then
+x-frame 2 + x-buf @ x-len @ + 128 move
 x-pblk @ x-blk @ = if
 x-len @ 128 + x-len !
 x-blk @ 1+ 0xff and x-blk !
@@ -521,23 +527,31 @@ while
 x-len @ 1- x-len !
 repeat ;
 : xmodem ( -- )
-." xmodem: receiving (CRC)" cr
+." xmodem: receiving (CRC). Press key to abort" cr
 here x-buf !
 0 x-len !
 1 x-blk !
 0 x-started !
+0 x-abort !
+0 x-done !
 unused 1024 - x-max !
 begin
+x-abort @ 0= x-done @ 0= and
+while
 x-started @ 0= if crc-req serial-emit then
 x-wait-soh
 dup soh = if
-drop x-block 1 x-started ! false
+drop x-block 1 x-started !
 else dup eot = if
-drop x-ack true
+drop x-ack 1 x-done !
 else
-drop 0 x-started ! false
+drop 0 x-started !
 then then
-until
+repeat
+x-abort @ if
+can serial-emit can serial-emit
+." xmodem: aborted" cr exit
+then
 x-trim
 x-len @ allot
 ." xmodem: " x-len @ . ." bytes" cr

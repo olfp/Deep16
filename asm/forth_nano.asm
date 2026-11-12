@@ -3612,10 +3612,10 @@ h_callfar:
     .word word_callfar
 .ifdef D16D
 h_segbase:
-    .word h_tile_row
+    .word h_sread
 .else
 h_segbase:
-    .word h_callfar
+    .word h_sread
 .endif
     .word 9
     .text "seg-base!"
@@ -18659,6 +18659,79 @@ ug_idle:
     RETI
     NOP
 .endif
+
+; ============================================================
+; serial-read ( addr len -- n ): drain the UART at machine speed
+; ============================================================
+; The UART RX FIFO is 64 bytes and an XMODEM block is 128, so a Forth loop
+; that touches the status/data cells once per byte cannot keep up with a
+; 115200 sender.  This primitive copies bytes until len is reached, the FIFO
+; is empty, or a PS/2 key reaches the IRQ ring (0x52C0 in DS).  It returns the
+; number of bytes stored; a short count means the xmodem caller should abort.
+; Runs in the normal bank: DS=0x1000 (the ring), ES=0xF000 (the UART).
+.org 0x4CDC
+.code
+word_serialread:
+    LD R1, SP, 0             ; len
+    ADD SP, 1
+    LD R2, SP, 0             ; addr
+    ADD SP, 1
+    LSI R3, 0                ; count
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0               ; ES = 0xF000
+    LDI 0x40
+    MOV R4, R0               ; UART status
+sread_loop:
+    AND R1, R1
+    JZ sread_done
+    NOP
+    LDS R7, ES, R4           ; UART status
+    LSI R0, 1
+    AND R7, R0               ; RX ready?
+    JNZ sread_have
+    NOP
+    LDI 0x60
+    MOV R7, R0
+    LDS R7, ES, R7           ; keyboard FIFO status
+    LSI R0, 1
+    AND R7, R0
+    JNZ sread_done           ; a key is waiting: return a short count
+    NOP
+    CLRZ
+    JZ sread_loop
+    NOP
+sread_have:
+    LDI 0x42
+    MOV R7, R0
+    LDS R7, ES, R7           ; DATA
+    LDI 0xFF
+    AND R7, R0
+    ST R7, R2, 0             ; [addr] = byte
+    ADD R2, 1
+    ADD R3, 1
+    SUB R1, 1
+    JNZ sread_loop
+    NOP
+sread_done:
+    SUB SP, 1
+    ST R3, SP, 0             ; push the count
+    LDI next
+    MOV PC, R0
+    NOP
+
+; serial-read's header lives beside the code, not in the kernel data: adding it
+; at the head of the chain would move text_attr off the catalog's 0x3C1F.
+.org 0x4D10
+h_sread:
+.ifdef D16D
+    .word h_tile_row
+.else
+    .word h_callfar
+.endif
+    .word 11
+    .text "serial-read"
+    .word word_serialread
 
 ; ============================================================
 ; PS/2 host: reset and enable the keyboard (D16D only)

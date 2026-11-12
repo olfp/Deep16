@@ -65,11 +65,12 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 #   -o 0x200000 artifacts/image/slices.bin
 ```
 
-The current image is 32 slices / 128 KB: directory 0, start 1,
+The current image is 38 slices / 152 KB: directory 0, start 1,
 essentials 2–3 (SPI/config flash, `dir`/`find`, slice editor, `p-screen`),
 edit 4–10, graphics 11–12 (SIC/raster, scene, palettes, I2S, sprites),
 audio 13–14 (μ-law player), games 15–16, sd-card 17–19, Pac-Man 20–22,
-Flappy 23–25, Frogger 26–29, hello 30 and the demo `ping` sample 31.
+Flappy 23–25, Frogger 26–29, hello 30, the demo `ping` sample 31 and the
+2-second `swoosh` sample 32–37.
 
 The baked boot loader does `1 screen` (start), then `need essentials`
 and `need edit`, so `dir`, `find`, the editor and the start words are
@@ -77,9 +78,12 @@ available at power-on. `graphics`, `audio`, `games` and `sd-card` are loaded
 on demand: `s" graphics" need`, `s" games" need`, `s" sd-card" need`, each
 printing `Loading <name>`. `30 screen` (or `s" hello" find screen`) loads
 the hello test source. The sample player is loaded on demand:
-`s" audio" need`, then `s" ping" find sample` plays the 11.10 kHz μ-law demo
-(blocking). `s" ping" find sample-start` plays it in the background from the
-sound window and returns at once; `sample-stop` stops it.
+`s" audio" need`, then `s" swoosh" find sample` plays the 2-second 11.10 kHz
+μ-law demo (blocking). `s" swoosh" find sample-start` plays it in the
+background from the sound window and returns at once; `sample-stop` stops it.
+`s" ping" find sample` is the short one-slice demo. `xmodem` receives a
+CRC file; its message says `Press key to abort`, and any PS/2 key cancels the
+transfer and sends `CAN` twice to the sender.
 Flappy, Frogger and Pac-Man are listed as apps
 (directory flag 1) and are loaded by the BDOS on demand. The PS/2 host
 sender is no longer a slice: it lives in the BIOS, and `binit` initialises
