@@ -65,16 +65,21 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 #   -o 0x200000 artifacts/image/slices.bin
 ```
 
-The current image is 29 slices / 116 KB: directory 0, start 1,
+The current image is 32 slices / 128 KB: directory 0, start 1,
 essentials 2–3 (SPI/config flash, `dir`/`find`, slice editor, `p-screen`),
-edit 4–10, graphics 11–12 (SIC/raster, scene, palettes, I2S, sprites), games
-13–14, sd-card 15–17, Pac-Man 18–20, Flappy 21–23, Frogger 24–27 and hello
-28. The baked boot loader does `1 screen` (start), then `need essentials`
+edit 4–10, graphics 11–12 (SIC/raster, scene, palettes, I2S, sprites),
+audio 13–14 (μ-law player), games 15–16, sd-card 17–19, Pac-Man 20–22,
+Flappy 23–25, Frogger 26–29, hello 30 and the demo `ping` sample 31.
+
+The baked boot loader does `1 screen` (start), then `need essentials`
 and `need edit`, so `dir`, `find`, the editor and the start words are
-available at power-on. `graphics`, `games` and `sd-card` are loaded on
-demand: `s" graphics" need`, `s" games" need`, `s" sd-card" need`, each
-printing `Loading <name>`. `28 screen` (or `s" hello" find screen`) loads
-the hello test source. Flappy, Frogger and Pac-Man are listed as apps
+available at power-on. `graphics`, `audio`, `games` and `sd-card` are loaded
+on demand: `s" graphics" need`, `s" games" need`, `s" sd-card" need`, each
+printing `Loading <name>`. `30 screen` (or `s" hello" find screen`) loads
+the hello test source. The sample player is loaded on demand:
+`s" audio" need`, then `s" ping" find sample` plays the 11.10 kHz μ-law demo
+(blocking/polled in this first version).
+Flappy, Frogger and Pac-Man are listed as apps
 (directory flag 1) and are loaded by the BDOS on demand. The PS/2 host
 sender is no longer a slice: it lives in the BIOS, and `binit` initialises
 the keyboard before the menu (BIOS function 8 and the `cls` word repeat it

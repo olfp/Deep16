@@ -565,12 +565,14 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x202000`–`0x203FFF` | slices 2–3: `essentials.fth` (SPI/config flash, `dir`/`find`, slice editor) |
 | `0x204000`–`0x20AFFF` | slices 4–10: `edit.fth` (block and text editors) |
 | `0x20B000`–`0x20CFFF` | slices 11–12: `graphics.fth` (SIC/raster, scene, palettes, I2S, sprites) |
-| `0x20D000`–`0x20EFFF` | slices 13–14: `games.fth` (the flash game loader) |
-| `0x20F000`–`0x211FFF` | slices 15–17: `sd.fth` (loaded with `s" sd-card" need`) |
-| `0x212000`–`0x214FFF` | slices 18–20: Pac-Man (4890 words incl. its tile pack, segment `0x2000`) |
-| `0x215000`–`0x217FFF` | slices 21–23: Flappy (4560 words incl. pack, segment `0x5000`) |
-| `0x218000`–`0x21BFFF` | slices 24–27: Frogger (6276 words incl. pack, segment `0x0600`) |
-| `0x21C000` | slice 28: `hello.fth` |
+| `0x20D000`–`0x20EFFF` | slices 13–14: `audio.fth` (μ-law player) |
+| `0x20F000`–`0x210FFF` | slices 15–16: `games.fth` (the flash game loader) |
+| `0x211000`–`0x213FFF` | slices 17–19: `sd.fth` (loaded with `s" sd-card" need`) |
+| `0x214000`–`0x216FFF` | slices 20–22: Pac-Man (4890 words incl. its tile pack, segment `0x2000`) |
+| `0x217000`–`0x219FFF` | slices 23–25: Flappy (4560 words incl. pack, segment `0x5000`) |
+| `0x21A000`–`0x21DFFF` | slices 26–29: Frogger (6276 words incl. pack, segment `0x0600`) |
+| `0x21E000` | slice 30: `hello.fth` |
+| `0x21F000` | slice 31: `ping` μ-law sample |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and

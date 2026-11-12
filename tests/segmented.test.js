@@ -53,6 +53,7 @@ function scattered() {
 
 const slices = buildSlices();
 const helloFirst = slices.manifest.objects.hello.first;
+const pingFirst = slices.manifest.objects.ping.first;
 const sim = new globalThis.Deep16Simulator();
 sim.loadProgram(scattered());
 sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
@@ -536,6 +537,27 @@ test('the 64K data stack holds 18000 cells', () => {
   assert.equal(number(line('18000 push-n depth . cr'), '18000 push-n depth . cr'), 18000);
   assert.equal(number(line('18000 drop-n depth . cr'), '18000 drop-n depth . cr'), 0);
   assert.ok(sim.running);
+});
+
+test('the μ-law player primes at 11.10 kHz and stops cleanly', () => {
+  line('s" audio" need');
+  line(`${pingFirst} slice drop`);
+  assert.equal(number(line('0 sample-value . cr'), '0 sample-value . cr'), 0, 'μ-law silence');
+  assert.notEqual(number(line('1 sample-value . cr'), '1 sample-value . cr'), 0, 'second sample is audible');
+
+  sim.memory[0xF00A4] = 2;              // FIFO full: prime one burst only
+  assert.match(line(`${pingFirst} sample-start`), / ok/);
+  assert.equal(number(line('sample-run @ . cr'), 'sample-run @ . cr'), 1);
+  assert.equal(number(line('sample-pos @ . cr'), 'sample-pos @ . cr'), 0);
+
+  line('sample-stop');
+  assert.equal(number(line('sample-run @ . cr'), 'sample-run @ . cr'), 0);
+
+  // With an empty FIFO the blocking player drains the whole sample.
+  sim.memory[0xF00A4] = 0;
+  assert.match(line(`${pingFirst} sample-play`), / ok/);
+  assert.equal(number(line('sample-pos @ . cr'), 'sample-pos @ . cr'), 4080);
+  assert.equal(number(line('depth . cr'), 'depth . cr'), 0);
 });
 
 // ---- SD card --------------------------------------------------------------
