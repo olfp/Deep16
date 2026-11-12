@@ -12,6 +12,7 @@ include value.fs
 include stdlib.fs
 include hash.fs
 include meta.fs
+include tablelib.fs
 include compiler.fs
 
 \ Strings are c-addr u (ANS Forth).

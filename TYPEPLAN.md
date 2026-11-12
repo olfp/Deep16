@@ -7,11 +7,13 @@ migration record; the source and tests are authoritative.
 
 Verification: `gforth lila/test.fs` passes, including three-cell at/! checks,
 boolean results, nil for missing keys and no-return functions, mixed-tag
-tables, dynamically retyped variables, and tables with 100 keys. The original
-`lila/test.lila` program also loads and runs.
+tables, dynamically retyped variables, arbitrary non-nil keys, sequences and
+`#`, `next`/`pairs`/`ipairs`, the table library, and tables with 100 keys. The
+original `lila/test.lila` program also loads and runs.
 
 Companions: `lila/README.md` (current language semantics), `lila/compiler.fs`
-(type stack and code generation), `lila/hash.fs` (table layout), `lila/meta.fs`
+(type stack and code generation), `lila/hash.fs` (table layout),
+`lila/tablelib.fs` (iteration and table library), `lila/meta.fs`
 (metatables and metamethods), `lila/gc.fs` (roots and scanning),
 `FORTH.md` (Deep16 double-cell words), `FLOATIMPL.md`
 (the float pair layout) and `D16MINI.md` (stack and memory budget).
@@ -225,40 +227,39 @@ deep expressions and multi-argument calls need measuring after the change.
 Tables become heterogeneous. The per-table value kind disappears; the tag on
 each stored value decides how that slot is read.
 
-Current header and slot:
-
-```text
-header: [nbuckets][buckets*][count][value-kind]
-slot:   [key-addr][key-len][value][occupied]
-```
-
-New header and slot:
+The earlier string-only table used four-cell slots. The implemented layout
+carries a complete three-cell key as well as a complete three-cell value:
 
 ```text
 header: [nbuckets][buckets*][count][metatable*]
-slot:   [key-addr][key-len][value1][value2][tag][occupied]
+slot:   [key1][key2][keytag][value1][value2][valuetag][occupied]
 ```
 
-The slot's value layout mirrors the normal value layout, so `slot-value` can
-return an address for `lila-value@`. The slot grows from four
-cells to six; a 64-key table grows from 256 to 384 cells, a 50% increase in the
-bucket array.
+A slot is seven cells. Both the key and the value use the normal value layout,
+so `slot-key@` and `slot-value@` can return addresses for `lila-value@`. Keys
+may be strings, numbers, booleans, tables, or functions; `nil` is rejected.
+Strings hash by bytes, numbers by their 32-bit payload, and the other types by
+their payload cell, which gives identity semantics for tables and functions.
 
-The low-level table operations become:
+The low-level table operations are:
 
 ```text
-table-get  ( table key-addr key-len -- value1 value2 tag found )
-table-set  ( table key-addr key-len value1 value2 tag -- )
+table-get    ( table k1 k2 kt -- value1 value2 tag found )
+table-set    ( table k1 k2 kt value1 value2 tag -- )
+table-next   ( table k1 k2 kt -- nk1 nk2 nkt nv1 nv2 nvt found )
+table-border ( table -- n )
 ```
 
 A missing key returns `( 0 0 nil false )` at the low level. The language-level
-read then yields nil; `length(nil)` is `0`. This replaces both the current "missing key is numeric
-zero" rule and the `lila: table holds strings`/`lila: table holds numbers`
-aborts. A wrong operation is now a tag error at the point of use: adding a
-string, calling `length` on a number, and so on.
+read then yields nil; `length(nil)` is `0`. This replaces both the current
+"missing key is numeric zero" rule and the `lila: table holds strings`/
+`lila: table holds numbers` aborts. A wrong operation is now a tag error at the
+point of use: adding a string, calling `length` on a number, and so on.
 
-Keys remain string `c-addr u` descriptors. They are not three-cell values yet;
-that can come later if numeric or table keys are wanted.
+`table-border` walks indices from 1 while the corresponding value exists,
+which implements the unary `#` operator and the default bounds for
+`table.concat`/`table.unpack`. `table-next` scans the bucket array and skips
+nil-valued entries, so iterators treat a stored `nil` as absent.
 
 Table aliases no longer carry a value kind, because there is no kind to carry.
 `copy = names` copies one table pointer; every read through either name uses the
@@ -396,9 +397,10 @@ every cell in a root, or at least both payload cells of a three-cell value.
 Scanning the tag cell is harmless because a tag is a small integer and cannot
 alias a heap address.
 
-`table-gc-scan` must mark the key address, the metatable pointer, and both value
-payload cells. The table header itself becomes four cells; the bucket array
-stays a separate GC object. String data and table bucket arrays are unchanged.
+`table-gc-scan` must mark both key payload cells, the metatable pointer, and
+both value payload cells. The table header itself is four cells; the bucket
+array stays a separate GC object. String data and table bucket arrays are
+unchanged.
 
 The scanner dispatch now also covers the frame and closure object types added by
 lexical scope. Type 3 frames conservatively mark every cell in the frame,

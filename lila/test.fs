@@ -445,5 +445,75 @@ lila-var-mt_gmnil check-nil
 lila-var-mt_badset false check-bool
 lila-var-mt_badmsg s" lila: table expected" check-str
 
+\ arbitrary table keys, sequences, and #
+lila-var-tk_len 3 check-num
+lila-var-tk_first 10 check-num
+lila-var-tk_missing check-nil
+lila-var-tk_slen 5 check-num
+lila-var-bk_true 11 check-num
+lila-var-bk_false 12 check-num
+lila-var-bk_fnval 13 check-num
+lila-var-bk_objval 14 check-num
+lila-var-hole_len1 3 check-num
+lila-var-hole_len2 1 check-num
+lila-var-hole_2 check-nil
+lila-var-hole_count 2 check-num
+
+\ next / pairs / ipairs
+lila-var-it_k1 1 check-num
+lila-var-it_v1 10 check-num
+lila-var-it_k2 2 check-num
+lila-var-it_v2 20 check-num
+lila-var-it_k3 3 check-num
+lila-var-it_v3 30 check-num
+lila-var-it_end_nil true check-bool
+lila-var-pk1 1 check-num
+lila-var-pv1 10 check-num
+lila-var-pk2 2 check-num
+lila-var-pv2 20 check-num
+lila-var-ip1 1 check-num
+lila-var-ipv1 10 check-num
+lila-var-ip2 2 check-num
+lila-var-ipv2 20 check-num
+
+\ table.insert / table.remove
+lila-var-ti_len1 3 check-num
+lila-var-ti_first 5 check-num
+lila-var-ti_second 10 check-num
+lila-var-ti_len2 4 check-num
+lila-var-ti_removed 30 check-num
+lila-var-ti_len3 3 check-num
+lila-var-ti_removed2 5 check-num
+lila-var-ti_after 10 check-num
+lila-var-ti_len4 2 check-num
+
+\ table.concat / table.unpack / table.pack
+lila-var-tc_all s" abc" check-str
+lila-var-tc_sep s" a-b-c" check-str
+lila-var-tc_slice s" b,c" check-str
+lila-var-tcn_str s" 1+2" check-str
+lila-var-tu1 10 check-num
+lila-var-tu2 20 check-num
+lila-var-tu3 30 check-num
+lila-var-tpk_n 2 check-num
+lila-var-tpk_1 s" x" check-str
+lila-var-tpk_2 s" y" check-str
+
+\ table.sort
+lila-var-ts_1 1 check-num
+lila-var-ts_2 2 check-num
+lila-var-ts_3 3 check-num
+lila-var-ts_d1 3 check-num
+lila-var-ts_d2 2 check-num
+lila-var-ts_d3 1 check-num
+
+\ errors surface through pcall
+lila-var-tbl_badlen false check-bool
+lila-var-tbl_badlen_msg s" lila: string expected" check-str
+lila-var-tbl_badnext false check-bool
+lila-var-tbl_badnext_msg s" lila: invalid key to next" check-str
+lila-var-tbl_badins false check-bool
+lila-var-tbl_badins_msg s" lila: position out of bounds" check-str
+
 ." lila tests passed" cr
 bye

@@ -19,7 +19,7 @@
   table-addr 0= if 0 0 lila-tag-nil false exit then
   table-addr table-metatable@
   dup 0= if drop 0 0 lila-tag-nil false exit then
-  field-addr field-len table-get
+  field-addr field-len lila-tag-str table-get
   if
     dup lila-tag-nil = if
       lila-value-drop 0 0 lila-tag-nil false
@@ -129,8 +129,9 @@ meta-hold 3 lila-gc-register-root
 
 : lila-index { tv1 tv2 ttag kv1 kv2 ktag -- r1 r2 rt }
   ttag lila-check-table
-  ktag lila-check-str
-  tv1 kv1 kv2 table-get if exit then
+  kv1 kv2 ktag lila-first to ktag to kv2 to kv1
+  kv1 kv2 ktag lila-check-key
+  tv1 kv1 kv2 ktag table-get if exit then
   lila-value-drop
   tv1 s" __index" meta-method
   if
@@ -149,11 +150,12 @@ meta-hold 3 lila-gc-register-root
 
 : lila-newindex { tv1 tv2 ttag kv1 kv2 ktag value1 value2 tag -- }
   ttag lila-check-table
-  ktag lila-check-str
-  tv1 kv1 kv2 table-get
+  kv1 kv2 ktag lila-first to ktag to kv2 to kv1
+  kv1 kv2 ktag lila-check-key
+  tv1 kv1 kv2 ktag table-get
   if
     lila-value-drop
-    tv1 kv1 kv2 value1 value2 tag table-set exit
+    tv1 kv1 kv2 ktag value1 value2 tag table-set exit
   then
   lila-value-drop
   tv1 s" __newindex" meta-method
@@ -170,7 +172,7 @@ meta-hold 3 lila-gc-register-root
   else
     lila-value-drop
   then
-  tv1 kv1 kv2 value1 value2 tag table-set ;
+  tv1 kv1 kv2 ktag value1 value2 tag table-set ;
 
 \ The compiler emits these names for t[k] and t[k] = v, so redefining them
 \ here makes ordinary table access metatable-aware while table-get and
@@ -226,8 +228,8 @@ lila-value-allot lila-var-rawequal      lila-var-rawequal 3 lila-gc-register-roo
   m1 m2 mt 0 lila-arg { tv1 tv2 ttag }
   m1 m2 mt 1 lila-arg { k1 k2 kt }
   ttag lila-check-table
-  kt lila-tag-str <> if 0 0 lila-tag-nil exit then
-  tv1 k1 k2 table-get if exit then
+  k1 k2 kt lila-check-key
+  tv1 k1 k2 kt table-get if exit then
   lila-value-drop
   0 0 lila-tag-nil ;
 
@@ -237,8 +239,8 @@ lila-value-allot lila-var-rawequal      lila-var-rawequal 3 lila-gc-register-roo
   m1 m2 mt 1 lila-arg { k1 k2 kt }
   m1 m2 mt 2 lila-arg { v1 v2 tag }
   ttag lila-check-table
-  kt lila-check-str
-  tv1 k1 k2 v1 v2 tag table-set
+  k1 k2 kt lila-check-key
+  tv1 k1 k2 kt v1 v2 tag table-set
   tv1 tv2 ttag ;
 
 : lila-bi-rawequal { env argc -- r1 r2 rt }

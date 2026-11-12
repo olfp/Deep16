@@ -827,3 +827,115 @@ mt_gm = getmetatable(mopv) == mops
 mt_unset = setmetatable(mopv, nil) == mopv
 mt_gmnil = getmetatable(mopv)
 mt_badset, mt_badmsg = pcall(setmetatable, 5, {})
+
+-- arbitrary table keys, sequences, and the # operator
+tk = {}
+tk[1] = 10
+tk[2] = 20
+tk[3] = 30
+tk_len = #tk
+tk_first = tk[1]
+tk_missing = tk[4]
+tk_slen = #"hello"
+
+bk = {}
+bk[true] = 11
+bk[false] = 12
+bk_fn = function(x) return x end
+bk[bk_fn] = 13
+bk_obj = {}
+bk[bk_obj] = 14
+bk_true = bk[true]
+bk_false = bk[false]
+bk_fnval = bk[bk_fn]
+bk_objval = bk[bk_obj]
+
+hole = {}
+hole[1] = 1
+hole[2] = 2
+hole[3] = 3
+hole_len1 = #hole
+hole[2] = nil
+hole_len2 = #hole
+hole_2 = hole[2]
+
+-- iteration skips nil-valued entries
+hole_count = 0
+hnf, hnt, hnk = pairs(hole)
+hnk, hnv = hnf(hnt, hnk)
+while hnk ~= nil do
+  hole_count = hole_count + 1
+  hnk, hnv = hnf(hnt, hnk)
+end
+
+-- next and the pairs/ipairs iterator protocol
+it_k1, it_v1 = next(tk, nil)
+it_k2, it_v2 = next(tk, it_k1)
+it_k3, it_v3 = next(tk, it_k2)
+it_end = next(tk, it_k3)
+it_end_nil = it_end == nil
+
+pf, pt, pk = pairs(tk)
+pk1, pv1 = pf(pt, pk)
+pk2, pv2 = pf(pt, pk1)
+
+ipf, ipt, ipk = ipairs(tk)
+ip1, ipv1 = ipf(ipt, ipk)
+ip2, ipv2 = ipf(ipt, ip1)
+
+-- table.insert / table.remove
+ti = {}
+table.insert(ti, 10)
+table.insert(ti, 20)
+table.insert(ti, 30)
+ti_len1 = #ti
+table.insert(ti, 1, 5)
+ti_first = ti[1]
+ti_second = ti[2]
+ti_len2 = #ti
+ti_removed = table.remove(ti)
+ti_len3 = #ti
+ti_removed2 = table.remove(ti, 1)
+ti_after = ti[1]
+ti_len4 = #ti
+
+-- table.concat / table.unpack / table.pack
+tc = {}
+tc[1] = "a"
+tc[2] = "b"
+tc[3] = "c"
+tc_all = table.concat(tc)
+tc_sep = table.concat(tc, "-")
+tc_slice = table.concat(tc, ",", 2, 3)
+tcn = {}
+tcn[1] = 1
+tcn[2] = 2
+tcn_str = table.concat(tcn, "+")
+
+tu1, tu2, tu3 = table.unpack(tk)
+tpk = table.pack("x", "y")
+tpk_n = tpk["n"]
+tpk_1 = tpk[1]
+tpk_2 = tpk[2]
+
+-- table.sort with the default and a custom comparator
+ts = {}
+ts[1] = 3
+ts[2] = 1
+ts[3] = 2
+table.sort(ts)
+ts_1 = ts[1]
+ts_2 = ts[2]
+ts_3 = ts[3]
+function tdesc(a, b) return a > b end
+table.sort(ts, tdesc)
+ts_d1 = ts[1]
+ts_d2 = ts[2]
+ts_d3 = ts[3]
+
+-- errors are catchable through pcall
+tbvar = true
+function tbadlen() return #tbvar end
+tbl_badlen, tbl_badlen_msg = pcall(tbadlen)
+tbl_badnext, tbl_badnext_msg = pcall(next, tk, 99)
+tbl_badins, tbl_badins_msg = pcall(table.insert, tk, 99, 7)

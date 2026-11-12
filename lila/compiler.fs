@@ -62,10 +62,10 @@ create fn-param-types 16 allot
 variable fn-param-count
 variable fn-vararg
 \ Function signatures: parameter count and optional parameter type constraints.
-create sig-names 64 64 * allot
-create sig-parm-types 64 16 * allot
-create sig-pcnt 64 allot
-create sig-vararg 64 allot
+create sig-names 128 64 * allot
+create sig-parm-types 128 16 * allot
+create sig-pcnt 128 allot
+create sig-vararg 128 allot
 variable sig-count
 create call-arg-types 16 allot
 \ Function calls in expressions: name stack and one flag per open parenthesis.
@@ -273,10 +273,11 @@ variable tx-i
   ch [char] * = or  ch [char] / = or
   ch [char] < = or  ch [char] > = or
   ch [char] = = or  ch [char] % = or
-  ch [char] ^ = or  ch [char] ~ = or ;
+  ch [char] ^ = or  ch [char] ~ = or
+  ch [char] # = or ;
 
 : op-precedence { ch -- n }
-  ch [char] ~ = ch [char] ! = or if 4 exit then
+  ch [char] ~ = ch [char] ! = or ch [char] # = or if 4 exit then
   ch [char] ^ = if 5 exit then
   ch [char] * = ch [char] / = or ch [char] % = or ch op-idiv = or if 3 exit then
   ch [char] + = ch [char] - = or if 2 exit then
@@ -543,7 +544,7 @@ variable tx-i
 : sig-register ( -- )
   fn-name count sig-find { idx -- }
   idx 0< if
-    sig-count @ 64 >= if s" lila: too many functions" lila-error then
+    sig-count @ 128 >= if s" lila: too many functions" lila-error then
     sig-count @ to idx
     fn-name count idx 64 * sig-names + place
     1 sig-count +!
@@ -780,6 +781,16 @@ defer vararg-raw?
     append-space s" lila-not " lila-buf buf+
     lila-tag-bool type-push exit
   then
+  ch [char] # = if
+    type-pop { ut }
+    ut type-known? if
+      ut lila-tag-table = ut lila-tag-str = or 0= if
+        s" lila: length needs a string or table" lila-error
+      then
+    then
+    append-space s" lila-length " lila-buf buf+
+    lila-tag-num type-push exit
+  then
   ch [char] ~ = if
     type-pop { ut }
     ut type-known? ut lila-tag-table <> and if
@@ -981,7 +992,9 @@ defer vararg-raw?
     -1 pop-while
     -1 op-top +!
     type-pop dup type-known? if
-      lila-tag-str <> if s" lila: length needs a string" lila-error then
+      dup lila-tag-str <> swap lila-tag-table <> and if
+        s" lila: length needs a string or table" lila-error
+      then
     else drop then
     append-space s" lila-length " lila-buf buf+
     lila-tag-num type-push
@@ -1082,7 +1095,7 @@ defer vararg-raw?
   -1 op-top +!
   type-pop { kt } type-pop { tt }
   kt type-known? if
-    kt lila-tag-str <> if s" lila: table key must be a string" lila-error then
+    kt lila-tag-nil = if s" lila: table index is nil" lila-error then
   then
   tt type-known? if
     tt lila-tag-table <> if s" lila: table expected before [" lila-error then
@@ -1167,19 +1180,26 @@ defer vararg-raw?
                       ch [char] - = expect-operand @ and if
                         [char] ~ push-op
                       else
-                        expect-operand @ if
-                          s" lila: operand expected before operator" lila-error
+                        ch [char] # = if
+                          expect-operand @ 0= if
+                            s" lila: unexpected #" lila-error
+                          then
+                          [char] # push-op
+                        else
+                          expect-operand @ if
+                            s" lila: operand expected before operator" lila-error
+                          then
+                          ch
+                          i 1+ u < if c-addr i 1+ + c@ true else 0 false then
+                          op-code { code consumed -- }
+                          code [char] ~ = if
+                            s" lila: invalid operator" lila-error
+                          then
+                          code op-precedence pop-while
+                          code push-op
+                          consumed 2 = if i 1+ to i then
+                          1 expect-operand !
                         then
-                        ch
-                        i 1+ u < if c-addr i 1+ + c@ true else 0 false then
-                        op-code { code consumed -- }
-                        code [char] ~ = if
-                          s" lila: invalid operator" lila-error
-                        then
-                        code op-precedence pop-while
-                        code push-op
-                        consumed 2 = if i 1+ to i then
-                        1 expect-operand !
                       then
                     else
                       ch tok-buf tok-len @ + c!
@@ -1418,7 +1438,7 @@ defer vararg-raw?
   code-lhs-ref
   key-addr key-len compile-expr
   expr-type @ dup type-known? if
-    lila-tag-str <> if s" lila: table key must be a string" lila-error then
+    lila-tag-nil = if s" lila: table index is nil" lila-error then
   else drop then
   rhs rlen compile-rhs
   s"  lila-table-set " code+ ;

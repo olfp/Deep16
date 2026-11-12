@@ -1,6 +1,6 @@
 # LUAPARITY — LILA gaps relative to Lua 5.4
 
-Status: working note, 11 Nov 2026.
+Status: working note, 12 Nov 2026.
 
 LILA now has three-cell tagged values, mixed-tag tables, dynamically retyped
 variables, growable tables, lexical `local` declarations, and first-class
@@ -8,7 +8,8 @@ functions with closures. Relative to Lua 5.4 it is still a small core
 language. This note records the remaining language, library, and runtime gaps.
 
 Companions: `lila/README.md` (current LILA semantics), `TYPEPLAN.md` (tagged
-value ABI), `lila/compiler.fs`, `lila/hash.fs`, `lila/meta.fs`, and `lila/gc.fs`.
+value ABI), `lila/compiler.fs`, `lila/hash.fs`, `lila/tablelib.fs`,
+`lila/meta.fs`, and `lila/gc.fs`.
 
 ## 1. Core language semantics
 
@@ -43,14 +44,20 @@ assignment are implemented. The remaining core-language gaps are:
 
 ## 2. Tables
 
-- **String keys only.** No numeric, boolean, table, or function keys.
-- **No array/sequence part.** No `t[1]`, `#t`, `ipairs`, or sequence
-  semantics.
+- **Arbitrary non-nil keys.** Strings, numbers, booleans, tables, and functions
+  are accepted as keys and compared by value or identity as appropriate.
+  Storing a `nil` key raises an error.
+- **Sequences are implemented as ordinary tables.** `t[1]`, the unary `#`
+  border operator, and `ipairs` work. There is no separate array part, and `#`
+  stops at the first hole rather than providing Lua's arbitrary-hole result.
 - **No table constructors with contents.** Only `{}`; no `{1, 2, 3}` or
   `{name = "x"}`.
-- **No `pairs`, `ipairs`, or `next`.**
-- **No `table` library.** No `insert`, `remove`, `sort`, `concat`, `pack`,
-  `unpack`, or `move`.
+- **No generic `for ... in`.** `next`, `pairs`, and `ipairs` are implemented,
+  but the iteration protocol is used with ordinary calls, multiple assignment,
+  and `while` loops.
+- **Partial `table` library.** `insert`, `remove`, `concat`, `unpack`, `pack`,
+  and `sort` are implemented. `move` and the full set of Lua edge-case checks
+  are missing.
 - **Metatables and metamethods are a documented subset.** `setmetatable`,
   `getmetatable`, `rawget`, `rawset`, `rawequal`, `__index`, `__newindex`,
   `__add`, `__sub`, `__mul`, `__div`, `__idiv`, `__mod`, `__pow`, `__unm`,
@@ -99,7 +106,8 @@ assignment are implemented. The remaining core-language gaps are:
 - **No modules or packages:** no `require`, `package`, `_ENV`, or environments.
 - **No `io`, `os`, `debug`, `utf8`, or `coroutine` libraries.**
 - **`rawget`, `rawset`, `rawequal`, `setmetatable`, and `getmetatable` are
-  implemented.** `next`/`pairs`/`ipairs` are still missing.
+  implemented,** along with `next`, `pairs`, `ipairs`, and the basic `table`
+  library.
 
 ## 6. Implementation-level differences
 
@@ -113,8 +121,9 @@ assignment are implemented. The remaining core-language gaps are:
 
 ## 7. Highest-value next steps toward Lua parity
 
-1. **Full table keys and sequence support**, plus `pairs`/`ipairs` and basic
-   `table` functions.
+1. ~~**Full table keys and sequence support**, plus `pairs`/`ipairs` and basic
+   `table` functions.~~ Done: arbitrary non-nil keys, `#`, `next`/`pairs`/
+   `ipairs`, and `table.insert`, `remove`, `concat`, `unpack`, `pack`, `sort`.
 2. ~~**Boolean/logical operators** and a Lua-like operator set.~~ Done: `and`,
    `or`, `not`, `==`, `~=`, `<=`, `>=`, `%`, `//`, and `^`.
 3. ~~**Multiple returns and varargs.**~~ Done: multi-value returns, varargs,

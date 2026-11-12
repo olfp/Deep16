@@ -1,11 +1,13 @@
-\ LILA hash tables with string keys (c-addr u)
+\ LILA hash tables with arbitrary non-nil keys
 \ Table header: [nbuckets][buckets*][count][metatable*] (4 cells)
-\ Bucket array:  [slot ...] (6 cells per slot)
-\ Slot layout:   [key-addr][key-len][value1][value2][tag][occupied]
+\ Bucket array:  [slot ...] (7 cells per slot)
+\ Slot layout:   [key1][key2][keytag][value1][value2][valuetag][occupied]
+\ Keys are full three-cell LILA values.  Strings are hashed by bytes, numbers by
+\ their 32-bit payload, and booleans, tables and functions by their payload.
 \ Tables grow by doubling their bucket count at 3/4 load.  There is no fixed
 \ element limit.
 
-6 constant table-slot-cells
+7 constant table-slot-cells
 4 constant table-header-cells
 16 constant table-initial-buckets
 
@@ -13,6 +15,15 @@
   >r 0 -rot
   over + swap ?do i c@ + 31 * loop
   r> mod ;
+
+\ Hash any key value.  A nil key is rejected by table-set before it gets here.
+: hash-key { k1 k2 kt nbuckets -- idx }
+  kt lila-tag-str = if k1 k2 nbuckets hash-string exit then
+  kt lila-tag-num = if
+    k1 k2 lila-32 dup 0< if negate then nbuckets mod exit
+  then
+  kt lila-tag-nil = if 0 exit then
+  k1 nbuckets mod ;
 
 : table-new { nbuckets -- table }
   nbuckets table-initial-buckets max to nbuckets
@@ -33,25 +44,39 @@
 : slot-addr ( table idx -- addr )
   swap cell+ @  swap table-slot-cells * cells + ;
 
-: slot-key-addr ( slot -- addr )  @ ;
-: slot-key-len  ( slot -- u )     cell+ @ ;
-: slot-value-addr ( slot -- addr )  2 cells + ;
-: slot-occupied ( slot -- flag )  5 cells + @ ;
-: slot-value! { v1 v2 tag slot -- }
-  v1 v2 tag slot slot-value-addr lila-value! ;
+: slot-key-addr ( slot -- addr )  ;
+: slot-value-addr ( slot -- addr )  3 cells + ;
+: slot-occupied ( slot -- flag )  6 cells + @ ;
+: slot-key@ ( slot -- k1 k2 kt )  slot-key-addr lila-value@ ;
+: slot-value@ ( slot -- v1 v2 vt )  slot-value-addr lila-value@ ;
+: slot-key! ( k1 k2 kt slot -- )  slot-key-addr lila-value! ;
+: slot-value! ( v1 v2 tag slot -- )  slot-value-addr lila-value! ;
 
-: key= { a1 u1 a2 u2 -- flag }
-  u1 u2 <> if 0 exit then
-  a1 u1 a2 u2 compare 0= ;
+\ Raw equality, used for keys and by rawequal.  nil is never a key but is
+\ included so the predicate is total.
+: key= { a1 a2 at b1 b2 bt -- flag }
+  at bt <> if false exit then
+  at lila-tag-num = if
+    a1 a2 lila-32 b1 b2 lila-32 = exit
+  then
+  at lila-tag-str = if
+    a1 a2 b1 b2 compare 0= exit
+  then
+  at lila-tag-bool = if a1 b1 = exit then
+  at lila-tag-nil = if true exit then
+  a1 b1 = ;
 
-: lila-table-find { table key-addr key-len -- slot flag }
+: lila-check-key { k1 k2 kt -- }
+  kt lila-tag-nil = if s" lila: table index is nil" lila-raise-msg then ;
+
+: lila-table-find { table k1 k2 kt -- slot flag }
   table @ { n }
-  key-addr key-len n hash-string { idx }
+  k1 k2 kt n hash-key { idx }
   n 0 ?do
     table idx slot-addr
     dup slot-occupied if
-      dup slot-key-addr over slot-key-len
-      key-addr key-len key= if
+      dup slot-key@
+      k1 k2 kt key= if
         true unloop exit
       then
       drop
@@ -62,25 +87,24 @@
   loop
   0 false ;
 
-: table-get { table key-addr key-len -- value1 value2 tag found }
-  table key-addr key-len lila-table-find if
-    slot-value-addr lila-value@ true
+: table-get { table k1 k2 kt -- value1 value2 tag found }
+  table k1 k2 kt lila-table-find if
+    slot-value@ true
   else
     drop
     0 0 lila-tag-nil false
   then ;
 
-: table-put-raw { table key-addr key-len value1 value2 tag -- }
+: table-put-raw { table k1 k2 kt v1 v2 vt -- }
   table @ { n }
-  key-addr key-len n hash-string { idx }
+  k1 k2 kt n hash-key { idx }
   begin
     table idx slot-addr
     dup slot-occupied 0= if
-      key-addr over !
-      key-len over cell+ !
       dup >r
-      value1 value2 tag r@ slot-value!
-      1 r> 5 cells + !
+      k1 k2 kt r@ slot-key!
+      v1 v2 vt r@ slot-value!
+      1 r> 6 cells + !
       drop
       exit
     then
@@ -102,44 +126,116 @@ create table-grow-slot 0 ,
     i table-slot-cells * cells oldb + table-grow-slot !
     table-grow-slot @ slot-occupied if
       table
-      table-grow-slot @ slot-key-addr
-      table-grow-slot @ slot-key-len
-      table-grow-slot @ slot-value-addr lila-value@
+      table-grow-slot @ slot-key@
+      table-grow-slot @ slot-value@
       table-put-raw
       table table-count@ 1+ table 2 cells + !
     then
   loop ;
 
-: table-set { table key-addr key-len value1 value2 tag -- }
-  table key-addr key-len lila-table-find if
-    value1 value2 tag 3 roll slot-value!
+: table-set { table k1 k2 kt v1 v2 vt -- }
+  k1 k2 kt lila-check-key
+  table k1 k2 kt lila-table-find if
+    v1 v2 vt 3 roll slot-value!
   else
     drop
     table table-count@ 4 *  table @ 3 * >= if table table-grow then
-    table key-addr key-len value1 value2 tag table-put-raw
+    table k1 k2 kt v1 v2 vt table-put-raw
     table table-count@ 1+ table 2 cells + !
   then ;
 
-\ Tagged table operations used by the compiler.  Keys remain plain strings;
+\ Sequence border: the largest n such that 1..n are present and non-nil.
+\ This is O(n) in the border length; Lua's binary search is not required for
+\ the prototype.
+: table-border { table -- n }
+  0 { n }
+  begin
+    n 1+ { k }
+    table k lila>value-num table-get
+    if
+      dup lila-tag-nil <>
+    else
+      false
+    then
+  while
+    lila-value-drop
+    1 n + to n
+  repeat
+  lila-value-drop
+  n ;
+
+\ Locate an existing key's bucket index.  Used by next/2.
+: table-slot-index { table k1 k2 kt -- idx found }
+  table @ { n }
+  n 0 ?do
+    table i slot-addr
+    dup slot-occupied if
+      dup slot-key@
+      k1 k2 kt key= if
+        drop i true unloop exit
+      then
+      drop
+    else
+      drop
+    then
+  loop
+  0 false ;
+
+\ Iterate raw slots from START, skipping empty slots and nil-valued entries.
+: table-next-from { table start -- nk1 nk2 nkt nv1 nv2 nvt found }
+  begin
+    start table @ <
+  while
+    table start slot-addr
+    dup slot-occupied if
+      >r
+      r@ slot-key@
+      r@ slot-value@
+      dup lila-tag-nil <> if
+        r> drop
+        true exit
+      then
+      lila-value-drop
+      lila-value-drop
+      r> drop
+    else
+      drop
+    then
+    1 start + to start
+  repeat
+  0 0 lila-tag-nil 0 0 lila-tag-nil false ;
+
+\ next(t, key) scan: a nil key starts at the first bucket, any other key must
+\ already be in the table.
+: table-next { table k1 k2 kt -- nk1 nk2 nkt nv1 nv2 nvt found }
+  kt lila-tag-nil = if
+    table 0 table-next-from
+  else
+    table k1 k2 kt table-slot-index
+    0= if s" lila: invalid key to next" lila-raise-msg then
+    table swap 1+ table-next-from
+  then ;
+
+\ Tagged table operations used by the compiler.  Keys are full LILA values;
 \ values are full three-cell LILA values.
 : lila-table-new ( -- value1 value2 tag )
   table-initial-buckets table-new 0 lila-tag-table ;
 
 : lila-table-get { tv1 tv2 ttag kv1 kv2 ktag -- value1 value2 tag }
   ttag lila-check-table
-  ktag lila-check-str
-  tv1 kv1 kv2 table-get
+  kv1 kv2 ktag lila-check-key
+  tv1 kv1 kv2 ktag table-get
   if exit then
   lila-value-drop
   0 0 lila-tag-nil ;
 
 : lila-table-set { tv1 tv2 ttag kv1 kv2 ktag value1 value2 tag -- }
   ttag lila-check-table
-  ktag lila-check-str
-  tv1 kv1 kv2 value1 value2 tag table-set ;
+  kv1 kv2 ktag lila-check-key
+  tv1 kv1 kv2 ktag value1 value2 tag table-set ;
 
-\ GC integration: mark the bucket array, the metatable, every key, and both
-\ value payloads.
+\ GC integration: mark the bucket array, the metatable, and every occupied
+\ slot's key and value.  Marking tags is harmless.
 : table-gc-scan { table -- }
   table cell+ @ gc-mark-cell
   table table-metatable@ gc-mark-cell
@@ -147,13 +243,15 @@ create table-grow-slot 0 ,
   n 0 ?do
     table i slot-addr
     dup slot-occupied if
-      dup slot-key-addr gc-mark-cell
-      slot-value-addr lila-value@
-      gc-mark-cell
-      gc-mark-cell
-      gc-mark-cell
+      slot-key-addr
+      6 0 ?do
+        dup i cells + @ gc-mark-cell
+      loop
+      drop
     else
       drop
     then
   loop ;
 ' table-gc-scan is gc-scan-table
+
+' table-border is lila-table-length

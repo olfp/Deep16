@@ -112,6 +112,11 @@ defer lila-meta-lt
 defer lila-meta-le
 defer lila-meta-tostring
 
+\ hash.fs installs the table border implementation once tables exist.
+defer lila-table-length
+: lila-table-length-default ( table -- n )  drop 0 ;
+' lila-table-length-default is lila-table-length
+
 : lila-meta-binop-default ( a1 a2 ta b1 b2 tb -- )
   lila-value-drop lila-value-drop
   s" lila: operator not supported" lila-raise-msg ;
@@ -307,6 +312,7 @@ create lila-str-total 0 ,
 
 : lila-length { value1 value2 tag -- lo hi tnum }
   tag lila-tag-nil = if 0 0 lila-tag-num exit then
+  tag lila-tag-table = if value1 lila-table-length lila>value-num exit then
   tag lila-check-str
   value2 lila>value-num ;
 

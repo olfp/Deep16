@@ -152,7 +152,7 @@ Operators, from highest to lowest precedence:
 
 | Operators | Meaning |
 |---|---|
-| `not`, unary `-` | logical negation, numeric negation |
+| `not`, unary `-`, `#` | logical negation, numeric negation, length |
 | `^` | integer power (right-associative) |
 | `*` `/` `%` `//` | multiply, divide, modulo, floor division |
 | `+` `-` | add/subtract numbers, concatenate strings |
@@ -350,7 +350,9 @@ definition has executed.
 
 ## Tables
 
-Tables are created with `{}` and use string keys:
+Tables are created with `{}`. A key may be any value except `nil`: strings,
+numbers, booleans, tables, and functions all work. String keys are written with
+brackets:
 
 ```lisp
 scores = {}
@@ -358,6 +360,20 @@ scores["alice"] = 10
 scores["bob"] = 7
 print(scores["alice"] + scores["bob"])   -- 17
 ```
+
+Numeric and boolean keys use the same syntax:
+
+```lisp
+t = {}
+t[1] = 10
+t[2] = 20
+t[true] = "yes"
+print(t[1])                    -- 10
+print(t[true])                 -- yes
+```
+
+Tables and functions compare and hash by identity, so a table or function can
+be used as a key as well.
 
 Reading a missing key yields `nil`:
 
@@ -367,9 +383,9 @@ print(scores["missing"])       -- nil
 print(length(scores["missing"])) -- 0
 ```
 
-Keys may be any string expression, such as a literal, a string variable, or a
-concatenation. Values may carry any tag, and different slots in the same table
-may hold different types:
+String keys may be any string expression, such as a literal, a string
+variable, or a concatenation. Values may carry any tag, and different slots in
+the same table may hold different types:
 
 ```lisp
 mixed = {}
@@ -410,6 +426,97 @@ t["kind"] = "string"
 put(t, "bob")
 print(t["value"])              -- bob
 ```
+
+### Sequences and `#`
+
+A sequence is a table with values at `1, 2, 3, ...`. The unary `#` operator
+returns the border: the largest `n` such that every index from 1 through `n`
+has a non-nil value. A table with only string keys has border 0, and `#s`
+returns the length of a string.
+
+```lisp
+t = {}
+t[1] = 10
+t[2] = 20
+t[3] = 30
+print(#t)                      -- 3
+print(#"hello")                -- 5
+t[2] = nil
+print(#t)                      -- 1
+```
+
+`nil` is stored, not deleted, but sequence operations treat a `nil` value as
+absent. Lua leaves `#` unspecified for tables with holes; LILA stops at the
+first hole.
+
+### Iteration
+
+`next(t, key)` returns the next key/value pair, or `nil` when the iteration is
+finished. A `nil` key starts at the beginning. `pairs(t)` returns `next, t,
+nil`, and `ipairs(t)` returns an integer iterator, `t, 0`. As in Lua, the
+iterators are used through the ordinary call and multiple-assignment syntax:
+
+```lisp
+t = {}
+t["a"] = 1
+t["b"] = 2
+
+k, v = next(t, nil)
+print(k)                       -- a or b
+print(v)                       -- 1 or 2
+
+f, state, control = pairs(t)
+key, value = f(state, control)
+while key ~= nil do
+  print(key)
+  key, value = f(state, key)
+end
+```
+
+`ipairs` visits indices `1, 2, ...` and stops at the first missing or `nil`
+value.
+
+### Table library
+
+The dotted globals `table.insert`, `table.remove`, and the rest provide the
+common sequence helpers. They operate on the raw table and do not consult
+metamethods.
+
+| Function | Result |
+|---|---|
+| `table.insert(t, v)` | appends `v` at the border |
+| `table.insert(t, pos, v)` | inserts `v`, shifting later elements right |
+| `table.remove(t [, pos])` | removes and returns the last element, or the one at `pos` |
+| `table.concat(t [, sep, i, j])` | joins string/number elements, default separator `""` |
+| `table.unpack(t [, i, j])` | returns the elements from `i` through `j` |
+| `table.pack(...)` | an array of the arguments, plus `n` |
+| `table.sort(t [, comp])` | sorts the border in place, optionally with a comparator |
+
+```lisp
+t = {}
+table.insert(t, "a")
+table.insert(t, "c")
+table.insert(t, 2, "b")
+print(table.concat(t, "-"))    -- a-b-c
+print(table.remove(t))         -- c
+print(#t)                      -- 2
+
+packed = table.pack("x", "y")
+print(packed["n"])             -- 2
+print(packed[1])               -- x
+
+numbers = {}
+numbers[1] = 3
+numbers[2] = 1
+numbers[3] = 2
+table.sort(numbers)
+print(numbers[1])              -- 1
+```
+
+`table.concat` accepts strings and numbers; any other value raises an error.
+`table.sort` uses the default ordering when no comparator is given and calls
+`comp(a, b)` otherwise. Passing a position outside the sequence to
+`table.insert` or `table.remove` raises an error.
 
 ## Metatables
 
@@ -540,7 +647,8 @@ if x > 0 then y = 1 ; z = y + 1 end
 ```
 
 Blocks nest. Expressions support `+ - * /`, comparisons `< > =`, parentheses,
-unary minus, function calls, string concatenation with `+`, and `length(s)`.
+unary minus, `#`, function calls, string concatenation with `+`, and
+`length(s)`.
 LILA variables are prefixed in Forth as `lila-var-<name>` and are three-cell
 tagged values accessible with `lila-value@` and `lila-value!`.
 
@@ -571,6 +679,9 @@ The global functions are:
 | `rawget(t, k)` | reads `t[k]` without `__index` |
 | `rawset(t, k, v)` | writes `t[k]` without `__newindex` and returns `t` |
 | `rawequal(a, b)` | equality without `__eq` |
+| `next(t [, key])` | the next key/value pair, or `nil` at the end |
+| `pairs(t)` | `next, t, nil` for iterating all keys |
+| `ipairs(t)` | an iterator, `t, 0` for the sequence part |
 
 `tonumber` trims surrounding spaces, accepts an optional sign, and understands
 an optional `0x`/`0X` prefix. An explicit base must be between 2 and 36. A
@@ -665,6 +776,13 @@ diagnostics still abort immediately and are not catchable.
   A call through a function-valued variable is not arity-checked.
 - Nested table assignment such as `t["a"]["b"] = 1` is not supported; assign
   through the inner table variable instead.
+- Assigning `nil` stores a `nil` value rather than deleting the entry. The
+  sequence operations (`#`, `next`, `pairs`, `ipairs`, and the `table`
+  functions) treat `nil`-valued entries as absent.
+- `#` walks the sequence from index 1, so its cost grows with the border. It
+  does not use `__len`.
+- Table constructors are limited to `{}`; there are no `{1, 2, 3}` or
+  `{name = "x"}` forms.
 - Metatables support the documented subset: `__index`, `__newindex`, the
   arithmetic metamethods, `__eq`, `__lt`, `__le`, and `__tostring`. `__call`,
   `__len`, `__metatable`, `__gc`, weak tables, and finalizers are not
