@@ -1,42 +1,22 @@
-\ screens/flash/edit.fth - slice text inspector, text editor and 24x80 editor.
-\
-\ Loaded at boot by the loader (`s" edit" need`).
-\ type-slice prints a slice's printable payload. text-edit edits an LF-delimited
-\ TEXT slice (type 3) with insert/delete. edit-slice edits a fixed 24x80 SCREEN
-\ slice (type 0x0C): 1920 cells in slice-buf, written back with slice-flush.
-\ CRLF text is normalized to LF on open/save.
-\
-\ Keys: the PS/2 arrows/Home/End produce C-B/C-F/C-P/C-N/C-A/C-E (see the
-\ German map), Backspace/DEL delete, printable keys overwrite. C-X C-S saves
-\ and exits; C-X C-C exits without writing the sector.
-
 1920 constant edit-len
 80 constant edit-w
 24 constant edit-h
-
 variable edit-pos drop
 variable edit-done drop
 variable ts-lines drop
 variable ts-a drop
 variable ts-last drop
-
 : edit-clear ( -- ) cls ;                  \ clear, home and reset the scroll offset
-
 : edit-buf ( -- a ) slice-buf 8 cells + ;
 : edit-col ( -- c ) edit-pos @ edit-w mod ;
 : edit-row ( -- r ) edit-pos @ edit-w / ;
-\ Tile cursor: (row << 8) | (col << 1) | 1 at ES:0x2000; scroll at 0x2002.
 : edit-cursor ( -- )
   0xF000 seg-base!
   edit-row 8 lshift edit-col 1 lshift or 1 or 0x2000 es!
   0 0x2002 es! ;
-
-\ One tile cell: controls become spaces; text_attr carries pair and mode.
 : edit-tile ( c -- tile )
   dup 32 127 within if else drop 32 then
   32 - 5 lshift text-attr @ or ;
-
-\ Draw 24x80 straight into the tile buffer: no row wraps, no scrolling.
 : edit-draw ( -- )
   edit-clear
   edit-h 0 do
@@ -46,7 +26,6 @@ variable ts-last drop
     tile-row
   loop
   edit-cursor ;
-
 : edit-left ( -- )
   edit-pos @ 0= if exit then
   edit-pos @ 1- edit-pos ! ;
@@ -62,7 +41,6 @@ variable ts-last drop
 : edit-nl ( -- )
   edit-pos @ edit-w / 1+ edit-w *  ( next line, column 1 )
   dup edit-len < if edit-pos ! else drop then ;
-
 : edit-put ( c -- )
   dup edit-buf edit-pos @ + c!
   edit-tile
@@ -81,13 +59,11 @@ variable ts-last drop
   edit-pos @ edit-w mod +
   0 swap es!
   edit-cursor ;
-
 : edit-x ( -- )
   key
   dup 0x13 = if drop 1 edit-done ! exit then
   dup 0x03 = if drop 2 edit-done ! exit then
   drop ;
-
 : edit-key ( c -- )
   dup 0x18 = if drop edit-x exit then
   dup 0x02 = if drop edit-left edit-cursor exit then
@@ -102,7 +78,6 @@ variable ts-last drop
   dup 0x7f = if drop edit-bs exit then
   dup 32 127 within if edit-put exit then
   drop ;
-
 : edit-slice ( n -- )
   dup 0 511 within 0= if ." edit-slice: 0..511" cr drop exit then
   slice dup slice-valid? 0= if
@@ -116,9 +91,6 @@ variable ts-last drop
   begin key edit-key edit-done @ until
   edit-clear 0 edit-pos ! edit-cursor
   edit-done @ 1 = if slice-flush else ." discarded" cr then ;
-
-\ The last non-LF cell, so a source slice's LF padding does not print as
-\ thousands of blank lines. An all-LF payload answers 0.
 : slice-last ( a -- n )
   2040
   begin
@@ -127,7 +99,6 @@ variable ts-last drop
     2dup + c@ 10 =
   while repeat
   1+ nip ;
-
 : type-slice ( n -- )
   dup 0 511 within 0= if ." type-slice: 0..511" cr drop exit then
   slice dup slice-valid? 0= if
@@ -155,8 +126,6 @@ variable ts-last drop
     then
   loop
   cr ;
-
-\ ---- text editor: LF-delimited slices, insert/delete --------------------
 24 constant te-rows
 variable te-line drop
 variable te-first drop
@@ -168,6 +137,9 @@ variable te-xoff drop
 variable te-src drop
 variable te-dst drop
 variable te-endv drop
+variable te-row drop
+variable te-cur-start drop
+variable te-cur-end drop
 variable te-tmp drop
 variable te-char drop
 variable te-ri drop
@@ -175,7 +147,6 @@ variable te-wi drop
 variable te-dirty drop
 variable te-drawn-first drop
 variable te-drawn-xoff drop
-
 : te-end ( -- a ) edit-buf te-len @ + ;
 : te-skip-line ( a -- a' )
   begin
@@ -190,7 +161,7 @@ variable te-drawn-xoff drop
     dup c@ 10 = if exit then
     1+
   again ;
-: te-cur-len ( -- n ) te-line @ te-line-start dup te-line-end swap - ;
+: te-cur-len ( -- n ) te-cur-end @ te-cur-start @ - ;
 : te-normalize ( -- )
   0 te-ri ! 0 te-wi !
   begin te-ri @ te-len @ < while
@@ -238,7 +209,7 @@ variable te-drawn-xoff drop
   te-line @ te-first @ - 8 lshift
   te-col @ te-xoff @ - 1 lshift or 1 or 0x2000 es!
   0 0x2002 es! ;
-: te-addr ( -- a ) te-line @ te-line-start te-col @ + ;
+: te-addr ( -- a ) te-cur-start @ te-col @ + ;
 : te-tail ( a -- n ) te-end swap - ;
 : te-draw ( -- )
   te-visible te-xoff!
@@ -258,13 +229,42 @@ variable te-drawn-xoff drop
   te-xoff @ te-drawn-xoff !
   0 te-dirty !
   te-cursor ;
+: te-draw-from ( -- )
+  te-line @ te-first @ - te-row !
+  te-cur-start @ te-src !
+  begin te-row @ te-rows < while
+    te-src @ te-line-end te-endv !
+    te-src @ te-endv @ te-xoff @ te-row @ tile-row
+    te-endv @ te-skip-line te-src !
+    te-row @ 1+ te-row !
+  repeat
+  0 te-dirty ! te-cursor ;
+: te-draw-line ( -- )
+  te-visible te-xoff!
+  te-line @ te-first @ - te-row !
+  te-cur-start @ te-cur-end @
+  te-xoff @
+  te-line @ te-first @ -
+  tile-row
+  0 te-dirty !
+  te-cursor ;
+: te-refresh ( -- )
+  te-line @ te-line-start te-cur-start !
+  te-cur-start @ te-line-end te-cur-end ! ;
+: te-prev ( a -- a' )
+  dup edit-buf 1+ < if drop edit-buf exit then
+  1- 1-
+  begin
+    dup edit-buf = if exit then
+    dup c@ 10 = if 1+ exit then
+    1-
+  again ;
 : move-back ( src dst u -- )
   te-tmp ! te-dst ! te-src !
   te-tmp @ 0 ?do
     te-src @ te-tmp @ + i - 1- c@
     te-dst @ te-tmp @ + i - 1- c!
   loop ;
-: te-set-lines ( -- ) te-count te-lines ! te-clamp ;
 : te-insert ( c -- )
   te-char !
   te-len @ 2040 < 0= if exit then
@@ -272,33 +272,55 @@ variable te-drawn-xoff drop
   te-src @ dup te-tail over 1+ swap move-back
   te-src @ te-char @ swap c!
   1 te-len +!
-  te-set-lines ;
+  te-char @ 10 = if 1 te-lines +! 2 te-dirty !
+  else 1 te-dirty ! te-cur-end @ 1+ te-cur-end ! then
+  te-clamp ;
 : te-delete ( -- )
   te-len @ 0= if exit then
   te-addr dup te-end = if drop exit then
+  dup c@ te-char !
   dup 1+ te-src !
   dup te-tail 1- te-tmp !
   te-src @ swap te-tmp @ move
   te-len @ 1- te-len !
-  te-set-lines ;
+  te-char @ 10 = if te-lines @ 1- te-lines ! 2 te-dirty ! te-refresh
+  else 1 te-dirty ! te-cur-end @ 1- te-cur-end ! then
+  te-clamp ;
 : te-col-clamp te-col @ te-cur-len > if te-cur-len te-col ! then ;
 : te-left
   te-col @ 0> if te-col @ 1- te-col ! else
-    te-line @ 0> if te-line @ 1- te-line ! te-cur-len te-col ! then
+    te-line @ 0> if te-line @ 1- te-line ! te-refresh te-cur-len te-col ! then
   then ;
 : te-right
   te-col @ te-cur-len < if te-col @ 1+ te-col ! else
-    te-line @ 1+ te-lines @ < if te-line @ 1+ te-line ! 0 te-col ! then
+    te-line @ 1+ te-lines @ < if te-line @ 1+ te-line ! te-refresh 0 te-col ! then
   then ;
-: te-up te-line @ 0> if te-line @ 1- te-line ! te-col-clamp then ;
-: te-down te-line @ 1+ te-lines @ < if te-line @ 1+ te-line ! te-col-clamp then ;
+: te-up
+  te-line @ 0> if
+    te-cur-start @ te-prev te-cur-start !
+    te-cur-start @ te-line-end te-cur-end !
+    te-line @ 1- te-line !
+    te-col-clamp
+  then ;
+: te-down
+  te-line @ 1+ te-lines @ < if
+    te-line @ 1+ te-line !
+    te-cur-end @ te-end < if
+      te-cur-end @ c@ 10 = if te-cur-end @ 1+ else te-cur-end @ then
+    else te-cur-end @ then
+    te-cur-start !
+    te-cur-start @ te-line-end te-cur-end !
+    te-col-clamp
+  then ;
 : te-bs
   te-col @ 0> if
     te-col @ 1- te-col !
     te-delete
   else
     te-line @ 0> if
+      te-cur-start @ te-prev te-cur-start !
       te-line @ 1- te-line !
+      te-cur-start @ te-line-end te-cur-end !
       te-cur-len te-col !
       te-delete
     then
@@ -307,6 +329,7 @@ variable te-drawn-xoff drop
   10 te-insert
   te-line @ 1+ te-line !
   0 te-col !
+  te-refresh
   te-clamp ;
 : te-put ( c -- ) te-insert 1 te-col +! te-col-clamp ;
 : te-x
@@ -322,12 +345,12 @@ variable te-drawn-xoff drop
   dup 0x0e = if drop te-down exit then
   dup 0x01 = if drop 0 te-col ! exit then
   dup 0x05 = if drop te-cur-len te-col ! exit then
-  dup 0x0d = if drop te-enter 1 te-dirty ! exit then
-  dup 0x0a = if drop te-enter 1 te-dirty ! exit then
-  dup 0x08 = if drop te-bs 1 te-dirty ! exit then
-  dup 0x7f = if drop te-bs 1 te-dirty ! exit then
-  dup 0x04 = if drop te-delete 1 te-dirty ! exit then
-  dup 32 127 within if te-put 1 te-dirty ! exit then
+  dup 0x0d = if drop te-enter exit then
+  dup 0x0a = if drop te-enter exit then
+  dup 0x08 = if drop te-bs exit then
+  dup 0x7f = if drop te-bs exit then
+  dup 0x04 = if drop te-delete exit then
+  dup 32 127 within if te-put exit then
   drop ;
 : te-save ( -- )
   te-len @ 0> if
@@ -348,6 +371,8 @@ variable te-drawn-xoff drop
   edit-buf slice-last 1+ te-len !
   te-normalize
   0 te-line ! 0 te-first ! 0 te-col ! 0 te-xoff ! 0 te-done ! 0 te-dirty !
+  edit-buf te-cur-start !
+  te-cur-start @ te-line-end te-cur-end !
   te-count te-lines ! te-clamp
   edit-clear te-draw
   begin
@@ -355,20 +380,19 @@ variable te-drawn-xoff drop
     te-done @ 0=
   while
     te-visible te-xoff!
-    te-dirty @ if te-draw
+    te-first @ te-drawn-first @ <> if te-draw
     else
-      te-first @ te-drawn-first @ <> if te-draw
+      te-xoff @ te-drawn-xoff @ <> if te-draw
       else
-        te-xoff @ te-drawn-xoff @ <> if te-draw else te-cursor then
+        te-dirty @ 2 = if te-draw-from
+        else te-dirty @ 1 = if te-draw-line else te-cursor then then
       then
     then
   repeat
   edit-clear
   te-done @ 1 = if te-save else ." discarded" cr then ;
-
 0x40 constant serial-status
 0x42 constant serial-data
-
 : serial-emit ( c -- )
   begin serial-status es@ 2 and until
   serial-data es! ;
@@ -376,16 +400,13 @@ variable te-drawn-xoff drop
 : serial-key ( -- c )
   begin serial-status es@ 1 and until
   serial-data es@ 0xff and ;
-
 0x64 constant echo-flag
 : mirror-on ( -- )  echo-flag es@ 0x80 or echo-flag es! ;
 : mirror-off ( -- ) echo-flag es@ 0x7f and echo-flag es! ;
 create serial-buf 128 allot
 variable serial-len drop
 variable serial-echo drop
-
 : serial-crlf ( -- ) 13 serial-emit 10 serial-emit ;
-
 : serial-eval ( -- )
   echo-flag es@ serial-echo !
   echo-flag es@ 0x80 or echo-flag es!
@@ -395,7 +416,6 @@ variable serial-echo drop
     2drop
   then
   serial-echo @ echo-flag es! ;
-
 : serial ( -- )
   ." serial: interpreted, Ctrl-D exits" cr
   0 serial-len !
@@ -429,13 +449,11 @@ variable serial-echo drop
       then
     then
   again ;
-
 0x01 constant soh
 0x04 constant eot
 0x06 constant ack
 0x15 constant nak
 0x43 constant crc-req
-
 variable x-buf drop
 variable x-len drop
 variable x-blk drop
@@ -446,22 +464,18 @@ variable x-pblk drop
 variable x-pnblk drop
 variable x-pcrc drop
 variable x-max drop
-
 : crc-byte ( crc b -- crc )
   8 lshift xor
   8 0 do
     dup 0x8000 and if 1 lshift 0x1021 xor else 1 lshift then
   loop 0xffff and ;
-
 : crc-block ( addr len -- crc )
   0 x-run !
   0 do
     dup i + c@ x-run @ swap crc-byte x-run !
   loop drop x-run @ ;
-
 : x-ack ( -- ) ack serial-emit ;
 : x-nak ( -- ) nak serial-emit ;
-
 : x-wait-soh ( -- c )
   0 x-wait !
   begin
@@ -474,7 +488,6 @@ variable x-max drop
     1 x-wait +!
     x-wait @ 20000 > if 0 exit then
   again ;
-
 : x-block ( -- )
   serial-key x-pblk !
   serial-key x-pnblk !
@@ -496,7 +509,6 @@ variable x-max drop
   else
     x-pblk @ x-blk @ 1- 0xff and = if x-ack else x-nak then
   then ;
-
 : x-trim ( -- )
   begin
     x-len @ 0> if
@@ -506,7 +518,6 @@ variable x-max drop
   while
     x-len @ 1- x-len !
   repeat ;
-
 : xmodem ( -- )
   ." xmodem: receiving (CRC)" cr
   here x-buf !
