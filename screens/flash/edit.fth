@@ -526,8 +526,10 @@ else false then
 while
 x-len @ 1- x-len !
 repeat ;
+: x-flush-kbd ( -- ) begin key? while key drop repeat ;
 : xmodem ( -- )
-." xmodem: receiving (CRC). Press key to abort" cr
+  x-flush-kbd
+  ." xmodem: receiving (CRC). Press key to abort" cr
 here x-buf !
 0 x-len !
 1 x-blk !

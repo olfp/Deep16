@@ -41,11 +41,10 @@ command -v openFPGALoader >/dev/null 2>&1 || { echo "openFPGALoader not found" >
 [ -f "$FS" ]   || { echo "missing $FS - run npm run synth:tile first" >&2; exit 1; }
 [ -f "$USER" ] || { echo "missing $USER - run npm run synth:tile first" >&2; exit 1; }
 
-# The P25Q32H block protect is not cleared by --unprotect-flash: RDSR stays
-# 0x38 and the raw write at 0x100000 is silently dropped. Run `cf-unprotect` on
-# the board (cf-status must read 0) before this script.
-echo "NOTE: run 'cf-unprotect' on the board first; --unprotect-flash does not clear this chip's BP."
-openFPGALoader --unprotect-flash -f "$FS"
+# The P25Q32H block protect is not cleared by --unprotect-flash (a no-op on
+# this chip), so the flag is not used. The development board runs with BP
+# clear; if `cf-status` is not 0, run `cf-unprotect` on the board first.
+openFPGALoader -f "$FS"
 openFPGALoader -f --external-flash --file-type bin -o 0x100000 "$USER"
 
 # Verify the boot image actually landed before writing the slices. A protected

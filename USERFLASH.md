@@ -13,11 +13,12 @@ build; it remains only for the one-time installer fallback below.
 | `0x200000`–`0x3FFFFF` | source slices, 4 KB each (`0x200000 + n*0x1000`) | writable |
 
 `BP = 0x38` protects the lower 2 MB (bitstream and boot image). The slices sit
-above it, so `cf-erase`/slice writes cannot corrupt the boot. Run
-`cf-unprotect` on the board first (the host `--unprotect-flash` does not clear
-this P25Q32H's BP); `npm run flash:tile` then writes all three regions. The
-boot script defines `cf-protect` but does not call it: run it on the board
-after the power-cycle to re-arm the guard.
+above it, so `cf-erase`/slice writes cannot corrupt the boot. On a protected
+board, run `cf-unprotect` first for the **full** `flash:tile` path (the host
+`--unprotect-flash` flag is a no-op on this P25Q32H, so the script does not
+use it). The development board normally stays unprotected: `flash:slices` and
+`flash:image` then need no unprotect. The boot script defines `cf-protect` but
+does not call it.
 
 ## Boot image
 
@@ -95,33 +96,36 @@ Each game slice carries its own tile pack at segment offset `0x1000`
 in the tile bank, so the menu copies the chosen pack into `0xF3000` before it
 enters the game; the baked bank holds only the console font.
 
-Run `cf-protect` on the board after the power-cycle: it sets BP = `0x38`, so
-every later `npm run flash:tile` must start with `cf-unprotect` on the board.
-The boot script defines the word but does not call it automatically. The script
-verifies the `0x100000` image after writing and aborts with that instruction if
-the write was dropped.
+The development board runs **unprotected** (`cf-status` reads 0); the boot
+script defines `cf-protect` but does not call it. If you do not re-arm the
+block protect, the fast flash paths below need no `cf-unprotect`. If you do
+call `cf-protect`, a later **full** `npm run flash:tile` (which rewrites the
+bitstream at 0 and the boot image at `0x100000`) needs `cf-unprotect` first;
+`npm run flash:slices` only touches the upper, unprotected half.
 
 ## Flash (tested)
 
 ```sh
 cd /Users/olf/Projects/Trae/Deep16/Deep16
 
-npm run synth:tile         # .fs + image.flash.bin
+# Fast paths (no bitstream, no cf-unprotect on an unprotected board):
+npm run flash:slices       # only the slice area at 0x200000
+npm run flash:image        # boot image at 0x100000 + slices
 
-# On the board, at the Forth console:
-#   cf-unprotect
-#   cf-status hex . decimal      \ must read 0
-#
-# openFPGALoader --unprotect-flash does NOT clear this P25Q32H's BP; the raw
-# boot-image write at 0x100000 is silently dropped while BP = 0x38.
-npm run flash:tile         # .fs + boot image at 0x100000 + slices at 0x200000
-# power-cycle, then cf-protect -> 38
+# Full path, only when the RTL/bitstream changed:
+npm run synth:tile         # .fs + image.flash.bin
+npm run flash:tile         # .fs + boot image + slices
+
+# If the board is protected (cf-status != 0), run cf-unprotect first for the
+# full path.  --unprotect-flash is a no-op on this chip, so the script no
+# longer passes it.
+# power-cycle after flashing.
 ```
 
 What `flash:tile` runs:
 
 ```sh
-openFPGALoader --unprotect-flash -f fpga/gowin/impl/pnr/deep16_board_tile_flash.fs
+openFPGALoader -f fpga/gowin/impl/pnr/deep16_board_tile_flash.fs
 openFPGALoader -f --external-flash --file-type bin \
   -o 0x100000 artifacts/image/image.flash.bin
 openFPGALoader -f --external-flash --file-type bin \

@@ -32,6 +32,7 @@
     "sim:spi": "bash scripts/build_spi_sim.sh",
     "sim:uarttx": "bash scripts/build_uart_tx_sim.sh",
     "flash:slices": "bash scripts/flash_slices.sh",
+    "flash:image": "bash scripts/flash_gowin_image.sh",
     "sim:i2s": "bash scripts/build_i2s_sim.sh",
     "sim:sic": "bash scripts/build_sic_sim.sh",
     "sim:irq": "bash scripts/build_core3_irq_sim.sh",
