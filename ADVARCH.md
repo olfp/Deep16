@@ -190,7 +190,7 @@ cells; 16-bit sum.
   loop; the hardware repeats the buffer, so the CPU is free. `beep`/`sfx-off`
   are in the catalog slice.
 
-**Measured (2026-11-12).** CLS **4,303 / 4,320 (17 free)**, dvi_pixel
+**Measured (2026-11-12).** CLS **4,293 / 4,320 (27 free)**, dvi_pixel
 **76.974 MHz** (TNS 0), dvi_render 27.936, clk_cpu 18.949, psram_clk 92.135.
 The fit needed the second DVI retime (`archive/DVI720check.md` §16) and the BSRAM
 FIFO; the 128×16 FF FIFO plus its read path was over the device. Board test:

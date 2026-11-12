@@ -79,7 +79,7 @@ The `D16SEG` build fixes the layout instead of the constant — see §4.4.
 | `0x0F0020`–`0x0F002F` | timer: 32-bit ms counter, compare, status (D16nano) |
 | `0x0F0040`–`0x0F004F` | UART console |
 | `0x0F0060`–`0x0F0064` | keyboard FIFO / echo cell (build-specific) |
-| `0x0F0068`–`0x0F006B` | 32-bit CPU cycle counter (RTL/JS harness only; board PS/2 uses the timer) |
+| `0x0F0068` | low 16 bits of the CPU cycle counter on the board (Flappy's bird pick); the high half is harness-only |
 | `0x0F0080`–`0x0F008F` | SPI master: SD / external flash (D16nano) |
 | `0x0F00A0`–`0x0F00AF` | I2S: DATA/CTRL/STATUS (D16nano) |
 | `0x0F1000` | display window (screen RAM or tilemap, build-specific) |
