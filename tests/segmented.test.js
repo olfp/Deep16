@@ -194,6 +194,12 @@ test('type-slice prints the printable payload and trims the LF padding', () => {
   assert.ok(sim.running);
 });
 
+test('list finds a slice by name and prints it', () => {
+  const shown = line('list hello');
+  assert.match(shown, /hello from the user flash/);
+  assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'list leaves the stack clean');
+});
+
 test('type-slice pages 23 lines and waits for a key', () => {
   const from = out.length;
   for (const ch of '4 type-slice\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
