@@ -7,15 +7,15 @@
 ;
 ; Memory inside the block (offset from 0x4330):
 ;   0x000..0x5FF  code and its strings
-;   0x610..0x66B  the static maze (generated pacman_map.asm)
+;   0x610..0x66F  the static maze (generated pacman_map.asm)
 ;   0x678..0x686  direction tables (also generated)
 ;   0x688..0x69C  palette setup table (also generated)
 ;   0x6A0..0x6C9  writable game state
 ;
 ; The HUD is tilemap row 0.  Maze logical row r is tilemap row 1+r, and
-; logical column c starts at tilemap column 10 + 2c.  Every logical cell is
-; two 8-pixel cells wide, so the 30x23 maze fills columns 10..69 and rows
-; 1..23 exactly.  Sprites are OAM descriptor 0 (Pac-Man); ghosts are two art
+; logical column c starts at tilemap column 8 + 2c.  Every logical cell is
+; two 8-pixel cells wide, so the 32x24 maze fills columns 8..71 and rows
+; 1..24 exactly.  Sprites are OAM descriptor 0 (Pac-Man); ghosts are two art
 ; cells each, redrawn only when they move.  Eaten dots are cleared in the
 ; RAM copy of the maze, so a ghost leaving a cell restores what is really
 ; left there.
@@ -194,12 +194,14 @@ mz_wall:
     LDI 14
     MOV R3, R0
     CMP R8, R3
-    JZ mz_door
+    JN mz_shape
     NOP
-    LDI 15
-    MOV R3, R0
+    LDI 18
     CMP R8, R3
-    JZ mz_door
+    JC mz_shape
+    NOP
+    LDI mz_door
+    MOV PC, R0
     NOP
 mz_shape:
     LSI R5, 0                 ; shape bits: 1 left, 2 top, 4 bottom
@@ -220,7 +222,7 @@ mz_shape:
     NOP
     OR R5, 0
 mz_no_left:
-    LDI 29
+    LDI 31
     MOV R4, R0
     CMP R6, R4
     JNC mz_no_right
@@ -256,7 +258,7 @@ mz_no_right:
     NOP
     OR R5, 1
 mz_no_top:
-    LDI 22
+    LDI 23
     MOV R4, R0
     CMP R7, R4
     JNC mz_no_bottom
@@ -309,7 +311,7 @@ mz_store:
     ADD R1, 1
     SL R1, 1
     ADD R3, R1
-    ADD R3, 10
+    ADD R3, 8
     MOV R1, R6
     SL R1, 1
     ADD R3, R1
@@ -319,7 +321,7 @@ mz_store:
     ADD R3, 1
     STS R2, ES, R3
     ADD R6, 1
-    LDI 30
+    LDI 32
     MOV R3, R0
     CMP R6, R3
     JNC mz_next_row
@@ -329,7 +331,7 @@ mz_store:
     NOP
 mz_next_row:
     ADD R7, 1
-    LDI 23
+    LDI 24
     MOV R3, R0
     CMP R7, R3
     JNC mz_done
@@ -342,12 +344,12 @@ mz_done:
     ; Pac-Man starts on the empty centre pair below the house
     LDI ST_PAC_C
     MOV R2, R0
-    LDI 14
+    LDI 15
     MOV R3, R0
     ST R3, R2, 0
     LDI ST_PAC_R
     MOV R2, R0
-    LDI 16
+    LDI 17
     MOV R3, R0
     ST R3, R2, 0
     LDI ST_PAC_DIR
@@ -369,16 +371,16 @@ mz_done:
     ; four ghosts on the corridor above the house, all facing up
     LDI ST_GHOST_C
     MOV R2, R0
-    LDI 12
-    MOV R3, R0
-    ST R3, R2, 0
-    LDI 13
-    MOV R3, R0
-    ST R3, R2, 1
     LDI 14
     MOV R3, R0
-    ST R3, R2, 2
+    ST R3, R2, 0
     LDI 15
+    MOV R3, R0
+    ST R3, R2, 1
+    LDI 16
+    MOV R3, R0
+    ST R3, R2, 2
+    LDI 17
     MOV R3, R0
     ST R3, R2, 3
     LDI ST_GHOST_R
@@ -885,7 +887,7 @@ pac_col_sc_done:
     LDI ST_GHOST_C
     MOV R2, R0
     ADD R2, R6
-    LDI 14
+    LDI 15
     MOV R3, R0
     ST R3, R2, 0
     LDI ST_GHOST_R
@@ -1196,7 +1198,7 @@ pac_cell_addr:
     MOV R1, R3
     SL R1, 1
     ADD R4, R1
-    ADD R4, 10
+    ADD R4, 8
     MOV R1, R8
     SL R1, 1
     ADD R4, R1
@@ -1269,14 +1271,14 @@ mc_mask:
 ; R1 = column, R2 = row, R5 = 0 allows the ghost door, 1 blocks it.
 ; Returns R0 = 1 when the cell is walkable.  Wrap columns on the tunnel row.
 pac_is_path:
-    LSI R3, 12
+    LSI R3, 11
     CMP R2, R3
     JNZ pac_ip_nowrap
     NOP
     AND R1, R1
     JN pac_ip_wrap_left
     NOP
-    LDI 30
+    LDI 32
     MOV R3, R0
     CMP R1, R3
     JNC pac_ip_wrap_right
@@ -1285,7 +1287,7 @@ pac_is_path:
     MOV PC, R0
     NOP
 pac_ip_wrap_left:
-    LDI 29
+    LDI 31
     MOV R1, R0
     LDI pac_ip_nowrap
     MOV PC, R0
@@ -1296,7 +1298,7 @@ pac_ip_nowrap:
     AND R1, R1
     JN pac_ip_no
     NOP
-    LDI 30
+    LDI 32
     MOV R3, R0
     CMP R1, R3
     JNC pac_ip_no
@@ -1304,7 +1306,7 @@ pac_ip_nowrap:
     AND R2, R2
     JN pac_ip_no
     NOP
-    LDI 23
+    LDI 24
     MOV R3, R0
     CMP R2, R3
     JNC pac_ip_no
@@ -1345,16 +1347,11 @@ pac_ip_value:
     LDI 14
     MOV R3, R0
     CMP R1, R3
-    JNZ pac_ip_door2
+    JN pac_ip_no
     NOP
-    LDI pac_ip_door
-    MOV PC, R0
-    NOP
-pac_ip_door2:
-    LDI 15
-    MOV R3, R0
+    LDI 18
     CMP R1, R3
-    JNZ pac_ip_no
+    JNC pac_ip_no
     NOP
 pac_ip_door:
     AND R5, R5
@@ -1382,12 +1379,11 @@ pac_restore_cell:
     LDI 14
     MOV R3, R0
     CMP R8, R3
-    JZ pac_rc_door
+    JN pac_rc_map
     NOP
-    LDI 15
-    MOV R3, R0
+    LDI 18
     CMP R8, R3
-    JNZ pac_rc_map
+    JNC pac_rc_map
     NOP
 pac_rc_door:
     LDI pac_cell_addr

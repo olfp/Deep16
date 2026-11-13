@@ -32,9 +32,9 @@ const S = new Assembler().assemble(SRC).symbols;
 const pacman = buildPacman();
 checkPacman(pacman);
 
-test('the maze packs 30x23 cells and 250 pickups', () => {
-  assert.equal(pacmanMazeWords().length, 92);
-  assert.equal(pacmanDotCount(), 250, '246 small dots + 4 power-ups');
+test('the maze packs 32x24 cells and 244 pickups', () => {
+  assert.equal(pacmanMazeWords().length, 96);
+  assert.equal(pacmanDotCount(), 244, '240 small dots + 4 power-ups');
 });
 
 test('the block fits before the BIOS and keeps the map below the code', () => {
@@ -94,14 +94,14 @@ function runToExit(sim, frames, key = 0) {
 test('the maze draws, Pac-Man moves, and a dot scores ten points', () => {
   const sim = start();
   run(sim, 320);
-  assert.equal(st(sim, 'ST_DOTS'), 250);
-  assert.deepEqual([st(sim, 'ST_PAC_C'), st(sim, 'ST_PAC_R')], [14, 16]);
+  assert.equal(st(sim, 'ST_DOTS'), 244);
+  assert.deepEqual([st(sim, 'ST_PAC_C'), st(sim, 'ST_PAC_R')], [15, 17]);
 
   // Right is open: hold D long enough to eat one dot.
   run(sim, 20, { key: 0x64, keyFrame: 0 });
-  assert.ok(st(sim, 'ST_PAC_C') > 14, 'Pac-Man moved right');
+  assert.ok(st(sim, 'ST_PAC_C') > 15, 'Pac-Man moved right');
   assert.ok(st(sim, 'ST_SC1') >= 1, 'dots score ten points each');
-  assert.equal(st(sim, 'ST_DOTS'), 250 - st(sim, 'ST_SC1'), 'each dot is eaten once');
+  assert.equal(st(sim, 'ST_DOTS'), 244 - st(sim, 'ST_SC1'), 'each dot is eaten once');
 });
 
 test('the last dot wins and the banner returns to the menu after ten seconds', () => {
@@ -129,7 +129,7 @@ test('a frightened ghost is worth 200 and goes back to the corridor', () => {
   run(sim, 2);
   assert.equal(st(sim, 'ST_STATE'), 0, 'Pac-Man survives');
   assert.equal(st(sim, 'ST_SC2'), 2, '200 points');
-  assert.deepEqual([sim.memory[BLOCK + S.ST_GHOST_C], sim.memory[BLOCK + S.ST_GHOST_R]], [14, 9]);
+  assert.deepEqual([sim.memory[BLOCK + S.ST_GHOST_C], sim.memory[BLOCK + S.ST_GHOST_R]], [15, 9]);
 });
 
 test('a collision with a ghost ends the game and Q exits early', () => {

@@ -2,15 +2,14 @@
 // scripts/make_pacman_art.mjs - Pac-Man maze data, wall/dot/ghost art tiles and
 // the Pac-Man sprite frames.
 //
-// The playfield is 30 x 23 logical cells.  Each logical cell is two 8-pixel
-// tilemap cells wide and one 15-pixel row tall, so the maze is 60 x 23 cells
-// and is centred in the 80-column tilemap (10-cell margin, 80 pixels).
+// The playfield is 32 x 24 logical cells.  Each logical cell is two 8-pixel
+// tilemap cells wide and one 15-pixel row tall, so the maze is 64 x 24 cells
+// and is centred in the 80-column tilemap (8-cell margin, 64 pixels).
 //
-// The layout is the arcade 28x31 maze compressed to 23 rows and widened by one
-// corridor column on each side.  Cell values are packed two bits per cell,
-// eight cells per word, four words per row (92 words).  0 empty, 1 wall,
+// The layout is PACMAZE.md.  Cell values are packed two bits per cell, eight
+// cells per word, four words per row (96 words).  0 empty, 1 wall,
 // 2 dot, 3 power pellet.  The ghost door is a wall cell at row 10, columns
-// 14/15 and is drawn as text.
+// 14..17 and is drawn as text.
 //
 // Art slots (the font gap and the two free art slots after the Flappy pack):
 //   tile 49/50   dot left/right halves
@@ -29,8 +28,8 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export const PAC_W = 30;
-export const PAC_H = 23;
+export const PAC_W = 32;
+export const PAC_H = 24;
 export const PAC_ROW_WORDS = 4;
 export const PAC_MAP_WORDS = PAC_ROW_WORDS * PAC_H;
 export const PAC_MAP_ORG = 0x610;
@@ -39,7 +38,7 @@ export const PAC_MAP_FILE = 'asm/showcase/pacman_map.asm';
 
 export const PAC_CELL_W = 2;        // tilemap cells per logical column
 export const PAC_CELL_H = 1;        // tilemap rows per logical row
-export const PAC_LEFT = 10;         // tilemap columns before the maze
+export const PAC_LEFT = 8;          // tilemap columns before the maze
 export const PAC_TOP = 1;           // HUD row 0, maze rows 1..23
 
 // Art tile indices.
@@ -81,41 +80,38 @@ export const PAC_PALETTE = [
 // per row (92 words).  0 empty, 1 wall/door, 2 dot, 3 power pellet.  The ghost
 // door is a wall cell at row 10, columns 14/15 and is drawn as text.
 const BASE_ROWS = [
-  '############################',
-  '#............##............#',
-  '#.####.#####.##.#####.####.#',
-  '#o####.#####.##.#####.####o#',
-  '#.####.#####.##.#####.####.#',
-  '#..........................#',
-  '#.####.##.########.##.####.#',
-  '#.####.##.########.##.####.#',
-  '#......##....##....##......#',
-  '######.##          ##.######',
-  '######.## ###==### ##.######',
-  '######.## #      # ##.######',
-  '      .## #      # ##.      ',
-  '######.## ######## ##.######',
-  '#............##............#',
-  '#.####.#####.##.#####.####.#',
-  '#o..##.......  .......##..o#',
-  '###.##.##.########.##.##.###',
-  '#......##....##....##......#',
-  '#.##########.##.##########.#',
-  '#.##########.##.##########.#',
-  '#..........................#',
-  '############################',
+  '################################',
+  '#..............##..............#',
+  '#.#####.######.##.######.#####.#',
+  '#o#####.######.##.######.#####o#',
+  '#..............................#',
+  '#.#####.##.##########.##.#####.#',
+  '#.......##.....##.....##.......#',
+  '#######.###### ## ######.#######',
+  '      #.###### ## ######.#      ',
+  '      #.##            ##.#      ',
+  '#######.## ###----### ##.#######',
+  '     ...   #        #   ...     ',
+  '#######.## ########## ##.#######',
+  '      #.##            ##.#      ',
+  '      #.## ########## ##.#      ',
+  '#######.##.....##.....##.#######',
+  '#.......######.##.######.......#',
+  '#.#####........  ........#####.#',
+  '#o...##.##.##########.##.##...o#',
+  '####.##.##.....##.....##.##.####',
+  '#.......######.##.######.......#',
+  '#.#####.######.##.######.#####.#',
+  '#..............................#',
+  '################################',
 ];
 
-export const HOUSE = { top: 10, bottom: 13, left: 11, right: 18, door: 14 };
-export const TUNNEL_ROW = 12;
-export const PAC_START = { c: 14, r: 16 };
+export const HOUSE = { top: 10, bottom: 12, left: 11, right: 20, door: 14, doorWidth: 4 };
+export const TUNNEL_ROW = 11;
+export const PAC_START = { c: 15, r: 17 };
 
-const insertValue = (ch) => (ch === 'o' ? '.' : ch);
-
-// Full 30-column grid: one extra corridor column inside each outer wall.
 export function pacmanGrid() {
-  return BASE_ROWS.map((row) =>
-    (row[0] + insertValue(row[1]) + row.slice(1, 27) + insertValue(row[26]) + row[27]).split(''));
+  return BASE_ROWS.map((row) => row.split(''));
 }
 
 export const wallChar = (ch) => ch === '#';
@@ -123,14 +119,14 @@ export const wallChar = (ch) => ch === '#';
 // Static cell value: 0 empty, 1 wall/door, 2 dot, 3 pellet.
 export function pacmanCells() {
   return pacmanGrid().map((row) => row.map((ch) => {
-    if (ch === '#' || ch === '=') return 1;   // the door is a wall cell
+    if (ch === '#' || ch === '=' || ch === '-') return 1;   // the door is a wall cell
     if (ch === '.') return 2;
     if (ch === 'o') return 3;
     return 0;
   }));
 }
 
-export const isDoor = (c, r) => r === HOUSE.top && (c === HOUSE.door || c === HOUSE.door + 1);
+export const isDoor = (c, r) => r === HOUSE.top && c >= HOUSE.door && c < HOUSE.door + HOUSE.doorWidth;
 export const house = HOUSE;
 
 // Eight cells per 16-bit word, cell 0 in bits 1:0, four words per row.
@@ -159,7 +155,7 @@ export function pacmanDotCount() {
 // BFS from Pac-Man's start over cells Pac-Man can walk, then check that every
 // dot is reachable and that the ghost house interior is reachable for ghosts
 // through the door.
-const PICKUP_TARGET = 250;   // 246 small dots + 4 power pellets
+const PICKUP_TARGET = 244;   // 240 small dots + 4 power pellets
 
 export function checkMaze() {
   const fail = [];
@@ -167,8 +163,8 @@ export function checkMaze() {
   for (let r = 0; r < PAC_H; r++) {
     if (grid[r].length !== PAC_W) fail.push(`row ${r} is ${grid[r].length} wide`);
     for (let c = 0; c < PAC_W; c++) {
-      if (!'#.o ='.includes(grid[r][c])) fail.push(`row ${r} col ${c}: bad char '${grid[r][c]}'`);
-      if (c >= 15 && grid[r][c] !== grid[r][29 - c]) fail.push(`row ${r} is not symmetric at ${c}`);
+      if (!'#.o =-'.includes(grid[r][c])) fail.push(`row ${r} col ${c}: bad char '${grid[r][c]}'`);
+      if (c >= PAC_W / 2 && grid[r][c] !== grid[r][PAC_W - 1 - c]) fail.push(`row ${r} is not symmetric at ${c}`);
     }
   }
   const cells = pacmanCells();
@@ -203,7 +199,7 @@ export function checkMaze() {
     }
   }
   if (unreachable) fail.push(`${unreachable} dot cells are unreachable from the start`);
-  if (dots !== PICKUP_TARGET) fail.push(`expected ${PICKUP_TARGET} pickups (246 dots + 4 power-ups), found ${dots}`);
+  if (dots !== PICKUP_TARGET) fail.push(`expected ${PICKUP_TARGET} pickups (240 dots + 4 power-ups), found ${dots}`);
   if (pellets !== 4) fail.push(`expected 4 power pellets, found ${pellets}`);
 
   // Ghost house: the interior and the door must connect to the maze.
@@ -391,8 +387,8 @@ export function pacmanMapAsm() {
   const hex = (v) => '0x' + (v & 0xFFFF).toString(16).padStart(4, '0');
   const lines = [];
   lines.push('; pacman_map.asm - generated by scripts/make_pacman_art.mjs; do not edit.');
-  lines.push('; 30x23 cells, two bits each, eight cells per word, four words per row.');
-  lines.push('; Rows 0..22, cell 0 in bits 1:0; 1 wall, 2 dot, 3 pellet.');
+  lines.push(`; ${PAC_W}x${PAC_H} cells, two bits each, eight cells per word, four words per row.`);
+  lines.push(`; Rows 0..${PAC_H-1}, cell 0 in bits 1:0; 1 wall, 2 dot, 3 pellet.`);
   lines.push('.org 0x610');
   lines.push('pacmap:');
   for (let r = 0; r < PAC_H; r++) {
