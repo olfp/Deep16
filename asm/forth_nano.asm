@@ -18687,18 +18687,20 @@ word_serialread:
     MVS ES, R0               ; ES = 0xF000
     LDI 0x40
     MOV R4, R0               ; UART status
+    LDI 0x42
+    MOV R9, R0               ; UART data (R9 is scratch across next)
+    LSI R0, 1                ; bit 0 mask, hoisted out of the loop
 sread_loop:
     AND R1, R1
     JZ sread_done
     NOP
     LDS R7, ES, R4           ; UART status
-    LSI R0, 1
-    AND R7, R0               ; RX ready?
+    AND R7, R0               ; RX ready? (R0 = 1)
     JNZ sread_have
     NOP
     LDI 0x60
-    MOV R7, R0
-    LDS R7, ES, R7           ; keyboard FIFO status
+    MOV R12, R0
+    LDS R7, ES, R12          ; keyboard FIFO status
     LSI R0, 1
     AND R7, R0
     JNZ sread_done           ; a key is waiting: return a short count
@@ -18707,11 +18709,7 @@ sread_loop:
     JNZ sread_loop           ; JZ here fell through and read DATA with the
     NOP                      ; FIFO empty, filling the block with zeros.
 sread_have:
-    LDI 0x42
-    MOV R7, R0
-    LDS R7, ES, R7           ; DATA
-    LDI 0xFF
-    AND R7, R0
+    LDS R7, ES, R9           ; DATA (low byte; high byte is zero)
     ST R7, R2, 0             ; [addr] = byte
     ADD R2, 1
     ADD R3, 1

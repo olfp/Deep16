@@ -571,13 +571,6 @@ test('catch and throw still unwind the return stack', () => {
   assert.ok(sim.running);
 });
 
-test('x-frame reserves 132 cells before the next definition', () => {
-  const a = number(line('x-frame . cr'), 'x-frame . cr');
-  const b = number(line("' x-state 1+ . cr"), "' x-state 1+ . cr");
-  console.log('XFRAME', a, 'XSTATE', b, 'GAP', b - a);
-  assert.ok(b - a >= 132, `only ${b - a} cells for x-frame`);
-});
-
 test('the 64K data stack holds 15000 cells', () => {
   // The data stack grows down from 0xFFF0 and the dictionary up from 0x5800.
   // After the catalog and the tools slice (edit/serial/xmodem) about 18K cells

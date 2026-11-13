@@ -563,7 +563,7 @@ while
 x-len @ 1- x-len !
 repeat ;
 : x-flush-kbd ( -- ) 16 0 do key? if key drop then loop ;
-: x-flush-uart ( -- ) 1 0x44 es! ;
+: x-flush-uart ( -- ) 1 0x46 es! ;
 : xmodem ( -- )
   ." x1 " key? . serial-ready? . cr
   x-flush-kbd
