@@ -368,7 +368,7 @@ then
 dup slice-type 3 <> if
 drop ." text-edit: not a text slice" cr exit
 then drop
-edit-buf slice-last 1+ te-len !
+edit-buf slice-last 1+ 2040 min te-len !
 te-normalize
 0 te-line ! 0 te-first ! 0 te-col ! 0 te-xoff ! 0 te-done ! 0 te-dirty !
 edit-buf te-cur-start !

@@ -208,6 +208,17 @@ test('edit opens a text slice by name', () => {
   assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'edit leaves the stack clean');
 });
 
+test('editing a full slice does not write past its buffer', () => {
+  // Slice 4 is the edit source: its first slice is a full 2040 bytes, so
+  // slice-last + 1 used to write one cell past slice-buf. That zeroed the
+  // link of the next header (text-buf) and cut the dictionary chain between
+  // the catalog and the kernel, so `see` could no longer name kernel words.
+  lineWithKeys('4 text-edit', [0x18, 0x03]);
+  assert.match(line('see edit'), /bl word count find text-edit/);
+  assert.match(line('see bl'), /constant bl 32/);
+  assert.ok(sim.running);
+});
+
 test('type-slice pages 23 lines and waits for a key', () => {
   const from = out.length;
   for (const ch of '4 type-slice\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
