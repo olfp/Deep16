@@ -472,6 +472,7 @@ variable x-done drop
 variable x-stage drop
 variable x-info drop
 variable x-cnt drop
+create x-pack 65 allot
 create x-frame 132 allot
 : x-abort? ( -- f ) key? if key drop true else false then ;
 : crc-byte ( crc b -- crc )
@@ -518,15 +519,22 @@ then
 then
 then
 again ;
+: x-unp ( -- )
+65 0 do
+x-pack i + @
+dup 0xff and x-frame 2 + i 2* + c!
+8 rshift x-frame 3 + i 2* + c!
+loop ;
 : x-block ( -- )
 x-abort @ if exit then
-x-frame 2 + 130 serial-read
+x-pack 65 serial-read
 dup x-cnt ! 5 x-stage !
-dup 130 <> if
+dup 65 <> if
 ." xmodem: short " dup . cr drop
 x-abort? drop 9 x-stage ! 1 x-abort ! exit
 then
 drop
+x-unp
 x-len @ 128 + x-max @ > if
 ." xmodem: too big" cr x-nak exit
 then
@@ -538,10 +546,6 @@ x-pcrc @ <> if
 ." o " serial-status es@ 4 and .
 ." g " x-pcrc @ . ." w " x-frame 2 + 128 crc-block . cr
 x-frame 2 + 32 type cr
-." t " x-frame 124 + c@ . x-frame 125 + c@ .
-x-frame 126 + c@ . x-frame 127 + c@ .
-x-frame 128 + c@ . x-frame 129 + c@ .
-x-frame 130 + c@ . x-frame 131 + c@ . cr
 x-nak exit
 then
 x-frame 2 + x-buf @ x-len @ + 128 move

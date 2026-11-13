@@ -411,13 +411,12 @@ test('crc-block matches the standard XMODEM CRC', () => {
   assert.equal(number(line('s" 123456789" crc-block . cr'), 's" 123456789" crc-block . cr'), 0x31C3);
 });
 
-test('serial-read waits for a slow sender instead of storing zeros', () => {
-  // One byte at a time, with a long idle gap: a polling loop that reads DATA
-  // without a fresh "ready" would fill the rest of the block with zeros (and
-  // the count would still be right). The real board is always this slow
-  // relative to the CPU.
+test('serial-read packs byte pairs and waits for a slow sender', () => {
+  // The primitive reads two bytes per cell (low byte first), one PSRAM store
+  // per pair. One byte at a time with a long idle gap: a polling loop that
+  // reads DATA without a fresh "ready" would fill the rest with zeros.
   const from = out.length;
-  for (const ch of 'pad 8 serial-read . cr\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
+  for (const ch of 'pad 4 serial-read . cr\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
   const bytes = [0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48];
   let fed = 0, last = 0;
   for (let i = 0; i < 2_000_000; i++) {
@@ -427,8 +426,10 @@ test('serial-read waits for a slow sender instead of storing zeros', () => {
     if (out.indexOf('\r\n> ', from) >= 0) break;
   }
   const echoed = out.slice(from);
-  assert.match(echoed, /\b8\b/, 'the count is eight');
-  assert.match(line('pad 8 type cr'), /ABCDEFGH/, 'every byte is the one sent');
+  assert.match(echoed, /\b4\b/, 'four pairs');
+  assert.equal(number(line('pad @ . cr'), 'pad @ . cr'), 0x4241, 'AB packed');
+  assert.equal(number(line('pad 1+ @ . cr'), 'pad 1+ @ . cr'), 0x4443, 'CD packed');
+  assert.equal(number(line('pad 3 + @ . cr'), 'pad 3 + @ . cr'), 0x4847, 'GH packed');
   assert.ok(sim.running);
 });
 

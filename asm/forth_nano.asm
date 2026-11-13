@@ -18661,13 +18661,15 @@ ug_idle:
 .endif
 
 ; ============================================================
-; serial-read ( addr len -- n ): drain the UART at machine speed
+; serial-read ( addr pairs -- n ): drain the UART at machine speed
 ; ============================================================
-; The UART RX FIFO is 64 bytes and an XMODEM block is 128, so a Forth loop
+; The UART RX FIFO is 16 bytes and an XMODEM block is 128, so a Forth loop
 ; that touches the status/data cells once per byte cannot keep up with a
-; 115200 sender.  This primitive copies bytes until len is reached, the FIFO
-; is empty, or a PS/2 key reaches the IRQ ring (0x52C0 in DS).  It returns the
-; number of bytes stored; a short count means the xmodem caller should abort.
+; 115200 sender.  This primitive reads byte pairs and packs them into one
+; 16-bit cell (low byte first), which halves the PSRAM stores - each one is a
+; serial bus transaction on the board.  It stops at `pairs`, an empty FIFO
+; with no more bytes, or a PS/2 key; the count is the number of complete
+; pairs stored, so a short count means the xmodem caller should abort.
 ; Runs in the normal bank: DS=0x1000 (the ring), ES=0xF000 (the UART).
 ;
 ; It sits in the free image gap below the BIOS and above dict_free, NOT at
@@ -18677,40 +18679,57 @@ ug_idle:
 .org 0x4400
 .code
 word_serialread:
-    LD R1, SP, 0             ; len
+    ; ( addr pairs -- n )  read `pairs` UART bytes-pairs, packing two bytes
+    ; into one cell: low byte first.  One PSRAM store per pair instead of per
+    ; byte: on the board every store is a serial PSRAM transaction and one per
+    ; byte was slower than 115200, so the 16-deep RX FIFO overran.
+    LD R1, SP, 0             ; pairs
     ADD SP, 1
     LD R2, SP, 0             ; addr
     ADD SP, 1
-    LSI R3, 0                ; count
+    LSI R3, 0                ; pairs stored
     LDI 0x0FFF
     INV R0
     MVS ES, R0               ; ES = 0xF000
     LDI 0x40
     MOV R4, R0               ; UART status
     LDI 0x42
-    MOV R9, R0               ; UART data (R9 is scratch across next)
-    LSI R0, 1                ; bit 0 mask, hoisted out of the loop
+    MOV R9, R0               ; UART data
+    LSI R0, 1                ; bit 0 mask
 sread_loop:
     AND R1, R1
     JZ sread_done
     NOP
-    LDS R7, ES, R4           ; UART status
-    AND R7, R0               ; RX ready? (R0 = 1)
-    JNZ sread_have
+sread_wa:
+    LDS R7, ES, R4           ; status
+    AND R7, R0
+    JNZ sread_ga
     NOP
-    LDI 0x60
+    LDI 0x60                 ; idle: a PS/2 key aborts
     MOV R12, R0
-    LDS R7, ES, R12          ; keyboard FIFO status
+    LDS R7, ES, R12
     LSI R0, 1
     AND R7, R0
-    JNZ sread_done           ; a key is waiting: return a short count
+    JNZ sread_done
     NOP
-    CLRZ                     ; unconditional: CLRZ leaves Z=0, JNZ takes.
-    JNZ sread_loop           ; JZ here fell through and read DATA with the
-    NOP                      ; FIFO empty, filling the block with zeros.
-sread_have:
-    LDS R7, ES, R9           ; DATA (low byte; high byte is zero)
-    ST R7, R2, 0             ; [addr] = byte
+    CLRZ
+    JNZ sread_wa
+    NOP
+sread_ga:
+    LDS R10, ES, R9          ; first byte
+sread_wb:
+    LDS R7, ES, R4           ; wait for the second byte
+    AND R7, R0
+    JNZ sread_gb
+    NOP
+    CLRZ
+    JNZ sread_wb
+    NOP
+sread_gb:
+    LDS R7, ES, R9           ; second byte
+    SL R7, 8
+    OR R7, R10
+    ST R7, R2, 0             ; one store per pair
     ADD R2, 1
     ADD R3, 1
     SUB R1, 1
