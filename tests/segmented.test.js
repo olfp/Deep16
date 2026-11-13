@@ -527,15 +527,15 @@ test('catch and throw still unwind the return stack', () => {
   assert.ok(sim.running);
 });
 
-test('the 64K data stack holds 18000 cells', () => {
+test('the 64K data stack holds 15000 cells', () => {
   // The data stack grows down from 0xFFF0 and the dictionary up from 0x5800.
-  // The tools slice (edit/serial/xmodem) leaves ~19.8K cells free, so 18K
-  // leaves a safe margin while still proving the stack is not the old 300-cell
-  // return stack.
+  // After the catalog and the tools slice (edit/serial/xmodem) about 18K cells
+  // are still free, so 15K proves the stack is not the old 300-cell return
+  // stack without depending on every last cell of dictionary headroom.
   line(': push-n ( n -- ) 0 ?do i loop ;');
   line(': drop-n ( n -- ) 0 ?do drop loop ;');
-  assert.equal(number(line('18000 push-n depth . cr'), '18000 push-n depth . cr'), 18000);
-  assert.equal(number(line('18000 drop-n depth . cr'), '18000 drop-n depth . cr'), 0);
+  assert.equal(number(line('15000 push-n depth . cr'), '15000 push-n depth . cr'), 15000);
+  assert.equal(number(line('15000 drop-n depth . cr'), '15000 drop-n depth . cr'), 0);
   assert.ok(sim.running);
 });
 

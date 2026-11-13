@@ -491,15 +491,19 @@ serial-ready? if
 serial-key
 dup soh = if exit then
 dup eot = if exit then
-drop
+." rx " dup . cr drop
 then
 1 x-wait +!
-x-wait @ 20000 > if 0 exit then
+x-wait @ 20000 > if ." xmodem: rx timeout" cr 0 exit then
 again ;
 : x-block ( -- )
 x-abort @ if exit then
 x-frame 132 serial-read
-132 <> if x-abort? drop 1 x-abort ! exit then
+dup 132 <> if
+." xmodem: short " dup . cr drop
+x-abort? drop 1 x-abort ! exit
+then
+drop
 x-frame c@ x-pblk !
 x-frame 1+ c@ x-pnblk !
 x-len @ 128 + x-max @ > if
@@ -507,15 +511,23 @@ x-len @ 128 + x-max @ > if
 then
 x-frame 2 + 128 crc-block
 x-frame 130 + c@ 8 lshift x-frame 131 + c@ or x-pcrc !
-x-pcrc @ <> if x-nak exit then
-x-pblk @ x-pnblk @ + 0xff <> if x-nak exit then
+x-pcrc @ <> if
+." xmodem: crc blk " x-pblk @ .
+." got " x-pcrc @ .
+." want " x-frame 2 + 128 crc-block .
+cr x-nak exit
+then
+x-pblk @ x-pnblk @ + 0xff <> if
+." xmodem: seq " x-pblk @ . x-pnblk @ . cr
+x-nak exit
+then
 x-frame 2 + x-buf @ x-len @ + 128 move
 x-pblk @ x-blk @ = if
 x-len @ 128 + x-len !
 x-blk @ 1+ 0xff and x-blk !
-x-ack
+." ." x-ack
 else
-x-pblk @ x-blk @ 1- 0xff and = if x-ack else x-nak then
+x-pblk @ x-blk @ 1- 0xff and = if ." =" x-ack else x-nak then
 then ;
 : x-trim ( -- )
 begin
@@ -528,7 +540,11 @@ x-len @ 1- x-len !
 repeat ;
 : x-flush-kbd ( -- ) 16 0 do key? if key drop then loop ;
 : xmodem ( -- )
+  ." xmodem: X1 kbd=" key? .
+  ."  rx=" serial-ready? .
+  cr
   x-flush-kbd
+  ." xmodem: X2" cr
   ." xmodem: receiving (CRC). Press key to abort" cr
 here x-buf !
 0 x-len !
