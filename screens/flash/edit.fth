@@ -471,13 +471,11 @@ variable x-abort drop
 variable x-done drop
 variable x-stage drop
 variable x-info drop
+variable x-cnt drop
 create x-frame 132 allot
 : x-state ( -- )
-." stage " x-stage @ .
-." info " x-info @ .
-." len " x-len @ .
-." blk " x-blk @ .
-." max " x-max @ . cr ;
+." s " x-stage @ . ." i " x-info @ .
+." n " x-cnt @ . ." l " x-len @ . cr ;
 : x-abort? ( -- f ) key? if key drop true else false then ;
 : crc-byte ( crc b -- crc )
 8 lshift xor
@@ -500,7 +498,7 @@ x-abort? if 9 x-stage ! 1 x-abort ! 0 exit then
 serial-ready? if
 serial-key
 dup x-info !
-dup soh = if 41 x-stage ! 0 x-hs ! 42 x-stage ! exit then
+dup soh = if 4 x-stage ! 0 x-hs ! exit then
 dup eot = if x-hs @ 0= if 8 x-stage ! exit then then
 ." rx " dup . cr drop
 else
@@ -512,12 +510,14 @@ then
 then
 then
 again ;
+: x-dump ( -- )
+." f " x-frame c@ . x-frame 1+ c@ .
+x-frame 2 + c@ . x-frame 130 + c@ .
+x-frame 131 + c@ . cr ;
 : x-block ( -- )
-43 x-stage !
 x-abort @ if exit then
-44 x-stage !
 x-frame 132 serial-read
-dup x-info ! 5 x-stage !
+dup x-cnt ! dup x-info ! 5 x-stage !
 dup 132 <> if
 ." xmodem: short " dup . cr drop
 x-abort? drop 9 x-stage ! 1 x-abort ! exit
@@ -532,14 +532,13 @@ x-frame 2 + 128 crc-block
 x-frame 130 + c@ 8 lshift x-frame 131 + c@ or x-pcrc !
 x-pcrc @ x-info ! 6 x-stage !
 x-pcrc @ <> if
-." xmodem: crc blk " x-pblk @ .
-." got " x-pcrc @ .
-." want " x-frame 2 + 128 crc-block .
-cr x-nak exit
+." crc " x-pblk @ . ." n " x-cnt @ .
+." g " x-pcrc @ . ." w " x-frame 2 + 128 crc-block . cr
+x-dump x-nak exit
 then
 x-pblk @ x-pnblk @ + 0xff <> if
-." xmodem: seq " x-pblk @ . x-pnblk @ . cr
-x-nak exit
+." seq " x-pblk @ . x-pnblk @ . ." n " x-cnt @ . cr
+x-dump x-nak exit
 then
 x-frame 2 + x-buf @ x-len @ + 128 move
 x-pblk @ x-blk @ = if
@@ -562,12 +561,9 @@ repeat ;
 : x-flush-kbd ( -- ) 16 0 do key? if key drop then loop ;
 : x-flush-uart ( -- ) 256 0 do serial-ready? if serial-key drop then loop ;
 : xmodem ( -- )
-  ." xmodem: X1 kbd=" key? .
-  ."  rx=" serial-ready? .
-  cr
+  ." x1 " key? . serial-ready? . cr
   x-flush-kbd
   x-flush-uart
-  ." xmodem: X2 rx=" serial-ready? . cr
   2 x-stage !
   ." xmodem: receiving (CRC). Press key to abort" cr
 here x-buf !
@@ -582,9 +578,7 @@ begin
 x-abort @ 0= x-done @ 0= and
 while
 x-wait-soh
-46 x-stage !
 dup soh = if
-47 x-stage !
 drop x-block
 else dup eot = if
 drop x-ack 1 x-done !

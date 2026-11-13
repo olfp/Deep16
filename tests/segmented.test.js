@@ -406,6 +406,27 @@ test('xmodem receives a CRC file and runs it directly', () => {
   assert.ok(sim.running);
 });
 
+test('serial-read waits for a slow sender instead of storing zeros', () => {
+  // One byte at a time, with a long idle gap: a polling loop that reads DATA
+  // without a fresh "ready" would fill the rest of the block with zeros (and
+  // the count would still be right). The real board is always this slow
+  // relative to the CPU.
+  const from = out.length;
+  for (const ch of 'pad 8 serial-read . cr\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
+  const bytes = [0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48];
+  let fed = 0, last = 0;
+  for (let i = 0; i < 2_000_000; i++) {
+    if (fed < bytes.length && i - last >= 5000) { sim.uartRxPush(bytes[fed++]); last = i; }
+    step(1);
+    if (!sim.running) break;
+    if (out.indexOf('\r\n> ', from) >= 0) break;
+  }
+  const echoed = out.slice(from);
+  assert.match(echoed, /\b8\b/, 'the count is eight');
+  assert.match(line('pad 8 type cr'), /ABCDEFGH/, 'every byte is the one sent');
+  assert.ok(sim.running);
+});
+
 test('a directory entry can be removed', () => {
   line('40 dir-remove');
   assert.doesNotMatch(line('dir'), /\btest\b/);

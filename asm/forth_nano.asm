@@ -18703,9 +18703,9 @@ sread_loop:
     AND R7, R0
     JNZ sread_done           ; a key is waiting: return a short count
     NOP
-    CLRZ
-    JZ sread_loop
-    NOP
+    CLRZ                     ; unconditional: CLRZ leaves Z=0, JNZ takes.
+    JNZ sread_loop           ; JZ here fell through and read DATA with the
+    NOP                      ; FIFO empty, filling the block with zeros.
 sread_have:
     LDI 0x42
     MOV R7, R0
