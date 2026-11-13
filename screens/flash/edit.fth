@@ -490,6 +490,12 @@ loop drop x-run @ ;
 : x-ack ( -- ) ack serial-emit ;
 : x-nak ( -- ) nak serial-emit ;
 : x-now ( -- ms ) 0x22 es@ ;
+: x-key ( -- c )
+begin
+serial-ready? 0= while
+x-abort? if 9 x-stage ! 1 x-abort ! 0 exit then
+repeat
+serial-key ;
 : x-wait-soh ( -- c )
 3 x-stage !
 x-now 1000 + x-cnext !
@@ -498,7 +504,12 @@ x-abort? if 9 x-stage ! 1 x-abort ! 0 exit then
 serial-ready? if
 serial-key
 dup x-info !
-dup soh = if 4 x-stage ! 0 x-hs ! exit then
+dup soh = if
+4 x-stage !
+x-key x-pblk !
+x-key x-pnblk !
+x-pblk @ x-pnblk @ + 0xff = if 0 x-hs ! exit then
+then
 dup eot = if x-hs @ 0= if 8 x-stage ! exit then then
 drop
 else
@@ -512,15 +523,13 @@ then
 again ;
 : x-block ( -- )
 x-abort @ if exit then
-x-frame 132 serial-read
-dup x-cnt ! dup x-info ! 5 x-stage !
-dup 132 <> if
+x-frame 2 + 130 serial-read
+dup x-cnt ! 5 x-stage !
+dup 130 <> if
 ." xmodem: short " dup . cr drop
 x-abort? drop 9 x-stage ! 1 x-abort ! exit
 then
 drop
-x-frame c@ x-pblk !
-x-frame 1+ c@ x-pnblk !
 x-len @ 128 + x-max @ > if
 ." xmodem: too big" cr x-nak exit
 then
@@ -532,11 +541,6 @@ x-pcrc @ <> if
 ." g " x-pcrc @ . ." w " x-frame 2 + 128 crc-block . cr
 x-frame 2 + 40 type cr
 ." e " x-frame 130 + c@ . x-frame 131 + c@ . cr
-x-nak exit
-then
-x-pblk @ x-pnblk @ + 0xff <> if
-." seq " x-pblk @ . x-pnblk @ . ." n " x-cnt @ . cr
-x-frame 2 + 20 type cr
 x-nak exit
 then
 x-frame 2 + x-buf @ x-len @ + 128 move
