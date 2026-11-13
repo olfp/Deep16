@@ -461,8 +461,8 @@ variable x-buf drop
 variable x-len drop
 variable x-blk drop
 variable x-run drop
-variable x-wait drop
-variable x-started drop
+variable x-cnext drop
+variable x-hs drop
 variable x-pblk drop
 variable x-pnblk drop
 variable x-pcrc drop
@@ -483,18 +483,24 @@ dup i + c@ x-run @ swap crc-byte x-run !
 loop drop x-run @ ;
 : x-ack ( -- ) ack serial-emit ;
 : x-nak ( -- ) nak serial-emit ;
+: x-now ( -- ms ) 0x22 es@ ;
 : x-wait-soh ( -- c )
-0 x-wait !
+x-now 1000 + x-cnext !
 begin
 x-abort? if 1 x-abort ! 0 exit then
 serial-ready? if
 serial-key
-dup soh = if exit then
+dup soh = if 0 x-hs ! exit then
 dup eot = if exit then
 ." rx " dup . cr drop
+else
+x-hs @ if
+x-now x-cnext @ - 0< 0= if
+." C" crc-req serial-emit
+x-now 1000 + x-cnext !
 then
-1 x-wait +!
-x-wait @ 20000 > if ." xmodem: rx timeout" cr 0 exit then
+then
+then
 again ;
 : x-block ( -- )
 x-abort @ if exit then
@@ -549,22 +555,20 @@ repeat ;
 here x-buf !
 0 x-len !
 1 x-blk !
-0 x-started !
+1 x-hs !
 0 x-abort !
 0 x-done !
 unused 1024 - x-max !
+crc-req serial-emit
 begin
 x-abort @ 0= x-done @ 0= and
 while
-x-started @ 0= if crc-req serial-emit then
 x-wait-soh
 dup soh = if
-drop x-block 1 x-started !
+drop x-block
 else dup eot = if
 drop x-ack 1 x-done !
-else
-drop 0 x-started !
-then then
+else drop then then
 repeat
 x-abort @ if
 can serial-emit can serial-emit
