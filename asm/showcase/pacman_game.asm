@@ -1594,12 +1594,12 @@ pac_dt_done:
 pac_sprite:
     LDI SEG_OAM
     MVS ES, R0
-    ; x = 72 + 16*column
+    ; x = 56 + 16*column (tilemap column 8, minus half a sprite)
     LDI ST_PAC_C
     MOV R2, R0
     LD R2, R2, 0
     SL R2, 4
-    LDI 72
+    LDI 56
     MOV R3, R0
     ADD R2, R3
 
