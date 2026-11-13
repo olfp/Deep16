@@ -384,8 +384,14 @@ function lineFeed(text, bytes, cap = 40_000_000) {
   const from = out.length;
   for (const ch of `${text}\n`) sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
   let fed = 0;
+  let started = false;
   for (let i = 0; i < cap; i++) {
-    while (fed < bytes.length && sim.uartRx.length < 100) sim.uartRxPush(bytes[fed++]);
+    // xmodem drains the UART before it prints the receiving message, so the
+    // sender must not feed a byte until that message is on the screen.
+    if (!started && out.indexOf('Press key to abort', from) >= 0) started = true;
+    if (started) {
+      while (fed < bytes.length && sim.uartRx.length < 100) sim.uartRxPush(bytes[fed++]);
+    }
     step(1);
     if (!sim.running) break;
     if (out.indexOf('\r\n> ', from) >= 0) break;
