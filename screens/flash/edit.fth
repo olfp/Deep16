@@ -510,10 +510,6 @@ then
 then
 then
 again ;
-: x-dump ( -- )
-." f " x-frame c@ . x-frame 1+ c@ .
-x-frame 2 + c@ . x-frame 130 + c@ .
-x-frame 131 + c@ . cr ;
 : x-block ( -- )
 x-abort @ if exit then
 x-frame 132 serial-read
@@ -534,11 +530,14 @@ x-pcrc @ x-info ! 6 x-stage !
 x-pcrc @ <> if
 ." crc " x-pblk @ . ." n " x-cnt @ .
 ." g " x-pcrc @ . ." w " x-frame 2 + 128 crc-block . cr
-x-dump x-nak exit
+x-frame 2 + 40 type cr
+." e " x-frame 130 + c@ . x-frame 131 + c@ . cr
+x-nak exit
 then
 x-pblk @ x-pnblk @ + 0xff <> if
 ." seq " x-pblk @ . x-pnblk @ . ." n " x-cnt @ . cr
-x-dump x-nak exit
+x-frame 2 + 20 type cr
+x-nak exit
 then
 x-frame 2 + x-buf @ x-len @ + 128 move
 x-pblk @ x-blk @ = if

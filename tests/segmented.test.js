@@ -406,6 +406,11 @@ test('xmodem receives a CRC file and runs it directly', () => {
   assert.ok(sim.running);
 });
 
+test('crc-block matches the standard XMODEM CRC', () => {
+  // "123456789" -> 0x31C3 (the classic XMODEM/CCITT-FALSE vector).
+  assert.equal(number(line('s" 123456789" crc-block . cr'), 's" 123456789" crc-block . cr'), 0x31C3);
+});
+
 test('serial-read waits for a slow sender instead of storing zeros', () => {
   // One byte at a time, with a long idle gap: a polling loop that reads DATA
   // without a fresh "ready" would fill the rest of the block with zeros (and
@@ -424,6 +429,18 @@ test('serial-read waits for a slow sender instead of storing zeros', () => {
   const echoed = out.slice(from);
   assert.match(echoed, /\b8\b/, 'the count is eight');
   assert.match(line('pad 8 type cr'), /ABCDEFGH/, 'every byte is the one sent');
+  assert.ok(sim.running);
+});
+
+test('xmodem receives a tio-style 0x00-padded file', () => {
+  const src = ': foo . ;\n';
+  const data = Buffer.from(src, 'latin1');
+  const d = Buffer.alloc(128, 0x00);
+  data.copy(d);
+  const crc = xmodemCrc(d);
+  const packet = [0x01, 1, 0xfe, ...d, crc >> 8, crc & 0xff, 0x04];
+  const echoed = lineFeed('xmodem', packet);
+  assert.match(echoed, /xmodem: \d+ bytes/);
   assert.ok(sim.running);
 });
 
