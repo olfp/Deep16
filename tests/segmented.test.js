@@ -201,8 +201,9 @@ test('list finds a slice by name and prints it', () => {
   assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'list leaves the stack clean');
 });
 
-test('edit opens a block slice by name', () => {
-  const echoed = lineWithKeys('edit test', [0x18, 0x03]);
+test('edit opens a text slice by name', () => {
+  assert.match(line('edit pacman'), /not a text slice/, 'a block slice is refused');
+  const echoed = lineWithKeys('edit hello', [0x18, 0x03]);
   assert.match(echoed, /discarded/);
   assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'edit leaves the stack clean');
 });
@@ -324,7 +325,9 @@ test('text-edit normalizes CRLF text to LF on save', () => {
 });
 
 test('the editors refuse the wrong slice type', () => {
-  assert.match(line('40 text-edit'), /not a text slice/);
+  line('50 0x0C slice-create');
+  line('slice-flush');
+  assert.match(line('50 text-edit'), /not a text slice/);
   assert.match(line(`${helloFirst} edit-slice`), /not a screen slice/);
   assert.ok(sim.running);
 });
