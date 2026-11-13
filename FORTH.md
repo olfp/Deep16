@@ -823,10 +823,13 @@ xmodem                  \ start; the message names the abort key
 ```
 
 `xmodem` reads a whole 132-byte packet body (block, complement, 128 data
-bytes, CRC) with the `serial-read ( addr len -- n )` primitive (0x4400). The primitive
-drains the 64-byte UART FIFO at machine speed and returns a short count if a
-key arrives, so a 115200 sender cannot overrun the FIFO while the Forth CRC
-loop is waiting.
+bytes, CRC) with the `serial-read ( addr pairs -- n )` primitive (0x4400).
+The primitive drains the UART RX FIFO at machine speed, packing two bytes
+into one cell (low byte first) so each PSRAM store covers a pair, and it
+returns a short pair count if a key arrives. The board's FIFO is only 16
+bytes deep, so the frame read starts immediately after the SOH: a Forth
+round trip through the main loop before `serial-read` cost more than the
+FIFO's 139 us and dropped a byte at 115200.
 
 ### Tile console colours
 
