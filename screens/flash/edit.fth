@@ -473,9 +473,6 @@ variable x-stage drop
 variable x-info drop
 variable x-cnt drop
 create x-frame 132 allot
-: x-state ( -- )
-." s " x-stage @ . ." i " x-info @ .
-." n " x-cnt @ . ." l " x-len @ . cr ;
 : x-abort? ( -- f ) key? if key drop true else false then ;
 : crc-byte ( crc b -- crc )
 8 lshift xor
@@ -538,9 +535,13 @@ x-frame 130 + c@ 8 lshift x-frame 131 + c@ or x-pcrc !
 x-pcrc @ x-info ! 6 x-stage !
 x-pcrc @ <> if
 ." crc " x-pblk @ . ." n " x-cnt @ .
+." o " serial-status es@ 4 and .
 ." g " x-pcrc @ . ." w " x-frame 2 + 128 crc-block . cr
-x-frame 2 + 40 type cr
-." e " x-frame 130 + c@ . x-frame 131 + c@ . cr
+x-frame 2 + 32 type cr
+." t " x-frame 124 + c@ . x-frame 125 + c@ .
+x-frame 126 + c@ . x-frame 127 + c@ .
+x-frame 128 + c@ . x-frame 129 + c@ .
+x-frame 130 + c@ . x-frame 131 + c@ . cr
 x-nak exit
 then
 x-frame 2 + x-buf @ x-len @ + 128 move
@@ -562,7 +563,7 @@ while
 x-len @ 1- x-len !
 repeat ;
 : x-flush-kbd ( -- ) 16 0 do key? if key drop then loop ;
-: x-flush-uart ( -- ) 256 0 do serial-ready? if serial-key drop then loop ;
+: x-flush-uart ( -- ) 1 0x44 es! ;
 : xmodem ( -- )
   ." x1 " key? . serial-ready? . cr
   x-flush-kbd
