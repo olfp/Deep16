@@ -488,51 +488,30 @@ loop drop x-run @ ;
 : x-ack ( -- ) ack serial-emit ;
 : x-nak ( -- ) nak serial-emit ;
 : x-now ( -- ms ) 0x22 es@ ;
-: x-wait-soh ( -- c )
-3 x-stage !
-x-now 1000 + x-cnext !
-begin
-x-abort? if 9 x-stage ! 1 x-abort ! 0 exit then
-serial-ready? if
-serial-key
-dup x-info !
-dup soh = if 4 x-stage ! 0 x-hs ! exit then
-dup eot = if x-hs @ 0= if 8 x-stage ! exit then then
-drop
-else
-x-hs @ if
-x-now x-cnext @ - 0< 0= if
-crc-req serial-emit
-x-now 1000 + x-cnext !
-then
-then
-then
-again ;
 : x-unp ( -- )
 66 0 do
 i x-pack + @
 dup 0xff and x-frame i 2* + c!
 8 rshift x-frame i 2* 1+ + c!
 loop ;
-: x-block ( -- )
+: x-recv ( -- )
+begin
 x-abort @ if exit then
+x-abort? if 9 x-stage ! 1 x-abort ! exit then
+serial-ready? if
+serial-key
+dup soh = if
+drop
 x-pack 66 serial-read
+0 x-hs !
 dup x-cnt ! 5 x-stage !
-dup 66 <> if
-." xmodem: short " dup . cr drop
-x-abort? drop 9 x-stage ! 1 x-abort ! exit
-then
+dup 66 <> if ." short " . cr 9 x-stage ! 1 x-abort ! exit then
 drop
 x-unp
 x-frame c@ x-pblk !
 x-frame 1+ c@ x-pnblk !
-x-pblk @ x-pnblk @ + 0xff <> if
-." seq " x-pblk @ . x-pnblk @ . ." n " x-cnt @ . cr
-x-nak exit
-then
-x-len @ 128 + x-max @ > if
-." xmodem: too big" cr x-nak exit
-then
+x-pblk @ x-pnblk @ + 0xff <> if ." seq" cr x-nak exit then
+x-len @ 128 + x-max @ > if ." big" cr x-nak exit then
 x-frame 2 + 128 crc-block
 x-frame 130 + c@ 8 lshift x-frame 131 + c@ or x-pcrc !
 x-pcrc @ x-info ! 6 x-stage !
@@ -540,7 +519,6 @@ x-pcrc @ <> if
 ." crc " x-pblk @ . ." n " x-cnt @ .
 ." o " serial-status es@ 4 and .
 ." g " x-pcrc @ . ." w " x-frame 2 + 128 crc-block . cr
-x-frame 2 + 32 type cr
 x-nak exit
 then
 x-frame 2 + x-buf @ x-len @ + 128 move
@@ -551,7 +529,20 @@ x-len @ x-info ! 7 x-stage !
 ." ." x-ack
 else
 x-pblk @ x-blk @ 1- 0xff and = if ." =" x-ack else x-nak then
-then ;
+then
+exit
+then
+dup eot = if x-hs @ 0= if 8 x-stage ! drop x-ack 1 x-done ! exit then then
+drop
+else
+x-hs @ if
+x-now x-cnext @ - 0< 0= if
+crc-req serial-emit
+x-now 1000 + x-cnext !
+then
+then
+then
+again ;
 : x-trim ( -- )
 begin
 x-len @ 0> if
@@ -580,12 +571,7 @@ crc-req serial-emit
 begin
 x-abort @ 0= x-done @ 0= and
 while
-x-wait-soh
-dup soh = if
-drop x-block
-else dup eot = if
-drop x-ack 1 x-done !
-else drop then then
+x-recv
 repeat
 x-abort @ if
 can serial-emit can serial-emit
