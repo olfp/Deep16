@@ -50,6 +50,16 @@ test('browser builder matches the Node D16D image word for word', () => {
   }).words).slice(0x4330 + 0x610, 0x4330 + 0x611), [0x5555], 'baking still works');
 });
 
+test('the showcase does not overwrite any live kernel word', () => {
+  const node = buildImage();
+  // The menu is laid sparsely over 0x4D34..0x547F. A write over a real kernel
+  // word silently replaces it: serial-read used to sit at 0x4E42, under the
+  // menu, and xmodem died on the first SOH. The build reports every such hit.
+  assert.deepEqual(node.collisions, [], 'no showcase word lands on kernel code');
+  assert.equal(node.words[0x4400], 0x83a0, 'serial-read is intact at its new home');
+  assert.equal(node.words[0x444e], 0x4400, 'its header points at it');
+});
+
 test('the slice blocks are built with their load segments', () => {
   const browser = Deep16D16DImage.build(sources);
   assert.equal(browser.flappy.seg, 0x5000);

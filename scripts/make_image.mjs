@@ -109,6 +109,7 @@ export function buildImage() {
   // so the standard flash loader/installer copy and verify it.
   let showcase = null;
   let pacman = null;
+  const collisions = [];
   if (D16D) {
     // Only the menu rides in the image now: Flappy and Frogger are type-4
     // slices that BDOS loads into their own segments at run time.
@@ -116,8 +117,14 @@ export function buildImage() {
     checkShowcase(showcase);
     for (const [addr, value] of showcase.words) {
       const pa = SHOWCASE_SEG_BASE + addr;
-      if (pa < WINDOW) words[pa] = value;
-      else outOfWindow.add(pa);
+      if (pa < WINDOW) {
+        // A sparse showcase write over a word the kernel actually uses is a
+        // silent corruption: the menu runs and the clobbered routine executes
+        // menu bytes. Serial-read sat at 0x4E42 that way and xmodem died on
+        // the first SOH. Only the FILL gaps are fair game.
+        if (words[pa] !== FILL) collisions.push(pa);
+        words[pa] = value;
+      } else outOfWindow.add(pa);
     }
     // Pac-Man can still be baked into the free image gap for a build that has
     // the room back; the board loads it as a slice.
@@ -139,7 +146,7 @@ export function buildImage() {
     .digest('hex').slice(0, 16);
 
   return {
-    words, outOfWindow: [...outOfWindow].sort((a, b) => a - b),
+    words, outOfWindow: [...outOfWindow].sort((a, b) => a - b), collisions,
     dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build, showcase, pacman,
   };
 }
@@ -166,6 +173,11 @@ export function checkImage(img) {
     checkPacman(img.pacman);
   }
   if (D16D && img.showcase) checkShowcase(img.showcase);
+  const collisions = img.collisions ?? [];
+  if (collisions.length) {
+    fail.push('showcase overwrites live kernel words at ' +
+              collisions.map((a) => '0x' + a.toString(16)).join(', '));
+  }
   if (fail.length) throw new Error('boot image is not valid:\n  - ' + fail.join('\n  - '));
   return true;
 }

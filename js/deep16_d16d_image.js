@@ -62,13 +62,17 @@ class Deep16D16DImage {
         outOfWindow.add(change.address);
       }
     }
+    const collisions = [];
     for (const change of sres.memoryChanges) {
       if (change.address < 0 || change.address >= 0x10000) {
         throw new Error(`showcase address out of range: 0x${change.address.toString(16)}`);
       }
       const pa = SHOWCASE_BASE + change.address;
-      if (pa < WINDOW) words[pa] = change.value & 0xFFFF;
-      else outOfWindow.add(pa);
+      if (pa < WINDOW) {
+        // Same rule as scripts/make_image.mjs: only FILL gaps may be claimed.
+        if (words[pa] !== 0xFFFF) collisions.push(pa);
+        words[pa] = change.value & 0xFFFF;
+      } else outOfWindow.add(pa);
     }
     // Pac-Man can still be baked into the free image gap for a build that has
     // the room back; the board loads it from the config flash instead.
@@ -103,6 +107,7 @@ class Deep16D16DImage {
     return {
       words,
       outOfWindow: [...outOfWindow].sort((a, b) => a - b),
+      collisions,
       dictFree: kres.symbols.dict_free,
       biosEntry: kres.symbols.bios_entry,
       symbols: kres.symbols,

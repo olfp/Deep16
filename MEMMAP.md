@@ -110,18 +110,15 @@ loader. The dictionary then continues at `0x6000`.
 | `0x00500`–`0x01FFF` | kernel block 2 (primitives, interpreter, compiler) |
 | `0x02000`–`0x02FFF` | threading engine `next` and built-in word code |
 | `0x03000`–`0x0434E` | kernel data, boot script, built-in headers, `rp0_base` |
-| `0x0434F`–`0x049FF` | free (`dict_free`; the old Pac-Man/frogger gap) |
+| `0x03F9D`–`0x043FF` | free dictionary gap (`dict_free` at `0x3F9C`) |
+| `0x04400`–`0x0444E` | `serial-read` primitive (`0x4400`) and its built-in header (`0x4440`) |
+| `0x0444F`–`0x049FF` | free (the old Pac-Man/Frogger gap) |
 | `0x04A00`–`0x04D33` | BIOS code (dispatch, console functions 0–6, D16D `gfx_back` menu return) |
-| `0x04D34`–`0x04DFD` | D16D trampoline, strings, palette, header (small gaps) |
-| `0x04E00`–`0x04E41` | D16D `scene_init`/`draw_text` copies |
-| `0x04E42`–`0x04E7E` | `serial-read` primitive (0x4E42) and its built-in header (0x4E70) |
-| `0x04E7F`–`0x04EFF` | free and the menu's state cells |
-| `0x04F00`–`0x04FCD` | menu code and default palette |
-| `0x04FCE`–`0x04FFF` | free |
-| `0x05000`–`0x0519B` | ILL trap handler (DIV/DIV32 emulation) |
+| `0x04D34`–`0x04FE0` | D16D showcase menu block (sparse; magic at `0x04DE4`, entry `0x04D34`) |
+| `0x04FE1`–`0x0519B` | free, then the ILL trap handler (DIV/DIV32) at `0x05000` |
 | `0x0519C`–`0x0519F` | free |
-| `0x051A0`–`0x0521D` | IRQ handler (hardware vector 1) |
-| `0x0521E`–`0x052FF` | free |
+| `0x051A0`–`0x052BF` | IRQ handler (hardware vector 1), including the audio pump |
+| `0x052C0`–`0x052FF` | keyboard IRQ ring (`kbd_head`, `kbd_tail`, 32 cells) |
 | `0x05300`–`0x053CE` | `divtest` code (`divtest_ok_str` at `0x532E`) + UART console mirror |
 | `0x053CF`–`0x053FF` | free |
 | `0x05400`–`0x0548D` | D16D BDOS bridge |
@@ -167,7 +164,7 @@ loader. The dictionary then continues at `0x6000`.
 | `divtest_ok_str` | `0x532E` | `divtest ok` string |
 | `ps2_r5` | `0x57E0` | PS/2 sender's saved R5/R6/LR/count cells |
 | `sfx_sv` | `0x57F0` | SFX saved R4-R12 cells; `sfx_frames` at `0x57F9` |
-| `word_serialread` | `0x4E42` | machine-speed UART block read for XMODEM |
+| `word_serialread` | `0x4400` | machine-speed UART block read for XMODEM |
 
 The D16D showcase is now only the menu: a four-word header at `0x3E4`
 (`0x0D16`, format 1, entry `0x334`), a trampoline at `0x334`, the menu code at

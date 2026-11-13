@@ -823,7 +823,7 @@ xmodem                  \ start; the message names the abort key
 ```
 
 `xmodem` reads a whole 132-byte packet body (block, complement, 128 data
-bytes, CRC) with the `serial-read ( addr len -- n )` primitive (0x4E42). The primitive
+bytes, CRC) with the `serial-read ( addr len -- n )` primitive (0x4400). The primitive
 drains the 64-byte UART FIFO at machine speed and returns a short count if a
 key arrives, so a 115200 sender cannot overrun the FIFO while the Forth CRC
 loop is waiting.

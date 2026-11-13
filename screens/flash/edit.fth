@@ -500,7 +500,7 @@ x-abort? if 9 x-stage ! 1 x-abort ! 0 exit then
 serial-ready? if
 serial-key
 dup x-info !
-dup soh = if 4 x-stage ! 0 x-hs ! exit then
+dup soh = if 41 x-stage ! 0 x-hs ! 42 x-stage ! exit then
 dup eot = if x-hs @ 0= if 8 x-stage ! exit then then
 ." rx " dup . cr drop
 else
@@ -513,7 +513,9 @@ then
 then
 again ;
 : x-block ( -- )
+43 x-stage !
 x-abort @ if exit then
+44 x-stage !
 x-frame 132 serial-read
 dup x-info ! 5 x-stage !
 dup 132 <> if
@@ -580,7 +582,9 @@ begin
 x-abort @ 0= x-done @ 0= and
 while
 x-wait-soh
+46 x-stage !
 dup soh = if
+47 x-stage !
 drop x-block
 else dup eot = if
 drop x-ack 1 x-done !

@@ -18669,7 +18669,12 @@ ug_idle:
 ; is empty, or a PS/2 key reaches the IRQ ring (0x52C0 in DS).  It returns the
 ; number of bytes stored; a short count means the xmodem caller should abort.
 ; Runs in the normal bank: DS=0x1000 (the ring), ES=0xF000 (the UART).
-.org 0x4E42
+;
+; It sits in the free image gap below the BIOS and above dict_free, NOT at
+; 0x4E42: the showcase menu block is laid over 0x4D34..0x547F and its sparse
+; writes cover 0x4E42, so the primitive executed menu bytes. The image builder
+; now rejects any showcase write over a live kernel word.
+.org 0x4400
 .code
 word_serialread:
     LD R1, SP, 0             ; len
@@ -18722,7 +18727,7 @@ sread_done:
 
 ; serial-read's header lives beside the code, not in the kernel data: adding it
 ; at the head of the chain would move text_attr off the catalog's 0x3C1F.
-.org 0x4E70
+.org 0x4440
 h_sread:
 .ifdef D16D
     .word h_tile_row
