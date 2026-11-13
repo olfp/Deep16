@@ -500,11 +500,11 @@ serial-key
 dup x-info !
 dup soh = if 4 x-stage ! 0 x-hs ! exit then
 dup eot = if x-hs @ 0= if 8 x-stage ! exit then then
-." rx " dup . cr drop
+drop
 else
 x-hs @ if
 x-now x-cnext @ - 0< 0= if
-." C" crc-req serial-emit
+crc-req serial-emit
 x-now 1000 + x-cnext !
 then
 then
