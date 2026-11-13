@@ -472,7 +472,7 @@ variable x-done drop
 variable x-stage drop
 variable x-info drop
 variable x-cnt drop
-create x-pack 65 allot
+create x-pack 66 allot
 create x-frame 132 allot
 : x-abort? ( -- f ) key? if key drop true else false then ;
 : crc-byte ( crc b -- crc )
@@ -488,12 +488,6 @@ loop drop x-run @ ;
 : x-ack ( -- ) ack serial-emit ;
 : x-nak ( -- ) nak serial-emit ;
 : x-now ( -- ms ) 0x22 es@ ;
-: x-key ( -- c )
-begin
-serial-ready? 0= while
-x-abort? if 9 x-stage ! 1 x-abort ! 0 exit then
-repeat
-serial-key ;
 : x-wait-soh ( -- c )
 3 x-stage !
 x-now 1000 + x-cnext !
@@ -502,12 +496,7 @@ x-abort? if 9 x-stage ! 1 x-abort ! 0 exit then
 serial-ready? if
 serial-key
 dup x-info !
-dup soh = if
-4 x-stage !
-x-key x-pblk !
-x-key x-pnblk !
-x-pblk @ x-pnblk @ + 0xff = if 0 x-hs ! exit then
-then
+dup soh = if 4 x-stage ! 0 x-hs ! exit then
 dup eot = if x-hs @ 0= if 8 x-stage ! exit then then
 drop
 else
@@ -520,21 +509,27 @@ then
 then
 again ;
 : x-unp ( -- )
-65 0 do
-x-pack i + @
-dup 0xff and x-frame 2 + i 2* + c!
-8 rshift x-frame 3 + i 2* + c!
+66 0 do
+i x-pack + @
+dup 0xff and x-frame i 2* + c!
+8 rshift x-frame i 2* 1+ + c!
 loop ;
 : x-block ( -- )
 x-abort @ if exit then
-x-pack 65 serial-read
+x-pack 66 serial-read
 dup x-cnt ! 5 x-stage !
-dup 65 <> if
+dup 66 <> if
 ." xmodem: short " dup . cr drop
 x-abort? drop 9 x-stage ! 1 x-abort ! exit
 then
 drop
 x-unp
+x-frame c@ x-pblk !
+x-frame 1+ c@ x-pnblk !
+x-pblk @ x-pnblk @ + 0xff <> if
+." seq " x-pblk @ . x-pnblk @ . ." n " x-cnt @ . cr
+x-nak exit
+then
 x-len @ 128 + x-max @ > if
 ." xmodem: too big" cr x-nak exit
 then
