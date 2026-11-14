@@ -86,6 +86,56 @@ for fa = 1, 2 do
 end
 print(fnest)
 
+-- standalone do ... end blocks
+fdo = 0
+do
+  fdo = 1
+  local fdo_extra = 2
+  fdo = fdo + fdo_extra
+end
+print(fdo)
+
+-- repeat ... until, including break
+frep = 0
+repeat
+  frep = frep + 1
+until frep >= 3
+print(frep)
+frepbreak = 0
+repeat
+  frepbreak = frepbreak + 1
+  if frepbreak = 2 then break end
+until false
+print(frepbreak)
+
+-- generic for ... in
+fseq = {}
+fseq[1] = 4
+fseq[2] = 5
+fseq[3] = 6
+fpairsum = 0
+fpairs = 0
+for fpai, fpav in pairs(fseq) do
+  fpairs = fpairs + 1
+  fpairsum = fpairsum + fpav
+end
+print(fpairsum)
+fipairs = 0
+for fpii, fpiv in ipairs(fseq) do
+  fipairs = fipairs + fpii
+end
+print(fipairs)
+fgcount = 0
+for fpgi, fpgv in ipairs(fseq) do fgcount = fgcount + 1 end
+print(fgcount)
+fgnest = 0
+for fga, fgav in ipairs(fseq) do
+  for fgb, fgbv in ipairs(fseq) do
+    fgnest = fgnest + 1
+  end
+end
+print(fgnest)
+
 -- parenthesized expressions and unary minus
 fparen = (1 + 2) * (3 + 4)
 print(fparen)
@@ -472,6 +522,9 @@ op_or_zero = 0 or 5
 op_not_true = not true
 op_not_false = not false
 op_not_nil = not nil
+-- every number, including zero, is truthy in Lua
+op_zero_cond = 0
+if 0 then op_zero_cond = 1 end
 print(op_and_val)               -- 5
 print(op_and_false)             -- false
 print(op_and_nil)               -- nil
@@ -479,10 +532,11 @@ print(op_and_str)               -- yes
 print(op_or_val)                -- 7
 print(op_or_true)               -- true
 print(op_or_nil)                -- 3
-print(op_or_zero)               -- 5
+print(op_or_zero)               -- 0
 print(op_not_true)              -- false
 print(op_not_false)             -- true
 print(op_not_nil)               -- true
+print(op_zero_cond)             -- 1
 
 -- and/or short-circuit: the unused side must not run
 opcalls = 0
@@ -587,6 +641,39 @@ print(mlb)                      -- 20
 mlsum = mla + mlb
 print(mlsum)                    -- 30
 
+-- multi assignment to table and mixed targets
+mat = {}
+mat["a"] = 1
+mat["b"] = 2
+mat_i = 0
+mat_i, mat["a"] = 2, 3
+print(mat_i)                    -- 2
+print(mat["a"])                 -- 3
+mat["a"], mat["b"] = 10, 11
+print(mat["a"])                 -- 10
+print(mat["b"])                 -- 11
+mat["c"], mat_j = mret2()
+print(mat["c"])                 -- 10
+print(mat_j)                    -- 20
+
+-- every indexed target reads its table and key before any store
+matord = {}
+matord_i = 1
+matord_i, matord[matord_i] = 2, 3
+matord_old = matord[1]
+matord_new = matord[2]
+print(matord_old)               -- 3
+print(matord_new)               -- nil
+
+-- the final expression in a return list expands all of its values
+function mhead()
+  return 1, 2
+end
+mch1, mch2, mch3 = mhead(), mhead()
+print(mch1)                     -- 1
+print(mch2)                     -- 1
+print(mch3)                     -- 2
+
 -- varargs, select, and print
 function msum(...)
   local total = 0
@@ -629,6 +716,38 @@ function mfirst(...)
   return select(1, ...)
 end
 print(mfirst(99, 100))          -- 99
+
+-- select with explicit arguments, negative indexes, and a trailing call
+function spick()
+  return 8, 9, 10
+end
+sel_count = select("#", 8, 9, 10)
+print(sel_count)                -- 3
+sel_pick = select(2, 5, 6, 7)
+print(sel_pick)                 -- 6
+sel_last = select(-1, 5, 6, 7)
+print(sel_last)                 -- 7
+sel_call = select(2, spick())
+print(sel_call)                 -- 9
+sel_empty = select("#")
+print(sel_empty)                -- 0
+function sbad()
+  return select(0, 1, 2)
+end
+sel_bad, sel_bad_msg = pcall(sbad)
+print(sel_bad)                  -- false
+
+-- burn allocates enough to force a collection while an outer frame with many
+-- locals is on the call stack
+function burn()
+  local s = ""
+  local i = 0
+  while i < 6000 do
+    s = "abcdefghij" + "klmnopqrst"
+    i = i + 1
+  end
+  return i
+end
 
 -- minimal standard library: type, conversion, strings, math, errors
 std_type_num = type(1)

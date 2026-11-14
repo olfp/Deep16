@@ -6,10 +6,14 @@ three-cell tagged-value ABI used by `lila/value.fs`, `lila/hash.fs`,
 migration record; the source and tests are authoritative.
 
 Verification: `gforth lila/test.fs` passes, including three-cell at/! checks,
-boolean results, nil for missing keys and no-return functions, mixed-tag
-tables, dynamically retyped variables, arbitrary non-nil keys, sequences and
-`#`, `next`/`pairs`/`ipairs`, the table library, and tables with 100 keys. The
-original `lila/test.lila` program also loads and runs.
+boolean results, nil for missing keys and no-return functions, Lua truthiness,
+`nil` deleting a table key, mixed-tag tables, dynamically retyped variables,
+arbitrary non-nil keys, sequences and `#`, `next`/`pairs`/`ipairs`, generic
+`for ... in`, `repeat ... until`, standalone `do ... end`, mixed
+table/index multiple assignment, final-list multi-value expansion, full
+`select`, the table library, and tables with 100 keys. It also exercises a
+121-local frame across forced collections to verify dynamic frame sizing and
+GC reachability. The original `lila/test.lila` program loads and runs.
 
 Companions: `lila/README.md` (current language semantics), `lila/compiler.fs`
 (type stack and code generation), `lila/hash.fs` (table layout),
@@ -258,8 +262,8 @@ point of use: adding a string, calling `length` on a number, and so on.
 
 `table-border` walks indices from 1 while the corresponding value exists,
 which implements the unary `#` operator and the default bounds for
-`table.concat`/`table.unpack`. `table-next` scans the bucket array and skips
-nil-valued entries, so iterators treat a stored `nil` as absent.
+`table.concat`/`table.unpack`. Assigning `nil` removes the key, and
+`table-next` scans the bucket array and skips unoccupied slots.
 
 Table aliases no longer carry a value kind, because there is no kind to carry.
 `copy = names` copies one table pointer; every read through either name uses the
@@ -528,8 +532,9 @@ Items marked resolved are part of the current language behaviour.
 1. **Missing table fields and no-return functions.** Resolved: a missing key is
    nil, distinguishing "absent" from a stored zero, and a function with no
    `return` yields nil.
-2. **Truthiness.** Resolved: nil and boolean false are false; numbers are false
-   only when zero; strings and tables are true, including the empty string.
+2. **Truthiness.** Resolved: nil and boolean false are false; every number,
+   including zero, is true; strings and tables are true, including the empty
+   string.
 3. **Mixed-type operators.** Recommendation: `+` is string concatenation only
    for two strings and arithmetic only for two numbers; every other pairing is
    an error. `=` may return false for different tags, while `<`/`>` should
@@ -573,13 +578,19 @@ types. They do not change the three-cell value layout.
 A frame is the activation record for one call. It is a GC object of type 3:
 
 ```text
-[parent][caller][retflag][ret1][ret2][rettag][slot0] ... [slot95]
+[parent][caller][retflag][ret1][ret2][rettag]
+[varargs1][varargs2][varargstag][slotcount][slot0] ... [slotN-1]
 ```
 
 `parent` is the lexical enclosing frame captured by a closure; `caller` links to
-the frame active at call time so an active outer frame stays reachable. Slots
-start at cell 6, each slot holds one three-cell value, and a call has 96 slots
-including its parameters. `lila-active-frame` is a registered GC root.
+the frame active at call time so an active outer frame stays reachable. The
+frame records the extra arguments of a vararg call, the number of local slots
+`N` it was allocated with, and then `N` three-cell slots. Slots start at cell
+10 (`lila-frame-slot0`); `lila-frame-slot-count` reads the count at cell 9, so
+the GC scanner and `lila-frame-bytes-of` walk the actual allocation rather than
+a fixed maximum. `lila-frame-new ( parent slots -- frame )` sizes the object on
+demand, and the compiler caps a call at 256 slots
+(`lila-max-locals`). `lila-active-frame` is a registered GC root.
 
 A closure is a GC object of type 4:
 

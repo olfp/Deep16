@@ -133,8 +133,39 @@ create table-grow-slot 0 ,
     then
   loop ;
 
+\ Rebuild the bucket array without SLOT.  Removing an entry from an
+\ open-addressed table would break probe chains, so the remaining entries are
+\ reinserted into a fresh array of the same size.
+: table-delete-slot { table slot -- }
+  table @ { n }
+  table cell+ @ { oldb }
+  n table-slot-cells * cells 2 gc-alloc { newb -- }
+  newb n table-slot-cells * cells 0 fill
+  newb table cell+ !
+  0 table 2 cells + !
+  n 0 ?do
+    oldb i table-slot-cells * cells + { cur -- }
+    cur slot-occupied if
+      cur slot <> if
+        table cur slot-key@ cur slot-value@ table-put-raw
+        table table-count@ 1+ table 2 cells + !
+      then
+    then
+  loop ;
+
+: table-delete { table k1 k2 kt -- }
+  table k1 k2 kt lila-table-find if
+    table swap table-delete-slot
+  else
+    drop
+  then ;
+
 : table-set { table k1 k2 kt v1 v2 vt -- }
   k1 k2 kt lila-check-key
+  \ Assigning nil removes the key, matching Lua.
+  vt lila-tag-nil = if
+    table k1 k2 kt table-delete exit
+  then
   table k1 k2 kt lila-table-find if
     v1 v2 vt 3 roll slot-value!
   else

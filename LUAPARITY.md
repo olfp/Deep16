@@ -1,6 +1,6 @@
 # LUAPARITY — LILA gaps relative to Lua 5.4
 
-Status: working note, 12 Nov 2026.
+Status: working note, 14 Nov 2026.
 
 LILA now has three-cell tagged values, mixed-tag tables, dynamically retyped
 variables, growable tables, lexical `local` declarations, and first-class
@@ -17,44 +17,38 @@ Lexical scoping, `local`, block shadowing, upvalues, first-class functions,
 closures, recursion, mutual recursion, multiple returns, varargs, and multiple
 assignment are implemented. The remaining core-language gaps are:
 
-- **Limited local storage.** Each call frame has 96 slots, so a function cannot
-  have more than 96 parameters and locals in total.
+- **Local storage is capped at 256 slots.** Frames are dynamically sized, so a
+  function may have any number of parameters and locals up to that limit.
 - **Anonymous functions only in assignment position.** `f = function(...) ... end`
   and `local f = function(...) ... end` work, but a function literal cannot be
   used directly as an argument or return expression.
-- **Multiple returns/varargs subset.** `return a, b`, `return f()` (forwarding),
-  `return ...`, `...` in vararg functions, `select('#', ...)`, `select(n, ...)`
-  (with `...` as the value list), `f(...)` to spread varargs in a sole-argument
-  call, and multi-value adjustment (first value in single-value contexts) are
-  implemented. Not yet implemented: `select` with explicit trailing arguments,
-  `return f(), g()` forwarding beyond the first value, and full Lua adjustment
-  in all expression contexts.
-- **Multiple assignment subset.** Identifier targets are supported:
-  `a, b = f()`, `a, b = b, a`, and `local a, b = f()`. Table/index targets and
-  mixed target lists are not yet supported.
+- **Multiple returns/varargs are nearly complete.** `return a, b`,
+  `return f()` (forwarding), `return ...`, `...` in vararg functions,
+  `select('#', ...)`, `select(n, ...)`, `select` with explicit trailing
+  arguments or a trailing call, negative `select` indexes, `f(...)` to spread
+  varargs in a sole-argument call, and multi-value adjustment (the final
+  expression in a list expands; earlier ones yield one value) are implemented.
+  Remaining differences are edge cases in expression contexts rather than the
+  core adjustment rule.
 - **Different assignment/equality syntax.** LILA uses `=` for both assignment
   and equality; Lua uses `=` for assignment and `==` for equality. LILA also
   accepts `==` and `~=` as equality/inequality aliases.
-- **LILA truthiness is not Lua truthiness.** LILA treats numeric zero as
-  falsey; Lua treats every number, including zero, as truthy.
-- **No `repeat ... until`, `goto`, labels, or generic `for ... in`.**
-- **No standalone `do ... end` block.**
-- **No `nil`-deletes-key behavior.** LILA stores `nil` as a value; assigning
-  `nil` in Lua removes the table entry.
+- **No `goto` or labels.**
 
 ## 2. Tables
 
 - **Arbitrary non-nil keys.** Strings, numbers, booleans, tables, and functions
   are accepted as keys and compared by value or identity as appropriate.
-  Storing a `nil` key raises an error.
+  Storing a `nil` key raises an error, and assigning `nil` to an existing key
+  deletes it, matching Lua.
 - **Sequences are implemented as ordinary tables.** `t[1]`, the unary `#`
   border operator, and `ipairs` work. There is no separate array part, and `#`
   stops at the first hole rather than providing Lua's arbitrary-hole result.
 - **No table constructors with contents.** Only `{}`; no `{1, 2, 3}` or
   `{name = "x"}`.
-- **No generic `for ... in`.** `next`, `pairs`, and `ipairs` are implemented,
-  but the iteration protocol is used with ordinary calls, multiple assignment,
-  and `while` loops.
+- **Generic `for ... in` is implemented.** `next`, `pairs`, and `ipairs` drive
+  generic `for ... in` loops; the older call/multiple-assignment form still
+  works too.
 - **Partial `table` library.** `insert`, `remove`, `concat`, `unpack`, `pack`,
   and `sort` are implemented. `move` and the full set of Lua edge-case checks
   are missing.
@@ -134,6 +128,11 @@ assignment are implemented. The remaining core-language gaps are:
 5. ~~**Metatables** once the value and table models are stable.~~ Done: the
    documented metamethod subset, `rawget`/`rawset`/`rawequal`, and
    `setmetatable`/`getmetatable`.
+6. ~~**Lua core-language semantics.**~~ Done: Lua truthiness, `nil` deletes a
+   table key, standalone `do ... end`, `repeat ... until`, generic
+   `for ... in`, mixed table/index multiple-assignment targets, final-list
+   multi-value expansion, full `select` behavior, and dynamically sized
+   frames (up to 256 locals).
 
 ## 8. Out of scope for the tagged-value pass
 

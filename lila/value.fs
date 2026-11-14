@@ -301,10 +301,11 @@ create lila-str-total 0 ,
 \ ---------------------------------------------------------------------------
 \ Conditions, length and printing
 
+\ Lua truthiness: only nil and boolean false are false.  In particular every
+\ number, including zero, is true.
 : lila-truthy { value1 value2 tag -- flag }
   tag lila-tag-nil = if false exit then
   tag lila-tag-bool = if value1 0<> exit then
-  tag lila-tag-num = if value1 value2 lila-32 0<> exit then
   true ;
 
 : lila-not { value1 value2 tag -- r1 r2 tr }
@@ -365,16 +366,41 @@ create lila-str-total 0 ,
 \ only happens between statements, but the cells are roots anyway.
 create lila-multi-hold-cells 3 cells allot
 lila-multi-hold-cells 3 lila-gc-register-root
+create lila-multi-stash-cells 3 cells allot
+lila-multi-stash-cells 3 lila-gc-register-root
 
 : lila-multi-hold ( v1 v2 tag -- )
   lila-multi-hold-cells lila-value! ;
+
+: lila-multi-stash ( v1 v2 tag -- )
+  lila-multi-stash-cells lila-value! ;
 
 : lila-multi-fetch { idx -- v1 v2 tag }
   lila-multi-hold-cells lila-value@
   idx lila-multi-get ;
 
+\ Append the values of B to the value list held in lila-multi-hold-cells.
+\ Used for Lua adjustment of the final expression in a list: `return a, f()`.
+: lila-multi-chain { b1 b2 bt -- m1 m2 mt }
+  b1 b2 bt lila-multi-ensure { c1 c2 ct }
+  lila-multi-hold-cells lila-value@ { a1 a2 at }
+  a1 a2 at lila-multi-count { na }
+  c1 c2 ct lila-multi-count { nb }
+  na nb + lila-multi-alloc { m }
+  na 0 ?do
+    a1 a2 at i lila-multi-get
+    m i 3 * 1+ cells + lila-value!
+  loop
+  nb 0 ?do
+    c1 c2 ct i lila-multi-get
+    m na i + 3 * 1+ cells + lila-value!
+  loop
+  m 0 lila-tag-multi ;
+
 \ select(selector, ...).  A string selector must be "#", which yields the
-\ number of values; a numeric selector yields that value (1-based) or nil.
+\ number of values; a numeric selector yields the value at that 1-based
+\ position, counting from the end when negative.  An index below 1 raises an
+\ error, matching Lua.
 : lila-select { s1 s2 st m1 m2 mt -- r1 r2 tr }
   st lila-tag-str = if
     s1 s2 s" #" compare 0= if
@@ -382,7 +408,13 @@ lila-multi-hold-cells 3 lila-gc-register-root
     then
   then
   st lila-check-num
-  m1 m2 mt s1 s2 lila-32 1- lila-multi-get ;
+  m1 @ { nargs -- }
+  s1 s2 lila-32 { i -- }
+  i 0< if nargs 1+ i + to i
+  else i nargs 1+ > if nargs 1+ to i then
+  then
+  i 1 < if s" lila: index out of range" lila-raise-msg then
+  m1 m2 mt i 1- lila-multi-get ;
 
 : lila-print1 { value1 value2 tag -- }
   tag lila-tag-nil = if ." nil" exit then
@@ -434,14 +466,12 @@ lila-multi-hold-cells 3 lila-gc-register-root
 \
 \ A frame is a GC object (type 3) with a lexical parent, a caller link for
 \ active-frame reachability, a per-call return value, the extra arguments of a
-\ vararg call, and fixed local slots:
+\ vararg call, a slot count, and a dynamically sized local array:
 \   [parent][caller][retflag][ret1][ret2][rettag]
-\   [varargs1][varargs2][varargstag][slot0 ...]
+\   [varargs1][varargs2][varargstag][slotcount][slot0 ...]
 \ A closure (type 4) is [seg][off][env].  A tag-6 value points at it.
 
-96 constant lila-frame-slot-count
-9 constant lila-frame-slot0
-lila-frame-slot-count 3 * lila-frame-slot0 + cells constant lila-frame-bytes
+10 constant lila-frame-slot0
 
 variable lila-active-frame
 variable lila-frame-tmp
@@ -450,11 +480,18 @@ lila-active-frame 1 lila-gc-register-root
 : lila-check-fn ( tag -- )
   lila-tag-fn <> if s" lila: function expected" lila-raise-msg then ;
 
-: lila-frame-new { parent -- frame }
-  lila-frame-bytes 3 gc-alloc { frame -- }
-  frame lila-frame-bytes 0 fill
+: lila-frame-slot-count ( frame -- n )  9 cells + @ ;
+
+: lila-frame-bytes-of ( frame -- bytes )
+  lila-frame-slot-count 3 * lila-frame-slot0 + cells ;
+
+: lila-frame-new { parent slots -- frame }
+  slots 0 max { n }
+  n 3 * lila-frame-slot0 + cells 3 gc-alloc { frame -- }
+  frame n 3 * lila-frame-slot0 + cells 0 fill
   parent frame !
   lila-active-frame @ frame cell+ !
+  n frame 9 cells + !
   frame ;
 
 : lila-frame-parent ( frame -- parent )  @ ;
@@ -518,7 +555,7 @@ variable lila-call-argc
 
 \ Conservative scanners for the GC.
 : lila-frame-gc-scan { frame -- }
-  lila-frame-bytes 0 ?do
+  frame lila-frame-bytes-of 0 ?do
     frame i + @ gc-mark-cell
   loop ;
 : lila-closure-gc-scan { closure -- }

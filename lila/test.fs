@@ -94,6 +94,14 @@ lila-var-fdown 6 check-num
 lila-var-fmod 5 check-num
 lila-var-fsingle 6 check-num
 lila-var-fnest 9 check-num
+lila-var-fdo 3 check-num
+lila-var-frep 3 check-num
+lila-var-frepbreak 2 check-num
+lila-var-fpairsum 15 check-num
+lila-var-fpairs 3 check-num
+lila-var-fipairs 6 check-num
+lila-var-fgcount 3 check-num
+lila-var-fgnest 9 check-num
 lila-var-fparen 21 check-num
 lila-var-fprec 9 check-num
 lila-var-fnegexpr -3 check-num
@@ -276,10 +284,11 @@ lila-var-op_and_str s" yes" check-str
 lila-var-op_or_val 7 check-num
 lila-var-op_or_true true check-bool
 lila-var-op_or_nil 3 check-num
-lila-var-op_or_zero 5 check-num
+lila-var-op_or_zero 0 check-num
 lila-var-op_not_true false check-bool
 lila-var-op_not_false true check-bool
 lila-var-op_not_nil true check-bool
+lila-var-op_zero_cond 1 check-num
 lila-var-opshort1 false check-bool
 lila-var-opshort2 true check-bool
 lila-var-opshort3 97 check-num
@@ -356,6 +365,24 @@ lila-var-mrz 3 check-num
 lila-var-msa 8 check-num
 lila-var-msb 7 check-num
 lila-var-mlsum 30 check-num
+lila-var-mat_i 2 check-num
+lila-var-mat_j 20 check-num
+lila-var-mat s" a" 10 check-table-num
+lila-var-mat s" b" 11 check-table-num
+lila-var-mat s" c" 10 check-table-num
+lila-var-matord_i 2 check-num
+lila-var-matord_old 3 check-num
+lila-var-matord_new check-nil
+lila-var-mch1 1 check-num
+lila-var-mch2 1 check-num
+lila-var-mch3 2 check-num
+lila-var-sel_count 3 check-num
+lila-var-sel_pick 6 check-num
+lila-var-sel_last 7 check-num
+lila-var-sel_call 9 check-num
+lila-var-sel_empty 0 check-num
+lila-var-sel_bad false check-bool
+lila-var-sel_bad_msg s" lila: index out of range" check-str
 lila-var-mta 11 check-num
 lila-var-mtb 12 check-num
 
@@ -459,6 +486,17 @@ lila-var-hole_len2 1 check-num
 lila-var-hole_2 check-nil
 lila-var-hole_count 2 check-num
 
+\ assigning nil removes the key instead of storing a nil value
+s\" delt = {}" lila-eval
+s\" delt[\"a\"] = 1" lila-eval
+s\" delt[\"b\"] = 2" lila-eval
+s\" delt[\"a\"] = nil" lila-eval
+lila-var-delt @ table-count@ 1 check=
+s\" delt_has_a = delt[\"a\"]" lila-eval
+lila-var-delt_has_a check-nil
+s\" delt[\"b\"] = nil" lila-eval
+lila-var-delt @ table-count@ 0 check=
+
 \ next / pairs / ipairs
 lila-var-it_k1 1 check-num
 lila-var-it_v1 10 check-num
@@ -514,6 +552,32 @@ lila-var-tbl_badnext false check-bool
 lila-var-tbl_badnext_msg s" lila: invalid key to next" check-str
 lila-var-tbl_badins false check-bool
 lila-var-tbl_badins_msg s" lila: position out of bounds" check-str
+
+\ frames grow with the number of locals; more than 96 works.  A counted
+\ string stops at 255 bytes, so keep the length of this generated source in a
+\ separate variable.
+create bigfun 8192 allot
+variable bigfun-len
+: bigfun+ { c-addr u -- }
+  c-addr bigfun bigfun-len @ + u move
+  bigfun-len @ u + bigfun-len ! ;
+: build-bigfun ( -- c-addr u )
+  0 bigfun-len !
+  s" function flbig() " bigfun+
+  120 0 ?do
+    s" local flb" bigfun+
+    i 0 <# #s #> bigfun+
+    s"  = " bigfun+
+    i 0 <# #s #> bigfun+
+    s" ; " bigfun+
+  loop
+  \ Allocate hard enough inside the call to force collections while the
+  \ 121-local frame is still live, then return a local declared before them.
+  s\" local flbtail = \"survivor\"; burn(); return flbtail end" bigfun+
+  bigfun bigfun-len @ ;
+build-bigfun lila-eval
+s" flbigresult = flbig()" lila-eval
+lila-var-flbigresult s" survivor" check-str
 
 ." lila tests passed" cr
 bye

@@ -25,10 +25,10 @@ variable expect-operand
 134 constant op-or
 \ Loop bodies become separate top-level words so `break` can EXIT the body.
 \ Definitions are collected in defs-buf and evaluated before the main word.
-create code-buf0 65536 allot
+create code-buf0 262144 allot
 variable code-buf
 variable code-len
-create defs-buf 65536 allot
+create defs-buf 262144 allot
 variable defs-len
 create loop-break-vars 256 cells allot
 variable loop-id
@@ -152,6 +152,7 @@ variable start-top
 variable expr-expand
 variable expr-call-base
 variable arg-vararg
+variable arg-multi
 variable tx-addr
 variable tx-u
 variable tx-i
@@ -194,7 +195,7 @@ variable tx-i
 : code-reset ( -- )  0 code-len ! ;
 : code-base ( -- )  code-buf0 code-buf !  0 code-len ! ;
 : code+ { c-addr u -- }
-  code-len @ u + 65536 > if s" lila: code buffer overflow" lila-error then
+  code-len @ u + 262144 > if s" lila: code buffer overflow" lila-error then
   u 0> if
     c-addr code-buf @ code-len @ + u move
     code-len @ u + code-len !
@@ -209,7 +210,7 @@ variable tx-i
     throw
   then ;
 : defs+ { c-addr u -- }
-  defs-len @ u + 65536 > if s" lila: definitions buffer overflow" lila-error then
+  defs-len @ u + 262144 > if s" lila: definitions buffer overflow" lila-error then
   u 0> if
     c-addr defs-buf defs-len @ + u move
     defs-len @ u + defs-len !
@@ -341,7 +342,7 @@ variable tx-i
 : local-reserve ( -- slot )
   ctx-current { c }
   ctx-slots c cells + @
-  dup lila-frame-slot-count >= if s" lila: too many locals" lila-error then
+  dup lila-max-locals >= if s" lila: too many locals" lila-error then
   dup 1+ ctx-slots c cells + !
   ;
 
@@ -650,6 +651,7 @@ defer vararg-raw?
       s" lila-vararg " lila-buf buf+
       lila-tag-multi type-push
       call-top @ expr-call-base @ <> if 1 arg-vararg ! then
+      1 arg-multi !
     else
       s" lila-vararg-first " lila-buf buf+
       lila-tag-unknown type-push
@@ -869,12 +871,8 @@ defer vararg-raw?
   s"  lila-call-multi " lila-buf buf+ ;
 
 \ A call used as one value yields its first result; a call that ends a return
-\ list or multi assignment keeps all of them.
-: maybe-normalize-call ( -- )
-  expr-expand @ if
-    call-top @ expr-call-base @ = tx-rest-blank? and if exit then
-  then
-  s"  lila-first " lila-buf buf+ ;
+\ list or multi assignment keeps all of them.  The same is true for the final
+\ argument of `select`, which is a value list in Lua.
 
 : innermost-marker ( -- ch idx )
   op-top @ 0 ?do
@@ -886,6 +884,29 @@ defer vararg-raw?
     drop drop
   loop
   -1 -1 ;
+
+\ True when the expression text after the current position closes the value
+\ list of an enclosing `select(...)`, making the current call its last
+\ argument.
+: select-tail? ( -- flag )
+  innermost-marker drop [char] S = if
+    tx-i @ 1+ { j -- }
+    begin j tx-u @ < while
+      tx-addr @ j + c@ { ch -- }
+      ch bl <> if
+        ch [char] ) = if true exit then
+        false exit
+      then
+      j 1+ to j
+    repeat
+  then false ;
+
+: maybe-normalize-call ( -- )
+  expr-expand @ if
+    call-top @ expr-call-base @ = tx-rest-blank? and if exit then
+  then
+  select-tail? if 1 arg-multi ! exit then
+  s"  lila-first " lila-buf buf+ ;
 
 \ Record that the innermost call has at least one argument.  This makes
 \ zero-argument calls such as f() distinguishable from a missing operand.
@@ -906,7 +927,7 @@ defer vararg-raw?
 
 : flush-tok ( -- )
   tok-len @ 0= if exit then
-  0 arg-vararg !
+  0 arg-vararg !  0 arg-multi !
   tok-buf tok-len @ s" not" compare 0= if
     expect-operand @ 0= if
       s" lila: operator expected before not" lila-error
@@ -1003,17 +1024,31 @@ defer vararg-raw?
     exit
   then
   ch [char] S = if
-    expect-operand @ if s" lila: select needs two arguments" lila-error then
-    idx arg-counts + c@ 1+ 2 <> if
-      s" lila: select needs a selector and ..." lila-error
+    expect-operand @ if
+      idx arg-counts + c@ 0= if
+        s" lila: select needs a selector" lila-error
+      then
+      s" lila: operand expected before )" lila-error
     then
+    idx arg-counts + c@ { n -- }
     -1 pop-while
     -1 op-top +!
-    type-pop drop type-pop drop
+    n 1+ 0 ?do type-pop drop loop
+    \ The arguments after the selector become one multi value.  A trailing
+    \ call or `...` keeps all of its values and is appended to the rest.
+    arg-multi @ if
+      s"  lila-multi-stash " lila-buf buf+
+      n 1- lila-buf-number s"  lila-multi-pack " lila-buf buf+
+      s"  lila-multi-hold " lila-buf buf+
+      s"  lila-multi-stash-cells lila-value@ " lila-buf buf+
+      s"  lila-multi-chain " lila-buf buf+
+    else
+      n lila-buf-number s"  lila-multi-pack " lila-buf buf+
+    then
     append-space s" lila-select " lila-buf buf+
     lila-tag-unknown type-push
-    start-pop drop
-    0 arg-vararg !
+    n 0 ?do start-pop drop loop
+    0 arg-vararg !  0 arg-multi !
     mark-arg
     0 expect-operand !
     exit
@@ -1073,7 +1108,7 @@ defer vararg-raw?
   expect-operand @ if
     s" lila: operand expected before ," lila-error
   then
-  0 arg-vararg !
+  0 arg-vararg !  0 arg-multi !
   -1 pop-while
   1 idx paren-args + c!
   idx arg-counts + dup c@ 1+ swap c!
@@ -1125,7 +1160,7 @@ defer vararg-raw?
   lila-buf buf-reset  0 tok-len !  0 op-top !  1 expect-operand !
   0 in-string !  0 str-len !  0 type-top !  0 start-top !
   c-addr tx-addr !  u tx-u !  call-top @ expr-call-base !
-  0 arg-vararg !
+  0 arg-vararg !  0 arg-multi !
   0 { i }
   begin i u < while
     i tx-i !
@@ -1343,13 +1378,32 @@ defer vararg-raw?
       rhs to c-addr  rlen to u
     repeat
     2drop
-    c-addr u compile-rhs
-    n 1+ code-number s"  lila-multi-pack " code+
+    \ The final expression expands to all of its values, matching Lua's
+    \ adjustment rule for the last item of a return or argument list.
+    n code-number s"  lila-multi-pack lila-multi-hold " code+
+    c-addr u compile-rhs-expand
+    s"  lila-multi-chain " code+
   else
     c-addr u compile-rhs-expand
   then ;
 
-\ Multiple assignment: a, b = f() or a, b = b, a.  Targets are identifiers.
+\ A multiple-assignment target is an identifier or a t[key] place.
+: assign-target? { c-addr u -- flag }
+  c-addr u trim
+  2dup identifier? if 2drop true exit then
+  table-lhs? ;
+
+: assign-lhs-list? ( c-addr u -- flag )
+  trim
+  2dup split-top-comma if
+    2>r 2swap 2drop
+    trim assign-target? 0= if 2r> 2drop false exit then
+    2r> recurse
+  else
+    2drop 2drop trim assign-target?
+  then ;
+
+\ Multiple assignment: a, b = f() or t[i], a = g().  Targets may be mixed.
 : multi-assignment? { line len -- flag }
   line len s" =" split-at 0= if 2drop 2drop false exit then
   \ lhs llen rhs rlen
@@ -1357,15 +1411,59 @@ defer vararg-raw?
   2dup s" ," split-at 0= if 2drop 2drop 2drop false exit then
   \ lhs llen x y z w
   2drop 2drop  \ lhs llen
-  lhs-list? ;
+  assign-lhs-list? ;
 
-: emit-var-multi-stores { c-addr u idx -- }
+: parse-table-lhs { c-addr u -- key klen }
+  c-addr u trim 1- to u
+  c-addr u s" [" split-at 0= if
+    s" lila: table name expected" lila-error
+  then
+  2over trim identifier? 0= if
+    2drop 2drop 2drop s" lila: invalid table name" lila-error
+  then
+  2over trim lila-lhs place
+  2swap 2drop
+  trim ;
+
+\ A multiple assignment evaluates every target's table and key before any
+\ store.  Keeping those values in hidden slots means `i, t[i] = 2, 3` uses the
+\ old i, as in Lua, even though the stores run left to right.
+create mat-tbl-slots 64 cells allot
+create mat-key-slots 64 cells allot
+
+: emit-lhs-prepare-one { c-addr u idx -- }
+  c-addr u trim 2dup table-lhs? if
+    parse-table-lhs { key-addr key-len -- }
+    idx 64 >= if s" lila: too many assignment targets" lila-error then
+    local-reserve idx cells mat-tbl-slots + !
+    local-reserve idx cells mat-key-slots + !
+    code-lhs-ref
+    0 idx cells mat-tbl-slots + @ code-local-addr
+    s"  lila-value! " code+
+    key-addr key-len compile-expr
+    0 idx cells mat-key-slots + @ code-local-addr
+    s"  lila-value! " code+
+  else
+    2drop
+  then ;
+
+: emit-lhs-prepare { c-addr u idx -- }
   c-addr u split-top-comma if
     { lhs llen rhs rlen }
-    idx code-number s"  lila-multi-fetch " code+
-    lhs llen trim code-var-addr
-    s"  lila-value! " code+
+    lhs llen idx emit-lhs-prepare-one
     rhs rlen idx 1+ recurse
+  else
+    2drop
+    c-addr u idx emit-lhs-prepare-one
+  then ;
+
+: emit-assign-target { c-addr u idx -- }
+  c-addr u trim 2dup table-lhs? if
+    parse-table-lhs 2drop
+    0 idx cells mat-tbl-slots + @ code-local-ref
+    0 idx cells mat-key-slots + @ code-local-ref
+    idx code-number s"  lila-multi-fetch " code+
+    s"  lila-table-set " code+
   else
     2drop
     idx code-number s"  lila-multi-fetch " code+
@@ -1373,15 +1471,26 @@ defer vararg-raw?
     s"  lila-value! " code+
   then ;
 
+: emit-multi-stores { c-addr u idx -- }
+  c-addr u split-top-comma if
+    { lhs llen rhs rlen }
+    lhs llen idx emit-assign-target
+    rhs rlen idx 1+ recurse
+  else
+    2drop
+    c-addr u idx emit-assign-target
+  then ;
+
 : compile-multi-assign { line len -- }
   line len s" =" split-at 0= if
     2drop 2drop s" lila: assignment needs =" lila-error
   then
   { lhs llen rhs rlen }
-  lhs llen lhs-list? 0= if s" lila: invalid assignment target" lila-error then
+  lhs llen assign-lhs-list? 0= if s" lila: invalid assignment target" lila-error then
+  lhs llen 0 emit-lhs-prepare
   rhs rlen compile-rhs-list
   s"  lila-multi-ensure  lila-multi-hold " code+
-  lhs llen 0 emit-var-multi-stores drop ;
+  lhs llen 0 emit-multi-stores ;
 
 \ local a, b = f().  The right side runs before the names exist.
 : local-multi? { line len -- flag }
@@ -1419,19 +1528,7 @@ defer vararg-raw?
   lhs llen lhs-list? 0= if s" lila: invalid local name" lila-error then
   rhs rlen compile-rhs-list
   s"  lila-multi-ensure  lila-multi-hold " code+
-  lhs llen 0 emit-local-multi-stores drop ;
-
-: parse-table-lhs { c-addr u -- key klen }
-  c-addr u trim 1- to u
-  c-addr u s" [" split-at 0= if
-    s" lila: table name expected" lila-error
-  then
-  2over trim identifier? 0= if
-    2drop 2drop 2drop s" lila: invalid table name" lila-error
-  then
-  2over trim lila-lhs place
-  2swap 2drop
-  trim ;
+  lhs llen 0 emit-local-multi-stores ;
 
 : table-assign-code { lhs llen rhs rlen -- }
   lhs llen parse-table-lhs { key-addr key-len -- }
@@ -1644,11 +1741,11 @@ defer lila-compile-anon-assign
   2dup rhs-function? if
     lila-compile-anon-assign exit
   then
-  2dup table-assign? if
-    compile-table-assign exit
-  then
   2dup multi-assignment? if
     compile-multi-assign exit
+  then
+  2dup table-assign? if
+    compile-table-assign exit
   then
   2dup assignment? if
     compile-assign-code exit
@@ -1808,7 +1905,9 @@ create tb-buf 1024 allot
   code-buf @ code-len @ defs+
   s"  ; " defs+
   s" : lila-fn-" defs+ fn-id @ defs-number s"  " defs+
-  s" lila-call-argc ! lila-active-frame @ >r lila-frame-new " defs+
+  s" lila-call-argc ! lila-active-frame @ >r " defs+
+  ctx-current cells ctx-slots + @ defs-number
+  s"  lila-frame-new " defs+
   s" dup lila-active-frame ! dup lila-frame-tmp ! drop " defs+
   s" lila-call-argc @ " defs+
   fn-param-count @ defs-number
@@ -2016,6 +2115,15 @@ create tb-buf 1024 allot
     s" lila-frame-ret? 0= AND " code+
   then ;
 
+\ End a generic `for ... in` loop.  Two scopes were opened: one for the hidden
+\ iterator state and loop variables, and one for the loop body.
+: for-in-finish ( -- )
+  loop-body-end
+  s" REPEAT " code+
+  emit-fn-ret-check
+  scope-pop
+  scope-pop ;
+
 : lila-compile-end ( -- )
   block-top @ 0= if s" lila: end without block" lila-error then
   block-extra@
@@ -2041,6 +2149,20 @@ create tb-buf 1024 allot
     drop drop
     function-end
     exit
+  then
+  dup [char] g = if
+    drop drop
+    for-in-finish
+    exit
+  then
+  dup [char] d = if
+    drop drop
+    scope-pop
+    exit
+  then
+  dup [char] r = if
+    drop drop
+    s" lila: repeat must end with until" lila-error
   then
   dup [char] i = over [char] e = or if
     drop
@@ -2126,7 +2248,165 @@ create tb-buf 1024 allot
     s" lila: while without do" lila-error
   then ;
 
+: lila-compile-do { line len -- }
+  line len 2 /string trim
+  dup 0= if
+    2drop
+    scope-push
+    [char] d block-push
+    exit
+  then
+  s" end" split-at if
+    2drop
+    scope-push compile-block scope-pop
+  else
+    2drop 2drop
+    s" lila: do body must end with end or start on a new line" lila-error
+  then ;
+
+\ repeat ... until condition.  The body is a separate word so break and
+\ return can leave it; the condition remains in the repeat block's scope.
+: lila-compile-repeat { line len -- }
+  line len 6 /string trim
+  dup 0<> if
+    2drop s" lila: repeat body must start on a new line" lila-error
+  then
+  2drop
+  next-loop-id current-loop-id !
+  loop-break-alloc
+  s" 0 " code+
+  code-loop-break
+  s" ! BEGIN " code+
+  current-loop-id @ loop-body-start
+  scope-push
+  [char] r block-push ;
+
+: lila-compile-until { line len -- }
+  block-top@ [char] r <> if s" lila: until without repeat" lila-error then
+  line len 5 /string trim
+  dup 0= if 2drop s" lila: until needs a condition" lila-error then
+  loop-body-end
+  s"  " code+
+  code-loop-break s" @ 0= " code+
+  compile-expr
+  s"  lila-truthy 0= AND " code+
+  emit-fn-cond
+  s" WHILE REPEAT " code+
+  emit-fn-ret-check
+  block-pop drop
+  scope-pop ;
+
+: maybe-for-in? { line len -- flag }
+  line len 4 /string trim
+  s" in " split-at if
+    2drop 2drop true
+  else
+    2drop 2drop false
+  then ;
+
+\ Hidden iterator state for the innermost generic for being compiled.
+variable for-in-f-slot
+variable for-in-s-slot
+variable for-in-c-slot
+create for-in-slots 16 cells allot
+variable for-in-slot-count
+
+: record-for-in-slot ( slot -- )
+  for-in-slot-count @ 16 >= if
+    drop s" lila: too many for variables" lila-error
+  then
+  dup for-in-slot-count @ cells for-in-slots + !
+  1 for-in-slot-count +! ;
+
+: declare-for-in-vars { c-addr u -- }
+  c-addr u split-top-comma if
+    { lhs llen rhs rlen }
+    lhs llen trim local-declare record-for-in-slot
+    rhs rlen recurse
+  else
+    2drop
+    c-addr u trim local-declare record-for-in-slot
+  then ;
+
+: emit-for-in-fetch { c-addr u idx -- }
+  c-addr u split-top-comma if
+    { lhs llen rhs rlen }
+    idx code-number s"  lila-multi-fetch " code+
+    0 for-in-slots idx cells + @ code-local-addr
+    s"  lila-value! " code+
+    rhs rlen idx 1+ recurse
+  else
+    2drop
+    idx code-number s"  lila-multi-fetch " code+
+    0 for-in-slots idx cells + @ code-local-addr
+    s"  lila-value! " code+
+  then ;
+
+\ for name, ... in explist do ... end.  The iterator expressions run once,
+\ then each iteration calls f(state, control) and stops when the first result
+\ is nil, exactly like Lua's generic for.
+: lila-compile-for-in { names nlen exprs elen tail tlen -- }
+  names nlen lhs-list? 0= if
+    s" lila: invalid for variable" lila-error
+  then
+  exprs elen compile-rhs-list
+  s"  lila-multi-ensure lila-multi-hold " code+
+  scope-push
+  0 for-in-slot-count !
+  local-reserve for-in-f-slot !
+  local-reserve for-in-s-slot !
+  local-reserve for-in-c-slot !
+  0 code-number s"  lila-multi-fetch " code+
+  0 for-in-f-slot @ code-local-addr s"  lila-value! " code+
+  1 code-number s"  lila-multi-fetch " code+
+  0 for-in-s-slot @ code-local-addr s"  lila-value! " code+
+  2 code-number s"  lila-multi-fetch " code+
+  0 for-in-c-slot @ code-local-addr s"  lila-value! " code+
+  names nlen declare-for-in-vars
+  next-loop-id current-loop-id !
+  loop-break-alloc
+  s" 0 " code+
+  code-loop-break
+  s" ! BEGIN " code+
+  0 for-in-s-slot @ code-local-ref
+  0 for-in-c-slot @ code-local-ref
+  0 for-in-f-slot @ code-local-ref
+  s" 2 lila-call lila-multi-ensure lila-multi-hold " code+
+  names nlen 0 emit-for-in-fetch
+  0 for-in-slots @ code-local-ref
+  0 for-in-c-slot @ code-local-addr
+  s"  lila-value! " code+
+  0 for-in-slots @ code-local-ref
+  s"  lila-first 2drop lila-tag-nil <> " code+
+  code-loop-break s" @ 0= AND " code+
+  emit-fn-cond
+  s" WHILE " code+
+  scope-push
+  tail tlen dup 0= if
+    2drop
+    current-loop-id @ loop-body-start
+    [char] g block-push
+  else
+    s" end" split-at if
+      2drop
+      current-loop-id @ loop-body-start
+      compile-block
+      for-in-finish
+    else
+      2drop 2drop
+      s" lila: for body must end with end or start on a new line" lila-error
+    then
+  then ;
+
 : lila-compile-for { line len -- }
+  line len maybe-for-in? if
+    line len 4 /string trim s" in " split-at drop
+    s" do" split-at 0= if
+      2drop 2drop s" lila: for without do" lila-error
+    then
+    lila-compile-for-in
+    exit
+  then
   line len 4 /string trim
   s" =" split-at if
     ( var vlen rest rlen )
@@ -2238,6 +2518,10 @@ create tb-buf 1024 allot
   2dup s" elseif " string-prefix? if lila-compile-elseif exit then
   2dup s" while " string-prefix? if lila-compile-while exit then
   2dup s" for " string-prefix? if lila-compile-for exit then
+  2dup s" repeat" compare 0= if lila-compile-repeat exit then
+  2dup s" until " string-prefix? if lila-compile-until exit then
+  2dup s" until" compare 0= if lila-compile-until exit then
+  2dup s" do" compare 0= if lila-compile-do exit then
   2dup s" else" compare 0= if 2drop lila-compile-else exit then
   2dup s" end" compare 0= if 2drop lila-compile-end exit then
   compile-block ;
@@ -2259,7 +2543,7 @@ create tb-buf 1024 allot
   0 call-top !
   0 expr-expand !
   ctx-reset
-  s" 0 lila-frame-new dup lila-active-frame ! drop " defs+ ;
+  s" 0 lila-max-locals lila-frame-new dup lila-active-frame ! drop " defs+ ;
 
 : lila-compile-finish ( -- )
   block-top @ 0<> if s" lila: unterminated block" lila-error then

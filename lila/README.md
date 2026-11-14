@@ -72,9 +72,10 @@ table, then nil.
 ## Supported syntax
 
 Assignments, infix arithmetic, comparison and logical operators, string
-concatenation, `print`, `if`/`elseif`/`while`, numeric `for` loops, `break`,
-functions, tables, strings, multiple returns, varargs, and multiple assignment.
-Blocks may span lines or stay on one line:
+concatenation, `print`, `if`/`elseif`/`while`, numeric `for` loops, generic
+`for ... in` loops, `repeat ... until`, standalone `do ... end` blocks,
+`break`, functions, tables, strings, multiple returns, varargs, and multiple
+assignment. Blocks may span lines or stay on one line:
 
 ```lisp
 -- LILA comment
@@ -133,10 +134,41 @@ body works from nested `if`/`elseif` blocks as well.
 to the loop, so assigning to it inside the body changes the next iteration, and
 the name is not visible after the loop.
 
+A generic `for` iterates with an iterator function:
+
+```lisp
+for k, v in pairs(t) do
+  print(k, v)
+end
+
+for i, v in ipairs(sequence) do
+  print(i, v)
+end
+```
+
+The expressions after `in` are evaluated once and adjusted to the iterator
+triple `f, state, control`. Each iteration calls `f(state, control)` and stops
+when the first result is `nil`; the loop variables receive the call's results.
+The iterator variables are local to the loop.
+
+`repeat ... until condition` always runs its body at least once and repeats
+while the condition is falsey. `break` leaves the loop immediately. A
+standalone `do ... end` block adds a scope without any other effect:
+
+```lisp
+repeat
+  x = x + 1
+until x >= 3
+
+do
+  local temporary = 1
+end
+```
+
 ## Truthiness and printing
 
 - nil and boolean false are false.
-- Numbers are false only when zero.
+- Every number, including zero, is true.
 - Strings and tables are true, including the empty string.
 - `if`/`elseif`/`while` accept any value and apply these rules.
 - Comparisons produce boolean-tagged values.
@@ -166,7 +198,7 @@ evaluates to `a` when `a` is falsey and to `b` otherwise; `a or b` evaluates to
 `a` when `a` is truthy and to `b` otherwise. The unused operand is not
 evaluated, so `false and 1 / 0` is `false` and `true or 1 / 0` is `true`.
 `not` always produces a boolean. Logical operators use the truthiness rules
-above, so zero counts as falsey.
+above, so zero is truthy.
 
 `==`, `~=`, `<=`, and `>=` are available alongside the original `=`, `<`, and
 `>`; `=` still works as equality as well as assignment. `%` and `//` use
@@ -187,7 +219,22 @@ a, b = pair()         -- a=1, b=2
 c = pair()            -- c=1 (first value)
 a, b = b, a           -- swap
 local x, y = pair()   -- local multi assignment
+t["a"], b = pair()    -- table/index targets may be mixed with identifiers
 ```
+
+The final expression of a value list keeps all of its values; earlier
+expressions are adjusted to one value. Thus `a, b, c = pair(), pair()` assigns
+`1, 1, 2`:
+
+```lisp
+m1, m2, m3 = pair(), pair()
+print(m1, m2, m3)     -- 1 1 2
+```
+
+When assignment targets are indexed places, every target's table and key
+expressions are evaluated before any store. Therefore
+`i, t[i] = 2, 3` uses the old `i` for `t[i]` and does not depend on the order
+in which the stores run.
 
 `return f()` forwards all values returned by `f`. In a single-value context (an
 ordinary assignment, an argument, or most expressions) a call or multi value is
@@ -211,8 +258,12 @@ print(sum(1, 2, 3))   -- 6
 ```
 
 `select("#", ...)` returns the number of varargs. `select(n, ...)` returns the
-nth vararg (1-based) or nil. `...` may be returned (`return ...`) or forwarded
-in a sole-argument call (`f(...)`) to pass all varargs through.
+nth vararg (1-based); a negative index counts from the end, and an index of
+zero or an out-of-range negative index raises `"lila: index out of range"`. A
+positive index past the end yields nil. `select` accepts explicit trailing
+arguments as well as `...`, and a trailing call keeps all of its results:
+`select(2, f())`. `...` may be returned (`return ...`) or forwarded in a
+sole-argument call (`f(...)`) to pass all varargs through.
 
 ## Locals and lexical scope
 
@@ -445,21 +496,27 @@ t[2] = nil
 print(#t)                      -- 1
 ```
 
-`nil` is stored, not deleted, but sequence operations treat a `nil` value as
-absent. Lua leaves `#` unspecified for tables with holes; LILA stops at the
-first hole.
+Assigning `nil` to an existing key deletes that entry, matching Lua. The
+sequence operations (`#`, `next`, `pairs`, `ipairs`, and the `table` functions)
+therefore see the key as absent. Lua leaves `#` unspecified for tables with
+holes; LILA stops at the first hole.
 
 ### Iteration
 
 `next(t, key)` returns the next key/value pair, or `nil` when the iteration is
 finished. A `nil` key starts at the beginning. `pairs(t)` returns `next, t,
-nil`, and `ipairs(t)` returns an integer iterator, `t, 0`. As in Lua, the
-iterators are used through the ordinary call and multiple-assignment syntax:
+nil`, and `ipairs(t)` returns an integer iterator, `t, 0`. They are normally
+used with a generic `for ... in` loop, or through the ordinary call and
+multiple-assignment syntax:
 
 ```lisp
 t = {}
 t["a"] = 1
 t["b"] = 2
+
+for k, v in pairs(t) do
+  print(k, v)
+end
 
 k, v = next(t, nil)
 print(k)                       -- a or b
@@ -763,7 +820,8 @@ diagnostics still abort immediately and are not catchable.
   single-line blocks do.
 - Function parameters and locals are re-entrant: every call gets its own frame,
   so functions may recurse or be called from within another call. Each frame
-  has 96 local slots, including parameters.
+  is sized to the function's maximum slot use, up to 256 slots including
+  parameters; exceeding that raises an error.
 - `function name(...)` defines a global, `local function name(...)` defines a
   local, and either may be nested in a multi-line function or block body. A
   single-line block body can contain `local function` but not a plain
@@ -776,9 +834,6 @@ diagnostics still abort immediately and are not catchable.
   A call through a function-valued variable is not arity-checked.
 - Nested table assignment such as `t["a"]["b"] = 1` is not supported; assign
   through the inner table variable instead.
-- Assigning `nil` stores a `nil` value rather than deleting the entry. The
-  sequence operations (`#`, `next`, `pairs`, `ipairs`, and the `table`
-  functions) treat `nil`-valued entries as absent.
 - `#` walks the sequence from index 1, so its cost grows with the border. It
   does not use `__len`.
 - Table constructors are limited to `{}`; there are no `{1, 2, 3}` or
