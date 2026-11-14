@@ -785,6 +785,17 @@ std_rev = string.reverse("abc")
 std_len = string.len("hello")
 std_byte = string.byte("abc", 2)
 std_char = string.char(65, 66, 67)
+std_find_type = type(string.find)
+std_find_a, std_find_b = string.find("abcdef", "cd")
+std_find_none = string.find("abcdef", "zz")
+std_find_init_a, std_find_init_b = string.find("abcabc", "abc", 2)
+std_find_neg_a, std_find_neg_b = string.find("abcdef", "cd", -4)
+std_find_zero_a, std_find_zero_b = string.find("abc", "a", 0)
+std_find_end_a, std_find_end_b = string.find("abcdef", "ef")
+std_find_empty_a, std_find_empty_b = string.find("abc", "", 2)
+std_find_empty0_a, std_find_empty0_b = string.find("abc", "")
+std_find_after = string.find("abc", "a", 5)
+std_find_plain_a, std_find_plain_b = string.find("a.b", ".", 1, true)
 print(std_sub)                  -- bcd
 print(std_sub_neg)              -- ef
 print(std_upper)                -- MIXED
@@ -794,6 +805,17 @@ print(std_rev)                  -- cba
 print(std_len)                  -- 5
 print(std_byte)                 -- 98
 print(std_char)                 -- ABC
+print(std_find_type)            -- function
+print(std_find_a, std_find_b)   -- 3 4
+print(std_find_none)            -- nil
+print(std_find_init_a, std_find_init_b) -- 4 6
+print(std_find_neg_a, std_find_neg_b)   -- 3 4
+print(std_find_zero_a, std_find_zero_b) -- 1 1
+print(std_find_end_a, std_find_end_b)     -- 5 6
+print(std_find_empty_a, std_find_empty_b) -- 2 1
+print(std_find_empty0_a, std_find_empty0_b) -- 1 0
+print(std_find_after)           -- nil
+print(std_find_plain_a, std_find_plain_b) -- 2 2
 
 std_abs = math.abs(-9)
 std_max = math.max(3, 9, 4)

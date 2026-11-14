@@ -409,6 +409,25 @@ lila-var-std_rev s" cba" check-str
 lila-var-std_len 5 check-num
 lila-var-std_byte 98 check-num
 lila-var-std_char s" ABC" check-str
+lila-var-std_find_type s" function" check-str
+lila-var-std_find_a 3 check-num
+lila-var-std_find_b 4 check-num
+lila-var-std_find_none check-nil
+lila-var-std_find_init_a 4 check-num
+lila-var-std_find_init_b 6 check-num
+lila-var-std_find_neg_a 3 check-num
+lila-var-std_find_neg_b 4 check-num
+lila-var-std_find_zero_a 1 check-num
+lila-var-std_find_zero_b 1 check-num
+lila-var-std_find_end_a 5 check-num
+lila-var-std_find_end_b 6 check-num
+lila-var-std_find_empty_a 2 check-num
+lila-var-std_find_empty_b 1 check-num
+lila-var-std_find_empty0_a 1 check-num
+lila-var-std_find_empty0_b 0 check-num
+lila-var-std_find_after check-nil
+lila-var-std_find_plain_a 2 check-num
+lila-var-std_find_plain_b 2 check-num
 
 lila-var-std_abs 9 check-num
 lila-var-std_max 9 check-num

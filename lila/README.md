@@ -754,12 +754,19 @@ print(tonumber("nope"))        -- nil
 
 The string functions are `string.len(s)`, `string.sub(s, i [, j])`,
 `string.upper(s)`, `string.lower(s)`, `string.rep(s, n)`,
-`string.reverse(s)`, `string.byte(s [, i])`, and `string.char(...)`.
+`string.reverse(s)`, `string.byte(s [, i])`, `string.char(...)`, and
+`string.find(s, needle [, init [, plain]])`.
 Indexes are 1-based; a negative index counts from the end of the string.
 `string.sub` returns the empty string for an out-of-range slice,
 `string.rep` returns the empty string when `n <= 0`, and `string.byte`
 returns `nil` when the index is outside the string. `string.char` builds a
 string from byte values 0 through 255. Case conversion is ASCII-only.
+
+`string.find` currently performs a plain substring search. It returns the
+inclusive 1-based start and end indexes, or `nil` when there is no match. An
+empty needle matches at `init` and reports an end index one before the start.
+The `plain` argument is accepted but has no effect yet; pattern matching will
+make `plain = false` meaningful.
 
 ```lisp
 print(string.sub("abcdef", 2, 4))   -- bcd
@@ -768,6 +775,8 @@ print(string.upper("MiXeD"))        -- MIXED
 print(string.rep("ab", 3))          -- ababab
 print(string.byte("abc", 2))        -- 98
 print(string.char(65, 66, 67))      -- ABC
+print(string.find("abcdef", "cd"))  -- 3 4
+print(string.find("abcdef", "zz"))  -- nil
 ```
 
 The math functions are `math.abs`, `math.max`, `math.min`, `math.floor`,

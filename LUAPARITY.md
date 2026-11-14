@@ -76,8 +76,10 @@ core-language gaps are:
 - **No `..` concatenation operator**; LILA uses `+`, and only for
   string-with-string or number-with-number operands.
 - **Partial string library.** `len`, `sub`, `upper`, `lower`, `rep`,
-  `reverse`, `byte`, and `char` are implemented. `format`, `find`, `match`,
-  `gmatch`, and `gsub` are not. There are no Lua patterns.
+  `reverse`, `byte`, `char`, and plain `find` are implemented. `string.find`
+  currently matches literal substrings only but already handles `init`,
+  negative indexes, and the empty needle; `format`, `match`, `gmatch`, and
+  `gsub` are not implemented, and there are no Lua patterns.
 - **No number/string coercion** in arithmetic or concatenation.
   `"n=" + 1` raises `lila: cannot mix different types with +`.
 - **`print` is not Lua-like.** It writes each argument directly: strings,
@@ -147,6 +149,10 @@ core-language gaps are:
 
 Completed work, newest first:
 
+- **Plain `string.find`:** literal substring search with 1-based/negative
+  `init`, empty-needle handling, and a stable four-argument signature. The
+  shared `lila-str-index` normalization now also backs `string.sub` and
+  `string.byte`, and `lila-str-find` wraps Forth `search`.
 - **Current batch:** Lua truthiness, `nil` deletes a table key, standalone
   `do ... end`, `repeat ... until`, generic `for ... in`, mixed table/index
   multiple-assignment targets with pre-evaluated targets, final-list
@@ -164,44 +170,13 @@ Completed work, newest first:
 - Metatables: the documented metamethod subset, `rawget`/`rawset`/`rawequal`,
   and `setmetatable`/`getmetatable`.
 
-## 8. Next steps toward Lua parity
+## 8. Remaining next steps toward Lua parity
 
-The string work is the clearest self-contained next target. The order below is
-dependency-driven, not just a wish list.
+Plain `string.find` is complete (see §7). The rest of the string work is the
+clearest self-contained next target. The order below is dependency-driven, not
+just a wish list.
 
-### 8.1 Immediate step: `string.find` with plain substrings
-
-Add `string.find(s, needle [, init [, plain]])`, returning the 1-based start
-and end indexes of the match, or `nil`. For the first slice, matching is
-literal regardless of `plain`; the pattern engine in 8.2 will supply the
-`plain=false` behavior. This is the narrowest useful piece because it exercises
-the string argument and index helpers and returns a multi-value result without
-needing a pattern matcher or a string builder.
-
-Prerequisites and supporting work:
-
-- **`lila-str-index` (shared index primitive).** Normalize a 1-based or
-  negative index against a string length, with a way to signal out-of-range.
-  `string.sub` and `string.byte` currently duplicate this logic in
-  `lila/stdlib.fs`; move it into one helper so `find` uses identical rules.
-- **`lila-str-find` (shared search primitive).** Wrap Forth `search`
-  (`c-addr1 u1 c-addr2 u2 -- c-addr3 u3 flag`). `search` returns the tail of
-  the haystack, so the 0-based match offset is `u1 - u3` and the 1-based start
-  index is `u1 - u3 + 1`; the end index is `start + needle-length - 1`. Handle
-  the empty needle, no match, and a start index past the end.
-- **Argument plumbing.** Use the existing `lila-arg`, `lila-check-str`,
-  `lila-32`, and `lila-tag-multi` helpers in `lila/stdlib.fs`, declare a rooted
-  `lila-var-string.find`, and install the builtin with `lila-native-set`.
-- **No growable builder is required for this step.**
-- **Tests:** match at the start, middle, and end; absent needle; empty needle
-  (`find("abc", "")` should report `1, 0`); negative `init`; and `init` past
-  the end. Accept the `plain` argument now so the signature is stable; until
-  the engine lands, both values select literal matching. Run
-  `gforth lila/test.fs` and keep `lila/test.lila` runnable.
-
-Files: `lila/stdlib.fs`, `lila/test.fs`, `lila/test.lila`.
-
-### 8.2 Follow-on string work, in dependency order
+### 8.1 String work, in dependency order
 
 1. **Growable string builder (the second primitive).** A builder that appends
    slices and freezes into one GC string. It is independent of the pattern
@@ -213,7 +188,8 @@ Files: `lila/stdlib.fs`, `lila/test.fs`, `lila/test.lila`.
    (for example `lila/pattern.fs`): `%` character classes, `.`, `*`, `+`, `-`,
    `?`, `[]`, `^`/`$`, captures `()`, `%b`, `%f`, and backreferences. Expose a
    find-with-captures entry point. Prerequisites: the index/find conventions
-   from 8.1 and a test corpus covering every construct.
+   established by plain `string.find` and a test corpus covering every
+   construct.
 3. **`string.match` and `string.gmatch`.** Thin wrappers over the engine.
    `match` returns captures or the whole match; `gmatch` returns an iterator
    closure holding the subject, pattern, and current position. Prerequisites:
@@ -227,7 +203,7 @@ Files: `lila/stdlib.fs`, `lila/test.fs`, `lila/test.lila`.
    not quadratic. Prerequisites: a format parser, integer/string conversions,
    and padding/alignment rules.
 
-### 8.3 Other parity gaps, in rough priority order
+### 8.2 Other parity gaps, in rough priority order
 
 - **`table.move`.** Copy a range between tables with overlap handling and
   Lua's index checks. Small, isolated, and mostly a `tablelib.fs` change.

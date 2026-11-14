@@ -28,6 +28,7 @@ lila-value-allot lila-var-string.rep      lila-var-string.rep 3 lila-gc-register
 lila-value-allot lila-var-string.reverse  lila-var-string.reverse 3 lila-gc-register-root
 lila-value-allot lila-var-string.byte     lila-var-string.byte 3 lila-gc-register-root
 lila-value-allot lila-var-string.char     lila-var-string.char 3 lila-gc-register-root
+lila-value-allot lila-var-string.find     lila-var-string.find 3 lila-gc-register-root
 
 lila-value-allot lila-var-math.abs        lila-var-math.abs 3 lila-gc-register-root
 lila-value-allot lila-var-math.max        lila-var-math.max 3 lila-gc-register-root
@@ -53,6 +54,12 @@ lila-value-allot lila-var-math.mininteger lila-var-math.mininteger 3 lila-gc-reg
   u 0 gc-alloc { dest }
   a dest u move
   dest u ;
+
+\ Translate a Lua index: positive values are already 1-based, while negative
+\ values count back from the end.  Each caller applies its own range rule, so
+\ string.sub, string.byte, and string.find share exactly one conversion.
+: lila-str-index { len idx -- idx' }
+  idx 0< if len idx + 1+ else idx then ;
 
 : lila-num>str { n -- a u }
   n 0< if
@@ -277,9 +284,9 @@ create lila-pcall-base 0 ,
   0 0 { start stop }
   it lila-tag-nil = if 1 else i1 i2 lila-32 then to start
   jt lila-tag-nil = if -1 else j1 j2 lila-32 then to stop
-  start 0< if s2 start + 1+ to start then
+  s2 start lila-str-index to start
   start 1 < if 1 to start then
-  stop 0< if s2 stop + 1+ to stop then
+  s2 stop lila-str-index to stop
   stop s2 > if s2 to stop then
   start s2 > start stop > or stop 1 < or if s" " lila-tag-str exit then
   s1 start 1- + stop start - 1+ lila-str-copy lila-tag-str ;
@@ -342,7 +349,7 @@ create lila-pcall-base 0 ,
   st lila-check-str
   m1 m2 mt 1 lila-arg { i1 i2 it }
   it lila-tag-nil = if 1 else i1 i2 lila-32 then { idx }
-  idx 0< if s2 idx + 1+ to idx then
+  s2 idx lila-str-index to idx
   idx 1 < idx s2 > or if 0 0 lila-tag-nil exit then
   s1 idx 1- + c@ lila>value-num ;
 
@@ -358,6 +365,52 @@ create lila-pcall-base 0 ,
     n dest i + c!
   loop
   dest argc lila-tag-str ;
+
+\ Plain substring search.  `start` is an already-normalized 1-based index in
+\ the range 1..hlen+1.  Forth `search` returns the tail of the haystack, so the
+\ match offset is (available - remaining); the end index is inclusive.
+: lila-str-find { hay hlen needle nlen start -- pos end found }
+  0 0 { pos end }
+  start hlen 1+ > if 0 0 false exit then
+  hlen start 1- - { avail }
+  hay start 1- + avail needle nlen search { addr3 u3 found }
+  found if
+    start avail u3 - + to pos
+    pos nlen + 1- to end
+  then
+  pos end found ;
+
+\ string.find(s, needle [, init [, plain]]).  This first slice always matches
+\ literally; the `plain` argument is accepted so the signature stays stable
+\ when the pattern engine lands.
+: lila-bi-strfind { env argc -- r1 r2 rt }
+  argc 2 < argc 4 > or if
+    s" lila: wrong number of arguments" lila-raise-msg
+  then
+  argc lila-multi-pack { m1 m2 mt }
+  m1 m2 mt 0 lila-arg { s1 s2 st }
+  st lila-check-str
+  m1 m2 mt 1 lila-arg { p1 p2 pt }
+  pt lila-check-str
+  m1 m2 mt 2 lila-arg { i1 i2 it }
+  it lila-tag-nil = if
+    1
+  else
+    it lila-check-num
+    i1 i2 lila-32
+  then { init }
+  s2 init lila-str-index to init
+  init 1 < if 1 to init then
+  init s2 1+ > if 0 0 lila-tag-nil exit then
+  s1 s2 p1 p2 init lila-str-find { pos end found }
+  found if
+    2 lila-multi-alloc { out }
+    pos lila>value-num out cell+ lila-value!
+    end lila>value-num out 4 cells + lila-value!
+    out 0 lila-tag-multi
+  else
+    0 0 lila-tag-nil
+  then ;
 
 \ ---------------------------------------------------------------------------
 \ math library (32-bit integers only)
@@ -428,6 +481,7 @@ create lila-pcall-base 0 ,
   lila-var-string.reverse  ['] lila-bi-strreverse      lila-native-set
   lila-var-string.byte     ['] lila-bi-strbyte         lila-native-set
   lila-var-string.char     ['] lila-bi-strchar         lila-native-set
+  lila-var-string.find     ['] lila-bi-strfind         lila-native-set
 
   lila-var-math.abs        ['] lila-bi-mathabs         lila-native-set
   lila-var-math.max        ['] lila-bi-mathmax         lila-native-set
