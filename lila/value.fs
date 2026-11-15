@@ -168,11 +168,16 @@ create lila-str-total 0 ,
   ta lila-tag-num = tb lila-tag-num = and if
     a1 a2 lila-32 b1 b2 lila-32 + lila>value-num exit
   then
+  ta tb lila-table-op? if a1 a2 ta b1 b2 tb lila-meta-add exit then
+  s" lila: cannot add these values" lila-raise-msg ;
+
+\ Lua's `..` operator is string concatenation.  As with `+`, the operands must
+\ agree on their tag; number-to-string coercion is not part of this slice.
+: lila-concat { a1 a2 ta b1 b2 tb -- r1 r2 tr }
   ta lila-tag-str = tb lila-tag-str = and if
     a1 a2 b1 b2 lila-str-concat lila-tag-str exit
   then
-  ta tb lila-table-op? if a1 a2 ta b1 b2 tb lila-meta-add exit then
-  s" lila: cannot add these values" lila-raise-msg ;
+  s" lila: cannot concatenate these values" lila-raise-msg ;
 
 : lila-sub { a1 a2 ta b1 b2 tb -- r1 r2 tr }
   ta tb lila-table-op? if a1 a2 ta b1 b2 tb lila-meta-sub exit then

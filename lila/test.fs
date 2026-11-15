@@ -187,8 +187,8 @@ lila-var-fstr2 s" hello" check-str
 
 \ string expressions: concatenation, length, comparison
 s\" sa = \"foo\"" lila-eval
-s\" sb = sa + \"bar\"" lila-eval           lila-var-sb s" foobar" check-str
-s\" sc = \"x\" + \"y\" + \"z\"" lila-eval
+s\" sb = sa .. \"bar\"" lila-eval           lila-var-sb s" foobar" check-str
+s\" sc = \"x\" .. \"y\" .. \"z\"" lila-eval
 s\" print(sc)" lila-eval
 s\" sl = length(sc)" lila-eval             lila-var-sl 3 check-num
 s\" sl2 = len(\"hello\") + 1" lila-eval     lila-var-sl2 6 check-num
@@ -197,7 +197,7 @@ s\" scmp2 = \"abc\" = \"abd\"" lila-eval    lila-var-scmp2 false check-bool
 s\" scmp3 = \"abc\" < \"abd\"" lila-eval    lila-var-scmp3 true check-bool
 s\" scmp4 = \"b\" > \"a\"" lila-eval        lila-var-scmp4 true check-bool
 s\" stab = {}" lila-eval
-s\" stab[\"k\" + \"2\"] = 17" lila-eval
+s\" stab[\"k\" .. \"2\"] = 17" lila-eval
 s\" stabv = stab[\"k2\"]" lila-eval         lila-var-stabv 17 check-num
 s\" scond = 0" lila-eval
 s\" if sa = \"foo\" then scond = 1 end" lila-eval  lila-var-scond 1 check-num
@@ -355,6 +355,15 @@ s" op_err_pow = 2 ^ -1" quiet-eval expect-error
 s" op_err_mod = 5 % 0" quiet-eval expect-error
 s" op_err_idiv = 5 // 0" quiet-eval expect-error
 
+\ malformed escapes and invalid operand types are compile errors
+s\" bad_escape = \"a\\qb\"" quiet-eval expect-error
+s\" bad_escape = \"a\\xG0\"" quiet-eval expect-error
+s\" bad_escape = \"\\300\"" quiet-eval expect-error
+s\" bad_escape = \"\\u{41\"" quiet-eval expect-error
+s\" bad_concat = 1 .. \"a\"" quiet-eval expect-error
+s\" bad_add = \"a\" + \"b\"" quiet-eval expect-error
+s\" bad_vararg = 1 ... 2" quiet-eval expect-error
+
 \ multiple returns and varargs from test.lila
 lila-var-mra 10 check-num
 lila-var-mrb 20 check-num
@@ -445,6 +454,8 @@ lila-var-std_perr false check-bool
 lila-var-std_pmsg s" boom" check-str
 lila-var-std_pbad false check-bool
 lila-var-std_pbadmsg s" lila: cannot add these values" check-str
+lila-var-std_pcat false check-bool
+lila-var-std_pcatmsg s" lila: cannot concatenate these values" check-str
 lila-var-std_pas false check-bool
 lila-var-std_pamsg s" nope" check-str
 lila-var-std_assertval 5 check-num
@@ -598,5 +609,34 @@ build-bigfun lila-eval
 s" flbigresult = flbig()" lila-eval
 lila-var-flbigresult s" survivor" check-str
 
+lila-var-esc_nl s\" a\nb" check-str
+lila-var-esc_tab s\" a\tb" check-str
+lila-var-esc_cr s\" a\rb" check-str
+lila-var-esc_bs s\" a\\b" check-str
+lila-var-esc_quote s\" a\"b" check-str
+lila-var-esc_single s" it's" check-str
+lila-var-esc_hex s\" AB" check-str
+lila-var-esc_dec s\" ABC" check-str
+lila-var-esc_dec3 s\" \xff" check-str
+lila-var-esc_nul s\" a\x00b" check-str
+lila-var-esc_high s\" \x80\xff" check-str
+lila-var-esc_zed s\" ab" check-str
+lila-var-esc_uni s\" A\xe2\x82\xac" check-str
+lila-var-esc_uni4 s\" \xf0\x9f\x98\x80" check-str
+lila-var-esc_bell s\" \x07" check-str
+lila-var-esc_vt s\" \x0b" check-str
+lila-var-esc_ff s\" \x0c" check-str
+lila-var-esc_bb s\" \x08" check-str
+lila-var-esc_comma s\" a\",b" check-str
+lila-var-esc_comment s\" a\"--b" check-str
+lila-var-esc_semicolon s\" a\";b" check-str
+lila-var-esc_backslash_quote s\" a\\\"b" check-str
+
+lila-var-s_concat s" abc" check-str
+lila-var-s_concat2 s" xy" check-str
+lila-var-s_concat_prec true check-bool
+lila-var-s_concat_cmp true check-bool
+lila-var-s_concat_run s\" a\nbc" check-str
+lila-var-concat_vararg_result s" [y]" check-str
 ." lila tests passed" cr
 bye

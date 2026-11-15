@@ -48,18 +48,18 @@ print(scores["alice"] + scores["bob"])
 
 name = "lila"
 print(name)
-message = "hello, " + name
+message = "hello, " .. name
 print(message)
 print(length(message))
 
 -- string parameters and string results
 function greet(who$)
-  return "hello, " + who$
+  return "hello, " .. who$
 end
 print(greet("world"))
 
 function exclaim(s$)
-  s$ = s$ + "!"
+  s$ = s$ .. "!"
   return s$
 end
 print(exclaim("hey"))
@@ -69,8 +69,8 @@ people = {}
 people["first"] = "alice"
 print(people["first"])
 print(length(people["first"]))
-people["first"] = people["first"] + "!"
-print(people["first"] + "?")
+people["first"] = people["first"] .. "!"
+print(people["first"] .. "?")
 
 function putname(tbl, s$)
   tbl["value"] = s$

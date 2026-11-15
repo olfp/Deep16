@@ -340,6 +340,69 @@ print(fparam)           -- 8
 -- strings: literals, variables, table keys
 fstr = "hello"
 print(fstr)
+
+-- escape sequences in string literals
+esc_nl = "a\nb"
+esc_tab = "a\tb"
+esc_cr = "a\rb"
+esc_bs = "a\\b"
+esc_quote = "a\"b"
+esc_single = "it\'s"
+esc_hex = "\x41\x42"
+esc_dec = "\65\66\67"
+esc_dec3 = "\255"
+esc_nul = "a\0b"
+esc_high = "\x80\xFF"
+esc_zed = "a\z   b"
+esc_uni = "\u{41}\u{20AC}"
+esc_uni4 = "\u{1F600}"
+esc_bell = "\a"
+esc_vt = "\v"
+esc_ff = "\f"
+esc_bb = "\b"
+esc_comma = "a\",b"
+esc_comment = "a\"--b"
+esc_semicolon = "a\";b"
+esc_backslash_quote = "a\\\"b"
+print(esc_nl)
+print(esc_tab)
+print(esc_cr)
+print(esc_bs)
+print(esc_quote)
+print(esc_single)
+print(esc_hex)
+print(esc_dec)
+print(esc_dec3)
+print(esc_nul)
+print(esc_high)
+print(esc_zed)
+print(esc_uni)
+print(esc_uni4)
+print(esc_bell)
+print(esc_vt)
+print(esc_ff)
+print(esc_bb)
+print(esc_comma)
+print(esc_comment)
+print(esc_semicolon)
+print(esc_backslash_quote)
+
+-- concatenation operator
+s_concat = "a" .. "b" .. "c"
+s_concat2 = "x" .. "" .. "y"
+s_concat_prec = ("a" .. "b" = "ab")
+s_concat_cmp = "a" .. "b" = "ab"
+s_concat_run = "a\nb" .. "c"
+function concat_vararg(...)
+  return "[" .. select(2, ...) .. "]"
+end
+concat_vararg_result = concat_vararg("x", "y")
+print(s_concat)
+print(s_concat2)
+print(s_concat_prec)
+print(s_concat_cmp)
+print(s_concat_run)
+print(concat_vararg_result)
 fstr2 = fstr
 print(fstr2)
 ft[fstr] = 21
@@ -351,7 +414,7 @@ print(ft["hello"])      -- 21
 print("dash -- inside")
 
 -- string expressions: concatenation, length, comparison
-fgreet = "hello" + ", " + fstr
+fgreet = "hello" .. ", " .. fstr
 print(fgreet)            -- hello, world
 print(length(fgreet))    -- 12
 print(len(""))           -- 0
@@ -365,36 +428,36 @@ else
   fmatch = 0
 end
 print(fmatch)            -- 1
-fmsg = "n=" + "42"
+fmsg = "n=" .. "42"
 print(fmsg)              -- n=42
 print(length(fmsg) + 1)  -- 5
-fmsg = fmsg + "!"
+fmsg = fmsg .. "!"
 fcopy = fmsg
 print(fcopy)             -- n=42!
-ft["k" + "2"] = 17
+ft["k" .. "2"] = 17
 print(ft["k2"])          -- 17
 
 -- string parameters and string results
 function fgreet2(name$)
-  return "hello, " + name$
+  return "hello, " .. name$
 end
 ffnstr = fgreet2("lila")
 print(ffnstr)              -- hello, lila
 
 function fshout(msg$)
-  return msg$ + "!"
+  return msg$ .. "!"
 end
 ffnshout = fshout(fgreet2("world"))
 print(ffnshout)            -- hello, world!
 
 function fecho2(a$, n)
-  return a$ + a$
+  return a$ .. a$
 end
 ffe = fecho2("ab", 2)
 print(ffe)                 -- abab
 
 function fexclaim(s$)
-  s$ = s$ + "!"
+  s$ = s$ .. "!"
   return s$
 end
 ffex = fexclaim("hey")
@@ -414,14 +477,14 @@ fnames = {}
 fnames["first"] = "alice"
 print(fnames["first"])          -- alice
 print(length(fnames["first"]))  -- 5
-fnames["first"] = fnames["first"] + "!"
+fnames["first"] = fnames["first"] .. "!"
 print(fnames["first"])          -- alice!
 fnamecopy = fnames
 ffncopyname = fnamecopy["first"]
 print(ffncopyname)              -- alice!
 fmissinglength = length(fnames["missing"])
 print(fmissinglength)           -- 0
-ffnfullname = fnames["first"] + "?"
+ffnfullname = fnames["first"] .. "?"
 print(ffnfullname)              -- alice!?
 if fnames["first"] = "alice!" then
   ffnnameok = 1
@@ -743,7 +806,7 @@ function burn()
   local s = ""
   local i = 0
   while i < 6000 do
-    s = "abcdefghij" + "klmnopqrst"
+    s = "abcdefghij" .. "klmnopqrst"
     i = i + 1
   end
   return i
@@ -850,6 +913,10 @@ function std_badarg(v) return v + 1 end
 std_pbad, std_pbadmsg = pcall(std_badarg, "x")
 print(std_pbad, std_pbadmsg)    -- false lila: cannot add these values
 
+function std_badconcat(v) return "x" .. v end
+std_pcat, std_pcatmsg = pcall(std_badconcat, 1)
+print(std_pcat, std_pcatmsg)    -- false lila: cannot concatenate these values
+
 function std_failassert() assert(false, "nope") end
 std_pas, std_pamsg = pcall(std_failassert)
 print(std_pas, std_pamsg)       -- false nope
@@ -908,7 +975,7 @@ setmetatable(mitem, mindexmt)
 mt_idx = mitem["x"]
 mt_missing = mitem["absent"]
 
-function mtfidx(t, k) return "fn:" + k end
+function mtfidx(t, k) return "fn:" .. k end
 mfindmt = {}
 mfindmt["__index"] = mtfidx
 mfitem = {}

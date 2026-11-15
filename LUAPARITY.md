@@ -1,6 +1,6 @@
 # LUAPARITY — LILA gaps relative to Lua 5.4
 
-Status: current audit, 14 Nov 2026. Checked against the working tree and
+Status: current audit, 15 Nov 2026. Checked against the working tree and
 `gforth lila/test.fs`.
 
 LILA has three-cell tagged values, mixed-tag tables, dynamically retyped
@@ -70,26 +70,32 @@ core-language gaps are:
 
 ## 3. Strings
 
-- **No escape sequences** and no quotes inside literals. `"a\"b"` is a parse
-  error.
+- **Escape sequences and `..` concatenation are implemented.** String literals
+  support `\a`, `\b`, `\f`, `\n`, `\r`, `\t`, `\v`, `\\`, `\"`, `\'`, one to
+  three decimal digits (`\ddd`), exactly two hexadecimal digits (`\xXX`),
+  whitespace skipping (`\z`), and UTF-8 codepoints (`\u{...}`). Unknown or
+  malformed escapes are compile errors. The two-character `..` operator is
+  right-associative and concatenates strings.
 - **No long strings** (`[[...]]`) or long comments.
-- **No `..` concatenation operator**; LILA uses `+`, and only for
-  string-with-string or number-with-number operands.
+- **Concatenation is stricter than Lua.** `..` accepts two strings only: it
+  does not coerce numbers and there is no `__concat` metamethod. Conversely,
+  `+` is numeric addition only; table operands may still use `__add`.
 - **Partial string library.** `len`, `sub`, `upper`, `lower`, `rep`,
   `reverse`, `byte`, `char`, and plain `find` are implemented. `string.find`
   currently matches literal substrings only but already handles `init`,
   negative indexes, and the empty needle; `format`, `match`, `gmatch`, and
   `gsub` are not implemented, and there are no Lua patterns.
 - **No number/string coercion** in arithmetic or concatenation.
-  `"n=" + 1` raises `lila: cannot mix different types with +`.
+  `"n=" .. 1` raises `lila: cannot concatenate these values`, while
+  `"n=" + 1` raises `lila: cannot add these values`.
 - **`print` is not Lua-like.** It writes each argument directly: strings,
   booleans, `nil`, and tables have no separator between them, while numbers are
   emitted through Forth `.` and carry a trailing space. There are no tab
   separators and no trailing newline. For example, `print("a", "b")` emits
   `ab`, `print(1, 2)` emits `1 2 `, and two separate `print` calls run
   together on one line.
-- **Strings are byte strings.** There is no UTF-8 awareness; the `utf8`
-  library is absent.
+- **Strings are byte strings.** `\u{...}` emits UTF-8 bytes, but there is no
+  UTF-8-aware string API and the `utf8` library is absent.
 
 ## 4. Numbers
 
@@ -149,6 +155,10 @@ core-language gaps are:
 
 Completed work, newest first:
 
+- **String escapes and `..` concatenation:** control-character, quoted-string,
+  decimal, hexadecimal, whitespace-skipping, and UTF-8 escapes; a
+  right-associative string-only `..` operator; numeric-only `+`; and
+  escape-aware source scanners for comments, commas, and delimiters.
 - **Plain `string.find`:** literal substring search with 1-based/negative
   `init`, empty-needle handling, and a stable four-argument signature. The
   shared `lila-str-index` normalization now also backs `string.sub` and
@@ -218,9 +228,10 @@ just a wish list.
 - **Table constructors with contents.** Parse array and keyed fields,
   including `{...}` and a final multi-value expression. Depends on deciding
   whether constructors expand a final call the way Lua does.
-- **Escapes and long strings/comments.** Extend the string lexer with `\n`,
-  `\t`, `\\`, `\"`, `\ddd`, and `[[...]]`/`[=[...]=]`. Needed before string
-  literals can express most real-world patterns.
+- **Long strings/comments and Lua-compatible concatenation coercion.** Add
+  `[[...]]`/`[=[...]=]` and long comments. Separately, decide whether `..`
+  should adopt Lua's number-to-string coercion and whether a `__concat`
+  metamethod belongs in the supported subset.
 - **Nested lvalues.** Compile `t["a"]["b"] = 1` by evaluating the outer table
   once and storing through it. Needs lvalue code generation beyond the current
   single-index form.

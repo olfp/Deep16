@@ -326,19 +326,19 @@ produces whatever tag the source variable has.
 
 ### Operators and conditions
 
-`plus-op`, `cmp-op` and `num-op` become tag-aware:
+`plus-op`, `concat-op`, `cmp-op` and `num-op` become tag-aware:
 
-* when both static tags are known and compatible, emit the fast path
-  (`d+`, `dnegate`, `compare`, the existing string concatenation, and so on)
-  and push the resulting constant tag;
-* when a tag is unknown, emit a generic helper such as `lila-add`, `lila-sub`,
-  `lila-mul`, `lila-div`, `lila-lt`, `lila-gt` or `lila-eq`, which checks the
-  runtime tags and dispatches;
+* when both static tags are known and compatible, emit the matching helper
+  (`lila-add`, `lila-concat`, `lila-sub`, `lila-mul`, `lila-div`, or a
+  comparison helper) and push the resulting constant tag;
+* when a tag is unknown, emit the same generic helper, which checks the runtime
+  tags and dispatches;
 * when both tags are known and incompatible, keep the compile-time error.
 
-`+` remains string concatenation for two strings and numeric addition for two
-numbers. Mixing them is an error, now optionally at runtime when either side is
-dynamic.
+`+` is numeric addition for two numbers and `..` is string concatenation for
+two strings. Mixing operand kinds is an error, now optionally at runtime when
+either side is dynamic. Table operands may still use the supported arithmetic
+metamethods.
 
 `lila-compile-if` and `lila-compile-while` stop requiring a numeric condition.
 They compile the expression, then call `lila-truthy`, which consumes a
@@ -454,8 +454,8 @@ of it needs an ABI update rather than a semantic change. Add coverage for:
   `-0x80000000`, addition/subtraction/negation, product truncation, signed
   division, division by zero, and comparisons across the sign boundary.
   Run the boundary cases on both the host layer and the target.
-* **Tags and errors:** string `+` number, `nil + 1`, table arithmetic,
-  `length(number)`, a non-string table key, and wrong-tag returns.
+* **Tags and errors:** string `+` number, string `..` number, `nil + 1`, table
+  arithmetic, `length(number)`, a non-string table key, and wrong-tag returns.
 * **Heterogeneous tables:** numbers, strings, tables, booleans and nil in one
   table; overwriting one slot with a different tag; missing keys yielding nil;
   table aliases seeing the same tags; GC preserves both payload cells.
@@ -535,10 +535,11 @@ Items marked resolved are part of the current language behaviour.
 2. **Truthiness.** Resolved: nil and boolean false are false; every number,
    including zero, is true; strings and tables are true, including the empty
    string.
-3. **Mixed-type operators.** Recommendation: `+` is string concatenation only
-   for two strings and arithmetic only for two numbers; every other pairing is
-   an error. `=` may return false for different tags, while `<`/`>` should
-   reject different tags rather than invent an ordering.
+3. **Mixed-type operators.** Resolved: for ordinary values, `+` accepts two
+   numbers only and `..` accepts two strings only; every other pairing is an
+   error. Table arithmetic may still use the supported arithmetic metamethods.
+   `=` returns false for different tags, while `<`/`>` reject different tags
+   rather than invent an ordering.
 4. **Numeric overflow and division.** Recommendation: wrap to 32 bits, and
    raise a LILA error on division by zero. Decide explicitly whether
    `INT_MIN / -1` wraps or errors.

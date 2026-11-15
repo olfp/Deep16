@@ -23,6 +23,7 @@ variable expect-operand
 132 constant op-idiv
 133 constant op-and
 134 constant op-or
+135 constant op-concat
 \ Loop bodies become separate top-level words so `break` can EXIT the body.
 \ Definitions are collected in defs-buf and evaluated before the main word.
 create code-buf0 262144 allot
@@ -278,26 +279,43 @@ variable tx-i
   ch [char] # = or ;
 
 : op-precedence { ch -- n }
-  ch [char] ~ = ch [char] ! = or ch [char] # = or if 4 exit then
-  ch [char] ^ = if 5 exit then
-  ch [char] * = ch [char] / = or ch [char] % = or ch op-idiv = or if 3 exit then
-  ch [char] + = ch [char] - = or if 2 exit then
+  ch [char] ~ = ch [char] ! = or ch [char] # = or if 5 exit then
+  ch [char] ^ = if 6 exit then
+  ch [char] * = ch [char] / = or ch [char] % = or ch op-idiv = or if 4 exit then
+  ch [char] + = ch [char] - = or if 3 exit then
+  ch op-concat = if 2 exit then
   ch [char] < = ch [char] > = or ch [char] = = or
   ch op-eq = or ch op-ne = or ch op-le = or ch op-ge = or if 1 exit then
   ch op-and = if 0 exit then
   ch op-or = if -1 exit then
   0 ;
 
+\ `^` and `..` are right-associative, unlike the other binary operators.
+: right-assoc? { ch -- flag }
+  ch [char] ^ = ch op-concat = or ;
+
+variable identifier-segment
+variable split-esc
+variable comment-esc
+variable delim-esc
 : identifier? { c-addr u -- flag }
   u 0= if false exit then
   c-addr c@ [char] 0 [char] 9 1+ within if false exit then
+  0 identifier-segment !
   c-addr u bounds ?do
     i c@
     dup bl = if drop false unloop exit then
     dup op-char? if drop false unloop exit then
     dup [char] ( = over [char] ) = or if drop false unloop exit then
+    dup [char] . = if
+      identifier-segment @ 0= if drop false unloop exit then
+      0 identifier-segment !
+    else
+      1 identifier-segment !
+    then
     [char] = = if false unloop exit then
   loop
+  identifier-segment @ 0= if false exit then
   true ;
 
 \ ---------------------------------------------------------------------------
@@ -519,12 +537,30 @@ variable tx-i
   em-buf c@ 2040 >= if s" lila: literal too long" lila-error then
   em-buf count + c!
   em-buf c@ 1+ em-buf c! ;
+: em-hexdigit { n -- }
+  n 10 < if 48 n + else 65 n 10 - + then em-char ;
+
+: em-hex-byte { b -- }
+  92 em-char
+  120 em-char
+  b 4 rshift 15 and em-hexdigit
+  b 15 and em-hexdigit ;
+
+: em-lit-byte { b -- }
+  b 34 = if 92 em-char 34 em-char exit then
+  b 92 = if 92 em-char 92 em-char exit then
+  b 32 < b 126 > or if b em-hex-byte exit then
+  b em-char ;
+
 : s-lit-em { c-addr u -- }
-  s" s" em+
-  [char] " em-char
-  bl em-char
-  c-addr u em+
-  [char] " em-char ;
+  115 em-char
+  92 em-char
+  34 em-char
+  32 em-char
+  u 0 ?do
+    c-addr i + c@ em-lit-byte
+  loop
+  34 em-char ;
 
 : append-space ( -- )
   lila-buf c@ if
@@ -693,11 +729,8 @@ defer vararg-raw?
   type-pop { rt } type-pop { lt }
   lt type-known? rt type-known? and if
     lt lila-tag-table = rt lila-tag-table = or 0= if
-      lt rt <> if
-        s" lila: cannot mix different types with +" lila-error
-      then
-      lt lila-tag-num <> lt lila-tag-str <> and if
-        s" lila: + needs numbers or strings" lila-error
+      lt lila-tag-num <> rt lila-tag-num <> or if
+        s" lila: + needs numbers" lila-error
       then
     then
   then
@@ -705,6 +738,22 @@ defer vararg-raw?
   lt type-known? rt type-known? and
   lt lila-tag-table <> and rt lila-tag-table <> and if
     lt type-push
+  else
+    lila-tag-unknown type-push
+  then ;
+
+: concat-op ( -- )
+  start-pop drop
+  type-pop { rt } type-pop { lt }
+  lt type-known? rt type-known? and if
+    lt lila-tag-str <> rt lila-tag-str <> or if
+      s" lila: .. needs strings" lila-error
+    then
+  then
+  append-space s" lila-concat " lila-buf buf+
+  lt type-known? rt type-known? and
+  lt lila-tag-str <> rt lila-tag-str <> or 0= if
+    lila-tag-str type-push
   else
     lila-tag-unknown type-push
   then ;
@@ -807,6 +856,7 @@ defer vararg-raw?
     exit
   then
   ch [char] + = if plus-op exit then
+  ch op-concat = if concat-op exit then
   ch [char] - = if sub-op exit then
   ch [char] * = if ch num-op exit then
   ch [char] / = if ch num-op exit then
@@ -828,18 +878,15 @@ defer vararg-raw?
 : marker-open? { ch -- flag }
   ch [char] ( =  ch [char] { = or  ch [char] [ = or
   ch [char] L = or  ch [char] S = or ;
+: should-pop? { top prec -- flag }
+  top marker-open? if false exit then
+  top op-precedence prec > if true exit then
+  top op-precedence prec = if top right-assoc? 0= else false then ;
+
 : pop-while { prec -- }
   begin
     op-top @ 0> if
-      top-op dup marker-open? if
-        drop false
-      else
-        dup [char] ^ = prec 5 = and if
-          drop false
-        else
-          op-precedence prec >=
-        then
-      then
+      top-op prec should-pop?
     else false then
   while
     pop-op
@@ -1156,6 +1203,160 @@ defer vararg-raw?
   c-addr u s" or" compare 0= or
   c-addr u s" not" compare 0= or ;
 
+: str-byte { ch -- }
+  str-len @ 1023 >= if s" lila: string literal too long" lila-error then
+  ch str-buf str-len @ + c!
+  1 str-len +! ;
+
+: space-char? { ch -- flag }
+  ch 32 = ch 9 = or ch 10 = or ch 11 = or ch 12 = or ch 13 = or ;
+
+: hex-value { ch -- n flag }
+  ch 48 58 within if ch 48 - true exit then
+  ch 97 103 within if ch 97 - 10 + true exit then
+  ch 65 71 within if ch 65 - 10 + true exit then
+  0 false ;
+
+create utf8-buf 8 allot
+variable utf8-x
+variable utf8-n
+variable utf8-mfb
+variable utf8-more
+variable utf8-start
+
+: utf8-emit { cp -- }
+  cp utf8-x !
+  cp 0x7F <= if cp str-byte exit then
+  0 utf8-n !
+  0x3F utf8-mfb !
+  -1 utf8-more !
+  begin utf8-more @ while
+    utf8-x @ 0x3F and 0x80 or utf8-buf 7 utf8-n @ - + c!
+    utf8-n @ 1+ utf8-n !
+    utf8-x @ 6 rshift utf8-x !
+    utf8-mfb @ 1 rshift utf8-mfb !
+    utf8-x @ utf8-mfb @ > if -1 else 0 then utf8-more !
+  repeat
+  utf8-mfb @ invert 1 lshift utf8-x @ or utf8-buf 7 utf8-n @ - + c!
+  utf8-n @ 1+ utf8-n !
+  8 utf8-n @ - utf8-start !
+  utf8-n @ 0 ?do
+    utf8-buf utf8-start @ i + + c@ str-byte
+  loop ;
+
+variable esc-ch
+variable esc-val
+variable esc-ndig
+variable esc-done
+variable esc-j
+variable esc-hi
+variable esc-more
+variable esc-d
+
+: scan-escape { c-addr u i -- i' }
+  i 1+ u >= if s" lila: invalid escape sequence" lila-error then
+  c-addr i 1+ + c@ esc-ch !
+  esc-ch @ 97 = if 7 str-byte i 1+ exit then
+  esc-ch @ 98 = if 8 str-byte i 1+ exit then
+  esc-ch @ 102 = if 12 str-byte i 1+ exit then
+  esc-ch @ 110 = if 10 str-byte i 1+ exit then
+  esc-ch @ 114 = if 13 str-byte i 1+ exit then
+  esc-ch @ 116 = if 9 str-byte i 1+ exit then
+  esc-ch @ 118 = if 11 str-byte i 1+ exit then
+  esc-ch @ 92 = esc-ch @ 34 = or esc-ch @ 39 = or if
+    esc-ch @ str-byte i 1+ exit
+  then
+  esc-ch @ 122 = if
+    i 1+ esc-j !
+    -1 esc-more !
+    begin esc-more @ esc-j @ 1+ u < and while
+      c-addr esc-j @ 1+ + c@ esc-d !
+      esc-d @ space-char? if
+        esc-j @ 1+ esc-j !
+      else
+        0 esc-more !
+      then
+    repeat
+    esc-j @ exit
+  then
+  esc-ch @ 120 = if
+    i 3 + u >= if s" lila: hexadecimal digit expected" lila-error then
+    c-addr i 2 + + c@ hex-value 0= if s" lila: hexadecimal digit expected" lila-error then
+    esc-hi !
+    c-addr i 3 + + c@ hex-value 0= if s" lila: hexadecimal digit expected" lila-error then
+    esc-hi @ 16 * + str-byte
+    i 3 + exit
+  then
+  esc-ch @ 117 = if
+    i 2 + u >= if s" lila: missing { in \\u escape" lila-error then
+    c-addr i 2 + + c@ 123 <> if s" lila: missing { in \\u escape" lila-error then
+    0 esc-val !  0 esc-ndig !  0 esc-done !
+    i 2 + esc-j !
+    begin esc-done @ 0= esc-j @ 1+ u < and while
+      c-addr esc-j @ 1+ + c@ esc-d !
+      esc-d @ 125 = if
+        esc-j @ 1+ esc-j !
+        -1 esc-done !
+      else
+        esc-d @ hex-value 0= if
+          s" lila: hexadecimal digit expected" lila-error
+        then
+        esc-val @ 16 * + esc-val !
+        esc-ndig @ 1+ esc-ndig !
+        esc-j @ 1+ esc-j !
+      then
+    repeat
+    esc-done @ 0= if s" lila: missing } in \\u escape" lila-error then
+    esc-ndig @ 0= if s" lila: \\u escape needs a digit" lila-error then
+    esc-val @ 0x7FFFFFFF > if s" lila: \\u escape out of range" lila-error then
+    esc-val @ utf8-emit
+    esc-j @ exit
+  then
+  esc-ch @ 48 58 within if
+    esc-ch @ 48 - esc-val !
+    1 esc-ndig !
+    i 1+ esc-j !
+    -1 esc-more !
+    begin esc-more @ esc-j @ 1+ u < and esc-ndig @ 3 < and while
+      c-addr esc-j @ 1+ + c@ esc-d !
+      esc-d @ 48 58 within if
+        esc-val @ 10 * esc-d @ 48 - + esc-val !
+        esc-ndig @ 1+ esc-ndig !
+        esc-j @ 1+ esc-j !
+      else
+        0 esc-more !
+      then
+    repeat
+    esc-val @ 255 > if s" lila: decimal escape too large" lila-error then
+    esc-val @ str-byte
+    esc-j @ exit
+  then
+  s" lila: invalid escape sequence" lila-error ;
+
+: scan-string-char { c-addr u i -- i' }
+  c-addr i + c@ 92 = if
+    c-addr u i scan-escape exit
+  then
+  c-addr i + c@ str-byte
+  i ;
+
+: token-append { ch -- }
+  tok-len @ 63 >= if s" lila: token too long" lila-error then
+  ch tok-buf tok-len @ + c!
+  1 tok-len +! ;
+
+variable dot-count
+: dot-run { c-addr u i -- count }
+  0 dot-count !
+  begin
+    i dot-count @ + u < if
+      c-addr i dot-count @ + + c@ [char] . =
+    else false then
+  while
+    1 dot-count +!
+  repeat
+  dot-count @ ;
+
 : transform-expr { c-addr u -- }
   lila-buf buf-reset  0 tok-len !  0 op-top !  1 expect-operand !
   0 in-string !  0 str-len !  0 type-top !  0 start-top !
@@ -1180,13 +1381,41 @@ defer vararg-raw?
       then
     else
       in-string @ if
-        str-len @ 1023 >= if s" lila: string literal too long" lila-error then
-        ch str-buf str-len @ + c!
-        1 str-len +!
+        c-addr u i scan-string-char to i
       else
-        ch bl = if
-          flush-tok
+        ch [char] . = if
+          c-addr u i dot-run { dots }
+          dots 3 = if
+            flush-tok
+            expect-operand @ 0= if
+              s" lila: operator expected before ..." lila-error
+            then
+            3 0 do [char] . token-append loop
+            i 2 + to i
+            i tx-i !
+            flush-tok
+          else
+            dots 2 = if
+              flush-tok
+              expect-operand @ if
+                s" lila: operand expected before operator" lila-error
+              then
+              op-concat op-precedence pop-while
+              op-concat push-op
+              i 1+ to i
+              1 expect-operand !
+            else
+              dots 1 = if
+                [char] . token-append
+              else
+                s" lila: invalid operator" lila-error
+              then
+            then
+          then
         else
+          ch bl = if
+            flush-tok
+          else
           ch [char] ( = if
             tok-len @ 0> if
               tok-buf tok-len @ keyword-op? if
@@ -1237,8 +1466,7 @@ defer vararg-raw?
                         then
                       then
                     else
-                      ch tok-buf tok-len @ + c!
-                      tok-len @ 1+ tok-len !
+                      ch token-append
                     then
                   then
                 then
@@ -1247,6 +1475,7 @@ defer vararg-raw?
           then
         then
       then
+    then
     then
     i 1+ to i
   repeat
@@ -1323,21 +1552,25 @@ defer vararg-raw?
   0 { i }
   0 { depth }
   0 { q }
+  0 split-esc !
   begin i u < while
-    c-addr i + c@ { ch }
     q 0<> if
-      ch [char] " = if 0 to q then
+      split-esc @ 0<> if
+        0 split-esc !
+      else
+        c-addr i + c@ 92 = if 1 split-esc ! else c-addr i + c@ [char] " = if 0 to q then then
+      then
     else
-      ch [char] " = if
+      c-addr i + c@ [char] " = if
         -1 to q
       else
-        ch [char] ( = ch [char] [ = or ch [char] { = or if
+        c-addr i + c@ [char] ( = c-addr i + c@ [char] [ = or c-addr i + c@ [char] { = or if
           depth 1+ to depth
         else
-          ch [char] ) = ch [char] ] = or ch [char] } = or if
+          c-addr i + c@ [char] ) = c-addr i + c@ [char] ] = or c-addr i + c@ [char] } = or if
             depth 0> if depth 1- to depth then
           else
-            ch [char] , = depth 0= and if
+            c-addr i + c@ [char] , = depth 0= and if
               c-addr i
               c-addr i + 1+ u i - 1-
               true exit
@@ -1582,11 +1815,18 @@ create mat-key-slots 64 cells allot
 
 : strip-comment { c-addr u -- c-addr' u' }
   0 0 { i q }
+  0 comment-esc !
   begin i u < while
-    c-addr i + c@ [char] " = if
-      q 0= to q
+    q 0<> if
+      comment-esc @ 0<> if
+        0 comment-esc !
+      else
+        c-addr i + c@ 92 = if 1 comment-esc ! else c-addr i + c@ [char] " = if 0 to q then then
+      then
     else
-      q 0= if
+      c-addr i + c@ [char] " = if
+        1 to q
+      else
         c-addr u i comment-at? if
           c-addr i trim exit
         then
@@ -1758,11 +1998,18 @@ defer lila-compile-anon-assign
 
 : find-delim { c-addr u ch -- idx }
   0 0 { i q -- }
+  0 delim-esc !
   begin i u < while
-    c-addr i + c@ [char] " = if
-      q 0= to q
+    q 0<> if
+      delim-esc @ 0<> if
+        0 delim-esc !
+      else
+        c-addr i + c@ 92 = if 1 delim-esc ! else c-addr i + c@ [char] " = if 0 to q then then
+      then
     else
-      q 0= if
+      c-addr i + c@ [char] " = if
+        1 to q
+      else
         c-addr i + c@ ch = if i exit then
       then
     then

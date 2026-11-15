@@ -118,10 +118,10 @@ t["a"] = 1
 n = {}
 n["name"] = "alice"
 print("hi")
-print("a" + "b")
+print("a" .. "b")
 print(length("hello"))
 function greet(name$)
-  return "hello, " + name$
+  return "hello, " .. name$
 end
 print(greet("world"))
 ```
@@ -184,10 +184,11 @@ Operators, from highest to lowest precedence:
 
 | Operators | Meaning |
 |---|---|
-| `not`, unary `-`, `#` | logical negation, numeric negation, length |
 | `^` | integer power (right-associative) |
+| `not`, unary `-`, `#` | logical negation, numeric negation, length |
 | `*` `/` `%` `//` | multiply, divide, modulo, floor division |
-| `+` `-` | add/subtract numbers, concatenate strings |
+| `+` `-` | numeric addition/subtraction |
+| `..` | string concatenation (right-associative) |
 | `<` `>` `<=` `>=` | ordering (numbers and strings) |
 | `=` `==` `~=` | equality, equality, inequality |
 | `and` | short-circuit logical and |
@@ -205,6 +206,11 @@ above, so zero is truthy.
 floor semantics: the quotient rounds toward negative infinity and the remainder
 has the sign of the divisor (`-7 // 2` is `-4`, `-7 % 2` is `1`). `^` requires
 a non-negative integer exponent.
+
+`+` adds two numbers. Tables may still participate through the `__add`
+metamethod, but strings do not: `"a" + "b"` is an error. `..` concatenates two
+strings and is right-associative. It does not coerce numbers to strings and has
+no `__concat` metamethod, so `1 .. "a"` is an error.
 
 ## Multiple returns and varargs
 
@@ -363,7 +369,7 @@ constraint at the call site; otherwise parameters are untyped:
 
 ```lisp
 function greet(name$)
-  return "hello, " + name$
+  return "hello, " .. name$
 end
 
 function identity(v)
@@ -597,7 +603,7 @@ print(t["absent"])             -- nil
 `__index` may also be a function, which receives the table and the key:
 
 ```lisp
-function lookup(t, key) return "missing:" + key end
+function lookup(t, key) return "missing:" .. key end
 m = {}
 m["__index"] = lookup
 t = {}
@@ -674,12 +680,12 @@ print(scores["lila"])          -- 3
 Assigning one variable to another copies the three-cell value; string data
 itself is immutable and GC-managed.
 
-Strings can be concatenated with `+`, compared with `<`, `>` and `=`, and
+Strings can be concatenated with `..`, compared with `<`, `>` and `=`, and
 measured with `length(s)` (or `len(s)`):
 
 ```lisp
 name = "lila"
-greeting = "hello, " + name
+greeting = "hello, " .. name
 print(greeting)                  -- hello, lila
 print(length(greeting))          -- 11
 print(greeting = "hello, lila")  -- true
@@ -688,14 +694,37 @@ if name = "lila" then
 end
 ```
 
-`+` requires both operands to be strings or both to be numbers; mixing them is
-a tag error. The comparison operators likewise compare two strings or two
-numbers. String comparisons are lexicographic. Comparison results are boolean
-values, printed as `true` or `false`. Concatenation allocates a new GC string.
-Strings can be printed, used as table keys, stored as table values, passed to
-`$` parameters, and returned from functions. `length` and `len` are built-ins
-and cannot be used as function names. `--` inside a string literal is part of
-the string, not a comment.
+`..` requires two string operands and does not coerce numbers. The comparison
+operators likewise compare two strings or two numbers. String comparisons are
+lexicographic. Comparison results are boolean values, printed as `true` or
+`false`. Concatenation allocates a new GC string. Strings can be printed, used
+as table keys, stored as table values, passed to `$` parameters, and returned
+from functions. `length` and `len` are built-ins and cannot be used as function
+names. `--` inside a string literal is part of the string, not a comment.
+
+String literals support these escapes:
+
+| Escape | Result |
+|---|---|
+| `\a`, `\b`, `\f`, `\n`, `\r`, `\t`, `\v` | bell, backspace, form feed, newline, carriage return, tab, vertical tab |
+| `\\`, `\"`, `\'` | backslash, double quote, single quote |
+| `\ddd` | one to three decimal digits, with a byte value at most 255 |
+| `\xXX` | exactly two hexadecimal digits |
+| `\z` | skip following whitespace |
+| `\u{...}` | UTF-8 encoding of a codepoint no greater than `0x7FFFFFFF` |
+
+For example:
+
+```lisp
+line = "name:\tvalue\n"
+quoted = "say \"hello\""
+bytes = "\x41\102"
+text = "A\u{20AC}"
+```
+
+An unknown or malformed escape is a compile error. Strings remain byte
+strings; `\u{...}` writes the encoded UTF-8 bytes but does not provide Unicode
+string semantics.
 
 A body may contain several statements separated by `;`:
 
@@ -704,7 +733,7 @@ if x > 0 then y = 1 ; z = y + 1 end
 ```
 
 Blocks nest. Expressions support `+ - * /`, comparisons `< > =`, parentheses,
-unary minus, `#`, function calls, string concatenation with `+`, and
+unary minus, `#`, function calls, string concatenation with `..`, and
 `length(s)`.
 LILA variables are prefixed in Forth as `lila-var-<name>` and are three-cell
 tagged values accessible with `lila-value@` and `lila-value!`.
@@ -851,7 +880,8 @@ diagnostics still abort immediately and are not catchable.
   arithmetic metamethods, `__eq`, `__lt`, `__le`, and `__tostring`. `__call`,
   `__len`, `__metatable`, `__gc`, weak tables, and finalizers are not
   implemented.
-- String literals cannot contain a `"` and there are no escape sequences.
+- Long string literals (`[[...]]`) and long comments are not supported. String
+  literals support escapes, but remain byte strings.
 - In a single-line loop body, `break` works as a plain statement, but nested
   single-line control blocks in that same body are not parsed. Use a
   multi-line loop body for conditional breaks.
