@@ -164,6 +164,18 @@ const depthEcho = line('depth . cr');
 const depth = Number(depthEcho.slice(depthEcho.lastIndexOf('depth . cr') + 'depth . cr'.length)
   .match(/^\s+(-?\d+)/)?.[1]);
 
+// Type one source program and return everything printed from the `lila` echo
+// on. A blank line ends the source.
+function runSource(src, cap = 20_000_000) {
+  const from = out.length;
+  type('lila', 2_000_000, false);
+  for (const input of src.split('\n')) {
+    if (input !== '') type(input, 3_000_000, false);
+  }
+  type('', cap, true);
+  return out.slice(from).replace(/\r/g, '');
+}
+
 test('the segmented image boots', () => {
   assert.match(boot, /> /);
   assert.equal(sim.segmentRegisters.DS, DS_SEG, 'DS');
@@ -181,4 +193,38 @@ test('the program compiles and runs with lua5.4 output', () => {
 
 test('a successful run leaves the data stack at depth 0', () => {
   assert.equal(depth, 0, depthEcho.replace(/\r/g, ''));
+});
+
+// Syntax outside the profile must be rejected with a code, not reinterpreted.
+const rejected = [
+  ['division', 'print(1 / 2)', -20],
+  ['power', 'print(2 ^ 3)', -20],
+  ['modulo', 'print(5 % 2)', -20],
+  ['and', 'if 1 and 2 then print(1) end', -14],
+  ['function', 'function f() end', -21],
+  ['local', 'local x = 1', -21],
+  ['table', 't = {}', -9],
+  ['missing end', 'if 1 then print(1)', -15],
+  ['unterminated while', 'while 1 do print(1)', -17],
+  ['newline in string', 'print("a\nb")', -3],
+  ['unbalanced paren', 'print((1 + 2)', -20],
+  ['literal out of range', 'print(2147483648)', -22],
+  ['literal far out of range', 'print(99999999999)', -22],
+];
+
+test('syntax outside the profile is rejected with a code', () => {
+  for (const [name, src, code] of rejected) {
+    const text = runSource(src);
+    const m = text.match(/LERR (-?\d+)/);
+    assert.ok(m, `${name}: no LERR in ${JSON.stringify(text)}`);
+    assert.equal(Number(m[1]), code, name);
+  }
+});
+
+test('a comment-only or empty source compiles to a halt', () => {
+  for (const [name, src] of [['comment only', '-- nothing'], ['empty source', '']]) {
+    const text = runSource(src);
+    assert.doesNotMatch(text, /LERR/, name);
+    assert.match(text, /ok\n/, name);
+  }
 });
