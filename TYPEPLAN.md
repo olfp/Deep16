@@ -5,6 +5,13 @@ three-cell tagged-value ABI used by `lila/value.fs`, `lila/hash.fs`,
 `lila/meta.fs`, `lila/gc.fs` and `lila/compiler.fs`. `TYPEPLAN.md` is kept as the design and
 migration record; the source and tests are authoritative.
 
+An on-device conformance profile, `lila/native/lila-native.fth`, implements the
+ABI for tags 0–3 (nil, number, boolean, string) in a small Lua subset. It is
+verified by `node --test tests/native-lila.test.js`, which boots the segmented
+image, runs a compiled program against a `lua5.4` fixture, and checks that the
+data stack returns to depth 0. It is a profile of the ABI, not a port of the
+full host compiler.
+
 Verification: `gforth lila/test.fs` passes, including three-cell at/! checks,
 boolean results, nil for missing keys and no-return functions, Lua truthiness,
 `nil` deleting a table key, mixed-tag tables, dynamically retyped variables,
@@ -166,6 +173,12 @@ two halves and mask/sign-extend after arithmetic instead of relying on the
 host's own `d+` signedness. Otherwise host-only tests will pass values that the
 target cannot represent. The interim host layer may use one host cell for a
 32-bit intermediate, but the stored ABI remains two 16-bit halves.
+
+The native profile does the literal split on the device. `l-num` accumulates
+digits into an unsigned two-cell pair with `um*` and `d+`, never calls `s>d`,
+and rejects a literal that would leave `0 .. 2147483647` with code `-22`. Its
+runtime multiply is the partial-product rule above, and runtime arithmetic
+wraps to 32 bits.
 
 Overflow policy is not settled yet. The recommendation is fixed-width
 two's-complement wrap, matching the hardware, with division by zero raising a
@@ -440,7 +453,8 @@ runnable.
    inference only as an optimization.
 7. **Port and measure.** Implement the missing 32-bit helpers on Deep16,
    measure code size and stack use, and update `lila/README.md` and the LILA
-   sections of `FORTH.md`/`D16MINI.md` as needed.
+   sections of `FORTH.md`/`D16MINI.md` as needed. An initial on-device profile
+   now exists in `lila/native/`; porting the full compiler remains future work.
 
 ## 9. Tests
 
@@ -542,7 +556,9 @@ Items marked resolved are part of the current language behaviour.
    rather than invent an ordering.
 4. **Numeric overflow and division.** Recommendation: wrap to 32 bits, and
    raise a LILA error on division by zero. Decide explicitly whether
-   `INT_MIN / -1` wraps or errors.
+   `INT_MIN / -1` wraps or errors. The native profile follows the wrap rule at
+   runtime and rejects out-of-range literals at parse time; it does not
+   implement division.
 5. **Static versus dynamic signatures.** Recommendation: parameters are
    untyped by default; `$` remains an optional string constraint and a
    compatibility spelling; return tags are inferred when possible and unknown

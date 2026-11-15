@@ -31,6 +31,25 @@ s" x = 5" lila-eval
 s" print(x + 1)" lila-eval
 ```
 
+## Native profile
+
+`lila/native/lila-native.fth` is a separate, much smaller compiler and bytecode
+VM that runs on Deep16 itself. It shares the three-cell value ABI described
+below but not the host compiler: it reads a Lua subset from the console,
+compiles it on the machine, and runs it without a host. It is a conformance
+profile for the target, not a replacement for `lila-load`.
+
+```sh
+node --test tests/native-lila.test.js
+```
+
+The test boots the segmented image, types the compiler in, checks the output
+against a `lua5.4` fixture, and asserts the data stack returns to depth 0.
+`lila/native/README.md` lists the supported subset, bytecode, limits and error
+codes. In short: globals, 32-bit integers, strings, `+ - *`, relationals, `..`,
+`print`, `if`, `while` and `do`; functions, locals, tables, floats and the
+libraries are rejected with codes.
+
 ## Values
 
 Every LILA value is three cells. On the Forth stack the order is

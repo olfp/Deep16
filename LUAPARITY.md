@@ -102,6 +102,11 @@ core-language gaps are:
 - **32-bit signed integers only.** The range is `-2147483648` through
   `2147483647` (`math.mininteger` and `math.maxinteger`); `2147483648` wraps to
   `-2147483648`. There are no 64-bit integers.
+- **The native profile rejects out-of-range literals.** On the device,
+  `lila/native/lila-native.fth` accepts literals only in `0 .. 2147483647` and
+  reports code `-22` for a larger one instead of wrapping it at parse time.
+  Runtime arithmetic still wraps to 32 bits. The host prototype continues to
+  wrap the literal.
 - **No floats.** The float tag is reserved but unimplemented. `1.5` is not
   tokenized as a number and currently evaluates to `nil`;
   `tonumber("1.5")` also returns `nil`.
@@ -134,6 +139,13 @@ core-language gaps are:
 ## 6. Implementation-level differences
 
 - LILA compiles to Forth, not Lua bytecode.
+- **A second implementation runs on the device.** `lila/native/lila-native.fth`
+  compiles a deliberately smaller Lua subset directly to bytecode on Deep16 and
+  runs it there. It supports globals, 32-bit integers, strings, `+ - *`,
+  relationals, `..`, `print`, `if`, `while` and `do`; functions, locals, tables,
+  floats, `/ % ^`, bitwise operators, `and`/`or`/`not`, varargs and the
+  libraries are rejected with negative codes. Its value ABI matches
+  `TYPEPLAN.md`; its limits and codes are in `lila/native/README.md`.
 - The collector is a simple conservative mark-sweep, without Lua's
   generational or incremental behavior.
 - The standard library is implemented as native closures installed as dotted
@@ -155,6 +167,12 @@ core-language gaps are:
 
 Completed work, newest first:
 
+- **Native compiler and VM:** `lila/native/lila-native.fth` tokenizes, parses and
+  compiles a Lua subset on Deep16, then runs the bytecode on a small VM. Values
+  use the three-cell ABI with signed 32-bit number pairs, `(0xFFFF 0 2)`/`(0 0 2)`
+  booleans, `(address length 3)` strings and zero-filled globals that read as
+  nil. Out-of-range literals are rejected with `-22`; the test checks the
+  `lua5.4` output and a depth-0 data stack.
 - **String escapes and `..` concatenation:** control-character, quoted-string,
   decimal, hexadecimal, whitespace-skipping, and UTF-8 escapes; a
   right-associative string-only `..` operator; numeric-only `+`; and
