@@ -34,6 +34,8 @@
 .equ T_GHOST_R   54
 .equ T_FRIGHT_L  55
 .equ T_FRIGHT_R  56
+.equ T_GATE_L    57
+.equ T_GATE_R    58
 .equ T_WALL_L    110
 .equ T_WALL_R    118
 
@@ -119,9 +121,9 @@ pac_entry:
     LDI ST_FRIGHT
     MOV R2, R0
     ST R3, R2, 0
-    ; HUD label "SCORE" in the right margin, row 0 column 72
+    ; HUD label "SCORE" in the right margin, row 0 column 65
     LSI R9, 0
-    LDI 72
+    LDI 65
     MOV R10, R0
     LDI str_score
     MOV R8, R0
@@ -198,28 +200,111 @@ mz_wall:
     NOP
     LDI 18
     CMP R8, R3
-    JC mz_shape
+    JNC mz_shape
     NOP
     LDI mz_door
     MOV PC, R0
     NOP
 mz_shape:
-    ; solid wall: one art tile pair for every wall cell, no per-cell outline
+    ; Wall cell outlines: top/bottom are shared, left and right are separate
+    ; bits so an edge between two touching walls is never drawn.
+    LSI R5, 0
+    AND R9, R9
+    JZ mz_top_open
+    NOP
+    MOV R1, R8
+    MOV R2, R9
+    SUB R2, 1
+    LDI pac_mapval
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LSI R3, 1
+    CMP R0, R3
+    JZ mz_top_done
+    NOP
+mz_top_open:
+    OR R5, 1
+mz_top_done:
+    LDI 23
+    MOV R3, R0
+    CMP R9, R3
+    JNC mz_bottom_open
+    NOP
+mz_bottom_edge:
+    MOV R1, R8
+    MOV R2, R9
+    ADD R2, 1
+    LDI pac_mapval
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LSI R3, 1
+    CMP R0, R3
+    JZ mz_bottom_done
+    NOP
+mz_bottom_open:
+    OR R5, 2
+mz_bottom_done:
+    MOV R12, R5
+    AND R8, R8
+    JZ mz_left_open
+    NOP
+    MOV R1, R8
+    SUB R1, 1
+    MOV R2, R9
+    LDI pac_mapval
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LSI R3, 1
+    CMP R0, R3
+    JZ mz_left_done
+    NOP
+mz_left_open:
+    OR R5, 0
+mz_left_done:
+    LDI 31
+    MOV R3, R0
+    CMP R8, R3
+    JNC mz_right_open
+    NOP
+mz_right_edge:
+    MOV R1, R8
+    ADD R1, 1
+    MOV R2, R9
+    LDI pac_mapval
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LSI R3, 1
+    CMP R0, R3
+    JZ mz_right_done
+    NOP
+mz_right_open:
+    OR R12, 0
+mz_right_done:
     LDI T_WALL_L
     MOV R4, R0
+    ADD R4, R5
     SL R4, 5
     LDI T_WALL_R
     MOV R2, R0
+    ADD R2, R12
     SL R2, 5
     LDI mz_store
     MOV PC, R0
     NOP
 mz_door:
-    LDI 0x03A0
+    LDI T_GATE_L
     MOV R4, R0
-    OR R4, 15                 ; text tile 0x8000 | pair 3 | '='
-    MOV R2, R4
-    LDI mz_store
+    LDI T_GATE_R
+    MOV R2, R0
+    LDI mz_scale
     MOV PC, R0
     NOP
 mz_blank:
@@ -235,7 +320,6 @@ mz_store:
     MOV R1, R7
     SL R1, 1
     ADD R3, R1
-    ADD R3, 8
     MOV R1, R6
     SL R1, 1
     ADD R3, R1
@@ -1121,7 +1205,6 @@ pac_cell_addr:
     MOV R1, R3
     SL R1, 1
     ADD R4, R1
-    ADD R4, 8
     MOV R1, R8
     SL R1, 1
     ADD R4, R1
@@ -1454,7 +1537,7 @@ pac_dga_write:
 pac_draw_score:
     LDI SEG_TILE
     MVS ES, R0
-    LDI 155                    ; row 1, column 73
+    LDI 71                     ; row 0, column 71 (after SCORE)
     MOV R2, R0
     LDI ST_SC3
     MOV R7, R0
@@ -1517,14 +1600,14 @@ pac_dt_done:
 pac_sprite:
     LDI SEG_OAM
     MVS ES, R0
-    ; x = 56 + 16*column (tilemap column 8, minus half a sprite)
+    ; x = 16*column - 8 (maze at column 0, minus half a sprite)
     LDI ST_PAC_C
     MOV R2, R0
     LD R2, R2, 0
     SL R2, 4
-    LDI 56
+    LDI 8
     MOV R3, R0
-    ADD R2, R3
+    SUB R2, R3
 
     ; y = 6 + 15*row
     LDI ST_PAC_R

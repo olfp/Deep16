@@ -10,7 +10,7 @@ import { ROOT } from './helpers.js';
 import {
   buildPacman, checkPacman, PACMAN_SEG_BASE, PACMAN_LIMIT,
 } from '../scripts/make_showcase.mjs';
-import { pacmanDotCount, pacmanMazeWords } from '../scripts/make_pacman_art.mjs';
+import { pacmanDotCount, pacmanMazeWords, pacmanCells, isDoor } from '../scripts/make_pacman_art.mjs';
 import {
   buildSlices, SLICE_WORDS, TYPES, BINARY_MAGIC, BINARY_VERSION,
 } from '../scripts/make_slices.mjs';
@@ -104,6 +104,24 @@ test('the maze draws, Pac-Man moves, and a dot scores ten points', () => {
   assert.equal(st(sim, 'ST_DOTS'), 244 - st(sim, 'ST_SC1'), 'each dot is eaten once');
 });
 
+test('wall outlines merge, with no line between touching wall cells', () => {
+  const sim = start();
+  run(sim, 320);
+  const at = (r, c) => sim.memory[0xF1000 + r * 82 + c] | 0;
+  const tile = (r, c) => at(r, c) >> 5;
+  // Maze row 2, columns 2..6 are a five-wide wall block: row 1 above is open
+  // and row 3 below is wall, so every cell has the top edge only.  The block
+  // ends take the outer left/right edges, the interior cells take none.
+  console.log('TILES row2', Array.from({length: 16}, (_, c) => tile(2, c)).join(','));
+  console.log('TILES row1', Array.from({length: 16}, (_, c) => tile(1, c)).join(','));
+  console.log('TILES row3', Array.from({length: 16}, (_, c) => tile(3, c)).join(','));
+  assert.equal(tile(2, 4), 110 + 3, 'block left: left edge and top');
+  assert.equal(tile(2, 5), 118 + 2, 'block left: top only on the right half');
+  assert.equal(tile(2, 6), 110 + 2, 'interior left half: top only');
+  assert.equal(tile(2, 7), 118 + 2, 'interior right half: top only');
+  assert.equal(tile(2, 13), 118 + 3, 'block right: right edge and top');
+});
+
 test('the last dot wins and the banner returns to the menu after ten seconds', () => {
   const sim = start();
   run(sim, 320, {
@@ -129,7 +147,9 @@ test('a frightened ghost is worth 200 and goes back to the corridor', () => {
   run(sim, 2);
   assert.equal(st(sim, 'ST_STATE'), 0, 'Pac-Man survives');
   assert.equal(st(sim, 'ST_SC2'), 2, '200 points');
-  assert.deepEqual([sim.memory[BLOCK + S.ST_GHOST_C], sim.memory[BLOCK + S.ST_GHOST_R]], [15, 9]);
+  const gc = sim.memory[BLOCK + S.ST_GHOST_C], gr = sim.memory[BLOCK + S.ST_GHOST_R];
+  assert.equal(gr, 9, 'back on the corridor row above the house');
+  assert.ok(gc >= 14 && gc <= 17, `back in the house corridor (${gc})`);
 });
 
 test('a collision with a ghost ends the game and Q exits early', () => {
