@@ -498,14 +498,67 @@ test('a frightened ghost is worth 200 and goes back to the corridor', () => {
   assert.ok(gc >= 14 && gc <= 17, `back in the house corridor (${gc})`);
 });
 
+test('a death with lives left respawns and keeps the dots', () => {
+  const sim = start();
+  run(sim, 320);
+  parkGhosts(sim);
+  put(sim, 'ST_FRIGHT', 0);
+  put(sim, 'ST_DOTS', 200);
+  put(sim, 'ST_LIVES', 3);
+  putGhostOnPac(sim);
+  run(sim, 2);
+  assert.equal(st(sim, 'ST_LIVES'), 2, 'one life lost');
+  assert.equal(st(sim, 'ST_STATE'), 0, 'still playing');
+  assert.deepEqual([st(sim, 'ST_PAC_C'), st(sim, 'ST_PAC_R')], [15, 17],
+                   'Pac-Man is back at the start');
+  assert.equal(st(sim, 'ST_DOTS'), 200, 'the eaten dots remain eaten');
+  assert.deepEqual([0, 1, 2, 3].map((i) => sim.memory[BLOCK + S.ST_GHOST_C + i]),
+                   [15, 15, 13, 17], 'ghosts are back in their starting cells');
+  assert.deepEqual([0, 1, 2, 3].map((i) => sim.memory[BLOCK + S.ST_GHOST_R + i]),
+                   [9, 11, 11, 11], 'Blinky outside, the rest inside');
+
+  put(sim, 'ST_PAC_WANT', 4);
+  put(sim, 'ST_PAC_TMR', 1);
+  run(sim, 20);
+  assert.ok(st(sim, 'ST_PAC_C') > 15, 'Pac-Man can move after respawning');
+});
+
+test('10,000 points awards one extra life', () => {
+  const sim = start();
+  run(sim, 320);
+  parkGhosts(sim);
+  put(sim, 'ST_LIVES', 3);
+  put(sim, 'ST_EXTRA', 0);
+  put(sim, 'ST_SC3', 9);
+  put(sim, 'ST_SC2', 9);
+  put(sim, 'ST_SC1', 9);
+  put(sim, 'ST_SC0', 0);
+  put(sim, 'ST_PAC_C', 15);
+  put(sim, 'ST_PAC_R', 17);
+  put(sim, 'ST_PAC_WANT', 3);
+  put(sim, 'ST_PAC_TMR', 1);
+  run(sim, 10);
+  assert.equal(st(sim, 'ST_DOTS'), 243);
+  assert.ok(st(sim, 'ST_SC3') >= 10, 'score crossed 10,000');
+  assert.equal(st(sim, 'ST_LIVES'), 4, 'bonus life awarded');
+  assert.equal(st(sim, 'ST_EXTRA'), 1);
+
+  put(sim, 'ST_PAC_TMR', 1);
+  run(sim, 10);
+  assert.equal(st(sim, 'ST_DOTS'), 242);
+  assert.equal(st(sim, 'ST_LIVES'), 4, 'the bonus life is only awarded once');
+});
+
 test('a collision with a ghost ends the game and Q exits early', () => {
   const sim = start();
   run(sim, 320);
   parkGhosts(sim);
   put(sim, 'ST_FRIGHT', 0);
+  put(sim, 'ST_LIVES', 1);
   putGhostOnPac(sim);
   run(sim, 2);
-  assert.equal(st(sim, 'ST_STATE'), 1, 'death state');
+  assert.equal(st(sim, 'ST_STATE'), 1, 'game-over state');
+  assert.equal(st(sim, 'ST_LIVES'), 0, 'last life lost');
   assert.equal(sim.memory[0xF1000 + 11 * 82 + 28], textTile('G'), 'banner starts at col 28');
   assert.equal(sim.memory[0xF1000 + 11 * 82 + 36], textTile('R'), 'banner ends at col 36');
   assert.equal(runToExit(sim, 20, 0x71), true, 'Q leaves the death banner');

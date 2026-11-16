@@ -50,6 +50,8 @@
 .equ ST_PAC_R     0x9A1
 .equ ST_PAC_DIR   0x9A2
 .equ ST_PAC_WANT  0x9A3
+.equ ST_LIVES     0x9A6        ; 3 at the start of a game
+.equ ST_EXTRA     0x9A7        ; 1 after the 10,000-point bonus life
 .equ ST_PAC_TMR   0x9A4
 .equ ST_SC3       0x9C6        ; thousand, hundred, ten, one digits
 .equ ST_SC2       0x9C7
@@ -201,6 +203,14 @@ pac_entry:
     MOV R2, R0
     ST R3, R2, 0
     LDI ST_STATE
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_LIVES
+    MOV R2, R0
+    LSI R3, 3
+    ST R3, R2, 0
+    LSI R3, 0
+    LDI ST_EXTRA
     MOV R2, R0
     ST R3, R2, 0
     LDI ST_FRIGHT
@@ -454,6 +464,7 @@ mz_next_row:
     NOP
 mz_done:
 
+pac_reset_actors:
     ; Pac-Man starts on the empty centre pair below the house
     LDI ST_PAC_C
     MOV R2, R0
@@ -1422,6 +1433,36 @@ pac_col_pts_done:
     NOP
 
 pac_col_dead:
+    LDI SFX_DEATH
+    MOV R1, R0
+    LDI 30
+    MOV R2, R0
+    LDI 9
+    SWI
+    LDI ST_LIVES
+    MOV R2, R0
+    LD R3, R2, 0
+    SUB R3, 1
+    ST R3, R2, 0
+    AND R3, R3
+    JZ pac_game_over
+    NOP
+    ; still have a life: clear the round's transient state and respawn
+    LSI R3, 0
+    LDI ST_FRIGHT
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_GHOST_EAT
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_PAC_MOVE
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI pac_reset_actors
+    MOV PC, R0
+    NOP
+
+pac_game_over:
     LSI R3, 1
     LDI ST_STATE
     MOV R2, R0
@@ -1431,12 +1472,6 @@ pac_col_dead:
     LDI ST_TIMER
     MOV R2, R0
     ST R3, R2, 0
-    LDI SFX_DEATH
-    MOV R1, R0
-    LDI 30
-    MOV R2, R0
-    LDI 9
-    SWI
     LSI R9, 11
     LDI 28
     MOV R10, R0
@@ -2019,6 +2054,28 @@ pac_sa_h_loop:
     NOP
 pac_sa_h_store:
     ST R3, R2, 0
+    ; one bonus life when the score reaches 10,000
+    LDI ST_SC3
+    MOV R2, R0
+    LD R3, R2, 0
+    LSI R4, 10
+    CMP R3, R4
+    JC pac_sa_no_extra
+    NOP
+    LDI ST_EXTRA
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JNZ pac_sa_no_extra
+    NOP
+    LSI R3, 1
+    ST R3, R2, 0
+    LDI ST_LIVES
+    MOV R2, R0
+    LD R3, R2, 0
+    ADD R3, 1
+    ST R3, R2, 0
+pac_sa_no_extra:
     ; redraw the score, then restore the caller's R6/R7 and return
     LDI pac_draw_score
     MOV R4, R0
