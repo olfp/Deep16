@@ -119,9 +119,9 @@ pac_entry:
     LDI ST_FRIGHT
     MOV R2, R0
     ST R3, R2, 0
-    ; HUD label "SCORE" at row 0, column 33
+    ; HUD label "SCORE" in the right margin, row 0 column 72
     LSI R9, 0
-    LDI 34
+    LDI 72
     MOV R10, R0
     LDI str_score
     MOV R8, R0
@@ -204,86 +204,12 @@ mz_wall:
     MOV PC, R0
     NOP
 mz_shape:
-    LSI R5, 0                 ; shape bits: 1 left, 2 top, 4 bottom
-    AND R6, R6
-    JZ mz_no_left
-    NOP
-    MOV R1, R6
-    SUB R1, 1
-    MOV R2, R7
-    LDI pac_mapval
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LSI R4, 1
-    CMP R0, R4
-    JZ mz_no_left
-    NOP
-    OR R5, 0
-mz_no_left:
-    LDI 31
-    MOV R4, R0
-    CMP R6, R4
-    JNC mz_no_right
-    NOP
-    MOV R1, R6
-    ADD R1, 1
-    MOV R2, R7
-    LDI pac_mapval
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LSI R4, 1
-    CMP R0, R4
-    JZ mz_no_right
-    NOP
-    OR R5, 0
-mz_no_right:
-    AND R7, R7
-    JZ mz_no_top
-    NOP
-    MOV R1, R6
-    MOV R2, R7
-    SUB R2, 1
-    LDI pac_mapval
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LSI R4, 1
-    CMP R0, R4
-    JZ mz_no_top
-    NOP
-    OR R5, 1
-mz_no_top:
-    LDI 23
-    MOV R4, R0
-    CMP R7, R4
-    JNC mz_no_bottom
-    NOP
-    MOV R1, R6
-    MOV R2, R7
-    ADD R2, 1
-    LDI pac_mapval
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LSI R4, 1
-    CMP R0, R4
-    JZ mz_no_bottom
-    NOP
-    OR R5, 2
-mz_no_bottom:
+    ; solid wall: one art tile pair for every wall cell, no per-cell outline
     LDI T_WALL_L
     MOV R4, R0
-    ADD R4, R5
     SL R4, 5
     LDI T_WALL_R
     MOV R2, R0
-    ADD R2, R5
     SL R2, 5
     LDI mz_store
     MOV PC, R0
@@ -300,15 +226,13 @@ mz_blank:
     LSI R4, 0
     LSI R2, 0
 mz_store:
-    ; R3 = (row+1)*82 + 10 + 2*column
+    ; R3 = row*82 + 8 + 2*column
     MOV R3, R7
-    ADD R3, 1
     MOV R1, R3
     SL R3, 6
     SL R1, 4
     ADD R3, R1
     MOV R1, R7
-    ADD R1, 1
     SL R1, 1
     ADD R3, R1
     ADD R3, 8
@@ -1189,7 +1113,6 @@ pac_gm_done:
 ; R8 = column, R9 = row.  Returns the tilemap offset in R3.
 pac_cell_addr:
     MOV R3, R9
-    ADD R3, 1
     MOV R4, R3
     SL R4, 6
     MOV R1, R3
@@ -1531,7 +1454,7 @@ pac_dga_write:
 pac_draw_score:
     LDI SEG_TILE
     MVS ES, R0
-    LDI 40
+    LDI 155                    ; row 1, column 73
     MOV R2, R0
     LDI ST_SC3
     MOV R7, R0
@@ -1607,6 +1530,7 @@ pac_sprite:
     LDI ST_PAC_R
     MOV R3, R0
     LD R3, R3, 0
+    SUB R3, 1                  ; maze row 0 is tilemap row 0
     MOV R5, R3
     SL R5, 4
     SUB R5, R3

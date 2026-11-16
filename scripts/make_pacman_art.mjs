@@ -253,16 +253,13 @@ function dotTile(indices, radius) {
   return split16(full);
 }
 
-// One 8x15 wall half: shape bits 1 = left outline, 2 = top outline, 4 = bottom.
+// A wall cell is a solid blue block.  Outlining each cell drew two lines
+// wherever two wall cells touch (and no line on the outer border), which the
+// 1-cell PACMAZE walls made very obvious.
 function wallHalf(shape) {
   const out = blankTile();
   const BLUE = 4;
-  for (let y = 0; y < ART_H; y++) for (let x = 0; x < ART_W; x++) {
-    const left = (shape & 1) && x < 2;
-    const top = (shape & 2) && y < 2;
-    const bottom = (shape & 4) && y >= ART_H - 2;
-    out[y][x] = (left || top || bottom) ? BLUE : 0;
-  }
+  for (let y = 0; y < ART_H; y++) for (let x = 0; x < ART_W; x++) out[y][x] = BLUE;
   return out;
 }
 
