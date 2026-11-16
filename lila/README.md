@@ -46,7 +46,8 @@ node --test tests/native-lila.test.js
 The test boots the segmented image, types the compiler in, checks the output
 against a `lua5.4` fixture, and asserts the data stack returns to depth 0.
 `lila/native/README.md` lists the supported subset, bytecode, limits and error
-codes. In short: globals, 32-bit integers, strings, `+ - *`, relationals, `..`,
+codes; `lila/LILANATIVE.md` explains the language and how the compiler works.
+In short: globals, 32-bit integers, strings, `+ - *`, relationals, `..`,
 `print`, `if`, `while` and `do`; functions, locals, tables, floats and the
 libraries are rejected with codes.
 

@@ -40,6 +40,9 @@ unary minus produces the signed negative.
 Booleans print `true`/`false`, nil prints `nil`, strings print with `type`, and
 numbers print with `0 d.r`, so the output matches Lua's `print`. Conditions
 use Lua truthiness: only nil and false are falsy, so `if 0 then` runs.
+Comparisons work on the payload cells, so `==` does not compare tags
+(`nil == false` is `true`) and string equality is descriptor equality, not
+content equality.
 
 ## Supported subset
 
@@ -108,8 +111,8 @@ in a loop eventually gets `-11`.
 | -5 | unterminated string |
 | -6 | too many global names |
 | -7 | compiled string arena full |
-| -8 | missing expression |
-| -9 | expected `(` at the start of an expression |
+| -8 | expression expected at the end of the source |
+| -9 | unexpected token where a value or `(` was expected |
 | -10 | expected `)` after a parenthesized expression |
 | -11 | concatenation arena full |
 | -12 | expected a statement |
