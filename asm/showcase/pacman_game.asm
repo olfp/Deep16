@@ -91,6 +91,9 @@
 .equ ST_PAL1      0x9B6
 .equ ST_PAL2      0x9B7
 .equ ST_PAL3      0x9DD
+.equ ST_EAT_C     0x9DE        ; cell whose pickup is processed on arrival
+.equ ST_EAT_R     0x9DF
+.equ ST_EAT_V     0x9B9        ; map value + 1, 0 = no pending pickup
 ; ---- smooth-movement state (0x9D9..0x9FF) -----------------------------
 .equ ST_PAC_FC    0x9E0        ; cell Pac-Man is leaving
 .equ ST_PAC_FR    0x9E1
@@ -224,6 +227,9 @@ pac_entry:
     MOV R2, R0
     ST R3, R2, 0
     LDI ST_FRUIT_ST
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_EAT_V
     MOV R2, R0
     ST R3, R2, 0
     ; HUD label "SCORE" in the right margin, row 0 column 65
@@ -747,6 +753,11 @@ pac_gt_next:
     LINK
     JMP R4
     NOP
+    LDI pac_eat_arrive
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     ; collisions use the interpolated sprite centres
     LDI pac_collide
     MOV R4, R0
@@ -973,7 +984,72 @@ pac_move_apply:
     MOV R8, R1
     MOV R9, R2
 
-    ; anything to eat?
+    ; remember the target cell's pickup until the sprite reaches it
+    MOV R1, R8
+    MOV R2, R9
+    LDI pac_mapval
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    ADD R0, 1
+    MOV R6, R0
+    LDI ST_EAT_V
+    MOV R2, R0
+    ST R6, R2, 0
+    LDI ST_EAT_C
+    MOV R2, R0
+    ST R8, R2, 0
+    LDI ST_EAT_R
+    MOV R2, R0
+    ST R9, R2, 0
+    LDI pac_sprite_now
+    MOV PC, R0
+    NOP
+
+; Process the pickup in the cell Pac-Man has just reached.
+pac_eat_arrive:
+    LDI ST_LR_COL
+    MOV R2, R0
+    ST LR, R2, 0
+    LDI ST_EAT_V
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_ea_done
+    NOP
+    LDI ST_PAC_OFF
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI ST_PAC_DIR
+    MOV R2, R0
+    LD R7, R2, 0
+    LSI R4, 2
+    CMP R7, R4
+    JNC pac_ea_dist_h
+    NOP
+    LDI 240
+    MOV R6, R0
+    LDI pac_ea_dist_cmp
+    MOV PC, R0
+    NOP
+pac_ea_dist_h:
+    LDI 256
+    MOV R6, R0
+pac_ea_dist_cmp:
+    CMP R3, R6
+    JC pac_ea_done
+    NOP
+    LDI ST_EAT_V
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI ST_PAC_C
+    MOV R2, R0
+    LD R8, R2, 0
+    LDI ST_PAC_R
+    MOV R2, R0
+    LD R9, R2, 0
     MOV R1, R8
     MOV R2, R9
     LDI pac_mapval
@@ -983,9 +1059,8 @@ pac_move_apply:
     NOP
     LSI R3, 2
     CMP R0, R3
-    JC pac_move_done           ; 0 empty or 1 wall
+    JC pac_ea_fruit
     NOP
-    ; value 2 (dot) or 3 (pellet): clear it in the RAM map
     MOV R6, R0                 ; keep the value for the score
     LDI pac_map_clear
     MOV R4, R0
@@ -1127,25 +1202,25 @@ pac_after_fruit:
     AND R3, R3
     JZ pac_win
     NOP
-pac_move_done:
+pac_ea_fruit:
     ; cherries under the house
     LDI ST_PAC_C
     MOV R2, R0
     LD R3, R2, 0
     CMP R3, 15
-    JNZ pac_no_fruit
+    JNZ pac_ea_done
     NOP
     LDI ST_PAC_R
     MOV R2, R0
     LD R3, R2, 0
     CMP R3, 13
-    JNZ pac_no_fruit
+    JNZ pac_ea_done
     NOP
     LDI ST_FRUIT_ST
     MOV R2, R0
     LD R3, R2, 0
     AND R3, R3
-    JZ pac_no_fruit
+    JZ pac_ea_done
     NOP
     LDI pac_score_add
     MOV R4, R0
@@ -1168,15 +1243,11 @@ pac_move_done:
     LINK
     JMP R4
     NOP
-pac_no_fruit:
-    ; check the cell Pac-Man just entered as well as the ghost ticks
-    LDI pac_collide
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI pac_sprite_now
-    MOV PC, R0
+pac_ea_done:
+    LDI ST_LR_COL
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
     NOP
 
 pac_win:

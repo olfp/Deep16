@@ -31,7 +31,7 @@ export const MENU_LIMIT = 0x5E0;              // menu may use 0x500..0x5DF
 export const PACMAN_SEG = 0x0433;             // physical 0x4330
 export const PACMAN_SEG_BASE = 0x4330;
 export const PACMAN_LIMIT = 0x2000;           // slice data below runtime sprite packs
-export const PACMAN_CODE_LIMIT = 0x900;       // code and strings before the map
+export const PACMAN_CODE_LIMIT = 0x9A0;       // code and strings before the state
 export const FROGGER_SEG = 0x0435;             // physical 0x4350
 export const FROGGER_SEG_BASE = 0x4350;
 export const FROGGER_LIMIT = 0x6B0;            // block must end before the BIOS at 0x4A00
@@ -109,8 +109,8 @@ export function buildPacman() {
   }
   words.sort((a, b) => a[0] - b[0]);
   const pack = pacmanArtPack();
-  if (ART_PACK_OFFSET + pack.length > 0x14A8) {
-    throw new Error(`pacman tile pack ends at 0x${(ART_PACK_OFFSET + pack.length).toString(16)}, past the sprite tables`);
+  if (ART_PACK_OFFSET + pack.length > 0x1340) {
+    throw new Error(`pacman tile pack ends at 0x${(ART_PACK_OFFSET + pack.length).toString(16)}, past the maze`);
   }
   const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
   return withArtPack({
@@ -128,7 +128,7 @@ export function checkPacman(pacman) {
   if ((pacman.codeMax ?? pacman.max) >= PACMAN_LIMIT)
     fail.push(`pacman block reaches 0x${(pacman.codeMax ?? pacman.max).toString(16)}`);
   const at = (a) => pacman.words.find((w) => w[0] === a)?.[1];
-  if (at(0x900) === undefined) fail.push('maze map missing at 0x900');
+  if (at(0x1340) === undefined) fail.push('maze map missing at 0x1340');
   if (pacman.words.some(([a]) => a >= 0x9A0 && a < 0xA00))
     fail.push('pacman writes into the game state cells');
   if (fail.length) throw new Error('pacman block is not valid:\n  - ' + fail.join('\n  - '));

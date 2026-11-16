@@ -38,8 +38,8 @@ export const PAC_W = 32;
 export const PAC_H = 24;
 export const PAC_ROW_WORDS = 4;
 export const PAC_MAP_WORDS = PAC_ROW_WORDS * PAC_H;
-export const PAC_MAP_ORG = 0x900;
-export const PAC_AUX_ORG = 0x968;
+export const PAC_MAP_ORG = 0x1340;
+export const PAC_AUX_ORG = 0x13A8;
 export const PAC_MAP_FILE = 'asm/showcase/pacman_map.asm';
 
 export const PAC_CELL_W = 2;        // tilemap cells per logical column
@@ -505,7 +505,7 @@ export function pacmanMapAsm() {
   lines.push('');
   lines.push('; Direction deltas, indexed by 1 up, 2 down, 3 left, 4 right.');
   lines.push('; dir 0 is unused; dir_rev maps a direction to its opposite.');
-  lines.push('.org 0x968');
+  lines.push('.org 0x13A8');
   lines.push('pac_dc:');
   lines.push('    .word 0, 0, 0, -1, 1');
   lines.push('pac_dr:');
@@ -514,12 +514,12 @@ export function pacmanMapAsm() {
   lines.push('    .word 0, 2, 1, 4, 3');
   lines.push('');
   lines.push('; Ghost-eat points in hundreds: 200, 400, 800, 1600.');
-  lines.push('.org 0x978');
+  lines.push('.org 0x13B8');
   lines.push('pac_ghost_pts:');
   lines.push('    .word 2, 4, 8, 16');
   lines.push('');
   lines.push('; Palette entries for set 1: (offset from 0xF600, value).');
-  lines.push('.org 0x980');
+  lines.push('.org 0x13C0');
   lines.push('pac_pal:');
   lines.push(`    .word ${String(PAC_PALETTE.length)}`);
   for (const [off, value] of PAC_PALETTE) lines.push(`    .word ${hex(off)}, ${hex(value)}`);

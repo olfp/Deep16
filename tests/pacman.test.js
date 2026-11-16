@@ -41,14 +41,14 @@ test('the maze packs 32x24 cells and 244 pickups', () => {
 });
 
 test('the block keeps code below the map and data below the runtime packs', () => {
-  assert.ok(pacman.codeEnd <= 0x900, `code ends at 0x${pacman.codeEnd.toString(16)}`);
+  assert.ok(pacman.codeEnd <= 0x9A0, `code ends at 0x${pacman.codeEnd.toString(16)}`);
   assert.ok(pacman.codeMax < PACMAN_LIMIT);
   const at = (a) => pacman.words.find((w) => w[0] === a)?.[1];
-  assert.equal(at(0x900) !== undefined, true, 'map starts at 0x900');
+  assert.equal(at(0x1340) !== undefined, true, 'map starts at 0x1340');
   assert.equal(pacman.words.some(([a]) => a >= 0x9A0 && a < 0xA00), false, 'state cells stay unwritten');
   assert.ok(pacman.codeMax < 0x2000, 'code and data stay below the slice end');
-  assert.ok(pacman.packOffset + pacman.packTiles * 33 + 2 <= 0x14A8,
-            'tile pack ends before the sprite tables');
+  assert.ok(pacman.packOffset + pacman.packTiles * 33 + 2 <= 0x1340,
+            'tile pack ends before the maze');
 });
 
 test('the art pack carries cherries and the ghost sprites carry four colours', () => {
@@ -203,9 +203,9 @@ test('Pac-Man slows down after eating a dot', () => {
   put(sim, 'ST_PAC_WANT', 3);
   put(sim, 'ST_PAC_TMR', 1);
   parkGhosts(sim);
-  run(sim, 1);
-  assert.equal(st(sim, 'ST_DOTS'), 174, 'the left arrow ate the dot');
-  assert.ok(st(sim, 'ST_PAC_TMR') >= 9, `dot delay adds a frame (${st(sim, 'ST_PAC_TMR')})`);
+  run(sim, 9);
+  assert.equal(st(sim, 'ST_DOTS'), 174, 'the left arrow ate the dot on arrival');
+  assert.ok(st(sim, 'ST_PAC_TMR') >= 1, `dot delay leaves a one-frame pause (${st(sim, 'ST_PAC_TMR')})`);
 });
 
 test('the six runtime sprite frames are copied into the sprite bank', () => {
@@ -343,7 +343,7 @@ test('cherries appear after 70 dots and are worth 100', () => {
   put(sim, 'ST_PAC_R', 17);
   put(sim, 'ST_PAC_WANT', 3);
   put(sim, 'ST_PAC_TMR', 1);
-  run(sim, 6);
+  run(sim, 10);
   assert.equal(st(sim, 'ST_FRUIT_N'), 1, 'the first cherry triggered');
   assert.ok(st(sim, 'ST_FRUIT_T') > 500, 'it stays on screen for about ten seconds');
   assert.equal(tileAt(sim, 13, 30), T_FRUIT_L, 'left cherry tile');
