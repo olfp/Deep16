@@ -19,6 +19,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { ART_PACK_OFFSET, flappyArtPack, pacmanArtPack, froggerArtPack } from './make_tile_font.mjs';
+import { assemblePoleBoard } from './pole_program.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SHOWCASE_MAGIC = 0x0D16;
@@ -36,6 +37,8 @@ export const FROGGER_SEG = 0x0435;             // physical 0x4350
 export const FROGGER_SEG_BASE = 0x4350;
 export const FROGGER_LIMIT = 0x6B0;            // block must end before the BIOS at 0x4A00
 export const GAME_LIMIT = 0x0E00;             // game may use 0xA00..0xDFF
+export const POLE_SEG = 0x7000;                // physical 0x70000 (free segment)
+export const POLE_LIMIT = 0x1000;              // the slice payload is one 4K page
 
 export const STATE_BASE = 0x4D5;              // game state cells
 export const RESTORE_BASE = 0x500;            // menu code starts here
@@ -195,6 +198,56 @@ export function checkFrogger(frogger) {
   const at = (a) => frogger.words.find((w) => w[0] === a)?.[1];
   if (at(0x300) === undefined) fail.push('frogger state missing at 0x300');
   if (fail.length) throw new Error('frogger block is not valid:\n  - ' + fail.join('\n  - '));
+  return true;
+}
+
+// The Pole road renderer is a type-4 slice loaded at segment 0x7000. It
+// carries the renderer, the shared state handling and the on-board timing
+// harness, so the board can measure the renderer with its own clocks.
+//
+// The slice has no tile pack: the harness only writes the report line into
+// the tilemap, and that uses the console's text font, which the bitstream
+// already carries.
+export function buildPole() {
+  const res = assemblePoleBoard();
+  const words = [];
+  let max = 0;
+  for (const c of res.memoryChanges) {
+    if (c.address < 0 || c.address >= POLE_LIMIT) {
+      throw new Error(`pole address out of range: 0x${c.address.toString(16)}`);
+    }
+    words.push([c.address, c.value & 0xFFFF]);
+    max = Math.max(max, c.address);
+  }
+  words.sort((a, b) => a[0] - b[0]);
+  const build = crypto.createHash('sha256')
+    .update(fs.readFileSync(path.join(ROOT, 'asm/pole/pole_tables.asm'), 'utf8') +
+            fs.readFileSync(path.join(ROOT, 'asm/pole/pole_render.asm'), 'utf8') +
+            fs.readFileSync(path.join(ROOT, 'asm/pole/pole_state.asm'), 'utf8') +
+            fs.readFileSync(path.join(ROOT, 'asm/pole/pole_board.asm'), 'utf8'))
+    .digest('hex').slice(0, 16);
+  return {
+    words, min: words[0]?.[0] ?? 0, max, size: max + 1, build,
+    entry: 0, seg: POLE_SEG, symbols: res.symbols,
+  };
+}
+
+export function checkPole(pole) {
+  const fail = [];
+  if (pole.words[0]?.[0] !== 0) fail.push('pole block does not start at offset 0');
+  if (pole.max >= POLE_LIMIT) fail.push(`pole block reaches 0x${pole.max.toString(16)}`);
+  // A type-4 slice carries five header words and 2040 payload words.
+  if (pole.max + 1 + 5 > 2040) fail.push(`pole block is ${pole.max + 1} words, past one slice`);
+  // The harness's own cells start at 0x0520; the renderer's scratch cells
+  // (0x04DC..0x04EC) and the band descriptors (0x04F0..0x051F) are off limits.
+  for (const [a] of pole.words) {
+    if (a >= 0x04DC && a < 0x0520) {
+      fail.push(`write into the renderer's scratch at 0x${a.toString(16)}`);
+      break;
+    }
+  }
+  if (pole.symbols.pole_render !== 0x01A0) fail.push('the renderer moved');
+  if (fail.length) throw new Error('pole block is not valid:\n  - ' + fail.join('\n  - '));
   return true;
 }
 

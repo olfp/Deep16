@@ -178,6 +178,7 @@ far-jumps to the segment the slice names with `R10`/`R11` as the return pair.
 | Pac-Man | 11–13 | `0x2000` |
 | Flappy | 14–16 | `0x5000` |
 | Frogger | 17–20 | `0x0600` |
+| Pole (road renderer benchmark) | 30 | `0x7000` |
 
 Each of those blocks carries its tile art at segment offset `0x1000` (magic
 `0x0A57`, tile count, then index + 32 words); the menu copies it into the tile
@@ -587,12 +588,14 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x20D000`–`0x20EFFF` | slices 13–14: `audio.fth` (μ-law player) |
 | `0x20F000`–`0x210FFF` | slices 15–16: `games.fth` (the flash game loader) |
 | `0x211000`–`0x213FFF` | slices 17–19: `sd.fth` (loaded with `s" sd-card" need`) |
-| `0x214000`–`0x216FFF` | slices 20–22: Pac-Man (4890 words incl. its tile pack, segment `0x2000`) |
+| `0x214000`–`0x216FFF` | slices 20–22: Pac-Man (4956 words incl. its tile pack, segment `0x2000`) |
 | `0x217000`–`0x219FFF` | slices 23–25: Flappy (4560 words incl. pack, segment `0x5000`) |
 | `0x21A000`–`0x21DFFF` | slices 26–29: Frogger (6276 words incl. pack, segment `0x0600`) |
-| `0x21E000` | slice 30: `hello.fth` |
-| `0x21F000` | slice 31: `ping` μ-law sample |
-| `0x220000`–`0x225FFF` | slices 32–37: `swoosh` 2-second μ-law sample (linked) |
+| `0x21E000` | slice 30: Pole road renderer and its on-board timing harness (2003 words, segment `0x7000`) |
+| `0x21F000` | slice 31: `hello.fth` |
+| `0x220000` | slice 32: `ping` μ-law sample |
+| `0x221000`–`0x226FFF` | slices 33–38: `swoosh` 2-second μ-law sample (linked) |
+| `0x227000`–`0x22DFFF` | slices 39–46: `lila` (the on-device LILA compiler) |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and

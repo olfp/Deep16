@@ -1,13 +1,14 @@
-// The type-4 binary slice: Pac-Man, Flappy and Frogger stored in config flash
-// instead of being baked into the image. Payload cell 0 is the magic, then
-// version, entry offset and word count, then the block words (which include
-// the tile pack at 0x1000). A block may span linked continuation slices.
+// The type-4 binary slice: Pac-Man, Flappy, Frogger and the Pole road
+// renderer benchmark stored in config flash instead of being baked into the
+// image. Payload cell 0 is the magic, then version, entry offset and word
+// count, then the block words (which include the tile pack at 0x1000). A
+// block may span linked continuation slices.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildSlices, SLICE_WORDS, SLICE_PAYLOAD, TYPES, BINARY_MAGIC, BINARY_VERSION,
 } from '../scripts/make_slices.mjs';
-import { buildPacman } from '../scripts/make_showcase.mjs';
+import { buildPacman, buildPole } from '../scripts/make_showcase.mjs';
 
 function payloadWord(words, first, i) {
   const n = Math.floor(i / SLICE_PAYLOAD);
@@ -34,6 +35,28 @@ test('the pacman block is a valid binary slice', () => {
   }
 });
 
+test('the pole block is a valid binary slice', () => {
+  const { words, manifest } = buildSlices();
+  const man = manifest.objects.pole;
+  assert.ok(man, 'the directory lists pole');
+  assert.ok(man.count >= 1, 'at least one slice');
+  const base = man.first * SLICE_WORDS;
+  assert.equal(words[base] & 0xff, TYPES.BINARY, 'slice type is binary');
+  assert.equal(words[base + 8], BINARY_MAGIC, 'payload magic');
+  assert.equal(words[base + 9], BINARY_VERSION, 'payload version');
+  assert.equal(words[base + 10], 0, 'entry offset');
+  assert.equal(words[base + 11], man.words, 'word count matches the manifest');
+  assert.equal(words[base + 12], 0x7000, 'load segment');
+  const pole = buildPole();
+  assert.equal(man.words, pole.max + 1);
+  // The harness is one slice, so the loader copies it in one go.
+  assert.equal(man.count, 1, 'the pole harness fits one slice');
+  for (const [addr, value] of pole.words) {
+    assert.equal(payloadWord(words, man.first, 5 + addr), value,
+                 `word 0x${addr.toString(16)}`);
+  }
+});
+
 test('the directory lists the apps and their flags', () => {
   const { words } = buildSlices();
   const dir = words.slice(0, SLICE_WORDS);
@@ -49,7 +72,7 @@ test('the directory lists the apps and their flags', () => {
     entries.push({ type, flags: (dir[8 + i * 8] >> 8) & 0xf, name: name.join('') });
   }
   const apps = entries.filter((e) => e.flags === 1).map((e) => e.name);
-  assert.deepEqual(apps.sort(), ['flappy', 'frogger', 'pacman']);
+  assert.deepEqual(apps.sort(), ['flappy', 'frogger', 'pacman', 'pole']);
   assert.ok(entries.some((e) => e.name === 'games' && e.type === TYPES.TEXT));
   assert.equal(entries.some((e) => e.name === 'ps2host'), false, 'the sender lives in the BIOS');
 });

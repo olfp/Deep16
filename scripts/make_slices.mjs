@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPacman, buildFlappy, buildFrogger } from './make_showcase.mjs';
+import { buildPacman, buildFlappy, buildFrogger, buildPole } from './make_showcase.mjs';
 import { buildSamples } from './make_samples.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -187,7 +187,12 @@ export function buildSlices() {
   const frogger = buildFrogger();
   const froggerFirst = flappyFirst + flappySlices.length;
   const froggerSlices = binarySlices(frogger.words, froggerFirst, 'frogger', 0, 0x0600, 1);
-  const helloFirst = froggerFirst + froggerSlices.length;
+  // The Pole road renderer and its on-board timing harness. It is loaded into
+  // segment 0x7000, which is free in the D16D segment map.
+  const pole = buildPole();
+  const poleFirst = froggerFirst + froggerSlices.length;
+  const poleSlices = binarySlices(pole.words, poleFirst, 'pole', 0, pole.seg, 1);
+  const helloFirst = poleFirst + poleSlices.length;
   const helloSlices = sourceSlices(hello, helloFirst, 'hello');
   const samples = buildSamples();
   const ping = samples.ping;
@@ -211,13 +216,14 @@ export function buildSlices() {
     entry({ type: TYPES.BINARY, flags: 1, first: pacFirst, name: 'pacman' }),
     entry({ type: TYPES.BINARY, flags: 1, first: flappyFirst, name: 'flappy' }),
     entry({ type: TYPES.BINARY, flags: 1, first: froggerFirst, name: 'frogger' }),
+    entry({ type: TYPES.BINARY, flags: 1, first: poleFirst, name: 'pole' }),
     entry({ type: TYPES.TEXT, first: helloFirst, name: 'hello' }),
     entry({ type: TYPES.ULAW, flags: ping.rate, first: pingFirst, name: ping.name }),
     entry({ type: TYPES.ULAW, flags: swoosh.rate, first: swooshFirst, name: swoosh.name }),
     entry({ type: TYPES.TEXT, first: lilaFirst, name: 'lila' }),
   ]), ...startSlices, ...essSlices, ...editSlices, ...gfxSlices, ...audioSlices, ...gameSlices,
-     ...sdSlices, ...pacSlices, ...flappySlices, ...froggerSlices, ...helloSlices,
-     ...pingSlices, ...swooshSlices, ...lilaSlices];
+     ...sdSlices, ...pacSlices, ...flappySlices, ...froggerSlices, ...poleSlices,
+     ...helloSlices, ...pingSlices, ...swooshSlices, ...lilaSlices];
   const words = new Uint16Array(slices.length * SLICE_WORDS);
   slices.forEach((w, i) => words.set(w, i * SLICE_WORDS));
   const bytes = Buffer.alloc(slices.length * SLICE_BYTES, 0xff);
@@ -239,6 +245,8 @@ export function buildSlices() {
       pacman: { first: pacFirst, count: pacSlices.length, words: pac.max + 1 },
       flappy: { first: flappyFirst, count: flappySlices.length, words: flappy.max + 1 },
       frogger: { first: froggerFirst, count: froggerSlices.length, words: frogger.max + 1 },
+      pole: { first: poleFirst, count: poleSlices.length, words: pole.max + 1,
+              segment: `0x${pole.seg.toString(16)}` },
       hello: { first: helloFirst, count: helloSlices.length, chars: hello.length },
       ping: { first: pingFirst, count: pingSlices.length, samples: ping.bytes.length,
               rate: ping.rate },

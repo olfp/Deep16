@@ -1323,7 +1323,10 @@ class Deep16Simulator {
             } else if (this.d16nano && physicalAddress === 0xF0022) {
                 // The 32-bit millisecond timer's low half. One step is one CPU
                 // clock here, and the board timer divides 6.75 MHz by 6750.
-                this.writeGPR(rd, Math.floor(this.cycleCount / 6750) & 0xFFFF);
+                this.writeGPR(rd, this.msTimer() & 0xFFFF);
+            } else if (this.d16nano && physicalAddress === 0xF0024) {
+                // The timer's high half.
+                this.writeGPR(rd, (this.msTimer() >>> 16) & 0xFFFF);
             } else if (this.d16nano && physicalAddress === 0xF0068) {
                 this.writeGPR(rd, this.cycleCount & 0xFFFF);
             } else if (this.d16nano && physicalAddress === 0xF006A) {
@@ -1651,6 +1654,13 @@ class Deep16Simulator {
             default:
                 break;
         }
+    }
+
+    // The board's 32-bit millisecond timer: 6750 CPU clocks to a millisecond
+    // at 6.75 MHz, so it counts the same milliseconds the RTL timer does. A
+    // test may replace this method to place the timer near its wrap.
+    msTimer() {
+        return Math.floor(this.cycleCount / 6750) >>> 0;
     }
 
     // Status word: b0 RX-ready, b1 TX-ready, b2 RX-overrun, b3 TX-idle. This

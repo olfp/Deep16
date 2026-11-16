@@ -45,6 +45,7 @@ obj_dvi_tile/
 obj_ps2/
 obj_sic/
 obj_core3_irq/
+obj_core3_pole_bench/
 obj_flash_boot/
 obj_boot_spi/
 obj_timer/
