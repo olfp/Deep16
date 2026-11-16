@@ -39,11 +39,15 @@ machine state into the newly selected core, so the assembled program and the
 register contents survive the change. The choice is remembered in
 `localStorage`.
 
-The same menu cycles the console between **Screen** (the `0xF1000` text buffer),
-**Terminal** (the UART view) and **Tiles** (the D16nano FiT engine). Tiles mode
-builds the nano kernel, loads graphics from the simulated config flash, and
-renders a 640x360 canvas. Choose the **D16D Showcase (tiles)** example for the
-menu and Flappy.
+The front end shows the **Tiles** screen only: the D16nano FiT engine renders a
+640x360 canvas. The build is the nano kernel (with `CONSOLE_UART`, `D16NANO` and
+`D16SEG`), graphics come from the simulated config flash, and keystrokes go
+into the PS/2 keyboard FIFO — the same route as on the board. Choose the **D16D
+Showcase (tiles)** example for the menu and Flappy. The old **Screen** (the
+`0xF1000` text buffer) and **Terminal** (the UART view) front ends are gone from
+the IDE; their code is kept in `archive/frontend-serial-text/`. The kernel's
+UART build itself (`asm/forth.asm` with `CONSOLE_UART`) is untouched and still
+covered by the `uart-*` tests.
 
 The same renderer runs headlessly:
 
@@ -89,7 +93,6 @@ Coverage, by file:
 | `examples.test.js` | every program in `asm/` |
 | `forth.test.js` | the Forth kernel, including the keyboard port |
 | `wasm-state.test.js` | WASM core state round trips |
-| `terminal.test.js` | the serial terminal model (CR/LF/BS, `ESC[2J`, scroll, wrap) |
 | `uart.test.js` | the JS core's UART port (`0xF0040`/`0xF0042`) |
 | `uart-kernel.test.js` | the serial kernel end to end on the JS core |
 | `rtl-uart.test.js` | the same kernel on the RTL core, stepped **and** in free-run |
@@ -98,7 +101,6 @@ Coverage, by file:
 | **`rtl.test.js`** | **three-way parity, decode sweep, the pipeline** |
 | **`fuzz.test.js`** | **random *programs* against all three cores** |
 | `ui-core.test.js`, `ui-stats.test.js` | the IDE's core selection and counter line |
-| `ui-terminal.test.js` | the Screen tab's screen/terminal switch and input routing |
 | `tile-engine.test.js` | the FiT engine: tilemap, text/art, sprites, palettes, scroll, latch |
 | `tile-store-hook.test.js` | video-window stores routed to the engine |
 | `tile-clock.test.js`, `ui-tiles.test.js` | `0xF0066` status, 60 Hz clock, Tiles mode/canvas |

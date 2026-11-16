@@ -44,6 +44,22 @@ export function assemble(source, options) {
   return new Deep16Assembler().assemble(source, options);
 }
 
+// The serial terminal model - the host-side decoder for the UART byte stream.
+// It was the IDE's serial screen and was archived together with the rest of the
+// serial/text front-end (archive/frontend-serial-text/), but the kernel's UART
+// build (asm/forth.asm with CONSOLE_UART) is still live and its tests need a
+// terminal to turn the TX bytes back into a grid. The archive keeps the one
+// implementation, so nothing has to be copied here.
+let serialTerminal = null;
+
+export function loadSerialTerminal() {
+  if (serialTerminal) return serialTerminal;
+  const file = path.join(ROOT, 'archive', 'frontend-serial-text', 'js', 'deep16_terminal.js');
+  vm.runInThisContext(fs.readFileSync(file, 'utf8'), { filename: file });
+  serialTerminal = vm.runInThisContext('SerialTerminal');
+  return serialTerminal;
+}
+
 // Run the peephole optimizer over source text. The result keeps labels
 // symbolic, so it feeds straight back into assemble().
 export function optimize(source, options = {}) {

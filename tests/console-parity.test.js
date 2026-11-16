@@ -8,16 +8,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import vm from 'node:vm';
 import path from 'node:path';
 import {
-  assemble, buildMemory, loadBrowserScripts, loadRtl, loadWasm, ROOT, MEM_WORDS,
+  assemble, buildMemory, loadBrowserScripts, loadRtl, loadSerialTerminal, loadWasm, ROOT, MEM_WORDS,
 } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
-vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', 'deep16_terminal.js'), 'utf8'),
-                    { filename: 'deep16_terminal.js' });
-const SerialTerminal = vm.runInThisContext('SerialTerminal');
+const SerialTerminal = loadSerialTerminal();
 
 const uart = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'),
                       { defines: { CONSOLE_UART: 1 } });

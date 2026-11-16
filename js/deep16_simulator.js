@@ -339,9 +339,11 @@ class Deep16Simulator {
 
         // UART console (D16MINI.md §5): status, data, divisor, control in the
         // I/O segment, the same shape as the keyboard port. The machine emits a
-        // byte by storing to UART_DATA and reads one by loading UART_DATA; the
-        // IDE drains uartTx into the SerialTerminal and pushes host input into
-        // uartRx. Bytes are 8 bit - the console is a byte pipe.
+        // byte by storing to UART_DATA and reads one by loading UART_DATA; a
+        // host drains uartTx and pushes host input into uartRx. Bytes are 8 bit
+        // - the console is a byte pipe. The IDE front end is tiles-only now, so
+        // the serial console lives in the kernel and its tests; the UART paths
+        // stay here because the CONSOLE_UART kernel build still needs them.
         this.UART_STATUS_ADDR = this.ioBase + 0x0040;
         this.UART_DATA_ADDR   = this.ioBase + 0x0042;
         this.UART_DIV_ADDR    = this.ioBase + 0x0044;
@@ -1576,9 +1578,10 @@ class Deep16Simulator {
     }
 
     // --- UART console (D16MINI.md §5) ---------------------------------------
-    // The mirror of the keyboard hooks above, for the serial console build. The
-    // IDE drains uartTx into the SerialTerminal and pushes host input into
-    // uartRx; a program talks to the port with LDS/STS at 0xF0040/0xF0042.
+    // The mirror of the keyboard hooks above, for the serial console build. A
+    // host drains uartTx and pushes host input into uartRx; a program talks to
+    // the port with LDS/STS at 0xF0040/0xF0042. The IDE does not use this any
+    // more (the front end is tiles-only), but the kernel's UART build does.
 
     // --- SIC (0xF00B0) ----------------------------------------------------
     // The same register map as rtl/deep16_sic.sv: PENDING is W1C, ENABLE masks

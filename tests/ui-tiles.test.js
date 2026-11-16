@@ -1,5 +1,4 @@
-// Tiles console mode and the 640x360 canvas. The class constructor is DOM-heavy,
-// so this test supplies a small fake document with one real canvas context.
+// Tiles-only front-end: FiT 640x360 canvas and tile build defines.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -55,8 +54,6 @@ function makeCanvas() {
 const els = {
   'console-mode-btn': fakeEl('console-mode-btn'),
   'screen-display': fakeEl('screen-display'),
-  'screen-pager': fakeEl('screen-pager'),
-  'screen-palette': fakeEl('screen-palette'),
 };
 const infoFull = fakeEl('info-full');
 const infoShort = fakeEl('info-short');
@@ -83,7 +80,7 @@ globalThis.document = {
   },
 };
 
-for (const f of ['js/deep16_terminal.js', 'js/deep16_simulator.js',
+for (const f of ['js/deep16_simulator.js',
                  'js/deep16_flash_assets.js', 'js/deep16_gfx_loader.js',
                  'js/deep16_tile_engine.js', 'js/deep16_ui_screen.js',
                  'js/deep16_ui_core.js']) {
@@ -105,7 +102,7 @@ function makeUi() {
   ui.rtlInitialized = false;
   ui.wasmDirtyStart = null;
   ui.wasmDirtyEnd = null;
-  ui.consoleView = 'screen';
+  ui.consoleView = 'tiles';
   ui.tileBuild = null;
   ui.tileClock = null;
   ui.tileFrame = 0;
@@ -125,34 +122,27 @@ function makeUi() {
   return ui;
 }
 
-test('tile mode updates the button, the view and the build defines', () => {
+test('front-end is tiles-only with tile build defines', () => {
   const ui = makeUi();
-  ui.setConsoleMode('tiles');
   assert.equal(ui.consoleMode(), 'tiles');
   assert.equal(ui.screenUI.mode, 'tiles');
-  assert.equal(els['console-mode-btn'].textContent, 'Tiles');
   assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1,
                                            CONSOLE_MIRROR: 1 });
   assert.ok(els['screen-display'].classList.contains('tile-view'));
   assert.ok(canvas.classList.contains('visible'));
-  assert.equal(els['screen-pager'].style.display, 'none');
-  assert.match(infoFull.textContent, /FiT 640/);
 });
 
 test('tile mode with the D16D example adds the showcase define', () => {
   const ui = makeUi();
   ui.tileBuild = 'd16d';
-  ui.setConsoleMode('tiles');
   assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1,
                                            CONSOLE_MIRROR: 1, D16D: 1 });
 });
 
 test('the canvas paints the engine buffer', () => {
   const ui = makeUi();
-  ui.setConsoleMode('tiles');
   const engine = ui.tileEngine;
 
-  // A solid art tile at the top-left, with a red art-palette entry.
   for (let i = 0; i < 32; i++) engine.write(0xF3000 + 96 * 32 + i, 0x1111);
   engine.write(0xF6091, 0xE0);
   engine.write(0xF1000, 96 * 32);
@@ -163,33 +153,8 @@ test('the canvas paints the engine buffer', () => {
   assert.deepEqual(Array.from(canvas.image.data.slice(0, 4)), [255, 0, 0, 255]);
 });
 
-test('switching away hides the canvas and restores the text view', () => {
-  const ui = makeUi();
-  ui.setConsoleMode('tiles');
-  ui.setConsoleMode('screen');
-  assert.equal(ui.consoleMode(), 'screen');
-  assert.equal(ui.screenUI.mode, 'screen');
-  assert.equal(els['console-mode-btn'].textContent, 'Screen');
-  assert.ok(!els['screen-display'].classList.contains('tile-view'));
-  assert.ok(!canvas.classList.contains('visible'));
-  assert.equal(els['screen-pager'].style.display, '');
-  assert.deepEqual(ui.assembleDefines(), {});
-});
-
-test('the console button cycles screen -> terminal -> tiles -> screen', () => {
-  const ui = makeUi();
-  assert.equal(ui.consoleMode(), 'screen');
-  ui.toggleConsoleMode();
-  assert.equal(ui.consoleMode(), 'terminal');
-  ui.toggleConsoleMode();
-  assert.equal(ui.consoleMode(), 'tiles');
-  ui.toggleConsoleMode();
-  assert.equal(ui.consoleMode(), 'screen');
-});
-
 test('loadTileAssets fills the engine and the JS memory from flash', () => {
   const ui = makeUi();
-  ui.setConsoleMode('tiles');
   assert.equal(ui.loadTileAssets(), true);
   assert.equal(ui.tileEngine.tileBank[0], 0);
   assert.ok(ui.tileEngine.tileBank.some((w) => w !== 0), 'font/art words loaded');
@@ -200,7 +165,6 @@ test('loadTileAssets fills the engine and the JS memory from flash', () => {
 
 test('the tile clock composes 0xF0066 and ticks the engine', () => {
   const ui = makeUi();
-  ui.setConsoleMode('tiles');
   ui.simulator.running = true;
   ui.simulator.enqueueKeyCode(65);
   ui.tileS2 = true;
@@ -208,8 +172,6 @@ test('the tile clock composes 0xF0066 and ticks the engine', () => {
   ui.tickTileFrame();
   assert.equal(ui.tileFrame, 1);
   assert.equal(ui.simulator.tileStatus & 0x2, 0x2, 'frame toggle');
-  // The PS/2 keyboard is the keyboard FIFO now; 0xF0066 bit 3 is the separate
-  // serial UART, so a key must not set it.
   assert.equal(ui.simulator.tileStatus & 0x8, 0, 'UART ready stays clear');
   assert.equal(ui.simulator.kbdAvailable(), 1, 'the key is in the keyboard FIFO');
   assert.equal(ui.simulator.tileStatus & 0x4, 0x4, 'S2');
@@ -218,7 +180,6 @@ test('the tile clock composes 0xF0066 and ticks the engine', () => {
 
 test('the tile clock starts and stops without leaking a timer', () => {
   const ui = makeUi();
-  ui.setConsoleMode('tiles');
   ui.startTileClock();
   assert.ok(ui.tileClock, 'clock created');
   ui.stopTileClock();
@@ -227,14 +188,11 @@ test('the tile clock starts and stops without leaking a timer', () => {
 
 test('tile mode uses the larger instruction budget', () => {
   const ui = makeUi();
-  assert.equal(ui.instructionsPerTick(), 200);
-  ui.setConsoleMode('tiles');
   assert.equal(ui.instructionsPerTick(), 6000);
 });
 
 test('tile-mode stores skip the text-cell renderer', () => {
   const ui = makeUi();
-  ui.setConsoleMode('tiles');
   let textWrites = 0;
   ui.screenUI.handleScreenMemoryWrite = () => { textWrites++; };
   ui.simulator.checkScreenUpdate(0xF1000, 0x8000);

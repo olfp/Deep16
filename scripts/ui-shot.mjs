@@ -41,24 +41,39 @@ const OUT = path.resolve(ROOT, String(argValue('--out', 'artifacts/ui-shots')));
 // --------------------------------------------------------------------------
 function findChrome() {
   const candidates = [
-    process.env.PUPPETEER_EXECUTABLE_PATH,
-    '/tmp/chromium/chrome-linux/chrome',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-  ].filter(Boolean);
+    { path: process.env.PUPPETEER_EXECUTABLE_PATH, shell: false },
+    { path: '/tmp/chromium/chrome-linux/chrome', shell: false },
+    { path: '/usr/bin/chromium', shell: false },
+    { path: '/usr/bin/chromium-browser', shell: false },
+    { path: '/usr/bin/google-chrome', shell: false },
+    { path: '/usr/bin/google-chrome-stable', shell: false },
+  ].filter((c) => !!c.path);
   // Chrome-for-Testing dropped under the puppeteer cache, if any was ever
   // downloaded (puppeteer-core does not do it for us).
-  const cache = path.join(os.homedir(), '.cache', 'puppeteer', 'chrome');
+  const cache = path.join(os.homedir(), '.cache/puppeteer', 'chrome');
   try {
     for (const dir of fs.readdirSync(cache)) {
-      candidates.push(path.join(cache, dir, 'chrome-linux64', 'chrome'));
-      candidates.push(path.join(cache, dir, 'chrome-linux', 'chrome'));
+      candidates.push({ path: path.join(cache, dir, 'chrome-linux64', 'chrome'), shell: false });
+      candidates.push({ path: path.join(cache, dir, 'chrome-linux', 'chrome'), shell: false });
+    }
+  } catch { /* no cache - fine */ }
+  // The headless shell is Chrome without the window. puppeteer drives it with
+  // headless: 'shell' - and on arm64 it is the only Chrome that is published.
+  const shellCache = path.join(os.homedir(), '.cache/puppeteer', 'chrome-headless-shell');
+  try {
+    for (const dir of fs.readdirSync(shellCache)) {
+      candidates.push({
+        path: path.join(shellCache, dir, 'chrome-headless-shell-linux-arm64', 'chrome-headless-shell'),
+        shell: true,
+      });
+      candidates.push({
+        path: path.join(shellCache, dir, 'chrome-headless-shell-linux64', 'chrome-headless-shell'),
+        shell: true,
+      });
     }
   } catch { /* no cache - fine */ }
   for (const c of candidates) {
-    try { if (fs.existsSync(c)) return c; } catch { /* keep looking */ }
+    try { if (fs.existsSync(c.path)) return c; } catch { /* keep looking */ }
   }
   throw new Error(
     'no Chrome/Chromium found - set PUPPETEER_EXECUTABLE_PATH to a browser binary');
@@ -111,14 +126,14 @@ function check(cond, message) {
 }
 
 // Every control in the screen menu must be visible and fully inside the tab.
-// On a phone the row is too narrow for the legend and three buttons, and the
-// buttons used to run off the right edge and be clipped - the "no button there"
+// On a phone the row is too narrow for the button and its label, and the
+// button used to run off the right edge and be clipped - the "no button there"
 // bug this asserts against.
 async function checkMenuFits(page, label) {
   const rows = await page.evaluate(() => {
     const tab = document.getElementById('screen-tab');
     const tabRect = tab ? tab.getBoundingClientRect() : { left: 0, right: 0 };
-    return ['file-upload-btn', 'echo-toggle-btn'].map((id) => {
+    return ['file-upload-btn'].map((id) => {
       const el = document.getElementById(id);
       if (!el) return { id, missing: true };
       const r = el.getBoundingClientRect();
@@ -138,6 +153,41 @@ async function checkMenuFits(page, label) {
     check(r.visible, `${label}: #${r.id} is visible`);
     check(r.inside, `${label}: #${r.id} is inside the tab (${r.left}..${r.right} vs ${r.tabLeft}..${r.tabRight})`);
   }
+}
+
+// The tiles-only front end: one 640x360 canvas, painted by the FiT engine.
+// It has to be there, visible, the right size and inside the tab - the text
+// grid that used to sit next to it is gone, so the canvas is the whole screen.
+async function checkTileCanvas(page, label) {
+  const info = await page.evaluate(() => {
+    const tab = document.getElementById('screen-tab');
+    const tabRect = tab ? tab.getBoundingClientRect() : { left: 0, right: 0 };
+    const canvas = document.getElementById('screen-tile-canvas');
+    if (!canvas) return { missing: true };
+    const r = canvas.getBoundingClientRect();
+    const style = getComputedStyle(canvas);
+    const display = document.getElementById('screen-display');
+    return {
+      missing: false,
+      visible: style.display !== 'none' && style.visibility !== 'hidden' && r.width > 0 && r.height > 0,
+      width: Math.round(r.width), height: Math.round(r.height),
+      startsInside: r.left >= tabRect.left - 1,
+      clipped: !!display && getComputedStyle(display).overflow === 'hidden',
+      tileView: !!display && display.classList.contains('tile-view'),
+    };
+  });
+  check(!info.missing, `${label}: the tile canvas exists`);
+  if (info.missing) return null;
+  check(info.visible, `${label}: the tile canvas is visible`);
+  check(info.width === 640 && info.height === 360,
+    `${label}: the tile canvas is 640x360 (got ${info.width}x${info.height})`);
+  // The canvas has a fixed pixel size, so on a narrow screen it is wider than
+  // the panel. What matters is that it starts inside the tab and that the
+  // display clips it - otherwise it would run across the rest of the IDE.
+  check(info.startsInside, `${label}: the tile canvas starts inside the tab`);
+  check(info.clipped, `${label}: the display clips the canvas`);
+  check(info.tileView, `${label}: the display is in tile view`);
+  return info;
 }
 
 // The header (logo, title, Console: button) must sit at the very top and the
@@ -164,59 +214,28 @@ async function checkHeaderPinned(page, label) {
   check(r.logoOk, `${label}: the logo is inside the viewport`);
 }
 
-// Load the Forth kernel into the editor, assemble it in the current console
-// mode, then drive the real UI: press Run, wait for the prompt, type a line and
-// read it back off the terminal. No stepping of the model by hand - this is the
-// path a person takes, throttle and all.
-async function runForthRepl(page) {
-  const source = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
-  // assemble() directly: the Assemble button lives in the Editor tab, which the
-  // Screen tab has hidden by now, so a click on it would go nowhere.
-  await page.evaluate((text) => { document.getElementById('editor').value = text; }, source);
-  await page.evaluate(() => window.deepWebUI.assemble());
-  const assembled = await page.evaluate(() =>
-    !!(window.deepWebUI.currentAssemblyResult && window.deepWebUI.currentAssemblyResult.success));
-  check(assembled === true, 'desktop: the Forth kernel assembles in terminal mode');
-
-  // Clear the synthetic stream the earlier check left on the terminal, so the
-  // rows below are the kernel's own output.
-  await page.evaluate(() => {
-    window.deepWebUI.screenUI.terminal.reset();
-    window.deepWebUI.screenUI.lastTermDrawn.fill(-1);
-  });
-
-  // Run only if it is not already running: #run-btn toggles, and the page
-  // auto-runs once on load.
-  await page.evaluate(() => { const ui = window.deepWebUI; if (!ui.simulator.running) ui.run(); });
-  await new Promise((r) => setTimeout(r, 1500));           // boot to the prompt
-  await page.evaluate(() => {
-    for (const ch of '3 4 + .\n') window.deepWebUI.kbdPushCode(ch === '\n' ? 13 : ch.charCodeAt(0));
-  });
-  await new Promise((r) => setTimeout(r, 1500));           // echo and evaluate
-  const result = await page.evaluate(() => {
+// The tile engine has to be there and wired to the simulator: the canvas is
+// only a window onto the engine's frame buffer, and a detached engine paints
+// an empty screen.
+async function checkTileEngine(page, label) {
+  const state = await page.evaluate(() => {
     const ui = window.deepWebUI;
-    // Read the DOM cells, not the model: the point is that the view repainted
-    // while the machine was running, which used to only happen on a tab switch.
-    const readRow = (r) => {
-      let s = '';
-      for (let c = 0; c < 80; c++) {
-        const el = document.getElementById(`screen-char-${r * 80 + c}`);
-        s += el ? (el.textContent || ' ') : ' ';
-      }
-      return s.replace(/\s+$/, '');
-    };
-    const ci = ui.screenUI.terminal.cursorIndex();
-    const cel = document.getElementById(`screen-char-${ci}`);
+    if (!ui) return { missing: true };
     return {
-      mode: ui.consoleMode(), running: ui.simulator.running,
-      row0: readRow(0), row1: readRow(1), row2: readRow(2),
-      cursorBg: cel ? getComputedStyle(cel).backgroundColor : null,
+      missing: false,
+      mode: ui.consoleMode(),
+      hasEngine: !!ui.tileEngine,
+      attached: !!(ui.tileEngine && ui.simulator && ui.simulator.tileEngine === ui.tileEngine),
+      hasCanvas: !!document.getElementById('screen-tile-canvas'),
     };
   });
-  check(result.cursorBg === 'rgb(255, 255, 255)',
-    `desktop: the terminal cursor is a white block (got ${result.cursorBg})`);
-  await page.evaluate(() => { const ui = window.deepWebUI; if (ui.simulator.running) ui.stop(); });
-  return result;
+  check(!state.missing, `${label}: the IDE is there`);
+  if (state.missing) return null;
+  check(state.mode === 'tiles', `${label}: the console mode is tiles (got ${state.mode})`);
+  check(state.hasEngine, `${label}: the tile engine exists`);
+  check(state.attached, `${label}: the tile engine is attached to the simulator`);
+  check(state.hasCanvas, `${label}: the tile canvas is in the DOM`);
+  return state;
 }
 
 // --------------------------------------------------------------------------
@@ -256,46 +275,14 @@ async function runView(browser, base, { name, viewport, isMobile }) {
   await page.click('#settings-menu-btn').catch(() => {});
   await new Promise((r) => setTimeout(r, 150));
 
-  const before = await page.$eval('#console-mode-btn', (el) => el.textContent.trim()).catch(() => null);
-  check(before === 'Screen', `${name}: the console mode starts on the screen buffer`);
+  const before = await page.$eval('.settings-toggle', (el) => el.textContent.trim()).catch(() => null);
+  check(before === 'Tiles', `${name}: the display row says Tiles`);
   await checkMenuFits(page, name);
+  await checkTileCanvas(page, name);
+  await checkTileEngine(page, name);
   await page.screenshot({ path: path.join(OUT, `${name}-screen.png`) });
-
-  // Flip to the terminal and feed it a stream through the real render path.
-  await page.click('#console-mode-btn').catch(() => {});
-  await new Promise((r) => setTimeout(r, 300));
-  const after = await page.$eval('#console-mode-btn', (el) => el.textContent.trim()).catch(() => null);
-  check(after === 'Terminal', `${name}: the console mode flips to the terminal`);
   await page.click('#settings-menu-btn').catch(() => {});   // close the menu again
   await new Promise((r) => setTimeout(r, 150));
-
-  const rendered = await page.evaluate(() => {
-    const ui = window.deepWebUI;
-    if (!ui || !ui.screenUI || !ui.screenUI.terminal) return null;
-    const text = 'Hello from UART\r\n> 3 4 + . 7  ok\r\n>';
-    ui.simulator.uartTx.push(...text.split('').map((c) => c.charCodeAt(0)));
-    ui.pumpConsole();
-    ui.screenUI.updateScreenDisplay();
-    const rows = ui.screenUI.terminal.text();
-    const cell = document.getElementById('screen-char-0');
-    return { mode: ui.screenUI.mode, row0: rows[0].slice(0, 15), cell0: cell ? cell.textContent : null };
-  });
-  check(rendered && rendered.mode === 'terminal', `${name}: the view is in terminal mode`);
-  check(rendered && rendered.row0 === 'Hello from UART', `${name}: the terminal renders the stream`);
-  check(rendered && rendered.cell0 === 'H', `${name}: the grid cell follows the stream`);
-  await page.screenshot({ path: path.join(OUT, `${name}-terminal.png`) });
-
-  // The real thing, on the desktop pass only (it is the slow part): assemble
-  // the serial kernel and read a live REPL off the terminal.
-  if (!isMobile) {
-    const repl = await runForthRepl(page);
-    check(repl.mode === 'terminal', 'desktop: the mode is terminal for the REPL');
-    check(repl.row0 === 'Hello DeepForth!',
-      `desktop: the serial kernel boots to the banner (got ${JSON.stringify(repl.row0)})`);
-    check(repl.row1 === '> 3 4 + . 7  ok',
-      `desktop: a line evaluates over the UART (got ${JSON.stringify(repl.row1)})`);
-    await page.screenshot({ path: path.join(OUT, 'desktop-repl.png') });
-  }
 
   check(pageErrors.length === 0, `${name}: no page or console errors${pageErrors.length ? ' - ' + pageErrors.join('; ') : ''}`);
   await page.close();
@@ -309,9 +296,10 @@ async function runView(browser, base, { name, viewport, isMobile }) {
   fs.mkdirSync(OUT, { recursive: true });
   const { server, port } = await startServer(ROOT);
   const base = `http://127.0.0.1:${port}`;
+  const chrome = findChrome();
   const browser = await puppeteer.launch({
-    executablePath: findChrome(),
-    headless: true,
+    executablePath: chrome.path,
+    headless: chrome.shell ? 'shell' : true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   });
   try {

@@ -1,4 +1,4 @@
-/* screen.css - Retro terminal display styles */
+/* screen.css - the FiT tile display */
 .screen-tab {
     flex: 1;
     display: flex;
@@ -10,10 +10,7 @@
     min-width: 0;
 }
 
-/* Menu row above the screen: the 16 colours the display can draw on the left,
-   the Upload button pushed to the right edge. The squares are one character
-   cell wide (8px), so the palette is exactly as long as 16 characters of the
-   screen below it. */
+/* Menu row above the screen: the Upload button on the right edge. */
 .screen-menu {
     display: flex;
     align-items: center;
@@ -22,17 +19,6 @@
     width: 640px;
     max-width: 100%;
     margin: 0 auto 6px;
-}
-
-.screen-palette {
-    display: flex;
-    flex-shrink: 0;
-}
-
-.screen-palette-swatch {
-    width: 8px;
-    height: 15px;
-    flex-shrink: 0;
 }
 
 .screen-upload-btn {
@@ -52,21 +38,6 @@
 
 .screen-upload-btn:hover { background: #1177bb; }
 
-/* Sits right next to the Upload button, so it must not repeat the
-   margin-left: auto that pushes Upload out to the right edge. */
-.screen-echo-btn {
-    margin-left: 6px;
-}
-
-/* Echo off is the state you are in while a file types itself in, so it reads as
-   the button being pressed rather than as something broken. */
-.screen-echo-btn.screen-echo-off {
-    background: #444;
-    color: #bbb;
-}
-
-.screen-echo-btn.screen-echo-off:hover { background: #555; }
-
 /* The Upload button doubles as Cancel while a file is queued or typing, and it
    is the only progress indicator there is - red, and saying so. */
 .screen-upload-btn.screen-upload-cancel {
@@ -76,11 +47,7 @@
 
 .screen-upload-btn.screen-upload-cancel:hover { background: #c0392f; }
 
-/* 80 columns x 24 rows in a fixed cell grid: 8 px wide, 15 px high, which is
-   exactly 640 x 360. The font size is not chosen by eye: a monospace face
-   advances 0.6 em, so 13.3333 px puts the next glyph exactly 8 px further
-   right. The cell clips what does not fit, which keeps the grid aligned even
-   if the browser substitutes a font with a different ratio. */
+/* The tile display: one 640x360 canvas, painted by the FiT engine. */
 .screen-display {
     background: #000000;
     border: 1px solid #3e3e42;
@@ -103,9 +70,8 @@
     box-shadow: 0 0 8px rgba(51, 153, 255, 0.6);
 }
 
-/* FiT tile view: a 640x360 canvas beside the 80x24 grid. The grid and the
-   canvas are mutually exclusive; deep16_ui_screen.js toggles .tile-view on the
-   display and .visible on the canvas. */
+/* FiT tile view: the canvas is the whole screen. deep16_ui_screen.js puts the
+   .tile-view class on the display and .visible on the canvas. */
 .screen-canvas {
     display: none;
     width: 640px;
@@ -117,63 +83,7 @@
 
 .screen-canvas.visible { display: block; }
 
-.screen-display.tile-view .screen-row { display: none; }
 .screen-display.tile-view .screen-canvas { display: block; }
-
-.screen-row {
-    display: flex;
-    white-space: nowrap;
-    height: 15px;
-    width: 640px;
-    justify-content: flex-start;
-}
-
-.screen-char {
-    width: 8px;
-    height: 15px;
-    line-height: 15px;
-    display: inline-block;
-    text-align: left;
-    font-weight: bold;
-    background: #000000;
-    color: #ffffff;
-    border: none;
-    outline: none;
-    overflow: hidden;
-    font-family: 'Courier New', monospace;
-    font-size: 13.3333px;
-    letter-spacing: 0;
-    flex-shrink: 0;
-}
-
-/* The cursor cell carries the default colour reversed, so the block needs no
-   colour of its own: deep16_ui_screen.js writes both colours as inline styles
-   from the attribute, and those win over this rule. What is left here is the
-   green outline, which is a reading aid and not part of the encoding - without
-   it a cursor in a screen full of text is easy to lose. */
-.screen-char.screen-cursor {
-    outline: 1px solid #00ff66;
-    box-shadow: 0 0 6px rgba(0, 255, 102, 0.5);
-}
-
-.screen-char:hover {
-    background: #1a1a1a;
-}
-
-.screen-char:focus {
-    background: #2a2a2a;
-    outline: 1px solid #00ff00;
-}
-
-.screen-controls {
-    display: flex;
-    gap: 6px;
-    padding: 6px;
-    background: #2d2d30;
-    border-top: 1px solid #3e3e42;
-    align-items: center;
-    justify-content: center;
-}
 
 .screen-info {
     color: #6a9955;
@@ -186,8 +96,13 @@
     box-sizing: border-box;
 }
 
-/* The full address range wraps onto two lines on narrow portrait screens. */
+/* The full address range does not fit a phone; the short form does. */
 .screen-info-short { display: none; }
+
+@media (max-width: 700px) {
+    .screen-info-full { display: none; }
+    .screen-info-short { display: inline; }
+}
 
 /* Typing a file in. The button looks like the other screen controls, and the
    hint beside it reports what is waiting - a queued file, a full queue, or a
@@ -225,53 +140,6 @@
     min-height: 12px;
 }
 
-/* Column pager: hidden by default, shown only where 80 columns do not fit. */
-.screen-pager {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    max-width: 720px;
-    box-sizing: border-box;
-    padding: 6px 8px 0;
-}
-
-.screen-page-btn {
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-    line-height: 1;
-    min-height: 26px;
-    min-width: 44px;
-    padding: 4px 12px;
-    background: #2d2d30;
-    color: #ffffff;
-    border: 1px solid #3e3e42;
-    border-radius: 3px;
-    cursor: pointer;
-    appearance: none;
-    -webkit-appearance: none;
-}
-
-.screen-page-btn:disabled {
-    background: #1e1e1e;
-    color: #555555;
-    border-color: #2d2d30;
-    cursor: default;
-}
-
-.screen-page-btn:active:not(:disabled) {
-    background: #424242;
-}
-
-.screen-page-label {
-    color: #6a9955;
-    font-family: 'Courier New', monospace;
-    font-size: 11px;
-    min-width: 72px;
-    text-align: center;
-}
-
 /* Retro scanline effect */
 .screen-display::before {
     content: '';
@@ -301,34 +169,15 @@
     animation: screen-glow 3s ease-in-out infinite;
 }
 
-/* The number of columns is not a CSS question. deep16_ui_screen.js measures
-   the tab, works out how many 8 px cells fit, hides the rest per row and sets
-   the width of screen and menu row to match. A :nth-child() rule cannot follow
-   a number that comes from the layout, which is why the columns are switched
-   from script.
-
-   What is left for CSS is only what the mode means: show the pager, and swap
-   the address line for its short form. The screen element carries
-   .screen-narrow through its wrapper #screen-tab. */
-.screen-narrow .screen-pager { display: flex; }
-
-.screen-narrow .screen-info-full { display: none; }
-.screen-narrow .screen-info-short { display: inline; }
-
-/* On a phone the menu row cannot hold the 128 px colour legend and three
-   buttons: it used to run off both edges, clipping the palette on the left and
-   "Echo: on" on the right while "View: Screen" squeezed onto two lines. Let the
-   row wrap, drop the legend - it is a reading aid, not a control - and stop the
-   buttons from shrinking their text. The console switch, Upload and Echo all
-   stay reachable. */
-.screen-narrow .screen-menu {
+/* On a phone the menu row is too narrow for the button and its label, and it
+   used to run off both edges. Let the row wrap and stop the button from
+   shrinking its text, so Upload stays reachable. */
+#screen-tab .screen-menu {
     flex-wrap: wrap;
     justify-content: flex-start;
     height: auto;
 }
-.screen-narrow .screen-palette { display: none; }
-.screen-narrow .screen-upload-btn { margin-left: 0; white-space: nowrap; }
-.screen-narrow .screen-echo-btn { margin-left: 0; white-space: nowrap; }
+#screen-tab .screen-upload-btn { margin-left: 0; white-space: nowrap; }
 
 /* Hidden terminal keyboard hook (iOS soft keyboard).
    Must stay *focusable* (not display:none): iOS refuses to summon the keyboard

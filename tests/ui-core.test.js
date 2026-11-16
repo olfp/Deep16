@@ -31,12 +31,8 @@ globalThis.window = globalThis.window || {};
 
 vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_core.js'), 'utf8'),
                     { filename: 'deep16_ui_core.js' });
-// The terminal model the screen can switch to; the screen constructor builds
-// one, so it has to be in scope before deep16_ui_screen.js runs.
-vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', 'deep16_terminal.js'), 'utf8'),
-                    { filename: 'deep16_terminal.js' });
-// The screen subsystem lives in its own file; the column-pager tests drive it
-// directly, so it has to be in scope here.
+// The screen subsystem lives in its own file: the tiles-only display is
+// exercised directly, so it has to be in scope here.
 vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', 'deep16_ui_screen.js'), 'utf8'),
                     { filename: 'deep16_ui_screen.js' });
 // The memory panel too: its trace gate and its throttle are exercised below,
@@ -228,7 +224,9 @@ test('the trace switch stops every panel, and a load stops it without asking', (
   ui.registerUI = { updateRegisterDisplay() { touched++; }, updatePSWDisplay() { touched++; },
                     updateSegmentRegisters() { touched++; }, updateShadowRegisters() { touched++; } };
   ui.memoryUI = { updateMemoryDisplay() { touched++; }, updateRecentMemoryDisplay() { touched++; } };
-  ui.screenUI = { updateScreenDisplay() { touched++; } };
+  // The tiles-only front-end paints the canvas through updateTileDisplay();
+  // the 60 Hz clock owns it while the machine runs.
+  ui.screenUI = { updateTileDisplay() { touched++; } };
   ui.updateSegmentNavigationFields = () => {};
   ui.updateCoreStats = () => {};
 
@@ -239,7 +237,7 @@ test('the trace switch stops every panel, and a load stops it without asking', (
 
   ui.traceOn = true;
   ui.updateAllDisplays();
-  // Four register panels, the memory view and the recent-memory view, the screen.
+  // Four register panels, the memory view and the recent-memory view, the tile canvas.
   assert.equal(touched, 7, 'and all of them come back when it is on');
 });
 
@@ -868,362 +866,6 @@ test('the controls keep their order after the round trip through mobile', () => 
   });
 });
 // ---------------------------------------------------------------------------
-// Whether all 80 columns fit is measured where the screen is, not guessed from
-// the viewport. The screen lives in the editor panel and the memory panel beside
-// it can be dragged down far enough to clip 640 px on a desktop that is itself
-// wide - a media query would call that "room enough" and cut the text off with
-// no way to reach it.
-// ---------------------------------------------------------------------------
-
-// A tab element whose layout width the test can set.
-function screenDom(width) {
-  // The inner .screen-tab is what gets measured - it carries the padding and
-  // the overflow that clip the screen.
-  const inner = makeEl();
-  inner.className = 'screen-tab';
-  inner.clientWidth = width;
-  const tab = makeEl();
-  tab.id = 'screen-tab';
-  tab.clientWidth = width;          // the outer wrapper, wider by the padding
-  const display = makeEl();
-  display.id = 'screen-display';
-  inner.appendChild(display);
-  tab.appendChild(inner);
-  const ids = { 'screen-tab': tab, 'screen-display': display };
-  for (const n of ['screen-page-prev', 'screen-page-next']) {
-    const b = makeEl('button');
-    b.id = n;
-    ids[n] = b;
-  }
-  const label = makeEl('span');
-  label.id = 'screen-page-label';
-  ids['screen-page-label'] = label;
-  return { tab, inner, display, ids };
-}
-
-// A screen UI instance with the layout-dependent fields seeded, driving the
-// real applyColumnMode() / ensureCursorVisible().
-function screenInstance(dom) {
-  const s = Object.create(Deep16ScreenUI.prototype);
-  s.screenWidth = 80;
-  s.screenHeight = 24;
-  s.totalChars = 80 * 24;
-  s.requiredWidth = 640;
-  s.cellWidth = 8;
-  s.minVisibleCols = 20;
-  s.windowStart = -1;
-  s.windowCols = -1;
-  s.activePage = 0;
-  s.visibleCols = 80;
-  s.lastCursorIndex = null;
-  // measureElement() and modeElement() are deliberately NOT stubbed here: the
-  // whole point is to run the real ones against the document stub, which hands
-  // out the inner box for '.screen-tab' and the wrapper for '#screen-tab'.
-  // Stubbing them made every test pass whatever the code did.
-  // Die echte setPage(): sie blendet die Zellen aus und setzt die Breite.
-  s.screenDisplay = dom.display;
-  return s;
-}
-
-function withScreenDom(width, fn) {
-  const dom = screenDom(width);
-  const prevDoc = globalThis.document;
-  const prevResize = globalThis.ResizeObserver;
-  const prevGet = globalThis.window.getComputedStyle;
-  globalThis.document = {
-    getElementById: (id) => dom.ids[id] || null,
-    querySelector: (sel) => (sel === '.screen-tab' ? dom.inner : null),
-    createElement: (tag) => makeEl(tag),
-    documentElement: { style: { setProperty() {} } },
-  };
-  // No layout engine here, so the tab's padding reads as zero.
-  globalThis.window.getComputedStyle = () => ({ paddingLeft: '0px', paddingRight: '0px' });
-  globalThis.ResizeObserver = undefined;    // exercise the window-listener path
-  try {
-    return fn(dom, screenInstance(dom));
-  } finally {
-    globalThis.document = prevDoc;
-    globalThis.ResizeObserver = prevResize;
-    globalThis.window.getComputedStyle = prevGet;
-  }
-}
-
-test('all 80 columns show when the tab is wide enough', () => {
-  withScreenDom(900, (dom, s) => {
-    s.applyColumnMode();
-    assert.equal(s.visibleCols, 80, '80 columns at 8px fit in 900px');
-    assert.equal(dom.tab.classes.has('screen-narrow'), false);
-  });
-});
-
-test('the pager takes over when the tab is too narrow for 80 columns', () => {
-  withScreenDom(500, (dom, s) => {
-    s.applyColumnMode();
-    assert.equal(s.visibleCols, 62, 'as many columns as fit: floor(500/8) = 62');
-    assert.equal(dom.tab.classes.has('screen-narrow'), true,
-                 'the class that shows the pager and hides columns 41-80 must be set');
-  });
-});
-
-test('exactly at the threshold all 80 columns still show', () => {
-  withScreenDom(640, (dom, s) => {
-    s.applyColumnMode();
-    assert.equal(s.visibleCols, 80, '640 px is exactly the width of the screen');
-  });
-});
-
-test('a tab with no layout yet is left alone rather than called too narrow', () => {
-  // An inactive tab has clientWidth 0. Reading that as "no room" would switch
-  // the pager on and hide half the screen for no reason.
-  withScreenDom(0, (dom, s) => {
-    s.applyColumnMode();
-    assert.equal(s.visibleCols, 80, 'a tab without layout must not trigger the pager');
-    assert.equal(dom.tab.classes.has('screen-narrow'), false);
-  });
-});
-
-test('going back to full width hides the pager again', () => {
-  withScreenDom(500, (dom, s) => {
-    s.applyColumnMode();
-    assert.equal(dom.tab.classes.has('screen-narrow'), true);
-    dom.inner.clientWidth = 900;
-    dom.tab.clientWidth = 900;
-    s.applyColumnMode();
-    assert.equal(dom.tab.classes.has('screen-narrow'), false);
-    assert.equal(s.visibleCols, 80);
-    assert.equal(s.activePage, 0, 'the pager returns to the first page');
-  });
-});
-
-test('the cursor follows the pager only while it is in use', () => {
-  withScreenDom(320, (dom, s) => {   // 320px -> 40 columns, two pages
-    s.visibleCols = 40;
-    // Column 70 with all 80 visible: nothing to page to.
-    s.visibleCols = 80;
-    s.lastCursorIndex = 70;
-    s.ensureCursorVisible();
-    assert.equal(s.activePage, 0, 'no page switch when everything is visible');
-    // Same cursor with the pager active: column 70 is on the second page.
-    s.visibleCols = 40;
-    s.ensureCursorVisible();
-    assert.equal(s.activePage, 1, 'the cursor pulls the pager along');
-    // A cursor in the first 40 goes back.
-    s.lastCursorIndex = 5;
-    s.ensureCursorVisible();
-    assert.equal(s.activePage, 0);
-  });
-});
-
-// The outer wrapper is wider than the box that clips. That difference is only
-// a dozen pixels, but on a tablet sitting right at the boundary it is the
-// difference between "80 columns fit" and half the screen running off the edge.
-test('the width is measured on the clipping box, not on the wider wrapper', () => {
-  withScreenDom(640, (dom, s) => {
-    // The wrapper has room to spare, the box that actually clips does not.
-    dom.tab.clientWidth = 700;
-    dom.inner.clientWidth = 600;       // 600 < 640: the screen would be cut
-    s.applyColumnMode();
-    assert.equal(s.visibleCols, 75,
-      'measured on the clipping box: floor(600/8) = 75. The wider wrapper would '
-      + 'give 80 and the last column would be cut off');
-    assert.equal(dom.tab.classes.has('screen-narrow'), true);
-  });
-});
-
-test('the narrow class lands on the wrapper so the menu row shrinks too', () => {
-  withScreenDom(400, (dom, s) => {
-    s.applyColumnMode();
-    assert.equal(dom.tab.classes.has('screen-narrow'), true,
-      '.screen-menu is a sibling of .screen-tab, so the class has to be on the '
-      + 'wrapper or the menu row stays 640px wide while the screen shrinks');
-    assert.equal(dom.inner.classes.has('screen-narrow'), false,
-      'the class belongs on the wrapper, not on the measured box');
-  });
-});
-
-// The screen UI is built while the Screen tab is still hidden - it has no
-// width then, and the measurement is skipped on purpose. The moment the tab is
-// actually shown is the first chance to find out how much room there is. On a
-// narrow iPad in portrait that is the difference between the pager and a screen
-// running off the edge.
-test('switching to the Screen tab re-measures the width', () => {
-  const prevDoc = globalThis.document;
-  const ui = makeUi();
-  let measured = 0;
-  ui.screenUI = {
-    updateScreenDisplay() {},
-    applyColumnMode() { measured++; },
-  };
-  ui.updateAssemblyListing = () => {};
-  ui.syncHeaderWidths = () => {};
-  // No tabs and no keyboard hook in this stub, so only the measuring branch runs.
-  globalThis.document = {
-    querySelectorAll: () => [],
-    getElementById: () => null,
-    activeElement: null,
-  };
-  try {
-    ui.switchTab('screen');
-  } finally {
-    globalThis.document = prevDoc;
-  }
-  assert.equal(measured, 1,
-    'the Screen tab is only measurable once it is shown - switchTab must ask');
-});
-
-// The old narrow mode was a binary 40 or 80, which wasted up to a fifth of the
-// width: a tablet with room for 60 columns showed 40 and paged over 20 that
-// would have fitted. The count is now derived from the measured width.
-test('the column count follows the width instead of jumping 40 to 80', () => {
-  for (const [width, want] of [[480, 60], [520, 65], [560, 70], [640, 80]]) {
-    withScreenDom(width, (dom, s) => {
-      s.applyColumnMode();
-      assert.equal(s.visibleCols, want, `${width}px should show ${want} columns`);
-    });
-  }
-});
-
-test('a tablet showing 60 columns needs two pages, not one', () => {
-  withScreenDom(480, (dom, s) => {       // 60 columns
-    s.applyColumnMode();
-    assert.equal(s.pageCount(), 2, '60 of 80 columns need a second page');
-    s.setPage(1);
-    assert.equal(s.activePage, 1);
-    assert.equal(dom.display.style.width, '480px', 'the second page is as wide as the first');
-    assert.equal(dom.ids['screen-page-label'].textContent, '61-80 / 80');
-    s.setPage(5);                          // far past the end
-    assert.equal(s.activePage, 1, 'a page number beyond the last is clamped');
-  });
-});
-
-test('a width that fits fewer than a readable number still shows something', () => {
-  withScreenDom(64, (dom, s) => {        // 8 cells' worth - far too narrow
-    s.applyColumnMode();
-    assert.equal(s.visibleCols, 20, 'clamped up to the minimum, not down to nothing');
-    assert.equal(dom.tab.classes.has('screen-narrow'), true);
-  });
-});
-
-
-// ---------------------------------------------------------------------------
-// Cell colours
-//
-// The high byte is four bits of background and four of foreground. Until the
-// colour byte was completed the background was masked to three bits, because
-// bit 15 was the kernel's cursor marker and those eight bright backgrounds
-// were unreachable. The cursor is now the reversed default colour, so nothing
-// is left over - all sixteen of both are addressable.
-// ---------------------------------------------------------------------------
-
-// The real constructor, so palette and CURSOR_ATTR come from the code under
-// test rather than from a second copy in this file.
-function withCells(count, fn) {
-  const ids = {};
-  for (let i = 0; i < count; i++) {
-    const cell = makeEl('span');
-    cell.id = `screen-char-${i}`;
-    ids[cell.id] = cell;
-  }
-  const prevDoc = globalThis.document;
-  globalThis.document = {
-    getElementById: (id) => ids[id] || null,
-    querySelector: () => null,
-    createElement: (tag) => makeEl(tag),
-  };
-  try {
-    return fn(ids, new Deep16ScreenUI({}));
-  } finally {
-    globalThis.document = prevDoc;
-  }
-}
-
-test('the background nibble reaches all sixteen colours', () => {
-  withCells(16, (ids, s) => {
-    for (let bg = 0; bg < 16; bg++) {
-      s.lastDrawn[bg] = -1;                 // bypass the repaint cache
-      s.drawWord(bg, ((bg << 4) | 7) << 8 | 0x41);   // (bg << 4) | fg
-      assert.equal(ids[`screen-char-${bg}`].style.backgroundColor, s.palette[bg],
-        `background ${bg} must use palette entry ${bg}`);
-      assert.equal(ids[`screen-char-${bg}`].style.color, s.palette[7],
-        'the foreground is unaffected by the background nibble');
-    }
-  });
-});
-
-test('the foreground nibble reaches all sixteen colours', () => {
-  withCells(16, (ids, s) => {
-    for (let fg = 0; fg < 16; fg++) {
-      s.lastDrawn[fg] = -1;
-      s.drawWord(fg, ((1 << 4) | fg) << 8 | 0x41);   // (bg << 4) | fg
-      assert.equal(ids[`screen-char-${fg}`].style.color, s.palette[fg],
-        `foreground ${fg} must use palette entry ${fg}`);
-      assert.equal(ids[`screen-char-${fg}`].style.backgroundColor, s.palette[1],
-        'the background is unaffected by the foreground nibble');
-    }
-  });
-});
-
-test('the cursor is the reversed default colour, drawn like any other cell', () => {
-  withCells(3, (ids, s) => {
-    s.drawWord(0, (s.CURSOR_ATTR | 0x20));      // a space under the cursor
-    const cell = ids['screen-char-0'];
-    assert.equal(cell.style.color, s.palette[0], 'black on ...');
-    assert.equal(cell.style.backgroundColor, s.palette[7], '... light grey');
-    assert.equal(cell.classes.has('screen-cursor'), true, 'and the outline follows');
-    assert.equal(cell.textContent, ' ', 'the character under the cursor survives');
-  });
-});
-
-test('attribute 0 is the terminal default and carries no cursor marker', () => {
-  withCells(2, (ids, s) => {
-    s.drawWord(0, 0x0041);                      // 'A', no attribute
-    const cell = ids['screen-char-0'];
-    assert.equal(cell.textContent, 'A');
-    assert.equal(cell.style.color, '');
-    assert.equal(cell.style.backgroundColor, '');
-    assert.equal(cell.classes.has('screen-cursor'), false);
-  });
-});
-
-test('the repaint cache still lets a changed cell through', () => {
-  withCells(1, (ids, s) => {
-    s.drawWord(0, 0x0041);
-    assert.equal(ids['screen-char-0'].textContent, 'A');
-    // Same word again: nothing to do.
-    ids['screen-char-0'].textContent = 'unveraendert';
-    s.drawWord(0, 0x0041);
-    assert.equal(ids['screen-char-0'].textContent, 'unveraendert',
-      'an unchanged word must not be redrawn');
-    // The cursor moves on: a different word, so the cell is redrawn.
-    s.drawWord(0, s.CURSOR_ATTR | 0x41);
-    assert.equal(ids['screen-char-0'].classes.has('screen-cursor'), true);
-    s.drawWord(0, 0x0041);
-    assert.equal(ids['screen-char-0'].classes.has('screen-cursor'), false,
-      'and the marker goes away again when the cursor does');
-  });
-});
-
-// The nibble order is pinned from the drawing end as well as in the kernel
-// tests. Written the ANSI way, the background sits high and the foreground
-// low; swap the two in the code below and the two palettes are exchanged,
-// which no other test here would notice.
-test('the low nibble is the foreground and the high one the background', () => {
-  withCells(2, (ids, s) => {
-    const fg = 5, bg = 9;                 // magenta on bright black
-    s.drawWord(0, (((bg << 4) | fg) << 8) | 0x41);
-    assert.equal(ids['screen-char-0'].style.color, s.palette[fg],
-      `palette[${fg}] must be the character colour`);
-    assert.equal(ids['screen-char-0'].style.backgroundColor, s.palette[bg],
-      `palette[${bg}] must be the background`);
-    // The mistake this guards against: the foreground shifted into the high
-    // nibble paints the cell in the character colour and puts the background
-    // on the glyph.
-    const falsch = (fg << 4) | bg;
-    assert.notEqual(falsch, (bg << 4) | fg, 'the two orders must give different cells');
-  });
-});
-
-// ---------------------------------------------------------------------------
 // .fth files are typed into the kernel, not opened in the editor
 //
 // The editor's Assemble button runs the Deep16 machine-code assembler over
@@ -1413,7 +1055,7 @@ test('an upload that finishes puts the button back and releases the memory view'
                       updateSegmentRegisters() {}, updateShadowRegisters() {} };
     ui.memoryUI = { updateMemoryDisplay() { memory++; }, updateRecentMemoryDisplay() { memory++; } };
     ui.updateSegmentNavigationFields = () => {};
-    ui.screenUI = { updateScreenDisplay() { screen++; } };
+    ui.screenUI = { updateTileDisplay() { screen++; } };
     ui.updateCoreStats = () => {};
     ui.updateAllDisplays();
     assert.equal(memory, 2, 'the memory view is live again');
@@ -1592,7 +1234,7 @@ test('the memory display is held still while a file is typing itself in', () => 
     updateRecentMemoryDisplay() { memoryUpdates++; },
   };
   ui.updateSegmentNavigationFields = () => {};
-  ui.screenUI = { updateScreenDisplay() { screenUpdates++; } };
+  ui.screenUI = { updateTileDisplay() { screenUpdates++; } };
   ui.updateCoreStats = () => {};
 
   ui.fileUpload = null;

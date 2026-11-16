@@ -356,14 +356,6 @@ class DeepWebUI {
     // say. NaN means "unknown", and the pump then types a single character,
     // which cannot overflow anything.
     kbdAvailable() {
-        if (this.consoleMode() === 'terminal') {
-            if (this.compiledCoreReady()) {
-                const C = this.activeCoreModule();
-                return (typeof C.uart_rx_available === 'function') ? C.uart_rx_available() : NaN;
-            }
-            const s = this.simulator;
-            return (s && typeof s.uartRxAvailable === 'function') ? s.uartRxAvailable() : NaN;
-        }
         if (this.compiledCoreReady()) {
             const C = this.activeCoreModule();
             return (typeof C.kbd_available === 'function') ? C.kbd_available() : NaN;
@@ -372,40 +364,22 @@ class DeepWebUI {
         return (s && typeof s.kbdAvailable === 'function') ? s.kbdAvailable() : NaN;
     }
 
-    // The IDE's one global console mode: 'screen' (the 0xF1000 buffer, the
-    // default build), 'terminal' (the serial CONSOLE_UART build and UART view)
-    // or 'tiles' (the D16nano FiT tile/sprite canvas). It drives three things
-    // at once - what the assembler builds, what the Screen tab shows and where
-    // input goes - which is why it is a mode and not three separate switches.
+    // Tiles-only front-end: FiT tile graphics is the only supported screen.
     consoleMode() {
-        if (this.consoleView === 'terminal') return 'terminal';
-        if (this.consoleView === 'tiles') return 'tiles';
-        if (this.consoleView === 'screen') return 'screen';
-        // Not set yet (a hand-built instance): follow the screen UI.
-        if (this.screenUI && this.screenUI.mode === 'terminal') return 'terminal';
-        if (this.screenUI && this.screenUI.mode === 'tiles') return 'tiles';
-        return 'screen';
+        return 'tiles';
     }
 
-    // The defines the global mode hands the assembler. Terminal mode compiles
-    // the serial BIOS (asm/forth.asm's .ifdef CONSOLE_UART branch); tile mode
-    // needs the nano core, which is the D16NANO build, and optionally D16D for
-    // the showcase image. The screen build is the default and passes nothing.
+    // Tiles-only front-end build defines.
     assembleDefines() {
-        const mode = this.consoleMode();
-        if (mode === 'terminal') return { CONSOLE_UART: 1 };
-        if (mode === 'tiles') {
-            const defines = { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1,
-                              CONSOLE_MIRROR: 1 };
-            if (this.tileBuild === 'd16d') defines.D16D = 1;
-            return defines;
-        }
-        return {};
+        const defines = { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, CONSOLE_MIRROR: 1 };
+        if (this.tileBuild === 'd16d') defines.D16D = 1;
+        return defines;
     }
 
     // Tile mode has its own state model, created on demand and attached to the
     // simulator so every video-window store reaches it in order.
     ensureTileEngine() {
+        if (this.simulator) this.simulator.d16nano = true;
         if (typeof Deep16TileEngine !== 'function') return null;
         if (!this.tileEngine) this.tileEngine = new Deep16TileEngine();
         if (this.simulator) this.simulator.tileEngine = this.tileEngine;
@@ -455,6 +429,7 @@ class DeepWebUI {
 
     loadTileAssets() {
         if (this.consoleMode() !== 'tiles') return false;
+        if (this.simulator) this.simulator.d16nano = true;
         const engine = this.ensureTileEngine();
         if (!engine) return false;
         engine.powerOn();
@@ -518,96 +493,57 @@ class DeepWebUI {
     // Tile mode executes far more than the screen build's 200 instructions per
     // 10 ms tick; the game's wait_frame loop needs a few thousand per frame.
     instructionsPerTick() {
-        return this.consoleMode() === 'tiles' ? (this.tileStepsPerTick || 6000) : 200;
+        return this.tileStepsPerTick || 6000;
     }
 
-    // Terminal and tile modes both need a core that talks UART. All three do
+    // The kernel's serial build wants a core that talks UART. All three do
     // now (the JS core, the Rust/WASM core and the RTL core decode 0xF0040/42),
-    // but a stub or a half-loaded core may not. Called from every entry point
-    // because the mode is persisted and can be set before any switch happens.
+    // but a stub or a half-loaded core may not.
     ensureTerminalCore() {
-        if (this.consoleMode() === 'screen') return;
         if (!(this.compiledCoreReady && this.compiledCoreReady())) return;
         const C = this.activeCoreModule && this.activeCoreModule();
         if (C && typeof C.uart_tx_take === 'function') return;
         if (typeof this.addTranscriptEntry === 'function') {
-            this.addTranscriptEntry('This core has no UART - the serial view runs on the JS core', 'warning');
+            this.addTranscriptEntry('This core has no UART - the kernel runs on the JS core', 'warning');
         }
         try { this.setCore('js', { mirror: true }); } catch {}
     }
 
-    setConsoleMode(mode, { rebuild = false } = {}) {
-        const next = (mode === 'terminal') ? 'terminal'
-                   : (mode === 'tiles') ? 'tiles'
-                   : 'screen';
-        const changed = this.consoleMode() !== next;
-        this.consoleView = next;
-        this.ensureTerminalCore();
-        if (next === 'tiles') {
-            this.ensureTileEngine();
-            this.ensureTileCore();
-        } else {
-            this.stopTileClock();
-        }
-
+    setConsoleMode(_mode, { rebuild = false } = {}) {
+        this.consoleView = 'tiles';
+        if (this.simulator) this.simulator.d16nano = true;
+        this.ensureTileEngine();
+        this.ensureTileCore();
         if (this.screenUI && typeof this.screenUI.setConsoleView === 'function') {
-            this.screenUI.setConsoleView(next);
+            this.screenUI.setConsoleView('tiles');
         }
         this.updateConsoleModeButton();
-        try { localStorage.setItem('deep16_console', next); } catch {}
-
-        if (changed && typeof this.addTranscriptEntry === 'function') {
-            const text = next === 'terminal'
-                ? 'Terminal mode: Assemble builds the serial (CONSOLE_UART) kernel and the Screen tab shows the UART output'
-                : next === 'tiles'
-                    ? 'Tiles mode: Assemble builds the D16nano kernel and the Screen tab renders the FiT tile engine'
-                    : 'Screen mode: Assemble builds the memory-mapped screen kernel';
-            this.addTranscriptEntry(text, 'info');
-        }
-        // The build follows the mode, so rebuild whatever is in the editor - the
-        // alternative is a view that shows nothing because the loaded image is
-        // still the previous build.
-        if (changed && rebuild && this.editorElement && this.editorElement.value.trim()) {
+        try { localStorage.setItem('deep16_console', 'tiles'); } catch {}
+        if (rebuild && this.editorElement && this.editorElement.value.trim()) {
             try { this.assemble(); } catch {}
         }
-        return next;
+        return 'tiles';
     }
 
-    toggleConsoleMode() {
-        const order = ['screen', 'terminal', 'tiles'];
-        const i = order.indexOf(this.consoleMode());
-        return this.setConsoleMode(order[(i + 1) % order.length], { rebuild: true });
-    }
-
+    // The Display row is a label now, not a switch: the tile screen is the
+    // only one there is.
     updateConsoleModeButton() {
-        const btn = document.getElementById('console-mode-btn');
-        if (!btn) return;
-        const mode = this.consoleMode();
-        btn.textContent = mode === 'terminal' ? 'Terminal' : mode === 'tiles' ? 'Tiles' : 'Screen';
-        btn.setAttribute('aria-pressed', mode !== 'screen' ? 'true' : 'false');
-        btn.classList.toggle('settings-terminal', mode === 'terminal');
-        btn.classList.toggle('settings-tiles', mode === 'tiles');
+        const label = document.querySelector ? document.querySelector('.settings-toggle') : null;
+        if (!label) return;
+        label.textContent = 'Tiles';
+        label.setAttribute('aria-pressed', 'true');
+        label.classList.add('settings-tiles');
+        label.classList.remove('settings-terminal');
     }
 
-    // Read the stored mode once and wire the settings-menu toggle. Called from
-    // the constructor, after the screen UI exists.
     setupConsoleMode() {
-        const btn = document.getElementById('console-mode-btn');
-        let desired = 'screen';
-        try {
-            const stored = localStorage.getItem('deep16_console');
-            if (stored === 'terminal' || stored === 'tiles') desired = stored;
-        } catch {}
-        this.consoleView = desired;
-        if (desired === 'tiles') this.ensureTileEngine();
-        this.ensureTerminalCore();
+        this.consoleView = 'tiles';
+        this.ensureTileEngine();
+        this.ensureTileCore();
         if (this.screenUI && typeof this.screenUI.setConsoleView === 'function') {
-            this.screenUI.setConsoleView(desired);
+            this.screenUI.setConsoleView('tiles');
         }
         this.updateConsoleModeButton();
-        // stopPropagation so the click does not reach the document handler that
-        // closes every dropdown - the settings menu stays open to show the change.
-        if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); this.toggleConsoleMode(); });
     }
 
     // Machine -> host. Everything the active core has emitted on its UART since
@@ -629,18 +565,14 @@ class DeepWebUI {
         return [];
     }
 
-    // Drain the UART into the terminal model. Called every display tick so the
-    // backlog never grows while a program is running, and on entering the tab.
+    // Drain the UART. The kernel's serial build (CONSOLE_UART) still emits on
+    // it, and the tile display does not show it - but the backlog must not
+    // grow while a program runs. Called every display tick and on entering the
+    // tab.
     pumpConsole() {
         const bytes = this.takeConsoleBytes();
         if (bytes.length && this.screenUI && typeof this.screenUI.feedConsole === 'function') {
             this.screenUI.feedConsole(bytes);
-            // The screen buffer repaints itself per write (checkScreenUpdate);
-            // the terminal has no such hook, so repaint it here whenever new
-            // bytes arrived - otherwise the view only catches up on a tab switch.
-            if (this.consoleMode() === 'terminal' && typeof this.screenUI.updateScreenDisplay === 'function') {
-                this.screenUI.updateScreenDisplay();
-            }
         }
         return bytes.length;
     }
@@ -688,36 +620,19 @@ class DeepWebUI {
     }
 
     kbdPushCode(code) {
+        // One place decides where a keystroke goes: the keyboard FIFO, like
+        // the D16nano build. The UART RX belongs to the kernel's serial build
+        // (CONSOLE_UART), which the IDE no longer drives from the keyboard.
         const s = this.simulator;
-        const terminal = this.consoleMode() === 'terminal';
-        if (s) {
-            if (terminal && typeof s.uartRxPush === 'function') s.uartRxPush(code);
-            else if (typeof s.enqueueKeyCode === 'function') s.enqueueKeyCode(code);
-        }
+        if (s && typeof s.enqueueKeyCode === 'function') s.enqueueKeyCode(code);
         if (this.compiledCoreReady()) {
             const C = this.activeCoreModule();
-            if (terminal) {
-                // The UART build polls the port, not the keyboard. Until a
-                // compiled core exposes uart_rx_push, fall back to the keyboard
-                // so a core switch mid-session cannot drop the keystroke.
-                if (typeof C.uart_rx_push === 'function') C.uart_rx_push(code);
-                else if (typeof C.kbd_push === 'function') C.kbd_push(code);
-            } else if (typeof C.kbd_push === 'function') {
-                C.kbd_push(code);
-            }
+            if (typeof C.kbd_push === 'function') C.kbd_push(code);
         }
     }
 
     kbdClearAll() {
         const s = this.simulator;
-        if (this.consoleMode() === 'terminal') {
-            if (s && typeof s.uartRxClear === 'function') s.uartRxClear();
-            if (this.compiledCoreReady()) {
-                const C = this.activeCoreModule();
-                if (typeof C.uart_rx_clear === 'function') C.uart_rx_clear();
-            }
-            return;
-        }
         if (s && typeof s.kbdBuffer !== 'undefined') s.kbdBuffer = [];
         if (this.compiledCoreReady()) {
             const C = this.activeCoreModule();
@@ -2475,13 +2390,12 @@ class DeepWebUI {
         if (!busy) this.memoryUI.updateRecentMemoryDisplay();
         this.updateSegmentNavigationFields();
         // In tile mode the 60 Hz clock owns the canvas; the 10 ms run tick must
-        // not repaint 230k pixels. A halted/assembled machine still renders once.
-        if (this.consoleMode() === 'tiles') {
-            if (!this.simulator.running && typeof this.screenUI.updateTileDisplay === 'function') {
-                this.screenUI.updateTileDisplay();
-            }
-        } else {
-            this.screenUI.updateScreenDisplay();
+        // not repaint 230k pixels. A halted/assembled machine still renders once,
+        // and a file that is typing itself in holds the canvas still as well -
+        // it catches up when the load is over.
+        if (!busy && !this.simulator.running &&
+            typeof this.screenUI.updateTileDisplay === 'function') {
+            this.screenUI.updateTileDisplay();
         }
         this.updateCoreStats();
     }
@@ -2492,19 +2406,15 @@ class DeepWebUI {
             this.stop();
             return;
         }
-        // A terminal/tile run must not land on a core with no UART (and tile
-        // mode needs the JS display-status model).
+        // The tile run needs a core with the display-status model, and the
+        // kernel's serial build wants a core that speaks UART.
         this.ensureTerminalCore();
-        if (this.consoleMode() === 'tiles') this.ensureTileCore();
-        const mode = this.consoleMode();
-        if (mode === 'terminal' && typeof this.addTranscriptEntry === 'function') {
-            this.addTranscriptEntry(`Terminal mode: running on ${this.coreLabel(this.coreName)}`, 'info');
-        }
-        // In terminal/tile modes, run what the editor says: loading the kernel
-        // and pressing Run without Assemble used to run the previous program
-        // and show an empty view. (Screen mode keeps the explicit Assemble.)
-        if ((mode === 'terminal' || mode === 'tiles') && this.editorElement &&
-            this.editorElement.value.trim() && this.editorElement.value !== this.lastAssembledSource) {
+        this.ensureTileCore();
+        // Run what the editor says: loading the kernel and pressing Run
+        // without Assemble used to run the previous program and show an empty
+        // view.
+        if (this.editorElement && this.editorElement.value.trim() &&
+            this.editorElement.value !== this.lastAssembledSource) {
             try { this.assemble(); } catch {}
         }
         if (this.compiledCoreReady()) {
@@ -2512,7 +2422,7 @@ class DeepWebUI {
         } else {
             this.jsRun();
         }
-        if (this.consoleMode() === 'tiles') this.startTileClock();
+        this.startTileClock();
     }
 
     // Translate a browser key event into the ASCII-style key code the

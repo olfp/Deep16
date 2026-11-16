@@ -5,14 +5,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import vm from 'node:vm';
 import path from 'node:path';
-import { assemble, loadBrowserScripts, loadRtl, ROOT } from './helpers.js';
+import { assemble, loadBrowserScripts, loadRtl, loadSerialTerminal, ROOT } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js');
-vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', 'deep16_terminal.js'), 'utf8'),
-                    { filename: 'deep16_terminal.js' });
-const SerialTerminal = vm.runInThisContext('SerialTerminal');
+const SerialTerminal = loadSerialTerminal();
 
 const src = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
 const uart = assemble(src, { defines: { CONSOLE_UART: 1 } });

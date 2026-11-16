@@ -1,9 +1,10 @@
-# Archived plans and design notes
+# Archived plans, design notes and retired code
 
-Plans and design documents that are **finished or superseded**. Nothing here is
-a live plan; the current inventory is the "Pläne und Revisionsdokumente im
-Repo-Root" section of [`../STATUS.md`](../STATUS.md). Files are kept for their
-history and measurements, not because work is still pending.
+Plans and design documents that are **finished or superseded**, plus retired
+front-end code. Nothing here is a live plan; the current inventory is the
+"Pläne und Revisionsdokumente im Repo-Root" section of [`../STATUS.md`](../STATUS.md).
+Files are kept for their history and measurements, not because work is still
+pending.
 
 Moved here 2026-10-30.
 
@@ -19,4 +20,12 @@ Moved here 2026-10-30.
 | `deep16_project_summary.md` | early IDE status document ("PRODUCTION READY") | outdated; see the "State of the project" section of `README.md` |
 
 To revive one, move it back to the repo root and re-add it to the STATUS
-inventory; the archive is not built, linked or tested by the current tree.
+inventory; the archive is not built, linked or tested by the current tree -
+except `archive/frontend-serial-text/js/deep16_terminal.js`, which the UART
+kernel tests load through `tests/helpers.js`.
+
+Moved here 2026-11-16.
+
+| directory | was | why archived |
+|---|---|---|
+| `frontend-serial-text/` | the IDE's serial (UART terminal) and text-screen front end: `js/deep16_terminal.js` and the two tests that belonged to it | the front end is tiles-only now: the FiT tile graphics screen is the one supported display. The kernel's UART build (`asm/forth.asm` with `CONSOLE_UART`) is untouched and still tested - `tests/helpers.js` loads the archived terminal model as the host-side decoder for those tests |

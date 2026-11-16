@@ -1017,15 +1017,27 @@ and also serves the book.
 
 This is what makes the design buildable **now**, before a board.
 
+> **Status 2026-11-16:** the IDE front end is **tiles-only** now. The FiT tile
+> graphics screen is the one supported display; the serial view and the text
+> screen buffer that this section describes were archived together with their
+> code (`archive/frontend-serial-text/`). The kernel side is unchanged: the
+> `CONSOLE_UART` build and its UART ports still exist, and the tests below
+> still run against them.
+
 - **`SerialTerminal` model** (in `tests/helpers.js`): captures the TX byte stream,
-  feeds RX, and parses the §7.5 subset back into an 80×25 view.
+  feeds RX, and parses the §7.5 subset back into an 80×25 view. The model
+  itself is the archived IDE module; `tests/helpers.js` loads it from
+  `archive/frontend-serial-text/js/deep16_terminal.js`, so there is one
+  implementation.
 - **IDE Screen tab** renders the `SerialTerminal` for the UART build instead of
   reading `mem[0xF1000]`. The visual experience survives with no framebuffer.
+  *(Archived: the Screen tab shows the tile canvas now.)*
 - **Input injection (C5):** the existing "Datei tippen…" uploader
   (`fileToKeys` → key pump) feeds **UART RX** in the UART build, exactly as it
   feeds the keyboard FIFO in the screen build. The 128-entry RX FIFO is the same
   depth, so the pump's flow control still applies.
-- `sim.enqueueKeyCode` (the IDE keyboard) also maps to UART RX.
+- `sim.enqueueKeyCode` (the IDE keyboard) also maps to UART RX. *(The IDE maps
+  the keyboard to the keyboard FIFO now, like the D16nano build.)*
 
 ### 7.9 The boot loader, `start`, `free`, `mem` and the SD card
 
