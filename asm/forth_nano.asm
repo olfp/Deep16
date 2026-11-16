@@ -1502,21 +1502,73 @@ interpret_next:
 bdos_entry:
     LSI R2, 0
     CMP R0, R2
-    JZ bdos_version
+    JNZ bd_not0
     NOP
+    LDI bdos_version
+    MOV PC, R0
+    NOP
+bd_not0:
     LSI R2, 1
     CMP R0, R2
-    JZ bdos_dir
+    JNZ bd_not1
     NOP
+    LDI bdos_dir
+    MOV PC, R0
+    NOP
+bd_not1:
     LSI R2, 2
     CMP R0, R2
-    JZ bdos_lookup
+    JNZ bd_not2
     NOP
+    LDI bdos_lookup
+    MOV PC, R0
+    NOP
+bd_not2:
     LSI R2, 3
+    CMP R0, R2
+    JNZ bd_not3
+    NOP
+    LDI bdos_load              ; out of the relative branch's reach
+    MOV PC, R0
+    NOP
+bd_not3:
+    LSI R2, 4
+    CMP R0, R2
+    JNZ bd_not4
+    NOP
+    LDI bdos_lookup
+    MOV PC, R0
+    NOP
+bd_not4:
+    LSI R2, 5
+    CMP R0, R2
+    JNZ bd_not5
+    NOP
+    LDI bdos_fclose
+    MOV PC, R0
+    NOP
+bd_not5:
+    LSI R2, 6
+    CMP R0, R2
+    JNZ bd_not6
+    NOP
+    LDI bdos_load
+    MOV PC, R0
+    NOP
+bd_not6:
+    LSI R2, 7
+    CMP R0, R2
+    JNZ bd_not7
+    NOP
+    LDI bdos_fwrite
+    MOV PC, R0
+    NOP
+bd_not7:
+    LSI R2, 8
     CMP R0, R2
     JNZ bdos_unknown
     NOP
-    LDI bdos_load              ; out of the relative branch's reach
+    LDI bdos_unknown
     MOV PC, R0
     NOP
 bdos_unknown:
@@ -1532,6 +1584,21 @@ bdos_version:
     LSI R0, 1
     JML R10
     NOP
+
+; ---- Step 1 file helpers (slice-backed, read-first) --------------------
+bdos_fclose:
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+
+
+bdos_fwrite:
+    LSI R0, -1
+    LSI R1, 4
+    JML R10
+    NOP
+
 
 ; ---- SPI byte helpers -------------------------------------------------
 ; spi_put: send R3, return through R9.
@@ -18041,6 +18108,7 @@ ill_save_sp:
 ; shadow bank, DS=SS=ES=0, I=0, and the parked instruction's PC, so RETI
 ; re-runs the instruction the IRQ interrupted.  R0..R3 are the handler's
 ; shadow scratch; SWI/ILL runs with I=0, so an IRQ never nests on them.
+
 .org 0x51A0
 .code
 irq_handler:

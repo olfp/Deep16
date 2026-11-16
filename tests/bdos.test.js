@@ -218,3 +218,38 @@ test('a second load starts at offset 0 in its own segment', () => {
   assert.equal(sim.memory[0x2000 << 4] & 0xFFFF, 0xFF00, 'Pac-Man at offset 0');
   assert.equal(sim.memory[0x5000 << 4] & 0xFFFF, 0xFF00, 'Flappy at offset 0');
 });
+
+test('function 4 (fopen) finds a name like lookup', () => {
+  const mem = buildMemory(kernel);
+  for (const [i, ch] of [...'pacman'].entries()) mem[0x0400 + i] = ch.charCodeAt(0);
+  mem[0x0406] = 0;
+  const hit = callBdos(4, 0x0400, { mem });
+  assert.equal(hit.r0, slices.manifest.objects.pacman.first, 'fopen returns the first slice as handle');
+  assert.equal(hit.r1, 0, 'fopen reports success in R1');
+
+  const missMem = buildMemory(kernel);
+  for (const [i, ch] of [...'nope'].entries()) missMem[0x0400 + i] = ch.charCodeAt(0);
+  missMem[0x0404] = 0;
+  const miss = callBdos(4, 0x0400, { mem: missMem });
+  assert.equal(miss.r0, 0xFFFF, 'fopen reports not found');
+});
+
+test('function 5 (fclose) returns success', () => {
+  const { r0, r1 } = callBdos(5, 1);
+  assert.equal(r0, 0);
+  assert.equal(r1, 0);
+});
+
+test('function 6 (fread) loads a slice like function 3', () => {
+  const pac = buildPacman();
+  const { r0, r1 } = callBdos(6, slices.manifest.objects.pacman.first);
+  assert.equal(r0, 0x2000, 'fread returns the segment from the slice header');
+  assert.equal(r1, pac.entry, 'fread returns the entry point');
+});
+
+test('function 7 (fwrite) is not implemented yet', () => {
+  const { r0, r1 } = callBdos(7, 1);
+  assert.equal(r0, 0xFFFF);
+  assert.equal(r1, 4);
+});
+
