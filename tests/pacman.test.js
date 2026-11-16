@@ -11,7 +11,7 @@ import {
   buildPacman, checkPacman, PACMAN_SEG_BASE, PACMAN_LIMIT,
 } from '../scripts/make_showcase.mjs';
 import {
-  pacmanDotCount, pacmanMazeWords, pacmanArtTiles, T_FRUIT_L,
+  pacmanDotCount, pacmanMazeWords, pacmanArtTiles, T_FRUIT_L, T_DOT_L, T_PELLET_L,
   pacmanRuntimeSpriteFrames, pacmanGhostSpriteFrames, spriteFrameWords,
 } from '../scripts/make_pacman_art.mjs';
 
@@ -245,6 +245,17 @@ test('the arrow keys steer Pac-Man', () => {
   put(sim, 'ST_PAC_TMR', 1);
   run(sim, 60, { key: 0x02, keyFrame: 0 });   // Left -> C-B
   assert.ok(st(sim, 'ST_PAC_C') < c1, 'the left arrow moved him left');
+});
+
+test('power pellets use the larger pellet tile', () => {
+  const sim = start();
+  run(sim, 320);
+  // Logical (col,row): (1,3) and (30,3) are pellets; (1,1) is a small dot.
+  assert.equal(tileAt(sim, 3, 2), T_PELLET_L, 'pellet left half');
+  assert.equal(tileAt(sim, 3, 3), T_PELLET_L + 1, 'pellet right half');
+  assert.equal(tileAt(sim, 18, 2), T_PELLET_L, 'lower-left pellet');
+  assert.equal(tileAt(sim, 1, 2), T_DOT_L, 'ordinary dot left half');
+  assert.equal(tileAt(sim, 1, 3), T_DOT_L + 1, 'ordinary dot right half');
 });
 
 test('wall outlines merge, with no line between touching wall cells', () => {

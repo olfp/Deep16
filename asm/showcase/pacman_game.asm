@@ -270,13 +270,14 @@ mz_col:
     AND R0, R0
     JZ mz_blank
     NOP
+    MOV R5, R0                 ; keep the value; LDI below clobbers R0
     LDI ST_DOTS
     MOV R1, R0
     LD R2, R1, 0
     ADD R2, 1
     ST R2, R1, 0
     LSI R3, 3
-    CMP R0, R3
+    CMP R5, R3
     JNZ mz_dot
     NOP
     LDI T_PELLET_L
