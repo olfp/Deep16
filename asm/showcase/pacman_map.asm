@@ -66,7 +66,7 @@ pac_pal:
 ; Six 32x32 Pac-Man frames copied into the writable sprite bank at
 ; startup: right half, up half, down half, closed, and the corrected
 ; up/down open frames (the baked ones face the wrong way).
-.org 0xA00
+.org 0x1980
 pac_sprite_data:
     .word 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
     .word 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000

@@ -11,7 +11,7 @@
 ;   0x968..0x975  direction tables (also generated)
 ;   0x978..0x97B  ghost-eat point table (also generated)
 ;   0x980..0x99E  palette setup table (also generated)
-;   0x9A0..0x9D9  writable game state
+;   0x1900..0x195F writable game state
 ;   0xA00..0xE07  four sprite frames copied into the sprite bank at startup
 ;
 ; The HUD is tilemap row 0.  Maze logical row r is tilemap row 1+r, and
@@ -45,71 +45,72 @@
 .equ SFX_WAKA    4
 .equ SFX_EAT     5
 
-; ---- writable state (DS offsets 0x9A0..0x9D9) --------------------------
-.equ ST_PAC_C     0x9A0
-.equ ST_PAC_R     0x9A1
-.equ ST_PAC_DIR   0x9A2
-.equ ST_PAC_WANT  0x9A3
-.equ ST_LIVES     0x9A6        ; 3 at the start of a game
-.equ ST_EXTRA     0x9A7        ; 1 after the 10,000-point bonus life
-.equ ST_PAC_TMR   0x9A4
-.equ ST_SC3       0x9C6        ; thousand, hundred, ten, one digits
-.equ ST_SC2       0x9C7
-.equ ST_SC1       0x9C8
-.equ ST_SC0       0x9C9
-.equ ST_DOTS      0x9A5
-.equ ST_FRAME     0x9A9
-.equ ST_LASTF     0x9AA
-.equ ST_STATE     0x9AB        ; 0 play, 1 dead, 2 win
-.equ ST_TIMER     0x9AC
-.equ ST_FRIGHT    0x9AD
-.equ ST_BESTD     0x9AF
-.equ ST_BESTDIST  0x9B0
-.equ ST_NC        0x9B1
-.equ ST_NR        0x9B2
-.equ ST_RET10     0x9B3
-.equ ST_RET11     0x9B4
-.equ ST_LR_DRAW   0x9B5
-.equ ST_LR_DGA    0x9B6
-.equ ST_LR_TICK   0x9B7
-.equ ST_LR_GMV    0x9B8
-.equ ST_LR_REST   0x9B9
-.equ ST_GHOST_C   0x9BA        ; four words
-.equ ST_GHOST_R   0x9BE
-.equ ST_GHOST_DIR 0x9C2
-.equ ST_GHOST_T0  0x9CA        ; one move countdown per ghost
-.equ ST_GHOST_EAT 0x9CE        ; 0..3, reset by an energizer
-.equ ST_PAC_ANIM  0x9CF        ; munch phase 0 open, 1 half, 2 closed, 3 half
-.equ ST_PAC_MUNCH 0x9D0        ; frames per munch phase
-.equ ST_PAC_MOVE  0x9D1        ; 1 while Pac-Man is actually moving
-.equ ST_FRUIT_N   0x9D2        ; how many fruits have appeared (0..2)
-.equ ST_FRUIT_T   0x9D3        ; frames left on screen, 0 = none
-.equ ST_FRUIT_ST  0x9D4        ; 1 while the cherries are drawn
-.equ ST_SV6       0x9D5        ; score-add scratch
-.equ ST_SV7       0x9D6
-.equ ST_SVLR      0x9D7
-.equ ST_LR_COL    0x9D8        ; collision routine return address
-.equ ST_PAL0      0x9B5        ; saved sprite-palette entries 6..9
-.equ ST_PAL1      0x9B6
-.equ ST_PAL2      0x9B7
-.equ ST_PAL3      0x9DD
-.equ ST_EAT_C     0x9DE        ; cell whose pickup is processed on arrival
-.equ ST_EAT_R     0x9DF
-.equ ST_EAT_V     0x9B9        ; map value + 1, 0 = no pending pickup
-; ---- smooth-movement state (0x9D9..0x9FF) -----------------------------
-.equ ST_PAC_FC    0x9E0        ; cell Pac-Man is leaving
-.equ ST_PAC_FR    0x9E1
-.equ ST_PAC_OFF   0x9E2        ; 1/16-pixel progress into the current move
-.equ ST_PAC_PX    0x9E3        ; interpolated sprite centre
-.equ ST_PAC_PY    0x9E4
-.equ ST_PAC_NEXT  0x9E5        ; 1 when another move is queued
-.equ ST_G_FC      0x9E6        ; four ghosts: cell being left
-.equ ST_G_FR      0x9EA
-.equ ST_G_OFF     0x9EE        ; 1/16-pixel progress
-.equ ST_G_DIR     0x9F2        ; direction of the current visual move, 0 = still
-.equ ST_G_STEP    0x9F6        ; 1/16 pixels per frame for the current move
-.equ ST_G_PX      0x9FA
-.equ ST_G_PY      0x9D9
+; ---- writable state (DS offsets 0x1900..0x195F) -------------------------
+.equ ST_PAC_C 0x1900
+.equ ST_PAC_R 0x1901
+.equ ST_PAC_DIR 0x1902
+.equ ST_PAC_WANT 0x1903
+.equ ST_LIVES 0x1906 ; 3 at the start of a game
+.equ ST_EXTRA 0x1907 ; 1 after the 10,000-point bonus life
+.equ ST_IMMORTAL 0x1908 ; I toggles infinite lives
+.equ ST_PAC_TMR 0x1904
+.equ ST_SC3 0x1926 ; thousand, hundred, ten, one digits
+.equ ST_SC2 0x1927
+.equ ST_SC1 0x1928
+.equ ST_SC0 0x1929
+.equ ST_DOTS 0x1905
+.equ ST_FRAME 0x1909
+.equ ST_LASTF 0x190A
+.equ ST_STATE 0x190B ; 0 play, 1 dead, 2 win
+.equ ST_TIMER 0x190C
+.equ ST_FRIGHT 0x190D
+.equ ST_BESTD 0x190F
+.equ ST_BESTDIST 0x1910
+.equ ST_NC 0x1911
+.equ ST_NR 0x1912
+.equ ST_RET10 0x1913
+.equ ST_RET11 0x1914
+.equ ST_LR_DRAW 0x1915
+.equ ST_LR_DGA 0x1916
+.equ ST_LR_TICK 0x1917
+.equ ST_LR_GMV 0x1918
+.equ ST_LR_REST 0x1919
+.equ ST_GHOST_C 0x191A ; four words
+.equ ST_GHOST_R 0x191E
+.equ ST_GHOST_DIR 0x1922
+.equ ST_GHOST_T0 0x192A ; one move countdown per ghost
+.equ ST_GHOST_EAT 0x192E ; 0..3, reset by an energizer
+.equ ST_PAC_ANIM 0x192F ; munch phase 0 open, 1 half, 2 closed, 3 half
+.equ ST_PAC_MUNCH 0x1930 ; frames per munch phase
+.equ ST_PAC_MOVE 0x1931 ; 1 while Pac-Man is actually moving
+.equ ST_FRUIT_N 0x1932 ; how many fruits have appeared (0..2)
+.equ ST_FRUIT_T 0x1933 ; frames left on screen, 0 = none
+.equ ST_FRUIT_ST 0x1934 ; 1 while the cherries are drawn
+.equ ST_SV6 0x1935 ; score-add scratch
+.equ ST_SV7 0x1936
+.equ ST_SVLR 0x1937
+.equ ST_LR_COL 0x1938 ; collision routine return address
+.equ ST_PAL0 0x1915 ; saved sprite-palette entries 6..9
+.equ ST_PAL1 0x1916
+.equ ST_PAL2 0x1917
+.equ ST_PAL3 0x193D
+.equ ST_EAT_C 0x193E ; cell whose pickup is processed on arrival
+.equ ST_EAT_R 0x193F
+.equ ST_EAT_V 0x1919 ; map value + 1, 0 = no pending pickup
+; ---- smooth-movement state (0x1939..0x195F) ----------------------------
+.equ ST_PAC_FC 0x1940 ; cell Pac-Man is leaving
+.equ ST_PAC_FR 0x1941
+.equ ST_PAC_OFF 0x1942 ; 1/16-pixel progress into the current move
+.equ ST_PAC_PX 0x1943 ; interpolated sprite centre
+.equ ST_PAC_PY 0x1944
+.equ ST_PAC_NEXT 0x1945 ; 1 when another move is queued
+.equ ST_G_FC 0x1946 ; four ghosts: cell being left
+.equ ST_G_FR 0x194A
+.equ ST_G_OFF 0x194E ; 1/16-pixel progress
+.equ ST_G_DIR 0x1952 ; direction of the current visual move, 0 = still
+.equ ST_G_STEP 0x1956 ; 1/16 pixels per frame for the current move
+.equ ST_G_PX 0x195A
+.equ ST_G_PY 0x1939
 
 .org 0
 ; =====================================================================
@@ -211,6 +212,9 @@ pac_entry:
     ST R3, R2, 0
     LSI R3, 0
     LDI ST_EXTRA
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_IMMORTAL
     MOV R2, R0
     ST R3, R2, 0
     LDI ST_FRIGHT
@@ -1433,6 +1437,12 @@ pac_col_pts_done:
     NOP
 
 pac_col_dead:
+    LDI ST_IMMORTAL
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JNZ pac_respawn
+    NOP
     LDI SFX_DEATH
     MOV R1, R0
     LDI 30
@@ -1447,7 +1457,8 @@ pac_col_dead:
     AND R3, R3
     JZ pac_game_over
     NOP
-    ; still have a life: clear the round's transient state and respawn
+pac_respawn:
+    ; clear the round's transient state and respawn
     LSI R3, 0
     LDI ST_FRIGHT
     MOV R2, R0
@@ -2602,7 +2613,16 @@ pac_keys:
     LDI 0x71
     MOV R3, R0
     CMP R1, R3
-    JZ pac_exit
+    JNZ pac_k_not_q
+    NOP
+    LDI pac_exit
+    MOV PC, R0
+    NOP
+pac_k_not_q:
+    LDI 0x69
+    MOV R3, R0
+    CMP R1, R3
+    JZ pac_k_immortal
     NOP
     LDI 0x77
     MOV R3, R0
@@ -2642,6 +2662,52 @@ pac_k_left:
     LDI pac_k_set
     MOV PC, R0
     NOP
+pac_k_immortal:
+    LDI ST_SVLR
+    MOV R2, R0
+    ST LR, R2, 0
+    LDI ST_IMMORTAL
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_k_imm_on
+    NOP
+    ; turn immortal mode off and clear the HUD
+    LSI R3, 0
+    ST R3, R2, 0
+    LSI R9, 2
+    LDI 64
+    MOV R10, R0
+    LDI str_blank8
+    MOV R8, R0
+    LDI draw_text
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI pac_k_imm_done
+    MOV PC, R0
+    NOP
+pac_k_imm_on:
+    LSI R3, 1
+    ST R3, R2, 0
+    LSI R9, 2
+    LDI 64
+    MOV R10, R0
+    LDI str_immortal
+    MOV R8, R0
+    LDI draw_text
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+pac_k_imm_done:
+    LDI ST_SVLR
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
+    NOP
+
 pac_k_right:
     LSI R3, 4
 pac_k_set:
@@ -2906,6 +2972,10 @@ str_win:
     .text "YOU WIN!"
 str_over:
     .text "GAME OVER"
+str_immortal:
+    .text "IMMORTAL"
+str_blank8:
+    .text "        "
 
 ; end of the code/string region; the build asserts this stays below 0x500
 p_code_end:

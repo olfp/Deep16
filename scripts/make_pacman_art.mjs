@@ -529,7 +529,7 @@ export function pacmanMapAsm() {
   lines.push('; Six 32x32 Pac-Man frames copied into the writable sprite bank at');
   lines.push('; startup: right half, up half, down half, closed, and the corrected');
   lines.push('; up/down open frames (the baked ones face the wrong way).');
-  lines.push('.org 0xA00');
+  lines.push('.org 0x1980');
   lines.push('pac_sprite_data:');
   for (const frame of runtime) {
     const words = spriteFrameWords(frame.grid);

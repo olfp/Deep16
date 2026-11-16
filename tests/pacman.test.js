@@ -41,11 +41,11 @@ test('the maze packs 32x24 cells and 244 pickups', () => {
 });
 
 test('the block keeps code below the map and data below the runtime packs', () => {
-  assert.ok(pacman.codeEnd <= 0x9A0, `code ends at 0x${pacman.codeEnd.toString(16)}`);
+  assert.ok(pacman.codeEnd <= 0x1000, `code ends at 0x${pacman.codeEnd.toString(16)}`);
   assert.ok(pacman.codeMax < PACMAN_LIMIT);
   const at = (a) => pacman.words.find((w) => w[0] === a)?.[1];
   assert.equal(at(0x1340) !== undefined, true, 'map starts at 0x1340');
-  assert.equal(pacman.words.some(([a]) => a >= 0x9A0 && a < 0xA00), false, 'state cells stay unwritten');
+  assert.equal(pacman.words.some(([a]) => a >= 0x1900 && a < 0x1960), false, 'state cells stay unwritten');
   assert.ok(pacman.codeMax < 0x2000, 'code and data stay below the slice end');
   assert.ok(pacman.packOffset + pacman.packTiles * 33 + 2 <= 0x1340,
             'tile pack ends before the maze');
@@ -521,6 +521,33 @@ test('a death with lives left respawns and keeps the dots', () => {
   put(sim, 'ST_PAC_TMR', 1);
   run(sim, 20);
   assert.ok(st(sim, 'ST_PAC_C') > 15, 'Pac-Man can move after respawning');
+});
+
+test('I toggles Immortal mode and infinite lives', () => {
+  const sim = start();
+  run(sim, 320);
+  parkGhosts(sim);
+
+  run(sim, 1, { key: 0x69, keyFrame: 0 });   // 'I'
+  assert.equal(st(sim, 'ST_IMMORTAL'), 1, 'Immortal mode is on');
+  assert.equal(sim.memory[0xF1000 + 2 * 82 + 64], textTile('I'), 'HUD starts with I');
+  assert.equal(sim.memory[0xF1000 + 2 * 82 + 71], textTile('L'), 'HUD ends with L');
+
+  // An Immortal death costs no life and respawns immediately.
+  put(sim, 'ST_LIVES', 1);
+  put(sim, 'ST_FRIGHT', 0);
+  putGhostOnPac(sim);
+  run(sim, 2);
+  assert.equal(st(sim, 'ST_LIVES'), 1, 'no life lost');
+  assert.equal(st(sim, 'ST_STATE'), 0, 'still playing');
+  assert.deepEqual([st(sim, 'ST_PAC_C'), st(sim, 'ST_PAC_R')], [15, 17],
+                   'respawned at the start');
+  assert.equal(sim.memory[0xF1000 + 2 * 82 + 64], textTile('I'),
+               'Immortal HUD survives the respawn');
+
+  run(sim, 1, { key: 0x69, keyFrame: 0 });   // toggle off
+  assert.equal(st(sim, 'ST_IMMORTAL'), 0, 'Immortal mode is off');
+  assert.equal(sim.memory[0xF1000 + 2 * 82 + 64], textTile(' '), 'HUD cleared');
 });
 
 test('10,000 points awards one extra life', () => {
