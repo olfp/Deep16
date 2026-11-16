@@ -30,7 +30,7 @@ export const SHOWCASE_SEG_BASE = 0x4A00;      // physical base of the segment
 export const MENU_LIMIT = 0x5E0;              // menu may use 0x500..0x5DF
 export const PACMAN_SEG = 0x0433;             // physical 0x4330
 export const PACMAN_SEG_BASE = 0x4330;
-export const PACMAN_LIMIT = 0x1000;           // assembly stays below the tile pack
+export const PACMAN_LIMIT = 0x2000;           // slice data below runtime sprite packs
 export const PACMAN_CODE_LIMIT = 0x900;       // code and strings before the map
 export const FROGGER_SEG = 0x0435;             // physical 0x4350
 export const FROGGER_SEG_BASE = 0x4350;
@@ -52,7 +52,7 @@ function withArtPack(block, pack) {
     codeMax: block.max,
     packOffset: ART_PACK_OFFSET,
     packTiles: pack[1],
-    max: ART_PACK_OFFSET + pack.length - 1,
+    max: Math.max(block.max, ART_PACK_OFFSET + pack.length - 1),
   };
 }
 
@@ -108,12 +108,16 @@ export function buildPacman() {
     max = Math.max(max, c.address);
   }
   words.sort((a, b) => a[0] - b[0]);
+  const pack = pacmanArtPack();
+  if (ART_PACK_OFFSET + pack.length > 0x14A8) {
+    throw new Error(`pacman tile pack ends at 0x${(ART_PACK_OFFSET + pack.length).toString(16)}, past the sprite tables`);
+  }
   const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
   return withArtPack({
     words, min: words[0]?.[0] ?? 0, max, size: max + 1, build,
     entry: 0, seg: PACMAN_SEG, codeEnd: res.symbols.p_code_end,
     symbols: res.symbols,
-  }, pacmanArtPack());
+  }, pack);
 }
 
 export function checkPacman(pacman) {

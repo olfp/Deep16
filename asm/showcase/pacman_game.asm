@@ -33,11 +33,6 @@
 .equ T_DOT_R     50
 .equ T_PELLET_L  51
 .equ T_PELLET_R  52
-.equ T_GHOST_L   53          ; four colour pairs: red, pink, cyan, orange
-.equ T_FRIGHT_L  61
-.equ T_FRIGHT_R  62
-.equ T_FLASH_L   63
-.equ T_FLASH_R   64
 .equ T_GATE_L    65
 .equ T_GATE_R    66
 .equ T_FRUIT_L   67
@@ -92,7 +87,24 @@
 .equ ST_SV7       0x9D6
 .equ ST_SVLR      0x9D7
 .equ ST_LR_COL    0x9D8        ; collision routine return address
-.equ ST_G_MOVED   0x9D9        ; a ghost moved this frame
+.equ ST_PAL0      0x9B5        ; saved sprite-palette entries 6..9
+.equ ST_PAL1      0x9B6
+.equ ST_PAL2      0x9B7
+.equ ST_PAL3      0x9DD
+; ---- smooth-movement state (0x9D9..0x9FF) -----------------------------
+.equ ST_PAC_FC    0x9E0        ; cell Pac-Man is leaving
+.equ ST_PAC_FR    0x9E1
+.equ ST_PAC_OFF   0x9E2        ; 1/16-pixel progress into the current move
+.equ ST_PAC_PX    0x9E3        ; interpolated sprite centre
+.equ ST_PAC_PY    0x9E4
+.equ ST_PAC_NEXT  0x9E5        ; 1 when another move is queued
+.equ ST_G_FC      0x9E6        ; four ghosts: cell being left
+.equ ST_G_FR      0x9EA
+.equ ST_G_OFF     0x9EE        ; 1/16-pixel progress
+.equ ST_G_DIR     0x9F2        ; direction of the current visual move, 0 = still
+.equ ST_G_STEP    0x9F6        ; 1/16 pixels per frame for the current move
+.equ ST_G_PX      0x9FA
+.equ ST_G_PY      0x9D9
 
 .org 0
 ; =====================================================================
@@ -113,41 +125,62 @@ pac_entry:
     LINK
     JMP R4
     NOP
+    ; keep the sprite-palette entries Flappy's bird art uses
+    LDI SEG_OAM
+    MVS ES, R0
+    LDI 0x00E6
+    MOV R2, R0
+    LDS R3, ES, R2
+    LDI ST_PAL0
+    MOV R4, R0
+    ST R3, R4, 0
+    ADD R2, 1
+    LDS R3, ES, R2
+    LDI ST_PAL1
+    MOV R4, R0
+    ST R3, R4, 0
+    ADD R2, 1
+    LDS R3, ES, R2
+    LDI ST_PAL2
+    MOV R4, R0
+    ST R3, R4, 0
+    ADD R2, 1
+    LDS R3, ES, R2
+    LDI ST_PAL3
+    MOV R4, R0
+    ST R3, R4, 0
     LDI pac_setpal
     MOV R4, R0
     LINK
     JMP R4
     NOP
 
-    ; install the half-open and closed sprite frames into the writable sprite
-    ; bank.  Groups 1/9/17/10 are spare for Pac-Man, so the baked bank (and
-    ; Flappy's shared cloud) does not have to change with this slice.
-    LDI SEG_SPR
-    MVS ES, R0
+    ; keep Flappy's dizzy groups, then install the Pac-Man and ghost frames
+    ; into the writable sprite bank.  The baked bank is untouched.
+    LDI pac_save_groups
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI pac_copy_frames
+    MOV R4, R0
     LDI pac_sprite_data
     MOV R1, R0
     LDI pac_sprite_groups
     MOV R5, R0
-    LSI R6, 4
-pac_spc_group:
-    LDS R2, DS, R5
-    SL R2, 8                  ; group * 256 words
-    LSI R8, 0
-    LDI 256
-    MOV R3, R0
-pac_spc_word:
-    LDS R4, DS, R1
-    MOV R7, R2
-    ADD R7, R8
-    STS R4, ES, R7
-    ADD R1, 1
-    ADD R8, 1
-    SUB R3, 1
-    JNZ pac_spc_word
+    LSI R6, 6
+    LINK
+    JMP R4
     NOP
-    ADD R5, 1
-    SUB R6, 1
-    JNZ pac_spc_group
+    LDI pac_copy_frames
+    MOV R4, R0
+    LDI pac_ghost_data
+    MOV R1, R0
+    LDI pac_ghost_groups
+    MOV R5, R0
+    LSI R6, 4
+    LINK
+    JMP R4
     NOP
 
     ; score digits and frame counters
@@ -434,22 +467,50 @@ mz_done:
     ST R3, R2, 0
     LDI ST_PAC_TMR
     MOV R2, R0
-    LDI 16
+    LDI 8
+    MOV R3, R0
+    ST R3, R2, 0
+    ; smooth-movement origin and sprite centre for Pac-Man
+    LDI ST_PAC_FC
+    MOV R2, R0
+    LDI 15
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI ST_PAC_FR
+    MOV R2, R0
+    LDI 17
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI ST_PAC_OFF
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI ST_PAC_NEXT
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_PAC_PX
+    MOV R2, R0
+    LDI 248
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI ST_PAC_PY
+    MOV R2, R0
+    LDI 262
     MOV R3, R0
     ST R3, R2, 0
     ; staggered ghost phases; each timer resets to its own speed after a move
     LDI ST_GHOST_T0
     MOV R2, R0
-    LDI 17
+    LDI 9
     MOV R3, R0
     ST R3, R2, 0
-    LDI 21
+    LDI 11
     MOV R3, R0
     ST R3, R2, 1
-    LDI 25
+    LDI 13
     MOV R3, R0
     ST R3, R2, 2
-    LDI 29
+    LDI 15
     MOV R3, R0
     ST R3, R2, 3
 
@@ -482,12 +543,36 @@ mz_done:
     ST R3, R2, 1
     ST R3, R2, 2
     ST R3, R2, 3
+    ; smooth origins; the first ghost_anim computes their sprite centres
+    LDI ST_G_FC
+    MOV R2, R0
+    LDI 14
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI 15
+    MOV R3, R0
+    ST R3, R2, 1
+    LDI 16
+    MOV R3, R0
+    ST R3, R2, 2
+    LDI 17
+    MOV R3, R0
+    ST R3, R2, 3
+    LDI ST_G_FR
+    MOV R2, R0
+    LSI R3, 9
+    ST R3, R2, 0
+    ST R3, R2, 1
+    ST R3, R2, 2
+    ST R3, R2, 3
+    LDI ST_G_DIR
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    ST R3, R2, 1
+    ST R3, R2, 2
+    ST R3, R2, 3
 
-    LDI pac_draw_ghosts
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
     LDI pac_sprite
     MOV R4, R0
     LINK
@@ -579,36 +664,9 @@ pac_fright:
     NOP
     SUB R3, 1
     ST R3, R2, 0
-    AND R3, R3
-    JZ pac_fright_end
-    NOP
-    ; repaint during the last two seconds so the white flash is visible
-    LDI 120
-    MOV R4, R0
-    CMP R4, R3
-    JC pac_ghost_timer
-    NOP
-    LDI pac_draw_ghosts
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI pac_ghost_timer
-    MOV PC, R0
-    NOP
-pac_fright_end:
-    LDI pac_draw_ghosts
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
 
 pac_ghost_timer:
     ; one countdown per ghost: tunnel 40%, frightened 50%, normal 75%
-    LDI ST_G_MOVED
-    MOV R2, R0
-    LSI R3, 0
-    ST R3, R2, 0
     LSI R6, 0
 pac_gt_loop:
     LDI ST_GHOST_T0
@@ -619,10 +677,6 @@ pac_gt_loop:
     ST R3, R2, 0
     JNZ pac_gt_next
     NOP
-    LDI ST_G_MOVED
-    MOV R2, R0
-    LSI R3, 1
-    ST R3, R2, 0
     LDI pac_ghost_move
     MOV R4, R0
     LINK
@@ -641,44 +695,59 @@ pac_gt_loop:
     AND R3, R3
     JZ pac_gt_normal
     NOP
-    LDI 24
+    LDI 13
     MOV R3, R0
+    LDI 20
+    MOV R4, R0
     LDI pac_gt_set
     MOV PC, R0
     NOP
 pac_gt_tunnel:
-    LDI 32
+    LDI 16
     MOV R3, R0
+    LDI 16
+    MOV R4, R0
     LDI pac_gt_set
     MOV PC, R0
     NOP
 pac_gt_normal:
-    LDI 17
+    LDI 9
     MOV R3, R0
+    LDI 30
+    MOV R4, R0
 pac_gt_set:
     LDI ST_GHOST_T0
     MOV R2, R0
     ADD R2, R6
     ST R3, R2, 0
+    LDI ST_G_STEP
+    MOV R2, R0
+    ADD R2, R6
+    ST R4, R2, 0
 pac_gt_next:
     ADD R6, 1
     LSI R3, 4
     CMP R6, R3
     JNZ pac_gt_loop
     NOP
-    ; repaint only when a ghost moved; the flash path repaints on its own
-    LDI ST_G_MOVED
-    MOV R2, R0
-    LD R3, R2, 0
-    AND R3, R3
-    JZ pac_ghost_collide
-    NOP
-    LDI pac_draw_ghosts
+
+    ; update ghost colours and interpolated positions, then Pac-Man's
+    LDI pac_ghost_palette
     MOV R4, R0
     LINK
     JMP R4
     NOP
-pac_ghost_collide:
+    LDI pac_ghost_anim
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI pac_anim
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    ; collisions use the interpolated sprite centres
     LDI pac_collide
     MOV R4, R0
     LINK
@@ -686,7 +755,6 @@ pac_ghost_collide:
     NOP
 
 pac_munch:
-    ; the mouth advances only while Pac-Man is actually moving
     LDI ST_PAC_MOVE
     MOV R2, R0
     LD R3, R2, 0
@@ -724,12 +792,12 @@ pac_pac_timer:
     AND R3, R3
     JZ pac_pac_base
     NOP
-    LSI R3, 14
+    LSI R3, 7
     LDI pac_pac_set
     MOV PC, R0
     NOP
 pac_pac_base:
-    LDI 16
+    LDI 8
     MOV R3, R0
 pac_pac_set:
     LDI ST_PAC_TMR
@@ -741,6 +809,11 @@ pac_pac_set:
 
 pac_sprite_now:
     LDI pac_sprite
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI pac_ghost_sprite
     MOV R4, R0
     LINK
     JMP R4
@@ -855,7 +928,7 @@ pac_move_current:
     NOP
 
 pac_move_stop:
-    LDI ST_PAC_MOVE
+    LDI ST_PAC_NEXT
     MOV R2, R0
     LSI R3, 0
     ST R3, R2, 0
@@ -867,6 +940,18 @@ pac_move_apply:
     ; R1/R2 are the (possibly tunnel-wrapped) new cell
     LDI ST_PAC_C
     MOV R3, R0
+    LD R4, R3, 0
+    LDI ST_PAC_FC
+    MOV R3, R0
+    ST R4, R3, 0
+    LDI ST_PAC_R
+    MOV R3, R0
+    LD R4, R3, 0
+    LDI ST_PAC_FR
+    MOV R3, R0
+    ST R4, R3, 0
+    LDI ST_PAC_C
+    MOV R3, R0
     ST R1, R3, 0
     LDI ST_PAC_R
     MOV R3, R0
@@ -874,9 +959,16 @@ pac_move_apply:
     LDI ST_PAC_DIR
     MOV R3, R0
     ST R7, R3, 0
-    LDI ST_PAC_MOVE
+    LDI ST_PAC_OFF
+    MOV R3, R0
+    LSI R4, 0
+    ST R4, R3, 0
+    LDI ST_PAC_NEXT
     MOV R3, R0
     LSI R4, 1
+    ST R4, R3, 0
+    LDI ST_PAC_MOVE
+    MOV R3, R0
     ST R4, R3, 0
     MOV R8, R1
     MOV R9, R2
@@ -920,12 +1012,12 @@ pac_eat_score:
     LDI ST_PAC_TMR
     MOV R2, R0
     LD R3, R2, 0
-    LSI R4, 2
+    LSI R4, 1
     LSI R5, 3
     CMP R6, R5
     JNZ pac_eat_delay
     NOP
-    LSI R4, 6
+    LSI R4, 3
 pac_eat_delay:
     ADD R3, R4
     ST R3, R2, 0
@@ -963,11 +1055,6 @@ pac_eat_delay:
     MOV R2, R0
     LSI R3, 0
     ST R3, R2, 0
-    LDI pac_draw_ghosts
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
 
 pac_after_eat:
     LDI SFX_WAKA
@@ -1139,27 +1226,45 @@ pac_collide:
     LDI ST_LR_COL
     MOV R2, R0
     ST LR, R2, 0
-    LDI ST_PAC_C
+    LDI ST_PAC_PX
     MOV R2, R0
     LD R8, R2, 0
-    LDI ST_PAC_R
+    LDI ST_PAC_PY
     MOV R2, R0
     LD R9, R2, 0
     LSI R6, 0
 pac_col_loop:
-    LDI ST_GHOST_C
+    LDI ST_G_PX
     MOV R2, R0
     ADD R2, R6
     LDS R3, DS, R2
-    CMP R3, R8
-    JNZ pac_col_next
+    MOV R4, R3
+    SUB R4, R8
+    AND R4, R4
+    JNN pac_col_xabs
     NOP
-    LDI ST_GHOST_R
+    NEG R4
+pac_col_xabs:
+    LDI 12
+    MOV R5, R0
+    CMP R4, R5
+    JNC pac_col_next
+    NOP
+    LDI ST_G_PY
     MOV R2, R0
     ADD R2, R6
-    LDS R4, DS, R2
-    CMP R4, R9
-    JNZ pac_col_next
+    LDS R3, DS, R2
+    MOV R4, R3
+    SUB R4, R9
+    AND R4, R4
+    JNN pac_col_yabs
+    NOP
+    NEG R4
+pac_col_yabs:
+    LDI 10
+    MOV R5, R0
+    CMP R4, R5
+    JNC pac_col_next
     NOP
 
     LDI ST_FRIGHT
@@ -1198,22 +1303,7 @@ pac_col_pts_done:
     LSI R2, 6
     LDI 9
     SWI
-    ; erase the ghost where it was drawn, then send it back to the corridor
-    LDI ST_GHOST_C
-    MOV R7, R0
-    ADD R7, R6
-    LDS R8, DS, R7
-    LDI ST_GHOST_R
-    MOV R7, R0
-    ADD R7, R6
-    LDS R9, DS, R7
-    MOV R7, R6
-    LDI pac_restore_cell
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    MOV R6, R7
+    ; send it back to the corridor and reset its smooth position
     LDI ST_GHOST_C
     MOV R2, R0
     ADD R2, R6
@@ -1225,11 +1315,38 @@ pac_col_pts_done:
     ADD R2, R6
     LSI R3, 9
     ST R3, R2, 0
-    LDI pac_draw_ghosts
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
+    LDI ST_G_FC
+    MOV R2, R0
+    ADD R2, R6
+    LDI 15
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI ST_G_FR
+    MOV R2, R0
+    ADD R2, R6
+    LSI R3, 9
+    ST R3, R2, 0
+    LDI ST_G_OFF
+    MOV R2, R0
+    ADD R2, R6
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI ST_G_DIR
+    MOV R2, R0
+    ADD R2, R6
+    ST R3, R2, 0
+    LDI ST_G_PX
+    MOV R2, R0
+    ADD R2, R6
+    LDI 248
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI ST_G_PY
+    MOV R2, R0
+    ADD R2, R6
+    LDI 142
+    MOV R3, R0
+    ST R3, R2, 0
     LDI pac_col_return
     MOV PC, R0
     NOP
@@ -1299,14 +1416,24 @@ pac_ghost_move:
     MOV R2, R0
     ADD R2, R6
     LDS R9, DS, R2
-    ; erase the ghost from the cell it is about to leave
-    MOV R7, R6
-    LDI pac_restore_cell
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    MOV R6, R7
+    ; remember the cell the sprite is leaving
+    LDI ST_G_FC
+    MOV R2, R0
+    ADD R2, R6
+    ST R8, R2, 0
+    LDI ST_G_FR
+    MOV R2, R0
+    ADD R2, R6
+    ST R9, R2, 0
+    LDI ST_G_OFF
+    MOV R2, R0
+    ADD R2, R6
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI ST_G_DIR
+    MOV R2, R0
+    ADD R2, R6
+    ST R3, R2, 0
 
     LSI R3, 0
     LDI ST_BESTD
@@ -1468,6 +1595,10 @@ pac_gm_reverse:
 
 pac_gm_setdir:
     LDI ST_GHOST_DIR
+    MOV R4, R0
+    ADD R4, R6
+    ST R7, R4, 0
+    LDI ST_G_DIR
     MOV R4, R0
     ADD R4, R6
     ST R7, R4, 0
@@ -1666,240 +1797,6 @@ pac_ip_no:
     JMP LR
     NOP
 
-; R8/R9 cell: (re)paint the path art, including a dot that has not been eaten.
-pac_restore_cell:
-    LDI ST_LR_REST
-    MOV R2, R0
-    ST LR, R2, 0
-    ; the ghost door is drawn as text, not a blank path cell
-    LSI R3, 10
-    CMP R9, R3
-    JNZ pac_rc_map
-    NOP
-    CMP R8, 14
-    JN pac_rc_map
-    NOP
-    LDI 18
-    CMP R8, R3
-    JNC pac_rc_map
-    NOP
-pac_rc_door:
-    LDI T_GATE_L
-    MOV R5, R0
-    LDI T_GATE_R
-    MOV R6, R0
-    LDI pac_rc_shift
-    MOV PC, R0
-    NOP
-
-pac_rc_map:
-    ; the cherries may be under a ghost that is leaving this cell
-    LSI R3, 13
-    CMP R9, R3
-    JNZ pac_rc_not_fruit
-    NOP
-    CMP R8, 15
-    JNZ pac_rc_not_fruit
-    NOP
-    LDI ST_FRUIT_ST
-    MOV R2, R0
-    LD R3, R2, 0
-    AND R3, R3
-    JZ pac_rc_not_fruit
-    NOP
-    LDI T_FRUIT_L
-    MOV R5, R0
-    LDI T_FRUIT_R
-    MOV R6, R0
-    LDI pac_rc_shift
-    MOV PC, R0
-    NOP
-pac_rc_not_fruit:
-    MOV R1, R8
-    MOV R2, R9
-    LDI pac_mapval
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LSI R5, 0
-    LSI R6, 0
-    LSI R3, 2
-    CMP R0, R3
-    JC pac_rc_paint            ; empty or wall -> blank
-    NOP
-    LSI R3, 3
-    CMP R0, R3
-    JNZ pac_rc_dot
-    NOP
-    LDI T_PELLET_L
-    MOV R5, R0
-    LDI T_PELLET_R
-    MOV R6, R0
-    LDI pac_rc_shift
-    MOV PC, R0
-    NOP
-pac_rc_dot:
-    LDI T_DOT_L
-    MOV R5, R0
-    LDI T_DOT_R
-    MOV R6, R0
-pac_rc_shift:
-    SL R5, 5
-    SL R6, 5
-pac_rc_paint:
-    LDI pac_cell_addr
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI SEG_TILE
-    MVS ES, R0
-    STS R5, ES, R3
-    ADD R3, 1
-    STS R6, ES, R3
-pac_rc_done:
-    LDI ST_LR_REST
-    MOV R2, R0
-    LD LR, R2, 0
-    JMP LR
-    NOP
-
-pac_draw_ghosts:
-    LDI ST_LR_DRAW
-    MOV R2, R0
-    ST LR, R2, 0
-    LSI R6, 0
-pac_dg_loop:
-    LDI ST_GHOST_C
-    MOV R2, R0
-    ADD R2, R6
-    LDS R8, DS, R2
-    LDI ST_GHOST_R
-    MOV R2, R0
-    ADD R2, R6
-    LDS R9, DS, R2
-    LDI pac_draw_ghost_at
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    ADD R6, 1
-    LSI R3, 4
-    CMP R6, R3
-    JNZ pac_dg_loop
-    NOP
-    LDI ST_LR_DRAW
-    MOV R2, R0
-    LD LR, R2, 0
-    JMP LR
-    NOP
-
-; Test/setup entry: repaint the ghosts once and end the frame.
-pac_draw_ghosts_now:
-    LDI pac_draw_ghosts
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI pac_sprite_now
-    MOV PC, R0
-    NOP
-
-pac_draw_ghost_at:
-    LDI ST_LR_DGA
-    MOV R2, R0
-    ST LR, R2, 0
-    LDI pac_cell_addr
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    MOV R1, R3                 ; keep the tilemap address
-    LDI ST_FRIGHT
-    MOV R2, R0
-    LD R2, R2, 0
-    AND R2, R2
-    JZ pac_dga_normal
-    NOP
-    ; blue, except for a white flash during the last two seconds
-    LDI 120
-    MOV R3, R0
-    CMP R3, R2
-    JC pac_dga_fright
-    NOP
-    LDI ST_FRAME
-    MOV R3, R0
-    LD R3, R3, 0
-    LDI 16
-    MOV R2, R0
-    AND R3, R2
-    JZ pac_dga_fright
-    NOP
-    LDI T_FLASH_L
-    MOV R5, R0
-    LDI T_FLASH_R
-    MOV R7, R0
-    LDI pac_dga_write
-    MOV PC, R0
-    NOP
-pac_dga_fright:
-    LDI T_FRIGHT_L
-    MOV R5, R0
-    LDI T_FRIGHT_R
-    MOV R7, R0
-    LDI pac_dga_write
-    MOV PC, R0
-    NOP
-pac_dga_normal:
-    ; Blinky red, Pinky pink, Inky cyan, Clyde orange: four consecutive pairs
-    LDI T_GHOST_L
-    MOV R5, R0
-    MOV R3, R6
-    SL R3, 1
-    ADD R5, R3
-    MOV R7, R5
-    ADD R7, 1
-pac_dga_write:
-    SL R5, 5
-    SL R7, 5
-    MOV R3, R1
-    LDI SEG_TILE
-    MVS ES, R0
-    STS R5, ES, R3
-    ADD R3, 1
-    STS R7, ES, R3
-    LDI ST_LR_DGA
-    MOV R2, R0
-    LD LR, R2, 0
-    JMP LR
-    NOP
-
-; Draw the cherries (R5/R7 = left/right tile; 0,0 erases) at cell (15,13).
-pac_fruit_paint:
-    LDI ST_SVLR
-    MOV R2, R0
-    ST LR, R2, 0
-    LSI R8, 15
-    LSI R9, 13
-    LDI pac_cell_addr
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    SL R5, 5
-    SL R7, 5
-    LDI SEG_TILE
-    MVS ES, R0
-    STS R5, ES, R3
-    ADD R3, 1
-    STS R7, ES, R3
-    LDI ST_SVLR
-    MOV R2, R0
-    LD LR, R2, 0
-    JMP LR
-    NOP
-
 ; =====================================================================
 ; HUD
 ; =====================================================================
@@ -2033,32 +1930,363 @@ pac_dt_done:
     JMP LR
     NOP
 
+; Draw the cherries (R5/R7 = left/right tile; 0,0 erases) at cell (15,13).
+pac_fruit_paint:
+    LDI ST_SVLR
+    MOV R2, R0
+    ST LR, R2, 0
+    LSI R8, 15
+    LSI R9, 13
+    LDI pac_cell_addr
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    SL R5, 5
+    SL R7, 5
+    LDI SEG_TILE
+    MVS ES, R0
+    STS R5, ES, R3
+    ADD R3, 1
+    STS R7, ES, R3
+    LDI ST_SVLR
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
+    NOP
+
+; R8=column, R9=row, R3=offset pixels, R7=direction (1 up, 2 down,
+; 3 left, 4 right).  Returns the sprite centre in R2/R5.
+pac_cell_px:
+    MOV R2, R8
+    SL R2, 4
+    ADD R2, 8
+    MOV R5, R9
+    MOV R4, R5
+    SL R5, 4
+    SUB R5, R4
+    ADD R5, 7
+    LSI R4, 1
+    CMP R7, R4
+    JZ pac_cp_up
+    NOP
+    LSI R4, 2
+    CMP R7, R4
+    JZ pac_cp_down
+    NOP
+    LSI R4, 3
+    CMP R7, R4
+    JZ pac_cp_left
+    NOP
+    ADD R2, R3
+    JMP LR
+    NOP
+pac_cp_up:
+    SUB R5, R3
+    JMP LR
+    NOP
+pac_cp_down:
+    ADD R5, R3
+    JMP LR
+    NOP
+pac_cp_left:
+    SUB R2, R3
+    JMP LR
+    NOP
+
+; Advance Pac-Man's 1/16-pixel position and stop at the cell centre when no
+; further move is queued.
+pac_anim:
+    LDI ST_SVLR
+    MOV R2, R0
+    ST LR, R2, 0
+    LDI ST_PAC_MOVE
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_an_pos
+    NOP
+    LDI ST_PAC_DIR
+    MOV R2, R0
+    LD R7, R2, 0
+    LSI R4, 2
+    CMP R7, R4
+    JNC pac_an_horiz
+    NOP
+    LDI 240
+    MOV R6, R0
+    LDI pac_an_step
+    MOV PC, R0
+    NOP
+pac_an_horiz:
+    LDI 256
+    MOV R6, R0
+pac_an_step:
+    LDI ST_FRIGHT
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_an_norm
+    NOP
+    LDI 36
+    MOV R4, R0
+    LDI pac_an_add
+    MOV PC, R0
+    NOP
+pac_an_norm:
+    LDI 32
+    MOV R4, R0
+pac_an_add:
+    LDI ST_PAC_OFF
+    MOV R2, R0
+    LD R3, R2, 0
+    ADD R3, R4
+    CMP R3, R6
+    JC pac_an_store
+    NOP
+    MOV R3, R6
+pac_an_store:
+    ST R3, R2, 0
+    CMP R3, R6
+    JC pac_an_pos
+    NOP
+    LDI ST_PAC_NEXT
+    MOV R2, R0
+    LD R4, R2, 0
+    AND R4, R4
+    JNZ pac_an_pos
+    NOP
+    LDI ST_PAC_MOVE
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+pac_an_pos:
+    LDI ST_PAC_FC
+    MOV R2, R0
+    LD R8, R2, 0
+    LDI ST_PAC_FR
+    MOV R2, R0
+    LD R9, R2, 0
+    LDI ST_PAC_OFF
+    MOV R2, R0
+    LD R3, R2, 0
+    SR R3, 4
+    LDI ST_PAC_DIR
+    MOV R2, R0
+    LD R7, R2, 0
+    LDI pac_cell_px
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI ST_PAC_PX
+    MOV R4, R0
+    ST R2, R4, 0
+    LDI ST_PAC_PY
+    MOV R4, R0
+    ST R5, R4, 0
+    LDI ST_SVLR
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
+    NOP
+
+; Advance all four ghost sprites between their from-cell and target cell.
+pac_ghost_anim:
+    LDI ST_SVLR
+    MOV R2, R0
+    ST LR, R2, 0
+    LSI R6, 0
+pac_ga_loop:
+    LDI ST_G_DIR
+    MOV R2, R0
+    ADD R2, R6
+    LDS R7, DS, R2
+    LDI ST_G_FC
+    MOV R2, R0
+    ADD R2, R6
+    LDS R8, DS, R2
+    LDI ST_G_FR
+    MOV R2, R0
+    ADD R2, R6
+    LDS R9, DS, R2
+    AND R7, R7
+    JZ pac_ga_still
+    NOP
+    LDI ST_G_OFF
+    MOV R1, R0
+    ADD R1, R6
+    LDS R3, DS, R1
+    LSI R4, 2
+    CMP R7, R4
+    JNC pac_ga_horiz
+    NOP
+    LDI 240
+    MOV R5, R0
+    LDI pac_ga_step
+    MOV PC, R0
+    NOP
+pac_ga_horiz:
+    LDI 256
+    MOV R5, R0
+pac_ga_step:
+    LDI ST_G_STEP
+    MOV R2, R0
+    ADD R2, R6
+    LDS R4, DS, R2
+    ADD R3, R4
+    CMP R3, R5
+    JC pac_ga_store
+    NOP
+    MOV R3, R5
+pac_ga_store:
+    ST R3, R1, 0
+    LDI pac_ga_pos
+    MOV PC, R0
+    NOP
+pac_ga_still:
+    LSI R3, 0
+pac_ga_pos:
+    SR R3, 4
+    LDI pac_cell_px
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI ST_G_PX
+    MOV R4, R0
+    ADD R4, R6
+    ST R2, R4, 0
+    LDI ST_G_PY
+    MOV R4, R0
+    ADD R4, R6
+    ST R5, R4, 0
+    ADD R6, 1
+    LSI R3, 4
+    CMP R6, R3
+    JNZ pac_ga_loop
+    NOP
+    LDI ST_SVLR
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
+    NOP
+
+; Re-tint the four ghost bodies through the sprite palette.
+pac_ghost_palette:
+    LDI SEG_OAM
+    MVS ES, R0
+    LDI pac_ghost_colours
+    MOV R1, R0
+    LDI ST_FRIGHT
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_gp_copy
+    NOP
+    LDI 120
+    MOV R4, R0
+    CMP R4, R3
+    JC pac_gp_blue
+    NOP
+    LDI ST_FRAME
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI 16
+    MOV R4, R0
+    AND R3, R4
+    JZ pac_gp_blue
+    NOP
+    LDI pac_ghost_colours
+    MOV R1, R0
+    ADD R1, 8
+    LDI pac_gp_copy
+    MOV PC, R0
+    NOP
+pac_gp_blue:
+    LDI pac_ghost_colours
+    MOV R1, R0
+    ADD R1, 4
+pac_gp_copy:
+    LDI 0x00E6
+    MOV R2, R0
+    LSI R6, 4
+pac_gp_loop:
+    LDS R3, DS, R1
+    STS R3, ES, R2
+    ADD R1, 1
+    ADD R2, 1
+    SUB R6, 1
+    JNZ pac_gp_loop
+    NOP
+    JMP LR
+    NOP
+
+; Four ghost sprites in OAM descriptors 1..4.
+pac_ghost_sprite:
+    LDI SEG_OAM
+    MVS ES, R0
+    LSI R6, 0
+pac_gs_loop:
+    LDI ST_G_PX
+    MOV R2, R0
+    ADD R2, R6
+    LDS R2, DS, R2
+    LDI 16
+    MOV R3, R0
+    SUB R2, R3
+    LDI ST_G_PY
+    MOV R3, R0
+    ADD R3, R6
+    LDS R5, DS, R3
+    LDI 16
+    MOV R3, R0
+    SUB R5, R3
+    LDI pac_ghost_groups
+    MOV R3, R0
+    ADD R3, R6
+    LDS R3, DS, R3
+    SL R3, 11
+    OR R3, R5
+    MOV R4, R6
+    ADD R4, 1
+    SL R4, 1
+    ADD R4, 1
+    STS R3, ES, R4
+    LDI 0x0800
+    MOV R3, R0
+    OR R3, R2
+    MOV R4, R6
+    ADD R4, 1
+    SL R4, 1
+    STS R3, ES, R4
+    ADD R6, 1
+    LSI R3, 4
+    CMP R6, R3
+    JNZ pac_gs_loop
+    NOP
+    JMP LR
+    NOP
+
 ; =====================================================================
 ; Pac-Man sprite (OAM descriptor 0)
 ; =====================================================================
 pac_sprite:
     LDI SEG_OAM
     MVS ES, R0
-    ; x = 16*column - 8 (maze at column 0, minus half a sprite)
-    LDI ST_PAC_C
+    ; the interpolated centre, minus half a 32x32 sprite
+    LDI ST_PAC_PX
     MOV R2, R0
     LD R2, R2, 0
-    SL R2, 4
-    LDI 8
+    LDI 16
     MOV R3, R0
     SUB R2, R3
-
-    ; y = 6 + 15*row
-    LDI ST_PAC_R
+    LDI ST_PAC_PY
     MOV R3, R0
-    LD R3, R3, 0
-    SUB R3, 1                  ; maze row 0 is tilemap row 0
-    MOV R5, R3
-    SL R5, 4
+    LD R5, R3, 0
+    LDI 16
+    MOV R3, R0
     SUB R5, R3
-    LDI 6
-    MOV R3, R0
-    ADD R5, R3
 
     ; munch phase: 0 open, 1 half, 2 closed, 3 half
     LDI ST_PAC_ANIM
@@ -2298,6 +2526,115 @@ pac_pal_done:
     JMP LR
     NOP
 
+; R1 = DS source, R5 = table of target sprite groups, R6 = group count.
+pac_copy_frames:
+    LDI ST_SVLR
+    MOV R2, R0
+    ST LR, R2, 0
+    LDI SEG_SPR
+    MVS ES, R0
+pac_cf_group:
+    LDS R2, DS, R5
+    SL R2, 8
+    LSI R8, 0
+    LDI 256
+    MOV R3, R0
+pac_cf_word:
+    LDS R4, DS, R1
+    MOV R7, R2
+    ADD R7, R8
+    STS R4, ES, R7
+    ADD R1, 1
+    ADD R8, 1
+    SUB R3, 1
+    JNZ pac_cf_word
+    NOP
+    ADD R5, 1
+    SUB R6, 1
+    JNZ pac_cf_group
+    NOP
+    LDI ST_SVLR
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
+    NOP
+
+; Save the three Flappy dizzy groups Pac-Man reuses, so Flappy still works
+; after a game.  768 words live at DS 0x2000, above the slice image.
+pac_save_groups:
+    LDI ST_SVLR
+    MOV R2, R0
+    ST LR, R2, 0
+    LDI SEG_SPR
+    MVS ES, R0
+    LDI 0x2000
+    MOV R1, R0
+    LDI pac_saved_groups
+    MOV R5, R0
+    LSI R6, 3
+pac_sg_group:
+    LDS R2, DS, R5
+    SL R2, 8
+    LSI R8, 0
+    LDI 256
+    MOV R3, R0
+pac_sg_word:
+    MOV R7, R2
+    ADD R7, R8
+    LDS R4, ES, R7
+    ST R4, R1, 0
+    ADD R1, 1
+    ADD R8, 1
+    SUB R3, 1
+    JNZ pac_sg_word
+    NOP
+    ADD R5, 1
+    SUB R6, 1
+    JNZ pac_sg_group
+    NOP
+    LDI ST_SVLR
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
+    NOP
+
+pac_restore_groups:
+    LDI ST_SVLR
+    MOV R2, R0
+    ST LR, R2, 0
+    LDI SEG_SPR
+    MVS ES, R0
+    LDI 0x2000
+    MOV R1, R0
+    LDI pac_saved_groups
+    MOV R5, R0
+    LSI R6, 3
+pac_rg_group:
+    LDS R2, DS, R5
+    SL R2, 8
+    LSI R8, 0
+    LDI 256
+    MOV R3, R0
+pac_rg_word:
+    MOV R7, R2
+    ADD R7, R8
+    LD R4, R1, 0
+    STS R4, ES, R7
+    ADD R1, 1
+    ADD R8, 1
+    SUB R3, 1
+    JNZ pac_rg_word
+    NOP
+    ADD R5, 1
+    SUB R6, 1
+    JNZ pac_rg_group
+    NOP
+    LDI ST_SVLR
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
+    NOP
+
 wait_frame:
     LDI SEG_UART
     MVS ES, R0
@@ -2318,6 +2655,34 @@ pac_wf_loop:
     NOP
 
 pac_exit:
+    LDI pac_restore_groups
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI SEG_OAM
+    MVS ES, R0
+    LDI 0x00E6
+    MOV R2, R0
+    LDI ST_PAL0
+    MOV R4, R0
+    LD R3, R4, 0
+    STS R3, ES, R2
+    ADD R2, 1
+    LDI ST_PAL1
+    MOV R4, R0
+    LD R3, R4, 0
+    STS R3, ES, R2
+    ADD R2, 1
+    LDI ST_PAL2
+    MOV R4, R0
+    LD R3, R4, 0
+    STS R3, ES, R2
+    ADD R2, 1
+    LDI ST_PAL3
+    MOV R4, R0
+    LD R3, R4, 0
+    STS R3, ES, R2
     LDI SEG_CTRL
     MVS ES, R0
     LSI R2, 0x0A

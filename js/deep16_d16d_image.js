@@ -78,7 +78,7 @@ class Deep16D16DImage {
     // the room back; the board loads it from the config flash instead.
     if (bakePacman) {
       for (const change of pres.memoryChanges) {
-        if (change.address < 0 || change.address >= 0x1000) {
+        if (change.address < 0 || change.address >= 0x2000) {
           throw new Error(`pacman address out of range: 0x${change.address.toString(16)}`);
         }
         const pa = PACMAN_BASE + change.address;
@@ -100,7 +100,7 @@ class Deep16D16DImage {
         seg,
         entry: 0,
         codeMax,
-        max: pack ? 0x1000 + pack.length - 1 : codeMax,
+        max: pack ? Math.max(codeMax, 0x1000 + pack.length - 1) : codeMax,
       };
     })();
 

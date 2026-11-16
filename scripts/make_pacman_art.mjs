@@ -71,10 +71,11 @@ export const PAC_PALETTE = [
   [0xC0, 0x00], [0xC1, 0xFF],                    // text: black, white
   [0xD0, 0x00], [0xD1, 0xFF], [0xD3, 0x1C],      // art: black, white, cherry green
   [0xD4, 0x03],                                  // art: wall blue
-  [0xD5, 0xE0], [0xD6, 0x03],                    // art: Blinky red, frightened blue
-  [0xD7, 0xF9], [0xD8, 0x1F], [0xD9, 0xF4],      // art: Pinky pink, Inky cyan, Clyde orange
+  [0xD5, 0xE0],                                  // art: cherry red
   [0xDC, 0xE9], [0xDE, 0xFE],                    // art: dot pink, pellet yellow
   [0xE0, 0x00], [0xE5, 0xFC],                    // sprite: key, Pac-Man yellow
+  [0xE6, 0xE0], [0xE7, 0xF9],                    // sprite: ghost red, pink
+  [0xE8, 0x1F], [0xE9, 0xF4],                    // sprite: ghost cyan, orange
 ];
 
 // ---- the maze ---------------------------------------------------------
@@ -352,10 +353,7 @@ function fruitGrid() {
 export function pacmanArtTiles() {
   const dot = dotTile(12, 2);
   const pellet = dotTile(14, 4);
-  const fright = ghostGrid(6, { fright: true });
-  const flash = ghostGrid(1, { fright: true, flash: true });
-  const [frightL, frightR] = split16(fright);
-  const [flashL, flashR] = split16(flash);
+  // Ghosts are sprites now, so the tile pack only needs the maze and fruit.
   const fruit = fruitGrid();
   const [fruitL, fruitR] = split16(fruit);
   const tiles = [
@@ -363,20 +361,11 @@ export function pacmanArtTiles() {
     { index: T_DOT_R, grid: dot[1] },
     { index: T_PELLET_L, grid: pellet[0] },
     { index: T_PELLET_R, grid: pellet[1] },
-    { index: T_FRIGHT_L, grid: frightL },
-    { index: T_FRIGHT_R, grid: frightR },
-    { index: T_FLASH_L, grid: flashL },
-    { index: T_FLASH_R, grid: flashR },
     { index: T_GATE_L, grid: gateHalf() },
     { index: T_GATE_R, grid: gateHalf() },
     { index: T_FRUIT_L, grid: fruitL },
     { index: T_FRUIT_R, grid: fruitR },
   ];
-  GHOST_COLOURS.forEach((body, i) => {
-    const [gl, gr] = split16(ghostGrid(body));
-    tiles.push({ index: T_GHOST_L + i * 2, grid: gl });
-    tiles.push({ index: T_GHOST_L + i * 2 + 1, grid: gr });
-  });
   for (let shape = 0; shape < 8; shape++) {
     const half = wallHalf(shape);
     tiles.push({ index: T_WALL_L + shape, grid: half });
@@ -415,9 +404,9 @@ function pacmanFrame(dir, open, closed = false) {
   for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
     const dx = x - cx, dy = y - cy;
     if (dx * dx + dy * dy > r * r) continue;
-    // the mouth wedge opens toward dir
-    const ax = dir === 'right' ? dx : dir === 'left' ? -dx : dy;
-    const ay = dir === 'right' || dir === 'left' ? Math.abs(dy) : dir === 'down' ? dx : -dx;
+    // the mouth wedge opens toward dir (up is -y, not +y)
+    const ax = dir === 'right' ? dx : dir === 'left' ? -dx : dir === 'down' ? dy : -dy;
+    const ay = dir === 'right' || dir === 'left' ? dy : dx;
     if (!closed && ax > 0 && Math.abs(ay) <= ax * Math.tan(angle)) continue;
     g[y][x] = 5;
   }
@@ -425,8 +414,8 @@ function pacmanFrame(dir, open, closed = false) {
   if (!closed) {
     if (dir === 'right') g[11][18] = 0;
     if (dir === 'left') g[11][13] = 0;
-    if (dir === 'up') g[11][16] = 0;
-    if (dir === 'down') g[21][16] = 0;
+    if (dir === 'up') g[21][16] = 0;
+    if (dir === 'down') g[11][16] = 0;
   }
   return g;
 }
@@ -454,7 +443,26 @@ export function pacmanRuntimeSpriteFrames() {
     { group: PAC_GROUPS.upHalf, grid: pacmanFrame('up', 1) },
     { group: PAC_GROUPS.downHalf, grid: pacmanFrame('down', 1) },
     { group: PAC_GROUPS.closed, grid: pacmanFrame('right', 0, true) },
+    // the baked up/down open frames on the current board face the wrong way;
+    // re-copy corrected ones into the same groups
+    { group: PAC_GROUPS.upOpen, grid: pacmanFrame('up', 2) },
+    { group: PAC_GROUPS.downOpen, grid: pacmanFrame('down', 2) },
   ];
+}
+
+// Ghost sprites for the four colours.  The 16x15 body sits in the middle of a
+// 32x32 sprite; the body palette indices are 6..9 so frightened/flash can
+// re-tint every ghost by rewriting those four sprite-palette entries.
+export const GHOST_SPRITE_GROUPS = [18, 5, 13, 21];
+export function pacmanGhostSpriteFrames() {
+  return GHOST_SPRITE_GROUPS.map((group, i) => {
+    const art = ghostGrid(6 + i);
+    const g = Array.from({ length: 32 }, () => Array(32).fill(0));
+    for (let y = 0; y < art.length; y++) {
+      for (let x = 0; x < art[y].length; x++) g[y + 8][x + 8] = art[y][x];
+    }
+    return { group, grid: g };
+  });
 }
 
 // One 32x32 indexed sprite as 256 words: 16 8x8 tiles, two rows per word,
@@ -516,16 +524,41 @@ export function pacmanMapAsm() {
   lines.push(`    .word ${String(PAC_PALETTE.length)}`);
   for (const [off, value] of PAC_PALETTE) lines.push(`    .word ${hex(off)}, ${hex(value)}`);
   const runtime = pacmanRuntimeSpriteFrames();
+  const ghosts = pacmanGhostSpriteFrames();
   lines.push('');
-  lines.push('; Four 32x32 sprite frames the game copies into the writable sprite');
-  lines.push('; bank at startup: right half, up half, down half and the shared');
-  lines.push('; closed circle.  Groups 1/9/17/10 are spare for Pac-Man.');
+  lines.push('; Six 32x32 Pac-Man frames copied into the writable sprite bank at');
+  lines.push('; startup: right half, up half, down half, closed, and the corrected');
+  lines.push('; up/down open frames (the baked ones face the wrong way).');
   lines.push('.org 0xA00');
-  lines.push('pac_sprite_groups:');
-  lines.push(`    .word ${runtime.map((f) => f.group).join(', ')}`);
-  lines.push('.org 0xA08');
   lines.push('pac_sprite_data:');
   for (const frame of runtime) {
+    const words = spriteFrameWords(frame.grid);
+    for (let i = 0; i < words.length; i += 8) {
+      lines.push(`    .word ${words.slice(i, i + 8).map(hex).join(', ')}`);
+    }
+  }
+  lines.push('');
+  lines.push('; target groups for the Pac-Man frames and the four ghost colours');
+  lines.push('.org 0x14A8');
+  lines.push('pac_sprite_groups:');
+  lines.push(`    .word ${runtime.map((f) => f.group).join(', ')}`);
+  lines.push('pac_ghost_groups:');
+  lines.push(`    .word ${ghosts.map((f) => f.group).join(', ')}`);
+  lines.push('pac_saved_groups:');
+  lines.push('    .word 5, 13, 21');
+  lines.push('');
+  lines.push('; sprite-palette entries 6..9: normal, frightened blue, flash white');
+  lines.push('.org 0x14C0');
+  lines.push('pac_ghost_colours:');
+  lines.push('    .word 0x00e0, 0x00f9, 0x001f, 0x00f4');
+  lines.push('    .word 0x0003, 0x0003, 0x0003, 0x0003');
+  lines.push('    .word 0x00ff, 0x00ff, 0x00ff, 0x00ff');
+  lines.push('');
+  lines.push('; Four 32x32 ghost sprites, copied into groups 18, 5, 13 and 21.');
+  lines.push('; The three Flappy groups (5/13/21) are saved and restored on exit.');
+  lines.push('.org 0x1500');
+  lines.push('pac_ghost_data:');
+  for (const frame of ghosts) {
     const words = spriteFrameWords(frame.grid);
     for (let i = 0; i < words.length; i += 8) {
       lines.push(`    .word ${words.slice(i, i + 8).map(hex).join(', ')}`);
