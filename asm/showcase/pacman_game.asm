@@ -152,8 +152,7 @@ mz_col:
     LINK
     JMP R4
     NOP
-    LSI R3, 1
-    CMP R0, R3
+    CMP R0, 1
     JZ mz_wall
     NOP
     ; 0, 2 or 3
@@ -193,9 +192,7 @@ mz_wall:
     CMP R9, R3
     JNZ mz_shape
     NOP
-    LDI 14
-    MOV R3, R0
-    CMP R8, R3
+    CMP R8, 14
     JN mz_shape
     NOP
     LDI 18
@@ -220,8 +217,7 @@ mz_shape:
     LINK
     JMP R4
     NOP
-    LSI R3, 1
-    CMP R0, R3
+    CMP R0, 1
     JZ mz_top_done
     NOP
 mz_top_open:
@@ -241,8 +237,7 @@ mz_bottom_edge:
     LINK
     JMP R4
     NOP
-    LSI R3, 1
-    CMP R0, R3
+    CMP R0, 1
     JZ mz_bottom_done
     NOP
 mz_bottom_open:
@@ -260,8 +255,7 @@ mz_bottom_done:
     LINK
     JMP R4
     NOP
-    LSI R3, 1
-    CMP R0, R3
+    CMP R0, 1
     JZ mz_left_done
     NOP
 mz_left_open:
@@ -281,8 +275,7 @@ mz_right_edge:
     LINK
     JMP R4
     NOP
-    LSI R3, 1
-    CMP R0, R3
+    CMP R0, 1
     JZ mz_right_done
     NOP
 mz_right_open:
@@ -1341,8 +1334,7 @@ pac_ip_shift:
 pac_ip_value:
     LSI R3, 3
     AND R0, R3
-    LSI R3, 1
-    CMP R0, R3
+    CMP R0, 1
     JNZ pac_ip_yes
     NOP
     ; a wall: the door is walkable for ghosts only
@@ -1350,9 +1342,7 @@ pac_ip_value:
     CMP R2, R3
     JNZ pac_ip_no
     NOP
-    LDI 14
-    MOV R3, R0
-    CMP R1, R3
+    CMP R1, 14
     JN pac_ip_no
     NOP
     LDI 18
@@ -1382,9 +1372,7 @@ pac_restore_cell:
     CMP R9, R3
     JNZ pac_rc_map
     NOP
-    LDI 14
-    MOV R3, R0
-    CMP R8, R3
+    CMP R8, 14
     JN pac_rc_map
     NOP
     LDI 18
@@ -1681,8 +1669,9 @@ pac_sp_noh:
 ; =====================================================================
 ; Keyboard
 ; =====================================================================
-; Reads one UART byte: WASD sets the requested direction, Q exits.
-; The PS/2 map produces both cases, so each key is checked twice.
+; Reads one UART byte: WASD or the arrow keys set the requested direction,
+; Q exits.  Arrows are the E0 navigation bytes 0x10/0x0e/0x02/0x06;
+; WASD is case-folded first because the PS/2 map produces both cases.
 pac_keys:
     LDI SEG_UART
     MVS ES, R0
@@ -1696,6 +1685,21 @@ pac_keys:
     LDI 0x22
     MOV R2, R0
     LDS R1, ES, R2
+    ; arrow keys arrive as the PS/2 E0 navigation bytes, before case folding
+    LDI 0x10
+    MOV R3, R0
+    CMP R1, R3
+    JZ pac_k_up
+    NOP
+    CMP R1, 14
+    JZ pac_k_down
+    NOP
+    CMP R1, 2
+    JZ pac_k_left
+    NOP
+    CMP R1, 6
+    JZ pac_k_right
+    NOP
     OR R1, 5                   ; fold either case to lower case
     LDI 0x71
     MOV R3, R0

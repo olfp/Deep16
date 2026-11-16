@@ -104,6 +104,17 @@ test('the maze draws, Pac-Man moves, and a dot scores ten points', () => {
   assert.equal(st(sim, 'ST_DOTS'), 244 - st(sim, 'ST_SC1'), 'each dot is eaten once');
 });
 
+test('the arrow keys steer Pac-Man', () => {
+  const sim = start();
+  run(sim, 320);
+  const c0 = st(sim, 'ST_PAC_C');
+  run(sim, 20, { key: 0x06, keyFrame: 0 });   // Right -> C-F
+  assert.ok(st(sim, 'ST_PAC_C') > c0, 'the right arrow moved him right');
+  const c1 = st(sim, 'ST_PAC_C');
+  run(sim, 30, { key: 0x02, keyFrame: 0 });   // Left -> C-B
+  assert.ok(st(sim, 'ST_PAC_C') < c1, 'the left arrow moved him left');
+});
+
 test('wall outlines merge, with no line between touching wall cells', () => {
   const sim = start();
   run(sim, 320);
