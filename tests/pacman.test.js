@@ -332,6 +332,26 @@ test('an energizer scores 50, frightens for six seconds and resets the multiplie
   assert.equal(st(sim, 'ST_GHOST_EAT'), 0, 'the ghost-eat multiplier resets');
 });
 
+test('Pac-Man keeps eating dots while frightened', () => {
+  const sim = start();
+  run(sim, 320);
+  parkGhosts(sim);
+  put(sim, 'ST_PAC_C', 2);
+  put(sim, 'ST_PAC_R', 18);
+  put(sim, 'ST_PAC_WANT', 3);
+  put(sim, 'ST_PAC_TMR', 1);
+  run(sim, 12);
+  assert.ok(st(sim, 'ST_FRIGHT') > 300, 'the pellet frightened the ghosts');
+  assert.equal(st(sim, 'ST_DOTS'), 243, 'only the pellet was eaten so far');
+
+  // Turn around and eat the three dots between the pellet and the wall.
+  put(sim, 'ST_PAC_WANT', 4);
+  put(sim, 'ST_PAC_TMR', 1);
+  run(sim, 40);
+  assert.equal(st(sim, 'ST_DOTS'), 240, 'three dots eaten while frightened');
+  assert.equal(st(sim, 'ST_SC1'), 8, '50 for the pellet plus 30 for three dots');
+});
+
 test('frightened ghosts flash white before returning to normal', () => {
   const sim = start();
   run(sim, 320);

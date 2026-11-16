@@ -2171,7 +2171,7 @@ pac_an_step:
     AND R3, R3
     JZ pac_an_norm
     NOP
-    LDI 36
+    LDI 37
     MOV R4, R0
     LDI pac_an_add
     MOV PC, R0
