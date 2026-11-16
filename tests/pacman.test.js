@@ -96,6 +96,7 @@ function start() {
 const st = (sim, name) => sim.memory[BLOCK + S[name]];
 const put = (sim, name, value) => { sim.memory[BLOCK + S[name]] = value; };
 const tileAt = (sim, r, c) => (sim.memory[0xF1000 + r * 82 + c] | 0) >> 5;
+const textTile = (ch) => 0x8000 | ((ch.charCodeAt(0) - 0x20) << 5);
 const oam = (sim, d, w) => sim.memory[0xF6000 + d * 2 + w] | 0;
 
 // One game frame = FRAME_PERIOD steps; the frame bit toggles and a queued UART
@@ -444,6 +445,8 @@ test('the last dot wins and the banner returns to the menu after ten seconds', (
   run(sim, 40, { key: 0x61, keyFrame: 0 });
   assert.equal(st(sim, 'ST_DOTS'), 0);
   assert.equal(st(sim, 'ST_STATE'), 2, 'win state');
+  assert.equal(sim.memory[0xF1000 + 11 * 82 + 28], textTile('Y'), 'banner starts at col 28');
+  assert.equal(sim.memory[0xF1000 + 11 * 82 + 35], textTile('!'), 'banner ends at col 35');
   assert.ok(st(sim, 'ST_TIMER') > 550, 'ten-second banner is counting down');
   assert.equal(runToExit(sim, 700), true, 'banner returns to the menu');
   assert.equal(sim.segmentRegisters.CS, 0x04A0);
@@ -472,6 +475,8 @@ test('a collision with a ghost ends the game and Q exits early', () => {
   putGhostOnPac(sim);
   run(sim, 2);
   assert.equal(st(sim, 'ST_STATE'), 1, 'death state');
+  assert.equal(sim.memory[0xF1000 + 11 * 82 + 28], textTile('G'), 'banner starts at col 28');
+  assert.equal(sim.memory[0xF1000 + 11 * 82 + 36], textTile('R'), 'banner ends at col 36');
   assert.equal(runToExit(sim, 20, 0x71), true, 'Q leaves the death banner');
   assert.equal(sim.segmentRegisters.CS, 0x04A0);
   assert.equal(sim.registers[15], RET_PC);

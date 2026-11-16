@@ -1259,7 +1259,7 @@ pac_win:
     MOV R2, R0
     ST R3, R2, 0
     LSI R9, 11
-    LDI 36
+    LDI 28
     MOV R10, R0
     LDI str_win
     MOV R8, R0
@@ -1437,7 +1437,7 @@ pac_col_dead:
     LDI 9
     SWI
     LSI R9, 11
-    LDI 35
+    LDI 28
     MOV R10, R0
     LDI str_over
     MOV R8, R0
