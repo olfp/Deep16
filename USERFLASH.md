@@ -66,12 +66,18 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 #   -o 0x200000 artifacts/image/slices.bin
 ```
 
-The current image is 38 slices / 152 KB: directory 0, start 1,
+The current image is 46 slices / 184 KB: directory 0, start 1,
 essentials 2–3 (SPI/config flash, `dir`/`find`, slice editor, `p-screen`),
 edit 4–10, graphics 11–12 (SIC/raster, scene, palettes, I2S, sprites),
 audio 13–14 (μ-law player), games 15–16, sd-card 17–19, Pac-Man 20–22,
 Flappy 23–25, Frogger 26–29, hello 30, the demo `ping` sample 31 and the
-2-second `swoosh` sample 32–37.
+2-second `swoosh` sample 32–37, and the on-device LILA compiler 38–45.
+
+The LILA compiler is a TEXT object, eight slices long, so the boot loader's
+`screen` cap is 16,320 characters (eight slices of 2,040) and `text-buf` is
+16,384 cells. Packed slices (type 8) would carry two characters per cell and
+halve that, but `p-screen` loads one slice at a time and `included` cannot
+span a definition across two calls, so packed sources are future work.
 
 The baked boot loader does `1 screen` (start), then `need essentials`
 and `need edit`, so `dir`, `find`, the editor and the start words are
@@ -85,6 +91,7 @@ background from the sound window and returns at once; `sample-stop` stops it.
 `s" ping" find sample` is the short one-slice demo. `xmodem` receives a
 CRC file; its message says `Press key to abort`, and any PS/2 key cancels the
 transfer and sends `CAN` twice to the sender.
+`s" lila" need` loads the on-device LILA compiler from the flash.
 Flappy, Frogger and Pac-Man are listed as apps
 (directory flag 1) and are loaded by the BDOS on demand. The PS/2 host
 sender is no longer a slice: it lives in the BIOS, and `binit` initialises

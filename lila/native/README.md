@@ -16,7 +16,43 @@ node --test tests/native-lila.test.js
 It boots the segmented D16D image, types the compiler in, runs the fixture
 program, compares the output with what `lua5.4` 5.4.8 prints, and asserts that
 the run leaves the data stack at depth 0. The compiler takes about 7.7k
-dictionary cells after the kernel boots, leaving about 11.3k free.
+dictionary cells after the kernel boots, leaving about 9.3k free.
+
+## On the device
+
+The compiler is 14,636 characters, so it needs eight source slices. It is
+registered in the config-flash catalog as the TEXT object `lila`:
+
+```sh
+npm run flash:slices       # writes artifacts/image/slices.bin at 0x200000
+```
+
+After a power cycle, at the DeepForth prompt:
+
+```text
+s" lila" need
+Loading lila
+
+ ok
+```
+
+`need` finds the object in the master directory and calls `screen`, which
+copies the slice chain into `text-buf` and includes it. The chain is eight
+slices long, so the boot loader's cap moved from 14,280 to 16,320 characters
+and `text-buf` grew to 16,384 cells; `text-buf` lives in the dictionary, not
+in the image, so a board with the old boot loader needs `npm run flash:tile`
+for the new cap.
+
+`tests/native-lila-slice.test.js` runs that path in the simulator.
+
+The alternative is `xmodem` over the serial console: send
+`lila/native/lila-native.fth` as XMODEM-CRC and it is interpreted as it
+arrives, which needs no reflashing but also keeps the received text in the
+dictionary.
+
+Packed slices (type 8) would halve the slice count, but the packed loader
+`p-screen` loads one slice at a time and `included` cannot span a definition
+across two calls. Packed sources are future work; see `lila/LILANATIVE.md`.
 
 ## Values
 
@@ -132,3 +168,5 @@ in a loop eventually gets `-11`.
 `tests/native-lila.test.js` covers compilation, the 32-bit payload in
 arithmetic, comparisons and printing, nil for an unassigned global, Lua
 truthiness for 0, the rejection cases above, and the depth-0 assertion.
+`tests/native-lila-slice.test.js` repeats the program and the depth check
+with the compiler loaded from the config flash.

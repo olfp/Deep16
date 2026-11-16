@@ -64,6 +64,61 @@ It boots the segmented D16D image, types the compiler in one line at a time,
 runs a fixture whose expected output was captured from `lua5.4` 5.4.8, and
 asserts that the run leaves the data stack at depth 0.
 
+### Getting the compiler onto the board
+
+The compiler is 14,636 characters, so it does not fit in one source slice
+(2,040 characters). There are two ways to get it onto the device.
+
+**The config-flash catalog.** `scripts/make_slices.mjs` registers the
+compiler as the TEXT object `lila`, last in the image, so every other object
+keeps its slice number. `npm run flash:slices` writes the image to
+`0x200000` in the upper half of the on-board SPI flash and leaves the
+bitstream and the boot image alone. After a power cycle:
+
+```text
+s" lila" need
+Loading lila
+
+ ok
+```
+
+`need` finds the object in the master directory and calls `screen`, which
+copies the whole slice chain into `text-buf` and includes it in one go. The
+chain is eight slices long, so the boot loader's cap moved from seven slices
+(14,280 characters) to eight (16,320), and `text-buf` grew from 14,336 to
+16,384 cells to match. `text-buf` is allocated in the dictionary at boot, not
+in the image, so the image layout did not change - but the boot loader is
+baked into the image, so a board that already carries one needs
+`npm run flash:tile` for the new cap.
+
+After the load the compiler has taken about 7.7k cells, leaving about 9.3k
+free in a D16D dictionary.
+
+**XMODEM over the serial line.** `xmodem` lives in the `edit` slice, which
+the boot loader loads at power-on. It receives a file and runs it with
+`included`, so sending `lila/native/lila-native.fth` as XMODEM-CRC leaves
+the compiler in the dictionary without reflashing anything. This path also
+keeps the received text in the dictionary, so it wants roughly 16k free
+cells: check before you start.
+
+### Packed slices are future work
+
+A source slice stores one character per cell, so the eight slices of the
+compiler cost 16,320 cells of `text-buf`. The slice type table already has
+`PACKED` (type 8) and `p-screen` unpacks two characters per cell, which
+would halve the compiler to four slices. It does not work yet:
+
+- `p-screen` loads one slice at a time. `included` cannot span a definition
+  across two calls, so a packed chain would have to be split on definition
+  boundaries - and any later edit to the file would break that split.
+- Nothing in the repository builds a PACKED object; `buildSlices` registers
+  TEXT, BINARY and ULAW objects only.
+- `screen`, the TEXT loader, copies the whole chain into `text-buf` and
+  includes it once, so chain boundaries do not matter there.
+
+The text path is used today. A packed loader that collects a whole chain
+before including it is the obvious next step.
+
 ## The language
 
 ### Lexical structure
@@ -694,7 +749,7 @@ loaded, and the limits that matter — source length, token count, name count,
 name length and the two arenas — are checked before anything is written. The
 bytecode buffer is the one exception; it relies on the token cap to stay
 inside 1024 cells. That is what makes it possible to run the whole pipeline in
-a dictionary that already has about 11k cells free.
+a dictionary that already has about 9.3k cells free.
 
 ## Testing
 
@@ -717,6 +772,11 @@ output, so it does not need Lua installed.
 
 `gforth lila/test.fs` is the separate host-compiler suite; it does not load
 the native profile.
+
+`tests/native-lila-slice.test.js` is the device-faithful twin: it loads the
+same compiler from the config flash with `s" lila" need` instead of typing it
+in, then runs the same fixture and checks the same depth. The two tests share
+a boot harness in `tests/native-lila-harness.js`.
 
 ## Extending the profile
 
@@ -759,6 +819,9 @@ Some DeepForth-specific traps are worth remembering when editing the file:
 | `lila/native/README.md` | short reference: ABI, subset, opcodes, limits, codes |
 | `lila/LILANATIVE.md` | this guide |
 | `tests/native-lila.test.js` | boot, compile, fixture, depth and rejection tests |
+| `tests/native-lila-slice.test.js` | the same, loading the compiler from the flash |
+| `tests/native-lila-harness.js` | the shared boot and console harness |
+| `scripts/make_slices.mjs` | the slice catalog, including the `lila` object |
 | `lila/value.fs` | normative tag constants and three-cell helpers |
 | `TYPEPLAN.md` | value ABI, numeric payload and migration record |
 | `LUAPARITY.md` | intended differences from Lua 5.4 |

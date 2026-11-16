@@ -9,8 +9,10 @@ An on-device conformance profile, `lila/native/lila-native.fth`, implements the
 ABI for tags 0–3 (nil, number, boolean, string) in a small Lua subset. It is
 verified by `node --test tests/native-lila.test.js`, which boots the segmented
 image, runs a compiled program against a `lua5.4` fixture, and checks that the
-data stack returns to depth 0. It is a profile of the ABI, not a port of the
-full host compiler.
+data stack returns to depth 0. On the device it is a config-flash object:
+`s" lila" need` loads it from the slice image, which
+`tests/native-lila-slice.test.js` reproduces in the simulator. It is a profile
+of the ABI, not a port of the full host compiler.
 
 Verification: `gforth lila/test.fs` passes, including three-cell at/! checks,
 boolean results, nil for missing keys and no-return functions, Lua truthiness,

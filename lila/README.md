@@ -45,6 +45,9 @@ node --test tests/native-lila.test.js
 
 The test boots the segmented image, types the compiler in, checks the output
 against a `lua5.4` fixture, and asserts the data stack returns to depth 0.
+On the device the compiler is also a config-flash object: `npm run
+flash:slices` writes it into the slice image and `s" lila" need` loads it at
+the prompt, the way `tests/native-lila-slice.test.js` does in the simulator.
 `lila/native/README.md` lists the supported subset, bytecode, limits and error
 codes; `lila/LILANATIVE.md` explains the language and how the compiler works.
 In short: globals, 32-bit integers, strings, `+ - *`, relationals, `..`,

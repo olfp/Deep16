@@ -156,6 +156,10 @@ export function buildSlices() {
   const games = read('screens/flash/games.fth');
   const sd = read('screens/flash/sd.fth');
   const hello = read('screens/flash/hello.fth');
+  // The on-device LILA compiler. It is long enough to need eight TEXT
+  // slices; a packed source (type 8) would halve that, but the packed
+  // loader is one slice at a time - see lila/LILANATIVE.md.
+  const lila = read('lila/native/lila-native.fth');
   if (start.length > SLICE_PAYLOAD) {
     throw new Error(`forth/start.fth is ${start.length} chars, past one ${SLICE_PAYLOAD}-char screen`);
   }
@@ -192,6 +196,9 @@ export function buildSlices() {
   const swoosh = samples.swoosh;
   const swooshFirst = pingFirst + pingSlices.length;
   const swooshSlices = sampleSlices(swoosh.bytes, swooshFirst, swoosh.name, swoosh.rate);
+  // The new object goes last so the slice numbers of everything else stay.
+  const lilaFirst = swooshFirst + swooshSlices.length;
+  const lilaSlices = sourceSlices(lila, lilaFirst, 'lila');
 
   const slices = [directory([
     entry({ type: TYPES.TEXT, first: startFirst, name: 'start' }),
@@ -207,9 +214,10 @@ export function buildSlices() {
     entry({ type: TYPES.TEXT, first: helloFirst, name: 'hello' }),
     entry({ type: TYPES.ULAW, flags: ping.rate, first: pingFirst, name: ping.name }),
     entry({ type: TYPES.ULAW, flags: swoosh.rate, first: swooshFirst, name: swoosh.name }),
+    entry({ type: TYPES.TEXT, first: lilaFirst, name: 'lila' }),
   ]), ...startSlices, ...essSlices, ...editSlices, ...gfxSlices, ...audioSlices, ...gameSlices,
      ...sdSlices, ...pacSlices, ...flappySlices, ...froggerSlices, ...helloSlices,
-     ...pingSlices, ...swooshSlices];
+     ...pingSlices, ...swooshSlices, ...lilaSlices];
   const words = new Uint16Array(slices.length * SLICE_WORDS);
   slices.forEach((w, i) => words.set(w, i * SLICE_WORDS));
   const bytes = Buffer.alloc(slices.length * SLICE_BYTES, 0xff);
@@ -236,6 +244,7 @@ export function buildSlices() {
               rate: ping.rate },
       swoosh: { first: swooshFirst, count: swooshSlices.length, samples: swoosh.bytes.length,
                 rate: swoosh.rate },
+      lila: { first: lilaFirst, count: lilaSlices.length, chars: lila.length },
     },
   };
   return { words, bytes, manifest };
