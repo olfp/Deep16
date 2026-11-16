@@ -3,25 +3,31 @@
 // the Pac-Man sprite frames.
 //
 // The playfield is 32 x 24 logical cells.  Each logical cell is two 8-pixel
-// tilemap cells wide and one 15-pixel row tall, so the maze is 64 x 24 cells
-// and is centred in the 80-column tilemap (8-cell margin, 64 pixels).
+// tilemap cells wide and one 15-pixel row tall, so the maze is 64 x 24 cells.
+// It is left-aligned; columns 64..79 are the score margin.
 //
 // The layout is PACMAZE.md.  Cell values are packed two bits per cell, eight
 // cells per word, four words per row (96 words).  0 empty, 1 wall,
 // 2 dot, 3 power pellet.  The ghost door is a wall cell at row 10, columns
-// 14..17 and is drawn as text.
+// 14..17 and is drawn as a pink gate.
 //
-// Art slots (the font gap and the two free art slots after the Flappy pack):
+// Art slots (the font gap and the free art slots after the Flappy pack):
 //   tile 49/50   dot left/right halves
 //   tile 51/52   power pellet left/right halves
-//   tile 53/54   ghost left/right halves (normal)
-//   tile 55/56   ghost left/right halves (frightened)
+//   tile 53..60  four ghost colours, left/right halves: red, pink, cyan, orange
+//   tile 61/62   frightened ghost left/right halves (blue)
+//   tile 63/64   flashing frightened ghost left/right halves (white)
+//   tile 65/66   ghost-door gate left/right halves
+//   tile 67/68   cherries left/right halves
 //   tile 110..117  wall left half, shape bits 1=left outline, 2=top, 4=bottom
 //   tile 118..125  the same shapes mirrored for the right half
 //
-// Sprite groups 0,1,8,9,16,17 hold Pac-Man: right-open, right-closed,
-// up-open, up-closed, down-open, down-closed.  Left is the right frame with
-// the OAM H flip, so the six groups cover all four directions.
+// The shared sprite bank bakes Pac-Man's open/closed frames in groups 0/1,
+// 8/9 and 16/17 (the six groups Flappy leaves free).  The half-open frames and
+// the shared closed circle are generated at 0xA00 and copied into the writable
+// bank at startup: groups 1/9/17 (the old closed frames, now unused) and group
+// 10 (a Flappy cloud copy that Flappy never selects; its clouds stay on group
+// 2).  Left is the right frame with the OAM H flip.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,8 +38,8 @@ export const PAC_W = 32;
 export const PAC_H = 24;
 export const PAC_ROW_WORDS = 4;
 export const PAC_MAP_WORDS = PAC_ROW_WORDS * PAC_H;
-export const PAC_MAP_ORG = 0x610;
-export const PAC_AUX_ORG = 0x678;
+export const PAC_MAP_ORG = 0x900;
+export const PAC_AUX_ORG = 0x968;
 export const PAC_MAP_FILE = 'asm/showcase/pacman_map.asm';
 
 export const PAC_CELL_W = 2;        // tilemap cells per logical column
@@ -44,23 +50,29 @@ export const PAC_TOP = 1;           // HUD row 0, maze rows 1..23
 // Art tile indices.
 export const T_DOT_L = 49, T_DOT_R = 50;
 export const T_PELLET_L = 51, T_PELLET_R = 52;
-export const T_GHOST_L = 53, T_GHOST_R = 54;
-export const T_FRIGHT_L = 55, T_FRIGHT_R = 56;
+export const T_GHOST_L = 53;                 // four consecutive colour pairs
+export const GHOST_COLOURS = [5, 7, 8, 9];   // art palette indices: red, pink, cyan, orange
+export const T_FRIGHT_L = 61, T_FRIGHT_R = 62;
+export const T_FLASH_L = 63, T_FLASH_R = 64;
+export const T_GATE_L = 65, T_GATE_R = 66;
+export const T_FRUIT_L = 67, T_FRUIT_R = 68;
 export const T_WALL_L = 110, T_WALL_R = 118;
-export const T_GATE_L = 57, T_GATE_R = 58;
 
 // Sprite groups.
 export const PAC_GROUPS = {
-  rightOpen: 0, rightClosed: 1,
-  upOpen: 8, upClosed: 9,
-  downOpen: 16, downClosed: 17,
+  rightOpen: 0, rightHalf: 1, rightClosed: 1,
+  upOpen: 8, upHalf: 9, upClosed: 9,
+  downOpen: 16, downHalf: 17, downClosed: 17,
+  closed: 10,
 };
 
 // Palette entries this art uses (the game installs these into palette set 1).
 export const PAC_PALETTE = [
   [0xC0, 0x00], [0xC1, 0xFF],                    // text: black, white
-  [0xD0, 0x00], [0xD1, 0xFF], [0xD4, 0x03],      // art: black, white, wall blue
-  [0xD5, 0xE0], [0xD6, 0x1F],                    // art: ghost red, frightened cyan
+  [0xD0, 0x00], [0xD1, 0xFF], [0xD3, 0x1C],      // art: black, white, cherry green
+  [0xD4, 0x03],                                  // art: wall blue
+  [0xD5, 0xE0], [0xD6, 0x03],                    // art: Blinky red, frightened blue
+  [0xD7, 0xF9], [0xD8, 0x1F], [0xD9, 0xF4],      // art: Pinky pink, Inky cyan, Clyde orange
   [0xDC, 0xE9], [0xDE, 0xFE],                    // art: dot pink, pellet yellow
   [0xE0, 0x00], [0xE5, 0xFC],                    // sprite: key, Pac-Man yellow
 ];
@@ -277,10 +289,9 @@ function gateHalf() {
   return out;
 }
 
-function ghostGrid(fright) {
-  const body = fright ? 6 : 5;
-  const eye = 1;
-  const pupil = 4;
+function ghostGrid(body, { fright = false, flash = false } = {}) {
+  const eye = flash ? 4 : 1;
+  const pupil = flash ? 4 : 4;
   const g = Array.from({ length: ART_H }, () => Array(16).fill(0));
   for (let y = 0; y < ART_H; y++) {
     for (let x = 0; x < 16; x++) {
@@ -311,26 +322,61 @@ function ghostGrid(fright) {
   return g;
 }
 
+// Two cherries on green stems, 16x15.
+function fruitGrid() {
+  const RED = 5, GREEN = 3, WHITE = 1;
+  const g = Array.from({ length: ART_H }, () => Array(16).fill(0));
+  const cherry = (cx, cy) => {
+    for (let y = 0; y < ART_H; y++) for (let x = 0; x < 16; x++) {
+      const d = (x - cx) ** 2 + (y - cy) ** 2;
+      if (d <= 10.5) g[y][x] = RED;
+    }
+  };
+  cherry(4.5, 10.5);
+  cherry(11.5, 10.5);
+  g[9][3] = WHITE; g[9][10] = WHITE;
+  // stems meet above the middle
+  for (let i = 0; i <= 8; i++) {
+    const x = Math.round(5 + (8 - 5) * i / 8);
+    const y = Math.round(8 - 5 * i / 8);
+    g[y][x] = GREEN;
+    const x2 = Math.round(11 + (8 - 11) * i / 8);
+    g[y][x2] = GREEN;
+  }
+  // small leaf
+  for (const [x, y] of [[9, 3], [10, 3], [9, 4], [10, 4], [11, 4]]) g[y][x] = GREEN;
+  return g;
+}
+
 // Returns [{ index, grid }] for every Pac-Man art tile in the fixed slots.
 export function pacmanArtTiles() {
   const dot = dotTile(12, 2);
   const pellet = dotTile(14, 4);
-  const ghost = ghostGrid(false);
-  const fright = ghostGrid(true);
-  const [ghostL, ghostR] = split16(ghost);
+  const fright = ghostGrid(6, { fright: true });
+  const flash = ghostGrid(1, { fright: true, flash: true });
   const [frightL, frightR] = split16(fright);
+  const [flashL, flashR] = split16(flash);
+  const fruit = fruitGrid();
+  const [fruitL, fruitR] = split16(fruit);
   const tiles = [
     { index: T_DOT_L, grid: dot[0] },
     { index: T_DOT_R, grid: dot[1] },
     { index: T_PELLET_L, grid: pellet[0] },
     { index: T_PELLET_R, grid: pellet[1] },
-    { index: T_GHOST_L, grid: ghostL },
-    { index: T_GHOST_R, grid: ghostR },
     { index: T_FRIGHT_L, grid: frightL },
     { index: T_FRIGHT_R, grid: frightR },
+    { index: T_FLASH_L, grid: flashL },
+    { index: T_FLASH_R, grid: flashR },
     { index: T_GATE_L, grid: gateHalf() },
     { index: T_GATE_R, grid: gateHalf() },
+    { index: T_FRUIT_L, grid: fruitL },
+    { index: T_FRUIT_R, grid: fruitR },
   ];
+  GHOST_COLOURS.forEach((body, i) => {
+    const [gl, gr] = split16(ghostGrid(body));
+    tiles.push({ index: T_GHOST_L + i * 2, grid: gl });
+    tiles.push({ index: T_GHOST_L + i * 2 + 1, grid: gr });
+  });
   for (let shape = 0; shape < 8; shape++) {
     const half = wallHalf(shape);
     tiles.push({ index: T_WALL_L + shape, grid: half });
@@ -361,28 +407,33 @@ export function wallShapeCoverage() {
 // Pac-Man frames: a 16-pixel-diameter body in the middle of a 32x32 sprite.
 // Right-facing frames are the base; the left frames are the same art with the
 // OAM H flip.  `open` is 0..2 (closed, medium, wide).
-function pacmanFrame(dir, open, closed) {
+function pacmanFrame(dir, open, closed = false) {
   const g = Array.from({ length: 32 }, () => Array(32).fill(0));
   const cx = 16, cy = 16, r = 8;
-  // mouth half-angle: 0 for the closed frame, 40 degrees when open
-  const angle = closed ? 0.06 : (open ? 0.75 : 0.45);
+  // mouth half-angle: wide open, half open, or fully closed
+  const angle = closed ? 0 : (open === 2 ? 0.75 : 0.45);
   for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
     const dx = x - cx, dy = y - cy;
     if (dx * dx + dy * dy > r * r) continue;
     // the mouth wedge opens toward dir
     const ax = dir === 'right' ? dx : dir === 'left' ? -dx : dy;
     const ay = dir === 'right' || dir === 'left' ? Math.abs(dy) : dir === 'down' ? dx : -dx;
-    if (ax > 0 && Math.abs(ay) <= ax * Math.tan(angle)) continue;
+    if (!closed && ax > 0 && Math.abs(ay) <= ax * Math.tan(angle)) continue;
     g[y][x] = 5;
   }
-  // eye
-  if (dir === 'right') g[11][18] = 0;
-  if (dir === 'left') g[11][13] = 0;
-  if (dir === 'up') g[11][16] = 0;
-  if (dir === 'down') g[21][16] = 0;
+  // eye (the closed circle has none)
+  if (!closed) {
+    if (dir === 'right') g[11][18] = 0;
+    if (dir === 'left') g[11][13] = 0;
+    if (dir === 'up') g[11][16] = 0;
+    if (dir === 'down') g[21][16] = 0;
+  }
   return g;
 }
 
+// The six frames baked into the shared sprite bank (Flappy's free groups).
+// The board's bitstream already carries these, so they must not change when
+// Pac-Man gains new munch frames; those are copied at run time instead.
 export function pacmanSpriteFrames() {
   return [
     { group: PAC_GROUPS.rightOpen, grid: pacmanFrame('right', 2) },
@@ -392,6 +443,41 @@ export function pacmanSpriteFrames() {
     { group: PAC_GROUPS.downOpen, grid: pacmanFrame('down', 2) },
     { group: PAC_GROUPS.downClosed, grid: pacmanFrame('down', 0, true) },
   ];
+}
+
+// The half-open frames plus the shared closed circle, copied into the sprite
+// bank at startup by the game.  Groups 1/9/17 are the old closed frames (the
+// game no longer uses them for closed) and group 10 is a dead cloud copy.
+export function pacmanRuntimeSpriteFrames() {
+  return [
+    { group: PAC_GROUPS.rightHalf, grid: pacmanFrame('right', 1) },
+    { group: PAC_GROUPS.upHalf, grid: pacmanFrame('up', 1) },
+    { group: PAC_GROUPS.downHalf, grid: pacmanFrame('down', 1) },
+    { group: PAC_GROUPS.closed, grid: pacmanFrame('right', 0, true) },
+  ];
+}
+
+// One 32x32 indexed sprite as 256 words: 16 8x8 tiles, two rows per word,
+// four 4bpp pixels per word, exactly the layout the sprite bank uses.
+export function spriteFrameWords(grid) {
+  const out = new Array(16 * 16).fill(0);
+  for (let ty = 0; ty < 4; ty++) {
+    for (let tx = 0; tx < 4; tx++) {
+      const tile = ty * 4 + tx;
+      for (let row = 0; row < 8; row++) {
+        for (let half = 0; half < 2; half++) {
+          let w = 0;
+          for (let n = 0; n < 4; n++) {
+            const x = tx * 8 + half * 4 + n;
+            const y = ty * 8 + row;
+            w |= (grid[y][x] & 0xF) << (n * 4);
+          }
+          out[tile * 16 + row * 2 + half] = w;
+        }
+      }
+    }
+  }
+  return out;
 }
 
 // ---- generated assembly data -----------------------------------------
@@ -411,7 +497,7 @@ export function pacmanMapAsm() {
   lines.push('');
   lines.push('; Direction deltas, indexed by 1 up, 2 down, 3 left, 4 right.');
   lines.push('; dir 0 is unused; dir_rev maps a direction to its opposite.');
-  lines.push('.org 0x678');
+  lines.push('.org 0x968');
   lines.push('pac_dc:');
   lines.push('    .word 0, 0, 0, -1, 1');
   lines.push('pac_dr:');
@@ -419,11 +505,32 @@ export function pacmanMapAsm() {
   lines.push('pac_rev:');
   lines.push('    .word 0, 2, 1, 4, 3');
   lines.push('');
+  lines.push('; Ghost-eat points in hundreds: 200, 400, 800, 1600.');
+  lines.push('.org 0x978');
+  lines.push('pac_ghost_pts:');
+  lines.push('    .word 2, 4, 8, 16');
+  lines.push('');
   lines.push('; Palette entries for set 1: (offset from 0xF600, value).');
-  lines.push('.org 0x688');
+  lines.push('.org 0x980');
   lines.push('pac_pal:');
   lines.push(`    .word ${String(PAC_PALETTE.length)}`);
   for (const [off, value] of PAC_PALETTE) lines.push(`    .word ${hex(off)}, ${hex(value)}`);
+  const runtime = pacmanRuntimeSpriteFrames();
+  lines.push('');
+  lines.push('; Four 32x32 sprite frames the game copies into the writable sprite');
+  lines.push('; bank at startup: right half, up half, down half and the shared');
+  lines.push('; closed circle.  Groups 1/9/17/10 are spare for Pac-Man.');
+  lines.push('.org 0xA00');
+  lines.push('pac_sprite_groups:');
+  lines.push(`    .word ${runtime.map((f) => f.group).join(', ')}`);
+  lines.push('.org 0xA08');
+  lines.push('pac_sprite_data:');
+  for (const frame of runtime) {
+    const words = spriteFrameWords(frame.grid);
+    for (let i = 0; i < words.length; i += 8) {
+      lines.push(`    .word ${words.slice(i, i + 8).map(hex).join(', ')}`);
+    }
+  }
   return lines.join('\n') + '\n';
 }
 

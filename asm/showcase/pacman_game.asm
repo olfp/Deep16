@@ -7,10 +7,12 @@
 ;
 ; Memory inside the block (offset from 0x4330):
 ;   0x000..0x5FF  code and its strings
-;   0x610..0x66F  the static maze (generated pacman_map.asm)
-;   0x678..0x686  direction tables (also generated)
-;   0x688..0x69C  palette setup table (also generated)
-;   0x6A0..0x6C9  writable game state
+;   0x900..0x95F  the static maze (generated pacman_map.asm)
+;   0x968..0x975  direction tables (also generated)
+;   0x978..0x97B  ghost-eat point table (also generated)
+;   0x980..0x99E  palette setup table (also generated)
+;   0x9A0..0x9D9  writable game state
+;   0xA00..0xE07  four sprite frames copied into the sprite bank at startup
 ;
 ; The HUD is tilemap row 0.  Maze logical row r is tilemap row 1+r, and
 ; logical column c starts at tilemap column 8 + 2c.  Every logical cell is
@@ -22,6 +24,7 @@
 
 .equ SEG_TILE -0x0F00          ; 0xF100 tilemap
 .equ SEG_CTRL -0x0E00          ; 0xF200 controls
+.equ SEG_SPR  -0x0C00          ; 0xF400 sprite bank
 .equ SEG_OAM  -0x0A00          ; 0xF600 OAM + palette
 .equ SEG_UART -0xFFC           ; 0xF004 UART/status
 
@@ -30,12 +33,15 @@
 .equ T_DOT_R     50
 .equ T_PELLET_L  51
 .equ T_PELLET_R  52
-.equ T_GHOST_L   53
-.equ T_GHOST_R   54
-.equ T_FRIGHT_L  55
-.equ T_FRIGHT_R  56
-.equ T_GATE_L    57
-.equ T_GATE_R    58
+.equ T_GHOST_L   53          ; four colour pairs: red, pink, cyan, orange
+.equ T_FRIGHT_L  61
+.equ T_FRIGHT_R  62
+.equ T_FLASH_L   63
+.equ T_FLASH_R   64
+.equ T_GATE_L    65
+.equ T_GATE_R    66
+.equ T_FRUIT_L   67
+.equ T_FRUIT_R   68
 .equ T_WALL_L    110
 .equ T_WALL_R    118
 
@@ -44,37 +50,49 @@
 .equ SFX_WAKA    4
 .equ SFX_EAT     5
 
-; ---- writable state (DS offsets 0x6A0..0x6C9) --------------------------
-.equ ST_PAC_C     0x6A0
-.equ ST_PAC_R     0x6A1
-.equ ST_PAC_DIR   0x6A2
-.equ ST_PAC_WANT  0x6A3
-.equ ST_PAC_TMR   0x6A4
-.equ ST_SC3       0x6C6        ; thousand, hundred, ten, one digits
-.equ ST_SC2       0x6C7
-.equ ST_SC1       0x6C8
-.equ ST_SC0       0x6C9
-.equ ST_DOTS      0x6A5
-.equ ST_FRAME     0x6A9
-.equ ST_LASTF     0x6AA
-.equ ST_STATE     0x6AB        ; 0 play, 1 dead, 2 win
-.equ ST_TIMER     0x6AC
-.equ ST_FRIGHT    0x6AD
-.equ ST_GHOST_T   0x6AE
-.equ ST_BESTD     0x6AF
-.equ ST_BESTDIST  0x6B0
-.equ ST_NC        0x6B1
-.equ ST_NR        0x6B2
-.equ ST_RET10     0x6B3
-.equ ST_RET11     0x6B4
-.equ ST_LR_DRAW   0x6B5
-.equ ST_LR_DGA    0x6B6
-.equ ST_LR_TICK   0x6B7
-.equ ST_LR_GMV    0x6B8
-.equ ST_LR_REST   0x6B9
-.equ ST_GHOST_C   0x6BA        ; four words
-.equ ST_GHOST_R   0x6BE
-.equ ST_GHOST_DIR 0x6C2
+; ---- writable state (DS offsets 0x9A0..0x9D9) --------------------------
+.equ ST_PAC_C     0x9A0
+.equ ST_PAC_R     0x9A1
+.equ ST_PAC_DIR   0x9A2
+.equ ST_PAC_WANT  0x9A3
+.equ ST_PAC_TMR   0x9A4
+.equ ST_SC3       0x9C6        ; thousand, hundred, ten, one digits
+.equ ST_SC2       0x9C7
+.equ ST_SC1       0x9C8
+.equ ST_SC0       0x9C9
+.equ ST_DOTS      0x9A5
+.equ ST_FRAME     0x9A9
+.equ ST_LASTF     0x9AA
+.equ ST_STATE     0x9AB        ; 0 play, 1 dead, 2 win
+.equ ST_TIMER     0x9AC
+.equ ST_FRIGHT    0x9AD
+.equ ST_BESTD     0x9AF
+.equ ST_BESTDIST  0x9B0
+.equ ST_NC        0x9B1
+.equ ST_NR        0x9B2
+.equ ST_RET10     0x9B3
+.equ ST_RET11     0x9B4
+.equ ST_LR_DRAW   0x9B5
+.equ ST_LR_DGA    0x9B6
+.equ ST_LR_TICK   0x9B7
+.equ ST_LR_GMV    0x9B8
+.equ ST_LR_REST   0x9B9
+.equ ST_GHOST_C   0x9BA        ; four words
+.equ ST_GHOST_R   0x9BE
+.equ ST_GHOST_DIR 0x9C2
+.equ ST_GHOST_T0  0x9CA        ; one move countdown per ghost
+.equ ST_GHOST_EAT 0x9CE        ; 0..3, reset by an energizer
+.equ ST_PAC_ANIM  0x9CF        ; munch phase 0 open, 1 half, 2 closed, 3 half
+.equ ST_PAC_MUNCH 0x9D0        ; frames per munch phase
+.equ ST_PAC_MOVE  0x9D1        ; 1 while Pac-Man is actually moving
+.equ ST_FRUIT_N   0x9D2        ; how many fruits have appeared (0..2)
+.equ ST_FRUIT_T   0x9D3        ; frames left on screen, 0 = none
+.equ ST_FRUIT_ST  0x9D4        ; 1 while the cherries are drawn
+.equ ST_SV6       0x9D5        ; score-add scratch
+.equ ST_SV7       0x9D6
+.equ ST_SVLR      0x9D7
+.equ ST_LR_COL    0x9D8        ; collision routine return address
+.equ ST_G_MOVED   0x9D9        ; a ghost moved this frame
 
 .org 0
 ; =====================================================================
@@ -101,6 +119,37 @@ pac_entry:
     JMP R4
     NOP
 
+    ; install the half-open and closed sprite frames into the writable sprite
+    ; bank.  Groups 1/9/17/10 are spare for Pac-Man, so the baked bank (and
+    ; Flappy's shared cloud) does not have to change with this slice.
+    LDI SEG_SPR
+    MVS ES, R0
+    LDI pac_sprite_data
+    MOV R1, R0
+    LDI pac_sprite_groups
+    MOV R5, R0
+    LSI R6, 4
+pac_spc_group:
+    LDS R2, DS, R5
+    SL R2, 8                  ; group * 256 words
+    LSI R8, 0
+    LDI 256
+    MOV R3, R0
+pac_spc_word:
+    LDS R4, DS, R1
+    MOV R7, R2
+    ADD R7, R8
+    STS R4, ES, R7
+    ADD R1, 1
+    ADD R8, 1
+    SUB R3, 1
+    JNZ pac_spc_word
+    NOP
+    ADD R5, 1
+    SUB R6, 1
+    JNZ pac_spc_group
+    NOP
+
     ; score digits and frame counters
     LDI ST_SC3
     MOV R2, R0
@@ -119,6 +168,29 @@ pac_entry:
     MOV R2, R0
     ST R3, R2, 0
     LDI ST_FRIGHT
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_GHOST_EAT
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_PAC_ANIM
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_PAC_MUNCH
+    MOV R2, R0
+    LSI R3, 4
+    ST R3, R2, 0
+    LSI R3, 0
+    LDI ST_PAC_MOVE
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_FRUIT_N
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_FRUIT_T
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_FRUIT_ST
     MOV R2, R0
     ST R3, R2, 0
     ; HUD label "SCORE" in the right margin, row 0 column 65
@@ -362,12 +434,24 @@ mz_done:
     ST R3, R2, 0
     LDI ST_PAC_TMR
     MOV R2, R0
-    LSI R3, 4
+    LDI 16
+    MOV R3, R0
     ST R3, R2, 0
-    LDI ST_GHOST_T
+    ; staggered ghost phases; each timer resets to its own speed after a move
+    LDI ST_GHOST_T0
     MOV R2, R0
-    LSI R3, 7
+    LDI 17
+    MOV R3, R0
     ST R3, R2, 0
+    LDI 21
+    MOV R3, R0
+    ST R3, R2, 1
+    LDI 25
+    MOV R3, R0
+    ST R3, R2, 2
+    LDI 29
+    MOV R3, R0
+    ST R3, R2, 3
 
     ; four ghosts on the corridor above the house, all facing up
     LDI ST_GHOST_C
@@ -463,7 +547,30 @@ pac_play:
     ADD R3, 1
     ST R3, R2, 0
 
-    ; frightened countdown; a transition back to normal repaints the ghosts
+    ; cherries count down and disappear
+    LDI ST_FRUIT_T
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_fright
+    NOP
+    SUB R3, 1
+    ST R3, R2, 0
+    JNZ pac_fright
+    NOP
+    LDI ST_FRUIT_ST
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    LSI R5, 0
+    LSI R7, 0
+    LDI pac_fruit_paint
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
+pac_fright:
     LDI ST_FRIGHT
     MOV R2, R0
     LD R3, R2, 0
@@ -473,8 +580,23 @@ pac_play:
     SUB R3, 1
     ST R3, R2, 0
     AND R3, R3
-    JNZ pac_ghost_timer
+    JZ pac_fright_end
     NOP
+    ; repaint during the last two seconds so the white flash is visible
+    LDI 120
+    MOV R4, R0
+    CMP R4, R3
+    JC pac_ghost_timer
+    NOP
+    LDI pac_draw_ghosts
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI pac_ghost_timer
+    MOV PC, R0
+    NOP
+pac_fright_end:
     LDI pac_draw_ghosts
     MOV R4, R0
     LINK
@@ -482,24 +604,111 @@ pac_play:
     NOP
 
 pac_ghost_timer:
-    LDI ST_GHOST_T
+    ; one countdown per ghost: tunnel 40%, frightened 50%, normal 75%
+    LDI ST_G_MOVED
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    LSI R6, 0
+pac_gt_loop:
+    LDI ST_GHOST_T0
+    MOV R2, R0
+    ADD R2, R6
+    LDS R3, DS, R2
+    SUB R3, 1
+    ST R3, R2, 0
+    JNZ pac_gt_next
+    NOP
+    LDI ST_G_MOVED
+    MOV R2, R0
+    LSI R3, 1
+    ST R3, R2, 0
+    LDI pac_ghost_move
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI ST_GHOST_R
+    MOV R2, R0
+    ADD R2, R6
+    LDS R3, DS, R2
+    CMP R3, 11
+    JZ pac_gt_tunnel
+    NOP
+    LDI ST_FRIGHT
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_gt_normal
+    NOP
+    LDI 24
+    MOV R3, R0
+    LDI pac_gt_set
+    MOV PC, R0
+    NOP
+pac_gt_tunnel:
+    LDI 32
+    MOV R3, R0
+    LDI pac_gt_set
+    MOV PC, R0
+    NOP
+pac_gt_normal:
+    LDI 17
+    MOV R3, R0
+pac_gt_set:
+    LDI ST_GHOST_T0
+    MOV R2, R0
+    ADD R2, R6
+    ST R3, R2, 0
+pac_gt_next:
+    ADD R6, 1
+    LSI R3, 4
+    CMP R6, R3
+    JNZ pac_gt_loop
+    NOP
+    ; repaint only when a ghost moved; the flash path repaints on its own
+    LDI ST_G_MOVED
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_ghost_collide
+    NOP
+    LDI pac_draw_ghosts
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+pac_ghost_collide:
+    LDI pac_collide
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
+pac_munch:
+    ; the mouth advances only while Pac-Man is actually moving
+    LDI ST_PAC_MOVE
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_pac_timer
+    NOP
+    LDI ST_PAC_MUNCH
     MOV R2, R0
     LD R3, R2, 0
     SUB R3, 1
     ST R3, R2, 0
     JNZ pac_pac_timer
     NOP
-    LSI R3, 7
+    LSI R3, 4
     ST R3, R2, 0
-    LDI pac_ghost_tick
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    ; a ghost may have landed on Pac-Man
-    LDI pac_collide
-    MOV PC, R0
-    NOP
+    LDI ST_PAC_ANIM
+    MOV R2, R0
+    LD R3, R2, 0
+    ADD R3, 1
+    LSI R4, 3
+    AND R3, R4
+    ST R3, R2, 0
 
 pac_pac_timer:
     LDI ST_PAC_TMR
@@ -509,7 +718,22 @@ pac_pac_timer:
     ST R3, R2, 0
     JNZ pac_sprite_now
     NOP
-    LSI R3, 4
+    LDI ST_FRIGHT
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_pac_base
+    NOP
+    LSI R3, 14
+    LDI pac_pac_set
+    MOV PC, R0
+    NOP
+pac_pac_base:
+    LDI 16
+    MOV R3, R0
+pac_pac_set:
+    LDI ST_PAC_TMR
+    MOV R2, R0
     ST R3, R2, 0
     LDI pac_move
     MOV PC, R0
@@ -631,6 +855,10 @@ pac_move_current:
     NOP
 
 pac_move_stop:
+    LDI ST_PAC_MOVE
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
     LDI pac_sprite_now
     MOV PC, R0
     NOP
@@ -646,6 +874,10 @@ pac_move_apply:
     LDI ST_PAC_DIR
     MOV R3, R0
     ST R7, R3, 0
+    LDI ST_PAC_MOVE
+    MOV R3, R0
+    LSI R4, 1
+    ST R4, R3, 0
     MOV R8, R1
     MOV R9, R2
 
@@ -670,54 +902,33 @@ pac_move_apply:
     NOP
 
     ; score: dot +10, pellet +50
-    LSI R4, 1
+    LDI pac_score_add
+    MOV R4, R0
+    LSI R0, 0
+    LSI R1, 1
     LSI R3, 3
     CMP R6, R3
-    JNZ pac_score_add
+    JNZ pac_eat_score
     NOP
-    LSI R4, 5
-pac_score_add:
-    LDI ST_SC1
-    MOV R2, R0
-    LD R3, R2, 0
-    ADD R3, R4
-    LSI R4, 10
-    CMP R3, R4
-    JC pac_score_ok
-    NOP
-    LSI R3, 0
-    ST R3, R2, 0
-    LDI ST_SC2
-    MOV R2, R0
-    LD R3, R2, 0
-    ADD R3, 1
-    LSI R4, 10
-    CMP R3, R4
-    JC pac_score_h_ok
-    NOP
-    LSI R3, 0
-    ST R3, R2, 0
-    LDI ST_SC3
-    MOV R2, R0
-    LD R3, R2, 0
-    ADD R3, 1
-    ST R3, R2, 0
-    LDI pac_score_draw
-    MOV PC, R0
-    NOP
-pac_score_h_ok:
-    ST R3, R2, 0
-    LDI pac_score_draw
-    MOV PC, R0
-    NOP
-pac_score_ok:
-    ST R3, R2, 0
-pac_score_draw:
-    LDI pac_draw_score
-    MOV R4, R0
+    LSI R1, 5
+pac_eat_score:
     LINK
     JMP R4
     NOP
+
+    ; eating slows the next move: +2 frames for a dot, +6 for an energizer
+    LDI ST_PAC_TMR
+    MOV R2, R0
+    LD R3, R2, 0
+    LSI R4, 2
+    LSI R5, 3
+    CMP R6, R5
+    JNZ pac_eat_delay
+    NOP
+    LSI R4, 6
+pac_eat_delay:
+    ADD R3, R4
+    ST R3, R2, 0
 
     ; erase the eaten cell (two blank art cells)
     LDI ST_PAC_C
@@ -738,15 +949,19 @@ pac_score_draw:
     ADD R3, 1
     STS R5, ES, R3
 
-    ; power pellet: frighten the ghosts
+    ; power pellet: frighten the ghosts for six seconds
     LSI R3, 3
     CMP R6, R3
     JNZ pac_after_eat
     NOP
     LDI ST_FRIGHT
     MOV R2, R0
-    LDI 240
+    LDI 360
     MOV R3, R0
+    ST R3, R2, 0
+    LDI ST_GHOST_EAT
+    MOV R2, R0
+    LSI R3, 0
     ST R3, R2, 0
     LDI pac_draw_ghosts
     MOV R4, R0
@@ -765,13 +980,115 @@ pac_after_eat:
     LD R3, R2, 0
     SUB R3, 1
     ST R3, R2, 0
+
+    ; cherries: first at 70 dots eaten (174 left), second at 170 (74 left)
+    LDI ST_FRUIT_N
+    MOV R2, R0
+    LD R4, R2, 0
+    LDI 174
+    MOV R5, R0
+    CMP R3, R5
+    JZ pac_fruit_first
+    NOP
+    LDI 74
+    MOV R5, R0
+    CMP R3, R5
+    JZ pac_fruit_second
+    NOP
+    LDI pac_after_fruit
+    MOV PC, R0
+    NOP
+pac_fruit_first:
+    AND R4, R4
+    JNZ pac_after_fruit
+    NOP
+    LSI R5, 1
+    LDI pac_fruit_spawn
+    MOV PC, R0
+    NOP
+pac_fruit_second:
+    LSI R3, 1
+    CMP R4, R3
+    JNZ pac_after_fruit
+    NOP
+    LSI R5, 2
+pac_fruit_spawn:
+    ST R5, R2, 0               ; ST_FRUIT_N
+    LDI ST_FRUIT_T
+    MOV R2, R0
+    LDI 570
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI ST_FRUIT_ST
+    MOV R2, R0
+    LSI R3, 1
+    ST R3, R2, 0
+    LDI T_FRUIT_L
+    MOV R5, R0
+    LDI T_FRUIT_R
+    MOV R7, R0
+    LDI pac_fruit_paint
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+pac_after_fruit:
+    ; last pickup wins
+    LDI ST_DOTS
+    MOV R2, R0
+    LD R3, R2, 0
     AND R3, R3
     JZ pac_win
     NOP
 pac_move_done:
-    ; check the cell Pac-Man just entered as well as the ghost ticks, so he
-    ; cannot walk through a ghost between two ghost moves
+    ; cherries under the house
+    LDI ST_PAC_C
+    MOV R2, R0
+    LD R3, R2, 0
+    CMP R3, 15
+    JNZ pac_no_fruit
+    NOP
+    LDI ST_PAC_R
+    MOV R2, R0
+    LD R3, R2, 0
+    CMP R3, 13
+    JNZ pac_no_fruit
+    NOP
+    LDI ST_FRUIT_ST
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_no_fruit
+    NOP
+    LDI pac_score_add
+    MOV R4, R0
+    LSI R0, 1
+    LSI R1, 0
+    LINK
+    JMP R4
+    NOP
+    LDI ST_FRUIT_T
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI ST_FRUIT_ST
+    MOV R2, R0
+    ST R3, R2, 0
+    LSI R5, 0
+    LSI R7, 0
+    LDI pac_fruit_paint
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+pac_no_fruit:
+    ; check the cell Pac-Man just entered as well as the ghost ticks
     LDI pac_collide
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI pac_sprite_now
     MOV PC, R0
     NOP
 
@@ -807,7 +1124,21 @@ pac_win:
 ; =====================================================================
 ; Collision: same cell as a ghost.  Frightened ghosts are sent home.
 ; =====================================================================
+; Test/setup entry: check once and then end the frame like the old routine.
+pac_collide_now:
+    LDI pac_collide
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI pac_sprite_now
+    MOV PC, R0
+    NOP
+
 pac_collide:
+    LDI ST_LR_COL
+    MOV R2, R0
+    ST LR, R2, 0
     LDI ST_PAC_C
     MOV R2, R0
     LD R8, R2, 0
@@ -837,33 +1168,31 @@ pac_col_loop:
     AND R3, R3
     JZ pac_col_dead
     NOP
-    ; eat the ghost: 200 points, back to the house
-    LDI ST_SC2
-    MOV R2, R0
-    LD R3, R2, 0
-    ADD R3, 2
-    LSI R4, 10
-    CMP R3, R4
-    JC pac_col_sc_ok
-    NOP
-    LSI R3, 0
-    ST R3, R2, 0
-    LDI ST_SC3
-    MOV R2, R0
-    LD R3, R2, 0
-    ADD R3, 1
-    ST R3, R2, 0
-    LDI pac_col_sc_done
-    MOV PC, R0
-    NOP
-pac_col_sc_ok:
-    ST R3, R2, 0
-pac_col_sc_done:
-    LDI pac_draw_score
+    ; eat the ghost: 200/400/800/1600 points, back to the house
+    LDI pac_score_add
     MOV R4, R0
+    LDI ST_GHOST_EAT
+    MOV R2, R0
+    LD R5, R2, 0
+    LDI pac_ghost_pts
+    MOV R3, R0
+    ADD R3, R5
+    LDS R0, DS, R3
+    LSI R1, 0
     LINK
     JMP R4
     NOP
+    ; the next ghost eaten on this energizer is worth twice as much
+    LDI ST_GHOST_EAT
+    MOV R2, R0
+    LD R5, R2, 0
+    LSI R3, 3
+    CMP R5, R3
+    JNC pac_col_pts_done
+    NOP
+    ADD R5, 1
+    ST R5, R2, 0
+pac_col_pts_done:
     LDI SFX_EAT
     MOV R1, R0
     LSI R2, 6
@@ -901,7 +1230,7 @@ pac_col_sc_done:
     LINK
     JMP R4
     NOP
-    LDI pac_sprite_now
+    LDI pac_col_return
     MOV PC, R0
     NOP
 
@@ -946,41 +1275,16 @@ pac_col_next:
     CMP R6, R3
     JNZ pac_col_loop
     NOP
-    LDI pac_sprite_now
-    MOV PC, R0
-    NOP
-
-; =====================================================================
-; Ghosts: greedy chase (flee when frightened), door passable
-; =====================================================================
-pac_ghost_tick:
-    LDI ST_LR_TICK
-    MOV R2, R0
-    ST LR, R2, 0
-    LSI R6, 0
-pac_gt_move:
-    LDI pac_ghost_move
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    ADD R6, 1
-    LSI R3, 4
-    CMP R6, R3
-    JNZ pac_gt_move
-    NOP
-    ; the vacated cells were restored as each ghost moved
-    LDI pac_draw_ghosts
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI ST_LR_TICK
+pac_col_return:
+    LDI ST_LR_COL
     MOV R2, R0
     LD LR, R2, 0
     JMP LR
     NOP
 
+; =====================================================================
+; Ghosts: greedy chase (flee when frightened), door passable
+; =====================================================================
 ; R6 = ghost index.  Picks the open neighbour closest to (or, when
 ; frightened, farthest from) Pac-Man, skipping the reverse direction.
 pac_ghost_move:
@@ -1380,24 +1684,37 @@ pac_restore_cell:
     JNC pac_rc_map
     NOP
 pac_rc_door:
-    LDI pac_cell_addr
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI SEG_TILE
-    MVS ES, R0
-    LDI 0x03A0
+    LDI T_GATE_L
     MOV R5, R0
-    OR R5, 15                  ; text tile 0x80 | pair 0x3 | '=' -> 0x83A0
-    STS R5, ES, R3
-    ADD R3, 1
-    STS R5, ES, R3
-    LDI pac_rc_done
+    LDI T_GATE_R
+    MOV R6, R0
+    LDI pac_rc_shift
     MOV PC, R0
     NOP
 
 pac_rc_map:
+    ; the cherries may be under a ghost that is leaving this cell
+    LSI R3, 13
+    CMP R9, R3
+    JNZ pac_rc_not_fruit
+    NOP
+    CMP R8, 15
+    JNZ pac_rc_not_fruit
+    NOP
+    LDI ST_FRUIT_ST
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_rc_not_fruit
+    NOP
+    LDI T_FRUIT_L
+    MOV R5, R0
+    LDI T_FRUIT_R
+    MOV R6, R0
+    LDI pac_rc_shift
+    MOV PC, R0
+    NOP
+pac_rc_not_fruit:
     MOV R1, R8
     MOV R2, R9
     LDI pac_mapval
@@ -1478,6 +1795,17 @@ pac_dg_loop:
     JMP LR
     NOP
 
+; Test/setup entry: repaint the ghosts once and end the frame.
+pac_draw_ghosts_now:
+    LDI pac_draw_ghosts
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI pac_sprite_now
+    MOV PC, R0
+    NOP
+
 pac_draw_ghost_at:
     LDI ST_LR_DGA
     MOV R2, R0
@@ -1487,12 +1815,35 @@ pac_draw_ghost_at:
     LINK
     JMP R4
     NOP
+    MOV R1, R3                 ; keep the tilemap address
     LDI ST_FRIGHT
     MOV R2, R0
     LD R2, R2, 0
     AND R2, R2
     JZ pac_dga_normal
     NOP
+    ; blue, except for a white flash during the last two seconds
+    LDI 120
+    MOV R3, R0
+    CMP R3, R2
+    JC pac_dga_fright
+    NOP
+    LDI ST_FRAME
+    MOV R3, R0
+    LD R3, R3, 0
+    LDI 16
+    MOV R2, R0
+    AND R3, R2
+    JZ pac_dga_fright
+    NOP
+    LDI T_FLASH_L
+    MOV R5, R0
+    LDI T_FLASH_R
+    MOV R7, R0
+    LDI pac_dga_write
+    MOV PC, R0
+    NOP
+pac_dga_fright:
     LDI T_FRIGHT_L
     MOV R5, R0
     LDI T_FRIGHT_R
@@ -1501,11 +1852,41 @@ pac_draw_ghost_at:
     MOV PC, R0
     NOP
 pac_dga_normal:
+    ; Blinky red, Pinky pink, Inky cyan, Clyde orange: four consecutive pairs
     LDI T_GHOST_L
     MOV R5, R0
-    LDI T_GHOST_R
-    MOV R7, R0
+    MOV R3, R6
+    SL R3, 1
+    ADD R5, R3
+    MOV R7, R5
+    ADD R7, 1
 pac_dga_write:
+    SL R5, 5
+    SL R7, 5
+    MOV R3, R1
+    LDI SEG_TILE
+    MVS ES, R0
+    STS R5, ES, R3
+    ADD R3, 1
+    STS R7, ES, R3
+    LDI ST_LR_DGA
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
+    NOP
+
+; Draw the cherries (R5/R7 = left/right tile; 0,0 erases) at cell (15,13).
+pac_fruit_paint:
+    LDI ST_SVLR
+    MOV R2, R0
+    ST LR, R2, 0
+    LSI R8, 15
+    LSI R9, 13
+    LDI pac_cell_addr
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     SL R5, 5
     SL R7, 5
     LDI SEG_TILE
@@ -1513,7 +1894,7 @@ pac_dga_write:
     STS R5, ES, R3
     ADD R3, 1
     STS R7, ES, R3
-    LDI ST_LR_DGA
+    LDI ST_SVLR
     MOV R2, R0
     LD LR, R2, 0
     JMP LR
@@ -1543,6 +1924,76 @@ pac_ds_loop:
     SUB R6, 1
     JNZ pac_ds_loop
     NOP
+    JMP LR
+    NOP
+
+; Add R0 hundreds and R1 tens to the score and redraw it.  R6/R7 are
+; preserved; R4/R5 are scratch.
+pac_score_add:
+    MOV R5, R0                 ; hundreds
+    MOV R4, R1                 ; tens
+    LDI ST_SV6
+    MOV R2, R0
+    ST R6, R2, 0
+    LDI ST_SV7
+    MOV R2, R0
+    ST R7, R2, 0
+    LDI ST_SVLR
+    MOV R2, R0
+    ST LR, R2, 0
+    MOV R7, R5                 ; hundreds
+    MOV R6, R4                 ; tens
+    ; tens digit
+    LDI ST_SC1
+    MOV R2, R0
+    LD R3, R2, 0
+    ADD R3, R6
+    LSI R5, 0                  ; carry into the hundreds
+    LSI R4, 10
+    CMP R3, R4
+    JC pac_sa_t_store
+    NOP
+    SUB R3, R4
+    LSI R5, 1
+pac_sa_t_store:
+    ST R3, R2, 0
+    ; hundreds digit plus the carry
+    LDI ST_SC2
+    MOV R2, R0
+    LD R3, R2, 0
+    ADD R3, R7
+    ADD R3, R5
+pac_sa_h_loop:
+    LSI R4, 10
+    CMP R3, R4
+    JC pac_sa_h_store
+    NOP
+    SUB R3, R4
+    LDI ST_SC3
+    MOV R4, R0
+    LD R5, R4, 0
+    ADD R5, 1
+    ST R5, R4, 0
+    LDI pac_sa_h_loop
+    MOV PC, R0
+    NOP
+pac_sa_h_store:
+    ST R3, R2, 0
+    ; redraw the score, then restore the caller's R6/R7 and return
+    LDI pac_draw_score
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI ST_SV6
+    MOV R2, R0
+    LD R6, R2, 0
+    LDI ST_SV7
+    MOV R2, R0
+    LD R7, R2, 0
+    LDI ST_SVLR
+    MOV R2, R0
+    LD LR, R2, 0
     JMP LR
     NOP
 
@@ -1609,20 +2060,24 @@ pac_sprite:
     MOV R3, R0
     ADD R5, R3
 
-    ; open mouth on the high half of every 16-frame cycle
-    LDI ST_FRAME
+    ; munch phase: 0 open, 1 half, 2 closed, 3 half
+    LDI ST_PAC_ANIM
     MOV R3, R0
-    LD R4, R3, 0
-    LSI R7, 8
-    AND R4, R7
+    LD R3, R3, 0
+    LSI R7, 2
+    CMP R3, R7
     JZ pac_sp_closed
     NOP
-    LSI R3, 0
+    LSI R7, 1
+    AND R3, R7                 ; 0 open, 1 half
     LDI pac_sp_dir
     MOV PC, R0
     NOP
 pac_sp_closed:
-    LSI R3, 1
+    LSI R3, 10                 ; shared closed frame
+    LDI pac_sp_write
+    MOV PC, R0
+    NOP
 pac_sp_dir:
     ; up: 8/9, down: 16/17, right/left/stopped: 0/1
     LDI ST_PAC_DIR
@@ -1658,6 +2113,21 @@ pac_sp_flat:
     MOV R7, R0
     OR R2, R7
 pac_sp_noh:
+    LSI R7, 1
+    SL R7, 11
+    OR R2, R7
+    LSI R0, 0
+    STS R2, ES, R0
+    JMP LR
+    NOP
+
+pac_sp_write:
+    ; shared closed frame: group 10 << 11 | y, no H flip
+    MOV R4, R3
+    SL R4, 11
+    OR R4, R5
+    LSI R0, 1
+    STS R4, ES, R0
     LSI R7, 1
     SL R7, 11
     OR R2, R7

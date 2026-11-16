@@ -915,8 +915,8 @@ test('game-run starts pacman from flash and returns to the prompt', () => {
     if ((sim.memory[0xF1000 + r * 82 + c] & 0xfff) !== 0) tiles++;
   }
   assert.ok(tiles > 1000, `the maze was drawn (${tiles} tiles)`);
-  assert.ok(state(0x6a5) < 250, 'the maze was drawn and dots were eaten');
-  assert.ok(state(0x6a0) > 17, `Pac-Man moved right (column ${state(0x6a0)})`);
+  assert.ok(state(0x9a5) < 250, 'the maze was drawn and dots were eaten');
+  assert.ok(state(0x9a0) > 17, `Pac-Man moved right (column ${state(0x9a0)})`);
   assert.equal(sim.segmentRegisters.DS, DS_SEG, 'DS back to the kernel');
   assert.equal(sim.segmentRegisters.SS, SS_SEG, 'SS back to the kernel');
   assert.equal(sim.segmentRegisters.ES, 0xf000, 'ES back to the I/O segment');

@@ -44,10 +44,9 @@ test('browser builder matches the Node D16D image word for word', () => {
   // The games are slices: the gap below the BIOS and the game area are empty.
   assert.equal(node.words[0x4350], 0xffff, 'frogger is not baked into the image');
   assert.equal(node.words[0x5F00], 0xffff, 'flappy is not baked into the image');
-  assert.equal(node.words[0x4330 + 0x610], 0xffff, 'the maze is not in the image');
-  assert.deepEqual(Array.from(Deep16D16DImage.build({
-    ...sources, bakePacman: true,
-  }).words).slice(0x4330 + 0x610, 0x4330 + 0x611), [0x5555], 'baking still works');
+  assert.equal(node.words[0x4330], 0xffff, 'the game block is not baked into the image');
+  // The block (code, map, tables and tile pack) now runs past the BIOS, so
+  // the old flat-image bake path is only a slice loader on the board.
 });
 
 test('the showcase does not overwrite any live kernel word', () => {
