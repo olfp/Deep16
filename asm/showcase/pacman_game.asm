@@ -523,13 +523,11 @@ mz_done:
     ; four ghosts on the corridor above the house, all facing up
     LDI ST_GHOST_C
     MOV R2, R0
-    LDI 14
-    MOV R3, R0
-    ST R3, R2, 0
     LDI 15
     MOV R3, R0
+    ST R3, R2, 0
     ST R3, R2, 1
-    LDI 16
+    LDI 13
     MOV R3, R0
     ST R3, R2, 2
     LDI 17
@@ -539,6 +537,7 @@ mz_done:
     MOV R2, R0
     LSI R3, 9
     ST R3, R2, 0
+    LSI R3, 11
     ST R3, R2, 1
     ST R3, R2, 2
     ST R3, R2, 3
@@ -552,13 +551,11 @@ mz_done:
     ; smooth origins; the first ghost_anim computes their sprite centres
     LDI ST_G_FC
     MOV R2, R0
-    LDI 14
-    MOV R3, R0
-    ST R3, R2, 0
     LDI 15
     MOV R3, R0
+    ST R3, R2, 0
     ST R3, R2, 1
-    LDI 16
+    LDI 13
     MOV R3, R0
     ST R3, R2, 2
     LDI 17
@@ -568,6 +565,7 @@ mz_done:
     MOV R2, R0
     LSI R3, 9
     ST R3, R2, 0
+    LSI R3, 11
     ST R3, R2, 1
     ST R3, R2, 2
     ST R3, R2, 3
@@ -1506,6 +1504,47 @@ pac_ghost_move:
     ADD R2, R6
     ST R3, R2, 0
 
+    ; ghosts inside the lair leave through the door; outside it stays shut
+    LSI R12, 1
+    LSI R3, 11
+    CMP R9, R3
+    JNZ pac_gm_door_row
+    NOP
+    LDI 12
+    MOV R3, R0
+    CMP R8, R3
+    JC pac_gm_door_done
+    NOP
+    LDI 20
+    MOV R3, R0
+    CMP R8, R3
+    JNC pac_gm_door_done
+    NOP
+    LSI R12, 0
+    LDI pac_gm_house
+    MOV PC, R0
+    NOP
+pac_gm_door_row:
+    LSI R3, 10
+    CMP R9, R3
+    JNZ pac_gm_door_done
+    NOP
+    LDI 14
+    MOV R3, R0
+    CMP R8, R3
+    JC pac_gm_door_done
+    NOP
+    LDI 18
+    MOV R3, R0
+    CMP R8, R3
+    JNC pac_gm_door_done
+    NOP
+    LSI R12, 0
+    LDI pac_gm_house
+    MOV PC, R0
+    NOP
+pac_gm_door_done:
+
     LSI R3, 0
     LDI ST_BESTD
     MOV R2, R0
@@ -1543,7 +1582,7 @@ pac_gm_try:
     ADD R1, R4
     MOV R2, R9
     ADD R2, R5
-    LSI R5, 1                  ; the door is closed to everyone
+    MOV R5, R12                ; the door is open only inside the lair
     LDI pac_is_path
     MOV R4, R0
     LINK
@@ -1654,7 +1693,7 @@ pac_gm_reverse:
     ADD R1, R4
     MOV R2, R9
     ADD R2, R5
-    LSI R5, 1
+    MOV R5, R12
     LDI pac_is_path
     MOV R4, R0
     LINK
@@ -1662,6 +1701,38 @@ pac_gm_reverse:
     NOP
     AND R0, R0
     JZ pac_gm_done
+    NOP
+
+pac_gm_house:
+    LDI 15
+    MOV R3, R0
+    CMP R8, R3
+    JZ pac_gm_house_up
+    NOP
+    JNC pac_gm_house_left
+    NOP
+    LSI R7, 4
+    MOV R1, R8
+    ADD R1, 1
+    MOV R2, R9
+    LDI pac_gm_setdir
+    MOV PC, R0
+    NOP
+pac_gm_house_left:
+    LSI R7, 3
+    MOV R1, R8
+    SUB R1, 1
+    MOV R2, R9
+    LDI pac_gm_setdir
+    MOV PC, R0
+    NOP
+pac_gm_house_up:
+    LSI R7, 1
+    MOV R1, R8
+    MOV R2, R9
+    SUB R2, 1
+    LDI pac_gm_setdir
+    MOV PC, R0
     NOP
 
 pac_gm_setdir:

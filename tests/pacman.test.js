@@ -256,6 +256,35 @@ test('wall outlines merge, with no line between touching wall cells', () => {
   assert.equal(tileAt(sim, 2, 13), 118 + 3, 'block right: right edge and top');
 });
 
+test('Blinky starts outside the lair and the other three leave through the door', () => {
+  const sim = start();
+  let ready = false;
+  for (let i = 0; i < 220 && !ready; i++) {
+    run(sim, 1);
+    if (st(sim, 'ST_DOTS') === 244 && st(sim, 'ST_PAC_C') === 15 && st(sim, 'ST_PAC_R') === 17) ready = true;
+  }
+  assert.ok(ready, 'the game initialised');
+  const cols = [0, 1, 2, 3].map((i) => sim.memory[BLOCK + S.ST_GHOST_C + i]);
+  const rows = [0, 1, 2, 3].map((i) => sim.memory[BLOCK + S.ST_GHOST_R + i]);
+  assert.deepEqual(cols, [15, 15, 13, 17], 'lair starting columns');
+  assert.deepEqual(rows, [9, 11, 11, 11], 'Blinky above, the rest inside');
+
+  // Keep Pac-Man far away while the three ghosts walk to the door and out.
+  put(sim, 'ST_PAC_C', 1); put(sim, 'ST_PAC_R', 1);
+  sim.memory[BLOCK + S.ST_PAC_PX] = 24;
+  sim.memory[BLOCK + S.ST_PAC_PY] = 22;
+  sim.memory[BLOCK + S.ST_PAC_FC] = 1;
+  sim.memory[BLOCK + S.ST_PAC_FR] = 1;
+  put(sim, 'ST_PAC_TMR', 1000);
+  run(sim, 80);
+  const inLair = (c, r) => (r === 11 && c >= 12 && c <= 19) || (r === 10 && c >= 14 && c <= 17);
+  for (let i = 0; i < 4; i++) {
+    const c = sim.memory[BLOCK + S.ST_GHOST_C + i];
+    const r = sim.memory[BLOCK + S.ST_GHOST_R + i];
+    assert.equal(inLair(c, r), false, `ghost ${i} left the lair (${c},${r})`);
+  }
+});
+
 test('the four ghosts use their arcade sprite colours', () => {
   const sim = start();
   run(sim, 320);
@@ -308,6 +337,7 @@ test('ghost speeds match the arcade: 9 normal, 13 fright, 16 tunnel', () => {
   put(sim, 'ST_PAC_C', 1); put(sim, 'ST_PAC_R', 11);
   sim.memory[BLOCK + S.ST_GHOST_C] = 10;
   sim.memory[BLOCK + S.ST_GHOST_R] = 11;
+  sim.memory[BLOCK + S.ST_GHOST_DIR] = 0;
   put(sim, 'ST_GHOST_T0', 1);
   for (let i = 1; i < 4; i++) sim.memory[BLOCK + S.ST_GHOST_T0 + i] = 500;
   run(sim, 3);
@@ -317,6 +347,7 @@ test('ghost speeds match the arcade: 9 normal, 13 fright, 16 tunnel', () => {
   put(sim, 'ST_PAC_C', 1); put(sim, 'ST_PAC_R', 17);
   sim.memory[BLOCK + S.ST_GHOST_C] = 10;
   sim.memory[BLOCK + S.ST_GHOST_R] = 9;
+  sim.memory[BLOCK + S.ST_GHOST_DIR] = 0;
   put(sim, 'ST_GHOST_T0', 1); put(sim, 'ST_FRIGHT', 100);
   for (let i = 1; i < 4; i++) sim.memory[BLOCK + S.ST_GHOST_T0 + i] = 500;
   run(sim, 3);
@@ -327,6 +358,7 @@ test('ghost speeds match the arcade: 9 normal, 13 fright, 16 tunnel', () => {
   put(sim, 'ST_PAC_C', 1); put(sim, 'ST_PAC_R', 17);
   sim.memory[BLOCK + S.ST_GHOST_C] = 10;
   sim.memory[BLOCK + S.ST_GHOST_R] = 9;
+  sim.memory[BLOCK + S.ST_GHOST_DIR] = 0;
   put(sim, 'ST_GHOST_T0', 1); put(sim, 'ST_FRIGHT', 0);
   for (let i = 1; i < 4; i++) sim.memory[BLOCK + S.ST_GHOST_T0 + i] = 500;
   run(sim, 3);
