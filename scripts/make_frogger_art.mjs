@@ -100,7 +100,7 @@ function opaqueBox(img) {
 
 // Stretch a box of the sheet to exactly w x h, background `bg`, optionally
 // mirrored left to right.
-function fit(img, box, w, h, bg, mirror = false) {
+export function fitArt(img, box, w, h, bg, mirror = false) {
   const grid = [];
   for (let y = 0; y < h; y++) {
     const row = [];
@@ -144,7 +144,7 @@ function sliceTiles(cell, cols) {
 
 // One object of `cols` cells, `w` x `h` art centred in the cell.
 function objectTiles(img, box, cols, w, h, bg, mirror = false) {
-  const art = fit(img, box, w, h, bg, mirror);
+  const art = fitArt(img, box, w, h, bg, mirror);
   const ox = Math.floor((cols * 8 - w) / 2);
   const oy = Math.floor((30 - h) / 2);
   return sliceTiles(inCell(art, w, h, cols, ox, oy, bg), cols);
@@ -197,8 +197,8 @@ export function froggerArtTiles() {
   const TRUCK = obox(203, 406, 284, 66);        // the whole truck
 
   // Log: 16x18 cap, 8x18 middle, mirrored cap; five tiles per row.
-  const capL = fit(img, LOG_END, 16, 18, I.water);
-  const middle = fit(img, LOG_MID, 8, 18, I.water);
+  const capL = fitArt(img, LOG_END, 16, 18, I.water);
+  const middle = fitArt(img, LOG_MID, 8, 18, I.water);
   const logCell = [];
   for (let y = 0; y < 30; y++) {
     const row = [];

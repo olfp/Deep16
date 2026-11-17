@@ -177,7 +177,15 @@ far-jumps to the segment the slice names with `R10`/`R11` as the return pair.
 |---|---|---|
 | Pac-Man | 20–23 | `0x2000` |
 | Flappy | 24–26 | `0x5000` |
-| Frogger | 27–30 | `0x0600` |
+| Frogger | 27–31 | `0x0600` |
+
+The Frogger slice carries its own art: a tile pack at `0x1000` (magic
+`0x0A57`, count, then index + 32 words per tile) and a sprite pack at
+`0x2000` (magic `0x0A58`, count, then group + 256 words per 32x32 frame).
+Its entry copies both into the `0xF3000` / `0xF4000` windows and the palette
+into the art and sprite banks of set 2, so the baked `tilefont.hex` and
+`birdsprite.hex` stay the menu's. Code and state stay below `0x1000`
+(`FROGGER_LIMIT`); the state block starts at `0x500`.
 | Pole (road renderer benchmark) | 31 | `0x7000` |
 
 Each of those blocks carries its tile art at segment offset `0x1000` (magic

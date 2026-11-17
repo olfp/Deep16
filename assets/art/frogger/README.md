@@ -9,8 +9,13 @@ them down to 26 px wide (a game cell is 32×30), mirrors the ones whose lane
 runs left, stretches each into its cell and maps the result onto the demo's
 16-entry RGB332 art palette. A log is built from a two-tile cap, a repeating
 middle and a mirrored cap, so an 8-, 18- or 24-cell log costs the same. The
-fire truck (six cells) and the truck (eight cells) need tiles past the free
-gap, so they take Flappy's 96..109 and Pac-Man's 110..120: the backdrop owns
-them now. The water, asphalt, lane line, ground and time-bar
-tiles are composed in the same script. Nothing else from the sheet is used yet:
-the frogs, pac-man, fly, letters and icons are left for future screens.
+fire truck (six cells) and the truck (eight cells) are wider than a car. The
+water, asphalt, ground and time-bar tiles are composed in the same script. The
+tile pack rides in the game's slice at offset `0x1000`, so nothing is baked into
+`tilefont.hex`.
+
+The game's 32x32 sprite frames (frog idle, hop and squash, the home frog and
+the fly) are baked by `scripts/make_frogger_sprites.mjs` into the sprite pack at
+slice offset `0x2000`; the entry installs them into the sprite bank from group
+0. Nothing is baked into `birdsprite.hex` either, so the menu and the other
+games keep their own art until they load their packs.

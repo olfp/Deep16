@@ -564,9 +564,12 @@ next frame's work early — and use the per-row table for the scroll itself.
 
 ### 6.5 The Frogger backdrop demo
 
-`asm/showcase/frogger_demo.asm` is the worked example. It is a 996-word block
-at physical `0x4350` (CS=DS=`0x0435`), launched from the showcase menu with
-`G`; `Q` returns. It is a widescreen 14×12 game grid: a 192-pixel panel in
+`asm/showcase/frogger_demo.asm` is the worked example. It is a type-4 slice
+loaded to segment `0x0600` (CS=DS=`0x0600`), launched from the showcase menu
+with `G`; `Q` returns. The slice carries a tile pack at `0x1000` and a sprite
+pack at `0x2000`; its entry copies both into the tile and sprite banks and
+installs the 16-entry palette in the art and sprite banks of set 2, so the
+baked tile and sprite banks stay the menu's. It is a widescreen 14×12 game grid: a 192-pixel panel in
 columns 0–23, and a 448-pixel (56-cell) playfield in columns 24–79 with two
 margin cells. Objects are 26 px wide and 20 px tall, in cells of four tiles
 (cars, turtle), six tiles (fire truck) or eight tiles (truck).
@@ -606,7 +609,9 @@ mux rather than a duplicate branch. It assembles to 8,564/8,640 logic and
 
 The art comes from the single sprite sheet in
 `assets/art/frogger/sprites-sheet.png` (top-down cars, a fire truck, a truck, a
-log and a turtle). `scripts/make_frogger_art.mjs` crops each sprite to its box,
+log a turtle, the frog poses and the fly). `scripts/make_frogger_sprites.mjs`
+bakes the 32x32 frames (group 0 = idle, 1 = hop, 2 = squash, 3 = home frog,
+4 = fly) into the slice's sprite pack. `scripts/make_frogger_art.mjs` crops each sprite to its box,
 area-filters it to 26 px, mirrors it when its lane runs left and stretches it
 into 26×20 art; the fire truck and the truck get wider cells so they stay
 longer than a car. A log is three parts - a two-tile rounded left cap, a

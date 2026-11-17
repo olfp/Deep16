@@ -169,21 +169,21 @@ class Deep16D16DImage {
       }
     }
 
-    const block = (res, seg, pack) => res === null ? null : (() => {
+    const block = (res, seg, pack, spritePack) => res === null ? null : (() => {
       const blockWords = res.memoryChanges.map((c) => [c.address, c.value & 0xFFFF])
         .sort((a, b) => a[0] - b[0]);
       const codeMax = blockWords.reduce((m, [a]) => Math.max(m, a), 0);
+      let max = codeMax;
       if (pack) {
         for (let i = 0; i < pack.length; i++) blockWords.push([0x1000 + i, pack[i] & 0xFFFF]);
-        blockWords.sort((a, b) => a[0] - b[0]);
+        max = Math.max(max, 0x1000 + pack.length - 1);
       }
-      return {
-        words: blockWords,
-        seg,
-        entry: 0,
-        codeMax,
-        max: pack ? Math.max(codeMax, 0x1000 + pack.length - 1) : codeMax,
-      };
+      if (spritePack) {
+        for (let i = 0; i < spritePack.length; i++) blockWords.push([0x2000 + i, spritePack[i] & 0xFFFF]);
+        max = Math.max(max, 0x2000 + spritePack.length - 1);
+      }
+      if (pack || spritePack) blockWords.sort((a, b) => a[0] - b[0]);
+      return { words: blockWords, seg, entry: 0, codeMax, max };
     })();
 
     return {
@@ -195,7 +195,7 @@ class Deep16D16DImage {
       symbols: kres.symbols,
       showcase: { words: sres.memoryChanges.map((c) => [c.address, c.value & 0xFFFF]) },
       flappy: block(fres, 0x5000, packs.flappy),
-      frogger: block(gres, 0x0600, packs.frogger),
+      frogger: block(gres, 0x0600, packs.frogger, packs.froggerSprites),
       pacman: (() => {
         const b = block(pres, 0x2000, packs.pacman);
         return b && { ...b, codeEnd: pres.symbols.p_code_end };

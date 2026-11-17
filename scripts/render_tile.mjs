@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { encodePng, writePng } from './lib_png.mjs';
 import { flappyArtPack, pacmanArtPack, froggerArtPack } from './make_tile_font.mjs';
+import { froggerSpritePack } from './make_frogger_sprites.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHOWCASE_BASE = 0x4A00;
@@ -77,7 +78,8 @@ function boot(scene) {
     pacmanGame: src.pacmanGame,
     frogger: src.frogger,
     defines: scene === 'console' ? { D16SEG: 0 } : {},
-    packs: { flappy: flappyArtPack(), pacman: pacmanArtPack(), frogger: froggerArtPack() },
+    packs: { flappy: flappyArtPack(), pacman: pacmanArtPack(), frogger: froggerArtPack(),
+              froggerSprites: froggerSpritePack() },
   });
   const symbols = new Assembler().assemble(src.showcase).symbols;
 

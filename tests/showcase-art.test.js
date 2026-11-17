@@ -10,6 +10,7 @@ import { BIRD_COLOURS, BIRD_ORDER } from '../scripts/make_art.mjs';
 import { buildShowcase, buildFlappy, buildFrogger } from '../scripts/make_showcase.mjs';
 import { TILE_BANK_WORDS, TILE_WORDS, readFontWords, tileFontWords } from '../scripts/make_tile_font.mjs';
 import { froggerArtTiles } from '../scripts/make_frogger_art.mjs';
+import { froggerSpritePack, SPR_MAGIC, SPR_PACK_OFFSET } from '../scripts/make_frogger_sprites.mjs';
 import { ROOT } from './helpers.js';
 
 const GROUP_WORDS = 16 * 16;
@@ -86,5 +87,13 @@ test('the Frogger art rides in a slice tile pack', () => {
     assert.equal(at(cell + 30), 0, `tile ${index} palette pointer`);
     assert.equal(at(cell + 31), 0, `tile ${index} flags`);
     cell += 32;
+  }
+
+  // The sprite pack follows at 0x2000, group 0 first.
+  const sprites = froggerSpritePack();
+  assert.equal(at(SPR_PACK_OFFSET), SPR_MAGIC, 'sprite pack magic');
+  assert.equal(at(SPR_PACK_OFFSET + 1), sprites[1], 'sprite group count');
+  for (let i = 0; i < sprites.length; i++) {
+    assert.equal(at(SPR_PACK_OFFSET + i), sprites[i], `sprite pack word ${i}`);
   }
 });

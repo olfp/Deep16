@@ -14,6 +14,7 @@ import {
   buildFrogger, checkFrogger, FROGGER_SEG_BASE, FROGGER_SEG, FROGGER_LIMIT,
 } from '../scripts/make_showcase.mjs';
 import { froggerArtTiles, FROGGER_PALETTE } from '../scripts/make_frogger_art.mjs';
+import { froggerSpriteFrames } from '../scripts/make_frogger_sprites.mjs';
 
 for (const f of ['js/deep16_assembler.js', 'js/deep16_simulator.js']) {
   vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), { filename: f });
@@ -24,16 +25,21 @@ const FRAME_PERIOD = 0x10000;
 const STATUS = 0xF0066;
 const RET_PC = 0x0777;
 const BLOCK = FROGGER_SEG_BASE;
-const START = 0x400;
-const PHASE = 0x409;
+const START = 0x500;
+const PHASE = 0x509;
 
 const frogger = buildFrogger();
 checkFrogger(frogger);
 
-test('the block fits the image gap and carries the art tiles', () => {
+test('the slice carries the art and sprite packs', () => {
   assert.equal(frogger.seg, FROGGER_SEG);
-  assert.ok(frogger.codeMax < FROGGER_LIMIT);
-  assert.equal(BLOCK + frogger.codeMax + 1 <= 0x4A00, true, 'code below the BIOS');
+  assert.ok(frogger.codeMax < FROGGER_LIMIT, 'code below the tile pack');
+  assert.equal(BLOCK + frogger.max + 1 <= 0x10000, true, 'block fits its segment');
+  const packAt = (a) => frogger.words.find((w) => w[0] === a)?.[1];
+  assert.equal(packAt(0x1000), 0x0A57, 'tile pack magic');
+  assert.equal(packAt(0x1000 + 1), froggerArtTiles().length, 'tile count');
+  assert.equal(packAt(0x2000), 0x0A58, 'sprite pack magic');
+  assert.equal(packAt(0x2000 + 1), froggerSpriteFrames().length, 'sprite group count');
   const tiles = froggerArtTiles();
   const expect = [57, 58, 126, 127,
     ...Array.from({ length: 62 }, (_, i) => 59 + i)];
@@ -123,7 +129,7 @@ test('the lanes paint and move in their own directions', () => {
 test('the panel strip is a shrinking time bar', () => {
   const sim = start();
   run(sim, 100);
-  const time = sim.memory[BLOCK + 0x420];
+  const time = sim.memory[BLOCK + 0x520];
   assert.ok(time > 0 && time < 23, `time ${time}`);
   const at = (r, c) => sim.memory[0xF1000 + r * 82 + c] >> 5;
   for (const r of [12, 13]) {

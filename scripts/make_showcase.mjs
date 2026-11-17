@@ -19,6 +19,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { ART_PACK_OFFSET, flappyArtPack, pacmanArtPack, froggerArtPack } from './make_tile_font.mjs';
+import { SPR_PACK_OFFSET, froggerSpritePack } from './make_frogger_sprites.mjs';
 import { assemblePoleBoard } from './pole_program.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -33,9 +34,9 @@ export const PACMAN_SEG = 0x0433;             // physical 0x4330
 export const PACMAN_SEG_BASE = 0x4330;
 export const PACMAN_LIMIT = 0x2000;           // slice data below runtime sprite packs
 export const PACMAN_CODE_LIMIT = 0x1000;      // code and strings before the tile pack
-export const FROGGER_SEG = 0x0435;             // physical 0x4350
-export const FROGGER_SEG_BASE = 0x4350;
-export const FROGGER_LIMIT = 0x6B0;            // block must end before the BIOS at 0x4A00
+export const FROGGER_SEG = 0x0600;             // physical 0x6000, the slice segment
+export const FROGGER_SEG_BASE = 0x6000;
+export const FROGGER_LIMIT = 0x1000;           // code and state stay below the tile pack
 export const GAME_LIMIT = 0x0E00;             // game may use 0xA00..0xDFF
 export const POLE_SEG = 0x7000;                // physical 0x70000 (free segment)
 export const POLE_LIMIT = 0x1000;              // the slice payload is one 4K page
@@ -185,10 +186,18 @@ export function buildFrogger() {
   }
   words.sort((a, b) => a[0] - b[0]);
   const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
-  return withArtPack({
+  const block = withArtPack({
     words, min: words[0]?.[0] ?? 0, max, size: max + 1, build,
     entry: 0, seg: FROGGER_SEG, symbols: res.symbols,
   }, froggerArtPack());
+  // The sprite pack follows the tiles at 0x2000.
+  const sprites = froggerSpritePack();
+  for (let i = 0; i < sprites.length; i++) block.words.push([SPR_PACK_OFFSET + i, sprites[i] & 0xFFFF]);
+  block.words.sort((a, b) => a[0] - b[0]);
+  block.spriteOffset = SPR_PACK_OFFSET;
+  block.spriteGroups = sprites[1];
+  block.max = Math.max(block.max, SPR_PACK_OFFSET + sprites.length - 1);
+  return block;
 }
 
 export function checkFrogger(frogger) {
@@ -196,7 +205,9 @@ export function checkFrogger(frogger) {
   if ((frogger.codeMax ?? frogger.max) >= FROGGER_LIMIT)
     fail.push(`frogger block reaches 0x${(frogger.codeMax ?? frogger.max).toString(16)}`);
   const at = (a) => frogger.words.find((w) => w[0] === a)?.[1];
-  if (at(0x300) === undefined) fail.push('frogger state missing at 0x300');
+  if (at(0x500) === undefined) fail.push('frogger state missing at 0x500');
+  if (at(ART_PACK_OFFSET) !== 0x0A57) fail.push('frogger tile pack missing at 0x1000');
+  if (at(SPR_PACK_OFFSET) !== 0x0A58) fail.push('frogger sprite pack missing at 0x2000');
   if (fail.length) throw new Error('frogger block is not valid:\n  - ' + fail.join('\n  - '));
   return true;
 }

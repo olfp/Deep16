@@ -65,17 +65,17 @@
 .equ SFX_TICK  5
 
 ; state (inside the block, after the code)
-.equ FR_START  0x400           ; nine 0..15 coarse start cells
-.equ FR_PHASE  0x409           ; nine 0..31 quarter-pixel phases
-.equ FR_LASTF  0x412
-.equ FR_RET10  0x413
-.equ FR_RET11  0x414
-.equ FR_DIRTY  0x415           ; nine "row changed last frame" cells
-.equ FR_FRONT  0x41E           ; displayed tilemap bank
-.equ FR_BACK   0x41F           ; write tilemap bank
-.equ FR_TIME   0x420           ; time bar cells left (0..56)
-.equ FR_TICK   0x421           ; frames until the next cell
-.equ FR_BARD   0x422           ; bar dirty flag
+.equ FR_START  0x500           ; nine 0..15 coarse start cells
+.equ FR_PHASE  0x509           ; nine 0..31 quarter-pixel phases
+.equ FR_LASTF  0x512
+.equ FR_RET10  0x513
+.equ FR_RET11  0x514
+.equ FR_DIRTY  0x515           ; nine "row changed last frame" cells
+.equ FR_FRONT  0x51E           ; displayed tilemap bank
+.equ FR_BACK   0x51F           ; write tilemap bank
+.equ FR_TIME   0x520           ; time bar cells left (0..56)
+.equ FR_TICK   0x521           ; frames until the next cell
+.equ FR_BARD   0x522           ; bar dirty flag
 
 .org 0
 fr_entry:
@@ -157,6 +157,102 @@ fr_clear_dirty:
     MOV R3, R0
     STS R3, ES, R2
 
+    ; ---- install the slice packs -------------------------------------
+    ; Tile pack at 0x1000: magic, count, then index + 32 words per tile.
+    LDI 0x1000
+    MOV R8, R0
+    LDS R4, DS, R8
+    LDI 0x0A57
+    MOV R5, R0
+    CMP R4, R5
+    JNZ fr_tiles_done
+    NOP
+    ADD R8, 1
+    LDS R5, DS, R8
+    AND R5, R5
+    JZ fr_tiles_done
+    NOP
+    ADD R8, 1
+    LDI 0x7980
+    SL R0, 1
+    MVS ES, R0                 ; 0xF300: tile bank
+fr_tiles_loop:
+    LDS R2, DS, R8
+    ADD R8, 1
+    MOV R3, R2
+    SL R3, 5                   ; index * 32 words
+    LSI R6, 0
+fr_tile_words:
+    LDS R1, DS, R8
+    STS R1, ES, R3
+    ADD R8, 1
+    ADD R3, 1
+    ADD R6, 1
+    LDI 32
+    MOV R4, R0
+    CMP R6, R4
+    JNC fr_tile_done
+    NOP
+    LDI fr_tile_words
+    MOV PC, R0
+    NOP
+fr_tile_done:
+    SUB R5, 1
+    AND R5, R5
+    JZ fr_tiles_done
+    NOP
+    LDI fr_tiles_loop
+    MOV PC, R0
+    NOP
+fr_tiles_done:
+
+    ; Sprite pack at 0x2000: magic, count, then group + 256 words per frame.
+    LDI 0x2000
+    MOV R8, R0
+    LDS R4, DS, R8
+    LDI 0x0A58
+    MOV R5, R0
+    CMP R4, R5
+    JNZ fr_sprites_done
+    NOP
+    ADD R8, 1
+    LDS R5, DS, R8
+    AND R5, R5
+    JZ fr_sprites_done
+    NOP
+    ADD R8, 1
+    LDI 0x7400                 ; 0xF400: sprite bank (bit 14 sign-extends)
+    MVS ES, R0
+fr_sprites_loop:
+    LDS R2, DS, R8
+    ADD R8, 1
+    MOV R3, R2
+    SL R3, 8                   ; group * 256 words
+    LSI R6, 0
+fr_sprite_words:
+    LDS R1, DS, R8
+    STS R1, ES, R3
+    ADD R8, 1
+    ADD R3, 1
+    ADD R6, 1
+    LDI 256
+    MOV R4, R0
+    CMP R6, R4
+    JNC fr_sprite_done
+    NOP
+    LDI fr_sprite_words
+    MOV PC, R0
+    NOP
+fr_sprite_done:
+    SUB R5, 1
+    AND R5, R5
+    JZ fr_sprites_done
+    NOP
+    LDI fr_sprites_loop
+    MOV PC, R0
+    NOP
+fr_sprites_done:
+
     ; clear the OAM descriptors so the menu's sprites do not show through
     LDI SEG_OAM
     MVS ES, R0
@@ -192,6 +288,28 @@ fr_pal_loop:
     MOV PC, R0
     NOP
 fr_pal_done:
+
+    ; the same 16 entries in the sprite bank, so sprite index 0 is transparent
+    LDI 0x120
+    MOV R2, R0
+    LDI fr_pal
+    MOV R8, R0
+    LSI R6, 0
+fr_pal2_loop:
+    LDS R3, DS, R8
+    STS R3, ES, R2
+    ADD R2, 1
+    ADD R8, 1
+    ADD R6, 1
+    LDI 16
+    MOV R4, R0
+    CMP R6, R4
+    JNC fr_pal2_done
+    NOP
+    LDI fr_pal2_loop
+    MOV PC, R0
+    NOP
+fr_pal2_done:
 
     ; Palette set 2 text bank 0/1, used by the static HUD text cells.
     LDI 0x100
@@ -1150,7 +1268,7 @@ str_lives:
 ; =====================================================================
 ; Writable state
 ; =====================================================================
-.org 0x400
+.org 0x500
 fr_start_state:
     .word 0, 3, 6, 9, 12, 1, 4, 7, 10
 ; Start the lanes at different phases so their coarse shifts (and the

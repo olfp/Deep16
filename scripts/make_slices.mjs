@@ -186,7 +186,7 @@ export function buildSlices() {
   const flappySlices = binarySlices(flappy.words, flappyFirst, 'flappy', 0, flappy.seg, 1);
   const frogger = buildFrogger();
   const froggerFirst = flappyFirst + flappySlices.length;
-  const froggerSlices = binarySlices(frogger.words, froggerFirst, 'frogger', 0, 0x0600, 1);
+  const froggerSlices = binarySlices(frogger.words, froggerFirst, 'frogger', 0, frogger.seg, 1);
   // The Pole road renderer and its on-board timing harness. It is loaded into
   // segment 0x7000, which is free in the D16D segment map.
   const pole = buildPole();
