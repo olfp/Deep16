@@ -205,7 +205,7 @@ export function checkFrogger(frogger) {
   if ((frogger.codeMax ?? frogger.max) >= FROGGER_LIMIT)
     fail.push(`frogger block reaches 0x${(frogger.codeMax ?? frogger.max).toString(16)}`);
   const at = (a) => frogger.words.find((w) => w[0] === a)?.[1];
-  if (at(0x500) === undefined) fail.push('frogger state missing at 0x500');
+  if (at(0x600) === undefined) fail.push('frogger state missing at 0x600');
   if (at(ART_PACK_OFFSET) !== 0x0A57) fail.push('frogger tile pack missing at 0x1000');
   if (at(SPR_PACK_OFFSET) !== 0x0A58) fail.push('frogger sprite pack missing at 0x2000');
   if (fail.length) throw new Error('frogger block is not valid:\n  - ' + fail.join('\n  - '));

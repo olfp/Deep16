@@ -25,8 +25,8 @@ const FRAME_PERIOD = 0x10000;
 const STATUS = 0xF0066;
 const RET_PC = 0x0777;
 const BLOCK = FROGGER_SEG_BASE;
-const START = 0x500;
-const PHASE = 0x509;
+const START = 0x600;
+const PHASE = 0x609;
 
 const frogger = buildFrogger();
 checkFrogger(frogger);
@@ -129,7 +129,7 @@ test('the lanes paint and move in their own directions', () => {
 test('the panel strip is a shrinking time bar', () => {
   const sim = start();
   run(sim, 100);
-  const time = sim.memory[BLOCK + 0x520];
+  const time = sim.memory[BLOCK + 0x620];
   assert.ok(time > 0 && time < 23, `time ${time}`);
   const at = (r, c) => sim.memory[0xF1000 + r * 82 + c] >> 5;
   for (const r of [12, 13]) {
@@ -152,4 +152,75 @@ test('Q leaves the demo and returns to the menu', () => {
   }
   assert.equal(sim.segmentRegisters.CS, 0x04A0);
   assert.equal(sim.registers[15], RET_PC);
+});
+
+test('the frog hops one lane or one cell per key', () => {
+  const sim = start();
+  run(sim, 20);
+  const lane = () => sim.memory[BLOCK + 0x631] & 0xFFFF;
+  const fxq = () => sim.memory[BLOCK + 0x630] & 0xFFFF;
+  const hop = () => sim.memory[BLOCK + 0x632] & 0xFFFF;
+
+  assert.equal(lane(), 11, 'starts on the bottom bank');
+  assert.equal(fxq(), 1664, 'centred');
+  assert.equal(hop(), 0);
+
+  sim.kbdBuffer.push(0x77);            // w
+  run(sim, 2);
+  assert.equal(lane(), 10, 'one lane up');
+  assert.ok(hop() > 0, 'hop animation armed');
+
+  run(sim, 8);                         // let the animation finish
+  sim.kbdBuffer.push(0x10);            // up arrow
+  run(sim, 2);
+  assert.equal(lane(), 9, 'one more lane up');
+
+  run(sim, 8);
+  sim.kbdBuffer.push(0x64);            // d
+  run(sim, 2);
+  assert.equal(fxq(), 1792, 'one cell right');
+
+  run(sim, 8);
+  sim.kbdBuffer.push(0x02);            // left arrow
+  run(sim, 2);
+  assert.equal(fxq(), 1664, 'one cell left');
+
+  run(sim, 8);                         // let the animation finish
+  // a held key does not hop again while the animation runs
+  const held = lane();
+  sim.kbdBuffer.push(0x77);
+  run(sim, 2);
+  sim.kbdBuffer.push(0x77);
+  run(sim, 1);
+  assert.equal(lane(), held - 1, 'no second hop during the animation');
+});
+
+test('the frog rides the log under it', () => {
+  const sim = start();
+  run(sim, 60);
+  const sym = frogger.symbols;
+  const word = (a) => sim.memory[BLOCK + a] & 0xFFFF;
+  const col = word(0x600) & 31;        // lane table 0 = river 5
+  const fine = (word(0x609) & 31) >> 2;
+  const mask = word(sym.fr_pmask);
+  const runLen = word(sym.fr_runs);
+  // Pick the middle of a log, not its leading edge.
+  let best = null;
+  let from = -1;
+  for (let px = 192; px <= 611; px++) {
+    const on = px <= 610 && ((((fine + (px + 15) - 192) >> 3) + col) & mask) < runLen;
+    if (on && from < 0) from = px;
+    if (!on && from >= 0) {
+      if (!best || px - from > best.to - best.from) best = { from, to: px };
+      from = -1;
+    }
+  }
+  assert.ok(best, 'found a log');
+  const x = (best.from + best.to) >> 1;
+  sim.memory[BLOCK + 0x631] = 1;       // top river lane
+  sim.memory[BLOCK + 0x630] = x * 4;
+  run(sim, 6);
+  const after = word(0x630);
+  // the lane runs right at one pixel per frame
+  assert.equal(after, x * 4 + 24, 'carried by the log');
 });

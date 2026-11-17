@@ -196,7 +196,10 @@ export function renderScene({
 
   const out = [];
   for (let f = 0; f < frames; f++) {
-    if (keys[f]) sim.uartRxPush(keys[f] & 0xFF);
+    if (keys[f]) {
+      sim.uartRxPush(keys[f] & 0xFF);
+      if (sim.kbdBuffer) sim.kbdBuffer.push(keys[f] & 0xFF);
+    }
     // bit 3 means a byte is waiting, so a queued key stays readable until the
     // game consumes it (the hardware does not pulse it for one frame).
     const status = ((f & 1) ? 2 : 0) | ((keys[f] || sim.uartRxAvailable() > 0) ? 8 : 0);

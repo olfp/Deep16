@@ -42,6 +42,18 @@ test('the Frogger backdrop scrolls its lanes', () => {
   assert.notDeepEqual(Array.from(r.frames[10]), Array.from(r.frames[19]), 'the lanes move');
 });
 
+test('the frog hops on keys and rides a log', () => {
+  const keys = [];
+  for (let f = 0; f < 36; f += 6) keys[f] = 0x77;   // six hops up
+  const r = renderScene({ scene: 'frogger', frames: 36, warmup: 200000, keys });
+  const e = r.engine;
+  assert.ok(e.oam[0] & 0x0800, 'frog sprite is enabled');
+  assert.equal((e.oam[1] >> 11) & 0x1f, 0, 'idle frame');
+  assert.equal(e.oam[1] & 0x3ff, 5 * 30 + 1, 'six lanes up from the bank');
+  // Whether that lane has a log under the frog depends on the moment; the
+  // carry itself is covered by the simulator ride test.
+});
+
 test('the Frogger panel edge stays fixed', () => {
   const r = renderScene({ scene: 'frogger', frames: 20, warmup: 200000 });
   const y = 4 * 15 + 7;

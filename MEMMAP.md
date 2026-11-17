@@ -185,7 +185,8 @@ The Frogger slice carries its own art: a tile pack at `0x1000` (magic
 Its entry copies both into the `0xF3000` / `0xF4000` windows and the palette
 into the art and sprite banks of set 2, so the baked `tilefont.hex` and
 `birdsprite.hex` stay the menu's. Code and state stay below `0x1000`
-(`FROGGER_LIMIT`); the state block starts at `0x500`.
+(`FROGGER_LIMIT`); the state block starts at `0x600`, with the frog's x, lane
+and hop counter at `0x630`–`0x632`.
 | Pole (road renderer benchmark) | 31 | `0x7000` |
 
 Each of those blocks carries its tile art at segment offset `0x1000` (magic

@@ -574,6 +574,16 @@ columns 0–23, and a 448-pixel (56-cell) playfield in columns 24–79 with two
 margin cells. Objects are 26 px wide and 20 px tall, in cells of four tiles
 (cars, turtle), six tiles (fire truck) or eight tiles (truck).
 
+The frog is sprite group 0 (idle) or 1 (hop), 32x32 with 30x28 of art, and it
+rides as a sprite because the lanes scroll sub-cell every frame. Arrows and
+`w a s d` hop it one cell (32 px) or one lane (30 px); `Q` returns to the menu.
+On a river lane its centre picks the map cell, the lane's pattern says whether
+that cell is a log or turtle, and if so the frog's x follows the lane's speed
+in quarter pixels. Lanes 0 and 11 are the banks and lane 6 the median, so only
+lanes 1–5 ride anything; the frog's box is kept inside the playfield. Its
+state is `FR_FXQ` (x in quarter pixels), `FR_LANE` (0..11) and `FR_HOP`
+(animation frames), at `0x630`–`0x632`.
+
 The screen is twelve double-height lanes, top to bottom: top bank (rows 0–1),
 five river lanes (2–11), median (12–13), four road lanes (14–21), bottom bank
 (22–23). Only the river and road rows are in the per-row table; the banks and
