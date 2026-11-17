@@ -831,6 +831,21 @@ bytes deep, so the frame read starts immediately after the SOH: a Forth
 round trip through the main loop before `serial-read` cost more than the
 FIFO's 139 us and dropped a byte at 115200.
 
+### Simulator tile-and-sprite demo
+
+The nano kernel includes the built-in word `fitdemo ( -- )`. At the generic
+simulator's Forth prompt, type:
+
+```text
+fitdemo
+```
+
+It clears the current FiT map, installs a red/green checker in art tile 127,
+writes a text banner and a tile stripe, and enables the bundled cloud and bird
+sprites through OAM. The scene is static and the word returns to the prompt.
+The IDE loads the flash font and sprite assets before the prompt, so the demo
+needs no file upload or setup.
+
 ### Tile console colours
 
 The console writes text cells as `0x8000 | (pair << 12) | glyph`. The text
