@@ -587,9 +587,11 @@ lane's speed in quarter pixels. A river cell with no object under the frog's
 centre is a splash; on the road the test is the frog's 26-px collision box
 against the vehicles' cells, so a car squashes it when their art meets rather
 than when the car's whole 32-px cell reaches the frog. Being carried past the
-playfield edge or letting the time bar empty also kills it. A death shows the squash frame with
-`SFX_DEATH` for 24 frames, ignores the hop keys, then respawns the frog on the
-bottom bank with a full time bar. Lanes 0 and 11 are the banks and lane 6 the
+playfield edge or letting the time bar empty also kills it. A successful hop
+plays the BIOS **hop** blip (`SFX_HOP`, effect 6) for two frames; a death shows
+the squash frame with the **death** sweep (`SFX_DEATH`, effect 3) for 24
+frames, ignores the hop keys, then respawns the frog on the bottom bank with a
+full time bar. Lanes 0 and 11 are the banks and lane 6 the
 median, so only lanes 1–5 ride anything and only lanes 7–10 carry vehicles; the
 frog's box is kept inside the playfield.
 

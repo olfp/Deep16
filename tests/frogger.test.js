@@ -20,6 +20,7 @@ for (const f of ['js/deep16_assembler.js', 'js/deep16_simulator.js']) {
   vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), { filename: f });
 }
 const Simulator = vm.runInThisContext('Deep16Simulator');
+const Assembler = vm.runInThisContext('Deep16Assembler');
 
 const FRAME_PERIOD = 0x10000;
 const STATUS = 0xF0066;
@@ -680,4 +681,44 @@ test('the road keeps an arcade-sized gap to wait in', () => {
     assert.ok(window >= 70,
       `${names[i]}: ${window.toFixed(0)} frames of waiting room`);
   }
+});
+
+
+test('a hop plays the hop blip and a death the death sweep', () => {
+  const sim = start();
+  // Swap the BIOS no-op for a recorder of the sound call's R1/R2 arguments.
+  const stub = new Assembler().assemble(`
+    .org 0xE000
+    SMV R1, AR1
+    SMV R2, AR2
+    LDI 0x0100
+    MOV R3, R0
+    ST R1, R3, 0
+    ADD R3, 1
+    ST R2, R3, 0
+    RETI
+  `);
+  for (const c of stub.memoryChanges) sim.memory[c.address] = c.value & 0xffff;
+  sim.memory[2] = 0xE000;
+
+  run(sim, 7);                         // the start frame
+  sim.memory[0x100] = 0;
+  sim.memory[0x101] = 0;
+  sim.kbdBuffer.push(0x64);            // d
+  run(sim, 1);
+  assert.equal(sim.memory[0x100], 6, 'hop effect');
+  assert.equal(sim.memory[0x101], 2, 'hop length');
+
+  const f = frogState(sim);
+  const x = laneRun(sim, 0, false);    // open water in lane 1
+  sim.memory[0x100] = 0;
+  sim.memory[0x101] = 0;
+  f.set(0xA37, 1);
+  f.set(0xA31, 1);
+  f.set(0xA30, x * 4);
+  f.set(0xA33, 0);
+  f.set(0xA32, 0);
+  run(sim, 1);
+  assert.equal(sim.memory[0x100], 3, 'death effect');
+  assert.equal(sim.memory[0x101], 24, 'death runs the squash');
 });

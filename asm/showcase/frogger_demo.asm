@@ -67,9 +67,12 @@
 .equ T_BAY    0x340           ; 26..37 home bay: six cells, two rows
 .equ T_PANEL  0x000           ; blank tile; palette art entry 0 is the panel
 
-; BIOS sound effects (function 9 starts, function 10 ticks once per frame).
+; BIOS sound effects (function 9 starts with a frame count, function 10 ticks
+; once per frame): 1 flap, 2 score, 3 death sweep, 4 waka, 5 eat, 6 hop,
+; 7 splash, 8 rise.
 .equ SFX_DEATH 3
 .equ SFX_TICK  5
+.equ SFX_HOP   6
 
 ; the frog's facing, set by the last hop
 .equ DIR_UP    0
@@ -1866,6 +1869,12 @@ fr_k_hop:
     MOV R2, R0
     LSI R3, 5
     ST R3, R2, 0
+    ; a short 412 Hz blip for every hop
+    LDI SFX_HOP
+    MOV R1, R0
+    LSI R2, 2
+    LDI 9
+    SWI
     LDI fr_k_done
     MOV PC, R0
     NOP
@@ -2501,7 +2510,8 @@ fr_die_no_life:
     ST R3, R2, 0
     LDI SFX_DEATH
     MOV R1, R0
-    LSI R2, 1
+    LDI 24
+    MOV R2, R0
     LDI 9
     SWI
     LDI 24
