@@ -43,9 +43,10 @@ test('the Frogger backdrop scrolls its lanes', () => {
 });
 
 test('the frog hops on keys', () => {
-  // Three hops right, on the safe bottom bank (up from the bank is the road).
+  // Space starts the game; then three hops right on the safe bottom bank.
   const keys = [];
-  for (let f = 0; f < 18; f += 6) keys[f] = 0x64;   // d
+  keys[0] = 0x20;                                    // Space
+  for (let f = 6; f < 24; f += 6) keys[f] = 0x64;    // d
   const r = renderScene({ scene: 'frogger', frames: 24, warmup: 200000, keys });
   const e = r.engine;
   assert.ok(e.oam[0] & 0x0800, 'frog sprite is enabled');
@@ -84,7 +85,7 @@ test('home frogs fill the bays', () => {
   const empty = renderScene({ scene: 'frogger', frames: 2, warmup: 200000 });
   const filled = renderScene({
     scene: 'frogger', frames: 2, warmup: 200000,
-    setup: (sim) => { sim.memory[0x6000 + 0x834] = 0x1f; },
+    setup: (sim) => { sim.memory[0x6000 + 0xA34] = 0x1f; },
   });
   for (let bay = 0; bay < 5; bay++) {
     const d = 1 + bay;

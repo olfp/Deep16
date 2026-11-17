@@ -599,10 +599,21 @@ locks the home frog (sprite group 3) into OAM slot 1 + bay and sends the player
 back to the bottom bank with a full bar. The hedge between the bays, and an
 already-filled bay, are deaths. The fifth bay holds the board for 120 frames
 with the timer frozen, then clears the bays, steps every lane one quarter pixel
-per frame faster up to its cap, and starts the next level. Its state is
-`FR_FXQ` (x in quarter pixels), `FR_LANE` (0..11), `FR_HOP` (animation frames),
-`FR_DEAD` (death countdown), `FR_HOMES` (five bay bits), `FR_LEVEL` (completed
-levels) and `FR_PAUSE` (level-complete pause), at `0x830`–`0x836`.
+per frame faster up to its cap, and starts the next level.
+
+The shell runs `attract -> play -> dying -> level -> game over`. The game
+enters in attract with the board scrolling and `PRESS SPACE` in the panel;
+Space starts with three lives, `Q` leaves. A death takes a life, plays the
+squash, then respawns or, after the last life, shows `GAME OVER` and waits for
+Space to start a new game. Scoring is arcade-style: 10 per forward hop, 50 per
+home, 10 per remaining time cell on reaching a home, and one extra life at
+20000 points. The hi-score is the session best, reset on entry. The HUD
+repaints only the fields that changed, twice, so both tilemap banks agree.
+Its state is `FR_FXQ` (x in quarter pixels), `FR_LANE` (0..11), `FR_HOP`
+(animation frames), `FR_DEAD` (death countdown), `FR_HOMES` (five bay bits),
+`FR_LEVEL` (completed levels), `FR_PAUSE` (level-complete pause), `FR_STATE`,
+`FR_LIVES`, `FR_SCORE`, `FR_HI`, `FR_EXTRA` and the `FR_HUD`/`FR_MSG` flags, at
+`0xA30`–`0xA3E`.
 
 The screen is twelve double-height lanes, top to bottom: top bank (rows 0–1),
 five river lanes (2–11), median (12–13), four road lanes (14–21), bottom bank

@@ -69,25 +69,49 @@
 .equ SFX_DEATH 3
 .equ SFX_TICK  5
 
+; game states
+.equ ST_READY 0                ; attract: the board scrolls, Space starts
+.equ ST_PLAY  1
+.equ ST_DYING 2
+.equ ST_LEVEL 3
+.equ ST_OVER  4                ; game over: Space starts a new game
+; the panel prompt (FR_MSG)
+.equ MSG_NONE  0
+.equ MSG_PRESS 1
+.equ MSG_OVER  2
+; HUD fields that need repainting (FR_HUD)
+.equ HUD_SCORE 1
+.equ HUD_HI    2
+.equ HUD_LIVES 4
+.equ HUD_MSG   8
+
 ; state (inside the block, after the code)
-.equ FR_START  0x800           ; nine 0..15 coarse start cells
-.equ FR_PHASE  0x809           ; nine 0..31 quarter-pixel phases
-.equ FR_LASTF  0x812
-.equ FR_RET10  0x813
-.equ FR_RET11  0x814
-.equ FR_DIRTY  0x815           ; nine "row changed last frame" cells
-.equ FR_FRONT  0x81E           ; displayed tilemap bank
-.equ FR_BACK   0x81F           ; write tilemap bank
-.equ FR_TIME   0x820           ; time bar cells left (0..56)
-.equ FR_TICK   0x821           ; frames until the next cell
-.equ FR_BARD   0x822           ; bar dirty flag
-.equ FR_FXQ    0x830           ; frog x in quarter pixels
-.equ FR_LANE   0x831           ; frog lane 0..11 (0 = top bank)
-.equ FR_HOP    0x832           ; hop animation frames left
-.equ FR_DEAD   0x833           ; death countdown frames
-.equ FR_HOMES  0x834           ; five "bay filled" bits
-.equ FR_LEVEL  0x835           ; completed levels
-.equ FR_PAUSE  0x836           ; level-complete pause frames left
+.equ FR_START  0xA00           ; nine 0..15 coarse start cells
+.equ FR_PHASE  0xA09           ; nine 0..31 quarter-pixel phases
+.equ FR_LASTF  0xA12
+.equ FR_RET10  0xA13
+.equ FR_RET11  0xA14
+.equ FR_DIRTY  0xA15           ; nine "row changed last frame" cells
+.equ FR_FRONT  0xA1E           ; displayed tilemap bank
+.equ FR_BACK   0xA1F           ; write tilemap bank
+.equ FR_TIME   0xA20           ; time bar cells left (0..56)
+.equ FR_TICK   0xA21           ; frames until the next cell
+.equ FR_BARD   0xA22           ; bar dirty flag
+.equ FR_FXQ    0xA30           ; frog x in quarter pixels
+.equ FR_LANE   0xA31           ; frog lane 0..11 (0 = top bank)
+.equ FR_HOP    0xA32           ; hop animation frames left
+.equ FR_DEAD   0xA33           ; death countdown frames
+.equ FR_HOMES  0xA34           ; five "bay filled" bits
+.equ FR_LEVEL  0xA35           ; completed levels
+.equ FR_PAUSE  0xA36           ; level-complete pause frames left
+.equ FR_STATE  0xA37           ; ST_* game state
+.equ FR_LIVES  0xA38           ; lives left
+.equ FR_SCORE  0xA39           ; 16-bit score
+.equ FR_HI     0xA3A           ; best score this session
+.equ FR_EXTRA  0xA3B           ; 20000-point extra life taken
+.equ FR_HUD    0xA3C           ; HUD fields changed this frame
+.equ FR_HUD2   0xA3D           ; the same fields again next frame
+.equ FR_MSG    0xA3E           ; MSG_* panel prompt
 
 .org 0
 fr_entry:
@@ -160,6 +184,37 @@ fr_clear_dirty:
     ST R3, R2, 0
     LDI FR_PAUSE
     MOV R2, R0
+    ST R3, R2, 0
+    ; attract mode with three lives and no score; Space starts the game
+    LDI FR_STATE
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_SCORE
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_HI
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_EXTRA
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_HUD2
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_LIVES
+    MOV R2, R0
+    LDI 3
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI FR_MSG
+    MOV R2, R0
+    LDI MSG_PRESS
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI FR_HUD
+    MOV R2, R0
+    LDI 15
+    MOV R3, R0
     ST R3, R2, 0
 
     ; remember the current frame bit so the first wait sees a change
@@ -467,6 +522,13 @@ fr_loop:
     LSI R2, 8
     STS R3, ES, R2
 
+    ; Repaint the HUD fields that changed into the new back copy.
+    LDI fr_hud_paint
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
     ; Rows changed in the previous frame are now displayed but not in the new
     ; back copy; repaint them there before adding this frame's changes.
     LSI R6, 0
@@ -513,12 +575,14 @@ fr_dirty_done:
     NOP
 fr_bard_done:
 
-    ; One time-bar cell every 64 frames (about 30 s for 56 cells).
-    LDI FR_PAUSE
+    ; The clock runs only while playing: one cell every 64 frames.
+    LDI FR_STATE
     MOV R2, R0
     LDS R3, DS, R2
-    AND R3, R3
-    JNZ fr_tick_done           ; a level pause freezes the timer
+    LDI ST_PLAY
+    MOV R4, R0
+    CMP R3, R4
+    JNZ fr_tick_done
     NOP
     LDI FR_TICK
     MOV R2, R0
@@ -1275,6 +1339,275 @@ fr_t_done:
     NOP
 
 ; =====================================================================
+; Live HUD: only the fields whose FR_HUD bits are set are repainted, and
+; the same fields again next frame so both tilemap banks carry the text.
+; =====================================================================
+fr_hud_paint:
+    MOV R6, LR
+    LDI FR_HUD
+    MOV R2, R0
+    LDS R7, DS, R2
+    LDI FR_HUD2
+    MOV R2, R0
+    LDS R4, DS, R2
+    OR R7, R4
+    AND R7, R7
+    JZ fr_h_done
+    NOP
+    ; this frame's new changes repeat once, into the other bank
+    LDI FR_HUD
+    MOV R2, R0
+    LDS R4, DS, R2
+    LDI FR_HUD2
+    MOV R2, R0
+    ST R4, R2, 0
+    LDI FR_HUD
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+
+    MOV R3, R7
+    LDI HUD_SCORE
+    MOV R4, R0
+    AND R3, R4
+    JZ fr_h_no_score
+    NOP
+    LSI R9, 0
+    LSI R10, 2
+    LDI str_score_lbl
+    MOV R8, R0
+    LDI fr_text
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI FR_SCORE
+    MOV R2, R0
+    LDS R5, DS, R2
+    LSI R9, 0
+    LSI R10, 8
+    LDI fr_num
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+fr_h_no_score:
+    MOV R3, R7
+    LDI HUD_HI
+    MOV R4, R0
+    AND R3, R4
+    JZ fr_h_no_hi
+    NOP
+    LSI R9, 1
+    LSI R10, 2
+    LDI str_hi_lbl
+    MOV R8, R0
+    LDI fr_text
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI FR_HI
+    MOV R2, R0
+    LDS R5, DS, R2
+    LSI R9, 1
+    LSI R10, 5
+    LDI fr_num
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+fr_h_no_hi:
+    MOV R3, R7
+    LDI HUD_LIVES
+    MOV R4, R0
+    AND R3, R4
+    JZ fr_h_no_lives
+    NOP
+    LDI 23
+    MOV R9, R0
+    LSI R10, 2
+    LDI str_lives_lbl
+    MOV R8, R0
+    LDI fr_text
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI FR_LIVES
+    MOV R2, R0
+    LDS R5, DS, R2
+    LDI 23
+    MOV R9, R0
+    LSI R10, 8
+    LDI fr_digit1
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+fr_h_no_lives:
+    MOV R3, R7
+    LDI HUD_MSG
+    MOV R4, R0
+    AND R3, R4
+    JZ fr_h_done
+    NOP
+    LDI fr_msg_paint
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+fr_h_done:
+    MOV LR, R6
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; Five decimal digits.  R5 = value, R9 = row, R10 = column.  Clobbers
+; R1-R5,R11-R13; preserves R6-R10.
+; ---------------------------------------------------------------------
+fr_num:
+    MOV R13, LR
+    LDI 82
+    MOV R2, R0
+    MOV R3, R9
+    MUL R3, R2
+    ADD R3, R10
+    MOV R2, R3                 ; destination
+    LDI SEG_TILE
+    MVS ES, R0
+    LDI fr_places
+    MOV R11, R0
+    LSI R12, 0
+fr_n_loop:
+    LDS R1, DS, R11            ; place value
+    LSI R3, 0
+fr_n_sub:
+    CMP R5, R1
+    JC fr_n_emit
+    NOP
+    SUB R5, R1
+    ADD R3, 1
+    LDI fr_n_sub
+    MOV PC, R0
+    NOP
+fr_n_emit:
+    LDI 0x10                   ; glyph for '0' + digit
+    MOV R4, R0
+    ADD R3, R4
+    SL R3, 5
+    LDI 0x2000                 ; the text-cell bit, 0x8000
+    MOV R4, R0
+    SL R4, 2
+    OR R3, R4
+    STS R3, ES, R2
+    ADD R2, 1
+    ADD R11, 1
+    ADD R12, 1
+    LDI 5
+    MOV R4, R0
+    CMP R12, R4
+    JNC fr_n_done
+    NOP
+    LDI fr_n_loop
+    MOV PC, R0
+    NOP
+fr_n_done:
+    MOV LR, R13
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; One decimal digit.  R5 = value, R9 = row, R10 = column.
+; ---------------------------------------------------------------------
+fr_digit1:
+    MOV R13, LR
+    LDI 82
+    MOV R2, R0
+    MOV R3, R9
+    MUL R3, R2
+    ADD R3, R10
+    LDI SEG_TILE
+    MVS ES, R0
+    LDI 0x10
+    MOV R4, R0
+    ADD R5, R4
+    SL R5, 5
+    LDI 0x2000
+    MOV R4, R0
+    SL R4, 2
+    OR R5, R4
+    STS R5, ES, R3
+    MOV LR, R13
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; Clear the prompt row and paint the current message (row 10).
+; ---------------------------------------------------------------------
+fr_msg_paint:
+    MOV R12, LR
+    LDI 82
+    MOV R2, R0
+    LDI 10
+    MOV R3, R0
+    MUL R3, R2
+    LDI SEG_TILE
+    MVS ES, R0
+    LSI R4, 0
+    LSI R5, 0
+fr_m_clear:
+    STS R5, ES, R3
+    ADD R3, 1
+    ADD R4, 1
+    LDI 24
+    MOV R2, R0
+    CMP R4, R2
+    JNC fr_m_paint
+    NOP
+    LDI fr_m_clear
+    MOV PC, R0
+    NOP
+fr_m_paint:
+    LDI FR_MSG
+    MOV R2, R0
+    LDS R3, DS, R2
+    AND R3, R3
+    JZ fr_m_done
+    NOP
+    LDI MSG_PRESS
+    MOV R4, R0
+    CMP R3, R4
+    JNZ fr_m_over
+    NOP
+    LSI R9, 10
+    LSI R10, 6
+    LDI str_press
+    MOV R8, R0
+    LDI fr_text
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI fr_m_done
+    MOV PC, R0
+    NOP
+fr_m_over:
+    LSI R9, 10
+    LSI R10, 7
+    LDI str_over
+    MOV R8, R0
+    LDI fr_text
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+fr_m_done:
+    MOV LR, R12
+    JMP LR
+    NOP
+
+; =====================================================================
 ; Frame sync and Q
 ; =====================================================================
 fr_wait:
@@ -1297,6 +1630,7 @@ fr_w_loop:
     NOP
 
 fr_keys:
+    MOV R12, LR
     LDI SEG_UART
     MVS ES, R0
     LDI 0x20
@@ -1319,19 +1653,23 @@ fr_keys:
     CMP R1, R3
     JZ fr_k_exit
     NOP
-    ; ---- hop keys: arrows and WASD --------------------------------
-    LDI FR_PAUSE
-    MOV R2, R0
-    LD R3, R2, 0
-    AND R3, R3
-    JNZ fr_k_done              ; keys are ignored during a level pause
+    ; Space starts the game from attract, or a new one after GAME OVER.
+    LDI 0x20
+    MOV R3, R0
+    CMP R1, R3
+    JZ fr_k_space
     NOP
-    LDI FR_DEAD
+    ; The direction keys only steer a live game.
+    LDI FR_STATE
     MOV R2, R0
-    LD R3, R2, 0
-    AND R3, R3
+    LDS R3, DS, R2
+    LDI ST_PLAY
+    MOV R4, R0
+    CMP R3, R4
     JNZ fr_k_done
     NOP
+
+    ; ---- hop keys: arrows and WASD --------------------------------
     LDI 0x77                  ; w
     MOV R3, R0
     CMP R1, R3
@@ -1391,6 +1729,14 @@ fr_k_up:
     NOP
     SUB R3, 1
     ST R3, R2, 0
+    ; a forward hop is worth ten points
+    LDI 10
+    MOV R5, R0
+    LDI fr_score_add
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI fr_k_hop
     MOV PC, R0
     NOP
@@ -1470,11 +1816,36 @@ fr_k_hop:
     LDI fr_k_done
     MOV PC, R0
     NOP
+fr_k_space:
+    LDI FR_STATE
+    MOV R2, R0
+    LDS R3, DS, R2
+    AND R3, R3
+    JZ fr_k_start
+    NOP
+    LDI ST_OVER
+    MOV R4, R0
+    CMP R3, R4
+    JZ fr_k_start
+    NOP
+    LDI fr_k_done
+    MOV PC, R0
+    NOP
+fr_k_start:
+    LDI fr_start_game
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI fr_k_done
+    MOV PC, R0
+    NOP
 fr_k_exit:
     LDI fr_exit
     MOV PC, R0
     NOP
 fr_k_done:
+    MOV LR, R12
     JMP LR
     NOP
 
@@ -1483,6 +1854,14 @@ fr_k_done:
 ; Clobbers R2-R7.
 ; ---------------------------------------------------------------------
 fr_frog_draw:
+    LDI FR_STATE
+    MOV R2, R0
+    LDS R6, DS, R2
+    LDI ST_OVER
+    MOV R4, R0
+    CMP R6, R4
+    JZ fr_fd_off
+    NOP
     LDI FR_FXQ
     MOV R2, R0
     LD R3, R2, 0
@@ -1529,6 +1908,16 @@ fr_fd_group:
     STS R4, ES, R2
     LSI R2, 1
     STS R5, ES, R2
+    JMP LR
+    NOP
+fr_fd_off:
+    LDI SEG_OAM
+    MVS ES, R0
+    LSI R2, 0
+    LSI R3, 0
+    STS R3, ES, R2
+    LSI R2, 1
+    STS R3, ES, R2
     JMP LR
     NOP
 
@@ -1596,14 +1985,36 @@ fr_hd_done:
 ; ---------------------------------------------------------------------
 fr_frog_update:
     MOV R13, LR
+    LDI FR_STATE
+    MOV R2, R0
+    LDS R3, DS, R2
+    LDI ST_LEVEL
+    MOV R4, R0
+    CMP R3, R4
+    JZ fr_fu_level_wait
+    NOP
+    LDI ST_DYING
+    MOV R4, R0
+    CMP R3, R4
+    JZ fr_fu_death_wait
+    NOP
+    LDI ST_PLAY
+    MOV R4, R0
+    CMP R3, R4
+    JZ fr_fu_play
+    NOP
+    ; attract or game over: the board runs, the frog does not
+    LDI fr_fu_done
+    MOV PC, R0
+    NOP
 
-    ; A completed level holds the board still for a moment; the frog is
-    ; already back on the bank and stays hidden until the pause ends.
+; A completed level holds the board still for two seconds.
+fr_fu_level_wait:
     LDI FR_PAUSE
     MOV R2, R0
     LD R3, R2, 0
     AND R3, R3
-    JZ fr_fu_alive
+    JZ fr_fu_done
     NOP
     SUB R3, 1
     ST R3, R2, 0
@@ -1619,17 +2030,24 @@ fr_frog_update:
     MOV PC, R0
     NOP
 
-fr_fu_alive:
+; The squash plays out; then a new life or GAME OVER.
+fr_fu_death_wait:
     LDI FR_DEAD
     MOV R2, R0
     LD R3, R2, 0
     AND R3, R3
-    JZ fr_fu_not_dead
+    JZ fr_fu_done
     NOP
     SUB R3, 1
     ST R3, R2, 0
     AND R3, R3
     JNZ fr_fu_done
+    NOP
+    LDI FR_LIVES
+    MOV R2, R0
+    LDS R3, DS, R2
+    AND R3, R3
+    JZ fr_fu_over
     NOP
     LDI fr_respawn
     MOV R4, R0
@@ -1639,8 +2057,17 @@ fr_fu_alive:
     LDI fr_fu_done
     MOV PC, R0
     NOP
+fr_fu_over:
+    LDI fr_game_over
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI fr_fu_done
+    MOV PC, R0
+    NOP
 
-fr_fu_not_dead:
+fr_fu_play:
     LDI FR_HOP
     MOV R2, R0
     LD R3, R2, 0
@@ -1799,6 +2226,26 @@ fr_fu_home:
     LDS R7, DS, R2
     OR R7, R6
     ST R7, R2, 0
+    ; 50 for the bay and 10 for every time cell still on the bar
+    LDI FR_TIME
+    MOV R2, R0
+    LDS R5, DS, R2
+    MOV R6, R5
+    SL R6, 3
+    SL R5, 1
+    ADD R6, R5                 ; time * 10
+    LDI 50
+    MOV R5, R0
+    ADD R5, R6
+    LDI fr_score_add
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    ; all five?
+    LDI FR_HOMES
+    MOV R2, R0
+    LDS R7, DS, R2
     LDI 31
     MOV R4, R0
     CMP R7, R4
@@ -1825,6 +2272,11 @@ fr_fu_level:
     LINK
     JMP R4
     NOP
+    LDI FR_STATE
+    MOV R2, R0
+    LDI ST_LEVEL
+    MOV R3, R0
+    ST R3, R2, 0
     LDI fr_fu_done
     MOV PC, R0
     NOP
@@ -1957,6 +2409,37 @@ fr_die:
     AND R3, R3
     JNZ fr_die_out
     NOP
+    ; only a live game loses a frog
+    LDI FR_STATE
+    MOV R2, R0
+    LDS R3, DS, R2
+    LDI ST_PLAY
+    MOV R4, R0
+    CMP R3, R4
+    JNZ fr_die_out
+    NOP
+    ; a life goes now; the squash plays before the respawn or GAME OVER
+    LDI FR_LIVES
+    MOV R2, R0
+    LDS R3, DS, R2
+    AND R3, R3
+    JZ fr_die_no_life
+    NOP
+    SUB R3, 1
+    ST R3, R2, 0
+fr_die_no_life:
+    LDI FR_HUD
+    MOV R2, R0
+    LDS R3, DS, R2
+    LDI HUD_LIVES
+    MOV R4, R0
+    OR R3, R4
+    ST R3, R2, 0
+    LDI FR_STATE
+    MOV R2, R0
+    LDI ST_DYING
+    MOV R3, R0
+    ST R3, R2, 0
     LDI SFX_DEATH
     MOV R1, R0
     LSI R2, 1
@@ -1979,6 +2462,11 @@ fr_die_out:
 ; Back to the bottom bank with a fresh timer.
 ; ---------------------------------------------------------------------
 fr_respawn:
+    LDI FR_STATE
+    MOV R2, R0
+    LDI ST_PLAY
+    MOV R3, R0
+    ST R3, R2, 0
     LDI FR_FXQ
     MOV R2, R0
     LDI 1728
@@ -2056,6 +2544,188 @@ fr_nl_done:
     JMP R4
     NOP
     MOV LR, R12
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; Start (or restart) a game: three lives, no score, base lane speeds and
+; the frog on the bank.  Called from the key handler before the write bank
+; is chosen, so it only sets state and HUD flags, never paints.
+; ---------------------------------------------------------------------
+fr_start_game:
+    MOV R13, LR
+    LDI FR_STATE
+    MOV R2, R0
+    LDI ST_PLAY
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI FR_LIVES
+    MOV R2, R0
+    LDI 3
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI FR_SCORE
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI FR_EXTRA
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_LEVEL
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_HOMES
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_DEAD
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_PAUSE
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_MSG
+    MOV R2, R0
+    ST R3, R2, 0
+    ; the whole HUD, including the cleared prompt
+    LDI FR_HUD
+    MOV R2, R0
+    LDI 15
+    MOV R3, R0
+    ST R3, R2, 0
+    ; back to the base lane speeds
+    LSI R6, 0
+fr_sg_speed:
+    LDI fr_base_speeds
+    MOV R2, R0
+    ADD R2, R6
+    LDS R3, DS, R2
+    LDI fr_speeds
+    MOV R2, R0
+    ADD R2, R6
+    ST R3, R2, 0
+    ADD R6, 1
+    LDI 9
+    MOV R3, R0
+    CMP R6, R3
+    JNC fr_sg_done
+    NOP
+    LDI fr_sg_speed
+    MOV PC, R0
+    NOP
+fr_sg_done:
+    LDI fr_respawn
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    MOV LR, R13
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; R5 = points.  Adds them to the score, tracks the session hi-score,
+; awards the 20000-point extra life once and flags the HUD fields.
+; Clobbers R2-R7; preserves R12 and R13.
+; ---------------------------------------------------------------------
+fr_score_add:
+    LDI FR_SCORE
+    MOV R2, R0
+    LDS R3, DS, R2
+    ADD R3, R5
+    JNC fr_sa_score_ok
+    NOP
+    LSI R3, 0
+    SUB R3, 1                  ; clamp at 65535
+fr_sa_score_ok:
+    ST R3, R2, 0
+    ; hi-score
+    LDI FR_HI
+    MOV R2, R0
+    LDS R4, DS, R2
+    CMP R3, R4
+    JC fr_sa_no_hi
+    NOP
+    ST R3, R2, 0
+    LDI FR_HUD
+    MOV R2, R0
+    LDS R4, DS, R2
+    LDI HUD_HI
+    MOV R5, R0
+    OR R4, R5
+    ST R4, R2, 0
+fr_sa_no_hi:
+    LDI FR_HUD
+    MOV R2, R0
+    LDS R4, DS, R2
+    LDI HUD_SCORE
+    MOV R5, R0
+    OR R4, R5
+    ST R4, R2, 0
+    ; one extra life at 20000
+    LDI FR_EXTRA
+    MOV R2, R0
+    LDS R4, DS, R2
+    AND R4, R4
+    JNZ fr_sa_done
+    NOP
+    LDI 0x2710
+    MOV R4, R0
+    SL R4, 1                   ; 20000
+    CMP R3, R4
+    JC fr_sa_done
+    NOP
+    LDI FR_EXTRA
+    MOV R2, R0
+    LSI R4, 1
+    ST R4, R2, 0
+    LDI FR_LIVES
+    MOV R2, R0
+    LDS R4, DS, R2
+    LDI 9
+    MOV R5, R0
+    CMP R4, R5
+    JNC fr_sa_no_life
+    NOP
+    ADD R4, 1
+    ST R4, R2, 0
+fr_sa_no_life:
+    LDI FR_HUD
+    MOV R2, R0
+    LDS R4, DS, R2
+    LDI HUD_LIVES
+    MOV R5, R0
+    OR R4, R5
+    ST R4, R2, 0
+fr_sa_done:
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; The last life is gone: show GAME OVER and wait for Space.
+; ---------------------------------------------------------------------
+fr_game_over:
+    LDI FR_STATE
+    MOV R2, R0
+    LDI ST_OVER
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI FR_MSG
+    MOV R2, R0
+    LDI MSG_OVER
+    MOV R3, R0
+    ST R3, R2, 0
+    ; the bays clear, and the home frogs go with the mask
+    LDI FR_HOMES
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI FR_HUD
+    MOV R2, R0
+    LDS R3, DS, R2
+    LDI HUD_MSG
+    MOV R4, R0
+    OR R3, R4
+    ST R3, R2, 0
     JMP LR
     NOP
 
@@ -2149,6 +2819,10 @@ fr_dirs:
 fr_speeds:
     .word 4, 3, 6, 2, 3
     .word 6, 4, 3, 2
+; A fresh game restores this table.
+fr_base_speeds:
+    .word 4, 3, 6, 2, 3
+    .word 6, 4, 3, 2
 ; One bit per bay, left to right.
 fr_homebits:
     .word 1, 2, 4, 8, 16
@@ -2159,18 +2833,32 @@ fr_caps:
 ; The frog's collision box inside its 32-px sprite: left edge, right edge.
 fr_boxpts:
     .word 3, 28
+; Decimal place values for the score and hi-score fields.
+fr_places:
+    .word 10000, 1000, 100, 10, 1
 
 str_score:
-    .text "SCORE 000000"
+    .text "SCORE 00000"
 str_hi:
-    .text "HI 000000"
+    .text "HI 00000"
 str_lives:
-    .text "LIVES 3  TIME 60"
+    .text "LIVES 3"
+; labels and prompts used by the live HUD
+str_score_lbl:
+    .text "SCORE "
+str_hi_lbl:
+    .text "HI "
+str_lives_lbl:
+    .text "LIVES "
+str_press:
+    .text "PRESS SPACE"
+str_over:
+    .text "GAME OVER"
 
 ; =====================================================================
 ; Writable state
 ; =====================================================================
-.org 0x800
+.org 0xA00
 fr_start_state:
     .word 0, 3, 6, 9, 12, 1, 4, 7, 10
 ; Start the lanes at different phases so their coarse shifts (and the
@@ -2195,7 +2883,7 @@ fr_tick:
     .word 0
 fr_bard:
     .word 0
-.org 0x830
+.org 0xA30
 fr_fxq:
     .word 1728                 ; x = 432 px, on the bay lattice
 fr_lane:
@@ -2209,4 +2897,20 @@ fr_homes:
 fr_level:
     .word 0
 fr_pause:
+    .word 0
+fr_state:
+    .word 0
+fr_lives:
+    .word 3
+fr_score:
+    .word 0
+fr_hi:
+    .word 0
+fr_extra:
+    .word 0
+fr_hud:
+    .word 0
+fr_hud2:
+    .word 0
+fr_msg:
     .word 0

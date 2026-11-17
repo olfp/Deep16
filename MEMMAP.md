@@ -186,9 +186,9 @@ Its entry copies both into the `0xF3000` / `0xF4000` windows and the palette
 into the art and sprite banks of set 2, so the baked `tilefont.hex` and
 `birdsprite.hex` stay the menu's. The tile pack also carries the home-row
 hedge and bay art at tiles 26–38. Code and state stay below `0x1000`
-(`FROGGER_LIMIT`); the state block starts at `0x800`, with the frog's x, lane,
-hop counter, death countdown, filled bays, level and pause at
-`0x830`–`0x836`.
+(`FROGGER_LIMIT`); the state block starts at `0xA00`, with the frog's x, lane,
+hop counter, death countdown, filled bays, level, pause, game state, lives,
+score, hi-score, extra-life flag and HUD flags at `0xA30`–`0xA3E`.
 | Pole (road renderer benchmark) | 31 | `0x7000` |
 
 Each of those blocks carries its tile art at segment offset `0x1000` (magic

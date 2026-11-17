@@ -25,8 +25,8 @@ const FRAME_PERIOD = 0x10000;
 const STATUS = 0xF0066;
 const RET_PC = 0x0777;
 const BLOCK = FROGGER_SEG_BASE;
-const START = 0x800;
-const PHASE = 0x809;
+const START = 0xA00;
+const PHASE = 0xA09;
 
 const frogger = buildFrogger();
 checkFrogger(frogger);
@@ -51,7 +51,7 @@ test('the slice carries the art and sprite packs', () => {
   }
 });
 
-function start() {
+function start({ play = true } = {}) {
   const sim = new Simulator();
   sim.memory.fill(0);
   for (const [addr, value] of frogger.words) sim.memory[BLOCK + addr] = value;
@@ -65,6 +65,8 @@ function start() {
   // Stand-alone game: no kernel/BIOS; the sound SWI calls become no-ops.
   sim.memory[2] = 0xE000;
   sim.memory[0xE000] = 0xFFF3;
+  // The game enters in attract; the first frame consumes the start key.
+  if (play) sim.kbdBuffer.push(0x20);
   return sim;
 }
 
@@ -133,7 +135,7 @@ test('the lanes paint and move in their own directions', () => {
 test('the panel strip is a shrinking time bar', () => {
   const sim = start();
   run(sim, 100);
-  const time = sim.memory[BLOCK + 0x820];
+  const time = sim.memory[BLOCK + 0xA20];
   assert.ok(time > 0 && time < 23, `time ${time}`);
   const at = (r, c) => sim.memory[0xF1000 + r * 82 + c] >> 5;
   for (const r of [12, 13]) {
@@ -164,13 +166,13 @@ test('the frog hops one lane or one cell per key', () => {
   const f = frogState(sim);
   assert.equal(f.lane(), 11, 'starts on the bottom bank');
   assert.equal(f.fxq(), 1728, 'on the bay lattice');
-  assert.equal(f.word(0x832), 0, 'no hop animation');
+  assert.equal(f.word(0xA32), 0, 'no hop animation');
 
   // horizontal hops stay on the safe bottom bank
   sim.kbdBuffer.push(0x64);            // d
   run(sim, 2);
   assert.equal(f.fxq(), 1856, 'one cell right');
-  assert.ok(f.word(0x832) > 0, 'hop animation armed');
+  assert.ok(f.word(0xA32) > 0, 'hop animation armed');
   run(sim, 8);
 
   sim.kbdBuffer.push(0x02);            // left arrow
@@ -188,17 +190,17 @@ test('the frog hops one lane or one cell per key', () => {
 
   // vertical hops, with the road's cars possibly killing the frog after
   // the lane has changed: reset the death state between checks
-  f.set(0x831, 10); f.set(0x833, 0); f.set(0x832, 0);
+  f.set(0xA37, 1); f.set(0xA31, 10); f.set(0xA33, 0); f.set(0xA32, 0);
   sim.kbdBuffer.push(0x73);            // s
   run(sim, 2);
   assert.equal(f.lane(), 11, 'down to the bank');
 
-  f.set(0x831, 10); f.set(0x833, 0); f.set(0x832, 0);
+  f.set(0xA37, 1); f.set(0xA31, 10); f.set(0xA33, 0); f.set(0xA32, 0);
   sim.kbdBuffer.push(0x77);            // w
   run(sim, 2);
   assert.equal(f.lane(), 9, 'up from the road');
 
-  f.set(0x831, 0); f.set(0x833, 0); f.set(0x832, 0);
+  f.set(0xA37, 1); f.set(0xA31, 0); f.set(0xA33, 0); f.set(0xA32, 0);
   sim.kbdBuffer.push(0x73);            // down from the top bank
   run(sim, 2);
   assert.equal(f.lane(), 1, 'down into the top river lane');
@@ -209,8 +211,8 @@ test('the frog rides the log under it', () => {
   run(sim, 60);
   const sym = frogger.symbols;
   const word = (a) => sim.memory[BLOCK + a] & 0xFFFF;
-  const col = word(0x800) & 31;        // lane table 0 = river 5
-  const fine = (word(0x809) & 31) >> 2;
+  const col = word(0xA00) & 31;        // lane table 0 = river 5
+  const fine = (word(0xA09) & 31) >> 2;
   const mask = word(sym.fr_pmask);
   const runLen = word(sym.fr_runs);
   // Pick the middle of a log, not its leading edge.
@@ -226,10 +228,10 @@ test('the frog rides the log under it', () => {
   }
   assert.ok(best, 'found a log');
   const x = (best.from + best.to) >> 1;
-  sim.memory[BLOCK + 0x831] = 1;       // top river lane
-  sim.memory[BLOCK + 0x830] = x * 4;
+  sim.memory[BLOCK + 0xA31] = 1;       // top river lane
+  sim.memory[BLOCK + 0xA30] = x * 4;
   run(sim, 6);
-  const after = word(0x830);
+  const after = word(0xA30);
   // the lane runs right at one pixel per frame
   assert.equal(after, x * 4 + 24, 'carried by the log');
 });
@@ -239,20 +241,20 @@ function frogState(sim) {
   const word = (a) => sim.memory[BLOCK + a] & 0xFFFF;
   return {
     word,
-    lane: () => word(0x831),
-    fxq: () => word(0x830),
-    dead: () => word(0x833),
-    time: () => word(0x820),
+    lane: () => word(0xA31),
+    fxq: () => word(0xA30),
+    dead: () => word(0xA33),
+    time: () => word(0xA20),
     set(a, v) { sim.memory[BLOCK + a] = v; },
-    setLaneX(lane, xpx) { this.set(0x831, lane); this.set(0x830, xpx * 4); },
+    setLaneX(lane, xpx) { this.set(0xA31, lane); this.set(0xA30, xpx * 4); },
   };
 }
 
 function laneCellWord(sim, table) {
   const sym = frogger.symbols;
   const word = (a) => sim.memory[BLOCK + a] & 0xFFFF;
-  const col = word(0x800 + table) & 31;
-  const fine = (word(0x809 + table) & 31) >> 2;
+  const col = word(0xA00 + table) & 31;
+  const fine = (word(0xA09 + table) & 31) >> 2;
   const mask = word(sym.fr_pmask + table);
   const run = word(sym.fr_runs + table);
   return (px) => ((((fine + (px + 15) - 192) >> 3) + col) & mask) < run;
@@ -293,8 +295,8 @@ test('the timer running out kills the frog', () => {
   const sim = start();
   run(sim, 40);
   const f = frogState(sim);
-  f.set(0x820, 0);                             // FR_TIME
-  f.set(0x821, 63);                            // FR_TICK
+  f.set(0xA20, 0);                             // FR_TIME
+  f.set(0xA21, 63);                            // FR_TICK
   run(sim, 2);
   assert.ok(f.dead() > 0, 'timeout starts a death');
 });
@@ -325,10 +327,10 @@ test('the frog lands in a bay and comes back to the bank', () => {
   const f = frogState(sim);
   // Bay 2 is centred on screen x 400; hop up from the river lane above it.
   f.setLaneX(1, 400);
-  f.set(0x832, 0);
+  f.set(0xA32, 0);
   sim.kbdBuffer.push(0x77);
   run(sim, 2);
-  assert.equal(f.word(0x834), 1 << 2, 'third bay filled');
+  assert.equal(f.word(0xA34), 1 << 2, 'third bay filled');
   assert.equal(f.lane(), 11, 'back on the bank');
   assert.equal(f.fxq(), 1728, 'back on the bay lattice');
   assert.equal(f.time(), 23, 'timer refilled');
@@ -344,22 +346,22 @@ test('the hedge and a filled bay kill the frog', () => {
   run(sim, 40);
   const f = frogState(sim);
   // Between bay 0 and bay 1: the hedge at screen x 312.
-  f.set(0x831, 0);
-  f.set(0x830, 312 * 4);
-  f.set(0x833, 0);
-  f.set(0x832, 0);
+  f.set(0xA31, 0);
+  f.set(0xA30, 312 * 4);
+  f.set(0xA33, 0);
+  f.set(0xA32, 0);
   run(sim, 1);
   assert.ok(f.dead() > 0, 'the hedge is a death');
 
   run(sim, 30);
-  f.set(0x834, 1);                       // bay 0 already filled
-  f.set(0x831, 0);
-  f.set(0x830, 272 * 4);
-  f.set(0x833, 0);
-  f.set(0x832, 0);
+  f.set(0xA34, 1);                       // bay 0 already filled
+  f.set(0xA31, 0);
+  f.set(0xA30, 272 * 4);
+  f.set(0xA33, 0);
+  f.set(0xA32, 0);
   run(sim, 1);
   assert.ok(f.dead() > 0, 'a used bay is a death');
-  assert.equal(f.word(0x834), 1, 'the filled bay is unchanged');
+  assert.equal(f.word(0xA34), 1, 'the filled bay is unchanged');
 });
 
 test('a bay takes the frog anywhere its art fits', () => {
@@ -367,19 +369,19 @@ test('a bay takes the frog anywhere its art fits', () => {
   run(sim, 40);
   const f = frogState(sim);
   // Bay 0 spans screen x 264..311; the frog's 30-px art fits at x 281.
-  f.set(0x831, 0);
-  f.set(0x830, 281 * 4);
-  f.set(0x833, 0);
-  f.set(0x832, 0);
+  f.set(0xA31, 0);
+  f.set(0xA30, 281 * 4);
+  f.set(0xA33, 0);
+  f.set(0xA32, 0);
   run(sim, 1);
   assert.equal(f.dead(), 0, 'fits in the bay');
-  assert.equal(f.word(0x834), 1, 'bay 0 filled');
+  assert.equal(f.word(0xA34), 1, 'bay 0 filled');
 
   // One pixel further right its art would stick out of the opening.
-  f.set(0x831, 0);
-  f.set(0x830, 282 * 4);
-  f.set(0x833, 0);
-  f.set(0x832, 0);
+  f.set(0xA31, 0);
+  f.set(0xA30, 282 * 4);
+  f.set(0xA33, 0);
+  f.set(0xA32, 0);
   run(sim, 1);
   assert.ok(f.dead() > 0, 'the hedge takes the overflow');
 });
@@ -392,25 +394,27 @@ test('the fifth bay completes the level and speeds the lanes up', () => {
   const speeds = () => Array.from({ length: 9 }, (_, i) => f.word(sym.fr_speeds + i));
   const before = speeds();
 
-  f.set(0x834, 0x1e);                    // four bays already filled
-  f.set(0x831, 1);
-  f.set(0x830, 272 * 4);
-  f.set(0x832, 0);
+  f.set(0xA34, 0x1e);                    // four bays already filled
+  f.set(0xA31, 1);
+  f.set(0xA30, 272 * 4);
+  f.set(0xA32, 0);
   sim.kbdBuffer.push(0x77);
   run(sim, 2);
-  assert.equal(f.word(0x834), 0x1f, 'all five bays filled');
-  assert.ok(f.word(0x836) > 0, 'level pause armed');
+  assert.equal(f.word(0xA34), 0x1f, 'all five bays filled');
+  assert.ok(f.word(0xA36) > 0, 'level pause armed');
+  assert.equal(f.word(0xA37), 3, 'in the level pause');
   assert.equal(f.lane(), 11, 'back on the bank');
 
   const frozen = f.time();
   run(sim, 20);
   assert.equal(f.time(), frozen, 'timer frozen during the pause');
-  assert.ok(f.word(0x836) > 0, 'still pausing');
+  assert.ok(f.word(0xA36) > 0, 'still pausing');
 
   run(sim, 110);
-  assert.equal(f.word(0x836), 0, 'pause over');
-  assert.equal(f.word(0x834), 0, 'bays cleared for the next level');
-  assert.equal(f.word(0x835), 1, 'level counted');
+  assert.equal(f.word(0xA36), 0, 'pause over');
+  assert.equal(f.word(0xA37), 1, 'back in play');
+  assert.equal(f.word(0xA34), 0, 'bays cleared for the next level');
+  assert.equal(f.word(0xA35), 1, 'level counted');
   assert.deepEqual(speeds(), before.map((s) => s + 1), 'every lane one step faster');
   assert.equal(f.lane(), 11, 'the next life starts on the bank');
 });
@@ -425,8 +429,8 @@ test('a vehicle touches the frog, not its whole cell', () => {
 
   const lane = 8;                       // road 3, the yellow car
   const table = 6;
-  const laneStart = f.word(0x800 + table) & 31;
-  const fine = (f.word(0x809 + table) & 31) >> 2;
+  const laneStart = f.word(0xA00 + table) & 31;
+  const fine = (f.word(0xA09 + table) & 31) >> 2;
   const mask = f.word(sym.fr_pmask + table);
   const runLen = f.word(sym.fr_runs + table);
   // A car well inside the playfield: its 32-px cell box starts at S.
@@ -440,10 +444,11 @@ test('a vehicle touches the frog, not its whole cell', () => {
   assert.ok(S > 220 && E < 600, `car box ${S}..${E} is inside the field`);
 
   const place = (x) => {
-    f.set(0x833, 0);
-    f.set(0x832, 0);
-    f.set(0x831, lane);
-    f.set(0x830, x * 4);
+    f.set(0xA37, 1);                   // back to play between probes
+    f.set(0xA33, 0);
+    f.set(0xA32, 0);
+    f.set(0xA31, lane);
+    f.set(0xA30, x * 4);
   };
   place(S - 29);
   run(sim, 1);
@@ -458,4 +463,163 @@ test('a vehicle touches the frog, not its whole cell', () => {
   place(E - 3);
   run(sim, 1);
   assert.equal(f.dead(), 0, 'clear of the car again');
+});
+
+// Read n text cells from a tilemap row of the last-written bank.
+function hudText(sim, row, col, n) {
+  let out = '';
+  for (let i = 0; i < n; i++) {
+    const cell = sim.memory[0xF1000 + row * 82 + col + i];
+    out += cell & 0x8000 ? String.fromCharCode(((cell >> 5) & 0x7f) + 0x20) : '?';
+  }
+  return out;
+}
+
+// Middle of the widest object (or water) run under a lane's frog line.
+function laneRun(sim, table, object) {
+  const sym = frogger.symbols;
+  const f = frogState(sim);
+  const col = f.word(0xA00 + table) & 31;
+  const fine = (f.word(0xA09 + table) & 31) >> 2;
+  const mask = f.word(sym.fr_pmask + table);
+  const run = f.word(sym.fr_runs + table);
+  const on = (px) => ((((fine + (px + 15) - 192) >> 3) + col) & mask) < run;
+  let best = null;
+  let from = -1;
+  for (let px = 192; px <= 611; px++) {
+    const want = px <= 610 && (on(px) === object);
+    if (want && from < 0) from = px;
+    if (!want && from >= 0) {
+      if (!best || px - from > best.to - best.from) best = { from, to: px };
+      from = -1;
+    }
+  }
+  assert.ok(best, `found a ${object ? 'log' : 'water'} run`);
+  return (best.from + best.to) >> 1;
+}
+
+test('the board waits in attract for Space', () => {
+  const sim = start({ play: false });
+  run(sim, 80);
+  const f = frogState(sim);
+  assert.equal(f.word(0xA37), 0, 'attract');
+  assert.equal(f.time(), 23, 'clock frozen');
+  assert.equal(f.lane(), 11, 'frog on the bank');
+  assert.equal(hudText(sim, 0, 2, 11), 'SCORE 00000');
+  assert.equal(hudText(sim, 1, 2, 8), 'HI 00000');
+  assert.equal(hudText(sim, 23, 2, 7), 'LIVES 3');
+  assert.match(hudText(sim, 10, 0, 24), /PRESS SPACE/);
+
+  sim.kbdBuffer.push(0x77);
+  run(sim, 2);
+  assert.equal(f.lane(), 11, 'directions are ignored in attract');
+
+  sim.kbdBuffer.push(0x20);
+  run(sim, 4);
+  assert.equal(f.word(0xA37), 1, 'Space starts play');
+  assert.equal(f.word(0xA38), 3, 'three lives');
+  assert.doesNotMatch(hudText(sim, 10, 0, 24), /PRESS SPACE/);
+  run(sim, 70);
+  assert.ok(f.time() < 23, 'the clock runs in play');
+});
+
+test('a forward hop scores ten and the HUD follows', () => {
+  const sim = start();
+  run(sim, 10);
+  const f = frogState(sim);
+  sim.kbdBuffer.push(0x64);              // sideways
+  run(sim, 8);
+  assert.equal(f.word(0xA39), 0, 'sideways is free');
+  sim.kbdBuffer.push(0x77);              // forward
+  run(sim, 3);
+  assert.equal(f.word(0xA39), 10, 'ten for a forward hop');
+  assert.equal(hudText(sim, 0, 2, 11), 'SCORE 00010');
+  assert.equal(hudText(sim, 1, 2, 8), 'HI 00010', 'hi-score follows');
+});
+
+test('a home pays 50 plus the remaining time', () => {
+  const sim = start();
+  run(sim, 10);
+  const f = frogState(sim);
+  const time = f.time();
+  f.set(0xA37, 1);
+  f.set(0xA31, 0);
+  f.set(0xA30, 400 * 4);
+  f.set(0xA33, 0);
+  f.set(0xA32, 0);
+  run(sim, 2);
+  assert.equal(f.word(0xA34) & 4, 4, 'bay 2 filled');
+  assert.equal(f.word(0xA39), 50 + 10 * time, 'bay and time bonus');
+});
+
+test('each death costs a life and the last one ends the game', () => {
+  const sim = start();
+  run(sim, 10);
+  const f = frogState(sim);
+  const die = () => {
+    const x = laneRun(sim, 0, false);
+    f.set(0xA37, 1);
+    f.set(0xA31, 1);
+    f.set(0xA30, x * 4);
+    f.set(0xA33, 0);
+    f.set(0xA32, 0);
+    run(sim, 2);
+  };
+
+  die();
+  assert.equal(f.word(0xA38), 2, 'two lives left');
+  assert.equal(f.word(0xA37), 2, 'dying');
+  run(sim, 30);
+  assert.equal(f.word(0xA37), 1, 'back in play');
+  assert.equal(f.word(0xA38), 2);
+
+  f.set(0xA38, 1);
+  die();
+  assert.equal(f.word(0xA38), 0, 'no lives left');
+  run(sim, 30);
+  assert.equal(f.word(0xA37), 4, 'game over');
+  assert.equal(sim.memory[0xF6000] & 0x800, 0, 'the frog is hidden');
+  assert.match(hudText(sim, 10, 0, 24), /GAME OVER/);
+
+  const lane = f.lane();
+  sim.kbdBuffer.push(0x77);
+  run(sim, 2);
+  assert.equal(f.lane(), lane, 'keys are ignored at game over');
+
+  sim.kbdBuffer.push(0x20);
+  run(sim, 4);
+  assert.equal(f.word(0xA37), 1, 'Space restarts');
+  assert.equal(f.word(0xA38), 3, 'three lives again');
+  assert.equal(f.word(0xA39), 0, 'score reset');
+  assert.doesNotMatch(hudText(sim, 10, 0, 24), /GAME OVER/);
+});
+
+test('20000 points buys one extra life', () => {
+  const sim = start();
+  run(sim, 10);
+  const f = frogState(sim);
+  const hopSafe = () => {
+    const x = laneRun(sim, 0, true);      // lane 1's log under the frog
+    f.set(0xA37, 1);
+    f.set(0xA31, 2);
+    f.set(0xA30, x * 4);
+    f.set(0xA33, 0);
+    f.set(0xA32, 0);
+    sim.kbdBuffer.push(0x77);
+    run(sim, 3);
+  };
+
+  f.set(0xA39, 19990);
+  f.set(0xA38, 3);
+  f.set(0xA3B, 0);
+  hopSafe();
+  assert.equal(f.word(0xA39), 20000);
+  assert.equal(f.word(0xA38), 4, 'one more life');
+  assert.equal(f.word(0xA3B), 1, 'the bonus is taken');
+
+  f.set(0xA39, 19990);
+  f.set(0xA38, 3);
+  hopSafe();
+  assert.equal(f.word(0xA39), 20000);
+  assert.equal(f.word(0xA38), 3, 'the bonus is only paid once');
 });
