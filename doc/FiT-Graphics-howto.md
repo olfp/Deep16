@@ -574,10 +574,12 @@ columns 0–23, and a 448-pixel (56-cell) playfield in columns 24–79 with two
 margin cells. Objects are 26 px wide and 20 px tall, in cells of four tiles
 (cars, turtle), six tiles (fire truck) or eight tiles (truck).
 
-The frog is sprite group 0 (idle), 1 (hop) or 2 (squashed), 32x32 with 30x28 of
-art, baked vertically flipped so it faces up the screen (the sheet draws every
-frog head-down). It rides as a sprite because the lanes scroll sub-cell every
-frame.
+The frog is a 32x32 sprite with 30x28 of art, in groups 0 (idle, up), 1 (idle,
+side), 2 (hop, up), 3 (hop, side), 4 (squashed), 5 (home frog) and 6 (fly). The
+frames are baked vertically flipped from the sheet, which draws every frog
+head-down. `FR_DIR` remembers the last hop: up and down use the vertical art
+with the OAM V flip for down; right and left use the side art, with the H flip
+for left. It rides as a sprite because the lanes scroll sub-cell every frame.
 Arrows and `w a s d` hop it one cell (32 px) or one lane (30 px); `Q` returns
 to the menu. On a river lane its centre picks the map cell, the lane's pattern
 says whether that cell is a log or turtle, and if so the frog's x follows the
@@ -595,7 +597,7 @@ The top bank is a hedge wall with five lily-pad bays, six cells wide on an
 eight-cell pitch (tiles 26–37 for the bays and 38 for the hedge). The frog's
 32-px hop lattice is offset half a cell so a hop can land dead centre; its
 30-px art also fits anywhere within a bay's 19-px window. Landing in a free bay
-locks the home frog (sprite group 3) into OAM slot 1 + bay and sends the player
+locks the home frog (sprite group 5) into OAM slot 1 + bay and sends the player
 back to the bottom bank with a full bar. The hedge between the bays, and an
 already-filled bay, are deaths. The fifth bay holds the board for 120 frames
 with the timer frozen, then clears the bays, steps every lane one quarter pixel
@@ -675,8 +677,8 @@ tile has no transparency, so each object tile bakes the lane colour it sits on
 
 The lane pattern is per lane: a run length and a period mask. Cells inside the
 run are object cells, the rest background; a car run is 4 cells in a 16-cell
-period, a fire truck 6, the truck 8, the top turtle lane 8 (a pair), the bottom
-one 12 (three), and a log 12, 18 or 24. Logs draw a cap at each end of the run
+period, a fire truck 6 in 16, the truck 8 in 32, the top turtle lane 8 (a
+pair), the bottom one 12 (three), and a log 12, 18 or 24. Logs draw a cap at each end of the run
 and the middle tile in between. The object's second tile row is its base plus
 the object's tile columns (4, 5, 6 or 8). The lane's coarse start runs 0..31
 even for the 16-cell patterns: a 32-cell pattern needs the full range or it
@@ -684,12 +686,13 @@ jumps back half a period when the start wrapped at 16.
 
 River lanes, top to bottom: middle logs (normal), turtle pairs (a little
 slower), long logs (fast), short logs (slow), turtle triples (a little
-slower). Logs run right and turtles run left. Road lanes, top to bottom: the truck (left,
-fastest), the yellow car (right), the fire truck (left), the blue car (right,
-slowest). The lane phase is kept in quarter pixels (0..31), so a lane speed is
-a quarter-pixel count per frame: normal 4 (1 px/frame), slightly slower 3
-(0.75), slow 2 (0.5), fast 6 (1.5), and the road climbs 2, 3, 4, 6 from the
-bottom.
+slower). Logs run right and turtles run left. Road lanes, top to bottom: the
+truck (left, one 64-px run per 256 px), the yellow car (right), the fire truck
+(left), the blue car (right). The lane phase is kept in quarter pixels (0..31),
+so a lane speed is a quarter-pixel count per frame: normal 4 (1 px/frame),
+slightly slower 3 (0.75), slow 2 (0.5), fast 6 (1.5). The road runs 2, 3, 4, 4
+from the bottom, matching the arcade's balance: the heavy truck is slow and
+leaves a long gap to wait in, while the cars are quicker and closer.
 
 Each lane keeps a `0..15` coarse start and a `0..31` phase. Every frame the demo
 advances the phase, writes control 6 (the phase shifted right two) for **both**
@@ -709,9 +712,9 @@ disables the column window and waits for the swap before returning.
 
 From the top river lane down the objects are log, turtle, log, log, turtle; the
 logs run right and the turtles left. The road lanes top to bottom are truck
-(left), yellow car (right), fire truck (left), blue car (right). The demo is
-backdrop-only — no player, collision or game state — so it isolates the scroll
-path for visual checking and for `tests/frogger.test.js`.
+(left), yellow car (right), fire truck (left), blue car (right). `tests/frogger.test.js`
+checks the lane pattern, the scroll, the frog, the homes, the shell and the
+road's gap windows.
 ---
 
 ## 7. Sprites

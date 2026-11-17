@@ -337,7 +337,7 @@ test('the frog lands in a bay and comes back to the bank', () => {
   const [w0, w1] = homeOam(sim, 2);
   assert.equal(w0 & 0x800, 0x800, 'home frog enabled');
   assert.equal(w0 & 0x3ff, 400, 'in the middle of the bay');
-  assert.equal(w1 >> 11, 3, 'home frog frame');
+  assert.equal(w1 >> 11, 5, 'home frog frame');
   assert.equal(w1 & 0x3ff, 1, 'in the home row');
 });
 
@@ -622,4 +622,66 @@ test('20000 points buys one extra life', () => {
   hopSafe();
   assert.equal(f.word(0xA39), 20000);
   assert.equal(f.word(0xA38), 3, 'the bonus is only paid once');
+});
+
+test('the frog faces the way it jumped', () => {
+  const sim = start();
+  run(sim, 10);
+  const f = frogState(sim);
+  const face = () => {
+    const w0 = sim.memory[0xF6000];
+    assert.equal(!!(w0 & 0x8000), false, 'not hidden behind the background');
+    return {
+      group: (sim.memory[0xF6001] >> 11) & 0x1f,
+      h: !!(w0 & 0x2000),
+      v: !!(w0 & 0x4000),
+    };
+  };
+  assert.deepEqual(face(), { group: 0, h: false, v: false }, 'faces up at rest');
+
+  sim.kbdBuffer.push(0x64);            // right
+  run(sim, 1);
+  assert.deepEqual(face(), { group: 3, h: false, v: false }, 'the hop faces right');
+  run(sim, 8);
+  assert.deepEqual(face(), { group: 1, h: false, v: false }, 'rests facing right');
+
+  sim.kbdBuffer.push(0x61);            // left
+  run(sim, 1);
+  assert.deepEqual(face(), { group: 3, h: true, v: false }, 'the hop faces left');
+  run(sim, 8);
+  assert.deepEqual(face(), { group: 1, h: true, v: false }, 'rests facing left');
+
+  f.set(0xA37, 1); f.set(0xA31, 10); f.set(0xA33, 0); f.set(0xA32, 0);
+  sim.kbdBuffer.push(0x73);            // down, onto the bank
+  run(sim, 2);
+  assert.deepEqual(face(), { group: 2, h: false, v: true }, 'the hop faces down');
+  run(sim, 8);
+  assert.deepEqual(face(), { group: 0, h: false, v: true }, 'rests facing down');
+
+  const x = laneRun(sim, 4, true);     // lane 5's turtles
+  f.set(0xA37, 1); f.set(0xA31, 6); f.set(0xA30, x * 4);
+  f.set(0xA33, 0); f.set(0xA32, 0);
+  sim.kbdBuffer.push(0x77);            // up, onto the turtles
+  run(sim, 2);
+  assert.deepEqual(face(), { group: 2, h: false, v: false }, 'the hop faces up');
+  run(sim, 8);
+  assert.deepEqual(face(), { group: 0, h: false, v: false }, 'rests facing up');
+});
+
+test('the road keeps an arcade-sized gap to wait in', () => {
+  const sym = frogger.symbols;
+  const at = (a) => frogger.words.find(([x]) => x === a)?.[1] ?? 0;
+  const names = ['truck', 'yellow car', 'fire truck', 'blue car'];
+  for (let i = 0; i < 4; i++) {
+    const table = 5 + i;
+    const period = (at(sym.fr_pmask + table) + 1) * 8;
+    const cols = at(sym.fr_cols + table);
+    const art = cols * 8 - 2 * (cols === 8 ? 4 : 3);
+    const speed = at(sym.fr_speeds + table) / 4;
+    const gap = period - art;
+    assert.ok(gap >= 80, `${names[i]}: ${gap} px between vehicles`);
+    const window = (gap - 26) / speed;         // 26 px is the frog's box
+    assert.ok(window >= 70,
+      `${names[i]}: ${window.toFixed(0)} frames of waiting room`);
+  }
 });

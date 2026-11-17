@@ -1,7 +1,7 @@
-# Frogger backdrop art
+# Frogger game art
 
 `sprites-sheet.png` is the sprite sheet supplied by the project owner for the
-FiT Frogger backdrop: top-down frogs, turtles, logs, cars, a fire truck and a
+FiT Frogger game: top-down frogs, turtles, logs, cars, a fire truck and a
 truck, plus the water/ground/black swatches, on a transparent background.
 
 `scripts/make_frogger_art.mjs` crops the pieces the backdrop uses, area-filters
@@ -19,9 +19,12 @@ from the sheet's lily pad on water: a 48x30 opening sliced into twelve tiles at
 bank indices 26..37. Both ride in the same slice tile pack, so the home row
 costs the baked banks nothing.
 
-The game's 32x32 sprite frames (frog idle, hop and squash, the home frog and
-the fly) are baked by `scripts/make_frogger_sprites.mjs` into the sprite pack at
-slice offset `0x2000`. The sheet draws the frogs head-down, so the frame baker
-flips each one vertically to face up the screen; the entry installs them into the sprite bank from group
-0. Nothing is baked into `birdsprite.hex` either, so the menu and the other
-games keep their own art until they load their packs.
+The game's 32x32 sprite frames (frog idle and hop facing up, the same two
+rotated to face right, the squash, the home frog and the fly) are baked by
+`scripts/make_frogger_sprites.mjs` into the sprite pack at slice offset
+`0x2000`. The sheet draws the frogs head-down, so the frame baker flips each
+one vertically to face up the screen, and rotates the right-facing pair; the
+OAM H flip gives the left-facing frog. It is seven groups; the entry installs
+them into the sprite bank from group 0. Nothing is baked into
+`birdsprite.hex` either, so the menu and the other games keep their own art
+until they load their packs.

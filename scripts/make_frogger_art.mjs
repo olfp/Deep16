@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// scripts/make_frogger_art.mjs - the Frogger backdrop's tile art.
+// scripts/make_frogger_art.mjs - the Frogger game's tile art.
 //
 // The backdrop draws game cells of 32x30 (four 8x15 tiles) for the cars and
 // turtle, 48x30 for the fire truck and 64x30 for the truck.  A log is drawn

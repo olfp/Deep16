@@ -50,7 +50,8 @@ test('the frog hops on keys', () => {
   const r = renderScene({ scene: 'frogger', frames: 24, warmup: 200000, keys });
   const e = r.engine;
   assert.ok(e.oam[0] & 0x0800, 'frog sprite is enabled');
-  assert.equal((e.oam[1] >> 11) & 0x1f, 0, 'idle frame');
+  assert.equal((e.oam[1] >> 11) & 0x1f, 1, 'idle side frame, facing right');
+  assert.equal(e.oam[0] & 0x2000, 0, 'no H flip when facing right');
   assert.equal(e.oam[1] & 0x3ff, 11 * 30 + 1, 'still on the bottom bank');
   assert.equal(e.oam[0] & 0x3ff, 432 + 3 * 32, 'three cells right');
   // The log carry and the splash/squash deaths are covered by the
@@ -93,7 +94,7 @@ test('home frogs fill the bays', () => {
     const w1 = filled.engine.oam[d * 2 + 1];
     assert.ok(w0 & 0x0800, `home frog ${bay} enabled`);
     assert.equal(w0 & 0x3ff, 272 + bay * 64, `home frog ${bay} centred`);
-    assert.equal((w1 >> 11) & 0x1f, 3, `home frog ${bay} frame`);
+    assert.equal((w1 >> 11) & 0x1f, 5, `home frog ${bay} frame`);
     assert.equal(w1 & 0x3ff, 1, `home frog ${bay} in the home row`);
   }
   assert.notDeepEqual(filled.frames[1], empty.frames[1], 'the frogs are on screen');

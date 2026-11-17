@@ -188,7 +188,7 @@ into the art and sprite banks of set 2, so the baked `tilefont.hex` and
 hedge and bay art at tiles 26–38. Code and state stay below `0x1000`
 (`FROGGER_LIMIT`); the state block starts at `0xA00`, with the frog's x, lane,
 hop counter, death countdown, filled bays, level, pause, game state, lives,
-score, hi-score, extra-life flag and HUD flags at `0xA30`–`0xA3E`.
+score, hi-score, extra-life flag, HUD flags and facing at `0xA30`–`0xA3F`.
 | Pole (road renderer benchmark) | 31 | `0x7000` |
 
 Each of those blocks carries its tile art at segment offset `0x1000` (magic

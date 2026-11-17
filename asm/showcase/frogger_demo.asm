@@ -22,7 +22,9 @@
 ;   at run time.
 ;
 ; Sprite art rides in the slice's sprite pack at 0x2000 (magic 0x0A58):
-;   group 0 idle frog, 1 hop, 2 squash, 3 home frog, 4 fly.
+;   0 idle facing up, 1 idle facing right, 2 hop up, 3 hop right, 4 squash,
+;   5 home frog, 6 fly.  Facing left is group 1/3 with the OAM H flip; facing
+;   down is group 0/2 with the V flip.
 ;
 ; Screen layout, top to bottom (24 tile rows = 12 double-height lanes):
 ;   0..1   home row: hedge with five bays; panel row 0 = SCORE, row 1 = HI
@@ -32,7 +34,7 @@
 ;   8..9   river 2: logs, slow, moving right
 ;   10..11 river 1 (bottom): turtles, a little slower, moving left
 ;   12..13 median grass
-;   14..15 road 4 (top): the truck, moving left, fastest
+;   14..15 road 4 (top): the truck, moving left, heavy and slow
 ;   16..17 road 3: the yellow car, moving right
 ;   18..19 road 2: the fire truck, moving left
 ;   20..21 road 1: the blue car, moving right, slowest
@@ -68,6 +70,12 @@
 ; BIOS sound effects (function 9 starts, function 10 ticks once per frame).
 .equ SFX_DEATH 3
 .equ SFX_TICK  5
+
+; the frog's facing, set by the last hop
+.equ DIR_UP    0
+.equ DIR_RIGHT 1
+.equ DIR_DOWN  2
+.equ DIR_LEFT  3
 
 ; game states
 .equ ST_READY 0                ; attract: the board scrolls, Space starts
@@ -112,6 +120,7 @@
 .equ FR_HUD    0xA3C           ; HUD fields changed this frame
 .equ FR_HUD2   0xA3D           ; the same fields again next frame
 .equ FR_MSG    0xA3E           ; MSG_* panel prompt
+.equ FR_DIR    0xA3F           ; DIR_* facing of the last hop
 
 .org 0
 fr_entry:
@@ -210,6 +219,10 @@ fr_clear_dirty:
     MOV R2, R0
     LDI MSG_PRESS
     MOV R3, R0
+    ST R3, R2, 0
+    LDI FR_DIR
+    MOV R2, R0
+    LSI R3, 0
     ST R3, R2, 0
     LDI FR_HUD
     MOV R2, R0
@@ -1729,6 +1742,12 @@ fr_k_up:
     NOP
     SUB R3, 1
     ST R3, R2, 0
+    ; face up before the hop
+    LDI FR_DIR
+    MOV R2, R0
+    LDI DIR_UP
+    MOV R3, R0
+    ST R3, R2, 0
     ; a forward hop is worth ten points
     LDI 10
     MOV R5, R0
@@ -1758,6 +1777,11 @@ fr_k_down:
     NOP
     ADD R3, 1
     ST R3, R2, 0
+    LDI FR_DIR
+    MOV R2, R0
+    LDI DIR_DOWN
+    MOV R3, R0
+    ST R3, R2, 0
     LDI fr_k_hop
     MOV PC, R0
     NOP
@@ -1781,6 +1805,11 @@ fr_k_left:
     MOV R4, R0
     SUB R3, R4
     ST R3, R2, 0
+    LDI FR_DIR
+    MOV R2, R0
+    LDI DIR_LEFT
+    MOV R3, R0
+    ST R3, R2, 0
     LDI fr_k_hop
     MOV PC, R0
     NOP
@@ -1803,6 +1832,11 @@ fr_k_right:
     LDI 128
     MOV R4, R0
     ADD R3, R4
+    ST R3, R2, 0
+    LDI FR_DIR
+    MOV R2, R0
+    LDI DIR_RIGHT
+    MOV R3, R0
     ST R3, R2, 0
     LDI fr_k_hop
     MOV PC, R0
@@ -1873,13 +1907,40 @@ fr_frog_draw:
     MOV R4, R0
     MUL R5, R4                 ; lane * 30
     ADD R5, 1
+    ; facing: right/left use the side art (group +1), left also flips H,
+    ; down flips V on the upright art.
+    LDI FR_DIR
+    MOV R2, R0
+    LDS R6, DS, R2
+    LSI R7, 0                  ; flip flags
+    LDI DIR_DOWN
+    MOV R4, R0
+    CMP R6, R4
+    JNZ fr_fd_not_down
+    NOP
+    LDI 0x1000                 ; V flip (bit 14; LDI would sign-extend)
+    MOV R7, R0
+    SL R7, 2
+fr_fd_not_down:
+    LDI DIR_LEFT
+    MOV R4, R0
+    CMP R6, R4
+    JNZ fr_fd_not_left
+    NOP
+    LDI 0x2000                 ; H flip
+    MOV R7, R0
+fr_fd_not_left:
+    MOV R8, R6
+    LSI R4, 1
+    AND R8, R4                 ; side art when the direction is odd
     LDI FR_DEAD
     MOV R2, R0
     LD R6, R2, 0
     AND R6, R6
     JZ fr_fd_not_dead
     NOP
-    LSI R6, 2                  ; squash frame
+    LSI R6, 4                  ; squash frame
+    LSI R7, 0                  ; the squash has no facing
     LDI fr_fd_group
     MOV PC, R0
     NOP
@@ -1890,18 +1951,21 @@ fr_fd_not_dead:
     AND R6, R6
     JZ fr_fd_idle
     NOP
-    LSI R6, 1
-    LDI fr_fd_group
+    LSI R6, 2                  ; hop
+    LDI fr_fd_side
     MOV PC, R0
     NOP
 fr_fd_idle:
     LSI R6, 0
+fr_fd_side:
+    ADD R6, R8
 fr_fd_group:
     SL R6, 11
     OR R5, R6                  ; w1 = group << 11 | y
     LDI 0x800
     MOV R4, R0
-    OR R4, R3                  ; w0 = enable | x
+    OR R4, R7                  ; flip flags
+    OR R4, R3                  ; enable | x
     LDI SEG_OAM
     MVS ES, R0
     LSI R2, 0
@@ -1954,7 +2018,7 @@ fr_hd_loop:
     LDI 0x800
     MOV R7, R0
     OR R3, R7
-    LDI 0x1801                 ; home frog group, y 1
+    LDI 0x2801                 ; home frog group, y 1
     MOV R7, R0
     LDI fr_hd_on
     MOV PC, R0
@@ -2481,6 +2545,10 @@ fr_respawn:
     MOV R2, R0
     LSI R3, 0
     ST R3, R2, 0
+    LDI FR_DIR
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
     LDI FR_TIME
     MOV R2, R0
     LDI 23
@@ -2584,6 +2652,9 @@ fr_start_game:
     MOV R2, R0
     ST R3, R2, 0
     LDI FR_MSG
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_DIR
     MOV R2, R0
     ST R3, R2, 0
     ; the whole HUD, including the cleared prompt
@@ -2794,7 +2865,7 @@ fr_runs:
     .word 8, 4, 6, 4
 fr_pmask:
     .word 31, 15, 31, 15, 15
-    .word 15, 15, 15, 15
+    .word 31, 15, 15, 15
 ; 1 = log (caps and a repeating middle), 0 = one slice per cell.
 fr_kind:
     .word 1, 0, 1, 1, 0
@@ -2818,18 +2889,20 @@ fr_dirs:
 ; road climbs from 2 (0.5 px/frame) at the bottom to 6 (1.5) at the top.
 fr_speeds:
     .word 4, 3, 6, 2, 3
-    .word 6, 4, 3, 2
-; A fresh game restores this table.
+    .word 4, 4, 3, 2
+; A fresh game restores this table.  The road follows the arcade's balance:
+; the heavy truck is the slowest lane, not the fastest, and its 64-px run is
+; one per 256 px (pmask 31) so the gap is long enough to wait in.
 fr_base_speeds:
     .word 4, 3, 6, 2, 3
-    .word 6, 4, 3, 2
+    .word 4, 4, 3, 2
 ; One bit per bay, left to right.
 fr_homebits:
     .word 1, 2, 4, 8, 16
 ; Each lane's speed cap (quarter pixels per frame) after the level steps.
 fr_caps:
     .word 8, 6, 10, 5, 6
-    .word 10, 8, 6, 5
+    .word 8, 8, 6, 5
 ; The frog's collision box inside its 32-px sprite: left edge, right edge.
 fr_boxpts:
     .word 3, 28
@@ -2913,4 +2986,6 @@ fr_hud:
 fr_hud2:
     .word 0
 fr_msg:
+    .word 0
+fr_dir:
     .word 0
