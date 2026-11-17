@@ -45,7 +45,7 @@ test('the block keeps code below the map and data below the runtime packs', () =
   assert.ok(pacman.codeMax < PACMAN_LIMIT);
   const at = (a) => pacman.words.find((w) => w[0] === a)?.[1];
   assert.equal(at(0x1340) !== undefined, true, 'map starts at 0x1340');
-  assert.equal(pacman.words.some(([a]) => a >= 0x1900 && a < 0x1960), false, 'state cells stay unwritten');
+  assert.equal(pacman.words.some(([a]) => a >= 0x1900 && a < 0x1980), false, 'state cells stay unwritten');
   assert.ok(pacman.codeMax < 0x2000, 'code and data stay below the slice end');
   assert.ok(pacman.packOffset + pacman.packTiles * 33 + 2 <= 0x1340,
             'tile pack ends before the maze');
@@ -421,8 +421,12 @@ test('cherries appear after 70 dots and are worth 100', () => {
   assert.equal(st(sim, 'ST_SC2'), 1, 'fruit adds one hundred');
   assert.equal(st(sim, 'ST_SC1'), 1, 'the earlier dot is still ten');
   assert.equal(st(sim, 'ST_FRUIT_ST'), 0, 'the cherries are gone');
-  assert.equal(tileAt(sim, 13, 30), 0, 'left cell cleared');
-  assert.equal(tileAt(sim, 13, 31), 0, 'right cell cleared');
+  assert.ok(st(sim, 'ST_POPUP_T') > 0, 'the 100 bonus is showing');
+  assert.equal(sim.memory[0xF1000 + 13 * 82 + 30], textTile('1'), 'popup starts with 1');
+  for (let i = 0; i < 50 && st(sim, 'ST_POPUP_T') > 0; i++) run(sim, 1);
+  assert.equal(st(sim, 'ST_POPUP_T'), 0, 'popup cleared');
+  assert.equal(tileAt(sim, 13, 30), 0, 'left cell cleared after the popup');
+  assert.equal(tileAt(sim, 13, 31), 0, 'right cell cleared after the popup');
 });
 
 test('the ghost-eat multiplier is 200, 400, 800, 1600', () => {
@@ -436,11 +440,32 @@ test('the ghost-eat multiplier is 200, 400, 800, 1600', () => {
   run(sim, 1);
   assert.equal(st(sim, 'ST_SC2'), 2, 'first ghost is 200');
   assert.equal(st(sim, 'ST_GHOST_EAT'), 1);
+  assert.ok(st(sim, 'ST_POPUP_T') > 0, '200 bonus is showing');
+  for (let i = 0; i < 50 && st(sim, 'ST_POPUP_T') > 0; i++) run(sim, 1);
 
   putGhostOnPac(sim);
   run(sim, 1);
   assert.equal(st(sim, 'ST_SC2'), 6, 'second ghost is 400');
   assert.equal(st(sim, 'ST_GHOST_EAT'), 2);
+});
+
+test('a ghost bonus appears in the maze and restores the tilemap', () => {
+  const sim = start();
+  run(sim, 320);
+  parkGhosts(sim);
+  put(sim, 'ST_FRIGHT', 100);
+  putGhostOnPac(sim);
+  run(sim, 1);
+  assert.ok(st(sim, 'ST_POPUP_T') > 0, 'popup is running');
+  // Pac-Man starts at (15,17); "200" starts at tilemap column 30.
+  assert.equal(sim.memory[0xF1000 + 17 * 82 + 30], textTile('2'), 'popup starts with 2');
+  assert.equal(sim.memory[0xF1000 + 17 * 82 + 32], textTile('0'), 'popup ends with 0');
+  assert.equal(sim.memory[0xF6000] & 0xFFFF, 0, 'Pac-Man sprite hidden');
+  for (let i = 0; i < 50 && st(sim, 'ST_POPUP_T') > 0; i++) run(sim, 1);
+  assert.equal(st(sim, 'ST_POPUP_T'), 0, 'popup finished');
+  assert.equal(sim.memory[0xF1000 + 17 * 82 + 30], 0, 'maze cell restored');
+  run(sim, 1);                       // the next play frame redraws Pac-Man
+  assert.ok((sim.memory[0xF6000] | 0) & 0x0800, 'Pac-Man sprite is back');
 });
 
 test('leaving the game restores Flappy sprite groups and palette entries', () => {

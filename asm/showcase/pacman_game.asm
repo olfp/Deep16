@@ -44,6 +44,7 @@
 .equ SFX_DEATH   3
 .equ SFX_WAKA    4
 .equ SFX_EAT     5
+.equ SFX_FRUIT   8
 
 ; ---- writable state (DS offsets 0x1900..0x195F) -------------------------
 .equ ST_PAC_C 0x1900
@@ -111,6 +112,14 @@
 .equ ST_G_STEP 0x1956 ; 1/16 pixels per frame for the current move
 .equ ST_G_PX 0x195A
 .equ ST_G_PY 0x1939
+; ---- bonus-score popup (0x1960..0x1967) -------------------------------
+.equ ST_POPUP_T 0x1960 ; frames left; also freezes the game
+.equ ST_POPUP_A 0x1961 ; first tilemap address overwritten
+.equ ST_POPUP_LEN 0x1962
+.equ ST_POPUP_W0 0x1963 ; saved tilemap words
+.equ ST_POPUP_W1 0x1964
+.equ ST_POPUP_W2 0x1965
+.equ ST_POPUP_W3 0x1966
 
 .org 0
 ; =====================================================================
@@ -215,6 +224,9 @@ pac_entry:
     MOV R2, R0
     ST R3, R2, 0
     LDI ST_IMMORTAL
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_POPUP_T
     MOV R2, R0
     ST R3, R2, 0
     LDI ST_FRIGHT
@@ -630,6 +642,27 @@ pac_loop:
     LDI 10
     SWI
 
+    ; bonus-score popup: freeze the game while it is visible
+    LDI ST_POPUP_T
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_no_popup
+    NOP
+    SUB R3, 1
+    ST R3, R2, 0
+    JNZ pac_popup_wait
+    NOP
+    LDI pac_popup_clear
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+pac_popup_wait:
+    LDI pac_loop
+    MOV PC, R0
+    NOP
+pac_no_popup:
     LDI ST_STATE
     MOV R2, R0
     LD R3, R2, 0
@@ -1257,6 +1290,22 @@ pac_ea_fruit:
     LINK
     JMP R4
     NOP
+    ; fruit jingle and bonus popup
+    LDI SFX_FRUIT
+    MOV R1, R0
+    LDI 20
+    MOV R2, R0
+    LDI 9
+    SWI
+    LDI str_100
+    MOV R8, R0
+    LSI R7, 15
+    LSI R9, 13
+    LDI pac_popup
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
 pac_ea_done:
     LDI ST_LR_COL
     MOV R2, R0
@@ -1364,6 +1413,10 @@ pac_col_yabs:
     LDI ST_GHOST_EAT
     MOV R2, R0
     LD R5, R2, 0
+    LDI pac_ghost_popup
+    MOV R3, R0
+    ADD R3, R5
+    LDS R8, DS, R3
     LDI pac_ghost_pts
     MOV R3, R0
     ADD R3, R5
@@ -1383,6 +1436,14 @@ pac_col_yabs:
     ADD R5, 1
     ST R5, R2, 0
 pac_col_pts_done:
+    LDI ST_GHOST_C
+    MOV R2, R0
+    ADD R2, R6
+    LDS R7, DS, R2
+    LDI ST_GHOST_R
+    MOV R2, R0
+    ADD R2, R6
+    LDS R9, DS, R2
     LDI SFX_EAT
     MOV R1, R0
     LSI R2, 6
@@ -1432,6 +1493,11 @@ pac_col_pts_done:
     LDI 142
     MOV R3, R0
     ST R3, R2, 0
+    LDI pac_popup
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI pac_col_return
     MOV PC, R0
     NOP
@@ -2479,10 +2545,140 @@ pac_gs_loop:
     JMP LR
     NOP
 
+; Show a bonus score over a logical cell.  R8 = NUL-terminated string,
+; R7 = logical column, R9 = row.  The game freezes for 40 frames and the
+; covered tilemap words are restored exactly afterwards.
+pac_popup:
+    LDI ST_SVLR
+    MOV R2, R0
+    ST LR, R2, 0
+    MOV R5, R8                 ; keep the string
+    LSI R6, 0                  ; length
+pac_pp_scan:
+    LDS R3, DS, R8
+    AND R3, R3
+    JZ pac_pp_len
+    NOP
+    ADD R6, 1
+    ADD R8, 1
+    LDI pac_pp_scan
+    MOV PC, R0
+    NOP
+pac_pp_len:
+    MOV R3, R7
+    SL R3, 1
+    ADD R3, 1
+    MOV R4, R6
+    SR R4, 1
+    SUB R3, R4
+    AND R3, R3
+    JNN pac_pp_col
+    NOP
+    LSI R3, 0
+pac_pp_col:
+    MOV R10, R3
+    MOV R4, R9
+    MOV R3, R4
+    SL R3, 6
+    MOV R1, R4
+    SL R1, 4
+    ADD R3, R1
+    MOV R1, R4
+    SL R1, 1
+    ADD R3, R1
+    ADD R3, R10
+    LDI ST_POPUP_A
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI ST_POPUP_LEN
+    MOV R2, R0
+    ST R6, R2, 0
+    LDI SEG_TILE
+    MVS ES, R0
+    MOV R2, R3
+    LDI ST_POPUP_W0
+    MOV R1, R0
+    MOV R3, R6
+pac_pp_save:
+    LDS R4, ES, R2
+    ST R4, R1, 0
+    ADD R2, 1
+    ADD R1, 1
+    SUB R3, 1
+    JNZ pac_pp_save
+    NOP
+    MOV R8, R5
+    LDI draw_text
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 40
+    MOV R3, R0
+    LDI ST_POPUP_T
+    MOV R2, R0
+    ST R3, R2, 0
+    ; hide Pac-Man while the score is shown
+    LDI SEG_OAM
+    MVS ES, R0
+    LSI R2, 0
+    LSI R3, 0
+    STS R3, ES, R2
+    LDI pac_ghost_sprite
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI ST_SVLR
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
+    NOP
+
+pac_popup_clear:
+    LDI ST_POPUP_T
+    MOV R2, R0
+    LSI R4, 0
+    ST R4, R2, 0
+    LDI SEG_TILE
+    MVS ES, R0
+    LDI ST_POPUP_A
+    MOV R2, R0
+    LD R2, R2, 0
+    LDI ST_POPUP_W0
+    MOV R1, R0
+    LDI ST_POPUP_LEN
+    MOV R3, R0
+    LD R3, R3, 0
+pac_pc_loop:
+    LD R4, R1, 0
+    STS R4, ES, R2
+    ADD R1, 1
+    ADD R2, 1
+    SUB R3, 1
+    JNZ pac_pc_loop
+    NOP
+    JMP LR
+    NOP
+
 ; =====================================================================
 ; Pac-Man sprite (OAM descriptor 0)
 ; =====================================================================
 pac_sprite:
+    LDI ST_POPUP_T
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ pac_sp_draw
+    NOP
+    LDI SEG_OAM
+    MVS ES, R0
+    LSI R2, 0
+    LSI R3, 0
+    STS R3, ES, R2
+    JMP LR
+    NOP
+pac_sp_draw:
     LDI SEG_OAM
     MVS ES, R0
     ; the interpolated centre, minus half a 32x32 sprite
@@ -2976,6 +3172,18 @@ str_immortal:
     .text "IMMORTAL"
 str_blank8:
     .text "        "
+str_100:
+    .text "100"
+str_200:
+    .text "200"
+str_400:
+    .text "400"
+str_800:
+    .text "800"
+str_1600:
+    .text "1600"
+pac_ghost_popup:
+    .word str_200, str_400, str_800, str_1600
 
 ; end of the code/string region; the build asserts this stays below 0x500
 p_code_end:
