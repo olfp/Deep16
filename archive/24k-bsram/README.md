@@ -23,8 +23,9 @@ What still exists in the live tree and is *not* 24K-specific:
 - `rtl/deep16_top.sv` keeps the `D16MINI` / non-PSRAM paths as dead code for the
   simulator, and `rtl/deep16_board.cst` still constrains the pins; both are
   shared with the tile build.
-- `asm/forth.asm` is still the kernel of the screen/IDE build and of
-  `tests/boot-script.test.js`; only the 24K *board* targets went away.
+- The standalone kernel behind those builds is archived at `archive/forth.asm`
+  and remains pinned by `tests/boot-script.test.js`; the live IDE/device kernel
+  is `asm/forth_nano.asm`. Only the 24K *board* targets went away.
 - `rtl/sim/uart_tx_tb`, `spi_tb`, `timer_tb`, `ps2_rx_tb` and the core tests are
   unaffected.
 

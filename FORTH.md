@@ -1,9 +1,11 @@
 # DeepForth — mini manual
 
-DeepForth is the Forth in `asm/forth.asm`. It boots to a `>` prompt: type a
-line, press enter, and each word on it runs. `: name ... ;` starts and ends a
-compiled definition; inside one, words are compiled instead of run. A mistake
-prints `undefined word: X` or `stack underflow` and the prompt comes back.
+DeepForth is the Forth in `asm/forth_nano.asm`, the canonical kernel used by
+the IDE and the device build. `asm/forth.asm` is a compatibility symlink to
+that same file. It boots to a `>` prompt: type a line, press enter, and each
+word on it runs. `: name ... ;` starts and ends a compiled definition; inside
+one, words are compiled instead of run. A mistake prints `undefined word: X` or
+`stack underflow` and the prompt comes back.
 
 ```text
 : square dup * ;      \ compile a word

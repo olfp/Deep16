@@ -1,7 +1,8 @@
-// The serial console on the RTL core (D16MINI.md §4.4): the same UART kernel
-// that runs on the JS core, booted on Verilator, with RX injected and TX read
-// back through SerialTerminal. This is the three-core parity the terminal view
-// depends on - before this, only the JS core spoke UART.
+// The archived standalone kernel's serial console on the RTL core
+// (D16MINI.md §4.4): the same UART kernel that runs on the JS core, booted on
+// Verilator, with RX injected and TX read back through SerialTerminal. This is
+// the three-core parity the terminal view depends on - before this, only the JS
+// core spoke UART.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -11,7 +12,7 @@ import { assemble, loadBrowserScripts, loadRtl, loadSerialTerminal, ROOT } from 
 loadBrowserScripts('js/deep16_assembler.js');
 const SerialTerminal = loadSerialTerminal();
 
-const src = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
+const src = fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8');
 const uart = assemble(src, { defines: { CONSOLE_UART: 1 } });
 
 async function boot(input, maxSteps = 60000) {

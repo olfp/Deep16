@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// scripts/embed_forth.mjs - bake forth/boot.fth into asm/forth.asm and forth_nano.asm.
+// scripts/embed_forth.mjs - bake forth/boot.fth into asm/forth_nano.asm.
 //
-// The D16MINI kernel carries a Forth boot script: read_line reads it before the
-// keyboard, once per boot, so the boot loader is the program that is running -
+// The canonical kernel carries a Forth boot script: read_line reads it before
+// the keyboard, once per boot, so the boot loader is the program that is running -
 // no upload, nothing to keep in step at the console. The text lives between two
-// markers in asm/forth.asm and asm/forth_nano.asm.
+// markers in asm/forth_nano.asm. asm/forth.asm is only a compatibility link to
+// that canonical file and must not be rewritten separately.
 //
 // The script is baked with the assembler's `.string`, which packs two characters
 // per cell (high byte first) and ends the line with a 0 cell. One cell per
@@ -22,8 +23,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = path.join(ROOT, 'forth', 'boot.fth');
-const TARGET = path.join(ROOT, 'asm', 'forth.asm');
-const TARGETS = [TARGET, path.join(ROOT, 'asm', 'forth_nano.asm')];
+const TARGET = path.join(ROOT, 'asm', 'forth_nano.asm');
+const TARGETS = [TARGET];
 const BEGIN = '; >>> generated from forth/boot.fth - do not edit here <<<';
 const END = '; <<< end generated >>>';
 export const MAX_LINE = 120;

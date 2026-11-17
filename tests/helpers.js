@@ -42,7 +42,7 @@ export function readTileText(memory, row = 0, column = 0, count = TILE_MAP_COLS)
 // (black on light grey instead of light grey on black). There is no separate
 // cursor bit - with both nibbles in use there is no room left for one, and
 // reverse video is exactly the two nibbles swapped, so the cursor is the
-// colour itself. Mirrors CURSOR_ATTR in asm/forth.asm; the tests only ever
+// colour itself. Mirrors CURSOR_ATTR in the Forth kernels; the tests only ever
 // look at cell contents, never at the kernel's internals, so the two files are
 // compared by what they write, not by how.
 export const CURSOR_ATTR = 0x7000;
@@ -71,7 +71,7 @@ export function assemble(source, options) {
 // The serial terminal model - the host-side decoder for the UART byte stream.
 // It was the IDE's serial screen and was archived together with the rest of the
 // serial/text front-end (archive/frontend-serial-text/), but the kernel's UART
-// build (asm/forth.asm with CONSOLE_UART) is still live and its tests need a
+// build (archive/forth.asm with CONSOLE_UART) is still tested and its tests need a
 // terminal to turn the TX bytes back into a grid. The archive keeps the one
 // implementation, so nothing has to be copied here.
 let serialTerminal = null;

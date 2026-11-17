@@ -1,5 +1,6 @@
-// Three-core console parity (D16MINI.md §8 test 6): the same serial kernel, the
-// same typed line, and the same bytes out - on the JS, WASM and RTL cores.
+// Three-core console parity (D16MINI.md §8 test 6): the archived standalone
+// serial kernel, the same typed line, and the same bytes out - on the JS, WASM
+// and RTL cores.
 //
 // The Rust/WASM core had no UART at all until now, so the console was never
 // genuinely three-way: terminal mode fell back to the JS core on any compiled
@@ -16,7 +17,7 @@ import {
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 const SerialTerminal = loadSerialTerminal();
 
-const uart = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'),
+const uart = assemble(fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8'),
                       { defines: { CONSOLE_UART: 1 } });
 
 const rowsOf = (term) => term.text().map((r) => r.replace(/\s+$/, ''));

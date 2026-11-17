@@ -8,7 +8,7 @@ three components are versioned and bumped **independently**.
 
 | Version | Covers | Changes when |
 |---|---|---|
-| **DeepForth** | the kernel in `asm/forth.asm`: dictionary, compiler, interpreter, REPL, the baked boot script | a word, the compiler, the boot script or the image layout changes |
+| **DeepForth** | the canonical kernel in `asm/forth_nano.asm`: dictionary, compiler, interpreter, REPL, the baked boot script | a word, the compiler, the boot script or the image layout changes |
 | **BIOS** | the `f0`–`f5` handler (both the screen and the `CONSOLE_UART` variants), the SWI entry, the UART `putch`/`getstr` | a BIOS function or its contract changes |
 | **FPGA** | the RTL and the bitstream: core, PSRAM controller/bridge/cache, board top, pin/timing constraints | any RTL change that alters the shipped bitstream |
 
@@ -49,7 +49,7 @@ fpga 1.1
 A small generator (`scripts/make_version.mjs`) produces both consumers from it:
 
 - `asm/version.inc` — `.equ` constants and the `.text` strings the `ver` word
-  prints, included by `asm/forth.asm`;
+  prints, included by `asm/forth_nano.asm`;
 - `rtl/version.sv` — localparams `DF_VERSION`, `BIOS_VERSION`, `FPGA_VERSION`
   for the top (and, if wanted, the debug bus).
 

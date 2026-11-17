@@ -465,11 +465,12 @@ test('a core that finishes loading becomes selectable, whichever one it is', () 
 // The typing is paced by the keyboard queue level, because the RTL core has a
 // 128 entry FIFO and drops a keystroke that arrives while it is full. A pump
 // that ignored that would lose the middle of a file on that core and nowhere
-// else - the worst kind of bug. Here it runs against the real Forth kernel on
-// the JS core, with the 200-steps-then-pump cadence the run loops use.
+// else - the worst kind of bug. Here it runs against the archived standalone
+// Forth kernel on the JS core, with the 200-steps-then-pump cadence the run
+// loops use.
 // ---------------------------------------------------------------------------
 
-const KERNEL = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
+const KERNEL = fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8');
 
 // Boot the kernel and type `file` into it through the real pump.
 function typeThroughPump(file, { stepsPerTick = 200, maxSteps = 12000000, run = true, echoWrap = false } = {}) {

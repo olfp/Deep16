@@ -9,15 +9,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildImage, checkImage, imageHex, packImage, expandImage, checkPacked,
          crc16Bytes, crc16, flashImage, flashHex, FLASH_MAGIC, FLASH_FORMAT, FLASH_HDR_WORDS,
-         IMG_BLOCK_WORDS, WINDOW, FILL, BIOS_BASE, STACK_BASE, ECHO_FLAG }
+         IMG_BLOCK_WORDS, WINDOW, FILL, BIOS_BASE, STACK_BASE, ECHO_FLAG,
+         SOURCE_LABEL }
   from '../scripts/make_image.mjs';
 import { assemble, loadBrowserScripts, ROOT } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js');
 
 const img = buildImage();
-const res = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'),
+const res = assemble(fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8'),
                      { defines: { CONSOLE_UART: 1 } });
+
+test('the legacy image uses the archived standalone kernel', () => {
+  assert.equal(SOURCE_LABEL, 'archive/forth.asm');
+});
 
 test('the image is the whole window, filled with the halt word', () => {
   assert.equal(img.words.length, WINDOW, 'the whole BSRAM window');

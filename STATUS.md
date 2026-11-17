@@ -3,6 +3,12 @@
 > Ständig gepflegter Arbeitsstand. Letzte Änderung: 2026-11-17.
 > Workflow-Regeln: [STYLE.md](STYLE.md).
 >
+> **2026-11-17:** **Ein Forth-Kern, ein Live-Pfad.** Der frühere eigenständige
+> D16MINI-Kern liegt jetzt in `archive/forth.asm`; die alten UART- und
+> Image-Regressionen benutzen diese archivierte Fassung ausdrücklich. Der
+> kanonische Nano-Kern ist `asm/forth_nano.asm`, und `asm/forth.asm` ist ein
+> Kompatibilitäts-Link darauf. IDE und Gerätebild bauen denselben Kern.
+>
 > **2026-11-17:** **Die IDE-Beispiele laufen wieder auf dem FiT-Bildschirm.**
 > **Screen Demo** und **String Demo** schreiben jetzt echte Textzellen in die
 > 82x26-Karte bei `0xF1000` (`0x8000 | ((ascii - 0x20) << 5)`), nicht mehr in
@@ -14,7 +20,8 @@
 > Flat-, DS- und BIOS-Kopien. Der erste Statuslesevorgang an `0xF0066` sieht
 > noch den gelöschten Wert `0xFFFF`; danach veröffentlicht der 60-Hz-Takt den
 > normalen Status. Die Beispiel-IDs, nicht mehr die Dateinamen, bestimmen den
-> Build. `asm/forth.asm` und die seriellen Firmware-Bauten bleiben unberührt.
+> Build. Der kanonische Nano-Kern `asm/forth_nano.asm` und die seriellen
+> Firmware-Bauten bleiben unberührt.
 >
 > **2026-10-15:** **`see name`** — der Kern kann jetzt ein Wort **auseinandernehmen**
 > statt es auszuführen. Eine Colon-Definition kommt als `: name … ;` zurück: der
