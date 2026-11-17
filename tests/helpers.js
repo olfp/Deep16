@@ -13,6 +13,30 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 export const MEM_WORDS = 1048576;   // 20-bit address space, 16-bit words
 export const SCREEN_ADDR = 0xF1000;
 
+// FiT tile-screen geometry and text-cell decoding. A text cell is
+// 0x8000 | (pair << 12) | (glyph << 5) | style; the ordinary ASCII font uses
+// glyph = ascii - 0x20, pair 0 and style 0.
+export const TILE_MAP_ADDR = 0xF1000;
+export const TILE_MAP_COLS = 82;
+export const TILE_MAP_ROWS = 26;
+
+export function decodeTileCell(cell) {
+    const word = cell & 0xFFFF;
+    if ((word & 0x8000) === 0) return null;
+    return String.fromCharCode(0x20 + ((word >>> 5) & 0x7F));
+}
+
+export function readTileText(memory, row = 0, column = 0, count = TILE_MAP_COLS) {
+    let out = '';
+    for (let i = 0; i < count; i++) {
+        const address = TILE_MAP_ADDR + row * TILE_MAP_COLS + column + i;
+        const ch = decodeTileCell(memory[address]);
+        if (ch === null) break;
+        out += ch;
+    }
+    return out;
+}
+
 // The high byte the kernel writes on the cell the cursor sits on: four bits of
 // background and four of foreground, reversed against the terminal default
 // (black on light grey instead of light grey on black). There is no separate

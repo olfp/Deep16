@@ -1,5 +1,8 @@
 ; Deep16 Screen Demo
-; Write text to the 80x25 character display at ES:0x1000 (physical 0xF1000)
+; Write text cells to the FiT tile map at ES:0x1000 (physical 0xF1000).
+;
+; A FiT text cell is 0x8000 | ((ascii - 0x20) << 5). The map has 82 columns
+; and 26 rows; its first 80x24 cells are the visible window.
 
 .org 0x0100    ; Home Segment - Code starts here
 
@@ -7,14 +10,14 @@ main:
     ; Initialize stack pointer
     LSI  SP, -1      ; R0 = 0xFFFF (sign-extended)
     SR   SP, 1       ; SP = 0x7FFF
-    
+
     ; Configure Extra Segment for I/O access
     ; Set ES = 0xF000 to access I/O segment (0xF0000-0xFFFFF)
     ; 0xF000 is too large for LDI, so use bit manipulation:
     LDI  0x0FFF      ; R0 = 0x0FFF
     INV  R0          ; R0 = 0xF000 (invert all bits)
     MVS  ES, R0      ; ES = 0xF000
-    
+
     ; Configure dual registers for ES (ER=11, DE=1) using PSW sequence
     ; Clear ER/DE, then set ER=11 (0xB) and DE=1
     LPSW R12
@@ -23,99 +26,153 @@ main:
     LDI  0x5800      ; Sign-extends to 0xD800 at runtime (DE=1, ER=11)
     OR   R12, R0
     SPSW R12
-    
-    ; Now we can access screen memory at ES:0x1000 (physical 0xF1000)
-    ; Clear screen (set all characters to space)
+
+    ; Clear the complete 82x26 map with blank text cells. Glyph zero is the
+    ; space, and bit 15 marks the cell as text rather than tile art.
     LDI  0x1000      ; R0 = screen offset in ES (0x1000)
-    MOV  R10, R0     ; R10 = screen base address (ES:0x1000)
     MOV  R11, R0     ; R11 = current address pointer
-    
-    LDI  2000        ; R0 = character count (80*25)
-    MOV  R2, R0      ; R2 = character count (preserve)
-    
-    LDI  0x20        ; R0 = space character (0x20)
-    MOV  R3, R0      ; R3 = space character (preserve)
+    LDI  2132        ; 82 * 26 cells
+    MOV  R2, R0
+    LDI  0x2000
+    SL   R0, 2       ; R0 = 0x8000, the text-cell bit
+    MOV  R3, R0      ; blank text cell
 
 clear_loop:
-    ; Store using ES segment (automatically used with R10/R11)
-    ST   R3, R11, 0  ; Store space character at ES:R11
-    ADD  R11, 1      ; Next address
-    SUB  R2, 1       ; Decrement counter
-    JNZ  clear_loop  ; Continue until done
-    NOP              ; Branch delay slot
+    ST   R3, R11, 0
+    ADD  R11, 1
+    SUB  R2, 1
+    JNZ  clear_loop
+    NOP              ; branch delay slot
 
-    ; Write "HELLO DEEP16!" to center of screen
-    ; Center position: row 12, col 34 (12*80 + 34 = 994)
-    MOV  R11, R10    ; R11 = screen base (ES:0x1000)
-    
-    LDI  994         ; R0 = offset to center (994)
-    MOV  R4, R0      ; R4 = offset to center (preserve)
-    ADD  R11, R4     ; R11 = center position address
-    
-    ; Write characters using their ASCII codes
-    LDI  72          ; R0 = 'H' = 72
-    ST   R0, R11, 0
-    ADD  R11, 1
+    ; Write "HELLO DEEP16!" in the middle of the visible window. The old
+    ; text-screen position was row 12, column 34; the tile map's extra two
+    ; columns make its flat offset 12 * 82 + 34. The clear loop left R11 just
+    ; past the map, so restart it at the map base before adding the offset.
+    LDI  0x1000
+    MOV  R11, R0
+    LDI  1018
+    ADD  R11, R0
 
-    LDI  69          ; R0 = 'E' = 69
-    ST   R0, R11, 0
-    ADD  R11, 1
-    
-    LDI  76          ; R0 = 'L' = 76
-    ST   R0, R11, 0
-    ADD  R11, 1
-    
-    LDI  76          ; R0 = 'L' = 76
-    ST   R0, R11, 0
-    ADD  R11, 1
-    
-    LDI  79          ; R0 = 'O' = 79
-    ST   R0, R11, 0
-    ADD  R11, 1
-    
-    LDI  32          ; R0 = Space = 32
-    ST   R0, R11, 0
-    ADD  R11, 1
-    
-    LDI  68          ; R0 = 'D' = 68
-    ST   R0, R11, 0
-    ADD  R11, 1
-    
-    LDI  69          ; R0 = 'E' = 69
-    ST   R0, R11, 0
-    ADD  R11, 1
-    
-    LDI  69          ; R0 = 'E' = 69
-    ST   R0, R11, 0
-    ADD  R11, 1
-    
-    LDI  80          ; R0 = 'P' = 80
-    ST   R0, R11, 0
-    ADD  R11, 1
-    
-    LDI  49          ; R0 = '1' = 49
-    ST   R0, R11, 0
-    ADD  R11, 1
-    
-    LDI  54          ; R0 = '6' = 54
-    ST   R0, R11, 0
-    ADD  R11, 1
-    
-    LDI  33          ; R0 = '!' = 33
-    ST   R0, R11, 0
+    ; Keep the text-mode bit in R7. Character conversion is done by put_char.
+    LDI  0x2000
+    SL   R0, 2
+    MOV  R7, R0
+
+    LDI  'H'
+    MOV  R1, R0
+    LDI  put_char
+    MOV  R4, R0
+    LINK
+    JMP  R4
+    NOP
+
+    LDI  'E'
+    MOV  R1, R0
+    LDI  put_char
+    MOV  R4, R0
+    LINK
+    JMP  R4
+    NOP
+
+    LDI  'L'
+    MOV  R1, R0
+    LDI  put_char
+    MOV  R4, R0
+    LINK
+    JMP  R4
+    NOP
+
+    LDI  'L'
+    MOV  R1, R0
+    LDI  put_char
+    MOV  R4, R0
+    LINK
+    JMP  R4
+    NOP
+
+    LDI  'O'
+    MOV  R1, R0
+    LDI  put_char
+    MOV  R4, R0
+    LINK
+    JMP  R4
+    NOP
+
+    LDI  ' '
+    MOV  R1, R0
+    LDI  put_char
+    MOV  R4, R0
+    LINK
+    JMP  R4
+    NOP
+
+    LDI  'D'
+    MOV  R1, R0
+    LDI  put_char
+    MOV  R4, R0
+    LINK
+    JMP  R4
+    NOP
+
+    LDI  'E'
+    MOV  R1, R0
+    LDI  put_char
+    MOV  R4, R0
+    LINK
+    JMP  R4
+    NOP
+
+    LDI  'E'
+    MOV  R1, R0
+    LDI  put_char
+    MOV  R4, R0
+    LINK
+    JMP  R4
+    NOP
+
+    LDI  'P'
+    MOV  R1, R0
+    LDI  put_char
+    MOV  R4, R0
+    LINK
+    JMP  R4
+    NOP
+
+    LDI  '1'
+    MOV  R1, R0
+    LDI  put_char
+    MOV  R4, R0
+    LINK
+    JMP  R4
+    NOP
+
+    LDI  '6'
+    MOV  R1, R0
+    LDI  put_char
+    MOV  R4, R0
+    LINK
+    JMP  R4
+    NOP
+
+    LDI  '!'
+    MOV  R1, R0
+    LDI  put_char
+    MOV  R4, R0
+    LINK
+    JMP  R4
+    NOP
 
     HALT
 
-hw_int_handler:
-    RETI
+; put_char converts the character in R1 and stores it at the tile-map pointer
+; in R11, then advances that pointer by one cell.
+put_char:
+    LDI  0x20
+    MOV  R2, R0
+    SUB  R1, R2        ; ascii - 0x20
+    SL   R1, 5         ; glyph number * 32
+    OR   R1, R7        ; add the text-cell bit
+    ST   R1, R11, 0
+    ADD  R11, 1
+    JMP  LR
     NOP
-
-swi_handler:
-    LDI  'S'
-    MOV  R13, R0
-    LDI  'P'
-    MOV  R14, R0
-    RETI
-    NOP
-
-; Screen buffer is at ES:0x1000 (physical 0xF1000) in I/O Segment

@@ -36,8 +36,9 @@ function readStatus(nano, status) {
 }
 
 test('0xF0066 returns the host-written display status on D16nano', () => {
-  const { r1 } = readStatus(true, 0x000A);
+  const { sim, r1 } = readStatus(true, 0x000A);
   assert.equal(r1, 0x000A);
+  assert.equal(sim.tileStatusReads, 1, 'the status read is visible to the IDE');
 });
 
 test('0xF0066 is ordinary memory when the D16nano model is off', () => {
@@ -48,6 +49,8 @@ test('0xF0066 is ordinary memory when the D16nano model is off', () => {
 test('reset clears the host-driven display status', () => {
   const sim = new Deep16Simulator();
   sim.tileStatus = 0x000F;
+  sim.tileStatusReads = 3;
   sim.reset();
   assert.equal(sim.tileStatus, null, 'the memory word is the fallback again');
+  assert.equal(sim.tileStatusReads, 0, 'the first-read guard starts over');
 });

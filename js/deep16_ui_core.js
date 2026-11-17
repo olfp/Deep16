@@ -4,12 +4,12 @@ class DeepWebUI {
         this.assembler = new Deep16Assembler();
         this.simulator = new Deep16Simulator();
         this.disassembler = new Deep16Disassembler();
-        // FiT tile engine, created in tiles mode. Until then the text screen
-        // owns 0xF1000.
+        // FiT tile engine, created in tiles mode.
         this.tileEngine = null;
-        // 'd16d' when the loaded example needs the showcase image; null for the
-        // plain nano console. The showcase sources are fetched with the example
-        // so Assemble can rebuild the code image without another round trip.
+        // 'nano' for the generic nano console, 'd16d' for the showcase image,
+        // and null for an ordinary editor program. The showcase sources are
+        // fetched with the example so Assemble can rebuild the code image
+        // without another round trip.
         this.tileBuild = null;
         this.d16dSources = null;
         // 60 Hz display clock and the status word it drives at 0xF0066.
@@ -23,6 +23,8 @@ class DeepWebUI {
         this.transcriptEntries = [];
         this.maxTranscriptEntries = 50;
         this.currentAssemblyResult = null;
+        this.lastAssembledSource = null;
+        this.lastAssembledBuild = null;
         this.editorElement = document.getElementById('editor');
         this.symbolsExpanded = false;
         this.registersExpanded = true;
@@ -369,9 +371,17 @@ class DeepWebUI {
         return 'tiles';
     }
 
-    // Tiles-only front-end build defines.
+    // Tiles-only front-end build defines. The generic nano console keeps the
+    // UART output implementation but reads its input from the D16nano PS/2
+    // FIFO, so the browser keyboard and the board use the same path. The D16D
+    // build deliberately matches scripts/make_image.mjs: its UART is a
+    // separate serial stream, not a mirror of the tile console.
     assembleDefines() {
-        const defines = { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, CONSOLE_MIRROR: 1 };
+        const defines = { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1 };
+        if (this.tileBuild === 'nano') {
+            defines.CONSOLE_MIRROR = 1;
+            defines.CONSOLE_PS2 = 1;
+        }
         if (this.tileBuild === 'd16d') defines.D16D = 1;
         return defines;
     }
@@ -386,26 +396,22 @@ class DeepWebUI {
         return this.tileEngine;
     }
 
-    // Load the graphics flash blob into the engine and the JS memory image.
-    // This is the simulation stand-in for the future CPU flash loader; it runs
-    // after the code image is written and before a compiled core is synced.
-    // Build the D16D code image from the editor kernel and the cached showcase
-    // sources. Graphics are not included; loadTileAssets() writes them from the
-    // flash blob immediately afterwards.
-    buildD16DImage(kernelSource) {
+    // Build the generic nano console image from the editor kernel. The image
+    // is flat, but D16SEG execution needs the loader's three physical copies;
+    // scatterD16SEG() lays them out in the JS memory exactly as the RTL flash
+    // loader does. The baked boot script is disabled in the flat and DS
+    // copies, so the IDE opens the interactive Forth prompt.
+    buildNanoImage(kernelSource) {
       try {
-        if (typeof Deep16D16DImage !== 'function') throw new Error('D16D image builder is not loaded');
-        if (!this.d16dSources) throw new Error('D16D showcase sources are not loaded');
-        const image = Deep16D16DImage.build({
+        if (typeof Deep16D16DImage !== 'function') throw new Error('nano image builder is not loaded');
+        const image = Deep16D16DImage.buildNano({
           kernel: kernelSource,
-          showcase: this.d16dSources.showcase,
-          flappy: this.d16dSources.flappy,
-          pacmanMap: this.d16dSources.pacmanMap,
-          pacmanGame: this.d16dSources.pacmanGame,
-          frogger: this.d16dSources.frogger,
           defines: this.assembleDefines(),
         });
-        for (let i = 0; i < 0x6000; i++) this.simulator.memory[i] = image.words[i];
+        Deep16D16DImage.scatterD16SEG(image.words, {
+          bootPtr: image.symbols && image.symbols.boot_ptr,
+          memory: this.simulator.memory,
+        });
         return {
           success: true,
           memoryChanges: [],
@@ -427,6 +433,50 @@ class DeepWebUI {
       }
     }
 
+    // Build the D16D code image from the editor kernel and the cached showcase
+    // sources. Graphics are not included; loadTileAssets() writes them from the
+    // flash blob immediately afterwards.
+    buildD16DImage(kernelSource) {
+      try {
+        if (typeof Deep16D16DImage !== 'function') throw new Error('D16D image builder is not loaded');
+        if (!this.d16dSources) throw new Error('D16D showcase sources are not loaded');
+        const image = Deep16D16DImage.build({
+          kernel: kernelSource,
+          showcase: this.d16dSources.showcase,
+          flappy: this.d16dSources.flappy,
+          pacmanMap: this.d16dSources.pacmanMap,
+          pacmanGame: this.d16dSources.pacmanGame,
+          frogger: this.d16dSources.frogger,
+          defines: this.assembleDefines(),
+        });
+        Deep16D16DImage.scatterD16SEG(image.words, {
+          bootPtr: image.symbols && image.symbols.boot_ptr,
+          memory: this.simulator.memory,
+        });
+        return {
+          success: true,
+          memoryChanges: [],
+          symbols: image.symbols || {},
+          errors: [],
+          listing: [],
+          segmentMap: new Map(),
+          image,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          memoryChanges: [],
+          symbols: {},
+          errors: [error.message],
+          listing: [],
+          segmentMap: new Map(),
+        };
+      }
+    }
+
+    // Load the graphics flash blob into the engine and the JS memory image.
+    // This is the simulation stand-in for the future CPU flash loader; it runs
+    // after the code image is written and before a compiled core is synced.
     loadTileAssets() {
         if (this.consoleMode() !== 'tiles') return false;
         if (this.simulator) this.simulator.d16nano = true;
@@ -473,10 +523,17 @@ class DeepWebUI {
         this.tileFrame ^= 1;
         const uartReady = (this.simulator.uartRxAvailable &&
                            this.simulator.uartRxAvailable() > 0) ? 8 : 0;
-        const status = (this.tileFrame & 1) << 1
-                     | (this.tileVblank ? 1 : 0)
-                     | (this.tileS2 ? 4 : 0)
-                     | uartReady;
+        // Until the program has read 0xF0066, keep the erased value visible.
+        // The D16D BIOS uses 0xFFFF as its "no PS/2 receiver" guard; a live
+        // status word would make it wait for a keyboard handshake that the
+        // simulator cannot complete. After the first read the normal 60 Hz
+        // status takes over.
+        const status = this.simulator.tileStatusReads === 0
+            ? 0xFFFF
+            : (this.tileFrame & 1) << 1
+              | (this.tileVblank ? 1 : 0)
+              | (this.tileS2 ? 4 : 0)
+              | uartReady;
         this.simulator.tileStatus = status;
         if (this.compiledCoreReady()) {
             const C = this.activeCoreModule();
@@ -1509,14 +1566,6 @@ class DeepWebUI {
         window.addEventListener('resize', () => this.syncHeaderWidths());
         window.addEventListener('resize', () => this.setupMobileLayout());
 
-        // Update example selector handler
-        document.getElementById('example-select').addEventListener('change', (e) => {
-            const filename = e.target.value;
-            if (filename) {
-                this.loadExample(filename);
-            }
-        });
-
         // Tab key support for editor
         this.editorElement.addEventListener('keydown', (e) => {
             if (e.key === 'Tab') {
@@ -2265,6 +2314,16 @@ class DeepWebUI {
         this.status(`Optimized - ${stats.wordsRemoved} instruction(s) removed`);
     }
 
+    // The build tag is part of a program's identity. DeepForth and the D16D
+    // Showcase load the same kernel source, so source text alone cannot tell
+    // the IDE whether the machine on screen is still the old build.
+    currentBuildIdentity() {
+        return JSON.stringify({
+            tileBuild: this.tileBuild || null,
+            defines: this.assembleDefines(),
+        });
+    }
+
     assemble() {
         if (window.Deep16Debug) console.log("Assemble button clicked");
         const source = this.editorElement.value;
@@ -2272,9 +2331,14 @@ class DeepWebUI {
         this.addTranscriptEntry("Starting assembly", "info");
 
         try {
-            const result = (this.consoleMode() === 'tiles' && this.tileBuild === 'd16d')
-                ? this.buildD16DImage(source)
-                : this.assembler.assemble(source, { defines: this.assembleDefines() });
+            let result;
+            if (this.consoleMode() === 'tiles' && this.tileBuild === 'nano') {
+                result = this.buildNanoImage(source);
+            } else if (this.consoleMode() === 'tiles' && this.tileBuild === 'd16d') {
+                result = this.buildD16DImage(source);
+            } else {
+                result = this.assembler.assemble(source, { defines: this.assembleDefines() });
+            }
             if (window.Deep16Debug) console.log("Assembly result:", result);
             
             this.currentAssemblyResult = result;
@@ -2313,6 +2377,7 @@ class DeepWebUI {
                 this.addTranscriptEntry("Assembly successful - program loaded", "success");
                 // Remember what is loaded, so Run can tell a stale image apart.
                 this.lastAssembledSource = source;
+                this.lastAssembledBuild = this.currentBuildIdentity();
                 document.getElementById('run-btn').disabled = false;
                 document.getElementById('step-btn').disabled = false;
                 document.getElementById('reset-btn').disabled = false;
@@ -2414,7 +2479,8 @@ class DeepWebUI {
         // without Assemble used to run the previous program and show an empty
         // view.
         if (this.editorElement && this.editorElement.value.trim() &&
-            this.editorElement.value !== this.lastAssembledSource) {
+            (this.editorElement.value !== this.lastAssembledSource ||
+             this.currentBuildIdentity() !== this.lastAssembledBuild)) {
             try { this.assemble(); } catch {}
         }
         if (this.compiledCoreReady()) {
@@ -3671,7 +3737,9 @@ class DeepWebUI {
 
     async loadExamplesList() {
         try {
-            const response = await fetch('asm/examples.json');
+            // The manifest changes the example identity and build tag. Do not
+            // let a cached copy send the selector back to filename-only values.
+            const response = await fetch('asm/examples.json', { cache: 'no-store' });
             if (!response.ok) throw new Error('Examples list not found');
             
             const data = await response.json();
@@ -3710,7 +3778,7 @@ class DeepWebUI {
             
             categories[category].forEach(example => {
                 const option = document.createElement('option');
-                option.value = example.filename;
+                option.value = example.id || example.filename;
                 option.textContent = example.name;
                 optgroup.appendChild(option);
             });
@@ -3722,32 +3790,57 @@ class DeepWebUI {
     setupFallbackExamples() {
         // Fallback to hardcoded examples if JSON loading fails
         this.examples = [
-            { name: "Fibonacci Sequence", filename: "fibonacci.a16", category: "Mathematics" },
-            { name: "Far Call & Long Jump", filename: "far_call.a16", category: "Advanced" },
-            { name: "Screen Demo", filename: "screen_demo.a16", category: "I/O" }
+            { id: "fibonacci", name: "Fibonacci Sequence", filename: "fibonacci.a16", category: "Mathematics" },
+            { id: "far-call", name: "Far Call & Long Jump", filename: "far_call.a16", category: "Advanced" },
+            { id: "screen-demo", name: "Screen Demo", filename: "screen_demo.a16", category: "I/O" }
         ];
         this.populateExampleSelector();
     }
 
-    async loadExample(filename) {
-        if (!filename) return;
-        
+    async loadExample(exampleId) {
+        if (!exampleId) return;
+
         try {
+            // The manifest id is the selector value. Two examples intentionally
+            // load the same nano kernel, so the filename is not an identity.
+            const example = this.examples.find(ex => ex.id === exampleId)
+                         || this.examples.find(ex => ex.filename === exampleId);
+            const filename = example ? example.filename : exampleId;
+            const displayName = example ? example.name : filename;
             // cache: 'no-store' — the assets in index.html all carry a ?v= parameter, but
-// the example source has none, so the browser may serve a stale asm/forth.asm
-// and silently re-run an older kernel. Bypassing the HTTP cache costs nothing
-// for a locally served source file.
-const response = await fetch(`asm/${filename}`, { cache: 'no-store' });
+            // the example source has none, so the browser may serve a stale kernel
+            // and silently re-run an older build. Bypassing the HTTP cache costs
+            // nothing for a locally served source file.
+            const response = await fetch(`asm/${filename}`, { cache: 'no-store' });
             if (!response.ok) throw new Error(`File not found: ${filename}`);
             
             const source = await response.text();
             this.editorElement.value = source;
             this.renderEditorHighlight();
             
-            const example = this.examples.find(ex => ex.filename === filename);
-            const displayName = example ? example.name : filename;
             this.tileBuild = (example && example.build) ? example.build : null;
             this.d16dSources = null;
+
+            // A new example starts from the reset vector, not from the old
+            // program's current PC. The boot ROM then enters the newly built
+            // image at 0x0100 when Run starts.
+            if (this.runInterval) {
+                clearInterval(this.runInterval);
+                this.runInterval = null;
+            }
+            this.stopTileClock();
+            this.tileFrame = 0;
+            if (this.simulator) {
+                this.simulator.running = false;
+                this.simulator.reset();
+            }
+            if (typeof this.updateRunButton === 'function') this.updateRunButton(false);
+            if (this.tileEngine && typeof this.tileEngine.powerOn === 'function') {
+                this.tileEngine.powerOn();
+            }
+            this.lastAssembledSource = null;
+            this.lastAssembledBuild = null;
+
             if (this.tileBuild === 'd16d') {
                 try {
                     const [sc, fl, pm, pg, fg] = await Promise.all([
@@ -3778,7 +3871,8 @@ const response = await fetch(`asm/${filename}`, { cache: 'no-store' });
             this.switchTab('editor');
             
             // Reset the dropdown
-            document.getElementById('example-select').value = '';
+            const exampleSelect = document.getElementById('example-select');
+            if (exampleSelect) exampleSelect.value = '';
             
         } catch (error) {
             console.error('Failed to load example:', error);

@@ -126,17 +126,23 @@ test('front-end is tiles-only with tile build defines', () => {
   const ui = makeUi();
   assert.equal(ui.consoleMode(), 'tiles');
   assert.equal(ui.screenUI.mode, 'tiles');
-  assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1,
-                                           CONSOLE_MIRROR: 1 });
+  assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1 });
   assert.ok(els['screen-display'].classList.contains('tile-view'));
   assert.ok(canvas.classList.contains('visible'));
 });
 
-test('tile mode with the D16D example adds the showcase define', () => {
+test('tile mode with the generic nano console selects the PS/2 input port', () => {
+  const ui = makeUi();
+  ui.tileBuild = 'nano';
+  assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1,
+                                           CONSOLE_MIRROR: 1, CONSOLE_PS2: 1 });
+});
+
+test('tile mode with the D16D example matches the board image defines', () => {
   const ui = makeUi();
   ui.tileBuild = 'd16d';
   assert.deepEqual(ui.assembleDefines(), { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1,
-                                           CONSOLE_MIRROR: 1, D16D: 1 });
+                                           D16D: 1 });
 });
 
 test('the canvas paints the engine buffer', () => {
@@ -163,9 +169,20 @@ test('loadTileAssets fills the engine and the JS memory from flash', () => {
   assert.equal(ui.simulator.spiFlash.mem[0x300000], 0x44);   // 'D'
 });
 
+test('the tile clock keeps the erased status until the first status read', () => {
+  const ui = makeUi();
+  ui.simulator.running = true;
+  ui.tickTileFrame();
+  assert.equal(ui.simulator.tileStatus, 0xFFFF);
+  ui.simulator.tileStatusReads = 1;
+  ui.tickTileFrame();
+  assert.notEqual(ui.simulator.tileStatus, 0xFFFF);
+});
+
 test('the tile clock composes 0xF0066 and ticks the engine', () => {
   const ui = makeUi();
   ui.simulator.running = true;
+  ui.simulator.tileStatusReads = 1;
   ui.simulator.enqueueKeyCode(65);
   ui.tileS2 = true;
   const before = ui.tileEngine.frame;

@@ -40,10 +40,13 @@ register contents survive the change. The choice is remembered in
 `localStorage`.
 
 The front end shows the **Tiles** screen only: the D16nano FiT engine renders a
-640x360 canvas. The build is the nano kernel (with `CONSOLE_UART`, `D16NANO` and
-`D16SEG`), graphics come from the simulated config flash, and keystrokes go
-into the PS/2 keyboard FIFO — the same route as on the board. Choose the **D16D
-Showcase (tiles)** example for the menu and Flappy. The old **Screen** (the
+640x360 canvas. The **Screen Demo** and **String Demo** examples write FiT text
+cells into the 82x26 map at `0xF1000`. **DeepForth** builds the generic nano
+console with `CONSOLE_UART`, `D16NANO`, `D16SEG` and `CONSOLE_PS2`: console
+output stays on the tile screen while browser keystrokes enter through the
+D16nano PS/2 keyboard FIFO, the same route as on the board. **D16D Showcase
+(tiles)** uses the board-image defines and boots into the showcase menu and
+Flappy; graphics come from the simulated config flash. The old **Screen** (the
 `0xF1000` text buffer) and **Terminal** (the UART view) front ends are gone from
 the IDE; their code is kept in `archive/frontend-serial-text/`. The kernel's
 UART build itself (`asm/forth.asm` with `CONSOLE_UART`) is untouched and still
@@ -104,7 +107,7 @@ Coverage, by file:
 | `tile-engine.test.js` | the FiT engine: tilemap, text/art, sprites, palettes, scroll, latch |
 | `tile-store-hook.test.js` | video-window stores routed to the engine |
 | `tile-clock.test.js`, `ui-tiles.test.js` | `0xF0066` status, 60 Hz clock, Tiles mode/canvas |
-| `d16d-image.test.js`, `ui-d16d.test.js` | browser D16D image = `buildImage()`, example integration |
+| `d16d-image.test.js`, `ui-d16d.test.js` | browser D16D image = `buildImage()`, segmented scatter, real nano/D16D boots |
 | `flash-assets.test.js` | generated graphics flash blob and loader |
 | `showcase-render.test.js` | deterministic headless menu/Flappy/console PNGs |
 

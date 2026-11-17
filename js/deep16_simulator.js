@@ -272,6 +272,11 @@ class Deep16Simulator {
         // the same word from the pixel domain. null means "not driven": the
         // memory word is read, which is what tests and manual pokes see.
         this.tileStatus = null;
+        // Number of D16nano status reads from 0xF0066. The IDE uses the first
+        // read as the hand-off from "no display hardware" (erased 0xFFFF) to
+        // its live 60 Hz status word; the BIOS uses the same erased value to
+        // detect that no PS/2 receiver is present.
+        this.tileStatusReads = 0;
         // SIC at 0xF00B0 (D16nano): sticky pending bits, enable mask and the
         // ISR scratch counter. Bits 3 raster, 2 audio, 1 timer, 0 keyboard.
         this.sicPending = 0;
@@ -372,6 +377,7 @@ class Deep16Simulator {
         // Autoload ROM at 0xFFF0
         this.autoloadROM();
         this.registers[15] = 0x0000;
+        this.tileStatusReads = 0;
         this.running = false;
     }
 
@@ -389,6 +395,7 @@ class Deep16Simulator {
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R3: 0, R13: 0, R14: 0 };
         this.cycleCount = 0;
         this.tileStatus = null;
+        this.tileStatusReads = 0;
         
         // Reset delay slot state
         this.delaySlotActive = false;
@@ -1318,6 +1325,7 @@ class Deep16Simulator {
                 const data = this.uartRx.length > 0 ? (this.uartRx.shift() & 0xFFFF) : 0;
                 this.writeGPR(rd, data);
             } else if (this.d16nano && physicalAddress === 0xF0066) {
+                this.tileStatusReads = (this.tileStatusReads || 0) + 1;
                 const status = (this.tileStatus === null)
                     ? this.memory[physicalAddress]
                     : this.tileStatus;

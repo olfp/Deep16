@@ -14,14 +14,20 @@
 .equ KBD_DATA   0x0062
 ; The D16D console reads the PS/2 keyboard FIFO; the serial UART is a separate
 ; stream for `serial`/`xmodem`. The D16MINI serial build keeps the UART as its
-; console.
+; console. CONSOLE_PS2 selects the keyboard FIFO for a CONSOLE_UART build too;
+; the IDE uses it so its generic nano console has the same input path as D16D.
 .ifdef CONSOLE_UART
   .ifdef D16D
 .equ CONSOLE_STATUS, KBD_STATUS
 .equ CONSOLE_DATA,   KBD_DATA
   .else
+    .ifdef CONSOLE_PS2
+.equ CONSOLE_STATUS, KBD_STATUS
+.equ CONSOLE_DATA,   KBD_DATA
+    .else
 .equ CONSOLE_STATUS, 0x0040
 .equ CONSOLE_DATA,   0x0042
+    .endif
   .endif
 .else
 ; The screen build's console is the keyboard too.

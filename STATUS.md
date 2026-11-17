@@ -1,7 +1,20 @@
 # STATUS.md — Fortschritt des Deep16-Buchs
 
-> Ständig gepflegter Arbeitsstand. Letzte Änderung: 2026-10-16.
+> Ständig gepflegter Arbeitsstand. Letzte Änderung: 2026-11-17.
 > Workflow-Regeln: [STYLE.md](STYLE.md).
+>
+> **2026-11-17:** **Die IDE-Beispiele laufen wieder auf dem FiT-Bildschirm.**
+> **Screen Demo** und **String Demo** schreiben jetzt echte Textzellen in die
+> 82x26-Karte bei `0xF1000` (`0x8000 | ((ascii - 0x20) << 5)`), nicht mehr in
+> den alten 80x25-Zeichenpuffer. **DeepForth** benutzt den generischen
+> Nano-Kern mit `CONSOLE_PS2`: Die Ausgabe bleibt auf der FiT-Karte, die
+> Eingabe kommt aus demselben PS/2-FIFO wie auf dem Board. **D16D Showcase**
+> startet wieder im Menü; der Browser baut dasselbe flache D16D-Bild wie
+> `scripts/make_image.mjs` und legt es danach wie der Flash-Loader in die
+> Flat-, DS- und BIOS-Kopien. Der erste Statuslesevorgang an `0xF0066` sieht
+> noch den gelöschten Wert `0xFFFF`; danach veröffentlicht der 60-Hz-Takt den
+> normalen Status. Die Beispiel-IDs, nicht mehr die Dateinamen, bestimmen den
+> Build. `asm/forth.asm` und die seriellen Firmware-Bauten bleiben unberührt.
 >
 > **2026-10-15:** **`see name`** — der Kern kann jetzt ein Wort **auseinandernehmen**
 > statt es auszuführen. Eine Colon-Definition kommt als `: name … ;` zurück: der

@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { assemble, loadBrowserScripts, runJs, readScreen, ROOT } from './helpers.js';
+import { assemble, loadBrowserScripts, runJs, readScreen, readTileText, ROOT } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -71,10 +71,16 @@ test('fibonacci writes F(0)..F(10) to memory', () => {
   assert.deepEqual(out, [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55]);
 });
 
-test('string_demo prints its greeting to the screen', () => {
+test('screen_demo writes HELLO DEEP16! as FiT text cells', () => {
+  const src = fs.readFileSync(path.join(ASM_DIR, 'screen_demo.asm'), 'utf8');
+  const { memory } = runJs(assemble(src));
+  assert.equal(readTileText(memory, 12, 34, 13), 'HELLO DEEP16!');
+});
+
+test('string_demo prints its greeting as FiT text cells', () => {
   const src = fs.readFileSync(path.join(ASM_DIR, 'string_demo.asm'), 'utf8');
   const { memory } = runJs(assemble(src));
-  assert.match(readScreen(memory), /Hello, Deep16!/);
+  assert.equal(readTileText(memory, 12, 34, 14), 'Hello, Deep16!');
 });
 
 test('swi-test prints the OS version banner', () => {

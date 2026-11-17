@@ -1,37 +1,43 @@
 {
   "examples": [
     {
+      "id": "fibonacci",
       "name": "Fibonacci Sequence",
       "filename": "fibonacci.asm",
       "description": "Calculate Fibonacci numbers F(0) through F(10)",
       "category": "Mathematics"
     },
     {
-      "name": "Far Call & Long Jump", 
+      "id": "far-call",
+      "name": "Far Call & Long Jump",
       "filename": "far_call.asm",
       "description": "Demonstrates calling between code segments",
       "category": "Advanced"
     },
     {
+      "id": "screen-demo",
       "name": "Screen Demo",
-      "filename": "screen_demo.asm", 
-      "description": "Write text to the 80x25 character display",
+      "filename": "screen_demo.asm",
+      "description": "Write text cells to the FiT tile screen",
       "category": "I/O"
     },
-  {
+    {
+      "id": "string-demo",
       "name": "String Demo",
       "filename": "string_demo.asm",
-      "description": "Demonstrates character constants and strings",
-      "category": "I/O"
-    }
-    ,
-    {
-      "name": "DeepForth",
-      "filename": "forth.asm",
-      "description": "Minimal threaded Forth kernel prints greeting",
+      "description": "Demonstrates character constants and strings on the tile screen",
       "category": "I/O"
     },
     {
+      "id": "deepforth",
+      "name": "DeepForth",
+      "filename": "forth_nano.asm",
+      "description": "Nano Forth console with a PS/2 keyboard prompt",
+      "category": "I/O",
+      "build": "nano"
+    },
+    {
+      "id": "d16d-showcase",
       "name": "D16D Showcase (tiles)",
       "filename": "forth_nano.asm",
       "description": "FiT tile/sprite menu and Flappy on the D16nano engine",
@@ -39,6 +45,7 @@
       "build": "d16d"
     },
     {
+      "id": "link-delay-slot",
       "name": "Link in Delay Slot",
       "filename": "link_delay_slot.asm",
       "description": "Demonstrates ALNK in jump delay slot using R3 target",
