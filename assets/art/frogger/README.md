@@ -14,6 +14,11 @@ water, asphalt, ground and time-bar tiles are composed in the same script. The
 tile pack rides in the game's slice at offset `0x1000`, so nothing is baked into
 `tilefont.hex`.
 
+The home row uses a procedural dark hedge tile (bank index 38) and a bay built
+from the sheet's lily pad on water: a 48x30 opening sliced into twelve tiles at
+bank indices 26..37. Both ride in the same slice tile pack, so the home row
+costs the baked banks nothing.
+
 The game's 32x32 sprite frames (frog idle, hop and squash, the home frog and
 the fly) are baked by `scripts/make_frogger_sprites.mjs` into the sprite pack at
 slice offset `0x2000`; the entry installs them into the sprite bank from group

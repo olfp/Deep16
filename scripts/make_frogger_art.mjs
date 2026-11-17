@@ -12,9 +12,9 @@
 // water, road, ground and bar tiles are composed from the same 16-colour
 // palette.
 //
-// Tiles live in 57..120 plus 126/127, so the last objects take Flappy's art
-// tiles and part of Pac-Man's; the demo installs the palette in palette set
-// 2's art bank at run time.
+// Tiles live in 26..38 (the home row) and 57..120 plus 126/127, so the last
+// objects take Flappy's art tiles and part of Pac-Man's; the demo installs the
+// palette in palette set 2's art bank at run time.
 import { decodePng } from './lib_png.mjs';
 
 // Palette set 2, art bank (16 RGB332 entries).  Entry 0 is the panel colour
@@ -48,6 +48,8 @@ const I = {
 // need more, so they also take Pac-Man's 110..120.  126/127 are the last two
 // baked slots.
 export const FROGGER_TILES = {
+  bay: 26,        // 26..37: a 48x30 home bay (six cells, two rows)
+  hedge: 38,
   water: 57,
   road: 58,
   log: 59,
@@ -184,6 +186,21 @@ function barTile() {
   return grid;
 }
 
+// A dark hedge wall for the home row: mostly dark green, with sparse green
+// leaves and black gaps, so it reads as solid cover next to the grass.
+function hedgeTile() {
+  const grid = [];
+  for (let y = 0; y < 15; y++) {
+    const row = [];
+    for (let x = 0; x < 8; x++) {
+      const n = (x * 7 + y * 13) % 19;
+      row.push(n === 0 || n === 5 ? I.black : n === 2 || n === 9 ? I.green : I.darkGreen);
+    }
+    grid.push(row);
+  }
+  return grid;
+}
+
 export function froggerArtTiles() {
   const img = load(SHEET);
   const obox = (x, y, w, h) => ({ x0: x, y0: y, w, h });
@@ -195,6 +212,7 @@ export function froggerArtTiles() {
   const CAR_YELLOW = obox(305, 483, 134, 70);
   const FIRE = obox(9, 407, 178, 65);
   const TRUCK = obox(203, 406, 284, 66);        // the whole truck
+  const PAD = obox(7, 171, 60, 54);             // the lily pad, on transparent
 
   // Log: 16x18 cap, 8x18 middle, mirrored cap; five tiles per row.
   const capL = fitArt(img, LOG_END, 16, 18, I.water);
@@ -217,6 +235,14 @@ export function froggerArtTiles() {
     [FROGGER_TILES.road, roadTile()],
     [FROGGER_TILES.grass, grassTile()],
     [FROGGER_TILES.bar, barTile()],
+    [FROGGER_TILES.hedge, hedgeTile()],
+    // Home bay: water with a lily pad centred in the six-cell opening. The
+    // pad's sheet fill is a yellow-green that nearest-maps to yellow, so it is
+    // lifted to the palette's green.
+    ...sliceTiles(inCell(
+      fitArt(img, PAD, 32, 22, I.water).map((row) => row.map((p) => (p === I.lightGrey ? I.green : p))),
+      32, 22, 6, 8, 4, I.water,
+    ), 6).map((grid, i) => [FROGGER_TILES.bay + i, grid]),
     ...sliceTiles(logCell, 5).map((grid, i) => [FROGGER_TILES.log + i, grid]),
     ...objectTiles(img, TURTLE, 4, 26, 20, I.water, true).map((grid, i) => [FROGGER_TILES.turtle + i, grid]),
     ...objectTiles(img, CAR_BLUE, 4, 26, 20, ROAD).map((grid, i) => [FROGGER_TILES.carBlue + i, grid]),

@@ -184,15 +184,17 @@ The Frogger slice carries its own art: a tile pack at `0x1000` (magic
 `0x2000` (magic `0x0A58`, count, then group + 256 words per 32x32 frame).
 Its entry copies both into the `0xF3000` / `0xF4000` windows and the palette
 into the art and sprite banks of set 2, so the baked `tilefont.hex` and
-`birdsprite.hex` stay the menu's. Code and state stay below `0x1000`
-(`FROGGER_LIMIT`); the state block starts at `0x700`, with the frog's x, lane,
-hop counter and death countdown at `0x730`–`0x733`.
+`birdsprite.hex` stay the menu's. The tile pack also carries the home-row
+hedge and bay art at tiles 26–38. Code and state stay below `0x1000`
+(`FROGGER_LIMIT`); the state block starts at `0x800`, with the frog's x, lane,
+hop counter, death countdown, filled bays, level and pause at
+`0x830`–`0x836`.
 | Pole (road renderer benchmark) | 31 | `0x7000` |
 
 Each of those blocks carries its tile art at segment offset `0x1000` (magic
 `0x0A57`, tile count, then index + 32 words); the menu copies it into the tile
 bank before entering the game, because the three art sets overlap (14 + 24 +
-66 tiles in 79 usable slots). The bitstream bakes only the console font.
+79 tiles in 79 usable slots). The bitstream bakes only the console font.
 
 The `0x4350` gap is still free (`dict_free = 0x434F`), and the BIOS has taken
 over the top of the old game area: the menu/BDOS bridge ends at `0x548D`, the

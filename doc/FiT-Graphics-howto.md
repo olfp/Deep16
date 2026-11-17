@@ -585,9 +585,20 @@ letting the time bar empty also kills it. A death shows the squash frame with
 `SFX_DEATH` for 24 frames, ignores the hop keys, then respawns the frog on the
 bottom bank with a full time bar. Lanes 0 and 11 are the banks and lane 6 the
 median, so only lanes 1–5 ride anything and only lanes 7–10 carry vehicles; the
-frog's box is kept inside the playfield. Its state is `FR_FXQ` (x in quarter
-pixels), `FR_LANE` (0..11), `FR_HOP` (animation frames) and `FR_DEAD` (death
-countdown), at `0x730`–`0x733`.
+frog's box is kept inside the playfield.
+
+The top bank is a hedge wall with five lily-pad bays, six cells wide on an
+eight-cell pitch (tiles 26–37 for the bays and 38 for the hedge). The frog's
+32-px hop lattice is offset half a cell so a hop can land dead centre; its
+30-px art also fits anywhere within a bay's 19-px window. Landing in a free bay
+locks the home frog (sprite group 3) into OAM slot 1 + bay and sends the player
+back to the bottom bank with a full bar. The hedge between the bays, and an
+already-filled bay, are deaths. The fifth bay holds the board for 120 frames
+with the timer frozen, then clears the bays, steps every lane one quarter pixel
+per frame faster up to its cap, and starts the next level. Its state is
+`FR_FXQ` (x in quarter pixels), `FR_LANE` (0..11), `FR_HOP` (animation frames),
+`FR_DEAD` (death countdown), `FR_HOMES` (five bay bits), `FR_LEVEL` (completed
+levels) and `FR_PAUSE` (level-complete pause), at `0x830`–`0x836`.
 
 The screen is twelve double-height lanes, top to bottom: top bank (rows 0–1),
 five river lanes (2–11), median (12–13), four road lanes (14–21), bottom bank
@@ -636,10 +647,11 @@ composed from the same 16-colour palette: a uniform deep blue river with no
 wave marks, and a solid dark grey road with no texture or markings, because
 every row scrolls as a whole and anything drawn on it would travel with the
 traffic. The truck's trailer is lifted from the dark brown to the mid brown so
-it stands out on that grey. Tiles 57..120 plus 126/127 hold the
-lot: 57 water, 58 asphalt, 59..68 the log parts, 69..76 the turtle, 77..84 the
-blue car, 85..92 the yellow car, 93..104 the fire truck (six cells), 105..120
-the truck (eight cells), 126 the ground and 127 the time bar. That takes
+it stands out on that grey. Tiles 26..38 and 57..120 plus 126/127 hold the
+lot: 26..37 the home bays (water and a lily pad), 38 the hedge, 57 water,
+58 asphalt, 59..68 the log parts, 69..76 the turtle, 77..84 the blue car,
+85..92 the yellow car, 93..104 the fire truck (six cells), 105..120 the truck
+(eight cells), 126 the ground and 127 the time bar. That takes
 Flappy's art tiles (96..109) and Pac-Man's 110..120; those demos' own art is no
 longer drawn. The palette is written at run time to set 2's art bank from
 `fr_pal`; `FROGGER_PALETTE` in the script must stay in step with it. An art

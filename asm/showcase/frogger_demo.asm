@@ -1,28 +1,31 @@
-; frogger_demo.asm - the FiT per-row scrolling backdrop, widescreen layout.
+; frogger_demo.asm - the FiT Frogger game, widescreen layout.
 ;
-; A Frogger-style backdrop with no player: five river lanes and four road
-; lanes, each moving independently, drawn as double-height 24x30 game cells.
-; The point is the horizontal scroll: control 6 gives each tilemap row a 0..7
-; pixel fine offset, while the row content itself is rewritten by whole cells
-; when the fine offset wraps.  The lane phase is kept in half pixels (0..15)
-; so the speeds can differ by half a pixel per frame.
+; Five river lanes and four road lanes, each moving independently, drawn as
+; double-height 24x30 game cells, with a frog sprite that hops across them,
+; rides the logs and turtles and fills five home bays. The point of the
+; per-row scroll is control 6: it gives each tilemap row a 0..7 pixel fine
+; offset, while the row content is rewritten by whole cells when the fine
+; offset wraps. The lane phase is kept in quarter pixels (0..31) so the speeds
+; can differ by a quarter pixel per frame.
 ;
-; Assembled with .org 0 and placed at physical 0x4350 (CS=DS=0x0435) in the
-; free image gap.  The menu jumps here with R10/R11 as the return pair.  Q
-; returns to the menu.
+; Assembled with .org 0 and loaded as a type-4 slice at segment 0x0600.  The
+; menu jumps here with R10/R11 as the return pair.  Q returns to the menu.
 ;
-; Tile art (added to the tile bank by make_frogger_art / make_tile_font):
-;   tile 57 water, 58 road, 59..66 a log, 67..74 a turtle, 75..82 the blue car,
-;   83..90 the yellow car, 91..98 the fire truck, 99..106 the truck, 126 grass
-;   and 127 the time bar.  Each moving object is a 32x30 cell, i.e. four tiles
-;   wide and two tile rows tall; the 26-pixel art is centred in it and every
-;   vehicle is stretched to the same 26x20 box so they all have the same
-;   length.  Two objects land on Flappy's art tiles (96..106); the demo owns
-;   them.  The demo installs the 16-entry palette in set 2's art bank at run
-;   time.
+; Tile art rides in the slice's tile pack at 0x1000 (magic 0x0A57):
+;   26..37 the home bay (six cells x two rows: water and a lily pad),
+;   38 hedge, 57 water, 58 road, 59..63 a log, 69..76 a turtle, 77..84 the blue
+;   car, 85..92 the yellow car, 93..104 the fire truck, 105..120 the truck,
+;   126 grass and 127 the time bar.  Each moving object is a 32x30 cell, i.e.
+;   four tiles wide and two tile rows tall; the 26-pixel art is centred in it
+;   and every vehicle is stretched to the same 26x20 box so they all have the
+;   same length.  The demo installs the 16-entry palette in set 2's art bank
+;   at run time.
+;
+; Sprite art rides in the slice's sprite pack at 0x2000 (magic 0x0A58):
+;   group 0 idle frog, 1 hop, 2 squash, 3 home frog, 4 fly.
 ;
 ; Screen layout, top to bottom (24 tile rows = 12 double-height lanes):
-;   0..1   top bank: static; panel row 0 = SCORE, row 1 = HI
+;   0..1   home row: hedge with five bays; panel row 0 = SCORE, row 1 = HI
 ;   2..3   river 5 (top): logs, normal speed, moving right
 ;   4..5   river 4: turtles, a little slower, moving left
 ;   6..7   river 3: logs, fast, moving right
@@ -58,6 +61,8 @@
 .equ T_TRUCK  0xD20           ; 105..120 truck, eight cells
 .equ T_GRASS  0xFC0           ; 126 ground
 .equ T_BAR    0xFE0           ; 127 time-bar cell
+.equ T_HEDGE  0x4C0           ; 38 hedge wall (home row)
+.equ T_BAY    0x340           ; 26..37 home bay: six cells, two rows
 .equ T_PANEL  0x000           ; blank tile; palette art entry 0 is the panel
 
 ; BIOS sound effects (function 9 starts, function 10 ticks once per frame).
@@ -65,21 +70,24 @@
 .equ SFX_TICK  5
 
 ; state (inside the block, after the code)
-.equ FR_START  0x700           ; nine 0..15 coarse start cells
-.equ FR_PHASE  0x709           ; nine 0..31 quarter-pixel phases
-.equ FR_LASTF  0x712
-.equ FR_RET10  0x713
-.equ FR_RET11  0x714
-.equ FR_DIRTY  0x715           ; nine "row changed last frame" cells
-.equ FR_FRONT  0x71E           ; displayed tilemap bank
-.equ FR_BACK   0x71F           ; write tilemap bank
-.equ FR_TIME   0x720           ; time bar cells left (0..56)
-.equ FR_TICK   0x721           ; frames until the next cell
-.equ FR_BARD   0x722           ; bar dirty flag
-.equ FR_FXQ    0x730           ; frog x in quarter pixels
-.equ FR_LANE   0x731           ; frog lane 0..11 (0 = top bank)
-.equ FR_HOP    0x732           ; hop animation frames left
-.equ FR_DEAD   0x733           ; death countdown frames
+.equ FR_START  0x800           ; nine 0..15 coarse start cells
+.equ FR_PHASE  0x809           ; nine 0..31 quarter-pixel phases
+.equ FR_LASTF  0x812
+.equ FR_RET10  0x813
+.equ FR_RET11  0x814
+.equ FR_DIRTY  0x815           ; nine "row changed last frame" cells
+.equ FR_FRONT  0x81E           ; displayed tilemap bank
+.equ FR_BACK   0x81F           ; write tilemap bank
+.equ FR_TIME   0x820           ; time bar cells left (0..56)
+.equ FR_TICK   0x821           ; frames until the next cell
+.equ FR_BARD   0x822           ; bar dirty flag
+.equ FR_FXQ    0x830           ; frog x in quarter pixels
+.equ FR_LANE   0x831           ; frog lane 0..11 (0 = top bank)
+.equ FR_HOP    0x832           ; hop animation frames left
+.equ FR_DEAD   0x833           ; death countdown frames
+.equ FR_HOMES  0x834           ; five "bay filled" bits
+.equ FR_LEVEL  0x835           ; completed levels
+.equ FR_PAUSE  0x836           ; level-complete pause frames left
 
 .org 0
 fr_entry:
@@ -126,10 +134,10 @@ fr_clear_dirty:
     MOV R2, R0
     ST R3, R2, 0
 
-    ; frog starts on the bottom bank, centred
+    ; frog starts on the bottom bank, centred on the bay lattice
     LDI FR_FXQ
     MOV R2, R0
-    LDI 1664
+    LDI 1728
     MOV R3, R0
     ST R3, R2, 0
     LDI FR_LANE
@@ -142,6 +150,15 @@ fr_clear_dirty:
     LSI R3, 0
     ST R3, R2, 0
     LDI FR_DEAD
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_HOMES
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_LEVEL
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_PAUSE
     MOV R2, R0
     ST R3, R2, 0
 
@@ -496,7 +513,13 @@ fr_dirty_done:
     NOP
 fr_bard_done:
 
-    ; One time-bar cell every 32 frames (about 30 s for 56 cells).
+    ; One time-bar cell every 64 frames (about 30 s for 56 cells).
+    LDI FR_PAUSE
+    MOV R2, R0
+    LDS R3, DS, R2
+    AND R3, R3
+    JNZ fr_tick_done           ; a level pause freezes the timer
+    NOP
     LDI FR_TICK
     MOV R2, R0
     LDS R3, DS, R2
@@ -588,6 +611,11 @@ fr_frog_tick:
     JMP R4
     NOP
     LDI fr_frog_draw
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI fr_homes_draw
     MOV R4, R0
     LINK
     JMP R4
@@ -1085,6 +1113,13 @@ fr_init_lanes_done:
     JMP R4
     NOP
 
+    ; Home row: hedge across the top bank with five open bays.
+    LDI fr_paint_homes
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
     ; Static HUD in the right panel's top and bottom rows.
     LSI R9, 0
     LSI R10, 2
@@ -1118,6 +1153,86 @@ fr_init_lanes_done:
     NOP
 
     MOV LR, R12
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; Paint the home row into the current write bank: a hedge across the top
+; bank with five open bays (six cells wide, two rows, at columns 33, 41,
+; ...) showing water and a lily pad.  Clobbers R0-R6,R9,R10,R13.
+; ---------------------------------------------------------------------
+fr_paint_homes:
+    MOV R13, LR
+    LSI R9, 0                  ; tile row 0, then 1
+fr_ph_row:
+    LDI 82
+    MOV R2, R0
+    MOV R3, R9
+    MUL R3, R2
+    LDI 24
+    MOV R2, R0
+    ADD R3, R2                 ; playfield starts at column 24
+    LDI SEG_TILE
+    MVS ES, R0
+    LSI R10, 0                 ; playfield column
+fr_ph_col:
+    LDI T_HEDGE
+    MOV R6, R0
+    LDI 9
+    MOV R4, R0
+    CMP R10, R4
+    JC fr_ph_store             ; left of the first bay
+    NOP
+    MOV R2, R10
+    SUB R2, R4                 ; q = column - 9
+    LDI 40
+    MOV R5, R0
+    CMP R2, R5
+    JNC fr_ph_store            ; past the last bay
+    NOP
+    LDI 7
+    MOV R5, R0
+    AND R2, R5                 ; cell inside the eight-cell pitch
+    LDI 6
+    MOV R5, R0
+    CMP R2, R5
+    JNC fr_ph_store            ; the two-cell gap between bays
+    NOP
+    ; bay tile = 26 + row * 6 + cell
+    MOV R5, R9
+    LDI 6
+    MOV R4, R0
+    MUL R5, R4
+    ADD R5, R2
+    LDI 26
+    MOV R4, R0
+    ADD R5, R4
+    MOV R6, R5
+    SL R6, 5
+fr_ph_store:
+    STS R6, ES, R3
+    ADD R3, 1
+    ADD R10, 1
+    LDI 56
+    MOV R4, R0
+    CMP R10, R4
+    JNC fr_ph_col_done
+    NOP
+    LDI fr_ph_col
+    MOV PC, R0
+    NOP
+fr_ph_col_done:
+    ADD R9, 1
+    LDI 2
+    MOV R4, R0
+    CMP R9, R4
+    JNC fr_ph_done
+    NOP
+    LDI fr_ph_row
+    MOV PC, R0
+    NOP
+fr_ph_done:
+    MOV LR, R13
     JMP LR
     NOP
 
@@ -1205,6 +1320,12 @@ fr_keys:
     JZ fr_k_exit
     NOP
     ; ---- hop keys: arrows and WASD --------------------------------
+    LDI FR_PAUSE
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JNZ fr_k_done              ; keys are ignored during a level pause
+    NOP
     LDI FR_DEAD
     MOV R2, R0
     LD R3, R2, 0
@@ -1412,21 +1533,98 @@ fr_fd_group:
     NOP
 
 ; ---------------------------------------------------------------------
-; Ride the lane under the frog when it is a river lane and the cell is on
-; an object.  The frog moves at the lane's speed in quarter pixels.
-; Clobbers R2-R7.
+; Draw the five home frogs from FR_HOMES into OAM slots 1..5.  A filled bay
+; shows the home frog in the middle of its opening.  Clobbers R2-R7.
 ; ---------------------------------------------------------------------
-; Frog logic for one frame: age the hop, run the death countdown, then the
-; splash and squash checks and the ride.  Clobbers R2-R7,R13.
+fr_homes_draw:
+    LDI FR_HOMES
+    MOV R2, R0
+    LDS R4, DS, R2             ; filled bays
+    LDI SEG_OAM
+    MVS ES, R0
+    LSI R5, 1                  ; OAM slot 1..5
+fr_hd_loop:
+    MOV R2, R5
+    SL R2, 1                   ; descriptor words
+    MOV R3, R5
+    SUB R3, 1
+    LDI fr_homebits
+    MOV R6, R0
+    ADD R6, R3
+    LDS R6, DS, R6
+    AND R6, R4
+    JZ fr_hd_off
+    NOP
+    ; x = 272 + 64 * bay, the middle of the opening
+    LDI 64
+    MOV R7, R0
+    MUL R3, R7
+    LDI 272
+    MOV R7, R0
+    ADD R3, R7
+    LDI 0x800
+    MOV R7, R0
+    OR R3, R7
+    LDI 0x1801                 ; home frog group, y 1
+    MOV R7, R0
+    LDI fr_hd_on
+    MOV PC, R0
+    NOP
+fr_hd_off:
+    LSI R3, 0
+    LSI R7, 0
+fr_hd_on:
+    STS R3, ES, R2
+    ADD R2, 1
+    STS R7, ES, R2
+    ADD R5, 1
+    LDI 6
+    MOV R3, R0
+    CMP R5, R3
+    JNC fr_hd_done
+    NOP
+    LDI fr_hd_loop
+    MOV PC, R0
+    NOP
+fr_hd_done:
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; Frog logic for one frame: the level pause, the death countdown, then the
+; home, splash and squash checks and the ride.  Clobbers R2-R7,R13.
 ; ---------------------------------------------------------------------
 fr_frog_update:
     MOV R13, LR
 
-    LDI FR_DEAD
+    ; A completed level holds the board still for a moment; the frog is
+    ; already back on the bank and stays hidden until the pause ends.
+    LDI FR_PAUSE
     MOV R2, R0
     LD R3, R2, 0
     AND R3, R3
     JZ fr_fu_alive
+    NOP
+    SUB R3, 1
+    ST R3, R2, 0
+    AND R3, R3
+    JNZ fr_fu_done
+    NOP
+    LDI fr_next_level
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI fr_fu_done
+    MOV PC, R0
+    NOP
+
+fr_fu_alive:
+    LDI FR_DEAD
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ fr_fu_not_dead
     NOP
     SUB R3, 1
     ST R3, R2, 0
@@ -1442,7 +1640,7 @@ fr_frog_update:
     MOV PC, R0
     NOP
 
-fr_fu_alive:
+fr_fu_not_dead:
     LDI FR_HOP
     MOV R2, R0
     LD R3, R2, 0
@@ -1457,7 +1655,7 @@ fr_fu_nohop:
     MOV R2, R0
     LD R3, R2, 0
     AND R3, R3
-    JZ fr_fu_done              ; top bank
+    JZ fr_fu_home              ; top bank: a home bay or the hedge
     LDI 11
     MOV R4, R0
     CMP R3, R4
@@ -1554,6 +1752,86 @@ fr_fu_road:
     LINK
     JMP R4
     NOP
+    LDI fr_fu_done
+    MOV PC, R0
+    NOP
+
+fr_fu_home:
+    ; A bay is 48 px wide on a 64-px pitch.  The frog's 30-px art has to sit
+    ; inside the opening: x in [left - 1, left + 17].
+    LDI FR_FXQ
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI 1052                   ; first bay's left edge - 1, screen quarter px
+    MOV R4, R0
+    CMP R3, R4
+    JC fr_fu_hedge
+    NOP
+    SUB R3, R4                 ; x - first edge
+    MOV R5, R3
+    LDI 255
+    MOV R4, R0
+    AND R3, R4                 ; position inside a 64-px pitch
+    LDI 72                     ; 19 px of landing room
+    MOV R4, R0
+    CMP R4, R3
+    JC fr_fu_hedge             ; too far right for the bay
+    NOP
+    SR R5, 8                   ; bay 0..4
+    LDI 4
+    MOV R4, R0
+    CMP R4, R5
+    JC fr_fu_hedge             ; past the last bay
+    NOP
+    LDI fr_homebits
+    MOV R2, R0
+    ADD R2, R5
+    LDS R6, DS, R2             ; this bay's bit
+    LDI FR_HOMES
+    MOV R2, R0
+    LDS R7, DS, R2             ; bays already filled
+    AND R7, R6
+    JNZ fr_fu_hedge            ; landing on a used bay is a death
+    NOP
+    LDS R7, DS, R2
+    OR R7, R6
+    ST R7, R2, 0
+    LDI 31
+    MOV R4, R0
+    CMP R7, R4
+    JZ fr_fu_level
+    NOP
+    LDI fr_respawn
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI fr_fu_done
+    MOV PC, R0
+    NOP
+
+fr_fu_level:
+    ; Fifth bay: hold the board for two seconds, then the next level.
+    LDI FR_PAUSE
+    MOV R2, R0
+    LDI 120
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI fr_respawn
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI fr_fu_done
+    MOV PC, R0
+    NOP
+
+fr_fu_hedge:
+    LDI fr_die
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
 
 fr_fu_done:
     MOV LR, R13
@@ -1631,7 +1909,7 @@ fr_die_out:
 fr_respawn:
     LDI FR_FXQ
     MOV R2, R0
-    LDI 1664
+    LDI 1728
     MOV R3, R0
     ST R3, R2, 0
     LDI FR_LANE
@@ -1656,6 +1934,56 @@ fr_respawn:
     MOV R2, R0
     LSI R3, 1
     ST R3, R2, 0
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; Start the next level: clear the bays, step every lane's speed up by one
+; quarter pixel towards its cap, and put the frog back on the bank.
+; ---------------------------------------------------------------------
+fr_next_level:
+    MOV R12, LR
+    LDI FR_HOMES
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI FR_LEVEL
+    MOV R2, R0
+    LD R3, R2, 0
+    ADD R3, 1
+    ST R3, R2, 0
+    LSI R6, 0
+fr_nl_lane:
+    LDI fr_speeds
+    MOV R2, R0
+    ADD R2, R6
+    LDS R3, DS, R2
+    LDI fr_caps
+    MOV R4, R0
+    ADD R4, R6
+    LDS R5, DS, R4
+    CMP R3, R5
+    JNC fr_nl_capped            ; speed >= cap
+    NOP
+    ADD R3, 1
+    ST R3, R2, 0
+fr_nl_capped:
+    ADD R6, 1
+    LDI 9
+    MOV R3, R0
+    CMP R6, R3
+    JNC fr_nl_done
+    NOP
+    LDI fr_nl_lane
+    MOV PC, R0
+    NOP
+fr_nl_done:
+    LDI fr_respawn
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    MOV LR, R12
     JMP LR
     NOP
 
@@ -1749,6 +2077,13 @@ fr_dirs:
 fr_speeds:
     .word 4, 3, 6, 2, 3
     .word 6, 4, 3, 2
+; One bit per bay, left to right.
+fr_homebits:
+    .word 1, 2, 4, 8, 16
+; Each lane's speed cap (quarter pixels per frame) after the level steps.
+fr_caps:
+    .word 8, 6, 10, 5, 6
+    .word 10, 8, 6, 5
 
 str_score:
     .text "SCORE 000000"
@@ -1760,7 +2095,7 @@ str_lives:
 ; =====================================================================
 ; Writable state
 ; =====================================================================
-.org 0x700
+.org 0x800
 fr_start_state:
     .word 0, 3, 6, 9, 12, 1, 4, 7, 10
 ; Start the lanes at different phases so their coarse shifts (and the
@@ -1785,12 +2120,18 @@ fr_tick:
     .word 0
 fr_bard:
     .word 0
-.org 0x730
+.org 0x830
 fr_fxq:
-    .word 1664                 ; x = 416 px, middle of the playfield
+    .word 1728                 ; x = 432 px, on the bay lattice
 fr_lane:
     .word 11                   ; bottom bank
 fr_hop:
     .word 0
 fr_dead:
+    .word 0
+fr_homes:
+    .word 0
+fr_level:
+    .word 0
+fr_pause:
     .word 0

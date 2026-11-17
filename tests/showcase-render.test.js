@@ -42,7 +42,7 @@ test('the Frogger backdrop scrolls its lanes', () => {
   assert.notDeepEqual(Array.from(r.frames[10]), Array.from(r.frames[19]), 'the lanes move');
 });
 
-test('the frog hops on keys and rides a log', () => {
+test('the frog hops on keys', () => {
   // Three hops right, on the safe bottom bank (up from the bank is the road).
   const keys = [];
   for (let f = 0; f < 18; f += 6) keys[f] = 0x64;   // d
@@ -51,9 +51,51 @@ test('the frog hops on keys and rides a log', () => {
   assert.ok(e.oam[0] & 0x0800, 'frog sprite is enabled');
   assert.equal((e.oam[1] >> 11) & 0x1f, 0, 'idle frame');
   assert.equal(e.oam[1] & 0x3ff, 11 * 30 + 1, 'still on the bottom bank');
-  assert.equal(e.oam[0] & 0x3ff, 416 + 3 * 32, 'three cells right');
+  assert.equal(e.oam[0] & 0x3ff, 432 + 3 * 32, 'three cells right');
   // The log carry and the splash/squash deaths are covered by the
   // simulator tests, where the state can be placed deterministically.
+});
+
+test('the home row is five bays in a hedge', () => {
+  const r = renderScene({ scene: 'frogger', frames: 1, warmup: 200000 });
+  const cell = (bank, row, col) => r.engine.tilemap[bank][row * 82 + col];
+  const hedge = 38 << 5;
+  const bayTop = 26 << 5;
+  const bayBottom = 32 << 5;
+  for (const bank of [0, 1]) {
+    for (const row of [0, 1]) {
+      // Nine hedge cells at each end of the playfield.
+      for (let c = 24; c < 33; c++) assert.equal(cell(bank, row, c), hedge, `hedge col ${c}`);
+      for (let c = 71; c < 80; c++) assert.equal(cell(bank, row, c), hedge, `hedge col ${c}`);
+      // Five six-cell openings, two hedge cells apart.
+      for (let bay = 0; bay < 5; bay++) {
+        const base = 33 + bay * 8;
+        for (let c = 0; c < 6; c++) {
+          assert.equal(cell(bank, row, base + c),
+            (row === 0 ? bayTop : bayBottom) + c * 32, `bay ${bay} col ${c}`);
+        }
+        assert.equal(cell(bank, row, base + 6), hedge, `gap after bay ${bay}`);
+      }
+    }
+  }
+});
+
+test('home frogs fill the bays', () => {
+  const empty = renderScene({ scene: 'frogger', frames: 2, warmup: 200000 });
+  const filled = renderScene({
+    scene: 'frogger', frames: 2, warmup: 200000,
+    setup: (sim) => { sim.memory[0x6000 + 0x834] = 0x1f; },
+  });
+  for (let bay = 0; bay < 5; bay++) {
+    const d = 1 + bay;
+    const w0 = filled.engine.oam[d * 2];
+    const w1 = filled.engine.oam[d * 2 + 1];
+    assert.ok(w0 & 0x0800, `home frog ${bay} enabled`);
+    assert.equal(w0 & 0x3ff, 272 + bay * 64, `home frog ${bay} centred`);
+    assert.equal((w1 >> 11) & 0x1f, 3, `home frog ${bay} frame`);
+    assert.equal(w1 & 0x3ff, 1, `home frog ${bay} in the home row`);
+  }
+  assert.notDeepEqual(filled.frames[1], empty.frames[1], 'the frogs are on screen');
 });
 
 test('the Frogger panel edge stays fixed', () => {

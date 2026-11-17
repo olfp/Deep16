@@ -69,7 +69,8 @@ test('the Frogger art rides in a slice tile pack', () => {
   assert.equal(at(0x1000), 0x0A57, 'pack magic');
   const tiles = froggerArtTiles();
   assert.equal(at(0x1001), tiles.length, 'tile count');
-  assert.deepEqual(tiles.map((t) => t.index), [57, 58, 126, 127,
+  assert.deepEqual(tiles.map((t) => t.index), [57, 58, 126, 127, 38,
+    ...Array.from({ length: 12 }, (_, i) => 26 + i),
     ...Array.from({ length: 62 }, (_, i) => 59 + i)]);
   let cell = 0x1002;
   for (const { index, grid } of tiles) {

@@ -180,6 +180,7 @@ export function renderScene({
   stepsPerFrame = scene === 'frogger' ? 0x10000 : DEFAULT_STEPS,
   keys = [],
   warmup = null,
+  setup = null,
 } = {}) {
   if (!['console', 'menu', 'flappy', 'pacman', 'frogger'].includes(scene)) throw new Error(`unknown scene: ${scene}`);
   const { sim, engine } = boot(scene);
@@ -193,6 +194,9 @@ export function renderScene({
   if (warmup > 0) {
     for (let i = 0; i < warmup && sim.running; i++) sim.step();
   }
+
+  // Test seam: place game state after the warmup and before the frames.
+  if (setup) setup(sim, engine);
 
   const out = [];
   for (let f = 0; f < frames; f++) {
