@@ -37,21 +37,25 @@ source lines until an empty line, compiles them, then runs the program:
 
 ```text
 lila
-x = 3
-y = x + 4 * 2
-print(y)
-print("a" .. "b" .. "c")
-print(z)
-
+L> x = 3
+L> y = x + 4 * 2
+L> print(y)
+L> print("a" .. "b" .. "c")
+L> print(z)
+L> 
 11
 abc
 nil
  ok
 ```
 
-Only an empty line ends the source; a line of spaces is whitespace, not a
-terminator. Newlines inside the source are ordinary whitespace, so line breaks
-are not part of the grammar.
+`lila` prints a CR when it starts and its own prompt, `L> `, before every
+line it reads; it echoes a CR for the Return the user pressed, because the
+BIOS stops at the Return without echoing the newline. The prompt is the
+DeepForth prompt `> ` with an `L` in front of it, so the two are easy to tell
+apart. Only an empty line ends the source; a line of spaces is whitespace,
+not a terminator. Newlines inside the source are ordinary whitespace, so line
+breaks are not part of the grammar.
 
 The regression test does the same thing in the JS simulator and needs no host
 Lua:
@@ -66,7 +70,7 @@ asserts that the run leaves the data stack at depth 0.
 
 ### Getting the compiler onto the board
 
-The compiler is 14,636 characters, so it does not fit in one source slice
+The compiler is 15,713 characters, so it does not fit in one source slice
 (2,040 characters). There are two ways to get it onto the device.
 
 **The config-flash catalog.** `scripts/make_slices.mjs` registers the
@@ -366,7 +370,7 @@ exceptions:
 console lines
     |
     v
-  l-read            concatenate lines into l-src, append LF
+  l-read            prompt "L> ", echo the CR, concatenate lines into l-src
     |
     v
 l-tokenize          l-src -> l-tok-a / l-tok-n / l-tok-k
@@ -403,18 +407,24 @@ needs no allocation beyond the words already compiled.
 
 The rest are scalar variables for parser and VM state. The arrays account for
 most of the compiler's footprint. On the D16SEG image used by the test, the
-booted kernel has `here = 0xb5af`; after the compiler is typed in,
-`here = 0xd396`. That is 7,655 dictionary cells, leaving 11,354 of the 65,536
-below `limit = 0xfff0`.
+booted kernel has `here = 0xbdaf`, so 16,961 of the 65,536 cells below
+`limit = 0xfff0` are free. Loading the compiler from the flash takes 7,655
+cells (`here = 0xdb96`, 9,306 free); typing it in takes 7,676, 21 cells more.
 
 ### Input
 
-`l-read` calls `120 accept` into `l-src + l-src-n`, appends an LF, advances
-`l-src-n`, and repeats. An `accept` that returns zero cells is an empty line
-and ends the source. The 700-character source limit is enforced here (`-1`).
-`accept` reads at most 120 characters and cuts a longer line at that
-boundary, so the rest of the line is lost — keep source lines shorter than
+`l-read` prints the prompt, calls `120 accept` into `l-src + l-src-n`, appends
+an LF, advances `l-src-n`, and repeats. An `accept` that returns zero cells is
+an empty line and ends the source. The 700-character source limit is enforced
+here (`-1`). `accept` reads at most 120 characters and cuts a longer line at
+that boundary, so the rest of the line is lost — keep source lines shorter than
 120 characters.
+
+The console echoes the characters as they are typed, but the BIOS stops at the
+Return without echoing the newline: the cursor would stay on the line the user
+just typed, and the next output would land on top of it. So `l-read` echoes a
+CR of its own after every `accept`, and prints the prompt `L> ` before each
+line it reads. The prompt is printed by `l-prompt`, which is `." L> "`.
 
 The stored source is a flat byte sequence, not an array of lines. The LF is
 kept so the tokenizer can end `--` comments, and every subsequent line is
@@ -681,20 +691,28 @@ forever eventually fails; a fixed number of concatenations is fine.
 
 ### Errors
 
-`lila` wraps the whole build-and-run in `catch`:
+`lila` catches the build and the run separately:
 
 ```forth
 : lila ( -- )
-  ['] lila-inner catch ?dup if
+  ['] lila-build catch ?dup if
+    m-lerr 4 type space . cr exit
+  then
+  ['] lila-exec catch ?dup if
     cr m-lerr 4 type space . cr
   then ;
 ```
 
-Compile-time and runtime `throw`s therefore take the same path: print
-`LERR <code>`, return to the prompt, and leave the data stack at the depth it
-had when `lila` was entered. The next call resets the symbol table, code
-pointer, arenas, token count and globals, so a failed program does not poison
-the next one.
+Both paths print `LERR <code>`, return to the prompt, and leave the data stack
+at the depth it had when `lila` was entered. The next call resets the symbol
+table, code pointer, arenas, token count and globals, so a failed program does
+not poison the next one.
+
+The two catches differ in one CR. A compile-time error always lands on a line
+of its own, because the last thing `l-read` does is echo the CR of the Return
+that ended the source; the message needs no CR of its own. A run-time error
+can land in the middle of a line — the concatenation arena can fill up between
+two prints — so that one asks for a CR before the message.
 
 Because `catch` restores the data stack, a rejected program does not leave
 temporary values behind. A successful program must also be balanced by

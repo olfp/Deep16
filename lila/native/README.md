@@ -6,8 +6,22 @@ source), tokenizes and parses it with recursive descent, emits bytecode into a
 dictionary buffer, and runs that bytecode on a small VM. No part of the user
 program is compiled by the host.
 
-Load the file into a booted DeepForth and type `lila`. The regression test does
-exactly that in the JS simulator and needs no host Lua:
+Load the file into a booted DeepForth and type `lila`. The word prints a CR
+and its own prompt `L> ` before every source line, and echoes a CR for the
+Return the user pressed — the BIOS stops at the Return without echoing the
+newline, so the compiler does it itself:
+
+```text
+lila
+L> x = 3
+L> print(x)
+L> 
+3
+ ok
+```
+
+The regression test does exactly that in the JS simulator and needs no host
+Lua:
 
 ```sh
 node --test tests/native-lila.test.js
@@ -20,7 +34,7 @@ dictionary cells after the kernel boots, leaving about 9.3k free.
 
 ## On the device
 
-The compiler is 14,636 characters, so it needs eight source slices. It is
+The compiler is 15,713 characters, so it needs eight source slices. It is
 registered in the config-flash catalog as the TEXT object `lila`:
 
 ```sh

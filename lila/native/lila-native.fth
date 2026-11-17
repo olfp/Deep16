@@ -5,6 +5,10 @@
 \ compact bytecode into a dictionary buffer, and runs the bytecode on a small
 \ VM.  No part of the user program is compiled by the host.
 \
+\ The console echoes the characters as they are typed, but the BIOS stops at
+\ the Return without echoing the newline.  So `lila` prints a CR of its own
+\ for every Return and a prompt "L> " before every line it reads; see l-read.
+\
 \ Supported subset (anything else is rejected with a negative code):
 \   globals, integer literals, string literals (no escapes), unary minus,
 \   + - *  relationals  == ~=  .. (right associative)  parentheses,
@@ -151,14 +155,24 @@ create s-nil   110 c, 105 c, 108 c,
 : l-jmp ( -- slot ) OP-JMP code, here-cp 1 l-cp +! ;
 
 \ ------------------------------ source input ----------------------------
+\ The console echoes the characters as they are typed, but the BIOS stops at
+\ the Return without echoing the newline: the cursor stays on the line the
+\ user just typed.  So `lila` prints the newline itself, and a prompt of its
+\ own before every line it reads.  The prompt is "L> ", the end of the DeepForth
+\ prompt "> " with an L in front of it, so the two are easy to tell apart.
+: l-prompt ( -- ) ." L> " ;
+
 : l-read ( -- )
   0 l-src-n !
+  cr l-prompt                \ a fresh line for the first prompt
   begin
     l-src-n @ l-src + 120 accept l-got !
+    cr                        \ the Return the user just pressed
     l-got @ 0= if exit then
     l-src l-src-n @ + l-got @ + 10 swap c!
     l-src-n @ l-got @ + 1+ l-src-n !
     l-src-n @ 700 > if -1 throw then
+    l-prompt
   again ;
 
 \ ------------------------------- tokenizer ------------------------------
@@ -527,10 +541,15 @@ create l-ops
 
 : lila-exec ( -- ) l-run ;
 
-: lila-inner ( -- ) lila-build lila-exec ;
-
+\ A compile-time error always lands on a line of its own: the last thing
+\ `l-read` does is echo the CR of the Return that ended the source.  A
+\ run-time error can land in the middle of a line, so that one still asks
+\ for a CR of its own before the message.
 : lila ( -- )
-  ['] lila-inner catch ?dup if
+  ['] lila-build catch ?dup if
+    m-lerr 4 type space . cr exit
+  then
+  ['] lila-exec catch ?dup if
     cr m-lerr 4 type space . cr
   then ;
 

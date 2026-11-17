@@ -109,14 +109,17 @@ export function bootNative() {
     return false;
   }
 
-  const atPrompt = (from) => {
-    const tail = out.slice(from);
-    return tail.includes('\n') && tail.endsWith('> ');
-  };
+  // The DeepForth prompt is "> " at the start of a line. The LILA prompt
+  // "L> " ends in "> " as well, so the newline in front of it is what tells
+  // the two apart.
+  const atPrompt = (from) => out.slice(from).endsWith('\n> ');
 
-  // Type one line. With drainToPrompt the call waits for the REPL prompt;
-  // without it, for the keyboard buffer to empty (the `lila` word reads its
-  // own source with accept, so there is no prompt until it has run).
+  // The LILA prompt always follows a CR of its own, so it too starts a line.
+  const atLilaPrompt = (from) => out.slice(from).endsWith('\nL> ');
+
+  // Type one line. With drainToPrompt the call waits for the DeepForth
+  // prompt; without it, for the LILA prompt, because that is where the
+  // `lila` word leaves the machine once it has read a source line.
   function type(text, cap, drainToPrompt) {
     const from = out.length;
     for (const ch of `${text}\n`) sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
@@ -124,8 +127,8 @@ export function bootNative() {
       pump(cap, () => sim.kbdBuffer.length === 0 && atPrompt(from));
       pump(200_000, () => atPrompt(from));
     } else {
-      pump(cap, () => sim.kbdBuffer.length === 0);
-      pump(100_000, () => sim.kbdBuffer.length === 0);
+      pump(cap, () => sim.kbdBuffer.length === 0 && atLilaPrompt(from));
+      pump(200_000, () => atLilaPrompt(from));
     }
     return out.slice(from);
   }
@@ -161,7 +164,7 @@ export function bootNative() {
   }
 
   function boot() {
-    for (let i = 0; i < 60_000_000 && !out.includes('> '); i++) step(1);
+    for (let i = 0; i < 60_000_000 && !out.endsWith('\n> '); i++) step(1);
     return out;
   }
 
