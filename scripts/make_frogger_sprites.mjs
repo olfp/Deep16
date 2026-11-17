@@ -29,6 +29,9 @@ const FRAMES = [
 ];
 
 // One 32x32 indexed frame: 30x28 of art centred with a one-pixel margin.
+// The sheet draws every frog with its head toward the bottom of the box, so
+// the grid is flipped vertically to face up the screen, the way the frog
+// travels.
 function frame(img, [x, y, w, h]) {
   const art = fitArt(img, { x0: x, y0: y, w, h }, 30, 28, 0);
   const grid = [];
@@ -37,7 +40,7 @@ function frame(img, [x, y, w, h]) {
     for (let gx = 0; gx < 32; gx++) {
       const u = gx - 1;
       const v = gy - 2;
-      row.push(u >= 0 && v >= 0 && u < 30 && v < 28 ? art[v][u] : 0);
+      row.push(u >= 0 && v >= 0 && u < 30 && v < 28 ? art[27 - v][u] : 0);
     }
     grid.push(row);
   }

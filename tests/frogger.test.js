@@ -414,3 +414,48 @@ test('the fifth bay completes the level and speeds the lanes up', () => {
   assert.deepEqual(speeds(), before.map((s) => s + 1), 'every lane one step faster');
   assert.equal(f.lane(), 11, 'the next life starts on the bank');
 });
+
+test('a vehicle touches the frog, not its whole cell', () => {
+  const sim = start();
+  run(sim, 40);
+  const f = frogState(sim);
+  const sym = frogger.symbols;
+  for (let i = 0; i < 9; i++) f.set(sym.fr_speeds + i, 0);   // freeze the lanes
+  run(sim, 3);
+
+  const lane = 8;                       // road 3, the yellow car
+  const table = 6;
+  const laneStart = f.word(0x800 + table) & 31;
+  const fine = (f.word(0x809 + table) & 31) >> 2;
+  const mask = f.word(sym.fr_pmask + table);
+  const runLen = f.word(sym.fr_runs + table);
+  // A car well inside the playfield: its 32-px cell box starts at S.
+  let first = -1;
+  for (let c = 8; c <= 40; c++) {
+    if (((c + laneStart) & mask) < runLen) { first = c; break; }
+  }
+  assert.ok(first >= 0, 'found a car');
+  const S = 192 + first * 8 - fine;
+  const E = S + runLen * 8;
+  assert.ok(S > 220 && E < 600, `car box ${S}..${E} is inside the field`);
+
+  const place = (x) => {
+    f.set(0x833, 0);
+    f.set(0x832, 0);
+    f.set(0x831, lane);
+    f.set(0x830, x * 4);
+  };
+  place(S - 29);
+  run(sim, 1);
+  assert.equal(f.dead(), 0, 'one pixel of daylight is safe');
+  place(S - 28);
+  run(sim, 1);
+  assert.ok(f.dead() > 0, 'the frog box meeting the car squashes');
+
+  place(E - 4);
+  run(sim, 1);
+  assert.ok(f.dead() > 0, 'still touched at the car right edge');
+  place(E - 3);
+  run(sim, 1);
+  assert.equal(f.dead(), 0, 'clear of the car again');
+});

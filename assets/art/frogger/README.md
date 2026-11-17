@@ -21,6 +21,7 @@ costs the baked banks nothing.
 
 The game's 32x32 sprite frames (frog idle, hop and squash, the home frog and
 the fly) are baked by `scripts/make_frogger_sprites.mjs` into the sprite pack at
-slice offset `0x2000`; the entry installs them into the sprite bank from group
+slice offset `0x2000`. The sheet draws the frogs head-down, so the frame baker
+flips each one vertically to face up the screen; the entry installs them into the sprite bank from group
 0. Nothing is baked into `birdsprite.hex` either, so the menu and the other
 games keep their own art until they load their packs.

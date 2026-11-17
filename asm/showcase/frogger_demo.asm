@@ -1656,10 +1656,12 @@ fr_fu_nohop:
     LD R3, R2, 0
     AND R3, R3
     JZ fr_fu_home              ; top bank: a home bay or the hedge
+    NOP
     LDI 11
     MOV R4, R0
     CMP R3, R4
     JZ fr_fu_done              ; bottom bank
+    NOP
     LDI 6
     MOV R4, R0
     CMP R3, R4
@@ -1670,6 +1672,7 @@ fr_fu_nohop:
     MOV R4, R0
     CMP R4, R3
     JC fr_fu_road              ; lanes 7..10
+    NOP
 
     ; ---- river: splash without a log or turtle, else ride ----
     SUB R3, 1
@@ -1737,15 +1740,15 @@ fr_fu_carried:
     NOP
 
 fr_fu_road:
-    ; lanes 7..10: squash on a vehicle
+    ; lanes 7..10: squash when the frog's box overlaps a vehicle
     SUB R3, 2
-    LDI fr_cell_i
+    LDI fr_touch
     MOV R4, R0
     LINK
     JMP R4
     NOP
-    CMP R5, R6
-    JNC fr_fu_done             ; i >= run: empty road
+    AND R5, R5
+    JZ fr_fu_done
     NOP
     LDI fr_die
     MOV R4, R0
@@ -1835,6 +1838,75 @@ fr_fu_hedge:
 
 fr_fu_done:
     MOV LR, R13
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; R3 = lane table index -> R5 = 1 when the frog's collision box overlaps
+; an object in that lane, else 0.  The box is the middle 26 px of the
+; sprite (its 30-px art with 2 px of grace), so a car touches it about
+; when its art reaches the frog's art.  Testing the box's two edge cells
+; is enough: every object is 32 px or more, so it cannot fit between
+; them.  Clobbers R2,R4-R7,R12; preserves R3.
+; ---------------------------------------------------------------------
+fr_touch:
+    MOV R12, LR
+    LSI R6, 0
+fr_touch_box:
+    LDI fr_boxpts
+    MOV R2, R0
+    ADD R2, R6
+    LDS R4, DS, R2             ; box offset in the 32-px sprite
+    LDI FR_FXQ
+    MOV R2, R0
+    LD R5, R2, 0
+    SR R5, 2
+    ADD R5, R4                 ; x + offset
+    LDI FR_PHASE
+    MOV R2, R0
+    ADD R2, R3
+    LDS R4, DS, R2
+    SR R4, 2
+    ADD R5, R4                 ; + the lane's fine phase
+    LDI 192
+    MOV R4, R0
+    SUB R5, R4
+    SR R5, 3                   ; map cell under this edge
+    LDI FR_START
+    MOV R2, R0
+    ADD R2, R3
+    LDS R4, DS, R2
+    ADD R5, R4
+    LDI fr_pmask
+    MOV R2, R0
+    ADD R2, R3
+    LDS R4, DS, R2
+    AND R5, R4                 ; pattern cell
+    LDI fr_runs
+    MOV R2, R0
+    ADD R2, R3
+    LDS R4, DS, R2
+    CMP R5, R4
+    JC fr_touch_hit
+    NOP
+    ADD R6, 1
+    LDI 2
+    MOV R4, R0
+    CMP R6, R4
+    JNC fr_touch_none
+    NOP
+    LDI fr_touch_box
+    MOV PC, R0
+    NOP
+fr_touch_hit:
+    LSI R5, 1
+    LDI fr_touch_done
+    MOV PC, R0
+    NOP
+fr_touch_none:
+    LSI R5, 0
+fr_touch_done:
+    MOV LR, R12
     JMP LR
     NOP
 
@@ -2084,6 +2156,9 @@ fr_homebits:
 fr_caps:
     .word 8, 6, 10, 5, 6
     .word 10, 8, 6, 5
+; The frog's collision box inside its 32-px sprite: left edge, right edge.
+fr_boxpts:
+    .word 3, 28
 
 str_score:
     .text "SCORE 000000"
