@@ -574,15 +574,20 @@ columns 0–23, and a 448-pixel (56-cell) playfield in columns 24–79 with two
 margin cells. Objects are 26 px wide and 20 px tall, in cells of four tiles
 (cars, turtle), six tiles (fire truck) or eight tiles (truck).
 
-The frog is sprite group 0 (idle) or 1 (hop), 32x32 with 30x28 of art, and it
-rides as a sprite because the lanes scroll sub-cell every frame. Arrows and
-`w a s d` hop it one cell (32 px) or one lane (30 px); `Q` returns to the menu.
-On a river lane its centre picks the map cell, the lane's pattern says whether
-that cell is a log or turtle, and if so the frog's x follows the lane's speed
-in quarter pixels. Lanes 0 and 11 are the banks and lane 6 the median, so only
-lanes 1–5 ride anything; the frog's box is kept inside the playfield. Its
-state is `FR_FXQ` (x in quarter pixels), `FR_LANE` (0..11) and `FR_HOP`
-(animation frames), at `0x630`–`0x632`.
+The frog is sprite group 0 (idle), 1 (hop) or 2 (squashed), 32x32 with 30x28 of
+art, and it rides as a sprite because the lanes scroll sub-cell every frame.
+Arrows and `w a s d` hop it one cell (32 px) or one lane (30 px); `Q` returns
+to the menu. On a river lane its centre picks the map cell, the lane's pattern
+says whether that cell is a log or turtle, and if so the frog's x follows the
+lane's speed in quarter pixels. A river cell with no object is a splash, a road
+cell with a vehicle is a squash, and being carried past the playfield edge or
+letting the time bar empty also kills it. A death shows the squash frame with
+`SFX_DEATH` for 24 frames, ignores the hop keys, then respawns the frog on the
+bottom bank with a full time bar. Lanes 0 and 11 are the banks and lane 6 the
+median, so only lanes 1–5 ride anything and only lanes 7–10 carry vehicles; the
+frog's box is kept inside the playfield. Its state is `FR_FXQ` (x in quarter
+pixels), `FR_LANE` (0..11), `FR_HOP` (animation frames) and `FR_DEAD` (death
+countdown), at `0x730`–`0x733`.
 
 The screen is twelve double-height lanes, top to bottom: top bank (rows 0–1),
 five river lanes (2–11), median (12–13), four road lanes (14–21), bottom bank

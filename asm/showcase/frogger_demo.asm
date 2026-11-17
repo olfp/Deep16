@@ -65,20 +65,21 @@
 .equ SFX_TICK  5
 
 ; state (inside the block, after the code)
-.equ FR_START  0x600           ; nine 0..15 coarse start cells
-.equ FR_PHASE  0x609           ; nine 0..31 quarter-pixel phases
-.equ FR_LASTF  0x612
-.equ FR_RET10  0x613
-.equ FR_RET11  0x614
-.equ FR_DIRTY  0x615           ; nine "row changed last frame" cells
-.equ FR_FRONT  0x61E           ; displayed tilemap bank
-.equ FR_BACK   0x61F           ; write tilemap bank
-.equ FR_TIME   0x620           ; time bar cells left (0..56)
-.equ FR_TICK   0x621           ; frames until the next cell
-.equ FR_BARD   0x622           ; bar dirty flag
-.equ FR_FXQ    0x630           ; frog x in quarter pixels
-.equ FR_LANE   0x631           ; frog lane 0..11 (0 = top bank)
-.equ FR_HOP    0x632           ; hop animation frames left
+.equ FR_START  0x700           ; nine 0..15 coarse start cells
+.equ FR_PHASE  0x709           ; nine 0..31 quarter-pixel phases
+.equ FR_LASTF  0x712
+.equ FR_RET10  0x713
+.equ FR_RET11  0x714
+.equ FR_DIRTY  0x715           ; nine "row changed last frame" cells
+.equ FR_FRONT  0x71E           ; displayed tilemap bank
+.equ FR_BACK   0x71F           ; write tilemap bank
+.equ FR_TIME   0x720           ; time bar cells left (0..56)
+.equ FR_TICK   0x721           ; frames until the next cell
+.equ FR_BARD   0x722           ; bar dirty flag
+.equ FR_FXQ    0x730           ; frog x in quarter pixels
+.equ FR_LANE   0x731           ; frog lane 0..11 (0 = top bank)
+.equ FR_HOP    0x732           ; hop animation frames left
+.equ FR_DEAD   0x733           ; death countdown frames
 
 .org 0
 fr_entry:
@@ -139,6 +140,9 @@ fr_clear_dirty:
     LDI FR_HOP
     MOV R2, R0
     LSI R3, 0
+    ST R3, R2, 0
+    LDI FR_DEAD
+    MOV R2, R0
     ST R3, R2, 0
 
     ; remember the current frame bit so the first wait sees a change
@@ -519,6 +523,11 @@ fr_bard_done:
     MOV PC, R0
     NOP
 fr_tick_reset:
+    LDI fr_die
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI 23
     MOV R5, R0
 fr_tick_time:
@@ -573,7 +582,7 @@ fr_lane_tick:
 
 fr_frog_tick:
     ; ride whatever is under the frog, then place its sprite
-    LDI fr_frog_ride
+    LDI fr_frog_update
     MOV R4, R0
     LINK
     JMP R4
@@ -1188,14 +1197,20 @@ fr_keys:
     LDI 0x71
     MOV R3, R0
     CMP R1, R3
-    JZ fr_exit
+    JZ fr_k_exit
     NOP
     LDI 0x51
     MOV R3, R0
     CMP R1, R3
-    JZ fr_exit
+    JZ fr_k_exit
     NOP
     ; ---- hop keys: arrows and WASD --------------------------------
+    LDI FR_DEAD
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JNZ fr_k_done
+    NOP
     LDI 0x77                  ; w
     MOV R3, R0
     CMP R1, R3
@@ -1331,6 +1346,13 @@ fr_k_hop:
     MOV R2, R0
     LSI R3, 5
     ST R3, R2, 0
+    LDI fr_k_done
+    MOV PC, R0
+    NOP
+fr_k_exit:
+    LDI fr_exit
+    MOV PC, R0
+    NOP
 fr_k_done:
     JMP LR
     NOP
@@ -1351,6 +1373,17 @@ fr_frog_draw:
     MOV R4, R0
     MUL R5, R4                 ; lane * 30
     ADD R5, 1
+    LDI FR_DEAD
+    MOV R2, R0
+    LD R6, R2, 0
+    AND R6, R6
+    JZ fr_fd_not_dead
+    NOP
+    LSI R6, 2                  ; squash frame
+    LDI fr_fd_group
+    MOV PC, R0
+    NOP
+fr_fd_not_dead:
     LDI FR_HOP
     MOV R2, R0
     LD R6, R2, 0
@@ -1383,67 +1416,83 @@ fr_fd_group:
 ; an object.  The frog moves at the lane's speed in quarter pixels.
 ; Clobbers R2-R7.
 ; ---------------------------------------------------------------------
-fr_frog_ride:
-    ; age the hop animation
+; Frog logic for one frame: age the hop, run the death countdown, then the
+; splash and squash checks and the ride.  Clobbers R2-R7,R13.
+; ---------------------------------------------------------------------
+fr_frog_update:
+    MOV R13, LR
+
+    LDI FR_DEAD
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JZ fr_fu_alive
+    NOP
+    SUB R3, 1
+    ST R3, R2, 0
+    AND R3, R3
+    JNZ fr_fu_done
+    NOP
+    LDI fr_respawn
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI fr_fu_done
+    MOV PC, R0
+    NOP
+
+fr_fu_alive:
     LDI FR_HOP
     MOV R2, R0
     LD R3, R2, 0
     AND R3, R3
-    JZ fr_fr_nohop
+    JZ fr_fu_nohop
     NOP
     SUB R3, 1
     ST R3, R2, 0
-fr_fr_nohop:
+fr_fu_nohop:
 
     LDI FR_LANE
     MOV R2, R0
     LD R3, R2, 0
-    LDI 1
+    AND R3, R3
+    JZ fr_fu_done              ; top bank
+    LDI 11
     MOV R4, R0
     CMP R3, R4
-    JC fr_fr_done              ; lane 0 is a bank
+    JZ fr_fu_done              ; bottom bank
+    LDI 6
+    MOV R4, R0
+    CMP R3, R4
+    JZ fr_fu_done              ; median
+    NOP
+
     LDI 5
     MOV R4, R0
     CMP R4, R3
-    JC fr_fr_done              ; lanes 6..11 are not water
-    NOP
+    JC fr_fu_road              ; lanes 7..10
 
-    SUB R3, 1                  ; lane table index
-    ; fine phase of that lane
-    LDI FR_PHASE
-    MOV R2, R0
-    ADD R2, R3
-    LDS R5, DS, R2
-    SR R5, 2
-    ; frog centre in playfield pixels
-    LDI FR_FXQ
-    MOV R2, R0
-    LD R6, R2, 0
-    SR R6, 2
-    ADD R6, 15
-    ADD R5, R6
-    LDI 192
+    ; ---- river: splash without a log or turtle, else ride ----
+    SUB R3, 1
+    LDI fr_cell_i
     MOV R4, R0
-    SUB R5, R4
-    SR R5, 3                   ; map cell under the centre
-    LDI FR_START
-    MOV R2, R0
-    ADD R2, R3
-    LDS R6, DS, R2
-    ADD R5, R6
-    LDI fr_pmask
-    MOV R2, R0
-    ADD R2, R3
-    LDS R6, DS, R2
-    AND R5, R6                 ; pattern cell
-    LDI fr_runs
-    MOV R2, R0
-    ADD R2, R3
-    LDS R6, DS, R2
+    LINK
+    JMP R4
+    NOP
     CMP R5, R6
-    JNC fr_fr_done             ; water: nothing to ride
+    JC fr_fu_ride              ; i < run: on an object
+    NOP
+    LDI fr_die
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI fr_fu_done
+    MOV PC, R0
     NOP
 
+fr_fu_ride:
     LDI fr_speeds
     MOV R2, R0
     ADD R2, R3
@@ -1456,32 +1505,157 @@ fr_fr_nohop:
     MOV R2, R0
     LD R4, R2, 0
     AND R7, R7
-    JZ fr_fr_left
+    JZ fr_fu_left
     NOP
     ADD R4, R6
-    LDI fr_fr_store
+    LDI fr_fu_moved
     MOV PC, R0
     NOP
-fr_fr_left:
+fr_fu_left:
     SUB R4, R6
-fr_fr_store:
-    ; keep the frog's box inside the playfield
+fr_fu_moved:
+    ST R4, R2, 0
     LDI 768
     MOV R3, R0
     CMP R4, R3
-    JNC fr_fr_min_ok
+    JC fr_fu_carried
     NOP
-    MOV R4, R3
-fr_fr_min_ok:
     LDI 2440
     MOV R3, R0
     CMP R3, R4
-    JNC fr_fr_box_ok
+    JC fr_fu_carried
     NOP
-    MOV R4, R3
-fr_fr_box_ok:
-    ST R4, R2, 0
-fr_fr_done:
+    LDI fr_fu_done
+    MOV PC, R0
+    NOP
+fr_fu_carried:
+    LDI fr_die
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI fr_fu_done
+    MOV PC, R0
+    NOP
+
+fr_fu_road:
+    ; lanes 7..10: squash on a vehicle
+    SUB R3, 2
+    LDI fr_cell_i
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    CMP R5, R6
+    JNC fr_fu_done             ; i >= run: empty road
+    NOP
+    LDI fr_die
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
+fr_fu_done:
+    MOV LR, R13
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; R3 = lane table index -> R5 = pattern cell, R6 = run length.
+; Clobbers R2,R4,R5,R6; preserves R3.
+; ---------------------------------------------------------------------
+fr_cell_i:
+    LDI FR_PHASE
+    MOV R2, R0
+    ADD R2, R3
+    LDS R5, DS, R2
+    SR R5, 2
+    LDI FR_FXQ
+    MOV R2, R0
+    LD R6, R2, 0
+    SR R6, 2
+    ADD R6, 15
+    ADD R5, R6
+    LDI 192
+    MOV R4, R0
+    SUB R5, R4
+    SR R5, 3
+    LDI FR_START
+    MOV R2, R0
+    ADD R2, R3
+    LDS R6, DS, R2
+    ADD R5, R6
+    LDI fr_pmask
+    MOV R2, R0
+    ADD R2, R3
+    LDS R6, DS, R2
+    AND R5, R6
+    LDI fr_runs
+    MOV R2, R0
+    ADD R2, R3
+    LDS R6, DS, R2
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; Start a death: 24 frames of the squash frame and the death sound.
+; ---------------------------------------------------------------------
+fr_die:
+    LDI FR_DEAD
+    MOV R2, R0
+    LD R3, R2, 0
+    AND R3, R3
+    JNZ fr_die_out
+    NOP
+    LDI SFX_DEATH
+    MOV R1, R0
+    LSI R2, 1
+    LDI 9
+    SWI
+    LDI 24
+    MOV R3, R0
+    LDI FR_DEAD
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI FR_HOP
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+fr_die_out:
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------
+; Back to the bottom bank with a fresh timer.
+; ---------------------------------------------------------------------
+fr_respawn:
+    LDI FR_FXQ
+    MOV R2, R0
+    LDI 1664
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI FR_LANE
+    MOV R2, R0
+    LDI 11
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI FR_HOP
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI FR_TIME
+    MOV R2, R0
+    LDI 23
+    MOV R3, R0
+    ST R3, R2, 0
+    LDI FR_TICK
+    MOV R2, R0
+    LSI R3, 0
+    ST R3, R2, 0
+    LDI FR_BARD
+    MOV R2, R0
+    LSI R3, 1
+    ST R3, R2, 0
     JMP LR
     NOP
 
@@ -1586,7 +1760,7 @@ str_lives:
 ; =====================================================================
 ; Writable state
 ; =====================================================================
-.org 0x600
+.org 0x700
 fr_start_state:
     .word 0, 3, 6, 9, 12, 1, 4, 7, 10
 ; Start the lanes at different phases so their coarse shifts (and the
@@ -1611,10 +1785,12 @@ fr_tick:
     .word 0
 fr_bard:
     .word 0
-.org 0x630
+.org 0x730
 fr_fxq:
     .word 1664                 ; x = 416 px, middle of the playfield
 fr_lane:
     .word 11                   ; bottom bank
 fr_hop:
+    .word 0
+fr_dead:
     .word 0
