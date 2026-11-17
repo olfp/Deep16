@@ -604,10 +604,11 @@ with the timer frozen, then clears the bays, steps every lane one quarter pixel
 per frame faster up to its cap, and starts the next level.
 
 The shell runs `attract -> play -> dying -> level -> game over`. The game
-enters in attract with the board scrolling and `PRESS SPACE` in the panel;
-Space starts with three lives, `Q` leaves. A death takes a life, plays the
+enters in attract with the board scrolling and `PRESS ANY KEY` in the panel;
+any key starts with three lives (a direction also makes its first hop), and
+`Q` leaves. A death takes a life, plays the
 squash, then respawns or, after the last life, shows `GAME OVER` and waits for
-Space to start a new game. Scoring is arcade-style: 10 per forward hop, 50 per
+a key to start a new game. Scoring is arcade-style: 10 per forward hop, 50 per
 home, 10 per remaining time cell on reaching a home, and one extra life at
 20000 points. The hi-score is the session best, reset on entry. The HUD
 repaints only the fields that changed, twice, so both tilemap banks agree.

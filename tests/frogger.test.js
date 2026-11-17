@@ -498,7 +498,7 @@ function laneRun(sim, table, object) {
   return (best.from + best.to) >> 1;
 }
 
-test('the board waits in attract for Space', () => {
+test('the board waits in attract for a key', () => {
   const sim = start({ play: false });
   run(sim, 80);
   const f = frogState(sim);
@@ -508,17 +508,15 @@ test('the board waits in attract for Space', () => {
   assert.equal(hudText(sim, 0, 2, 11), 'SCORE 00000');
   assert.equal(hudText(sim, 1, 2, 8), 'HI 00000');
   assert.equal(hudText(sim, 23, 2, 7), 'LIVES 3');
-  assert.match(hudText(sim, 10, 0, 24), /PRESS SPACE/);
+  assert.match(hudText(sim, 10, 0, 24), /PRESS ANY KEY/);
 
-  sim.kbdBuffer.push(0x77);
-  run(sim, 2);
-  assert.equal(f.lane(), 11, 'directions are ignored in attract');
-
-  sim.kbdBuffer.push(0x20);
+  sim.kbdBuffer.push(0x64);            // d: start and hop right, on the bank
   run(sim, 4);
-  assert.equal(f.word(0xA37), 1, 'Space starts play');
+  assert.equal(f.word(0xA37), 1, 'a direction starts play');
+  assert.equal(f.lane(), 11, 'stays on the bank');
+  assert.equal(f.fxq(), 1728 + 128, 'and its first hop lands');
   assert.equal(f.word(0xA38), 3, 'three lives');
-  assert.doesNotMatch(hudText(sim, 10, 0, 24), /PRESS SPACE/);
+  assert.doesNotMatch(hudText(sim, 10, 0, 24), /PRESS ANY KEY/);
   run(sim, 70);
   assert.ok(f.time() < 23, 'the clock runs in play');
 });
@@ -581,16 +579,14 @@ test('each death costs a life and the last one ends the game', () => {
   assert.equal(sim.memory[0xF6000] & 0x800, 0, 'the frog is hidden');
   assert.match(hudText(sim, 10, 0, 24), /GAME OVER/);
 
-  const lane = f.lane();
-  sim.kbdBuffer.push(0x77);
-  run(sim, 2);
-  assert.equal(f.lane(), lane, 'keys are ignored at game over');
-
-  sim.kbdBuffer.push(0x20);
+  // any key starts a new game; a direction also makes its first hop
+  sim.kbdBuffer.push(0x64);            // d
   run(sim, 4);
-  assert.equal(f.word(0xA37), 1, 'Space restarts');
+  assert.equal(f.word(0xA37), 1, 'a direction restarts');
   assert.equal(f.word(0xA38), 3, 'three lives again');
   assert.equal(f.word(0xA39), 0, 'score reset');
+  assert.equal(f.lane(), 11, 'back on the bank');
+  assert.equal(f.fxq(), 1728 + 128, 'the restarting hop went right');
   assert.doesNotMatch(hudText(sim, 10, 0, 24), /GAME OVER/);
 });
 

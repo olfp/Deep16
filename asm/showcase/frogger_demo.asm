@@ -1594,7 +1594,7 @@ fr_m_paint:
     JNZ fr_m_over
     NOP
     LSI R9, 10
-    LSI R10, 6
+    LSI R10, 5
     LDI str_press
     MOV R8, R0
     LDI fr_text
@@ -1666,22 +1666,41 @@ fr_keys:
     CMP R1, R3
     JZ fr_k_exit
     NOP
-    ; Space starts the game from attract, or a new one after GAME OVER.
-    LDI 0x20
-    MOV R3, R0
-    CMP R1, R3
-    JZ fr_k_space
-    NOP
-    ; The direction keys only steer a live game.
+    ; Any key starts a game from attract or after GAME OVER.  Space only
+    ; starts; a direction also makes its first hop, so the arrow keys work
+    ; straight away.
     LDI FR_STATE
     MOV R2, R0
     LDS R3, DS, R2
+    AND R3, R3
+    JZ fr_k_start
+    NOP
+    LDI ST_OVER
+    MOV R4, R0
+    CMP R3, R4
+    JZ fr_k_start
+    NOP
     LDI ST_PLAY
     MOV R4, R0
     CMP R3, R4
-    JNZ fr_k_done
+    JNZ fr_k_done             ; dying and level pauses take no steering
+    NOP
+    LDI fr_k_decode
+    MOV PC, R0
     NOP
 
+fr_k_start:
+    LDI fr_start_game
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 0x20
+    MOV R3, R0
+    CMP R1, R3
+    JZ fr_k_done              ; Space starts without a hop
+    NOP
+fr_k_decode:
     ; ---- hop keys: arrows and WASD --------------------------------
     LDI 0x77                  ; w
     MOV R3, R0
@@ -1847,30 +1866,6 @@ fr_k_hop:
     MOV R2, R0
     LSI R3, 5
     ST R3, R2, 0
-    LDI fr_k_done
-    MOV PC, R0
-    NOP
-fr_k_space:
-    LDI FR_STATE
-    MOV R2, R0
-    LDS R3, DS, R2
-    AND R3, R3
-    JZ fr_k_start
-    NOP
-    LDI ST_OVER
-    MOV R4, R0
-    CMP R3, R4
-    JZ fr_k_start
-    NOP
-    LDI fr_k_done
-    MOV PC, R0
-    NOP
-fr_k_start:
-    LDI fr_start_game
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
     LDI fr_k_done
     MOV PC, R0
     NOP
@@ -2924,7 +2919,7 @@ str_hi_lbl:
 str_lives_lbl:
     .text "LIVES "
 str_press:
-    .text "PRESS SPACE"
+    .text "PRESS ANY KEY"
 str_over:
     .text "GAME OVER"
 
