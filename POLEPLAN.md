@@ -1,9 +1,9 @@
 # POLEPLAN — Pole Position-style racer for Deep16 FiT
 
-Status: **milestone 1 complete; milestone 2 complete on the core3 model
-(16 November 2026).** The on-board harness is built and published as a
-config-flash slice, but the board run itself is still open; the art pipeline
-and the gameplay slice follow.
+Status: **milestone 1 complete; milestone 2 complete, on the core3 model and
+on the board (17 November 2026).** The on-board harness ran on the real FPGA:
+99,127 cycles per frame, 88.1% of the 60 Hz budget. The art pipeline and the
+gameplay slice follow.
 
 ## Objective
 
@@ -230,16 +230,16 @@ projection, the per-row edge and stripe arithmetic, and the eight sprites.
 The remaining lever is the full redraw. The renderer paints the whole
 80x24 back bank every frame because the bank is swapped every frame; a dirty
 scheme that keeps the sky rows in both banks would cut roughly a quarter of
-the cells, and fewer effective road bands would cut the projection. Neither
-is needed to fit the current budget, so both stay open for milestone 4 if the
-gameplay slice needs the headroom.
+the cells, and fewer effective road bands would cut the projection. On the
+board the margin is only 13,373 cycles per frame, so the dirty scheme moves
+up from milestone 4 into milestone 3: it is the cheapest way to buy back the
+time the gameplay slice needs.
 
-#### Board measurement (harness ready, run pending)
+#### Board measurement (measured 17 November 2026)
 
-The board run is the open gate for milestone 2, so the harness that makes it
-is built and tested: `asm/pole/pole_board.asm` is the same renderer and the
-same state handling as the core3 benchmark, wrapped in a timing loop that
-uses the board's own clocks.
+The board run was the gate for milestone 2, and it is now closed:
+`asm/pole/pole_board.asm` is the same renderer and the same state handling as
+the core3 benchmark, wrapped in a timing loop that uses the board's own clocks.
 
 - the 32-bit millisecond timer at `0xF0022`/`0xF0024` (6,750 clocks to a
   millisecond at 6.75 MHz) is the primary measurement;
@@ -274,6 +274,37 @@ s" pole" game-run
 `npm run bench:pole:board` prints those instructions and, with
 `--port=/dev/ttyUSB0`, captures the report and prints the difference against
 the core3 baseline. `--sim` dry-runs the harness on the JS core.
+
+**The measured result** (a D16nano tile board, core3 at 6.75 MHz, 1,024
+frames):
+
+```
+POLE frames=01024 ms=15038 cyc16=56906 cyc_per_frame=99127 core3=055824
+```
+
+| | cycles per frame | share of the 60 Hz budget |
+|---|---:|---:|
+| core3, combinational memory | 55,824 | 49.6% |
+| **board, real PSRAM** | **99,127** | **88.1%** |
+| 60 Hz budget at 6.75 MHz | 112,500 | 100% |
+
+- the board is 1.78x the core3 figure: the PSRAM misses cost about 43,300
+  cycles per frame;
+- 15,038 ms for 1,024 frames is 14.69 ms per frame, so the renderer alone
+  reaches 68 fps and leaves 2.0 ms per frame for everything else;
+- the cycle counter agrees with the timer: 101,506,500 cycles is 56,772
+  modulo 65,536, and the counter read 56,906 - 134 cycles apart, well inside
+  the one-millisecond truncation of the timer;
+- the margin is 13,373 cycles per frame, not the 20,000 the plan assumed.
+  The renderer still fits 60 Hz, but the headroom is now thin, so the fill
+  loop has to get cheaper before the gameplay slice asks for time.
+
+The screen during the run shows the report line, the console's own text and
+the road, but the road is drawn with the wrong tiles: the slice carries no
+tile art, so tiles 96..120 hold whatever the last game left in the tile
+bank. The geometry is right (the road, its edges, the centre line and the
+sprites sit where the model puts them); the pixels are not. The art pipeline
+in milestone 3 gives the pole a tile pack like the other games have.
 
 `tests/pole-board.test.js` (12 tests) runs the harness on the JS core and
 checks that it renders exactly the host model's picture, that its arithmetic
