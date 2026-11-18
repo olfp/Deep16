@@ -8,9 +8,9 @@
 ; The report goes out over the UART and is drawn into the visible tilemap, so
 ; the number can be read off the screen as well as off the serial console:
 ;
-;   POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=055824
+;   POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=056697
 ;
-; The core3 baseline is 55,824 cycles/frame, measured by scripts/bench_pole.mjs
+; The core3 baseline is 56,697 cycles/frame, measured by scripts/bench_pole.mjs
 ; on the RTL core with combinational memory. The board number includes the
 ; PSRAM cache misses, so it is expected to be higher.
 ;
@@ -31,6 +31,10 @@
 ;   0x0520  the frame counter and the harness's own cells
 ;   0x0580  the report strings
 ;   0x0600  the driver and its helpers
+;   0x0900  the art copy (asm/pole/pole_art.asm)
+;   0x1000  the tile art (32 tiles, 1024 words)
+;   0x1400  the sprite art (17 groups, 4352 words)
+;   0x2500  the palettes (48 words)
 
 .equ SEG_TILE -0x0F00          ; 0xF100: the tilemap
 .equ SEG_CTRL -0x0E00          ; 0xF200: the control registers
@@ -152,13 +156,23 @@ str_cpf:
     .text " cyc_per_frame="
 .org 0x05B0
 str_core3:
-    .text " core3=055824"
+    .text " core3=056697"
 
 ; ---------------------------------------------------------------------------
 ; The driver.
 ; ---------------------------------------------------------------------------
 .org 0x0600
 board_main:
+    ; ---- the art ---------------------------------------------------------
+    ; The tile, sprite and palette banks are shared with the other games, so
+    ; the slice copies its own art in before the first frame. The copy is
+    ; outside the measured loop.
+    LDI pole_art_copy
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
     ; ---- the state ------------------------------------------------------
     LDI pole_state_init
     MOV R4, R0

@@ -189,12 +189,35 @@ hedge and bay art at tiles 26–38. Code and state stay below `0x1000`
 (`FROGGER_LIMIT`); the state block starts at `0xA00`, with the frog's x, lane,
 hop counter, death countdown, filled bays, level, pause, game state, lives,
 score, hi-score, extra-life flag, HUD flags and facing at `0xA30`–`0xA3F`.
-| Pole (road renderer benchmark) | 31 | `0x7000` |
+| Pole (road renderer benchmark) | 32–36 | `0x7000` |
 
 Each of those blocks carries its tile art at segment offset `0x1000` (magic
 `0x0A57`, tile count, then index + 32 words); the menu copies it into the tile
 bank before entering the game, because the three art sets overlap (14 + 24 +
 79 tiles in 79 usable slots). The bitstream bakes only the console font.
+
+The Pole slice is different: it is not launched from the menu but by
+`s" pole" game-run`, so it carries its own art and copies it in itself. Its
+segment layout is:
+
+| Offset | Contents |
+|---|---|
+| `0x0000` | the slice entry |
+| `0x0100`–`0x03FF` | the renderer and its helpers |
+| `0x0400`–`0x04AF` | the curve, width, hill and sprite tables |
+| `0x04B0`–`0x051F` | the state, the scratch cells and the band descriptors |
+| `0x0520`–`0x053F` | the harness's own cells (the frame counter, the report helpers) |
+| `0x0580`–`0x05BF` | the report strings |
+| `0x0600`–`0x08FF` | the board driver and its helpers |
+| `0x0900`–`0x092F` | `pole_art_copy`, the bank copy |
+| `0x1000`–`0x13FF` | the tile art: 32 tiles of 32 words (slots 96–127) |
+| `0x1400`–`0x24FF` | the sprite art: 17 groups of 256 words (group 0 = the player) |
+| `0x2500`–`0x252F` | the palettes: the text, art and sprite banks of set 0 |
+
+The copy routine (`asm/pole/pole_art.asm`) moves the three blocks into the
+tile bank at `0xF3C00` (tile 96), the sprite bank at `0xF4000` (group 0) and
+the palette window at `0xF6080` (set 0, bank 0). It leaves the console font
+(tiles 0–95) and the bird sprite (group 24) alone.
 
 The `0x4350` gap is still free (`dict_free = 0x434F`), and the BIOS has taken
 over the top of the old game area: the menu/BDOS bridge ends at `0x548D`, the
@@ -601,12 +624,12 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x211000`–`0x213FFF` | slices 17–19: `sd.fth` (loaded with `s" sd-card" need`) |
 | `0x214000`–`0x217FFF` | slices 20–23: Pac-Man (8064 words incl. its tile pack, segment `0x2000`) |
 | `0x218000`–`0x21AFFF` | slices 24–26: Flappy (4560 words incl. pack, segment `0x5000`) |
-| `0x21B000`–`0x21EFFF` | slices 27–30: Frogger (6276 words incl. pack, segment `0x0600`) |
-| `0x21F000` | slice 31: Pole road renderer and its on-board timing harness (2003 words, segment `0x7000`) |
-| `0x220000` | slice 32: `hello.fth` |
-| `0x221000` | slice 33: `ping` μ-law sample |
-| `0x222000`–`0x227FFF` | slices 34–39: `swoosh` 2-second μ-law sample (linked) |
-| `0x228000`–`0x22DFFF` | slices 40–47: `lila` (the on-device LILA compiler) |
+| `0x21B000`–`0x21FFFF` | slices 27–31: Frogger (9993 words incl. its tile and sprite packs, segment `0x0600`) |
+| `0x220000`–`0x224FFF` | slices 32–36: Pole road renderer, its on-board timing harness and its art (9520 words, segment `0x7000`) |
+| `0x225000` | slice 37: `hello.fth` |
+| `0x226000` | slice 38: `ping` μ-law sample |
+| `0x227000`–`0x22CFFF` | slices 39–44: `swoosh` 2-second μ-law sample (linked) |
+| `0x22D000`–`0x234FFF` | slices 45–52: `lila` (the on-device LILA compiler) |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and

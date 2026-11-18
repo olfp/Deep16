@@ -20,6 +20,9 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { ART_PACK_OFFSET, flappyArtPack, pacmanArtPack, froggerArtPack } from './make_tile_font.mjs';
 import { SPR_PACK_OFFSET, froggerSpritePack } from './make_frogger_sprites.mjs';
+import {
+  ART_OFFSETS, poleTileWords, poleSpriteWords, polePaletteWords,
+} from './make_pole_art.mjs';
 import { assemblePoleBoard } from './pole_program.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,7 +42,7 @@ export const FROGGER_SEG_BASE = 0x6000;
 export const FROGGER_LIMIT = 0x1000;           // code and state stay below the tile pack
 export const GAME_LIMIT = 0x0E00;             // game may use 0xA00..0xDFF
 export const POLE_SEG = 0x7000;                // physical 0x70000 (free segment)
-export const POLE_LIMIT = 0x1000;              // the slice payload is one 4K page
+export const POLE_LIMIT = 0x2600;              // the code, then the art blocks
 
 export const STATE_BASE = 0x4D5;              // game state cells
 export const RESTORE_BASE = 0x500;            // menu code starts here
@@ -213,12 +216,10 @@ export function checkFrogger(frogger) {
 }
 
 // The Pole road renderer is a type-4 slice loaded at segment 0x7000. It
-// carries the renderer, the shared state handling and the on-board timing
-// harness, so the board can measure the renderer with its own clocks.
-//
-// The slice has no tile pack: the harness only writes the report line into
-// the tilemap, and that uses the console's text font, which the bitstream
-// already carries.
+// carries the renderer, the shared state handling, the on-board timing
+// harness and the art: the tile bank, the sprite bank and the palettes, so
+// the board draws a real road instead of whatever the last game left in the
+// banks.
 export function buildPole() {
   const res = assemblePoleBoard();
   const words = [];
@@ -230,12 +231,29 @@ export function buildPole() {
     words.push([c.address, c.value & 0xFFFF]);
     max = Math.max(max, c.address);
   }
+  // The art blocks: the 32 tiles, the 17 sprite groups and the palettes.
+  const art = [
+    [ART_OFFSETS.TILE, poleTileWords()],
+    [ART_OFFSETS.SPRITE, poleSpriteWords()],
+    [ART_OFFSETS.PALETTE, polePaletteWords()],
+  ];
+  for (const [base, block] of art) {
+    for (let i = 0; i < block.length; i++) {
+      const address = base + i;
+      if (address >= POLE_LIMIT) {
+        throw new Error(`pole art ends at 0x${address.toString(16)}, past the segment`);
+      }
+      words.push([address, block[i] & 0xFFFF]);
+      max = Math.max(max, address);
+    }
+  }
   words.sort((a, b) => a[0] - b[0]);
   const build = crypto.createHash('sha256')
     .update(fs.readFileSync(path.join(ROOT, 'asm/pole/pole_tables.asm'), 'utf8') +
             fs.readFileSync(path.join(ROOT, 'asm/pole/pole_render.asm'), 'utf8') +
             fs.readFileSync(path.join(ROOT, 'asm/pole/pole_state.asm'), 'utf8') +
-            fs.readFileSync(path.join(ROOT, 'asm/pole/pole_board.asm'), 'utf8'))
+            fs.readFileSync(path.join(ROOT, 'asm/pole/pole_board.asm'), 'utf8') +
+            fs.readFileSync(path.join(ROOT, 'asm/pole/pole_art.asm'), 'utf8'))
     .digest('hex').slice(0, 16);
   return {
     words, min: words[0]?.[0] ?? 0, max, size: max + 1, build,
@@ -247,14 +265,31 @@ export function checkPole(pole) {
   const fail = [];
   if (pole.words[0]?.[0] !== 0) fail.push('pole block does not start at offset 0');
   if (pole.max >= POLE_LIMIT) fail.push(`pole block reaches 0x${pole.max.toString(16)}`);
-  // A type-4 slice carries five header words and 2040 payload words.
-  if (pole.max + 1 + 5 > 2040) fail.push(`pole block is ${pole.max + 1} words, past one slice`);
+  // A type-4 slice carries five header words and 2040 payload words per
+  // slice, so the block may span several slices.
+  const slices = Math.ceil((pole.max + 1 + 5) / 2040);
+  if (slices > 8) fail.push(`the pole block needs ${slices} slices`);
   // The harness's own cells start at 0x0520; the renderer's scratch cells
   // (0x04DC..0x04EC) and the band descriptors (0x04F0..0x051F) are off limits.
   for (const [a] of pole.words) {
     if (a >= 0x04DC && a < 0x0520) {
       fail.push(`write into the renderer's scratch at 0x${a.toString(16)}`);
       break;
+    }
+  }
+  // The code has to end before the art copy at 0x0900, and the art blocks
+  // have to sit where asm/pole/pole_art.asm expects them.
+  const code = pole.words.filter(([a]) => a < 0x0900).map(([a]) => a);
+  if (Math.max(...code) >= 0x0900) {
+    fail.push(`the pole code reaches 0x${Math.max(...code).toString(16)}`);
+  }
+  for (const [base, length] of [[ART_OFFSETS.TILE, 1024],
+                                [ART_OFFSETS.SPRITE, 4352],
+                                [ART_OFFSETS.PALETTE, 48]]) {
+    const at = pole.words.find(([a]) => a === base)?.[1];
+    if (at === undefined) fail.push(`the pole art block at 0x${base.toString(16)} is missing`);
+    if (base + length > POLE_LIMIT) {
+      fail.push(`the pole art block at 0x${base.toString(16)} runs past the segment`);
     }
   }
   if (pole.symbols.pole_render !== 0x01A0) fail.push('the renderer moved');

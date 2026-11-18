@@ -49,8 +49,9 @@ test('the pole block is a valid binary slice', () => {
   assert.equal(words[base + 12], 0x7000, 'load segment');
   const pole = buildPole();
   assert.equal(man.words, pole.max + 1);
-  // The harness is one slice, so the loader copies it in one go.
-  assert.equal(man.count, 1, 'the pole harness fits one slice');
+  // The harness carries its art, so it spans several slices: the loader
+  // follows the link and copies the continuations.
+  assert.ok(man.count > 1, 'the pole harness carries its art and spans several slices');
   for (const [addr, value] of pole.words) {
     assert.equal(payloadWord(words, man.first, 5 + addr), value,
                  `word 0x${addr.toString(16)}`);

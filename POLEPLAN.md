@@ -2,8 +2,10 @@
 
 Status: **milestone 1 complete; milestone 2 complete, on the core3 model and
 on the board (17 November 2026).** The on-board harness ran on the real FPGA:
-99,127 cycles per frame, 88.1% of the 60 Hz budget. The art pipeline and the
-gameplay slice follow.
+99,127 cycles per frame, 88.1% of the 60 Hz budget. Milestone 3 (the art
+pipeline) is built and tested on the host: the core3 baseline is now 56,697
+cycles per frame (50.4% of the budget) after the scrolling grass and the
+alternating mountain row; its board run is open.
 
 ## Objective
 
@@ -198,17 +200,17 @@ difference is the renderer's own cost.
 
 | Work | Cycles per frame | Share of the 60 Hz budget |
 |---|---:|---:|
-| Renderer (projection + tilemap + sprites) | 55,824 | 49.6% |
+| Renderer (projection + tilemap + sprites) | 56,697 | 50.4% |
 | State advance (phase, hill, horizon) | 169 | 0.2% |
-| **Total** | **55,993** | **49.8%** |
+| **Total** | **56,866** | **50.5%** |
 | 60 Hz budget at 6.75 MHz | 112,500 | 100% |
 
-That is 13,394 instructions per frame at about 4.16 cycles per instruction
+That is 13,565 instructions per frame at about 4.18 cycles per instruction
 (the core3 needs four cycles for an ALU op and five for a load or a store).
 
 The measurement is against the plan's allocation of 15-20k for the road
 projection, 35-45k for the tilemap, and 5-10k for the sprites: the renderer
-does all three in 55.8k, the low end of that range. With 20-25k for input,
+does all three in 56.7k, the low end of that range. With 20-25k for input,
 physics, AI, and collisions, the frame lands near 81k of the 112.5k budget
 and keeps the planned 20k safety margin.
 
@@ -250,10 +252,10 @@ the core3 benchmark, wrapped in a timing loop that uses the board's own clocks.
   so it can be read off the screen as well as off the serial console:
 
   ```
-  POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=055824
+  POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=056697
   ```
 
-  The core3 baseline (55,824) is printed alongside the board number, so the
+  The core3 baseline (56,697) is printed alongside the board number, so the
   two are directly comparable. The millisecond and cycles-per-frame fields
   are full decimal numbers, because the board is slower than the core3 with
   its combinational memory and may pass 65,535 cycles per frame. A `!` in
@@ -276,7 +278,9 @@ s" pole" game-run
 the core3 baseline. `--sim` dry-runs the harness on the JS core.
 
 **The measured result** (a D16nano tile board, core3 at 6.75 MHz, 1,024
-frames):
+frames). This run was taken with the milestone-2 renderer, before the art
+pipeline added the scrolling grass, so the core3 field quotes the baseline of
+the day:
 
 ```
 POLE frames=01024 ms=15038 cyc16=56906 cyc_per_frame=99127 core3=055824
@@ -299,12 +303,22 @@ POLE frames=01024 ms=15038 cyc16=56906 cyc_per_frame=99127 core3=055824
   The renderer still fits 60 Hz, but the headroom is now thin, so the fill
   loop has to get cheaper before the gameplay slice asks for time.
 
-The screen during the run shows the report line, the console's own text and
-the road, but the road is drawn with the wrong tiles: the slice carries no
-tile art, so tiles 96..120 hold whatever the last game left in the tile
-bank. The geometry is right (the road, its edges, the centre line and the
-sprites sit where the model puts them); the pixels are not. The art pipeline
-in milestone 3 gives the pole a tile pack like the other games have.
+The art pipeline of milestone 3 changed the renderer slightly: the grass now
+scrolls with the road and the mountain row alternates two profiles, which
+costs 873 core3 cycles per frame and takes the core3 baseline from 55,824 to
+56,697 (50.4% of the budget). The board number has to be re-measured after
+the art run; on the board the same change should cost roughly 1,500 cycles
+per frame, so the margin should still be around 11,000 cycles. The report
+quotes the current baseline, so the new run is directly comparable with the
+old one.
+
+The screen during the milestone-2 run showed the report line, the console's
+own text and the road, but the road was drawn with the wrong tiles: the slice
+carried no tile art, so tiles 96..120 held whatever the last game left in
+the tile bank. The geometry was right (the road, its edges, the centre line
+and the sprites sat where the model puts them); the pixels were not.
+Milestone 3 gives the pole a tile pack like the other games have, and the
+slice copies it into the banks itself.
 
 `tests/pole-board.test.js` (12 tests) runs the harness on the JS core and
 checks that it renders exactly the host model's picture, that its arithmetic
@@ -324,11 +338,67 @@ board and bench drivers leave the same state behind.
 - `scripts/build_core3_pole_bench.sh`
 - `tests/pole-asm.test.js` (10 tests), `tests/pole-board.test.js` (12 tests)
 
-### Milestone 3 — final art pipeline
+### Milestone 3 — final art pipeline (art built, board run pending)
 
-Produce the final 32-slot game-art set, 24 sprite groups, scale-bin metadata,
-palettes, and a runtime tile-pack loader. Build checks must reject art that
-exceeds the tile or group budgets.
+The board run of milestone 2 showed the road geometry is right but the pixels
+are not: the pole slice carried no tile art, so the renderer pointed at slots
+96..127 and the bank still held whatever the last game left there. Milestone
+3 replaces that with real art, in the FiT's own formats.
+
+**What was built**
+
+- `scripts/make_pole_art.mjs` is the source of truth for the art: the tile
+  grids (sky, mountains, treeline, grass, asphalt, kerbs, the centre stripe),
+  the car sprites, the palettes, and the three bank blocks. The shapes are
+  drawn as pixel grids and packed into the hardware formats there, so there
+  is no second copy of the art anywhere.
+- `scripts/render_pole_art.mjs` previews the *hardware* picture: the integer
+  model writes the map and the OAM, the art goes into the banks, and the
+  behavioural tile engine composites the frame. What comes out is what the
+  board shows, down to the last pixel. `npm run render:pole:art` writes it to
+  `artifacts/pole/`.
+- `asm/pole/pole_art.asm` copies the art into the banks when the slice
+  starts: three block moves, one per bank. The tile art is the last 32 tiles
+  of the tile bank, the sprite art is the first 17 groups of the sprite bank,
+  and the three palettes are three consecutive 16-word banks of the palette
+  window. The console font and the bird sprite are left alone.
+- The slice carries the art, so it is no longer one 4 KB slice but five
+  (9,520 words). The loader already follows the link and copies the
+  continuations, so `game-run` works unchanged.
+
+**Two bugs the art work found**
+
+- The model's sprite group table was `[0, 1, 5, 9]`: group 0 is the player's
+  car, so the first model started on top of it and the third model overlapped
+  the second. The table is now `[1, 5, 9, 13]` (the player, then four models
+  of four scale bins), and `scripts/make_pole_tables.mjs` regenerates the
+  assembly table from it.
+- The ground stood still: every row used the same grass tile. The grass now
+  takes the same band parity as the road texture, so the ground scrolls with
+  the road. The model and the assembly changed together, and the parity test
+  still passes cell for cell.
+
+**The cost**
+
+The art copy is 5,424 words moved once, before the measured loop, so it costs
+nothing per frame. The renderer changes do cost: the scrolling grass and the
+alternating mountain row take the core3 baseline from 55,824 to 56,697
+cycles per frame (50.4% of the 60 Hz budget), and the report and the plan
+quote the new number. On the board the same change should cost roughly 1,500
+cycles per frame.
+
+The mountain row needed a restructure to fit: a conditional branch reaches
+nine bits, and the row body was already 243 words against a 255-word limit.
+The sky path moved out of the row body into a helper, which brought the body
+back to 228 words and left room to grow again.
+
+**Still open**
+
+- The board run with the art. The copy costs about 38,000 instructions once,
+  before the measured loop, so the cycles per frame should only move by the
+  grass change.
+- The dirty redraw, which milestone 2 pulled forward: the margin on the
+  board is 13,373 cycles per frame.
 
 ### Milestone 4 — gameplay slice
 

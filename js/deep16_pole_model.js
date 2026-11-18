@@ -40,8 +40,10 @@
   const ART = Object.freeze({
     SKY: 96,
     MOUNTAIN_A: 97,
+    MOUNTAIN_B: 98,
     MOUNTAIN_C: 99,
-    GRASS: 100,
+    GRASS_A: 100,
+    GRASS_B: 101,
     ROAD_A: 102,
     ROAD_B: 103,
     LEFT_EDGE: 104,     // 104..111: left edge, eight sub-cell offsets
@@ -52,7 +54,9 @@
   // Sprite scale bins: width, height and the group base per car model.
   const SPRITE_W = Object.freeze([28, 21, 14, 8]);
   const SPRITE_H = Object.freeze([22, 16, 11, 6]);
-  const SPRITE_GROUPS = Object.freeze([0, 1, 5, 9]);   // group base per model
+  // The group base per car model. Group 0 is the player's car, so the first
+  // model starts at group 1 and every model owns four scale bins.
+  const SPRITE_GROUPS = Object.freeze([1, 5, 9, 13]);
 
   // The band -> scale bin table. Band 0 is the closest to the camera.
   const SCALE_BIN = Object.freeze([0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]);
@@ -171,13 +175,26 @@
     const band = ROWS - 1 - row;
     const info = bands[band];
     if (!info) {
-      // Above the horizon: the two rows closest to it carry the mountains.
+      // Above the horizon: the rows closest to it carry the mountains and
+      // the tree line.
       const dy = row * CELL_H + 7 - state.horizonY;
-      let tile = ART.SKY;
-      if (dy >= -CELL_H) tile = ART.MOUNTAIN_C;
-      else if (dy >= -2 * CELL_H) tile = ART.MOUNTAIN_A;
-      const word = tile << 5;
-      for (let col = 0; col < COLS; col++) cells[col] = word;
+      if (dy >= -CELL_H) {
+        // The tree line stands on the horizon.
+        const word = ART.MOUNTAIN_C << 5;
+        for (let col = 0; col < COLS; col++) cells[col] = word;
+      } else if (dy >= -2 * CELL_H) {
+        // The mountain row alternates the two profiles. One profile repeated
+        // every eight pixels reads as a row of teeth; two of them give the
+        // ridge line a sixteen pixel period and it reads as a range.
+        const first = ART.MOUNTAIN_A << 5;
+        const second = ART.MOUNTAIN_B << 5;
+        for (let col = 0; col < COLS; col++) {
+          cells[col] = (col & 1) ? second : first;
+        }
+      } else {
+        const word = ART.SKY << 5;
+        for (let col = 0; col < COLS; col++) cells[col] = word;
+      }
       return cells;
     }
 
@@ -191,7 +208,9 @@
     const centerOff = info.center & 7;
 
     const roadTile = ((((state.phase + band) >> 3) & 1) ? ART.ROAD_B : ART.ROAD_A) << 5;
-    const grassWord = ART.GRASS << 5;
+    // The grass takes the same band parity as the road texture, so the ground
+    // scrolls with the road instead of standing still.
+    const grassWord = ((((state.phase + band) >> 3) & 1) ? ART.GRASS_B : ART.GRASS_A) << 5;
     const leftWord = (ART.LEFT_EDGE + leftOff) << 5;
     const rightWord = (ART.RIGHT_EDGE + rightOff) << 5;
     const centerWord = (ART.CENTER + centerOff) << 5;

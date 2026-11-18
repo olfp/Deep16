@@ -10,7 +10,7 @@
 ; tests/pole-asm.test.js compares the map this code writes with the model's,
 ; cell for cell.
 ;
-; Measured cost on the core3 RTL model: 13,394 instructions and 55,824 cycles
+; Measured cost on the core3 RTL model: 13,565 instructions and 56,697 cycles
 ; per frame, out of the 112,500 cycles a 60 Hz frame has at 6.75 MHz. About
 ; 55% of the instructions are the per-cell fill loop below, which writes
 ; 1,867 cells per frame at four instructions each.
@@ -53,8 +53,10 @@
 
 .equ ART_SKY    96
 .equ ART_MTN_A  97
+.equ ART_MTN_B  98
 .equ ART_MTN_C  99
-.equ ART_GRASS  100
+.equ ART_GRASS_A 100
+.equ ART_GRASS_B 101
 .equ ART_ROAD_A 102
 .equ ART_ROAD_B 103
 .equ ART_L_EDGE 104
@@ -76,6 +78,7 @@
 .equ SCR_CENTER  0x04E8
 .equ SCR_EDGER   0x04EA
 .equ SCR_MID     0x04EC
+.equ SCR_GRASS   0x04EE
 .equ BND_BASE    0x04F0
 
 ; The entry point jumps to whichever driver the program was built with:
@@ -375,6 +378,16 @@ road_a:
     MOV R2, R0
     ST R3, R2, 0
 
+    ; The grass takes the same band parity as the road texture (R10 is still
+    ; the parity bit), so the ground scrolls with the road.
+    LDI ART_GRASS_A
+    ADD R0, R10
+    SL R0, 5
+    MOV R3, R0
+    LDI SCR_GRASS
+    MOV R2, R0
+    ST R3, R2, 0
+
     ; ---- write the row --------------------------------------------------
     ; The grass goes down first, on both sides of the road, and the road is
     ; painted over it. A road narrower than one cell can put the left edge
@@ -383,9 +396,9 @@ road_a:
     CMP R4, R9
     JZ no_left_grass
     NOP
-    LDI ART_GRASS
-    SL R0, 5
-    MOV R6, R0
+    LDI SCR_GRASS
+    MOV R2, R0
+    LD R6, R2, 0
     MOV R2, R12
     MOV R3, R4
     LDI fill_cells
@@ -401,9 +414,9 @@ no_left_grass:
     CMP R3, R9
     JZ no_right_grass
     NOP
-    LDI ART_GRASS
-    SL R0, 5
-    MOV R6, R0
+    LDI SCR_GRASS
+    MOV R2, R0
+    LD R6, R2, 0
     MOV R2, R12
     ADD R2, R7
     ADD R2, 1
@@ -499,33 +512,13 @@ no_road_b:
 
     ; ---- the sky row ----------------------------------------------------
 row_sky:
-    ; the two rows closest to the horizon carry the mountains
-    LDI -15
-    CMP R3, R0
-    JN sky_mid
-    NOP
-    LDI ART_MTN_C
-    CMP R9, R9
-    JZ sky_tile
-    NOP
-sky_mid:
-    LDI -30
-    CMP R3, R0
-    JN sky_plain
-    NOP
-    LDI ART_MTN_A
-    CMP R9, R9
-    JZ sky_tile
-    NOP
-sky_plain:
-    LDI ART_SKY
-sky_tile:
-    SL R0, 5
-    MOV R6, R0
-    MOV R2, R12
-    LDI 80
-    MOV R3, R0
-    LDI fill_cells
+    ; The rows above the horizon carry the sky, the mountain row and the
+    ; tree line. fill_sky draws all three; the mountain row alternates the
+    ; two profiles, so the ridge line has a sixteen pixel period.
+    ;
+    ; The helper lives outside the row body on purpose: a conditional branch
+    ; reaches nine bits, and the row body is already close to that limit.
+    LDI fill_sky
     MOV R11, R0
     LINK
     JMP R11
@@ -759,6 +752,72 @@ fill_cells:
     STS R6, ES, R2
     SUB R3, 1
     JNZ fill_cells
+    ADD R2, 1
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------------
+; fill_sky: fill the 80 cells of the row above the horizon.
+; R3 holds the row's distance to the horizon in pixels, R12 the row's map
+; offset and ES the tile segment.
+;
+; There are three kinds of row:
+;   * the tree line, the row that stands on the horizon;
+;   * the mountain row, which alternates the two mountain profiles so the
+;     ridge line has a sixteen pixel period instead of an eight pixel one;
+;   * the plain sky above them.
+;
+; The two mountain tiles are 97 and 98, so their cell words are 0xC20 and
+; 0xC40: the two words differ in bits five and six, and toggling those two
+; bits swaps one tile for the other. The mountain loop toggles them after
+; every cell and the profiles alternate.
+;
+; The loops are written out instead of calling fill_cells: a nested LINK
+; would overwrite the return address this helper is holding.
+; ---------------------------------------------------------------------------
+fill_sky:
+    LDI -15
+    CMP R3, R0
+    JN fs_mid
+    NOP
+    LDI ART_MTN_C
+    CMP R9, R9
+    JZ fs_fill
+    NOP
+fs_mid:
+    LDI -30
+    CMP R3, R0
+    JN fs_plain
+    NOP
+    ; the mountain row: the two profiles alternate across the row
+    LDI ART_MTN_A
+    SL R0, 5
+    MOV R6, R0
+    LDI 0x60                 ; the toggle that swaps tile 97 for tile 98
+    MOV R7, R0
+    MOV R2, R12
+    LDI 80
+    MOV R4, R0
+fs_mtn:
+    STS R6, ES, R2
+    XOR R6, R7
+    SUB R4, 1
+    JNZ fs_mtn
+    ADD R2, 1
+    JMP LR
+    NOP
+fs_plain:
+    LDI ART_SKY
+fs_fill:
+    SL R0, 5
+    MOV R6, R0
+    MOV R2, R12
+    LDI 80
+    MOV R4, R0
+fs_loop:
+    STS R6, ES, R2
+    SUB R4, 1
+    JNZ fs_loop
     ADD R2, 1
     JMP LR
     NOP

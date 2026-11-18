@@ -66,13 +66,13 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 #   -o 0x200000 artifacts/image/slices.bin
 ```
 
-The current image is 48 slices / 192 KB: directory 0, start 1,
+The current image is 53 slices / 212 KB: directory 0, start 1,
 essentials 2–3 (SPI/config flash, `dir`/`find`, slice editor, `p-screen`),
 edit 4–10, graphics 11–12 (SIC/raster, scene, palettes, I2S, sprites),
 audio 13–14 (μ-law player), games 15–16, sd-card 17–19, Pac-Man 20–23,
-Flappy 24–26, Frogger 27–30, the Pole harness 31, hello 32, the demo `ping`
-sample 33 and the 2-second `swoosh` sample 34–39, and the on-device LILA
-compiler 40–47.
+Flappy 24–26, Frogger 27–31, the Pole harness 32–36, hello 37, the demo
+`ping` sample 38 and the 2-second `swoosh` sample 39–44, and the on-device
+LILA compiler 45–52.
 
 The LILA compiler is a TEXT object, eight slices long, so the boot loader's
 `screen` cap is 16,320 characters (eight slices of 2,040) and `text-buf` is
