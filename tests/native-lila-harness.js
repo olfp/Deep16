@@ -137,8 +137,32 @@ export function bootNative() {
     return type(text, cap, true);
   }
 
-  // Type one source program and return everything printed from the `lila`
-  // echo on. A blank line ends the source.
+  // What one source line printed: everything after the echo of the line
+  // itself and before the prompt that follows it.
+  function lineOutput(text) {
+    const nl = text.indexOf('\n');
+    if (nl < 0) return '';
+    let body = text.slice(nl + 1);
+    if (body.endsWith('L> ')) body = body.slice(0, -3);
+    return body.replace(/\r/g, '');
+  }
+
+  // Type a source program one line at a time. `lila` compiles and runs
+  // every line as soon as it is complete, so the output appears while the
+  // lines are typed. The result is the program's own output, without the
+  // echo of the lines and without the prompts.
+  function runProgram(lines, cap = 20_000_000) {
+    const parts = [];
+    type('lila', 2_000_000, false);
+    for (const input of lines) {
+      parts.push(lineOutput(type(input, 4_000_000, false)));
+    }
+    type('', cap, true);            // the blank line ends the session
+    return parts.join('').replace(/\n$/, '');
+  }
+
+  // Type a source program and return everything the console showed, from
+  // the `lila` echo on. A blank line ends the session.
   function runSource(src, cap = 20_000_000) {
     const from = out.length;
     type('lila', 2_000_000, false);
@@ -147,13 +171,6 @@ export function bootNative() {
     }
     type('', cap, true);
     return out.slice(from).replace(/\r/g, '');
-  }
-
-  // The program's own output: the lines between the blank line and the
-  // prompt, without the prompt and the interpreter's " ok".
-  function programOutput(from) {
-    return out.slice(from).replace(/\r/g, '').split('\n').map((l) => l.replace(/\s+$/, ''))
-      .filter((l) => l !== '' && l !== '>' && l !== ' ok').join('\n');
   }
 
   function depth(cap = 4_000_000) {
@@ -176,8 +193,9 @@ export function bootNative() {
     boot,
     type,
     line,
+    runProgram,
     runSource,
-    programOutput,
+    lineOutput,
     depth,
     here,
     limit,

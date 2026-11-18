@@ -786,7 +786,7 @@ hello                 \ hello from the user flash
 ```
 
 `screen ( n -- )` follows the link chain, concatenates 2040 characters per
-slice into `text-buf` (8,192 cells, four slices) and interprets the result.
+slice into `text-buf` (20,480 cells, ten slices) and interprets the result.
 The source slices are LF-padded, so each 2040-character chunk ends on a line
 boundary. `screen` ends its line: `1 screen` does not return to the words that
 follow it on the same line.

@@ -1,13 +1,17 @@
 \ lila-native.fth - an on-device LILA compiler and bytecode VM.
 \
-\ `lila` reads Lua-subset source lines from the console (a blank line ends the
-\ source), tokenizes them in place, parses them with recursive descent, emits
-\ compact bytecode into a dictionary buffer, and runs the bytecode on a small
-\ VM.  No part of the user program is compiled by the host.
+\ `lila` is a session.  It reads one line at a time from the console,
+\ tokenizes it in place, parses it with recursive descent, emits compact
+\ bytecode into a dictionary buffer, and runs that bytecode on a small VM.
+\ Every line is a program of its own, and the state - the globals and the
+\ symbol table - carries from one line to the next.  A line that ends in the
+\ middle of a statement is not an error: the session asks for another line
+\ and tries the whole pending source again.  An empty line ends the session.
+\ No part of the user program is compiled by the host.
 \
 \ The console echoes the characters as they are typed, but the BIOS stops at
 \ the Return without echoing the newline.  So `lila` prints a CR of its own
-\ for every Return and a prompt "L> " before every line it reads; see l-read.
+\ for every Return and a prompt "L> " before every line it reads; see l-line.
 \
 \ Supported subset (anything else is rejected with a negative code):
 \   globals, integer literals, string literals (no escapes), unary minus,
@@ -92,6 +96,8 @@ variable m-blo drop
 variable m-bhi drop
 variable l-expr-xt drop
 variable l-stmt-xt drop
+variable l-save-nsym drop
+variable l-save-ap drop
 
 \ ------------------------- static text fragments ------------------------
 create k-if    105 c, 102 c,
@@ -121,6 +127,8 @@ create s-false 102 c, 97 c, 108 c, 115 c, 101 c,
 create s-nil   110 c, 105 c, 108 c,
 
 \ ------------------------------- helpers --------------------------------
+: l-err ( code -- ) m-lerr 4 type space . cr ;
+
 : l-ws? ( c -- f )
   dup 32 = over 10 = or over 9 = or swap 13 = or ;
 : l-digit? ( c -- f )
@@ -137,14 +145,36 @@ create s-nil   110 c, 105 c, 108 c,
   dup l-src-n @ < 0= if drop 0 else l-src + c@ then ;
 
 \ current token access
+\ l-eof? is true when the token stream is exhausted.  Every parser rule
+\ that needs a token and finds the stream empty throws -23: the statement
+\ is unfinished, and the session asks for another line.
+: l-eof? ( -- f ) l-pos @ l-ntok @ < 0= ;
 : l-tstart ( i -- a ) l-tok-a + @ l-src + ;
 : l-tlen ( i -- n ) l-tok-n + @ ;
-: l-cur ( -- a n ) l-pos @ l-tstart l-pos @ l-tlen ;
+: l-cur ( -- a n ) l-eof? if l-src 0 else l-pos @ l-tstart l-pos @ l-tlen then ;
 : l-cur= ( ca cn -- f ) l-cur compare 0= ;
 : l-op? ( ca cn -- f )
+  l-eof? if 2drop false exit then
   l-pos @ l-tok-k + @ 4 <> if 2drop false exit then
   l-cur= ;
 : l-kind@ ( -- k ) l-pos @ l-tok-k + @ ;
+
+\ l-want ( ca cn code -- )
+\ The current token has to be the keyword ca cn.  At the end of the token
+\ stream the statement is unfinished and -23 asks for another line; any
+\ other token is the error code the caller passed in.
+: l-want ( ca cn code -- )
+  >r
+  l-eof? if r> -23 throw then
+  l-cur compare 0= if 1 l-pos +! r> drop exit then
+  r> throw ;
+
+\ l-op! ( ca cn code -- )
+\ The same, for an operator: the token has to be kind 4 as well.
+: l-op! ( ca cn code -- )
+  l-eof? if -23 throw then
+  l-pos @ l-tok-k + @ 4 <> if throw then
+  l-want ;
 
 \ bytecode emission
 : code, ( x -- ) l-cp @ l-code + ! 1 l-cp +! ;
@@ -162,18 +192,17 @@ create s-nil   110 c, 105 c, 108 c,
 \ prompt "> " with an L in front of it, so the two are easy to tell apart.
 : l-prompt ( -- ) ." L> " ;
 
-: l-read ( -- )
-  0 l-src-n !
-  cr l-prompt                \ a fresh line for the first prompt
-  begin
-    l-src-n @ l-src + 120 accept l-got !
-    cr                        \ the Return the user just pressed
-    l-got @ 0= if exit then
-    l-src l-src-n @ + l-got @ + 10 swap c!
-    l-src-n @ l-got @ + 1+ l-src-n !
-    l-src-n @ 700 > if -1 throw then
-    l-prompt
-  again ;
+\ Read one line and append it to the pending source.  The flag is true when
+\ the line was empty: that ends the session.  A source that grows past the
+\ limit is dropped and reported; the session carries on with the next line.
+: l-line ( -- f )
+  l-src-n @ l-src + 120 accept l-got !
+  cr                        \ the Return the user just pressed
+  l-got @ 0= if true exit then
+  l-src l-src-n @ + l-got @ + 10 swap c!
+  l-src-n @ l-got @ + 1+ l-src-n !
+  l-src-n @ 700 > if -1 l-err 0 l-src-n ! then
+  false ;
 
 \ ------------------------------- tokenizer ------------------------------
 : l-tok-add ( start len kind -- )
@@ -298,7 +327,7 @@ create s-nil   110 c, 105 c, 108 c,
 : l-expr0 ( -- ) 0 l-expr-xt @ execute ;
 
 : l-primary ( -- )
-  l-pos @ l-ntok @ < 0= if -8 throw then
+  l-eof? if -23 throw then
   l-kind@
   dup 1 = if drop
     l-pos @ l-tstart l-pos @ l-tlen l-num
@@ -311,11 +340,9 @@ create s-nil   110 c, 105 c, 108 c,
     l-pos @ l-tstart l-pos @ l-tlen l-slot
     OP-LOAD code2, 1 l-pos +! exit then
   drop
-  p-lp 1 l-op? 0= if -9 throw then
-  1 l-pos +!
+  p-lp 1 -9 l-op!                 \ -23 at the end, -9 for anything else
   l-expr0
-  p-rp 1 l-op? 0= if -10 throw then
-  1 l-pos +! ;
+  p-rp 1 -10 l-op! ;               \ -23 at the end, -10 for anything else
 
 : l-unary ( -- )
   p-minus 1 l-op? if
@@ -362,23 +389,20 @@ create s-nil   110 c, 105 c, 108 c,
 : l-assign ( -- )
   l-pos @ l-tstart l-pos @ l-tlen l-slot
   1 l-pos +!
-  p-set 1 l-op? 0= if -21 throw then
-  1 l-pos +!
+  p-set 1 -21 l-op!                \ -23 at the end, -21 for anything else
   l-expr0
   OP-STORE code2, ;
 
 : l-print ( -- )
   1 l-pos +!
-  p-lp 1 l-op? 0= if -19 throw then
-  1 l-pos +!
+  p-lp 1 -19 l-op!                 \ -23 at the end, -19 for anything else
   l-expr0 OP-PRINT code,
   begin p-comma 1 l-op? while
     1 l-pos +!
     OP-TAB code,
     l-expr0 OP-PRINT code,
   repeat
-  p-rp 1 l-op? 0= if -20 throw then
-  1 l-pos +!
+  p-rp 1 -20 l-op!                 \ -23 at the end, -20 for anything else
   OP-EOL code, ;
 
 : l-block ( -- )
@@ -393,8 +417,7 @@ create s-nil   110 c, 105 c, 108 c,
   1 l-pos +!
   l-expr0
   l-jz
-  k-then 4 l-cur= 0= if -14 throw then
-  1 l-pos +!
+  k-then 4 -14 l-want              \ -23 at the end, -14 for anything else
   l-block
   k-else 4 l-cur= if
     1 l-pos +!
@@ -403,32 +426,28 @@ create s-nil   110 c, 105 c, 108 c,
     l-block
     l-patch
   else l-patch then
-  k-end 3 l-cur= 0= if -15 throw then
-  1 l-pos +! ;
+  k-end 3 -15 l-want ;             \ -23 at the end, -15 for anything else
 
 : l-while-stmt ( -- )
   1 l-pos +!
   here-cp
   l-expr0
   l-jz
-  k-do 2 l-cur= 0= if -16 throw then
-  1 l-pos +!
+  k-do 2 -16 l-want                \ -23 at the end, -16 for anything else
   l-block
   OP-JMP code,
   >r
   code,
   r> l-patch
-  k-end 3 l-cur= 0= if -17 throw then
-  1 l-pos +! ;
+  k-end 3 -17 l-want ;             \ -23 at the end, -17 for anything else
 
 : l-do-stmt ( -- )
   1 l-pos +!
   l-block
-  k-end 3 l-cur= 0= if -18 throw then
-  1 l-pos +! ;
+  k-end 3 -18 l-want ;             \ -23 at the end, -18 for anything else
 
 : l-stmt ( -- )
-  l-pos @ l-ntok @ < 0= if -12 throw then
+  l-eof? if -23 throw then
   l-kind@ 2 <> if -13 throw then
   k-if    2 l-cur= if l-if-stmt exit then
   k-while 5 l-cur= if l-while-stmt exit then
@@ -521,8 +540,10 @@ create l-ops
 ' op-jmp , ' op-jz , ' op-print , ' op-tab , ' op-eol , ' op-pushs ,
 ' op-concat , ' op-halt , ' op-neg ,
 
+\ The runtime string arena is not reset here: a concatenation result that
+\ lives in a global has to survive the next line of the session.
 : l-run ( -- )
-  0 l-pc ! 0 l-rp !
+  0 l-pc !
   begin
     l-code l-pc @ + @
     dup OP-HALT = if drop exit then
@@ -530,27 +551,57 @@ create l-ops
   again ;
 
 \ ------------------------------- top level ------------------------------
-: lila-build ( -- )
-  decimal
-  0 l-nsym ! 0 l-pos ! 0 l-cp ! 0 l-ap ! 0 l-rp ! 0 l-ntok !
-  l-vars 96 0 fill
-  l-read
-  0 l-ti !
+\ A session keeps the symbol table and the globals from line to line, so
+\ `x = 3` on one line and `print(x)` on the next work on the same `x`.  The
+\ code buffer, the token stream and the parser position belong to one line.
+
+: l-compile ( -- )
+  0 l-pos ! 0 l-cp ! 0 l-ntok ! 0 l-ti !
   l-tokenize
   l-program ;
 
-: lila-exec ( -- ) l-run ;
-
-\ A compile-time error always lands on a line of its own: the last thing
-\ `l-read` does is echo the CR of the Return that ended the source.  A
-\ run-time error can land in the middle of a line, so that one still asks
-\ for a CR of its own before the message.
-: lila ( -- )
-  ['] lila-build catch ?dup if
-    m-lerr 4 type space . cr exit
+\ Compile and run the pending source.  The flag is true when the source
+\ ended in the middle of a statement: the session then asks for another
+\ line and tries the whole pending source again.  Every other error is
+\ reported and the pending source is dropped.
+\
+\ A failed compile leaves the symbol table and the string arena as they
+\ were before the attempt, so the names it had consumed are given back and
+\ the next line starts from a clean table.  A failed run keeps them: the
+\ program may have stored values in the globals before it stopped.
+: l-pending ( -- f )
+  l-nsym @ l-save-nsym !
+  l-ap @ l-save-ap !
+  ['] l-compile catch ?dup if
+    l-save-nsym @ l-nsym !
+    l-save-ap @ l-ap !
+    dup -23 = if drop true exit then
+    l-err
+  else
+    ['] l-run catch ?dup if l-err then
   then
-  ['] lila-exec catch ?dup if
-    cr m-lerr 4 type space . cr
-  then ;
+  0 l-src-n !
+  false ;
+
+\ The session itself.  The symbol table, the globals and the two string
+\ arenas are set up once and live as long as the session does.  A line that
+\ is empty ends the session; if a statement was still unfinished, that is
+\ reported first.
+: l-session ( -- )
+  decimal
+  0 l-nsym ! 0 l-ap ! 0 l-rp ! 0 l-src-n !
+  l-vars 96 0 fill
+  begin
+    l-prompt
+    l-line if
+      l-src-n @ 0> if -23 l-err then
+      exit
+    then
+    l-pending drop
+  again ;
+
+: lila ( -- )
+  cr
+  l-session ;
 
 cr

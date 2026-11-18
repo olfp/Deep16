@@ -586,15 +586,23 @@ test('catch and throw still unwind the return stack', () => {
   assert.ok(sim.running);
 });
 
-test('the 64K data stack holds 15000 cells', () => {
+test('the 64K data stack holds 10000 cells', () => {
   // The data stack grows down from 0xFFF0 and the dictionary up from 0x5800.
-  // After the catalog and the tools slice (edit/serial/xmodem) about 18K cells
-  // are still free, so 15K proves the stack is not the old 300-cell return
-  // stack without depending on every last cell of dictionary headroom.
+  // After the catalog, the tools slice (edit/serial/xmodem) and the graphics
+  // module about 11.5K cells are still free, so 10K proves the stack is not
+  // the old 300-cell return stack without depending on every last cell of
+  // dictionary headroom.
+  //
+  // The gap is 4,096 cells smaller than it was: the boot loader's `text-buf`
+  // takes 20,480 of them, because it has to hold the ten slices of the LILA
+  // compiler (see lila/LILANATIVE.md). It is allocated in the dictionary at
+  // power-on, so every board pays for it whether it loads LILA or not. With
+  // the old eight-slice cap the gap was 15,671 cells and this test pushed
+  // 15,000.
   line(': push-n ( n -- ) 0 ?do i loop ;');
   line(': drop-n ( n -- ) 0 ?do drop loop ;');
-  assert.equal(number(line('15000 push-n depth . cr'), '15000 push-n depth . cr'), 15000);
-  assert.equal(number(line('15000 drop-n depth . cr'), '15000 drop-n depth . cr'), 0);
+  assert.equal(number(line('10000 push-n depth . cr'), '10000 push-n depth . cr'), 10000);
+  assert.equal(number(line('10000 drop-n depth . cr'), '10000 drop-n depth . cr'), 0);
   assert.ok(sim.running);
 });
 

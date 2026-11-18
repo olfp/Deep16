@@ -66,19 +66,24 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 #   -o 0x200000 artifacts/image/slices.bin
 ```
 
-The current image is 53 slices / 212 KB: directory 0, start 1,
+The current image is 55 slices / 220 KB: directory 0, start 1,
 essentials 2–3 (SPI/config flash, `dir`/`find`, slice editor, `p-screen`),
 edit 4–10, graphics 11–12 (SIC/raster, scene, palettes, I2S, sprites),
 audio 13–14 (μ-law player), games 15–16, sd-card 17–19, Pac-Man 20–23,
 Flappy 24–26, Frogger 27–31, the Pole harness 32–36, hello 37, the demo
 `ping` sample 38 and the 2-second `swoosh` sample 39–44, and the on-device
-LILA compiler 45–52.
+LILA compiler 45–54.
 
-The LILA compiler is a TEXT object, eight slices long, so the boot loader's
-`screen` cap is 16,320 characters (eight slices of 2,040) and `text-buf` is
-16,384 cells. Packed slices (type 8) would carry two characters per cell and
+The LILA compiler is a TEXT object, ten slices long, so the boot loader's
+`screen` cap is 20,400 characters (ten slices of 2,040) and `text-buf` is
+20,480 cells. Packed slices (type 8) would carry two characters per cell and
 halve that, but `p-screen` loads one slice at a time and `included` cannot
 span a definition across two calls, so packed sources are future work.
+
+`text-buf` is allocated in the dictionary at power-on, and in the D16SEG map
+the dictionary shares its region with the data stack, so the ten-slice cap
+takes 4,096 cells out of the stack: the gap between the two fell from 15,671
+cells to 11,575. Every board pays that, whether it loads LILA or not.
 
 The baked boot loader does `1 screen` (start), then `need essentials`
 and `need edit`, so `dir`, `find`, the editor and the start words are

@@ -1,10 +1,11 @@
 # LILA native compiler and VM
 
-`lila-native.fth` is a small on-device LILA compiler for DeepForth. It reads
-Lua-subset source from the console one line at a time (a blank line ends the
-source), tokenizes and parses it with recursive descent, emits bytecode into a
-dictionary buffer, and runs that bytecode on a small VM. No part of the user
-program is compiled by the host.
+`lila-native.fth` is a small on-device LILA compiler for DeepForth. It is a
+session: it reads one line of Lua-subset source at a time, tokenizes and
+parses it with recursive descent, emits bytecode into a dictionary buffer, and
+runs that bytecode on a small VM. Every line is a program of its own, and the
+state — the globals and the symbol table — carries from one line to the next.
+No part of the user program is compiled by the host.
 
 Load the file into a booted DeepForth and type `lila`. The word prints a CR
 and its own prompt `L> ` before every source line, and echoes a CR for the
@@ -15,8 +16,22 @@ newline, so the compiler does it itself:
 lila
 L> x = 3
 L> print(x)
-L> 
 3
+L> 
+ ok
+```
+
+An empty line ends the session. A line that ends in the middle of a statement
+is not an error: the session asks for another line and tries the whole pending
+source again, so a block can be spread over several lines:
+
+```text
+lila
+L> if x > 2 then
+L> print("big")
+L> end
+big
+L> 
  ok
 ```
 
@@ -29,12 +44,12 @@ node --test tests/native-lila.test.js
 
 It boots the segmented D16D image, types the compiler in, runs the fixture
 program, compares the output with what `lua5.4` 5.4.8 prints, and asserts that
-the run leaves the data stack at depth 0. The compiler takes about 7.7k
-dictionary cells after the kernel boots, leaving about 9.3k free.
+the run leaves the data stack at depth 0. The compiler takes about 7.8k
+dictionary cells after the kernel boots, leaving about 5.1k free.
 
 ## On the device
 
-The compiler is 15,713 characters, so it needs eight source slices. It is
+The compiler is 18,442 characters, so it needs ten source slices. It is
 registered in the config-flash catalog as the TEXT object `lila`:
 
 ```sh
@@ -51,11 +66,17 @@ Loading lila
 ```
 
 `need` finds the object in the master directory and calls `screen`, which
-copies the slice chain into `text-buf` and includes it. The chain is eight
-slices long, so the boot loader's cap moved from 14,280 to 16,320 characters
-and `text-buf` grew to 16,384 cells; `text-buf` lives in the dictionary, not
+copies the slice chain into `text-buf` and includes it. The chain is ten
+slices long, so the boot loader's cap moved from 16,320 to 20,400 characters
+and `text-buf` grew to 20,480 cells; `text-buf` lives in the dictionary, not
 in the image, so a board with the old boot loader needs `npm run flash:tile`
-for the new cap.
+for the new cap. The buffer is allocated at boot, so every board pays the
+4,096 extra cells whether it loads LILA or not.
+
+The dictionary and the data stack share one region in the D16SEG map, so
+those 4,096 cells come out of the data stack: the gap between the two fell
+from 15,671 cells to 11,575. The stack still holds thousands of cells - far
+more than the LILA VM needs - but it is a real cost on every board.
 
 `tests/native-lila-slice.test.js` runs that path in the simulator.
 
@@ -145,12 +166,16 @@ absolute target. Every other opcode has no operand.
 | compiled string arena | 500 bytes (512 reserved) |
 | concatenation arena | 200 bytes (256 reserved) |
 
-The concatenation arena is not reclaimed; a program that keeps concatenating
-in a loop eventually gets `-11`.
+The global names, the globals themselves and the two string arenas live as
+long as the session does: a string assigned on one line is still there on the
+next. Nothing is reclaimed, so a session that keeps concatenating eventually
+gets `-11`, and one that keeps adding literals eventually gets `-7`.
 
 ## Error codes
 
-`lila` catches a failure, prints `LERR <code>`, and returns to the prompt.
+`lila` catches a failure, prints `LERR <code>`, and goes on with the next
+line. `-23` is not a failure: it means the line ended in the middle of a
+statement, and the session waits for the next line.
 
 | code | meaning |
 |------|---------|
@@ -161,11 +186,11 @@ in a loop eventually gets `-11`.
 | -5 | unterminated string |
 | -6 | too many global names |
 | -7 | compiled string arena full |
-| -8 | expression expected at the end of the source |
+| -8 | expression expected (superseded by -23) |
 | -9 | unexpected token where a value or `(` was expected |
 | -10 | expected `)` after a parenthesized expression |
 | -11 | concatenation arena full |
-| -12 | expected a statement |
+| -12 | expected a statement (superseded by -23) |
 | -13 | a statement must start with a name |
 | -14 | expected `then` in `if` |
 | -15 | expected `end` after `if` |
@@ -176,11 +201,13 @@ in a loop eventually gets `-11`.
 | -20 | expected `)` or an operator after an expression |
 | -21 | expected `=` in an assignment |
 | -22 | integer literal outside the signed 32-bit range |
+| -23 | the source ended in the middle of a statement |
 
 ## Verified
 
 `tests/native-lila.test.js` covers compilation, the 32-bit payload in
 arithmetic, comparisons and printing, nil for an unassigned global, Lua
-truthiness for 0, the rejection cases above, and the depth-0 assertion.
+truthiness for 0, the rejection cases above, the state carrying from one line
+to the next, a block spread over several lines, and the depth-0 assertion.
 `tests/native-lila-slice.test.js` repeats the program and the depth check
 with the compiler loaded from the config flash.

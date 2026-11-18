@@ -20,24 +20,20 @@ const bootHere = h.here();
 const load = h.line('s" lila" need', 60_000_000);
 const afterLoad = h.here();
 
-h.type('lila', 2_000_000, false);
-for (const src of PROGRAM) h.type(src, 4_000_000, false);
-const programMark = h.out.length;
-h.type('', 20_000_000, true);      // the blank line ends the source and runs it
-const got = h.programOutput(programMark);
+const got = h.runProgram(PROGRAM);
 
 test('the compiler is in the config-flash directory', () => {
   const lila = h.slices.manifest.objects.lila;
   assert.ok(lila, 'no lila object in the slice manifest');
-  assert.ok(lila.chars > 14_280, 'the source is longer than seven slices');
-  assert.ok(lila.count >= 8, `the source needs ${lila.count} slices`);
+  assert.ok(lila.chars > 16_320, 'the source is longer than eight slices');
+  assert.ok(lila.count >= 10, `the source needs ${lila.count} slices`);
 });
 
 test('need loads the compiler from the flash', () => {
   assert.match(load, /Loading lila/, load.replace(/\r/g, ''));
   assert.doesNotMatch(load, /too long/, 'the boot loader refused the source');
   assert.ok(afterLoad > bootHere, 'the compiler took no dictionary');
-  assert.ok(h.limit() - h.here() > 5000,
+  assert.ok(h.limit() - h.here() > 4000,
             `only ${h.limit() - h.here()} cells left after the load`);
 });
 

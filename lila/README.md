@@ -39,6 +39,12 @@ below but not the host compiler: it reads a Lua subset from the console,
 compiles it on the machine, and runs it without a host. It is a conformance
 profile for the target, not a replacement for `lila-load`.
 
+It is a session: `lila` reads one line at a time, compiles that line and runs
+it, and the state — the globals and the symbol table — carries from one line
+to the next. A line that ends in the middle of a statement is not an error;
+the session asks for another line and tries the whole pending source again,
+so a block can be spread over several lines. An empty line ends the session.
+
 ```sh
 node --test tests/native-lila.test.js
 ```
