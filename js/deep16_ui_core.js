@@ -12,6 +12,7 @@ class DeepWebUI {
         // without another round trip.
         this.tileBuild = null;
         this.d16dSources = null;
+        this.sliceAssetsLoaded = false;
         // 60 Hz display clock and the status word it drives at 0xF0066.
         this.tileClock = null;
         this.tileFrame = 0;
@@ -58,6 +59,7 @@ class DeepWebUI {
 
         this.examples = [];
         this.loadExamplesList();
+        this.loadSliceAssets();
 
         // No file is being typed in yet (see queueFileUpload).
         this.fileUpload = null;
@@ -486,7 +488,32 @@ class DeepWebUI {
         if (typeof Deep16GfxLoader !== 'undefined' && typeof Deep16FlashAssets !== 'undefined') {
             Deep16GfxLoader.load(engine, this.simulator, Deep16FlashAssets);
         }
+        // The D16D showcase and its games live in the config-flash slice image.
+        // The graphics loader above only installs the tile/sprite banks; this
+        // makes the game slices reachable through BDOS so Flappy, Pac-Man and
+        // Frogger can actually be launched from the menu in the simulator.
+        this.loadSliceAssets();
         return true;
+    }
+
+    async loadSliceAssets() {
+        if (this.sliceAssetsLoaded) return true;
+        if (typeof fetch !== 'function') return false;
+        const sim = this.simulator;
+        if (!sim || !sim.spiFlash || !sim.spiFlash.mem) return false;
+        try {
+            const response = await fetch('artifacts/image/slices.bin', { cache: 'no-store' });
+            if (!response.ok) return false;
+            const buffer = new Uint8Array(await response.arrayBuffer());
+            const base = 0x200000;
+            if (base + buffer.length > sim.spiFlash.mem.length) return false;
+            sim.spiFlash.mem.set(buffer, base);
+            this.sliceAssetsLoaded = true;
+            return true;
+        } catch (error) {
+            if (window.Deep16Debug) console.warn('slice assets not loaded:', error);
+            return false;
+        }
     }
 
     // Tile mode currently runs on the JS core: the RTL harness has no
