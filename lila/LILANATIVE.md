@@ -32,20 +32,21 @@ being given a different meaning.
 
 ## Running it
 
-Load the compiler into a booted DeepForth and call `lila`. The word reads
-source lines until an empty line, compiles them, then runs the program:
+Load the compiler into a booted DeepForth and call `lila`. The word is a
+session: it reads one line at a time, compiles that line and runs it, so every
+line is a program of its own and the state carries from one line to the next:
 
 ```text
 lila
 L> x = 3
 L> y = x + 4 * 2
 L> print(y)
-L> print("a" .. "b" .. "c")
-L> print(z)
-L> 
 11
+L> print("a" .. "b" .. "c")
 abc
+L> print(z)
 nil
+L> 
  ok
 ```
 
@@ -53,9 +54,27 @@ nil
 line it reads; it echoes a CR for the Return the user pressed, because the
 BIOS stops at the Return without echoing the newline. The prompt is the
 DeepForth prompt `> ` with an `L` in front of it, so the two are easy to tell
-apart. Only an empty line ends the source; a line of spaces is whitespace,
-not a terminator. Newlines inside the source are ordinary whitespace, so line
-breaks are not part of the grammar.
+apart. An empty line ends the session. A line of spaces is whitespace, not a
+terminator.
+
+A line that ends in the middle of a statement is not an error. The session
+asks for another line and tries the whole pending source again, so a block can
+be spread over as many lines as it takes:
+
+```text
+lila
+L> if x > 2 then
+L> print("big")
+L> end
+big
+L> 
+ ok
+```
+
+The state that carries from line to line is the symbol table and the globals:
+`x = 3` on one line and `print(x)` on the next work on the same `x`. The two
+string arenas live as long as the session does, so a string assigned on one
+line is still there on the next.
 
 The regression test does the same thing in the JS simulator and needs no host
 Lua:
@@ -70,7 +89,7 @@ asserts that the run leaves the data stack at depth 0.
 
 ### Getting the compiler onto the board
 
-The compiler is 15,713 characters, so it does not fit in one source slice
+The compiler is 18,442 characters, so it does not fit in one source slice
 (2,040 characters). There are two ways to get it onto the device.
 
 **The config-flash catalog.** `scripts/make_slices.mjs` registers the
@@ -88,14 +107,22 @@ Loading lila
 
 `need` finds the object in the master directory and calls `screen`, which
 copies the whole slice chain into `text-buf` and includes it in one go. The
-chain is eight slices long, so the boot loader's cap moved from seven slices
-(14,280 characters) to eight (16,320), and `text-buf` grew from 14,336 to
-16,384 cells to match. `text-buf` is allocated in the dictionary at boot, not
+chain is ten slices long, so the boot loader's cap moved from eight slices
+(16,320 characters) to ten (20,400), and `text-buf` grew from 16,384 to
+20,480 cells to match. `text-buf` is allocated in the dictionary at boot, not
 in the image, so the image layout did not change - but the boot loader is
 baked into the image, so a board that already carries one needs
-`npm run flash:tile` for the new cap.
+`npm run flash:tile` for the new cap. The buffer is allocated at power-on, so
+every board pays the 4,096 extra cells whether it loads LILA or not.
 
-After the load the compiler has taken about 7.7k cells, leaving about 9.3k
+That cost lands on the data stack. In the D16SEG map the dictionary grows up
+from `0x5800` and the data stack grows down from `0xFFF0` in the same
+region, so `text-buf` takes its cells out of the stack's room: the gap fell
+from 15,671 cells to 11,575 after the catalog and the tools slice were
+loaded. A board that wants the old stack back has to give up the ten-slice
+chain - trim the compiler, or wait for packed slices.
+
+After the load the compiler has taken about 7.8k cells, leaving about 5.1k
 free in a D16D dictionary.
 
 **XMODEM over the serial line.** `xmodem` lives in the `edit` slice, which
@@ -107,8 +134,8 @@ cells: check before you start.
 
 ### Packed slices are future work
 
-A source slice stores one character per cell, so the eight slices of the
-compiler cost 16,320 cells of `text-buf`. The slice type table already has
+A source slice stores one character per cell, so the ten slices of the
+compiler cost 20,400 cells of `text-buf`. The slice type table already has
 `PACKED` (type 8) and `p-screen` unpacks two characters per cell, which
 would halve the compiler to four slices. It does not work yet:
 
@@ -330,11 +357,13 @@ only far enough to reject them:
 | `function` statement | `function f() end` | -21 |
 | `local` declaration | `local x = 1` | -21 |
 | table constructor | `t = {}` | -9 |
-| missing `end` after `if` | `if 1 then print(1)` | -15 |
-| missing `end` after `while` | `while 1 do print(1)` | -17 |
 | newline inside a string | `print("a` / `b")` | -3 |
-| unbalanced parenthesis | `print((1 + 2)` | -20 |
 | literal above `2147483647` | `print(2147483648)` | -22 |
+
+A source that ends in the middle of a statement is not in this table: it is
+`-23`, and the session asks for another line instead of rejecting the
+program. `if 1 then print(1)` on its own, `while 1 do print(1)` and
+`print((1 + 2)` are all such sources, as is `x =` and `print(1`.
 
 A comment-only source and an empty source compile to a single `HALT` and print
 nothing.
@@ -370,7 +399,7 @@ exceptions:
 console lines
     |
     v
-  l-read            prompt "L> ", echo the CR, concatenate lines into l-src
+  l-line            prompt "L> ", echo the CR, append the line to l-src
     |
     v
 l-tokenize          l-src -> l-tok-a / l-tok-n / l-tok-k
@@ -390,6 +419,12 @@ are one pass: each grammar production appends opcodes and operands directly to
 `l-code`. All compiler state lives in fixed arrays in the dictionary, so a run
 needs no allocation beyond the words already compiled.
 
+The session loop is `l-session`: read a line, compile it, run it, repeat. A
+compile that ends in the middle of a statement throws `-23`; the session then
+reads another line and compiles the whole pending source again. That is what
+lets a block span several lines, and it is why the pending source is kept in
+`l-src` until it compiles.
+
 ### Storage
 
 `create`/`allot` count cells, so on Deep16 each entry below is a 16-bit cell.
@@ -407,28 +442,32 @@ needs no allocation beyond the words already compiled.
 
 The rest are scalar variables for parser and VM state. The arrays account for
 most of the compiler's footprint. On the D16SEG image used by the test, the
-booted kernel has `here = 0xbdaf`, so 16,961 of the 65,536 cells below
-`limit = 0xfff0` are free. Loading the compiler from the flash takes 7,655
-cells (`here = 0xdb96`, 9,306 free); typing it in takes 7,676, 21 cells more.
+booted kernel has `here = 0xcdaf`, so 12,865 of the 65,520 cells below
+`limit = 0xfff0` are free - the boot loader's `text-buf` takes 20,480 of
+them. Loading the compiler from the flash takes 7,770 cells, leaving 5,095
+free; typing it in takes 7,791, 21 cells more.
 
 ### Input
 
-`l-read` prints the prompt, calls `120 accept` into `l-src + l-src-n`, appends
-an LF, advances `l-src-n`, and repeats. An `accept` that returns zero cells is
-an empty line and ends the source. The 700-character source limit is enforced
-here (`-1`). `accept` reads at most 120 characters and cuts a longer line at
-that boundary, so the rest of the line is lost — keep source lines shorter than
-120 characters.
+`l-line` calls `120 accept` into `l-src + l-src-n`, appends an LF, advances
+`l-src-n`, and returns. A line that is empty ends the session. The
+700-character source limit is enforced here (`-1`): a source that grows past
+it is dropped and the session carries on with the next line. `accept` reads at
+most 120 characters and cuts a longer line at that boundary, so the rest of
+the line is lost — keep source lines shorter than 120 characters.
 
 The console echoes the characters as they are typed, but the BIOS stops at the
 Return without echoing the newline: the cursor would stay on the line the user
-just typed, and the next output would land on top of it. So `l-read` echoes a
-CR of its own after every `accept`, and prints the prompt `L> ` before each
-line it reads. The prompt is printed by `l-prompt`, which is `." L> "`.
+just typed, and the next output would land on top of it. So `l-line` echoes a
+CR of its own after every `accept`, and `l-session` prints the prompt `L> `
+before each line it reads. The prompt is printed by `l-prompt`, which is
+`." L> "`.
 
 The stored source is a flat byte sequence, not an array of lines. The LF is
 kept so the tokenizer can end `--` comments, and every subsequent line is
-separated by at least that LF.
+separated by at least that LF. The bytes stay in `l-src` until the pending
+source compiles, so a block that spans several lines is tokenized as one
+source.
 
 ### Tokenizer
 
@@ -451,6 +490,10 @@ three parallel arrays. `l-tok-a` stores an index into `l-src`; the helpers
 `l-cur` is the current token, and `l-cur=` compares its bytes with a static
 fragment using `compare`.
 
+`l-eof?` is true when the token stream is exhausted. `l-cur` and `l-op?` are
+EOF-safe: at the end of the stream `l-cur` answers an empty string rather
+than reading the uninitialized token arrays, and `l-op?` answers false.
+
 Tokens are capped at 256 (`-2`). The tokenizer does not classify keywords:
 `if`, `while`, `do`, `print`, `then`, `else` and `end` are ordinary kind 2
 names. The parser compares their text when it needs to.
@@ -467,13 +510,15 @@ names. The parser compares their text when it needs to.
 
 A slot index `i` maps to `l-vars + 3*i`, giving three cells for
 `(value1 value2 tag)`. `v-load` reads those three cells; `v-store` writes the
-tag, high half and low half. `lila-build` zero-fills all 96 `l-vars` cells, so
-every slot starts as `(0 0 nil)`.
+tag, high half and low half. `l-session` zero-fills all 96 `l-vars` cells at
+the start of a session, so every slot starts as `(0 0 nil)`.
 
 Because both a load and a store call `l-slot`, merely reading a new name
 creates a slot. That is harmless for Lua semantics — the slot reads as nil —
 but it consumes one of the 16 names. The symbol table and the variables are
-reset at the start of every `lila` call; nothing survives between runs.
+set up once at the start of a session and live until the session ends, so
+both the names and their values survive from line to line. A new `lila` call
+starts a new session with an empty table and nil globals.
 
 ### Parser and code generation
 
@@ -494,6 +539,28 @@ The parser is recursive descent with precedence climbing:
 - `l-block` calls statements until the current token is `end` or `else`.
   Nested statements consume their own `end` before returning.
 - `l-program` parses until the token stream ends and appends `HALT`.
+
+Two helpers decide what the parser expects of the current token:
+
+```forth
+: l-want ( ca cn code -- )
+  >r
+  l-eof? if r> -23 throw then
+  l-cur compare 0= if 1 l-pos +! r> drop exit then
+  r> throw ;
+
+: l-op! ( ca cn code -- )
+  l-eof? if -23 throw then
+  l-pos @ l-tok-k + @ 4 <> if throw then
+  l-want ;
+```
+
+`l-want` matches a keyword and `l-op!` an operator; both consume the token
+when it matches and throw the caller's code when it does not. At the end of
+the token stream they throw `-23` instead: the statement is unfinished, and
+the session asks for another line. Every rule that needs a token goes through
+one of them, so a source that ends mid-statement is always `-23` and never a
+syntax error.
 
 `l-expr` and `l-stmt` are reached through the execution variables
 `l-expr-xt` and `l-stmt-xt`: `l-expr0` and `l-block` are defined before the
@@ -691,32 +758,39 @@ forever eventually fails; a fixed number of concatenations is fine.
 
 ### Errors
 
-`lila` catches the build and the run separately:
+The session compiles and runs each line separately, so there are two catches:
 
 ```forth
-: lila ( -- )
-  ['] lila-build catch ?dup if
-    m-lerr 4 type space . cr exit
+: l-pending ( -- f )
+  l-nsym @ l-save-nsym !
+  l-ap @ l-save-ap !
+  ['] l-compile catch ?dup if
+    l-save-nsym @ l-nsym !
+    l-save-ap @ l-ap !
+    dup -23 = if drop true exit then
+    l-err
+  else
+    ['] l-run catch ?dup if l-err then
   then
-  ['] lila-exec catch ?dup if
-    cr m-lerr 4 type space . cr
-  then ;
+  0 l-src-n !
+  false ;
 ```
 
-Both paths print `LERR <code>`, return to the prompt, and leave the data stack
-at the depth it had when `lila` was entered. The next call resets the symbol
-table, code pointer, arenas, token count and globals, so a failed program does
-not poison the next one.
+A compile error prints `LERR <code>` and drops the pending source; the
+session carries on with the next line. A run error prints the same and drops
+the pending source as well, but keeps the symbol table and the globals: the
+program may have stored values before it stopped. A compile that ends in the
+middle of a statement is not an error at all: it throws `-23`, the pending
+source stays, and the session reads another line.
 
-The two catches differ in one CR. A compile-time error always lands on a line
-of its own, because the last thing `l-read` does is echo the CR of the Return
-that ended the source; the message needs no CR of its own. A run-time error
-can land in the middle of a line — the concatenation arena can fill up between
-two prints — so that one asks for a CR before the message.
+`catch` restores the data stack, so a rejected line does not leave temporary
+values behind. A successful program must also be balanced by construction;
+`tests/native-lila.test.js` checks that with `depth . cr`.
 
-Because `catch` restores the data stack, a rejected program does not leave
-temporary values behind. A successful program must also be balanced by
-construction; `tests/native-lila.test.js` checks that with `depth . cr`.
+Both catches print the message on a line of its own. `l-line` echoes the CR
+of the Return before the line is compiled, so the cursor is already at the
+start of a line; a run-time error cannot be in the middle of one, because
+every `print` ends with a newline.
 
 | code | meaning |
 |---:|---|
@@ -727,11 +801,11 @@ construction; `tests/native-lila.test.js` checks that with `depth . cr`.
 | -5 | unterminated string |
 | -6 | too many global names (or a name over 15 characters) |
 | -7 | compiled string arena full |
-| -8 | expression expected at the end of the source |
+| -8 | expression expected (superseded by -23) |
 | -9 | unexpected token where a value or `(` was expected |
 | -10 | expected `)` after a parenthesized expression |
 | -11 | concatenation arena full |
-| -12 | expected a statement |
+| -12 | expected a statement (superseded by -23) |
 | -13 | a statement must start with a name |
 | -14 | expected `then` in `if` |
 | -15 | expected `end` after `if` |
@@ -742,12 +816,22 @@ construction; `tests/native-lila.test.js` checks that with `depth . cr`.
 | -20 | expected `)` or an operator after an expression |
 | -21 | expected `=` in an assignment |
 | -22 | integer literal outside the signed 32-bit range |
+| -23 | the source ended in the middle of a statement |
 
 Several codes name the point where parsing stopped, not the construct itself.
 `print(1 / 2)` reports `-20` because `/` is not an operator in the expression
 grammar and the parser then expects `)`; `print(2 ^ 3)` and `print(5 % 2)` fail
 the same way. `function f() end` and `local x = 1` are parsed as assignments
 until the missing `=`, so they report `-21`.
+
+`-23` is the one code that is not a failure. It says the line ended where a
+statement was still open, so the session waits for the next line and tries
+the whole pending source again. `-8` and `-12` are the two codes that used to
+mean "the source ended here"; they are unreachable now, because every rule
+that needs a token reports `-23` at the end of the stream instead.
+
+An empty line ends the session. If a statement was still open, the session
+reports `-23` first, so the user learns why the session ended.
 
 ## Limits
 
@@ -767,7 +851,13 @@ loaded, and the limits that matter — source length, token count, name count,
 name length and the two arenas — are checked before anything is written. The
 bytecode buffer is the one exception; it relies on the token cap to stay
 inside 1024 cells. That is what makes it possible to run the whole pipeline in
-a dictionary that already has about 9.3k cells free.
+a dictionary that already has about 5.1k cells free.
+
+The name budget, the globals and the two string arenas are per *session*, not
+per line. That is what makes the state carry from one line to the next, and
+it is also what bounds a session: 16 names for the whole session, 500 bytes
+of string literals and 200 bytes of concatenation results, none of it
+reclaimed.
 
 ## Testing
 
@@ -777,16 +867,21 @@ a dictionary that already has about 9.3k cells free.
    flat image into the segmented map, matching `flash_boot.sv`;
 2. loads the SPI slices, types the compiler into the console one line at a
    time, and fails if the outer interpreter reports an error;
-3. types a fixture program, ends it with an empty line, and compares the
-   machine output with the `lua5.4` 5.4.8 fixture;
+3. types a fixture program line by line and compares the machine output with
+   the `lua5.4` 5.4.8 fixture;
 4. types `depth . cr` and requires `0`;
 5. runs every rejection case and checks its negative code;
-6. checks that comment-only and empty sources compile to a halt.
+6. runs every unfinished-source case and checks that it reports `-23`;
+7. checks that the state carries from one line to the next, that a block can
+   be spread over several lines, and that a rejected line does not poison the
+   next one;
+8. checks that comment-only and empty sources compile to a halt.
 
 To add a language case, add its lines to `program` and its expected lines to
 `expected` in the test, keeping them in `lua5.4` agreement. To add a rejection,
-append `[name, source, code]` to `rejected`. The test embeds the expected
-output, so it does not need Lua installed.
+append `[name, source, code]` to `rejected`; to add a source that may be
+continued, append `[name, source]` to `unfinished` and expect `-23`. The test
+embeds the expected output, so it does not need Lua installed.
 
 `gforth lila/test.fs` is the separate host-compiler suite; it does not load
 the native profile.

@@ -69,16 +69,21 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 The current image is 55 slices / 220 KB: directory 0, start 1,
 essentials 2–3 (SPI/config flash, `dir`/`find`, slice editor, `p-screen`),
 edit 4–10, graphics 11–12 (SIC/raster, scene, palettes, I2S, sprites),
-audio 13–14 (μ-law player), games 15–16, sd-card 17–19, Pac-Man 20–25,
-Flappy 26–32, Frogger 33–37, the Pole harness 38, hello 39, the demo `ping`
-sample 40 and the 2-second `swoosh` sample 41–46, and the on-device LILA
-compiler 47–54.
+audio 13–14 (μ-law player), games 15–16, sd-card 17–19, Pac-Man 20–23,
+Flappy 24–26, Frogger 27–31, the Pole harness 32–36, hello 37, the demo
+`ping` sample 38 and the 2-second `swoosh` sample 39–44, and the on-device
+LILA compiler 45–54.
 
-The LILA compiler is a TEXT object, eight slices long, so the boot loader's
-`screen` cap is 16,320 characters (eight slices of 2,040) and `text-buf` is
-16,384 cells. Packed slices (type 8) would carry two characters per cell and
+The LILA compiler is a TEXT object, ten slices long, so the boot loader's
+`screen` cap is 20,400 characters (ten slices of 2,040) and `text-buf` is
+20,480 cells. Packed slices (type 8) would carry two characters per cell and
 halve that, but `p-screen` loads one slice at a time and `included` cannot
 span a definition across two calls, so packed sources are future work.
+
+`text-buf` is allocated in the dictionary at power-on, and in the D16SEG map
+the dictionary shares its region with the data stack, so the ten-slice cap
+takes 4,096 cells out of the stack: the gap between the two fell from 15,671
+cells to 11,575. Every board pays that, whether it loads LILA or not.
 
 The baked boot loader does `1 screen` (start), then `need essentials`
 and `need edit`, so `dir`, `find`, the editor and the start words are
@@ -100,12 +105,9 @@ the keyboard before the menu (BIOS function 8 and the `cls` word repeat it
 without a slice load).
 
 Each game slice carries its own tile pack at segment offset `0x1000`
-(`0x0A57`, count, then index + 32 words per tile) and sprite pack at `0x2000`
-(`0x0A58`, count, then group + 256 words per 32x32 frame). The three art sets
-overlap in the tile bank, so the menu copies the chosen pack into `0xF3000`
-before it enters the game; the game entry installs its sprite pack into
-`0xF4000`. The baked tile bank holds only the console font and the global
-sprite bank is blank.
+(`0x0A57`, count, then index + 32 words per tile). The three art sets overlap
+in the tile bank, so the menu copies the chosen pack into `0xF3000` before it
+enters the game; the baked bank holds only the console font.
 
 The development board runs **unprotected** (`cf-status` reads 0); the boot
 script defines `cf-protect` but does not call it. If you do not re-arm the

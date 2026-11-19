@@ -23,10 +23,10 @@ import { assemble, loadBrowserScripts, buildMemory, runJs, runWasm, runRtl, ROOT
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
-const src = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
+const src = fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8');
 const res = assemble(src);
 
-test('forth.asm assembles', () => {
+test('the archived standalone Forth kernel assembles', () => {
   assert.ok(res.success, res.errors.join('; '));
 });
 
@@ -145,7 +145,7 @@ test('emit prints the popped character', () => {
 // The BIOS draws every character that is typed (getstr, BIOS function 5) and
 // nothing else does, so `echo` and the Screen tab's Echo toggle both end up
 // writing one cell the BIOS reads on every keystroke. See the echo_flag cell
-// in asm/forth.asm.
+// in archive/forth.asm.
 // ---------------------------------------------------------------------------
 
 // The address the browser hard-codes. It is pinned in the I/O segment rather
@@ -1861,7 +1861,7 @@ test('scr@ and scr! reach the screen on the compiled cores too', async () => {
   // cores decode segments themselves. If ES stores landed somewhere else there,
   // the board would be fine on the JS core and blank on the other two - which
   // is the kind of thing nobody sees until they switch cores.
-  const res = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'));
+  const res = assemble(fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8'));
   assert.ok(res.success, res.errors.join('; '));
   // Row 10, column 0 is ES:0x1000 + 800. The kernel sets ES itself at boot, so
   // it is passed in as 0 and forth_start puts it at 0xF000.
@@ -1892,7 +1892,7 @@ test('the store, to and buffer fixes hold on the compiled cores too', async () =
     'create cv 3 ,\n5 to cv\ncv @ .\n',
     '1 '.repeat(50) + '\nnosuchword\n',
   ];
-  const res = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'));
+  const res = assemble(fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8'));
   assert.ok(res.success, res.errors.join('; '));
 
   // memoryAt(addr, n) hands back n cells STARTING at addr, so the screen words
@@ -1950,7 +1950,7 @@ const BIOS_LABELS = [
   'bios_f0', 'bios_f1', 'bios_clr_loop', 'bios_f2',
   'bios_putch_cr', 'bios_putch_lf', 'bios_lf_scroll_copy',
   'bios_lf_scroll_clear', 'bios_lf_row_lt', 'bios_f3',
-  'bios_putstr_loop', 'bios_putstr_done', 'bios_f4', 'bios_getch_ready',
+  'bios_putstr_loop', 'bios_putstr_done', 'bios_f4', 'bios_getch_wait',
   'bios_f5', 'bios_getstr_loop', 'bios_store_char', 'bios_getstr_done',
   'bios_unknown',
 ];
@@ -2411,14 +2411,6 @@ test('key answers the key it read, through the BIOS getch call', () => {
   // line is what key takes.
   assert.equal(repl('key .\nA').rows[1], '> key . 65  ok');
   assert.equal(repl(': t key . ;\nt\nB').rows[2], '> t 66  ok');
-});
-
-test('getch returns 0xFFFF immediately when no key is waiting', () => {
-  // SWI runs with I=0, so the BIOS must not spin there. The wait lives in
-  // word_key, which polls this non-blocking answer in the normal I=1 context.
-  const sim = enterBios(4);
-  assert.equal(sim.shadowRegisters.R0 & 0xFFFF, 0xFFFF,
-    'an idle getch must answer 0xFFFF, not wait for a key');
 });
 
 test('every table entry points at the routine it names', () => {

@@ -14,7 +14,7 @@ import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
-const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'),
+const kernel = assemble(fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8'),
                         { defines: { CONSOLE_UART: 1 } });
 const sym = kernel.symbols;
 // The ceiling is a kernel cell now: the boot probe raises it when the machine
@@ -115,11 +115,7 @@ test('ver prints the release tuple', () => {
                `unexpected version line: ${JSON.stringify(out)}`);
 });
 
-test('both kernels carry their current boot script', () => {
+test('the canonical kernel carries the current forth/boot.fth', () => {
   execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'embed_forth.mjs'), '--check'],
                { cwd: ROOT, stdio: 'pipe' });
-  const mini = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
-  const nano = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
-  assert.match(mini, />>> generated from forth\/boot\.fth/);
-  assert.match(nano, />>> generated from forth\/boot-nano\.fth/);
 });

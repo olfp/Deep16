@@ -1,21 +1,18 @@
 ; pacman_game.asm - a first playable Pac-Man for the D16D showcase.
 ;
-; Assembled standalone with .org 0. The board loads the type-4 slice into
-; segment 0x2000; the JS tests place the same words at physical 0x4330 and run
-; with CS = DS = 0x0433. The menu enters at offset 0 and leaves R10/R11 as the
-; far return pair, which the game saves and uses to JML back to the menu.
+; Assembled standalone with .org 0 and placed at physical 0x4330, so it runs
+; with CS = DS = 0x0433.  The menu enters with JML R0 (CS 0x0433, PC 0) and
+; leaves R10/R11 as the far return pair, which the game saves and uses to
+; JML back to the menu.
 ;
-; Memory inside the block (segment offsets):
-;   0x0000..      code and its strings, below the tile pack
-;   0x1000..      tile pack, copied by the menu before entry
-;   0x1340..0x139F the static maze (generated pacman_map.asm)
-;   0x13A8..0x13B7 direction tables (also generated)
-;   0x13B8..0x13BB ghost-eat point table (also generated)
-;   0x13C0..0x13DF palette setup table (also generated)
-;   0x14A8..0x14AB ghost sprite groups
-;   0x14C0..0x14CB ghost sprite-palette entries
-;   0x1900..0x1967 writable game state
-;   0x2000..      sprite pack installed into the sprite bank at startup
+; Memory inside the block (offset from 0x4330):
+;   0x000..0x5FF  code and its strings
+;   0x900..0x95F  the static maze (generated pacman_map.asm)
+;   0x968..0x975  direction tables (also generated)
+;   0x978..0x97B  ghost-eat point table (also generated)
+;   0x980..0x99E  palette setup table (also generated)
+;   0x1900..0x195F writable game state
+;   0xA00..0xE07  four sprite frames copied into the sprite bank at startup
 ;
 ; The HUD is tilemap row 0.  Maze logical row r is tilemap row 1+r, and
 ; logical column c starts at tilemap column 8 + 2c.  Every logical cell is
@@ -173,10 +170,30 @@ pac_entry:
     JMP R4
     NOP
 
-    ; Install the Pac-Man and ghost frames from the sprite pack carried at
-    ; slice offset 0x2000. Each game owns its groups; the global bank is blank.
-    LDI install_sprite_pack
+    ; keep Flappy's dizzy groups, then install the Pac-Man and ghost frames
+    ; into the writable sprite bank.  The baked bank is untouched.
+    LDI pac_save_groups
     MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI pac_copy_frames
+    MOV R4, R0
+    LDI pac_sprite_data
+    MOV R1, R0
+    LDI pac_sprite_groups
+    MOV R5, R0
+    LSI R6, 6
+    LINK
+    JMP R4
+    NOP
+    LDI pac_copy_frames
+    MOV R4, R0
+    LDI pac_ghost_data
+    MOV R1, R0
+    LDI pac_ghost_groups
+    MOV R5, R0
+    LSI R6, 4
     LINK
     JMP R4
     NOP
@@ -2971,54 +2988,112 @@ pac_pal_done:
     JMP LR
     NOP
 
-; Install the sprite pack carried at slice offset 0x2000:
-;   magic, count, then group + 256 words per 32x32 frame.
-install_sprite_pack:
-    LDI 0x2000
-    MOV R8, R0
-    LDS R4, DS, R8
-    LDI 0x0A58
-    MOV R5, R0
-    CMP R4, R5
-    JNZ psp_done
-    NOP
-    ADD R8, 1
-    LDS R5, DS, R8
-    AND R5, R5
-    JZ psp_done
-    NOP
-    ADD R8, 1
-    LDI 0x7400                 ; 0xF400: sprite bank (bit 14 sign-extends)
+; R1 = DS source, R5 = table of target sprite groups, R6 = group count.
+pac_copy_frames:
+    LDI ST_SVLR
+    MOV R2, R0
+    ST LR, R2, 0
+    LDI SEG_SPR
     MVS ES, R0
-psp_loop:
-    LDS R2, DS, R8             ; absolute sprite group
-    ADD R8, 1
-    MOV R3, R2
-    SL R3, 8                   ; group * 256 words
-    LSI R6, 0
-psp_words:
-    LDS R1, DS, R8
-    STS R1, ES, R3
-    ADD R8, 1
-    ADD R3, 1
-    ADD R6, 1
+pac_cf_group:
+    LDS R2, DS, R5
+    SL R2, 8
+    LSI R8, 0
     LDI 256
-    MOV R4, R0
-    CMP R6, R4
-    JNC psp_frame_done
+    MOV R3, R0
+pac_cf_word:
+    LDS R4, DS, R1
+    MOV R7, R2
+    ADD R7, R8
+    STS R4, ES, R7
+    ADD R1, 1
+    ADD R8, 1
+    SUB R3, 1
+    JNZ pac_cf_word
     NOP
-    LDI psp_words
-    MOV PC, R0
+    ADD R5, 1
+    SUB R6, 1
+    JNZ pac_cf_group
     NOP
-psp_frame_done:
-    SUB R5, 1
-    AND R5, R5
-    JZ psp_done
+    LDI ST_SVLR
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
     NOP
-    LDI psp_loop
-    MOV PC, R0
+
+; Save the three Flappy dizzy groups Pac-Man reuses, so Flappy still works
+; after a game.  768 words live at DS 0x2000, above the slice image.
+pac_save_groups:
+    LDI ST_SVLR
+    MOV R2, R0
+    ST LR, R2, 0
+    LDI SEG_SPR
+    MVS ES, R0
+    LDI 0x2000
+    MOV R1, R0
+    LDI pac_saved_groups
+    MOV R5, R0
+    LSI R6, 3
+pac_sg_group:
+    LDS R2, DS, R5
+    SL R2, 8
+    LSI R8, 0
+    LDI 256
+    MOV R3, R0
+pac_sg_word:
+    MOV R7, R2
+    ADD R7, R8
+    LDS R4, ES, R7
+    ST R4, R1, 0
+    ADD R1, 1
+    ADD R8, 1
+    SUB R3, 1
+    JNZ pac_sg_word
     NOP
-psp_done:
+    ADD R5, 1
+    SUB R6, 1
+    JNZ pac_sg_group
+    NOP
+    LDI ST_SVLR
+    MOV R2, R0
+    LD LR, R2, 0
+    JMP LR
+    NOP
+
+pac_restore_groups:
+    LDI ST_SVLR
+    MOV R2, R0
+    ST LR, R2, 0
+    LDI SEG_SPR
+    MVS ES, R0
+    LDI 0x2000
+    MOV R1, R0
+    LDI pac_saved_groups
+    MOV R5, R0
+    LSI R6, 3
+pac_rg_group:
+    LDS R2, DS, R5
+    SL R2, 8
+    LSI R8, 0
+    LDI 256
+    MOV R3, R0
+pac_rg_word:
+    MOV R7, R2
+    ADD R7, R8
+    LD R4, R1, 0
+    STS R4, ES, R7
+    ADD R1, 1
+    ADD R8, 1
+    SUB R3, 1
+    JNZ pac_rg_word
+    NOP
+    ADD R5, 1
+    SUB R6, 1
+    JNZ pac_rg_group
+    NOP
+    LDI ST_SVLR
+    MOV R2, R0
+    LD LR, R2, 0
     JMP LR
     NOP
 
@@ -3042,6 +3117,11 @@ pac_wf_loop:
     NOP
 
 pac_exit:
+    LDI pac_restore_groups
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI SEG_OAM
     MVS ES, R0
     LDI 0x00E6

@@ -26,6 +26,7 @@ import {
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
 const ASM_DIR = path.join(ROOT, 'asm');
+const LEGACY_FORTH = path.join(ROOT, 'archive', 'forth.asm');
 
 function runJsAt(res, { maxSteps = 50000 } = {}) {
   const { Deep16Simulator } = globalThis;
@@ -324,10 +325,10 @@ test('swi-test prints the same banner on both cores', async () => {
   assert.equal(b, a, 'WASM banner must match JS banner');
 });
 
-test('the Forth kernel greets on the WASM core and stays in its REPL loop', async () => {
+test('the archived Forth kernel greets on the WASM core and stays in its REPL loop', async () => {
   // Regression for: "Das Forth Beispiel laeuft noch nicht mit dem WASM Kern,
   // es erscheineine Ausgabe im Terminal."
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const wasm = await runWasm(res, { maxSteps: 200000 });
@@ -358,7 +359,7 @@ test('WASM: Forth REPL waits on an empty keyboard instead of echoing phantom key
   // read raw memory (0xFFFF). The REPL's BIOS getstr saw an "always ready"
   // keyboard, consumed a stream of 0xFF keys and filled the screen with
   // invisible characters, then swallowed every real keystroke.
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const wasm = await runWasm(res, { maxSteps: 150000 });
@@ -370,7 +371,7 @@ test('WASM: Forth REPL waits on an empty keyboard instead of echoing phantom key
 });
 
 test('WASM: Forth REPL evaluates typed input exactly like the JS core', async () => {
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const line = '1 2 + .\n'; // Enter maps to LF 10, same as the UI bridge
@@ -402,7 +403,7 @@ test('WASM: a compiled ." prints on the CALL on both cores, byte for byte', asyn
   // The kernel writes its dictionary through ordinary DS-relative stores, so
   // this is where the three cores have to agree. The text butts against the
   // echoed word because `."` drops the blank that delimits it, as `s"` does.
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const input = ': greet ." hallo welt" ;\ngreet\n: t ." x" 1 . ." y" ;\nt\n';
@@ -434,7 +435,7 @@ test('WASM: Forth REPL reports an unknown word with the word, discards the line,
   // memory garbage after "undefined word:", and the interpreter subsequently
   // halted the CPU. Both cores must echo the word itself and come back to a
   // fresh prompt.
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
 
@@ -463,7 +464,7 @@ test('WASM: Forth REPL reports an unknown word with the word, discards the line,
 test('WASM: Forth REPL keeps evaluating lines after an unknown word', async () => {
   // Regression: the unknown-word error path used to stop the REPL loop for
   // good. A valid line typed after the error must still work on both cores.
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const input = '1 2 + .\nHELLO\n5 6 + .\n';
@@ -494,7 +495,7 @@ test('WASM: Forth REPL runs colon definitions exactly like the JS core', async (
   // The indirect-threading engine (NEXT/DOCOL, : and ;) must work on both
   // cores; the WASM parity guards against core-specific register or memory
   // differences the threaded inner interpreter could trip over.
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const input = ': square dup * ;\n5 square .\n: ab 65 emit 66 emit ;\nab\n';
@@ -524,7 +525,7 @@ test('WASM: Forth REPL evaluates the P3 stack, arithmetic and comparison words l
   // The new primitives (over, rot, -, /mod, <, 2dup, ...) end in NEXT and
   // must behave identically on both cores; the 2dup line also pins that a
   // word starting with a digit is not split into number + word.
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const input = '10 3 - .\n17 5 /mod . .\n3 4 < .\n1 2 2dup depth .\n0 5 - u.\n3 3 = u.\n';
@@ -557,7 +558,7 @@ test('WASM: Forth REPL evaluates the P3 stack, arithmetic and comparison words l
 test('WASM: Forth REPL runs the control-flow words exactly like the JS core', async () => {
   // if/else/then, begin/while/repeat and recurse compile inline branch
   // offsets into the thread; both cores must resolve them identically.
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const input = ': fac dup 1 > if dup 1- recurse * then ;\n5 fac .\n: wc 0 begin dup 5 < while 1+ repeat ;\nwc .\n';
@@ -586,7 +587,7 @@ test('WASM: Forth REPL runs the control-flow words exactly like the JS core', as
 test('WASM: Forth REPL memory words and defining words match the JS core', async () => {
   // Data-cell access, `,`/`allot` and the dovar/doconst runtime bodies must
   // write the same dictionary and yield the same screen on both cores.
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const input = 'variable x drop\n7 x !\n4 x +! x @ .\n5 constant five\nfive .\nvariable c drop\n65 c c! c c@ .\n';
@@ -616,7 +617,7 @@ test('WASM: Forth REPL memory words and defining words match the JS core', async
 test('WASM: Forth REPL create/does> and value/to match the JS core', async () => {
   // The CREATE/DOES> runtime (dodoes) and the TO store path touch the return
   // stack and IP directly, so both cores must produce the same screen.
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const input =
@@ -660,7 +661,7 @@ test('WASM: Forth REPL create/does> and value/to match the JS core', async () =>
 test('WASM: Forth REPL vocabularies and the search order match the JS core', async () => {
   // Vocabulary execution rewrites the search order and FIND walks it, so both
   // cores must resolve the same headers.
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const input =
@@ -719,7 +720,7 @@ test('WASM: Forth REPL backspace leaves one cursor block on both cores', async (
   // cursor is leaving, so a broken attribute mask is visible there. Pin it on
   // both cores: a divergence between them would otherwise only show up in the
   // browser, where one core is picked at runtime.
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const input = '123456\b\b\b';
@@ -748,7 +749,7 @@ test('WASM: Forth REPL words and forget match the JS core', async () => {
   // words walks the first wordlist through the normal output path; forget
   // rewrites the wordlist head and reclaims HERE, so both cores must agree
   // cell for cell.
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const input =
@@ -784,7 +785,7 @@ test('WASM: Forth REPL words and forget match the JS core', async () => {
 test('WASM: Forth REPL 2/ abs min and max match the JS core', async () => {
   // 2/ uses SRA, whose sign handling lives in the ALU2 decoder of each core,
   // so the floor behaviour has to agree bit for bit.
-  const src = fs.readFileSync(path.join(ASM_DIR, 'forth.asm'), 'utf8');
+  const src = fs.readFileSync(LEGACY_FORTH, 'utf8');
   const res = assemble(src);
   assert.ok(res.success, res.errors.join('; '));
   const input =

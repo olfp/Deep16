@@ -7,7 +7,7 @@
 // at 0xF0022/0xF0024 and the 16-bit cycle counter at 0xF0068). The result
 // goes out over the UART and into the visible tilemap:
 //
-//   POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=055824
+//   POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=056697
 //
 // This script is the host side of that measurement:
 //
@@ -15,7 +15,7 @@
 //   node scripts/bench_pole_board.mjs --port=/dev/ttyUSB0   # capture the UART
 //   node scripts/bench_pole_board.mjs --sim           # dry run on the JS core
 //
-// The board number is directly comparable to the core3 baseline of 55,824
+// The board number is directly comparable to the core3 baseline of 56,697
 // cycles/frame: both run the same renderer, the core3 figure has no memory
 // latency, so the board figure is expected to be the higher of the two.
 import fs from 'node:fs';
@@ -29,8 +29,9 @@ import { assemblePoleBoard } from './pole_program.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // The core3 baseline: scripts/bench_pole.mjs on the RTL core with
-// combinational memory. The board number has to be read against this.
-export const CORE3_CYCLES = 55824;
+// combinational memory. The board number has to be read against this, so it
+// moves whenever the renderer does.
+export const CORE3_CYCLES = 56697;
 
 // The 60 Hz budget at 6.75 MHz.
 export const FRAME_BUDGET = 112500;

@@ -6,9 +6,9 @@ global.window = {};
 vm.runInThisContext(fs.readFileSync('./js/deep16_assembler.js','utf8'));
 vm.runInThisContext(fs.readFileSync('./js/deep16_simulator.js','utf8'));
 
-// Assemble forth kernel
+// Assemble the canonical Forth kernel.
 const asm = new Deep16Assembler();
-const src = fs.readFileSync('./asm/forth.asm','utf8');
+const src = fs.readFileSync('./asm/forth_nano.asm','utf8');
 const res = asm.assemble(src);
 if(!res.success){
   console.error('Assemble failed', res.errors);

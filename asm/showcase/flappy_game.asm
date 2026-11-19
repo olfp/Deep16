@@ -1,11 +1,9 @@
 ; flappy_game.asm - compact Flappy-style showcase game.
 ;
-; Assembled with flappy_defs.asm as its own slice. The entry and small data
-; tables sit at 0x000-0x5FF; the main code starts at 0x0A00 and stays below the
-; tile pack at 0x1000. The sprite pack follows at 0x2000. Everything the game
-; executes, including the death sequence, lives here: no code is placed in the
-; showcase data gaps. It installs the art palette and its sprite pack on entry
-; and restores the default palette on exit.
+; Assembled after asm/showcase.asm. The block starts at 0x0A00 and must end
+; before 0x0E00. Everything the game executes, including the death sequence,
+; lives here: no code is placed in the showcase data gaps. It installs the art
+; palette on entry and restores the default palette on exit.
 ;
 ; The menu is the title screen. F starts play; the menu's idle timer starts the
 ; same game in attract mode. There is no text overlay during play: the double-
@@ -164,57 +162,6 @@ set_pal_loop:
     SUB R5, 1
     JNZ set_pal_loop
     NOP
-    JMP LR
-    NOP
-
-; Install the sprite pack carried at slice offset 0x2000:
-;   magic, count, then group + 256 words per 32x32 frame.
-install_sprite_pack:
-    LDI 0x2000
-    MOV R8, R0
-    LDS R4, DS, R8
-    LDI 0x0A58
-    MOV R5, R0
-    CMP R4, R5
-    JNZ fsp_done
-    NOP
-    ADD R8, 1
-    LDS R5, DS, R8
-    AND R5, R5
-    JZ fsp_done
-    NOP
-    ADD R8, 1
-    LDI 0x7400                 ; 0xF400: sprite bank (bit 14 sign-extends)
-    MVS ES, R0
-fsp_loop:
-    LDS R2, DS, R8             ; absolute sprite group
-    ADD R8, 1
-    MOV R3, R2
-    SL R3, 8                   ; group * 256 words
-    LSI R6, 0
-fsp_words:
-    LDS R1, DS, R8
-    STS R1, ES, R3
-    ADD R8, 1
-    ADD R3, 1
-    ADD R6, 1
-    LDI 256
-    MOV R4, R0
-    CMP R6, R4
-    JNC fsp_frame_done
-    NOP
-    LDI fsp_words
-    MOV PC, R0
-    NOP
-fsp_frame_done:
-    SUB R5, 1
-    AND R5, R5
-    JZ fsp_done
-    NOP
-    LDI fsp_loop
-    MOV PC, R0
-    NOP
-fsp_done:
     JMP LR
     NOP
 
@@ -459,11 +406,6 @@ pipe_done:
 game_entry:
     MVS R0, CS
     MVS DS, R0                ; the slice's own segment
-    LDI install_sprite_pack
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
     LDI pal_art
     MOV R8, R0
     LDI set_palette

@@ -8,9 +8,6 @@ import vm from 'node:vm';
 import path from 'node:path';
 import { ROOT } from './helpers.js';
 import { flappyArtPack, pacmanArtPack, froggerArtPack } from '../scripts/make_tile_font.mjs';
-import { flappySpritePack } from '../scripts/make_bird_sprite.mjs';
-import { pacmanSpritePack } from '../scripts/make_pacman_art.mjs';
-import { froggerSpritePack } from '../scripts/make_frogger_sprites.mjs';
 
 process.env.D16NANO = '1';
 process.env.D16D = '1';
@@ -30,9 +27,7 @@ const pacmanMap = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_map
 const pacmanGame = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_game.asm'), 'utf8');
 const frogger = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'frogger_demo.asm'), 'utf8');
 
-const packs = { flappy: flappyArtPack(), pacman: pacmanArtPack(), frogger: froggerArtPack(),
-                flappySprites: flappySpritePack(), pacmanSprites: pacmanSpritePack(),
-                froggerSprites: froggerSpritePack() };
+const packs = { flappy: flappyArtPack(), pacman: pacmanArtPack(), frogger: froggerArtPack() };
 const sources = { kernel, showcase, flappy, flappyDefs, pacmanMap, pacmanGame, frogger, packs };
 
 test('browser builder matches the Node D16D image word for word', () => {
@@ -50,8 +45,8 @@ test('browser builder matches the Node D16D image word for word', () => {
   assert.equal(node.words[0x4350], 0xffff, 'frogger is not baked into the image');
   assert.equal(node.words[0x5F00], 0xffff, 'flappy is not baked into the image');
   assert.equal(node.words[0x4330], 0xffff, 'the game block is not baked into the image');
-  // The block (code, map, tables, tile pack and sprite pack) runs past the
-  // BIOS, so the board loads it only through the type-4 slice loader.
+  // The block (code, map, tables and tile pack) now runs past the BIOS, so
+  // the old flat-image bake path is only a slice loader on the board.
 });
 
 test('the showcase does not overwrite any live kernel word', () => {
@@ -60,7 +55,7 @@ test('the showcase does not overwrite any live kernel word', () => {
   // word silently replaces it: serial-read used to sit at 0x4E42, under the
   // menu, and xmodem died on the first SOH. The build reports every such hit.
   assert.deepEqual(node.collisions, [], 'no showcase word lands on kernel code');
-  assert.equal(node.words[0x4400], 0x89a0, 'serial-read wrapper is intact at its new home');
+  assert.equal(node.words[0x4400], 0x89a0, 'serial-read is intact at its new home');
   assert.equal(node.words[0x444e], 0x4400, 'its header points at it');
 });
 

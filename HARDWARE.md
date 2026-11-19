@@ -20,20 +20,20 @@ the board still boots to the prompt with no keyboard attached.
   arrows/Home/End emit `C-B/C-F/C-P/C-N/C-A/C-E`, and AltGr supplies
   `@ { [ ] } \ | ~` and the other German AltGr characters. The console drops
   C0 control bytes, so the navigation keys cannot corrupt a line.
-- **Host sender and init (BIOS):** `ps2_send` lives in
+- **Host sender and init (BIOS):** `ps2_send` and `ps2_init` live in
   `asm/forth_nano.asm` at BIOS `0x5490` (segment offset `0xA90`), not in a
-  flash slice; the init state machine is BDOS function 9 and runs with I=1. `ps2_send` takes the byte in `R1` and sends start + 8 data bits
+  flash slice. `ps2_send` takes the byte in `R1` and sends start + 8 data bits
   LSB first + odd parity + stop with the keyboard's clock; it returns 1 when
   the keyboard clocked the frame and 0 when the start bit never produced a
-  clock. BDOS function 9 retries `0xFF` (reset) while the sender sees no keyboard
+  clock. `ps2_init` retries `0xFF` (reset) while the sender sees no keyboard
   clock (four attempts, ~0.3 s apart), then waits for ACK/BAT and sends
   `0xF4` (enable scanning) four times. The request holds CLK low for 400
   sender-loop iterations (>100 µs at 6.75 MHz, with margin). BIOS function 7
-  exposes the sender; function 8 is a non-blocking status/timer snapshot for
-  the BDOS state machine.
-- **Boot init:** the kernel calls BDOS function 9 after `binit` and before
-  the menu/banner, so the keyboard is scanning before the menu appears and the
-  waits run with I=1. They use the millisecond timer (`0xF0022`)
+  exposes the sender and function 8 re-runs the init (`7`/`8` in the caller's
+  `R0`, parameters in `R1`).
+- **Boot init:** `binit` (BIOS function 1) calls `ps2_init` before the banner
+  and the prompt, so the keyboard is scanning before the menu appears. The
+  waits use D16nano cycle-counter ticks (`0xF006A` high word, ~9.7 ms each)
   for the ~0.3 s settle and the 1 s/0.4 s timeouts, but a present keyboard
   answers in milliseconds: the init watches the receiver's frame toggle
   (`0xF0066` bit 7) instead of sleeping through the whole window. A missing

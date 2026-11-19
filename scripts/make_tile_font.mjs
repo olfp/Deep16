@@ -101,7 +101,7 @@ export function tileFontWords(fontWords, italicWords = fontPage(fontWords, { ita
   }
   // The game art is not baked any more: Flappy, Pac-Man and Frogger each carry
   // a tile pack in their slice and the menu copies it into the bank on launch.
-  // Their ranges overlap (14 + 24 + 79 tiles in 79 usable slots), so one baked
+  // Their ranges overlap (14 + 24 + 66 tiles in 79 usable slots), so one baked
   // set could only ever fit one of them.
   return out;
 }

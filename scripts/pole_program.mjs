@@ -27,12 +27,14 @@ export const POLE_SOURCES = [
 ];
 
 // The on-board harness: the same renderer and the same state handling, with
-// the board driver in place of the benchmark driver.
+// the board driver in place of the benchmark driver. The harness also carries
+// the art copy, because the board program is the one that draws the road.
 export const POLE_BOARD_SOURCES = [
   'asm/pole/pole_tables.asm',
   'asm/pole/pole_render.asm',
   'asm/pole/pole_state.asm',
   'asm/pole/pole_board.asm',
+  'asm/pole/pole_art.asm',
 ];
 
 let assembler = null;

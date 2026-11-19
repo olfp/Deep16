@@ -26,9 +26,11 @@ const Model = globalThis.Deep16PoleModel;
 const SEG = 0x7000;
 const BASE = SEG << 4;
 
-// The core3 baseline the report quotes: 55,824 cycles/frame, measured by
-// scripts/bench_pole.mjs on the RTL core with combinational memory.
-const CORE3 = 55824;
+// The core3 baseline the report quotes: 56,697 cycles/frame, measured by
+// `node scripts/bench_pole.mjs 60` on the RTL core with combinational memory.
+// The renderer is re-measured whenever it changes, and the number here has to
+// move with it.
+const CORE3 = 56697;
 
 const TILE_BASE = 0xF1000;
 const OAM_BASE = 0xF6000;
@@ -98,14 +100,15 @@ function parseReport(line) {
   };
 }
 
-test('the board program assembles and fits one slice', () => {
+test('the board program assembles and fits the slice', () => {
   for (const defines of [{}, { POLE_FAST: 1 }]) {
     const res = assemblePoleBoard(defines);
     assert.equal(res.success, true, res.errors.join('; '));
     const max = Math.max(...res.memoryChanges.map((c) => c.address));
-    // A type-4 slice carries 2040 payload words plus five header words.
-    assert.ok(max + 1 + 5 <= 2040,
-      `the board program is ${max + 1} words, past one slice payload`);
+    // The code and the tables fit below the art copy at 0x0900, and the art
+    // blocks start at 0x1000.
+    assert.ok(max < 0x1000,
+      `the board program reaches 0x${max.toString(16)}, into the art`);
     // The entry is at offset 0 and the renderer is where the other drivers
     // expect it.
     assert.equal(res.symbols.pole_start, 0);

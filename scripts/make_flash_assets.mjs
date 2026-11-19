@@ -3,9 +3,7 @@
 //
 // The simulation must not carry a graphics ROM. The tile bank, sprite bank and
 // palettes are flash contents, loaded at run time the same way the board will
-// load them. The global sprite bank is blank: each game installs its own
-// sprite pack from its binary slice. This script packages the shared font and
-// palette assets into one blob:
+// load them. This script packages the existing art generators into one blob:
 //
 //   magic "D16G" | version u16 | tileWords u16 | spriteWords u16 |
 //   paletteWords u16 | little-endian 16-bit words

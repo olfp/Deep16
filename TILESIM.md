@@ -110,10 +110,9 @@ current state rather than a blank.
 
 On the board the tile bank, sprite bank and palette are BSRAM initial contents
 (`$readmemh` of `tilefont.hex`, `birdsprite.hex`, `tilepal3.hex`,
-`rtl/dvi/dvi_tile.sv:189-193`). The sprite image is blank in the current build:
-each game installs its own slice sprite pack at run time. CPU memory does not
-contain these banks and PSRAM reads stay `0xFFFF`, so they are engine state,
-never seeded into the CPU address space.
+`rtl/dvi/dvi_tile.sv:189-193`). CPU memory does not contain them and PSRAM reads
+stay `0xFFFF`, so they are engine state, never seeded into the CPU address
+space.
 
 - New generator `scripts/make_video_rom.mjs` reusing `tileFontWords()`,
   `artTiles()` and `PALETTE_RGB332` from `make_tile_font.mjs` /

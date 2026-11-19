@@ -12,9 +12,9 @@
 // transparent colour, so every pixel is drawn in the shared art palette.
 import { decodePng } from './lib_png.mjs';
 import { fitArt } from './make_frogger_art.mjs';
-import { SPR_MAGIC, SPR_PACK_OFFSET, spriteFrameWords, spritePack } from './make_sprite_pack.mjs';
 
-export { SPR_MAGIC, SPR_PACK_OFFSET };
+export const SPR_PACK_OFFSET = 0x2000;
+export const SPR_MAGIC = 0x0a58;
 
 const SHEET = new URL('../assets/art/frogger/sprites-sheet.png', import.meta.url);
 
@@ -76,11 +76,37 @@ function frame(img, box, sideways = false) {
   return grid;
 }
 
+function frameWords(grid) {
+  const words = [];
+  for (let ty = 0; ty < 4; ty++) {
+    for (let tx = 0; tx < 4; tx++) {
+      for (let row = 0; row < 8; row++) {
+        for (let half = 0; half < 2; half++) {
+          let w = 0;
+          for (let n = 0; n < 4; n++) {
+            const x = tx * 8 + half * 4 + n;
+            const y = ty * 8 + row;
+            w |= (grid[y][x] & 0xf) << (n * 4);
+          }
+          words.push(w & 0xffff);
+        }
+      }
+    }
+  }
+  return words;
+}
+
 export function froggerSpriteFrames() {
   const img = decodePng(SHEET);
   return FRAMES.map(({ group, box, side: sideways }) => ({ group, grid: frame(img, box, sideways) }));
 }
 
 export function froggerSpritePack() {
-  return spritePack(froggerSpriteFrames());
+  const frames = froggerSpriteFrames();
+  const words = [SPR_MAGIC, frames.length];
+  for (const { group, grid } of frames) {
+    words.push(group & 0xffff);
+    words.push(...frameWords(grid));
+  }
+  return words;
 }

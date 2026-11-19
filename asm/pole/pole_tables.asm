@@ -39,4 +39,4 @@ sprite_h:
 
 .org 0x04A8
 sprite_groups:
-    .word 0, 1, 5, 9
+    .word 1, 5, 9, 13

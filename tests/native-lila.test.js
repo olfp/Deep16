@@ -34,11 +34,9 @@ for (const src of compiler) {
   }
 }
 
-h.type('lila', 2_000_000, false);
-for (const src of PROGRAM) h.type(src, 4_000_000, false);
-const programMark = h.out.length;
-h.type('', 20_000_000, true);      // the blank line ends the source and runs it
-const got = h.programOutput(programMark);
+// `lila` is a session: every line is compiled and run as soon as it is
+// complete, and the state carries from one line to the next.
+const got = h.runProgram(PROGRAM);
 
 test('the segmented image boots', () => {
   assert.equal(h.sim.segmentRegisters.DS, 0x1000, 'DS');
@@ -68,10 +66,7 @@ const rejected = [
   ['function', 'function f() end', -21],
   ['local', 'local x = 1', -21],
   ['table', 't = {}', -9],
-  ['missing end', 'if 1 then print(1)', -15],
-  ['unterminated while', 'while 1 do print(1)', -17],
   ['newline in string', 'print("a\nb")', -3],
-  ['unbalanced paren', 'print((1 + 2)', -20],
   ['literal out of range', 'print(2147483648)', -22],
   ['literal far out of range', 'print(99999999999)', -22],
 ];
@@ -83,6 +78,49 @@ test('syntax outside the profile is rejected with a code', () => {
     assert.ok(m, `${name}: no LERR in ${JSON.stringify(text)}`);
     assert.equal(Number(m[1]), code, name);
   }
+});
+
+// A line that ends in the middle of a statement is not an error. The
+// session asks for another line and tries the whole pending source again;
+// an empty line gives up on it and reports -23.
+const unfinished = [
+  ['missing end', 'if 1 then print(1)'],
+  ['unterminated while', 'while 1 do print(1)'],
+  ['unbalanced paren', 'print((1 + 2)'],
+  ['missing value', 'x ='],
+];
+
+test('a source that ends mid-statement asks for another line', () => {
+  for (const [name, src] of unfinished) {
+    const text = h.runSource(src);
+    const m = text.match(/LERR (-?\d+)/);
+    assert.ok(m, `${name}: no LERR in ${JSON.stringify(text)}`);
+    assert.equal(Number(m[1]), -23, name);
+  }
+});
+
+test('the state carries from one line to the next', () => {
+  assert.equal(h.runProgram(['x = 3', 'print(x)']), '3');
+  assert.equal(h.runProgram(['x = 3', 'y = x + 1', 'print(y)']), '4');
+  assert.equal(h.runProgram(['s = "a" .. "b"', 'print(s)']), 'ab');
+  // The string arenas live as long as the session does, so a later line
+  // cannot overwrite the string an earlier one left behind.
+  assert.equal(h.runProgram(['s = "hello"', 't = "world"', 'print(s)']), 'hello');
+  assert.equal(h.runProgram(['s = "a" .. "b"', 't = "c" .. "d"', 'print(s)']), 'ab');
+});
+
+test('a block can be spread over several lines', () => {
+  assert.equal(h.runProgram(['if 1 then', 'print("yes")', 'end']), 'yes');
+  assert.equal(h.runProgram(['if 1 == 2 then', 'print("yes")', 'else',
+                             'print("no")', 'end']), 'no');
+  assert.equal(h.runProgram(['i = 0', 'while i < 3 do', 'i = i + 1', 'end',
+                             'print(i)']), '3');
+});
+
+test('a rejected line does not poison the next one', () => {
+  const out = h.runProgram(['print(1 / 2)', 'print(5)']);
+  assert.match(out, /LERR -20/, out);
+  assert.ok(out.endsWith('5'), out);
 });
 
 test('a comment-only or empty source compiles to a halt', () => {

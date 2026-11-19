@@ -53,7 +53,8 @@ sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
   // instructions per character in read_line).
   for (let i = 0; i < 20_000_000 && !sim.memory[sym.boot_done]; i += 1000) pump(1000);
   pump(100_000);
-  const r0 = sim.memory[sym.bios_tile_row];
+  const rowCell = sym.bios_tile_row ?? sym.tile_row;
+  const r0 = sim.memory[rowCell];
   assert.ok(r0 >= 2, `banner, loading lines, summary and prompt occupy ${r0} rows`);
 
   press('123 u.\n');

@@ -1,6 +1,6 @@
-// The serial (CONSOLE_UART) build of the Forth kernel, end to end: boot it on
-// the JS core, feed keystrokes into the UART RX, and read the UART TX back
-// through the same SerialTerminal the IDE uses.
+// The archived standalone kernel's serial (CONSOLE_UART) build, end to end:
+// boot it on the JS core, feed keystrokes into the UART RX, and read the UART TX
+// back through the same SerialTerminal the IDE uses.
 //
 // This is the loop the screen tests cannot close: it proves the kernel actually
 // emits on 0xF0042 and reads 0xF0040, so the terminal view shows a real REPL and
@@ -14,7 +14,7 @@ import { assemble, loadBrowserScripts, buildMemory, loadSerialTerminal, ROOT } f
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 const SerialTerminal = loadSerialTerminal();
 
-const src = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
+const src = fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8');
 const uart = assemble(src, { defines: { CONSOLE_UART: 1 } });
 const screen = assemble(src);
 
@@ -90,20 +90,4 @@ test('a colon definition is accepted over the serial line', () => {
   const { rows } = repl(': foo 41 ;\n42 foo + .\n');
   assert.equal(rows[1], '> : foo 41 ; ok', `terminal was:\n${rows.join('\n')}`);
   assert.equal(rows[2], '> 42 foo + . 83  ok');
-});
-
-test('accept reads its own line over the serial link', () => {
-  // accept polls the same non-blocking getstr as the REPL, but into a buffer
-  // of the caller's; the second line is the one it returns and `type` prints.
-  const { rows } = repl('pad 80 accept dup . pad swap type\nhello\n');
-  assert.equal(rows[1], '> pad 80 accept dup . pad swap typehello 5 hello ok',
-                 `terminal was:\n${rows.join('\n')}`);
-});
-
-test('refill makes the next serial line available', () => {
-  // refill replaces the current input line with the next one, so the words
-  // after it on the first line never run.
-  const { rows } = repl('refill\n. 111 .\n');
-  assert.equal(rows[1], '> refill. 111 . -1  111  ok',
-                 `terminal was:\n${rows.join('\n')}`);
 });

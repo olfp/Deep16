@@ -109,9 +109,6 @@ class Deep16D16DImage {
 
   static build({ kernel, showcase, flappy, flappyDefs, pacmanMap, pacmanGame, frogger, defines = {},
                  bakePacman = false, packs = {} } = {}) {
-    if (bakePacman) {
-      throw new Error('bakePacman is no longer supported: Pac-Man carries tile and sprite packs in its type-4 slices');
-    }
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('D16D image needs kernel source');
     if (typeof showcase !== 'string') throw new Error('D16D image needs the showcase source');
 
@@ -146,6 +143,7 @@ class Deep16D16DImage {
 
     const WINDOW = 0x6000;
     const SHOWCASE_BASE = 0x4A00;
+    const PACMAN_BASE = 0x4330;
     const collisions = [];
     for (const change of sres.memoryChanges) {
       if (change.address < 0 || change.address >= 0x10000) {
@@ -158,6 +156,19 @@ class Deep16D16DImage {
         words[pa] = change.value & 0xFFFF;
       } else outOfWindow.add(pa);
     }
+    // Pac-Man can still be baked into the free image gap for a build that has
+    // the room back; the board loads it from the config flash instead.
+    if (bakePacman) {
+      for (const change of pres.memoryChanges) {
+        if (change.address < 0 || change.address >= 0x2000) {
+          throw new Error(`pacman address out of range: 0x${change.address.toString(16)}`);
+        }
+        const pa = PACMAN_BASE + change.address;
+        if (pa < WINDOW) words[pa] = change.value & 0xFFFF;
+        else outOfWindow.add(pa);
+      }
+    }
+
     const block = (res, seg, pack, spritePack) => res === null ? null : (() => {
       const blockWords = res.memoryChanges.map((c) => [c.address, c.value & 0xFFFF])
         .sort((a, b) => a[0] - b[0]);
@@ -183,10 +194,10 @@ class Deep16D16DImage {
       biosEntry: kres.symbols.bios_entry,
       symbols: kres.symbols,
       showcase: { words: sres.memoryChanges.map((c) => [c.address, c.value & 0xFFFF]) },
-      flappy: block(fres, 0x5000, packs.flappy, packs.flappySprites),
+      flappy: block(fres, 0x5000, packs.flappy),
       frogger: block(gres, 0x0600, packs.frogger, packs.froggerSprites),
       pacman: (() => {
-        const b = block(pres, 0x2000, packs.pacman, packs.pacmanSprites);
+        const b = block(pres, 0x2000, packs.pacman);
         return b && { ...b, codeEnd: pres.symbols.p_code_end };
       })(),
     };

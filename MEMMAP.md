@@ -112,10 +112,10 @@ loader. The dictionary then continues at `0x6000`.
 | `0x03000`–`0x0434E` | kernel data, boot script, built-in headers, `rp0_base` |
 | `0x03F9D`–`0x043FF` | free dictionary gap (`dict_free` at `0x3F9C`) |
 | `0x04400`–`0x0444E` | `serial-read` primitive (`0x4400`) and its built-in header (`0x4440`) |
-| `0x0444F`–`0x049FF` | `bdos-slice` (`0x4500`), its header (`0x4540`), BDOS read-slice (`0x4580`); the rest is free |
+| `0x0444F`–`0x049FF` | free (the old Pac-Man/Frogger gap) |
 | `0x04A00`–`0x04D33` | BIOS code (dispatch, console functions 0–6, D16D `gfx_back` menu return) |
 | `0x04D34`–`0x04FE0` | D16D showcase menu block (sparse; magic at `0x04DE4`, entry `0x04D34`) |
-| `0x04FE1`–`0x0519B` | free, then the ILL trap handler (DIV/DIV32) at `0x05000` (trampoline `0x04D24`) |
+| `0x04FE1`–`0x0519B` | free, then the ILL trap handler (DIV/DIV32) at `0x05000` |
 | `0x0519C`–`0x0519F` | free |
 | `0x051A0`–`0x052BF` | IRQ handler (hardware vector 1), including the audio pump |
 | `0x052C0`–`0x052FF` | keyboard IRQ ring (`kbd_head`, `kbd_tail`, 32 cells) |
@@ -153,7 +153,7 @@ loader. The dictionary then continues at `0x6000`.
 | `state_var` | `0x313D` | compiler state |
 | `base_var` | `0x330A` | numeric base |
 | `dp_var` | `0x3817` | dictionary pointer |
-| `boot_script` | `0x3C20` | baked boot source (`forth/boot.fth` on mini, `forth/boot-nano.fth` on nano) |
+| `boot_script` | `0x3C14` | baked `forth/boot.fth` source |
 | `boot_ptr` | `0x3010` | next boot-script line |
 | `rp0_base` | `0x3001` | return-stack base cell (`0x5800` flat, `0x2FF0` D16SEG) |
 | `dict_free` | `0x434F` | first statically free word |
@@ -175,25 +175,49 @@ far-jumps to the segment the slice names with `R10`/`R11` as the return pair.
 
 | App | Slice | Segment |
 |---|---|---|
-| Pac-Man | 20–25 | `0x2000` |
-| Flappy | 26–32 | `0x5000` |
-| Frogger | 33–37 | `0x0600` |
-| Pole (road renderer benchmark) | 38 | `0x7000` |
+| Pac-Man | 20–23 | `0x2000` |
+| Flappy | 24–26 | `0x5000` |
+| Frogger | 27–31 | `0x0600` |
 
-Each game slice carries its own art: a tile pack at `0x1000` (magic `0x0A57`,
-count, then index + 32 words per tile) and a sprite pack at `0x2000` (magic
-`0x0A58`, count, then group + 256 words per 32x32 frame). The menu copies the
-chosen tile pack into the `0xF3000` window before entry; the game entry copies
-its sprite pack into `0xF4000`. The three art sets overlap (14 + 24 + 79 tiles
-in 79 usable slots), and each game owns its sprite groups. The bitstream bakes
-only the console font, and its global sprite bank stays blank.
+The Frogger slice carries its own art: a tile pack at `0x1000` (magic
+`0x0A57`, count, then index + 32 words per tile) and a sprite pack at
+`0x2000` (magic `0x0A58`, count, then group + 256 words per 32x32 frame).
+Its entry copies both into the `0xF3000` / `0xF4000` windows and the palette
+into the art and sprite banks of set 2, so the baked `tilefont.hex` and
+`birdsprite.hex` stay the menu's. The tile pack also carries the home-row
+hedge and bay art at tiles 26–38. Code and state stay below `0x1000`
+(`FROGGER_LIMIT`); the state block starts at `0xA00`, with the frog's x, lane,
+hop counter, death countdown, filled bays, level, pause, game state, lives,
+score, hi-score, extra-life flag, HUD flags and facing at `0xA30`–`0xA3F`.
+| Pole (road renderer benchmark) | 32–36 | `0x7000` |
 
-Frogger's entry also copies its tile pack and installs the palette in the art
-and sprite banks of set 2. Its tile pack carries the home-row hedge and bay art
-at tiles 26–38. Code and state stay below `0x1000` (`FROGGER_LIMIT`); the state
-block starts at `0xA00`, with the frog's x, lane, hop counter, death countdown,
-filled bays, level, pause, game state, lives, score, hi-score, extra-life flag,
-HUD flags and facing at `0xA30`–`0xA3F`.
+Each of those blocks carries its tile art at segment offset `0x1000` (magic
+`0x0A57`, tile count, then index + 32 words); the menu copies it into the tile
+bank before entering the game, because the three art sets overlap (14 + 24 +
+79 tiles in 79 usable slots). The bitstream bakes only the console font.
+
+The Pole slice is different: it is not launched from the menu but by
+`s" pole" game-run`, so it carries its own art and copies it in itself. Its
+segment layout is:
+
+| Offset | Contents |
+|---|---|
+| `0x0000` | the slice entry |
+| `0x0100`–`0x03FF` | the renderer and its helpers |
+| `0x0400`–`0x04AF` | the curve, width, hill and sprite tables |
+| `0x04B0`–`0x051F` | the state, the scratch cells and the band descriptors |
+| `0x0520`–`0x053F` | the harness's own cells (the frame counter, the report helpers) |
+| `0x0580`–`0x05BF` | the report strings |
+| `0x0600`–`0x08FF` | the board driver and its helpers |
+| `0x0900`–`0x092F` | `pole_art_copy`, the bank copy |
+| `0x1000`–`0x13FF` | the tile art: 32 tiles of 32 words (slots 96–127) |
+| `0x1400`–`0x24FF` | the sprite art: 17 groups of 256 words (group 0 = the player) |
+| `0x2500`–`0x252F` | the palettes: the text, art and sprite banks of set 0 |
+
+The copy routine (`asm/pole/pole_art.asm`) moves the three blocks into the
+tile bank at `0xF3C00` (tile 96), the sprite bank at `0xF4000` (group 0) and
+the palette window at `0xF6080` (set 0, bank 0). It leaves the console font
+(tiles 0–95) and the bird sprite (group 24) alone.
 
 The `0x4350` gap is still free (`dict_free = 0x434F`), and the BIOS has taken
 over the top of the old game area: the menu/BDOS bridge ends at `0x548D`, the
@@ -274,8 +298,8 @@ Notes:
 * The D16D demo keeps its own `DS=0x04A0` (the flat segment-0 copy of the BIOS
   block); BIOS function 6 restores `DS=0x1000` on return.
 * The D16D image requires `D16SEG` (the segmented kernel).  Pac-Man itself is
-  not in the 24K image: it is a type-4 slice chain at config-flash `0x214000`
-  (slices 20–25), loaded into segment `0x2000` at run time by `games.fth`.
+  not in the 24K image: it is a type-4 slice at config-flash `0x20B000`, loaded
+  into segment `0x2000` at run time by `games.fth`.
 * `tests/segmented.test.js` boots this map in the JS core (scatter + banner,
   1,000-deep recursion, `catch`/`throw`, 20,000 data-stack cells).
 
@@ -408,7 +432,7 @@ and is also a normal PSRAM/Forth store at the same address.
 | `0xF200C` | control 6 | per-row fine scroll: `{en, row[4:0], fine[2:0]}`; latched at the frame boundary. Row 31 is not a tile row: it sets the scroll window `{col[6:0], side}`, where `side` 0 keeps columns `0..col` static (left panel) and 1 keeps the rest static (right panel) |
 | `0xF200E` | control 7 | raster line compare 0..359 (`b9:0`); one SIC bit-3 pulse per frame |
 | `0xF3000`–`0xF3FFF` | tile bank | CPU window over **all 128 tiles** × 32 words: 30 words of 8×15 4bpp, words 30–31 reserved (currently zero) |
-| `0xF4000`–`0xF57FF` | sprite bank | **all 24 groups** × 16 patterns × 16 words = 6,144 words, contiguous; the OAM group is absolute. The bitstream seeds it blank; each game installs its slice sprite pack. Control 5 is a compatibility no-op. |
+| `0xF4000`–`0xF57FF` | sprite bank | **all 24 groups** × 16 patterns × 16 words = 6,144 words, contiguous; the OAM group is absolute. Control 5 is a compatibility no-op. |
 | `0xF6000`–`0xF607F` | OAM | 64 descriptors × 2 words: `w0={behind,vflip,hflip,free,enable,xsign,x[9:0]}`, `w1={group[4:0],free,y[9:0]}`. Visible slot `n` = descriptor `(base+n) mod 64` |
 | `0xF6080`–`0xF627F` | palettes | 8 sets × 4 banks × 16 entries: set `s`, bank `b` (0 text, 1 art, 2 sprite, 3 spare), entry `e` at `0xF6080 + s*64 + b*16 + e`. Set 0 is the old text/art/sprite layout |
 | rest of `0xF6280`–`0xF62FF` | — | reserved |
@@ -598,14 +622,14 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x20D000`–`0x20EFFF` | slices 13–14: `audio.fth` (μ-law player) |
 | `0x20F000`–`0x210FFF` | slices 15–16: `games.fth` (the flash game loader) |
 | `0x211000`–`0x213FFF` | slices 17–19: `sd.fth` (loaded with `s" sd-card" need`) |
-| `0x214000`–`0x219FFF` | slices 20–25: Pac-Man (11,021 words incl. tile and sprite packs, segment `0x2000`) |
-| `0x21A000`–`0x220FFF` | slices 26–32: Flappy (12,306 words incl. tile and sprite packs, segment `0x5000`) |
-| `0x221000`–`0x225FFF` | slices 33–37: Frogger (9,993 words incl. tile and sprite packs, segment `0x0600`) |
-| `0x226000` | slice 38: Pole road renderer and its on-board timing harness (2003 words, segment `0x7000`) |
-| `0x227000` | slice 39: `hello.fth` |
-| `0x228000` | slice 40: `ping` μ-law sample |
-| `0x229000`–`0x22EFFF` | slices 41–46: `swoosh` 2-second μ-law sample (linked) |
-| `0x22F000`–`0x236FFF` | slices 47–54: `lila` (the on-device LILA compiler) |
+| `0x214000`–`0x217FFF` | slices 20–23: Pac-Man (8064 words incl. its tile pack, segment `0x2000`) |
+| `0x218000`–`0x21AFFF` | slices 24–26: Flappy (4560 words incl. pack, segment `0x5000`) |
+| `0x21B000`–`0x21FFFF` | slices 27–31: Frogger (9993 words incl. its tile and sprite packs, segment `0x0600`) |
+| `0x220000`–`0x224FFF` | slices 32–36: Pole road renderer, its on-board timing harness and its art (9520 words, segment `0x7000`) |
+| `0x225000` | slice 37: `hello.fth` |
+| `0x226000` | slice 38: `ping` μ-law sample |
+| `0x227000`–`0x22CFFF` | slices 39–44: `swoosh` 2-second μ-law sample (linked) |
+| `0x22D000`–`0x234FFF` | slices 45–52: `lila` (the on-device LILA compiler) |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and
@@ -632,18 +656,7 @@ These are physical allocations; the CPU sees PSRAM at the addresses above.
    definitions (`free`, `mem`, and the D16nano `divtest` header) are added
    to the dictionary.
 5. REPL/BIOS: SWI dispatches through `bios_entry` (0 bver, 1 binit, 2 putch,
-   3 putstr, 4 non-blocking getch, 5 getstr, 6 gfx on D16D, 13 UART-ready on
-   D16D; the UART build exposes UART-ready as 6). `put_char` polls it with I=1.
-   The tile/UART BIOS also exposes f14–f15 (division), f16 (`constat`),
-   f17–f19 (column, scroll-offset and getstr state accessors) and f20–f22
-   (atomic SPI control, start and poll); the common state cells live at 0x5790.
-   BDOS function 10 is the XMODEM pair reader (`serial-read`); function 11
-   reads a 4 KiB source slice into a caller buffer and drives the nano boot
-   loader through `bdos-slice`.
-   On the UART build f1/f3 are dispatch stubs: `console_clear` and
-   `bios_putstr_direct` print through `print_text`. f5 is a non-blocking RX pump
-   (partial line in `gs_active`/`gs_ptr`) and does no echo; `read_uart_line`
-   polls it with I=1 and `echo_line` sends the buffer delta via `put_char`.
+   3 putstr, 4 getch, 5 getstr, 6 gfx on D16D).
 6. ILL trap: `deep16_core3` raises the trap for DIV/DIV32; the D16nano handler at
    `0x5000` emulates the divide, saves the caller's PC in `ill_pc_save`
    (`0x37E4`), and returns. `divtest` at `0x5300` checks it.

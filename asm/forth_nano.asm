@@ -4100,7 +4100,7 @@ gs_ptr:
 ; Forth source, baked into the image and read by read_line before the keyboard
 ; on every boot: it loads slice 1 (`start`), then essentials and edit by name.
 ; `start` prints the memory summary under the banner. The text between the
-; markers is GENERATED from forth/boot-nano.fth by scripts/embed_forth.mjs -
+; markers is GENERATED from forth/boot.fth by scripts/embed_forth.mjs -
 ; edit that file, not this block (`node scripts/embed_forth.mjs`, and
 ; tests/boot-script.test.js fails if they drift).
 ; One `.text` per source line: each emits the characters (one cell each) and a
@@ -4111,9 +4111,9 @@ gs_ptr:
 text_attr:
     .word 0x8000
 boot_script:
-; >>> generated from forth/boot-nano.fth - do not edit here <<<
+; >>> generated from forth/boot.fth - do not edit here <<<
     .string "create slice-buf 2048 cells allot"
-    .string "create text-buf 16384 cells allot       \\ up to eight 2040-char source slices"
+    .string "create text-buf 20480 cells allot       \\ up to ten 2040-char source slices"
     .string "variable slice-sec drop"
     .string "variable slice-wp drop"
     .string "variable sf-a drop"
@@ -4132,7 +4132,7 @@ boot_script:
     .string ": screen ( n -- )"
     .string "  dup 0 511 within 0= if .\" screen: 0..511\" cr drop exit then"
     .string "  0 >r  begin"
-    .string "    r@ 16320 < 0= if .\" screen: too long\" cr r> 2drop exit then"
+    .string "    r@ 20400 < 0= if .\" screen: too long\" cr r> 2drop exit then"
     .string "    dup slice  ( n a )"
     .string "    dup slice-valid? 0= if 2drop r> drop exit then"
     .string "    dup 8 cells +  text-buf r@ cells +  2040 move"
@@ -19259,7 +19259,7 @@ sread_ret:
 ; ---- BDOS function 10: the XMODEM pair reader --------------------------
 ; Moved out of the kernel so the polling loop runs in the BDOS layer (I=1).
 ; R1 = addr, R4 = pairs; returns R0 = complete pairs stored.
-.org 0x4460
+.org 0x4800
 .code
 bdos_serial_read:
     ; ( addr pairs -- n )  read `pairs` UART bytes-pairs, packing two bytes
@@ -19269,7 +19269,7 @@ bdos_serial_read:
     ; BDOS function 10: R1 = addr, R4 = pairs; BDOS has no stack. The return
     ; pair is parked in the 0x44E0 cells: the loop below uses R10 for the
     ; first byte, and R8 cannot be used under ER=8.
-    LDI 0x2270
+    LDI 0x2470
     SL R0, 1                  ; R0 = 0x44E0
     STS R10, CS, R0
     ADD R0, 1
@@ -19325,7 +19325,7 @@ sread_gb:
     JNZ sread_loop
     NOP
 sread_done:
-    LDI 0x2270
+    LDI 0x2470
     SL R0, 1                  ; R0 = 0x44E0
     LDS R10, CS, R0
     ADD R0, 1
@@ -19335,7 +19335,7 @@ sread_done:
     JML R10
     NOP
 
-.org 0x44E0
+.org 0x48E0
 sread_r10:
     .word 0
 sread_r11:
@@ -19345,14 +19345,239 @@ sread_r11:
 ; at the head of the chain would move text_attr off the catalog's 0x3C1F.
 .org 0x4440
 h_sread:
+    .word h_fitdemo
+    .word 11
+    .text "serial-read"
+    .word word_serialread
+
+; fitdemo's header follows the same pattern: it lives in the free image gap,
+; so adding the primitive does not move the dictionary or any pinned catalog
+; address.  The chain still ends at the old tail of the vocabulary.
+.org 0x4460
+h_fitdemo:
 .ifdef D16D
     .word h_tile_row
 .else
     .word h_callfar
 .endif
-    .word 11
-    .text "serial-read"
-    .word word_serialread
+    .word 7
+    .text "fitdemo"
+    .word word_fitdemo
+
+; ============================================================
+; fitdemo ( -- ): a small FiT tile-and-sprite scene
+; ============================================================
+; The generic simulator already has the text font and the bird/cloud sprites
+; in its flash asset blob.  This primitive paints one custom 4bpp tile, puts a
+; short text banner and a tile stripe on the 82x26 map, and enables three
+; sprites in OAM.  It is deliberately static: the example is about showing the
+; FiT CPU windows, not about spending the rest of the kernel on a game loop.
+;
+; The code and its data live in the free image gap below the BIOS.  Nothing in
+; the dictionary moves, so the pinned catalog addresses stay valid.
+.org 0x4480
+.code
+word_fitdemo:
+    ; R5 (>IN), R6 (TIB) and R8 (the console cursor) belong to the
+    ; interpreter, so this primitive uses only R0..R4 and R11 as scratch.
+    ; ES = 0xF000: tilemap at 0x1000 and controls at 0x2000.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+
+    ; Map bank 0 is both the write bank and the displayed bank.
+    LDI 0x2008
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, ES, R2
+
+    ; Clear all 2,132 cells of the 82x26 map.
+    LDI 0x1000
+    MOV R2, R0
+    LDI 2132
+    MOV R3, R0
+    LSI R4, 0
+fd_clear:
+    STS R4, ES, R2
+    ADD R2, 1
+    SUB R3, 1
+    JNZ fd_clear
+    NOP
+
+    ; Install a checker tile in the last art slot (tile 127).  Art cells are
+    ; 4bpp: two words per row, four pixels per word.  ES = 0xF300.
+    LDI 0x0CFF
+    INV R0
+    MVS ES, R0
+    LDI 0x0FE0
+    MOV R2, R0
+    LDI fitdemo_tile_words - 0x4000
+    OR R0, 14
+    MOV R11, R0
+    LDI 32
+    MOV R3, R0
+fd_tile_loop:
+    LD R1, R11, 0
+    ADD R11, 1
+    STS R1, ES, R2
+    ADD R2, 1
+    SUB R3, 1
+    JNZ fd_tile_loop
+    NOP
+
+    ; Put a 72-cell stripe of that tile on map row 9.  ES = 0xF000 again.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x12E6            ; 0x1000 + 9*82 + 4
+    MOV R2, R0
+    LDI 72
+    MOV R3, R0
+    LDI 0x0FE0            ; art tile 127
+    MOV R4, R0
+fd_stripe_loop:
+    STS R4, ES, R2
+    ADD R2, 1
+    SUB R3, 1
+    JNZ fd_stripe_loop
+    NOP
+
+    ; Draw the banner.  Each text record is a map offset followed by ASCII
+    ; characters and a zero terminator.  A zero offset ends the table.
+    LDI fitdemo_text - 0x4000
+    OR R0, 14
+    MOV R11, R0
+fd_text_record:
+    LD R1, R11, 0
+    ADD R11, 1
+    AND R1, R1
+    JZ fd_text_done
+    NOP
+fd_text_char:
+    LD R2, R11, 0
+    ADD R11, 1
+    AND R2, R2
+    JNZ fd_text_have_char
+    NOP
+    LDI fd_text_record - 0x4000
+    OR R0, 14
+    MOV PC, R0
+    NOP
+fd_text_have_char:
+    LDI 32
+    SUB R2, R0
+    SL R2, 5
+    OR R2, 15
+    STS R2, ES, R1
+    ADD R1, 1
+    LDI fd_text_char - 0x4000
+    OR R0, 14
+    MOV PC, R0
+    NOP
+
+fd_text_done:
+    ; Clear the first eight OAM descriptors.  ES = 0xF600.
+    LDI 0x09FF
+    INV R0
+    MVS ES, R0
+    LSI R2, 0
+    LDI 16
+    MOV R3, R0
+    LSI R4, 0
+fd_oam_clear:
+    STS R4, ES, R2
+    ADD R2, 1
+    SUB R3, 1
+    JNZ fd_oam_clear
+    NOP
+
+    ; Descriptor 0: cloud group 2 at (32,120).
+    LSI R2, 0
+    LDI 0x0820            ; enable + x
+    MOV R3, R0
+    STS R3, ES, R2
+    ADD R2, 1
+    LDI 0x1078            ; group 2 + y
+    MOV R3, R0
+    STS R3, ES, R2
+
+    ; Descriptor 1: bird group 6 at (160,135).
+    ADD R2, 1
+    LDI 0x08A0
+    MOV R3, R0
+    STS R3, ES, R2
+    ADD R2, 1
+    LDI 0x3087
+    MOV R3, R0
+    STS R3, ES, R2
+
+    ; Descriptor 2: bird group 7 at (448,225).
+    ADD R2, 1
+    LDI 0x09C0
+    MOV R3, R0
+    STS R3, ES, R2
+    ADD R2, 1
+    LDI 0x38E1
+    MOV R3, R0
+    STS R3, ES, R2
+
+    ; Reset the FiT camera and use OAM base 0 / palette set 0.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x2002            ; row offset
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, ES, R2
+    LDI 0x2004            ; horizontal scroll
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, ES, R2
+    LDI 0x2006            ; vertical scroll
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, ES, R2
+    LDI 0x2008            ; map write/display bank
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, ES, R2
+    LDI 0x200A            ; OAM base and palette set
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, ES, R2
+
+    LDI next
+    MOV PC, R0
+    NOP
+
+; The custom art tile is a red/green checker.  Rows 0..14 contain the pixels;
+; word 30 is the palette pointer and word 31 the flip/priority flags.
+fitdemo_tile_words:
+    .word 0x3232, 0x2323, 0x3232, 0x2323
+    .word 0x3232, 0x2323, 0x3232, 0x2323
+    .word 0x3232, 0x2323, 0x3232, 0x2323
+    .word 0x3232, 0x2323, 0x3232, 0x2323
+    .word 0x3232, 0, 0
+
+; Map records: destination, characters, zero.  The final zero destination
+; terminates the table.
+fitdemo_text:
+    .word 0x1113            ; row 3, column 29
+    .word 0x46, 0x69, 0x54, 0x20, 0x74, 0x69, 0x6C, 0x65
+    .word 0x20, 0x2B, 0x20, 0x73, 0x70, 0x72, 0x69, 0x74
+    .word 0x65, 0x20, 0x64, 0x65, 0x6D, 0x6F, 0
+    .word 0x11B4            ; row 5, column 26
+    .word 0x38, 0x30, 0x78, 0x32, 0x34, 0x20, 0x74, 0x69
+    .word 0x6C, 0x65, 0x73, 0x20, 0x2F, 0x20, 0x33, 0x32
+    .word 0x78, 0x33, 0x32, 0x20, 0x73, 0x70, 0x72, 0x69
+    .word 0x74, 0x65, 0x73, 0
+    .word 0x13ED            ; row 12, column 21
+    .word 0x66, 0x69, 0x74, 0x64, 0x65, 0x6D, 0x6F, 0x3A
+    .word 0x20, 0x63, 0x75, 0x73, 0x74, 0x6F, 0x6D, 0x20
+    .word 0x74, 0x69, 0x6C, 0x65, 0x20, 0x6D, 0x61, 0x70
+    .word 0x20, 0x2B, 0x20, 0x73, 0x70, 0x72, 0x69, 0x74
+    .word 0x65, 0x20, 0x4F, 0x41, 0x4D, 0
+    .word 0
 
 ; ============================================================
 ; bdos-slice ( slice dest -- ): read one 4 KiB source slice.
@@ -19362,7 +19587,7 @@ h_sread:
 ; image is segmented). R5/R6 belong to the interpreter, so park them across the
 ; far call.
 ; ============================================================
-.org 0x4500
+.org 0x4600
 .code
 word_bslice:
     LD R4, SP, 0             ; dest
@@ -19415,7 +19640,7 @@ bslice_r6:
 bslice_psw:
     .word 0
 
-.org 0x4540
+.org 0x4640
 h_bslice:
     .word h_sread
     .word 10
@@ -19427,7 +19652,7 @@ h_bslice:
 ; Reads the sector into 0x8000 through slice_read, then copies the 2048 words
 ; to the caller. Returns R0 = 0, R1 = 0; a bus timeout returns through
 ; bdos_abort like the other file helpers.
-.org 0x4580
+.org 0x4680
 .code
 bdos_read_slice:
     MVS R3, DS

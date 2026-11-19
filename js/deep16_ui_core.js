@@ -435,9 +435,7 @@ class DeepWebUI {
 
     // Build the D16D code image from the editor kernel and the cached showcase
     // sources. Graphics are not included; loadTileAssets() writes them from the
-    // flash blob immediately afterwards. The browser has no config-flash slice
-    // loader, so the game blocks are assembled without their slice art packs;
-    // only the menu image and kernel symbols are used here.
+    // flash blob immediately afterwards.
     buildD16DImage(kernelSource) {
       try {
         if (typeof Deep16D16DImage !== 'function') throw new Error('D16D image builder is not loaded');
@@ -446,7 +444,6 @@ class DeepWebUI {
           kernel: kernelSource,
           showcase: this.d16dSources.showcase,
           flappy: this.d16dSources.flappy,
-          flappyDefs: this.d16dSources.flappyDefs,
           pacmanMap: this.d16dSources.pacmanMap,
           pacmanGame: this.d16dSources.pacmanGame,
           frogger: this.d16dSources.frogger,
@@ -3846,18 +3843,16 @@ class DeepWebUI {
 
             if (this.tileBuild === 'd16d') {
                 try {
-                    const [sc, fd, fl, pm, pg, fg] = await Promise.all([
+                    const [sc, fl, pm, pg, fg] = await Promise.all([
                         fetch('asm/showcase/showcase.asm', { cache: 'no-store' }),
-                        fetch('asm/showcase/flappy_defs.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/flappy_game.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/pacman_map.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/pacman_game.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/frogger_demo.asm', { cache: 'no-store' }),
                     ]);
-                    if (!sc.ok || !fd.ok || !fl.ok || !pm.ok || !pg.ok || !fg.ok) throw new Error('showcase sources not found');
+                    if (!sc.ok || !fl.ok || !pm.ok || !pg.ok || !fg.ok) throw new Error('showcase sources not found');
                     this.d16dSources = {
                         showcase: await sc.text(),
-                        flappyDefs: await fd.text(),
                         flappy: await fl.text(),
                         pacmanMap: await pm.text(),
                         pacmanGame: await pg.text(),

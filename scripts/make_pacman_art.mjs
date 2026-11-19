@@ -22,16 +22,15 @@
 //   tile 110..117  wall left half, shape bits 1=left outline, 2=top, 4=bottom
 //   tile 118..125  the same shapes mirrored for the right half
 //
-// Pac-Man's sprite frames ride in its binary slice as a sprite pack at 0x2000
-// (magic 0x0A58): seven Pac-Man frames plus four ghost frames. The game entry
-// installs them into the writable sprite bank. Left is the right frame with
-// the OAM H flip.
+// The shared sprite bank bakes Pac-Man's open/closed frames in groups 0/1,
+// 8/9 and 16/17 (the six groups Flappy leaves free).  The half-open frames and
+// the shared closed circle are generated at 0xA00 and copied into the writable
+// bank at startup: groups 1/9/17 (the old closed frames, now unused) and group
+// 10 (a Flappy cloud copy that Flappy never selects; its clouds stay on group
+// 2).  Left is the right frame with the OAM H flip.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spriteFrameWords, spritePack } from './make_sprite_pack.mjs';
-
-export { spriteFrameWords };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -59,11 +58,11 @@ export const T_GATE_L = 65, T_GATE_R = 66;
 export const T_FRUIT_L = 67, T_FRUIT_R = 68;
 export const T_WALL_L = 110, T_WALL_R = 118;
 
-// Sprite groups. The game uses one shared closed circle (group 10).
+// Sprite groups.
 export const PAC_GROUPS = {
-  rightOpen: 0, rightHalf: 1,
-  upOpen: 8, upHalf: 9,
-  downOpen: 16, downHalf: 17,
+  rightOpen: 0, rightHalf: 1, rightClosed: 1,
+  upOpen: 8, upHalf: 9, upClosed: 9,
+  downOpen: 16, downHalf: 17, downClosed: 17,
   closed: 10,
 };
 
@@ -421,22 +420,34 @@ function pacmanFrame(dir, open, closed = false) {
   return g;
 }
 
-// The seven Pac-Man frames installed by the game's sprite pack.
+// The six frames baked into the shared sprite bank (Flappy's free groups).
+// The board's bitstream already carries these, so they must not change when
+// Pac-Man gains new munch frames; those are copied at run time instead.
 export function pacmanSpriteFrames() {
   return [
     { group: PAC_GROUPS.rightOpen, grid: pacmanFrame('right', 2) },
-    { group: PAC_GROUPS.rightHalf, grid: pacmanFrame('right', 1) },
+    { group: PAC_GROUPS.rightClosed, grid: pacmanFrame('right', 0, true) },
     { group: PAC_GROUPS.upOpen, grid: pacmanFrame('up', 2) },
-    { group: PAC_GROUPS.upHalf, grid: pacmanFrame('up', 1) },
-    { group: PAC_GROUPS.closed, grid: pacmanFrame('right', 0, true) },
+    { group: PAC_GROUPS.upClosed, grid: pacmanFrame('up', 0, true) },
     { group: PAC_GROUPS.downOpen, grid: pacmanFrame('down', 2) },
-    { group: PAC_GROUPS.downHalf, grid: pacmanFrame('down', 1) },
+    { group: PAC_GROUPS.downClosed, grid: pacmanFrame('down', 0, true) },
   ];
 }
 
-// Every munch frame the game installs from its slice pack.
+// The half-open frames plus the shared closed circle, copied into the sprite
+// bank at startup by the game.  Groups 1/9/17 are the old closed frames (the
+// game no longer uses them for closed) and group 10 is a dead cloud copy.
 export function pacmanRuntimeSpriteFrames() {
-  return pacmanSpriteFrames();
+  return [
+    { group: PAC_GROUPS.rightHalf, grid: pacmanFrame('right', 1) },
+    { group: PAC_GROUPS.upHalf, grid: pacmanFrame('up', 1) },
+    { group: PAC_GROUPS.downHalf, grid: pacmanFrame('down', 1) },
+    { group: PAC_GROUPS.closed, grid: pacmanFrame('right', 0, true) },
+    // the baked up/down open frames on the current board face the wrong way;
+    // re-copy corrected ones into the same groups
+    { group: PAC_GROUPS.upOpen, grid: pacmanFrame('up', 2) },
+    { group: PAC_GROUPS.downOpen, grid: pacmanFrame('down', 2) },
+  ];
 }
 
 // Ghost sprites for the four colours.  The 16x15 body sits in the middle of a
@@ -454,8 +465,27 @@ export function pacmanGhostSpriteFrames() {
   });
 }
 
-export function pacmanSpritePack() {
-  return spritePack([...pacmanSpriteFrames(), ...pacmanGhostSpriteFrames()]);
+// One 32x32 indexed sprite as 256 words: 16 8x8 tiles, two rows per word,
+// four 4bpp pixels per word, exactly the layout the sprite bank uses.
+export function spriteFrameWords(grid) {
+  const out = new Array(16 * 16).fill(0);
+  for (let ty = 0; ty < 4; ty++) {
+    for (let tx = 0; tx < 4; tx++) {
+      const tile = ty * 4 + tx;
+      for (let row = 0; row < 8; row++) {
+        for (let half = 0; half < 2; half++) {
+          let w = 0;
+          for (let n = 0; n < 4; n++) {
+            const x = tx * 8 + half * 4 + n;
+            const y = ty * 8 + row;
+            w |= (grid[y][x] & 0xF) << (n * 4);
+          }
+          out[tile * 16 + row * 2 + half] = w;
+        }
+      }
+    }
+  }
+  return out;
 }
 
 // ---- generated assembly data -----------------------------------------
@@ -493,12 +523,29 @@ export function pacmanMapAsm() {
   lines.push('pac_pal:');
   lines.push(`    .word ${String(PAC_PALETTE.length)}`);
   for (const [off, value] of PAC_PALETTE) lines.push(`    .word ${hex(off)}, ${hex(value)}`);
+  const runtime = pacmanRuntimeSpriteFrames();
   const ghosts = pacmanGhostSpriteFrames();
   lines.push('');
-  lines.push('; Absolute sprite groups for the four ghost colours.');
+  lines.push('; Six 32x32 Pac-Man frames copied into the writable sprite bank at');
+  lines.push('; startup: right half, up half, down half, closed, and the corrected');
+  lines.push('; up/down open frames (the baked ones face the wrong way).');
+  lines.push('.org 0x1980');
+  lines.push('pac_sprite_data:');
+  for (const frame of runtime) {
+    const words = spriteFrameWords(frame.grid);
+    for (let i = 0; i < words.length; i += 8) {
+      lines.push(`    .word ${words.slice(i, i + 8).map(hex).join(', ')}`);
+    }
+  }
+  lines.push('');
+  lines.push('; target groups for the Pac-Man frames and the four ghost colours');
   lines.push('.org 0x14A8');
+  lines.push('pac_sprite_groups:');
+  lines.push(`    .word ${runtime.map((f) => f.group).join(', ')}`);
   lines.push('pac_ghost_groups:');
   lines.push(`    .word ${ghosts.map((f) => f.group).join(', ')}`);
+  lines.push('pac_saved_groups:');
+  lines.push('    .word 5, 13, 21');
   lines.push('');
   lines.push('; sprite-palette entries 6..9: normal, frightened blue, flash white');
   lines.push('.org 0x14C0');
@@ -506,6 +553,17 @@ export function pacmanMapAsm() {
   lines.push('    .word 0x00e0, 0x00f9, 0x001f, 0x00f4');
   lines.push('    .word 0x0003, 0x0003, 0x0003, 0x0003');
   lines.push('    .word 0x00ff, 0x00ff, 0x00ff, 0x00ff');
+  lines.push('');
+  lines.push('; Four 32x32 ghost sprites, copied into groups 18, 5, 13 and 21.');
+  lines.push('; The three Flappy groups (5/13/21) are saved and restored on exit.');
+  lines.push('.org 0x1500');
+  lines.push('pac_ghost_data:');
+  for (const frame of ghosts) {
+    const words = spriteFrameWords(frame.grid);
+    for (let i = 0; i < words.length; i += 8) {
+      lines.push(`    .word ${words.slice(i, i + 8).map(hex).join(', ')}`);
+    }
+  }
   return lines.join('\n') + '\n';
 }
 

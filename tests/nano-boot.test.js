@@ -53,11 +53,11 @@ test('the nano boot reaches the prompt and loads the modules', () => {
 });
 
 test('the nano boot source uses the streaming reader and keeps the BDOS read-slice entry', () => {
-  const boot = fs.readFileSync(path.join(ROOT, 'forth', 'boot-nano.fth'), 'utf8');
+  const boot = fs.readFileSync(path.join(ROOT, 'forth', 'boot.fth'), 'utf8');
   assert.match(boot, /cf-burst-prim/);
   // The embedded block is generated from that source, not hand-edited.
   const asm = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
-  const block = asm.slice(asm.indexOf('; >>> generated from forth/boot-nano.fth'),
+  const block = asm.slice(asm.indexOf('; >>> generated from forth/boot.fth'),
                           asm.indexOf('; <<< end generated >>>'));
   assert.match(block, /cf-burst-prim/);
   // The BDOS entry point still exists for the direct reader tests.
@@ -67,7 +67,7 @@ test('the nano boot source uses the streaming reader and keeps the BDOS read-sli
 test('the nano boot script is current and fits the baked block', () => {
   execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'embed_forth.mjs'), '--check'],
                { cwd: ROOT, stdio: 'pipe' });
-  const src = fs.readFileSync(path.join(ROOT, 'forth', 'boot-nano.fth'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'forth', 'boot.fth'), 'utf8');
   const code = src.split('\n')
     .filter((l) => l.trim() && !l.trim().startsWith('\\'))
     .reduce((n, l) => n + l.length + 1, 0);

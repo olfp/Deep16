@@ -1,5 +1,10 @@
 #!/usr/bin/env node
-// scripts/make_image.mjs - build the D16MINI boot image from asm/forth.asm.
+// scripts/make_image.mjs - build a D16MINI boot image.
+//
+// The canonical live kernel is asm/forth_nano.asm. The retired standalone
+// D16MINI kernel is kept at archive/forth.asm for the legacy image and its
+// regression tests; asm/forth.asm is a compatibility link to the canonical
+// kernel.
 //
 // D16MINI.md §6.5. The image is the UART (CONSOLE_UART) kernel laid into the
 // 24K-word BSRAM window (0x0000-0x5FFF) and filled with 0xFFFF, so a run off the
@@ -37,13 +42,14 @@ export const NANO = !!process.env.D16NANO;
 // packed BSRAM console is built without it (the tile kernel already fills the
 // 16-block budget).
 export const D16D = !!process.env.D16D;
-// Pac-Man lives in the config flash, not in the image: the kernel grew past
-// 0x4330 and the block is loaded into segment 0x2000 at run time
-// (`s" pacman" game-run` in games.fth). Its tile and sprite packs now run past
-// the 24K image window, so the old flat-bake preview is no longer possible.
+// Pac-Man now lives in the config flash, not in the image: the kernel grew
+// past 0x4330, the gap the block used to sit in, and the block is loaded into
+// segment 0x2000 at run time (`s" pacman" game-run` in games.fth). BAKE_PACMAN=1
+// still places it in the gap for a build that has the room back.
 export const BAKE_PACMAN = process.env.BAKE_PACMAN === '1';
-// Every D16D image is a tile image, so require the segmented map instead of
-// silently corrupting the kernel data.
+// The Pac-Man block uses the free gap that only the segmented (tile) map has;
+// without D16SEG that gap is still kernel data.  Every D16D image is a tile
+// image, so require the segmented map instead of silently corrupting it.
 export const D16SEG = !!process.env.D16SEG;
 // The flat image is the 24K window; the showcase sits in the BIOS segment
 // between the BIOS code and the Forth stacks, so both sizes stay 24K.
@@ -58,6 +64,12 @@ export const FLASH_HDR_WORDS = 64;     // 32-bit words reserved before the image
 export const ECHO_FLAG  = 0xF0064; // the kernel's echo cell: outside the window,
                                    // so the board neither backs nor decodes it
                                    // (D16MINI.md §6.4) - it is expected here
+// The device/tile profile builds the canonical nano kernel. The default
+// D16MINI profile preserves the retired standalone kernel and its image layout.
+export const SOURCE_PATH = NANO
+  ? path.join(ROOT, 'asm', 'forth_nano.asm')
+  : path.join(ROOT, 'archive', 'forth.asm');
+export const SOURCE_LABEL = NANO ? 'asm/forth_nano.asm' : 'archive/forth.asm';
 
 function loadAssembler() {
   globalThis.window = globalThis.window || {};
@@ -78,17 +90,13 @@ if (D16D) DEFINES.D16D = 1;                          // gfx BIOS call + word
 if (process.env.BOOT_DIAG) DEFINES.BOOT_DIAG = 1;     // boot diagnostic build
 
 export function buildImage() {
-  if (BAKE_PACMAN) {
-    throw new Error('BAKE_PACMAN is no longer supported: Pac-Man carries tile and sprite packs in its type-4 slices; load it from config flash with games.fth');
-  }
   if (D16D && !D16SEG) {
     throw new Error('the D16D image needs D16SEG=1 (the segmented kernel)');
   }
   const Deep16Assembler = loadAssembler();
-  const sourceName = NANO ? 'forth_nano.asm' : 'forth.asm';
-  const source = fs.readFileSync(path.join(ROOT, 'asm', sourceName), 'utf8');
+  const source = fs.readFileSync(SOURCE_PATH, 'utf8');
   const res = new Deep16Assembler().assemble(source, { defines: DEFINES });
-  if (!res.success) throw new Error(`${sourceName} does not assemble: ` + res.errors.join('; '));
+  if (!res.success) throw new Error(`${SOURCE_LABEL} does not assemble: ` + res.errors.join('; '));
 
   const words = new Uint16Array(WINDOW).fill(FILL);
   const outOfWindow = new Set();
@@ -128,10 +136,17 @@ export function buildImage() {
         words[pa] = value;
       } else outOfWindow.add(pa);
     }
-    // Pac-Man is checked here but stays in config flash; the board loads its
-    // type-4 slice into segment 0x2000.
+    // Pac-Man can still be baked into the free image gap for a build that has
+    // the room back; the board loads it as a slice.
     pacman = buildPacman();
     checkPacman(pacman);
+    if (BAKE_PACMAN) {
+      for (const [addr, value] of pacman.words) {
+        const pa = PACMAN_SEG_BASE + addr;
+        if (pa < WINDOW) words[pa] = value;
+        else outOfWindow.add(pa);
+      }
+    }
   }
 
   const build = crypto.createHash('sha256')
@@ -160,6 +175,13 @@ export function checkImage(img) {
   const unexpected = img.outOfWindow.filter((a) => a !== ECHO_FLAG);
   if (unexpected.length) fail.push(`words outside the window: ${unexpected.map((a) => '0x' + a.toString(16)).join(', ')}`);
   if (D16D && !img.showcase) fail.push('D16D image has no showcase block');
+  if (D16D && BAKE_PACMAN && !img.pacman)
+    fail.push('BAKE_PACMAN is on but there is no pacman block');
+  if (D16D && img.pacman && BAKE_PACMAN) {
+    if (PACMAN_SEG_BASE < img.dictFree) fail.push('pacman block starts inside the kernel image');
+    if (PACMAN_SEG_BASE + img.pacman.size > img.biosEntry) fail.push('pacman block runs into the BIOS');
+    checkPacman(img.pacman);
+  }
   if (D16D && img.showcase) checkShowcase(img.showcase);
   const collisions = img.collisions ?? [];
   if (collisions.length) {
@@ -303,7 +325,7 @@ export function manifest(img) {
   const pack = D16D ? null : packImage({ words: img.words });
   return JSON.stringify({
     project: 'D16MINI',
-    source: 'asm/forth.asm',
+    source: SOURCE_LABEL,
     defines: DEFINES,
     base: '0x00000',
     window: `0x${(WINDOW - 1).toString(16)}`,
@@ -345,8 +367,8 @@ export function manifest(img) {
     } : null,
     pacman: img.pacman ? {
       source: 'asm/showcase/pacman_map.asm + asm/showcase/pacman_game.asm',
-      base: `0x${img.pacman.seg.toString(16)}`,
-      test_base: `0x${PACMAN_SEG_BASE.toString(16)}`,
+      base: `0x${PACMAN_SEG_BASE.toString(16)}`,
+      segment: '0x0433',
       min: `0x${img.pacman.min.toString(16)}`,
       max: `0x${img.pacman.max.toString(16)}`,
       code_end: `0x${img.pacman.codeEnd.toString(16)}`,

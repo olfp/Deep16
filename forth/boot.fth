@@ -10,7 +10,7 @@
 \ must be separate boot-script lines, not calls from inside start.
 
 create slice-buf 2048 cells allot
-create text-buf 16384 cells allot       \ up to eight 2040-char source slices
+create text-buf 20480 cells allot       \ up to ten 2040-char source slices
 variable slice-sec drop
 variable slice-wp drop
 variable sf-a drop
@@ -31,15 +31,15 @@ create cf-burst-prim 0x2F49 ,
 : slice-link ( a -- n )   1 cells + @ ;
 
 \ A source slice holds 2040 characters, one per cell, so a slice costs
-\ 2040 cells of text-buf.  Eight slices is 16,320 cells and the buffer has
-\ 64 to spare.  Packed slices (type 8) would carry two characters per cell
+\ 2040 cells of text-buf.  Ten slices is 20,400 cells and the buffer has
+\ 80 to spare.  Packed slices (type 8) would carry two characters per cell
 \ and halve the slice count, but the loader for them (p-screen) is one slice
 \ at a time and included cannot span a definition across two calls, so
 \ packed sources are future work - see lila/LILANATIVE.md.
 : screen ( n -- )
   dup 0 511 within 0= if ." screen: 0..511" cr drop exit then
   0 >r  begin
-    r@ 16320 < 0= if ." screen: too long" cr r> 2drop exit then
+    r@ 20400 < 0= if ." screen: too long" cr r> 2drop exit then
     dup slice  ( n a )
     dup slice-valid? 0= if 2drop r> drop exit then
     dup 8 cells +  text-buf r@ cells +  2040 move

@@ -9,15 +9,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildImage, checkImage, imageHex, packImage, expandImage, checkPacked,
          crc16Bytes, crc16, flashImage, flashHex, FLASH_MAGIC, FLASH_FORMAT, FLASH_HDR_WORDS,
-         IMG_BLOCK_WORDS, WINDOW, FILL, BIOS_BASE, STACK_BASE, ECHO_FLAG }
+         IMG_BLOCK_WORDS, WINDOW, FILL, BIOS_BASE, STACK_BASE, ECHO_FLAG,
+         SOURCE_LABEL }
   from '../scripts/make_image.mjs';
 import { assemble, loadBrowserScripts, ROOT } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js');
 
 const img = buildImage();
-const res = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'),
+const res = assemble(fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8'),
                      { defines: { CONSOLE_UART: 1 } });
+
+test('the legacy image uses the archived standalone kernel', () => {
+  assert.equal(SOURCE_LABEL, 'archive/forth.asm');
+});
 
 test('the image is the whole window, filled with the halt word', () => {
   assert.equal(img.words.length, WINDOW, 'the whole BSRAM window');
@@ -40,11 +45,8 @@ test('the BIOS sits at its fixed address', () => {
   // 222 words before the calling convention moved from memory to registers; the
   // register form is the shorter of the two (updated with that change). 319
   // after uart_tx grew the output-column counter, the hard wrap and the ANSI
-  // state (§4.4), 368 after binit grew to home + ESC[2J + ESC[3J, 371 after
-  // getch became non-blocking, 388 after the UART-ready primitive for put_char.
-  // 289 after Step 4 moved binit/putstr output and the getstr echo into the
-  // kernel: f1/f3 are dispatch stubs and f5 only drains RX.
-  assert.equal(img.biosWords, 289, 'the UART BIOS size');
+  // state (§4.4), 368 after binit grew to home + ESC[2J + ESC[3J.
+  assert.equal(img.biosWords, 368, 'the UART BIOS size');
   assert.equal(img.words[BIOS_BASE], res.memoryChanges.find((c) => c.address === BIOS_BASE).value);
   assert.ok(BIOS_BASE + img.biosWords <= STACK_BASE, 'the BIOS must not reach the stacks');
 });

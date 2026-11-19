@@ -1,55 +1,45 @@
 #!/usr/bin/env node
-// scripts/embed_forth.mjs - bake a Forth boot script into a kernel image.
+// scripts/embed_forth.mjs - bake forth/boot.fth into asm/forth_nano.asm.
 //
-// The D16MINI kernel (asm/forth.asm) and the D16NANO kernel (asm/forth_nano.asm)
-// both read a boot script before the keyboard, once per boot, so the boot
-// loader is the program that is running - no upload, nothing to keep in step
-// at the console. The mini keeps forth/boot.fth and its cf-burst reader; the
-// nano has its own forth/boot-nano.fth, whose slice reads go through BDOS.
+// The canonical kernel carries a Forth boot script: read_line reads it before
+// the keyboard, once per boot, so the boot loader is the program that is running -
+// no upload, nothing to keep in step at the console. The text lives between two
+// markers in asm/forth_nano.asm. asm/forth.asm is only a compatibility link to
+// that canonical file and must not be rewritten separately.
 //
 // The script is baked with the assembler's `.string`, which packs two characters
 // per cell (high byte first) and ends the line with a 0 cell. One cell per
 // character cost the data section 3,610 words for 3,610 characters; packing
 // halves that, and the freed words are what the SD driver's Forth lives in.
-// read_line unpacks a line into tib_kbd before interpreting it.
+// read_line unpacks a line into tib_kbd before interpreting it. The boot
+// source now loads slice 1 (start) and the named modules.
 //
 // Usage:
-//   node scripts/embed_forth.mjs            # rewrite the blocks
-//   node scripts/embed_forth.mjs --check    # exit 1 if one is out of date
+//   node scripts/embed_forth.mjs            # rewrite the block
+//   node scripts/embed_forth.mjs --check    # exit 1 if it is out of date
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = path.join(ROOT, 'forth', 'boot.fth');
-const TARGET = path.join(ROOT, 'asm', 'forth.asm');
-const NANO_SOURCE = path.join(ROOT, 'forth', 'boot-nano.fth');
-const NANO_TARGET = path.join(ROOT, 'asm', 'forth_nano.asm');
-const JOBS = [
-  { source: SOURCE, target: TARGET },
-  { source: NANO_SOURCE, target: NANO_TARGET },
-];
-const TARGETS = JOBS.map((job) => job.target);
+const TARGET = path.join(ROOT, 'asm', 'forth_nano.asm');
+const TARGETS = [TARGET];
+const BEGIN = '; >>> generated from forth/boot.fth - do not edit here <<<';
 const END = '; <<< end generated >>>';
 export const MAX_LINE = 120;
-
-const rel = (file) => path.relative(ROOT, file).split(path.sep).join('/');
-const markers = (source) => {
-  const begin = `; >>> generated from ${rel(source)} - do not edit here <<<`;
-  return { begin, end: END };
-};
 
 // The assembler's string literal: backslash and quote are the two characters
 // that must not reach it raw.
 const escape = (line) => line.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
-export function block(source, name = rel(SOURCE)) {
+export function block(source) {
   const lines = source.replace(/\r\n?/g, '\n').split('\n');
   const out = [];
   lines.forEach((raw, i) => {
     const line = raw.replace(/\s+$/, '');
     if (line.length > MAX_LINE) {
-      throw new Error(`${name}:${i + 1}: line is ${line.length} characters, limit ${MAX_LINE}`);
+      throw new Error(`forth/boot.fth:${i + 1}: line is ${line.length} characters, limit ${MAX_LINE}`);
     }
     // Blank lines and lines that are wholly a `\` comment are dropped: an image
     // cell is one character, so prose would cost four times what the code does,
@@ -61,40 +51,40 @@ export function block(source, name = rel(SOURCE)) {
   return out.join('\n');
 }
 
-export function embed(asm, source, sourcePath = SOURCE) {
-  const { begin } = markers(sourcePath);
-  const from = asm.indexOf(begin);
+export function embed(asm, source) {
+  const from = asm.indexOf(BEGIN);
   const to = asm.indexOf(END);
   if (from < 0 || to < 0 || to < from) {
-    throw new Error(`${rel(sourcePath)}: the generated markers are missing or out of order`);
+    throw new Error(`asm/forth_nano.asm: the generated markers are missing or out of order`);
   }
-  const head = asm.slice(0, from + begin.length);
+  const head = asm.slice(0, from + BEGIN.length);
   const tail = asm.slice(to);
-  return `${head}\n${block(source, rel(sourcePath))}\n${tail}`;
+  return `${head}\n${block(source)}\n${tail}`;
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const check = process.argv.includes('--check');
-  const stale = [];
-  for (const { source, target } of JOBS) {
+  const source = fs.readFileSync(SOURCE, 'utf8');
+  let stale = [];
+  for (const target of TARGETS) {
     const asm = fs.readFileSync(target, 'utf8');
-    const next = embed(asm, fs.readFileSync(source, 'utf8'), source);
-    const name = rel(target);
+    const next = embed(asm, source);
+    const name = path.relative(ROOT, target);
     if (next !== asm) {
-      if (check) stale.push(`${name} (${rel(source)})`);
-      else { fs.writeFileSync(target, next); console.log(`embedded ${rel(source)} into ${name}`); }
+      if (check) stale.push(name);
+      else { fs.writeFileSync(target, next); console.log(`embedded forth/boot.fth into ${name}`); }
     }
   }
   if (check) {
     if (stale.length) {
-      console.error(`${stale.join(', ')} out of date - run node scripts/embed_forth.mjs`);
+      console.error(`${stale.join(', ')} out of date with forth/boot.fth - run node scripts/embed_forth.mjs`);
       process.exit(1);
     }
-    console.log('boot scripts are current');
+    console.log('boot script is current');
   } else if (!stale.length) {
-    console.log('boot scripts are current');
+    console.log('boot script is current');
   }
 }
 
-export { SOURCE, TARGET, NANO_SOURCE, NANO_TARGET, TARGETS, JOBS, END, markers, escape, ROOT, pathToFileURL };
+export { SOURCE, TARGET, TARGETS, BEGIN, END, escape, ROOT, pathToFileURL };

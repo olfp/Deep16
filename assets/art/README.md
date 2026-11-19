@@ -13,6 +13,4 @@
 palette. The three birds put body/belly on palette entries 2/13 and occupy
 sprite group bases 0/8/16, so the game picks a bird by setting those two
 entries and the absolute OAM group; the bedazzled flower/star use entries 5/11
-and are added by the same script. `scripts/make_bird_sprite.mjs` packs the
-cloud and bird frames into the Flappy slice at offset `0x2000`; the game
-installs that pack at run time instead of relying on a baked sprite bank.
+and are added by the same script.

@@ -112,10 +112,8 @@ magic "D16G" | version 1 | tileWords 4096 | spriteWords 6144 | paletteWords 48
 tileBank[4096] | spriteBank[6144] | palette[48]
 ```
 
-- `tileBank` from `tileFontWords()` (font pages; the 32 art slots start blank
-  and games install their own slice tile packs).
-- `spriteBank` from `birdSpriteWords()` (24 groups; the current generator
-  writes it blank, and each game installs its slice sprite pack at run time).
+- `tileBank` from `tileFontWords()` (font pages + 32 art tiles).
+- `spriteBank` from `birdSpriteWords()` (24 groups).
 - `palette` from three copies of `PALETTE_RGB332`, matching `tilepal3.hex`.
 - The blob is stored in the simulated config flash at a fixed base, e.g.
   `0x300000` in the upper writable half. The loader reads it through the same
@@ -375,9 +373,8 @@ the OpenWiki workflow.
 - Update OpenWiki hardware/IDE pages after the code lands.
 - Do not touch `rtl/`, `fpga/`, `asm/forth_nano.asm` or the build defines.
 - Record the deliberate divergence: simulation makes all 128 tiles writable and
-  loads graphics from flash; the bitstream seeds the console font and palette,
-  leaves the sprite bank blank, and game slices install their own art packs.
-  Link the ERRPLAN entries.
+  loads graphics from flash; the current bitstream still bakes them. Link the
+  ERRPLAN entries.
 
 ## 11. Order and effort
 

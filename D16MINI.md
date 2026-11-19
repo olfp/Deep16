@@ -124,7 +124,7 @@ machine**: the whole RAM window fits inside a single 32 K-word (15-bit) address.
 | `dict_free` (new definitions grow up from here) | `0x481E` | — |
 | Free `dict_free` → BIOS (`0x5600`) | `0x481E–0x55FF` | **3,554** |
 | …of which the boot script's own definitions take | at boot, HERE ends at `0x4DBB` | 1,437 |
-| BIOS (UART build, relocated) | `0x5600`, 289 words | §3 |
+| BIOS (UART build, relocated) | `0x5600`, 319 words | §3 |
 | Screen buffer | `0xF1000`, 2000 words | **deleted** |
 
 The image grows a little with every Tier-3 word added (it was `0x3A62` three
@@ -152,7 +152,7 @@ a single `pa < RAM_WORDS` test and no high-address ROM decode.
    0x00100 - 0x0481D   kernel image (code, data and the baked demo source)
    0x0481E - 0x055FF   free: the dictionary, and room for the boot script's
                        own definitions (it compiles to ~1.4 K words at boot)
-   0x05600 - 0x057FF   BIOS region (289 words used, UART build;
+   0x05600 - 0x057FF   BIOS region (319 words used, UART build;
                        segment 0x0560)
    0x05800 - 0x05FFF   stacks          (return 0x5800↑, data 0x5FF0↓)
 0x0F0000 - 0x0F006F   MMIO       UART (the kernel's echo cell at 0xF0064
@@ -169,7 +169,7 @@ blocks rather than the part's 26 because of the vendor tool's BSRAM granularity
 `CONSOLE_UART` build only. The screen build keeps its 1 MB layout (BIOS at
 `0xF8000`, stacks `0x6F00` / `0x7FF0`) and stays **byte-identical**.
 
-- **BIOS** — `.org 0x5600`, 289 words, segment `0x0560`. The code is
+- **BIOS** — `.org 0x5600`, 272 words, segment `0x0560`. The code is
   base-independent: every internal jump is a `label - BIOS_BASE` delta or a
   relative branch, so only the `.org` and `swi_to_bios`'s segment change.
 - **Stacks** — `RSTACK_TOP = 0x5800`; the data stack top is `0x5FF0`, loaded from
@@ -334,9 +334,8 @@ nowhere else, so it is covered there too, by typing a line into `uart_rxd` and
 checking the echo and the evaluation.
 
 The console BIOS also counts its **output column**: `uart_tx` — the single choke
-point for console bytes (the kernel sends everything, including the `binit`
-sequence and typed echo, through `putch`) — maintains `out_col`, zero on CR/LF,
-one less on BS, and one more otherwise.
+point for console bytes, whether they come from `putch`, `putstr` or the getstr
+echo — maintains `out_col`, zero on CR/LF, one less on BS, and one more otherwise.
 At the 80th column it emits **CR+LF itself** (a wrapping CR, then the LF it owes)
 and returns the column to 0, so a line never exceeds 80 columns even if the
 terminal is wider than the machine or does not autowrap.
@@ -814,8 +813,7 @@ The core treats every address below `MEM_WORDS` as memory, so the top must
 the kernel actually touches:
 
 - **UART** `0xF0040–0xF0046` — `deep16_uart.sv` (§5).
-- **`ECHO_FLAG`** `0xF0064` — the keyboard-echo flag the kernel's `echo_line`
-  reads (D16MINI: input echo is kernel-side). It
+- **`ECHO_FLAG`** `0xF0064` — the keyboard-echo flag the BIOS `getstr` reads. It
   is **neither RAM nor MMIO**: outside the 24 K window and outside the UART's
   decode.
 
@@ -837,8 +835,9 @@ The keyboard ports `0xF0060`/`0xF0062` stay decoded but dead (§5).
 
 `scripts/make_image.mjs` — **done**, `npm run image` writes `artifacts/image/`:
 
-1. Assemble `asm/forth.asm` with `{ CONSOLE_UART: 1 }` — the UART build; the
-   screen build is emulator-only.
+1. Assemble the kernel with `{ CONSOLE_UART: 1 }` — the legacy D16MINI profile
+   uses the archived `archive/forth.asm`; the D16nano/device profile uses the
+   canonical `asm/forth_nano.asm`. The screen build is emulator-only.
 2. Map the `memoryChanges` into the D16MINI window (§3), with the BIOS relocated
    as M5 dictates.
 3. Fill all 26 blocks with `0xFFFF`, then lay the words down.
@@ -894,10 +893,9 @@ The live output pointer is the register **`R8` (`SCR`)**.
 
 | Path | Reads by |
 |---|---|
-| `word_key` | BIOS `getch` (f4), polling `0xFFFF` while idle |
+| `word_key` | BIOS `getch` (f4) |
 | `word_accept` | BIOS `getstr` (f5) into `TIB` |
-| BIOS `getch` (f4) | one non-blocking `KBD_STATUS`/`KBD_DATA` check; `0xFFFF` means idle |
-| BIOS `getstr` (f5) | poll `KBD_STATUS`/`KBD_DATA` = `0xF0060`/`0xF0062` |
+| BIOS `getch` (f4), `getstr` (f5) | poll `KBD_STATUS`/`KBD_DATA` = `0xF0060`/`0xF0062` |
 | BIOS `getstr` | also **echoes into the screen** with cursor/backspace handling |
 
 `ECHO_FLAG` (`0xF0064`) gates that echo; `word_echo` sets it.
@@ -930,37 +928,24 @@ beyond a byte FIFO. That is the whole point of the design.
 ### 7.3 Console BIOS: same functions, serial bodies
 
 Same **function numbers and calling convention** (the function number in the
-caller's `R0`, parameters in `R1..R3`, the answer in the handler's `R0`), so the
-interfaces of `put_char`, `print_text`, `emit`, `key`, `accept`, the prompt and
-the interpreter stay the same:
+caller's `R0`, parameters in `R1..R3`, the answer in the handler's `R0`), so
+`put_char`, `print_text`, `emit`, `key`, `accept`, the prompt and the interpreter
+are **not touched**:
 
 | BIOS | Today (screen) | D16MINI (serial) |
 |---|---|---|
 | f0 `bver` | `R0 = 0x0100` | BIOS 1.0 as major << 8 \| minor |
-| f1 `binit` | clear 2000 cells, home cursor | **dispatch stub**: the kernel's `console_clear` prints `ESC[H` `ESC[2J` `ESC[3J` via `print_text` |
+| f1 `binit` | clear 2000 cells, home cursor | **emit `ESC[H` `ESC[2J` `ESC[3J`** (home, erase display, erase scrollback) |
 | f2 `putch` | cell write + attribute + cursor + scroll | **TX one byte** |
-| f3 `putstr` | direct `ES:SCR` cell writes | **dispatch stub**: `bios_putstr_direct` routes to `print_text` |
-| f4 `getch` | **one non-blocking keyboard status check; `0xFFFF` when idle** | **one non-blocking `UART_STAT.b0` check; `0xFFFF` when idle** |
-| f5 `getstr` | keyboard + screen echo + cursor/BS | **non-blocking RX pump**: drains the FIFO, keeps a partial line in `gs_active`/`gs_ptr`, answers 0 or 1 |
+| f3 `putstr` | direct `ES:SCR` cell writes | **TX loop** |
+| f4 `getch` | poll keyboard | **poll `UART_STAT.b0`, read `UART_DATA`** |
+| f5 `getstr` | keyboard + screen echo + cursor/BS | **RX line + TX echo + `BS SP BS`** |
 
-f4 is non-blocking in both builds: it checks the console once and answers
-`0xFFFF` when nothing is waiting. `word_key` polls it with interrupts enabled,
-so a waiting program does not freeze timer, raster or audio IRQs.
-
-The UART build adds f6 `uart-ready` (1 = TX FIFO has room), and the D16D build
-adds the same primitive as f13. `put_char` polls it with `I=1` before asking
-f2 to send, so a full TX FIFO no longer blocks inside the BIOS on that path.
-On D16D, `binit`, `putstr` and the `getstr` echo no longer mirror into the UART;
-`put_char` owns that mirror and sends it after the ready poll.
-
-f5 keeps its buffer contract — accumulate into `TIB`, end on CR **or** LF,
-refuse past `TIB_LIMIT`, NUL-terminate — but it is now a pump: one call consumes
-the bytes waiting in the RX FIFO and returns 0, or 1 once CR/LF completed the
-line. The partial line lives in two kernel cells (`gs_active`, `gs_ptr`), so a
-call that finds nothing loses nothing. The BIOS does **no echo**; the kernel's
-`read_uart_line` polls f5 with `I=1` and `echo_line` sends the buffer delta
-through `put_char`, including `BS SP BS` for a backspace. `ECHO_FLAG` keeps its
-meaning (the host should have local echo **off**), now read by `echo_line`.
+f5 keeps its current shape — accumulate into `TIB`, end on CR **or** LF, refuse
+past `TIB_LIMIT`, NUL-terminate — with only the source and the erase changed:
+source `0x0060/0x0062` → `0x0040/0x0042`; erase `ES:SCR` manipulation →
+`BS SP BS` on the wire. `ECHO_FLAG` keeps its meaning (the host should have local
+echo **off**).
 
 ### 7.4 Kernel helpers to neutralise
 
@@ -972,7 +957,7 @@ meaning (the host should have local echo **off**), now read by `echo_line`.
 | `after_print_text` | `SCR` row math → next line | **emit CR+LF** (keeps the banner on its own line) |
 | `cursor_on` (forth_start) | set the cursor attribute on `ES:SCR` | **skipped** — a terminal has a real cursor, and `ES:SCR` would be a PSRAM write |
 | `wrap_if` | column from `SCR`, wrap at 80 | column from the BIOS's `out_col` counter, still wraps at 80 (§4.4) |
-| `word_cls` | f1 + blank top-left cell | **`console_clear`** (`print_text` of the ANSI sequence) |
+| `word_cls` | f1 + blank top-left cell | **f1 only** |
 | `word_scr_fetch`, `word_scr_store` | `ES:SCR` | **removed** (screen-only) |
 | `form` | `24 80` | **`24 80`** (nominal; decision C3) |
 
@@ -1000,7 +985,7 @@ The minimal VT100 subset — enough for a REPL, nothing more.
 
 | Input | Action |
 |---|---|
-| printable ASCII | store; the kernel echoes it |
+| printable ASCII | store + echo |
 | `CR` or `LF` | end line (the existing `bios_getstr` rule) |
 | `BS` (0x08) or `DEL` (0x7F) | erase one char (rewind buffer, `BS SP BS`) |
 | `ESC …` sequence | **consumed and dropped** (C4) — arrows, function keys |
@@ -1058,7 +1043,7 @@ This is what makes the design buildable **now**, before a board.
 ### 7.9 The boot loader, `start`, `free`, `mem` and the SD card
 
 The image carries a **Forth boot loader**. `forth/boot.fth` is the source;
-`scripts/embed_forth.mjs` bakes it into `asm/forth.asm` and `asm/forth_nano.asm`
+`scripts/embed_forth.mjs` bakes it into the canonical `asm/forth_nano.asm`
 between two markers, one
 `.string` line per source line, and `tests/boot-script.test.js` runs the
 generator with `--check` so the two cannot drift. A `.string` packs **two

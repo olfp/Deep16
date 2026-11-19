@@ -23,7 +23,7 @@ What exists today:
 | Level bits | `0xF0066` bits 5/6 | synchronised CLK/DATA, for the sender's timing |
 | Frame toggle | `0xF0066` bit 7 | flips on every valid frame (ACK/BAT included) |
 | Sender | `asm/forth_nano.asm`, BIOS `0x5490` | `ps2_send`, BIOS function 7 |
-| Init | `asm/forth_nano.asm`, BDOS 0x1F78 | `bdos_ps2_init`, BDOS function 9; kernel calls it after `binit` |
+| Init | `asm/forth_nano.asm`, BIOS `0x5490` | `ps2_init`, BIOS function 8; `binit` calls it |
 | Forth | `screens/flash/games.fth` | no PS/2 words: `cls` (BIOS function 1) is the manual re-init |
 
 The sender is assembly because threaded Forth is far too slow for the PS/2 bit
@@ -94,10 +94,9 @@ the keyboard's answer.
 
 ## 3. Phase B — `binit` is the home (implemented)
 
-The sender is in `asm/forth_nano.asm` in the free BIOS gap at `0x5490`
-(segment offset `0xA90`); the init state machine is BDOS function 9 at 0x1F78
-and runs with I=1. The kernel calls it after `binit`, before the banner and
-the showcase menu. The `ps2host`
+The sender and the init are now in `asm/forth_nano.asm`, in the free BIOS gap
+at `0x5490` (segment offset `0xA90`), and **BIOS function 1 (`binit`)** calls
+`ps2_init` before the banner and before the showcase menu. The `ps2host`
 slice, `asm/ps2_host.asm`, the Forth words and the `ps2-auto` call are gone;
 the kernel dictionary still ends at `dict_free = 0x434F`, so the `0x4350`
 gap is untouched.
@@ -107,11 +106,11 @@ The block is:
 | Entry | Purpose |
 |---|---|
 | BIOS 7 | `ps2-send`: byte in the caller's `R1`, answer in `R0` (1 = clocked, 0 = no keyboard) |
-| BIOS 8 | `ps2-status`: non-blocking status + millisecond-timer snapshot |
+| BIOS 8 | `ps2-init`: reset + enable, then drain both input queues |
 | `ps2_send` | start + 8 data bits LSB first + odd parity + stop; saves R5/R6 in BIOS cells |
-| `bdos_ps2_init` | reset with retries, wait for ACK/BAT, guard, `0xF4` ×4, flush |
-| `bps2_wait_ticks` | waits N milliseconds on `0xF0022` |
-| `bps2_wait_frame` | waits up to N ms for the `0xF0066` bit-7 toggle |
+| `ps2_init` | reset with retries, wait for ACK/BAT, guard, `0xF4` ×4, flush |
+| `ps2_wait_ticks` | waits N high-word cycle-counter ticks (`0xF006A`) |
+| `ps2_wait_frame` | waits up to N ticks for the `0xF0066` bit-7 toggle |
 
 `binit` runs as soon as the FPGA is configured, which can be before the
 keyboard has finished its own power-on test. The init therefore retries the
