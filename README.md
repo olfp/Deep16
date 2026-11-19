@@ -48,9 +48,10 @@ D16nano PS/2 keyboard FIFO, the same route as on the board. **D16D Showcase
 (tiles)** uses the board-image defines and boots into the showcase menu and
 Flappy; graphics come from the simulated config flash. The old **Screen** (the
 `0xF1000` text buffer) and **Terminal** (the UART view) front ends are gone from
-the IDE; their code is kept in `archive/frontend-serial-text/`. The kernel's
-UART build itself (`asm/forth.asm` with `CONSOLE_UART`) is untouched and still
-covered by the `uart-*` tests.
+the IDE; their code is kept in `archive/frontend-serial-text/`. The canonical
+live kernel is `asm/forth_nano.asm`; `asm/forth.asm` is a compatibility symlink
+to it. The retired standalone UART kernel is preserved at `archive/forth.asm`
+and its legacy behavior is still covered by the `uart-*` tests.
 
 The same renderer runs headlessly:
 
@@ -127,7 +128,7 @@ Two more checks are not part of `npm test`:
 
 ```sh
 npm run sweep:rtl    # 524288 word executions, 4 seeds — must report 0
-npm run trace:rtl -- asm/forth.asm 200 --keys "1 2 + .\n"
+npm run trace:rtl -- asm/forth_nano.asm 200 --keys "1 2 + .\n"
 node scripts/bench.mjs   # MIPS of all three cores
 ```
 
@@ -183,6 +184,11 @@ Build and flash (vendor toolchain for the bitstream):
 npm run synth:tile    # Gowin: image + bitstream (deep16_board_tile_flash.fs)
 npm run flash:tile    # write the bitstream, 1 MB boot image and slices
 ```
+
+The tile/device image is built from the canonical `asm/forth_nano.asm` with
+`D16NANO=1 D16D=1 D16SEG=1`. Plain `npm run image` preserves the retired
+D16MINI image layout and builds the archived standalone kernel at
+`archive/forth.asm`.
 
 Without a board, `npm test` runs the segmented map and the SD driver in the JS
 core (`tests/segmented.test.js`): the scattered image, the data and return
@@ -261,9 +267,10 @@ claims "PRODUCTION READY". That is aspirational marketing text, not a status
 report.
 
 What works today: all three cores agree, the assembler and disassembler round
-trip, all seven examples assemble and run, and the Forth kernel in
-`asm/forth.asm` is a working REPL — including interactive keyboard input, on
-all three cores. The RTL core is verified across the entire instruction space:
+trip, all shipped examples assemble and run, and the canonical Forth kernel in
+`asm/forth_nano.asm` is a working REPL — including interactive keyboard input,
+on all three cores. (`asm/forth.asm` is a compatibility symlink to it.) The
+RTL core is verified across the entire instruction space:
 the decode sweep reports 0 divergences over 524288 executions from four seeds,
 and random programs agree step for step.
 

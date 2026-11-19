@@ -1,6 +1,6 @@
-// The serial (CONSOLE_UART) build of the Forth kernel, end to end: boot it on
-// the JS core, feed keystrokes into the UART RX, and read the UART TX back
-// through the same SerialTerminal the IDE uses.
+// The archived standalone kernel's serial (CONSOLE_UART) build, end to end:
+// boot it on the JS core, feed keystrokes into the UART RX, and read the UART TX
+// back through the same SerialTerminal the IDE uses.
 //
 // This is the loop the screen tests cannot close: it proves the kernel actually
 // emits on 0xF0042 and reads 0xF0040, so the terminal view shows a real REPL and
@@ -14,7 +14,7 @@ import { assemble, loadBrowserScripts, buildMemory, loadSerialTerminal, ROOT } f
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 const SerialTerminal = loadSerialTerminal();
 
-const src = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
+const src = fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8');
 const uart = assemble(src, { defines: { CONSOLE_UART: 1 } });
 const screen = assemble(src);
 

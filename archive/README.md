@@ -22,10 +22,17 @@ Moved here 2026-10-30.
 To revive one, move it back to the repo root and re-add it to the STATUS
 inventory; the archive is not built, linked or tested by the current tree -
 except `archive/frontend-serial-text/js/deep16_terminal.js`, which the UART
-kernel tests load through `tests/helpers.js`.
+kernel tests load through `tests/helpers.js`, and `archive/forth.asm`, which
+the legacy image and kernel regressions load explicitly.
 
 Moved here 2026-11-16.
 
 | directory | was | why archived |
 |---|---|---|
-| `frontend-serial-text/` | the IDE's serial (UART terminal) and text-screen front end: `js/deep16_terminal.js` and the two tests that belonged to it | the front end is tiles-only now: the FiT tile graphics screen is the one supported display. The kernel's UART build (`asm/forth.asm` with `CONSOLE_UART`) is untouched and still tested - `tests/helpers.js` loads the archived terminal model as the host-side decoder for those tests |
+| `frontend-serial-text/` | the IDE's serial (UART terminal) and text-screen front end: `js/deep16_terminal.js` and the two tests that belonged to it | the front end is tiles-only now: the FiT tile graphics screen is the one supported display. The retired standalone UART kernel (`archive/forth.asm` with `CONSOLE_UART`) is still tested - `tests/helpers.js` loads the archived terminal model as the host-side decoder for those tests |
+
+Moved here 2026-11-17.
+
+| file | was | why archived |
+|---|---|---|
+| `forth.asm` | `asm/forth.asm`, the former standalone D16MINI UART kernel | superseded by the canonical `asm/forth_nano.asm`. `asm/forth.asm` is now a compatibility symlink to that kernel; the legacy image and regression tests deliberately use this archived copy |

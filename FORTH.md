@@ -1,9 +1,11 @@
 # DeepForth — mini manual
 
-DeepForth is the Forth in `asm/forth.asm`. It boots to a `>` prompt: type a
-line, press enter, and each word on it runs. `: name ... ;` starts and ends a
-compiled definition; inside one, words are compiled instead of run. A mistake
-prints `undefined word: X` or `stack underflow` and the prompt comes back.
+DeepForth is the Forth in `asm/forth_nano.asm`, the canonical kernel used by
+the IDE and the device build. `asm/forth.asm` is a compatibility symlink to
+that same file. It boots to a `>` prompt: type a line, press enter, and each
+word on it runs. `: name ... ;` starts and ends a compiled definition; inside
+one, words are compiled instead of run. A mistake prints `undefined word: X` or
+`stack underflow` and the prompt comes back.
 
 ```text
 : square dup * ;      \ compile a word
@@ -830,6 +832,21 @@ returns a short pair count if a key arrives. The board's FIFO is only 16
 bytes deep, so the frame read starts immediately after the SOH: a Forth
 round trip through the main loop before `serial-read` cost more than the
 FIFO's 139 us and dropped a byte at 115200.
+
+### Simulator tile-and-sprite demo
+
+The nano kernel includes the built-in word `fitdemo ( -- )`. At the generic
+simulator's Forth prompt, type:
+
+```text
+fitdemo
+```
+
+It clears the current FiT map, installs a red/green checker in art tile 127,
+writes a text banner and a tile stripe, and enables the bundled cloud and bird
+sprites through OAM. The scene is static and the word returns to the prompt.
+The IDE loads the flash font and sprite assets before the prompt, so the demo
+needs no file upload or setup.
 
 ### Tile console colours
 

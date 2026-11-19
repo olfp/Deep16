@@ -90,6 +90,48 @@ test('the examples manifest identifies the D16D build by id', () => {
   assert.equal(ex.build, 'd16d');
 });
 
+test('the example loader fetches the fitdemo-enabled DeepForth kernel', async () => {
+  const ui = makeUi('nano');
+  ui.examples = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'asm', 'examples.json'), 'utf8'),
+  ).examples;
+  ui.editorElement = { value: '' };
+  ui.renderEditorHighlight = () => {};
+  ui.status = () => {};
+  ui.addTranscriptEntry = () => {};
+  ui.switchTab = () => {};
+  ui.updateRunButton = () => {};
+
+  // Exercise the same fetch -> editor -> build path as the browser. A unit
+  // test that starts from a local kernel string can pass even when the
+  // example manifest points at a different, older source.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const relative = String(url).replace(/^\.\//, '');
+    const file = path.resolve(ROOT, relative);
+    assert.ok(file.startsWith(`${ROOT}${path.sep}`), `unexpected fetch path: ${url}`);
+    return {
+      ok: fs.existsSync(file),
+      async text() { return fs.readFileSync(file, 'utf8'); },
+    };
+  };
+  try {
+    await ui.loadExample('deepforth');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+
+  assert.equal(ui.tileBuild, 'nano');
+  assert.match(ui.editorElement.value, /^h_fitdemo:/m,
+               'the loaded editor source contains the built-in header');
+  assert.match(ui.editorElement.value, /^word_fitdemo:/m,
+               'the loaded editor source contains the built-in implementation');
+
+  const result = ui.buildNanoImage(ui.editorElement.value);
+  assert.equal(result.success, true, result.errors.join('; '));
+  assert.equal(result.symbols.h_fitdemo, 0x4460);
+});
+
 test('the generic nano example boots to a PS/2 prompt and evaluates input', () => {
   const ui = makeUi('nano');
   const result = ui.buildNanoImage(kernel);

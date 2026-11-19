@@ -39,6 +39,15 @@ test('the expected examples are present', () => {
   ]);
 });
 
+test('asm/forth.asm links to the canonical Forth kernel', () => {
+  const link = path.join(ASM_DIR, 'forth.asm');
+  const canonical = path.join(ASM_DIR, 'forth_nano.asm');
+  assert.ok(fs.lstatSync(link).isSymbolicLink(), 'asm/forth.asm must be a symlink');
+  assert.equal(fs.readlinkSync(link), 'forth_nano.asm');
+  assert.equal(fs.realpathSync(link), fs.realpathSync(canonical));
+  assert.equal(fs.readFileSync(link, 'utf8'), fs.readFileSync(canonical, 'utf8'));
+});
+
 for (const file of EXAMPLES) {
   test(`${file} assembles`, () => {
     const src = fs.readFileSync(path.join(ASM_DIR, file), 'utf8');

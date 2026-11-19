@@ -1,5 +1,10 @@
 #!/usr/bin/env node
-// scripts/make_image.mjs - build the D16MINI boot image from asm/forth.asm.
+// scripts/make_image.mjs - build a D16MINI boot image.
+//
+// The canonical live kernel is asm/forth_nano.asm. The retired standalone
+// D16MINI kernel is kept at archive/forth.asm for the legacy image and its
+// regression tests; asm/forth.asm is a compatibility link to the canonical
+// kernel.
 //
 // D16MINI.md §6.5. The image is the UART (CONSOLE_UART) kernel laid into the
 // 24K-word BSRAM window (0x0000-0x5FFF) and filled with 0xFFFF, so a run off the
@@ -59,6 +64,12 @@ export const FLASH_HDR_WORDS = 64;     // 32-bit words reserved before the image
 export const ECHO_FLAG  = 0xF0064; // the kernel's echo cell: outside the window,
                                    // so the board neither backs nor decodes it
                                    // (D16MINI.md §6.4) - it is expected here
+// The device/tile profile builds the canonical nano kernel. The default
+// D16MINI profile preserves the retired standalone kernel and its image layout.
+export const SOURCE_PATH = NANO
+  ? path.join(ROOT, 'asm', 'forth_nano.asm')
+  : path.join(ROOT, 'archive', 'forth.asm');
+export const SOURCE_LABEL = NANO ? 'asm/forth_nano.asm' : 'archive/forth.asm';
 
 function loadAssembler() {
   globalThis.window = globalThis.window || {};
@@ -83,10 +94,9 @@ export function buildImage() {
     throw new Error('the D16D image needs D16SEG=1 (the segmented kernel)');
   }
   const Deep16Assembler = loadAssembler();
-  const sourceName = NANO ? 'forth_nano.asm' : 'forth.asm';
-  const source = fs.readFileSync(path.join(ROOT, 'asm', sourceName), 'utf8');
+  const source = fs.readFileSync(SOURCE_PATH, 'utf8');
   const res = new Deep16Assembler().assemble(source, { defines: DEFINES });
-  if (!res.success) throw new Error(`${sourceName} does not assemble: ` + res.errors.join('; '));
+  if (!res.success) throw new Error(`${SOURCE_LABEL} does not assemble: ` + res.errors.join('; '));
 
   const words = new Uint16Array(WINDOW).fill(FILL);
   const outOfWindow = new Set();
@@ -315,7 +325,7 @@ export function manifest(img) {
   const pack = D16D ? null : packImage({ words: img.words });
   return JSON.stringify({
     project: 'D16MINI',
-    source: 'asm/forth.asm',
+    source: SOURCE_LABEL,
     defines: DEFINES,
     base: '0x00000',
     window: `0x${(WINDOW - 1).toString(16)}`,

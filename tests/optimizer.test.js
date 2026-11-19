@@ -307,7 +307,7 @@ test('differential: WASM core agrees with JS on the optimized program', async ()
 
 // ------------------------------------- the whole Forth kernel as oracle
 
-const FORTH_SRC = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
+const FORTH_SRC = fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8');
 
 function replRows(res, input, maxSteps = 600000) {
   const { Deep16Simulator } = globalThis;
@@ -332,7 +332,7 @@ function replRows(res, input, maxSteps = 600000) {
   return { rows, steps };
 }
 
-test('forth.asm still assembles after optimization', () => {
+test('the archived Forth kernel still assembles after optimization', () => {
   const optimized = optimize(FORTH_SRC);
   assert.ok(optimized.changed, 'the kernel should offer something to fold');
   const res = assemble(optimized.source);

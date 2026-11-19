@@ -835,8 +835,9 @@ The keyboard ports `0xF0060`/`0xF0062` stay decoded but dead (§5).
 
 `scripts/make_image.mjs` — **done**, `npm run image` writes `artifacts/image/`:
 
-1. Assemble `asm/forth.asm` with `{ CONSOLE_UART: 1 }` — the UART build; the
-   screen build is emulator-only.
+1. Assemble the kernel with `{ CONSOLE_UART: 1 }` — the legacy D16MINI profile
+   uses the archived `archive/forth.asm`; the D16nano/device profile uses the
+   canonical `asm/forth_nano.asm`. The screen build is emulator-only.
 2. Map the `memoryChanges` into the D16MINI window (§3), with the BIOS relocated
    as M5 dictates.
 3. Fill all 26 blocks with `0xFFFF`, then lay the words down.
@@ -1042,7 +1043,7 @@ This is what makes the design buildable **now**, before a board.
 ### 7.9 The boot loader, `start`, `free`, `mem` and the SD card
 
 The image carries a **Forth boot loader**. `forth/boot.fth` is the source;
-`scripts/embed_forth.mjs` bakes it into `asm/forth.asm` and `asm/forth_nano.asm`
+`scripts/embed_forth.mjs` bakes it into the canonical `asm/forth_nano.asm`
 between two markers, one
 `.string` line per source line, and `tests/boot-script.test.js` runs the
 generator with `--check` so the two cannot drift. A `.string` packs **two

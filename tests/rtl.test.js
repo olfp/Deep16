@@ -605,8 +605,8 @@ test('the example programs produce the same screen output on all cores', async (
   }
 });
 
-test('the Forth REPL boots and answers on the RTL core', async () => {
-  const res = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'));
+test('the archived Forth REPL boots and answers on the RTL core', async () => {
+  const res = assemble(fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8'));
   assert.ok(res.success, res.errors.join('; '));
   const keys = [...'1 2 + .\n'].map((c) => (c === '\n' ? 10 : c.charCodeAt(0)));
   const rtl = await runRtl(res, { cs: 0xFFFF, maxSteps: 600000, keys });
@@ -624,7 +624,7 @@ test('the RTL core runs a do/loop the same way the WASM core does', async () => 
   // `exit` takes the loop's limit for a return address and the core walks into
   // unwritten memory, which is a halt, not a wrong number - so both cores have
   // to come back with a prompt.
-  const res = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8'));
+  const res = assemble(fs.readFileSync(path.join(ROOT, 'archive', 'forth.asm'), 'utf8'));
   assert.ok(res.success, res.errors.join('; '));
   const keys = [...': sum 0 swap 0 do i + loop ;\n10 sum .\n: e 10 0 do i 3 = if leave then i . loop ;\ne\n']
     .map((c) => (c === '\n' ? 10 : c.charCodeAt(0)));
