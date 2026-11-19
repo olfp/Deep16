@@ -1,7 +1,7 @@
-// The D16NANO boot loader is its own script: it reads source slices through
-// BDOS function 11 instead of the mini's cf-burst hookup. This boots the flat
-// nano kernel, counts the read-slice calls, and checks that the loaded modules
-// are usable. The segmented board build is covered by tests/segmented.test.js.
+// The canonical nano boot loader reads source slices through BDOS function 11.
+// This boots the flat nano kernel, counts the read-slice calls, and checks that
+// the loaded modules are usable. The segmented board build is covered by
+// tests/segmented-showcase.test.js and tests/segmented.test.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -50,17 +50,19 @@ test('the nano boot reaches the prompt and loads the modules', () => {
   assert.match(text, /Loading edit/);
   assert.match(text, /free/);
   assert.match(text, /> /);
+  assert.ok(readSliceCalls >= 4, `expected BDOS read-slice calls, saw ${readSliceCalls}`);
 });
 
-test('the nano boot source uses the streaming reader and keeps the BDOS read-slice entry', () => {
+test('the nano boot source reads through BDOS read-slice and keeps cf-burst for tools', () => {
   const boot = fs.readFileSync(path.join(ROOT, 'forth', 'boot.fth'), 'utf8');
+  assert.match(boot, /bdos-slice/);
   assert.match(boot, /cf-burst-prim/);
   // The embedded block is generated from that source, not hand-edited.
   const asm = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
   const block = asm.slice(asm.indexOf('; >>> generated from forth/boot.fth'),
                           asm.indexOf('; <<< end generated >>>'));
+  assert.match(block, /bdos-slice/);
   assert.match(block, /cf-burst-prim/);
-  // The BDOS entry point still exists for the direct reader tests.
   assert.equal(typeof sym.bdos_read_slice, 'number');
 });
 
@@ -71,5 +73,5 @@ test('the nano boot script is current and fits the baked block', () => {
   const code = src.split('\n')
     .filter((l) => l.trim() && !l.trim().startsWith('\\'))
     .reduce((n, l) => n + l.length + 1, 0);
-  assert.ok(code <= 2040, `forth/boot-nano.fth code is ${code} chars, past one screen`);
+  assert.ok(code <= 2040, `forth/boot.fth code is ${code} chars, past one screen`);
 });

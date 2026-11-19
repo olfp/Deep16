@@ -16,14 +16,16 @@ variable slice-wp drop
 variable sf-a drop
 variable sf-l drop
 
-\ cf-burst is the assembly block reader in the kernel image (0x2F49).
+\ cf-burst remains the raw 4 KiB streaming primitive (0x2F49), but the boot
+\ loader reads through BDOS function 11 so the copy and bus polling live in
+\ the system layer. cf-burst stays available for the slice editor/tests.
 create cf-burst-prim 0x2F49 ,
 : cf-burst ( sector buf -- ) cf-burst-prim execute ;
 : cf-read-burst ( sector -- ) slice-buf cf-burst ;
 
 : slice ( n -- a )
   dup 0 511 within 0= if ." slice: 0..511" cr drop slice-buf exit then
-  dup slice-sec !  512 + cf-read-burst
+  dup slice-sec !  slice-buf bdos-slice
   slice-buf dup @ 0x8000 and slice-wp ! ;
 : slice-valid? ( a -- f )
   @ dup 0xffff = if drop 0 exit then  0x7000 and 0x5000 = ;

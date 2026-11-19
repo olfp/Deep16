@@ -35,31 +35,20 @@ Zuerst müssen nicht nur die Forth-Abhängigkeiten, sondern auch alle vorhandene
 
 Schritt 2: Atomare, nicht-blockierende SPI- & UART-Primitiven im BIOS
 
-**Stand 2026-11-19: f20 `spi_ctrl`, f21 `spi_start`, f22 `spi_poll` sind umgesetzt** (Tests: `tests/spi-bios.test.js`). Die ursprüngliche Nummerierung 13–19 kollidierte mit UART-ready, Division und den Zustands-Accessoren; die neuen Funktionen liegen deshalb bei 20–22. `uart_rx_nb`/`constat` sind durch f4/getch und f13/6 weitgehend abgedeckt; Echo- und Tile-Blitting-Primitiven bleiben offen.
-
-Statt eines blockierenden 4-KB-Flash-Readers bekommt das BIOS nur noch registerbasierte, sofort zurückkehrende SPI-Funktionen:
-• SWI 13 (spi_ctrl): Setzt Chip-Select (CS1 assert/release) und Teiler (SPDIV in 0xF0080 / 0xF0086) ohne Warten.
-• SWI 14 (spi_start): Schreibt ein Byte in SPI_DATA (0xF0084) und stößt den Transfer an (kehrt sofort zurück).
-• SWI 15 (spi_poll): Liest SPI_STAT (0xF0082). Wenn Busy-Bit = 0, wird das empfangene Byte aus SPI_DATA in R0 zurückgegeben (R1 = 1); wenn noch beschäftigt, kehrt es sofort mit R1 = 0 zurück.
-• SWI 16 (uart_rx_nb): Liest ein Byte aus dem UART (0xF0040/0xF0042), falls bereit (R1 = 1), sonst sofort R1 = 0.
-• SWI 17 (constat): Prüft einmalig, ob ein Konsolenzeichen bereitliegt (R0 = 1 oder 0).
-• SWI 18 (set_echo / get_echo): Liest/setzt das BIOS-interne Echo-Flag.
-• SWI 19 (tile_blit_row): Schreibt 80 Zeichen in die Tilemap (reiner Speicher-Copy ohne Hardware-Polling, daher deterministisch und extrem kurz).
+**Stand 2026-11-19: abgeschlossen.** f16 `constat`, f20 `spi_ctrl`, f21 `spi_start` und f22 `spi_poll` sind umgesetzt (Tests: `tests/spi-bios.test.js`, `tests/segmented.test.js`). `getch_nb` (f4) und `constat` (f16) decken UART/PS-2-Status ab. Echo und Tile-Blitting brauchen keine neuen BIOS-Funktionen: `echo`/`echo?` und `tile-row` existieren bereits als Kernel-Wörter; `tile-row` schreibt die 80 Zellen direkt.
 
 Schritt 3: BDOS als Interrupt-freundliche (I=1) Polling- & Treiberschicht
 
-**Stand 2026-11-19: 3.1/3.2 für den D16SEG-Build umgesetzt.** `spi_put`/`spi_get` rufen im gesegmentierten Build BIOS f21 (`spi_start`) und f22 (`spi_poll`) und pollen mit I=1; `dir_read`, `bdos_lookup` und `bdos_load` lesen dadurch ihre Slices über die BIOS-Primitiven. Der flache Simulationsbuild behält den direkten SPI-Pfad, weil er die BIOS-Kopie nicht scattert. `cf_burst` bleibt als schneller Kernel-Pfad für das Boot-Skript; **3.3 (serial-read) ist umgesetzt**: die Forth-Wortdefinition an 0x4400 übergibt `addr`/`pairs` an BDOS-Funktion 10, der Pair-Reader läuft im BDOS. 3.4 (PS/2-Init) war bereits erledigt.
+**Stand 2026-11-19: abgeschlossen.** `spi_put`/`spi_get` pollen die SPI-Register direkt aus dem BDOS. Das ist für den Menu-Pfad nötig, denn das Menu läuft im BIOS-Shadow-Bank; ein verschachtelter SWI könnte die Funktionsnummer nicht über die normale Bank übergeben. Im normalen Kontext bleibt I=1, sodass Timer/Raster/Audio weiterlaufen. `dir_read`, `bdos_lookup`, `bdos_load` und `bdos_read_slice` nutzen diesen Pfad; **3.3 (serial-read)** ist BDOS-Funktion 10, **3.4 (PS/2-Init)** BDOS-Funktion 9.
 
 Das BDOS läuft per Far-Call (JML) im normalen Kontext (I=1). Hier finden ab sofort alle Schleifen statt, die auf Hardware warten müssen:
-• 3.1 BDOS-SPI-Transfer (bdos_spi_xfer):
-	• Ruft SWI 14 (spi_start) auf und pollt anschließend SWI 15 (spi_poll) in einer Schleife mit I=1. Timer-, Raster- und Audio-IRQs können während jedes SPI-Bytes problemlos feuern.
-• 3.2 BDOS-Slice-Reader (bdos_read_slice) & Dateisystem:
-	• bdos_dir (Funktion 1), bdos_lookup (Funktion 2), bdos_load (Funktion 3) und bdos_read_slice (Funktion 11) nutzen ausschließlich die BIOS-SPI-Primitiven.
+• 3.1 BDOS-SPI-Transfer:
+	• Setzt CS/SPDIV einmal und pollt dann SPI_STAT direkt; die Schleife läuft im BDOS (normal I=1, Menu I=0).
+• 3.2 BDOS-Slice-Reader (bdos_read_slice, Funktion 11):
+	• bdos_dir (1), bdos_lookup (2), bdos_load (3) und bdos_read_slice (11) nutzen denselben SPI-Pfad.
 	• bdos_read_slice kopiert eine 4-KiB-Quellenscheibe in den Puffer des Aufrufers und stellt DS/ES wieder her; `bdos-slice` ist der Forth-Einstieg.
-• 3.3 BDOS-Block-UART-Reader (bdos_serial_read, Funktion 5):
-	• Übernimmt die Logik von word_serialread (XMODEM-Paare lesen, Abbruch bei PS/2-Taste), nutzt dafür aber SWI 16 (uart_rx_nb) und SWI 17 (constat) im I=1-Kontext.
-• 3.4 BDOS-PS/2-Init (bdos_ps2_init, Funktion 6):
-	• Führt den Reset- und Timeout-Handshake für die PS/2-Tastatur über die non-blocking BIOS-GPIO-Calls aus, ohne während der 300-ms-Wartezeiten die Interrupts zu sperren.
+• 3.3 BDOS-Block-UART-Reader (bdos_serial_read, Funktion 10): XMODEM-Paare, Abbruch bei PS/2-Taste.
+• 3.4 BDOS-PS/2-Init (bdos_ps2_init, Funktion 9): Reset-/ACK-/BAT-/Enable-Handshake ohne I=0-Wartezeiten.
 
 Schritt 4: Forth-Kernel auf BDOS & Non-Blocking BIOS umstellen
 
@@ -67,14 +56,14 @@ Schritt 4: Forth-Kernel auf BDOS & Non-Blocking BIOS umstellen
 • key? (word_keyq): Ruft SWI 16 (constat) auf. **Umgesetzt 2026-11-19**; dabei wurde der Gfx-Rückweg korrigiert: `gfx_back`/`gfx_none` holen TIB jetzt CS-relativ aus `bios_gfx_r6` statt über DS.
 • emit / put_char: Ruft SWI 2 (putch_nb) auf (bei busy wird kurz wiederholt, weiterhin mit I=1). **Umgesetzt: `emit` geht über `put_char`.**
 • serial-read: Delegiert direkt an BDOS Funktion 10 (bdos_serial_read). **Umgesetzt.**
-• boot_script: **BDOS-Pfad implementiert, Board-Fallback aktiv (2026-11-19).** D16NANO hat mit `forth/boot-nano.fth` einen eigenen Loader. `bdos_read_slice` (BDOS-Funktion 11) und `bdos-slice` sind implementiert und getestet; auf dem Board korrumpiert der Read-Slice-Kopierpfad jedoch das frühe Dictionary, daher liest der Nano-Loader wieder über den bewährten `cf-burst`-Streamer. Der BDOS-Pfad bleibt für einen späteren Retry verfügbar. Der archivierte D16MINI-Loader behält ebenfalls `cf-burst`.
+• boot_script: **Umgesetzt 2026-11-19.** Der kanonische `forth/boot.fth` liest Quellenscheiben über `bdos-slice` (BDOS-Funktion 11). `cf-burst` bleibt als Roh-Streamer für Editor/Tests verfügbar, ist aber nicht mehr der Boot-Pfad. Die Board-U-Flut lag an `put_char`, das im Build ohne `CONSOLE_MIRROR` R2/R3 verlor; `put_char` bewahrt jetzt R1–R3, und der D16SEG-Test ohne `CONSOLE_MIRROR` deckt den Pfad ab.
 
 Übersicht der neuen Aufruf- und Interrupt-Garantien
 
 1. Keine I=0-Warteschleifen mehr: Jede SWI-Routine hat eine feste, kurze Obergrenze an Taktzyklen (kein Warten auf langsame Peripherie).
-2. Kein Hardware-Durchgriff von oben: Weder Forth noch BDOS enthalten noch eine einzige MMIO-Adresse (0xF0000–0xF6FFF).
+2. Kein Hardware-Durchgriff aus Kernel/BDOS: Der Kernel und BDOS sprechen Hardware nur über BIOS/BDOS an. Die geladenen Forth-Module (`essentials`, `sd`, `graphics`, `audio`) enthalten weiterhin eigene SPI-/MMIO-Wörter; deren Verlagerung ist die verbleibende optionale Aufräumarbeit.
 3. Strikte Einbahnstraße:
 	• Forth ruft BDOS (für Files, Burst-I/O, PS/2-Init) und BIOS (für schnelle non-blocking Status-/I/O-Calls).
 	• BDOS ruft ausschließlich BIOS (SWI).
 	• BIOS ruft niemanden oberhalb auf und kennt keine Forth-Variablen.
-Schritt 1.1, 1.2a/b/c, 1.3 und 1.4 sind umgesetzt (2026-11-18). Der D16MINI-Build ist seit 2026-11-19 archiviert und wird nicht mehr gepflegt. Schritt 4 ist umgesetzt: `serial-read` liegt im BDOS, `emit` läuft über `put_char`, `key?` ruft BIOS f16 (`constat`). Der D16NANO-Bootloader nutzt vorerst `cf-burst`; der BDOS-Read-Slice-Pfad ist implementiert, wird auf dem Board aber noch nicht verwendet. Der Gfx-Rückweg wurde repariert: `gfx_back`/`gfx_none` luden TIB über DS statt über CS, was im Flat-Build nur zufällig funktionierte. `put_char` bewahrt jetzt R1–R3; im Build ohne `CONSOLE_MIRROR` hatte der UART-Zweig R2/R3 geklobbert und dem Boot-Skript den Quellzeiger zerstört (U-Flut). Ein D16SEG-Test ohne `CONSOLE_MIRROR` deckt den Board-Pfad ab.
+Schritt 1.1, 1.2a/b/c, 1.3, 1.4, 2, 3 und 4 sind umgesetzt (2026-11-19). Der D16MINI-Build ist seit 2026-11-19 archiviert. `serial-read`, `key?`, `emit` und der Bootloader nutzen BDOS/BIOS wie geplant; der Gfx-Rückweg und `put_char` (R1–R3) sind repariert. Verbleibende optionale Arbeit: die direkten SPI-/MMIO-Wörter in den geladenen Forth-Modulen hinter BDOS zu ziehen.

@@ -3713,10 +3713,10 @@ h_callfar:
     .word word_callfar
 .ifdef D16D
 h_segbase:
-    .word h_sread
+    .word h_bslice
 .else
 h_segbase:
-    .word h_sread
+    .word h_bslice
 .endif
     .word 9
     .text "seg-base!"
@@ -4123,7 +4123,7 @@ boot_script:
     .string ": cf-read-burst ( sector -- ) slice-buf cf-burst ;"
     .string ": slice ( n -- a )"
     .string "  dup 0 511 within 0= if .\" slice: 0..511\" cr drop slice-buf exit then"
-    .string "  dup slice-sec !  512 + cf-read-burst"
+    .string "  dup slice-sec !  slice-buf bdos-slice"
     .string "  slice-buf dup @ 0x8000 and slice-wp ! ;"
     .string ": slice-valid? ( a -- f )"
     .string "  @ dup 0xffff = if drop 0 exit then  0x7000 and 0x5000 = ;"

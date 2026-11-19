@@ -775,9 +775,10 @@ master directory; `scripts/make_slices.mjs` packs `screens/flash/*.fth` into
 `artifacts/image/slices.bin` and `npm run flash:slices` writes it at
 `0x200000`.
 
-The boot loader loads `start` (slice 1), `essentials` (2..3) and `edit` (4..7);
+The boot loader loads `start` (slice 1), then `essentials` and `edit` by name;
 `s" graphics" need`, `s" games" need` and `s" sd-card" need` bring in the
-rest on demand:
+rest on demand. It reads each slice through BDOS function 11 (`bdos-slice`);
+`cf-burst` remains the raw streaming primitive for the slice editor and tests:
 
 ```text
 s" graphics" need     \ SIC/raster, scene, palettes, I2S, sprites
