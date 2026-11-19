@@ -13138,10 +13138,72 @@ word_serialread:
 
 .org 0x4E70
 h_sread:
-    .word h_tile_row
+    .word h_spi_ctrl
     .word 11
     .text "serial-read"
     .word word_serialread
+
+; The archived D16MINI kernel predates the BIOS/BDOS split. It keeps the
+; essentials SPI API by touching the 0xF0080 registers directly, as the module
+; itself used to. The D16NANO kernel implements the same two words through
+; BDOS functions 12/13.
+.org 0x4E80
+h_spi_ctrl:
+    .word h_spi_xfer
+    .word 9
+    .text "spi-ctrl!"
+    .word word_spi_ctrl
+.org 0x4E90
+h_spi_xfer:
+    .word h_tile_row
+    .word 8
+    .text "spi-xfer"
+    .word word_spi_xfer
+
+.org 0x4EA0
+.code
+word_spi_ctrl:              ; spi-ctrl! ( control div -- )
+    LD R3, SP, 0
+    ADD SP, 1
+    LD R2, SP, 0
+    ADD SP, 1
+    LDI 0x80
+    MOV R4, R0
+    STS R2, ES, R4
+    LDI 0x86
+    MOV R4, R0
+    STS R3, ES, R4
+    LDI next
+    MOV PC, R0
+    NOP
+
+.org 0x4EC0
+.code
+word_spi_xfer:              ; spi-xfer ( c -- c )
+    LD R2, SP, 0
+    ADD SP, 1
+    LDI 0x84
+    MOV R4, R0
+    STS R2, ES, R4
+sx_wait:
+    LDI 0x82
+    MOV R4, R0
+    LDS R5, ES, R4
+    LSI R4, 1
+    AND R5, R4
+    JZ sx_wait
+    NOP
+    LDI 0x84
+    MOV R4, R0
+    LDS R5, ES, R4
+    LDI 0xFF
+    MOV R4, R0
+    AND R5, R4
+    SUB SP, 1
+    ST R5, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
 
 ; =============================================
 ; BIOS Implementation. The screen build keeps it at physical 0xF8000; D16MINI

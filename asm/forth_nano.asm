@@ -1546,7 +1546,7 @@ interpret_next:
 ; unknown. The table is absolute addresses: BDOS runs with CS=0, so a handler
 ; anywhere in the kernel image (including the 0x4400 free block) is one JMP
 ; away.
-.equ BDOS_FN_COUNT, 12          ; 0..11; 8 is unused and answers an error
+.equ BDOS_FN_COUNT, 14          ; 0..13; 8 is unused and answers an error
 bdos_entry:
     MOV R2, R0                 ; park the function: LDI writes R0
     LDI BDOS_FN_COUNT
@@ -1582,6 +1582,8 @@ BDOS_JTABLE:
 .endif
     .word bdos_serial_read
     .word bdos_read_slice
+    .word bdos_spi_ctrl
+    .word bdos_spi_xfer
 
 bdos_unknown:
     LSI R0, -1
@@ -2261,6 +2263,13 @@ bps2_ret_cs:
 bps2_ret_pc:
     .word 0
 bps2_attempt:
+    .word 0
+
+; Forth SPI wrappers park the interpreter's >IN/TIB across the BDOS call.
+.org 0x2FB4
+spi_r5:
+    .word 0
+spi_r6:
     .word 0
 
 .org 0x3000
@@ -19642,10 +19651,23 @@ bslice_psw:
 
 .org 0x4640
 h_bslice:
-    .word h_sread
+    .word h_spi_ctrl
     .word 10
     .text "bdos-slice"
     .word word_bslice
+
+.org 0x46C0
+h_spi_ctrl:
+    .word h_spi_xfer
+    .word 9
+    .text "spi-ctrl!"
+    .word word_spi_ctrl
+.org 0x46D0
+h_spi_xfer:
+    .word h_sread
+    .word 8
+    .text "spi-xfer"
+    .word word_spi_xfer
 
 ; ---- BDOS function 11: read-slice -------------------------------------
 ; R1 = slice (0..511), R4 = destination offset in the caller's DS.
@@ -19717,6 +19739,123 @@ brs_copy:
     LDS R3, CS, R2
     MVS DS, R3               ; back to the caller's data segment
     LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+
+; ============================================================
+; SPI Forth wrappers and BDOS functions 12/13
+;
+; essentials no longer touches 0xF0080..0xF0086. The CS/divider word and one
+; byte transfer go through BDOS, which uses the non-blocking BIOS f20..f22
+; primitives and keeps the Forth-side API unchanged.
+; ============================================================
+.org 0x4700
+.code
+word_spi_ctrl:
+    LD R4, SP, 0             ; divider
+    ADD SP, 1
+    LD R1, SP, 0             ; control
+    ADD SP, 1
+    LDI spi_r5
+    MOV R2, R0
+    ST R5, R2, 0
+    ST R6, R2, 1
+    LSI R10, 0
+    LDI spi_ctrl_ret / 2      ; above LDI's signed 15-bit range
+    SL R0, 1
+    MOV R11, R0
+    LSI R2, 0
+    LDI bdos_entry
+    MOV R3, R0
+    LSI R0, 12
+    JML R2
+    NOP
+    NOP
+spi_ctrl_ret:
+    LDI spi_r5
+    MOV R2, R0
+    LD R5, R2, 0
+    LD R6, R2, 1
+    LDI next
+    MOV PC, R0
+    NOP
+
+.org 0x4740
+.code
+word_spi_xfer:
+    LD R1, SP, 0             ; byte to send
+    ADD SP, 1
+    LDI spi_r5
+    MOV R2, R0
+    ST R5, R2, 0
+    ST R6, R2, 1
+    LSI R10, 0
+    LDI spi_xfer_ret / 2
+    SL R0, 1
+    MOV R11, R0
+    LSI R2, 0
+    LDI bdos_entry
+    MOV R3, R0
+    LSI R0, 13
+    JML R2
+    NOP
+    NOP
+spi_xfer_ret:
+    SUB SP, 1
+    ST R0, SP, 0             ; received byte
+    LDI spi_r5
+    MOV R2, R0
+    LD R5, R2, 0
+    LD R6, R2, 1
+    LDI next
+    MOV PC, R0
+    NOP
+
+.org 0x4780
+.code
+bdos_spi_ctrl:
+    ; 12: R1 = control, R4 = divider. BIOS f20 writes both registers.
+    MOV R2, R4
+    LDI 20
+    SWI
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+
+.org 0x47C0
+.code
+bdos_spi_xfer:
+    ; 13: R1 = byte; returns R0 = received byte. Busy-waits through f22.
+    MOV R7, R1
+    LDI 21
+    SWI
+    LDI bd_poll
+    LSI R5, -1
+    STS R5, CS, R0
+sxi_wait:
+    LDI 22
+    SWI
+    SMV R0, AR0
+    AND R0, R0
+    JNZ sxi_done
+    NOP
+    LDI bd_poll
+    MOV R2, R0
+    LDS R5, CS, R2
+    SUB R5, 1
+    STS R5, CS, R2
+    JNZ sxi_wait
+    NOP
+    LSI R0, 0
+    LSI R1, 4
+    JML R10
+    NOP
+sxi_done:
+    ; The ready poll already read SPI_DATA into the handler's R1; reading it
+    ; again would advance the flash's response stream.
+    SMV R0, AR1
     LSI R1, 0
     JML R10
     NOP

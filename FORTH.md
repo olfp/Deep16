@@ -312,7 +312,9 @@ variable x 2 allot  7 9 x 2!  x 2@ . .    \ 9 7  ok
 `es@` and `es!` are the same two operations through **ES**, which the kernel
 keeps at `0xF000` — the MMIO segment. `@`/`!` cannot reach a peripheral, because
 DS points at the kernel's own data (segment 0 in the flat builds, `0x1000` on
-the board); `0x80 es@` reads the SPI control register, for example.
+the board); `0x80 es@` reads the SPI control register, for example. The loaded
+modules do not use them for SPI: `spi-ctrl!` and `spi-xfer` go through BDOS
+functions 12/13, so `essentials` and `sd` contain no register addresses.
 
 ## Characters and strings
 

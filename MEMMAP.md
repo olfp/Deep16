@@ -111,8 +111,16 @@ loader. The dictionary then continues at `0x6000`.
 | `0x02000`–`0x02FFF` | threading engine `next` and built-in word code |
 | `0x03000`–`0x0434E` | kernel data, boot script, built-in headers, `rp0_base` |
 | `0x03F9D`–`0x043FF` | free dictionary gap (`dict_free` at `0x3F9C`) |
-| `0x04400`–`0x0444E` | `serial-read` primitive (`0x4400`) and its built-in header (`0x4440`) |
-| `0x0444F`–`0x049FF` | free (the old Pac-Man/Frogger gap) |
+| `0x04400`–`0x0444E` | `serial-read` Forth wrapper (`0x4400`) and its built-in header (`0x4440`) |
+| `0x04460`–`0x045FF` | `fitdemo` header, code and text |
+| `0x04600`–`0x0463F` | `bdos-slice` Forth wrapper (`0x4600`) and its header (`0x4640`) |
+| `0x04680`–`0x046BF` | BDOS function 11 (`read-slice`) |
+| `0x046C0`–`0x046DF` | `spi-ctrl!` / `spi-xfer` built-in headers |
+| `0x04700`–`0x0477F` | `spi-ctrl!` (`0x4700`) and `spi-xfer` (`0x4740`) Forth wrappers |
+| `0x04780`–`0x047BF` | BDOS function 12 (`spi_ctrl`) |
+| `0x047C0`–`0x047FF` | BDOS function 13 (`spi_xfer`) |
+| `0x04800`–`0x048E2` | BDOS function 10 (`serial_read`) |
+| `0x048E3`–`0x049FF` | free (the old Pac-Man/Frogger gap) |
 | `0x04A00`–`0x04D33` | BIOS code (dispatch, console functions 0–6, D16D `gfx_back` menu return) |
 | `0x04D34`–`0x04FE0` | D16D showcase menu block (sparse; magic at `0x04DE4`, entry `0x04D34`) |
 | `0x04FE1`–`0x0519B` | free, then the ILL trap handler (DIV/DIV32) at `0x05000` |
@@ -164,7 +172,9 @@ loader. The dictionary then continues at `0x6000`.
 | `divtest_ok_str` | `0x532E` | `divtest ok` string |
 | `ps2_r5` | `0x57E0` | PS/2 sender's saved R5/R6/LR/count cells |
 | `sfx_sv` | `0x57F0` | SFX saved R4-R12 cells; `sfx_frames` at `0x57F9` |
-| `word_serialread` | `0x4400` | machine-speed UART block read for XMODEM |
+| `word_serialread` | `0x4400` | machine-speed UART block read for XMODEM (delegates to BDOS 10 at `0x4800`) |
+| `word_spi_ctrl` | `0x4700` | `spi-ctrl!`: BDOS function 12 (BIOS f20) |
+| `word_spi_xfer` | `0x4740` | `spi-xfer`: BDOS function 13 (BIOS f21/f22) |
 
 The D16D showcase is now only the menu: a four-word header at `0x3E4`
 (`0x0D16`, format 1, entry `0x334`), a trampoline at `0x334`, the menu code at

@@ -1,14 +1,15 @@
 \ screens/flash/essentials.fth - SPI/config flash and the directory/slice tools.
 \ Loaded by name from the boot loader after start.
 
-\ ---- SPI master (0xF0080): SD card CS0, config flash CS1 ------------------
-0x80 constant spi-ctrl
-0x82 constant spi-stat
-0x84 constant spi-data
-0x86 constant spi-div
-: cs! ( f -- )      3 and spi-ctrl es! ;
-: spi> ( c -- c )   spi-data es! begin spi-stat es@ 1 and 0= until
-                    spi-data es@ 0xff and ;
+\ ---- SPI master: SD card CS0, config flash CS1 ----------------------------
+\ The 0xF0080 registers are owned by BDOS functions 12/13 (which use the
+\ non-blocking BIOS f20..f22 primitives). The Forth side only sees cs!/spi>.
+variable spi-ctrl-val drop
+variable spi-div-val drop
+: spi-program ( -- ) spi-ctrl-val @ spi-div-val @ spi-ctrl! ;
+: spi-div! ( n -- ) spi-div-val ! spi-program ;
+: cs! ( f -- )      3 and spi-ctrl-val ! spi-program ;
+: spi> ( c -- c )   0xff and spi-xfer 0xff and ;
 : spi! ( c -- )     spi> drop ;
 
 \ ---- config flash, SPI CS1 ------------------------------------------------
@@ -17,11 +18,11 @@
   over 0xf and 4 lshift
   over 8 rshift 0xf and or spi!
   0xff and spi! drop ;
-: cf-wren ( -- )    0 spi-div es! 2 cs! 6 spi! 0 cs! ;
-: cf-status ( -- b ) 0 spi-div es! 2 cs! 5 spi! 0xff spi> 0 cs! ;
+: cf-wren ( -- )    0 spi-div! 2 cs! 6 spi! 0 cs! ;
+: cf-status ( -- b ) 0 spi-div! 2 cs! 5 spi! 0xff spi> 0 cs! ;
 : cf-wait ( -- )    begin cf-status 1 and 0= until ;
 : cf-id ( -- )
-  0 spi-div es!  2 cs! 0x9f spi!  hex 0xff spi> . 0xff spi> . 0xff spi> .
+  0 spi-div!  2 cs! 0x9f spi!  hex 0xff spi> . 0xff spi> . 0xff spi> .
   decimal 0 cs! cr ;
 : cf-protect ( -- ) cf-wren  2 cs! 1 spi! 0x38 spi!  0 cs! cf-wait ;
 : cf-unprotect ( -- ) cf-wren  2 cs! 1 spi! 0x00 spi!  0 cs! cf-wait ;

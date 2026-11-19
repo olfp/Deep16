@@ -47,7 +47,7 @@ variable blk drop
 \ (a card that does not answer it is a v1 card; CMD58's CCS decides addressing),
 \ CMD0 is retried three times, and every command gets its own CS edge.
 : sd-init ( -- n )
-  0 sd-hc !  sd-clk @ spi-div es!  0 cs!  0x10 0 do 0xff spi! loop
+  0 sd-hc !  sd-clk @ spi-div!  0 cs!  0x10 0 do 0xff spi! loop
   1 sd-res !
   3 0 do
     0 0x95 sd-cmd dup sd-r1 ! 1 = if 0 sd-res ! leave then
@@ -71,7 +71,7 @@ variable blk drop
   0xff spi> 0x40 and if 1 sd-hc ! then
   0xff spi! 0xff spi! 0xff spi!
   0 cs!  0 0x200 >arg  16 0xff sd-cmd drop
-  0 spi-div es!  0 cs!  0 ;
+  0 spi-div!  0 cs!  0 ;
 
 : sd-read ( n -- n )
   sd-arg  17 0xff sd-cmd ?dup if 0 cs! exit then

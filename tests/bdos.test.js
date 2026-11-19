@@ -10,6 +10,8 @@
 //   2  lookup      -> R1 = name pointer; R0 = first slice, or 0xFFFF
 //   3  load        -> R1 = first slice; R0 = segment, R1 = entry
 //  11  read-slice  -> R1 = slice, R4 = dest in the caller's DS; R0 = 0
+//  12  spi-ctrl    -> R1 = control, R4 = divider (BIOS f20)
+//  13  spi-xfer    -> R1 = byte; R0 = received byte (BIOS f21/f22)
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -277,3 +279,77 @@ test('function 11 reads a source slice into callers DS and keeps ES', () => {
   }
 });
 
+test('functions 12/13 set the SPI bus and transfer a byte', () => {
+  // The essentials SPI words no longer touch 0xF0080..0xF0086. Function 12
+  // programs CS/divider through BIOS f20, and function 13 sends one byte
+  // through f21 and returns the byte f22 read when the bus went ready.
+  // Select CS1 (config flash), send 0x9F and read the first ID byte.
+  const stub = assemble(`
+        .org 0x0100
+        LSI R2, 0
+        MOV R10, R2            ; return CS = 0
+        LDI 0x0110
+        MOV R11, R0
+        LDI 0x2D4A
+        MOV R3, R0
+        LSI R2, 0
+        LSI R1, 2              ; control: CS1 asserted
+        LSI R4, 0              ; divider
+        LSI R0, 12
+        JML R2
+        NOP
+        .org 0x0110
+        LDI 0x0400
+        MOV R9, R0             ; result destination
+        LDI 0x9F
+        MOV R1, R0
+        LSI R2, 0
+        MOV R10, R2
+        LDI 0x0120
+        MOV R11, R0
+        LDI 0x2D4A
+        MOV R3, R0
+        LSI R2, 0
+        LSI R0, 13
+        JML R2
+        NOP
+        .org 0x0120
+        MOV R2, R9
+        ST R0, R2, 0           ; the 0x9F exchange returns 0xFF
+        LDI 0x0402
+        MOV R9, R0
+        LDI 0xFF               ; clock out one byte and read the ID byte
+        MOV R1, R0
+        LSI R2, 0
+        MOV R10, R2
+        LDI 0x0130
+        MOV R11, R0
+        LDI 0x2D4A
+        MOV R3, R0
+        LSI R2, 0
+        LSI R0, 13
+        JML R2
+        NOP
+        .org 0x0130
+        MOV R2, R9
+        ST R0, R2, 0
+        HALT
+  `);
+  assert.equal(stub.success, true, stub.errors?.join('; '));
+  const image = buildMemory(kernel);
+  for (let w = 0x4a00; w <= 0x57ff; w++) image[(0x3000 << 4) + (w - 0x4a00)] = image[w];
+  image[2] = kernel.symbols.swi_to_bios;
+  for (const c of stub.memoryChanges) image[c.address] = c.value & 0xFFFF;
+  const sim = new Deep16Simulator();
+  sim.loadProgram(image);
+  sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
+  Object.assign(sim.segmentRegisters, { CS: 0, DS: 0, SS: 0, ES: 0 });
+  sim.registers[15] = 0x0100;
+  sim.running = true;
+  for (let i = 0; i < 8_000_000 && sim.running; i++) sim.step();
+  assert.equal(sim.running, false, 'the stub reached its halt');
+  assert.equal(sim.spi.cs, 2, 'function 12 selected the config flash');
+  assert.equal(sim.spi.div, 0, 'function 12 set the divider');
+  assert.equal(sim.memory[0x0400] & 0xFFFF, 0xFF, 'the 0x9F command exchange');
+  assert.equal(sim.memory[0x0402] & 0xFFFF, 0x85, 'the first manufacturer ID byte');
+});
