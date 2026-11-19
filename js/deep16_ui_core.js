@@ -1,4 +1,11 @@
 /* deep16_ui_core.js - Main UI class and core functionality */
+(function () {
+    try {
+        var script = document.currentScript;
+        var build = script && script.src ? new URL(script.src).searchParams.get('v') : null;
+        if (build) document.title = build + ' - DeepCode - Deep16 (\\u6df1\\u5341\\u516d) IDE';
+    } catch (e) { /* leave the static title in place */ }
+})();
 class DeepWebUI {
     constructor() {
         this.assembler = new Deep16Assembler();
