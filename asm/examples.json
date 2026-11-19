@@ -32,7 +32,7 @@
       "id": "deepforth",
       "name": "DeepForth",
       "filename": "forth_nano.asm",
-      "description": "Nano Forth console with a PS/2 keyboard prompt",
+      "description": "Nano Forth console with a PS/2 prompt; type fitdemo for the tile/sprite demo",
       "category": "I/O",
       "build": "nano"
     },
