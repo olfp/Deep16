@@ -1,20 +1,23 @@
 #!/usr/bin/env node
-// scripts/make_bird_sprite.mjs - bake the three birds and the cloud into the
-// sprite bank.  Groups are absolute; the game selects a page (0 red, 1 purple,
-// 2 yellow) and keeps using relative groups 3..7 for the bird:
+// Flappy's sprite frames and the legacy global sprite-bank image.
 //
-//   page 0/1/2  rel 2  cloud
-//               rel 3..5  bedazzled poses
-//               rel 6..7  wing poses
+// Flappy's art is no longer baked into the bitstream's sprite bank. It rides
+// in the Flappy binary slice as a sprite pack at offset 0x2000 and the game
+// installs it into the writable sprite bank on entry.
 //
-// Page 0 rel 0..1 are unused (the colour demo was removed).
-// The cloud is duplicated on all three pages so the same OAM group works
-// whichever bird is picked.
+// The frames use absolute sprite-bank groups:
+//   group 2       cloud
+//   groups 3..5   bedazzled poses
+//   groups 6..7   wing poses
+//   groups 11..15 and 19..23  the same poses for the Purple and Yellow birds
+//
+// The 24-group global bank remains for the hardware image format, but it is
+// blank. Each game owns its groups and installs its own pack.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BIRD_ORDER, birdFrames, dizzyFrames, cloudSprite } from './make_art.mjs';
-import { pacmanSpriteFrames } from './make_pacman_art.mjs';
+import { spritePack } from './make_sprite_pack.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const BIRD_GROUPS = [6, 7];
@@ -23,40 +26,29 @@ export const CLOUD_GROUP = 2;
 export const SPRITE_GROUPS = 24;
 export const SPRITE_WORDS = SPRITE_GROUPS * 16 * 16;
 
-function writeFrame(words, group, g) {
-  const base = group * 16 * 16;            // 16 tiles x 16 words
-  for (let ty = 0; ty < 4; ty++) {
-    for (let tx = 0; tx < 4; tx++) {
-      const tile = ty * 4 + tx;
-      for (let row = 0; row < 8; row++) {
-        for (let half = 0; half < 2; half++) {
-          let w = 0;
-          for (let n = 0; n < 4; n++) {
-            const x = tx * 8 + half * 4 + n;
-            const y = ty * 8 + row;
-            w |= (g[y][x] & 0xF) << (n * 4);
-          }
-          words[base + tile * 16 + row * 2 + half] = w;
-        }
-      }
-    }
-  }
+export function flappySpriteFrames() {
+  const frames = [{ group: CLOUD_GROUP, grid: cloudSprite() }];
+  BIRD_ORDER.forEach((colour, page) => {
+    const base = page * 8;
+    dizzyFrames(colour).forEach((grid, i) => {
+      frames.push({ group: base + DIZZY_GROUPS[i], grid });
+    });
+    // Frames 2 and 3 are near-duplicates of 1, so two poses carry the wing beat.
+    birdFrames(colour).slice(0, BIRD_GROUPS.length).forEach((grid, i) => {
+      frames.push({ group: base + BIRD_GROUPS[i], grid });
+    });
+  });
+  return frames;
 }
 
+export function flappySpritePack() {
+  return spritePack(flappySpriteFrames());
+}
+
+// The bitstream keeps the sprite-bank shape but no game art. The menu has no
+// sprites; a game installs the pack carried by its own slice.
 export function birdSpriteWords() {
-  const words = new Array(SPRITE_WORDS).fill(0);
-  BIRD_ORDER.forEach((colour, page) => {
-    const base = page * 8;                 // page = 8 groups
-    writeFrame(words, base + CLOUD_GROUP, cloudSprite());
-    dizzyFrames(colour).forEach((g, i) => writeFrame(words, base + DIZZY_GROUPS[i], g));
-    // Frames 2 and 3 are near-duplicates of 1, so two poses carry the wing beat.
-    birdFrames(colour).slice(0, BIRD_GROUPS.length)
-      .forEach((g, i) => writeFrame(words, base + BIRD_GROUPS[i], g));
-  });
-  // Pac-Man fills the six groups Flappy leaves free: 0/1 (right open/closed),
-  // 8/9 (up), 16/17 (down).  The OAM H flip draws the left direction.
-  for (const { group, grid } of pacmanSpriteFrames()) writeFrame(words, group, grid);
-  return words;
+  return new Array(SPRITE_WORDS).fill(0);
 }
 
 export function writeBirdSprite(outDir) {
@@ -71,5 +63,5 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
   const out = path.resolve(process.argv[2] ?? path.join(ROOT, 'artifacts', 'image'));
   const n = writeBirdSprite(out);
-  console.log(`wrote ${path.relative(ROOT, out)}/birdsprite.hex (${n} words, ${BIRD_ORDER.length} pages + cloud)`);
+  console.log(`wrote ${path.relative(ROOT, out)}/birdsprite.hex (${n} blank words; game art rides in slices)`);
 }

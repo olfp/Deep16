@@ -91,3 +91,19 @@ test('a colon definition is accepted over the serial line', () => {
   assert.equal(rows[1], '> : foo 41 ; ok', `terminal was:\n${rows.join('\n')}`);
   assert.equal(rows[2], '> 42 foo + . 83  ok');
 });
+
+test('accept reads its own line over the serial link', () => {
+  // accept polls the same non-blocking getstr as the REPL, but into a buffer
+  // of the caller's; the second line is the one it returns and `type` prints.
+  const { rows } = repl('pad 80 accept dup . pad swap type\nhello\n');
+  assert.equal(rows[1], '> pad 80 accept dup . pad swap typehello 5 hello ok',
+                 `terminal was:\n${rows.join('\n')}`);
+});
+
+test('refill makes the next serial line available', () => {
+  // refill replaces the current input line with the next one, so the words
+  // after it on the first line never run.
+  const { rows } = repl('refill\n. 111 .\n');
+  assert.equal(rows[1], '> refill. 111 . -1  111  ok',
+                 `terminal was:\n${rows.join('\n')}`);
+});

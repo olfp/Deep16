@@ -24,5 +24,20 @@ command -v openFPGALoader >/dev/null 2>&1 || { echo "openFPGALoader not found" >
 openFPGALoader -f --external-flash --file-type bin \
     -o 0x200000 artifacts/image/slices.bin
 
+# Verify the slice write too. The boot-image check in flash_gowin_tile_flash.sh
+# says nothing about the upper half: a protected or dropped slice write leaves
+# the menu working (it lives in the boot image) while games and Forth fail.
+SIZE=$(wc -c < artifacts/image/slices.bin | tr -d ' ')
+TMP=$(mktemp /tmp/de16slices.XXXXXX)
+if ! openFPGALoader --dump-flash --file-size "$(printf '0x%x' "$SIZE")" \
+        --external-flash -o 0x200000 "$TMP" >/dev/null 2>&1 ||
+   ! cmp -s "$TMP" artifacts/image/slices.bin; then
+    rm -f "$TMP"
+    echo "ERROR: slice image at 0x200000 does not match (block protect?)." >&2
+    echo "The boot image was written; clear the upper-half protect and rerun." >&2
+    exit 1
+fi
+rm -f "$TMP"
+
 echo
-echo "slice image written at 0x200000 (upper 2 MB, bitstream untouched)."
+echo "slice image written and verified at 0x200000 (upper 2 MB, bitstream untouched)."

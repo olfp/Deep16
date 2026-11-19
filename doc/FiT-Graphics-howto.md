@@ -112,13 +112,14 @@ The tile bank holds 128 tiles of 32 words:
 | `0x000` | tile 0: a blank 32-word art tile |
 | `0x020`–`0x31F` | regular 1bpp text page: 96 glyphs x 8 words |
 | `0x320`–`0x61F` | italic 1bpp text page: 96 glyphs x 8 words |
-| `0x620`–`0xBFF` | 47 free 32-word slots for game art (8 used by Pac-Man) |
-| `0xC00`–`0xFFF` | 32 baked 4bpp art tiles (14 Flappy + 16 Pac-Man) |
+| `0x620`–`0xBFF` | 47 free 32-word slots for game art |
+| `0xC00`–`0xFFF` | 32 free art slots at tiles 96–127 |
 
 The CPU window `0xF3000`–`0xF3FFF` covers all 128 tiles (words 0–4095).
-Tiles 96–127 at `0xC00` are seeded at configuration by
-`scripts/make_tile_font.mjs`, but the CPU can rewrite any of them at runtime;
-a game image may replace the console font.
+The bitstream seeds only the console font; the art slots start blank and the
+CPU can rewrite any of them at runtime. The current Flappy, Pac-Man and Frogger
+slices carry their own tile packs at segment offset `0x1000`, and the menu
+installs the chosen pack before entry.
 
 ### 2.4 Art tile format
 
@@ -136,8 +137,9 @@ word 31     reserved (the build writes flags, currently 0)
 transparent key: art tiles are opaque. The current renderer reads only words
 0–29; flipping and priority are sprite features, not tile features.
 
-To fill one tile at runtime, use a CPU-writable slot (`0..95`) and write its
-base plus `2*r` and `2*r+1`. For example, tile 49 is the first free gap slot:
+To fill one tile at runtime without touching the font, use an art slot
+(`0..95` or `96..127`) and write its base plus `2*r` and `2*r+1`. For example,
+tile 49 is the first free gap slot:
 
 ```asm
 ; art tile 49 (base 0x620), row 3
@@ -145,8 +147,9 @@ base plus `2*r` and `2*r+1`. For example, tile 49 is the first free gap slot:
 ; four pixels p0..p3: value = p0 | p1<<4 | p2<<8 | p3<<12
 ```
 
-Tiles 96–127 are the baked art slots and cannot be written through the CPU
-window; use them read-only, or bake new art at build time.
+Tiles 96–127 are ordinary CPU-writable art slots and start blank. The current
+packs use 96–109 for Flappy and 110–125 for Pac-Man walls, so a game installs
+its pack before drawing those cells.
 
 ### 2.5 Text tile format
 
@@ -186,8 +189,8 @@ tile  = index * 32  = 0x420
 cell  = 0x8000 | (3 << 12) | 0x420 = 0xB420
 ```
 
-Put the baked art tile 96 (base `0xC00`, one of the showcase pipes) in the
-same place:
+Put art tile 96 (base `0xC00`, Flappy's first pipe tile once its pack is
+installed) in the same place:
 
 ```
 cell = 0x0C00
@@ -213,16 +216,15 @@ or the renderer treats the glyph address as a 4bpp art tile.
 ### 3.1 How much art fits
 
 With the text pages left alone there are **80 art-capable slots**: tile 0
-(blank), the 47 free slots in the gap, and the 32 baked art slots. Fourteen of
-the baked slots are used by Flappy, and Pac-Man adds tiles 49–56 in the gap
-plus wall shapes 110–125 in the baked block. The Frogger backdrop takes the
-remaining 39 gap tiles, 57–95. That leaves **2 free art tiles** (126–127)
-without touching text or the blank tile. Tile 0 itself is one
-more if a program does not need a blank tile.
+(blank), the 47 free slots in the gap, and the 32 art slots at 96–127. The
+current packs are sized per game, not added together: Flappy uses 14 slots
+(96–109), Pac-Man 24 (49–52, 65–68 and 110–125), and Frogger 79 (26–38 and
+57–120 plus 126–127). A game that runs alone can use any of the 80 slots; a
+program that needs more can reuse the text pages as art.
 
 If a game gives up the console font it can use the 96 glyph slots for its own
-art, and the 32 baked slots are still there. That gives the full 128 tile
-slots; tiles 96–127 are seeded at configuration but remain CPU-writable, so a
+art, and the 32 art slots at 96–127 are still there. That gives the full 128
+tile slots; the art slots start blank and all of them are CPU-writable, so a
 game can replace the font at runtime.
 
 Text costs 48 slots: 24 for the regular page and 24 for the italic page. A
@@ -568,8 +570,9 @@ next frame's work early — and use the per-row table for the scroll itself.
 loaded to segment `0x0600` (CS=DS=`0x0600`), launched from the showcase menu
 with `G`; `Q` returns. The slice carries a tile pack at `0x1000` and a sprite
 pack at `0x2000`; its entry copies both into the tile and sprite banks and
-installs the 16-entry palette in the art and sprite banks of set 2, so the
-baked tile and sprite banks stay the menu's. It is a widescreen 14×12 game grid: a 192-pixel panel in
+installs the 16-entry palette in the art and sprite banks of set 2. The menu
+keeps its console font and the global sprite bank stays blank. It is a
+widescreen 14×12 game grid: a 192-pixel panel in
 columns 0–23, and a 448-pixel (56-cell) playfield in columns 24–79 with two
 margin cells. Objects are 26 px wide and 20 px tall, in cells of four tiles
 (cars, turtle), six tiles (fire truck) or eight tiles (truck).
@@ -728,9 +731,10 @@ a pattern group, an enable bit and hardware H/V flip; the whole layer shares
 one 16-entry RGB332 sprite palette, separate from the text and art banks.
 
 The Flappy showcase is the reference implementation: a bird, four parallax
-clouds and animated wing/dizzy poses.  Pac-Man uses the six groups Flappy
-leaves free (0/1, 8/9, 16/17) for its right/up/down mouth frames; the left
-direction is the right frame with the OAM H flip.
+clouds and animated wing/dizzy poses. Flappy and Pac-Man each install their
+own sprite pack from their binary slice. Pac-Man carries seven munch frames,
+including a shared closed circle, plus four ghost colours; the left direction
+is the right frame with the OAM H flip.
 
 ### 7.1 The windows
 
@@ -793,9 +797,9 @@ write offset   = 0xF4000 + group * 256
 
 The sprite window is flat: the CPU writes the group's own 256 words, and the
 OAM group selects the same index at render time. Control 5 (the old page
-register) is a no-op. Groups 0,1,8,9,16,17 are unused in the baked bank.
-Groups 10 and 18 are duplicates of the page-1 and page-2 clouds, so they can be
-repurposed only if those pages do not need the cloud.
+register) is a no-op. The bitstream's global sprite bank is blank; each game
+installs only the absolute groups in its own slice pack. Games never run at
+once, so the same group number can hold different art in different games.
 
 The eight OAM slots can therefore each select any of the 24 groups: **8
 visible sprites out of 24 graphics**. More OAM slots would only add more
@@ -816,17 +820,23 @@ offset applies. Control 5 is a legacy no-op and need not be written.
 Each word is four pixels. Empty pixels **must be 0** — that is the
 transparent key.
 
-There are two ways to get art into the bank:
+The current games get art into the bank at run time:
 
-* **Bake it into the bitstream.** `rtl/dvi/dvi_tile.sv` does
-  `$readmemh("birdsprite.hex", sprite)` at power-up, so 24 groups are already
-  there. `scripts/make_bird_sprite.mjs` builds that file (and
-  `scripts/make_image.mjs` writes it next to the boot image). This is how the
-  three bird pages and the shared cloud ship.
-* **Write it at runtime.** Store words at `0xF4000 + group * 256 + tile * 16 +
-  ...`; the window covers all 24 groups. A write changes the sprite on the next
+* **Install the slice's pack.** A game's binary slice carries a sprite pack at
+  segment offset `0x2000`: magic `0x0A58`, frame count, then each frame's
+  absolute group followed by its 256 words. The game entry copies every frame
+  to `0xF4000 + group * 256`, so the OAM group and the bank index agree
+  directly. `scripts/make_sprite_pack.mjs` defines the format and encodes one
+  frame from a 32×32 grid.
+* **Write individual words.** Store at `0xF4000 + group * 256 + tile * 16 + ...`;
+  the window covers all 24 groups. A write changes the sprite on the next
   composed line, so keep two groups as front/back buffers if you redraw
-  animated art. The renderer uses the same absolute group in OAM.
+  animated art.
+
+The RTL still accepts a baked `birdsprite.hex` at power-up, but
+`scripts/make_bird_sprite.mjs` now writes that file blank because each game
+owns its art. The 24-group shape remains for the hardware image format and for
+older images.
 
 ### 7.4 Palette
 
@@ -847,15 +857,15 @@ colours.
 
 * Index 0 is **transparent for sprites**, and the showcase also uses it for
   the sky, so an empty sprite pixel shows the sky.
-* Changing an entry changes every pixel of that index in its bank. The
-  showcase picks a bird by writing sprite-bank entries 2 (body) and 13 (belly)
-  on reset, while all three birds share the same pattern layout and differ
-  only in the page.
+* Changing an entry changes every pixel of that index in its bank. Flappy
+  picks a bird by writing sprite-bank entries 2 (body) and 13 (belly) on reset,
+  while the three birds share a pattern layout and differ in their absolute
+  group bases (0, 8 and 16).
 * Power-up colours come from `tilepal3.hex`: every set is seeded with the same
-  16 entries in the text, art and sprite banks. Leaving Flappy restores the art
-  and sprite banks to the default and leaves the console text bank alone; the
-  BIOS `gfx` handler clears all 64 OAM descriptors, so the console comes back
-  with no sprites.
+  16 entries in the text, art and sprite banks. Leaving Flappy restores the
+  palette and leaves the console text bank alone; the BIOS `gfx` handler clears
+  all 64 OAM descriptors, so the console comes back with no sprites. Art and
+  sprite groups belong to the game and are replaced by the next slice's pack.
 
 ### 7.4.1 Scenes: one store swaps OAM and palette
 
@@ -914,7 +924,7 @@ frame.
 .equ SEG_OAM  -0x0A00        ; ES 0xF600 -> window 0xF6000 (OAM/palette)
 
 ; 1. (optional) load patterns into 0xF4000 + group*256 + ...
-;    the window covers all 24 groups; or use the baked art.
+;    the window covers all 24 groups; a game normally installs its slice pack.
 
 ; 3. (optional) set sprite palette entry 2 (the body colour)
     LDI SEG_OAM
@@ -948,8 +958,8 @@ second copy of the art is needed.
 
 ### 7.6 Filling the bank from art
 
-The packing loop is small; the showcase builds its patterns in
-`scripts/make_bird_sprite.mjs` and writes `birdsprite.hex`:
+The packing loop is small; the shared pack builder in
+`scripts/make_sprite_pack.mjs` encodes one frame like this:
 
 ```js
 for (const [row, pixels] of art.entries())
@@ -961,10 +971,11 @@ for (const [row, pixels] of art.entries())
   }
 ```
 
-For a runtime loader, do the same in D16 assembly but replace `group` with
-`group & 7` after setting control 5 to the group's page. One 16-bit word covers
-four neighbouring pixels, so a 32-pixel row is eight stores. Remember the page
-in control 5 belongs to the write, not to the OAM.
+The slice pack writes the absolute group index directly before its 256 words,
+so a loader needs no page register: set `ES=0xF400`, compute `group * 256`, and
+copy the frame in order. One 16-bit word covers four neighbouring pixels, so a
+32-pixel row is eight stores. `make_sprite_pack.mjs` writes 257 words per frame
+(group plus the 256 pattern words) after a two-word pack header.
 
 ### 7.7 Things that catch people out
 
@@ -997,8 +1008,9 @@ in control 5 belongs to the write, not to the OAM.
 | `rtl/dvi/README.md` | DVI builds, timing, resource use, control 6/7 |
 | `scripts/make_tile_font.mjs` | text pages, tile layout, palette file |
 | `scripts/make_art.mjs` | source art to 16-colour RGB332 art tiles |
-| `scripts/make_bird_sprite.mjs` | sprite patterns, 24 groups, `birdsprite.hex` |
-| `scripts/make_pacman_art.mjs` | the maze, dot/ghost/wall tiles, Pac-Man frames |
+| `scripts/make_sprite_pack.mjs` | shared 32x32 sprite-pack format and frame encoder |
+| `scripts/make_bird_sprite.mjs` | Flappy's slice sprite pack; blank global `birdsprite.hex` |
+| `scripts/make_pacman_art.mjs` | the maze, dot/ghost/wall tiles, Pac-Man and ghost packs |
 | `asm/showcase/pacman_game.asm` | Pac-Man: tilemap maze, HUD, OAM sprite, ghost AI |
 | `asm/showcase/flappy_game.asm` | `sb_emit` (bird), `set_clouds`, `set_palette` |
 | `asm/showcase/showcase.asm` | palette tables, bird pages, OAM cells |

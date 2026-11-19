@@ -16,6 +16,8 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { encodePng, writePng } from './lib_png.mjs';
 import { flappyArtPack, pacmanArtPack, froggerArtPack } from './make_tile_font.mjs';
+import { flappySpritePack } from './make_bird_sprite.mjs';
+import { pacmanSpritePack } from './make_pacman_art.mjs';
 import { froggerSpritePack } from './make_frogger_sprites.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -79,6 +81,7 @@ function boot(scene) {
     frogger: src.frogger,
     defines: scene === 'console' ? { D16SEG: 0 } : {},
     packs: { flappy: flappyArtPack(), pacman: pacmanArtPack(), frogger: froggerArtPack(),
+              flappySprites: flappySpritePack(), pacmanSprites: pacmanSpritePack(),
               froggerSprites: froggerSpritePack() },
   });
   const symbols = new Assembler().assemble(src.showcase).symbols;
@@ -185,10 +188,13 @@ export function renderScene({
   if (!['console', 'menu', 'flappy', 'pacman', 'frogger'].includes(scene)) throw new Error(`unknown scene: ${scene}`);
   const { sim, engine } = boot(scene);
   if (warmup === null) {
+    // Flappy copies 16 sprite frames from its slice before its first frame;
+    // the warmup covers that install and leaves the game in motion.
     warmup = scene === 'menu' ? 0x4000
       : scene === 'console' ? 200000
       : scene === 'pacman' ? 300000
-      : scene === 'frogger' ? 200000 : 0;
+      : scene === 'frogger' ? 200000
+      : scene === 'flappy' ? 60000 : 0;
   }
 
   if (warmup > 0) {

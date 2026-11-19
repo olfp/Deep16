@@ -1,54 +1,49 @@
-// D16D showcase art: the sprite bank layout and the palette table the game
-// selects from.  These are the pieces that must agree across make_art,
-// make_bird_sprite and showcase.asm, so a mistake shows up here instead of on
-// the DVI.
+// D16D showcase art: the per-game slice packs and the palette table the game
+// selects from. The global bitstream sprite bank is blank; every game installs
+// its own sprite pack when it starts.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { birdSpriteWords, SPRITE_WORDS, CLOUD_GROUP } from '../scripts/make_bird_sprite.mjs';
+import { birdSpriteWords, SPRITE_WORDS, flappySpriteFrames, flappySpritePack } from '../scripts/make_bird_sprite.mjs';
 import { BIRD_COLOURS, BIRD_ORDER } from '../scripts/make_art.mjs';
-import { buildShowcase, buildFlappy, buildFrogger } from '../scripts/make_showcase.mjs';
+import { buildShowcase, buildFlappy, buildPacman, buildFrogger } from '../scripts/make_showcase.mjs';
+import { pacmanSpriteFrames, pacmanGhostSpriteFrames, pacmanSpritePack } from '../scripts/make_pacman_art.mjs';
 import { TILE_BANK_WORDS, TILE_WORDS, readFontWords, tileFontWords } from '../scripts/make_tile_font.mjs';
 import { froggerArtTiles } from '../scripts/make_frogger_art.mjs';
 import { froggerSpritePack, SPR_MAGIC, SPR_PACK_OFFSET } from '../scripts/make_frogger_sprites.mjs';
 import { ROOT } from './helpers.js';
 
-const GROUP_WORDS = 16 * 16;
+function assertPack(block, pack) {
+  const at = (a) => block.words.find((w) => w[0] === a)?.[1];
+  assert.equal(at(SPR_PACK_OFFSET), SPR_MAGIC, 'sprite pack magic');
+  assert.equal(at(SPR_PACK_OFFSET + 1), pack[1], 'sprite frame count');
+  for (let i = 0; i < pack.length; i++) {
+    assert.equal(at(SPR_PACK_OFFSET + i), pack[i], `sprite pack word ${i}`);
+  }
+}
 
-test('sprite bank holds three bird pages plus the shared cloud', () => {
+test('the global sprite bank is blank', () => {
   const words = birdSpriteWords();
   assert.equal(words.length, SPRITE_WORDS);
-  assert.equal(words.length, 24 * GROUP_WORDS);
+  assert.ok(words.every((word) => word === 0), 'no game art is baked globally');
+});
 
-  for (let page = 0; page < BIRD_ORDER.length; page++) {
-    const base = page * 8 * GROUP_WORDS;
-    // Cloud at relative group 2, then the three dizzy poses and two wings.
-    for (const g of [CLOUD_GROUP, 3, 4, 5, 6, 7]) {
-      const slice = words.slice(base + g * GROUP_WORDS, base + (g + 1) * GROUP_WORDS);
-      assert.ok(slice.some((v) => v !== 0), `page ${page} group ${g} is not empty`);
-    }
-  }
+test('Flappy carries its cloud and bird frames in its slice', () => {
+  const flappy = buildFlappy();
+  assertPack(flappy, flappySpritePack());
+  assert.deepEqual(flappySpriteFrames().map((frame) => frame.group),
+                   [2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 19, 20, 21, 22, 23]);
+  assert.ok(flappySpriteFrames().every((frame) =>
+    frame.grid.some((row) => row.some((pixel) => pixel !== 0))), 'frame is not empty');
+});
 
-  // The cloud is one image duplicated on the three pages, so the OAM group is
-  // independent of the chosen bird.
-  const cloud = words.slice(CLOUD_GROUP * GROUP_WORDS, (CLOUD_GROUP + 1) * GROUP_WORDS);
-  for (const page of [1, 2]) {
-    const base = page * 8 * GROUP_WORDS;
-    assert.deepEqual(
-      words.slice(base + CLOUD_GROUP * GROUP_WORDS, base + (CLOUD_GROUP + 1) * GROUP_WORDS),
-      cloud, `page ${page} cloud matches page 0`);
-  }
-
-  // The six groups Flappy leaves free hold the Pac-Man frames: right open and
-  // closed (0/1), up (8/9) and down (16/17).
-  for (const g of [0, 1, 8, 9, 16, 17]) {
-    const slice = words.slice(g * GROUP_WORDS, (g + 1) * GROUP_WORDS);
-    assert.ok(slice.some((v) => v !== 0), `group ${g} holds a Pac-Man frame`);
-  }
-  assert.notDeepEqual(
-    words.slice(0, GROUP_WORDS),
-    words.slice(GROUP_WORDS, 2 * GROUP_WORDS),
-    'open and closed right frames differ');
+test('Pac-Man carries its munch and ghost frames in its slice', () => {
+  const pacman = buildPacman();
+  assertPack(pacman, pacmanSpritePack());
+  assert.deepEqual(pacmanSpriteFrames().map((frame) => frame.group),
+                   [0, 1, 8, 9, 10, 16, 17]);
+  assert.deepEqual(pacmanGhostSpriteFrames().map((frame) => frame.group),
+                   [18, 5, 13, 21]);
 });
 
 test('the game palette table matches the art colours', () => {
@@ -90,11 +85,5 @@ test('the Frogger art rides in a slice tile pack', () => {
     cell += 32;
   }
 
-  // The sprite pack follows at 0x2000, group 0 first.
-  const sprites = froggerSpritePack();
-  assert.equal(at(SPR_PACK_OFFSET), SPR_MAGIC, 'sprite pack magic');
-  assert.equal(at(SPR_PACK_OFFSET + 1), sprites[1], 'sprite group count');
-  for (let i = 0; i < sprites.length; i++) {
-    assert.equal(at(SPR_PACK_OFFSET + i), sprites[i], `sprite pack word ${i}`);
-  }
+  assertPack(frogger, froggerSpritePack());
 });

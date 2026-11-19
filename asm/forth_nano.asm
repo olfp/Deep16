@@ -198,7 +198,11 @@ forth_start:
     SL R0, 1
     SL R0, 1                 ; R0 = 0x4000
     MOV R1, R0
+.ifdef D16D
+    LDI ill_trampoline - 0x4000
+.else
     LDI ill_handler - 0x4000
+.endif
     ADD R1, R0
     LDI 0
     MOV R2, R0
@@ -235,6 +239,7 @@ forth_start:
     SL R0, 1
     ADD R1, R0
     LDI 0xFF
+    MOV R1, R0
     SWI
 
     ; BIOS binit, which takes no parameters: the function number is the whole
@@ -243,6 +248,24 @@ forth_start:
     SWI
 
 .ifdef D16D
+    ; The keyboard reset waits for seconds, so binit no longer does it: BDOS
+    ; function 9 runs the state machine here, with I=1, before the menu or the
+    ; prompt can be reached. A missing keyboard is not an error.
+    LSI R10, 0               ; return CS = the kernel
+    LDI ps2_init_back
+    MOV R11, R0              ; return PC
+    LSI R2, 0                ; BDOS runs at CS=0 ...
+    LDI bdos_entry
+    MOV R3, R0               ; ... and entry 0x2D4A
+    LDI 9                    ; function 9: ps2-init
+    JML R2
+    NOP
+ps2_init_back:
+    ; BDOS may clobber R2..R9. SCR (R8) is the tile console's cursor and the
+    ; menu/banner expect it homed; R9 is its extra-segment twin under ER=8.
+    LDI 0x1000
+    MOV SCR, R0
+    LSI R9, 0
     ; The menu runs in the BIOS shadow bank.  When it wants a game it returns
     ; the segment/entry/mode in its own cells (DS 0x04A0, offsets 0x4E1/0x4E2/
     ; 0x4E0); this loop, in the normal bank, loads and far-calls the game. That
@@ -406,7 +429,7 @@ pt_done:
     JMP LR
     NOP
 print_prompt:
-    LDI '>'              ; BIOS putch
+    LDI '>'
     MOV R1, R0
     LDI 2
     SWI
@@ -418,7 +441,7 @@ print_prompt:
     NOP
 bios_putch_direct:
     MOV R1, R0           ; the character is the parameter
-    LDI 2                ; BIOS putch
+    LDI 2
     SWI
     JMP LR
     NOP
@@ -446,7 +469,7 @@ newline_direct:
     ; after " ok".
     LDI 13               ; CR
     MOV R1, R0
-    LDI 2                ; BIOS putch
+    LDI 2
     SWI
     LDI 10               ; LF
     MOV R1, R0
@@ -629,10 +652,17 @@ diag_chars:
     MOV R10, R0
     MOV R7, R9
     MOV R11, R10
+.ifdef D16D
+    LDI 14
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+.else
     LDI div16_call
     LINK
     JMP R0
     NOP
+.endif
     MOV R11, R0
     ADD R11, 1
     MUL R11, R10
@@ -676,6 +706,7 @@ swi_to_bios:
     ; a valid stack before any handler runs; ARCHREV §3.
     SMV R2, AR0
     LDI 0xFF
+    MOV R1, R0
     CMP R2, R0
     JNZ swi_to_bios_normal
     NOP
@@ -1451,7 +1482,7 @@ ok_print:
     ; Newline via BIOS: CR then LF
     LDI 13               ; CR
     MOV R1, R0
-    LDI 2                ; BIOS putch
+    LDI 2
     SWI
     LDI 10               ; LF
     MOV R1, R0
@@ -1501,82 +1532,57 @@ interpret_next:
 ;                     into the segment in its header, follows the link chain,
 ;                     and returns R0 = segment, R1 = entry (0xFFFF/3 on a bad
 ;                     header or a truncated chain).
+;  10  serial-read -> R1 = destination, R4 = pairs. Reads UART byte pairs,
+;                     packs two bytes per cell (low byte first), and returns
+;                     R0 = complete pairs stored.
+;  11  read-slice  -> R1 = slice (0..511), R4 = destination offset in the
+;                     caller's DS. Copies one 4 KiB source slice there and
+;                     returns R0 = 0, R1 = 0. Preserves DS and ES.
 ;
 ; The scratch cells live at 0x2F40 so the code below runs to 0x2F3F.
 ; =============================================
 .org 0x2D4A
+; Function codes are unsigned, so a code at or above BDOS_FN_COUNT is
+; unknown. The table is absolute addresses: BDOS runs with CS=0, so a handler
+; anywhere in the kernel image (including the 0x4400 free block) is one JMP
+; away.
+.equ BDOS_FN_COUNT, 12          ; 0..11; 8 is unused and answers an error
 bdos_entry:
-    LSI R2, 0
-    CMP R0, R2
-    JNZ bd_not0
-    NOP
-    LDI bdos_version
-    MOV PC, R0
-    NOP
-bd_not0:
-    LSI R2, 1
-    CMP R0, R2
-    JNZ bd_not1
-    NOP
-    LDI bdos_dir
-    MOV PC, R0
-    NOP
-bd_not1:
-    LSI R2, 2
-    CMP R0, R2
-    JNZ bd_not2
-    NOP
-    LDI bdos_lookup
-    MOV PC, R0
-    NOP
-bd_not2:
-    LSI R2, 3
-    CMP R0, R2
-    JNZ bd_not3
-    NOP
-    LDI bdos_load              ; out of the relative branch's reach
-    MOV PC, R0
-    NOP
-bd_not3:
-    LSI R2, 4
-    CMP R0, R2
-    JNZ bd_not4
-    NOP
-    LDI bdos_lookup
-    MOV PC, R0
-    NOP
-bd_not4:
-    LSI R2, 5
-    CMP R0, R2
-    JNZ bd_not5
-    NOP
-    LDI bdos_fclose
-    MOV PC, R0
-    NOP
-bd_not5:
-    LSI R2, 6
-    CMP R0, R2
-    JNZ bd_not6
-    NOP
-    LDI bdos_load
-    MOV PC, R0
-    NOP
-bd_not6:
-    LSI R2, 7
-    CMP R0, R2
-    JNZ bd_not7
-    NOP
-    LDI bdos_fwrite
-    MOV PC, R0
-    NOP
-bd_not7:
-    LSI R2, 8
-    CMP R0, R2
-    JNZ bdos_unknown
+    MOV R2, R0                 ; park the function: LDI writes R0
+    LDI BDOS_FN_COUNT
+    MOV R3, R0
+    CMP R2, R3
+    JC bdos_jtab_ok
     NOP
     LDI bdos_unknown
     MOV PC, R0
     NOP
+bdos_jtab_ok:
+    MOV R3, PC
+bdos_jtab_add:
+    ADD R3, BDOS_JTABLE - bdos_jtab_add
+    ADD R3, R2
+    LDS R2, CS, R3
+    JMP R2
+    NOP
+BDOS_JTABLE:
+    .word bdos_version
+    .word bdos_dir
+    .word bdos_lookup
+    .word bdos_load
+    .word bdos_lookup
+    .word bdos_fclose
+    .word bdos_load
+    .word bdos_fwrite
+    .word bdos_unknown
+.ifdef D16D
+    .word bdos_ps2_init
+.else
+    .word bdos_unknown
+.endif
+    .word bdos_serial_read
+    .word bdos_read_slice
+
 bdos_unknown:
     LSI R0, -1
     LSI R1, 1
@@ -1606,6 +1612,7 @@ bdos_fwrite:
     NOP
 
 
+; ---- SPI byte helpers -------------------------------------------------
 ; ---- SPI byte helpers -------------------------------------------------
 ; spi_put: send R3, return through R9.
 spi_put:
@@ -1667,9 +1674,7 @@ spi_get_ok:
     MOV PC, R8
     NOP
 
-; ---- slice_read -------------------------------------------------------
-; R7 = slice, DS = 0xF000, R1 = 1, ES = destination.
-; Reads the whole 4 KB slice into ES:0..2047. Returns through R12.
+
 slice_read:
     ; the flash needs CS high between commands
     LDI 0x80
@@ -1840,6 +1845,7 @@ look_entry:
     MOV R2, R0
     AND R4, R2
     LDI 0xFF
+    MOV R1, R0
     MOV R2, R0
     CMP R4, R2
     JZ look_none
@@ -1860,6 +1866,7 @@ look_char:
     SR R4, 8
 look_even:
     LDI 0xFF
+    MOV R1, R0
     MOV R2, R0
     AND R4, R2
     MOV R2, R7
@@ -2234,6 +2241,27 @@ cf_burst_wait:
 ; =============================================
 ; Data Section
 ; =============================================
+
+; BDOS function 11 (read-slice): the caller's DS, ES and destination survive
+; the SPI read, which uses DS for the bus and writes into 0x8000.
+.org 0x2FA7
+bd_src_ds:
+    .word 0
+bd_src_dest:
+    .word 0
+bd_src_es:
+    .word 0
+
+; BDOS PS/2-init state (function 9). Flat cells: BDOS runs with CS=0, and
+; the BIOS calls it makes clobber the shared scratch registers, so the return
+; pair and the retry counter cannot live in R10:R11/R4..R12.
+.org 0x2FB0
+bps2_ret_cs:
+    .word 0
+bps2_ret_pc:
+    .word 0
+bps2_attempt:
+    .word 0
 
 .org 0x3000
 sp0_base:
@@ -4071,9 +4099,10 @@ gs_ptr:
 ; ---- the boot script --------------------------------------------------------
 ; Forth source, baked into the image and read by read_line before the keyboard
 ; on every boot: it loads slice 1 (`start`), then essentials and edit by name.
-; `start` prints the memory summary under the banner. The text between the markers is GENERATED from
-; forth/boot.fth by scripts/embed_forth.mjs - edit that file, not this block
-; (`node scripts/embed_forth.mjs`, and tests/forth.test.js fails if they drift).
+; `start` prints the memory summary under the banner. The text between the
+; markers is GENERATED from forth/boot-nano.fth by scripts/embed_forth.mjs -
+; edit that file, not this block (`node scripts/embed_forth.mjs`, and
+; tests/boot-script.test.js fails if they drift).
 ; One `.text` per source line: each emits the characters (one cell each) and a
 ; NUL, which is what read_line walks.
 ; Current console text pair (0..7). The BIOS tile writer reads this cell and
@@ -4082,7 +4111,7 @@ gs_ptr:
 text_attr:
     .word 0x8000
 boot_script:
-; >>> generated from forth/boot.fth - do not edit here <<<
+; >>> generated from forth/boot-nano.fth - do not edit here <<<
     .string "create slice-buf 2048 cells allot"
     .string "create text-buf 16384 cells allot       \\ up to eight 2040-char source slices"
     .string "variable slice-sec drop"
@@ -4384,10 +4413,17 @@ pn_div_loop:
     LDI 0
     MOV R4, R0
     MOV R11, R12
+.ifdef D16D
+    LDI 15
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+.else
     LDI sdiv32
     LINK
     JMP R0
     NOP
+.endif
     MOV R4, R1          ; this digit's value
     MOV R9, R0          ; the quotient, kept across the digit's own arithmetic
     LDI 10
@@ -4485,9 +4521,15 @@ word_emit:
     ; scroll loop), which meant three places that had to agree about where the
     ; cursor was. Two of them clamped at the last row instead of scrolling, so
     ; a long run of output stopped dead at the bottom of the screen.
-    ; >IN (R5) needs no parking: the BIOS never writes it.
-    LDI 2                ; BIOS putch; the masked char is already in R1, where
-    SWI                  ; putch reads its parameter
+    ; >IN (R5) needs no parking: the BIOS never writes it. Route through
+    ; put_char, the kernel's single console choke point: the terminal build
+    ; polls the TX FIFO there with I=1 before asking the BIOS to send.
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R1
+    LINK
+    JMP R4
+    NOP
     LDI next
     MOV PC, R0
     NOP
@@ -4597,23 +4639,40 @@ word_gfx:
 .endif
 
 word_key:
-    ; BIOS getch -> the key comes back in the handler's R0
+    ; BIOS getch is non-blocking (0xFFFF means idle). Poll it here, in the
+    ; normal I=1 context, so timer, raster and audio IRQs keep running while
+    ; the program waits for a key.
+key_poll:
     LDI 4                ; BIOS getch
     SWI
-    SMV R0, AR0          ; bring it home into the caller's R0
+    SMV R0, AR0          ; the key (or 0xFFFF) is in the handler's R0
+    MOV R1, R0           ; keep it: LDI always writes R0
+    LDI -1                  ; 0xFFFF
+    CMP R1, R0
+    JZ key_poll
+    NOP
     SUB SP, 1
-    ST R0, SP, 0
+    ST R1, SP, 0
     LDI next
     MOV PC, R0
     NOP
 
 word_keyq:
-    ; key? ( -- flag )  is a byte waiting on the console? The console status
-    ; word has ready in bit 0 (the keyboard FIFO on D16D, the UART otherwise),
-    ; and the kernel keeps ES = 0xF000 from forth_start, so this is one LDS and
-    ; a test. `key` blocks; this is what a program polls to stay interruptible -
-    ; the starfield demo uses it to stop on any key.
+    ; key? ( -- flag )  is a byte waiting on the console? The terminal builds
+    ; ask BIOS f16 (constat), whose handler tests bit 0 of the console status
+    ; register (the keyboard FIFO on D16D, the UART otherwise) and answers
+    ; -1 or 0. `key` blocks; this is what a program polls to stay
+    ; interruptible - the starfield demo uses it to stop on any key.
     SUB SP, 1               ; the slot cmp_true/cmp_false write their answer to
+.ifdef CONSOLE_UART
+    LDI 16
+    SWI
+    SMV R0, AR0
+    LSI R2, 0
+    CMP R0, R2
+.else
+    ; The bitmap build reads the status directly: its console status is not
+    ; the terminal's, and the BIOS call would need its own copy of the test.
     LDI CONSOLE_STATUS
     MOV R2, R0
     LDS R1, ES, R2
@@ -4621,6 +4680,7 @@ word_keyq:
     AND R1, R0
     LDI 0
     CMP R1, R0
+.endif
     JZ keyq_none
     NOP
     LDI cmp_true
@@ -4752,10 +4812,8 @@ rl_read:
     ; Start every line from a clean BIOS line state. If a previous line was
     ; abandoned, or its CR arrived with keys still queued, getstr must not
     ; resume at the old write pointer and append to the old text.
-    LDI gs_active
-    MOV R2, R0
-    LDI 0
-    ST R0, R2, 0
+    LDI 19                 ; BIOS getstr-reset
+    SWI
 .endif
 rl_getstr:
     LDI 5
@@ -4920,7 +4978,7 @@ word_cr:
     ; >IN (R5) needs no parking: the BIOS never writes it
     LDI 13               ; CR
     MOV R1, R0
-    LDI 2                ; BIOS putch
+    LDI 2
     SWI
     LDI 10               ; LF
     MOV R1, R0
@@ -5005,10 +5063,17 @@ wdiv_ok:
     LD R1, SP, 0
     MOV R7, R1
     MOV R11, R2
+.ifdef D16D
+    LDI 14
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+.else
     LDI div16_call
     LINK
     JMP R0
     NOP
+.endif
     MOV R1, R0
     ST R1, SP, 0
     LDI next
@@ -5035,10 +5100,17 @@ wmod_ok:
     LD R1, SP, 0
     MOV R7, R1
     MOV R11, R2
+.ifdef D16D
+    LDI 14
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+.else
     LDI div16_call
     LINK
     JMP R0
     NOP
+.endif
     ST R1, SP, 0            ; the divider's remainder is a mod b
     LDI next
     MOV PC, R0
@@ -5064,10 +5136,17 @@ wslashmod_ok:
     LD R1, SP, 0          ; a
     MOV R7, R1
     MOV R11, R2
+.ifdef D16D
+    LDI 14
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+.else
     LDI div16_call
     LINK
     JMP R0
     NOP
+.endif
     ; R0 = quotient, R1 = remainder
     ST R1, SP, 0          ; a's slot becomes the remainder
     SUB SP, 1
@@ -6010,10 +6089,8 @@ word_cls:
 .ifdef D16D
     ; binit clears the map but does not reset the scroll offset. Home the
     ; offset first, so its ESC[H publishes row 0 in the right window.
-    LDI tile_off
-    MOV R2, R0
-    LDI 0
-    ST R0, R2, 0
+    LDI 18                 ; BIOS tile-home
+    SWI
 .endif
     LDI 1
     SWI                     ; BIOS binit, with no parameters: the function
@@ -7377,8 +7454,9 @@ wrap_if:
     ; R9 are extra-segment registers and a load through them would go to ES.
     ; R0 is scratch here anyway, and wrap_if must not touch a register its
     ; callers or the interpreter are carrying.
-    LDI out_col
-    LD R9, R0, 0            ; R9 = column
+    LDI 17                  ; BIOS col-get
+    SWI
+    SMV R9, AR0             ; R9 = column
     LDI 80
     MOV R4, R0              ; R4 = width
 .else
@@ -7391,10 +7469,17 @@ wrap_if:
     MOV R7, R9
     LDI 80
     MOV R11, R0             ; the screen's width
+.ifdef D16D
+    LDI 14
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+.else
     LDI div16_call
     LINK
     JMP R0
     NOP
+.endif
     MOV R9, R1              ; the column is the remainder
     LDI 80
     MOV R4, R0              ; the screen's width, for the fit test
@@ -7474,10 +7559,17 @@ nw_step:
     LD R11, R0, 0
     LDI 0
     MOV R4, R0
+.ifdef D16D
+    LDI 15
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+.else
     LDI sdiv32
     LINK
     JMP R0
     NOP
+.endif
     ADD R12, 1
     MOV R7, R0
     LDI 0
@@ -11984,6 +12076,210 @@ tr_ok:
     NOP
 .endif
 
+; ============================================================
+; BDOS function 9: PS/2 init (D16D), with I=1
+; ============================================================
+; The bit-level sender stays in the BIOS (function 7): one frame is bounded by
+; the keyboard's own clock and lasts about a millisecond, so the SWI wait is
+; short. Everything that waits for seconds - reset retries, ACK/BAT, the
+; enable repeats - is here, in normal context, so timer/raster/audio IRQs keep
+; running. BIOS function 8 supplies a non-blocking status + timer snapshot.
+.ifdef D16D
+.org 0x198B
+.code
+; R1 = byte -> R0 = 1 when the keyboard clocked the frame, 0 otherwise.
+bps2_send:
+    LDI 7
+    SWI
+    SMV R0, AR0
+    JMP LR
+    NOP
+
+; R1 = milliseconds; waits on the millisecond timer with I=1.
+bps2_wait_ticks:
+    MOV R6, R1
+    LDI 8
+    SWI
+    SMV R1, AR1
+    MOV R7, R1
+    ADD R7, R6
+bps2_wt_loop:
+    LDI 8
+    SWI
+    SMV R1, AR1
+    MOV R6, R1
+    SUB R6, R7
+    JN bps2_wt_loop
+    NOP
+    JMP LR
+    NOP
+
+; R1 = milliseconds -> R0 = 1 when the frame toggle changed, 0 on timeout.
+bps2_wait_frame:
+    MOV R6, R1
+    LDI 8
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+    LDI 0x0080
+    MOV R7, R0
+    AND R7, R0
+    MOV R8, R1
+    ADD R8, R6
+bps2_wf_loop:
+    LDI 8
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+    MOV R9, R0
+    LDI 0x0080
+    MOV R2, R0
+    AND R9, R2
+    CMP R9, R7
+    JNZ bps2_wf_seen
+    NOP
+    MOV R9, R1
+    SUB R9, R8
+    JN bps2_wf_loop
+    NOP
+    LSI R0, 0
+    JMP LR
+    NOP
+bps2_wf_seen:
+    LSI R0, 1
+    JMP LR
+    NOP
+
+.org 0x1F78
+bdos_ps2_init:
+    LDI 0x2FB0
+    MOV R2, R0
+    STS R10, CS, R2
+    ADD R2, 1
+    STS R11, CS, R2
+
+    ; Erased memory (the JS core has no PS/2 model) reads 0xFFFF.
+    LDI 8
+    SWI
+    SMV R0, AR0
+    LSI R2, -1
+    CMP R0, R2
+    JZ bps2_done
+    NOP
+
+    LDI 300                  ; settle before the first reset frame
+    MOV R1, R0
+    LDI bps2_wait_ticks
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
+    LDI 0x2FB2
+    MOV R2, R0
+    LSI R3, 4
+    STS R3, CS, R2
+bps2_reset:
+    LDI 0xFF
+    MOV R1, R0
+    LDI bps2_send
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    AND R0, R0
+    JNZ bps2_reset_ok
+    NOP
+    LDI 300                  ; ~0.3 s between reset attempts
+    MOV R1, R0
+    LDI bps2_wait_ticks
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 0x2FB2
+    MOV R2, R0
+    LDS R3, CS, R2
+    SUB R3, 1
+    STS R3, CS, R2
+    AND R3, R3
+    JNZ bps2_reset
+    NOP
+    LDI bps2_flush
+    MOV PC, R0
+    NOP
+bps2_reset_ok:
+    LDI 1000                 ; ACK, then BAT, each up to a second
+    MOV R1, R0
+    LDI bps2_wait_frame
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 1000
+    MOV R1, R0
+    LDI bps2_wait_frame
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 400                  ; let the self test finish
+    MOV R1, R0
+    LDI bps2_wait_ticks
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 0x2FB2
+    MOV R2, R0
+    LSI R3, 4
+    STS R3, CS, R2
+bps2_enable:
+    LDI 0xF4
+    MOV R1, R0
+    LDI bps2_send
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    AND R0, R0
+    JZ bps2_flush
+    NOP
+    LDI 400
+    MOV R1, R0
+    LDI bps2_wait_frame
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 0x2FB2
+    MOV R2, R0
+    LDS R3, CS, R2
+    SUB R3, 1
+    STS R3, CS, R2
+    AND R3, R3
+    JNZ bps2_enable
+    NOP
+bps2_flush:
+    ; Drain the hardware FIFO through the non-blocking console read.
+    LDI 4
+    SWI
+    SMV R0, AR0
+    LSI R2, -1
+    CMP R0, R2
+    JNZ bps2_flush
+    NOP
+bps2_done:
+    LDI 0x2FB0
+    MOV R2, R0
+    LDS R10, CS, R2
+    ADD R2, 1
+    LDS R11, CS, R2
+    LSI R0, 0
+    JML R10
+    NOP
+.endif
+
 .org 0x2000
 .code
 
@@ -13298,9 +13594,49 @@ put_char:
     LDI saved_r1
     MOV R7, R0
     ST R1, R7, 0          ; park the caller's R1: putch reads its parameter from
+    LDI saved_r2
+    MOV R7, R0
+    ST R2, R7, 0          ; R2/R3 too: the UART-mirror branch uses them even
+    LDI saved_r3
+    MOV R7, R0
+    ST R3, R7, 0          ; when the mirror bit is clear, and READ_LINE keeps
+                          ; its source cursor in R3
     MOV R1, R9            ; R1, and the printing routines keep pointers of their
                           ; own there
-    LDI 2                 ; BIOS putch
+.ifdef CONSOLE_UART
+put_char_ready:
+    LDI BIOS_UART_READY   ; non-blocking TX check, polled with I=1
+    SWI
+    SMV R0, AR0
+    AND R0, R0
+    JZ put_char_ready
+    NOP
+.endif
+.ifndef CONSOLE_MIRROR
+  .ifdef D16D
+    ; The board's BIOS no longer mirrors putstr/binit/getstr. While `serial`
+    ; has the mirror bit set, put_char sends the byte here after the I=1 ready
+    ; poll, so the UART never blocks inside an SWI.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI ECHO_FLAG
+    MOV R2, R0
+    LDS R3, ES, R2
+    LDI 0x80
+    MOV R2, R0
+    AND R3, R2
+    JZ pc_no_uart
+    NOP
+    LDI 0x0042
+    MOV R2, R0
+    MOV R10, R9
+    STS R10, ES, R2
+pc_no_uart:
+    MOV R1, R9           ; f2 reads the character here
+  .endif
+.endif
+    LDI 2
     SWI
     LDI line_out
     MOV R7, R0
@@ -13309,6 +13645,12 @@ put_char:
     LDI saved_r1
     MOV R7, R0
     LD R1, R7, 0          ; and the caller's R1 back
+    LDI saved_r2
+    MOV R7, R0
+    LD R2, R7, 0
+    LDI saved_r3
+    MOV R7, R0
+    LD R3, R7, 0
     JMP LR
     NOP
 
@@ -13876,12 +14218,14 @@ word_type:                  ; type ( c-addr u -- )  print u characters
     MOV PC, R0
     NOP
 wty_ok:
+    ; Keep the count on the data stack: put_char reaches the BIOS putch
+    ; handler, which uses R2 and R12 (scroll copy), and the UART mirror branch
+    ; uses R2 as well. The pointer in R1 is preserved by put_char.
     LD R1, SP, 1            ; c-addr
-    LD R2, SP, 0            ; u
-    ADD SP, 2
 wty_loop:
+    LD R12, SP, 0           ; u (still in the argument slot)
     LDI 0
-    CMP R2, R0
+    CMP R12, R0
     JZ wty_done
     NOP
     LD R3, R1, 0
@@ -13894,11 +14238,14 @@ wty_loop:
     JMP R4
     NOP
     ADD R1, 1
-    SUB R2, 1
+    LD R12, SP, 0
+    SUB R12, 1
+    ST R12, SP, 0
     LDI wty_loop
     MOV PC, R0
     NOP
 wty_done:
+    ADD SP, 2               ; drop the count and c-addr
     LDI next
     MOV PC, R0
     NOP
@@ -15205,10 +15552,17 @@ wsr_ok:
     MOV R4, R0
     MOV R7, R1
     MOV R11, R12
+.ifdef D16D
+    LDI 15
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+.else
     LDI sdiv32
     LINK
     JMP R0
     NOP
+.endif
     ADD SP, 1               ; n1's cell goes away
     ST R1, SP, 1            ; the remainder below
     ST R0, SP, 0            ; the quotient on top, as the standard's n3
@@ -15237,10 +15591,17 @@ wfm_ok:
     MOV R4, R0
     MOV R7, R1
     MOV R11, R12
+.ifdef D16D
+    LDI 15
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+.else
     LDI sdiv32
     LINK
     JMP R0
     NOP
+.endif
     MOV R7, R0              ; the quotient
     MOV R3, R1              ; the remainder
     LDI 0
@@ -16161,9 +16522,11 @@ waqr_done:
 ; =============================================
 .ifdef CONSOLE_UART
 .ifdef D16D
-.equ BIOS_FN_COUNT, 13             ; 0..5 console + 6 gfx + 7/8 PS/2 + 9/10 SFX + 11 pump + 12 kbd
+.equ BIOS_UART_READY, 13
+.equ BIOS_FN_COUNT, 23             ; 0..5 console + 6 gfx + 7/8 PS/2 + 9/10 SFX + 11 pump + 12 kbd + 13 UART ready
 .else
-.equ BIOS_FN_COUNT, 6
+.equ BIOS_UART_READY, 6
+.equ BIOS_FN_COUNT, 23              ; 0..5 console + 6 UART ready + fillers + 17..22
 .endif
 .else
 .equ BIOS_FN_COUNT, 6
@@ -16184,6 +16547,15 @@ bios_entry:
     MVS DS, R0
     LDI 0x2000
     MVS SS, R0
+.endif
+.ifdef D16D
+    ; The division handlers save registers on SP; use a reserved area.
+.ifdef D16SEG
+    LDI 0x2F00
+.else
+    LDI 0x5700
+.endif
+    MOV SP, R0
 .endif
     ; Dispatch on the function code in the **caller's** R0 through the table
     ; below. This used to be a chain of CMP/JNZ tests, one per function, so the
@@ -16241,6 +16613,25 @@ BIOS_JTABLE:
     .word bios_sfx_pump - BIOS_BASE
     .word bios_kbd_read - BIOS_BASE
 .endif
+.ifdef CONSOLE_UART
+    .word bios_uart_ready - BIOS_BASE
+.ifdef D16D
+    .word bios_f14 - BIOS_BASE
+    .word bios_f15 - BIOS_BASE
+    .word bios_f16 - BIOS_BASE
+.endif
+.ifndef D16D
+    .word bios_unknown, bios_unknown, bios_unknown, bios_unknown
+    .word bios_unknown, bios_unknown, bios_unknown, bios_unknown
+    .word bios_unknown, bios_f16 - BIOS_BASE
+.endif
+    .word bios_f17 - BIOS_BASE
+    .word bios_f18 - BIOS_BASE
+    .word bios_f19 - BIOS_BASE
+    .word bios_f20 - BIOS_BASE
+    .word bios_f21 - BIOS_BASE
+    .word bios_f22 - BIOS_BASE
+.endif
 bios_f0:
     ; 0: bver -> the handler's R0 = 0x0100 (BIOS 1.0, major << 8 | minor),
     ; which the caller picks up with SMV Rx, AR0. `ver` prints the same pair.
@@ -16265,9 +16656,9 @@ bios_f0:
 
 uart_tx:
     ; Normal entry: load the console column from its cell.
-    LDI tile_col
+    LDI bios_tile_col - BIOS_BASE
     MOV R7, R0
-    LD R11, R7, 0
+    LDS R11, CS, R7
 uart_tx_keep:
     ; The console output is the tile screen. On the D16D board the UART is a
     ; separate stream for `serial`/`xmodem`, so it is not mirrored; the
@@ -16279,23 +16670,9 @@ uart_tx_keep:
     NOP
 .else
   .ifdef D16D
-    ; The board's console is the tile screen. `serial` raises bit 7 of
-    ; ECHO_FLAG while it evaluates a line, so the REPL's results and errors
-    ; also reach the serial stream; ordinary console output does not.
-    LDI 0x0FFF
-    INV R0
-    MVS ES, R0
-    LDI ECHO_FLAG
-    MOV R10, R0
-    LDS R10, ES, R10
-    LDI 0x80
-    MOV R3, R0
-    AND R10, R3
-    JZ utx_mirror_return
-    NOP
-    LDI uart_mirror - BIOS_BASE
-    MOV PC, R0
-    NOP
+    ; The board's console is the tile screen. The UART mirror for `serial`
+    ; lives in the kernel's put_char path, where the ready poll runs with I=1;
+    ; BIOS putstr/binit/getstr must not wait on TX here.
   .else
     LDI uart_mirror - BIOS_BASE
     MOV PC, R0
@@ -16309,9 +16686,9 @@ utx_mirror_return:
     LDI utx_lr
     MOV R10, R0
     ST LR, R10, 0
-    LDI out_esc
+    LDI bios_out_esc - BIOS_BASE
     MOV R7, R0
-    LD R9, R7, 0
+    LDS R9, CS, R7
     LDI 0
     CMP R9, R0
     JZ utx_idle
@@ -16336,32 +16713,32 @@ utx_idle:
 utx_esc_start:
     LDI 1
     MOV R9, R0
-    ST R9, R7, 0
+    STS R9, CS, R7
     LDI utx_esc_reset - BIOS_BASE
     MOV PC, R0
     NOP
 
 utx_esc_reset:
-    LDI csi_param
+    LDI bios_csi_param - BIOS_BASE
     MOV R10, R0
     LDI 0
-    ST R0, R10, 0
-    LDI csi_p0
+    STS R0, CS, R10
+    LDI bios_csi_p0 - BIOS_BASE
     MOV R10, R0
     LDI 0
-    ST R0, R10, 0
-    LDI csi_p1
+    STS R0, CS, R10
+    LDI bios_csi_p1 - BIOS_BASE
     MOV R10, R0
     LDI 0
-    ST R0, R10, 0
-    LDI csi_np
+    STS R0, CS, R10
+    LDI bios_csi_np - BIOS_BASE
     MOV R10, R0
     LDI 0
-    ST R0, R10, 0
-    LDI csi_priv
+    STS R0, CS, R10
+    LDI bios_csi_priv - BIOS_BASE
     MOV R10, R0
     LDI 0
-    ST R0, R10, 0
+    STS R0, CS, R10
     LDI utx_done - BIOS_BASE
     MOV PC, R0
     NOP
@@ -16373,7 +16750,7 @@ utx_esc:
     NOP
     LDI 0
     MOV R9, R0
-    ST R9, R7, 0
+    STS R9, CS, R7
     LDI utx_done - BIOS_BASE
     MOV PC, R0
     NOP
@@ -16381,7 +16758,7 @@ utx_esc:
 utx_csi_start:
     LDI 2
     MOV R9, R0
-    ST R9, R7, 0
+    STS R9, CS, R7
     LDI utx_esc_reset - BIOS_BASE
     MOV PC, R0
     NOP
@@ -16408,7 +16785,7 @@ utx_csi_notdigit:
     ; final byte
     LDI 0
     MOV R9, R0
-    ST R9, R7, 0
+    STS R9, CS, R7
     LDI 0x48                    ; 'H'
     CMP R1, R0
     JZ utx_cursor
@@ -16428,34 +16805,34 @@ utx_csi_notdigit:
 utx_csi_digit:
     LDI 0x30
     SUB R1, R0
-    LDI csi_param
+    LDI bios_csi_param - BIOS_BASE
     MOV R7, R0
-    LD R3, R7, 0
+    LDS R3, CS, R7
     ; param = param*10 + digit
     MOV R10, R3
     SL R10, 1
     SL R3, 3                    ; 8*param
     ADD R3, R10                 ; 10*param
     ADD R3, R1
-    ST R3, R7, 0
+    STS R3, CS, R7
     LDI utx_done - BIOS_BASE
     MOV PC, R0
     NOP
 
 utx_csi_semi:
-    LDI csi_np
+    LDI bios_csi_np - BIOS_BASE
     MOV R7, R0
-    LD R3, R7, 0
+    LDS R3, CS, R7
     LDI 0
     CMP R3, R0
     JNZ utx_csi_semi1
     NOP
-    LDI csi_param
+    LDI bios_csi_param - BIOS_BASE
     MOV R10, R0
-    LD R3, R10, 0
-    LDI csi_p0
+    LDS R3, CS, R10
+    LDI bios_csi_p0 - BIOS_BASE
     MOV R10, R0
-    ST R3, R10, 0
+    STS R3, CS, R10
     LDI utx_csi_semi_done - BIOS_BASE
     MOV PC, R0
     NOP
@@ -16464,67 +16841,67 @@ utx_csi_semi1:
     CMP R3, R0
     JNZ utx_csi_semi_done
     NOP
-    LDI csi_param
+    LDI bios_csi_param - BIOS_BASE
     MOV R10, R0
-    LD R3, R10, 0
-    LDI csi_p1
+    LDS R3, CS, R10
+    LDI bios_csi_p1 - BIOS_BASE
     MOV R10, R0
-    ST R3, R10, 0
+    STS R3, CS, R10
 utx_csi_semi_done:
-    LDI csi_np
+    LDI bios_csi_np - BIOS_BASE
     MOV R7, R0
     ADD R3, 1                   ; (np already loaded; 0->1, 1->2)
-    ST R3, R7, 0
-    LDI csi_param
+    STS R3, CS, R7
+    LDI bios_csi_param - BIOS_BASE
     MOV R10, R0
     LDI 0
-    ST R0, R10, 0
+    STS R0, CS, R10
     LDI utx_done - BIOS_BASE
     MOV PC, R0
     NOP
 
 utx_csi_priv:
-    LDI csi_priv
+    LDI bios_csi_priv - BIOS_BASE
     MOV R7, R0
     LDI 1
-    ST R0, R7, 0
+    STS R0, CS, R7
     LDI utx_done - BIOS_BASE
     MOV PC, R0
     NOP
 
 utx_cursor:
     ; row = np>=1 ? p0 : param ; col = np>=2 ? p1 : (np==1 ? param : 1)
-    LDI csi_np
+    LDI bios_csi_np - BIOS_BASE
     MOV R7, R0
-    LD R3, R7, 0
+    LDS R3, CS, R7
     LDI 1
     CMP R3, R0
     JN utx_cursor_default
     NOP
-    LDI csi_p0
+    LDI bios_csi_p0 - BIOS_BASE
     MOV R7, R0
-    LD R9, R7, 0                ; rowp
+    LDS R9, CS, R7                ; rowp
     LDI 2
     CMP R3, R0
     JN utx_cursor_colparam
     NOP
-    LDI csi_p1
+    LDI bios_csi_p1 - BIOS_BASE
     MOV R7, R0
-    LD R10, R7, 0               ; colp
+    LDS R10, CS, R7               ; colp
     LDI utx_cursor_apply - BIOS_BASE
     MOV PC, R0
     NOP
 utx_cursor_colparam:
-    LDI csi_param
+    LDI bios_csi_param - BIOS_BASE
     MOV R7, R0
-    LD R10, R7, 0
+    LDS R10, CS, R7
     LDI utx_cursor_apply - BIOS_BASE
     MOV PC, R0
     NOP
 utx_cursor_default:
-    LDI csi_param
+    LDI bios_csi_param - BIOS_BASE
     MOV R7, R0
-    LD R9, R7, 0
+    LDS R9, CS, R7
     LDI 1
     MOV R10, R0
 utx_cursor_apply:
@@ -16541,17 +16918,17 @@ utx_cursor_apply:
     LDI 23
     MOV R9, R0
 utx_cursor_row_ok:
-    LDI tile_row
+    LDI bios_tile_row - BIOS_BASE
     MOV R7, R0
-    ST R9, R7, 0
+    STS R9, CS, R7
     LDI utx_cursor_col - BIOS_BASE
     MOV PC, R0
     NOP
 utx_cursor_row0:
-    LDI tile_row
+    LDI bios_tile_row - BIOS_BASE
     MOV R7, R0
     LDI 0
-    ST R0, R7, 0
+    STS R0, CS, R7
 utx_cursor_col:
     LDI 0
     CMP R10, R0
@@ -16635,12 +17012,12 @@ utx_char:
     LD R4, R7, 0
     OR R1, R4
     ; physical row = (tile_row + tile_off) % 26
-    LDI tile_row
+    LDI bios_tile_row - BIOS_BASE
     MOV R7, R0
-    LD R3, R7, 0
-    LDI tile_off
+    LDS R3, CS, R7
+    LDI bios_tile_off - BIOS_BASE
     MOV R7, R0
-    LD R9, R7, 0
+    LDS R9, CS, R7
     ADD R3, R9
     LDI TILE_MAP_ROWS
     CMP R3, R0
@@ -16700,12 +17077,12 @@ utx_bs:
     NOP
     SUB R11, 1
     ; clear the cell at this column
-    LDI tile_row
+    LDI bios_tile_row - BIOS_BASE
     MOV R7, R0
-    LD R3, R7, 0
-    LDI tile_off
+    LDS R3, CS, R7
+    LDI bios_tile_off - BIOS_BASE
     MOV R7, R0
-    LD R10, R7, 0
+    LDS R10, CS, R7
     ADD R3, R10
     LDI TILE_MAP_ROWS
     CMP R3, R0
@@ -16739,18 +17116,18 @@ utx_bs_cursor:
 
 utx_lf:
 utx_newline:
-    LDI tile_row
+    LDI bios_tile_row - BIOS_BASE
     MOV R7, R0
-    LD R3, R7, 0
+    LDS R3, CS, R7
     ADD R3, 1
     LDI 24
     CMP R3, R0
     JN utx_row_store
     NOP
     ; scroll: row offset advances, row stays at 23, the new bottom row clears
-    LDI tile_off
+    LDI bios_tile_off - BIOS_BASE
     MOV R7, R0
-    LD R9, R7, 0
+    LDS R9, CS, R7
     ADD R9, 1
     LDI TILE_MAP_ROWS
     CMP R9, R0
@@ -16759,7 +17136,7 @@ utx_newline:
     LDI 0
     MOV R9, R0
 utx_off_store:
-    ST R9, R7, 0
+    STS R9, CS, R7
     LDI 23
     MOV R3, R0
     ; physical row = (23 + off) % 26
@@ -16799,9 +17176,9 @@ utx_clr_loop:
     JNZ utx_clr_loop
     NOP
 utx_row_store:
-    LDI tile_row
+    LDI bios_tile_row - BIOS_BASE
     MOV R7, R0
-    ST R3, R7, 0
+    STS R3, CS, R7
     LDI 0
     MOV R11, R0
     LDI tile_cursor - BIOS_BASE
@@ -16813,12 +17190,12 @@ utx_row_store:
     NOP
 
 utx_done:
-    LDI tile_col
+    LDI bios_tile_col - BIOS_BASE
     MOV R7, R0
-    ST R11, R7, 0
-    LDI out_col
+    STS R11, CS, R7
+    LDI bios_out_col - BIOS_BASE
     MOV R7, R0
-    ST R11, R7, 0
+    STS R11, CS, R7
     LDI utx_lr
     MOV R10, R0
     LD LR, R10, 0
@@ -16831,9 +17208,9 @@ tile_cursor:
     INV R0
     MVS ES, R0
     MOV R3, R11
-    LDI tile_row
+    LDI bios_tile_row - BIOS_BASE
     MOV R7, R0
-    LD R9, R7, 0
+    LDS R9, CS, R7
     MOV R10, R9
     SL R10, 8
     MOV R0, R3
@@ -16843,9 +17220,9 @@ tile_cursor:
     LDI 0x2000
     MOV R7, R0
     STS R10, ES, R7
-    LDI tile_off
+    LDI bios_tile_off - BIOS_BASE
     MOV R7, R0
-    LD R10, R7, 0
+    LDS R10, CS, R7
     LDI 0x2002
     MOV R7, R0
     STS R10, ES, R7
@@ -16941,17 +17318,45 @@ bios_f1:
     LINK
     JMP R4
     NOP
-.ifdef D16D
-    ; The keyboard is part of the machine, so binit is its home: reset it and
-    ; enable scanning before the menu or the prompt can be reached. A missing
-    ; keyboard is not an error - the sender times out and the console still
-    ; runs. Function 8 repeats this without clearing the screen.
-    LDI ps2_init - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
+    ; The keyboard reset is not done here any more: it waits up to several
+    ; seconds, so it belongs in BDOS with I=1 (function 9). The kernel calls
+    ; that once after binit, before the menu or the prompt.
+    RETI
     NOP
+
+bios_uart_ready:
+    ; 13 on D16D, 6 on the UART build: answer 1 when a mirrored byte can be
+    ; sent now, 0 when the TX FIFO is full. The caller polls this with I=1.
+    ; The D16D tile console only depends on the UART while the serial mirror
+    ; bit is set; ordinary console output is always ready.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+.ifndef CONSOLE_MIRROR
+  .ifdef D16D
+    LDI ECHO_FLAG
+    MOV R2, R0
+    LDS R1, ES, R2
+    LDI 0x80
+    MOV R2, R0
+    AND R1, R2
+    JZ bur_ready
+    NOP
+  .endif
 .endif
+    LDI 0x0040
+    MOV R2, R0
+    LDS R1, ES, R2
+    LDI 2
+    AND R1, R0
+    JZ bur_busy
+    NOP
+bur_ready:
+    LSI R0, 1
+    RETI
+    NOP
+bur_busy:
+    LSI R0, 0
     RETI
     NOP
 
@@ -16978,9 +17383,9 @@ bios_f3:
     INV R0
     MVS ES, R0
     SMV R2, AR1             ; R2 = string address
-    LDI tile_col
+    LDI bios_tile_col - BIOS_BASE
     MOV R7, R0
-    LD R11, R7, 0           ; R11 = starting column
+    LDS R11, CS, R7           ; R11 = starting column
 uart_putstr_loop:
     LD R1, R2, 0
     LDI 0
@@ -17001,19 +17406,24 @@ uart_putstr_done:
     NOP
 
 bios_f4:
-    ; 4: getch -> the handler's R0 = one byte from the console (keyboard FIFO
-    ; on D16D, UART on D16MINI)
+    ; 4: getch, non-blocking -> the handler's R0 = one byte from the console
+    ; (keyboard FIFO on D16D, UART on D16MINI), or 0xFFFF when no byte is
+    ; waiting. SWI runs with I=0, so it must never wait for the peripheral;
+    ; word_key polls this function with I=1 and lets the IRQs run.
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-uart_getch_wait:
     LDI CONSOLE_STATUS
     MOV R2, R0
     LDS R1, ES, R2
     LDI 1
     AND R1, R0
-    JZ uart_getch_wait
+    JNZ uart_getch_ready
     NOP
+    LDI -1                  ; 0xFFFF
+    RETI
+    NOP
+uart_getch_ready:
     LDI CONSOLE_DATA
     MOV R2, R0
     LDS R1, ES, R2
@@ -17036,12 +17446,12 @@ uart_getch_wait:
 ; RETI. The menu enters the Flappy game and returns here; Q returns to the console.
 bios_f6:
     ; park the two shared registers the Forth owns across every BIOS call
-    LDI gfx_r5
+    LDI bios_gfx_r5 - BIOS_BASE
     MOV R2, R0
-    ST R5, R2, 0
-    LDI gfx_r6
+    STS R5, CS, R2
+    LDI bios_gfx_r6 - BIOS_BASE
     MOV R2, R0
-    ST R6, R2, 0
+    STS R6, CS, R2
     ; header: magic at 0x4DE4, entry at 0x4DE6 (segment 0x04A0, offset 0x3E4)
     LDI 0x04A0
     MVS DS, R0
@@ -17066,10 +17476,14 @@ gfx_none:
     LDI 0
 .endif
     MVS DS, R0
-    LDI gfx_r5
+    LDI bios_gfx_r5 - BIOS_BASE
     MOV R2, R0
-    LD R5, R2, 0
-    LD R6, R2, 1
+    ; Both cells live in the BIOS segment: a plain LD after LDS would read
+    ; DS, not CS, and TIB would come back as whatever the kernel keeps at
+    ; offset 0xD96 (the old bug was layout-dependent and looked harmless).
+    LDS R5, CS, R2
+    ADD R2, 1
+    LDS R6, CS, R2
     RETI
     NOP
 
@@ -17081,10 +17495,13 @@ gfx_back:
     LDI 0
 .endif
     MVS DS, R0
-    LDI gfx_r5
+    LDI bios_gfx_r5 - BIOS_BASE
     MOV R2, R0
-    LD R5, R2, 0
-    LD R6, R2, 1
+    ; CS-relative like the save; see gfx_none. TIB must come back as tib_kbd
+    ; so the interpreter can finish the line that invoked gfx.
+    LDS R5, CS, R2
+    ADD R2, 1
+    LDS R6, CS, R2
 
     ; clear 82*26 tilemap words
     LDI -0x0F00                ; 0xF100
@@ -17134,12 +17551,12 @@ gfx_oam:
     ; the kernel's cursor cells: out_col, out_esc, tile_row, tile_off, tile_col
     LDI 0
     MOV R2, R0
-    LDI out_col
+    LDI bios_out_col - BIOS_BASE
     MOV R3, R0
     LDI 5
     MOV R4, R0
 gfx_cells:
-    ST R2, R3, 0
+    STS R2, CS, R3
     ADD R3, 1
     SUB R4, 1
     JNZ gfx_cells
@@ -17391,15 +17808,19 @@ bios_f4:
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-    ; 4: getch -> the handler's R0 = keycode (low byte)
-bios_getch_wait:
+    ; 4: getch, non-blocking -> the handler's R0 = keycode (low byte), or
+    ; 0xFFFF when no key is waiting. The caller polls with I=1.
     LDI KBD_STATUS
     MOV R2, R0
     LDS R1, ES, R2
     LDI 0
     CMP R1, R0
-    JZ bios_getch_wait
+    JNZ bios_getch_ready
     NOP
+    LDI -1                  ; 0xFFFF
+    RETI
+    NOP
+bios_getch_ready:
     LDI KBD_DATA
     MOV R2, R0
     LDS R1, ES, R2
@@ -17423,14 +17844,14 @@ bios_f5:
     SMV R2, AR1              ; R2 = buf
     LDI gs_active
     MOV R10, R0
-    LD R3, R10, 0            ; a line already in progress?
+    LD R3, R10, 0              ; a line already in progress?
     LDI 1
     CMP R3, R0
     JZ bios_getstr_have
     NOP
     MOV R3, R2               ; no: the write pointer starts at the buffer
     LDI 1
-    ST R0, R10, 0            ; line in progress
+    STS R0, CS, R10            ; line in progress
     ST R3, R10, 1            ; ptr = buf
     LDI bios_getstr_count - BIOS_BASE
     MOV PC, R0
@@ -17601,6 +18022,10 @@ ill_handler:
     ST R2, SP, 0
     SUB SP, 1
     ST R3, SP, 0
+.ifdef D16D
+    MVS R1, CS
+    MVS DS, R1                   ; the save area is in the BIOS copy
+.endif
     MOV R0, SP
     ADD R0, 4
     SUB SP, 1
@@ -17613,16 +18038,24 @@ ill_save_addr_lr:
     ADD R1, R0
     ST SP, R1, 0                ; remember the five-cell save area
 .ifdef D16SEG
-    ; The ILL entry has shadow SS=0/DS=0; use the segmented data stack and
-    ; the data segment before touching ill_pc_save.
+.ifdef D16D
+    ; The save area and tables are in the BIOS copy, so DS=CS.
+    MVS R1, CS
+    MVS DS, R1
+.else
     LDI 0x1000
     MVS DS, R0
+.endif
     LDI 0x2000
     MVS SS, R0
 .endif
     SMV R13, AR13               ; SP' = caller's data stack
     MOV R3, LR                  ; R3 = interrupted PC (after the trapped word)
+.ifdef D16D
+    LDI ill_pc_save_bios - BIOS_BASE
+.else
     LDI ill_pc_save
+.endif
     ST R3, R0, 0                ; Rs=R15 reads this cell
     SMV R13, AR13               ; SP' = caller's data stack
     ; ---- save the caller's shared R4..R12 --------------------------------
@@ -17649,8 +18082,13 @@ ill_save_addr_lr:
     MVS DS, R1
     LD R2, R3, -1
 .ifdef D16SEG
+.ifdef D16D
+    MVS R1, CS
+    MVS DS, R1                  ; DS = the BIOS copy for tables/save area
+.else
     LDI 0x1000
-    MVS DS, R0                  ; DS = kernel data segment for the handler
+    MVS DS, R0
+.endif
 .else
     LSI R0, 0
     MVS DS, R0                  ; DS = 0 for the handler's data stack/code
@@ -17725,7 +18163,11 @@ ill_after_d16_rs:
     ADD SP, 1
     LD R7, SP, 0
     ADD SP, 1
+.ifdef D16D
+    LDI bios_div16_call - BIOS_BASE
+.else
     LDI div16_call
+.endif
     LINK
     JMP R0
     NOP
@@ -17825,7 +18267,11 @@ ill_after_d32_rs:
     ADD SP, 1
     LD R4, SP, 0
     ADD SP, 1
+.ifdef D16D
+    LDI bios_sdiv32 - BIOS_BASE
+.else
     LDI sdiv32
+.endif
     LINK
     JMP R0
     NOP
@@ -17918,10 +18364,14 @@ ill_unk_ret_lr:
     NOP
 
 ill_return:
-    ; Restore R0'..R3' and SP' from the entry save, then return. DS/SS are
-    ; the kernel segments here; the save area is in segment 0.
+    ; Restore R0'..R3' and SP' from the entry save, then return.
+.ifdef D16D
+    MVS R1, CS
+    MVS DS, R1                   ; the save area is in the BIOS copy
+.else
     LDI 0
     MVS DS, R0
+.endif
     MVS SS, R0
     MOV R1, PC
 ill_ret_addr_lr:
@@ -18025,7 +18475,11 @@ ill_get_r14:
     JMP LR
     NOP
 ill_get_r15:
+.ifdef D16D
+    LDI ill_pc_save_bios - BIOS_BASE
+.else
     LDI ill_pc_save
+.endif
     LD R2, R0, 0
     JMP LR
     NOP
@@ -18090,15 +18544,29 @@ ill_put_none:
     NOP
 
 ill_get_table:
+.ifdef D16D
+    .word ill_get_r0 - BIOS_BASE,  ill_get_r1 - BIOS_BASE,  ill_get_r2 - BIOS_BASE,  ill_get_r3 - BIOS_BASE
+    .word ill_get_r4 - BIOS_BASE,  ill_get_r5 - BIOS_BASE,  ill_get_r6 - BIOS_BASE,  ill_get_r7 - BIOS_BASE
+    .word ill_get_r8 - BIOS_BASE,  ill_get_r9 - BIOS_BASE,  ill_get_r10 - BIOS_BASE, ill_get_r11 - BIOS_BASE
+    .word ill_get_r12 - BIOS_BASE, ill_get_r13 - BIOS_BASE, ill_get_r14 - BIOS_BASE, ill_get_r15 - BIOS_BASE
+.else
     .word ill_get_r0,  ill_get_r1,  ill_get_r2,  ill_get_r3
     .word ill_get_r4,  ill_get_r5,  ill_get_r6,  ill_get_r7
     .word ill_get_r8,  ill_get_r9,  ill_get_r10, ill_get_r11
     .word ill_get_r12, ill_get_r13, ill_get_r14, ill_get_r15
+.endif
 ill_put_table:
+.ifdef D16D
+    .word ill_put_r0 - BIOS_BASE,  ill_put_r1 - BIOS_BASE,  ill_put_r2 - BIOS_BASE,  ill_put_r3 - BIOS_BASE
+    .word ill_put_r4 - BIOS_BASE,  ill_put_r5 - BIOS_BASE,  ill_put_r6 - BIOS_BASE,  ill_put_r7 - BIOS_BASE
+    .word ill_put_r8 - BIOS_BASE,  ill_put_r9 - BIOS_BASE,  ill_put_r10 - BIOS_BASE, ill_put_r11 - BIOS_BASE
+    .word ill_put_r12 - BIOS_BASE, ill_put_none - BIOS_BASE, ill_put_none - BIOS_BASE, ill_put_none - BIOS_BASE
+.else
     .word ill_put_r0,  ill_put_r1,  ill_put_r2,  ill_put_r3
     .word ill_put_r4,  ill_put_r5,  ill_put_r6,  ill_put_r7
     .word ill_put_r8,  ill_put_r9,  ill_put_r10, ill_put_r11
     .word ill_put_r12, ill_put_none, ill_put_none, ill_put_none
+.endif
 
 ; ---- the saved handler bank (segment 0, beside the handler) -----------
 ill_save_sp:
@@ -18422,6 +18890,7 @@ irq_audio_fill:
     SR R2, 8                 ; odd index: high byte
 irq_audio_low:
     LDI 0xFF
+    MOV R1, R0
     MOV R3, R0
     AND R2, R3               ; byte
     LDI 0x80
@@ -18443,10 +18912,12 @@ irq_audio_push:
     STS R2, ES, R3           ; two FIFO words per 11.10 kHz sample
     LDI 2
     MOV R3, R0
+    LDS R1, DS, R3           ; reload pos: the byte decode above used R1
     ADD R1, 1
     STS R1, DS, R3           ; pos = pos + 1
-    LDI irq_audio_fill - 0x4000
-    OR R0, 14
+    ; The label has bit 14 set, so LDI cannot hold it; halve, shift back.
+    LDI irq_audio_fill / 2
+    SL R0, 1
     MOV PC, R0
     NOP
 irq_audio_end:
@@ -18460,8 +18931,9 @@ irq_audio_end:
     MOV R2, R0
     LSI R1, 0
     STS R1, DS, R2           ; loop: restart at sample 0
-    LDI irq_audio_fill - 0x4000
-    OR R0, 14
+    ; The label has bit 14 set, so LDI cannot hold it; halve, shift back.
+    LDI irq_audio_fill / 2
+    SL R0, 1
     MOV PC, R0
     NOP
 irq_audio_stop:
@@ -18515,10 +18987,17 @@ word_divtest:
     MOV R7, R0
     LDI 7
     MOV R11, R0
+.ifdef D16D
+    LDI 14
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+.else
     LDI div16_call
     LINK
     JMP R0
     NOP
+.endif
     LD R2, SP, 0
     ADD SP, 1
     CMP R2, R0
@@ -18600,16 +19079,16 @@ bios_f5:
     INV R0
     MVS ES, R0
     SMV R2, AR1              ; R2 = buf
-    LDI gs_active
+    LDI bios_gs_active - BIOS_BASE
     MOV R10, R0
-    LD R3, R10, 0            ; a line already in progress?
+    LDS R3, CS, R10            ; a line already in progress?
     LDI 1
     CMP R3, R0
     JZ ug_have
     NOP
     MOV R3, R2               ; no: the write pointer starts at the buffer
     LDI 1
-    ST R0, R10, 0            ; line in progress
+    STS R0, CS, R10            ; line in progress
     ST R3, R10, 1            ; ptr = buf
     LDI ug_count - BIOS_BASE
     MOV PC, R0
@@ -18713,18 +19192,18 @@ ug_store:
     JNZ ug_loop
     NOP
 ug_done:
-    LDI gs_active
+    LDI bios_gs_active - BIOS_BASE
     MOV R10, R0
     LDI 0
     ST R0, R2, 0             ; NUL-terminate the line
-    ST R0, R10, 0            ; no line in progress
+    STS R0, CS, R10            ; no line in progress
     LDI 1
     MOV R2, R0
     SMV AR0, R2              ; the caller's R0 = 1: line ready
     RETI
     NOP
 ug_idle:
-    LDI gs_active
+    LDI bios_gs_active - BIOS_BASE
     MOV R10, R0
     ST R2, R10, 1            ; keep the write pointer
     LDI 0
@@ -18752,15 +19231,51 @@ ug_idle:
 ; now rejects any showcase write over a live kernel word.
 .org 0x4400
 .code
+.org 0x4400
+.code
+; serial-read ( addr pairs -- n ): hand the two arguments to BDOS function 10.
 word_serialread:
+    LD R4, SP, 0             ; pairs
+    ADD SP, 1
+    LD R1, SP, 0             ; addr
+    ADD SP, 1
+    LSI R10, 0               ; return CS
+    LDI sread_ret / 2         ; sread_ret is above LDI's 15-bit range
+    SL R0, 1
+    MOV R11, R0              ; return PC
+    LSI R2, 0
+    LDI bdos_entry
+    MOV R3, R0
+    LSI R0, 10
+    JML R2
+    NOP
+sread_ret:
+    SUB SP, 1
+    ST R0, SP, 0             ; the BDOS count
+    LDI next
+    MOV PC, R0
+    NOP
+
+; ---- BDOS function 10: the XMODEM pair reader --------------------------
+; Moved out of the kernel so the polling loop runs in the BDOS layer (I=1).
+; R1 = addr, R4 = pairs; returns R0 = complete pairs stored.
+.org 0x4460
+.code
+bdos_serial_read:
     ; ( addr pairs -- n )  read `pairs` UART bytes-pairs, packing two bytes
     ; into one cell: low byte first.  One PSRAM store per pair instead of per
     ; byte: on the board every store is a serial PSRAM transaction and one per
     ; byte was slower than 115200, so the 16-deep RX FIFO overran.
-    LD R1, SP, 0             ; pairs
-    ADD SP, 1
-    LD R2, SP, 0             ; addr
-    ADD SP, 1
+    ; BDOS function 10: R1 = addr, R4 = pairs; BDOS has no stack. The return
+    ; pair is parked in the 0x44E0 cells: the loop below uses R10 for the
+    ; first byte, and R8 cannot be used under ER=8.
+    LDI 0x2270
+    SL R0, 1                  ; R0 = 0x44E0
+    STS R10, CS, R0
+    ADD R0, 1
+    STS R11, CS, R0
+    MOV R2, R1               ; addr
+    MOV R1, R4               ; pairs
     LSI R3, 0                ; pairs stored
     LDI 0x0FFF
     INV R0
@@ -18810,11 +19325,21 @@ sread_gb:
     JNZ sread_loop
     NOP
 sread_done:
-    SUB SP, 1
-    ST R3, SP, 0             ; push the count
-    LDI next
-    MOV PC, R0
+    LDI 0x2270
+    SL R0, 1                  ; R0 = 0x44E0
+    LDS R10, CS, R0
+    ADD R0, 1
+    LDS R11, CS, R0
+    MOV R0, R3               ; count
+    LSI R1, 0
+    JML R10
     NOP
+
+.org 0x44E0
+sread_r10:
+    .word 0
+sread_r11:
+    .word 0
 
 ; serial-read's header lives beside the code, not in the kernel data: adding it
 ; at the head of the chain would move text_attr off the catalog's 0x3C1F.
@@ -18828,6 +19353,148 @@ h_sread:
     .word 11
     .text "serial-read"
     .word word_serialread
+
+; ============================================================
+; bdos-slice ( slice dest -- ): read one 4 KiB source slice.
+;
+; The nano boot loader uses this instead of the old cf-burst hookup: BDOS keeps
+; the SPI polling in the system layer (and uses the BIOS primitives when the
+; image is segmented). R5/R6 belong to the interpreter, so park them across the
+; far call.
+; ============================================================
+.org 0x4500
+.code
+word_bslice:
+    LD R4, SP, 0             ; dest
+    ADD SP, 1
+    LD R1, SP, 0             ; slice
+    ADD SP, 1
+    LDI bslice_r5
+    MOV R2, R0
+    ST R5, R2, 0             ; >IN
+    ST R6, R2, 1             ; TIB
+    LPSW R3
+    ST R3, R2, 2             ; the interpreter's PSW (ER=8, I=1)
+    ; The BDOS SPI helpers use R8 as a return pointer; with ER=8 that register
+    ; is the extra-segment base. Run the call with ER=0 but keep I=1 so timer
+    ; and raster IRQs still fire while the flash is polled.
+    LDI 0x0010
+    SPSW R0
+    LSI R10, 0               ; return CS = the kernel
+    LDI bslice_ret / 2        ; bslice_ret is above LDI's signed 15-bit range
+    SL R0, 1
+    MOV R11, R0
+    LSI R2, 0
+    LDI bdos_entry
+    MOV R3, R0
+    LSI R0, 11               ; function 11: read-slice
+    JML R2
+    NOP
+bslice_ret:
+    LDI bslice_r5
+    MOV R2, R0
+    LD R3, R2, 2
+    SPSW R3                  ; restore ER=8 for the inner interpreter
+    LD R5, R2, 0
+    LD R6, R2, 1
+    LDI next
+    MOV PC, R0
+    NOP
+.org 0x2FAA
+saved_r3:
+    .word 0
+.org 0x2FAC
+saved_r2:
+    .word 0
+
+.org 0x2FAD
+bslice_r5:
+    .word 0
+bslice_r6:
+    .word 0
+bslice_psw:
+    .word 0
+
+.org 0x4540
+h_bslice:
+    .word h_sread
+    .word 10
+    .text "bdos-slice"
+    .word word_bslice
+
+; ---- BDOS function 11: read-slice -------------------------------------
+; R1 = slice (0..511), R4 = destination offset in the caller's DS.
+; Reads the sector into 0x8000 through slice_read, then copies the 2048 words
+; to the caller. Returns R0 = 0, R1 = 0; a bus timeout returns through
+; bdos_abort like the other file helpers.
+.org 0x4580
+.code
+bdos_read_slice:
+    MVS R3, DS
+    LDI bd_src_ds
+    MOV R2, R0
+    STS R3, CS, R2
+    MVS R3, ES
+    LDI bd_src_es
+    MOV R2, R0
+    STS R3, CS, R2
+    LDI bd_src_dest
+    MOV R2, R0
+    STS R4, CS, R2
+    MOV R7, R1               ; slice_read takes the slice in R7
+    LSI R1, 1                ; direct SPI busy mask
+    LDI 0x0FFF
+    INV R0
+    MVS DS, R0               ; SPI registers
+    LDI 0x86
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, DS, R2           ; SPDIV = 0, like dir_read and bdos_load
+    LDI 0x4000
+    SL R0, 1
+    MVS ES, R0               ; 0x8000: the BDOS slice buffer
+    LDI slice_read
+    MOV R5, R0
+    LDI brs_back / 2
+    SL R0, 1
+    MOV R12, R0
+    JMP R5
+    NOP
+brs_back:
+    LDI 0x4000
+    SL R0, 1
+    MVS DS, R0               ; source segment
+    LDI bd_src_ds
+    MOV R2, R0
+    LDS R3, CS, R2
+    MVS ES, R3               ; caller's DS
+    LDI bd_src_dest
+    MOV R2, R0
+    LDS R3, CS, R2           ; caller's destination
+    LSI R2, 0
+    LDI 2048
+    MOV R5, R0
+brs_copy:
+    LDS R4, DS, R2
+    STS R4, ES, R3
+    ADD R2, 1
+    ADD R3, 1
+    SUB R5, 1
+    JNZ brs_copy
+    NOP
+    LDI bd_src_es
+    MOV R2, R0
+    LDS R3, CS, R2
+    MVS ES, R3               ; BDOS preserves ES, and the caller may be the SPI
+                             ; console holding 0xF000 there
+    LDI bd_src_ds
+    MOV R2, R0
+    LDS R3, CS, R2
+    MVS DS, R3               ; back to the caller's data segment
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
 
 ; ============================================================
 ; PS/2 host: reset and enable the keyboard (D16D only)
@@ -18844,6 +19511,139 @@ h_sread:
 ; it, so the keyboard is ready before the menu or the prompt is reached.
 ; Function 7 sends one byte, function 8 re-runs the init without clearing.
 .ifdef CONSOLE_UART
+; Common BIOS state (LAYERPLAN 1.4). 0x5790 is inside every CONSOLE_UART
+; BIOS block: 0x4A00 for D16NANO/D16D, 0x5600 for the D16MINI UART build.
+.org 0x5790
+; BIOS f6 clears these five in one contiguous run, so keep the order.
+bios_out_col:
+    .word 0
+bios_out_esc:
+    .word 0
+bios_tile_row:
+    .word 0
+bios_tile_off:
+    .word 0
+bios_tile_col:
+    .word 0
+bios_gfx_r5:
+    .word 0
+bios_gfx_r6:
+    .word 0
+bios_csi_param:
+    .word 0
+bios_csi_p0:
+    .word 0
+bios_csi_p1:
+    .word 0
+bios_csi_np:
+    .word 0
+bios_csi_priv:
+    .word 0
+bios_gs_active:
+    .word 0
+bios_gs_ptr:
+    .word 0
+
+.org 0x579E
+bios_f17:
+    LDI bios_out_col - BIOS_BASE
+    MOV R2, R0
+    LDS R0, CS, R2
+    RETI
+    NOP
+bios_f18:
+    LDI bios_tile_off - BIOS_BASE
+    MOV R2, R0
+    LSI R0, 0
+    STS R0, CS, R2
+    RETI
+    NOP
+bios_f19:
+    LDI bios_gs_active - BIOS_BASE
+    MOV R2, R0
+    LSI R0, 0
+    STS R0, CS, R2
+    RETI
+    NOP
+
+; ---- 20/21/22: atomic SPI primitives --------------------------------
+; f20 spi-ctrl: R1 = control (bit1 CS1), R2 = divider. f21 spi-start:
+; R1 = byte. f22 spi-poll: R0 = 1 when a transfer finished, R1 = byte.
+.org 0x57B0
+bios_f20:
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    SMV R1, AR1
+    SMV R2, AR2
+    LDI 0x0080
+    MOV R3, R0
+    STS R1, ES, R3
+    LDI 0x0086
+    MOV R3, R0
+    STS R2, ES, R3
+    LSI R0, 0
+    RETI
+    NOP
+bios_f21:
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    SMV R1, AR1
+    LDI 0x0084
+    MOV R2, R0
+    STS R1, ES, R2
+    LSI R0, 0
+    RETI
+    NOP
+bios_f22:
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x0082
+    MOV R2, R0
+    LDS R1, ES, R2
+    LSI R3, 1
+    AND R1, R3
+    JNZ bios_f22_busy
+    NOP
+    LDI 0x0084
+    MOV R2, R0
+    LDS R1, ES, R2
+    LSI R0, 1
+    RETI
+    NOP
+bios_f22_busy:
+    LSI R0, 0
+    LSI R1, 0
+    RETI
+    NOP
+
+
+.org 0x4D0C
+.code
+bios_f16:
+    ; 16: constat -> R0 = -1 when a console byte is waiting, 0 when not.
+    ; (f16 was the unused udiv stub; key? uses it now, so the table does not
+    ; grow and the showcase overlay stays put.)
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI CONSOLE_STATUS
+    MOV R2, R0
+    LDS R1, ES, R2
+    LSI R3, 1
+    AND R1, R3
+    JNZ bios_f16_ready
+    NOP
+    LSI R0, 0
+    RETI
+    NOP
+bios_f16_ready:
+    LSI R0, -1
+    RETI
+    NOP
+
 .ifdef D16D
 .org 0x5490
 .code
@@ -18864,15 +19664,22 @@ bios_f7:
     RETI
     NOP
 
-; ---- 8: ps2-init ---------------------------------------------------------
-; Reset and enable scanning, then drain what the reset left in the input
-; queues. binit calls the same routine at boot.
+; ---- 8: ps2-status ------------------------------------------------------
+; Non-blocking: the handler's R0 = display status (0xF0066; bit 7 is the
+; receiver's frame toggle, bits 5/6 the synchronised CLK/DATA levels) and
+; R1 = the millisecond timer's low half (0xF0022). BDOS runs the reset/enable
+; state machine with I=1 and only comes here for a snapshot.
 bios_f8:
-    LDI ps2_init - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x0066
+    MOV R2, R0
+    LDS R3, ES, R2           ; status, parked while R0 is reused
+    LDI 0x0022
+    MOV R2, R0
+    LDS R1, ES, R2           ; timer low
+    MOV R0, R3
     RETI
     NOP
 
@@ -19085,215 +19892,251 @@ ps2_release:
     JMP LR
     NOP
 
-; ---- ps2_wait_ticks ------------------------------------------------------
-; R1 = milliseconds to wait; the system timer's low half (0xF0022) increments
-; once per millisecond. Signed difference, so the 16-bit wrap is fine.
-ps2_wait_ticks:
-    LDI 0x0022
+; ILL entry trampoline (D16SEG): the trap enters at CS=0, PC from vector 0.
+; The handler itself lives in the BIOS copy (CS=0x3000, offset 0x600), where
+; it can reach the BIOS division routines. Reached only at CS=0.
+.org 0x4D24
+.code
+ill_trampoline:
+    LDI 0x3000
     MOV R2, R0
-    LDS R3, ES, R2
-    ADD R3, R1
-ps2_wt_loop:
-    LDS R4, ES, R2
-    SUB R4, R3
-    JN ps2_wt_loop
+    LDI 0x0600
+    MOV R3, R0
+    JML R2
+    NOP
+
+
+; ---- 14/15/16: division -------------------------------------------------
+; Forth's signed 16/16, signed 32/16 and exact unsigned 32/16. The handlers
+; use a small reserved stack, set in bios_entry, because the routines save
+; registers there.
+.org 0x4D00
+.code
+bios_f14:
+    LDI bios_div16_call - BIOS_BASE
+    LINK
+    JMP R0
+    NOP
+    RETI
+    NOP
+bios_f15:
+    LDI bios_sdiv32 - BIOS_BASE
+    LINK
+    JMP R0
+    NOP
+    RETI
+    NOP
+
+; ---- BIOS division copies for the ILL handler -------------------------
+; The ILL now runs in the BIOS segment, so its DIV/DIV32 traps must call
+; code in this segment. The Forth call sites keep the kernel copies for now.
+.org 0x5550
+.code
+; bios_udiv16: one 16/16 restoring step. R10 = dividend, R11 = divisor,
+; R7 = initial remainder (< divisor). Out: R9 = quotient, R7 = remainder.
+; This is the old udiv_slow loop with the divisor in R11 so the 32-bit wrapper
+; can keep the low half in R5.
+bios_udiv16:
+    LDI 0
+    MOV R9, R0              ; quotient = 0
+    LDI 16
+    MOV R3, R0              ; sixteen dividend bits
+bios_udiv16_loop:
+    MOV R2, R10
+    SR R2, 15               ; next dividend bit
+    SL R10, 1
+    MOV R0, R7
+    SL R0, 1                ; C = remainder's top bit
+    JC bios_udiv16_ovf
+    NOP
+    SL R7, 1
+    OR R7, R2
+    CMP R7, R11
+    JC bios_udiv16_nosub         ; carry = borrow: still below the divisor
+    NOP
+    SUB R7, R11
+    SL R9, 1
+    ADD R9, 1
+    LDI bios_udiv16_next - BIOS_BASE
+    MOV PC, R0
+    NOP
+bios_udiv16_nosub:
+    SL R9, 1
+    LDI bios_udiv16_next - BIOS_BASE
+    MOV PC, R0
+    NOP
+bios_udiv16_ovf:
+    SL R7, 1
+    OR R7, R2
+    SUB R7, R11
+    SL R9, 1
+    ADD R9, 1
+bios_udiv16_next:
+    SUB R3, 1
+    LDI 0
+    CMP R3, R0
+    JNZ bios_udiv16_loop
     NOP
     JMP LR
     NOP
 
-; ---- ps2_wait_frame ------------------------------------------------------
-; R1 = timeout in milliseconds. Waits for the receiver's frame toggle (bit 7)
-; to change and returns R0 = 1 when it does, 0 on timeout.
-ps2_wait_frame:
-    LDI 0x0066
-    MOV R2, R0
-    LDS R3, ES, R2
-    LDI 0x0080
-    MOV R4, R0
-    AND R3, R4               ; R3 = the toggle before we sent
-    LDI 0x0022
+; bios_sdiv32: signed 32/16 with DIV32 semantics. R4:R7 / R11 -> R0 quotient,
+; R1 remainder. The first 16/16 step produces the high quotient (discarded for
+; the 16-bit result), the second the low quotient and the final remainder.
+bios_sdiv32:
+    SUB SP, 1
+    ST R2, SP, 0
+    SUB SP, 1
+    ST R3, SP, 0
+    SUB SP, 1
+    ST R5, SP, 0
+    SUB SP, 1
+    ST R9, SP, 0
+    SUB SP, 1
+    ST R10, SP, 0
+    SUB SP, 1
+    ST R12, SP, 0
+    SUB SP, 1
+    ST R14, SP, 0
+
+    LDI 0
+    CMP R11, R0
+    JZ bios_sd_zero
+    NOP
+
+    ; signs: R12 bit 0 = dividend negative, bit 1 = divisor negative
+    LDI 0
+    MOV R12, R0
+    MOV R2, R4
+    SL R2, 1
+    JNC bios_sd_asign_done
+    NOP
+    ADD R12, 1
+    INV R7
+    ADD R7, 1
+    JC bios_sd_ahi1
+    NOP
+    INV R4
+    LDI bios_sd_asign_done - BIOS_BASE
+    MOV PC, R0
+    NOP
+bios_sd_ahi1:
+    INV R4
+    ADD R4, 1
+bios_sd_asign_done:
+    MOV R2, R11
+    SL R2, 1
+    JNC bios_sd_bsign_done
+    NOP
+    ADD R12, 2
+    NEG R11
+bios_sd_bsign_done:
+    ; high half first; keep the low half in R5, the remainder in R7
+    MOV R5, R7
+    LDI 0
     MOV R7, R0
-    LDS R9, ES, R7
-    ADD R9, R1               ; R9 = deadline
-ps2_wf_loop:
-    LDS R10, ES, R2
-    LDI 0x0080
-    MOV R4, R0
-    AND R10, R4
-    CMP R10, R3
-    JNZ ps2_wf_seen
+    MOV R10, R4
+    LDI bios_udiv16 - BIOS_BASE
+    LINK
+    JMP R0
     NOP
-    LDS R4, ES, R7
-    SUB R4, R9
-    JN ps2_wf_loop
-    NOP
-    LDI 0                    ; timed out: no answer
-    JMP LR
-    NOP
-ps2_wf_seen:
-    LSI R0, 1
-    JMP LR
+    MOV R10, R5
+    LDI bios_udiv16 - BIOS_BASE
+    LINK
+    JMP R0
     NOP
 
-; ---- ps2_init ------------------------------------------------------------
-; Reset the keyboard, wait for its ACK/BAT, then enable scanning four times (a
-; keyboard still in POST swallows the early ones; a repeat is harmless). The
-; 0xFFFF guard keeps the JS core out: it has no PS/2 model and reads erased
-; memory at 0xF0066, while the board never drives bits 15:11.
-ps2_init:
-    LDI ps2_lr - BIOS_BASE
-    MOV R10, R0
-    STS LR, CS, R10
-    LDI 0x0FFF
-    INV R0
-    MVS ES, R0
-    LDI 0x0066
+    ; remainder sign follows the dividend; quotient sign is the xor
+    MOV R2, R12
+    LDI 1
     MOV R3, R0
-    LDS R7, ES, R3
-    LSI R4, -1
-    CMP R7, R4
-    JZ ps2_init_done
+    AND R2, R3
+    CMP R2, 0
+    JZ bios_sd_rem_pos
+    NOP
+    NEG R7
+bios_sd_rem_pos:
+    MOV R2, R12
+    LDI 3
+    MOV R3, R0
+    AND R2, R3
+    CMP R2, 0
+    JZ bios_sd_quot_pos
+    NOP
+    CMP R2, 3
+    JZ bios_sd_quot_pos
+    NOP
+    NEG R9
+bios_sd_quot_pos:
+    MOV R0, R9
+    MOV R1, R7
+    LD R14, SP, 0
+    ADD SP, 1
+    LD R12, SP, 0
+    ADD SP, 1
+    LD R10, SP, 0
+    ADD SP, 1
+    LD R9, SP, 0
+    ADD SP, 1
+    LD R5, SP, 0
+    ADD SP, 1
+    LD R3, SP, 0
+    ADD SP, 1
+    LD R2, SP, 0
+    ADD SP, 1
+    JMP LR
     NOP
 
-    ; settle ~0.3 s, so the keyboard is not still in its own power-on test
-    LDI 300
-    MOV R1, R0
-    LDI ps2_wait_ticks - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
+bios_sd_zero:
+    LDI 0
+    SUB R0, 1
+    MOV R1, R7              ; Rd+1 is untouched by DIV32 by zero
+    LD R14, SP, 0
+    ADD SP, 1
+    LD R12, SP, 0
+    ADD SP, 1
+    LD R10, SP, 0
+    ADD SP, 1
+    LD R9, SP, 0
+    ADD SP, 1
+    LD R5, SP, 0
+    ADD SP, 1
+    LD R3, SP, 0
+    ADD SP, 1
+    LD R2, SP, 0
+    ADD SP, 1
+    JMP LR
     NOP
 
-    ; Reset. A keyboard still in its own POST may ignore the frame, so retry
-    ; while the sender reports no clock (four attempts, ~0.3 s apart). This
-    ; is the important difference from the Forth init: binit runs as soon as
-    ; the FPGA is configured, often before the keyboard is ready.
-    LDI ps2_count - BIOS_BASE
-    MOV R10, R0
-    LSI R7, 4
-    STS R7, CS, R10
-ps2_init_reset:
-    LDI 0xFF
-    MOV R1, R0
-    LDI ps2_send - BIOS_BASE
+; bios_div16_call: wrap the signed 16/16 DIV sites. The caller puts the dividend in
+; R7 and the divisor in R11; the routine sign-extends the dividend to 32 bits
+; and calls bios_sdiv32. Out R0 = quotient, R1 = remainder. R2,R3,R5,R6,R8,R9,R10,
+; R12 and R14 survive; R4/R7/R11 are the argument/scratch registers.
+bios_div16_call:
+    SUB SP, 1
+    ST R14, SP, 0
+    CMP R7, 0
+    JN bios_d16_neg
+    NOP
+    LDI 0
     MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    AND R0, R0
-    JNZ ps2_init_reset_ok
-    NOP
-    LDI 300                  ; ~0.3 s between attempts
-    MOV R1, R0
-    LDI ps2_wait_ticks - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI ps2_count - BIOS_BASE
-    MOV R10, R0
-    LDS R7, CS, R10
-    SUB R7, 1
-    STS R7, CS, R10
-    AND R7, R7
-    JNZ ps2_init_reset
-    NOP
-    LDI ps2_init_flush - BIOS_BASE
+    LDI bios_d16_do - BIOS_BASE
     MOV PC, R0
     NOP
-ps2_init_reset_ok:
-    ; Two frames: ACK 0xFA, then BAT 0xAA. Waiting for BAT (or its 1 s
-    ; timeout) keeps the first 0xF4 from arriving while the keyboard is still
-    ; running its self test. The counter is a BIOS cell: the helpers clobber
-    ; the scratch registers, R9 included.
-    LDI ps2_count - BIOS_BASE
-    MOV R10, R0
-    LSI R7, 2
-    STS R7, CS, R10
-ps2_init_bat:
-    LDI 1000                 ; ~1.0 s per frame
-    MOV R1, R0
-    LDI ps2_wait_frame - BIOS_BASE
+bios_d16_neg:
+    LDI 0
+    SUB R0, 1
     MOV R4, R0
+bios_d16_do:
+    LDI bios_sdiv32 - BIOS_BASE
     LINK
-    JMP R4
+    JMP R0
     NOP
-    LDI ps2_count - BIOS_BASE
-    MOV R10, R0
-    LDS R7, CS, R10
-    SUB R7, 1
-    STS R7, CS, R10
-    AND R7, R7
-    JNZ ps2_init_bat
-    NOP
-
-    ; A short guard after BAT: the keyboard is ready, but the first 0xF4
-    ; should not race the tail of its self test.
-    LDI 400
-    MOV R1, R0
-    LDI ps2_wait_ticks - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-
-    LDI ps2_count - BIOS_BASE
-    MOV R10, R0
-    LSI R7, 4
-    STS R7, CS, R10
-ps2_init_enable:
-    LDI 0xF4                 ; enable scanning
-    MOV R1, R0
-    LDI ps2_send - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    AND R0, R0
-    JZ ps2_init_flush
-    NOP
-    LDI 400                  ; ~0.4 s
-    MOV R1, R0
-    LDI ps2_wait_frame - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI ps2_count - BIOS_BASE
-    MOV R10, R0
-    LDS R7, CS, R10
-    SUB R7, 1
-    STS R7, CS, R10
-    AND R7, R7
-    JNZ ps2_init_enable
-    NOP
-
-ps2_init_flush:
-    ; A key pressed during boot would sit in front of the prompt. Only the
-    ; keyboard FIFO is drained: the UART is the separate serial stream now.
-    LDI 0x0060
-    MOV R2, R0
-ps2_init_flush_loop:
-    LDS R3, ES, R2
-    AND R3, R3
-    JZ ps2_init_done
-    NOP
-    LDI 0x0062
-    MOV R3, R0
-    LDS R4, ES, R3
-    LDI ps2_init_flush_loop - BIOS_BASE
-    MOV PC, R0
-    NOP
-
-ps2_init_done:
-    LDI 0x0FFF
-    INV R0
-    MVS ES, R0
-    LDI ps2_lr - BIOS_BASE
-    MOV R10, R0
-    LDS LR, CS, R10
+    LD R14, SP, 0
+    ADD SP, 1
     JMP LR
     NOP
+
 
 ; ============================================================
 ; Game sound effects (BIOS functions 9 and 10)
@@ -19753,6 +20596,10 @@ sfx_table:
 
 ; Saved registers and effect state, kept in the BIOS block so they cost the
 ; kernel dictionary nothing (dict_free must stay 0x434F).
+.org 0x57D0
+ill_pc_save_bios:
+    .word 0
+
 .org 0x57E0
 ps2_r5:
     .word 0

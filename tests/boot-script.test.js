@@ -115,7 +115,11 @@ test('ver prints the release tuple', () => {
                `unexpected version line: ${JSON.stringify(out)}`);
 });
 
-test('asm/forth.asm carries the current forth/boot.fth', () => {
+test('both kernels carry their current boot script', () => {
   execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'embed_forth.mjs'), '--check'],
                { cwd: ROOT, stdio: 'pipe' });
+  const mini = fs.readFileSync(path.join(ROOT, 'asm', 'forth.asm'), 'utf8');
+  const nano = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
+  assert.match(mini, />>> generated from forth\/boot\.fth/);
+  assert.match(nano, />>> generated from forth\/boot-nano\.fth/);
 });

@@ -209,10 +209,10 @@ test('Pac-Man slows down after eating a dot', () => {
   assert.ok(st(sim, 'ST_PAC_TMR') >= 1, `dot delay leaves a one-frame pause (${st(sim, 'ST_PAC_TMR')})`);
 });
 
-test('the six runtime sprite frames are copied into the sprite bank', () => {
+test('the munch and ghost frames are copied into the sprite bank', () => {
   const sim = start();
   run(sim, 320);
-  for (const { group, grid } of pacmanRuntimeSpriteFrames()) {
+  for (const { group, grid } of [...pacmanRuntimeSpriteFrames(), ...pacmanGhostSpriteFrames()]) {
     const expected = spriteFrameWords(grid);
     for (let i = 0; i < expected.length; i++) {
       assert.equal(sim.memory[0xF4000 + group * 256 + i], expected[i],
@@ -468,25 +468,18 @@ test('a ghost bonus appears in the maze and restores the tilemap', () => {
   assert.ok((sim.memory[0xF6000] | 0) & 0x0800, 'Pac-Man sprite is back');
 });
 
-test('leaving the game restores Flappy sprite groups and palette entries', () => {
+test('leaving the game restores palette entries while slice sprites stay installed', () => {
   const sim = start();
-  const groups = [5, 13, 21];
-  const pattern = new Map();
-  for (const g of groups) {
-    for (let i = 0; i < 256; i++) {
-      const v = (g * 257 + i * 13) & 0xFFFF;
-      sim.memory[0xF4000 + g * 256 + i] = v;
-      pattern.set(`${g},${i}`, v);
-    }
-  }
   for (let i = 0; i < 4; i++) sim.memory[0xF6000 + 0xE6 + i] = 0x1200 + i;
   run(sim, 320);
   assert.equal(runToExit(sim, 30, 0x71), true, 'Q returns to the menu');
-  for (const g of groups) {
-    for (let i = 0; i < 256; i++) {
-      assert.equal(sim.memory[0xF4000 + g * 256 + i], pattern.get(`${g},${i}`),
-                   `group ${g} word ${i} restored`);
-    }
+
+  // Games own their sprite groups. Pac-Man installs its pack on entry; the
+  // next game installs its own pack rather than relying on a restored bank.
+  const ghost = pacmanGhostSpriteFrames().find((frame) => frame.group === 5);
+  const words = spriteFrameWords(ghost.grid);
+  for (let i = 0; i < words.length; i++) {
+    assert.equal(sim.memory[0xF4000 + 5 * 256 + i], words[i], `group 5 word ${i}`);
   }
   assert.deepEqual([0, 1, 2, 3].map((i) => sim.memory[0xF6000 + 0xE6 + i] | 0),
                    [0x1200, 0x1201, 0x1202, 0x1203], 'sprite palette restored');

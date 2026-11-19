@@ -1,11 +1,12 @@
-// The PS/2 host init is BIOS code now (asm/forth_nano.asm, 0x5490).
+// The PS/2 host init is BDOS function 9 (asm/forth_nano.asm), with I=1; only
+// the bit-level sender stays in the BIOS (function 7).
 //
 // It is hard to reach from the normal REPL tests: the JS core has no PS/2
-// model, so binit's 0xFFFF guard skips it. This file runs `ps2_init` directly
-// in the segmented map and emulates the keyboard side of the wire: the host
-// drives CLK/DATA through control 6 (0x200C), the keyboard clocks 11 bits and
-// flips the receiver's frame toggle (0xF0066 bit 7) for every good frame. That
-// is enough to pin the reset/enable order, the ACK/BAT waits and the
+// model, so the 0xFFFF guard skips it. This file runs the BDOS entry in the
+// segmented map and emulates the keyboard side of the wire: the host drives
+// CLK/DATA through control 6 (0x200C), the keyboard clocks 11 bits and flips
+// the receiver's frame toggle (0xF0066 bit 7) for every good frame. That is
+// enough to pin the reset/enable order, the ACK/BAT waits and the
 // no-keyboard timeout.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,7 +20,7 @@ const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm')
                         { defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1 } });
 const BIOS = 0x3000;
 const DS = 0x1000;
-const HALT = 0xBF0;                    // a free BIOS word, filled with 0xFFFF
+const HALT = 0x0480;                   // a free kernel word, filled with 0xFFFF
 const CTRL = 0xF200C;
 const STATUS = 0xF0066;
 
@@ -28,7 +29,8 @@ function machine() {
   for (const c of kernel.memoryChanges) if (c.address < 0x6000) mem[c.address] = c.value & 0xFFFF;
   for (let w = 0x3000; w <= 0x57dc; w++) mem[(DS << 4) + w] = mem[w];
   for (let w = 0x4a00; w <= 0x57ff; w++) mem[(BIOS << 4) + (w - 0x4a00)] = mem[w];
-  mem[(BIOS << 4) + HALT] = 0xFFFF;     // JMP LR lands here and halts
+  mem[HALT] = 0xFFFF;                   // the BDOS return lands here and halts
+  mem[2] = kernel.symbols.swi_to_bios;  // SWI vector, physical 0/2 in CS=0
 
   const sim = new globalThis.Deep16Simulator();
   sim.loadProgram(mem);
@@ -36,12 +38,14 @@ function machine() {
   sim.cycleCount = 0;
   sim.memory[STATUS] = 0x0060;          // CLK/DATA high, toggle 0
   sim.memory[CTRL] = 0;
-  sim.segmentRegisters.CS = BIOS;
+  sim.segmentRegisters.CS = 0;
   sim.segmentRegisters.DS = DS;
   sim.segmentRegisters.SS = 0x2000;
   sim.segmentRegisters.ES = 0xF000;
-  sim.registers[14] = HALT;
-  sim.registers[15] = kernel.symbols.ps2_init - kernel.symbols.bios_entry;
+  sim.registers[0] = 9;                 // BDOS function 9: ps2-init
+  sim.registers[10] = 0;                // return CS = kernel
+  sim.registers[11] = HALT;             // return PC
+  sim.registers[15] = kernel.symbols.bdos_entry;
   sim.psw = 0;
   sim.running = true;
   return sim;
@@ -50,7 +54,7 @@ function machine() {
 // Runs ps2_init with a scripted keyboard. Returns the bytes the host sent and
 // whether the routine returned. Phases are 12 steps: long enough for the
 // sender's poll loops to see every edge.
-function run({ keyboard = true, erased = false, ignore = 0, maxSteps = 30_000_000 } = {}) {
+function run({ keyboard = true, erased = false, ignore = 0, maxSteps = 120_000_000 } = {}) {
   const sim = machine();
   if (erased) sim.memory[STATUS] = 0xFFFF;
   let clk = 1, data = 1, toggle = 0;
@@ -97,29 +101,29 @@ function run({ keyboard = true, erased = false, ignore = 0, maxSteps = 30_000_00
       sim.memory[STATUS] = status();
     }
     sim.step();
-    if ((sim.segmentRegisters.CS & 0xFFFF) === BIOS && (sim.registers[15] & 0xFFFF) === HALT) {
+    if ((sim.segmentRegisters.CS & 0xFFFF) === 0 && (sim.registers[15] & 0xFFFF) === HALT) {
       return { sim, sent, steps, returned: true };
     }
   }
   return { sim, sent, steps, returned: false };
 }
 
-test('ps2_init sends reset, waits for ACK/BAT, then enables four times', () => {
+test('BDOS ps2-init sends reset, waits for ACK/BAT, then enables four times', () => {
   const r = run();
-  assert.equal(r.returned, true, 'ps2_init returned');
+  assert.equal(r.returned, true, 'ps2-init returned');
   assert.deepEqual(r.sent, [0xFF, 0xF4, 0xF4, 0xF4, 0xF4]);
   assert.equal(r.sim.segmentRegisters.ES, 0xF000, 'ES back to the I/O segment');
 });
 
-test('ps2_init retries a reset the keyboard does not clock', () => {
+test('BDOS ps2-init retries a reset the keyboard does not clock', () => {
   const r = run({ ignore: 2, maxSteps: 20_000_000 });
   assert.equal(r.returned, true, 'the third reset was accepted');
   assert.deepEqual(r.sent, [0xFF, 0xF4, 0xF4, 0xF4, 0xF4]);
 });
 
-test('ps2_init returns when the keyboard never clocks', () => {
+test('BDOS ps2-init returns when the keyboard never clocks', () => {
   const r = run({ keyboard: false, maxSteps: 20_000_000 });
-  assert.equal(r.returned, true, 'the sender timeouts let binit continue');
+  assert.equal(r.returned, true, 'the sender timeouts let the console continue');
   assert.deepEqual(r.sent, [], 'nothing was clocked');
 });
 

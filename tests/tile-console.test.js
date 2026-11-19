@@ -58,19 +58,19 @@ function cell(row, col) {
 
 test('a bottom-row line feed clears the row that scrolls in', () => {
   boot();
-  const startRow = sim.memory[sym.tile_row];
+  const startRow = sim.memory[sym.bios_tile_row];
   assert.ok(startRow >= 2, `banner, loading lines, summary and prompt occupy ${startRow} rows`);
-  assert.equal(sim.memory[sym.tile_off], 0);
+  assert.equal(sim.memory[sym.bios_tile_off], 0);
 
   // Empty lines are the cheapest way down the screen: each prints the prompt
   // and ends with a line feed, and the last few push the row offset up.
-  while (sim.memory[sym.tile_row] < ROWS - 1) press('\n');
-  assert.equal(sim.memory[sym.tile_row], ROWS - 1);
-  assert.equal(sim.memory[sym.tile_off], 0);
+  while (sim.memory[sym.bios_tile_row] < ROWS - 1) press('\n');
+  assert.equal(sim.memory[sym.bios_tile_row], ROWS - 1);
+  assert.equal(sim.memory[sym.bios_tile_off], 0);
 
   press('\n');
-  assert.equal(sim.memory[sym.tile_row], ROWS - 1, 'the cursor row stays at the bottom');
-  assert.equal(sim.memory[sym.tile_off], 1, 'the window scrolled by one row');
+  assert.equal(sim.memory[sym.bios_tile_row], ROWS - 1, 'the cursor row stays at the bottom');
+  assert.equal(sim.memory[sym.bios_tile_off], 1, 'the window scrolled by one row');
 
   // Logical row 23 now maps to physical row (23 + off) % 26 = 24, the first
   // hidden margin row. It must hold the prompt and nothing else.
@@ -91,14 +91,14 @@ test('a bottom-row line feed clears the row that scrolls in', () => {
   // The next line feed must scroll again; the old bug also wedged the offset
   // because the writes landed in the I/O segment.
   press('\n');
-  assert.equal(sim.memory[sym.tile_off], 2);
-  assert.equal(sim.memory[sym.tile_row], ROWS - 1);
+  assert.equal(sim.memory[sym.bios_tile_off], 2);
+  assert.equal(sim.memory[sym.bios_tile_row], ROWS - 1);
 
   // The ring has two margin rows: offsets 24 and 25 are valid, then wrap to 0.
-  while (sim.memory[sym.tile_off] < MAP_ROWS - 1) press('\n');
-  assert.equal(sim.memory[sym.tile_off], MAP_ROWS - 1);
+  while (sim.memory[sym.bios_tile_off] < MAP_ROWS - 1) press('\n');
+  assert.equal(sim.memory[sym.bios_tile_off], MAP_ROWS - 1);
   press('\n');
-  assert.equal(sim.memory[sym.tile_off], 0, 'row offset wraps after both margin rows');
+  assert.equal(sim.memory[sym.bios_tile_off], 0, 'row offset wraps after both margin rows');
 });
 
 test('the text attribute carries underline, bold and italic into the tilemap cell', () => {

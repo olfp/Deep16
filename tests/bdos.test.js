@@ -9,6 +9,7 @@
 //   1  directory   -> R0 = 0, R1 = 0x8000 (the slice-0 image in PSRAM)
 //   2  lookup      -> R1 = name pointer; R0 = first slice, or 0xFFFF
 //   3  load        -> R1 = first slice; R0 = segment, R1 = entry
+//  11  read-slice  -> R1 = slice, R4 = dest in the caller's DS; R0 = 0
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -38,9 +39,11 @@ test('the BDOS entry is the first word of the free kernel block', () => {
 });
 
 // Call function `fn` with R1 = arg, then halt at 0x0200.
-function callBdos(fn, arg = 0, { mem, flash } = {}) {
+function callBdos(fn, arg = 0, { mem, flash, arg4 = 0 } = {}) {
   const stub = assemble(`
         .org 0x0100
+        LDI ${arg4}
+        MOV R4, R0            ; fourth argument (read-slice destination)
         LDI ${fn}
         MOV R8, R0            ; park the function: LDI always writes R0
         LDI ${arg}
@@ -61,6 +64,10 @@ function callBdos(fn, arg = 0, { mem, flash } = {}) {
   `);
   assert.equal(stub.success, true, stub.errors?.join('; '));
   const image = mem || buildMemory(kernel);
+  // BDOS now polls SPI through the BIOS SWIs; give it the segmented BIOS copy
+  // and the SWI vector, like the board/flash loader does.
+  for (let w = 0x4a00; w <= 0x57ff; w++) image[(0x3000 << 4) + (w - 0x4a00)] = image[w];
+  image[2] = kernel.symbols.swi_to_bios;
   for (const c of stub.memoryChanges) image[c.address] = c.value & 0xFFFF;
   const sim = new Deep16Simulator();
   sim.loadProgram(image);
@@ -204,6 +211,8 @@ test('a second load starts at offset 0 in its own segment', () => {
   `);
   assert.equal(stub.success, true, stub.errors?.join('; '));
   const image = buildMemory(kernel);
+  for (let w = 0x4a00; w <= 0x57ff; w++) image[(0x3000 << 4) + (w - 0x4a00)] = image[w];
+  image[2] = kernel.symbols.swi_to_bios;
   for (const c of stub.memoryChanges) image[c.address] = c.value & 0xFFFF;
   const sim = new Deep16Simulator();
   sim.loadProgram(image);
@@ -251,5 +260,20 @@ test('function 7 (fwrite) is not implemented yet', () => {
   const { r0, r1 } = callBdos(7, 1);
   assert.equal(r0, 0xFFFF);
   assert.equal(r1, 4);
+});
+
+test('function 11 reads a source slice into callers DS and keeps ES', () => {
+  const helloFirst = slices.manifest.objects.hello.first;
+  const dest = 0x2000;                  // free during this halted stub
+  const { r0, r1, sim } = callBdos(11, helloFirst, { arg4: dest });
+  assert.equal(r0, 0);
+  assert.equal(r1, 0);
+  assert.equal(sim.segmentRegisters.ES, 0, 'ES is restored (0xF000 for the console)');
+  assert.equal(sim.segmentRegisters.DS, 0, 'DS is restored');
+  const off = helloFirst * SLICE_BYTES;
+  for (const cell of [0, 1, 2, 8, 8 + 31, 2047]) {
+    const want = slices.bytes[off + cell * 2] | (slices.bytes[off + cell * 2 + 1] << 8);
+    assert.equal(sim.memory[dest + cell] & 0xFFFF, want, `word ${cell}`);
+  }
 });
 

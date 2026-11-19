@@ -66,13 +66,13 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 #   -o 0x200000 artifacts/image/slices.bin
 ```
 
-The current image is 48 slices / 192 KB: directory 0, start 1,
+The current image is 55 slices / 220 KB: directory 0, start 1,
 essentials 2–3 (SPI/config flash, `dir`/`find`, slice editor, `p-screen`),
 edit 4–10, graphics 11–12 (SIC/raster, scene, palettes, I2S, sprites),
-audio 13–14 (μ-law player), games 15–16, sd-card 17–19, Pac-Man 20–23,
-Flappy 24–26, Frogger 27–30, the Pole harness 31, hello 32, the demo `ping`
-sample 33 and the 2-second `swoosh` sample 34–39, and the on-device LILA
-compiler 40–47.
+audio 13–14 (μ-law player), games 15–16, sd-card 17–19, Pac-Man 20–25,
+Flappy 26–32, Frogger 33–37, the Pole harness 38, hello 39, the demo `ping`
+sample 40 and the 2-second `swoosh` sample 41–46, and the on-device LILA
+compiler 47–54.
 
 The LILA compiler is a TEXT object, eight slices long, so the boot loader's
 `screen` cap is 16,320 characters (eight slices of 2,040) and `text-buf` is
@@ -100,9 +100,12 @@ the keyboard before the menu (BIOS function 8 and the `cls` word repeat it
 without a slice load).
 
 Each game slice carries its own tile pack at segment offset `0x1000`
-(`0x0A57`, count, then index + 32 words per tile). The three art sets overlap
-in the tile bank, so the menu copies the chosen pack into `0xF3000` before it
-enters the game; the baked bank holds only the console font.
+(`0x0A57`, count, then index + 32 words per tile) and sprite pack at `0x2000`
+(`0x0A58`, count, then group + 256 words per 32x32 frame). The three art sets
+overlap in the tile bank, so the menu copies the chosen pack into `0xF3000`
+before it enters the game; the game entry installs its sprite pack into
+`0xF4000`. The baked tile bank holds only the console font and the global
+sprite bank is blank.
 
 The development board runs **unprotected** (`cf-status` reads 0); the boot
 script defines `cf-protect` but does not call it. If you do not re-arm the

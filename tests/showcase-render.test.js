@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderScene } from '../scripts/render_tile.mjs';
 import { encodePng } from '../scripts/lib_png.mjs';
+import { flappySpritePack } from '../scripts/make_bird_sprite.mjs';
 
 function nonBlack(rgba) {
   let n = 0;
@@ -21,12 +22,24 @@ test('the menu renders a deterministic 640x360 frame', () => {
   assert.deepEqual(Array.from(a.frames[0]), Array.from(b.frames[0]));
 });
 
-test('Flappy renders motion frame to frame', () => {
+test('Flappy installs its slice sprite pack and renders motion', () => {
   const r = renderScene({ scene: 'flappy', frames: 5 });
   assert.equal(r.frames.length, 5);
   assert.ok(nonBlack(r.frames[2]) > 1000, 'the game scene is visible');
   assert.notDeepEqual(Array.from(r.frames[2]), Array.from(r.frames[3]), 'the bird moves');
   assert.notDeepEqual(Array.from(r.frames[3]), Array.from(r.frames[4]));
+
+  // The global sprite bank is blank, so the visible bird also proves the
+  // game copied its own slice pack into the writable sprite bank.
+  const pack = flappySpritePack();
+  let at = 2;
+  for (let frame = 0; frame < pack[1]; frame++) {
+    const group = pack[at++];
+    for (let word = 0; word < 256; word++) {
+      assert.equal(r.engine.spriteBank[group * 256 + word], pack[at++],
+                   `group ${group} word ${word}`);
+    }
+  }
 });
 
 test('Pac-Man renders the maze and moving sprites', () => {

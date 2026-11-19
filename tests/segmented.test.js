@@ -54,6 +54,11 @@ function scattered() {
 const slices = buildSlices();
 const helloFirst = slices.manifest.objects.hello.first;
 const pingFirst = slices.manifest.objects.ping.first;
+const editFirst = slices.manifest.objects.edit.first;
+// Scratch sectors start after the committed image, so editor tests never
+// flush over a game, sample or source slice.
+const SCRATCH_FIRST = slices.words.length / SLICE_WORDS;
+const scratch = (n = 0) => SCRATCH_FIRST + n;
 const sim = new globalThis.Deep16Simulator();
 sim.loadProgram(scattered());
 sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
@@ -161,16 +166,17 @@ test('a slice payload can be printed from flash to the terminal', () => {
 });
 
 test('a slice created and flushed reads back and enters the directory', () => {
-  // 40 is scratch space: the low indices hold the boot objects (start,
-  // essentials, edit, graphics, games, sd-card), the game images and hello;
-  // a flushed slice overwrites its whole sector. Type 0x0C is a block screen.
-  line('40 0x0C slice-create');
+  // A scratch sector past the image: a flushed slice overwrites its whole
+  // sector. Type 0x0C is a block screen.
+  const s = scratch();
+  const typeCmd = `${s} slice slice-type . cr`;
+  line(`${s} 0x0C slice-create`);
   line('s" test" slice-name!');
   line('slice-flush');
-  assert.equal(number(line('40 slice slice-type . cr'), '40 slice slice-type . cr'), 0x0C);
-  line('40 dir-add');
+  assert.equal(number(line(typeCmd), typeCmd), 0x0C);
+  line(`${s} dir-add`);
   assert.match(line('dir'), /test/);
-  assert.equal(number(line('s" test" find . cr'), 's" test" find . cr'), 40);
+  assert.equal(number(line('s" test" find . cr'), 's" test" find . cr'), s);
   assert.ok(sim.running);
 });
 
@@ -209,11 +215,11 @@ test('edit opens a text slice by name', () => {
 });
 
 test('editing a full slice does not write past its buffer', () => {
-  // Slice 4 is the edit source: its first slice is a full 2040 bytes, so
-  // slice-last + 1 used to write one cell past slice-buf. That zeroed the
-  // link of the next header (text-buf) and cut the dictionary chain between
-  // the catalog and the kernel, so `see` could no longer name kernel words.
-  lineWithKeys('4 text-edit', [0x18, 0x03]);
+  // The edit source's first slice is a full 2040 bytes, so slice-last + 1
+  // used to write one cell past slice-buf. That zeroed the link of the next
+  // header (text-buf) and cut the dictionary chain between the catalog and
+  // the kernel, so `see` could no longer name kernel words.
+  lineWithKeys(`${editFirst} text-edit`, [0x18, 0x03]);
   assert.match(line('see edit'), /bl word count find text-edit/);
   assert.match(line('see bl'), /constant bl 32/);
   assert.ok(sim.running);
@@ -221,7 +227,7 @@ test('editing a full slice does not write past its buffer', () => {
 
 test('type-slice pages 23 lines and waits for a key', () => {
   const from = out.length;
-  for (const ch of '4 type-slice\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
+  for (const ch of `${editFirst} type-slice\n`) sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
   const pages = () => (out.slice(from).match(/-- more --/g) || []).length;
   for (let i = 0; i < 30_000_000 && pages() === 0; i++) step(1);
   assert.equal(pages(), 1, 'the first page stops with -- more --');
@@ -244,14 +250,15 @@ test('edit-slice draws the first tile row without scrolling', () => {
   const TILE = 0xF1000;
   const cell = (r, c) => sim.memory[TILE + r * 82 + c] & 0x0FFF;
   const glyph = (ch) => (ch.charCodeAt(0) - 0x20) * 32;
-  line('45 0x0C slice-create');
+  const s = scratch(1);
+  line(`${s} 0x0C slice-create`);
   line('slice-buf 8 cells + 2040 65 fill');
   line('slice-flush');
-  for (const ch of '45 edit-slice\n') sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
+  for (const ch of `${s} edit-slice\n`) sim.kbdBuffer.push(ch === '\n' ? 13 : ch.charCodeAt(0));
   for (let i = 0; i < 4_000_000 && (cell(0, 0) !== glyph('A') || cell(23, 0) !== glyph('A')); i++) step(1);
   assert.equal(cell(0, 0), glyph('A'), 'the first row is visible');
   assert.equal(cell(23, 0), glyph('A'), 'the last row is visible');
-  assert.equal(ds(sym.tile_off), 0, 'the editor did not scroll');
+  assert.equal(sim.memory[(BIOS_SEG << 4) + (sym.bios_tile_off - 0x4a00)], 0, 'the editor did not scroll');
   sim.kbdBuffer.push(0x18, 0x03);            // C-X C-C: discard and exit
   for (let i = 0; i < 4_000_000 && !out.endsWith('> '); i++) step(1);
   assert.ok(out.endsWith('> '), 'edit-slice returned to the prompt');
@@ -259,86 +266,92 @@ test('edit-slice draws the first tile row without scrolling', () => {
 });
 
 test('edit-slice overwrites at the cursor and Ctrl-X Ctrl-S saves', () => {
-  // Slice 40 was created and flushed by the previous test. C-F (right), D at
-  // 1, C-A (home), A at 0, C-X C-S.
-  const echoed = lineWithKeys('40 edit-slice',
+  // C-F (right), D at 1, C-A (home), A at 0, C-X C-S.
+  const s = scratch();
+  const echoed = lineWithKeys(`${s} edit-slice`,
                               [0x06, 'D'.charCodeAt(0), 0x01, 'A'.charCodeAt(0), 0x18, 0x13]);
   assert.match(echoed, /slice written/);
-  assert.equal(number(line('40 slice 8 cells + c@ . cr'),
-                      '40 slice 8 cells + c@ . cr'), 65, 'A saved at 0');
-  assert.equal(number(line('40 slice 8 cells + 1+ c@ . cr'),
-                      '40 slice 8 cells + 1+ c@ . cr'), 68, 'D saved at 1');
+  assert.equal(number(line(`${s} slice 8 cells + c@ . cr`),
+                      `${s} slice 8 cells + c@ . cr`), 65, 'A saved at 0');
+  assert.equal(number(line(`${s} slice 8 cells + 1+ c@ . cr`),
+                      `${s} slice 8 cells + 1+ c@ . cr`), 68, 'D saved at 1');
 });
 
 test('edit-slice Ctrl-X Ctrl-C leaves the flash unchanged', () => {
-  const echoed = lineWithKeys('40 edit-slice',
+  const s = scratch();
+  const echoed = lineWithKeys(`${s} edit-slice`,
                               ['Z'.charCodeAt(0), 0x18, 0x03]);
   assert.match(echoed, /discarded/);
-  assert.equal(number(line('40 slice 8 cells + c@ . cr'),
-                      '40 slice 8 cells + c@ . cr'), 65, 'still A, not Z');
+  assert.equal(number(line(`${s} slice 8 cells + c@ . cr`),
+                      `${s} slice 8 cells + c@ . cr`), 65, 'still A, not Z');
 });
 
 test('edit-slice Return moves to column 1 of the next line', () => {
-  // Slice 40 still has A at 0. Return moves to 80 (row 1, column 1), then R
-  // overwrites that cell; C-X C-S saves.
-  const echoed = lineWithKeys('40 edit-slice',
+  // The scratch slice still has A at 0. Return moves to 80 (row 1, column 1),
+  // then R overwrites that cell; C-X C-S saves.
+  const s = scratch();
+  const echoed = lineWithKeys(`${s} edit-slice`,
                               [0x0d, 'R'.charCodeAt(0), 0x18, 0x13]);
   assert.match(echoed, /slice written/);
-  assert.equal(number(line('40 slice 8 cells + 80 + c@ . cr'),
-                      '40 slice 8 cells + 80 + c@ . cr'), 82, 'R at row 1, col 1');
-  assert.equal(number(line('40 slice 8 cells + c@ . cr'),
-                      '40 slice 8 cells + c@ . cr'), 65, 'row 0 still A');
+  assert.equal(number(line(`${s} slice 8 cells + 80 + c@ . cr`),
+                      `${s} slice 8 cells + 80 + c@ . cr`), 82, 'R at row 1, col 1');
+  assert.equal(number(line(`${s} slice 8 cells + c@ . cr`),
+                      `${s} slice 8 cells + c@ . cr`), 65, 'row 0 still A');
 });
 
 test('text-edit inserts and joins LF-terminated text', () => {
-  line('46 3 slice-create');
+  const s = scratch(2);
+  line(`${s} 3 slice-create`);
   for (const [i, c] of [...'abc\ndef'].entries()) {
     line(`${c.charCodeAt(0)} slice-buf 8 cells + ${i ? `${i} +` : ''} c!`);
   }
   line('slice-flush');
   // End, X inserts at the line end; Down/Home/Backspace join the lines;
   // C-X C-S saves.
-  const echoed = lineWithKeys('46 text-edit',
+  const echoed = lineWithKeys(`${s} text-edit`,
                               [0x05, 0x58, 0x0e, 0x01, 0x7f, 0x18, 0x13]);
   assert.match(echoed, /slice written/);
-  const shown = line('46 slice 8 cells + 7 type');
+  const shown = line(`${s} slice 8 cells + 7 type`);
   assert.match(shown, /abcXdef/, 'the inserted X and the joined line are saved');
-  assert.equal(number(line('46 slice 8 cells + 7 + c@ . cr'),
-                       '46 slice 8 cells + 7 + c@ . cr'), 10, 'the saved text ends in LF');
+  assert.equal(number(line(`${s} slice 8 cells + 7 + c@ . cr`),
+                       `${s} slice 8 cells + 7 + c@ . cr`), 10, 'the saved text ends in LF');
   assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'text-edit leaves the stack clean');
 });
 
 test('text-edit deletes forward with C-D', () => {
-  line('47 3 slice-create');
+  const s = scratch(3);
+  line(`${s} 3 slice-create`);
   for (const [i, c] of [...'abc\ndef'].entries()) {
     line(`${c.charCodeAt(0)} slice-buf 8 cells + ${i ? `${i} +` : ''} c!`);
   }
   line('slice-flush');
-  const echoed = lineWithKeys('47 text-edit', [0x01, 0x04, 0x18, 0x13]);
+  const echoed = lineWithKeys(`${s} text-edit`, [0x01, 0x04, 0x18, 0x13]);
   assert.match(echoed, /slice written/);
-  const shown = line('47 slice 8 cells + 7 type');
+  const shown = line(`${s} slice 8 cells + 7 type`);
   assert.match(shown, /bc\ndef/, 'C-D removed the character under the cursor');
   assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'text-edit leaves the stack clean');
 });
 
 test('text-edit normalizes CRLF text to LF on save', () => {
-  line('48 3 slice-create');
+  const s = scratch(4);
+  line(`${s} 3 slice-create`);
   for (const [i, c] of [0x61, 0x0d, 0x0a, 0x62].entries()) {
     line(`${c} slice-buf 8 cells + ${i ? `${i} +` : ''} c!`);
   }
   line('slice-flush');
-  lineWithKeys('48 text-edit', [0x18, 0x13]);
-  assert.equal(number(line('48 slice 8 cells + c@ . cr'), '48 slice 8 cells + c@ . cr'), 0x61);
-  assert.equal(number(line('48 slice 8 cells + 1+ c@ . cr'), '48 slice 8 cells + 1+ c@ . cr'), 10,
+  lineWithKeys(`${s} text-edit`, [0x18, 0x13]);
+  assert.equal(number(line(`${s} slice 8 cells + c@ . cr`), `${s} slice 8 cells + c@ . cr`), 0x61);
+  assert.equal(number(line(`${s} slice 8 cells + 1+ c@ . cr`), `${s} slice 8 cells + 1+ c@ . cr`), 10,
                'the CR is gone');
-  assert.equal(number(line('48 slice 8 cells + 2 + c@ . cr'), '48 slice 8 cells + 2 + c@ . cr'), 0x62);
+  assert.equal(number(line(`${s} slice 8 cells + 2 + c@ . cr`), `${s} slice 8 cells + 2 + c@ . cr`), 0x62);
   assert.equal(number(line('depth . cr'), 'depth . cr'), 0, 'text-edit leaves the stack clean');
 });
 
 test('the editors refuse the wrong slice type', () => {
-  line('50 0x0C slice-create');
+  const s = scratch(5);
+  line(`${s} 0x0C slice-create`);
   line('slice-flush');
-  assert.match(line('50 text-edit'), /not a text slice/);
+  assert.match(line(`${s} text-edit`), /not a text slice/);
   assert.match(line(`${helloFirst} edit-slice`), /not a screen slice/);
   assert.ok(sim.running);
 });
@@ -460,7 +473,7 @@ test('xmodem receives a tio-style 0x00-padded file', () => {
 });
 
 test('a directory entry can be removed', () => {
-  line('40 dir-remove');
+  line(`${scratch()} dir-remove`);
   assert.doesNotMatch(line('dir'), /\btest\b/);
   assert.equal(number(line('s" test" find . cr'), 's" test" find . cr'), -1);
   assert.ok(sim.running);
@@ -548,11 +561,12 @@ test('the block protect is settable and clearable', () => {
 });
 
 test('a packed screen unpacks with p-screen', () => {
-  line('41 8 slice-create');
+  const s = scratch(6);
+  line(`${s} 8 slice-create`);
   line('s" pair" slice-name!');
   line('slice-flush');
-  assert.match(line('41 0 p-screen'), / ok/);
-  assert.match(line('41 1 p-screen'), / ok/);
+  assert.match(line(`${s} 0 p-screen`), / ok/);
+  assert.match(line(`${s} 1 p-screen`), / ok/);
   assert.ok(sim.running);
 });
 
@@ -923,13 +937,45 @@ test('game-run starts pacman from flash and returns to the prompt', () => {
   assert.ok(sim.running);
 });
 
-test('the PS/2 init lives in the BIOS and binit calls it', () => {
-  // Phase B moved the sender out of a flash slice: functions 7/8 and the
-  // 0x5490 block are the only copy now, and binit (function 1) runs the init.
-  assert.equal(sym.BIOS_FN_COUNT, 13, '0..5 console + 6 gfx + 7/8 PS/2 + 9/10 SFX + 11 pump + 12 kbd');
+test('the BIOS code blocks do not overlap', () => {
+  // .org rewinds the address counter silently, so a routine that grows into a
+  // later fixed block overwrites code instead of failing. This caught gfx_back
+  // running into the ILL trampoline at 0x4CF4 (the flat build hid it because
+  // gfx_cells was four words shorter there).
+  const seen = new Set();
+  const duplicate = [];
+  for (const c of kernel.memoryChanges) {
+    if (c.address >= 0x4a00 && c.address < 0x4d00) {
+      if (seen.has(c.address)) duplicate.push(c.address);
+      seen.add(c.address);
+    }
+  }
+  assert.deepEqual(duplicate, [], 'no BIOS word is emitted twice');
+  assert.ok(sym.ill_trampoline >= 0x4d1c && sym.ill_trampoline < 0x4d34,
+            'the ILL trampoline sits after f16 and before the showcase menu');
+});
+
+test('the ILL handler runs from the BIOS copy and divtest passes', () => {
+  // The D16D trap vector points at a trampoline that enters the BIOS copy of
+  // the handler (CS=0x3000, offset 0x600); its DIV/DIV32 traps call the BIOS
+  // division copies, not the kernel routines.
+  assert.equal(sym.ill_handler, 0x5000, 'the handler is still assembled at 0x5000');
+  assert.ok(sym.ill_trampoline >= 0x4a00 && sym.ill_trampoline < 0x5000, 'trampoline in the BIOS gap');
+  assert.ok(sym.bios_div16_call >= 0x5550 && sym.bios_div16_call < 0x5600, 'BIOS div16 copy');
+  assert.match(line('divtest'), /divtest ok/, 'the relocated ILL DIV trap agrees with the software divide');
+});
+
+test('the PS/2 sender stays in the BIOS and BDOS runs the init', () => {
+  // Phase B moved the sender out of a flash slice. The bit-level frame is
+  // bounded by the keyboard clock, so it stays in the BIOS (function 7); the
+  // multi-second reset/enable waits moved to BDOS function 9, which runs with
+  // I=1. binit no longer waits for the keyboard.
+  assert.equal(sym.BIOS_FN_COUNT, 23, '0..5 console + 6 gfx + 7 sender + 8 status + 9/10 SFX + 11 pump + 12 kbd + 13 UART ready + 14..15 division + 16 constat + 17..19 state + 20..22 SPI');
   assert.ok(sym.bios_f7 >= sym.bios_entry && sym.bios_f7 < 0x5800, 'f7 inside the BIOS');
   assert.ok(sym.bios_f8 >= sym.bios_entry && sym.bios_f8 < 0x5800, 'f8 inside the BIOS');
   assert.ok(sym.ps2_r5 >= 0x5490 && sym.ps2_r5 < 0x5800, 'saved cells inside the BIOS gap');
+  assert.equal(sym.ps2_init, undefined, 'ps2_init is no longer BIOS code');
+  assert.ok(sym.bdos_ps2_init > 0 && sym.bdos_ps2_init < 0x4000, 'BDOS init is in the flat kernel window');
   assert.ok(sym.dict_free <= 0x434f, `the kernel dictionary did not grow past 0x434F (${sym.dict_free.toString(16)})`);
 
   // The cells sit at a fixed .org after the routine; growing the routine must
@@ -940,16 +986,16 @@ test('the PS/2 init lives in the BIOS and binit calls it', () => {
   assert.ok(lastCode < sym.ps2_r5,
     `PS/2 code 0x${lastCode.toString(16)} runs into the cells at 0x${sym.ps2_r5.toString(16)}`);
 
-  // binit's call sits between bios_f1 and bios_f2, not in f8.
+  // The boot calls BDOS function 9 after binit, before the menu.
   const at = (name) => sym[name];
   const calls = kernel.listing.filter((row) => typeof row.address === 'number'
-    && row.address >= at('bios_f1') && row.address < at('bios_f2')
-    && /LDI ps2_init - BIOS_BASE/.test(row.line || ''));
-  assert.equal(calls.length, 1, 'binit calls ps2_init once');
+    && row.address >= at('forth_start') && row.address < at('bios_entry')
+    && /LDI 9\b/.test(row.line || ''));
+  assert.ok(calls.length >= 1, 'the kernel boot calls BDOS function 9');
 
   // The simulator guard is the 0xFFFF comparison, not the CLK/DATA levels.
   const src = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
-  assert.match(src, /CMP R7, R4\s*\n\s*JZ ps2_init_done/, 'ps2_init keeps the erased-memory guard');
+  assert.match(src, /CMP R0, R2\s*\n\s*JZ bps2_done/, 'BDOS ps2-init keeps the erased-memory guard');
 });
 
 // ---- the 2-second background sample and xmodem abort --------------------

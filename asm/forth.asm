@@ -128,10 +128,14 @@ forth_start:
     STS R1, DS, R2
 
 
-    ; BIOS binit, which takes no parameters: the function number is the whole
-    ; message, so it is set with the LDI that loads it.
-    LDI 1
-    SWI
+    ; binit. The screen build asks the BIOS (function 1); the terminal build
+    ; prints the ANSI sequence from the kernel through print_text, so no BIOS
+    ; call has to own the console.
+    LDI console_clear
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
 
 cursor_on:
 .ifndef CONSOLE_UART
@@ -146,10 +150,14 @@ cursor_on:
 .endif
     ; binit above has just cleared and homed the terminal, so the banner is the
     ; first thing on an empty screen.
-    LDI hello_msg        ; BIOS putstr: the address is the parameter ...
+    LDI hello_msg        ; putstr: the address is the parameter ...
     MOV R1, R0
-    LDI 3                ; ... and the function number goes in R0 last, since
-    SWI                  ; the LDI that loads it writes R0
+    LDI bios_putstr_direct
+    MOV R2, R0
+    MOV R0, R1           ; ... and the string goes back in R0 for the call
+    LINK
+    JMP R2
+    NOP
     LDI after_print_text
     MOV PC, R0
     NOP
@@ -205,11 +213,23 @@ bios_putch_direct:
     JMP LR
     NOP
 bios_putstr_direct:
+.ifdef CONSOLE_UART
+    ; The terminal build prints through the kernel: print_text sends each
+    ; character via putch, so the BIOS putstr loop is not used. R1 parks the
+    ; string while R0 takes print_text's address.
+    MOV R1, R0
+    LDI print_text
+    MOV R2, R0
+    MOV R0, R1
+    JMP R2
+    NOP
+.else
     MOV R1, R0           ; the string address is the parameter
     LDI 3                ; BIOS putstr
     SWI
     JMP LR
     NOP
+.endif
 bios_getch_direct:
     LDI 4                ; BIOS getch, which answers in its own R0
     SWI
@@ -1099,10 +1119,14 @@ ok_echo:
     JZ interpret_next
     NOP
     ; Print " ok"
-    LDI ok_msg           ; BIOS putstr
+    LDI ok_msg
     MOV R1, R0
-    LDI 3
-    SWI
+    LDI bios_putstr_direct
+    MOV R2, R0
+    MOV R0, R1
+    LINK
+    JMP R2
+    NOP
     ; Drop the cursor cell before the CR below walks away from it - same reason
     ; as in word_cr. Without this every line the REPL finishes keeps a reversed
     ; block at its end.
@@ -1291,6 +1315,31 @@ boot_done:
 ; never be turned off on the board.
 boot_quiet:
     .word 0
+; getstr line state and the kernel-side echo cursor. They live in the kernel's
+; DS data, like the other console cells.
+gs_active:
+    .word 0
+gs_ptr:
+    .word 0
+echo_buf:
+    .word 0
+echo_len:
+    .word 0
+echo_end:
+    .word 0
+echo_tmp:
+    .word 0
+echo_lr:
+    .word 0
+rul_lr:
+    .word 0
+rul_status:
+    .word 0
+; binit's wire sequence: home, erase the display, erase the scrollback. The
+; kernel prints it through print_text; BIOS function 1 is not used on the
+; terminal build (D16MINI.md §6.4).
+clear_screen_msg:
+    .word 27, '[', 'H', 27, '[', '2', 'J', 27, '[', '3', 'J', 0
 .endif
 hello_msg:
     .text "Hello DeepForth!"
@@ -3487,12 +3536,19 @@ sq_buf:
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0
 word_key:
-    ; BIOS getch -> the key comes back in the handler's R0
+    ; BIOS getch is non-blocking (0xFFFF means idle). Poll it here, in the
+    ; normal I=1 context, so hardware IRQs keep running while a program waits.
+key_poll:
     LDI 4                ; BIOS getch
     SWI
-    SMV R0, AR0          ; bring it home into the caller's R0
+    SMV R0, AR0          ; the key (or 0xFFFF) is in the handler's R0
+    MOV R1, R0           ; keep it: LDI always writes R0
+    LDI -1                  ; 0xFFFF
+    CMP R1, R0
+    JZ key_poll
+    NOP
     SUB SP, 1
-    ST R0, SP, 0
+    ST R1, SP, 0
     LDI next
     MOV PC, R0
     NOP
@@ -3637,9 +3693,18 @@ rl_read:
 .endif
     LDI tib_kbd
     MOV TIB, R0
-    MOV R1, TIB          ; BIOS getstr: the buffer is the parameter
-    LDI 5
+    MOV R1, TIB
+.ifdef CONSOLE_UART
+    ; Poll the non-blocking getstr from the kernel and echo the line there.
+    LDI read_uart_line
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+.else
+    LDI 5                ; BIOS getstr: the buffer is the parameter
     SWI
+.endif
     ; reset input index
     LDI 0
     MOV >IN, R0
@@ -3672,13 +3737,24 @@ word_accept:
     MOV PC, R0
     NOP
 wac_ok:
-    LD R2, SP, 1            ; c-addr. R2 and R3 are banked, so the handler
-    LD R3, SP, 0            ; +n1     cannot disturb them across the SWI
-    ADD SP, 2
+    ; Read first, then take the arguments: read_uart_line is a plain call, not
+    ; an SWI, so it clobbers R2 and R3. The screen build's getstr is banked and
+    ; does not, but reading into our own buffer first works for both.
     LDI accept_buf
     MOV R1, R0              ; BIOS getstr: read the whole line into our buffer
+.ifdef CONSOLE_UART
+    LDI read_uart_line
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+.else
     LDI 5
     SWI
+.endif
+    LD R2, SP, 1            ; c-addr
+    LD R3, SP, 0            ; +n1
+    ADD SP, 2
     LDI accept_buf
     MOV R10, R0             ; the read pointer
     LDI 0
@@ -4844,10 +4920,11 @@ scrstore_ok:
 ; kernel does for the program, not a door left open for it. ( value -- ) is how
 ; the !-family words here work; cls leaves nothing behind.
 word_cls:
-    LDI 1
-    SWI                     ; BIOS binit, with no parameters: the function
-                            ; number is the whole call. On the terminal that is
-                            ; home + erase display + erase scrollback.
+    LDI console_clear       ; binit. On the terminal the kernel prints home +
+    MOV R2, R0              ; erase display + erase scrollback itself.
+    LINK
+    JMP R2
+    NOP
 .ifndef CONSOLE_UART
     LDI ' '                 ; the bitmap build: and now the cell binit left its
     MOV R1, R0              ; cursor on
@@ -8212,9 +8289,17 @@ word_refill:                ; refill ( -- flag )
     ; does, and answer true: an empty line is still a line.
     LDI tib_kbd
     MOV TIB, R0
-    MOV R1, TIB             ; BIOS getstr: the buffer is the parameter
-    LDI 5
+    MOV R1, TIB
+.ifdef CONSOLE_UART
+    LDI read_uart_line
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+.else
+    LDI 5                   ; BIOS getstr: the buffer is the parameter
     SWI
+.endif
     LDI 0
     MOV >IN, R0
     LDI -1
@@ -10279,6 +10364,15 @@ put_char:
     ST R1, R7, 0          ; park the caller's R1: putch reads its parameter from
     MOV R1, R9            ; R1, and the printing routines keep pointers of their
                           ; own there
+.ifdef CONSOLE_UART
+put_char_ready:
+    LDI BIOS_UART_READY   ; non-blocking TX check, polled with I=1
+    SWI
+    SMV R0, AR0
+    AND R0, R0
+    JZ put_char_ready
+    NOP
+.endif
     LDI 2                 ; BIOS putch
     SWI
     LDI saved_r1
@@ -10286,6 +10380,208 @@ put_char:
     LD R1, R7, 0          ; and the caller's R1 back
     JMP LR
     NOP
+
+.ifdef CONSOLE_UART
+; read_uart_line: R1 = buffer. Poll the non-blocking BIOS getstr and echo the
+; buffer deltas with put_char, all in the normal I=1 context: the SWI returns
+; to the caller's PSW, so the timer and raster IRQs run between polls. Returns
+; when CR/LF completed the line; LR is the caller's return.
+read_uart_line:
+    LDI rul_lr
+    MOV R7, R0
+    ST LR, R7, 0
+    LDI echo_buf
+    MOV R7, R0
+    ST R1, R7, 0
+    LDI echo_len
+    MOV R7, R0
+    LDI 0
+    ST R0, R7, 0
+    LDI gs_active
+    MOV R7, R0
+    LDI 0
+    ST R0, R7, 0           ; a fresh line: the BIOS starts at the buffer
+rul_loop:
+    LDI echo_buf
+    MOV R7, R0
+    LD R1, R7, 0
+    LDI 5                  ; BIOS getstr, now non-blocking
+    SWI
+    SMV R0, AR0            ; 1 = line complete, 0 = no key was waiting
+    MOV R9, R0             ; park it: the next LDI overwrites R0
+    LDI rul_status
+    MOV R7, R0
+    ST R9, R7, 0
+    LDI echo_line
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI rul_status
+    MOV R7, R0
+    LD R0, R7, 0
+    AND R0, R0
+    JZ rul_loop
+    NOP
+    LDI rul_lr
+    MOV R7, R0
+    LD LR, R7, 0
+    JMP LR
+    NOP
+
+; echo_line: emit the difference between the NUL-terminated line in echo_buf
+; and echo_len. Appended characters go out through put_char; a shorter line
+; emits BS SP BS per removed character. The BIOS does no echoing, so this is
+; the only place typed input reaches the terminal.
+echo_line:
+    LDI echo_lr
+    MOV R7, R0
+    ST LR, R7, 0
+    ; Current length -> echo_end.
+    LDI echo_buf
+    MOV R7, R0
+    LD R2, R7, 0
+    LDI 0
+    MOV R3, R0
+el_scan:
+    LD R4, R2, 0
+    AND R4, R4
+    JZ el_scanned
+    NOP
+    LDI TIB_LIMIT
+    CMP R3, R0
+    JZ el_scanned
+    NOP
+    ADD R2, 1
+    ADD R3, 1
+    LDI el_scan
+    MOV PC, R0
+    NOP
+el_scanned:
+    LDI echo_end
+    MOV R7, R0
+    ST R3, R7, 0
+    LDI ECHO_FLAG          ; ES is still 0xF000 from forth_start
+    MOV R7, R0
+    LDS R7, ES, R7
+    LDI 0
+    CMP R7, R0
+    JZ el_commit
+    NOP
+    LDI echo_len
+    MOV R7, R0
+    LD R9, R7, 0           ; how much of the line was drawn already
+    CMP R3, R9
+    JZ el_commit
+    NOP
+    JC el_back
+    NOP
+el_fwd:
+    LDI echo_len
+    MOV R7, R0
+    LD R8, R7, 0
+    LDI echo_end
+    MOV R7, R0
+    LD R11, R7, 0
+    CMP R8, R11
+    JZ el_commit
+    NOP
+    LDI echo_buf
+    MOV R7, R0
+    LD R2, R7, 0
+    ADD R2, R8
+    LD R1, R2, 0
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R1             ; put_char takes the character in R0
+    LINK
+    JMP R4
+    NOP
+    LDI echo_len
+    MOV R7, R0
+    LD R8, R7, 0
+    ADD R8, 1
+    ST R8, R7, 0
+    LDI el_fwd
+    MOV PC, R0
+    NOP
+el_back:
+    MOV R11, R9
+    SUB R11, R3            ; characters removed by backspace
+    LDI echo_tmp
+    MOV R7, R0
+    ST R11, R7, 0
+el_back_loop:
+    LDI echo_tmp
+    MOV R7, R0
+    LD R11, R7, 0
+    AND R11, R11
+    JZ el_commit
+    NOP
+    LDI 8                  ; BS SP BS: the terminal owns the screen
+    MOV R1, R0
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R1
+    LINK
+    JMP R4
+    NOP
+    LDI ' '
+    MOV R1, R0
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R1
+    LINK
+    JMP R4
+    NOP
+    LDI 8
+    MOV R1, R0
+    LDI put_char
+    MOV R4, R0
+    MOV R0, R1
+    LINK
+    JMP R4
+    NOP
+    LDI echo_tmp
+    MOV R7, R0
+    LD R11, R7, 0
+    SUB R11, 1
+    ST R11, R7, 0
+    LDI el_back_loop
+    MOV PC, R0
+    NOP
+el_commit:
+    LDI echo_end
+    MOV R7, R0              ; R6 is TIB: the interpreter needs it intact
+    LD R3, R7, 0
+    LDI echo_len
+    MOV R7, R0
+    ST R3, R7, 0
+    LDI echo_lr
+    MOV R7, R0
+    LD LR, R7, 0
+    JMP LR
+    NOP
+
+
+.endif
+
+; console_clear: binit. The bitmap build hands this to BIOS function 1; the
+; terminal emits the same sequence from the kernel, so the BIOS owns no console
+; output. Returns via LR.
+console_clear:
+.ifdef CONSOLE_UART
+    LDI print_text
+    MOV R2, R0
+    LDI clear_screen_msg
+    JMP R2
+    NOP
+.else
+    LDI 1
+    SWI
+    JMP LR
+    NOP
+.endif
 
 ; forget name drops `name` and everything defined after it, reclaims the
 ; dictionary space and returns to the FORTH vocabulary.
@@ -13149,7 +13445,12 @@ h_sread:
 ; 24K-word BSRAM (the code itself is base-independent: every internal jump is a
 ; delta or a relative branch).
 ; =============================================
+.ifdef CONSOLE_UART
+.equ BIOS_UART_READY, 6
+.equ BIOS_FN_COUNT, 7
+.else
 .equ BIOS_FN_COUNT, 6
+.endif
 .equ BIOS_BASE, bios_entry   ; segment base; see the LDI note at the dispatch
 .ifdef CONSOLE_UART
 .org 0x5600
@@ -13204,6 +13505,9 @@ BIOS_JTABLE:
     .word bios_f3 - BIOS_BASE
     .word bios_f4 - BIOS_BASE
     .word bios_f5 - BIOS_BASE
+.ifdef CONSOLE_UART
+    .word bios_uart_ready - BIOS_BASE
+.endif
 bios_f0:
     ; 0: bver -> the handler's R0 = 0x0100 (BIOS 1.0, major << 8 | minor),
     ; which the caller picks up with SMV Rx, AR0. `ver` prints the same pair.
@@ -13388,94 +13692,31 @@ utx_wrap_lf:
     NOP
 
 bios_f1:
-    ; 1: binit -> clear the terminal: home, erase display, erase scrollback.
-    ;
-    ; ANSI ED (ESC[2J) erases the display but does NOT move the cursor, so a
-    ; terminal that only got the 2J drew the banner wherever the cursor
-    ; happened to be. The bitmap build homes by setting SCR = 0x1000; the
-    ; terminal needs ESC[H for the same thing. 3J also drops the scrollback so
-    ; a fresh boot starts on an empty screen; terminals that do not know it
-    ; ignore the sequence.
+    ; 1: binit. The terminal build no longer drives the console from the BIOS:
+    ; the kernel prints home + ESC[2J + ESC[3J through print_text, with I=1
+    ; between the characters. Kept as a no-op so the function number still
+    ; dispatches.
+    RETI
+    NOP
+
+bios_uart_ready:
+    ; 6: answer 1 when the UART TX FIFO has room, 0 when the caller must wait.
+    ; The caller polls this with I=1; the BIOS itself does not wait here.
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-    LDI 27                 ; ESC
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
+    LDI 0x0040
+    MOV R2, R0
+    LDS R1, ES, R2
+    LDI 2
+    AND R1, R0
+    JZ fur_busy
     NOP
-    LDI '['                ; '['
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
+    LSI R0, 1
+    RETI
     NOP
-    LDI 'H'                ; 'H' (home: ED does not move the cursor)
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI 27                 ; ESC
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI '['                ; '['
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI '2'                ; '2'
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI 'J'                ; 'J' (erase display)
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI 27                 ; ESC
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI '['                ; '['
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI '3'                ; '3'
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI 'J'                ; 'J' (erase scrollback)
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
+fur_busy:
+    LSI R0, 0
     RETI
     NOP
 
@@ -13496,44 +13737,30 @@ bios_f2:
     NOP
 
 bios_f3:
-    ; 3: putstr (the address arrives in the caller's R1, NUL-terminated) ->
-    ; bytes on the UART
-    LDI 0x0FFF
-    INV R0
-    MVS ES, R0
-    SMV R2, AR1             ; R2 = string address
-uart_putstr_loop:
-    LD R1, R2, 0
-    LDI 0
-    CMP R1, R0
-    JZ uart_putstr_done
-    NOP
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    ADD R2, 1
-    CLRZ
-    JNZ uart_putstr_loop
-    NOP
-uart_putstr_done:
+    ; 3: putstr. As with binit, the kernel owns this on the terminal build:
+    ; print_text sends the string through putch. Kept as a no-op so the
+    ; function number still dispatches.
     RETI
     NOP
 
 bios_f4:
-    ; 4: getch -> the handler's R0 = one byte from the UART
+    ; 4: getch, non-blocking -> the handler's R0 = one byte from the UART, or
+    ; 0xFFFF when no byte is waiting. SWI runs with I=0, so the wait belongs in
+    ; word_key, which polls with I=1.
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-uart_getch_wait:
     LDI 0x0040
     MOV R2, R0
     LDS R1, ES, R2
     LDI 1
     AND R1, R0
-    JZ uart_getch_wait
+    JNZ uart_getch_ready
     NOP
+    LDI -1                  ; 0xFFFF
+    RETI
+    NOP
+uart_getch_ready:
     LDI 0x0042
     MOV R2, R0
     LDS R1, ES, R2
@@ -13544,105 +13771,105 @@ uart_getch_wait:
     NOP
 
 bios_f5:
-    ; 5: getstr (the buffer address arrives in the caller's R1); echo over the
-    ; UART. CR or LF ends the line, BS (0x08) and DEL (0x7F) erase, and the
-    ; erase is "BS SP BS" on the wire because the terminal, not this code, owns
-    ; the screen.
+    ; 5: getstr, non-blocking. The buffer arrives in the caller's R1. One call
+    ; drains the bytes currently in the RX FIFO, keeps the write pointer in
+    ; gs_ptr, and answers 0 in the handler's R0 (not ready) or 1 (CR/LF seen).
+    ; No echo happens here: the kernel echoes buffer changes with put_char.
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-    SMV R2, AR1             ; R2 = buffer
+    SMV R2, AR1              ; R2 = buffer
+    LDI gs_active
+    MOV R10, R0
+    LD R3, R10, 0            ; line already in progress?
+    LDI 1
+    CMP R3, R0
+    JZ f5_have
+    NOP
+    MOV R3, R2
+    LDI 1
+    ST R0, R10, 0
+    ST R3, R10, 1            ; ptr = buffer
     LDI 0
-    MOV R11, R0             ; count
-uart_getstr_loop:
+    ST R0, R2, 0             ; empty line is NUL-terminated
+    LDI f5_count - BIOS_BASE
+    MOV PC, R0
+    NOP
+f5_have:
+    LD R3, R10, 1
+f5_count:
+    MOV R11, R3
+    SUB R11, R2              ; count = ptr - buffer
+    MOV R2, R3               ; R2 = write pointer
+f5_loop:
     LDI 0x0040
     MOV R3, R0
-uart_getstr_wait:
     LDS R1, ES, R3
     LDI 1
     AND R1, R0
-    JZ uart_getstr_wait
+    JZ f5_idle
     NOP
-    LDI ECHO_FLAG
-    LDS R12, ES, R0         ; R12 = echo flag (R0 = 0x64)
     LDI 0x0042
     MOV R3, R0
-    LDS R1, ES, R3          ; R1 = the received byte
+    LDS R1, ES, R3
     LDI 0x00FF
     AND R1, R0
     LDI 10
     CMP R1, R0
-    JZ uart_getstr_done
+    JZ f5_done
     NOP
     LDI 13
     CMP R1, R0
-    JZ uart_getstr_done
+    JZ f5_done
     NOP
     LDI 8
     CMP R1, R0
-    JZ uart_bs
+    JZ f5_bs
     NOP
     LDI 0x007F
     CMP R1, R0
-    JNZ uart_store
+    JNZ f5_store
     NOP
-uart_bs:
+f5_bs:
     LDI 0
     CMP R11, R0
-    JZ uart_getstr_loop
+    JZ f5_loop
     NOP
     SUB R11, 1
     SUB R2, 1
-    ; Echo off: nothing was drawn, so there is nothing to erase either.
-    AND R12, R12
-    JZ uart_getstr_loop
+    LDI 0
+    ST R0, R2, 0             ; new end of line
+    LDI f5_loop - BIOS_BASE
+    MOV PC, R0
     NOP
-    LDI 8
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI ' '
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI 8
-    MOV R1, R0
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    CLRZ
-    JNZ uart_getstr_loop
-    NOP
-uart_store:
+f5_store:
     LDI TIB_LIMIT
     CMP R11, R0
-    JZ uart_getstr_loop      ; full: drop the byte, keep reading
+    JZ f5_loop
     NOP
     ST R1, R2, 0
     ADD R2, 1
     ADD R11, 1
-    AND R12, R12
-    JZ uart_getstr_loop
+    LDI 0
+    ST R0, R2, 0             ; keep the partial line visible to the echo scan
+    LDI f5_loop - BIOS_BASE
+    MOV PC, R0
     NOP
-    LDI uart_tx - BIOS_BASE
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    CLRZ
-    JNZ uart_getstr_loop
-    NOP
-uart_getstr_done:
+f5_done:
     LDI 0
     ST R0, R2, 0
+    LDI gs_active
+    MOV R10, R0
+    LDI 0
+    ST R0, R10, 0            ; line complete
+    LDI 1
+    RETI
+    NOP
+f5_idle:
+    LDI gs_active
+    MOV R10, R0
+    ST R2, R10, 1            ; keep the partial line's pointer
+    LDI 0
     RETI
     NOP
 
@@ -13857,15 +14084,19 @@ bios_f4:
     LDI 0x0FFF
     INV R0
     MVS ES, R0
-    ; 4: getch -> the handler's R0 = keycode (low byte)
-bios_getch_wait:
+    ; 4: getch, non-blocking -> the handler's R0 = keycode (low byte), or
+    ; 0xFFFF when no key is waiting.
     LDI KBD_STATUS
     MOV R2, R0
     LDS R1, ES, R2
     LDI 0
     CMP R1, R0
-    JZ bios_getch_wait
+    JNZ bios_getch_ready
     NOP
+    LDI -1                  ; 0xFFFF
+    RETI
+    NOP
+bios_getch_ready:
     LDI KBD_DATA
     MOV R2, R0
     LDS R1, ES, R2
@@ -13988,6 +14219,8 @@ bios_getstr_done:
     ST R0, R2, 0
     RETI
     NOP
+
+
 .endif
 
 bios_unknown:

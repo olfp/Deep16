@@ -773,9 +773,12 @@ master directory; `scripts/make_slices.mjs` packs `screens/flash/*.fth` into
 `artifacts/image/slices.bin` and `npm run flash:slices` writes it at
 `0x200000`.
 
-The boot loader loads `start` (slice 1), `essentials` (2..3) and `edit` (4..7);
+The boot loader loads `start` (slice 1), then `essentials` and `edit` by name;
 `s" graphics" need`, `s" games" need` and `s" sd-card" need` bring in the
-rest on demand:
+rest on demand. The D16NANO loader (`forth/boot-nano.fth`) reads each slice
+through BDOS function 11 (`bdos-slice`), so the boot path does not touch the
+SPI registers; the archived D16MINI loader keeps the older `cf-burst`
+hookup, and `start` still defines `cf-burst` for the slice editor:
 
 ```text
 s" graphics" need     \ SIC/raster, scene, palettes, I2S, sprites

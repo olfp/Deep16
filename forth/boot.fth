@@ -1,9 +1,10 @@
-\ forth/boot.fth - the baked boot loader.
+\ forth/boot.fth - the baked D16MINI boot loader.
 \
-\ scripts/embed_forth.mjs bakes this file into asm/forth.asm and
-\ asm/forth_nano.asm. It contains only what is needed to read a source slice:
-\ the SPI-free cf-burst hookup, slice, screen, and `need`. The first line loads
-\ slice 1 (start); the next lines bring up essentials and edit by name.
+\ scripts/embed_forth.mjs bakes this file into asm/forth.asm only. The D16NANO
+\ kernel uses forth/boot-nano.fth instead, which reads source slices through
+\ BDOS. This archived loader contains the SPI-free cf-burst hookup, slice,
+\ screen, and `need`. The first line loads slice 1 (start); the next lines bring
+\ up essentials and edit by name.
 \
 \ `screen` ends the current line (included does not nest), so the module loads
 \ must be separate boot-script lines, not calls from inside start.
