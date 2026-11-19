@@ -498,20 +498,22 @@ class DeepWebUI {
 
     async loadSliceAssets() {
         if (this.sliceAssetsLoaded) return true;
-        if (typeof fetch !== 'function') return false;
+        if (typeof fetch !== 'function') { this.sliceAssetsLoaded = true; return false; }
         const sim = this.simulator;
-        if (!sim || !sim.spiFlash || !sim.spiFlash.mem) return false;
+        if (!sim || !sim.spiFlash || !sim.spiFlash.mem) { this.sliceAssetsLoaded = true; return false; }
         try {
             const response = await fetch('artifacts/image/slices.bin', { cache: 'no-store' });
-            if (!response.ok) return false;
+            if (!response.ok) { this.sliceAssetsLoaded = true; return false; }
             const buffer = new Uint8Array(await response.arrayBuffer());
             const base = 0x200000;
             if (base + buffer.length > sim.spiFlash.mem.length) return false;
             sim.spiFlash.mem.set(buffer, base);
             this.sliceAssetsLoaded = true;
+            this.addTranscriptEntry('Game slices loaded from config flash', 'success');
             return true;
         } catch (error) {
-            if (window.Deep16Debug) console.warn('slice assets not loaded:', error);
+            this.sliceAssetsLoaded = true;
+            this.addTranscriptEntry(`Game slices not loaded: ${error.message || error}; games may be unavailable`, 'warning');
             return false;
         }
     }
@@ -2502,6 +2504,17 @@ class DeepWebUI {
         // kernel's serial build wants a core that speaks UART.
         this.ensureTerminalCore();
         this.ensureTileCore();
+        // The D16D showcase needs its config-flash slices before the machine
+        // starts: without them the menu's BDOS lookups fail and a game key
+        // just redraws the menu instead of launching the game.
+        if (this.consoleMode() === 'tiles' && this.tileBuild === 'd16d' &&
+            !this.sliceAssetsLoaded) {
+            this.status('Loading game slices...');
+            this.loadSliceAssets().then(() => {
+                if (!this.simulator.running) this.run();
+            });
+            return;
+        }
         // Run what the editor says: loading the kernel and pressing Run
         // without Assemble used to run the previous program and show an empty
         // view.
