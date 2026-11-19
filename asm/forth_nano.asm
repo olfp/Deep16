@@ -1550,8 +1550,9 @@ bd_not4:
     CMP R0, R2
     JNZ bd_not5
     NOP
-    LDI bdos_fclose
-    MOV PC, R0
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
     NOP
 bd_not5:
     LSI R2, 6
@@ -1566,8 +1567,9 @@ bd_not6:
     CMP R0, R2
     JNZ bd_not7
     NOP
-    LDI bdos_fwrite
-    MOV PC, R0
+    LSI R0, -1
+    LSI R1, 4
+    JML R10
     NOP
 bd_not7:
     LSI R2, 8
