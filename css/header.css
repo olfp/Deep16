@@ -112,6 +112,12 @@
     font-size: 12px;
 }
 
+.header-text .build-stamp {
+    color: #ffd966;
+    font-size: 11px;
+    margin-top: 2px;
+}
+
 .doc-overlay {
     position: fixed;
     inset: 0;
