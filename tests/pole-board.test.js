@@ -26,11 +26,11 @@ const Model = globalThis.Deep16PoleModel;
 const SEG = 0x7000;
 const BASE = SEG << 4;
 
-// The core3 baseline the report quotes: 56,697 cycles/frame, measured by
-// `node scripts/bench_pole.mjs 60` on the RTL core with combinational memory.
-// The renderer is re-measured whenever it changes, and the number here has to
-// move with it.
-const CORE3 = 56697;
+// The core3 baseline the report quotes: 52,211 cycles/frame, measured by
+// `node scripts/bench_pole.mjs 60` with the dirty skip on the RTL core with
+// combinational memory. The renderer is re-measured whenever it changes, and
+// the number here has to move with it.
+const CORE3 = 52211;
 
 const TILE_BASE = 0xF1000;
 const OAM_BASE = 0xF6000;

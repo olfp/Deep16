@@ -10,10 +10,11 @@
 ; tests/pole-asm.test.js compares the map this code writes with the model's,
 ; cell for cell.
 ;
-; Measured cost on the core3 RTL model: 13,565 instructions and 56,697 cycles
-; per frame, out of the 112,500 cycles a 60 Hz frame has at 6.75 MHz. About
-; 55% of the instructions are the per-cell fill loop below, which writes
-; 1,867 cells per frame at four instructions each.
+; Measured cost on the core3 RTL model: 12,510 instructions and 52,211 cycles
+; per frame with the dirty skip, out of the 112,500 cycles a 60 Hz frame has at
+; 6.75 MHz. About 55% of the instructions are the per-cell fill loop below,
+; which writes up to 1,867 cells at four instructions each; the skip removes
+; roughly 300 of them, the rows that are plain sky in both map banks.
 ;
 ; Segment layout (DS = CS = the program segment):
 ;   0x0100  the entry point
