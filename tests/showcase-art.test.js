@@ -11,6 +11,7 @@ import { buildShowcase, buildFlappy, buildFrogger } from '../scripts/make_showca
 import { TILE_BANK_WORDS, TILE_WORDS, readFontWords, tileFontWords } from '../scripts/make_tile_font.mjs';
 import { froggerArtTiles } from '../scripts/make_frogger_art.mjs';
 import { froggerSpritePack, SPR_MAGIC, SPR_PACK_OFFSET } from '../scripts/make_frogger_sprites.mjs';
+import { pacmanRuntimeSpriteFrames, pacmanGhostSpriteFrames } from '../scripts/make_pacman_art.mjs';
 import { ROOT } from './helpers.js';
 
 const GROUP_WORDS = 16 * 16;
@@ -39,16 +40,24 @@ test('sprite bank holds three bird pages plus the shared cloud', () => {
       cloud, `page ${page} cloud matches page 0`);
   }
 
-  // The six groups Flappy leaves free hold the Pac-Man frames: right open and
-  // closed (0/1), up (8/9) and down (16/17).
+  // The bird pack is bird/cloud-only. Pac-Man's player and ghost frames live
+  // in its own slice (pac_sprite_data/pac_ghost_data) and are copied at start.
   for (const g of [0, 1, 8, 9, 16, 17]) {
     const slice = words.slice(g * GROUP_WORDS, (g + 1) * GROUP_WORDS);
-    assert.ok(slice.some((v) => v !== 0), `group ${g} holds a Pac-Man frame`);
+    assert.ok(slice.every((v) => v === 0), `group ${g} must not carry Pac-Man art`);
   }
-  assert.notDeepEqual(
-    words.slice(0, GROUP_WORDS),
-    words.slice(GROUP_WORDS, 2 * GROUP_WORDS),
-    'open and closed right frames differ');
+});
+
+test('Flappy and Pac-Man carry separate sprite sets', () => {
+  const flappy = buildFlappy();
+  const at = (a) => flappy.words.find((w) => w[0] === a)?.[1];
+  for (const g of [0, 1, 8, 9, 16, 17]) {
+    for (let i = 0; i < GROUP_WORDS; i++)
+      assert.equal(at(0x2000 + g * GROUP_WORDS + i) ?? 0, 0,
+                   `Flappy pack group ${g} must stay free of Pac-Man`);
+  }
+  assert.equal(pacmanRuntimeSpriteFrames().length, 6, 'Pac-Man player frames');
+  assert.equal(pacmanGhostSpriteFrames().length, 4, 'Pac-Man ghost frames');
 });
 
 test('the game palette table matches the art colours', () => {

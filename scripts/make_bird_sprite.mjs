@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // scripts/make_bird_sprite.mjs - bake the three birds and the cloud into the
-// sprite bank.  Groups are absolute; the game selects a page (0 red, 1 purple,
-// 2 yellow) and keeps using relative groups 3..7 for the bird:
+// sprite bank.  Pac-Man's frames live in the Pac-Man slice, not here.  Groups
+// are absolute; the game selects a page (0 red, 1 purple, 2 yellow) and keeps
+// using relative groups 3..7 for the bird:
 //
 //   page 0/1/2  rel 2  cloud
 //               rel 3..5  bedazzled poses
@@ -14,7 +15,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BIRD_ORDER, birdFrames, dizzyFrames, cloudSprite } from './make_art.mjs';
-import { pacmanSpriteFrames } from './make_pacman_art.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const BIRD_GROUPS = [6, 7];
@@ -53,9 +53,9 @@ export function birdSpriteWords() {
     birdFrames(colour).slice(0, BIRD_GROUPS.length)
       .forEach((g, i) => writeFrame(words, base + BIRD_GROUPS[i], g));
   });
-  // Pac-Man fills the six groups Flappy leaves free: 0/1 (right open/closed),
-  // 8/9 (up), 16/17 (down).  The OAM H flip draws the left direction.
-  for (const { group, grid } of pacmanSpriteFrames()) writeFrame(words, group, grid);
+  // Pac-Man is not part of this set.  Its slice carries pac_sprite_data and
+  // pac_ghost_data and copies them into the bank at startup, so the baked
+  // bank and the Flappy pack stay bird/cloud-only.
   return words;
 }
 
