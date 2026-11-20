@@ -115,9 +115,11 @@ header has bit 15 set. Forth reaches it as
 boot script), and `essentials`' `slice-flush` now saves through it. Reads stay
 on function 11 (`read-slice`), which copies the whole 4 KiB slice into the
 caller's DS, so a load/save cycle is `read-slice` -> edit -> `fwrite` -> done.
-`fcreate`, `fdelete`, `fsize` and `fseek` are still open; the editor saves an
-existing slice today. `fseek` is unlikely to be needed in v1: the slice is the
-unit and read/write take an explicit source offset, not a hidden file cursor.
+`fcreate` (function 27), `fdelete` (28) and `fsize` (29) followed: `fcreate`
+allocates from the top, writes the header and appends the directory entry, so
+save-as is `fcreate` then `fwrite`. `fseek` is deliberately absent: the slice
+is the unit and read/write take an explicit source offset, not a hidden file
+cursor.
 
 **Slice-backed note:** a single slice holds 512 words. For files larger than
 one slice, `fread`/`fwrite` should follow the slice chain (continuation

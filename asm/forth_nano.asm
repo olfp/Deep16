@@ -1544,6 +1544,15 @@ interpret_next:
 ;  11  read-slice  -> R1 = slice (0..511), R4 = destination offset in the
 ;                     caller's DS. Copies one 4 KiB source slice there and
 ;                     returns R0 = 0, R1 = 0. Preserves DS and ES.
+;  27  fcreate     -> R1 = NUL-terminated name in the caller's DS, R4 = type.
+;                     Allocates a slice from the top, writes its header and a
+;                     directory entry, and returns R0 = slice, R1 = 0; on
+;                     failure R0 = 0xFFFF with R1 = 7.
+;  28  fdelete     -> R1 = name. Clears the directory entry; R0 = 0, R1 = 0,
+;                     or R0 = 0xFFFF with R1 = 8 when the name is absent.
+;  29  fsize       -> R1 = slice. R0 = text length (trailing LF padding
+;                     trimmed), binary word count, or 2040; 0xFFFF/6 when the
+;                     slice is outside 0..511.
 ;
 ; The scratch cells live at 0x2F40 so the code below runs to 0x2F3F.
 ; =============================================
@@ -1552,7 +1561,11 @@ interpret_next:
 ; unknown. The table is absolute addresses: BDOS runs with CS=0, so a handler
 ; anywhere in the kernel image (including the 0x4400 free block) is one JMP
 ; away.
+.ifdef D16NANO
+.equ BDOS_FN_COUNT, 30          ; 0..29; 27..29 are fcreate/fdelete/fsize
+.else
 .equ BDOS_FN_COUNT, 27          ; 0..26; 24..26 are the graphics register helpers
+.endif
 bdos_entry:
     MOV R2, R0                 ; park the function: LDI writes R0
     LDI BDOS_FN_COUNT
@@ -1603,6 +1616,11 @@ BDOS_JTABLE:
     .word bdos_gfx_read
     .word bdos_gfx_write
     .word bdos_gfx_copy
+.ifdef D16NANO
+    .word bdos_fcreate
+    .word bdos_fdelete
+    .word bdos_fsize
+.endif
 
 bdos_unknown:
     LSI R0, -1
@@ -2339,6 +2357,8 @@ bd_wr_page:
 
 ; fwrite, part 2: write-protect check, programming call and result.
 .org 0x2FC7
+bd_next:
+    .word 0
 .code
 fw_part2:
         LDI bd_wr_left
@@ -4310,6 +4330,488 @@ boot_script:
     .text ""              ; the empty line that ends the script
 .endif
 dict_free:               ; colon definitions are built upwards from here
+
+.ifdef D16NANO
+; ============================================================
+; BDOS 27..29: the slice file API (fcreate, fdelete, fsize)
+;
+; The nano builds move the dictionary to PSRAM (0x6000 or DS:0x5800), so
+; this gap below 0x4400 is free code space there. The plain CONSOLE_UART
+; builds keep their dictionary here and do not assemble this block.
+; ============================================================
+.org 0x3FCD
+.code
+; fd_pack: pack the NUL-terminated name at bd_name into 6 cells at
+; ES:R4, two characters per cell, zero padded. DS is the caller's DS.
+; Returns through LR; clobbers R0 and R2..R9.
+fd_pack:
+        LDI bd_name
+        MOV R2, R0
+        LDS R6, CS, R2
+        LSI R5, 0
+        LSI R8, 0
+fd_pack_loop:
+        MOV R2, R5
+        SL R2, 1
+        ADD R2, R6
+        LDS R7, DS, R2
+        MOV R2, R8
+        AND R2, R2
+        JNZ fd_pack_z0
+        NOP
+        MOV R2, R7
+        AND R2, R2
+        JNZ fd_pack_h0
+        NOP
+        LSI R8, 1
+fd_pack_z0:
+        LSI R7, 0
+fd_pack_h0:
+        MOV R3, R5
+        SL R3, 1
+        ADD R3, R6
+        ADD R3, 1
+        LDS R2, DS, R3
+        MOV R3, R8
+        AND R3, R3
+        JNZ fd_pack_z1
+        NOP
+        MOV R3, R2
+        AND R3, R3
+        JNZ fd_pack_h1
+        NOP
+        LSI R8, 1
+fd_pack_z1:
+        LSI R2, 0
+fd_pack_h1:
+        SL R2, 8
+        OR R7, R2
+        MOV R3, R5
+        ADD R3, R4
+        STS R7, ES, R3
+        ADD R5, 1
+        LDI 6
+        MOV R2, R0
+        CMP R5, R2
+        JNZ fd_pack_loop
+        NOP
+        JMP LR
+        NOP
+
+; fcreate: R1 = name, R4 = type. Returns R0 = new slice, or 0xFFFF/7.
+bdos_fcreate:
+        LDI bd_ent
+        MOV R2, R0
+        STS R12, CS, R2
+        MVS R2, DS
+        LDI bd_wr_ds
+        MOV R3, R0
+        STS R2, CS, R3
+        MVS R2, ES
+        LDI bd_wr_es
+        MOV R3, R0
+        STS R2, CS, R3
+        LDI bd_name
+        MOV R2, R0
+        STS R1, CS, R2
+        LDI bd_type
+        MOV R2, R0
+        STS R4, CS, R2
+        LDI bd_next
+        MOV R2, R0
+        LDS R3, CS, R2
+        LSI R4, 0
+        CMP R3, R4
+        JNZ fcr_have
+        NOP
+        LDI 512
+        MOV R3, R0
+fcr_have:
+        SUB R3, 1
+        STS R3, CS, R2
+        JNZ fcr_ok
+        NOP
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LSI R0, -1
+        LSI R1, 7
+        MOV PC, R2
+        NOP
+fcr_ok:
+        LDI bd_new
+        MOV R2, R0
+        STS R3, CS, R2
+        LSI R2, 0
+        MVS ES, R2
+        LDI 0x2F35
+        MOV R4, R0
+        LDI fd_pack
+        MOV R5, R0
+        LINK
+        JMP R5
+        NOP
+        LDI bd_type
+        MOV R2, R0
+        LDS R3, CS, R2
+        LDI 0x1000
+        MOV R4, R0
+        LDI 1
+        SL R0, 14
+        OR R4, R0
+        OR R3, R4
+        LDI 0x2F33
+        MOV R2, R0
+        STS R3, CS, R2
+        LDI 0x2F34
+        MOV R2, R0
+        LSI R3, -1
+        STS R3, CS, R2
+        LDI bd_new
+        MOV R2, R0
+        LDS R7, CS, R2
+        LDI bd_wr_src
+        MOV R2, R0
+        LDI 0x2F33
+        MOV R3, R0
+        STS R3, CS, R2
+        LDI bd_wr_left
+        MOV R2, R0
+        LSI R3, 8
+        STS R3, CS, R2
+        LDI 0x0FFF
+        MOV R2, R0
+        INV R2
+        MVS DS, R2
+        LSI R1, 1
+        LDI fcr_p1 - 0x4000
+        OR R0, 14
+        MOV R12, R0
+        LDI fd_program
+        MOV PC, R0
+        NOP
+fcr_p1:
+        LDI 0x4000
+        SL R0, 1
+        MVS ES, R0
+        LSI R7, 0
+        LDI fcr_p2 - 0x4000
+        OR R0, 14
+        MOV R12, R0
+        LDI slice_read
+        MOV PC, R0
+        NOP
+fcr_p2:
+        LSI R6, 8
+        LDI 255
+        MOV R5, R0
+fcr_find:
+        MOV R2, R6
+        ADD R2, 1
+        LDS R3, ES, R2
+        LSI R4, -1
+        CMP R3, R4
+        JZ fcr_found
+        NOP
+        ADD R6, 8
+        SUB R5, 1
+        JNZ fcr_find
+        NOP
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LSI R0, -1
+        LSI R1, 7
+        MOV PC, R2
+        NOP
+fcr_found:
+        LDI bd_type
+        MOV R2, R0
+        LDS R3, CS, R2
+        STS R3, ES, R6
+        LDI bd_new
+        MOV R2, R0
+        LDS R3, CS, R2
+        MOV R2, R6
+        ADD R2, 1
+        STS R3, ES, R2
+        LSI R5, 0
+fcr_copy:
+        LDI 0x2F35
+        MOV R2, R0
+        ADD R2, R5
+        LDS R3, CS, R2
+        MOV R2, R6
+        ADD R2, R5
+        ADD R2, 2
+        STS R3, ES, R2
+        ADD R5, 1
+        LDI 6
+        MOV R2, R0
+        CMP R5, R2
+        JNZ fcr_copy
+        NOP
+        LSI R7, 0
+        LDI bd_wr_src
+        MOV R2, R0
+        LSI R3, 0
+        STS R3, CS, R2
+        LDI bd_wr_left
+        MOV R2, R0
+        LDI 2048
+        MOV R3, R0
+        STS R3, CS, R2
+        LDI 0x0FFF
+        MOV R2, R0
+        INV R2
+        MVS DS, R2
+        LSI R1, 1
+        LDI fcr_p3 - 0x4000
+        OR R0, 14
+        MOV R12, R0
+        LDI fd_program
+        MOV PC, R0
+        NOP
+fcr_p3:
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LDI bd_new
+        MOV R3, R0
+        LDS R0, CS, R3
+        LSI R1, 0
+        MOV PC, R2
+        NOP
+
+; fdelete: R1 = name. Clears the directory entry; 0xFFFF/8 when absent.
+bdos_fdelete:
+        LDI bd_ent
+        MOV R2, R0
+        STS R12, CS, R2
+        MVS R2, DS
+        LDI bd_wr_ds
+        MOV R3, R0
+        STS R2, CS, R3
+        MVS R2, ES
+        LDI bd_wr_es
+        MOV R3, R0
+        STS R2, CS, R3
+        LDI bd_name
+        MOV R2, R0
+        STS R1, CS, R2
+        LSI R2, 0
+        MVS ES, R2
+        LDI 0x2F33
+        MOV R4, R0
+        LDI fd_pack
+        MOV R5, R0
+        LINK
+        JMP R5
+        NOP
+        LDI 0x4000
+        SL R0, 1
+        MVS ES, R0
+        LSI R7, 0
+        LDI 0x0FFF
+        MOV R2, R0
+        INV R2
+        MVS DS, R2
+        LSI R1, 1
+        LDI fdl_p1 - 0x4000
+        OR R0, 14
+        MOV R12, R0
+        LDI slice_read
+        MOV PC, R0
+        NOP
+fdl_p1:
+        LSI R6, 8
+        LDI 255
+        MOV R5, R0
+fdl_entry:
+        MOV R2, R6
+        ADD R2, 1
+        LDS R3, ES, R2
+        LSI R4, -1
+        CMP R3, R4
+        JZ fdl_next
+        NOP
+        LSI R7, 0
+fdl_cmp:
+        LDI 0x2F33
+        MOV R2, R0
+        ADD R2, R7
+        LDS R4, CS, R2
+        MOV R2, R6
+        ADD R2, R7
+        ADD R2, 2
+        LDS R3, ES, R2
+        CMP R4, R3
+        JNZ fdl_next
+        NOP
+        ADD R7, 1
+        LDI 6
+        MOV R2, R0
+        CMP R7, R2
+        JNZ fdl_cmp
+        NOP
+        LSI R7, 0
+fdl_clear:
+        MOV R2, R6
+        ADD R2, R7
+        LSI R3, -1
+        STS R3, ES, R2
+        ADD R7, 1
+        LDI 8
+        MOV R2, R0
+        CMP R7, R2
+        JNZ fdl_clear
+        NOP
+        LSI R7, 0
+        LDI bd_wr_src
+        MOV R2, R0
+        LSI R3, 0
+        STS R3, CS, R2
+        LDI bd_wr_left
+        MOV R2, R0
+        LDI 2048
+        MOV R3, R0
+        STS R3, CS, R2
+        LDI 0x0FFF
+        MOV R2, R0
+        INV R2
+        MVS DS, R2
+        LSI R1, 1
+        LDI fdl_p2 - 0x4000
+        OR R0, 14
+        MOV R12, R0
+        LDI fd_program
+        MOV PC, R0
+        NOP
+fdl_p2:
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LSI R0, 0
+        LSI R1, 0
+        MOV PC, R2
+        NOP
+fdl_next:
+        ADD R6, 8
+        SUB R5, 1
+        JNZ fdl_entry
+        NOP
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LSI R0, -1
+        LSI R1, 8
+        MOV PC, R2
+        NOP
+
+; fsize: R1 = slice. R0 = text length, binary word count, or 2040.
+bdos_fsize:
+        LDI bd_ent
+        MOV R2, R0
+        STS R12, CS, R2
+        MVS R2, DS
+        LDI bd_wr_ds
+        MOV R3, R0
+        STS R2, CS, R3
+        MVS R2, ES
+        LDI bd_wr_es
+        MOV R3, R0
+        STS R2, CS, R3
+        LDI 512
+        MOV R2, R0
+        CMP R1, R2
+        JC fsz_ok
+        NOP
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LSI R0, -1
+        LSI R1, 6
+        MOV PC, R2
+        NOP
+fsz_ok:
+        MOV R7, R1
+        LDI 0x0FFF
+        MOV R2, R0
+        INV R2
+        MVS DS, R2
+        LSI R1, 1
+        LDI 0x4000
+        SL R0, 1
+        MVS ES, R0
+        LDI fsz_p1 - 0x4000
+        OR R0, 14
+        MOV R12, R0
+        LDI slice_read
+        MOV PC, R0
+        NOP
+fsz_p1:
+        LSI R2, 0
+        LDS R3, ES, R2
+        LDI 0x00FF
+        MOV R2, R0
+        AND R3, R2
+        LDI 4
+        MOV R2, R0
+        CMP R3, R2
+        JZ fsz_bin
+        NOP
+        LDI 3
+        MOV R2, R0
+        CMP R3, R2
+        JZ fsz_text
+        NOP
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LDI 2040
+        LSI R1, 0
+        MOV PC, R2
+        NOP
+fsz_bin:
+        LSI R2, 11
+        LDS R3, ES, R2
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        MOV R0, R3
+        LSI R1, 0
+        MOV PC, R2
+        NOP
+fsz_text:
+        LDI 2040
+        MOV R4, R0
+fsz_scan:
+        LSI R2, 0
+        CMP R4, R2
+        JZ fsz_scan_done
+        NOP
+        MOV R2, R4
+        ADD R2, 7
+        LDS R3, ES, R2
+        LDI 10
+        MOV R2, R0
+        CMP R3, R2
+        JNZ fsz_scan_done
+        NOP
+        SUB R4, 1
+        LDI fsz_scan - 0x4000
+        OR R0, 14
+        MOV PC, R0
+        NOP
+fsz_scan_done:
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        MOV R0, R4
+        LSI R1, 0
+        MOV PC, R2
+        NOP
+.endif
 
 .code
 ; The second block of kernel code. It used to start at 0x0400, which left only

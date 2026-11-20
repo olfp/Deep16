@@ -23,6 +23,9 @@
 //  24  gfx-read    -> R1 = offset inside 0xF000; R0 = value
 //  25  gfx-write   -> R1 = offset, R4 = value
 //  26  gfx-copy    -> R1 = source in DS, R4 = offset, bd_count cells
+//  27  fcreate     -> R1 = name; R4 = type; R0 = new slice (or 0xFFFF/7)
+//  28  fdelete     -> R1 = name; R0 = 0 (or 0xFFFF/8)
+//  29  fsize       -> R1 = slice; R0 = payload length
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -306,6 +309,79 @@ test('function 7 refuses a write-protected image', () => {
 
   const big = callBdos(7, 512, { mem: buildMemory(kernel) });
   assert.equal(big.r0, 0xFFFF, 'a slice outside 0..511 is refused');
+});
+
+function flashWord(sim, off) {
+  return sim.spiFlash.mem[off] | (sim.spiFlash.mem[off + 1] << 8);
+}
+
+test('function 27 (fcreate) writes a header and a directory entry', () => {
+  const mem = buildMemory(kernel);
+  for (const [i, ch] of [...'newfile'].entries()) mem[0x0400 + i] = ch.charCodeAt(0);
+  mem[0x0407] = 0;
+  const { r0, r1, sim } = callBdos(27, 0x0400, { mem, arg4: 3 });
+  assert.equal(r0, 511, 'the first allocation comes from the top');
+  assert.equal(r1, 0);
+
+  const off = SCREEN_BASE + 511 * SLICE_BYTES;
+  assert.equal(flashWord(sim, off), 0x5003, 'header: magic 5 and type 3');
+  assert.equal(flashWord(sim, off + 2), 0xFFFF, 'header: no continuation');
+  assert.equal(flashWord(sim, off + 4), 'n'.charCodeAt(0) | ('e'.charCodeAt(0) << 8));
+
+  let entry = -1;
+  for (let i = 0; i < 255; i++) {
+    const e = SCREEN_BASE + 16 + i * 16;
+    if (flashWord(sim, e + 2) === 511) { entry = e; break; }
+  }
+  assert.ok(entry >= 0, 'the directory points at slice 511');
+  assert.equal(flashWord(sim, entry) & 0xFF, 3, 'entry type');
+  assert.equal(flashWord(sim, entry + 4), 'n'.charCodeAt(0) | ('e'.charCodeAt(0) << 8));
+});
+
+test('function 28 (fdelete) clears a directory entry by name', () => {
+  const flash = Buffer.from(slices.bytes);
+  let entry = -1;
+  for (let i = 0; i < 255; i++) {
+    const e = 16 + i * 16;
+    if (flash.readUInt16LE(e + 2) === 0xFFFF) { entry = e; break; }
+  }
+  assert.ok(entry >= 0);
+  flash.writeUInt16LE(3, entry);
+  flash.writeUInt16LE(400, entry + 2);
+  flash.writeUInt16LE('g'.charCodeAt(0) | ('o'.charCodeAt(0) << 8), entry + 4);
+  flash.writeUInt16LE('n'.charCodeAt(0) | ('e'.charCodeAt(0) << 8), entry + 6);
+
+  const mem = buildMemory(kernel);
+  for (const [i, ch] of [...'gone'].entries()) mem[0x0400 + i] = ch.charCodeAt(0);
+  mem[0x0404] = 0;
+  const { r0, r1, sim } = callBdos(28, 0x0400, { mem, flash });
+  assert.equal(r0, 0);
+  assert.equal(r1, 0);
+  assert.equal(flashWord(sim, SCREEN_BASE + entry + 2), 0xFFFF, 'the entry is free again');
+
+  const miss = callBdos(28, 0x0400, { mem: buildMemory(kernel), flash: slices.bytes });
+  assert.equal(miss.r0, 0xFFFF);
+  assert.equal(miss.r1, 8);
+});
+
+test('function 29 (fsize) reports text and binary lengths', () => {
+  const flash = Buffer.alloc(512 * SLICE_BYTES, 0xFF);
+  Buffer.from(slices.bytes).copy(flash);
+  const text = 400;
+  const textOff = text * SLICE_BYTES;
+  flash.writeUInt16LE(0x5003, textOff);
+  flash.writeUInt16LE(0xFFFF, textOff + 2);
+  const body = [...'abc\n'].map((c) => c.charCodeAt(0));
+  for (let i = 0; i < 2040; i++) flash.writeUInt16LE(i < body.length ? body[i] : 10, textOff + 16 + i * 2);
+
+  const bin = 401;
+  const binOff = bin * SLICE_BYTES;
+  flash.writeUInt16LE(0x5004, binOff);
+  flash.writeUInt16LE(0xFFFF, binOff + 2);
+  flash.writeUInt16LE(123, binOff + 22);      // payload cell 3 = word count
+
+  assert.equal(callBdos(29, text, { flash }).r0, 3, 'trailing LF padding is trimmed');
+  assert.equal(callBdos(29, bin, { flash }).r0, 123, 'binary uses the header word count');
 });
 
 test('function 11 reads a source slice into callers DS and keeps ES', () => {

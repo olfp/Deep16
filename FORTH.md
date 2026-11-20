@@ -334,6 +334,15 @@ check, `slice-buf slice-sec @ 2048 slice-write`, and the status line; the old
 `cf-page`/`cf-erase` SPI loop is gone. The directory editor clears the bit in
 the in-memory header with `slice-force` before it rewrites slice 0.
 
+The rest of the file API is BDOS 27–29, for native programs rather than Forth:
+`fcreate` takes a NUL-terminated name in DS and a type, allocates a slice from
+the top (`bd_next`), writes its header and appends a directory entry, and
+returns the slice; `fdelete` clears an entry by name; `fsize` returns the text
+length with trailing LF padding trimmed, the word count of a binary header, or
+2040. Save-as is therefore `fcreate` then `fwrite`; opening an existing file is
+`read-slice` (function 11) into the caller's buffer. The Forth editor keeps its
+own `slice-create`/`dir-add` words, which use `slice-flush`.
+
 ## Characters and strings
 
 | word | stack effect | meaning |

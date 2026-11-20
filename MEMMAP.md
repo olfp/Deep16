@@ -111,8 +111,9 @@ loader. The dictionary then continues at `0x6000`.
 | `0x004F5`–`0x004FF` | free |
 | `0x00500`–`0x01FFF` | kernel block 2 (primitives, interpreter, compiler) |
 | `0x02000`–`0x02FFF` | threading engine `next` and built-in word code |
-| `0x03000`–`0x03FCD` | kernel data, boot script, built-in headers, `rp0_base`, `dict_free` |
-| `0x03FCE`–`0x043FF` | free dictionary gap (`dict_free` at `0x3FCD`) |
+| `0x03000`–`0x03FCC` | kernel data, boot script, built-in headers, `rp0_base` |
+| `0x03FCD`–`0x0417C` | BDOS 27–29 `fcreate`/`fdelete`/`fsize` and `fd_pack` (D16NANO builds; the dictionary moves to PSRAM) |
+| `0x0417D`–`0x043FF` | free |
 | `0x04400`–`0x0444E` | `serial-read` Forth wrapper (`0x4400`) and its built-in header (`0x4440`) |
 | `0x04460`–`0x045FF` | `fitdemo` header, code and text |
 | `0x04600`–`0x0461E` | `bdos-slice` Forth wrapper (`0x4600`) |
@@ -178,7 +179,11 @@ loader. The dictionary then continues at `0x6000`.
 | `boot_script` | `0x3C14` | baked `forth/boot.fth` source |
 | `boot_ptr` | `0x3010` | next boot-script line |
 | `rp0_base` | `0x3001` | return-stack base cell (`0x5800` flat, `0x2FF0` D16SEG) |
-| `dict_free` | `0x3FCD` | first statically free word |
+| `dict_free` | `0x3FCD` | first statically free word in the non-PSRAM map; D16NANO moves the dictionary to `0x6000` (flat) or `DS:0x5800` |
+| `bd_next` | `0x2FC7` | `fcreate`'s descending slice allocator |
+| `bdos_fcreate` | `0x3FFC` | BDOS 27: allocate a slice and a directory entry |
+| `bdos_fdelete` | `0x40AA` | BDOS 28: clear a directory entry by name |
+| `bdos_fsize` | `0x411E` | BDOS 29: text/binary payload length |
 | `bios_entry` | `0x4A00` | BIOS entry / dispatch |
 | `irq_handler` | `0x51A0` | hardware IRQ (vector 1) handler |
 | `ill_handler` | `0x5000` | ILL trap handler |
@@ -276,7 +281,7 @@ automatically after ten seconds).
 
 ### 4.3 D16nano dictionary
 
-* Static image ends at `dict_free = 0x3FCD`; `0x3FCE`–`0x49FF` is the free gap
+* Static image ends at `dict_free = 0x3FCD`; in D16NANO builds the file API occupies `0x3FCD`–`0x417C` and the dictionary lives in PSRAM. `0x417D`–`0x49FF` is the free gap
   before the BIOS at `0x4A00`.
 * On PSRAM the boot probe moves `HERE` to `0x6000`; the runtime dictionary and
   the boot definitions (`free`, `mem`, `divtest` header, etc.)
@@ -310,7 +315,8 @@ Within `DS=0x1000`:
 | `0x0000`–`0x1FFF` | free: the SD driver keeps its sector buffer in the dictionary instead (`sd-buf`), so this window is still unclaimed |
 | `0x2000`–`0x2FFF` | return stack, top `0x2FF0` down, 4,080 frames |
 | `0x3000`–`0x434E` | kernel data, boot script, built-in headers (`rp0_base = 0x3001`) |
-| `0x3FCE`–`0x49FF` | free (`dict_free = 0x3FCD`); the old Pac-Man gap. Pac-Man now lives in config flash and loads to segment `0x2000` |
+| `0x3FCD`–`0x417C` | BDOS 27–29 (`fcreate`/`fdelete`/`fsize`) in D16NANO builds |
+| `0x417D`–`0x49FF` | free; the old Pac-Man gap. Pac-Man now lives in config flash and loads to segment `0x2000` |
 | `0x4A00`–`0x57DC` | BIOS and D16D data |
 | `0x5800`–`0xFFEF` | dictionary, grows up, ~42K words |
 

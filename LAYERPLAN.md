@@ -53,6 +53,8 @@ Das BDOS läuft per Far-Call (JML) im normalen Kontext (I=1). Hier finden ab sof
 • 3.3 BDOS-Block-UART-Reader (bdos_serial_read, Funktion 10): XMODEM-Paare, Abbruch bei PS/2-Taste.
 • 3.4 BDOS-PS/2-Init (bdos_ps2_init, Funktion 9): Reset-/ACK-/BAT-/Enable-Handshake ohne I=0-Wartezeiten.
 • 3.5 BDOS-Slice-Schreiber (bdos_fwrite, Funktion 7): **Umgesetzt 2026-11-20.** R1 = Slice, R4 = Quelloffset im DS des Aufrufers, `bd_count` = Zellen. Der Schreiber löscht den 4-KiB-Sektor und programmiert ihn seitenweise (WREN, 0x20-Erase, 0x02-Page-Programm, WIP-Poll); die vier Treiberroutinen (`fd_wren`, `fd_wait`, `fd_cmd`, `fd_program`) liegen in den freien BDOS-Lücken. Das Quell-Header-Bit 15 schützt vor Schreiben; `slice-force` löscht es im Speicherabbild. `slice-write ( src slice u -- r )` ist der Forth-Einstieg (Boot-Skript, Primitiv bei `0x4988`), und `slice-flush` in `essentials` speichert nur noch darüber. Lesen bleibt Funktion 11 (`bdos-slice`).
+• 3.6 BDOS-Slice-Dateiverwaltung (Funktionen 27–29): **Umgesetzt 2026-11-20.** `fcreate` (R1 = Name, R4 = Typ) vergibt eine Scheibe von oben (`bd_next`), schreibt Kopf und Verzeichniseintrag und liefert die Scheibennummer; `fdelete` (R1 = Name) löscht den Eintrag; `fsize` (R1 = Scheibe) liefert Textlänge ohne LF-Füllung, die Wortzahl eines Binärkopfs oder 2040. Der Code liegt im statischen Gap `0x3FCD`–`0x417C`, den die D16NANO-Builds nicht als Dictionary nutzen (es liegt in PSRAM); die einfachen `CONSOLE_UART`-Builds assemblieren ihn nicht.
+
 
 Schritt 4: Forth-Kernel auf BDOS & Non-Blocking BIOS umstellen
 
