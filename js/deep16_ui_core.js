@@ -1,14 +1,11 @@
 /* deep16_ui_core.js - Main UI class and core functionality */
+var DEEP16_BUILD = '20261119-4';
 (function () {
     try {
-        var script = document.currentScript;
-        var build = script && script.src ? new URL(script.src).searchParams.get('v') : null;
-        if (build) {
-            document.title = build + ' - DeepCode - Deep16 (深十六) IDE';
-            var heading = (typeof document.querySelector === 'function')
-                ? document.querySelector('.header-text h1') : null;
-            if (heading) heading.textContent = build + ' - DeepCode IDE';
-        }
+        document.title = DEEP16_BUILD + ' - DeepCode - Deep16 (深十六) IDE';
+        var heading = (typeof document.querySelector === 'function')
+            ? document.querySelector('.header-text h1') : null;
+        if (heading) heading.textContent = DEEP16_BUILD + ' - DeepCode IDE';
     } catch (e) { /* leave the static title in place */ }
 })();
 class DeepWebUI {
