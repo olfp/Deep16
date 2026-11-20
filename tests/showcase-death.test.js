@@ -17,6 +17,7 @@ import path from 'node:path';
 import { loadBrowserScripts } from './helpers.js';
 import { buildShowcase, checkShowcase, SHOWCASE_SEG_BASE
 } from '../scripts/make_showcase.mjs';
+import { birdSpriteWords } from '../scripts/make_bird_sprite.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRAME_PERIOD = 0x1000;       // steps between frame-flag toggles
@@ -49,10 +50,15 @@ const flappySource = ['asm/showcase/flappy_defs.asm', 'asm/showcase/flappy_game.
 const flappy = new globalThis.Deep16Assembler().assemble(flappySource);
 assert.equal(flappy.success, true, flappy.errors.join('; '));
 const flappyMax = flappy.memoryChanges.reduce((m, c) => Math.max(m, c.address), 0);
+const flappySprites = birdSpriteWords();
 
 function placeFlappy(sim) {
   for (let i = 0; i <= flappyMax; i++) sim.memory[GB + i] = 0xFFFF;
   for (const c of flappy.memoryChanges) sim.memory[GB + c.address] = c.value & 0xFFFF;
+  // The slice carries the bird/Pac-Man sprite pack at 0x2000; Flappy copies it
+  // into the shared sprite bank on entry.
+  for (let i = 0; i < flappySprites.length; i++)
+    sim.memory[GB + 0x2000 + i] = flappySprites[i] & 0xFFFF;
 }
 
 function start(mode) {
@@ -72,6 +78,11 @@ function start(mode) {
   sim.memory[0xE000] = 0xFFF3;
   sim.memory[G_PLAYS] = 0;
   sim.cycleCount = 0;
+  // The slice installs its 6,144-word sprite pack before the game loop. Let
+  // that finish so frame 0 starts from initialized state, as on the board.
+  for (let i = 0; i < 0x20000 && (sim.memory[G_BIRD_Y] & 0xFFFF) === 0xFFFF; i++)
+    sim.step();
+  sim.memory[UART_STATUS] = 0;
   return sim;
 }
 
@@ -241,4 +252,30 @@ test('a non-Q key does not abort the death sequence', () => {
   assert.equal(r.quitFrame, -1, 'stayed in the game');
   assert.equal(r.sim.memory[G_DEATH], 0, 'death ran to completion');
   assert.equal(r.sim.memory[GB + 0x4D6], 3, 'back in attract mode');
+});
+
+test('Flappy reinstalls its sprite bank after another game', () => {
+  // Pole and Frogger copy their own art into the shared 0xF400 bank. Flappy's
+  // slice carries the bird/Pac-Man pack at 0x2000 and copies it back on entry.
+  const sim = new globalThis.Deep16Simulator();
+  placeFlappy(sim);
+  for (let i = 0; i < flappySprites.length; i++) sim.memory[0xF4000 + i] = 0xAAAA;
+  sim.d16nano = true;
+  sim.registers[9] = 0;
+  sim.registers[10] = 0x04A0;
+  sim.registers[11] = RET_PC;
+  sim.registers[15] = 0;
+  sim.segmentRegisters = { CS: 0x5000, DS: 0x5000, SS: 0, ES: 0 };
+  sim.memory[UART_STATUS] = 0;
+  sim.memory[2] = 0xE000;
+  sim.memory[0xE000] = 0xFFF3;
+  sim.memory[G_PLAYS] = 0;
+  sim.cycleCount = 0;
+  sim.running = true;
+  for (let i = 0; i < 0x20000 && (sim.memory[G_BIRD_Y] & 0xFFFF) === 0xFFFF; i++)
+    sim.step();
+  for (let i = 0; i < flappySprites.length; i++) {
+    assert.equal(sim.memory[0xF4000 + i] & 0xFFFF, flappySprites[i] & 0xFFFF,
+                 `sprite word ${i} restored from the slice`);
+  }
 });

@@ -20,6 +20,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { ART_PACK_OFFSET, flappyArtPack, pacmanArtPack, froggerArtPack } from './make_tile_font.mjs';
 import { SPR_PACK_OFFSET, froggerSpritePack } from './make_frogger_sprites.mjs';
+import { birdSpriteWords } from './make_bird_sprite.mjs';
 import {
   ART_OFFSETS, poleTileWords, poleSpriteWords, polePaletteWords,
 } from './make_pole_art.mjs';
@@ -42,6 +43,8 @@ export const FROGGER_SEG_BASE = 0x6000;
 export const FROGGER_LIMIT = 0x1000;           // code and state stay below the tile pack
 export const GAME_LIMIT = 0x0E00;             // game may use 0xA00..0xDFF
 export const POLE_SEG = 0x7000;                // physical 0x70000 (free segment)
+export const FLAPPY_SPR_PACK = 0x2000;          // after the Flappy tile pack
+
 export const POLE_LIMIT = 0x2600;              // the code, then the art blocks
 
 export const STATE_BASE = 0x4D5;              // game state cells
@@ -160,14 +163,28 @@ export function buildFlappy() {
   }
   words.sort((a, b) => a[0] - b[0]);
   const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
-  return withArtPack(
+  const block = withArtPack(
     { words, min: words[0]?.[0] ?? 0, max, size: max + 1, build, entry: 0, seg: 0x5000 },
     flappyArtPack());
+  // The bird and Pac-Man frames used to live only in the bitstream sprite
+  // bank, so a game that installed its own art (Pole, Frogger) left Flappy
+  // with the wrong sprites. Carry the pack in the slice and let Flappy copy
+  // it into 0xF400 on entry.
+  const sprites = birdSpriteWords();
+  for (let i = 0; i < sprites.length; i++) block.words.push([FLAPPY_SPR_PACK + i, sprites[i] & 0xFFFF]);
+  block.words.sort((a, b) => a[0] - b[0]);
+  block.spriteOffset = FLAPPY_SPR_PACK;
+  block.spriteWords = sprites.length;
+  block.max = Math.max(block.max, FLAPPY_SPR_PACK + sprites.length - 1);
+  return block;
 }
 
 export function checkFlappy(flappy) {
   if (flappy.words[0]?.[0] !== 0) throw new Error('flappy block does not start at offset 0');
   if (flappy.max >= 0x10000) throw new Error('flappy block is too large');
+  const at = (a) => flappy.words.find((w) => w[0] === a)?.[1];
+  if (at(FLAPPY_SPR_PACK) === undefined) throw new Error('flappy sprite pack missing at 0x2000');
+  if (flappy.max > 0x3FFF) throw new Error(`flappy block reaches 0x${flappy.max.toString(16)}, past the sprite pack`);
   return true;
 }
 

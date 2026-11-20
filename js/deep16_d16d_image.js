@@ -194,7 +194,7 @@ class Deep16D16DImage {
       biosEntry: kres.symbols.bios_entry,
       symbols: kres.symbols,
       showcase: { words: sres.memoryChanges.map((c) => [c.address, c.value & 0xFFFF]) },
-      flappy: block(fres, 0x5000, packs.flappy),
+      flappy: block(fres, 0x5000, packs.flappy, packs.flappySprites),
       frogger: block(gres, 0x0600, packs.frogger, packs.froggerSprites),
       pacman: (() => {
         const b = block(pres, 0x2000, packs.pacman);

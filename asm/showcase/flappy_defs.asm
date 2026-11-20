@@ -57,6 +57,12 @@
 .equ T_CLOUD_M    0x0D80
 .equ T_CLOUD_R    0x0DA0
 
+; The bird/Pac-Man sprite pack travels in this slice at 0x2000 and is copied
+; into the shared sprite bank on entry, so a previous game cannot leave its
+; own sprites behind.
+.equ FLAPPY_SPR_PACK  0x2000
+.equ FLAPPY_SPR_WORDS 6144
+
 .org 0x3CC
 cloud_init:
     .word 100, 300, 500, 700

@@ -31,6 +31,26 @@ flappy_start:
     LDI G_START_MODE
     MOV R2, R0
     ST R9, R2, 0
+
+    ; Install this slice's bird/Pac-Man sprite pack. The sprite bank is shared
+    ; with the menu and the other games; Pole and Frogger overwrite it, so a
+    ; game that relies on the baked bitstream copy would show their sprites.
+    LDI FLAPPY_SPR_PACK
+    MOV R2, R0
+    LSI R3, 0
+    LDI SEG_SPR
+    MVS ES, R0
+    LDI FLAPPY_SPR_WORDS
+    MOV R4, R0
+flappy_spr_copy:
+    LDS R5, DS, R2
+    STS R5, ES, R3
+    ADD R2, 1
+    ADD R3, 1
+    SUB R4, 1
+    JNZ flappy_spr_copy
+    NOP
+
     LDI game_entry
     MOV PC, R0
     NOP
